@@ -1,13 +1,12 @@
 /**
  * @vitest-environment happy-dom
  */
-import React from "react";
+import { closeDocumentWorkingCopiesUnderResource, createWorkspaceFolder, type Workspace } from "@puppyone/shared-ui";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createWorkspaceFolder, closeDocumentWorkingCopiesUnderResource, type Workspace } from "@puppyone/shared-ui";
 import { useWorkbenchWorkspaceContentWatch } from "../../../../src/features/data-workspace/useWorkbenchWorkspaceContentWatch";
-import type { WorkspaceChangedEvent } from "../src/types/electron";
+import type { WorkspaceChangedEvent } from "../../../../src/types/electron";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;

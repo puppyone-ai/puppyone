@@ -1,20 +1,20 @@
+import type { AuxiliaryWorkbenchHistoryBrowserContext } from "../../../../src/features/app-shell/auxiliary-workbench/types";
 /**
  * @vitest-environment happy-dom
  */
-import React from "react";
+import { useLocalization } from "@puppyone/localization/react";
+import type { Workspace } from "@puppyone/shared-ui";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Workspace } from "@puppyone/shared-ui";
+import { AuxiliaryWorkbenchLauncher } from "../../../../src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchLauncher";
+import { AuxiliaryWorkbenchPanel } from "../../../../src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel";
+import { ProjectWorkbenchStore } from "../../../../src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore";
 import type {
   AuxiliaryWorkbenchContribution,
   AuxiliaryWorkbenchPreparationContext,
 } from "../../../../src/features/app-shell/auxiliary-workbench/types";
-import { AuxiliaryWorkbenchPanel } from "../../../../src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel";
-import { AuxiliaryWorkbenchLauncher } from "../../../../src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchLauncher";
-import { ProjectWorkbenchStore } from "../../../../src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore";
 import { createTerminalWorkbenchContribution } from "../../../../src/features/desktop-terminal/workbench/TerminalWorkbenchContribution";
-import { useLocalization } from "@puppyone/localization/react";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
@@ -252,7 +252,7 @@ function fakeChatContribution(
     history: Object.freeze({
       label: "Chat history",
       iconKey: null,
-      renderBrowser: ({ onBack, onOpen }) => (
+      renderBrowser: ({ onBack, onOpen }: AuxiliaryWorkbenchHistoryBrowserContext) => (
         <div data-fake-history="true">
           <button type="button" onClick={onBack}>Back</button>
           <button

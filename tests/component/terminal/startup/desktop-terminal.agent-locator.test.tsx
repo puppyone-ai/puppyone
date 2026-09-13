@@ -1,8 +1,8 @@
+import type { DesktopBridge } from "../../../support/electron/desktopBridge";
 /**
  * @vitest-environment happy-dom
  */
-import React, { useEffect } from "react";
-import { act } from "react";
+import { act, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useTerminalAgentLocator } from "../../../../src/features/desktop-terminal/controller/useTerminalAgentLocator";
@@ -28,16 +28,16 @@ describe("Terminal Agent locator controller", () => {
       getAgentActivityEnrollment,
       setAgentActivityEnrollment,
     });
-    let latest: LocatorView | null = null;
-    mount((value) => { latest = value; });
+    const latest: { current: LocatorView | null } = { current: null };
+    mount((value) => { latest.current = value; });
 
-    await vi.waitFor(() => expect(latest?.phase).toBe("ready"));
-    expect(latest?.ids).toEqual(["codex"]);
+    await vi.waitFor(() => expect(latest.current?.phase).toBe("ready"));
+    expect(latest.current?.ids).toEqual(["codex"]);
     expect(getAgentActivityEnrollment).not.toHaveBeenCalled();
     expect(setAgentActivityEnrollment).not.toHaveBeenCalled();
 
     await act(async () => {
-      await latest?.refresh();
+      await latest.current?.refresh();
     });
     expect(locate).toHaveBeenCalledTimes(2);
     expect(getAgentActivityEnrollment).not.toHaveBeenCalled();
@@ -51,12 +51,12 @@ describe("Terminal Agent locator controller", () => {
       .mockReturnValueOnce(first.promise)
       .mockReturnValueOnce(second.promise);
     installBridge(locate);
-    let latest: LocatorView | null = null;
-    mount((value) => { latest = value; });
+    const latest: { current: LocatorView | null } = { current: null };
+    mount((value) => { latest.current = value; });
 
     await vi.waitFor(() => expect(locate).toHaveBeenCalledTimes(1));
     await act(async () => {
-      void latest?.refresh();
+      void latest.current?.refresh();
     });
     expect(locate).toHaveBeenNthCalledWith(2, {
       refresh: true,
@@ -67,13 +67,13 @@ describe("Terminal Agent locator controller", () => {
       second.resolve(snapshot(["codex"]));
       await second.promise;
     });
-    expect(latest?.ids).toEqual(["codex"]);
+    expect(latest.current?.ids).toEqual(["codex"]);
 
     await act(async () => {
       first.resolve(snapshot(["opencode"]));
       await first.promise;
     });
-    expect(latest?.ids).toEqual(["codex"]);
+    expect(latest.current?.ids).toEqual(["codex"]);
   });
 
   it("retains the last successful list when refresh fails", async () => {
@@ -83,30 +83,30 @@ describe("Terminal Agent locator controller", () => {
       .mockReturnValueOnce(first.promise)
       .mockReturnValueOnce(second.promise);
     installBridge(locate);
-    let latest: LocatorView | null = null;
-    mount((value) => { latest = value; });
+    const latest: { current: LocatorView | null } = { current: null };
+    mount((value) => { latest.current = value; });
 
     await vi.waitFor(() => expect(locate).toHaveBeenCalledTimes(1));
     await act(async () => {
       first.resolve(snapshot(["claude"]));
       await first.promise;
     });
-    expect(latest?.ids).toEqual(["claude"]);
+    expect(latest.current?.ids).toEqual(["claude"]);
     await act(async () => {
-      const refresh = latest?.refresh();
+      const refresh = latest.current?.refresh();
       second.reject(new Error("IPC unavailable"));
       await refresh;
     });
-    expect(latest?.phase).toBe("error");
-    expect(latest?.ids).toEqual(["claude"]);
+    expect(latest.current?.phase).toBe("error");
+    expect(latest.current?.ids).toEqual(["claude"]);
   });
 
   it("shows installed Agents incrementally and ignores another request's events", async () => {
-    const final = deferred<unknown>();
-    const locate = vi.fn(() => final.promise);
+    const final = deferred<Awaited<ReturnType<DesktopBridge["locateTerminalAgents"]>>>();
+    const locate = vi.fn<DesktopBridge["locateTerminalAgents"]>(() => final.promise);
     const bridge = installBridge(locate);
-    let latest: LocatorView | null = null;
-    mount((value) => { latest = value; });
+    const latest: { current: LocatorView | null } = { current: null };
+    mount((value) => { latest.current = value; });
 
     await vi.waitFor(() => expect(locate).toHaveBeenCalledOnce());
     const requestId = locate.mock.calls[0]?.[0]?.requestId;
@@ -116,8 +116,8 @@ describe("Terminal Agent locator controller", () => {
       requestId,
       totalAgentCount: 6,
     }));
-    expect(latest?.phase).toBe("loading");
-    expect(latest?.ids).toEqual(["codex", "opencode"]);
+    expect(latest.current?.phase).toBe("loading");
+    expect(latest.current?.ids).toEqual(["codex", "opencode"]);
 
     act(() => bridge.emitProgress({
       availableAgentIds: ["hermes"],
@@ -125,14 +125,14 @@ describe("Terminal Agent locator controller", () => {
       requestId: "terminal-agent-location:stale",
       totalAgentCount: 6,
     }));
-    expect(latest?.ids).toEqual(["codex", "opencode"]);
+    expect(latest.current?.ids).toEqual(["codex", "opencode"]);
 
     await act(async () => {
       final.resolve(snapshot(["codex", "opencode", "hermes"]));
       await final.promise;
     });
-    expect(latest?.phase).toBe("ready");
-    expect(latest?.ids).toEqual(["codex", "opencode", "hermes"]);
+    expect(latest.current?.phase).toBe("ready");
+    expect(latest.current?.ids).toEqual(["codex", "opencode", "hermes"]);
   });
 });
 
@@ -153,26 +153,26 @@ function installBridge(
   locate: ReturnType<typeof vi.fn>,
   additionalBridgeMethods: Record<string, unknown> = {},
 ) {
-  let progressCallback: ((event: unknown) => void) | null = null;
+  const progressCallback: { current: ((event: unknown) => void) | null } = { current: null };
   Object.defineProperty(window, "puppyoneDesktop", {
     configurable: true,
     value: {
       locateTerminalAgents: locate,
       onTerminalAgentLocationProgress: vi.fn((callback) => {
-        progressCallback = callback;
-        return () => { progressCallback = null; };
+        progressCallback.current = callback;
+        return () => { progressCallback.current = null; };
       }),
       ...additionalBridgeMethods,
     },
   });
   return {
     emitProgress(event: unknown) {
-      progressCallback?.(event);
+      progressCallback.current?.(event);
     },
   };
 }
 
-function snapshot(ids: string[]) {
+function snapshot(ids: Awaited<ReturnType<DesktopBridge["locateTerminalAgents"]>>["availableAgentIds"]): Awaited<ReturnType<DesktopBridge["locateTerminalAgents"]>> {
   return {
     availableAgentIds: ids,
     scannedAt: "2026-08-15T00:00:00.000Z",

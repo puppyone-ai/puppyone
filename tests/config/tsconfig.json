@@ -2,13 +2,13 @@
   "extends": "../../tsconfig.json",
   "include": [
     "../../src/vite-env.d.ts",
-    "../unit/editor/formats/context-map/contextMapDocument.test.ts",
-    "../unit/editor/formats/context-map/contextMapFilters.test.ts",
-    "../unit/editor/formats/context-map/contextMapGraph.test.ts",
-    "../unit/editor/formats/context-map/contextMapLayout.test.ts",
-    "../unit/editor/formats/context-map/contextMapRouting.test.ts",
-    "../architecture/editor/formats/context-map/contextMapStyle.test.ts",
-    "../unit/editor/formats/context-map/contextMapWheelNavigation.test.ts",
-    "../unit/terminal/io/TerminalControlQueue.test.ts"
+    "../**/*.ts",
+    "../**/*.tsx"
+  ],
+  "compilerOptions": {
+    "allowJs": true
+  },
+  "exclude": [
+    "./*.ts"
   ]
 }

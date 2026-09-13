@@ -1,17 +1,18 @@
-import { withDisplayFeed } from "../../../support/agent/agentDisplayFixture";
+import { displaySnapshot, withDisplayFeed } from "../../../support/agent/agentDisplayFixture";
+import { defineAgentEvent, type AgentEventPayloadMap } from "../../../support/agent/agentEventFixture";
+import { installDesktopBridge } from "../../../support/electron/desktopBridge";
 /**
  * @vitest-environment happy-dom
  */
-import React from "react";
-import { act } from "react";
+import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AuxiliaryWorkbenchPanel } from "../../../../src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel";
 import { ProjectWorkbenchStore } from "../../../../src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore";
 import type { AuxiliaryWorkbenchContribution } from "../../../../src/features/app-shell/auxiliary-workbench/types";
+import type { AgentEvent, AgentSessionSnapshot } from "../../../../src/features/desktop-agent/agentTypes";
 import { AgentChatWorkbenchItem, requestCloseAgentChatWorkbenchItem } from "../../../../src/features/desktop-agent/workbench/AgentChatWorkbenchItem";
 import { projectAgentControllers } from "../../../../src/features/desktop-agent/workbench/projectAgentControllers";
-import type { AgentEvent, AgentSessionSnapshot } from "../../../../src/features/desktop-agent/agentTypes";
 import { stripBidiIsolation, withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -346,7 +347,7 @@ function renderPanel(
   bridge: ReturnType<typeof createBridgeHarness>["bridge"],
   preferredRuntimeId: string | null = null,
 ) {
-  (window as Window & { puppyoneDesktop?: unknown }).puppyoneDesktop = bridge;
+  installDesktopBridge(bridge);
   project = new ProjectWorkbenchStore({ projectId: "workspace", generation: "open-1", rootPath: "/workspace" });
   project.dispatch({ type: "create", item: { id: "chat-1", kind: "agent-chat", rootId: "/workspace", contextId: "workspace" }, groupId: "group-1", targetGroupId: null });
   const container = document.createElement("div");
@@ -450,7 +451,7 @@ function readyInspection() {
 }
 
 function snapshot(events: AgentEvent[]): AgentSessionSnapshot {
-  return {
+  return displaySnapshot({
     session: {
       id: "session-1",
       runtimeId: "opencode",
@@ -475,7 +476,7 @@ function snapshot(events: AgentEvent[]): AgentSessionSnapshot {
     partial: false,
     firstAvailableSequence: events[0]?.sequence ?? 1,
     lastSequence: events.at(-1)?.sequence ?? 1,
-  };
+  });
 }
 
 function capabilities() {
@@ -504,14 +505,14 @@ function capabilities() {
   };
 }
 
-function event(
+function event<T extends AgentEvent["type"]>(
   sequence: number,
-  type: AgentEvent["type"],
-  payload: Record<string, unknown>,
+  type: T,
+  payload: AgentEventPayloadMap[T] & Record<string, unknown>,
   turnId: string | null = null,
   itemId: string | null = null,
-): AgentEvent {
-  return {
+): AgentEvent<T> {
+  return defineAgentEvent<T>({
     schemaVersion: 1,
     sequence,
     sessionId: "session-1",
@@ -523,7 +524,7 @@ function event(
     emittedAt: new Date(sequence * 1000).toISOString(),
     type,
     payload,
-  };
+  });
 }
 
 async function flushEffects() {

@@ -1,10 +1,11 @@
 // @vitest-environment happy-dom
 
-import { act } from "react";
 import { readFileSync } from "node:fs";
+import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { DEFAULT_MARKDOWN_PRESENTATION_SETTINGS } from "../../../../src/features/markdown/markdownPresentation";
 import { SubThemeStyleHost } from "../../../../src/features/themes/SubThemeStyleHost";
 import {
   BUILTIN_SUB_THEMES,
@@ -15,8 +16,7 @@ import {
   getSubThemeVariant,
   type SubThemeDefinition,
 } from "../../../../src/features/themes/themeTypes";
-import { DEFAULT_MARKDOWN_PRESENTATION_SETTINGS } from "../../../../src/features/markdown/markdownPresentation";
-import type { DesktopThemeDefinition } from "../src/types/electron";
+import type { DesktopThemeDefinition } from "../../../../src/types/electron";
 
 let container: HTMLDivElement;
 let root: Root;

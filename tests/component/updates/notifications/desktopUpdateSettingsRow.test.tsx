@@ -1,11 +1,11 @@
 /**
  * @vitest-environment happy-dom
  */
-import React, { act } from "react";
+import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DesktopUpdateSettingsRow } from "../../../../src/features/updates/DesktopUpdateSettingsRow";
-import type { DesktopUpdateState, DesktopUpdateStatus } from "../src/types/electron";
+import type { DesktopUpdateState, DesktopUpdateStatus } from "../../../../src/types/electron";
 import { renderWithTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

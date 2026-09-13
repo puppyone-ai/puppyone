@@ -23,9 +23,9 @@ describe("pre-release check definitions", () => {
   it("retains every existing CI gate and builds UI dependencies once", async () => {
     const actual = await loadManifest();
     expect(actual.checks.map((entry) => entry.id)).toEqual([
-      "lint", "updater-p0", "tests", "markdown-focus", "native-resize-cursor", "build", "agent-viewport",
+      "lint", "test-types", "updater-p0", "tests", "markdown-focus", "native-resize-cursor", "build", "agent-viewport",
       "agent-tools", "project-sessions", "appearance", "auxiliary-appearance",
-      "item-utilities", "item-renderers", "editor-runtime", "platform-contracts",
+      "item-utilities", "editor-runtime", "editor-panes", "platform-contracts",
     ]);
     expect(actual.checks.find((entry) => entry.id === "updater-p0").command).toEqual(["npm", "run", "test:updater-p0:coverage"]);
     expect(createPlan(actual, { checkId: "agent-viewport" }).map((entry) => entry.id)).toEqual(["build", "agent-viewport"]);
@@ -102,6 +102,42 @@ describe("pre-release execution and evidence", () => {
     expect(result.exitCode).toBe(1);
     expect(result.report.checks[0].message).toContain("artifact");
     expect(result.report.checks[0].artifacts).toEqual([{ base: "run", path: "a/missing.json", exists: false }]);
+  });
+
+  it("archives repository reports and directories before a later command overwrites them", async () => {
+    const root = await fixture();
+    const data = manifest({ ...check("full"), artifacts: ["report.json", "screenshots"] }, check("focused"));
+    const result = await runChecks(data, {
+      repositoryRoot: root, sourceReader: identity, output: null,
+      execute: async (entry) => {
+        if (entry.id === "full") {
+          await mkdir(path.join(root, "screenshots"));
+          await writeFile(path.join(root, "screenshots", "frame.png"), "frame-original");
+        }
+        await writeFile(path.join(root, "report.json"), entry.id);
+        return { status: "passed", durationMs: 0 };
+      },
+    });
+    expect(result.exitCode).toBe(0);
+    const [report, screenshot] = result.report.checks[0].artifacts;
+    const directory = path.dirname(result.reportPath);
+    expect(await readFile(path.join(directory, report.path), "utf8")).toBe("full");
+    expect(await readFile(path.join(root, "report.json"), "utf8")).toBe("focused");
+    expect(await readFile(path.join(directory, screenshot.path, "frame.png"), "utf8")).toBe("frame-original");
+    expect(report).toMatchObject({ base: "run", sourceBase: "repository", sourcePath: "report.json", fresh: true, fileCount: 1, sha256: expect.stringMatching(/^[a-f0-9]{64}$/) });
+    expect(result.report.source.commit).toBe("test-commit");
+  });
+
+  it("fails a successful command that only leaves a previous run's report in place", async () => {
+    const root = await fixture();
+    await writeFile(path.join(root, "stale.json"), "old run");
+    const result = await runChecks(manifest({ ...check("full"), artifacts: ["stale.json"] }), {
+      repositoryRoot: root, sourceReader: identity, output: null,
+      execute: async () => ({ status: "passed", durationMs: 0 }),
+    });
+    expect(result.exitCode).toBe(1);
+    expect(result.report.checks[0].message).toContain("freshly produced");
+    expect(result.report.checks[0].artifacts[0]).toMatchObject({ exists: true, fresh: false });
   });
 
   it("does not overwrite or adopt another invocation's lock", async () => {

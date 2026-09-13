@@ -1,15 +1,14 @@
 /**
  * @vitest-environment happy-dom
  */
-import React from "react";
-import { act } from "react";
+import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DesktopTitlebarActions } from "../../../../src/features/app-shell/DesktopTitlebarActions";
 import { AuxiliaryWorkbenchCloseDialog } from "../../../../src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchCloseDialog";
+import type { TerminalTabMoveDragController } from "../../../../src/features/desktop-terminal/interactions/useTerminalTabMoveDrag";
 import type { TerminalRuntimeHandle } from "../../../../src/features/desktop-terminal/runtime/terminalRuntime";
 import { TerminalSessionHeader } from "../../../../src/features/desktop-terminal/ui/session-header/TerminalSessionHeader";
-import type { TerminalTabMoveDragController } from "../../../../src/features/desktop-terminal/interactions/useTerminalTabMoveDrag";
 import { DEFAULT_TITLEBAR_ACTIONS_SETTINGS } from "../../../../src/preferences";
 import { withTestLocalization } from "../../../support/react/localization";
 
@@ -418,7 +417,7 @@ describe("Desktop Terminal tab session manager", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
-    const sessions = ["codex", "claude", "cursor", "opencode", "pi", "hermes"]
+    const sessions = (["codex", "claude", "cursor", "opencode", "pi", "hermes"] as const)
       .map((launcherId, index) => ({
         id: `terminal-${index + 1}`,
         launcherId,

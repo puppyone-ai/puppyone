@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { EditorView } from "@codemirror/view";
 import { findDocumentSurface, findMarkdownSurfaceEditor, isDocumentSurfaceCommitted } from "./documentSurfaceProbe";
 import type {
@@ -46,6 +46,7 @@ declare global {
 }
 
 export function RendererPerformanceSmokeHarness() {
+  const [workspaceMounted, setWorkspaceMounted] = useState(true);
   const nodes = useMemo(() => makeExplorerNodes(1_000), []);
   const source = useMemo(() => makeMarkdown(10_000), []);
   const oversizedTableSource = useMemo(() => makeOversizedTable(1_000), []);
@@ -83,7 +84,13 @@ export function RendererPerformanceSmokeHarness() {
     const finish = () => {
       if (stopped) return;
       stopped = true;
-      window.setTimeout(runWorkerSelfCheck, ENABLE_LINK_INDEX ? 1_500 : 0);
+      window.setTimeout(() => {
+        // The workspace retains its indexing worker for incremental saves.
+        // Retire that measured fixture before allocating the independent worker
+        // self-check; the scheduler intentionally admits one background worker.
+        setWorkspaceMounted(false);
+        window.setTimeout(runWorkerSelfCheck, 0);
+      }, ENABLE_LINK_INDEX ? 1_500 : 0);
     };
 
     const runWorkerSelfCheck = () => {
@@ -94,6 +101,7 @@ export function RendererPerformanceSmokeHarness() {
         { path: "worker-target.md", name: "worker-target.md", content: "# Target" },
       ]);
       void request.promise.then((index) => {
+        coordinator.cancel();
         if (index.indexedDocumentCount !== 2 || index.backlinks.length !== 1) {
           throw new Error("Markdown link index worker returned an invalid snapshot.");
         }
@@ -107,7 +115,9 @@ export function RendererPerformanceSmokeHarness() {
           });
         });
       }).catch((error) => {
+        coordinator.cancel();
         window.__PUPPYONE_RENDERER_PERFORMANCE_SMOKE_RESULT__ = {
+          ...tracker.getSummary(),
           error: error instanceof Error ? error.message : String(error),
         };
       });
@@ -142,7 +152,7 @@ export function RendererPerformanceSmokeHarness() {
     const failPresentationContract = (message: string) => {
       if (stopped) return;
       stopped = true;
-      window.__PUPPYONE_RENDERER_PERFORMANCE_SMOKE_RESULT__ = { error: message };
+      window.__PUPPYONE_RENDERER_PERFORMANCE_SMOKE_RESULT__ = { ...tracker.getSummary(), error: message };
     };
 
     const verifyPendingPresentation = (documentId: string) => {
@@ -293,6 +303,7 @@ export function RendererPerformanceSmokeHarness() {
       if (stopped) return;
       stopped = true;
       window.__PUPPYONE_RENDERER_PERFORMANCE_SMOKE_RESULT__ = {
+        ...tracker.getSummary(),
         error: `Renderer performance smoke timed out after ${tracker.getSummary().completedSamples} samples.`,
       };
     }, 60_000);
@@ -306,7 +317,7 @@ export function RendererPerformanceSmokeHarness() {
 
   return (
     <div style={{ width: "1280px", height: "800px" }}>
-      <DataWorkspace
+      {workspaceMounted && <DataWorkspace
         workspace={workspace}
         dataPort={dataPort}
         showHeader={false}
@@ -317,7 +328,7 @@ export function RendererPerformanceSmokeHarness() {
         editorSaveMode="manual"
         defaultExplorerWidth={320}
         enableMarkdownLinkContentIndexing={ENABLE_LINK_INDEX}
-      />
+      />}
     </div>
   );
 }

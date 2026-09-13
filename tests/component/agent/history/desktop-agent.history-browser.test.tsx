@@ -1,7 +1,7 @@
+import type { AgentRuntimeInspection, AgentSessionListItem, AgentSessionsListResponse } from "../../../../shared/agent-contract/types";
 /**
  * @vitest-environment happy-dom
  */
-import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -469,7 +469,7 @@ function emptyInspection() {
   };
 }
 
-function emptySessionList() {
+function emptySessionList(): AgentSessionsListResponse {
   return {
     sessions: [],
     discovery: {
@@ -490,20 +490,20 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function runtime(id: string, displayName: string) {
+function runtime(id: string, displayName: string): NonNullable<AgentRuntimeInspection["runtimes"]>[number] {
   return {
     descriptor: {
       id,
       displayName,
       iconKey: id,
       kind: "specialized-native",
-      ownership: { session: "runtime" },
+      ownership: { session: "runtime", harness: "runtime", credentials: ["runtime"], models: "runtime", billing: ["runtime"] },
     },
     readiness: {
       runtimeId: id,
       provider: id,
       status: "ready",
-      code: "ready",
+      code: "READY",
       version: "1.0.0",
       minimumVersion: null,
       message: "Ready",
@@ -516,7 +516,7 @@ function session(
   runtimeDescriptor: ReturnType<typeof runtime>["descriptor"],
   title: string,
   selectedModel: string,
-) {
+): AgentSessionListItem {
   return {
     id,
     runtimeId: runtimeDescriptor.id,

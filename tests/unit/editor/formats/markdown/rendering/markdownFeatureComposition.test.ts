@@ -9,12 +9,12 @@ import {
   puppyMarkdownFeatureCompositionExtension,
   puppyMarkdownParserExtensions,
 } from "../../../../../../packages/shared-ui/src/editor/markdown/composition/markdownFeatureComposition";
-import { getMarkdownPlanIndex } from "../../../../../../packages/shared-ui/src/editor/markdown/core/plans/markdownPlanIndex";
-import { getMarkdownElements } from "../../../../../../packages/shared-ui/src/editor/markdown/core/syntax/markdownElements";
 import { addMarkdownBlockAndLineDecorations } from "../../../../../../packages/shared-ui/src/editor/markdown/core/decorations/blockDecorations";
 import { markdownFeatureCompositionFacet } from "../../../../../../packages/shared-ui/src/editor/markdown/core/features/markdownFeatureContract";
-import { ImagePreviewWidget } from "../../../../../../packages/shared-ui/src/editor/markdown/features/image/imagePreviewWidget";
+import { getMarkdownPlanIndex } from "../../../../../../packages/shared-ui/src/editor/markdown/core/plans/markdownPlanIndex";
+import { getMarkdownElements } from "../../../../../../packages/shared-ui/src/editor/markdown/core/syntax/markdownElements";
 import { imageFeature } from "../../../../../../packages/shared-ui/src/editor/markdown/features/image/imageFeature";
+import { ImagePreviewWidget } from "../../../../../../packages/shared-ui/src/editor/markdown/features/image/imagePreviewWidget";
 
 function createMarkdownState(source: string) {
   return EditorState.create({
@@ -212,13 +212,13 @@ describe("static Markdown Feature Composition", () => {
       null,
       null,
       null,
-      "trusted",
+      "localTrusted",
       null,
       "note.md",
       null,
     );
 
-    expect(receivedTrustMode).toBe("trusted");
+    expect(receivedTrustMode).toBe("localTrusted");
   });
 
   it("leaves unsupported media envelopes as exact visible source", () => {

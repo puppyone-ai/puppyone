@@ -2,18 +2,23 @@ import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { ensureSyntaxTree, syntaxTree } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
+import {
+  puppyMarkdownFeatureCompositionExtension,
+  puppyMarkdownParserExtensions,
+} from "../../../../../../packages/shared-ui/src/editor/markdown/composition/markdownFeatureComposition";
 import { addInlineMarkdownDecorations } from "../../../../../../packages/shared-ui/src/editor/markdown/core/decorations/inlineDecorations";
 import {
   markdownLivePreviewDecorations,
   requestMarkdownProjectionRange,
 } from "../../../../../../packages/shared-ui/src/editor/markdown/core/decorations/livePreviewDecorations";
-import {
-  markdownCodeMirrorBaseExtensions,
-  markdownLivePreviewExtension,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
+import { getMarkdownPlansInRange } from "../../../../../../packages/shared-ui/src/editor/markdown/core/plans/markdownPlanIndex";
+import { getInlineRevealElement } from "../../../../../../packages/shared-ui/src/editor/markdown/core/syntax/markdownElements";
+import { InlineHtmlLineBreakWidget } from "../../../../../../packages/shared-ui/src/editor/markdown/core/widgets/inlineWidgets";
 import { getMarkdownHtmlBlock } from "../../../../../../packages/shared-ui/src/editor/markdown/features/html/htmlBlockModel";
-import { compileInlineHtmlRenderPlan } from "../../../../../../packages/shared-ui/src/editor/markdown/features/html/inlineHtmlPolicy";
-import { isAllowedStyleProperty } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/policy/markdownHtmlSanitizerPolicy";
+import {
+  parseMarkdownHtmlTagToken,
+  scanMarkdownHtmlTagTokens,
+} from "../../../../../../packages/shared-ui/src/editor/markdown/features/html/htmlTagTokenizer";
 import {
   getMarkdownInlineHtml,
   getMarkdownInlineHtmlDiagnostics,
@@ -21,17 +26,12 @@ import {
   resetMarkdownInlineHtmlDiagnostics,
   type MarkdownInlineHtml,
 } from "../../../../../../packages/shared-ui/src/editor/markdown/features/html/inlineHtmlModel";
+import { compileInlineHtmlRenderPlan } from "../../../../../../packages/shared-ui/src/editor/markdown/features/html/inlineHtmlPolicy";
 import {
-  parseMarkdownHtmlTagToken,
-  scanMarkdownHtmlTagTokens,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/features/html/htmlTagTokenizer";
-import {
-  puppyMarkdownFeatureCompositionExtension,
-  puppyMarkdownParserExtensions,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/composition/markdownFeatureComposition";
-import { getInlineRevealElement } from "../../../../../../packages/shared-ui/src/editor/markdown/core/syntax/markdownElements";
-import { InlineHtmlLineBreakWidget } from "../../../../../../packages/shared-ui/src/editor/markdown/core/widgets/inlineWidgets";
-import { getMarkdownPlansInRange } from "../../../../../../packages/shared-ui/src/editor/markdown/core/plans/markdownPlanIndex";
+  markdownCodeMirrorBaseExtensions,
+  markdownLivePreviewExtension,
+} from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
+import { isAllowedStyleProperty } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/policy/markdownHtmlSanitizerPolicy";
 
 function createMarkdownState(source: string) {
   return EditorState.create({
@@ -54,10 +54,10 @@ function getCompleteInlineHtml(source: string, tagName = "span"): MarkdownInline
 function buildInlineDecorations(source: string, reveal: { from: number; to: number } | null = null) {
   const state = createMarkdownState(source);
   const line = state.doc.line(1);
-  const builders = {
+  const builders: Parameters<typeof addInlineMarkdownDecorations>[3] = {
     decorations: [],
     atomicRanges: [],
-  } satisfies Parameters<typeof addInlineMarkdownDecorations>[3];
+  };
 
   addInlineMarkdownDecorations(
     state,

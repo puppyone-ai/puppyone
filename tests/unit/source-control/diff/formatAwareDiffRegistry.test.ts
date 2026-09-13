@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { GitFileDiff, GitRevisionPair } from "../src/types/electron";
 import { DIFF_VIEWERS, resolveDiffViewer } from "../../../../src/features/source-control/diff/core/registry";
+import type { GitFileDiff, GitRevisionPair } from "../../../../src/types/electron";
 
 describe("format-aware diff registry", () => {
   it("has deterministic specialized, text, and total fallback ordering", () => {

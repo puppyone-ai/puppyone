@@ -1,11 +1,9 @@
+import { createEditorInput, createWorkspaceRootUri } from "@puppyone/shared-ui";
+import { unavailableDocumentNavigation } from "../../../support/editor/documentFixtures";
+import { requireEditorView } from "../../../support/editor/editorView";
 /**
  * @vitest-environment happy-dom
  */
-import React from "react";
-import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { EditorView } from "@codemirror/view";
-import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createWorkbenchWorkspace,
   createWorkspaceResourceUri,
@@ -16,6 +14,9 @@ import {
   type Workspace,
   type WorkspaceContentChange,
 } from "@puppyone/shared-ui";
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { closeAllDocumentWorkingCopies } from "../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
 import { appendWorkbenchWorkspaceContentChange } from "../../../../src/features/data-workspace/workbenchWorkspaceContentChange";
 import { EditorPaneDocumentRuntime } from "../../../../src/features/editor-workbench/runtime/EditorPaneDocumentRuntime";
@@ -29,7 +30,7 @@ let root: Root | null = null;
 afterEach(async () => {
   act(() => root?.unmount());
   root = null;
-  await closeAllDocumentWorkingCopies("test-cleanup").catch(() => undefined);
+  await closeAllDocumentWorkingCopies("app-close").catch(() => undefined);
   document.body.innerHTML = "";
 });
 
@@ -46,10 +47,10 @@ describe("P0 multi-root open-editor mutation delivery", () => {
       [alphaResource, content(alphaResource, "alpha v1", "alpha-v1")],
       [betaResource, content(betaResource, "beta v1", "beta-v1")],
     ]);
-    const persist = vi.fn(async () => ({ ok: true as const, version: "unexpected" }));
-    const readFile = vi.fn(async (path: string) => storage.get(path)!);
+    const persist = vi.fn<NonNullable<DataPort["documentPersistence"]>["persist"]>(async () => ({ ok: true as const, version: "unexpected" }));
+    const readFile = vi.fn<NonNullable<DataPort["readFile"]>>(async (path: string) => storage.get(path)!);
     const dataPort: DataPort = {
-      listChildren: vi.fn(async () => []),
+      listChildren: vi.fn<NonNullable<DataPort["listChildren"]>>(async () => []),
       readFile,
       documentPersistence: {
         kind: "local-fs",
@@ -114,18 +115,18 @@ function pane(
   dataPort: DataPort,
   refreshKey: WorkspaceContentChange,
 ) {
-  const node: DataNode = {
+  const node = {
     id: resource,
     path: resource,
     name: "README.md",
     type: "markdown",
-  };
+  } satisfies DataNode;
   return (
     <EditorPaneDocumentRuntime
       key={resource}
-      aiEditFile={null}
+      aiEditFile={null} documentNavigation={unavailableDocumentNavigation}
       dataPort={dataPort}
-      editor={{ id: resource, resource, label: "README.md" }}
+      editor={createEditorInput({ rootUri: createWorkspaceRootUri(workspaceValue.id), resourcePath: "README.md", hostPath: resource }, "README.md")}
       editorInteractionPreferences={{
         showSaveStatus: false,
         markdownBlockDragEnabled: false,
@@ -153,7 +154,7 @@ function content(path: string, value: string, version: string): FileContent {
 
 function editorContents(container: HTMLElement): string[] {
   return [...container.querySelectorAll<HTMLElement>(".cm-editor")]
-    .map((editor) => EditorView.findFromDOM(editor).state.doc.toString());
+    .map((editor) => requireEditorView(editor).state.doc.toString());
 }
 
 function workspace(id: string, path: string): Workspace {

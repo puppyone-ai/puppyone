@@ -1,5 +1,5 @@
-import { createElement, Fragment, type ReactElement, type ReactNode } from "react";
 import { TestLocalizationProvider } from "@puppyone/localization/testing";
+import { createElement, Fragment, type ReactElement, type ReactNode } from "react";
 import englishCatalog from "../../../src/localization/catalog-loaders/en";
 
 /**
@@ -10,7 +10,6 @@ import englishCatalog from "../../../src/localization/catalog-loaders/en";
 export function withBenchmarkLocalization(node: ReactNode): ReactElement {
   return createElement(
     TestLocalizationProvider,
-    { messages: englishCatalog },
-    createElement(Fragment, null, node),
+    { messages: englishCatalog, children: createElement(Fragment, null, node) },
   );
 }

@@ -2,6 +2,9 @@
 
 import { app, BrowserWindow, contentTracing } from "electron";
 import fsp from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { readSourceIdentity } from "../../../../../scripts/release-checks/execution.mjs";
+import { inspectArtifact } from "../../../../../scripts/release-checks/artifacts.mjs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -14,7 +17,7 @@ const coldFirstOpen = process.argv.includes("--cold");
 const linkIndex = process.argv.includes("--with-link-index");
 const visible = process.argv.includes("--visible");
 const oversizedBlocks = !process.argv.includes("--skip-oversized-blocks");
-const sampleTarget = coldFirstOpen ? 1 : tracePath ? 3 : 30;
+const sampleTarget = coldFirstOpen ? 1 : 30;
 const statusPath = process.env.PUPPYONE_RENDERER_SMOKE_STATUS_PATH || null;
 const tempRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "puppyone-renderer-performance-"));
 app.setPath("userData", path.join(tempRoot, "user-data"));
@@ -24,6 +27,8 @@ let window = null;
 
 async function runSmoke() {
   await fsp.access(indexPath);
+  const source = await readSourceIdentity(repoRoot);
+  const buildArtifact = await inspectArtifact(path.join(repoRoot, "dist"));
   if (tracePath) {
     await contentTracing.startRecording({
       included_categories: [
@@ -50,10 +55,11 @@ async function runSmoke() {
     `${pathToFileURL(indexPath).toString()}?rendererPerformanceSamples=${sampleTarget}&rendererPerformanceCold=${coldFirstOpen}&rendererPerformanceLinkIndex=${linkIndex}&rendererPerformanceOversizedBlocks=${oversizedBlocks}#renderer-performance-smoke`,
   );
 
-  const summary = await pollForResult(window);
+  const summary = await pollForResult(window).catch(error => ({ error: error.message }));
   if (tracePath) await contentTracing.stopRecording(tracePath);
-  if (summary.error) throw new Error(summary.error);
+  const sourceAfter = await readSourceIdentity(repoRoot);
   const report = {
+    source, sourceAfter, sourceChanged: source.fingerprint !== sourceAfter.fingerprint, buildArtifact,
     schema: "puppyone-renderer-performance/v1",
     environment: {
       capturedAt: new Date().toISOString(),
@@ -76,6 +82,8 @@ async function runSmoke() {
 
   await fsp.mkdir(path.dirname(outputPath), { recursive: true });
   await fsp.writeFile(outputPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+  if (summary.error) throw new Error(summary.error);
+  if (report.sourceChanged) throw new Error("Source changed during performance verification.");
   validateReport(report);
   console.log(JSON.stringify(report, null, 2));
   console.log(`Renderer performance report written to ${outputPath}`);
@@ -148,7 +156,7 @@ function validateReport(report) {
 function resolveOutputPath(args) {
   const outputIndex = args.indexOf("--outputJson");
   const requested = outputIndex >= 0 ? args[outputIndex + 1] : null;
-  return path.resolve(requested || path.join(repoRoot, "artifacts/tests/performance/renderer-smoke-latest.json"));
+  return path.resolve(requested || path.join(repoRoot, `artifacts/tests/performance/renderer-smoke-${Date.now()}-${randomUUID()}.json`));
 }
 
 function resolveOptionalPath(args, flag) {

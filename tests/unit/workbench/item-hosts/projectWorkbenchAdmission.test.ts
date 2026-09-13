@@ -161,10 +161,10 @@ describe("Project Workbench contribution admission", () => {
 
   it("reserves project identity, prepares the recipe, then commits the same Item", async () => {
     const wait = deferred();
-    const prepare = vi.fn(() => wait.promise);
+    const prepare = vi.fn<(context: AuxiliaryWorkbenchPreparationContext) => Promise<void>>(() => wait.promise);
     const store = owner(contribution(prepare));
     const pending = store.create("agent-chat", null, recipe("codex"));
-    const prepared = prepare.mock.calls[0][0] as AuxiliaryWorkbenchPreparationContext;
+    const prepared = prepare.mock.calls[0][0];
     expect(prepared).toMatchObject({ project: store, recipe: recipe("codex"), historyTarget: null });
     expect(store.getSnapshot().topology.items).toEqual([]);
     wait.resolve();

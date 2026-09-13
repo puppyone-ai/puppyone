@@ -1,17 +1,21 @@
-import { withDisplayFeed, displaySnapshot } from "../../../support/agent/agentDisplayFixture";
 import { describe, expect, it, vi } from "vitest";
+import { createAgentProcessService } from "../../../../electron/main/item-hosts/agent-process-service.mjs";
+import type { createUtilityHost } from "../../../../electron/main/item-hosts/utility-host.mjs";
+import type { AgentCapabilities, AgentRuntimeReadiness } from "../../../../shared/agent-contract/types";
+import type { AgentEvent, AgentSessionSnapshot } from "../../../../src/features/desktop-agent/agentTypes";
+import type { AgentClientPort } from "../../../../src/features/desktop-agent/application/AgentClientPort";
 import {
   AgentSessionController,
   agentSessionControllerLimits,
 } from "../../../../src/features/desktop-agent/application/AgentSessionController";
-import type { AgentEvent, AgentSessionSnapshot } from "../../../../src/features/desktop-agent/agentTypes";
-import { createAgentProcessService } from "../../../../electron/main/item-hosts/agent-process-service.mjs";
+import { displaySnapshot, withDisplayFeed } from "../../../support/agent/agentDisplayFixture";
+import { defineAgentEvent, type AgentEventPayloadMap } from "../../../support/agent/agentEventFixture";
 
 it("retries the owned conversation through Main without allocating another host", async () => {
   const bridge = bridgeFixture(() => {});
-  const saved = await bridge.createAgentSession({});
-  const createHost = vi.fn(() => ({ call: vi.fn(async () => saved), close: vi.fn(async () => {}), exited: false }));
-  const service = createAgentProcessService({ createHost, catalogService: {}, conversationCatalog: {}, attachmentStore: {} });
+  const saved = await bridge.createAgentSession({ rootPath: "/workspace" });
+  const createHost = vi.fn((): ReturnType<typeof createUtilityHost> => ({ generation: "00000000-0000-0000-0000-000000000001", ready: Promise.resolve(), exit: Promise.resolve(), pid: 1, attachPort: vi.fn(), diagnostics: vi.fn<ReturnType<typeof createUtilityHost>["diagnostics"]>(), call: vi.fn(async () => saved), close: vi.fn(async () => {}), exited: false }));
+  const service = createAgentProcessService({ utilityProcess: undefined, modulePath: undefined, budget: undefined, appVersion: undefined, createHost, catalogService: {}, conversationCatalog: {}, attachmentStore: {} });
   const sender = { id: 1, hostItemId: "chat-tab" };
   bridge.resumeAgentSession.mockImplementation(request => service.resumeSession(sender, request, "/workspace"));
   const controller = new AgentSessionController("/workspace", () => bridge as never);
@@ -80,12 +84,12 @@ it("repeated send while the same steer is pending has one dispatch", async () =>
   try {
     await controller.initialize();
     emit(event(2, "turn.started", { prompt: "Running" }, "turn-running"));
-    const receipts: Array<(v: unknown) => void> = [];
+    const receipts: Array<(v: Awaited<ReturnType<AgentClientPort["steerAgentTurn"]>>) => void> = [];
     bridge.steerAgentTurn.mockImplementation(() => new Promise(resolve => receipts.push(resolve)));
     controller.setDraft("single instruction");
     const first = controller.submit("single instruction");
     const second = controller.submit("single instruction");
-    for (const resolve of receipts) resolve({ steered: true });
+    for (const resolve of receipts) resolve({ sessionId: "session-1", turnId: "turn-1", steered: true });
     await Promise.all([first, second]);
     expect(bridge.steerAgentTurn).toHaveBeenCalledTimes(1);
   } finally { controller.dispose(); }
@@ -263,7 +267,7 @@ describe("AgentSessionController", () => {
     const bridge = bridgeFixture(() => {});
     const inspection = await bridge.discoverAgentRuntimes();
     bridge.discoverAgentRuntimes.mockClear();
-    let resolveDiscovery: ((value: typeof inspection) => void) | null = null;
+    let resolveDiscovery: ((value: typeof inspection) => void) | undefined;
     bridge.discoverAgentRuntimes.mockImplementationOnce(() => new Promise((resolve) => {
       resolveDiscovery = resolve;
     }));
@@ -298,7 +302,7 @@ describe("AgentSessionController", () => {
   });
 
   it("renders Main display revisions and preserves the old locator on New Chat", async () => {
-    let eventListener: ((event: AgentEvent) => void) | null = null;
+    let eventListener: ((event: AgentEvent) => void) | undefined;
     const bridge = bridgeFixture((listener) => { eventListener = listener; });
     const controller = new AgentSessionController("/workspace", () => bridge as never);
     await controller.initialize();
@@ -417,7 +421,7 @@ describe("AgentSessionController", () => {
   });
 
   it("refuses to close a tab while its turn is running", async () => {
-    let eventListener: ((event: AgentEvent) => void) | null = null;
+    let eventListener: ((event: AgentEvent) => void) | undefined;
     const bridge = bridgeFixture((listener) => { eventListener = listener; });
     const controller = new AgentSessionController("/workspace", () => bridge as never);
     await controller.initialize();
@@ -571,7 +575,7 @@ describe("AgentSessionController", () => {
       readiness: {
         runtimeId: "cursor",
         provider: "cursor",
-        status: "protocol-unavailable" as const,
+        status: "protocol-unavailable" as const, code: "PROTOCOL_UNAVAILABLE" as const,
         version: "1.0.0",
         minimumVersion: null,
         message: "Native protocol unavailable",
@@ -611,7 +615,7 @@ describe("AgentSessionController", () => {
   });
 
   it("displays provider diagnostics without rewriting the discovered provider catalog", async () => {
-    let eventListener: ((event: AgentEvent) => void) | null = null;
+    let eventListener: ((event: AgentEvent) => void) | undefined;
     const bridge = bridgeFixture((listener) => { eventListener = listener; });
     const controller = new AgentSessionController("/workspace", () => bridge as never);
     await controller.initialize();
@@ -682,7 +686,7 @@ describe("AgentSessionController", () => {
   });
 
   it("delegates queue admission to the Main command transaction", async () => {
-    let eventListener: ((event: AgentEvent) => void) | null = null;
+    let eventListener: ((event: AgentEvent) => void) | undefined;
     const bridge = bridgeFixture((listener) => { eventListener = listener; }, { queue: true });
     const controller = new AgentSessionController("/workspace", () => bridge as never);
     await controller.initialize();
@@ -698,8 +702,8 @@ describe("AgentSessionController", () => {
   });
 
   it("hands the local preview to Main's admitted input before the native start receipt", async () => {
-    let eventListener: ((event: AgentEvent) => void) | null = null;
-    let acceptTurn: ((value: { turnId: string }) => void) | null = null;
+    let eventListener: ((event: AgentEvent) => void) | undefined;
+    let acceptTurn: ((value: { sessionId: string; turnId: string }) => void) | undefined;
     const bridge = bridgeFixture((listener) => { eventListener = listener; });
     bridge.startAgentTurn.mockImplementationOnce(() => new Promise((resolve) => { acceptTurn = resolve; }));
     const controller = new AgentSessionController("/workspace", () => bridge as never);
@@ -719,7 +723,7 @@ describe("AgentSessionController", () => {
       pendingPrompt: null,
       projection: { runningTurnId: "turn-live" },
     });
-    acceptTurn?.({ turnId: "turn-live" });
+    acceptTurn?.({ sessionId: "session-1", turnId: "turn-live" });
     await expect(submission).resolves.toBe(true);
     expect(controller.getSnapshot().submitting).toBe(false);
   });
@@ -744,9 +748,9 @@ describe("AgentSessionController", () => {
   });
 
   it("shares one background session preparation with the first submit and exposes truthful transport stages", async () => {
-    let eventListener: ((event: AgentEvent) => void) | null = null;
-    let resolveCreate: ((value: AgentSessionSnapshot) => void) | null = null;
-    let resolveStart: ((value: { turnId: string }) => void) | null = null;
+    let eventListener: ((event: AgentEvent) => void) | undefined;
+    let resolveCreate: ((value: AgentSessionSnapshot) => void) | undefined;
+    let resolveStart: ((value: { sessionId: string; turnId: string }) => void) | undefined;
     const bridge = bridgeFixture((listener) => { eventListener = listener; });
     bridge.resumeAgentSession.mockResolvedValueOnce(null);
     bridge.createAgentSession.mockImplementationOnce(() => new Promise((resolve) => { resolveCreate = resolve; }));
@@ -782,12 +786,12 @@ describe("AgentSessionController", () => {
       pendingPrompt: null,
       projection: { runningTurnId: "turn-first" },
     });
-    resolveStart?.({ turnId: "turn-first" });
+    resolveStart?.({ sessionId: "session-1", turnId: "turn-first" });
     await expect(submission).resolves.toBe(true);
   });
 
   it("closes a prepared native session that resolves after renderer disposal", async () => {
-    let resolveCreate: ((value: AgentSessionSnapshot) => void) | null = null;
+    let resolveCreate: ((value: AgentSessionSnapshot) => void) | undefined;
     const bridge = bridgeFixture(() => {});
     bridge.resumeAgentSession.mockResolvedValueOnce(null);
     bridge.createAgentSession.mockImplementationOnce(() => new Promise((resolve) => { resolveCreate = resolve; }));
@@ -878,7 +882,7 @@ describe("AgentSessionController", () => {
   it("does not publish late asynchronous state after renderer disposal", async () => {
     const bridge = bridgeFixture(() => {});
     const inspection = await bridge.discoverAgentRuntimes();
-    let resolveDiscovery: ((value: typeof inspection) => void) | null = null;
+    let resolveDiscovery: ((value: typeof inspection) => void) | undefined;
     bridge.discoverAgentRuntimes.mockImplementationOnce(() => new Promise((resolve) => { resolveDiscovery = resolve; }));
     const controller = new AgentSessionController("/workspace", () => bridge as never);
     const listener = vi.fn();
@@ -894,7 +898,7 @@ describe("AgentSessionController", () => {
   });
 
   it("captures references inside the immutable command sent to Main", async () => {
-    let eventListener: ((event: AgentEvent) => void) | null = null;
+    let eventListener: ((event: AgentEvent) => void) | undefined;
     const bridge = bridgeFixture((listener) => { eventListener = listener; }, { queue: true });
     const controller = new AgentSessionController("/workspace", () => bridge as never);
     await controller.initialize();
@@ -911,14 +915,14 @@ describe("AgentSessionController", () => {
   });
 
   it("restores a rejected Main queue command without stranding its draft", async () => {
-    let eventListener: ((event: AgentEvent) => void) | null = null;
+    let eventListener: ((event: AgentEvent) => void) | undefined;
     const bridge = bridgeFixture((listener) => { eventListener = listener; }, { queue: true });
     const controller = new AgentSessionController("/workspace", () => bridge as never);
     await controller.initialize();
     eventListener?.(event(2, "turn.started", { prompt: "Long task" }, "turn-running"));
     await new Promise((resolve) => setTimeout(resolve, 45));
     await controller.addWorkspacePaths(["queued.md"]);
-    let rejectStart: ((error: Error) => void) | null = null;
+    let rejectStart: ((error: Error) => void) | undefined;
     bridge.startAgentTurn.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectStart = reject; }));
     const submission = controller.submit("Queued request");
     await vi.waitFor(() => expect(bridge.startAgentTurn).toHaveBeenCalledTimes(1));
@@ -933,7 +937,7 @@ describe("AgentSessionController", () => {
   });
 
   it("retains references when steer cannot carry them and restores the same intent after preparation failure", async () => {
-    let eventListener: ((event: AgentEvent) => void) | null = null;
+    let eventListener: ((event: AgentEvent) => void) | undefined;
     const bridge = bridgeFixture((listener) => { eventListener = listener; }, {
       steer: true,
       referenceInputs: { ...referenceCapabilities(), steer: false },
@@ -969,7 +973,7 @@ describe("AgentSessionController", () => {
   it("merges a failed immutable intent with edits and references added while session preparation is pending", async () => {
     const bridge = bridgeFixture(() => {});
     bridge.resumeAgentSession.mockResolvedValueOnce(null);
-    let rejectPreparation: ((error: Error) => void) | null = null;
+    let rejectPreparation: ((error: Error) => void) | undefined;
     bridge.createAgentSession.mockImplementationOnce(() => new Promise((_resolve, reject) => {
       rejectPreparation = reject;
     }));
@@ -1085,7 +1089,7 @@ function bridgeFixture(
   capabilityOverrides: Partial<ReturnType<typeof capabilities>> = {},
 ) {
   return withDisplayFeed({
-    discoverAgentRuntimes: vi.fn(async () => ({
+    discoverAgentRuntimes: vi.fn<AgentClientPort["discoverAgentRuntimes"]>(async () => ({
       runtimes: [{ descriptor: { id: "opencode", displayName: "OpenCode", priority: 100 }, readiness: readiness() }],
       selectedRuntimeId: "opencode",
       runtime: { id: "opencode", displayName: "OpenCode" },
@@ -1098,17 +1102,17 @@ function bridgeFixture(
       capabilities: capabilities(capabilityOverrides),
       warnings: [],
     })),
-    discoverLocalAgentConnections: vi.fn(async () => ({ connections: [], scannedAt: "2026-07-12T00:00:00.000Z", warnings: [] })),
-    resumeAgentSession: vi.fn(async () => snapshot("session-1", [event(1, "session.resumed", { title: "Session" })], capabilityOverrides)),
-    openAgentSession: vi.fn(async () => ({
+    discoverLocalAgentConnections: vi.fn<AgentClientPort["discoverLocalAgentConnections"]>(async () => ({ connections: [], scannedAt: "2026-07-12T00:00:00.000Z", warnings: [] })),
+    resumeAgentSession: vi.fn<AgentClientPort["resumeAgentSession"]>(async () => snapshot("session-1", [event(1, "session.resumed", { title: "Session" })], capabilityOverrides)),
+    openAgentSession: vi.fn<AgentClientPort["openAgentSession"]>(async () => ({
       status: "opened" as const,
       snapshot: snapshot("session-1", [event(1, "session.resumed", { title: "Session" })], capabilityOverrides),
     })),
-    createAgentSession: vi.fn(async () => snapshot("session-2", [event(1, "session.started", { title: "New" }, null, null, "session-2")], capabilityOverrides)),
-    startAgentTurn: vi.fn(async () => ({ turnId: "turn-next" })),
-    replayAgentSession: vi.fn(async () => snapshot("session-1", [event(4, "assistant.completed", { text: "Working" }, "turn-1", "message-1")], capabilityOverrides)),
-    closeAgentSession: vi.fn(async () => ({ sessionId: "session-1", closed: true })),
-    stageAgentAttachments: vi.fn(async () => [{
+    createAgentSession: vi.fn<AgentClientPort["createAgentSession"]>(async () => snapshot("session-2", [event(1, "session.started", { title: "New" }, null, null, "session-2")], capabilityOverrides)),
+    startAgentTurn: vi.fn<AgentClientPort["startAgentTurn"]>(async () => ({ sessionId: "session-1", turnId: "turn-next" })),
+    replayAgentSession: vi.fn<AgentClientPort["replayAgentSession"]>(async () => snapshot("session-1", [event(4, "assistant.completed", { text: "Working" }, "turn-1", "message-1")], capabilityOverrides)),
+    closeAgentSession: vi.fn<AgentClientPort["closeAgentSession"]>(async () => ({ sessionId: "session-1", closed: true })),
+    stageAgentAttachments: vi.fn<AgentClientPort["stageAgentAttachments"]>(async () => [{
       id: "stage-reference",
       kind: "staged-attachment",
       token: "stage-token",
@@ -1117,8 +1121,8 @@ function bridgeFixture(
       size: 3,
       status: "ready",
     }]),
-    revokeAgentAttachments: vi.fn(async ({ tokens }: { tokens: string[] }) => ({ revoked: tokens.length })),
-    resolveAgentWorkspaceReferences: vi.fn(async ({ paths }: { paths: string[] }) => paths.map((referencePath, index) => ({
+    revokeAgentAttachments: vi.fn<AgentClientPort["revokeAgentAttachments"]>(async ({ tokens }: { tokens: string[] }) => ({ revoked: tokens.length })),
+    resolveAgentWorkspaceReferences: vi.fn<AgentClientPort["resolveAgentWorkspaceReferences"]>(async ({ paths }: { paths: string[] }) => paths.map((referencePath, index) => ({
       id: `workspace-${index}-${referencePath.replace(/[^A-Za-z0-9]/g, "-")}`,
       kind: "workspace-entry",
       entryType: referencePath === "src" ? "directory" : "file",
@@ -1128,9 +1132,9 @@ function bridgeFixture(
       size: 4,
       status: "ready",
     }))),
-    pickAgentWorkspaceReferences: vi.fn(async () => []),
-    steerAgentTurn: vi.fn(async () => ({ sessionId: "session-1", turnId: "turn-running", steered: true })),
-    listAgentSessions: vi.fn(async () => ({
+    pickAgentWorkspaceReferences: vi.fn<AgentClientPort["pickAgentWorkspaceReferences"]>(async () => []),
+    steerAgentTurn: vi.fn<AgentClientPort["steerAgentTurn"]>(async () => ({ sessionId: "session-1", turnId: "turn-running", steered: true })),
+    listAgentSessions: vi.fn<AgentClientPort["listAgentSessions"]>(async () => ({
       sessions: [],
       discovery: {
         runtimeId: null,
@@ -1150,7 +1154,7 @@ function snapshot(
   events: AgentEvent[],
   capabilityOverrides: Partial<ReturnType<typeof capabilities>> = {},
 ): AgentSessionSnapshot {
-  return {
+  return displaySnapshot({
     session: {
       id: sessionId,
       runtimeId: "opencode",
@@ -1177,15 +1181,15 @@ function snapshot(
     partial: false,
     firstAvailableSequence: events[0]?.sequence ?? 1,
     lastSequence: events.at(-1)?.sequence ?? 0,
-  };
+  });
 }
 
-function readiness() {
-  return { runtimeId: "opencode", provider: "opencode", status: "ready" as const, version: "1.17.18", minimumVersion: "1.17.18", message: "ready" };
+function readiness(): AgentRuntimeReadiness {
+  return { runtimeId: "opencode", provider: "opencode", status: "ready" as const, code: "READY", version: "1.17.18", minimumVersion: "1.17.18", message: "ready" };
 }
 
-function readinessFor(runtimeId: string) {
-  return { runtimeId, provider: runtimeId, status: "ready" as const, version: "1.0.0", minimumVersion: null, message: "ready", selectable: true };
+function readinessFor(runtimeId: string): AgentRuntimeReadiness {
+  return { runtimeId, provider: runtimeId, status: "ready" as const, code: "READY", version: "1.0.0", minimumVersion: null, message: "ready", selectable: true };
 }
 
 function runtimeInspection(
@@ -1234,7 +1238,7 @@ function runtimeSnapshot(
   };
 }
 
-function capabilities(overrides: Record<string, unknown> = {}) {
+function capabilities(overrides: Partial<AgentCapabilities> = {}): AgentCapabilities {
   return { streamingText: true, structuredToolEvents: true, commandOutputStreaming: true, fileChangeEvents: true, manualApprovals: true, structuredQuestions: true, resume: true, fork: true, steer: false, queue: false, attachments: true, contextReferences: true, modelSelection: true, modeSelection: true, slashCommands: true, sessionHistory: true, usage: true, accountState: true, mcp: true, skills: true, compaction: true, referenceInputs: referenceCapabilities(), ...overrides };
 }
 
@@ -1259,6 +1263,6 @@ function referenceCapabilities() {
   };
 }
 
-function event(sequence: number, type: AgentEvent["type"], payload: Record<string, unknown>, turnId: string | null = null, itemId: string | null = null, sessionId = "session-1"): AgentEvent {
-  return { schemaVersion: 1, sequence, sessionId, runtimeId: "opencode", provider: "opencode", providerSessionId: "native-1", turnId, itemId, emittedAt: new Date(sequence * 1_000).toISOString(), type, payload };
+function event<T extends AgentEvent["type"]>(sequence: number, type: T, payload: AgentEventPayloadMap[T] & Record<string, unknown>, turnId: string | null = null, itemId: string | null = null, sessionId = "session-1"): AgentEvent<T> {
+  return defineAgentEvent<T>({ schemaVersion: 1, sequence, sessionId, runtimeId: "opencode", provider: "opencode", providerSessionId: "native-1", turnId, itemId, emittedAt: new Date(sequence * 1_000).toISOString(), type, payload });
 }

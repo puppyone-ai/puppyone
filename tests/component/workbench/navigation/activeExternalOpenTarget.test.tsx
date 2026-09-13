@@ -1,9 +1,9 @@
 /**
  * @vitest-environment happy-dom
  */
-import React, { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
 import type { Workspace } from "@puppyone/shared-ui";
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useExternalFileOpen } from "../../../../src/features/external-apps/useExternalFileOpen";
 import { openWorkspaceEntryExternal } from "../../../../src/lib/localFiles";
@@ -45,10 +45,10 @@ async function renderHarness() {
   const container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
-  let controller: ReturnType<typeof useExternalFileOpen> | null = null;
+  const controller: { current: ReturnType<typeof useExternalFileOpen> | null } = { current: null };
 
   function Harness() {
-    controller = useExternalFileOpen({
+    controller.current = useExternalFileOpen({
       onError: vi.fn(),
       workspace,
     });
@@ -56,6 +56,6 @@ async function renderHarness() {
   }
 
   await act(async () => root?.render(<Harness />));
-  if (!controller) throw new Error("External file controller did not initialize.");
-  return controller;
+  if (!controller.current) throw new Error("External file controller did not initialize.");
+  return controller.current;
 }

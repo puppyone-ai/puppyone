@@ -24,9 +24,9 @@ describe("Desktop Agent Shell presentation semantics", () => {
   });
 
   it("renders a structured tool result even when an adapter supplies no preview", () => {
-    expect(outputForActivity({
+    const normalized: AgentActivity = {
       ...activity("tool"),
-      kind: "mcp",
+      kind: "tool",
       detail: {
         tool: "lookup",
         result: {
@@ -38,7 +38,12 @@ describe("Desktop Agent Shell presentation semantics", () => {
           error: null,
         },
       },
-    })).toContain("visible result\nartifact://report\n{\n  \"count\": 2\n}");
+    };
+    expect(outputForActivity(normalized)).toContain("visible result\nartifact://report\n{\n  \"count\": 2\n}");
+    // Preserve the historical raw MCP adapter input alongside the typed contract.
+    // Reflect invokes this intentional out-of-contract fixture without weakening AgentActivity.
+    expect(Reflect.apply(outputForActivity, undefined, [{ ...normalized, kind: "mcp" }]))
+      .toContain("visible result\nartifact://report\n{\n  \"count\": 2\n}");
   });
 });
 

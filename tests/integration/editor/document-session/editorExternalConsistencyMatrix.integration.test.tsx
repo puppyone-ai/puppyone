@@ -1,22 +1,24 @@
-import { undo, redo } from "@codemirror/commands";
+import { redo, undo } from "@codemirror/commands";
+import type { DataNode } from "@puppyone/shared-ui";
+import { createEditorInput } from "@puppyone/shared-ui";
+import { unavailableDocumentNavigation } from "../../../support/editor/documentFixtures";
+import { requireEditorView } from "../../../support/editor/editorView";
 /**
  * @vitest-environment happy-dom
  */
-import React from "react";
-import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { EditorView } from "@codemirror/view";
-import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createWorkspaceContentChange,
   EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT,
-  type DataNode,
   type DataPort,
+  type DocumentDataNode,
   type DocumentPersistenceRequest,
   type EditorDocument,
   type FileContent,
   type WorkspaceContentChange,
 } from "@puppyone/shared-ui";
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { closeAllDocumentWorkingCopies } from "../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
 import { EditorDocumentHost } from "../../../../packages/shared-ui/src/editor/host/EditorDocumentHost";
 import { preloadPresetViewer } from "../../../../packages/shared-ui/src/editor/host/PresetViewerRenderer";
@@ -34,7 +36,7 @@ type FormatCase = Readonly<{
   label: string;
   viewerId: string;
   path: string;
-  type: DataNode["type"];
+  type: DocumentDataNode["type"];
   mimeType?: string;
   initial: string;
   external: string;
@@ -290,14 +292,14 @@ describe("P0 editor external-consistency matrix", () => {
       [markdown.path, fileContent(markdown, markdown.initial, "v1")],
       [csv.path, fileContent(csv, csv.initial, "v1")],
     ]);
-    const persist = vi.fn(async () => ({ ok: true as const, version: "unexpected" }));
-    const readFile = vi.fn(async (path: string) => {
+    const persist = vi.fn<NonNullable<DataPort["documentPersistence"]>["persist"]>(async () => ({ ok: true as const, version: "unexpected" }));
+    const readFile = vi.fn<NonNullable<DataPort["readFile"]>>(async (path: string) => {
       const content = storage.get(path);
       if (!content) throw new Error(`Missing storage fixture: ${path}`);
       return content;
     });
     const dataPort: DataPort = {
-      listChildren: vi.fn(contextMapListChildren),
+      listChildren: vi.fn<NonNullable<DataPort["listChildren"]>>(contextMapListChildren),
       readFile,
       documentPersistence: {
         kind: "local-fs",
@@ -443,10 +445,10 @@ function delimitedCase({
 
 function createRuntimeHarness(formatCase: FormatCase) {
   let storage = fileContent(formatCase, formatCase.initial, "v1");
-  const persist = vi.fn(async () => ({ ok: true as const, version: "unexpected" }));
-  const readFile = vi.fn(async () => storage);
+  const persist = vi.fn<NonNullable<DataPort["documentPersistence"]>["persist"]>(async () => ({ ok: true as const, version: "unexpected" }));
+  const readFile = vi.fn<NonNullable<DataPort["readFile"]>>(async () => storage);
   const dataPort: DataPort = {
-    listChildren: vi.fn(contextMapListChildren),
+    listChildren: vi.fn<NonNullable<DataPort["listChildren"]>>(contextMapListChildren),
     readFile,
     documentPersistence: {
       kind: "local-fs",
@@ -482,7 +484,7 @@ async function createEditorHarness(formatCase: FormatCase) {
   document.body.appendChild(container);
   const root = createRoot(container);
   roots.push(root);
-  const persist = vi.fn(async (_request: DocumentPersistenceRequest) => ({
+  const persist = vi.fn<NonNullable<DataPort["documentPersistence"]>["persist"]>(async (_request: DocumentPersistenceRequest) => ({
     ok: true as const,
     version: "v3",
   }));
@@ -526,9 +528,9 @@ function runtimeElement(
   const node = dataNode(formatCase);
   return (
     <EditorPaneDocumentRuntime
-      aiEditFile={null}
+      aiEditFile={null} documentNavigation={unavailableDocumentNavigation}
       dataPort={dataPort}
-      editor={{ id: formatCase.path, resource: formatCase.path, label: formatCase.path }}
+      editor={createEditorInput(formatCase.path, formatCase.path)}
       editorInteractionPreferences={{
         showSaveStatus: false,
         markdownBlockDragEnabled: false,
@@ -551,7 +553,7 @@ function refresh(
   return createWorkspaceContentChange({ sequence, rootUri: null, paths });
 }
 
-function dataNode(formatCase: FormatCase): DataNode {
+function dataNode(formatCase: FormatCase): DocumentDataNode {
   return {
     id: formatCase.path,
     path: formatCase.path,
@@ -588,13 +590,13 @@ function editorDocument(
 function readCodeMirrorMarker(container: HTMLElement): string | null {
   const editor = container.querySelector<HTMLElement>(".cm-editor");
   if (!editor) return null;
-  return markerFromText(EditorView.findFromDOM(editor).state.doc.toString());
+  return markerFromText(requireEditorView(editor).state.doc.toString());
 }
 
 function replaceCodeMirrorContent(container: HTMLElement, content: string): void {
   const editor = container.querySelector<HTMLElement>(".cm-editor");
   if (!editor) throw new Error("CodeMirror editor is unavailable.");
-  const view = EditorView.findFromDOM(editor);
+  const view = requireEditorView(editor);
   view.dispatch({
     changes: { from: 0, to: view.state.doc.length, insert: content },
     userEvent: "input.type",
@@ -710,7 +712,7 @@ function deferred<T>() {
 function historyCommand(container: HTMLElement, forward: boolean) {
   const cm = container.querySelector<HTMLElement>(".cm-editor");
   if (cm) {
-    const view = EditorView.findFromDOM(cm);
+    const view = requireEditorView(cm);
     expect(forward ? redo(view) : undo(view)).toBe(true);
     return;
   }

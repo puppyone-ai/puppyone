@@ -1,7 +1,7 @@
+import type { DesktopCloudProject } from "../../../../src/lib/cloudApi";
 /**
  * @vitest-environment happy-dom
  */
-import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -98,14 +98,14 @@ function findButtonStartingWith(container: HTMLElement, label: string) {
     .find((button) => button.textContent?.trim().startsWith(label));
 }
 
-const PROJECT = {
+const PROJECT: DesktopCloudProject = {
   id: "project-1",
   name: "Atlas",
   description: "Product research",
   visibility: "org",
   bound_git_branch: "main",
   capabilities: ["project.read", "project.settings.manage"],
-} as const;
+};
 
 const SESSION = {
   expires_in: 3600,

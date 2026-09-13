@@ -1,7 +1,7 @@
 /**
  * @vitest-environment happy-dom
  */
-import React, { act } from "react";
+import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DataNode, DataPort, Workspace } from "../../../../../../packages/shared-ui/src/core/types";
@@ -69,16 +69,16 @@ describe("Workspace to Markdown dialect integration", () => {
 });
 
 async function renderWorkspace(workspace: Workspace): Promise<HTMLElement> {
-  const node: DataNode = {
+  const node = {
     id: DOCUMENT_PATH,
     path: DOCUMENT_PATH,
     name: DOCUMENT_PATH,
     type: "markdown",
     mimeType: "text/markdown",
-  };
+  } satisfies DataNode;
   const dataPort: DataPort = {
-    listChildren: vi.fn(async () => [node]),
-    readFile: vi.fn(async () => ({
+    listChildren: vi.fn<NonNullable<DataPort["listChildren"]>>(async () => [node]),
+    readFile: vi.fn<NonNullable<DataPort["readFile"]>>(async () => ({
       ...node,
       content: COMPONENT_SOURCE,
       version: "v1",

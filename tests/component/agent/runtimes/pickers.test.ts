@@ -14,8 +14,8 @@ import { agentPickerLimits } from "../../../../src/features/desktop-agent/ui/age
 
 import { listAgentRuntimes, listEnabledAgentRuntimes, listVisibleAgentRuntimes } from "../../../../src/features/desktop-agent/domain/agent-backend-routing";
 
+import { modelSessionControl, render, runtimeEntry } from "../../../support/agent/rendererHarness";
 import { stripBidiIsolation } from "../../../support/react/localization";
-import { render, runtimeEntry, modelSessionControl } from "../../../support/agent/rendererHarness";
 
 describe("Desktop Agent renderer surfaces", () => {
 
@@ -96,7 +96,7 @@ describe("Desktop Agent renderer surfaces", () => {
       runtimes: [
         {
           descriptor: { id: "custom-agent", displayName: "Custom Agent", distribution: "bundled" },
-          readiness: { runtimeId: "custom-agent", provider: "custom-agent", status: "ready", version: "1.0.0", minimumVersion: null, message: "Ready" },
+          readiness: { runtimeId: "custom-agent", provider: "custom-agent", status: "ready", code: "READY", version: "1.0.0", minimumVersion: null, message: "Ready" },
         },
         runtimeEntry("codex", "Codex"),
         runtimeEntry("claude", "Claude Agent"),
@@ -105,7 +105,7 @@ describe("Desktop Agent renderer surfaces", () => {
       ],
       selectedRuntimeId: "custom-agent",
       runtime: { id: "custom-agent", displayName: "Custom Agent", distribution: "bundled" },
-      readiness: { runtimeId: "custom-agent", provider: "custom-agent", status: "ready", version: "1.0.0", minimumVersion: null, message: "Ready" },
+      readiness: { runtimeId: "custom-agent", provider: "custom-agent", status: "ready", code: "READY", version: "1.0.0", minimumVersion: null, message: "Ready" },
       account: null,
       models: [],
       capabilities: null,
@@ -292,11 +292,11 @@ describe("Desktop Agent renderer surfaces", () => {
       agentRuntimes: [
         {
           descriptor: { id: "codex", displayName: "Codex", iconKey: "codex", distribution: "user-installed" },
-          readiness: { runtimeId: "codex", provider: "codex", status: "ready", version: "0.144.1", minimumVersion: null, message: "Native login ready", selectable: true },
+          readiness: { runtimeId: "codex", provider: "codex", status: "ready", code: "READY", version: "0.144.1", minimumVersion: null, message: "Native login ready", selectable: true },
         },
         {
           descriptor: { id: "cursor", displayName: "Cursor Agent", iconKey: "cursor", distribution: "user-installed" },
-          readiness: { runtimeId: "cursor", provider: "cursor", status: "protocol-unavailable", version: "1.0.0", minimumVersion: null, message: "Native protocol unavailable", selectable: false },
+          readiness: { runtimeId: "cursor", provider: "cursor", status: "protocol-unavailable", code: "PROTOCOL_UNAVAILABLE", version: "1.0.0", minimumVersion: null, message: "Native protocol unavailable", selectable: false },
         },
       ],
       selectedRuntimeId: null,

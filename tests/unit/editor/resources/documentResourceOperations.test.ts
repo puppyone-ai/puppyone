@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DataPort, DocumentPersistencePort } from "../../../../packages/shared-ui/src/core/types";
 import { withEditorDocumentOperations } from "../../../../packages/shared-ui/src/editor/document-session/documentResourceOperations";
 import { closeAllDocumentWorkingCopies, closeDocumentWorkingCopy, getDocumentWorkingCopiesUnderResource, getOrCreateDocumentWorkingCopy } from "../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
-import { StructuredDocumentModel } from "../../../../packages/shared-ui/src/editor/document-session/StructuredDocumentModel";
 import { ResourceOperationQueue } from "../../../../packages/shared-ui/src/editor/document-session/ResourceOperationQueue";
+import { StructuredDocumentModel } from "../../../../packages/shared-ui/src/editor/document-session/StructuredDocumentModel";
 
 afterEach(async () => { await closeAllDocumentWorkingCopies("app-close").catch(() => undefined); });
 function open(persistence: DocumentPersistencePort, path: string) {
@@ -65,9 +65,9 @@ describe("scoped document operations", () => {
 
   it("renames only after saving the affected document, preserving its model and undo", async () => {
     const events: string[] = [];
-    const persistence: DocumentPersistencePort = { kind: "local-fs", storageIdentity: "operations:move", persist: vi.fn(async ({ path }) => {
+    const persistence: DocumentPersistencePort = { kind: "local-fs", storageIdentity: "operations:move", persist: vi.fn<NonNullable<DataPort["documentPersistence"]>["persist"]>(async ({ path }) => {
       events.push(`save:${path}`);
-      if (path === "unrelated.txt") return { ok: false as const, kind: "error" as const, message: "unrelated failure" };
+      if (path === "unrelated.txt") return { ok: false as const, kind: "io" as const, message: "unrelated failure" };
       return { ok: true as const, version: "v2" };
     }) };
     const affected = open(persistence, "old.txt");
@@ -86,7 +86,7 @@ describe("scoped document operations", () => {
   });
 
   it("keeps input and identity when the pre-operation save fails", async () => {
-    const persistence: DocumentPersistencePort = { kind: "local-fs", storageIdentity: "operations:failure", persist: vi.fn(async () => ({ ok: false as const, kind: "error" as const, message: "disk full" })) };
+    const persistence: DocumentPersistencePort = { kind: "local-fs", storageIdentity: "operations:failure", persist: vi.fn<NonNullable<DataPort["documentPersistence"]>["persist"]>(async () => ({ ok: false as const, kind: "io" as const, message: "disk full" })) };
     const current = open(persistence, "note.txt");
     const remove = vi.fn(async () => undefined);
     const port = withEditorDocumentOperations({ listChildren: async () => [], documentPersistence: persistence, deleteNode: remove });
@@ -99,7 +99,7 @@ describe("scoped document operations", () => {
 
   it("does not repeat a mutation with an unknown delivery result", async () => {
     const remove = vi.fn(async () => { throw new Error("transport lost"); });
-    const raw: DataPort = { listChildren: async () => [], documentPersistence: { kind: "local-fs", storageIdentity: "operations:unknown", persist: vi.fn() }, deleteNode: remove };
+    const raw: DataPort = { listChildren: async () => [], documentPersistence: { kind: "local-fs", storageIdentity: "operations:unknown", persist: vi.fn<NonNullable<DataPort["documentPersistence"]>["persist"]>() }, deleteNode: remove };
     const port = withEditorDocumentOperations(raw);
     await expect(port.deleteNode!("note.txt")).rejects.toMatchObject({ result: { status: "indeterminate" } });
     await expect(port.deleteNode!("note.txt")).rejects.toMatchObject({ result: { status: "indeterminate" } });
@@ -112,7 +112,7 @@ describe("scoped document operations", () => {
     const move = vi.fn(async () => { throw new Error("transport lost after rename"); });
     const port = withEditorDocumentOperations({ listChildren: async () => [], moveNode: move,
       resolveNode: async (path) => path === "new.png" ? { id: path, path, name: path, type: "image" } : null,
-      documentPersistence: { kind: "local-fs", storageIdentity: "operations:readonly-reconcile", persist: vi.fn() } });
+      documentPersistence: { kind: "local-fs", storageIdentity: "operations:readonly-reconcile", persist: vi.fn<NonNullable<DataPort["documentPersistence"]>["persist"]>() } });
     await expect(port.moveNode!("old.png", "new.png")).rejects.toMatchObject({ result: { status: "indeterminate" } });
     await closeDocumentWorkingCopy({ storageIdentity: "operations:readonly-reconcile", resourcePath: "new.png" });
     expect(move).toHaveBeenCalledTimes(1);

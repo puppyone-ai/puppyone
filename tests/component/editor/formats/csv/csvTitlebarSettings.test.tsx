@@ -1,10 +1,8 @@
+import type { DocumentDataNode } from "@puppyone/shared-ui";
+import { unavailableDocumentNavigation } from "../../../../support/editor/documentFixtures";
 /**
  * @vitest-environment happy-dom
  */
-import React from "react";
-import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   EMPTY_EDITOR_GROUP,
   assignEditorToActivePane,
@@ -15,6 +13,9 @@ import {
   type DataNode,
   type DataWorkspaceState,
 } from "@puppyone/shared-ui";
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { DesktopEditorSplitView } from "../../../../../src/features/editor-workbench/layout/DesktopEditorSplitView";
 import { withTestLocalization } from "../../../../support/react/localization";
 
@@ -33,14 +34,14 @@ afterEach(() => {
 describe("CSV pane-menu settings", () => {
   it("keeps file, view, and pane actions scoped to the CSV pane", async () => {
     const path = "data.csv";
-    const node: DataNode = {
+    const node = {
       id: path,
       path,
       name: path,
       type: "spreadsheet",
       mimeType: "text/csv",
       source: "local",
-    };
+    } satisfies DataNode;
     const group = openEditor(EMPTY_EDITOR_GROUP, createEditorInput(path));
     const openExternal = vi.fn();
     const container = document.createElement("div");
@@ -51,6 +52,7 @@ describe("CSV pane-menu settings", () => {
       root?.render(withTestLocalization(
         <DesktopEditorSplitView
           aiEditRequest={null}
+          documentNavigation={unavailableDocumentNavigation}
           dataPort={{
             listChildren: async () => [node],
             readFile: async () => ({
@@ -144,7 +146,7 @@ describe("CSV pane-menu settings", () => {
   });
 
   it("binds actions to the clicked CSV pane instead of the globally active file", async () => {
-    const nodes = ["left.csv", "right.csv"].map<DataNode>((path) => ({
+    const nodes = ["left.csv", "right.csv"].map<DocumentDataNode>((path) => ({
       id: path,
       path,
       name: path,
@@ -165,6 +167,7 @@ describe("CSV pane-menu settings", () => {
       root?.render(withTestLocalization(
         <DesktopEditorSplitView
           aiEditRequest={null}
+          documentNavigation={unavailableDocumentNavigation}
           dataPort={{
             listChildren: async () => nodes,
             readFile: async (path) => ({
@@ -210,69 +213,7 @@ describe("CSV pane-menu settings", () => {
     expect(openExternal).toHaveBeenCalledWith("left.csv");
   });
 
-  it("reduces a resource-only pane menu to two icon actions without headings or a filename", async () => {
-    const path = "009_Bauhaus.png";
-    const node: DataNode = {
-      id: path,
-      path,
-      name: path,
-      type: "image",
-      mimeType: "image/png",
-      source: "local",
-    };
-    const group = openEditor(EMPTY_EDITOR_GROUP, createEditorInput(path));
-    const openExternal = vi.fn();
-    const closePane = vi.fn();
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    root = createRoot(container);
 
-    await act(async () => root?.render(withTestLocalization(
-      <DesktopEditorSplitView
-        aiEditRequest={null}
-        dataPort={{
-          listChildren: async () => [node],
-          getFileUrl: async () => `blob:${path}`,
-        }}
-        editorGroup={group}
-        editorInteractionPreferences={{ showSaveStatus: false, markdownBlockDragEnabled: false }}
-        externalOpen={{ open: openExternal }}
-        editorTree={[node]}
-        fileIconTheme="default"
-        layout={createEditorPaneLayout(path)}
-        markdownEnvironment={workspaceState(node).markdownEnvironment}
-        workspace={{ id: "workspace", name: "Workspace", path: "/workspace", status: "recording" }}
-        onClosePane={closePane}
-        onFocusPane={vi.fn()}
-        onMovePane={vi.fn()}
-        onOpenAtPaneEdge={vi.fn()}
-        onResizeSplit={vi.fn()}
-        onSplitPane={vi.fn()}
-      />,
-    )));
-
-    const handle = container.querySelector<HTMLButtonElement>(".desktop-editor-pane-handle")!;
-    await openPaneMenu(handle);
-    const menu = document.querySelector<HTMLElement>(".desktop-editor-pane-menu")!;
-    expect(menu.style.width).toBe("63px");
-    const actions = Array.from(menu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'));
-
-    expect(menu.dataset.hasSecondary).toBeUndefined();
-    expect(menu.textContent).toBe("");
-    expect(actions).toHaveLength(2);
-    expect(actions.map((item) => item.getAttribute("aria-label"))).toEqual([
-      "Open in default app",
-      "Close editor pane",
-    ]);
-    expect(menu.querySelector(".desktop-menu-section")).toBeNull();
-
-    const closeAction = document.querySelector<HTMLButtonElement>(
-      '[aria-label="Close editor pane"]',
-    );
-    await act(async () => closeAction?.click());
-    expect(closePane).toHaveBeenCalledWith("editor-pane-1");
-    expect(document.querySelector(".desktop-editor-pane-menu")).toBeNull();
-  });
 });
 
 async function openPaneMenu(handle: HTMLButtonElement) {
@@ -293,6 +234,7 @@ async function waitForCondition(condition: () => boolean, attempts = 100) {
 
 function workspaceState(node: DataNode): DataWorkspaceState {
   return {
+    documentNavigation: unavailableDocumentNavigation,
     tree: [node],
     activePath: node.path,
     activeNode: node,

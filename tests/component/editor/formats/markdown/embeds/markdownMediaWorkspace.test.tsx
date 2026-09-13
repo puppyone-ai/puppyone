@@ -1,13 +1,13 @@
 /**
  * @vitest-environment happy-dom
  */
-import React, { act } from "react";
+import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DataNode, DataPort } from "../../../../../../packages/shared-ui/src/core/types";
 import { DataWorkspace } from "../../../../../../packages/shared-ui/src/data/DataWorkspace";
-import { withTestLocalization } from "../../../../../support/react/localization";
 import { CENTERED_README_DOCUMENT } from "../../../../../fixtures/editor/formats/markdown/centeredReadme";
+import { withTestLocalization } from "../../../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -24,18 +24,18 @@ afterEach(() => {
 describe("Markdown workspace media integration", () => {
   it("hydrates the canonical README logo while keeping HTTPS badges out of the workspace resolver", async () => {
     const markdownPath = "README.md";
-    const getFileUrl = vi.fn(async (path: string) => {
+    const getFileUrl = vi.fn<NonNullable<DataPort["getFileUrl"]>>(async (path: string) => {
       if (path === "public/assets/brand/puppy/puppy-dark.svg") {
         return "puppyone-local://file/token/markdown-asset/root/public/assets/brand/puppy/puppy-dark.svg";
       }
       if (path === "public/assets/media/screenshots/puppyone-editor-overview.png") {
         return "puppyone-local://file/token/markdown-asset/root/public/assets/media/screenshots/puppyone-editor-overview.png";
       }
-      return null;
+      throw new Error(`Missing test asset: ${path}`);
     });
     const dataPort: DataPort = {
-      listChildren: vi.fn(async () => [markdownNode(markdownPath)]),
-      readFile: vi.fn(async (path: string) => ({
+      listChildren: vi.fn<NonNullable<DataPort["listChildren"]>>(async () => [markdownNode(markdownPath)]),
+      readFile: vi.fn<NonNullable<DataPort["readFile"]>>(async (path: string) => ({
         path,
         name: markdownPath,
         type: "markdown",
@@ -85,8 +85,8 @@ describe("Markdown workspace media integration", () => {
   it("resolves a standard Markdown image relative to the active document", async () => {
     const markdownPath = "Puppyone — One Pager.md";
     const imagePath = "asserts/market-unbundling-chart.png";
-    const getFileUrl = vi.fn(async () => "blob:https://app/market-unbundling-chart");
-    const readFile = vi.fn(async (path: string) => ({
+    const getFileUrl = vi.fn<NonNullable<DataPort["getFileUrl"]>>(async () => "blob:https://app/market-unbundling-chart");
+    const readFile = vi.fn<NonNullable<DataPort["readFile"]>>(async (path: string) => ({
       path,
       name: markdownPath,
       type: "markdown",
@@ -102,7 +102,7 @@ describe("Markdown workspace media integration", () => {
       version: "v1",
     }));
     const dataPort: DataPort = {
-      listChildren: vi.fn(async (folderPath) => {
+      listChildren: vi.fn<NonNullable<DataPort["listChildren"]>>(async (folderPath) => {
         if (folderPath === "asserts") return [imageNode(imagePath)];
         return [markdownNode(markdownPath), folderNode()];
       }),

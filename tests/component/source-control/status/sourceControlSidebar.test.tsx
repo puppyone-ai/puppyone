@@ -1,12 +1,11 @@
 /**
  * @vitest-environment happy-dom
  */
-import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GitSidebar } from "../../../../src/features/source-control/SourceControlSidebar";
-import type { GitSourceControlResource, GitStatusSnapshot } from "../src/types/electron";
+import type { GitSourceControlResource, GitStatusSnapshot } from "../../../../src/types/electron";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -432,7 +431,7 @@ function createGitStatus(): GitStatusSnapshot {
     behind: 0,
     incomingPreview: [],
     outgoingPreview: [committed],
-  } as const;
+  } satisfies NonNullable<GitStatusSnapshot["syncTarget"]>;
 
   return {
     isRepo: true,
@@ -512,7 +511,7 @@ function createDivergedGitHubStatus(): GitStatusSnapshot {
     behind: 1,
     incomingPreview: [incoming],
     outgoingPreview: [outgoing],
-  } as const;
+  } satisfies NonNullable<GitStatusSnapshot["syncTarget"]>;
 
   status.syncTarget = target;
   status.effectiveHosting = {

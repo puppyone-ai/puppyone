@@ -1,14 +1,14 @@
+import { gitStatus as createGitStatus } from "../../../support/source-control/gitFixtures";
 /**
  * @vitest-environment happy-dom
  */
-import React from "react";
-import { act } from "react";
+import type { Workspace } from "@puppyone/shared-ui";
+import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Workspace } from "@puppyone/shared-ui";
-import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
 import type { ProjectCloudContext } from "../../../../src/features/cloud/project/context";
-import type { GitStatusSnapshot } from "../src/types/electron";
+import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
+import type { GitStatusSnapshot } from "../../../../src/types/electron";
 
 const cloudApi = vi.hoisted(() => ({
   getCloudRepositoryContext: vi.fn(),
@@ -44,14 +44,14 @@ const workspace: Workspace = {
 };
 
 function gitStatus(...remotes: Array<{ fetch: string; push?: string }>): GitStatusSnapshot {
-  return {
+  return createGitStatus({
     remotes: remotes.map((remote, index) => ({
       name: `remote-${index}`,
       fetchUrl: remote.fetch,
       pushUrl: remote.push ?? remote.fetch,
       branches: [],
     })),
-  } as GitStatusSnapshot;
+  });
 }
 
 function ContextHarness({

@@ -1,3 +1,4 @@
+import { installDesktopBridge } from "../../../../support/electron/desktopBridge";
 /**
  * @vitest-environment happy-dom
  */
@@ -29,7 +30,7 @@ describe("Slides create action", () => {
       template: { id: "slides.default" as const, version: 1 },
     }));
     originalDesktopBridge = window.puppyoneDesktop;
-    window.puppyoneDesktop = { instantiateTemplate } as Window["puppyoneDesktop"];
+    installDesktopBridge({ instantiateTemplate });
     const dataPort = createLocalDataPort("/workspace");
     const onActivateNode = vi.fn();
     const setActiveExplorerNode = vi.fn();

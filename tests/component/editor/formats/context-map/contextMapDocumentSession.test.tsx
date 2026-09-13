@@ -1,22 +1,22 @@
+import type { DataPort } from "@puppyone/shared-ui";
 /**
  * @vitest-environment happy-dom
  */
-import React from "react";
-import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { EditorDocumentHost } from "../../../../../packages/shared-ui/src/editor/host/EditorDocumentHost";
-import {
-  EditorPaneMenuContributionProvider,
-  type EditorPaneMenuContribution,
-} from "../../../../../packages/shared-ui/src/editor/editorPaneMenuContribution";
-import { preloadPresetViewer } from "../../../../../packages/shared-ui/src/editor/host/PresetViewerRenderer";
-import { resolveEditorViewer } from "../../../../../packages/shared-ui/src/editor/registry/viewerRegistry";
 import {
   createDefaultContextMapDocumentContent,
   parseContextMapDocument,
   type DataNode,
 } from "@puppyone/shared-ui";
+import React, { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  EditorPaneMenuContributionProvider,
+  type EditorPaneMenuContribution,
+} from "../../../../../packages/shared-ui/src/editor/editorPaneMenuContribution";
+import { EditorDocumentHost } from "../../../../../packages/shared-ui/src/editor/host/EditorDocumentHost";
+import { preloadPresetViewer } from "../../../../../packages/shared-ui/src/editor/host/PresetViewerRenderer";
+import { resolveEditorViewer } from "../../../../../packages/shared-ui/src/editor/registry/viewerRegistry";
 import { withTestLocalization } from "../../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
@@ -32,7 +32,7 @@ afterEach(() => {
 
 describe("Context Map Document Session integration", () => {
   it("opens as a standard editable file and persists disclosure state through the host session", async () => {
-    const persist = vi.fn(async () => ({ ok: true as const, version: "v2" }));
+    const persist = vi.fn<NonNullable<DataPort["documentPersistence"]>["persist"]>(async () => ({ ok: true as const, version: "v2" }));
     const source = createDefaultContextMapDocumentContent();
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -40,7 +40,7 @@ describe("Context Map Document Session integration", () => {
     const contextMapDocument = {
       path: "Knowledge.contextmap",
       name: "Knowledge.contextmap",
-      type: "context-map",
+      type: "context-map" as const,
       sourceKind: "local" as const,
       content: source,
       version: "v1",
@@ -78,15 +78,15 @@ describe("Context Map Document Session integration", () => {
   });
 
   it("switches between radial and layered hierarchy renderers", async () => {
-    const persist = vi.fn(async () => ({ ok: true as const, version: "v2" }));
-    let paneMenuContribution: EditorPaneMenuContribution | null = null;
+    const persist = vi.fn<NonNullable<DataPort["documentPersistence"]>["persist"]>(async () => ({ ok: true as const, version: "v2" }));
+    const paneMenuContribution: { current: EditorPaneMenuContribution | null } = { current: null };
     const container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
     const contextMapDocument = {
       path: "Context Map.contextmap",
       name: "Context Map.contextmap",
-      type: "context-map",
+      type: "context-map" as const,
       sourceKind: "local" as const,
       content: createDefaultContextMapDocumentContent(),
       version: "v1",
@@ -96,7 +96,7 @@ describe("Context Map Document Session integration", () => {
     await act(async () => root?.render(withTestLocalization(
       <EditorPaneMenuContributionProvider
         onContributionChange={(contribution) => {
-          paneMenuContribution = contribution;
+          paneMenuContribution.current = contribution;
         }}
       >
         <EditorDocumentHost
@@ -116,7 +116,7 @@ describe("Context Map Document Session integration", () => {
       </EditorPaneMenuContributionProvider>,
     )));
 
-    const getLayoutControl = () => paneMenuContribution?.viewItems.find(
+    const getLayoutControl = () => paneMenuContribution.current?.viewItems.find(
       (item) => item.id === "context-map-layout",
     );
 
@@ -139,12 +139,12 @@ describe("Context Map Document Session integration", () => {
       if (!React.isValidElement<{ size?: number }>(option.icon)) return null;
       return option.icon.props.size;
     })).toEqual([12, 12, 12]);
-    expect(paneMenuContribution?.viewItems.map((item) => item.id)).toEqual([
+    expect(paneMenuContribution.current?.viewItems.map((item) => item.id)).toEqual([
       "context-map-layout",
       "context-map-filter-one-way-links",
       "context-map-filter-bidirectional-links",
     ]);
-    expect(paneMenuContribution?.viewItems.slice(1).map((item) => (
+    expect(paneMenuContribution.current?.viewItems.slice(1).map((item) => (
       item.kind === "toggle" ? item.checked : null
     ))).toEqual([true, true]);
 

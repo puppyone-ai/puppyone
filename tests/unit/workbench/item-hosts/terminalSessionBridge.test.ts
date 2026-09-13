@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createTerminalSessionBridge } from "../../../../src/features/desktop-terminal/runtime/terminalSessionBridge";
 import type { TerminalDisplayData } from "../../../../src/features/desktop-terminal/runtime/terminalRuntime";
 import type { SessionRuntimeFailure } from "../../../../shared/session-transport/types";
+import type { TerminalCreateRequest, TerminalCreateResult } from "../../../../src/types/electron";
 
 const { receivePort } = vi.hoisted(() => ({ receivePort:vi.fn() }));
 vi.mock("../../../../src/features/session-transport/sessionPorts", () => ({receiveSessionPort:receivePort}));
@@ -11,7 +12,7 @@ function setup() {
   receivePort.mockResolvedValue(port);
   let failureListener: (failure:SessionRuntimeFailure) => void = () => {};
   const unsubscribe = vi.fn();
-  const receipt = {id:"terminal-a", instanceId:"instance-a", shell:"/bin/sh", inputShell:"/bin/sh", cwd:"/a"};
+  const receipt: TerminalCreateResult = {id:"terminal-a", instanceId:"instance-a", pid:null, shell:"/bin/sh", inputShell:"/bin/sh", cwd:"/a"};
   const base = {
     createTerminal:vi.fn(async () => receipt),
     connectTerminalSession:vi.fn(async () => ({connection:"connection-a", hostGeneration:"host-a"})),
@@ -19,7 +20,7 @@ function setup() {
     onSessionRuntimeFailure: (listener:typeof failureListener) => {failureListener=listener; return unsubscribe;},
   };
   const bridge = createTerminalSessionBridge(base as unknown as NonNullable<Window["puppyoneDesktop"]>);
-  const request = {id:receipt.id, rootPath:"/a", cols:80, rows:24, projectContext:{projectId:"a", rootPath:"/a", generation:"project-a"}};
+  const request: TerminalCreateRequest = {id:receipt.id, rootPath:"/a", cwd:"/a", cols:80, rows:24, projectContext:{projectId:"a", rootPath:"/a", generation:"project-a"}};
   return {bridge, base, port, request, unsubscribe, fail:(failure:SessionRuntimeFailure) => failureListener(failure)};
 }
 const flush = async () => { await Promise.resolve(); await Promise.resolve(); };
@@ -36,7 +37,7 @@ describe("DOM terminal session transport", () => {
     await flush();
     expect(f.port.postMessage).not.toHaveBeenCalled();
     expect(errors).not.toHaveBeenCalled();
-    finishStartup({id:"terminal-a",instanceId:"instance-a",shell:"/bin/sh",inputShell:"/bin/sh",cwd:"/a"});
+    finishStartup({id:"terminal-a",instanceId:"instance-a",pid:null,shell:"/bin/sh",inputShell:"/bin/sh",cwd:"/a"});
     await startup;
     await flush();
     const call=f.port.postMessage.mock.calls[0]?.[0];

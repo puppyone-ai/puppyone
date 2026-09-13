@@ -35,9 +35,9 @@ describe("Markdown link index boundary", () => {
     expect(indexed.indexedDocumentCount).toBe(2);
     expect(indexed.resolveMarkdownLink("notes/source.md", "../target.md"))
       .toEqual(direct.resolveMarkdownLink("notes/source.md", "../target.md"));
-    expect(indexed.getBacklinks("target.md")).toEqual(direct.getBacklinks("target.md"));
-    expect(indexed.getBacklinks("target.md")[0]).toMatchObject({ count: 3 });
-    expect(indexed.getBacklinks("target.md")[0]?.references.map((reference) => reference.lineNumber))
+    expect(indexed.getBacklinks!("target.md")).toEqual(direct.getBacklinks!("target.md"));
+    expect(indexed.getBacklinks!("target.md")[0]).toMatchObject({ count: 3 });
+    expect(indexed.getBacklinks!("target.md")[0]?.references.map((reference) => reference.lineNumber))
       .toEqual([1, 2, 3]);
   });
 
@@ -57,7 +57,8 @@ describe("Markdown link index boundary", () => {
 
     await vi.runAllTimersAsync();
 
-    expect((await firstOutcome).name).toBe("AbortError");
+    expect(await firstOutcome).toBeInstanceOf(Error);
+    expect(await firstOutcome).toMatchObject({ name: "AbortError" });
     expect((await second.promise).indexedDocumentCount).toBe(2);
     coordinator.cancel();
     await Promise.resolve();
@@ -125,7 +126,7 @@ describe("Markdown link index boundary", () => {
     expect(reads).toEqual(["a.md", "b.md"]);
     expect(maxActiveReads).toBe(1);
     expect(initial.indexedDocumentCount).toBe(2);
-    expect(createMarkdownLinkGraph(metadata, initial).getBacklinks("b.md")[0]?.count).toBe(1);
+    expect(createMarkdownLinkGraph(metadata, initial).getBacklinks!("b.md")[0]?.count).toBe(1);
 
     const updated = coordinator.updateDocument({
       path: "a.md",
@@ -134,7 +135,7 @@ describe("Markdown link index boundary", () => {
     });
     await vi.runAllTimersAsync();
     const next = await updated;
-    expect(createMarkdownLinkGraph(metadata, next).getBacklinks("b.md")).toEqual([]);
+    expect(createMarkdownLinkGraph(metadata, next).getBacklinks!("b.md")).toEqual([]);
     coordinator.cancel();
     await Promise.resolve();
   });
@@ -149,7 +150,7 @@ describe("Markdown link index boundary", () => {
       { path: "target.md", name: "target.md", content: "" },
     ];
 
-    const reference = createMarkdownLinkGraph(documents).getBacklinks("target.md")[0]?.references[0];
+    const reference = createMarkdownLinkGraph(documents).getBacklinks!("target.md")[0]?.references[0];
     expect(reference?.lineText.length).toBeLessThanOrEqual(320);
     expect(reference?.lineText).toContain("Target");
   });

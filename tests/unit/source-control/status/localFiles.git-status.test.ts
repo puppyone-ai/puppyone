@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getWorkspaceGitStatus } from "../../../../src/lib/localFiles";
+import type { DesktopBridge } from "../../../support/electron/desktopBridge";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -8,10 +9,10 @@ afterEach(() => {
 describe("local Git status cancellation bridge", () => {
   it("uses one request id for status and cancellation", async () => {
     let rejectStatus: ((reason: Error) => void) | null = null;
-    const getGitStatus = vi.fn(() => new Promise<never>((_resolve, reject) => {
+    const getGitStatus = vi.fn<DesktopBridge["getGitStatus"]>(() => new Promise<never>((_resolve, reject) => {
       rejectStatus = reject;
     }));
-    const cancelGitStatus = vi.fn(async () => {
+    const cancelGitStatus = vi.fn<NonNullable<DesktopBridge["cancelGitStatus"]>>(async () => {
       rejectStatus?.(new Error("main process cancelled"));
       return { ok: true };
     });
@@ -32,8 +33,8 @@ describe("local Git status cancellation bridge", () => {
   });
 
   it("does not invoke IPC for an already-cancelled request", async () => {
-    const getGitStatus = vi.fn();
-    const cancelGitStatus = vi.fn();
+    const getGitStatus = vi.fn<DesktopBridge["getGitStatus"]>();
+    const cancelGitStatus = vi.fn<NonNullable<DesktopBridge["cancelGitStatus"]>>();
     vi.stubGlobal("window", {
       puppyoneDesktop: { getGitStatus, cancelGitStatus },
     });

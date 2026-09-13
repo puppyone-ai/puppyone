@@ -1,18 +1,18 @@
-import { EditorState } from "@codemirror/state";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
+import { EditorState } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
-import { createWidgetSessionRegistry } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/codemirror/widgetSession";
-import { createEmbeddedEditSessionStore } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/codemirror/embeddedEditSession";
 import { puppyMarkdownFeatureCompositionExtension, puppyMarkdownParserExtensions } from "../../../../../../packages/shared-ui/src/editor/markdown/composition/markdownFeatureComposition";
+import { createEmbeddedEditSessionStore } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/codemirror/embeddedEditSession";
+import { createWidgetSessionRegistry } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/codemirror/widgetSession";
 
-import { MARKDOWN_HTML_PROFILE_VERSION } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/policy/markdownHtmlProfiles";
 import { createAsyncRenderBroker } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/brokers/asyncRenderBroker";
 import { createLinkBroker } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/brokers/linkBroker";
+import { createTransactionBroker, getDocRevision } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/brokers/transactionBroker";
 import { createWebEmbedBroker } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/brokers/webEmbedBroker";
+import { MARKDOWN_HTML_PROFILE_VERSION } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/policy/markdownHtmlProfiles";
+import { createDocumentTrustContext, evaluateAuthorizationGrant } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/policy/markdownTrustPolicy";
 import { createCapabilityPrincipal, workspaceIdForDocument } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/security/capabilityPrincipal";
 import { createExecutionSessionStore } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/sessions/executionSession";
-import { createDocumentTrustContext, evaluateAuthorizationGrant } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/policy/markdownTrustPolicy";
-import { createTransactionBroker, getDocRevision } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/brokers/transactionBroker";
 
 function createMarkdownState(source: string) {
   return EditorState.create({
@@ -156,7 +156,7 @@ describe("Markdown embed runtime foundations", () => {
 
   it("single-flights repeated activation of one native web embed", async () => {
     let createCalls = 0;
-    let finishCreate: ((value: { id: string }) => void) | null = null;
+    let finishCreate: ((value: { id: string }) => void) | undefined;
     const createResult = new Promise<{ id: string }>((resolve) => {
       finishCreate = resolve;
     });

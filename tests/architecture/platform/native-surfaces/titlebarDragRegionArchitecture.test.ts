@@ -47,7 +47,8 @@ describe("titlebar drag-region architecture", () => {
   });
 
   it("keeps the Header full width and mounts the optional Project rail below it", () => {
-    expect(desktopShell).toContain('data-leading-rail={leadingRail ? "true" : undefined}');
+    expect(desktopShell).toContain('const leadingRailPresent = Boolean(leadingRail || renderLeadingRail);');
+    expect(desktopShell).toContain('data-leading-rail={leadingRailPresent ? "true" : undefined}');
     expect(desktopShell).toContain('className="desktop-shell-workbench"');
     expect(desktopShell.indexOf("<DesktopWindowChrome")).toBeLessThan(
       desktopShell.indexOf('className="desktop-shell-leading-rail"'),

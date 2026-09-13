@@ -1,13 +1,14 @@
+import { gitStatus } from "../../../support/source-control/gitFixtures";
 /**
  * @vitest-environment happy-dom
  */
-import React, { act, createRef } from "react";
+import { act, createRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createWorkspaceFolder } from "../../../../packages/shared-ui/src/core/workbenchWorkspace";
 import { DesktopTitlebarContext } from "../../../../src/features/app-shell/DesktopTitlebarContext";
 import { DesktopWorkspaceSwitcher } from "../../../../src/features/app-shell/DesktopWorkspaceSwitcher";
-import { createWorkspaceFolder } from "../../../../packages/shared-ui/src/core/workbenchWorkspace";
-import type { GitBranchSummary } from "../src/types/electron";
+import type { GitBranchSummary } from "../../../../src/types/electron";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
@@ -172,7 +173,7 @@ describe("titlebar Portal menu interactions", () => {
 
     await act(async () => {
       root?.render(withTestLocalization(
-        <DesktopTitlebarContext
+        <DesktopTitlebarContext availableProjects={[]}
           activeGitStatus={createGitStatus()}
           branchSwitcherOpen
           branchSwitcherRef={createRef<HTMLDivElement>()}
@@ -190,6 +191,7 @@ describe("titlebar Portal menu interactions", () => {
           onCloseWorkspaceSwitcher={vi.fn()}
           onGoHome={vi.fn()}
           onAddProject={vi.fn()}
+          onAddExistingProject={vi.fn()}
           onToggleBranchSwitcher={vi.fn()}
           onToggleWorkspaceSwitcher={vi.fn()}
         />,
@@ -215,7 +217,7 @@ describe("titlebar Portal menu interactions", () => {
 
     await act(async () => {
       root?.render(withTestLocalization(
-        <DesktopTitlebarContext
+        <DesktopTitlebarContext availableProjects={[]}
           activeGitStatus={null}
           branchSwitcherOpen={false}
           branchSwitcherRef={createRef<HTMLDivElement>()}
@@ -277,16 +279,5 @@ function createBranch(name: string): GitBranchSummary {
 }
 
 function createGitStatus() {
-  return {
-    isRepo: true,
-    branch: "main",
-    detached: false,
-    head: null,
-    stagedEntries: [],
-    unstagedEntries: [],
-    untrackedEntries: [],
-    conflictedEntries: [],
-    ahead: 0,
-    behind: 0,
-  };
+  return gitStatus({ branch: "main" });
 }

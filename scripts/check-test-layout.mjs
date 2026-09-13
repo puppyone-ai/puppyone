@@ -3,9 +3,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { testDomains, testLayers, isRuntimeTest, isBenchmark } from "../tests/config/discovery.mjs";
 
 const layers = new Set(["unit", "component", "integration", "e2e", "architecture", "performance", "fixtures", "support", "config"]);
-const caseLayers = new Set(["unit", "component", "integration", "architecture"]);
+const caseLayers = new Set(testLayers);
 export function testLayoutErrors(files, packageJson) {
   const errors = [];
   for (const file of files) {
@@ -15,8 +16,19 @@ export function testLayoutErrors(files, packageJson) {
     if (isCase && (parts[0] !== "tests" || !caseLayers.has(parts[1]) || parts.length < 5)) {
       errors.push(`${file}: test cases belong in tests/<layer>/<domain>/<capability>/`);
     }
+    if (isCase && !isRuntimeTest(file)) {
+      errors.push(`${file}: unsupported test name or extension; it would not be discovered by Vitest`);
+    }
     if (/\.bench\.[cm]?[jt]sx?$/.test(file) && !/^tests\/performance\/benchmarks\/[^/]+\/[^/]+\//.test(file)) {
       errors.push(`${file}: benchmarks belong in tests/performance/benchmarks/<domain>/<capability>/`);
+    }
+    if (/\.bench\.[cm]?[jt]sx?$/.test(file) && !isBenchmark(file)) {
+      errors.push(`${file}: unsupported benchmark name or extension; it would not be discovered by Vitest`);
+    }
+    const domain = parts[1] === "performance" ? parts[3] : parts[2];
+    if (parts[0] === "tests" && (caseLayers.has(parts[1]) || parts[1] === "e2e"
+      || ["benchmarks", "scenarios"].includes(parts[2])) && !testDomains.includes(domain)) {
+      errors.push(`${file}: unknown test domain ${domain}`);
     }
     if (parts[0] === "tests" && file !== "tests/README.md" && !layers.has(parts[1])) {
       errors.push(`${file}: unknown test layer`);

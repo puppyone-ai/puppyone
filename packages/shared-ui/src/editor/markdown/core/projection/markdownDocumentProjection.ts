@@ -1,3 +1,4 @@
+import { getChangedSyntaxProjectionRange } from "./syntaxProjectionRange";
 import { syntaxTree } from "@codemirror/language";
 import {
   EditorState,
@@ -159,10 +160,13 @@ export const markdownLivePreviewDecorations = StateField.define<MarkdownDocument
         syntaxTree(transaction.startState) !== syntaxTree(transaction.state)
         && !transaction.docChanged
       ) {
-        // Background parsing may finish after initial paint. Reconcile the
-        // complete direct set so newly parsed offscreen structures already
-        // exist in the height map before the user scrolls to them.
-        patchRanges.push(getDocumentProjectionRange(transaction.state));
+        // Reconcile only changed parsed blocks. The unparsed source already
+        // has its canonical fallback projection, and reused syntax prefixes
+        // retain their direct geometry without a whole-document rebuild.
+        const changed = getChangedSyntaxProjectionRange(
+          syntaxTree(transaction.startState), syntaxTree(transaction.state),
+        );
+        if (changed) patchRanges.push(changed);
       }
     }
 

@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import type { DataNode, DataPort, FileContent } from "@puppyone/shared-ui";
+import { describe, expect, it } from "vitest";
 import { parseAppPreviewManifest } from "../../../../../shared/appPreviewManifest.js";
 import {
   AppPreviewCreationError,
@@ -86,6 +86,7 @@ describe("App Preview creation", () => {
     const manifest = parseAppPreviewManifest(content, { appPath: "Quarterly deck.puppyoneapp" });
 
     expect(manifest.name).toBe("Quarterly deck");
+    if (manifest.launch?.kind !== "local-server") throw new Error("Expected command launch fixture");
     expect(manifest.launch.cwd).toBe("slides");
     expect(manifest.launch.command.at(-1)).toBe("${port}");
     expect(manifest.permissions.workspace).toEqual(["read"]);

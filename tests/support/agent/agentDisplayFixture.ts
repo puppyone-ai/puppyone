@@ -1,29 +1,31 @@
-import { associateAgentUserMessage } from "../../../electron/main/agent/domain/transcript/message-identity.mjs";
 import { vi } from 'vitest';
-import { createAgentSessionControl, reduceAgentSessionControl } from '../../../electron/main/agent/domain/agent-session-control.mjs';
-import { applyAgentEvent as reduceContent, createAgentProjection, projectAgentUserSubmission } from '../../../electron/main/agent/domain/transcript/transcript-reducer.mjs';
 import { projectAgentControlView } from '../../../electron/main/agent/domain/agent-control-view.mjs';
+import { createAgentSessionControl, reduceAgentSessionControl } from '../../../electron/main/agent/domain/agent-session-control.mjs';
 import { projectAgentDisplayControl } from '../../../electron/main/agent/domain/transcript/display-control.mjs';
+import { associateAgentUserMessage } from "../../../electron/main/agent/domain/transcript/message-identity.mjs";
+import { createAgentProjection, projectAgentUserSubmission, applyAgentEvent as reduceContent } from '../../../electron/main/agent/domain/transcript/transcript-reducer.mjs';
 import { createAgentDisplayPatch } from '../../../shared/agent-contract/display-state.mjs';
+import type { AgentProjection } from "../../../shared/agent-contract/display-types";
+import type { AgentEvent, AgentSessionSnapshot } from "../../../shared/agent-contract/types";
+export { agentProjectionLimits, createAgentProjection } from '../../../electron/main/agent/domain/transcript/transcript-reducer.mjs';
 export type * from '../../../shared/agent-contract/display-types';
-export { createAgentProjection, agentProjectionLimits } from '../../../electron/main/agent/domain/transcript/transcript-reducer.mjs';
 const controls = new WeakMap<object, any>();
 
 /** Fixtures exercise the same Main control/content projection pipeline as production. */
-export function applyAgentEvent(display: any, event: any, options?: any) {
+export function applyAgentEvent(display: AgentProjection, event: AgentEvent, options?: Parameters<typeof reduceContent>[2]): AgentProjection {
   let control = controls.get(display) ?? createAgentSessionControl({ streamId: 'fixture-stream', sessionEpoch: 'fixture-epoch' });
   control = reduceAgentSessionControl(control, { type: 'event.accepted', event });
   const next = projectAgentDisplayControl(reduceContent(display, event, options), control);
   controls.set(next, control);
   return next;
 }
-export function applyAgentEvents(display: any, events: any[], options?: any) {
+export function applyAgentEvents(display: AgentProjection, events: AgentEvent[], options?: Parameters<typeof reduceContent>[2]): AgentProjection {
   return events.reduce((value, event) => applyAgentEvent(value, event, options), display);
 }
-export function finalizeDisplay(display: any) {
+export function finalizeDisplay(display: AgentProjection): AgentProjection {
   return projectAgentDisplayControl(display, controls.get(display) ?? createAgentSessionControl());
 }
-export function displaySnapshot(raw: any) {
+export function displaySnapshot(raw: any): AgentSessionSnapshot {
   let control = raw.control ?? createAgentSessionControl({ streamId: `stream:${raw.session.id}`, sessionEpoch: `epoch:${raw.session.id}` });
   if (!raw.control) control = reduceAgentSessionControl(control, { type: 'adapter.attached' });
   let display = createAgentProjection();

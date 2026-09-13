@@ -250,8 +250,8 @@ export function CsvTableEditor({
   const revealViewportCell = viewport.revealCell;
   const scheduleViewportUpdate = viewport.handleScroll;
   useLayoutEffect(() => {
-    // Reattachment starts with the last bounded projection instead of mounting
-    // a guessed 1200px table and replacing half its cells during measurement.
+    // Retain the projection origin; reattachment measures a minimal probe there
+    // before mounting the full viewport so cells are styled only once.
     documentModels?.writeViewState("csv:viewport", { rowRange: viewport.rowRange, columnRange: viewport.columnRange });
   }, [documentModels, viewport.rowRange, viewport.columnRange]);
 
@@ -447,6 +447,9 @@ export function CsvTableEditor({
   return (
     <section
       className="csv-table-editor"
+      // This synchronous model and its measured bounded projection are ready
+      // for the host handoff; unrelated DOM mutations need no extra quiet frame.
+      data-document-surface-ready={viewport.measured ? "true" : undefined}
       data-readonly={readOnly ? "true" : undefined}
       data-row-numbers-visible={rowNumbersVisible ? "true" : undefined}
     >

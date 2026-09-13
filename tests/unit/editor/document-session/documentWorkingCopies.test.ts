@@ -1,12 +1,12 @@
-import { describe, expect, it, vi } from "vitest";
 import type { DocumentPersistencePort } from "@puppyone/shared-ui";
+import { describe, expect, it, vi } from "vitest";
 import {
   createWorkspaceResourceUri,
   createWorkspaceRootUri,
 } from "../../../../packages/shared-ui/src/core/resourceUri";
 import {
-  closeDocumentWorkingCopy,
   closeDocumentWorkingCopiesUnderResource,
+  closeDocumentWorkingCopy,
   getOrCreateDocumentWorkingCopy,
 } from "../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
 
@@ -15,12 +15,12 @@ describe("document Working Copy registry", () => {
     const firstPersistence: DocumentPersistencePort = {
       kind: "local-fs",
       storageIdentity: "test:working-copies",
-      persist: vi.fn(async () => ({ ok: true, version: "v2" })),
+      persist: vi.fn<DocumentPersistencePort["persist"]>(async () => ({ ok: true, version: "v2" })),
     };
     const recreatedPersistence: DocumentPersistencePort = {
       kind: "local-fs",
       storageIdentity: "test:working-copies",
-      persist: vi.fn(async () => ({ ok: true, version: "v3" })),
+      persist: vi.fn<DocumentPersistencePort["persist"]>(async () => ({ ok: true, version: "v3" })),
     };
     const first = getOrCreateDocumentWorkingCopy({
       documentId: "working-copy-a.md",
@@ -62,7 +62,7 @@ describe("document Working Copy registry", () => {
       persistence: {
         kind: "local-fs",
         storageIdentity: "test:workspace-a",
-        persist: vi.fn(async () => ({ ok: true, version: "a2" })),
+        persist: vi.fn<DocumentPersistencePort["persist"]>(async () => ({ ok: true, version: "a2" })),
       },
     });
     const second = getOrCreateDocumentWorkingCopy({
@@ -72,7 +72,7 @@ describe("document Working Copy registry", () => {
       persistence: {
         kind: "local-fs",
         storageIdentity: "test:workspace-b",
-        persist: vi.fn(async () => ({ ok: true, version: "b2" })),
+        persist: vi.fn<DocumentPersistencePort["persist"]>(async () => ({ ok: true, version: "b2" })),
       },
     });
 
@@ -87,7 +87,7 @@ describe("document Working Copy registry", () => {
     const persistence: DocumentPersistencePort = {
       kind: "local-fs",
       storageIdentity: "test:multi-root-workbench",
-      persist: vi.fn(async () => ({ ok: true, version: "v2" })),
+      persist: vi.fn<DocumentPersistencePort["persist"]>(async () => ({ ok: true, version: "v2" })),
     };
     const first = getOrCreateDocumentWorkingCopy({
       documentId: createWorkspaceResourceUri(rootA, "same.md"),
@@ -116,7 +116,7 @@ describe("document Working Copy registry", () => {
     const persistence: DocumentPersistencePort = {
       kind: "local-fs",
       storageIdentity: "test:multi-root-close",
-      persist: vi.fn(async () => ({ ok: true, version: "v2" })),
+      persist: vi.fn<DocumentPersistencePort["persist"]>(async () => ({ ok: true, version: "v2" })),
     };
     const first = getOrCreateDocumentWorkingCopy({
       documentId: resourceA,

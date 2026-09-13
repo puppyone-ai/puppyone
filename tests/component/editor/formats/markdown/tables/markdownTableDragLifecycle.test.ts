@@ -48,8 +48,8 @@ describe("Markdown table drag lifecycle", () => {
         updateDragAutoScroll: vi.fn(),
       },
       rows: [
-        { header: true, cells: [{ from: 0, to: 4, text: "Name" }] },
-        { header: false, cells: [{ from: 5, to: 13, text: "PuppyOne" }] },
+        { header: true, lineTo: 4, cells: [{ editable: true, from: 0, to: 4, text: "Name" }] },
+        { header: false, lineTo: 13, cells: [{ editable: true, from: 5, to: 13, text: "PuppyOne" }] },
       ],
       getTableRange: () => ({ from: 0, to: 13 }),
       table,

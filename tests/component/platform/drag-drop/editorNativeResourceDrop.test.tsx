@@ -1,14 +1,15 @@
+import { canonicalizeResourceUri } from "@puppyone/shared-ui";
 /** @vitest-environment happy-dom */
-import React, { act } from "react";
+import { EXPLORER_REFERENCE_DRAG_TYPE, getEditorPanes, serializeExplorerReferenceDrag } from "@puppyone/shared-ui";
+import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
-import { useExplorerFileDrop } from "../../../../src/features/editor-workbench/drag-and-drop/useExplorerFileDrop";
+import { createWorkspaceResourceReference, parseWorkspaceResourceReference } from "../../../../shared/workspace-resource-reference.mjs";
 import { useResourceDragExport } from "../../../../src/features/data-workspace/useResourceDragExport";
 import type { ResolvedWorkbenchDataResource } from "../../../../src/features/data-workspace/workbenchDataPort";
-import type { ResourceDragState } from "../../../../src/platform/resourceDragSession";
 import { useDesktopEditorWorkbench, type DesktopEditorWorkbenchController } from "../../../../src/features/editor-workbench/controller/useDesktopEditorWorkbench";
-import { getEditorPanes, EXPLORER_REFERENCE_DRAG_TYPE, serializeExplorerReferenceDrag } from "@puppyone/shared-ui";
-import { parseWorkspaceResourceReference, createWorkspaceResourceReference } from "../../../../shared/workspace-resource-reference.mjs";
+import { useExplorerFileDrop } from "../../../../src/features/editor-workbench/drag-and-drop/useExplorerFileDrop";
+import type { ResourceDragState } from "../../../../src/platform/resourceDragSession";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const uri = "puppyone-local://workspace/root-b/docs/same.md";
@@ -18,13 +19,14 @@ afterEach(() => { act(() => root?.unmount()); document.body.innerHTML = ""; wind
 
 const resolveEditorResource = (resource: string) => {
   const { folderId, relativePath } = parseWorkspaceResourceReference(resource);
-  return { rootUri: createWorkspaceResourceReference(folderId), resourcePath: relativePath, hostPath: resource };
+  return { rootUri: canonicalizeResourceUri(createWorkspaceResourceReference(folderId)), resourcePath: relativePath, hostPath: resource };
 };
 
 function fixture() {
   let publish!: (state: ResourceDragState) => void;
   const claim = vi.fn<NonNullable<typeof window.puppyoneDesktop>["claimResourceDrop"]>(async () => ({ entries: [entry] }));
   const pointer = vi.fn();
+  const occlusion = vi.fn();
   const start = vi.fn(async () => { publish({ id: "native-1", entries: [entry] }); return true; });
   window.puppyoneDesktop = {
     resourceDragSessionSupported: true,
@@ -33,6 +35,7 @@ function fixture() {
     previewResourceDrag: vi.fn(async () => ({ id: "native-1", entries: [entry] })),
     onResourceDragState: (listener: typeof publish) => { publish = listener; return () => {}; },
     setNativeSurfacePointerPassthrough: pointer,
+    setNativeSurfaceOccluded: occlusion,
   } as unknown as NonNullable<typeof window.puppyoneDesktop>;
   const open = vi.fn();
   let workbench!: DesktopEditorWorkbenchController;
@@ -54,7 +57,7 @@ function fixture() {
   render();
   const pane = container.querySelector("section")!;
   pane.getBoundingClientRect = () => new DOMRect(0, 0, 800, 600);
-  return { container, pane, claim, pointer, start, open, render, get workbench() { return workbench; }, publish: (state: ResourceDragState) => publish(state) };
+  return { container, pane, claim, pointer, occlusion, start, open, render, get workbench() { return workbench; }, publish: (state: ResourceDragState) => publish(state) };
 }
 
 function nativeFiles() {
@@ -166,4 +169,17 @@ it("requires a native receipt even when Files also advertises forged HTML identi
   await act(async () => { f.pane.dispatchEvent(drag("drop", transfer)); });
   expect(f.claim).toHaveBeenCalledOnce();
   expect(f.open).not.toHaveBeenCalled();
+});
+
+it.each(["drop", "cancel", "unmount"])("restores native content after %s ends the file-drop overlay", async (reason) => {
+  const f = fixture();
+  act(() => f.publish({ id: "native-1", entries: [entry] }));
+  expect(f.occlusion).toHaveBeenLastCalledWith({ occluded: true });
+  await act(async () => {
+    if (reason === "drop") f.pane.dispatchEvent(drag("drop", nativeFiles()));
+    if (reason === "cancel") f.publish({ id: "native-1", entries: null });
+    if (reason === "unmount") root.unmount();
+  });
+  expect(f.occlusion).toHaveBeenLastCalledWith({ occluded: false });
+  expect(f.pointer).toHaveBeenLastCalledWith({ active: false });
 });

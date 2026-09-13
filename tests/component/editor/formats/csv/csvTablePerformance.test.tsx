@@ -1,7 +1,6 @@
 /**
  * @vitest-environment happy-dom
  */
-import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -32,7 +31,7 @@ afterEach(async () => {
 
 describe("CSV bounded renderer performance", () => {
   it("keeps a 500 by 20 table below the mounted row and cell budgets", async () => {
-    let snapshotPort: EditorSourceSnapshotPort | null = null;
+    const snapshotPort: { current: EditorSourceSnapshotPort | null } = { current: null };
     const localRevisions: string[] = [];
     await act(async () => {
       root.render(withTestLocalization(
@@ -41,7 +40,7 @@ describe("CSV bounded renderer performance", () => {
           documentId="500x20.csv"
           nodeName="500x20.csv"
           readOnly={false}
-          onSnapshotPortChange={(port) => { snapshotPort = port; }}
+          onSnapshotPortChange={(port) => { snapshotPort.current = port; }}
           onSourceRevisionChange={(revision) => {
             if (revision.origin === "local-edit") localRevisions.push(revision.revision);
           }}
@@ -58,8 +57,8 @@ describe("CSV bounded renderer performance", () => {
     expect(container.querySelectorAll("input[data-csv-row][data-csv-column]").length)
       .toBeLessThanOrEqual(2_000);
 
-    if (!snapshotPort) throw new Error("CSV snapshot port did not attach.");
-    const readSnapshot = vi.spyOn(snapshotPort, "readSnapshot");
+    if (!snapshotPort.current) throw new Error("CSV snapshot port did not attach.");
+    const readSnapshot = vi.spyOn(snapshotPort.current, "readSnapshot");
     const target = required<HTMLInputElement>(container, 'input[data-csv-row="0"][data-csv-column="0"]');
     const stable = required<HTMLInputElement>(container, 'input[data-csv-row="1"][data-csv-column="0"]');
     await act(async () => {
@@ -71,7 +70,7 @@ describe("CSV bounded renderer performance", () => {
     expect(localRevisions).toHaveLength(1);
     expect(readSnapshot).not.toHaveBeenCalled();
     expect(container.querySelector('input[data-csv-row="1"][data-csv-column="0"]')).toBe(stable);
-    expect(snapshotPort.readSnapshot().content.startsWith("updated,r0c1")).toBe(true);
+    expect(snapshotPort.current.readSnapshot().content.startsWith("updated,r0c1")).toBe(true);
   });
 
   it("advances the logical row window while keeping DOM bounded", async () => {
@@ -126,6 +125,28 @@ describe("CSV bounded renderer performance", () => {
     const restingEnd = Number(table.dataset.csvVirtualRowEnd);
     expect(restingEnd).toBeGreaterThanOrEqual(310);
     expect(restingEnd).toBeLessThan(fastEnd);
+  });
+
+  it("expands horizontal scroll coverage temporarily and preserves visible cells when it contracts", async () => {
+    vi.useFakeTimers();
+    await renderCsv(500, 100, "horizontal-buffer.csv");
+    const table = required<HTMLTableElement>(container, ".csv-table-editor__table");
+    const scroll = required<HTMLDivElement>(container, ".csv-table-editor__scroll");
+    Object.defineProperty(scroll, "clientWidth", { configurable: true, value: 600 });
+    await act(async () => {
+      scroll.scrollLeft = 0;
+      scroll.dispatchEvent(new Event("scroll"));
+      scroll.scrollLeft = 60 * 96;
+      scroll.dispatchEvent(new Event("scroll"));
+      scroll.dispatchEvent(new Event("scroll"));
+    });
+    const visibleCell = required<HTMLInputElement>(container, 'input[data-csv-row="0"][data-csv-column="60"]');
+    const movingColumns = Number(table.dataset.csvMountedColumns);
+    expect(Number(table.dataset.csvMountedCells)).toBeLessThanOrEqual(2_000);
+    await act(async () => { await vi.advanceTimersByTimeAsync(170); });
+    expect(Number(table.dataset.csvMountedColumns)).toBeLessThan(movingColumns);
+    expect(container.querySelector('input[data-csv-row="0"][data-csv-column="60"]')).toBe(visibleCell);
+    expect(Number(table.dataset.csvMountedCells)).toBeLessThanOrEqual(2_000);
   });
 
   it("adapts to a 100-column table without crossing the mounted-cell budget", async () => {

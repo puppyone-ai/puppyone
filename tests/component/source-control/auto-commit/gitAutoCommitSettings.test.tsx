@@ -4,7 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GitSettingsView } from "../../../../src/features/settings/main/RepositorySettingsViews";
 import { useGitAutoCommitSettings } from "../../../../src/features/source-control/useGitAutoCommitSettings";
-import type { GitAutoCommitSnapshot, GitStatusSnapshot } from "../src/types/electron";
+import type { GitAutoCommitSnapshot, GitStatusSnapshot } from "../../../../src/types/electron";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

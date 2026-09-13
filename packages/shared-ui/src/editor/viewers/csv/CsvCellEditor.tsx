@@ -79,39 +79,45 @@ export function CsvCellEditor({
   const referenceStatus = reference?.kind === "workspace"
     ? reference.status
     : reference?.kind ?? undefined;
-  const kindLabel = reference?.kind === "external"
+  const kindLabel = !projectedReference ? "" : reference?.kind === "external"
     ? t("editor.csv.reference.external")
     : t("editor.csv.reference.workspace");
-  const actionLabel = openable
+  const actionLabel = !projectedReference ? "" : openable
     ? t("editor.csv.reference.open", { target })
     : t("editor.csv.reference.unavailable", { target });
+
+  const input = (
+    <input
+      className={reference ? "csv-table-editor__cell-input" : "csv-table-editor__cell-input csv-table-editor__cell-editor"}
+      value={value}
+      readOnly={readOnly}
+      onChange={(event) => onUpdate(event.currentTarget.value)}
+      onClick={handleClick}
+      onFocus={onActivate}
+      onKeyDown={handleKeyDown}
+      aria-label={t("editor.csv.cell", {
+        row: displayRowNumber,
+        column: columnIndex + 1,
+      })}
+      aria-describedby={projectedReference ? previewId : undefined}
+      aria-haspopup="menu"
+      aria-expanded="false"
+      data-csv-row={rowIndex}
+      data-csv-column={columnIndex}
+      spellCheck={false}
+    />
+  );
+  // Plain cells need only the input; reference overlays retain their positioning host.
+  if (!reference) return input;
 
   return (
     <div
       className="csv-table-editor__cell-editor"
-      data-reference-kind={reference?.kind}
+      data-reference-kind={reference.kind}
       data-reference-status={referenceStatus}
-      data-reference-syntax={reference?.syntax}
+      data-reference-syntax={reference.syntax}
     >
-      <input
-        className="csv-table-editor__cell-input"
-        value={value}
-        readOnly={readOnly}
-        onChange={(event) => onUpdate(event.currentTarget.value)}
-        onClick={handleClick}
-        onFocus={onActivate}
-        onKeyDown={handleKeyDown}
-        aria-label={t("editor.csv.cell", {
-          row: displayRowNumber,
-          column: columnIndex + 1,
-        })}
-        aria-describedby={projectedReference ? previewId : undefined}
-        aria-haspopup="menu"
-        aria-expanded="false"
-        data-csv-row={rowIndex}
-        data-csv-column={columnIndex}
-        spellCheck={false}
-      />
+      {input}
       {projectedReference && (
         <>
           <span className="csv-table-editor__reference-label" aria-hidden="true" dir="auto">

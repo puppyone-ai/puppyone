@@ -1,7 +1,7 @@
+import { installDesktopBridge } from "../../../support/electron/desktopBridge";
 /**
  * @vitest-environment happy-dom
  */
-import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -10,9 +10,9 @@ import {
   formatDesktopBuildDiagnostics,
 } from "../../../../src/features/build-info/DesktopBuildIdentity";
 import { resetDesktopBuildInfoCacheForTests } from "../../../../src/features/build-info/useDesktopBuildInfo";
-import type { DesktopBuildInfo } from "../src/types/electron";
-import { renderWithTestLocalization } from "../../../support/react/localization";
 import zhHansCatalog from "../../../../src/localization/catalog-loaders/zh-Hans";
+import type { DesktopBuildInfo } from "../../../../src/types/electron";
+import { renderWithTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -65,7 +65,7 @@ describe("Desktop Build Identity UI", () => {
       sourceDirty: false,
     };
     const getBuildInfo = vi.fn(async () => buildInfo);
-    window.puppyoneDesktop = { getBuildInfo } as Window["puppyoneDesktop"];
+    installDesktopBridge({ getBuildInfo });
     const container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);

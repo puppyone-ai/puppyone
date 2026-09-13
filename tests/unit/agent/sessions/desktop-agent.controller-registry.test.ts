@@ -17,7 +17,7 @@ vi.mock("../../../../src/features/desktop-agent/application/AgentSessionControll
 
 import { AgentControllerRegistry } from "../../../../src/features/desktop-agent/application/AgentControllerRegistry";
 
-const registry = () => new AgentControllerRegistry("/workspace", () => () => null);
+const registry = () => new AgentControllerRegistry("/workspace", () => () => undefined);
 const deferred = <T>() => {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((done) => { resolve = done; });

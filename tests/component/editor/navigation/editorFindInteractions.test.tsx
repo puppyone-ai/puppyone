@@ -5,13 +5,13 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { CsvTableEditor } from "../../../../packages/shared-ui/src/editor/viewers/csv/CsvTableEditor";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CodeMirrorFindAdapter } from "../../../../packages/shared-ui/src/editor/find/codeMirrorFindAdapter";
+import { EditorFindContributionProvider, EditorFindHost, useEditorFindCommand, useRegisterEditorFindAdapter, type EditorFindAdapter } from "../../../../packages/shared-ui/src/editor/find/editorFind";
 import { MarkdownCodeMirrorEditor } from "../../../../packages/shared-ui/src/editor/markdown/MarkdownCodeMirrorEditor";
-import { EditorFindContributionProvider, EditorFindHost, type EditorFindAdapter, useEditorFindCommand, useRegisterEditorFindAdapter } from "../../../../packages/shared-ui/src/editor/find/editorFind";
+import { CsvTableEditor } from "../../../../packages/shared-ui/src/editor/viewers/csv/CsvTableEditor";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
@@ -210,7 +210,7 @@ describe("editor find architecture", () => {
       .toBe("Ada");
 
     await act(async () => {
-      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      input!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     });
     expect(container.querySelector('[data-find-current="true"] input')?.getAttribute("value"))
       .toBe("Admiral");
@@ -232,18 +232,18 @@ function AdapterViewer({ adapter }: { adapter: EditorFindAdapter }) {
 function createAdapter() {
   let current = 1;
   const adapter: EditorFindAdapter & {
-    clear: ReturnType<typeof vi.fn>;
-    focusEditor: ReturnType<typeof vi.fn>;
-    move: ReturnType<typeof vi.fn>;
-    setQuery: ReturnType<typeof vi.fn>;
+    clear: ReturnType<typeof vi.fn<EditorFindAdapter["clear"]>>;
+    focusEditor: ReturnType<typeof vi.fn<EditorFindAdapter["focusEditor"]>>;
+    move: ReturnType<typeof vi.fn<EditorFindAdapter["move"]>>;
+    setQuery: ReturnType<typeof vi.fn<EditorFindAdapter["setQuery"]>>;
   } = {
-    setQuery: vi.fn(() => ({ current, total: 3 })),
-    move: vi.fn((direction) => {
+    setQuery: vi.fn<EditorFindAdapter["setQuery"]>(() => ({ current, total: 3 })),
+    move: vi.fn<EditorFindAdapter["move"]>((direction) => {
       current = direction === "next" ? current % 3 + 1 : (current + 1) % 3 + 1;
       return { current, total: 3 };
     }),
-    clear: vi.fn(),
-    focusEditor: vi.fn(),
+    clear: vi.fn<EditorFindAdapter["clear"]>(),
+    focusEditor: vi.fn<EditorFindAdapter["focusEditor"]>(),
   };
   return adapter;
 }

@@ -9,7 +9,7 @@ import {
 } from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
 
 const views: EditorView[] = [];
-const testScrollSnapshotEffect = StateEffect.define<"left" | "right">();
+const snapshotOwners = new WeakMap<StateEffect<unknown>, "left" | "right">();
 
 type RecordedFocusTransaction = Readonly<{
   focused: boolean;
@@ -28,12 +28,18 @@ describe("Markdown focus scroll continuity", () => {
     const rightTransactions: RecordedFocusTransaction[] = [];
     const left = createView("Left **document**\n\nMore content", leftTransactions);
     const right = createView("Right **document**\n\nMore content", rightTransactions);
-    vi.spyOn(left, "scrollSnapshot").mockImplementation(
-      () => testScrollSnapshotEffect.of("left"),
-    );
-    vi.spyOn(right, "scrollSnapshot").mockImplementation(
-      () => testScrollSnapshotEffect.of("right"),
-    );
+    const leftSnapshot = left.scrollSnapshot.bind(left);
+    vi.spyOn(left, "scrollSnapshot").mockImplementation(() => {
+      const snapshot = leftSnapshot();
+      snapshotOwners.set(snapshot, "left");
+      return snapshot;
+    });
+    const rightSnapshot = right.scrollSnapshot.bind(right);
+    vi.spyOn(right, "scrollSnapshot").mockImplementation(() => {
+      const snapshot = rightSnapshot();
+      snapshotOwners.set(snapshot, "right");
+      return snapshot;
+    });
 
     left.focus();
     await settleFocusChange();
@@ -96,8 +102,8 @@ function createView(
             focusTransactions.push({
               focused: focus.value,
               snapshots: transaction.effects
-                .filter((effect) => effect.is(testScrollSnapshotEffect))
-                .map((effect) => effect.value),
+                .filter((effect) => snapshotOwners.has(effect))
+                .map((effect) => snapshotOwners.get(effect)!),
             });
           }
         }),

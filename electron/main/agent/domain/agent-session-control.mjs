@@ -6,6 +6,7 @@ const MAX_TERMINAL_TURNS = 128;
 const MAX_CONTROL_REASON = agentContractLimits.maxControlReasonLength;
 const MAX_COMMAND_ERROR = agentContractLimits.maxCommandErrorLength;
 
+/** @param {{ streamId?: string, sessionEpoch?: string, terminalState?: string, revision?: number }} [options] */
 export function createAgentSessionControl({
   streamId,
   sessionEpoch,

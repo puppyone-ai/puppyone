@@ -1,7 +1,7 @@
 /**
  * @vitest-environment happy-dom
  */
-import React, { act } from "react";
+import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -135,19 +135,19 @@ function workspace(id: string, name: string, path: string): Workspace {
 
 function provider(name: string): DataPort {
   return {
-    listChildren: vi.fn(async () => [{
+    listChildren: vi.fn<NonNullable<DataPort["listChildren"]>>(async () => [{
       id: "document.md",
       name: `${name} document.md`,
       path: "document.md",
       type: "markdown",
     }]),
-    resolveNode: vi.fn(async (path) => ({
+    resolveNode: vi.fn<NonNullable<DataPort["resolveNode"]>>(async (path) => ({
       id: path,
       name: path,
       path,
       type: "markdown",
     })),
-    readFile: vi.fn(async (path) => ({
+    readFile: vi.fn<NonNullable<DataPort["readFile"]>>(async (path) => ({
       path,
       name: path,
       type: "markdown",

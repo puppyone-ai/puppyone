@@ -1,16 +1,15 @@
 /**
  * @vitest-environment happy-dom
  */
-import React from "react";
-import { act } from "react";
+import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DataNode } from "../../../../packages/shared-ui/src/core/types";
 import { ExplorerTree } from "../../../../packages/shared-ui/src/data/ExplorerTree";
+import { createExplorerMotionPlan } from "../../../../packages/shared-ui/src/data/explorer/explorerMotionPlan";
 import {
   buildExplorerVisibleModel,
 } from "../../../../packages/shared-ui/src/data/explorer/explorerVisibleModel";
-import { createExplorerMotionPlan } from "../../../../packages/shared-ui/src/data/explorer/explorerMotionPlan";
 import { EXPLORER_VIRTUAL_MAX_MOUNTED_ROWS } from "../../../../packages/shared-ui/src/data/explorer/useExplorerVirtualWindow";
 import { withTestLocalization } from "../../../support/react/localization";
 
@@ -56,14 +55,14 @@ describe("Explorer bounded rendering", () => {
   });
 
   it("keeps expanded empty folders structural while retaining explicit loading rows", () => {
-    const emptyFolder: DataNode = {
+    const emptyFolder = {
       id: "empty-folder",
       name: "empty-folder",
       path: "empty-folder",
       type: "folder",
       children: [],
-    };
-    const tail: DataNode = { id: "tail", name: "tail.md", path: "tail.md", type: "markdown" };
+    } satisfies DataNode;
+    const tail = { id: "tail", name: "tail.md", path: "tail.md", type: "markdown" } satisfies DataNode;
     const expanded = buildExplorerVisibleModel([emptyFolder, tail], {
       expandedPaths: new Set([emptyFolder.path]),
       loadingLabel: "loading",
@@ -117,7 +116,7 @@ describe("Explorer bounded rendering", () => {
   });
 
   it("builds bounded FLIP enter, move and exit instructions without measuring a subtree", () => {
-    const folder: DataNode = {
+    const folder = {
       id: "folder",
       name: "folder",
       path: "folder",
@@ -126,8 +125,8 @@ describe("Explorer bounded rendering", () => {
         { id: "child-a", name: "a.md", path: "folder/a.md", type: "markdown" },
         { id: "child-b", name: "b.md", path: "folder/b.md", type: "markdown" },
       ],
-    };
-    const tail: DataNode = { id: "tail", name: "tail.md", path: "tail.md", type: "markdown" };
+    } satisfies DataNode;
+    const tail = { id: "tail", name: "tail.md", path: "tail.md", type: "markdown" } satisfies DataNode;
     const collapsed = buildExplorerVisibleModel([folder, tail], {
       expandedPaths: new Set(),
       loadingLabel: "loading",
@@ -170,13 +169,13 @@ describe("Explorer bounded rendering", () => {
       configurable: true,
       value: animate,
     });
-    const folder: DataNode = {
+    const folder = {
       id: "folder",
       name: "folder",
       path: "folder",
       type: "folder",
       children: makeNodes(8).map((node) => ({ ...node, path: `folder/${node.path}` })),
-    };
+    } satisfies DataNode;
     const container = document.createElement("div");
     Object.assign(container.style, { width: "320px", height: "640px" });
     document.body.appendChild(container);
@@ -226,7 +225,7 @@ describe("Explorer bounded rendering", () => {
   it("re-renders only the old and new mounted rows for an ordinary selection", () => {
     const nodes = makeNodes(100);
     const expandedPaths = new Set<string>();
-    const renderNodeActions = vi.fn(() => null);
+    const renderNodeActions = vi.fn<(node: DataNode) => React.ReactNode>(() => null);
     const onSelectNode = vi.fn();
     const container = document.createElement("div");
     Object.assign(container.style, { width: "320px", height: "640px" });
@@ -274,8 +273,8 @@ describe("Explorer bounded rendering", () => {
   });
 
   it("preserves folder drag/drop behavior with virtualized rows", () => {
-    const source: DataNode = { id: "source", name: "source.md", path: "source.md", type: "markdown" };
-    const target: DataNode = { id: "target", name: "target", path: "target", type: "folder", children: [] };
+    const source = { id: "source", name: "source.md", path: "source.md", type: "markdown" } satisfies DataNode;
+    const target = { id: "target", name: "target", path: "target", type: "folder", children: [] } satisfies DataNode;
     const onMoveNode = vi.fn(async () => undefined);
     const container = renderExplorer({
       nodes: [source, target],

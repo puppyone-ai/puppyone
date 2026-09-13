@@ -101,9 +101,9 @@ export function createAgentService({
 
   return {
     assertSessionInstance: (sender, request, root, options) => sessionStore.assertInstance(sender, request, root, options),
-    discoverProviders: (_sender, request = {}, workspaceRoot = null) => runtimeCatalog.discover(request, workspaceRoot),
-    listModels: (_sender, request = {}, workspaceRoot = null) => runtimeCatalog.listModels(request, workspaceRoot),
-    readAccount: (_sender, request = {}, workspaceRoot = null) => runtimeCatalog.readAccount(request, workspaceRoot),
+    discoverProviders: (_sender, request = {}, workspaceRoot = /** @type {string | null} */ (null)) => runtimeCatalog.discover(request, workspaceRoot),
+    listModels: (_sender, request = {}, workspaceRoot = /** @type {string | null} */ (null)) => runtimeCatalog.listModels(request, workspaceRoot),
+    readAccount: (_sender, request = {}, workspaceRoot = /** @type {string | null} */ (null)) => runtimeCatalog.readAccount(request, workspaceRoot),
     getReferenceInputCapabilities: turns.getReferenceInputCapabilities,
     createSession: lifecycle.createSession,
     resumeSession: lifecycle.resumeSession,

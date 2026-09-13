@@ -1,10 +1,10 @@
 /**
  * @vitest-environment happy-dom
  */
+import type { AppPreviewController } from "@puppyone/shared-ui";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { AppPreviewController } from "@puppyone/shared-ui";
 import { AppPreviewViewer } from "../../../../../packages/shared-ui/src/editor/viewers/app/AppPreviewViewer";
 import { resolveAppPreviewFrameUrl } from "../../../../../packages/shared-ui/src/editor/viewers/app/SandboxedAppFrame";
 import { withTestLocalization } from "../../../../support/react/localization";
@@ -38,7 +38,7 @@ describe("App Preview iframe", () => {
     await act(async () => {
       root?.render(withTestLocalization(
         <AppPreviewViewer
-          document={{ path: "deck.puppyoneapp", name: "deck.puppyoneapp" }}
+          document={{ type: "app", path: "deck.puppyoneapp", name: "deck.puppyoneapp" }}
           content={configuredManifest()}
           loading={false}
           error={null}

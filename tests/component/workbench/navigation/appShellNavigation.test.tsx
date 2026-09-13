@@ -1,7 +1,6 @@
 /**
  * @vitest-environment happy-dom
  */
-import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -61,7 +60,6 @@ describe("DesktopSidebarTopNavigation", () => {
       <DesktopSidebarTopNavigation
         activeView="data"
         cloudHubEnabled
-        cloudToolsEnabled={false}
         gitEnabled
         pluginsEnabled={false}
         orientation="horizontal"
@@ -158,7 +156,6 @@ describe("DesktopSidebarFooterNavigation", () => {
       <DesktopSidebarFooterNavigation
         activeView="data"
         cloudHubEnabled
-        cloudToolsEnabled={false}
         gitEnabled
         pluginsEnabled={false}
         gitIncomingCount={0}
@@ -188,9 +185,7 @@ describe("DesktopSidebarRailNavigation local Cloud hub", () => {
     act(() => renderWithTestLocalization(root,
       <DesktopSidebarRailNavigation
         activeView="git"
-        cloudHistoryEnabled={false}
         cloudHubEnabled
-        cloudToolsEnabled={false}
         gitEnabled
         pluginsEnabled={false}
         gitIncomingCount={0}
