@@ -27,6 +27,7 @@ const execute = promisify(execFile);
 const pointerBinary = path.join(temporary, "native-pointer");
 const colors = [];
 const captures = [];
+const captureErrors = [];
 let nativeCapture = false;
 app.setAppPath(repo);
 app.setPath("appData", path.join(temporary, "app-data"));
@@ -251,8 +252,11 @@ app.whenReady().then(async () => {
   finally {
     if (window && !window.isDestroyed()) {
       if (failure) {
-        await fs.writeFile(path.join(output, "failure.png"), (await window.webContents.capturePage()).toPNG());
-        if (nativeCapture) await fs.writeFile(path.join(output, "failure-composite.png"), (await captureNativeWindow(window)).toPNG());
+        for (const [name, capture] of [["failure.png", () => window.webContents.capturePage()],
+          ...(nativeCapture ? [["failure-composite.png", () => captureNativeWindow(window)]] : [])]) {
+          try { await fs.writeFile(path.join(output, name), (await capture()).toPNG()); }
+          catch (error) { captureErrors.push(String(error)); }
+        }
       }
       for (const created of creates) {
         try {
@@ -270,7 +274,7 @@ app.whenReady().then(async () => {
     catch (error) { failure ??= error; }
     const sourceAfter = await readSourceIdentity(repo);
     if (source.fingerprint !== sourceAfter.fingerprint) failure ??= new Error("Source changed during acceptance");
-    await fs.writeFile(path.join(output, "result.json"), JSON.stringify({ passed: !failure, source, sourceAfter, steps, captures,
+    await fs.writeFile(path.join(output, "result.json"), JSON.stringify({ passed: !failure, source, sourceAfter, steps, captures, captureErrors,
       compositor: nativeCapture ? "OS composed window capture; DOM contributions, native PDF covered separately" : "not-run: screen permission unavailable",
       input: nativeInput ? "CoreGraphics OS click/wheel" : "Chromium input; native hit testing requires --native", failure: failure?.stack }, null, 2));
     console.log(`Sidebar visibility evidence: ${output}`);
