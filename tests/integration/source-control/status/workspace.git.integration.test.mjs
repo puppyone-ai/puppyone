@@ -13,6 +13,7 @@ import {
   getWorkspaceGitBranchGraph,
   stageAllWorkspaceGitChanges,
   stageWorkspaceGitPaths,
+  stashWorkspaceGitChanges,
   commitWorkspaceGit,
   createWorkspaceGitBranch,
   checkoutWorkspaceGitBranch,
@@ -121,6 +122,20 @@ describe("stage → commit lifecycle", { timeout: 20_000 }, () => {
     await stageWorkspaceGitPaths(root, ["b.txt"]);
     const status = await commitWorkspaceGit(root, "second");
     expect(status.totalCommits).toBe(2);
+  });
+
+  it("stashes tracked and untracked working changes from the Changes sidebar", async () => {
+    await initRepoWithIdentity();
+    await createWorkspaceEntry(root, { parentPath: null, name: "tracked.txt", kind: "file", content: "base\n" });
+    await stageAllWorkspaceGitChanges(root);
+    await commitWorkspaceGit(root, "base");
+
+    await writeWorkspaceTextFile(root, "tracked.txt", "changed\n");
+    await createWorkspaceEntry(root, { parentPath: null, name: "untracked.txt", kind: "file", content: "new\n" });
+    const status = await stashWorkspaceGitChanges(root);
+
+    expect(status.entries).toEqual([]);
+    expect(execFileSync("git", ["-C", root, "stash", "list"]).toString()).toContain("PuppyOne saved changes");
   });
 });
 

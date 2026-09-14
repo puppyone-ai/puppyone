@@ -23,6 +23,7 @@ import {
   resolveGitRepositoryIdentity,
   stageAllWorkspaceGitChanges,
   stageWorkspaceGitPaths,
+  stashWorkspaceGitChanges,
   stashAndCheckoutWorkspaceGitBranch,
   syncWorkspaceGit,
   unstageAllWorkspaceGitChanges,
@@ -336,6 +337,10 @@ export function registerWorkspaceGitIpcHandlers({
       authorName: request?.authorName,
       authorEmail: request?.authorEmail,
     })
+  )));
+
+  ipcMain.handle("workspace:git-stash", withAuthorizedWorktreeAndRepositoryMutation((rootPath) => (
+    stashWorkspaceGitChanges(rootPath)
   )));
 
   ipcMain.handle("workspace:git-operation-continue", withAuthorizedWorktreeAndRepositoryMutation((rootPath) => (

@@ -53,8 +53,8 @@ describe("RTL architecture", () => {
       .toContain('dir="ltr"');
     expect(read("../../../../src/features/source-control/diff/contributions/text-unified/TextUnifiedDiff.tsx"))
       .toContain('dir="ltr"');
-    expect(read("../../../../src/features/source-control/sidebar/GitSidebarHistoryPanel.tsx"))
-      .toContain('className="desktop-history-graph" aria-hidden="true" dir="ltr"');
+    expect(read("../../../../src/features/source-control/styles/history-list.css"))
+      .toContain('[dir="rtl"] .desktop-history-date-group button[aria-expanded="false"]');
     expect(read("../../../../src/features/cloud/history/CloudHistorySidebar.tsx"))
       .toMatch(/aria-hidden="true"\s+dir="ltr"/);
     expect(read("../../../../src/features/settings/main/RepositorySettingsViews.tsx"))

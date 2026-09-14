@@ -58,10 +58,6 @@ import {
   toWorkspaceRelativePath,
 } from "../desktop-agent-presence";
 import { DesktopShellNavigationToolbarPortal } from "./DesktopShellAccessoryContext";
-import {
-  getRemoteUpdateNoticeModel,
-  RemoteUpdateNotice,
-} from "../data-workspace/RemoteUpdateNotice";
 import type { ResolvedWorkbenchDataResource } from "../data-workspace/workbenchDataPort";
 import { useProjectExplorerSession } from "../data-workspace/useProjectExplorerSession";
 import {
@@ -93,6 +89,7 @@ export type DesktopDataWorkspaceSurfaceProps = {
     activeView: DesktopView;
     availableSurfaceIds: readonly DesktopView[];
     cloudHubEnabled: boolean;
+    cloudOpen: boolean;
     gitEnabled: boolean;
     pluginsEnabled: boolean;
     gitIncomingCount: number;
@@ -100,10 +97,11 @@ export type DesktopDataWorkspaceSurfaceProps = {
     gitStatus: GitStatusSnapshot | null;
     workspaceChangeCount: number;
     onNavigate: (view: DesktopView) => void;
+    onOpenCloud: () => void;
     onOpenSettings: () => void;
+    settingsOpen: boolean;
     showSettings: boolean;
     showWorkspaceNavigation: boolean;
-    onPullGit: () => Promise<boolean>;
   };
   navigationComposition: string;
   onActiveDataPathChange: (
@@ -274,6 +272,7 @@ export function DesktopDataWorkspaceSurface({
     activeView: navigation.activeView,
     availableSurfaceIds: navigation.availableSurfaceIds,
     cloudHubEnabled: navigation.cloudHubEnabled,
+    cloudOpen: navigation.cloudOpen,
     gitEnabled: navigation.gitEnabled,
     pluginsEnabled: navigation.pluginsEnabled,
     gitIncomingCount: navigation.gitIncomingCount,
@@ -281,12 +280,12 @@ export function DesktopDataWorkspaceSurface({
     gitStatus: navigation.gitStatus,
     workspaceChangeCount: navigation.workspaceChangeCount,
     onNavigate: navigation.onNavigate,
+    onOpenCloud: navigation.onOpenCloud,
     onOpenSettings: navigation.onOpenSettings,
+    settingsOpen: navigation.settingsOpen,
     showSettings: navigation.showSettings,
     utilitySlot: sidebarUtility,
   } as const;
-  const remoteUpdateNoticeVisible = navigation.showWorkspaceNavigation
-    && getRemoteUpdateNoticeModel(navigation.gitStatus) !== null;
   const shellHostedTopNavigation = navigationComposition === "sidebar-top-toolbar"
     && preferences.sidebarNavigationPlacement === "top";
   const topNavigation = navigation.showWorkspaceNavigation
@@ -459,25 +458,15 @@ export function DesktopDataWorkspaceSurface({
             </>
           );
         }}
-        explorerSlot={resolvedSurface.id === "data"
+        explorerSlot={resolvedSurface.id === "data" || resolvedSurface.content.sidebar == null
           ? undefined
           : <WorkspaceSurfaceOutlet region="sidebar" surface={resolvedSurface} />}
         explorerFooterSlot={navigation.showWorkspaceNavigation && (
-          remoteUpdateNoticeVisible
-          || sidebarCompanion
+          sidebarCompanion
           || preferences.sidebarNavigationPlacement === "bottom"
         )
           ? (
               <div className="desktop-sidebar-companion-host">
-                {remoteUpdateNoticeVisible && (
-                  <div className="desktop-sidebar-lower-notice">
-                    <RemoteUpdateNotice
-                      status={navigation.gitStatus}
-                      operationLoading={navigation.gitOperationLoading}
-                      onPull={navigation.onPullGit}
-                    />
-                  </div>
-                )}
                 {sidebarCompanion}
                 {preferences.sidebarNavigationPlacement === "bottom" && (
                   <DesktopSidebarFooterNavigation {...navigationCommon} />

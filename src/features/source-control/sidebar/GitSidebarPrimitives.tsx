@@ -69,33 +69,6 @@ export function GitSidebarSectionResizer({
   );
 }
 
-export function GitSidebarHistoryResizer({
-  active,
-  value,
-  onPointerDown,
-  onKeyboardResize,
-  onReset,
-}: {
-  active: boolean;
-  value: number | null;
-  onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
-  onKeyboardResize: (intent: SidebarResizeIntent, accelerated: boolean) => void;
-  onReset: () => void;
-}) {
-  const { t } = useLocalization();
-  return (
-    <SidebarResizeHandle
-      className={`desktop-git-history-resizer ${active ? "active" : ""}`}
-      orientation="horizontal"
-      label={t("source-control.sidebar.resize")}
-      value={value ?? undefined}
-      onPointerDown={onPointerDown}
-      onKeyboardResize={onKeyboardResize}
-      onDoubleClick={onReset}
-    />
-  );
-}
-
 export function GitOperationButton({
   className,
   title,
@@ -142,12 +115,39 @@ export function GitOperationButton({
   );
 }
 
-export function SourceControlDots() {
+export function SourceControlDots({ decorative = false }: Readonly<{ decorative?: boolean }> = {}) {
   const { t } = useLocalization();
   return (
-    <span className="desktop-git-loading-dots" data-puppy-loader="dots" role="status" aria-label={t("common.status.loading")}>
+    <span
+      className="desktop-git-loading-dots"
+      data-puppy-loader="dots"
+      role={decorative ? undefined : "status"}
+      aria-label={decorative ? undefined : t("common.status.loading")}
+      aria-hidden={decorative || undefined}
+    >
       {[0, 1, 2].map((index) => <span key={index} />)}
     </span>
+  );
+}
+
+export function GitSidebarLoadingState({
+  className,
+  label,
+}: Readonly<{
+  className?: string;
+  label: ReactNode;
+}>) {
+  return (
+    <div
+      className={`desktop-git-loading-state${className ? ` ${className}` : ""}`}
+      role="status"
+      aria-live="polite"
+    >
+      <span className="desktop-git-loading-state-dots">
+        <SourceControlDots decorative />
+      </span>
+      <span className="desktop-git-loading-state-label">{label}</span>
+    </div>
   );
 }
 

@@ -90,6 +90,8 @@
   "appearance.pluginsShortcut.detail": "Afficher l’entrée Plugins locaux dans la navigation de l’espace de travail.",
   "appearance.headerElements.title": "Éléments d’en-tête",
   "appearance.headerElements.external-open": "Ouverture externe",
+  "appearance.headerElements.history": "Historique Git",
+  "appearance.headerElements.changes": "Modifications",
   "appearance.headerElements.terminal": "Terminal",
   "appearance.pointerCursors.title": "Curseurs de pointeur",
   "appearance.pointerCursors.detail": "Affiche le curseur main uniquement sur les liens et les destinations de navigation.",

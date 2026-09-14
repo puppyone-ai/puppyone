@@ -19,6 +19,29 @@ afterEach(() => {
 });
 
 describe("local Git diff presentation", () => {
+  it("centers the shared loading treatment inside a focused file detail", () => {
+    const surface = render(
+      <WorkingFileDetail
+        selection={{ path: "notes/loading.md", status: "modified", staged: false, origin: "local" }}
+        detail={null}
+        loading
+        error={null}
+        operationLoading={null}
+        operationError={null}
+        onStagePaths={async () => true}
+        onUnstagePaths={async () => true}
+        onDiscardPaths={async () => true}
+        onOpenFile={vi.fn()}
+      />,
+    );
+
+    const loading = surface.querySelector(".desktop-git-detail-loading.desktop-git-loading-state");
+    expect(loading?.getAttribute("role")).toBe("status");
+    expect(loading?.textContent).toContain("Loading diff for");
+    expect(loading?.textContent).toContain("notes/loading.md");
+    expect(loading?.querySelector('[data-puppy-loader="dots"]')).not.toBeNull();
+  });
+
   it("uses the exact same file surface in focused Changes and embedded History contexts", () => {
     const file = textFile();
     const focused = render(

@@ -29,9 +29,15 @@ afterEach(() => {
 });
 
 describe("unified Agent workbench titlebar entry", () => {
-  it("defaults the right sidebar to Terminal until the user opens Chat", () => {
-    expect(readInitialRightSidebarSurface()).toBe("terminal");
-    window.localStorage.setItem(RIGHT_SIDEBAR_SURFACE_STORAGE_KEY, "chat");
+  it("defaults the right sidebar to Chat and restores Git surfaces independently", () => {
+    expect(readInitialRightSidebarSurface()).toBe("chat");
+    window.localStorage.setItem(RIGHT_SIDEBAR_SURFACE_STORAGE_KEY, "history");
+    expect(readInitialRightSidebarSurface()).toBe("history");
+
+    window.localStorage.setItem(RIGHT_SIDEBAR_SURFACE_STORAGE_KEY, "changes");
+    expect(readInitialRightSidebarSurface()).toBe("changes");
+
+    window.localStorage.setItem(RIGHT_SIDEBAR_SURFACE_STORAGE_KEY, "terminal");
     expect(readInitialRightSidebarSurface()).toBe("chat");
   });
 
@@ -78,6 +84,22 @@ function renderHeaderActions() {
       enabled: true,
       onToggle: vi.fn(),
       sidebarOpen: true,
+    },
+    history: {
+      enabled: true,
+      onToggle: vi.fn(),
+      sidebarOpen: false,
+    },
+    changes: {
+      enabled: true,
+      onToggle: vi.fn(),
+      sidebarOpen: false,
+      status: {
+        conflicts: 0,
+        incoming: 0,
+        localChanges: 0,
+        outgoing: 0,
+      },
     },
   };
 

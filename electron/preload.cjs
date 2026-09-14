@@ -418,6 +418,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   discardGitPaths: (request) => ipcRenderer.invoke("workspace:git-discard", request),
   discardAllGitChanges: (request) => ipcRenderer.invoke("workspace:git-discard-all", request),
   commitGit: (request) => ipcRenderer.invoke("workspace:git-commit", request),
+  stashGitChanges: (request) => ipcRenderer.invoke("workspace:git-stash", request),
   continueGitOperation: (request) => ipcRenderer.invoke("workspace:git-operation-continue", request),
   abortGitOperation: (request) => ipcRenderer.invoke("workspace:git-operation-abort", request),
   checkoutGitBranch: (request) => ipcRenderer.invoke("workspace:git-checkout-branch", request),

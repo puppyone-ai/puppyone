@@ -243,6 +243,61 @@
   width: var(--desktop-titlebar-tool-action-width);
 }
 
+.desktop-titlebar-actions .desktop-titlebar-changes {
+  width: auto;
+  min-width: var(--desktop-chrome-control-size);
+  gap: 4px;
+  padding-inline: 7px 6px;
+}
+
+.desktop-titlebar-git-status {
+  display: inline-flex;
+  height: 18px;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.desktop-titlebar-git-indicator {
+  display: inline-flex;
+  height: 18px;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-radius: 4px;
+  color: var(--desktop-titlebar-text-subtle, var(--desktop-titlebar-text-muted));
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.desktop-titlebar-git-indicator.local {
+  min-width: 0;
+  justify-content: flex-start;
+  color: var(--desktop-titlebar-text-subtle, var(--desktop-titlebar-text-muted));
+}
+
+.desktop-titlebar-git-indicator svg {
+  display: block;
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+}
+
+.desktop-titlebar-git-indicator.incoming {
+  color: color-mix(in srgb, var(--po-accent) 76%, var(--desktop-titlebar-text-muted));
+}
+
+.desktop-titlebar-git-indicator.outgoing {
+  color: color-mix(in srgb, var(--po-accent) 54%, var(--desktop-titlebar-text-muted));
+}
+
+.desktop-titlebar-git-indicator.conflict {
+  color: color-mix(in srgb, var(--po-danger) 82%, var(--desktop-titlebar-text-muted));
+}
+
 .desktop-titlebar-action:hover {
   background: var(--desktop-titlebar-hover);
   color: var(--desktop-titlebar-text-muted);

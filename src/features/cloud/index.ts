@@ -8,6 +8,7 @@ export {
   type ProjectCloudContext,
 } from "./project/context";
 export { CloudServiceMainView } from "./CloudServiceMainView";
+export { CloudDialog, type CloudDialogProps } from "./CloudDialog";
 export {
   CloudProjectHistorySidebar,
   CloudProjectHistoryView,

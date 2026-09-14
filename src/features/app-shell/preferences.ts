@@ -57,7 +57,7 @@ export const AGENT_ROUTING_PREFERENCES_STORAGE_KEY = "puppyone.desktop.agentRout
 export const AGENT_PREFERRED_RUNTIME_STORAGE_KEY = "puppyone.desktop.agentPreferredRuntime";
 /** @deprecated Migrated into AGENT_ROUTING_PREFERENCES_STORAGE_KEY. */
 export const AGENT_PREFERRED_MODEL_STORAGE_KEY = "puppyone.desktop.agentPreferredModel";
-export type RightSidebarSurface = "chat" | "terminal";
+export type RightSidebarSurface = "chat" | "changes" | "history";
 
 export function readInitialDiffMarkers(): DiffMarkers {
   if (typeof window === "undefined") return parseDiffMarkers(null);
@@ -211,8 +211,9 @@ export function readInitialRightSidebarWidth(): number {
 }
 
 export function readInitialRightSidebarSurface(): RightSidebarSurface {
-  if (typeof window === "undefined") return "terminal";
-  return window.localStorage.getItem(RIGHT_SIDEBAR_SURFACE_STORAGE_KEY) === "chat" ? "chat" : "terminal";
+  if (typeof window === "undefined") return "chat";
+  const stored = window.localStorage.getItem(RIGHT_SIDEBAR_SURFACE_STORAGE_KEY);
+  return stored === "history" || stored === "changes" ? stored : "chat";
 }
 
 export function readInitialAgentPreferredModel(): string | null {

@@ -28,12 +28,7 @@ describe("Git main preview", () => {
     act(() => root.render(withTestLocalization(
       <GitStatusView
         status={null}
-        activePanel="changes"
-        selectedCommitId={null}
         selectedWorkingFile={null}
-        commitDetail={null}
-        commitDetailLoading={false}
-        commitDetailError={null}
         workingFileDiff={null}
         workingFileDiffLoading={false}
         workingFileDiffError={null}
@@ -51,7 +46,7 @@ describe("Git main preview", () => {
     )));
 
     expect(container.querySelector(".empty-preview")).not.toBeNull();
-    expect(container.textContent).toContain("Select a changed file or commit to preview");
+    expect(container.textContent).toContain("Select a change to preview");
     expect(container.textContent).not.toContain("Reading Git");
     expect(container.querySelector('[data-puppy-loader="dots"]')).toBeNull();
   });

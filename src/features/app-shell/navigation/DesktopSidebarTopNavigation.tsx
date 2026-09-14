@@ -1,6 +1,10 @@
 import { useLocalization } from "@puppyone/localization";
 import type { SidebarNavigationOrientation } from "../../../preferences";
-import { DesktopNavigationItems, DesktopSidebarSettingsButton } from "./DesktopNavigationItems";
+import {
+  DesktopNavigationItems,
+  DesktopSidebarCloudButton,
+  DesktopSidebarSettingsButton,
+} from "./DesktopNavigationItems";
 import { resolveNavigationItems } from "./navigationModel";
 import type { DesktopNavigationProps } from "./types";
 
@@ -16,7 +20,10 @@ export function DesktopSidebarTopNavigation({
   gitStatus,
   workspaceChangeCount,
   onNavigate,
+  onOpenCloud,
   onOpenSettings,
+  cloudOpen = false,
+  settingsOpen = false,
   showSettings = true,
   utilitySlot,
   shellToolbar = false,
@@ -27,7 +34,7 @@ export function DesktopSidebarTopNavigation({
   useToolLabels?: boolean;
 }) {
   const { t } = useLocalization();
-  const { cloudHubItems, localItems } = resolveNavigationItems({
+  const { cloudHubVisible, localItems } = resolveNavigationItems({
     availableSurfaceIds,
     cloudHubEnabled,
     gitEnabled,
@@ -66,20 +73,20 @@ export function DesktopSidebarTopNavigation({
             shellToolbar={shellToolbar}
             showLabel
           />
-          {cloudHubItems.length > 0 && (
-            <DesktopNavigationItems
-              {...runtime}
+          {cloudHubVisible && (
+            <DesktopSidebarCloudButton
               buttonClassName={buttonClassName}
-              items={cloudHubItems}
+              cloudOpen={cloudOpen}
+              onOpenCloud={onOpenCloud ?? (() => onNavigate("cloud"))}
               shellToolbar={shellToolbar}
               showLabel
             />
           )}
           {showSettings && (
             <DesktopSidebarSettingsButton
-              activeView={activeView}
               buttonClassName={buttonClassName}
               onOpenSettings={onOpenSettings}
+              settingsOpen={settingsOpen}
               shellToolbar={shellToolbar}
               showLabel
             />

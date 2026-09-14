@@ -82,12 +82,13 @@ describe("Project switcher rail", () => {
 
     await act(async () => root?.render(withTestLocalization(
       <ProjectSwitcherRail
-        activeView="settings"
+        activeView="data"
         activeWorkspace={active}
         expanded
         recentWorkspaces={[]}
         onCreateNew={() => undefined}
         onOpenSettings={onOpenSettings}
+        settingsOpen
         onSelectProject={() => undefined}
         utilitySlot={<button type="button" data-testid="feedback">Feedback</button>}
       />,
@@ -100,7 +101,9 @@ describe("Project switcher rail", () => {
     expect(utilities?.classList.contains("desktop-sidebar-navigation-surface")).toBe(true);
     expect(utilities?.getAttribute("data-placement")).toBe("bottom");
     expect(settings?.classList.contains("desktop-sidebar-footer-button")).toBe(true);
-    expect(settings?.getAttribute("aria-current")).toBe("page");
+    expect(settings?.hasAttribute("aria-current")).toBe(false);
+    expect(settings?.getAttribute("aria-haspopup")).toBe("dialog");
+    expect(settings?.getAttribute("aria-expanded")).toBe("true");
     expect(settings?.getAttribute("aria-label")).toBe("Settings");
     expect(settings?.querySelector(".desktop-sidebar-nav-label")).toBeNull();
     expect(feedback?.textContent).toBe("Feedback");
@@ -109,7 +112,7 @@ describe("Project switcher rail", () => {
     expect(onOpenSettings).toHaveBeenCalledOnce();
   });
 
-  it("keeps Settings and Projects as peer destinations", async () => {
+  it("keeps the active Project selected underneath the Settings dialog", async () => {
     const active = workspace("active", "Alpha", "/projects/alpha");
     const onSelectProject = vi.fn(async () => undefined);
     const host = document.createElement("div");
@@ -118,12 +121,13 @@ describe("Project switcher rail", () => {
 
     await act(async () => root?.render(withTestLocalization(
       <ProjectSwitcherRail
-        activeView="settings"
+        activeView="data"
         activeWorkspace={active}
         expanded
         recentWorkspaces={[]}
         onCreateNew={() => undefined}
         onOpenSettings={() => undefined}
+        settingsOpen
         onSelectProject={onSelectProject}
       />,
     )));
@@ -132,12 +136,13 @@ describe("Project switcher rail", () => {
       ".desktop-project-switcher-rail-project",
     );
     const settings = host.querySelector<HTMLButtonElement>("[data-navigation-item='settings']");
-    expect(project?.hasAttribute("aria-current")).toBe(false);
-    expect(project?.classList.contains("active")).toBe(false);
-    expect(settings?.getAttribute("aria-current")).toBe("page");
+    expect(project?.getAttribute("aria-current")).toBe("page");
+    expect(project?.classList.contains("active")).toBe(true);
+    expect(settings?.hasAttribute("aria-current")).toBe(false);
+    expect(settings?.getAttribute("aria-expanded")).toBe("true");
 
     await act(async () => project?.click());
-    expect(onSelectProject).toHaveBeenCalledWith("/projects/alpha");
+    expect(onSelectProject).not.toHaveBeenCalled();
   });
 
   it("keeps the active Project first and de-duplicates the recent registry", () => {

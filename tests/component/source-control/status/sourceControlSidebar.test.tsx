@@ -18,7 +18,7 @@ afterEach(() => {
 });
 
 describe("Git sidebar status groups", () => {
-  it("renders local groups expanded and flat while keeping their counts and actions in the headers", async () => {
+  it("restores the established section-level commit workflow inside Changes", async () => {
     const onCommit = vi.fn(async () => true);
     const onPush = vi.fn(async () => true);
     const onStageAndCommit = vi.fn(async () => true);
@@ -45,9 +45,9 @@ describe("Git sidebar status groups", () => {
     expect(commitButton?.querySelector(".lucide-plus")).not.toBeNull();
     expect(commitButton?.querySelector(".desktop-git-operation-label")?.textContent).toBe("Commit");
     expect(stageAndCommitButton?.closest(".desktop-git-resizable-section-unstaged")).not.toBeNull();
-    expect(stageAndCommitButton?.querySelector(".lucide-plus")).not.toBeNull();
     expect(stageAndCommitButton?.querySelector(".desktop-git-operation-label")?.textContent)
       .toBe("Stage and Commit");
+    expect(surface.querySelector(".desktop-git-commit-composer")).toBeNull();
     expect(pushButton?.closest(".desktop-git-section-row")).not.toBeNull();
 
     await act(async () => {
@@ -97,10 +97,10 @@ describe("Git sidebar status groups", () => {
     const unstagedToggle = Array.from(surface.querySelectorAll<HTMLButtonElement>(".desktop-git-section-title"))
       .find((button) => button.textContent?.includes("Unstaged"));
     expect(unstagedToggle?.querySelector("small")?.textContent).toBe("1");
-    const action = surface.querySelector<HTMLButtonElement>(".desktop-git-commit-staged-action");
+    const commit = surface.querySelector<HTMLButtonElement>(".desktop-git-commit-staged-action");
     const stageAndCommit = surface.querySelector<HTMLButtonElement>(".desktop-git-stage-commit-action");
     expect(surface.querySelector(".desktop-git-resizable-section-staged")).toBeNull();
-    expect(action).toBeNull();
+    expect(commit).toBeNull();
     expect(stageAndCommit?.closest(".desktop-git-resizable-section-unstaged")).not.toBeNull();
   });
 
@@ -113,7 +113,8 @@ describe("Git sidebar status groups", () => {
 
     expect(surface.querySelector(".desktop-git-github-provider-section")).toBeNull();
     expect(surface.querySelector(".desktop-git-github-change-card")).toBeNull();
-    expect(surface.querySelector('button[aria-label="Pull"]')).toBeNull();
+    expect(surface.querySelector(".desktop-git-incoming-notice")).not.toBeNull();
+    expect(surface.querySelector('button[aria-label="Pull"]')).not.toBeNull();
     const committedToggle = committedSection?.querySelector<HTMLButtonElement>(
       ".desktop-git-section-row .desktop-git-section-title",
     );
@@ -131,75 +132,66 @@ describe("Git sidebar status groups", () => {
     expect(committedSection?.classList.contains("collapsed")).toBe(true);
   });
 
-  it("renders History as a collapsible first-level pane and opens commits from it", async () => {
-    const onSelectCommit = vi.fn();
-    const status = createGitStatus();
-    const commit = {
-      commit_id: "head",
-      parent_ids: [],
-      author_name: "PuppyOne",
-      author_email: "hello@puppyone.ai",
-      created_at: "2026-08-27T00:00:00.000Z",
-      message: "Keep history in the sidebar",
-      changes: [{
-        path: "README.md",
-        oldPath: null,
-        status: "modified" as const,
-        additions: 8_254,
-        deletions: 3_075,
-      }],
-    };
-    status.commits = [commit];
-    status.allCommits = [commit];
-    const surface = renderSidebar({ onSelectCommit, status });
+  it("keeps low-frequency History out of the changes sidebar", () => {
+    const surface = renderSidebar();
 
-    const historyPane = surface.querySelector<HTMLElement>(".desktop-git-history-pane");
-    const historyToggle = surface.querySelector<HTMLButtonElement>(
-      "button.desktop-git-history-drawer-header",
-    );
-    expect(surface.querySelector(".desktop-git-history-resizer")).not.toBeNull();
-    expect(historyPane?.classList.contains("expanded")).toBe(true);
-    expect(historyToggle?.getAttribute("aria-expanded")).toBe("true");
-    expect(historyToggle?.querySelector(".po-disclosure-icon.expanded")).not.toBeNull();
-    expect(historyToggle?.querySelector("span")?.textContent).toBe("History");
-    expect(historyToggle?.querySelector("small")?.textContent).toBe("1");
-    let row = Array.from(surface.querySelectorAll<HTMLButtonElement>(".desktop-history-row"))
-      .find((button) => button.textContent?.includes("Keep history in the sidebar"));
-    expect(row).not.toBeNull();
-    expect(row?.querySelector(".desktop-history-row-stat")?.textContent).toBe("+8.3K-3.1K");
-    expect(row?.querySelector(".desktop-history-row-stat")?.getAttribute("title"))
-      .toBe("+8,254 -3,075");
-
-    act(() => historyToggle?.click());
-
-    expect(historyToggle?.getAttribute("aria-expanded")).toBe("false");
-    expect(historyPane?.classList.contains("collapsed")).toBe(true);
-    expect(surface.querySelector(".desktop-git-history-resizer.is-static")).not.toBeNull();
+    expect(surface.querySelector(".desktop-git-history-pane")).toBeNull();
+    expect(surface.querySelector(".desktop-git-history-resizer")).toBeNull();
     expect(surface.querySelector(".desktop-history-row")).toBeNull();
-
-    act(() => historyToggle?.click());
-    row = Array.from(surface.querySelectorAll<HTMLButtonElement>(".desktop-history-row"))
-      .find((button) => button.textContent?.includes("Keep history in the sidebar"));
-
-    expect(historyToggle?.getAttribute("aria-expanded")).toBe("true");
-    expect(historyPane?.classList.contains("expanded")).toBe(true);
-    expect(surface.querySelector(".desktop-git-history-resizer.is-static")).toBeNull();
-    await act(async () => row?.click());
-    expect(onSelectCommit).toHaveBeenCalledWith("head");
   });
 
-  it("shows History loading only inside the History pane while known commits load", () => {
+  it("keeps stash and destructive cleanup in a restrained secondary menu", async () => {
+    const onStash = vi.fn(async () => true);
+    const onDiscardAll = vi.fn(async () => true);
+    const surface = renderSidebar({ onDiscardAll, onStash });
+    const menu = surface.querySelector<HTMLDetailsElement>(".desktop-git-more-actions");
+    const stash = Array.from(menu?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((button) => button.textContent === "Stash changes");
+    const discard = Array.from(menu?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((button) => button.textContent === "Discard all");
+
+    expect(menu?.querySelector("summary")?.getAttribute("aria-label")).toBe("More Git actions");
+    expect(stash).not.toBeNull();
+    expect(discard?.classList.contains("danger")).toBe(true);
+
+    await act(async () => stash?.click());
+    expect(onStash).toHaveBeenCalledOnce();
+  });
+
+  it("presents incoming commits with the established compact sidebar notice", async () => {
+    const onPull = vi.fn(async () => true);
     const status = createGitStatus();
-    expect(status.totalCommits).toBeGreaterThan(0);
-    expect(status.allCommits).toHaveLength(0);
+    status.branches[0] = {
+      ...status.branches[0],
+      ahead: 0,
+      behind: 4,
+    };
+    status.sourceControl.remote = {
+      ...status.sourceControl.remote,
+      ahead: 0,
+      behind: 4,
+      canPull: true,
+      state: "incoming",
+    };
+    status.sourceControl.groups = [];
+    status.sourceControl.actions.canCommit = false;
+    const surface = renderSidebar({ onPull, status });
+    const notice = surface.querySelector<HTMLElement>(".desktop-git-incoming-notice");
+    const pull = notice?.querySelector<HTMLButtonElement>(
+      ".desktop-git-incoming-notice-pull",
+    );
 
-    const surface = renderSidebar({ historyLoading: true, status });
+    expect(notice?.querySelector(".desktop-git-incoming-notice-summary")?.textContent)
+      .toBe("4 commits");
+    expect(pull?.getAttribute("aria-label")).toBe("Pull");
+    expect(pull?.classList.contains("is-primary")).toBe(true);
+    expect(notice?.parentElement?.classList.contains("desktop-git-sync-priority-region"))
+      .toBe(true);
+    expect(notice?.parentElement?.nextElementSibling?.classList.contains("desktop-git-resizable-stack"))
+      .toBe(true);
 
-    expect(surface.querySelector(".desktop-git-history-pane")).not.toBeNull();
-    expect(surface.querySelector(".desktop-git-history-loading")).not.toBeNull();
-    expect(surface.textContent).toContain("Reading Git history");
-    expect(surface.querySelector(".desktop-git-sidebar-empty-history")).toBeNull();
-    expect(surface.textContent).not.toContain("No commits yet");
+    await act(async () => pull?.click());
+    expect(onPull).toHaveBeenCalledOnce();
   });
 
   it("renders one quiet Changes section when the working tree is clean", () => {
@@ -261,7 +253,8 @@ describe("Git sidebar status groups", () => {
     expect(surface.querySelector(".desktop-git-resizable-section-remote")).toBeNull();
     expect(surface.querySelector(".desktop-git-cloud-provider-section")).toBeNull();
     expect(surface.querySelector(".desktop-git-github-provider-section")).toBeNull();
-    expect(surface.querySelector('button[aria-label="Pull"]')).toBeNull();
+    expect(surface.querySelector(".desktop-git-incoming-notice")).not.toBeNull();
+    expect(surface.querySelector('button[aria-label="Pull"]')).not.toBeNull();
     expect(surface.querySelector('button[aria-label="Download"]')).toBeNull();
   });
 
@@ -282,23 +275,29 @@ describe("Git sidebar status groups", () => {
     expect(mergeSection?.querySelector(".desktop-git-local-section-body")?.classList.contains("expanded")).toBe(true);
   });
 
-  it("keeps remote Pull out of the sidebar and blocks Push while the branch is diverged", async () => {
+  it("makes the compact Pull notice actionable and blocks Push while the branch is diverged", async () => {
+    const onPull = vi.fn(async () => true);
     const onPush = vi.fn(async () => true);
     const status = createDivergedGitHubStatus();
-    const surface = renderSidebar({ onPush, status });
+    const surface = renderSidebar({ onPull, onPush, status });
     const pullButton = surface.querySelector<HTMLButtonElement>('button[aria-label="Pull"]');
     const pushButton = surface.querySelector<HTMLButtonElement>('button[aria-label="Push"]');
 
-    expect(pullButton).toBeNull();
+    expect(pullButton?.disabled).toBe(false);
+    expect(pullButton?.classList.contains("is-primary")).toBe(true);
     expect(pushButton?.disabled).toBe(true);
     expect(pushButton?.classList.contains("is-primary")).toBe(false);
 
-    await act(async () => pushButton?.click());
+    await act(async () => {
+      pullButton?.click();
+      pushButton?.click();
+    });
 
+    expect(onPull).toHaveBeenCalledOnce();
     expect(onPush).not.toHaveBeenCalled();
   });
 
-  it("keeps Commit primary when incoming commits and staged files exist together", () => {
+  it("keeps Pull as a visible CTA when incoming commits and staged files exist together", () => {
     const status = createDivergedGitHubStatus();
     status.sourceControl.groups = [{
       id: "index",
@@ -310,9 +309,10 @@ describe("Git sidebar status groups", () => {
     const pullButton = surface.querySelector<HTMLButtonElement>('button[aria-label="Pull"]');
     const commitButton = surface.querySelector<HTMLButtonElement>(".desktop-git-commit-staged-action");
 
-    expect(pullButton).toBeNull();
+    expect(pullButton?.disabled).toBe(false);
+    expect(pullButton?.classList.contains("is-primary")).toBe(true);
     expect(commitButton?.disabled).toBe(false);
-    expect(commitButton?.classList.contains("desktop-git-commit-staged-action")).toBe(true);
+    expect(commitButton?.classList.contains("is-primary")).toBe(false);
   });
 
   it("blocks sync actions until working-tree conflicts are resolved", async () => {
@@ -360,15 +360,14 @@ describe("Git sidebar status groups", () => {
 function renderSidebar(options: Partial<{
   gitDisplayMode: "simple" | "professional";
   gitSidebarLayout: "cards" | "dividers";
-  onCommit: () => Promise<boolean>;
+  onCommit: (message?: string) => Promise<boolean>;
   onContinue: () => Promise<boolean>;
   onDiscardAll: () => Promise<boolean>;
   onPull: () => Promise<boolean>;
   onPush: () => Promise<boolean>;
-  onSelectCommit: (commitId: string) => void;
   onStageAll: () => Promise<boolean>;
-  onStageAndCommit: () => Promise<boolean>;
-  historyLoading: boolean;
+  onStageAndCommit: (message?: string) => Promise<boolean>;
+  onStash: () => Promise<boolean>;
   status: GitStatusSnapshot;
 }> = {}) {
   const container = document.createElement("div");
@@ -387,16 +386,14 @@ function renderSidebar(options: Partial<{
         fileIconTheme: "default",
       }}
       view={{
-        selectedCommitId: null,
         selectedWorkingFile: null,
-        historyLoading: options.historyLoading ?? false,
         operationLoading: null,
         operationError: null,
         loading: false,
         error: null,
       }}
       actions={{
-        selectCommit: options.onSelectCommit ?? vi.fn(),
+        initialize: succeed,
         selectWorkingFile: vi.fn(),
         stagePaths: succeed,
         stageAll: options.onStageAll ?? succeed,
@@ -404,6 +401,7 @@ function renderSidebar(options: Partial<{
         discardPaths: succeed,
         discardAll: options.onDiscardAll ?? succeed,
         stageAndCommit: options.onStageAndCommit ?? succeed,
+        stash: options.onStash ?? succeed,
         commit: options.onCommit ?? succeed,
         commitAndPush: succeed,
         continueOperation: options.onContinue ?? succeed,

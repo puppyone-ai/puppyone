@@ -10,6 +10,10 @@ const workingFileDetailSource = readFileSync(
   new URL("../../../../src/features/source-control/WorkingFileDetail.tsx", import.meta.url),
   "utf8",
 );
+const gitCommitDetailSource = readFileSync(
+  new URL("../../../../src/features/source-control/GitCommitDetail.tsx", import.meta.url),
+  "utf8",
+);
 const sourceControlComponentsSource = readFileSync(
   new URL("../../../../src/features/source-control/components.tsx", import.meta.url),
   "utf8",
@@ -20,8 +24,8 @@ const sourceControlSidebarSource = readFileSync(
 );
 const sourceControlSidebarSectionsSource = [
   "GitRemoteSections.tsx",
-  "GitSidebarHistoryPanel.tsx",
   "GitSidebarPrimitives.tsx",
+  "GitIncomingUpdateNotice.tsx",
   "GitLocalStatusSection.tsx",
   "GitLocalStatusPanels.tsx",
 ].map((fileName) => readFileSync(
@@ -113,6 +117,26 @@ const historyListCss = readFileSync(
   new URL("../../../../src/features/source-control/styles/history-list.css", import.meta.url),
   "utf8",
 );
+const historyTimelineSource = readFileSync(
+  new URL("../../../../src/features/source-control/GitHistoryTimeline.tsx", import.meta.url),
+  "utf8",
+);
+const historySidebarSource = readFileSync(
+  new URL("../../../../src/features/source-control/GitHistorySidebar.tsx", import.meta.url),
+  "utf8",
+);
+const changesSidebarSource = readFileSync(
+  new URL("../../../../src/features/source-control/GitChangesSidebar.tsx", import.meta.url),
+  "utf8",
+);
+const appSource = readFileSync(
+  new URL("../../../../src/App.tsx", import.meta.url),
+  "utf8",
+);
+const headerElementsSource = readFileSync(
+  new URL("../../../../src/features/app-shell/headerElements.tsx", import.meta.url),
+  "utf8",
+);
 const diffCss = readFileSync(
   new URL("../../../../src/features/source-control/styles/diff-utility.css", import.meta.url),
   "utf8",
@@ -199,62 +223,56 @@ describe("source-control visual architecture", () => {
     );
   });
 
-  it("keeps remote provider surfaces out of the Git sidebar", () => {
+  it("keeps remote provider surfaces out while retaining one compact incoming notice", () => {
     const sidebarPresentation = `${sourceControlSidebarSource}\n${sourceControlSidebarSectionsSource}`;
 
     expect(sidebarPresentation).not.toContain("GitHubProviderSection");
     expect(sidebarPresentation).not.toContain("PuppyoneCloudProviderSection");
     expect(sidebarPresentation).not.toContain("GitScmSyncRow");
     expect(sidebarPresentation).not.toContain("incomingPreview");
-    expect(sidebarPresentation).not.toContain('label={t("source-control.sync.pull")}');
+    expect(sidebarPresentation).toContain('label={t("source-control.sync.pull")}');
+    expect(sourceControlSidebarSource).toContain("<GitIncomingUpdateNotice");
     expect(sidebarResourcesCss).not.toContain("desktop-git-github-");
     expect(sidebarResourcesCss).not.toContain("desktop-git-cloud-provider-section");
     expect(sidebarResourcesCss).not.toContain("desktop-git-remote-status");
   });
 
-  it("keeps History collapsible as a first-level resizable Git sidebar pane", () => {
-    const historyDrawer = compact(readCssBlock(
-      historyListCss,
-      ".desktop-git-history-drawer",
-    ));
-    const historyTitle = compact(readCssBlock(
-      historyListCss,
-      ".desktop-git-history-drawer-header span",
-    ));
-    expect(sourceControlSidebarSource).toContain("<GitSidebarHistoryResizer");
-    expect(sourceControlSidebarSource).toContain("historyExpanded, setHistoryExpanded");
-    expect(sourceControlSidebarSource).toContain('className={`desktop-git-history-pane ${historyExpanded ? "expanded" : "collapsed"}`}');
-    expect(sourceControlSidebarSource).toContain("style={historyExpanded ? getHistoryPaneStyle() : undefined}");
-    expect(sourceControlSidebarSource).toContain("<GitSidebarHistoryPanel");
-    expect(sourceControlSidebarSource).toContain("expanded={historyExpanded}");
-    expect(sourceControlSidebarSectionsSource).toContain("aria-expanded={expanded}");
-    expect(sourceControlSidebarSectionsSource).toContain("onClick={onToggle}");
-    expect(historyDrawer).toContain(
-      "padding-block: var(--desktop-sidebar-section-top-gap) var(--desktop-sidebar-list-padding-block);",
-    );
-    expect(historyTitle).toContain("flex: 0 1 auto;");
-    expect(historyTitle).not.toContain("flex: 1;");
-    expect(sourceControlSidebarSource).not.toContain("GitHistoryShortcut");
-    expect(sourceControlSidebarSectionsSource).toContain("<VirtualSidebarList");
+  it("keeps History and Changes as right-sidebar surfaces beside Chat instead of workbench tabs", () => {
+    expect(sourceControlSidebarSource).not.toContain("GitSidebarHistory");
+    expect(sourceControlSidebarSource).not.toContain("desktop-git-history-pane");
+    expect(historySidebarSource).toContain('className="desktop-git-history-sidebar"');
+    expect(historySidebarSource).not.toContain("desktop-git-history-sidebar-header");
+    expect(historySidebarSource).not.toContain("AuxiliaryWorkbenchContribution");
+    expect(appSource).toContain('rightSidebarSurface === "chat"');
+    expect(appSource).toContain('rightSidebarSurface === "changes"');
+    expect(appSource).toContain('rightSidebarSurface === "history"');
+    expect(appSource).toContain("<GitChangesSidebar");
+    expect(appSource).toContain("<GitHistorySidebar");
+    expect(appSource).toContain('setRightSidebarSurface("history")');
+    expect(appSource).toContain('setRightSidebarSurface("changes")');
+    expect(appSource).toContain('setRightSidebarSurface("chat")');
+    expect(appSource).not.toContain("gitHistoryContribution");
+    expect(appSource).not.toContain("GIT_HISTORY_WORKBENCH_KIND");
+    expect(headerElementsSource).toContain('id: "history"');
+    expect(headerElementsSource).toContain('id: "changes"');
+    expect(headerElementsSource).toContain("aria-pressed={history.sidebarOpen}");
+    expect(historyTimelineSource).toContain("<VirtualSidebarList");
     expect(viewSource).not.toContain("<VirtualSidebarList");
-    expect(gitControllerSource).not.toContain('gitMainPanel !== "history"');
-    expect(readFileSync(
-      new URL("../../../../src/features/source-control/sidebar/useGitSidebarPanelLayout.ts", import.meta.url),
-      "utf8",
-    )).toContain("flex: `0 0 ${historyPaneHeight}px`");
+    expect(gitControllerSource).toContain("gitHistoryActive");
+    expect(gitControllerSource).not.toContain("gitMainPanel");
   });
 
-  it("keeps main-panel loading quiet while staged files and History own their local states", () => {
-    expect(viewSource).toContain('t("source-control.overview.selectPreview")');
+  it("keeps file review inside Changes and restores the established section actions", () => {
+    expect(viewSource).toContain('t("source-control.overview.selectChange")');
     expect(viewSource).not.toContain("loading && !status");
-    expect(sourceControlSidebarSectionsSource).toContain('className="desktop-git-history-loading"');
-    expect(sourceControlSidebarSectionsSource).toContain('t("source-control.status.readingHistory")');
-    expect(sourceControlSidebarSource).not.toContain("GitSidebarCommitBar");
+    expect(historyTimelineSource).toContain('className="desktop-git-history-loading"');
+    expect(historyTimelineSource).toContain('t("source-control.status.readingHistory")');
+    expect(changesSidebarSource).toContain("<WorkingFileDetail");
+    expect(changesSidebarSource).toContain('className="desktop-history-detail-back"');
+    expect(sourceControlSidebarSource).not.toContain('className="desktop-git-commit-composer"');
     expect(sourceControlSidebarSectionsSource).toContain('className="desktop-git-commit-staged-action"');
-    expect(sourceControlSidebarSectionsSource).toContain('t("source-control.sync.commitStaged")');
-    expect(sourceControlSidebarSectionsSource).toContain("disabled={disabled || !action || action.disabled}");
     expect(sourceControlSidebarSectionsSource).toContain('className="desktop-git-stage-commit-action"');
-    expect(sourceControlSidebarSectionsSource).toContain('t("source-control.action.stageCommitTitle")');
+    expect(appSource).not.toContain('navigateDesktopView("git")');
   });
 
   it("reserves card surfaces for providers and keeps local source-control groups flat", () => {
@@ -479,11 +497,11 @@ describe("source-control visual architecture", () => {
   });
 
   it("uses one canonical file diff surface in Changes and History", () => {
-    expect(viewSource).toContain("<GitFileDiffSurface");
+    expect(gitCommitDetailSource).toContain("<GitFileDiffSurface");
     expect(workingFileDetailSource).toContain("<GitFileDiffSurface");
     expect(fileDiffSurfaceSource).toContain('className="desktop-file-diff-header"');
     expect(fileDiffSurfaceSource).toContain("<FormatAwareDiff");
-    expect(viewSource).not.toContain("hideHeader");
+    expect(gitCommitDetailSource).not.toContain("hideHeader");
     expect(workingFileDetailSource).not.toContain("hideHeader");
     expect(fileDiffSurfaceSource).not.toContain("without-header");
 
@@ -618,9 +636,11 @@ describe("source-control visual architecture", () => {
     expect(primary).toContain("background: var(--desktop-git-primary-bg);");
     expect(primary).toContain("color: var(--desktop-git-primary-fg);");
     expect(sourceControlSidebarSectionsSource).toContain(
+      'className="desktop-git-commit-staged-action"',
+    );
+    expect(sourceControlSidebarSectionsSource).toContain(
       'className="desktop-git-stage-commit-action"',
     );
-    expect(sourceControlSidebarSectionsSource).toContain('icon="plus"');
     expect(select({ hasStagedAction: true, hasSyncAction: true, hasCommittedAction: true })).toBe("sync");
     expect(select({ hasConflicts: true, hasStagedAction: true, hasSyncAction: true, hasCommittedAction: true })).toBeNull();
     expect(select({ hasOperationAction: true, hasSyncAction: true })).toBe("operation");
@@ -702,7 +722,7 @@ describe("source-control visual architecture", () => {
     expect(historyListCss).toContain("font-weight: var(--git-weight-regular);");
     expect(historyListCss).toContain("line-height: var(--git-line-height);");
     expect(historyListCss).toContain(".desktop-working-tree-main,");
-    expect(historyListCss).toContain(".desktop-working-tree-name,");
+    expect(historyListCss).toContain(".desktop-working-tree-name\n");
     expect(sourceControlComponentsSource).not.toContain("desktop-working-tree-dir");
     expect(sidebarResourcesCss).not.toContain(".desktop-working-tree-dir");
     expect(historyListCss).not.toContain(
@@ -714,37 +734,47 @@ describe("source-control visual architecture", () => {
     expect(sidebarResourcesCss).not.toContain("filter: grayscale(1);");
   });
 
-  it("clips history messages to one line inside the fixed-height timeline row", () => {
+  it("keeps the History timeline to collapsible date dividers and one-line commit messages", () => {
     const row = compact(readCssBlock(historyListCss, ".desktop-history-row"));
-    const graph = compact(readCssBlock(historyListCss, ".desktop-history-graph"));
-    const main = compact(readCssBlock(historyListCss, ".desktop-history-row-main"));
-    const title = compact(readCssBlock(historyListCss, ".desktop-history-row-title"));
+    const date = compact(readCssBlock(historyListCss, ".desktop-history-date-group button"));
+    const divider = compact(readCssBlock(historyListCss, ".desktop-history-date-divider"));
     const message = compact(readCssBlock(historyListCss, ".desktop-history-row-message"));
     const stat = compact(readCssBlock(historyListCss, ".desktop-history-row-stat"));
-    const added = compact(readCssBlock(historyListCss, ".desktop-history-row-stat .added"));
-    const deleted = compact(readCssBlock(historyListCss, ".desktop-history-row-stat .deleted"));
-    const head = compact(readCssBlock(historyListCss, ".desktop-head-badge"));
+    const files = compact(readCssBlock(historyListCss, ".desktop-history-row-files"));
+    const fileCount = compact(readCssBlock(historyListCss, ".desktop-history-row-file-count"));
+    const deletedFile = compact(readCssBlock(
+      historyListCss,
+      '.desktop-history-row-file[data-status="deleted"] bdi',
+    ));
 
-    expect(sourceControlSidebarSectionsSource).toContain('className="desktop-history-row-message"');
-    expect(row).toContain("height: var(--desktop-sidebar-row-height);");
+    expect(historyTimelineSource).toContain('className="desktop-history-row-message"');
+    expect(historyTimelineSource).toContain('className="desktop-history-date-group"');
+    expect(historyTimelineSource).toContain("<FileGlyphIcon");
+    expect(historyTimelineSource).toContain("aria-expanded={!row.collapsed}");
+    expect(historyTimelineSource).toContain("collapsedDateKeys");
+    expect(historyTimelineSource).not.toContain('className="desktop-history-dot"');
+    expect(historyTimelineSource).not.toContain('className="desktop-history-row-meta"');
+    expect(historyTimelineSource).toContain('className="desktop-history-row-stat"');
+    expect(historyTimelineSource).not.toContain("commit.commit_id.slice");
+    expect(historyTimelineSource).toContain("change.path");
+    expect(historyTimelineSource).not.toContain("commit.author_name");
+    expect(historyTimelineSource).not.toContain("formatHistoryRelativeTime");
+    expect(row).toContain("height: var(--desktop-history-row-height, var(--desktop-sidebar-row-height));");
     expect(row).toContain("overflow: hidden;");
-    expect(graph).toContain("width: 20px;");
-    expect(graph).toContain("flex: 0 0 20px;");
-    expect(main).toContain("grid-template-columns: minmax(0, 1fr) max-content;");
-    expect(main).toContain("min-width: 0;");
-    expect(main).toContain("overflow: hidden;");
-    expect(title).toContain("white-space: nowrap;");
+    expect(date).toContain("display: flex;");
+    expect(divider).toContain("flex: 1 1 auto;");
+    expect(row).toContain("padding-inline-start: 22px;");
     expect(message).toContain("overflow: hidden;");
     expect(message).toContain("text-overflow: ellipsis;");
     expect(message).toContain("white-space: nowrap;");
-    expect(stat).toContain("font-size: var(--po-type-ui-micro, 11px);");
     expect(stat).toContain("font-variant-numeric: tabular-nums;");
-    expect(added).toContain("var(--po-success) 48%");
-    expect(deleted).toContain("var(--po-danger) 48%");
-    expect(head).toContain("font-size: var(--po-text-size-micro, 10px);");
-    expect(sourceControlSidebarSectionsSource).toContain('notation: "compact"');
-    expect(sourceControlSidebarSectionsSource).toContain("maximumFractionDigits: 1");
-    expect(historyListCss).not.toContain(".desktop-history-row-title > span:last-child");
+    expect(files).toContain("overflow: hidden;");
+    expect(files).toContain("flex-direction: column;");
+    expect(fileCount).toContain("display: block;");
+    expect(fileCount).not.toContain("margin-inline-start: auto;");
+    expect(deletedFile).toContain("text-decoration: line-through;");
+    expect(historyTimelineSource).toContain('notation: "compact"');
+    expect(historyTimelineSource).toContain("maximumFractionDigits: 1");
   });
 });
 

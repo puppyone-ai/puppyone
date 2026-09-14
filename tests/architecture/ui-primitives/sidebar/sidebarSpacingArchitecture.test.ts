@@ -438,17 +438,15 @@ describe("sidebar spacing architecture", () => {
 
   it("keeps Git edges shared while nested lists own scrolling", () => {
     const wrapper = compact(readCssBlock(gitLayoutCss, ".desktop-git-sidebar-list"));
-    const footer = compact(readCssBlock(gitHistoryCss, ".desktop-git-history-drawer"));
+    const historyList = compact(readCssBlock(gitHistoryCss, ".desktop-history-list"));
+    const historyScroll = compact(readCssBlock(gitHistoryCss, ".desktop-history-virtual-list"));
 
     expect(wrapper).toContain("padding-block: var(--desktop-sidebar-list-padding-block) 0;");
     expect(wrapper).toContain("padding-inline: 0;");
     expect(wrapper).toContain("scrollbar-gutter: auto;");
-    expect(footer).toContain(
-      "padding-block: var(--desktop-sidebar-section-top-gap) var(--desktop-sidebar-list-padding-block);",
-    );
-    expect(footer).toContain(
-      "padding-inline: var(--git-sidebar-left-gap) var(--git-sidebar-right-gap);",
-    );
+    expect(historyList).toContain("padding: 8px 10px 12px;");
+    expect(historyScroll).toContain("overflow: auto;");
+    expect(historyScroll).toContain("scrollbar-gutter: stable;");
   });
 
   it("keeps every remaining page-level sidebar on the shared block edge", () => {

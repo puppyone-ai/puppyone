@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const gitStatusView = read("../../../../src/features/source-control/GitStatusView.tsx");
+const gitCommitDetail = read("../../../../src/features/source-control/GitCommitDetail.tsx");
 const gitFileDiffSurface = read("../../../../src/features/source-control/diff/GitFileDiffSurface.tsx");
 const formatAwareDiff = read("../../../../src/features/source-control/diff/FormatAwareDiff.tsx");
 const registry = read("../../../../src/features/source-control/diff/core/registry.ts");
@@ -14,10 +14,10 @@ const revisionAuthority = read("../../../../local-api/git/revision-pair.mjs");
 const ipc = read("../../../../electron/main/ipc/workspace-git-ipc.mjs");
 
 describe("format-aware diff architecture", () => {
-  it("keeps format decisions in the ordered registry rather than GitStatusView", () => {
-    expect(gitStatusView).toContain("<GitFileDiffSurface");
+  it("keeps format decisions in the ordered registry rather than Git commit detail", () => {
+    expect(gitCommitDetail).toContain("<GitFileDiffSurface");
     expect(gitFileDiffSurface).toContain("<FormatAwareDiff");
-    expect(gitStatusView).not.toMatch(/\.docx|format\.id|file\.binary\s*\?/);
+    expect(gitCommitDetail).not.toMatch(/\.docx|format\.id|file\.binary\s*\?/);
     expect(gitFileDiffSurface).not.toMatch(/\.docx|file\.binary\s*\?/);
     expect(gitFileDiffSurface).toContain("resolveDiffViewer(file)");
     expect(gitFileDiffSurface).toContain("resolvedViewer={resolvedViewer}");

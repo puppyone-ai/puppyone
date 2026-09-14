@@ -247,21 +247,11 @@ describe("scrollbar architecture", () => {
     expect(desktopDataShellCss).not.toContain(".explorer-column");
   });
 
-  it("keeps the History divider between the Git changes and history panes", () => {
-    const historyResizerRule = readRule(
-      gitSidebarPanelsCss,
-      ".desktop-git-history-resizer::after",
-    );
-    expect(historyResizerRule).toContain("inset-inline: 0;");
-    expect(historyResizerRule).toContain(
-      "background: var(--po-sidebar-divider, var(--po-divider));",
-    );
-    expect(historyResizerRule).not.toContain("transform:");
-    expect(readRule(gitSidebarLayoutCss, ".desktop-git-history-pane"))
-      .not.toContain("max-height:");
-    expect(gitSidebarSource).toMatch(
-      /className="desktop-git-changes-pane"[\s\S]+<GitSidebarHistoryResizer[\s\S]+className=\{`desktop-git-history-pane/,
-    );
+  it("keeps Git History out of the changes-pane resize stack", () => {
+    expect(gitSidebarPanelsCss).not.toContain(".desktop-git-history-resizer");
+    expect(gitSidebarLayoutCss).not.toContain(".desktop-git-history-pane");
+    expect(gitSidebarSource).not.toContain("GitSidebarHistoryResizer");
+    expect(gitSidebarSource).not.toContain("desktop-git-history-pane");
     expect(baseCss).not.toContain('[dir="rtl"] .data-explorer-resizer');
   });
 

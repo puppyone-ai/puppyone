@@ -3,6 +3,7 @@ import type { GitCommitDetail } from "../../types/electron";
 import type { GitWorkingSelection } from "./types";
 import { GitFileDiffSurface } from "./diff/GitFileDiffSurface";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
+import { GitSidebarLoadingState } from "./sidebar/GitSidebarPrimitives";
 
 export type WorkingFileDetailProps = {
   selection: GitWorkingSelection;
@@ -73,7 +74,10 @@ export function WorkingFileDetail({
 
           {operationError && <div className="desktop-utility-empty danger">{operationError}</div>}
           {loading ? (
-            <div className="desktop-utility-empty">{t("source-control.status.loadingDiffFor", { path: bidiIsolate(selection.path) })}</div>
+            <GitSidebarLoadingState
+              className="desktop-git-detail-loading"
+              label={t("source-control.status.loadingDiffFor", { path: bidiIsolate(selection.path) })}
+            />
           ) : error ? (
             <div className="desktop-utility-empty danger">{error}</div>
           ) : files.length > 0 ? (

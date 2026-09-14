@@ -44,7 +44,7 @@ describe("DesktopSidebarTopNavigation", () => {
 
     expect(
       Array.from(container.querySelectorAll("button"), (button) => button.getAttribute("aria-label")),
-    ).toEqual(["Files", "Settings"]);
+    ).toEqual(["Settings"]);
     expect(container.querySelector('[aria-label="Assets"]')).toBeNull();
     expect(container.querySelector('[aria-label="Automation"]')).toBeNull();
     expect(container.querySelectorAll(".desktop-sidebar-top-navigation-group")).toHaveLength(1);
@@ -52,6 +52,7 @@ describe("DesktopSidebarTopNavigation", () => {
 
   it("places Cloud hub before the terminal Settings action and omits the linked dot", () => {
     const onNavigate = vi.fn();
+    const onOpenCloud = vi.fn();
     const container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -68,13 +69,14 @@ describe("DesktopSidebarTopNavigation", () => {
         gitStatus={null}
         workspaceChangeCount={0}
         onNavigate={onNavigate}
+        onOpenCloud={onOpenCloud}
         onOpenSettings={vi.fn()}
       />,
     ));
 
     expect(
       Array.from(container.querySelectorAll("button"), (button) => button.getAttribute("aria-label")),
-    ).toEqual(["Files", "Changes", "Cloud", "Settings"]);
+    ).toEqual(["Changes", "Cloud", "Settings"]);
     expect(container.querySelectorAll(".desktop-sidebar-top-navigation-group")).toHaveLength(1);
     expect(container.querySelector(".desktop-sidebar-top-navigation-end")).toBeNull();
     expect(container.querySelector('[aria-label="Cloud"] .desktop-sidebar-nav-cloud-dot')).toBeNull();
@@ -83,7 +85,9 @@ describe("DesktopSidebarTopNavigation", () => {
     expect(container.querySelector('[aria-label="History"]')).toBeNull();
 
     act(() => container.querySelector<HTMLButtonElement>('button[aria-label="Cloud"]')?.click());
-    expect(onNavigate).toHaveBeenCalledWith("cloud");
+    expect(onOpenCloud).toHaveBeenCalledOnce();
+    expect(onNavigate).not.toHaveBeenCalledWith("cloud");
+    expect(container.querySelector('[aria-label="Cloud"]')?.getAttribute("aria-haspopup")).toBe("dialog");
   });
 
   it("exposes a stable Shell-toolbar contract without replacing Sidebar semantics", () => {
@@ -112,9 +116,9 @@ describe("DesktopSidebarTopNavigation", () => {
     const navigation = container.querySelector('[data-shell-toolbar-section="navigation"]');
     expect(navigation?.classList.contains("desktop-sidebar-top-navigation")).toBe(true);
     expect(navigation?.classList.contains("desktop-shell-toolbar-navigation")).toBe(true);
-    expect(navigation?.querySelectorAll(".desktop-shell-toolbar-button")).toHaveLength(4);
-    expect(navigation?.querySelectorAll(".desktop-shell-toolbar-button-icon")).toHaveLength(4);
-    expect(navigation?.querySelectorAll(".desktop-shell-toolbar-button-label")).toHaveLength(4);
+    expect(navigation?.querySelectorAll(".desktop-shell-toolbar-button")).toHaveLength(3);
+    expect(navigation?.querySelectorAll(".desktop-shell-toolbar-button-icon")).toHaveLength(3);
+    expect(navigation?.querySelectorAll(".desktop-shell-toolbar-button-label")).toHaveLength(3);
     expect(navigation?.querySelector(".desktop-sidebar-nav-badge")).toBeNull();
   });
 
@@ -170,7 +174,7 @@ describe("DesktopSidebarFooterNavigation", () => {
 
     expect(
       Array.from(container.querySelectorAll("button"), (button) => button.getAttribute("aria-label")),
-    ).toEqual(["Files", "Changes", "Cloud", "Settings", "Feedback"]);
+    ).toEqual(["Changes", "Cloud", "Settings", "Feedback"]);
     expect(container.querySelectorAll(".desktop-sidebar-footer-actions")).toHaveLength(2);
     expect(container.querySelector(".desktop-sidebar-footer-actions-right")?.textContent).toBe("?");
   });
@@ -200,7 +204,7 @@ describe("DesktopSidebarRailNavigation local Cloud hub", () => {
 
     expect(
       Array.from(container.querySelectorAll("button"), (button) => button.getAttribute("aria-label")),
-    ).toEqual(["Files, workspace changes detected", "Changes, workspace changes detected", "Cloud", "Settings", "Feedback"]);
+    ).toEqual(["Changes, workspace changes detected", "Cloud", "Settings", "Feedback"]);
     const badge = container.querySelector('[data-navigation-item="git"] .desktop-sidebar-nav-badge');
     expect(badge?.classList.contains("workspace")).toBe(true);
     expect(badge?.textContent).toBe("");

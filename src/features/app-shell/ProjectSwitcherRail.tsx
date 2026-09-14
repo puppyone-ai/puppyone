@@ -45,6 +45,7 @@ type ProjectSwitcherRailProps = Readonly<{
   recentWorkspaces: readonly RecentWorkspaceHomeItem[];
   onCreateNew: () => void;
   onOpenSettings?: () => void;
+  settingsOpen?: boolean;
   onSelectProject: (path: string) => void | Promise<void>;
   utilitySlot?: ReactNode;
 }>;
@@ -60,6 +61,7 @@ export function ProjectSwitcherRail({
   recentWorkspaces,
   onCreateNew,
   onOpenSettings,
+  settingsOpen = false,
   onSelectProject,
   utilitySlot,
 }: ProjectSwitcherRailProps) {
@@ -220,9 +222,9 @@ export function ProjectSwitcherRail({
           <div className="desktop-sidebar-footer-actions">
             {onOpenSettings && (
               <DesktopSidebarSettingsButton
-                activeView={activeView}
                 buttonClassName="desktop-sidebar-footer-button"
                 onOpenSettings={onOpenSettings}
+                settingsOpen={settingsOpen}
               />
             )}
             {utilitySlot}

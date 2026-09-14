@@ -22,7 +22,7 @@ const sidebarResizeHandleSource = read("../../../../packages/shared-ui/src/sideb
 const settingsSidebarSource = read("../../../../src/features/settings/sidebar/SettingsSidebar.tsx");
 const settingsModelSource = read("../../../../src/features/settings/sidebar/settingsSidebarModel.ts");
 const sourceControlResourceLists = read("../../../../src/features/source-control/sidebar/SourceControlResourceLists.tsx");
-const sourceControlHistory = read("../../../../src/features/source-control/sidebar/GitSidebarHistoryPanel.tsx");
+const sourceControlHistory = read("../../../../src/features/source-control/GitHistoryTimeline.tsx");
 const cloudHistorySidebar = read("../../../../src/features/cloud/history/CloudHistorySidebar.tsx");
 const virtualizationPolicy = read("../../../../packages/shared-ui/src/sidebar/virtualizationPolicy.ts");
 const virtualSidebarList = read("../../../../packages/shared-ui/src/sidebar/VirtualSidebarList.tsx");
@@ -199,7 +199,9 @@ describe("Sidebar architecture", () => {
     expect(auxiliaryHostSource).toContain("lastExpandedWidth");
     expect(auxiliaryHostSource).toContain("onCommit: commitPane");
     expect(auxiliaryHostSource).toContain('typeof children === "function"');
-    expect(appSource).toContain("active={presentation.contentVisible}");
+    expect(appSource).toContain(
+      'active={presentation.contentVisible && rightSidebarSurface === "chat"}',
+    );
     expect(appSource).not.toContain("active={rightSidebarOpen}");
     expect(sharedDataWorkspaceCss).not.toContain("--data-explorer-min-width");
     expect(collapsiblePaneResizeSource).toContain("canonical live resize width");

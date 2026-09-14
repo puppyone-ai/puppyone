@@ -11,8 +11,6 @@ export type GitWorkingSelection = {
   origin?: "local" | "remote" | "committed";
 };
 
-export type GitMainPanel = "changes" | "history";
-
 export type GitHostingMode = "github" | "puppyone-cloud" | "generic-git";
 
 export type GitActionIconKind = "check" | "download" | "upload" | "plus";

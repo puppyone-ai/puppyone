@@ -14,9 +14,7 @@ export type GitSidebarRepositoryState = {
 };
 
 export type GitSidebarViewState = {
-  selectedCommitId: string | null;
   selectedWorkingFile: GitWorkingSelection | null;
-  historyLoading: boolean;
   operationLoading: string | null;
   operationError: string | null;
   loading: boolean;
@@ -24,21 +22,22 @@ export type GitSidebarViewState = {
 };
 
 export type GitSidebarActions = {
-  selectCommit: (commitId: string) => void;
+  initialize: () => Promise<boolean>;
   selectWorkingFile: (selection: GitWorkingSelection) => void;
   stagePaths: (paths: string[]) => Promise<boolean>;
   stageAll: () => Promise<boolean>;
   unstagePaths: (paths: string[]) => Promise<boolean>;
   discardPaths: (paths: string[]) => Promise<boolean>;
   discardAll: () => Promise<boolean>;
-  stageAndCommit: () => Promise<boolean>;
-  commit: () => Promise<boolean>;
-  commitAndPush: () => Promise<boolean>;
+  stageAndCommit: (message?: string) => Promise<boolean>;
+  commit: (message?: string) => Promise<boolean>;
+  commitAndPush: (message?: string) => Promise<boolean>;
   continueOperation: () => Promise<boolean>;
   abortOperation: () => Promise<boolean>;
   pull: () => Promise<boolean>;
   push: () => Promise<boolean>;
   publish: () => Promise<boolean>;
+  stash: () => Promise<boolean>;
 };
 
 export type GitSidebarCloudBackup = {

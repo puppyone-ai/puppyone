@@ -1434,6 +1434,9 @@ declare global {
         authorName?: string;
         authorEmail?: string;
       }) => Promise<GitStatusSnapshot>;
+      stashGitChanges: (request: {
+        rootPath: string;
+      }) => Promise<GitStatusSnapshot>;
       continueGitOperation: (request: {
         rootPath: string;
       }) => Promise<GitStatusSnapshot>;

@@ -90,6 +90,8 @@
   "appearance.pluginsShortcut.detail": "ワークスペースのナビゲーションにローカルのプラグイン項目を表示します。",
   "appearance.headerElements.title": "ヘッダー要素",
   "appearance.headerElements.external-open": "外部で開く",
+  "appearance.headerElements.history": "Git 履歴",
+  "appearance.headerElements.changes": "変更",
   "appearance.headerElements.terminal": "ターミナル",
   "appearance.pointerCursors.title": "ポインターカーソル",
   "appearance.pointerCursors.detail": "リンクとナビゲーション先にのみ手のカーソルを表示します。",

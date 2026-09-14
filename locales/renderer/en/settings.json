@@ -90,6 +90,8 @@
   "appearance.pluginsShortcut.detail": "Show the local Plugins entry in workspace navigation.",
   "appearance.headerElements.title": "Header elements",
   "appearance.headerElements.external-open": "Open external",
+  "appearance.headerElements.history": "Git history",
+  "appearance.headerElements.changes": "Changes",
   "appearance.headerElements.terminal": "Terminal",
   "appearance.pointerCursors.title": "Pointer cursors",
   "appearance.pointerCursors.detail": "Show a hand cursor only over links and navigation destinations.",

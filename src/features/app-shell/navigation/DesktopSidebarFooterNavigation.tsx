@@ -1,4 +1,8 @@
-import { DesktopNavigationItems, DesktopSidebarSettingsButton } from "./DesktopNavigationItems";
+import {
+  DesktopNavigationItems,
+  DesktopSidebarCloudButton,
+  DesktopSidebarSettingsButton,
+} from "./DesktopNavigationItems";
 import { resolveNavigationItems } from "./navigationModel";
 import type { DesktopNavigationProps } from "./types";
 
@@ -13,11 +17,14 @@ export function DesktopSidebarFooterNavigation({
   gitStatus,
   workspaceChangeCount,
   onNavigate,
+  onOpenCloud,
   onOpenSettings,
+  cloudOpen = false,
+  settingsOpen = false,
   showSettings = true,
   utilitySlot,
 }: DesktopNavigationProps) {
-  const { cloudHubItems, localItems } = resolveNavigationItems({
+  const { cloudHubVisible, localItems } = resolveNavigationItems({
     availableSurfaceIds,
     cloudHubEnabled,
     gitEnabled,
@@ -40,14 +47,18 @@ export function DesktopSidebarFooterNavigation({
     >
       <div className="desktop-sidebar-footer-actions desktop-sidebar-footer-actions-left">
         <DesktopNavigationItems {...runtime} buttonClassName="desktop-sidebar-footer-button" items={localItems} />
-        {cloudHubItems.length > 0 && (
-          <DesktopNavigationItems {...runtime} buttonClassName="desktop-sidebar-footer-button" items={cloudHubItems} />
+        {cloudHubVisible && (
+          <DesktopSidebarCloudButton
+            buttonClassName="desktop-sidebar-footer-button"
+            cloudOpen={cloudOpen}
+            onOpenCloud={onOpenCloud ?? (() => onNavigate("cloud"))}
+          />
         )}
         {showSettings && (
           <DesktopSidebarSettingsButton
-            activeView={activeView}
             buttonClassName="desktop-sidebar-footer-button"
             onOpenSettings={onOpenSettings}
+            settingsOpen={settingsOpen}
           />
         )}
       </div>

@@ -22,7 +22,11 @@ import {
 } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
 import { DesktopCloudShell, type DesktopView } from "./components/DesktopCloudShell";
-import { isSettingsSectionAvailable, type SettingsSection } from "./features/settings";
+import {
+  isSettingsSectionAvailable,
+  SettingsDialog,
+  type SettingsSection,
+} from "./features/settings";
 import { CLOUD_HUB_ENTRY_SECTION, type CloudWorkspaceSection } from "./features/cloud";
 import {
   MinimalOnboarding,
@@ -107,7 +111,10 @@ import {
   GitOperationErrorDialog,
 } from "./features/source-control/operationDialogs";
 import { useDesktopGitController } from "./features/source-control/useDesktopGitController";
+import { GitChangesSidebar } from "./features/source-control/GitChangesSidebar";
+import { GitHistorySidebar } from "./features/source-control/GitHistorySidebar";
 import { createRepositoryRefreshReason } from "./features/source-control/repositoryRefreshPolicy";
+import { getGitTitlebarStatus } from "./features/source-control/gitTitlebarStatus";
 import { shouldBlockWorkspaceCloudResolution } from "./features/cloud/workspace/workspaceCloudResolutionKey";
 import { useCloudInitialization } from "./features/cloud/initialization/useCloudInitialization";
 import {
@@ -142,7 +149,7 @@ import { ProjectEntryLauncherDialog } from "./features/app-shell/ProjectEntryLau
 const AgentChatWorkbenchItem = lazy(loadAgentChatWorkbenchItem);
 const AgentChatHistoryBrowser = lazy(loadAgentChatHistoryBrowser);
 const EMPTY_WORKSPACE_FOLDERS: readonly WorkspaceFolder[] = Object.freeze([]);
-type ProjectDesktopView = Exclude<DesktopView, "settings">;
+type ProjectDesktopView = Exclude<DesktopView, "settings" | "cloud">;
 
 export function App() {
   return <AppContent />;
@@ -316,6 +323,8 @@ function AppContent() {
   });
   const Homepage = assetLibraryHomeEnabled ? AssetLibraryHome : MinimalOnboarding;
   const [activeSettingsSection, setActiveSettingsSection] = useState<SettingsSection>("general");
+  const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
+  const [cloudDialogOpen, setCloudDialogOpen] = useState(false);
   const [workspaceRefreshToken, setWorkspaceRefreshToken] = useState<WorkspaceContentChange>({
     sequence: 0,
     entries: [],
@@ -397,6 +406,13 @@ function AppContent() {
     ?? workbenchWorkspace?.folders[0]
     ?? null;
   const focusedWorkspace = focusedWorkspaceFolder?.workspace ?? workspace;
+  const rightSidebarContentVisible = rightSidebarOpen;
+  const gitHistorySidebarOpen = rightSidebarContentVisible
+    && rightSidebarSurface === "history";
+  const gitChangesSidebarOpen = rightSidebarContentVisible
+    && rightSidebarSurface === "changes";
+  const agentSidebarOpen = rightSidebarContentVisible
+    && rightSidebarSurface === "chat";
   const handleRemoveProject = useCallback(async (folder: WorkspaceFolder) => {
     if (documentStorageIdentity) {
       await closeDocumentWorkingCopiesUnderResource(documentStorageIdentity, folder.uri);
@@ -421,14 +437,6 @@ function AppContent() {
   const switcherRef = useRef<HTMLDivElement>(null);
   const desktopTerminalEnabled = isDesktopTerminalEnabled({ terminalToolEnabled });
 
-  useEffect(() => {
-    // Legacy surface selection is retained only as a one-way migration key.
-    // The unified Workbench owns Item selection from this point onward.
-    if (rightSidebarSurface !== "terminal") setRightSidebarSurface("terminal");
-  }, [
-    rightSidebarSurface,
-    setRightSidebarSurface,
-  ]);
   const refreshWorkspaceContent = useCallback((
     paths: readonly string[] | string | null = null,
     workspaceFolderId: string | null = null,
@@ -450,9 +458,9 @@ function AppContent() {
   }, [refreshWorkspaceContent]);
   const git = useDesktopGitController({
     workspace: focusedWorkspace,
-    gitViewActive: activeView === "git",
+    gitChangesActive: gitChangesSidebarOpen,
+    gitHistoryActive: gitHistorySidebarOpen,
     onWorkspaceContentChanged: refreshWorkspaceContentFromGit,
-    onEnterGitView: () => setActiveView("git"),
   });
   const invalidateGitStatus = git.invalidateGitStatus;
   const handleWorkspaceActivity = useCallback((folder: WorkspaceFolder) => {
@@ -473,8 +481,8 @@ function AppContent() {
     gitCommitDetail,
     gitCommitDetailError,
     gitCommitDetailLoading,
+    gitHistoryLoading,
     gitIncomingCount,
-    gitMainPanel,
     gitOperationError,
     gitOperationLoading,
     gitStatusError,
@@ -492,10 +500,12 @@ function AppContent() {
     captureGitRepositoryContext,
     clearGitSelection,
     dismissGitOperationError,
+    handleAbortGitOperation,
     handleCheckoutGitBranch,
     handleCommitAndCheckoutBranch,
     handleCommitAndPushGit,
     handleCommitGit,
+    handleContinueGitOperation,
     handleDiscardAllGitChanges,
     handleDiscardGitPaths,
     handleInitializeGitRepository,
@@ -505,6 +515,7 @@ function AppContent() {
     handleStageAllGitChanges,
     handleStageAndCommitGit,
     handleStageGitPaths,
+    handleStashGitChanges,
     handleStashAndCheckoutBranch,
     handleUnstageGitPaths,
     isGitRepositoryContextCurrent,
@@ -517,6 +528,36 @@ function AppContent() {
     setGitOperationLoading,
     setPendingBranchSwitch,
   } = git;
+  const openSettingsDialog = useCallback((section?: SettingsSection) => {
+    if (section) setActiveSettingsSection(section);
+    setSettingsDialogOpen(true);
+    setCloudDialogOpen(false);
+    setSwitcherOpen(false);
+    setBranchSwitcherOpen(false);
+  }, [setBranchSwitcherOpen]);
+  const closeSettingsDialog = useCallback(() => setSettingsDialogOpen(false), []);
+  const openCloudDialog = useCallback(() => {
+    if (!cloudEnabled) return;
+    setActiveView("data");
+    setActiveCloudSection(CLOUD_HUB_ENTRY_SECTION);
+    setCloudDialogOpen(true);
+    setSettingsDialogOpen(false);
+    setSidebarCollapsed(false);
+    setSwitcherOpen(false);
+    setBranchSwitcherOpen(false);
+  }, [cloudEnabled, setBranchSwitcherOpen, setSidebarCollapsed]);
+  const closeCloudDialog = useCallback(() => setCloudDialogOpen(false), []);
+
+  useEffect(() => {
+    const handleSettingsShortcut = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.key !== ",") return;
+      event.preventDefault();
+      openSettingsDialog();
+    };
+    window.addEventListener("keydown", handleSettingsShortcut);
+    return () => window.removeEventListener("keydown", handleSettingsShortcut);
+  }, [openSettingsDialog]);
+
   const handleWorkspaceStarterCreated = useCallback((path: string) => {
     refreshWorkspaceContent(path);
     void refreshGitStatus("first-project-starter");
@@ -578,8 +619,15 @@ function AppContent() {
   });
 
   useEffect(() => {
+    if (activeView === "cloud") {
+      setActiveView("data");
+      setCloudDialogOpen(cloudEnabled);
+      if (!cloudEnabled) setActiveCloudSection("initialize");
+      return;
+    }
+    if (!cloudEnabled) setCloudDialogOpen(false);
     if (
-      (!cloudEnabled && activeView === "cloud")
+      activeView === "git"
       || (activeView === "plugins" && !experimentalSettings.enableViewerPlugins)
     ) {
       setActiveView("data");
@@ -691,10 +739,7 @@ function AppContent() {
       }
 
       if (view === "cloud") {
-        setActiveView("cloud");
-        setActiveCloudSection(CLOUD_HUB_ENTRY_SECTION);
-        setSidebarCollapsed(false);
-        setSwitcherOpen(false);
+        openCloudDialog();
         return;
       }
 
@@ -707,11 +752,12 @@ function AppContent() {
   }, [
     cloudEnabled,
     experimentalSettings.enableViewerPlugins,
+    openCloudDialog,
     setSidebarCollapsed,
   ]);
 
   useEffect(() => {
-    if (activeView !== "settings") lastProjectViewRef.current = activeView;
+    if (activeView !== "settings" && activeView !== "cloud") lastProjectViewRef.current = activeView;
   }, [activeView]);
 
   const switchProjectFromRail = useCallback(async (path: string) => {
@@ -758,6 +804,7 @@ function AppContent() {
         return;
       }
       activateDataNode(resolvedNode);
+      setActiveView("data");
     } catch (error) {
       if (requestId === documentNavigationRequestRef.current) {
         setDocumentNavigationError(error instanceof Error ? error.message : String(error));
@@ -842,16 +889,17 @@ function AppContent() {
 
     updateCloudSession(session);
     if (!session) {
-      if (activeView === "settings") {
+      if (settingsDialogOpen) {
         setActiveSettingsSection("account");
         return;
       }
-      setActiveView("cloud");
       setActiveCloudSection("initialize");
+      setActiveView("data");
+      setCloudDialogOpen(true);
       setSidebarCollapsed(false);
       setSwitcherOpen(false);
     }
-  }, [activeView, cloudEnabled, setSidebarCollapsed, updateCloudSession]);
+  }, [cloudEnabled, setSidebarCollapsed, settingsDialogOpen, updateCloudSession]);
 
   const handleRemoveCloudRemote = useCallback(async () => {
     if (!focusedWorkspace) return;
@@ -943,6 +991,8 @@ function AppContent() {
     setSwitcherOpen(false);
     setBranchSwitcherOpen(false);
     setRightSidebarOpen(false);
+    setSettingsDialogOpen(false);
+    setCloudDialogOpen(false);
     resetDataNodeActions();
   }, [
     documentStorageIdentity,
@@ -1119,16 +1169,72 @@ function AppContent() {
     return readTerminalAppearance(surface);
   }, []);
   const auxiliaryWorkbenchContributions = useMemo(
-    () => [...(desktopTerminalEnabled ? [createTerminalWorkbenchContribution(t, readAuxiliaryTerminalAppearance)] : []), agentChatContribution],
-    [agentChatContribution, desktopTerminalEnabled, t, readAuxiliaryTerminalAppearance],
+    () => [
+      ...(desktopTerminalEnabled
+        ? [createTerminalWorkbenchContribution(t, readAuxiliaryTerminalAppearance)]
+        : []),
+      agentChatContribution,
+    ],
+    [
+      agentChatContribution,
+      desktopTerminalEnabled,
+      readAuxiliaryTerminalAppearance,
+      t,
+    ],
   );
   const [projectSessions] = useState(() => new ProjectSessionManager());
   useEffect(() => {
     const client = getProjectSessionClient();
     return client ? projectSessions.connect(client) : undefined;
   }, [projectSessions]);
-  const projectWorkbench = useProjectSession(projectSessions, (focusedWorkspace ?? workspace)?.path ?? null);
-
+  const projectWorkbench = useProjectSession(
+    projectSessions,
+    (focusedWorkspace ?? workspace)?.path ?? null,
+  );
+  const handleToggleGitHistory = useCallback(() => {
+    if (gitHistorySidebarOpen) {
+      setRightSidebarOpen(false);
+      return;
+    }
+    setRightSidebarSurface("history");
+    setRightSidebarOpen(true);
+    setSwitcherOpen(false);
+  }, [
+    gitHistorySidebarOpen,
+    setRightSidebarOpen,
+    setRightSidebarSurface,
+  ]);
+  const handleToggleGitChanges = useCallback(() => {
+    if (gitChangesSidebarOpen) {
+      setRightSidebarOpen(false);
+      return;
+    }
+    setRightSidebarSurface("changes");
+    setRightSidebarOpen(true);
+    setSwitcherOpen(false);
+  }, [
+    gitChangesSidebarOpen,
+    setRightSidebarOpen,
+    setRightSidebarSurface,
+  ]);
+  const handleOpenGitWorkingFile = useCallback((path: string) => {
+    const rootUri = focusedWorkspaceFolder?.uri;
+    if (!rootUri) return;
+    void handleActiveDataPathChange(qualifyDataResourcePath(rootUri, path));
+  }, [focusedWorkspaceFolder?.uri, handleActiveDataPathChange]);
+  const handleToggleAgentWorkbench = useCallback(() => {
+    if (agentSidebarOpen) {
+      setRightSidebarOpen(false);
+      return;
+    }
+    setRightSidebarSurface("chat");
+    setRightSidebarOpen(true);
+    setSwitcherOpen(false);
+  }, [
+    agentSidebarOpen,
+    setRightSidebarOpen,
+    setRightSidebarSurface,
+  ]);
   const themeRuntime = (content: ReactNode) => (
     <SurfaceAppearanceProvider value={surfaceAppearance}>
       <div
@@ -1204,13 +1310,17 @@ function AppContent() {
   const chromeActionProps = {
     desktopUpdateState: desktopUpdates.state,
     titlebarActionsSettings,
-    terminalSidebarOpen: rightSidebarOpen,
+    terminalSidebarOpen: agentSidebarOpen,
     terminalToolEnabled: true,
+    gitChangesAvailable: Boolean(focusedWorkspace),
+    gitChangesOpen: gitChangesSidebarOpen,
+    gitChangesStatus: getGitTitlebarStatus(activeGitStatus),
+    gitHistoryAvailable: Boolean(focusedWorkspace),
+    gitHistoryOpen: gitHistorySidebarOpen,
     onUpdateNow: () => void desktopUpdates.updateNow(),
-    onToggleTerminal: () => {
-      setRightSidebarOpen((current) => !current);
-      setSwitcherOpen(false);
-    },
+    onToggleTerminal: handleToggleAgentWorkbench,
+    onToggleGitChanges: handleToggleGitChanges,
+    onToggleGitHistory: handleToggleGitHistory,
   };
   const titlebarActions = (
     <DesktopTitlebarActions
@@ -1224,7 +1334,6 @@ function AppContent() {
     />
   );
   const projectSwitcherRailEnabled = experimentalSettings.enableProjectSwitcherRail;
-  const settingsWorkspaceActive = projectSwitcherRailEnabled && activeView === "settings";
   const projectSwitcherRailVisible = projectSwitcherRailEnabled;
   const feedbackInNavigationToolbar = !projectSwitcherRailVisible
     && toolsInNavigationToolbar
@@ -1254,7 +1363,8 @@ function AppContent() {
               expanded={expanded}
               recentWorkspaces={recentWorkspaceItems}
               onCreateNew={() => setProjectEntryDialog("launcher")}
-              onOpenSettings={() => navigateDesktopView("settings")}
+              settingsOpen={settingsDialogOpen}
+              onOpenSettings={openSettingsDialog}
               onSelectProject={switchProjectFromRail}
               utilitySlot={(
                 <DesktopHelpLauncher
@@ -1272,7 +1382,7 @@ function AppContent() {
           resizableLeadingRail
           onLeadingRailCollapsedChange={setProjectSwitcherCollapsed}
           onLeadingRailWidthChange={preferences.setProjectSwitcherWidth}
-          leftSidebarCollapsed={settingsWorkspaceActive ? false : sidebarCollapsed}
+          leftSidebarCollapsed={sidebarCollapsed}
           leftSidebarPresent={Boolean(dataPort)}
           leftSidebarWidth={explorerWidth}
           titlebarSidebarSlot={projectSwitcherRailEnabled
@@ -1286,7 +1396,7 @@ function AppContent() {
               onNavigate={handleLocationBarNavigate}
             />
           ) : undefined}
-          rightSidebarOpen={!settingsWorkspaceActive && rightSidebarOpen}
+          rightSidebarOpen={rightSidebarOpen}
           resizableRightSidebar
           rightSidebarWidth={rightSidebarWidth}
           onLeftSidebarExpand={() => setSidebarCollapsed(false)}
@@ -1294,11 +1404,14 @@ function AppContent() {
           onRightSidebarWidthChange={setRightSidebarWidth}
           rightSidebar={(presentation) => (
             <div ref={auxiliarySurfaceRef} className="desktop-right-sidebar-stack">
-              <div className="desktop-right-sidebar-surface is-active">
+              <div
+                className={`desktop-right-sidebar-surface ${rightSidebarSurface === "chat" ? "is-active" : ""}`}
+                aria-hidden={rightSidebarSurface !== "chat"}
+              >
                 {projectWorkbench && <AuxiliaryWorkbenchPanel
                   key={projectWorkbench.context.generation}
                   store={projectWorkbench}
-                  active={presentation.contentVisible}
+                  active={presentation.contentVisible && rightSidebarSurface === "chat"}
                   contributions={auxiliaryWorkbenchContributions}
                   onRetryProjectClose={() => {
                     const folder = workbenchWorkspace?.folders.find((entry) => entry.workspace.path === projectWorkbench.context.rootPath);
@@ -1307,93 +1420,199 @@ function AppContent() {
                   renderLauncher={(context) => <AuxiliaryWorkbenchLauncher {...context} store={projectWorkbench} contributions={auxiliaryWorkbenchContributions} hiddenAgentIds={localAgentsSettings.hiddenTerminalAgentIds} />}
                 />}
               </div>
+              <div
+                className={`desktop-right-sidebar-surface ${rightSidebarSurface === "changes" ? "is-active" : ""}`}
+                aria-hidden={rightSidebarSurface !== "changes"}
+              >
+                <GitChangesSidebar
+                  repository={{
+                    status: activeGitStatus,
+                    puppyoneConfig,
+                    gitDisplayMode: preferences.gitDisplayMode,
+                    gitSidebarLayout: preferences.gitSidebarLayout,
+                    fileIconTheme,
+                  }}
+                  view={{
+                    selectedWorkingFile: selectedGitWorkingFile,
+                    operationLoading: gitOperationLoading,
+                    operationError: null,
+                    loading: gitStatusLoading,
+                    error: gitStatusError,
+                  }}
+                  actions={{
+                    initialize: handleInitializeGitRepository,
+                    selectWorkingFile: selectGitWorkingFile,
+                    stagePaths: handleStageGitPaths,
+                    stageAll: handleStageAllGitChanges,
+                    unstagePaths: handleUnstageGitPaths,
+                    discardPaths: handleDiscardGitPaths,
+                    discardAll: handleDiscardAllGitChanges,
+                    stageAndCommit: handleStageAndCommitGit,
+                    commit: handleCommitGit,
+                    commitAndPush: handleCommitAndPushGit,
+                    continueOperation: handleContinueGitOperation,
+                    abortOperation: handleAbortGitOperation,
+                    pull: handlePullGit,
+                    push: handlePushGit,
+                    publish: handlePublishGitBranch,
+                    stash: handleStashGitChanges,
+                  }}
+                  workingFileDiff={gitWorkingFileDiff}
+                  workingFileDiffLoading={gitWorkingFileDiffLoading}
+                  workingFileDiffError={gitWorkingFileDiffError}
+                  onOpenFile={handleOpenGitWorkingFile}
+                  cloudBackup={{
+                    loading: cloudBackupLoading || pendingCloudBackupSetup,
+                    error: null,
+                    enabled: cloudEnabled,
+                    start: handleStartPuppyoneBackup,
+                  }}
+                />
+              </div>
+              <div
+                className={`desktop-right-sidebar-surface ${rightSidebarSurface === "history" ? "is-active" : ""}`}
+                aria-hidden={rightSidebarSurface !== "history"}
+              >
+                <GitHistorySidebar
+                  status={activeGitStatus}
+                  statusLoading={gitStatusLoading}
+                  statusError={gitStatusError}
+                  selectedCommitId={selectedGitCommitId}
+                  commitDetail={gitCommitDetail}
+                  commitDetailLoading={gitCommitDetailLoading}
+                  commitDetailError={gitCommitDetailError}
+                  historyLoading={gitHistoryLoading}
+                  fileIconTheme={fileIconTheme}
+                  onSelectCommit={selectGitCommit}
+                />
+              </div>
             </div>
           )}
         >
           <DesktopWorkspaceContent
-          activeAiEditRequest={activeAiEditRequest}
-          activeDocumentPath={activeDocumentPath}
-          activeExplorerPath={activeExplorerPath}
-          activeView={activeView}
-          cloud={{
-            activeSection: activeCloudSection,
-            projectContext: projectCloudContext,
-            backupLoading: cloudBackupLoading,
-            backupPending: pendingCloudBackupSetup,
-            publishError: cloudPublishError,
-            publishNotice: cloudPublishNotice,
-            publishProgress: cloudPublishProgress,
-            publishState: cloudPublishState,
-            publishStateLoading: cloudPublishStateLoading,
-            cloudApiBaseUrl: desktopCloudApiBaseUrl,
-            storedCloudSession: cloudSession,
-            enabled: cloudEnabled,
-            sessionRestoring: cloudSessionRestoring,
-            onCloudSessionChange: handleCloudSessionChange,
-            onAbandonPuppyoneBackup: handleAbandonPuppyoneBackup,
-            onRemoveCloudRemote: handleRemoveCloudRemote,
-            onOpenGitSettings: () => {
-              setActiveSettingsSection("git");
-              navigateDesktopView("settings");
-            },
-            onSelectSection: setActiveCloudSection,
-            onStartPuppyoneBackup: handleStartPuppyoneBackup,
-          }}
-          dataPort={dataPort}
-          editorWorkbench={editorWorkbench}
-          externalOpen={externalFileOpen}
-          desktopUpdates={desktopUpdates}
-          firstProjectStarterEligible={
-            experimentalSettings.enableFirstProjectStarter
-            && activeWorkspaceEntryKind === "created"
-          }
-          git={git}
-          navigationComposition={resolvedAppearance.composition.navigation}
-          onActiveDataNodeChange={handleActiveDataNodeChange}
-          onActiveDataPathChange={handleActiveDataPathChange}
-          onResourceMove={handleResourceMoved}
-          onRemoveProject={handleRemoveProject}
-          onCreateEntryMenu={openCreateEntryMenu}
-          onDismissCreateEntryMenu={() => setCreateEntryDraft(null)}
-          onWorkspaceStarterCreated={handleWorkspaceStarterCreated}
-          fileClipboardController={fileClipboardController}
-          onFilesVisibilitySettingsChange={handleFilesVisibilitySettingsChange}
-          onNavigate={navigateDesktopView}
-          onNodeActionMenu={openNodeActionMenu}
-          onOpenSettings={() => navigateDesktopView("settings")}
-          onPuppyoneConfigChange={handlePuppyoneConfigChange}
-          onSelectSettingsSection={setActiveSettingsSection}
-          onUnlinkWorkspace={unlinkCurrentWorkspace}
-          preferences={preferences}
-          puppyoneConfig={puppyoneConfig}
-          puppyoneConfigError={puppyoneConfigError}
-          puppyoneConfigLoading={puppyoneConfigLoading}
-          puppyoneConfigSaving={puppyoneConfigSaving}
-          settingsSection={activeSettingsSection}
-          settingsNavigationVisible={!projectSwitcherRailEnabled}
-          workspaceNavigationVisible={!settingsWorkspaceActive}
-          subThemeCatalog={subThemeCatalog}
-          workspace={focusedWorkspace ?? workspace}
-          workspaceFolders={workbenchWorkspace?.folders ?? []}
-          resolveWorkspaceResource={resolveWorkspaceResource}
-          workspaceSurfaceError={restoreWorkspaceError ?? documentNavigationError ?? workspaceSurfaceError}
-          workspaceKey={workspaceKey}
-          workspaceRefreshToken={workspaceRefreshToken}
-          workspaceAtomicRefreshToken={workspaceAtomicRefreshToken}
-          sidebarCreateMenuOpen={Boolean(
-            createEntryDraft
-            && !createEntryDraft.selectedKind
-            && createEntryDraft.anchor.placement === "auto-end"
-          )}
-          sidebarUtility={projectSwitcherRailVisible || feedbackInNavigationToolbar
-            ? undefined
-            : feedbackLauncher}
-        />
+            activeAiEditRequest={activeAiEditRequest}
+            activeDocumentPath={activeDocumentPath}
+            activeExplorerPath={activeExplorerPath}
+            activeView={activeView}
+            cloud={{
+              activeSection: activeCloudSection,
+              projectContext: projectCloudContext,
+              backupLoading: cloudBackupLoading,
+              backupPending: pendingCloudBackupSetup,
+              publishError: cloudPublishError,
+              publishNotice: cloudPublishNotice,
+              publishProgress: cloudPublishProgress,
+              publishState: cloudPublishState,
+              publishStateLoading: cloudPublishStateLoading,
+              cloudApiBaseUrl: desktopCloudApiBaseUrl,
+              storedCloudSession: cloudSession,
+              enabled: cloudEnabled,
+              sessionRestoring: cloudSessionRestoring,
+              onCloudSessionChange: handleCloudSessionChange,
+              onAbandonPuppyoneBackup: handleAbandonPuppyoneBackup,
+              onRemoveCloudRemote: handleRemoveCloudRemote,
+              onOpenGitSettings: () => {
+                openSettingsDialog("git");
+              },
+              onSelectSection: setActiveCloudSection,
+              onStartPuppyoneBackup: handleStartPuppyoneBackup,
+            }}
+            cloudOpen={cloudDialogOpen}
+            dataPort={dataPort}
+            editorWorkbench={editorWorkbench}
+            externalOpen={externalFileOpen}
+            desktopUpdates={desktopUpdates}
+            firstProjectStarterEligible={
+              experimentalSettings.enableFirstProjectStarter
+              && activeWorkspaceEntryKind === "created"
+            }
+            git={git}
+            navigationComposition={resolvedAppearance.composition.navigation}
+            onActiveDataNodeChange={handleActiveDataNodeChange}
+            onActiveDataPathChange={handleActiveDataPathChange}
+            onResourceMove={handleResourceMoved}
+            onRemoveProject={handleRemoveProject}
+            onCreateEntryMenu={openCreateEntryMenu}
+            onDismissCreateEntryMenu={() => setCreateEntryDraft(null)}
+            onWorkspaceStarterCreated={handleWorkspaceStarterCreated}
+            fileClipboardController={fileClipboardController}
+            onFilesVisibilitySettingsChange={handleFilesVisibilitySettingsChange}
+            onNavigate={navigateDesktopView}
+            onCloseCloud={closeCloudDialog}
+            onOpenCloud={openCloudDialog}
+            onOpenGitChanges={handleToggleGitChanges}
+            onNodeActionMenu={openNodeActionMenu}
+            onOpenSettings={openSettingsDialog}
+            onPuppyoneConfigChange={handlePuppyoneConfigChange}
+            onSelectSettingsSection={setActiveSettingsSection}
+            onUnlinkWorkspace={unlinkCurrentWorkspace}
+            preferences={preferences}
+            puppyoneConfig={puppyoneConfig}
+            puppyoneConfigError={puppyoneConfigError}
+            puppyoneConfigLoading={puppyoneConfigLoading}
+            puppyoneConfigSaving={puppyoneConfigSaving}
+            settingsSection={activeSettingsSection}
+            settingsOpen={settingsDialogOpen}
+            settingsNavigationVisible={!projectSwitcherRailEnabled}
+            subThemeCatalog={subThemeCatalog}
+            workspace={focusedWorkspace ?? workspace}
+            workspaceFolders={workbenchWorkspace?.folders ?? []}
+            resolveWorkspaceResource={resolveWorkspaceResource}
+            workspaceSurfaceError={restoreWorkspaceError ?? documentNavigationError ?? workspaceSurfaceError}
+            workspaceKey={workspaceKey}
+            workspaceRefreshToken={workspaceRefreshToken}
+            workspaceAtomicRefreshToken={workspaceAtomicRefreshToken}
+            sidebarCreateMenuOpen={Boolean(
+              createEntryDraft
+              && !createEntryDraft.selectedKind
+              && createEntryDraft.anchor.placement === "auto-end"
+            )}
+            sidebarUtility={projectSwitcherRailVisible || feedbackInNavigationToolbar
+              ? undefined
+              : feedbackLauncher}
+          />
         </DesktopCloudShell>
         <DesktopOverlayPortal
           appearance={surfaceAppearance}
         >
           <>
+          {settingsDialogOpen && (
+            <SettingsDialog
+              workspace={focusedWorkspace ?? workspace}
+              activeSection={activeSettingsSection}
+              onSelectSection={setActiveSettingsSection}
+              preferences={preferences}
+              subThemeCatalog={subThemeCatalog}
+              onFilesVisibilitySettingsChange={handleFilesVisibilitySettingsChange}
+              git={{
+                status: activeGitStatus,
+                loading: gitStatusLoading,
+                error: gitStatusError,
+                refresh: refreshGitStatus,
+              }}
+              cloud={{
+                enabled: cloudEnabled,
+                session: cloudSession,
+                sessionRestoring: cloudSessionRestoring,
+                apiBaseUrl: desktopCloudApiBaseUrl,
+                onSessionChange: handleCloudSessionChange,
+              }}
+              workspaceConfig={{
+                value: puppyoneConfig,
+                loading: puppyoneConfigLoading,
+                saving: puppyoneConfigSaving,
+                error: puppyoneConfigError,
+                change: handlePuppyoneConfigChange,
+                unlink: unlinkCurrentWorkspace,
+              }}
+              updates={{
+                state: desktopUpdates.state,
+                check: desktopUpdates.checkForUpdates,
+                install: desktopUpdates.updateNow,
+              }}
+              onClose={closeSettingsDialog}
+            />
+          )}
           {pendingBranchSwitch && (
             <BranchSwitchConflictDialog
               branchName={pendingBranchSwitch.branchName}

@@ -20,6 +20,7 @@ import {
   pushWorkspaceGit,
   stageAllWorkspaceGitChanges,
   stageWorkspaceGitPaths,
+  stashWorkspaceGitChanges,
   stashAndCheckoutWorkspaceGitBranch,
   unstageAllWorkspaceGitChanges,
   unstageWorkspaceGitPaths,
@@ -36,7 +37,7 @@ import {
   type GitOperationErrorState,
 } from "./operationDialogs";
 import { createRepositoryRefreshReason } from "./repositoryRefreshPolicy";
-import type { GitMainPanel, GitWorkingSelection } from "./types";
+import type { GitWorkingSelection } from "./types";
 import { clearFormatAwareDiffCaches } from "./diff/core/cacheControl";
 import { useGitRepositoryLifecycle } from "./useGitRepositoryLifecycle";
 
@@ -49,16 +50,16 @@ export type PendingBranchSwitch = {
 
 type UseDesktopGitControllerOptions = {
   workspace: Workspace | null;
-  gitViewActive: boolean;
+  gitChangesActive: boolean;
+  gitHistoryActive: boolean;
   onWorkspaceContentChanged: (presentation?: "incremental" | "atomic") => void;
-  onEnterGitView: () => void;
 };
 
 export function useDesktopGitController({
   workspace,
-  gitViewActive,
+  gitChangesActive,
+  gitHistoryActive,
   onWorkspaceContentChanged,
-  onEnterGitView,
 }: UseDesktopGitControllerOptions) {
   const { t } = useLocalization();
   const {
@@ -78,14 +79,13 @@ export function useDesktopGitController({
     reportGitStatusError,
   } = useGitRepositoryLifecycle({
     workspace,
-    remoteUpdatesActive: gitViewActive,
+    remoteUpdatesActive: gitChangesActive || gitHistoryActive,
   });
   const historyRequestRef = useRef(0);
   const workingDiffRequestRef = useRef(0);
   const branchSwitcherRef = useRef<HTMLDivElement>(null);
   const [selectedGitCommitId, setSelectedGitCommitId] = useState<string | null>(null);
   const [selectedGitWorkingFile, setSelectedGitWorkingFile] = useState<GitWorkingSelection | null>(null);
-  const [gitMainPanel, setGitMainPanel] = useState<GitMainPanel>("changes");
   const [gitHistoryLoading, setGitHistoryLoading] = useState(false);
   const [gitCommitDetail, setGitCommitDetail] = useState<GitCommitDetail | null>(null);
   const [gitCommitDetailLoading, setGitCommitDetailLoading] = useState(false);
@@ -133,18 +133,18 @@ export function useDesktopGitController({
     setPendingBranchSwitch(null);
   }, [workspace?.path]);
 
-  // Watchers keep the sidebar live while it is closed. Entering Source Control
-  // still performs an immediate reconciliation so a missed/coalesced native
+  // Watchers keep repository state live while the sidebar is closed. Opening
+  // Changes still performs an immediate reconciliation so a missed/coalesced native
   // event can never leave the first visible frame stale.
   useEffect(() => {
-    if (!gitViewActive || !workspace?.path) return;
+    if (!gitChangesActive || !workspace?.path) return;
     void refreshGitStatus("working-tree");
-  }, [gitViewActive, refreshGitStatus, workspace?.path]);
+  }, [gitChangesActive, refreshGitStatus, workspace?.path]);
 
-  // The Git sidebar owns an always-visible History pane, so load its graph as
-  // soon as the Source Control surface is active and refresh it after ref changes.
+  // History is a lazy auxiliary-workbench contribution. Load its graph only
+  // while that contribution is actually presented in the right sidebar.
   useEffect(() => {
-    if (!gitViewActive || !workspace || !activeGitStatus?.isRepo) {
+    if (!gitHistoryActive || !workspace || !activeGitStatus?.isRepo) {
       setGitHistoryLoading(false);
       return undefined;
     }
@@ -193,25 +193,21 @@ export function useDesktopGitController({
     activeGitStatus?.totalCommits,
     applyGitHistory,
     captureGitRepositoryContext,
-    gitViewActive,
+    gitHistoryActive,
     historyEpoch,
     reportGitStatusError,
     workspace,
   ]);
 
   useEffect(() => {
-    if (!gitViewActive || !activeGitStatus?.isRepo) return;
+    if (!activeGitStatus?.isRepo) return;
 
     const historyCommits = activeGitStatus.allCommits ?? activeGitStatus.commits;
     const selectedCommitExists = selectedGitCommitId
       ? historyCommits.some((commit) => commit.commit_id === selectedGitCommitId)
       : false;
 
-    if (gitMainPanel === "history") {
-      if (!selectedGitCommitId || !selectedCommitExists) {
-        setSelectedGitCommitId(historyCommits[0]?.commit_id ?? null);
-      }
-    } else if (selectedGitCommitId && !selectedCommitExists) {
+    if (selectedGitCommitId && !selectedCommitExists) {
       setSelectedGitCommitId(null);
     }
 
@@ -228,10 +224,10 @@ export function useDesktopGitController({
         setSelectedGitWorkingFile(null);
       }
     }
-  }, [activeGitStatus, gitMainPanel, gitViewActive, selectedGitCommitId, selectedGitWorkingFile]);
+  }, [activeGitStatus, selectedGitCommitId, selectedGitWorkingFile]);
 
   useEffect(() => {
-    if (!gitViewActive || !workspace || !selectedGitCommitId) {
+    if (!gitHistoryActive || !workspace || !selectedGitCommitId) {
       setGitCommitDetail(null);
       setGitCommitDetailError(null);
       setGitCommitDetailLoading(false);
@@ -258,10 +254,10 @@ export function useDesktopGitController({
     return () => {
       cancelled = true;
     };
-  }, [gitViewActive, selectedGitCommitId, workspace]);
+  }, [gitHistoryActive, selectedGitCommitId, workspace]);
 
   useEffect(() => {
-    if (!gitViewActive || !workspace || !selectedGitWorkingFile) {
+    if (!gitChangesActive || !workspace || !selectedGitWorkingFile) {
       setGitWorkingFileDiff(null);
       setGitWorkingFileDiffError(null);
       setGitWorkingFileDiffLoading(false);
@@ -305,7 +301,7 @@ export function useDesktopGitController({
       cancelled = true;
       void cancelWorkspaceGitFileDiff(requestId, sessionId).catch(() => undefined);
     };
-  }, [gitViewActive, selectedGitWorkingFile, t, workspace]);
+  }, [gitChangesActive, selectedGitWorkingFile, t, workspace]);
 
   const runGitOperation = useCallback(async (
     label: string,
@@ -357,15 +353,11 @@ export function useDesktopGitController({
   ]);
 
   const selectGitCommit = useCallback((commitId: string) => {
-    setGitMainPanel("history");
     setSelectedGitCommitId(commitId);
-    setSelectedGitWorkingFile(null);
   }, []);
 
   const selectGitWorkingFile = useCallback((selection: GitWorkingSelection | null) => {
-    if (selection) setGitMainPanel("changes");
     setSelectedGitWorkingFile(selection);
-    setSelectedGitCommitId(null);
   }, []);
 
   const handleStageGitPaths = useCallback((paths: string[]) => {
@@ -376,7 +368,7 @@ export function useDesktopGitController({
     return runGitOperation("stage", (rootPath) => stageAllWorkspaceGitChanges(rootPath));
   }, [runGitOperation]);
 
-  const handleStageAndCommitGit = useCallback(async () => {
+  const handleStageAndCommitGit = useCallback(async (message = "") => {
     if (!workspace) return false;
     const context = captureGitRepositoryContext(workspace.path);
     if (!context) return false;
@@ -395,7 +387,7 @@ export function useDesktopGitController({
         return false;
       }
 
-      nextStatus = await commitWorkspaceGit(context.rootPath, "");
+      nextStatus = await commitWorkspaceGit(context.rootPath, message);
       if (!applyGitStatus(
         nextStatus,
         context,
@@ -457,7 +449,7 @@ export function useDesktopGitController({
     return runGitOperation("discard", (rootPath) => discardAllWorkspaceGitChanges(rootPath));
   }, [activeGitStatus, runGitOperation, t]);
 
-  const handleCommitGit = useCallback(async () => {
+  const handleCommitGit = useCallback(async (message = "") => {
     if (!workspace) return false;
     const context = captureGitRepositoryContext(workspace.path);
     if (!context) return false;
@@ -465,7 +457,7 @@ export function useDesktopGitController({
     setGitOperationLoading("commit");
     setGitOperationError(null);
     try {
-      const nextStatus = await commitWorkspaceGit(context.rootPath, "");
+      const nextStatus = await commitWorkspaceGit(context.rootPath, message);
       if (!applyGitStatus(
         nextStatus,
         context,
@@ -491,7 +483,7 @@ export function useDesktopGitController({
     workspace,
   ]);
 
-  const handleCommitAndPushGit = useCallback(async () => {
+  const handleCommitAndPushGit = useCallback(async (message = "") => {
     if (!workspace) return false;
     const context = captureGitRepositoryContext(workspace.path);
     if (!context) return false;
@@ -509,7 +501,7 @@ export function useDesktopGitController({
     setGitOperationLoading("commit-push");
     setGitOperationError(null);
     try {
-      let nextStatus = await commitWorkspaceGit(context.rootPath, "");
+      let nextStatus = await commitWorkspaceGit(context.rootPath, message);
       if (nextStatus.sourceControl.remote.canPublish) {
         nextStatus = await publishWorkspaceGitBranch(context.rootPath);
       } else {
@@ -559,6 +551,10 @@ export function useDesktopGitController({
     return runGitOperation("publish", (rootPath) => publishWorkspaceGitBranch(rootPath));
   }, [runGitOperation]);
 
+  const handleStashGitChanges = useCallback(() => {
+    return runGitOperation("stash", (rootPath) => stashWorkspaceGitChanges(rootPath));
+  }, [runGitOperation]);
+
   const handleContinueGitOperation = useCallback(() => {
     return runGitOperation(
       "continue",
@@ -595,7 +591,6 @@ export function useDesktopGitController({
       )) return false;
       onWorkspaceContentChanged("atomic");
       clearGitSelection();
-      setGitMainPanel("changes");
       return true;
     } catch (error) {
       if (!isGitRepositoryContextCurrent(context)) return false;
@@ -646,7 +641,6 @@ export function useDesktopGitController({
       )) return false;
       onWorkspaceContentChanged("atomic");
       clearGitSelection();
-      setGitMainPanel("changes");
       setPendingBranchSwitch(null);
       return true;
     } catch (error) {
@@ -691,7 +685,6 @@ export function useDesktopGitController({
       )) return false;
       onWorkspaceContentChanged("atomic");
       clearGitSelection();
-      setGitMainPanel("changes");
       setPendingBranchSwitch(null);
       return true;
     } catch (error) {
@@ -718,13 +711,9 @@ export function useDesktopGitController({
 
   const handleInitializeGitRepository = useCallback(async () => {
     const initialized = await runGitOperation("init", (rootPath) => initializeWorkspaceGitRepository(rootPath));
-    if (initialized) {
-      onEnterGitView();
-      setGitMainPanel("changes");
-      clearGitSelection();
-    }
+    if (initialized) clearGitSelection();
     return initialized;
-  }, [clearGitSelection, onEnterGitView, runGitOperation]);
+  }, [clearGitSelection, runGitOperation]);
 
   return {
     activeGitStatus,
@@ -735,7 +724,6 @@ export function useDesktopGitController({
     gitCommitDetailLoading,
     gitHistoryLoading,
     gitIncomingCount,
-    gitMainPanel,
     gitOperationError,
     gitOperationLoading,
     gitStatus,
@@ -769,6 +757,7 @@ export function useDesktopGitController({
     handleStageAllGitChanges,
     handleStageAndCommitGit,
     handleStageGitPaths,
+    handleStashGitChanges,
     handleStashAndCheckoutBranch,
     handleUnstageAllGitChanges,
     handleUnstageGitPaths,

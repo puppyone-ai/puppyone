@@ -50,15 +50,6 @@
   line-height: 1.45;
 }
 
-.desktop-commit-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  color: var(--po-text-subtle);
-  font-size: var(--po-type-ui-meta, 13px);
-  font-weight: 500;
-}
-
 .desktop-commit-stats {
   display: flex;
   align-items: center;

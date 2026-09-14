@@ -32,7 +32,10 @@ export type DesktopNavigationRuntime = {
 };
 
 export type DesktopNavigationProps = DesktopNavigationAvailability & DesktopNavigationRuntime & {
+  cloudOpen?: boolean;
+  onOpenCloud?: () => void;
   onOpenSettings: () => void;
+  settingsOpen?: boolean;
   showSettings?: boolean;
   utilitySlot?: ReactNode;
 };

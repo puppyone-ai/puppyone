@@ -90,6 +90,8 @@
   "appearance.pluginsShortcut.detail": "在工作区导航中显示本地插件入口。",
   "appearance.headerElements.title": "标题栏元素",
   "appearance.headerElements.external-open": "在外部打开",
+  "appearance.headerElements.history": "Git 历史",
+  "appearance.headerElements.changes": "更改",
   "appearance.headerElements.terminal": "终端",
   "appearance.pointerCursors.title": "指针光标",
   "appearance.pointerCursors.detail": "仅在链接和导航目标上显示手形光标。",

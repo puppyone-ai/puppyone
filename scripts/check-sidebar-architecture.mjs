@@ -25,7 +25,7 @@ for (const requiredPath of [
   "src/features/source-control/sidebar/GitLocalStatusPanels.tsx",
   "src/features/source-control/sidebar/GitRemoteSections.tsx",
   "src/features/source-control/sidebar/GitSidebarPrimitives.tsx",
-  "src/features/source-control/sidebar/GitSidebarHistoryPanel.tsx",
+  "src/features/source-control/GitHistoryTimeline.tsx",
   "src/features/source-control/sidebar/GitLocalStatusSection.tsx",
   "src/features/source-control/sidebar/useGitSidebarExpansionState.ts",
   "src/features/source-control/styles/sidebar-actions.css",
@@ -132,7 +132,7 @@ if (/\b(?:agent|terminal)\b/.test(registrySource)) {
 const virtualizationRequirements = [
   ["src/features/cloud/history/CloudHistorySidebar.tsx", "VirtualSidebarList"],
   ["src/features/source-control/sidebar/SourceControlResourceLists.tsx", "shouldVirtualizeSidebarList"],
-  ["src/features/source-control/sidebar/GitSidebarHistoryPanel.tsx", "VirtualSidebarList"],
+  ["src/features/source-control/GitHistoryTimeline.tsx", "VirtualSidebarList"],
 ];
 for (const [relativePath, token] of virtualizationRequirements) {
   if (!read(absolute(relativePath)).includes(token)) errors.push(`${relativePath} must consume the shared scalable-list policy (${token}).`);
@@ -198,7 +198,7 @@ for (const token of [
 }
 if (
   !auxiliarySource.includes('typeof children === "function"')
-  || !appSource.includes("active={presentation.contentVisible}")
+  || !appSource.includes('active={presentation.contentVisible && rightSidebarSurface === "chat"}')
   || appSource.includes("active={rightSidebarOpen}")
 ) {
   errors.push("Auxiliary native content must follow the shared frame lifecycle through its render presentation.");
