@@ -60,6 +60,12 @@ describe("semantic navigation cursor contract", () => {
     expect(markdownDecorations).toContain('"data-md-link-interaction": "navigate"');
     expect(markdownDecorations).toContain('"data-po-content-interaction": "navigation"');
     expect(markdownCss).toMatch(/\[data-md-link-interaction="navigate"\][\s\S]*?cursor:\s*pointer;/);
+    expect(markdownCss).toMatch(
+      /\[data-md-link-interaction="navigate"\]\s*\{[\s\S]*?color:\s*var\(--po-md-link-color\);/,
+    );
+    expect(markdownCss).toMatch(
+      /\[data-md-link-interaction="navigate"\][\s\S]*?\.cm-md-inline-code[\s\S]*?color:\s*var\(--po-md-link-color\);/,
+    );
     expect(markdownCss).not.toContain("cm-md-open-modifier-down");
   });
 

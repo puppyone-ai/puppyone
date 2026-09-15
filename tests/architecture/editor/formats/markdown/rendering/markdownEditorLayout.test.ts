@@ -43,6 +43,15 @@ const markdownCodeMirrorExtensionsSource = readFileSync(
 );
 
 describe("Markdown editor layout", () => {
+  it("keeps supporting quotes quieter than body copy in every theme", () => {
+    expect(markdownContentCss).toContain(
+      "color-mix(in srgb, var(--po-text-muted) 76%, var(--po-md-surface-background))",
+    );
+    expect(markdownContentCss).toContain(
+      "color-mix(in srgb, var(--po-divider) 76%, var(--po-md-surface-background))",
+    );
+  });
+
   it("shares its reading width with other document-like product surfaces", () => {
     expect(markdownEditorCss).toContain(
       "--po-markdown-editor-text-width: var(--po-reading-content-width, 724px);",

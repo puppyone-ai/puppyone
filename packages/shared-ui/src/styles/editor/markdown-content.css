@@ -33,8 +33,16 @@
   --po-md-heading-border-color: var(--po-host-md-heading-border-color, transparent);
   --po-md-rule-color: var(--po-host-md-rule-color, color-mix(in srgb, var(--po-divider) 96%, var(--po-text-muted) 4%));
   --po-md-link-color: var(--po-host-md-link-color, var(--po-accent));
-  --po-md-blockquote-color: var(--po-host-md-blockquote-color, var(--po-text-muted));
-  --po-md-blockquote-border-color: var(--po-host-md-blockquote-border-color, var(--po-divider));
+  /* Quotes are supporting content, so both text and structure recede toward
+     the active document surface instead of competing with body copy. */
+  --po-md-blockquote-color: var(
+    --po-host-md-blockquote-color,
+    color-mix(in srgb, var(--po-text-muted) 76%, var(--po-md-surface-background))
+  );
+  --po-md-blockquote-border-color: var(
+    --po-host-md-blockquote-border-color,
+    color-mix(in srgb, var(--po-divider) 76%, var(--po-md-surface-background))
+  );
   --po-md-inline-code-background: var(--po-host-md-inline-code-background, color-mix(in srgb, var(--po-control) 38%, transparent));
   --po-md-inline-code-color: var(--po-host-md-inline-code-color, var(--po-text));
   --po-md-code-block-background: var(--po-host-md-code-block-background, color-mix(in srgb, var(--po-control) 28%, transparent));

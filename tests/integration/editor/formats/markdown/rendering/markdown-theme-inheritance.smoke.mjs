@@ -35,6 +35,8 @@ async function runSmoke() {
   );
   assertMarkdownLinkCursors(followTheme.before);
   assertMarkdownLinkCursors(followTheme.after);
+  assertMarkdownContentColors(followTheme.before);
+  assertMarkdownContentColors(followTheme.after);
   assertMarkdownLinkDrag(followTheme.dragGesture);
 
   const explicitSystem = await runScenario("system");
@@ -55,6 +57,8 @@ async function runSmoke() {
   assert(explicitSystem.preservedHost, "Explicit-font theme change remounted the Markdown editor.");
   assertMarkdownLinkCursors(explicitSystem.before);
   assertMarkdownLinkCursors(explicitSystem.after);
+  assertMarkdownContentColors(explicitSystem.before);
+  assertMarkdownContentColors(explicitSystem.after);
   assertMarkdownLinkDrag(explicitSystem.dragGesture);
 
   console.log(JSON.stringify({ followTheme, explicitSystem }, null, 2));
@@ -116,27 +120,106 @@ function assertMarkdownLinkDrag(snapshot) {
   );
 }
 
+function assertMarkdownContentColors(snapshot) {
+  assert(
+    snapshot.quoteColor !== snapshot.contentColor,
+    "Markdown quote text did not recede from body copy.",
+  );
+  assert(
+    colorDistance(snapshot.quoteColor, snapshot.surfaceColor)
+      < colorDistance(snapshot.contentColor, snapshot.surfaceColor),
+    `Markdown quote text is not closer to its surface than body copy: ${JSON.stringify(snapshot)}`,
+  );
+  assert(
+    snapshot.quoteLinkColor === snapshot.linkColor,
+    "A navigable link inside a quote did not retain the canonical link color.",
+  );
+  assert(
+    snapshot.quoteCodeColor === snapshot.linkColor,
+    "Inline code inside a navigable link did not inherit the canonical link color.",
+  );
+}
+
+function colorDistance(left, right) {
+  const leftChannels = parseColor(left);
+  const rightChannels = parseColor(right);
+  return Math.sqrt(leftChannels.reduce((sum, value, index) => (
+    sum + ((value - rightChannels[index]) ** 2)
+  ), 0));
+}
+
+function parseColor(value) {
+  const channels = String(value).match(/[\d.]+/g)?.slice(0, 3).map(Number) ?? [];
+  if (channels.length !== 3 || channels.some((channel) => !Number.isFinite(channel))) {
+    throw new Error(`Unsupported computed color: ${String(value)}`);
+  }
+  return String(value).startsWith("color(srgb ")
+    ? channels.map((channel) => channel * 255)
+    : channels;
+}
+
 async function readSnapshot(window, captureHost) {
-  return window.webContents.executeJavaScript(`(() => {
+  const snapshot = await window.webContents.executeJavaScript(`(() => {
+    try {
     const root = document.querySelector('[data-po-appearance-root=true]');
     const host = document.querySelector('.markdown-codemirror-editor[data-preview-state=ready]');
     const content = host?.querySelector('.cm-content');
     const link = host?.querySelector('[data-md-link-interaction=navigate]');
-    if (!root || !host || !content || !link) throw new Error('Markdown appearance smoke is missing its production surface.');
+    const quote = host?.querySelector('.cm-md-blockquote');
+    const quoteLink = quote?.querySelector('[data-md-link-interaction=navigate]');
+    const quoteCode = quoteLink?.matches('.cm-md-inline-code, .cm-md-syntax-monospace')
+      ? quoteLink
+      : quoteLink?.querySelector('.cm-md-inline-code, .cm-md-syntax-monospace');
+    if (!root || !host || !content || !link || !quote || !quoteLink || !quoteCode) {
+      return {
+        smokeError: 'Markdown appearance smoke is missing its production surface.',
+        missing: {
+          root: !root,
+          host: !host,
+          content: !content,
+          link: !link,
+          quote: !quote,
+          quoteLink: !quoteLink,
+          quoteCode: !quoteCode,
+        },
+        quoteMarkup: quote?.outerHTML ?? null,
+      };
+    }
     if (${captureHost ? "true" : "false"}) window.__PUPPYONE_MARKDOWN_THEME_HOST__ = host;
     const rootStyle = getComputedStyle(root);
+    const hostStyle = getComputedStyle(host);
     return {
       subThemeId: root.dataset.subThemeId,
       editorContentFontMode: root.dataset.fontEditorContentMode,
       editorContentFont: root.dataset.fontEditorContent,
       hostFont: rootStyle.getPropertyValue('--po-host-md-content-font').trim(),
       fontFamily: getComputedStyle(content).fontFamily,
+      contentColor: getComputedStyle(content).color,
+      surfaceColor: hostStyle.backgroundColor,
+      linkColor: getComputedStyle(link).color,
+      quoteColor: getComputedStyle(quote).color,
+      quoteLinkColor: getComputedStyle(quoteLink).color,
+      quoteCodeColor: getComputedStyle(quoteCode).color,
       contentCursor: getComputedStyle(content).cursor,
       linkCursor: getComputedStyle(link).cursor,
       pointerCursorPreference: root.dataset.pointerCursors,
       preservedHost: window.__PUPPYONE_MARKDOWN_THEME_HOST__ === host,
     };
+    } catch (error) {
+      return {
+        smokeError: String(error),
+        stack: error instanceof Error ? error.stack : null,
+      };
+    }
   })()`, true);
+  if (snapshot.smokeError) {
+    throw new Error(`${snapshot.smokeError} ${JSON.stringify({
+      missing: snapshot.missing,
+      quoteMarkup: snapshot.quoteMarkup,
+      stack: snapshot.stack,
+    })}`);
+  }
+  return snapshot;
 }
 
 function assertMarkdownLinkCursors(snapshot) {
@@ -233,14 +316,41 @@ async function readPrimaryClickSnapshot(window) {
     scroller.scrollTop = 0;
     return value;
   })()`, true);
+  await moveSelectionOffMarkdownLinks(window);
   return { before: start.before, afterMouseDown, afterMouseUp };
+}
+
+async function moveSelectionOffMarkdownLinks(window) {
+  const target = await window.webContents.executeJavaScript(`(() => {
+    const line = [...document.querySelectorAll('.markdown-codemirror-editor .cm-line')]
+      .find((candidate) => candidate.textContent?.includes('Cursor verification spacer'));
+    if (!line) return null;
+    const rect = line.getBoundingClientRect();
+    return {
+      x: Math.round(rect.left + Math.min(24, Math.max(4, rect.width / 2))),
+      y: Math.round(rect.top + rect.height / 2),
+    };
+  })()`, true);
+  assert(target, "Markdown interaction smoke could not reset selection off a link.");
+  window.webContents.sendInputEvent({ type: "mouseDown", button: "left", clickCount: 1, ...target });
+  window.webContents.sendInputEvent({ type: "mouseUp", button: "left", clickCount: 1, ...target });
+  await window.webContents.executeJavaScript(
+    "new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))",
+    true,
+  );
 }
 
 async function readDragGestureSnapshot(window) {
   const start = await window.webContents.executeJavaScript(`(() => {
     const scroller = document.querySelector('.markdown-codemirror-editor .cm-scroller');
     const link = document.querySelector('[data-md-link-interaction=navigate]');
-    if (!scroller || !link) throw new Error('Markdown drag smoke surface is unavailable.');
+    if (!scroller || !link) {
+      return {
+        smokeError: 'Markdown drag smoke surface is unavailable.',
+        scrollerAvailable: Boolean(scroller),
+        linkAvailable: Boolean(link),
+      };
+    }
     scroller.scrollTop = 0;
     const rect = link.getBoundingClientRect();
     return {
@@ -250,6 +360,7 @@ async function readDragGestureSnapshot(window) {
       endX: Math.round(rect.right + 24),
     };
   })()`, true);
+  if (start.smokeError) throw new Error(`${start.smokeError} ${JSON.stringify(start)}`);
   window.webContents.sendInputEvent({ type: "mouseDown", button: "left", clickCount: 1, x: start.x, y: start.y });
   await window.webContents.executeJavaScript(
     "new Promise((resolve) => requestAnimationFrame(resolve))",
@@ -268,11 +379,17 @@ async function readDragGestureSnapshot(window) {
     "new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))",
     true,
   );
-  return window.webContents.executeJavaScript(`(() => ({
-    before: ${JSON.stringify(start.before)},
-    afterMouseUp: document.querySelector('.markdown-codemirror-editor .cm-scroller').scrollTop,
-    movementPx: ${JSON.stringify(start.endX - start.x)},
-  }))()`, true);
+  const snapshot = await window.webContents.executeJavaScript(`(() => {
+    const scroller = document.querySelector('.markdown-codemirror-editor .cm-scroller');
+    return {
+      before: ${JSON.stringify(start.before)},
+      afterMouseUp: scroller?.scrollTop ?? null,
+      movementPx: ${JSON.stringify(start.endX - start.x)},
+      scrollerAvailable: Boolean(scroller),
+    };
+  })()`, true);
+  assert(snapshot.scrollerAvailable, "Markdown drag smoke lost its production scroller.");
+  return snapshot;
 }
 
 async function waitForReady(window) {

@@ -26,6 +26,8 @@ const CONTENT = [
   "",
   "主题字体必须穿过真实的文档宿主并到达 [Markdown 编辑器](#interaction-target)。",
   "",
+  "> Supporting quote with [`linked code`](#interaction-target).",
+  "",
   ...Array.from({ length: 28 }, (_, index) => `Cursor verification spacer ${index + 1}.`),
   "",
   "## Interaction target",

@@ -106,7 +106,22 @@
 }
 
 .markdown-codemirror-editor [data-md-link-interaction="navigate"] {
+  color: var(--po-md-link-color);
   cursor: pointer;
+}
+
+/* Inline code keeps its chip treatment inside a link, but the text still
+   inherits the link affordance. Interaction state—not Markdown syntax—is the
+   visual authority for whether the destination is actionable. */
+.markdown-codemirror-editor [data-md-link-interaction="navigate"]:is(
+  .cm-md-inline-code,
+  .cm-md-syntax-monospace
+),
+.markdown-codemirror-editor [data-md-link-interaction="navigate"] :is(
+  .cm-md-inline-code,
+  .cm-md-syntax-monospace
+) {
+  color: var(--po-md-link-color);
 }
 
 .markdown-codemirror-editor [data-md-link-interaction="navigate"]:focus-visible {
