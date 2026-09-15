@@ -6,6 +6,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   acquireNativeSurfaceLayoutLease,
+  getNativeSurfaceLayoutActivitySnapshot,
   isNativeSurfaceElementVisible,
   isNativeSurfaceLayoutStable,
   measureNativeSurfaceBounds,
@@ -33,11 +34,16 @@ describe("native surface geometry authority", () => {
     const second = acquireNativeSurfaceLayoutLease("split");
 
     expect(isNativeSurfaceLayoutStable()).toBe(false);
+    expect(getNativeSurfaceLayoutActivitySnapshot()).toEqual({
+      active: true,
+      owners: ["sidebar", "split"],
+    });
     first.release();
     first.release();
     expect(isNativeSurfaceLayoutStable()).toBe(false);
     second.release();
     expect(isNativeSurfaceLayoutStable()).toBe(true);
+    expect(getNativeSurfaceLayoutActivitySnapshot()).toEqual({ active: false, owners: [] });
     expect(listener).toHaveBeenCalledTimes(4);
     unsubscribe();
   });

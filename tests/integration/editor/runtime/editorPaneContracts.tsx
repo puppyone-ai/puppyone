@@ -10,7 +10,10 @@ import { editorTaskScheduler } from "../../../../packages/shared-ui/src/editor/r
 import { useDesktopEditorWorkbench } from "../../../../src/features/editor-workbench/controller/useDesktopEditorWorkbench";
 import { DesktopEditorSplitView } from "../../../../src/features/editor-workbench/layout/DesktopEditorSplitView";
 import { desktopPresetViewerRuntimeHost } from "../../../../src/features/editor-surfaces";
-import { isNativeSurfaceLayoutStable } from "../../../../src/features/native-surfaces";
+import {
+  getNativeSurfaceLayoutActivitySnapshot,
+  isNativeSurfaceLayoutStable,
+} from "../../../../src/features/native-surfaces";
 import "../../../../src/cloud-globals.css";
 import englishCatalog from "../../../../src/localization/catalog-loaders/en";
 import "../../../../src/styles.css";
@@ -130,10 +133,20 @@ async function resize(direction: EditorSplitDirection, ratio: number) {
   const to = direction === "horizontal" ? { x: parent.x + parent.width * ratio, y: from.y }
     : { x: from.x, y: parent.y + parent.height * ratio };
   await window.paneContracts.input({ kind: "drag", from, to });
-  await until(() => {
+  try {
+    await until(() => {
+      const split = controller.paneLayout.root;
+      return split.kind === "split" && Math.abs(split.ratio - ratio) < 0.01 && isNativeSurfaceLayoutStable();
+    }, "Resize did not commit its ratio or release its native lease");
+  } catch {
     const split = controller.paneLayout.root;
-    return split.kind === "split" && Math.abs(split.ratio - ratio) < 0.01 && isNativeSurfaceLayoutStable();
-  }, "Resize did not commit its ratio or release its native lease");
+    const activity = getNativeSurfaceLayoutActivitySnapshot();
+    const resizing = document.querySelector<HTMLElement>(".desktop-editor-splitter")?.dataset.resizing === "true";
+    throw new Error(
+      `Resize contract did not settle: target=${ratio}, committed=${split.kind === "split" ? split.ratio : "not-split"}, `
+      + `resizing=${resizing}, activeLayoutOwners=${JSON.stringify(activity.owners)}`,
+    );
+  }
   await wait(100);
 }
 

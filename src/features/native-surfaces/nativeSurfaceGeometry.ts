@@ -78,6 +78,17 @@ export function isNativeSurfaceLayoutStable(): boolean {
   return activeLayoutLeases.size === 0;
 }
 
+/** Read-only diagnostics for release evidence and interaction regressions. */
+export function getNativeSurfaceLayoutActivitySnapshot(): Readonly<{
+  active: boolean;
+  owners: readonly string[];
+}> {
+  return {
+    active: activeLayoutLeases.size > 0,
+    owners: [...activeLayoutLeases.values()].map(({ owner }) => owner),
+  };
+}
+
 export function subscribeNativeSurfaceLayoutActivity(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);

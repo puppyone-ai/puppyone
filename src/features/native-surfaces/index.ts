@@ -18,6 +18,7 @@ export {
 export { useNativeSurfacePointerRoutingRegion } from "./useNativeSurfacePointerRoutingRegion";
 export {
   acquireNativeSurfaceLayoutLease,
+  getNativeSurfaceLayoutActivitySnapshot,
   isNativeSurfaceLayoutStable,
   measureNativeSurfaceBounds,
   type NativeSurfaceBounds,
