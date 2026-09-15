@@ -123,6 +123,14 @@ export function useSplitResizeGesture({
   }, [previewFromPoint]);
 
   useEffect(() => {
+    const handleMouseMove = (event: MouseEvent) => {
+      const session = sessionRef.current;
+      if (!session || session.pointerType !== "mouse" || (event.buttons & 1) === 0) return;
+      // Pointer capture can be declined silently after an embedded native
+      // surface handled a previous gesture. Preserve the active owner session
+      // from the lower-level mouse stream without creating a second session.
+      previewFromPoint(session, event);
+    };
     const handleMouseRelease = (event: MouseEvent) => {
       const session = sessionRef.current;
       if (!session || session.pointerType !== "mouse" || event.button !== 0) return;
@@ -132,8 +140,12 @@ export function useSplitResizeGesture({
       previewFromPoint(session, event);
       finish("commit");
     };
+    window.addEventListener("mousemove", handleMouseMove, true);
     window.addEventListener("mouseup", handleMouseRelease, true);
-    return () => window.removeEventListener("mouseup", handleMouseRelease, true);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove, true);
+      window.removeEventListener("mouseup", handleMouseRelease, true);
+    };
   }, [finish, previewFromPoint]);
 
   const start = useCallback((event: PointerEvent<HTMLDivElement>) => {

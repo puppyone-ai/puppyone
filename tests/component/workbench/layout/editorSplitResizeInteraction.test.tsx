@@ -238,6 +238,28 @@ describe.each(["horizontal", "vertical"] as const)("%s editor splitter lifecycle
     expect(isNativeSurfaceLayoutStable()).toBe(true);
   });
 
+  it("previews from the native mouse stream when pointer capture is silently lost", () => {
+    const f = fixture();
+    f.fire("pointerdown", 500.5);
+    f.handle.hasPointerCapture = () => false;
+    act(() => window.dispatchEvent(new MouseEvent("mousemove", {
+      bubbles: true,
+      buttons: 1,
+      clientX: direction === "horizontal" ? 820.5 : 80,
+      clientY: direction === "vertical" ? 830.5 : 90,
+    })));
+    f.flush();
+    expect(f.handle.getAttribute("aria-valuenow")).toBe("80");
+    act(() => window.dispatchEvent(new MouseEvent("mouseup", {
+      bubbles: true,
+      button: 0,
+      clientX: direction === "horizontal" ? 820.5 : 80,
+      clientY: direction === "vertical" ? 830.5 : 90,
+    })));
+    expect(f.commit.mock.calls).toEqual([["editor-split-1", 0.8]]);
+    expect(isNativeSurfaceLayoutStable()).toBe(true);
+  });
+
   it("ignores another pointer's move, release, cancellation and capture loss", () => {
     const f = fixture();
     f.fire("pointerdown", 500.5);
