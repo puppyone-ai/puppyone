@@ -16,7 +16,11 @@ describe("CI Electron smoke sandbox boundary", () => {
     const check = { command: ["node", "fixture.mjs"], runtime: "electron" };
     const options = { platform: "linux", environment: { GITHUB_ACTIONS: "true" } };
     expect(workflow).not.toContain("ELECTRON_DISABLE_SANDBOX");
-    expect(resolveInvocation(check, options)).toMatchObject({ command: "xvfb-run", env: { ELECTRON_DISABLE_SANDBOX: "1" } });
+    expect(resolveInvocation(check, options)).toMatchObject({
+      command: "xvfb-run",
+      args: expect.arrayContaining(["--server-args=-screen 0 2560x1440x24"]),
+      env: { ELECTRON_DISABLE_SANDBOX: "1" },
+    });
     expect(resolveInvocation({ ...check, runtime: "node" }, options).env).not.toHaveProperty("ELECTRON_DISABLE_SANDBOX");
     const local = resolveInvocation(check, { platform: "linux", environment: { DISPLAY: ":1" } });
     expect(local.command).toBe(process.execPath);

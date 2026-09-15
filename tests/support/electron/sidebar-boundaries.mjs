@@ -141,6 +141,7 @@ async function verifyBoundaries({ window, temp, label, until }) {
     }
     const expand=document.querySelector('.desktop-titlebar-sidebar-expand');
     if(!expand) throw new Error('Explorer expand action was not available after collapse.');
+    const collapsedStartWidth=document.querySelector('.explorer-column')?.getBoundingClientRect().width;
     expand.click();
     const samples=[], startedAt=performance.now();
     while(performance.now()-startedAt<500){
@@ -154,7 +155,7 @@ async function verifyBoundaries({ window, temp, label, until }) {
           dividerDelta:Math.abs((rtl?frame.left:frame.right)-(rtl?paint.right:paint.left))});
       }
     }
-    return {collapsePreview,restoredPreview,sampleCount:samples.length,maxDividerDelta:Math.max(...samples.map(sample=>sample.dividerDelta)),
+    return {collapsePreview,restoredPreview,collapsedStartWidth,sampleCount:samples.length,maxDividerDelta:Math.max(...samples.map(sample=>sample.dividerDelta)),
       contentWidths:[...new Set(samples.map(sample=>Math.round(sample.contentWidth)))],
       firstWidth:samples[0]?.frameWidth,lastWidth:samples.at(-1)?.frameWidth};
   })()`);
@@ -177,7 +178,7 @@ async function verifyBoundaries({ window, temp, label, until }) {
     `Explorer did not restore its expanded preview in the same pointer gesture: ${JSON.stringify(explorerMotion.restoredPreview)}`);
   assert(!explorerMotion.restoredPreview || explorerMotion.restoredPreview.gesture==='expand-preview',
     `Explorer did not expose its animated recovery after leaving the collapse hysteresis: ${JSON.stringify(explorerMotion.restoredPreview)}`);
-  assert(explorerMotion.firstWidth<explorerMotion.lastWidth,'Explorer frame did not expand from its collapsed edge');
+  assert(explorerMotion.collapsedStartWidth<explorerMotion.lastWidth,'Explorer frame did not expand from its collapsed edge');
   assert(Math.abs(explorerMotion.lastWidth-220)<=1,
     `Explorer reopened at a stale pre-collapse width: ${JSON.stringify(explorerMotion)}`);
   assert(explorerMotion.maxDividerDelta<=2,`Explorer divider left its animated frame: ${JSON.stringify(explorerMotion)}`);

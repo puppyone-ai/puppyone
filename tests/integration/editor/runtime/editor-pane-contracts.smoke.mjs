@@ -164,7 +164,13 @@ try {
     window.webContents.focus();
     for (let attempt = 0; attempt < 20 && !window.webContents.isFocused(); attempt++) await wait(10);
     assert(window.webContents.isFocused(), "Owner renderer did not regain focus before pane input");
-    await wait(25);
+    const splitterFocused = await window.webContents.executeJavaScript(`(() => {
+      const splitter = document.querySelector('.desktop-editor-splitter');
+      splitter?.focus();
+      return document.activeElement === splitter;
+    })()`);
+    assert(splitterFocused, "Split handle did not regain focus before pane input");
+    await wait(50);
     const send = (type, point, extra = {}) => window.webContents.sendInputEvent({
       type,
       x: Math.round(point.x),
@@ -173,12 +179,22 @@ try {
     });
     send("mouseMove", request.from);
     send("mouseDown", request.from, { button: "left", clickCount: 1 });
-    await wait(30);
+    for (let attempt = 0; attempt < 50; attempt++) {
+      if (await window.webContents.executeJavaScript("document.querySelector('.desktop-editor-splitter')?.dataset.resizing === 'true'")) break;
+      await wait(10);
+    }
+    assert(await window.webContents.executeJavaScript("document.querySelector('.desktop-editor-splitter')?.dataset.resizing === 'true'"),
+      "Split handle did not acquire the pointer stream");
     for (let step = 1; step <= 6; step++) {
       send("mouseMove", { x: request.from.x + (request.to.x - request.from.x) * step / 6, y: request.from.y + (request.to.y - request.from.y) * step / 6 }, { button: "left", modifiers: ["leftButtonDown"] });
       await wait(20);
     }
     send("mouseUp", request.to, { button: "left", clickCount: 1 });
+    for (let attempt = 0; attempt < 50; attempt++) {
+      if (!await window.webContents.executeJavaScript("document.querySelector('.desktop-editor-splitter')?.dataset.resizing === 'true'")) return;
+      await wait(10);
+    }
+    assert(false, "Split handle did not release the pointer stream");
   });
   ipcMain.handle("pane-contracts:record", async (_event, row) => {
     rows.push(row); console.log(`${row.id} ${row.direction}: passed`);

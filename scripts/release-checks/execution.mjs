@@ -32,7 +32,12 @@ export function resolveInvocation(check, { environment, platform, npmPath }) {
   // Local machines keep Electron's normal sandbox configuration.
   if (check.runtime === "electron" && platform === "linux") {
     if (env.GITHUB_ACTIONS === "true") env.ELECTRON_DISABLE_SANDBOX = "1";
-    if (!env.DISPLAY) argv = ["xvfb-run", "--auto-servernum", ...argv];
+    if (!env.DISPLAY) argv = [
+      "xvfb-run",
+      "--auto-servernum",
+      "--server-args=-screen 0 2560x1440x24",
+      ...argv,
+    ];
   }
   return { command: argv[0], args: argv.slice(1), env };
 }
