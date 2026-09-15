@@ -1,4 +1,5 @@
 export { SettingsView } from "./SettingsView";
+export { SettingsDialog } from "./SettingsDialog";
 export {
   SettingsSidebar,
   SETTINGS_SIDEBAR_GROUPS,

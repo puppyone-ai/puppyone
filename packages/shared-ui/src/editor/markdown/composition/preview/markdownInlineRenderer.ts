@@ -292,6 +292,8 @@ function appendWikiLink(target: Node, token: MarkdownWikiLinkToken, options: Mar
   }
   link.setAttribute("role", "link");
   link.setAttribute("tabindex", "0");
+  link.setAttribute("data-md-link-interaction", "navigate");
+  link.setAttribute("data-po-content-interaction", "navigation");
   const activate = (event: Event) => {
     event.preventDefault();
     event.stopPropagation();

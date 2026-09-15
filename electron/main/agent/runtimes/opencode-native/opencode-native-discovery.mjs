@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import os from "node:os";
-import path from "node:path";
 import { spawn as nodeSpawn } from "node:child_process";
 import { redactSecretText } from "../../agent-events.mjs";
 import { createCachedRuntimeDiscovery } from "../../connections/runtime-discovery-cache.mjs";
@@ -29,20 +28,19 @@ export async function discoverUserOpenCodeExecutable({
   env = process.env,
   platform = process.platform,
   homedir = os.homedir(),
+  readEnvironment,
   configuredExecutable = null,
 } = {}) {
   const result = await discoverExecutable({
-      signal,
-    executableNames: [platform === "win32" ? "opencode.exe" : "opencode"],
-    additionalCandidates: [
-      configuredExecutable,
-      path.join(homedir, ".opencode", "bin", platform === "win32" ? "opencode.exe" : "opencode"),
-    ].filter(Boolean),
+    signal,
+    installationId: "opencode",
+    additionalCandidates: [configuredExecutable].filter(Boolean),
     fsModule,
     spawn,
     env,
     platform,
     homedir,
+    readEnvironment,
     parseVersion: parseOpenCodeVersion,
     minimumVersion: null,
     label: "OpenCode",

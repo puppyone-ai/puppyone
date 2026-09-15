@@ -196,7 +196,7 @@
   "markdown.mermaid.renderFailedDetail": "Dieses Mermaid-Diagramm konnte nicht dargestellt werden: {detail}",
   "markdown.mermaid.rendering": "Diagramm wird dargestellt…",
   "markdown.missingLinkedNote": "Verknüpfte Notiz fehlt: {target}",
-  "markdown.openLinkHint": "Zum Öffnen mit gedrückter Cmd-/Strg-Taste klicken: {target}",
+  "markdown.openLinkHint": "Zum Öffnen klicken: {target}",
   "markdown.preparingPreview": "Live-Vorschau wird vorbereitet…",
   "markdown.previewUnavailable": "Die Live-Vorschau ist nicht verfügbar. Der Quelltext kann weiterhin bearbeitet werden.",
   "table.actions": "Tabellenaktionen",

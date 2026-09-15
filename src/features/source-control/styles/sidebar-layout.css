@@ -9,6 +9,12 @@
   scrollbar-gutter: auto;
 }
 
+/* Repository setup is a full-surface state, not a padded list. Clearing the
+   list-only top inset keeps Changes and History on the same vertical center. */
+.desktop-git-sidebar-list[data-repository-setup="true"] {
+  padding-block: 0;
+}
+
 .desktop-git-fixed-region {
   flex: 0 0 auto;
   min-width: 0;
@@ -17,24 +23,27 @@
 .desktop-git-changes-pane {
   display: flex;
   min-width: 0;
-  min-height: 144px;
-  flex: 1 1 64%;
+  min-height: 0;
+  flex: 1 1 auto;
   flex-direction: column;
   overflow: hidden;
 }
 
-.desktop-git-history-pane {
-  display: flex;
-  min-width: 0;
-  min-height: 104px;
-  flex: 0 1 36%;
-  overflow: hidden;
+.desktop-git-sync-priority-region {
+  position: relative;
+  flex: 0 0 auto;
+  padding-bottom: 13px;
+  margin-bottom: 5px;
 }
 
-.desktop-git-history-pane.collapsed {
-  min-height: calc(var(--desktop-sidebar-section-top-gap) + var(--desktop-sidebar-row-height));
-  max-height: calc(var(--desktop-sidebar-section-top-gap) + var(--desktop-sidebar-row-height));
-  flex: 0 0 calc(var(--desktop-sidebar-section-top-gap) + var(--desktop-sidebar-row-height));
+.desktop-git-sync-priority-region::after {
+  position: absolute;
+  right: var(--git-sidebar-control-right-gap);
+  bottom: 0;
+  left: var(--git-sidebar-control-left-gap);
+  height: 1px;
+  background: color-mix(in srgb, var(--po-divider) 64%, transparent);
+  content: "";
 }
 
 .desktop-git-resizable-stack {

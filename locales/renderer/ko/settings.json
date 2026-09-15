@@ -90,6 +90,8 @@
   "appearance.pluginsShortcut.detail": "워크스페이스 탐색에 로컬 플러그인 항목을 표시합니다.",
   "appearance.headerElements.title": "헤더 요소",
   "appearance.headerElements.external-open": "외부에서 열기",
+  "appearance.headerElements.history": "Git 기록",
+  "appearance.headerElements.changes": "변경 사항",
   "appearance.headerElements.terminal": "터미널",
   "appearance.pointerCursors.title": "포인터 커서",
   "appearance.pointerCursors.detail": "링크와 탐색 대상으로 이동할 때만 손 모양 커서를 표시합니다.",

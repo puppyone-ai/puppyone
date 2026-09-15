@@ -1,7 +1,5 @@
-import { lazy, Suspense, useCallback, useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import {
-  qualifyDataResourcePath,
-  type ResourceUri,
   type ViewerPackSnapshot,
   type Workspace,
 } from "@puppyone/shared-ui";
@@ -26,8 +24,7 @@ import {
   type CloudWorkspaceSection,
   type ProjectCloudContext,
 } from "../../cloud";
-import { formatCloudPublishFailure } from "../../cloud/cloudPresentation";
-import { createSourceControlWorkspaceSurface, getGitHostingMode, type DesktopGitController } from "../../source-control";
+import { getGitHostingMode, type DesktopGitController } from "../../source-control";
 import { createSettingsWorkspaceSurface, type SettingsSection } from "../../settings";
 import {
   DEFAULT_PLUGINS_SECTION,
@@ -46,6 +43,7 @@ import type {
   ResolvedWorkspaceSurface,
   WorkspaceSurfaceCapabilities,
   WorkspaceSurfaceAdapters,
+  WorkspaceSurfaceContent,
   WorkspaceSurfaceId,
 } from "./workspaceSurfaceTypes";
 
@@ -76,7 +74,7 @@ export type DesktopWorkspaceCloudSurfaceController = {
 
 export type WorkspaceSurfaceContentResult = {
   availableSurfaceIds: readonly WorkspaceSurfaceId[];
-  cloudHubNavigationEnabled: boolean;
+  cloudSurface: WorkspaceSurfaceContent;
   gitEnabled: boolean;
   pluginsNavigationVisible: boolean;
   resolvedActiveView: WorkspaceSurfaceId;
@@ -89,9 +87,8 @@ export function useWorkspaceSurfaceContent({
   cloud,
   desktopUpdates,
   git,
-  onActiveDataPathChange,
   onFilesVisibilitySettingsChange,
-  onNavigate,
+  onOpenGitChanges,
   onPuppyoneConfigChange,
   onSelectSettingsSection,
   onUnlinkWorkspace,
@@ -105,15 +102,13 @@ export function useWorkspaceSurfaceContent({
   viewerPacks,
   viewerPluginsEnabled,
   workspace,
-  workspaceRootUri,
 }: {
   activeView: DesktopView;
   cloud: DesktopWorkspaceCloudSurfaceController;
   desktopUpdates: DesktopUpdatesController;
   git: DesktopGitController;
-  onActiveDataPathChange: (path: string | null) => void;
   onFilesVisibilitySettingsChange: (settings: FilesVisibilitySettings) => void;
-  onNavigate: (view: DesktopView) => void;
+  onOpenGitChanges: () => void;
   onPuppyoneConfigChange: (config: PuppyoneWorkspaceConfig) => Promise<PuppyoneWorkspaceConfig | null>;
   onSelectSettingsSection: (section: SettingsSection) => void;
   onUnlinkWorkspace: () => Promise<void>;
@@ -131,7 +126,6 @@ export function useWorkspaceSurfaceContent({
   };
   viewerPluginsEnabled: boolean;
   workspace: Workspace;
-  workspaceRootUri: ResourceUri | null;
 }): WorkspaceSurfaceContentResult {
   const { t } = useLocalization();
   const pluginsNavigationVisible = isPluginsNavigationVisible({
@@ -142,9 +136,12 @@ export function useWorkspaceSurfaceContent({
     cloudEnabled: cloud.enabled,
     pluginsEnabled: pluginsNavigationVisible,
   }), [cloud.enabled, pluginsNavigationVisible]);
-  const resolvedActiveView = resolveWorkspaceSurfaceContribution(activeView, surfaceCapabilities).id;
+  const requestedSurfaceId = activeView === "git" || activeView === "cloud" ? "data" : activeView;
+  const resolvedActiveView = resolveWorkspaceSurfaceContribution(requestedSurfaceId, surfaceCapabilities).id;
   const availableSurfaceIds = useMemo(
-    () => getAvailableWorkspaceSurfaces(surfaceCapabilities).map(({ id }) => id),
+    () => getAvailableWorkspaceSurfaces(surfaceCapabilities)
+      .map(({ id }) => id)
+      .filter((id) => id !== "git"),
     [surfaceCapabilities],
   );
   const gitEnabled = true;
@@ -152,7 +149,6 @@ export function useWorkspaceSurfaceContent({
   const workspaceChangeCount = gitEnabled
     ? getDesktopWorkspaceChangeCount(git.activeGitStatus, gitHostingMode === "github")
     : 0;
-  const cloudHubNavigationEnabled = cloud.enabled;
   const projectContext = cloud.projectContext ?? { status: "local-only" as const, projectId: null };
   const localOnlyWorkspaceContext = (
     projectContext.status === "local-only"
@@ -175,30 +171,6 @@ export function useWorkspaceSurfaceContent({
     onCloudSessionChange: cloud.onCloudSessionChange,
   });
   const [activePluginsSection, setActivePluginsSection] = useState<PluginsSection>(DEFAULT_PLUGINS_SECTION);
-  const cloudPublishErrorMessage = cloud.publishError
-    ? formatCloudPublishFailure(cloud.publishError, t)
-    : null;
-
-  const handleOpenGitFile = useCallback((path: string) => {
-    if (!workspaceRootUri) return;
-    onActiveDataPathChange(qualifyDataResourcePath(workspaceRootUri, path));
-    onNavigate("data");
-  }, [onActiveDataPathChange, onNavigate, workspaceRootUri]);
-  const sourceControlSurface = createSourceControlWorkspaceSurface({
-    controller: git,
-    workspace,
-    puppyoneConfig,
-    gitDisplayMode: preferences.gitDisplayMode,
-    gitSidebarLayout: preferences.gitSidebarLayout,
-    fileIconTheme: preferences.fileIconTheme,
-    cloudBackup: {
-      loading: cloud.backupLoading || cloud.backupPending,
-      error: cloudPublishErrorMessage,
-      enabled: cloud.enabled,
-      start: cloud.onStartPuppyoneBackup,
-    },
-    onOpenFile: handleOpenGitFile,
-  });
   const settingsSurface = createSettingsWorkspaceSurface({
     workspace,
     activeSection: settingsSection,
@@ -231,6 +203,10 @@ export function useWorkspaceSurfaceContent({
       state: desktopUpdates.state,
       check: desktopUpdates.checkForUpdates,
       install: desktopUpdates.updateNow,
+      automaticDownloadPreferenceAvailable: desktopUpdates.automaticDownloadPreferenceAvailable,
+      automaticDownloadPreferenceSaving: desktopUpdates.automaticDownloadPreferenceSaving,
+      automaticDownloadPreferenceError: desktopUpdates.automaticDownloadPreferenceError,
+      setAutomaticallyDownloadUpdates: desktopUpdates.setAutomaticallyDownloadUpdates,
     },
   });
   const pluginsSurface = {
@@ -291,24 +267,26 @@ export function useWorkspaceSurfaceContent({
         onSelectSection={cloud.onSelectSection}
         onRefresh={git.refreshGitStatus}
         onOpenGitSettings={cloud.onOpenGitSettings}
-        onOpenSourceControl={() => onNavigate("git")}
+        onOpenSourceControl={onOpenGitChanges}
       />
     ),
   };
   const adapters: WorkspaceSurfaceAdapters = {
     data: () => ({ sidebar: null, main: null }),
-    git: () => sourceControlSurface,
+    // "git" is retained only as a migration-safe legacy route. All active
+    // source-control work now lives in the Changes right sidebar.
+    git: () => ({ sidebar: null, main: null }),
     plugins: () => pluginsSurface,
     cloud: () => cloudServiceSurface,
     settings: () => settingsSurface,
   };
   return {
     availableSurfaceIds,
-    cloudHubNavigationEnabled,
+    cloudSurface: cloudServiceSurface,
     gitEnabled,
     pluginsNavigationVisible,
     resolvedActiveView,
-    resolvedSurface: resolveWorkspaceSurface({ capabilities: surfaceCapabilities, adapters, requestedId: activeView }),
+    resolvedSurface: resolveWorkspaceSurface({ capabilities: surfaceCapabilities, adapters, requestedId: requestedSurfaceId }),
     workspaceChangeCount,
   };
 }

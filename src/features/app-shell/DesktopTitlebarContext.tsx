@@ -12,6 +12,8 @@ export function DesktopTitlebarContext({
   activeGitStatus,
   branchSwitcherOpen,
   branchSwitcherRef,
+  cloudEnabled = false,
+  cloudOpen = false,
   gitStatusLoading,
   gitOperationLoading,
   localBranches,
@@ -22,6 +24,7 @@ export function DesktopTitlebarContext({
   workspaceSwitcherOpen,
   workspaceSwitcherRef,
   onCheckoutBranch,
+  onOpenCloud = () => {},
   onCloseBranchSwitcher,
   onCloseWorkspaceSwitcher,
   onGoHome,
@@ -52,7 +55,10 @@ export function DesktopTitlebarContext({
         workspaceFolders={workspaceFolders}
         multiRootWorkspacesEnabled={multiRootWorkspacesEnabled}
         availableProjects={availableProjects}
+        cloudEnabled={cloudEnabled}
+        cloudOpen={cloudOpen}
         onAddExistingProject={multiRootWorkspacesEnabled ? onAddExistingProject : undefined}
+        onOpenCloud={onOpenCloud}
         onOpenFolder={multiRootWorkspacesEnabled ? onAddProject : undefined}
         onClose={onCloseWorkspaceSwitcher}
         onGoHome={onGoHome}
@@ -80,6 +86,8 @@ type DesktopTitlebarContextProps = {
   activeGitStatus: GitStatusSnapshot | null;
   branchSwitcherOpen: boolean;
   branchSwitcherRef: RefObject<HTMLDivElement>;
+  cloudEnabled?: boolean;
+  cloudOpen?: boolean;
   gitStatusLoading: boolean;
   gitOperationLoading: string | null;
   localBranches: GitBranchSummary[];
@@ -91,6 +99,7 @@ type DesktopTitlebarContextProps = {
   workspaceSwitcherOpen: boolean;
   workspaceSwitcherRef: RefObject<HTMLDivElement>;
   onCheckoutBranch: (branchName: string, remote: boolean) => Promise<boolean>;
+  onOpenCloud?: () => void;
   onCloseBranchSwitcher: () => void;
   onCloseWorkspaceSwitcher: () => void;
   onGoHome: () => void;

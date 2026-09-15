@@ -67,6 +67,7 @@ export interface AgentClientPort {
   }>;
   resolveAgentQuestion(request: AgentQuestionResolution): Promise<{ sessionId: string; requestId: string }>;
   onAgentSessionFrame?(callback: (frame: AgentSessionFrame) => void): () => void;
+  onAgentSessionFailure?(callback: (message: string) => void): () => void;
 }
 
 export type AgentClientProvider = () => AgentClientPort | undefined;

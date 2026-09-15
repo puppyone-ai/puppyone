@@ -90,6 +90,8 @@
   "appearance.pluginsShortcut.detail": "Zeigt den lokalen Plugin-Eintrag in der Arbeitsbereichsnavigation.",
   "appearance.headerElements.title": "Kopfzeilenelemente",
   "appearance.headerElements.external-open": "Extern öffnen",
+  "appearance.headerElements.history": "Git-Verlauf",
+  "appearance.headerElements.changes": "Änderungen",
   "appearance.headerElements.terminal": "Terminal",
   "appearance.pointerCursors.title": "Zeigercursor",
   "appearance.pointerCursors.detail": "Zeigt den Handcursor nur über Links und Navigationszielen.",

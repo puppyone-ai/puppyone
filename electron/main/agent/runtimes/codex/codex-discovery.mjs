@@ -8,7 +8,6 @@ import {
   compareVersions,
   discoverExecutable,
   parseSemanticVersion,
-  readLoginShellEnvironment,
 } from "../../transports/executable-discovery.mjs";
 
 // This is the oldest app-server schema exercised by the checked-in protocol
@@ -30,15 +29,17 @@ export async function discoverCodexExecutable({
   env = process.env,
   platform = process.platform,
   homedir = os.homedir(),
+  readEnvironment,
 } = {}) {
   const result = await discoverExecutable({
-      signal,
-    executableNames: [platform === "win32" ? "codex.exe" : "codex"],
+    signal,
+    installationId: "codex",
     fsModule,
     spawn,
     env,
     platform,
     homedir,
+    readEnvironment,
     parseVersion: parseCodexVersion,
     minimumVersion: MIN_SUPPORTED_CODEX_VERSION,
     label: "Codex",
@@ -57,7 +58,7 @@ export function parseCodexVersion(value) {
   return parseSemanticVersion(value, "codex(?:-cli)?");
 }
 
-export { compareVersions, readLoginShellEnvironment };
+export { compareVersions };
 
 export function buildProviderEnvironment(baseEnv, loginEnv, options) {
   return buildAgentEnvironment(baseEnv, loginEnv, options);

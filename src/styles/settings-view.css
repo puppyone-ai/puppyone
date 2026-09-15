@@ -2,6 +2,168 @@
   background: var(--po-canvas);
 }
 
+.desktop-settings-dialog-backdrop,
+.desktop-cloud-dialog-backdrop {
+  padding: 40px;
+  background: color-mix(in srgb, var(--po-backdrop) 84%, transparent);
+  backdrop-filter: blur(1.5px);
+  -webkit-backdrop-filter: blur(1.5px);
+}
+
+.desktop-settings-dialog,
+.desktop-cloud-dialog {
+  --desktop-task-dialog-header-bg: var(--po-header);
+  --desktop-task-dialog-header-text: var(--po-text-muted);
+  --desktop-task-dialog-header-hover: var(--po-hover);
+  --desktop-task-dialog-header-focus: var(--po-focus-ring);
+  --desktop-task-dialog-header-divider: var(--po-header-divider);
+
+  height: min(760px, calc(100vh - 80px));
+  max-height: calc(100vh - 80px);
+  border-radius: 14px;
+  background: var(--po-canvas);
+}
+
+.desktop-settings-dialog-header,
+.desktop-cloud-dialog-header {
+  position: relative;
+  box-sizing: border-box;
+  height: var(--desktop-chrome-height);
+  min-height: var(--desktop-chrome-height);
+  align-items: center;
+  padding: 0 6px 0 10px;
+  border-bottom: 0;
+  background: var(--desktop-task-dialog-header-bg);
+  color: var(--desktop-task-dialog-header-text);
+}
+
+.desktop-settings-dialog-header::after,
+.desktop-cloud-dialog-header::after {
+  position: absolute;
+  inset-inline: 1px;
+  inset-block-end: 0;
+  height: 1px;
+  background: var(--desktop-task-dialog-header-divider);
+  content: "";
+  pointer-events: none;
+}
+
+.desktop-settings-dialog-title-row,
+.desktop-cloud-dialog-title-row {
+  align-items: center;
+  gap: 6px;
+}
+
+.desktop-settings-dialog-title-row h2,
+.desktop-cloud-dialog-title-row h2 {
+  color: var(--desktop-task-dialog-header-text);
+  font-size: var(--po-font-size-chrome, var(--po-type-header-content, 13px));
+  font-weight: var(--po-font-weight-chrome, 500);
+  line-height: var(--po-type-header-line-height, 20px);
+}
+
+.desktop-settings-dialog-leading,
+.desktop-cloud-dialog-leading {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--desktop-task-dialog-header-text);
+}
+
+.desktop-settings-dialog-header .desktop-dialog-icon-button,
+.desktop-cloud-dialog-header .desktop-dialog-icon-button {
+  width: var(--desktop-chrome-control-size);
+  height: var(--desktop-titlebar-control-height);
+  border-radius: var(--desktop-toolbar-action-radius);
+  color: var(--desktop-task-dialog-header-text);
+}
+
+.desktop-settings-dialog-header .desktop-dialog-icon-button:hover:not(:disabled),
+.desktop-cloud-dialog-header .desktop-dialog-icon-button:hover:not(:disabled) {
+  background: var(--desktop-task-dialog-header-hover);
+  color: var(--po-text);
+}
+
+.desktop-settings-dialog-header .desktop-dialog-icon-button:focus-visible,
+.desktop-cloud-dialog-header .desktop-dialog-icon-button:focus-visible {
+  background: var(--desktop-task-dialog-header-hover);
+  box-shadow: inset 0 0 0 1px var(--desktop-task-dialog-header-focus);
+  color: var(--po-text);
+}
+
+.desktop-settings-dialog-layout,
+.desktop-cloud-dialog-layout {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: 196px minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.desktop-settings-dialog-navigation,
+.desktop-settings-dialog-content,
+.desktop-cloud-dialog-navigation,
+.desktop-cloud-dialog-content {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.desktop-settings-dialog-navigation,
+.desktop-cloud-dialog-navigation {
+  display: flex;
+  border-inline-end: 1px solid var(--po-border-subtle);
+  background: var(--po-sidebar);
+}
+
+.desktop-settings-dialog-navigation .desktop-settings-sidebar {
+  background: transparent;
+}
+
+.desktop-cloud-dialog-navigation .desktop-cloud-service-sidebar {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+}
+
+.desktop-settings-dialog-content,
+.desktop-cloud-dialog-content {
+  display: flex;
+  background: var(--po-canvas);
+}
+
+.desktop-settings-dialog-content .desktop-settings-body {
+  padding-block: 26px 40px;
+  padding-inline: clamp(24px, 4vw, 42px);
+}
+
+@media (max-width: 720px) {
+  .desktop-settings-dialog-backdrop,
+  .desktop-cloud-dialog-backdrop {
+    padding: 16px;
+  }
+
+  .desktop-settings-dialog,
+  .desktop-cloud-dialog {
+    width: calc(100vw - 32px) !important;
+    height: calc(100vh - 32px);
+    max-height: calc(100vh - 32px);
+  }
+
+  .desktop-settings-dialog-layout,
+  .desktop-cloud-dialog-layout {
+    grid-template-columns: 164px minmax(0, 1fr);
+  }
+
+  .desktop-settings-dialog-content .desktop-settings-body {
+    padding-inline: 20px;
+  }
+}
+
 .desktop-settings-body {
   display: grid;
   align-content: start;

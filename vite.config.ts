@@ -1,5 +1,5 @@
 import type { Plugin } from "vite";
-import { defineConfig } from "vitest/config";
+import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath, URL } from "node:url";
 import path from "node:path";
@@ -28,8 +28,7 @@ const desktopContentSecurityPolicyPlugin: Plugin = {
   apply: "build",
   transformIndexHtml: {
     order: "post",
-    handler: () => ({
-      tags: [{
+    handler: () => [{
         tag: "meta",
         attrs: {
           "http-equiv": "Content-Security-Policy",
@@ -37,7 +36,6 @@ const desktopContentSecurityPolicyPlugin: Plugin = {
         },
         injectTo: "head-prepend",
       }],
-    }),
   },
 };
 
@@ -103,16 +101,12 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        index: path.resolve(fileURLToPath(new URL(".", import.meta.url)), "index.html"),
-        "item-host": path.resolve(fileURLToPath(new URL(".", import.meta.url)), "item-host.html"),
+        index: path.resolve(fileURLToPath(new URL("./", import.meta.url)), "index.html"),
       },
     },
   },
   server: {
     strictPort: true,
     port: 5173,
-  },
-  test: {
-    exclude: ["archive/**", "node_modules/**", "dist/**", "release/**"],
   },
 });

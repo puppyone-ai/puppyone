@@ -3,7 +3,6 @@
 import {
   Component,
   createContext,
-  useEffect,
   useContext,
   useLayoutEffect,
   useRef,
@@ -253,7 +252,7 @@ export function DocumentSurfaceReadinessBoundary({
     onReadyRef.current = onReady;
   }, [onReady]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!readinessEnabled) return undefined;
     const root = rootRef.current;
     if (!root) return undefined;
@@ -264,7 +263,17 @@ export function DocumentSurfaceReadinessBoundary({
     let reported = false;
 
     const scheduleCheck = () => {
-      if (cancelled || reported || frame !== null) return;
+      if (cancelled || reported) return;
+      // Explicit first-layout readiness is a commit signal, not a paint timer.
+      // The host can hand off before paint; actual paint is measured separately.
+      if (!root.querySelector('[aria-busy="true"]') && root.querySelector('[data-document-surface-ready="true"]')) {
+        if (frame !== null) window.cancelAnimationFrame(frame);
+        frame = null;
+        reported = true;
+        onReadyRef.current?.();
+        return;
+      }
+      if (frame !== null) return;
       frame = window.requestAnimationFrame(checkReadiness);
     };
     const checkReadiness = () => {
@@ -275,7 +284,10 @@ export function DocumentSurfaceReadinessBoundary({
         return;
       }
 
-      stableFrames += 1;
+      // A viewer may explicitly certify its first measured projection. Busy
+      // descendants still block readiness; viewers without this contract keep
+      // the conservative two-frame fallback.
+      stableFrames = root.querySelector('[data-document-surface-ready="true"]') ? 2 : stableFrames + 1;
       if (stableFrames < 2) {
         scheduleCheck();
         return;
@@ -291,7 +303,7 @@ export function DocumentSurfaceReadinessBoundary({
 
     observer.observe(root, {
       attributes: true,
-      attributeFilter: ["aria-busy"],
+      attributeFilter: ["aria-busy", "data-document-surface-ready"],
       childList: true,
       subtree: true,
     });

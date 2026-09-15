@@ -18,7 +18,7 @@ export function getGitSyncState(
   if (!status?.isRepo) {
     return {
       branchLabel: t("source-control.sync.noBranch"),
-      upstreamLabel: t("source-control.status.noRepository"),
+      upstreamLabel: t("source-control.history.inactive"),
       remoteExists: false,
       setupRequired: true,
       setupTitle: t("source-control.sync.chooseTarget"),

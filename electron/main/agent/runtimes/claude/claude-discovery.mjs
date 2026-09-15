@@ -9,7 +9,6 @@ import {
   discoverExecutable,
   runBounded,
 } from "../../transports/executable-discovery.mjs";
-import { claudeCliCandidates } from "./claude-cli-candidates.mjs";
 
 export const CLAUDE_AGENT_SDK_VERSION = "0.3.159";
 // Compatibility is verified through the official SDK initialization handshake.
@@ -33,6 +32,7 @@ export async function discoverClaudeRuntime({
   env = process.env,
   platform = process.platform,
   homedir = os.homedir(),
+  readEnvironment,
   tmpdir = os.tmpdir(),
   sdkLoader = () => import("@anthropic-ai/claude-agent-sdk"),
 } = {}) {
@@ -61,16 +61,15 @@ export async function discoverClaudeRuntime({
   let probeDirectory = null;
   let local;
   try {
-    const additionalCandidates = await claudeCliCandidates({ fsModule, env, homedir, platform });
     local = await discoverExecutable({
       signal,
-      executableNames: [platform === "win32" ? "claude.exe" : "claude"],
-      additionalCandidates,
+      installationId: "claude",
       fsModule,
       spawn,
       env,
       platform,
       homedir,
+      readEnvironment,
       parseVersion: parseClaudeVersion,
       minimumVersion: CLAUDE_CODE_TESTED_BASELINE,
       label: "Claude Code",
@@ -84,9 +83,6 @@ export async function discoverClaudeRuntime({
           CLAUDE_CONFIG_DIR: probeDirectory,
         };
       },
-      // Explicit GUI-safe candidates cover NVM/Volta/asdf installs without
-      // executing the user's interactive shell during application startup.
-      loadLoginShellEnvironment: false,
     });
   } finally {
     try {

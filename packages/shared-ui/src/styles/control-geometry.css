@@ -8,6 +8,8 @@
 :root {
   /* Product default is the Medium application scale. */
   --po-control-size: 32px;
+  --po-pane-motion-duration: 360ms;
+  --po-pane-motion-easing: cubic-bezier(0.42, 0, 0.58, 1);
 }
 
 :root,

@@ -1,4 +1,4 @@
-import { Blocks, Cloud, Folder } from "lucide-react";
+import { Blocks } from "lucide-react";
 import type { MessageFormatter } from "@puppyone/localization";
 import type { DesktopView } from "../../../components/DesktopCloudShell";
 import type { GitStatusEntry, GitStatusSnapshot } from "../../../types/electron";
@@ -9,20 +9,12 @@ import type {
 } from "./types";
 
 const DESKTOP_NAV_ITEMS: readonly DesktopNavigationItem[] = [
-  { view: "data", labelId: "shell.navigation.files", icon: Folder },
   { view: "git", labelId: "shell.navigation.changes", icon: VersionControlIcon, iconSize: 18 },
   { view: "plugins", labelId: "shell.navigation.plugins", icon: Blocks },
 ] as const;
 
-const CLOUD_HUB_ITEM: DesktopNavigationItem = {
-  view: "cloud",
-  labelId: "shell.navigation.cloud",
-  icon: Cloud,
-};
-
 export function resolveNavigationItems({
   availableSurfaceIds,
-  cloudHubEnabled = false,
   gitEnabled = true,
   pluginsEnabled = false,
 }: DesktopNavigationAvailability) {
@@ -30,7 +22,6 @@ export function resolveNavigationItems({
     const available = new Set(availableSurfaceIds);
     return {
       localItems: DESKTOP_NAV_ITEMS.filter(({ view }) => available.has(view)),
-      cloudHubItems: available.has("cloud") ? [CLOUD_HUB_ITEM] : [],
     };
   }
 
@@ -40,7 +31,6 @@ export function resolveNavigationItems({
         (gitEnabled || item.view !== "git")
         && (pluginsEnabled || item.view !== "plugins")
       )),
-    cloudHubItems: cloudHubEnabled ? [CLOUD_HUB_ITEM] : [],
   };
 }
 

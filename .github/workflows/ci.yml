@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - qubits
 
 permissions:
   contents: read
@@ -63,7 +64,9 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-checks-${{ matrix.id }}
-          path: artifacts/release-checks/
+          path: |
+            artifacts/release-checks/
+            artifacts/tests/
           retention-days: 7
 
   source-checks:
@@ -92,13 +95,19 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-checks-source
-          path: artifacts/release-checks/
+          path: |
+            artifacts/release-checks/
+            artifacts/tests/
           retention-days: 7
 
   app-checks:
-    name: Pre-release Checks (app)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    name: Pre-release Checks (app, ${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -113,6 +122,7 @@ jobs:
         run: npm ci
 
       - name: Prepare Linux display and multilingual fonts
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install --yes xvfb fonts-noto-cjk
@@ -124,8 +134,10 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: release-checks-app
-          path: artifacts/release-checks/
+          name: release-checks-app-${{ matrix.os }}
+          path: |
+            artifacts/release-checks/
+            artifacts/tests/
           retention-days: 7
 
   build:

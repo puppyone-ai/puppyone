@@ -3,6 +3,7 @@ import {
   SidebarRoot,
   SidebarScrollArea,
 } from "@puppyone/shared-ui";
+import { MoreHorizontal } from "lucide-react";
 import { Fragment, useMemo, useState } from "react";
 import { useLocalization } from "@puppyone/localization";
 import {
@@ -13,11 +14,12 @@ import {
 } from "./viewModel";
 import { createGitLocalStatusPanels } from "./sidebar/GitLocalStatusPanels";
 import {
-  GitSidebarHistoryResizer,
+  GitSidebarLoadingState,
   GitSidebarSectionResizer,
 } from "./sidebar/GitSidebarPrimitives";
-import { GitSidebarHistoryPanel } from "./sidebar/GitSidebarHistoryPanel";
+import { GitIncomingUpdateNotice } from "./sidebar/GitIncomingUpdateNotice";
 import { GitRemotePrompt } from "./sidebar/GitRemoteSections";
+import { GitRepositorySetupAction } from "./GitRepositorySetupAction";
 import type {
   GitSidebarProps,
   GitSidebarRenderPanel,
@@ -33,21 +35,16 @@ export type { GitSidebarProps } from "./sidebar/sourceControlSidebarTypes";
 export function GitSidebar({ repository, view, actions, cloudBackup }: GitSidebarProps) {
   const { status, puppyoneConfig, gitDisplayMode, fileIconTheme } = repository;
   const {
-    selectedCommitId,
     selectedWorkingFile,
-    historyLoading,
     operationLoading,
     operationError,
     loading,
     error,
   } = view;
-  const { selectCommit, selectWorkingFile } = actions;
   const { t, formatNumber } = useLocalization();
   const [backupCardDismissed, setBackupCardDismissed] = useState(false);
-  const [historyExpanded, setHistoryExpanded] = useState(true);
   const { expanded, toggle } = useGitSidebarExpansionState();
   const sourceControl = status?.sourceControl ?? null;
-  const historyCommits = status?.allCommits ?? status?.commits ?? [];
   const currentBranch = status?.branches.find((branch) => branch.current) ?? null;
   const syncState = getGitSyncState(status, currentBranch, puppyoneConfig, t);
   const hostingMode = getGitHostingMode(status, puppyoneConfig);
@@ -66,27 +63,20 @@ export function GitSidebar({ repository, view, actions, cloudBackup }: GitSideba
     hasStagedAction: Boolean(
       sidebarModel.stagedPrimaryAction && !sidebarModel.stagedPrimaryAction.disabled,
     ),
-    hasSyncAction: false,
+    hasSyncAction: syncState.behind > 0 && !syncState.pullDisabled,
     hasCommittedAction: Boolean(
       sidebarModel.committedPrimaryAction && !sidebarModel.committedPrimaryAction.disabled,
     ),
     hasStageAndCommitAction: sidebarModel.showStageAndCommitAction,
   });
   const scrollableContentRevision = useMemo(
-    () => ({ expanded, historyExpanded, loading, status }),
-    [expanded, historyExpanded, loading, status],
+    () => ({ expanded, loading, status }),
+    [expanded, loading, status],
   );
   const {
     activeResizeSplit,
-    beginHistoryResize,
     beginPanelResize,
-    changesPaneRef,
-    getHistoryPaneStyle,
     getPanelStyle,
-    historyPaneHeight,
-    historyPaneRef,
-    resetHistoryPaneHeight,
-    resizeHistoryByKeyboard,
     resizePanelsByKeyboard,
     setPanelRef,
     sidebarListRef,
@@ -104,20 +94,54 @@ export function GitSidebar({ repository, view, actions, cloudBackup }: GitSideba
     t,
     onToggle: toggle,
   });
+  const hasStashableChanges = sidebarModel.stagedResources.length > 0
+    || sidebarModel.workingResources.length > 0;
+  const hasDiscardableChanges = sidebarModel.mergeResources.length > 0
+    || sidebarModel.workingResources.length > 0;
+  const showSecondaryActions = hasStashableChanges || hasDiscardableChanges;
+  const repositorySetupVisible = Boolean(status && !status.isRepo);
+  const closeSecondaryActions = (target: HTMLElement) => {
+    target.closest("details")?.removeAttribute("open");
+  };
 
   return (
     <SidebarRoot className="desktop-git-sidebar">
-      <SidebarScrollArea ref={sidebarListRef} className="desktop-git-sidebar-list">
+      <SidebarScrollArea
+        ref={sidebarListRef}
+        className="desktop-git-sidebar-list"
+        data-repository-setup={repositorySetupVisible ? "true" : undefined}
+      >
         {error ? (
           <SidebarEmptyState tone="danger">{error}</SidebarEmptyState>
+        ) : !status && loading ? (
+          <GitSidebarLoadingState
+            className="desktop-git-status-loading"
+            label={t("source-control.status.readingGit")}
+          />
         ) : status && !status.isRepo ? (
-          <SidebarEmptyState layout={operationError ? "vertical" : "inline"}>
-            <span>{t("source-control.status.noRepository")}</span>
-            {operationError && <small className="po-sidebar-error-text">{operationError}</small>}
-          </SidebarEmptyState>
+          <GitRepositorySetupAction
+            title={t("source-control.history.inactive")}
+            label={t("source-control.setup.enable")}
+            pendingLabel={t("source-control.setup.enabling")}
+            pending={operationLoading === "init"}
+            error={operationError}
+            onEnable={actions.initialize}
+          />
         ) : (
-          <>
-            <div ref={changesPaneRef} className="desktop-git-changes-pane">
+          <div className="desktop-git-changes-pane">
+              {syncState.behind > 0 && (
+                <div className="desktop-git-sync-priority-region">
+                  <GitIncomingUpdateNotice
+                    count={syncState.behind}
+                    diverged={syncState.ahead > 0}
+                    title={syncState.pullTitle}
+                    disabled={disabled || syncState.pullDisabled}
+                    operationLoading={operationLoading}
+                    primary={primaryActionSlot === "sync"}
+                    onPull={actions.pull}
+                  />
+                </div>
+              )}
               <div className="desktop-git-resizable-stack">
                 {panels.map((panel, index) => (
                   <Fragment key={panel.id}>
@@ -142,6 +166,49 @@ export function GitSidebar({ repository, view, actions, cloudBackup }: GitSideba
               </div>
 
               <div className="desktop-git-fixed-region">
+                {showSecondaryActions && (
+                  <div className="desktop-git-secondary-actions">
+                    {(hasStashableChanges || hasDiscardableChanges) && (
+                      <details className="desktop-git-more-actions">
+                        <summary
+                          title={t("source-control.action.more")}
+                          aria-label={t("source-control.action.more")}
+                        >
+                          <MoreHorizontal size={15} aria-hidden="true" />
+                        </summary>
+                        <div className="desktop-git-more-actions-menu">
+                          {hasStashableChanges && (
+                            <button
+                              type="button"
+                              disabled={disabled || sidebarModel.hasConflicts || Boolean(sidebarModel.repositoryOperation)}
+                              onClick={(event) => {
+                                closeSecondaryActions(event.currentTarget);
+                                void actions.stash();
+                              }}
+                            >
+                              {operationLoading === "stash"
+                                ? t("source-control.action.stashing")
+                                : t("source-control.action.stash")}
+                            </button>
+                          )}
+                          {hasDiscardableChanges && (
+                            <button
+                              className="danger"
+                              type="button"
+                              disabled={disabled}
+                              onClick={(event) => {
+                                closeSecondaryActions(event.currentTarget);
+                                void actions.discardAll();
+                              }}
+                            >
+                              {t("source-control.action.discardAll")}
+                            </button>
+                          )}
+                        </div>
+                      </details>
+                    )}
+                  </div>
+                )}
                 {status && (
                   <GitRemotePrompt
                     state={syncState}
@@ -163,39 +230,7 @@ export function GitSidebar({ repository, view, actions, cloudBackup }: GitSideba
                   </div>
                 )}
               </div>
-            </div>
-
-            {historyExpanded ? (
-              <GitSidebarHistoryResizer
-                active={activeResizeSplit === "changes:history"}
-                value={historyPaneHeight}
-                onPointerDown={beginHistoryResize}
-                onKeyboardResize={resizeHistoryByKeyboard}
-                onReset={resetHistoryPaneHeight}
-              />
-            ) : (
-              <div
-                className="desktop-git-history-resizer is-static"
-                aria-hidden="true"
-              />
-            )}
-
-            <section
-              ref={historyPaneRef}
-              className={`desktop-git-history-pane ${historyExpanded ? "expanded" : "collapsed"}`}
-              style={historyExpanded ? getHistoryPaneStyle() : undefined}
-            >
-              <GitSidebarHistoryPanel
-                commits={historyCommits}
-                selectedCommitId={selectedCommitId}
-                status={status}
-                loading={historyLoading || (loading && !status)}
-                expanded={historyExpanded}
-                onToggle={() => setHistoryExpanded((current) => !current)}
-                onSelectCommit={selectCommit}
-              />
-            </section>
-          </>
+          </div>
         )}
       </SidebarScrollArea>
     </SidebarRoot>

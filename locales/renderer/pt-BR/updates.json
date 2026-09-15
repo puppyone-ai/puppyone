@@ -1,5 +1,8 @@
 {
   "settings.title": "Atualizações do aplicativo",
+  "settings.autoDownload.title": "Baixar atualizações automaticamente",
+  "settings.autoDownload.detail": "Baixa novas versões em segundo plano. Reinicie quando estiver pronto.",
+  "settings.autoDownload.error": "Não foi possível salvar esta preferência de atualização.",
   "action.unavailable": "Indisponível",
   "action.developmentBuild": "Versão de desenvolvimento",
   "action.upToDate": "Já está atualizado",

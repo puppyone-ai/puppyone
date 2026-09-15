@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
   type ReactNode,
@@ -116,6 +117,7 @@ export function DesktopEditorSplitView({
   onResizeSplit,
   onSplitPane,
 }: DesktopEditorSplitViewProps) {
+  const { t } = useLocalization();
   const editorById = useMemo(
     () => new Map(editorGroup.editors.map((editor) => [editor.id, editor])),
     [editorGroup.editors],
@@ -125,8 +127,26 @@ export function DesktopEditorSplitView({
   const paneCount = panes.length;
   const paneHosts = usePersistentEditorPaneHosts(panes.map((pane) => pane.id));
   const [openActionsPaneId, setOpenActionsPaneId] = useState<string | null>(null);
+  const closingPaneRef = useRef<EditorPaneLayoutLeaf | null>(null);
+  const closePaneFromMenu = useCallback((paneId: string) => {
+    closingPaneRef.current = panes.find((pane) => pane.id === paneId) ?? null;
+    onClosePane(paneId);
+  }, [onClosePane, panes]);
+
+  useEffect(() => {
+    const closing = closingPaneRef.current;
+    if (!closing || panes.some((pane) => pane.id === closing.id && pane.editorId === closing.editorId)) return;
+    closingPaneRef.current = null;
+    // The menu and its trigger have gone away. Restore a format-independent
+    // keyboard target only after the controller has accepted the close.
+    paneHosts.get(layout.activePaneId)?.querySelector<HTMLButtonElement>(".desktop-editor-pane-handle")
+      ?.focus({ preventScroll: true });
+  }, [layout.activePaneId, paneHosts, panes]);
   const paneMove = usePaneMoveDrag(onMovePane);
-  const fileDrop = useExplorerFileDrop(workspace.id, onOpenAtPaneEdge);
+  const fileDrop = useExplorerFileDrop(workspace.id, onOpenAtPaneEdge, {
+    workspacePath: workspace.path,
+    paneIds: panes.map((pane) => pane.id),
+  });
 
   useEffect(() => {
     if (openActionsPaneId && !panes.some((pane) => pane.id === openActionsPaneId)) {
@@ -140,6 +160,9 @@ export function DesktopEditorSplitView({
 
   return (
     <div className="desktop-editor-split-view" data-pane-count={paneCount}>
+      {fileDrop.dropFailed && (
+        <div className="desktop-workspace-surface-alert" role="alert">{t("workspace.drag.exportFailed")}</div>
+      )}
       <EditorLayoutNode
         node={layout.root}
         touchesBlockEnd
@@ -168,7 +191,7 @@ export function DesktopEditorSplitView({
           viewerExtensionAdapter={viewerExtensionAdapter}
           workspace={workspace}
           resolveWorkspaceResource={resolveWorkspaceResource}
-          onClosePane={onClosePane}
+          onClosePane={closePaneFromMenu}
           onFocusPane={onFocusPane}
           onOpenActionsPaneChange={setOpenActionsPaneId}
           onSplitPane={onSplitPane}

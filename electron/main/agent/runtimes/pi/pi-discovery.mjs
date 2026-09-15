@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import os from "node:os";
-import path from "node:path";
 import { spawn as nodeSpawn } from "node:child_process";
 import { redactSecretText } from "../../agent-events.mjs";
 import { createCachedRuntimeDiscovery } from "../../connections/runtime-discovery-cache.mjs";
@@ -23,22 +22,19 @@ export async function discoverPiExecutable({
   env = process.env,
   platform = process.platform,
   homedir = os.homedir(),
+  readEnvironment,
   configuredExecutable = null,
 } = {}) {
-  const executableName = platform === "win32" ? "pi.exe" : "pi";
   const result = await discoverExecutable({
-      signal,
-    executableNames: [executableName],
-    additionalCandidates: [
-      configuredExecutable,
-      path.join(homedir, ".hermes", "node", "bin", executableName),
-      path.join(homedir, ".bun", "bin", executableName),
-    ].filter(Boolean),
+    signal,
+    installationId: "pi",
+    additionalCandidates: [configuredExecutable].filter(Boolean),
     fsModule,
     spawn,
     env,
     platform,
     homedir,
+    readEnvironment,
     parseVersion: (value) => parseSemanticVersion(value),
     minimumVersion: null,
     label: "Pi",

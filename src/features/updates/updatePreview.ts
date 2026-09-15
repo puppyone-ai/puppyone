@@ -19,14 +19,14 @@ export function createDesktopUpdatePreviewState({
   requestedStatus,
   version,
 }: DesktopUpdatePreviewOptions): DesktopUpdateState | null {
-  if (!isDevelopment || requestedStatus?.trim().toLowerCase() !== "available") {
+  if (!isDevelopment || requestedStatus?.trim().toLowerCase() !== "downloaded") {
     return null;
   }
 
   const availableVersion = version?.trim() || "0.3.0-preview.1";
   return {
     ...FALLBACK_UPDATE_STATE,
-    status: "available",
+    status: "downloaded",
     currentVersion: "0.2.1-dev.preview",
     channel: "dev",
     availableVersion,

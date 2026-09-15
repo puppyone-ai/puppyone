@@ -196,7 +196,7 @@
   "markdown.mermaid.renderFailedDetail": "この Mermaid ダイアグラムをレンダリングできませんでした: {detail}",
   "markdown.mermaid.rendering": "ダイアグラムをレンダリング中…",
   "markdown.missingLinkedNote": "リンク先のノートがありません: {target}",
-  "markdown.openLinkHint": "Cmd/Ctrl キーを押しながらクリックして開く: {target}",
+  "markdown.openLinkHint": "クリックして開く: {target}",
   "markdown.preparingPreview": "ライブプレビューを準備中…",
   "markdown.previewUnavailable": "ライブプレビューを利用できません。ソースの編集は引き続き利用できます。",
   "table.actions": "テーブル操作",

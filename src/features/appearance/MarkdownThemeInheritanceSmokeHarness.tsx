@@ -24,8 +24,20 @@ const DOCUMENT: DocumentDataNode = Object.freeze({
 const CONTENT = [
   "# Newspaper inheritance",
   "",
-  "主题字体必须穿过真实的文档宿主并到达 Markdown 编辑器。",
+  "主题字体必须穿过真实的文档宿主并到达 [Markdown 编辑器](#interaction-target)。",
+  "",
+  "> Supporting quote with [`linked code`](#interaction-target).",
+  "",
+  ...Array.from({ length: 28 }, (_, index) => `Cursor verification spacer ${index + 1}.`),
+  "",
+  "## Interaction target",
 ].join("\n");
+
+const DOCUMENT_PERSISTENCE = Object.freeze({
+  kind: "local-fs" as const,
+  storageIdentity: "smoke:markdown-link-interaction",
+  persist: async () => ({ ok: true as const, version: "smoke:v1" }),
+});
 
 /** Chromium integration fixture for the Sub Theme -> host token -> real
  * CodeMirror cascade. Unit DOM emulators do not implement this CSS contract. */
@@ -72,6 +84,7 @@ export function MarkdownThemeInheritanceSmokeHarness() {
       <main
         className="app-shell"
         data-po-appearance-root="true"
+        data-pointer-cursors="false"
         data-root-theme-id="default"
         data-sub-theme-id={subThemeId}
         {...typographyRootProps}
@@ -85,6 +98,7 @@ export function MarkdownThemeInheritanceSmokeHarness() {
             type: "markdown",
             content: CONTENT,
           }}
+          documentPersistence={DOCUMENT_PERSISTENCE}
           showHeader={false}
           hideSourceView
         />

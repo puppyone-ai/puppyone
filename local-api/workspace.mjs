@@ -1642,6 +1642,16 @@ export async function commitWorkspaceGit(rootPath, message, options = {}) {
   return getWorkspaceGitStatus(root);
 }
 
+export async function stashWorkspaceGitChanges(rootPath) {
+  const root = resolveWorkspacePath(rootPath, null);
+  await execGit(root, ["stash", "push", "--include-untracked", "-m", "PuppyOne saved changes"], {
+    timeout: GIT_MUTATION_TIMEOUT_MS,
+  }).catch((error) => {
+    throw new Error(`Unable to stash changes: ${getGitErrorOutput(error)}`);
+  });
+  return getWorkspaceGitStatus(root);
+}
+
 export async function continueWorkspaceGitOperation(rootPath) {
   const root = resolveWorkspacePath(rootPath, null);
   const status = await getWorkspaceGitStatus(root);

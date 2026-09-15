@@ -673,6 +673,10 @@ export async function commitWorkspaceGit(
   });
 }
 
+export async function stashWorkspaceGitChanges(rootPath: string): Promise<GitStatusSnapshot> {
+  return getDesktopBridge().stashGitChanges({ rootPath });
+}
+
 export async function continueWorkspaceGitOperation(rootPath: string): Promise<GitStatusSnapshot> {
   return getDesktopBridge().continueGitOperation({ rootPath });
 }

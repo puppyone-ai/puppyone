@@ -2,7 +2,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { deriveLocalConnection } from "./local-agent-connection-policy.mjs";
-import { resolveFirstExecutable } from "./probes/executable-candidates.mjs";
+import { createExecutableDiscoveryPort } from "../../platform/common/executable-discovery-port.mjs";
+import { createLocalAgentExecutableResolver } from "../../local-agent-installation/executable-resolver.mjs";
 import { createLocalAgentToolRegistry } from "./tools/local-agent-tool-registry.mjs";
 import { sanitizeAgentLocalConnectionsSnapshot } from "../../../../shared/agent-contract/local-connection-schema.mjs";
 
@@ -23,18 +24,25 @@ export function createLocalAgentInventory({
   fsModule = fs,
   logger = console,
   toolDescriptors = createLocalAgentToolRegistry(),
-  resolveCandidate = async (tool) => resolveFirstExecutable({
-    names: tool.executableNames,
-    configuredPaths: typeof tool.candidatePaths === "function"
-      ? await tool.candidatePaths({ env, homedir, platform })
-      : [],
-    env,
-    homedir,
-    platform,
-  }),
+  resolveCandidate = null,
   probes = {},
+  readEnvironment,
 } = {}) {
   const tools = createLocalAgentToolRegistry(toolDescriptors);
+  const installationResolver = createLocalAgentExecutableResolver({
+    discoveryPort: createExecutableDiscoveryPort({
+      env,
+      fsModule,
+      homedir,
+      nodePlatform: platform,
+      readEnvironment,
+    }),
+  });
+  const findCandidate = resolveCandidate ?? (async (tool, context) => {
+    const result = await installationResolver.resolve(tool.installationId, { context });
+    if (result.status === "failed") throw new Error(result.reasonCode);
+    return result.status === "found" ? result.candidate : null;
+  });
   let cached = null;
   let inFlight = null;
   let activeController = null;
@@ -117,16 +125,26 @@ export function createLocalAgentInventory({
   }
 
   async function scan({ workspaceRoot, startedAt, signal }) {
+    let installationContext = null;
+    let installationContextError = null;
+    if (!resolveCandidate) {
+      try {
+        installationContext = await installationResolver.createContext({ signal });
+      } catch (error) {
+        installationContextError = error;
+      }
+    }
     const outcomes = await Promise.all(tools.map(async (tool) => {
       try {
-        const candidate = await resolveCandidate(tool);
+        if (installationContextError) throw installationContextError;
+        const candidate = await findCandidate(tool, installationContext);
         const probe = probes[tool.id] ?? tool.probe;
         if (typeof probe !== "function") throw new Error("Missing local tool probe.");
         const result = await probe({
           candidate,
           appVersion,
           workspaceRoot: workspaceRoot || undefined,
-          env,
+          env: candidate?.environment ?? env,
           signal,
         });
         return {

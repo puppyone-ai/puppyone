@@ -243,6 +243,65 @@
   width: var(--desktop-titlebar-tool-action-width);
 }
 
+.desktop-titlebar-actions .desktop-titlebar-changes {
+  width: auto;
+  min-width: var(--desktop-chrome-control-size);
+  gap: 4px;
+  padding-inline: 7px 6px;
+}
+
+.desktop-titlebar-git-status {
+  display: inline-flex;
+  height: 20px;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.desktop-titlebar-git-indicator {
+  display: inline-flex;
+  height: 20px;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-radius: 4px;
+  color: var(--desktop-titlebar-text-subtle, var(--desktop-titlebar-text-muted));
+  font-size: var(--po-type-header-meta, 13px);
+  font-weight: var(--po-text-weight-regular, 400);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.desktop-titlebar-git-indicator.local {
+  min-width: 0;
+  justify-content: flex-start;
+  color: var(--desktop-titlebar-text-subtle, var(--desktop-titlebar-text-muted));
+}
+
+.desktop-titlebar-git-indicator.local:not(.idle) svg {
+  color: color-mix(in srgb, var(--po-warning) 76%, white);
+}
+
+.desktop-titlebar-git-indicator svg {
+  display: block;
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+}
+
+.desktop-titlebar-git-indicator.incoming svg {
+  color: color-mix(in srgb, var(--po-accent) 74%, white);
+}
+
+.desktop-titlebar-git-indicator.outgoing svg {
+  color: color-mix(in srgb, var(--po-success) 72%, white);
+}
+
+.desktop-titlebar-git-indicator.conflict {
+  color: color-mix(in srgb, var(--po-danger) 78%, white);
+}
+
 .desktop-titlebar-action:hover {
   background: var(--desktop-titlebar-hover);
   color: var(--desktop-titlebar-text-muted);
@@ -308,6 +367,13 @@
 
 .desktop-titlebar-workspace-button:focus-visible {
   box-shadow: inset 0 0 0 1px var(--desktop-titlebar-focus);
+}
+
+.desktop-titlebar-workspace-mark {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  color: var(--desktop-titlebar-text-subtle, var(--desktop-titlebar-text-muted));
 }
 
 .desktop-titlebar-context-icon-button {

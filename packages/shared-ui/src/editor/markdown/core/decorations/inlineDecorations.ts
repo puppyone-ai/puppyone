@@ -25,6 +25,13 @@ import {
   type OccupiedRange,
 } from "./decorationPrimitives";
 import { markdownLocalizationFacet } from "../editor/markdownLocalization";
+import { markdownLinkCommandsFacet } from "../editor/markdownLivePreviewContext";
+import { getMarkdownHeadingPosition } from "../links/markdownHeadingIndex";
+import {
+  resolveMarkdownHrefInteraction,
+  resolveWikiLinkInteraction,
+  type MarkdownLinkInteraction,
+} from "../state/markdownLinkInteraction";
 
 export function addInlineMarkdownDecorations(
   state: EditorState,
@@ -60,7 +67,15 @@ export function addInlineMarkdownDecorations(
       // Emit its range decorations exactly once, from the line that owns the
       // opening marker.
       if (element.from < lineFrom || element.from > lineTo) continue;
-      addInlineHtmlElementDecoration(element, plan, builders, inlineRevealRange);
+      addInlineHtmlElementDecoration(
+        state,
+        element,
+        plan,
+        builders,
+        inlineRevealRange,
+        markdownLinkGraph,
+        documentPath,
+      );
       continue;
     }
 
@@ -98,10 +113,10 @@ export function addInlineMarkdownDecorations(
 
     switch (element.kind) {
       case "wikiLink":
-        addWikiLinkElementDecoration(element, lineFrom, tokenLookup, builders, inlineRevealRange, markdownLinkGraph, documentPath, t);
+        addWikiLinkElementDecoration(state, element, lineFrom, tokenLookup, builders, inlineRevealRange, markdownLinkGraph, documentPath, t);
         break;
       case "link":
-        addLinkElementDecoration(element, lineFrom, text, tokenLookup, builders, inlineRevealRange, markdownLinkGraph, documentPath, t);
+        addLinkElementDecoration(state, element, lineFrom, text, tokenLookup, builders, inlineRevealRange, markdownLinkGraph, documentPath, t);
         break;
       case "strong":
         addDelimitedInlineElementDecoration(element, builders, inlineRevealRange, "cm-md-syntax-strong");
@@ -174,19 +189,32 @@ function compareInlineDecorationPriority(left: MarkdownElement, right: MarkdownE
 }
 
 function addInlineHtmlElementDecoration(
+  state: EditorState,
   element: MarkdownElement,
   plan: MarkdownElementPlan,
   builders: MarkdownDecorationBuilders,
   inlineRevealRange: InlineRevealRange | null,
+  markdownLinkGraph: MarkdownLinkGraph | null,
+  documentPath: string,
 ) {
   if (element.kind !== "inlineHtml") return;
-  applyInlineHtmlPlan(plan, builders, inlineRevealRange);
+  applyInlineHtmlPlan(
+    state,
+    plan,
+    builders,
+    inlineRevealRange,
+    markdownLinkGraph,
+    documentPath,
+  );
 }
 
 function applyInlineHtmlPlan(
+  state: EditorState,
   plan: MarkdownElementPlan,
   builders: MarkdownDecorationBuilders,
   inlineRevealRange: InlineRevealRange | null,
+  markdownLinkGraph: MarkdownLinkGraph | null,
+  documentPath: string,
 ) {
   if (plan.presentation === "visibleSource") return;
 
@@ -226,11 +254,27 @@ function applyInlineHtmlPlan(
   }
 
   if (plan.contentRange.from >= plan.contentRange.to) return;
+  const attributes = { ...plan.mark.attributes };
+  const href = attributes["data-md-href"];
+  if (href) {
+    delete attributes.role;
+    delete attributes.tabindex;
+    delete attributes["aria-disabled"];
+    Object.assign(attributes, getMarkdownLinkInteractionAttributes(
+      resolveMarkdownHrefInteraction(href, {
+        documentPath,
+        linkGraph: markdownLinkGraph,
+        linkCommands: state.facet(markdownLinkCommandsFacet),
+        hasSameDocumentHeading: (fragment) => getMarkdownHeadingPosition(state, fragment) !== null,
+        editing: revealSourceSyntax,
+      }),
+    ));
+  }
   builders.decorations.push(
     Decoration.mark({
       tagName: plan.mark.tagName,
       class: plan.mark.className ?? "cm-md-inline-html",
-      attributes: plan.mark.attributes,
+      attributes,
       inclusive: false,
     }).range(plan.contentRange.from, plan.contentRange.to),
   );
@@ -259,6 +303,7 @@ function addEscapeElementDecoration(element: MarkdownElement, builders: Markdown
 }
 
 function addWikiLinkElementDecoration(
+  state: EditorState,
   element: MarkdownElement,
   lineFrom: number,
   tokenLookup: InlineTokenLookup,
@@ -273,13 +318,22 @@ function addWikiLinkElementDecoration(
   if (!token || !element.contentRange || element.contentRange.from >= element.contentRange.to) return;
 
   const resolvedTarget = markdownLinkGraph?.resolveWikiLink(documentPath, token.target) ?? null;
+  const revealSourceSyntax = isRevealedInlineRange(element.from, element.to, inlineRevealRange);
+  const interaction = resolveWikiLinkInteraction(token.target, {
+    documentPath,
+    linkGraph: markdownLinkGraph,
+    linkCommands: state.facet(markdownLinkCommandsFacet),
+    hasSameDocumentHeading: (fragment) => getMarkdownHeadingPosition(state, fragment) !== null,
+    editing: revealSourceSyntax,
+  });
   const classes = [
     "cm-md-syntax-link",
     "cm-md-wiki-link-label",
-    resolvedTarget?.exists ? "is-resolved" : "is-missing",
+    resolvedTarget?.exists ? "is-resolved" : "",
+    interaction.action === "unavailable" && interaction.reason === "unresolved" ? "is-missing" : "",
     resolvedTarget?.ambiguous ? "is-ambiguous" : "",
   ].filter(Boolean).join(" ");
-  const revealSourceSyntax = isRevealedInlineRange(element.from, element.to, inlineRevealRange);
+  const linkTitle = getWikiLinkTitle(resolvedTarget, token.target, t);
 
   addInlineSourceSyntaxDecorations(builders, element, revealSourceSyntax);
   builders.decorations.push(
@@ -287,16 +341,16 @@ function addWikiLinkElementDecoration(
       class: classes,
       attributes: {
         "data-wiki-target": token.target,
-        role: "link",
-        tabindex: "0",
-        "aria-label": getWikiLinkTitle(resolvedTarget, token.target, t),
-        title: getMarkdownOpenTitle(getWikiLinkTitle(resolvedTarget, token.target, t), t),
+        ...getMarkdownLinkInteractionAttributes(interaction),
+        "aria-label": linkTitle,
+        title: getMarkdownInteractionTitle(interaction, linkTitle, t),
       },
     }).range(element.contentRange.from, element.contentRange.to),
   );
 }
 
 function addLinkElementDecoration(
+  state: EditorState,
   element: MarkdownElement,
   lineFrom: number,
   text: string,
@@ -315,16 +369,25 @@ function addLinkElementDecoration(
   if (!href) return;
 
   const resolvedTarget = markdownLinkGraph?.resolveMarkdownLink(documentPath, href) ?? null;
+  const revealSourceSyntax = isRevealedInlineRange(element.from, element.to, inlineRevealRange);
+  const interaction = resolveMarkdownHrefInteraction(href, {
+    documentPath,
+    linkGraph: markdownLinkGraph,
+    linkCommands: state.facet(markdownLinkCommandsFacet),
+    hasSameDocumentHeading: (fragment) => getMarkdownHeadingPosition(state, fragment) !== null,
+    editing: revealSourceSyntax,
+  });
   const linkClasses = [
     "cm-md-syntax-link",
     "cm-md-link-label",
     resolvedTarget ? "cm-md-document-link-label" : "",
     resolvedTarget?.exists ? "is-resolved" : "",
     resolvedTarget && !resolvedTarget.exists ? "is-missing" : "",
+    interaction.action === "unavailable" && interaction.reason === "unresolved" ? "is-missing" : "",
     resolvedTarget?.ambiguous ? "is-ambiguous" : "",
     isExternalMarkdownHref(href) && isSafeHref(href) ? "is-external" : "",
   ].filter(Boolean).join(" ");
-  const revealSourceSyntax = isRevealedInlineRange(element.from, element.to, inlineRevealRange);
+  const linkTitle = getMarkdownLinkTitle(resolvedTarget, href, t);
 
   addInlineSourceSyntaxDecorations(builders, element, revealSourceSyntax);
   builders.decorations.push(
@@ -332,13 +395,36 @@ function addLinkElementDecoration(
       class: linkClasses,
       attributes: {
         "data-md-href": href,
-        role: "link",
-        tabindex: "0",
-        "aria-label": getMarkdownLinkTitle(resolvedTarget, href, t),
-        title: getMarkdownOpenTitle(getMarkdownLinkTitle(resolvedTarget, href, t), t),
+        ...getMarkdownLinkInteractionAttributes(interaction),
+        "aria-label": linkTitle,
+        title: getMarkdownInteractionTitle(interaction, linkTitle, t),
       },
     }).range(element.contentRange.from, element.contentRange.to),
   );
+}
+
+function getMarkdownLinkInteractionAttributes(
+  interaction: MarkdownLinkInteraction,
+): Record<string, string> {
+  if (interaction.action === "navigate") {
+    return {
+      "data-md-link-interaction": "navigate",
+      "data-po-content-interaction": "navigation",
+      role: "link",
+      tabindex: "0",
+    };
+  }
+  if (interaction.action === "edit") {
+    return {
+      "data-md-link-interaction": "edit",
+      "data-po-content-interaction": "text",
+    };
+  }
+  return {
+    "data-md-link-interaction": "unavailable",
+    "data-po-content-interaction": "text",
+    "data-md-link-unavailable-reason": interaction.reason,
+  };
 }
 
 function getAutolinkHref(element: MarkdownElement, lineFrom: number, text: string): string | null {
@@ -361,6 +447,14 @@ function addInlineSourceSyntaxDecorations(
 
 function getMarkdownOpenTitle(target: string, t: MessageFormatter): string {
   return t("editor.markdown.openLinkHint", { target: bidiIsolate(target) });
+}
+
+function getMarkdownInteractionTitle(
+  interaction: MarkdownLinkInteraction,
+  target: string,
+  t: MessageFormatter,
+): string {
+  return interaction.action === "navigate" ? getMarkdownOpenTitle(target, t) : target;
 }
 
 function getWikiLinkTitle(

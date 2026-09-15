@@ -70,6 +70,8 @@ export function createUpdateService({
   environment = process.env,
   platform = process.platform,
   autoUpdater,
+  automaticallyDownloadUpdates = true,
+  persistAutomaticallyDownloadUpdates = async () => {},
 }) {
   const configuration = resolveDesktopUpdateConfiguration({
     buildInfo,
@@ -93,6 +95,7 @@ export function createUpdateService({
     channel,
     currentVersion,
     disabledReason,
+    automaticallyDownloadUpdates,
   });
 
   function start() {
@@ -136,6 +139,9 @@ export function createUpdateService({
     ipcMain.handle("updates:download", () => downloadUpdate());
     ipcMain.handle("updates:update-now", () => updateNow());
     ipcMain.handle("updates:install", () => installDownloadedUpdate());
+    ipcMain.handle("updates:set-automatically-download", (_event, request) => (
+      setAutomaticallyDownloadUpdates(request?.enabled)
+    ));
   }
 
   function configureLogger() {
@@ -149,8 +155,11 @@ export function createUpdateService({
   }
 
   function configureUpdater() {
+    // PuppyOne starts the download itself only after its channel and monotonic
+    // version policy accepts the candidate. Enabling electron-updater's own
+    // autoDownload would let the payload race ahead of that product guard.
     autoUpdater.autoDownload = false;
-    autoUpdater.autoInstallOnAppQuit = false;
+    autoUpdater.autoInstallOnAppQuit = true;
     autoUpdater.allowPrerelease = configuration.allowPrerelease;
 
     if (configuration.updateChannel) {
@@ -230,6 +239,12 @@ export function createUpdateService({
   async function checkForUpdates() {
     return runExclusive(async () => {
       if (!canUseUpdater) return state;
+      if (state.status === "available") {
+        await downloadAvailableUpdateInternal();
+        return state;
+      }
+      if (ACTIONABLE_UPDATE_STATES.has(state.status)) return state;
+
       publishState({
         status: "checking",
         availableVersion: null,
@@ -242,6 +257,7 @@ export function createUpdateService({
       try {
         const result = await autoUpdater.checkForUpdates();
         reconcileCheckResult(result);
+        await downloadAvailableUpdateInternal();
       } catch (error) {
         publishState({
           status: "error",
@@ -288,10 +304,12 @@ export function createUpdateService({
 
       if (shouldCheckBeforeUpdateNow(state.status)) {
         await checkForUpdatesInternal();
+        return state;
       }
 
       if (state.status === "available") {
         await downloadUpdateInternal();
+        return state;
       }
 
       if (state.status === "downloaded" || state.status === "blocked") {
@@ -309,6 +327,24 @@ export function createUpdateService({
     });
   }
 
+  async function setAutomaticallyDownloadUpdates(enabled) {
+    if (!canUseUpdater) return state;
+    if (typeof enabled !== "boolean") {
+      throw new TypeError("Automatic update download preference must be a boolean.");
+    }
+    if (state.automaticallyDownloadUpdates !== enabled) {
+      await Promise.resolve(persistAutomaticallyDownloadUpdates(enabled));
+      publishState({ automaticallyDownloadUpdates: enabled });
+    }
+    if (enabled) {
+      return runExclusive(async () => {
+        await downloadAvailableUpdateInternal();
+        return state;
+      });
+    }
+    return state;
+  }
+
   async function checkForUpdatesInternal() {
     publishState({
       status: "checking",
@@ -322,6 +358,7 @@ export function createUpdateService({
     try {
       const result = await autoUpdater.checkForUpdates();
       reconcileCheckResult(result);
+      await downloadAvailableUpdateInternal();
     } catch (error) {
       publishState({
         status: "error",
@@ -347,6 +384,11 @@ export function createUpdateService({
         progress: null,
       });
     }
+  }
+
+  async function downloadAvailableUpdateInternal() {
+    if (!state.automaticallyDownloadUpdates || state.status !== "available") return;
+    await downloadUpdateInternal();
   }
 
   async function installDownloadedUpdateInternal() {
@@ -511,10 +553,16 @@ export function createUpdateService({
     downloadUpdate,
     updateNow,
     installDownloadedUpdate,
+    setAutomaticallyDownloadUpdates,
   };
 }
 
-function createInitialUpdateState({ channel, currentVersion, disabledReason }) {
+function createInitialUpdateState({
+  channel,
+  currentVersion,
+  disabledReason,
+  automaticallyDownloadUpdates,
+}) {
   return {
     status: disabledReason ? "disabled" : "idle",
     currentVersion,
@@ -527,6 +575,7 @@ function createInitialUpdateState({ channel, currentVersion, disabledReason }) {
     reason: disabledReason,
     lastCheckedAt: null,
     updatedAt: new Date().toISOString(),
+    automaticallyDownloadUpdates: automaticallyDownloadUpdates !== false,
   };
 }
 

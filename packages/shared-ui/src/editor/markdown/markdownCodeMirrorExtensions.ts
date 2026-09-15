@@ -23,6 +23,7 @@ import { markdownLivePreviewContextExtension } from "./core/editor/markdownLiveP
 import { markdownComposingBlockLineField, markdownInputCompositionExtension } from "./core/state/composingBlockLine";
 import { markdownRevealedSourceField } from "./core/state/revealedSource";
 import { markdownLivePreviewFocusExtension } from "./core/state/livePreviewFocus";
+import { markdownHeadingIndexField } from "./core/links/markdownHeadingIndex";
 import { markdownAssetUrlResolverFacet, markdownWorkspaceRootFacet } from "./core/editor/markdownLivePreviewContext";
 import { getMarkdownEmbedHost, disposeMarkdownEmbedHost } from "./platform/codemirror/embedHost";
 import {
@@ -139,6 +140,7 @@ export function markdownLivePreviewCoreExtension(
     markdownInputCompositionExtension,
     markdownComposingBlockLineField,
     markdownRevealedSourceField,
+    markdownHeadingIndexField,
     ...composition.livePreviewExtensions,
     // History inversion stays in the live-preview core even when the
     // experimental interaction is disabled, so an earlier move can still

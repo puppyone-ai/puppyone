@@ -17,10 +17,6 @@ export function loadAgentChatHistoryBrowser() {
   }));
 }
 
-export function loadAgentItemRenderer() {
-  return import("./renderer/AgentItemRenderer").then((module) => ({ default: module.AgentItemRenderer }));
-}
-
 export async function prepareAgentChatWorkbenchItem(context: AuxiliaryWorkbenchPreparationContext) {
   const module = await getAgentChatWorkbenchItemModule();
   context.project.assertOpen();
@@ -75,5 +71,5 @@ function getAgentChatWorkbenchItemModule() {
 }
 
 function importAgentChatWorkbenchItem() {
-  return import("./workbench/HostedAgentWorkbenchItem");
+  return import("./workbench/AgentChatWorkbenchItem");
 }

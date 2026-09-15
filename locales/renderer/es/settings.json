@@ -90,6 +90,8 @@
   "appearance.pluginsShortcut.detail": "Muestra la entrada local de Plugins en la navegación del espacio de trabajo.",
   "appearance.headerElements.title": "Elementos del encabezado",
   "appearance.headerElements.external-open": "Abrir externamente",
+  "appearance.headerElements.history": "Historial de Git",
+  "appearance.headerElements.changes": "Cambios",
   "appearance.headerElements.terminal": "Terminal",
   "appearance.pointerCursors.title": "Cursores de puntero",
   "appearance.pointerCursors.detail": "Muestra el cursor de mano solo sobre enlaces y destinos de navegación.",

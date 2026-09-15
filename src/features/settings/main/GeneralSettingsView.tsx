@@ -3,15 +3,24 @@ import { DesktopUpdateSettingsRow, type DesktopUpdatesController } from "../../u
 import { DesktopBuildVersionSettingsRow } from "../../build-info/DesktopBuildIdentity";
 import { LanguageSettingRow } from "../LanguageSetting";
 import { SettingsSectionHeader } from "../components";
+import { AutomaticUpdateDownloadSettingRow } from "./AutomaticUpdateDownloadSettingRow";
 
 export function GeneralSettingsView({
   updateState,
   onCheckForUpdates,
   onUpdateNow,
+  automaticDownloadPreferenceAvailable,
+  automaticDownloadPreferenceSaving,
+  automaticDownloadPreferenceError,
+  onAutomaticallyDownloadUpdatesChange,
 }: {
   updateState: DesktopUpdatesController["state"];
   onCheckForUpdates: () => void;
   onUpdateNow: () => void;
+  automaticDownloadPreferenceAvailable: boolean;
+  automaticDownloadPreferenceSaving: boolean;
+  automaticDownloadPreferenceError: boolean;
+  onAutomaticallyDownloadUpdatesChange: (enabled: boolean) => void;
 }) {
   const { t } = useLocalization();
 
@@ -23,6 +32,13 @@ export function GeneralSettingsView({
           <div className="desktop-settings-list">
             <LanguageSettingRow />
             <DesktopBuildVersionSettingsRow />
+            <AutomaticUpdateDownloadSettingRow
+              state={updateState}
+              available={automaticDownloadPreferenceAvailable}
+              saving={automaticDownloadPreferenceSaving}
+              error={automaticDownloadPreferenceError}
+              onChange={onAutomaticallyDownloadUpdatesChange}
+            />
             <DesktopUpdateSettingsRow
               state={updateState}
               onCheckForUpdates={onCheckForUpdates}

@@ -1,5 +1,8 @@
 {
   "settings.title": "앱 업데이트",
+  "settings.autoDownload.title": "업데이트 자동 다운로드",
+  "settings.autoDownload.detail": "새 버전을 백그라운드에서 다운로드합니다. 준비되면 다시 시작하세요.",
+  "settings.autoDownload.error": "업데이트 설정을 저장할 수 없습니다.",
   "action.unavailable": "사용할 수 없음",
   "action.developmentBuild": "개발 빌드",
   "action.upToDate": "이미 최신 버전입니다",

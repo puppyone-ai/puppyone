@@ -29,6 +29,7 @@ export class AgentSessionActor {
   #terminalOutcomeByTurn = new Map();
   #listeners = new Set();
 
+  /** @param {{ events?: import("../../../../shared/agent-contract/types").AgentEvent[], sequence?: number, terminalState?: string, clock?: () => number }} [options] */
   constructor({ events = [], sequence = 0, terminalState = "idle", clock = Date.now } = {}) {
     this.#clock = clock;
     this.#events = events.map((event) => deepFreeze(clonePlain(event)));

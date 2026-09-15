@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.json",
+  "include": [
+    "../../src/vite-env.d.ts",
+    "../**/*.ts",
+    "../**/*.tsx"
+  ],
+  "compilerOptions": {
+    "allowJs": true
+  },
+  "exclude": [
+    "./*.ts"
+  ]
+}

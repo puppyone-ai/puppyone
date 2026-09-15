@@ -1,4 +1,4 @@
-import { Download, RefreshCw, RotateCw } from "lucide-react";
+import { Download, RotateCw } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import type { DesktopUpdateState } from "../../types/electron";
 import { getDesktopUpdateTitlebarState } from "./updateModel";
@@ -10,36 +10,24 @@ export function DesktopUpdateTitlebarButton({
   state: DesktopUpdateState;
   onUpdateNow: () => void;
 }) {
-  const { t, formatNumber } = useLocalization();
+  const { t } = useLocalization();
   const presentation = getDesktopUpdateTitlebarState(state);
   if (!presentation) return null;
 
-  const progress = formatNumber((presentation.progressPercent ?? 0) / 100, {
-    style: "percent",
-    maximumFractionDigits: 0,
-  });
   const version = presentation.version ?? t("updates.version.new");
   const label = presentation.kind === "available"
     ? t("updates.title.available", { version })
-    : presentation.kind === "downloading"
-      ? t("updates.title.downloading", { progress })
-      : presentation.kind === "ready"
-        ? state.status === "blocked"
-          ? t("updates.detail.blocked")
-          : t("updates.detail.downloaded", { version })
-        : t("updates.detail.installing");
+    : presentation.kind === "ready"
+      ? state.status === "blocked"
+        ? t("updates.detail.blocked")
+        : t("updates.detail.downloaded", { version })
+      : t("updates.detail.installing");
   const buttonLabel = presentation.kind === "available"
     ? t("updates.action.download")
-    : presentation.kind === "downloading"
-      ? t("updates.title.downloading", { progress })
-      : presentation.kind === "ready"
-        ? t("updates.action.restart")
-        : t("updates.action.restarting");
-  const Icon = presentation.kind === "available"
-    ? Download
     : presentation.kind === "ready"
-      ? RotateCw
-      : RefreshCw;
+      ? t("updates.action.restart")
+      : t("updates.action.restarting");
+  const Icon = presentation.kind === "available" ? Download : RotateCw;
 
   return (
     <button
@@ -54,9 +42,7 @@ export function DesktopUpdateTitlebarButton({
       <Icon
         size={15}
         strokeWidth={2.3}
-        className={presentation.kind === "downloading" || presentation.kind === "installing"
-          ? "spin"
-          : undefined}
+        className={presentation.kind === "installing" ? "spin" : undefined}
         aria-hidden="true"
       />
       <span className="desktop-titlebar-update-label">{buttonLabel}</span>

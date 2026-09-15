@@ -7,70 +7,376 @@
   },
   "checks": [
     {
-      "id": "lint", "name": "Source lint", "group": "source",
-      "command": ["npm", "run", "lint"], "platforms": ["linux", "darwin", "win32"],
-      "dependsOn": [], "timeoutSeconds": 120, "runtime": "node", "artifacts": []
+      "id": "lint",
+      "name": "Source lint",
+      "group": "source",
+      "command": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "platforms": [
+        "linux",
+        "darwin",
+        "win32"
+      ],
+      "dependsOn": [],
+      "timeoutSeconds": 120,
+      "runtime": "node",
+      "artifacts": []
     },
     {
-      "id": "updater-p0", "name": "Updater monotonicity P0 and coverage", "group": "source",
-      "command": ["npm", "run", "test:updater-p0:coverage"], "platforms": ["linux", "darwin", "win32"],
-      "dependsOn": [], "timeoutSeconds": 120, "runtime": "node", "artifacts": ["coverage"]
+      "id": "test-types",
+      "name": "Every test, fixture, support module and benchmark typecheck",
+      "group": "source",
+      "command": [
+        "npm",
+        "run",
+        "test:typecheck"
+      ],
+      "platforms": [
+        "linux",
+        "darwin",
+        "win32"
+      ],
+      "dependsOn": [],
+      "timeoutSeconds": 180,
+      "runtime": "node",
+      "artifacts": []
     },
     {
-      "id": "tests", "name": "Unit, component and contract tests", "group": "source",
-      "command": ["npm", "test"], "platforms": ["linux", "darwin", "win32"],
-      "dependsOn": [], "timeoutSeconds": 600, "runtime": "node", "artifacts": []
+      "id": "updater-p0",
+      "name": "Updater monotonicity P0 and coverage",
+      "group": "source",
+      "command": [
+        "npm",
+        "run",
+        "test:updater-p0:coverage"
+      ],
+      "platforms": [
+        "linux",
+        "darwin",
+        "win32"
+      ],
+      "dependsOn": [],
+      "timeoutSeconds": 120,
+      "runtime": "node",
+      "artifacts": [
+        "{checkDir}/vitest/invocation.json",
+        "{checkDir}/vitest/results.json",
+        "{checkDir}/vitest/coverage/coverage-summary.json"
+      ],
+      "environment": {
+        "PUPPYONE_TEST_ARTIFACT_DIR": "{checkDir}/vitest"
+      }
     },
     {
-      "id": "markdown-focus", "name": "Markdown pane focus continuity", "group": "app",
-      "command": ["npm", "run", "smoke:markdown-pane-focus-continuity"], "platforms": ["linux", "darwin"],
-      "dependsOn": [], "timeoutSeconds": 120, "runtime": "electron", "artifacts": []
+      "id": "tests",
+      "name": "All runtime tests and core Editor, Agent, Workbench coverage",
+      "group": "source",
+      "command": [
+        "npm",
+        "run",
+        "test:core:coverage"
+      ],
+      "platforms": [
+        "linux",
+        "darwin",
+        "win32"
+      ],
+      "dependsOn": [],
+      "timeoutSeconds": 900,
+      "runtime": "node",
+      "artifacts": [
+        "{checkDir}/vitest/invocation.json",
+        "{checkDir}/vitest/results.json",
+        "{checkDir}/vitest/coverage/coverage-summary.json"
+      ],
+      "environment": {
+        "PUPPYONE_TEST_ARTIFACT_DIR": "{checkDir}/vitest"
+      }
     },
     {
-      "id": "native-resize-cursor", "name": "Native split resize cursor recovery", "group": "app",
-      "command": ["npm", "run", "smoke:native-resize-cursor"], "platforms": ["linux", "darwin"],
-      "dependsOn": [], "timeoutSeconds": 120, "runtime": "electron", "artifacts": []
+      "id": "markdown-focus",
+      "name": "Markdown pane focus continuity",
+      "group": "app",
+      "command": [
+        "npm",
+        "run",
+        "smoke:markdown-pane-focus-continuity"
+      ],
+      "platforms": [
+        "linux",
+        "darwin"
+      ],
+      "dependsOn": [],
+      "timeoutSeconds": 120,
+      "runtime": "electron",
+      "artifacts": []
     },
     {
-      "id": "build", "name": "Production build, types, architecture and budgets", "group": "app",
-      "command": ["npm", "run", "build"], "platforms": ["linux", "darwin"],
-      "dependsOn": [], "timeoutSeconds": 300, "runtime": "node", "artifacts": ["dist"]
+      "id": "native-resize-cursor",
+      "name": "Native split resize cursor recovery",
+      "group": "app",
+      "command": [
+        "npm",
+        "run",
+        "smoke:native-resize-cursor"
+      ],
+      "platforms": [
+        "linux",
+        "darwin"
+      ],
+      "dependsOn": [],
+      "timeoutSeconds": 120,
+      "runtime": "electron",
+      "artifacts": []
     },
     {
-      "id": "agent-viewport", "name": "Agent submission and viewport", "group": "app",
-      "command": ["node", "scripts/run-agent-render-stability-smoke.mjs"], "platforms": ["linux", "darwin"],
-      "dependsOn": ["build"], "timeoutSeconds": 120, "runtime": "electron",
-      "environment": {"PUPPYONE_AGENT_RENDER_ARTIFACT_DIR": "{checkDir}/viewport"},
-      "artifacts": ["{checkDir}/viewport/result.json", "{checkDir}/viewport/render.png"]
+      "id": "build",
+      "name": "Production build, types, architecture and budgets",
+      "group": "app",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "platforms": [
+        "linux",
+        "darwin"
+      ],
+      "dependsOn": [],
+      "timeoutSeconds": 300,
+      "runtime": "node",
+      "artifacts": [
+        "dist"
+      ]
     },
     {
-      "id": "agent-tools", "name": "Agent tools and failure isolation", "group": "app",
-      "command": ["node", "scripts/run-agent-tool-stability-smoke.mjs"], "platforms": ["linux", "darwin"],
-      "dependsOn": ["build"], "timeoutSeconds": 120, "runtime": "electron",
-      "environment": {"PUPPYONE_AGENT_TOOL_ARTIFACT_DIR": "{checkDir}/tools"},
-      "artifacts": ["{checkDir}/tools/result.json", "{checkDir}/tools/render.png"]
+      "id": "agent-viewport",
+      "name": "Agent submission and viewport",
+      "group": "app",
+      "command": [
+        "node",
+        "tests/support/runners/run-agent-render-stability-smoke.mjs"
+      ],
+      "platforms": [
+        "linux",
+        "darwin"
+      ],
+      "dependsOn": [
+        "build"
+      ],
+      "timeoutSeconds": 120,
+      "runtime": "electron",
+      "environment": {
+        "PUPPYONE_AGENT_RENDER_ARTIFACT_DIR": "{checkDir}/viewport"
+      },
+      "artifacts": [
+        "{checkDir}/viewport/result.json",
+        "{checkDir}/viewport/render.png"
+      ]
     },
     {
-      "id": "project-sessions", "name": "Project sessions and Terminal lifecycle", "group": "app",
-      "command": ["npm", "run", "smoke:terminal-p0"], "platforms": ["linux", "darwin"],
-      "dependsOn": ["build"], "timeoutSeconds": 180, "runtime": "electron", "artifacts": []
+      "id": "agent-tools",
+      "name": "Agent tools and failure isolation",
+      "group": "app",
+      "command": [
+        "node",
+        "tests/support/runners/run-agent-tool-stability-smoke.mjs"
+      ],
+      "platforms": [
+        "linux",
+        "darwin"
+      ],
+      "dependsOn": [
+        "build"
+      ],
+      "timeoutSeconds": 120,
+      "runtime": "electron",
+      "environment": {
+        "PUPPYONE_AGENT_TOOL_ARTIFACT_DIR": "{checkDir}/tools"
+      },
+      "artifacts": [
+        "{checkDir}/tools/result.json",
+        "{checkDir}/tools/render.png"
+      ]
     },
     {
-      "id": "appearance", "name": "Appearance and typography", "group": "app",
-      "command": ["npm", "run", "smoke:appearance-visual"], "platforms": ["linux", "darwin"],
-      "dependsOn": ["build"], "timeoutSeconds": 180, "runtime": "electron", "artifacts": []
+      "id": "project-sessions",
+      "name": "Project sessions and Terminal lifecycle",
+      "group": "app",
+      "command": [
+        "npm",
+        "run",
+        "smoke:terminal-p0"
+      ],
+      "platforms": [
+        "linux",
+        "darwin"
+      ],
+      "dependsOn": [
+        "build"
+      ],
+      "timeoutSeconds": 180,
+      "runtime": "electron",
+      "artifacts": []
     },
     {
-      "id": "auxiliary-appearance", "name": "Auxiliary workbench appearance and startup colors", "group": "app",
-      "command": ["npm", "run", "smoke:auxiliary-appearance"], "platforms": ["linux", "darwin"],
-      "dependsOn": ["build"], "timeoutSeconds": 180, "runtime": "electron",
-      "environment": {"PUPPYONE_AUXILIARY_ARTIFACT_DIR": "{checkDir}/evidence"},
-      "artifacts": ["{checkDir}/evidence/result.json"]
+      "id": "sidebar-visibility",
+      "name": "Agent and Terminal collapse, content residue and underlying Editor input",
+      "group": "app",
+      "command": [
+        "npm",
+        "run",
+        "smoke:sidebar-visibility"
+      ],
+      "platforms": [
+        "linux",
+        "darwin"
+      ],
+      "dependsOn": [
+        "build"
+      ],
+      "timeoutSeconds": 240,
+      "runtime": "electron",
+      "environment": {
+        "PUPPYONE_SIDEBAR_VISIBILITY_ARTIFACT_DIR": "{checkDir}/evidence"
+      },
+      "artifacts": [
+        "{checkDir}/evidence/result.json",
+        "{checkDir}/evidence"
+      ]
     },
     {
-      "id": "platform-contracts", "name": "Native platform contracts", "group": "platform",
-      "command": ["npm", "run", "test:desktop-platform-contracts"], "platforms": ["linux", "darwin", "win32"],
-      "dependsOn": [], "timeoutSeconds": 180, "runtime": "node", "artifacts": []
+      "id": "appearance",
+      "name": "Appearance and typography",
+      "group": "app",
+      "command": [
+        "npm",
+        "run",
+        "smoke:appearance-visual"
+      ],
+      "platforms": [
+        "linux",
+        "darwin"
+      ],
+      "dependsOn": [
+        "build"
+      ],
+      "timeoutSeconds": 180,
+      "runtime": "electron",
+      "artifacts": []
+    },
+    {
+      "id": "auxiliary-appearance",
+      "name": "Auxiliary workbench appearance and startup colors",
+      "group": "app",
+      "command": [
+        "npm",
+        "run",
+        "smoke:auxiliary-appearance"
+      ],
+      "platforms": [
+        "linux",
+        "darwin"
+      ],
+      "dependsOn": [
+        "build"
+      ],
+      "timeoutSeconds": 180,
+      "runtime": "electron",
+      "environment": {
+        "PUPPYONE_AUXILIARY_ARTIFACT_DIR": "{checkDir}/evidence"
+      },
+      "artifacts": [
+        "{checkDir}/evidence/result.json"
+      ]
+    },
+    {
+      "id": "item-utilities",
+      "name": "Isolated Agent and Terminal utility lifecycle",
+      "group": "app",
+      "command": [
+        "npm",
+        "run",
+        "smoke:item-utilities"
+      ],
+      "platforms": [
+        "linux",
+        "darwin"
+      ],
+      "dependsOn": [],
+      "timeoutSeconds": 180,
+      "runtime": "electron",
+      "artifacts": []
+    },
+    {
+      "id": "editor-runtime",
+      "name": "Editor lifecycle, persisted content and view state",
+      "group": "app",
+      "command": [
+        "npm",
+        "run",
+        "smoke:editor-runtime-lifecycle"
+      ],
+      "platforms": [
+        "linux",
+        "darwin"
+      ],
+      "dependsOn": [],
+      "timeoutSeconds": 180,
+      "runtime": "electron",
+      "artifacts": []
+    },
+    {
+      "id": "editor-panes",
+      "name": "Every preset Viewer: split, resize, move, menu close and retained history",
+      "group": "app",
+      "command": [
+        "npm",
+        "run",
+        "smoke:editor-pane-contracts"
+      ],
+      "platforms": [
+        "linux",
+        "darwin"
+      ],
+      "dependsOn": [],
+      "timeoutSeconds": 300,
+      "runtime": "electron",
+      "environment": {
+        "PUPPYONE_PANE_CONTRACT_ARTIFACT_DIR": "{checkDir}/evidence"
+      },
+      "artifacts": [
+        "{checkDir}/evidence/result.json",
+        "{checkDir}/evidence"
+      ]
+    },
+    {
+      "id": "platform-contracts",
+      "name": "Native platform contracts",
+      "group": "platform",
+      "command": [
+        "npm",
+        "run",
+        "test:desktop-platform-contracts"
+      ],
+      "platforms": [
+        "linux",
+        "darwin",
+        "win32"
+      ],
+      "dependsOn": [],
+      "timeoutSeconds": 180,
+      "runtime": "node",
+      "artifacts": [
+        "{checkDir}/vitest/invocation.json",
+        "{checkDir}/vitest/results.json"
+      ],
+      "environment": {
+        "PUPPYONE_TEST_ARTIFACT_DIR": "{checkDir}/vitest"
+      }
     }
   ]
 }

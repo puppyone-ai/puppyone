@@ -1,4 +1,5 @@
 import { reportNativeProcess } from "../../../native-process-ownership.mjs";
+import { resolveProcessInvocation } from "../../platform/windows/process-invocation.mjs";
 
 /** Launches one native Agent as an isolated POSIX process group when available. */
 export function createManagedAgentProcess({
@@ -9,10 +10,12 @@ export function createManagedAgentProcess({
   platform = process.platform,
 }) {
   const grouped = platform !== "win32";
-  const child = spawn(executablePath, args, {
+  const invocation = resolveProcessInvocation(executablePath, args, { env: options?.env, platform });
+  const child = spawn(invocation.file, invocation.args, {
     ...options,
     shell: false,
     detached: grouped,
+    ...invocation.options,
   });
   reportNativeProcess(child, { grouped });
   return { child, grouped };

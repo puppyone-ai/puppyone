@@ -1,12 +1,14 @@
 import { useLocalization } from "@puppyone/localization";
-import { DesktopNavigationItems, DesktopSidebarSettingsButton } from "./DesktopNavigationItems";
+import {
+  DesktopNavigationItems,
+  DesktopSidebarSettingsButton,
+} from "./DesktopNavigationItems";
 import { resolveNavigationItems } from "./navigationModel";
 import type { DesktopNavigationProps } from "./types";
 
 export function DesktopSidebarRailNavigation({
   activeView,
   availableSurfaceIds,
-  cloudHubEnabled = false,
   gitEnabled = true,
   pluginsEnabled = false,
   gitIncomingCount,
@@ -15,13 +17,13 @@ export function DesktopSidebarRailNavigation({
   workspaceChangeCount,
   onNavigate,
   onOpenSettings,
+  settingsOpen = false,
   showSettings = true,
   utilitySlot,
 }: DesktopNavigationProps) {
   const { t } = useLocalization();
-  const { cloudHubItems, localItems } = resolveNavigationItems({
+  const { localItems } = resolveNavigationItems({
     availableSurfaceIds,
-    cloudHubEnabled,
     gitEnabled,
     pluginsEnabled,
   });
@@ -40,14 +42,11 @@ export function DesktopSidebarRailNavigation({
         <DesktopNavigationItems {...runtime} buttonClassName="desktop-sidebar-rail-button" items={localItems} />
       </div>
       <div className="desktop-sidebar-rail-actions desktop-sidebar-rail-actions-end">
-        {cloudHubItems.length > 0 && (
-          <DesktopNavigationItems {...runtime} buttonClassName="desktop-sidebar-rail-button" items={cloudHubItems} />
-        )}
         {showSettings && (
           <DesktopSidebarSettingsButton
-            activeView={activeView}
             buttonClassName="desktop-sidebar-rail-button"
             onOpenSettings={onOpenSettings}
+            settingsOpen={settingsOpen}
           />
         )}
         {utilitySlot}

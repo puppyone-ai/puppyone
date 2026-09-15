@@ -1,5 +1,6 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { EditorView } from "@codemirror/view";
+import { findDocumentSurface, findMarkdownSurfaceEditor, isDocumentSurfaceCommitted } from "./documentSurfaceProbe";
 import type {
   DataNode,
   DataPort,
@@ -45,6 +46,7 @@ declare global {
 }
 
 export function RendererPerformanceSmokeHarness() {
+  const [workspaceMounted, setWorkspaceMounted] = useState(true);
   const nodes = useMemo(() => makeExplorerNodes(1_000), []);
   const source = useMemo(() => makeMarkdown(10_000), []);
   const oversizedTableSource = useMemo(() => makeOversizedTable(1_000), []);
@@ -82,7 +84,13 @@ export function RendererPerformanceSmokeHarness() {
     const finish = () => {
       if (stopped) return;
       stopped = true;
-      window.setTimeout(runWorkerSelfCheck, ENABLE_LINK_INDEX ? 1_500 : 0);
+      window.setTimeout(() => {
+        // The workspace retains its indexing worker for incremental saves.
+        // Retire that measured fixture before allocating the independent worker
+        // self-check; the scheduler intentionally admits one background worker.
+        setWorkspaceMounted(false);
+        window.setTimeout(runWorkerSelfCheck, 0);
+      }, ENABLE_LINK_INDEX ? 1_500 : 0);
     };
 
     const runWorkerSelfCheck = () => {
@@ -93,6 +101,7 @@ export function RendererPerformanceSmokeHarness() {
         { path: "worker-target.md", name: "worker-target.md", content: "# Target" },
       ]);
       void request.promise.then((index) => {
+        coordinator.cancel();
         if (index.indexedDocumentCount !== 2 || index.backlinks.length !== 1) {
           throw new Error("Markdown link index worker returned an invalid snapshot.");
         }
@@ -106,7 +115,9 @@ export function RendererPerformanceSmokeHarness() {
           });
         });
       }).catch((error) => {
+        coordinator.cancel();
         window.__PUPPYONE_RENDERER_PERFORMANCE_SMOKE_RESULT__ = {
+          ...tracker.getSummary(),
           error: error instanceof Error ? error.message : String(error),
         };
       });
@@ -141,11 +152,11 @@ export function RendererPerformanceSmokeHarness() {
     const failPresentationContract = (message: string) => {
       if (stopped) return;
       stopped = true;
-      window.__PUPPYONE_RENDERER_PERFORMANCE_SMOKE_RESULT__ = { error: message };
+      window.__PUPPYONE_RENDERER_PERFORMANCE_SMOKE_RESULT__ = { ...tracker.getSummary(), error: message };
     };
 
-    const verifyPendingPresentation = () => {
-      const host = document.querySelector<HTMLElement>(".markdown-codemirror-editor");
+    const verifyPendingPresentation = (documentId: string) => {
+      const host = findMarkdownSurfaceEditor(documentId);
       const editor = host?.querySelector<HTMLElement>(".cm-editor") ?? null;
       if (!host || !editor) {
         failPresentationContract("Markdown base readiness did not expose an EditorView for presentation verification.");
@@ -162,8 +173,8 @@ export function RendererPerformanceSmokeHarness() {
       return true;
     };
 
-    const verifyReadyPresentation = () => {
-      const host = document.querySelector<HTMLElement>(".markdown-codemirror-editor");
+    const verifyReadyPresentation = (documentId: string) => {
+      const host = findMarkdownSurfaceEditor(documentId);
       const editor = host?.querySelector<HTMLElement>(".cm-editor") ?? null;
       if (!host || !editor) {
         failPresentationContract("Markdown preview readiness did not retain an EditorView.");
@@ -181,7 +192,7 @@ export function RendererPerformanceSmokeHarness() {
     };
 
     const verifyOversizedTable = async () => {
-      const editorElement = document.querySelector<HTMLElement>(".markdown-codemirror-editor");
+      const editorElement = findMarkdownSurfaceEditor(OVERSIZED_TABLE_FILE);
       const editorView = editorElement ? EditorView.findFromDOM(editorElement) : null;
       const wrapper = editorElement?.querySelector<HTMLElement>(
         '.cm-md-table-widget-wrap[data-md-table-execution="windowed"]',
@@ -226,20 +237,38 @@ export function RendererPerformanceSmokeHarness() {
       };
     };
 
+    const waitForCommittedSurface = async (documentId: string) => {
+      // preview_ready is emitted by the editor. The document host subsequently
+      // commits its staged surface; inspect that exact surface after its handoff.
+      const deadline = performance.now() + 2_000;
+      while (!stopped) {
+        await waitForAnimationFrames(1);
+        if (isDocumentSurfaceCommitted(findDocumentSurface(documentId))) return true;
+        if (performance.now() >= deadline) {
+          failPresentationContract(`Document surface did not commit for ${documentId}.`);
+          return false;
+        }
+      }
+      return false;
+    };
+
     const onPerformance = (event: Event) => {
       const detail = (event as CustomEvent<{ documentId?: string; stage?: string }>).detail;
-      if (detail?.stage === "editor_base_ready" && !verifyPendingPresentation()) return;
-      if (detail?.stage !== "preview_ready") return;
+      if (!detail?.documentId) return;
+      const documentId = detail.documentId;
+      if (detail.stage === "editor_base_ready" && !verifyPendingPresentation(documentId)) return;
+      if (detail.stage !== "preview_ready") return;
       if (detail.documentId === OVERSIZED_TABLE_FILE) {
-        void verifyOversizedTable()
-          .then(finish)
+        void waitForCommittedSurface(documentId)
+          .then((committed) => committed ? verifyOversizedTable() : undefined)
+          .then(() => { if (!stopped) finish(); })
           .catch((error: unknown) => failPresentationContract(
             error instanceof Error ? error.message : String(error),
           ));
         return;
       }
-      window.requestAnimationFrame(() => {
-        if (stopped || !verifyReadyPresentation()) return;
+      void waitForCommittedSurface(documentId).then((committed) => {
+        if (!committed || stopped || !verifyReadyPresentation(documentId)) return;
         if (!measuring) {
           warmupSamples += 1;
           if (warmupSamples >= WARMUP_COUNT) {
@@ -249,7 +278,7 @@ export function RendererPerformanceSmokeHarness() {
           window.requestAnimationFrame(selectNextFile);
           return;
         }
-        const editorElement = document.querySelector<HTMLElement>(".markdown-codemirror-editor");
+        const editorElement = findMarkdownSurfaceEditor(documentId);
         const editorView = editorElement ? EditorView.findFromDOM(editorElement) : null;
         if (!editorView) {
           failPresentationContract("Unable to resolve the CodeMirror view for input transaction sampling.");
@@ -258,12 +287,14 @@ export function RendererPerformanceSmokeHarness() {
         editorView.dispatch({ changes: { from: 0, insert: "x" } });
         const summary = tracker.getSummary();
         if (summary.completedSamples >= SAMPLE_COUNT) {
-          if (ENABLE_OVERSIZED_BLOCKS) startOversizedTableCheck();
+          if (ENABLE_OVERSIZED_BLOCKS) window.requestAnimationFrame(startOversizedTableCheck);
           else finish();
           return;
         }
         window.requestAnimationFrame(selectNextFile);
-      });
+      }).catch((error: unknown) => failPresentationContract(
+        error instanceof Error ? error.message : String(error),
+      ));
     };
 
     window.addEventListener("puppyone:renderer-performance", onPerformance);
@@ -272,6 +303,7 @@ export function RendererPerformanceSmokeHarness() {
       if (stopped) return;
       stopped = true;
       window.__PUPPYONE_RENDERER_PERFORMANCE_SMOKE_RESULT__ = {
+        ...tracker.getSummary(),
         error: `Renderer performance smoke timed out after ${tracker.getSummary().completedSamples} samples.`,
       };
     }, 60_000);
@@ -285,7 +317,7 @@ export function RendererPerformanceSmokeHarness() {
 
   return (
     <div style={{ width: "1280px", height: "800px" }}>
-      <DataWorkspace
+      {workspaceMounted && <DataWorkspace
         workspace={workspace}
         dataPort={dataPort}
         showHeader={false}
@@ -296,7 +328,7 @@ export function RendererPerformanceSmokeHarness() {
         editorSaveMode="manual"
         defaultExplorerWidth={320}
         enableMarkdownLinkContentIndexing={ENABLE_LINK_INDEX}
-      />
+      />}
     </div>
   );
 }

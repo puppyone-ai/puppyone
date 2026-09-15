@@ -1,5 +1,8 @@
 {
   "settings.title": "App updates",
+  "settings.autoDownload.title": "Download updates automatically",
+  "settings.autoDownload.detail": "Downloads new versions in the background. Restart when you're ready.",
+  "settings.autoDownload.error": "Unable to save this update preference.",
   "action.unavailable": "Unavailable",
   "action.developmentBuild": "Development build",
   "action.upToDate": "Already up to date",

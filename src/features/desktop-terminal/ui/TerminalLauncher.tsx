@@ -7,10 +7,8 @@ import type {
   AuxiliaryWorkbenchHistoryContribution,
   AuxiliaryWorkbenchHistoryTarget,
 } from "../../app-shell/auxiliary-workbench/types";
-import type {
-  AvailableTerminalAgentId,
-  TerminalAgentDiscoveryPhase,
-} from "../model/terminalAgentAvailability";
+import type { LocalAgentInstallationId } from "../../../../shared/local-agent-installation/types";
+import type { LocalAgentInstallationDiscoveryPhase } from "../../local-agents/model/localAgentInstallationAvailability";
 import {
   DESKTOP_TERMINAL_LAUNCHERS,
   getDesktopTerminalLauncher,
@@ -29,8 +27,8 @@ type TerminalAgentLauncherDefinition = Exclude<
 type TerminalLauncherProps = {
   state?: WorkbenchLauncherState;
   agentMode: TerminalLauncherAgentMode;
-  discoveryPhase: TerminalAgentDiscoveryPhase;
-  availableAgentIds: readonly AvailableTerminalAgentId[];
+  discoveryPhase: LocalAgentInstallationDiscoveryPhase;
+  availableAgentIds: readonly LocalAgentInstallationId[];
   chatCreationAvailable?: boolean;
   chatPreparing?: boolean;
   chatRecipes?: readonly AuxiliaryWorkbenchCreationRecipe[];

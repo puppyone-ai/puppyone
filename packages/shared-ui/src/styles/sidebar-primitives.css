@@ -177,6 +177,79 @@
   touch-action: none;
 }
 
+/*
+ * Every collapsible inline pane uses the same geometry tree:
+ * Frame > Viewport > Content Plane, with the resize handle beside the
+ * Viewport as a direct child of Frame. This is the coordinate-system
+ * contract that keeps content, divider paint and pointer routing together.
+ */
+.po-collapsible-pane-frame {
+  position: relative;
+  box-sizing: border-box;
+  width: var(--po-collapsible-pane-frame-width, auto);
+  min-width: var(--po-collapsible-pane-frame-width, 0px);
+  min-height: 0;
+  flex: 0 0 var(--po-collapsible-pane-frame-width, auto);
+  transition: none;
+}
+
+/* Animate a presentation change, never passive constraints from window resize.
+   Otherwise the viewport eases toward a content plane already at its new size. */
+.po-collapsible-pane-frame:is([data-pane-presentation="expanding"], [data-pane-presentation="collapsing"]) {
+  transition:
+    width var(--po-pane-motion-duration, 360ms) var(--po-pane-motion-easing, cubic-bezier(0.42, 0, 0.58, 1)),
+    min-width var(--po-pane-motion-duration, 360ms) var(--po-pane-motion-easing, cubic-bezier(0.42, 0, 0.58, 1)),
+    flex-basis var(--po-pane-motion-duration, 360ms) var(--po-pane-motion-easing, cubic-bezier(0.42, 0, 0.58, 1));
+}
+
+/* Ordinary dragging follows the pointer exactly. Threshold crossing uses the
+   collapse/expand preview phases and therefore keeps the shared pane motion. */
+.po-collapsible-pane-frame[data-pane-gesture="resizing"] {
+  transition: none;
+}
+
+.po-collapsible-pane-viewport {
+  position: absolute;
+  inset: 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  overflow: clip;
+  pointer-events: none;
+}
+
+.po-collapsible-pane-content {
+  position: absolute;
+  inset-block: 0;
+  display: flex;
+  width: var(--po-collapsible-pane-content-width, 100%);
+  min-width: var(--po-collapsible-pane-content-width, 100%);
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.po-collapsible-pane-frame[data-pane-side="inline-start"]
+  > .po-collapsible-pane-viewport
+  > .po-collapsible-pane-content {
+  inset-inline-start: 0;
+}
+
+.po-collapsible-pane-frame[data-pane-side="inline-end"]
+  > .po-collapsible-pane-viewport
+  > .po-collapsible-pane-content {
+  inset-inline-end: 0;
+}
+
+.po-collapsible-pane-frame[data-pane-content-visible="true"]
+  > .po-collapsible-pane-viewport,
+.po-collapsible-pane-frame[data-pane-content-visible="true"]
+  > .po-collapsible-pane-viewport
+  > .po-collapsible-pane-content {
+  pointer-events: auto;
+}
+
 .po-sidebar-resize-handle[aria-orientation="vertical"] {
   cursor: col-resize;
 }
@@ -236,6 +309,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .po-collapsible-pane-frame,
   .po-pane-edge-chrome::after { transition: none; }
 }
 
@@ -272,46 +346,6 @@
 .po-collapsed-pane-edge-handle--inline-end::after {
   inset-inline-start: auto;
   inset-inline-end: 0;
-}
-
-.po-collapsed-pane-edge-glyph {
-  position: absolute;
-  top: 50%;
-  display: flex;
-  width: 10px;
-  height: 20px;
-  align-items: center;
-  justify-content: center;
-  background: var(--po-canvas);
-  color: var(--po-border-strong);
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(-50%);
-  transition: opacity 120ms ease;
-}
-
-.po-collapsed-pane-edge-handle--inline-start .po-collapsed-pane-edge-glyph {
-  inset-inline-start: 0;
-}
-
-.po-collapsed-pane-edge-handle--inline-end .po-collapsed-pane-edge-glyph {
-  inset-inline-end: 0;
-}
-
-.po-collapsed-pane-edge-glyph svg {
-  width: 8px;
-  height: 14px;
-  overflow: visible;
-  fill: none;
-  stroke: currentcolor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.35;
-}
-
-.po-collapsed-pane-edge-handle:hover .po-collapsed-pane-edge-glyph,
-.po-collapsed-pane-edge-handle:focus-visible .po-collapsed-pane-edge-glyph {
-  opacity: 1;
 }
 
 .po-sidebar-resize-handle.po-collapsed-pane-edge-handle:hover::after,

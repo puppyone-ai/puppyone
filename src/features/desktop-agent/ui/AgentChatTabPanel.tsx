@@ -28,6 +28,7 @@ import { useAgentSessionPreparation } from "./useAgentSessionPreparation";
 type AgentChatTabPanelProps = {
   presented: boolean;
   commandTarget: boolean;
+  focusRequest?: number;
   controller: AgentSessionController;
   workspaceId: string;
   onPresentationChange: (presentation: AgentChatTabPresentation) => void;
@@ -45,6 +46,7 @@ type AgentChatTabPanelProps = {
 export function AgentChatTabPanel({
   presented,
   commandTarget,
+  focusRequest,
   controller,
   workspaceId,
   onPresentationChange,
@@ -206,6 +208,7 @@ export function AgentChatTabPanel({
         onResolve={(resolution) => void controller.resolveQuestion(resolution)}
       />}
       <AgentComposer
+        focusRequest={focusRequest}
         draft={state.draft} draftMentions={state.draftMentions} onDraftChange={handleDraftChange}
         onDraftDocumentChange={handleDraftDocumentChange}
         disabled={loading || unavailable || failed || !routingReady || state.projection.approvals.length > 0 || state.projection.questions.length > 0}

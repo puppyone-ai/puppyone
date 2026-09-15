@@ -58,10 +58,6 @@ import {
   toWorkspaceRelativePath,
 } from "../desktop-agent-presence";
 import { DesktopShellNavigationToolbarPortal } from "./DesktopShellAccessoryContext";
-import {
-  getRemoteUpdateNoticeModel,
-  RemoteUpdateNotice,
-} from "../data-workspace/RemoteUpdateNotice";
 import type { ResolvedWorkbenchDataResource } from "../data-workspace/workbenchDataPort";
 import { useProjectExplorerSession } from "../data-workspace/useProjectExplorerSession";
 import {
@@ -92,7 +88,6 @@ export type DesktopDataWorkspaceSurfaceProps = {
   navigation: {
     activeView: DesktopView;
     availableSurfaceIds: readonly DesktopView[];
-    cloudHubEnabled: boolean;
     gitEnabled: boolean;
     pluginsEnabled: boolean;
     gitIncomingCount: number;
@@ -101,9 +96,9 @@ export type DesktopDataWorkspaceSurfaceProps = {
     workspaceChangeCount: number;
     onNavigate: (view: DesktopView) => void;
     onOpenSettings: () => void;
+    settingsOpen: boolean;
     showSettings: boolean;
     showWorkspaceNavigation: boolean;
-    onPullGit: () => Promise<boolean>;
   };
   navigationComposition: string;
   onActiveDataPathChange: (
@@ -259,7 +254,12 @@ export function DesktopDataWorkspaceSurface({
     t,
     workspaceFolders,
   ]);
-  const resolvedExplorerWidth = paneLayout?.explorer.width ?? preferences.explorerWidth;
+  // DataWorkspace's width input is the expanded content-plane width. The
+  // Shell's resolved width becomes zero while collapsed and must never replace
+  // that retained geometry, or the Explorer children will reflow during exit.
+  const resolvedExplorerWidth = paneLayout?.explorer.collapsed
+    ? preferences.explorerWidth
+    : paneLayout?.explorer.width ?? preferences.explorerWidth;
   const resolvedExplorerMaxWidth = paneLayout?.explorer.maxWidth
     ?? MAX_EXPLORER_WIDTH;
   const resolvedExplorerMinWidth = paneLayout?.explorer.minWidth ?? MIN_EXPLORER_WIDTH;
@@ -268,7 +268,6 @@ export function DesktopDataWorkspaceSurface({
   const navigationCommon = {
     activeView: navigation.activeView,
     availableSurfaceIds: navigation.availableSurfaceIds,
-    cloudHubEnabled: navigation.cloudHubEnabled,
     gitEnabled: navigation.gitEnabled,
     pluginsEnabled: navigation.pluginsEnabled,
     gitIncomingCount: navigation.gitIncomingCount,
@@ -277,11 +276,10 @@ export function DesktopDataWorkspaceSurface({
     workspaceChangeCount: navigation.workspaceChangeCount,
     onNavigate: navigation.onNavigate,
     onOpenSettings: navigation.onOpenSettings,
+    settingsOpen: navigation.settingsOpen,
     showSettings: navigation.showSettings,
     utilitySlot: sidebarUtility,
   } as const;
-  const remoteUpdateNoticeVisible = navigation.showWorkspaceNavigation
-    && getRemoteUpdateNoticeModel(navigation.gitStatus) !== null;
   const shellHostedTopNavigation = navigationComposition === "sidebar-top-toolbar"
     && preferences.sidebarNavigationPlacement === "top";
   const topNavigation = navigation.showWorkspaceNavigation
@@ -297,7 +295,9 @@ export function DesktopDataWorkspaceSurface({
   return (
     <div
       className="desktop-data-workspace-wrap"
-      data-sidebar-navigation-placement={preferences.sidebarNavigationPlacement}
+      data-sidebar-navigation-placement={navigation.showWorkspaceNavigation
+        ? preferences.sidebarNavigationPlacement
+        : undefined}
     >
       {shellHostedTopNavigation && topNavigation && (
         <DesktopShellNavigationToolbarPortal>
@@ -454,25 +454,15 @@ export function DesktopDataWorkspaceSurface({
             </>
           );
         }}
-        explorerSlot={resolvedSurface.id === "data"
+        explorerSlot={resolvedSurface.id === "data" || resolvedSurface.content.sidebar == null
           ? undefined
           : <WorkspaceSurfaceOutlet region="sidebar" surface={resolvedSurface} />}
         explorerFooterSlot={navigation.showWorkspaceNavigation && (
-          remoteUpdateNoticeVisible
-          || sidebarCompanion
+          sidebarCompanion
           || preferences.sidebarNavigationPlacement === "bottom"
         )
           ? (
               <div className="desktop-sidebar-companion-host">
-                {remoteUpdateNoticeVisible && (
-                  <div className="desktop-sidebar-lower-notice">
-                    <RemoteUpdateNotice
-                      status={navigation.gitStatus}
-                      operationLoading={navigation.gitOperationLoading}
-                      onPull={navigation.onPullGit}
-                    />
-                  </div>
-                )}
                 {sidebarCompanion}
                 {preferences.sidebarNavigationPlacement === "bottom" && (
                   <DesktopSidebarFooterNavigation {...navigationCommon} />

@@ -14,7 +14,6 @@ export function createTrustedIpcMain({
   ipcMain,
   applicationUrl,
   logger = console,
-  itemRendererAuthority = null,
 }) {
   if (!ipcMain || typeof ipcMain.handle !== "function" || typeof ipcMain.on !== "function") {
     throw new TypeError("A valid ipcMain implementation is required.");
@@ -26,8 +25,6 @@ export function createTrustedIpcMain({
     handle(channel, listener) {
       requireChannelAndListener(channel, listener);
       ipcMain.handle(channel, async (event, ...args) => {
-        const routed = itemRendererAuthority?.route(event, channel);
-        if (routed) return itemRendererAuthority.invoke(routed, channel, args, listener);
         assertTrustedIpcEvent(event, applicationUrl);
         return listener(event, ...args);
       });
@@ -37,8 +34,6 @@ export function createTrustedIpcMain({
       requireChannelAndListener(channel, listener);
       ipcMain.on(channel, (event, ...args) => {
         try {
-          const routed = itemRendererAuthority?.route(event, channel);
-          if (routed) return listener(routed, ...itemRendererAuthority.scopeRequest(routed, channel, args));
           assertTrustedIpcEvent(event, applicationUrl);
         } catch (error) {
           event?.preventDefault?.();

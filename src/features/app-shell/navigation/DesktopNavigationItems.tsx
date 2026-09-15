@@ -73,26 +73,27 @@ export function DesktopNavigationItems({
 }
 
 export function DesktopSidebarSettingsButton({
-  activeView,
   buttonClassName,
   onOpenSettings,
+  settingsOpen = false,
   shellToolbar = false,
   showLabel = false,
 }: {
-  activeView: DesktopView;
   buttonClassName: string;
   onOpenSettings: () => void;
+  settingsOpen?: boolean;
   shellToolbar?: boolean;
   showLabel?: boolean;
 }) {
   const { t } = useLocalization();
   return (
     <button
-      className={`${buttonClassName} ${activeView === "settings" ? "active" : ""}`}
+      className={`${buttonClassName} ${settingsOpen ? "active" : ""}`}
       type="button"
       title={t("shell.navigation.settings")}
       aria-label={t("shell.navigation.settings")}
-      aria-current={activeView === "settings" ? "page" : undefined}
+      aria-haspopup="dialog"
+      aria-expanded={settingsOpen}
       data-navigation-item="settings"
       onClick={onOpenSettings}
     >

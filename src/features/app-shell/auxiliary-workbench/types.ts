@@ -16,7 +16,6 @@ export type AuxiliaryWorkbenchPresentationState = Readonly<{
   sidebarVisible: boolean;
   presented: boolean;
   commandTarget: boolean;
-  domFocused: boolean;
 }>;
 
 export type AuxiliaryWorkbenchItemSnapshot = Readonly<{
@@ -29,8 +28,6 @@ export type AuxiliaryWorkbenchItemSnapshot = Readonly<{
   running: boolean;
   /** Feature-owned native resource identity, never part of the topology. */
   resourceId: string | null;
-  displayHealth?: import("../../../../shared/item-host-contract/types").ItemHostState["display"];
-  executionHealth?: import("../../../../shared/item-host-contract/types").ItemHostState["execution"];
 }>;
 
 export type AuxiliaryWorkbenchItemRenderContext = Readonly<{
@@ -40,8 +37,6 @@ export type AuxiliaryWorkbenchItemRenderContext = Readonly<{
   onPresentationChange: (snapshot: AuxiliaryWorkbenchItemSnapshot) => void;
   /** Explicit user focus intent, independent of selection or summary updates. */
   focusRequest?: number;
-  layoutRevision?: unknown;
-  onContentFocusChange?: (focused: boolean, activate: boolean) => void;
 }>;
 
 /**

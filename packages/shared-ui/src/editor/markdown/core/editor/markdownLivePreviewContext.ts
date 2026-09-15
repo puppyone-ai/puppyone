@@ -1,5 +1,5 @@
-import { Facet, type Extension } from "@codemirror/state";
-import { EditorView, ViewPlugin } from "@codemirror/view";
+import { EditorSelection, Facet, Prec, type Extension } from "@codemirror/state";
+import { EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import { findWikiLinkTokens } from "../links/wikiLinkModel";
 import { findMarkdownLinkTokens, isExternalMarkdownHref } from "../links/markdownLinkModel";
 import { getMarkdownEmbedHost } from "../../platform/codemirror/embedHost";
@@ -10,9 +10,13 @@ import {
   type CapabilityPurpose,
 } from "../../platform/security/capabilityPrincipal";
 import { getDocRevision } from "../../platform/brokers/transactionBroker";
-import { isSafeHref } from "../../platform/policy/markdownUrlPolicy";
-import { getInlineRevealElement, type MarkdownElement } from "../syntax/markdownElements";
-import { MarkdownLinkInteractionSession } from "../state/markdownLinkInteraction";
+import { getMarkdownHeadingPosition } from "../links/markdownHeadingIndex";
+import {
+  MarkdownLinkInteractionSession,
+  resolveMarkdownHrefInteraction,
+  resolveWikiLinkInteraction,
+  type MarkdownLinkPointerActivation,
+} from "../state/markdownLinkInteraction";
 import {
   EMPTY_MARKDOWN_LINK_COMMANDS,
   type MarkdownAssetUrlResolver,
@@ -93,9 +97,8 @@ export function markdownLivePreviewContextExtension(
     markdownAssetResolverRevisionFacet.of(markdownAssetResolverRevision),
     markdownWorkspaceIdFacet.of(workspaceId),
     markdownWorkspaceRootFacet.of(workspaceRoot),
-    markdownLinkModifierClassHandler,
     markdownLinkInteractionPlugin,
-    markdownLinkOpenHandler,
+    Prec.high(markdownLinkOpenHandler),
   ];
 }
 
@@ -128,64 +131,96 @@ export function getMarkdownWorkspaceRoot(view: EditorView): string | null {
   return view.state.facet(markdownWorkspaceRootFacet);
 }
 
-const MARKDOWN_LINK_OPEN_MODIFIER_CLASS = "cm-md-open-modifier-down";
+class MarkdownLinkInteractionViewState extends MarkdownLinkInteractionSession {
+  update(update: ViewUpdate) {
+    if (update.docChanged) this.cancelPointer();
+  }
 
-const markdownLinkModifierClassHandler = EditorView.domEventHandlers({
-  keydown(event, view) {
-    setMarkdownLinkModifierClass(view, event.metaKey || event.ctrlKey);
-    return false;
-  },
-  keyup(event, view) {
-    setMarkdownLinkModifierClass(view, event.metaKey || event.ctrlKey);
-    return false;
-  },
-  mousemove(event, view) {
-    setMarkdownLinkModifierClass(view, event.metaKey || event.ctrlKey);
-    return false;
-  },
-  mouseleave(_event, view) {
-    setMarkdownLinkModifierClass(view, false);
-    return false;
-  },
-  blur(_event, view) {
-    setMarkdownLinkModifierClass(view, false);
-    return false;
-  },
-});
-
-function setMarkdownLinkModifierClass(view: EditorView, active: boolean) {
-  view.dom.classList.toggle(MARKDOWN_LINK_OPEN_MODIFIER_CLASS, active);
+  destroy() {
+    this.cancelPointer();
+  }
 }
 
-const markdownLinkInteractionPlugin = ViewPlugin.define<MarkdownLinkInteractionSession>(
-  () => new MarkdownLinkInteractionSession(),
-);
+const markdownLinkInteractionPlugin = ViewPlugin.fromClass(MarkdownLinkInteractionViewState);
 
 const markdownLinkOpenHandler = EditorView.domEventHandlers({
   mousedown(event, view) {
     if (event.button !== 0) return false;
-    const opened = openMarkdownLinkFromEvent(event, view);
+    const linkElement = getMarkdownLinkElementFromEvent(event, view);
     const session = view.plugin(markdownLinkInteractionPlugin);
-    if (opened) session?.recordHandledMouseDown();
-    return opened;
+    if (!linkElement || view.composing) {
+      session?.cancelPointer();
+      return false;
+    }
+    const activation = getMarkdownLinkPointerActivation(linkElement);
+    if (!activation) return false;
+    const selection = view.state.selection;
+    session?.beginPointer(
+      activation,
+      event,
+      selection.ranges.length === 1 && selection.main.empty ? selection.main.anchor : null,
+      getDocRevision(view.state.doc),
+    );
+    return false;
+  },
+  mousemove(event, view) {
+    view.plugin(markdownLinkInteractionPlugin)?.updatePointer(event);
+    return false;
+  },
+  mouseup(event, view) {
+    if (event.button !== 0 || view.composing) return false;
+    const selection = view.state.selection;
+    const releaseElement = getMarkdownLinkCandidateFromEvent(event, view);
+    const completed = view.plugin(markdownLinkInteractionPlugin)?.completePointer(
+      selection.ranges.length === 1 && selection.main.empty,
+      getDocRevision(view.state.doc),
+      releaseElement ? getMarkdownLinkPointerActivation(releaseElement) : null,
+    ) ?? null;
+    if (!completed || !openMarkdownLinkActivation(completed.activation, view)) return false;
+    if (
+      completed.restoreSelectionAt <= view.state.doc.length
+      && view.state.selection.main.anchor !== completed.restoreSelectionAt
+    ) {
+      view.dispatch({ selection: EditorSelection.cursor(completed.restoreSelectionAt) });
+    }
+    view.plugin(markdownLinkInteractionPlugin)?.recordHandledPointerUp();
+    event.preventDefault();
+    event.stopPropagation();
+    return true;
+  },
+  mouseleave(_event, view) {
+    view.plugin(markdownLinkInteractionPlugin)?.cancelPointer();
+    return false;
+  },
+  blur(_event, view) {
+    view.plugin(markdownLinkInteractionPlugin)?.cancelPointer();
+    return false;
+  },
+  pointercancel(_event, view) {
+    view.plugin(markdownLinkInteractionPlugin)?.cancelPointer();
+    return false;
+  },
+  dragstart(_event, view) {
+    view.plugin(markdownLinkInteractionPlugin)?.cancelPointer();
+    return false;
   },
   click(event, view) {
     const session = view.plugin(markdownLinkInteractionPlugin);
-    if (
-      event.detail > 0
-      && getMarkdownLinkElementFromEvent(event, view)
-      && session?.consumeDuplicateClick()
-    ) {
-      event.preventDefault();
-      event.stopPropagation();
-      return true;
+    if (event.detail > 0) {
+      if (session?.consumeDuplicateClick()) {
+        event.preventDefault();
+        event.stopPropagation();
+        return true;
+      }
+      // Pointer activation is owned by the complete mousedown -> mouseup
+      // gesture above. A standalone browser click must not bypass movement,
+      // selection, revision, or release-target validation.
+      return false;
     }
     return openMarkdownLinkFromEvent(event, view);
   },
   keydown(event, view) {
-    if (event.key !== "Enter" || !isMarkdownLinkOpenGesture(event, view)) return false;
-    if (openMarkdownLinkAtSelection(event, view)) return true;
-
+    if (event.key !== "Enter" || view.composing) return false;
     const linkElement = getMarkdownLinkElementFromEvent(event, view);
     if (!linkElement) return false;
     return openMarkdownLinkFromEvent(event, view);
@@ -194,7 +229,6 @@ const markdownLinkOpenHandler = EditorView.domEventHandlers({
 
 function openMarkdownLinkFromEvent(event: Event, view: EditorView): boolean {
   if (event.defaultPrevented) return false;
-  if (!isMarkdownLinkOpenGesture(event, view)) return false;
   const linkElement = getMarkdownLinkElementFromEvent(event, view);
   if (!linkElement) return false;
 
@@ -206,85 +240,79 @@ function openMarkdownLinkFromEvent(event: Event, view: EditorView): boolean {
   return true;
 }
 
-function isMarkdownLinkOpenGesture(event: Event, view: EditorView): boolean {
-  if (view.state.readOnly) return true;
-  if (event instanceof MouseEvent) return event.metaKey || event.ctrlKey;
-  if (event instanceof KeyboardEvent) return event.metaKey || event.ctrlKey;
-  return false;
+function getMarkdownLinkElementFromEvent(event: Event, view: EditorView): HTMLElement | null {
+  const linkElement = getMarkdownLinkCandidateFromEvent(event, view);
+  return linkElement?.dataset.mdLinkInteraction === "navigate" ? linkElement : null;
 }
 
-function getMarkdownLinkElementFromEvent(event: Event, view: EditorView): HTMLElement | null {
+function getMarkdownLinkCandidateFromEvent(event: Event, view: EditorView): HTMLElement | null {
   const targetElement = getEventTargetElement(event.target);
   if (!targetElement) return null;
 
   const linkElement = targetElement.closest<HTMLElement>(
     ".cm-md-wiki-link-label[data-wiki-target], .cm-md-link-label[data-md-href], a.cm-md-inline-html[data-md-href], .cm-md-inline-html[data-md-href]",
   );
-  if (!linkElement || !view.dom.contains(linkElement)) return null;
+  if (
+    !linkElement
+    || !view.dom.contains(linkElement)
+  ) return null;
   return linkElement;
 }
 
 function openMarkdownLinkElement(linkElement: HTMLElement, view: EditorView): boolean {
-  const wikiTarget = linkElement.dataset.wikiTarget;
-  if (wikiTarget) return openWikiLinkTarget(wikiTarget, view);
-
-  const href = linkElement.dataset.mdHref;
-  if (!href) return false;
-  return openMarkdownHref(href, view);
+  if (linkElement.dataset.mdLinkInteraction !== "navigate") return false;
+  const activation = getMarkdownLinkPointerActivation(linkElement);
+  return activation ? openMarkdownLinkActivation(activation, view) : false;
 }
 
-function openMarkdownLinkAtSelection(event: Event, view: EditorView): boolean {
-  const { state } = view;
-  if (state.selection.ranges.length !== 1) return false;
-
-  const selection = state.selection.main;
-  if (!selection.empty) return false;
-
-  const element = getInlineRevealElement(state, selection.from);
-  if (!element || (element.kind !== "wikiLink" && element.kind !== "link")) return false;
-
-  const opened = openMarkdownLinkElementFromSource(element, view);
-  if (!opened) return false;
-
-  event.preventDefault();
-  event.stopPropagation();
-  return true;
+function getMarkdownLinkPointerActivation(
+  linkElement: HTMLElement,
+): MarkdownLinkPointerActivation | null {
+  const wikiTarget = linkElement.dataset.wikiTarget?.trim() || null;
+  const href = linkElement.dataset.mdHref?.trim() || null;
+  return wikiTarget || href ? { wikiTarget, href } : null;
 }
 
-function openMarkdownLinkElementFromSource(element: MarkdownElement, view: EditorView): boolean {
-  const source = view.state.sliceDoc(element.from, element.to);
-  if (element.kind === "wikiLink") {
-    const token = findWikiLinkTokenAt(source, 0, source.length);
-    return token ? openWikiLinkTarget(token.target, view) : false;
-  }
-
-  const token = findMarkdownLinkTokenAt(source, 0, source.length);
-  if (token) return openMarkdownHref(token.href, view);
-
-  const href = element.contentRange ? view.state.sliceDoc(element.contentRange.from, element.contentRange.to).trim() : "";
-  return href ? openMarkdownHref(href, view) : false;
+function openMarkdownLinkActivation(
+  activation: MarkdownLinkPointerActivation,
+  view: EditorView,
+): boolean {
+  if (activation.wikiTarget) return openWikiLinkTarget(activation.wikiTarget, view);
+  return activation.href ? openMarkdownHref(activation.href, view) : false;
 }
 
 function openWikiLinkTarget(wikiTarget: string, view: EditorView): boolean {
   const linkGraph = view.state.facet(markdownLinkGraphFacet);
   const linkCommands = view.state.facet(markdownLinkCommandsFacet);
   const sourcePath = view.state.facet(markdownDocumentPathFacet);
-  if (!linkGraph || !linkCommands.openWikiLink) return false;
+  const interaction = resolveWikiLinkInteraction(wikiTarget, {
+    documentPath: sourcePath,
+    linkGraph,
+    linkCommands,
+    hasSameDocumentHeading: (fragment) => getMarkdownHeadingPosition(view.state, fragment) !== null,
+  });
+  if (interaction.action !== "navigate") return false;
+  if (interaction.kind === "same-document") return revealMarkdownHeading(view, wikiTarget);
 
-  const resolvedTarget = linkGraph.resolveWikiLink(sourcePath, wikiTarget);
-  if (!resolvedTarget.exists && (!resolvedTarget.candidatePaths || resolvedTarget.candidatePaths.length === 0)) {
-    return false;
-  }
-
-  linkCommands.openWikiLink(resolvedTarget, sourcePath);
+  if (!interaction.resolvedTarget || !linkCommands.openWikiLink) return false;
+  linkCommands.openWikiLink(interaction.resolvedTarget, sourcePath);
   return true;
 }
 
 export function openMarkdownHref(href: string, view: EditorView): boolean {
-  if (!isSafeHref(href)) return false;
+  const documentPath = view.state.facet(markdownDocumentPathFacet);
+  const linkGraph = view.state.facet(markdownLinkGraphFacet);
+  const linkCommands = view.state.facet(markdownLinkCommandsFacet);
+  const interaction = resolveMarkdownHrefInteraction(href, {
+    documentPath,
+    linkGraph,
+    linkCommands,
+    hasSameDocumentHeading: (fragment) => getMarkdownHeadingPosition(view.state, fragment) !== null,
+  });
+  if (interaction.action !== "navigate") return false;
+  if (interaction.kind === "same-document") return revealMarkdownHeading(view, href);
 
   const host = getMarkdownEmbedHost(view);
-  const documentPath = view.state.facet(markdownDocumentPathFacet);
   const result = host.links.resolve(
     createPrincipalFromView(view, "link-open"),
     href,
@@ -293,12 +321,10 @@ export function openMarkdownHref(href: string, view: EditorView): boolean {
   if (result.action === "deny") return false;
 
   if (result.action === "navigate-internal") {
-    const linkGraph = view.state.facet(markdownLinkGraphFacet);
-    const linkCommands = view.state.facet(markdownLinkCommandsFacet);
     const resolvedTarget = linkGraph?.resolveMarkdownLink(documentPath, result.path) ?? null;
-    if (!resolvedTarget || !linkCommands.openWikiLink) return false;
-    if (!resolvedTarget.exists && (!resolvedTarget.candidatePaths || resolvedTarget.candidatePaths.length === 0)) {
-      return false;
+    if (!resolvedTarget?.exists || !linkCommands.openWikiLink) return false;
+    if (resolvedTarget.path === documentPath && resolvedTarget.heading) {
+      return revealMarkdownHeading(view, `#${resolvedTarget.heading}`);
     }
     linkCommands.openWikiLink(resolvedTarget, documentPath);
     return true;
@@ -309,6 +335,13 @@ export function openMarkdownHref(href: string, view: EditorView): boolean {
   }
 
   return false;
+}
+
+function revealMarkdownHeading(view: EditorView, fragment: string): boolean {
+  const position = getMarkdownHeadingPosition(view.state, fragment);
+  if (position === null) return false;
+  view.dispatch({ effects: EditorView.scrollIntoView(position, { y: "start" }) });
+  return true;
 }
 
 function openExternalMarkdownHref(href: string, view: EditorView): boolean {

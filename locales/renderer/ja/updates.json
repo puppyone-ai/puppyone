@@ -1,5 +1,8 @@
 {
   "settings.title": "アプリのアップデート",
+  "settings.autoDownload.title": "アップデートを自動的にダウンロード",
+  "settings.autoDownload.detail": "新しいバージョンをバックグラウンドでダウンロードします。準備ができたら再起動してください。",
+  "settings.autoDownload.error": "アップデート設定を保存できませんでした。",
   "action.unavailable": "利用不可",
   "action.developmentBuild": "開発ビルド",
   "action.upToDate": "最新です",

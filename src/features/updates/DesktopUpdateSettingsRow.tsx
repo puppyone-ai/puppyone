@@ -88,7 +88,7 @@ function getSettingsAction(
     return { kind: "update", label: t("updates.action.restart"), disabled: false, spinning: false, primary: true };
   }
   if (state.status === "available") {
-    return { kind: "update", label: t("updates.action.updateNow"), disabled: false, spinning: false, primary: true };
+    return { kind: "update", label: t("updates.action.download"), disabled: false, spinning: false, primary: true };
   }
   if (state.status === "error") {
     return { kind: "update", label: t("updates.action.tryAgain"), disabled: false, spinning: false, primary: false };

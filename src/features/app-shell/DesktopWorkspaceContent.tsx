@@ -8,7 +8,6 @@ import {
   type AiEditRequest,
   type DataNode,
   type EditorInteractionPreferences,
-  type ResourceUri,
   type Workspace,
   type WorkspaceContentChange,
   type WorkspaceFolder,
@@ -36,6 +35,7 @@ import { DesktopDataWorkspaceSurface } from "./DesktopDataWorkspaceSurface";
 import type { DesktopEditorWorkbenchController } from "../editor-workbench/controller/useDesktopEditorWorkbench";
 import type { ResolvedWorkbenchDataResource } from "../data-workspace/workbenchDataPort";
 import type { SubThemeCatalogController } from "../themes/useSubThemeCatalog";
+import { CloudDialog } from "../cloud/CloudDialog";
 
 type DataWorkspacePort = ComponentProps<typeof DataWorkspace>["dataPort"];
 type DesktopWorkspaceContentProps = {
@@ -44,6 +44,7 @@ type DesktopWorkspaceContentProps = {
   activeExplorerPath: string | null;
   activeView: DesktopView;
   cloud: DesktopWorkspaceCloudSurfaceController;
+  cloudOpen?: boolean;
   dataPort: DataWorkspacePort | null;
   editorWorkbench: DesktopEditorWorkbenchController;
   externalOpen: Readonly<{
@@ -66,6 +67,8 @@ type DesktopWorkspaceContentProps = {
   onWorkspaceStarterCreated: (path: string) => void;
   onFilesVisibilitySettingsChange: (settings: FilesVisibilitySettings) => void;
   onNavigate: (view: DesktopView) => void;
+  onCloseCloud: () => void;
+  onOpenGitChanges: () => void;
   onNodeActionMenu: (node: DataNode, anchorRect: DOMRect, selectedNodes?: readonly DataNode[]) => void;
   onOpenSettings: () => void;
   onPuppyoneConfigChange: (config: PuppyoneWorkspaceConfig) => Promise<PuppyoneWorkspaceConfig | null>;
@@ -77,6 +80,7 @@ type DesktopWorkspaceContentProps = {
   puppyoneConfigLoading: boolean;
   puppyoneConfigSaving: boolean;
   settingsSection: SettingsSection;
+  settingsOpen?: boolean;
   settingsNavigationVisible?: boolean;
   workspaceNavigationVisible?: boolean;
   sidebarCompanion?: ReactNode;
@@ -98,6 +102,7 @@ export function DesktopWorkspaceContent({
   activeExplorerPath,
   activeView,
   cloud,
+  cloudOpen = false,
   dataPort,
   editorWorkbench,
   externalOpen,
@@ -115,6 +120,8 @@ export function DesktopWorkspaceContent({
   onWorkspaceStarterCreated,
   onFilesVisibilitySettingsChange,
   onNavigate,
+  onCloseCloud,
+  onOpenGitChanges,
   onNodeActionMenu,
   onOpenSettings,
   onPuppyoneConfigChange,
@@ -126,6 +133,7 @@ export function DesktopWorkspaceContent({
   puppyoneConfigLoading,
   puppyoneConfigSaving,
   settingsSection,
+  settingsOpen = false,
   settingsNavigationVisible = true,
   workspaceNavigationVisible = true,
   sidebarCompanion,
@@ -162,14 +170,9 @@ export function DesktopWorkspaceContent({
     preferences.experimentalSettings.enableEditorSaveStatus,
     preferences.experimentalSettings.enableMarkdownBlockDrag,
   ]);
-  const workspaceRootUri = (
-    workspaceFolders.find((folder) => folder.workspace.path === workspace.path)?.uri
-    ?? workspaceFolders[0]?.uri
-    ?? null
-  ) as ResourceUri | null;
   const {
     availableSurfaceIds,
-    cloudHubNavigationEnabled,
+    cloudSurface,
     gitEnabled,
     pluginsNavigationVisible,
     resolvedActiveView,
@@ -180,9 +183,8 @@ export function DesktopWorkspaceContent({
     cloud,
     desktopUpdates,
     git,
-    onActiveDataPathChange,
     onFilesVisibilitySettingsChange,
-    onNavigate,
+    onOpenGitChanges,
     onPuppyoneConfigChange,
     onSelectSettingsSection,
     onUnlinkWorkspace,
@@ -200,62 +202,71 @@ export function DesktopWorkspaceContent({
     },
     viewerPluginsEnabled,
     workspace,
-    workspaceRootUri,
   });
 
-  if (!dataPort) {
-    return resolvedSurface.content.main;
-  }
+  const workspaceSurface = !dataPort
+    ? resolvedSurface.content.main
+    : (
+      <DesktopDataWorkspaceSurface
+        activeAiEditRequest={activeAiEditRequest}
+        activeDocumentPath={activeDocumentPath}
+        activeExplorerPath={activeExplorerPath}
+        dataPort={dataPort}
+        editorWorkbench={editorWorkbench}
+        externalOpen={externalOpen}
+        editorInteractionPreferences={editorInteractionPreferences}
+        fileClipboardController={fileClipboardController}
+        fileOperationNotice={fileOperationNotice}
+        firstProjectStarterEligible={firstProjectStarterEligible}
+        navigation={{
+          activeView: resolvedActiveView,
+          availableSurfaceIds,
+          gitEnabled,
+          pluginsEnabled: pluginsNavigationVisible,
+          gitIncomingCount: git.gitIncomingCount,
+          gitOperationLoading: git.gitOperationLoading,
+          gitStatus: git.activeGitStatus,
+          workspaceChangeCount,
+          onNavigate,
+          onOpenSettings,
+          settingsOpen,
+          showSettings: settingsNavigationVisible,
+          showWorkspaceNavigation: workspaceNavigationVisible,
+        }}
+        navigationComposition={navigationComposition}
+        onActiveDataNodeChange={onActiveDataNodeChange}
+        onActiveDataPathChange={onActiveDataPathChange}
+        onResourceMove={onResourceMove}
+        onRemoveProject={onRemoveProject}
+        onCreateEntryMenu={onCreateEntryMenu}
+        onDismissCreateEntryMenu={onDismissCreateEntryMenu}
+        onWorkspaceStarterCreated={onWorkspaceStarterCreated}
+        onNodeActionMenu={onNodeActionMenu}
+        preferences={preferences}
+        resolvedSurface={resolvedSurface}
+        sidebarCompanion={sidebarCompanion}
+        sidebarUtility={sidebarUtility}
+        viewerExtensionAdapter={viewerExtensionAdapter}
+        workspace={workspace}
+        workspaceFolders={workspaceFolders}
+        resolveWorkspaceResource={resolveWorkspaceResource}
+        workspaceRefreshToken={workspaceRefreshToken}
+        workspaceAtomicRefreshToken={workspaceAtomicRefreshToken}
+        workspaceSurfaceError={workspaceSurfaceError}
+        sidebarCreateMenuOpen={sidebarCreateMenuOpen}
+      />
+    );
 
   return (
-    <DesktopDataWorkspaceSurface
-      activeAiEditRequest={activeAiEditRequest}
-      activeDocumentPath={activeDocumentPath}
-      activeExplorerPath={activeExplorerPath}
-      dataPort={dataPort}
-      editorWorkbench={editorWorkbench}
-      externalOpen={externalOpen}
-      editorInteractionPreferences={editorInteractionPreferences}
-      fileClipboardController={fileClipboardController}
-      fileOperationNotice={fileOperationNotice}
-      firstProjectStarterEligible={firstProjectStarterEligible}
-      navigation={{
-        activeView: resolvedActiveView,
-        availableSurfaceIds,
-        cloudHubEnabled: cloudHubNavigationEnabled,
-        gitEnabled,
-        pluginsEnabled: pluginsNavigationVisible,
-        gitIncomingCount: git.gitIncomingCount,
-        gitOperationLoading: git.gitOperationLoading,
-        gitStatus: git.activeGitStatus,
-        workspaceChangeCount,
-        onNavigate,
-        onOpenSettings,
-        showSettings: settingsNavigationVisible,
-        showWorkspaceNavigation: workspaceNavigationVisible,
-        onPullGit: git.handlePullGit,
-      }}
-      navigationComposition={navigationComposition}
-      onActiveDataNodeChange={onActiveDataNodeChange}
-      onActiveDataPathChange={onActiveDataPathChange}
-      onResourceMove={onResourceMove}
-      onRemoveProject={onRemoveProject}
-      onCreateEntryMenu={onCreateEntryMenu}
-      onDismissCreateEntryMenu={onDismissCreateEntryMenu}
-      onWorkspaceStarterCreated={onWorkspaceStarterCreated}
-      onNodeActionMenu={onNodeActionMenu}
-      preferences={preferences}
-      resolvedSurface={resolvedSurface}
-      sidebarCompanion={sidebarCompanion}
-      sidebarUtility={sidebarUtility}
-      viewerExtensionAdapter={viewerExtensionAdapter}
-      workspace={workspace}
-      workspaceFolders={workspaceFolders}
-      resolveWorkspaceResource={resolveWorkspaceResource}
-      workspaceRefreshToken={workspaceRefreshToken}
-      workspaceAtomicRefreshToken={workspaceAtomicRefreshToken}
-      workspaceSurfaceError={workspaceSurfaceError}
-      sidebarCreateMenuOpen={sidebarCreateMenuOpen}
-    />
+    <>
+      {workspaceSurface}
+      {cloudOpen && (
+        <CloudDialog
+          sidebar={cloudSurface.sidebar}
+          main={cloudSurface.main}
+          onClose={onCloseCloud}
+        />
+      )}
+    </>
   );
 }

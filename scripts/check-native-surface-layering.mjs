@@ -145,11 +145,16 @@ const auxiliaryPanelSource = read("src/features/app-shell/auxiliary/AuxiliaryPan
 for (const token of [
   'useNativeSurfacePointerRoutingRegion("auxiliary-panel-resize", resizerElement)',
   "useNativeSurfaceLayoutTransition(",
-  "ref={setResizerElement}",
+  "resizeHandleRef={setResizerElement}",
 ]) {
   if (!auxiliaryPanelSource.includes(token)) {
     errors.push(`Desktop auxiliary panel does not close the native geometry/input contract (${token})`);
   }
+}
+const nativeTransitionSource = read("src/features/native-surfaces/useNativeSurfaceLayoutTransition.ts");
+const nativeGeometrySource = read("src/features/native-surfaces/nativeSurfaceGeometry.ts");
+if (nativeTransitionSource.includes("suspendWithin") || nativeGeometrySource.includes("suspendWithin")) {
+  errors.push("Pane layout transitions must sample clipped native bounds instead of hiding native content");
 }
 const builtInSurfaceController = read("src/features/editor-surfaces/BuiltInEditorSurfaceController.tsx");
 for (const token of [
@@ -212,27 +217,22 @@ for (const relativePath of [
     errors.push(`${relativePath} does not register its native view for drag pointer passthrough`);
   }
 }
-for (const relativePath of [
-  "packages/shared-ui/src/styles/data-workspace.css",
-  "src/features/data-workspace/data-shell.css",
-]) {
+for (const relativePath of ["packages/shared-ui/src/styles/data-workspace.css"]) {
   const source = read(relativePath);
-  const resizableGrid = source.match(
-    /\.data-content\[data-resizable-explorer="true"\]\s*\{([^}]*)\}/s,
-  )?.[1] ?? "";
+  const dataContent = source.match(/\.data-content\s*\{([^}]*)\}/s)?.[1] ?? "";
   const resizer = source.match(/\.data-explorer-resizer\s*\{([^}]*)\}/s)?.[1] ?? "";
-  if (!resizableGrid.includes("grid-template-columns")) {
-    errors.push(`${relativePath} does not define the resizable explorer's two-pane grid`);
+  if (!dataContent.includes("display: flex")) {
+    errors.push(`${relativePath} does not let the shared pane frame own Explorer width`);
   }
-  if (resizableGrid.includes("--po-pane-resizer-hit-size")) {
-    errors.push(`${relativePath} incorrectly consumes overlay sash width as a third grid track`);
+  if (dataContent.includes("grid-template-columns")) {
+    errors.push(`${relativePath} still duplicates pane width in an outer grid track`);
   }
   if (source.includes('.data-content[data-resizable-explorer="true"] > .browser-column')) {
     errors.push(`${relativePath} still routes the Editor through a removed third grid column`);
   }
   for (const token of [
-    "inset-inline-start: calc(var(--data-explorer-width",
-    "inset-inline-end: auto",
+    "inset-inline-start: auto",
+    "inset-inline-end: calc(1px - var(--po-pane-resizer-hit-size, 8px))",
     "background: transparent",
   ]) {
     if (!resizer.includes(token)) {
@@ -241,6 +241,17 @@ for (const relativePath of [
   }
   if (resizer.includes("grid-column") || resizer.includes("position: relative")) {
     errors.push(`${relativePath} turns the overlay sash back into layout content`);
+  }
+}
+
+const desktopDataWorkspaceStyle = read("src/features/data-workspace/data-shell.css");
+for (const selector of [
+  '.data-content[data-resizable-explorer="true"]',
+  ".data-explorer-resizer",
+  ".explorer-column",
+]) {
+  if (desktopDataWorkspaceStyle.includes(selector)) {
+    errors.push(`Desktop DataWorkspace redeclares shared native-surface geometry (${selector})`);
   }
 }
 

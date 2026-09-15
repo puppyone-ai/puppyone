@@ -1,5 +1,8 @@
 {
   "settings.title": "App-Updates",
+  "settings.autoDownload.title": "Updates automatisch herunterladen",
+  "settings.autoDownload.detail": "Lädt neue Versionen im Hintergrund herunter. Starten Sie neu, wenn es für Sie passt.",
+  "settings.autoDownload.error": "Die Update-Einstellung konnte nicht gespeichert werden.",
   "action.unavailable": "Nicht verfügbar",
   "action.developmentBuild": "Entwicklungsversion",
   "action.upToDate": "Bereits aktuell",

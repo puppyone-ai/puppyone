@@ -1,5 +1,4 @@
 import {
-  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -7,8 +6,11 @@ import {
   type ReactNode,
 } from "react";
 import {
-  SidebarResizeHandle,
+  COLLAPSIBLE_PANE_MOTION_MS,
+  CollapsiblePaneFrame,
   useCollapsiblePaneResize,
+  type CollapsiblePanePresentation,
+  type CollapsiblePaneGestureCommit,
   type SidebarResizeIntent,
 } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
@@ -23,7 +25,7 @@ import {
 } from "../../native-surfaces";
 
 export type AuxiliaryPanelHostProps = {
-  children: ReactNode;
+  children: ReactNode | ((presentation: CollapsiblePanePresentation) => ReactNode);
   collapseThreshold?: number;
   open: boolean;
   width?: number;
@@ -35,7 +37,6 @@ export type AuxiliaryPanelHostProps = {
   onWidthChange?: (width: number) => void;
 };
 
-const PANE_COLLAPSE_ANIMATION_MS = 260;
 const AUXILIARY_LAYOUT_TRANSITION_PROPERTIES = new Set(["flex-basis", "width"]);
 
 export function AuxiliaryPanelHost({
@@ -58,7 +59,6 @@ export function AuxiliaryPanelHost({
     maxWidth,
   ));
   const wasOpenRef = useRef(open);
-  const [collapsedEdgeSettled, setCollapsedEdgeSettled] = useState(!open);
   const [panelElement, setPanelElement] = useState<HTMLElement | null>(null);
   const [resizerElement, setResizerElement] = useState<HTMLDivElement | null>(null);
   const onResizeActiveChange = useNativeSurfacePointerPassthroughActivity(
@@ -66,47 +66,55 @@ export function AuxiliaryPanelHost({
   );
   useNativeSurfacePointerRoutingRegion("auxiliary-panel-resize", resizerElement);
 
-  useEffect(() => {
-    if (open) {
-      setCollapsedEdgeSettled(false);
-      return undefined;
+  const commitPane = (commit: CollapsiblePaneGestureCommit) => {
+    if (commit.type === "collapse") {
+      setLastExpandedWidth(commit.restoreWidth);
+      onWidthChange?.(commit.restoreWidth);
+      onOpenChange?.(false);
+      return;
     }
-
-    const timeoutId = window.setTimeout(
-      () => setCollapsedEdgeSettled(true),
-      PANE_COLLAPSE_ANIMATION_MS,
-    );
-    return () => window.clearTimeout(timeoutId);
-  }, [open]);
-
+    if (commit.type === "expand") {
+      if (commit.width !== undefined) onWidthChange?.(commit.width);
+      onOpenChange?.(true);
+      return;
+    }
+    onWidthChange?.(commit.width);
+  };
   const resize = useCollapsiblePaneResize({
     enabled: resizable && Boolean(onWidthChange),
     bodyClassName: "desktop-right-sidebar-resizing",
     collapsed: !open,
     collapsedWidth: 0,
     collapseThreshold,
+    collapsible: Boolean(onOpenChange),
     direction: getDocumentDirection(),
     maxWidth,
     minWidth,
     side: "inline-end",
     width: resolvedWidth,
-    widthChangeMode: "end",
-    onCollapsedChange: onOpenChange
-      ? (collapsed) => onOpenChange(!collapsed)
-      : undefined,
+    onCommit: commitPane,
     onDragActiveChange: onResizeActiveChange,
-    onWidthChange: onWidthChange ?? noop,
   });
+  const visualOpen = !resize.collapsed;
+
   useNativeSurfaceLayoutTransition(
     "auxiliary-panel-transition",
     panelElement,
-    open,
-    PANE_COLLAPSE_ANIMATION_MS,
+    visualOpen,
+    COLLAPSIBLE_PANE_MOTION_MS,
     AUXILIARY_LAYOUT_TRANSITION_PROPERTIES,
     !resize.dragging,
   );
   const liveExpandedWidth = clamp(resize.width, minWidth, maxWidth);
-  const renderedExpandedWidth = open ? liveExpandedWidth : lastExpandedWidth;
+  const renderedExpandedWidth = resize.dragging
+    ? open
+      ? liveExpandedWidth
+      : resize.collapsed
+        ? lastExpandedWidth
+        : Math.max(lastExpandedWidth, liveExpandedWidth)
+    : open
+      ? liveExpandedWidth
+      : lastExpandedWidth;
 
   useLayoutEffect(() => {
     const wasOpen = wasOpenRef.current;
@@ -126,17 +134,17 @@ export function AuxiliaryPanelHost({
   const panelStyle = {
     "--desktop-right-sidebar-width": `${renderedExpandedWidth}px`,
   } as CSSProperties;
-  const collapsedEdgeVisible = !open && collapsedEdgeSettled;
-
   const resizeByKeyboard = (intent: SidebarResizeIntent, accelerated: boolean) => {
     if (!resizable || !onWidthChange) return;
     if (intent === "minimum" || intent === "maximum") {
       if (intent === "minimum" && onOpenChange) {
-        onOpenChange(false);
+        commitPane({ type: "collapse", restoreWidth: minWidth });
         return;
       }
-      onOpenChange?.(true);
-      onWidthChange(intent === "minimum" ? minWidth : maxWidth);
+      const nextWidth = intent === "minimum" ? minWidth : maxWidth;
+      commitPane(onOpenChange
+        ? { type: "expand", width: nextWidth }
+        : { type: "resize", width: nextWidth });
       return;
     }
     const step = accelerated ? 24 : 12;
@@ -147,50 +155,46 @@ export function AuxiliaryPanelHost({
       step,
     });
     if (onOpenChange && nextWidth < minWidth) {
-      onOpenChange(false);
+      commitPane({ type: "collapse", restoreWidth: minWidth });
       return;
     }
-    onWidthChange(clamp(nextWidth, minWidth, maxWidth));
+    commitPane({ type: "resize", width: clamp(nextWidth, minWidth, maxWidth) });
   };
 
   return (
-    <aside
+    <CollapsiblePaneFrame
       ref={setPanelElement}
-      className={`desktop-right-sidebar ${open ? "is-open" : ""}`}
+      as="aside"
+      className={`desktop-right-sidebar ${visualOpen ? "is-open" : ""}`}
+      collapsed={!visualOpen}
+      contentWidth="var(--desktop-right-sidebar-content-width)"
+      frameWidth={resize.width}
+      gesturePhase={resize.phase}
+      side="inline-end"
       style={panelStyle}
+      viewportClassName="desktop-right-sidebar-viewport"
+      contentClassName="desktop-right-sidebar-inner"
+      resizeHandleRef={setResizerElement}
+      resizeHandleProps={(presentation) => resizable && (open || Boolean(onOpenChange))
+        ? {
+            className: "desktop-right-sidebar-resizer",
+            resizing: resize.dragging,
+            collapsedEdgeSide: presentation.settledCollapsed ? "inline-end" : undefined,
+            orientation: "vertical",
+            label: t("shell.sidebar.resizeAuxiliary"),
+            min: onOpenChange ? 0 : minWidth,
+            max: maxWidth,
+            value: resize.width,
+            tabIndex: visualOpen || presentation.settledCollapsed ? 0 : -1,
+            onPointerDown: resize.onPointerDown,
+            onKeyboardResize: resizeByKeyboard,
+          }
+        : undefined}
     >
-      {resizable && (open || Boolean(onOpenChange)) && (
-        <SidebarResizeHandle
-          ref={setResizerElement}
-          className="desktop-right-sidebar-resizer"
-          paneEdge
-          resizing={resize.dragging}
-          collapsedEdgeSide={collapsedEdgeVisible ? "inline-end" : undefined}
-          orientation="vertical"
-          label={t(collapsedEdgeVisible
-            ? "shell.sidebar.expandAuxiliary"
-            : "shell.sidebar.resizeAuxiliary")}
-          min={onOpenChange ? 0 : minWidth}
-          max={maxWidth}
-          value={resize.width}
-          tabIndex={open || collapsedEdgeVisible ? 0 : -1}
-          onCollapsedActivate={collapsedEdgeVisible
-            ? () => onOpenChange?.(true)
-            : undefined}
-          onPointerDown={resize.onPointerDown}
-          onKeyboardResize={resizeByKeyboard}
-        />
-      )}
-      <div className="desktop-right-sidebar-viewport">
-        <div
-          className="desktop-right-sidebar-inner"
-          aria-hidden={open ? undefined : true}
-          {...(!open ? { inert: "" } : {})}
-        >
-          {children}
-        </div>
-      </div>
-    </aside>
+      {(presentation) => typeof children === "function"
+        ? children(presentation)
+        : children}
+    </CollapsiblePaneFrame>
   );
 }
 
@@ -201,5 +205,3 @@ function clamp(value: number, min: number, max: number) {
 function getDocumentDirection(): InlineDirection {
   return document.documentElement.dir === "rtl" ? "rtl" : "ltr";
 }
-
-function noop() {}

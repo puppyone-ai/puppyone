@@ -317,24 +317,16 @@
 
   position: relative;
   z-index: 25;
-  flex: 0 0 0;
-  width: 0;
-  min-width: 0;
   min-height: 0;
   /* The viewport clips content; the frame must expose its border hit area. */
   overflow: visible;
   border-inline-start: 0 solid transparent;
   background: var(--desktop-right-sidebar-background);
-  transition:
-    flex-basis 260ms cubic-bezier(0.22, 1, 0.36, 1),
-    width 260ms cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 260ms ease;
+  transition-property: width, min-width, flex-basis, border-color;
 }
 
-.desktop-right-sidebar.is-open {
+.desktop-right-sidebar:not([data-pane-presentation="collapsed"]) {
   flex-shrink: 0;
-  flex-basis: var(--desktop-right-sidebar-width);
-  width: var(--desktop-right-sidebar-width);
   border-inline-start-width: var(--desktop-right-sidebar-border-start);
   border-inline-start-color: var(--po-sidebar-divider, var(--po-divider));
 }
@@ -348,7 +340,7 @@
   inset-inline-start: calc(-1 * var(--desktop-right-sidebar-border-start));
 }
 
-.desktop-right-sidebar.is-open:has(> .po-pane-edge-resize-handle) {
+.desktop-right-sidebar:has(> .po-pane-edge-resize-handle) {
   border-inline-start-color: transparent;
 }
 
@@ -358,68 +350,22 @@ body.desktop-right-sidebar-resizing * {
   user-select: none !important;
 }
 
+/* Pointer tracking begins synchronously, before React publishes the shared
+ * pane gesture phase. The body-owned resize session must suppress presentation
+ * easing from that first frame so the divider never trails the pointer. */
+body.desktop-right-sidebar-resizing .desktop-right-sidebar.po-collapsible-pane-frame {
+  transition: none !important;
+}
+
 body.desktop-right-sidebar-resizing .desktop-surface,
 body.desktop-right-sidebar-resizing .desktop-right-sidebar-viewport,
 body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   pointer-events: none;
 }
 
-/* Live resizing follows the pointer exactly; removing is-open still animates collapse. */
-body.desktop-right-sidebar-resizing .desktop-right-sidebar.is-open {
-  transition: border-color 260ms ease;
-}
-
-/*
- * The outer sidebar is the animated layout track. This viewport clips one
- * fixed-width content plane so opening and closing never recomputes text
- * wrapping. Intentional pointer resizing still updates the fixed width.
- */
-.desktop-right-sidebar-viewport {
-  position: absolute;
-  inset: 0;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-  overflow: clip;
-  pointer-events: none;
-}
-
-.desktop-right-sidebar-inner {
-  --desktop-right-sidebar-exit-translate: 100%;
-
-  position: absolute;
-  inset-block: 0;
-  inset-inline-end: 0;
-  width: var(--desktop-right-sidebar-content-width);
-  min-width: var(--desktop-right-sidebar-content-width);
-  min-height: 0;
-  overflow: hidden;
-  pointer-events: none;
-  transform: translateX(var(--desktop-right-sidebar-exit-translate));
-  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.desktop-right-sidebar.is-open .desktop-right-sidebar-viewport,
-.desktop-right-sidebar.is-open .desktop-right-sidebar-inner {
-  pointer-events: auto;
-}
-
-.desktop-right-sidebar.is-open .desktop-right-sidebar-inner {
-  transform: translateX(0);
-}
-
-[dir="rtl"] .desktop-right-sidebar-inner {
-  --desktop-right-sidebar-exit-translate: -100%;
-}
-
-body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
-  transition: none;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .desktop-right-sidebar,
-  .desktop-right-sidebar-inner {
-    transition: none;
+  .desktop-right-sidebar {
+    transition-property: border-color;
   }
 }
 

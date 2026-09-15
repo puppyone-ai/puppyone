@@ -26,6 +26,6 @@
     "noEmit": true,
     "jsx": "react-jsx"
   },
-  "include": ["src", "shared/agent-contract/**/*.ts", "shared/agent-activity-contract/**/*.ts", "packages/localization/src", "packages/shared-ui/src"],
+  "include": ["src", "shared/agent-contract/**/*.ts", "shared/agent-activity-contract/**/*.ts", "shared/local-agent-installation/**/*.ts", "packages/localization/src", "packages/shared-ui/src"],
   "references": []
 }

@@ -8,7 +8,7 @@ import {
   ExplorerTree,
   type DataNode,
 } from "@puppyone/shared-ui";
-import { Cloud, FolderOpen, GitBranch, Settings, SquareTerminal } from "lucide-react";
+import { FolderOpen, GitBranch, Settings, SquareTerminal } from "lucide-react";
 import { useEffect } from "react";
 import {
   getInterfaceStyleDefinition,
@@ -77,7 +77,6 @@ const smokeNavigationItems = [
   { dataItem: "data", icon: FolderOpen, labelKey: "shell.navigation.files" },
   { dataItem: "git", icon: GitBranch, labelKey: "shell.navigation.git" },
   { dataItem: "settings", icon: Settings, labelKey: "shell.navigation.settings" },
-  { dataItem: "cloud", icon: Cloud, labelKey: "shell.navigation.cloud" },
 ] as const;
 
 /** Deterministic Chromium fixture for the representative Style × Surface CI matrix. */
@@ -288,9 +287,9 @@ function SmokeNavigation({ shellToolbar = false }: { shellToolbar?: boolean }) {
         <div className={`desktop-sidebar-top-navigation-group desktop-sidebar-top-navigation-local${shellToolbar ? " desktop-shell-toolbar-group" : ""}`}>
           {smokeNavigationItems.map(({ dataItem, icon: Icon, labelKey }) => (
             <button
-              className={`desktop-sidebar-top-navigation-button${shellToolbar ? " desktop-shell-toolbar-button" : ""}${dataItem === "cloud" ? " active" : ""}`}
+              className={`desktop-sidebar-top-navigation-button${shellToolbar ? " desktop-shell-toolbar-button" : ""}${dataItem === "data" ? " active" : ""}`}
               data-navigation-item={dataItem}
-              aria-current={dataItem === "cloud" ? "page" : undefined}
+              aria-current={dataItem === "data" ? "page" : undefined}
               type="button"
               key={dataItem}
             >

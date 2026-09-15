@@ -1,5 +1,6 @@
 import { createDesktopTargetFromNode } from "../../../shared/desktop/platform-contract.mjs";
 import { createPlatformCapabilitySnapshot } from "./common/capability-snapshot.mjs";
+import { createExecutableDiscoveryPort } from "./common/executable-discovery-port.mjs";
 import { createLinuxPlatformAdapter } from "./linux/index.mjs";
 import { createMacosPlatformAdapter } from "./macos/index.mjs";
 import { createWindowsPlatformAdapter } from "./windows/index.mjs";
@@ -23,6 +24,7 @@ export function createDesktopPlatformHost({
     arch: target.arch,
     windowChrome: adapter.windowChrome,
     documents: adapter.documents,
+    executableDiscovery: createExecutableDiscoveryPort({ nodePlatform }),
     getCapabilities: () => capabilities,
   });
 }

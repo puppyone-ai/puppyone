@@ -85,6 +85,8 @@ export function bindInlineHtmlDomInteractions(
     if (!options.openHref || !href) {
       link.removeAttribute("role");
       link.removeAttribute("tabindex");
+      link.removeAttribute("data-md-link-interaction");
+      link.setAttribute("data-po-content-interaction", "text");
       continue;
     }
 
@@ -95,6 +97,8 @@ export function bindInlineHtmlDomInteractions(
     };
     link.setAttribute("role", "link");
     link.setAttribute("tabindex", "0");
+    link.setAttribute("data-md-link-interaction", "navigate");
+    link.setAttribute("data-po-content-interaction", "navigation");
     boundInlineHtmlLinks.add(link);
     link.addEventListener("click", activate);
     link.addEventListener("keydown", (event) => {

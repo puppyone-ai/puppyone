@@ -1,5 +1,11 @@
 export { SidebarEmptyState } from "./SidebarEmptyState";
 export type { SidebarEmptyStateProps } from "./SidebarEmptyState";
+export { CollapsiblePaneFrame } from "./CollapsiblePaneFrame";
+export type {
+  CollapsiblePaneFrameProps,
+  CollapsiblePanePresentation,
+  CollapsiblePanePresentationPhase,
+} from "./CollapsiblePaneFrame";
 export { SidebarIconButton } from "./SidebarIconButton";
 export type { SidebarIconButtonProps } from "./SidebarIconButton";
 export { SidebarList } from "./SidebarList";

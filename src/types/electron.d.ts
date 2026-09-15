@@ -409,20 +409,9 @@ export type TerminalAppearanceRequest = {
   };
 };
 
-export type TerminalAgentId = Exclude<DesktopTerminalLauncherId, "shell">;
-
-export type TerminalAgentLocationSnapshot = {
-  availableAgentIds: TerminalAgentId[];
-  scannedAt: string;
-  source: "scan" | "memory-cache";
-};
-
-export type TerminalAgentLocationProgressEvent = {
-  availableAgentIds: TerminalAgentId[];
-  completedAgentCount: number;
-  requestId: string;
-  totalAgentCount: number;
-};
+export type TerminalAgentId = import("../../shared/local-agent-installation/types").LocalAgentInstallationId;
+export type LocalAgentInstallationSnapshot = import("../../shared/local-agent-installation/types").LocalAgentInstallationSnapshot;
+export type LocalAgentInstallationProgressEvent = import("../../shared/local-agent-installation/types").LocalAgentInstallationProgressEvent;
 
 export type TerminalCreateResult = {
   instanceId?: string;
@@ -573,6 +562,7 @@ export type DesktopUpdateState = {
   status: DesktopUpdateStatus;
   currentVersion: string;
   channel: DesktopBuildChannel;
+  automaticallyDownloadUpdates: boolean;
   availableVersion: string | null;
   updateInfo: DesktopUpdateInfo;
   progress: DesktopUpdateProgress;
@@ -948,9 +938,10 @@ export type EditorSurfaceState = Readonly<{
 
 declare global {
   interface Window {
-    puppyoneItemHost?: import("../../shared/item-host-contract/types").ItemRendererBridge;
     puppyoneDesktop?: {
-      itemHosts?: import("../../shared/item-host-contract/types").ItemHostBridge;
+      connectAgentSession: (request: import("../../shared/session-transport/types").AgentConnectionRequest) => Promise<import("../../shared/session-transport/types").SessionConnection>;
+      connectTerminalSession: (request: import("../../shared/session-transport/types").TerminalConnectionRequest) => Promise<import("../../shared/session-transport/types").SessionConnection>;
+      onSessionRuntimeFailure: (listener: (failure: import("../../shared/session-transport/types").SessionRuntimeFailure) => void) => () => void;
       getWindowChromeState: () => Promise<{ fullScreen: boolean; maximized: boolean }>;
       setWindowChromeProfile: (request: {
         titlebar: string;
@@ -1221,11 +1212,12 @@ declare global {
       previewResourceDrag: () => Promise<import("../platform/resourceDragSession").ResourceDragPreview | null>;
       claimResourceDrop: (request: {
         files: File[];
-        intent: "explorer-move" | "terminal-path" | "agent-reference";
+        intent: import("../platform/resourceDragSession").ResourceDropIntent;
         targetResource?: string;
       }) => Promise<{ entries: import("@puppyone/shared-ui").ExplorerReferenceDragEntry[] } | null>;
       onResourceDragState: (listener: (state: import("../platform/resourceDragSession").ResourceDragState) => void) => () => void;
       startResourceDrag: (request: { resources: string[] }) => Promise<boolean>;
+      startProjectRootDrag: (request: { path: string }) => Promise<boolean>;
       resolveResourceReferences: (request: { resources: string[]; rootPath?: string; sourceWorkspaceId?: string }) => Promise<Array<{
         resourceUri: string;
         folderId: string;
@@ -1433,6 +1425,9 @@ declare global {
         authorName?: string;
         authorEmail?: string;
       }) => Promise<GitStatusSnapshot>;
+      stashGitChanges: (request: {
+        rootPath: string;
+      }) => Promise<GitStatusSnapshot>;
       continueGitOperation: (request: {
         rootPath: string;
       }) => Promise<GitStatusSnapshot>;
@@ -1489,6 +1484,7 @@ declare global {
       downloadUpdate: () => Promise<DesktopUpdateState>;
       updateNow: () => Promise<DesktopUpdateState>;
       installUpdate: () => Promise<DesktopUpdateState>;
+      setAutomaticallyDownloadUpdates: (request: { enabled: boolean }) => Promise<DesktopUpdateState>;
       onUpdateStateChanged: (
         callback: (state: DesktopUpdateState) => void,
       ) => () => void;
@@ -1559,12 +1555,15 @@ declare global {
           };
         }) => void) => () => void;
       };
-      locateTerminalAgents: (request: {
+      discoverLocalAgentInstallations: (request: {
         refresh?: boolean;
         requestId: string;
-      }) => Promise<TerminalAgentLocationSnapshot>;
-      onTerminalAgentLocationProgress: (
-        callback: (event: TerminalAgentLocationProgressEvent) => void,
+      }) => Promise<LocalAgentInstallationSnapshot>;
+      onLocalAgentInstallationProgress: (
+        callback: (event: LocalAgentInstallationProgressEvent) => void,
+      ) => () => void;
+      onLocalAgentInstallationsChanged: (
+        callback: (snapshot: LocalAgentInstallationSnapshot) => void,
       ) => () => void;
       createTerminal: (request: TerminalCreateRequest) => Promise<TerminalCreateResult | import("../../shared/project-session-contract/types").ProjectSessionFailure>;
       writeTerminal: (request: TerminalInputRequest) => void;

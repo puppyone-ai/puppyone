@@ -94,6 +94,10 @@ export function SettingsView({
   onRefreshGitStatus,
   onCheckForUpdates,
   onUpdateNow,
+  automaticDownloadPreferenceAvailable,
+  automaticDownloadPreferenceSaving,
+  automaticDownloadPreferenceError,
+  onAutomaticallyDownloadUpdatesChange,
 }: SettingsViewProps) {
   const { t } = useLocalization();
   const assetLibraryHomeAvailable = useFeatureFlag("assetLibraryHome");
@@ -107,6 +111,10 @@ export function SettingsView({
         updateState={updateState}
         onCheckForUpdates={onCheckForUpdates}
         onUpdateNow={onUpdateNow}
+        automaticDownloadPreferenceAvailable={automaticDownloadPreferenceAvailable}
+        automaticDownloadPreferenceSaving={automaticDownloadPreferenceSaving}
+        automaticDownloadPreferenceError={automaticDownloadPreferenceError}
+        onAutomaticallyDownloadUpdatesChange={onAutomaticallyDownloadUpdatesChange}
       />
     );
   }
@@ -117,6 +125,10 @@ export function SettingsView({
         updateState={updateState}
         onCheckForUpdates={onCheckForUpdates}
         onUpdateNow={onUpdateNow}
+        automaticDownloadPreferenceAvailable={automaticDownloadPreferenceAvailable}
+        automaticDownloadPreferenceSaving={automaticDownloadPreferenceSaving}
+        automaticDownloadPreferenceError={automaticDownloadPreferenceError}
+        onAutomaticallyDownloadUpdatesChange={onAutomaticallyDownloadUpdatesChange}
       />
     );
   }

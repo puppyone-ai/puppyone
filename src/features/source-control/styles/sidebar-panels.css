@@ -92,44 +92,12 @@
   background: var(--po-border);
 }
 
-.desktop-git-history-resizer {
-  position: relative;
-  flex: 0 0 var(--git-section-divider-height);
-  border: 0;
-  background: transparent;
-  cursor: row-resize;
-}
-
-.desktop-git-history-resizer::after {
-  position: absolute;
-  top: var(--git-section-divider-line-offset);
-  inset-inline: 0;
-  height: 1px;
-  background: var(--po-sidebar-divider, var(--po-divider));
-  content: "";
-}
-
-.desktop-git-history-resizer:hover::after,
-.desktop-git-history-resizer.active::after,
-.desktop-git-history-resizer:focus-visible::after {
-  background: var(--po-border);
-}
-
-.desktop-git-history-resizer.is-static {
-  cursor: default;
-}
-
-.desktop-git-history-resizer.is-static:hover::after {
-  background: var(--po-sidebar-divider, var(--po-divider));
-}
-
 body.desktop-git-sidebar-resizing {
   cursor: row-resize;
   user-select: none;
 }
 
-.desktop-git-changes-scroll,
-.desktop-git-history-scroll {
+.desktop-git-changes-scroll {
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;

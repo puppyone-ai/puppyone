@@ -33,8 +33,14 @@ const fixtureResponse = "A response uses the application's text and surface role
 // Deterministic CLI fixture: explicit RGB composer derived from startup colors.
 // It exercises production runtime/contribution code without credentials or a real Agent.
 Object.defineProperty(window, "puppyoneDesktop", { configurable: true, value: {
-  locateTerminalAgents: async () => ({ availableAgentIds: ["codex", "cursor"], scannedAt: "2026-09-11T00:00:00.000Z", source: "scan" }),
-  onTerminalAgentLocationProgress: () => () => {},
+  discoverLocalAgentInstallations: async () => ({
+    schemaVersion: 1, generation: 1, scanId: "local-agent-scan:1",
+    requestedAt: "2026-09-11T00:00:00.000Z", completedAt: "2026-09-11T00:00:00.001Z", source: "scan",
+    availableAgentIds: ["codex", "cursor"],
+    results: ["codex", "cursor"].map((agentId) => ({ agentId, displayName: agentId, status: "found", source: "fixture" })),
+  }),
+  onLocalAgentInstallationProgress: () => () => {},
+  onLocalAgentInstallationsChanged: () => () => {},
   createTerminal: async (request: TerminalCreateRequest) => {
     creations.push(request);
     const bg = request.defaultColors!.background.map(channel => Math.max(0, channel - 10));
@@ -63,8 +69,8 @@ function ChatFixture() {
 }
 
 // This fixture tests renderer appearance with a deterministic CLI transport.
-// Production workbench contributions now create native hosts; their process and
-// presentation lifecycle is covered by the real project-session smoke instead.
+// Production session connections and project lifetime are covered by the full
+// project-session smoke; this fixture keeps appearance checks deterministic.
 function TerminalFixture({ project, item, presentation, readAppearance }: AuxiliaryWorkbenchItemRenderContext & {
   readAppearance: () => TerminalAppearance;
 }) {

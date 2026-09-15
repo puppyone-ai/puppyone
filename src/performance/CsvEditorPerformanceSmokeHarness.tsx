@@ -1,6 +1,8 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { DataNode, DataPort, Workspace } from "@puppyone/shared-ui";
 import { DataWorkspace } from "@puppyone/shared-ui";
+
+import { waitForCommittedDocumentElement } from "./documentSurfaceProbe";
 
 const SAMPLE_COUNT = readSampleTarget();
 const WARMUP_COUNT = 4;
@@ -31,6 +33,7 @@ type CsvStructuralResult = Readonly<{
 
 type CsvPerformanceSmokeResult = Readonly<{
   inputTransactions: Distribution;
+  readinessSamples: readonly { click: number; commit: number; paint: number; measured: boolean }[];
   longTasks: { over50ms: number; total: number; entries: readonly { startTime: number; duration: number; phase: string }[] };
   openToProjection: Distribution;
   structural: {
@@ -46,12 +49,18 @@ declare global {
 }
 
 export function CsvEditorPerformanceSmokeHarness() {
-  const fixtures = useMemo(() => new Map([
-    [FILE_A, makeCsv(500, 20)],
-    [FILE_B, makeCsv(500, 20)],
-    [LARGE_FILE, makeCsv(10_000, 20)],
-    [WIDE_FILE, makeCsv(500, 100)],
-  ]), []);
+  const [fixtures, setFixtures] = useState<Map<string, string> | null>(null);
+  useEffect(() => {
+    let stopped = false;
+    // Synthetic data preparation is test setup, not a document-open operation.
+    // Yield between batches so setup does not block the real renderer mount.
+    void prepareFixtures().then((prepared) => { if (!stopped) setFixtures(prepared); });
+    return () => { stopped = true; };
+  }, []);
+  return fixtures ? <PreparedCsvPerformanceHarness fixtures={fixtures} /> : null;
+}
+
+function PreparedCsvPerformanceHarness({ fixtures }: { fixtures: Map<string, string> }) {
   const nodes = useMemo<DataNode[]>(() => [...fixtures.keys()].map((path) => ({
     id: path,
     name: path,
@@ -109,6 +118,7 @@ export function CsvEditorPerformanceSmokeHarness() {
 
     const run = async () => {
       const openDurations: number[] = [];
+      const readinessSamples: { click: number; commit: number; paint: number; measured: boolean }[] = [];
       const inputDurations: number[] = [];
       let nextFile = FILE_A;
       for (let sample = 0; sample < WARMUP_COUNT + SAMPLE_COUNT; sample += 1) {
@@ -117,9 +127,11 @@ export function CsvEditorPerformanceSmokeHarness() {
         const openedAt = performance.now();
         phases.push({ at: openedAt, name: `open:${nextFile}` });
         button.click();
-        const table = await waitForElement<HTMLTableElement>(
-          `.csv-table-editor__table[aria-label="${nextFile}"]`,
+        const clickedAt = performance.now();
+        const table = await waitForCommittedDocumentElement<HTMLTableElement>(
+          nextFile, ".csv-table-editor__table",
         );
+        const committedAt = performance.now();
         await waitForAnimationFrames(1);
         const openDuration = performance.now() - openedAt;
         const input = table.querySelector<HTMLInputElement>(
@@ -132,6 +144,7 @@ export function CsvEditorPerformanceSmokeHarness() {
         const inputDuration = performance.now() - inputStartedAt;
         if (sample >= WARMUP_COUNT) {
           openDurations.push(openDuration);
+          readinessSamples.push({ click: clickedAt - openedAt, commit: committedAt - openedAt, paint: openDuration, measured: Boolean(table.closest('[data-document-surface-ready="true"]')) });
           inputDurations.push(inputDuration);
         }
       }
@@ -143,6 +156,7 @@ export function CsvEditorPerformanceSmokeHarness() {
       if (stopped) return;
       window.__PUPPYONE_CSV_PERFORMANCE_SMOKE_RESULT__ = {
         inputTransactions: summarize(inputDurations),
+        readinessSamples,
         longTasks: {
           over50ms: longTasks.filter(({ duration }) => duration > 50).length,
           total: longTasks.length,
@@ -195,7 +209,7 @@ async function inspectFixture(path: string, axis: "row" | "column"): Promise<Csv
   if (!(scroll instanceof HTMLElement)) throw new Error(`CSV scroll owner is unavailable for ${path}.`);
   const rapidScroll = axis === "row"
     ? await inspectRapidVerticalScroll(table, scroll)
-    : { coverageMisses: 0, peakMountedCells: 0, samples: 0 };
+    : await inspectRapidHorizontalScroll(table, scroll);
   if (axis === "column") {
     scroll.scrollLeft = Math.max(0, scroll.scrollWidth * 0.62);
     scroll.dispatchEvent(new Event("scroll"));
@@ -269,6 +283,40 @@ async function inspectRapidVerticalScroll(
   return { coverageMisses, peakMountedCells, samples };
 }
 
+async function inspectRapidHorizontalScroll(
+  table: HTMLTableElement,
+  scroll: HTMLElement,
+): Promise<{ coverageMisses: number; peakMountedCells: number; samples: number }> {
+  let coverageMisses = 0;
+  let peakMountedCells = 0;
+  let samples = 0;
+  const step = scroll.clientWidth * 0.55;
+  const targets = [
+    ...Array.from({ length: 18 }, (_, index) => (index + 1) * step),
+    ...Array.from({ length: 6 }, (_, index) => (17 - index) * step),
+  ];
+  for (const target of targets) {
+    scroll.scrollLeft = Math.min(scroll.scrollWidth - scroll.clientWidth, target);
+    scroll.dispatchEvent(new Event("scroll"));
+    await waitForAnimationFrames(1);
+    const row = table.querySelector("tbody tr[data-csv-row]");
+    const cells = row?.querySelectorAll<HTMLTableCellElement>("td[data-csv-column]");
+    if (!cells?.length) throw new Error("Wide CSV has no projected data cells.");
+    const viewport = scroll.getBoundingClientRect();
+    const gutter = row?.querySelector(".csv-table-editor__record-index")?.getBoundingClientRect().width ?? 0;
+    const tableBounds = table.getBoundingClientRect();
+    const left = Math.max(viewport.left, tableBounds.left) + gutter;
+    const right = Math.min(viewport.right, tableBounds.right);
+    if (cells[0].getBoundingClientRect().left > left + 2
+      || cells[cells.length - 1].getBoundingClientRect().right < right - 2) coverageMisses += 1;
+    peakMountedCells = Math.max(peakMountedCells, Number(table.dataset.csvMountedCells));
+    samples += 1;
+  }
+  await new Promise(resolve => setTimeout(resolve, 170));
+  await waitForAnimationFrames(2);
+  return { coverageMisses, peakMountedCells, samples };
+}
+
 async function waitForElement<ElementType extends Element>(selector: string): Promise<ElementType> {
   for (let attempt = 0; attempt < 1_200; attempt += 1) {
     const element = document.querySelector<ElementType>(selector);
@@ -293,10 +341,20 @@ function percentile(sorted: readonly number[], percentileValue: number): number 
   return sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * percentileValue) - 1)];
 }
 
-function makeCsv(rowCount: number, columnCount: number): string {
-  return Array.from({ length: rowCount }, (_, rowIndex) => (
-    Array.from({ length: columnCount }, (_, columnIndex) => `r${rowIndex}c${columnIndex}`).join(",")
-  )).join("\n");
+async function prepareFixtures(): Promise<Map<string, string>> {
+  const fixtures = new Map<string, string>();
+  for (const [name, rowCount, columnCount] of [
+    [FILE_A, 500, 20], [FILE_B, 500, 20],
+    [LARGE_FILE, 10_000, 20], [WIDE_FILE, 500, 100],
+  ] as const) {
+    const rows: string[] = [];
+    for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
+      rows.push(Array.from({ length: columnCount }, (_, columnIndex) => `r${rowIndex}c${columnIndex}`).join(","));
+      if (rowIndex % 200 === 199) await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    }
+    fixtures.set(name, rows.join("\n"));
+  }
+  return fixtures;
 }
 
 function setNativeInputValue(input: HTMLInputElement, value: string): void {

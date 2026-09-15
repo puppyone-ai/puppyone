@@ -1,8 +1,8 @@
 import { useLayoutEffect, useRef } from "react";
 import { acquireNativeSurfaceLayoutLease } from "./nativeSurfaceGeometry";
 
-/** Suspends only this subtree across a CSS clip/transform transition; releases only
- * after its final layout frame. The timeout is a cancellation fail-safe. */
+/** Samples native bounds through a CSS pane transition and releases only after
+ * its final layout frame. The timeout is a cancellation fail-safe. */
 export function useNativeSurfaceLayoutTransition(
   owner: string,
   element: HTMLElement | null,
@@ -17,7 +17,10 @@ export function useNativeSurfaceLayoutTransition(
     if (Object.is(previousKeyRef.current, changeKey)) return undefined;
     previousKeyRef.current = changeKey;
     if (!enabled) return undefined;
-    const lease = acquireNativeSurfaceLayoutLease(owner, { suspendWithin: element });
+    // Native slots use the same ancestor clipping boxes as DOM content, so the
+    // shared frame clock can resize them every animation frame. Hiding the
+    // subtree here would leave a blank pane until the CSS transition finished.
+    const lease = acquireNativeSurfaceLayoutLease(owner);
     const active = new Set<string>();
     let released = false;
     let settleFrame: number | null = null;
@@ -49,7 +52,7 @@ export function useNativeSurfaceLayoutTransition(
     element.addEventListener("transitionrun", handleRun);
     element.addEventListener("transitionend", handleEnd);
     element.addEventListener("transitioncancel", handleEnd);
-    // Keep the child suspended for the declared layout interval even when
+    // Keep sampling for the declared layout interval even when
     // Chromium coalesces transitionrun/end events. The timeout converges
     // through the same two-frame final reconciliation as a real transition.
     timeoutId = window.setTimeout(() => {

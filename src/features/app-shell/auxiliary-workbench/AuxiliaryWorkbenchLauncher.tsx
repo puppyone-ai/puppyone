@@ -4,7 +4,7 @@ import type { AuxiliaryWorkbenchContribution, AuxiliaryWorkbenchCreationRecipe, 
 import type { WorkbenchLauncherContext } from "./AuxiliaryWorkbenchPanel";
 import type { ProjectWorkbenchStore } from "./ProjectWorkbenchStore";
 import { filterAgentChatCreationRecipesByLocalAgentIds } from "./agentChatCreationRecipes";
-import { useTerminalAgentLocator } from "../../desktop-terminal/controller/useTerminalAgentLocator";
+import { useLocalAgentInstallations } from "../../local-agents/controller/useLocalAgentInstallations";
 import { TerminalLauncher } from "../../desktop-terminal/ui/TerminalLauncher";
 import { WorkbenchLauncherState } from "./WorkbenchLauncherState";
 
@@ -25,7 +25,7 @@ export function AuxiliaryWorkbenchLauncher({ store, contributions, hiddenAgentId
     const current = currentState.snapshots.get(itemId);
     if (current) store.updateSnapshot(itemId, { ...current, title, accessibleLabel: title, iconKey: historyOpen ? "history" : null });
   }, [store, itemId, title, historyOpen]);
-  const discovery = useTerminalAgentLocator({ enabled: presented });
+  const discovery = useLocalAgentInstallations({ enabled: presented });
   const availableAgentIds = discovery.ids.filter((id) => !hiddenAgentIds.includes(id));
   const chat = contributions.find((entry) => entry.kind === "agent-chat");
   const terminal = contributions.find((entry) => entry.kind === "terminal");

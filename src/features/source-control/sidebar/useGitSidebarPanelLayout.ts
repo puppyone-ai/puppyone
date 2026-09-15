@@ -26,14 +26,10 @@ export type GitSidebarLayoutPanel = {
 const MAX_VISIBLE_ROWS = 9;
 const EMPTY_BODY_ROWS = 1.5;
 const ROW_VERTICAL_MARGIN_PX = 2;
-const CHANGES_PANE_MIN_HEIGHT = 144;
-const HISTORY_PANE_MIN_HEIGHT = 104;
 const SCROLLABLE_LIST_SELECTOR = [
   ".desktop-working-tree-list",
   ".desktop-git-remote-preview",
-  ".desktop-history-list",
   ".desktop-git-changes-scroll",
-  ".desktop-git-history-scroll",
 ].join(",");
 const PANEL_MIN_HEIGHT: Record<GitSidebarPanelId, number> = {
   merge: 72,
@@ -49,11 +45,8 @@ export function getGitSidebarPanelBodyRows(resourceCount: number, hasBodyPlaceho
 
 export function useGitSidebarPanelLayout(revision: unknown) {
   const [panelHeights, setPanelHeights] = useState<Partial<Record<GitSidebarPanelId, number>>>({});
-  const [historyPaneHeight, setHistoryPaneHeight] = useState<number | null>(null);
   const [activeResizeSplit, setActiveResizeSplit] = useState<string | null>(null);
   const sidebarListRef = useRef<HTMLDivElement | null>(null);
-  const changesPaneRef = useRef<HTMLDivElement | null>(null);
-  const historyPaneRef = useRef<HTMLElement | null>(null);
   const panelRefs = useRef<Partial<Record<GitSidebarPanelId, HTMLDivElement | null>>>({});
 
   const setPanelRef = useCallback((id: GitSidebarPanelId, node: HTMLDivElement | null) => {
@@ -106,35 +99,6 @@ export function useGitSidebarPanelLayout(revision: unknown) {
     },
   });
 
-  const beginHistoryResize = usePaneResizeDrag({
-    bodyClassName: "desktop-git-sidebar-resizing",
-    onDragStart: (event) => {
-      const changesNode = changesPaneRef.current;
-      const historyNode = historyPaneRef.current;
-      if (!changesNode || !historyNode) return null;
-      const changesStart = changesNode.getBoundingClientRect().height;
-      const historyStart = historyNode.getBoundingClientRect().height;
-      const totalHeight = changesStart + historyStart;
-      const changesMin = getPanelComputedMinHeight(changesNode, CHANGES_PANE_MIN_HEIGHT);
-      const historyMin = getPanelComputedMinHeight(historyNode, HISTORY_PANE_MIN_HEIGHT);
-      const historyMax = Math.max(historyMin, totalHeight - changesMin);
-      const startY = event.clientY;
-      setActiveResizeSplit("changes:history");
-
-      return {
-        onMove: (point) => {
-          const nextHeight = clampNumber(historyStart - (point.clientY - startY), historyMin, historyMax);
-          setHistoryPaneHeight(Math.round(nextHeight));
-        },
-        onCancel: () => {
-          setHistoryPaneHeight(historyStart);
-          setActiveResizeSplit(null);
-        },
-        onEnd: () => setActiveResizeSplit(null),
-      };
-    },
-  });
-
   const resizePanelsByKeyboard = useCallback((
     previous: GitSidebarPanelId,
     next: GitSidebarPanelId,
@@ -167,28 +131,6 @@ export function useGitSidebarPanelLayout(revision: unknown) {
     }));
   }, []);
 
-  const resizeHistoryByKeyboard = useCallback((
-    intent: SidebarResizeIntent,
-    accelerated: boolean,
-  ) => {
-    const changesNode = changesPaneRef.current;
-    const historyNode = historyPaneRef.current;
-    if (!changesNode || !historyNode) return;
-    const totalHeight = changesNode.getBoundingClientRect().height
-      + historyNode.getBoundingClientRect().height;
-    const currentHeight = historyNode.getBoundingClientRect().height;
-    const changesMin = getPanelComputedMinHeight(changesNode, CHANGES_PANE_MIN_HEIGHT);
-    const historyMin = getPanelComputedMinHeight(historyNode, HISTORY_PANE_MIN_HEIGHT);
-    const historyMax = Math.max(historyMin, totalHeight - changesMin);
-    const step = accelerated ? 32 : 8;
-    const requested = intent === "minimum"
-      ? historyMax
-      : intent === "maximum"
-        ? historyMin
-        : currentHeight + (intent === "decrease" ? step : -step);
-    setHistoryPaneHeight(Math.round(clampNumber(requested, historyMin, historyMax)));
-  }, []);
-
   const getPanelStyle = useCallback((panel: GitSidebarLayoutPanel): CSSProperties => {
     if (!panel.expanded) {
       return {
@@ -212,13 +154,6 @@ export function useGitSidebarPanelLayout(revision: unknown) {
       : { flexGrow: panel.grow, maxHeight, minHeight };
   }, [panelHeights]);
 
-  const getHistoryPaneStyle = useCallback((): CSSProperties | undefined => {
-    if (historyPaneHeight === null) return undefined;
-    return {
-      flex: `0 0 ${historyPaneHeight}px`,
-    };
-  }, [historyPaneHeight]);
-
   const scrollRevision = useMemo(() => ({ panelHeights, revision }), [panelHeights, revision]);
   useScrollableDescendantClasses(sidebarListRef, {
     revision: scrollRevision,
@@ -227,16 +162,9 @@ export function useGitSidebarPanelLayout(revision: unknown) {
 
   return {
     activeResizeSplit,
-    beginHistoryResize,
     beginPanelResize,
-    changesPaneRef,
-    getHistoryPaneStyle,
     getPanelStyle,
-    historyPaneHeight,
-    historyPaneRef,
     panelHeights,
-    resetHistoryPaneHeight: () => setHistoryPaneHeight(null),
-    resizeHistoryByKeyboard,
     resizePanelsByKeyboard,
     setPanelRef,
     sidebarListRef,

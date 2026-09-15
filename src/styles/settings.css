@@ -144,6 +144,20 @@
   font-weight: var(--po-text-weight-regular, 400);
 }
 
+.desktop-update-preference-error {
+  color: var(--po-danger);
+  font-size: var(--po-text-size-caption, 11px);
+  font-weight: var(--po-text-weight-regular, 400);
+}
+
+.desktop-update-preference-label {
+  display: inline-flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--po-text-subtle);
+}
+
 .desktop-product-analyze-label {
   display: inline-flex;
   min-width: 0;

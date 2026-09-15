@@ -2,4 +2,4 @@ export {
   assertExecutableIdentity,
   executableCandidateLimits,
   resolveFirstExecutable,
-} from "../../../local-executable-resolver.mjs";
+} from "../../../local-agent-installation/executable-resolver.mjs";

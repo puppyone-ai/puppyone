@@ -545,10 +545,11 @@ function getLineSource(state: EditorState, pos: number): LineSource {
 function dedupeElements(elements: MarkdownElement[]): MarkdownElement[] {
   const seen = new Map<string, number>();
   const result: MarkdownElement[] = [];
+  let precedingWikiLinkEnd = -1;
   for (const element of elements) {
     if (
       element.kind === "link" &&
-      result.some((candidate) => candidate.kind === "wikiLink" && element.from >= candidate.from && element.to <= candidate.to)
+      element.to <= precedingWikiLinkEnd
     ) {
       continue;
     }
@@ -562,6 +563,9 @@ function dedupeElements(elements: MarkdownElement[]): MarkdownElement[] {
     }
     seen.set(key, result.length);
     result.push(element);
+    // Input is sorted by source start. An earlier wiki link contains this
+    // token iff its end reaches past the token; no quadratic prefix scan.
+    if (element.kind === "wikiLink") precedingWikiLinkEnd = Math.max(precedingWikiLinkEnd, element.to);
   }
   return result;
 }

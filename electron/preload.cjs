@@ -3,24 +3,12 @@ const externalViewerPacksEnabled = process.argv.includes("--puppyone-external-vi
 const gitAutoCommitAvailable = process.argv.includes("--puppyone-git-auto-commit=1");
 
 contextBridge.exposeInMainWorld("puppyoneDesktop", {
-  itemHosts: {
-    create: (request) => ipcRenderer.invoke("item-host:create", request),
-    configure: (request) => ipcRenderer.invoke("item-host:configure", request),
-    setGeometry: (request) => ipcRenderer.send("item-host:geometry", request),
-    focus: (request) => ipcRenderer.send("item-host:focus", request),
-    close: (request) => ipcRenderer.invoke("item-host:close", request),
-    recover: (request) => ipcRenderer.invoke("item-host:recover", request),
-    respond: (request) => ipcRenderer.send("item-host:respond", request),
-    onState: (callback) => {
-      const listener = (_event, value) => callback(value);
-      ipcRenderer.on("item-host:state", listener);
-      return () => ipcRenderer.removeListener("item-host:state", listener);
-    },
-    onEvent: (callback) => {
-      const listener = (_event, value) => callback(value);
-      ipcRenderer.on("item-host:event", listener);
-      return () => ipcRenderer.removeListener("item-host:event", listener);
-    },
+  connectAgentSession: (request) => ipcRenderer.invoke("agent:session-connect", request),
+  connectTerminalSession: (request) => ipcRenderer.invoke("terminal:connect", request),
+  onSessionRuntimeFailure: (callback) => {
+    const listener = (_event, failure) => callback(failure);
+    ipcRenderer.on("session:failure", listener);
+    return () => ipcRenderer.removeListener("session:failure", listener);
   },
   getWindowChromeState: () => ipcRenderer.invoke("window-layout:get-chrome-state"),
   setWindowChromeProfile: (request) => (
@@ -313,6 +301,9 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
     return () => ipcRenderer.removeListener("resource-transfer:state", handler);
   },
   startResourceDrag: (request) => ipcRenderer.invoke("resource-transfer:start-drag", request),
+  startProjectRootDrag: (request) => ipcRenderer.invoke("resource-transfer:start-project-drag", {
+    path: request?.path,
+  }),
   listFolderChildren: (request) => ipcRenderer.invoke("workspace:list-folder-children", request),
   resolveNode: (request) => ipcRenderer.invoke("workspace:resolve-node", request),
   readFile: (request) => ipcRenderer.invoke("workspace:read-file", request),
@@ -430,6 +421,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   discardGitPaths: (request) => ipcRenderer.invoke("workspace:git-discard", request),
   discardAllGitChanges: (request) => ipcRenderer.invoke("workspace:git-discard-all", request),
   commitGit: (request) => ipcRenderer.invoke("workspace:git-commit", request),
+  stashGitChanges: (request) => ipcRenderer.invoke("workspace:git-stash", request),
   continueGitOperation: (request) => ipcRenderer.invoke("workspace:git-operation-continue", request),
   abortGitOperation: (request) => ipcRenderer.invoke("workspace:git-operation-abort", request),
   checkoutGitBranch: (request) => ipcRenderer.invoke("workspace:git-checkout-branch", request),
@@ -447,6 +439,9 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   downloadUpdate: () => ipcRenderer.invoke("updates:download"),
   updateNow: () => ipcRenderer.invoke("updates:update-now"),
   installUpdate: () => ipcRenderer.invoke("updates:install"),
+  setAutomaticallyDownloadUpdates: (request) => (
+    ipcRenderer.invoke("updates:set-automatically-download", request)
+  ),
   onUpdateStateChanged: (callback) => {
     const listener = (_event, payload) => callback(payload);
     ipcRenderer.on("updates:state", listener);
@@ -512,12 +507,18 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
       },
     },
   } : {}),
-  locateTerminalAgents: (request) => ipcRenderer.invoke("terminal:agents-locate", request),
-  onTerminalAgentLocationProgress: (callback) => {
+  discoverLocalAgentInstallations: (request) => ipcRenderer.invoke("local-agent-installation:discover", request),
+  onLocalAgentInstallationProgress: (callback) => {
     if (typeof callback !== "function") return () => {};
     const listener = (_event, payload) => callback(payload);
-    ipcRenderer.on("terminal:agents-progress", listener);
-    return () => ipcRenderer.removeListener("terminal:agents-progress", listener);
+    ipcRenderer.on("local-agent-installation:progress", listener);
+    return () => ipcRenderer.removeListener("local-agent-installation:progress", listener);
+  },
+  onLocalAgentInstallationsChanged: (callback) => {
+    if (typeof callback !== "function") return () => {};
+    const listener = (_event, payload) => callback(payload);
+    ipcRenderer.on("local-agent-installation:changed", listener);
+    return () => ipcRenderer.removeListener("local-agent-installation:changed", listener);
   },
   createTerminal: (request) => ipcRenderer.invoke("terminal:create", request),
   writeTerminal: (request) => ipcRenderer.send("terminal:input", request),
@@ -544,4 +545,9 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   },
   getAgentActivityEnrollment: () => ipcRenderer.invoke("agent-activity:enrollment-snapshot"),
   setAgentActivityEnrollment: (request) => ipcRenderer.invoke("agent-activity:enrollment-set", request),
+});
+
+// Transfer data ports into the application document; session authority stays in Main.
+ipcRenderer.on("session:port", (event, binding) => {
+  window.postMessage({ type: "puppyone-session-port", binding }, "*", event.ports);
 });

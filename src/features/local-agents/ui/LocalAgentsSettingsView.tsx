@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { useLocalization } from "@puppyone/localization";
 import type { LocalAgentsSettings } from "../../../preferences";
 import { AGENT_CHAT_LOCAL_AGENT_IDS } from "../../app-shell/auxiliary-workbench/agentChatCreationRecipes";
-import { useTerminalAgentLocator } from "../../desktop-terminal/controller/useTerminalAgentLocator";
+import { useLocalAgentInstallations } from "../controller/useLocalAgentInstallations";
 import { DESKTOP_TERMINAL_LAUNCHERS } from "../../desktop-terminal/model/terminalLaunchers";
 import { AgentLauncherIcon } from "../../../components/brand/AgentLauncherIcon";
 import { SettingsSectionHeader } from "../../settings/components";
@@ -27,9 +27,10 @@ export function LocalAgentsSettingsView({
   const { t } = useLocalization();
   const {
     ids: detectedAgentIds,
+    hasFailures,
     phase,
     refresh,
-  } = useTerminalAgentLocator({ enabled: true });
+  } = useLocalAgentInstallations({ enabled: true });
   const detected = useMemo(() => {
     const ids = new Set(detectedAgentIds);
     return DESKTOP_TERMINAL_LAUNCHERS.filter(
@@ -61,7 +62,6 @@ export function LocalAgentsSettingsView({
                   type="button"
                   aria-label={t("settings.localAgents.scan")}
                   title={t("settings.localAgents.scan")}
-                  disabled={scanning}
                   onClick={() => void refresh()}
                 >
                   <RefreshCw size={12} className={scanning ? "spin" : undefined} aria-hidden="true" />
@@ -112,7 +112,7 @@ export function LocalAgentsSettingsView({
                     <span>{t("settings.localAgents.empty")}</span>
                   </div>
                 )}
-                {phase === "error" && (
+                {(phase === "error" || (phase === "ready" && hasFailures)) && (
                   <div className="desktop-settings-row desktop-settings-row-control" role="alert">
                     <span>{t("settings.localAgents.error")}</span>
                     <button className="desktop-settings-row-action" type="button" onClick={() => void refresh()}>

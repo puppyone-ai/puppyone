@@ -8,14 +8,25 @@ import {
   getDesktopUpdateTitlebarState,
   normalizeDesktopUpdateState,
 } from "../updates";
+import {
+  EMPTY_GIT_TITLEBAR_STATUS,
+  type GitTitlebarStatus,
+} from "../source-control/gitTitlebarStatus";
 
 type DesktopTitlebarActionsProps = {
   desktopUpdateState?: DesktopUpdateState | null;
   titlebarActionsSettings: TitlebarActionsSettings;
   terminalSidebarOpen: boolean;
   terminalToolEnabled: boolean;
+  gitChangesAvailable?: boolean;
+  gitChangesOpen?: boolean;
+  gitChangesStatus?: GitTitlebarStatus;
+  gitHistoryAvailable?: boolean;
+  gitHistoryOpen?: boolean;
   onUpdateNow?: () => void;
   onToggleTerminal: () => void;
+  onToggleGitChanges?: () => void;
+  onToggleGitHistory?: () => void;
   placement?: "titlebar" | "toolbar";
   visibleGroups?: readonly DesktopTitlebarActionGroup[];
 };
@@ -27,8 +38,15 @@ export function DesktopTitlebarActions({
   titlebarActionsSettings,
   terminalSidebarOpen,
   terminalToolEnabled,
+  gitChangesAvailable = false,
+  gitChangesOpen = false,
+  gitChangesStatus = EMPTY_GIT_TITLEBAR_STATUS,
+  gitHistoryAvailable = false,
+  gitHistoryOpen = false,
   onUpdateNow = () => {},
   onToggleTerminal,
+  onToggleGitChanges = () => {},
+  onToggleGitHistory = () => {},
   placement = "titlebar",
   visibleGroups,
 }: DesktopTitlebarActionsProps) {
@@ -41,6 +59,17 @@ export function DesktopTitlebarActions({
       enabled: terminalToolEnabled,
       onToggle: onToggleTerminal,
       sidebarOpen: terminalSidebarOpen,
+    },
+    history: {
+      enabled: gitHistoryAvailable,
+      onToggle: onToggleGitHistory,
+      sidebarOpen: gitHistoryOpen,
+    },
+    changes: {
+      enabled: gitChangesAvailable,
+      onToggle: onToggleGitChanges,
+      sidebarOpen: gitChangesOpen,
+      status: gitChangesStatus,
     },
   };
 
@@ -96,9 +125,13 @@ export function DesktopTitlebarActions({
     <>
       {visibleTitlebarActionItems.map((item, index) => {
         const previousItem = visibleTitlebarActionItems[index - 1];
+        const separatesGitHistory = placement === "titlebar"
+          && previousItem?.id === "changes"
+          && item.id === "history";
+        const separatesActionGroups = previousItem && previousItem.group !== item.group;
         return (
           <Fragment key={item.id}>
-            {previousItem && previousItem.group !== item.group && (
+            {(separatesGitHistory || separatesActionGroups) && (
               <span className="desktop-titlebar-action-divider" aria-hidden="true" />
             )}
             {item.node}

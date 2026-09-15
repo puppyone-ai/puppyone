@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -8,14 +9,14 @@ import {
 } from "react";
 import {
   EXPLORER_REFERENCE_DRAG_TYPE,
-  getFileSemanticKind,
-  parseExplorerReferenceDrag,
+  classifyReferenceDataTransfer,
   type DocumentDataNode,
   type EditorPaneSplitOptions,
   type EditorSplitDirection,
 } from "@puppyone/shared-ui";
 import {
   acquireNativeSurfacePointerPassthroughLease,
+  acquireNativeSurfaceOcclusionLease,
   createNativeSurfacePointerSessionId,
   type NativeSurfacePointerPassthroughLease,
 } from "../../native-surfaces";
@@ -28,6 +29,8 @@ import {
   paneSplitDefinition,
   type PaneDropIntent,
 } from "./paneDropGeometry";
+import { resourceDragPreviewStore } from "../../../platform/resourceDragPreviewStore";
+import { claimEditorDropDocument, editorDropDocument } from "./editorResourceDrop";
 
 export type EditorFileDropHandler = (
   node: DocumentDataNode,
@@ -38,6 +41,7 @@ export type EditorFileDropHandler = (
 
 export type EditorFileDropController = Readonly<{
   dropIntent: PaneDropIntent | null;
+  dropFailed: boolean;
   over: (event: DragEvent<HTMLElement>, paneId: string) => void;
   leave: (event: DragEvent<HTMLElement>, paneId: string) => void;
   drop: (event: DragEvent<HTMLElement>, paneId: string) => void;
@@ -46,6 +50,7 @@ export type EditorFileDropController = Readonly<{
 type ExplorerFileDropSession = Readonly<{
   id: string;
   nativeLease: NativeSurfacePointerPassthroughLease;
+  releaseOcclusion: () => void;
 }>;
 
 type ExplorerFileDropPreview = Readonly<{
@@ -56,9 +61,25 @@ type ExplorerFileDropPreview = Readonly<{
 export function useExplorerFileDrop(
   workspaceId: string,
   onOpenAtPaneEdge: EditorFileDropHandler,
+  target: Readonly<{ workspacePath: string; paneIds: readonly string[] }>,
 ): EditorFileDropController {
   const [preview, setPreview] = useState<ExplorerFileDropPreview | null>(null);
+  const [dropFailed, setDropFailed] = useState(false);
   const sessionRef = useRef<ExplorerFileDropSession | null>(null);
+  // Pane lifetimes survive resizes, but never removal/recreation or workspace changes.
+  const targetsRef = useRef(new Map<string, object>());
+  const openRef = useRef(onOpenAtPaneEdge);
+  useLayoutEffect(() => { openRef.current = onOpenAtPaneEdge; });
+  useLayoutEffect(() => {
+    const targets = targetsRef.current;
+    setDropFailed(false);
+    return () => { targets.clear(); };
+  }, [workspaceId, target.workspacePath]);
+  useLayoutEffect(() => {
+    const targets = targetsRef.current;
+    for (const id of targets.keys()) if (!target.paneIds.includes(id)) targets.delete(id);
+    for (const id of target.paneIds) if (!targets.has(id)) targets.set(id, {});
+  });
 
   const beginFileDrag = useCallback((): ExplorerFileDropSession => {
     const current = sessionRef.current;
@@ -67,6 +88,10 @@ export function useExplorerFileDrop(
     const session = {
       id,
       nativeLease: acquireNativeSurfacePointerPassthroughLease("explorer-file-drop", id),
+      // Native child views receive OS file drops before the DOM pane. Hide them
+      // while the pane drop overlay owns the gesture; mouse routing alone only
+      // forwards resize move/up events, never the protected native Files store.
+      releaseOcclusion: acquireNativeSurfaceOcclusionLease(),
     };
     sessionRef.current = session;
     return session;
@@ -77,6 +102,7 @@ export function useExplorerFileDrop(
     if (!session) return false;
     sessionRef.current = null;
     session.nativeLease.release();
+    session.releaseOcclusion();
     if (reason !== "unmount") {
       setPreview((current) => current?.sessionId === session.id ? null : current);
     }
@@ -90,16 +116,36 @@ export function useExplorerFileDrop(
 
   useEffect(() => {
     const start = (event: globalThis.DragEvent) => {
-      if (hasExplorerFileDrag(event.dataTransfer)) beginFileDrag();
+      if (!event.defaultPrevented && hasExplorerFileDrag(event.dataTransfer)) beginFileDrag();
     };
-    window.addEventListener("dragstart", start, true);
+    // Explorer populates HTML data in its target handler, after window capture.
+    window.addEventListener("dragstart", start);
     return () => {
-      window.removeEventListener("dragstart", start, true);
+      window.removeEventListener("dragstart", start);
     };
   }, [beginFileDrag]);
 
+  useEffect(() => {
+    // Own native-session presentation independently of the cancelled HTML
+    // dragstart, using the same idempotent pointer lease as other interactions.
+    const sync = () => {
+      const native = resourceDragPreviewStore.getSnapshot();
+      if (native?.entries.length === 1 && native.entries[0].entryType === "file") {
+        beginFileDrag();
+        setDropFailed(false);
+      } else {
+        finishFileDrag("dragend");
+      }
+    };
+    const unsubscribe = resourceDragPreviewStore.subscribe(sync);
+    sync();
+    return unsubscribe;
+  }, [beginFileDrag, finishFileDrag]);
+
   const over = useCallback((event: DragEvent<HTMLElement>, paneId: string) => {
-    if (!hasExplorerFileDrag(event.dataTransfer)) return;
+    const native = resourceDragPreviewStore.getSnapshot();
+    if (!hasExplorerFileDrag(event.dataTransfer)
+      && !(hasNativeFiles(event.dataTransfer) && native?.entries.length === 1 && native.entries[0].entryType === "file")) return;
     event.preventDefault();
     event.stopPropagation();
     event.dataTransfer.dropEffect = "copy";
@@ -123,35 +169,45 @@ export function useExplorerFileDrop(
   }, []);
 
   const drop = useCallback((event: DragEvent<HTMLElement>, paneId: string) => {
-    if (!hasExplorerFileDrag(event.dataTransfer)) return;
+    if (!hasExplorerFileDrag(event.dataTransfer) && !hasNativeFiles(event.dataTransfer)) return;
     event.preventDefault();
     event.stopPropagation();
-    const payload = parseExplorerReferenceDrag(
-      event.dataTransfer.getData(EXPLORER_REFERENCE_DRAG_TYPE),
-    );
-    const entry = payload?.workspaceId === workspaceId && payload.entries.length === 1
-      ? payload.entries[0]
-      : null;
+    // Copy the browser's protected data store before any await. Window capture
+    // has already cleared preview; only a drop receipt can authorize native data.
+    const source = hasNativeFiles(event.dataTransfer)
+      ? { kind: "files" as const, files: Array.from(event.dataTransfer.files) }
+      : classifyReferenceDataTransfer(event.dataTransfer);
     const edge = closestPaneDropEdge(
       event.currentTarget.getBoundingClientRect(),
       event.clientX,
       event.clientY,
     );
     finishFileDrag("drop");
-    if (!entry || entry.entryType !== "file") return;
+    setDropFailed(false);
+    const lifetime = targetsRef.current.get(paneId);
+    if (!lifetime) return;
     const { direction, placement } = paneSplitDefinition(edge);
-    const type = getFileSemanticKind(entry.name, "file");
-    if (type === "folder") return;
-    onOpenAtPaneEdge({
-      id: entry.path,
-      name: entry.name,
-      path: entry.path,
-      type,
-    }, paneId, direction, placement);
-  }, [finishFileDrag, onOpenAtPaneEdge, workspaceId]);
+    const deliver = (node: DocumentDataNode | null) => {
+      if (node && targetsRef.current.get(paneId) === lifetime) {
+        openRef.current(node, paneId, direction, placement);
+      }
+    };
+    if (source.kind === "files") {
+      void claimEditorDropDocument(source).then(deliver).catch(() => {
+        if (targetsRef.current.get(paneId) === lifetime) setDropFailed(true);
+      });
+    } else {
+      deliver(editorDropDocument(source, workspaceId));
+    }
+  }, [finishFileDrag, workspaceId]);
 
   const dropIntent = preview?.intent ?? null;
-  return useMemo(() => ({ dropIntent, over, leave, drop }), [drop, dropIntent, leave, over]);
+  return useMemo(() => ({ dropIntent, dropFailed, over, leave, drop }), [drop, dropFailed, dropIntent, leave, over]);
+}
+
+function hasNativeFiles(dataTransfer: DataTransfer): boolean {
+  return Boolean(window.puppyoneDesktop?.resourceDragSessionSupported
+    && Array.from(dataTransfer.types ?? []).includes("Files"));
 }
 
 function hasExplorerFileDrag(dataTransfer: DataTransfer | null): boolean {

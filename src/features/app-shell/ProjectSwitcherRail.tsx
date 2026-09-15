@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -12,14 +13,20 @@ import {
   getProjectAppearanceIdentity,
   useProjectAppearanceCatalog,
 } from "../project-appearance/useProjectAppearanceCatalog";
-import { ProjectDetailsDialog } from "./ProjectDetailsDialog";
+import {
+  ProjectContextAssetMark,
+  resolveProjectContextAssetKind,
+  type ProjectContextAssetKind,
+} from "./ProjectContextAssetMark";
 import { DesktopSidebarSettingsButton } from "./navigation/DesktopNavigationItems";
 import type { DesktopView } from "../../components/DesktopCloudShell";
+import { beginProjectRootDrag } from "./projectRootDrag";
 export {
   DEFAULT_PROJECT_SWITCHER_EXPANDED_WIDTH,
   MAX_PROJECT_SWITCHER_EXPANDED_WIDTH,
   MIN_PROJECT_SWITCHER_EXPANDED_WIDTH,
   PROJECT_SWITCHER_RAIL_COLLAPSED_WIDTH,
+  resolveProjectSwitcherCompactWidth,
   resolveProjectSwitcherRailWidth,
 } from "./projectSwitcherRailGeometry";
 import type { RecentWorkspaceHomeItem } from "./workspaceHomeModel";
@@ -30,13 +37,6 @@ export type ProjectSwitcherRailItem = Readonly<{
   appearanceIdentity: string | null;
 }>;
 
-type ProjectDetailsState = Readonly<{
-  initial: string;
-  path: string;
-  projectIdentity: string;
-  projectName: string;
-}>;
-
 type ProjectSwitcherRailProps = Readonly<{
   activeView?: DesktopView;
   activeWorkspace: Workspace;
@@ -44,6 +44,7 @@ type ProjectSwitcherRailProps = Readonly<{
   recentWorkspaces: readonly RecentWorkspaceHomeItem[];
   onCreateNew: () => void;
   onOpenSettings?: () => void;
+  settingsOpen?: boolean;
   onSelectProject: (path: string) => void | Promise<void>;
   utilitySlot?: ReactNode;
 }>;
@@ -59,11 +60,19 @@ export function ProjectSwitcherRail({
   recentWorkspaces,
   onCreateNew,
   onOpenSettings,
+  settingsOpen = false,
   onSelectProject,
   utilitySlot,
 }: ProjectSwitcherRailProps) {
   const { t } = useLocalization();
+  const compactTooltipId = useId();
+  const railRef = useRef<HTMLElement>(null);
   const [pendingPath, setPendingPath] = useState<string | null>(null);
+  const [compactTooltip, setCompactTooltip] = useState<{
+    label: string;
+    projectPath: string;
+    top: number;
+  } | null>(null);
   const queuedProjectRef = useRef<Workspace | null>(null);
   const switchInFlightRef = useRef(false);
   const projectCatalog = useMemo(
@@ -91,11 +100,31 @@ export function ProjectSwitcherRail({
     [projectCatalog],
   );
   const appearanceCatalog = useProjectAppearanceCatalog(appearanceWorkspaces);
-  const [projectDetails, setProjectDetails] = useState<ProjectDetailsState | null>(null);
 
   useEffect(() => {
     if (nextProjectOrder !== projectOrder) setProjectOrder(nextProjectOrder);
   }, [nextProjectOrder, projectOrder]);
+
+  useEffect(() => {
+    if (expanded) setCompactTooltip(null);
+  }, [expanded]);
+
+  const showCompactTooltip = (project: Workspace, target: HTMLElement) => {
+    if (expanded || !railRef.current) return;
+    const railRect = railRef.current.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    setCompactTooltip({
+      label: project.name,
+      projectPath: project.path,
+      top: targetRect.top - railRect.top + targetRect.height / 2,
+    });
+  };
+
+  const hideCompactTooltip = (projectPath: string) => {
+    setCompactTooltip((current) => (
+      current?.projectPath === projectPath ? null : current
+    ));
+  };
 
   const selectProject = async (project: Workspace) => {
     if (
@@ -121,64 +150,60 @@ export function ProjectSwitcherRail({
 
   return (
     <nav
+      ref={railRef}
       className="desktop-project-switcher-rail"
       aria-label={t("shell.workspaceSwitcher.projects")}
       data-expanded={expanded ? "true" : "false"}
       data-window-no-drag="true"
     >
       <div
-        className={`desktop-project-switcher-rail-list${expanded ? " po-sidebar-list" : ""}`}
-        data-po-scrollbar={expanded ? "sidebar" : "content"}
+        className="desktop-project-switcher-rail-list po-sidebar-list"
+        data-po-scrollbar="sidebar"
+        onScroll={() => setCompactTooltip(null)}
       >
         {projects.map(({ workspace, initial, appearanceIdentity }) => {
           const active = activeView !== "settings" && workspace.path === activeWorkspace.path;
+          const contextAssetKind = resolveProjectContextAssetKind(workspace);
+          const contextAssetLabel = t(contextAssetKind === "cloud"
+            ? "shell.workspaceSwitcher.contextAssetCloud"
+            : "shell.workspaceSwitcher.contextAssetLocal");
           const appearance = appearanceIdentity
             ? appearanceCatalog.appearances.get(appearanceIdentity)
             : null;
-          const label = t("shell.workspaceSwitcher.projectTitle", {
+          const label = `${t("shell.workspaceSwitcher.projectTitle", {
             project: bidiIsolate(workspace.name),
-          });
+          })} · ${contextAssetLabel}`;
           return (
             <button
-              className={`desktop-project-switcher-rail-button desktop-project-switcher-rail-project${expanded ? ` po-sidebar-row${active ? " active" : ""}` : ""}`}
+              className={`desktop-project-switcher-rail-button desktop-project-switcher-rail-project ${expanded ? "desktop-project-switcher-rail-expanded-project po-sidebar-row" : "desktop-project-switcher-rail-compact-project"}${active ? " active" : ""}`}
               type="button"
               aria-current={active ? "page" : undefined}
               aria-label={label}
-              aria-haspopup={appearanceIdentity ? "dialog" : undefined}
-              aria-expanded={projectDetails?.projectIdentity === appearanceIdentity ? true : undefined}
+              aria-describedby={compactTooltip?.projectPath === workspace.path && !expanded
+                ? compactTooltipId
+                : undefined}
               aria-busy={pendingPath === workspace.path || undefined}
-              data-avatar-kind={appearance?.icon?.kind ?? "initial"}
+              data-avatar-kind={expanded
+                ? `context-${contextAssetKind}`
+                : appearance?.icon?.kind ?? "initial"}
+              data-context-asset-kind={contextAssetKind}
               data-pending={pendingPath === workspace.path ? "true" : undefined}
               data-po-interaction="navigation"
+              draggable={Boolean(workspace.path.trim())}
               key={workspace.path}
-              title={label}
               onClick={() => void selectProject(workspace)}
-              onContextMenu={appearanceIdentity ? (event) => {
-                event.preventDefault();
-                appearanceCatalog.clearMutationError();
-                setProjectDetails({
-                  initial,
-                  path: workspace.path,
-                  projectIdentity: appearanceIdentity,
-                  projectName: workspace.name,
-                });
-              } : undefined}
-              onKeyDown={appearanceIdentity ? (event) => {
-                if (event.key !== "ContextMenu" && !(event.key === "F10" && event.shiftKey)) return;
-                event.preventDefault();
-                appearanceCatalog.clearMutationError();
-                setProjectDetails({
-                  initial,
-                  path: workspace.path,
-                  projectIdentity: appearanceIdentity,
-                  projectName: workspace.name,
-                });
-              } : undefined}
+              onDragStart={(event) => beginProjectRootDrag(event, workspace.path)}
+              onFocus={(event) => showCompactTooltip(workspace, event.currentTarget)}
+              onBlur={() => hideCompactTooltip(workspace.path)}
+              onMouseEnter={(event) => showCompactTooltip(workspace, event.currentTarget)}
+              onMouseLeave={() => hideCompactTooltip(workspace.path)}
             >
               <ProjectSwitcherAvatar
                 imageUrl={appearance?.icon?.kind === "asset" ? appearance.icon.url : null}
                 emoji={appearance?.icon?.kind === "emoji" ? appearance.icon.value : null}
                 initial={initial}
+                contextAssetKind={contextAssetKind}
+                compact={!expanded}
               />
               {expanded && (
                 <span className="desktop-project-switcher-rail-label po-sidebar-row__label">
@@ -189,18 +214,20 @@ export function ProjectSwitcherRail({
           );
         })}
         <button
-          className={`desktop-project-switcher-rail-button desktop-project-switcher-rail-create${expanded ? " po-sidebar-row" : ""}`}
+          className={`desktop-project-switcher-rail-button desktop-project-switcher-rail-create ${expanded ? "desktop-project-switcher-rail-expanded-create po-sidebar-row" : "desktop-project-switcher-rail-compact-create"}`}
           type="button"
           aria-label={t("shell.workspaceSwitcher.createNew")}
           disabled={Boolean(pendingPath)}
           title={t("shell.workspaceSwitcher.createNew")}
-          onClick={() => {
-            setProjectDetails(null);
-            onCreateNew();
-          }}
+          onClick={onCreateNew}
         >
-          <span className="desktop-project-switcher-rail-avatar" aria-hidden="true">
-            <Plus size={16} />
+          <span
+            className={expanded
+              ? "desktop-project-switcher-rail-avatar"
+              : "desktop-project-switcher-rail-compact-create-icon"}
+            aria-hidden="true"
+          >
+            <Plus size={14} strokeWidth={2.2} />
           </span>
           {expanded && (
             <span className="desktop-project-switcher-rail-label po-sidebar-row__label">
@@ -209,6 +236,16 @@ export function ProjectSwitcherRail({
           )}
         </button>
       </div>
+      {!expanded && compactTooltip && (
+        <span
+          id={compactTooltipId}
+          className="desktop-project-switcher-rail-tooltip"
+          role="tooltip"
+          style={{ top: compactTooltip.top }}
+        >
+          <bdi dir="auto">{compactTooltip.label}</bdi>
+        </span>
+      )}
       {(onOpenSettings || utilitySlot) && (
         <div
           className="desktop-project-switcher-rail-utilities desktop-sidebar-navigation-surface"
@@ -217,31 +254,14 @@ export function ProjectSwitcherRail({
           <div className="desktop-sidebar-footer-actions">
             {onOpenSettings && (
               <DesktopSidebarSettingsButton
-                activeView={activeView}
                 buttonClassName="desktop-sidebar-footer-button"
                 onOpenSettings={onOpenSettings}
+                settingsOpen={settingsOpen}
               />
             )}
             {utilitySlot}
           </div>
         </div>
-      )}
-      {projectDetails && (
-        <ProjectDetailsDialog
-          appearance={appearanceCatalog.appearances.get(projectDetails.projectIdentity) ?? null}
-          error={appearanceCatalog.mutationError}
-          initial={projectDetails.initial}
-          name={projectDetails.projectName}
-          path={projectDetails.path}
-          pending={appearanceCatalog.pendingIdentity === projectDetails.projectIdentity}
-          onChooseImage={() => appearanceCatalog.chooseIcon(projectDetails.projectIdentity)}
-          onClose={() => {
-            appearanceCatalog.clearMutationError();
-            setProjectDetails(null);
-          }}
-          onResetIcon={() => appearanceCatalog.resetIcon(projectDetails.projectIdentity)}
-          onSelectEmoji={(emoji) => appearanceCatalog.setEmoji(projectDetails.projectIdentity, emoji)}
-        />
       )}
     </nav>
   );
@@ -251,34 +271,48 @@ function ProjectSwitcherAvatar({
   imageUrl,
   emoji,
   initial,
+  contextAssetKind,
+  compact,
 }: Readonly<{
   imageUrl: string | null;
   emoji: string | null;
   initial: string;
+  contextAssetKind: ProjectContextAssetKind;
+  compact: boolean;
 }>) {
   const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
   const showImage = Boolean(imageUrl && imageUrl !== failedImageUrl);
-  return showImage ? (
-    <span className="desktop-project-switcher-rail-avatar" aria-hidden="true">
-      <img
-        className="desktop-project-switcher-rail-image"
-        src={imageUrl ?? undefined}
-        alt=""
-        draggable="false"
-        onError={() => setFailedImageUrl(imageUrl)}
-      />
+  if (!compact) {
+    return (
+      <span
+        className="desktop-project-switcher-rail-avatar desktop-project-switcher-rail-context-avatar"
+        aria-hidden="true"
+      >
+        <ProjectContextAssetMark kind={contextAssetKind} size={15} />
+      </span>
+    );
+  }
+  return (
+    <span className="desktop-project-switcher-rail-avatar-stack" aria-hidden="true">
+      <span
+        className="desktop-project-switcher-rail-avatar desktop-project-switcher-rail-context-avatar desktop-project-switcher-rail-compact-context-avatar"
+      >
+        <ProjectContextAssetMark kind={contextAssetKind} size={15} />
+      </span>
+      <bdi
+        className={`desktop-project-switcher-rail-identity-badge${emoji && !showImage ? " desktop-project-switcher-rail-identity-badge-emoji" : ""}${!showImage && !emoji ? " desktop-project-switcher-rail-initial" : ""}`}
+      >
+        {showImage ? (
+          <img
+            className="desktop-project-switcher-rail-image"
+            src={imageUrl ?? undefined}
+            alt=""
+            draggable="false"
+            onError={() => setFailedImageUrl(imageUrl)}
+          />
+        ) : emoji ?? initial}
+      </bdi>
     </span>
-  ) : emoji ? (
-    <span
-      className="desktop-project-switcher-rail-avatar desktop-project-switcher-rail-emoji"
-      aria-hidden="true"
-    >
-      {emoji}
-    </span>
-  ) : (
-    <bdi className="desktop-project-switcher-rail-avatar" aria-hidden="true">
-      {initial}
-    </bdi>
   );
 }
 

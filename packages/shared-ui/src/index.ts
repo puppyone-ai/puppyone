@@ -553,11 +553,24 @@ export type {
 } from "./primitives/usePaneResizeDrag";
 export { useCollapsiblePaneResize } from "./primitives/useCollapsiblePaneResize";
 export type {
-  CollapsiblePaneDirection,
   CollapsiblePaneResizeState,
-  CollapsiblePaneSide,
   UseCollapsiblePaneResizeOptions,
 } from "./primitives/useCollapsiblePaneResize";
+export {
+  beginCollapsiblePaneGesture,
+  COLLAPSIBLE_PANE_MOTION_MS,
+  finishCollapsiblePaneGesture,
+  moveCollapsiblePaneGesture,
+  resolveCollapsiblePaneGestureConfig,
+} from "./primitives/collapsiblePaneGesture";
+export type {
+  CollapsiblePaneDirection,
+  CollapsiblePaneGestureCommit,
+  CollapsiblePaneGestureConfig,
+  CollapsiblePaneGesturePhase,
+  CollapsiblePaneGestureState,
+  CollapsiblePaneSide,
+} from "./primitives/collapsiblePaneGesture";
 export { validateOfficePackageDecompression } from "./editor/security/officePackageValidationTask";
 export type {
   OfficePackageDecompressionBudget,

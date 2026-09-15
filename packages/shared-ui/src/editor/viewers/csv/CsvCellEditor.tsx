@@ -1,4 +1,4 @@
-import { ExternalLink, Link2, Unlink } from "lucide-react";
+import { Link2, Unlink } from "lucide-react";
 import { useId, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from "react";
 import type { MessageFormatter } from "@puppyone/localization/core";
 import type {
@@ -34,9 +34,8 @@ export function CsvCellEditor({
   t,
 }: CsvCellEditorProps) {
   const previewId = useId();
-  const projectedReference = reference?.kind === "external" || reference?.kind === "workspace"
-    ? reference
-    : null;
+  const externalReference = reference?.kind === "external" ? reference : null;
+  const workspaceReference = reference?.kind === "workspace" ? reference : null;
   const openable = Boolean(
     navigation
     && reference
@@ -79,43 +78,65 @@ export function CsvCellEditor({
   const referenceStatus = reference?.kind === "workspace"
     ? reference.status
     : reference?.kind ?? undefined;
-  const kindLabel = reference?.kind === "external"
-    ? t("editor.csv.reference.external")
-    : t("editor.csv.reference.workspace");
-  const actionLabel = openable
+  const actionLabel = !externalReference && !workspaceReference ? "" : openable
     ? t("editor.csv.reference.open", { target })
     : t("editor.csv.reference.unavailable", { target });
+
+  const input = (
+    <input
+      className={reference ? "csv-table-editor__cell-input" : "csv-table-editor__cell-input csv-table-editor__cell-editor"}
+      value={value}
+      readOnly={readOnly}
+      onChange={(event) => onUpdate(event.currentTarget.value)}
+      onClick={handleClick}
+      onFocus={onActivate}
+      onKeyDown={handleKeyDown}
+      aria-label={t("editor.csv.cell", {
+        row: displayRowNumber,
+        column: columnIndex + 1,
+      })}
+      aria-describedby={workspaceReference ? previewId : undefined}
+      aria-haspopup="menu"
+      aria-expanded="false"
+      data-csv-row={rowIndex}
+      data-csv-column={columnIndex}
+      spellCheck={false}
+    />
+  );
+  // Plain cells need only the input; reference overlays retain their positioning host.
+  if (!reference) return input;
 
   return (
     <div
       className="csv-table-editor__cell-editor"
-      data-reference-kind={reference?.kind}
+      data-reference-kind={reference.kind}
       data-reference-status={referenceStatus}
-      data-reference-syntax={reference?.syntax}
+      data-reference-syntax={reference.syntax}
     >
-      <input
-        className="csv-table-editor__cell-input"
-        value={value}
-        readOnly={readOnly}
-        onChange={(event) => onUpdate(event.currentTarget.value)}
-        onClick={handleClick}
-        onFocus={onActivate}
-        onKeyDown={handleKeyDown}
-        aria-label={t("editor.csv.cell", {
-          row: displayRowNumber,
-          column: columnIndex + 1,
-        })}
-        aria-describedby={projectedReference ? previewId : undefined}
-        aria-haspopup="menu"
-        aria-expanded="false"
-        data-csv-row={rowIndex}
-        data-csv-column={columnIndex}
-        spellCheck={false}
-      />
-      {projectedReference && (
+      {input}
+      {externalReference && (
+        <button
+          type="button"
+          className="csv-table-editor__external-reference"
+          data-po-content-interaction="navigation"
+          disabled={!openable}
+          aria-label={actionLabel}
+          onPointerDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+          onClick={(event) => {
+            event.stopPropagation();
+            open();
+          }}
+        >
+          <span dir="auto">{externalReference.label}</span>
+        </button>
+      )}
+      {workspaceReference && (
         <>
           <span className="csv-table-editor__reference-label" aria-hidden="true" dir="auto">
-            {projectedReference.label}
+            {workspaceReference.label}
           </span>
           <button
             type="button"
@@ -133,16 +154,16 @@ export function CsvCellEditor({
               open();
             }}
           >
-            {projectedReference.kind === "external"
-              ? <ExternalLink size={13} strokeWidth={1.8} aria-hidden="true" />
-              : projectedReference.status !== "missing"
-                ? <Link2 size={13} strokeWidth={1.8} aria-hidden="true" />
-                : <Unlink size={13} strokeWidth={1.8} aria-hidden="true" />}
+            {workspaceReference.status !== "missing"
+              ? <Link2 size={13} strokeWidth={1.8} aria-hidden="true" />
+              : <Unlink size={13} strokeWidth={1.8} aria-hidden="true" />}
           </button>
           <span id={previewId} className="csv-table-editor__reference-preview" role="tooltip">
-            <span className="csv-table-editor__reference-kind">{kindLabel}</span>
+            <span className="csv-table-editor__reference-kind">
+              {t("editor.csv.reference.workspace")}
+            </span>
             <span className="csv-table-editor__reference-source" dir="ltr">
-              {projectedReference.raw}
+              {workspaceReference.raw}
             </span>
           </span>
         </>
