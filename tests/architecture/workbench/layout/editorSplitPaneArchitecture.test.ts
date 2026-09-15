@@ -480,6 +480,10 @@ describe("editor split-pane architecture", () => {
       expect(styles).toContain("var(--po-pane-resizer-active-ring)");
     }
     expect(layoutStyles).toContain("body.desktop-right-sidebar-resizing");
+    expect(readCssBlock(
+      layoutStyles,
+      "body.desktop-right-sidebar-resizing .desktop-right-sidebar",
+    )).toContain("transition: none;");
   });
 });
 

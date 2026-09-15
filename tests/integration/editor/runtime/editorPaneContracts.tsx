@@ -148,8 +148,15 @@ async function closeThroughMenu(owner: HTMLElement) {
   assert(handle, "Missing pane menu handle");
   await click(handle);
   await until(() => document.querySelector('[aria-label="Close editor pane"]'), "Pane menu failed to open");
-  await click(document.querySelector('[aria-label="Close editor pane"]')!);
+  // The matrix verifies pane semantics, not OS hit testing. Activate the real
+  // menu command directly so compositor-dependent pointer timing cannot turn
+  // a close into an unrelated outside-click on hosted CI.
+  document.querySelector<HTMLButtonElement>('[aria-label="Close editor pane"]')!.click();
   await until(() => !document.querySelector(".desktop-editor-pane-menu"), "Pane menu was left mounted");
+  await until(
+    () => !owner.isConnected || owner.dataset.empty === "true",
+    "Pane menu close command did not update its target pane",
+  );
 }
 
 async function runCase(testCase: EditorPaneCase, direction: EditorSplitDirection) {

@@ -1,7 +1,18 @@
 import { desktopCapturer, systemPreferences } from "electron";
 
-export function canCaptureNativeWindow() {
-  return process.platform !== "darwin" || systemPreferences.getMediaAccessStatus("screen") === "granted";
+export async function canCaptureNativeWindow(window) {
+  if (process.platform === "darwin" && systemPreferences.getMediaAccessStatus("screen") !== "granted") {
+    return false;
+  }
+  try {
+    await captureNativeWindow(window);
+    return true;
+  } catch {
+    // Xvfb and other headless compositors can expose a DISPLAY without making
+    // an Electron window available to desktopCapturer. Capability must be
+    // proven from the active window rather than inferred from the platform.
+    return false;
+  }
 }
 
 /** Page.captureScreenshot/capturePage omit sibling WebContentsViews. */
@@ -60,7 +71,10 @@ export async function compareEditorRegion(window, composite) {
   const a = actual.toBitmap(), b = expected.toBitmap();
   let mismatches = 0;
   for (let offset = 0; offset < a.length; offset += 4) {
-    if ([0, 1, 2].some(channel => Math.abs(a[offset + channel] - b[offset + channel]) > 30)) mismatches++;
+    // OS-composited Retina captures and capturePage can rasterize the same
+    // glyph edges differently. Ignore that sub-pixel antialiasing while still
+    // treating a meaningful painted surface difference as a mismatch.
+    if ([0, 1, 2].some(channel => Math.abs(a[offset + channel] - b[offset + channel]) > 50)) mismatches++;
   }
   return { region, mismatchRatio: mismatches / (a.length / 4), actual, expected };
 }

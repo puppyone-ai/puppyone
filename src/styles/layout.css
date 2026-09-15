@@ -350,6 +350,13 @@ body.desktop-right-sidebar-resizing * {
   user-select: none !important;
 }
 
+/* Pointer tracking begins synchronously, before React publishes the shared
+ * pane gesture phase. The body-owned resize session must suppress presentation
+ * easing from that first frame so the divider never trails the pointer. */
+body.desktop-right-sidebar-resizing .desktop-right-sidebar {
+  transition: none;
+}
+
 body.desktop-right-sidebar-resizing .desktop-surface,
 body.desktop-right-sidebar-resizing .desktop-right-sidebar-viewport,
 body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {

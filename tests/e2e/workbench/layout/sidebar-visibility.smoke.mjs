@@ -183,7 +183,7 @@ app.whenReady().then(async () => {
     await until(() => evaluate("Boolean(document.querySelector('.app-shell'))"), "App ready");
     await evaluate("localStorage.setItem('puppyone.desktop.experimental',JSON.stringify({enableMultiRootWorkspaces:true,enableProjectSwitcherRail:true}));location.reload()");
     await until(() => evaluate("document.querySelectorAll('.desktop-project-switcher-rail-project').length===2"), "projects ready");
-    nativeCapture = canCaptureNativeWindow();
+    nativeCapture = await canCaptureNativeWindow(window);
     if (nativeInput) {
       assert.equal(process.platform, "darwin", "OS pointer acceptance currently targets macOS");
       assert(nativeCapture, "Native acceptance requires screen capture permission");

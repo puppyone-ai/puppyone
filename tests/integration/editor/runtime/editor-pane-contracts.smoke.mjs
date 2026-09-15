@@ -66,8 +66,6 @@ const deadline = setTimeout(() => {
     .finally(() => process.exit(1));
 }, 240_000);
 try {
-  nativeCapture = canCaptureNativeWindow();
-  if (process.argv.includes("--require-compositor")) assert(nativeCapture, "Native compositor capture permission is required");
   const appHtml = await fsp.readFile(path.join(repoRoot, "tests/fixtures/editor/runtime/pane-frame.html"));
   appServer = createHttpServer((_request, response) => { response.writeHead(200, { "content-type": "text/html" }); response.end(appHtml); });
   await new Promise(resolve => appServer.listen(0, "127.0.0.1", resolve));
@@ -184,6 +182,8 @@ try {
   app.focus({ steal: true }); window.focus();
   window.webContents.on("console-message", (details) => { if (details.level === "error") console.error(details.message); });
   await window.loadURL(`http://127.0.0.1:${vite.httpServer.address().port}/tests/fixtures/editor/runtime/editor-pane-contracts.html`);
+  nativeCapture = await canCaptureNativeWindow(window);
+  if (process.argv.includes("--require-compositor")) assert(nativeCapture, "Native compositor capture permission is required");
   const result = await window.webContents.executeJavaScript(`(async () => {
     for (let i = 0; i < 400 && !window.editorPaneContracts; i++) await new Promise(resolve => setTimeout(resolve, 25));
     if (!window.editorPaneContracts) throw new Error("Pane fixture failed to initialize");
