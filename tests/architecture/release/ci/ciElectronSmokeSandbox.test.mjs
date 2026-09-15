@@ -45,11 +45,11 @@ describe("CI Electron smoke sandbox boundary", () => {
 
   it("routes hosted pointer evidence through the surface-appropriate transport", () => {
     expect(editorPaneFixture).toContain(
-      "surfaces.values().some(entry => entry.attached && entry.geometryVisible)",
+      "surfaces.values().length > 0",
     );
     expect(editorPaneFixture).toContain('inputDebugger.sendCommand("Input.dispatchMouseEvent"');
     expect(editorPaneFixture).toContain("window.webContents.sendInputEvent");
-    expect(editorPaneFixture).toContain("if (nativeSurfaceVisible)");
+    expect(editorPaneFixture).toContain("if (nativeSurfaceOwned)");
     expect(sidebarResizeFixture).toContain('"restored pane and content geometry"');
     expect(sidebarResizeFixture).toContain(
       "Math.abs(restored.content.width-restored.viewport.width) <= 1",

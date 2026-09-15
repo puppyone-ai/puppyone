@@ -174,13 +174,14 @@ try {
     assert(splitterFocused, "Split handle did not regain focus before pane input");
     await wait(50);
     // Electron's regular renderer input is the closest contract for DOM-only
-    // viewers. A visible WebContentsView can intercept that transport on Linux,
-    // so native cases use target-scoped CDP input against the owner renderer.
-    const nativeSurfaceVisible = surfaces.values().some(entry => entry.attached && entry.geometryVisible);
+    // viewers. Once a native surface session exists it can become attached
+    // between pointer events, so select one transport for the whole gesture
+    // from session ownership rather than transient paint geometry.
+    const nativeSurfaceOwned = surfaces.values().length > 0;
     const send = async (type, point, pressed = false) => {
       const x = Math.round(point.x);
       const y = Math.round(point.y);
-      if (nativeSurfaceVisible) {
+      if (nativeSurfaceOwned) {
         await inputDebugger.sendCommand("Input.dispatchMouseEvent", {
           type: type === "mouseMove" ? "mouseMoved" : type === "mouseDown" ? "mousePressed" : "mouseReleased",
           x, y, pointerType: "mouse", button: "left", buttons: pressed ? 1 : 0,

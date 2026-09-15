@@ -199,9 +199,25 @@ async function verifyBoundaries({ window, temp, label, until }) {
   });
   const headerPixels=strip(right.paint.y+12),bodyPixels=strip(bodyY);
   assert(JSON.stringify(headerPixels)===JSON.stringify(bodyPixels),'Header/body paint differs');
-  await evaluate("document.querySelector('.desktop-titlebar-terminal, .desktop-shell-toolbar-terminal').click()");
-  await new Promise(resolve => setTimeout(resolve, 80));
-  assert(await evaluate("document.querySelector('.desktop-right-sidebar').dataset.paneContentVisible === 'true'"), `${label} content hid before motion finished`);
+  const collapsePresentation=await evaluate(`(async()=>{
+    const pane=document.querySelector('.desktop-right-sidebar');
+    const trigger=document.querySelector('.desktop-titlebar-terminal, .desktop-shell-toolbar-terminal');
+    const nextFrame=()=>new Promise(resolve=>requestAnimationFrame(resolve));
+    const samples=[];
+    trigger.click();
+    for(let frame=0;frame<30;frame+=1){
+      await nextFrame();
+      samples.push({
+        phase:pane.dataset.panePresentation,
+        contentVisible:pane.dataset.paneContentVisible==='true',
+      });
+      if(pane.dataset.panePresentation==='collapsed')break;
+    }
+    return samples;
+  })()`);
+  assert(collapsePresentation.length>0,`${label} collapse presentation was not observed`);
+  assert(collapsePresentation.every(sample=>sample.phase==='collapsed' || sample.contentVisible),
+    `${label} content hid before motion finished: ${JSON.stringify(collapsePresentation)}`);
   await until(async()=>evaluate("Boolean(document.querySelector('.desktop-right-sidebar-resizer.po-collapsed-pane-edge-handle'))"),'collapsed edge settled');
   assert(await evaluate("document.querySelector('.desktop-right-sidebar').dataset.paneContentVisible === 'false'"), `${label} collapsed content remains interactive`);
   const collapsed=await evaluate(`(() => {const r=document.querySelector('.desktop-right-sidebar-resizer').getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};})()`);
