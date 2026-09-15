@@ -82,6 +82,7 @@ import { createNativeUpdateMenuAction } from "./main/native-update-menu-action.m
 import { registerFeedbackIpcHandlers } from "./main/ipc/feedback-ipc.mjs";
 import { registerSystemIpcHandlers } from "./main/ipc/system-ipc.mjs";
 import { registerTerminalIpcHandlers } from "./main/ipc/terminal-ipc.mjs";
+import { registerLocalAgentInstallationIpcHandlers } from "./main/ipc/local-agent-installation-ipc.mjs";
 import { registerWorkspaceFileIpcHandlers } from "./main/ipc/workspace-files-ipc.mjs";
 import { registerWorkspaceGitIpcHandlers } from "./main/ipc/workspace-git-ipc.mjs";
 import { registerWorkspaceNavigationIpcHandlers } from "./main/ipc/workspace-navigation-ipc.mjs";
@@ -100,7 +101,7 @@ import { createTerminalProcessService } from "./main/item-hosts/terminal-process
 import { createAgentProcessService } from "./main/item-hosts/agent-process-service.mjs";
 import { createItemHostBudget } from "./main/item-hosts/resource-budget.mjs";
 import { registerSessionConnectionIpcHandlers, sendSessionRuntimeFailure } from "./main/ipc/session-connection-ipc.mjs";
-import { createTerminalAgentLocator } from "./main/terminal-agent/terminal-agent-locator.mjs";
+import { createLocalAgentInstallationService } from "./main/local-agent-installation/index.mjs";
 import { createDefaultTerminalAgentActivityHost } from "./main/terminal-agent/activity/bootstrap/create-terminal-agent-activity-host.mjs";
 import { createTrustedIpcMain } from "./main/trusted-ipc.mjs";
 import { acquireRendererOutputLease } from "./main/renderer-output-lease.mjs";
@@ -340,7 +341,18 @@ const terminalService = createTerminalProcessService({
   terminalAgentActivityHost,
   onHostEvent: (record, event) => sendSessionRuntimeFailure(webContents.fromId(record.ownerId), "terminal", record, event),
 });
-const terminalAgentLocator = createTerminalAgentLocator();
+const localAgentInstallationService = createLocalAgentInstallationService({
+  discoveryPort: desktopPlatformHost.executableDiscovery,
+  publishSnapshot: (snapshot) => {
+    for (const contents of webContents.getAllWebContents()) {
+      try {
+        if (!contents.isDestroyed()) contents.send("local-agent-installation:changed", snapshot);
+      } catch {
+        // A window can close between enumeration and delivery.
+      }
+    }
+  },
+});
 const agentEventCache = createEphemeralAgentSessionCache({ app });
 const agentConversationCatalog = createAgentConversationCatalog({
   filePath: path.join(app.getPath("userData"), "agent-runtime", "conversations.json"),
@@ -888,7 +900,7 @@ app.on("will-quit", () => {
   nativeSurfaceOcclusion.dispose();
   nativeSurfacePointerPassthrough.dispose();
   void terminalAgentActivityHost.dispose();
-  terminalAgentLocator.dispose();
+  localAgentInstallationService.dispose();
   localAgentInventory.dispose();
   if (gitAutoCommitHost.available) {
     powerMonitor.removeListener("resume", gitAutoCommitHost.reconcileAfterResume);
@@ -1073,10 +1085,13 @@ function registerIpcHandlers() {
   });
   registerTerminalIpcHandlers({
     ipcMain: trustedIpcMain,
-    terminalAgentLocator,
     terminalService,
     authorizeWorkspaceRoot,
     projectSessions,
+  });
+  registerLocalAgentInstallationIpcHandlers({
+    ipcMain: trustedIpcMain,
+    installationService: localAgentInstallationService,
   });
   registerAgentActivityIpcHandlers({
     ipcMain: trustedIpcMain,

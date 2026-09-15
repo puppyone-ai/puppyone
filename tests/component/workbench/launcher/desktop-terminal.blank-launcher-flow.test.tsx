@@ -309,12 +309,23 @@ function installTerminalAgentBridge(
   Object.defineProperty(window, "puppyoneDesktop", {
     configurable: true,
     value: {
-      locateTerminalAgents: vi.fn(async () => ({
+      discoverLocalAgentInstallations: vi.fn(async () => ({
+        schemaVersion: 1,
+        generation: 1,
+        scanId: "local-agent-scan:1",
         availableAgentIds,
-        scannedAt: "2026-08-30T00:00:00.000Z",
+        requestedAt: "2026-08-30T00:00:00.000Z",
+        completedAt: "2026-08-30T00:00:00.001Z",
+        results: availableAgentIds.map((agentId) => ({
+          agentId,
+          displayName: agentId,
+          status: "found",
+          source: "fixture",
+        })),
         source: "scan",
       })),
-      onTerminalAgentLocationProgress: vi.fn(() => () => undefined),
+      onLocalAgentInstallationProgress: vi.fn(() => () => undefined),
+      onLocalAgentInstallationsChanged: vi.fn(() => () => undefined),
     },
   });
 }

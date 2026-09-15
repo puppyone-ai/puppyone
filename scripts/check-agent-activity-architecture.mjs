@@ -90,7 +90,7 @@ if (/AgentActivity|agentFileActivity|localAgents/u.test(generalSettings)) {
 }
 
 const localAgentsSettings = read("src/features/local-agents/ui/LocalAgentsSettingsView.tsx");
-if (!localAgentsSettings.includes("useTerminalAgentLocator")
+if (!localAgentsSettings.includes("useLocalAgentInstallations")
     || !localAgentsSettings.includes("DESKTOP_TERMINAL_LAUNCHERS")
     || !localAgentsSettings.includes("desktop-settings-switch")
     || !localAgentsSettings.includes("setTerminalAgentVisible")) {
@@ -101,10 +101,10 @@ if (/getAgentActivityEnrollment|setAgentActivityEnrollment/u.test(localAgentsSet
 }
 
 const passiveTerminalAgentDiscoveryFiles = [
-  "electron/main/terminal-agent/terminal-agent-locator.mjs",
-  "electron/main/terminal-agent/terminal-agent-candidate-resolver.mjs",
-  "src/features/desktop-terminal/controller/useTerminalAgentLocator.ts",
-  "src/features/desktop-terminal/infrastructure/electron/terminalAgentLocatorClient.ts",
+  "electron/main/local-agent-installation/installation-service.mjs",
+  "electron/main/local-agent-installation/executable-resolver.mjs",
+  "src/features/local-agents/application/LocalAgentInstallationStore.ts",
+  "src/features/local-agents/controller/useLocalAgentInstallations.ts",
 ];
 const hookEnrollmentPattern = /(?:agent-activity:enrollment|terminal-agent\/activity|hook-registration|reconcileNativeActivityHooks|getAgentActivityEnrollment|setAgentActivityEnrollment)/u;
 for (const filePath of passiveTerminalAgentDiscoveryFiles) {

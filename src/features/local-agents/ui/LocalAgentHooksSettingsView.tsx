@@ -5,7 +5,7 @@ import type {
   AgentActivityEnrollmentSnapshot,
   AgentActivityProviderStatus,
 } from "../../../../shared/agent-activity-contract/types";
-import type { TerminalAgentDiscoveryPhase } from "../../desktop-terminal/model/terminalAgentAvailability";
+import type { LocalAgentInstallationDiscoveryPhase } from "../model/localAgentInstallationAvailability";
 import {
   DESKTOP_TERMINAL_LAUNCHERS,
   type DesktopTerminalLauncherId,
@@ -21,7 +21,7 @@ export function LocalAgentHooksSettingsSection({
   onActivityIndicatorsEnabledChange,
 }: {
   detectedAgentIds: readonly string[];
-  agentPhase: TerminalAgentDiscoveryPhase;
+  agentPhase: LocalAgentInstallationDiscoveryPhase;
   onRefreshAgents: () => Promise<void>;
   onActivityIndicatorsEnabledChange: (enabled: boolean) => void;
 }) {

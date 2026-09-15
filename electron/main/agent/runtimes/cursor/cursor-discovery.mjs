@@ -1,8 +1,10 @@
 import os from "node:os";
+import fs from "node:fs";
 import { redactSecretText } from "../../agent-events.mjs";
 import { createCachedRuntimeDiscovery } from "../../connections/runtime-discovery-cache.mjs";
 import { probeCursorLocal } from "../../connections/probes/cursor-local-probe.mjs";
-import { resolveFirstExecutable } from "../../connections/probes/executable-candidates.mjs";
+import { createExecutableDiscoveryPort } from "../../../platform/common/executable-discovery-port.mjs";
+import { createLocalAgentExecutableResolver } from "../../../local-agent-installation/executable-resolver.mjs";
 
 export function createCursorDiscovery(options = {}) {
   const { cache: cacheOptions, ...discoveryOptions } = options;
@@ -14,15 +16,17 @@ export function createCursorDiscovery(options = {}) {
 
 export async function discoverCursorBackend({
   signal,
+  fsModule = fs,
   env = process.env,
   homedir = os.homedir(),
   platform = process.platform,
-  resolveCandidate = () => resolveFirstExecutable({
-    names: ["cursor-agent", "agent", "cursor agent"],
-    env,
-    homedir,
-    platform,
-  }),
+  resolveCandidate = async () => {
+    const resolver = createLocalAgentExecutableResolver({
+      discoveryPort: createExecutableDiscoveryPort({ env, fsModule, homedir, nodePlatform: platform }),
+    });
+    const result = await resolver.resolve("cursor");
+    return result.status === "found" ? result.candidate : null;
+  },
   probe = probeCursorLocal,
 } = {}) {
   signal?.throwIfAborted();

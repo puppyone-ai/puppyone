@@ -1,13 +1,15 @@
-import os from "node:os";
 import path from "node:path";
 import {
   assertExecutableIdentity,
-} from "../local-executable-resolver.mjs";
-import { createTerminalAgentCandidateResolver } from "./terminal-agent-candidate-resolver.mjs";
-import { createTerminalAgentCatalog } from "./terminal-agent-catalog.mjs";
+  createLocalAgentExecutableResolver,
+} from "../local-agent-installation/executable-resolver.mjs";
+import {
+  createLocalAgentInstallationRegistry,
+  defaultLocalAgentInstallationRegistry,
+} from "../local-agent-installation/installation-registry.mjs";
 
 const TERMINAL_AGENT_LAUNCHER_IDS = new Set(
-  createTerminalAgentCatalog().map(({ id }) => id),
+  defaultLocalAgentInstallationRegistry.map(({ id }) => id),
 );
 
 /**
@@ -16,22 +18,21 @@ const TERMINAL_AGENT_LAUNCHER_IDS = new Set(
  */
 export function createTerminalAgentLaunchResolver(options = {}) {
   const {
-    catalog = createTerminalAgentCatalog(),
-    env = process.env,
-    homedir = os.homedir(),
-    platform = process.platform,
+    catalog = defaultLocalAgentInstallationRegistry,
     assertCandidate = (candidate) => assertExecutableIdentity(candidate),
   } = options;
-  const candidateResolver = options.candidateResolver ?? createTerminalAgentCandidateResolver({
-    env,
-    homedir,
-    platform,
+  const definitions = createLocalAgentInstallationRegistry(catalog);
+  const candidateResolver = options.candidateResolver ?? createLocalAgentExecutableResolver({
+    registry: definitions,
+    ...(options.discoveryPort ? { discoveryPort: options.discoveryPort } : {}),
   });
   const createResolutionContext = options.createResolutionContext
     ?? (options.resolveCandidate ? async () => Object.freeze({}) : () => candidateResolver.createContext());
   const resolveCandidate = options.resolveCandidate
-    ?? ((definition, context) => candidateResolver.resolve(definition, context));
-  const definitions = createTerminalAgentCatalog(catalog);
+    ?? (async (definition, context) => {
+      const result = await candidateResolver.resolve(definition.id, { context });
+      return result.status === "found" ? result.candidate : null;
+    });
   const definitionsById = new Map(definitions.map((definition) => [definition.id, definition]));
 
   return async function resolveTerminalAgentLaunch(launcherId) {
@@ -86,5 +87,5 @@ function terminalAgentUnavailableError() {
 }
 
 export const terminalAgentLauncherPolicy = Object.freeze({
-  launcherIds: Object.freeze(createTerminalAgentCatalog().map(({ id }) => id)),
+  launcherIds: Object.freeze(defaultLocalAgentInstallationRegistry.map(({ id }) => id)),
 });

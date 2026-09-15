@@ -6,17 +6,13 @@ const MAX_PARENT_DEPTH = 6;
 const MAX_PACKAGE_BYTES = 128 * 1_024;
 const MAX_EXECUTABLE_PREFIX_BYTES = 16 * 1_024;
 
-/**
- * Verify ambiguous executable names with bounded, read-only filesystem
- * evidence. This never starts the candidate or inspects credentials.
- */
-export async function verifyTerminalAgentCandidateIdentity(
-  definition,
-  candidate,
-  { fsModule = fs } = {},
-) {
+/** Verify ambiguous executable names with bounded, read-only evidence. */
+export async function verifyLocalAgentCandidateIdentity(definition, candidate, { fsModule = fs } = {}) {
   const policy = definition?.identityPolicy;
   if (!policy) return true;
+  if (["configured", "environment-override", "explicit-configuration"].includes(candidate?.source)) {
+    return true;
+  }
   const required = new Set(policy.requiredForInvocations ?? []);
   if (!required.has(candidate?.invokedAs)) return true;
 
@@ -24,9 +20,7 @@ export async function verifyTerminalAgentCandidateIdentity(
   if ((policy.pathFragments ?? []).some((fragment) => normalizedPath.includes(normalizePath(fragment)))) {
     return true;
   }
-  if (await hasPackageIdentity(candidate?.executablePath, policy.packageNames, fsModule)) {
-    return true;
-  }
+  if (await hasPackageIdentity(candidate?.executablePath, policy.packageNames, fsModule)) return true;
   return hasExecutableMarker(candidate?.executablePath, policy.fileMarkers, fsModule);
 }
 
@@ -43,7 +37,7 @@ async function hasPackageIdentity(executablePath, packageNames, fsModule) {
         if (expected.has(String(manifest?.name || "").toLowerCase())) return true;
       }
     } catch {
-      // The candidate may be a standalone binary or wrapper.
+      // Standalone binaries and wrappers usually have no adjacent manifest.
     }
     const parent = path.dirname(directory);
     if (parent === directory) break;
@@ -81,14 +75,11 @@ function normalizePath(value) {
 }
 
 function safeAbsolutePath(value) {
-  return typeof value === "string"
-    && value.length > 0
-    && value.length <= 4_096
-    && path.isAbsolute(value)
-    && !/[\r\n\0]/u.test(value);
+  return typeof value === "string" && value.length > 0 && value.length <= 4_096
+    && path.isAbsolute(value) && !/[\r\n\0]/u.test(value);
 }
 
-export const terminalAgentIdentityPolicy = Object.freeze({
+export const localAgentCandidateIdentityPolicy = Object.freeze({
   maxExecutablePrefixBytes: MAX_EXECUTABLE_PREFIX_BYTES,
   maxPackageBytes: MAX_PACKAGE_BYTES,
   maxParentDepth: MAX_PARENT_DEPTH,

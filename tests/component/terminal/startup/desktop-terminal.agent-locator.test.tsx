@@ -5,11 +5,11 @@ import type { DesktopBridge } from "../../../support/electron/desktopBridge";
 import { act, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { useTerminalAgentLocator } from "../../../../src/features/desktop-terminal/controller/useTerminalAgentLocator";
+import { useLocalAgentInstallations } from "../../../../src/features/local-agents/controller/useLocalAgentInstallations";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-type LocatorView = ReturnType<typeof useTerminalAgentLocator>;
+type LocatorView = ReturnType<typeof useLocalAgentInstallations>;
 let root: Root | null = null;
 
 afterEach(() => {
@@ -19,7 +19,7 @@ afterEach(() => {
   delete (window as Window & { puppyoneDesktop?: unknown }).puppyoneDesktop;
 });
 
-describe("Terminal Agent locator controller", () => {
+describe("shared Local Agent installation controller", () => {
   it("detects local Agents without reading or changing activity Hook enrollment", async () => {
     const locate = vi.fn(async () => snapshot(["codex"]));
     const getAgentActivityEnrollment = vi.fn();
@@ -60,7 +60,7 @@ describe("Terminal Agent locator controller", () => {
     });
     expect(locate).toHaveBeenNthCalledWith(2, {
       refresh: true,
-      requestId: expect.stringMatching(/^terminal-agent-location:/u),
+      requestId: expect.stringMatching(/^local-agent-installation:/u),
     });
 
     await act(async () => {
@@ -101,9 +101,33 @@ describe("Terminal Agent locator controller", () => {
     expect(latest.current?.ids).toEqual(["claude"]);
   });
 
+  it("retains prior installation evidence when one product cannot be inspected", async () => {
+    const locate = vi.fn()
+      .mockResolvedValueOnce(snapshot(["codex"]))
+      .mockResolvedValueOnce({
+        ...snapshot([]),
+        generation: 2,
+        scanId: "local-agent-scan:2",
+        results: [{
+          agentId: "codex",
+          displayName: "Codex",
+          status: "failed",
+          reasonCode: "permission-denied",
+        }],
+      });
+    installBridge(locate);
+    const latest: { current: LocatorView | null } = { current: null };
+    mount((value) => { latest.current = value; });
+
+    await vi.waitFor(() => expect(latest.current?.phase).toBe("ready"));
+    await act(async () => { await latest.current?.refresh(); });
+    expect(latest.current?.ids).toEqual(["codex"]);
+    expect(latest.current?.hasFailures).toBe(true);
+  });
+
   it("shows installed Agents incrementally and ignores another request's events", async () => {
-    const final = deferred<Awaited<ReturnType<DesktopBridge["locateTerminalAgents"]>>>();
-    const locate = vi.fn<DesktopBridge["locateTerminalAgents"]>(() => final.promise);
+    const final = deferred<Awaited<ReturnType<DesktopBridge["discoverLocalAgentInstallations"]>>>();
+    const locate = vi.fn<DesktopBridge["discoverLocalAgentInstallations"]>(() => final.promise);
     const bridge = installBridge(locate);
     const latest: { current: LocatorView | null } = { current: null };
     mount((value) => { latest.current = value; });
@@ -113,7 +137,10 @@ describe("Terminal Agent locator controller", () => {
     act(() => bridge.emitProgress({
       availableAgentIds: ["opencode", "codex"],
       completedAgentCount: 2,
+      generation: 1,
       requestId,
+      results: [installationResult("opencode"), installationResult("codex")],
+      scanId: "local-agent-scan:1",
       totalAgentCount: 6,
     }));
     expect(latest.current?.phase).toBe("loading");
@@ -122,7 +149,10 @@ describe("Terminal Agent locator controller", () => {
     act(() => bridge.emitProgress({
       availableAgentIds: ["hermes"],
       completedAgentCount: 6,
-      requestId: "terminal-agent-location:stale",
+      generation: 1,
+      requestId: "local-agent-installation:stale",
+      results: [installationResult("hermes")],
+      scanId: "local-agent-scan:1",
       totalAgentCount: 6,
     }));
     expect(latest.current?.ids).toEqual(["codex", "opencode"]);
@@ -144,7 +174,7 @@ function mount(onValue: (value: LocatorView) => void) {
 }
 
 function Harness({ onValue }: { onValue: (value: LocatorView) => void }) {
-  const value = useTerminalAgentLocator({ enabled: true });
+  const value = useLocalAgentInstallations({ enabled: true });
   useEffect(() => onValue(value), [onValue, value]);
   return null;
 }
@@ -157,11 +187,12 @@ function installBridge(
   Object.defineProperty(window, "puppyoneDesktop", {
     configurable: true,
     value: {
-      locateTerminalAgents: locate,
-      onTerminalAgentLocationProgress: vi.fn((callback) => {
+      discoverLocalAgentInstallations: locate,
+      onLocalAgentInstallationProgress: vi.fn((callback) => {
         progressCallback.current = callback;
         return () => { progressCallback.current = null; };
       }),
+      onLocalAgentInstallationsChanged: vi.fn(() => () => {}),
       ...additionalBridgeMethods,
     },
   });
@@ -172,11 +203,25 @@ function installBridge(
   };
 }
 
-function snapshot(ids: Awaited<ReturnType<DesktopBridge["locateTerminalAgents"]>>["availableAgentIds"]): Awaited<ReturnType<DesktopBridge["locateTerminalAgents"]>> {
+function snapshot(ids: Awaited<ReturnType<DesktopBridge["discoverLocalAgentInstallations"]>>["availableAgentIds"]): Awaited<ReturnType<DesktopBridge["discoverLocalAgentInstallations"]>> {
   return {
+    schemaVersion: 1,
+    generation: 1,
+    scanId: "local-agent-scan:1",
+    requestedAt: "2026-08-15T00:00:00.000Z",
+    completedAt: "2026-08-15T00:00:00.001Z",
     availableAgentIds: ids,
-    scannedAt: "2026-08-15T00:00:00.000Z",
+    results: ids.map(installationResult),
     source: "scan",
+  };
+}
+
+function installationResult(agentId: Awaited<ReturnType<DesktopBridge["discoverLocalAgentInstallations"]>>["availableAgentIds"][number]) {
+  return {
+    agentId,
+    displayName: agentId,
+    status: "found" as const,
+    source: "path-installation",
   };
 }
 

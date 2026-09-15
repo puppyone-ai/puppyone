@@ -504,12 +504,18 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
       },
     },
   } : {}),
-  locateTerminalAgents: (request) => ipcRenderer.invoke("terminal:agents-locate", request),
-  onTerminalAgentLocationProgress: (callback) => {
+  discoverLocalAgentInstallations: (request) => ipcRenderer.invoke("local-agent-installation:discover", request),
+  onLocalAgentInstallationProgress: (callback) => {
     if (typeof callback !== "function") return () => {};
     const listener = (_event, payload) => callback(payload);
-    ipcRenderer.on("terminal:agents-progress", listener);
-    return () => ipcRenderer.removeListener("terminal:agents-progress", listener);
+    ipcRenderer.on("local-agent-installation:progress", listener);
+    return () => ipcRenderer.removeListener("local-agent-installation:progress", listener);
+  },
+  onLocalAgentInstallationsChanged: (callback) => {
+    if (typeof callback !== "function") return () => {};
+    const listener = (_event, payload) => callback(payload);
+    ipcRenderer.on("local-agent-installation:changed", listener);
+    return () => ipcRenderer.removeListener("local-agent-installation:changed", listener);
   },
   createTerminal: (request) => ipcRenderer.invoke("terminal:create", request),
   writeTerminal: (request) => ipcRenderer.send("terminal:input", request),

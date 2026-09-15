@@ -2,7 +2,6 @@ import { projectSessionError, projectSessionFailure } from "../../../shared/proj
 
 export function registerTerminalIpcHandlers({
   ipcMain,
-  terminalAgentLocator,
   terminalService,
   authorizeWorkspaceRoot,
   projectSessions = null,
@@ -17,16 +16,6 @@ export function registerTerminalIpcHandlers({
     if (typeof request?.instanceId !== "string") throw projectSessionError("SESSION_STALE", "The terminal instance identity is required.");
     terminalService.assertSessionInstance(event.sender, request, project.rootPath, { allowClosed: allowClosing });
   };
-  ipcMain.handle("terminal:agents-locate", async (event, request) => {
-    const requestId = normalizeRequestId(request?.requestId);
-    return terminalAgentLocator.locate({
-      refresh: request?.refresh === true,
-      onProgress: requestId
-        ? (progress) => sendAgentLocationProgress(event.sender, requestId, progress)
-        : null,
-    });
-  });
-
   register("terminal:create", async (event, request) => {
     if (projectSessions) {
       const context = projectSessions.require(event.sender.id, request?.projectContext);
@@ -58,19 +47,4 @@ export function registerTerminalIpcHandlers({
     validate(event, id, true);
     return terminalService.close(event.sender, id);
   });
-}
-
-function normalizeRequestId(value) {
-  return typeof value === "string" && /^[A-Za-z0-9:_-]{1,96}$/u.test(value)
-    ? value
-    : null;
-}
-
-function sendAgentLocationProgress(sender, requestId, progress) {
-  try {
-    if (typeof sender?.isDestroyed === "function" && sender.isDestroyed()) return;
-    sender?.send?.("terminal:agents-progress", { requestId, ...progress });
-  } catch {
-    // The requesting window may close while the shared scan is in flight.
-  }
 }

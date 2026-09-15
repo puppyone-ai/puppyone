@@ -32,8 +32,8 @@ export async function discoverCodexExecutable({
   homedir = os.homedir(),
 } = {}) {
   const result = await discoverExecutable({
-      signal,
-    executableNames: [platform === "win32" ? "codex.exe" : "codex"],
+    signal,
+    installationId: "codex",
     fsModule,
     spawn,
     env,

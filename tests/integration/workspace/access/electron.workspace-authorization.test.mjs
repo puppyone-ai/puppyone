@@ -5,6 +5,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { registerAppPreviewIpcHandlers } from "../../../../electron/main/ipc/app-preview-ipc.mjs";
 import { registerTerminalIpcHandlers } from "../../../../electron/main/ipc/terminal-ipc.mjs";
+import { registerLocalAgentInstallationIpcHandlers } from "../../../../electron/main/ipc/local-agent-installation-ipc.mjs";
 import { registerWorkspaceGitIpcHandlers } from "../../../../electron/main/ipc/workspace-git-ipc.mjs";
 import { registerWorkspaceNavigationIpcHandlers } from "../../../../electron/main/ipc/workspace-navigation-ipc.mjs";
 import { registerWorkspaceWatchIpcHandlers } from "../../../../electron/main/ipc/workspace-watch-ipc.mjs";
@@ -72,7 +73,6 @@ describe("sender-bound workspace authorization", () => {
       };
       registerTerminalIpcHandlers({
         ipcMain,
-        terminalAgentLocator: { locate: vi.fn() },
         terminalService,
         authorizeWorkspaceRoot,
       });
@@ -112,7 +112,6 @@ describe("sender-bound workspace authorization", () => {
       };
       registerTerminalIpcHandlers({
         ipcMain,
-        terminalAgentLocator: { locate: vi.fn() },
         terminalService,
         authorizeWorkspaceRoot: createSenderWorkspaceAuthorization({
           fsModule: fs,
@@ -140,7 +139,6 @@ describe("sender-bound workspace authorization", () => {
       };
       registerTerminalIpcHandlers({
         ipcMain,
-        terminalAgentLocator: { locate: vi.fn() },
         terminalService,
         authorizeWorkspaceRoot: createSenderWorkspaceAuthorization({
           fsModule: fs,
@@ -234,7 +232,6 @@ describe("sender-bound workspace authorization", () => {
     registerAppPreviewIpcHandlers({ ipcMain, appPreviewRuntime, authorizeWorkspaceRoot });
     registerTerminalIpcHandlers({
       ipcMain,
-      terminalAgentLocator: { locate: vi.fn() },
       terminalService,
       authorizeWorkspaceRoot,
     });
@@ -284,40 +281,51 @@ describe("sender-bound workspace authorization", () => {
       appearance: vi.fn(),
       close: vi.fn(),
     };
-    const terminalAgentLocator = {
-      locate: vi.fn(async () => ({
+    const installationService = {
+      discover: vi.fn(async () => ({
+        schemaVersion: 1,
+        generation: 1,
+        scanId: "local-agent-scan:1",
         availableAgentIds: ["codex"],
-        scannedAt: "2026-08-15T00:00:00.000Z",
+        requestedAt: "2026-08-15T00:00:00.000Z",
+        completedAt: "2026-08-15T00:00:00.001Z",
+        results: [{ agentId: "codex", displayName: "Codex", status: "found", source: "fixture" }],
         source: "scan",
       })),
     };
     registerAppPreviewIpcHandlers({ ipcMain, appPreviewRuntime, authorizeWorkspaceRoot });
     registerTerminalIpcHandlers({
       ipcMain,
-      terminalAgentLocator,
       terminalService,
       authorizeWorkspaceRoot,
     });
+    registerLocalAgentInstallationIpcHandlers({ ipcMain, installationService });
 
     const sender = { id: 8, send: vi.fn() };
     const event = { sender };
-    await handlers.get("terminal:agents-locate")(event, {
+    await handlers.get("local-agent-installation:discover")(event, {
       refresh: true,
-      requestId: "terminal-agent-location:test",
+      requestId: "local-agent-installation:test",
     });
-    expect(terminalAgentLocator.locate).toHaveBeenCalledWith({
+    expect(installationService.discover).toHaveBeenCalledWith({
       refresh: true,
       onProgress: expect.any(Function),
     });
-    terminalAgentLocator.locate.mock.calls[0][0].onProgress({
+    installationService.discover.mock.calls[0][0].onProgress({
       availableAgentIds: ["codex"],
       completedAgentCount: 1,
+      generation: 1,
+      results: [{ agentId: "codex", displayName: "Codex", status: "found", source: "fixture" }],
+      scanId: "local-agent-scan:1",
       totalAgentCount: 6,
     });
-    expect(sender.send).toHaveBeenCalledWith("terminal:agents-progress", {
+    expect(sender.send).toHaveBeenCalledWith("local-agent-installation:progress", {
       availableAgentIds: ["codex"],
       completedAgentCount: 1,
-      requestId: "terminal-agent-location:test",
+      generation: 1,
+      requestId: "local-agent-installation:test",
+      results: [{ agentId: "codex", displayName: "Codex", status: "found", source: "fixture" }],
+      scanId: "local-agent-scan:1",
       totalAgentCount: 6,
     });
     await handlers.get("app-preview:start")(event, { rootPath: root, path: "app.puppyoneapp" });
@@ -452,7 +460,6 @@ describe("terminal session ownership", () => {
       const { ipcMain, handlers } = createIpcHarness();
       registerTerminalIpcHandlers({
         ipcMain,
-        terminalAgentLocator: { locate: vi.fn() },
         terminalService,
         authorizeWorkspaceRoot: createSenderWorkspaceAuthorization({
           fsModule: fs,

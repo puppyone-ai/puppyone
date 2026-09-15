@@ -133,12 +133,23 @@ function bridge({
   setEnrollment?: ReturnType<typeof vi.fn>;
 }) {
   return {
-    locateTerminalAgents: vi.fn(async () => ({
+    discoverLocalAgentInstallations: vi.fn(async () => ({
+      schemaVersion: 1,
+      generation: 1,
+      scanId: "local-agent-scan:1",
       availableAgentIds: terminalAgents,
-      scannedAt: new Date(0).toISOString(),
+      requestedAt: new Date(0).toISOString(),
+      completedAt: new Date(1).toISOString(),
+      results: terminalAgents.map((agentId) => ({
+        agentId,
+        displayName: agentId,
+        status: "found",
+        source: "fixture",
+      })),
       source: "scan",
     })),
-    onTerminalAgentLocationProgress: vi.fn(() => () => {}),
+    onLocalAgentInstallationProgress: vi.fn(() => () => {}),
+    onLocalAgentInstallationsChanged: vi.fn(() => () => {}),
     getAgentActivityEnrollment: getEnrollment,
     setAgentActivityEnrollment: setEnrollment,
   } as unknown as typeof window.puppyoneDesktop;

@@ -3,10 +3,8 @@ import type {
   AuxiliaryWorkbenchHistoryContribution,
   AuxiliaryWorkbenchHistoryTarget,
 } from "../../app-shell/auxiliary-workbench/types";
-import type {
-  AvailableTerminalAgentId,
-  TerminalAgentDiscoveryPhase,
-} from "../model/terminalAgentAvailability";
+import type { LocalAgentInstallationId } from "../../../../shared/local-agent-installation/types";
+import type { LocalAgentInstallationDiscoveryPhase } from "../../local-agents/model/localAgentInstallationAvailability";
 import type { DesktopTerminalLauncherId } from "../model/terminalLaunchers";
 import type { DesktopTerminalSession } from "../model/terminalSessions";
 import type { TerminalRuntimeHandle } from "../runtime/terminalRuntime";
@@ -18,8 +16,8 @@ import { TerminalSessionView } from "./TerminalSessionView";
 
 type TerminalSessionHostProps = {
   agentMode: TerminalLauncherAgentMode;
-  discoveryPhase: TerminalAgentDiscoveryPhase;
-  availableAgentIds: readonly AvailableTerminalAgentId[];
+  discoveryPhase: LocalAgentInstallationDiscoveryPhase;
+  availableAgentIds: readonly LocalAgentInstallationId[];
   chatCreationAvailable?: boolean;
   chatPreparing?: boolean;
   chatRecipes?: readonly AuxiliaryWorkbenchCreationRecipe[];
