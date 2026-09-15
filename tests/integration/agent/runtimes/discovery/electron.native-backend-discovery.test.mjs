@@ -80,6 +80,7 @@ describe("native Agent backend discovery", () => {
         promises: {
           access: vi.fn(async () => {}),
           realpath: vi.fn(async () => "/tools/claude"),
+          stat: vi.fn(async () => ({ dev: 1, ino: 2, isFile: () => true, mtimeMs: 3, size: 4 })),
           mkdtemp: vi.fn(async (prefix) => `${prefix}test`),
           rm: vi.fn(async (directory, options) => { removed.push([directory, options]); }),
         },
@@ -111,6 +112,7 @@ describe("native Agent backend discovery", () => {
         promises: {
           access: vi.fn(async () => {}),
           realpath: vi.fn(async () => "/tools/claude"),
+          stat: vi.fn(async () => ({ dev: 1, ino: 2, isFile: () => true, mtimeMs: 3, size: 4 })),
           mkdtemp: vi.fn(async (prefix) => `${prefix}test`),
           rm: vi.fn(async () => {}),
         },

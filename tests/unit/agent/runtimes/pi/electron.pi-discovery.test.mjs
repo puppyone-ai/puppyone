@@ -64,6 +64,7 @@ function executableFs(existingPath) {
         if (candidate !== existingPath) throw Object.assign(new Error("missing"), { code: "ENOENT" });
       }),
       realpath: vi.fn(async (candidate) => candidate),
+      stat: vi.fn(async () => ({ dev: 1, ino: 2, isFile: () => true, mtimeMs: 3, size: 4 })),
     },
   };
 }

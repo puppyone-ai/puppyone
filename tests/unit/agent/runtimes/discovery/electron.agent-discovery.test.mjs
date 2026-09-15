@@ -25,6 +25,7 @@ describe("Codex provider discovery", () => {
           if (candidate !== "/usr/local/bin/codex") throw Object.assign(new Error("missing"), { code: "ENOENT" });
         }),
         realpath: vi.fn(async (candidate) => candidate),
+        stat: vi.fn(async () => ({ dev: 1, ino: 2, isFile: () => true, mtimeMs: 3, size: 4 })),
       },
     };
     const readiness = await discoverCodexExecutable({
@@ -66,6 +67,7 @@ describe("Codex provider discovery", () => {
             if (candidate !== "/usr/local/bin/codex") throw new Error("missing");
           }),
           realpath: vi.fn(async (candidate) => candidate),
+          stat: vi.fn(async () => ({ dev: 1, ino: 2, isFile: () => true, mtimeMs: 3, size: 4 })),
         },
       },
       spawn,

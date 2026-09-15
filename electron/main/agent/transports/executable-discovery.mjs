@@ -3,6 +3,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawn as nodeSpawn } from "node:child_process";
+import { createExecutableDiscoveryPort } from "../../platform/common/executable-discovery-port.mjs";
+import { createLocalAgentExecutableResolver } from "../../local-agent-installation/executable-resolver.mjs";
 
 const LOGIN_ENV_TIMEOUT_MS = 4_000;
 const VERSION_TIMEOUT_MS = 4_000;
@@ -37,6 +39,7 @@ export async function readLoginShellEnvironment({
 }
 
 export async function discoverExecutable({
+  installationId = null,
   executableNames,
   additionalCandidates = [],
   fsModule = fs,
@@ -65,17 +68,35 @@ export async function discoverExecutable({
     }
   }
   const environment = buildEnvironment(env, loginEnv, { homedir, platform });
-  const executablePath = await resolveExecutable({
-    fsModule,
-    executableNames,
-    additionalCandidates,
-    pathValue: loginEnv.PATH || env.PATH || "",
-    homedir,
-    platform,
-    validateCandidate,
-    searchPath,
-    signal,
-  });
+  let executablePath;
+  let installationDiagnostic = null;
+  if (installationId) {
+    const installationResolver = createLocalAgentExecutableResolver({
+      discoveryPort: createExecutableDiscoveryPort({
+        env: { ...env, PATH: loginEnv.PATH || env.PATH || "" },
+        fsModule,
+        homedir,
+        nodePlatform: platform,
+      }),
+    });
+    const observation = await installationResolver.resolve(installationId, {
+      extraCandidates: additionalCandidates,
+    });
+    executablePath = observation.status === "found" ? observation.candidate.executablePath : null;
+    if (observation.status === "failed") installationDiagnostic = observation.reasonCode;
+  } else {
+    executablePath = await resolveExecutable({
+      fsModule,
+      executableNames,
+      additionalCandidates,
+      pathValue: loginEnv.PATH || env.PATH || "",
+      homedir,
+      platform,
+      validateCandidate,
+      searchPath,
+      signal,
+    });
+  }
   signal?.throwIfAborted();
   if (!executablePath) {
     return {
@@ -86,7 +107,9 @@ export async function discoverExecutable({
       executablePath: null,
       environment,
       message: `${label} was not found. Install it, complete its setup in a terminal, then refresh.`,
-      ...(environmentWarning ? { diagnostic: environmentWarning } : {}),
+      ...(environmentWarning || installationDiagnostic
+        ? { diagnostic: [environmentWarning, installationDiagnostic].filter(Boolean).join("; ") }
+        : {}),
     };
   }
   try {

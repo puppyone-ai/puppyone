@@ -9,7 +9,6 @@ import {
   discoverExecutable,
   runBounded,
 } from "../../transports/executable-discovery.mjs";
-import { claudeCliCandidates } from "./claude-cli-candidates.mjs";
 
 export const CLAUDE_AGENT_SDK_VERSION = "0.3.159";
 // Compatibility is verified through the official SDK initialization handshake.
@@ -61,11 +60,9 @@ export async function discoverClaudeRuntime({
   let probeDirectory = null;
   let local;
   try {
-    const additionalCandidates = await claudeCliCandidates({ fsModule, env, homedir, platform });
     local = await discoverExecutable({
       signal,
-      executableNames: [platform === "win32" ? "claude.exe" : "claude"],
-      additionalCandidates,
+      installationId: "claude",
       fsModule,
       spawn,
       env,

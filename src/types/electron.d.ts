@@ -409,20 +409,9 @@ export type TerminalAppearanceRequest = {
   };
 };
 
-export type TerminalAgentId = Exclude<DesktopTerminalLauncherId, "shell">;
-
-export type TerminalAgentLocationSnapshot = {
-  availableAgentIds: TerminalAgentId[];
-  scannedAt: string;
-  source: "scan" | "memory-cache";
-};
-
-export type TerminalAgentLocationProgressEvent = {
-  availableAgentIds: TerminalAgentId[];
-  completedAgentCount: number;
-  requestId: string;
-  totalAgentCount: number;
-};
+export type TerminalAgentId = import("../../shared/local-agent-installation/types").LocalAgentInstallationId;
+export type LocalAgentInstallationSnapshot = import("../../shared/local-agent-installation/types").LocalAgentInstallationSnapshot;
+export type LocalAgentInstallationProgressEvent = import("../../shared/local-agent-installation/types").LocalAgentInstallationProgressEvent;
 
 export type TerminalCreateResult = {
   instanceId?: string;
@@ -1564,12 +1553,15 @@ declare global {
           };
         }) => void) => () => void;
       };
-      locateTerminalAgents: (request: {
+      discoverLocalAgentInstallations: (request: {
         refresh?: boolean;
         requestId: string;
-      }) => Promise<TerminalAgentLocationSnapshot>;
-      onTerminalAgentLocationProgress: (
-        callback: (event: TerminalAgentLocationProgressEvent) => void,
+      }) => Promise<LocalAgentInstallationSnapshot>;
+      onLocalAgentInstallationProgress: (
+        callback: (event: LocalAgentInstallationProgressEvent) => void,
+      ) => () => void;
+      onLocalAgentInstallationsChanged: (
+        callback: (snapshot: LocalAgentInstallationSnapshot) => void,
       ) => () => void;
       createTerminal: (request: TerminalCreateRequest) => Promise<TerminalCreateResult | import("../../shared/project-session-contract/types").ProjectSessionFailure>;
       writeTerminal: (request: TerminalInputRequest) => void;

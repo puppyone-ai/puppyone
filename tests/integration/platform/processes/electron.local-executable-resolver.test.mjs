@@ -13,10 +13,11 @@ import {
   createExecutableSearchContext,
   executableCandidateLimits,
   resolveFirstExecutable,
-} from "../../../../electron/main/local-executable-resolver.mjs";
-import { createTerminalAgentCandidateResolver } from "../../../../electron/main/terminal-agent/terminal-agent-candidate-resolver.mjs";
-import { createTerminalAgentCatalog } from "../../../../electron/main/terminal-agent/terminal-agent-catalog.mjs";
-import { verifyTerminalAgentCandidateIdentity } from "../../../../electron/main/terminal-agent/terminal-agent-identity.mjs";
+} from "../../../../electron/main/local-agent-installation/executable-resolver.mjs";
+import { createExecutableDiscoveryPort } from "../../../../electron/main/platform/common/executable-discovery-port.mjs";
+import { createLocalAgentExecutableResolver } from "../../../../electron/main/local-agent-installation/executable-resolver.mjs";
+import { getLocalAgentInstallationDefinition } from "../../../../electron/main/local-agent-installation/installation-registry.mjs";
+import { verifyLocalAgentCandidateIdentity } from "../../../../electron/main/local-agent-installation/candidate-identity.mjs";
 
 const temporaryDirectories = [];
 
@@ -27,6 +28,57 @@ afterEach(async () => {
 });
 
 describe("local executable search context", () => {
+  it.each([
+    ["npm global prefix", (home) => path.join(home, ".npm-global", "bin")],
+    ["local installer", (home) => path.join(home, ".local", "bin")],
+    ["pnpm home", (home) => path.join(home, "pnpm-bin")],
+    ["inherited PATH", (home) => path.join(home, "custom-bin")],
+  ])("finds Codex from a GUI-safe %s location", async (_label, directoryForHome) => {
+    const homedir = await makeTemporaryDirectory();
+    const directory = directoryForHome(homedir);
+    const executablePath = path.join(directory, "codex");
+    await writeExecutable(executablePath, "#!/bin/sh\n# codex fixture\n");
+    const resolver = createLocalAgentExecutableResolver({
+      discoveryPort: createExecutableDiscoveryPort({
+        env: {
+          PATH: directory.endsWith("custom-bin") ? directory : "",
+          PNPM_HOME: directory.endsWith("pnpm-bin") ? directory : undefined,
+        },
+        homedir,
+        nodePlatform: "darwin",
+      }),
+    });
+
+    await expect(resolver.resolve("codex")).resolves.toMatchObject({
+      status: "found",
+      candidate: { executablePath: await realpath(executablePath) },
+    });
+  });
+
+  it.each([
+    ["CODEX_INSTALL_DIR", "darwin", (home) => path.join(home, "custom-codex"), "codex"],
+    ["Windows standalone default", "win32", (home) => path.join(home, "Programs", "OpenAI", "Codex", "bin"), "codex.exe"],
+  ])("finds Codex from the %s location", async (_label, platform, directoryForHome, executableName) => {
+    const homedir = await makeTemporaryDirectory();
+    const installDirectory = directoryForHome(homedir);
+    const executablePath = path.join(installDirectory, executableName);
+    await writeExecutable(executablePath, "#!/bin/sh\n# codex fixture\n");
+    const resolver = createLocalAgentExecutableResolver({
+      discoveryPort: createExecutableDiscoveryPort({
+        env: platform === "win32"
+          ? { PATH: "", LOCALAPPDATA: homedir }
+          : { PATH: "", CODEX_INSTALL_DIR: installDirectory },
+        homedir,
+        nodePlatform: platform,
+      }),
+    });
+
+    await expect(resolver.resolve("codex")).resolves.toMatchObject({
+      status: "found",
+      candidate: { executablePath: await realpath(executablePath) },
+    });
+  });
+
   it("covers common GUI-safe Node managers once and bounds NVM traversal", async () => {
     const homedir = await makeTemporaryDirectory();
     const versionsRoot = path.join(homedir, ".nvm", "versions", "node");
@@ -93,16 +145,18 @@ describe("local executable search context", () => {
     const verifiedPi = path.join(homedir, ".asdf", "shims", "pi");
     await writeExecutable(genericPi, "#!/bin/sh\necho unrelated-math-cli\n");
     await writeExecutable(verifiedPi, "#!/bin/sh\n# pi_coding_agent\n");
-    const resolver = createTerminalAgentCandidateResolver({
-      env: { PATH: "" },
-      homedir,
-      platform: "darwin",
+    const resolver = createLocalAgentExecutableResolver({
+      discoveryPort: createExecutableDiscoveryPort({
+        env: { PATH: "" }, homedir, nodePlatform: "darwin",
+      }),
     });
-    const pi = createTerminalAgentCatalog().find(({ id }) => id === "pi");
 
-    await expect(resolver.resolve(pi)).resolves.toMatchObject({
-      executablePath: await realpath(verifiedPi),
-      invokedAs: "pi",
+    await expect(resolver.resolve("pi")).resolves.toMatchObject({
+      status: "found",
+      candidate: {
+        executablePath: await realpath(verifiedPi),
+        invokedAs: "pi",
+      },
     });
   });
 
@@ -113,18 +167,23 @@ describe("local executable search context", () => {
     const inheritedPath = Array.from({ length: 48 }, (_, index) => (
       path.join(homedir, "inherited-path", String(index))
     )).join(":");
-    const resolver = createTerminalAgentCandidateResolver({
-      env: { PATH: inheritedPath },
-      homedir,
-      platform: "darwin",
+    const resolver = createLocalAgentExecutableResolver({
+      discoveryPort: createExecutableDiscoveryPort({
+        env: { PATH: inheritedPath }, homedir, nodePlatform: "darwin",
+      }),
     });
-    const cursor = createTerminalAgentCatalog().find(({ id }) => id === "cursor");
 
-    await expect(resolver.resolve(cursor)).resolves.toBeNull();
+    await expect(resolver.resolve("cursor")).resolves.toMatchObject({
+      status: "failed",
+      reasonCode: "identity-mismatch",
+    });
     await writeFile(executablePath, "#!/bin/sh\n# cursor-agent\n", "utf8");
-    await expect(resolver.resolve(cursor)).resolves.toMatchObject({
-      executablePath: await realpath(executablePath),
-      invokedAs: "agent",
+    await expect(resolver.resolve("cursor")).resolves.toMatchObject({
+      status: "found",
+      candidate: {
+        executablePath: await realpath(executablePath),
+        invokedAs: "agent",
+      },
     });
   });
 });
@@ -140,9 +199,9 @@ describe("Terminal Agent product identity", () => {
       JSON.stringify({ name: "@earendil-works/pi-coding-agent" }),
       "utf8",
     );
-    const definition = createTerminalAgentCatalog().find(({ id }) => id === "pi");
+    const definition = getLocalAgentInstallationDefinition("pi");
 
-    await expect(verifyTerminalAgentCandidateIdentity(definition, {
+    await expect(verifyLocalAgentCandidateIdentity(definition, {
       executablePath,
       invokedAs: "pi",
     })).resolves.toBe(true);

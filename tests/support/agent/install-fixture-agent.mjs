@@ -9,8 +9,8 @@ export function installFixtureAgent(repo) {
   const replacements = new Map([
     [url("electron/main/agent/bootstrap/create-agent-runtime-host.mjs"),
       `export { createFixtureAgentRuntime as createDefaultAgentRuntimeHost } from ${JSON.stringify(url("tests/fixtures/agent/runtimes/item-agent-runtime.mjs"))};`],
-    [url("electron/main/terminal-agent/terminal-agent-locator.mjs"),
-      `export function createTerminalAgentLocator() { return { locate: async () => ({availableAgentIds:['codex'],scannedAt:new Date().toISOString(),source:'scan'}), dispose() {} }; }`],
+    [url("electron/main/local-agent-installation/index.mjs"),
+      `export function createLocalAgentInstallationService() { return { discover: async () => ({schemaVersion:1,generation:1,scanId:'local-agent-scan:1',requestedAt:new Date().toISOString(),completedAt:new Date().toISOString(),source:'scan',availableAgentIds:['codex'],results:[{agentId:'codex',displayName:'Codex',status:'found',source:'fixture'}]}), dispose() {} }; }`],
     [url("electron/main/agent/connections/local-agent-inventory.mjs"),
       `import { deriveLocalConnection } from ${JSON.stringify(url("electron/main/agent/connections/local-agent-connection-policy.mjs"))};
        export function createLocalAgentInventory() { return { dispose() {}, discover: async () => ({

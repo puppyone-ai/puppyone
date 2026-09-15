@@ -13,7 +13,7 @@ describe("Desktop Terminal architecture boundaries", () => {
     expect(panel).not.toMatch(/TerminalRuntime|AgentSessionController|puppyoneDesktop/);
     expect(panel).toContain("createPortal(");
     expect(panel).toContain("useAuxiliaryWorkbenchCloseCoordinator");
-    expect(launcher).toContain("useTerminalAgentLocator");
+    expect(launcher).toContain("useLocalAgentInstallations");
     expect(launcher).toContain("hiddenAgentIds");
     expect(pool).toContain("workspacePath: this.project.context.rootPath");
     expect(pool).toContain("projectContext: this.project.context");

@@ -41,7 +41,7 @@ describe("settings visual architecture", () => {
     expect(general).not.toContain("localAgents");
     expect(localAgents).toContain('settings.localAgents.title');
     expect(localAgents).toContain('detail={t("settings.localAgents.detail")}');
-    expect(localAgents).toContain("useTerminalAgentLocator");
+    expect(localAgents).toContain("useLocalAgentInstallations");
     expect(localAgents).toContain("DESKTOP_TERMINAL_LAUNCHERS");
     expect(localAgents).toContain("<AgentLauncherIcon");
     expect(localAgents).toContain("desktop-settings-switch");
