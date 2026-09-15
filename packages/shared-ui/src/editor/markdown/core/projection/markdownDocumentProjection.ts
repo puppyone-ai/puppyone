@@ -18,6 +18,7 @@ import {
   markdownAssetUrlResolverFacet,
   markdownDocumentPathFacet,
   markdownHtmlTrustModeFacet,
+  markdownLinkCommandsFacet,
   markdownLinkGraphFacet,
 } from "../editor/markdownLivePreviewContext";
 import { addMarkdownBlockAndLineDecorations } from "../decorations/blockDecorations";
@@ -492,6 +493,7 @@ function getDecorationContextInvalidation(
     transaction.startState.facet(markdownHtmlTrustModeFacet) !== transaction.state.facet(markdownHtmlTrustModeFacet)
     || transaction.startState.facet(markdownDocumentPathFacet) !== transaction.state.facet(markdownDocumentPathFacet)
     || transaction.startState.facet(markdownAssetResolverRevisionFacet) !== transaction.state.facet(markdownAssetResolverRevisionFacet)
+    || transaction.startState.facet(markdownLinkCommandsFacet) !== transaction.state.facet(markdownLinkCommandsFacet)
   ) {
     return "global";
   }

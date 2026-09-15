@@ -70,13 +70,28 @@ describe("Markdown pane-owned view state", () => {
     const left = new MarkdownLinkInteractionSession();
     const right = new MarkdownLinkInteractionSession();
 
-    left.recordHandledMouseDown(1_000);
+    left.beginPointer(
+      { href: "target.md", wikiTarget: null },
+      { clientX: 20, clientY: 30 },
+      7,
+      "left-revision",
+    );
+    expect(right.completePointer(true, "right-revision")).toBeNull();
+    expect(left.completePointer(true, "left-revision", {
+      href: "target.md",
+      wikiTarget: null,
+    })).toEqual({
+      activation: { href: "target.md", wikiTarget: null },
+      restoreSelectionAt: 7,
+    });
+
+    left.recordHandledPointerUp(1_000);
     expect(right.consumeDuplicateClick(1_100)).toBe(false);
     expect(left.consumeDuplicateClick(1_100)).toBe(true);
     expect(left.consumeDuplicateClick(1_101)).toBe(false);
   });
 
-  it("invalidates a projection only when its semantic link revision changes", () => {
+  it("invalidates a projection only when its semantic link policy changes", () => {
     const source = [
       "| Name | Value |",
       "| --- | --- |",
@@ -88,6 +103,7 @@ describe("Markdown pane-owned view state", () => {
     const parent = document.createElement("div");
     document.body.appendChild(parent);
     const firstGraph = createRevisionGraph(7);
+    const stableCommands = { openPath: () => undefined };
     const view = new EditorView({
       parent,
       state: EditorState.create({
@@ -99,6 +115,9 @@ describe("Markdown pane-owned view state", () => {
             firstGraph,
             "note.md",
             null,
+            "",
+            null,
+            stableCommands,
           )),
           markdownLivePreviewCoreExtension(),
         ],
@@ -117,7 +136,7 @@ describe("Markdown pane-owned view state", () => {
         null,
         "",
         null,
-        { openPath: () => undefined },
+        stableCommands,
       )),
     });
 
@@ -127,12 +146,25 @@ describe("Markdown pane-owned view state", () => {
     view.dispatch({
       effects: context.reconfigure(markdownLivePreviewContextExtension(
         "safe",
+        createRevisionGraph(7),
+        "note.md",
+        null,
+        "",
+        null,
+        { openPath: () => undefined },
+      )),
+    });
+    expect(getMarkdownProjectionDiagnostics().globalInvalidations).toBe(1);
+
+    view.dispatch({
+      effects: context.reconfigure(markdownLivePreviewContextExtension(
+        "safe",
         createRevisionGraph(8),
         "note.md",
         null,
       )),
     });
-    expect(getMarkdownProjectionDiagnostics().globalInvalidations).toBe(1);
+    expect(getMarkdownProjectionDiagnostics().globalInvalidations).toBe(2);
   });
 });
 

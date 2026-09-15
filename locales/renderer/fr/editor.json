@@ -196,7 +196,7 @@
   "markdown.mermaid.renderFailedDetail": "Impossible de restituer ce diagramme Mermaid : {detail}",
   "markdown.mermaid.rendering": "Rendu du diagramme…",
   "markdown.missingLinkedNote": "Note liée manquante : {target}",
-  "markdown.openLinkHint": "Cmd/Ctrl-click pour ouvrir : {target}",
+  "markdown.openLinkHint": "Cliquez pour ouvrir : {target}",
   "markdown.preparingPreview": "Préparation de l’aperçu en direct…",
   "markdown.previewUnavailable": "L’aperçu en direct n’est pas disponible. L’édition de la source reste disponible.",
   "table.actions": "Actions du tableau",

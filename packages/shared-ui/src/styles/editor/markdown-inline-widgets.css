@@ -92,43 +92,28 @@
 
 .markdown-codemirror-editor .cm-md-link-label,
 .markdown-codemirror-editor .cm-md-wiki-link-label,
-.markdown-codemirror-editor .cm-md-wiki-link-inline {
+.markdown-codemirror-editor .cm-md-wiki-link-inline,
+.markdown-codemirror-editor .cm-md-inline-link,
+.markdown-codemirror-editor .cm-md-inline-html[data-md-href] {
   text-decoration-line: underline;
   text-decoration-color: transparent;
   text-underline-offset: 2px;
-}
-
-.markdown-codemirror-editor .cm-editor.cm-md-open-modifier-down .cm-md-link-label.is-resolved:hover,
-.markdown-codemirror-editor .cm-editor.cm-md-open-modifier-down .cm-md-link-label.is-external:hover,
-.markdown-codemirror-editor .cm-editor.cm-md-open-modifier-down .cm-md-wiki-link-label:hover,
-.markdown-codemirror-editor[data-readonly="true"] .cm-md-link-label.is-resolved:hover,
-.markdown-codemirror-editor[data-readonly="true"] .cm-md-link-label.is-external:hover,
-.markdown-codemirror-editor[data-readonly="true"] .cm-md-wiki-link-label:hover,
-.markdown-codemirror-editor .cm-md-wiki-link-inline:hover {
-  text-decoration-color: currentColor;
-}
-
-.markdown-codemirror-editor .cm-md-link-label.is-resolved,
-.markdown-codemirror-editor .cm-md-link-label.is-external,
-.markdown-codemirror-editor .cm-md-link-label.is-missing,
-.markdown-codemirror-editor .cm-md-wiki-link-label.is-resolved,
-.markdown-codemirror-editor .cm-md-wiki-link-label.is-missing,
-.markdown-codemirror-editor .cm-md-wiki-link-inline {
   cursor: text;
 }
 
-.markdown-codemirror-editor .cm-editor.cm-md-open-modifier-down .cm-md-link-label.is-resolved,
-.markdown-codemirror-editor .cm-editor.cm-md-open-modifier-down .cm-md-link-label.is-external,
-.markdown-codemirror-editor .cm-editor.cm-md-open-modifier-down .cm-md-link-label.is-missing,
-.markdown-codemirror-editor .cm-editor.cm-md-open-modifier-down .cm-md-wiki-link-label.is-resolved,
-.markdown-codemirror-editor .cm-editor.cm-md-open-modifier-down .cm-md-wiki-link-label.is-missing,
-.markdown-codemirror-editor[data-readonly="true"] .cm-md-link-label.is-resolved,
-.markdown-codemirror-editor[data-readonly="true"] .cm-md-link-label.is-external,
-.markdown-codemirror-editor[data-readonly="true"] .cm-md-link-label.is-missing,
-.markdown-codemirror-editor[data-readonly="true"] .cm-md-wiki-link-label.is-resolved,
-.markdown-codemirror-editor[data-readonly="true"] .cm-md-wiki-link-label.is-missing,
-.markdown-codemirror-editor .cm-md-wiki-link-inline {
-  cursor: var(--po-clickable-cursor, default);
+.markdown-codemirror-editor [data-md-link-interaction="navigate"]:hover {
+  text-decoration-color: currentColor;
+}
+
+.markdown-codemirror-editor [data-md-link-interaction="navigate"] {
+  cursor: pointer;
+}
+
+.markdown-codemirror-editor [data-md-link-interaction="navigate"]:focus-visible {
+  outline: 1px solid var(--po-focus-ring);
+  outline-offset: 2px;
+  border-radius: 2px;
+  text-decoration-color: currentColor;
 }
 
 .markdown-codemirror-editor .cm-md-wiki-link-label,

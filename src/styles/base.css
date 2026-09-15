@@ -55,7 +55,7 @@ button {
     [role="button"]:not([aria-disabled="true"]),
     [role="checkbox"]:not([aria-disabled="true"]),
     [role="combobox"]:not([aria-disabled="true"]),
-    [role="link"]:not([aria-disabled="true"]),
+    [role="link"]:not([aria-disabled="true"]):not([data-po-content-interaction]),
     [role="menuitem"]:not([aria-disabled="true"]),
     [role="menuitemcheckbox"]:not([aria-disabled="true"]),
     [role="menuitemradio"]:not([aria-disabled="true"]),
@@ -81,7 +81,7 @@ button {
 :where([data-po-appearance-root], .app-shell, .onboarding-shell, .desktop-overlay-root)[data-pointer-cursors="true"]
   :where(
     a[href],
-    [role="link"]:not([aria-disabled="true"]),
+    [role="link"]:not([aria-disabled="true"]):not([data-po-content-interaction]),
     [role="tab"]:not([aria-disabled="true"]),
     [data-navigation-item],
     [data-po-interaction="navigation"]:not(:disabled):not([aria-disabled="true"])

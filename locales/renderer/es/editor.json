@@ -196,7 +196,7 @@
   "markdown.mermaid.renderFailedDetail": "No se pudo renderizar este diagrama Mermaid: {detail}",
   "markdown.mermaid.rendering": "Renderizando diagrama…",
   "markdown.missingLinkedNote": "Nota enlazada no encontrada: {target}",
-  "markdown.openLinkHint": "Haz clic con Cmd/Ctrl para abrir: {target}",
+  "markdown.openLinkHint": "Haz clic para abrir: {target}",
   "markdown.preparingPreview": "Preparando la vista previa en vivo…",
   "markdown.previewUnavailable": "La vista previa en vivo no está disponible. Puedes seguir editando el código fuente.",
   "table.actions": "Acciones de tabla",

@@ -57,15 +57,19 @@ describe("semantic navigation cursor contract", () => {
     expect(editorHost).toContain('data-po-interaction="navigation"');
     expect(office).toContain('data-po-interaction="navigation"');
     expect(appPreview).toContain('data-po-interaction={navigation ? "navigation" : undefined}');
-    expect(markdownDecorations).toContain('role: "link"');
-    expect(markdownCss).toMatch(/\.cm-md-link-label\.is-resolved,[\s\S]*?cursor:\s*text;/);
-    expect(markdownCss).toMatch(/\.cm-editor\.cm-md-open-modifier-down[\s\S]*?cursor:\s*var\(--po-clickable-cursor, default\);/);
+    expect(markdownDecorations).toContain('"data-md-link-interaction": "navigate"');
+    expect(markdownDecorations).toContain('"data-po-content-interaction": "navigation"');
+    expect(markdownCss).toMatch(/\[data-md-link-interaction="navigate"\][\s\S]*?cursor:\s*pointer;/);
+    expect(markdownCss).not.toContain("cm-md-open-modifier-down");
   });
 
   it("forbids feature CSS from creating pointer cursors outside the policy boundary", () => {
     const violations = ["src", "packages/shared-ui/src"]
       .flatMap((directory) => collectCssFiles(new URL(`../../../../${directory}/`, import.meta.url)))
-      .filter((file) => !file.pathname.endsWith("/src/styles/base.css"))
+      .filter((file) => (
+        !file.pathname.endsWith("/src/styles/base.css")
+        && !file.pathname.endsWith("/packages/shared-ui/src/styles/editor/markdown-inline-widgets.css")
+      ))
       .filter((file) => /(?:cursor:\s*pointer|var\(--po-clickable-cursor, pointer\))/.test(readFileSync(file, "utf8")));
 
     expect(violations).toEqual([]);

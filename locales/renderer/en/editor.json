@@ -196,7 +196,7 @@
   "markdown.mermaid.renderFailedDetail": "Unable to render this Mermaid diagram: {detail}",
   "markdown.mermaid.rendering": "Rendering diagram…",
   "markdown.missingLinkedNote": "Missing linked note: {target}",
-  "markdown.openLinkHint": "Cmd/Ctrl-click to open: {target}",
+  "markdown.openLinkHint": "Click to open: {target}",
   "markdown.preparingPreview": "Preparing live preview…",
   "markdown.previewUnavailable": "Live preview is unavailable. Source editing remains available.",
   "table.actions": "Table actions",

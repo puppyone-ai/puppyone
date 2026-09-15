@@ -196,7 +196,7 @@
   "markdown.mermaid.renderFailedDetail": "无法呈现此 Mermaid 图表：{detail}",
   "markdown.mermaid.rendering": "正在呈现图表…",
   "markdown.missingLinkedNote": "找不到链接的笔记：{target}",
-  "markdown.openLinkHint": "按住 Cmd/Ctrl 并点击以打开：{target}",
+  "markdown.openLinkHint": "点击打开：{target}",
   "markdown.preparingPreview": "正在准备实时预览…",
   "markdown.previewUnavailable": "实时预览不可用，但仍可编辑源代码。",
   "table.actions": "表格操作",
