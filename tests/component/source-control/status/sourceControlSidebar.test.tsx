@@ -30,6 +30,8 @@ describe("Git sidebar status groups", () => {
     expect(buttons).toHaveLength(1);
     expect(buttons[0]?.textContent).toBe("Enable Version Control");
     expect(buttons[0]?.classList.contains("desktop-version-control-enable-button")).toBe(true);
+    expect(surface.querySelector(".desktop-git-sidebar-list")?.getAttribute("data-repository-setup"))
+      .toBe("true");
 
     await act(async () => buttons[0]?.click());
     expect(onInitialize).toHaveBeenCalledOnce();

@@ -9,6 +9,12 @@
   scrollbar-gutter: auto;
 }
 
+/* Repository setup is a full-surface state, not a padded list. Clearing the
+   list-only top inset keeps Changes and History on the same vertical center. */
+.desktop-git-sidebar-list[data-repository-setup="true"] {
+  padding-block: 0;
+}
+
 .desktop-git-fixed-region {
   flex: 0 0 auto;
   min-width: 0;

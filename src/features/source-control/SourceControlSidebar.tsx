@@ -99,13 +99,18 @@ export function GitSidebar({ repository, view, actions, cloudBackup }: GitSideba
   const hasDiscardableChanges = sidebarModel.mergeResources.length > 0
     || sidebarModel.workingResources.length > 0;
   const showSecondaryActions = hasStashableChanges || hasDiscardableChanges;
+  const repositorySetupVisible = Boolean(status && !status.isRepo);
   const closeSecondaryActions = (target: HTMLElement) => {
     target.closest("details")?.removeAttribute("open");
   };
 
   return (
     <SidebarRoot className="desktop-git-sidebar">
-      <SidebarScrollArea ref={sidebarListRef} className="desktop-git-sidebar-list">
+      <SidebarScrollArea
+        ref={sidebarListRef}
+        className="desktop-git-sidebar-list"
+        data-repository-setup={repositorySetupVisible ? "true" : undefined}
+      >
         {error ? (
           <SidebarEmptyState tone="danger">{error}</SidebarEmptyState>
         ) : !status && loading ? (

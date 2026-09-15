@@ -422,6 +422,7 @@ describe("source-control visual architecture", () => {
     expect(gitHistorySidebarSource).not.toContain('t("source-control.status.noRepository")');
     expect(sourceControlSidebarSource).toContain("<GitRepositorySetupAction");
     expect(gitHistorySidebarSource).toContain("<GitRepositorySetupAction");
+    expect(sourceControlSidebarSource).toContain("data-repository-setup={repositorySetupVisible");
     expect(sourceControlSidebarSource).toContain('t("source-control.history.inactive")');
     expect(gitHistorySidebarSource).toContain('t("source-control.history.inactive")');
     expect(gitHistorySidebarSource).toContain('t("source-control.history.create")');
@@ -431,6 +432,9 @@ describe("source-control visual architecture", () => {
     expect(desktopEntryStateCss).toContain("width: min(420px, 100%);");
     expect(versionControlSetupCss).toContain("height: var(--po-control-size);");
     expect(versionControlSetupCss).toContain(".desktop-git-repository-setup {");
+    expect(versionControlSetupCss).toMatch(
+      /\.desktop-git-repository-setup\s*\{[^}]*width:\s*100%;[^}]*min-height:\s*0;[^}]*flex:\s*1 1 auto;/s,
+    );
     expect(versionControlSetupCss).toMatch(
       /\.desktop-git-repository-setup-action\s*\{[^}]*height:\s*var\(--po-control-size\);[^}]*min-height:\s*var\(--po-control-size\);[^}]*background:\s*var\(--desktop-git-setup-action-bg\);[^}]*font-size:\s*var\(--po-type-right-sidebar-content, 14px\);[^}]*font-weight:\s*var\(--po-text-weight-medium, 500\);[^}]*line-height:\s*1;/s,
     );

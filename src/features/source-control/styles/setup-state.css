@@ -67,8 +67,9 @@
 
   display: grid;
   box-sizing: border-box;
+  width: 100%;
   min-width: 0;
-  min-height: 100%;
+  min-height: 0;
   flex: 1 1 auto;
   place-content: center;
   justify-items: center;
