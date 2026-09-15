@@ -306,6 +306,7 @@ describe("DesktopHelpLauncher", () => {
     expect(appSource).not.toContain("settingsWorkspaceActive");
     expect(appSource).toContain("{feedbackInNavigationToolbar && feedbackLauncher}");
     expect(appSource).toContain("settingsNavigationVisible={!projectSwitcherRailEnabled}");
+    expect(appSource).toContain("workspaceNavigationVisible={!projectSwitcherRailEnabled}");
     expect(appSource).toMatch(
       /<ProjectSwitcherRail[\s\S]*?utilitySlot=\{\([\s\S]*?<DesktopHelpLauncher/,
     );

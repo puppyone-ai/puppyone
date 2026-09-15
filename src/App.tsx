@@ -1556,6 +1556,7 @@ function AppContent() {
             settingsSection={activeSettingsSection}
             settingsOpen={settingsDialogOpen}
             settingsNavigationVisible={!projectSwitcherRailEnabled}
+            workspaceNavigationVisible={!projectSwitcherRailEnabled}
             subThemeCatalog={subThemeCatalog}
             workspace={focusedWorkspace ?? workspace}
             workspaceFolders={workbenchWorkspace?.folders ?? []}

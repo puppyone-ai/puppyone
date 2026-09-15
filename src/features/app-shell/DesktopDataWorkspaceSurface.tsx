@@ -295,7 +295,9 @@ export function DesktopDataWorkspaceSurface({
   return (
     <div
       className="desktop-data-workspace-wrap"
-      data-sidebar-navigation-placement={preferences.sidebarNavigationPlacement}
+      data-sidebar-navigation-placement={navigation.showWorkspaceNavigation
+        ? preferences.sidebarNavigationPlacement
+        : undefined}
     >
       {shellHostedTopNavigation && topNavigation && (
         <DesktopShellNavigationToolbarPortal>

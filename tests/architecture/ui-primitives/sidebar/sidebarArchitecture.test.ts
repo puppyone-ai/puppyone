@@ -66,6 +66,15 @@ describe("Sidebar architecture", () => {
     expect(registrySource).not.toMatch(/\b(?:agent|terminal)\b/i);
   });
 
+  it("removes legacy File Sidebar navigation when the Project rail owns navigation", () => {
+    expect(appSource).toContain("workspaceNavigationVisible={!projectSwitcherRailEnabled}");
+    expect(dataSurfaceSource).toMatch(
+      /data-sidebar-navigation-placement=\{navigation\.showWorkspaceNavigation[\s\S]*?\? preferences\.sidebarNavigationPlacement[\s\S]*?: undefined\}/,
+    );
+    expect(dataSurfaceSource).toContain("explorerRailSlot={navigation.showWorkspaceNavigation");
+    expect(dataSurfaceSource).toContain("explorerFooterSlot={navigation.showWorkspaceNavigation && (");
+  });
+
   it("keeps Feature composition out of shared layers and Auxiliary routing independent", () => {
     expect(sharedSidebarCss).not.toMatch(/desktop-(?:git|cloud|settings|agent|terminal)/);
     expect(auxiliaryHostSource).toContain("CollapsiblePaneFrame");
