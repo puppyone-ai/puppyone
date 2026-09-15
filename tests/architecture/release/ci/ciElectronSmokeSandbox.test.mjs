@@ -54,6 +54,7 @@ describe("CI Electron smoke sandbox boundary", () => {
     expect(editorPaneFixture).toContain("if (stillResizing)");
     expect(editorPaneFixture).toContain("previewReachedTarget");
     expect(editorPaneFixture).toContain("Split handle did not publish the final pointer coordinate");
+    expect(editorPaneFixture).toContain("Re-publish only the missing move through");
     expect(sidebarResizeFixture).toContain('"restored pane and content geometry"');
     expect(sidebarResizeFixture).toContain(
       "Math.abs(restored.content.width-restored.viewport.width) <= 1",

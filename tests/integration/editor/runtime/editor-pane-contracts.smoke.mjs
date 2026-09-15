@@ -207,18 +207,37 @@ try {
       await wait(20);
     }
     let previewReachedTarget = false;
+    const samplePreviewAtTarget = async () => {
+      await window.webContents.executeJavaScript(
+        "new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))",
+      );
+      return window.webContents.executeJavaScript(
+        `Math.abs(Number(document.querySelector('.desktop-editor-splitter')?.getAttribute('aria-valuenow')) - ${Math.round(request.ratio * 100)}) <= 1`,
+      );
+    };
     // Hosted Chromium may coalesce the last held-button movement in a second
     // consecutive drag. Synchronize on the app's published preview before the
     // release, preserving the real pointer path and exact target contract.
     for (let delivery = 0; delivery < 3 && !previewReachedTarget; delivery++) {
       await send("mouseMove", request.to, true);
       for (let sample = 0; sample < 8 && !previewReachedTarget; sample++) {
-        await window.webContents.executeJavaScript(
-          "new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))",
-        );
-        previewReachedTarget = await window.webContents.executeJavaScript(
-          `Math.abs(Number(document.querySelector('.desktop-editor-splitter')?.getAttribute('aria-valuenow')) - ${Math.round(request.ratio * 100)}) <= 1`,
-        );
+        previewReachedTarget = await samplePreviewAtTarget();
+      }
+    }
+    if (!previewReachedTarget && nativeSurfaceOwned) {
+      // A second held-button CDP stream can stay coalesced on hosted Linux
+      // after a native child gesture. Re-publish only the missing move through
+      // the focused owner renderer; OS forwarding remains covered elsewhere.
+      for (let delivery = 0; delivery < 3 && !previewReachedTarget; delivery++) {
+        window.webContents.sendInputEvent({
+          type: "mouseMove",
+          x: Math.round(request.to.x),
+          y: Math.round(request.to.y),
+          modifiers: ["leftButtonDown"],
+        });
+        for (let sample = 0; sample < 8 && !previewReachedTarget; sample++) {
+          previewReachedTarget = await samplePreviewAtTarget();
+        }
       }
     }
     assert(previewReachedTarget, "Split handle did not publish the final pointer coordinate");
