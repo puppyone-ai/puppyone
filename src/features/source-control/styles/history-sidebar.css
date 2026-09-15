@@ -4,8 +4,9 @@
   --git-font-small: var(--po-type-right-sidebar-meta, 12px);
   --git-line-height: var(--po-type-right-sidebar-meta-line-height, 18px);
   --git-control-radius: 8px;
-  --desktop-history-row-height: 74px;
-  --desktop-sidebar-virtual-row-size: 78px;
+  --desktop-history-date-row-size: 36px;
+  --desktop-history-commit-base-row-size: 30px;
+  --desktop-history-file-row-size: 16px;
 
   display: flex;
   width: 100%;

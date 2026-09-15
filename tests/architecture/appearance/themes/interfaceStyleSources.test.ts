@@ -215,11 +215,12 @@ describe("Interface style registry", () => {
       "toolbar-files-skeuomorphic.png",
       "toolbar-git-gitg-classic.png",
       "toolbar-settings-system.png",
-      "toolbar-cloud-skeuomorphic.png",
       "toolbar-terminal-skeuomorphic.png",
     ]) {
       expect(toolbarCss, asset).toContain(`url("./assets/${asset}")`);
     }
+    expect(toolbarCss).not.toContain('data-navigation-item="cloud"');
+    expect(toolbarCss).not.toContain('toolbar-cloud-skeuomorphic.png');
     expect(source("src/styles/interfaces/windows-xp/assets/B00MERANG-WINDOWS-XP-GPL-2.0.txt"))
       .toContain("GNU GENERAL PUBLIC LICENSE");
     expect(source("src/styles/interfaces/windows-xp/assets/B00MERANG-WINDOWS-XP-THEME-GPL-3.0.txt"))

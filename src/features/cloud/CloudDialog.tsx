@@ -28,7 +28,7 @@ export function CloudDialog({ sidebar, main, onClose }: CloudDialogProps) {
       <DesktopDialogRoot className="desktop-cloud-dialog-backdrop" onClose={onClose}>
         <DesktopDialogSurface
           className="desktop-cloud-dialog"
-          width="min(960px, calc(100vw - 48px))"
+          width="min(960px, calc(100vw - 80px))"
           ariaLabel={title}
         >
           <header className="desktop-dialog-header desktop-cloud-dialog-header">

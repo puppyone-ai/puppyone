@@ -49,9 +49,9 @@ describe("Git History right-sidebar surface", () => {
     expect(row?.textContent).toContain("README.md");
     expect(row?.textContent).not.toContain("PuppyOne");
     expect(surface.querySelectorAll(".desktop-history-date-group")).toHaveLength(1);
-    expect(surface.querySelector<HTMLElement>(".po-sidebar-virtual-row")?.style.getPropertyValue(
-      "--po-sidebar-virtual-row-size",
-    )).toBe("78px");
+    const virtualRows = surface.querySelectorAll<HTMLElement>(".po-sidebar-virtual-row");
+    expect(virtualRows[0]?.style.getPropertyValue("--po-sidebar-virtual-row-size")).toBe("36px");
+    expect(virtualRows[1]?.style.getPropertyValue("--po-sidebar-virtual-row-size")).toBe("46px");
 
     act(() => row?.click());
 
@@ -110,7 +110,7 @@ describe("Git History right-sidebar surface", () => {
     )).toEqual(["Newer commit", "Older commit"]);
   });
 
-  it("previews two changed files and preserves meaningful file states", () => {
+  it("previews four changed files before summarizing the remainder", () => {
     const commit = createCommit({
       changes: [
         {
@@ -134,6 +134,20 @@ describe("Git History right-sidebar surface", () => {
           additions: 1,
           deletions: 1,
         },
+        {
+          path: "modified.md",
+          oldPath: null,
+          status: "modified",
+          additions: 4,
+          deletions: 2,
+        },
+        {
+          path: "remaining.md",
+          oldPath: null,
+          status: "modified",
+          additions: 2,
+          deletions: 1,
+        },
       ],
     });
     const surface = renderHistory({
@@ -142,12 +156,14 @@ describe("Git History right-sidebar surface", () => {
     });
     const previews = surface.querySelectorAll<HTMLElement>(".desktop-history-row-file");
 
-    expect(previews).toHaveLength(2);
+    expect(previews).toHaveLength(4);
     expect(previews[0]?.dataset.status).toBe("added");
     expect(previews[0]?.textContent).toBe("+added.md");
     expect(previews[1]?.dataset.status).toBe("deleted");
     expect(previews[1]?.textContent).toBe("−deleted.md");
     expect(previews[1]?.querySelector(".desktop-history-row-file-icon")).not.toBeNull();
+    expect(previews[2]?.textContent).toContain("old-name.md → renamed.md");
+    expect(previews[3]?.textContent).toBe("modified.md");
     expect(surface.querySelector(".desktop-history-row-file-count")?.textContent).toBe("+1 file");
     expect(surface.querySelector(".desktop-history-row-file-count")?.parentElement?.classList.contains(
       "desktop-history-row-files",

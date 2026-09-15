@@ -75,7 +75,6 @@ export type DesktopWorkspaceCloudSurfaceController = {
 export type WorkspaceSurfaceContentResult = {
   availableSurfaceIds: readonly WorkspaceSurfaceId[];
   cloudSurface: WorkspaceSurfaceContent;
-  cloudHubNavigationEnabled: boolean;
   gitEnabled: boolean;
   pluginsNavigationVisible: boolean;
   resolvedActiveView: WorkspaceSurfaceId;
@@ -150,7 +149,6 @@ export function useWorkspaceSurfaceContent({
   const workspaceChangeCount = gitEnabled
     ? getDesktopWorkspaceChangeCount(git.activeGitStatus, gitHostingMode === "github")
     : 0;
-  const cloudHubNavigationEnabled = cloud.enabled;
   const projectContext = cloud.projectContext ?? { status: "local-only" as const, projectId: null };
   const localOnlyWorkspaceContext = (
     projectContext.status === "local-only"
@@ -281,7 +279,6 @@ export function useWorkspaceSurfaceContent({
   return {
     availableSurfaceIds,
     cloudSurface: cloudServiceSurface,
-    cloudHubNavigationEnabled,
     gitEnabled,
     pluginsNavigationVisible,
     resolvedActiveView,

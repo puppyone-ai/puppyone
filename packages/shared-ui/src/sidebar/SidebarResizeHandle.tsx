@@ -2,7 +2,6 @@ import {
   forwardRef,
   type HTMLAttributes,
   type KeyboardEvent,
-  type MouseEvent as ReactMouseEvent,
 } from "react";
 import { joinSidebarClassNames } from "./classNames";
 
@@ -18,7 +17,6 @@ export type SidebarResizeHandleProps = Omit<HTMLAttributes<HTMLDivElement>, "onK
   value?: number;
   min?: number;
   max?: number;
-  onCollapsedActivate?: () => void;
   onKeyboardResize?: (intent: SidebarResizeIntent, accelerated: boolean) => void;
 };
 
@@ -29,8 +27,6 @@ export const SidebarResizeHandle = forwardRef<HTMLDivElement, SidebarResizeHandl
     label,
     max,
     min,
-    onClick,
-    onCollapsedActivate,
     onKeyboardResize,
     onPointerDown,
     orientation,
@@ -44,13 +40,6 @@ export const SidebarResizeHandle = forwardRef<HTMLDivElement, SidebarResizeHandl
   ref,
 ) {
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (collapsedEdgeSide) {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        onCollapsedActivate?.();
-      }
-      return;
-    }
     if (!onKeyboardResize) return;
     const decreaseKey = orientation === "vertical" ? "ArrowLeft" : "ArrowUp";
     const increaseKey = orientation === "vertical" ? "ArrowRight" : "ArrowDown";
@@ -64,14 +53,6 @@ export const SidebarResizeHandle = forwardRef<HTMLDivElement, SidebarResizeHandl
     onKeyboardResize(intent, event.shiftKey);
   };
 
-  const resolvedRole = collapsedEdgeSide ? "button" : role;
-  const handleClick = (event: ReactMouseEvent<HTMLDivElement>) => {
-    // Pointer activation is owned by the pane gesture controller. A synthetic
-    // click with no pointer detail is an assistive-technology activation.
-    if (collapsedEdgeSide && event.detail === 0) onCollapsedActivate?.();
-    onClick?.(event);
-  };
-
   return (
     <div
       ref={ref}
@@ -83,30 +64,19 @@ export const SidebarResizeHandle = forwardRef<HTMLDivElement, SidebarResizeHandl
         className,
       )}
       data-resizing={resizing || undefined}
-      role={resolvedRole}
+      role={role}
       tabIndex={tabIndex}
       aria-label={label}
-      aria-expanded={collapsedEdgeSide ? false : undefined}
-      aria-orientation={collapsedEdgeSide ? undefined : orientation}
-      aria-valuemin={collapsedEdgeSide ? undefined : min}
-      aria-valuemax={collapsedEdgeSide ? undefined : max}
-      aria-valuenow={collapsedEdgeSide ? undefined : value}
-      onClick={handleClick}
+      aria-orientation={orientation}
+      aria-valuemin={min}
+      aria-valuemax={max}
+      aria-valuenow={value}
       onKeyDown={handleKeyDown}
       onPointerDown={onPointerDown}
       {...props}
     >
       {paneEdge && !collapsedEdgeSide && (
         <span className="po-pane-edge-chrome" data-pane-edge-chrome aria-hidden="true" />
-      )}
-      {collapsedEdgeSide && (
-        <span className="po-collapsed-pane-edge-glyph" aria-hidden="true">
-          <svg viewBox="0 0 8 14" focusable="false">
-            <polyline
-              points={collapsedEdgeSide === "inline-start" ? "1,1 7,7 1,13" : "7,1 1,7 7,13"}
-            />
-          </svg>
-        </span>
       )}
     </div>
   );

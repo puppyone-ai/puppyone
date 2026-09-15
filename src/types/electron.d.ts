@@ -1227,6 +1227,7 @@ declare global {
       }) => Promise<{ entries: import("@puppyone/shared-ui").ExplorerReferenceDragEntry[] } | null>;
       onResourceDragState: (listener: (state: import("../platform/resourceDragSession").ResourceDragState) => void) => () => void;
       startResourceDrag: (request: { resources: string[] }) => Promise<boolean>;
+      startProjectRootDrag: (request: { path: string }) => Promise<boolean>;
       resolveResourceReferences: (request: { resources: string[]; rootPath?: string; sourceWorkspaceId?: string }) => Promise<Array<{
         resourceUri: string;
         folderId: string;

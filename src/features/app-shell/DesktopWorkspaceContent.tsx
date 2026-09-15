@@ -68,7 +68,6 @@ type DesktopWorkspaceContentProps = {
   onFilesVisibilitySettingsChange: (settings: FilesVisibilitySettings) => void;
   onNavigate: (view: DesktopView) => void;
   onCloseCloud: () => void;
-  onOpenCloud: () => void;
   onOpenGitChanges: () => void;
   onNodeActionMenu: (node: DataNode, anchorRect: DOMRect, selectedNodes?: readonly DataNode[]) => void;
   onOpenSettings: () => void;
@@ -122,7 +121,6 @@ export function DesktopWorkspaceContent({
   onFilesVisibilitySettingsChange,
   onNavigate,
   onCloseCloud,
-  onOpenCloud,
   onOpenGitChanges,
   onNodeActionMenu,
   onOpenSettings,
@@ -175,7 +173,6 @@ export function DesktopWorkspaceContent({
   const {
     availableSurfaceIds,
     cloudSurface,
-    cloudHubNavigationEnabled,
     gitEnabled,
     pluginsNavigationVisible,
     resolvedActiveView,
@@ -224,8 +221,6 @@ export function DesktopWorkspaceContent({
         navigation={{
           activeView: resolvedActiveView,
           availableSurfaceIds,
-          cloudHubEnabled: cloudHubNavigationEnabled,
-          cloudOpen,
           gitEnabled,
           pluginsEnabled: pluginsNavigationVisible,
           gitIncomingCount: git.gitIncomingCount,
@@ -233,7 +228,6 @@ export function DesktopWorkspaceContent({
           gitStatus: git.activeGitStatus,
           workspaceChangeCount,
           onNavigate,
-          onOpenCloud,
           onOpenSettings,
           settingsOpen,
           showSettings: settingsNavigationVisible,

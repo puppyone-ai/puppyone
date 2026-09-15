@@ -63,14 +63,54 @@ describe("Project switcher rail", () => {
       ".desktop-project-switcher-rail-project",
     );
     expect(rail?.dataset.expanded).toBe("true");
-    expect(Array.from(rows, ({ textContent }) => textContent)).toEqual(["AAlpha", "BBeta"]);
+    expect(Array.from(rows, (row) => (
+      row.querySelector(".desktop-project-switcher-rail-label")?.textContent
+    ))).toEqual(["Alpha", "Beta"]);
     expect(rows[0]?.classList.contains("po-sidebar-row")).toBe(true);
+    expect(rows[0]?.classList.contains("desktop-project-switcher-rail-expanded-project")).toBe(true);
     expect(rows[0]?.classList.contains("active")).toBe(true);
-    expect(rows[0]?.querySelector(".desktop-project-switcher-rail-avatar")?.textContent).toBe("A");
+    expect(rows[0]?.querySelector('[data-context-asset-kind="local"] .lucide-folder-closed')).not.toBeNull();
 
     expect(host.querySelector(".desktop-project-switcher-rail-toggle")).toBeNull();
     expect(host.querySelector(".desktop-project-switcher-rail-footer")).toBeNull();
     expect(rail?.querySelector(".desktop-project-switcher-rail-title")).toBeNull();
+  });
+
+  it("exports a Project row as a Finder-compatible native folder drag", async () => {
+    const active = workspace("active", "Alpha", "/projects/alpha folder");
+    const startProjectRootDrag = vi.fn(async () => true);
+    window.puppyoneDesktop = {
+      resourceDragSessionSupported: true,
+      startProjectRootDrag,
+    } as unknown as NonNullable<typeof window.puppyoneDesktop>;
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+
+    await act(async () => root?.render(withTestLocalization(
+      <ProjectSwitcherRail
+        activeWorkspace={active}
+        expanded
+        recentWorkspaces={[]}
+        onCreateNew={() => undefined}
+        onSelectProject={() => undefined}
+      />,
+    )));
+
+    const project = host.querySelector<HTMLButtonElement>(
+      ".desktop-project-switcher-rail-project",
+    );
+    const transfer = new DataTransfer();
+    const event = new DragEvent("dragstart", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "dataTransfer", { value: transfer });
+    await act(async () => project?.dispatchEvent(event));
+
+    expect(project?.getAttribute("draggable")).toBe("true");
+    expect(event.defaultPrevented).toBe(true);
+    expect(transfer.effectAllowed).toBe("copy");
+    expect(transfer.getData("text/plain")).toBe(active.path);
+    expect(transfer.getData("text/uri-list")).toBe("file:///projects/alpha%20folder");
+    expect(startProjectRootDrag).toHaveBeenCalledWith({ path: active.path });
   });
 
   it("keeps app-level Settings and Feedback utilities at the bottom of the expanded rail", async () => {
@@ -160,6 +200,64 @@ describe("Project switcher rail", () => {
     expect(items.map((item) => item.initial)).toEqual(["A", "B"]);
   });
 
+  it("uses context marks when expanded and compact identity badges when collapsed", async () => {
+    const local = workspace("local", "Local", "/projects/local");
+    const cloud = {
+      ...workspace("cloud", "Cloud", "/projects/cloud"),
+      puppyoneGitRemote: {
+        origin: "https://api.puppyone.ai",
+        projectId: "cloud-project",
+        scopeId: null,
+      },
+    };
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+
+    await act(async () => root?.render(withTestLocalization(
+      <ProjectSwitcherRail
+        activeWorkspace={local}
+        expanded
+        recentWorkspaces={[{ workspace: cloud }]}
+        onCreateNew={() => undefined}
+        onSelectProject={() => undefined}
+      />,
+    )));
+
+    const rows = host.querySelectorAll(".desktop-project-switcher-rail-project");
+    expect(rows[0]?.getAttribute("data-context-asset-kind")).toBe("local");
+    expect(rows[0]?.getAttribute("data-avatar-kind")).toBe("context-local");
+    expect(rows[0]?.querySelector(".desktop-project-switcher-rail-initial")).toBeNull();
+    const localMark = rows[0]?.querySelector(".lucide-folder-closed");
+    expect(localMark?.closest(".desktop-project-switcher-rail-context-avatar")).not.toBeNull();
+    expect(localMark?.getAttribute("width")).toBe("15");
+    expect(localMark?.getAttribute("stroke-width")).toBe("1.65");
+    expect(rows[0]?.getAttribute("aria-label")).toContain("Local folder");
+    expect(rows[1]?.getAttribute("data-context-asset-kind")).toBe("cloud");
+    expect(rows[1]?.getAttribute("data-avatar-kind")).toBe("context-cloud");
+    expect(rows[1]?.querySelector(".desktop-project-switcher-rail-initial")).toBeNull();
+    const cloudMark = rows[1]?.querySelector(".lucide-cloud");
+    expect(cloudMark?.closest(".desktop-project-switcher-rail-context-avatar")).not.toBeNull();
+    expect(cloudMark?.getAttribute("width")).toBe("15");
+    expect(cloudMark?.getAttribute("stroke-width")).toBe("1.8");
+    expect(rows[1]?.getAttribute("aria-label")).toContain("Cloud project");
+
+    await act(async () => root?.render(withTestLocalization(
+      <ProjectSwitcherRail
+        activeWorkspace={local}
+        recentWorkspaces={[{ workspace: cloud }]}
+        onCreateNew={() => undefined}
+        onSelectProject={() => undefined}
+      />,
+    )));
+
+    const compactRows = host.querySelectorAll(".desktop-project-switcher-rail-project");
+    expect(compactRows[0]?.querySelector(".desktop-project-switcher-rail-identity-badge")?.textContent).toBe("L");
+    expect(compactRows[0]?.querySelector(".desktop-project-switcher-rail-compact-context-avatar .lucide-folder-closed")).not.toBeNull();
+    expect(compactRows[1]?.querySelector(".desktop-project-switcher-rail-identity-badge")?.textContent).toBe("C");
+    expect(compactRows[1]?.querySelector(".desktop-project-switcher-rail-compact-context-avatar .lucide-cloud")).not.toBeNull();
+  });
+
   it("derives a stable Unicode grapheme from the Project identity", () => {
     expect(getProjectSwitcherInitial("  项目", "/projects/fallback")).toBe("项");
     expect(getProjectSwitcherInitial("🧠 Lab", "/projects/fallback")).toBe("🧠");
@@ -206,11 +304,13 @@ describe("Project switcher rail", () => {
       ".desktop-project-switcher-rail-list .desktop-project-switcher-rail-project",
     );
     expect(Array.from(buttons, (button) => (
-      button.querySelector(".desktop-project-switcher-rail-avatar")?.textContent
+      button.querySelector(".desktop-project-switcher-rail-identity-badge")?.textContent
     ))).toEqual(["A", "B"]);
-    expect(Array.from(buttons, (button) => (
-      button.querySelector(".desktop-project-switcher-rail-label")?.getAttribute("aria-hidden")
-    ))).toEqual(["true", "true"]);
+    expect(Array.from(buttons).every((button) => (
+      button.classList.contains("desktop-project-switcher-rail-compact-project")
+      && button.querySelector(".desktop-project-switcher-rail-identity-badge") !== null
+      && button.querySelector(".desktop-project-switcher-rail-label") === null
+    ))).toBe(true);
     expect(buttons[0]?.hasAttribute("aria-current")).toBe(false);
     expect(buttons[1]?.getAttribute("aria-current")).toBe("page");
   });
@@ -238,10 +338,12 @@ describe("Project switcher rail", () => {
     );
     expect(buttons).toHaveLength(2);
     expect(buttons[0]?.getAttribute("aria-current")).toBe("page");
-    expect(buttons[0]?.querySelector(".desktop-project-switcher-rail-avatar")?.textContent).toBe("A");
-    expect(buttons[1]?.querySelector(".desktop-project-switcher-rail-avatar")?.textContent).toBe("B");
-    expect(buttons[0]?.querySelector(".desktop-project-switcher-rail-label")?.getAttribute("aria-hidden")).toBe("true");
-    expect(buttons[1]?.querySelector(".desktop-project-switcher-rail-label")?.getAttribute("aria-hidden")).toBe("true");
+    expect(buttons[0]?.querySelector(".desktop-project-switcher-rail-identity-badge")?.textContent).toBe("A");
+    expect(buttons[1]?.querySelector(".desktop-project-switcher-rail-identity-badge")?.textContent).toBe("B");
+    expect(buttons[0]?.querySelector(".desktop-project-switcher-rail-compact-context-avatar .lucide-folder-closed")).not.toBeNull();
+    expect(buttons[1]?.querySelector(".desktop-project-switcher-rail-compact-context-avatar .lucide-folder-closed")).not.toBeNull();
+    expect(buttons[0]?.querySelector(".desktop-project-switcher-rail-label")).toBeNull();
+    expect(buttons[1]?.querySelector(".desktop-project-switcher-rail-label")).toBeNull();
 
     await act(async () => buttons[1]?.click());
     expect(onSelectProject).toHaveBeenCalledOnce();
@@ -249,6 +351,12 @@ describe("Project switcher rail", () => {
 
     const createNew = host.querySelector<HTMLButtonElement>(".desktop-project-switcher-rail-create");
     expect(createNew?.parentElement?.classList.contains("desktop-project-switcher-rail-list")).toBe(true);
+    expect(createNew?.classList.contains("desktop-project-switcher-rail-compact-create")).toBe(true);
+    expect(createNew?.querySelector(".desktop-project-switcher-rail-label")).toBeNull();
+    const createNewIcon = createNew?.querySelector("svg");
+    expect(createNewIcon?.getAttribute("width")).toBe("14");
+    expect(createNewIcon?.getAttribute("height")).toBe("14");
+    expect(createNewIcon?.getAttribute("stroke-width")).toBe("2.2");
     await act(async () => createNew?.click());
     expect(onCreateNew).toHaveBeenCalledOnce();
 

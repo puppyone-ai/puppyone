@@ -1,10 +1,10 @@
-import { useCallback, useRef, type CSSProperties, type Key, type MutableRefObject, type ReactNode } from "react";
+import { useCallback, useMemo, useRef, type CSSProperties, type Key, type MutableRefObject, type ReactNode } from "react";
 import { joinSidebarClassNames } from "./classNames";
 import { useVirtualSidebarWindow } from "./useVirtualSidebarWindow";
 
 export type VirtualSidebarListProps<T> = {
   items: readonly T[];
-  rowSize: number;
+  rowSize: number | ((item: T, index: number) => number);
   listRef?: MutableRefObject<HTMLOListElement | null>;
   renderRow: (item: T, index: number) => ReactNode;
   getKey: (item: T, index: number) => Key;
@@ -32,12 +32,19 @@ export function VirtualSidebarList<T>({
     internalScrollRef.current = element;
     if (listRef) listRef.current = element;
   }, [listRef]);
+  const resolvedRowSizes = useMemo(() => typeof rowSize === "function"
+    ? items.map((item, index) => normalizeRowSize(rowSize(item, index)))
+    : null, [items, rowSize]);
+  const fallbackRowSize = typeof rowSize === "number"
+    ? normalizeRowSize(rowSize)
+    : (resolvedRowSizes?.[0] ?? 1);
   const windowState = useVirtualSidebarWindow({
     activeIndex,
     maxMountedRows,
     overscan,
     rowCount: items.length,
-    rowSize,
+    rowSize: fallbackRowSize,
+    rowSizes: resolvedRowSizes ?? undefined,
     scrollRef: internalScrollRef,
   });
   const visibleItems = items.slice(windowState.startIndex, windowState.endIndex);
@@ -47,10 +54,9 @@ export function VirtualSidebarList<T>({
   const trailingSpacerStyle = {
     "--po-sidebar-virtual-spacer-size": `${Math.max(
       0,
-      windowState.totalHeight - windowState.offsetTop - visibleItems.length * rowSize,
+      windowState.totalHeight - windowState.endOffset,
     )}px`,
   } as CSSProperties;
-  const rowStyle = { "--po-sidebar-virtual-row-size": `${rowSize}px` } as CSSProperties;
 
   return (
     <ol
@@ -65,6 +71,10 @@ export function VirtualSidebarList<T>({
       )}
       {visibleItems.map((item, visibleIndex) => {
         const index = windowState.startIndex + visibleIndex;
+        const resolvedRowSize = resolvedRowSizes?.[index] ?? fallbackRowSize;
+        const rowStyle = {
+          "--po-sidebar-virtual-row-size": `${resolvedRowSize}px`,
+        } as CSSProperties;
         return (
           <li className="po-sidebar-virtual-row" style={rowStyle} key={getKey(item, index)}>
             {renderRow(item, index)}
@@ -76,4 +86,8 @@ export function VirtualSidebarList<T>({
       )}
     </ol>
   );
+}
+
+function normalizeRowSize(value: number) {
+  return Number.isFinite(value) && value > 0 ? value : 1;
 }

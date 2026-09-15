@@ -80,6 +80,34 @@ describe("resource delivery ownership", () => {
     } finally { transfer.dispose(); }
   });
 
+  it("exports a registered Project root through the external-only drag channel", async () => {
+    const f = await fixture();
+    const handlers = new Map();
+    const native = { start: vi.fn(() => true), inspect: () => "", captureGesture: () => 1 };
+    const handle = Buffer.alloc(8);
+    const resolveProjectRoot = vi.fn(async (_event, projectPath) => {
+      if (projectPath !== f.rootB) throw new Error("Project is not registered.");
+      return projectPath;
+    });
+    const transfer = registerResourceTransferIpcHandlers({
+      ipcMain: { handle: (channel, callback) => handlers.set(channel, callback) },
+      resolveWorkspaceResource: f.resolveWorkspaceResource,
+      resolveProjectRoot,
+      nativeDrag: native,
+      getWindow: () => ({ isDestroyed: () => false, getNativeWindowHandle: () => handle }),
+    });
+    try {
+      await expect(handlers.get("resource-transfer:start-project-drag")(
+        f.event,
+        { path: path.join(f.rootB, "unknown") },
+      )).rejects.toThrow(/registered/);
+      expect(native.start).not.toHaveBeenCalled();
+      await handlers.get("resource-transfer:start-project-drag")(f.event, { path: f.rootB });
+      expect(resolveProjectRoot).toHaveBeenCalledWith(f.event, f.rootB);
+      expect(native.start).toHaveBeenCalledWith(handle, [f.rootB], expect.any(String), expect.any(Function), 1);
+    } finally { transfer.dispose(); }
+  });
+
   it("refuses to bind an ambiguous legacy drag to the receiving terminal root", async () => {
     const f = await fixture();
     const handlers = new Map();

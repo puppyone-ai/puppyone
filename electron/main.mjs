@@ -920,6 +920,9 @@ function registerIpcHandlers() {
   const resourceTransfer = registerResourceTransferIpcHandlers({
     ipcMain: trustedIpcMain,
     resolveWorkspaceResource,
+    resolveProjectRoot: (_event, projectPath) => (
+      workspaceStateStore.requireRecentWorkspacePath(projectPath)
+    ),
     nativeDrag: desktopPlatformHost.platform === "macos" ? loadMacosResourceDrag() : null,
     getWindow: (sender) => BrowserWindow.fromWebContents(sender),
   });

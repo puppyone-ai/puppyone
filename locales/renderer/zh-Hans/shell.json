@@ -60,6 +60,8 @@
   "workspaceSwitcher.createNew": "新建",
   "workspaceSwitcher.projectDetails": "项目详情",
   "workspaceSwitcher.localPath": "本地文件夹",
+  "workspaceSwitcher.contextAssetCloud": "云端项目",
+  "workspaceSwitcher.contextAssetLocal": "本地文件夹",
   "workspaceSwitcher.projectIcon": "项目图标",
   "workspaceSwitcher.projectIconDescription": "选择首字母、Emoji 或上传图片；设置保存在此设备上。",
   "workspaceSwitcher.useInitial": "使用首字母",

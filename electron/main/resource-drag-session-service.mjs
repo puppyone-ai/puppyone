@@ -27,7 +27,9 @@ export function createResourceDragSessionService({ native, resolveEntries, getWi
       throw session.invalid ?? new Error("The drag source or destination is unavailable.");
     }
     const source = await resolveEntries(session.event, session.request);
-    const target = await resolveEntries(event, { resources: source.map((entry) => entry.resourceUri) });
+    const target = await resolveEntries(event, session.externalOnly
+      ? session.request
+      : { resources: source.map((entry) => entry.resourceUri) });
     if (session.invalid || source.some((entry, index) => entry.absolutePath !== session.entries[index]?.absolutePath)
       || target.some((entry, index) => entry.absolutePath !== source[index]?.absolutePath)) {
       throw new Error("The drag source changed or is no longer authorized.");
@@ -42,13 +44,21 @@ export function createResourceDragSessionService({ native, resolveEntries, getWi
   };
 
   return {
-    async start(event, request) {
+    async start(event, request, { externalOnly = false } = {}) {
       if (active) throw new Error("A resource drag is already in progress.");
       const sourceWindow = getWindow(event.sender);
       if (!sourceWindow || sourceWindow.isDestroyed()) return false;
       const gesture = native.captureGesture(sourceWindow.getNativeWindowHandle());
       if (!gesture) return false;
-      const session = { id: randomUUID(), event, request: structuredClone(request), entries: [], claimed: false, recipients: new Set([event.sender]) };
+      const session = {
+        id: randomUUID(),
+        event,
+        request: structuredClone(request),
+        entries: [],
+        claimed: false,
+        externalOnly,
+        recipients: externalOnly ? new Set() : new Set([event.sender]),
+      };
       session.end = new Promise((resolve) => { session.resolveEnd = resolve; });
       active = session; // Reserve before any asynchronous authorization.
       sessions.set(session.id, session);
@@ -71,19 +81,22 @@ export function createResourceDragSessionService({ native, resolveEntries, getWi
           session.result = end;
           if (active === session) active = null;
           session.resolveEnd(end);
+          if (session.externalOnly) { discard(session); return; }
           notify(session, null);
           if (!end.operation) discard(session, new Error("The drag was cancelled or rejected."));
           else { session.timer = setTimeout(() => discard(session), settleMs); session.timer.unref?.(); }
         }, gesture);
         if (!started) { discard(session); return false; }
-        notify(session, { id: session.id, entries: session.entries.map(toPublicEntry) });
+        if (!session.externalOnly) {
+          notify(session, { id: session.id, entries: session.entries.map(toPublicEntry) });
+        }
         return true;
       } catch (error) { discard(session, error); throw error; }
     },
 
     async preview(event) {
       const session = current();
-      if (!session || session.endedAt || session.claimed) return null;
+      if (!session || session.externalOnly || session.endedAt || session.claimed) return null;
       const entries = await revalidate(session, event);
       if (session.endedAt || session.invalid) return null;
       session.recipients.add(event.sender);
@@ -96,6 +109,7 @@ export function createResourceDragSessionService({ native, resolveEntries, getWi
         if (native.inspect()) throw new Error("This resource drag has expired or already ended.");
         return null; // Genuine external drops retain their import behavior.
       }
+      if (session.externalOnly) return null;
       if (session.claimed) throw new Error("This drag has already been consumed.");
       if (!["explorer-move", "terminal-path", "agent-reference", "editor-open"].includes(request?.intent)) throw new Error("Unknown drop intent.");
       const files = request.paths;

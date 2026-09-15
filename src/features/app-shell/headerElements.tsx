@@ -74,17 +74,18 @@ export const HEADER_ELEMENT_DEFINITIONS: readonly HeaderElementDefinition[] = [
           data-toolbar-action={toolbarPlacement ? "changes" : undefined}
           onClick={changes.onToggle}
         >
-          {toolbarPlacement ? (
+          {toolbarPlacement && (
             <i className="desktop-shell-toolbar-button-icon" aria-hidden="true">
               <VersionControlIcon size={19} />
             </i>
-          ) : (
-            <VersionControlIcon size={15} />
           )}
           {toolbarPlacement && (
             <span className="desktop-shell-toolbar-button-label">{label}</span>
           )}
-          <GitTitlebarStatusIndicators status={changes.status} />
+          <GitTitlebarStatusIndicators
+            status={changes.status}
+            showIdleEntry={!toolbarPlacement}
+          />
         </button>
       );
     },
@@ -182,36 +183,49 @@ export function getOrderedHeaderElementDefinitions(order: TitlebarActionId[]) {
   });
 }
 
-function GitTitlebarStatusIndicators({ status }: { status: GitTitlebarStatus }) {
+function GitTitlebarStatusIndicators({
+  showIdleEntry = false,
+  status,
+}: {
+  showIdleEntry?: boolean;
+  status: GitTitlebarStatus;
+}) {
   if (status.conflicts > 0) {
     return (
       <span className="desktop-titlebar-git-status" aria-hidden="true">
         <GitTitlebarStatusIndicator kind="conflict" count={status.conflicts}>
-          <TriangleAlert size={13} strokeWidth={1.9} />
+          <TriangleAlert size={15} strokeWidth={1.9} />
         </GitTitlebarStatusIndicator>
       </span>
     );
   }
 
   if (status.localChanges === 0 && status.incoming === 0 && status.outgoing === 0) {
-    return null;
+    return showIdleEntry ? (
+      <span className="desktop-titlebar-git-status" aria-hidden="true">
+        <span className="desktop-titlebar-git-indicator local idle">
+          <Asterisk size={15} strokeWidth={1.9} />
+          <span>0</span>
+        </span>
+      </span>
+    ) : null;
   }
 
   return (
     <span className="desktop-titlebar-git-status" aria-hidden="true">
       {status.incoming > 0 && (
         <GitTitlebarStatusIndicator kind="incoming" count={status.incoming}>
-          <ArrowDown size={13} strokeWidth={2} />
+          <ArrowDown size={15} strokeWidth={2} />
         </GitTitlebarStatusIndicator>
       )}
       {status.outgoing > 0 && (
         <GitTitlebarStatusIndicator kind="outgoing" count={status.outgoing}>
-          <ArrowUp size={13} strokeWidth={2} />
+          <ArrowUp size={15} strokeWidth={2} />
         </GitTitlebarStatusIndicator>
       )}
       {status.localChanges > 0 && (
         <GitTitlebarStatusIndicator kind="local" count={status.localChanges}>
-          <Asterisk size={13} strokeWidth={1.9} />
+          <Asterisk size={15} strokeWidth={1.9} />
         </GitTitlebarStatusIndicator>
       )}
     </span>

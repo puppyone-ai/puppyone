@@ -29,13 +29,16 @@ describe("Project-owned auxiliary workbench architecture", () => {
     expect(model).not.toContain('kind: "agent-chat"');
   });
 
-  it("composes one Right Sidebar surface and lazy Agent contribution", () => {
+  it("composes mutually exclusive Right Sidebar surfaces and a lazy Agent contribution", () => {
     const app = source("src/App.tsx");
     const lazyEntry = source("src/features/desktop-agent/lazy.ts");
     expect(app).toContain("lazy(loadAgentChatWorkbenchItem)");
     expect(app).toContain("contributions={auxiliaryWorkbenchContributions}");
     expect(app).toContain("createTerminalWorkbenchContribution(t, readAuxiliaryTerminalAppearance)");
-    expect(app).toContain('className="desktop-right-sidebar-surface is-active"');
+    expect(app.match(/className=\{`desktop-right-sidebar-surface/g)).toHaveLength(3);
+    expect(app).toContain('rightSidebarSurface === "chat" ? "is-active" : ""');
+    expect(app).toContain('rightSidebarSurface === "changes" ? "is-active" : ""');
+    expect(app).toContain('rightSidebarSurface === "history" ? "is-active" : ""');
     expect(app).not.toContain("<RightAgentPanel");
     expect(app).not.toContain('key={focusedWorkspace?.path ?? workspace.path}');
     expect(lazyEntry).toContain('import("./workbench/AgentChatWorkbenchItem")');

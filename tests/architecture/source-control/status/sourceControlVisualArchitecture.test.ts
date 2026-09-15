@@ -759,11 +759,11 @@ describe("source-control visual architecture", () => {
     expect(historyTimelineSource).toContain("change.path");
     expect(historyTimelineSource).not.toContain("commit.author_name");
     expect(historyTimelineSource).not.toContain("formatHistoryRelativeTime");
-    expect(row).toContain("height: var(--desktop-history-row-height, var(--desktop-sidebar-row-height));");
+    expect(row).toContain("height: calc(var(--po-sidebar-virtual-row-size) - 4px);");
     expect(row).toContain("overflow: hidden;");
     expect(date).toContain("display: flex;");
     expect(divider).toContain("flex: 1 1 auto;");
-    expect(row).toContain("padding-inline-start: 22px;");
+    expect(row).toContain("padding-inline-start: 20px;");
     expect(message).toContain("overflow: hidden;");
     expect(message).toContain("text-overflow: ellipsis;");
     expect(message).toContain("white-space: nowrap;");
@@ -775,6 +775,8 @@ describe("source-control visual architecture", () => {
     expect(deletedFile).toContain("text-decoration: line-through;");
     expect(historyTimelineSource).toContain('notation: "compact"');
     expect(historyTimelineSource).toContain("maximumFractionDigits: 1");
+    expect(historyTimelineSource).toContain("HISTORY_VISIBLE_FILE_LIMIT = 4");
+    expect(historyTimelineSource).toContain("rowSize={getHistoryRowSize}");
   });
 });
 

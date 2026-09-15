@@ -247,6 +247,55 @@ describe("titlebar Portal menu interactions", () => {
     expect(branchButton?.textContent).not.toContain("Loading");
     expect(branchButton?.querySelector(".desktop-titlebar-branch-placeholder")).not.toBeNull();
   });
+
+  it("shows the local context asset in the project control and keeps Cloud in its menu", async () => {
+    const container = document.createElement("div");
+    const onOpenCloud = vi.fn();
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(withTestLocalization(
+        <DesktopTitlebarContext availableProjects={[]}
+          activeGitStatus={createGitStatus()}
+          branchSwitcherOpen={false}
+          branchSwitcherRef={createRef<HTMLDivElement>()}
+          cloudEnabled
+          cloudOpen
+          gitStatusLoading={false}
+          gitOperationLoading={null}
+          localBranches={[]}
+          remoteBranches={[]}
+          workspace={createWorkspace("one", "Workspace one")}
+          workspaceFolders={[]}
+          multiRootWorkspacesEnabled={false}
+          workspaceSwitcherOpen
+          workspaceSwitcherRef={createRef<HTMLDivElement>()}
+          onCheckoutBranch={vi.fn(async () => false)}
+          onCloseBranchSwitcher={vi.fn()}
+          onCloseWorkspaceSwitcher={vi.fn()}
+          onGoHome={vi.fn()}
+          onAddProject={vi.fn()}
+          onAddExistingProject={vi.fn()}
+          onOpenCloud={onOpenCloud}
+          onToggleBranchSwitcher={vi.fn()}
+          onToggleWorkspaceSwitcher={vi.fn()}
+        />,
+      ));
+      await Promise.resolve();
+    });
+
+    const workspaceButton = container.querySelector<HTMLButtonElement>(".desktop-titlebar-workspace-button");
+    expect(workspaceButton?.querySelector('[data-context-asset-kind="local"] .lucide-folder-closed')).not.toBeNull();
+    expect(workspaceButton?.getAttribute("aria-label")).toContain("Local folder");
+    expect(container.querySelector(".desktop-titlebar-cloud-button")).toBeNull();
+
+    const cloudMenuItem = requireMenu().querySelector<HTMLButtonElement>(".desktop-project-cloud");
+    expect(cloudMenuItem?.getAttribute("aria-haspopup")).toBe("dialog");
+    expect(cloudMenuItem?.getAttribute("aria-expanded")).toBe("true");
+    act(() => cloudMenuItem?.click());
+    expect(onOpenCloud).toHaveBeenCalledOnce();
+  });
 });
 
 function requireMenu(): HTMLElement {

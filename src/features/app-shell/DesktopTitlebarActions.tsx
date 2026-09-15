@@ -125,9 +125,13 @@ export function DesktopTitlebarActions({
     <>
       {visibleTitlebarActionItems.map((item, index) => {
         const previousItem = visibleTitlebarActionItems[index - 1];
+        const separatesGitHistory = placement === "titlebar"
+          && previousItem?.id === "changes"
+          && item.id === "history";
+        const separatesActionGroups = previousItem && previousItem.group !== item.group;
         return (
           <Fragment key={item.id}>
-            {previousItem && previousItem.group !== item.group && (
+            {(separatesGitHistory || separatesActionGroups) && (
               <span className="desktop-titlebar-action-divider" aria-hidden="true" />
             )}
             {item.node}

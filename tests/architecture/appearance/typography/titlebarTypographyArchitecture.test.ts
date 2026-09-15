@@ -21,6 +21,23 @@ const workspaceSwitcherSource = readFileSync(
 );
 
 describe("titlebar typography architecture", () => {
+  it("keeps Git counts neutral while using restrained semantic colors on status icons", () => {
+    const indicator = readCssBlock(titlebarCss, ".desktop-titlebar-git-indicator");
+    const changedLocalIcon = readCssBlock(
+      titlebarCss,
+      ".desktop-titlebar-git-indicator.local:not(.idle) svg",
+    );
+    const incomingIcon = readCssBlock(titlebarCss, ".desktop-titlebar-git-indicator.incoming svg");
+    const outgoingIcon = readCssBlock(titlebarCss, ".desktop-titlebar-git-indicator.outgoing svg");
+    const conflict = readCssBlock(titlebarCss, ".desktop-titlebar-git-indicator.conflict");
+
+    expect(indicator).toContain("var(--desktop-titlebar-text-subtle");
+    expect(changedLocalIcon).toContain("var(--po-warning) 76%, white");
+    expect(incomingIcon).toContain("var(--po-accent) 74%, white");
+    expect(outgoingIcon).toContain("var(--po-success) 72%, white");
+    expect(conflict).toContain("var(--po-danger) 78%, white");
+  });
+
   it("scopes the sky-blue titlebar surface to cloud workspaces", () => {
     const titlebarRule = readCssBlock(`\n${titlebarCss}`, ".desktop-titlebar");
     const cloudTitlebarRule = readCssBlock(
@@ -136,14 +153,19 @@ describe("titlebar typography architecture", () => {
   it("keeps the project quiet and distinguishes the branch with its semantic glyph", () => {
     const context = readCssBlock(titlebarCss, ".desktop-titlebar-context");
     const projectName = readCssBlock(titlebarCss, ".desktop-titlebar-workspace-name");
+    const projectMark = readCssBlock(titlebarCss, ".desktop-titlebar-workspace-mark");
     const branchButton = readCssBlock(titlebarCss, ".desktop-titlebar-branch-button");
 
     expect(titlebarContextSource).toContain("<GitBranch size={13}");
+    expect(workspaceSwitcherSource).toContain('className="desktop-titlebar-workspace-mark"');
+    expect(workspaceSwitcherSource).toContain("resolveProjectContextAssetKind(workspace)");
+    expect(titlebarContextSource).not.toContain("desktop-titlebar-cloud-button");
     expect(titlebarContextSource).not.toContain("desktop-titlebar-context-divider");
     expect(titlebarContextSource).not.toContain("VersionControlIcon");
-    expect(workspaceSwitcherSource).not.toContain("desktop-titlebar-workspace-mark");
     expect(context).toContain("gap: var(--desktop-titlebar-button-gap);");
     expect(projectName).toContain("color: var(--desktop-titlebar-text-muted);");
+    expect(projectMark).toContain("width: 14px;");
+    expect(projectMark).toContain("flex: 0 0 14px;");
     expect(branchButton).toContain("color: var(--desktop-titlebar-text-muted);");
   });
 

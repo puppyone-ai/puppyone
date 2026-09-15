@@ -88,8 +88,6 @@ export type DesktopDataWorkspaceSurfaceProps = {
   navigation: {
     activeView: DesktopView;
     availableSurfaceIds: readonly DesktopView[];
-    cloudHubEnabled: boolean;
-    cloudOpen: boolean;
     gitEnabled: boolean;
     pluginsEnabled: boolean;
     gitIncomingCount: number;
@@ -97,7 +95,6 @@ export type DesktopDataWorkspaceSurfaceProps = {
     gitStatus: GitStatusSnapshot | null;
     workspaceChangeCount: number;
     onNavigate: (view: DesktopView) => void;
-    onOpenCloud: () => void;
     onOpenSettings: () => void;
     settingsOpen: boolean;
     showSettings: boolean;
@@ -271,8 +268,6 @@ export function DesktopDataWorkspaceSurface({
   const navigationCommon = {
     activeView: navigation.activeView,
     availableSurfaceIds: navigation.availableSurfaceIds,
-    cloudHubEnabled: navigation.cloudHubEnabled,
-    cloudOpen: navigation.cloudOpen,
     gitEnabled: navigation.gitEnabled,
     pluginsEnabled: navigation.pluginsEnabled,
     gitIncomingCount: navigation.gitIncomingCount,
@@ -280,7 +275,6 @@ export function DesktopDataWorkspaceSurface({
     gitStatus: navigation.gitStatus,
     workspaceChangeCount: navigation.workspaceChangeCount,
     onNavigate: navigation.onNavigate,
-    onOpenCloud: navigation.onOpenCloud,
     onOpenSettings: navigation.onOpenSettings,
     settingsOpen: navigation.settingsOpen,
     showSettings: navigation.showSettings,

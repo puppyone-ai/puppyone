@@ -1,0 +1,16 @@
+.desktop-project-context-asset-mark {
+  display: inline-flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+}
+
+.desktop-project-context-asset-mark[data-context-asset-kind="cloud"] {
+  color: color-mix(in srgb, var(--po-accent) 76%, var(--po-text-muted));
+}
+
+.desktop-project-context-asset-mark[data-context-asset-kind="cloud"] > svg {
+  fill: color-mix(in srgb, var(--po-accent) 10%, transparent);
+}

@@ -60,6 +60,8 @@
   "workspaceSwitcher.createNew": "Criar novo",
   "workspaceSwitcher.projectDetails": "Detalhes do projeto",
   "workspaceSwitcher.localPath": "Pasta local",
+  "workspaceSwitcher.contextAssetCloud": "Projeto na Cloud",
+  "workspaceSwitcher.contextAssetLocal": "Pasta local",
   "workspaceSwitcher.projectIcon": "Ícone do projeto",
   "workspaceSwitcher.projectIconDescription": "Escolha uma inicial, emoji ou imagem. Salvo neste dispositivo.",
   "workspaceSwitcher.useInitial": "Usar inicial",

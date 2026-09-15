@@ -53,6 +53,8 @@ describe("Git right-sidebar titlebar entries", () => {
     expect(changes?.getAttribute("aria-label")).toContain("Pull 4 commits");
     expect(changes?.getAttribute("aria-label")).toContain("2 local commits waiting");
     expect(changes?.getAttribute("aria-pressed")).toBe("false");
+    expect(Array.from(changes?.children ?? []).some((child) => child.tagName === "svg"))
+      .toBe(false);
     expect(changes?.querySelector(".desktop-titlebar-git-indicator.local")?.textContent).toBe("12");
     expect(changes?.querySelector(".desktop-titlebar-git-indicator.local .lucide-asterisk"))
       .not.toBeNull();
@@ -72,6 +74,10 @@ describe("Git right-sidebar titlebar entries", () => {
       "History",
       "Show Agent",
     ]);
+    const dividers = container.querySelectorAll(".desktop-titlebar-action-divider");
+    expect(dividers).toHaveLength(2);
+    expect(changes?.nextElementSibling).toBe(dividers[0]);
+    expect(dividers[0]?.nextElementSibling).toBe(history);
 
     act(() => {
       history?.click();
@@ -79,5 +85,30 @@ describe("Git right-sidebar titlebar entries", () => {
     });
     expect(onToggleGitHistory).toHaveBeenCalledOnce();
     expect(onToggleGitChanges).toHaveBeenCalledOnce();
+  });
+
+  it("keeps Changes discoverable without restoring the standalone Git mark", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+
+    act(() => root?.render(withTestLocalization(
+      <DesktopTitlebarActions
+        titlebarActionsSettings={DEFAULT_TITLEBAR_ACTIONS_SETTINGS}
+        terminalSidebarOpen={false}
+        terminalToolEnabled={false}
+        gitChangesAvailable
+        onToggleTerminal={vi.fn()}
+      />,
+    )));
+
+    const changes = container.querySelector<HTMLButtonElement>(".desktop-titlebar-changes");
+    expect(changes?.getAttribute("aria-label")).toBe("Changes");
+    expect(changes?.querySelector(".desktop-titlebar-git-indicator.local.idle .lucide-asterisk"))
+      .not.toBeNull();
+    expect(changes?.querySelector(".desktop-titlebar-git-indicator.local.idle")?.textContent)
+      .toBe("0");
+    expect(Array.from(changes?.children ?? []).some((child) => child.tagName === "svg"))
+      .toBe(false);
   });
 });

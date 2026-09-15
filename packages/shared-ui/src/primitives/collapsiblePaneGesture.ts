@@ -160,7 +160,7 @@ export function finishCollapsiblePaneGesture(
   }
 
   if (state.startCollapsed) {
-    if (!state.moved) return { type: "expand" };
+    if (!state.moved) return null;
     return state.latestExpansion >= config.collapseThreshold
       ? { type: "expand", width: state.previewWidth }
       : null;

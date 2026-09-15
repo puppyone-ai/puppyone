@@ -4,10 +4,14 @@ import {
   type Workspace,
   type WorkspaceFolder,
 } from "@puppyone/shared-ui";
-import { ArrowLeft, Folder, FolderPlus } from "lucide-react";
+import { ArrowLeft, FolderPlus } from "lucide-react";
 import { DesktopMenuItem } from "../../components/DesktopMenu";
 import { DesktopTitlebarMenuLayer } from "./DesktopTitlebarMenuLayer";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
+import {
+  ProjectContextAssetMark,
+  resolveProjectContextAssetKind,
+} from "./ProjectContextAssetMark";
 import { getWorkspaceParentPathForDisplay } from "./workspaceHomeModel";
 
 type DesktopWorkspaceSwitcherProps = {
@@ -18,7 +22,10 @@ type DesktopWorkspaceSwitcherProps = {
   workspaceFolders: readonly WorkspaceFolder[];
   multiRootWorkspacesEnabled: boolean;
   availableProjects?: readonly Workspace[];
+  cloudEnabled?: boolean;
+  cloudOpen?: boolean;
   onAddExistingProject?: (folderPath: string) => void;
+  onOpenCloud?: () => void;
   onOpenFolder?: () => void;
   onClose: () => void;
   onGoHome: () => void;
@@ -33,7 +40,10 @@ export function DesktopWorkspaceSwitcher({
   workspaceFolders,
   multiRootWorkspacesEnabled,
   availableProjects = [],
+  cloudEnabled = false,
+  cloudOpen = false,
   onAddExistingProject,
+  onOpenCloud,
   onOpenFolder,
   onClose,
   onGoHome,
@@ -41,6 +51,10 @@ export function DesktopWorkspaceSwitcher({
 }: DesktopWorkspaceSwitcherProps) {
   const { t } = useLocalization();
   const [view, setView] = useState<"projects" | "add">("projects");
+  const workspaceContextAssetKind = resolveProjectContextAssetKind(workspace);
+  const workspaceContextAssetLabel = t(workspaceContextAssetKind === "cloud"
+    ? "shell.workspaceSwitcher.contextAssetCloud"
+    : "shell.workspaceSwitcher.contextAssetLocal");
   const attachedFolders = useMemo(
     () => workspaceFolders.length > 0
       ? workspaceFolders
@@ -61,14 +75,19 @@ export function DesktopWorkspaceSwitcher({
         type="button"
         aria-label={t("shell.workspaceSwitcher.openMenu", {
           workspace: bidiIsolate(workspace.name),
-        })}
+        }) + ` · ${workspaceContextAssetLabel}`}
         aria-expanded={open}
         aria-haspopup="menu"
         title={t("shell.workspaceSwitcher.projectTitle", {
           project: bidiIsolate(workspace.name),
-        })}
+        }) + ` · ${workspaceContextAssetLabel}`}
         onClick={onToggle}
       >
+        <ProjectContextAssetMark
+          className="desktop-titlebar-workspace-mark"
+          kind={workspaceContextAssetKind}
+          size={14}
+        />
         <bdi className="desktop-titlebar-workspace-name">{titlebarLabel}</bdi>
       </button>
 
@@ -110,6 +129,19 @@ export function DesktopWorkspaceSwitcher({
                   onClick={() => setView("add")}
                 />
               )}
+              {cloudEnabled && onOpenCloud && (
+                <DesktopMenuItem
+                  className="desktop-project-cloud"
+                  icon={<ProjectContextAssetMark kind="cloud" size={15} />}
+                  label={t("shell.navigation.cloud")}
+                  aria-haspopup="dialog"
+                  aria-expanded={cloudOpen}
+                  onClick={() => {
+                    onClose();
+                    onOpenCloud();
+                  }}
+                />
+              )}
             </div>
           </>
         ) : (
@@ -127,7 +159,12 @@ export function DesktopWorkspaceSwitcher({
                 <DesktopMenuItem
                   className="desktop-project-add"
                   detail={getWorkspaceParentPathForDisplay(project.path)}
-                  icon={<ProjectTypeMark className="desktop-project-mark" />}
+                  icon={(
+                    <ProjectContextAssetMark
+                      className="desktop-project-mark"
+                      kind={resolveProjectContextAssetKind(project)}
+                    />
+                  )}
                   key={project.id}
                   label={<bdi>{project.name}</bdi>}
                   onClick={() => onAddExistingProject?.(project.path)}
@@ -164,7 +201,10 @@ function DesktopProjectRow({
         title={`${folder.name} - ${folder.workspace.path}`}
       >
         <span className="desktop-menu-item-icon">
-          <ProjectTypeMark className="desktop-project-mark" />
+          <ProjectContextAssetMark
+            className="desktop-project-mark"
+            kind={resolveProjectContextAssetKind(folder.workspace)}
+          />
         </span>
         <span className="desktop-menu-item-body">
           <bdi className="desktop-menu-item-label">{folder.name}</bdi>
@@ -180,17 +220,5 @@ function DesktopProjectRow({
         </span>
       </div>
     </div>
-  );
-}
-
-function ProjectTypeMark({
-  className,
-}: {
-  className: string;
-}) {
-  return (
-    <span className={`${className} local`} aria-hidden="true">
-      <Folder size={15} strokeWidth={1.8} />
-    </span>
   );
 }

@@ -2,8 +2,8 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CloudDialog } from "../../../src/features/cloud/CloudDialog";
-import { renderWithTestLocalization } from "../../support/react/localization";
+import { CloudDialog } from "../../../../src/features/cloud/CloudDialog";
+import { renderWithTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;

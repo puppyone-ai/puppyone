@@ -30,12 +30,6 @@
   inset-inline-end: calc(1px - var(--po-collapsed-pane-edge-hit-size, 12px));
 }
 
-.desktop-project-switcher-resizer.po-collapsed-pane-edge-handle--inline-start
-  .po-collapsed-pane-edge-glyph {
-  inset-inline-start: auto;
-  inset-inline-end: 0;
-}
-
 .desktop-shell-leading-rail:has(> .po-pane-edge-resize-handle) .desktop-project-switcher-rail {
   border-inline-end-color: transparent;
 }
@@ -100,6 +94,14 @@ body.desktop-project-switcher-resizing * {
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-gutter: stable;
+}
+
+.desktop-project-switcher-rail:not([data-expanded="true"])
+  .desktop-project-switcher-rail-list {
+  grid-template-columns: var(--desktop-project-switcher-button-size);
+  justify-content: start;
+  padding-inline: var(--desktop-project-switcher-compact-inline-padding);
+  scrollbar-gutter: auto;
 }
 
 .desktop-project-switcher-rail-utilities {
@@ -188,17 +190,12 @@ body.desktop-project-switcher-resizing * {
     color 150ms ease;
 }
 
-/* The row keeps expanded geometry behind the viewport. At the settled compact
-   edge this paint/hit clip leaves one square control plus equal outer gutters. */
 .desktop-project-switcher-rail:not([data-expanded="true"])
   .desktop-project-switcher-rail-button {
-  clip-path: inset(0 calc(100% - var(--desktop-project-switcher-button-size)) 0 0);
-}
-
-[dir="rtl"]
-  .desktop-project-switcher-rail:not([data-expanded="true"])
-  .desktop-project-switcher-rail-button {
-  clip-path: inset(0 0 0 calc(100% - var(--desktop-project-switcher-button-size)));
+  width: var(--desktop-project-switcher-button-size);
+  padding: 0;
+  justify-content: center;
+  gap: 0;
 }
 
 .desktop-project-switcher-rail-button:hover:not(:disabled) {
@@ -247,13 +244,23 @@ body.desktop-project-switcher-resizing * {
   50% { opacity: 1; }
 }
 
-.desktop-project-switcher-rail-avatar {
+.desktop-project-switcher-rail-avatar-stack {
   position: relative;
   display: grid;
   place-items: center;
   width: var(--desktop-project-switcher-avatar-size);
   height: var(--desktop-project-switcher-avatar-size);
   flex: 0 0 var(--desktop-project-switcher-avatar-size);
+  overflow: visible;
+}
+
+.desktop-project-switcher-rail-avatar {
+  position: relative;
+  display: grid;
+  width: var(--desktop-project-switcher-avatar-size);
+  height: var(--desktop-project-switcher-avatar-size);
+  flex: 0 0 var(--desktop-project-switcher-avatar-size);
+  place-items: center;
   border-radius: 4px;
   overflow: hidden;
   background: var(--desktop-project-switcher-avatar);
@@ -264,9 +271,49 @@ body.desktop-project-switcher-resizing * {
   text-overflow: clip;
   text-transform: none;
   white-space: nowrap;
-  transition:
-    background-color 150ms ease,
-    box-shadow 150ms ease;
+  transition: background-color 150ms ease;
+}
+
+.desktop-project-switcher-rail-context-avatar,
+.desktop-project-switcher-rail-button:hover:not(:disabled)
+  .desktop-project-switcher-rail-context-avatar,
+.desktop-project-switcher-rail-button[aria-current="page"]
+  .desktop-project-switcher-rail-context-avatar {
+  border-radius: 0;
+  overflow: visible;
+  background: transparent;
+}
+
+.desktop-project-switcher-rail-compact-context-avatar {
+  color: var(--po-text-muted);
+}
+
+.desktop-project-switcher-rail-identity-badge {
+  position: absolute;
+  inset-inline-end: -6px;
+  inset-block-end: -5px;
+  display: grid;
+  box-sizing: border-box;
+  width: 14px;
+  height: 14px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--po-sidebar) 78%, var(--po-text));
+  box-shadow: 0 0 0 1.5px var(--po-sidebar);
+  color: var(--po-text);
+  font-family: var(--po-font-ui);
+  font-size: var(--po-type-ui-micro, 11px);
+  font-weight: var(--po-text-weight-semibold, 600);
+  line-height: 1;
+  pointer-events: none;
+  text-transform: uppercase;
+}
+
+.desktop-project-switcher-rail-identity-badge-emoji {
+  font-family: var(--po-font-emoji);
+  font-size: var(--po-type-ui-micro, 11px);
+  font-weight: 400;
 }
 
 .desktop-project-switcher-rail[data-expanded="true"]
@@ -285,13 +332,13 @@ body.desktop-project-switcher-resizing * {
 
 .desktop-project-switcher-rail[data-expanded="true"]
   .desktop-project-switcher-rail-project:hover:not(:disabled)
-  .desktop-project-switcher-rail-avatar {
+  .desktop-project-switcher-rail-avatar:not(.desktop-project-switcher-rail-context-avatar) {
   background: var(--desktop-project-switcher-avatar-hover);
 }
 
 .desktop-project-switcher-rail[data-expanded="true"]
   .desktop-project-switcher-rail-project[aria-current="page"]
-  .desktop-project-switcher-rail-avatar {
+  .desktop-project-switcher-rail-avatar:not(.desktop-project-switcher-rail-context-avatar) {
   background: var(--desktop-project-switcher-avatar-active);
 }
 
@@ -302,11 +349,6 @@ body.desktop-project-switcher-resizing * {
   text-align: start;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.desktop-project-switcher-rail:not([data-expanded="true"])
-  .desktop-project-switcher-rail-label {
-  visibility: hidden;
 }
 
 .desktop-project-switcher-rail[data-expanded="true"]
@@ -325,16 +367,29 @@ body.desktop-project-switcher-resizing * {
 }
 
 .desktop-project-switcher-rail-create {
-  color: var(--po-text-subtle);
+  color: color-mix(in srgb, var(--po-text-subtle) 68%, var(--po-sidebar));
+  font-size: var(--po-type-ui-meta, 13px);
+  font-weight: var(--desktop-sidebar-font-weight);
 }
 
 .desktop-project-switcher-rail-create .desktop-project-switcher-rail-avatar {
   background: transparent;
+  opacity: 0.76;
 }
 
-.desktop-project-switcher-rail-create:hover:not(:disabled)
-  .desktop-project-switcher-rail-avatar {
-  background: var(--desktop-project-switcher-avatar-hover);
+.desktop-project-switcher-rail-compact-create-icon {
+  display: inline-flex;
+  width: var(--desktop-project-switcher-avatar-size);
+  height: var(--desktop-project-switcher-avatar-size);
+  flex: 0 0 var(--desktop-project-switcher-avatar-size);
+  align-items: center;
+  justify-content: center;
+  opacity: 0.76;
+}
+
+.desktop-project-switcher-rail-create:focus-visible,
+.desktop-project-switcher-rail-create:hover:not(:disabled) {
+  color: var(--po-text-subtle);
 }
 
 .desktop-project-switcher-rail-emoji {

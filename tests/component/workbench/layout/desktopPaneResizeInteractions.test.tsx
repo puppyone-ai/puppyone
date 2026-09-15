@@ -453,7 +453,7 @@ describe("desktop side-pane resize interactions", () => {
     expect(onWidthChange).toHaveBeenCalledExactlyOnceWith(160);
   });
 
-  it("expands the compact Project rail from its resize edge by click", () => {
+  it("keeps a click on the compact Project resize edge inert", () => {
     const onCollapsedChange = vi.fn();
     const onWidthChange = vi.fn();
     const container = render(withTestLocalization(
@@ -476,8 +476,10 @@ describe("desktop side-pane resize interactions", () => {
     const handle = requireHandle(container, ".desktop-project-switcher-resizer");
     const shell = requireHandle(container, ".desktop-shell");
 
-    expect(handle.getAttribute("role")).toBe("button");
+    expect(handle.getAttribute("role")).toBe("separator");
+    expect(handle.getAttribute("aria-orientation")).toBe("vertical");
     expect(handle.classList.contains("po-collapsed-pane-edge-handle--inline-start")).toBe(true);
+    expect(handle.querySelector(".po-collapsed-pane-edge-glyph")).toBeNull();
     expect(shell.style.getPropertyValue("--desktop-shell-leading-rail-width")).toBe("56px");
     expect(requireHandle(container, ".desktop-shell-leading-rail").style.getPropertyValue("--po-collapsible-pane-content-width")).toBe("220px");
 
@@ -485,7 +487,7 @@ describe("desktop side-pane resize interactions", () => {
       handle.dispatchEvent(pointerEvent("pointerdown", 56, 17));
       window.dispatchEvent(pointerEvent("pointerup", 56, 17));
     });
-    expect(onCollapsedChange).toHaveBeenLastCalledWith(false);
+    expect(onCollapsedChange).not.toHaveBeenCalled();
     expect(onWidthChange).not.toHaveBeenCalled();
   });
 

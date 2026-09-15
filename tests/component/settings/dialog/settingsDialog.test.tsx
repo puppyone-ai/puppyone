@@ -4,10 +4,10 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { SettingsDialog, type SettingsDialogProps } from "../../../src/features/settings/SettingsDialog";
-import { renderWithTestLocalization } from "../../support/react/localization";
+import { SettingsDialog, type SettingsDialogProps } from "../../../../src/features/settings/SettingsDialog";
+import { renderWithTestLocalization } from "../../../support/react/localization";
 
-vi.mock("../../../src/features/settings/SettingsWorkspaceSurface", () => ({
+vi.mock("../../../../src/features/settings/SettingsWorkspaceSurface", () => ({
   createSettingsWorkspaceSurface: () => ({
     sidebar: <div data-testid="settings-navigation">Navigation</div>,
     main: <div data-testid="settings-content">Content</div>,

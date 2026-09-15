@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Cloud, Settings } from "lucide-react";
+import { Settings } from "lucide-react";
 import { useLocalization, type MessageFormatter } from "@puppyone/localization";
 import type { DesktopView } from "../../../components/DesktopCloudShell";
 import {
@@ -106,47 +106,6 @@ export function DesktopSidebarSettingsButton({
       {showLabel && (
         <span className={`desktop-sidebar-nav-label${shellToolbar ? " desktop-shell-toolbar-button-label" : ""}`}>
           {t("shell.navigation.settings")}
-        </span>
-      )}
-    </button>
-  );
-}
-
-export function DesktopSidebarCloudButton({
-  buttonClassName,
-  cloudOpen = false,
-  onOpenCloud,
-  shellToolbar = false,
-  showLabel = false,
-}: {
-  buttonClassName: string;
-  cloudOpen?: boolean;
-  onOpenCloud: () => void;
-  shellToolbar?: boolean;
-  showLabel?: boolean;
-}) {
-  const { t } = useLocalization();
-  const label = t("shell.navigation.cloud");
-  return (
-    <button
-      className={`${buttonClassName} ${cloudOpen ? "active" : ""}`}
-      type="button"
-      title={label}
-      aria-label={label}
-      aria-haspopup="dialog"
-      aria-expanded={cloudOpen}
-      data-navigation-item="cloud"
-      onClick={onOpenCloud}
-    >
-      <i
-        className={`desktop-sidebar-nav-icon-wrap${shellToolbar ? " desktop-shell-toolbar-button-icon" : ""}`}
-        aria-hidden="true"
-      >
-        <Cloud size={16} />
-      </i>
-      {showLabel && (
-        <span className={`desktop-sidebar-nav-label${shellToolbar ? " desktop-shell-toolbar-button-label" : ""}`}>
-          {label}
         </span>
       )}
     </button>

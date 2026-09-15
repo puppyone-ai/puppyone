@@ -60,6 +60,8 @@
   "workspaceSwitcher.createNew": "新規作成",
   "workspaceSwitcher.projectDetails": "プロジェクトの詳細",
   "workspaceSwitcher.localPath": "ローカルフォルダー",
+  "workspaceSwitcher.contextAssetCloud": "Cloud プロジェクト",
+  "workspaceSwitcher.contextAssetLocal": "ローカルフォルダー",
   "workspaceSwitcher.projectIcon": "プロジェクトアイコン",
   "workspaceSwitcher.projectIconDescription": "頭文字、絵文字、または画像を選択します。このデバイスに保存されます。",
   "workspaceSwitcher.useInitial": "頭文字を使用",

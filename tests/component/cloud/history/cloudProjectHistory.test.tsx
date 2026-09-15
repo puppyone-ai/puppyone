@@ -31,7 +31,6 @@ describe("Cloud project history", () => {
     const container = render(
       <DesktopSidebarRailNavigation
         activeView="data"
-        cloudHubEnabled
         gitEnabled
         pluginsEnabled={false}
         gitIncomingCount={0}
@@ -46,7 +45,7 @@ describe("Cloud project history", () => {
     const changesButton = container.querySelector<HTMLButtonElement>('button[aria-label="Changes"]');
     expect(changesButton).not.toBeNull();
     expect(container.querySelector('button[aria-label="History"]')).toBeNull();
-    expect(container.querySelector('button[aria-label="Cloud"]')).not.toBeNull();
+    expect(container.querySelector('button[aria-label="Cloud"]')).toBeNull();
 
     act(() => changesButton?.click());
     expect(onNavigate).toHaveBeenCalledWith("git");

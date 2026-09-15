@@ -181,16 +181,11 @@ export function AuxiliaryPanelHost({
             resizing: resize.dragging,
             collapsedEdgeSide: presentation.settledCollapsed ? "inline-end" : undefined,
             orientation: "vertical",
-            label: t(presentation.settledCollapsed
-              ? "shell.sidebar.expandAuxiliary"
-              : "shell.sidebar.resizeAuxiliary"),
+            label: t("shell.sidebar.resizeAuxiliary"),
             min: onOpenChange ? 0 : minWidth,
             max: maxWidth,
             value: resize.width,
             tabIndex: visualOpen || presentation.settledCollapsed ? 0 : -1,
-            onCollapsedActivate: presentation.settledCollapsed
-              ? () => commitPane({ type: "expand" })
-              : undefined,
             onPointerDown: resize.onPointerDown,
             onKeyboardResize: resizeByKeyboard,
           }

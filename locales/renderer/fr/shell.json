@@ -60,6 +60,8 @@
   "workspaceSwitcher.createNew": "Créer",
   "workspaceSwitcher.projectDetails": "Détails du projet",
   "workspaceSwitcher.localPath": "Dossier local",
+  "workspaceSwitcher.contextAssetCloud": "Projet Cloud",
+  "workspaceSwitcher.contextAssetLocal": "Dossier local",
   "workspaceSwitcher.projectIcon": "Icône du projet",
   "workspaceSwitcher.projectIconDescription": "Choisissez une initiale, un emoji ou une image. Enregistré sur cet appareil.",
   "workspaceSwitcher.useInitial": "Utiliser l’initiale",

@@ -8,6 +8,9 @@ const sidebarPrimitivesCss = readCss("../../../../packages/shared-ui/src/styles/
 const sidebarPatternsCss = readCss("../../../../src/styles/sidebar/patterns.css");
 const dataAdapterCss = readCss("../../../../src/features/data-workspace/browser.css");
 const projectSwitcherCss = readCss("../../../../src/features/app-shell/project-switcher-rail.css");
+const projectContextAssetMarkCss = readCss(
+  "../../../../src/features/app-shell/project-context-asset-mark.css",
+);
 const dataShellCss = readCss("../../../../src/features/data-workspace/data-shell.css");
 const dataTreeCss = readCss("../../../../packages/shared-ui/src/styles/data-workspace.css");
 const dataWorkspaceSource = readFileSync(
@@ -291,11 +294,18 @@ describe("sidebar spacing architecture", () => {
     expect(projectRailButton).toContain("margin: 1px 0;");
     expect(projectRailButton).toContain("justify-content: flex-start;");
     expect(projectRailButton).toContain("gap: 6px;");
+    expect(projectSwitcherCss).toMatch(
+      /\.desktop-project-switcher-rail-create\s*\{[^}]*color:\s*color-mix\(in srgb, var\(--po-text-subtle\) 68%, var\(--po-sidebar\)\);[^}]*font-size:\s*var\(--po-type-ui-meta, 13px\);[^}]*font-weight:\s*var\(--desktop-sidebar-font-weight\);/s,
+    );
     expect(projectRailList).toContain("justify-items: stretch;");
     expect(projectRailList).toContain("var(--desktop-sidebar-row-left-gap)");
     expect(projectRailList).toContain("var(--desktop-sidebar-scroll-right-gap);");
-    expect(projectSwitcherCss).toContain(
-      "clip-path: inset(0 calc(100% - var(--desktop-project-switcher-button-size)) 0 0);",
+    expect(projectSwitcherCss).not.toContain("clip-path:");
+    expect(projectSwitcherCss).toMatch(
+      /\.desktop-project-switcher-rail:not\(\[data-expanded="true"\]\)[^{]+\.desktop-project-switcher-rail-list\s*\{[^}]*grid-template-columns:\s*var\(--desktop-project-switcher-button-size\);[^}]*padding-inline:\s*var\(--desktop-project-switcher-compact-inline-padding\);[^}]*scrollbar-gutter:\s*auto;/s,
+    );
+    expect(projectSwitcherCss).toMatch(
+      /\.desktop-project-switcher-rail:not\(\[data-expanded="true"\]\)[^{]+\.desktop-project-switcher-rail-button\s*\{[^}]*width:\s*var\(--desktop-project-switcher-button-size\);[^}]*padding:\s*0;[^}]*justify-content:\s*center;/s,
     );
     expect(projectSwitcherCss).not.toContain("var(--desktop-chrome-height)");
     expect(projectSwitcherCss).not.toContain(".desktop-project-switcher-rail-button::after");
@@ -307,7 +317,20 @@ describe("sidebar spacing architecture", () => {
       /\.desktop-project-switcher-rail-project\[aria-current="page"\]\s*\{[^}]*background:\s*var\(--desktop-project-switcher-row-hover\);/s,
     );
     expect(projectSwitcherCss).toMatch(
-      /\.desktop-project-switcher-rail-avatar\s*\{[^}]*width:\s*var\(--desktop-project-switcher-avatar-size\);[^}]*height:\s*var\(--desktop-project-switcher-avatar-size\);/s,
+      /\.desktop-project-switcher-rail-avatar-stack\s*\{[^}]*width:\s*var\(--desktop-project-switcher-avatar-size\);[^}]*height:\s*var\(--desktop-project-switcher-avatar-size\);[^}]*overflow:\s*visible;/s,
+    );
+    expect(projectSwitcherCss).toMatch(
+      /\.desktop-project-switcher-rail-identity-badge\s*\{[^}]*position:\s*absolute;[^}]*width:\s*14px;[^}]*height:\s*14px;[^}]*font-size:\s*var\(--po-type-ui-micro, 11px\);/s,
+    );
+    expect(projectSwitcherCss).toMatch(
+      /\.desktop-project-switcher-rail-context-avatar,[^{]+\{[^}]*border-radius:\s*0;[^}]*overflow:\s*visible;[^}]*background:\s*transparent;/s,
+    );
+    expect(projectSwitcherCss).not.toContain(".desktop-project-switcher-rail-project::before");
+    expect(projectSwitcherCss).toContain(
+      ".desktop-project-switcher-rail-avatar:not(.desktop-project-switcher-rail-context-avatar)",
+    );
+    expect(projectContextAssetMarkCss).toMatch(
+      /\[data-context-asset-kind="cloud"\]\s*\{[^}]*color:\s*color-mix\(in srgb, var\(--po-accent\) 76%, var\(--po-text-muted\)\);/s,
     );
     expect(compact(projectSwitcherCss)).toContain(compact(`
       .desktop-project-switcher-rail:not([data-expanded="true"])

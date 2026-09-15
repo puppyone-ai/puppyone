@@ -348,46 +348,6 @@
   inset-inline-end: 0;
 }
 
-.po-collapsed-pane-edge-glyph {
-  position: absolute;
-  top: 50%;
-  display: flex;
-  width: 10px;
-  height: 20px;
-  align-items: center;
-  justify-content: center;
-  background: var(--po-canvas);
-  color: var(--po-border-strong);
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(-50%);
-  transition: opacity 120ms ease;
-}
-
-.po-collapsed-pane-edge-handle--inline-start .po-collapsed-pane-edge-glyph {
-  inset-inline-start: 0;
-}
-
-.po-collapsed-pane-edge-handle--inline-end .po-collapsed-pane-edge-glyph {
-  inset-inline-end: 0;
-}
-
-.po-collapsed-pane-edge-glyph svg {
-  width: 8px;
-  height: 14px;
-  overflow: visible;
-  fill: none;
-  stroke: currentcolor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.35;
-}
-
-.po-collapsed-pane-edge-handle:hover .po-collapsed-pane-edge-glyph,
-.po-collapsed-pane-edge-handle:focus-visible .po-collapsed-pane-edge-glyph {
-  opacity: 1;
-}
-
 .po-sidebar-resize-handle.po-collapsed-pane-edge-handle:hover::after,
 .po-sidebar-resize-handle.po-collapsed-pane-edge-handle:focus-visible::after {
   background: var(--po-border-strong);

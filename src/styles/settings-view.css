@@ -4,7 +4,7 @@
 
 .desktop-settings-dialog-backdrop,
 .desktop-cloud-dialog-backdrop {
-  padding: 24px;
+  padding: 40px;
   background: color-mix(in srgb, var(--po-backdrop) 84%, transparent);
   backdrop-filter: blur(1.5px);
   -webkit-backdrop-filter: blur(1.5px);
@@ -18,8 +18,8 @@
   --desktop-task-dialog-header-focus: var(--po-focus-ring);
   --desktop-task-dialog-header-divider: var(--po-header-divider);
 
-  height: min(760px, calc(100vh - 48px));
-  max-height: calc(100vh - 48px);
+  height: min(760px, calc(100vh - 80px));
+  max-height: calc(100vh - 80px);
   border-radius: 14px;
   background: var(--po-canvas);
 }

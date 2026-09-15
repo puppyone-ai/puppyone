@@ -133,6 +133,16 @@ it("does not start without a live source gesture and passes its captured identit
   expect(f.native.start).toHaveBeenCalledWith(1, ["/repo/docs/file.md"], expect.any(String), expect.any(Function), 42);
 });
 
+it("keeps an external-only Project drag out of internal preview and claim flows", async () => {
+  const f = fixture();
+  await f.service.start(f.source, { resources: [uri("docs")] }, { externalOnly: true });
+  expect(await f.service.preview(f.target)).toBeNull();
+  expect(await f.service.claim(f.target, { paths: ["/repo/docs"], intent: "explorer-move" })).toBeNull();
+  expect(f.source.sender.send).not.toHaveBeenCalled();
+  f.end();
+  expect(f.source.sender.send).not.toHaveBeenCalled();
+});
+
 it("does not turn an in-root alias into a destructive move of its referent", async () => {
   const f = fixture();
   const original = f.resolveEntries.getMockImplementation();

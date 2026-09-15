@@ -82,13 +82,13 @@
   display: flex;
   align-items: flex-start;
   width: 100%;
-  height: var(--desktop-history-row-height, var(--desktop-sidebar-row-height));
-  min-height: var(--desktop-history-row-height, var(--desktop-sidebar-row-height));
+  height: calc(var(--po-sidebar-virtual-row-size) - 4px);
+  min-height: calc(var(--po-sidebar-virtual-row-size) - 4px);
   gap: 0;
   margin: 2px 0;
   overflow: hidden;
   padding: 0;
-  padding-inline-start: 22px;
+  padding-inline-start: 20px;
   border: 0;
   border-radius: var(--git-row-radius);
   background: transparent;

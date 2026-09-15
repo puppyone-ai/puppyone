@@ -373,13 +373,6 @@
 
 :root[data-interface-style="windows-xp"]
   .app-shell[data-icon-pack="windows-xp-native-v1"]
-  .desktop-shell-toolbar-button[data-navigation-item="cloud"]
-  .desktop-shell-toolbar-button-icon {
-  background-image: url("./assets/toolbar-cloud-skeuomorphic.png");
-}
-
-:root[data-interface-style="windows-xp"]
-  .app-shell[data-icon-pack="windows-xp-native-v1"]
   .desktop-shell-toolbar-button[data-toolbar-action="terminal"]
   .desktop-shell-toolbar-button-icon {
   background-image: url("./assets/toolbar-terminal-skeuomorphic.png");
@@ -402,13 +395,6 @@
   .desktop-shell-navigation-toolbar-host
   .desktop-shell-toolbar-button[data-navigation-item="settings"] svg {
   color: #637287;
-}
-
-:root[data-interface-style="windows-xp"]
-  .desktop-shell-navigation-toolbar-host
-  .desktop-shell-toolbar-button[data-navigation-item="cloud"] svg {
-  fill: #cde6ff;
-  color: #3f79b7;
 }
 
 :root[data-interface-style="windows-xp"]

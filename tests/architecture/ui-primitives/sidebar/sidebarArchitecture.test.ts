@@ -120,9 +120,11 @@ describe("Sidebar architecture", () => {
     expect(appSource).not.toContain("if (autoCollapsed)");
   });
 
-  it("keeps the minimal collapsed-edge affordance for the auxiliary pane only", () => {
+  it("keeps collapsed pane edges resize-only without midpoint expansion buttons", () => {
     expect(sharedSidebarCss).toContain(".po-collapsed-pane-edge-handle::after");
-    expect(sharedSidebarCss).toContain(".po-collapsed-pane-edge-glyph");
+    expect(sharedSidebarCss).not.toContain(".po-collapsed-pane-edge-glyph");
+    expect(auxiliaryHostSource).not.toContain("onCollapsedActivate");
+    expect(desktopShellSource).not.toContain("onCollapsedActivate");
     expect(auxiliaryHostSource).not.toContain("collapsedEdgeSettled");
     expect(auxiliaryHostSource).toContain('collapsedEdgeSide: presentation.settledCollapsed ? "inline-end" : undefined');
     expect(layoutCss).toMatch(
@@ -221,7 +223,8 @@ describe("Sidebar architecture", () => {
     expect(cloudHistorySidebar).toContain("VirtualSidebarList");
     expect(virtualSidebarList).toContain("listRef?: MutableRefObject<HTMLOListElement | null>");
     expect(sourceControlResourceLists).toContain('"--desktop-sidebar-virtual-row-size"');
-    expect(sourceControlHistory).toContain('"--desktop-sidebar-virtual-row-size"');
+    expect(sourceControlHistory).toContain('"--desktop-history-date-row-size"');
+    expect(sourceControlHistory).toContain("rowSize={getHistoryRowSize}");
     expect(sourceControlResourceLists).not.toMatch(/rowSize=\{(?:30|32|34)\}/);
     expect(sourceControlHistory).not.toMatch(/rowSize=\{(?:30|32|34)\}/);
     expect(tokens).toContain("--desktop-sidebar-virtual-row-size: calc(var(--desktop-sidebar-row-height) + 2px)");

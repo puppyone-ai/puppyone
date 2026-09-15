@@ -1,7 +1,6 @@
 import { useLocalization } from "@puppyone/localization";
 import {
   DesktopNavigationItems,
-  DesktopSidebarCloudButton,
   DesktopSidebarSettingsButton,
 } from "./DesktopNavigationItems";
 import { resolveNavigationItems } from "./navigationModel";
@@ -10,7 +9,6 @@ import type { DesktopNavigationProps } from "./types";
 export function DesktopSidebarRailNavigation({
   activeView,
   availableSurfaceIds,
-  cloudHubEnabled = false,
   gitEnabled = true,
   pluginsEnabled = false,
   gitIncomingCount,
@@ -18,17 +16,14 @@ export function DesktopSidebarRailNavigation({
   gitStatus,
   workspaceChangeCount,
   onNavigate,
-  onOpenCloud,
   onOpenSettings,
-  cloudOpen = false,
   settingsOpen = false,
   showSettings = true,
   utilitySlot,
 }: DesktopNavigationProps) {
   const { t } = useLocalization();
-  const { cloudHubVisible, localItems } = resolveNavigationItems({
+  const { localItems } = resolveNavigationItems({
     availableSurfaceIds,
-    cloudHubEnabled,
     gitEnabled,
     pluginsEnabled,
   });
@@ -47,13 +42,6 @@ export function DesktopSidebarRailNavigation({
         <DesktopNavigationItems {...runtime} buttonClassName="desktop-sidebar-rail-button" items={localItems} />
       </div>
       <div className="desktop-sidebar-rail-actions desktop-sidebar-rail-actions-end">
-        {cloudHubVisible && (
-          <DesktopSidebarCloudButton
-            buttonClassName="desktop-sidebar-rail-button"
-            cloudOpen={cloudOpen}
-            onOpenCloud={onOpenCloud ?? (() => onNavigate("cloud"))}
-          />
-        )}
         {showSettings && (
           <DesktopSidebarSettingsButton
             buttonClassName="desktop-sidebar-rail-button"

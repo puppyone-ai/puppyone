@@ -6,7 +6,7 @@ import {
   type FileIconThemeId,
 } from "@puppyone/shared-ui";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type {
   GitCommitChange,
   GitCommitSummary,
@@ -15,7 +15,10 @@ import type {
 import { displayGitBranch } from "./viewModel";
 import { GitSidebarLoadingState } from "./sidebar/GitSidebarPrimitives";
 
-const HISTORY_VIRTUAL_ROW_FALLBACK = 78;
+const HISTORY_DATE_ROW_FALLBACK = 36;
+const HISTORY_COMMIT_BASE_ROW_FALLBACK = 30;
+const HISTORY_FILE_ROW_FALLBACK = 16;
+const HISTORY_VISIBLE_FILE_LIMIT = 4;
 
 export function GitHistoryTimeline({
   commits,
@@ -35,10 +38,20 @@ export function GitHistoryTimeline({
   const { t, formatDate, formatRelativeTime } = useLocalization();
   const [collapsedDateKeys, setCollapsedDateKeys] = useState<Set<string>>(() => new Set());
   const virtualListRef = useRef<HTMLOListElement | null>(null);
-  const virtualRowSize = useCssPixelCustomProperty(
+  const dateRowSize = useCssPixelCustomProperty(
     virtualListRef,
-    "--desktop-sidebar-virtual-row-size",
-    HISTORY_VIRTUAL_ROW_FALLBACK,
+    "--desktop-history-date-row-size",
+    HISTORY_DATE_ROW_FALLBACK,
+  );
+  const commitBaseRowSize = useCssPixelCustomProperty(
+    virtualListRef,
+    "--desktop-history-commit-base-row-size",
+    HISTORY_COMMIT_BASE_ROW_FALLBACK,
+  );
+  const fileRowSize = useCssPixelCustomProperty(
+    virtualListRef,
+    "--desktop-history-file-row-size",
+    HISTORY_FILE_ROW_FALLBACK,
   );
   const historyIsConfirmedEmpty = status?.isRepo === true && status.totalCommits === 0;
   const rows = createHistoryRows(
@@ -48,6 +61,12 @@ export function GitHistoryTimeline({
     formatRelativeTime,
     collapsedDateKeys,
   );
+  const getHistoryRowSize = useCallback((row: GitHistoryListRow) => {
+    if (row.kind === "date") return dateRowSize;
+    const visibleFileCount = Math.min(row.commit.changes.length, HISTORY_VISIBLE_FILE_LIMIT);
+    const overflowRowCount = row.commit.changes.length > HISTORY_VISIBLE_FILE_LIMIT ? 1 : 0;
+    return commitBaseRowSize + (visibleFileCount + overflowRowCount) * fileRowSize;
+  }, [commitBaseRowSize, dateRowSize, fileRowSize]);
 
   if (commits.length > 0) {
     return (
@@ -56,7 +75,7 @@ export function GitHistoryTimeline({
         ariaLabel={t("source-control.history.ariaLabel")}
         items={rows}
         listRef={virtualListRef}
-        rowSize={virtualRowSize}
+        rowSize={getHistoryRowSize}
         activeIndex={rows.findIndex((row) => (
           row.kind === "commit" && row.commit.commit_id === selectedCommitId
         ))}
@@ -126,7 +145,7 @@ function GitHistoryRow({
     compactDisplay: "short",
     maximumFractionDigits: 1,
   });
-  const visibleChanges = commit.changes.slice(0, 2);
+  const visibleChanges = commit.changes.slice(0, HISTORY_VISIBLE_FILE_LIMIT);
   const hiddenChangeCount = Math.max(0, commit.changes.length - visibleChanges.length);
 
   return (

@@ -15,7 +15,6 @@ const DESKTOP_NAV_ITEMS: readonly DesktopNavigationItem[] = [
 
 export function resolveNavigationItems({
   availableSurfaceIds,
-  cloudHubEnabled = false,
   gitEnabled = true,
   pluginsEnabled = false,
 }: DesktopNavigationAvailability) {
@@ -23,7 +22,6 @@ export function resolveNavigationItems({
     const available = new Set(availableSurfaceIds);
     return {
       localItems: DESKTOP_NAV_ITEMS.filter(({ view }) => available.has(view)),
-      cloudHubVisible: available.has("cloud"),
     };
   }
 
@@ -33,7 +31,6 @@ export function resolveNavigationItems({
         (gitEnabled || item.view !== "git")
         && (pluginsEnabled || item.view !== "plugins")
       )),
-    cloudHubVisible: cloudHubEnabled,
   };
 }
 

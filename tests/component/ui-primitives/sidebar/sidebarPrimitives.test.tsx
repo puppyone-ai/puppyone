@@ -168,36 +168,33 @@ describe("Sidebar primitives", () => {
     expect(onKeyboardResize).toHaveBeenNthCalledWith(3, "decrease", true);
   });
 
-  it("turns the same pane-edge handle into a minimal collapsed-edge activator", () => {
-    const onCollapsedActivate = vi.fn();
+  it("keeps the collapsed pane edge as a resize-only separator", () => {
+    const onKeyboardResize = vi.fn();
     const container = render(
       <SidebarResizeHandle
         collapsedEdgeSide="inline-start"
-        label="Expand project sidebar"
+        label="Resize project sidebar"
         orientation="vertical"
         paneEdge
-        onCollapsedActivate={onCollapsedActivate}
+        min={56}
+        max={360}
+        value={56}
+        onKeyboardResize={onKeyboardResize}
       />,
     );
-    const handle = container.querySelector<HTMLElement>('[role="button"]');
+    const handle = container.querySelector<HTMLElement>('[role="separator"]');
 
     expect(handle?.classList.contains("po-collapsed-pane-edge-handle")).toBe(true);
-    expect(handle?.getAttribute("aria-orientation")).toBeNull();
-    expect(handle?.querySelector("polyline")?.getAttribute("points")).toBe("1,1 7,7 1,13");
+    expect(handle?.getAttribute("aria-orientation")).toBe("vertical");
+    expect(handle?.getAttribute("aria-valuenow")).toBe("56");
+    expect(handle?.querySelector(".po-collapsed-pane-edge-glyph")).toBeNull();
 
     act(() => handle?.dispatchEvent(new KeyboardEvent("keydown", {
       bubbles: true,
-      key: "Enter",
+      key: "ArrowRight",
     })));
 
-    expect(onCollapsedActivate).toHaveBeenCalledOnce();
-
-    onCollapsedActivate.mockClear();
-    act(() => handle?.dispatchEvent(new MouseEvent("click", {
-      bubbles: true,
-      detail: 0,
-    })));
-    expect(onCollapsedActivate).toHaveBeenCalledOnce();
+    expect(onKeyboardResize).toHaveBeenCalledExactlyOnceWith("increase", false);
   });
 
   it("caps mounted rows for scalable lists while keeping native list semantics", () => {
@@ -219,6 +216,27 @@ describe("Sidebar primitives", () => {
     expect(mountedRows.length).toBeGreaterThan(0);
     expect(mountedRows.length).toBeLessThanOrEqual(120);
     expect(mountedRows.length).toBeLessThan(items.length);
+  });
+
+  it("supports variable row geometry without changing list semantics", () => {
+    const items = [
+      { id: "date", label: "Today", size: 36 },
+      { id: "commit", label: "Commit", size: 94 },
+    ];
+    const container = render(
+      <VirtualSidebarList
+        ariaLabel="Variable project history"
+        items={items}
+        rowSize={(item) => item.size}
+        getKey={(item) => item.id}
+        renderRow={(item) => <button type="button">{item.label}</button>}
+      />,
+    );
+
+    const rows = container.querySelectorAll<HTMLElement>("li.po-sidebar-virtual-row");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]?.style.getPropertyValue("--po-sidebar-virtual-row-size")).toBe("36px");
+    expect(rows[1]?.style.getPropertyValue("--po-sidebar-virtual-row-size")).toBe("94px");
   });
 });
 

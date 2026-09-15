@@ -2,7 +2,6 @@ import { useLocalization } from "@puppyone/localization";
 import type { SidebarNavigationOrientation } from "../../../preferences";
 import {
   DesktopNavigationItems,
-  DesktopSidebarCloudButton,
   DesktopSidebarSettingsButton,
 } from "./DesktopNavigationItems";
 import { resolveNavigationItems } from "./navigationModel";
@@ -11,7 +10,6 @@ import type { DesktopNavigationProps } from "./types";
 export function DesktopSidebarTopNavigation({
   activeView,
   availableSurfaceIds,
-  cloudHubEnabled = false,
   gitEnabled = true,
   pluginsEnabled = false,
   orientation,
@@ -20,9 +18,7 @@ export function DesktopSidebarTopNavigation({
   gitStatus,
   workspaceChangeCount,
   onNavigate,
-  onOpenCloud,
   onOpenSettings,
-  cloudOpen = false,
   settingsOpen = false,
   showSettings = true,
   utilitySlot,
@@ -34,9 +30,8 @@ export function DesktopSidebarTopNavigation({
   useToolLabels?: boolean;
 }) {
   const { t } = useLocalization();
-  const { cloudHubVisible, localItems } = resolveNavigationItems({
+  const { localItems } = resolveNavigationItems({
     availableSurfaceIds,
-    cloudHubEnabled,
     gitEnabled,
     pluginsEnabled,
   });
@@ -73,15 +68,6 @@ export function DesktopSidebarTopNavigation({
             shellToolbar={shellToolbar}
             showLabel
           />
-          {cloudHubVisible && (
-            <DesktopSidebarCloudButton
-              buttonClassName={buttonClassName}
-              cloudOpen={cloudOpen}
-              onOpenCloud={onOpenCloud ?? (() => onNavigate("cloud"))}
-              shellToolbar={shellToolbar}
-              showLabel
-            />
-          )}
           {showSettings && (
             <DesktopSidebarSettingsButton
               buttonClassName={buttonClassName}

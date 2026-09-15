@@ -60,6 +60,8 @@
   "workspaceSwitcher.createNew": "새로 만들기",
   "workspaceSwitcher.projectDetails": "프로젝트 세부 정보",
   "workspaceSwitcher.localPath": "로컬 폴더",
+  "workspaceSwitcher.contextAssetCloud": "Cloud 프로젝트",
+  "workspaceSwitcher.contextAssetLocal": "로컬 폴더",
   "workspaceSwitcher.projectIcon": "프로젝트 아이콘",
   "workspaceSwitcher.projectIconDescription": "이니셜, 이모지 또는 이미지를 선택하세요. 이 기기에 저장됩니다.",
   "workspaceSwitcher.useInitial": "이니셜 사용",

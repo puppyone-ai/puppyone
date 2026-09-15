@@ -344,17 +344,12 @@ export function DesktopCloudShell({
                     collapsedEdgeSide: presentation.settledCollapsed ? "inline-start" : undefined,
                     resizing: leadingRailResize.dragging,
                     orientation: "vertical",
-                    label: t(presentation.settledCollapsed
-                      ? "shell.workspaceSwitcher.expandProjects"
-                      : "shell.workspaceSwitcher.resizeProjects"),
+                    label: t("shell.workspaceSwitcher.resizeProjects"),
                     min: leadingRailCanCollapse
                       ? resolvedLeadingRailCollapsedWidth
                       : resolvedLeadingRailMinWidth,
                     max: resolvedLeadingRailMaxWidth,
                     value: resolvedLeadingRailWidth,
-                    onCollapsedActivate: presentation.settledCollapsed
-                      ? () => commitLeadingRail({ type: "expand" })
-                      : undefined,
                     onPointerDown: leadingRailResize.onPointerDown,
                     onKeyboardResize: resizeLeadingRailByKeyboard,
                   }

@@ -301,6 +301,9 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
     return () => ipcRenderer.removeListener("resource-transfer:state", handler);
   },
   startResourceDrag: (request) => ipcRenderer.invoke("resource-transfer:start-drag", request),
+  startProjectRootDrag: (request) => ipcRenderer.invoke("resource-transfer:start-project-drag", {
+    path: request?.path,
+  }),
   listFolderChildren: (request) => ipcRenderer.invoke("workspace:list-folder-children", request),
   resolveNode: (request) => ipcRenderer.invoke("workspace:resolve-node", request),
   readFile: (request) => ipcRenderer.invoke("workspace:read-file", request),

@@ -17,6 +17,17 @@ const rightPane = resolveCollapsiblePaneGestureConfig({
 });
 
 describe("collapsible pane gesture state machine", () => {
+  it("does not turn a collapsed resize edge click into an expand action", () => {
+    const gesture = beginCollapsiblePaneGesture(
+      rightPane,
+      { clientX: 0, clientY: 0 },
+      true,
+      0,
+    );
+
+    expect(finishCollapsiblePaneGesture(gesture, rightPane)).toBeNull();
+  });
+
   it("shows a temporary collapse through release jitter and emits one final commit", () => {
     let gesture = beginCollapsiblePaneGesture(
       rightPane,
