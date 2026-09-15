@@ -482,7 +482,7 @@ describe("editor split-pane architecture", () => {
     expect(layoutStyles).toContain("body.desktop-right-sidebar-resizing");
     expect(readCssBlock(
       layoutStyles,
-      "body.desktop-right-sidebar-resizing .desktop-right-sidebar",
+      "body.desktop-right-sidebar-resizing .desktop-right-sidebar.po-collapsible-pane-frame",
     )).toContain("transition: none;");
   });
 });

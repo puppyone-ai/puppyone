@@ -4,6 +4,12 @@ export async function canCaptureNativeWindow(window) {
   if (process.platform === "darwin" && systemPreferences.getMediaAccessStatus("screen") !== "granted") {
     return false;
   }
+  if (process.platform === "linux" && !process.env.XDG_SESSION_TYPE) {
+    // xvfb-run supplies DISPLAY but no desktop session. desktopCapturer can
+    // occasionally return one frame there and then lose the window source, so
+    // a probe is not a durable capability signal for hosted Linux checks.
+    return false;
+  }
   try {
     await captureNativeWindow(window);
     return true;

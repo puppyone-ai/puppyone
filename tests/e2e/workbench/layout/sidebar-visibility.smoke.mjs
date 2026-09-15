@@ -273,7 +273,6 @@ app.whenReady().then(async () => {
         } catch (error) { failure ??= error; }
       }
       if (window.webContents.debugger.isAttached()) window.webContents.debugger.detach();
-      window.destroy();
     }
     restoreProvider(); clearTimeout(deadline);
     try { await fs.rm(temporary, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
@@ -284,6 +283,10 @@ app.whenReady().then(async () => {
       compositor: nativeCapture ? "OS composed window capture; DOM contributions, native PDF covered separately" : "not-run: screen permission unavailable",
       input: nativeInput ? "CoreGraphics OS click/wheel" : "Chromium input; native hit testing requires --native", failure: failure?.stack }, null, 2));
     console.log(`Sidebar visibility evidence: ${output}`);
+    // On Linux, main.mjs quits when the final BrowserWindow closes. Persist
+    // evidence before destroying it so the release runner never observes a
+    // successful process without its declared result artifact.
+    if (window && !window.isDestroyed()) window.destroy();
     app.exit(failure ? 1 : 0);
   }
 }).catch(error => { console.error(error); app.exit(1); });

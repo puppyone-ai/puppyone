@@ -156,6 +156,9 @@ try {
     id: entry.sessionId, bounds: entry.view.getBounds(), ready: await pdfReady(entry.view.webContents),
   }))) }));
   ipcMain.handle("pane-contracts:input", async (_event, request) => {
+    // Capturing a native child can leave it as the focused WebContents on
+    // Linux. Restore the owner before injecting the next real pane gesture.
+    window.webContents.focus();
     const send = (type, point, extra = {}) => window.webContents.sendInputEvent({ type, x: Math.round(point.x), y: Math.round(point.y), ...extra });
     if (request.kind === "click") {
       send("mouseMove", request.point); send("mouseDown", request.point, { button: "left", clickCount: 1 });
