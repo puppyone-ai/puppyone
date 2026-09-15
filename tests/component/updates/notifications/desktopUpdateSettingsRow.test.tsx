@@ -35,10 +35,25 @@ describe("DesktopUpdateSettingsRow", () => {
     await renderState(host, createState("available"), onUpdateNow);
 
     button = host.querySelector<HTMLButtonElement>("button");
-    expect(button?.textContent).toContain("Update now");
+    expect(button?.textContent).toContain("Download update");
     expect(button?.disabled).toBe(false);
     button?.click();
     expect(onUpdateNow).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers restart only after the update is downloaded", async () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    const onUpdateNow = vi.fn();
+
+    await renderState(host, createState("downloaded"), onUpdateNow);
+
+    const button = host.querySelector<HTMLButtonElement>("button");
+    expect(button?.textContent).toContain("Restart to update");
+    expect(button?.disabled).toBe(false);
+    button?.click();
+    expect(onUpdateNow).toHaveBeenCalledOnce();
   });
 
   it("identifies a development build without claiming that it is current", async () => {
@@ -82,7 +97,8 @@ function createState(status: DesktopUpdateStatus): DesktopUpdateState {
     status,
     currentVersion: "1.4.0",
     channel: "stable",
-    availableVersion: status === "available" ? "1.5.0" : null,
+    automaticallyDownloadUpdates: true,
+    availableVersion: status === "available" || status === "downloaded" ? "1.5.0" : null,
     updateInfo: null,
     progress: null,
     blockers: [],

@@ -562,6 +562,7 @@ export type DesktopUpdateState = {
   status: DesktopUpdateStatus;
   currentVersion: string;
   channel: DesktopBuildChannel;
+  automaticallyDownloadUpdates: boolean;
   availableVersion: string | null;
   updateInfo: DesktopUpdateInfo;
   progress: DesktopUpdateProgress;
@@ -1483,6 +1484,7 @@ declare global {
       downloadUpdate: () => Promise<DesktopUpdateState>;
       updateNow: () => Promise<DesktopUpdateState>;
       installUpdate: () => Promise<DesktopUpdateState>;
+      setAutomaticallyDownloadUpdates: (request: { enabled: boolean }) => Promise<DesktopUpdateState>;
       onUpdateStateChanged: (
         callback: (state: DesktopUpdateState) => void,
       ) => () => void;

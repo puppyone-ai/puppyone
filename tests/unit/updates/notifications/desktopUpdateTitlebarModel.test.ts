@@ -13,22 +13,14 @@ describe("desktop update titlebar presentation", () => {
     "idle",
     "checking",
     "not-available",
+    "available",
+    "downloading",
     "error",
   ])("stays hidden for %s", (status) => {
     expect(getDesktopUpdateTitlebarState(createState(status))).toBeNull();
   });
 
-  it("appears only after an update is confirmed and follows its actionable lifecycle", () => {
-    expect(getDesktopUpdateTitlebarState(createState("available"))).toMatchObject({
-      kind: "available",
-      interactive: true,
-      version: "1.5.0",
-    });
-    expect(getDesktopUpdateTitlebarState(createState("downloading", 37.4))).toMatchObject({
-      kind: "downloading",
-      interactive: false,
-      progressPercent: 37,
-    });
+  it("appears only after the update is downloaded and follows the restart lifecycle", () => {
     expect(getDesktopUpdateTitlebarState(createState("downloaded"))).toMatchObject({
       kind: "ready",
       interactive: true,
@@ -43,13 +35,24 @@ describe("desktop update titlebar presentation", () => {
     });
   });
 
+  it("offers a manual download when the user disables automatic downloads", () => {
+    expect(getDesktopUpdateTitlebarState({
+      ...createState("available"),
+      automaticallyDownloadUpdates: false,
+    })).toMatchObject({
+      kind: "available",
+      interactive: true,
+      version: "1.5.0",
+    });
+  });
+
   it.each([
     ["1.4.0", "same"],
     ["1.3.9", "older"],
     ["1.5.0-internal.1", "cross-channel"],
   ])("fails closed and stays hidden for a %s candidate (%s)", (availableVersion) => {
     expect(getDesktopUpdateTitlebarState({
-      ...createState("available"),
+      ...createState("downloaded"),
       availableVersion,
     })).toBeNull();
   });
@@ -60,6 +63,7 @@ function createState(status: DesktopUpdateStatus, percent = 0): DesktopUpdateSta
     status,
     currentVersion: "1.4.0",
     channel: "stable",
+    automaticallyDownloadUpdates: true,
     availableVersion: "1.5.0",
     updateInfo: null,
     progress: status === "downloading"

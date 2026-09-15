@@ -22,12 +22,18 @@ export type DesktopUpdatesController = {
   state: DesktopUpdateState;
   checkForUpdates: () => Promise<void>;
   updateNow: () => Promise<void>;
+  automaticDownloadPreferenceAvailable: boolean;
+  automaticDownloadPreferenceSaving: boolean;
+  automaticDownloadPreferenceError: boolean;
+  setAutomaticallyDownloadUpdates: (enabled: boolean) => Promise<void>;
 };
 
 export function useDesktopUpdates(): DesktopUpdatesController {
   const [state, setState] = useState<DesktopUpdateState>(
     DEVELOPMENT_UPDATE_PREVIEW_STATE ?? FALLBACK_UPDATE_STATE,
   );
+  const [automaticDownloadPreferenceSaving, setAutomaticDownloadPreferenceSaving] = useState(false);
+  const [automaticDownloadPreferenceError, setAutomaticDownloadPreferenceError] = useState(false);
 
   useEffect(() => {
     if (DEVELOPMENT_UPDATE_PREVIEW_STATE) return undefined;
@@ -76,5 +82,30 @@ export function useDesktopUpdates(): DesktopUpdatesController {
     setState(normalizeDesktopUpdateState(await bridge.updateNow()));
   }, []);
 
-  return { state, checkForUpdates, updateNow };
+  const setAutomaticallyDownloadUpdates = useCallback(async (enabled: boolean) => {
+    if (DEVELOPMENT_UPDATE_PREVIEW_STATE) return;
+    const setPreference = window.puppyoneDesktop?.setAutomaticallyDownloadUpdates;
+    if (!setPreference) return;
+    setAutomaticDownloadPreferenceSaving(true);
+    setAutomaticDownloadPreferenceError(false);
+    try {
+      setState(normalizeDesktopUpdateState(await setPreference({ enabled })));
+    } catch {
+      setAutomaticDownloadPreferenceError(true);
+    } finally {
+      setAutomaticDownloadPreferenceSaving(false);
+    }
+  }, []);
+
+  return {
+    state,
+    checkForUpdates,
+    updateNow,
+    automaticDownloadPreferenceAvailable: !DEVELOPMENT_UPDATE_PREVIEW_STATE && Boolean(
+      window.puppyoneDesktop?.setAutomaticallyDownloadUpdates,
+    ),
+    automaticDownloadPreferenceSaving,
+    automaticDownloadPreferenceError,
+    setAutomaticallyDownloadUpdates,
+  };
 }

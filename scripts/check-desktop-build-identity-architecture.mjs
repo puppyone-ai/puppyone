@@ -218,12 +218,20 @@ requireSource(
   "if (!presentation) return null",
   "the Header update affordance must occupy no space when it is hidden",
 );
-for (const visibleStatus of ["available", "downloading", "downloaded", "blocked", "installing"]) {
+for (const visibleStatus of ["downloaded", "blocked", "installing"]) {
   requireSource(
     updateModelSource,
     `state.status === "${visibleStatus}"`,
     `the Header update selector must handle ${visibleStatus}`,
   );
+}
+requireSource(
+  updateModelSource,
+  'state.status === "available" && !state.automaticallyDownloadUpdates',
+  "the Header update selector must expose manual download only after opt-out",
+);
+if (updateModelSource.includes('kind: "downloading"')) {
+  errors.push("the Header update selector must keep downloading quiet");
 }
 if (/state\.status === "(?:disabled|idle|checking|not-available|error)"/.test(updateModelSource)) {
   errors.push("the Header update selector must not expose unavailable, current, checking, or error states");
@@ -238,8 +246,8 @@ requireSource(
   "isDevelopment: import.meta.env.DEV",
   "the update controller must bind the visual fixture to Vite development builds",
 );
-if (!packageScripts["dev:update-preview"]?.includes("VITE_DESKTOP_UPDATE_PREVIEW=available")) {
-  errors.push("the development update affordance must have an explicit preview launcher");
+if (!packageScripts["dev:update-preview"]?.includes("VITE_DESKTOP_UPDATE_PREVIEW=downloaded")) {
+  errors.push("the downloaded update affordance must have an explicit preview launcher");
 }
 const sidebarSources = [
   await readText("src/features/app-shell/DesktopDataWorkspaceSurface.tsx"),

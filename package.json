@@ -37,7 +37,7 @@
     "lint:fix": "eslint . --fix",
     "prepare:desktop-build:dev": "node scripts/prepare-desktop-build.mjs --channel dev",
     "dev": "npm run build:native-drag && npm run prepare:desktop-build:dev && node scripts/prepare-opencode-dev-runtime.mjs --optional && node scripts/dev-electron.mjs",
-    "dev:update-preview": "VITE_DESKTOP_UPDATE_PREVIEW=available VITE_DESKTOP_UPDATE_PREVIEW_VERSION=0.3.0-preview.1 VITE_DESKTOP_CLOUD_API_URL=https://api.puppyone.ai/api/v1 VITE_DESKTOP_CLOUD_WEB_URL=https://app.puppyone.ai npm run dev",
+    "dev:update-preview": "VITE_DESKTOP_UPDATE_PREVIEW=downloaded VITE_DESKTOP_UPDATE_PREVIEW_VERSION=0.3.0-preview.1 VITE_DESKTOP_CLOUD_API_URL=https://api.puppyone.ai/api/v1 VITE_DESKTOP_CLOUD_WEB_URL=https://app.puppyone.ai npm run dev",
     "dev:renderer": "vite",
     "dev:browser": "vite --host 127.0.0.1",
     "dev:desktop-telemetry-edge": "wrangler dev --config cloudflare/desktop-telemetry/wrangler.jsonc",

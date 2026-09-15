@@ -1,5 +1,8 @@
 {
   "settings.title": "应用更新",
+  "settings.autoDownload.title": "自动下载更新",
+  "settings.autoDownload.detail": "在后台下载新版本，准备好后再重启。",
+  "settings.autoDownload.error": "无法保存更新偏好。",
   "action.unavailable": "不可用",
   "action.developmentBuild": "开发版本",
   "action.upToDate": "已是最新版本",

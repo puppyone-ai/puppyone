@@ -42,7 +42,7 @@ describe("Desktop updater channel isolation", () => {
 
     service.start();
     service.start();
-    expect(handlers.size).toBe(5);
+    expect(handlers.size).toBe(6);
     for (const handler of handlers.values()) {
       await handler();
       expect(service.getState()).toMatchObject({ status: "disabled", error: null });
@@ -188,6 +188,8 @@ describe("Desktop updater channel isolation", () => {
 
       service.start();
       service.start();
+      expect(autoUpdater.autoDownload).toBe(false);
+      expect(autoUpdater.autoInstallOnAppQuit).toBe(true);
       await vi.advanceTimersByTimeAsync(BACKGROUND_UPDATE_INITIAL_DELAY_MS - 1);
 
       expect(checkCount).toBe(0);
@@ -300,7 +302,7 @@ describe("Desktop updater P0 monotonicity guard", () => {
     fixture.service.dispose();
   });
 
-  it("accepts a strictly newer same-channel candidate returned without updater events", async () => {
+  it("automatically downloads a strictly newer same-channel candidate returned without updater events", async () => {
     const fixture = createUpdaterFixture({
       channel: "stable",
       currentVersion: "1.4.0",
@@ -312,8 +314,144 @@ describe("Desktop updater P0 monotonicity guard", () => {
     const state = await fixture.service.checkForUpdates();
 
     expect(state).toMatchObject({
-      status: "available",
+      status: "downloaded",
       availableVersion: "1.4.1",
+    });
+    expect(fixture.autoUpdater.autoDownload).toBe(false);
+    expect(fixture.autoUpdater.autoInstallOnAppQuit).toBe(true);
+    expect(fixture.downloadUpdate).toHaveBeenCalledOnce();
+    expect(fixture.quitAndInstall).not.toHaveBeenCalled();
+
+    const cachedState = await fixture.service.checkForUpdates();
+
+    expect(cachedState.status).toBe("downloaded");
+    expect(fixture.checkForUpdates).toHaveBeenCalledOnce();
+    expect(fixture.downloadUpdate).toHaveBeenCalledOnce();
+    fixture.service.dispose();
+  });
+
+  it("keeps checking but waits for a manual download after automatic downloads are disabled", async () => {
+    const fixture = createUpdaterFixture({
+      channel: "stable",
+      currentVersion: "1.4.0",
+      candidateVersion: "1.4.1",
+    });
+    fixture.service.start();
+
+    const preferenceState = await fixture.service.setAutomaticallyDownloadUpdates(false);
+    const available = await fixture.service.checkForUpdates();
+
+    expect(preferenceState.automaticallyDownloadUpdates).toBe(false);
+    expect(available).toMatchObject({
+      status: "available",
+      automaticallyDownloadUpdates: false,
+      availableVersion: "1.4.1",
+    });
+    expect(fixture.persistAutomaticallyDownloadUpdates).toHaveBeenCalledWith(false);
+    expect(fixture.downloadUpdate).not.toHaveBeenCalled();
+
+    const downloaded = await fixture.service.updateNow();
+
+    expect(downloaded.status).toBe("downloaded");
+    expect(fixture.downloadUpdate).toHaveBeenCalledOnce();
+    expect(fixture.quitAndInstall).not.toHaveBeenCalled();
+    fixture.service.dispose();
+  });
+
+  it("starts the pending download when automatic downloads are enabled", async () => {
+    const fixture = createUpdaterFixture({
+      channel: "stable",
+      currentVersion: "1.4.0",
+      candidateVersion: "1.4.1",
+      automaticallyDownloadUpdates: false,
+    });
+    fixture.service.start();
+
+    expect((await fixture.service.checkForUpdates()).status).toBe("available");
+
+    const downloaded = await fixture.service.setAutomaticallyDownloadUpdates(true);
+
+    expect(downloaded).toMatchObject({
+      status: "downloaded",
+      automaticallyDownloadUpdates: true,
+    });
+    expect(fixture.persistAutomaticallyDownloadUpdates).toHaveBeenCalledWith(true);
+    expect(fixture.downloadUpdate).toHaveBeenCalledOnce();
+    expect(fixture.quitAndInstall).not.toHaveBeenCalled();
+    fixture.service.dispose();
+  });
+
+  it("keeps the prior preference when persistence fails and accepts a later retry", async () => {
+    const fixture = createUpdaterFixture({
+      channel: "stable",
+      currentVersion: "1.4.0",
+      candidateVersion: "1.4.1",
+    });
+    fixture.persistAutomaticallyDownloadUpdates
+      .mockRejectedValueOnce(new Error("preference disk full"));
+    fixture.service.start();
+
+    await expect(fixture.service.setAutomaticallyDownloadUpdates(false))
+      .rejects.toThrow("preference disk full");
+    expect(fixture.service.getState().automaticallyDownloadUpdates).toBe(true);
+
+    await expect(fixture.service.setAutomaticallyDownloadUpdates(false))
+      .resolves.toMatchObject({ automaticallyDownloadUpdates: false });
+    expect(fixture.persistAutomaticallyDownloadUpdates).toHaveBeenCalledTimes(2);
+    fixture.service.dispose();
+  });
+
+  it("rejects malformed automatic-download preference requests", async () => {
+    const fixture = createUpdaterFixture({
+      channel: "stable",
+      currentVersion: "1.4.0",
+      candidateVersion: "1.4.1",
+    });
+    fixture.service.start();
+
+    await expect(fixture.service.setAutomaticallyDownloadUpdates("false"))
+      .rejects.toThrow("Automatic update download preference must be a boolean.");
+    expect(fixture.persistAutomaticallyDownloadUpdates).not.toHaveBeenCalled();
+    fixture.service.dispose();
+  });
+
+  it("applies an opt-out to future updates without cancelling an in-flight download", async () => {
+    const fixture = createUpdaterFixture({
+      channel: "stable",
+      currentVersion: "1.4.0",
+      candidateVersion: "1.4.1",
+    });
+    let finishDownload;
+    fixture.downloadUpdate.mockImplementationOnce(() => new Promise((resolve) => {
+      finishDownload = () => {
+        fixture.autoUpdater.emit("update-downloaded", {
+          version: "1.4.1",
+          releaseName: "PuppyOne 1.4.1",
+          releaseDate: "2026-08-30T00:00:00.000Z",
+          releaseNotes: null,
+        });
+        resolve([]);
+      };
+    }));
+    fixture.service.start();
+
+    const check = fixture.service.checkForUpdates();
+    await vi.waitFor(() => expect(fixture.service.getState().status).toBe("downloading"));
+
+    const preferenceState = await fixture.service.setAutomaticallyDownloadUpdates(false);
+
+    expect(preferenceState).toMatchObject({
+      status: "downloading",
+      automaticallyDownloadUpdates: false,
+    });
+    expect(fixture.downloadUpdate).toHaveBeenCalledOnce();
+
+    finishDownload();
+    await check;
+
+    expect(fixture.service.getState()).toMatchObject({
+      status: "downloaded",
+      automaticallyDownloadUpdates: false,
     });
     fixture.service.dispose();
   });
@@ -338,7 +476,7 @@ describe("Desktop updater P0 monotonicity guard", () => {
     fixture.service.dispose();
   });
 
-  it("allows only a higher Internal build on the Internal channel", async () => {
+  it("downloads a higher Internal build without restarting until the next explicit action", async () => {
     const fixture = createUpdaterFixture({
       channel: "internal",
       currentVersion: "1.4.0-internal.80",
@@ -346,9 +484,15 @@ describe("Desktop updater P0 monotonicity guard", () => {
     });
     fixture.service.start();
 
-    await fixture.service.updateNow();
+    const downloaded = await fixture.service.updateNow();
 
+    expect(downloaded.status).toBe("downloaded");
     expect(fixture.downloadUpdate).toHaveBeenCalledOnce();
+    expect(fixture.quitAndInstall).not.toHaveBeenCalled();
+
+    const installing = await fixture.service.updateNow();
+
+    expect(installing.status).toBe("installing");
     expect(fixture.quitAndInstall).toHaveBeenCalledOnce();
     fixture.service.dispose();
   });
@@ -412,6 +556,17 @@ describe("Desktop updater restart safety", () => {
 
     await updateNow();
     expect(service.getState()).toMatchObject({
+      status: "downloaded",
+      availableVersion: "1.4.1",
+      blockers: [],
+    });
+    expect(checkForUpdates).toHaveBeenCalledTimes(1);
+    expect(downloadUpdate).toHaveBeenCalledTimes(1);
+    expect(confirmRestartWithBlockers).not.toHaveBeenCalled();
+    expect(quitAndInstall).not.toHaveBeenCalled();
+
+    await updateNow();
+    expect(service.getState()).toMatchObject({
       status: "blocked",
       availableVersion: "1.4.1",
       blockers,
@@ -443,6 +598,7 @@ function createUpdaterFixture({
   currentVersion,
   candidateVersion,
   emitAvailableEvent = true,
+  automaticallyDownloadUpdates = true,
 }) {
   const internalBuild = /-internal\.([1-9]\d*)$/.exec(currentVersion)?.[1];
   const buildNumber = channel === "internal" ? internalBuild : 80;
@@ -472,6 +628,7 @@ function createUpdaterFixture({
     return [];
   });
   const quitAndInstall = vi.fn();
+  const persistAutomaticallyDownloadUpdates = vi.fn(async () => {});
   Object.assign(autoUpdater, {
     checkForUpdates,
     downloadUpdate,
@@ -486,12 +643,15 @@ function createUpdaterFixture({
     getWindows: () => [],
     ipcMain: { handle: vi.fn() },
     platform: "linux",
+    automaticallyDownloadUpdates,
+    persistAutomaticallyDownloadUpdates,
   });
   return {
     autoUpdater,
     checkForUpdates,
     downloadUpdate,
     quitAndInstall,
+    persistAutomaticallyDownloadUpdates,
     service,
   };
 }

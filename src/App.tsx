@@ -1614,6 +1614,14 @@ function AppContent() {
                 state: desktopUpdates.state,
                 check: desktopUpdates.checkForUpdates,
                 install: desktopUpdates.updateNow,
+                automaticDownloadPreferenceAvailable:
+                  desktopUpdates.automaticDownloadPreferenceAvailable,
+                automaticDownloadPreferenceSaving:
+                  desktopUpdates.automaticDownloadPreferenceSaving,
+                automaticDownloadPreferenceError:
+                  desktopUpdates.automaticDownloadPreferenceError,
+                setAutomaticallyDownloadUpdates:
+                  desktopUpdates.setAutomaticallyDownloadUpdates,
               }}
               onClose={closeSettingsDialog}
             />

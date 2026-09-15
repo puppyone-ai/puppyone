@@ -8,17 +8,17 @@ describe("desktop update visual preview", () => {
   it("cannot create a preview state outside development", () => {
     expect(createDesktopUpdatePreviewState({
       isDevelopment: false,
-      requestedStatus: "available",
+      requestedStatus: "downloaded",
     })).toBeNull();
   });
 
-  it("creates an isolated available fixture in development", () => {
+  it("creates an isolated downloaded fixture in development", () => {
     expect(createDesktopUpdatePreviewState({
       isDevelopment: true,
-      requestedStatus: "available",
+      requestedStatus: "downloaded",
       version: "1.2.3-preview.4",
     })).toMatchObject({
-      status: "available",
+      status: "downloaded",
       channel: "dev",
       availableVersion: "1.2.3-preview.4",
       reason: "development-preview",
@@ -27,11 +27,11 @@ describe("desktop update visual preview", () => {
 
   it("prefers an explicit environment request over the URL helper", () => {
     expect(readDesktopUpdatePreviewRequest({
-      environmentStatus: "available",
+      environmentStatus: "downloaded",
       locationSearch: "?desktop-update-preview=ignored",
-    })).toBe("available");
+    })).toBe("downloaded");
     expect(readDesktopUpdatePreviewRequest({
-      locationSearch: "?desktop-update-preview=available",
-    })).toBe("available");
+      locationSearch: "?desktop-update-preview=downloaded",
+    })).toBe("downloaded");
   });
 });

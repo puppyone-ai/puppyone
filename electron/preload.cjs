@@ -439,6 +439,9 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   downloadUpdate: () => ipcRenderer.invoke("updates:download"),
   updateNow: () => ipcRenderer.invoke("updates:update-now"),
   installUpdate: () => ipcRenderer.invoke("updates:install"),
+  setAutomaticallyDownloadUpdates: (request) => (
+    ipcRenderer.invoke("updates:set-automatically-download", request)
+  ),
   onUpdateStateChanged: (callback) => {
     const listener = (_event, payload) => callback(payload);
     ipcRenderer.on("updates:state", listener);

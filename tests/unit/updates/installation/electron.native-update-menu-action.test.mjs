@@ -63,11 +63,17 @@ describe("native update menu action", () => {
     expect(updateService.updateNow).not.toHaveBeenCalled();
   });
 
-  it("offers the existing update pipeline when a new release is available", async () => {
-    const dialog = { showMessageBox: vi.fn(async () => ({ response: 1 })) };
+  it.each([
+    "available",
+    "downloading",
+    "downloaded",
+    "blocked",
+    "installing",
+  ])("keeps the native check quiet while an update is %s", async (status) => {
+    const dialog = { showMessageBox: vi.fn(async () => ({ response: 0 })) };
     const updateService = {
       checkForUpdates: vi.fn(async () => ({
-        status: "available",
+        status,
         channel: "stable",
         currentVersion: "1.4.0",
         availableVersion: "1.5.0",
@@ -84,12 +90,8 @@ describe("native update menu action", () => {
 
     await action();
 
-    expect(dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({
-      buttons: ["Not Now", "Update Now"],
-      defaultId: 1,
-      message: "puppyone 1.5.0 is available.",
-    }));
-    expect(updateService.updateNow).toHaveBeenCalledOnce();
+    expect(dialog.showMessageBox).not.toHaveBeenCalled();
+    expect(updateService.updateNow).not.toHaveBeenCalled();
   });
 
   it("never offers an update action for an older candidate", () => {

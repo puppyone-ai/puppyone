@@ -79,6 +79,7 @@ import { createNativeSurfaceOcclusionCoordinator } from "./main/native-surfaces/
 import { createNativeSurfacePointerPassthroughCoordinator } from "./main/native-surfaces/pointer-passthrough-coordinator.mjs";
 import { createDesktopNativeMenuService } from "./main/native-menu-service.mjs";
 import { createNativeUpdateMenuAction } from "./main/native-update-menu-action.mjs";
+import { createDesktopUpdatePreferenceStore } from "./main/updates/update-preference-store.mjs";
 import { registerFeedbackIpcHandlers } from "./main/ipc/feedback-ipc.mjs";
 import { registerSystemIpcHandlers } from "./main/ipc/system-ipc.mjs";
 import { registerTerminalIpcHandlers } from "./main/ipc/terminal-ipc.mjs";
@@ -747,6 +748,10 @@ app.on("second-instance", (_event, argv, workingDirectory, launchIntent) => {
 
 app.whenReady().then(async () => {
   await localeService.initialize();
+  const updatePreferenceStore = createDesktopUpdatePreferenceStore({
+    filePath: path.join(app.getPath("userData"), "desktop-update-preferences.json"),
+  });
+  const updatePreferences = await updatePreferenceStore.read();
   updateService = createUpdateService({
     app,
     buildInfo: desktopBuildInfo,
@@ -754,6 +759,10 @@ app.whenReady().then(async () => {
     getWindows: () => BrowserWindow.getAllWindows(),
     getRestartBlockers: getUpdateRestartBlockers,
     confirmRestartWithBlockers: confirmUpdateRestartWithBlockers,
+    automaticallyDownloadUpdates: updatePreferences.automaticallyDownloadUpdates,
+    persistAutomaticallyDownloadUpdates: (enabled) => updatePreferenceStore.write({
+      automaticallyDownloadUpdates: enabled,
+    }),
   });
   telemetryHost = createDesktopTelemetryHost({
     app,

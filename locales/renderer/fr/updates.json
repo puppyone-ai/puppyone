@@ -1,5 +1,8 @@
 {
   "settings.title": "Mises à jour de l’application",
+  "settings.autoDownload.title": "Télécharger automatiquement les mises à jour",
+  "settings.autoDownload.detail": "Télécharge les nouvelles versions en arrière-plan. Redémarrez quand vous êtes prêt.",
+  "settings.autoDownload.error": "Impossible d’enregistrer cette préférence de mise à jour.",
   "action.unavailable": "Indisponible",
   "action.developmentBuild": "Version de développement",
   "action.upToDate": "Déjà à jour",

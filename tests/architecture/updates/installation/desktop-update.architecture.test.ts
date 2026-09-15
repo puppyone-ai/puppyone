@@ -10,7 +10,11 @@ describe("Desktop update interaction boundaries", () => {
     const updateModel = source("src/features/updates/updateModel.ts");
     const updatePreview = source("src/features/updates/updatePreview.ts");
     const updateController = source("src/features/updates/useDesktopUpdates.ts");
+    const app = source("src/App.tsx");
     const titlebarActions = source("src/features/app-shell/DesktopTitlebarActions.tsx");
+    const preload = source("electron/preload.cjs");
+    const preferenceStore = source("electron/main/updates/update-preference-store.mjs");
+    const generalSettings = source("src/features/settings/main/GeneralSettingsView.tsx");
 
     expect(service).toContain('state.status === "downloaded" || state.status === "blocked"');
     expect(service).not.toContain('|| status === "blocked";');
@@ -35,15 +39,30 @@ describe("Desktop update interaction boundaries", () => {
     expect(service).toContain("BACKGROUND_UPDATE_INITIAL_DELAY_MS");
     expect(service).toContain("BACKGROUND_UPDATE_INTERVAL_MS");
     expect(service).toContain("scheduleBackgroundCheck");
+    expect(service).toContain("autoUpdater.autoDownload = false");
+    expect(service).toContain("autoUpdater.autoInstallOnAppQuit = true");
+    expect(service).toContain("await downloadAvailableUpdateInternal()");
+    expect(service).toContain("if (ACTIONABLE_UPDATE_STATES.has(state.status)) return state");
+    expect(service).toContain("updates:set-automatically-download");
+    expect(service).toContain("!state.automaticallyDownloadUpdates");
+    expect(main).toContain("desktop-update-preferences.json");
+    expect(preferenceStore).toContain("automaticallyDownloadUpdates: true");
+    expect(preload).toContain("setAutomaticallyDownloadUpdates");
+    expect(generalSettings).toContain("<AutomaticUpdateDownloadSettingRow");
     expect(titlebarActions).toContain('group: "app-status"');
     expect(titlebarActions).toContain("<DesktopUpdateTitlebarButton");
     expect(titlebarButton).toContain("getDesktopUpdateTitlebarState(state)");
-    expect(updateModel).toContain('state.status === "available"');
-    expect(updateModel).toContain('state.status === "downloading"');
+    expect(updateModel).toContain('state.status === "available" && !state.automaticallyDownloadUpdates');
     expect(updateModel).toContain('state.status === "downloaded" || state.status === "blocked"');
-    expect(updateModel).not.toMatch(/status === "(?:disabled|idle|checking|not-available|error)"/);
+    expect(updateModel).not.toMatch(/if \(state\.status === "(?:disabled|idle|checking|not-available|downloading|error)"\)/);
     expect(updatePreview).toContain("if (!isDevelopment");
     expect(updateController).toContain("isDevelopment: import.meta.env.DEV");
+    expect(app).toContain(
+      "automaticDownloadPreferenceAvailable:\n                  desktopUpdates.automaticDownloadPreferenceAvailable",
+    );
+    expect(app).toContain(
+      "setAutomaticallyDownloadUpdates:\n                  desktopUpdates.setAutomaticallyDownloadUpdates",
+    );
   });
 });
 

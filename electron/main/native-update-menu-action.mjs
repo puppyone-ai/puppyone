@@ -32,6 +32,8 @@ export function createNativeUpdateMenuAction({
     }
 
     const state = await updateService.checkForUpdates();
+    if (isPassiveUpdateState(state?.status)) return state;
+
     const presentation = createUpdateCheckPresentation({ appName, state, t });
     const result = await showMessageBox(presentation.options);
 
@@ -40,6 +42,14 @@ export function createNativeUpdateMenuAction({
     }
     return state;
   };
+}
+
+function isPassiveUpdateState(status) {
+  return status === "available"
+    || status === "downloading"
+    || status === "downloaded"
+    || status === "blocked"
+    || status === "installing";
 }
 
 export function createUpdateCheckPresentation({ appName, state, t }) {

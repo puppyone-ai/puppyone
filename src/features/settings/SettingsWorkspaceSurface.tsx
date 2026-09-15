@@ -101,6 +101,10 @@ export type SettingsWorkspaceSurfaceProps = {
     state: DesktopUpdateState;
     check: () => unknown;
     install: () => unknown;
+    automaticDownloadPreferenceAvailable: boolean;
+    automaticDownloadPreferenceSaving: boolean;
+    automaticDownloadPreferenceError: boolean;
+    setAutomaticallyDownloadUpdates: (enabled: boolean) => unknown;
   };
 };
 
@@ -183,6 +187,10 @@ export function createSettingsWorkspaceSurface({
         onRefreshGitStatus={git.refresh}
         onCheckForUpdates={() => void updates.check()}
         onUpdateNow={() => void updates.install()}
+        automaticDownloadPreferenceAvailable={updates.automaticDownloadPreferenceAvailable}
+        automaticDownloadPreferenceSaving={updates.automaticDownloadPreferenceSaving}
+        automaticDownloadPreferenceError={updates.automaticDownloadPreferenceError}
+        onAutomaticallyDownloadUpdatesChange={(enabled) => void updates.setAutomaticallyDownloadUpdates(enabled)}
       />
     ),
   } as const;

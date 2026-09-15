@@ -65,6 +65,10 @@ export type SettingsViewProps = {
   onRefreshGitStatus: () => void;
   onCheckForUpdates: () => void;
   onUpdateNow: () => void;
+  automaticDownloadPreferenceAvailable: boolean;
+  automaticDownloadPreferenceSaving: boolean;
+  automaticDownloadPreferenceError: boolean;
+  onAutomaticallyDownloadUpdatesChange: (enabled: boolean) => void;
 };
 
 export type SettingsSidebarProps = {

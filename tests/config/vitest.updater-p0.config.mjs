@@ -9,6 +9,10 @@ const include = [
   "tests/unit/updates/installation/electron.native-update-menu-action.test.mjs",
   "tests/unit/updates/notifications/desktopUpdateTitlebarModel.test.ts",
   "tests/component/updates/notifications/desktopUpdateSettingsRow.test.tsx",
+  "tests/component/updates/notifications/desktopUpdateTitlebarButton.test.tsx",
+  "tests/component/updates/preferences/automaticUpdateDownloadSettingRow.test.tsx",
+  "tests/component/updates/preferences/desktopUpdatesController.test.tsx",
+  "tests/unit/updates/preferences/electron.update-preference-store.test.mjs",
   "tests/architecture/updates/installation/desktop-update.architecture.test.ts",
 ];
 
@@ -20,9 +24,11 @@ export default defineConfig(async () => mergeConfig(await createTestConfig({ inc
       include: [
         "electron/update-service.mjs",
         "electron/main/native-update-menu-action.mjs",
+        "electron/main/updates/update-preference-store.mjs",
         "scripts/release-support/desktop-release-version-policy.mjs",
         "shared/desktop/update-policy.mjs",
         "src/features/updates/updateModel.ts",
+        "src/features/updates/useDesktopUpdates.ts",
       ],
       thresholds: {
         statements: 70,
