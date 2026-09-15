@@ -61,6 +61,7 @@ body.desktop-project-switcher-resizing * {
     )
   );
 
+  position: relative;
   display: flex;
   box-sizing: border-box;
   width: 100%;
@@ -73,6 +74,76 @@ body.desktop-project-switcher-resizing * {
   background: var(--po-sidebar);
   color: var(--po-text-muted);
   user-select: none;
+}
+
+.desktop-project-switcher-rail-tooltip {
+  position: absolute;
+  z-index: 90;
+  inset-inline-start: calc(100% + 8px);
+  display: inline-flex;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(240px, calc(100vw - 80px));
+  min-height: 26px;
+  align-items: center;
+  padding: 4px 8px;
+  border: 1px solid var(--po-menu-border);
+  border-radius: var(--po-menu-item-radius, var(--desktop-control-radius));
+  background: var(--po-menu-bg);
+  background-clip: padding-box;
+  box-shadow: var(--po-menu-shadow-compact);
+  color: var(--po-text);
+  font-family: var(--po-font-ui);
+  font-size: var(--po-type-ui-meta, 12px);
+  font-weight: var(--po-text-weight-regular, 400);
+  line-height: 16px;
+  opacity: 0;
+  overflow: visible;
+  pointer-events: none;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  animation: desktop-project-switcher-tooltip-in 100ms ease-out 180ms both;
+}
+
+.desktop-project-switcher-rail-tooltip::before {
+  position: absolute;
+  inset-inline-start: -4px;
+  inset-block-start: 50%;
+  width: 7px;
+  height: 7px;
+  border-inline-start: 1px solid var(--po-menu-border);
+  border-block-end: 1px solid var(--po-menu-border);
+  background: var(--po-menu-bg);
+  content: "";
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.desktop-project-switcher-rail-tooltip > bdi {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@keyframes desktop-project-switcher-tooltip-in {
+  from {
+    opacity: 0;
+    transform: translate(-2px, -50%);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(0, -50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desktop-project-switcher-rail-tooltip {
+    opacity: 1;
+    transform: translateY(-50%);
+    animation: none;
+  }
 }
 
 .desktop-project-switcher-rail-list {

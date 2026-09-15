@@ -253,9 +253,61 @@ describe("Project switcher rail", () => {
 
     const compactRows = host.querySelectorAll(".desktop-project-switcher-rail-project");
     expect(compactRows[0]?.querySelector(".desktop-project-switcher-rail-identity-badge")?.textContent).toBe("L");
-    expect(compactRows[0]?.querySelector(".desktop-project-switcher-rail-compact-context-avatar .lucide-folder-closed")).not.toBeNull();
+    const compactLocalMark = compactRows[0]?.querySelector(
+      ".desktop-project-switcher-rail-compact-context-avatar .lucide-folder-closed",
+    );
+    expect(compactLocalMark).not.toBeNull();
+    expect(compactLocalMark?.getAttribute("width")).toBe("15");
     expect(compactRows[1]?.querySelector(".desktop-project-switcher-rail-identity-badge")?.textContent).toBe("C");
-    expect(compactRows[1]?.querySelector(".desktop-project-switcher-rail-compact-context-avatar .lucide-cloud")).not.toBeNull();
+    const compactCloudMark = compactRows[1]?.querySelector(
+      ".desktop-project-switcher-rail-compact-context-avatar .lucide-cloud",
+    );
+    expect(compactCloudMark).not.toBeNull();
+    expect(compactCloudMark?.getAttribute("width")).toBe("15");
+  });
+
+  it("reveals a themed Project-name tooltip only for compact rows", async () => {
+    const active = workspace("active", "Alpha Project", "/projects/alpha");
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+
+    await act(async () => root?.render(withTestLocalization(
+      <ProjectSwitcherRail
+        activeWorkspace={active}
+        recentWorkspaces={[]}
+        onCreateNew={() => undefined}
+        onSelectProject={() => undefined}
+      />,
+    )));
+
+    const compactRow = host.querySelector<HTMLButtonElement>(
+      ".desktop-project-switcher-rail-project",
+    );
+    await act(async () => compactRow?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })));
+
+    const tooltip = host.querySelector<HTMLElement>("[role='tooltip']");
+    expect(tooltip?.textContent).toBe("Alpha Project");
+    expect(tooltip?.classList.contains("desktop-project-switcher-rail-tooltip")).toBe(true);
+    expect(compactRow?.getAttribute("aria-describedby")).toBe(tooltip?.id);
+    expect(compactRow?.hasAttribute("title")).toBe(false);
+
+    await act(async () => compactRow?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true })));
+    expect(host.querySelector("[role='tooltip']")).toBeNull();
+
+    await act(async () => compactRow?.focus());
+    expect(host.querySelector("[role='tooltip']")?.textContent).toBe("Alpha Project");
+
+    await act(async () => root?.render(withTestLocalization(
+      <ProjectSwitcherRail
+        activeWorkspace={active}
+        expanded
+        recentWorkspaces={[]}
+        onCreateNew={() => undefined}
+        onSelectProject={() => undefined}
+      />,
+    )));
+    expect(host.querySelector("[role='tooltip']")).toBeNull();
   });
 
   it("derives a stable Unicode grapheme from the Project identity", () => {

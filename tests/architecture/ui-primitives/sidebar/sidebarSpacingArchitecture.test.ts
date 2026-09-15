@@ -289,6 +289,7 @@ describe("sidebar spacing architecture", () => {
       "--desktop-project-switcher-compact-inline-padding: var(--desktop-sidebar-row-left-gap);",
     );
     expect(projectRail).toContain("--desktop-project-switcher-avatar-size: 18px;");
+    expect(projectRail).toContain("position: relative;");
     expect(projectRailButton).toContain("width: 100%;");
     expect(projectRailButton).toContain("height: var(--desktop-sidebar-row-height);");
     expect(projectRailButton).toContain("margin: 1px 0;");
@@ -321,6 +322,9 @@ describe("sidebar spacing architecture", () => {
     );
     expect(projectSwitcherCss).toMatch(
       /\.desktop-project-switcher-rail-identity-badge\s*\{[^}]*position:\s*absolute;[^}]*width:\s*14px;[^}]*height:\s*14px;[^}]*font-size:\s*var\(--po-type-ui-micro, 11px\);/s,
+    );
+    expect(projectSwitcherCss).toMatch(
+      /\.desktop-project-switcher-rail-tooltip\s*\{[^}]*inset-inline-start:\s*calc\(100% \+ 8px\);[^}]*border:\s*1px solid var\(--po-menu-border\);[^}]*background:\s*var\(--po-menu-bg\);[^}]*box-shadow:\s*var\(--po-menu-shadow-compact\);[^}]*font-weight:\s*var\(--po-text-weight-regular, 400\);/s,
     );
     expect(projectSwitcherCss).toMatch(
       /\.desktop-project-switcher-rail-context-avatar,[^{]+\{[^}]*border-radius:\s*0;[^}]*overflow:\s*visible;[^}]*background:\s*transparent;/s,
