@@ -1486,6 +1486,8 @@ function AppContent() {
                   commitDetailError={gitCommitDetailError}
                   historyLoading={gitHistoryLoading}
                   fileIconTheme={fileIconTheme}
+                  initializing={gitOperationLoading === "init"}
+                  onInitialize={handleInitializeGitRepository}
                   onSelectCommit={selectGitCommit}
                 />
               </div>

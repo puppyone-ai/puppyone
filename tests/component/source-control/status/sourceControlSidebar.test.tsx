@@ -18,6 +18,22 @@ afterEach(() => {
 });
 
 describe("Git sidebar status groups", () => {
+  it("reduces an uninitialized repository to one centered enable action", async () => {
+    const status = createGitStatus();
+    status.isRepo = false;
+    const onInitialize = vi.fn(async () => true);
+    const surface = renderSidebar({ onInitialize, status });
+
+    expect(surface.textContent).not.toContain("No repository");
+    const buttons = surface.querySelectorAll<HTMLButtonElement>("button");
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]?.textContent).toBe("Enable Version Control");
+    expect(buttons[0]?.classList.contains("desktop-version-control-enable-button")).toBe(true);
+
+    await act(async () => buttons[0]?.click());
+    expect(onInitialize).toHaveBeenCalledOnce();
+  });
+
   it("restores the established section-level commit workflow inside Changes", async () => {
     const onCommit = vi.fn(async () => true);
     const onPush = vi.fn(async () => true);
@@ -363,6 +379,7 @@ function renderSidebar(options: Partial<{
   onCommit: (message?: string) => Promise<boolean>;
   onContinue: () => Promise<boolean>;
   onDiscardAll: () => Promise<boolean>;
+  onInitialize: () => Promise<boolean>;
   onPull: () => Promise<boolean>;
   onPush: () => Promise<boolean>;
   onStageAll: () => Promise<boolean>;
@@ -393,7 +410,7 @@ function renderSidebar(options: Partial<{
         error: null,
       }}
       actions={{
-        initialize: succeed,
+        initialize: options.onInitialize ?? succeed,
         selectWorkingFile: vi.fn(),
         stagePaths: succeed,
         stageAll: options.onStageAll ?? succeed,

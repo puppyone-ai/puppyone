@@ -22,6 +22,24 @@ afterEach(() => {
 });
 
 describe("Git History right-sidebar surface", () => {
+  it("offers one version-history action before Git is initialized", async () => {
+    const onInitialize = vi.fn(async () => true);
+    const surface = renderHistory({
+      ...model(),
+      status: gitStatus({ isRepo: false, totalCommits: 0, commits: [], allCommits: [] }),
+      onInitialize,
+    });
+
+    expect(surface.textContent).not.toContain("No repository");
+    const buttons = surface.querySelectorAll<HTMLButtonElement>("button");
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]?.textContent).toBe("Create Version History");
+    expect(buttons[0]?.classList.contains("desktop-version-control-enable-button")).toBe(true);
+
+    await act(async () => buttons[0]?.click());
+    expect(onInitialize).toHaveBeenCalledOnce();
+  });
+
   it("drills into a commit without introducing workbench tabs", () => {
     const commit = createCommit();
     const onSelectCommit = vi.fn();
@@ -228,6 +246,8 @@ function model(): GitHistorySidebarProps {
     commitDetailError: null,
     historyLoading: false,
     fileIconTheme: "default",
+    initializing: false,
+    onInitialize: vi.fn(),
     onSelectCommit: vi.fn(),
   };
 }

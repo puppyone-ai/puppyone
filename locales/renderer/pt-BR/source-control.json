@@ -111,6 +111,7 @@
   "github.updatedRelative": "Atualizado {relativeTime}",
   "history.ariaLabel": "Histórico do Git",
   "history.branchEmpty": "{branch} ainda não tem histórico.",
+  "history.create": "Criar histórico de versões",
   "history.dateUnavailable": "Data indisponível",
   "history.firstCommit": "O primeiro commit em {branch} aparecerá aqui.",
   "history.initialize": "Inicialize um repositório para começar o histórico.",

@@ -19,6 +19,7 @@ import {
 } from "./sidebar/GitSidebarPrimitives";
 import { GitIncomingUpdateNotice } from "./sidebar/GitIncomingUpdateNotice";
 import { GitRemotePrompt } from "./sidebar/GitRemoteSections";
+import { GitRepositorySetupAction } from "./GitRepositorySetupAction";
 import type {
   GitSidebarProps,
   GitSidebarRenderPanel,
@@ -113,20 +114,13 @@ export function GitSidebar({ repository, view, actions, cloudBackup }: GitSideba
             label={t("source-control.status.readingGit")}
           />
         ) : status && !status.isRepo ? (
-          <SidebarEmptyState layout="vertical">
-            <span>{t("source-control.status.noRepository")}</span>
-            {operationError && <small className="po-sidebar-error-text">{operationError}</small>}
-            <button
-              className="desktop-git-initialize-action"
-              type="button"
-              disabled={Boolean(operationLoading)}
-              onClick={() => void actions.initialize()}
-            >
-              {operationLoading === "init"
-                ? t("source-control.setup.enabling")
-                : t("source-control.setup.enable")}
-            </button>
-          </SidebarEmptyState>
+          <GitRepositorySetupAction
+            label={t("source-control.setup.enable")}
+            pendingLabel={t("source-control.setup.enabling")}
+            pending={operationLoading === "init"}
+            error={operationError}
+            onEnable={actions.initialize}
+          />
         ) : (
           <div className="desktop-git-changes-pane">
               {syncState.behind > 0 && (

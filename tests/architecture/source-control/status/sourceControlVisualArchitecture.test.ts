@@ -22,6 +22,14 @@ const sourceControlSidebarSource = readFileSync(
   new URL("../../../../src/features/source-control/SourceControlSidebar.tsx", import.meta.url),
   "utf8",
 );
+const gitHistorySidebarSource = readFileSync(
+  new URL("../../../../src/features/source-control/GitHistorySidebar.tsx", import.meta.url),
+  "utf8",
+);
+const gitRepositorySetupSource = readFileSync(
+  new URL("../../../../src/features/source-control/GitRepositorySetupAction.tsx", import.meta.url),
+  "utf8",
+);
 const sourceControlSidebarSectionsSource = [
   "GitRemoteSections.tsx",
   "GitSidebarPrimitives.tsx",
@@ -410,10 +418,17 @@ describe("source-control visual architecture", () => {
     expect(viewSource).not.toContain("This folder is not under source control.");
     expect(viewSource).not.toContain("Initialize a Git repository");
     expect(viewSource).not.toContain('"Initialize Repository"');
-    expect(sourceControlSidebarSource).toContain('t("source-control.status.noRepository")');
+    expect(sourceControlSidebarSource).not.toContain('t("source-control.status.noRepository")');
+    expect(gitHistorySidebarSource).not.toContain('t("source-control.status.noRepository")');
+    expect(sourceControlSidebarSource).toContain("<GitRepositorySetupAction");
+    expect(gitHistorySidebarSource).toContain("<GitRepositorySetupAction");
+    expect(gitHistorySidebarSource).toContain('t("source-control.history.create")');
+    expect(gitRepositorySetupSource).toContain("desktop-version-control-enable-button");
+    expect(gitRepositorySetupSource).not.toContain("noRepository");
     expect(sourceControlSidebarSource).not.toContain('"Initialize Repository"');
     expect(desktopEntryStateCss).toContain("width: min(420px, 100%);");
     expect(versionControlSetupCss).toContain("height: var(--po-control-size);");
+    expect(versionControlSetupCss).toContain(".desktop-git-repository-setup {");
   });
 
   it("shares the responsive setup type scale with the Cloud entry state", () => {

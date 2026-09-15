@@ -53,6 +53,33 @@
   line-height: calc(var(--po-text-size-meta) + 6px);
 }
 
+.desktop-git-repository-setup {
+  display: grid;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 100%;
+  flex: 1 1 auto;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding: 20px;
+}
+
+.desktop-git-repository-setup-action {
+  min-width: 0;
+  max-width: 100%;
+  padding-inline: 14px;
+  white-space: nowrap;
+}
+
+.desktop-git-repository-setup-error {
+  max-width: 280px;
+  color: var(--po-danger);
+  font-size: var(--po-text-size-meta);
+  line-height: calc(var(--po-text-size-meta) + 5px);
+  text-align: center;
+}
+
 @media (max-width: 720px) {
   .desktop-version-control-mark-frame {
     width: 72px;

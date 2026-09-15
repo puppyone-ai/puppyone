@@ -8,6 +8,7 @@ import type {
 } from "../../types/electron";
 import { GitCommitDetail } from "./GitCommitDetail";
 import { GitHistoryTimeline } from "./GitHistoryTimeline";
+import { GitRepositorySetupAction } from "./GitRepositorySetupAction";
 
 export type GitHistorySidebarProps = Readonly<{
   status: GitStatusSnapshot | null;
@@ -19,6 +20,8 @@ export type GitHistorySidebarProps = Readonly<{
   commitDetailError: string | null;
   historyLoading: boolean;
   fileIconTheme: FileIconThemeId;
+  initializing: boolean;
+  onInitialize: () => Promise<boolean>;
   onSelectCommit: (commitId: string) => void;
 }>;
 
@@ -32,6 +35,8 @@ export function GitHistorySidebar({
   commitDetailError,
   historyLoading,
   fileIconTheme,
+  initializing,
+  onInitialize,
   onSelectCommit,
 }: GitHistorySidebarProps) {
   const { t } = useLocalization();
@@ -79,9 +84,12 @@ export function GitHistorySidebar({
             {statusError}
           </div>
         ) : status && !status.isRepo ? (
-          <div className="desktop-git-history-sidebar-state">
-            {t("source-control.status.noRepository")}
-          </div>
+          <GitRepositorySetupAction
+            label={t("source-control.history.create")}
+            pendingLabel={t("source-control.setup.enabling")}
+            pending={initializing}
+            onEnable={onInitialize}
+          />
         ) : (
           <GitHistoryTimeline
             commits={commits}

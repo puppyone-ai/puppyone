@@ -178,27 +178,6 @@
   --desktop-git-primary-fg-disabled: var(--po-text-disabled);
 }
 
-.desktop-git-initialize-action {
-  min-height: 28px;
-  margin-top: 8px;
-  padding-inline: 10px;
-  border: 0;
-  border-radius: var(--git-action-radius);
-  background: var(--desktop-git-primary-bg);
-  color: var(--desktop-git-primary-fg);
-  font: inherit;
-  font-size: var(--git-font-main);
-}
-
-.desktop-git-initialize-action:hover:not(:disabled) {
-  background: var(--desktop-git-primary-bg-hover);
-}
-
-.desktop-git-initialize-action:disabled {
-  background: var(--desktop-git-primary-bg-disabled);
-  color: var(--desktop-git-primary-fg-disabled);
-}
-
 .desktop-git-secondary-actions {
   position: relative;
   display: flex;

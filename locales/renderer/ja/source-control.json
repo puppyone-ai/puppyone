@@ -111,6 +111,7 @@
   "github.updatedRelative": "{relativeTime}に更新",
   "history.ariaLabel": "Git 履歴",
   "history.branchEmpty": "{branch} にはまだ履歴がありません。",
+  "history.create": "バージョン履歴を作成",
   "history.dateUnavailable": "日付を取得できません",
   "history.firstCommit": "{branch} の最初のコミットがここに表示されます。",
   "history.initialize": "リポジトリを初期化して履歴を開始します。",
