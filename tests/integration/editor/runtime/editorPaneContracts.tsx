@@ -33,7 +33,7 @@ declare global {
       seed(files: Record<string, string>): Promise<void>;
       read(path: string): Promise<FileContent>;
       persist(request: DocumentPersistenceRequest): Promise<DocumentPersistenceResult>;
-      input(request: { kind: "drag"; from: Point; to: Point }): Promise<void>;
+      input(request: { kind: "drag"; from: Point; to: Point; ratio: number }): Promise<void>;
       nativeState(): Promise<NativeState>;
       record(result: unknown): Promise<void>;
     };
@@ -132,7 +132,7 @@ async function resize(direction: EditorSplitDirection, ratio: number) {
   const from = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
   const to = direction === "horizontal" ? { x: parent.x + parent.width * ratio, y: from.y }
     : { x: from.x, y: parent.y + parent.height * ratio };
-  await window.paneContracts.input({ kind: "drag", from, to });
+  await window.paneContracts.input({ kind: "drag", from, to, ratio });
   try {
     await until(() => {
       const split = controller.paneLayout.root;

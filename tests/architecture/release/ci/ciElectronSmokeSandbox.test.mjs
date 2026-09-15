@@ -52,6 +52,8 @@ describe("CI Electron smoke sandbox boundary", () => {
     expect(editorPaneFixture).toContain("if (nativeSurfaceOwned)");
     expect(editorPaneFixture).toContain("Linux CDP can acknowledge mouseReleased");
     expect(editorPaneFixture).toContain("if (stillResizing)");
+    expect(editorPaneFixture).toContain("previewReachedTarget");
+    expect(editorPaneFixture).toContain("Split handle did not publish the final pointer coordinate");
     expect(sidebarResizeFixture).toContain('"restored pane and content geometry"');
     expect(sidebarResizeFixture).toContain(
       "Math.abs(restored.content.width-restored.viewport.width) <= 1",

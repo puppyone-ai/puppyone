@@ -206,6 +206,22 @@ try {
       await send("mouseMove", { x: request.from.x + (request.to.x - request.from.x) * step / 6, y: request.from.y + (request.to.y - request.from.y) * step / 6 }, true);
       await wait(20);
     }
+    let previewReachedTarget = false;
+    // Hosted Chromium may coalesce the last held-button movement in a second
+    // consecutive drag. Synchronize on the app's published preview before the
+    // release, preserving the real pointer path and exact target contract.
+    for (let delivery = 0; delivery < 3 && !previewReachedTarget; delivery++) {
+      await send("mouseMove", request.to, true);
+      for (let sample = 0; sample < 8 && !previewReachedTarget; sample++) {
+        await window.webContents.executeJavaScript(
+          "new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))",
+        );
+        previewReachedTarget = await window.webContents.executeJavaScript(
+          `Math.abs(Number(document.querySelector('.desktop-editor-splitter')?.getAttribute('aria-valuenow')) - ${Math.round(request.ratio * 100)}) <= 1`,
+        );
+      }
+    }
+    assert(previewReachedTarget, "Split handle did not publish the final pointer coordinate");
     await send("mouseUp", request.to);
     if (nativeSurfaceOwned) {
       // Linux CDP can acknowledge mouseReleased for an overlapping native
