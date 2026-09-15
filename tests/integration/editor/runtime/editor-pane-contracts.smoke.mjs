@@ -207,6 +207,25 @@ try {
       await wait(20);
     }
     await send("mouseUp", request.to);
+    if (nativeSurfaceOwned) {
+      // Linux CDP can acknowledge mouseReleased for an overlapping native
+      // child without synthesizing the terminal mouseup in the owner renderer.
+      // Give the primary target-scoped path one frame, then terminate the
+      // already-active owner session through Electron's renderer input path.
+      await wait(32);
+      const stillResizing = await window.webContents.executeJavaScript(
+        "document.querySelector('.desktop-editor-splitter')?.dataset.resizing === 'true'",
+      );
+      if (stillResizing) {
+        window.webContents.sendInputEvent({
+          type: "mouseUp",
+          x: Math.round(request.to.x),
+          y: Math.round(request.to.y),
+          button: "left",
+          clickCount: 1,
+        });
+      }
+    }
     for (let attempt = 0; attempt < 50; attempt++) {
       if (!await window.webContents.executeJavaScript("document.querySelector('.desktop-editor-splitter')?.dataset.resizing === 'true'")) return;
       await wait(10);

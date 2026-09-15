@@ -50,6 +50,8 @@ describe("CI Electron smoke sandbox boundary", () => {
     expect(editorPaneFixture).toContain('inputDebugger.sendCommand("Input.dispatchMouseEvent"');
     expect(editorPaneFixture).toContain("window.webContents.sendInputEvent");
     expect(editorPaneFixture).toContain("if (nativeSurfaceOwned)");
+    expect(editorPaneFixture).toContain("Linux CDP can acknowledge mouseReleased");
+    expect(editorPaneFixture).toContain("if (stillResizing)");
     expect(sidebarResizeFixture).toContain('"restored pane and content geometry"');
     expect(sidebarResizeFixture).toContain(
       "Math.abs(restored.content.width-restored.viewport.width) <= 1",
