@@ -4,6 +4,7 @@ import {
   mkdtemp,
   realpath,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
@@ -16,8 +17,13 @@ import {
 } from "../../../../electron/main/local-agent-installation/executable-resolver.mjs";
 import { createExecutableDiscoveryPort } from "../../../../electron/main/platform/common/executable-discovery-port.mjs";
 import { createLocalAgentExecutableResolver } from "../../../../electron/main/local-agent-installation/executable-resolver.mjs";
-import { getLocalAgentInstallationDefinition } from "../../../../electron/main/local-agent-installation/installation-registry.mjs";
+import {
+  createLocalAgentInstallationRegistry,
+  defaultLocalAgentInstallationRegistry,
+  getLocalAgentInstallationDefinition,
+} from "../../../../electron/main/local-agent-installation/installation-registry.mjs";
 import { verifyLocalAgentCandidateIdentity } from "../../../../electron/main/local-agent-installation/candidate-identity.mjs";
+import { createLocalAgentInstallationService } from "../../../../electron/main/local-agent-installation/installation-service.mjs";
 
 const temporaryDirectories = [];
 
@@ -55,6 +61,27 @@ describe("local executable search context", () => {
     });
   });
 
+  it("reports a broken explicit Codex override instead of silently selecting another install", async () => {
+    const homedir = await makeTemporaryDirectory();
+    const pathDirectory = path.join(homedir, "working-path");
+    await writeExecutable(path.join(pathDirectory, "codex"), "#!/bin/sh\n# fallback codex fixture\n");
+    const resolver = createLocalAgentExecutableResolver({
+      discoveryPort: createExecutableDiscoveryPort({
+        env: {
+          PATH: pathDirectory,
+          CODEX_PATH: path.join(homedir, "missing-explicit-codex"),
+        },
+        homedir,
+        nodePlatform: "darwin",
+      }),
+    });
+
+    await expect(resolver.resolve("codex")).resolves.toEqual({
+      status: "failed",
+      reasonCode: "configured-path-not-found",
+    });
+  });
+
   it.each([
     ["CODEX_INSTALL_DIR", "darwin", (home) => path.join(home, "custom-codex"), "codex"],
     ["Windows standalone default", "win32", (home) => path.join(home, "Programs", "OpenAI", "Codex", "bin"), "codex.exe"],
@@ -79,6 +106,26 @@ describe("local executable search context", () => {
     });
   });
 
+  it("accepts a Windows npm Pi command shim by its embedded package identity", async () => {
+    const homedir = await makeTemporaryDirectory();
+    const appData = path.join(homedir, "AppData", "Roaming");
+    const commandPath = path.join(appData, "npm", "pi.cmd");
+    await writeExecutable(
+      commandPath,
+      "@node %~dp0\\node_modules\\@earendil-works\\pi-coding-agent\\dist\\cli.js %*\r\n",
+    );
+    const resolver = createLocalAgentExecutableResolver({
+      discoveryPort: createExecutableDiscoveryPort({
+        env: { PATH: "", APPDATA: appData }, homedir, nodePlatform: "win32",
+      }),
+    });
+
+    await expect(resolver.resolve("pi")).resolves.toMatchObject({
+      status: "found",
+      candidate: { executablePath: await realpath(commandPath), invokedAs: "pi" },
+    });
+  });
+
   it("covers common GUI-safe Node managers once and bounds NVM traversal", async () => {
     const homedir = await makeTemporaryDirectory();
     const versionsRoot = path.join(homedir, ".nvm", "versions", "node");
@@ -99,6 +146,33 @@ describe("local executable search context", () => {
     expect(nvmDirectories[0]).toBe(path.join(versionsRoot, "v20.35.0", "bin"));
     expect(nvmDirectories).not.toContain(path.join(versionsRoot, "v20.0.0", "bin"));
     expect(directories.length).toBeLessThanOrEqual(executableCandidateLimits.maxSearchDirectories);
+  });
+
+  it.each([
+    ["macOS pnpm", "darwin", {}, (home) => path.join(home, "Library", "pnpm")],
+    ["Linux pnpm", "linux", {}, (home) => path.join(home, ".local", "share", "pnpm")],
+    ["Yarn classic", "darwin", {}, (home) => path.join(home, ".yarn", "bin")],
+    ["mise", "darwin", {}, (home) => path.join(home, ".local", "share", "mise", "shims")],
+    ["fnm default alias", "darwin", {}, (home) => path.join(home, ".local", "share", "fnm", "aliases", "default", "bin")],
+    ["Apple Silicon Homebrew", "darwin", {}, () => "/opt/homebrew/bin"],
+    ["Intel Homebrew", "darwin", {}, () => "/usr/local/bin"],
+    ["Linux package manager", "linux", {}, () => "/usr/bin"],
+    ["WinGet links", "win32", { LOCALAPPDATA: "/local-app-data" }, () => "/local-app-data/Microsoft/WinGet/Links"],
+  ])("includes the GUI-safe %s directory without relying on inherited PATH", async (
+    _label,
+    platform,
+    additionalEnv,
+    directoryForHome,
+  ) => {
+    const homedir = await makeTemporaryDirectory();
+    const context = await createExecutableSearchContext({
+      env: { PATH: "", ...additionalEnv },
+      homedir,
+      platform,
+    });
+
+    expect(context.directories.map(({ directory }) => directory))
+      .toContain(directoryForHome(homedir));
   });
 
   it("resolves Windows Node-generated command shims as well as native executables", async () => {
@@ -160,6 +234,88 @@ describe("local executable search context", () => {
     });
   });
 
+  it.each([
+    ["native installer", "darwin", (home) => path.join(home, ".local", "bin", "claude")],
+    ["legacy local installer", "darwin", (home) => path.join(home, ".claude", "local", "claude")],
+    ["Windows native installer", "win32", (home) => path.join(home, ".local", "bin", "claude.exe")],
+  ])("finds Claude Code from its %s location", async (_label, platform, executableForHome) => {
+    const homedir = await makeTemporaryDirectory();
+    const executablePath = executableForHome(homedir);
+    await writeExecutable(executablePath, "#!/bin/sh\n# claude fixture\n");
+    const resolver = createLocalAgentExecutableResolver({
+      discoveryPort: createExecutableDiscoveryPort({
+        env: { PATH: "" }, homedir, nodePlatform: platform,
+      }),
+    });
+
+    await expect(resolver.resolve("claude")).resolves.toMatchObject({
+      status: "found",
+      candidate: { executablePath: await realpath(executablePath) },
+    });
+  });
+
+  it("finds Claude Code through the Windows WinGet link directory", async () => {
+    const homedir = await makeTemporaryDirectory();
+    const localAppData = path.join(homedir, "AppData", "Local");
+    const executablePath = path.join(localAppData, "Microsoft", "WinGet", "Links", "claude.exe");
+    await writeExecutable(executablePath, "#!/bin/sh\n# claude WinGet fixture\n");
+    const resolver = createLocalAgentExecutableResolver({
+      discoveryPort: createExecutableDiscoveryPort({
+        env: { PATH: "", LOCALAPPDATA: localAppData }, homedir, nodePlatform: "win32",
+      }),
+    });
+
+    await expect(resolver.resolve("claude")).resolves.toMatchObject({
+      status: "found",
+      candidate: { executablePath: await realpath(executablePath) },
+    });
+  });
+
+  it.each([
+    ["managed installer", (home) => path.join(home, ".pi", "agent", "bin", "pi")],
+    ["OMP-compatible managed installer", (home) => path.join(home, ".omp", "agent", "bin", "pi")],
+    ["Hermes bundle", (home) => path.join(home, ".hermes", "node", "bin", "pi")],
+  ])("finds Pi from its %s location with product identity evidence", async (_label, executableForHome) => {
+    const homedir = await makeTemporaryDirectory();
+    const executablePath = executableForHome(homedir);
+    await writeExecutable(executablePath, "#!/bin/sh\n# managed pi fixture\n");
+    const resolver = createLocalAgentExecutableResolver({
+      discoveryPort: createExecutableDiscoveryPort({
+        env: { PATH: "" }, homedir, nodePlatform: "darwin",
+      }),
+    });
+
+    await expect(resolver.resolve("pi")).resolves.toMatchObject({
+      status: "found",
+      candidate: { executablePath: await realpath(executablePath) },
+    });
+  });
+
+  it.each([
+    ["npm global", ".npm-global", "@earendil-works/pi-coding-agent"],
+    ["installer user fallback", ".local", "@earendil-works/pi-coding-agent"],
+    ["legacy npm global", ".npm-global", "@mariozechner/pi-coding-agent"],
+  ])("finds a Pi %s installation with package identity", async (_label, prefixName, packageName) => {
+    const homedir = await makeTemporaryDirectory();
+    const packageRoot = path.join(homedir, prefixName, "lib", "node_modules", ...packageName.split("/"));
+    const executablePath = path.join(packageRoot, "dist", "cli.js");
+    const commandPath = path.join(homedir, prefixName, "bin", "pi");
+    await writeExecutable(executablePath, "#!/usr/bin/env node\n");
+    await writeFile(path.join(packageRoot, "package.json"), JSON.stringify({ name: packageName }), "utf8");
+    await mkdir(path.dirname(commandPath), { recursive: true });
+    await symlink(path.relative(path.dirname(commandPath), executablePath), commandPath);
+    const resolver = createLocalAgentExecutableResolver({
+      discoveryPort: createExecutableDiscoveryPort({
+        env: { PATH: "" }, homedir, nodePlatform: "darwin",
+      }),
+    });
+
+    await expect(resolver.resolve("pi")).resolves.toMatchObject({
+      status: "found",
+      candidate: { executablePath: await realpath(executablePath) },
+    });
+  });
+
   it("requires product evidence for Cursor's ambiguous agent basename", async () => {
     const homedir = await makeTemporaryDirectory();
     const executablePath = path.join(homedir, ".volta", "bin", "agent");
@@ -184,6 +340,48 @@ describe("local executable search context", () => {
         executablePath: await realpath(executablePath),
         invokedAs: "agent",
       },
+    });
+  });
+});
+
+describe("Local Agent installation refresh with real filesystem changes", () => {
+  it("discovers a newly installed Codex immediately even when a non-empty snapshot is cached", async () => {
+    const homedir = await makeTemporaryDirectory();
+    const localBin = path.join(homedir, ".local", "bin");
+    const registry = createLocalAgentInstallationRegistry(
+      defaultLocalAgentInstallationRegistry.filter(({ id }) => id === "codex" || id === "claude"),
+    );
+    const resolver = createLocalAgentExecutableResolver({
+      registry,
+      discoveryPort: createExecutableDiscoveryPort({
+        env: { PATH: "" }, homedir, nodePlatform: "darwin",
+      }),
+    });
+    const service = createLocalAgentInstallationService({
+      registry,
+      resolver,
+      createResolutionContext: async () => Object.freeze({
+        executableSearch: Object.freeze({
+          directories: Object.freeze([
+            Object.freeze({ directory: localBin, source: "user-installation" }),
+          ]),
+        }),
+      }),
+    });
+    await writeExecutable(path.join(localBin, "claude"), "#!/bin/sh\n# claude fixture\n");
+
+    await expect(service.discover()).resolves.toMatchObject({
+      source: "scan",
+      availableAgentIds: ["claude"],
+    });
+    await writeExecutable(path.join(localBin, "codex"), "#!/bin/sh\n# codex fixture\n");
+    await expect(service.discover()).resolves.toMatchObject({
+      source: "memory-cache",
+      availableAgentIds: ["claude"],
+    });
+    await expect(service.discover({ refresh: true })).resolves.toMatchObject({
+      source: "scan",
+      availableAgentIds: ["codex", "claude"],
     });
   });
 });

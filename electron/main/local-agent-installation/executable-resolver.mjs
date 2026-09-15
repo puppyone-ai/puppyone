@@ -73,15 +73,37 @@ export async function createExecutableSearchContext({
     env?.PNPM_HOME,
     platform === "win32" ? env?.NVM_SYMLINK : null,
     platform === "win32" && env?.APPDATA ? path.join(env.APPDATA, "npm") : null,
+    platform === "win32" && env?.LOCALAPPDATA ? path.join(env.LOCALAPPDATA, "pnpm") : null,
     platform === "win32" && env?.LOCALAPPDATA ? path.join(env.LOCALAPPDATA, "Volta", "bin") : null,
+    platform === "win32" && env?.LOCALAPPDATA
+      ? path.join(env.LOCALAPPDATA, "Microsoft", "WinGet", "Links")
+      : null,
+    platform === "win32" && env?.LOCALAPPDATA
+      ? path.join(env.LOCALAPPDATA, "Microsoft", "WindowsApps")
+      : null,
+    platform === "win32" && env?.ChocolateyInstall ? path.join(env.ChocolateyInstall, "bin") : null,
+    platform === "darwin" ? path.join(homedir, "Library", "pnpm") : null,
+    platform !== "darwin" && platform !== "win32"
+      ? path.join(
+        safeAbsolutePath(env?.XDG_DATA_HOME) ? env.XDG_DATA_HOME : path.join(homedir, ".local", "share"),
+        "pnpm",
+      )
+      : null,
     path.join(homedir, ".local", "bin"),
+    path.join(homedir, ".local", "share", "mise", "shims"),
+    path.join(homedir, ".local", "share", "fnm", "aliases", "default", "bin"),
     path.join(homedir, ".npm-global", "bin"),
     path.join(homedir, ".bun", "bin"),
     path.join(homedir, ".cargo", "bin"),
     path.join(homedir, ".volta", "bin"),
     path.join(homedir, ".asdf", "shims"),
+    path.join(homedir, ".mise", "shims"),
+    path.join(homedir, ".yarn", "bin"),
+    path.join(homedir, ".config", "yarn", "global", "node_modules", ".bin"),
     platform === "win32" ? path.join(homedir, "scoop", "shims") : null,
+    path.join(homedir, ".bin"),
     path.join(homedir, "bin"),
+    path.join(homedir, "local", "bin"),
   ].filter(safeAbsolutePath);
   if (platform !== "win32") {
     userDirectories.push(...await boundedNvmBinDirectories({ env, fsModule, homedir }));
@@ -138,18 +160,24 @@ export async function resolveExecutableObservation({
 
   for (const candidate of candidates) {
     const validation = await validateCandidate(candidate, fsModule);
-    if (validation.status === "not-found") continue;
+    if (validation.status === "not-found") {
+      if (isExplicitSource(candidate.source)) return failed("configured-path-not-found");
+      continue;
+    }
     if (validation.status === "failed") {
+      if (isExplicitSource(candidate.source)) return failed(`configured-${validation.reasonCode}`);
       failureReason ??= validation.reasonCode;
       continue;
     }
     if (typeof acceptCandidate === "function") {
       try {
         if (!await acceptCandidate(validation.candidate)) {
+          if (isExplicitSource(candidate.source)) return failed("configured-identity-mismatch");
           failureReason ??= "identity-mismatch";
           continue;
         }
       } catch {
+        if (isExplicitSource(candidate.source)) return failed("configured-identity-check-error");
         failureReason ??= "identity-check-error";
         continue;
       }
@@ -304,6 +332,12 @@ function safeSource(value) {
   return typeof value === "string" && /^[A-Za-z0-9._-]{1,80}$/u.test(value)
     ? value
     : "search-context";
+}
+
+function isExplicitSource(value) {
+  return value === "configured"
+    || value === "environment-override"
+    || value === "explicit-configuration";
 }
 
 function fingerprint(metadata) {
