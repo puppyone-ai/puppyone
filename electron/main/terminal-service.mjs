@@ -97,7 +97,7 @@ export function createTerminalService({
     try {
       operation?.assertCurrent();
       const terminalEnvironment = {
-        ...buildTerminalEnvironment(environment, {
+        ...buildTerminalEnvironment(spawnConfig.commandEnvironment ?? environment, {
           appVersion,
           defaultColors: request?.defaultColors,
           freshLoginShell: spawnConfig.loginShell,

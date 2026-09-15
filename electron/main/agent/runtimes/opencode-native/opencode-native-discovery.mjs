@@ -28,6 +28,7 @@ export async function discoverUserOpenCodeExecutable({
   env = process.env,
   platform = process.platform,
   homedir = os.homedir(),
+  readEnvironment,
   configuredExecutable = null,
 } = {}) {
   const result = await discoverExecutable({
@@ -39,6 +40,7 @@ export async function discoverUserOpenCodeExecutable({
     env,
     platform,
     homedir,
+    readEnvironment,
     parseVersion: parseOpenCodeVersion,
     minimumVersion: null,
     label: "OpenCode",

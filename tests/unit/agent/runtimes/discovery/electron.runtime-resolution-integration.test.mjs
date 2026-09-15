@@ -1,8 +1,27 @@
 import { describe, expect, it, vi } from "vitest";
 import { createAgentService } from "../../../../../electron/main/agent/application/agent-service.mjs";
 import { AgentRuntimeRegistry } from "../../../../../electron/main/agent/runtime/agent-runtime-registry.mjs";
+import { createCachedRuntimeDiscovery } from "../../../../../electron/main/agent/connections/runtime-discovery-cache.mjs";
 
 describe("Authoritative runtime resolution", () => {
+  it("starts a newly installed CLI even while the catalog's negative discovery result is cached", async () => {
+    let installed = false;
+    const load = vi.fn(async () => installed ? {
+      ...cursorProbeFailure(), status: "ready", code: "READY", inspectionFallback: undefined,
+    } : {
+      ...cursorProbeFailure(), status: "not-installed", code: "RUNTIME_NOT_INSTALLED",
+      executablePath: null, inspectionFallback: undefined,
+    });
+    const discovery = createCachedRuntimeDiscovery(load);
+    const harness = createHarness(null, discovery);
+    const catalog = await harness.service.discoverProviders(sender(), { runtimeId: "cursor" }, "/workspace");
+    expect(catalog.readiness.status).toBe("not-installed");
+    installed = true;
+    await expect(discovery.discover()).resolves.toMatchObject({ status: "not-installed" });
+    const created = await harness.service.createSession(sender(), { runtimeId: "cursor", model: "cursor/auto" }, "/workspace");
+    expect(created.session.providerSessionId).toBe("cursor-session");
+    expect(load).toHaveBeenCalledTimes(2);
+  });
   it.each([
     ["AUTHENTICATION_PROBE_FAILED"],
     ["AUTHENTICATION_PROBE_CRASHED"],
@@ -157,7 +176,7 @@ describe("Authoritative runtime resolution", () => {
   });
 });
 
-function createHarness(readiness) {
+function createHarness(readiness, discovery = { discover: vi.fn(async () => readiness) }) {
   const adapters = [];
   const registry = new AgentRuntimeRegistry([{
     manifest: {
@@ -176,7 +195,7 @@ function createHarness(readiness) {
         session: "runtime",
       },
     },
-    discovery: { discover: vi.fn(async () => readiness) },
+    discovery,
     createAdapter: (options) => {
       const adapter = fakeAcpAdapter(options);
       adapters.push(adapter);

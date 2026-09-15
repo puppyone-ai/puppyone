@@ -9,7 +9,7 @@ export const codexInstallationDefinition = Object.freeze({
     return [
       env?.CODEX_PATH ? { path: env.CODEX_PATH, source: "environment-override" } : null,
       env?.CODEX_INSTALL_DIR
-        ? { path: path.join(env.CODEX_INSTALL_DIR, executable), source: "environment-override" }
+        ? { path: path.join(env.CODEX_INSTALL_DIR, executable), source: "product-fallback" }
         : null,
       platform === "win32" && env?.LOCALAPPDATA
         ? {
@@ -18,7 +18,6 @@ export const codexInstallationDefinition = Object.freeze({
         }
         : null,
       { path: path.join(homedir, ".local", "bin", executable), source: "product-fallback" },
-      { path: path.join(homedir, ".codex", "bin", executable), source: "product-fallback" },
     ].filter(Boolean);
   },
 });

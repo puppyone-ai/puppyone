@@ -40,7 +40,7 @@ afterEach(async () => {
 });
 
 describe("Desktop Agent local-tool inventory", () => {
-  it("finds GUI-missing PATH installations from a bounded user registry and deduplicates aliases", async () => {
+  it("finds the first named executable in the supplied PATH", async () => {
     const home = await temporaryDirectory();
     const bin = path.join(home, ".local", "bin");
     await mkdir(bin, { recursive: true });
@@ -49,7 +49,7 @@ describe("Desktop Agent local-tool inventory", () => {
 
     const candidate = await resolveFirstExecutable({
       names: ["cursor-agent", "agent"],
-      env: { PATH: "" },
+      env: { PATH: bin },
       homedir: home,
       platform: process.platform,
     });
@@ -57,11 +57,11 @@ describe("Desktop Agent local-tool inventory", () => {
     const canonicalCursorAgent = await realpath(cursorAgent);
     expect(candidate).toMatchObject({
       invokedAs: "cursor-agent",
-      executablePath: canonicalCursorAgent,
+      executablePath: cursorAgent,
       canonicalIdentity: canonicalCursorAgent,
-      source: "user-installation",
+      source: "path-installation",
     });
-    await expect(assertExecutableIdentity(candidate)).resolves.toBe(canonicalCursorAgent);
+    await expect(assertExecutableIdentity(candidate)).resolves.toBe(cursorAgent);
   });
 
   it("rejects a candidate whose canonical identity changes before launch", async () => {
@@ -182,7 +182,7 @@ describe("Desktop Agent local-tool inventory", () => {
     });
   });
 
-  it("finds GUI-missing NVM Claude and standard OpenCode installations", async () => {
+  it("finds the active NVM Claude through PATH and OpenCode through its product fallback", async () => {
     const home = await temporaryDirectory();
     const claudePath = path.join(home, ".nvm", "versions", "node", "v22.17.0", "bin", "claude");
     const opencodePath = path.join(home, ".opencode", "bin", "opencode");
@@ -191,7 +191,8 @@ describe("Desktop Agent local-tool inventory", () => {
     await executable(claudePath, "#!/bin/sh\necho '2.1.159 (Claude Code)'\n");
     await executable(opencodePath, "#!/bin/sh\necho 'opencode 1.2.3'\n");
     const inventory = createLocalAgentInventory({
-      env: { PATH: "" },
+      readEnvironment: async ({ env }) => ({ environment: { ...env }, complete: true, source: "provided" }),
+      env: { PATH: path.dirname(claudePath) },
       homedir: home,
       toolDescriptors: [CLAUDE_LOCAL_TOOL, OPENCODE_LOCAL_TOOL],
     });
@@ -349,6 +350,7 @@ describe("Desktop Agent local-tool inventory", () => {
       .mockResolvedValue(codexResult);
     const cursorProbe = vi.fn(async () => { throw new Error("private cursor output /Users/example"); });
     const inventory = createLocalAgentInventory({
+      readEnvironment: async ({ env }) => ({ environment: { ...env }, complete: true, source: "provided" }),
       now,
       resolveCandidate: vi.fn(async (tool) => fixedCandidate(`/tools/${tool.id}`, tool.executableNames[0])),
       probes: { codex: codexProbe, "cursor-agent": cursorProbe },
@@ -392,6 +394,7 @@ describe("Desktop Agent local-tool inventory", () => {
       }, { once: true }))
       : Promise.resolve(ready));
     const inventory = createLocalAgentInventory({
+      readEnvironment: async ({ env }) => ({ environment: { ...env }, complete: true, source: "provided" }),
       toolDescriptors: [{
         id: "codex",
         displayName: "Codex",
@@ -436,6 +439,7 @@ describe("Desktop Agent local-tool inventory", () => {
       probe: firstProbe,
     };
     const first = createLocalAgentInventory({
+      readEnvironment: async ({ env }) => ({ environment: { ...env }, complete: true, source: "provided" }),
       now: () => 1_000,
       cacheFilePath,
       toolDescriptors: [descriptor],
@@ -450,6 +454,7 @@ describe("Desktop Agent local-tool inventory", () => {
 
     const restartedProbe = vi.fn(async () => { throw new Error("must not rescan"); });
     const restarted = createLocalAgentInventory({
+      readEnvironment: async ({ env }) => ({ environment: { ...env }, complete: true, source: "provided" }),
       now: () => 2_000,
       cacheFilePath,
       toolDescriptors: [{ ...descriptor, probe: restartedProbe }],
@@ -465,6 +470,7 @@ describe("Desktop Agent local-tool inventory", () => {
 
   it("adds a new inventory tool through one validated descriptor without changing inventory orchestration", async () => {
     const inventory = createLocalAgentInventory({
+      readEnvironment: async ({ env }) => ({ environment: { ...env }, complete: true, source: "provided" }),
       toolDescriptors: [{
         id: "claude-code",
         displayName: "Claude Code",

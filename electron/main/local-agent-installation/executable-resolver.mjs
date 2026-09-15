@@ -2,17 +2,17 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createExecutableDiscoveryPort } from "../platform/common/executable-discovery-port.mjs";
+import { runDiscoveryIo } from "../platform/common/discovery-io-budget.mjs";
 import { verifyLocalAgentCandidateIdentity } from "./candidate-identity.mjs";
 import {
   defaultLocalAgentInstallationRegistry,
   getLocalAgentInstallationDefinition,
 } from "./installation-registry.mjs";
 
-const MAX_PATH_DIRECTORIES = 48;
+const MAX_PATH_DIRECTORIES = 256;
 const MAX_NAMES = 8;
-const MAX_EXECUTABLE_VARIANTS = 2;
-const MAX_NODE_MANAGER_VERSIONS = 32;
-const MAX_SEARCH_DIRECTORIES = 96;
+const MAX_EXECUTABLE_VARIANTS = 4;
+const MAX_SEARCH_DIRECTORIES = MAX_PATH_DIRECTORIES;
 const MAX_CONFIGURED_CANDIDATES = 16;
 const MAX_CANDIDATES = (MAX_SEARCH_DIRECTORIES * MAX_NAMES * MAX_EXECUTABLE_VARIANTS)
   + MAX_CONFIGURED_CANDIDATES;
@@ -24,23 +24,21 @@ export function createLocalAgentExecutableResolver({
 } = {}) {
   const { env, homedir, nodePlatform: platform, fsModule } = discoveryPort;
 
-  async function createContext() {
+  async function createContext({ signal } = {}) {
+    const snapshot = await discoveryPort.captureEnvironment({ signal });
     return Object.freeze({
-      executableSearch: await createExecutableSearchContext({ env, homedir, platform, fsModule }),
+      environment: snapshot.environment,
+      environmentSource: snapshot.source,
+      environmentComplete: snapshot.complete,
+      environmentReasonCode: snapshot.reasonCode,
+      executableSearch: await createExecutableSearchContext({ env: snapshot.environment, platform }),
+      signal,
     });
   }
 
   async function resolve(agentId, { context = null, extraCandidates = [] } = {}) {
     const definition = getLocalAgentInstallationDefinition(agentId, registry);
     if (!definition) return failed("unknown-agent");
-    let productCandidates;
-    try {
-      productCandidates = typeof definition.candidatePaths === "function"
-        ? await definition.candidatePaths({ env, homedir, platform })
-        : [];
-    } catch {
-      return failed("candidate-provider-error");
-    }
     let resolutionContext = context;
     if (!resolutionContext) {
       try {
@@ -49,14 +47,34 @@ export function createLocalAgentExecutableResolver({
         return failed("context-error");
       }
     }
-    return resolveExecutableObservation({
+    resolutionContext.signal?.throwIfAborted();
+    const environment = resolutionContext.environment ?? env;
+    let productCandidates;
+    try {
+      productCandidates = typeof definition.candidatePaths === "function"
+        ? await definition.candidatePaths({ env: environment, homedir, platform }) : [];
+    } catch {
+      return failed("candidate-provider-error");
+    }
+    const observation = await resolveExecutableObservation({
       names: definition.executableNames,
       configuredCandidates: [...normalizeExtraCandidates(extraCandidates), ...productCandidates],
       searchContext: resolutionContext.executableSearch,
       acceptCandidate: (candidate) => verifyIdentity(definition, candidate, { fsModule }),
       platform,
       fsModule,
+      signal: resolutionContext.signal,
     });
+    if (observation.status === "found") return Object.freeze({
+      ...observation,
+      ...(resolutionContext.environmentComplete === false ? { reasonCode: "environment-unavailable" } : {}),
+      candidate: Object.freeze({ ...observation.candidate, environment,
+        environmentSource: resolutionContext.environmentSource }),
+    });
+    if (resolutionContext.environmentComplete === false && observation.status === "not-found") {
+      return failed(resolutionContext.environmentReasonCode || "environment-unavailable");
+    }
+    return observation;
   }
 
   return Object.freeze({ createContext, resolve });
@@ -64,68 +82,28 @@ export function createLocalAgentExecutableResolver({
 
 export async function createExecutableSearchContext({
   env = process.env,
-  homedir = os.homedir(),
   platform = process.platform,
-  fsModule = fs,
 } = {}) {
-  const userDirectories = [
-    env?.NVM_BIN,
-    env?.PNPM_HOME,
-    platform === "win32" ? env?.NVM_SYMLINK : null,
-    platform === "win32" && env?.APPDATA ? path.join(env.APPDATA, "npm") : null,
-    platform === "win32" && env?.LOCALAPPDATA ? path.join(env.LOCALAPPDATA, "pnpm") : null,
-    platform === "win32" && env?.LOCALAPPDATA ? path.join(env.LOCALAPPDATA, "Volta", "bin") : null,
-    platform === "win32" && env?.LOCALAPPDATA
-      ? path.join(env.LOCALAPPDATA, "Microsoft", "WinGet", "Links")
-      : null,
-    platform === "win32" && env?.LOCALAPPDATA
-      ? path.join(env.LOCALAPPDATA, "Microsoft", "WindowsApps")
-      : null,
-    platform === "win32" && env?.ChocolateyInstall ? path.join(env.ChocolateyInstall, "bin") : null,
-    platform === "darwin" ? path.join(homedir, "Library", "pnpm") : null,
-    platform !== "darwin" && platform !== "win32"
-      ? path.join(
-        safeAbsolutePath(env?.XDG_DATA_HOME) ? env.XDG_DATA_HOME : path.join(homedir, ".local", "share"),
-        "pnpm",
-      )
-      : null,
-    path.join(homedir, ".local", "bin"),
-    path.join(homedir, ".local", "share", "mise", "shims"),
-    path.join(homedir, ".local", "share", "fnm", "aliases", "default", "bin"),
-    path.join(homedir, ".npm-global", "bin"),
-    path.join(homedir, ".bun", "bin"),
-    path.join(homedir, ".cargo", "bin"),
-    path.join(homedir, ".volta", "bin"),
-    path.join(homedir, ".asdf", "shims"),
-    path.join(homedir, ".mise", "shims"),
-    path.join(homedir, ".yarn", "bin"),
-    path.join(homedir, ".config", "yarn", "global", "node_modules", ".bin"),
-    platform === "win32" ? path.join(homedir, "scoop", "shims") : null,
-    path.join(homedir, ".bin"),
-    path.join(homedir, "bin"),
-    path.join(homedir, "local", "bin"),
-  ].filter(safeAbsolutePath);
-  if (platform !== "win32") {
-    userDirectories.push(...await boundedNvmBinDirectories({ env, fsModule, homedir }));
-  }
-  const pathDirectories = String(env?.PATH || "")
+  const pathDirectories = String(env?.PATH ?? env?.Path ?? "")
     .split(platform === "win32" ? ";" : ":")
-    .filter(safeAbsolutePath)
-    .slice(0, MAX_PATH_DIRECTORIES);
-  const systemDirectories = platform === "win32"
-    ? windowsCandidateDirectories(env)
-    : ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"];
+    .filter(safeAbsolutePath);
   const directories = [];
   const seen = new Set();
-  for (const directory of [...pathDirectories, ...userDirectories, ...systemDirectories]) {
-    if (directories.length >= MAX_SEARCH_DIRECTORIES || seen.has(directory)) continue;
-    seen.add(directory);
+  for (const directory of pathDirectories) {
+    const key = platform === "win32" ? directory.toLowerCase() : directory;
+    if (seen.has(key)) continue;
+    if (directories.length >= MAX_PATH_DIRECTORIES) throw new Error("Executable PATH exceeds the search budget.");
+    seen.add(key);
     directories.push(Object.freeze({
       directory,
-      source: classifySource(directory, pathDirectories, userDirectories, systemDirectories),
+      source: "path-installation",
     }));
   }
-  return Object.freeze({ directories: Object.freeze(directories) });
+  const executableExtensions = platform === "win32"
+    ? String(env.PATHEXT || ".COM;.EXE;.BAT;.CMD").split(";").map((value) => value.toLowerCase())
+      .filter((value, index, all) => [".com", ".exe", ".bat", ".cmd"].includes(value) && all.indexOf(value) === index)
+    : [];
+  return Object.freeze({ directories: Object.freeze(directories), executableExtensions: Object.freeze(executableExtensions) });
 }
 
 /** Resolve without invoking a login shell or executing any discovered binary. */
@@ -139,10 +117,11 @@ export async function resolveExecutableObservation({
   homedir = os.homedir(),
   platform = process.platform,
   fsModule = fs,
+  signal,
 } = {}) {
-  const descriptors = normalizeNames(names, platform);
-  if (descriptors.length === 0) return failed("no-executable-names");
   const context = searchContext ?? await createExecutableSearchContext({ env, homedir, platform, fsModule });
+  const descriptors = normalizeNames(names, platform, context.executableExtensions);
+  if (descriptors.length === 0) return failed("no-executable-names");
   const normalizedConfigured = [
     ...(Array.isArray(configuredPaths) ? configuredPaths : []).map((value) => ({
       path: value,
@@ -159,7 +138,14 @@ export async function resolveExecutableObservation({
   let failureReason = null;
 
   for (const candidate of candidates) {
-    const validation = await validateCandidate(candidate, fsModule);
+    signal?.throwIfAborted();
+    let validation;
+    try {
+      validation = await runDiscoveryIo(() => validateCandidate(candidate, fsModule), { signal });
+    } catch (error) {
+      signal?.throwIfAborted();
+      return failed(error?.code === "filesystem-busy" ? "filesystem-busy" : "filesystem-timeout");
+    }
     if (validation.status === "not-found") {
       if (isExplicitSource(candidate.source)) return failed("configured-path-not-found");
       continue;
@@ -171,12 +157,14 @@ export async function resolveExecutableObservation({
     }
     if (typeof acceptCandidate === "function") {
       try {
-        if (!await acceptCandidate(validation.candidate)) {
+        if (!await runDiscoveryIo(() => acceptCandidate(validation.candidate), { signal })) {
           if (isExplicitSource(candidate.source)) return failed("configured-identity-mismatch");
           failureReason ??= "identity-mismatch";
           continue;
         }
-      } catch {
+      } catch (error) {
+        signal?.throwIfAborted();
+        if (["filesystem-timeout", "filesystem-busy"].includes(error?.code)) return failed(error.code);
         if (isExplicitSource(candidate.source)) return failed("configured-identity-check-error");
         failureReason ??= "identity-check-error";
         continue;
@@ -194,6 +182,10 @@ export async function resolveFirstExecutable(options = {}) {
 }
 
 export async function assertExecutableIdentity(candidate, { fsModule = fs } = {}) {
+  return runDiscoveryIo(() => verifyExecutableIdentity(candidate, fsModule));
+}
+
+async function verifyExecutableIdentity(candidate, fsModule) {
   if (!candidate || !safeAbsolutePath(candidate.executablePath)) {
     throw new Error("Local executable is not a safe absolute path.");
   }
@@ -206,7 +198,7 @@ export async function assertExecutableIdentity(candidate, { fsModule = fs } = {}
   if (candidate.identityFingerprint && fingerprint(metadata) !== candidate.identityFingerprint) {
     throw new Error("Local executable changed identity before launch.");
   }
-  return resolved;
+  return candidate.executablePath;
 }
 
 function buildCandidates({ descriptors, configuredCandidates, searchContext }) {
@@ -265,7 +257,7 @@ async function validateCandidate(candidate, fsModule) {
     return Object.freeze({
       status: "found",
       candidate: Object.freeze({
-        executablePath: resolved,
+        executablePath: candidate.filename,
         canonicalIdentity: resolved,
         identityFingerprint: fingerprint(metadata),
         invokedAs: candidate.descriptor.invokedAs,
@@ -283,11 +275,11 @@ async function validateCandidate(candidate, fsModule) {
   }
 }
 
-function normalizeNames(names, platform) {
+function normalizeNames(names, platform, extensions) {
   const values = Array.isArray(names) ? names : [names];
   return values.slice(0, MAX_NAMES).flatMap((value) => {
     if (typeof value === "object" && value) {
-      return executableNames(value.fileName, platform).map((fileName) => ({
+      return executableNames(value.fileName, platform, extensions).map((fileName) => ({
         fileName,
         invokedAs: String(value.invokedAs || value.fileName).slice(0, 80),
         argsPrefix: normalizeArgs(value.argsPrefix),
@@ -295,7 +287,7 @@ function normalizeNames(names, platform) {
     }
     if (typeof value !== "string" || !value.trim()) return [];
     const [binary, ...argsPrefix] = value.trim().split(/\s+/u);
-    return executableNames(binary, platform).map((fileName) => ({
+    return executableNames(binary, platform, extensions).map((fileName) => ({
       fileName,
       invokedAs: value.trim().slice(0, 80),
       argsPrefix,
@@ -303,11 +295,11 @@ function normalizeNames(names, platform) {
   });
 }
 
-function executableNames(value, platform) {
+function executableNames(value, platform, extensions = [".com", ".exe", ".bat", ".cmd"]) {
   const normalized = String(value || "");
   if (!/^[A-Za-z0-9._-]+$/u.test(normalized)) return [];
-  if (platform !== "win32" || /\.(?:cmd|exe)$/iu.test(normalized)) return [normalized];
-  return [`${normalized}.exe`, `${normalized}.cmd`];
+  if (platform !== "win32" || /\.(?:com|exe|bat|cmd)$/iu.test(normalized)) return [normalized];
+  return extensions.map((extension) => `${normalized}${extension}`);
 }
 
 function normalizeExtraCandidates(values) {
@@ -344,43 +336,6 @@ function fingerprint(metadata) {
   return [metadata.dev, metadata.ino, metadata.size, Math.trunc(metadata.mtimeMs)].join(":");
 }
 
-function classifySource(directory, pathDirectories, userDirectories, systemDirectories) {
-  if (pathDirectories.includes(directory)) return "path-installation";
-  if (userDirectories.includes(directory)) return "user-installation";
-  if (systemDirectories.includes(directory)) return "system-installation";
-  return "search-context";
-}
-
-function windowsCandidateDirectories(env) {
-  return [env?.ProgramFiles && path.join(env.ProgramFiles, "nodejs")].filter(safeAbsolutePath);
-}
-
-async function boundedNvmBinDirectories({ env, fsModule, homedir }) {
-  const nvmRoot = safeAbsolutePath(env?.NVM_DIR) ? env.NVM_DIR : path.join(homedir, ".nvm");
-  const versionsRoot = path.join(nvmRoot, "versions", "node");
-  try {
-    return (await fsModule.promises.readdir(versionsRoot, { withFileTypes: true }))
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name)
-      .sort(compareNodeVersionsDescending)
-      .slice(0, MAX_NODE_MANAGER_VERSIONS)
-      .map((version) => path.join(versionsRoot, version, "bin"));
-  } catch {
-    return [];
-  }
-}
-
-function compareNodeVersionsDescending(left, right) {
-  const parts = (value) => String(value).replace(/^v/u, "").split(".").map((entry) => Number(entry) || 0);
-  const a = parts(left);
-  const b = parts(right);
-  for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
-    const difference = (b[index] ?? 0) - (a[index] ?? 0);
-    if (difference !== 0) return difference;
-  }
-  return String(right).localeCompare(String(left));
-}
-
 function failed(reasonCode) {
   return Object.freeze({ status: "failed", reasonCode });
 }
@@ -390,6 +345,5 @@ export const executableCandidateLimits = Object.freeze({
   maxNames: MAX_NAMES,
   maxCandidates: MAX_CANDIDATES,
   maxExecutableVariants: MAX_EXECUTABLE_VARIANTS,
-  maxNodeManagerVersions: MAX_NODE_MANAGER_VERSIONS,
   maxSearchDirectories: MAX_SEARCH_DIRECTORIES,
 });

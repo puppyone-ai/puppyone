@@ -16,7 +16,7 @@ describe("Codex provider discovery", () => {
     expect(MIN_SUPPORTED_CODEX_VERSION).toBe("0.144.1");
   });
 
-  it("returns ready using deterministic paths without executing a login shell", async () => {
+  it("uses the supplied environment for both selection and the version probe", async () => {
     const spawn = vi.fn(() => createCompletedChild("codex-cli 0.144.1\n"));
     const fsModule = {
       constants: { X_OK: 1 },
@@ -29,9 +29,10 @@ describe("Codex provider discovery", () => {
       },
     };
     const readiness = await discoverCodexExecutable({
+      readEnvironment: async ({ env }) => ({ environment: { ...env }, complete: true, source: "provided" }),
       fsModule,
       spawn,
-      env: { SHELL: "/bin/zsh", PATH: "" },
+      env: { SHELL: "/bin/zsh", PATH: "/usr/local/bin:/usr/bin" },
       platform: "darwin",
       homedir: "/Users/test",
     });
@@ -39,20 +40,21 @@ describe("Codex provider discovery", () => {
     expect(spawn.mock.calls.every((call) => call[2]?.shell === false)).toBe(true);
     expect(spawn).toHaveBeenCalledTimes(1);
     expect(spawn.mock.calls[0][1]).toEqual(["--version"]);
-    expect(readiness.environment.PATH).toContain("/Users/test/.local/bin");
+    expect(readiness.environment.PATH).toBe("/usr/local/bin:/usr/bin");
   });
 
   it("classifies missing and older installations", async () => {
     const missing = await discoverCodexExecutable({
+      readEnvironment: async ({ env }) => ({ environment: { ...env }, complete: true, source: "provided" }),
       fsModule: {
         constants: { X_OK: 1 },
         promises: {
           access: vi.fn(async () => { throw Object.assign(new Error("missing"), { code: "ENOENT" }); }),
-          realpath: vi.fn(),
+          realpath: vi.fn(async () => { throw Object.assign(new Error("missing"), { code: "ENOENT" }); }),
         },
       },
       spawn: vi.fn(() => createCompletedChild("PATH=/usr/local/bin\0")),
-      env: { SHELL: "/bin/zsh" },
+      env: { SHELL: "/bin/zsh", PATH: "/usr/local/bin" },
       platform: "darwin",
       homedir: "/Users/test",
     });
@@ -60,6 +62,7 @@ describe("Codex provider discovery", () => {
 
     const spawn = vi.fn(() => createCompletedChild("codex-cli 0.90.0\n"));
     const older = await discoverCodexExecutable({
+      readEnvironment: async ({ env }) => ({ environment: { ...env }, complete: true, source: "provided" }),
       fsModule: {
         constants: { X_OK: 1 },
         promises: {
@@ -71,7 +74,7 @@ describe("Codex provider discovery", () => {
         },
       },
       spawn,
-      env: { SHELL: "/bin/zsh" },
+      env: { SHELL: "/bin/zsh", PATH: "/usr/local/bin" },
       platform: "darwin",
       homedir: "/Users/test",
     });

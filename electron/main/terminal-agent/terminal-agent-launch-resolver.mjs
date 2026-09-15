@@ -1,4 +1,5 @@
 import path from "node:path";
+import { createExecutableDiscoveryPort } from "../platform/common/executable-discovery-port.mjs";
 import {
   assertExecutableIdentity,
   createLocalAgentExecutableResolver,
@@ -19,12 +20,17 @@ const TERMINAL_AGENT_LAUNCHER_IDS = new Set(
 export function createTerminalAgentLaunchResolver(options = {}) {
   const {
     catalog = defaultLocalAgentInstallationRegistry,
-    assertCandidate = (candidate) => assertExecutableIdentity(candidate),
+    assertCandidate = (candidate) => assertExecutableIdentity(candidate, {
+      fsModule: options.discoveryPort?.fsModule ?? options.fsModule,
+    }),
   } = options;
   const definitions = createLocalAgentInstallationRegistry(catalog);
   const candidateResolver = options.candidateResolver ?? createLocalAgentExecutableResolver({
     registry: definitions,
-    ...(options.discoveryPort ? { discoveryPort: options.discoveryPort } : {}),
+    discoveryPort: options.discoveryPort ?? createExecutableDiscoveryPort({
+      env: options.env, homedir: options.homedir, nodePlatform: options.platform,
+      fsModule: options.fsModule, readEnvironment: options.readEnvironment,
+    }),
   });
   const createResolutionContext = options.createResolutionContext
     ?? (options.resolveCandidate ? async () => Object.freeze({}) : () => candidateResolver.createContext());
@@ -50,7 +56,10 @@ export function createTerminalAgentLaunchResolver(options = {}) {
       args: Object.freeze([...(candidate.argsPrefix ?? [])]),
       displayName: definition.displayName,
       executablePath,
-      pathEntries: Object.freeze(candidate.launchPathEntry ? [candidate.launchPathEntry] : []),
+      // An absolute entrypoint does not require reordering PATH. Its shim or
+      // interpreter must observe the same environment used for discovery.
+      pathEntries: Object.freeze([]),
+      environment: candidate.environment ?? resolutionContext.environment,
     });
   };
 }

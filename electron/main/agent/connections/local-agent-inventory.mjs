@@ -26,6 +26,7 @@ export function createLocalAgentInventory({
   toolDescriptors = createLocalAgentToolRegistry(),
   resolveCandidate = null,
   probes = {},
+  readEnvironment,
 } = {}) {
   const tools = createLocalAgentToolRegistry(toolDescriptors);
   const installationResolver = createLocalAgentExecutableResolver({
@@ -34,10 +35,12 @@ export function createLocalAgentInventory({
       fsModule,
       homedir,
       nodePlatform: platform,
+      readEnvironment,
     }),
   });
   const findCandidate = resolveCandidate ?? (async (tool, context) => {
     const result = await installationResolver.resolve(tool.installationId, { context });
+    if (result.status === "failed") throw new Error(result.reasonCode);
     return result.status === "found" ? result.candidate : null;
   });
   let cached = null;
@@ -126,7 +129,7 @@ export function createLocalAgentInventory({
     let installationContextError = null;
     if (!resolveCandidate) {
       try {
-        installationContext = await installationResolver.createContext();
+        installationContext = await installationResolver.createContext({ signal });
       } catch (error) {
         installationContextError = error;
       }
@@ -141,7 +144,7 @@ export function createLocalAgentInventory({
           candidate,
           appVersion,
           workspaceRoot: workspaceRoot || undefined,
-          env,
+          env: candidate?.environment ?? env,
           signal,
         });
         return {

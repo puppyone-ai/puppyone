@@ -7,6 +7,34 @@ import { describe, expect, it } from "vitest";
 import { createTerminalShellHost } from "../../../../electron/main/terminal-shell-host.mjs";
 
 describe.each(["/bin/zsh", "/bin/bash"])("Terminal startup with a real %s PTY", (shell) => {
+  it.skipIf(process.platform === "win32" || !existsSync(shell))("runs the Agent with the resolved environment before loading prompt configuration", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "puppyone-resolved-shell-"));
+    let terminal;
+    let exited = false;
+    try {
+      await writeFile(path.join(directory, shell === "/bin/zsh" ? ".zshrc" : ".bash_profile"),
+        "export CLI_SELECTION=changed-by-startup\nprintf 'PROMPT_CONFIG_LOADED\\n'\nPS1='READY> '\n");
+      const script = path.join(directory, "fixture.cjs");
+      await writeFile(script, "console.log('AGENT_ENV:' + process.env.CLI_SELECTION);\n");
+      const environment = { HOME: directory, ZDOTDIR: directory, SHELL: shell, PATH: "/usr/bin:/bin", CLI_SELECTION: "resolved" };
+      const host = createTerminalShellHost({ platform: process.platform, environment,
+        agentLaunch: { executablePath: process.execPath, args: [script], environment } });
+      terminal = pty.spawn(host.file, host.args, { cwd: directory, cols: 160, rows: 24,
+        env: { ...host.commandEnvironment, ...host.environment }, name: "xterm-256color" });
+      let output = "";
+      terminal.onData((data) => { output += data; });
+      terminal.onExit(() => { exited = true; });
+      await until(() => output.includes("READY>"), () => output);
+      expect(output).toContain("AGENT_ENV:resolved");
+      expect(output.indexOf("AGENT_ENV:resolved")).toBeLessThan(output.indexOf("PROMPT_CONFIG_LOADED"));
+      terminal.write("exit\r");
+      await until(() => exited, () => output);
+    } finally {
+      if (terminal && !exited) terminal.kill();
+      if (terminal) await until(() => exited, () => "PTY cleanup");
+      await rm(directory, { recursive: true, force: true });
+    }
+  }, 15_000);
   it.skipIf(process.platform === "win32" || !existsSync(shell)).each([0, 1])("preserves launch arguments across startup input and returns to a shell after Agent exit %s", async (exitCode) => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "puppyone-shell-startup-"));
     let terminal;

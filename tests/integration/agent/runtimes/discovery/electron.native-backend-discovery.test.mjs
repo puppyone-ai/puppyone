@@ -48,11 +48,12 @@ describe("native Agent backend discovery", () => {
 
   it("keeps the native Claude backend unavailable when the user's CLI is not installed", async () => {
     const readiness = await discoverClaudeRuntime({
+      readEnvironment: async ({ env }) => ({ environment: { ...env }, complete: true, source: "provided" }),
       fsModule: {
         constants: { X_OK: 1 },
         promises: {
           access: vi.fn(async () => { throw new Error("missing"); }),
-          realpath: vi.fn(),
+          realpath: vi.fn(async () => { throw Object.assign(new Error("missing"), { code: "ENOENT" }); }),
         },
       },
       spawn: vi.fn(),
@@ -75,6 +76,7 @@ describe("native Agent backend discovery", () => {
       ? { stdout: "2.1.159 (Claude Code)\n" }
       : { stdout: secureClaudeHelp() }, options));
     const readiness = await discoverClaudeRuntime({
+      readEnvironment: async ({ env }) => ({ environment: { ...env }, complete: true, source: "provided" }),
       fsModule: {
         constants: { X_OK: 1 },
         promises: {
@@ -107,6 +109,7 @@ describe("native Agent backend discovery", () => {
 
   it("reports an installed Claude CLI with missing secure SDK controls without treating it as missing", async () => {
     const readiness = await discoverClaudeRuntime({
+      readEnvironment: async ({ env }) => ({ environment: { ...env }, complete: true, source: "provided" }),
       fsModule: {
         constants: { X_OK: 1 },
         promises: {

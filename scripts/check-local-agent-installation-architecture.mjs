@@ -52,7 +52,21 @@ for (const [file, installationId] of [
 ]) {
   requireText(read(file), `installationId: "${installationId}"`, `${file} must select its shared installation definition`);
 }
-requireText(read("electron/main/agent/runtimes/cursor/cursor-discovery.mjs"), 'resolver.resolve("cursor")', "Cursor Runtime must select its shared installation definition");
+requireText(read("electron/main/agent/runtimes/cursor/cursor-discovery.mjs"), 'resolver.resolve("cursor", { context })', "Cursor Runtime must use its shared environment and installation definition");
+
+const resolverSource = read("electron/main/local-agent-installation/executable-resolver.mjs");
+requireText(resolverSource, "discoveryPort.captureEnvironment", "Each scan must obtain its command environment from Platform");
+if (/boundedNvm|NVM_BIN|PNPM_HOME|\.npm-global|\.volta|\.asdf/u.test(resolverSource)) {
+  errors.push("The shared resolver must follow PATH instead of enumerating package-manager layouts");
+}
+if (/readLoginShellEnvironment|loadLoginShellEnvironment|deterministicAgentPath/u.test(executableDiscovery)) {
+  errors.push("Runtime transports must not own a second shell environment or PATH policy");
+}
+for (const file of walk(resolve("electron/main/platform"))) {
+  if (/from ["'][^"']*agent\//u.test(fs.readFileSync(file, "utf8"))) {
+    errors.push(`${relative(file)} must not depend on Agent implementations`);
+  }
+}
 
 const managedOpenCode = read("electron/main/agent/runtimes/puppyone-agent/managed-opencode-discovery.mjs");
 if (managedOpenCode.includes("installationId:")) {

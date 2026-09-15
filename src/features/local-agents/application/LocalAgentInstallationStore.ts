@@ -99,7 +99,7 @@ export class LocalAgentInstallationStore {
       this.patch({
         ids: normalizeAvailableLocalAgentIds([...this.state.ids, ...progress.availableAgentIds]),
         phase: "loading",
-        hasFailures: progress.results.some(({ status }) => status === "failed") || this.state.hasFailures,
+        hasFailures: progress.results.some(({ status, reasonCode }) => status === "failed" || reasonCode === "environment-unavailable") || this.state.hasFailures,
       });
     } catch {
       // Progress is advisory; the final invoke result remains authoritative.
@@ -133,7 +133,7 @@ export class LocalAgentInstallationStore {
       ids: normalizeAvailableLocalAgentIds([...snapshot.availableAgentIds, ...retainedIds]),
       phase,
       snapshot,
-      hasFailures: snapshot.results.some(({ status }) => status === "failed"),
+      hasFailures: snapshot.results.some(({ status, reasonCode }) => status === "failed" || reasonCode === "environment-unavailable"),
     });
   }
 
