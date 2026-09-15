@@ -17,7 +17,6 @@ import {
   resolveProjectContextAssetKind,
   type ProjectContextAssetKind,
 } from "./ProjectContextAssetMark";
-import { ProjectDetailsDialog } from "./ProjectDetailsDialog";
 import { DesktopSidebarSettingsButton } from "./navigation/DesktopNavigationItems";
 import type { DesktopView } from "../../components/DesktopCloudShell";
 import { beginProjectRootDrag } from "./projectRootDrag";
@@ -35,13 +34,6 @@ export type ProjectSwitcherRailItem = Readonly<{
   workspace: Workspace;
   initial: string;
   appearanceIdentity: string | null;
-}>;
-
-type ProjectDetailsState = Readonly<{
-  initial: string;
-  path: string;
-  projectIdentity: string;
-  projectName: string;
 }>;
 
 type ProjectSwitcherRailProps = Readonly<{
@@ -100,7 +92,6 @@ export function ProjectSwitcherRail({
     [projectCatalog],
   );
   const appearanceCatalog = useProjectAppearanceCatalog(appearanceWorkspaces);
-  const [projectDetails, setProjectDetails] = useState<ProjectDetailsState | null>(null);
 
   useEffect(() => {
     if (nextProjectOrder !== projectOrder) setProjectOrder(nextProjectOrder);
@@ -157,8 +148,6 @@ export function ProjectSwitcherRail({
               type="button"
               aria-current={active ? "page" : undefined}
               aria-label={label}
-              aria-haspopup={appearanceIdentity ? "dialog" : undefined}
-              aria-expanded={projectDetails?.projectIdentity === appearanceIdentity ? true : undefined}
               aria-busy={pendingPath === workspace.path || undefined}
               data-avatar-kind={expanded
                 ? `context-${contextAssetKind}`
@@ -171,27 +160,6 @@ export function ProjectSwitcherRail({
               title={label}
               onClick={() => void selectProject(workspace)}
               onDragStart={(event) => beginProjectRootDrag(event, workspace.path)}
-              onContextMenu={appearanceIdentity ? (event) => {
-                event.preventDefault();
-                appearanceCatalog.clearMutationError();
-                setProjectDetails({
-                  initial,
-                  path: workspace.path,
-                  projectIdentity: appearanceIdentity,
-                  projectName: workspace.name,
-                });
-              } : undefined}
-              onKeyDown={appearanceIdentity ? (event) => {
-                if (event.key !== "ContextMenu" && !(event.key === "F10" && event.shiftKey)) return;
-                event.preventDefault();
-                appearanceCatalog.clearMutationError();
-                setProjectDetails({
-                  initial,
-                  path: workspace.path,
-                  projectIdentity: appearanceIdentity,
-                  projectName: workspace.name,
-                });
-              } : undefined}
             >
               <ProjectSwitcherAvatar
                 imageUrl={appearance?.icon?.kind === "asset" ? appearance.icon.url : null}
@@ -214,10 +182,7 @@ export function ProjectSwitcherRail({
           aria-label={t("shell.workspaceSwitcher.createNew")}
           disabled={Boolean(pendingPath)}
           title={t("shell.workspaceSwitcher.createNew")}
-          onClick={() => {
-            setProjectDetails(null);
-            onCreateNew();
-          }}
+          onClick={onCreateNew}
         >
           <span
             className={expanded
@@ -250,23 +215,6 @@ export function ProjectSwitcherRail({
             {utilitySlot}
           </div>
         </div>
-      )}
-      {projectDetails && (
-        <ProjectDetailsDialog
-          appearance={appearanceCatalog.appearances.get(projectDetails.projectIdentity) ?? null}
-          error={appearanceCatalog.mutationError}
-          initial={projectDetails.initial}
-          name={projectDetails.projectName}
-          path={projectDetails.path}
-          pending={appearanceCatalog.pendingIdentity === projectDetails.projectIdentity}
-          onChooseImage={() => appearanceCatalog.chooseIcon(projectDetails.projectIdentity)}
-          onClose={() => {
-            appearanceCatalog.clearMutationError();
-            setProjectDetails(null);
-          }}
-          onResetIcon={() => appearanceCatalog.resetIcon(projectDetails.projectIdentity)}
-          onSelectEmoji={(emoji) => appearanceCatalog.setEmoji(projectDetails.projectIdentity, emoji)}
-        />
       )}
     </nav>
   );

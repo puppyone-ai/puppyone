@@ -406,7 +406,7 @@ describe("Project switcher rail", () => {
     expect(calls).toEqual(["/projects/beta", "/projects/gamma"]);
   });
 
-  it("opens Project details and edits local image or emoji appearance from the centered dialog", async () => {
+  it("keeps stored Project appearance without owning a context-menu action", async () => {
     const active = workspace("active", "Alpha", "/projects/alpha");
     const appearance = {
       projectIdentity: "active-instance",
@@ -418,25 +418,11 @@ describe("Project switcher rail", () => {
         url: `puppyone-asset://project-icon/${"a".repeat(64)}.png`,
       },
     };
-    const chooseIcon = vi.fn(async () => ({ status: "updated" as const, appearance }));
-    const resetIcon = vi.fn(async () => ({ ...appearance, icon: null }));
-    const emojiAppearance = {
-      projectIdentity: "active-instance",
-      icon: {
-        kind: "emoji" as const,
-        value: "📁",
-        updatedAt: "2026-09-04T00:00:01.000Z",
-      },
-    };
-    const setEmoji = vi.fn(async () => emojiAppearance);
     Object.defineProperty(window, "puppyoneDesktop", {
       configurable: true,
       value: {
         projectAppearance: {
           list: vi.fn(async () => [appearance]),
-          chooseIcon,
-          resetIcon,
-          setEmoji,
           onChanged: vi.fn(() => () => undefined),
         },
       },
@@ -460,26 +446,17 @@ describe("Project switcher rail", () => {
     );
     expect(project?.dataset.avatarKind).toBe("asset");
     expect(project?.querySelector("img")?.getAttribute("src")).toBe(appearance.icon.url);
+    expect(project?.hasAttribute("aria-haspopup")).toBe(false);
+    expect(project?.hasAttribute("aria-expanded")).toBe(false);
 
-    await act(async () => project?.dispatchEvent(new MouseEvent("contextmenu", {
+    const contextMenuEvent = new MouseEvent("contextmenu", {
       bubbles: true,
       cancelable: true,
-    })));
-    const dialog = document.body.querySelector<HTMLElement>(".desktop-project-details-dialog");
-    expect(dialog?.getAttribute("role")).toBe("dialog");
-    expect(dialog?.textContent).toContain("Alpha");
-    expect(dialog?.textContent).toContain("/projects/alpha");
-
-    const actions = dialog?.querySelectorAll<HTMLButtonElement>(".desktop-project-details-action");
-    await act(async () => actions?.[1]?.click());
-    expect(chooseIcon).toHaveBeenCalledWith({ projectIdentity: "active-instance" });
-
-    const emoji = dialog?.querySelector<HTMLButtonElement>(".desktop-project-details-emoji");
-    await act(async () => emoji?.click());
-    expect(setEmoji).toHaveBeenCalledWith({
-      projectIdentity: "active-instance",
-      emoji: "📁",
     });
+    await act(async () => project?.dispatchEvent(contextMenuEvent));
+
+    expect(contextMenuEvent.defaultPrevented).toBe(false);
+    expect(document.body.querySelector(".desktop-project-details-dialog")).toBeNull();
   });
 
   it("routes the create launcher through the three existing Project entry paths", async () => {
