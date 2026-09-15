@@ -250,7 +250,7 @@ try {
   const focused = await evaluate(`window.puppyoneDesktop.openWorkspaceInCurrentWindow(${JSON.stringify(roots[0])})`);
   assert(focused.status === "focused-existing", "Background A was not routed to its owning window");
   window = firstWindow;
-  await untilRenderer("[...document.querySelectorAll('.desktop-project-switcher-rail-project')].some(button => button.title.includes('Project A') && button.getAttribute('aria-current') === 'page')", "foreign request reveals A");
+  await untilRenderer("[...document.querySelectorAll('.desktop-project-switcher-rail-project')].some(button => button.getAttribute('aria-label')?.includes('Project A') && button.getAttribute('aria-current') === 'page')", "foreign request reveals A");
   await untilRenderer(`[...document.querySelectorAll('[data-terminal-tab-session-id]')].some(x => x.dataset.terminalTabSessionId === ${JSON.stringify(aTabs[0])})`, "foreign request restores A tabs");
   assert(!d.exited, "Focusing A stopped D");
   await fs.writeFile(path.join(temp, "separate-window-d.png"), (await secondWindow.webContents.capturePage()).toPNG());
@@ -308,8 +308,13 @@ async function click(selector) {
   await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
 }
 async function selectProject(name) {
-  await evaluate(`[...document.querySelectorAll('.desktop-project-switcher-rail-project')].find(button => button.title.includes(${JSON.stringify(name)})).click()`);
-  await untilRenderer(`[...document.querySelectorAll('.desktop-project-switcher-rail-project')].some(button => button.title.includes(${JSON.stringify(name)}) && button.getAttribute('aria-current') === 'page')`, name);
+  await evaluate(`(() => {
+    const button=[...document.querySelectorAll('.desktop-project-switcher-rail-project')]
+      .find(candidate=>candidate.getAttribute('aria-label')?.includes(${JSON.stringify(name)}));
+    if(!button)throw new Error(${JSON.stringify("Project rail button is unavailable: ")}+${JSON.stringify(name)});
+    button.click();
+  })()`);
+  await untilRenderer(`[...document.querySelectorAll('.desktop-project-switcher-rail-project')].some(button => button.getAttribute('aria-label')?.includes(${JSON.stringify(name)}) && button.getAttribute('aria-current') === 'page')`, name);
 }
 function tabIds() { return evaluate("[...document.querySelectorAll('[data-terminal-tab-session-id]')].map(x => x.dataset.terminalTabSessionId)"); }
 

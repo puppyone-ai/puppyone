@@ -28,10 +28,17 @@ async function verifyBoundaries({ window, temp, label, until }) {
       base:{width:base.width,color:base.backgroundColor},
       line:{width:line.width,color:line.backgroundColor,shadow:line.boxShadow}};
   })()`);
-  await evaluate(`(() => {
-    const h=document.querySelector('.desktop-project-switcher-resizer');
-    if(h?.classList.contains('po-collapsed-pane-edge-handle')) h.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
-  })()`);
+  const projectRailCollapsed = await evaluate(`document.querySelector('.desktop-project-switcher-resizer')?.classList.contains('po-collapsed-pane-edge-handle') === true`);
+  if (projectRailCollapsed) {
+    await evaluate(`document.querySelector('.desktop-project-switcher-resizer').dispatchEvent(new KeyboardEvent('keydown',{key:'End',bubbles:true}))`);
+    await until(
+      () => evaluate(`(() => {
+        const handle=document.querySelector('.desktop-project-switcher-resizer');
+        return Boolean(handle && !handle.classList.contains('po-collapsed-pane-edge-handle'));
+      })()`),
+      `${label}: expand compact Project rail for boundary inspection`,
+    );
+  }
   await pause();
   const send = (type, x, y) => {
     return window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", {
@@ -177,6 +184,7 @@ async function verifyBoundaries({ window, temp, label, until }) {
   assert(explorerMotion.contentWidths.length===1,`Explorer content reflowed during open motion: ${JSON.stringify(explorerMotion)}`);
   const right=await inspect(".desktop-right-sidebar-resizer");
   assert(!right.missing, 'Auxiliary divider missing');
+  const rightExpandedWidth=await evaluate("document.querySelector('.desktop-right-sidebar').getBoundingClientRect().width");
   const bodyY=right.paint.y+90;
   const x=right.rtl?right.paint.x+right.paint.width-2:right.paint.x+1;
   await send('mouseMove',x,bodyY);await pause();
@@ -197,8 +205,28 @@ async function verifyBoundaries({ window, temp, label, until }) {
   assert(await evaluate("document.querySelector('.desktop-right-sidebar').dataset.paneContentVisible === 'false'"), `${label} collapsed content remains interactive`);
   const collapsed=await evaluate(`(() => {const r=document.querySelector('.desktop-right-sidebar-resizer').getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};})()`);
   assert(collapsed.width===12 && collapsed.x>=0 && collapsed.x+collapsed.width<=window.getContentSize()[0], 'collapsed edge leaves the window');
-  await send('mouseDown',collapsed.x+6,collapsed.y+60);
-  await send('mouseUp',collapsed.x+6,collapsed.y+60);
+  const collapsedCenterX=collapsed.x+collapsed.width/2;
+  const collapsedCenterY=collapsed.y+60;
+  assert(await evaluate(`document.elementFromPoint(${Math.round(collapsedCenterX)},${Math.round(collapsedCenterY)})?.closest('.desktop-right-sidebar-resizer') !== null`), 'collapsed edge is not hit-testable');
+  const collapsedDrag=await evaluate(`(async()=>{
+    const handle=document.querySelector('.desktop-right-sidebar-resizer');
+    const rect=handle.getBoundingClientRect();
+    const startX=rect.x+rect.width/2,startY=rect.y+60,pointerId=917;
+    const direction=getComputedStyle(handle).direction==='rtl'?1:-1;
+    const frame=()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    handle.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,buttons:1,clientX:startX,clientY:startY,pointerId}));
+    await frame();
+    const acquired=handle.dataset.resizing==='true';
+    for(const delta of [24,Math.round(${rightExpandedWidth}/3),Math.round(${rightExpandedWidth}*2/3),${rightExpandedWidth}]){
+      window.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,button:0,buttons:1,clientX:startX+direction*delta,clientY:startY,pointerId}));
+      await frame();
+    }
+    const previewOpen=document.querySelector('.desktop-right-sidebar')?.classList.contains('is-open')===true;
+    window.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,button:0,buttons:0,clientX:startX+direction*${rightExpandedWidth},clientY:startY,pointerId}));
+    return {acquired,previewOpen};
+  })()`);
+  assert(collapsedDrag.acquired,'collapsed edge drag was not acquired');
+  assert(collapsedDrag.previewOpen,`collapsed edge drag did not reveal the pane: ${JSON.stringify(collapsedDrag)}`);
   await until(async()=>evaluate("Boolean(document.querySelector('.desktop-right-sidebar.is-open [data-pane-edge-chrome]'))"),'reopen from collapsed edge');
   await until(async()=>evaluate("document.querySelector('.desktop-right-sidebar').dataset.panePresentation === 'expanded'"),'content restored after reopen');
   await pause();

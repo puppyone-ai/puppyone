@@ -120,6 +120,7 @@ async function runSmoke() {
         navigationLeft: navigation.getBoundingClientRect().left,
         navigationPadding: getComputedStyle(navigation).padding,
         navigationWidth: Math.round(navigation.getBoundingClientRect().width),
+        navigationScrollWidth: navigation.scrollWidth,
         navigationRight: Math.round(navigation.getBoundingClientRect().right),
         toolbarWidth: toolbar ? Math.round(toolbar.getBoundingClientRect().width) : 0,
         toolbarRight: toolbar ? Math.round(toolbar.getBoundingClientRect().right) : 0,
@@ -341,7 +342,10 @@ async function runSmoke() {
       assert(snapshot.locationBarDropdownBackgroundSize === "7px 7px, auto", `XP: dropdown arrow is not on the shared 7px grid (${snapshot.locationBarDropdownBackgroundSize})`);
       assert(snapshot.locationBarGoLabel === "Go", `XP: Go affordance label is ${snapshot.locationBarGoLabel}`);
       assert(snapshot.locationBarGoTag === "BUTTON", `XP: Go affordance is not clickable (${snapshot.locationBarGoTag})`);
-      assert(snapshot.navigationWidth >= 400, `XP: navigation collapsed to ${snapshot.navigationWidth}px inside its Shell toolbar`);
+      assert(
+        snapshot.navigationWidth >= snapshot.navigationScrollWidth,
+        `XP: navigation clips its current controls (${snapshot.navigationWidth}px < ${snapshot.navigationScrollWidth}px)`,
+      );
       assert(snapshot.navigationPadding === "0px", `XP: portaled navigation retained Sidebar padding (${snapshot.navigationPadding})`);
       assert(
         Math.abs(snapshot.navigationLeft - 8) <= 0.5,

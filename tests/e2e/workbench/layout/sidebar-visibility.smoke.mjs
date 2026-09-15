@@ -150,8 +150,13 @@ async function opened(id, label) {
   assert(pixels > 100, "Capture omitted the visible contribution; absence checks would be invalid");
 }
 async function selectProject(name) {
-  await evaluate(`[...document.querySelectorAll('.desktop-project-switcher-rail-project')].find(x=>x.title.includes(${JSON.stringify(name)})).click()`);
-  await until(() => evaluate(`[...document.querySelectorAll('.desktop-project-switcher-rail-project')].some(x=>x.title.includes(${JSON.stringify(name)})&&x.getAttribute('aria-current')==='page')`), name);
+  await evaluate(`(() => {
+    const button=[...document.querySelectorAll('.desktop-project-switcher-rail-project')]
+      .find(x=>x.getAttribute('aria-label')?.includes(${JSON.stringify(name)}));
+    if(!button)throw new Error(${JSON.stringify("Project rail button is unavailable: ")}+${JSON.stringify(name)});
+    button.click();
+  })()`);
+  await until(() => evaluate(`[...document.querySelectorAll('.desktop-project-switcher-rail-project')].some(x=>x.getAttribute('aria-label')?.includes(${JSON.stringify(name)})&&x.getAttribute('aria-current')==='page')`), name);
 }
 async function launch(kind) {
   await sidebar(true);
@@ -241,12 +246,13 @@ app.whenReady().then(async () => {
       await hidden(`${kind}-finished-loading-while-closed`);
       await sidebar(true); await until(() => presented(late), `late ${kind} shown only on reopen`);
     }
-    // Keyboard collapse and the collapsed edge use the same content visibility contract.
+    // Keyboard collapse and expansion use the same content visibility contract;
+    // collapsed-edge pointer dragging is covered by the shared boundary smoke.
     await evaluate("document.querySelector('.desktop-right-sidebar-resizer').dispatchEvent(new KeyboardEvent('keydown',{key:'Home',bubbles:true}))");
     await until(async () => await isOpen() === false, "Home key collapses the sidebar");
     await sidebar(false); await hidden("keyboard-collapsed");
-    await click(".desktop-right-sidebar-resizer");
-    await until(isOpen, "collapsed edge reopens");
+    await evaluate("document.querySelector('.desktop-right-sidebar-resizer').dispatchEvent(new KeyboardEvent('keydown',{key:'End',bubbles:true}))");
+    await until(isOpen, "End key reopens the sidebar");
     await sidebar(false); await hidden("final-closed");
   } catch (error) { failure = error; console.error(error); }
   finally {
