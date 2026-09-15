@@ -17,22 +17,26 @@
 }
 
 .desktop-version-control-enable-button {
+  appearance: none;
   display: inline-flex;
+  box-sizing: border-box;
   align-items: center;
   justify-content: center;
   height: var(--po-control-size);
+  min-height: var(--po-control-size);
   padding: 0 10px;
-  border: 1px solid color-mix(in srgb, var(--po-text) 72%, transparent);
+  border: 1px solid transparent;
   border-radius: 6px;
-  background: var(--po-text);
+  background: var(--po-accent);
   color: var(--po-text-inverse);
+  font-family: var(--po-font-ui);
   font-size: var(--po-text-size-body);
   font-weight: var(--po-text-weight-semibold);
-  line-height: calc(var(--po-text-size-body) + 3px);
+  line-height: 1;
 }
 
 .desktop-version-control-enable-button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--po-text) 86%, var(--po-canvas));
+  background: color-mix(in srgb, var(--po-accent) 86%, var(--po-text) 14%);
 }
 
 .desktop-version-control-enable-button:focus-visible {
@@ -54,6 +58,13 @@
 }
 
 .desktop-git-repository-setup {
+  --desktop-git-setup-action-bg: var(--po-accent);
+  --desktop-git-setup-action-bg-hover: color-mix(
+    in srgb,
+    var(--po-accent) 86%,
+    var(--po-text) 14%
+  );
+
   display: grid;
   box-sizing: border-box;
   min-width: 0;
@@ -66,10 +77,37 @@
 }
 
 .desktop-git-repository-setup-action {
+  appearance: none;
+  box-sizing: border-box;
+  height: var(--po-control-size);
+  min-height: var(--po-control-size);
   min-width: 0;
   max-width: 100%;
   padding-inline: 14px;
+  border-color: transparent;
+  background: var(--desktop-git-setup-action-bg);
+  color: var(--po-text-inverse);
+  font-family: var(--po-font-ui);
+  font-size: var(--po-type-right-sidebar-content, 14px);
+  font-weight: var(--po-text-weight-medium, 500);
+  line-height: 1;
   white-space: nowrap;
+}
+
+.desktop-git-repository-setup-action:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--desktop-git-setup-action-bg-hover);
+  color: var(--po-text-inverse);
+}
+
+.desktop-git-repository-setup-action:disabled {
+  background: color-mix(in srgb, var(--desktop-git-setup-action-bg) 36%, var(--po-control));
+  color: color-mix(in srgb, var(--po-text-inverse) 72%, transparent);
+}
+
+.app-shell:not(.dark) .desktop-git-repository-setup {
+  --desktop-git-setup-action-bg: #4599df;
+  --desktop-git-setup-action-bg-hover: #3489d0;
 }
 
 .desktop-git-repository-setup-title {

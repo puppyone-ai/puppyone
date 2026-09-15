@@ -432,6 +432,12 @@ describe("source-control visual architecture", () => {
     expect(versionControlSetupCss).toContain("height: var(--po-control-size);");
     expect(versionControlSetupCss).toContain(".desktop-git-repository-setup {");
     expect(versionControlSetupCss).toMatch(
+      /\.desktop-git-repository-setup-action\s*\{[^}]*height:\s*var\(--po-control-size\);[^}]*min-height:\s*var\(--po-control-size\);[^}]*background:\s*var\(--desktop-git-setup-action-bg\);[^}]*font-size:\s*var\(--po-type-right-sidebar-content, 14px\);[^}]*font-weight:\s*var\(--po-text-weight-medium, 500\);[^}]*line-height:\s*1;/s,
+    );
+    expect(versionControlSetupCss).toMatch(
+      /\.app-shell:not\(\.dark\) \.desktop-git-repository-setup\s*\{[^}]*--desktop-git-setup-action-bg:\s*#4599df;[^}]*--desktop-git-setup-action-bg-hover:\s*#3489d0;/s,
+    );
+    expect(versionControlSetupCss).toMatch(
       /\.desktop-git-repository-setup-title\s*\{[^}]*font-weight:\s*var\(--po-text-weight-regular, 400\);/s,
     );
   });
