@@ -33,6 +33,7 @@ const rows = [];
 const caseArgument = process.argv.indexOf("--case");
 const caseId = caseArgument < 0 ? null : process.argv[caseArgument + 1];
 let window, vite, surfaces, appServer;
+let inputDebugger;
 let destroyed = 0;
 let compositeClosed = 0;
 const markers = new Map();
@@ -162,8 +163,9 @@ try {
     // painted evidence.
     window.focus();
     window.webContents.focus();
-    for (let attempt = 0; attempt < 20 && !window.webContents.isFocused(); attempt++) await wait(10);
-    assert(window.webContents.isFocused(), "Owner renderer did not regain focus before pane input");
+    // CDP dispatch is target-scoped and does not depend on the host OS making
+    // this BrowserWindow the foreground application. DOM focus is the useful
+    // invariant here; macOS CI can legitimately deny foreground activation.
     const splitterFocused = await window.webContents.executeJavaScript(`(() => {
       const splitter = document.querySelector('.desktop-editor-splitter');
       splitter?.focus();
@@ -171,14 +173,28 @@ try {
     })()`);
     assert(splitterFocused, "Split handle did not regain focus before pane input");
     await wait(50);
-    const send = (type, point, extra = {}) => window.webContents.sendInputEvent({
-      type,
-      x: Math.round(point.x),
-      y: Math.round(point.y),
-      ...extra,
-    });
-    send("mouseMove", request.from);
-    send("mouseDown", request.from, { button: "left", clickCount: 1 });
+    // Electron's regular renderer input is the closest contract for DOM-only
+    // viewers. A visible WebContentsView can intercept that transport on Linux,
+    // so native cases use target-scoped CDP input against the owner renderer.
+    const nativeSurfaceVisible = surfaces.values().some(entry => entry.attached && entry.geometryVisible);
+    const send = async (type, point, pressed = false) => {
+      const x = Math.round(point.x);
+      const y = Math.round(point.y);
+      if (nativeSurfaceVisible) {
+        await inputDebugger.sendCommand("Input.dispatchMouseEvent", {
+          type: type === "mouseMove" ? "mouseMoved" : type === "mouseDown" ? "mousePressed" : "mouseReleased",
+          x, y, pointerType: "mouse", button: "left", buttons: pressed ? 1 : 0,
+          ...(type === "mouseMove" ? {} : { clickCount: 1 }),
+        });
+        return;
+      }
+      window.webContents.sendInputEvent({
+        type, x, y,
+        ...(type === "mouseMove" ? (pressed ? { modifiers: ["leftButtonDown"] } : {}) : { button: "left", clickCount: 1 }),
+      });
+    };
+    await send("mouseMove", request.from);
+    await send("mouseDown", request.from, true);
     for (let attempt = 0; attempt < 50; attempt++) {
       if (await window.webContents.executeJavaScript("document.querySelector('.desktop-editor-splitter')?.dataset.resizing === 'true'")) break;
       await wait(10);
@@ -186,10 +202,10 @@ try {
     assert(await window.webContents.executeJavaScript("document.querySelector('.desktop-editor-splitter')?.dataset.resizing === 'true'"),
       "Split handle did not acquire the pointer stream");
     for (let step = 1; step <= 6; step++) {
-      send("mouseMove", { x: request.from.x + (request.to.x - request.from.x) * step / 6, y: request.from.y + (request.to.y - request.from.y) * step / 6 }, { button: "left", modifiers: ["leftButtonDown"] });
+      await send("mouseMove", { x: request.from.x + (request.to.x - request.from.x) * step / 6, y: request.from.y + (request.to.y - request.from.y) * step / 6 }, true);
       await wait(20);
     }
-    send("mouseUp", request.to, { button: "left", clickCount: 1 });
+    await send("mouseUp", request.to);
     for (let attempt = 0; attempt < 50; attempt++) {
       if (!await window.webContents.executeJavaScript("document.querySelector('.desktop-editor-splitter')?.dataset.resizing === 'true'")) return;
       await wait(10);
@@ -206,6 +222,8 @@ try {
   window = new BrowserWindow({ show: true, width: 1100, height: 820, webPreferences: {
     backgroundThrottling: false, contextIsolation: true, sandbox: true, preload: path.join(repoRoot, "tests/fixtures/editor/runtime/editor-pane-contracts-preload.cjs"),
   } });
+  inputDebugger = window.webContents.debugger;
+  inputDebugger.attach("1.3");
   app.focus({ steal: true }); window.focus();
   window.webContents.on("console-message", (details) => { if (details.level === "error") console.error(details.message); });
   await window.loadURL(`http://127.0.0.1:${vite.httpServer.address().port}/tests/fixtures/editor/runtime/editor-pane-contracts.html`);
@@ -225,6 +243,7 @@ try {
   if (window && !window.isDestroyed()) await fsp.writeFile(path.join(outputDirectory, "failure.png"), (await window.webContents.capturePage()).toPNG());
 } finally {
   await surfaces?.destroyAll(); pointer.dispose(); occlusion.dispose();
+  if (inputDebugger?.isAttached()) inputDebugger.detach();
   window?.destroy(); await vite?.close();
   if (appServer) await new Promise(resolve => appServer.close(resolve));
   try { await fsp.rm(temporary, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
@@ -232,7 +251,7 @@ try {
   const sourceAfter = await readSourceIdentity(repoRoot);
   if (sourceAfter.fingerprint !== source.fingerprint) { failed = true; failure ??= "Source changed during verification"; }
   await fsp.writeFile(path.join(outputDirectory, "result.json"), JSON.stringify({ passed: !failed, source, sourceAfter, platform: process.platform,
-    electron: process.versions.electron, selection: caseId ?? "all", input: "Chromium sendInputEvent; not OS input injection", results: rows, nativePdfDestroyed: destroyed,
+    electron: process.versions.electron, selection: caseId ?? "all", input: "Electron sendInputEvent for DOM; target-scoped CDP for native child overlap; not OS input injection", results: rows, nativePdfDestroyed: destroyed,
     compositor: nativeCapture ? { verifiedClosed: compositeClosed } : "not-run: screen permission unavailable", failure }, null, 2) + "\n");
   console.log(`Pane contract evidence: ${outputDirectory}`);
   clearTimeout(deadline);

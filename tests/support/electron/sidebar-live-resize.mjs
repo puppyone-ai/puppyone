@@ -65,9 +65,13 @@ async function verifyLiveResize({ window, temp, label, until }) {
   await until(async () => Math.abs((await snapshot()).pane.width-original.pane.width) <= 1, "original pane width restoration");
   await send("mouseUp", restoreStart.x-80, restoreStart.y);
   await until(async () => !(await snapshot()).dragging, "DOM divider restore release");
-  const restored = await snapshot();
+  let restored;
+  await until(async () => {
+    restored = await snapshot();
+    return Math.abs(restored.pane.width-original.pane.width) <= 1
+      && Math.abs(restored.content.width-restored.viewport.width) <= 1;
+  }, "restored pane and content geometry");
   assert(Number(restored.persisted) === Math.round(original.pane.width), "Original width was not restored");
-  assert(Math.abs(restored.content.width-restored.viewport.width) <= 1, "Restored content geometry diverged");
   observations.push(restored);
 
   // CSS owns window constraints; the session's DOM node must survive them.

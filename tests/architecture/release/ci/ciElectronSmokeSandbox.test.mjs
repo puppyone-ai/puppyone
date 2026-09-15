@@ -10,6 +10,14 @@ const markdownFocusFixture = readFileSync(
   new URL("../../../fixtures/workbench/focus/markdown-pane-focus-continuity.tsx", import.meta.url),
   "utf8",
 );
+const editorPaneFixture = readFileSync(
+  new URL("../../../integration/editor/runtime/editor-pane-contracts.smoke.mjs", import.meta.url),
+  "utf8",
+);
+const sidebarResizeFixture = readFileSync(
+  new URL("../../../support/electron/sidebar-live-resize.mjs", import.meta.url),
+  "utf8",
+);
 
 describe("CI Electron smoke sandbox boundary", () => {
   it("scopes the hosted Linux fallback and virtual display to Electron fixtures", () => {
@@ -33,5 +41,18 @@ describe("CI Electron smoke sandbox boundary", () => {
       "markdownEnvironment={EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT}",
     );
     expect(markdownFocusFixture).not.toContain("state={workspaceState}");
+  });
+
+  it("routes hosted pointer evidence through the surface-appropriate transport", () => {
+    expect(editorPaneFixture).toContain(
+      "surfaces.values().some(entry => entry.attached && entry.geometryVisible)",
+    );
+    expect(editorPaneFixture).toContain('inputDebugger.sendCommand("Input.dispatchMouseEvent"');
+    expect(editorPaneFixture).toContain("window.webContents.sendInputEvent");
+    expect(editorPaneFixture).toContain("if (nativeSurfaceVisible)");
+    expect(sidebarResizeFixture).toContain('"restored pane and content geometry"');
+    expect(sidebarResizeFixture).toContain(
+      "Math.abs(restored.content.width-restored.viewport.width) <= 1",
+    );
   });
 });
