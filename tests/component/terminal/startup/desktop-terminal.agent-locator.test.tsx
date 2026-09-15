@@ -40,8 +40,42 @@ describe("shared Local Agent installation controller", () => {
       await latest.current?.refresh();
     });
     expect(locate).toHaveBeenCalledTimes(2);
+    expect(locate).toHaveBeenLastCalledWith({
+      refresh: true,
+      requestId: expect.stringMatching(/^local-agent-installation:/u),
+    });
     expect(getAgentActivityEnrollment).not.toHaveBeenCalled();
     expect(setAgentActivityEnrollment).not.toHaveBeenCalled();
+  });
+
+  it("forces a new scan when the right sidebar launcher is presented again", async () => {
+    const first = deferred<unknown>();
+    const second = deferred<unknown>();
+    const locate = vi.fn()
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+    installBridge(locate);
+    const latest: { current: LocatorView | null } = { current: null };
+    const harness = mount((value) => { latest.current = value; });
+
+    await vi.waitFor(() => expect(locate).toHaveBeenCalledOnce());
+    await act(async () => {
+      first.resolve(snapshot(["claude"], 1));
+      await first.promise;
+    });
+    expect(latest.current?.ids).toEqual(["claude"]);
+    harness.setEnabled(false);
+    harness.setEnabled(true);
+    await vi.waitFor(() => expect(locate).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      second.resolve(snapshot(["codex", "claude"], 2));
+      await second.promise;
+    });
+    expect(latest.current?.ids).toEqual(["codex", "claude"]);
+    expect(locate).toHaveBeenNthCalledWith(2, {
+      refresh: true,
+      requestId: expect.stringMatching(/^local-agent-installation:/u),
+    });
   });
 
   it("ignores an older discovery response after a forced refresh", async () => {
@@ -170,11 +204,16 @@ function mount(onValue: (value: LocatorView) => void) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
-  act(() => root?.render(<Harness onValue={onValue} />));
+  act(() => root?.render(<Harness enabled onValue={onValue} />));
+  return {
+    setEnabled(enabled: boolean) {
+      act(() => root?.render(<Harness enabled={enabled} onValue={onValue} />));
+    },
+  };
 }
 
-function Harness({ onValue }: { onValue: (value: LocatorView) => void }) {
-  const value = useLocalAgentInstallations({ enabled: true });
+function Harness({ enabled, onValue }: { enabled: boolean; onValue: (value: LocatorView) => void }) {
+  const value = useLocalAgentInstallations({ enabled });
   useEffect(() => onValue(value), [onValue, value]);
   return null;
 }
@@ -203,11 +242,14 @@ function installBridge(
   };
 }
 
-function snapshot(ids: Awaited<ReturnType<DesktopBridge["discoverLocalAgentInstallations"]>>["availableAgentIds"]): Awaited<ReturnType<DesktopBridge["discoverLocalAgentInstallations"]>> {
+function snapshot(
+  ids: Awaited<ReturnType<DesktopBridge["discoverLocalAgentInstallations"]>>["availableAgentIds"],
+  generation = 1,
+): Awaited<ReturnType<DesktopBridge["discoverLocalAgentInstallations"]>> {
   return {
     schemaVersion: 1,
-    generation: 1,
-    scanId: "local-agent-scan:1",
+    generation,
+    scanId: `local-agent-scan:${generation}`,
     requestedAt: "2026-08-15T00:00:00.000Z",
     completedAt: "2026-08-15T00:00:00.001Z",
     availableAgentIds: ids,
