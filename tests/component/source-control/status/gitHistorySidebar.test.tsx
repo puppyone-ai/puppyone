@@ -31,6 +31,7 @@ describe("Git History right-sidebar surface", () => {
     });
 
     expect(surface.textContent).not.toContain("No repository");
+    expect(surface.textContent).toContain("Version history isn’t enabled yet");
     const buttons = surface.querySelectorAll<HTMLButtonElement>("button");
     expect(buttons).toHaveLength(1);
     expect(buttons[0]?.textContent).toBe("Create Version History");

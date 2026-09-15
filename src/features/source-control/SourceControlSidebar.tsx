@@ -115,6 +115,7 @@ export function GitSidebar({ repository, view, actions, cloudBackup }: GitSideba
           />
         ) : status && !status.isRepo ? (
           <GitRepositorySetupAction
+            title={t("source-control.history.inactive")}
             label={t("source-control.setup.enable")}
             pendingLabel={t("source-control.setup.enabling")}
             pending={operationLoading === "init"}

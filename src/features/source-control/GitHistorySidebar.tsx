@@ -85,6 +85,7 @@ export function GitHistorySidebar({
           </div>
         ) : status && !status.isRepo ? (
           <GitRepositorySetupAction
+            title={t("source-control.history.inactive")}
             label={t("source-control.history.create")}
             pendingLabel={t("source-control.setup.enabling")}
             pending={initializing}

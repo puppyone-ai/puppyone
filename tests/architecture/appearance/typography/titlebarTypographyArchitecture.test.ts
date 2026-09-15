@@ -32,6 +32,7 @@ describe("titlebar typography architecture", () => {
     const conflict = readCssBlock(titlebarCss, ".desktop-titlebar-git-indicator.conflict");
 
     expect(indicator).toContain("var(--desktop-titlebar-text-subtle");
+    expect(indicator).toContain("font-weight: var(--po-text-weight-regular, 400);");
     expect(changedLocalIcon).toContain("var(--po-warning) 76%, white");
     expect(incomingIcon).toContain("var(--po-accent) 74%, white");
     expect(outgoingIcon).toContain("var(--po-success) 72%, white");

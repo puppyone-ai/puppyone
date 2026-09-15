@@ -422,6 +422,8 @@ describe("source-control visual architecture", () => {
     expect(gitHistorySidebarSource).not.toContain('t("source-control.status.noRepository")');
     expect(sourceControlSidebarSource).toContain("<GitRepositorySetupAction");
     expect(gitHistorySidebarSource).toContain("<GitRepositorySetupAction");
+    expect(sourceControlSidebarSource).toContain('t("source-control.history.inactive")');
+    expect(gitHistorySidebarSource).toContain('t("source-control.history.inactive")');
     expect(gitHistorySidebarSource).toContain('t("source-control.history.create")');
     expect(gitRepositorySetupSource).toContain("desktop-version-control-enable-button");
     expect(gitRepositorySetupSource).not.toContain("noRepository");
@@ -429,6 +431,9 @@ describe("source-control visual architecture", () => {
     expect(desktopEntryStateCss).toContain("width: min(420px, 100%);");
     expect(versionControlSetupCss).toContain("height: var(--po-control-size);");
     expect(versionControlSetupCss).toContain(".desktop-git-repository-setup {");
+    expect(versionControlSetupCss).toMatch(
+      /\.desktop-git-repository-setup-title\s*\{[^}]*font-weight:\s*var\(--po-text-weight-regular, 400\);/s,
+    );
   });
 
   it("shares the responsive setup type scale with the Cloud entry state", () => {

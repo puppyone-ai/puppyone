@@ -72,6 +72,14 @@
   white-space: nowrap;
 }
 
+.desktop-git-repository-setup-title {
+  color: var(--po-text-subtle);
+  font-size: var(--po-type-right-sidebar-content, 14px);
+  font-weight: var(--po-text-weight-regular, 400);
+  line-height: var(--po-type-right-sidebar-line-height, 20px);
+  text-align: center;
+}
+
 .desktop-git-repository-setup-error {
   max-width: 280px;
   color: var(--po-danger);

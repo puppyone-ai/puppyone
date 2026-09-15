@@ -268,7 +268,7 @@
   border-radius: 4px;
   color: var(--desktop-titlebar-text-subtle, var(--desktop-titlebar-text-muted));
   font-size: var(--po-type-header-meta, 13px);
-  font-weight: var(--po-text-weight-semibold, 600);
+  font-weight: var(--po-text-weight-regular, 400);
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }

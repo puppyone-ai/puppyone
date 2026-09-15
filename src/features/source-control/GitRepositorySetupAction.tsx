@@ -1,4 +1,5 @@
 export type GitRepositorySetupActionProps = Readonly<{
+  title: string;
   label: string;
   pendingLabel: string;
   pending: boolean;
@@ -8,6 +9,7 @@ export type GitRepositorySetupActionProps = Readonly<{
 
 /** One calm, actionable empty state shared by Git right-sidebar surfaces. */
 export function GitRepositorySetupAction({
+  title,
   label,
   pendingLabel,
   pending,
@@ -16,6 +18,7 @@ export function GitRepositorySetupAction({
 }: GitRepositorySetupActionProps) {
   return (
     <div className="desktop-git-repository-setup">
+      <strong className="desktop-git-repository-setup-title">{title}</strong>
       <button
         className="desktop-version-control-enable-button desktop-git-repository-setup-action"
         type="button"
