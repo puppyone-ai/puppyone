@@ -156,15 +156,29 @@ try {
     id: entry.sessionId, bounds: entry.view.getBounds(), ready: await pdfReady(entry.view.webContents),
   }))) }));
   ipcMain.handle("pane-contracts:input", async (_event, request) => {
-    // Capturing a native child can leave it as the focused WebContents on
-    // Linux. Restore the owner before injecting the next real pane gesture.
+    // A native child capture can retain focus on Linux. Restore the owner and
+    // let Chromium publish that focus change before dispatching the next pane
+    // gesture. This keeps the matrix independent of whichever WebContents last
+    // painted evidence.
+    window.focus();
     window.webContents.focus();
-    const send = (type, point, extra = {}) => window.webContents.sendInputEvent({ type, x: Math.round(point.x), y: Math.round(point.y), ...extra });
+    for (let attempt = 0; attempt < 20 && !window.webContents.isFocused(); attempt++) await wait(10);
+    assert(window.webContents.isFocused(), "Owner renderer did not regain focus before pane input");
+    await wait(25);
+    const send = (type, point, extra = {}) => window.webContents.sendInputEvent({
+      type,
+      x: Math.round(point.x),
+      y: Math.round(point.y),
+      ...extra,
+    });
     if (request.kind === "click") {
-      send("mouseMove", request.point); send("mouseDown", request.point, { button: "left", clickCount: 1 });
+      send("mouseMove", request.point);
+      send("mouseDown", request.point, { button: "left", clickCount: 1 });
       send("mouseUp", request.point, { button: "left", clickCount: 1 });
     } else {
-      send("mouseMove", request.from); send("mouseDown", request.from, { button: "left", clickCount: 1 }); await wait(30);
+      send("mouseMove", request.from);
+      send("mouseDown", request.from, { button: "left", clickCount: 1 });
+      await wait(30);
       for (let step = 1; step <= 6; step++) {
         send("mouseMove", { x: request.from.x + (request.to.x - request.from.x) * step / 6, y: request.from.y + (request.to.y - request.from.y) * step / 6 }, { button: "left", modifiers: ["leftButtonDown"] });
         await wait(20);

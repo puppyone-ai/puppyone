@@ -354,7 +354,7 @@ body.desktop-right-sidebar-resizing * {
  * pane gesture phase. The body-owned resize session must suppress presentation
  * easing from that first frame so the divider never trails the pointer. */
 body.desktop-right-sidebar-resizing .desktop-right-sidebar.po-collapsible-pane-frame {
-  transition: none;
+  transition: none !important;
 }
 
 body.desktop-right-sidebar-resizing .desktop-surface,
