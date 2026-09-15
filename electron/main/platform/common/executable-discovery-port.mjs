@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import os from "node:os";
+import { readUserCommandEnvironment } from "./command-environment.mjs";
 
 /**
  * Platform-owned inputs used by executable discovery. Product definitions do
@@ -11,11 +12,13 @@ export function createExecutableDiscoveryPort({
   env = process.env,
   homedir = os.homedir(),
   fsModule = fs,
+  readEnvironment = readUserCommandEnvironment,
 } = {}) {
   return Object.freeze({
     nodePlatform,
     env,
     homedir,
     fsModule,
+    captureEnvironment: ({ signal } = {}) => readEnvironment({ env, homedir, platform: nodePlatform, signal }),
   });
 }

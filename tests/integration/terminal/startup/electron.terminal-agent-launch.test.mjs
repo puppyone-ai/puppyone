@@ -37,7 +37,8 @@ describe("Terminal Agent launch boundary", () => {
       args: ["agent"],
       displayName: "Cursor Agent",
       executablePath: "/tools/cursor",
-      pathEntries: ["/tools"],
+      pathEntries: [],
+      environment: undefined,
     });
     expect(resolveCandidate).toHaveBeenCalledWith(
       expect.objectContaining({ id: "cursor" }),
@@ -71,7 +72,8 @@ describe("Terminal Agent launch boundary", () => {
       args: [],
       displayName,
       executablePath,
-      pathEntries: ["/tools"],
+      pathEntries: [],
+      environment: undefined,
     });
   });
 
@@ -291,6 +293,13 @@ describe("Terminal Agent launch boundary", () => {
 });
 
 describe("Terminal Agent command serialization", () => {
+  it("preserves a Windows npm launcher path and refuses percent expansion", () => {
+    expect(serializeTerminalAgentCommand({ executablePath: "C:\\CLI tools\\codex.cmd", args: [] },
+      { platform: "win32", shellFile: "C:\\Windows\\System32\\cmd.exe" }))
+      .toBe('"C:\\CLI tools\\codex.cmd"\r');
+    expect(() => serializeTerminalAgentCommand({ executablePath: "C:\\%custom%\\codex.cmd" },
+      { platform: "win32", shellFile: "C:\\Windows\\System32\\cmd.exe" })).toThrow("cannot preserve");
+  });
   it("recognizes both TUI control sequences and substantial first paint output", () => {
     expect(isTerminalAgentDisplayReady("shell prompt and echoed command")).toBe(false);
     expect(isTerminalAgentDisplayReady("\u001b[?1049h")).toBe(true);

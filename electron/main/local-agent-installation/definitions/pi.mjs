@@ -8,14 +8,13 @@ export const piInstallationDefinition = Object.freeze({
     const executable = platform === "win32" ? "pi.exe" : "pi";
     return [
       env?.PI_CODING_AGENT_DIR
-        ? { path: path.join(env.PI_CODING_AGENT_DIR, "bin", executable), source: "environment-override" }
+        ? { path: path.join(env.PI_CODING_AGENT_DIR, "bin", executable), source: "product-fallback" }
         : null,
       env?.PI_MANAGED_INSTALL_ROOT
-        ? { path: path.join(path.dirname(env.PI_MANAGED_INSTALL_ROOT), "bin", executable), source: "environment-override" }
+        ? { path: path.join(path.dirname(env.PI_MANAGED_INSTALL_ROOT), "bin", executable), source: "product-fallback" }
         : null,
       { path: path.join(homedir, ".pi", "agent", "bin", executable), source: "product-fallback" },
-      { path: path.join(homedir, ".omp", "agent", "bin", executable), source: "product-fallback" },
-      { path: path.join(homedir, ".hermes", "node", "bin", executable), source: "product-fallback" },
+      { path: path.join(homedir, ".local", "bin", executable), source: "product-fallback" },
     ].filter(Boolean);
   },
   identityPolicy: Object.freeze({
@@ -27,8 +26,6 @@ export const piInstallationDefinition = Object.freeze({
     pathFragments: Object.freeze([
       "/pi-coding-agent/",
       "/.pi/agent/bin/",
-      "/.omp/agent/bin/",
-      "/.hermes/node/",
     ]),
     fileMarkers: Object.freeze(["pi_coding_agent", "pi-coding-agent"]),
   }),

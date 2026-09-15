@@ -52,6 +52,9 @@ export function createAgentSessionRuntime({
       runtimeId: requested,
       workspaceRoot,
       operation,
+      // A new native session must observe installations added after the
+      // catalog was cached. Existing sessions keep their running adapter.
+      refresh: true,
     });
   }
 

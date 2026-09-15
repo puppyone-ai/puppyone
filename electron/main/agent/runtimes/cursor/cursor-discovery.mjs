@@ -20,18 +20,22 @@ export async function discoverCursorBackend({
   env = process.env,
   homedir = os.homedir(),
   platform = process.platform,
+  readEnvironment,
   resolveCandidate = async () => {
     const resolver = createLocalAgentExecutableResolver({
-      discoveryPort: createExecutableDiscoveryPort({ env, fsModule, homedir, nodePlatform: platform }),
+      discoveryPort: createExecutableDiscoveryPort({ env, fsModule, homedir, nodePlatform: platform, readEnvironment }),
     });
-    const result = await resolver.resolve("cursor");
+    const context = await resolver.createContext({ signal });
+    const result = await resolver.resolve("cursor", { context });
+    if (result.status === "failed") throw new Error(result.reasonCode);
     return result.status === "found" ? result.candidate : null;
   },
   probe = probeCursorLocal,
 } = {}) {
   signal?.throwIfAborted();
   const candidate = await resolveCandidate();
-  const result = await probe({ candidate, env, signal });
+  const environment = candidate?.environment ?? env;
+  const result = await probe({ candidate, env: environment, signal });
   const base = {
     runtimeId: "cursor",
     provider: "cursor",
@@ -39,7 +43,7 @@ export async function discoverCursorBackend({
     minimumVersion: null,
     executablePath: candidate?.executablePath ?? null,
     argsPrefix: candidate?.argsPrefix ?? [],
-    environment: {},
+    environment,
     source: result.source ?? (candidate ? "user-installed" : "missing"),
     compatibility: "acp-v1",
   };

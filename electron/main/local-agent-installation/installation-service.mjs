@@ -4,7 +4,6 @@ import { createLocalAgentExecutableResolver } from "./executable-resolver.mjs";
 import { createLocalAgentInstallationRegistry } from "./installation-registry.mjs";
 
 const DEFAULT_CACHE_TTL_MS = 30_000;
-const TARGET_COLD_SCAN_MS = 75;
 
 /**
  * Application-scoped authority for local installation discovery.
@@ -26,7 +25,7 @@ export function createLocalAgentInstallationService(options = {}) {
     ...(options.discoveryPort ? { discoveryPort: options.discoveryPort } : {}),
   });
   const createResolutionContext = options.createResolutionContext
-    ?? (() => resolver.createContext());
+    ?? ((options) => resolver.createContext(options));
   const resolveInstallation = options.resolveInstallation
     ?? ((definition, context) => resolver.resolve(definition.id, { context }));
   let cached = null;
@@ -35,6 +34,7 @@ export function createLocalAgentInstallationService(options = {}) {
   let queuedRefresh = null;
   let generation = 0;
   let disposed = false;
+  const controller = new AbortController();
   const diagnostics = {
     cacheHitCount: 0,
     catalogSize: registry.length,
@@ -97,7 +97,7 @@ export function createLocalAgentInstallationService(options = {}) {
         diagnostics.lastAvailableCount = snapshot.availableAgentIds.length;
         if (!disposed && scanGeneration === generation) {
           latestSnapshot = snapshot;
-          cached = snapshot.results.some(({ status }) => status === "failed")
+          cached = snapshot.results.some(({ status, reasonCode }) => status === "failed" || reasonCode === "environment-unavailable")
             ? null
             : { cachedAt: completedAtMs, snapshot };
           safelyPublish(publishSnapshot, snapshot);
@@ -115,7 +115,7 @@ export function createLocalAgentInstallationService(options = {}) {
   async function runScan({ observers, requestedAtMs, scanGeneration, scanId }) {
     let context;
     try {
-      context = await createResolutionContext();
+      context = await createResolutionContext({ signal: controller.signal });
     } catch {
       context = null;
     }
@@ -174,6 +174,7 @@ export function createLocalAgentInstallationService(options = {}) {
 
   function dispose() {
     disposed = true;
+    controller.abort();
     generation += 1;
     cached = null;
     latestSnapshot = null;
@@ -249,6 +250,5 @@ function roundDuration(value) {
 
 export const localAgentInstallationPolicy = Object.freeze({
   cacheTtlMs: DEFAULT_CACHE_TTL_MS,
-  targetColdScanMs: TARGET_COLD_SCAN_MS,
   hardRefreshGuaranteesSubsequentScan: true,
 });

@@ -22,6 +22,7 @@ export async function discoverPiExecutable({
   env = process.env,
   platform = process.platform,
   homedir = os.homedir(),
+  readEnvironment,
   configuredExecutable = null,
 } = {}) {
   const result = await discoverExecutable({
@@ -33,6 +34,7 @@ export async function discoverPiExecutable({
     env,
     platform,
     homedir,
+    readEnvironment,
     parseVersion: (value) => parseSemanticVersion(value),
     minimumVersion: null,
     label: "Pi",

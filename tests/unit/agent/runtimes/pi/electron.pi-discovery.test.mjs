@@ -11,6 +11,7 @@ describe("Pi runtime discovery", () => {
         : "Pi - AI coding assistant\n--mode <mode>  Output mode: text, json, or rpc\n",
     ));
     const readiness = await discoverPiExecutable({
+      readEnvironment: async ({ env }) => ({ environment: { ...env }, complete: true, source: "provided" }),
       fsModule: executableFs("/opt/pi/bin/pi"),
       spawn,
       env: { PATH: "" },
@@ -32,6 +33,7 @@ describe("Pi runtime discovery", () => {
 
   it("distinguishes a missing runtime from an installed runtime without RPC support", async () => {
     const missing = await discoverPiExecutable({
+      readEnvironment: async ({ env }) => ({ environment: { ...env }, complete: true, source: "provided" }),
       fsModule: executableFs(null),
       spawn: vi.fn(),
       env: { PATH: "" },
@@ -41,6 +43,7 @@ describe("Pi runtime discovery", () => {
     expect(missing).toMatchObject({ status: "not-installed", code: "RUNTIME_NOT_INSTALLED" });
 
     const unsupported = await discoverPiExecutable({
+      readEnvironment: async ({ env }) => ({ environment: { ...env }, complete: true, source: "provided" }),
       fsModule: executableFs("/opt/pi/bin/pi"),
       spawn: vi.fn((_executable, args) => createCompletedChild(args[0] === "--version" ? "0.84.3\n" : "Pi help\n")),
       env: { PATH: "" },

@@ -1,5 +1,6 @@
 import path from "node:path";
 import { resolveDefaultDesktopShell } from "./platform/shell-policy.mjs";
+import { quoteWindowsBatchArgument } from "./platform/windows/process-invocation.mjs";
 
 const AGENT_DISPLAY_READY_SEQUENCES = Object.freeze([
   "\u001b[?1049h",
@@ -18,21 +19,35 @@ export function createTerminalShellHost({
   platform = process.platform,
 } = {}) {
   const pathModule = platform === "win32" ? path.win32 : path.posix;
-  const file = resolveDefaultDesktopShell({ platform, environment });
+  const commandEnvironment = agentLaunch?.environment;
+  const file = resolveDefaultDesktopShell({ platform, environment: commandEnvironment ?? environment });
   const shellName = pathModule.basename(file);
-  const args = platform !== "win32" && (shellName === "bash" || shellName === "zsh")
+  let args = platform !== "win32" && (shellName === "bash" || shellName === "zsh")
     ? ["-l"]
     : [];
   let agentBootstrapInput = agentLaunch
     ? serializeTerminalAgentCommand(agentLaunch, { platform, shellFile: file })
     : null;
 
-  if (agentBootstrapInput && args.length > 0) {
+  if (agentLaunch && commandEnvironment) {
+    // The platform already initialized this environment. Sourcing rc files
+    // again can reorder PATH or switch the active version manager.
+    if (shellName === "bash") args = ["--noprofile", "--norc"];
+    else if (shellName === "zsh") args = ["-f"];
+    else if (shellName === "fish") args = ["--no-config"];
+    else if (platform === "win32") args = /^(?:pwsh|powershell)\.exe$/iu.test(shellName) ? ["-NoProfile"] : ["/d", "/v:off"];
+  }
+
+  if (agentBootstrapInput && platform !== "win32" && ["bash", "zsh"].includes(shellName)) {
     // Startup scripts can read stdin (for example Oh My Zsh's update prompt).
     // Pass the command through argv so those reads cannot consume launch text.
     // Keep a shell available after either a normal Agent exit or launch failure.
     const command = agentBootstrapInput.slice(0, -1);
     args.push("-i", "-c", `if ${command}; then :; fi; exec ${quotePosixShellArgument(file)} -l`);
+    agentBootstrapInput = null;
+  }
+  if (agentBootstrapInput && shellName === "fish" && commandEnvironment) {
+    args.push("--interactive", "--command", `${agentBootstrapInput.slice(0, -1)}; exec ${quotePosixShellArgument(file)} --login`);
     agentBootstrapInput = null;
   }
 
@@ -41,7 +56,8 @@ export function createTerminalShellHost({
     file,
     args,
     displayShell: agentLaunch?.displayName ?? shellName,
-    loginShell: args.length > 0,
+    loginShell: !commandEnvironment && args.length > 0,
+    commandEnvironment,
     pathEntries: agentLaunch?.pathEntries ?? [],
     environment: agentLaunch && shellName === "zsh" ? { DISABLE_AUTO_UPDATE: "true" } : {},
     agentBootstrapInput,
@@ -58,9 +74,11 @@ export function serializeTerminalAgentCommand(
   }
 
   const shellName = path.win32.basename(shellFile).toLowerCase();
+  if (/\.(?:cmd|bat)$/iu.test(executablePath)) command.forEach(quoteWindowsBatchArgument);
   if (shellName === "powershell.exe" || shellName === "pwsh.exe") {
     return `& ${command.map(quotePowerShellArgument).join(" ")}\r`;
   }
+  if (/\.(?:cmd|bat)$/iu.test(executablePath)) return `${command.map(quoteWindowsBatchArgument).join(" ")}\r`;
   return `${command.map(quoteWindowsCommandArgument).join(" ")}\r`;
 }
 

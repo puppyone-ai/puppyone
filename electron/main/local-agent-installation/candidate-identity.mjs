@@ -16,12 +16,13 @@ export async function verifyLocalAgentCandidateIdentity(definition, candidate, {
   const required = new Set(policy.requiredForInvocations ?? []);
   if (!required.has(candidate?.invokedAs)) return true;
 
-  const normalizedPath = normalizePath(candidate?.executablePath);
+  const identityPath = candidate?.canonicalIdentity ?? candidate?.executablePath;
+  const normalizedPath = normalizePath(identityPath);
   if ((policy.pathFragments ?? []).some((fragment) => normalizedPath.includes(normalizePath(fragment)))) {
     return true;
   }
-  if (await hasPackageIdentity(candidate?.executablePath, policy.packageNames, fsModule)) return true;
-  return hasExecutableMarker(candidate?.executablePath, policy.fileMarkers, fsModule);
+  if (await hasPackageIdentity(identityPath, policy.packageNames, fsModule)) return true;
+  return hasExecutableMarker(identityPath, policy.fileMarkers, fsModule);
 }
 
 async function hasPackageIdentity(executablePath, packageNames, fsModule) {

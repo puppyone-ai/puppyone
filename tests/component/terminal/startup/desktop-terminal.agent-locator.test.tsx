@@ -20,6 +20,20 @@ afterEach(() => {
 });
 
 describe("shared Local Agent installation controller", () => {
+  it("shows a retry state when a known installation is found through an incomplete environment", async () => {
+    const result = deferred<unknown>();
+    installBridge(vi.fn(() => result.promise));
+    const latest: { current: LocatorView | null } = { current: null };
+    mount((value) => { latest.current = value; });
+    await act(async () => {
+      result.resolve({ ...snapshot(["codex"]), results: [{
+        ...installationResult("codex"), reasonCode: "environment-unavailable",
+      }] });
+      await result.promise;
+    });
+    expect(latest.current?.ids).toEqual(["codex"]);
+    expect(latest.current?.hasFailures).toBe(true);
+  });
   it("detects local Agents without reading or changing activity Hook enrollment", async () => {
     const locate = vi.fn(async () => snapshot(["codex"]));
     const getAgentActivityEnrollment = vi.fn();
