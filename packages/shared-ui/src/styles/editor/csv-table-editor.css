@@ -505,8 +505,6 @@
   min-width: 0;
 }
 
-.csv-table-editor__cell-editor[data-reference-kind="external"]
-  .csv-table-editor__cell-input,
 .csv-table-editor__cell-editor[data-reference-kind="workspace"]
   .csv-table-editor__cell-input {
   padding-inline-end: 29px;
@@ -542,6 +540,60 @@
 .csv-table-editor__cell-editor:has(.csv-table-editor__cell-input:focus)
   .csv-table-editor__reference-label {
   opacity: 0;
+}
+
+.csv-table-editor__external-reference {
+  position: absolute;
+  z-index: 2;
+  inset-block: 0;
+  inset-inline-start: var(--po-editable-table-cell-padding-inline, 10px);
+  display: flex;
+  width: max-content;
+  max-width: calc(100% - 20px);
+  min-width: 0;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--po-csv-link-color);
+  cursor: pointer;
+  font: inherit;
+  line-height: inherit;
+  text-align: start;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--po-csv-link-color) 42%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  transition: color 100ms ease, text-decoration-color 100ms ease;
+}
+
+.csv-table-editor__external-reference > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.csv-table-editor__external-reference:hover {
+  text-decoration-color: var(--po-csv-link-color);
+}
+
+.csv-table-editor__external-reference:focus-visible {
+  outline: 1px solid var(--po-focus-ring);
+  outline-offset: 2px;
+}
+
+.csv-table-editor__external-reference:disabled {
+  color: var(--po-text-muted);
+  cursor: text;
+  pointer-events: none;
+  text-decoration-style: dotted;
+}
+
+.csv-table-editor__cell-editor:has(.csv-table-editor__cell-input:focus)
+  .csv-table-editor__external-reference {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .csv-table-editor__reference-action {

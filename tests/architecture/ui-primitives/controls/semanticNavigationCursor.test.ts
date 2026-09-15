@@ -41,6 +41,7 @@ describe("semantic navigation cursor contract", () => {
 
   it("marks document-reference actions while preserving editable text cursors", () => {
     const csvCell = source("packages/shared-ui/src/editor/viewers/csv/CsvCellEditor.tsx");
+    const csvCss = source("packages/shared-ui/src/styles/editor/csv-table-editor.css");
     const markdownCss = source("packages/shared-ui/src/styles/editor/markdown-inline-widgets.css");
     const markdownDecorations = source(
       "packages/shared-ui/src/editor/markdown/core/decorations/inlineDecorations.ts",
@@ -52,6 +53,10 @@ describe("semantic navigation cursor contract", () => {
     const appPreview = source("packages/shared-ui/src/editor/viewers/app/AppPreviewViewer.tsx");
 
     expect(csvCell).toContain('data-po-interaction="navigation"');
+    expect(csvCell).toContain('data-po-content-interaction="navigation"');
+    expect(csvCss).toMatch(
+      /\.csv-table-editor__external-reference\s*\{[\s\S]*?cursor:\s*pointer;/,
+    );
     expect(fileChange).toContain('data-po-interaction="navigation"');
     expect(fileQuery).toContain('data-po-interaction="navigation"');
     expect(editorHost).toContain('data-po-interaction="navigation"');
@@ -75,6 +80,7 @@ describe("semantic navigation cursor contract", () => {
       .filter((file) => (
         !file.pathname.endsWith("/src/styles/base.css")
         && !file.pathname.endsWith("/packages/shared-ui/src/styles/editor/markdown-inline-widgets.css")
+        && !file.pathname.endsWith("/packages/shared-ui/src/styles/editor/csv-table-editor.css")
       ))
       .filter((file) => /(?:cursor:\s*pointer|var\(--po-clickable-cursor, pointer\))/.test(readFileSync(file, "utf8")));
 

@@ -71,11 +71,17 @@ describe("CSV table visual architecture", () => {
     expect(csvEditorSource).toContain("documentNavigation?.resolveReference");
     expect(csvViewerSource).toContain("documentNavigation={context.documentNavigation}");
     expect(csvCellEditorSource).toContain("navigation.openReference(reference)");
+    expect(csvCellEditorSource).toContain('className="csv-table-editor__external-reference"');
+    expect(csvCellEditorSource).toContain('data-po-content-interaction="navigation"');
     expect(csvCellEditorSource).toContain("event.metaKey || event.ctrlKey");
     expect(csvCellEditorSource).not.toContain("window.open");
     expect(csvCellEditorSource).not.toContain("puppyoneDesktop");
     expect(csvCellEditorSource).not.toContain("<a");
+    expect(csvCellEditorSource).not.toContain("ExternalLink");
     expect(csvTableCss).toContain("--po-csv-link-color");
+    expect(csvTableCss).toMatch(
+      /\.csv-table-editor__external-reference\s*\{[\s\S]*?cursor:\s*pointer;/,
+    );
     expect(csvTableCss).toContain(".csv-table-editor__reference-preview");
   });
 

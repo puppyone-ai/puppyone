@@ -34,7 +34,7 @@ afterEach(() => {
 });
 
 describe("CSV document links", () => {
-  it("projects labels without replacing editable source and opens explicit actions", async () => {
+  it("opens external labels directly while preserving editable source", async () => {
     const openExternalUrl = vi.fn();
     const openWorkspaceCandidates = vi.fn();
     const navigation = createDocumentNavigationPort({
@@ -74,26 +74,27 @@ describe("CSV document links", () => {
     const workspaceCell = getBodyCell(2, 1);
     const plainCell = getBodyCell(3, 1);
     const externalInput = externalCell.querySelector<HTMLInputElement>("input");
-    const externalAction = externalCell.querySelector<HTMLButtonElement>(
-      ".csv-table-editor__reference-action",
+    const externalLink = externalCell.querySelector<HTMLButtonElement>(
+      ".csv-table-editor__external-reference",
     );
     const workspaceAction = workspaceCell.querySelector<HTMLButtonElement>(
       ".csv-table-editor__reference-action",
     );
-    if (!externalInput || !externalAction || !workspaceAction) {
+    if (!externalInput || !externalLink || !workspaceAction) {
       throw new Error("CSV reference controls did not mount.");
     }
 
     expect(externalInput.value).toBe("[Docs](https://example.com/docs)");
-    expect(externalCell.querySelector(".csv-table-editor__reference-label")?.textContent).toBe("Docs");
-    expect(externalCell.querySelector(".csv-table-editor__reference-source")?.textContent)
-      .toBe("[Docs](https://example.com/docs)");
+    expect(externalLink.textContent).toBe("Docs");
+    expect(externalLink.getAttribute("data-po-content-interaction")).toBe("navigation");
+    expect(externalCell.querySelector(".csv-table-editor__reference-action")).toBeNull();
+    expect(externalCell.querySelector(".csv-table-editor__reference-preview")).toBeNull();
     expect(workspaceCell.querySelector(".csv-table-editor__reference-label")?.textContent)
       .toBe("Design spec");
     expect(plainCell.querySelector(".csv-table-editor__reference-action")).toBeNull();
 
     await act(async () => {
-      externalAction.click();
+      externalLink.click();
       workspaceAction.click();
       await Promise.resolve();
     });
@@ -127,8 +128,43 @@ describe("CSV document links", () => {
       await Promise.resolve();
     });
     expect(externalInput.value).toBe("ordinary value");
-    expect(externalCell.querySelector(".csv-table-editor__reference-label")).toBeNull();
+    expect(externalCell.querySelector(".csv-table-editor__external-reference")).toBeNull();
     expect(externalCell.querySelector(".csv-table-editor__reference-action")).toBeNull();
+  });
+
+  it("leaves an external value editable when the host cannot open it", async () => {
+    const navigation = createDocumentNavigationPort({});
+
+    await act(async () => {
+      root?.render(withTestLocalization(
+        <CsvTableEditor
+          content={"Kind,Value\nWeb,https://example.com/docs"}
+          documentId="links.csv"
+          documentNavigation={navigation}
+          nodeName="links.csv"
+          readOnly={false}
+        />,
+      ));
+      await Promise.resolve();
+    });
+
+    const cell = getBodyCell(1, 1);
+    const input = cell.querySelector<HTMLInputElement>("input");
+    const link = cell.querySelector<HTMLButtonElement>(
+      ".csv-table-editor__external-reference",
+    );
+    if (!input || !link) throw new Error("CSV external reference did not mount.");
+
+    expect(link.disabled).toBe(true);
+    expect(cell.querySelector(".csv-table-editor__reference-action")).toBeNull();
+    expect(cell.querySelector(".csv-table-editor__reference-preview")).toBeNull();
+
+    await act(async () => {
+      setInputValue(input, "https://example.org/edited");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(input.value).toBe("https://example.org/edited");
   });
 
   it("keeps missing workspace links visible but non-navigable", async () => {
