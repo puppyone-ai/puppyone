@@ -395,6 +395,7 @@ describe("editor split-pane architecture", () => {
     expect(resizeGestureSource).toContain("requestAnimationFrame");
     expect(resizeGestureSource).toContain('finish("commit")');
     expect(resizeGestureSource).toContain('finish("cancel")');
+    expect(resizeGestureSource).toContain('window.addEventListener("mouseup"');
     expect(resizeGestureSource).toContain(
       "session.onCommit(session.splitId, session.previewRatio)",
     );

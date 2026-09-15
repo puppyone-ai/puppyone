@@ -37,13 +37,22 @@ async function verifyLiveResize({ window, temp, label, until }) {
   await send("mouseDown", start.x, start.y);
   await until(async () => (await snapshot()).dragging, "DOM divider press");
   for (const delta of [16, 32, 48, 64, 80]) {
-    await send("mouseMove", start.x+delta, start.y);
     let state;
-    await until(async () => {
-      state = await snapshot();
-      return Math.abs(state.pane.width-(original.pane.width-delta)) <= 1
-        && Math.abs(state.content.width-state.viewport.width) <= 1;
-    }, "pointer-following pane and content geometry");
+    let geometrySettled = false;
+    // Hosted Chromium can coalesce a lone CDP mouseMoved event while the
+    // primary button is held. Re-publish the same absolute target without
+    // relaxing the geometry contract or changing the gesture path.
+    for (let delivery = 0; delivery < 3 && !geometrySettled; delivery++) {
+      await send("mouseMove", start.x+delta, start.y);
+      for (let sample = 0; sample < 12 && !geometrySettled; sample++) {
+        await frame();
+        state = await snapshot();
+        geometrySettled = Math.abs(state.pane.width-(original.pane.width-delta)) <= 1
+          && Math.abs(state.content.width-state.viewport.width) <= 1;
+      }
+    }
+    assert(geometrySettled,
+      `pointer-following pane and content geometry: ${JSON.stringify({delta,original,state})}`);
     assert(state.visible === "true", "Dragging hid content");
     assert(state.transitionDuration.split(",").every(value => parseFloat(value) === 0), "Dragging inherited collapse easing");
     assert(state.persisted === original.persisted, "Pointer preview wrote a preference");

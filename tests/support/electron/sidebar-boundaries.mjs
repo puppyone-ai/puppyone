@@ -220,8 +220,14 @@ async function verifyBoundaries({ window, temp, label, until }) {
     `${label} content hid before motion finished: ${JSON.stringify(collapsePresentation)}`);
   await until(async()=>evaluate("Boolean(document.querySelector('.desktop-right-sidebar-resizer.po-collapsed-pane-edge-handle'))"),'collapsed edge settled');
   assert(await evaluate("document.querySelector('.desktop-right-sidebar').dataset.paneContentVisible === 'false'"), `${label} collapsed content remains interactive`);
+  const windowWidth=window.getContentSize()[0];
+  await until(async()=>evaluate(`(() => {
+    const r=document.querySelector('.desktop-right-sidebar-resizer').getBoundingClientRect();
+    return Math.abs(r.width-12)<=0.5 && r.x>=-0.5 && r.x+r.width<=${windowWidth}+0.5;
+  })()`),'collapsed edge geometry settled');
   const collapsed=await evaluate(`(() => {const r=document.querySelector('.desktop-right-sidebar-resizer').getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};})()`);
-  assert(collapsed.width===12 && collapsed.x>=0 && collapsed.x+collapsed.width<=window.getContentSize()[0], 'collapsed edge leaves the window');
+  assert(Math.abs(collapsed.width-12)<=0.5 && collapsed.x>=-0.5 && collapsed.x+collapsed.width<=windowWidth+0.5,
+    `collapsed edge leaves the window: ${JSON.stringify({collapsed,windowWidth})}`);
   const collapsedCenterX=collapsed.x+collapsed.width/2;
   const collapsedCenterY=collapsed.y+60;
   assert(await evaluate(`document.elementFromPoint(${Math.round(collapsedCenterX)},${Math.round(collapsedCenterY)})?.closest('.desktop-right-sidebar-resizer') !== null`), 'collapsed edge is not hit-testable');

@@ -166,7 +166,7 @@ describe.each(["horizontal", "vertical"] as const)("%s editor splitter lifecycle
       ? new DOMRect(520, 30, 1, 1001) : new DOMRect(20, 530, 1001, 1);
     installPointerCapture(handle);
     const fire = (type: string, offset = 700.5, pointerId = 7) => act(() => handle.dispatchEvent(new PointerEvent(type, {
-      bubbles: true, button: 0, pointerId,
+      bubbles: true, button: 0, pointerId, pointerType: "mouse",
       clientX: direction === "horizontal" ? 20 + offset : 80,
       clientY: direction === "vertical" ? 30 + offset : 90,
     })));
@@ -220,6 +220,22 @@ describe.each(["horizontal", "vertical"] as const)("%s editor splitter lifecycle
     expect(f.handle.hasPointerCapture(7)).toBe(false);
     expect(isNativeSurfaceLayoutStable()).toBe(true);
     expect(f.container.style.getPropertyValue("--desktop-editor-first-track")).toBe("0.8fr");
+  });
+
+  it("commits a native mouse release when Chromium omits pointerup", () => {
+    const f = fixture();
+    f.fire("pointerdown", 500.5);
+    f.fire("pointermove", 600.5);
+    act(() => window.dispatchEvent(new MouseEvent("mouseup", {
+      bubbles: true,
+      button: 0,
+      clientX: direction === "horizontal" ? 820.5 : 80,
+      clientY: direction === "vertical" ? 830.5 : 90,
+    })));
+    expect(f.commit.mock.calls).toEqual([["editor-split-1", 0.8]]);
+    expect(f.handle.dataset.resizing).toBeUndefined();
+    expect(f.handle.hasPointerCapture(7)).toBe(false);
+    expect(isNativeSurfaceLayoutStable()).toBe(true);
   });
 
   it("ignores another pointer's move, release, cancellation and capture loss", () => {

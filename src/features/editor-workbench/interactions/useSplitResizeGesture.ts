@@ -1,4 +1,4 @@
-import { useCallback, useRef, type PointerEvent } from "react";
+import { useCallback, useEffect, useRef, type PointerEvent } from "react";
 import {
   clampEditorSplitRatio,
   type EditorSplitDirection,
@@ -23,6 +23,7 @@ type ResizeSession = {
   nativeLease: NativeSurfacePointerPassthroughLease;
   onCommit: SplitResizeGestureOptions["onCommit"];
   pointerId: number;
+  pointerType: string;
   previewRatio: number;
   splitId: string;
 };
@@ -89,16 +90,17 @@ export function useSplitResizeGesture({
 
   useInteractionTermination({ finish: finishFromLifecycle });
 
-  const previewFromPointer = useCallback((event: PointerEvent<HTMLDivElement>) => {
-    const session = sessionRef.current;
-    if (!session || session.pointerId !== event.pointerId) return;
+  const previewFromPoint = useCallback((
+    session: ResizeSession,
+    point: Readonly<{ clientX: number; clientY: number }>,
+  ) => {
     const containerRect = session.container.getBoundingClientRect();
     const dividerRect = session.handle.getBoundingClientRect();
     const total = session.direction === "horizontal" ? containerRect.width : containerRect.height;
     const dividerSize = session.direction === "horizontal" ? dividerRect.width : dividerRect.height;
     const offset = session.direction === "horizontal"
-      ? event.clientX - containerRect.left
-      : event.clientY - containerRect.top;
+      ? point.clientX - containerRect.left
+      : point.clientY - containerRect.top;
     session.previewRatio = clampEditorSplitRatio(
       (offset - dividerSize / 2) / Math.max(1, total - dividerSize),
     );
@@ -113,6 +115,26 @@ export function useSplitResizeGesture({
       if (sessionRef.current === session) applyPreview(session, session.previewRatio);
     });
   }, [applyPreview]);
+
+  const previewFromPointer = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    const session = sessionRef.current;
+    if (!session || session.pointerId !== event.pointerId) return;
+    previewFromPoint(session, event);
+  }, [previewFromPoint]);
+
+  useEffect(() => {
+    const handleMouseRelease = (event: MouseEvent) => {
+      const session = sessionRef.current;
+      if (!session || session.pointerType !== "mouse" || event.button !== 0) return;
+      // Electron's native child forwarding can deliver the terminal mouseup
+      // without Chromium synthesizing the matching pointerup. Finish the same
+      // owner session from that lower-level release so its lease cannot stick.
+      previewFromPoint(session, event);
+      finish("commit");
+    };
+    window.addEventListener("mouseup", handleMouseRelease, true);
+    return () => window.removeEventListener("mouseup", handleMouseRelease, true);
+  }, [finish, previewFromPoint]);
 
   const start = useCallback((event: PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
@@ -132,6 +154,7 @@ export function useSplitResizeGesture({
       nativeLease: acquireNativeSurfaceResizeLease("editor-split-resize", id),
       onCommit,
       pointerId: event.pointerId,
+      pointerType: event.pointerType,
       previewRatio: committedRatio,
       splitId,
     };
