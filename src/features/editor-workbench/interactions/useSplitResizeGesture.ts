@@ -200,5 +200,15 @@ export function useSplitResizeGesture({
     finish("cancel");
   }, [finish]);
 
-  return { start, move, end, cancel, lostCapture: cancel } as const;
+  const lostCapture = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    const session = sessionRef.current;
+    if (!session || session.pointerId !== event.pointerId) return;
+    // Mouse sessions can continue on the window-level mouse stream installed
+    // above. Touch and pen have no equivalent owner stream, so losing their
+    // capture remains a cancellation boundary.
+    if (session.pointerType === "mouse") return;
+    finish("cancel");
+  }, [finish]);
+
+  return { start, move, end, cancel, lostCapture } as const;
 }

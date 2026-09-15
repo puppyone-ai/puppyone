@@ -174,7 +174,7 @@ describe.each(["horizontal", "vertical"] as const)("%s editor splitter lifecycle
     return { container, handle, commit, publish, frames, fire, flush };
   }
 
-  it.each(["pointercancel", "lostpointercapture", "Escape", "blur", "pagehide", "hidden", "unmount"])(
+  it.each(["pointercancel", "Escape", "blur", "pagehide", "hidden", "unmount"])(
     "cancels %s with a queued frame and releases only its gesture", (reason) => {
       const f = fixture();
       f.fire("pointerdown", 500.5);
@@ -257,6 +257,29 @@ describe.each(["horizontal", "vertical"] as const)("%s editor splitter lifecycle
       clientY: direction === "vertical" ? 830.5 : 90,
     })));
     expect(f.commit.mock.calls).toEqual([["editor-split-1", 0.8]]);
+    expect(isNativeSurfaceLayoutStable()).toBe(true);
+  });
+
+  it("transfers a mouse resize to the window stream after lost pointer capture", () => {
+    const f = fixture();
+    f.fire("pointerdown", 500.5);
+    f.fire("lostpointercapture", 500.5);
+    expect(f.handle.dataset.resizing).toBe("true");
+    act(() => window.dispatchEvent(new MouseEvent("mousemove", {
+      bubbles: true,
+      buttons: 1,
+      clientX: direction === "horizontal" ? 820.5 : 80,
+      clientY: direction === "vertical" ? 830.5 : 90,
+    })));
+    f.flush();
+    act(() => window.dispatchEvent(new MouseEvent("mouseup", {
+      bubbles: true,
+      button: 0,
+      clientX: direction === "horizontal" ? 820.5 : 80,
+      clientY: direction === "vertical" ? 830.5 : 90,
+    })));
+    expect(f.commit.mock.calls).toEqual([["editor-split-1", 0.8]]);
+    expect(f.handle.dataset.resizing).toBeUndefined();
     expect(isNativeSurfaceLayoutStable()).toBe(true);
   });
 
