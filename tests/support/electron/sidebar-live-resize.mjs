@@ -38,17 +38,37 @@ async function verifyLiveResize({ window, temp, label, until }) {
   await until(async () => (await snapshot()).dragging, "DOM divider press");
   for (const delta of [16, 32, 48, 64, 80]) {
     await send("mouseMove", start.x+delta, start.y);
-    await until(async () => Math.abs((await snapshot()).pane.width-(original.pane.width-delta)) <= 1, "pointer-following width");
-    const state = await snapshot();
+    let state;
+    await until(async () => {
+      state = await snapshot();
+      return Math.abs(state.pane.width-(original.pane.width-delta)) <= 1
+        && Math.abs(state.content.width-state.viewport.width) <= 1;
+    }, "pointer-following pane and content geometry");
     assert(state.visible === "true", "Dragging hid content");
     assert(state.transitionDuration.split(",").every(value => parseFloat(value) === 0), "Dragging inherited collapse easing");
-    assert(Math.abs(state.content.width-state.viewport.width) <= 1, "Content and viewport diverged while resizing");
     assert(state.persisted === original.persisted, "Pointer preview wrote a preference");
     observations.push(state);
   }
   await send("mouseUp", start.x+80, start.y);
   await until(async () => !(await snapshot()).dragging, "DOM divider release");
   assert(Number((await snapshot()).persisted) === Math.round(original.pane.width-80), "Released width was not retained");
+
+  // This helper is a contract check, not a fixture mutation. Restore the
+  // original width through the same real pointer path so later interactions
+  // do not inherit a narrower workbench (and platform font metrics cannot
+  // accidentally change whether a subsequent split is admissible).
+  const narrowed = await snapshot();
+  const restoreStart = { x:narrowed.handle.x+3, y:narrowed.handle.y+90 };
+  await send("mouseDown", restoreStart.x, restoreStart.y);
+  await until(async () => (await snapshot()).dragging, "DOM divider restore press");
+  await send("mouseMove", restoreStart.x-80, restoreStart.y);
+  await until(async () => Math.abs((await snapshot()).pane.width-original.pane.width) <= 1, "original pane width restoration");
+  await send("mouseUp", restoreStart.x-80, restoreStart.y);
+  await until(async () => !(await snapshot()).dragging, "DOM divider restore release");
+  const restored = await snapshot();
+  assert(Number(restored.persisted) === Math.round(original.pane.width), "Original width was not restored");
+  assert(Math.abs(restored.content.width-restored.viewport.width) <= 1, "Restored content geometry diverged");
+  observations.push(restored);
 
   // CSS owns window constraints; the session's DOM node must survive them.
   await evaluate("window.__sidebarScreen = document.querySelector('.desktop-terminal-contribution-host[aria-hidden=false]');");

@@ -88,6 +88,7 @@ await import("../../../../electron/main.mjs");
 let window;
 app.whenReady().then(run).catch((error) => { console.error(error); app.exit(1); });
 async function run() {
+let failed = false;
 try {
   await until(() => BrowserWindow.getAllWindows().length > 0, "Main window");
   window = BrowserWindow.getAllWindows()[0];
@@ -273,14 +274,14 @@ try {
   }
   console.error(JSON.stringify({ ok: false, temp, error: error.stack, rendererErrors: errors,
     nativeViews: window && !window.isDestroyed() ? window.contentView.children.map((view) => ({ visible: view.getVisible(), bounds: view.getBounds(), id: view.webContents?.id })) : [] }, null, 2));
-  process.exitCode = 1;
+  failed = true;
 } finally {
   for (const openWindow of BrowserWindow.getAllWindows()) if (!openWindow.isDestroyed()) openWindow.close();
-  await until(() => BrowserWindow.getAllWindows().length === 0, "window cleanup").catch((error) => { console.error(error); process.exitCode = 1; });
+  await until(() => BrowserWindow.getAllWindows().length === 0, "window cleanup").catch((error) => { console.error(error); failed = true; });
   for (const record of terminals) if (!record.exited) record.terminal.kill();
-  await until(() => terminals.every((record) => record.exited), "cleanup").catch((error) => { console.error(error); process.exitCode = 1; });
+  await until(() => terminals.every((record) => record.exited), "cleanup").catch((error) => { console.error(error); failed = true; });
   clearTimeout(guard);
-  app.exit(process.exitCode ?? 0);
+  process.exit(failed ? 1 : 0);
 }
 }
 

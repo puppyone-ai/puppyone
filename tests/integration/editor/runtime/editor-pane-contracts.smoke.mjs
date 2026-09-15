@@ -171,20 +171,14 @@ try {
       y: Math.round(point.y),
       ...extra,
     });
-    if (request.kind === "click") {
-      send("mouseMove", request.point);
-      send("mouseDown", request.point, { button: "left", clickCount: 1 });
-      send("mouseUp", request.point, { button: "left", clickCount: 1 });
-    } else {
-      send("mouseMove", request.from);
-      send("mouseDown", request.from, { button: "left", clickCount: 1 });
-      await wait(30);
-      for (let step = 1; step <= 6; step++) {
-        send("mouseMove", { x: request.from.x + (request.to.x - request.from.x) * step / 6, y: request.from.y + (request.to.y - request.from.y) * step / 6 }, { button: "left", modifiers: ["leftButtonDown"] });
-        await wait(20);
-      }
-      send("mouseUp", request.to, { button: "left", clickCount: 1 });
+    send("mouseMove", request.from);
+    send("mouseDown", request.from, { button: "left", clickCount: 1 });
+    await wait(30);
+    for (let step = 1; step <= 6; step++) {
+      send("mouseMove", { x: request.from.x + (request.to.x - request.from.x) * step / 6, y: request.from.y + (request.to.y - request.from.y) * step / 6 }, { button: "left", modifiers: ["leftButtonDown"] });
+      await wait(20);
     }
+    send("mouseUp", request.to, { button: "left", clickCount: 1 });
   });
   ipcMain.handle("pane-contracts:record", async (_event, row) => {
     rows.push(row); console.log(`${row.id} ${row.direction}: passed`);

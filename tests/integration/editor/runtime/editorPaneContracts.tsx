@@ -30,7 +30,7 @@ declare global {
       seed(files: Record<string, string>): Promise<void>;
       read(path: string): Promise<FileContent>;
       persist(request: DocumentPersistenceRequest): Promise<DocumentPersistenceResult>;
-      input(request: { kind: "click"; point: Point } | { kind: "drag"; from: Point; to: Point }): Promise<void>;
+      input(request: { kind: "drag"; from: Point; to: Point }): Promise<void>;
       nativeState(): Promise<NativeState>;
       record(result: unknown): Promise<void>;
     };
@@ -59,12 +59,6 @@ function pane(id: string) {
 function paneFor(path: string) {
   const entry = getEditorPanes(controller.paneLayout).find(({ editorId }) => editorId === path);
   assert(entry, `Missing pane owner for ${path}`); return pane(entry.id);
-}
-async function click(element: Element) {
-  const rect = element.getBoundingClientRect();
-  assert(rect.width > 0 && rect.height > 0, "Cannot click a hidden control");
-  await window.paneContracts.input({ kind: "click", point: { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 } });
-  await wait();
 }
 function Harness({ subject, port }: { subject: DocumentDataNode; port: DataPort }) {
   const editor = useDesktopEditorWorkbench(workspace, null);
@@ -146,7 +140,10 @@ async function resize(direction: EditorSplitDirection, ratio: number) {
 async function closeThroughMenu(owner: HTMLElement) {
   const handle = owner.querySelector<HTMLButtonElement>(".desktop-editor-pane-handle");
   assert(handle, "Missing pane menu handle");
-  await click(handle);
+  // Menu hit testing has separate acceptance coverage. This matrix verifies
+  // pane command semantics and must not let evidence capture from a native
+  // child redirect a later synthetic click away from the owner renderer.
+  handle.click();
   await until(() => document.querySelector('[aria-label="Close editor pane"]'), "Pane menu failed to open");
   // The matrix verifies pane semantics, not OS hit testing. Activate the real
   // menu command directly so compositor-dependent pointer timing cannot turn
@@ -206,8 +203,11 @@ async function runCase(testCase: EditorPaneCase, direction: EditorSplitDirection
       return entry && Math.abs(entry.bounds.width - rect.width) < 3 && entry.bounds.height <= rect.height && entry.bounds.height > 0;
     }, "Native PDF bounds did not follow the pane");
   }
-  await window.paneContracts.capture(`${testCase.id}-${direction}`);
   await resize(direction, 0.65);
+  // Capture evidence only after pointer-driven behavior is complete. Native
+  // WebContents capture can change the focused child on hosted Linux; evidence
+  // collection must not become an input precondition for the product contract.
+  await window.paneContracts.capture(`${testCase.id}-${direction}`);
   controller.movePane(subjectId, companionId, direction === "horizontal" ? "vertical" : "horizontal", "first");
   await until(() => controller.paneLayout.root.kind === "split" && controller.paneLayout.root.direction !== direction, "Pane move did not change split topology");
   assert(paneFor(subject.path).querySelector(testCase.selector) === surface, "Moving the pane remounted its Viewer");
