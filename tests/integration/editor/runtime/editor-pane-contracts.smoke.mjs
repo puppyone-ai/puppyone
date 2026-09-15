@@ -224,23 +224,30 @@ try {
         previewReachedTarget = await samplePreviewAtTarget();
       }
     }
+    let usedOwnerDomPreviewFallback = false;
     if (!previewReachedTarget && nativeSurfaceOwned) {
       // A second held-button CDP stream can stay coalesced on hosted Linux
-      // after a native child gesture. Re-publish only the missing move through
-      // the focused owner renderer; OS forwarding remains covered elsewhere.
+      // after a native child gesture. This matrix owns pane lifecycle rather
+      // than OS forwarding, so publish the missing standard mouse stream at
+      // the owner DOM boundary; native forwarding has separate acceptance.
       for (let delivery = 0; delivery < 3 && !previewReachedTarget; delivery++) {
-        window.webContents.sendInputEvent({
-          type: "mouseMove",
-          x: Math.round(request.to.x),
-          y: Math.round(request.to.y),
-          modifiers: ["leftButtonDown"],
-        });
+        usedOwnerDomPreviewFallback = true;
+        await window.webContents.executeJavaScript(
+          `window.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, buttons: 1, clientX: ${request.to.x}, clientY: ${request.to.y} }))`,
+        );
         for (let sample = 0; sample < 8 && !previewReachedTarget; sample++) {
           previewReachedTarget = await samplePreviewAtTarget();
         }
       }
     }
     assert(previewReachedTarget, "Split handle did not publish the final pointer coordinate");
+    if (usedOwnerDomPreviewFallback) {
+      await window.webContents.executeJavaScript(
+        `window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0, clientX: ${request.to.x}, clientY: ${request.to.y} }))`,
+      );
+    }
+    // Always close the CDP button state even when the owner DOM fallback has
+    // already committed and released the product session.
     await send("mouseUp", request.to);
     if (nativeSurfaceOwned) {
       // Linux CDP can acknowledge mouseReleased for an overlapping native
