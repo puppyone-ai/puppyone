@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization/react";
+import { useDesktopPlatformCapabilities } from "../platform/useDesktopPlatformCapabilities";
 import { PuppyBrandMark } from "./brand/PuppyBrandMark";
 
 type DesktopWindowChromeProps = {
@@ -20,11 +21,16 @@ export function DesktopWindowChrome({
 }: DesktopWindowChromeProps) {
   const { t } = useLocalization();
   const fullScreen = useWindowFullScreenState();
+  const windowActive = useWindowActivityState();
+  const platformCapabilities = useDesktopPlatformCapabilities();
 
   return (
     <header
       className="desktop-titlebar"
       data-window-drag-region="true"
+      data-window-chrome-mode={platformCapabilities?.windowChrome.mode}
+      data-window-platform={platformCapabilities?.platform}
+      data-window-active={windowActive ? "true" : "false"}
       data-window-full-screen={fullScreen ? "true" : undefined}
     >
       <div className="desktop-titlebar-layout">
@@ -83,6 +89,25 @@ export function DesktopWindowChrome({
       </div>
     </header>
   );
+}
+
+function useWindowActivityState() {
+  const [active, setActive] = useState(() => (
+    typeof document === "undefined" || document.hasFocus()
+  ));
+
+  useEffect(() => {
+    const activate = () => setActive(true);
+    const deactivate = () => setActive(false);
+    window.addEventListener("focus", activate);
+    window.addEventListener("blur", deactivate);
+    return () => {
+      window.removeEventListener("focus", activate);
+      window.removeEventListener("blur", deactivate);
+    };
+  }, []);
+
+  return active;
 }
 
 function performWindowAction(action: "minimize" | "toggle-maximize" | "close") {

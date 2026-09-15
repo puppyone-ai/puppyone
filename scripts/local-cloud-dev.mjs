@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import {
+  resolveNpmInvocation,
   spawnManagedChild,
   terminateManagedChild,
 } from "./managed-child-process.mjs";
@@ -213,7 +214,7 @@ export function createServiceDefinitions(config, environment) {
     ? path.join(backendRoot, ".venv", "Scripts", "python.exe")
     : path.join(backendRoot, ".venv", "bin", "python");
   const python = environment.PUPPYONE_CLOUD_BACKEND_PYTHON ?? defaultPython;
-  const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+  const npm = resolveNpmInvocation();
 
   return [
     {
@@ -249,6 +250,7 @@ export function createServiceDefinitions(config, environment) {
     },
     {
       args: [
+        ...npm.argsPrefix,
         "run",
         "dev",
         "--",
@@ -257,7 +259,7 @@ export function createServiceDefinitions(config, environment) {
         "-p",
         String(config.webPort),
       ],
-      command: npm,
+      command: npm.command,
       cwd: frontendRoot,
       environment: {
         ...environment,

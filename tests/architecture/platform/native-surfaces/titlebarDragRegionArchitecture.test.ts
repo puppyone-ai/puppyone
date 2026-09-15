@@ -37,6 +37,12 @@ describe("titlebar drag-region architecture", () => {
       desktopShell.indexOf('className="desktop-shell-body"'),
     );
     expect(windowChromeComponent).toContain('data-window-drag-region="true"');
+    expect(windowChromeComponent).toContain("useDesktopPlatformCapabilities");
+    expect(windowChromeComponent).toContain("data-window-chrome-mode={platformCapabilities?.windowChrome.mode}");
+    expect(windowChromeComponent).toContain("data-window-platform={platformCapabilities?.platform}");
+    expect(windowChromeComponent).toContain('data-window-active={windowActive ? "true" : "false"}');
+    expect(windowChromeComponent).toContain('window.addEventListener("focus", activate)');
+    expect(windowChromeComponent).toContain('window.addEventListener("blur", deactivate)');
     expect(windowChromeComponent).toContain('className="desktop-titlebar-trailing"');
     expect(windowChromeComponent.indexOf('className="desktop-titlebar-actions"')).toBeLessThan(
       windowChromeComponent.indexOf('className="desktop-window-controls"'),

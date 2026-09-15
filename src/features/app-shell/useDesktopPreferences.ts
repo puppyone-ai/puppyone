@@ -260,8 +260,13 @@ export function useDesktopPreferences(
     }
     root.style.setProperty("--initial-shell-background", firstPaint.background);
     root.style.setProperty("--initial-shell-color-scheme", firstPaint.colorScheme);
+    const titlebar = document.querySelector<HTMLElement>(".desktop-titlebar");
+    const titlebarBackground = titlebar
+      ? window.getComputedStyle(titlebar).backgroundColor
+      : undefined;
     window.puppyoneDesktop?.setWindowBackground?.({
       background: firstPaint.background,
+      titlebarBackground,
       themeSource: activeThemeMode === "system" ? "system" : firstPaint.colorScheme,
     });
     void window.puppyoneDesktop?.setWindowChromeProfile?.({

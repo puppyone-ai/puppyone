@@ -11,6 +11,7 @@ import {
   resolveLocalCloudDevConfig,
 } from "./local-cloud-dev.mjs";
 import {
+  resolveNpmInvocation,
   spawnManagedChild,
   terminateManagedChild,
 } from "./managed-child-process.mjs";
@@ -200,7 +201,9 @@ function startLocalCloudHealthCheck() {
 function startRenderer() {
   if (shuttingDown || renderer) return;
 
-  const child = spawnManagedChild("npm", [
+  const npm = resolveNpmInvocation();
+  const child = spawnManagedChild(npm.command, [
+    ...npm.argsPrefix,
     "run",
     "dev:renderer",
     "--",

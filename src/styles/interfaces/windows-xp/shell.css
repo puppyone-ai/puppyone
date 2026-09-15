@@ -90,6 +90,14 @@
   margin-inline-start: 1px;
 }
 
+/* Windows Controls Overlay remains the native window authority on Windows.
+ * The XP controls are used only where Electron does not supply that overlay. */
+:root[data-interface-style="windows-xp"]
+  .desktop-titlebar[data-window-platform="windows"]
+  .desktop-window-controls {
+  display: none;
+}
+
 :root[data-interface-style="windows-xp"] .desktop-window-control {
   appearance: none;
   display: block;

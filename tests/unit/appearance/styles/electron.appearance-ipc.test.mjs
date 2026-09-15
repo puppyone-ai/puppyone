@@ -44,6 +44,24 @@ describe("native appearance IPC", () => {
     expect(ownerWindow.setBackgroundColor).toHaveBeenCalledWith("#ff00ff");
   });
 
+  it("lets the platform adapter synchronize its titlebar appearance", () => {
+    const ownerWindow = createWindow();
+    const windowChrome = { synchronizeAppearance: vi.fn() };
+    const { handler } = register(ownerWindow, { windowChrome });
+
+    handler(createEvent(), {
+      background: "#161413",
+      titlebarBackground: "rgb(38, 36, 35)",
+      themeSource: "dark",
+    });
+
+    expect(windowChrome.synchronizeAppearance).toHaveBeenCalledWith(ownerWindow, {
+      background: "#161413",
+      titlebarBackground: "rgb(38, 36, 35)",
+      themeSource: "dark",
+    });
+  });
+
   it("rejects values outside the opaque first-paint contract", () => {
     const ownerWindow = createWindow();
     const { handler } = register(ownerWindow);
@@ -74,7 +92,7 @@ describe("native appearance IPC", () => {
   });
 });
 
-function register(ownerWindow) {
+function register(ownerWindow, { windowChrome = null } = {}) {
   let handler;
   const nativeTheme = { themeSource: "system" };
   registerAppearanceIpcHandlers({
@@ -88,6 +106,7 @@ function register(ownerWindow) {
       fromWebContents: () => ownerWindow,
     },
     nativeTheme,
+    windowChrome,
   });
   if (!handler) throw new Error("Appearance IPC handler was not registered.");
   return { handler, nativeTheme };

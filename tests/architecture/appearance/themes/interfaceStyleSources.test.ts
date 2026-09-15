@@ -10,11 +10,15 @@ describe("Interface style registry", () => {
   it("keeps the native window underlay on the generated first-paint contract", () => {
     const main = source("electron/main.mjs");
     const preload = source("electron/preload.cjs");
+    const preferences = source("src/features/app-shell/useDesktopPreferences.ts");
     const nativeFirstPaint = source("electron/main/sub-theme-first-paint.generated.mjs");
 
     expect(main).toContain("FALLBACK_SUB_THEME_FIRST_PAINT");
     expect(main).not.toContain('backgroundColor: "#f1eadf"');
     expect(preload).toContain('ipcRenderer.send("appearance:set-window-background"');
+    expect(preload).toContain("titlebarBackground: request?.titlebarBackground");
+    expect(preferences).toContain("window.getComputedStyle(titlebar).backgroundColor");
+    expect(preferences).toContain("titlebarBackground,");
     expect(nativeFirstPaint).toContain('"background": "#fafafa"');
     expect(nativeFirstPaint).toContain('"background": "#161413"');
   });

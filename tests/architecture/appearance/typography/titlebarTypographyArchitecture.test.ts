@@ -66,6 +66,14 @@ describe("titlebar typography architecture", () => {
       titlebarCss,
       '.desktop-titlebar[data-window-full-screen="true"]',
     );
+    const nativeTitlebarRule = readCssBlock(
+      titlebarCss,
+      '.desktop-titlebar[data-window-chrome-mode="native"]',
+    );
+    const windowsOverlayRule = readCssBlock(
+      titlebarCss,
+      '.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"]',
+    );
     const titlebarLayoutRule = readCssBlock(titlebarCss, ".desktop-titlebar-layout");
     const dividerRule = readCssBlock(titlebarCss, ".desktop-titlebar::after");
 
@@ -77,6 +85,9 @@ describe("titlebar typography architecture", () => {
       "--desktop-titlebar-safe-area-width: calc(100% - var(--desktop-titlebar-safe-area-x));",
     );
     expect(titlebarRule).not.toContain("env(titlebar-area-");
+    expect(nativeTitlebarRule).toContain("--desktop-titlebar-native-controls-inset: 0px;");
+    expect(windowsOverlayRule).toContain("env(titlebar-area-x, 0px)");
+    expect(windowsOverlayRule).toContain("env(titlebar-area-width, calc(100% - 138px))");
     expect(titlebarLayoutRule).toContain("margin-left: var(--desktop-titlebar-safe-area-x);");
     expect(titlebarLayoutRule).toContain("width: var(--desktop-titlebar-safe-area-width);");
     expect(titlebarLayoutRule).toContain(
@@ -107,6 +118,79 @@ describe("titlebar typography architecture", () => {
     expect(layoutRoot).toContain("--desktop-titlebar-control-height: 24px;");
     expect(layoutRoot).toContain("--desktop-titlebar-tool-action-width: 34px;");
     expect(layoutRoot).toContain("--desktop-titlebar-button-gap: 3px;");
+  });
+
+  it("continues native Windows caption-button geometry through the app actions", () => {
+    const windowsTitlebarSelector =
+      '.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"]';
+    const windowsTitlebar = readCssBlock(titlebarCss, windowsTitlebarSelector);
+    const windowsLayout = readCssBlock(
+      titlebarCss,
+      `${windowsTitlebarSelector} .desktop-titlebar-layout`,
+    );
+    const windowsBoundaryDivider = readCssBlock(
+      titlebarCss,
+      `${windowsTitlebarSelector} .desktop-titlebar-layout:has(.desktop-titlebar-actions)::after`,
+    );
+    const windowsTrailing = readCssBlock(
+      titlebarCss,
+      `${windowsTitlebarSelector} .desktop-titlebar-trailing`,
+    );
+    const windowsActions = readCssBlock(
+      titlebarCss,
+      `${windowsTitlebarSelector} .desktop-titlebar-actions`,
+    );
+    const windowsAction = readCssBlock(
+      titlebarCss,
+      `${windowsTitlebarSelector} .desktop-titlebar-action:not(.desktop-titlebar-update):not(.desktop-titlebar-changes)`,
+    );
+    const windowsChanges = readCssBlock(
+      titlebarCss,
+      `${windowsTitlebarSelector} .desktop-titlebar-actions .desktop-titlebar-changes`,
+    );
+    const windowsDivider = readCssBlock(
+      titlebarCss,
+      `${windowsTitlebarSelector} .desktop-titlebar-action-divider`,
+    );
+
+    expect(windowsTitlebar).toContain("100vw - env(titlebar-area-width");
+    expect(windowsTitlebar).toContain("var(--desktop-titlebar-windows-controls-width) / 3");
+    expect(windowsTitlebar).toContain("height: 38px;");
+    expect(windowsTitlebar).toContain("min-height: 38px;");
+    expect(windowsLayout).toContain("position: relative;");
+    expect(windowsLayout).toContain("padding-right: 0;");
+    expect(windowsBoundaryDivider).toContain("inset-inline-end: 0;");
+    expect(windowsBoundaryDivider).toContain("width: 1px;");
+    expect(windowsBoundaryDivider).toContain("height: 18px;");
+    expect(windowsBoundaryDivider).toContain(
+      "var(--desktop-titlebar-windows-symbol-color) 18%",
+    );
+    expect(windowsTrailing).toContain("align-self: stretch;");
+    expect(windowsTrailing).toContain("gap: 0;");
+    expect(windowsActions).toContain("height: 100%;");
+    expect(windowsActions).toContain("gap: 0;");
+    expect(windowsAction).toContain("width: var(--desktop-titlebar-windows-control-width);");
+    expect(windowsAction).toContain("height: 100%;");
+    expect(windowsAction).toContain("border: 0;");
+    expect(windowsAction).toContain("border-radius: 0;");
+    expect(windowsAction).toContain(
+      "color: var(--desktop-titlebar-windows-symbol-color);",
+    );
+    expect(windowsAction).toContain(
+      'font-family: "Segoe UI Variable Text", "Segoe UI", sans-serif;',
+    );
+    expect(windowsAction).toContain("transition: none;");
+    expect(windowsChanges).toContain("width: auto;");
+    expect(windowsChanges).toContain(
+      "min-width: var(--desktop-titlebar-windows-control-width);",
+    );
+    expect(windowsChanges).toContain("flex: 0 0 auto;");
+    expect(windowsChanges).toContain("padding-inline: 10px;");
+    expect(windowsDivider).toContain("display: none;");
+    expect(titlebarCss).toContain(".desktop-titlebar-action svg {");
+    expect(titlebarCss).toContain("width: 14px;");
+    expect(titlebarCss).toContain("stroke-width: 1.6;");
+    expect(titlebarCss).toContain('[data-window-active="false"] .desktop-titlebar-actions');
   });
 
   it("uses the compact titlebar height without shrinking shared sidebar controls", () => {
