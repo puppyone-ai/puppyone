@@ -8,6 +8,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const errors = [];
 
 const requiredPaths = [
+  ".gitattributes",
   "packages/shared-ui/package.json",
   "packages/shared-ui/src/index.ts",
   "src/features",
@@ -72,6 +73,11 @@ if (!packageMetadata.includes('"packages/shared-ui/**"')) {
 }
 if (!packageMetadata.includes('"build": "node scripts/check-desktop-build-environment.mjs')) {
   errors.push("Production renderer builds must fail fast on missing endpoint configuration.");
+}
+
+const gitAttributes = read(".gitattributes");
+if (!/^\*\s+text=auto\s+eol=lf\s*$/mu.test(gitAttributes)) {
+  errors.push("Repository text files must use LF on every platform so generated-artifact checks are byte-stable.");
 }
 
 const currentRepositoryCloudContext = read(
