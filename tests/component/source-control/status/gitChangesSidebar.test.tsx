@@ -48,6 +48,7 @@ describe("Changes right sidebar", () => {
     const root = createRoot(container);
     roots.push(root);
     const onSelectWorkingFile = vi.fn();
+    const onOpenHistory = vi.fn();
 
     function Harness() {
       const [selection, setSelection] = useState<GitWorkingSelection | null>(null);
@@ -93,6 +94,7 @@ describe("Changes right sidebar", () => {
           workingFileDiffLoading={false}
           workingFileDiffError={null}
           onOpenFile={vi.fn()}
+          onOpenHistory={onOpenHistory}
           cloudBackup={{ loading: false, error: null, start: vi.fn() }}
         />
       );
@@ -100,6 +102,11 @@ describe("Changes right sidebar", () => {
 
     act(() => root.render(withTestLocalization(<Harness />)));
     expect(container.querySelector(".test-change-row")).not.toBeNull();
+    const history = container.querySelector<HTMLButtonElement>('button[aria-label="History"]');
+    expect(history?.textContent).toBe("History");
+
+    act(() => history?.click());
+    expect(onOpenHistory).toHaveBeenCalledOnce();
 
     act(() => container.querySelector<HTMLButtonElement>(".test-change-row")?.click());
 

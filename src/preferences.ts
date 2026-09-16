@@ -73,7 +73,7 @@ export type RightSidebarToolsSettings = {
   enabled: Record<RightSidebarToolId, boolean>;
   order: RightSidebarToolId[];
 };
-export const TITLEBAR_ACTION_IDS = ["changes", "history", "terminal"] as const;
+export const TITLEBAR_ACTION_IDS = ["changes", "terminal"] as const;
 export type TitlebarActionId = typeof TITLEBAR_ACTION_IDS[number];
 export type TitlebarActionsSettings = {
   enabled: Record<TitlebarActionId, boolean>;
@@ -162,7 +162,6 @@ export const DEFAULT_RIGHT_SIDEBAR_TOOLS_SETTINGS: RightSidebarToolsSettings = {
 };
 export const DEFAULT_TITLEBAR_ACTIONS_SETTINGS: TitlebarActionsSettings = {
   enabled: {
-    history: true,
     changes: true,
     terminal: true,
   },
@@ -377,7 +376,6 @@ export function parseTitlebarActionsSettings(value: string | null | undefined): 
 
     return {
       enabled: {
-        history: readTitlebarActionEnabled(parsed, "history", true),
         changes: readTitlebarActionEnabled(parsed, "changes", true),
         terminal: readTitlebarActionEnabled(parsed, "terminal", true),
       },

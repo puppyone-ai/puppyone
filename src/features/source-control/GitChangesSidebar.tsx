@@ -1,4 +1,4 @@
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, History } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocalization } from "@puppyone/localization";
 import type { GitCommitDetail } from "../../types/electron";
@@ -10,6 +10,7 @@ export type GitChangesSidebarProps = GitSidebarProps & Readonly<{
   workingFileDiffLoading: boolean;
   workingFileDiffError: string | null;
   onOpenFile: (path: string) => void;
+  onOpenHistory: () => void;
 }>;
 
 /**
@@ -26,6 +27,7 @@ export function GitChangesSidebar({
   workingFileDiffLoading,
   workingFileDiffError,
   onOpenFile,
+  onOpenHistory,
 }: GitChangesSidebarProps) {
   const { t } = useLocalization();
   const [detailVisible, setDetailVisible] = useState(false);
@@ -72,18 +74,35 @@ export function GitChangesSidebar({
             />
           </div>
         ) : (
-          <GitSidebar
-            repository={repository}
-            view={view}
-            actions={{
-              ...actions,
-              selectWorkingFile: (selection) => {
-                actions.selectWorkingFile(selection);
-                setDetailVisible(true);
-              },
-            }}
-            cloudBackup={cloudBackup}
-          />
+          <>
+            <header className="desktop-git-view-header">
+              <span className="desktop-git-view-title">
+                {t("source-control.label.changes")}
+              </span>
+              <button
+                className="desktop-git-view-action"
+                type="button"
+                title={t("source-control.history.title")}
+                aria-label={t("source-control.history.title")}
+                onClick={onOpenHistory}
+              >
+                <History size={14} strokeWidth={1.8} aria-hidden="true" />
+                <span>{t("source-control.history.title")}</span>
+              </button>
+            </header>
+            <GitSidebar
+              repository={repository}
+              view={view}
+              actions={{
+                ...actions,
+                selectWorkingFile: (selection) => {
+                  actions.selectWorkingFile(selection);
+                  setDetailVisible(true);
+                },
+              }}
+              cloudBackup={cloudBackup}
+            />
+          </>
         )}
       </div>
     </section>

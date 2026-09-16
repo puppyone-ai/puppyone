@@ -14,6 +14,7 @@ import {
   parseLocalAgentsSettings,
   parsePointerCursors,
   parseSidebarNavigationVisibilitySettings,
+  parseTitlebarActionsSettings,
   resolveVisibleCreateNewMenuItems,
 } from "../../../../src/preferences";
 
@@ -131,6 +132,16 @@ describe("create new menu preferences", () => {
 });
 
 describe("appearance preferences", () => {
+  it("drops the retired standalone History header action", () => {
+    expect(parseTitlebarActionsSettings(JSON.stringify({
+      enabled: { changes: true, history: true, terminal: true },
+      order: ["history", "terminal", "changes"],
+    }))).toEqual({
+      enabled: { changes: true, terminal: true },
+      order: ["changes", "terminal"],
+    });
+  });
+
   it("keeps Agent file activity visibility opt-in", () => {
     expect(parseAgentFileActivityIndicatorsEnabled(null)).toBe(false);
     expect(parseAgentFileActivityIndicatorsEnabled("true")).toBe(true);

@@ -3,7 +3,6 @@ import {
   ArrowDown,
   ArrowUp,
   Asterisk,
-  History,
   TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
@@ -32,11 +31,6 @@ export type HeaderElementRenderContext = {
   t: MessageFormatter;
   placement?: "titlebar" | "toolbar";
   terminal: {
-    enabled: boolean;
-    onToggle: () => void;
-    sidebarOpen: boolean;
-  };
-  history: {
     enabled: boolean;
     onToggle: () => void;
     sidebarOpen: boolean;
@@ -86,41 +80,6 @@ export const HEADER_ELEMENT_DEFINITIONS: readonly HeaderElementDefinition[] = [
             status={changes.status}
             showIdleEntry={!toolbarPlacement}
           />
-        </button>
-      );
-    },
-  },
-  {
-    id: "history",
-    label: "History",
-    icon: History,
-    isAvailable: (context) => context.history.enabled,
-    render: (context) => {
-      const history = context.history;
-      const toolbarPlacement = context.placement === "toolbar";
-      const label = context.t("source-control.history.title");
-      return (
-        <button
-          className={toolbarPlacement
-            ? "desktop-shell-toolbar-button desktop-shell-toolbar-history"
-            : "desktop-titlebar-action desktop-titlebar-history"}
-          type="button"
-          title={label}
-          aria-label={label}
-          aria-pressed={history.sidebarOpen}
-          data-toolbar-action={toolbarPlacement ? "history" : undefined}
-          onClick={history.onToggle}
-        >
-          {toolbarPlacement ? (
-            <i className="desktop-shell-toolbar-button-icon" aria-hidden="true">
-              <History size={19} strokeWidth={1.8} />
-            </i>
-          ) : (
-            <History size={15} strokeWidth={1.8} aria-hidden="true" />
-          )}
-          {toolbarPlacement && (
-            <span className="desktop-shell-toolbar-button-label">{label}</span>
-          )}
         </button>
       );
     },

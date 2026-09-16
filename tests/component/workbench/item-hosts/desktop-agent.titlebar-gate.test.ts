@@ -85,11 +85,6 @@ function renderHeaderActions() {
       onToggle: vi.fn(),
       sidebarOpen: true,
     },
-    history: {
-      enabled: true,
-      onToggle: vi.fn(),
-      sidebarOpen: false,
-    },
     changes: {
       enabled: true,
       onToggle: vi.fn(),

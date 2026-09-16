@@ -6,6 +6,7 @@
 @import "./styles/sidebar-resources.css";
 @import "./styles/history-list.css";
 @import "./styles/history-detail.css";
+@import "./styles/sidebar-navigation.css";
 @import "./styles/history-sidebar.css";
 @import "./styles/changes-sidebar.css";
 @import "./styles/diff-utility.css";

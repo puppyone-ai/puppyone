@@ -245,11 +245,11 @@ describe("source-control visual architecture", () => {
     expect(sidebarResourcesCss).not.toContain("desktop-git-remote-status");
   });
 
-  it("keeps History and Changes as right-sidebar surfaces beside Chat instead of workbench tabs", () => {
+  it("nests History under the primary Changes entry instead of exposing two header actions", () => {
     expect(sourceControlSidebarSource).not.toContain("GitSidebarHistory");
     expect(sourceControlSidebarSource).not.toContain("desktop-git-history-pane");
     expect(historySidebarSource).toContain('className="desktop-git-history-sidebar"');
-    expect(historySidebarSource).not.toContain("desktop-git-history-sidebar-header");
+    expect(historySidebarSource).toContain("desktop-git-history-header");
     expect(historySidebarSource).not.toContain("AuxiliaryWorkbenchContribution");
     expect(appSource).toContain('rightSidebarSurface === "chat"');
     expect(appSource).toContain('rightSidebarSurface === "changes"');
@@ -261,9 +261,10 @@ describe("source-control visual architecture", () => {
     expect(appSource).toContain('setRightSidebarSurface("chat")');
     expect(appSource).not.toContain("gitHistoryContribution");
     expect(appSource).not.toContain("GIT_HISTORY_WORKBENCH_KIND");
-    expect(headerElementsSource).toContain('id: "history"');
+    expect(changesSidebarSource).toContain("onOpenHistory");
+    expect(historySidebarSource).toContain("onBack");
+    expect(headerElementsSource).not.toContain('id: "history"');
     expect(headerElementsSource).toContain('id: "changes"');
-    expect(headerElementsSource).toContain("aria-pressed={history.sidebarOpen}");
     expect(historyTimelineSource).toContain("<VirtualSidebarList");
     expect(viewSource).not.toContain("<VirtualSidebarList");
     expect(gitControllerSource).toContain("gitHistoryActive");

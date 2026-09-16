@@ -407,6 +407,7 @@ function AppContent() {
     && rightSidebarSurface === "history";
   const gitChangesSidebarOpen = rightSidebarContentVisible
     && rightSidebarSurface === "changes";
+  const gitSidebarOpen = gitChangesSidebarOpen || gitHistorySidebarOpen;
   const agentSidebarOpen = rightSidebarContentVisible
     && rightSidebarSurface === "chat";
   const handleRemoveProject = useCallback(async (folder: WorkspaceFolder) => {
@@ -1159,6 +1160,15 @@ function AppContent() {
     t,
   ]);
   const auxiliarySurfaceRef = useRef<HTMLDivElement>(null);
+  const blurAuxiliarySurfaceFocus = useCallback(() => {
+    const activeElement = document.activeElement;
+    if (
+      activeElement instanceof HTMLElement
+      && auxiliarySurfaceRef.current?.contains(activeElement)
+    ) {
+      activeElement.blur();
+    }
+  }, []);
   const readAuxiliaryTerminalAppearance = useCallback(() => {
     const surface = auxiliarySurfaceRef.current;
     if (!surface) throw new Error("The auxiliary appearance surface is not mounted.");
@@ -1187,21 +1197,23 @@ function AppContent() {
     projectSessions,
     (focusedWorkspace ?? workspace)?.path ?? null,
   );
-  const handleToggleGitHistory = useCallback(() => {
-    if (gitHistorySidebarOpen) {
-      setRightSidebarOpen(false);
-      return;
-    }
+  const handleOpenGitHistory = useCallback(() => {
+    blurAuxiliarySurfaceFocus();
     setRightSidebarSurface("history");
     setRightSidebarOpen(true);
     setSwitcherOpen(false);
   }, [
-    gitHistorySidebarOpen,
+    blurAuxiliarySurfaceFocus,
     setRightSidebarOpen,
     setRightSidebarSurface,
   ]);
+  const handleBackToGitChanges = useCallback(() => {
+    blurAuxiliarySurfaceFocus();
+    setRightSidebarSurface("changes");
+    setRightSidebarOpen(true);
+  }, [blurAuxiliarySurfaceFocus, setRightSidebarOpen, setRightSidebarSurface]);
   const handleToggleGitChanges = useCallback(() => {
-    if (gitChangesSidebarOpen) {
+    if (gitSidebarOpen) {
       setRightSidebarOpen(false);
       return;
     }
@@ -1209,7 +1221,7 @@ function AppContent() {
     setRightSidebarOpen(true);
     setSwitcherOpen(false);
   }, [
-    gitChangesSidebarOpen,
+    gitSidebarOpen,
     setRightSidebarOpen,
     setRightSidebarSurface,
   ]);
@@ -1311,14 +1323,11 @@ function AppContent() {
     terminalSidebarOpen: agentSidebarOpen,
     terminalToolEnabled: true,
     gitChangesAvailable: Boolean(focusedWorkspace),
-    gitChangesOpen: gitChangesSidebarOpen,
+    gitChangesOpen: gitSidebarOpen,
     gitChangesStatus: getGitTitlebarStatus(activeGitStatus),
-    gitHistoryAvailable: Boolean(focusedWorkspace),
-    gitHistoryOpen: gitHistorySidebarOpen,
     onUpdateNow: () => void desktopUpdates.updateNow(),
     onToggleTerminal: handleToggleAgentWorkbench,
     onToggleGitChanges: handleToggleGitChanges,
-    onToggleGitHistory: handleToggleGitHistory,
   };
   const titlebarActions = (
     <DesktopTitlebarActions
@@ -1444,6 +1453,7 @@ function AppContent() {
                   workingFileDiffLoading={gitWorkingFileDiffLoading}
                   workingFileDiffError={gitWorkingFileDiffError}
                   onOpenFile={handleOpenGitWorkingFile}
+                  onOpenHistory={handleOpenGitHistory}
                   cloudBackup={{
                     loading: cloudBackupLoading || pendingCloudBackupSetup,
                     error: null,
@@ -1469,6 +1479,7 @@ function AppContent() {
                   initializing={gitOperationLoading === "init"}
                   onInitialize={handleInitializeGitRepository}
                   onSelectCommit={selectGitCommit}
+                  onBack={handleBackToGitChanges}
                 />
               </div>
             </div>
