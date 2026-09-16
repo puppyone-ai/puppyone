@@ -78,3 +78,19 @@
   --po-font-locale-serif: AppleMyungjo, Batang, "Noto Serif CJK KR";
   --po-font-locale-mono: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans Mono CJK KR";
 }
+
+/* DirectWrite renders the Windows CJK system faces more heavily than CoreText.
+ * Apply a platform-owned optical correction after locale selection so Windows
+ * editor and long-form body copy use Regular while macOS keeps its existing
+ * locale-specific 450/500 treatment. */
+:root[data-desktop-platform="windows"],
+:root[data-desktop-platform="windows"] :where(
+  .app-shell,
+  .onboarding-shell,
+  .desktop-overlay-root,
+  .desktop-theme-preview-surface,
+  [data-po-typography-role]
+) {
+  --po-content-reading-weight: var(--po-text-weight-regular, 400);
+  --po-plain-text-reading-weight: var(--po-text-weight-regular, 400);
+}
