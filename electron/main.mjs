@@ -131,6 +131,7 @@ import {
   reapplyWindowChromeProfile,
 } from "./main/window-chrome-profile.mjs";
 import { createDesktopPlatformHost } from "./main/platform/create-platform-host.mjs";
+import { configureDesktopTextRasterization } from "./main/platform/text-rasterization-policy.mjs";
 import { FALLBACK_SUB_THEME_FIRST_PAINT } from "./main/sub-theme-first-paint.generated.mjs";
 import { createGitOperationCoordinator } from "./main/git-operation-coordinator.mjs";
 import { createCloudPublishCoordinator } from "./main/cloud-publish-coordinator.mjs";
@@ -152,6 +153,10 @@ import { registerEditorSurfaceIpcHandlers } from "./main/editor-surfaces/ipc.mjs
 // stdout/stderr (Dock launch, detached child, closed terminal) otherwise throws
 // uncaught `write EIO` / `write EPIPE` and Electron shows a fatal dialog.
 installBrokenStdioGuards();
+
+// This must be configured before Electron becomes ready so every renderer,
+// including editor and utility surfaces, inherits the same Windows text mode.
+configureDesktopTextRasterization({ commandLine: app.commandLine });
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
