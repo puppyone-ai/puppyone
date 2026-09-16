@@ -162,12 +162,23 @@ describe("macOS stable release workflow", () => {
 });
 
 describe("Windows stable release workflow", () => {
-  it("signs, installs, attests, and publishes Windows independently from the Mac pointer", () => {
+  it("supports explicit signed or unsigned Windows publication independently from the Mac pointer", () => {
     const workflow = readFileSync(
       new URL("../../../../.github/workflows/desktop-windows-stable-release.yml", import.meta.url),
       "utf8",
     );
     expect(inspectWindowsStableReleaseWorkflow(workflow)).toEqual([]);
+  });
+
+  it("rejects a Windows workflow without an explicit unsigned packaging path", () => {
+    const workflow = readFileSync(
+      new URL("../../../../.github/workflows/desktop-windows-stable-release.yml", import.meta.url),
+      "utf8",
+    ).replace("Package explicitly unsigned Windows release", "Package Windows release without policy");
+
+    expect(inspectWindowsStableReleaseWorkflow(workflow)).toContain(
+      "Windows Stable must expose its unsigned packaging path",
+    );
   });
 });
 

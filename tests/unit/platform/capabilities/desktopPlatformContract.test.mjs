@@ -124,7 +124,11 @@ describe("Desktop release and target identities", () => {
     expect(getDesktopTargetSecurityPolicy({
       channel: "stable",
       target: createDesktopTarget({ platform: "windows", arch: "x64" }),
-    })).toMatchObject({ kind: "authenticode", requiresAuthenticodeSignature: true });
+    })).toMatchObject({
+      kind: "authenticode",
+      requiresAuthenticodeSignature: false,
+      allowsUnsignedDistribution: true,
+    });
 
     expect(createDesktopArtifactDescriptor({
       target: createDesktopTarget({ platform: "linux", arch: "x64" }),

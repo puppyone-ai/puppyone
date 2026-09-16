@@ -125,8 +125,45 @@ describe("desktop release metadata", () => {
 
     manifest.security.timestamped = false;
     expect(inspectDesktopReleaseManifest(manifest)).toContain(
-      "stable Windows releases must have a trusted timestamp",
+      "signed stable Windows releases must have a trusted timestamp",
     );
+  });
+
+  it("records an explicitly unsigned Stable Windows NSIS release without publisher claims", async () => {
+    const fixture = await createWindowsFixture();
+    const manifest = await createDesktopReleaseManifest({
+      ...baseMetadata(),
+      arch: "x64",
+      assetPaths: fixture.assets,
+      authenticodeSigned: false,
+      authenticodeTimestamped: false,
+      buildInfo: releaseBuildInfo("stable", 6),
+      channel: "stable",
+      prerelease: false,
+      provenance: "pipeline",
+      publisherNames: [],
+      r2Prefix: "desktop/stable/windows/v0.1.2/x64",
+      tag: "v0.1.2",
+      target: "windows-x64",
+      version: "0.1.2",
+      promotionSourceTag: "v0.1.2-internal.5",
+    });
+
+    expect(manifest.security).toEqual({
+      kind: "authenticode",
+      signed: false,
+      timestamped: false,
+      publisherNames: [],
+      digestAlgorithm: "sha256",
+    });
+    expect(inspectDesktopReleaseManifest(manifest)).toEqual([]);
+
+    manifest.security.timestamped = true;
+    manifest.security.publisherNames = ["CN=Unverified Publisher Claim"];
+    expect(inspectDesktopReleaseManifest(manifest)).toEqual(expect.arrayContaining([
+      "unsigned stable Windows releases cannot claim a trusted timestamp",
+      "unsigned stable Windows releases cannot claim publisher names",
+    ]));
   });
 
   it("allows a GitHub-backed internal release to be backfilled without a modern Terminal launcher", async () => {

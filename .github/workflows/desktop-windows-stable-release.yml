@@ -7,13 +7,21 @@ on:
         description: Exact installed and approved Internal candidate tag
         required: true
         type: string
+      windows_signing:
+        description: Authenticode policy for this Windows release
+        required: true
+        default: unsigned
+        type: choice
+        options:
+          - unsigned
+          - authenticode
 
 permissions:
   contents: read
 
 jobs:
   build:
-    name: Build signed Windows x64 NSIS release once
+    name: Build Windows x64 NSIS release once
     runs-on: windows-2025
     timeout-minutes: 90
     environment:
@@ -107,6 +115,7 @@ jobs:
         run: npm run prepare:windows:release
 
       - name: Sign and package Windows release
+        if: ${{ inputs.windows_signing == 'authenticode' }}
         env:
           WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
@@ -142,7 +151,22 @@ jobs:
             Remove-Item -LiteralPath $certificatePath -Force -ErrorAction SilentlyContinue
           }
 
+      - name: Package explicitly unsigned Windows release
+        if: ${{ inputs.windows_signing == 'unsigned' }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          npm run package:windows:prepared
+          if ($LASTEXITCODE -ne 0) { throw "Unsigned Windows packaging failed with exit code $LASTEXITCODE." }
+          node scripts/verify-packaged-desktop-build.mjs `
+            --target windows-x64 `
+            --windows-signing-mode unsigned
+          if ($LASTEXITCODE -ne 0) { throw "Unsigned Windows package verification failed with exit code $LASTEXITCODE." }
+
       - name: Verify Authenticode signature, SHA-256 digest, and trusted timestamp
+        if: ${{ inputs.windows_signing == 'authenticode' }}
         env:
           WINDOWS_SIGNER_SUBJECT: ${{ secrets.WINDOWS_SIGNER_SUBJECT }}
         shell: pwsh
@@ -170,7 +194,26 @@ jobs:
             }
           }
 
-      - name: Smoke-test signed NSIS installation
+      - name: Verify explicitly unsigned Windows binaries
+        if: ${{ inputs.windows_signing == 'unsigned' }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $installer = Get-ChildItem "release/puppyone-*-x64-setup.exe" | Select-Object -First 1
+          $application = Get-ChildItem "release/win-unpacked/PuppyOne.exe" | Select-Object -First 1
+          if (-not $installer -or -not $application) { throw "Unsigned Windows binaries are missing." }
+          foreach ($file in @($installer, $application)) {
+            $signature = Get-AuthenticodeSignature -LiteralPath $file.FullName
+            if ($signature.Status -ne "NotSigned") {
+              throw "$($file.Name) must be explicitly unsigned; Authenticode status is $($signature.Status)."
+            }
+            $digest = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash
+            if ($digest -notmatch "^[A-F0-9]{64}$") { throw "$($file.Name) did not produce a SHA-256 digest." }
+          }
+
+      - name: Smoke-test NSIS installation
+        env:
+          WINDOWS_SIGNING_MODE: ${{ inputs.windows_signing }}
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -181,17 +224,28 @@ jobs:
           $installedApplication = Join-Path $installDirectory "PuppyOne.exe"
           if (-not (Test-Path $installedApplication)) { throw "Installed PuppyOne.exe was not found." }
           $signature = Get-AuthenticodeSignature -LiteralPath $installedApplication
-          if ($signature.Status -ne "Valid") { throw "Installed PuppyOne.exe is not Authenticode-valid." }
+          if ($env:WINDOWS_SIGNING_MODE -eq "authenticode" -and $signature.Status -ne "Valid") {
+            throw "Installed PuppyOne.exe is not Authenticode-valid."
+          }
+          if ($env:WINDOWS_SIGNING_MODE -eq "unsigned" -and $signature.Status -ne "NotSigned") {
+            throw "Installed PuppyOne.exe must remain explicitly unsigned."
+          }
 
       - name: Write Windows Stable release preface
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force "artifacts" | Out-Null
+          $securitySummary = if ("${{ inputs.windows_signing }}" -eq "authenticode") {
+            "Authenticode-signed and timestamped"
+          } else {
+            "Unsigned (Windows may display Unknown publisher or a SmartScreen warning)"
+          }
           @"
-          Authenticode-signed and timestamped PuppyOne Desktop Windows x64 release.
+          $securitySummary PuppyOne Desktop Windows x64 release.
 
           Commit: $env:GITHUB_SHA
           Promoted Internal release: ${{ steps.promotion.outputs.promotion_source_tag }}
+          Windows signing mode: ${{ inputs.windows_signing }}
           R2 version prefix: ${{ steps.release.outputs.r2_prefix }}
 
           The existing macOS default download and update coordinates are unchanged.
@@ -200,9 +254,18 @@ jobs:
       - name: Create self-describing Windows Stable release bundle
         env:
           WINDOWS_SIGNER_SUBJECT: ${{ secrets.WINDOWS_SIGNER_SUBJECT }}
+          WINDOWS_SIGNING_MODE: ${{ inputs.windows_signing }}
         shell: bash
         run: |
           set -euo pipefail
+          authenticode_signed=false
+          authenticode_timestamped=false
+          publisher_args=()
+          if [[ "${WINDOWS_SIGNING_MODE}" == "authenticode" ]]; then
+            authenticode_signed=true
+            authenticode_timestamped=true
+            publisher_args=(--publisher-name "${WINDOWS_SIGNER_SUBJECT}")
+          fi
           assets=()
           for pattern in release/puppyone-*-x64-setup.exe release/puppyone-*-x64-setup.exe.blockmap release/stable.yml; do
             for file in $pattern; do
@@ -226,10 +289,10 @@ jobs:
             --arch x64 \
             --prerelease false \
             --provenance pipeline \
-            --authenticode-signed true \
-            --authenticode-timestamped true \
-            --publisher-name "${WINDOWS_SIGNER_SUBJECT}" \
+            --authenticode-signed "${authenticode_signed}" \
+            --authenticode-timestamped "${authenticode_timestamped}" \
             --notes-file artifacts/release-notes.md \
+            "${publisher_args[@]}" \
             "${assets[@]}"
 
       - name: Verify Windows Stable release bundle before handoff

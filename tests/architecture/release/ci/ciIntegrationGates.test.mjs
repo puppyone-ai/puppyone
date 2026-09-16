@@ -19,6 +19,12 @@ describe("integration branch quality gates", () => {
     const linuxSetup = workflow.jobs["app-checks"].steps.find(step => step.name === "Prepare Linux display and multilingual fonts");
     expect(linuxSetup.if).toBe("runner.os == 'Linux'");
     expect(workflow.jobs["windows-package"]["runs-on"]).toBe("windows-2025");
+    const windowsSteps = workflow.jobs["windows-package"].steps;
+    const windowsUpdaterGate = windowsSteps.find(step => step.name === "Test updater monotonicity P0");
+    expect(windowsUpdaterGate.run).toBe("npm run test:updater-p0");
+    expect(windowsSteps.indexOf(windowsUpdaterGate)).toBeLessThan(
+      windowsSteps.findIndex(step => step.name === "Build and verify unsigned NSIS package"),
+    );
   });
 
   it("makes every test typecheck and the complete core denominator part of the source gate", async () => {
