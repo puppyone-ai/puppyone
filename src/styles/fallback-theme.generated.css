@@ -113,7 +113,7 @@
 
   :root[data-initial-theme="dark"], :where([data-po-appearance-root].dark) {
     --po-surface-canvas: #161413;
-    --po-surface-chrome: #1d1b1a;
+    --po-surface-chrome: #201e1c;
     --po-surface-panel: #1a1715;
     --po-surface-panel-raised: #211d1a;
     --po-surface-overlay: #29241f;
@@ -121,8 +121,8 @@
     --po-surface-editor: #161413;
     /* Must stay an opaque literal: the compiler derives synchronous first paint from it. */
     --po-canvas: #161413;
-    --po-header: color-mix(in srgb, var(--po-surface-chrome) 40%, var(--po-surface-editor));
-    --po-sidebar: color-mix(in srgb, var(--po-surface-chrome) 40%, var(--po-surface-editor));
+    --po-header: var(--po-surface-chrome);
+    --po-sidebar: var(--po-surface-chrome);
     --po-panel: var(--po-surface-panel);
     --po-panel-raised: var(--po-surface-panel-raised);
     --po-overlay: var(--po-surface-overlay);
