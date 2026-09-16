@@ -265,7 +265,6 @@ export function SettingsView({
               detail={t("settings.appearance.detail")}
             />
             <div className="desktop-settings-list">
-              <InterfaceStyleSetting value={interfaceStyle} onChange={onInterfaceStyleChange} />
               <InterfacePaletteSettings
                 interfaceStyle={interfaceStyle}
                 subThemeId={resolvedAppearance.subThemeId}
@@ -453,6 +452,7 @@ export function SettingsView({
                   <span aria-hidden="true" />
                 </label>
               </div>
+              <InterfaceStyleSetting value={interfaceStyle} onChange={onInterfaceStyleChange} />
             </div>
           </div>
         </div>
