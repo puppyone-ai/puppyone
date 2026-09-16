@@ -5,7 +5,15 @@ import path from "node:path";
 export async function verifySidebarLiveResize(options) {
   const debuggerSession = options.window.webContents.debugger;
   debuggerSession.attach("1.3");
-  try { return await verifyLiveResize(options); }
+  try {
+    // This contract verifies real intermediate animation frames. Make it
+    // independent of the host runner's accessibility preference while the
+    // production reduced-motion override remains covered by CSS.
+    await debuggerSession.sendCommand("Emulation.setEmulatedMedia", {
+      features: [{ name: "prefers-reduced-motion", value: "no-preference" }],
+    });
+    return await verifyLiveResize(options);
+  }
   finally { if (debuggerSession.isAttached()) debuggerSession.detach(); }
 }
 
