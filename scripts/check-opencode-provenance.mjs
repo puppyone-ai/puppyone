@@ -33,7 +33,10 @@ assert(prompts.commit === runtime.runtimeRelease.releaseCommit, "OpenCode prompt
 assert(runtimeSource.includes(runtime.sourceAudit.commit), "Runtime source-audit pin differs from the provenance manifest.");
 assert(runtimeSource.includes(runtime.runtimeRelease.releaseCommit), "Runtime release pin differs from the provenance manifest.");
 assert(runtimeSource.includes(`protocolFloor: "${runtime.protocolFloor}"`), "Runtime protocol floor differs from the provenance manifest.");
-const promptManifestSha256 = crypto.createHash("sha256").update(fs.readFileSync(path.join(root, "vendor/opencode/PROMPT_MANIFEST.json"))).digest("hex");
+const promptManifestBytes = fs.readFileSync(path.join(root, "vendor/opencode/PROMPT_MANIFEST.json"));
+const promptManifestSha256 = crypto.createHash("sha256")
+  .update(promptManifestBytes.toString("utf8").replace(/\r\n?/g, "\n"))
+  .digest("hex");
 assert(runtimeSource.includes(promptManifestSha256), "Runtime session metadata prompt-manifest hash drifted.");
 assert(Object.keys(prompts.files).length === 18, "OpenCode prompt manifest is incomplete.");
 for (const [filename, digest] of Object.entries(prompts.files)) {

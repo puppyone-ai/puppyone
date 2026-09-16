@@ -86,7 +86,7 @@ async function buildDefinitions() {
 
     const themePath = path.join(packageDirectory, "theme.css");
     const relativeThemePath = path.relative(repoRoot, themePath).split(path.sep).join("/");
-    const parsed = parseSingleFileThemeCss(readFileSync(themePath, "utf8"), {
+    const parsed = parseSingleFileThemeCss(normalizeNewlines(readFileSync(themePath, "utf8")), {
       sourcePath: relativeThemePath,
       allowReservedBuiltinId: true,
       allowBuiltinCompatibilityMetadata: true,
@@ -274,6 +274,10 @@ function renderFallbackCss(fallback) {
     root.toString().trim(),
     "",
   ].join("\n");
+}
+
+function normalizeNewlines(source) {
+  return source.replace(/\r\n?/g, "\n");
 }
 
 function createBootstrap(definitions, fallback) {
