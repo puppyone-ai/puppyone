@@ -87,8 +87,31 @@ describe("Desktop platform host", () => {
     host.windowChrome.synchronizeAppearance(ownerWindow, {
       background: "#fafafa",
       titlebarBackground: "rgb(7, 87, 215)",
+      themeSource: "light",
     });
     expect(ownerWindow.setTitleBarOverlay).toHaveBeenCalledWith({
+      color: "#00000000",
+      symbolColor: "#f5f5f5",
+      height: 38,
+    });
+
+    host.windowChrome.synchronizeAppearance(ownerWindow, {
+      background: "#161413",
+      titlebarBackground: "color(srgb 0.101 0.090 0.082)",
+      themeSource: "dark",
+    });
+    expect(ownerWindow.setTitleBarOverlay).toHaveBeenLastCalledWith({
+      color: "#00000000",
+      symbolColor: "#f5f5f5",
+      height: 38,
+    });
+
+    host.windowChrome.synchronizeAppearance(ownerWindow, {
+      background: "#161413",
+      titlebarBackground: "linear-gradient(#161413, #211d1a)",
+      themeSource: "dark",
+    });
+    expect(ownerWindow.setTitleBarOverlay).toHaveBeenLastCalledWith({
       color: "#00000000",
       symbolColor: "#f5f5f5",
       height: 38,

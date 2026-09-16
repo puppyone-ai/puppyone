@@ -43,7 +43,10 @@
   --desktop-titlebar-windows-control-width: calc(
     var(--desktop-titlebar-windows-controls-width) / 3
   );
-  --desktop-titlebar-windows-symbol-color: #1f1f1f;
+  /* App-owned actions share the semantic titlebar foreground instead of
+   * inferring contrast from a light/dark class. This keeps default, cloud,
+   * and interface-style titlebars legible from the same source of truth. */
+  --desktop-titlebar-windows-symbol-color: var(--desktop-titlebar-text);
   --desktop-titlebar-windows-hover-background: color-mix(
     in srgb,
     var(--desktop-titlebar-windows-symbol-color) 8%,
@@ -59,11 +62,6 @@
   --desktop-titlebar-content-start: 12px;
   height: 38px;
   min-height: 38px;
-}
-
-.app-shell.dark .desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"],
-:root[data-interface-style="windows-xp"] .desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] {
-  --desktop-titlebar-windows-symbol-color: #f5f5f5;
 }
 
 .desktop-titlebar[data-window-full-screen="true"] {

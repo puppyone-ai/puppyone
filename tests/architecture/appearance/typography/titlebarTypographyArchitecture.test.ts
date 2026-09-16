@@ -155,6 +155,9 @@ describe("titlebar typography architecture", () => {
 
     expect(windowsTitlebar).toContain("100vw - env(titlebar-area-width");
     expect(windowsTitlebar).toContain("var(--desktop-titlebar-windows-controls-width) / 3");
+    expect(windowsTitlebar).toContain(
+      "--desktop-titlebar-windows-symbol-color: var(--desktop-titlebar-text);",
+    );
     expect(windowsTitlebar).toContain("height: 38px;");
     expect(windowsTitlebar).toContain("min-height: 38px;");
     expect(windowsLayout).toContain("position: relative;");
