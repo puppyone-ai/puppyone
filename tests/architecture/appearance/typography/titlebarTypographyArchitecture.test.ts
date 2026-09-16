@@ -105,6 +105,7 @@ describe("titlebar typography architecture", () => {
   it("keeps chrome text at the shared medium-weight contract", () => {
     const typographyRoot = readCssBlock(typographyFoundationsCss, ":root");
     const layoutRoot = readCssBlock(`\n${tokensCss}`, ":root");
+    const titlebarRoot = readCssBlock(`\n${titlebarCss}`, ".desktop-titlebar");
     const controlGeometry = readFileSync(
       new URL("../../../../packages/shared-ui/src/styles/control-geometry.css", import.meta.url),
       "utf8",
@@ -118,6 +119,15 @@ describe("titlebar typography architecture", () => {
     expect(layoutRoot).toContain("--desktop-titlebar-control-height: 24px;");
     expect(layoutRoot).toContain("--desktop-titlebar-tool-action-width: 34px;");
     expect(layoutRoot).toContain("--desktop-titlebar-button-gap: 3px;");
+    expect(titlebarRoot).toContain(
+      "--desktop-titlebar-context-font-size: var(--po-font-size-chrome, 13px);",
+    );
+    expect(titlebarRoot).toContain(
+      "--desktop-titlebar-context-font-weight: var(--po-font-weight-chrome, 500);",
+    );
+    expect(titlebarRoot).toContain(
+      "--desktop-titlebar-context-line-height: var(--po-type-header-line-height, 20px);",
+    );
   });
 
   it("continues native Windows caption-button geometry through the app actions", () => {
@@ -158,6 +168,28 @@ describe("titlebar typography architecture", () => {
     expect(windowsTitlebar).toContain(
       "--desktop-titlebar-windows-symbol-color: var(--desktop-titlebar-text);",
     );
+    expect(windowsTitlebar).toContain("--desktop-titlebar-context-font-family: var(--po-font-ui);");
+    expect(windowsTitlebar).toContain(
+      "var(--desktop-sidebar-font-size, var(--po-type-left-sidebar-content));",
+    );
+    expect(windowsTitlebar).toContain(
+      "var(--desktop-sidebar-font-weight, var(--po-text-weight-regular));",
+    );
+    expect(windowsTitlebar).toContain(
+      "var(--desktop-sidebar-line-height, var(--po-type-left-sidebar-line-height));",
+    );
+    expect(windowsTitlebar).toContain(
+      "var(--desktop-sidebar-row-content-left, 6px);",
+    );
+    expect(windowsTitlebar).toContain(
+      "var(--desktop-sidebar-icon-slot-size, 18px);",
+    );
+    expect(windowsTitlebar).toContain(
+      "var(--desktop-sidebar-icon-label-gap, 4px);",
+    );
+    expect(windowsTitlebar).toContain(
+      "--desktop-titlebar-content-start: var(--desktop-sidebar-row-left-gap, 12px);",
+    );
     expect(windowsTitlebar).toContain("height: 38px;");
     expect(windowsTitlebar).toContain("min-height: 38px;");
     expect(windowsLayout).toContain("position: relative;");
@@ -190,7 +222,12 @@ describe("titlebar typography architecture", () => {
     expect(windowsChanges).toContain("height: 100%;");
     expect(windowsChanges).toContain("flex: 0 0 auto;");
     expect(windowsChanges).toContain("padding-inline: 10px;");
-    expect(windowsDivider).toContain("display: none;");
+    expect(windowsDivider).toContain("display: block;");
+    expect(windowsDivider).toContain("flex: 0 0 1px;");
+    expect(windowsDivider).toContain("margin-inline: 0;");
+    expect(windowsDivider).toContain(
+      "var(--desktop-titlebar-windows-symbol-color) 18%",
+    );
     expect(titlebarCss).toContain(".desktop-titlebar-action svg {");
     expect(titlebarCss).toContain("width: 14px;");
     expect(titlebarCss).toContain("stroke-width: 1.6;");
@@ -231,18 +268,23 @@ describe("titlebar typography architecture", () => {
     ".desktop-titlebar-context-name",
     ".desktop-titlebar-workspace-name",
     ".desktop-titlebar-branch-button span",
-  ])("binds %s to the shared chrome typography tokens", (selector) => {
+  ])("binds %s to the platform-aware titlebar context tokens", (selector) => {
     const rule = readCssBlock(titlebarCss, selector);
 
-    expect(rule).toContain("font-size: var(--po-font-size-chrome, 13px);");
-    expect(rule).toContain("font-weight: var(--po-font-weight-chrome, 500);");
-    expect(rule).toContain("line-height: var(--po-type-header-line-height, 20px);");
+    expect(rule).toContain("font-family: var(--desktop-titlebar-context-font-family);");
+    expect(rule).toContain("font-size: var(--desktop-titlebar-context-font-size);");
+    expect(rule).toContain("font-weight: var(--desktop-titlebar-context-font-weight);");
+    expect(rule).toContain("line-height: var(--desktop-titlebar-context-line-height);");
   });
 
   it("keeps the project quiet and distinguishes the branch with its semantic glyph", () => {
     const context = readCssBlock(titlebarCss, ".desktop-titlebar-context");
+    const projectButton = readCssBlock(titlebarCss, ".desktop-titlebar-workspace-button");
     const projectName = readCssBlock(titlebarCss, ".desktop-titlebar-workspace-name");
-    const projectMark = readCssBlock(titlebarCss, ".desktop-titlebar-workspace-mark");
+    const projectMark = readCssBlock(
+      titlebarCss,
+      ".desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark",
+    );
     const branchButton = readCssBlock(titlebarCss, ".desktop-titlebar-branch-button");
 
     expect(titlebarContextSource).toContain("<GitBranch size={13}");
@@ -252,9 +294,15 @@ describe("titlebar typography architecture", () => {
     expect(titlebarContextSource).not.toContain("desktop-titlebar-context-divider");
     expect(titlebarContextSource).not.toContain("VersionControlIcon");
     expect(context).toContain("gap: var(--desktop-titlebar-button-gap);");
+    expect(projectButton).toContain("gap: var(--desktop-titlebar-workspace-icon-label-gap);");
+    expect(projectButton).toContain(
+      "padding: 0 var(--desktop-titlebar-workspace-inline-padding);",
+    );
     expect(projectName).toContain("color: var(--desktop-titlebar-text-muted);");
-    expect(projectMark).toContain("width: 14px;");
-    expect(projectMark).toContain("flex: 0 0 14px;");
+    expect(projectMark).toContain("width: var(--desktop-titlebar-workspace-icon-slot-size);");
+    expect(projectMark).toContain(
+      "flex: 0 0 var(--desktop-titlebar-workspace-icon-slot-size);",
+    );
     expect(branchButton).toContain("color: var(--desktop-titlebar-text-muted);");
   });
 

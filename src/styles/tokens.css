@@ -50,6 +50,7 @@
   --desktop-sidebar-font-weight: var(--po-text-weight-regular);
   --desktop-sidebar-font-weight-emphasis: 650;
   --desktop-sidebar-line-height: var(--po-type-left-sidebar-line-height);
+  --desktop-sidebar-icon-slot-size: 18px;
   --desktop-sidebar-icon-label-gap: 4px;
   /*
    * Modern macOS-style scrollbar contract: a forgiving 12px interaction

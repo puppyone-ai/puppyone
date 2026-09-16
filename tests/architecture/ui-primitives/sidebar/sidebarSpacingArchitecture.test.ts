@@ -123,6 +123,7 @@ describe("sidebar spacing architecture", () => {
     expect(root).toContain("--desktop-sidebar-font-weight: var(--po-text-weight-regular);");
     expect(root).toContain("--desktop-sidebar-font-weight-emphasis: 650;");
     expect(root).toContain("--desktop-sidebar-line-height: var(--po-type-left-sidebar-line-height);");
+    expect(root).toContain("--desktop-sidebar-icon-slot-size: 18px;");
     expect(root).toContain("--desktop-sidebar-icon-label-gap: 4px;");
     expect(semanticThemeScope).toContain(
       "--po-shell-divider: color-mix(in srgb, var(--po-text) 10%, transparent);",
@@ -276,6 +277,7 @@ describe("sidebar spacing architecture", () => {
     expect(adapter).toContain("--po-tree-root-top-gap: var(--desktop-sidebar-row-left-gap);");
     expect(adapter).toContain("--po-tree-no-root-top-gap: var(--desktop-sidebar-row-left-gap);");
     expect(adapter).toContain("--po-tree-list-bottom-gap: var(--desktop-sidebar-list-padding-block);");
+    expect(adapter).toContain("--po-tree-icon-slot-size: var(--desktop-sidebar-icon-slot-size);");
     expect(adapter).toContain("--po-tree-row-icon-label-gap: var(--desktop-sidebar-icon-label-gap);");
     expect(dataAdapterCss).toContain(`.app-shell.dark :is(
   .desktop-project-switcher-rail,

@@ -286,6 +286,7 @@
   --po-tree-row-radius: var(--desktop-sidebar-row-radius);
   --po-tree-row-content-left: var(--desktop-sidebar-row-content-left);
   --po-tree-row-content-right: var(--desktop-sidebar-row-content-right);
+  --po-tree-icon-slot-size: var(--desktop-sidebar-icon-slot-size);
   --po-tree-row-icon-label-gap: var(--desktop-sidebar-icon-label-gap);
   --po-tree-row-font-size: var(--po-type-left-sidebar-content);
   --po-tree-row-font-weight: var(--desktop-sidebar-font-weight);
