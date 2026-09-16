@@ -4,6 +4,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { probeOpenCodeVersion } from "./lib/opencode-runtime-version.mjs";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const manifestPath = path.join(projectRoot, "vendor", "opencode", "runtime-manifest.json");
@@ -29,11 +30,9 @@ try {
   const extracted = await findFile(temporaryRoot, executableName);
   if (!extracted) fail(`The pinned archive does not contain ${executableName}.`);
   if (process.platform !== "win32") await fs.promises.chmod(extracted, 0o755);
-  const versionResult = spawnSync(extracted, ["--version"], { encoding: "utf8", shell: false, timeout: 10_000 });
-  const version = `${versionResult.stdout || ""}\n${versionResult.stderr || ""}`.match(/(\d+\.\d+\.\d+)/)?.[1];
-  if (versionResult.status !== 0 || version !== manifest.runtimeRelease.version) {
-    fail(`OpenCode executable version mismatch: expected ${manifest.runtimeRelease.version}, received ${version || "unknown"}.`);
-  }
+  const version = await probeOpenCodeVersion(extracted, manifest.runtimeRelease.version).catch((error) => {
+    fail(`OpenCode executable ${error.message}`);
+  });
 
   const binRoot = path.join(projectRoot, "vendor", "opencode", "bin");
   const target = path.join(binRoot, executableName);

@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { probeOpenCodeVersion } from "./lib/opencode-runtime-version.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const manifest = JSON.parse(await fs.promises.readFile(path.join(root, "vendor", "opencode", "runtime-manifest.json"), "utf8"));
@@ -27,9 +27,7 @@ if (
 const hash = crypto.createHash("sha256");
 for await (const chunk of fs.createReadStream(executable)) hash.update(chunk);
 if (hash.digest("hex") !== verified.executableSha256) throw new Error("Staged OpenCode executable failed SHA-256 verification.");
-const versionResult = spawnSync(executable, ["--version"], { encoding: "utf8", shell: false, timeout: 10_000 });
-const version = `${versionResult.stdout || ""}\n${versionResult.stderr || ""}`.match(/(\d+\.\d+\.\d+)/)?.[1];
-if (versionResult.status !== 0 || version !== manifest.runtimeRelease.version) {
-  throw new Error(`Staged OpenCode runtime version mismatch: expected ${manifest.runtimeRelease.version}, received ${version || "unknown"}.`);
-}
+await probeOpenCodeVersion(executable, manifest.runtimeRelease.version).catch((error) => {
+  throw new Error(`Staged OpenCode runtime ${error.message}`);
+});
 process.stdout.write(`Verified staged OpenCode ${verified.version} for release.\n`);
