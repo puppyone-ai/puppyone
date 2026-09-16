@@ -415,7 +415,7 @@
   background: transparent;
   color: var(--desktop-titlebar-windows-symbol-color);
   font-family: "Segoe UI Variable Text", "Segoe UI", sans-serif;
-  font-size: 12px;
+  font-size: var(--po-type-header-meta, 13px);
   font-weight: 400;
   line-height: 1;
   box-shadow: none;
@@ -440,7 +440,7 @@
   background: transparent;
   color: var(--desktop-titlebar-windows-symbol-color);
   font-family: "Segoe UI Variable Text", "Segoe UI", sans-serif;
-  font-size: 12px;
+  font-size: var(--po-type-header-meta, 13px);
   font-weight: 400;
   line-height: 1;
   box-shadow: none;
@@ -458,7 +458,7 @@
 .desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-git-indicator {
   color: inherit;
   font-family: "Segoe UI Variable Text", "Segoe UI", sans-serif;
-  font-size: 12px;
+  font-size: var(--po-type-header-meta, 13px);
   font-weight: 400;
 }
 
