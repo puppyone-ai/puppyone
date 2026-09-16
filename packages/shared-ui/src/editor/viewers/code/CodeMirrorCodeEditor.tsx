@@ -28,12 +28,12 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { subscribeTypographyChanges } from "../../../core/typography";
 import { CodeMirrorFindAdapter } from "../../find/codeMirrorFindAdapter";
 import { useRegisterEditorFindAdapter } from "../../find/editorFind";
-import { puppyCodeHighlightStyle } from "./codeHighlightStyle";
+import { puppyCodeHighlightStyle } from "../../code/codeHighlightStyle";
 import { codeIndentGuides } from "./codeIndentGuides";
 import {
   loadCodeLanguageExtension,
   resolveCodeLanguageKey,
-} from "./codeLanguageSupport";
+} from "../../code/codeLanguageSupport";
 import type {
   EditorSourceRevision,
   EditorSourceSnapshotPort,

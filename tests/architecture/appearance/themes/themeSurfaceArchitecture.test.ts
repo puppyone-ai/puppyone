@@ -52,6 +52,27 @@ describe("appearance surface boundary", () => {
     expect(compiler).toContain("may only declare root-level public tokens");
   });
 
+  it("projects the complete Markdown syntax palette through public host tokens", () => {
+    const markdownCss = source("packages/shared-ui/src/styles/editor/markdown-content.css");
+    const compiler = source("electron/main/themes/theme-css-compiler.mjs");
+    const semanticTokens = [
+      "constant",
+      "special",
+      "type",
+      "function",
+      "property",
+      "operator",
+      "meta",
+    ];
+
+    for (const token of semanticTokens) {
+      expect(compiler).toContain(
+        `["--po-md-syntax-${token}", "--po-host-md-syntax-${token}"]`,
+      );
+      expect(markdownCss).toContain(`--po-host-md-syntax-${token}`);
+    }
+  });
+
   it("loads built-in Sub Theme CSS through the runtime host without private editor selectors", () => {
     const styles = source("src/styles.css");
     const registry = source("src/features/themes/builtinSubThemes.ts");
@@ -86,6 +107,46 @@ describe("appearance surface boundary", () => {
     expect(generated).toContain("--po-host-md-content-color");
   });
 
+  it("gives Markdown-focused built-in themes a complete syntax palette in both modes", () => {
+    const semanticTokens = [
+      "keyword",
+      "string",
+      "comment",
+      "constant",
+      "special",
+      "type",
+      "function",
+      "property",
+      "operator",
+      "meta",
+    ];
+
+    for (const name of ["default-github", "default-newspaper"]) {
+      const css = source(`sub-themes/${name}/theme.css`);
+      for (const token of semanticTokens) {
+        expect(css.match(new RegExp(`--po-md-syntax-${token}:`, "g"))).toHaveLength(2);
+      }
+    }
+  });
+
+  it("keeps every Markdown-focused syntax color at accessible text contrast", () => {
+    for (const name of ["default-github", "default-newspaper"]) {
+      const css = source(`sub-themes/${name}/theme.css`);
+      const backgrounds = [...css.matchAll(/--po-md-code-block-background:\s*(#[0-9a-f]{6})/gi)]
+        .map((match) => match[1]);
+      const syntaxColors = [...css.matchAll(/--po-md-syntax-[\w-]+:\s*(#[0-9a-f]{6})/gi)]
+        .map((match) => match[1]);
+      expect(backgrounds).toHaveLength(2);
+      expect(syntaxColors).toHaveLength(20);
+
+      for (let mode = 0; mode < 2; mode += 1) {
+        for (const color of syntaxColors.slice(mode * 10, mode * 10 + 10)) {
+          expect(contrastRatio(backgrounds[mode], color)).toBeGreaterThanOrEqual(4.5);
+        }
+      }
+    }
+  });
+
   it("keeps product fonts outside the untrusted Sub Theme CSS contract", () => {
     const foundations = source("src/styles/typography/foundations.css");
     expect(foundations).toContain('font-family: "PuppyOne Open Sans"');
@@ -95,3 +156,21 @@ describe("appearance surface boundary", () => {
     }
   });
 });
+
+function contrastRatio(first: string, second: string): number {
+  const firstLuminance = relativeLuminance(first);
+  const secondLuminance = relativeLuminance(second);
+  return (Math.max(firstLuminance, secondLuminance) + 0.05)
+    / (Math.min(firstLuminance, secondLuminance) + 0.05);
+}
+
+function relativeLuminance(color: string): number {
+  const channels = [1, 3, 5].map((offset) => (
+    Number.parseInt(color.slice(offset, offset + 2), 16) / 255
+  )).map((channel) => (
+    channel <= 0.04045
+      ? channel / 12.92
+      : ((channel + 0.055) / 1.055) ** 2.4
+  ));
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+}

@@ -55,6 +55,8 @@ export type MarkdownElementBlockData =
       kind: "mdxComponent";
       component: MarkdownMdxComponentModel;
     }
+  | { kind: "mathBlock"; source: string }
+  | { kind: "mathInline"; source: string }
   | { kind: "task"; checked: boolean }
   | { kind: "video"; model: MarkdownVideoModel }
   | {
@@ -78,6 +80,8 @@ export type MarkdownElementKind =
   | "inlineCode"
   | "link"
   | "list"
+  | "mathBlock"
+  | "mathInline"
   | "mdxComponent"
   | "rule"
   | "strike"
@@ -89,7 +93,7 @@ export type MarkdownElementKind =
 
 type MarkdownPlainElementKind = Exclude<
   MarkdownElementKind,
-  "fence" | "htmlBlock" | "image" | "inlineHtml" | "mdxComponent" | "table" | "task" | "video"
+  "fence" | "htmlBlock" | "image" | "inlineHtml" | "mathBlock" | "mathInline" | "mdxComponent" | "table" | "task" | "video"
 >;
 
 export type MarkdownPlainElement<K extends MarkdownPlainElementKind = MarkdownPlainElementKind> =
@@ -116,6 +120,8 @@ export type MarkdownInlineHtmlElement = MarkdownElementBase & {
 export type MarkdownFenceElement = MarkdownFeatureElement<"fence">;
 export type MarkdownHtmlBlockElement = MarkdownFeatureElement<"htmlBlock">;
 export type MarkdownImageElement = MarkdownFeatureElement<"image">;
+export type MarkdownMathBlockElement = MarkdownFeatureElement<"mathBlock">;
+export type MarkdownMathInlineElement = MarkdownFeatureElement<"mathInline">;
 export type MarkdownMdxComponentElement = MarkdownFeatureElement<"mdxComponent">;
 export type MarkdownTableElement = MarkdownFeatureElement<"table">;
 export type MarkdownTaskElement = MarkdownFeatureElement<"task">;
@@ -127,6 +133,8 @@ export type MarkdownElement =
   | MarkdownHtmlBlockElement
   | MarkdownImageElement
   | MarkdownInlineHtmlElement
+  | MarkdownMathBlockElement
+  | MarkdownMathInlineElement
   | MarkdownMdxComponentElement
   | MarkdownTableElement
   | MarkdownTaskElement

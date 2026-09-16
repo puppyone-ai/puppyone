@@ -60,6 +60,7 @@ export type InlineAtomModel =
       displayMode: MarkdownImageDisplayMode;
     }
   | { kind: "taskCheckbox"; checked: boolean }
+  | { kind: "mathInline"; source: string }
   | { kind: "escape" };
 
 export type BlockEmbedModel =
@@ -92,6 +93,7 @@ export type BlockEmbedModel =
       externalHref: string | null;
     }
   | { kind: "mdxComponent"; name: "Tabs"; tabs: readonly MarkdownMdxTab[]; source: string }
+  | { kind: "mathBlock"; source: string }
   | { kind: "horizontalRule" };
 
 export type VisibleSourcePlan = {

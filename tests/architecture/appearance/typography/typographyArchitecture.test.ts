@@ -507,6 +507,7 @@ describe("typography architecture", () => {
     const base = source("src/styles/base.css");
     const markdown = source("packages/shared-ui/src/styles/editor/markdown-editor.css");
     const markdownContent = source("packages/shared-ui/src/styles/editor/markdown-content.css");
+    const markdownMath = source("packages/shared-ui/src/styles/editor/markdown-math.css");
     const plainText = source("packages/shared-ui/src/styles/editor/editor-chrome.css");
     const editableTable = source("packages/shared-ui/src/styles/editor/editable-table.css");
     const officePreview = source("packages/shared-ui/src/styles/editor/media-office-preview.css");
@@ -566,6 +567,10 @@ describe("typography architecture", () => {
     expect(markdownContent).toContain("--po-editor-content-font: var(--po-font-editor-content-user, var(--po-md-content-font));");
     expect(markdownContent).toContain('[data-font-editor-content-mode="explicit"]');
     expect(markdownContent).toContain("font-family: var(--po-font-editor-content-user) !important;");
+    expect(markdownContent).toContain(".cm-md-math-inline-widget");
+    expect(markdownContent).not.toContain("font-family: revert");
+    expect(markdownMath).not.toContain("font-family: revert");
+    expect(markdownMath).not.toMatch(/font-family:\s*KaTeX_/);
     expect(markdownContent).toContain(".cm-line:not(.cm-md-code-block-line)");
     expect(markdownContent).toContain('[data-po-theme-surface="markdown"] .cm-md-inline-code,');
     expect(markdownContent).toContain('[data-po-theme-surface="markdown"] .cm-md-code-textarea,');

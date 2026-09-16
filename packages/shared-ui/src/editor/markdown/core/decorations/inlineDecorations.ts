@@ -81,7 +81,7 @@ export function addInlineMarkdownDecorations(
 
     const expandedFeatureAtom = (
       plan.presentation === "inlineAtom"
-      && plan.atom.kind === "image"
+      && plan.capabilities.expand
       && revealedSourceRange?.presentation === "inline"
       && revealedSourceRange.from === plan.sourceRange.from
       && revealedSourceRange.to === plan.sourceRange.to
@@ -163,6 +163,7 @@ function compareInlineDecorationPriority(left: MarkdownElement, right: MarkdownE
   const priority = (element: MarkdownElement): number => {
     switch (element.kind) {
       case "image":
+      case "mathInline":
         return 0;
       case "inlineHtml":
         return 1;

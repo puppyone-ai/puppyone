@@ -15,6 +15,7 @@ const SELECTABLE_WIDGET_SELECTOR = [
   ".cm-md-mermaid-widget",
   ".cm-md-html-widget",
   ".cm-md-image-widget",
+  ".cm-md-math-block-widget",
 ].join(", ");
 
 const SELECTED_CLASS = "is-doc-selected";

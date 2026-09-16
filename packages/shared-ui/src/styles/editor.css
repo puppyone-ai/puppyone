@@ -40,6 +40,10 @@
 /* Markdown live preview: fenced code + Mermaid widgets */
 @import "./editor/markdown-code-widgets.css";
 
+/* Markdown live preview: KaTeX-backed inline and display math */
+@import "katex/dist/katex.min.css";
+@import "./editor/markdown-math.css";
+
 /* Markdown live preview: HTML block widget */
 @import "./editor/markdown-html-widget.css";
 

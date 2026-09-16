@@ -14,6 +14,7 @@ import {
   type MarkdownBlockFeatureId,
   type MarkdownDocumentProfile,
 } from "../../core/plans/markdownBlockExecution";
+import { estimateMarkdownCodeHighlightDomNodes } from "./codeBlockHighlightBudget";
 
 export function compileCodeBlockElementPlan(
   element: MarkdownElement,
@@ -35,7 +36,9 @@ export function compileCodeBlockElementPlan(
     sourceBytes: sourceShape.bytes,
     sourceLines: sourceShape.lines,
     logicalItems: mermaid ? sourceShape.nonEmptyLines : sourceShape.lines,
-    estimatedDomNodes: mermaid ? Math.max(8, sourceShape.nonEmptyLines * 4) : 8,
+    estimatedDomNodes: mermaid
+      ? Math.max(8, sourceShape.nonEmptyLines * 4)
+      : 8 + estimateMarkdownCodeHighlightDomNodes(code),
     nestingDepth: 1,
     assetCount: 0,
   });

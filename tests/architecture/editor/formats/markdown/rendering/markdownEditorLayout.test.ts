@@ -429,6 +429,48 @@ describe("Markdown rich-block boundary affordance", () => {
     expect(textareaRule).toContain("overflow-y: hidden;");
   });
 
+  it("keeps editable and highlighted code glyph metrics identical", () => {
+    const textareaRule = readCssRule(
+      markdownCodeCss,
+      ".markdown-codemirror-editor .cm-md-code-textarea",
+    );
+    const highlightRule = readCssRule(
+      markdownCodeCss,
+      ".markdown-codemirror-editor .cm-md-code-highlight",
+    );
+
+    for (const rule of [textareaRule, highlightRule]) {
+      expect(rule).toContain("font-weight: 400;");
+      expect(rule).toContain("font-variant-ligatures: none;");
+      expect(rule).toContain("font-feature-settings: \"liga\" 0, \"calt\" 0;");
+      expect(rule).toContain("letter-spacing: normal;");
+    }
+  });
+
+  it("maps Markdown code tokens through theme-adaptive semantic colors", () => {
+    const tokenMappings = [
+      ["comment", "comment"],
+      ["keyword", "keyword"],
+      ["string", "string"],
+      ["constant", "constant"],
+      ["special", "special"],
+      ["type", "type"],
+      ["function", "function"],
+      ["property", "property"],
+      ["operator", "operator"],
+      ["meta", "meta"],
+    ] as const;
+
+    for (const [className, tokenName] of tokenMappings) {
+      const rule = readCssRule(
+        markdownCodeCss,
+        `.markdown-codemirror-editor .cm-md-code-highlight .cm-code-${className}`,
+      );
+      expect(rule).toContain(`color: var(--po-code-token-${tokenName});`);
+      expect(rule).not.toContain("font-weight:");
+    }
+  });
+
   it("lays out code source metadata separately from the language field", () => {
     const headerRule = readCssRule(
       markdownCodeCss,

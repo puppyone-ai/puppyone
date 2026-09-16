@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   loadCodeLanguageExtension,
   resolveCodeLanguageKey,
-} from "../../../../../packages/shared-ui/src/editor/viewers/code/codeLanguageSupport";
+} from "../../../../../packages/shared-ui/src/editor/code/codeLanguageSupport";
 
 describe("code language support", () => {
   it.each([
