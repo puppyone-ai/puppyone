@@ -99,7 +99,9 @@ describe("Markdown heading outline", () => {
     expect(rail?.getAttribute("role")).toBe("navigation");
     expect(rail?.getAttribute("aria-label")).toBe("Document outline");
     expect(rail?.style.width).toBe("");
-    expect(rail?.style.top).toBe("34px");
+    expect(rail?.style.left).toBe("4px");
+    expect(rail?.style.right).toBe("");
+    expect(rail?.style.top).toBe("22px");
     expect(rail?.style.height).toBe("52px");
 
     const ticks = [...view.dom.querySelectorAll<HTMLButtonElement>(".cm-md-heading-outline-tick")];
@@ -256,6 +258,8 @@ describe("Markdown heading outline", () => {
     expect(css).toContain(".cm-md-heading-outline-popover");
     expect(css).toContain(".cm-md-heading-outline-item");
     expect(css).toContain(".cm-md-heading-outline-layer.is-popover-open");
+    expect(css).toContain("left: 22px");
+    expect(css).toContain("height: 2px");
     expect(css).not.toContain(".cm-md-heading-outline-panel");
     expect(css).not.toContain(".cm-md-heading-outline-grip");
     expect(css).not.toContain(".cm-md-heading-outline-spine");

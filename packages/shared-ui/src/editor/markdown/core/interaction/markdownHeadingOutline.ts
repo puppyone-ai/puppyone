@@ -10,11 +10,13 @@ const RAIL_WIDTH_PX = 14;
 const RAIL_LEFT_OFFSET_PX = 28;
 const RAIL_READING_GAP_PX = 8;
 const RAIL_VERTICAL_MARGIN_PX = 16;
+const RAIL_TOP_RATIO = 0.18;
 const RAIL_TICK_SPACING_PX = 19;
 const RAIL_TICK_TARGET_PX = 14;
 const SCROLL_HEIGHT_PADDING_PX = 8;
 const ACTIVE_SCROLL_OFFSET_PX = 24;
 const POPOVER_CLOSE_DELAY_MS = 140;
+const POPOVER_MAX_HEIGHT_PX = 320;
 let nextOutlinePopoverId = 0;
 
 type HeadingEntry = Readonly<{
@@ -476,8 +478,18 @@ function resolveRailLayout(view: EditorView, headingCount: number): RailMeasurem
     (headingCount - 1) * RAIL_TICK_SPACING_PX + RAIL_TICK_TARGET_PX,
   );
   const height = Math.min(availableHeight, desiredHeight);
-  const top = Math.max(0, (viewportHeight - height) / 2);
-  return { left, top, height, popoverMaxHeight: availableHeight };
+  const maximumTop = Math.max(0, viewportHeight - height - RAIL_VERTICAL_MARGIN_PX);
+  const preferredTop = Math.max(
+    RAIL_VERTICAL_MARGIN_PX,
+    Math.round(viewportHeight * RAIL_TOP_RATIO),
+  );
+  const top = Math.min(preferredTop, maximumTop);
+  return {
+    left,
+    top,
+    height,
+    popoverMaxHeight: Math.min(availableHeight, POPOVER_MAX_HEIGHT_PX),
+  };
 }
 
 function headingTickTop(
