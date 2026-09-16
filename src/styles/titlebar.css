@@ -404,7 +404,7 @@
   display: none;
 }
 
-.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-action:not(.desktop-titlebar-update):not(.desktop-titlebar-changes) {
+.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-action:where(:not(.desktop-titlebar-update):not(.desktop-titlebar-changes)) {
   width: var(--desktop-titlebar-windows-control-width);
   min-width: var(--desktop-titlebar-windows-control-width);
   height: 100%;
@@ -432,6 +432,7 @@
 .desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-actions .desktop-titlebar-changes {
   width: auto;
   min-width: var(--desktop-titlebar-windows-control-width);
+  height: 100%;
   flex: 0 0 auto;
   gap: 4px;
   padding-inline: 10px;
@@ -473,6 +474,9 @@
   transition: none;
 }
 
+/* Keep the geometry layer deliberately lower-specificity than the interaction
+ * layer. In particular, :where() above prevents the excluded-class guard from
+ * outranking hover/pressed/selected states on History and Agent. */
 .desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-action:hover {
   background: var(--desktop-titlebar-windows-hover-background);
   color: var(--desktop-titlebar-windows-symbol-color);

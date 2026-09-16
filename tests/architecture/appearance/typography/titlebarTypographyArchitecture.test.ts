@@ -142,7 +142,7 @@ describe("titlebar typography architecture", () => {
     );
     const windowsAction = readCssBlock(
       titlebarCss,
-      `${windowsTitlebarSelector} .desktop-titlebar-action:not(.desktop-titlebar-update):not(.desktop-titlebar-changes)`,
+      `${windowsTitlebarSelector} .desktop-titlebar-action:where(:not(.desktop-titlebar-update):not(.desktop-titlebar-changes))`,
     );
     const windowsChanges = readCssBlock(
       titlebarCss,
@@ -184,6 +184,7 @@ describe("titlebar typography architecture", () => {
     expect(windowsChanges).toContain(
       "min-width: var(--desktop-titlebar-windows-control-width);",
     );
+    expect(windowsChanges).toContain("height: 100%;");
     expect(windowsChanges).toContain("flex: 0 0 auto;");
     expect(windowsChanges).toContain("padding-inline: 10px;");
     expect(windowsDivider).toContain("display: none;");

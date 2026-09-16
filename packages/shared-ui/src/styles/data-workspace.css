@@ -324,18 +324,15 @@ body.data-sidebar-resizing .data-preview-accessory {
   transform-origin: center top;
 }
 
-.explorer-tree-motion-shell[data-explorer-motion] {
-  will-change: transform, clip-path;
-}
-
 .explorer-tree-list-end-motion {
   position: relative;
   width: 100%;
 }
 
-.explorer-tree-list-end-motion[data-explorer-motion="move"] {
-  will-change: transform;
-}
+/* Do not pre-promote Explorer content with will-change. At fractional Windows
+   display scales Chromium rasterizes the promoted layer on a different device
+   pixel, then visibly moves text when the motion marker is removed. The Web
+   Animations implementation promotes active transforms when it is beneficial. */
 
 .explorer-tree-motion-shell:not([data-depth="0"])::before {
   position: absolute;
@@ -838,11 +835,6 @@ body.data-sidebar-resizing .data-preview-accessory {
   .explorer-tree-skeleton-label {
     animation: none;
     background: var(--po-skeleton-base);
-  }
-
-  .explorer-tree-motion-shell[data-explorer-motion],
-  .explorer-tree-list-end-motion[data-explorer-motion="move"] {
-    will-change: auto;
   }
 }
 
