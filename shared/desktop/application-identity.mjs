@@ -72,8 +72,9 @@ export function getDesktopTargetSecurityPolicy({ channel, target }) {
         : "linux",
     requiresDeveloperIdSignature: stable && normalizedTarget.platform === "macos",
     requiresNotarization: stable && normalizedTarget.platform === "macos",
-    requiresAuthenticodeSignature: stable && normalizedTarget.platform === "windows",
-    requiresTrustedTimestamp: stable && normalizedTarget.platform === "windows",
+    requiresAuthenticodeSignature: false,
+    requiresTrustedTimestamp: false,
+    allowsUnsignedDistribution: normalizedTarget.platform === "windows",
     requiresProvenanceAttestation: channel !== "dev",
   });
 }

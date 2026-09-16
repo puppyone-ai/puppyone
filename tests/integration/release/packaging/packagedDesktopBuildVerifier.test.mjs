@@ -103,6 +103,35 @@ describe("packaged Desktop Build Identity verification", () => {
       target: "windows-x64",
     })).rejects.toThrow(/does not pin its Authenticode publisher name/);
   });
+
+  it("accepts an explicitly unsigned Stable Windows app without a publisher claim", async () => {
+    const fixture = await createWindowsFixture({ channel: "stable" });
+    await fs.writeFile(
+      path.join(fixture.applicationPath, "resources", "app-update.yml"),
+      `provider: generic\nurl: ${fixture.application.updateFeedUrl}\nchannel: ${fixture.application.updateChannel}\n`,
+    );
+
+    await expect(verifyPackagedDesktopBuild({
+      releaseDirectory: fixture.releaseDirectory,
+      buildInfo: fixture.buildInfo,
+      target: "windows-x64",
+      windowsSigningMode: "unsigned",
+    })).resolves.toMatchObject({
+      applications: [fixture.applicationPath],
+      distributables: [fixture.installerPath],
+    });
+  });
+
+  it("rejects a publisher claim in explicitly unsigned Stable Windows metadata", async () => {
+    const fixture = await createWindowsFixture({ channel: "stable" });
+
+    await expect(verifyPackagedDesktopBuild({
+      releaseDirectory: fixture.releaseDirectory,
+      buildInfo: fixture.buildInfo,
+      target: "windows-x64",
+      windowsSigningMode: "unsigned",
+    })).rejects.toThrow(/must not claim an Authenticode publisher name/);
+  });
 });
 
 async function createFixture() {

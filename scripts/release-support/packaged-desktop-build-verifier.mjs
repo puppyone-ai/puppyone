@@ -19,11 +19,17 @@ export async function verifyPackagedDesktopBuild({
   releaseDirectory,
   buildInfo,
   target = "macos-arm64",
+  windowsSigningMode = "authenticode",
 }) {
   const identity = assertDesktopBuildInfo(buildInfo);
   const targetDefinition = getDesktopTargetDefinition(target);
   if (targetDefinition.platform === "windows") {
-    return verifyPackagedWindowsBuild({ releaseDirectory, identity, target: targetDefinition });
+    return verifyPackagedWindowsBuild({
+      releaseDirectory,
+      identity,
+      target: targetDefinition,
+      windowsSigningMode,
+    });
   }
   if (targetDefinition.platform !== "macos") {
     throw new Error(`Packaged Build Identity verification is not implemented for ${targetDefinition.id}.`);
@@ -136,7 +142,10 @@ export async function verifyPackagedDesktopBuild({
   });
 }
 
-async function verifyPackagedWindowsBuild({ releaseDirectory, identity, target }) {
+async function verifyPackagedWindowsBuild({ releaseDirectory, identity, target, windowsSigningMode }) {
+  if (!["authenticode", "unsigned"].includes(windowsSigningMode)) {
+    throw new Error(`Unsupported Windows signing mode: ${String(windowsSigningMode)}.`);
+  }
   const application = resolveDesktopApplicationIdentity({
     releaseIdentity: toDesktopReleaseIdentity(identity),
     target,
@@ -189,8 +198,19 @@ async function verifyPackagedWindowsBuild({ releaseDirectory, identity, target }
     if (!updateConfiguration.includes(`channel: ${application.updateChannel}`)) {
       throw new Error("Packaged Windows application does not embed its canonical update channel.");
     }
-    if (identity.channel === "stable" && !/^publisherName\s*:/m.test(updateConfiguration)) {
+    if (
+      identity.channel === "stable"
+      && windowsSigningMode === "authenticode"
+      && !/^publisherName\s*:/m.test(updateConfiguration)
+    ) {
       throw new Error("Packaged Stable Windows application does not pin its Authenticode publisher name.");
+    }
+    if (
+      identity.channel === "stable"
+      && windowsSigningMode === "unsigned"
+      && /^publisherName\s*:/m.test(updateConfiguration)
+    ) {
+      throw new Error("Packaged unsigned Stable Windows application must not claim an Authenticode publisher name.");
     }
   } else if (updateConfiguration && /desktop\/(?:internal|stable)\//.test(updateConfiguration)) {
     throw new Error("Development builds must not embed an Internal or Stable update feed.");

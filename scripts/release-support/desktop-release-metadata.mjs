@@ -311,7 +311,7 @@ export function inspectDesktopReleaseManifest(manifest) {
       errors.push("Windows signing and timestamp values must be boolean");
     }
     if (manifest?.security?.digestAlgorithm !== "sha256") {
-      errors.push("Windows signatures must use SHA-256");
+      errors.push("Windows security evidence must use SHA-256 digests");
     }
     if (!Array.isArray(manifest?.security?.publisherNames)) {
       errors.push("Windows security evidence must list publisher names");
@@ -341,9 +341,13 @@ export function inspectDesktopReleaseManifest(manifest) {
   if (manifest?.channel === "stable") {
     if (manifest.prerelease !== false) errors.push("stable releases cannot be prereleases");
     if (target?.platform === "windows") {
-      if (manifest?.security?.signed !== true) errors.push("stable Windows releases must be Authenticode signed");
-      if (manifest?.security?.timestamped !== true) errors.push("stable Windows releases must have a trusted timestamp");
-      if (manifest?.security?.publisherNames?.length < 1) errors.push("stable Windows releases must name their publisher");
+      if (manifest?.security?.signed === true) {
+        if (manifest?.security?.timestamped !== true) errors.push("signed stable Windows releases must have a trusted timestamp");
+        if (manifest?.security?.publisherNames?.length < 1) errors.push("signed stable Windows releases must name their publisher");
+      } else {
+        if (manifest?.security?.timestamped !== false) errors.push("unsigned stable Windows releases cannot claim a trusted timestamp");
+        if (manifest?.security?.publisherNames?.length > 0) errors.push("unsigned stable Windows releases cannot claim publisher names");
+      }
     } else {
       if (manifest?.security?.developerIdSigned !== true) errors.push("stable releases must be Developer ID signed");
       if (manifest?.security?.notarized !== true) errors.push("stable releases must be notarized");
