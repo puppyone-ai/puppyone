@@ -77,6 +77,58 @@ describe("desktop release metadata", () => {
     ]));
   });
 
+  it("creates an independently addressable signed Windows NSIS release", async () => {
+    const fixture = await createWindowsFixture();
+    const manifest = await createDesktopReleaseManifest({
+      ...baseMetadata(),
+      arch: "x64",
+      assetPaths: fixture.assets,
+      authenticodeSigned: true,
+      authenticodeTimestamped: true,
+      buildInfo: releaseBuildInfo("stable", 6),
+      channel: "stable",
+      prerelease: false,
+      provenance: "pipeline",
+      publisherNames: ["CN=PuppyOne Test Publisher"],
+      r2Prefix: "desktop/stable/windows/v0.1.2/x64",
+      tag: "v0.1.2",
+      target: "windows-x64",
+      version: "0.1.2",
+      promotionSourceTag: "v0.1.2-internal.5",
+    });
+
+    expect(manifest).toMatchObject({
+      target: {
+        id: "windows-x64",
+        platform: "windows",
+        arch: "x64",
+        updateTrack: "nsis",
+      },
+      r2: {
+        catalogKey: "desktop/stable/windows/x64/nsis/releases.json",
+        latestPrefix: "desktop/stable/windows/x64/nsis/latest",
+      },
+      security: {
+        kind: "authenticode",
+        signed: true,
+        timestamped: true,
+        digestAlgorithm: "sha256",
+      },
+    });
+    expect(manifest.assets.map((asset) => asset.kind)).toEqual([
+      "nsis",
+      "blockmap",
+      "updater-metadata",
+    ]);
+    expect(createLatestPointer(manifest).assets[0].latestUrl)
+      .toContain("/desktop/stable/windows/x64/nsis/latest/");
+
+    manifest.security.timestamped = false;
+    expect(inspectDesktopReleaseManifest(manifest)).toContain(
+      "stable Windows releases must have a trusted timestamp",
+    );
+  });
+
   it("allows a GitHub-backed internal release to be backfilled without a modern Terminal launcher", async () => {
     const fixture = await createFixture();
     const manifest = await createDesktopReleaseManifest({
@@ -227,6 +279,18 @@ async function createFixture(version = "0.1.2-internal.5") {
     path.join(directory, "puppyone-desktop-terminal-preview-0.1.2-internal.5.tgz"),
   ];
   await Promise.all(assets.map((assetPath, index) => fs.writeFile(assetPath, `asset-${index}`)));
+  return { assets, directory };
+}
+
+async function createWindowsFixture() {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "puppyone-windows-release-metadata-"));
+  temporaryDirectories.push(directory);
+  const assets = [
+    path.join(directory, "puppyone-0.1.2-x64-setup.exe"),
+    path.join(directory, "puppyone-0.1.2-x64-setup.exe.blockmap"),
+    path.join(directory, "stable.yml"),
+  ];
+  await Promise.all(assets.map((assetPath, index) => fs.writeFile(assetPath, `windows-asset-${index}`)));
   return { assets, directory };
 }
 

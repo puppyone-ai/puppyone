@@ -257,9 +257,6 @@ function AppContent() {
     agentPreferredModel,
     localAgentsSettings,
     sidebarCollapsed,
-    sidebarNavigationLayout,
-    sidebarNavigationOrientation,
-    sidebarNavigationPlacement,
     terminalToolEnabled,
     titlebarActionsSettings,
     darkThemePreset,
@@ -279,7 +276,6 @@ function AppContent() {
     setAgentPreferredModel,
     setLocalAgentsSettings,
     setSidebarCollapsed,
-    setSidebarNavigationLayout,
     setThemeMode,
   } = preferences;
   const surfaceAppearance = useMemo(() => resolveSurfaceAppearance({
@@ -1300,7 +1296,6 @@ function AppContent() {
     />
   );
 
-  const toolsInNavigationToolbar = resolvedAppearance.composition.navigation === "sidebar-top-toolbar";
   const locationBarVisible = resolvedAppearance.composition.locationBar === "workspace-path-v1";
   const locationResource = resolveWorkspaceResource(activeDocumentPath ?? activeExplorerNode?.path ?? null);
   const locationBarPath = resolveDesktopShellLocationPath({
@@ -1328,7 +1323,6 @@ function AppContent() {
   const titlebarActions = (
     <DesktopTitlebarActions
       {...chromeActionProps}
-      visibleGroups={toolsInNavigationToolbar ? ["app-status", "header"] : undefined}
     />
   );
   const feedbackLauncher = (
@@ -1338,19 +1332,6 @@ function AppContent() {
   );
   const projectSwitcherRailEnabled = experimentalSettings.enableProjectSwitcherRail;
   const projectSwitcherRailVisible = projectSwitcherRailEnabled;
-  const feedbackInNavigationToolbar = !projectSwitcherRailVisible
-    && toolsInNavigationToolbar
-    && sidebarNavigationPlacement === "top";
-  const navigationToolbarActions = toolsInNavigationToolbar ? (
-      <>
-        <DesktopTitlebarActions
-          {...chromeActionProps}
-          placement="toolbar"
-          visibleGroups={["right-sidebar"]}
-        />
-        {feedbackInNavigationToolbar && feedbackLauncher}
-      </>
-    ) : undefined;
 
   return (
     <SurfaceAppearanceProvider value={surfaceAppearance}>
@@ -1392,7 +1373,6 @@ function AppContent() {
             ? undefined
             : titlebarSidebarSlot}
           titlebarActions={titlebarActions}
-          navigationToolbarActions={navigationToolbarActions}
           locationBar={locationBarVisible ? (
             <DesktopShellLocationBar
               path={locationBarPath}
@@ -1532,7 +1512,6 @@ function AppContent() {
               && activeWorkspaceEntryKind === "created"
             }
             git={git}
-            navigationComposition={resolvedAppearance.composition.navigation}
             onActiveDataNodeChange={handleActiveDataNodeChange}
             onActiveDataPathChange={handleActiveDataPathChange}
             onResourceMove={handleResourceMoved}
@@ -1572,7 +1551,7 @@ function AppContent() {
               && !createEntryDraft.selectedKind
               && createEntryDraft.anchor.placement === "auto-end"
             )}
-            sidebarUtility={projectSwitcherRailVisible || feedbackInNavigationToolbar
+            sidebarUtility={projectSwitcherRailVisible
               ? undefined
               : feedbackLauncher}
           />

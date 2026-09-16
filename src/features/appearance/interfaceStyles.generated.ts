@@ -26,7 +26,7 @@ export const INTERFACE_STYLE_MANIFEST = {
       "composition": {
         "shell": "default-shell-v1",
         "titlebar": "default-titlebar-v1",
-        "navigation": "user-preference",
+        "navigation": "sidebar-bottom-footer",
         "locationBar": "none",
         "scrollbar": "product-modern-v1",
         "iconPack": "product-v1"
@@ -80,7 +80,7 @@ export const INTERFACE_STYLE_MANIFEST = {
       "composition": {
         "shell": "windows-xp-shell-v1",
         "titlebar": "windows-xp-luna-titlebar-v1",
-        "navigation": "sidebar-top-toolbar",
+        "navigation": "sidebar-bottom-footer",
         "locationBar": "workspace-path-v1",
         "scrollbar": "windows-xp-classic-v1",
         "iconPack": "windows-xp-native-v1"
@@ -93,7 +93,7 @@ export const INTERFACE_STYLE_MANIFEST = {
         },
         "sidebarNavigationLayout": {
           "mode": "force",
-          "value": "top-horizontal",
+          "value": "bottom-horizontal",
           "reasonKey": "settings.appearance.controlledBy.windowsXpNavigation"
         },
         "fileIconTheme": {

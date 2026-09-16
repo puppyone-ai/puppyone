@@ -155,10 +155,6 @@
   gap: var(--desktop-sidebar-nav-gap);
 }
 
-.desktop-sidebar-footer-actions-right {
-  margin-inline-start: auto;
-}
-
 .desktop-sidebar-build-identity-footer {
   display: flex;
   min-width: 0;

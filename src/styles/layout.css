@@ -351,9 +351,10 @@ body.desktop-right-sidebar-resizing * {
 }
 
 /* Pointer tracking begins synchronously, before React publishes the shared
- * pane gesture phase. The body-owned resize session must suppress presentation
- * easing from that first frame so the divider never trails the pointer. */
-body.desktop-right-sidebar-resizing .desktop-right-sidebar.po-collapsible-pane-frame {
+ * pane gesture phase. Suppress easing for direct manipulation, but hand motion
+ * authority back to the shared collapse/expand preview states once published. */
+body.desktop-right-sidebar-resizing
+  .desktop-right-sidebar.po-collapsible-pane-frame:not([data-pane-gesture="collapse-preview"]):not([data-pane-gesture="expand-preview"]) {
   transition: none !important;
 }
 

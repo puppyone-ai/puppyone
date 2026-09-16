@@ -483,8 +483,12 @@ describe("editor split-pane architecture", () => {
     expect(layoutStyles).toContain("body.desktop-right-sidebar-resizing");
     expect(readCssBlock(
       layoutStyles,
-      "body.desktop-right-sidebar-resizing .desktop-right-sidebar.po-collapsible-pane-frame",
+      `body.desktop-right-sidebar-resizing
+  .desktop-right-sidebar.po-collapsible-pane-frame:not([data-pane-gesture="collapse-preview"]):not([data-pane-gesture="expand-preview"])`,
     )).toContain("transition: none !important;");
+    expect(layoutStyles).not.toContain(
+      "body.desktop-right-sidebar-resizing .desktop-right-sidebar.po-collapsible-pane-frame {",
+    );
   });
 });
 

@@ -8,10 +8,15 @@ import { verifyPackagedDesktopBuild } from "../../../../scripts/release-support/
 import {
   getDesktopBuildChannelPolicy,
   resolveDesktopBuildIdentity,
+  toDesktopReleaseIdentity,
 } from "../../../../shared/desktop-build-identity.mjs";
 import {
   DESKTOP_STABLE_UPDATE_FEED_URL,
 } from "../../../../shared/desktop-distribution-contract.mjs";
+import {
+  resolveDesktopApplicationIdentity,
+} from "../../../../shared/desktop/application-identity.mjs";
+import { getDesktopTargetDefinition } from "../../../../tooling/desktop/targets/target-manifest.mjs";
 import { verifyMacosAppIcon } from "../../../../tooling/desktop/build/macos-app-icon.mjs";
 
 vi.mock("../../../../tooling/desktop/build/macos-app-icon.mjs", () => ({ verifyMacosAppIcon: vi.fn() }));
@@ -59,6 +64,44 @@ describe("packaged Desktop Build Identity verification", () => {
       releaseDirectory: fixture.releaseDirectory,
       buildInfo: fixture.buildInfo,
     })).rejects.toThrow("Invalid native icon");
+  });
+
+  it("verifies Windows identity, updater coordinates, and NSIS artifacts", async () => {
+    const fixture = await createWindowsFixture();
+    await expect(verifyPackagedDesktopBuild({
+      releaseDirectory: fixture.releaseDirectory,
+      buildInfo: fixture.buildInfo,
+      target: "windows-x64",
+    })).resolves.toMatchObject({
+      applications: [fixture.applicationPath],
+      distributables: [fixture.installerPath],
+    });
+  });
+
+  it("rejects Windows updater metadata that does not reference its NSIS installer", async () => {
+    const fixture = await createWindowsFixture();
+    await fs.writeFile(
+      path.join(fixture.releaseDirectory, "internal.yml"),
+      `version: ${fixture.buildInfo.version}\npath: wrong-installer.exe\n`,
+    );
+    await expect(verifyPackagedDesktopBuild({
+      releaseDirectory: fixture.releaseDirectory,
+      buildInfo: fixture.buildInfo,
+      target: "windows-x64",
+    })).rejects.toThrow(/does not reference the NSIS installer/);
+  });
+
+  it("rejects a Stable Windows app that does not pin the Authenticode publisher", async () => {
+    const fixture = await createWindowsFixture({ channel: "stable" });
+    await fs.writeFile(
+      path.join(fixture.applicationPath, "resources", "app-update.yml"),
+      `provider: generic\nurl: ${fixture.application.updateFeedUrl}\nchannel: ${fixture.application.updateChannel}\n`,
+    );
+    await expect(verifyPackagedDesktopBuild({
+      releaseDirectory: fixture.releaseDirectory,
+      buildInfo: fixture.buildInfo,
+      target: "windows-x64",
+    })).rejects.toThrow(/does not pin its Authenticode publisher name/);
   });
 });
 
@@ -119,4 +162,59 @@ async function createFixture() {
     `version: ${buildInfo.version}\npath: puppyone-${buildInfo.version}-arm64.zip\n`,
   );
   return { applicationPath, buildInfo, releaseDirectory };
+}
+
+async function createWindowsFixture({ channel = "internal" } = {}) {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "puppyone-packaged-windows-identity-"));
+  temporaryDirectories.push(root);
+  const releaseDirectory = path.join(root, "release");
+  const buildInfo = resolveDesktopBuildIdentity({
+    baseVersion: "1.4.0",
+    buildNumber: 73,
+    builtAt: "2026-07-26T10:00:00.000Z",
+    channel,
+    commitSha: "b".repeat(40),
+  });
+  const target = getDesktopTargetDefinition("windows-x64");
+  const application = resolveDesktopApplicationIdentity({
+    releaseIdentity: toDesktopReleaseIdentity(buildInfo),
+    target,
+  });
+  const applicationPath = path.join(releaseDirectory, "win-unpacked");
+  const resourcesDirectory = path.join(applicationPath, "resources");
+  const sourceDirectory = path.join(root, "asar-source");
+  await fs.mkdir(resourcesDirectory, { recursive: true });
+  await fs.mkdir(sourceDirectory, { recursive: true });
+  await fs.writeFile(
+    path.join(sourceDirectory, "package.json"),
+    JSON.stringify({ name: "@puppyone/desktop", version: buildInfo.version }),
+  );
+  await createPackage(sourceDirectory, path.join(resourcesDirectory, "app.asar"));
+  await fs.writeFile(
+    path.join(resourcesDirectory, "build-info.json"),
+    `${JSON.stringify(buildInfo, null, 2)}\n`,
+  );
+  await fs.writeFile(
+    path.join(resourcesDirectory, "app-update.yml"),
+    [
+      "provider: generic",
+      `url: ${application.updateFeedUrl}`,
+      `channel: ${application.updateChannel}`,
+      ...(channel === "stable"
+        ? ["publisherName:", "  - CN=PuppyOne Test Publisher"]
+        : []),
+      "",
+    ].join("\n"),
+  );
+  await fs.writeFile(path.join(applicationPath, `${application.applicationName}.exe`), "application");
+  const installerPath = path.join(
+    releaseDirectory,
+    `puppyone-${buildInfo.version}-x64-setup.exe`,
+  );
+  await fs.writeFile(installerPath, "installer");
+  await fs.writeFile(
+    path.join(releaseDirectory, `${application.updateChannel}.yml`),
+    `version: ${buildInfo.version}\npath: ${path.basename(installerPath)}\n`,
+  );
+  return { application, applicationPath, buildInfo, installerPath, releaseDirectory };
 }

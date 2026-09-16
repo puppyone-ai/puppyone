@@ -1,0 +1,2 @@
+# Keep source and generated artifacts byte-stable across every build runner.
+* text=auto eol=lf

@@ -109,8 +109,22 @@ const stableMacConfig = createDesktopElectronBuilderConfig({
   }),
   target: getDesktopTargetDefinition("macos-arm64"),
 });
+const stableWindowsConfig = createDesktopElectronBuilderConfig({
+  packageMetadata,
+  buildInfo: resolveDesktopBuildIdentity({
+    baseVersion: packageMetadata.version,
+    buildNumber: 1,
+    builtAt: "2026-01-01T00:00:00.000Z",
+    channel: "stable",
+    commitSha: "a".repeat(40),
+  }),
+  target: getDesktopTargetDefinition("windows-x64"),
+});
 if (stableMacConfig.mac?.icon !== resolveDesktopAppIcon("stable").macos) {
   errors.push(`electron-builder mac.icon must be the generated channel ICNS`);
+}
+if (stableWindowsConfig.win?.icon !== resolveDesktopAppIcon("stable").source) {
+  errors.push("electron-builder win.icon must be converted from the canonical Stable App Image");
 }
 const canonicalExtraResource = stableMacConfig.extraResources?.find((entry) => (
   entry?.to === "puppy-app-image.png"

@@ -39,11 +39,7 @@ import {
   MIN_EXPLORER_WIDTH,
 } from "./layout/desktopPaneLayout";
 import type { DesktopPreferencesController } from "./useDesktopPreferences";
-import {
-  DesktopSidebarFooterNavigation,
-  DesktopSidebarRailNavigation,
-  DesktopSidebarTopNavigation,
-} from "./navigation";
+import { DesktopSidebarFooterNavigation } from "./navigation";
 import { WorkspaceSurfaceOutlet, type ResolvedWorkspaceSurface } from "./workspace-surfaces";
 import type { DesktopView } from "../../components/DesktopCloudShell";
 import {
@@ -57,7 +53,6 @@ import {
   desktopAgentActivityStore,
   toWorkspaceRelativePath,
 } from "../desktop-agent-presence";
-import { DesktopShellNavigationToolbarPortal } from "./DesktopShellAccessoryContext";
 import type { ResolvedWorkbenchDataResource } from "../data-workspace/workbenchDataPort";
 import { useProjectExplorerSession } from "../data-workspace/useProjectExplorerSession";
 import {
@@ -100,7 +95,6 @@ export type DesktopDataWorkspaceSurfaceProps = {
     showSettings: boolean;
     showWorkspaceNavigation: boolean;
   };
-  navigationComposition: string;
   onActiveDataPathChange: (
     path: string | null,
     node?: DataNode | null,
@@ -138,7 +132,6 @@ export function DesktopDataWorkspaceSurface({
   fileOperationNotice,
   firstProjectStarterEligible,
   navigation,
-  navigationComposition,
   onActiveDataNodeChange,
   onResourceMove,
   onRemoveProject,
@@ -280,30 +273,13 @@ export function DesktopDataWorkspaceSurface({
     showSettings: navigation.showSettings,
     utilitySlot: sidebarUtility,
   } as const;
-  const shellHostedTopNavigation = navigationComposition === "sidebar-top-toolbar"
-    && preferences.sidebarNavigationPlacement === "top";
-  const topNavigation = navigation.showWorkspaceNavigation
-    && preferences.sidebarNavigationPlacement === "top" ? (
-    <DesktopSidebarTopNavigation
-      {...navigationCommon}
-      orientation={preferences.sidebarNavigationOrientation}
-      shellToolbar={shellHostedTopNavigation}
-      useToolLabels={shellHostedTopNavigation}
-    />
-  ) : null;
-
   return (
     <div
       className="desktop-data-workspace-wrap"
       data-sidebar-navigation-placement={navigation.showWorkspaceNavigation
-        ? preferences.sidebarNavigationPlacement
+        ? "bottom"
         : undefined}
     >
-      {shellHostedTopNavigation && topNavigation && (
-        <DesktopShellNavigationToolbarPortal>
-          {topNavigation}
-        </DesktopShellNavigationToolbarPortal>
-      )}
       {workspaceSurfaceError && (
         <div className="desktop-workspace-surface-alert" role="status">{workspaceSurfaceError}</div>
       )}
@@ -400,12 +376,7 @@ export function DesktopDataWorkspaceSurface({
             </button>
           </div>
         )}
-        showExplorerToolbar={!shellHostedTopNavigation && Boolean(topNavigation)}
-        explorerToolbarSlot={shellHostedTopNavigation ? undefined : (topNavigation ?? undefined)}
-        explorerRailSlot={navigation.showWorkspaceNavigation
-          && preferences.sidebarNavigationPlacement === "left" ? (
-          <DesktopSidebarRailNavigation {...navigationCommon} />
-        ) : undefined}
+        showExplorerToolbar={false}
         showPreviewHeader={false}
         loadActiveFileSource={resolvedSurface.id !== "data"}
         hidePreviewSourceView
@@ -457,14 +428,11 @@ export function DesktopDataWorkspaceSurface({
         explorerSlot={resolvedSurface.id === "data" || resolvedSurface.content.sidebar == null
           ? undefined
           : <WorkspaceSurfaceOutlet region="sidebar" surface={resolvedSurface} />}
-        explorerFooterSlot={navigation.showWorkspaceNavigation && (
-          sidebarCompanion
-          || preferences.sidebarNavigationPlacement === "bottom"
-        )
+        explorerFooterSlot={navigation.showWorkspaceNavigation || sidebarCompanion
           ? (
               <div className="desktop-sidebar-companion-host">
                 {sidebarCompanion}
-                {preferences.sidebarNavigationPlacement === "bottom" && (
+                {navigation.showWorkspaceNavigation && (
                   <DesktopSidebarFooterNavigation {...navigationCommon} />
                 )}
               </div>

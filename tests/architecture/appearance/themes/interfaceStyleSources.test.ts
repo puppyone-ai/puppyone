@@ -10,11 +10,15 @@ describe("Interface style registry", () => {
   it("keeps the native window underlay on the generated first-paint contract", () => {
     const main = source("electron/main.mjs");
     const preload = source("electron/preload.cjs");
+    const preferences = source("src/features/app-shell/useDesktopPreferences.ts");
     const nativeFirstPaint = source("electron/main/sub-theme-first-paint.generated.mjs");
 
     expect(main).toContain("FALLBACK_SUB_THEME_FIRST_PAINT");
     expect(main).not.toContain('backgroundColor: "#f1eadf"');
     expect(preload).toContain('ipcRenderer.send("appearance:set-window-background"');
+    expect(preload).toContain("titlebarBackground: request?.titlebarBackground");
+    expect(preferences).toContain("window.getComputedStyle(titlebar).backgroundColor");
+    expect(preferences).toContain("titlebarBackground,");
     expect(nativeFirstPaint).toContain('"background": "#fafafa"');
     expect(nativeFirstPaint).toContain('"background": "#161413"');
   });
@@ -162,10 +166,11 @@ describe("Interface style registry", () => {
     expect(visualHarness).not.toContain("appearance-visual-tree-glyph");
     expect(xp).toContain(".desktop-sidebar-footer-button.active");
     expect(xp).toContain(".desktop-shell-navigation-toolbar-actions");
-    expect(visualHarness).toContain('data-toolbar-action="terminal"');
+    expect(visualHarness).toContain('className="desktop-sidebar-footer-bar desktop-sidebar-navigation-surface horizontal"');
+    expect(visualHarness).toContain('{ dataItem: "feedback", icon: CircleHelp');
+    expect(visualHarness).not.toContain('data-toolbar-action="terminal"');
     expect(visualHarness).not.toContain('data-toolbar-action="agent"');
-    expect(visualSmoke).toContain('JSON.stringify(["terminal"])');
-    expect(visualSmoke).toContain('JSON.stringify(["Terminal"])');
+    expect(visualSmoke).toContain('JSON.stringify(["data", "git", "settings", "feedback"])');
     expect(visualSmoke).not.toContain('JSON.stringify(["Chat", "Agent"])');
     expect(xp).toContain('.app-shell[data-location-bar-composition="workspace-path-v1"]');
     expect(xp).toContain(".desktop-shell-location-bar-field");
@@ -260,9 +265,8 @@ describe("Interface style registry", () => {
     expect(source("THIRD_PARTY_NOTICES.md"))
       .toContain("Crystal Clear configure icon");
     expect(xp).not.toContain("desktop-explorer-pane-caption");
-    expect(dataWorkspaceSurface).toContain(
-      "showExplorerToolbar={!shellHostedTopNavigation && Boolean(topNavigation)}",
-    );
+    expect(dataWorkspaceSurface).toContain("showExplorerToolbar={false}");
+    expect(dataWorkspaceSurface).toContain("<DesktopSidebarFooterNavigation {...navigationCommon} />");
     expect(dataWorkspaceSurface).not.toContain("desktop-explorer-pane-caption");
     expect(visualHarness).not.toContain("desktop-explorer-pane-caption");
     expect(xp).toContain(".desktop-dialog-header .desktop-dialog-icon-button");
@@ -270,11 +274,11 @@ describe("Interface style registry", () => {
     expect(explorer).toContain('data-expanded={expanded ? "true" : "false"}');
     expect(explorer).toContain("data-file-kind={isFolder ? undefined : getFileVisualKind");
     expect(xp).not.toMatch(/grid-template-columns|--data-explorer-width|--desktop-right-sidebar-width/);
-    expect(profile.composition.navigation).toBe("sidebar-top-toolbar");
+    expect(profile.composition.navigation).toBe("sidebar-bottom-footer");
     expect(profile.composition.locationBar).toBe("workspace-path-v1");
     expect(profile.policies.sidebarNavigationLayout).toMatchObject({
       mode: "force",
-      value: "top-horizontal",
+      value: "bottom-horizontal",
     });
   });
 

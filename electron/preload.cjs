@@ -31,6 +31,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   setWindowBackground: (request) => {
     ipcRenderer.send("appearance:set-window-background", {
       background: request?.background,
+      titlebarBackground: request?.titlebarBackground,
       themeSource: request?.themeSource,
     });
   },

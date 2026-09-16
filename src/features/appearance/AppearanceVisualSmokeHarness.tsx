@@ -8,7 +8,7 @@ import {
   ExplorerTree,
   type DataNode,
 } from "@puppyone/shared-ui";
-import { FolderOpen, GitBranch, Settings, SquareTerminal } from "lucide-react";
+import { CircleHelp, FolderOpen, GitBranch, Settings } from "lucide-react";
 import { useEffect } from "react";
 import {
   getInterfaceStyleDefinition,
@@ -77,12 +77,12 @@ const smokeNavigationItems = [
   { dataItem: "data", icon: FolderOpen, labelKey: "shell.navigation.files" },
   { dataItem: "git", icon: GitBranch, labelKey: "shell.navigation.git" },
   { dataItem: "settings", icon: Settings, labelKey: "shell.navigation.settings" },
+  { dataItem: "feedback", icon: CircleHelp, labelKey: "shell.feedback.label" },
 ] as const;
 
 /** Deterministic Chromium fixture for the representative Style × Surface CI matrix. */
 export function AppearanceVisualSmokeHarness() {
   const { t } = useLocalization();
-  const hasShellToolbar = profile.composition.navigation === "sidebar-top-toolbar";
   const hasLocationBar = profile.composition.locationBar === "workspace-path-v1";
 
   useEffect(() => {
@@ -119,12 +119,6 @@ export function AppearanceVisualSmokeHarness() {
           )}
           actions={<button className="desktop-titlebar-action" type="button">?</button>}
         />
-        {hasShellToolbar && (
-          <div className="desktop-shell-navigation-toolbar-host" data-window-no-drag="true">
-            <SmokeToolbarActions />
-            <SmokeNavigation shellToolbar />
-          </div>
-        )}
         {hasLocationBar && (
           <div className="desktop-shell-location-bar-host" data-window-no-drag="true">
             <DesktopShellLocationBar
@@ -135,7 +129,6 @@ export function AppearanceVisualSmokeHarness() {
         )}
         <div className="appearance-visual-body">
           <aside className="appearance-visual-explorer">
-            {!hasShellToolbar && <SmokeNavigation />}
             <div className="appearance-visual-tree-frame">
               <ExplorerTree
                 activePath="PuppyOne"
@@ -149,6 +142,7 @@ export function AppearanceVisualSmokeHarness() {
                 showRoot={false}
               />
             </div>
+            <SmokeNavigation />
           </aside>
           <section
             className="appearance-visual-content"
@@ -246,61 +240,31 @@ function fileFixture(path: string, type: DataNode["type"]): DataNode {
   };
 }
 
-function SmokeToolbarActions() {
-  const { t } = useLocalization();
-  return (
-    <div
-      className="desktop-shell-navigation-toolbar-actions desktop-shell-toolbar-section"
-      data-shell-toolbar-section="actions"
-    >
-      <button
-        className="desktop-shell-toolbar-button desktop-shell-toolbar-terminal"
-        data-toolbar-action="terminal"
-        type="button"
-        aria-pressed="true"
-      >
-        <i
-          className="desktop-shell-toolbar-button-icon"
-          aria-hidden="true"
-        >
-          <SquareTerminal size={19} strokeWidth={1.8} />
-        </i>
-        <span className="desktop-shell-toolbar-button-label">
-          {t("terminal.title")}
-        </span>
-      </button>
-    </div>
-  );
-}
-
-function SmokeNavigation({ shellToolbar = false }: { shellToolbar?: boolean }) {
+function SmokeNavigation() {
   const { t } = useLocalization();
   return (
     <nav
-      className={`desktop-sidebar-top-navigation desktop-sidebar-navigation-surface horizontal${shellToolbar ? " desktop-shell-toolbar-navigation desktop-shell-toolbar-section" : ""}`}
+      className="desktop-sidebar-footer-bar desktop-sidebar-navigation-surface horizontal"
       aria-label={t("shell.navigation.ariaLabel")}
-      data-placement="top"
+      data-placement="bottom"
       data-orientation="horizontal"
-      data-shell-toolbar-section={shellToolbar ? "navigation" : undefined}
     >
-      <div className={`desktop-sidebar-top-navigation-list${shellToolbar ? " desktop-shell-toolbar-list" : ""}`}>
-        <div className={`desktop-sidebar-top-navigation-group desktop-sidebar-top-navigation-local${shellToolbar ? " desktop-shell-toolbar-group" : ""}`}>
-          {smokeNavigationItems.map(({ dataItem, icon: Icon, labelKey }) => (
-            <button
-              className={`desktop-sidebar-top-navigation-button${shellToolbar ? " desktop-shell-toolbar-button" : ""}${dataItem === "data" ? " active" : ""}`}
-              data-navigation-item={dataItem}
-              aria-current={dataItem === "data" ? "page" : undefined}
-              type="button"
-              key={dataItem}
-            >
-              <i className={`desktop-sidebar-nav-icon-wrap${shellToolbar ? " desktop-shell-toolbar-button-icon" : ""}`} aria-hidden="true"><Icon size={16} /></i>
-              <span className={`desktop-sidebar-nav-label${shellToolbar ? " desktop-shell-toolbar-button-label" : ""}`}>{t(labelKey)}</span>
-              {dataItem === "git" && !shellToolbar && (
-                <em className="desktop-sidebar-nav-badge workspace" aria-hidden="true" />
-              )}
-            </button>
-          ))}
-        </div>
+      <div className="desktop-sidebar-footer-actions desktop-sidebar-footer-actions-left">
+        {smokeNavigationItems.map(({ dataItem, icon: Icon, labelKey }) => (
+          <button
+            className={`desktop-sidebar-footer-button${dataItem === "data" ? " active" : ""}`}
+            data-navigation-item={dataItem}
+            aria-current={dataItem === "data" ? "page" : undefined}
+            aria-label={t(labelKey)}
+            type="button"
+            key={dataItem}
+          >
+            <i className="desktop-sidebar-nav-icon-wrap" aria-hidden="true"><Icon size={16} /></i>
+            {dataItem === "git" && (
+              <em className="desktop-sidebar-nav-badge workspace" aria-hidden="true" />
+            )}
+          </button>
+        ))}
       </div>
     </nav>
   );

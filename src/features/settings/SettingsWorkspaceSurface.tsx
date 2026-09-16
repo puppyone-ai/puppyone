@@ -10,7 +10,6 @@ import type {
   LoadingAnimationPreset,
   LocalAgentsSettings,
   RightSidebarToolsSettings,
-  SidebarNavigationLayout,
   SidebarNavigationVisibilitySettings,
   ThemeMode,
   TitlebarActionsSettings,
@@ -42,7 +41,6 @@ export type SettingsPreferencesPort = {
   markdownPresentation: MarkdownPresentationSettings;
   requestedSubThemeId: string;
   fileIconTheme: FileIconThemeId;
-  sidebarNavigationLayout: SidebarNavigationLayout;
   sidebarNavigationVisibilitySettings: SidebarNavigationVisibilitySettings;
   filesVisibilitySettings: FilesVisibilitySettings;
   createNewMenuSettings: CreateNewMenuSettings;
@@ -60,7 +58,6 @@ export type SettingsPreferencesPort = {
   setMarkdownPresentation: (value: MarkdownPresentationSettings) => void;
   setSubThemeId: (subThemeId: string) => void;
   setFileIconTheme: (value: FileIconThemeId) => void;
-  setSidebarNavigationLayout: (value: SidebarNavigationLayout) => void;
   setSidebarNavigationVisibilitySettings: (value: SidebarNavigationVisibilitySettings) => void;
   setCreateNewMenuSettings: (value: CreateNewMenuSettings) => void;
   setExperimentalSettings: (value: ExperimentalSettings) => void;
@@ -147,7 +144,6 @@ export function createSettingsWorkspaceSurface({
         requestedSubThemeId={preferences.requestedSubThemeId}
         subThemeCatalog={subThemeCatalog}
         fileIconTheme={preferences.fileIconTheme}
-        sidebarNavigationLayout={preferences.sidebarNavigationLayout}
         sidebarNavigationVisibilitySettings={preferences.sidebarNavigationVisibilitySettings}
         filesVisibilitySettings={preferences.filesVisibilitySettings}
         createNewMenuSettings={preferences.createNewMenuSettings}
@@ -173,7 +169,6 @@ export function createSettingsWorkspaceSurface({
         onPointerCursorsChange={preferences.setPointerCursors}
         onSubThemeChange={preferences.setSubThemeId}
         onFileIconThemeChange={preferences.setFileIconTheme}
-        onSidebarNavigationLayoutChange={preferences.setSidebarNavigationLayout}
         onSidebarNavigationVisibilitySettingsChange={preferences.setSidebarNavigationVisibilitySettings}
         onFilesVisibilitySettingsChange={onFilesVisibilitySettingsChange}
         onCreateNewMenuSettingsChange={preferences.setCreateNewMenuSettings}

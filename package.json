@@ -1,7 +1,7 @@
 {
   "name": "@puppyone/desktop",
   "private": true,
-  "version": "0.3.20",
+  "version": "0.3.21",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -56,6 +56,9 @@
     "prepare:mac:release": "npm run check:shared-ui && npm run build && npm run check:viewer-pack-trust && npm run check:opencode-release",
     "package:mac:release": "node scripts/build-macos-stable-release.mjs --package-only",
     "dist:mac:release": "node scripts/build-macos-stable-release.mjs",
+    "prepare:windows:release": "npm run check:shared-ui && npm run build && npm run check:viewer-pack-trust && npm run check:opencode-release",
+    "package:windows:prepared": "electron-builder --config generated/electron-builder.json --win nsis --x64 --publish never",
+    "package:windows:release": "npm run package:windows:prepared && node scripts/verify-packaged-desktop-build.mjs --target windows-x64",
     "preview": "vite preview --host 127.0.0.1",
     "smoke:local-api": "node tests/integration/workspace/files/local-api.smoke.mjs",
     "smoke:format-aware-diff": "electron tests/integration/source-control/diff/format-aware-diff.smoke.mjs",

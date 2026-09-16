@@ -66,11 +66,32 @@ describe("Desktop platform host", () => {
       ipcMain: { handle: (channel, handler) => handlers.set(channel, handler) },
       platformHost: host,
     });
+    expect(host.windowChrome.browserWindowOptions).toEqual({
+      autoHideMenuBar: true,
+      titleBarStyle: "hidden",
+      titleBarOverlay: {
+        color: "#00000000",
+        symbolColor: "#1f1f1f",
+        height: 38,
+      },
+    });
     expect(handlers.get("platform:get-capabilities")()).toBe(host.getCapabilities());
     expect(host.getCapabilities()).toMatchObject({
       platform: "windows",
       arch: "x64",
+      windowChrome: { mode: "overlay" },
       updater: { installMode: "nsis" },
+    });
+
+    const ownerWindow = { setTitleBarOverlay: vi.fn() };
+    host.windowChrome.synchronizeAppearance(ownerWindow, {
+      background: "#fafafa",
+      titlebarBackground: "rgb(7, 87, 215)",
+    });
+    expect(ownerWindow.setTitleBarOverlay).toHaveBeenCalledWith({
+      color: "#00000000",
+      symbolColor: "#f5f5f5",
+      height: 38,
     });
   });
 });

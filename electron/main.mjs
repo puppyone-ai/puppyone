@@ -956,6 +956,7 @@ function registerIpcHandlers() {
     ipcMain: trustedIpcMain,
     BrowserWindow,
     nativeTheme,
+    windowChrome: desktopPlatformHost.windowChrome,
   });
   registerProjectAppearanceIpcHandlers({
     ipcMain: trustedIpcMain,

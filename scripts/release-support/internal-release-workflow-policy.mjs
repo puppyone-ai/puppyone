@@ -11,14 +11,18 @@ export function inspectContinuousIntegrationWorkflow(workflowSource) {
     ["npm ci", "CI must install the lockfile exactly"],
     ["npm run check:release -- --group source", "CI must run the canonical source checks, including updater P0 coverage"],
     ["npm run check:release -- --group app", "CI must run the canonical build and real application checks"],
-    ["needs: [source-checks, app-checks, platform-contracts]", "the required Build gate must aggregate every release-check group"],
+    ["needs: [source-checks, app-checks, platform-contracts, windows-package]", "the required Build gate must aggregate every release-check group and the Windows package smoke"],
     ["if: always()", "failed or skipped groups must reach the required Build gate"],
     ['test "$SOURCE_RESULT" = success', "source checks must pass before the Build gate succeeds"],
     ['test "$APP_RESULT" = success', "application checks must pass before the Build gate succeeds"],
     ['test "$PLATFORM_RESULT" = success', "all platform checks must pass before the Build gate succeeds"],
+    ['test "$WINDOWS_PACKAGE_RESULT" = success', "the Windows NSIS package smoke must pass before the Build gate succeeds"],
     ["scripts/print-desktop-target-matrix.mjs --scope contracts", "CI must resolve native test runners from the target manifest"],
     ["fromJSON(needs.resolve-desktop-targets.outputs.matrix)", "CI must fan out the target contract matrix"],
     ["npm run check:release -- --group platform", "CI must verify platform contracts on every declared native runner"],
+    ["runs-on: windows-2025", "CI must build the Windows package on the pinned native runner"],
+    ["npm run package:windows:release", "CI must verify a real Windows NSIS package"],
+    ["Smoke-test silent NSIS installation", "CI must install the generated NSIS package"],
   ]);
   forbidSnippets(workflowSource, errors, [
     ["contents: write", "CI must not receive repository write permission"],
@@ -139,11 +143,61 @@ export function inspectStableReleaseWorkflow(workflowSource) {
   return errors;
 }
 
+export function inspectWindowsStableReleaseWorkflow(workflowSource) {
+  const errors = inspectSource(workflowSource, "Windows stable release workflow");
+  if (errors.length > 0) return errors;
+  requireSnippets(workflowSource, errors, [
+    ["workflow_dispatch:", "Windows Stable publication must require an explicit operator action"],
+    ["promotion_source_tag:", "Windows Stable publication must require the exact approved Internal candidate"],
+    ["runs-on: windows-2025", "Windows Stable packaging must use the pinned native runner"],
+    ["name: desktop-windows-signing", "Windows signing must use its dedicated deployment environment"],
+    ["--target windows-x64", "Windows Stable must resolve its target through the target manifest"],
+    ["WINDOWS_CERTIFICATE_BASE64", "Windows Stable must receive protected certificate material"],
+    ["WINDOWS_CERTIFICATE_PASSWORD", "Windows Stable must protect its certificate password"],
+    ["WINDOWS_SIGNER_SUBJECT", "Windows Stable must pin the expected Authenticode signer subject"],
+    ["configure-windows-release-signing.mjs", "Windows Stable must bind updater verification to its Authenticode publisher"],
+    ["Signing certificate subject does not match WINDOWS_SIGNER_SUBJECT", "Windows Stable must reject unexpected certificate material before packaging"],
+    ["Remove-Item -LiteralPath $certificatePath", "Windows Stable must remove materialized certificate material"],
+    ["Get-AuthenticodeSignature", "Windows Stable must verify Authenticode signatures"],
+    ["TimeStamperCertificate", "Windows Stable must verify a trusted timestamp"],
+    ["signtool.exe", "Windows Stable must run the platform signature verifier"],
+    ["Smoke-test signed NSIS installation", "Windows Stable must install the signed NSIS package"],
+    ["--authenticode-signed true", "Windows release metadata must retain signature evidence"],
+    ["--authenticode-timestamped true", "Windows release metadata must retain timestamp evidence"],
+    ["desktop-release-publish.yml", "Windows Stable must use the canonical publisher"],
+    ["target_id: windows-x64", "Windows Stable publication must select the Windows target"],
+    ["append_github_assets: true", "Windows binaries must append to the existing version release"],
+    ["deployment_environment: desktop-stable", "Windows publication must reuse the protected Stable deployment environment"],
+  ]);
+  forbidSnippets(workflowSource, errors, [
+    ["R2_ACCESS_KEY_ID", "the Windows build job must not receive R2 deployment credentials"],
+    ["desktop/stable/mac/latest", "Windows Stable must not mutate the macOS latest coordinate"],
+    ["gh release create", "Windows Stable must delegate GitHub mutation to the canonical publisher"],
+  ]);
+  assertOrder(workflowSource, errors, [
+    "Install locked dependencies without signing or deployment secrets",
+    "Test updater monotonicity P0",
+    "Test Windows release contracts",
+    "Verify exact Internal promotion source",
+    "Prepare Windows release application without signing secrets",
+    "Sign and package Windows release",
+    "Verify Authenticode signature, SHA-256 digest, and trusted timestamp",
+    "Smoke-test signed NSIS installation",
+    "Create self-describing Windows Stable release bundle",
+    "Attest Windows Stable binaries and checksums",
+    "Upload build-once Windows Stable release bundle",
+  ], "Windows Stable build");
+  inspectPinnedActions(workflowSource, errors);
+  return errors;
+}
+
 export function inspectReleasePublisherWorkflow(workflowSource) {
   const errors = inspectSource(workflowSource, "release publisher workflow");
   if (errors.length > 0) return errors;
   requireSnippets(workflowSource, errors, [
     ["group: desktop-release-publish", "all release channels must share one publication lock"],
+    ["target_id:", "the canonical publisher must receive the target identity"],
+    ["append_github_assets:", "the canonical publisher must expose additive target publication"],
     ["preflight:", "the publisher must expose a secretless distribution preflight job"],
     ["needs: preflight", "publication authority must wait for the distribution preflight"],
     ["name: ${{ inputs.deployment_environment }}", "publishing secrets must be environment-scoped"],
@@ -162,6 +216,8 @@ export function inspectReleasePublisherWorkflow(workflowSource) {
     ["publish_github_release:", "the caller must explicitly choose whether a verified draft becomes public"],
     ["inputs.publish_github_release", "Internal releases must be able to remain collaborator-only drafts"],
     ["Verify GitHub asset digests before publication", "GitHub asset digests must be checked before publication"],
+    ["Append verified target binaries to existing GitHub Release", "companion target assets must be appended through a verified stage"],
+    ["m.r2.catalogKey", "Windows releases must consume their independent catalog coordinate from verified metadata"],
     ["Publish verified GitHub Release", "the publisher must explicitly publish the verified draft"],
     ["Verify published GitHub Release state", "the published GitHub release and tag must be reverified"],
     ["Verify every immutable R2 object by SHA-256", "every R2 versioned object must be content-verified"],
@@ -178,6 +234,7 @@ export function inspectReleasePublisherWorkflow(workflowSource) {
   ]);
   forbidSnippets(workflowSource, errors, [
     ["--delete", "latest promotion must not delete working payloads before the new release is committed"],
+    ["--clobber", "companion target publication must never overwrite an existing GitHub asset"],
     ["AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}\n      AWS_SECRET", "R2 credentials must not be job-global"],
   ]);
   requireStageSnippet(
@@ -308,11 +365,14 @@ export function inspectUpdateFeedMonitorWorkflow(workflowSource) {
     ["Verify every shipped Stable update feed", "the monitor must validate every registered compatibility endpoint"],
     ["node scripts/verify-desktop-stable-update-feed.mjs", "the monitor must use the canonical update-feed verifier"],
     ["Verify Stable latest is the published history head", "the monitor must detect a latest pointer rollback"],
+    ["Verify Windows Stable feed when established", "the monitor must verify the Windows feed after its first publication"],
+    ["verify-desktop-windows-update-feed.mjs", "the monitor must use the Windows updater contract verifier"],
     ["--require-latest-history-head", "the monitor must compare latest against immutable release history"],
     ["verify-desktop-release-version.mjs", "the monitor must use the canonical release version verifier"],
     ["if: ${{ always() }}", "the monitor must summarize both healthy and failed checks"],
     ["https://updates.puppyone.ai/desktop/stable/mac/latest/stable-mac.yml", "the monitor summary must identify the machine update contract"],
     ["https://downloads.puppyone.ai/desktop/stable/mac/latest/latest.json", "the monitor summary must identify the public release pointer"],
+    ["https://updates.puppyone.ai/desktop/stable/windows/x64/nsis/latest/stable.yml", "the monitor summary must identify the Windows machine update contract"],
   ]);
   forbidSnippets(workflowSource, errors, [
     ["contents: write", "the Stable update feed monitor must not receive repository write permission"],

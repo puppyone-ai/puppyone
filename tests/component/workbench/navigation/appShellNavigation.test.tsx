@@ -144,7 +144,7 @@ describe("DesktopSidebarTopNavigation", () => {
 });
 
 describe("DesktopSidebarFooterNavigation", () => {
-  it("keeps navigation left and the Feedback utility on the right edge", () => {
+  it("keeps navigation, Settings, and Feedback together on the left edge", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -167,8 +167,9 @@ describe("DesktopSidebarFooterNavigation", () => {
     expect(
       Array.from(container.querySelectorAll("button"), (button) => button.getAttribute("aria-label")),
     ).toEqual(["Changes", "Settings", "Feedback"]);
-    expect(container.querySelectorAll(".desktop-sidebar-footer-actions")).toHaveLength(2);
-    expect(container.querySelector(".desktop-sidebar-footer-actions-right")?.textContent).toBe("?");
+    expect(container.querySelectorAll(".desktop-sidebar-footer-actions")).toHaveLength(1);
+    expect(container.querySelector(".desktop-sidebar-footer-actions-left")?.textContent).toBe("?");
+    expect(container.querySelector(".desktop-sidebar-footer-actions-right")).toBeNull();
   });
 });
 

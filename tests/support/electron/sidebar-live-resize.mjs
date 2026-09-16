@@ -5,7 +5,15 @@ import path from "node:path";
 export async function verifySidebarLiveResize(options) {
   const debuggerSession = options.window.webContents.debugger;
   debuggerSession.attach("1.3");
-  try { return await verifyLiveResize(options); }
+  try {
+    // This contract verifies real intermediate animation frames. Make it
+    // independent of the host runner's accessibility preference while the
+    // production reduced-motion override remains covered by CSS.
+    await debuggerSession.sendCommand("Emulation.setEmulatedMedia", {
+      features: [{ name: "prefers-reduced-motion", value: "no-preference" }],
+    });
+    return await verifyLiveResize(options);
+  }
   finally { if (debuggerSession.isAttached()) debuggerSession.detach(); }
 }
 
@@ -18,7 +26,7 @@ async function verifyLiveResize({ window, temp, label, until }) {
     const rect = el => { const r = el.getBoundingClientRect(); return { x:r.x, y:r.y, width:r.width, height:r.height, right:r.right }; };
     return { pane:rect(pane), content:rect(pane.querySelector('.desktop-right-sidebar-inner')),
       viewport:rect(pane.querySelector('.po-collapsible-pane-viewport')), handle:rect(pane.querySelector('.desktop-right-sidebar-resizer')),
-      phase:pane.dataset.panePresentation, visible:pane.dataset.paneContentVisible,
+      phase:pane.dataset.panePresentation, gesture:pane.dataset.paneGesture??null, visible:pane.dataset.paneContentVisible,
       dragging:document.body.classList.contains('desktop-right-sidebar-resizing'),
       transitionDuration:getComputedStyle(pane).transitionDuration,
       persisted:localStorage.getItem('puppyone.desktop.rightSidebarWidth') };
@@ -82,6 +90,47 @@ async function verifyLiveResize({ window, temp, label, until }) {
   }, "restored pane and content geometry");
   assert(Number(restored.persisted) === Math.round(original.pane.width), "Original width was not restored");
   observations.push(restored);
+
+  // Direct resizing must remain pointer-synchronous, while crossing the snap
+  // boundary hands motion back to the shared collapse/expand preview states.
+  const previewStart = { x:restored.handle.x+3, y:restored.handle.y+90 };
+  await send("mouseDown", previewStart.x, previewStart.y);
+  await until(async () => (await snapshot()).dragging, "collapse-preview divider press");
+  const minimumWidth = 320;
+  await send("mouseMove", previewStart.x+restored.pane.width-minimumWidth, previewStart.y);
+  await until(async () => Math.abs((await snapshot()).pane.width-minimumWidth) <= 1, "minimum-width direct resize");
+  const directResize = await snapshot();
+  assert(directResize.gesture === "resizing", `Minimum-width drag left direct resize: ${JSON.stringify(directResize)}`);
+  assert(directResize.transitionDuration.split(",").every(value => parseFloat(value) === 0), "Direct resize inherited preview easing");
+
+  const collapsedTargetWidth = 120;
+  let collapsePreview;
+  for (let delivery = 0; delivery < 3 && collapsePreview?.gesture !== "collapse-preview"; delivery++) {
+    await send("mouseMove", previewStart.x+restored.pane.width-collapsedTargetWidth, previewStart.y);
+    await frame();
+    collapsePreview = await snapshot();
+  }
+  assert(collapsePreview?.gesture === "collapse-preview", `Collapse preview was not entered: ${JSON.stringify(collapsePreview)}`);
+  assert(collapsePreview.transitionDuration.split(",").some(value => parseFloat(value) > 0), "Collapse preview motion was disabled");
+  const collapseMotion = [collapsePreview];
+  for (let sample = 0; sample < 4; sample++) {
+    await frame();
+    collapseMotion.push(await snapshot());
+  }
+  assert(collapseMotion.some(state => state.pane.width > 1 && state.pane.width < minimumWidth-1),
+    `Collapse preview produced no intermediate frame: ${JSON.stringify(collapseMotion)}`);
+
+  await send("mouseMove", previewStart.x, previewStart.y);
+  await frame();
+  const expandPreview = await snapshot();
+  assert(expandPreview.gesture === "expand-preview", `Expand preview was not entered: ${JSON.stringify(expandPreview)}`);
+  assert(expandPreview.transitionDuration.split(",").some(value => parseFloat(value) > 0), "Expand preview motion was disabled");
+  await until(async () => Math.abs((await snapshot()).pane.width-restored.pane.width) <= 1, "expanded preview restoration");
+  await send("mouseUp", previewStart.x, previewStart.y);
+  await until(async () => !(await snapshot()).dragging, "collapse-preview divider release");
+  const previewRestored = await snapshot();
+  assert(Number(previewRestored.persisted) === Math.round(original.pane.width), "Cancelled collapse preview changed the preference");
+  observations.push(...collapseMotion, expandPreview, previewRestored);
 
   // CSS owns window constraints; the session's DOM node must survive them.
   await evaluate("window.__sidebarScreen = document.querySelector('.desktop-terminal-contribution-host[aria-hidden=false]');");

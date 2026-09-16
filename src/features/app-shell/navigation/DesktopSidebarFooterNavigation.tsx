@@ -49,12 +49,8 @@ export function DesktopSidebarFooterNavigation({
             settingsOpen={settingsOpen}
           />
         )}
+        {utilitySlot}
       </div>
-      {utilitySlot != null && (
-        <div className="desktop-sidebar-footer-actions desktop-sidebar-footer-actions-right">
-          {utilitySlot}
-        </div>
-      )}
     </div>
   );
 }

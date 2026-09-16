@@ -27,6 +27,45 @@
   color: var(--desktop-titlebar-text);
 }
 
+/* Native system chrome already owns its caption buttons. Only overlay chrome
+ * needs space for macOS traffic lights inside the renderer titlebar. */
+.desktop-titlebar[data-window-chrome-mode="native"] {
+  --desktop-titlebar-native-controls-inset: 0px;
+}
+
+/* Electron exposes the usable Windows titlebar rectangle through these CSS
+ * environment variables. Keep app actions out of the native caption buttons
+ * while allowing the Header background and drag region to span the full row. */
+.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] {
+  --desktop-titlebar-windows-controls-width: calc(
+    100vw - env(titlebar-area-width, calc(100vw - 138px))
+  );
+  --desktop-titlebar-windows-control-width: calc(
+    var(--desktop-titlebar-windows-controls-width) / 3
+  );
+  --desktop-titlebar-windows-symbol-color: #1f1f1f;
+  --desktop-titlebar-windows-hover-background: color-mix(
+    in srgb,
+    var(--desktop-titlebar-windows-symbol-color) 8%,
+    transparent
+  );
+  --desktop-titlebar-windows-pressed-background: color-mix(
+    in srgb,
+    var(--desktop-titlebar-windows-symbol-color) 13%,
+    transparent
+  );
+  --desktop-titlebar-safe-area-x: env(titlebar-area-x, 0px);
+  --desktop-titlebar-safe-area-width: env(titlebar-area-width, calc(100% - 138px));
+  --desktop-titlebar-content-start: 12px;
+  height: 38px;
+  min-height: 38px;
+}
+
+.app-shell.dark .desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"],
+:root[data-interface-style="windows-xp"] .desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] {
+  --desktop-titlebar-windows-symbol-color: #f5f5f5;
+}
+
 .desktop-titlebar[data-window-full-screen="true"] {
   --desktop-titlebar-safe-area-x: 0px;
   --desktop-titlebar-safe-area-width: 100%;
@@ -51,6 +90,26 @@
    * block insets symmetric so controls land on whole pixels at the default
    * 38px/24px chrome geometry instead of being shifted by half a pixel. */
   padding: 0 6px 0 var(--desktop-titlebar-content-start);
+}
+
+.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-layout {
+  position: relative;
+  padding-right: 0;
+}
+
+.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-layout:has(.desktop-titlebar-actions)::after {
+  position: absolute;
+  inset-block-start: 10px;
+  inset-inline-end: 0;
+  width: 1px;
+  height: 18px;
+  background: color-mix(
+    in srgb,
+    var(--desktop-titlebar-windows-symbol-color) 18%,
+    transparent
+  );
+  content: "";
+  pointer-events: none;
 }
 
 /* Keep the app-owned divider out of the native window frame's edge pixels. */
@@ -326,6 +385,121 @@
 
 .desktop-titlebar-action .spin {
   animation: spin 900ms linear infinite;
+}
+
+/* Continue the native Windows caption-button rhythm into the app actions.
+ * The OS owns the final three buttons; the adjacent app buttons mirror their
+ * measured width, full-height hit target, square hover surface, and zero gap. */
+.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-trailing {
+  align-self: stretch;
+  gap: 0;
+}
+
+.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-actions {
+  height: 100%;
+  gap: 0;
+}
+
+.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-action-divider {
+  display: none;
+}
+
+.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-action:not(.desktop-titlebar-update):not(.desktop-titlebar-changes) {
+  width: var(--desktop-titlebar-windows-control-width);
+  min-width: var(--desktop-titlebar-windows-control-width);
+  height: 100%;
+  flex: 0 0 var(--desktop-titlebar-windows-control-width);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--desktop-titlebar-windows-symbol-color);
+  font-family: "Segoe UI Variable Text", "Segoe UI", sans-serif;
+  font-size: var(--po-type-header-meta, 13px);
+  font-weight: 400;
+  line-height: 1;
+  box-shadow: none;
+  transition: none;
+}
+
+.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-actions .desktop-titlebar-terminal {
+  width: var(--desktop-titlebar-windows-control-width);
+  min-width: var(--desktop-titlebar-windows-control-width);
+  gap: 3px;
+  padding: 0;
+}
+
+.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-actions .desktop-titlebar-changes {
+  width: auto;
+  min-width: var(--desktop-titlebar-windows-control-width);
+  flex: 0 0 auto;
+  gap: 4px;
+  padding-inline: 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--desktop-titlebar-windows-symbol-color);
+  font-family: "Segoe UI Variable Text", "Segoe UI", sans-serif;
+  font-size: var(--po-type-header-meta, 13px);
+  font-weight: 400;
+  line-height: 1;
+  box-shadow: none;
+  transition: none;
+}
+
+.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-action svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+  color: currentcolor;
+  stroke-width: 1.6;
+}
+
+.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-git-indicator {
+  color: inherit;
+  font-family: "Segoe UI Variable Text", "Segoe UI", sans-serif;
+  font-size: var(--po-type-header-meta, 13px);
+  font-weight: 400;
+}
+
+.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-update {
+  height: 100%;
+  padding-inline: 10px;
+  border: 0;
+  border-radius: 0;
+  color: var(--desktop-titlebar-windows-symbol-color);
+  font-family: "Segoe UI Variable Text", "Segoe UI", sans-serif;
+  box-shadow: none;
+  transition: none;
+}
+
+.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-action:hover {
+  background: var(--desktop-titlebar-windows-hover-background);
+  color: var(--desktop-titlebar-windows-symbol-color);
+}
+
+.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-action:active {
+  background: var(--desktop-titlebar-windows-pressed-background);
+}
+
+.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-action:focus-visible {
+  background: var(--desktop-titlebar-windows-hover-background);
+  color: var(--desktop-titlebar-windows-symbol-color);
+  box-shadow: inset 0 0 0 1px color-mix(
+    in srgb,
+    var(--desktop-titlebar-windows-symbol-color) 42%,
+    transparent
+  );
+}
+
+.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-action.active,
+.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-action[aria-pressed="true"] {
+  background: var(--desktop-titlebar-windows-hover-background);
+  color: var(--desktop-titlebar-windows-symbol-color);
+}
+
+.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"][data-window-active="false"] .desktop-titlebar-actions {
+  opacity: 0.58;
 }
 
 .desktop-titlebar-workspace-wrap {

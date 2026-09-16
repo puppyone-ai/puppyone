@@ -261,8 +261,9 @@ describe("settings visual architecture", () => {
     expect(view).toContain("PULSE_GRID_PRESET_IDS.map");
     expect(view).toContain("PULSE_GRID_PRESET_FRAMES[presetId]");
     expect(view).toContain("onLoadingAnimationPresetChange(presetId)");
+    expect(view).not.toContain('settings.appearance.navigation.title');
     expect(view.indexOf('settings.appearance.loadingAnimation.title'))
-      .toBeGreaterThan(view.indexOf('settings.appearance.navigation.title'));
+      .toBeGreaterThan(view.indexOf('settings.appearance.gitSidebarLayout.title'));
     expect(appearancePreferences).toContain("loadingAnimationPreset: LoadingAnimationPreset");
     expect(loading).toContain("LoadingAnimationContext");
     expect(loading).not.toContain("localStorage");
@@ -361,8 +362,9 @@ describe("settings visual architecture", () => {
     expect(controls).toMatch(/\.desktop-settings-tool-list\s*{[^}]*width:\s*fit-content;[^}]*max-width:\s*100%;/s);
     expect(controls).toMatch(/\.desktop-settings-tool-item\s*{[^}]*grid-template-columns:\s*minmax\(0, max-content\) auto;[^}]*gap:\s*8px;[^}]*padding-inline:\s*8px 0;/s);
     expect(settings).not.toContain(".desktop-settings-wide-control-row > .desktop-settings-tool-list");
-    expect(view.match(/desktop-theme-segment desktop-appearance-option-segment/g)).toHaveLength(4);
-    expect(view.match(/desktop-appearance-hug-segment/g)).toHaveLength(3);
+    expect(view.match(/desktop-theme-segment desktop-appearance-option-segment/g)).toHaveLength(3);
+    expect(view.match(/desktop-appearance-hug-segment/g)).toHaveLength(2);
+    expect(view).not.toContain("settings.appearance.navigation.title");
     expect(view).not.toContain("settings.appearance.editorPresentation");
     expect(view).not.toContain("settings.appearance.dockIcon");
     expect(localProject).not.toContain("<strong");

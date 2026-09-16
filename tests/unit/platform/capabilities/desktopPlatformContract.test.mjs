@@ -8,6 +8,8 @@ import {
 } from "../../../../shared/desktop/application-identity.mjs";
 import {
   DESKTOP_STABLE_UPDATE_FEED_URL,
+  createDesktopLatestReleasePrefix,
+  createDesktopReleaseCatalogKey,
   createDesktopImmutableReleasePrefix,
   getDesktopTargetUpdateFeedUrl,
 } from "../../../../shared/desktop/distribution-contract.mjs";
@@ -63,7 +65,10 @@ describe("Desktop platform contract", () => {
       expect.objectContaining({ id: "linux-x64", runner: "ubuntu-24.04" }),
     ]);
     expect(createDesktopCiMatrix({ scope: "release", channel: "stable" }).include)
-      .toEqual([expect.objectContaining({ id: "macos-arm64", participation: "required" })]);
+      .toEqual([
+        expect.objectContaining({ id: "macos-arm64", participation: "required" }),
+        expect.objectContaining({ id: "windows-x64", participation: "optional" }),
+      ]);
   });
 });
 
@@ -104,6 +109,11 @@ describe("Desktop release and target identities", () => {
       releaseTag: "v2.1.0-internal.42",
       target: linux,
     })).toBe("desktop/internal/linux/v2.1.0-internal.42/x64");
+    const windows = createDesktopTarget({ platform: "windows", arch: "x64" });
+    expect(createDesktopLatestReleasePrefix({ channel: "stable", target: windows }))
+      .toBe("desktop/stable/windows/x64/nsis/latest");
+    expect(createDesktopReleaseCatalogKey({ channel: "stable", target: windows }))
+      .toBe("desktop/stable/windows/x64/nsis/releases.json");
   });
 
   it("uses platform-specific security evidence", () => {
@@ -172,13 +182,17 @@ describe("target-driven Electron builder configuration", () => {
     expect(config).not.toHaveProperty("mac");
     expect(config).not.toHaveProperty("dmg");
     expect(config).toMatchObject({
-      win: { target: ["nsis"] },
+      win: {
+        target: ["nsis"],
+        icon: "assets/brand/puppy/puppy-app-image.png",
+      },
       nsis: { oneClick: false, perMachine: false },
       publish: [{
         channel: "internal",
         url: "https://downloads.puppyone.ai/desktop/internal/windows/x64/nsis/latest",
       }],
     });
+    expect(config.win.signtoolOptions.signingHashAlgorithms).toEqual(["sha256"]);
   });
 
   it("emits an AppImage-only Linux configuration", () => {

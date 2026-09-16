@@ -8,7 +8,12 @@ const opaqueHexColorPattern = /^#[0-9a-f]{6}$/i;
  * local Sub Themes the same capability as built-ins without accepting general
  * CSS, gradients, alpha, or another native-window operation.
  */
-export function registerAppearanceIpcHandlers({ ipcMain, BrowserWindow, nativeTheme }) {
+export function registerAppearanceIpcHandlers({
+  ipcMain,
+  BrowserWindow,
+  nativeTheme,
+  windowChrome = null,
+}) {
   if (!ipcMain || typeof ipcMain.on !== "function") {
     throw new TypeError("Trusted ipcMain is required for appearance synchronization.");
   }
@@ -21,6 +26,7 @@ export function registerAppearanceIpcHandlers({ ipcMain, BrowserWindow, nativeTh
 
   ipcMain.on(APPEARANCE_WINDOW_BACKGROUND_CHANNEL, (event, request) => {
     const background = request?.background;
+    const titlebarBackground = request?.titlebarBackground;
     const themeSource = request?.themeSource;
     if (typeof background !== "string" || !opaqueHexColorPattern.test(background)) return;
     if (themeSource !== "system" && themeSource !== "light" && themeSource !== "dark") return;
@@ -32,5 +38,10 @@ export function registerAppearanceIpcHandlers({ ipcMain, BrowserWindow, nativeTh
     // light colors on macOS, so nativeTheme is the supported integration seam.
     nativeTheme.themeSource = themeSource;
     ownerWindow.setBackgroundColor(background);
+    windowChrome?.synchronizeAppearance?.(ownerWindow, {
+      background,
+      themeSource,
+      titlebarBackground: typeof titlebarBackground === "string" ? titlebarBackground : null,
+    });
   });
 }

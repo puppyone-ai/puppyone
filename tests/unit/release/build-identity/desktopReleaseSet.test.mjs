@@ -18,7 +18,7 @@ describe("desktop release set", () => {
     expect(releaseSet).toMatchObject({
       schemaVersion: 1,
       release,
-      targetPolicy: { required: ["macos-arm64"], optional: [] },
+      targetPolicy: { required: ["macos-arm64"], optional: ["windows-x64"] },
       targets: [{ targetId: "macos-arm64", updateTrack: "squirrel" }],
     });
   });
@@ -56,7 +56,7 @@ describe("desktop release set", () => {
     expect(() => createDesktopReleaseSet({
       releaseIdentity: releaseIdentity("stable"),
       targetBundles: [targetBundle("windows-x64", "authenticode", {})],
-    })).toThrow(/disabled for the stable/);
+    })).toThrow(/missing required targets: macos-arm64/);
 
     const internal = releaseIdentity("internal");
     expect(() => createDesktopReleaseSet({

@@ -957,6 +957,7 @@ declare global {
       ) => () => void;
       setWindowBackground: (request: {
         background: string;
+        titlebarBackground?: string;
         themeSource: "system" | "light" | "dark";
       }) => void;
       themes: {

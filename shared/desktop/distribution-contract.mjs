@@ -89,6 +89,24 @@ export function createDesktopImmutableReleasePrefix({ releaseTag, channel, targe
   return `desktop/${channel}/${platformKey}/${releaseTag}/${normalizedTarget.arch}`;
 }
 
+export function createDesktopLatestReleasePrefix({ channel, target, updateTrack = null }) {
+  const coordinate = createDesktopDistributionCoordinate({ channel, target, updateTrack });
+  if (coordinate.platform === "macos") {
+    return `desktop/${channel}/mac/latest`;
+  }
+  return `desktop/${channel}/${coordinate.platform}/${coordinate.arch}/${coordinate.updateTrack}/latest`;
+}
+
+export function createDesktopReleaseCatalogKey({ channel, target, updateTrack = null }) {
+  const coordinate = createDesktopDistributionCoordinate({ channel, target, updateTrack });
+  if (coordinate.platform === "macos") {
+    return channel === "internal"
+      ? "desktop/internal/catalog/releases.json"
+      : "desktop/catalog/releases.json";
+  }
+  return `desktop/${channel}/${coordinate.platform}/${coordinate.arch}/${coordinate.updateTrack}/releases.json`;
+}
+
 function joinOriginPath(origin, pathname) {
   const url = new URL(pathname, `${origin}/`);
   if (

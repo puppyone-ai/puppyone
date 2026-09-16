@@ -69,10 +69,11 @@ describe("Sidebar architecture", () => {
   it("removes legacy File Sidebar navigation when the Project rail owns navigation", () => {
     expect(appSource).toContain("workspaceNavigationVisible={!projectSwitcherRailEnabled}");
     expect(dataSurfaceSource).toMatch(
-      /data-sidebar-navigation-placement=\{navigation\.showWorkspaceNavigation[\s\S]*?\? preferences\.sidebarNavigationPlacement[\s\S]*?: undefined\}/,
+      /data-sidebar-navigation-placement=\{navigation\.showWorkspaceNavigation[\s\S]*?\? "bottom"[\s\S]*?: undefined\}/,
     );
-    expect(dataSurfaceSource).toContain("explorerRailSlot={navigation.showWorkspaceNavigation");
-    expect(dataSurfaceSource).toContain("explorerFooterSlot={navigation.showWorkspaceNavigation && (");
+    expect(dataSurfaceSource).not.toContain("explorerRailSlot=");
+    expect(dataSurfaceSource).toContain("explorerFooterSlot={navigation.showWorkspaceNavigation || sidebarCompanion");
+    expect(dataSurfaceSource).toContain("<DesktopSidebarFooterNavigation {...navigationCommon} />");
   });
 
   it("keeps Feature composition out of shared layers and Auxiliary routing independent", () => {
