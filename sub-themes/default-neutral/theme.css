@@ -122,15 +122,15 @@
   }
 
   .dark .theme-root {
-    --po-surface-canvas: #161413;
-    --po-surface-chrome: #201e1c;
-    --po-surface-panel: #1a1715;
-    --po-surface-panel-raised: #211d1a;
-    --po-surface-overlay: #29241f;
-    --po-surface-inset: #0c0b0a;
-    --po-surface-editor: #161413;
+    --po-surface-canvas: #161616;
+    --po-surface-chrome: #242424;
+    --po-surface-panel: #1a1a1a;
+    --po-surface-panel-raised: #222222;
+    --po-surface-overlay: #2a2a2a;
+    --po-surface-inset: #0d0d0d;
+    --po-surface-editor: #161616;
     /* Must stay an opaque literal: the compiler derives synchronous first paint from it. */
-    --po-canvas: #161413;
+    --po-canvas: #161616;
     --po-header: var(--po-surface-chrome);
     --po-sidebar: var(--po-surface-chrome);
     --po-panel: var(--po-surface-panel);
@@ -144,18 +144,18 @@
     --po-text-subtle: #71717a;
     --po-text-disabled: #52525b;
     --po-text-inverse: #0a0a0a;
-    --po-border: rgba(255, 250, 242, 0.075);
-    --po-border-subtle: rgba(255, 250, 242, 0.052);
-    --po-border-strong: rgba(255, 250, 242, 0.13);
-    --po-divider: rgba(255, 250, 242, 0.075);
+    --po-border: rgba(255, 255, 255, 0.075);
+    --po-border-subtle: rgba(255, 255, 255, 0.052);
+    --po-border-strong: rgba(255, 255, 255, 0.13);
+    --po-divider: rgba(255, 255, 255, 0.075);
     --po-skeleton-base: rgba(255, 255, 255, 0.055);
     --po-skeleton-shimmer: rgba(255, 255, 255, 0.08);
     --po-skeleton-edge: rgba(255, 255, 255, 0.025);
-    --po-hover: rgba(255, 250, 242, 0.052);
-    --po-active: rgba(255, 250, 242, 0.082);
-    --po-selected: rgba(255, 250, 242, 0.095);
-    --po-control: rgba(255, 250, 242, 0.044);
-    --po-control-hover: rgba(255, 250, 242, 0.082);
+    --po-hover: rgba(255, 255, 255, 0.052);
+    --po-active: rgba(255, 255, 255, 0.082);
+    --po-selected: rgba(255, 255, 255, 0.095);
+    --po-control: rgba(255, 255, 255, 0.044);
+    --po-control-hover: rgba(255, 255, 255, 0.082);
     --po-switch-border-on: rgba(52, 211, 153, 0.34);
     --po-switch-border-off: rgba(255, 255, 255, 0.10);
     --po-switch-thumb: #f8fafc;
@@ -208,7 +208,7 @@
     --po-diff-added-text: #86efac;
     --po-diff-removed-bg: rgba(239, 68, 68, 0.14);
     --po-diff-removed-text: #fca5a5;
-    --po-editor-line: rgba(255, 250, 242, 0.065);
+    --po-editor-line: rgba(255, 255, 255, 0.065);
     --po-json-key: #cbd5e1;
     --po-json-string: #7dd3fc;
     --po-json-number: #c084fc;

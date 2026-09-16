@@ -127,7 +127,13 @@ describe("built-in Sub Theme package architecture", () => {
     });
     const darkHost = `[data-po-appearance-root][data-sub-theme-id="default.neutral"]:where(.dark)`;
     const darkTokens = declarationsForSelector(result.css, darkHost);
-    expect(darkTokens["--po-surface-chrome"]).toBe("#201e1c");
+    expect(darkTokens["--po-surface-canvas"]).toBe("#161616");
+    expect(darkTokens["--po-surface-chrome"]).toBe("#242424");
+    expect(darkTokens["--po-surface-panel"]).toBe("#1a1a1a");
+    expect(darkTokens["--po-surface-panel-raised"]).toBe("#222222");
+    expect(darkTokens["--po-surface-overlay"]).toBe("#2a2a2a");
+    expect(darkTokens["--po-surface-inset"]).toBe("#0d0d0d");
+    expect(darkTokens["--po-surface-editor"]).toBe("#161616");
     expect(darkTokens["--po-header"]).toBe("var(--po-surface-chrome)");
     expect(darkTokens["--po-sidebar"]).toBe("var(--po-surface-chrome)");
     expect(darkTokens["--po-surface-chrome"]).not.toBe(darkTokens["--po-surface-editor"]);

@@ -364,7 +364,7 @@ describe("host-owned CSS theme service", () => {
     ]);
     expect(snapshot.themes[0].firstPaint).toEqual({
       light: { background: "#fafafa", colorScheme: "light" },
-      dark: { background: "#161413", colorScheme: "dark" },
+      dark: { background: "#161616", colorScheme: "dark" },
     });
   });
 
