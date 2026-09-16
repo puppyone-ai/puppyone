@@ -164,9 +164,11 @@ export function DesktopWorkspaceContent({
   const editorInteractionPreferences = useMemo<EditorInteractionPreferences>(() => ({
     showSaveStatus: preferences.experimentalSettings.enableEditorSaveStatus,
     markdownBlockDragEnabled: preferences.experimentalSettings.enableMarkdownBlockDrag,
+    markdownHeadingOutlineEnabled: preferences.experimentalSettings.enableMarkdownHeadingOutline,
   }), [
     preferences.experimentalSettings.enableEditorSaveStatus,
     preferences.experimentalSettings.enableMarkdownBlockDrag,
+    preferences.experimentalSettings.enableMarkdownHeadingOutline,
   ]);
   const {
     availableSurfaceIds,

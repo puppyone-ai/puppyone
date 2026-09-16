@@ -173,6 +173,8 @@
   "experimental.officeEditing.detail": "使用已配置的 ONLYOFFICE Document Server 编辑 .docx、.xlsx 和 .pptx 文件。关闭时，Office 文件保持只读预览。",
   "experimental.markdownBlockDrag.detail": "在 Markdown 实时预览中启用同一文档内的早期区块重排功能。",
   "experimental.markdownBlockDrag.title": "Markdown 区块拖动手柄",
+  "experimental.markdownHeadingOutline.detail": "在 Markdown 实时预览中显示实验性的标题刻度和快速导航列表。",
+  "experimental.markdownHeadingOutline.title": "Markdown 标题大纲",
   "experimental.viewerPlugins.title": "查看器插件",
   "experimental.viewerPlugins.detail": "启用仅限本地的实验性插件页面及其可选导航快捷方式。",
   "experimental.editorSaveStatus.title": "编辑器保存状态",

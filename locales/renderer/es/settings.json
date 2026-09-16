@@ -136,6 +136,8 @@
   "experimental.officeEditing.detail": "Edita archivos .docx, .xlsx y .pptx con el ONLYOFFICE Document Server configurado. Al desactivarlo, los archivos de Office permanecen en vista previa de solo lectura.",
   "experimental.markdownBlockDrag.detail": "Activa la reorganización experimental de bloques dentro del mismo documento en la vista previa en vivo de Markdown.",
   "experimental.markdownBlockDrag.title": "Controles para arrastrar bloques Markdown",
+  "experimental.markdownHeadingOutline.detail": "Muestra una barra experimental de encabezados y una lista de navegación rápida en la vista previa en vivo de Markdown.",
+  "experimental.markdownHeadingOutline.title": "Esquema de encabezados Markdown",
   "experimental.viewerPlugins.title": "Plugins de visualización",
   "experimental.viewerPlugins.detail": "Activa la página experimental de Plugins, solo local, y su acceso directo opcional de navegación.",
   "experimental.editorSaveStatus.title": "Estado de guardado del editor",

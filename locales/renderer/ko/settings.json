@@ -136,6 +136,8 @@
   "experimental.officeEditing.detail": "구성된 ONLYOFFICE Document Server로 .docx, .xlsx 및 .pptx 파일을 편집합니다. 끄면 Office 파일은 읽기 전용 미리 보기로 유지됩니다.",
   "experimental.markdownBlockDrag.detail": "Markdown 라이브 미리보기에서 같은 문서 안의 블록을 재배치하는 초기 기능을 사용합니다.",
   "experimental.markdownBlockDrag.title": "Markdown 블록 드래그 핸들",
+  "experimental.markdownHeadingOutline.detail": "Markdown 라이브 미리보기에 실험적인 제목 레일과 빠른 탐색 목록을 표시합니다.",
+  "experimental.markdownHeadingOutline.title": "Markdown 제목 개요",
   "experimental.viewerPlugins.title": "뷰어 플러그인",
   "experimental.viewerPlugins.detail": "로컬 전용 실험적 플러그인 페이지와 선택적 탐색 바로가기를 활성화합니다.",
   "experimental.editorSaveStatus.title": "편집기 저장 상태",

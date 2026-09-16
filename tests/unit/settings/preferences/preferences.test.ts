@@ -263,6 +263,15 @@ describe("experimental preferences", () => {
     expect(parseExperimentalSettings(JSON.stringify({ enableMarkdownBlockDrag: true })).enableMarkdownBlockDrag).toBe(true);
   });
 
+  it("keeps the Markdown heading outline hidden unless the user explicitly opts in", () => {
+    expect(parseExperimentalSettings(null).enableMarkdownHeadingOutline).toBe(false);
+    expect(parseExperimentalSettings("not-json").enableMarkdownHeadingOutline).toBe(false);
+    expect(parseExperimentalSettings(JSON.stringify({ enableMarkdownHeadingOutline: false })).enableMarkdownHeadingOutline)
+      .toBe(false);
+    expect(parseExperimentalSettings(JSON.stringify({ enableMarkdownHeadingOutline: true })).enableMarkdownHeadingOutline)
+      .toBe(true);
+  });
+
   it("keeps the Asset Library homepage off unless the user explicitly opts in", () => {
     expect(parseExperimentalSettings(null).enableAssetLibraryHome).toBe(false);
     expect(parseExperimentalSettings(JSON.stringify({ enableAssetLibraryHome: false })).enableAssetLibraryHome).toBe(false);

@@ -136,6 +136,8 @@
   "experimental.officeEditing.detail": "Bearbeite .docx-, .xlsx- und .pptx-Dateien mit dem konfigurierten ONLYOFFICE Document Server. Wenn deaktiviert, bleiben Office-Dateien in der schreibgeschützten Vorschau.",
   "experimental.markdownBlockDrag.detail": "Aktiviert das experimentelle Umordnen von Blöcken innerhalb desselben Dokuments in der Markdown-Livevorschau.",
   "experimental.markdownBlockDrag.title": "Ziehpunkte für Markdown-Blöcke",
+  "experimental.markdownHeadingOutline.detail": "Zeigt in der Markdown-Livevorschau eine experimentelle Überschriftenleiste und eine Schnellnavigationsliste an.",
+  "experimental.markdownHeadingOutline.title": "Markdown-Überschriftenübersicht",
   "experimental.viewerPlugins.title": "Viewer-Plugins",
   "experimental.viewerPlugins.detail": "Aktiviert die experimentelle, rein lokale Plugin-Seite und ihre optionale Navigationsverknüpfung.",
   "experimental.editorSaveStatus.title": "Speicherstatus des Editors",

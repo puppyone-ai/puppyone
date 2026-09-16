@@ -136,6 +136,8 @@
   "experimental.officeEditing.detail": "設定済みの ONLYOFFICE Document Server で .docx、.xlsx、.pptx ファイルを編集します。オフの場合、Office ファイルは読み取り専用プレビューのままです。",
   "experimental.markdownBlockDrag.detail": "Markdown ライブプレビューで、同じドキュメント内のブロックを並べ替える初期機能を有効にします。",
   "experimental.markdownBlockDrag.title": "Markdown ブロックのドラッグハンドル",
+  "experimental.markdownHeadingOutline.detail": "Markdown ライブプレビューに、実験的な見出しレールとクイックナビゲーションリストを表示します。",
+  "experimental.markdownHeadingOutline.title": "Markdown 見出しアウトライン",
   "experimental.viewerPlugins.title": "ビューアープラグイン",
   "experimental.viewerPlugins.detail": "ローカル専用の実験的なプラグインページと、任意のナビゲーションショートカットを有効にします。",
   "experimental.editorSaveStatus.title": "エディターの保存状態",

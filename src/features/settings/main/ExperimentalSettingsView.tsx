@@ -24,6 +24,7 @@ export function ExperimentalSettingsView({
       ? [{ messageKey: "gitAutoCommit", settingKey: "enableGitAutoCommit" as const }]
       : []),
     { messageKey: "markdownBlockDrag", settingKey: "enableMarkdownBlockDrag" },
+    { messageKey: "markdownHeadingOutline", settingKey: "enableMarkdownHeadingOutline" },
     ...(assetLibraryHomeAvailable
       ? [{ messageKey: "projectsHome", settingKey: "enableAssetLibraryHome" as const }]
       : []),

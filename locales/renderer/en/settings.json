@@ -173,6 +173,8 @@
   "experimental.officeEditing.detail": "Edit .docx, .xlsx, and .pptx files with the configured ONLYOFFICE Document Server. When off, Office files stay in read-only preview.",
   "experimental.markdownBlockDrag.detail": "Enable early same-document block rearrangement in Markdown Live Preview.",
   "experimental.markdownBlockDrag.title": "Markdown block drag handles",
+  "experimental.markdownHeadingOutline.detail": "Show an experimental heading rail and quick navigation list in Markdown Live Preview.",
+  "experimental.markdownHeadingOutline.title": "Markdown heading outline",
   "experimental.viewerPlugins.title": "Viewer plugins",
   "experimental.viewerPlugins.detail": "Enable the experimental local-only Plugins page and its optional navigation shortcut.",
   "experimental.editorSaveStatus.title": "Editor save status",

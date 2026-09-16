@@ -51,6 +51,7 @@ export type MarkdownCodeMirrorEditorProps = {
   readOnly: boolean;
   livePreview: boolean;
   blockDragEnabled?: boolean;
+  headingOutlineEnabled?: boolean;
   aiEditFile?: AiEditFile | null;
   htmlTrustMode?: MarkdownHtmlTrustMode;
   documentPath?: string;
@@ -80,6 +81,7 @@ export function MarkdownCodeMirrorEditor({
   readOnly,
   livePreview,
   blockDragEnabled = false,
+  headingOutlineEnabled = false,
   aiEditFile = null,
   htmlTrustMode = "safe",
   documentPath = "",
@@ -166,6 +168,8 @@ export function MarkdownCodeMirrorEditor({
   const previewActivatedRef = useRef(false);
   const blockDragEnabledRef = useRef(blockDragEnabled);
   blockDragEnabledRef.current = blockDragEnabled;
+  const headingOutlineEnabledRef = useRef(headingOutlineEnabled);
+  headingOutlineEnabledRef.current = headingOutlineEnabled;
   const previewGenerationRef = useRef(0);
   const [previewState, setPreviewState] = useState<MarkdownPreviewPresentationState>(
     () => livePreview ? "pending" : "source",
@@ -467,7 +471,7 @@ export function MarkdownCodeMirrorEditor({
                   blockDragEnabledRef.current ? markdownBlockDragExtension() : [],
                 ),
                 headingOutlineCompartmentRef.current.reconfigure(
-                  markdownHeadingOutlineExtension(),
+                  headingOutlineEnabledRef.current ? markdownHeadingOutlineExtension() : [],
                 ),
               ],
             });
@@ -503,6 +507,16 @@ export function MarkdownCodeMirrorEditor({
       ),
     });
   }, [blockDragEnabled, livePreview]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || !livePreview || !previewActivatedRef.current) return;
+    view.dispatch({
+      effects: headingOutlineCompartmentRef.current.reconfigure(
+        headingOutlineEnabled ? markdownHeadingOutlineExtension() : [],
+      ),
+    });
+  }, [headingOutlineEnabled, livePreview]);
 
   useEffect(() => {
     const view = viewRef.current;

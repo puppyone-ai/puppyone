@@ -91,6 +91,7 @@ export type ExperimentalSettings = {
   enableFirstProjectStarter: boolean;
   enableGitAutoCommit: boolean;
   enableMarkdownBlockDrag: boolean;
+  enableMarkdownHeadingOutline: boolean;
   enableMultiRootWorkspaces: boolean;
   enablePuppyFlowFiles: boolean;
   enableProjectSwitcherRail: boolean;
@@ -181,6 +182,7 @@ export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
   enableFirstProjectStarter: false,
   enableGitAutoCommit: false,
   enableMarkdownBlockDrag: false,
+  enableMarkdownHeadingOutline: false,
   enableMultiRootWorkspaces: false,
   enablePuppyFlowFiles: false,
   enableProjectSwitcherRail: false,
@@ -444,6 +446,7 @@ export function parseExperimentalSettings(value: string | null | undefined): Exp
       // from renderer localStorage. The Electron capability bridge hydrates it.
       enableGitAutoCommit: false,
       enableMarkdownBlockDrag: parsed.enableMarkdownBlockDrag === true,
+      enableMarkdownHeadingOutline: parsed.enableMarkdownHeadingOutline === true,
       enableMultiRootWorkspaces: parsed.enableMultiRootWorkspaces === true,
       enablePuppyFlowFiles: parsed.enablePuppyFlowFiles === true,
       enableProjectSwitcherRail: parsed.enableProjectSwitcherRail === true,

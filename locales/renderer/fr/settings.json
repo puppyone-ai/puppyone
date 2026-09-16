@@ -136,6 +136,8 @@
   "experimental.officeEditing.detail": "Modifiez les fichiers .docx, .xlsx et .pptx avec le serveur ONLYOFFICE Documents configuré. Si cette option est désactivée, les fichiers Office restent en aperçu en lecture seule.",
   "experimental.markdownBlockDrag.detail": "Activez le réarrangement anticipé des blocs d’un même document dans Markdown Live Preview.",
   "experimental.markdownBlockDrag.title": "Poignées de déplacement des blocs Markdown",
+  "experimental.markdownHeadingOutline.detail": "Affiche un rail expérimental de titres et une liste de navigation rapide dans l’aperçu Markdown en direct.",
+  "experimental.markdownHeadingOutline.title": "Plan des titres Markdown",
   "experimental.viewerPlugins.title": "Plugins de visualisation",
   "experimental.viewerPlugins.detail": "Activez la page expérimentale des plugins locaux uniquement et son raccourci de navigation facultatif.",
   "experimental.editorSaveStatus.title": "État d’enregistrement de l’éditeur",
