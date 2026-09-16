@@ -129,8 +129,20 @@ describe("appearance surface boundary", () => {
     }
   });
 
+  it("keeps the Neutral Markdown syntax palette complete and achromatic", () => {
+    const css = source("sub-themes/default-neutral/theme.css");
+    const syntaxColors = [...css.matchAll(/--po-md-syntax-[\w-]+:\s*(#[0-9a-f]{6})/gi)]
+      .map((match) => match[1]);
+
+    expect(syntaxColors).toHaveLength(20);
+    for (const color of syntaxColors) {
+      expect(color.slice(1, 3)).toBe(color.slice(3, 5));
+      expect(color.slice(3, 5)).toBe(color.slice(5, 7));
+    }
+  });
+
   it("keeps every Markdown-focused syntax color at accessible text contrast", () => {
-    for (const name of ["default-github", "default-newspaper"]) {
+    for (const name of ["default-neutral", "default-github", "default-newspaper"]) {
       const css = source(`sub-themes/${name}/theme.css`);
       const backgrounds = [...css.matchAll(/--po-md-code-block-background:\s*(#[0-9a-f]{6})/gi)]
         .map((match) => match[1]);

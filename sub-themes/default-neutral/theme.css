@@ -238,6 +238,36 @@
   }
 }
 
-@puppyone markdown {}
+@puppyone markdown {
+  :root {
+    --po-md-code-block-background: #f2f2f2;
+    --po-md-code-block-color: #2e2e2e;
+    --po-md-syntax-keyword: #333333;
+    --po-md-syntax-string: #4a4a4a;
+    --po-md-syntax-comment: #6b6b6b;
+    --po-md-syntax-constant: #3f3f3f;
+    --po-md-syntax-special: #2f2f2f;
+    --po-md-syntax-type: #555555;
+    --po-md-syntax-function: #383838;
+    --po-md-syntax-property: #4c4c4c;
+    --po-md-syntax-operator: #2b2b2b;
+    --po-md-syntax-meta: #5f5f5f;
+  }
+
+  .dark .theme-root {
+    --po-md-code-block-background: #202020;
+    --po-md-code-block-color: #e5e5e5;
+    --po-md-syntax-keyword: #e5e5e5;
+    --po-md-syntax-string: #d4d4d4;
+    --po-md-syntax-comment: #a3a3a3;
+    --po-md-syntax-constant: #c8c8c8;
+    --po-md-syntax-special: #ededed;
+    --po-md-syntax-type: #bdbdbd;
+    --po-md-syntax-function: #dedede;
+    --po-md-syntax-property: #cfcfcf;
+    --po-md-syntax-operator: #f0f0f0;
+    --po-md-syntax-meta: #b0b0b0;
+  }
+}
 
 @puppyone csv {}
