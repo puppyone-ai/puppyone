@@ -100,8 +100,17 @@ export function inspectStableReleaseWorkflow(workflowSource) {
     ["workflow_dispatch:", "Stable publication must require an explicit operator action"],
     ["promotion_source_tag:", "Stable publication must require the exact tested Internal candidate"],
     ["Exact installed and approved Internal candidate tag", "the promotion input must describe installed-candidate approval"],
+    ["windows_signing:", "Stable publication must declare its Windows signing policy explicitly"],
+    ["default: unsigned", "Stable must default to the currently supported unsigned Windows policy"],
+    ["resolve:", "Stable must resolve one shared cross-platform release identity"],
+    ["Resolve one cross-platform build timestamp", "Stable targets must share one canonical build timestamp"],
+    ["build-macos:", "Stable must build macOS in its own native job"],
+    ["build-windows:", "Stable must build Windows in its own native job"],
     ["runs-on: macos-15", "the stable build must pin its macOS runner"],
-    ["name: desktop-signing", "stable signing must use its dedicated deployment environment"],
+    ["runs-on: windows-2025", "the stable build must pin its Windows runner"],
+    ["needs: [build-macos, build-windows]", "Stable publication must wait for both target builds"],
+    ["name: desktop-signing", "both Stable builders must share the protected signing approval"],
+    ["--built-at \"${{ needs.resolve.outputs.built_at }}\"", "both targets must consume the shared build timestamp"],
     ["Test release transaction and Terminal launcher", "the stable build must run release integration tests on macOS"],
     ["Test updater monotonicity P0", "the Stable build must run updater P0 regressions before signing"],
     ["Verify Stable release version moves forward", "the Stable build must reject non-monotonic release versions"],
@@ -117,11 +126,17 @@ export function inspectStableReleaseWorkflow(workflowSource) {
     ["export APPLE_API_KEY=\"${api_key_path}\"", "stable CI must pass notarytool a materialized API key file path"],
     ["trap 'rm -f \"${api_key_path}\"' EXIT", "stable CI must remove materialized notarization key material"],
     ["Create self-describing stable release bundle", "the stable build must create release metadata"],
+    ["Package explicitly unsigned Windows release", "Stable must expose its explicit unsigned Windows packaging path"],
+    ["--windows-signing-mode unsigned", "unsigned Windows packages must be verified under the unsigned policy"],
+    ["Verify explicitly unsigned Windows binaries", "Stable must reject accidentally signed unsigned-mode binaries"],
+    ["Sign and package Windows release", "Stable must retain the optional Authenticode path"],
+    ["Signing certificate subject does not match WINDOWS_SIGNER_SUBJECT", "Stable must reject unexpected Windows certificate material"],
+    ["Smoke-test NSIS installation", "Stable must install the selected Windows package"],
+    ["Create self-describing Windows Stable release bundle", "Stable must create Windows release metadata"],
     ["actions/attest@", "stable binaries must receive build provenance"],
-    ["uses: ./.github/workflows/desktop-release-publish.yml", "stable releases must use the canonical publisher"],
-    ["verify_tag: true", "stable GitHub releases must require a pre-existing tag"],
-    ["generate_notes: true", "stable GitHub releases must generate release notes"],
-    ["publish_github_release: true", "Stable must publish its verified GitHub Release"],
+    ["uses: ./.github/workflows/desktop-stable-release-publish.yml", "Stable releases must use the atomic Release Set publisher"],
+    ["macos_artifact_name: ${{ needs.build-macos.outputs.artifact_name }}", "Stable publication must hand off the macOS bundle"],
+    ["windows_artifact_name: ${{ needs.build-windows.outputs.artifact_name }}", "Stable publication must hand off the Windows bundle"],
     ["--build-info generated/desktop-build-info.json", "Stable release metadata must consume Build Identity"],
     ["--promotion-source-tag", "Stable release metadata must retain Internal promotion evidence"],
   ]);
@@ -129,7 +144,22 @@ export function inspectStableReleaseWorkflow(workflowSource) {
     ["push:\n    tags:", "pushing a Stable tag must not publish without explicit candidate selection"],
     ["R2_ACCESS_KEY_ID", "the stable build workflow must not receive R2 deployment credentials"],
     ["gh release create", "the stable build must delegate GitHub publication to the canonical publisher"],
+    ["uses: ./.github/workflows/desktop-release-publish.yml", "Stable must not use the single-target publisher"],
   ]);
+  requireOccurrences(
+    workflowSource,
+    errors,
+    "name: desktop-signing",
+    2,
+    "macOS and Windows Stable builders must use the same protected approval environment",
+  );
+  requireOccurrences(
+    workflowSource,
+    errors,
+    "--built-at \"${{ needs.resolve.outputs.built_at }}\"",
+    2,
+    "macOS and Windows Stable builders must consume the same build timestamp",
+  );
   assertOrder(workflowSource, errors, [
     "Install locked dependencies without deployment secrets",
     "Test updater monotonicity P0",
@@ -141,55 +171,8 @@ export function inspectStableReleaseWorkflow(workflowSource) {
     "Create self-describing stable release bundle",
     "Attest stable binaries and checksums",
     "Upload build-once stable release bundle",
-  ], "stable build");
-  inspectPinnedActions(workflowSource, errors);
-  return errors;
-}
-
-export function inspectWindowsStableReleaseWorkflow(workflowSource) {
-  const errors = inspectSource(workflowSource, "Windows stable release workflow");
-  if (errors.length > 0) return errors;
-  requireSnippets(workflowSource, errors, [
-    ["workflow_dispatch:", "Windows Stable publication must require an explicit operator action"],
-    ["promotion_source_tag:", "Windows Stable publication must require the exact approved Internal candidate"],
-    ["windows_signing:", "Windows Stable publication must declare its signing policy explicitly"],
-    ["default: unsigned", "Windows Stable must default to the currently supported unsigned distribution policy"],
-    ["runs-on: windows-2025", "Windows Stable packaging must use the pinned native runner"],
-    ["name: desktop-windows-signing", "Windows release approval must use its dedicated deployment environment"],
-    ["--target windows-x64", "Windows Stable must resolve its target through the target manifest"],
-    ["inputs.windows_signing == 'unsigned'", "Windows Stable must gate its unsigned packaging path explicitly"],
-    ["Package explicitly unsigned Windows release", "Windows Stable must expose its unsigned packaging path"],
-    ["CSC_IDENTITY_AUTO_DISCOVERY: \"false\"", "unsigned Windows packaging must disable certificate auto-discovery"],
-    ["--windows-signing-mode unsigned", "unsigned Windows packages must be verified under the unsigned policy"],
-    ["Verify explicitly unsigned Windows binaries", "Windows Stable must reject accidentally signed unsigned-mode binaries"],
-    ["$signature.Status -ne \"NotSigned\"", "unsigned Windows binaries must be proven unsigned"],
-    ["WINDOWS_CERTIFICATE_BASE64", "Windows Stable must receive protected certificate material"],
-    ["WINDOWS_CERTIFICATE_PASSWORD", "Windows Stable must protect its certificate password"],
-    ["WINDOWS_SIGNER_SUBJECT", "Windows Stable must pin the expected Authenticode signer subject"],
-    ["configure-windows-release-signing.mjs", "Windows Stable must bind updater verification to its Authenticode publisher"],
-    ["Signing certificate subject does not match WINDOWS_SIGNER_SUBJECT", "Windows Stable must reject unexpected certificate material before packaging"],
-    ["Remove-Item -LiteralPath $certificatePath", "Windows Stable must remove materialized certificate material"],
-    ["Get-AuthenticodeSignature", "Windows Stable must verify Authenticode signatures"],
-    ["TimeStamperCertificate", "Windows Stable must verify a trusted timestamp"],
-    ["signtool.exe", "Windows Stable must run the platform signature verifier"],
-    ["Smoke-test NSIS installation", "Windows Stable must install the selected NSIS package"],
-    ["--authenticode-signed \"${authenticode_signed}\"", "Windows release metadata must retain truthful signature evidence"],
-    ["--authenticode-timestamped \"${authenticode_timestamped}\"", "Windows release metadata must retain truthful timestamp evidence"],
-    ["desktop-release-publish.yml", "Windows Stable must use the canonical publisher"],
-    ["target_id: windows-x64", "Windows Stable publication must select the Windows target"],
-    ["append_github_assets: true", "Windows binaries must append to the existing version release"],
-    ["deployment_environment: desktop-stable", "Windows publication must reuse the protected Stable deployment environment"],
-  ]);
-  forbidSnippets(workflowSource, errors, [
-    ["R2_ACCESS_KEY_ID", "the Windows build job must not receive R2 deployment credentials"],
-    ["desktop/stable/mac/latest", "Windows Stable must not mutate the macOS latest coordinate"],
-    ["gh release create", "Windows Stable must delegate GitHub mutation to the canonical publisher"],
-  ]);
-  assertOrder(workflowSource, errors, [
     "Install locked dependencies without signing or deployment secrets",
-    "Test updater monotonicity P0",
     "Test Windows release contracts",
-    "Verify exact Internal promotion source",
     "Prepare Windows release application without signing secrets",
     "Sign and package Windows release",
     "Package explicitly unsigned Windows release",
@@ -199,7 +182,65 @@ export function inspectWindowsStableReleaseWorkflow(workflowSource) {
     "Create self-describing Windows Stable release bundle",
     "Attest Windows Stable binaries and checksums",
     "Upload build-once Windows Stable release bundle",
-  ], "Windows Stable build");
+  ], "stable build");
+  inspectPinnedActions(workflowSource, errors);
+  return errors;
+}
+
+export function inspectAtomicStableReleasePublisherWorkflow(workflowSource) {
+  workflowSource = normalizeNewlines(workflowSource);
+  const errors = inspectSource(workflowSource, "atomic Stable release publisher workflow");
+  if (errors.length > 0) return errors;
+  requireSnippets(workflowSource, errors, [
+    ["workflow_call:", "the atomic Stable publisher must only be callable by the build workflow"],
+    ["group: desktop-release-publish", "all release channels must share one publication lock"],
+    ["name: ${{ inputs.deployment_environment }}", "Stable publishing secrets must remain environment-scoped"],
+    ["MACOS_BUNDLE_DIRECTORY:", "the publisher must consume the macOS bundle"],
+    ["WINDOWS_BUNDLE_DIRECTORY:", "the publisher must consume the Windows bundle"],
+    ["Download macOS build-once release bundle", "the publisher must download the macOS build-once artifact"],
+    ["Download Windows build-once release bundle", "the publisher must download the Windows build-once artifact"],
+    ["Validate complete macOS and Windows Release Set before mutation", "both target bundles must validate before publication mutates external state"],
+    ["create-desktop-release-set.mjs", "the publisher must enforce the required-target Release Set policy"],
+    ["Reject non-monotonic versions and unhealthy existing feeds before publication", "both existing Stable channels must pass preflight"],
+    ["Upload both immutable R2 releases", "the publisher must stage both immutable target bundles"],
+    ["Verify both immutable releases and commit the Release Set", "the publisher must verify both immutable target bundles"],
+    ["desktop/stable/release-sets/${RELEASE_TAG}/release-set.json", "the complete Release Set must have an immutable commit marker"],
+    ["Create one GitHub draft for the complete release set", "the publisher must create one draft for both target sets"],
+    ["Upload both target asset sets to the draft", "both target asset sets must reach the same GitHub draft"],
+    ["Verify both target asset sets before publication", "both target asset sets must be digest-verified before publication"],
+    ["Snapshot current mutable Stable state", "the publisher must snapshot both mutable targets before commit"],
+    ["Stage non-pointer latest payloads for both platforms", "the publisher must stage non-pointer payloads before the public commit"],
+    ["Publish the verified complete GitHub Release", "the publisher must publish one verified cross-platform GitHub Release"],
+    ["Commit both Stable pointer sets and catalogs", "both target pointers and catalogs must be committed together"],
+    ["Verify complete public Stable transaction", "the publisher must verify the complete public transaction"],
+    ["Roll back both mutable target states after an incomplete commit", "an incomplete mutable commit must compensate both target states"],
+    ["steps.transaction_complete.outcome != 'success'", "rollback must remain armed until complete transaction verification"],
+    ["verify-desktop-stable-update-feed.mjs --expected-version", "the macOS feed must match the published version"],
+    ["verify-desktop-windows-update-feed.mjs --expected-version", "the Windows feed must match the published version"],
+  ]);
+  forbidSnippets(workflowSource, errors, [
+    ["append_github_assets", "atomic Stable publication must never append a platform after release publication"],
+    ["--clobber", "atomic Stable publication must never overwrite an existing GitHub asset"],
+  ]);
+  assertOrder(workflowSource, errors, [
+    "Download macOS build-once release bundle",
+    "Download Windows build-once release bundle",
+    "Validate complete macOS and Windows Release Set before mutation",
+    "Reject non-monotonic versions and unhealthy existing feeds before publication",
+    "Inspect both immutable R2 release prefixes",
+    "Upload both immutable R2 releases",
+    "Verify both immutable releases and commit the Release Set",
+    "Create one GitHub draft for the complete release set",
+    "Upload both target asset sets to the draft",
+    "Verify both target asset sets before publication",
+    "Snapshot current mutable Stable state",
+    "Stage non-pointer latest payloads for both platforms",
+    "Publish the verified complete GitHub Release",
+    "Commit both Stable pointer sets and catalogs",
+    "Clean stale mutable files for both platforms",
+    "Verify complete public Stable transaction",
+    "Roll back both mutable target states after an incomplete commit",
+  ], "atomic Stable publication");
   inspectPinnedActions(workflowSource, errors);
   return errors;
 }
@@ -381,7 +422,7 @@ export function inspectUpdateFeedMonitorWorkflow(workflowSource) {
     ["Verify every shipped Stable update feed", "the monitor must validate every registered compatibility endpoint"],
     ["node scripts/verify-desktop-stable-update-feed.mjs", "the monitor must use the canonical update-feed verifier"],
     ["Verify Stable latest is the published history head", "the monitor must detect a latest pointer rollback"],
-    ["Verify Windows Stable feed when established", "the monitor must verify the Windows feed after its first publication"],
+    ["Verify required Windows Stable feed", "the monitor must continuously verify the required Windows feed"],
     ["verify-desktop-windows-update-feed.mjs", "the monitor must use the Windows updater contract verifier"],
     ["--require-latest-history-head", "the monitor must compare latest against immutable release history"],
     ["verify-desktop-release-version.mjs", "the monitor must use the canonical release version verifier"],
@@ -394,6 +435,7 @@ export function inspectUpdateFeedMonitorWorkflow(workflowSource) {
     ["contents: write", "the Stable update feed monitor must not receive repository write permission"],
     ["id-token: write", "the Stable update feed monitor must not receive an OIDC publication token"],
     ["${{ secrets.", "the Stable update feed monitor must not receive deployment secrets"],
+    ["state=not-published", "the shipped Windows feed must never be treated as optional"],
   ]);
   inspectPinnedActions(workflowSource, errors);
   return errors;
@@ -411,6 +453,11 @@ function requireSnippets(source, errors, requirements) {
   for (const [snippet, error] of requirements) {
     if (!source.includes(snippet)) errors.push(error);
   }
+}
+
+function requireOccurrences(source, errors, snippet, expectedCount, error) {
+  const actualCount = source.split(snippet).length - 1;
+  if (actualCount !== expectedCount) errors.push(error);
 }
 
 function forbidSnippets(source, errors, requirements) {
