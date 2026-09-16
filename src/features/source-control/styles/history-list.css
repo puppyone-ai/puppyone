@@ -135,7 +135,7 @@
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  font-size: var(--po-type-right-sidebar-content, 13px);
+  font-size: var(--git-font-main);
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;

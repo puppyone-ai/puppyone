@@ -1,8 +1,10 @@
 .desktop-git-history-sidebar {
   --git-row-radius: var(--desktop-sidebar-row-radius);
   --git-sidebar-content-right: var(--desktop-sidebar-row-content-right);
-  --git-font-small: var(--po-type-right-sidebar-meta, 12px);
-  --git-line-height: var(--po-type-right-sidebar-meta-line-height, 18px);
+  --git-font-main: var(--po-type-right-sidebar-meta, 13px);
+  --git-font-small: var(--po-type-right-sidebar-meta, 13px);
+  --git-line-height: var(--po-type-right-sidebar-meta-line-height, 19px);
+  --git-weight-regular: var(--desktop-sidebar-font-weight, var(--po-text-weight-medium, 500));
   --git-control-radius: 8px;
   --desktop-history-date-row-size: 36px;
   --desktop-history-commit-base-row-size: 30px;

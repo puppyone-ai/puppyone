@@ -87,7 +87,6 @@ export function GitChangesSidebar({
                 onClick={onOpenHistory}
               >
                 <History size={14} strokeWidth={1.8} aria-hidden="true" />
-                <span>{t("source-control.history.title")}</span>
               </button>
             </header>
             <GitSidebar

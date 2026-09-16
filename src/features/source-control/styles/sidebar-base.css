@@ -29,13 +29,16 @@
   --git-control-radius: 8px;
   --git-inner-radius: 6px;
   --git-row-radius: var(--desktop-sidebar-row-radius);
-  /* Mirror Data explorer row typography via the shared desktop sidebar contract. */
-  --git-font-main: var(--desktop-sidebar-font-size, var(--po-type-left-sidebar-content, 14px));
-  --git-font-small: var(--desktop-sidebar-font-size-meta, var(--po-type-left-sidebar-meta, 12px));
-  --git-line-height: var(--desktop-sidebar-line-height, 18px);
+  /* Keep the compact Git surface on one calm, right-sidebar text rhythm. */
+  --git-font-main: var(--po-type-right-sidebar-meta, 13px);
+  --git-font-small: var(--po-type-right-sidebar-meta, 13px);
+  --git-line-height: var(--po-type-right-sidebar-meta-line-height, 19px);
   --git-weight-regular: var(--desktop-sidebar-font-weight, var(--po-text-weight-medium, 500));
   --git-weight-strong: var(--desktop-sidebar-font-weight-emphasis, 650);
   --git-icon-label-gap: var(--desktop-sidebar-icon-label-gap, 4px);
+  --desktop-sidebar-section-title-font-size: var(--git-font-main);
+  --desktop-sidebar-section-title-font-weight: var(--git-weight-regular);
+  --desktop-sidebar-section-title-line-height: var(--git-line-height);
 }
 
 .desktop-git-sidebar-empty-history {

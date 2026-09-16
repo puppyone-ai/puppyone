@@ -103,7 +103,8 @@ describe("Changes right sidebar", () => {
     act(() => root.render(withTestLocalization(<Harness />)));
     expect(container.querySelector(".test-change-row")).not.toBeNull();
     const history = container.querySelector<HTMLButtonElement>('button[aria-label="History"]');
-    expect(history?.textContent).toBe("History");
+    expect(history?.textContent).toBe("");
+    expect(history?.querySelector(".lucide-history")).not.toBeNull();
 
     act(() => history?.click());
     expect(onOpenHistory).toHaveBeenCalledOnce();

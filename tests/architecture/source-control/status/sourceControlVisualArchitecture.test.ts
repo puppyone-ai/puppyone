@@ -104,6 +104,10 @@ const sidebarBaseCss = readFileSync(
   new URL("../../../../src/features/source-control/styles/sidebar-base.css", import.meta.url),
   "utf8",
 );
+const sidebarNavigationCss = readFileSync(
+  new URL("../../../../src/features/source-control/styles/sidebar-navigation.css", import.meta.url),
+  "utf8",
+);
 const sidebarResourcesCss = [
   "sidebar-panels.css",
   "sidebar-actions.css",
@@ -123,6 +127,10 @@ const gitRepositoryLifecycleSource = readFileSync(
 );
 const historyListCss = readFileSync(
   new URL("../../../../src/features/source-control/styles/history-list.css", import.meta.url),
+  "utf8",
+);
+const historySidebarCss = readFileSync(
+  new URL("../../../../src/features/source-control/styles/history-sidebar.css", import.meta.url),
   "utf8",
 );
 const historyTimelineSource = readFileSync(
@@ -732,13 +740,13 @@ describe("source-control visual architecture", () => {
     ));
 
     expect(sidebar).toContain(
-      "--git-font-main: var(--desktop-sidebar-font-size, var(--po-type-left-sidebar-content, 14px));",
+      "--git-font-main: var(--po-type-right-sidebar-meta, 13px);",
     );
     expect(sidebar).toContain(
-      "--git-font-small: var(--desktop-sidebar-font-size-meta, var(--po-type-left-sidebar-meta, 12px));",
+      "--git-font-small: var(--po-type-right-sidebar-meta, 13px);",
     );
     expect(sidebar).toContain(
-      "--git-line-height: var(--desktop-sidebar-line-height, 18px);",
+      "--git-line-height: var(--po-type-right-sidebar-meta-line-height, 19px);",
     );
     expect(sidebar).toContain(
       "--git-weight-regular: var(--desktop-sidebar-font-weight, var(--po-text-weight-medium, 500));",
@@ -748,6 +756,25 @@ describe("source-control visual architecture", () => {
     );
     expect(sidebar).toContain(
       "--git-icon-label-gap: var(--desktop-sidebar-icon-label-gap, 4px);",
+    );
+    expect(sidebar).toContain(
+      "--desktop-sidebar-section-title-font-size: var(--git-font-main);",
+    );
+    expect(sidebar).toContain(
+      "--desktop-sidebar-section-title-font-weight: var(--git-weight-regular);",
+    );
+    expect(sidebar).toContain(
+      "--desktop-sidebar-section-title-line-height: var(--git-line-height);",
+    );
+    const viewTitle = compact(readCssBlock(sidebarNavigationCss, ".desktop-git-view-title"));
+    expect(viewTitle).toContain("color: var(--po-text-muted);");
+    expect(viewTitle).toContain("font-size: var(--po-type-right-sidebar-meta, 13px);");
+    expect(viewTitle).toContain("font-weight: var(--po-text-weight-regular, 400);");
+    expect(historySidebarCss).toContain(
+      "--git-font-main: var(--po-type-right-sidebar-meta, 13px);",
+    );
+    expect(historySidebarCss).toContain(
+      "--git-font-small: var(--po-type-right-sidebar-meta, 13px);",
     );
     expect(historyListCss).toContain("font-size: var(--git-font-main);");
     expect(historyListCss).toContain("font-weight: var(--git-weight-regular);");
