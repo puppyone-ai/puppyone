@@ -41,7 +41,11 @@ describe("Desktop update preference store", () => {
       schemaVersion: DESKTOP_UPDATE_PREFERENCE_SCHEMA_VERSION,
       automaticallyDownloadUpdates: false,
     });
-    expect((await fs.stat(filePath)).mode & 0o777).toBe(0o600);
+    // Windows does not implement POSIX permission bits and reports 0666 even
+    // when the file is created with mode 0600.
+    if (process.platform !== "win32") {
+      expect((await fs.stat(filePath)).mode & 0o777).toBe(0o600);
+    }
   });
 
   it("fails open to automatic downloads for malformed preferences", async () => {
