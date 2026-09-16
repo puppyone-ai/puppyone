@@ -140,11 +140,81 @@ jobs:
             artifacts/tests/
           retention-days: 7
 
+  windows-package:
+    name: Windows x64 NSIS package smoke
+    runs-on: windows-2025
+    timeout-minutes: 45
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      VITE_DESKTOP_CLOUD_API_URL: https://api.puppyone.ai/api/v1
+      VITE_DESKTOP_CLOUD_WEB_URL: https://app.puppyone.ai
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Resolve Windows package identity
+        shell: pwsh
+        run: >-
+          node scripts/prepare-desktop-build.mjs
+          --channel dev
+          --commit "$env:GITHUB_SHA"
+          --target windows-x64
+
+      - name: Stage pinned Windows OpenCode runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $manifest = Get-Content "vendor/opencode/runtime-manifest.json" -Raw | ConvertFrom-Json
+          $artifact = $manifest.artifacts.'win32-x64'
+          $download = Join-Path $env:RUNNER_TEMP $artifact.archive
+          Invoke-WebRequest -Uri "https://github.com/anomalyco/opencode/releases/download/v$($manifest.runtimeRelease.version)/$($artifact.archive)" -OutFile $download
+          npm run stage:opencode-runtime -- $download
+
+      - name: Build and verify unsigned NSIS package
+        run: npm run prepare:windows:release && npm run package:windows:release
+
+      - name: Smoke-test silent NSIS installation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $installer = Get-ChildItem "release/puppyone-*-x64-setup.exe" | Select-Object -First 1
+          if (-not $installer) { throw "Windows NSIS installer was not produced." }
+          $installDirectory = Join-Path $env:RUNNER_TEMP "PuppyOneWindowsSmoke"
+          $process = Start-Process -FilePath $installer.FullName -ArgumentList @("/S", "/D=$installDirectory") -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "NSIS installer exited with $($process.ExitCode)." }
+          if (-not (Test-Path (Join-Path $installDirectory "PuppyOne Development.exe"))) {
+            throw "Installed PuppyOne Development executable was not found."
+          }
+
+      - name: Retain Windows installer evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: windows-x64-nsis-smoke
+          path: |
+            release/*.exe
+            release/*.blockmap
+            release/*.yml
+            artifacts/release-checks/
+            artifacts/tests/
+          if-no-files-found: warn
+          retention-days: 7
+
   build:
     # Preserve the protected branch's existing required check name.
     name: Build
     if: always()
-    needs: [source-checks, app-checks, platform-contracts]
+    needs: [source-checks, app-checks, platform-contracts, windows-package]
     runs-on: ubuntu-24.04
     steps:
       - name: Require every pre-release check group
@@ -152,7 +222,9 @@ jobs:
           SOURCE_RESULT: ${{ needs.source-checks.result }}
           APP_RESULT: ${{ needs.app-checks.result }}
           PLATFORM_RESULT: ${{ needs.platform-contracts.result }}
+          WINDOWS_PACKAGE_RESULT: ${{ needs.windows-package.result }}
         run: |
           test "$SOURCE_RESULT" = success
           test "$APP_RESULT" = success
           test "$PLATFORM_RESULT" = success
+          test "$WINDOWS_PACKAGE_RESULT" = success

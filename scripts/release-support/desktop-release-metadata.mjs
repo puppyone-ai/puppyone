@@ -5,6 +5,11 @@ import {
   assertDesktopBuildInfo,
   createDesktopBuildTag,
 } from "../../shared/desktop-build-identity.mjs";
+import {
+  createDesktopLatestReleasePrefix,
+  createDesktopReleaseCatalogKey,
+} from "../../shared/desktop/distribution-contract.mjs";
+import { getDesktopTargetDefinition } from "../../tooling/desktop/targets/target-manifest.mjs";
 
 export const DESKTOP_RELEASE_SCHEMA_VERSION = 2;
 export const DESKTOP_LEGACY_RELEASE_SCHEMA_VERSION = 1;
@@ -25,22 +30,30 @@ export async function createDesktopReleaseManifest({
   buildInfo = null,
   channel,
   commitSha,
+  authenticodeSigned = false,
+  authenticodeTimestamped = false,
   developerIdSigned,
   githubReleaseAvailable = channel !== "archive",
   notarized,
   prerelease,
   provenance = channel === "archive" ? "archive" : "pipeline",
   publicOrigin,
+  publisherNames = [],
   publishedAt,
   promotionSourceTag = null,
   repository,
   r2Prefix,
   tag,
+  target = "macos-arm64",
   version,
   workflowRunUrl,
 }) {
   assertNonEmptyArray(assetPaths, "assetPaths");
   const identity = buildInfo == null ? null : assertDesktopBuildInfo(buildInfo);
+  const targetDefinition = getDesktopTargetDefinition(target);
+  if (arch !== targetDefinition.arch) {
+    throw new Error(`Release architecture ${arch} does not match target ${targetDefinition.id}.`);
+  }
   if (identity) {
     if (identity.channel !== channel) {
       throw new Error(`Release channel ${channel} does not match Build Identity ${identity.channel}.`);
@@ -78,7 +91,7 @@ export async function createDesktopReleaseManifest({
     assets.push({
       name,
       kind,
-      platform: "macos",
+      platform: targetDefinition.platform,
       arch: assetArch,
       bytes: stats.size,
       sha256,
@@ -125,6 +138,14 @@ export async function createDesktopReleaseManifest({
       repository,
       workflowRunUrl: workflowRunUrl || null,
     },
+    ...(targetDefinition.platform === "macos" ? {} : {
+      target: {
+        id: targetDefinition.id,
+        platform: targetDefinition.platform,
+        arch: targetDefinition.arch,
+        updateTrack: targetDefinition.updateTrack,
+      },
+    }),
     github: {
       releaseUrl: githubReleaseAvailable ? githubReleaseUrl(repository, tag) : null,
       ...(identity ? {
@@ -138,11 +159,31 @@ export async function createDesktopReleaseManifest({
       ...(identity ? {
         buildInfoUrl: joinPublicUrl(normalizedOrigin, `${normalizedPrefix}/build-info.json`),
       } : {}),
+      ...(targetDefinition.platform === "macos" ? {} : {
+        catalogKey: createDesktopReleaseCatalogKey({
+          channel,
+          target: targetDefinition,
+          updateTrack: targetDefinition.updateTrack,
+        }),
+        latestPrefix: createDesktopLatestReleasePrefix({
+          channel,
+          target: targetDefinition,
+          updateTrack: targetDefinition.updateTrack,
+        }),
+      }),
     },
-    security: {
-      developerIdSigned: developerIdSigned === true,
-      notarized: notarized === true,
-    },
+    security: targetDefinition.platform === "windows"
+      ? {
+          kind: "authenticode",
+          signed: authenticodeSigned === true,
+          timestamped: authenticodeTimestamped === true,
+          publisherNames: normalizePublisherNames(publisherNames),
+          digestAlgorithm: "sha256",
+        }
+      : {
+          developerIdSigned: developerIdSigned === true,
+          notarized: notarized === true,
+        },
     assets,
   };
   assertDesktopReleaseManifest(manifest);
@@ -157,6 +198,7 @@ export function assertDesktopReleaseManifest(manifest) {
 
 export function inspectDesktopReleaseManifest(manifest) {
   const errors = [];
+  const target = inspectManifestTarget(manifest, errors);
   if (![DESKTOP_LEGACY_RELEASE_SCHEMA_VERSION, DESKTOP_RELEASE_SCHEMA_VERSION].includes(manifest?.schemaVersion)) {
     errors.push(
       `schemaVersion must be ${DESKTOP_LEGACY_RELEASE_SCHEMA_VERSION} or ${DESKTOP_RELEASE_SCHEMA_VERSION}`,
@@ -246,8 +288,11 @@ export function inspectDesktopReleaseManifest(manifest) {
   ) {
     errors.push("GitHub visibility must be draft for Internal and public for Stable");
   }
-  if (!validPrefix(manifest?.r2?.prefix) || !String(manifest?.r2?.prefix).endsWith(`/${manifest?.tag}`)) {
-    errors.push("r2.prefix must be a safe immutable prefix ending in the release tag");
+  const expectedImmutableSuffix = target?.platform === "macos"
+    ? `/${manifest?.tag}`
+    : `/${manifest?.tag}/${target?.arch}`;
+  if (!validPrefix(manifest?.r2?.prefix) || !String(manifest?.r2?.prefix).endsWith(expectedImmutableSuffix)) {
+    errors.push(`r2.prefix must be a safe immutable prefix ending in ${expectedImmutableSuffix}`);
   }
   if (!isHttpsUrl(manifest?.r2?.manifestUrl) || !isHttpsUrl(manifest?.r2?.checksumsUrl)) {
     errors.push("R2 manifest and checksum URLs must use HTTPS");
@@ -258,13 +303,51 @@ export function inspectDesktopReleaseManifest(manifest) {
   ) {
     errors.push("schemaVersion 2 releases must expose Build Identity metadata over HTTPS");
   }
-  if (typeof manifest?.security?.developerIdSigned !== "boolean" || typeof manifest?.security?.notarized !== "boolean") {
+  if (target?.platform === "windows") {
+    if (manifest?.security?.kind !== "authenticode") {
+      errors.push("Windows security evidence must use Authenticode");
+    }
+    if (typeof manifest?.security?.signed !== "boolean" || typeof manifest?.security?.timestamped !== "boolean") {
+      errors.push("Windows signing and timestamp values must be boolean");
+    }
+    if (manifest?.security?.digestAlgorithm !== "sha256") {
+      errors.push("Windows signatures must use SHA-256");
+    }
+    if (!Array.isArray(manifest?.security?.publisherNames)) {
+      errors.push("Windows security evidence must list publisher names");
+    }
+    const expectedLatestPrefix = createDesktopLatestReleasePrefix({
+      channel: manifest?.channel,
+      target,
+      updateTrack: target.updateTrack,
+    });
+    if (manifest?.r2?.latestPrefix !== expectedLatestPrefix) {
+      errors.push(`Windows r2.latestPrefix must be ${expectedLatestPrefix}`);
+    }
+    const expectedCatalogKey = createDesktopReleaseCatalogKey({
+      channel: manifest?.channel,
+      target,
+      updateTrack: target.updateTrack,
+    });
+    if (manifest?.r2?.catalogKey !== expectedCatalogKey) {
+      errors.push(`Windows r2.catalogKey must be ${expectedCatalogKey}`);
+    }
+  } else if (
+    typeof manifest?.security?.developerIdSigned !== "boolean"
+    || typeof manifest?.security?.notarized !== "boolean"
+  ) {
     errors.push("security signing and notarization values must be boolean");
   }
   if (manifest?.channel === "stable") {
     if (manifest.prerelease !== false) errors.push("stable releases cannot be prereleases");
-    if (manifest?.security?.developerIdSigned !== true) errors.push("stable releases must be Developer ID signed");
-    if (manifest?.security?.notarized !== true) errors.push("stable releases must be notarized");
+    if (target?.platform === "windows") {
+      if (manifest?.security?.signed !== true) errors.push("stable Windows releases must be Authenticode signed");
+      if (manifest?.security?.timestamped !== true) errors.push("stable Windows releases must have a trusted timestamp");
+      if (manifest?.security?.publisherNames?.length < 1) errors.push("stable Windows releases must name their publisher");
+    } else {
+      if (manifest?.security?.developerIdSigned !== true) errors.push("stable releases must be Developer ID signed");
+      if (manifest?.security?.notarized !== true) errors.push("stable releases must be notarized");
+    }
   }
   if (manifest?.channel === "internal" && manifest?.prerelease !== true) {
     errors.push("internal releases must be marked as prereleases");
@@ -294,9 +377,9 @@ export function inspectDesktopReleaseManifest(manifest) {
     if (!SHA256_PATTERN.test(String(asset.sha256 ?? ""))) {
       errors.push(`${asset.name} has an invalid SHA-256 digest`);
     }
-    if (asset.platform !== "macos") errors.push(`${asset.name} must target macos`);
-    if (!["arm64", "x64", "universal"].includes(asset.arch)) {
-      errors.push(`${asset.name} has an unsupported architecture`);
+    if (asset.platform !== target?.platform) errors.push(`${asset.name} must target ${target?.platform}`);
+    if (asset.arch !== target?.arch) {
+      errors.push(`${asset.name} must target ${target?.arch}`);
     }
     if (asset?.r2?.key !== `${manifest.r2.prefix}/${asset.name}` || !isHttpsUrl(asset?.r2?.url)) {
       errors.push(`${asset.name} has invalid R2 coordinates`);
@@ -314,18 +397,24 @@ export function inspectDesktopReleaseManifest(manifest) {
   }
 
   if (manifest?.channel !== "archive") {
-    for (const requiredKind of ["dmg", "zip"]) {
+    const requiredKinds = target?.platform === "windows"
+      ? ["nsis", "blockmap"]
+      : ["dmg", "zip"];
+    for (const requiredKind of requiredKinds) {
       if (!manifest.assets.some((asset) => asset.kind === requiredKind)) {
         errors.push(`release assets must include a ${requiredKind}`);
       }
     }
   }
   if (manifest?.channel === "stable" && !manifest.assets.some((asset) => asset.kind === "updater-metadata")) {
-    errors.push("stable release assets must include stable-mac.yml");
+    errors.push(target?.platform === "windows"
+      ? "stable Windows release assets must include stable.yml"
+      : "stable release assets must include stable-mac.yml");
   }
   if (
     manifest?.channel === "internal"
     && manifest?.provenance === "pipeline"
+    && target?.platform === "macos"
     && !manifest.assets.some((asset) => asset.kind === "terminal-preview")
   ) {
     errors.push("internal release assets must include the Terminal preview package");
@@ -341,7 +430,8 @@ export function createChecksumsFile(manifest) {
 export function createLatestPointer(manifest) {
   assertDesktopReleaseManifest(manifest);
   if (manifest.channel === "archive") throw new Error("Archive releases do not have mutable latest pointers");
-  const latestPrefix = `${manifest.r2.prefix.slice(0, -(manifest.tag.length))}latest`;
+  const latestPrefix = manifest.r2.latestPrefix
+    ?? `${manifest.r2.prefix.slice(0, -(manifest.tag.length))}latest`;
   return {
     schemaVersion: manifest.schemaVersion,
     product: manifest.product,
@@ -356,6 +446,7 @@ export function createLatestPointer(manifest) {
     } : {}),
     publishedAt: manifest.publishedAt,
     commitSha: manifest.commitSha,
+    ...(manifest.target ? { target: structuredClone(manifest.target) } : {}),
     manifestUrl: manifest.r2.manifestUrl,
     ...(manifest.schemaVersion === DESKTOP_RELEASE_SCHEMA_VERSION
       ? { buildInfoUrl: manifest.r2.buildInfoUrl }
@@ -486,8 +577,9 @@ export async function verifyDesktopReleaseBundle(bundleDirectory, expected = {})
     }
   }
   for (const [key, value] of Object.entries(expected)) {
-    if (value != null && manifest[key] !== value) {
-      throw new Error(`Release bundle ${key} mismatch: expected ${value}, received ${manifest[key]}`);
+    const actual = key === "targetId" ? manifest.target?.id ?? "macos-arm64" : manifest[key];
+    if (value != null && actual !== value) {
+      throw new Error(`Release bundle ${key} mismatch: expected ${value}, received ${actual}`);
     }
   }
 
@@ -533,11 +625,33 @@ export function jsonFile(value) {
 function inferAssetKind(name) {
   if (/^(?:internal|stable)-mac\.yml$/.test(name)) return "updater-metadata";
   if (name.endsWith(".dmg")) return "dmg";
+  if (name.endsWith(".exe")) return "nsis";
   if (name.endsWith(".zip")) return "zip";
   if (name.endsWith(".blockmap")) return "blockmap";
   if (name.endsWith(".tgz") && name.includes("terminal-preview")) return "terminal-preview";
   if (name.endsWith(".yml") || name.endsWith(".yaml")) return "updater-metadata";
   return "artifact";
+}
+
+function inspectManifestTarget(manifest, errors) {
+  if (manifest?.target == null) return getDesktopTargetDefinition("macos-arm64");
+  try {
+    const target = getDesktopTargetDefinition(manifest.target.id);
+    for (const key of ["platform", "arch", "updateTrack"]) {
+      if (manifest.target[key] !== target[key]) {
+        errors.push(`target.${key} must match ${target.id}`);
+      }
+    }
+    return target;
+  } catch (error) {
+    errors.push(error instanceof Error ? error.message : String(error));
+    return null;
+  }
+}
+
+function normalizePublisherNames(value) {
+  if (!Array.isArray(value)) throw new Error("publisherNames must be an array");
+  return [...new Set(value.map((name) => String(name).trim()).filter(Boolean))].sort();
 }
 
 function inferArchitecture(name, fallback) {

@@ -12,6 +12,8 @@ try {
   const bundleDirectory = path.resolve(required(args, "bundle"));
   const releaseResponse = JSON.parse(await fs.readFile(path.resolve(required(args, "release-json")), "utf8"));
   const expectDraft = booleanOption(args, "expect-draft");
+  const allowExtraAssets = optionalBoolean(args, "allow-extra-assets", false);
+  const allowCompanionTargets = optionalBoolean(args, "allow-companion-targets", false);
   const includeMetadata = optionalBoolean(args, "include-metadata", true);
   const { manifest } = await verifyDesktopReleaseBundle(bundleDirectory);
   if (releaseResponse.tag_name !== manifest.tag) {
@@ -55,7 +57,13 @@ try {
   for (const name of githubAssets.keys()) {
     const optionalBackfillMetadata = !includeMetadata
       && ["release.json", "SHA256SUMS", "build-info.json"].includes(name);
-    if (!expectedFiles.has(name) && !optionalBackfillMetadata) errors.push(`unexpected GitHub asset ${name}`);
+    const companionTargetAsset = allowCompanionTargets && (
+      /^puppyone-[0-9A-Za-z.-]+-x64-setup\.exe(?:\.blockmap)?$/.test(name)
+      || /^(?:internal|stable)\.yml$/.test(name)
+    );
+    if (!allowExtraAssets && !expectedFiles.has(name) && !optionalBackfillMetadata && !companionTargetAsset) {
+      errors.push(`unexpected GitHub asset ${name}`);
+    }
   }
   if (errors.length > 0) {
     throw new Error(`GitHub release asset verification failed:\n${errors.map((error) => `- ${error}`).join("\n")}`);

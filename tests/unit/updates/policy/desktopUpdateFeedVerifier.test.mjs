@@ -47,6 +47,21 @@ describe("Desktop Stable update feed verifier", () => {
     });
   });
 
+  it("accepts the NSIS executable contract for Windows", () => {
+    const metadata = parseDesktopUpdaterMetadata([
+      "version: 0.3.20",
+      "files:",
+      "  - url: puppyone-0.3.20-x64-setup.exe",
+      `    sha512: ${ZIP_SHA512}`,
+      "    size: 4096",
+      "path: puppyone-0.3.20-x64-setup.exe",
+      `sha512: ${ZIP_SHA512}`,
+      "releaseDate: '2026-09-16T12:00:00.000Z'",
+    ].join("\n"), { platform: "windows" });
+
+    expect(metadata.files[0].url).toBe("puppyone-0.3.20-x64-setup.exe");
+  });
+
   it("rejects malformed metadata instead of trusting YAML-like fields", () => {
     expect(() => parseDesktopUpdaterMetadata(
       METADATA

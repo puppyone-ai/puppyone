@@ -39,6 +39,16 @@ on:
         description: Require the release tag to exist before creating the draft
         required: true
         type: boolean
+      target_id:
+        description: Desktop target represented by the release bundle
+        required: false
+        default: macos-arm64
+        type: string
+      append_github_assets:
+        description: Append target binaries to an existing verified GitHub Release
+        required: false
+        default: false
+        type: boolean
     secrets:
       CF_ACCESS_CLIENT_ID:
         required: false
@@ -81,6 +91,7 @@ jobs:
         env:
           RELEASE_CHANNEL: ${{ inputs.channel }}
           RELEASE_TAG: ${{ inputs.release_tag }}
+          TARGET_ID: ${{ inputs.target_id }}
         shell: bash
         run: |
           set -euo pipefail
@@ -88,13 +99,49 @@ jobs:
             v*) CANDIDATE_VERSION="${RELEASE_TAG#v}" ;;
             *) echo "Release tag must start with v: ${RELEASE_TAG}" >&2; exit 1 ;;
           esac
-          node scripts/verify-desktop-release-version.mjs \
-            --channel "${RELEASE_CHANNEL}" \
-            --candidate-version "${CANDIDATE_VERSION}"
+          if [ "${TARGET_ID}" = "macos-arm64" ]; then
+            node scripts/verify-desktop-release-version.mjs \
+              --channel "${RELEASE_CHANNEL}" \
+              --candidate-version "${CANDIDATE_VERSION}"
+          else
+            CATALOG_URL="https://downloads.puppyone.ai/desktop/${RELEASE_CHANNEL}/windows/x64/nsis/releases.json"
+            LATEST_URL="https://downloads.puppyone.ai/desktop/${RELEASE_CHANNEL}/windows/x64/nsis/latest/latest.json"
+            STATUS="$(curl --silent --output /dev/null --write-out '%{http_code}' --max-redirs 0 "${LATEST_URL}")"
+            if [ "${STATUS}" = "404" ]; then
+              echo "No existing Windows release history; this will establish it."
+            elif [ "${STATUS}" = "200" ]; then
+              node scripts/verify-desktop-release-version.mjs \
+                --channel "${RELEASE_CHANNEL}" \
+                --candidate-version "${CANDIDATE_VERSION}" \
+                --catalog-url "${CATALOG_URL}" \
+                --latest-pointer-url "${LATEST_URL}"
+            else
+              echo "Windows latest pointer returned HTTP ${STATUS}." >&2
+              exit 1
+            fi
+          fi
 
       - name: Verify existing Stable update origin before publication
         if: ${{ inputs.channel == 'stable' }}
-        run: node scripts/verify-desktop-stable-update-feed.mjs
+        env:
+          TARGET_ID: ${{ inputs.target_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${TARGET_ID}" = "macos-arm64" ]; then
+            node scripts/verify-desktop-stable-update-feed.mjs
+          else
+            POINTER="https://downloads.puppyone.ai/desktop/stable/windows/x64/nsis/latest/latest.json"
+            STATUS="$(curl --silent --output /dev/null --write-out '%{http_code}' --max-redirs 0 "${POINTER}")"
+            if [ "${STATUS}" = "404" ]; then
+              echo "No existing Windows Stable feed; this will establish it."
+            elif [ "${STATUS}" = "200" ]; then
+              node scripts/verify-desktop-windows-update-feed.mjs
+            else
+              echo "Windows Stable pointer returned HTTP ${STATUS}." >&2
+              exit 1
+            fi
+          fi
 
   publish:
     name: Publish verified release
@@ -132,6 +179,7 @@ jobs:
         env:
           EXPECTED_CHANNEL: ${{ inputs.channel }}
           EXPECTED_TAG: ${{ inputs.release_tag }}
+          EXPECTED_TARGET: ${{ inputs.target_id }}
         shell: bash
         run: |
           set -euo pipefail
@@ -139,20 +187,27 @@ jobs:
             --bundle "${BUNDLE_DIRECTORY}" \
             --channel "${EXPECTED_CHANNEL}" \
             --tag "${EXPECTED_TAG}" \
-            --commit "${GITHUB_SHA}"
+            --commit "${GITHUB_SHA}" \
+            --target "${EXPECTED_TARGET}"
 
           MANIFEST="${BUNDLE_DIRECTORY}/release.json"
           COMMIT="$(node -e 'const p=require("node:path"); const m=require(p.resolve(process.argv[1])); process.stdout.write(m.commitSha)' "${MANIFEST}")"
           R2_PREFIX="$(node -e 'const p=require("node:path"); const m=require(p.resolve(process.argv[1])); process.stdout.write(m.r2.prefix)' "${MANIFEST}")"
           TAG="$(node -e 'const p=require("node:path"); const m=require(p.resolve(process.argv[1])); process.stdout.write(m.tag)' "${MANIFEST}")"
           VERSION="$(node -e 'const p=require("node:path"); const m=require(p.resolve(process.argv[1])); process.stdout.write(m.version)' "${MANIFEST}")"
-          LATEST_PREFIX="${R2_PREFIX%/${TAG}}/latest"
-          if [ "${EXPECTED_CHANNEL}" = "internal" ]; then
+          LATEST_PREFIX="$(node -e 'const p=require("node:path"); const m=require(p.resolve(process.argv[1])); process.stdout.write(m.r2.latestPrefix || `${m.r2.prefix.slice(0, -m.tag.length)}latest`)' "${MANIFEST}")"
+          if [ "${EXPECTED_TARGET}" = "windows-x64" ]; then
+            CATALOG_KEY="$(node -e 'const p=require("node:path"); const m=require(p.resolve(process.argv[1])); process.stdout.write(m.r2.catalogKey)' "${MANIFEST}")"
+            CATALOG_CHANNELS="${EXPECTED_CHANNEL}"
+            UPDATE_METADATA_NAME="${EXPECTED_CHANNEL}.yml"
+          elif [ "${EXPECTED_CHANNEL}" = "internal" ]; then
             CATALOG_KEY="desktop/internal/catalog/releases.json"
             CATALOG_CHANNELS="internal"
+            UPDATE_METADATA_NAME="internal-mac.yml"
           else
             CATALOG_KEY="desktop/catalog/releases.json"
             CATALOG_CHANNELS="stable,archive"
+            UPDATE_METADATA_NAME="stable-mac.yml"
           fi
           {
             echo "catalog_channels=${CATALOG_CHANNELS}"
@@ -161,6 +216,8 @@ jobs:
             echo "latest_prefix=${LATEST_PREFIX}"
             echo "r2_prefix=${R2_PREFIX}"
             echo "tag=${TAG}"
+            echo "target_id=${EXPECTED_TARGET}"
+            echo "update_metadata_name=${UPDATE_METADATA_NAME}"
             echo "version=${VERSION}"
           } >> "${GITHUB_OUTPUT}"
 
@@ -282,6 +339,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PUBLISH_GITHUB_RELEASE: ${{ inputs.publish_github_release }}
+          APPEND_GITHUB_ASSETS: ${{ inputs.append_github_assets }}
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
         shell: bash
         run: |
@@ -291,6 +349,10 @@ jobs:
             "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
             --jq ".[] | select(.tag_name == \"${RELEASE_TAG}\") | .id")"
           if [ -z "${RELEASE_IDS}" ]; then
+            if [ "${APPEND_GITHUB_ASSETS}" = "true" ]; then
+              echo "Windows target publication requires the existing macOS GitHub Release ${RELEASE_TAG}." >&2
+              exit 1
+            fi
             echo "exists=false" >> "${GITHUB_OUTPUT}"
             echo "draft=false" >> "${GITHUB_OUTPUT}"
             exit 0
@@ -301,10 +363,19 @@ jobs:
           fi
           gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_IDS}" > "${RESPONSE}"
           DRAFT="$(node -e 'const p=require("node:path"); const r=require(p.resolve(process.argv[1])); process.stdout.write(String(r.draft))' "${RESPONSE}")"
-          node scripts/verify-github-release-assets.mjs \
-            --bundle "${BUNDLE_DIRECTORY}" \
-            --release-json "${RESPONSE}" \
-            --expect-draft "${DRAFT}"
+          if [ "${APPEND_GITHUB_ASSETS}" = "true" ]; then
+            PRERELEASE="$(node -e 'const p=require("node:path"); const r=require(p.resolve(process.argv[1])); process.stdout.write(String(r.prerelease))' "${RESPONSE}")"
+            if [ "${DRAFT}" != "false" ] || [ "${PRERELEASE}" != "false" ]; then
+              echo "Windows target assets may only be appended to an existing public Stable GitHub Release." >&2
+              exit 1
+            fi
+          else
+            node scripts/verify-github-release-assets.mjs \
+              --bundle "${BUNDLE_DIRECTORY}" \
+              --release-json "${RESPONSE}" \
+              --expect-draft "${DRAFT}" \
+              --allow-companion-targets true
+          fi
           if [ "${PUBLISH_GITHUB_RELEASE}" != "true" ] && [ "${DRAFT}" != "true" ]; then
             echo "Internal GitHub release ${RELEASE_TAG} is public; restricted Internal records must remain drafts." >&2
             exit 1
@@ -317,6 +388,7 @@ jobs:
 
       - name: Prepare GitHub release notes
         id: notes
+        if: ${{ !inputs.append_github_assets }}
         env:
           GENERATE_NOTES: ${{ inputs.generate_notes }}
           GH_TOKEN: ${{ github.token }}
@@ -341,7 +413,7 @@ jobs:
           echo "path=${NOTES}" >> "${GITHUB_OUTPUT}"
 
       - name: Create GitHub draft release with identical assets
-        if: ${{ steps.github_state.outputs.exists != 'true' }}
+        if: ${{ !inputs.append_github_assets && steps.github_state.outputs.exists != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_NOTES: ${{ steps.notes.outputs.path }}
@@ -373,12 +445,36 @@ jobs:
           fi
           gh release create "${args[@]}"
 
-      - name: Verify GitHub asset digests before publication
-        id: github_verify
-        if: ${{ steps.github_state.outputs.exists != 'true' || steps.github_state.outputs.draft == 'true' }}
+      - name: Append verified target binaries to existing GitHub Release
+        if: ${{ inputs.append_github_assets }}
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESPONSE="${RUNNER_TEMP}/github-release-before-append.json"
+          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" > "${RESPONSE}"
+          node -e '
+            const fs=require("node:fs");
+            const path=require("node:path");
+            const manifest=require(path.resolve(process.argv[1]));
+            const release=require(path.resolve(process.argv[2]));
+            const names=new Set((release.assets || []).map((asset) => asset.name));
+            for (const asset of manifest.assets) {
+              if (!names.has(asset.name)) process.stdout.write(`${asset.name}\n`);
+            }
+          ' "${BUNDLE_DIRECTORY}/release.json" "${RESPONSE}" | while IFS= read -r name; do
+            gh release upload "${RELEASE_TAG}" "${BUNDLE_DIRECTORY}/assets/${name}"
+          done
+
+      - name: Verify GitHub asset digests before publication
+        id: github_verify
+        if: ${{ inputs.append_github_assets || steps.github_state.outputs.exists != 'true' || steps.github_state.outputs.draft == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          APPEND_GITHUB_ASSETS: ${{ inputs.append_github_assets }}
         shell: bash
         run: |
           set -euo pipefail
@@ -396,10 +492,16 @@ jobs:
               continue
             fi
             gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_IDS}" > "${RESPONSE}"
-            if node scripts/verify-github-release-assets.mjs \
-              --bundle "${BUNDLE_DIRECTORY}" \
-              --release-json "${RESPONSE}" \
-              --expect-draft true; then
+            args=(
+              --bundle "${BUNDLE_DIRECTORY}"
+              --release-json "${RESPONSE}"
+            )
+            if [ "${APPEND_GITHUB_ASSETS}" = "true" ]; then
+              args+=(--expect-draft false --include-metadata false --allow-extra-assets true)
+            else
+              args+=(--expect-draft true)
+            fi
+            if node scripts/verify-github-release-assets.mjs "${args[@]}"; then
               echo "release_id=${RELEASE_IDS}" >> "${GITHUB_OUTPUT}"
               exit 0
             fi
@@ -409,7 +511,7 @@ jobs:
           exit 1
 
       - name: Publish verified GitHub Release
-        if: ${{ inputs.publish_github_release && (steps.github_state.outputs.exists != 'true' || steps.github_state.outputs.draft == 'true') }}
+        if: ${{ !inputs.append_github_assets && inputs.publish_github_release && (steps.github_state.outputs.exists != 'true' || steps.github_state.outputs.draft == 'true') }}
         env:
           GH_TOKEN: ${{ github.token }}
           PRERELEASE: ${{ inputs.prerelease }}
@@ -437,6 +539,7 @@ jobs:
           RELEASE_COMMIT: ${{ steps.release.outputs.commit }}
           RELEASE_ID: ${{ steps.github_verify.outputs.release_id || steps.github_state.outputs.release_id }}
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          APPEND_GITHUB_ASSETS: ${{ inputs.append_github_assets }}
         shell: bash
         run: |
           set -euo pipefail
@@ -448,10 +551,17 @@ jobs:
           else
             EXPECTED_DRAFT=true
           fi
-          node scripts/verify-github-release-assets.mjs \
-            --bundle "${BUNDLE_DIRECTORY}" \
-            --release-json "${RESPONSE}" \
+          args=(
+            --bundle "${BUNDLE_DIRECTORY}"
+            --release-json "${RESPONSE}"
             --expect-draft "${EXPECTED_DRAFT}"
+          )
+          if [ "${APPEND_GITHUB_ASSETS}" = "true" ]; then
+            args+=(--include-metadata false --allow-extra-assets true)
+          else
+            args+=(--allow-companion-targets true)
+          fi
+          node scripts/verify-github-release-assets.mjs "${args[@]}"
           if [ "${PUBLISH_GITHUB_RELEASE}" = "true" ]; then
             REMOTE_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${RELEASE_TAG}" --jq .sha)"
             if [ "${REMOTE_SHA}" != "${RELEASE_COMMIT}" ]; then
@@ -552,9 +662,18 @@ jobs:
 
       - name: Verify promoted Stable update feed contract
         if: ${{ inputs.channel == 'stable' }}
+        env:
+          TARGET_ID: ${{ steps.release.outputs.target_id }}
+        shell: bash
         run: |
-          node scripts/verify-desktop-stable-update-feed.mjs \
-            --expected-version "${{ steps.release.outputs.version }}"
+          set -euo pipefail
+          if [ "${TARGET_ID}" = "windows-x64" ]; then
+            node scripts/verify-desktop-windows-update-feed.mjs \
+              --expected-version "${{ steps.release.outputs.version }}"
+          else
+            node scripts/verify-desktop-stable-update-feed.mjs \
+              --expected-version "${{ steps.release.outputs.version }}"
+          fi
 
       - name: Download current release catalog
         env:
@@ -637,10 +756,21 @@ jobs:
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
           PUPPYONE_INTERNAL_RELEASE_TOKEN: ${{ secrets.PUPPYONE_INTERNAL_RELEASE_TOKEN }}
-        run: >-
-          node scripts/verify-desktop-release-version.mjs
-          --channel "${{ inputs.channel }}"
-          --require-latest-history-head
+          TARGET_ID: ${{ steps.release.outputs.target_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(
+            --channel "${{ inputs.channel }}"
+            --require-latest-history-head
+          )
+          if [ "${TARGET_ID}" = "windows-x64" ]; then
+            args+=(
+              --catalog-url "${PUBLIC_DOWNLOAD_ORIGIN}/desktop/${{ inputs.channel }}/windows/x64/nsis/releases.json"
+              --latest-pointer-url "${PUBLIC_DOWNLOAD_ORIGIN}/desktop/${{ inputs.channel }}/windows/x64/nsis/latest/latest.json"
+            )
+          fi
+          node scripts/verify-desktop-release-version.mjs "${args[@]}"
 
       - name: Clean stale mutable release files
         env:
@@ -688,6 +818,7 @@ jobs:
           R2_PREFIX: ${{ steps.release.outputs.r2_prefix }}
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
           RELEASE_CHANNEL: ${{ inputs.channel }}
+          UPDATE_METADATA_NAME: ${{ steps.release.outputs.update_metadata_name }}
         shell: bash
         run: |
           {
@@ -698,6 +829,6 @@ jobs:
             echo "- Latest pointer: ${PUBLIC_DOWNLOAD_ORIGIN}/${LATEST_PREFIX}/latest.json"
             echo "- Release catalog: ${PUBLIC_DOWNLOAD_ORIGIN}/${CATALOG_KEY}"
             if [ "${RELEASE_CHANNEL}" = "stable" ]; then
-              echo "- Stable updater feed: ${PUBLIC_UPDATE_ORIGIN}/${LATEST_PREFIX}/stable-mac.yml"
+              echo "- Stable updater feed: ${PUBLIC_UPDATE_ORIGIN}/${LATEST_PREFIX}/${UPDATE_METADATA_NAME}"
             fi
           } >> "${GITHUB_STEP_SUMMARY}"

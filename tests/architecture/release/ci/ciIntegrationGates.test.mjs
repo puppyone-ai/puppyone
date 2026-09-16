@@ -9,10 +9,16 @@ describe("integration branch quality gates", () => {
   it("runs the required source and Desktop jobs on both canonical branches", () => {
     expect(workflow.on.push.branches).toEqual(expect.arrayContaining(["main", "qubits"]));
     expect(workflow.on).toHaveProperty("pull_request");
-    expect(workflow.jobs.build.needs).toEqual(expect.arrayContaining(["source-checks", "app-checks", "platform-contracts"]));
+    expect(workflow.jobs.build.needs).toEqual(expect.arrayContaining([
+      "source-checks",
+      "app-checks",
+      "platform-contracts",
+      "windows-package",
+    ]));
     expect(workflow.jobs["app-checks"].strategy.matrix.os).toEqual(expect.arrayContaining(["ubuntu-24.04", "macos-14"]));
     const linuxSetup = workflow.jobs["app-checks"].steps.find(step => step.name === "Prepare Linux display and multilingual fonts");
     expect(linuxSetup.if).toBe("runner.os == 'Linux'");
+    expect(workflow.jobs["windows-package"]["runs-on"]).toBe("windows-2025");
   });
 
   it("makes every test typecheck and the complete core denominator part of the source gate", async () => {

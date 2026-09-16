@@ -7,7 +7,7 @@ import {
 const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const SHA512_BASE64_PATTERN = /^[A-Za-z0-9+/]+={0,2}$/;
 
-export function parseDesktopUpdaterMetadata(source) {
+export function parseDesktopUpdaterMetadata(source, { platform = "macos" } = {}) {
   if (typeof source !== "string" || source.trim().length === 0) {
     throw new Error("Desktop updater metadata is empty.");
   }
@@ -83,8 +83,11 @@ export function parseDesktopUpdaterMetadata(source) {
       errors.push(`${file.url || "update file"} must declare a positive byte size`);
     }
   }
-  if (!metadata.files.some(({ url }) => /\.zip(?:$|[?#])/i.test(String(url)))) {
-    errors.push("macOS updater metadata must include a ZIP payload");
+  const payloadPattern = platform === "windows"
+    ? /\.exe(?:$|[?#])/i
+    : /\.zip(?:$|[?#])/i;
+  if (!metadata.files.some(({ url }) => payloadPattern.test(String(url)))) {
+    errors.push(`${platform === "windows" ? "Windows" : "macOS"} updater metadata must include a ${platform === "windows" ? "NSIS executable" : "ZIP"} payload`);
   }
   const primaryFile = metadata.files.find(({ url }) => url === metadata.path);
   if (!metadata.path || !primaryFile) {
@@ -114,6 +117,8 @@ export async function verifyDesktopStableUpdateFeeds({
   feedUrls = DESKTOP_SUPPORTED_STABLE_UPDATE_FEED_URLS,
   fetchImpl = globalThis.fetch,
   latestPointerUrl = DESKTOP_STABLE_LATEST_POINTER_URL,
+  metadataName = DESKTOP_STABLE_UPDATE_METADATA_NAME,
+  platform = "macos",
   retryDelayMs = 500,
   timeoutMs = 20_000,
 } = {}) {
@@ -151,14 +156,14 @@ export async function verifyDesktopStableUpdateFeeds({
   const reports = [];
   for (const feedUrl of feedUrls) {
     const normalizedFeedUrl = normalizeHttpsUrl(feedUrl, "Stable feed").replace(/\/+$/, "");
-    const metadataUrl = `${normalizedFeedUrl}/${DESKTOP_STABLE_UPDATE_METADATA_NAME}`;
+    const metadataUrl = `${normalizedFeedUrl}/${metadataName}`;
     const source = await fetchText(metadataUrl, {
       attempts,
       fetchImpl,
       retryDelayMs,
       timeoutMs,
     });
-    const metadata = parseDesktopUpdaterMetadata(source);
+    const metadata = parseDesktopUpdaterMetadata(source, { platform });
     const requiredVersion = expectedVersion ?? latestPointer.version;
     if (metadata.version !== requiredVersion) {
       throw new Error(

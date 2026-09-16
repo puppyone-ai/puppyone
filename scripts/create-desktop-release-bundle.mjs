@@ -84,16 +84,20 @@ async function createBundle(args) {
     buildInfo,
     channel,
     commitSha: buildInfo?.commitSha ?? option(args, "commit"),
-    developerIdSigned: booleanOption(args, "developer-id-signed"),
-    notarized: booleanOption(args, "notarized"),
+    authenticodeSigned: booleanOption(args, "authenticode-signed", false),
+    authenticodeTimestamped: booleanOption(args, "authenticode-timestamped", false),
+    developerIdSigned: booleanOption(args, "developer-id-signed", false),
+    notarized: booleanOption(args, "notarized", false),
     prerelease: booleanOption(args, "prerelease"),
     provenance: option(args, "provenance") ?? (channel === "archive" ? "archive" : "pipeline"),
     publicOrigin: required(args, "public-origin"),
+    publisherNames: arrayOption(args, "publisher-name"),
     publishedAt: option(args, "published-at") ?? new Date().toISOString(),
     promotionSourceTag: option(args, "promotion-source-tag"),
     repository: required(args, "repository"),
     r2Prefix: required(args, "r2-prefix"),
     tag: buildInfo ? createDesktopBuildTag(buildInfo) : required(args, "tag"),
+    target: option(args, "target") ?? "macos-arm64",
     version: buildInfo?.version ?? required(args, "version"),
     workflowRunUrl: option(args, "workflow-run-url"),
   });
@@ -112,6 +116,7 @@ async function verifyBundle(args) {
     ["tag", option(args, "tag")],
     ["channel", option(args, "channel")],
     ["commitSha", option(args, "commit")],
+    ["targetId", option(args, "target")],
   ].filter(([, value]) => value != null));
   const { manifest } = await verifyDesktopReleaseBundle(bundleDirectory, expected);
   console.log(JSON.stringify({
@@ -158,7 +163,9 @@ function required(args, key) {
 function option(args, key) {
   const values = args.get(key);
   if (!values || values.length === 0) return undefined;
-  if (values.length > 1 && key !== "asset") throw new Error(`--${key} may only be specified once`);
+  if (values.length > 1 && !["asset", "publisher-name"].includes(key)) {
+    throw new Error(`--${key} may only be specified once`);
+  }
   return values.at(-1);
 }
 
@@ -166,8 +173,10 @@ function arrayOption(args, key) {
   return args.get(key) ?? [];
 }
 
-function booleanOption(args, key) {
-  const value = required(args, key);
+function booleanOption(args, key, fallback) {
+  const value = option(args, key);
+  if (value == null && fallback != null) return fallback;
+  if (value == null) throw new Error(`Missing required --${key}`);
   if (value === "true") return true;
   if (value === "false") return false;
   throw new Error(`--${key} must be true or false`);

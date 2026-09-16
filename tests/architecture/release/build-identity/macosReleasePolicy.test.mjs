@@ -8,6 +8,7 @@ import {
   inspectReleasePublisherWorkflow,
   inspectStableReleaseWorkflow,
   inspectUpdateFeedMonitorWorkflow,
+  inspectWindowsStableReleaseWorkflow,
 } from "../../../../scripts/release-support/internal-release-workflow-policy.mjs";
 import {
   getStableReleaseCoordinates,
@@ -160,6 +161,16 @@ describe("macOS stable release workflow", () => {
   });
 });
 
+describe("Windows stable release workflow", () => {
+  it("signs, installs, attests, and publishes Windows independently from the Mac pointer", () => {
+    const workflow = readFileSync(
+      new URL("../../../../.github/workflows/desktop-windows-stable-release.yml", import.meta.url),
+      "utf8",
+    );
+    expect(inspectWindowsStableReleaseWorkflow(workflow)).toEqual([]);
+  });
+});
+
 describe("desktop release publisher workflow", () => {
   it("publishes immutable GitHub and R2 records before mutable pointers", () => {
     const workflow = readFileSync(
@@ -174,7 +185,7 @@ describe("desktop release publisher workflow", () => {
       new URL("../../../../.github/workflows/desktop-release-publish.yml", import.meta.url),
       "utf8",
     ).replace(
-      "          PUBLISH_GITHUB_RELEASE: ${{ inputs.publish_github_release }}\n          RELEASE_TAG: ${{ steps.release.outputs.tag }}",
+      "          PUBLISH_GITHUB_RELEASE: ${{ inputs.publish_github_release }}\n          APPEND_GITHUB_ASSETS: ${{ inputs.append_github_assets }}\n          RELEASE_TAG: ${{ steps.release.outputs.tag }}",
       "          RELEASE_TAG: ${{ steps.release.outputs.tag }}",
     );
 

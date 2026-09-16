@@ -20,7 +20,7 @@ const TARGETS = deepFreeze([
     updateTrack: "nsis",
     upstreamRuntimeKey: "win32-x64",
     verifier: "windows",
-    participation: { internal: "optional", stable: "disabled" },
+    participation: { internal: "optional", stable: "optional" },
   },
   {
     ...createDesktopTarget({ platform: "linux", arch: "x64" }),
