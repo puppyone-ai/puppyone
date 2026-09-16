@@ -302,12 +302,12 @@ describe("appearance profile architecture", () => {
     expect(result.diagnostics[0]?.code).toBe("sub-theme-mode-unsupported");
   });
 
-  it("renders appearance controls in Root Theme, Color Mode, Sub Theme order", () => {
+  it("renders Color Mode and Sub Theme before the Root Theme footer", () => {
     const settings = source("src/features/settings/SettingsView.tsx");
     expectInOrder(settings, [
-      "<InterfaceStyleSetting",
       "<InterfacePaletteSettings",
       "<SubThemeSettingsSection",
+      "<InterfaceStyleSetting",
     ]);
   });
 
