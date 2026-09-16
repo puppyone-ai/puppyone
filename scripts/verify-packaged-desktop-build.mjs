@@ -19,6 +19,7 @@ try {
     releaseDirectory: path.resolve(repositoryRoot, args.releaseDirectory ?? "release"),
     buildInfo,
     target: args.target ?? "macos-arm64",
+    windowsSigningMode: args.windowsSigningMode,
   });
   console.log(
     `Verified ${result.applications.length} packaged app(s) for ${args.target ?? "macos-arm64"} against ${buildInfo.channel} ${buildInfo.version}.`,
@@ -39,6 +40,7 @@ function parseArguments(values) {
     if (key === "--build-info") options.buildInfo = value;
     else if (key === "--release-directory") options.releaseDirectory = value;
     else if (key === "--target") options.target = value;
+    else if (key === "--windows-signing-mode") options.windowsSigningMode = value;
     else throw new Error(`Unknown option: ${key}`);
   }
   return options;
