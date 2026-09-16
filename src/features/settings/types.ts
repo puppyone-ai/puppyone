@@ -1,7 +1,7 @@
 import type { FileIconThemeId, Workspace } from "@puppyone/shared-ui";
 import type { DesktopCloudSession } from "../../lib/cloudApi";
 import type { DesktopUpdateState, GitStatusSnapshot, PuppyoneWorkspaceConfig } from "../../types/electron";
-import type { CreateNewMenuSettings, DarkThemePreset, ExperimentalSettings, FilesVisibilitySettings, GitSidebarLayout, InterfaceStyle, LightThemePreset, LoadingAnimationPreset, LocalAgentsSettings, RightSidebarToolsSettings, SidebarNavigationLayout, SidebarNavigationVisibilitySettings, ThemeMode, TitlebarActionsSettings, TypographyPreferences } from "../../preferences";
+import type { CreateNewMenuSettings, DarkThemePreset, ExperimentalSettings, FilesVisibilitySettings, GitSidebarLayout, InterfaceStyle, LightThemePreset, LoadingAnimationPreset, LocalAgentsSettings, RightSidebarToolsSettings, SidebarNavigationVisibilitySettings, ThemeMode, TitlebarActionsSettings, TypographyPreferences } from "../../preferences";
 import type { ResolvedAppearance } from "../appearance/resolveAppearance";
 import type { SubThemeCatalogController } from "../themes/useSubThemeCatalog";
 
@@ -25,7 +25,6 @@ export type SettingsViewProps = {
   requestedSubThemeId: string;
   subThemeCatalog: SubThemeCatalogController;
   fileIconTheme: FileIconThemeId;
-  sidebarNavigationLayout: SidebarNavigationLayout;
   sidebarNavigationVisibilitySettings: SidebarNavigationVisibilitySettings;
   filesVisibilitySettings: FilesVisibilitySettings;
   createNewMenuSettings: CreateNewMenuSettings;
@@ -51,7 +50,6 @@ export type SettingsViewProps = {
   onPointerCursorsChange: (enabled: boolean) => void;
   onSubThemeChange: (subThemeId: string) => void;
   onFileIconThemeChange: (theme: FileIconThemeId) => void;
-  onSidebarNavigationLayoutChange: (layout: SidebarNavigationLayout) => void;
   onSidebarNavigationVisibilitySettingsChange: (settings: SidebarNavigationVisibilitySettings) => void;
   onFilesVisibilitySettingsChange: (settings: FilesVisibilitySettings) => void;
   onCreateNewMenuSettingsChange: (settings: CreateNewMenuSettings) => void;

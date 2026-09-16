@@ -63,7 +63,7 @@ async function runSmoke() {
       const root = document.querySelector('.appearance-visual-smoke[data-po-appearance-root]');
       const titlebar = document.querySelector('.desktop-titlebar');
       const appShell = document.querySelector('.app-shell');
-      const navigation = document.querySelector('.desktop-sidebar-top-navigation');
+      const navigation = document.querySelector('.desktop-sidebar-footer-bar');
       const toolbar = document.querySelector('.desktop-shell-navigation-toolbar-host');
       const locationBar = document.querySelector('.desktop-shell-location-bar-host');
       const locationBarField = document.querySelector('.desktop-shell-location-bar-field');
@@ -71,10 +71,10 @@ async function runSmoke() {
       const locationBarGo = document.querySelector('.desktop-shell-location-bar-go');
       const locationBarDropdown = document.querySelector('.desktop-shell-location-bar-dropdown');
       const toolbarActions = document.querySelector('.desktop-shell-navigation-toolbar-actions');
-      const navigationButtons = [...document.querySelectorAll('.desktop-shell-navigation-toolbar-host .desktop-sidebar-top-navigation-button')];
+      const navigationButtons = [...navigation.querySelectorAll('.desktop-sidebar-footer-button')];
       const toolbarActionButtons = [...document.querySelectorAll('.desktop-shell-navigation-toolbar-actions [data-toolbar-action]')];
       const toolbarButtons = [...document.querySelectorAll('.desktop-shell-navigation-toolbar-host .desktop-shell-toolbar-button')];
-      const currentNavigationButton = document.querySelector('.desktop-shell-navigation-toolbar-host [aria-current="page"]');
+      const currentNavigationButton = navigation.querySelector('[aria-current="page"]');
       const pressedToolbarAction = document.querySelector('.desktop-shell-navigation-toolbar-actions [aria-pressed="true"]');
       const controls = document.querySelector('.desktop-window-controls');
       const windowControlButtons = controls
@@ -174,6 +174,8 @@ async function runSmoke() {
           };
         })() : null,
         navigationButtonBottoms: navigationButtons.map((button) => Math.round(button.getBoundingClientRect().bottom)),
+        navigationButtonLefts: navigationButtons.map((button) => Math.round(button.getBoundingClientRect().left)),
+        navigationItemIds: navigationButtons.map((button) => button.dataset.navigationItem),
         toolbarButtonRects: toolbarButtons.map((button) => {
           const rect = button.getBoundingClientRect();
           return { top: rect.top, bottom: rect.bottom, height: rect.height };
@@ -314,14 +316,12 @@ async function runSmoke() {
       );
 
       assert(snapshot.titlebarComposition === "windows-xp-luna-titlebar-v1", "XP: wrong titlebar composition");
-      assert(snapshot.navigationComposition === "sidebar-top-toolbar", "XP: wrong navigation composition");
+      assert(snapshot.navigationComposition === "sidebar-bottom-footer", "XP: wrong navigation composition");
       assert(snapshot.locationBarComposition === "workspace-path-v1", "XP: wrong location-bar composition");
-      assert(snapshot.toolbarWidth === 1280, `XP: Shell toolbar is ${snapshot.toolbarWidth}px wide, expected 1280px`);
-      assert(snapshot.toolbarHeight === 56, `XP: Shell toolbar is ${snapshot.toolbarHeight}px high, expected 56px`);
-      assert(snapshot.toolbarBackgroundColor === "rgb(245, 244, 238)", `XP: toolbar band is not calm system chrome (${snapshot.toolbarBackgroundColor})`);
-      assert(snapshot.toolbarBoxShadow === "none", `XP: toolbar retained a full-band shadow (${snapshot.toolbarBoxShadow})`);
+      assert(snapshot.toolbarWidth === 0, `XP: retired Shell toolbar is still ${snapshot.toolbarWidth}px wide`);
+      assert(snapshot.toolbarHeight === 0, `XP: retired Shell toolbar is still ${snapshot.toolbarHeight}px high`);
       assert(snapshot.locationBarHeight === 32, `XP: address bar is ${snapshot.locationBarHeight}px high, expected 32px`);
-      assert(snapshot.locationBarTop === snapshot.toolbarBottom, "XP: address bar is not directly below the command toolbar");
+      assert(snapshot.locationBarTop === snapshot.titlebarHeight, "XP: address bar is not directly below the titlebar");
       assert(snapshot.locationBarBackgroundColor === "rgb(245, 244, 238)", `XP: Address band is not calm system chrome (${snapshot.locationBarBackgroundColor})`);
       assert(snapshot.locationBarBoxShadow === "none", `XP: Address band retained a full-band shadow (${snapshot.locationBarBoxShadow})`);
       assert(snapshot.locationBarTopSeparator === "rgb(216, 213, 203)", `XP: top separator is too heavy (${snapshot.locationBarTopSeparator})`);
@@ -346,77 +346,19 @@ async function runSmoke() {
         snapshot.navigationWidth >= snapshot.navigationScrollWidth,
         `XP: navigation clips its current controls (${snapshot.navigationWidth}px < ${snapshot.navigationScrollWidth}px)`,
       );
-      assert(snapshot.navigationPadding === "0px", `XP: portaled navigation retained Sidebar padding (${snapshot.navigationPadding})`);
       assert(
-        Math.abs(snapshot.navigationLeft - 8) <= 0.5,
-        `XP: Files group does not start at the Shell toolbar inset (${snapshot.navigationLeft}px)`,
+        snapshot.navigationLeft === 0,
+        `XP: bottom navigation is not aligned to the Sidebar start edge (${snapshot.navigationLeft}px)`,
       );
       assert(
-        snapshot.toolbarActionsLeft >= snapshot.navigationRight,
-        `XP: Terminal action overlaps navigation (${snapshot.toolbarActionsLeft} < ${snapshot.navigationRight})`,
+        JSON.stringify(snapshot.navigationItemIds) === JSON.stringify(["data", "git", "settings", "feedback"]),
+        `XP: wrong bottom navigation order: ${JSON.stringify(snapshot.navigationItemIds)}`,
       );
       assert(
-        JSON.stringify(snapshot.toolbarActionIds) === JSON.stringify(["terminal"]),
-        `XP: wrong unified toolbar action contract: ${JSON.stringify(snapshot.toolbarActionIds)}`,
-      );
-      assert(
-        JSON.stringify(snapshot.toolbarActionLabels) === JSON.stringify(["Terminal"]),
-        `XP: wrong unified Terminal label: ${JSON.stringify(snapshot.toolbarActionLabels)}`,
-      );
-      assert(
-        snapshot.toolbarRight - snapshot.toolbarLastActionRight === 8,
-        `XP: Terminal action is not anchored to the right toolbar inset (${snapshot.toolbarLastActionRight} vs ${snapshot.toolbarRight})`,
-      );
-      assert(
-        snapshot.navigationButtonBottoms.every((bottom) => bottom <= snapshot.toolbarBottom),
-        `XP: a navigation hit target escapes the toolbar (${snapshot.navigationButtonBottoms.join(", ")} > ${snapshot.toolbarBottom})`,
-      );
-      assert(
-        snapshot.toolbarButtonRects.every(({ height }) => height === 48),
-        `XP: toolbar buttons do not share the 48px control height: ${JSON.stringify(snapshot.toolbarButtonRects)}`,
-      );
-      const toolbarButtonTops = snapshot.toolbarButtonRects.map(({ top }) => top);
-      const toolbarButtonBottoms = snapshot.toolbarButtonRects.map(({ bottom }) => bottom);
-      assert(
-        Math.max(...toolbarButtonTops) - Math.min(...toolbarButtonTops) <= 0.5
-          && Math.max(...toolbarButtonBottoms) - Math.min(...toolbarButtonBottoms) <= 0.5,
-        `XP: toolbar buttons do not share one vertical track: ${JSON.stringify(snapshot.toolbarButtonRects)}`,
-      );
-      const toolbarCenterY = snapshot.toolbarButtonRects[0].top + snapshot.toolbarButtonRects[0].height / 2;
-      assert(
-        snapshot.toolbarIconCenterYs.every((centerY) => Math.abs(centerY - toolbarCenterY) <= 0.5),
-        `XP: toolbar icons are off the shared center line: ${JSON.stringify(snapshot.toolbarIconCenterYs)}`,
-      );
-      assert(
-        snapshot.toolbarLabelCenterYs.every((centerY) => Math.abs(centerY - toolbarCenterY) <= 0.5),
-        `XP: toolbar labels are off the shared center line: ${JSON.stringify(snapshot.toolbarLabelCenterYs)}`,
+        snapshot.navigationButtonLefts.every((left, index, positions) => index === 0 || left > positions[index - 1]),
+        `XP: bottom navigation controls are not ordered from the left: ${JSON.stringify(snapshot.navigationButtonLefts)}`,
       );
       assert(snapshot.iconPack === "windows-xp-native-v1", `XP: wrong icon pack (${snapshot.iconPack})`);
-      assert(
-        snapshot.toolbarIconBackgrounds.every((background) => background !== "none"),
-        `XP: a toolbar glyph bypassed the native icon pack: ${JSON.stringify(snapshot.toolbarIconBackgrounds)}`,
-      );
-      assert(
-        snapshot.toolbarFontSizes.every((fontSize) => fontSize === "14px"),
-        `XP: toolbar typography is not using the Medium application scale: ${JSON.stringify(snapshot.toolbarFontSizes)}`,
-      );
-      for (const [role, paint] of [
-        ["current navigation", snapshot.currentNavigationPaint],
-        ["open toolbar action", snapshot.pressedToolbarActionPaint],
-      ]) {
-        assert(paint, `XP: ${role} lost its persistent state`);
-        assert(paint.borderColor === "rgb(127, 157, 185)", `XP: ${role} uses the wrong checked border (${paint.borderColor})`);
-        assert(
-          paint.background.includes("rgb(238, 244, 255)")
-            && paint.background.includes("rgb(203, 220, 244)"),
-          `XP: ${role} is not using the checked blue treatment (${paint.background})`,
-        );
-        assert(paint.color === "rgb(0, 0, 0)", `XP: ${role} changed text contrast (${paint.color})`);
-        assert(
-          !paint.background.includes("rgb(239, 208, 128)"),
-          `XP: ${role} still uses the warm hover treatment (${paint.background})`,
-        );
-      }
       assert(snapshot.scrollbarComposition === "windows-xp-classic-v1", "XP: wrong scrollbar composition");
       assert(snapshot.titlebarHeight === 36, `XP: titlebar height is ${snapshot.titlebarHeight}px, expected 36px`);
       assert(snapshot.titlebarBackground.includes("linear-gradient"), `XP: titlebar lost its scalable Luna layers (${snapshot.titlebarBackground})`);
@@ -594,18 +536,6 @@ async function runSmoke() {
           && hoverPaint.background.includes("rgb(244, 221, 161)"),
         `XP: inactive hover uses the wrong paint (${hoverPaint.background})`,
       );
-      window.webContents.sendInputEvent({ type: "mouseDown", ...hoverPoint, button: "left", clickCount: 1 });
-      try {
-        await new Promise((resolve) => setTimeout(resolve, 30));
-        const pressedPaint = await window.webContents.executeJavaScript(`(() => {
-          const style = getComputedStyle(document.querySelector('[data-navigation-item="git"]'));
-          return { borderColor: style.borderTopColor, background: style.backgroundImage };
-        })()`, true);
-        assert(pressedPaint.borderColor === "rgb(49, 106, 197)", `XP: pressed toolbar state lost its blue edge (${pressedPaint.borderColor})`);
-        assert(pressedPaint.background.includes("rgb(195, 213, 241)"), `XP: pressed toolbar state is not sunken blue (${pressedPaint.background})`);
-      } finally {
-        window.webContents.sendInputEvent({ type: "mouseUp", ...hoverPoint, button: "left", clickCount: 1 });
-      }
     }
     const capture = await window.capturePage();
     assert(!capture.isEmpty(), `${style}: screenshot capture was empty`);

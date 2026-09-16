@@ -31,6 +31,7 @@ import {
   GIT_SIDEBAR_LAYOUT_STORAGE_KEY,
   LOCAL_AGENTS_STORAGE_KEY,
   RIGHT_SIDEBAR_TOOLS_STORAGE_KEY,
+  DEFAULT_SIDEBAR_NAVIGATION_LAYOUT,
   SIDEBAR_NAVIGATION_VISIBILITY_STORAGE_KEY,
   TITLEBAR_ACTIONS_STORAGE_KEY,
   parseCreateNewMenuSettings,
@@ -44,7 +45,6 @@ import {
   type LoadingAnimationPreset,
   type LocalAgentsSettings,
   type RightSidebarToolsSettings,
-  type SidebarNavigationLayout,
   type SidebarNavigationVisibilitySettings,
   type ThemeMode,
   type TypographyPreferences,
@@ -128,9 +128,7 @@ export function useDesktopPreferences(
     initialAppearance.bySurface.markdown,
   );
   const [fileIconTheme, setFileIconTheme] = useState<FileIconThemeId>(initialAppearance.shared.fileIconTheme);
-  const [sidebarNavigationLayout, setSidebarNavigationLayout] = useState<SidebarNavigationLayout>(
-    initialAppearance.shared.sidebarNavigationLayout,
-  );
+  const sidebarNavigationLayout = DEFAULT_SIDEBAR_NAVIGATION_LAYOUT;
   const [sidebarNavigationVisibilitySettings, setSidebarNavigationVisibilitySettings] = useState<SidebarNavigationVisibilitySettings>(
     () => readInitialSidebarNavigationVisibilitySettings(),
   );
@@ -344,7 +342,6 @@ export function useDesktopPreferences(
       setPointerCursors(next.shared.pointerCursors);
       setLoadingAnimationPreset(next.shared.loadingAnimationPreset);
       setFileIconTheme(next.shared.fileIconTheme);
-      setSidebarNavigationLayout(next.shared.sidebarNavigationLayout);
       setMarkdownPresentation(next.bySurface.markdown);
     };
     window.addEventListener("storage", syncAppearanceAcrossWindows);
@@ -514,8 +511,6 @@ export function useDesktopPreferences(
     return () => query.removeEventListener("change", sync);
   }, []);
 
-  const sidebarNavigationPlacement = resolvedAppearance.sidebarNavigationPlacement;
-  const sidebarNavigationOrientation = resolvedAppearance.sidebarNavigationOrientation;
   const terminalToolEnabled = rightSidebarToolsSettings.enabled.terminal;
 
   return {
@@ -543,10 +538,6 @@ export function useDesktopPreferences(
     agentRoutingPreferences,
     agentFileActivityIndicatorsEnabled,
     sidebarCollapsed,
-    sidebarNavigationLayout,
-    effectiveSidebarNavigationLayout: resolvedAppearance.sidebarNavigationLayout,
-    sidebarNavigationOrientation,
-    sidebarNavigationPlacement,
     sidebarNavigationVisibilitySettings,
     requestedSubThemeId,
     requestedSubThemeIds,
@@ -581,7 +572,6 @@ export function useDesktopPreferences(
     setAgentPreferredModel,
     setAgentFileActivityIndicatorsEnabled,
     setSidebarCollapsed,
-    setSidebarNavigationLayout,
     setSidebarNavigationVisibilitySettings,
     setSubThemeId,
     setTitlebarActionsSettings,

@@ -54,13 +54,10 @@ export type GitDisplayMode = "simple" | "professional";
 export type GitSidebarLayout = "cards" | "dividers";
 export type LoadingAnimationPreset = PulseGridPresetId;
 
-export type SidebarNavigationLayout =
-  | "bottom-horizontal"
-  | "top-horizontal"
-  | "left-vertical";
+export type SidebarNavigationLayout = "bottom-horizontal";
 
-export type SidebarNavigationPlacement = "top" | "left" | "bottom";
-export type SidebarNavigationOrientation = "horizontal" | "vertical";
+export type SidebarNavigationPlacement = "bottom";
+export type SidebarNavigationOrientation = "horizontal";
 export const OPTIONAL_SIDEBAR_NAVIGATION_ITEM_IDS = ["plugins"] as const;
 export type OptionalSidebarNavigationItemId = typeof OPTIONAL_SIDEBAR_NAVIGATION_ITEM_IDS[number];
 export type SidebarNavigationVisibilitySettings = {
@@ -197,36 +194,6 @@ export const DEFAULT_CREATE_NEW_MENU_SETTINGS: CreateNewMenuSettings = {
   hidden: DEFAULT_CREATE_NEW_MENU_LAYOUT.hidden,
 };
 
-export const SIDEBAR_NAVIGATION_LAYOUT_OPTIONS = [
-  {
-    value: "bottom-horizontal",
-    label: "Bottom",
-    description: "Horizontal controls at the bottom of the sidebar.",
-    placement: "bottom",
-    orientation: "horizontal",
-  },
-  {
-    value: "top-horizontal",
-    label: "Top",
-    description: "Horizontal controls above the file tree.",
-    placement: "top",
-    orientation: "horizontal",
-  },
-  {
-    value: "left-vertical",
-    label: "Left",
-    description: "Vertical controls on the left edge of the sidebar.",
-    placement: "left",
-    orientation: "vertical",
-  },
-] as const satisfies ReadonlyArray<{
-  value: SidebarNavigationLayout;
-  label: string;
-  description: string;
-  placement: SidebarNavigationPlacement;
-  orientation: SidebarNavigationOrientation;
-}>;
-
 export const LIGHT_THEME_PRESETS = [
   {
     id: "neutral",
@@ -327,25 +294,20 @@ export function parseGitSidebarLayout(value: string | null | undefined): GitSide
   return value === "dividers" || value === "cards" ? value : DEFAULT_GIT_SIDEBAR_LAYOUT;
 }
 
-export function parseSidebarNavigationLayout(value: string | null | undefined): SidebarNavigationLayout {
-  if (value === "bottom") return "bottom-horizontal";
-  if (value === "top") return "top-horizontal";
-  if (value === "vertical" || value === "bottom-vertical" || value === "top-vertical") return "left-vertical";
-  return isSidebarNavigationLayout(value) ? value : DEFAULT_SIDEBAR_NAVIGATION_LAYOUT;
+export function parseSidebarNavigationLayout(_value: string | null | undefined): SidebarNavigationLayout {
+  return DEFAULT_SIDEBAR_NAVIGATION_LAYOUT;
 }
 
 export function isSidebarNavigationLayout(value: string | null | undefined): value is SidebarNavigationLayout {
-  return value === "bottom-horizontal"
-    || value === "top-horizontal"
-    || value === "left-vertical";
+  return value === DEFAULT_SIDEBAR_NAVIGATION_LAYOUT;
 }
 
-export function getSidebarNavigationPlacement(layout: SidebarNavigationLayout): SidebarNavigationPlacement {
-  return SIDEBAR_NAVIGATION_LAYOUT_OPTIONS.find((option) => option.value === layout)?.placement ?? "bottom";
+export function getSidebarNavigationPlacement(_layout: SidebarNavigationLayout): SidebarNavigationPlacement {
+  return "bottom";
 }
 
-export function getSidebarNavigationOrientation(layout: SidebarNavigationLayout): SidebarNavigationOrientation {
-  return SIDEBAR_NAVIGATION_LAYOUT_OPTIONS.find((option) => option.value === layout)?.orientation ?? "horizontal";
+export function getSidebarNavigationOrientation(_layout: SidebarNavigationLayout): SidebarNavigationOrientation {
+  return "horizontal";
 }
 
 export function parseSidebarNavigationVisibilitySettings(

@@ -38,19 +38,15 @@
   font-size: var(--po-type-ui-micro, 11px);
 }
 
-.appearance-visual-smoke .appearance-visual-explorer > .desktop-sidebar-top-navigation {
+.appearance-visual-smoke .appearance-visual-explorer > .desktop-sidebar-footer-bar {
   position: relative;
   width: 100%;
   min-height: 38px;
   border-inline: 1px solid var(--po-divider);
 }
 
-.appearance-visual-smoke .desktop-sidebar-top-navigation-list {
+.appearance-visual-smoke .desktop-sidebar-footer-actions {
   justify-content: flex-start;
-}
-
-.appearance-visual-smoke .desktop-sidebar-top-navigation-button {
-  gap: 5px;
 }
 
 .appearance-visual-body {
@@ -63,7 +59,7 @@
 .appearance-visual-explorer {
   display: grid;
   min-height: 0;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: 1fr auto;
   border-inline-end: 1px solid var(--po-shell-divider, var(--po-sidebar-divider));
   background: var(--po-sidebar);
 }

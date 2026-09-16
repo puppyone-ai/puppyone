@@ -1,5 +1,4 @@
 import { lazy, Suspense, useState } from "react";
-import { PanelBottom, PanelLeft, PanelTop } from "lucide-react";
 import {
   FILE_ICON_THEMES,
   PULSE_GRID_PRESET_FRAMES,
@@ -7,7 +6,6 @@ import {
   FileGlyphIcon,
 } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
-import { SIDEBAR_NAVIGATION_LAYOUT_OPTIONS } from "../../preferences";
 import { getOrderedHeaderElementDefinitions } from "../app-shell/headerElements";
 import {
   isAppearanceDecisionLocked,
@@ -80,7 +78,6 @@ export function SettingsView({
   onPointerCursorsChange,
   onSubThemeChange,
   onFileIconThemeChange,
-  onSidebarNavigationLayoutChange,
   onSidebarNavigationVisibilitySettingsChange,
   onFilesVisibilitySettingsChange,
   onCreateNewMenuSettingsChange,
@@ -258,9 +255,7 @@ export function SettingsView({
 
   if (activeSection === "appearance") {
     const fileIconDecision = resolvedAppearance.decisions.fileIconTheme;
-    const navigationDecision = resolvedAppearance.decisions.sidebarNavigationLayout;
     const fileIconLocked = isAppearanceDecisionLocked(fileIconDecision);
-    const navigationLocked = isAppearanceDecisionLocked(navigationDecision);
     return (
       <section className="desktop-utility-view desktop-settings-view">
         <div className="desktop-utility-body desktop-settings-body" data-po-scrollbar="content">
@@ -338,41 +333,6 @@ export function SettingsView({
                     </button>
                   ))}
                 </div>
-              </div>
-              <div className="desktop-settings-row desktop-settings-row-control desktop-settings-wide-control-row">
-                <span>{t("settings.appearance.navigation.title")}</span>
-                <div className="desktop-theme-segment desktop-appearance-option-segment desktop-appearance-hug-segment" aria-label={t("settings.appearance.navigation.ariaLabel")}>
-                  {SIDEBAR_NAVIGATION_LAYOUT_OPTIONS.map((option) => {
-                    const Icon = option.placement === "top"
-                      ? PanelTop
-                      : option.placement === "left" ? PanelLeft : PanelBottom;
-                    return (
-                      <button
-                        className={`${navigationDecision.effectiveValue === option.value ? "active" : ""}${navigationLocked || !isAppearanceValueAllowed(navigationDecision, option.value) ? " is-policy-controlled" : ""}`}
-                        type="button"
-                        key={option.value}
-                        title={navigationDecision.reasonKey
-                          ? t(navigationDecision.reasonKey)
-                          : t(`settings.appearance.navigation.${option.placement}.description`)}
-                        aria-disabled={navigationLocked || !isAppearanceValueAllowed(navigationDecision, option.value)}
-                        aria-pressed={navigationDecision.effectiveValue === option.value}
-                        onClick={() => {
-                          if (!navigationLocked && isAppearanceValueAllowed(navigationDecision, option.value)) {
-                            onSidebarNavigationLayoutChange(option.value);
-                          }
-                        }}
-                      >
-                        <Icon size={14} />
-                        <span>{t(`settings.appearance.navigation.${option.placement}.label`)}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                {navigationDecision.reasonKey && (
-                  <small className="desktop-appearance-policy-reason">
-                    {t(navigationDecision.reasonKey)}
-                  </small>
-                )}
               </div>
               <div className="desktop-settings-row desktop-settings-row-control desktop-settings-wide-control-row">
                 <span>{t("settings.appearance.loadingAnimation.title")}</span>

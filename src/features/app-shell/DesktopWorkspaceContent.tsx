@@ -54,7 +54,6 @@ type DesktopWorkspaceContentProps = {
   desktopUpdates: DesktopUpdatesController;
   firstProjectStarterEligible: boolean;
   git: DesktopGitController;
-  navigationComposition: string;
   onActiveDataPathChange: (
     path: string | null,
     node?: DataNode | null,
@@ -110,7 +109,6 @@ export function DesktopWorkspaceContent({
   desktopUpdates,
   firstProjectStarterEligible,
   git,
-  navigationComposition,
   onActiveDataPathChange,
   onActiveDataNodeChange,
   onResourceMove,
@@ -233,7 +231,6 @@ export function DesktopWorkspaceContent({
           showSettings: settingsNavigationVisible,
           showWorkspaceNavigation: workspaceNavigationVisible,
         }}
-        navigationComposition={navigationComposition}
         onActiveDataNodeChange={onActiveDataNodeChange}
         onActiveDataPathChange={onActiveDataPathChange}
         onResourceMove={onResourceMove}

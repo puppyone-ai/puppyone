@@ -276,7 +276,7 @@ describe("DesktopHelpLauncher", () => {
 
     const mainSurface = container.querySelector("main.desktop-surface");
     const auxiliaryPanel = container.querySelector(".desktop-right-sidebar");
-    const utilityEdge = container.querySelector(".desktop-sidebar-footer-actions-right");
+    const utilityEdge = container.querySelector(".desktop-sidebar-footer-actions-left");
     const launcher = container.querySelector(".desktop-help-launcher");
     expect(utilityEdge?.contains(launcher)).toBe(true);
     expect(mainSurface?.contains(launcher)).toBe(true);
@@ -293,7 +293,7 @@ describe("DesktopHelpLauncher", () => {
     );
 
     expect(appSource).toMatch(
-      /sidebarUtility=\{projectSwitcherRailVisible \|\| feedbackInNavigationToolbar[\s\S]*?feedbackLauncher\}/,
+      /sidebarUtility=\{projectSwitcherRailVisible[\s\S]*?\? undefined[\s\S]*?: feedbackLauncher\}/,
     );
     expect(appSource).toContain("const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);");
     expect(appSource).toContain("renderLeadingRail={projectSwitcherRailVisible ? ({ expanded }) => (");
@@ -304,7 +304,7 @@ describe("DesktopHelpLauncher", () => {
     expect(appSource).toContain("{settingsDialogOpen && (");
     expect(appSource).toContain("<SettingsDialog");
     expect(appSource).not.toContain("settingsWorkspaceActive");
-    expect(appSource).toContain("{feedbackInNavigationToolbar && feedbackLauncher}");
+    expect(appSource).not.toContain("feedbackInNavigationToolbar");
     expect(appSource).toContain("settingsNavigationVisible={!projectSwitcherRailEnabled}");
     expect(appSource).toContain("workspaceNavigationVisible={!projectSwitcherRailEnabled}");
     expect(appSource).toMatch(
@@ -313,9 +313,7 @@ describe("DesktopHelpLauncher", () => {
     expect(launcherCss).toMatch(
       /\.desktop-feedback\s*\{[^}]*display:\s*flex[^}]*pointer-events:\s*auto/s,
     );
-    expect(dataShellCss).toMatch(
-      /\.desktop-sidebar-footer-actions-right\s*\{[^}]*margin-inline-start:\s*auto/s,
-    );
+    expect(dataShellCss).not.toContain("desktop-sidebar-footer-actions-right");
     expect(dataShellCss).toMatch(
       /\.desktop-sidebar-top-navigation-utility\s*\{[^}]*margin-inline-start:\s*auto/s,
     );

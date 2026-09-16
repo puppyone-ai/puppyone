@@ -33,8 +33,8 @@ import {
 } from "../../../../packages/shared-ui/src/editor/registry/viewerContract";
 
 describe("appearance profile architecture", () => {
-  it("forces XP composition without overwriting the requested navigation intent", () => {
-    const requested: SidebarNavigationLayout = "left-vertical";
+  it("keeps navigation in the bottom footer for every interface style", () => {
+    const requested: SidebarNavigationLayout = "bottom-horizontal";
     const xp = resolveAppearance({
       interfaceStyle: "windows-xp",
       themeMode: "dark",
@@ -44,14 +44,14 @@ describe("appearance profile architecture", () => {
 
     expect(xp.decisions.sidebarNavigationLayout).toMatchObject({
       requestedValue: requested,
-      effectiveValue: "top-horizontal",
+      effectiveValue: "bottom-horizontal",
       status: "forced",
       source: "style",
     });
-    expect(xp.sidebarNavigationPlacement).toBe("top");
+    expect(xp.sidebarNavigationPlacement).toBe("bottom");
     expect(xp.sidebarNavigationOrientation).toBe("horizontal");
     expect(xp.themeMode).toBe("light");
-    expect(xp.composition.navigation).toBe("sidebar-top-toolbar");
+    expect(xp.composition.navigation).toBe("sidebar-bottom-footer");
     expect(xp.composition.locationBar).toBe("workspace-path-v1");
     expect(xp.composition.scrollbar).toBe("windows-xp-classic-v1");
 
@@ -109,7 +109,7 @@ describe("appearance profile architecture", () => {
     expect(xp).not.toHaveProperty("surfaceAdapters");
   });
 
-  it("migrates legacy intent, preserves per-root and per-mode intent, and round-trips V6", () => {
+  it("normalizes retired navigation intent, preserves theme intent, and round-trips V6", () => {
     const legacy = legacySnapshot();
     const result = readAppearancePreferences(JSON.stringify({
       schemaVersion: 2,
@@ -129,7 +129,7 @@ describe("appearance profile architecture", () => {
     expect(result.writable).toBe(true);
     expect(result.preferences.schemaVersion).toBe(APPEARANCE_PREFERENCES_SCHEMA_VERSION);
     expect(result.preferences.activeRootThemeId).toBe("windows-xp");
-    expect(result.preferences.shared.sidebarNavigationLayout).toBe("left-vertical");
+    expect(result.preferences.shared.sidebarNavigationLayout).toBe("bottom-horizontal");
     expect(result.preferences.shared).not.toHaveProperty("editorPresentation");
     expect(result.preferences.byRootTheme.default).toEqual({
       requestedColorMode: "dark",
@@ -153,7 +153,7 @@ describe("appearance profile architecture", () => {
     expect(roundTrip.preferences).toEqual(result.preferences);
   });
 
-  it("preserves the version 1 navigation-layout field during migration", () => {
+  it("normalizes the version 1 navigation-layout field to the fixed footer", () => {
     const result = readAppearancePreferences(JSON.stringify({
       schemaVersion: 1,
       style: "default",
@@ -161,7 +161,7 @@ describe("appearance profile architecture", () => {
       themeMode: "light",
     }), legacySnapshot());
 
-    expect(result.preferences.shared.sidebarNavigationLayout).toBe("left-vertical");
+    expect(result.preferences.shared.sidebarNavigationLayout).toBe("bottom-horizontal");
   });
 
   it("migrates the retired content-size switch into the semantic typography preference", () => {
@@ -330,7 +330,9 @@ describe("appearance profile architecture", () => {
     const shell = source("src/features/app-shell/DesktopDataWorkspaceSurface.tsx");
 
     expect(preferences).toContain("resolveAppearance({");
-    expect(settings).toContain("resolvedAppearance.decisions.sidebarNavigationLayout");
+    expect(settings).not.toContain("resolvedAppearance.decisions.sidebarNavigationLayout");
+    expect(settings).not.toContain("onSidebarNavigationLayoutChange");
+    expect(settings).not.toContain("settings.appearance.navigation.title");
     expect(settings).not.toContain("<TypographyScaleSetting");
     expect(typographySettings).toContain("<TypographyScaleSetting");
     expect(typographySettings).toContain("preferences={typographyPreferences}");
@@ -340,7 +342,8 @@ describe("appearance profile architecture", () => {
     expect(preferences).not.toContain("editorPresentation");
     expect(settings).not.toContain("dockIcon");
     expect(preferences).not.toContain("dockIcon");
-    expect(shell).toContain("preferences.sidebarNavigationPlacement");
+    expect(shell).toContain('? "bottom"');
+    expect(shell).not.toContain("preferences.sidebarNavigationPlacement");
     expect(settings).not.toMatch(/interfaceStyle\s*===\s*["']windows-xp["']/);
     expect(shell).not.toMatch(/interfaceStyle\s*===\s*["']windows-xp["']/);
   });
