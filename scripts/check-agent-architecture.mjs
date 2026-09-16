@@ -34,6 +34,10 @@ const rendererInfrastructureRoot = path.join(rendererRoot, "infrastructure");
 const rendererUiRoot = path.join(rendererRoot, "ui");
 const rendererComposerRoot = path.join(rendererUiRoot, "composer");
 const electronAgentClient = path.join(rendererInfrastructureRoot, "electron", "electronAgentClient.ts");
+const agentRenderStabilitySmokeHarness = path.join(
+  rendererUiRoot,
+  "AgentRenderStabilitySmokeHarness.tsx",
+);
 const preloadPath = path.join(repoRoot, "electron", "preload.cjs");
 const sharedContractRoot = path.join(repoRoot, "shared", "agent-contract");
 const allowedCompositionRoot = path.join(mainRoot, "bootstrap", "create-agent-runtime-host.mjs");
@@ -389,7 +393,7 @@ for (const filePath of walkSourceFiles(rendererRoot)) {
     }
     // Only the isolated visual fixture may simulate external Appearance changes.
     // It is reachable through visual-smoke.ts, never the Agent production entry.
-    if (!filePath.endsWith("/ui/AgentRenderStabilitySmokeHarness.tsx") && /\.style(?:\.|\[)/.test(stripComments(source))) {
+    if (filePath !== agentRenderStabilitySmokeHarness && /\.style(?:\.|\[)/.test(stripComments(source))) {
       errors.push(`${relative(filePath)} mutates CSS through the DOM; static Agent presentation belongs in feature CSS`);
     }
     for (const match of source.matchAll(/\bstyle=\{([^}\n]+)\}/g)) {
