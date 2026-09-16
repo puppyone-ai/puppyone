@@ -8,18 +8,28 @@ import {
 const sha = (character) => character.repeat(64);
 
 describe("desktop release set", () => {
-  it("aggregates the required stable macOS target without changing its release identity", () => {
+  it("requires macOS and Windows in one stable release set without changing its release identity", () => {
     const release = releaseIdentity("stable");
     const releaseSet = createDesktopReleaseSet({
       releaseIdentity: release,
-      targetBundles: [macBundle({ signed: true, notarized: true, stapled: true })],
+      targetBundles: [
+        macBundle({ signed: true, notarized: true, stapled: true }),
+        targetBundle("windows-x64", "authenticode", {
+          signed: false,
+          timestamped: false,
+          publisherNames: [],
+        }),
+      ],
     });
 
     expect(releaseSet).toMatchObject({
       schemaVersion: 1,
       release,
-      targetPolicy: { required: ["macos-arm64"], optional: ["windows-x64"] },
-      targets: [{ targetId: "macos-arm64", updateTrack: "squirrel" }],
+      targetPolicy: { required: ["macos-arm64", "windows-x64"], optional: [] },
+      targets: [
+        { targetId: "macos-arm64", updateTrack: "squirrel" },
+        { targetId: "windows-x64", updateTrack: "nsis" },
+      ],
     });
   });
 
@@ -57,6 +67,11 @@ describe("desktop release set", () => {
       releaseIdentity: releaseIdentity("stable"),
       targetBundles: [targetBundle("windows-x64", "authenticode", {})],
     })).toThrow(/missing required targets: macos-arm64/);
+
+    expect(() => createDesktopReleaseSet({
+      releaseIdentity: releaseIdentity("stable"),
+      targetBundles: [macBundle({})],
+    })).toThrow(/missing required targets: windows-x64/);
 
     const internal = releaseIdentity("internal");
     expect(() => createDesktopReleaseSet({

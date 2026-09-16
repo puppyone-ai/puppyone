@@ -1,0 +1,706 @@
+name: Desktop Stable Release Set Publisher
+
+on:
+  workflow_call:
+    inputs:
+      deployment_environment:
+        description: GitHub deployment environment that owns Stable publishing secrets
+        required: true
+        type: string
+      macos_artifact_name:
+        description: Verified macOS Stable release bundle artifact
+        required: true
+        type: string
+      windows_artifact_name:
+        description: Verified Windows Stable release bundle artifact
+        required: true
+        type: string
+      release_name:
+        description: Human-readable GitHub Release title
+        required: true
+        type: string
+      release_tag:
+        description: Immutable Stable release tag
+        required: true
+        type: string
+    secrets:
+      CF_ACCESS_CLIENT_ID:
+        required: false
+      CF_ACCESS_CLIENT_SECRET:
+        required: false
+      CLOUDFLARE_ACCOUNT_ID:
+        required: true
+      PUPPYONE_INTERNAL_RELEASE_TOKEN:
+        required: false
+      R2_ACCESS_KEY_ID:
+        required: true
+      R2_SECRET_ACCESS_KEY:
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-release-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish complete Stable release set
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment:
+      name: ${{ inputs.deployment_environment }}
+    env:
+      AWS_DEFAULT_REGION: auto
+      AWS_EC2_METADATA_DISABLED: "true"
+      AWS_PAGER: ""
+      MACOS_BUNDLE_DIRECTORY: ${{ github.workspace }}/artifacts/desktop-release-bundles/macos-arm64
+      WINDOWS_BUNDLE_DIRECTORY: ${{ github.workspace }}/artifacts/desktop-release-bundles/windows-x64
+      RELEASE_SET_DIRECTORY: ${{ github.workspace }}/artifacts/desktop-release-set
+      PUBLIC_DOWNLOAD_ORIGIN: https://downloads.puppyone.ai
+      PUBLIC_UPDATE_ORIGIN: https://updates.puppyone.ai
+      R2_BUCKET: puppyone-desktop
+
+    steps:
+      - name: Checkout trusted publishing code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+
+      - name: Download macOS build-once release bundle
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ inputs.macos_artifact_name }}
+          path: ${{ env.MACOS_BUNDLE_DIRECTORY }}
+
+      - name: Download Windows build-once release bundle
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ inputs.windows_artifact_name }}
+          path: ${{ env.WINDOWS_BUNDLE_DIRECTORY }}
+
+      - name: Validate complete macOS and Windows Release Set before mutation
+        id: release
+        env:
+          EXPECTED_TAG: ${{ inputs.release_tag }}
+          MACOS_ARTIFACT_NAME: ${{ inputs.macos_artifact_name }}
+          WINDOWS_ARTIFACT_NAME: ${{ inputs.windows_artifact_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${RELEASE_SET_DIRECTORY}"
+          node scripts/create-desktop-release-set.mjs \
+            --macos-bundle "${MACOS_BUNDLE_DIRECTORY}" \
+            --windows-bundle "${WINDOWS_BUNDLE_DIRECTORY}" \
+            --macos-artifact "${MACOS_ARTIFACT_NAME}" \
+            --windows-artifact "${WINDOWS_ARTIFACT_NAME}" \
+            --tag "${EXPECTED_TAG}" \
+            --commit "${GITHUB_SHA}" \
+            --output "${RELEASE_SET_DIRECTORY}/release-set.json"
+
+          MACOS_MANIFEST="${MACOS_BUNDLE_DIRECTORY}/release.json"
+          WINDOWS_MANIFEST="${WINDOWS_BUNDLE_DIRECTORY}/release.json"
+          read_manifest() {
+            node -e 'const p=require("node:path"); const m=require(p.resolve(process.argv[1])); const value=process.argv.slice(2).reduce((v,k)=>v?.[k],m); if(value==null) process.exit(2); process.stdout.write(String(value))' "$@"
+          }
+          {
+            echo "commit=$(read_manifest "${MACOS_MANIFEST}" commitSha)"
+            echo "macos_catalog_key=desktop/catalog/releases.json"
+            echo "macos_latest_prefix=$(node -e 'const p=require("node:path"); const m=require(p.resolve(process.argv[1])); process.stdout.write(m.r2.latestPrefix || `${m.r2.prefix.slice(0, -m.tag.length)}latest`)' "${MACOS_MANIFEST}")"
+            echo "macos_r2_prefix=$(read_manifest "${MACOS_MANIFEST}" r2 prefix)"
+            echo "tag=$(read_manifest "${MACOS_MANIFEST}" tag)"
+            echo "version=$(read_manifest "${MACOS_MANIFEST}" version)"
+            echo "windows_catalog_key=$(read_manifest "${WINDOWS_MANIFEST}" r2 catalogKey)"
+            echo "windows_latest_prefix=$(read_manifest "${WINDOWS_MANIFEST}" r2 latestPrefix)"
+            echo "windows_r2_prefix=$(read_manifest "${WINDOWS_MANIFEST}" r2 prefix)"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Reject non-monotonic versions and unhealthy existing feeds before publication
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-desktop-release-version.mjs \
+            --channel stable \
+            --candidate-version "${RELEASE_VERSION}"
+          node scripts/verify-desktop-release-version.mjs \
+            --channel stable \
+            --candidate-version "${RELEASE_VERSION}" \
+            --catalog-url "${PUBLIC_DOWNLOAD_ORIGIN}/desktop/stable/windows/x64/nsis/releases.json" \
+            --latest-pointer-url "${PUBLIC_DOWNLOAD_ORIGIN}/desktop/stable/windows/x64/nsis/latest/latest.json"
+          node scripts/verify-desktop-stable-update-feed.mjs
+          node scripts/verify-desktop-windows-update-feed.mjs
+
+      - name: Validate publishing credentials and tools
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${AWS_ACCESS_KEY_ID:?Configure R2_ACCESS_KEY_ID in the deployment environment}"
+          : "${AWS_SECRET_ACCESS_KEY:?Configure R2_SECRET_ACCESS_KEY in the deployment environment}"
+          : "${CLOUDFLARE_ACCOUNT_ID:?Configure CLOUDFLARE_ACCOUNT_ID in the deployment environment}"
+          command -v aws >/dev/null
+          command -v gh >/dev/null
+
+      - name: Inspect both immutable R2 release prefixes
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          MACOS_R2_PREFIX: ${{ steps.release.outputs.macos_r2_prefix }}
+          WINDOWS_R2_PREFIX: ${{ steps.release.outputs.windows_r2_prefix }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ENDPOINT="https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          for prefix in "${MACOS_R2_PREFIX}" "${WINDOWS_R2_PREFIX}"; do
+            if aws s3api head-object \
+              --bucket "${R2_BUCKET}" \
+              --key "${prefix}/release.json" \
+              --endpoint-url "${ENDPOINT}" >/dev/null 2>&1; then
+              continue
+            fi
+            existing_key="$(aws s3api list-objects-v2 \
+              --bucket "${R2_BUCKET}" \
+              --prefix "${prefix}/" \
+              --max-keys 1 \
+              --endpoint-url "${ENDPOINT}" \
+              --query 'Contents[0].Key' \
+              --output text)"
+            if [ -n "${existing_key}" ] && [ "${existing_key}" != "None" ]; then
+              echo "Immutable prefix is incomplete and has no release.json commit marker: ${prefix}" >&2
+              exit 1
+            fi
+          done
+
+      - name: Upload both immutable R2 releases
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          MACOS_R2_PREFIX: ${{ steps.release.outputs.macos_r2_prefix }}
+          WINDOWS_R2_PREFIX: ${{ steps.release.outputs.windows_r2_prefix }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ENDPOINT="https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          upload_bundle() {
+            local bundle="$1"
+            local prefix="$2"
+            if aws s3api head-object --bucket "${R2_BUCKET}" --key "${prefix}/release.json" --endpoint-url "${ENDPOINT}" >/dev/null 2>&1; then
+              return
+            fi
+            aws s3 sync "${bundle}/assets" "s3://${R2_BUCKET}/${prefix}" \
+              --endpoint-url "${ENDPOINT}" \
+              --cache-control "public, max-age=31536000, immutable" \
+              --only-show-errors
+            aws s3 cp "${bundle}/SHA256SUMS" "s3://${R2_BUCKET}/${prefix}/SHA256SUMS" \
+              --endpoint-url "${ENDPOINT}" \
+              --content-type "text/plain; charset=utf-8" \
+              --cache-control "public, max-age=31536000, immutable" \
+              --only-show-errors
+            aws s3 cp "${bundle}/build-info.json" "s3://${R2_BUCKET}/${prefix}/build-info.json" \
+              --endpoint-url "${ENDPOINT}" \
+              --content-type "application/json; charset=utf-8" \
+              --cache-control "public, max-age=31536000, immutable" \
+              --only-show-errors
+            # release.json is each target bundle's immutable commit marker.
+            aws s3 cp "${bundle}/release.json" "s3://${R2_BUCKET}/${prefix}/release.json" \
+              --endpoint-url "${ENDPOINT}" \
+              --content-type "application/json; charset=utf-8" \
+              --cache-control "public, max-age=31536000, immutable" \
+              --only-show-errors
+          }
+          upload_bundle "${MACOS_BUNDLE_DIRECTORY}" "${MACOS_R2_PREFIX}"
+          upload_bundle "${WINDOWS_BUNDLE_DIRECTORY}" "${WINDOWS_R2_PREFIX}"
+
+      - name: Verify both immutable releases and commit the Release Set
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          MACOS_R2_PREFIX: ${{ steps.release.outputs.macos_r2_prefix }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          WINDOWS_R2_PREFIX: ${{ steps.release.outputs.windows_r2_prefix }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-desktop-release-remote.mjs \
+            --bundle "${MACOS_BUNDLE_DIRECTORY}" \
+            --url-prefix "${PUBLIC_DOWNLOAD_ORIGIN}/${MACOS_R2_PREFIX}" \
+            --include-metadata true
+          node scripts/verify-desktop-release-remote.mjs \
+            --bundle "${WINDOWS_BUNDLE_DIRECTORY}" \
+            --url-prefix "${PUBLIC_DOWNLOAD_ORIGIN}/${WINDOWS_R2_PREFIX}" \
+            --include-metadata true
+          ENDPOINT="https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          release_set_key="desktop/stable/release-sets/${RELEASE_TAG}/release-set.json"
+          if aws s3api head-object --bucket "${R2_BUCKET}" --key "${release_set_key}" --endpoint-url "${ENDPOINT}" >/dev/null 2>&1; then
+            aws s3 cp "s3://${R2_BUCKET}/${release_set_key}" "${RUNNER_TEMP}/release-set-existing.json" \
+              --endpoint-url "${ENDPOINT}" --only-show-errors
+            cmp "${RELEASE_SET_DIRECTORY}/release-set.json" "${RUNNER_TEMP}/release-set-existing.json"
+          else
+            aws s3 cp "${RELEASE_SET_DIRECTORY}/release-set.json" "s3://${R2_BUCKET}/${release_set_key}" \
+              --endpoint-url "${ENDPOINT}" \
+              --content-type "application/json; charset=utf-8" \
+              --cache-control "public, max-age=31536000, immutable" \
+              --only-show-errors
+          fi
+          curl --fail --location --max-redirs 0 --retry 5 --retry-all-errors \
+            --silent --show-error -H "Cache-Control: no-cache" \
+            --output "${RUNNER_TEMP}/release-set-public.json" \
+            "${PUBLIC_DOWNLOAD_ORIGIN}/${release_set_key}"
+          cmp "${RELEASE_SET_DIRECTORY}/release-set.json" "${RUNNER_TEMP}/release-set-public.json"
+
+      - name: Validate remote tag ownership
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ steps.release.outputs.commit }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          remote_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${RELEASE_TAG}" --jq .sha)"
+          if [ "${remote_sha}" != "${RELEASE_COMMIT}" ]; then
+            echo "Remote tag ${RELEASE_TAG} resolves to ${remote_sha}, not ${RELEASE_COMMIT}." >&2
+            exit 1
+          fi
+
+      - name: Inspect GitHub Release state
+        id: github_state
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="${RUNNER_TEMP}/github-release.json"
+          release_ids="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq ".[] | select(.tag_name == \"${RELEASE_TAG}\") | .id")"
+          if [ -z "${release_ids}" ]; then
+            echo "draft=true" >> "${GITHUB_OUTPUT}"
+            echo "exists=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          if [[ "${release_ids}" == *$'\n'* ]]; then
+            echo "More than one GitHub Release uses ${RELEASE_TAG}." >&2
+            exit 1
+          fi
+          gh api "repos/${GITHUB_REPOSITORY}/releases/${release_ids}" > "${response}"
+          draft="$(node -e 'const p=require("node:path"); const r=require(p.resolve(process.argv[1])); process.stdout.write(String(r.draft))' "${response}")"
+          prerelease="$(node -e 'const p=require("node:path"); const r=require(p.resolve(process.argv[1])); process.stdout.write(String(r.prerelease))' "${response}")"
+          if [ "${prerelease}" != "false" ]; then
+            echo "Stable GitHub Release must not be a prerelease." >&2
+            exit 1
+          fi
+          {
+            echo "draft=${draft}"
+            echo "exists=true"
+            echo "release_id=${release_ids}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Prepare combined GitHub release notes
+        id: notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ steps.release.outputs.commit }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          notes="${RUNNER_TEMP}/release-notes.md"
+          cp "${MACOS_BUNDLE_DIRECTORY}/release-notes.md" "${notes}"
+          {
+            echo
+            echo "## Windows x64"
+            echo
+            cat "${WINDOWS_BUNDLE_DIRECTORY}/release-notes.md"
+            echo
+            gh api \
+              --method POST \
+              "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+              -f "tag_name=${RELEASE_TAG}" \
+              -f "target_commitish=${RELEASE_COMMIT}" \
+              --jq .body
+          } >> "${notes}"
+          echo "path=${notes}" >> "${GITHUB_OUTPUT}"
+
+      - name: Create one GitHub draft for the complete release set
+        if: ${{ steps.github_state.outputs.exists != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_NAME: ${{ inputs.release_name }}
+          RELEASE_NOTES: ${{ steps.notes.outputs.path }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        shell: bash
+        run: |
+          gh release create "${RELEASE_TAG}" \
+            --draft \
+            --latest=false \
+            --title "${RELEASE_NAME}" \
+            --notes-file "${RELEASE_NOTES}" \
+            --verify-tag
+
+      - name: Upload both target asset sets to the draft
+        env:
+          EXISTING_DRAFT: ${{ steps.github_state.outputs.draft }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="${RUNNER_TEMP}/github-release-before-upload.json"
+          release_id="$(gh api --paginate \
+            "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+            --jq ".[] | select(.tag_name == \"${RELEASE_TAG}\") | .id")"
+          : "${release_id:?GitHub draft release ID is required}"
+          gh api "repos/${GITHUB_REPOSITORY}/releases/${release_id}" > "${response}"
+          mapfile -t files < <(find \
+            "${MACOS_BUNDLE_DIRECTORY}/assets" \
+            "${WINDOWS_BUNDLE_DIRECTORY}/assets" \
+            -maxdepth 1 -type f -print | sort)
+          files+=(
+            "${MACOS_BUNDLE_DIRECTORY}/release.json"
+            "${MACOS_BUNDLE_DIRECTORY}/SHA256SUMS"
+            "${MACOS_BUNDLE_DIRECTORY}/build-info.json"
+          )
+          for file in "${files[@]}"; do
+            name="$(basename "${file}")"
+            present="$(node -e 'const p=require("node:path"); const r=require(p.resolve(process.argv[1])); process.stdout.write(String((r.assets||[]).some(a=>a.name===process.argv[2])))' "${response}" "${name}")"
+            if [ "${present}" = "true" ]; then
+              continue
+            fi
+            if [ "${EXISTING_DRAFT}" != "true" ]; then
+              echo "Public GitHub Release is missing required asset ${name}; refusing mutation." >&2
+              exit 1
+            fi
+            gh release upload "${RELEASE_TAG}" "${file}"
+          done
+
+      - name: Verify both target asset sets before publication
+        env:
+          EXPECT_DRAFT: ${{ steps.github_state.outputs.draft }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="${RUNNER_TEMP}/github-release-verified.json"
+          for attempt in 1 2 3 4 5; do
+            release_id="$(gh api --paginate \
+              "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+              --jq ".[] | select(.tag_name == \"${RELEASE_TAG}\") | .id")"
+            if [ -z "${release_id}" ]; then
+              sleep "$((attempt * 2))"
+              continue
+            fi
+            gh api "repos/${GITHUB_REPOSITORY}/releases/${release_id}" > "${response}"
+            if node scripts/verify-github-release-assets.mjs \
+              --bundle "${MACOS_BUNDLE_DIRECTORY}" \
+              --release-json "${response}" \
+              --expect-draft "${EXPECT_DRAFT}" \
+              --allow-extra-assets true \
+              && node scripts/verify-github-release-assets.mjs \
+                --bundle "${WINDOWS_BUNDLE_DIRECTORY}" \
+                --release-json "${response}" \
+                --expect-draft "${EXPECT_DRAFT}" \
+                --include-metadata false \
+                --allow-extra-assets true; then
+              exit 0
+            fi
+            sleep "$((attempt * 2))"
+          done
+          echo "GitHub did not expose matching digests for the complete release set." >&2
+          exit 1
+
+      - name: Snapshot current mutable Stable state
+        id: snapshot
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          MACOS_CATALOG_KEY: ${{ steps.release.outputs.macos_catalog_key }}
+          MACOS_LATEST_PREFIX: ${{ steps.release.outputs.macos_latest_prefix }}
+          WINDOWS_CATALOG_KEY: ${{ steps.release.outputs.windows_catalog_key }}
+          WINDOWS_LATEST_PREFIX: ${{ steps.release.outputs.windows_latest_prefix }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ENDPOINT="https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          snapshot_root="${RUNNER_TEMP}/stable-release-rollback"
+          mkdir -p "${snapshot_root}/macos-latest" "${snapshot_root}/windows-latest"
+          aws s3 sync "s3://${R2_BUCKET}/${MACOS_LATEST_PREFIX}" "${snapshot_root}/macos-latest" --endpoint-url "${ENDPOINT}" --only-show-errors
+          aws s3 sync "s3://${R2_BUCKET}/${WINDOWS_LATEST_PREFIX}" "${snapshot_root}/windows-latest" --endpoint-url "${ENDPOINT}" --only-show-errors
+          for target in macos windows; do
+            if [ "${target}" = macos ]; then key="${MACOS_CATALOG_KEY}"; else key="${WINDOWS_CATALOG_KEY}"; fi
+            if aws s3api head-object --bucket "${R2_BUCKET}" --key "${key}" --endpoint-url "${ENDPOINT}" >/dev/null 2>&1; then
+              aws s3 cp "s3://${R2_BUCKET}/${key}" "${snapshot_root}/${target}-catalog.json" --endpoint-url "${ENDPOINT}" --only-show-errors
+              echo "${target}_catalog_exists=true" >> "${GITHUB_OUTPUT}"
+            else
+              echo "${target}_catalog_exists=false" >> "${GITHUB_OUTPUT}"
+            fi
+          done
+
+      - name: Stage non-pointer latest payloads for both platforms
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          MACOS_LATEST_PREFIX: ${{ steps.release.outputs.macos_latest_prefix }}
+          WINDOWS_LATEST_PREFIX: ${{ steps.release.outputs.windows_latest_prefix }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ENDPOINT="https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          stage_bundle() {
+            local bundle="$1"
+            local latest_prefix="$2"
+            node -e '
+              const p=require("node:path"); const m=require(p.resolve(process.argv[1]));
+              for (const a of m.assets.filter(a=>!["updater-metadata","terminal-preview"].includes(a.kind))) console.log(a.name);
+            ' "${bundle}/release.json" | while IFS= read -r name; do
+              aws s3 cp "${bundle}/assets/${name}" "s3://${R2_BUCKET}/${latest_prefix}/${name}" \
+                --endpoint-url "${ENDPOINT}" \
+                --cache-control "public, no-cache, must-revalidate" \
+                --only-show-errors
+            done
+          }
+          stage_bundle "${MACOS_BUNDLE_DIRECTORY}" "${MACOS_LATEST_PREFIX}"
+          stage_bundle "${WINDOWS_BUNDLE_DIRECTORY}" "${WINDOWS_LATEST_PREFIX}"
+
+      - name: Publish the verified complete GitHub Release
+        if: ${{ steps.github_state.outputs.draft == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_id="$(gh api --paginate \
+            "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+            --jq ".[] | select(.tag_name == \"${RELEASE_TAG}\") | .id")"
+          : "${release_id:?GitHub draft release ID is required}"
+          gh api \
+            --method PATCH \
+            "repos/${GITHUB_REPOSITORY}/releases/${release_id}" \
+            -F draft=false \
+            -F prerelease=false \
+            -f make_latest=true >/dev/null
+
+      - name: Commit both Stable pointer sets and catalogs
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          MACOS_CATALOG_KEY: ${{ steps.release.outputs.macos_catalog_key }}
+          MACOS_LATEST_PREFIX: ${{ steps.release.outputs.macos_latest_prefix }}
+          WINDOWS_CATALOG_KEY: ${{ steps.release.outputs.windows_catalog_key }}
+          WINDOWS_LATEST_PREFIX: ${{ steps.release.outputs.windows_latest_prefix }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ENDPOINT="https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          commit_bundle() {
+            local bundle="$1"
+            local latest_prefix="$2"
+            node -e '
+              const p=require("node:path"); const m=require(p.resolve(process.argv[1]));
+              for (const a of m.assets.filter(a=>a.latestAlias)) console.log(`${a.name}\t${a.latestAlias}`);
+            ' "${bundle}/release.json" | while IFS=$'\t' read -r name alias; do
+              aws s3 cp "${bundle}/assets/${name}" "s3://${R2_BUCKET}/${latest_prefix}/${alias}" \
+                --endpoint-url "${ENDPOINT}" --cache-control "public, no-cache, must-revalidate" --only-show-errors
+            done
+            node -e '
+              const p=require("node:path"); const m=require(p.resolve(process.argv[1]));
+              for (const a of m.assets.filter(a=>["updater-metadata","terminal-preview"].includes(a.kind))) console.log(a.name);
+            ' "${bundle}/release.json" | while IFS= read -r name; do
+              aws s3 cp "${bundle}/assets/${name}" "s3://${R2_BUCKET}/${latest_prefix}/${name}" \
+                --endpoint-url "${ENDPOINT}" --cache-control "public, no-cache, must-revalidate" --only-show-errors
+            done
+            aws s3 cp "${bundle}/latest.json" "s3://${R2_BUCKET}/${latest_prefix}/latest.json" \
+              --endpoint-url "${ENDPOINT}" \
+              --content-type "application/json; charset=utf-8" \
+              --cache-control "public, no-cache, must-revalidate" \
+              --only-show-errors
+          }
+
+          commit_bundle "${MACOS_BUNDLE_DIRECTORY}" "${MACOS_LATEST_PREFIX}"
+          commit_bundle "${WINDOWS_BUNDLE_DIRECTORY}" "${WINDOWS_LATEST_PREFIX}"
+
+          snapshot_root="${RUNNER_TEMP}/stable-release-rollback"
+          node scripts/update-desktop-release-catalog.mjs \
+            --existing "${snapshot_root}/macos-catalog.json" \
+            --release "${MACOS_BUNDLE_DIRECTORY}/release.json" \
+            --channels stable,archive \
+            --output "${RUNNER_TEMP}/macos-catalog-next.json"
+          node scripts/update-desktop-release-catalog.mjs \
+            --existing "${snapshot_root}/windows-catalog.json" \
+            --release "${WINDOWS_BUNDLE_DIRECTORY}/release.json" \
+            --channels stable \
+            --output "${RUNNER_TEMP}/windows-catalog-next.json"
+          aws s3 cp "${RUNNER_TEMP}/macos-catalog-next.json" "s3://${R2_BUCKET}/${MACOS_CATALOG_KEY}" \
+            --endpoint-url "${ENDPOINT}" --content-type "application/json; charset=utf-8" \
+            --cache-control "public, no-cache, must-revalidate" --only-show-errors
+          aws s3 cp "${RUNNER_TEMP}/windows-catalog-next.json" "s3://${R2_BUCKET}/${WINDOWS_CATALOG_KEY}" \
+            --endpoint-url "${ENDPOINT}" --content-type "application/json; charset=utf-8" \
+            --cache-control "public, no-cache, must-revalidate" --only-show-errors
+
+      - name: Clean stale mutable files for both platforms
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          MACOS_LATEST_PREFIX: ${{ steps.release.outputs.macos_latest_prefix }}
+          WINDOWS_LATEST_PREFIX: ${{ steps.release.outputs.windows_latest_prefix }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ENDPOINT="https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          clean_bundle() {
+            local bundle="$1"
+            local latest_prefix="$2"
+            local listing="$3"
+            aws s3api list-objects-v2 --bucket "${R2_BUCKET}" --prefix "${latest_prefix}/" \
+              --endpoint-url "${ENDPOINT}" --output json > "${listing}"
+            node -e '
+              const p=require("node:path"); const m=require(p.resolve(process.argv[1])); const l=require(p.resolve(process.argv[2]));
+              const prefix=`${process.argv[3]}/`; const keep=new Set(["latest.json"]);
+              for (const a of m.assets) { keep.add(a.name); if(a.latestAlias) keep.add(a.latestAlias); }
+              for (const o of l.Contents||[]) { const n=o.Key.startsWith(prefix)?o.Key.slice(prefix.length):""; if(n&&!keep.has(n)) console.log(o.Key); }
+            ' "${bundle}/release.json" "${listing}" "${latest_prefix}" | while IFS= read -r key; do
+              aws s3api delete-object --bucket "${R2_BUCKET}" --key "${key}" --endpoint-url "${ENDPOINT}" >/dev/null
+            done
+          }
+          clean_bundle "${MACOS_BUNDLE_DIRECTORY}" "${MACOS_LATEST_PREFIX}" "${RUNNER_TEMP}/macos-latest-objects.json"
+          clean_bundle "${WINDOWS_BUNDLE_DIRECTORY}" "${WINDOWS_LATEST_PREFIX}" "${RUNNER_TEMP}/windows-latest-objects.json"
+
+      - name: Verify complete public Stable transaction
+        id: transaction_complete
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          GH_TOKEN: ${{ github.token }}
+          MACOS_CATALOG_KEY: ${{ steps.release.outputs.macos_catalog_key }}
+          MACOS_LATEST_PREFIX: ${{ steps.release.outputs.macos_latest_prefix }}
+          PUPPYONE_INTERNAL_RELEASE_TOKEN: ${{ secrets.PUPPYONE_INTERNAL_RELEASE_TOKEN }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          WINDOWS_CATALOG_KEY: ${{ steps.release.outputs.windows_catalog_key }}
+          WINDOWS_LATEST_PREFIX: ${{ steps.release.outputs.windows_latest_prefix }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="${RUNNER_TEMP}/github-release-published.json"
+          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" > "${response}"
+          node scripts/verify-github-release-assets.mjs \
+            --bundle "${MACOS_BUNDLE_DIRECTORY}" --release-json "${response}" \
+            --expect-draft false --allow-extra-assets true
+          node scripts/verify-github-release-assets.mjs \
+            --bundle "${WINDOWS_BUNDLE_DIRECTORY}" --release-json "${response}" \
+            --expect-draft false --include-metadata false --allow-extra-assets true
+
+          for origin in "${PUBLIC_DOWNLOAD_ORIGIN}" "${PUBLIC_UPDATE_ORIGIN}"; do
+            node scripts/verify-desktop-release-remote.mjs \
+              --bundle "${MACOS_BUNDLE_DIRECTORY}" \
+              --url-prefix "${origin}/${MACOS_LATEST_PREFIX}" \
+              --include-aliases true
+            node scripts/verify-desktop-release-remote.mjs \
+              --bundle "${WINDOWS_BUNDLE_DIRECTORY}" \
+              --url-prefix "${origin}/${WINDOWS_LATEST_PREFIX}" \
+              --include-aliases true
+          done
+          node scripts/verify-desktop-stable-update-feed.mjs --expected-version "${RELEASE_VERSION}"
+          node scripts/verify-desktop-windows-update-feed.mjs --expected-version "${RELEASE_VERSION}"
+          node scripts/verify-desktop-release-version.mjs --channel stable --require-latest-history-head
+          node scripts/verify-desktop-release-version.mjs \
+            --channel stable --require-latest-history-head \
+            --catalog-url "${PUBLIC_DOWNLOAD_ORIGIN}/${WINDOWS_CATALOG_KEY}" \
+            --latest-pointer-url "${PUBLIC_DOWNLOAD_ORIGIN}/${WINDOWS_LATEST_PREFIX}/latest.json"
+
+          CURL_ARGS=(--fail --location --max-redirs 0 --retry 5 --retry-all-errors --silent --show-error -H "Cache-Control: no-cache")
+          if [ -n "${PUPPYONE_INTERNAL_RELEASE_TOKEN}" ]; then CURL_ARGS+=(-H "Authorization: Bearer ${PUPPYONE_INTERNAL_RELEASE_TOKEN}"); fi
+          if [ -n "${CF_ACCESS_CLIENT_ID}" ] && [ -n "${CF_ACCESS_CLIENT_SECRET}" ]; then
+            CURL_ARGS+=(-H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}")
+          fi
+          curl "${CURL_ARGS[@]}" --output "${RUNNER_TEMP}/macos-catalog-public.json" "${PUBLIC_DOWNLOAD_ORIGIN}/${MACOS_CATALOG_KEY}"
+          curl "${CURL_ARGS[@]}" --output "${RUNNER_TEMP}/windows-catalog-public.json" "${PUBLIC_DOWNLOAD_ORIGIN}/${WINDOWS_CATALOG_KEY}"
+          cmp "${RUNNER_TEMP}/macos-catalog-next.json" "${RUNNER_TEMP}/macos-catalog-public.json"
+          cmp "${RUNNER_TEMP}/windows-catalog-next.json" "${RUNNER_TEMP}/windows-catalog-public.json"
+
+      - name: Roll back both mutable target states after an incomplete commit
+        if: ${{ failure() && steps.snapshot.outcome == 'success' && steps.transaction_complete.outcome != 'success' }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GH_TOKEN: ${{ github.token }}
+          MACOS_CATALOG_EXISTS: ${{ steps.snapshot.outputs.macos_catalog_exists }}
+          MACOS_CATALOG_KEY: ${{ steps.release.outputs.macos_catalog_key }}
+          MACOS_LATEST_PREFIX: ${{ steps.release.outputs.macos_latest_prefix }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_WAS_DRAFT: ${{ steps.github_state.outputs.draft }}
+          WINDOWS_CATALOG_EXISTS: ${{ steps.snapshot.outputs.windows_catalog_exists }}
+          WINDOWS_CATALOG_KEY: ${{ steps.release.outputs.windows_catalog_key }}
+          WINDOWS_LATEST_PREFIX: ${{ steps.release.outputs.windows_latest_prefix }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ENDPOINT="https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          snapshot_root="${RUNNER_TEMP}/stable-release-rollback"
+          restore_prefix() {
+            local prefix="$1"
+            local snapshot="$2"
+            aws s3 rm "s3://${R2_BUCKET}/${prefix}" --recursive --endpoint-url "${ENDPOINT}" --only-show-errors
+            if find "${snapshot}" -type f -print -quit | grep -q .; then
+              aws s3 sync "${snapshot}" "s3://${R2_BUCKET}/${prefix}" --endpoint-url "${ENDPOINT}" \
+                --cache-control "public, no-cache, must-revalidate" --only-show-errors
+            fi
+          }
+          restore_catalog() {
+            local key="$1"
+            local exists="$2"
+            local snapshot="$3"
+            if [ "${exists}" = "true" ]; then
+              aws s3 cp "${snapshot}" "s3://${R2_BUCKET}/${key}" --endpoint-url "${ENDPOINT}" \
+                --content-type "application/json; charset=utf-8" --cache-control "public, no-cache, must-revalidate" --only-show-errors
+            else
+              aws s3 rm "s3://${R2_BUCKET}/${key}" --endpoint-url "${ENDPOINT}" --only-show-errors
+            fi
+          }
+          restore_prefix "${MACOS_LATEST_PREFIX}" "${snapshot_root}/macos-latest"
+          restore_prefix "${WINDOWS_LATEST_PREFIX}" "${snapshot_root}/windows-latest"
+          restore_catalog "${MACOS_CATALOG_KEY}" "${MACOS_CATALOG_EXISTS}" "${snapshot_root}/macos-catalog.json"
+          restore_catalog "${WINDOWS_CATALOG_KEY}" "${WINDOWS_CATALOG_EXISTS}" "${snapshot_root}/windows-catalog.json"
+          if [ "${RELEASE_WAS_DRAFT}" = "true" ]; then
+            release_id="$(gh api --paginate \
+              "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+              --jq ".[] | select(.tag_name == \"${RELEASE_TAG}\") | .id")"
+            : "${release_id:?GitHub release ID is required for compensation}"
+            gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${release_id}" -F draft=true -f make_latest=false >/dev/null
+          fi
+
+      - name: Summarize atomic Stable release
+        if: ${{ success() }}
+        env:
+          MACOS_LATEST_PREFIX: ${{ steps.release.outputs.macos_latest_prefix }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          WINDOWS_LATEST_PREFIX: ${{ steps.release.outputs.windows_latest_prefix }}
+        shell: bash
+        run: |
+          {
+            echo "### Atomic Desktop Stable release published"
+            echo
+            echo "- GitHub: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${RELEASE_TAG}"
+            echo "- Release Set: ${PUBLIC_DOWNLOAD_ORIGIN}/desktop/stable/release-sets/${RELEASE_TAG}/release-set.json"
+            echo "- macOS latest: ${PUBLIC_DOWNLOAD_ORIGIN}/${MACOS_LATEST_PREFIX}/latest.json"
+            echo "- Windows latest: ${PUBLIC_DOWNLOAD_ORIGIN}/${WINDOWS_LATEST_PREFIX}/latest.json"
+          } >> "${GITHUB_STEP_SUMMARY}"

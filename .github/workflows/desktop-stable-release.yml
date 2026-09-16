@@ -7,13 +7,35 @@ on:
         description: Exact installed and approved Internal candidate tag
         required: true
         type: string
+      windows_signing:
+        description: Authenticode policy for this Windows release
+        required: true
+        default: unsigned
+        type: choice
+        options:
+          - unsigned
+          - authenticode
 
 permissions:
   contents: read
 
 jobs:
-  build:
+  resolve:
+    name: Resolve shared Stable release identity
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      built_at: ${{ steps.identity.outputs.built_at }}
+
+    steps:
+      - name: Resolve one cross-platform build timestamp
+        id: identity
+        shell: bash
+        run: echo "built_at=$(date -u +'%Y-%m-%dT%H:%M:%S.000Z')" >> "${GITHUB_OUTPUT}"
+
+  build-macos:
     name: Build signed and notarized macOS release once
+    needs: resolve
     runs-on: macos-15
     timeout-minutes: 90
     environment:
@@ -62,6 +84,7 @@ jobs:
           node scripts/prepare-desktop-build.mjs \
             --channel stable \
             --build-number "${GITHUB_RUN_NUMBER}" \
+            --built-at "${{ needs.resolve.outputs.built_at }}" \
             --commit "${GITHUB_SHA}" \
             --expected-tag "${GITHUB_REF_NAME}" \
             --target macos-arm64 \
@@ -223,20 +246,319 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
+  build-windows:
+    name: Build Windows x64 NSIS release once
+    needs: resolve
+    runs-on: windows-2025
+    timeout-minutes: 90
+    environment:
+      name: desktop-signing
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+    outputs:
+      artifact_name: ${{ steps.release.outputs.artifact_name }}-windows-x64
+      release_name: ${{ steps.release.outputs.release_name }}
+      release_tag: ${{ steps.release.outputs.tag }}
+    env:
+      PUBLIC_DOWNLOAD_ORIGIN: https://downloads.puppyone.ai
+      VITE_DESKTOP_CLOUD_API_URL: https://api.puppyone.ai/api/v1
+      VITE_DESKTOP_CLOUD_WEB_URL: https://app.puppyone.ai
+
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Validate stable tag and resolve Windows target
+        id: release
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $version = node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version"
+          $expectedTag = "v$version"
+          if ($env:GITHUB_REF_NAME -ne $expectedTag) {
+            throw "Stable tag $($env:GITHUB_REF_NAME) must exactly match package version $expectedTag."
+          }
+          $tagCommit = git rev-parse "$($env:GITHUB_REF_NAME)^{commit}"
+          if ($tagCommit -ne $env:GITHUB_SHA) {
+            throw "Release tag does not resolve to the checked-out commit."
+          }
+          node scripts/prepare-desktop-build.mjs `
+            --channel stable `
+            --build-number "$env:GITHUB_RUN_NUMBER" `
+            --built-at "${{ needs.resolve.outputs.built_at }}" `
+            --commit "$env:GITHUB_SHA" `
+            --expected-tag "$env:GITHUB_REF_NAME" `
+            --target windows-x64 `
+            --github-output "$env:GITHUB_OUTPUT"
+
+      - name: Install locked dependencies without signing or deployment secrets
+        run: npm ci
+
+      - name: Test updater monotonicity P0
+        run: npm run test:updater-p0
+
+      - name: Test Windows release contracts
+        run: >-
+          npm test --
+          tests/integration/release/build-identity/desktopReleaseMetadata.test.mjs
+          tests/integration/release/packaging/packagedDesktopBuildVerifier.test.mjs
+          tests/unit/platform/capabilities/desktopPlatformContract.test.mjs
+          tests/unit/updates/policy/desktopUpdateFeedVerifier.test.mjs
+
+      - name: Verify exact Internal promotion source
+        id: promotion
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          PUPPYONE_INTERNAL_RELEASE_TOKEN: ${{ secrets.PUPPYONE_INTERNAL_RELEASE_TOKEN }}
+        run: >-
+          node scripts/verify-stable-promotion-source.mjs
+          --catalog-url "https://downloads.puppyone.ai/desktop/internal/catalog/releases.json"
+          --base-version "${{ steps.release.outputs.base_version }}"
+          --commit "$env:GITHUB_SHA"
+          --source-tag "${{ inputs.promotion_source_tag }}"
+          --github-output "$env:GITHUB_OUTPUT"
+
+      - name: Stage pinned Windows OpenCode runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $manifest = Get-Content "vendor/opencode/runtime-manifest.json" -Raw | ConvertFrom-Json
+          $artifact = $manifest.artifacts.'win32-x64'
+          $download = Join-Path $env:RUNNER_TEMP $artifact.archive
+          Invoke-WebRequest -Uri "https://github.com/anomalyco/opencode/releases/download/v$($manifest.runtimeRelease.version)/$($artifact.archive)" -OutFile $download
+          npm run stage:opencode-runtime -- $download
+
+      - name: Prepare Windows release application without signing secrets
+        run: npm run prepare:windows:release
+
+      - name: Sign and package Windows release
+        if: ${{ inputs.windows_signing == 'authenticode' }}
+        env:
+          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          WINDOWS_SIGNER_SUBJECT: ${{ secrets.WINDOWS_SIGNER_SUBJECT }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_BASE64)) { throw "Configure WINDOWS_CERTIFICATE_BASE64." }
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_PASSWORD)) { throw "Configure WINDOWS_CERTIFICATE_PASSWORD." }
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNER_SUBJECT)) { throw "Configure WINDOWS_SIGNER_SUBJECT." }
+          $certificatePath = Join-Path $env:RUNNER_TEMP "puppyone-windows-signing.pfx"
+          try {
+            [IO.File]::WriteAllBytes($certificatePath, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_BASE64))
+            $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
+              $certificatePath,
+              $env:WINDOWS_CERTIFICATE_PASSWORD
+            )
+            try {
+              if ($certificate.Subject -ne $env:WINDOWS_SIGNER_SUBJECT) {
+                throw "Signing certificate subject does not match WINDOWS_SIGNER_SUBJECT."
+              }
+            } finally {
+              $certificate.Dispose()
+            }
+            node scripts/configure-windows-release-signing.mjs `
+              --publisher-name "$env:WINDOWS_SIGNER_SUBJECT"
+            if ($LASTEXITCODE -ne 0) { throw "Windows updater signer configuration failed with exit code $LASTEXITCODE." }
+            $env:WIN_CSC_LINK = $certificatePath
+            $env:WIN_CSC_KEY_PASSWORD = $env:WINDOWS_CERTIFICATE_PASSWORD
+            npm run package:windows:release
+            if ($LASTEXITCODE -ne 0) { throw "Windows packaging failed with exit code $LASTEXITCODE." }
+          } finally {
+            Remove-Item -LiteralPath $certificatePath -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Package explicitly unsigned Windows release
+        if: ${{ inputs.windows_signing == 'unsigned' }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          npm run package:windows:prepared
+          if ($LASTEXITCODE -ne 0) { throw "Unsigned Windows packaging failed with exit code $LASTEXITCODE." }
+          node scripts/verify-packaged-desktop-build.mjs `
+            --target windows-x64 `
+            --windows-signing-mode unsigned
+          if ($LASTEXITCODE -ne 0) { throw "Unsigned Windows package verification failed with exit code $LASTEXITCODE." }
+
+      - name: Verify Authenticode signature, SHA-256 digest, and trusted timestamp
+        if: ${{ inputs.windows_signing == 'authenticode' }}
+        env:
+          WINDOWS_SIGNER_SUBJECT: ${{ secrets.WINDOWS_SIGNER_SUBJECT }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $installer = Get-ChildItem "release/puppyone-*-x64-setup.exe" | Select-Object -First 1
+          $application = Get-ChildItem "release/win-unpacked/PuppyOne.exe" | Select-Object -First 1
+          if (-not $installer -or -not $application) { throw "Signed Windows binaries are missing." }
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          if (-not $signtool) { throw "signtool.exe is unavailable on the Windows runner." }
+          foreach ($file in @($installer, $application)) {
+            $signature = Get-AuthenticodeSignature -LiteralPath $file.FullName
+            if ($signature.Status -ne "Valid") { throw "$($file.Name) Authenticode status is $($signature.Status)." }
+            if ($signature.SignerCertificate.Subject -ne $env:WINDOWS_SIGNER_SUBJECT) {
+              throw "$($file.Name) signer subject does not match WINDOWS_SIGNER_SUBJECT."
+            }
+            if (-not $signature.TimeStamperCertificate) { throw "$($file.Name) has no trusted timestamp." }
+            $verification = & $signtool.FullName verify /pa /all /v $file.FullName 2>&1
+            $verification | Write-Host
+            if ($LASTEXITCODE -ne 0) { throw "signtool verification failed for $($file.Name)." }
+            if (($verification -join "`n") -notmatch "(?i)sha256") {
+              throw "$($file.Name) signature verification did not report SHA-256."
+            }
+          }
+
+      - name: Verify explicitly unsigned Windows binaries
+        if: ${{ inputs.windows_signing == 'unsigned' }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $installer = Get-ChildItem "release/puppyone-*-x64-setup.exe" | Select-Object -First 1
+          $application = Get-ChildItem "release/win-unpacked/PuppyOne.exe" | Select-Object -First 1
+          if (-not $installer -or -not $application) { throw "Unsigned Windows binaries are missing." }
+          foreach ($file in @($installer, $application)) {
+            $signature = Get-AuthenticodeSignature -LiteralPath $file.FullName
+            if ($signature.Status -ne "NotSigned") {
+              throw "$($file.Name) must be explicitly unsigned; Authenticode status is $($signature.Status)."
+            }
+            $digest = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash
+            if ($digest -notmatch "^[A-F0-9]{64}$") { throw "$($file.Name) did not produce a SHA-256 digest." }
+          }
+
+      - name: Smoke-test NSIS installation
+        env:
+          WINDOWS_SIGNING_MODE: ${{ inputs.windows_signing }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $installer = Get-ChildItem "release/puppyone-*-x64-setup.exe" | Select-Object -First 1
+          $installDirectory = Join-Path $env:RUNNER_TEMP "PuppyOneStableInstall"
+          $process = Start-Process -FilePath $installer.FullName -ArgumentList @("/S", "/D=$installDirectory") -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "NSIS installer exited with $($process.ExitCode)." }
+          $installedApplication = Join-Path $installDirectory "PuppyOne.exe"
+          if (-not (Test-Path $installedApplication)) { throw "Installed PuppyOne.exe was not found." }
+          $signature = Get-AuthenticodeSignature -LiteralPath $installedApplication
+          if ($env:WINDOWS_SIGNING_MODE -eq "authenticode" -and $signature.Status -ne "Valid") {
+            throw "Installed PuppyOne.exe is not Authenticode-valid."
+          }
+          if ($env:WINDOWS_SIGNING_MODE -eq "unsigned" -and $signature.Status -ne "NotSigned") {
+            throw "Installed PuppyOne.exe must remain explicitly unsigned."
+          }
+
+      - name: Write Windows Stable release preface
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force "artifacts" | Out-Null
+          $securitySummary = if ("${{ inputs.windows_signing }}" -eq "authenticode") {
+            "Authenticode-signed and timestamped"
+          } else {
+            "Unsigned (Windows may display Unknown publisher or a SmartScreen warning)"
+          }
+          @"
+          $securitySummary PuppyOne Desktop Windows x64 release.
+
+          Commit: $env:GITHUB_SHA
+          Promoted Internal release: ${{ steps.promotion.outputs.promotion_source_tag }}
+          Windows signing mode: ${{ inputs.windows_signing }}
+          R2 version prefix: ${{ steps.release.outputs.r2_prefix }}
+
+          This Windows bundle is published only with the matching macOS bundle.
+          "@ | Set-Content "artifacts/release-notes.md" -Encoding utf8
+
+      - name: Create self-describing Windows Stable release bundle
+        env:
+          WINDOWS_SIGNER_SUBJECT: ${{ secrets.WINDOWS_SIGNER_SUBJECT }}
+          WINDOWS_SIGNING_MODE: ${{ inputs.windows_signing }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          authenticode_signed=false
+          authenticode_timestamped=false
+          publisher_args=()
+          if [[ "${WINDOWS_SIGNING_MODE}" == "authenticode" ]]; then
+            authenticode_signed=true
+            authenticode_timestamped=true
+            publisher_args=(--publisher-name "${WINDOWS_SIGNER_SUBJECT}")
+          fi
+          assets=()
+          for pattern in release/puppyone-*-x64-setup.exe release/puppyone-*-x64-setup.exe.blockmap release/stable.yml; do
+            for file in $pattern; do
+              [ -f "${file}" ] && assets+=(--asset "${file}")
+            done
+          done
+          node scripts/create-desktop-release-bundle.mjs create \
+            --bundle artifacts/desktop-release-bundle \
+            --build-info generated/desktop-build-info.json \
+            --channel stable \
+            --tag "${{ steps.release.outputs.tag }}" \
+            --version "${{ steps.release.outputs.version }}" \
+            --commit "${GITHUB_SHA}" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --r2-prefix "${{ steps.release.outputs.r2_prefix }}" \
+            --public-origin "${PUBLIC_DOWNLOAD_ORIGIN}" \
+            --published-at "${{ steps.release.outputs.published_at }}" \
+            --promotion-source-tag "${{ steps.promotion.outputs.promotion_source_tag }}" \
+            --workflow-run-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            --target windows-x64 \
+            --arch x64 \
+            --prerelease false \
+            --provenance pipeline \
+            --authenticode-signed "${authenticode_signed}" \
+            --authenticode-timestamped "${authenticode_timestamped}" \
+            --notes-file artifacts/release-notes.md \
+            "${publisher_args[@]}" \
+            "${assets[@]}"
+
+      - name: Verify Windows Stable release bundle before handoff
+        run: >-
+          node scripts/create-desktop-release-bundle.mjs verify
+          --bundle artifacts/desktop-release-bundle
+          --channel stable
+          --tag "${{ steps.release.outputs.tag }}"
+          --commit "$env:GITHUB_SHA"
+          --target windows-x64
+
+      - name: Attest Windows Stable binaries and checksums
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
+        with:
+          subject-path: |
+            artifacts/desktop-release-bundle/assets/*
+            artifacts/desktop-release-bundle/release.json
+            artifacts/desktop-release-bundle/build-info.json
+            artifacts/desktop-release-bundle/SHA256SUMS
+
+      - name: Upload build-once Windows Stable release bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ steps.release.outputs.artifact_name }}-windows-x64
+          path: artifacts/desktop-release-bundle
+          if-no-files-found: error
+          retention-days: 90
+
   publish:
-    name: Publish canonical GitHub and R2 release
-    needs: build
+    name: Publish complete macOS and Windows release set
+    needs: [build-macos, build-windows]
     permissions:
       contents: write
-    uses: ./.github/workflows/desktop-release-publish.yml
+    uses: ./.github/workflows/desktop-stable-release-publish.yml
     with:
-      artifact_name: ${{ needs.build.outputs.artifact_name }}
-      channel: stable
       deployment_environment: desktop-stable
-      generate_notes: true
-      prerelease: false
-      publish_github_release: true
-      release_name: ${{ needs.build.outputs.release_name }}
-      release_tag: ${{ needs.build.outputs.release_tag }}
-      verify_tag: true
+      macos_artifact_name: ${{ needs.build-macos.outputs.artifact_name }}
+      windows_artifact_name: ${{ needs.build-windows.outputs.artifact_name }}
+      release_name: ${{ needs.build-macos.outputs.release_name }}
+      release_tag: ${{ needs.build-macos.outputs.release_tag }}
     secrets: inherit
