@@ -7,6 +7,16 @@
 }
 
 .markdown-codemirror-editor .cm-md-code-panel {
+  --po-code-token-comment: var(--po-md-syntax-comment);
+  --po-code-token-keyword: var(--po-md-syntax-keyword);
+  --po-code-token-string: var(--po-md-syntax-string);
+  --po-code-token-constant: var(--po-md-syntax-constant);
+  --po-code-token-special: var(--po-md-syntax-special);
+  --po-code-token-type: var(--po-md-syntax-type);
+  --po-code-token-function: var(--po-md-syntax-function);
+  --po-code-token-property: var(--po-md-syntax-property);
+  --po-code-token-operator: var(--po-md-syntax-operator);
+  --po-code-token-meta: var(--po-md-syntax-meta);
   overflow: hidden;
   border-radius: 4px;
   background: color-mix(in srgb, var(--po-control) 34%, transparent);
@@ -75,6 +85,11 @@
   background: color-mix(in srgb, var(--po-control) 22%, transparent);
 }
 
+.markdown-codemirror-editor .cm-md-code-surface {
+  position: relative;
+  min-width: 0;
+}
+
 .markdown-codemirror-editor .cm-md-code-textarea {
   display: block;
   box-sizing: border-box;
@@ -89,14 +104,107 @@
   background: transparent;
   color: inherit;
   font-family: var(--po-font-mono);
-  font-size: var(--po-type-ui-body, 14px);
+  font-size: var(--po-code-font-size, 13px);
+  font-feature-settings: "liga" 0, "calt" 0;
+  font-variant-ligatures: none;
+  font-weight: 400;
   field-sizing: content;
+  letter-spacing: normal;
   line-height: 20px;
   overflow-x: auto;
   overflow-y: hidden;
   white-space: pre;
   overflow-wrap: normal;
-  tab-size: 2;
+  tab-size: var(--cm-md-code-tab-size, 2);
+}
+
+.markdown-codemirror-editor .cm-md-code-highlight {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+  padding: 12px 14px;
+  overflow: hidden;
+  color: inherit;
+  font-family: var(--po-font-mono);
+  font-size: var(--po-code-font-size, 13px);
+  font-feature-settings: "liga" 0, "calt" 0;
+  font-variant-ligatures: none;
+  font-weight: 400;
+  letter-spacing: normal;
+  line-height: 20px;
+  pointer-events: none;
+  tab-size: var(--cm-md-code-tab-size, 2);
+  visibility: hidden;
+  white-space: pre;
+}
+
+.markdown-codemirror-editor .cm-md-code-surface.is-highlighted .cm-md-code-highlight {
+  visibility: visible;
+}
+
+.markdown-codemirror-editor .cm-md-code-surface.is-highlighted .cm-md-code-textarea {
+  color: transparent;
+  caret-color: var(--po-accent);
+}
+
+.markdown-codemirror-editor .cm-md-code-highlight .cm-code-comment {
+  color: var(--po-code-token-comment);
+}
+
+.markdown-codemirror-editor .cm-md-code-highlight .cm-code-keyword {
+  color: var(--po-code-token-keyword);
+}
+
+.markdown-codemirror-editor .cm-md-code-highlight .cm-code-string {
+  color: var(--po-code-token-string);
+}
+
+.markdown-codemirror-editor .cm-md-code-highlight .cm-code-constant {
+  color: var(--po-code-token-constant);
+}
+
+.markdown-codemirror-editor .cm-md-code-highlight .cm-code-special {
+  color: var(--po-code-token-special);
+}
+
+.markdown-codemirror-editor .cm-md-code-highlight .cm-code-type {
+  color: var(--po-code-token-type);
+}
+
+.markdown-codemirror-editor .cm-md-code-highlight .cm-code-function {
+  color: var(--po-code-token-function);
+}
+
+.markdown-codemirror-editor .cm-md-code-highlight .cm-code-property {
+  color: var(--po-code-token-property);
+}
+
+.markdown-codemirror-editor .cm-md-code-highlight .cm-code-operator {
+  color: var(--po-code-token-operator);
+}
+
+.markdown-codemirror-editor .cm-md-code-highlight .cm-code-meta {
+  color: var(--po-code-token-meta);
+}
+
+.markdown-codemirror-editor .cm-md-code-highlight .cm-code-invalid {
+  color: var(--po-danger);
+  text-decoration: underline wavy color-mix(in srgb, var(--po-danger) 75%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+@media (forced-colors: active) {
+  .markdown-codemirror-editor .cm-md-code-highlight {
+    display: none;
+  }
+
+  .markdown-codemirror-editor .cm-md-code-surface.is-highlighted .cm-md-code-textarea {
+    color: CanvasText;
+  }
 }
 
 .markdown-codemirror-editor .cm-md-code-textarea:focus {

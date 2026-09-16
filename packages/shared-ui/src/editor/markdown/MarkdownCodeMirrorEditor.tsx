@@ -12,6 +12,7 @@ import {
 import { markdownLivePreviewContextExtension } from "./core/editor/markdownLivePreviewContext";
 import { markdownAiEditExtension } from "./core/editor/markdownAiEditExtension";
 import { markdownBlockDragExtension } from "./core/interaction/markdownBlockDrag";
+import { markdownHeadingOutlineExtension } from "./core/interaction/markdownHeadingOutline";
 import { getMarkdownPlanIndex } from "./core/plans/markdownPlanIndex";
 import { markdownRevealedSourceEffect } from "./core/state/revealedSource";
 import { getDocRevision } from "./platform/brokers/transactionBroker";
@@ -157,6 +158,7 @@ export function MarkdownCodeMirrorEditor({
   const languageCompartmentRef = useRef(new Compartment());
   const livePreviewCoreCompartmentRef = useRef(new Compartment());
   const blockDragCompartmentRef = useRef(new Compartment());
+  const headingOutlineCompartmentRef = useRef(new Compartment());
   const livePreviewContextCompartmentRef = useRef(new Compartment());
   const aiEditCompartmentRef = useRef(new Compartment());
   const localizationCompartmentRef = useRef(new Compartment());
@@ -207,6 +209,7 @@ export function MarkdownCodeMirrorEditor({
           livePreviewContextCompartmentRef.current.reconfigure([]),
           livePreviewCoreCompartmentRef.current.reconfigure([]),
           blockDragCompartmentRef.current.reconfigure([]),
+          headingOutlineCompartmentRef.current.reconfigure([]),
         ],
       });
     } catch (error) {
@@ -259,6 +262,7 @@ export function MarkdownCodeMirrorEditor({
           livePreviewContextCompartmentRef.current.of([]),
           livePreviewCoreCompartmentRef.current.of([]),
           blockDragCompartmentRef.current.of([]),
+          headingOutlineCompartmentRef.current.of([]),
           aiEditCompartmentRef.current.of(markdownAiEditExtension(initialConfig.aiEditFile)),
           EditorView.updateListener.of((update) => {
             if (!update.docChanged) return;
@@ -461,6 +465,9 @@ export function MarkdownCodeMirrorEditor({
                 ),
                 blockDragCompartmentRef.current.reconfigure(
                   blockDragEnabledRef.current ? markdownBlockDragExtension() : [],
+                ),
+                headingOutlineCompartmentRef.current.reconfigure(
+                  markdownHeadingOutlineExtension(),
                 ),
               ],
             });

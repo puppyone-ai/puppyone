@@ -98,9 +98,16 @@
     --po-md-inline-code-color: #6e4f2a;
     --po-md-code-block-background: #eee9df;
     --po-md-code-block-color: #342f29;
-    --po-md-syntax-keyword: #6e5a3d;
-    --po-md-syntax-string: #6e4f2a;
-    --po-md-syntax-comment: #7f7466;
+    --po-md-syntax-keyword: #7b3f2f;
+    --po-md-syntax-string: #576b3b;
+    --po-md-syntax-comment: #6f6559;
+    --po-md-syntax-constant: #805a24;
+    --po-md-syntax-special: #8a3d2f;
+    --po-md-syntax-type: #5f4c8b;
+    --po-md-syntax-function: #3f6470;
+    --po-md-syntax-property: #6e4f2a;
+    --po-md-syntax-operator: #4c443b;
+    --po-md-syntax-meta: #695b84;
   }
 
   .dark .theme-root {
@@ -116,9 +123,16 @@
     --po-md-inline-code-color: #d0b583;
     --po-md-code-block-background: #211f1b;
     --po-md-code-block-color: #e6dfd2;
-    --po-md-syntax-keyword: #cdb58e;
-    --po-md-syntax-string: #d0b583;
+    --po-md-syntax-keyword: #e0a28f;
+    --po-md-syntax-string: #b8ca91;
     --po-md-syntax-comment: #958b7d;
+    --po-md-syntax-constant: #d9b477;
+    --po-md-syntax-special: #e6a083;
+    --po-md-syntax-type: #c7b3e5;
+    --po-md-syntax-function: #9bc0ca;
+    --po-md-syntax-property: #d0b583;
+    --po-md-syntax-operator: #d7cec0;
+    --po-md-syntax-meta: #c1acd9;
   }
 }
 

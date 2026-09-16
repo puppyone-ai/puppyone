@@ -1,0 +1,75 @@
+.markdown-codemirror-editor .cm-md-math-inline-widget,
+.markdown-codemirror-editor .cm-md-math-block-widget {
+  color: var(--po-md-content-color);
+  cursor: default;
+  outline: none;
+}
+
+.markdown-codemirror-editor .cm-md-math-inline-widget {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: baseline;
+  padding-inline: 0.08em;
+  vertical-align: baseline;
+}
+
+.markdown-codemirror-editor .cm-md-math-inline-widget .katex {
+  font-size: var(--po-type-editor-content, 16px);
+}
+
+.markdown-codemirror-editor .cm-md-math-block-widget {
+  --cm-md-block-current-ring: transparent;
+  box-sizing: border-box;
+  display: grid;
+  width: 100%;
+  min-height: 96px;
+  align-items: center;
+  padding: 24px 12px;
+  overflow-x: auto;
+  border-radius: 6px;
+  box-shadow: 0 0 0 2px var(--cm-md-block-current-ring);
+  text-align: center;
+  transition: box-shadow 140ms ease;
+}
+
+.markdown-codemirror-editor .cm-md-math-block-widget .katex-display {
+  width: max-content;
+  min-width: 100%;
+  margin: 0;
+  font-size: var(--po-type-editor-heading-3, 19px);
+  text-align: center;
+}
+
+.markdown-codemirror-editor .cm-md-math-block-widget:is(:hover, :focus-visible):not(.is-doc-selected),
+.markdown-codemirror-editor .cm-md-math-inline-widget:is(:hover, :focus-visible) {
+  --cm-md-block-current-ring: var(--cm-md-block-hover-ring);
+}
+
+.markdown-codemirror-editor .cm-md-math-block-widget.is-doc-selected {
+  --cm-md-block-current-ring: var(--cm-md-block-selected-ring);
+}
+
+.markdown-codemirror-editor .cm-md-math-inline-widget:focus-visible {
+  border-radius: 3px;
+  box-shadow: 0 0 0 2px var(--cm-md-block-hover-ring);
+}
+
+.markdown-codemirror-editor .cm-md-math-source-fallback {
+  display: block;
+  color: var(--po-danger);
+  font-family: var(--po-font-mono);
+  font-size: var(--po-code-font-size, 13px);
+  line-height: 1.55;
+  text-align: left;
+  white-space: pre-wrap;
+}
+
+.markdown-codemirror-editor .cm-md-math-inline-widget .cm-md-math-source-fallback {
+  display: inline;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .markdown-codemirror-editor .cm-md-math-block-widget {
+    transition: none;
+  }
+}

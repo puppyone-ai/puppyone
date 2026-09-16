@@ -172,6 +172,13 @@ const markdownTokenMap = new Map([
   ["--po-md-syntax-keyword", "--po-host-md-syntax-keyword"],
   ["--po-md-syntax-string", "--po-host-md-syntax-string"],
   ["--po-md-syntax-comment", "--po-host-md-syntax-comment"],
+  ["--po-md-syntax-constant", "--po-host-md-syntax-constant"],
+  ["--po-md-syntax-special", "--po-host-md-syntax-special"],
+  ["--po-md-syntax-type", "--po-host-md-syntax-type"],
+  ["--po-md-syntax-function", "--po-host-md-syntax-function"],
+  ["--po-md-syntax-property", "--po-host-md-syntax-property"],
+  ["--po-md-syntax-operator", "--po-host-md-syntax-operator"],
+  ["--po-md-syntax-meta", "--po-host-md-syntax-meta"],
 ]);
 const markdownIntegerSizeTokens = new Set([
   "--po-md-content-size",
