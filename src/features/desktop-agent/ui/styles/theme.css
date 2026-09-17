@@ -61,6 +61,8 @@
   --agent-focus-ring: color-mix(in srgb, var(--agent-accent) 68%, transparent);
   --agent-table-header-surface: color-mix(in srgb, var(--agent-control-surface) 76%, var(--agent-canvas));
   --agent-table-alternate-surface: color-mix(in srgb, var(--agent-control-surface) 28%, transparent);
+  --agent-inline-code-surface: color-mix(in srgb, var(--agent-text) 8%, var(--agent-canvas));
+  --agent-inline-code-border: color-mix(in srgb, var(--agent-text) 14%, var(--agent-canvas));
   --agent-code-surface: color-mix(in srgb, var(--agent-control-surface) 88%, var(--agent-canvas));
   --agent-code-header-surface: color-mix(in srgb, var(--agent-control-surface) 30%, transparent);
   --agent-readiness-border: color-mix(in srgb, var(--po-warning) 35%, var(--po-divider));

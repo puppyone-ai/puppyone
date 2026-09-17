@@ -343,13 +343,14 @@
 .desktop-agent-markdown h3,
 .desktop-agent-markdown h4,
 .desktop-agent-markdown h5,
-.desktop-agent-markdown h6 { margin: 16px 0 8px; color: var(--agent-text); font-weight: var(--po-text-weight-semibold, 600); line-height: 1.4; letter-spacing: -0.01em; }
-.desktop-agent-markdown h1 { margin-top: 20px; font-size: var(--po-type-right-sidebar-heading-1, 20px); }
-.desktop-agent-markdown h2 { font-size: var(--po-type-right-sidebar-heading-2, 16px); }
-.desktop-agent-markdown h3,
-.desktop-agent-markdown h4,
-.desktop-agent-markdown h5,
-.desktop-agent-markdown h6 { margin-top: 12px; font-size: var(--agent-conversation-font-size); }
+.desktop-agent-markdown h6 {
+  margin: 8px 0 4px;
+  color: var(--agent-text);
+  font-size: var(--agent-conversation-font-size);
+  font-weight: var(--po-text-weight-semibold, 600);
+  letter-spacing: normal;
+  line-height: var(--agent-response-line-height);
+}
 .desktop-agent-markdown :is(strong, b) { font-weight: var(--po-text-weight-semibold, 600); }
 .desktop-agent-markdown ul,
 .desktop-agent-markdown ol { margin: 0.5em 0; padding-inline-start: 1.55em; }
@@ -376,11 +377,12 @@
 .desktop-agent-markdown hr { margin: 16px 0; border: 0; border-top: 1px solid var(--agent-border-subtle); }
 .desktop-agent-markdown :not(pre) > code {
   padding: 0.12em 0.34em;
-  border: 1px solid var(--agent-border-subtle);
+  border: 1px solid var(--agent-inline-code-border);
   border-radius: 6px;
-  background: var(--agent-control-surface);
+  background: var(--agent-inline-code-surface);
   font-family: var(--po-font-mono);
   font-size: var(--agent-code-font-size);
+  font-weight: var(--po-text-weight-medium, 500);
 }
 .desktop-agent-markdown-table-scroll {
   width: 100%;
