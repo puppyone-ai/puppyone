@@ -6,6 +6,10 @@ import { createAgentProjection, type AgentPart } from "../../../support/agent/ag
 import { AgentTranscript } from "../../../../src/features/desktop-agent/ui/AgentTranscript";
 import { AgentToolActivityGroup } from "../../../../src/features/desktop-agent/ui/AgentToolActivityGroup";
 import {
+  AgentToolGlyph,
+  agentToolGlyphKind,
+} from "../../../../src/features/desktop-agent/ui/activity/AgentToolGlyph";
+import {
   AGENT_TOOL_GROUP_LIMIT,
   agentToolRailVisibleCount,
   groupAgentToolRows,
@@ -23,6 +27,29 @@ afterEach(() => {
 });
 
 describe("Desktop Agent compact tool groups", () => {
+  it("uses distinct provider-neutral glyphs and animates only active work", () => {
+    expect(agentToolGlyphKind("grep")).toBe("search");
+    expect(agentToolGlyphKind("read_file")).toBe("read");
+    expect(agentToolGlyphKind("apply_patch")).toBe("edit");
+    expect(agentToolGlyphKind("write_file")).toBe("write");
+
+    const container = render(<div>
+      <AgentToolGlyph tool="search" status="running" />
+      <AgentToolGlyph tool="read" status="in-progress" />
+      <AgentToolGlyph tool="edit" status="completed" />
+      <AgentToolGlyph tool="write" status="failed" />
+    </div>);
+    const glyphs = container.querySelectorAll(".desktop-agent-tool-glyph");
+
+    expect(glyphs).toHaveLength(4);
+    expect(glyphs[0].matches(".is-search.is-active")).toBe(true);
+    expect(glyphs[0].querySelector(".desktop-agent-tool-glyph-motion")).not.toBeNull();
+    expect(glyphs[1].matches(".is-read.is-active")).toBe(true);
+    expect(glyphs[1].querySelector(".desktop-agent-tool-glyph-scan")).not.toBeNull();
+    expect(glyphs[2].matches(".is-edit.is-active")).toBe(false);
+    expect(glyphs[3].matches(".is-write.is-active")).toBe(false);
+  });
+
   it("groups only adjacent tools from the same turn without changing their order", () => {
     const projection = fixtureProjection();
     const timeline = buildAgentTimeline(projection);

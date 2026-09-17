@@ -27,6 +27,7 @@
   --agent-empty-brand-foreground: color-mix(in srgb, var(--agent-text-subtle) 64%, var(--agent-canvas));
   --agent-empty-brand-foreground-hover: color-mix(in srgb, var(--agent-text-muted) 76%, var(--agent-canvas));
   --agent-tool-action-foreground: var(--agent-text-muted);
+  --agent-tool-active-foreground: color-mix(in srgb, var(--agent-text) 78%, var(--agent-text-muted));
   --agent-tool-evidence-rail: var(--agent-border);
   --agent-blocking-surface: color-mix(in srgb, var(--agent-control-surface) 52%, var(--agent-canvas));
   --agent-blocking-border: var(--agent-border-subtle);

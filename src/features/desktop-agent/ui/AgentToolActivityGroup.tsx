@@ -21,13 +21,6 @@ type AgentToolActivityGroupProps = Readonly<{
   onRowHeightChange: (rowId: string, height: number) => void;
 }>;
 
-const TOOL_RAIL_GEOMETRY = agentToolRailGeometry({
-  itemWidth: AGENT_TOOL_RAIL_ITEM_WIDTH,
-  gap: AGENT_TOOL_RAIL_GAP,
-  overflowWidth: AGENT_TOOL_RAIL_OVERFLOW_WIDTH,
-  groupInset: AGENT_TOOL_RAIL_GROUP_INSET,
-});
-
 function AgentToolActivityGroupView({
   parts,
   rowId,
@@ -79,7 +72,12 @@ function AgentToolActivityGroupView({
   }, [expandedId, onRowHeightChange, overflowOpen, parts.length, rowId, visibleCount]);
 
   return (
-    <div ref={groupRef} className="desktop-agent-tool-group" style={TOOL_RAIL_GEOMETRY}>
+    <div ref={groupRef} className="desktop-agent-tool-group" style={agentToolRailGeometry({
+      itemWidth: AGENT_TOOL_RAIL_ITEM_WIDTH,
+      gap: AGENT_TOOL_RAIL_GAP,
+      overflowWidth: AGENT_TOOL_RAIL_OVERFLOW_WIDTH,
+      groupInset: AGENT_TOOL_RAIL_GROUP_INSET,
+    })}>
       <div className="desktop-agent-tool-rail">
         {visibleParts.map((part) => (
           <div

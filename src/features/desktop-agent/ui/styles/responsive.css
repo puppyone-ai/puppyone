@@ -18,7 +18,13 @@
   .desktop-agent-stream-caret,
   .desktop-agent-spin,
   .desktop-agent-virtual-row.is-new > *,
-  .desktop-agent-tool-branch { animation: none; }
+  .desktop-agent-tool-branch,
+  .desktop-agent-tool-glyph-motion,
+  .desktop-agent-tool-glyph-scan,
+  .desktop-agent-tool-glyph-ink { animation: none; }
+  .desktop-agent-tool-glyph-scan { opacity: 0; transform: none; }
+  .desktop-agent-tool-glyph-motion,
+  .desktop-agent-tool-glyph-ink { transform: none; }
   .desktop-agent-virtual-row { will-change: auto; }
   .desktop-agent-activity-summary svg:last-child,
   .desktop-agent-composer,

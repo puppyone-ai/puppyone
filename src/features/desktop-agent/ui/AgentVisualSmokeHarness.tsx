@@ -117,6 +117,7 @@ export function AgentVisualSmokeHarness() {
   const theme = new URLSearchParams(window.location.search).get("theme") === "light" ? "light" : "dark";
   const startupLoading = smokeState === "loading";
   const streamingTableSmoke = smokeState === "streaming-table";
+  const toolMotionSmoke = smokeState === "tool-motion";
   const approvalSmoke = smokeState === "approval";
   const selectedRuntime = agentRuntimes.find((entry) => entry.descriptor.id === runtimeId) ?? agentRuntimes[0];
   const models = modelsByRuntime[runtimeId];
@@ -248,7 +249,7 @@ export function AgentVisualSmokeHarness() {
         itemId: "tool-1",
         kind: "tool",
         label: "Explored markdown-editor.css, 2 searches",
-        status: "completed",
+        status: toolMotionSmoke ? "running" : "completed",
         detail: { tool: "grep", input: { pattern: "padding", path: "src" } },
         output: "src/markdown-editor.css:42:padding: 24px;\nsrc/editor-shell.css:18:padding-inline: 24px;",
         sequence: 7,
@@ -270,7 +271,7 @@ export function AgentVisualSmokeHarness() {
         itemId: "tool-read",
         kind: "tool",
         label: "Read markdown editor styles",
-        status: "completed",
+        status: toolMotionSmoke ? "running" : "completed",
         detail: { tool: "read", input: { file_path: "src/markdown-editor.css" } },
         output: ".markdown-editor {\n  padding: 24px;\n}",
         sequence: 9,
@@ -281,7 +282,7 @@ export function AgentVisualSmokeHarness() {
         itemId: "tool-edit",
         kind: "file-change",
         label: "Updated markdown-editor.css",
-        status: "completed",
+        status: toolMotionSmoke ? "running" : "completed",
         detail: {
           tool: "edit",
           path: "src/markdown-editor.css",
@@ -326,7 +327,7 @@ export function AgentVisualSmokeHarness() {
     value.lastSequence = streamingTableSmoke ? 12 : 10;
     value.terminalState = "completed";
     return value;
-  }, [streamingTableSmoke]);
+  }, [streamingTableSmoke, toolMotionSmoke]);
   const visibleProjection = startupLoading ? startupProjection : projection;
 
   return (

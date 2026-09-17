@@ -76,9 +76,8 @@ export function AgentActivityShell({
 function StatusIcon({ status }: { status: AgentActivityStatus }) {
   const { t } = useLocalization();
   if (["running", "pending", "in-progress"].includes(status)) {
-    // RunStatus in the live tail is the only animated progress owner. Activity
-    // rows describe evidence; giving every active row another spinner creates
-    // competing liveness signals for the same native turn.
+    // Semantic tool glyphs may use restrained action motion while work runs.
+    // Do not add a second generic spinner for the same native activity.
     return null;
   }
   if (["failed", "warning", "blocked"].includes(status)) {

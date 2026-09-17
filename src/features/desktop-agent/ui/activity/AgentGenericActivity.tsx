@@ -1,4 +1,3 @@
-import { FileSearch, FolderSearch, Globe2, Search, Wrench } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
 import {
   agentActivityToolId,
@@ -9,6 +8,7 @@ import {
 } from "../../domain/agent-activity-presentation";
 import type { AgentActivity } from "../../domain/agent-projection-types";
 import { AgentActivityShell } from "./AgentActivityShell";
+import { AgentToolGlyph } from "./AgentToolGlyph";
 import { AgentToolEvidenceNode, AgentToolEvidenceTree } from "./AgentToolEvidenceTree";
 import { AgentToolTextEvidence } from "./AgentToolTextEvidence";
 
@@ -31,7 +31,7 @@ export function AgentGenericActivity({ activity }: { activity: AgentActivity }) 
     <AgentActivityShell
       title={formatAgentToolName(tool, t)}
       status={activity.status}
-      icon={iconFor(tool)}
+      icon={<AgentToolGlyph tool={tool} status={activity.status} />}
       className="desktop-agent-generic-tool"
     >
       {detail && (
@@ -50,12 +50,4 @@ export function AgentGenericActivity({ activity }: { activity: AgentActivity }) 
       )}
     </AgentActivityShell>
   );
-}
-
-function iconFor(tool: string) {
-  if (tool === "read") return <FileSearch size={13} />;
-  if (tool === "glob" || tool === "list") return <FolderSearch size={13} />;
-  if (tool === "grep" || tool === "search") return <Search size={13} />;
-  if (tool === "fetch") return <Globe2 size={13} />;
-  return <Wrench size={13} />;
 }

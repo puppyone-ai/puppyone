@@ -27,6 +27,7 @@ const timelinePresentation = fs.readFileSync(path.join(root, "src/features/deskt
 const connectionStatus = fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/AgentConnectionStatus.tsx"), "utf8");
 const noticeActivity = fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/activity/AgentNoticeActivity.tsx"), "utf8");
 const activityShell = fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/activity/AgentActivityShell.tsx"), "utf8");
+const toolGlyph = fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/activity/AgentToolGlyph.tsx"), "utf8");
 const commandActivity = fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/activity/AgentCommandActivity.tsx"), "utf8");
 const fileQueryActivity = fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/activity/AgentFileQueryActivity.tsx"), "utf8");
 const evidenceTree = fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/activity/AgentToolEvidenceTree.tsx"), "utf8");
@@ -317,6 +318,11 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
     expect(css).toMatch(/\.desktop-agent-tool-group-item \.desktop-agent-tool-name\s*\{[^}]*display:\s*none/s);
     expect(css).toMatch(/\.desktop-agent-tool-group-item \.desktop-agent-tool-summary,[^{]*\.desktop-agent-tool-group-item \.desktop-agent-tool-metadata\s*\{[^}]*display:\s*none/s);
     expect(css).toMatch(/\.desktop-agent-tool-overflow\s*\{[^}]*width:\s*var\(--agent-tool-rail-overflow-size\)[^}]*font-variant-numeric:\s*tabular-nums/s);
+    expect(toolGlyph).toContain('const ACTIVE_STATUSES = new Set<AgentActivityStatus>(["running", "in-progress"])');
+    expect(css).toMatch(/\.desktop-agent-tool-glyph\s*\{[^}]*width:\s*16px[^}]*height:\s*16px[^}]*stroke-width:\s*1\.8/s);
+    expect(css).toMatch(/\.desktop-agent-tool-glyph\.is-search\.is-active \.desktop-agent-tool-glyph-motion\s*\{[^}]*desktop-agent-tool-search/s);
+    expect(css).toMatch(/\.desktop-agent-tool-glyph\.is-read\.is-active \.desktop-agent-tool-glyph-scan\s*\{[^}]*desktop-agent-tool-read/s);
+    expect(responsiveCss).toMatch(/prefers-reduced-motion:\s*reduce[\s\S]*\.desktop-agent-tool-glyph-motion,[\s\S]*\.desktop-agent-tool-glyph-scan,[\s\S]*\.desktop-agent-tool-glyph-ink\s*\{\s*animation:\s*none/s);
     expect(activityShell).toContain("aria-label={compactLabel}");
     expect(activityShell).toContain("title={compactLabel}");
     expect(css).toMatch(/\.desktop-agent-reasoning \.desktop-agent-tool-name\s*\{[^}]*color:\s*var\(--agent-text-muted\)/s);

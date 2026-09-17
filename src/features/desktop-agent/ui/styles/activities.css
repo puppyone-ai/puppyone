@@ -63,7 +63,7 @@
 .desktop-agent-tool-call,
 .desktop-agent-tool-group {
   --agent-tool-row-padding-inline: 4px;
-  --agent-tool-icon-size: 16px;
+  --agent-tool-icon-size: 18px;
   --agent-evidence-rail-inline: calc(var(--agent-tool-row-padding-inline) + var(--agent-tool-icon-size) / 2);
   --agent-evidence-elbow-width: 14px;
   --agent-evidence-column-gap: 6px;
@@ -190,6 +190,67 @@
   grid-column: 1;
   place-items: center;
   color: var(--agent-tool-action-foreground);
+}
+.desktop-agent-tool-glyph {
+  display: block;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  vector-effect: non-scaling-stroke;
+}
+.desktop-agent-tool-glyph.is-active {
+  color: var(--agent-tool-active-foreground);
+}
+.desktop-agent-tool-glyph-motion,
+.desktop-agent-tool-glyph-scan,
+.desktop-agent-tool-glyph-ink {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.desktop-agent-tool-glyph.is-search.is-active .desktop-agent-tool-glyph-motion {
+  animation: desktop-agent-tool-search 1.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+.desktop-agent-tool-glyph-scan { opacity: 0; }
+.desktop-agent-tool-glyph.is-read.is-active .desktop-agent-tool-glyph-scan {
+  animation: desktop-agent-tool-read 1.55s ease-in-out infinite;
+}
+.desktop-agent-tool-glyph.is-edit.is-active .desktop-agent-tool-glyph-motion,
+.desktop-agent-tool-glyph.is-write.is-active .desktop-agent-tool-glyph-motion {
+  animation: desktop-agent-tool-write 1.5s ease-in-out infinite;
+}
+.desktop-agent-tool-glyph.is-edit.is-active .desktop-agent-tool-glyph-ink,
+.desktop-agent-tool-glyph.is-write.is-active .desktop-agent-tool-glyph-ink {
+  animation: desktop-agent-tool-ink 1.5s ease-in-out infinite;
+}
+@keyframes desktop-agent-tool-search {
+  0%, 12%, 88%, 100% { transform: translate(0, 0); }
+  30% { transform: translate(1px, -0.8px); }
+  48% { transform: translate(1.35px, 0.5px); }
+  66% { transform: translate(0, 1px); }
+  80% { transform: translate(-0.85px, 0.15px); }
+}
+@keyframes desktop-agent-tool-read {
+  0%, 15%, 90%, 100% { opacity: 0; transform: translateY(0); }
+  25% { opacity: 0.72; transform: translateY(0); }
+  72% { opacity: 0.72; transform: translateY(4px); }
+  82% { opacity: 0; transform: translateY(4px); }
+}
+@keyframes desktop-agent-tool-write {
+  0%, 15%, 88%, 100% { transform: translate(0, 0); }
+  38% { transform: translate(-1px, 0.75px); }
+  62% { transform: translate(0.65px, -0.45px); }
+  78% { transform: translate(-0.3px, 0.25px); }
+}
+@keyframes desktop-agent-tool-ink {
+  0%, 15% { opacity: 0.35; stroke-dasharray: 5.2; stroke-dashoffset: 5.2; }
+  64%, 88% { opacity: 0.82; stroke-dasharray: 5.2; stroke-dashoffset: 0; }
+  100% { opacity: 0.35; stroke-dasharray: 5.2; stroke-dashoffset: 0; }
 }
 .desktop-agent-tool-name {
   grid-column: 2;
