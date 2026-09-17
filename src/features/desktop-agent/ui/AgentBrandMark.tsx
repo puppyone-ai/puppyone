@@ -4,7 +4,6 @@ import {
   isMonochromeAgentBrandId,
   resolveAgentBrand,
 } from "@puppyone/shared-ui";
-import { PuppyBrandMark } from "../../../components/brand/PuppyBrandMark";
 
 type AgentBrandMarkProps = {
   iconKey?: string | null;
@@ -20,12 +19,6 @@ export function AgentBrandMark({
   kind = "agent",
   appearance = "brand",
 }: AgentBrandMarkProps) {
-  const identity = `${iconKey || ""} ${label}`.toLowerCase();
-
-  if (identity.includes("puppyone")) {
-    return <span className="desktop-agent-brand-mark is-puppyone" aria-hidden="true"><PuppyBrandMark tone="dark" /></span>;
-  }
-
   const nativeBrand = resolveAgentBrand({ iconKey, label });
   if (nativeBrand) {
     const monochrome = appearance === "monochrome"

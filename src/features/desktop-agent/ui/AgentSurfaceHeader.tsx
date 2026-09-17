@@ -3,10 +3,11 @@ import { CircleAlert, MoreHorizontal, Plus, RotateCcw } from "lucide-react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
 import { DesktopMenuItem, DesktopMenuSeparator, DesktopMenuSurface } from "../../../components/DesktopMenu";
-import { PuppyBrandMark } from "../../../components/brand/PuppyBrandMark";
+import { AgentBrandMark } from "./AgentBrandMark";
 
 type AgentSurfaceHeaderProps = {
   title: string;
+  runtimeIconKey?: string | null;
   runtimeLabel?: string;
   statusCode: string;
   statusLabel: string;
@@ -24,6 +25,7 @@ type AgentSurfaceHeaderProps = {
 
 export function AgentSurfaceHeader({
   title,
+  runtimeIconKey = null,
   runtimeLabel: runtimeLabelProp,
   statusCode,
   statusLabel,
@@ -64,9 +66,9 @@ export function AgentSurfaceHeader({
   return (
     <header className="desktop-agent-session-header">
       <div className="desktop-agent-session-identity">
-        <span className="desktop-agent-surface-brand" aria-label={t("agent.name")}>
-          <PuppyBrandMark tone="dark" />
-          <span>{t("agent.name")}</span>
+        <span className="desktop-agent-surface-brand" aria-label={runtimeLabel}>
+          <AgentBrandMark iconKey={runtimeIconKey} label={runtimeLabel} />
+          <span>{runtimeLabel}</span>
         </span>
         {agentSelector && <div className="desktop-agent-session-agent-selector">{agentSelector}</div>}
       </div>

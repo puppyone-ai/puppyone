@@ -343,6 +343,7 @@ export function AgentVisualSmokeHarness() {
           ariaLabel={t("agent.panel.chat", { agent: bidiIsolate(selectedRuntime.descriptor.displayName) })}
           header={<AgentSurfaceHeader
             title={t("agent.visual.title")}
+            runtimeIconKey={selectedRuntime.descriptor.iconKey}
             runtimeLabel={selectedRuntime.descriptor.displayName}
             statusCode="ready"
             statusLabel={t("agent.header.status.ready")}

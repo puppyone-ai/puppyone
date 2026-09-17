@@ -232,6 +232,8 @@ describe("Desktop Agent architecture boundaries", () => {
     expect(main).toContain("agent-runtime-inventory.json");
     expect(inventory).toContain("PERSISTED_CACHE_TTL_MS");
     expect(preferences).toContain("AGENT_ROUTING_PREFERENCES_STORAGE_KEY");
+    expect(header).toContain("<AgentBrandMark");
+    expect(header).not.toContain("PuppyBrandMark");
     expect(header).not.toMatch(/Session history|Recent chats|Archive chat|Delete local chat|Fork chat/);
     expect(controllerState).not.toContain("history:");
     expect(controllerState).toContain('AgentSubmissionStage = "preparing-session" | "starting-turn" | null');
@@ -359,7 +361,7 @@ describe("Desktop Agent architecture boundaries", () => {
     const panel = source("src/features/desktop-agent/ui/AgentChatTabPanel.tsx");
     expect(adapter).toContain("extends AcpRuntimeAdapter");
     expect(adapter).toContain('accountType: "opencode-native"');
-    expect(adapter).not.toMatch(/PuppyOne Agent|managedOpenCode/u);
+    expect(adapter).not.toMatch(/Workspace Agent|managedOpenCode/u);
     expect(acpCore).toContain("client.newSession");
     expect(acpCore).toContain("resolveAcpModels");
     expect(acpCore).toContain("publicProviders");

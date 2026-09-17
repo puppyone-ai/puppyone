@@ -41,17 +41,17 @@ export function filterAgentChatCreationRecipesByLocalAgentIds(
  * Product-owned Agent. Its managed Pi SDK kernel ships with PuppyOne and does
  * not participate in user-installed Agent discovery or visibility settings.
  */
-export const PUPPYONE_AGENT_CREATION_RECIPE = Object.freeze({
+export const WORKSPACE_AGENT_CREATION_RECIPE = Object.freeze({
   id: "puppyone-agent",
-  label: "PuppyOne",
-  iconKey: "puppyone-agent",
+  label: "Workspace Agent",
+  iconKey: "workspace-agent",
   status: "available",
   availability: "bundled",
 } as const satisfies AuxiliaryWorkbenchCreationRecipe);
 
 /** Registration order has no display semantics; the exported catalog is sorted below. */
 const AGENT_CHAT_CREATION_RECIPE_REGISTRY = Object.freeze([
-  PUPPYONE_AGENT_CREATION_RECIPE,
+  WORKSPACE_AGENT_CREATION_RECIPE,
   Object.freeze({ id: "claude", label: "Claude Code", iconKey: "claude", status: "available", availability: "local-installation" }),
   Object.freeze({ id: "codex", label: "Codex", iconKey: "codex", status: "available", availability: "local-installation" }),
   Object.freeze({ id: "cursor", label: "Cursor", iconKey: "cursor", status: "available", availability: "local-installation" }),

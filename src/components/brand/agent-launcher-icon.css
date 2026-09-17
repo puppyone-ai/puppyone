@@ -46,8 +46,9 @@
   border-radius: 4px;
 }
 
-.desktop-terminal-launcher-icon.is-puppyone {
-  opacity: 0.9;
+.desktop-terminal-launcher-icon.is-workspace-agent {
+  border-radius: 5px;
+  opacity: 1;
 }
 
 .desktop-terminal-launcher-icon.is-compact.is-hermes img {

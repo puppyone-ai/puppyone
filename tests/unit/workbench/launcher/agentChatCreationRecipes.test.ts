@@ -23,8 +23,8 @@ describe("Agent Chat creation recipe ordering", () => {
       "Hermes Agent",
       "OpenCode",
       "Pi",
-      "PuppyOne",
       "WorkBuddy",
+      "Workspace Agent",
     ]);
     expect(Object.isFrozen(AGENT_CHAT_CREATION_RECIPES)).toBe(true);
   });

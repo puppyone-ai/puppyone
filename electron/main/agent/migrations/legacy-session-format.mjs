@@ -1,3 +1,5 @@
+import { WORKSPACE_AGENT_DISPLAY_NAME } from "../runtimes/puppyone-agent/puppyone-agent-public-identity.mjs";
+
 const LEGACY_RUNTIME_ID = "codex";
 const RUNTIME_ID_PATTERN = /^[a-z][a-z0-9-]{1,39}$/;
 const RUNTIME_ID_ALIASES = Object.freeze({
@@ -22,7 +24,7 @@ export function resolvePersistedRuntimeId(record, requestedRuntimeId = null) {
 export function migratedRuntimeDescriptor(record, runtimeId) {
   const previous = record?.runtime && typeof record.runtime === "object" ? record.runtime : {};
   if (runtimeId === "puppyone-agent") {
-    return { ...previous, id: runtimeId, displayName: "PuppyOne Agent", kind: "managed-harness" };
+    return { ...previous, id: runtimeId, displayName: WORKSPACE_AGENT_DISPLAY_NAME, kind: "managed-harness" };
   }
   if (runtimeId === LEGACY_RUNTIME_ID) {
     return { ...previous, id: runtimeId, displayName: previous.displayName || "Codex", kind: previous.kind || "native-cli" };

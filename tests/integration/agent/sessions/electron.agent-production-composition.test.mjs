@@ -48,7 +48,10 @@ describe("Agent production composition", () => {
       ["pi", "specialized-native", "rpc", "first-party"],
       ["workbuddy", "native-protocol", "acp", "first-party"],
     ]);
-    expect(host.require("puppyone-agent").descriptor.displayName).toBe("PuppyOne Agent");
+    expect(host.require("puppyone-agent").descriptor).toMatchObject({
+      displayName: "Workspace Agent",
+      iconKey: "workspace-agent",
+    });
     await host.dispose();
   });
 

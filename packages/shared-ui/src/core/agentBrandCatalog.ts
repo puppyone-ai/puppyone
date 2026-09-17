@@ -9,6 +9,7 @@ export const AGENT_BRAND_IDS = Object.freeze([
   "manus",
   "opencode",
   "pi",
+  "workspace-agent",
 ] as const);
 
 export type AgentBrandId = (typeof AGENT_BRAND_IDS)[number];
@@ -28,7 +29,7 @@ export type AgentBrandDefinition = Readonly<{
 const agentAssets = RENDERER_ASSET_PATHS.icons.agents;
 
 /**
- * Canonical renderer identity registry for third-party Agent products.
+ * Canonical renderer identity registry for Agent products.
  *
  * Runtime manifests own protocol capabilities. This registry owns only stable
  * visual identity: canonical ids, names, aliases, theme-aware local marks, and
@@ -43,6 +44,12 @@ export const AGENT_BRAND_CATALOG: Readonly<Record<AgentBrandId, AgentBrandDefini
   manus: defineBrand("manus", "Manus", ["manus"], agentAssets.manus),
   opencode: defineBrand("opencode", "OpenCode", ["opencode"], agentAssets.opencode, 1.3),
   pi: defineBrand("pi", "Pi Agent", ["pi"], agentAssets.pi, 1.28),
+  "workspace-agent": defineBrand(
+    "workspace-agent",
+    "Workspace Agent",
+    ["workspace-agent", "workspace"],
+    agentAssets.workspaceAgent,
+  ),
 });
 
 export function getAgentBrand(brandId: string | null | undefined): AgentBrandDefinition | null {

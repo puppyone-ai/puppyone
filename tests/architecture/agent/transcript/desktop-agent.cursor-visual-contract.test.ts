@@ -266,6 +266,7 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
     expect(brandMark).toContain("resolveAgentBrand");
     expect(brandMark).toContain("AgentMonochromeBrandImage");
     expect(brandMark).toContain("<AgentBrandImage brandId={nativeBrand.id}");
+    expect(brandMark).not.toContain("PuppyBrandMark");
     expect(brandMark).not.toMatch(/https?:\/\//);
   });
 

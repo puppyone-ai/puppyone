@@ -13,6 +13,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { PUPPYONE_AGENT_SYSTEM_PROMPT, PUPPYONE_PI_KERNEL } from "../puppyone-agent-kernel.mjs";
 import { stripPuppyOneProviderCredentials } from "../puppyone-agent-environment.mjs";
+import { WORKSPACE_AGENT_DISPLAY_NAME } from "../puppyone-agent-public-identity.mjs";
 import { createPuppyOnePolicyExtension } from "./policy.mjs";
 import { resolvePuppyOneSession } from "./session-resolver.mjs";
 
@@ -103,7 +104,7 @@ export function parseWorkerArguments(argv) {
   for (let index = 0; index < values.length; index += 1) {
     const value = values[index];
     if (value === "--mode") {
-      if (values[++index] !== "rpc") throw new Error("PuppyOne Agent worker supports only Pi RPC mode.");
+      if (values[++index] !== "rpc") throw new Error(`${WORKSPACE_AGENT_DISPLAY_NAME} worker supports only Pi RPC mode.`);
     } else if (value === "--no-approve") {
       // Compatibility flag owned by the shared Pi RPC launcher. Policy remains enabled.
     } else if (value === "--no-session") {
@@ -111,10 +112,10 @@ export function parseWorkerArguments(argv) {
     } else if (value === "--session") {
       sessionId = validSessionId(values[++index]);
     } else {
-      throw new Error(`Unsupported PuppyOne Agent worker argument: ${String(value).slice(0, 120)}`);
+      throw new Error(`Unsupported ${WORKSPACE_AGENT_DISPLAY_NAME} worker argument: ${String(value).slice(0, 120)}`);
     }
   }
-  if (noSession && sessionId) throw new Error("PuppyOne Agent cannot combine --no-session and --session.");
+  if (noSession && sessionId) throw new Error(`${WORKSPACE_AGENT_DISPLAY_NAME} cannot combine --no-session and --session.`);
   return Object.freeze({ noSession, sessionId });
 }
 
@@ -141,7 +142,7 @@ function requireAbsolutePath(value, label) {
 
 function validSessionId(value) {
   if (typeof value !== "string" || !/^[A-Za-z0-9._-]{1,200}$/u.test(value)) {
-    throw new TypeError("PuppyOne Agent session id is invalid.");
+    throw new TypeError(`${WORKSPACE_AGENT_DISPLAY_NAME} session id is invalid.`);
   }
   return value;
 }

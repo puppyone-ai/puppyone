@@ -29,8 +29,19 @@ describe("Agent brand registry", () => {
     expect(resolveAgentBrand({ id: "cursor-cli" })?.id).toBe("cursor");
     expect(resolveAgentBrand({ iconKey: "openai", label: "Codex session" })?.id).toBe("codex");
     expect(resolveAgentBrand({ label: "Pi Agent" })?.id).toBe("pi");
+    expect(resolveAgentBrand({ id: "puppyone-agent", iconKey: "workspace-agent" })?.id)
+      .toBe("workspace-agent");
     expect(resolveAgentBrand({ label: "API session" })).toBeNull();
     expect(getAgentBrand("PI")?.displayName).toBe("Pi Agent");
+  });
+
+  it("renders Workspace Agent with its own themed mark instead of the PuppyOne product mark", () => {
+    const markup = renderToStaticMarkup(<AgentBrandImage brandId="workspace-agent" />);
+
+    expect(markup.match(/<img/g)).toHaveLength(2);
+    expect(markup).toContain("assets/icons/agents/workspace-agent.svg");
+    expect(markup).toContain("assets/icons/agents/workspace-agent-dark.svg");
+    expect(markup).not.toContain("assets/brand/puppy/");
   });
 
   it("renders Pi's existing light and dark repository marks", () => {

@@ -1,4 +1,5 @@
 import path from "node:path";
+import { WORKSPACE_AGENT_DISPLAY_NAME } from "./puppyone-agent-public-identity.mjs";
 
 const EXACT_ENVIRONMENT_KEYS = new Set([
   "PATH", "HOME", "USER", "LOGNAME", "SHELL", "TMPDIR", "TEMP", "TMP",
@@ -43,7 +44,7 @@ const PROVIDER_ENVIRONMENT_KEYS = new Set(PUPPYONE_PROVIDER_ENVIRONMENT_KEYS);
 /** Build the narrow environment inherited by the product-owned Pi SDK worker. */
 export function buildPuppyOneAgentEnvironment(baseEnv, { profilePath, platform = process.platform } = {}) {
   if (typeof profilePath !== "string" || !path.isAbsolute(profilePath)) {
-    throw new TypeError("PuppyOne Agent requires an absolute managed profile path.");
+    throw new TypeError(`${WORKSPACE_AGENT_DISPLAY_NAME} requires an absolute managed profile path.`);
   }
   const environment = {};
   for (const [key, value] of Object.entries(baseEnv ?? {})) {
