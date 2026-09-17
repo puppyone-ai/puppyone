@@ -3,12 +3,12 @@ import { readFileSync } from "node:fs";
 import packageMetadata from "../../../../package.json";
 import {
   inspectContinuousIntegrationWorkflow,
+  inspectAtomicStableReleasePublisherWorkflow,
   inspectInternalReleaseWorkflow,
   inspectLegacyArchiveWorkflow,
   inspectReleasePublisherWorkflow,
   inspectStableReleaseWorkflow,
   inspectUpdateFeedMonitorWorkflow,
-  inspectWindowsStableReleaseWorkflow,
 } from "../../../../scripts/release-support/internal-release-workflow-policy.mjs";
 import {
   getStableReleaseCoordinates,
@@ -151,33 +151,55 @@ describe("macOS internal release workflow", () => {
   });
 });
 
-describe("macOS stable release workflow", () => {
-  it("isolates preparation from signing and delegates atomic publication", () => {
+describe("cross-platform stable release workflow", () => {
+  it("builds macOS and Windows in parallel and publishes only their complete Release Set", () => {
     const workflow = readFileSync(
       new URL("../../../../.github/workflows/desktop-stable-release.yml", import.meta.url),
       "utf8",
     );
     expect(inspectStableReleaseWorkflow(workflow)).toEqual([]);
   });
-});
 
-describe("Windows stable release workflow", () => {
-  it("supports explicit signed or unsigned Windows publication independently from the Mac pointer", () => {
+  it("rejects a workflow that can publish before the Windows build succeeds", () => {
     const workflow = readFileSync(
-      new URL("../../../../.github/workflows/desktop-windows-stable-release.yml", import.meta.url),
+      new URL("../../../../.github/workflows/desktop-stable-release.yml", import.meta.url),
       "utf8",
+    ).replace("needs: [build-macos, build-windows]", "needs: build-macos");
+
+    expect(inspectStableReleaseWorkflow(workflow)).toContain(
+      "Stable publication must wait for both target builds",
     );
-    expect(inspectWindowsStableReleaseWorkflow(workflow)).toEqual([]);
   });
 
-  it("rejects a Windows workflow without an explicit unsigned packaging path", () => {
+  it("requires both native builders to consume one shared build timestamp", () => {
     const workflow = readFileSync(
-      new URL("../../../../.github/workflows/desktop-windows-stable-release.yml", import.meta.url),
+      new URL("../../../../.github/workflows/desktop-stable-release.yml", import.meta.url),
       "utf8",
-    ).replace("Package explicitly unsigned Windows release", "Package Windows release without policy");
+    ).replace("--built-at \"${{ needs.resolve.outputs.built_at }}\"", "--built-at \"2026-01-01T00:00:00.000Z\"");
 
-    expect(inspectWindowsStableReleaseWorkflow(workflow)).toContain(
-      "Windows Stable must expose its unsigned packaging path",
+    expect(inspectStableReleaseWorkflow(workflow)).toContain(
+      "macOS and Windows Stable builders must consume the same build timestamp",
+    );
+  });
+});
+
+describe("atomic Stable Release Set publisher", () => {
+  it("validates both targets before mutation and compensates incomplete commits", () => {
+    const workflow = readFileSync(
+      new URL("../../../../.github/workflows/desktop-stable-release-publish.yml", import.meta.url),
+      "utf8",
+    );
+    expect(inspectAtomicStableReleasePublisherWorkflow(workflow)).toEqual([]);
+  });
+
+  it("rejects the old append-after-publication model", () => {
+    const workflow = readFileSync(
+      new URL("../../../../.github/workflows/desktop-stable-release-publish.yml", import.meta.url),
+      "utf8",
+    ).replace("windows_artifact_name:", "append_github_assets:");
+
+    expect(inspectAtomicStableReleasePublisherWorkflow(workflow)).toContain(
+      "atomic Stable publication must never append a platform after release publication",
     );
   });
 });
