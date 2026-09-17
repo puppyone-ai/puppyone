@@ -281,7 +281,7 @@
   "localAgents.empty": "未发现本地 Agent。",
   "localAgents.error": "无法扫描本地 Agent。",
   "localAgents.retry": "重试",
-  "localAgents.toggle": "在终端中显示 {agent}",
+  "localAgents.toggle": "显示 {agent}",
   "localAgents.visible": "显示在终端启动器中",
   "localAgents.hidden": "不显示在终端启动器中",
   "localAgents.history.title": "聊天记录",

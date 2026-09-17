@@ -11,10 +11,12 @@ describe("Local Agent installation service", () => {
       "cursor",
       "opencode",
       "pi",
+      "workbuddy",
       "hermes",
     ]);
-    expect(DESKTOP_TERMINAL_LAUNCHERS.filter(({ id }) => id !== "shell").map(({ id }) => id))
-      .toEqual(defaultLocalAgentInstallationRegistry.map(({ id }) => id));
+    expect(DESKTOP_TERMINAL_LAUNCHERS.filter(({ id }) => id !== "shell").every(({ id }) => (
+      defaultLocalAgentInstallationRegistry.some((definition) => definition.id === id)
+    ))).toBe(true);
   });
 
   it("returns path-free, per-product outcomes in stable registry order", async () => {
@@ -38,7 +40,7 @@ describe("Local Agent installation service", () => {
     });
     expect(JSON.stringify(result)).not.toContain("/private/tools");
     await service.discover();
-    expect(resolveInstallation).toHaveBeenCalledTimes(12);
+    expect(resolveInstallation).toHaveBeenCalledTimes(14);
   });
 
   it("uses the short cache only for ordinary reads and always scans on explicit refresh", async () => {
@@ -51,12 +53,12 @@ describe("Local Agent installation service", () => {
     });
 
     expect((await service.discover()).source).toBe("scan");
-    expect(resolveInstallation).toHaveBeenCalledTimes(6);
+    expect(resolveInstallation).toHaveBeenCalledTimes(7);
     now += 1_000;
     expect((await service.discover()).source).toBe("memory-cache");
-    expect(resolveInstallation).toHaveBeenCalledTimes(6);
+    expect(resolveInstallation).toHaveBeenCalledTimes(7);
     expect((await service.discover({ refresh: true })).source).toBe("scan");
-    expect(resolveInstallation).toHaveBeenCalledTimes(12);
+    expect(resolveInstallation).toHaveBeenCalledTimes(14);
   });
 
   it("queues one guaranteed follow-up scan when refresh is clicked during an active scan", async () => {
@@ -107,11 +109,11 @@ describe("Local Agent installation service", () => {
 
     await service.discover({ onProgress: progress });
     expect(createResolutionContext).toHaveBeenCalledOnce();
-    expect(progress).toHaveBeenCalledTimes(6);
+    expect(progress).toHaveBeenCalledTimes(7);
     expect(progress).toHaveBeenLastCalledWith(expect.objectContaining({
       availableAgentIds: ["opencode"],
-      completedAgentCount: 6,
-      totalAgentCount: 6,
+      completedAgentCount: 7,
+      totalAgentCount: 7,
     }));
     expect(JSON.stringify(progress.mock.calls)).not.toContain("/secret/");
     expect(publishSnapshot).toHaveBeenCalledOnce();

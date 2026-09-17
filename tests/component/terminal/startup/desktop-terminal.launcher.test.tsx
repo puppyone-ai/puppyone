@@ -103,7 +103,7 @@ describe("Unified Workbench launcher", () => {
       <TerminalLauncher
         agentMode="chat"
         discoveryPhase="ready"
-        availableAgentIds={["codex", "claude", "cursor", "opencode", "pi", "hermes"]}
+        availableAgentIds={["codex", "claude", "cursor", "opencode", "pi", "workbuddy", "hermes"]}
         chatRecipes={AGENT_CHAT_CREATION_RECIPES}
         onCreateChat={onCreateChat}
         onLaunch={onLaunch}
@@ -122,6 +122,7 @@ describe("Unified Workbench launcher", () => {
       "Codex",
       "Claude Code",
       "Cursor",
+      "WorkBuddy",
       "OpenCode",
       "Pi",
     ]);
@@ -217,6 +218,7 @@ describe("Unified Workbench launcher", () => {
       "codex",
       "claude",
       "cursor",
+      "workbuddy",
       "opencode-native",
       "pi",
     ]);

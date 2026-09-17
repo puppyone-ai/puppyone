@@ -5,7 +5,7 @@ import { createClaudeEventState, normalizeClaudeMessage } from "../../../electro
 import { createPiEventState, normalizePiRpcEvent } from "../../../electron/main/agent/runtimes/pi/pi-event-normalizer.mjs";
 import { AcpEventNormalizer } from "../../../electron/main/agent/protocols/acp/acp-event-normalizer.mjs";
 
-export const fileChangeRuntimeIds = ["codex", "claude", "pi", "cursor", "opencode-native", "puppyone-agent"];
+export const fileChangeRuntimeIds = ["codex", "claude", "pi", "cursor", "opencode-native", "workbuddy", "puppyone-agent"];
 export const editBefore = "source\nold\nend\n";
 export const editAfter = "source\nnew\nextra\nend\n";
 export const editDiff = "@@ -1,3 +1,4 @@\n source\n-old\n+new\n+extra\n end\n";

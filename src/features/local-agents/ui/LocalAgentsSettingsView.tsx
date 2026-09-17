@@ -2,7 +2,10 @@ import { RefreshCw } from "lucide-react";
 import { useMemo } from "react";
 import { useLocalization } from "@puppyone/localization";
 import type { LocalAgentsSettings } from "../../../preferences";
-import { AGENT_CHAT_LOCAL_AGENT_IDS } from "../../app-shell/auxiliary-workbench/agentChatCreationRecipes";
+import {
+  AGENT_CHAT_CREATION_RECIPES,
+  localAgentIdForAgentChatRuntime,
+} from "../../app-shell/auxiliary-workbench/agentChatCreationRecipes";
 import { useLocalAgentInstallations } from "../controller/useLocalAgentInstallations";
 import { DESKTOP_TERMINAL_LAUNCHERS } from "../../desktop-terminal/model/terminalLaunchers";
 import { AgentLauncherIcon } from "../../../components/brand/AgentLauncherIcon";
@@ -13,7 +16,9 @@ import {
 } from "../model/localAgentSelection";
 import { LocalAgentHooksSettingsSection } from "./LocalAgentHooksSettingsView";
 
-const activeChatLocalAgentIds = new Set<string>(AGENT_CHAT_LOCAL_AGENT_IDS);
+const terminalLauncherById = new Map<string, (typeof DESKTOP_TERMINAL_LAUNCHERS)[number]>(
+  DESKTOP_TERMINAL_LAUNCHERS.map((launcher) => [launcher.id, launcher]),
+);
 
 export function LocalAgentsSettingsView({
   settings,
@@ -32,14 +37,17 @@ export function LocalAgentsSettingsView({
     refresh,
   } = useLocalAgentInstallations({ enabled: true });
   const detected = useMemo(() => {
-    const ids = new Set(detectedAgentIds);
-    return DESKTOP_TERMINAL_LAUNCHERS.filter(
-      (launcher) => (
-        launcher.id !== "shell"
-        && activeChatLocalAgentIds.has(launcher.id)
-        && ids.has(launcher.id)
-      ),
-    );
+    const ids = new Set<string>(detectedAgentIds);
+    return AGENT_CHAT_CREATION_RECIPES.flatMap((recipe) => {
+      const localAgentId = localAgentIdForAgentChatRuntime(recipe.id);
+      if (!ids.has(localAgentId)) return [];
+      return [{
+        id: localAgentId,
+        label: recipe.label,
+        iconKey: recipe.iconKey,
+        terminalLauncher: terminalLauncherById.get(localAgentId) ?? null,
+      }];
+    });
   }, [detectedAgentIds]);
   const scanning = phase === "idle" || phase === "loading";
 
@@ -69,16 +77,18 @@ export function LocalAgentsSettingsView({
                 </button>
               </header>
               <div className="desktop-settings-list desktop-local-agent-settings-table">
-                {detected.map((launcher) => {
-                  const visible = isTerminalAgentVisible(settings, launcher.id);
-                  const displayName = t(launcher.nameMessage);
+                {detected.map((agent) => {
+                  const visible = isTerminalAgentVisible(settings, agent.id);
+                  const displayName = agent.terminalLauncher
+                    ? t(agent.terminalLauncher.nameMessage)
+                    : agent.label;
                   return (
                     <div
                       className="desktop-settings-row desktop-settings-row-control desktop-local-agent-row"
-                      key={launcher.id}
+                      key={agent.id}
                     >
                       <span className="desktop-local-agent-identity">
-                        <AgentLauncherIcon launcherId={launcher.id} />
+                        <AgentLauncherIcon launcherId={agent.id} iconKey={agent.iconKey} />
                         <span className="desktop-local-agent-row-copy">
                           <span className="desktop-local-agent-name">{displayName}</span>
                         </span>
@@ -93,7 +103,7 @@ export function LocalAgentsSettingsView({
                           aria-label={t("settings.localAgents.toggle", { agent: displayName })}
                           onChange={(event) => onChange(setTerminalAgentVisible(
                             settings,
-                            launcher.id,
+                            agent.id,
                             event.target.checked,
                           ))}
                         />

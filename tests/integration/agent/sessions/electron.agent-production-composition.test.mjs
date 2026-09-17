@@ -12,6 +12,7 @@ describe("Agent production composition", () => {
       "opencode-native": readiness("opencode-native", "not-installed"),
       pi: readiness("pi", "ready"),
       cursor: readiness("cursor", "protocol-unavailable"),
+      workbuddy: readiness("workbuddy", "ready"),
     });
 
     const catalog = await host.discover();
@@ -21,6 +22,7 @@ describe("Agent production composition", () => {
       "opencode-native",
       "cursor",
       "pi",
+      "workbuddy",
     ]);
     expect(DEFAULT_AGENT_RUNTIME_ID).toBe("codex");
     expect(host.select(catalog)?.descriptor.id).toBe("codex");
@@ -38,6 +40,7 @@ describe("Agent production composition", () => {
       ["opencode-native", "native-protocol", "acp", "first-party"],
       ["cursor", "native-protocol", "acp", "first-party"],
       ["pi", "specialized-native", "rpc", "first-party"],
+      ["workbuddy", "native-protocol", "acp", "first-party"],
     ]);
     expect(() => host.require("puppyone-agent")).toThrow("Unknown Agent runtime: puppyone-agent");
     await host.dispose();
@@ -51,6 +54,7 @@ describe("Agent production composition", () => {
       "opencode-native": readiness("opencode-native", "not-installed"),
       pi: readiness("pi", "not-installed"),
       cursor: brokenDiscovery,
+      workbuddy: readiness("workbuddy", "not-installed"),
     }, { rawDiscovery: true });
 
     const catalog = await host.discover();
@@ -71,6 +75,7 @@ function productionHost(values, { rawDiscovery = false } = {}) {
     openCodeNative: { discovery: discovery("opencode-native") },
     pi: { discovery: discovery("pi") },
     cursor: { discovery: discovery("cursor") },
+    workBuddy: { discovery: discovery("workbuddy") },
   });
 }
 

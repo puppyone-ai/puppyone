@@ -29,6 +29,7 @@ const agentRuntimes: AgentRuntimeCatalogEntry[] = [
   runtimeEntry("claude", "Claude Agent", "claude"),
   runtimeEntry("opencode-native", "OpenCode", "opencode"),
   runtimeEntry("cursor", "Cursor Agent", "cursor"),
+  runtimeEntry("workbuddy", "WorkBuddy", "workbuddy"),
 ];
 
 const modelsByRuntime: Record<string, AgentModel[]> = {
@@ -36,6 +37,7 @@ const modelsByRuntime: Record<string, AgentModel[]> = {
   claude: [model("claude-sonnet-4.5", "Claude Sonnet 4.5", true), model("claude-opus-4.1", "Claude Opus 4.1")],
   "opencode-native": [model("google/gemini-3-pro", "Gemini 3 Pro", true), model("openai/gpt-5.4", "GPT-5.4")],
   cursor: [model("auto", "Auto", true), model("composer-1", "Composer 1")],
+  workbuddy: [model("auto", "Auto", true)],
 };
 
 const referenceCapabilities: AgentReferenceInputCapabilities = {

@@ -4,6 +4,7 @@ export const LOCAL_AGENT_INSTALLATION_IDS = [
   "cursor",
   "opencode",
   "pi",
+  "workbuddy",
   "hermes",
 ] as const;
 

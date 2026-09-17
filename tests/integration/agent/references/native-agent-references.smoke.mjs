@@ -37,7 +37,7 @@ if (process.env.RUN_NATIVE_AGENT_REFERENCE_SMOKE !== "1") {
     || process.env.PUPPYONE_NATIVE_AGENT_RUNTIMES;
   const selection = requestedNativeAgentRuntimeIds(process.argv.slice(2), requested);
   if (!selection.valid) {
-    console.error("Invalid native Agent reference selection. Use codex, claude, cursor, opencode-native, pi, or all.");
+    console.error("Invalid native Agent reference selection. Use codex, claude, cursor, opencode-native, pi, workbuddy, or all.");
     process.exitCode = 2;
   } else {
     await main(selection).catch(() => {

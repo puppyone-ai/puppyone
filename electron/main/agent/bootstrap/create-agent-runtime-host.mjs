@@ -4,6 +4,7 @@ import { createCodexRuntimeDefinition } from "../runtimes/codex/codex-runtime-de
 import { createCursorRuntimeDefinition } from "../runtimes/cursor/cursor-runtime-definition.mjs";
 import { createOpenCodeNativeRuntimeDefinition } from "../runtimes/opencode-native/opencode-native-runtime-definition.mjs";
 import { createPiRuntimeDefinition } from "../runtimes/pi/pi-runtime-definition.mjs";
+import { createWorkBuddyRuntimeDefinition } from "../runtimes/workbuddy/workbuddy-runtime-definition.mjs";
 
 export const DEFAULT_AGENT_RUNTIME_ID = "codex";
 
@@ -16,6 +17,7 @@ export function createDefaultAgentRuntimeHost({
   cursor = {},
   openCodeNative = {},
   pi = {},
+  workBuddy = {},
 } = {}) {
   const definitions = [
     createCodexRuntimeDefinition({ appVersion, ...codex }),
@@ -23,6 +25,7 @@ export function createDefaultAgentRuntimeHost({
     createOpenCodeNativeRuntimeDefinition({ appVersion, logger, ...openCodeNative }),
     createPiRuntimeDefinition({ logger, ...pi }),
     createCursorRuntimeDefinition(cursor),
+    createWorkBuddyRuntimeDefinition({ appVersion, logger, ...workBuddy }),
   ];
   return new AgentRuntimeHost(new AgentRuntimeRegistry(definitions, {
     defaultRuntimeId: DEFAULT_AGENT_RUNTIME_ID,

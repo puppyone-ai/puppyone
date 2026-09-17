@@ -5,6 +5,7 @@ import { cursorInstallationDefinition } from "./definitions/cursor.mjs";
 import { hermesInstallationDefinition } from "./definitions/hermes.mjs";
 import { opencodeInstallationDefinition } from "./definitions/opencode.mjs";
 import { piInstallationDefinition } from "./definitions/pi.mjs";
+import { workBuddyInstallationDefinition } from "./definitions/workbuddy.mjs";
 
 const DEFAULT_DEFINITIONS = Object.freeze([
   codexInstallationDefinition,
@@ -12,6 +13,7 @@ const DEFAULT_DEFINITIONS = Object.freeze([
   cursorInstallationDefinition,
   opencodeInstallationDefinition,
   piInstallationDefinition,
+  workBuddyInstallationDefinition,
   hermesInstallationDefinition,
 ]);
 

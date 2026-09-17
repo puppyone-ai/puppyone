@@ -22,7 +22,7 @@ afterEach(() => {
 
 describe("Local Agent settings views", () => {
   it("uses Terminal CLI detection and persists only hidden launcher ids", async () => {
-    window.puppyoneDesktop = bridge({ terminalAgents: ["codex", "pi", "hermes"] });
+    window.puppyoneDesktop = bridge({ terminalAgents: ["codex", "pi", "workbuddy", "hermes"] });
     const onChange = vi.fn();
     render(<LocalAgentsSettingsView
       settings={{ hiddenTerminalAgentIds: [], chatHistoryDiscoveryEnabled: false }}
@@ -33,6 +33,7 @@ describe("Local Agent settings views", () => {
     await vi.waitFor(() => expect(document.body.textContent).toContain("Codex"));
     expect(document.body.textContent).toContain("Configure local Agents, chat history discovery, and Hooks.");
     expect(document.body.textContent).toContain("Pi Agent");
+    expect(document.body.textContent).toContain("WorkBuddy");
     expect(document.body.textContent).not.toContain("Hermes Agent");
     expect(Array.from(document.querySelectorAll(".desktop-settings-section-header h2")).map((heading) => heading.textContent))
       .toEqual(["Local Agents"]);
@@ -41,10 +42,10 @@ describe("Local Agent settings views", () => {
     expect(document.querySelectorAll(".desktop-local-agent-settings-group")).toHaveLength(3);
     expect(document.querySelectorAll(".desktop-local-agent-settings-table")).toHaveLength(3);
     expect(document.querySelectorAll(".desktop-local-agent-identity > .desktop-terminal-launcher-icon").length)
-      .toBeGreaterThanOrEqual(2);
-    expect(document.querySelectorAll(".desktop-local-agent-name")).toHaveLength(2);
+      .toBeGreaterThanOrEqual(3);
+    expect(document.querySelectorAll(".desktop-local-agent-name")).toHaveLength(3);
     expect(document.querySelector(".desktop-local-agent-row-copy strong")).toBeNull();
-    const codexSwitch = checkbox("Show Codex in Terminal");
+    const codexSwitch = checkbox("Show Codex");
     expect(codexSwitch.checked).toBe(true);
 
     act(() => codexSwitch.click());
