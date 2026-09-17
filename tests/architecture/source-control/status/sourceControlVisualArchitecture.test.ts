@@ -693,6 +693,7 @@ describe("source-control visual architecture", () => {
 
   it("keeps diff typography dense and color subordinate to content", () => {
     const surface = compact(readCssBlock(diffCss, ".desktop-file-diff"));
+    const header = compact(readCssBlock(diffCss, ".desktop-file-diff-header"));
     const lines = compact(readCssBlock(diffCss, ".desktop-diff-line"));
     const added = compact(readCssBlock(diffCss, ".desktop-diff-line.add"));
     const removed = compact(readCssBlock(diffCss, ".desktop-diff-line.remove"));
@@ -705,6 +706,10 @@ describe("source-control visual architecture", () => {
     expect(surface).toContain(
       "--desktop-git-diff-code-bg: color-mix(in srgb, var(--po-panel) 62%, var(--po-inset));",
     );
+    expect(surface).toContain(
+      "--desktop-git-diff-header-bg: color-mix(in srgb, var(--po-inset) 72%, var(--po-panel));",
+    );
+    expect(header).toContain("background: var(--desktop-git-diff-header-bg);");
     expect(surface).toContain(
       "--desktop-git-diff-added-bg: color-mix(in srgb, var(--po-success) 7%, var(--desktop-git-diff-code-bg));",
     );

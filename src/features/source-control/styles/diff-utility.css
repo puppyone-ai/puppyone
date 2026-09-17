@@ -5,6 +5,7 @@
 
 .desktop-file-diff {
   --desktop-git-diff-code-bg: color-mix(in srgb, var(--po-panel) 62%, var(--po-inset));
+  --desktop-git-diff-header-bg: color-mix(in srgb, var(--po-inset) 72%, var(--po-panel));
   --desktop-git-diff-added-bg: color-mix(in srgb, var(--po-success) 7%, var(--desktop-git-diff-code-bg));
   --desktop-git-diff-removed-bg: color-mix(in srgb, var(--po-danger) 7%, var(--desktop-git-diff-code-bg));
   --desktop-git-diff-added-text: color-mix(in srgb, var(--po-text-muted) 82%, var(--po-success));
@@ -26,7 +27,7 @@
   min-height: 32px;
   padding: 0 10px;
   border-bottom: 1px solid var(--po-border-subtle);
-  background: color-mix(in srgb, var(--po-canvas) 94%, var(--po-text) 2%);
+  background: var(--desktop-git-diff-header-bg);
   color: var(--po-text-muted);
 }
 
