@@ -273,12 +273,13 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
     expect(layoutCss).not.toContain(".desktop-right-sidebar::before");
   });
 
-  it("coordinates Right sidebar controls, conversation, evidence, and code through semantic roles", () => {
-    expect(css).toMatch(/--agent-font-size:\s*var\(--po-type-right-sidebar-content, 14px\)/);
-    expect(css).toMatch(/--agent-conversation-font-size:\s*var\(--po-type-right-sidebar-content, 14px\)/);
+  it("matches Agent Chat type to the Left sidebar while preserving reading and code roles", () => {
+    expect(css).toMatch(/--agent-font-size:\s*var\(--po-type-left-sidebar-content, 14px\)/);
+    expect(css).toMatch(/--agent-control-line-height:\s*var\(--po-type-left-sidebar-line-height, 19px\)/);
+    expect(css).toMatch(/--agent-conversation-font-size:\s*var\(--po-type-left-sidebar-content, 14px\)/);
     expect(css).toMatch(/--agent-conversation-line-height:\s*calc\(var\(--agent-conversation-font-size\) \+ 7px\)/);
     expect(css).toMatch(/--agent-response-line-height:\s*calc\(var\(--agent-conversation-font-size\) \+ 8px\)/);
-    expect(css).toMatch(/--agent-font-size-meta:\s*var\(--po-type-right-sidebar-meta, 13px\)/);
+    expect(css).toMatch(/--agent-font-size-meta:\s*var\(--po-type-left-sidebar-meta, 12px\)/);
     expect(css).toMatch(/--agent-font-size-caption:\s*var\(--po-type-right-sidebar-caption, 12px\)/);
     expect(css).toMatch(/--agent-font-size-micro:\s*var\(--po-type-right-sidebar-micro, 11px\)/);
     expect(css).toMatch(/--agent-code-font-size:\s*var\(--po-type-right-sidebar-code, 13px\)/);
