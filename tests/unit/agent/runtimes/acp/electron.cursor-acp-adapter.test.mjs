@@ -289,12 +289,15 @@ describe("Cursor ACP runtime", () => {
 
   it("discovers and hydrates native ACP sessions only when the runtime advertises the capabilities", async () => {
     const connection = new FakeCursorConnection({ list: true, replayHistory: true });
+    const onEvent = vi.fn();
+    const writeTextFile = vi.fn();
     const adapter = new CursorAcpAdapter({
       readiness: { executablePath: "/tools/agent", environment: {}, version: "2026.08.1", source: "path-installation" },
       workspaceRoot: "/workspace",
       appVersion: "0.3.11",
+      onEvent,
       connectionFactory: () => connection,
-      fileSystemFactory: () => ({ readTextFile: vi.fn(), writeTextFile: vi.fn() }),
+      fileSystemFactory: () => ({ readTextFile: vi.fn(), writeTextFile }),
       projectInstructionLoader: vi.fn(async () => ({ source: null, text: "", bytes: 0 })),
     });
 
@@ -306,9 +309,26 @@ describe("Cursor ACP runtime", () => {
     });
     await adapter.resumeSession({ threadId: "cursor-history" });
     await expect(adapter.readHistory()).resolves.toEqual(expect.arrayContaining([
-      expect.objectContaining({ type: "turn.started", payload: { prompt: "Fix tabs", restored: true } }),
+      expect.objectContaining({
+        type: "turn.started",
+        payload: { prompt: "Fix tabs", restored: true, userMessageId: "user-1" },
+      }),
       expect.objectContaining({ type: "assistant.completed", payload: { text: "Done" } }),
+      expect.objectContaining({
+        type: "tool.completed",
+        itemId: "search-history",
+        payload: expect.objectContaining({ kind: "search", input: { query: "tabs" }, outputPreview: "2 matches" }),
+      }),
     ]));
+    expect(connection.request.mock.calls.map(([method]) => method)).not.toContain("session/prompt");
+    expect(writeTextFile).not.toHaveBeenCalled();
+    expect(onEvent.mock.calls.some(([event]) => event.type === "approval.requested")).toBe(false);
+    expect(connection.respond).toHaveBeenCalledWith(91, { outcome: { outcome: "cancelled" } });
+    expect(connection.respondError).toHaveBeenCalledWith(
+      92,
+      -32603,
+      expect.stringContaining("history is loading"),
+    );
     await adapter.dispose();
   });
 
@@ -377,6 +397,30 @@ class FakeCursorConnection extends EventEmitter {
           this.sendUpdate({ sessionUpdate: "user_message_chunk", messageId: "user-1", content: { type: "text", text: "Fix " } }, "cursor-history");
           this.sendUpdate({ sessionUpdate: "user_message_chunk", messageId: "user-1", content: { type: "text", text: "tabs" } }, "cursor-history");
           this.sendUpdate({ sessionUpdate: "agent_message_chunk", messageId: "assistant-1", content: { type: "text", text: "Done" } }, "cursor-history");
+          this.sendUpdate({
+            sessionUpdate: "tool_call",
+            toolCallId: "search-history",
+            kind: "search",
+            title: "Search workspace",
+            status: "pending",
+            rawInput: { query: "tabs" },
+          }, "cursor-history");
+          this.sendUpdate({
+            sessionUpdate: "tool_call_update",
+            toolCallId: "search-history",
+            status: "completed",
+            rawOutput: "2 matches",
+          }, "cursor-history");
+          this.sendRequest(91, "session/request_permission", {
+            sessionId: "cursor-history",
+            toolCall: { toolCallId: "historical-write", title: "Historical write", kind: "edit" },
+            options: [{ optionId: "allow", kind: "allow_once" }],
+          });
+          this.sendRequest(92, "fs/write_text_file", {
+            sessionId: "cursor-history",
+            path: "README.md",
+            content: "must not be written",
+          });
         });
         return {
           sessionId: method === "session/new" ? "cursor-session" : "cursor-history",

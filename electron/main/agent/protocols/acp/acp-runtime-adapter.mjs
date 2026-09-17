@@ -29,7 +29,7 @@ import {
   buildAcpPromptBlocks,
   materializeAcpReferences,
 } from "./acp-prompt-input.mjs";
-import { AcpHistoryCollector } from "./acp-history-collector.mjs";
+import { AcpHistoryReplay } from "./acp-history-replay.mjs";
 import { AgentProviderSessionUnavailableError } from "../../runtime/agent-runtime-port.mjs";
 
 const METADATA_SETTLE_MS = 75;
@@ -198,7 +198,7 @@ export class AcpRuntimeAdapter {
     this.exitExpected = false;
     this.disposed = false;
     this.historicalEvents = [];
-    this.historyCollector = null;
+    this.historyReplay = null;
   }
 
   hasActiveProcess() {
@@ -242,7 +242,7 @@ export class AcpRuntimeAdapter {
     await this.#connect("session");
     let response;
     if (kind === "resume") {
-      this.historyCollector = new AcpHistoryCollector();
+      this.historyReplay = new AcpHistoryReplay();
       try {
         const sessionId = requiredId(threadId, `${this.runtimeDescriptor.displayName} ACP session id`);
         const native = this.client?.agentCapabilities ?? {};
@@ -272,11 +272,11 @@ export class AcpRuntimeAdapter {
         this.#syncSession(response);
         await delay(METADATA_SETTLE_MS);
       } finally {
-        this.historyCoverage = this.historyCollector?.truncated ? "partial" : "unknown";
-        this.historicalEvents = this.historyCollector?.events(
+        this.historicalEvents = this.historyReplay?.events(
           nativeSessionId(response?.sessionId) ?? nativeSessionId(threadId),
         ) ?? [];
-        this.historyCollector = null;
+        this.historyCoverage = this.historyReplay?.truncated ? "partial" : "unknown";
+        this.historyReplay = null;
       }
     } else if (kind === "create") {
       response = await this.client.newSession({ cwd: this.workspaceRoot, mcpServers: [] });
@@ -721,7 +721,7 @@ export class AcpRuntimeAdapter {
     if (!this.sessionId && nativeSessionId(notification.sessionId)) this.sessionId = notification.sessionId;
     if (notification.sessionId !== this.sessionId) return;
     const update = notification.update;
-    if (this.historyCollector) this.historyCollector.accept(notification);
+    if (this.historyReplay) this.historyReplay.accept(notification);
     if (update?.sessionUpdate === "available_commands_update") {
       this.commands = array(update.availableCommands).slice(0, 500).map((command) => ({
         name: text(command?.name, 160).replace(/^\//u, ""),
@@ -747,6 +747,9 @@ export class AcpRuntimeAdapter {
   #withSession(request, operation) {
     if (!this.sessionId || request?.sessionId !== this.sessionId) {
       throw new Error(`ACP file request does not belong to the active ${this.runtimeDescriptor.displayName} session.`);
+    }
+    if (this.historyReplay) {
+      throw new Error(`ACP file requests are unavailable while ${this.runtimeDescriptor.displayName} history is loading.`);
     }
     return operation();
   }
