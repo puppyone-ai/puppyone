@@ -3,7 +3,6 @@ import { DEFAULT_EXPERIMENTAL_SETTINGS } from "../../../../src/preferences";
 import {
   DEFAULT_PLUGINS_SECTION,
   PLUGINS_SIDEBAR_ITEMS,
-  isPluginsNavigationVisible,
   isViewerPluginsEnabled,
 } from "../../../../src/features/plugins";
 import {
@@ -19,21 +18,6 @@ describe("Viewer Plugins experiment", () => {
     expect(isViewerPluginsEnabled({
       settings: { ...DEFAULT_EXPERIMENTAL_SETTINGS, enableViewerPlugins: true },
     })).toBe(true);
-  });
-
-  it("keeps Appearance visibility separate from feature authority", () => {
-    expect(isPluginsNavigationVisible({
-      featureEnabled: true,
-      visibility: { enabled: { plugins: true } },
-    })).toBe(true);
-    expect(isPluginsNavigationVisible({
-      featureEnabled: true,
-      visibility: { enabled: { plugins: false } },
-    })).toBe(false);
-    expect(isPluginsNavigationVisible({
-      featureEnabled: false,
-      visibility: { enabled: { plugins: true } },
-    })).toBe(false);
   });
 
   it("keeps every official catalog card backed by an active preset Viewer contract", () => {

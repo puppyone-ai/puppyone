@@ -9,7 +9,7 @@ export type DesktopSidebarIconComponent = (props: {
 }) => ReactNode;
 
 export type DesktopNavigationItem = {
-  view: Extract<DesktopView, "git" | "plugins">;
+  view: Extract<DesktopView, "git">;
   labelId: string;
   icon: DesktopSidebarIconComponent;
   iconSize?: number;
@@ -18,7 +18,6 @@ export type DesktopNavigationItem = {
 export type DesktopNavigationAvailability = {
   availableSurfaceIds?: readonly WorkspaceSurfaceId[];
   gitEnabled?: boolean;
-  pluginsEnabled?: boolean;
 };
 
 export type DesktopNavigationRuntime = {
@@ -31,8 +30,11 @@ export type DesktopNavigationRuntime = {
 };
 
 export type DesktopNavigationProps = DesktopNavigationAvailability & DesktopNavigationRuntime & {
+  onOpenPlugins?: () => void;
   onOpenSettings: () => void;
+  pluginsOpen?: boolean;
   settingsOpen?: boolean;
+  showPlugins?: boolean;
   showSettings?: boolean;
   utilitySlot?: ReactNode;
 };

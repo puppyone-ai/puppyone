@@ -10,7 +10,6 @@ import type {
   LoadingAnimationPreset,
   LocalAgentsSettings,
   RightSidebarToolsSettings,
-  SidebarNavigationVisibilitySettings,
   ThemeMode,
   TitlebarActionsSettings,
   TypographyPreferences,
@@ -41,7 +40,6 @@ export type SettingsPreferencesPort = {
   markdownPresentation: MarkdownPresentationSettings;
   requestedSubThemeId: string;
   fileIconTheme: FileIconThemeId;
-  sidebarNavigationVisibilitySettings: SidebarNavigationVisibilitySettings;
   filesVisibilitySettings: FilesVisibilitySettings;
   createNewMenuSettings: CreateNewMenuSettings;
   experimentalSettings: ExperimentalSettings;
@@ -58,7 +56,6 @@ export type SettingsPreferencesPort = {
   setMarkdownPresentation: (value: MarkdownPresentationSettings) => void;
   setSubThemeId: (subThemeId: string) => void;
   setFileIconTheme: (value: FileIconThemeId) => void;
-  setSidebarNavigationVisibilitySettings: (value: SidebarNavigationVisibilitySettings) => void;
   setCreateNewMenuSettings: (value: CreateNewMenuSettings) => void;
   setExperimentalSettings: (value: ExperimentalSettings) => void;
   setRightSidebarToolsSettings: (value: RightSidebarToolsSettings) => void;
@@ -144,7 +141,6 @@ export function createSettingsWorkspaceSurface({
         requestedSubThemeId={preferences.requestedSubThemeId}
         subThemeCatalog={subThemeCatalog}
         fileIconTheme={preferences.fileIconTheme}
-        sidebarNavigationVisibilitySettings={preferences.sidebarNavigationVisibilitySettings}
         filesVisibilitySettings={preferences.filesVisibilitySettings}
         createNewMenuSettings={preferences.createNewMenuSettings}
         experimentalSettings={preferences.experimentalSettings}
@@ -169,7 +165,6 @@ export function createSettingsWorkspaceSurface({
         onPointerCursorsChange={preferences.setPointerCursors}
         onSubThemeChange={preferences.setSubThemeId}
         onFileIconThemeChange={preferences.setFileIconTheme}
-        onSidebarNavigationVisibilitySettingsChange={preferences.setSidebarNavigationVisibilitySettings}
         onFilesVisibilitySettingsChange={onFilesVisibilitySettingsChange}
         onCreateNewMenuSettingsChange={preferences.setCreateNewMenuSettings}
         onExperimentalSettingsChange={preferences.setExperimentalSettings}

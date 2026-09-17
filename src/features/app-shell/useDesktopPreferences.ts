@@ -32,7 +32,6 @@ import {
   LOCAL_AGENTS_STORAGE_KEY,
   RIGHT_SIDEBAR_TOOLS_STORAGE_KEY,
   DEFAULT_SIDEBAR_NAVIGATION_LAYOUT,
-  SIDEBAR_NAVIGATION_VISIBILITY_STORAGE_KEY,
   TITLEBAR_ACTIONS_STORAGE_KEY,
   parseCreateNewMenuSettings,
   type CreateNewMenuSettings,
@@ -45,7 +44,6 @@ import {
   type LoadingAnimationPreset,
   type LocalAgentsSettings,
   type RightSidebarToolsSettings,
-  type SidebarNavigationVisibilitySettings,
   type ThemeMode,
   type TypographyPreferences,
   type TitlebarActionsSettings,
@@ -77,7 +75,6 @@ import {
   readInitialRightSidebarWidth,
   readInitialRightSidebarSurface,
   readInitialSidebarCollapsed,
-  readInitialSidebarNavigationVisibilitySettings,
   readInitialTitlebarActionsSettings,
   readInitialDiffMarkers,
   readInitialLocalAgentsSettings,
@@ -129,9 +126,6 @@ export function useDesktopPreferences(
   );
   const [fileIconTheme, setFileIconTheme] = useState<FileIconThemeId>(initialAppearance.shared.fileIconTheme);
   const sidebarNavigationLayout = DEFAULT_SIDEBAR_NAVIGATION_LAYOUT;
-  const [sidebarNavigationVisibilitySettings, setSidebarNavigationVisibilitySettings] = useState<SidebarNavigationVisibilitySettings>(
-    () => readInitialSidebarNavigationVisibilitySettings(),
-  );
   const [gitDisplayMode, setGitDisplayMode] = useState<GitDisplayMode>(() => readInitialGitDisplayMode());
   const [gitSidebarLayout, setGitSidebarLayout] = useState<GitSidebarLayout>(() => readInitialGitSidebarLayout());
   const [filesVisibilitySettings, setFilesVisibilitySettings] = useState<FilesVisibilitySettings>(() => readInitialFilesVisibilitySettings());
@@ -361,13 +355,6 @@ export function useDesktopPreferences(
   ]);
 
   useEffect(() => {
-    window.localStorage.setItem(
-      SIDEBAR_NAVIGATION_VISIBILITY_STORAGE_KEY,
-      JSON.stringify(sidebarNavigationVisibilitySettings),
-    );
-  }, [sidebarNavigationVisibilitySettings]);
-
-  useEffect(() => {
     window.localStorage.setItem(GIT_DISPLAY_MODE_STORAGE_KEY, gitDisplayMode);
   }, [gitDisplayMode]);
 
@@ -538,7 +525,6 @@ export function useDesktopPreferences(
     agentRoutingPreferences,
     agentFileActivityIndicatorsEnabled,
     sidebarCollapsed,
-    sidebarNavigationVisibilitySettings,
     requestedSubThemeId,
     requestedSubThemeIds,
     terminalToolEnabled,
@@ -572,7 +558,6 @@ export function useDesktopPreferences(
     setAgentPreferredModel,
     setAgentFileActivityIndicatorsEnabled,
     setSidebarCollapsed,
-    setSidebarNavigationVisibilitySettings,
     setSubThemeId,
     setTitlebarActionsSettings,
     setLoadingAnimationPreset,

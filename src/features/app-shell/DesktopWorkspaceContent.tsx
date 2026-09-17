@@ -24,7 +24,7 @@ import {
 } from "../data-workspace/useFileClipboard";
 import type { PuppyoneWorkspaceConfig } from "../../types/electron";
 import type { DesktopCreateEntryAnchorInput } from "../data-workspace/nodeActions";
-import { isViewerPluginsEnabled } from "../plugins";
+import { isViewerPluginsEnabled, PluginsDialog } from "../plugins";
 import type { DesktopPreferencesController } from "./useDesktopPreferences";
 import {
   useWorkspaceSurfaceContent,
@@ -67,7 +67,9 @@ type DesktopWorkspaceContentProps = {
   onFilesVisibilitySettingsChange: (settings: FilesVisibilitySettings) => void;
   onNavigate: (view: DesktopView) => void;
   onCloseCloud: () => void;
+  onClosePlugins: () => void;
   onOpenGitChanges: () => void;
+  onOpenPlugins: () => void;
   onNodeActionMenu: (node: DataNode, anchorRect: DOMRect, selectedNodes?: readonly DataNode[]) => void;
   onOpenSettings: () => void;
   onPuppyoneConfigChange: (config: PuppyoneWorkspaceConfig) => Promise<PuppyoneWorkspaceConfig | null>;
@@ -79,6 +81,7 @@ type DesktopWorkspaceContentProps = {
   puppyoneConfigLoading: boolean;
   puppyoneConfigSaving: boolean;
   settingsSection: SettingsSection;
+  pluginsOpen?: boolean;
   settingsOpen?: boolean;
   settingsNavigationVisible?: boolean;
   workspaceNavigationVisible?: boolean;
@@ -119,7 +122,9 @@ export function DesktopWorkspaceContent({
   onFilesVisibilitySettingsChange,
   onNavigate,
   onCloseCloud,
+  onClosePlugins,
   onOpenGitChanges,
+  onOpenPlugins,
   onNodeActionMenu,
   onOpenSettings,
   onPuppyoneConfigChange,
@@ -131,6 +136,7 @@ export function DesktopWorkspaceContent({
   puppyoneConfigLoading,
   puppyoneConfigSaving,
   settingsSection,
+  pluginsOpen = false,
   settingsOpen = false,
   settingsNavigationVisible = true,
   workspaceNavigationVisible = true,
@@ -174,7 +180,6 @@ export function DesktopWorkspaceContent({
     availableSurfaceIds,
     cloudSurface,
     gitEnabled,
-    pluginsNavigationVisible,
     resolvedActiveView,
     resolvedSurface,
     workspaceChangeCount,
@@ -195,12 +200,6 @@ export function DesktopWorkspaceContent({
     puppyoneConfigSaving,
     settingsSection,
     subThemeCatalog,
-    viewerPacks: {
-      hostAvailable: externalViewerPacksEnabled,
-      refresh: refreshViewerPackSnapshot,
-      snapshot: viewerPackSnapshot,
-    },
-    viewerPluginsEnabled,
     workspace,
   });
 
@@ -222,14 +221,16 @@ export function DesktopWorkspaceContent({
           activeView: resolvedActiveView,
           availableSurfaceIds,
           gitEnabled,
-          pluginsEnabled: pluginsNavigationVisible,
           gitIncomingCount: git.gitIncomingCount,
           gitOperationLoading: git.gitOperationLoading,
           gitStatus: git.activeGitStatus,
           workspaceChangeCount,
           onNavigate,
+          onOpenPlugins,
           onOpenSettings,
+          pluginsOpen,
           settingsOpen,
+          showPlugins: viewerPluginsEnabled,
           showSettings: settingsNavigationVisible,
           showWorkspaceNavigation: workspaceNavigationVisible,
         }}
@@ -264,6 +265,14 @@ export function DesktopWorkspaceContent({
           sidebar={cloudSurface.sidebar}
           main={cloudSurface.main}
           onClose={onCloseCloud}
+        />
+      )}
+      {pluginsOpen && viewerPluginsEnabled && (
+        <PluginsDialog
+          hostAvailable={externalViewerPacksEnabled}
+          snapshot={viewerPackSnapshot}
+          onRefresh={refreshViewerPackSnapshot}
+          onClose={onClosePlugins}
         />
       )}
     </>

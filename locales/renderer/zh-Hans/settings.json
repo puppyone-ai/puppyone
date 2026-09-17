@@ -86,8 +86,6 @@
   "appearance.navigation.top.description": "在文件树上方显示横向控件。",
   "appearance.navigation.left.label": "左侧",
   "appearance.navigation.left.description": "在侧边栏左侧边缘显示纵向控件。",
-  "appearance.pluginsShortcut.title": "插件快捷入口",
-  "appearance.pluginsShortcut.detail": "在工作区导航中显示本地插件入口。",
   "appearance.headerElements.title": "标题栏元素",
   "appearance.headerElements.external-open": "在外部打开",
   "appearance.headerElements.history": "Git 历史",

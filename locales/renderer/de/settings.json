@@ -86,8 +86,6 @@
   "appearance.navigation.top.description": "Horizontale Bedienelemente über dem Dateibaum.",
   "appearance.navigation.left.label": "Links",
   "appearance.navigation.left.description": "Vertikale Bedienelemente am linken Rand der Seitenleiste.",
-  "appearance.pluginsShortcut.title": "Plugin-Verknüpfung",
-  "appearance.pluginsShortcut.detail": "Zeigt den lokalen Plugin-Eintrag in der Arbeitsbereichsnavigation.",
   "appearance.headerElements.title": "Kopfzeilenelemente",
   "appearance.headerElements.external-open": "Extern öffnen",
   "appearance.headerElements.history": "Git-Verlauf",

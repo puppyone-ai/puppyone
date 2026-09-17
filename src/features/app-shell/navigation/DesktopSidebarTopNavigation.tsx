@@ -2,6 +2,7 @@ import { useLocalization } from "@puppyone/localization";
 import type { SidebarNavigationOrientation } from "../../../preferences";
 import {
   DesktopNavigationItems,
+  DesktopSidebarPluginsButton,
   DesktopSidebarSettingsButton,
 } from "./DesktopNavigationItems";
 import { resolveNavigationItems } from "./navigationModel";
@@ -11,15 +12,17 @@ export function DesktopSidebarTopNavigation({
   activeView,
   availableSurfaceIds,
   gitEnabled = true,
-  pluginsEnabled = false,
   orientation,
   gitIncomingCount,
   gitOperationLoading,
   gitStatus,
   workspaceChangeCount,
   onNavigate,
+  onOpenPlugins,
   onOpenSettings,
+  pluginsOpen = false,
   settingsOpen = false,
+  showPlugins = false,
   showSettings = true,
   utilitySlot,
   shellToolbar = false,
@@ -33,7 +36,6 @@ export function DesktopSidebarTopNavigation({
   const { localItems } = resolveNavigationItems({
     availableSurfaceIds,
     gitEnabled,
-    pluginsEnabled,
   });
   const runtime = {
     activeView,
@@ -68,6 +70,15 @@ export function DesktopSidebarTopNavigation({
             shellToolbar={shellToolbar}
             showLabel
           />
+          {showPlugins && onOpenPlugins && (
+            <DesktopSidebarPluginsButton
+              buttonClassName={buttonClassName}
+              onOpenPlugins={onOpenPlugins}
+              pluginsOpen={pluginsOpen}
+              shellToolbar={shellToolbar}
+              showLabel
+            />
+          )}
           {showSettings && (
             <DesktopSidebarSettingsButton
               buttonClassName={buttonClassName}

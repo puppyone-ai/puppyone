@@ -314,6 +314,7 @@ function AppContent() {
   const Homepage = assetLibraryHomeEnabled ? AssetLibraryHome : MinimalOnboarding;
   const [activeSettingsSection, setActiveSettingsSection] = useState<SettingsSection>("general");
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
+  const [pluginsDialogOpen, setPluginsDialogOpen] = useState(false);
   const [cloudDialogOpen, setCloudDialogOpen] = useState(false);
   const [workspaceRefreshToken, setWorkspaceRefreshToken] = useState<WorkspaceContentChange>({
     sequence: 0,
@@ -522,17 +523,29 @@ function AppContent() {
   const openSettingsDialog = useCallback((section?: SettingsSection) => {
     if (section) setActiveSettingsSection(section);
     setSettingsDialogOpen(true);
+    setPluginsDialogOpen(false);
     setCloudDialogOpen(false);
     setSwitcherOpen(false);
     setBranchSwitcherOpen(false);
   }, [setBranchSwitcherOpen]);
   const closeSettingsDialog = useCallback(() => setSettingsDialogOpen(false), []);
+  const openPluginsDialog = useCallback(() => {
+    if (!experimentalSettings.enableViewerPlugins) return;
+    setActiveView("data");
+    setPluginsDialogOpen(true);
+    setSettingsDialogOpen(false);
+    setCloudDialogOpen(false);
+    setSwitcherOpen(false);
+    setBranchSwitcherOpen(false);
+  }, [experimentalSettings.enableViewerPlugins, setBranchSwitcherOpen]);
+  const closePluginsDialog = useCallback(() => setPluginsDialogOpen(false), []);
   const openCloudDialog = useCallback(() => {
     if (!cloudEnabled) return;
     setActiveView("data");
     setActiveCloudSection(CLOUD_HUB_ENTRY_SECTION);
     setCloudDialogOpen(true);
     setSettingsDialogOpen(false);
+    setPluginsDialogOpen(false);
     setSidebarCollapsed(false);
     setSwitcherOpen(false);
     setBranchSwitcherOpen(false);
@@ -617,14 +630,15 @@ function AppContent() {
       return;
     }
     if (!cloudEnabled) setCloudDialogOpen(false);
-    if (
-      activeView === "git"
-      || (activeView === "plugins" && !experimentalSettings.enableViewerPlugins)
-    ) {
+    if (activeView === "git") {
       setActiveView("data");
       setActiveCloudSection("initialize");
     }
-  }, [activeView, cloudEnabled, experimentalSettings.enableViewerPlugins]);
+  }, [activeView, cloudEnabled]);
+
+  useEffect(() => {
+    if (!experimentalSettings.enableViewerPlugins) setPluginsDialogOpen(false);
+  }, [experimentalSettings.enableViewerPlugins]);
 
   useEffect(() => {
     if (!isSettingsSectionAvailable(activeSettingsSection, { cloudEnabled })) {
@@ -715,13 +729,6 @@ function AppContent() {
       if (requestId !== desktopViewNavigationRequestRef.current) return;
       setDocumentNavigationError(null);
 
-      if (view === "plugins" && !experimentalSettings.enableViewerPlugins) {
-        setActiveView("data");
-        setSidebarCollapsed(false);
-        setSwitcherOpen(false);
-        return;
-      }
-
       if (view === "cloud" && !cloudEnabled) {
         setActiveView("data");
         setSidebarCollapsed(false);
@@ -742,7 +749,6 @@ function AppContent() {
     void commitNavigation();
   }, [
     cloudEnabled,
-    experimentalSettings.enableViewerPlugins,
     openCloudDialog,
     setSidebarCollapsed,
   ]);
@@ -983,6 +989,7 @@ function AppContent() {
     setBranchSwitcherOpen(false);
     setRightSidebarOpen(false);
     setSettingsDialogOpen(false);
+    setPluginsDialogOpen(false);
     setCloudDialogOpen(false);
     resetDataNodeActions();
   }, [
@@ -1350,6 +1357,10 @@ function AppContent() {
               expanded={expanded}
               recentWorkspaces={recentWorkspaceItems}
               onCreateNew={() => setProjectEntryDialog("launcher")}
+              pluginsOpen={pluginsDialogOpen}
+              onOpenPlugins={experimentalSettings.enableViewerPlugins
+                ? openPluginsDialog
+                : undefined}
               settingsOpen={settingsDialogOpen}
               onOpenSettings={openSettingsDialog}
               onSelectProject={switchProjectFromRail}
@@ -1528,7 +1539,9 @@ function AppContent() {
             onFilesVisibilitySettingsChange={handleFilesVisibilitySettingsChange}
             onNavigate={navigateDesktopView}
             onCloseCloud={closeCloudDialog}
+            onClosePlugins={closePluginsDialog}
             onOpenGitChanges={handleToggleGitChanges}
+            onOpenPlugins={openPluginsDialog}
             onNodeActionMenu={openNodeActionMenu}
             onOpenSettings={openSettingsDialog}
             onPuppyoneConfigChange={handlePuppyoneConfigChange}
@@ -1540,6 +1553,7 @@ function AppContent() {
             puppyoneConfigLoading={puppyoneConfigLoading}
             puppyoneConfigSaving={puppyoneConfigSaving}
             settingsSection={activeSettingsSection}
+            pluginsOpen={pluginsDialogOpen}
             settingsOpen={settingsDialogOpen}
             settingsNavigationVisible={!projectSwitcherRailEnabled}
             workspaceNavigationVisible={!projectSwitcherRailEnabled}

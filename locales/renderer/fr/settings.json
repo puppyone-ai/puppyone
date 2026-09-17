@@ -86,8 +86,6 @@
   "appearance.navigation.top.description": "Contrôles horizontaux au-dessus de l’arborescence des fichiers.",
   "appearance.navigation.left.label": "Gauche",
   "appearance.navigation.left.description": "Commandes verticales sur le bord gauche de la barre latérale.",
-  "appearance.pluginsShortcut.title": "Raccourci des plugins",
-  "appearance.pluginsShortcut.detail": "Afficher l’entrée Plugins locaux dans la navigation de l’espace de travail.",
   "appearance.headerElements.title": "Éléments d’en-tête",
   "appearance.headerElements.external-open": "Ouverture externe",
   "appearance.headerElements.history": "Historique Git",

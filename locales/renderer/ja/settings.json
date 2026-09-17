@@ -86,8 +86,6 @@
   "appearance.navigation.top.description": "ファイルツリーの上に横向きの操作項目を表示します。",
   "appearance.navigation.left.label": "左",
   "appearance.navigation.left.description": "サイドバーの左端に縦向きの操作項目を表示します。",
-  "appearance.pluginsShortcut.title": "プラグインのショートカット",
-  "appearance.pluginsShortcut.detail": "ワークスペースのナビゲーションにローカルのプラグイン項目を表示します。",
   "appearance.headerElements.title": "ヘッダー要素",
   "appearance.headerElements.external-open": "外部で開く",
   "appearance.headerElements.history": "Git 履歴",

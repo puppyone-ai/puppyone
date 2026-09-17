@@ -86,8 +86,6 @@
   "appearance.navigation.top.description": "파일 트리 위에 가로 컨트롤을 표시합니다.",
   "appearance.navigation.left.label": "왼쪽",
   "appearance.navigation.left.description": "사이드바 왼쪽 가장자리에 세로 컨트롤을 표시합니다.",
-  "appearance.pluginsShortcut.title": "플러그인 바로가기",
-  "appearance.pluginsShortcut.detail": "워크스페이스 탐색에 로컬 플러그인 항목을 표시합니다.",
   "appearance.headerElements.title": "헤더 요소",
   "appearance.headerElements.external-open": "외부에서 열기",
   "appearance.headerElements.history": "Git 기록",

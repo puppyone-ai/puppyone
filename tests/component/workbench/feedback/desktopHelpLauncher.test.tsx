@@ -262,7 +262,6 @@ describe("DesktopHelpLauncher", () => {
         <DesktopSidebarFooterNavigation
           activeView="data"
           gitEnabled={false}
-          pluginsEnabled={false}
           gitIncomingCount={0}
           gitOperationLoading={null}
           gitStatus={null}

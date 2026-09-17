@@ -86,8 +86,6 @@
   "appearance.navigation.top.description": "Controles horizontais acima da árvore de arquivos.",
   "appearance.navigation.left.label": "Esquerda",
   "appearance.navigation.left.description": "Controles verticais na borda esquerda da barra lateral.",
-  "appearance.pluginsShortcut.title": "Atalho de Plugins",
-  "appearance.pluginsShortcut.detail": "Mostra a entrada local de Plugins na navegação do workspace.",
   "appearance.headerElements.title": "Elementos do cabeçalho",
   "appearance.headerElements.external-open": "Abrir externamente",
   "appearance.headerElements.history": "Histórico do Git",

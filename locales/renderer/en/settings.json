@@ -86,8 +86,6 @@
   "appearance.navigation.top.description": "Horizontal controls above the file tree.",
   "appearance.navigation.left.label": "Left",
   "appearance.navigation.left.description": "Vertical controls on the left edge of the sidebar.",
-  "appearance.pluginsShortcut.title": "Plugins shortcut",
-  "appearance.pluginsShortcut.detail": "Show the local Plugins entry in workspace navigation.",
   "appearance.headerElements.title": "Header elements",
   "appearance.headerElements.external-open": "Open external",
   "appearance.headerElements.history": "Git history",

@@ -10,8 +10,7 @@ import {
 } from "../../../../src/features/app-shell/workspace-surfaces";
 
 const localCapabilities: WorkspaceSurfaceCapabilities = {
-  cloudEnabled: true,
-  pluginsEnabled: false,
+  cloudEnabled: false,
 };
 
 describe("Workspace Surface Registry", () => {
@@ -19,13 +18,11 @@ describe("Workspace Surface Registry", () => {
     expect(getAvailableWorkspaceSurfaces(localCapabilities).map(({ id }) => id)).toEqual([
       "data",
       "git",
-      "cloud",
       "settings",
     ]);
 
     const cloudCapabilities: WorkspaceSurfaceCapabilities = {
       cloudEnabled: true,
-      pluginsEnabled: false,
     };
     expect(getAvailableWorkspaceSurfaces(cloudCapabilities).map(({ id }) => id)).toEqual([
       "data",
@@ -40,13 +37,13 @@ describe("Workspace Surface Registry", () => {
     const resolved = resolveWorkspaceSurface({
       capabilities: localCapabilities,
       adapters: createAdapters(content),
-      requestedId: "plugins",
+      requestedId: "cloud",
     });
 
     expect(resolved.id).toBe("data");
     expect(resolved.content).toBe(content.data);
     expect(resolved.lifecycle).toEqual({ sidebar: "keep-alive", main: "keep-alive" });
-    expect(resolveWorkspaceSurfaceContribution("plugins", localCapabilities).id).toBe("data");
+    expect(resolveWorkspaceSurfaceContribution("cloud", localCapabilities).id).toBe("data");
   });
 
   it("returns one resolved instance that owns both Sidebar and Main content", () => {
@@ -68,7 +65,6 @@ function createContent(): Readonly<Record<WorkspaceSurfaceId, WorkspaceSurfaceCo
   return {
     data: { sidebar: "data-sidebar", main: "data-main" },
     git: { sidebar: "git-sidebar", main: "git-main" },
-    plugins: { sidebar: "plugins-sidebar", main: "plugins-main" },
     cloud: { sidebar: "cloud-sidebar", main: "cloud-main" },
     settings: { sidebar: "settings-sidebar", main: "settings-main" },
   };
@@ -80,7 +76,6 @@ function createAdapters(
   return {
     data: () => content.data,
     git: () => content.git,
-    plugins: () => content.plugins,
     cloud: () => content.cloud,
     settings: () => content.settings,
   };

@@ -32,7 +32,6 @@ describe("Cloud project history", () => {
       <DesktopSidebarRailNavigation
         activeView="data"
         gitEnabled
-        pluginsEnabled={false}
         gitIncomingCount={0}
         gitOperationLoading={null}
         gitStatus={null}

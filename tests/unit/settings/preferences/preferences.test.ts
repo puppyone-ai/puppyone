@@ -13,7 +13,6 @@ import {
   parseLoadingAnimationPreset,
   parseLocalAgentsSettings,
   parsePointerCursors,
-  parseSidebarNavigationVisibilitySettings,
   parseTitlebarActionsSettings,
   resolveVisibleCreateNewMenuItems,
 } from "../../../../src/preferences";
@@ -311,15 +310,5 @@ describe("experimental preferences", () => {
   it("ignores the retired built-in Office editing experiment", () => {
     expect(parseExperimentalSettings(JSON.stringify({ enableOfficeEditing: true })))
       .not.toHaveProperty("enableOfficeEditing");
-  });
-});
-
-describe("sidebar navigation visibility preferences", () => {
-  it("shows optional shortcuts by default and preserves an explicit hidden choice", () => {
-    expect(parseSidebarNavigationVisibilitySettings(null).enabled.plugins).toBe(true);
-    expect(parseSidebarNavigationVisibilitySettings("not-json").enabled.plugins).toBe(true);
-    expect(parseSidebarNavigationVisibilitySettings(JSON.stringify({
-      enabled: { plugins: false },
-    })).enabled.plugins).toBe(false);
   });
 });

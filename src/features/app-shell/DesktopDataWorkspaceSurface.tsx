@@ -84,14 +84,16 @@ export type DesktopDataWorkspaceSurfaceProps = {
     activeView: DesktopView;
     availableSurfaceIds: readonly DesktopView[];
     gitEnabled: boolean;
-    pluginsEnabled: boolean;
     gitIncomingCount: number;
     gitOperationLoading: string | null;
     gitStatus: GitStatusSnapshot | null;
     workspaceChangeCount: number;
     onNavigate: (view: DesktopView) => void;
+    onOpenPlugins: () => void;
     onOpenSettings: () => void;
+    pluginsOpen: boolean;
     settingsOpen: boolean;
+    showPlugins: boolean;
     showSettings: boolean;
     showWorkspaceNavigation: boolean;
   };
@@ -262,14 +264,16 @@ export function DesktopDataWorkspaceSurface({
     activeView: navigation.activeView,
     availableSurfaceIds: navigation.availableSurfaceIds,
     gitEnabled: navigation.gitEnabled,
-    pluginsEnabled: navigation.pluginsEnabled,
     gitIncomingCount: navigation.gitIncomingCount,
     gitOperationLoading: navigation.gitOperationLoading,
     gitStatus: navigation.gitStatus,
     workspaceChangeCount: navigation.workspaceChangeCount,
     onNavigate: navigation.onNavigate,
+    onOpenPlugins: navigation.onOpenPlugins,
     onOpenSettings: navigation.onOpenSettings,
+    pluginsOpen: navigation.pluginsOpen,
     settingsOpen: navigation.settingsOpen,
+    showPlugins: navigation.showPlugins,
     showSettings: navigation.showSettings,
     utilitySlot: sidebarUtility,
   } as const;
