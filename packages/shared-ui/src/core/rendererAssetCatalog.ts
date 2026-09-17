@@ -41,6 +41,9 @@ export const RENDERER_ASSET_PATHS = {
         light: "assets/icons/agents/pi.svg",
         dark: "assets/icons/agents/pi-dark.svg",
       },
+      workbuddy: {
+        light: "assets/icons/agents/workbuddy.png",
+      },
       workspaceAgent: {
         light: "assets/icons/agents/workspace-agent.svg",
         dark: "assets/icons/agents/workspace-agent-dark.svg",

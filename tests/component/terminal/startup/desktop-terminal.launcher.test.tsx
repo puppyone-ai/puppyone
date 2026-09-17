@@ -137,6 +137,12 @@ describe("Unified Workbench launcher", () => {
       "/assets/icons/agents/workspace-agent.svg",
       "/assets/icons/agents/workspace-agent-dark.svg",
     ]);
+    expect(Array.from(
+      findButton(container, "WorkBuddy")?.querySelectorAll("img") ?? [],
+      (image) => image.getAttribute("src"),
+    )).toEqual([
+      "/assets/icons/agents/workbuddy.png",
+    ]);
     act(() => agentButtons[0]?.click());
     expect(onCreateChat).toHaveBeenCalledWith(AGENT_CHAT_CREATION_RECIPES[0]);
     expect(onLaunch).not.toHaveBeenCalled();

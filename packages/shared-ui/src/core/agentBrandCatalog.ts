@@ -9,6 +9,7 @@ export const AGENT_BRAND_IDS = Object.freeze([
   "manus",
   "opencode",
   "pi",
+  "workbuddy",
   "workspace-agent",
 ] as const);
 
@@ -44,6 +45,7 @@ export const AGENT_BRAND_CATALOG: Readonly<Record<AgentBrandId, AgentBrandDefini
   manus: defineBrand("manus", "Manus", ["manus"], agentAssets.manus),
   opencode: defineBrand("opencode", "OpenCode", ["opencode"], agentAssets.opencode, 1.3),
   pi: defineBrand("pi", "Pi Agent", ["pi"], agentAssets.pi, 1.28),
+  workbuddy: defineBrand("workbuddy", "WorkBuddy", ["workbuddy", "codebuddy"], agentAssets.workbuddy),
   "workspace-agent": defineBrand(
     "workspace-agent",
     "Workspace Agent",
