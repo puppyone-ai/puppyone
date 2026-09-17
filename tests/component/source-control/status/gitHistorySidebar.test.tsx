@@ -88,11 +88,42 @@ describe("Git History right-sidebar surface", () => {
       .toContain("Keep history in its own sidebar");
     expect(surface.querySelector(".desktop-commit-detail")?.textContent)
       .not.toContain("PuppyOne");
+    expect(surface.querySelector(".desktop-commit-title-row h2")?.textContent)
+      .toBe("Keep history in its own sidebar");
+    expect(surface.querySelector(".desktop-commit-id-copy")?.textContent)
+      .toContain("ID12345678");
+    expect(surface.querySelector(".desktop-commit-meta-row .desktop-commit-stats")?.textContent)
+      .toContain("1 file changed+8,254-3,075");
     expect(surface.querySelector<HTMLButtonElement>('button[aria-label="Back"]')).not.toBeNull();
 
     act(() => surface.querySelector<HTMLButtonElement>('button[aria-label="Back"]')?.click());
     expect(surface.querySelector(".desktop-history-row")).not.toBeNull();
     expect(onBack).not.toHaveBeenCalled();
+  });
+
+  it("copies the full commit id from its subordinate detail control", async () => {
+    const commit = createCommit();
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const surface = renderHistory({
+      ...model(),
+      status: gitStatus({ commits: [commit], allCommits: [commit] }),
+      selectedCommitId: commit.commit_id,
+    });
+
+    act(() => surface.querySelector<HTMLButtonElement>(".desktop-history-row")?.click());
+    const copy = surface.querySelector<HTMLButtonElement>(".desktop-commit-id-copy");
+
+    expect(copy?.getAttribute("aria-label")).toBe("Copy commit ID");
+    await act(async () => {
+      copy?.click();
+      await Promise.resolve();
+    });
+    expect(writeText).toHaveBeenCalledWith(commit.commit_id);
+    expect(copy?.getAttribute("aria-label")).toBe("Commit ID copied");
   });
 
   it("keeps loading feedback inside the History surface", () => {

@@ -578,6 +578,31 @@ describe("source-control visual architecture", () => {
     expect(workingFileDetailSource).not.toContain("getGitDiffContextPresentation");
   });
 
+  it("keeps commit detail message-first with one compact metadata row", () => {
+    const title = compact(readCssBlock(detailCss, ".desktop-commit-title-row h2"));
+    const meta = compact(readCssBlock(detailCss, ".desktop-commit-meta-row"));
+    const id = compact(readCssBlock(detailCss, ".desktop-commit-id-copy"));
+    const stats = compact(readCssBlock(
+      detailCss,
+      ".desktop-commit-meta-row .desktop-commit-stats",
+    ));
+    const titleIndex = gitCommitDetailSource.indexOf('className="desktop-commit-title-row"');
+    const idIndex = gitCommitDetailSource.indexOf('className="desktop-commit-id-copy"');
+
+    expect(titleIndex).toBeGreaterThan(-1);
+    expect(idIndex).toBeGreaterThan(titleIndex);
+    expect(gitCommitDetailSource).toContain("commit.message ||");
+    expect(gitCommitDetailSource).toContain("writeClipboardText(commit.commit_id)");
+    expect(gitCommitDetailSource).not.toContain("commit.author_name");
+    expect(gitCommitDetailSource).not.toContain("commit.author_email");
+    expect(title).toContain("font-size: var(--po-type-right-sidebar-heading-2, 16px);");
+    expect(title).toContain("font-weight: 650;");
+    expect(meta).toContain("justify-content: space-between;");
+    expect(id).toContain("font-size: var(--po-type-left-sidebar-meta, 12px);");
+    expect(stats).toContain("margin-bottom: 0;");
+    expect(stats).toContain("font-size: var(--po-type-left-sidebar-meta, 12px);");
+  });
+
   it("keeps file actions at toolbar emphasis", () => {
     const actions = compact(readCssBlock(
       detailCss,
@@ -827,11 +852,17 @@ describe("source-control visual architecture", () => {
     expect(row).toContain("height: calc(var(--po-sidebar-virtual-row-size) - 4px);");
     expect(row).toContain("overflow: hidden;");
     expect(date).toContain("display: flex;");
+    expect(date).toContain("color: var(--po-text-muted);");
+    expect(date).toContain("font-size: var(--git-font-main);");
+    expect(date).toContain("line-height: var(--git-line-height);");
     expect(divider).toContain("flex: 1 1 auto;");
     expect(row).toContain("padding-inline-start: 20px;");
     expect(message).toContain("overflow: hidden;");
     expect(message).toContain("text-overflow: ellipsis;");
     expect(message).toContain("white-space: nowrap;");
+    expect(message).toContain("color: var(--po-text-muted);");
+    expect(message).toContain("font-size: var(--git-font-main);");
+    expect(message).toContain("line-height: var(--git-line-height);");
     expect(stat).toContain("font-variant-numeric: tabular-nums;");
     expect(files).toContain("overflow: hidden;");
     expect(files).toContain("flex-direction: column;");
