@@ -3,18 +3,44 @@
 .desktop-agent-blocking-dock {
   flex: 0 0 auto;
   margin: 0;
-  padding: 12px;
   overflow: hidden;
   border: 1px solid var(--agent-blocking-border);
   border-radius: var(--agent-radius-composer);
   background: var(--agent-blocking-surface);
+}
+.desktop-agent-approval {
+  position: relative;
+  isolation: isolate;
+  padding: 10px;
+}
+.desktop-agent-blocking-dock { padding: 12px; }
+.desktop-agent-approval::before {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  border: 1px solid var(--agent-blocking-attention-border);
+  border-radius: inherit;
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+}
+.desktop-agent-approval[data-state="waiting"]::before {
+  animation: desktop-agent-approval-attention 2.6s ease-in-out 3 forwards;
+}
+.desktop-agent-approval[data-state="waiting"]:hover::before {
+  animation: none;
+  opacity: 0.48;
+}
+@keyframes desktop-agent-approval-attention {
+  0%, 100% { opacity: 0.34; }
+  50% { opacity: 0.78; }
 }
 .desktop-agent-approval-heading {
   display: grid;
   min-width: 0;
   grid-template-columns: 24px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   color: var(--agent-text);
 }
 .desktop-agent-approval-icon {
@@ -26,25 +52,27 @@
   background: var(--agent-blocking-icon-surface);
   color: var(--agent-blocking-icon-foreground);
 }
-.desktop-agent-approval-heading strong {
+.desktop-agent-approval-title {
   min-width: 0;
   overflow-wrap: anywhere;
   font-size: var(--agent-font-size);
-  font-weight: 550;
-  line-height: 1.45;
+  font-weight: 500;
+  line-height: var(--agent-control-line-height);
 }
-.desktop-agent-approval-heading small {
-  color: var(--agent-text-subtle);
+.desktop-agent-approval-status {
+  color: var(--agent-blocking-icon-foreground);
   font-size: var(--agent-font-size-meta);
+  font-weight: 400;
   white-space: nowrap;
 }
+.desktop-agent-approval[data-state="resolving"] .desktop-agent-approval-status { color: var(--agent-text-subtle); }
 .desktop-agent-question-dock > header { display: flex; min-width: 0; align-items: center; gap: 8px; color: var(--agent-text); font-size: var(--agent-font-size); }
 .desktop-agent-question-dock > header span { margin-inline-start: auto; color: var(--po-text-muted); }
 .desktop-agent-approval-details {
   display: grid;
-  gap: 7px;
-  margin-top: 10px;
-  padding-inline-start: 34px;
+  gap: 6px;
+  margin-top: 8px;
+  padding-inline-start: 32px;
 }
 .desktop-agent-approval code {
   display: block;
@@ -63,7 +91,7 @@
 .desktop-agent-approval-material code { margin: 0; overflow-wrap: anywhere; }
 .desktop-agent-approval-actions-list { display: grid; gap: 4px; margin: 0; padding-inline-start: 18px; color: var(--agent-text-muted); font-size: var(--agent-font-size-meta); }
 .desktop-agent-approval-policy-note { color: var(--agent-blocking-icon-foreground); }
-.desktop-agent-approval-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin-top: 12px; }
+.desktop-agent-approval-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; margin-top: 10px; }
 .desktop-agent-button {
   display: inline-flex;
   height: var(--agent-control-size);
@@ -87,6 +115,19 @@
 .desktop-agent-button.is-primary { border-color: var(--agent-text); background: var(--agent-text); color: var(--agent-canvas); font-weight: 600; }
 .desktop-agent-button.is-primary:hover:not(:disabled) { border-color: var(--agent-primary-hover-surface); background: var(--agent-primary-hover-surface); }
 .desktop-agent-button:disabled { cursor: default; opacity: 0.45; }
+.desktop-agent-approval-actions .desktop-agent-button {
+  padding-inline: 10px;
+  font-weight: 400;
+}
+.desktop-agent-approval-actions .desktop-agent-button.is-quiet {
+  border-color: transparent;
+  color: var(--agent-text-subtle);
+}
+.desktop-agent-approval-actions .desktop-agent-button.is-quiet:hover:not(:disabled) {
+  background: var(--agent-row-hover-surface);
+  color: var(--agent-text);
+}
+.desktop-agent-approval-actions .desktop-agent-button.is-primary { font-weight: 500; }
 .desktop-agent-question-dock fieldset { min-width: 0; margin: 10px 0 0; padding: 10px; border: 1px solid var(--agent-border-subtle); border-radius: 10px; }
 .desktop-agent-question-dock legend { padding: 0 5px; color: var(--agent-text-muted); font-size: var(--agent-font-size-meta); }
 .desktop-agent-question-dock p { margin: 0 0 8px; font-size: var(--agent-font-size); line-height: 1.5; }

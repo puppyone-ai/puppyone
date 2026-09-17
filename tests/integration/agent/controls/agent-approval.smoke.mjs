@@ -72,6 +72,9 @@ async function runSmoke() {
     assert(result.buttonRadii.every((radius) => radius === "6px"), `${result.label}: approval buttons left the product radius.`);
     assert(result.primaryUsesThemeForeground, `${result.label}: primary action did not follow the neutral theme ramp.`);
     assert(result.iconSize.width === 24 && result.iconSize.height === 24, `${result.label}: approval status icon geometry changed.`);
+    assert(result.state === "waiting", `${result.label}: approval did not expose its waiting state.`);
+    assert(result.titleWeight === "500", `${result.label}: approval title left the shared medium text hierarchy.`);
+    assert(result.attentionAnimation === "desktop-agent-approval-attention" && result.attentionIterations === "3", `${result.label}: approval attention treatment is missing or unbounded.`);
     assert(result.documentOverflow <= 1, `${result.label}: approval UI introduced page overflow.`);
     if (result.width === 340) assert(result.actionsDisplay === "grid", `${result.label}: narrow actions did not stack.`);
   }
@@ -89,6 +92,7 @@ async function inspect(theme, width) {
     const details = card.querySelector('.desktop-agent-approval-details');
     const buttons = [...actions.querySelectorAll('button')];
     const primary = actions.querySelector('.is-primary');
+    const titleElement = card.querySelector('.desktop-agent-approval-title');
     const cardRect = card.getBoundingClientRect();
     const boundaryRect = boundary.getBoundingClientRect();
     const actionsRect = actions.getBoundingClientRect();
@@ -113,6 +117,10 @@ async function inspect(theme, width) {
       buttonRadii: buttons.map((button) => getComputedStyle(button).borderRadius),
       primaryUsesThemeForeground: getComputedStyle(primary).backgroundColor === getComputedStyle(boundary).color,
       iconSize: { width: icon.getBoundingClientRect().width, height: icon.getBoundingClientRect().height },
+      state: card.dataset.state,
+      titleWeight: getComputedStyle(titleElement).fontWeight,
+      attentionAnimation: getComputedStyle(card, '::before').animationName,
+      attentionIterations: getComputedStyle(card, '::before').animationIterationCount,
       actionsDisplay: getComputedStyle(actions).display,
       documentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
     };

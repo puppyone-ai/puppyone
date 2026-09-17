@@ -325,6 +325,8 @@
   "approval.ariaLabel": "Approbation requise pour {agent}",
   "approval.required": "Approbation requise",
   "approval.pending": "{count, plural, one {# en attente} other {# en attente}}",
+  "approval.waiting": "Votre approbation est requise",
+  "approval.resolving": "Envoi…",
   "approval.inPath": "dans {path}",
   "approval.networkTarget": "Cible du réseau",
   "approval.writeScope": "Portée d’écriture demandée",

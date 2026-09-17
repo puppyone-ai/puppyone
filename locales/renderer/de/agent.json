@@ -325,6 +325,8 @@
   "approval.ariaLabel": "Genehmigung für {agent} erforderlich",
   "approval.required": "Genehmigung erforderlich",
   "approval.pending": "{count, plural, one {# ausstehend} other {# ausstehend}}",
+  "approval.waiting": "Ihre Bestätigung ist erforderlich",
+  "approval.resolving": "Wird übermittelt…",
   "approval.inPath": "in {path}",
   "approval.networkTarget": "Netzwerkziel",
   "approval.writeScope": "Angeforderter Schreibbereich",

@@ -31,6 +31,7 @@
   --agent-tool-evidence-rail: var(--agent-border);
   --agent-blocking-surface: color-mix(in srgb, var(--agent-control-surface) 52%, var(--agent-canvas));
   --agent-blocking-border: var(--agent-border-subtle);
+  --agent-blocking-attention-border: color-mix(in srgb, var(--po-warning) 48%, var(--agent-border-subtle));
   --agent-blocking-icon-surface: color-mix(in srgb, var(--po-warning) 10%, transparent);
   --agent-blocking-icon-foreground: color-mix(in srgb, var(--po-warning) 62%, var(--agent-text-muted));
   --agent-recovery-surface: color-mix(in srgb, var(--po-warning) 7%, var(--agent-canvas));

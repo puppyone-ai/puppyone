@@ -203,6 +203,7 @@ export function AgentChatTabPanel({
     />}
     dock={startupLoading ? null : <>
       {state.projection.approvals[0] && <AgentApprovalDock
+        key={state.projection.approvals[0].requestId}
         approval={state.projection.approvals[0]} queueLength={state.projection.approvals.length}
         resolving={replyInFlight(state.projection.approvals[0]?.replyStatus)} runtimeLabel={runtimeLabel}
         onResolve={(decision) => void controller.resolveApproval(decision)}

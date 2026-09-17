@@ -28,6 +28,7 @@ const connectionStatus = fs.readFileSync(path.join(root, "src/features/desktop-a
 const noticeActivity = fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/activity/AgentNoticeActivity.tsx"), "utf8");
 const activityShell = fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/activity/AgentActivityShell.tsx"), "utf8");
 const toolGlyph = fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/activity/AgentToolGlyph.tsx"), "utf8");
+const approvalDock = fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/AgentApprovalDock.tsx"), "utf8");
 const commandActivity = fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/activity/AgentCommandActivity.tsx"), "utf8");
 const fileQueryActivity = fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/activity/AgentFileQueryActivity.tsx"), "utf8");
 const evidenceTree = fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/activity/AgentToolEvidenceTree.tsx"), "utf8");
@@ -362,6 +363,18 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
     expect(evidenceModel).toContain("maxLines: 400");
     expect(evidenceModel).toContain("maxLineChars: 4 * 1024");
     expect(fileQueryActivity).toContain("desktop-agent-search-results");
+  });
+
+  it("uses a quiet finite attention treatment for approval decisions", () => {
+    expect(approvalDock).toContain('data-state={resolving ? "resolving" : "waiting"}');
+    expect(approvalDock).toContain('className="desktop-agent-approval-title"');
+    expect(approvalDock).not.toContain("<strong");
+    expect(approvalDock).toContain('className="desktop-agent-button is-quiet"');
+    expect(css).toMatch(/\.desktop-agent-approval-title\s*\{[^}]*font-size:\s*var\(--agent-font-size\)[^}]*font-weight:\s*500/s);
+    expect(css).toMatch(/\.desktop-agent-approval\[data-state="waiting"\]::before\s*\{[^}]*animation:\s*desktop-agent-approval-attention 2\.6s ease-in-out 3 forwards/s);
+    expect(css).toMatch(/\.desktop-agent-approval-actions \.desktop-agent-button\.is-quiet\s*\{[^}]*border-color:\s*transparent[^}]*color:\s*var\(--agent-text-subtle\)/s);
+    expect(responsiveCss).toMatch(/@container desktop-agent \(max-width:\s*419px\)[\s\S]*\.desktop-agent-approval-status\s*\{\s*grid-column:\s*2/s);
+    expect(responsiveCss).toMatch(/prefers-reduced-motion:\s*reduce[\s\S]*\.desktop-agent-approval\[data-state="waiting"\]::before\s*\{\s*animation:\s*none/s);
   });
 
   it("retains bounded overflow and explicit responsive contracts", () => {

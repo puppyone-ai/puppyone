@@ -325,6 +325,8 @@
   "approval.ariaLabel": "{agent} requer aprovação",
   "approval.required": "Aprovação necessária",
   "approval.pending": "{count, plural, one {# pendente} other {# pendentes}}",
+  "approval.waiting": "Precisa da sua aprovação",
+  "approval.resolving": "Enviando…",
   "approval.inPath": "em {path}",
   "approval.networkTarget": "Destino de rede",
   "approval.writeScope": "Escopo de gravação solicitado",

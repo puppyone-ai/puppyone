@@ -325,6 +325,8 @@
   "approval.ariaLabel": "{agent} の承認が必要です",
   "approval.required": "承認が必要です",
   "approval.pending": "保留中 {count, plural, other {# 件}}",
+  "approval.waiting": "確認が必要です",
+  "approval.resolving": "送信中…",
   "approval.inPath": "場所：{path}",
   "approval.networkTarget": "ネットワーク接続先",
   "approval.writeScope": "要求された書き込み範囲",

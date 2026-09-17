@@ -325,6 +325,8 @@
   "approval.ariaLabel": "{agent} 需要审批",
   "approval.required": "需要审批",
   "approval.pending": "{count, plural, other {# 项待处理}}",
+  "approval.waiting": "需要你的确认",
+  "approval.resolving": "正在提交…",
   "approval.inPath": "位于 {path}",
   "approval.networkTarget": "网络目标",
   "approval.writeScope": "请求的写入范围",

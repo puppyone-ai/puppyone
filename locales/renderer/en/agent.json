@@ -325,6 +325,8 @@
   "approval.ariaLabel": "{agent} approval required",
   "approval.required": "Approval required",
   "approval.pending": "{count, plural, one {# pending} other {# pending}}",
+  "approval.waiting": "Needs your approval",
+  "approval.resolving": "Submitting…",
   "approval.inPath": "in {path}",
   "approval.networkTarget": "Network target",
   "approval.writeScope": "Requested write scope",

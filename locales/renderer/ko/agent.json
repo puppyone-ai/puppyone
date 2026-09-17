@@ -325,6 +325,8 @@
   "approval.ariaLabel": "{agent} 승인 필요",
   "approval.required": "승인이 필요합니다",
   "approval.pending": "대기 중 {count, plural, other {#개}}",
+  "approval.waiting": "확인이 필요합니다",
+  "approval.resolving": "제출 중…",
   "approval.inPath": "위치: {path}",
   "approval.networkTarget": "네트워크 대상",
   "approval.writeScope": "요청된 쓰기 범위",
