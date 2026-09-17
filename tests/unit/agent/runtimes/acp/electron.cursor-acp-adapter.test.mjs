@@ -22,6 +22,109 @@ describe("Cursor ACP runtime", () => {
     await adapter.dispose();
   });
 
+  it("preserves native completion while classifying Cursor's terminal HTTP/2 cancellation as degraded", async () => {
+    const connection = new FakeCursorConnection();
+    const onEvent = vi.fn();
+    const adapter = new CursorAcpAdapter({
+      readiness: { executablePath: "/tools/agent", environment: {}, version: "2026.08.1" },
+      workspaceRoot: "/workspace",
+      onEvent,
+      connectionFactory: () => connection,
+      fileSystemFactory: () => ({ readTextFile: vi.fn(), writeTextFile: vi.fn() }),
+      projectInstructionLoader: async () => ({ source: null, text: "", bytes: 0 }),
+    });
+    await adapter.createSession();
+    const { turnId } = await adapter.startTurn({ prompt: "Finish the work" });
+    connection.sendUpdate({
+      sessionUpdate: "agent_message_chunk",
+      messageId: "terminal-error",
+      content: { type: "text", text: "Error: RetriableError: [canceled] http/2 stream closed with error code CANCEL (0x8)" },
+    });
+    connection.finishPrompt({ stopReason: "end_turn" });
+
+    await vi.waitFor(() => expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({
+      type: "turn.completed",
+      turnId,
+      payload: expect.objectContaining({
+        status: "completed",
+        completionQuality: "degraded",
+        failureScope: "upstream-request",
+        failureCode: "CURSOR_HTTP2_STREAM_CANCEL",
+        retryable: true,
+        transportHealth: "healthy",
+        sideEffects: "none",
+      }),
+    })));
+    expect(onEvent.mock.calls.some(([event]) => event.type === "turn.failed")).toBe(false);
+    await adapter.dispose();
+  });
+
+  it("classifies the structured Cursor child-task error without treating similar prose as a failure", async () => {
+    const connection = new FakeCursorConnection();
+    const onEvent = vi.fn();
+    const adapter = new CursorAcpAdapter({
+      readiness: { executablePath: "/tools/agent", environment: {}, version: "2026.08.1" },
+      workspaceRoot: "/workspace",
+      onEvent,
+      connectionFactory: () => connection,
+      fileSystemFactory: () => ({ readTextFile: vi.fn(), writeTextFile: vi.fn() }),
+      projectInstructionLoader: async () => ({ source: null, text: "", bytes: 0 }),
+    });
+    await adapter.createSession();
+    await adapter.startTurn({ prompt: "Continue" });
+    connection.sendUpdate({
+      sessionUpdate: "tool_call_update",
+      toolCallId: "child-task",
+      kind: "task",
+      title: "Agent task",
+      status: "completed",
+      rawOutput: {
+        providerOptions: { cursor: { highLevelToolCallResult: { output: {
+          error: { error: "[canceled] http/2 stream closed with error code CANCEL (0x8)" },
+        } } } },
+      },
+    });
+    connection.sendUpdate({
+      sessionUpdate: "agent_message_chunk",
+      messageId: "summary",
+      content: { type: "text", text: "The log mentions Error: RetriableError, but this sentence is not the terminal signature." },
+    });
+    connection.finishPrompt({ stopReason: "end_turn" });
+    await vi.waitFor(() => expect(onEvent.mock.calls
+      .map(([event]) => event)
+      .find((event) => event.type === "turn.completed")?.payload).toMatchObject({
+        completionQuality: "degraded",
+        failureScope: "child-task",
+        sideEffects: "possible",
+      }));
+    await adapter.dispose();
+  });
+
+  it("does not classify explanatory text that merely mentions a Cursor retry error", async () => {
+    const connection = new FakeCursorConnection();
+    const onEvent = vi.fn();
+    const adapter = new CursorAcpAdapter({
+      readiness: { executablePath: "/tools/agent", environment: {}, version: "2026.08.1" },
+      workspaceRoot: "/workspace",
+      onEvent,
+      connectionFactory: () => connection,
+      fileSystemFactory: () => ({ readTextFile: vi.fn(), writeTextFile: vi.fn() }),
+      projectInstructionLoader: async () => ({ source: null, text: "", bytes: 0 }),
+    });
+    await adapter.createSession();
+    await adapter.startTurn({ prompt: "Explain" });
+    connection.sendUpdate({
+      sessionUpdate: "agent_message_chunk",
+      messageId: "answer",
+      content: { type: "text", text: "I handled Error: RetriableError: [canceled] http/2 stream closed with error code CANCEL (0x8) and finished." },
+    });
+    connection.finishPrompt({ stopReason: "end_turn" });
+    await vi.waitFor(() => expect(onEvent.mock.calls
+      .map(([event]) => event)
+      .find((event) => event.type === "turn.completed")?.payload).not.toHaveProperty("completionQuality"));
+    await adapter.dispose();
+  });
+
   it("classifies a detected signed-in Cursor CLI as an ACP-ready Agent", async () => {
     const readiness = await discoverCursorBackend({
       resolveCandidate: async () => ({ executablePath: "/tools/agent", argsPrefix: [], source: "path-installation" }),

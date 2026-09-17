@@ -140,6 +140,7 @@ export class AcpRuntimeAdapter {
     capabilityOverrides = {},
     referenceInputProfile = {},
     questionMethods = [],
+    completionInspectorFactory = null,
     eventSource = `${runtimeDescriptor?.id || "agent"}-acp`,
     onDispose = () => {},
   }) {
@@ -179,6 +180,9 @@ export class AcpRuntimeAdapter {
       embeddedText: referenceInputProfile?.embeddedText === true,
     });
     this.questionMethods = new Set(array(questionMethods).map((method) => text(method, 160)).filter(Boolean));
+    this.completionInspectorFactory = typeof completionInspectorFactory === "function"
+      ? completionInspectorFactory
+      : null;
     this.eventSource = eventSource;
     this.onDispose = onDispose;
     this.connection = null;
@@ -370,7 +374,11 @@ export class AcpRuntimeAdapter {
       workspaceRoot: this.workspaceRoot,
       profile: referenceProfile,
     });
-    const active = { turnId, normalizer, interrupted: false, references: allReferences };
+    const completionInspector = this.completionInspectorFactory?.({
+      turnId,
+      runtimeVersion: this.client?.agentInfo?.version ?? this.readiness.version ?? null,
+    }) ?? null;
+    const active = { turnId, normalizer, completionInspector, interrupted: false, references: allReferences };
     this.activeTurn = active;
     void this.#runPrompt(active, blocks);
     return { turnId };
@@ -415,9 +423,13 @@ export class AcpRuntimeAdapter {
       void this.persistenceReporter.confirm();
       const usage = normalizeAcpPromptUsage(response?.usage);
       if (usage) this.onEvent(event("usage.updated", this.sessionId, active.turnId, null, usage));
+      const completion = !active.interrupted
+        ? safelyInspectCompletion(active.completionInspector, { response }, this.logger)
+        : null;
       this.onEvent(event(active.interrupted ? "turn.interrupted" : "turn.completed", this.sessionId, active.turnId, null, {
         status: active.interrupted ? "interrupted" : "completed",
         stopReason: text(response?.stopReason, 160) || null,
+        ...(completion ?? {}),
       }));
     } catch (error) {
       if (this.activeTurn !== active || this.disposed) return;
@@ -728,6 +740,7 @@ export class AcpRuntimeAdapter {
       return;
     }
     if (!this.activeTurn) return;
+    safelyObserveCompletion(this.activeTurn.completionInspector, notification, this.logger);
     for (const normalized of this.activeTurn.normalizer.normalize(notification)) this.onEvent(normalized);
   }
 
@@ -780,4 +793,24 @@ function requiredId(value, label) {
 
 function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function safelyObserveCompletion(inspector, notification, logger) {
+  if (!inspector?.observe) return;
+  try {
+    inspector.observe(notification);
+  } catch {
+    logger?.warn?.("ACP completion inspection ignored an invalid native update.");
+  }
+}
+
+function safelyInspectCompletion(inspector, context, logger) {
+  if (!inspector?.complete) return null;
+  try {
+    const completion = inspector.complete(context);
+    return completion && typeof completion === "object" ? completion : null;
+  } catch {
+    logger?.warn?.("ACP completion inspection could not classify the completed turn.");
+    return null;
+  }
 }

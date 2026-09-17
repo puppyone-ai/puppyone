@@ -1,4 +1,13 @@
-import type { AgentCommandDeliveryStatus, AgentPromptReferenceMention, AgentReferenceDisplay, AgentTurnTerminalState } from "./types";
+import type {
+  AgentCommandDeliveryStatus,
+  AgentPromptReferenceMention,
+  AgentReferenceDisplay,
+  AgentTurnCompletionQuality,
+  AgentTurnFailureScope,
+  AgentTurnSideEffects,
+  AgentTurnTerminalState,
+  AgentTurnTransportHealth,
+} from "./types";
 
 export type AgentTranscriptMessage = {
   id: string;
@@ -129,7 +138,7 @@ type AgentPartBase = {
 export type AgentPart =
   | (AgentPartBase & { kind: "user"; text: string; submissionId?: string; deliveryStatus?: AgentCommandDeliveryStatus; references?: AgentReferenceDisplay[]; promptMentions?: AgentPromptReferenceMention[]; streaming: boolean; terminalState: AgentTurnTerminalState | null })
   | (AgentPartBase & { kind: "assistant"; text: string; truncated?: boolean; streaming: boolean; terminalState: AgentTurnTerminalState | null })
-  | (AgentPartBase & { kind: "turn-summary"; durationMs: number; status: AgentTurnTerminalState })
+  | (AgentPartBase & { kind: "turn-summary"; durationMs: number; status: AgentTurnTerminalState; completionQuality?: AgentTurnCompletionQuality })
   | AgentActivity
   | (AgentPartBase & { kind: "usage"; usage: Record<string, unknown> })
   | (AgentPartBase & { kind: "permission"; requestId: string; state: "pending" | "resolved" | "unavailable" })
@@ -147,6 +156,19 @@ export type AgentTurn = {
   completedAtSequence: number | null;
   durationMs: number | null;
   partIds: string[];
+  completionQuality?: AgentTurnCompletionQuality;
+  recovery?: AgentTurnRecovery;
+};
+
+/** Provider-neutral recovery fact derived in Main, never inferred from rendered prose. */
+export type AgentTurnRecovery = {
+  kind: "degraded-completion";
+  failureScope: AgentTurnFailureScope;
+  code: string;
+  retryable: boolean | null;
+  transportHealth: AgentTurnTransportHealth;
+  sideEffects: AgentTurnSideEffects;
+  diagnostic?: string;
 };
 
 export type TimelineRow = {

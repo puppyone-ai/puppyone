@@ -32,6 +32,9 @@
   --agent-blocking-border: var(--agent-border-subtle);
   --agent-blocking-icon-surface: color-mix(in srgb, var(--po-warning) 10%, transparent);
   --agent-blocking-icon-foreground: color-mix(in srgb, var(--po-warning) 62%, var(--agent-text-muted));
+  --agent-recovery-surface: color-mix(in srgb, var(--po-warning) 7%, var(--agent-canvas));
+  --agent-recovery-border: color-mix(in srgb, var(--po-warning) 34%, var(--agent-border-subtle));
+  --agent-recovery-foreground: color-mix(in srgb, var(--po-warning) 66%, var(--agent-text));
   --agent-accent: var(--po-accent);
   --agent-accent-soft: color-mix(in srgb, var(--po-accent) 16%, transparent);
   /* Shared interaction roles; feature geometry remains in foundation.css. */

@@ -44,7 +44,9 @@ function withTurnSummaries(display) {
     if (!["completed", "failed", "interrupted"].includes(turn.status) || turn.durationMs === null || turn.completedAtSequence === null) continue;
     const id = `turn-summary:${turn.id}`;
     const sequence = Math.max(turn.completedAtSequence, lastRowByTurn.get(turn.id) ?? 0);
-    parts.push({ id, kind: "turn-summary", turnId: turn.id, itemId: null, durationMs: turn.durationMs, status: turn.status, sequence, updatedSequence: turn.completedAtSequence });
+    parts.push({ id, kind: "turn-summary", turnId: turn.id, itemId: null, durationMs: turn.durationMs, status: turn.status,
+      ...(turn.completionQuality ? { completionQuality: turn.completionQuality } : {}),
+      sequence, updatedSequence: turn.completedAtSequence });
     const row = { id: `row:${id}`, partId: id, turnId: turn.id, kind: "turn-summary", sequence, updatedSequence: turn.completedAtSequence, estimatedHeight: 34 };
     const index = rows.findIndex(entry => entry.id === row.id);
     if (index >= 0) rows[index] = row; else rows.push(row);

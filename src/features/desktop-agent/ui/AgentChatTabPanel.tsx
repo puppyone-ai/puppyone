@@ -9,12 +9,14 @@ import { listAgentRuntimes, listVisibleAgentRuntimes } from "../domain/agent-bac
 import type { AgentChatTabPresentation } from "../domain/agent-chat-presentation";
 import type { AgentRoutePreference } from "../domain/agent-route-preference";
 import { deriveAgentSessionControls } from "../domain/agent-session-controls";
+import { activeAgentDegradedRecovery } from "../domain/agent-degraded-recovery";
 import { AgentApprovalDock } from "./AgentApprovalDock";
 import { AgentComposer, DEFAULT_AGENT_COMPOSER_PLACEHOLDER_ID } from "./AgentComposer";
 import { AgentEmptyState } from "./AgentEmptyState";
 import { AgentPanelLayout } from "./AgentPanelLayout";
 import { AgentPanelStatus } from "./AgentPanelStatus";
 import { AgentQuestionDock } from "./AgentQuestionDock";
+import { AgentRecoverySurface } from "./AgentRecoverySurface";
 import { AgentRuntimeLauncher } from "./AgentRuntimeLauncher";
 import { useTranscriptScope } from "./transcript/useTranscriptScope";
 import { AgentTranscript } from "./AgentTranscript";
@@ -126,8 +128,11 @@ export function AgentChatTabPanel({
         : state.projection.rows.length > 0 || state.projection.messages.length > 0
           ? t("agent.composer.placeholder.followUp")
           : t(DEFAULT_AGENT_COMPOSER_PLACEHOLDER_ID);
+  const degradedRecovery = activeAgentDegradedRecovery(state.projection);
   const sessionStatus = state.session?.terminalState;
-  const statusCode = state.session ? sessionStatusCode(sessionStatus) : readinessStatusCode(readiness);
+  const statusCode = degradedRecovery
+    ? "needs-attention"
+    : state.session ? sessionStatusCode(sessionStatus) : readinessStatusCode(readiness);
   const title = state.session?.title || (agentRuntimeSelected ? runtimeLabel : t("agent.header.newChat"));
   const hasStatus = unavailable || failed || Boolean(state.error);
   const hasSubmittedConversation = hasCommittedTranscript
@@ -206,6 +211,15 @@ export function AgentChatTabPanel({
         key={state.projection.questions[0].requestId} request={state.projection.questions[0]}
         queueLength={state.projection.questions.length} resolving={replyInFlight(state.projection.questions[0]?.replyStatus)}
         onResolve={(resolution) => void controller.resolveQuestion(resolution)}
+      />}
+      {degradedRecovery && <AgentRecoverySurface
+        recovery={degradedRecovery.recovery}
+        runtimeLabel={runtimeLabel}
+        submitting={submissionPending}
+        onContinue={() => void controller.continueFromRecovery(
+          degradedRecovery.turnId,
+          t("agent.recovery.degraded.prompt"),
+        )}
       />}
       <AgentComposer
         focusRequest={focusRequest}

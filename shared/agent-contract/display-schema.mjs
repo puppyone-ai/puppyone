@@ -114,6 +114,19 @@ function validateEntry(key, entry) {
   } else if (key === 'turns') {
     enumValue(entry.status, 'turn.status', ['running', 'outcome-unknown', 'completed', 'failed', 'interrupted']);
     for (const id of boundedArray(entry.partIds, 'turn.partIds')) idValue(id);
+    if (entry.completionQuality !== undefined) enumValue(entry.completionQuality, 'turn.completionQuality', ['complete', 'degraded']);
+    if (entry.recovery !== undefined) {
+      if (entry.completionQuality !== 'degraded') throw contractError('turn.recovery', 'requires degraded completion quality');
+      const recovery = assertRecord(entry.recovery, 'turn.recovery');
+      enumValue(recovery.kind, 'turn.recovery.kind', ['degraded-completion']);
+      enumValue(recovery.failureScope, 'turn.recovery.failureScope', ['child-task', 'tool', 'upstream-request', 'turn']);
+      requiredString(recovery.code, 'turn.recovery.code', 160);
+      if (recovery.retryable !== null && typeof recovery.retryable !== 'boolean') throw contractError('turn.recovery.retryable', 'must be boolean or null');
+      enumValue(recovery.transportHealth, 'turn.recovery.transportHealth', ['healthy', 'recovering', 'exited', 'unknown']);
+      enumValue(recovery.sideEffects, 'turn.recovery.sideEffects', ['none', 'possible', 'confirmed', 'unknown']);
+      if (recovery.diagnostic !== undefined) requiredString(recovery.diagnostic, 'turn.recovery.diagnostic', 2_000);
+    }
+    if (entry.completionQuality === 'degraded' && entry.recovery === undefined) throw contractError('turn.recovery', 'is required for degraded completion');
   }
 }
 

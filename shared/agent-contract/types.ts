@@ -282,6 +282,12 @@ export type AgentSessionsListResponse = {
 
 export type AgentTurnTerminalState = "completed" | "failed" | "interrupted";
 
+/** Native execution ended, but the provider reported whether the requested work actually completed. */
+export type AgentTurnCompletionQuality = "complete" | "degraded";
+export type AgentTurnFailureScope = "child-task" | "tool" | "upstream-request" | "turn";
+export type AgentTurnTransportHealth = "healthy" | "recovering" | "exited" | "unknown";
+export type AgentTurnSideEffects = "none" | "possible" | "confirmed" | "unknown";
+
 export type AgentEventType =
   | "session.started"
   | "session.resumed"
@@ -338,7 +344,18 @@ export type AgentEventPayloadMap = {
     effort?: string | null;
     mode?: string | null;
   };
-  "turn.completed": AgentRestoredPayload & { status?: string; durationMs?: number };
+  "turn.completed": AgentRestoredPayload & { status?: string; durationMs?: number } & (
+    | { completionQuality?: "complete" }
+    | {
+      completionQuality: "degraded";
+      failureScope: AgentTurnFailureScope;
+      failureCode: string;
+      retryable: boolean | null;
+      transportHealth: AgentTurnTransportHealth;
+      sideEffects: AgentTurnSideEffects;
+      diagnostic?: string;
+    }
+  );
   "turn.failed": AgentRestoredPayload & { status?: string; message?: string; durationMs?: number };
   "turn.interrupted": AgentRestoredPayload & { status?: string; message?: string; durationMs?: number };
   "user.message": AgentRestoredPayload & {

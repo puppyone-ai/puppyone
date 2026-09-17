@@ -128,6 +128,8 @@ function AgentTranscriptView({
   const hasLiveTail = Boolean(projection.connectionStatus)
     || Boolean(workingStatus);
   const historyNotice = agentHistoryNotice(projection);
+  const latestTurn = projection.turns.at(-1);
+  const degradedCompletion = latestTurn?.status === "completed" && latestTurn.completionQuality === "degraded";
   const showEmptyState = Boolean(emptyState)
     && !loading
     && timeline.rows.length === 0
@@ -229,7 +231,9 @@ function AgentTranscriptView({
         )}
         <div className="desktop-agent-announcer" aria-live="polite" aria-atomic="true">
           {projection.terminalState
-            ? t("agent.transcript.turnEnded", {
+            ? degradedCompletion
+              ? t("agent.recovery.degraded.announcer", { agent: bidiIsolate(runtimeLabel) })
+              : t("agent.transcript.turnEnded", {
                 agent: bidiIsolate(runtimeLabel),
                 status: t(`agent.turn.status.${projection.terminalState}`),
               })

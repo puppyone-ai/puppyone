@@ -180,6 +180,46 @@ describe("Desktop Agent transcript projection", () => {
     expect(projection.turns[0]?.durationMs).toBe(2_450);
   });
 
+  it("projects degraded completion as a settled turn with an actionable recovery fact", () => {
+    const projection = applyAgentEvents(createAgentProjection(), [
+      event(1, "turn.started", { prompt: "Finish it" }, "turn-degraded"),
+      event(2, "assistant.completed", {
+        text: "Error: RetriableError: [canceled] http/2 stream closed with error code CANCEL (0x8)",
+      }, "turn-degraded", "cursor-error"),
+      event(3, "turn.completed", {
+        status: "completed",
+        durationMs: 41 * 60 * 1_000 + 5_000,
+        completionQuality: "degraded",
+        failureScope: "upstream-request",
+        failureCode: "CURSOR_HTTP2_STREAM_CANCEL",
+        retryable: true,
+        transportHealth: "healthy",
+        sideEffects: "possible",
+        diagnostic: "Cursor upstream HTTP/2 stream ended with CANCEL (0x8).",
+      }, "turn-degraded"),
+    ]);
+
+    expect(projection.runningTurnId).toBeNull();
+    expect(projection.terminalState).toBe("completed");
+    expect(projection.turns[0]).toMatchObject({
+      id: "turn-degraded",
+      status: "completed",
+      completionQuality: "degraded",
+      recovery: {
+        kind: "degraded-completion",
+        code: "CURSOR_HTTP2_STREAM_CANCEL",
+        failureScope: "upstream-request",
+        retryable: true,
+        transportHealth: "healthy",
+        sideEffects: "possible",
+      },
+    });
+    expect(projection.parts.find((part) => part.kind === "turn-summary")).toMatchObject({
+      status: "completed",
+      completionQuality: "degraded",
+    });
+  });
+
   it("keeps usage metadata out of visible transcript rows", () => {
     const projection = applyAgentEvents(createAgentProjection(), [
       event(1, "turn.started", { prompt: "Measure" }, "turn-usage"),

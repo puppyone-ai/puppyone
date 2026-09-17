@@ -178,6 +178,18 @@ describe("shared Agent contract", () => {
     }))).toThrow(/connection\.updated.*state/i);
     const referenceDisplay = { id: "ref-1", kind: "attachment", displayName: "capture.png", mime: "image/png", size: 3 };
     expect(assertAgentEventEnvelope(event("turn.started", { referenceDisplays: [referenceDisplay] }))).toBeTruthy();
+    expect(assertAgentEventEnvelope(event("turn.completed", {
+      completionQuality: "degraded",
+      failureScope: "upstream-request",
+      failureCode: "CURSOR_HTTP2_STREAM_CANCEL",
+      retryable: true,
+      transportHealth: "healthy",
+      sideEffects: "possible",
+    }))).toBeTruthy();
+    expect(() => assertAgentEventEnvelope(event("turn.completed", {
+      completionQuality: "degraded",
+      failureCode: "INCOMPLETE_RECOVERY_FACT",
+    }))).toThrow(/failureScope/i);
     expect(assertAgentEventEnvelope(event("turn.started", {
       prompt: "See @capture.png",
       referenceDisplays: [referenceDisplay],

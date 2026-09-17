@@ -97,3 +97,25 @@
 .desktop-agent-question-dock footer { display: flex; justify-content: flex-end; gap: 6px; margin-top: 9px; }
 .desktop-agent-question-dock footer button { display: inline-flex; min-height: var(--agent-control-size); align-items: center; gap: 5px; padding: 0 12px; border: 1px solid var(--agent-border-subtle); border-radius: 10px; background: var(--agent-control-surface); color: var(--agent-text); font: inherit; font-size: var(--agent-font-size); }
 .desktop-agent-question-dock footer button.is-primary { border-color: var(--agent-text); background: var(--agent-text); color: var(--agent-canvas); }
+
+/* Recoverable degraded completion: native execution stopped, but requested work may remain. */
+.desktop-agent-recovery {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--agent-recovery-border);
+  border-radius: var(--agent-radius-composer);
+  background: var(--agent-recovery-surface);
+}
+.desktop-agent-recovery > header { display: flex; align-items: center; gap: 8px; color: var(--agent-text); }
+.desktop-agent-recovery > header strong { font-size: var(--agent-font-size); font-weight: 600; line-height: 1.5; }
+.desktop-agent-recovery-icon { display: grid; color: var(--agent-recovery-foreground); }
+.desktop-agent-recovery > p { margin: 0; color: var(--agent-text-muted); font-size: var(--agent-font-size); line-height: 1.5; }
+.desktop-agent-recovery > footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.desktop-agent-recovery > footer .desktop-agent-button { gap: 5px; }
+.desktop-agent-recovery-details { display: grid; gap: 5px; margin: 0; padding: 9px 10px; border: 1px solid var(--agent-border-subtle); border-radius: 7px; background: var(--agent-activity-detail-surface); }
+.desktop-agent-recovery-details > div { display: grid; grid-template-columns: minmax(90px, auto) minmax(0, 1fr); gap: 10px; }
+.desktop-agent-recovery-details dt { color: var(--agent-text-subtle); font-size: var(--agent-font-size-meta); }
+.desktop-agent-recovery-details dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--agent-text-muted); font-size: var(--agent-font-size-meta); text-align: end; }
+.desktop-agent-recovery-details code { font-family: var(--po-font-mono); font-size: var(--agent-code-font-size); }
+.desktop-agent-turn-summary[data-status="degraded"] { color: var(--agent-recovery-foreground); }

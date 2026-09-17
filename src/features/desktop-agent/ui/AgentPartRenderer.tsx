@@ -61,7 +61,7 @@ function ToolPart({ part, onOpenFile }: AgentPartRendererProps<"tool" | "command
 function StatusPart() { return null; }
 
 function TurnSummaryPart({ part }: AgentPartRendererProps<"turn-summary">) {
-  return <AgentTurnSummary durationMs={part.durationMs} status={part.status} />;
+  return <AgentTurnSummary durationMs={part.durationMs} status={part.status} completionQuality={part.completionQuality} />;
 }
 
 function UnknownPart({ part }: AgentPartRendererProps<"unknown">) {

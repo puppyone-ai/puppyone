@@ -535,6 +535,10 @@ export class AgentSessionController {
     return this.submission.submit(prompt);
   }
 
+  async continueFromRecovery(turnId: string, prompt: string) {
+    return this.submission.continueFromRecovery(turnId, prompt);
+  }
+
   async stop() {
     const sessionId = this.state.session?.id;
     const turnId = this.state.projection.runningTurnId;
