@@ -31,13 +31,14 @@
     + 2px
   );
   /* Agent Chat shares the Left Sidebar's visible type scale so the two side
-   * rails read as one piece of application chrome. Conversation copy keeps a
-   * more relaxed reading rhythm without introducing a second font size. */
+   * rails read as one piece of application chrome. */
+  --agent-font-family: var(--po-font-ui);
   --agent-font-size: var(--po-type-left-sidebar-content, 14px);
+  --agent-font-weight: var(--desktop-sidebar-font-weight, var(--po-text-weight-regular, 400));
   --agent-control-line-height: var(--po-type-left-sidebar-line-height, 19px);
   --agent-conversation-font-size: var(--po-type-left-sidebar-content, 14px);
-  --agent-conversation-line-height: calc(var(--agent-conversation-font-size) + 7px);
-  --agent-response-line-height: calc(var(--agent-conversation-font-size) + 8px);
+  --agent-conversation-line-height: var(--po-type-left-sidebar-line-height, 19px);
+  --agent-response-line-height: var(--po-type-left-sidebar-line-height, 19px);
   --agent-font-size-meta: var(--po-type-left-sidebar-meta, 12px);
   --agent-meta-line-height: var(--po-type-right-sidebar-meta-line-height, 19px);
   --agent-font-size-caption: var(--po-type-right-sidebar-caption, 12px);
@@ -50,10 +51,11 @@
    * caption = empty/error states and compact annotations;
    * micro = low-priority pagination and recovery status;
    * code = commands, diffs, and machine output.
-   * Workbench/page headers intentionally use --po-type-header-* instead. */
+  * Workbench/page headers intentionally use --po-type-header-* instead. */
   color: var(--agent-text);
-  font-family: var(--po-font-sans);
+  font-family: var(--agent-font-family);
   font-size: var(--agent-font-size);
+  font-weight: var(--agent-font-weight);
   line-height: var(--agent-control-line-height);
 }
 

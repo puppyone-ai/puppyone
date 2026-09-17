@@ -329,10 +329,10 @@
   min-width: 0;
   overflow-wrap: anywhere;
   color: var(--agent-text);
-  font-family: var(--po-font-content, var(--po-font-sans));
+  font-family: var(--agent-font-family);
   font-size: var(--agent-conversation-font-size);
-  font-weight: var(--po-content-reading-weight, 450);
-  letter-spacing: var(--po-content-reading-letter-spacing, 0);
+  font-weight: var(--agent-font-weight);
+  letter-spacing: normal;
   line-height: var(--agent-response-line-height);
 }
 .desktop-agent-markdown > :first-child { margin-top: 0; }

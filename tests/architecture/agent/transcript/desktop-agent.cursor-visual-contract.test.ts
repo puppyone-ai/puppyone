@@ -83,7 +83,7 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
     expect(messagePart).not.toContain("Copy response");
     expect(messagePart).not.toContain("clipboard");
     expect(css).toMatch(/\.desktop-agent-message-text\s*\{[^}]*font-size:\s*var\(--agent-conversation-font-size\)[^}]*line-height:\s*var\(--agent-conversation-line-height\)/s);
-    expect(css).toMatch(/\.desktop-agent-markdown\s*\{[^}]*font-size:\s*var\(--agent-conversation-font-size\)[^}]*font-weight:\s*var\(--po-content-reading-weight, 450\)[^}]*line-height:\s*var\(--agent-response-line-height\)/s);
+    expect(css).toMatch(/\.desktop-agent-markdown\s*\{[^}]*font-family:\s*var\(--agent-font-family\)[^}]*font-size:\s*var\(--agent-conversation-font-size\)[^}]*font-weight:\s*var\(--agent-font-weight\)[^}]*line-height:\s*var\(--agent-response-line-height\)/s);
     expect(messagePart).toContain('data-message-surface={isAssistant ? "document" : "row"}');
     expect(css).toMatch(/\.desktop-agent-run-feedback\s*\{[^}]*padding:\s*0 var\(--agent-message-content-inset\)[^}]*color:\s*var\(--agent-text-subtle\)[^}]*font-size:\s*var\(--agent-font-size-meta\)[^}]*line-height:\s*var\(--agent-meta-line-height\)[^}]*text-align:\s*start/s);
     expect(css).not.toContain("desktop-agent-turn-summary-line");
@@ -274,11 +274,13 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
   });
 
   it("matches Agent Chat type to the Left sidebar while preserving reading and code roles", () => {
+    expect(css).toMatch(/--agent-font-family:\s*var\(--po-font-ui\)/);
     expect(css).toMatch(/--agent-font-size:\s*var\(--po-type-left-sidebar-content, 14px\)/);
+    expect(css).toMatch(/--agent-font-weight:\s*var\(--desktop-sidebar-font-weight, var\(--po-text-weight-regular, 400\)\)/);
     expect(css).toMatch(/--agent-control-line-height:\s*var\(--po-type-left-sidebar-line-height, 19px\)/);
     expect(css).toMatch(/--agent-conversation-font-size:\s*var\(--po-type-left-sidebar-content, 14px\)/);
-    expect(css).toMatch(/--agent-conversation-line-height:\s*calc\(var\(--agent-conversation-font-size\) \+ 7px\)/);
-    expect(css).toMatch(/--agent-response-line-height:\s*calc\(var\(--agent-conversation-font-size\) \+ 8px\)/);
+    expect(css).toMatch(/--agent-conversation-line-height:\s*var\(--po-type-left-sidebar-line-height, 19px\)/);
+    expect(css).toMatch(/--agent-response-line-height:\s*var\(--po-type-left-sidebar-line-height, 19px\)/);
     expect(css).toMatch(/--agent-font-size-meta:\s*var\(--po-type-left-sidebar-meta, 12px\)/);
     expect(css).toMatch(/--agent-font-size-caption:\s*var\(--po-type-right-sidebar-caption, 12px\)/);
     expect(css).toMatch(/--agent-font-size-micro:\s*var\(--po-type-right-sidebar-micro, 11px\)/);

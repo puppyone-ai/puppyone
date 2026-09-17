@@ -593,7 +593,7 @@ describe("typography architecture", () => {
     expect(editableTable).toContain("--po-editable-table-font-size: var(--po-type-editor-data");
     expect(officePreview).toContain("--office-sheet-default-font-size: var(--po-type-editor-data");
     expect(officePreview).toContain("font-size: var(--po-type-editor-content");
-    expect(agentTranscript).toContain("font-family: var(--po-font-content, var(--po-font-sans));");
+    expect(agentTranscript).toContain("font-family: var(--agent-font-family);");
     expect(agentTranscript).toContain("font-size: var(--agent-conversation-font-size);");
     expect(agentTranscript).toContain("font-size: var(--agent-font-size-meta);");
     expect(agentActivities).toContain("font-size: var(--agent-code-font-size);");
