@@ -279,8 +279,9 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
     expect(css).toMatch(/--agent-font-weight:\s*var\(--desktop-sidebar-font-weight, var\(--po-text-weight-regular, 400\)\)/);
     expect(css).toMatch(/--agent-control-line-height:\s*var\(--po-type-left-sidebar-line-height, 19px\)/);
     expect(css).toMatch(/--agent-conversation-font-size:\s*var\(--po-type-left-sidebar-content, 14px\)/);
-    expect(css).toMatch(/--agent-conversation-line-height:\s*var\(--po-type-left-sidebar-line-height, 19px\)/);
-    expect(css).toMatch(/--agent-response-line-height:\s*var\(--po-type-left-sidebar-line-height, 19px\)/);
+    expect(css).toMatch(/--agent-composer-line-height:\s*1\.5em/);
+    expect(css).toMatch(/--agent-conversation-line-height:\s*1\.5/);
+    expect(css).toMatch(/--agent-response-line-height:\s*1\.5/);
     expect(css).toMatch(/--agent-font-size-meta:\s*var\(--po-type-left-sidebar-meta, 12px\)/);
     expect(css).toMatch(/--agent-font-size-caption:\s*var\(--po-type-right-sidebar-caption, 12px\)/);
     expect(css).toMatch(/--agent-font-size-micro:\s*var\(--po-type-right-sidebar-micro, 11px\)/);

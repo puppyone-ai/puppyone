@@ -12,7 +12,9 @@
   --agent-message-content-inset: 12px;
   --agent-message-turn-gap: 24px;
   --agent-work-handoff-gap: 8px;
-  --agent-composer-line-height: var(--agent-conversation-line-height);
+  /* Text uses a unitless reading ratio. Composer geometry needs the equivalent
+   * length so its one-line resting height remains valid inside calc(). */
+  --agent-composer-line-height: 1.5em;
   --agent-composer-input-padding-block: 12px;
   --agent-composer-text-inset-inline: 16px;
   --agent-composer-text-max-height: 120px;
@@ -37,8 +39,8 @@
   --agent-font-weight: var(--desktop-sidebar-font-weight, var(--po-text-weight-regular, 400));
   --agent-control-line-height: var(--po-type-left-sidebar-line-height, 19px);
   --agent-conversation-font-size: var(--po-type-left-sidebar-content, 14px);
-  --agent-conversation-line-height: var(--po-type-left-sidebar-line-height, 19px);
-  --agent-response-line-height: var(--po-type-left-sidebar-line-height, 19px);
+  --agent-conversation-line-height: 1.5;
+  --agent-response-line-height: 1.5;
   --agent-font-size-meta: var(--po-type-left-sidebar-meta, 12px);
   --agent-meta-line-height: var(--po-type-right-sidebar-meta-line-height, 19px);
   --agent-font-size-caption: var(--po-type-right-sidebar-caption, 12px);
