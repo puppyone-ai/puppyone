@@ -103,7 +103,8 @@ const AGENT_CHAT_CREATION_RECIPE_REGISTRY = Object.freeze([
   Object.freeze({ id: "hermes", label: "Hermes Agent", iconKey: "hermes", status: "available", availability: "local-installation" }),
   Object.freeze({ id: "opencode-native", label: "OpenCode", iconKey: "opencode", status: "available", availability: "local-installation" }),
   Object.freeze({ id: "pi", label: "Pi", iconKey: "pi", status: "available", availability: "local-installation" }),
-  Object.freeze({ id: "workbuddy", label: "WorkBuddy", iconKey: "workbuddy", status: "available", availability: "local-installation" }),
+  Object.freeze({ id: "workbuddy-china", label: "WorkBuddy (China)", iconKey: "workbuddy", status: "available", availability: "local-installation" }),
+  Object.freeze({ id: "workbuddy-international", label: "WorkBuddy (International)", iconKey: "workbuddy", status: "available", availability: "local-installation" }),
 ] as const satisfies readonly AuxiliaryWorkbenchCreationRecipe[]);
 
 /** External catalog ordered by English label, followed by the bundled route. */

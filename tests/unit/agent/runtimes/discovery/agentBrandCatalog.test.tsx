@@ -30,6 +30,8 @@ describe("Agent brand registry", () => {
     expect(resolveAgentBrand({ iconKey: "openai", label: "Codex session" })?.id).toBe("codex");
     expect(resolveAgentBrand({ label: "Pi Agent" })?.id).toBe("pi");
     expect(resolveAgentBrand({ id: "workbuddy" })?.id).toBe("workbuddy");
+    expect(resolveAgentBrand({ id: "workbuddy-china" })?.id).toBe("workbuddy");
+    expect(resolveAgentBrand({ id: "workbuddy-international" })?.id).toBe("workbuddy");
     expect(resolveAgentBrand({ label: "CodeBuddy session" })?.id).toBe("workbuddy");
     expect(resolveAgentBrand({ id: "puppyone-agent", iconKey: "built-in-agent" })?.id)
       .toBe("built-in-agent");

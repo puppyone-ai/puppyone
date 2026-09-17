@@ -59,7 +59,10 @@ export function createLocalAgentExecutableResolver({
     const observation = await resolveExecutableObservation({
       names: definition.executableNames,
       configuredCandidates: [...normalizeExtraCandidates(extraCandidates), ...productCandidates],
-      searchContext: resolutionContext.executableSearch,
+      searchContext: executableSearchContextForDefinition(
+        resolutionContext.executableSearch,
+        definition,
+      ),
       acceptCandidate: (candidate) => verifyIdentity(definition, candidate, { fsModule }),
       platform,
       fsModule,
@@ -78,6 +81,16 @@ export function createLocalAgentExecutableResolver({
   }
 
   return Object.freeze({ createContext, resolve });
+}
+
+function executableSearchContextForDefinition(searchContext, definition) {
+  if (definition.searchPath !== false) return searchContext;
+  return Object.freeze({
+    ...searchContext,
+    directories: Object.freeze((searchContext?.directories ?? []).filter(
+      ({ source }) => source !== "path-installation",
+    )),
+  });
 }
 
 export async function createExecutableSearchContext({

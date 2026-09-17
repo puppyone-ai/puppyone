@@ -104,7 +104,7 @@ describe("Unified Workbench launcher", () => {
       <TerminalLauncher
         agentMode="chat"
         discoveryPhase="ready"
-        availableAgentIds={["codex", "claude", "cursor", "opencode", "pi", "workbuddy", "hermes"]}
+        availableAgentIds={["codex", "claude", "cursor", "opencode", "pi", "workbuddy-china", "workbuddy-international", "hermes"]}
         chatRecipes={AGENT_CHAT_CREATION_RECIPES}
         onCreateChat={onCreateChat}
         onLaunch={onLaunch}
@@ -126,7 +126,8 @@ describe("Unified Workbench launcher", () => {
       "Hermes Agent",
       "OpenCode",
       "Pi",
-      "WorkBuddy",
+      "WorkBuddy (China)",
+      "WorkBuddy (International)",
       "Built-in Agent",
     ]);
     expect(container.textContent).toContain("Built-in Agent");
@@ -138,7 +139,7 @@ describe("Unified Workbench launcher", () => {
       "/assets/icons/agents/built-in-agent-dark.svg",
     ]);
     expect(Array.from(
-      findButton(container, "WorkBuddy")?.querySelectorAll("img") ?? [],
+      findButton(container, "WorkBuddy (China)")?.querySelectorAll("img") ?? [],
       (image) => image.getAttribute("src"),
     )).toEqual([
       "/assets/icons/agents/workbuddy.png",
@@ -237,7 +238,8 @@ describe("Unified Workbench launcher", () => {
       "hermes",
       "opencode-native",
       "pi",
-      "workbuddy",
+      "workbuddy-china",
+      "workbuddy-international",
       "puppyone-agent",
     ]);
     const localRecipes = AGENT_CHAT_CREATION_RECIPES.filter(({ availability }) => availability !== "bundled");

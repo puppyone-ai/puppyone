@@ -405,7 +405,9 @@ export function parseLocalAgentsSettings(
       ? parsed.hiddenTerminalAgentIds
       : []).filter(
       (id): id is string => typeof id === "string" && /^[a-z0-9][a-z0-9._-]{0,79}$/u.test(id),
-    ))).slice(0, 16);
+    ).flatMap((id) => id === "workbuddy"
+      ? ["workbuddy-china", "workbuddy-international"]
+      : [id]))).slice(0, 16);
     return {
       hiddenTerminalAgentIds,
       chatHistoryDiscoveryEnabled: parsed.chatHistoryDiscoveryEnabled === true,

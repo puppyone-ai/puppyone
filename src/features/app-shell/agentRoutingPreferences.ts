@@ -112,7 +112,10 @@ function normalizeRoute(value: unknown): AgentRoutePreference {
 }
 
 function runtimeId(value: unknown): string | null {
-  return typeof value === "string" && RUNTIME_ID.test(value.trim()) ? value.trim() : null;
+  if (typeof value !== "string" || !RUNTIME_ID.test(value.trim())) return null;
+  // The former WorkBuddy selection is channel-ambiguous. Requiring a fresh
+  // explicit choice prevents silently routing a China account to International.
+  return value.trim() === "workbuddy" ? null : value.trim();
 }
 
 function routeValue(value: unknown): string | undefined {

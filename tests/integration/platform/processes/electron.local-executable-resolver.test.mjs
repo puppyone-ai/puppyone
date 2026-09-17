@@ -8,7 +8,10 @@ import { assertExecutableIdentity, createExecutableSearchContext, createLocalAge
 import { createExecutableDiscoveryPort } from "../../../../electron/main/platform/common/executable-discovery-port.mjs";
 import { createLocalAgentInstallationRegistry, defaultLocalAgentInstallationRegistry } from "../../../../electron/main/local-agent-installation/installation-registry.mjs";
 import { createLocalAgentInstallationService } from "../../../../electron/main/local-agent-installation/installation-service.mjs";
-import { workBuddyInstallationDefinition } from "../../../../electron/main/local-agent-installation/definitions/workbuddy.mjs";
+import {
+  workBuddyChinaInstallationDefinition,
+  workBuddyInternationalInstallationDefinition,
+} from "../../../../electron/main/local-agent-installation/definitions/workbuddy.mjs";
 import { createTerminalAgentLaunchResolver } from "../../../../electron/main/terminal-agent/terminal-agent-launch-resolver.mjs";
 import { createTerminalShellHost } from "../../../../electron/main/terminal-shell-host.mjs";
 import { discoverCodexExecutable } from "../../../../electron/main/agent/runtimes/codex/codex-discovery.mjs";
@@ -32,12 +35,12 @@ async function executable(file, text = "#!/bin/sh\n# pi-coding-agent cursor-agen
 }
 
 describe("ordered installation discovery", () => {
-  it.each(["codex", "claude", "pi", "cursor", "opencode", "workbuddy", "hermes"])("discovers %s in an arbitrary PATH without package-manager knowledge", async (id) => {
+  it.each(["codex", "claude", "pi", "cursor", "opencode", "hermes"])("discovers %s in an arbitrary PATH without package-manager knowledge", async (id) => {
     const env = {};
     const { home, resolver } = await fixture(env);
     const bin = path.join(home, "entirely custom", "tools");
     env.PATH = bin;
-    const file = await executable(path.join(bin, id === "cursor" ? "cursor-agent" : id === "workbuddy" ? "codebuddy" : id));
+    const file = await executable(path.join(bin, id === "cursor" ? "cursor-agent" : id));
     await expect(resolver.resolve(id)).resolves.toMatchObject({ status: "found",
       candidate: { executablePath: file, canonicalIdentity: await realpath(file), source: "path-installation" } });
   });
@@ -115,46 +118,59 @@ describe("ordered installation discovery", () => {
     await expect(resolver.resolve(name === "pi" ? "pi" : "cursor")).resolves.toMatchObject({ status: "failed", reasonCode: "identity-mismatch" });
   });
 
-  it("accepts the cbc alias only with bounded CodeBuddy product identity", async () => {
+  it("does not claim one multi-channel CodeBuddy PATH command as two WorkBuddy products", async () => {
     const env = {};
     const { home, resolver } = await fixture(env);
-    const pkg = path.join(home, "node_modules", "@tencent-ai", "codebuddy-code");
-    const target = await executable(path.join(pkg, "bin", "codebuddy"), "#!/usr/bin/env node\n");
-    await writeFile(path.join(pkg, "package.json"), JSON.stringify({ name: "@tencent-ai/codebuddy-code" }));
     env.PATH = path.join(home, "bin");
-    await mkdir(env.PATH);
-    const entry = path.join(env.PATH, "cbc");
-    await symlink(target, entry);
-    await expect(resolver.resolve("workbuddy")).resolves.toMatchObject({
-      status: "found",
-      candidate: { executablePath: entry, invokedAs: "cbc" },
-    });
-
-    await rm(entry);
-    await executable(entry, "#!/bin/sh\n# unrelated cbc command\n");
-    await expect(resolver.resolve("workbuddy")).resolves.toMatchObject({
-      status: "failed",
-      reasonCode: "identity-mismatch",
-    });
+    await executable(path.join(env.PATH, "codebuddy"), "#!/usr/bin/env node\n# codebuddy code\n");
+    await expect(resolver.resolve("workbuddy-china")).resolves.toMatchObject({ status: "not-found" });
+    await expect(resolver.resolve("workbuddy-international")).resolves.toMatchObject({ status: "not-found" });
   });
 
-  it("keeps WorkBuddy overrides and packaged desktop-app entrypoints in the shared installation definition", () => {
-    const candidates = workBuddyInstallationDefinition.candidatePaths({
-      env: { CODEBUDDY_CODE_PATH: "/opt/workbuddy/codebuddy" },
+  it("keeps channel-specific overrides and desktop-app entrypoints in shared WorkBuddy definitions", () => {
+    const chinaCandidates = workBuddyChinaInstallationDefinition.candidatePaths({
+      env: {
+        WORKBUDDY_CHINA_CODE_PATH: "/opt/workbuddy-china/codebuddy",
+        CODEBUDDY_CODE_PATH: "/opt/routed-codebuddy/codebuddy",
+        CODEBUDDY_INTERNET_ENVIRONMENT: "internal",
+      },
       homedir: "/Users/test",
       platform: "darwin",
     });
-    expect(candidates).toEqual(expect.arrayContaining([
-      { path: "/opt/workbuddy/codebuddy", source: "environment-override" },
-      {
-        path: "/Applications/WorkBuddy AI.app/Contents/Resources/app.asar.unpacked/cli/bin/codebuddy",
-        source: "product-fallback",
-      },
+    const internationalCandidates = workBuddyInternationalInstallationDefinition.candidatePaths({
+      env: { WORKBUDDY_INTERNATIONAL_CODE_PATH: "/opt/workbuddy-international/codebuddy" },
+      homedir: "/Users/test",
+      platform: "darwin",
+    });
+    expect(chinaCandidates).toEqual(expect.arrayContaining([
+      { path: "/opt/workbuddy-china/codebuddy", source: "environment-override" },
+      { path: "/opt/routed-codebuddy/codebuddy", source: "environment-override" },
       {
         path: "/Applications/WorkBuddy.app/Contents/Resources/app.asar.unpacked/cli/bin/codebuddy",
         source: "product-fallback",
       },
     ]));
+    expect(internationalCandidates).toEqual(expect.arrayContaining([
+      { path: "/opt/workbuddy-international/codebuddy", source: "environment-override" },
+      {
+        path: "/Applications/WorkBuddy AI.app/Contents/Resources/app.asar.unpacked/cli/bin/codebuddy",
+        source: "product-fallback",
+      },
+    ]));
+    expect(chinaCandidates.some(({ path: candidatePath }) => candidatePath.includes("WorkBuddy AI.app"))).toBe(false);
+    expect(internationalCandidates.some(({ path: candidatePath }) => candidatePath.includes("WorkBuddy.app"))).toBe(false);
+  });
+
+  it("accepts an explicit WorkBuddy channel override without enabling the other channel", async () => {
+    const env = {};
+    const { home, resolver } = await fixture(env);
+    const executablePath = await executable(path.join(home, "china", "codebuddy"));
+    env.WORKBUDDY_CHINA_CODE_PATH = executablePath;
+    await expect(resolver.resolve("workbuddy-china")).resolves.toMatchObject({
+      status: "found",
+      candidate: { executablePath },
+    });
+    await expect(resolver.resolve("workbuddy-international")).resolves.toMatchObject({ status: "not-found" });
   });
 
   it("reports a search budget failure instead of silently ignoring the end of PATH", async () => {
@@ -162,13 +178,12 @@ describe("ordered installation discovery", () => {
     await expect(createExecutableSearchContext({ env: { PATH }, platform: "linux" })).rejects.toThrow("budget");
   });
 
-  it.each(["codex", "claude", "pi", "workbuddy"])("respects Windows PATHEXT when resolving npm %s entrypoints", async (id) => {
+  it.each(["codex", "claude", "pi"])("respects Windows PATHEXT when resolving npm %s entrypoints", async (id) => {
     const env = { PATHEXT: ".CMD;.EXE" };
     const { home, resolver } = await fixture(env, "win32");
     env.PATH = path.join(home, "npm commands");
-    const executableName = id === "workbuddy" ? "codebuddy" : id;
-    const cmd = await executable(path.join(env.PATH, `${executableName}.cmd`));
-    await executable(path.join(env.PATH, `${executableName}.exe`));
+    const cmd = await executable(path.join(env.PATH, `${id}.cmd`));
+    await executable(path.join(env.PATH, `${id}.exe`));
     await expect(resolver.resolve(id)).resolves.toMatchObject({ candidate: { executablePath: cmd } });
   });
 

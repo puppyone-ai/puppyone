@@ -6,7 +6,10 @@ import { createHermesRuntimeDefinition } from "../runtimes/hermes/hermes-runtime
 import { createOpenCodeNativeRuntimeDefinition } from "../runtimes/opencode-native/opencode-native-runtime-definition.mjs";
 import { createPiRuntimeDefinition } from "../runtimes/pi/pi-runtime-definition.mjs";
 import { createPuppyOneAgentRuntimeDefinition } from "../runtimes/puppyone-agent/puppyone-agent-runtime-definition.mjs";
-import { createWorkBuddyRuntimeDefinition } from "../runtimes/workbuddy/workbuddy-runtime-definition.mjs";
+import {
+  createWorkBuddyChinaRuntimeDefinition,
+  createWorkBuddyInternationalRuntimeDefinition,
+} from "../runtimes/workbuddy/workbuddy-runtime-definition.mjs";
 
 export const DEFAULT_AGENT_RUNTIME_ID = "codex";
 
@@ -22,7 +25,8 @@ export function createDefaultAgentRuntimeHost({
   cursor = {},
   openCodeNative = {},
   pi = {},
-  workBuddy = {},
+  workBuddyChina = {},
+  workBuddyInternational = {},
   hermes = {},
   puppyOneAgent = {},
 } = {}) {
@@ -32,7 +36,8 @@ export function createDefaultAgentRuntimeHost({
     createOpenCodeNativeRuntimeDefinition({ appVersion, logger, ...openCodeNative }),
     createPiRuntimeDefinition({ logger, ...pi }),
     createCursorRuntimeDefinition(cursor),
-    createWorkBuddyRuntimeDefinition({ appVersion, logger, ...workBuddy }),
+    createWorkBuddyChinaRuntimeDefinition({ appVersion, logger, ...workBuddyChina }),
+    createWorkBuddyInternationalRuntimeDefinition({ appVersion, logger, ...workBuddyInternational }),
     createHermesRuntimeDefinition({ appVersion, logger, ...hermes }),
     createPuppyOneAgentRuntimeDefinition({
       appPath,

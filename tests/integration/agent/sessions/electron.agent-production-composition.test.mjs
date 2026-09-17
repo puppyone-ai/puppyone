@@ -12,7 +12,8 @@ describe("Agent production composition", () => {
       "opencode-native": readiness("opencode-native", "not-installed"),
       pi: readiness("pi", "ready"),
       cursor: readiness("cursor", "protocol-unavailable"),
-      workbuddy: readiness("workbuddy", "ready"),
+      "workbuddy-china": readiness("workbuddy-china", "ready"),
+      "workbuddy-international": readiness("workbuddy-international", "ready"),
       hermes: readiness("hermes", "ready"),
       "puppyone-agent": readiness("puppyone-agent", "ready"),
     });
@@ -26,7 +27,8 @@ describe("Agent production composition", () => {
       "cursor",
       "hermes",
       "pi",
-      "workbuddy",
+      "workbuddy-china",
+      "workbuddy-international",
     ]);
     expect(DEFAULT_AGENT_RUNTIME_ID).toBe("codex");
     expect(host.select(catalog)?.descriptor.id).toBe("codex");
@@ -46,7 +48,8 @@ describe("Agent production composition", () => {
       ["cursor", "native-protocol", "acp", "first-party"],
       ["hermes", "native-protocol", "acp", "first-party"],
       ["pi", "specialized-native", "rpc", "first-party"],
-      ["workbuddy", "native-protocol", "acp", "first-party"],
+      ["workbuddy-china", "native-protocol", "acp", "first-party"],
+      ["workbuddy-international", "native-protocol", "acp", "first-party"],
     ]);
     expect(host.require("puppyone-agent").descriptor).toMatchObject({
       displayName: "Built-in Agent",
@@ -63,7 +66,8 @@ describe("Agent production composition", () => {
       "opencode-native": readiness("opencode-native", "not-installed"),
       pi: readiness("pi", "not-installed"),
       cursor: brokenDiscovery,
-      workbuddy: readiness("workbuddy", "not-installed"),
+      "workbuddy-china": readiness("workbuddy-china", "not-installed"),
+      "workbuddy-international": readiness("workbuddy-international", "not-installed"),
       hermes: readiness("hermes", "not-installed"),
       "puppyone-agent": readiness("puppyone-agent", "ready"),
     }, { rawDiscovery: true });
@@ -86,7 +90,8 @@ function productionHost(values, { rawDiscovery = false } = {}) {
     openCodeNative: { discovery: discovery("opencode-native") },
     pi: { discovery: discovery("pi") },
     cursor: { discovery: discovery("cursor") },
-    workBuddy: { discovery: discovery("workbuddy") },
+    workBuddyChina: { discovery: discovery("workbuddy-china") },
+    workBuddyInternational: { discovery: discovery("workbuddy-international") },
     hermes: { discovery: discovery("hermes") },
     puppyOneAgent: { discovery: discovery("puppyone-agent") },
   });

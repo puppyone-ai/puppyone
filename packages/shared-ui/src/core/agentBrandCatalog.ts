@@ -57,6 +57,8 @@ export const AGENT_BRAND_CATALOG: Readonly<Record<AgentBrandId, AgentBrandDefini
 const LEGACY_AGENT_BRAND_IDS: Readonly<Record<string, AgentBrandId>> = Object.freeze({
   "puppyone-agent": "built-in-agent",
   "workspace-agent": "built-in-agent",
+  "workbuddy-china": "workbuddy",
+  "workbuddy-international": "workbuddy",
 });
 
 export function getAgentBrand(brandId: string | null | undefined): AgentBrandDefinition | null {

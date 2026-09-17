@@ -7,7 +7,7 @@ import {
 } from "../../../../scripts/native-agent-roundtrip-runner.mjs";
 
 describe("native Agent round-trip smoke runner", () => {
-  it.each(["codex", "claude", "cursor", "opencode-native", "pi", "workbuddy", "hermes"])(
+  it.each(["codex", "claude", "cursor", "opencode-native", "pi", "workbuddy-china", "workbuddy-international", "hermes"])(
     "verifies the complete %s create, answer, locator, exact resume, follow-up and close contract",
     async (runtimeId) => {
       const sender = smokeSender();

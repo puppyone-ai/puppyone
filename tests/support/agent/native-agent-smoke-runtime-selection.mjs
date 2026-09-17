@@ -4,7 +4,8 @@ export const NATIVE_AGENT_RUNTIME_IDS = Object.freeze([
   "cursor",
   "opencode-native",
   "pi",
-  "workbuddy",
+  "workbuddy-china",
+  "workbuddy-international",
   "hermes",
 ]);
 

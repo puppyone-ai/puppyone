@@ -11,7 +11,8 @@ describe("Local Agent installation service", () => {
       "cursor",
       "opencode",
       "pi",
-      "workbuddy",
+      "workbuddy-china",
+      "workbuddy-international",
       "hermes",
     ]);
     expect(DESKTOP_TERMINAL_LAUNCHERS.filter(({ id }) => id !== "shell").every(({ id }) => (
@@ -40,7 +41,7 @@ describe("Local Agent installation service", () => {
     });
     expect(JSON.stringify(result)).not.toContain("/private/tools");
     await service.discover();
-    expect(resolveInstallation).toHaveBeenCalledTimes(14);
+    expect(resolveInstallation).toHaveBeenCalledTimes(16);
   });
 
   it("uses the short cache only for ordinary reads and always scans on explicit refresh", async () => {
@@ -53,12 +54,12 @@ describe("Local Agent installation service", () => {
     });
 
     expect((await service.discover()).source).toBe("scan");
-    expect(resolveInstallation).toHaveBeenCalledTimes(7);
+    expect(resolveInstallation).toHaveBeenCalledTimes(8);
     now += 1_000;
     expect((await service.discover()).source).toBe("memory-cache");
-    expect(resolveInstallation).toHaveBeenCalledTimes(7);
+    expect(resolveInstallation).toHaveBeenCalledTimes(8);
     expect((await service.discover({ refresh: true })).source).toBe("scan");
-    expect(resolveInstallation).toHaveBeenCalledTimes(14);
+    expect(resolveInstallation).toHaveBeenCalledTimes(16);
   });
 
   it("queues one guaranteed follow-up scan when refresh is clicked during an active scan", async () => {
@@ -109,11 +110,11 @@ describe("Local Agent installation service", () => {
 
     await service.discover({ onProgress: progress });
     expect(createResolutionContext).toHaveBeenCalledOnce();
-    expect(progress).toHaveBeenCalledTimes(7);
+    expect(progress).toHaveBeenCalledTimes(8);
     expect(progress).toHaveBeenLastCalledWith(expect.objectContaining({
       availableAgentIds: ["opencode"],
-      completedAgentCount: 7,
-      totalAgentCount: 7,
+      completedAgentCount: 8,
+      totalAgentCount: 8,
     }));
     expect(JSON.stringify(progress.mock.calls)).not.toContain("/secret/");
     expect(publishSnapshot).toHaveBeenCalledOnce();

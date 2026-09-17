@@ -4,7 +4,8 @@ export const LOCAL_AGENT_INSTALLATION_IDS = Object.freeze([
   "cursor",
   "opencode",
   "pi",
-  "workbuddy",
+  "workbuddy-china",
+  "workbuddy-international",
   "hermes",
 ]);
 

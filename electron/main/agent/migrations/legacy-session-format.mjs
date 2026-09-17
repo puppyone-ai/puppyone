@@ -1,4 +1,9 @@
 import { BUILT_IN_AGENT_DISPLAY_NAME } from "../runtimes/puppyone-agent/puppyone-agent-public-identity.mjs";
+import {
+  WORKBUDDY_CHINA_CHANNEL,
+  WORKBUDDY_INTERNATIONAL_CHANNEL,
+} from "../runtimes/workbuddy/workbuddy-channels.mjs";
+import { legacyWorkBuddyRuntimeIdForSourceScope } from "../runtimes/workbuddy/workbuddy-history-source.mjs";
 
 const LEGACY_RUNTIME_ID = "codex";
 const RUNTIME_ID_PATTERN = /^[a-z][a-z0-9-]{1,39}$/;
@@ -7,6 +12,9 @@ const RUNTIME_ID_ALIASES = Object.freeze({
   // User-owned OpenCode sessions have the distinct `opencode-native` id and
   // must never pass through this alias.
   opencode: "puppyone-agent",
+  // Context-free compatibility (for the process-local recovery cache) follows
+  // the old desktop-app precedence. Durable records use source-scope inference.
+  workbuddy: WORKBUDDY_INTERNATIONAL_CHANNEL.id,
 });
 
 /**
@@ -16,7 +24,13 @@ const RUNTIME_ID_ALIASES = Object.freeze({
  */
 export function resolvePersistedRuntimeId(record, requestedRuntimeId = null) {
   for (const value of [record?.runtimeId, record?.provider, requestedRuntimeId]) {
-    if (typeof value === "string" && RUNTIME_ID_PATTERN.test(value)) return canonicalRuntimeId(value);
+    if (typeof value !== "string" || !RUNTIME_ID_PATTERN.test(value)) continue;
+    if (value === "workbuddy") {
+      return legacyWorkBuddyRuntimeIdForSourceScope(record?.sourceScopeId)
+        ?? workBuddyChannelRuntimeId(requestedRuntimeId)
+        ?? WORKBUDDY_INTERNATIONAL_CHANNEL.id;
+    }
+    return canonicalRuntimeId(value);
   }
   return LEGACY_RUNTIME_ID;
 }
@@ -25,6 +39,12 @@ export function migratedRuntimeDescriptor(record, runtimeId) {
   const previous = record?.runtime && typeof record.runtime === "object" ? record.runtime : {};
   if (runtimeId === "puppyone-agent") {
     return { ...previous, id: runtimeId, displayName: BUILT_IN_AGENT_DISPLAY_NAME, kind: "managed-harness" };
+  }
+  if (runtimeId === WORKBUDDY_CHINA_CHANNEL.id || runtimeId === WORKBUDDY_INTERNATIONAL_CHANNEL.id) {
+    const channel = runtimeId === WORKBUDDY_CHINA_CHANNEL.id
+      ? WORKBUDDY_CHINA_CHANNEL
+      : WORKBUDDY_INTERNATIONAL_CHANNEL;
+    return { ...previous, id: runtimeId, displayName: channel.displayName, kind: previous.kind || "native-cli" };
   }
   if (runtimeId === LEGACY_RUNTIME_ID) {
     return { ...previous, id: runtimeId, displayName: previous.displayName || "Codex", kind: previous.kind || "native-cli" };
@@ -39,6 +59,12 @@ export function migratedRuntimeDescriptor(record, runtimeId) {
 
 export function canonicalRuntimeId(value) {
   return RUNTIME_ID_ALIASES[value] ?? value;
+}
+
+function workBuddyChannelRuntimeId(value) {
+  return value === WORKBUDDY_CHINA_CHANNEL.id || value === WORKBUDDY_INTERNATIONAL_CHANNEL.id
+    ? value
+    : null;
 }
 
 function humanizeRuntimeId(value) {

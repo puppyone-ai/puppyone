@@ -56,4 +56,16 @@ describe("Agent routing preferences", () => {
       },
     });
   });
+
+  it("clears the channel-ambiguous legacy WorkBuddy route", () => {
+    expect(parseAgentRoutingPreferences(JSON.stringify({
+      version: 2,
+      selectedRuntimeId: "workbuddy",
+      routes: { workbuddy: { modelId: "auto" } },
+    }))).toEqual({
+      version: 2,
+      selectedRuntimeId: null,
+      routes: {},
+    });
+  });
 });

@@ -2,6 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { historyNativeId } from "../../../../shared/agent-contract/history-schema.mjs";
+import {
+  migratedRuntimeDescriptor,
+  resolvePersistedRuntimeId,
+} from "../migrations/legacy-session-format.mjs";
 
 const CATALOG_VERSION = 2;
 const MAX_RECORDS = 500;
@@ -253,7 +257,8 @@ function normalizeRecord(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const sessionId = safeId(value.sessionId);
   const workspaceRoot = absolutePath(value.workspaceRoot);
-  const runtimeId = safeId(value.runtimeId ?? value.runtime?.id);
+  const persistedRuntimeId = safeId(value.runtimeId ?? value.runtime?.id);
+  const runtimeId = persistedRuntimeId ? safeId(resolvePersistedRuntimeId(value)) : null;
   const providerSessionId = historyNativeId(value.providerSessionId);
   const createdAt = isoDate(value.createdAt);
   const updatedAt = isoDate(value.updatedAt);
@@ -263,7 +268,7 @@ function normalizeRecord(value) {
     sessionId,
     workspaceRoot,
     runtimeId,
-    runtime: normalizeRuntime(value.runtime, runtimeId),
+    runtime: normalizeRuntime(migratedRuntimeDescriptor(value, runtimeId), runtimeId),
     providerSessionId,
     sourceScopeId: historyNativeId(value.sourceScopeId) ?? "default",
     title: bounded(value.title, 500) || "Agent session",

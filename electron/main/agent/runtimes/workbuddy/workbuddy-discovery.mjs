@@ -9,20 +9,23 @@ import {
   parseSemanticVersion,
   runBounded,
 } from "../../transports/executable-discovery.mjs";
+import { requireWorkBuddyChannel } from "./workbuddy-channels.mjs";
 import { WORKBUDDY_HOST_ENVIRONMENT } from "./workbuddy-environment.mjs";
 
 const ACP_PROBE_TIMEOUT_MS = 4_000;
 const ACP_PROBE_MAX_BYTES = 64 * 1024;
 
-export function createWorkBuddyDiscovery(options = {}) {
+export function createWorkBuddyDiscovery(channelValue, options = {}) {
+  const channel = requireWorkBuddyChannel(channelValue);
   const { cache: cacheOptions, ...discoveryOptions } = options;
   return createCachedRuntimeDiscovery(
-    ({ signal }) => discoverWorkBuddyExecutable({ ...discoveryOptions, signal }),
+    ({ signal }) => discoverWorkBuddyExecutable({ ...discoveryOptions, channel, signal }),
     cacheOptions,
   );
 }
 
 export async function discoverWorkBuddyExecutable({
+  channel: channelValue,
   signal,
   fsModule = fs,
   spawn = nodeSpawn,
@@ -34,9 +37,10 @@ export async function discoverWorkBuddyExecutable({
   discover = discoverExecutable,
   probe = runBounded,
 } = {}) {
+  const channel = requireWorkBuddyChannel(channelValue);
   const result = await discover({
     signal,
-    installationId: "workbuddy",
+    installationId: channel.installationId,
     additionalCandidates: [configuredExecutable].filter(Boolean),
     fsModule,
     spawn,
@@ -46,8 +50,10 @@ export async function discoverWorkBuddyExecutable({
     readEnvironment,
     parseVersion: parseWorkBuddyVersion,
     minimumVersion: null,
-    label: "WorkBuddy",
-    buildEnvironment: buildWorkBuddyEnvironment,
+    label: channel.displayName,
+    buildEnvironment: (baseEnv, loginEnv, options) => (
+      buildWorkBuddyEnvironment(channel, baseEnv, loginEnv, options)
+    ),
     buildProbeEnvironment: workBuddyProbeEnvironment,
   });
 
@@ -59,7 +65,7 @@ export async function discoverWorkBuddyExecutable({
         env: workBuddyProbeEnvironment(result.environment),
         timeoutMs: ACP_PROBE_TIMEOUT_MS,
         maxBytes: ACP_PROBE_MAX_BYTES,
-        label: "WorkBuddy ACP",
+        label: `${channel.displayName} ACP`,
       });
       const help = `${protocolProbe.stdout}\n${protocolProbe.stderr}`;
       if (protocolProbe.code !== 0 || !/(?:^|\s)--acp(?:\s|,|$)/mu.test(help)) {
@@ -67,7 +73,7 @@ export async function discoverWorkBuddyExecutable({
           ...result,
           status: "protocol-unavailable",
           code: "PROTOCOL_UNAVAILABLE",
-          message: "This WorkBuddy installation does not expose a usable Agent Client Protocol endpoint.",
+          message: `This ${channel.displayName} installation does not expose a usable Agent Client Protocol endpoint.`,
           diagnostic: help.trim().slice(0, 4_000),
         };
       }
@@ -77,15 +83,15 @@ export async function discoverWorkBuddyExecutable({
         ...result,
         status: "protocol-unavailable",
         code: "PROTOCOL_PROBE_FAILED",
-        message: "This WorkBuddy installation could not verify its Agent Client Protocol endpoint.",
+        message: `This ${channel.displayName} installation could not verify its Agent Client Protocol endpoint.`,
         diagnostic: error instanceof Error ? error.message : String(error),
       };
     }
   }
 
   return {
-    provider: "workbuddy",
-    runtimeId: "workbuddy",
+    provider: channel.id,
+    runtimeId: channel.id,
     source: result.executablePath ? "user-installed" : "missing",
     compatibility: readiness.status === "ready" ? "acp-v1" : "unavailable",
     ...readiness,
@@ -99,11 +105,13 @@ export function parseWorkBuddyVersion(value) {
   return parseSemanticVersion(value);
 }
 
-export function buildWorkBuddyEnvironment(baseEnv, loginEnv, options) {
+export function buildWorkBuddyEnvironment(channelValue, baseEnv, loginEnv, options) {
+  const channel = requireWorkBuddyChannel(channelValue);
   return {
     ...buildAgentEnvironment(baseEnv, loginEnv, options),
     ...WORKBUDDY_HOST_ENVIRONMENT,
-    PUPPYONE_AGENT_BACKEND: "workbuddy",
+    CODEBUDDY_INTERNET_ENVIRONMENT: channel.route,
+    PUPPYONE_AGENT_BACKEND: channel.id,
   };
 }
 

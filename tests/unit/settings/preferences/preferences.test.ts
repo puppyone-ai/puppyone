@@ -187,6 +187,12 @@ describe("local Agent preferences", () => {
     expect(parseLocalAgentsSettings(JSON.stringify({
       enabledAgentIds: ["codex"],
     }))).toEqual({ hiddenTerminalAgentIds: [], chatHistoryDiscoveryEnabled: false });
+    expect(parseLocalAgentsSettings(JSON.stringify({
+      hiddenTerminalAgentIds: ["workbuddy"],
+    }))).toEqual({
+      hiddenTerminalAgentIds: ["workbuddy-china", "workbuddy-international"],
+      chatHistoryDiscoveryEnabled: false,
+    });
     expect(parseLocalAgentsSettings("invalid")).toEqual({
       hiddenTerminalAgentIds: [],
       chatHistoryDiscoveryEnabled: false,

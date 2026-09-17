@@ -1,32 +1,33 @@
 import os from "node:os";
 import path from "node:path";
 import { historyStoragePath, localHistorySourceScope } from "../../runtime/history-source-scope.mjs";
+import {
+  WORKBUDDY_CHINA_CHANNEL,
+  WORKBUDDY_INTERNATIONAL_CHANNEL,
+  requireWorkBuddyChannel,
+} from "./workbuddy-channels.mjs";
 
-export function workBuddyHistorySource({ executablePath = "", environment = process.env } = {}) {
+export function workBuddyHistorySource({ channel: channelValue, environment = process.env } = {}) {
+  const channel = requireWorkBuddyChannel(channelValue);
   const home = environment.HOME || os.homedir();
-  const channel = workBuddyChannel({ executablePath, environment });
-  const configuredRoot = environment.CODEBUDDY_CONFIG_DIR || environment.WORKBUDDY_CONFIG_DIR || "";
-  const defaultRoot = path.join(home, channel === "international-app"
-    ? ".workbuddy-ai"
-    : channel === "china-app"
-      ? ".workbuddy"
-      : ".codebuddy");
+  const configuredRoot = environment[channel.configDirectoryEnvironmentVariable]
+    || environment.CODEBUDDY_CONFIG_DIR
+    || environment.WORKBUDDY_CONFIG_DIR
+    || "";
+  const defaultRoot = path.join(home, channel.configDirectoryName);
   const configRoot = historyStoragePath(configuredRoot, defaultRoot, home);
-  return localHistorySourceScope("workbuddy", { channel, configRoot }, {
+  // Keep the original namespace/selectors so existing single-registration
+  // WorkBuddy sessions retain their exact native history identity.
+  return localHistorySourceScope("workbuddy", { channel: channel.channel, configRoot }, {
     channel: "codebuddy-cli",
     configRoot: path.join(os.homedir(), ".codebuddy"),
   });
 }
 
-export function workBuddyChannel({ executablePath = "", environment = process.env } = {}) {
-  const route = String(environment.CODEBUDDY_INTERNET_ENVIRONMENT || "").trim().toLowerCase();
-  if (route === "internal") return "china";
-  if (route === "ioa") return "ioa";
-  if (route === "cloudhosted" || route === "selfhosted") return "selfhosted";
-  if (route === "public") return "international";
-
-  const normalizedPath = String(executablePath).replaceAll("\\", "/").toLowerCase();
-  if (normalizedPath.includes("/workbuddy ai.app/")) return "international-app";
-  if (normalizedPath.includes("/workbuddy.app/")) return "china-app";
-  return "codebuddy-cli";
+export function legacyWorkBuddyRuntimeIdForSourceScope(sourceScopeId, environment = process.env) {
+  if (!sourceScopeId) return null;
+  for (const channel of [WORKBUDDY_CHINA_CHANNEL, WORKBUDDY_INTERNATIONAL_CHANNEL]) {
+    if (workBuddyHistorySource({ channel, environment }) === sourceScopeId) return channel.id;
+  }
+  return null;
 }

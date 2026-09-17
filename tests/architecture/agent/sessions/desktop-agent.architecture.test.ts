@@ -320,7 +320,8 @@ describe("Desktop Agent architecture boundaries", () => {
     expect(bootstrap).toContain("createOpenCodeNativeRuntimeDefinition");
     expect(bootstrap).toContain("createPiRuntimeDefinition");
     expect(bootstrap).toContain("createCursorRuntimeDefinition");
-    expect(bootstrap).toContain("createWorkBuddyRuntimeDefinition");
+    expect(bootstrap).toContain("createWorkBuddyChinaRuntimeDefinition");
+    expect(bootstrap).toContain("createWorkBuddyInternationalRuntimeDefinition");
     expect(bootstrap).toContain("createHermesRuntimeDefinition");
     expect(bootstrap).toContain('DEFAULT_AGENT_RUNTIME_ID = "codex"');
     expect(contract).toContain("parseAgentIpcRequest");
@@ -343,8 +344,8 @@ describe("Desktop Agent architecture boundaries", () => {
     expect(cursorDiscovery).toContain('compatibility: "acp-v1"');
     expect(cursorDiscovery).toContain('status: "ready"');
     expect(workBuddy).toContain("extends AcpRuntimeAdapter");
-    expect(workBuddy).toContain("workBuddyAuthenticationMethod(readiness)");
-    expect(workBuddyDiscovery).toContain('installationId: "workbuddy"');
+    expect(workBuddy).toContain("channel.authenticationMethodId");
+    expect(workBuddyDiscovery).toContain("installationId: channel.installationId");
     expect(workBuddyDiscovery).toContain('compatibility: readiness.status === "ready" ? "acp-v1" : "unavailable"');
     expect(hermes).toContain("extends AcpRuntimeAdapter");
     expect(hermesDiscovery).toContain('installationId: "hermes"');

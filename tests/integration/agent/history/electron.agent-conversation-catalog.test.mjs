@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   createAgentConversationCatalog,
 } from "../../../../electron/main/agent/persistence/agent-conversation-catalog.mjs";
+import { WORKBUDDY_CHINA_CHANNEL } from "../../../../electron/main/agent/runtimes/workbuddy/workbuddy-channels.mjs";
+import { workBuddyHistorySource } from "../../../../electron/main/agent/runtimes/workbuddy/workbuddy-history-source.mjs";
 
 const temporaryDirectories = [];
 
@@ -52,6 +54,45 @@ describe("Agent conversation catalog", () => {
       capabilityRevision: "codex-app-server:1",
     });
     await expect(restarted.list("/workspace")).resolves.toHaveLength(1);
+  });
+
+  it("migrates the former WorkBuddy runtime id at the durable catalog boundary", async () => {
+    const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), "puppyone-agent-catalog-"));
+    temporaryDirectories.push(directory);
+    const filePath = path.join(directory, "catalog.json");
+    const sourceScopeId = workBuddyHistorySource({
+      channel: WORKBUDDY_CHINA_CHANNEL,
+      environment: process.env,
+    });
+    await fs.promises.writeFile(filePath, JSON.stringify({
+      version: 2,
+      truncated: false,
+      records: [{
+        sessionId: "legacy-workbuddy-session",
+        workspaceRoot: "/workspace",
+        runtimeId: "workbuddy",
+        runtime: { id: "workbuddy", displayName: "WorkBuddy", kind: "native-cli" },
+        providerSessionId: "native-workbuddy-thread",
+        sourceScopeId,
+        title: "Legacy WorkBuddy session",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:01.000Z",
+        availability: "available",
+      }],
+    }));
+
+    const catalog = createAgentConversationCatalog({ filePath });
+    await expect(catalog.list("/workspace", { runtimeId: "workbuddy-china" })).resolves.toEqual([
+      expect.objectContaining({
+        sessionId: "legacy-workbuddy-session",
+        runtimeId: "workbuddy-china",
+        runtime: expect.objectContaining({
+          id: "workbuddy-china",
+          displayName: "WorkBuddy (China)",
+        }),
+      }),
+    ]);
+    await expect(catalog.list("/workspace", { runtimeId: "workbuddy-international" })).resolves.toEqual([]);
   });
 
   it("keeps legacy unverified locators internal until a turn or native scan confirms them", async () => {
