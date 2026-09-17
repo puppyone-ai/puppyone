@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AGENT_CHAT_CREATION_RECIPES,
   sortAgentChatCreationRecipesAlphabetically,
+  sortAgentChatCreationRecipesForDisplay,
 } from "../../../../src/features/app-shell/auxiliary-workbench/agentChatCreationRecipes";
 import type { AuxiliaryWorkbenchCreationRecipe } from "../../../../src/features/app-shell/auxiliary-workbench/types";
 
@@ -15,7 +16,7 @@ function recipe(id: string, label: string): AuxiliaryWorkbenchCreationRecipe {
 }
 
 describe("Agent Chat creation recipe ordering", () => {
-  it("orders the product catalog alphabetically by English display label", () => {
+  it("alphabetizes local products and keeps the bundled route last", () => {
     expect(AGENT_CHAT_CREATION_RECIPES.map(({ label }) => label)).toEqual([
       "Claude Code",
       "Codex",
@@ -24,9 +25,17 @@ describe("Agent Chat creation recipe ordering", () => {
       "OpenCode",
       "Pi",
       "WorkBuddy",
-      "Workspace Agent",
+      "Built-in Agent",
     ]);
     expect(Object.isFrozen(AGENT_CHAT_CREATION_RECIPES)).toBe(true);
+  });
+
+  it("does not couple bundled placement to its display name", () => {
+    const bundled = { ...recipe("bundled", "Aardvark"), availability: "bundled" as const };
+    const local = { ...recipe("local", "Zulu"), availability: "local-installation" as const };
+
+    expect(sortAgentChatCreationRecipesForDisplay([bundled, local]).map(({ id }) => id))
+      .toEqual(["local", "bundled"]);
   });
 
   it("sorts case-insensitively, uses id as a stable tie-breaker, and preserves the registry", () => {

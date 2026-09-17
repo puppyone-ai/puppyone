@@ -59,13 +59,13 @@ describe("Desktop Agent renderer surfaces", () => {
       className: "desktop-agent-readiness",
       role: "status",
       children: [
-        React.createElement("strong", { key: "h" }, "Workspace Agent needs repair"),
+        React.createElement("strong", { key: "h" }, "Built-in Agent needs repair"),
         React.createElement("p", { key: "p" },
           `${readiness.message} Update or reinstall PuppyOne, then retry.`,
         ),
       ],
     }));
-    expect(container.textContent).toContain("Workspace Agent needs repair");
+    expect(container.textContent).toContain("Built-in Agent needs repair");
     expect(container.textContent).toContain("Update or reinstall PuppyOne");
     expect(container.textContent).not.toContain("Update OpenCode");
   });

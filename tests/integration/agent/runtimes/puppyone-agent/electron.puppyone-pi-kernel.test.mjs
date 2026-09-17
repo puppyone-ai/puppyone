@@ -18,7 +18,7 @@ afterEach(async () => {
   await Promise.all(temporaryPaths.splice(0).map((entry) => fs.promises.rm(entry, { recursive: true, force: true })));
 });
 
-describe("Workspace Agent Pi SDK kernel", () => {
+describe("Built-in Agent Pi SDK kernel", () => {
   it("discovers only the bundled, exact-version SDK worker", async () => {
     const userDataPath = await fs.promises.mkdtemp(path.join(os.tmpdir(), "puppyone-pi-kernel-"));
     temporaryPaths.push(userDataPath);

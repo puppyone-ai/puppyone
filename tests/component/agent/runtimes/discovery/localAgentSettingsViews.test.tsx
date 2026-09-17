@@ -35,7 +35,7 @@ describe("Local Agent settings views", () => {
     expect(document.body.textContent).toContain("Pi Agent");
     expect(document.body.textContent).toContain("WorkBuddy");
     expect(document.body.textContent).toContain("Hermes Agent");
-    expect(document.body.textContent).not.toContain("Workspace Agent");
+    expect(document.body.textContent).not.toContain("Built-in Agent");
     expect(Array.from(document.querySelectorAll(".desktop-settings-section-header h2")).map((heading) => heading.textContent))
       .toEqual(["Local Agents"]);
     expect(Array.from(document.querySelectorAll(".desktop-local-agent-group-title")).map((heading) => heading.textContent))

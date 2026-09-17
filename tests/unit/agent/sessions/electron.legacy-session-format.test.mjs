@@ -5,18 +5,21 @@ import {
 } from "../../../../electron/main/agent/migrations/legacy-session-format.mjs";
 
 describe("legacy Agent session identity", () => {
-  it("preserves the stable runtime id while projecting the current public identity", () => {
-    expect(resolvePersistedRuntimeId({ runtimeId: "puppyone-agent" })).toBe("puppyone-agent");
-    expect(migratedRuntimeDescriptor({
-      runtime: {
+  it.each(["PuppyOne Agent", "Workspace Agent"])(
+    "projects the legacy %s label to the current public identity",
+    (displayName) => {
+      expect(resolvePersistedRuntimeId({ runtimeId: "puppyone-agent" })).toBe("puppyone-agent");
+      expect(migratedRuntimeDescriptor({
+        runtime: {
+          id: "puppyone-agent",
+          displayName,
+          kind: "managed-harness",
+        },
+      }, "puppyone-agent")).toMatchObject({
         id: "puppyone-agent",
-        displayName: "PuppyOne Agent",
+        displayName: "Built-in Agent",
         kind: "managed-harness",
-      },
-    }, "puppyone-agent")).toMatchObject({
-      id: "puppyone-agent",
-      displayName: "Workspace Agent",
-      kind: "managed-harness",
-    });
-  });
+      });
+    },
+  );
 });

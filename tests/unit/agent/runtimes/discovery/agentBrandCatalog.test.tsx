@@ -31,18 +31,19 @@ describe("Agent brand registry", () => {
     expect(resolveAgentBrand({ label: "Pi Agent" })?.id).toBe("pi");
     expect(resolveAgentBrand({ id: "workbuddy" })?.id).toBe("workbuddy");
     expect(resolveAgentBrand({ label: "CodeBuddy session" })?.id).toBe("workbuddy");
-    expect(resolveAgentBrand({ id: "puppyone-agent", iconKey: "workspace-agent" })?.id)
-      .toBe("workspace-agent");
+    expect(resolveAgentBrand({ id: "puppyone-agent", iconKey: "built-in-agent" })?.id)
+      .toBe("built-in-agent");
+    expect(getAgentBrand("workspace-agent")?.id).toBe("built-in-agent");
     expect(resolveAgentBrand({ label: "API session" })).toBeNull();
     expect(getAgentBrand("PI")?.displayName).toBe("Pi Agent");
   });
 
-  it("renders Workspace Agent with its own themed mark instead of the PuppyOne product mark", () => {
-    const markup = renderToStaticMarkup(<AgentBrandImage brandId="workspace-agent" />);
+  it("renders Built-in Agent with its own themed mark instead of the PuppyOne product mark", () => {
+    const markup = renderToStaticMarkup(<AgentBrandImage brandId="built-in-agent" />);
 
     expect(markup.match(/<img/g)).toHaveLength(2);
-    expect(markup).toContain("assets/icons/agents/workspace-agent.svg");
-    expect(markup).toContain("assets/icons/agents/workspace-agent-dark.svg");
+    expect(markup).toContain("assets/icons/agents/built-in-agent.svg");
+    expect(markup).toContain("assets/icons/agents/built-in-agent-dark.svg");
     expect(markup).not.toContain("assets/brand/puppy/");
   });
 

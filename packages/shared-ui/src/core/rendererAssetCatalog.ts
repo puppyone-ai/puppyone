@@ -44,9 +44,9 @@ export const RENDERER_ASSET_PATHS = {
       workbuddy: {
         light: "assets/icons/agents/workbuddy.png",
       },
-      workspaceAgent: {
-        light: "assets/icons/agents/workspace-agent.svg",
-        dark: "assets/icons/agents/workspace-agent-dark.svg",
+      builtInAgent: {
+        light: "assets/icons/agents/built-in-agent.svg",
+        dark: "assets/icons/agents/built-in-agent-dark.svg",
       },
     },
     integrations: {

@@ -361,7 +361,7 @@ describe("Desktop Agent architecture boundaries", () => {
     const panel = source("src/features/desktop-agent/ui/AgentChatTabPanel.tsx");
     expect(adapter).toContain("extends AcpRuntimeAdapter");
     expect(adapter).toContain('accountType: "opencode-native"');
-    expect(adapter).not.toMatch(/Workspace Agent|managedOpenCode/u);
+    expect(adapter).not.toMatch(/Built-in Agent|managedOpenCode/u);
     expect(acpCore).toContain("client.newSession");
     expect(acpCore).toContain("resolveAcpModels");
     expect(acpCore).toContain("publicProviders");

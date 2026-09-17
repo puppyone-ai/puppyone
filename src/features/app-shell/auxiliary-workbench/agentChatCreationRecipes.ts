@@ -22,6 +22,26 @@ export function sortAgentChatCreationRecipesAlphabetically(
   return [...recipes].sort(compareAgentChatCreationRecipesAlphabetically);
 }
 
+/**
+ * User-installed Agent products stay alphabetized. The single bundled route is
+ * a separate product category and remains last without coupling its name to
+ * display position.
+ */
+export function compareAgentChatCreationRecipesForDisplay(
+  left: AuxiliaryWorkbenchCreationRecipe,
+  right: AuxiliaryWorkbenchCreationRecipe,
+) {
+  const bundledOrder = Number(left.availability === "bundled")
+    - Number(right.availability === "bundled");
+  return bundledOrder || compareAgentChatCreationRecipesAlphabetically(left, right);
+}
+
+export function sortAgentChatCreationRecipesForDisplay(
+  recipes: readonly AuxiliaryWorkbenchCreationRecipe[],
+) {
+  return [...recipes].sort(compareAgentChatCreationRecipesForDisplay);
+}
+
 export function localAgentIdForAgentChatRuntime(runtimeId: string) {
   return LOCAL_AGENT_ID_BY_RUNTIME_ID[runtimeId] ?? runtimeId;
 }
@@ -41,17 +61,17 @@ export function filterAgentChatCreationRecipesByLocalAgentIds(
  * Product-owned Agent. Its managed Pi SDK kernel ships with PuppyOne and does
  * not participate in user-installed Agent discovery or visibility settings.
  */
-export const WORKSPACE_AGENT_CREATION_RECIPE = Object.freeze({
+export const BUILT_IN_AGENT_CREATION_RECIPE = Object.freeze({
   id: "puppyone-agent",
-  label: "Workspace Agent",
-  iconKey: "workspace-agent",
+  label: "Built-in Agent",
+  iconKey: "built-in-agent",
   status: "available",
   availability: "bundled",
 } as const satisfies AuxiliaryWorkbenchCreationRecipe);
 
 /** Registration order has no display semantics; the exported catalog is sorted below. */
 const AGENT_CHAT_CREATION_RECIPE_REGISTRY = Object.freeze([
-  WORKSPACE_AGENT_CREATION_RECIPE,
+  BUILT_IN_AGENT_CREATION_RECIPE,
   Object.freeze({ id: "claude", label: "Claude Code", iconKey: "claude", status: "available", availability: "local-installation" }),
   Object.freeze({ id: "codex", label: "Codex", iconKey: "codex", status: "available", availability: "local-installation" }),
   Object.freeze({ id: "cursor", label: "Cursor", iconKey: "cursor", status: "available", availability: "local-installation" }),
@@ -61,9 +81,9 @@ const AGENT_CHAT_CREATION_RECIPE_REGISTRY = Object.freeze([
   Object.freeze({ id: "workbuddy", label: "WorkBuddy", iconKey: "workbuddy", status: "available", availability: "local-installation" }),
 ] as const satisfies readonly AuxiliaryWorkbenchCreationRecipe[]);
 
-/** Display catalog ordered by English label, independent of registration order. */
+/** External catalog ordered by English label, followed by the bundled route. */
 export const AGENT_CHAT_CREATION_RECIPES = Object.freeze(
-  sortAgentChatCreationRecipesAlphabetically(AGENT_CHAT_CREATION_RECIPE_REGISTRY),
+  sortAgentChatCreationRecipesForDisplay(AGENT_CHAT_CREATION_RECIPE_REGISTRY),
 );
 
 export const AGENT_CHAT_LOCAL_AGENT_IDS = Object.freeze(

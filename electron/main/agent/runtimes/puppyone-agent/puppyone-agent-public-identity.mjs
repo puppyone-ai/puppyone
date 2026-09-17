@@ -4,5 +4,5 @@
  * Machine identifiers intentionally remain `puppyone-agent` so persisted
  * sessions, profiles, IPC payloads, and approval protocols stay compatible.
  */
-export const WORKSPACE_AGENT_DISPLAY_NAME = "Workspace Agent";
-export const WORKSPACE_AGENT_ICON_KEY = "workspace-agent";
+export const BUILT_IN_AGENT_DISPLAY_NAME = "Built-in Agent";
+export const BUILT_IN_AGENT_ICON_KEY = "built-in-agent";

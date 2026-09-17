@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { PUPPYONE_AGENT_APPROVAL_PROTOCOL } from "../puppyone-agent-kernel.mjs";
-import { WORKSPACE_AGENT_DISPLAY_NAME } from "../puppyone-agent-public-identity.mjs";
+import { BUILT_IN_AGENT_DISPLAY_NAME } from "../puppyone-agent-public-identity.mjs";
 
 const READ_TOOLS = new Set(["read", "grep", "find", "ls"]);
 const WRITE_TOOLS = new Set(["edit", "write"]);
@@ -58,8 +58,8 @@ function approvalRequest(event, toolName) {
     toolName,
     kind,
     title,
-    description: subject ? String(subject).slice(0, 2_000) : `${WORKSPACE_AGENT_DISPLAY_NAME} requested a tool action.`,
-    reason: `${WORKSPACE_AGENT_DISPLAY_NAME} requires approval before commands, file mutations, or non-read-only tools.`,
+    description: subject ? String(subject).slice(0, 2_000) : `${BUILT_IN_AGENT_DISPLAY_NAME} requested a tool action.`,
+    reason: `${BUILT_IN_AGENT_DISPLAY_NAME} requires approval before commands, file mutations, or non-read-only tools.`,
     command,
     arguments: input,
     scopeKey: approvalScope(toolName, input),

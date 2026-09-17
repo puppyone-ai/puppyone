@@ -7,7 +7,7 @@ import { runBounded } from "../../transports/executable-discovery.mjs";
 import { PUPPYONE_AGENT_RUNTIME_ID } from "./puppyone-agent-identity.mjs";
 import { buildPuppyOneAgentEnvironment } from "./puppyone-agent-environment.mjs";
 import { PUPPYONE_PI_KERNEL } from "./puppyone-agent-kernel.mjs";
-import { WORKSPACE_AGENT_DISPLAY_NAME } from "./puppyone-agent-public-identity.mjs";
+import { BUILT_IN_AGENT_DISPLAY_NAME } from "./puppyone-agent-public-identity.mjs";
 
 export function createPuppyOneAgentDiscovery(options = {}) {
   const { cache: cacheOptions, ...discoveryOptions } = options;
@@ -51,15 +51,15 @@ export async function discoverPuppyOneAgentWorker({
   };
   try {
     signal?.throwIfAborted();
-    if (!workerPath || !profilePath || !base.executablePath) throw new Error(`${WORKSPACE_AGENT_DISPLAY_NAME} launch paths are unavailable.`);
+    if (!workerPath || !profilePath || !base.executablePath) throw new Error(`${BUILT_IN_AGENT_DISPLAY_NAME} launch paths are unavailable.`);
     const worker = await fsModule.promises.lstat(workerPath);
-    if (!worker.isFile() || worker.isSymbolicLink()) throw new Error(`The bundled ${WORKSPACE_AGENT_DISPLAY_NAME} worker is invalid.`);
+    if (!worker.isFile() || worker.isSymbolicLink()) throw new Error(`The bundled ${BUILT_IN_AGENT_DISPLAY_NAME} worker is invalid.`);
     const probe = await runBounded(spawn, base.executablePath, [workerPath, "--probe"], {
       signal,
       env: environment,
       timeoutMs: 8_000,
       maxBytes: 64 * 1024,
-      label: `${WORKSPACE_AGENT_DISPLAY_NAME} Pi SDK`,
+      label: `${BUILT_IN_AGENT_DISPLAY_NAME} Pi SDK`,
     });
     const result = parsePuppyOneWorkerProbe(probe.stdout);
     if (probe.code !== 0 || !result.ready) throw new Error(probe.stderr || "The bundled Pi SDK worker rejected its version probe.");
@@ -69,7 +69,7 @@ export async function discoverPuppyOneAgentWorker({
         version: result.version,
         status: "unsupported-version",
         code: "RUNTIME_VERSION_UNSUPPORTED",
-        message: `${WORKSPACE_AGENT_DISPLAY_NAME} expected Pi SDK ${PUPPYONE_PI_KERNEL.version}, but found ${result.version || "an unknown version"}.`,
+        message: `${BUILT_IN_AGENT_DISPLAY_NAME} expected Pi SDK ${PUPPYONE_PI_KERNEL.version}, but found ${result.version || "an unknown version"}.`,
       };
     }
     return {
@@ -77,7 +77,7 @@ export async function discoverPuppyOneAgentWorker({
       version: result.version,
       status: "ready",
       code: "READY",
-      message: `${WORKSPACE_AGENT_DISPLAY_NAME} is ready.`,
+      message: `${BUILT_IN_AGENT_DISPLAY_NAME} is ready.`,
       compatibility: PUPPYONE_PI_KERNEL.protocol,
       workerPath,
       profilePath,
@@ -96,7 +96,7 @@ export async function discoverPuppyOneAgentWorker({
 
 export function parsePuppyOneWorkerProbe(value) {
   const lines = String(value).trim().split(/\r?\n/u).filter(Boolean);
-  if (lines.length !== 1 || lines[0].length > 4_000) throw new Error(`${WORKSPACE_AGENT_DISPLAY_NAME} worker returned an invalid probe.`);
+  if (lines.length !== 1 || lines[0].length > 4_000) throw new Error(`${BUILT_IN_AGENT_DISPLAY_NAME} worker returned an invalid probe.`);
   const result = JSON.parse(lines[0]);
   if (
     result?.schema !== "puppyone-pi-worker-probe/v1"
@@ -104,6 +104,6 @@ export function parsePuppyOneWorkerProbe(value) {
     || typeof result.version !== "string"
     || typeof result.protocol !== "string"
     || typeof result.ready !== "boolean"
-  ) throw new Error(`${WORKSPACE_AGENT_DISPLAY_NAME} worker probe did not match its contract.`);
+  ) throw new Error(`${BUILT_IN_AGENT_DISPLAY_NAME} worker probe did not match its contract.`);
   return result;
 }

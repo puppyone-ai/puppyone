@@ -7,7 +7,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AGENT_CHAT_CREATION_RECIPES,
-  WORKSPACE_AGENT_CREATION_RECIPE,
+  BUILT_IN_AGENT_CREATION_RECIPE,
   filterAgentChatCreationRecipesByLocalAgentIds,
   localAgentIdForAgentChatRuntime,
 } from "../../../../src/features/app-shell/auxiliary-workbench/agentChatCreationRecipes";
@@ -127,15 +127,15 @@ describe("Unified Workbench launcher", () => {
       "OpenCode",
       "Pi",
       "WorkBuddy",
-      "Workspace Agent",
+      "Built-in Agent",
     ]);
-    expect(container.textContent).toContain("Workspace Agent");
+    expect(container.textContent).toContain("Built-in Agent");
     expect(Array.from(
-      findButton(container, "Workspace Agent")?.querySelectorAll("img") ?? [],
+      findButton(container, "Built-in Agent")?.querySelectorAll("img") ?? [],
       (image) => image.getAttribute("src"),
     )).toEqual([
-      "/assets/icons/agents/workspace-agent.svg",
-      "/assets/icons/agents/workspace-agent-dark.svg",
+      "/assets/icons/agents/built-in-agent.svg",
+      "/assets/icons/agents/built-in-agent-dark.svg",
     ]);
     expect(Array.from(
       findButton(container, "WorkBuddy")?.querySelectorAll("img") ?? [],
@@ -229,7 +229,7 @@ describe("Unified Workbench launcher", () => {
       .toBe("start with an agent");
   });
 
-  it("keeps recipes alphabetized while Workspace Agent stays independent of local discovery", () => {
+  it("keeps local recipes alphabetized while Built-in Agent stays last and independent of discovery", () => {
     expect(AGENT_CHAT_CREATION_RECIPES.map(({ id }) => id)).toEqual([
       "claude",
       "codex",
@@ -240,19 +240,21 @@ describe("Unified Workbench launcher", () => {
       "workbuddy",
       "puppyone-agent",
     ]);
-    expect(AGENT_CHAT_CREATION_RECIPES.map(({ label }) => label)).toEqual(
-      [...AGENT_CHAT_CREATION_RECIPES.map(({ label }) => label)].sort((left, right) => left.localeCompare(right, "en")),
+    const localRecipes = AGENT_CHAT_CREATION_RECIPES.filter(({ availability }) => availability !== "bundled");
+    expect(localRecipes.map(({ label }) => label)).toEqual(
+      [...localRecipes.map(({ label }) => label)].sort((left, right) => left.localeCompare(right, "en")),
     );
-    expect(WORKSPACE_AGENT_CREATION_RECIPE).toMatchObject({
+    expect(AGENT_CHAT_CREATION_RECIPES.at(-1)).toBe(BUILT_IN_AGENT_CREATION_RECIPE);
+    expect(BUILT_IN_AGENT_CREATION_RECIPE).toMatchObject({
       id: "puppyone-agent",
-      label: "Workspace Agent",
-      iconKey: "workspace-agent",
+      label: "Built-in Agent",
+      iconKey: "built-in-agent",
       status: "available",
       availability: "bundled",
     });
-    expect(AGENT_CHAT_CREATION_RECIPES).toContain(WORKSPACE_AGENT_CREATION_RECIPE);
+    expect(AGENT_CHAT_CREATION_RECIPES).toContain(BUILT_IN_AGENT_CREATION_RECIPE);
     expect(filterAgentChatCreationRecipesByLocalAgentIds(AGENT_CHAT_CREATION_RECIPES, []))
-      .toEqual([WORKSPACE_AGENT_CREATION_RECIPE]);
+      .toEqual([BUILT_IN_AGENT_CREATION_RECIPE]);
     expect(localAgentIdForAgentChatRuntime("opencode-native")).toBe("opencode");
     expect(getDesktopTerminalLauncher("codex").id).toBe("codex");
     expect(getDesktopTerminalLauncher("hermes").id).toBe("hermes");

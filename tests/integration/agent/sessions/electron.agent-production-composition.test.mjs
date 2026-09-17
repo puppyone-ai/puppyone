@@ -49,8 +49,8 @@ describe("Agent production composition", () => {
       ["workbuddy", "native-protocol", "acp", "first-party"],
     ]);
     expect(host.require("puppyone-agent").descriptor).toMatchObject({
-      displayName: "Workspace Agent",
-      iconKey: "workspace-agent",
+      displayName: "Built-in Agent",
+      iconKey: "built-in-agent",
     });
     await host.dispose();
   });

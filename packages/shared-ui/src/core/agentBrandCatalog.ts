@@ -10,7 +10,7 @@ export const AGENT_BRAND_IDS = Object.freeze([
   "opencode",
   "pi",
   "workbuddy",
-  "workspace-agent",
+  "built-in-agent",
 ] as const);
 
 export type AgentBrandId = (typeof AGENT_BRAND_IDS)[number];
@@ -46,17 +46,24 @@ export const AGENT_BRAND_CATALOG: Readonly<Record<AgentBrandId, AgentBrandDefini
   opencode: defineBrand("opencode", "OpenCode", ["opencode"], agentAssets.opencode, 1.3),
   pi: defineBrand("pi", "Pi Agent", ["pi"], agentAssets.pi, 1.28),
   workbuddy: defineBrand("workbuddy", "WorkBuddy", ["workbuddy", "codebuddy"], agentAssets.workbuddy),
-  "workspace-agent": defineBrand(
-    "workspace-agent",
-    "Workspace Agent",
-    ["workspace-agent", "workspace"],
-    agentAssets.workspaceAgent,
+  "built-in-agent": defineBrand(
+    "built-in-agent",
+    "Built-in Agent",
+    ["built-in-agent", "built-in"],
+    agentAssets.builtInAgent,
   ),
+});
+
+const LEGACY_AGENT_BRAND_IDS: Readonly<Record<string, AgentBrandId>> = Object.freeze({
+  "puppyone-agent": "built-in-agent",
+  "workspace-agent": "built-in-agent",
 });
 
 export function getAgentBrand(brandId: string | null | undefined): AgentBrandDefinition | null {
   if (!brandId) return null;
-  return AGENT_BRAND_CATALOG[brandId.toLowerCase() as AgentBrandId] ?? null;
+  const normalized = brandId.toLowerCase();
+  const canonicalId = (LEGACY_AGENT_BRAND_IDS[normalized] ?? normalized) as AgentBrandId;
+  return AGENT_BRAND_CATALOG[canonicalId] ?? null;
 }
 
 export function resolveAgentBrand(identity: {

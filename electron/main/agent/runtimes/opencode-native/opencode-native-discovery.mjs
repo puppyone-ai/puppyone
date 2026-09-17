@@ -89,7 +89,7 @@ export async function discoverUserOpenCodeExecutable({
 export function buildUserOpenCodeEnvironment(baseEnv, loginEnv, options) {
   const environment = buildAgentEnvironment(baseEnv, loginEnv, options);
   // Preserve the user's explicit OpenCode profile, auth and provider
-  // environment. Workspace Agent's managed profile exists only in its own
+  // environment. Built-in Agent's managed profile exists only in its own
   // child environment, so this independently constructed map never inherits
   // it from that sibling backend.
   environment.OPENCODE_CLIENT = "puppyone-desktop-native";

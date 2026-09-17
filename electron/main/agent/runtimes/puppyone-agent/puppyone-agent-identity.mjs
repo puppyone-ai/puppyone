@@ -4,17 +4,17 @@ import {
 } from "../../runtime/agent-runtime-manifest.mjs";
 import { PUPPYONE_PI_KERNEL } from "./puppyone-agent-kernel.mjs";
 import {
-  WORKSPACE_AGENT_DISPLAY_NAME,
-  WORKSPACE_AGENT_ICON_KEY,
+  BUILT_IN_AGENT_DISPLAY_NAME,
+  BUILT_IN_AGENT_ICON_KEY,
 } from "./puppyone-agent-public-identity.mjs";
 
 export const PUPPYONE_AGENT_RUNTIME_ID = "puppyone-agent";
 
 export const PUPPYONE_AGENT_RUNTIME_MANIFEST = defineAgentRuntimeManifest({
   id: PUPPYONE_AGENT_RUNTIME_ID,
-  displayName: WORKSPACE_AGENT_DISPLAY_NAME,
-  description: `${WORKSPACE_AGENT_DISPLAY_NAME} is PuppyOne's managed coding Agent, powered by a pinned Pi SDK kernel.`,
-  iconKey: WORKSPACE_AGENT_ICON_KEY,
+  displayName: BUILT_IN_AGENT_DISPLAY_NAME,
+  description: `${BUILT_IN_AGENT_DISPLAY_NAME} is PuppyOne's managed coding Agent, powered by a pinned Pi SDK kernel.`,
+  iconKey: BUILT_IN_AGENT_ICON_KEY,
   priority: 100,
   execution: {
     kind: "sdk-mediated-process",
