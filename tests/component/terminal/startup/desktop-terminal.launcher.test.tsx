@@ -123,6 +123,7 @@ describe("Unified Workbench launcher", () => {
       "Claude Code",
       "Cursor",
       "WorkBuddy",
+      "Hermes Agent",
       "OpenCode",
       "Pi",
     ]);
@@ -133,7 +134,7 @@ describe("Unified Workbench launcher", () => {
 
     expect(container.querySelectorAll(".desktop-terminal-launcher-shell")).toHaveLength(1);
     expect(container.textContent).not.toContain("Pi Agent");
-    expect(container.textContent).not.toContain("Hermes Agent");
+    expect(container.textContent).toContain("Hermes Agent");
   });
 
   it("keeps the full Terminal Agent catalog command-free and renders only detected ids", () => {
@@ -219,6 +220,7 @@ describe("Unified Workbench launcher", () => {
       "claude",
       "cursor",
       "workbuddy",
+      "hermes",
       "opencode-native",
       "pi",
     ]);

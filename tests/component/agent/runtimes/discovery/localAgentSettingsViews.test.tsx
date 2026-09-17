@@ -34,7 +34,7 @@ describe("Local Agent settings views", () => {
     expect(document.body.textContent).toContain("Configure local Agents, chat history discovery, and Hooks.");
     expect(document.body.textContent).toContain("Pi Agent");
     expect(document.body.textContent).toContain("WorkBuddy");
-    expect(document.body.textContent).not.toContain("Hermes Agent");
+    expect(document.body.textContent).toContain("Hermes Agent");
     expect(Array.from(document.querySelectorAll(".desktop-settings-section-header h2")).map((heading) => heading.textContent))
       .toEqual(["Local Agents"]);
     expect(Array.from(document.querySelectorAll(".desktop-local-agent-group-title")).map((heading) => heading.textContent))
@@ -42,8 +42,8 @@ describe("Local Agent settings views", () => {
     expect(document.querySelectorAll(".desktop-local-agent-settings-group")).toHaveLength(3);
     expect(document.querySelectorAll(".desktop-local-agent-settings-table")).toHaveLength(3);
     expect(document.querySelectorAll(".desktop-local-agent-identity > .desktop-terminal-launcher-icon").length)
-      .toBeGreaterThanOrEqual(3);
-    expect(document.querySelectorAll(".desktop-local-agent-name")).toHaveLength(3);
+      .toBeGreaterThanOrEqual(4);
+    expect(document.querySelectorAll(".desktop-local-agent-name")).toHaveLength(4);
     expect(document.querySelector(".desktop-local-agent-row-copy strong")).toBeNull();
     const codexSwitch = checkbox("Show Codex");
     expect(codexSwitch.checked).toBe(true);

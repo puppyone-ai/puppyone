@@ -12,6 +12,7 @@ const METHOD_CANDIDATES = Object.freeze({
   deleteSession: Object.freeze(["session/delete", "deleteSession"]),
   prompt: Object.freeze(["session/prompt", "prompt"]),
   cancel: Object.freeze(["session/cancel", "cancel"]),
+  setModel: Object.freeze(["session/set_model", "setSessionModel"]),
   setMode: Object.freeze(["session/set_mode", "setSessionMode"]),
   setConfigOption: Object.freeze(["session/set_config_option", "setSessionConfigOption"]),
 });

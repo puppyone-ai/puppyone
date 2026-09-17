@@ -58,7 +58,14 @@ export async function discoverExecutable({
   const candidate = observation.status === "found" ? observation.candidate : null;
   const environment = buildEnvironment(candidate?.environment ?? context?.environment ?? env, {}, { homedir, platform });
   const executablePath = candidate?.executablePath ?? null;
-  const base = { version: null, minimumVersion, executablePath, environment };
+  const base = {
+    version: null,
+    minimumVersion,
+    executablePath,
+    argsPrefix: candidate?.argsPrefix ?? [],
+    invokedAs: candidate?.invokedAs ?? null,
+    environment,
+  };
   if (!candidate) return {
     ...base,
     status: observation.status === "failed" ? "error" : "not-installed",

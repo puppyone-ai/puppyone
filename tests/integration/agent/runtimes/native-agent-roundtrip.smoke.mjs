@@ -39,7 +39,7 @@ if (process.env.RUN_NATIVE_AGENT_SMOKE !== "1") {
 } else {
   const selection = requestedNativeAgentRuntimeIds(process.argv.slice(2), process.env.PUPPYONE_NATIVE_AGENT_RUNTIMES);
   if (!selection.valid) {
-    console.error("Invalid native Agent runtime selection. Use codex, claude, cursor, opencode-native, pi, workbuddy, or all.");
+    console.error("Invalid native Agent runtime selection. Use codex, claude, cursor, opencode-native, pi, workbuddy, hermes, or all.");
     process.exitCode = 2;
   } else {
     await main(selection).catch(() => {

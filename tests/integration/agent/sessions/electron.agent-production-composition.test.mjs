@@ -13,6 +13,7 @@ describe("Agent production composition", () => {
       pi: readiness("pi", "ready"),
       cursor: readiness("cursor", "protocol-unavailable"),
       workbuddy: readiness("workbuddy", "ready"),
+      hermes: readiness("hermes", "ready"),
     });
 
     const catalog = await host.discover();
@@ -21,6 +22,7 @@ describe("Agent production composition", () => {
       "claude",
       "opencode-native",
       "cursor",
+      "hermes",
       "pi",
       "workbuddy",
     ]);
@@ -39,6 +41,7 @@ describe("Agent production composition", () => {
       ["claude", "specialized-native", "agent-sdk", "first-party"],
       ["opencode-native", "native-protocol", "acp", "first-party"],
       ["cursor", "native-protocol", "acp", "first-party"],
+      ["hermes", "native-protocol", "acp", "first-party"],
       ["pi", "specialized-native", "rpc", "first-party"],
       ["workbuddy", "native-protocol", "acp", "first-party"],
     ]);
@@ -55,6 +58,7 @@ describe("Agent production composition", () => {
       pi: readiness("pi", "not-installed"),
       cursor: brokenDiscovery,
       workbuddy: readiness("workbuddy", "not-installed"),
+      hermes: readiness("hermes", "not-installed"),
     }, { rawDiscovery: true });
 
     const catalog = await host.discover();
@@ -76,6 +80,7 @@ function productionHost(values, { rawDiscovery = false } = {}) {
     pi: { discovery: discovery("pi") },
     cursor: { discovery: discovery("cursor") },
     workBuddy: { discovery: discovery("workbuddy") },
+    hermes: { discovery: discovery("hermes") },
   });
 }
 

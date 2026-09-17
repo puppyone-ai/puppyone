@@ -310,7 +310,7 @@ describe("Desktop Agent architecture boundaries", () => {
     const bootstrap = source("electron/main/agent/bootstrap/create-agent-runtime-host.mjs");
     const reservedPuppyOneRuntime = source("electron/main/agent/runtimes/puppyone-agent/puppyone-agent-runtime-definition.mjs");
     const contract = source("shared/agent-contract/schema.mjs");
-    expect(registry).not.toMatch(/opencode|codex|claude|cursor|workbuddy/i);
+    expect(registry).not.toMatch(/opencode|codex|claude|cursor|workbuddy|hermes/i);
     expect(bootstrap).not.toContain("createPuppyOneAgentRuntimeDefinition");
     expect(bootstrap).not.toContain('"puppyone-agent"');
     expect(reservedPuppyOneRuntime).toContain("createPuppyOneAgentRuntimeDefinition");
@@ -320,6 +320,7 @@ describe("Desktop Agent architecture boundaries", () => {
     expect(bootstrap).toContain("createPiRuntimeDefinition");
     expect(bootstrap).toContain("createCursorRuntimeDefinition");
     expect(bootstrap).toContain("createWorkBuddyRuntimeDefinition");
+    expect(bootstrap).toContain("createHermesRuntimeDefinition");
     expect(bootstrap).toContain('DEFAULT_AGENT_RUNTIME_ID = "codex"');
     expect(contract).toContain("parseAgentIpcRequest");
     expect(contract).toContain("assertAgentIpcResponse");
@@ -331,9 +332,11 @@ describe("Desktop Agent architecture boundaries", () => {
     const cursorDiscovery = source("electron/main/agent/runtimes/cursor/cursor-discovery.mjs");
     const workBuddy = source("electron/main/agent/runtimes/workbuddy/workbuddy-acp-adapter.mjs");
     const workBuddyDiscovery = source("electron/main/agent/runtimes/workbuddy/workbuddy-discovery.mjs");
+    const hermes = source("electron/main/agent/runtimes/hermes/hermes-acp-adapter.mjs");
+    const hermesDiscovery = source("electron/main/agent/runtimes/hermes/hermes-discovery.mjs");
     const claude = source("electron/main/agent/runtimes/claude/claude-identity.mjs");
     const main = source("electron/main.mjs");
-    expect(acpCore).not.toMatch(/cursor\/|workbuddy|codebuddy|managedOpenCodeAcpConfig|OPENCODE_/i);
+    expect(acpCore).not.toMatch(/cursor\/|workbuddy|codebuddy|hermes|managedOpenCodeAcpConfig|OPENCODE_/i);
     expect(cursor).toContain('authenticationMethodId: "cursor_login"');
     expect(cursor).toContain('questionMethods: ["cursor/ask_question"]');
     expect(cursorDiscovery).toContain('compatibility: "acp-v1"');
@@ -342,6 +345,9 @@ describe("Desktop Agent architecture boundaries", () => {
     expect(workBuddy).toContain("workBuddyAuthenticationMethod(readiness)");
     expect(workBuddyDiscovery).toContain('installationId: "workbuddy"');
     expect(workBuddyDiscovery).toContain('compatibility: readiness.status === "ready" ? "acp-v1" : "unavailable"');
+    expect(hermes).toContain("extends AcpRuntimeAdapter");
+    expect(hermesDiscovery).toContain('installationId: "hermes"');
+    expect(hermesDiscovery).toContain('compatibility: readiness.status === "ready" ? "acp-v1" : "unavailable"');
     expect(claude).toContain('displayName: "Claude Agent"');
     expect(main).toContain("createAgentProcessSupervisor");
     expect(main).toContain("agentProcessSupervisor");
@@ -378,7 +384,7 @@ describe("Desktop Agent architecture boundaries", () => {
     expect(runtimePicker).not.toMatch(/Local tools|AgentLocalConnection|connection\.id/);
     expect(runtimePicker).not.toMatch(/Coding Agents|Detected|Refresh/);
     expect(runtimePicker).toContain("A non-ready runtime remains inspectable");
-    expect(backendRouting).not.toMatch(/puppyone-agent|codex|claude|cursor|opencode|workbuddy/i);
+    expect(backendRouting).not.toMatch(/puppyone-agent|codex|claude|cursor|opencode|workbuddy|hermes/i);
     expect(registry).toContain("validateDescriptor");
   });
 });

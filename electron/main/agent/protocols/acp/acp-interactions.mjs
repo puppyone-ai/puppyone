@@ -81,6 +81,10 @@ export function acpResolvePending(adapter, message) {
   }
 
 function selectPermissionOption(options, decision) {
+  if (decision === "acceptForSession") {
+    const sessionScoped = options.find((option) => option.optionId === "allow_session");
+    if (sessionScoped) return sessionScoped;
+  }
   const desired = decision === "acceptForSession"
     ? ["allow_always", "allow_once"]
     : decision === "accept"

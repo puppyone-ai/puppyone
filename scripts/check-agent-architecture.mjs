@@ -545,7 +545,7 @@ for (const filePath of walkSourceFiles(path.join(repoRoot, "src"))) {
 }
 
 const registrySource = readFileSync(path.join(mainRuntimeRoot, "agent-runtime-registry.mjs"), "utf8");
-if (/\b(?:opencode|codex|claude|cursor|workbuddy)\b/i.test(stripComments(registrySource))) {
+if (/\b(?:opencode|codex|claude|cursor|workbuddy|hermes)\b/i.test(stripComments(registrySource))) {
   errors.push("electron/main/agent/runtime/agent-runtime-registry.mjs names a concrete provider");
 }
 const runtimeManifestSource = readFileSync(path.join(mainRuntimeRoot, "agent-runtime-manifest.mjs"), "utf8");

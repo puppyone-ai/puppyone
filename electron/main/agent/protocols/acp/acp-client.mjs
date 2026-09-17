@@ -80,6 +80,7 @@ export class AcpClient {
   closeSession(params) { return this.#request("closeSession", params); }
   forkSession(params) { return this.#request("forkSession", params); }
   deleteSession(params) { return this.#request("deleteSession", params); }
+  setModel(params) { return this.#request("setModel", params); }
   setMode(params) { return this.#request("setMode", params); }
   setConfigOption(params) { return this.#request("setConfigOption", params); }
 

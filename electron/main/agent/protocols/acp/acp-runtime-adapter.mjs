@@ -137,6 +137,7 @@ export class AcpRuntimeAdapter {
     accountType = runtimeDescriptor?.id,
     sessionTitles = {},
     authenticationMethodId = null,
+    authenticationMethodSelector = null,
     capabilityOverrides = {},
     referenceInputProfile = {},
     questionMethods = [],
@@ -175,6 +176,10 @@ export class AcpRuntimeAdapter {
       resumed: sessionTitles.resumed || `${runtimeDescriptor.displayName} session`,
     };
     this.authenticationMethodId = text(authenticationMethodId, 160) || null;
+    this.authenticationMethodSelector = typeof authenticationMethodSelector === "function"
+      ? authenticationMethodSelector
+      : null;
+    this.authenticatedMethodId = null;
     this.capabilityOverrides = capabilityOverrides;
     this.referenceInputProfile = Object.freeze({
       embeddedText: referenceInputProfile?.embeddedText === true,
@@ -501,10 +506,13 @@ export class AcpRuntimeAdapter {
       },
     });
     await this.client.initialize();
-    if (this.authenticationMethodId) {
-      const advertised = this.client.authMethods.some((method) => method?.id === this.authenticationMethodId);
+    const authenticationMethodId = this.authenticationMethodId
+      ?? (text(this.authenticationMethodSelector?.(this.client.authMethods), 160) || null);
+    if (authenticationMethodId) {
+      const advertised = this.client.authMethods.some((method) => method?.id === authenticationMethodId);
       if (!advertised) throw new Error(`${this.runtimeDescriptor.displayName} did not advertise the required authentication method.`);
-      await this.client.authenticate({ methodId: this.authenticationMethodId });
+      await this.client.authenticate({ methodId: authenticationMethodId });
+      this.authenticatedMethodId = authenticationMethodId;
     }
   }
 
@@ -515,6 +523,7 @@ export class AcpRuntimeAdapter {
     this.client = null;
     this.connection = null;
     this.connectionMode = null;
+    this.authenticatedMethodId = null;
     client?.dispose();
     if (connection) this.closingConnections.add(connection);
     connection?.dispose?.(reason, { expected });
@@ -598,7 +607,7 @@ export class AcpRuntimeAdapter {
 
   #inspection() {
     const models = publicModels(this.sessionConfig, this.runtimeDescriptor.id);
-    const accountReady = models.length > 0 || Boolean(this.authenticationMethodId);
+    const accountReady = models.length > 0 || Boolean(this.authenticatedMethodId);
     return {
       account: {
         account: accountReady ? {
@@ -667,14 +676,18 @@ export class AcpRuntimeAdapter {
         throw new Error(`The selected ${this.runtimeDescriptor.displayName} model is no longer available.`);
       }
       const configId = this.sessionConfig.models.configId;
-      if (!configId) throw new Error(`This ${this.runtimeDescriptor.displayName} ACP runtime does not support changing models.`);
-      const response = await this.client.setConfigOption({
-        configId,
-        sessionId: this.sessionId,
-        type: "select",
-        value: requestedModel,
-      });
-      this.#syncConfigOptions(response?.configOptions);
+      if (configId) {
+        const response = await this.client.setConfigOption({
+          configId,
+          sessionId: this.sessionId,
+          type: "select",
+          value: requestedModel,
+        });
+        this.#syncConfigOptions(response?.configOptions);
+      } else {
+        await this.client.setModel({ sessionId: this.sessionId, modelId: requestedModel });
+        this.sessionConfig.models.currentId = requestedModel;
+      }
     }
     const requestedEffort = resolveRequestedAcpEffort(effort, this.sessionConfig.efforts);
     if (effort && !requestedEffort) {

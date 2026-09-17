@@ -33,6 +33,7 @@ export const AGENT_CHAT_CREATION_RECIPES = Object.freeze([
   Object.freeze({ id: "claude", label: "Claude Code", iconKey: "claude", status: "available" }),
   Object.freeze({ id: "cursor", label: "Cursor", iconKey: "cursor", status: "available" }),
   Object.freeze({ id: "workbuddy", label: "WorkBuddy", iconKey: "workbuddy", status: "available" }),
+  Object.freeze({ id: "hermes", label: "Hermes Agent", iconKey: "hermes", status: "available" }),
   Object.freeze({ id: "opencode-native", label: "OpenCode", iconKey: "opencode", status: "available" }),
   Object.freeze({ id: "pi", label: "Pi", iconKey: "pi", status: "available" }),
 ] as const satisfies readonly AuxiliaryWorkbenchCreationRecipe[]);

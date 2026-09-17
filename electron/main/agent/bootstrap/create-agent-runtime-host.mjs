@@ -2,6 +2,7 @@ import { AgentRuntimeHost, AgentRuntimeRegistry } from "../runtime/agent-runtime
 import { createClaudeRuntimeDefinition } from "../runtimes/claude/claude-runtime-definition.mjs";
 import { createCodexRuntimeDefinition } from "../runtimes/codex/codex-runtime-definition.mjs";
 import { createCursorRuntimeDefinition } from "../runtimes/cursor/cursor-runtime-definition.mjs";
+import { createHermesRuntimeDefinition } from "../runtimes/hermes/hermes-runtime-definition.mjs";
 import { createOpenCodeNativeRuntimeDefinition } from "../runtimes/opencode-native/opencode-native-runtime-definition.mjs";
 import { createPiRuntimeDefinition } from "../runtimes/pi/pi-runtime-definition.mjs";
 import { createWorkBuddyRuntimeDefinition } from "../runtimes/workbuddy/workbuddy-runtime-definition.mjs";
@@ -18,6 +19,7 @@ export function createDefaultAgentRuntimeHost({
   openCodeNative = {},
   pi = {},
   workBuddy = {},
+  hermes = {},
 } = {}) {
   const definitions = [
     createCodexRuntimeDefinition({ appVersion, ...codex }),
@@ -26,6 +28,7 @@ export function createDefaultAgentRuntimeHost({
     createPiRuntimeDefinition({ logger, ...pi }),
     createCursorRuntimeDefinition(cursor),
     createWorkBuddyRuntimeDefinition({ appVersion, logger, ...workBuddy }),
+    createHermesRuntimeDefinition({ appVersion, logger, ...hermes }),
   ];
   return new AgentRuntimeHost(new AgentRuntimeRegistry(definitions, {
     defaultRuntimeId: DEFAULT_AGENT_RUNTIME_ID,

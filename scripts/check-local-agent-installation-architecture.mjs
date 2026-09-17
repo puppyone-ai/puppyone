@@ -50,6 +50,7 @@ for (const [file, installationId] of [
   ["electron/main/agent/runtimes/opencode-native/opencode-native-discovery.mjs", "opencode"],
   ["electron/main/agent/runtimes/pi/pi-discovery.mjs", "pi"],
   ["electron/main/agent/runtimes/workbuddy/workbuddy-discovery.mjs", "workbuddy"],
+  ["electron/main/agent/runtimes/hermes/hermes-discovery.mjs", "hermes"],
 ]) {
   requireText(read(file), `installationId: "${installationId}"`, `${file} must select its shared installation definition`);
 }

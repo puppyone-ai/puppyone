@@ -5,6 +5,7 @@ export const NATIVE_AGENT_RUNTIME_IDS = Object.freeze([
   "opencode-native",
   "pi",
   "workbuddy",
+  "hermes",
 ]);
 
 export function requestedNativeAgentRuntimeIds(argv = [], environmentValue = "") {

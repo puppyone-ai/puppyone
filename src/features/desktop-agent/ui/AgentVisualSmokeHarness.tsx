@@ -30,6 +30,7 @@ const agentRuntimes: AgentRuntimeCatalogEntry[] = [
   runtimeEntry("opencode-native", "OpenCode", "opencode"),
   runtimeEntry("cursor", "Cursor Agent", "cursor"),
   runtimeEntry("workbuddy", "WorkBuddy", "workbuddy"),
+  runtimeEntry("hermes", "Hermes Agent", "hermes"),
 ];
 
 const modelsByRuntime: Record<string, AgentModel[]> = {
@@ -38,6 +39,7 @@ const modelsByRuntime: Record<string, AgentModel[]> = {
   "opencode-native": [model("google/gemini-3-pro", "Gemini 3 Pro", true), model("openai/gpt-5.4", "GPT-5.4")],
   cursor: [model("auto", "Auto", true), model("composer-1", "Composer 1")],
   workbuddy: [model("auto", "Auto", true)],
+  hermes: [model("openrouter:auto", "Auto", true)],
 };
 
 const referenceCapabilities: AgentReferenceInputCapabilities = {
