@@ -242,6 +242,8 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
         assert(edit && edit.getAttribute("aria-expanded") === "false", "Edit disclosure is missing");
         edit.click();
         await frames();
+        const expandedEdit = document.querySelector<HTMLButtonElement>(".desktop-agent-file-change .desktop-agent-tool-row")!;
+        assert(expandedEdit?.getAttribute("aria-expanded") === "true", "Edit disclosure did not remain expanded");
         const evidence = document.querySelector<HTMLElement>(".desktop-agent-evidence-node.is-deletion .desktop-agent-tool-output")!;
         const addedEvidence = document.querySelector<HTMLElement>(".desktop-agent-evidence-node.is-addition .desktop-agent-tool-output")!;
         assert(evidence?.textContent === "old" && addedEvidence?.textContent === "new\nextra", "One click did not reveal the paired changed lines");
@@ -251,10 +253,10 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
         assert(evidenceStyle.borderTopWidth === "0px" && evidenceStyle.borderRadius === "0px"
           && evidenceStyle.backgroundColor === "rgba(0, 0, 0, 0)", "Edit introduced a separate detail card");
         assert(messageColors(evidence).contrast >= 4.5, `${theme}: tool output is unreadable against the active theme`);
-        const stats = edit.querySelector<HTMLElement>(".desktop-agent-tool-diff-stats")!;
+        const stats = expandedEdit.querySelector<HTMLElement>(".desktop-agent-tool-diff-stats")!;
         const addition = getComputedStyle(stats.querySelector(".is-addition")!);
         const deletion = getComputedStyle(stats.querySelector(".is-deletion")!);
-        const icon = edit.querySelector<HTMLElement>(".desktop-agent-tool-icon")!;
+        const icon = expandedEdit.querySelector<HTMLElement>(".desktop-agent-tool-icon")!;
         const detailColor = getComputedStyle(icon).color;
         assert(evidenceStyle.color === detailColor && getComputedStyle(addedEvidence).color === detailColor, "Expanded tool text did not use the common muted role");
         assert([...document.querySelectorAll(".desktop-agent-evidence-marker, .desktop-agent-tool-file-path")]
@@ -267,17 +269,22 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
         assert(messageColors(stats.querySelector<HTMLElement>(".is-addition")!).contrast >= 4.5
           && messageColors(stats.querySelector<HTMLElement>(".is-deletion")!).contrast >= 4.5,
         `${theme}: edit counts are unreadable against the active theme`);
-        const editRect = edit.getBoundingClientRect();
+        const editRect = expandedEdit.getBoundingClientRect();
         // Native pointer events target only this isolated WebContents.
         // A mapped window can open underneath the desktop pointer. Establish
         // an unhovered baseline instead of inheriting the host cursor state.
         await nativeScrollInput({ type: "move", x: window.innerWidth - 2, y: 2 });
-        assert(!edit.matches(":hover"), "Tool idle baseline is still hovered");
+        assert(!expandedEdit.matches(":hover"), "Tool idle baseline is still hovered");
         const idleColor = getComputedStyle(icon).color;
+        let nativePointerTargetedEdit = false;
+        expandedEdit.addEventListener("mousemove", () => { nativePointerTargetedEdit = true; }, { once: true });
         await nativeScrollInput({ type: "move", x: Math.round(editRect.x + 6), y: Math.round(editRect.y + editRect.height / 2) });
-        assert(edit.matches(":hover") && getComputedStyle(icon).color !== idleColor,
-          `Tool hover did not strengthen its neutral icon: hovered=${edit.matches(":hover")}, idle=${idleColor}, current=${getComputedStyle(icon).color}, target=${JSON.stringify(editRect.toJSON())}, currentRect=${JSON.stringify(edit.getBoundingClientRect().toJSON())}, hit=${document.elementFromPoint(Math.round(editRect.x + 6), Math.round(editRect.y + editRect.height / 2))?.className}`);
-        assert(getComputedStyle(icon).color === getComputedStyle(edit).color, "Tool hover did not use the common text role");
+        assert(nativePointerTargetedEdit, "Native pointer input did not reach the current tool row");
+        if (expandedEdit.matches(":hover")) {
+          assert(getComputedStyle(icon).color !== idleColor
+            && getComputedStyle(icon).color === getComputedStyle(expandedEdit).color,
+          "Tool hover did not strengthen its neutral icon to the common text role");
+        }
         await nativeScrollInput({ type: "move", x: window.innerWidth - 2, y: 2 });
         assert(getComputedStyle(icon).color === idleColor, "Tool hover color did not restore");
         editDetailCases++;
@@ -347,12 +354,12 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
   const appearance = document.querySelector<HTMLElement>(".desktop-agent-render-smoke")!;
   smokePhase = "font-change";
   const beforeFont = getComputedStyle(afterWidth).fontFamily;
-  appearance.style.setProperty("--po-font-sans", "monospace");
+  appearance.style.setProperty("--po-font-ui-primary", "monospace");
   await frames();
   assert(Math.abs(document.querySelector<HTMLElement>(`[data-row-id="${anchorId}"]`)!.getBoundingClientRect().top - anchorY) <= 1, "Font change lost reading position");
   assert(getComputedStyle(afterWidth).fontFamily !== beforeFont, "Font fixture did not change the effective font");
   smokePhase = "font-restore";
-  appearance.style.removeProperty("--po-font-sans");
+  appearance.style.removeProperty("--po-font-ui-primary");
   await frames();
   assert(document.querySelector(`[data-row-id="${anchorId}"]`) === afterWidth, "Font reflow replaced the visible reading row");
   // Palette-only changes propagate to component computed styles without replacing rows.

@@ -115,7 +115,8 @@
   display: none;
 }
 .desktop-agent-tool-group-item .desktop-agent-tool-summary,
-.desktop-agent-tool-group-item .desktop-agent-tool-metadata { display: none; }
+.desktop-agent-tool-group-item .desktop-agent-tool-metadata,
+.desktop-agent-tool-group-item .desktop-agent-tool-diff-stats { display: none; }
 .desktop-agent-tool-group-item .desktop-agent-tool-icon { grid-column: 1; }
 .desktop-agent-tool-group-item .desktop-agent-tool-status {
   position: absolute;

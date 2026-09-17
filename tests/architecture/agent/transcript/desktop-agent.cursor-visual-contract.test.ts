@@ -316,9 +316,10 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
     expect(css).toMatch(/--agent-tool-evidence-rail:\s*var\(--agent-border\)/);
     expect(css).toMatch(/\.desktop-agent-tool-icon\s*\{[^}]*display:\s*grid[^}]*color:\s*var\(--agent-tool-action-foreground\)/s);
     expect(css).toMatch(/\.desktop-agent-tool-name\s*\{[^}]*color:\s*var\(--agent-tool-action-foreground\)/s);
+    expect(css).toMatch(/\.desktop-agent-tool-row:is\(:hover, :focus-visible\):not\(:disabled\) :is\(\.desktop-agent-tool-icon, \.desktop-agent-tool-name\)\s*\{[^}]*color:\s*var\(--agent-text\)/s);
     expect(css).toMatch(/\.desktop-agent-tool-rail\s*\{[^}]*display:\s*flex[^}]*flex-wrap:\s*nowrap[^}]*overflow:\s*hidden/s);
     expect(css).toMatch(/\.desktop-agent-tool-group-item \.desktop-agent-tool-name\s*\{[^}]*display:\s*none/s);
-    expect(css).toMatch(/\.desktop-agent-tool-group-item \.desktop-agent-tool-summary,[^{]*\.desktop-agent-tool-group-item \.desktop-agent-tool-metadata\s*\{[^}]*display:\s*none/s);
+    expect(css).toMatch(/\.desktop-agent-tool-group-item \.desktop-agent-tool-summary,[^{]*\.desktop-agent-tool-group-item \.desktop-agent-tool-metadata,[^{]*\.desktop-agent-tool-group-item \.desktop-agent-tool-diff-stats\s*\{[^}]*display:\s*none/s);
     expect(css).toMatch(/\.desktop-agent-tool-overflow\s*\{[^}]*width:\s*var\(--agent-tool-rail-overflow-size\)[^}]*font-variant-numeric:\s*tabular-nums/s);
     expect(toolGlyph).toContain('const ACTIVE_STATUSES = new Set<AgentActivityStatus>(["running", "in-progress"])');
     expect(css).toMatch(/\.desktop-agent-tool-glyph\s*\{[^}]*width:\s*16px[^}]*height:\s*16px[^}]*stroke-width:\s*1\.8/s);
