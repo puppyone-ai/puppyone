@@ -21,6 +21,11 @@ import {
   MARKDOWN_RICH_BLOCK_EXECUTION,
   type MarkdownMountedBlockExecution,
 } from "../../core/plans/markdownBlockExecution";
+import {
+  highlightMarkdownCode,
+  type MarkdownCodeHighlighter,
+  type MarkdownCodeHighlightResult,
+} from "./codeBlockHighlight";
 
 /**
  * Immutable descriptor. Mounted listeners and draft commit ownership live in
@@ -35,6 +40,7 @@ export class CodeBlockWidget extends WidgetType {
     private readonly sourceReference: MarkdownCodeSourceReference | null = null,
     private readonly layoutEstimatedHeight = estimateCodeBlockLayoutHeight(code),
     private readonly execution: MarkdownMountedBlockExecution = MARKDOWN_RICH_BLOCK_EXECUTION,
+    private readonly highlighter: MarkdownCodeHighlighter = highlightMarkdownCode,
   ) {
     super();
   }
@@ -49,6 +55,7 @@ export class CodeBlockWidget extends WidgetType {
       widget.layoutEstimatedHeight === this.layoutEstimatedHeight &&
       widget.execution.mode === this.execution.mode &&
       widget.execution.budgetVersion === this.execution.budgetVersion &&
+      widget.highlighter === this.highlighter &&
       codeSourceReferencesEqual(widget.sourceReference, this.sourceReference)
     );
   }
@@ -116,6 +123,12 @@ export class CodeBlockWidget extends WidgetType {
       header.appendChild(languageInput);
     }
 
+    const codeSurface = document.createElement("div");
+    codeSurface.className = "cm-md-code-surface";
+    codeSurface.dir = "ltr";
+    const codeHighlight = document.createElement("pre");
+    codeHighlight.className = "cm-md-code-highlight";
+    codeHighlight.setAttribute("aria-hidden", "true");
     const codeEditor = document.createElement("textarea");
     codeEditor.className = "cm-md-code-textarea";
     codeEditor.dataset.poScrollbar = "horizontal";
@@ -125,6 +138,88 @@ export class CodeBlockWidget extends WidgetType {
     codeEditor.wrap = "off";
     codeEditor.dir = "ltr";
     codeEditor.rows = Math.max(1, recoveredDraft.code.split("\n").length);
+
+    let highlightRequest = 0;
+    let highlightFrame: number | null = null;
+    let highlightDisposed = false;
+    let highlightSuppression: Readonly<{
+      languageLabel: string;
+      sourceLength: number;
+      result: MarkdownCodeHighlightResult;
+    }> | null = null;
+    const applyHighlightMetadata = (result: MarkdownCodeHighlightResult) => {
+      codeHighlight.dataset.language = result.language;
+      if (result.fallbackReason) {
+        codeHighlight.dataset.highlightFallback = result.fallbackReason;
+      } else {
+        delete codeHighlight.dataset.highlightFallback;
+      }
+      codeSurface.style.setProperty("--cm-md-code-tab-size", String(result.tabSize));
+    };
+    const refreshHighlight = (request: number) => {
+      const code = normalizeLineEndings(codeEditor.value);
+      const languageLabel = languageInput.value.trim().toLowerCase();
+      codeHighlight.textContent = code;
+      codeSurface.classList.remove("is-highlighted");
+      if (
+        highlightSuppression
+        && highlightSuppression.languageLabel === languageLabel
+        && code.length >= Math.max(1, Math.floor(highlightSuppression.sourceLength / 2))
+      ) {
+        applyHighlightMetadata(highlightSuppression.result);
+        return;
+      }
+      highlightSuppression = null;
+      void this.highlighter(code, languageInput.value, {
+        isCurrent: () => !highlightDisposed && request === highlightRequest,
+      }).then((result) => {
+        if (!result || highlightDisposed || request !== highlightRequest) return;
+        if (result.fallbackReason === "parse-budget" || result.fallbackReason === "dom-budget") {
+          highlightSuppression = { languageLabel, sourceLength: code.length, result };
+        } else {
+          highlightSuppression = null;
+        }
+        const fragment = codeHighlight.ownerDocument.createDocumentFragment();
+        for (const segment of result.segments) {
+          if (!segment.className) {
+            fragment.appendChild(codeHighlight.ownerDocument.createTextNode(segment.text));
+            continue;
+          }
+          const token = codeHighlight.ownerDocument.createElement("span");
+          token.className = segment.className;
+          token.textContent = segment.text;
+          fragment.appendChild(token);
+        }
+        codeHighlight.replaceChildren(fragment);
+        applyHighlightMetadata(result);
+        codeSurface.classList.toggle(
+          "is-highlighted",
+          result.segments.some((segment) => segment.className !== null),
+        );
+      }).catch(() => {
+        if (!highlightDisposed && request === highlightRequest) {
+          codeSurface.classList.remove("is-highlighted");
+        }
+      });
+    };
+    const scheduleHighlightRefresh = (immediate = false) => {
+      const request = ++highlightRequest;
+      const ownerWindow = codeSurface.ownerDocument.defaultView;
+      if (immediate || !ownerWindow) {
+        if (highlightFrame !== null) {
+          ownerWindow?.cancelAnimationFrame(highlightFrame);
+          highlightFrame = null;
+        }
+        refreshHighlight(request);
+        return;
+      }
+      if (highlightFrame !== null) return;
+      highlightFrame = ownerWindow.requestAnimationFrame(() => {
+        highlightFrame = null;
+        refreshHighlight(highlightRequest);
+      });
+    };
+    scheduleHighlightRefresh(true);
 
     const ensureSession = () => {
       const existing = elementId ? host.editSessions.get(elementId) : undefined;
@@ -208,8 +303,10 @@ export class CodeBlockWidget extends WidgetType {
       if (elementId) host.editSessions.cancel(elementId);
       elementId = null;
       languageInput.value = this.language;
+      languageInput.classList.toggle("is-empty", !this.language.trim());
       codeEditor.value = this.code;
       codeEditor.rows = Math.max(1, this.code.split("\n").length);
+      scheduleHighlightRefresh(true);
       committed = false;
       skipBlurCommit = true;
     };
@@ -286,11 +383,16 @@ export class CodeBlockWidget extends WidgetType {
       languageInput.classList.toggle("is-empty", !languageInput.value.trim());
       committed = false;
       syncDraft();
+      scheduleHighlightRefresh();
     };
     const onCodeInput = () => {
       codeEditor.rows = Math.max(1, codeEditor.value.split("\n").length);
       committed = false;
       syncDraft();
+      scheduleHighlightRefresh();
+    };
+    const onCodeScroll = () => {
+      codeHighlight.scrollLeft = codeEditor.scrollLeft;
     };
     const onBlur = (event: FocusEvent) => {
       const nextTarget = event.relatedTarget;
@@ -311,18 +413,27 @@ export class CodeBlockWidget extends WidgetType {
     codeEditor.addEventListener("click", stopCodeMirrorEvent);
     codeEditor.addEventListener("keydown", onCodeKeyDown);
     codeEditor.addEventListener("input", onCodeInput);
+    codeEditor.addEventListener("scroll", onCodeScroll);
     codeEditor.addEventListener("blur", onBlur);
 
-    panel.append(header, codeEditor);
+    codeSurface.append(codeHighlight, codeEditor);
+    panel.append(header, codeSurface);
     wrapper.appendChild(panel);
 
     host.sessions.mount(wrapper, () => ({
       dispose() {
+        highlightDisposed = true;
+        highlightRequest += 1;
+        if (highlightFrame !== null) {
+          codeSurface.ownerDocument.defaultView?.cancelAnimationFrame(highlightFrame);
+          highlightFrame = null;
+        }
         languageInput.removeEventListener("keydown", onLanguageKeyDown);
         languageInput.removeEventListener("input", onLanguageInput);
         languageInput.removeEventListener("blur", onBlur);
         codeEditor.removeEventListener("keydown", onCodeKeyDown);
         codeEditor.removeEventListener("input", onCodeInput);
+        codeEditor.removeEventListener("scroll", onCodeScroll);
         codeEditor.removeEventListener("blur", onBlur);
         if (elementId) host.editSessions.detach(elementId);
       },

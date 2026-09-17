@@ -25,6 +25,78 @@
   padding-bottom: 18px;
 }
 
+.desktop-local-commit-detail .desktop-commit-summary {
+  gap: 10px;
+  padding-bottom: 16px;
+}
+
+.desktop-commit-title-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.desktop-commit-title-row h2 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: var(--po-type-right-sidebar-heading-2, 16px);
+  font-weight: 650;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-commit-meta-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.desktop-commit-id-copy {
+  display: inline-flex;
+  min-width: 0;
+  height: 22px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 5px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--po-text-subtle);
+  font-family: var(--po-font-mono);
+  font-size: var(--po-type-left-sidebar-meta, 12px);
+  font-weight: var(--po-text-weight-regular, 400);
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-commit-id-copy:hover {
+  background: var(--po-hover);
+  color: var(--po-text-muted);
+}
+
+.desktop-commit-id-copy:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--po-text-muted) 48%, transparent);
+  outline-offset: 1px;
+}
+
+.desktop-commit-id-copy svg {
+  flex: 0 0 auto;
+}
+
+.desktop-commit-id-label {
+  color: var(--po-text-disabled);
+  font-family: var(--po-font-sans);
+  font-size: var(--po-type-left-sidebar-meta, 12px);
+}
+
 .desktop-commit-id-row {
   display: flex;
   align-items: center;
@@ -52,7 +124,9 @@
 
 .desktop-commit-stats {
   display: flex;
+  min-width: 0;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
   margin-bottom: 16px;
   padding: 0;
@@ -60,6 +134,14 @@
   color: var(--po-text-subtle);
   font-size: var(--po-type-ui-meta, 13px);
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.desktop-commit-meta-row .desktop-commit-stats {
+  margin-bottom: 0;
+  font-size: var(--po-type-left-sidebar-meta, 12px);
+  font-weight: var(--po-text-weight-regular, 400);
 }
 
 .desktop-commit-stats .secondary-action,
@@ -120,7 +202,6 @@
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
-  margin-inline-start: auto;
 }
 
 .desktop-working-file-actions .secondary-action,

@@ -103,6 +103,7 @@ describe("Project-owned auxiliary workbench architecture", () => {
     expect(workbenchIcon).not.toContain("chatIconLauncherIds");
     expect(launcherIcon).toContain("resolveAgentBrand({ id: launcherId, iconKey })");
     expect(launcherIcon).toContain("<AgentBrandImage brandId={brand.id}");
+    expect(launcherIcon).not.toContain("PuppyBrandMark");
   });
 
   it("keeps Tab Bar chrome outside the content split-drop coordinate space", () => {

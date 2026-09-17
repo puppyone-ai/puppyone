@@ -12,7 +12,9 @@
   --agent-message-content-inset: 12px;
   --agent-message-turn-gap: 24px;
   --agent-work-handoff-gap: 8px;
-  --agent-composer-line-height: var(--agent-conversation-line-height);
+  /* Text uses a unitless reading ratio. Composer geometry needs the equivalent
+   * length so its one-line resting height remains valid inside calc(). */
+  --agent-composer-line-height: 1.5em;
   --agent-composer-input-padding-block: 12px;
   --agent-composer-text-inset-inline: 16px;
   --agent-composer-text-max-height: 120px;
@@ -30,30 +32,32 @@
     + var(--agent-dock-padding-bottom)
     + 2px
   );
-  --agent-font-size: var(--po-type-right-sidebar-content, 14px);
-  --agent-control-line-height: var(--po-type-right-sidebar-control-line-height, 19px);
-  /* Conversation copy is a reading surface, one step larger than Sidebar
-   * chrome. Keep prompts, sent messages, and responses on one shared scale. */
-  --agent-conversation-font-size: var(--po-type-right-sidebar-content, 14px);
-  --agent-conversation-line-height: calc(var(--agent-conversation-font-size) + 7px);
-  --agent-response-line-height: calc(var(--agent-conversation-font-size) + 8px);
-  --agent-font-size-meta: var(--po-type-right-sidebar-meta, 13px);
+  /* Agent Chat shares the Left Sidebar's visible type scale so the two side
+   * rails read as one piece of application chrome. */
+  --agent-font-family: var(--po-font-ui);
+  --agent-font-size: var(--po-type-left-sidebar-content, 14px);
+  --agent-font-weight: var(--desktop-sidebar-font-weight, var(--po-text-weight-regular, 400));
+  --agent-control-line-height: var(--po-type-left-sidebar-line-height, 19px);
+  --agent-conversation-font-size: var(--po-type-left-sidebar-content, 14px);
+  --agent-conversation-line-height: 1.5;
+  --agent-response-line-height: 1.5;
+  --agent-font-size-meta: var(--po-type-left-sidebar-meta, 12px);
   --agent-meta-line-height: var(--po-type-right-sidebar-meta-line-height, 19px);
   --agent-font-size-caption: var(--po-type-right-sidebar-caption, 12px);
   --agent-caption-line-height: var(--po-type-right-sidebar-caption-line-height, 17px);
   --agent-font-size-micro: var(--po-type-right-sidebar-micro, 11px);
   --agent-micro-line-height: var(--po-type-right-sidebar-micro-line-height, 15px);
   --agent-code-font-size: var(--po-type-right-sidebar-code, 13px);
-  /* Right sidebar role map:
-   * content = primary labels and controls;
-   * meta = search, timestamps, evidence, and supporting copy;
+  /* Agent Chat role map:
+   * content/meta = Left Sidebar primary and supporting sizes;
    * caption = empty/error states and compact annotations;
    * micro = low-priority pagination and recovery status;
    * code = commands, diffs, and machine output.
-   * Workbench/page headers intentionally use --po-type-header-* instead. */
+  * Workbench/page headers intentionally use --po-type-header-* instead. */
   color: var(--agent-text);
-  font-family: var(--po-font-sans);
+  font-family: var(--agent-font-family);
   font-size: var(--agent-font-size);
+  font-weight: var(--agent-font-weight);
   line-height: var(--agent-control-line-height);
 }
 

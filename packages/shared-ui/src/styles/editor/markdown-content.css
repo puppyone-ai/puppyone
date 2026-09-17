@@ -47,9 +47,16 @@
   --po-md-inline-code-color: var(--po-host-md-inline-code-color, var(--po-text));
   --po-md-code-block-background: var(--po-host-md-code-block-background, color-mix(in srgb, var(--po-control) 28%, transparent));
   --po-md-code-block-color: var(--po-host-md-code-block-color, var(--po-text));
-  --po-md-syntax-keyword: var(--po-host-md-syntax-keyword, var(--po-md-code-block-color));
-  --po-md-syntax-string: var(--po-host-md-syntax-string, var(--po-md-code-block-color));
+  --po-md-syntax-keyword: var(--po-host-md-syntax-keyword, var(--po-purple, #8250df));
+  --po-md-syntax-string: var(--po-host-md-syntax-string, color-mix(in srgb, var(--po-success, #1a7f37) 82%, var(--po-text)));
   --po-md-syntax-comment: var(--po-host-md-syntax-comment, var(--po-text-muted));
+  --po-md-syntax-constant: var(--po-host-md-syntax-constant, color-mix(in srgb, var(--po-warning, #9a6700) 80%, var(--po-text)));
+  --po-md-syntax-special: var(--po-host-md-syntax-special, color-mix(in srgb, var(--po-notification, #cf222e) 76%, var(--po-text)));
+  --po-md-syntax-type: var(--po-host-md-syntax-type, var(--po-info, #0550ae));
+  --po-md-syntax-function: var(--po-host-md-syntax-function, var(--po-accent-text, var(--po-accent)));
+  --po-md-syntax-property: var(--po-host-md-syntax-property, color-mix(in srgb, var(--po-accent) 72%, var(--po-text)));
+  --po-md-syntax-operator: var(--po-host-md-syntax-operator, color-mix(in srgb, var(--po-text) 82%, var(--po-accent)));
+  --po-md-syntax-meta: var(--po-host-md-syntax-meta, color-mix(in srgb, var(--po-purple, #8250df) 72%, var(--po-text)));
   --po-md-h1-size: var(--po-user-md-h1-size, var(--po-type-editor-heading-1, 30px));
   --po-md-h2-size: var(--po-user-md-h2-size, var(--po-type-editor-heading-2, 23px));
   --po-md-h3-size: var(--po-user-md-h3-size, var(--po-type-editor-heading-3, 19px));
@@ -113,14 +120,14 @@
 :where([data-font-editor-content-mode="explicit"])
   [data-po-theme-surface="markdown"]
   :where(.cm-line:not(.cm-md-code-block-line))
-  * {
+  *:not(:is(.cm-md-math-inline-widget, .cm-md-math-block-widget, .cm-md-math-inline-widget *, .cm-md-math-block-widget *)) {
   font-family: var(--po-font-editor-content-user) !important;
 }
 
 :where([data-font-editor-content-mode="explicit"])
   [data-po-theme-surface="markdown"]
   .cm-md-html-rendered-surface
-  * {
+  *:not(:is(.katex, .katex *)) {
   font-family: var(--po-font-editor-content-user) !important;
 }
 
@@ -129,13 +136,13 @@
   .cm-md-table-cell-content,
 :where([data-font-editor-content-mode="explicit"])
   [data-po-theme-surface="markdown"]
-  .cm-md-table-cell-content *,
+  .cm-md-table-cell-content *:not(:is(.katex, .katex *)),
 :where([data-font-editor-content-mode="explicit"])
   [data-po-theme-surface="markdown"]
   .cm-md-mdx-tab-panel,
 :where([data-font-editor-content-mode="explicit"])
   [data-po-theme-surface="markdown"]
-  .cm-md-mdx-tab-panel * {
+  .cm-md-mdx-tab-panel *:not(:is(.katex, .katex *)) {
   font-family: var(--po-font-editor-content-user) !important;
 }
 

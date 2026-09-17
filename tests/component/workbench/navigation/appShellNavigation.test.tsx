@@ -31,7 +31,6 @@ describe("DesktopSidebarTopNavigation", () => {
       <DesktopSidebarTopNavigation
         activeView="data"
         gitEnabled={false}
-        pluginsEnabled={false}
         orientation="horizontal"
         gitIncomingCount={0}
         gitOperationLoading={null}
@@ -60,7 +59,6 @@ describe("DesktopSidebarTopNavigation", () => {
       <DesktopSidebarTopNavigation
         activeView="data"
         gitEnabled
-        pluginsEnabled={false}
         orientation="horizontal"
         gitIncomingCount={0}
         gitOperationLoading={null}
@@ -93,7 +91,6 @@ describe("DesktopSidebarTopNavigation", () => {
       <DesktopSidebarTopNavigation
         activeView="data"
         gitEnabled
-        pluginsEnabled={false}
         orientation="horizontal"
         gitIncomingCount={0}
         gitOperationLoading={null}
@@ -124,7 +121,6 @@ describe("DesktopSidebarTopNavigation", () => {
       <DesktopSidebarTopNavigation
         activeView="data"
         gitEnabled={false}
-        pluginsEnabled={false}
         orientation="horizontal"
         gitIncomingCount={0}
         gitOperationLoading={null}
@@ -141,6 +137,35 @@ describe("DesktopSidebarTopNavigation", () => {
       .toBe(true);
     expect(list?.lastElementChild?.textContent).toBe("?");
   });
+
+  it("opens Plugins as a dialog task instead of workspace navigation", () => {
+    const container = document.createElement("div");
+    const onOpenPlugins = vi.fn();
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    act(() => renderWithTestLocalization(root,
+      <DesktopSidebarTopNavigation
+        activeView="data"
+        gitEnabled={false}
+        orientation="horizontal"
+        gitIncomingCount={0}
+        gitOperationLoading={null}
+        gitStatus={null}
+        workspaceChangeCount={0}
+        onNavigate={vi.fn()}
+        onOpenPlugins={onOpenPlugins}
+        onOpenSettings={vi.fn()}
+        showPlugins
+      />,
+    ));
+
+    const plugins = container.querySelector<HTMLButtonElement>('[data-navigation-item="plugins"]');
+    expect(plugins?.getAttribute("aria-haspopup")).toBe("dialog");
+    expect(plugins?.getAttribute("aria-current")).toBeNull();
+    act(() => plugins?.click());
+    expect(onOpenPlugins).toHaveBeenCalledOnce();
+  });
 });
 
 describe("DesktopSidebarFooterNavigation", () => {
@@ -153,7 +178,6 @@ describe("DesktopSidebarFooterNavigation", () => {
       <DesktopSidebarFooterNavigation
         activeView="data"
         gitEnabled
-        pluginsEnabled={false}
         gitIncomingCount={0}
         gitOperationLoading={null}
         gitStatus={null}
@@ -183,7 +207,6 @@ describe("DesktopSidebarRailNavigation local status", () => {
       <DesktopSidebarRailNavigation
         activeView="git"
         gitEnabled
-        pluginsEnabled={false}
         gitIncomingCount={0}
         gitOperationLoading={null}
         gitStatus={null}
@@ -215,7 +238,6 @@ describe("DesktopSidebarRailNavigation local status", () => {
       <DesktopSidebarRailNavigation
         activeView="git"
         gitEnabled
-        pluginsEnabled={false}
         gitIncomingCount={17}
         gitOperationLoading={null}
         gitStatus={null}

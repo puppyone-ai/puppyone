@@ -20,6 +20,7 @@ import { TypographyCatalogProvider } from "./features/typography";
 import { bootstrapRendererLocalization } from "./localization";
 import { startMarkdownFormatShortcutBridge } from "./lib/markdownFormatShortcutBridge";
 import { desktopPresetViewerRuntimeHost } from "./features/editor-surfaces";
+import { readDesktopPlatformCapabilities } from "./platform/desktopPlatformClient";
 
 const rootElement = document.getElementById("root");
 if (!rootElement) throw new Error("PuppyOne renderer root is unavailable.");
@@ -81,7 +82,15 @@ window.addEventListener("pagehide", () => {
 const root = ReactDOM.createRoot(rootElement);
 
 async function renderApplication() {
-  const localization = await bootstrapRendererLocalization();
+  const [localization, platformCapabilities] = await Promise.all([
+    bootstrapRendererLocalization(),
+    readDesktopPlatformCapabilities(),
+  ]);
+  if (platformCapabilities) {
+    document.documentElement.dataset.desktopPlatform = platformCapabilities.platform;
+  } else {
+    delete document.documentElement.dataset.desktopPlatform;
+  }
   let surface: React.ReactNode;
 
   if (window.location.hash === "#auxiliary-appearance-smoke") {

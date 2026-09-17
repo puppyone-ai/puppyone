@@ -656,7 +656,159 @@
   user-select: none;
 }
 
+/* A quiet document map in the upper-left editor gutter. Keep the interactive
+   target generous while the visible marks stay intentionally hairline-thin. */
+.markdown-codemirror-editor .cm-md-heading-outline-layer {
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.markdown-codemirror-editor .cm-md-heading-outline-layer:not(.is-visible) {
+  display: none;
+}
+
+.markdown-codemirror-editor .cm-md-heading-outline-rail {
+  position: absolute;
+  top: 0;
+  box-sizing: border-box;
+  width: 14px;
+  pointer-events: none;
+}
+
+.markdown-codemirror-editor .cm-md-heading-outline-ticks {
+  position: absolute;
+  inset: 0;
+}
+
+.markdown-codemirror-editor .cm-md-heading-outline-tick {
+  position: absolute;
+  left: 0;
+  box-sizing: border-box;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  cursor: var(--po-clickable-cursor, default);
+  pointer-events: auto;
+  transform: translateY(-50%);
+}
+
+.markdown-codemirror-editor .cm-md-heading-outline-tick::before {
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  width: 9px;
+  height: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--po-text-muted) 24%, transparent);
+  content: "";
+  transform: translateY(-50%);
+  transition:
+    background-color 120ms ease,
+    opacity 120ms ease;
+}
+
+.markdown-codemirror-editor .cm-md-heading-outline-tick:is(:hover, :focus-visible)::before {
+  background: color-mix(in srgb, var(--po-text) 38%, transparent);
+}
+
+.markdown-codemirror-editor .cm-md-heading-outline-tick.is-active::before {
+  background: color-mix(in srgb, var(--po-text) 50%, transparent);
+}
+
+.markdown-codemirror-editor .cm-md-heading-outline-tick:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--po-text) 34%, transparent);
+  outline-offset: 1px;
+}
+
+.markdown-codemirror-editor .cm-md-heading-outline-popover {
+  position: absolute;
+  top: 0;
+  right: auto;
+  left: 22px;
+  box-sizing: border-box;
+  width: clamp(196px, 22vw, 248px);
+  max-width: calc(100vw - 64px);
+  overflow: hidden auto;
+  padding: 4px;
+  border: 1px solid color-mix(in srgb, var(--po-border-subtle) 72%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--po-panel-raised) 94%, transparent);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--po-shadow) 12%, transparent);
+  backdrop-filter: blur(8px);
+  font-family: var(--po-font-ui, var(--po-font-sans));
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-3px);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease,
+    visibility 0s linear 120ms;
+  visibility: hidden;
+}
+
+.markdown-codemirror-editor .cm-md-heading-outline-layer.is-popover-open .cm-md-heading-outline-popover {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+  transition-delay: 0s;
+  visibility: visible;
+}
+
+.markdown-codemirror-editor .cm-md-heading-outline-list {
+  display: grid;
+  gap: 1px;
+}
+
+.markdown-codemirror-editor .cm-md-heading-outline-item {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: 26px;
+  margin: 0;
+  padding: 0 8px;
+  padding-inline-start: var(--cm-md-heading-indent, 10px);
+  overflow: hidden;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--po-text-muted);
+  cursor: var(--po-clickable-cursor, default);
+  font: inherit;
+  font-size: var(--po-type-ui-caption, 12px);
+  font-weight: 400;
+  line-height: 26px;
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.markdown-codemirror-editor .cm-md-heading-outline-item:is(:hover, :focus-visible),
+.markdown-codemirror-editor .cm-md-heading-outline-item.is-previewed {
+  background: color-mix(in srgb, var(--po-text) 4%, transparent);
+  color: color-mix(in srgb, var(--po-text) 86%, var(--po-text-muted));
+}
+
+.markdown-codemirror-editor .cm-md-heading-outline-item.is-current {
+  background: color-mix(in srgb, var(--po-text) 5%, transparent);
+  color: var(--po-text);
+  font-weight: 500;
+}
+
+.markdown-codemirror-editor .cm-md-heading-outline-item:focus-visible {
+  outline: 1px solid var(--po-focus-ring);
+  outline-offset: -1px;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .markdown-codemirror-editor .cm-md-heading-outline-popover,
+  .markdown-codemirror-editor .cm-md-heading-outline-tick::before,
   .markdown-codemirror-editor :is(.cm-md-code-panel, .cm-md-mermaid-body, .cm-md-html-widget-content, .cm-md-mdx-tabs-panels, .cm-md-image-widget, .cm-md-video-widget) {
     transition: none;
   }

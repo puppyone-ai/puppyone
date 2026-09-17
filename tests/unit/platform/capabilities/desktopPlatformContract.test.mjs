@@ -67,7 +67,7 @@ describe("Desktop platform contract", () => {
     expect(createDesktopCiMatrix({ scope: "release", channel: "stable" }).include)
       .toEqual([
         expect.objectContaining({ id: "macos-arm64", participation: "required" }),
-        expect.objectContaining({ id: "windows-x64", participation: "optional" }),
+        expect.objectContaining({ id: "windows-x64", participation: "required" }),
       ]);
   });
 });

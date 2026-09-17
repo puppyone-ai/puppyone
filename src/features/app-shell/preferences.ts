@@ -16,7 +16,6 @@ import {
   GIT_SIDEBAR_LAYOUT_STORAGE_KEY,
   LOCAL_AGENTS_STORAGE_KEY,
   RIGHT_SIDEBAR_TOOLS_STORAGE_KEY,
-  SIDEBAR_NAVIGATION_VISIBILITY_STORAGE_KEY,
   TITLEBAR_ACTIONS_STORAGE_KEY,
   parseAiEditAssistEnabled,
   parseAgentFileActivityIndicatorsEnabled,
@@ -28,7 +27,6 @@ import {
   parseGitSidebarLayout,
   parseLocalAgentsSettings,
   parseRightSidebarToolsSettings,
-  parseSidebarNavigationVisibilitySettings,
   parseTitlebarActionsSettings,
   type CreateNewMenuSettings,
   type DiffMarkers,
@@ -38,7 +36,6 @@ import {
   type GitSidebarLayout,
   type LocalAgentsSettings,
   type RightSidebarToolsSettings,
-  type SidebarNavigationVisibilitySettings,
   type TitlebarActionsSettings,
 } from "../../preferences";
 import {
@@ -62,13 +59,6 @@ export type RightSidebarSurface = "chat" | "changes" | "history";
 export function readInitialDiffMarkers(): DiffMarkers {
   if (typeof window === "undefined") return parseDiffMarkers(null);
   return parseDiffMarkers(window.localStorage.getItem(DIFF_MARKERS_STORAGE_KEY));
-}
-
-export function readInitialSidebarNavigationVisibilitySettings(): SidebarNavigationVisibilitySettings {
-  if (typeof window === "undefined") return parseSidebarNavigationVisibilitySettings(null);
-  return parseSidebarNavigationVisibilitySettings(
-    window.localStorage.getItem(SIDEBAR_NAVIGATION_VISIBILITY_STORAGE_KEY),
-  );
 }
 
 export function readInitialGitDisplayMode(): GitDisplayMode {

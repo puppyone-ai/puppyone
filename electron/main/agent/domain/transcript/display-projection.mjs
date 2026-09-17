@@ -78,6 +78,9 @@ function updateTurn(projection, event) {
     }
     if (!turn)
         return null;
+    if (event.type === "turn.started" && readString(event.payload.recoveryOfTurnId)) {
+        turn = { ...turn, recoveryOfTurnId: readString(event.payload.recoveryOfTurnId) };
+    }
     const eventAtMs = parseAgentEventTime(event.emittedAt);
     if ((event.type === "approval.requested" || event.type === "question.requested")
         && turn.userWaitStartedAtMs == null
@@ -99,11 +102,37 @@ function updateTurn(projection, event) {
             status: terminalState,
             completedAtSequence: event.sequence,
             durationMs: readAgentTurnDurationMs(event.payload.durationMs, turn.startedAtMs, event.emittedAt),
+            ...(terminalState === "completed" ? completedTurnQuality(event.payload) : {}),
         };
     }
     if (turnIndex !== undefined)
         projection.turns[turnIndex] = turn;
     return turn;
+}
+function completedTurnQuality(payload) {
+    if (payload?.completionQuality !== "degraded") {
+        return { completionQuality: "complete", recovery: undefined };
+    }
+    const failureScope = ["child-task", "tool", "upstream-request", "turn"].includes(payload.failureScope)
+        ? payload.failureScope : "turn";
+    const transportHealth = ["healthy", "recovering", "exited", "unknown"].includes(payload.transportHealth)
+        ? payload.transportHealth : "unknown";
+    const sideEffects = ["none", "possible", "confirmed", "unknown"].includes(payload.sideEffects)
+        ? payload.sideEffects : "unknown";
+    const code = readString(payload.failureCode) || "DEGRADED_COMPLETION";
+    const diagnostic = readString(payload.diagnostic);
+    return {
+        completionQuality: "degraded",
+        recovery: {
+            kind: "degraded-completion",
+            failureScope,
+            code,
+            retryable: typeof payload.retryable === "boolean" ? payload.retryable : null,
+            transportHealth,
+            sideEffects,
+            ...(diagnostic ? { diagnostic } : {}),
+        },
+    };
 }
 function closeAgentTurnUserWait(turn, eventAtMs) {
     const waitStartedAtMs = turn.userWaitStartedAtMs ?? null;

@@ -1,9 +1,10 @@
 .desktop-git-sidebar,
-.desktop-history-detail-view {
+.desktop-history-detail-view,
+.desktop-git-changes-sidebar {
   --git-action-size: 24px;
   --git-action-radius: var(--desktop-toolbar-action-radius);
   --git-action-padding-inline: 7px;
-  --git-action-font-size: var(--po-type-ui-meta, 13px);
+  --git-action-font-size: var(--po-type-left-sidebar-meta, 12px);
 }
 
 .desktop-git-sidebar {
@@ -29,13 +30,16 @@
   --git-control-radius: 8px;
   --git-inner-radius: 6px;
   --git-row-radius: var(--desktop-sidebar-row-radius);
-  /* Mirror Data explorer row typography via the shared desktop sidebar contract. */
-  --git-font-main: var(--desktop-sidebar-font-size, var(--po-type-left-sidebar-content, 14px));
-  --git-font-small: var(--desktop-sidebar-font-size-meta, var(--po-type-left-sidebar-meta, 12px));
-  --git-line-height: var(--desktop-sidebar-line-height, 18px);
+  /* Match file and history rows to the established left-sidebar text rhythm. */
+  --git-font-main: var(--po-type-left-sidebar-content, 14px);
+  --git-font-small: var(--po-type-left-sidebar-meta, 12px);
+  --git-line-height: var(--po-type-left-sidebar-line-height, 19px);
   --git-weight-regular: var(--desktop-sidebar-font-weight, var(--po-text-weight-medium, 500));
   --git-weight-strong: var(--desktop-sidebar-font-weight-emphasis, 650);
   --git-icon-label-gap: var(--desktop-sidebar-icon-label-gap, 4px);
+  --desktop-sidebar-section-title-font-size: var(--git-font-main);
+  --desktop-sidebar-section-title-font-weight: var(--git-weight-regular);
+  --desktop-sidebar-section-title-line-height: var(--git-line-height);
 }
 
 .desktop-git-sidebar-empty-history {

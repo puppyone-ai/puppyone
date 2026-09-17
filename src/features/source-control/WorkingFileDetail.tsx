@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { FileText } from "lucide-react";
 import type { GitCommitDetail } from "../../types/electron";
 import type { GitWorkingSelection } from "./types";
@@ -10,8 +11,14 @@ export type WorkingFileDetailProps = {
   detail: GitCommitDetail | null;
   loading: boolean;
   error: string | null;
-  operationLoading: string | null;
   operationError: string | null;
+  onOpenFile: (path: string) => void;
+  toolbar?: ReactNode;
+};
+
+export type WorkingFileActionsProps = {
+  selection: GitWorkingSelection;
+  operationLoading: string | null;
   onStagePaths: (paths: string[]) => Promise<boolean>;
   onUnstagePaths: (paths: string[]) => Promise<boolean>;
   onDiscardPaths: (paths: string[]) => Promise<boolean>;
@@ -23,16 +30,12 @@ export function WorkingFileDetail({
   detail,
   loading,
   error,
-  operationLoading,
   operationError,
-  onStagePaths,
-  onUnstagePaths,
-  onDiscardPaths,
   onOpenFile,
+  toolbar,
 }: WorkingFileDetailProps) {
   const { t } = useLocalization();
   const files = detail?.files ?? [];
-  const disabled = Boolean(operationLoading);
   const readOnly = selection.origin === "remote" || selection.origin === "committed";
   const canOpenFile = !readOnly && selection.status !== "deleted";
 
@@ -40,37 +43,7 @@ export function WorkingFileDetail({
     <section className="desktop-utility-view desktop-history-detail-view desktop-working-file-detail-view">
       <div className="desktop-history-detail-scroll" data-po-scrollbar="content">
         <div className="desktop-commit-detail">
-          {!readOnly && (
-            <div className="desktop-working-file-toolbar">
-              <div className="desktop-working-file-actions">
-                {canOpenFile && (
-                  <button
-                    type="button"
-                    className="secondary-action desktop-working-file-open"
-                    title={t("source-control.action.openInData")}
-                    onClick={() => onOpenFile(selection.path)}
-                  >
-                    <FileText size={13} aria-hidden="true" />
-                    <span>{t("source-control.action.openFile")}</span>
-                  </button>
-                )}
-                {selection.staged ? (
-                  <button type="button" className="secondary-action" disabled={disabled} onClick={() => void onUnstagePaths([selection.path])}>
-                    {t("source-control.action.unstage")}
-                  </button>
-                ) : (
-                  <>
-                    <button type="button" className="secondary-action" disabled={disabled} onClick={() => void onStagePaths([selection.path])}>
-                      {t("source-control.action.stage")}
-                    </button>
-                    <button type="button" className="danger-action" disabled={disabled} onClick={() => void onDiscardPaths([selection.path])}>
-                      {t("source-control.action.discard")}
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
+          {toolbar && !readOnly && <div className="desktop-working-file-toolbar">{toolbar}</div>}
 
           {operationError && <div className="desktop-utility-empty danger">{operationError}</div>}
           {loading ? (
@@ -97,5 +70,52 @@ export function WorkingFileDetail({
         </div>
       </div>
     </section>
+  );
+}
+
+export function WorkingFileActions({
+  selection,
+  operationLoading,
+  onStagePaths,
+  onUnstagePaths,
+  onDiscardPaths,
+  onOpenFile,
+}: WorkingFileActionsProps) {
+  const { t } = useLocalization();
+  const disabled = Boolean(operationLoading);
+  const readOnly = selection.origin === "remote" || selection.origin === "committed";
+  const canOpenFile = !readOnly && selection.status !== "deleted";
+
+  if (readOnly) return null;
+
+  return (
+    <div className="desktop-working-file-actions">
+      {canOpenFile && (
+        <button
+          type="button"
+          className="secondary-action desktop-working-file-open"
+          title={t("source-control.action.openInData")}
+          disabled={disabled}
+          onClick={() => onOpenFile(selection.path)}
+        >
+          <FileText size={13} aria-hidden="true" />
+          <span>{t("source-control.action.openFile")}</span>
+        </button>
+      )}
+      {selection.staged ? (
+        <button type="button" className="secondary-action" disabled={disabled} onClick={() => void onUnstagePaths([selection.path])}>
+          {t("source-control.action.unstage")}
+        </button>
+      ) : (
+        <>
+          <button type="button" className="secondary-action" disabled={disabled} onClick={() => void onStagePaths([selection.path])}>
+            {t("source-control.action.stage")}
+          </button>
+          <button type="button" className="danger-action" disabled={disabled} onClick={() => void onDiscardPaths([selection.path])}>
+            {t("source-control.action.discard")}
+          </button>
+        </>
+      )}
+    </div>
   );
 }

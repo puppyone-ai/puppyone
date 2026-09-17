@@ -108,7 +108,7 @@ describe("built-in Sub Theme package architecture", () => {
     )).not.toThrow();
   });
 
-  it("keeps Neutral's declared Dark mode complete at the application boundary", async () => {
+  it("keeps Neutral's Dark chrome unified and distinct from the editor", async () => {
     const sourcePath = "sub-themes/default-neutral/theme.css";
     const theme = parseSingleFileThemeCss(
       readFileSync(path.join(repoRoot, sourcePath), "utf8"),
@@ -126,10 +126,18 @@ describe("built-in Sub Theme package architecture", () => {
       allowReservedBuiltinId: true,
     });
     const darkHost = `[data-po-appearance-root][data-sub-theme-id="default.neutral"]:where(.dark)`;
-    expect(result.css).toContain(`${darkHost} {`);
-    expect(result.css).toContain("--po-header: color-mix(");
-    expect(result.css).toContain("--po-sidebar: color-mix(");
-    expect(result.css).toContain("--po-text: #fafafa");
+    const darkTokens = declarationsForSelector(result.css, darkHost);
+    expect(darkTokens["--po-surface-canvas"]).toBe("#161616");
+    expect(darkTokens["--po-surface-chrome"]).toBe("#202020");
+    expect(darkTokens["--po-surface-panel"]).toBe("#1a1a1a");
+    expect(darkTokens["--po-surface-panel-raised"]).toBe("#222222");
+    expect(darkTokens["--po-surface-overlay"]).toBe("#2a2a2a");
+    expect(darkTokens["--po-surface-inset"]).toBe("#0d0d0d");
+    expect(darkTokens["--po-surface-editor"]).toBe("#161616");
+    expect(darkTokens["--po-header"]).toBe("var(--po-surface-chrome)");
+    expect(darkTokens["--po-sidebar"]).toBe("var(--po-surface-chrome)");
+    expect(darkTokens["--po-surface-chrome"]).not.toBe(darkTokens["--po-surface-editor"]);
+    expect(darkTokens["--po-text"]).toBe("#fafafa");
   });
 
   it("keeps Warm's light shell surfaces from leaking into Dark mode", async () => {

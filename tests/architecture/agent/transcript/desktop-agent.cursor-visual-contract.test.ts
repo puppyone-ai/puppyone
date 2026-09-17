@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const styleRoot = path.join(root, "src/features/desktop-agent/ui/styles");
+const themeCss = fs.readFileSync(path.join(styleRoot, "theme.css"), "utf8");
 const css = [
   fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/desktop-agent.css"), "utf8"),
   ...["theme.css", "foundation.css", "transcript.css", "activities.css", "tool-results.css", "blocking.css", "composer.css", "agent-prompt-editor.css", "pickers.css", "responsive.css"]
@@ -26,6 +27,8 @@ const timelinePresentation = fs.readFileSync(path.join(root, "src/features/deskt
 const connectionStatus = fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/AgentConnectionStatus.tsx"), "utf8");
 const noticeActivity = fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/activity/AgentNoticeActivity.tsx"), "utf8");
 const activityShell = fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/activity/AgentActivityShell.tsx"), "utf8");
+const toolGlyph = fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/activity/AgentToolGlyph.tsx"), "utf8");
+const approvalDock = fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/AgentApprovalDock.tsx"), "utf8");
 const commandActivity = fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/activity/AgentCommandActivity.tsx"), "utf8");
 const fileQueryActivity = fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/activity/AgentFileQueryActivity.tsx"), "utf8");
 const evidenceTree = fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/activity/AgentToolEvidenceTree.tsx"), "utf8");
@@ -83,7 +86,13 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
     expect(messagePart).not.toContain("Copy response");
     expect(messagePart).not.toContain("clipboard");
     expect(css).toMatch(/\.desktop-agent-message-text\s*\{[^}]*font-size:\s*var\(--agent-conversation-font-size\)[^}]*line-height:\s*var\(--agent-conversation-line-height\)/s);
-    expect(css).toMatch(/\.desktop-agent-markdown\s*\{[^}]*font-size:\s*var\(--agent-conversation-font-size\)[^}]*font-weight:\s*var\(--po-content-reading-weight, 450\)[^}]*line-height:\s*var\(--agent-response-line-height\)/s);
+    expect(css).toMatch(/\.desktop-agent-markdown\s*\{[^}]*font-family:\s*var\(--agent-font-family\)[^}]*font-size:\s*var\(--agent-conversation-font-size\)[^}]*font-weight:\s*var\(--agent-font-weight\)[^}]*line-height:\s*var\(--agent-response-line-height\)/s);
+    expect(css).toMatch(/\.desktop-agent-markdown h1,[^{]*\.desktop-agent-markdown h6\s*\{[^}]*font-size:\s*var\(--agent-conversation-font-size\)[^}]*font-weight:\s*var\(--po-text-weight-semibold, 600\)[^}]*line-height:\s*var\(--agent-response-line-height\)/s);
+    expect(css).not.toContain("font-size: var(--po-type-right-sidebar-heading-1");
+    expect(css).not.toContain("font-size: var(--po-type-right-sidebar-heading-2");
+    expect(css).toMatch(/\.desktop-agent-markdown :not\(pre\) > code\s*\{[^}]*border:\s*1px solid var\(--agent-inline-code-border\)[^}]*background:\s*var\(--agent-inline-code-surface\)[^}]*font-weight:\s*var\(--po-text-weight-medium, 500\)/s);
+    expect(themeCss).toMatch(/--agent-inline-code-surface:\s*color-mix\(in srgb, var\(--agent-text\) 8%, var\(--agent-canvas\)\)/);
+    expect(themeCss).toMatch(/--agent-inline-code-border:\s*color-mix\(in srgb, var\(--agent-text\) 14%, var\(--agent-canvas\)\)/);
     expect(messagePart).toContain('data-message-surface={isAssistant ? "document" : "row"}');
     expect(css).toMatch(/\.desktop-agent-run-feedback\s*\{[^}]*padding:\s*0 var\(--agent-message-content-inset\)[^}]*color:\s*var\(--agent-text-subtle\)[^}]*font-size:\s*var\(--agent-font-size-meta\)[^}]*line-height:\s*var\(--agent-meta-line-height\)[^}]*text-align:\s*start/s);
     expect(css).not.toContain("desktop-agent-turn-summary-line");
@@ -200,16 +209,15 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
     expect(css).toMatch(/\.desktop-agent-reference-trigger\s*\{[^}]*width:\s*var\(--agent-control-size\)[^}]*height:\s*var\(--agent-control-size\)[^}]*color:\s*var\(--agent-text-subtle\)/s);
     expect(css).toMatch(/\.desktop-agent-reference-trigger:hover:not\(:disabled\)\s*\{[^}]*color:\s*var\(--agent-text-muted\)/s);
     expect(css).toMatch(/--agent-reference-card-height:\s*52px/);
-    expect(css).toMatch(/\.desktop-agent-reference-cards\s*\{[^}]*display:\s*flex[^}]*gap:\s*14px[^}]*padding:\s*12px 12px 0/s);
-    expect(css).toMatch(/\.desktop-agent-reference-card\s*\{[^}]*height:\s*var\(--agent-reference-card-height\)[^}]*overflow:\s*visible[^}]*border-radius:\s*6px/s);
-    expect(css).toMatch(/\.desktop-agent-reference-card\.is-file-card\s*\{[^}]*width:\s*min\(174px, 100%\)/s);
-    expect(css).toMatch(/\.desktop-agent-reference-card\.is-image-card\s*\{[^}]*width:\s*var\(--agent-reference-card-height\)[^}]*flex:\s*0 0 var\(--agent-reference-card-height\)/s);
-    expect(css).toMatch(/\.desktop-agent-reference-image-preview img\s*\{[^}]*object-fit:\s*cover/s);
-    expect(css).toMatch(/\.desktop-agent-reference-card-actions\s*\{[^}]*inset-block-start:\s*-14px[^}]*inset-inline-end:\s*-14px/s);
-    expect(css).toMatch(/\.desktop-agent-reference-card-actions > button\s*\{[^}]*width:\s*var\(--po-control-size-micro\)[^}]*height:\s*var\(--po-control-size-micro\)[^}]*background:\s*var\(--po-menu-bg\)/s);
-    expect(css).toMatch(/\.desktop-agent-reference-card\.is-error\s*\{[^}]*border-color:\s*var\(--agent-reference-error-border\)/s);
-    expect(composer.indexOf("<AgentDraftReferenceList")).toBeLessThan(composer.lastIndexOf("<AgentPromptEditor"));
-    expect(composer.indexOf("<AgentDraftReferenceList")).toBeLessThan(composer.indexOf("<AgentComposerToolbar"));
+    expect(css).toMatch(/\.desktop-agent-visual-attachments\s*\{[^}]*display:\s*flex[^}]*gap:\s*14px[^}]*padding:\s*12px 12px 0/s);
+    expect(css).toMatch(/\.desktop-agent-visual-attachment\s*\{[^}]*height:\s*var\(--agent-reference-card-height\)[^}]*overflow:\s*visible[^}]*border-radius:\s*6px[^}]*width:\s*var\(--agent-reference-card-height\)/s);
+    expect(css).not.toContain(".desktop-agent-reference-card.is-file-card");
+    expect(css).toMatch(/\.desktop-agent-visual-attachment-preview img\s*\{[^}]*object-fit:\s*cover/s);
+    expect(css).toMatch(/\.desktop-agent-visual-attachment-actions\s*\{[^}]*inset-block-start:\s*-14px[^}]*inset-inline-end:\s*-14px/s);
+    expect(css).toMatch(/\.desktop-agent-visual-attachment-actions > button\s*\{[^}]*width:\s*var\(--po-control-size-micro\)[^}]*height:\s*var\(--po-control-size-micro\)[^}]*background:\s*var\(--po-menu-bg\)/s);
+    expect(css).toMatch(/\.desktop-agent-visual-attachment\.is-error\s*\{[^}]*border-color:\s*var\(--agent-reference-error-border\)/s);
+    expect(composer.indexOf("<AgentVisualAttachmentList")).toBeLessThan(composer.lastIndexOf("<AgentPromptEditor"));
+    expect(composer.indexOf("<AgentVisualAttachmentList")).toBeLessThan(composer.indexOf("<AgentComposerToolbar"));
     expect(composerToolbar).toContain('className="desktop-agent-composer-actions"');
     expect(composerToolbar.indexOf("sessionControls.map")).toBeLessThan(composerToolbar.indexOf("<AgentAttachmentButton"));
     expect(composerToolbar.indexOf("<AgentAttachmentButton")).toBeLessThan(composerToolbar.indexOf("aria-label={primaryActionLabel}"));
@@ -258,6 +266,7 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
     expect(brandMark).toContain("resolveAgentBrand");
     expect(brandMark).toContain("AgentMonochromeBrandImage");
     expect(brandMark).toContain("<AgentBrandImage brandId={nativeBrand.id}");
+    expect(brandMark).not.toContain("PuppyBrandMark");
     expect(brandMark).not.toMatch(/https?:\/\//);
   });
 
@@ -274,12 +283,16 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
     expect(layoutCss).not.toContain(".desktop-right-sidebar::before");
   });
 
-  it("coordinates Right sidebar controls, conversation, evidence, and code through semantic roles", () => {
-    expect(css).toMatch(/--agent-font-size:\s*var\(--po-type-right-sidebar-content, 14px\)/);
-    expect(css).toMatch(/--agent-conversation-font-size:\s*var\(--po-type-right-sidebar-content, 14px\)/);
-    expect(css).toMatch(/--agent-conversation-line-height:\s*calc\(var\(--agent-conversation-font-size\) \+ 7px\)/);
-    expect(css).toMatch(/--agent-response-line-height:\s*calc\(var\(--agent-conversation-font-size\) \+ 8px\)/);
-    expect(css).toMatch(/--agent-font-size-meta:\s*var\(--po-type-right-sidebar-meta, 13px\)/);
+  it("matches Agent Chat type to the Left sidebar while preserving reading and code roles", () => {
+    expect(css).toMatch(/--agent-font-family:\s*var\(--po-font-ui\)/);
+    expect(css).toMatch(/--agent-font-size:\s*var\(--po-type-left-sidebar-content, 14px\)/);
+    expect(css).toMatch(/--agent-font-weight:\s*var\(--desktop-sidebar-font-weight, var\(--po-text-weight-regular, 400\)\)/);
+    expect(css).toMatch(/--agent-control-line-height:\s*var\(--po-type-left-sidebar-line-height, 19px\)/);
+    expect(css).toMatch(/--agent-conversation-font-size:\s*var\(--po-type-left-sidebar-content, 14px\)/);
+    expect(css).toMatch(/--agent-composer-line-height:\s*1\.5em/);
+    expect(css).toMatch(/--agent-conversation-line-height:\s*1\.5/);
+    expect(css).toMatch(/--agent-response-line-height:\s*1\.5/);
+    expect(css).toMatch(/--agent-font-size-meta:\s*var\(--po-type-left-sidebar-meta, 12px\)/);
     expect(css).toMatch(/--agent-font-size-caption:\s*var\(--po-type-right-sidebar-caption, 12px\)/);
     expect(css).toMatch(/--agent-font-size-micro:\s*var\(--po-type-right-sidebar-micro, 11px\)/);
     expect(css).toMatch(/--agent-code-font-size:\s*var\(--po-type-right-sidebar-code, 13px\)/);
@@ -303,6 +316,18 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
     expect(css).toMatch(/--agent-tool-evidence-rail:\s*var\(--agent-border\)/);
     expect(css).toMatch(/\.desktop-agent-tool-icon\s*\{[^}]*display:\s*grid[^}]*color:\s*var\(--agent-tool-action-foreground\)/s);
     expect(css).toMatch(/\.desktop-agent-tool-name\s*\{[^}]*color:\s*var\(--agent-tool-action-foreground\)/s);
+    expect(css).toMatch(/\.desktop-agent-tool-row:is\(:hover, :focus-visible\):not\(:disabled\) :is\(\.desktop-agent-tool-icon, \.desktop-agent-tool-name\)\s*\{[^}]*color:\s*var\(--agent-text\)/s);
+    expect(css).toMatch(/\.desktop-agent-tool-rail\s*\{[^}]*display:\s*flex[^}]*flex-wrap:\s*nowrap[^}]*overflow:\s*hidden/s);
+    expect(css).toMatch(/\.desktop-agent-tool-group-item \.desktop-agent-tool-name\s*\{[^}]*display:\s*none/s);
+    expect(css).toMatch(/\.desktop-agent-tool-group-item \.desktop-agent-tool-summary,[^{]*\.desktop-agent-tool-group-item \.desktop-agent-tool-metadata,[^{]*\.desktop-agent-tool-group-item \.desktop-agent-tool-diff-stats\s*\{[^}]*display:\s*none/s);
+    expect(css).toMatch(/\.desktop-agent-tool-overflow\s*\{[^}]*width:\s*var\(--agent-tool-rail-overflow-size\)[^}]*font-variant-numeric:\s*tabular-nums/s);
+    expect(toolGlyph).toContain('const ACTIVE_STATUSES = new Set<AgentActivityStatus>(["running", "in-progress"])');
+    expect(css).toMatch(/\.desktop-agent-tool-glyph\s*\{[^}]*width:\s*16px[^}]*height:\s*16px[^}]*stroke-width:\s*1\.8/s);
+    expect(css).toMatch(/\.desktop-agent-tool-glyph\.is-search\.is-active \.desktop-agent-tool-glyph-motion\s*\{[^}]*desktop-agent-tool-search/s);
+    expect(css).toMatch(/\.desktop-agent-tool-glyph\.is-read\.is-active \.desktop-agent-tool-glyph-scan\s*\{[^}]*desktop-agent-tool-read/s);
+    expect(responsiveCss).toMatch(/prefers-reduced-motion:\s*reduce[\s\S]*\.desktop-agent-tool-glyph-motion,[\s\S]*\.desktop-agent-tool-glyph-scan,[\s\S]*\.desktop-agent-tool-glyph-ink\s*\{\s*animation:\s*none/s);
+    expect(activityShell).toContain("aria-label={compactLabel}");
+    expect(activityShell).toContain("title={compactLabel}");
     expect(css).toMatch(/\.desktop-agent-reasoning \.desktop-agent-tool-name\s*\{[^}]*color:\s*var\(--agent-text-muted\)/s);
     expect(css).not.toContain(".desktop-agent-tool-chevron");
     expect(activityShell).not.toContain("ChevronDown");
@@ -340,6 +365,18 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
     expect(evidenceModel).toContain("maxLines: 400");
     expect(evidenceModel).toContain("maxLineChars: 4 * 1024");
     expect(fileQueryActivity).toContain("desktop-agent-search-results");
+  });
+
+  it("uses a quiet finite attention treatment for approval decisions", () => {
+    expect(approvalDock).toContain('data-state={resolving ? "resolving" : "waiting"}');
+    expect(approvalDock).toContain('className="desktop-agent-approval-title"');
+    expect(approvalDock).not.toContain("<strong");
+    expect(approvalDock).toContain('className="desktop-agent-button is-quiet"');
+    expect(css).toMatch(/\.desktop-agent-approval-title\s*\{[^}]*font-size:\s*var\(--agent-font-size\)[^}]*font-weight:\s*500/s);
+    expect(css).toMatch(/\.desktop-agent-approval\[data-state="waiting"\]::before\s*\{[^}]*animation:\s*desktop-agent-approval-attention 2\.6s ease-in-out 3 forwards/s);
+    expect(css).toMatch(/\.desktop-agent-approval-actions \.desktop-agent-button\.is-quiet\s*\{[^}]*border-color:\s*transparent[^}]*color:\s*var\(--agent-text-subtle\)/s);
+    expect(responsiveCss).toMatch(/@container desktop-agent \(max-width:\s*419px\)[\s\S]*\.desktop-agent-approval-status\s*\{\s*grid-column:\s*2/s);
+    expect(responsiveCss).toMatch(/prefers-reduced-motion:\s*reduce[\s\S]*\.desktop-agent-approval\[data-state="waiting"\]::before\s*\{\s*animation:\s*none/s);
   });
 
   it("retains bounded overflow and explicit responsive contracts", () => {

@@ -12,7 +12,7 @@ hybrid modular-monolith layout:
   block-widget indexes plus Feature-owned live-preview extensions once. Its
   `preview/` child implements the bounded isolated-string preview port.
 - `features/` owns vertical Markdown capabilities such as table, HTML,
-  Mermaid, image, video, and code block. `features/media/` contains only the
+  Mermaid, math, image, video, and code block. `features/media/` contains only the
   shared media-reference grammar/resolution contract; image and video retain
   separate models, plans, DOM lifecycles, and focused tests. Each complex
   feature exports one small `*Feature.ts` definition to composition.

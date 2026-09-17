@@ -65,6 +65,58 @@ describe("Shared Agent submission lifecycle", () => {
     expect(h.state()).toMatchObject({ draft: "new conversation draft", submitting: false, pendingIntent: null, error: null });
     expect(h.start).not.toHaveBeenCalled();
   });
+
+  it("continues a degraded turn explicitly without consuming the user's draft or references", async () => {
+    const h = harness();
+    const reference = {
+      id: "draft-reference",
+      kind: "workspace-entry" as const,
+      entryType: "file" as const,
+      relativePath: "notes.md",
+      displayName: "notes.md",
+      status: "ready" as const,
+    };
+    h.patch({
+      draft: "My separate draft",
+      references: [reference],
+      projection: {
+        ...h.state().projection,
+        terminalState: "completed",
+        turns: [{
+          id: "turn-degraded",
+          status: "completed",
+          startedAtSequence: 1,
+          startedAtMs: 1_000,
+          completedAtSequence: 2,
+          durationMs: 1_000,
+          partIds: [],
+          completionQuality: "degraded",
+          recovery: {
+            kind: "degraded-completion",
+            failureScope: "upstream-request",
+            code: "CURSOR_HTTP2_STREAM_CANCEL",
+            retryable: true,
+            transportHealth: "healthy",
+            sideEffects: "possible",
+          },
+        }],
+      },
+    });
+
+    await expect(h.coordinator.continueFromRecovery("turn-degraded", "Inspect state and continue")).resolves.toBe(true);
+    expect(h.start).toHaveBeenCalledWith(expect.objectContaining({
+      prompt: "Inspect state and continue",
+      recoveryOfTurnId: "turn-degraded",
+      references: [],
+      promptMentions: [],
+    }));
+    expect(h.state()).toMatchObject({
+      draft: "My separate draft",
+      references: [reference],
+      submitting: false,
+      pendingIntent: null,
+    });
+  });
 });
 
 function harness() {

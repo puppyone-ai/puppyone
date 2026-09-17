@@ -84,6 +84,7 @@
   /* Long-form content defaults. Script-specific optical corrections are
      supplied by locales.css at the explicit document boundary. */
   --po-content-reading-weight: 450;
+  --po-plain-text-reading-weight: var(--po-text-weight-medium);
   --po-content-reading-letter-spacing: 0;
   --po-content-reading-line-height: var(--po-type-editor-line-height, 24px);
 }

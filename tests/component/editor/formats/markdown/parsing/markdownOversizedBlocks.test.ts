@@ -25,6 +25,7 @@ import {
   markdownCodeMirrorBaseExtensions,
   markdownLivePreviewExtension,
 } from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
+import { compileCodeBlockElementPlan } from "../../../../../../packages/shared-ui/src/editor/markdown/features/code-block/codeBlockPlan";
 
 const views: EditorView[] = [];
 
@@ -36,6 +37,26 @@ afterEach(() => {
 });
 
 describe("Markdown render-budget policy", () => {
+  it("accounts for the possible syntax-token DOM cost of code blocks", () => {
+    const code = "const values = [1, 2, 3].map((value) => value * 2);";
+    const plan = compileCodeBlockElementPlan({
+      kind: "fence",
+      from: 0,
+      to: code.length + 10,
+      markerRanges: [],
+      blockData: {
+        kind: "fence",
+        language: "ts",
+        sourceReference: null,
+        code,
+      },
+    });
+
+    expect(plan.presentation).toBe("blockAtom");
+    if (plan.presentation !== "blockAtom") throw new Error("Expected an editable code block");
+    expect(plan.complexity.estimatedDomNodes).toBeGreaterThan(8);
+  });
+
   it("uses stable, versioned transitions at the table and HTML thresholds", () => {
     const tableAtRichLimit = createMarkdownBlockComplexity("", {
       sourceBytes: 8_000,

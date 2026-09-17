@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import { CursorAcpAdapter } from "../../../../../electron/main/agent/runtimes/cursor/cursor-acp-adapter.mjs";
 import { discoverCursorBackend } from "../../../../../electron/main/agent/runtimes/cursor/cursor-discovery.mjs";
@@ -18,6 +19,109 @@ describe("Cursor ACP runtime", () => {
     connection.prompt.reject(Object.assign(new Error("Pipe lost"), { deliveryOutcome: "unknown" }));
     await vi.waitFor(() => expect(onExit).toHaveBeenCalledWith(expect.objectContaining({ expected: false })));
     expect(onEvent.mock.calls.some(([event]) => ["turn.failed", "turn.interrupted", "turn.completed"].includes(event.type))).toBe(false);
+    await adapter.dispose();
+  });
+
+  it("preserves native completion while classifying Cursor's terminal HTTP/2 cancellation as degraded", async () => {
+    const connection = new FakeCursorConnection();
+    const onEvent = vi.fn();
+    const adapter = new CursorAcpAdapter({
+      readiness: { executablePath: "/tools/agent", environment: {}, version: "2026.08.1" },
+      workspaceRoot: "/workspace",
+      onEvent,
+      connectionFactory: () => connection,
+      fileSystemFactory: () => ({ readTextFile: vi.fn(), writeTextFile: vi.fn() }),
+      projectInstructionLoader: async () => ({ source: null, text: "", bytes: 0 }),
+    });
+    await adapter.createSession();
+    const { turnId } = await adapter.startTurn({ prompt: "Finish the work" });
+    connection.sendUpdate({
+      sessionUpdate: "agent_message_chunk",
+      messageId: "terminal-error",
+      content: { type: "text", text: "Error: RetriableError: [canceled] http/2 stream closed with error code CANCEL (0x8)" },
+    });
+    connection.finishPrompt({ stopReason: "end_turn" });
+
+    await vi.waitFor(() => expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({
+      type: "turn.completed",
+      turnId,
+      payload: expect.objectContaining({
+        status: "completed",
+        completionQuality: "degraded",
+        failureScope: "upstream-request",
+        failureCode: "CURSOR_HTTP2_STREAM_CANCEL",
+        retryable: true,
+        transportHealth: "healthy",
+        sideEffects: "none",
+      }),
+    })));
+    expect(onEvent.mock.calls.some(([event]) => event.type === "turn.failed")).toBe(false);
+    await adapter.dispose();
+  });
+
+  it("classifies the structured Cursor child-task error without treating similar prose as a failure", async () => {
+    const connection = new FakeCursorConnection();
+    const onEvent = vi.fn();
+    const adapter = new CursorAcpAdapter({
+      readiness: { executablePath: "/tools/agent", environment: {}, version: "2026.08.1" },
+      workspaceRoot: "/workspace",
+      onEvent,
+      connectionFactory: () => connection,
+      fileSystemFactory: () => ({ readTextFile: vi.fn(), writeTextFile: vi.fn() }),
+      projectInstructionLoader: async () => ({ source: null, text: "", bytes: 0 }),
+    });
+    await adapter.createSession();
+    await adapter.startTurn({ prompt: "Continue" });
+    connection.sendUpdate({
+      sessionUpdate: "tool_call_update",
+      toolCallId: "child-task",
+      kind: "task",
+      title: "Agent task",
+      status: "completed",
+      rawOutput: {
+        providerOptions: { cursor: { highLevelToolCallResult: { output: {
+          error: { error: "[canceled] http/2 stream closed with error code CANCEL (0x8)" },
+        } } } },
+      },
+    });
+    connection.sendUpdate({
+      sessionUpdate: "agent_message_chunk",
+      messageId: "summary",
+      content: { type: "text", text: "The log mentions Error: RetriableError, but this sentence is not the terminal signature." },
+    });
+    connection.finishPrompt({ stopReason: "end_turn" });
+    await vi.waitFor(() => expect(onEvent.mock.calls
+      .map(([event]) => event)
+      .find((event) => event.type === "turn.completed")?.payload).toMatchObject({
+        completionQuality: "degraded",
+        failureScope: "child-task",
+        sideEffects: "possible",
+      }));
+    await adapter.dispose();
+  });
+
+  it("does not classify explanatory text that merely mentions a Cursor retry error", async () => {
+    const connection = new FakeCursorConnection();
+    const onEvent = vi.fn();
+    const adapter = new CursorAcpAdapter({
+      readiness: { executablePath: "/tools/agent", environment: {}, version: "2026.08.1" },
+      workspaceRoot: "/workspace",
+      onEvent,
+      connectionFactory: () => connection,
+      fileSystemFactory: () => ({ readTextFile: vi.fn(), writeTextFile: vi.fn() }),
+      projectInstructionLoader: async () => ({ source: null, text: "", bytes: 0 }),
+    });
+    await adapter.createSession();
+    await adapter.startTurn({ prompt: "Explain" });
+    connection.sendUpdate({
+      sessionUpdate: "agent_message_chunk",
+      messageId: "answer",
+      content: { type: "text", text: "I handled Error: RetriableError: [canceled] http/2 stream closed with error code CANCEL (0x8) and finished." },
+    });
+    connection.finishPrompt({ stopReason: "end_turn" });
+    await vi.waitFor(() => expect(onEvent.mock.calls
+      .map(([event]) => event)
+      .find((event) => event.type === "turn.completed")?.payload).not.toHaveProperty("completionQuality"));
     await adapter.dispose();
   });
 
@@ -104,14 +208,40 @@ describe("Cursor ACP runtime", () => {
       referenceInputs: {
         attachments: {
           image: { accepted: true },
-          text: { accepted: false },
+          text: { accepted: true },
+          binary: { accepted: true },
         },
       },
     });
     expect(inspection.capabilities.revision).toBe("cursor-acp:1:image1:embedded0");
 
     await adapter.createSession({ mode: "agent" });
-    const { turnId } = await adapter.startTurn({ prompt: "Fix it" });
+    const stagedPath = fileURLToPath(import.meta.url);
+    const { turnId } = await adapter.startTurn({
+      prompt: "Fix @cursor-notes.txt",
+      references: [{
+        kind: "staged-attachment",
+        path: stagedPath,
+        displayName: "cursor-notes.txt",
+        mime: "text/plain",
+        inlineMentioned: true,
+        mentionDelivery: "resource",
+      }],
+    });
+    await vi.waitFor(() => expect(connection.request).toHaveBeenCalledWith(
+      "session/prompt",
+      expect.objectContaining({
+        prompt: [
+          { type: "text", text: "Fix @cursor-notes.txt" },
+          expect.objectContaining({
+            type: "resource_link",
+            uri: pathToFileURL(stagedPath).href,
+            name: "cursor-notes.txt",
+          }),
+        ],
+      }),
+      { timeoutMs: 0 },
+    ));
     connection.sendUpdate({ sessionUpdate: "agent_message_chunk", messageId: "answer", content: { type: "text", text: "Done" } });
     connection.sendRequest(11, "cursor/ask_question", {
       toolCallId: "question-tool",
@@ -159,12 +289,15 @@ describe("Cursor ACP runtime", () => {
 
   it("discovers and hydrates native ACP sessions only when the runtime advertises the capabilities", async () => {
     const connection = new FakeCursorConnection({ list: true, replayHistory: true });
+    const onEvent = vi.fn();
+    const writeTextFile = vi.fn();
     const adapter = new CursorAcpAdapter({
       readiness: { executablePath: "/tools/agent", environment: {}, version: "2026.08.1", source: "path-installation" },
       workspaceRoot: "/workspace",
       appVersion: "0.3.11",
+      onEvent,
       connectionFactory: () => connection,
-      fileSystemFactory: () => ({ readTextFile: vi.fn(), writeTextFile: vi.fn() }),
+      fileSystemFactory: () => ({ readTextFile: vi.fn(), writeTextFile }),
       projectInstructionLoader: vi.fn(async () => ({ source: null, text: "", bytes: 0 })),
     });
 
@@ -176,9 +309,26 @@ describe("Cursor ACP runtime", () => {
     });
     await adapter.resumeSession({ threadId: "cursor-history" });
     await expect(adapter.readHistory()).resolves.toEqual(expect.arrayContaining([
-      expect.objectContaining({ type: "turn.started", payload: { prompt: "Fix tabs", restored: true } }),
+      expect.objectContaining({
+        type: "turn.started",
+        payload: { prompt: "Fix tabs", restored: true, userMessageId: "user-1" },
+      }),
       expect.objectContaining({ type: "assistant.completed", payload: { text: "Done" } }),
+      expect.objectContaining({
+        type: "tool.completed",
+        itemId: "search-history",
+        payload: expect.objectContaining({ kind: "search", input: { query: "tabs" }, outputPreview: "2 matches" }),
+      }),
     ]));
+    expect(connection.request.mock.calls.map(([method]) => method)).not.toContain("session/prompt");
+    expect(writeTextFile).not.toHaveBeenCalled();
+    expect(onEvent.mock.calls.some(([event]) => event.type === "approval.requested")).toBe(false);
+    expect(connection.respond).toHaveBeenCalledWith(91, { outcome: { outcome: "cancelled" } });
+    expect(connection.respondError).toHaveBeenCalledWith(
+      92,
+      -32603,
+      expect.stringContaining("history is loading"),
+    );
     await adapter.dispose();
   });
 
@@ -247,6 +397,30 @@ class FakeCursorConnection extends EventEmitter {
           this.sendUpdate({ sessionUpdate: "user_message_chunk", messageId: "user-1", content: { type: "text", text: "Fix " } }, "cursor-history");
           this.sendUpdate({ sessionUpdate: "user_message_chunk", messageId: "user-1", content: { type: "text", text: "tabs" } }, "cursor-history");
           this.sendUpdate({ sessionUpdate: "agent_message_chunk", messageId: "assistant-1", content: { type: "text", text: "Done" } }, "cursor-history");
+          this.sendUpdate({
+            sessionUpdate: "tool_call",
+            toolCallId: "search-history",
+            kind: "search",
+            title: "Search workspace",
+            status: "pending",
+            rawInput: { query: "tabs" },
+          }, "cursor-history");
+          this.sendUpdate({
+            sessionUpdate: "tool_call_update",
+            toolCallId: "search-history",
+            status: "completed",
+            rawOutput: "2 matches",
+          }, "cursor-history");
+          this.sendRequest(91, "session/request_permission", {
+            sessionId: "cursor-history",
+            toolCall: { toolCallId: "historical-write", title: "Historical write", kind: "edit" },
+            options: [{ optionId: "allow", kind: "allow_once" }],
+          });
+          this.sendRequest(92, "fs/write_text_file", {
+            sessionId: "cursor-history",
+            path: "README.md",
+            content: "must not be written",
+          });
         });
         return {
           sessionId: method === "session/new" ? "cursor-session" : "cursor-history",

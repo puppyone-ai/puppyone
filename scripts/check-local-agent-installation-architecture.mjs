@@ -49,9 +49,15 @@ for (const [file, installationId] of [
   ["electron/main/agent/runtimes/claude/claude-discovery.mjs", "claude"],
   ["electron/main/agent/runtimes/opencode-native/opencode-native-discovery.mjs", "opencode"],
   ["electron/main/agent/runtimes/pi/pi-discovery.mjs", "pi"],
+  ["electron/main/agent/runtimes/hermes/hermes-discovery.mjs", "hermes"],
 ]) {
   requireText(read(file), `installationId: "${installationId}"`, `${file} must select its shared installation definition`);
 }
+const workBuddyDiscovery = read("electron/main/agent/runtimes/workbuddy/workbuddy-discovery.mjs");
+requireText(workBuddyDiscovery, "installationId: channel.installationId", "WorkBuddy Runtime discovery must select its channel-specific shared installation definition");
+const workBuddyChannels = read("electron/main/agent/runtimes/workbuddy/workbuddy-channels.mjs");
+requireText(workBuddyChannels, 'installationId: "workbuddy-china"', "WorkBuddy China must own a stable installation identity");
+requireText(workBuddyChannels, 'installationId: "workbuddy-international"', "WorkBuddy International must own a stable installation identity");
 requireText(read("electron/main/agent/runtimes/cursor/cursor-discovery.mjs"), 'resolver.resolve("cursor", { context })', "Cursor Runtime must use its shared environment and installation definition");
 
 const resolverSource = read("electron/main/local-agent-installation/executable-resolver.mjs");
@@ -68,9 +74,9 @@ for (const file of walk(resolve("electron/main/platform"))) {
   }
 }
 
-const managedOpenCode = read("electron/main/agent/runtimes/puppyone-agent/managed-opencode-discovery.mjs");
-if (managedOpenCode.includes("installationId:")) {
-  errors.push("Managed OpenCode must not fall back to the user-installed OpenCode definition");
+const managedPuppyOne = read("electron/main/agent/runtimes/puppyone-agent/puppyone-agent-discovery.mjs");
+if (managedPuppyOne.includes("installationId:") || managedPuppyOne.includes("discoverExecutable(")) {
+  errors.push("Managed PuppyOne Agent must not fall back to any user-installed Agent definition");
 }
 
 for (const file of walk(resolve("electron/main/local-agent-installation/definitions"))) {

@@ -18,14 +18,25 @@ export function AgentApprovalDock({ approval, queueLength, resolving, onResolve,
   const canAllowForSession = approval.availableDecisions.includes("acceptForSession");
   const title = approval.title.trim() || t("agent.approval.required");
   const reason = distinctApprovalReason(approval.reason, title);
+  const statusLabel = resolving
+    ? t("agent.approval.resolving")
+    : queueLength > 1
+      ? t("agent.approval.pending", { count: queueLength })
+      : t("agent.approval.waiting");
   return (
-    <section className="desktop-agent-approval" aria-label={t("agent.approval.ariaLabel", { agent: bidiIsolate(runtimeLabel) })} aria-live="polite">
+    <section
+      className="desktop-agent-approval"
+      data-state={resolving ? "resolving" : "waiting"}
+      aria-busy={resolving}
+      aria-label={t("agent.approval.ariaLabel", { agent: bidiIsolate(runtimeLabel) })}
+      aria-live="polite"
+    >
       <header className="desktop-agent-approval-heading">
         <span className="desktop-agent-approval-icon" aria-hidden="true">
           <ShieldAlert size={14} strokeWidth={1.7} />
         </span>
-        <strong dir="auto">{title}</strong>
-        {queueLength > 1 && <small>{t("agent.approval.pending", { count: queueLength })}</small>}
+        <span className="desktop-agent-approval-title" dir="auto">{title}</span>
+        <small className="desktop-agent-approval-status">{statusLabel}</small>
       </header>
       {(approval.command
         || approval.cwd
@@ -62,10 +73,10 @@ export function AgentApprovalDock({ approval, queueLength, resolving, onResolve,
           )}
         </div>
       )}
-      <div className="desktop-agent-approval-actions">
+      <footer className="desktop-agent-approval-actions">
         <button
           type="button"
-          className="desktop-agent-button is-secondary"
+          className="desktop-agent-button is-quiet"
           disabled={resolving}
           onClick={() => onResolve("decline")}
           autoFocus
@@ -90,7 +101,7 @@ export function AgentApprovalDock({ approval, queueLength, resolving, onResolve,
         >
           {t("agent.approval.allowOnce")}
         </button>
-      </div>
+      </footer>
     </section>
   );
 }

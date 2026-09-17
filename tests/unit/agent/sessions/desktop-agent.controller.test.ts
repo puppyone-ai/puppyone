@@ -481,7 +481,7 @@ describe("AgentSessionController", () => {
   it("switches a blank composer between ready native Agents and supports providerless model catalogs", async () => {
     const bridge = bridgeFixture(() => {});
     const runtimes = [
-      { descriptor: { id: "opencode", displayName: "PuppyOne Agent", iconKey: "puppyone-agent" }, readiness: readinessFor("opencode") },
+      { descriptor: { id: "opencode", displayName: "Built-in Agent", iconKey: "built-in-agent" }, readiness: readinessFor("opencode") },
       { descriptor: { id: "codex", displayName: "Codex", iconKey: "codex" }, readiness: readinessFor("codex") },
     ];
     bridge.discoverAgentRuntimes

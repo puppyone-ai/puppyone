@@ -178,7 +178,7 @@ if (!controllerRegistrySource.includes("rollbackPreparation")) {
 }
 
 const composerRootSource = readFileSync(path.join(rendererUiRoot, "AgentComposer.tsx"), "utf8");
-for (const leaf of ["AgentAttachmentButton.tsx", "AgentCommandSuggestions.tsx", "AgentDraftReferenceList.tsx"]) {
+for (const leaf of ["AgentAttachmentButton.tsx", "AgentCommandSuggestions.tsx", "AgentVisualAttachmentList.tsx"]) {
   const leafPath = path.join(rendererComposerRoot, leaf);
   if (!existsSync(leafPath)) {
     errors.push(`${relative(leafPath)} is required; keep Composer acquisition, suggestions and draft references in private leaves`);
@@ -545,7 +545,7 @@ for (const filePath of walkSourceFiles(path.join(repoRoot, "src"))) {
 }
 
 const registrySource = readFileSync(path.join(mainRuntimeRoot, "agent-runtime-registry.mjs"), "utf8");
-if (/\b(?:opencode|codex|claude|cursor)\b/i.test(stripComments(registrySource))) {
+if (/\b(?:opencode|codex|claude|cursor|workbuddy|hermes)\b/i.test(stripComments(registrySource))) {
   errors.push("electron/main/agent/runtime/agent-runtime-registry.mjs names a concrete provider");
 }
 const runtimeManifestSource = readFileSync(path.join(mainRuntimeRoot, "agent-runtime-manifest.mjs"), "utf8");

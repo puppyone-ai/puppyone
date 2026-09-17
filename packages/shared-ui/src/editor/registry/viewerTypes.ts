@@ -51,10 +51,12 @@ export type EditorSaveMode = "manual" | "auto";
 export type EditorInteractionPreferences = Readonly<{
   showSaveStatus: boolean;
   markdownBlockDragEnabled: boolean;
+  markdownHeadingOutlineEnabled?: boolean;
 }>;
 export const DEFAULT_EDITOR_INTERACTION_PREFERENCES: EditorInteractionPreferences = {
   showSaveStatus: false,
   markdownBlockDragEnabled: false,
+  markdownHeadingOutlineEnabled: false,
 };
 export type EditorSourceRequirement = PresetViewerSource;
 export type MarkdownHtmlTrustMode = "safe" | "localTrusted";

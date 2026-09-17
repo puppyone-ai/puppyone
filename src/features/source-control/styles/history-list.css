@@ -35,10 +35,10 @@
   padding: 0 2px;
   border: 0;
   background: transparent;
-  color: var(--po-text-subtle);
-  font-size: var(--po-type-right-sidebar-meta, 11px);
-  font-weight: 620;
-  line-height: 16px;
+  color: var(--po-text-muted);
+  font-size: var(--git-font-main);
+  font-weight: var(--git-weight-regular);
+  line-height: var(--git-line-height);
   text-align: start;
   outline: 0;
 }
@@ -135,10 +135,17 @@
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  font-size: var(--po-type-right-sidebar-content, 13px);
-  font-weight: 500;
+  color: var(--po-text-muted);
+  font-size: var(--git-font-main);
+  font-weight: var(--git-weight-regular);
+  line-height: var(--git-line-height);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.desktop-history-row:hover .desktop-history-row-message,
+.desktop-history-row.active .desktop-history-row-message {
+  color: var(--po-text);
 }
 
 .desktop-history-row-stat {

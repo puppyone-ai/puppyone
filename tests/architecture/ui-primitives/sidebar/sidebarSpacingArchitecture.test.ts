@@ -120,9 +120,10 @@ describe("sidebar spacing architecture", () => {
     expect(semanticThemeScope).toContain(
       "--po-sidebar: color-mix(in srgb, var(--po-surface-chrome) 40%, var(--po-surface-editor));",
     );
-    expect(root).toContain("--desktop-sidebar-font-weight: var(--po-text-weight-medium);");
+    expect(root).toContain("--desktop-sidebar-font-weight: var(--po-text-weight-regular);");
     expect(root).toContain("--desktop-sidebar-font-weight-emphasis: 650;");
     expect(root).toContain("--desktop-sidebar-line-height: var(--po-type-left-sidebar-line-height);");
+    expect(root).toContain("--desktop-sidebar-icon-slot-size: 18px;");
     expect(root).toContain("--desktop-sidebar-icon-label-gap: 4px;");
     expect(semanticThemeScope).toContain(
       "--po-shell-divider: color-mix(in srgb, var(--po-text) 10%, transparent);",
@@ -276,6 +277,7 @@ describe("sidebar spacing architecture", () => {
     expect(adapter).toContain("--po-tree-root-top-gap: var(--desktop-sidebar-row-left-gap);");
     expect(adapter).toContain("--po-tree-no-root-top-gap: var(--desktop-sidebar-row-left-gap);");
     expect(adapter).toContain("--po-tree-list-bottom-gap: var(--desktop-sidebar-list-padding-block);");
+    expect(adapter).toContain("--po-tree-icon-slot-size: var(--desktop-sidebar-icon-slot-size);");
     expect(adapter).toContain("--po-tree-row-icon-label-gap: var(--desktop-sidebar-icon-label-gap);");
     expect(dataAdapterCss).toContain(`.app-shell.dark :is(
   .desktop-project-switcher-rail,
@@ -453,6 +455,15 @@ describe("sidebar spacing architecture", () => {
     expect(guide).not.toContain("- var(--tree-row-indent)");
   });
 
+  it("keeps Explorer motion from re-rasterizing rows at fractional Windows scales", () => {
+    expect(dataTreeCss).not.toMatch(
+      /\.explorer-tree-motion-shell\[data-explorer-motion\]\s*\{[^}]*will-change:/s,
+    );
+    expect(dataTreeCss).not.toMatch(
+      /\.explorer-tree-list-end-motion\[data-explorer-motion="move"\]\s*\{[^}]*will-change:/s,
+    );
+  });
+
   it("keeps Settings on the shared scroll-list padding", () => {
     const list = compact(readCssBlock(sidebarPrimitivesCss, ".po-sidebar-scroll-area"));
 
@@ -488,7 +499,7 @@ describe("sidebar spacing architecture", () => {
 });
 
 function readCss(relativePath: string): string {
-  return readFileSync(new URL(relativePath, import.meta.url), "utf8");
+  return readFileSync(new URL(relativePath, import.meta.url), "utf8").replace(/\r\n?/g, "\n");
 }
 
 function readCssBlock(css: string, selector: string): string {

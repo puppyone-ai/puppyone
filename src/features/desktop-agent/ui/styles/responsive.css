@@ -7,6 +7,8 @@
   .desktop-agent-composer-trailing { gap: 6px; }
   .desktop-agent-readiness { grid-template-columns: auto minmax(0, 1fr); }
   .desktop-agent-readiness > button { grid-column: 2; justify-self: start; }
+  .desktop-agent-approval-heading { grid-template-columns: 24px minmax(0, 1fr); align-items: start; }
+  .desktop-agent-approval-status { grid-column: 2; }
 }
 
 @container desktop-agent (max-width: 359px) {
@@ -18,7 +20,15 @@
   .desktop-agent-stream-caret,
   .desktop-agent-spin,
   .desktop-agent-virtual-row.is-new > *,
-  .desktop-agent-tool-branch { animation: none; }
+  .desktop-agent-tool-branch,
+  .desktop-agent-tool-glyph-motion,
+  .desktop-agent-tool-glyph-scan,
+  .desktop-agent-tool-glyph-ink { animation: none; }
+  .desktop-agent-approval[data-state="waiting"]::before { animation: none; }
+  .desktop-agent-approval[data-state="waiting"]::before { opacity: 0.52; }
+  .desktop-agent-tool-glyph-scan { opacity: 0; transform: none; }
+  .desktop-agent-tool-glyph-motion,
+  .desktop-agent-tool-glyph-ink { transform: none; }
   .desktop-agent-virtual-row { will-change: auto; }
   .desktop-agent-activity-summary svg:last-child,
   .desktop-agent-composer,

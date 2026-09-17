@@ -1,5 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { subscribeTypographyChanges, useEditorAppearanceRevision } from "@puppyone/shared-ui";
+import { bidiIsolate, type MessageFormatter } from "@puppyone/localization/core";
+import { useLocalization } from "@puppyone/localization/react";
 import { defaultKeymap, history, historyKeymap, insertNewlineAndIndent } from "@codemirror/commands";
 import { Compartment, EditorState, Prec, StateEffect, StateField } from "@codemirror/state";
 import {
@@ -17,6 +19,7 @@ import {
   isAgentMediaReference,
   normalizeAgentPromptMentions,
 } from "../../domain/agent-prompt-mentions";
+import { localizedReferenceError } from "./agent-reference-presentation";
 
 type AgentPromptEditorProps = {
   focusRequest?: number;
@@ -28,6 +31,7 @@ type AgentPromptEditorProps = {
   ariaLabel: string;
   onChange: (value: string, mentions: AgentPromptReferenceMention[]) => void;
   onRemoveReference?: (id: string) => void;
+  onRetryReference?: (id: string) => void;
   onDrop?: (event: AgentReferenceDropEvent) => void;
   onPaste?: (event: { clipboardData: DataTransfer; preventDefault: () => void; defaultPrevented: boolean }) => void;
   onSubmit: () => void;
@@ -37,7 +41,14 @@ type AgentPromptReferenceDecoration = AgentPromptReferenceMention & {
   label: string;
   title: string;
   referenceKind: AgentDraftReference["kind"];
+  status: AgentDraftReference["status"];
+  errorLabel: string;
+  retryLabel: string;
+  removeLabel: string;
+  onRetry?: (id: string) => void;
 };
+
+const retryMentionRemoval = StateEffect.define<string>();
 
 class AgentPromptReferenceWidget extends WidgetType {
   constructor(private readonly reference: AgentPromptReferenceDecoration) {
@@ -48,19 +59,61 @@ class AgentPromptReferenceWidget extends WidgetType {
     return this.reference.label === other.reference.label
       && this.reference.title === other.reference.title
       && this.reference.referenceId === other.reference.referenceId
-      && this.reference.referenceKind === other.reference.referenceKind;
+      && this.reference.referenceKind === other.reference.referenceKind
+      && this.reference.status === other.reference.status
+      && this.reference.onRetry === other.reference.onRetry;
   }
 
-  override toDOM() {
+  override toDOM(view: EditorView) {
     const element = document.createElement("span");
-    element.className = "desktop-agent-prompt-mention";
-    element.textContent = this.reference.label;
+    element.className = `desktop-agent-prompt-mention is-${this.reference.status}`;
     element.title = this.reference.title;
     element.dataset.referenceId = this.reference.referenceId;
     element.dataset.referenceKind = this.reference.referenceKind;
+    element.dataset.referenceStatus = this.reference.status;
     element.dataset.atomic = "true";
     element.contentEditable = "false";
+    const label = document.createElement("span");
+    label.className = "desktop-agent-prompt-mention-label";
+    label.textContent = this.reference.label;
+    element.append(label);
+    if (this.reference.status === "error") {
+      const error = document.createElement("span");
+      error.className = "desktop-agent-visually-hidden";
+      error.textContent = this.reference.errorLabel;
+      let retry: HTMLButtonElement | null = null;
+      if (this.reference.onRetry) {
+        retry = document.createElement("button");
+        retry.type = "button";
+        retry.className = "desktop-agent-prompt-mention-action is-retry";
+        retry.setAttribute("aria-label", this.reference.retryLabel);
+        retry.textContent = "↻";
+        retry.addEventListener("mousedown", preventEditorSelection);
+        retry.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          this.reference.onRetry?.(this.reference.referenceId);
+          removeMentionFromEditor(view, this.reference, true);
+        });
+      }
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "desktop-agent-prompt-mention-action is-remove";
+      remove.setAttribute("aria-label", this.reference.removeLabel);
+      remove.textContent = "×";
+      remove.addEventListener("mousedown", preventEditorSelection);
+      remove.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        removeMentionFromEditor(view, this.reference);
+      });
+      element.append(error, ...(retry ? [retry] : []), remove);
+    }
     return element;
+  }
+
+  override ignoreEvent(event: Event) {
+    return event.target instanceof HTMLButtonElement;
   }
 }
 
@@ -100,10 +153,12 @@ export function AgentPromptEditor({
   ariaLabel,
   onChange,
   onRemoveReference,
+  onRetryReference,
   onDrop,
   onPaste,
   onSubmit,
 }: AgentPromptEditorProps) {
+  const { t } = useLocalization();
   const hostRef = useRef<HTMLDivElement>(null);
   const appearanceRevision = useEditorAppearanceRevision();
   const viewRef = useRef<EditorView | null>(null);
@@ -171,7 +226,12 @@ export function AgentPromptEditor({
           const nextMentions = readMentions(update.state);
           const previousIds = new Set(readMentions(update.startState).map((mention) => mention.referenceId));
           const nextIds = new Set(nextMentions.map((mention) => mention.referenceId));
-          for (const id of previousIds) if (!nextIds.has(id)) callbacksRef.current.onRemoveReference?.(id);
+          const retriedIds = new Set(update.transactions.flatMap((transaction) => (
+            transaction.effects.filter((effect) => effect.is(retryMentionRemoval)).map((effect) => effect.value)
+          )));
+          for (const id of previousIds) {
+            if (!nextIds.has(id) && !retriedIds.has(id)) callbacksRef.current.onRemoveReference?.(id);
+          }
           callbacksRef.current.onChange(update.state.doc.toString(), nextMentions);
         }),
       ],
@@ -179,7 +239,7 @@ export function AgentPromptEditor({
     const view = new EditorView({ state, parent: host });
     const unsubscribeTypography = subscribeTypographyChanges(host.ownerDocument, () => view.requestMeasure());
     viewRef.current = view;
-    view.dispatch({ effects: replaceMentionDecorations.of(referenceDecorations(value, mentions, references)) });
+    view.dispatch({ effects: replaceMentionDecorations.of(referenceDecorations(value, mentions, references, t, onRetryReference)) });
     return () => {
       unsubscribeTypography();
       viewRef.current = null;
@@ -205,14 +265,14 @@ export function AgentPromptEditor({
     const current = view.state.doc.toString();
     const normalized = normalizeAgentPromptMentions(value, mentions);
     if (current === value && sameMentions(readMentions(view.state), normalized)) {
-      view.dispatch({ effects: replaceMentionDecorations.of(referenceDecorations(value, normalized, references)) });
+      view.dispatch({ effects: replaceMentionDecorations.of(referenceDecorations(value, normalized, references, t, onRetryReference)) });
       return;
     }
     view.dispatch({
       ...(current === value ? {} : { changes: { from: 0, to: current.length, insert: value } }),
-      effects: replaceMentionDecorations.of(referenceDecorations(value, normalized, references)),
+      effects: replaceMentionDecorations.of(referenceDecorations(value, normalized, references, t, onRetryReference)),
     });
-  }, [mentions, references, value]);
+  }, [mentions, onRetryReference, references, t, value]);
 
   useEffect(() => {
     const view = viewRef.current;
@@ -233,7 +293,7 @@ export function AgentPromptEditor({
     if (!view || disabled) return;
     const existing = new Set(readMentions(view.state).map((mention) => mention.referenceId));
     const insertions = references.filter((reference) => (
-      reference.status === "ready" && !isAgentMediaReference(reference) && !existing.has(reference.id)
+      !isAgentMediaReference(reference) && !existing.has(reference.id)
     ));
     if (insertions.length === 0) return;
 
@@ -265,10 +325,12 @@ export function AgentPromptEditor({
         transaction.state.doc.toString(),
         [...mapped, ...added].sort((left, right) => left.start - right.start),
         references,
+        t,
+        onRetryReference,
       )),
     });
     view.focus();
-  }, [disabled, references]);
+  }, [disabled, onRetryReference, references, t]);
 
   return <div ref={hostRef} className="desktop-agent-prompt-editor" dir="auto" />;
 }
@@ -277,18 +339,42 @@ function referenceDecorations(
   prompt: string,
   mentions: readonly AgentPromptReferenceMention[],
   references: readonly AgentDraftReference[],
+  t: MessageFormatter,
+  onRetryReference?: (id: string) => void,
 ): AgentPromptReferenceDecoration[] {
   const byId = new Map(references.map((reference) => [reference.id, reference]));
   return normalizeAgentPromptMentions(prompt, mentions, new Set(byId.keys())).flatMap((mention) => {
     const reference = byId.get(mention.referenceId);
     if (!reference) return [];
+    const identity = reference.kind === "workspace-entry" ? reference.relativePath : reference.displayName;
+    const localizedError = reference.status === "error" ? localizedReferenceError(reference, t) : "";
+    const rawError = reference.status === "error" ? reference.error?.message || "" : "";
     return [{
       ...mention,
       label: prompt.slice(mention.start, mention.end),
-      title: reference.kind === "workspace-entry" ? reference.relativePath : reference.displayName,
+      title: [identity, localizedError, rawError !== localizedError ? rawError : ""].filter(Boolean).join("\n"),
       referenceKind: reference.kind,
+      status: reference.status,
+      errorLabel: localizedError,
+      retryLabel: t("agent.reference.retry", { name: bidiIsolate(reference.displayName) }),
+      removeLabel: t("agent.reference.remove", { name: bidiIsolate(reference.displayName) }),
+      onRetry: onRetryReference,
     }];
   });
+}
+
+function preventEditorSelection(event: MouseEvent) {
+  event.preventDefault();
+  event.stopPropagation();
+}
+
+function removeMentionFromEditor(view: EditorView, mention: AgentPromptReferenceMention, retry = false) {
+  view.dispatch({
+    changes: { from: mention.start, to: mention.end },
+    selection: { anchor: mention.start },
+    ...(retry ? { effects: retryMentionRemoval.of(mention.referenceId) } : {}),
+  });
+  view.focus();
 }
 
 function readMentions(state: EditorState) {

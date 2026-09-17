@@ -28,7 +28,10 @@ runItemHost({
     const attachmentStore = Object.fromEntries(["releaseLease", "revokeLeased", "revoke"]
       .map((method) => [method, (...args) => callMain(`attachments:${method}`, args)]));
     return createAgentService({
-      runtimeRegistry: createRuntimeRegistry({ appVersion: identity.appVersion }),
+      runtimeRegistry: createRuntimeRegistry({
+        appVersion: identity.appVersion,
+        ...identity.runtimeEnvironment,
+      }),
       sessionCache: createAgentSessionRepository({ eventCache: createEphemeralAgentSessionCache(), conversationCatalog: catalog }),
       conversationCatalog: catalog,
       attachmentStore,

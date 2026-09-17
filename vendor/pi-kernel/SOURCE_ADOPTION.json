@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "package": "@earendil-works/pi-coding-agent",
+  "version": "0.85.1",
+  "repository": "https://github.com/earendil-works/pi",
+  "sourceCommit": "d981de1229ef899957bbe968bc8dcda02a21f477",
+  "npmIntegrity": "sha512-FGRN+OHbWaefBPGaTggAdLjrIHW+s2PzLyglz/5dfLzb9of7uuXMXYC0fJIeZTw+shS32o2cuQ9jF7YSDuL/oQ==",
+  "npmShasum": "4cd00f653c3dabeb193b46f511044e7fbfe0f947",
+  "publishedAt": "2026-09-05T12:17:19.281Z",
+  "license": "MIT",
+  "adoption": {
+    "api": "createAgentSessionRuntime plus runRpcMode",
+    "transport": "Pi RPC over LF-delimited JSON on stdio",
+    "productIdentity": "PuppyOne Agent",
+    "userPiProfileReuse": false,
+    "userPiExecutableReuse": false
+  }
+}

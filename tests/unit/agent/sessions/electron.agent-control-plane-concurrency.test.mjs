@@ -43,6 +43,17 @@ function request(harness, commandId, prompt = commandId) {
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("Agent control-plane concurrency invariants", () => {
+  it("persists the originating degraded turn on an explicit recovery start", async () => {
+    const harness = await setup();
+    await harness.service.startTurn(harness.owner, {
+      ...request(harness, "recover", "Inspect state and continue"),
+      recoveryOfTurnId: "turn-degraded",
+    }, "/workspace");
+
+    expect(snapshot(harness).events.find((event) => event.type === "turn.started")?.payload)
+      .toMatchObject({ submissionId: "recover", recoveryOfTurnId: "turn-degraded" });
+  });
+
   it("settles a start when its terminal event precedes its native receipt", async () => {
     const harness = await setup();
     const adapter = harness.adapters[0];

@@ -1,9 +1,5 @@
-import { lazy, Suspense, useMemo, useState } from "react";
-import {
-  type ViewerPackSnapshot,
-  type Workspace,
-} from "@puppyone/shared-ui";
-import { useLocalization } from "@puppyone/localization";
+import { useMemo } from "react";
+import { type Workspace } from "@puppyone/shared-ui";
 import type { DesktopView } from "../../../components/DesktopCloudShell";
 import type { DesktopUpdatesController } from "../../updates";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
@@ -26,12 +22,6 @@ import {
 } from "../../cloud";
 import { getGitHostingMode, type DesktopGitController } from "../../source-control";
 import { createSettingsWorkspaceSurface, type SettingsSection } from "../../settings";
-import {
-  DEFAULT_PLUGINS_SECTION,
-  isPluginsNavigationVisible,
-  PluginsSidebar,
-  type PluginsSection,
-} from "../../plugins";
 import type { DesktopPreferencesController } from "../useDesktopPreferences";
 import type { SubThemeCatalogController } from "../../themes/useSubThemeCatalog";
 import {
@@ -47,9 +37,6 @@ import type {
   WorkspaceSurfaceId,
 } from "./workspaceSurfaceTypes";
 
-const LazyPluginsView = lazy(() => import("../../plugins/PluginsView").then((module) => ({
-  default: module.PluginsView,
-})));
 export type DesktopWorkspaceCloudSurfaceController = {
   activeSection: CloudWorkspaceSection;
   projectContext?: ProjectCloudContext | null;
@@ -76,7 +63,6 @@ export type WorkspaceSurfaceContentResult = {
   availableSurfaceIds: readonly WorkspaceSurfaceId[];
   cloudSurface: WorkspaceSurfaceContent;
   gitEnabled: boolean;
-  pluginsNavigationVisible: boolean;
   resolvedActiveView: WorkspaceSurfaceId;
   resolvedSurface: ResolvedWorkspaceSurface;
   workspaceChangeCount: number;
@@ -99,8 +85,6 @@ export function useWorkspaceSurfaceContent({
   puppyoneConfigSaving,
   settingsSection,
   subThemeCatalog,
-  viewerPacks,
-  viewerPluginsEnabled,
   workspace,
 }: {
   activeView: DesktopView;
@@ -119,23 +103,11 @@ export function useWorkspaceSurfaceContent({
   puppyoneConfigSaving: boolean;
   settingsSection: SettingsSection;
   subThemeCatalog: SubThemeCatalogController;
-  viewerPacks: {
-    hostAvailable: boolean;
-    refresh: () => Promise<void>;
-    snapshot: ViewerPackSnapshot;
-  };
-  viewerPluginsEnabled: boolean;
   workspace: Workspace;
 }): WorkspaceSurfaceContentResult {
-  const { t } = useLocalization();
-  const pluginsNavigationVisible = isPluginsNavigationVisible({
-    featureEnabled: viewerPluginsEnabled,
-    visibility: preferences.sidebarNavigationVisibilitySettings,
-  });
   const surfaceCapabilities = useMemo<WorkspaceSurfaceCapabilities>(() => ({
     cloudEnabled: cloud.enabled,
-    pluginsEnabled: pluginsNavigationVisible,
-  }), [cloud.enabled, pluginsNavigationVisible]);
+  }), [cloud.enabled]);
   const requestedSurfaceId = activeView === "git" || activeView === "cloud" ? "data" : activeView;
   const resolvedActiveView = resolveWorkspaceSurfaceContribution(requestedSurfaceId, surfaceCapabilities).id;
   const availableSurfaceIds = useMemo(
@@ -170,7 +142,6 @@ export function useWorkspaceSurfaceContent({
     environment: cloudEnvironment,
     onCloudSessionChange: cloud.onCloudSessionChange,
   });
-  const [activePluginsSection, setActivePluginsSection] = useState<PluginsSection>(DEFAULT_PLUGINS_SECTION);
   const settingsSurface = createSettingsWorkspaceSurface({
     workspace,
     activeSection: settingsSection,
@@ -209,26 +180,6 @@ export function useWorkspaceSurfaceContent({
       setAutomaticallyDownloadUpdates: desktopUpdates.setAutomaticallyDownloadUpdates,
     },
   });
-  const pluginsSurface = {
-    sidebar: (
-      <PluginsSidebar
-        activeSection={activePluginsSection}
-        installedCount={viewerPacks.snapshot.contributions.length}
-        onSelectSection={setActivePluginsSection}
-      />
-    ),
-    main: (
-      <Suspense fallback={<div className="desktop-plugins-loading">{t("workspace.loadingPlugins")}</div>}>
-        <LazyPluginsView
-          activeSection={activePluginsSection}
-          hostAvailable={viewerPacks.hostAvailable}
-          snapshot={viewerPacks.snapshot}
-          onRefresh={viewerPacks.refresh}
-          onSelectSection={setActivePluginsSection}
-        />
-      </Suspense>
-    ),
-  };
   const cloudServiceSurface = {
     sidebar: (
       <CloudServiceSidebar
@@ -276,7 +227,6 @@ export function useWorkspaceSurfaceContent({
     // "git" is retained only as a migration-safe legacy route. All active
     // source-control work now lives in the Changes right sidebar.
     git: () => ({ sidebar: null, main: null }),
-    plugins: () => pluginsSurface,
     cloud: () => cloudServiceSurface,
     settings: () => settingsSurface,
   };
@@ -284,15 +234,10 @@ export function useWorkspaceSurfaceContent({
     availableSurfaceIds,
     cloudSurface: cloudServiceSurface,
     gitEnabled,
-    pluginsNavigationVisible,
     resolvedActiveView,
     resolvedSurface: resolveWorkspaceSurface({ capabilities: surfaceCapabilities, adapters, requestedId: requestedSurfaceId }),
     workspaceChangeCount,
   };
-}
-
-function DesktopRouteLoading({ label }: { label: string }) {
-  return <div className="desktop-view-route-loading" role="status" aria-live="polite">{label}</div>;
 }
 
 function getDesktopWorkspaceChangeCount(

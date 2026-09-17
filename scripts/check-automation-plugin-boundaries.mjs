@@ -49,8 +49,16 @@ if (/automation/i.test(viewerPackStore)) {
 }
 
 const workspaceSurfaceTypes = read("src/features/app-shell/workspace-surfaces/workspaceSurfaceTypes.ts");
-if (!/"plugins"/.test(workspaceSurfaceTypes) || !/"cloud"/.test(workspaceSurfaceTypes)) {
-  errors.push("Desktop navigation must expose local Plugins and one Cloud Hub view id.");
+if (!/"cloud"/.test(workspaceSurfaceTypes)) {
+  errors.push("Desktop navigation must expose one Cloud Hub view id.");
+}
+if (/"plugins"/.test(workspaceSurfaceTypes)) {
+  errors.push("Local Plugins must remain an application dialog, not a Workspace Surface view id.");
+}
+const desktopWorkspaceContent = read("src/features/app-shell/DesktopWorkspaceContent.tsx");
+const desktopNavigationItems = read("src/features/app-shell/navigation/DesktopNavigationItems.tsx");
+if (!desktopWorkspaceContent.includes("<PluginsDialog") || !desktopNavigationItems.includes("DesktopSidebarPluginsButton")) {
+  errors.push("Desktop navigation must expose local Plugins through the application-dialog entry.");
 }
 if (/"automation"/.test(workspaceSurfaceTypes)) {
   errors.push("Automation must remain inside the Cloud Project router, not the app-shell surface registry.");

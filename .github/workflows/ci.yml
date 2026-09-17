@@ -173,16 +173,6 @@ jobs:
           --commit "$env:GITHUB_SHA"
           --target windows-x64
 
-      - name: Stage pinned Windows OpenCode runtime
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          $manifest = Get-Content "vendor/opencode/runtime-manifest.json" -Raw | ConvertFrom-Json
-          $artifact = $manifest.artifacts.'win32-x64'
-          $download = Join-Path $env:RUNNER_TEMP $artifact.archive
-          Invoke-WebRequest -Uri "https://github.com/anomalyco/opencode/releases/download/v$($manifest.runtimeRelease.version)/$($artifact.archive)" -OutFile $download
-          npm run stage:opencode-runtime -- $download
-
       - name: Build and verify unsigned NSIS package
         run: npm run prepare:windows:release && npm run package:windows:release
 

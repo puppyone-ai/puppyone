@@ -1,7 +1,7 @@
 /**
  * @vitest-environment happy-dom
  */
-import { EditorState } from "@codemirror/state";
+import { EditorState, StateEffect } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createEmbeddedEditSessionStore } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/codemirror/embeddedEditSession";
@@ -15,6 +15,8 @@ import {
   getDocRevision,
 } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/brokers/transactionBroker";
 import { CodeBlockWidget } from "../../../../../../packages/shared-ui/src/editor/markdown/features/code-block/codeBlockWidget";
+import { highlightMarkdownCode } from "../../../../../../packages/shared-ui/src/editor/markdown/features/code-block/codeBlockHighlight";
+import { markdownLocalizationFacet } from "../../../../../../packages/shared-ui/src/editor/markdown/core/editor/markdownLocalization";
 import { MermaidBlockWidget } from "../../../../../../packages/shared-ui/src/editor/markdown/features/mermaid/mermaidBlockWidget";
 import {
   markdownCodeMirrorBaseExtensions,
@@ -210,6 +212,265 @@ describe("Markdown embedded runtime", () => {
     expect(secondDom.querySelector<HTMLTextAreaElement>(".cm-md-code-textarea")?.value).toBe("recover me");
     expect(host.editSessions.values()[0]?.elementId).toBe(originalSession.elementId);
     secondWidget.destroy(secondDom);
+  });
+
+  it("renders language-aware syntax tokens behind the editable code surface", async () => {
+    const source = "```ts\ninterface User { name: \"Alice\" }\n```";
+    const view = createView(source);
+    const widget = new CodeBlockWidget('interface User { name: "Alice" }', "ts", 0, source.length);
+    const dom = widget.toDOM(view);
+    view.dom.appendChild(dom);
+
+    const highlight = dom.querySelector<HTMLElement>(".cm-md-code-highlight");
+    expect(highlight).not.toBeNull();
+    expect(highlight?.getAttribute("aria-hidden")).toBe("true");
+    await vi.waitFor(() => {
+      expect(highlight?.querySelector(".cm-code-keyword")?.textContent).toBe("interface");
+      expect(highlight?.querySelector(".cm-code-string")?.textContent).toBe('"Alice"');
+    });
+  });
+
+  it("highlights syntax through the end of code beyond CodeMirror's initial parse viewport", async () => {
+    const code = `${"let value = 1;\n".repeat(300)}return value;`;
+    const result = await highlightMarkdownCode(code, "ts", {
+      parseTimeoutMs: Number.POSITIVE_INFINITY,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result?.segments.some((segment) => (
+      segment.className === "cm-code-keyword" && segment.text === "return"
+    ))).toBe(true);
+  });
+
+  it("keeps syntax tokens synchronized while code is edited", async () => {
+    const source = "```ts\nconst value = 1;\n```";
+    const view = createView(source);
+    const widget = new CodeBlockWidget("const value = 1;", "ts", 0, source.length);
+    const dom = widget.toDOM(view);
+    view.dom.appendChild(dom);
+    const editor = dom.querySelector<HTMLTextAreaElement>(".cm-md-code-textarea")!;
+    const highlight = dom.querySelector<HTMLElement>(".cm-md-code-highlight")!;
+    await vi.waitFor(() => {
+      expect(highlight.querySelector(".cm-code-keyword")?.textContent).toBe("const");
+    });
+
+    editor.value = 'return "next";';
+    editor.dispatchEvent(new InputEvent("input", { bubbles: true }));
+
+    await vi.waitFor(() => {
+      expect(highlight.querySelector(".cm-code-keyword")?.textContent).toBe("return");
+      expect(highlight.querySelector(".cm-code-string")?.textContent).toBe('"next"');
+    });
+  });
+
+  it("reparses the code when its language label changes", async () => {
+    const source = "```txt\nconst value = 1;\n```";
+    const view = createView(source);
+    const widget = new CodeBlockWidget("const value = 1;", "txt", 0, source.length);
+    const dom = widget.toDOM(view);
+    view.dom.appendChild(dom);
+    const language = dom.querySelector<HTMLInputElement>(".cm-md-code-language")!;
+    const highlight = dom.querySelector<HTMLElement>(".cm-md-code-highlight")!;
+    await vi.waitFor(() => {
+      expect(highlight.dataset.language).toBe("plaintext");
+    });
+    expect(highlight.querySelector(".cm-code-keyword")).toBeNull();
+
+    language.value = "typescript";
+    language.dispatchEvent(new InputEvent("input", { bubbles: true }));
+
+    await vi.waitFor(() => {
+      expect(highlight.dataset.language).toBe("typescript");
+      expect(highlight.querySelector(".cm-code-keyword")?.textContent).toBe("const");
+    });
+  });
+
+  it("keeps the syntax layer aligned with horizontal code scrolling", async () => {
+    const source = "```ts\nconst value = someVeryLongExpression;\n```";
+    const view = createView(source);
+    const widget = new CodeBlockWidget("const value = someVeryLongExpression;", "ts", 0, source.length);
+    const dom = widget.toDOM(view);
+    view.dom.appendChild(dom);
+    const editor = dom.querySelector<HTMLTextAreaElement>(".cm-md-code-textarea")!;
+    const highlight = dom.querySelector<HTMLElement>(".cm-md-code-highlight")!;
+
+    editor.scrollLeft = 48;
+    editor.dispatchEvent(new Event("scroll"));
+
+    expect(highlight.scrollLeft).toBe(48);
+  });
+
+  it("keeps code glyphs and the caret left-to-right in an RTL document", () => {
+    const source = "```ts\nconst value = 1;\n```";
+    const view = createView(source);
+    view.dom.dir = "rtl";
+    view.dispatch({
+      effects: StateEffect.appendConfig.of(markdownLocalizationFacet.of({
+        ...view.state.facet(markdownLocalizationFacet),
+        direction: "rtl",
+      })),
+    });
+    const widget = new CodeBlockWidget("const value = 1;", "ts", 0, source.length);
+    const dom = widget.toDOM(view);
+    view.dom.appendChild(dom);
+    const highlight = dom.querySelector<HTMLElement>(".cm-md-code-highlight")!;
+    const editor = dom.querySelector<HTMLTextAreaElement>(".cm-md-code-textarea")!;
+
+    expect(editor.dir).toBe("ltr");
+    expect(highlight.closest("[dir]")?.getAttribute("dir")).toBe("ltr");
+  });
+
+  it("uses the resolved language tab width for both code layers", async () => {
+    const source = "```python\n\treturn True\n```";
+    const view = createView(source);
+    const widget = new CodeBlockWidget("\treturn True", "python", 0, source.length);
+    const dom = widget.toDOM(view);
+    view.dom.appendChild(dom);
+    const surface = dom.querySelector<HTMLElement>(".cm-md-code-surface")!;
+    const highlight = dom.querySelector<HTMLElement>(".cm-md-code-highlight")!;
+
+    await vi.waitFor(() => {
+      expect(highlight.dataset.language).toBe("python");
+      expect(surface.style.getPropertyValue("--cm-md-code-tab-size")).toBe("4");
+    });
+  });
+
+  it("keeps plaintext code on the native textarea fallback", async () => {
+    const source = "```unknown\nplain text\n```";
+    const view = createView(source);
+    const widget = new CodeBlockWidget("plain text", "unknown", 0, source.length);
+    const dom = widget.toDOM(view);
+    view.dom.appendChild(dom);
+    const surface = dom.querySelector<HTMLElement>(".cm-md-code-surface")!;
+    const highlight = dom.querySelector<HTMLElement>(".cm-md-code-highlight")!;
+
+    await vi.waitFor(() => {
+      expect(highlight.dataset.language).toBe("plaintext");
+    });
+    expect(surface.classList.contains("is-highlighted")).toBe(false);
+  });
+
+  it("falls back to the native textarea when syntax highlighting would exceed its DOM budget", async () => {
+    const code = Array.from({ length: 500 }, (_, index) => `const value${index} = ${index};`).join("\n");
+    const source = `\`\`\`ts\n${code}\n\`\`\``;
+    const view = createView(source);
+    const widget = new CodeBlockWidget(
+      code,
+      "ts",
+      0,
+      source.length,
+      null,
+      undefined,
+      undefined,
+      (sourceCode, sourceLanguage, options) => highlightMarkdownCode(sourceCode, sourceLanguage, {
+        isCurrent: options?.isCurrent,
+        parseTimeoutMs: Number.POSITIVE_INFINITY,
+      }),
+    );
+    const dom = widget.toDOM(view);
+    view.dom.appendChild(dom);
+    const surface = dom.querySelector<HTMLElement>(".cm-md-code-surface")!;
+    const highlight = dom.querySelector<HTMLElement>(".cm-md-code-highlight")!;
+
+    await vi.waitFor(() => {
+      expect(highlight.dataset.language).toBe("typescript");
+      expect(highlight.dataset.highlightFallback).toBe("dom-budget");
+    });
+    expect(surface.classList.contains("is-highlighted")).toBe(false);
+    expect(highlight.childElementCount).toBe(0);
+  });
+
+  it("skips stale parses when rapid edits finish waiting on a slow language load", async () => {
+    let releaseLanguage!: () => void;
+    const languageReady = new Promise<void>((resolve) => {
+      releaseLanguage = resolve;
+    });
+    const loadLanguageExtension = vi.fn(async () => {
+      await languageReady;
+      return [];
+    });
+    let revision = 1;
+    const first = highlightMarkdownCode("const first = 1;", "ts", {
+      isCurrent: () => revision === 1,
+      loadLanguageExtension,
+    });
+    revision = 2;
+    const second = highlightMarkdownCode("const second = 2;", "ts", {
+      isCurrent: () => revision === 2,
+      loadLanguageExtension,
+    });
+    revision = 3;
+    const latest = highlightMarkdownCode("const latest = 3;", "ts", {
+      isCurrent: () => revision === 3,
+      loadLanguageExtension,
+    });
+
+    releaseLanguage();
+
+    await expect(first).resolves.toBeNull();
+    await expect(second).resolves.toBeNull();
+    await expect(latest).resolves.toMatchObject({ language: "typescript" });
+  });
+
+  it("does not retry a parse-budget fallback on every subsequent edit", async () => {
+    const source = "```ts\nconst value = 1;\n```";
+    const highlighter = vi.fn<typeof highlightMarkdownCode>(async (code) => ({
+      language: "typescript",
+      segments: [{ className: null, text: code }],
+      tabSize: 2,
+      fallbackReason: "parse-budget",
+    }));
+    const view = createView(source);
+    const widget = new CodeBlockWidget(
+      "const value = 1;",
+      "ts",
+      0,
+      source.length,
+      null,
+      undefined,
+      undefined,
+      highlighter,
+    );
+    const dom = widget.toDOM(view);
+    view.dom.appendChild(dom);
+    const editor = dom.querySelector<HTMLTextAreaElement>(".cm-md-code-textarea")!;
+    const highlight = dom.querySelector<HTMLElement>(".cm-md-code-highlight")!;
+    await vi.waitFor(() => {
+      expect(highlight.dataset.highlightFallback).toBe("parse-budget");
+    });
+
+    editor.value = "const value = 2;";
+    editor.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+    expect(highlighter).toHaveBeenCalledTimes(1);
+    expect(highlight.textContent).toBe("const value = 2;");
+  });
+
+  it("restores the original syntax layer when an edited draft is cancelled", async () => {
+    const source = "```ts\nconst original = 1;\n```";
+    const view = createView(source);
+    const widget = new CodeBlockWidget("const original = 1;", "ts", 0, source.length);
+    const dom = widget.toDOM(view);
+    view.dom.appendChild(dom);
+    const editor = dom.querySelector<HTMLTextAreaElement>(".cm-md-code-textarea")!;
+    const highlight = dom.querySelector<HTMLElement>(".cm-md-code-highlight")!;
+    await vi.waitFor(() => {
+      expect(highlight.textContent).toBe("const original = 1;");
+    });
+    editor.value = 'return "draft";';
+    editor.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    await vi.waitFor(() => {
+      expect(highlight.textContent).toBe('return "draft";');
+    });
+
+    editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+
+    expect(editor.value).toBe("const original = 1;");
+    await vi.waitFor(() => {
+      expect(highlight.textContent).toBe("const original = 1;");
+      expect(highlight.querySelector(".cm-code-keyword")?.textContent).toBe("const");
+    });
   });
 
   it("keeps a mounted code block anchored after an edit before its widget", () => {

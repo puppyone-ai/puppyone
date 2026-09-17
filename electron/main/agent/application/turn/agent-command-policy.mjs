@@ -51,9 +51,10 @@ export function operationIdentity() {
   return `operation-${randomUUID()}`;
 }
 
-export function startCommandIntent(input, { model, effort, mode }) {
+export function startCommandIntent(input, { model, effort, mode }, recoveryOfTurnId = null) {
   return {
     prompt: input.displayPrompt,
+    recoveryOfTurnId,
     promptMentions: input.promptMentions,
     referenceDisplays: input.referenceDisplays,
     model: model ?? null,

@@ -29,6 +29,9 @@ const agentRuntimes: AgentRuntimeCatalogEntry[] = [
   runtimeEntry("claude", "Claude Agent", "claude"),
   runtimeEntry("opencode-native", "OpenCode", "opencode"),
   runtimeEntry("cursor", "Cursor Agent", "cursor"),
+  runtimeEntry("workbuddy-china", "WorkBuddy (China)", "workbuddy"),
+  runtimeEntry("workbuddy-international", "WorkBuddy (International)", "workbuddy"),
+  runtimeEntry("hermes", "Hermes Agent", "hermes"),
 ];
 
 const modelsByRuntime: Record<string, AgentModel[]> = {
@@ -36,6 +39,9 @@ const modelsByRuntime: Record<string, AgentModel[]> = {
   claude: [model("claude-sonnet-4.5", "Claude Sonnet 4.5", true), model("claude-opus-4.1", "Claude Opus 4.1")],
   "opencode-native": [model("google/gemini-3-pro", "Gemini 3 Pro", true), model("openai/gpt-5.4", "GPT-5.4")],
   cursor: [model("auto", "Auto", true), model("composer-1", "Composer 1")],
+  "workbuddy-china": [model("auto", "Auto", true)],
+  "workbuddy-international": [model("auto", "Auto", true)],
+  hermes: [model("openrouter:auto", "Auto", true)],
 };
 
 const referenceCapabilities: AgentReferenceInputCapabilities = {
@@ -117,6 +123,7 @@ export function AgentVisualSmokeHarness() {
   const theme = new URLSearchParams(window.location.search).get("theme") === "light" ? "light" : "dark";
   const startupLoading = smokeState === "loading";
   const streamingTableSmoke = smokeState === "streaming-table";
+  const toolMotionSmoke = smokeState === "tool-motion";
   const approvalSmoke = smokeState === "approval";
   const selectedRuntime = agentRuntimes.find((entry) => entry.descriptor.id === runtimeId) ?? agentRuntimes[0];
   const models = modelsByRuntime[runtimeId];
@@ -248,7 +255,7 @@ export function AgentVisualSmokeHarness() {
         itemId: "tool-1",
         kind: "tool",
         label: "Explored markdown-editor.css, 2 searches",
-        status: "completed",
+        status: toolMotionSmoke ? "running" : "completed",
         detail: { tool: "grep", input: { pattern: "padding", path: "src" } },
         output: "src/markdown-editor.css:42:padding: 24px;\nsrc/editor-shell.css:18:padding-inline: 24px;",
         sequence: 7,
@@ -270,7 +277,7 @@ export function AgentVisualSmokeHarness() {
         itemId: "tool-read",
         kind: "tool",
         label: "Read markdown editor styles",
-        status: "completed",
+        status: toolMotionSmoke ? "running" : "completed",
         detail: { tool: "read", input: { file_path: "src/markdown-editor.css" } },
         output: ".markdown-editor {\n  padding: 24px;\n}",
         sequence: 9,
@@ -281,7 +288,7 @@ export function AgentVisualSmokeHarness() {
         itemId: "tool-edit",
         kind: "file-change",
         label: "Updated markdown-editor.css",
-        status: "completed",
+        status: toolMotionSmoke ? "running" : "completed",
         detail: {
           tool: "edit",
           path: "src/markdown-editor.css",
@@ -326,7 +333,7 @@ export function AgentVisualSmokeHarness() {
     value.lastSequence = streamingTableSmoke ? 12 : 10;
     value.terminalState = "completed";
     return value;
-  }, [streamingTableSmoke]);
+  }, [streamingTableSmoke, toolMotionSmoke]);
   const visibleProjection = startupLoading ? startupProjection : projection;
 
   return (
@@ -338,6 +345,7 @@ export function AgentVisualSmokeHarness() {
           ariaLabel={t("agent.panel.chat", { agent: bidiIsolate(selectedRuntime.descriptor.displayName) })}
           header={<AgentSurfaceHeader
             title={t("agent.visual.title")}
+            runtimeIconKey={selectedRuntime.descriptor.iconKey}
             runtimeLabel={selectedRuntime.descriptor.displayName}
             statusCode="ready"
             statusLabel={t("agent.header.status.ready")}

@@ -3,7 +3,6 @@ import {
   AgentBrandImage,
   resolveAgentBrand,
 } from "@puppyone/shared-ui";
-import { PuppyBrandMark } from "./PuppyBrandMark";
 import "./agent-launcher-icon.css";
 
 export function AgentLauncherIcon({
@@ -19,22 +18,16 @@ export function AgentLauncherIcon({
   iconKey?: string | null;
   launcherId?: string | null;
 }) {
-  const identity = `${launcherId || ""} ${iconKey || ""}`.toLowerCase();
-  const puppyone = identity.includes("puppyone");
-  const brand = puppyone ? null : resolveAgentBrand({ id: launcherId, iconKey });
+  const brand = resolveAgentBrand({ id: launcherId, iconKey });
   const chatFallback = fallback === "chat" && launcherId === null;
-  const iconKind = puppyone
-    ? "puppyone"
-    : brand?.id ?? (chatFallback ? "chat-fallback" : launcherId ?? "shell");
+  const iconKind = brand?.id ?? (chatFallback ? "chat-fallback" : launcherId ?? "shell");
 
   return (
     <span
       className={`desktop-terminal-launcher-icon is-${iconKind} ${compact ? "is-compact" : ""} ${className}`.trim()}
       aria-hidden="true"
     >
-      {puppyone ? (
-        <PuppyBrandMark tone="dark" />
-      ) : brand ? (
+      {brand ? (
         <AgentBrandImage brandId={brand.id} />
       ) : chatFallback ? (
         <MessageSquare size={compact ? 14 : 16} strokeWidth={1.7} />

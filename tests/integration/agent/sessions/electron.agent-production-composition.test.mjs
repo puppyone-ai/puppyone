@@ -12,15 +12,23 @@ describe("Agent production composition", () => {
       "opencode-native": readiness("opencode-native", "not-installed"),
       pi: readiness("pi", "ready"),
       cursor: readiness("cursor", "protocol-unavailable"),
+      "workbuddy-china": readiness("workbuddy-china", "ready"),
+      "workbuddy-international": readiness("workbuddy-international", "ready"),
+      hermes: readiness("hermes", "ready"),
+      "puppyone-agent": readiness("puppyone-agent", "ready"),
     });
 
     const catalog = await host.discover();
     expect(host.descriptors().map((runtime) => runtime.id)).toEqual([
+      "puppyone-agent",
       "codex",
       "claude",
       "opencode-native",
       "cursor",
+      "hermes",
       "pi",
+      "workbuddy-china",
+      "workbuddy-international",
     ]);
     expect(DEFAULT_AGENT_RUNTIME_ID).toBe("codex");
     expect(host.select(catalog)?.descriptor.id).toBe("codex");
@@ -33,13 +41,20 @@ describe("Agent production composition", () => {
       runtime.protocol.kind,
       runtime.trust.level,
     ])).toEqual([
+      ["puppyone-agent", "managed-harness", "rpc", "bundled-verified"],
       ["codex", "specialized-native", "app-server", "first-party"],
       ["claude", "specialized-native", "agent-sdk", "first-party"],
       ["opencode-native", "native-protocol", "acp", "first-party"],
       ["cursor", "native-protocol", "acp", "first-party"],
+      ["hermes", "native-protocol", "acp", "first-party"],
       ["pi", "specialized-native", "rpc", "first-party"],
+      ["workbuddy-china", "native-protocol", "acp", "first-party"],
+      ["workbuddy-international", "native-protocol", "acp", "first-party"],
     ]);
-    expect(() => host.require("puppyone-agent")).toThrow("Unknown Agent runtime: puppyone-agent");
+    expect(host.require("puppyone-agent").descriptor).toMatchObject({
+      displayName: "Built-in Agent",
+      iconKey: "built-in-agent",
+    });
     await host.dispose();
   });
 
@@ -51,6 +66,10 @@ describe("Agent production composition", () => {
       "opencode-native": readiness("opencode-native", "not-installed"),
       pi: readiness("pi", "not-installed"),
       cursor: brokenDiscovery,
+      "workbuddy-china": readiness("workbuddy-china", "not-installed"),
+      "workbuddy-international": readiness("workbuddy-international", "not-installed"),
+      hermes: readiness("hermes", "not-installed"),
+      "puppyone-agent": readiness("puppyone-agent", "ready"),
     }, { rawDiscovery: true });
 
     const catalog = await host.discover();
@@ -71,6 +90,10 @@ function productionHost(values, { rawDiscovery = false } = {}) {
     openCodeNative: { discovery: discovery("opencode-native") },
     pi: { discovery: discovery("pi") },
     cursor: { discovery: discovery("cursor") },
+    workBuddyChina: { discovery: discovery("workbuddy-china") },
+    workBuddyInternational: { discovery: discovery("workbuddy-international") },
+    hermes: { discovery: discovery("hermes") },
+    puppyOneAgent: { discovery: discovery("puppyone-agent") },
   });
 }
 

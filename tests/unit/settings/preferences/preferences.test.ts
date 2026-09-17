@@ -13,7 +13,7 @@ import {
   parseLoadingAnimationPreset,
   parseLocalAgentsSettings,
   parsePointerCursors,
-  parseSidebarNavigationVisibilitySettings,
+  parseTitlebarActionsSettings,
   resolveVisibleCreateNewMenuItems,
 } from "../../../../src/preferences";
 
@@ -131,6 +131,16 @@ describe("create new menu preferences", () => {
 });
 
 describe("appearance preferences", () => {
+  it("drops the retired standalone History header action", () => {
+    expect(parseTitlebarActionsSettings(JSON.stringify({
+      enabled: { changes: true, history: true, terminal: true },
+      order: ["history", "terminal", "changes"],
+    }))).toEqual({
+      enabled: { changes: true, terminal: true },
+      order: ["changes", "terminal"],
+    });
+  });
+
   it("keeps Agent file activity visibility opt-in", () => {
     expect(parseAgentFileActivityIndicatorsEnabled(null)).toBe(false);
     expect(parseAgentFileActivityIndicatorsEnabled("true")).toBe(true);
@@ -176,6 +186,12 @@ describe("local Agent preferences", () => {
     expect(parseLocalAgentsSettings(JSON.stringify({
       enabledAgentIds: ["codex"],
     }))).toEqual({ hiddenTerminalAgentIds: [], chatHistoryDiscoveryEnabled: false });
+    expect(parseLocalAgentsSettings(JSON.stringify({
+      hiddenTerminalAgentIds: ["workbuddy"],
+    }))).toEqual({
+      hiddenTerminalAgentIds: ["workbuddy-china", "workbuddy-international"],
+      chatHistoryDiscoveryEnabled: false,
+    });
     expect(parseLocalAgentsSettings("invalid")).toEqual({
       hiddenTerminalAgentIds: [],
       chatHistoryDiscoveryEnabled: false,
@@ -184,6 +200,13 @@ describe("local Agent preferences", () => {
 });
 
 describe("experimental preferences", () => {
+  it("keeps Built-in Agent hidden unless the user explicitly opts in", () => {
+    expect(parseExperimentalSettings(null).enableBuiltInAgent).toBe(false);
+    expect(parseExperimentalSettings("not-json").enableBuiltInAgent).toBe(false);
+    expect(parseExperimentalSettings(JSON.stringify({ enableBuiltInAgent: false })).enableBuiltInAgent).toBe(false);
+    expect(parseExperimentalSettings(JSON.stringify({ enableBuiltInAgent: true })).enableBuiltInAgent).toBe(true);
+  });
+
   it.each([true, false])("ignores retired Agent Chat preferences set to %s without changing other experiments", (enabled) => {
     const settings = parseExperimentalSettings(JSON.stringify({
       enableAgentChat: enabled,
@@ -263,6 +286,15 @@ describe("experimental preferences", () => {
     expect(parseExperimentalSettings(JSON.stringify({ enableMarkdownBlockDrag: true })).enableMarkdownBlockDrag).toBe(true);
   });
 
+  it("keeps the Markdown heading outline hidden unless the user explicitly opts in", () => {
+    expect(parseExperimentalSettings(null).enableMarkdownHeadingOutline).toBe(false);
+    expect(parseExperimentalSettings("not-json").enableMarkdownHeadingOutline).toBe(false);
+    expect(parseExperimentalSettings(JSON.stringify({ enableMarkdownHeadingOutline: false })).enableMarkdownHeadingOutline)
+      .toBe(false);
+    expect(parseExperimentalSettings(JSON.stringify({ enableMarkdownHeadingOutline: true })).enableMarkdownHeadingOutline)
+      .toBe(true);
+  });
+
   it("keeps the Asset Library homepage off unless the user explicitly opts in", () => {
     expect(parseExperimentalSettings(null).enableAssetLibraryHome).toBe(false);
     expect(parseExperimentalSettings(JSON.stringify({ enableAssetLibraryHome: false })).enableAssetLibraryHome).toBe(false);
@@ -278,15 +310,5 @@ describe("experimental preferences", () => {
   it("ignores the retired built-in Office editing experiment", () => {
     expect(parseExperimentalSettings(JSON.stringify({ enableOfficeEditing: true })))
       .not.toHaveProperty("enableOfficeEditing");
-  });
-});
-
-describe("sidebar navigation visibility preferences", () => {
-  it("shows optional shortcuts by default and preserves an explicit hidden choice", () => {
-    expect(parseSidebarNavigationVisibilitySettings(null).enabled.plugins).toBe(true);
-    expect(parseSidebarNavigationVisibilitySettings("not-json").enabled.plugins).toBe(true);
-    expect(parseSidebarNavigationVisibilitySettings(JSON.stringify({
-      enabled: { plugins: false },
-    })).enabled.plugins).toBe(false);
   });
 });

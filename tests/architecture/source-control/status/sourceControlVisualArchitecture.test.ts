@@ -104,6 +104,10 @@ const sidebarBaseCss = readFileSync(
   new URL("../../../../src/features/source-control/styles/sidebar-base.css", import.meta.url),
   "utf8",
 );
+const sidebarNavigationCss = readFileSync(
+  new URL("../../../../src/features/source-control/styles/sidebar-navigation.css", import.meta.url),
+  "utf8",
+);
 const sidebarResourcesCss = [
   "sidebar-panels.css",
   "sidebar-actions.css",
@@ -123,6 +127,10 @@ const gitRepositoryLifecycleSource = readFileSync(
 );
 const historyListCss = readFileSync(
   new URL("../../../../src/features/source-control/styles/history-list.css", import.meta.url),
+  "utf8",
+);
+const historySidebarCss = readFileSync(
+  new URL("../../../../src/features/source-control/styles/history-sidebar.css", import.meta.url),
   "utf8",
 );
 const historyTimelineSource = readFileSync(
@@ -245,11 +253,11 @@ describe("source-control visual architecture", () => {
     expect(sidebarResourcesCss).not.toContain("desktop-git-remote-status");
   });
 
-  it("keeps History and Changes as right-sidebar surfaces beside Chat instead of workbench tabs", () => {
+  it("nests History under the primary Changes entry instead of exposing two header actions", () => {
     expect(sourceControlSidebarSource).not.toContain("GitSidebarHistory");
     expect(sourceControlSidebarSource).not.toContain("desktop-git-history-pane");
     expect(historySidebarSource).toContain('className="desktop-git-history-sidebar"');
-    expect(historySidebarSource).not.toContain("desktop-git-history-sidebar-header");
+    expect(historySidebarSource).toContain("desktop-git-history-header");
     expect(historySidebarSource).not.toContain("AuxiliaryWorkbenchContribution");
     expect(appSource).toContain('rightSidebarSurface === "chat"');
     expect(appSource).toContain('rightSidebarSurface === "changes"');
@@ -261,9 +269,10 @@ describe("source-control visual architecture", () => {
     expect(appSource).toContain('setRightSidebarSurface("chat")');
     expect(appSource).not.toContain("gitHistoryContribution");
     expect(appSource).not.toContain("GIT_HISTORY_WORKBENCH_KIND");
-    expect(headerElementsSource).toContain('id: "history"');
+    expect(changesSidebarSource).toContain("onOpenHistory");
+    expect(historySidebarSource).toContain("onBack");
+    expect(headerElementsSource).not.toContain('id: "history"');
     expect(headerElementsSource).toContain('id: "changes"');
-    expect(headerElementsSource).toContain("aria-pressed={history.sidebarOpen}");
     expect(historyTimelineSource).toContain("<VirtualSidebarList");
     expect(viewSource).not.toContain("<VirtualSidebarList");
     expect(gitControllerSource).toContain("gitHistoryActive");
@@ -276,7 +285,9 @@ describe("source-control visual architecture", () => {
     expect(historyTimelineSource).toContain('className="desktop-git-history-loading"');
     expect(historyTimelineSource).toContain('t("source-control.status.readingHistory")');
     expect(changesSidebarSource).toContain("<WorkingFileDetail");
-    expect(changesSidebarSource).toContain('className="desktop-history-detail-back"');
+    expect(changesSidebarSource).toContain('className="desktop-git-view-header desktop-git-changes-detail-header"');
+    expect(changesSidebarSource).toContain('className="desktop-git-view-back"');
+    expect(changesSidebarSource).toContain("<WorkingFileActions");
     expect(sourceControlSidebarSource).not.toContain('className="desktop-git-commit-composer"');
     expect(sourceControlSidebarSectionsSource).toContain('className="desktop-git-commit-staged-action"');
     expect(sourceControlSidebarSectionsSource).toContain('className="desktop-git-stage-commit-action"');
@@ -540,31 +551,56 @@ describe("source-control visual architecture", () => {
       diffCss,
       '.desktop-file-diff[data-content-mode="metadata"] .desktop-file-diff-header',
     ));
-    const format = compact(readCssBlock(diffCss, ".desktop-file-format-label"));
     const stats = compact(readCssBlock(diffCss, ".desktop-file-diff-stat"));
-    expect(header).toContain("grid-template-columns: max-content minmax(0, 1fr);");
+    const identity = compact(readCssBlock(diffCss, ".desktop-file-diff-identity"));
+    const name = compact(readCssBlock(diffCss, ".desktop-file-diff-name"));
+    expect(header).toContain("grid-template-columns: minmax(0, 1fr) auto;");
+    expect(header).toContain("min-height: 32px;");
     expect(metadataHeader).toContain("border-bottom: 0;");
-    expect(format).toContain("color: var(--po-text);");
-    expect(format).toContain("font-weight: 650;");
-    expect(format).not.toContain("border-radius:");
-    expect(format).not.toContain("background:");
+    expect(identity).toContain("justify-content: flex-start;");
+    expect(name).toContain("font-size: var(--po-type-left-sidebar-content, 14px);");
     expect(stats).toContain("font-variant-numeric: tabular-nums;");
-    expect(stats).toContain("font-weight: 650;");
+    expect(stats).toContain("font-size: var(--po-type-left-sidebar-meta, 12px);");
 
-    const factsIndex = fileDiffSurfaceSource.indexOf('className="desktop-file-diff-facts"');
-    const formatIndex = fileDiffSurfaceSource.indexOf('className="desktop-file-format-label"');
+    const identityIndex = fileDiffSurfaceSource.indexOf('className="desktop-file-diff-identity"');
+    const nameIndex = fileDiffSurfaceSource.indexOf('className="desktop-file-diff-name"');
     const statusIndex = fileDiffSurfaceSource.indexOf("desktop-change-badge");
     const statsIndex = fileDiffSurfaceSource.indexOf('className="desktop-file-diff-stat"');
-    const identityIndex = fileDiffSurfaceSource.indexOf('className="desktop-file-diff-identity"');
-    expect(factsIndex).toBeGreaterThan(-1);
-    expect(formatIndex).toBeGreaterThan(factsIndex);
-    expect(statusIndex).toBeGreaterThan(formatIndex);
+    expect(identityIndex).toBeGreaterThan(-1);
+    expect(nameIndex).toBeGreaterThan(identityIndex);
+    expect(statusIndex).toBeGreaterThan(nameIndex);
     expect(statsIndex).toBeGreaterThan(statusIndex);
-    expect(identityIndex).toBeGreaterThan(statsIndex);
+    expect(fileDiffSurfaceSource).not.toContain("desktop-file-format-label");
+    expect(fileDiffSurfaceSource).not.toContain("desktop-file-diff-directory");
     expect(fileDiffSurfaceSource).toContain("resolveDiffViewer(file)");
     expect(fileDiffSurfaceSource).toContain("resolvedViewer={resolvedViewer}");
     expect(workingFileDetailSource).not.toContain("desktop-working-diff-context");
     expect(workingFileDetailSource).not.toContain("getGitDiffContextPresentation");
+  });
+
+  it("keeps commit detail message-first with one compact metadata row", () => {
+    const title = compact(readCssBlock(detailCss, ".desktop-commit-title-row h2"));
+    const meta = compact(readCssBlock(detailCss, ".desktop-commit-meta-row"));
+    const id = compact(readCssBlock(detailCss, ".desktop-commit-id-copy"));
+    const stats = compact(readCssBlock(
+      detailCss,
+      ".desktop-commit-meta-row .desktop-commit-stats",
+    ));
+    const titleIndex = gitCommitDetailSource.indexOf('className="desktop-commit-title-row"');
+    const idIndex = gitCommitDetailSource.indexOf('className="desktop-commit-id-copy"');
+
+    expect(titleIndex).toBeGreaterThan(-1);
+    expect(idIndex).toBeGreaterThan(titleIndex);
+    expect(gitCommitDetailSource).toContain("commit.message ||");
+    expect(gitCommitDetailSource).toContain("writeClipboardText(commit.commit_id)");
+    expect(gitCommitDetailSource).not.toContain("commit.author_name");
+    expect(gitCommitDetailSource).not.toContain("commit.author_email");
+    expect(title).toContain("font-size: var(--po-type-right-sidebar-heading-2, 16px);");
+    expect(title).toContain("font-weight: 650;");
+    expect(meta).toContain("justify-content: space-between;");
+    expect(id).toContain("font-size: var(--po-type-left-sidebar-meta, 12px);");
+    expect(stats).toContain("margin-bottom: 0;");
+    expect(stats).toContain("font-size: var(--po-type-left-sidebar-meta, 12px);");
   });
 
   it("keeps file actions at toolbar emphasis", () => {
@@ -592,7 +628,7 @@ describe("source-control visual architecture", () => {
   it("shares one 24px action-size contract across Source Control", () => {
     const contract = compact(readCssBlock(
       sidebarBaseCss,
-      ".desktop-git-sidebar,\n.desktop-history-detail-view",
+      ".desktop-git-sidebar,\n.desktop-history-detail-view,\n.desktop-git-changes-sidebar",
     ));
     const operation = compact(readCssBlock(
       sidebarResourcesCss,
@@ -602,7 +638,7 @@ describe("source-control visual architecture", () => {
     expect(contract).toContain("--git-action-size: 24px;");
     expect(contract).toContain("--git-action-radius: var(--desktop-toolbar-action-radius);");
     expect(contract).toContain("--git-action-padding-inline: 7px;");
-    expect(contract).toContain("--git-action-font-size: var(--po-type-ui-meta, 13px);");
+    expect(contract).toContain("--git-action-font-size: var(--po-type-left-sidebar-meta, 12px);");
     expect(operation).toContain("height: var(--git-action-size);");
     expect(operation).toContain("padding: 0 var(--git-action-padding-inline);");
     expect(operation).not.toContain("height: 28px;");
@@ -682,6 +718,7 @@ describe("source-control visual architecture", () => {
 
   it("keeps diff typography dense and color subordinate to content", () => {
     const surface = compact(readCssBlock(diffCss, ".desktop-file-diff"));
+    const header = compact(readCssBlock(diffCss, ".desktop-file-diff-header"));
     const lines = compact(readCssBlock(diffCss, ".desktop-diff-line"));
     const added = compact(readCssBlock(diffCss, ".desktop-diff-line.add"));
     const removed = compact(readCssBlock(diffCss, ".desktop-diff-line.remove"));
@@ -694,6 +731,10 @@ describe("source-control visual architecture", () => {
     expect(surface).toContain(
       "--desktop-git-diff-code-bg: color-mix(in srgb, var(--po-panel) 62%, var(--po-inset));",
     );
+    expect(surface).toContain(
+      "--desktop-git-diff-header-bg: color-mix(in srgb, var(--po-inset) 72%, var(--po-panel));",
+    );
+    expect(header).toContain("background: var(--desktop-git-diff-header-bg);");
     expect(surface).toContain(
       "--desktop-git-diff-added-bg: color-mix(in srgb, var(--po-success) 7%, var(--desktop-git-diff-code-bg));",
     );
@@ -723,7 +764,7 @@ describe("source-control visual architecture", () => {
     expect(lineView).toContain('className="line-prefix"');
   });
 
-  it("keeps sidebar metadata quieter while preserving the shared file-icon system", () => {
+  it("matches file rows to the left-sidebar type scale while preserving the shared file-icon system", () => {
     const sidebar = compact(readCssBlock(sidebarBaseCss, ".desktop-git-sidebar"));
     const workingTreeMain = compact(readCssBlock(
       sidebarResourcesCss,
@@ -731,13 +772,13 @@ describe("source-control visual architecture", () => {
     ));
 
     expect(sidebar).toContain(
-      "--git-font-main: var(--desktop-sidebar-font-size, var(--po-type-left-sidebar-content, 14px));",
+      "--git-font-main: var(--po-type-left-sidebar-content, 14px);",
     );
     expect(sidebar).toContain(
-      "--git-font-small: var(--desktop-sidebar-font-size-meta, var(--po-type-left-sidebar-meta, 12px));",
+      "--git-font-small: var(--po-type-left-sidebar-meta, 12px);",
     );
     expect(sidebar).toContain(
-      "--git-line-height: var(--desktop-sidebar-line-height, 18px);",
+      "--git-line-height: var(--po-type-left-sidebar-line-height, 19px);",
     );
     expect(sidebar).toContain(
       "--git-weight-regular: var(--desktop-sidebar-font-weight, var(--po-text-weight-medium, 500));",
@@ -747,6 +788,25 @@ describe("source-control visual architecture", () => {
     );
     expect(sidebar).toContain(
       "--git-icon-label-gap: var(--desktop-sidebar-icon-label-gap, 4px);",
+    );
+    expect(sidebar).toContain(
+      "--desktop-sidebar-section-title-font-size: var(--git-font-main);",
+    );
+    expect(sidebar).toContain(
+      "--desktop-sidebar-section-title-font-weight: var(--git-weight-regular);",
+    );
+    expect(sidebar).toContain(
+      "--desktop-sidebar-section-title-line-height: var(--git-line-height);",
+    );
+    const viewTitle = compact(readCssBlock(sidebarNavigationCss, ".desktop-git-view-title"));
+    expect(viewTitle).toContain("color: var(--po-text-muted);");
+    expect(viewTitle).toContain("font-size: var(--po-type-right-sidebar-meta, 13px);");
+    expect(viewTitle).toContain("font-weight: var(--po-text-weight-regular, 400);");
+    expect(historySidebarCss).toContain(
+      "--git-font-main: var(--po-type-left-sidebar-content, 14px);",
+    );
+    expect(historySidebarCss).toContain(
+      "--git-font-small: var(--po-type-left-sidebar-meta, 12px);",
     );
     expect(historyListCss).toContain("font-size: var(--git-font-main);");
     expect(historyListCss).toContain("font-weight: var(--git-weight-regular);");
@@ -792,11 +852,17 @@ describe("source-control visual architecture", () => {
     expect(row).toContain("height: calc(var(--po-sidebar-virtual-row-size) - 4px);");
     expect(row).toContain("overflow: hidden;");
     expect(date).toContain("display: flex;");
+    expect(date).toContain("color: var(--po-text-muted);");
+    expect(date).toContain("font-size: var(--git-font-main);");
+    expect(date).toContain("line-height: var(--git-line-height);");
     expect(divider).toContain("flex: 1 1 auto;");
     expect(row).toContain("padding-inline-start: 20px;");
     expect(message).toContain("overflow: hidden;");
     expect(message).toContain("text-overflow: ellipsis;");
     expect(message).toContain("white-space: nowrap;");
+    expect(message).toContain("color: var(--po-text-muted);");
+    expect(message).toContain("font-size: var(--git-font-main);");
+    expect(message).toContain("line-height: var(--git-line-height);");
     expect(stat).toContain("font-variant-numeric: tabular-nums;");
     expect(files).toContain("overflow: hidden;");
     expect(files).toContain("flex-direction: column;");

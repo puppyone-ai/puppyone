@@ -1,8 +1,48 @@
 import type { AuxiliaryWorkbenchCreationRecipe } from "./types";
 
+const AGENT_CHAT_RECIPE_LABEL_COLLATOR = new Intl.Collator("en", {
+  sensitivity: "base",
+});
+
 const LOCAL_AGENT_ID_BY_RUNTIME_ID: Readonly<Record<string, string>> = Object.freeze({
   "opencode-native": "opencode",
 });
+
+export const BUILT_IN_AGENT_RUNTIME_ID = "puppyone-agent" as const;
+
+export function compareAgentChatCreationRecipesAlphabetically(
+  left: AuxiliaryWorkbenchCreationRecipe,
+  right: AuxiliaryWorkbenchCreationRecipe,
+) {
+  return AGENT_CHAT_RECIPE_LABEL_COLLATOR.compare(left.label, right.label)
+    || AGENT_CHAT_RECIPE_LABEL_COLLATOR.compare(left.id, right.id);
+}
+
+export function sortAgentChatCreationRecipesAlphabetically(
+  recipes: readonly AuxiliaryWorkbenchCreationRecipe[],
+) {
+  return [...recipes].sort(compareAgentChatCreationRecipesAlphabetically);
+}
+
+/**
+ * User-installed Agent products stay alphabetized. The single bundled route is
+ * a separate product category and remains last without coupling its name to
+ * display position.
+ */
+export function compareAgentChatCreationRecipesForDisplay(
+  left: AuxiliaryWorkbenchCreationRecipe,
+  right: AuxiliaryWorkbenchCreationRecipe,
+) {
+  const bundledOrder = Number(left.availability === "bundled")
+    - Number(right.availability === "bundled");
+  return bundledOrder || compareAgentChatCreationRecipesAlphabetically(left, right);
+}
+
+export function sortAgentChatCreationRecipesForDisplay(
+  recipes: readonly AuxiliaryWorkbenchCreationRecipe[],
+) {
+  return [...recipes].sort(compareAgentChatCreationRecipesForDisplay);
+}
 
 export function localAgentIdForAgentChatRuntime(runtimeId: string) {
   return LOCAL_AGENT_ID_BY_RUNTIME_ID[runtimeId] ?? runtimeId;
@@ -13,29 +53,67 @@ export function filterAgentChatCreationRecipesByLocalAgentIds(
   localAgentIds: readonly string[],
 ) {
   const visible = new Set(localAgentIds);
-  return recipes.filter((recipe) => visible.has(localAgentIdForAgentChatRuntime(recipe.id)));
+  return recipes.filter((recipe) => (
+    recipe.availability === "bundled"
+    || visible.has(localAgentIdForAgentChatRuntime(recipe.id))
+  ));
+}
+
+export function resolveAgentChatRuntimeVisibility(
+  recipes: readonly AuxiliaryWorkbenchCreationRecipe[],
+  {
+    hiddenLocalAgentIds,
+    builtInAgentEnabled,
+  }: {
+    hiddenLocalAgentIds: readonly string[];
+    builtInAgentEnabled: boolean;
+  },
+) {
+  const hiddenLocalAgents = new Set(hiddenLocalAgentIds);
+  const isHidden = (recipe: AuxiliaryWorkbenchCreationRecipe) => {
+    if (recipe.id === BUILT_IN_AGENT_RUNTIME_ID) return !builtInAgentEnabled;
+    return recipe.availability !== "bundled"
+      && hiddenLocalAgents.has(localAgentIdForAgentChatRuntime(recipe.id));
+  };
+
+  return Object.freeze({
+    activeRecipes: Object.freeze(recipes.filter((recipe) => !isHidden(recipe))),
+    hiddenRuntimeIds: Object.freeze(recipes.filter(isHidden).map(({ id }) => id)),
+  });
 }
 
 /**
- * Reserved product definition for a future launch. It is intentionally absent
- * from both the production runtime registry and the customer-facing recipes.
+ * Product-owned Agent. Its managed Pi SDK kernel ships with PuppyOne and does
+ * not participate in user-installed Agent discovery or visibility settings.
  */
-export const PUPPYONE_AGENT_CREATION_RECIPE = Object.freeze({
-  id: "puppyone-agent",
-  label: "PuppyOne",
-  iconKey: "puppyone-agent",
-  status: "coming-soon",
+export const BUILT_IN_AGENT_CREATION_RECIPE = Object.freeze({
+  id: BUILT_IN_AGENT_RUNTIME_ID,
+  label: "Built-in Agent",
+  iconKey: "built-in-agent",
+  status: "available",
+  availability: "bundled",
 } as const satisfies AuxiliaryWorkbenchCreationRecipe);
 
-/** Composition-owned product order for recipes currently exposed in the launcher. */
-export const AGENT_CHAT_CREATION_RECIPES = Object.freeze([
-  Object.freeze({ id: "codex", label: "Codex", iconKey: "codex", status: "available" }),
-  Object.freeze({ id: "claude", label: "Claude Code", iconKey: "claude", status: "available" }),
-  Object.freeze({ id: "cursor", label: "Cursor", iconKey: "cursor", status: "available" }),
-  Object.freeze({ id: "opencode-native", label: "OpenCode", iconKey: "opencode", status: "available" }),
-  Object.freeze({ id: "pi", label: "Pi", iconKey: "pi", status: "available" }),
+/** Registration order has no display semantics; the exported catalog is sorted below. */
+const AGENT_CHAT_CREATION_RECIPE_REGISTRY = Object.freeze([
+  BUILT_IN_AGENT_CREATION_RECIPE,
+  Object.freeze({ id: "claude", label: "Claude Code", iconKey: "claude", status: "available", availability: "local-installation" }),
+  Object.freeze({ id: "codex", label: "Codex", iconKey: "codex", status: "available", availability: "local-installation" }),
+  Object.freeze({ id: "cursor", label: "Cursor", iconKey: "cursor", status: "available", availability: "local-installation" }),
+  Object.freeze({ id: "hermes", label: "Hermes Agent", iconKey: "hermes", status: "available", availability: "local-installation" }),
+  Object.freeze({ id: "opencode-native", label: "OpenCode", iconKey: "opencode", status: "available", availability: "local-installation" }),
+  Object.freeze({ id: "pi", label: "Pi", iconKey: "pi", status: "available", availability: "local-installation" }),
+  Object.freeze({ id: "workbuddy-china", label: "WorkBuddy (China)", iconKey: "workbuddy", status: "available", availability: "local-installation" }),
+  Object.freeze({ id: "workbuddy-international", label: "WorkBuddy (International)", iconKey: "workbuddy", status: "available", availability: "local-installation" }),
 ] as const satisfies readonly AuxiliaryWorkbenchCreationRecipe[]);
 
+/** External catalog ordered by English label, followed by the bundled route. */
+export const AGENT_CHAT_CREATION_RECIPES = Object.freeze(
+  sortAgentChatCreationRecipesForDisplay(AGENT_CHAT_CREATION_RECIPE_REGISTRY),
+);
+
 export const AGENT_CHAT_LOCAL_AGENT_IDS = Object.freeze(
-  AGENT_CHAT_CREATION_RECIPES.map((recipe) => localAgentIdForAgentChatRuntime(recipe.id)),
+  AGENT_CHAT_CREATION_RECIPES
+    .filter((recipe) => recipe.availability !== "bundled")
+    .map((recipe) => localAgentIdForAgentChatRuntime(recipe.id)),
 );

@@ -5,6 +5,10 @@ import { cursorInstallationDefinition } from "./definitions/cursor.mjs";
 import { hermesInstallationDefinition } from "./definitions/hermes.mjs";
 import { opencodeInstallationDefinition } from "./definitions/opencode.mjs";
 import { piInstallationDefinition } from "./definitions/pi.mjs";
+import {
+  workBuddyChinaInstallationDefinition,
+  workBuddyInternationalInstallationDefinition,
+} from "./definitions/workbuddy.mjs";
 
 const DEFAULT_DEFINITIONS = Object.freeze([
   codexInstallationDefinition,
@@ -12,6 +16,8 @@ const DEFAULT_DEFINITIONS = Object.freeze([
   cursorInstallationDefinition,
   opencodeInstallationDefinition,
   piInstallationDefinition,
+  workBuddyChinaInstallationDefinition,
+  workBuddyInternationalInstallationDefinition,
   hermesInstallationDefinition,
 ]);
 
@@ -25,6 +31,7 @@ export function createLocalAgentInstallationRegistry(definitions = DEFAULT_DEFIN
       id: definition.id,
       displayName: definition.displayName.trim(),
       executableNames: [...definition.executableNames],
+      ...(definition.searchPath === false ? { searchPath: false } : {}),
       ...(definition.candidatePaths ? { candidatePaths: definition.candidatePaths } : {}),
       ...(definition.identityPolicy ? { identityPolicy: { ...definition.identityPolicy } } : {}),
     });
@@ -52,6 +59,9 @@ function validateDefinition(definition) {
   }
   if (definition.candidatePaths !== undefined && typeof definition.candidatePaths !== "function") {
     throw new TypeError(`Local Agent ${definition.id} candidatePaths must be a function.`);
+  }
+  if (definition.searchPath !== undefined && typeof definition.searchPath !== "boolean") {
+    throw new TypeError(`Local Agent ${definition.id} searchPath must be a boolean.`);
   }
   validateIdentityPolicy(definition);
 }

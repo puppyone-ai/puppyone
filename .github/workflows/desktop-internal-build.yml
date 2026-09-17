@@ -97,19 +97,6 @@ jobs:
           tests/integration/release/build-identity/desktopReleaseMetadata.test.mjs
           tests/architecture/release/build-identity/macosReleasePolicy.test.mjs
 
-      - name: Stage pinned OpenCode runtime
-        env:
-          PLATFORM_KEY: ${{ steps.release.outputs.target_runtime_key }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          VERSION="$(node -p "JSON.parse(require('fs').readFileSync('vendor/opencode/runtime-manifest.json', 'utf8')).runtimeRelease.version")"
-          ARCHIVE="$(node -e "const m=require('./vendor/opencode/runtime-manifest.json'); const a=m.artifacts[process.argv[1]]; if(!a) process.exit(2); process.stdout.write(a.archive)" "${PLATFORM_KEY}")"
-          DOWNLOAD="${RUNNER_TEMP}/${ARCHIVE}"
-          curl --fail --location --retry 3 --output "${DOWNLOAD}" \
-            "https://github.com/anomalyco/opencode/releases/download/v${VERSION}/${ARCHIVE}"
-          npm run stage:opencode-runtime -- "${DOWNLOAD}"
-
       - name: Build ad-hoc macOS package
         run: npm run dist:mac:prepared
 

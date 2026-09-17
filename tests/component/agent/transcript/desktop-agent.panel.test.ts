@@ -342,6 +342,46 @@ describe("Project-owned Agent Chat Workbench lifecycle", () => {
     expect(container.textContent).toContain("Fix it");
     expect(container.textContent).toContain("Working");
   });
+
+  it("ends Stop and offers a draft-preserving follow-up for degraded completion", async () => {
+    const harness = createBridgeHarness();
+    const container = renderPanel(harness.bridge);
+    await flushEffects();
+    const panel = activeTabPanel(container);
+    const tabId = panel.dataset.terminalSessionPaneId!;
+    const controller = projectAgentControllers(project).get(tabId);
+    act(() => controller.setDraft("Keep my separate draft"));
+
+    act(() => harness.eventListener?.(event(2, "turn.started", { prompt: "Finish it" }, "turn-degraded")));
+    act(() => harness.eventListener?.(event(3, "assistant.completed", {
+      text: "Native internal request ended early.",
+    }, "turn-degraded", "message-degraded")));
+    act(() => harness.eventListener?.(event(4, "turn.completed", {
+      status: "completed",
+      completionQuality: "degraded",
+      failureScope: "upstream-request",
+      failureCode: "CURSOR_HTTP2_STREAM_CANCEL",
+      retryable: true,
+      transportHealth: "healthy",
+      sideEffects: "possible",
+    }, "turn-degraded")));
+    await flushEffects();
+
+    expect(panel.querySelector(".desktop-agent-recovery")?.textContent).toContain("Task needs follow-up");
+    expect(panel.querySelector(".desktop-agent-composer-action.is-stop")).toBeNull();
+    const continueButton = [...panel.querySelectorAll<HTMLButtonElement>(".desktop-agent-recovery button")]
+      .find((button) => button.textContent?.includes("Check current state and continue"));
+    expect(continueButton).toBeTruthy();
+    await act(async () => { continueButton?.click(); await Promise.resolve(); });
+
+    expect(harness.bridge.startAgentTurn).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: "session-1",
+      recoveryOfTurnId: "turn-degraded",
+      references: [],
+      promptMentions: [],
+    }));
+    expect(controller.getSnapshot().draft).toBe("Keep my separate draft");
+  });
 });
 
 function renderPanel(
@@ -402,6 +442,7 @@ function createBridgeHarness() {
     openAgentSession: vi.fn(async () => ({ status: "opened", snapshot: snapshot([]) })),
     replayAgentSession: vi.fn(async () => snapshot([])),
     closeAgentSession: vi.fn(async () => ({ sessionId: "session-1", closed: true })),
+    startAgentTurn: vi.fn(async () => ({ accepted: true })),
     createAgentSession: vi.fn(async () => snapshot([
       event(1, "session.started", { title: "New session" }),
     ])),

@@ -1,24 +1,28 @@
-import { OPENCODE_UPSTREAM } from "../opencode-protocol/opencode-manifest.mjs";
 import {
   defineAgentRuntimeManifest,
   runtimeDescriptorFromManifest,
 } from "../../runtime/agent-runtime-manifest.mjs";
+import { PUPPYONE_PI_KERNEL } from "./puppyone-agent-kernel.mjs";
+import {
+  BUILT_IN_AGENT_DISPLAY_NAME,
+  BUILT_IN_AGENT_ICON_KEY,
+} from "./puppyone-agent-public-identity.mjs";
 
 export const PUPPYONE_AGENT_RUNTIME_ID = "puppyone-agent";
 
 export const PUPPYONE_AGENT_RUNTIME_MANIFEST = defineAgentRuntimeManifest({
   id: PUPPYONE_AGENT_RUNTIME_ID,
-  displayName: "PuppyOne Agent",
-  description: "PuppyOne's managed coding Agent, powered by a pinned and verified OpenCode kernel.",
-  iconKey: "puppyone-agent",
+  displayName: BUILT_IN_AGENT_DISPLAY_NAME,
+  description: `${BUILT_IN_AGENT_DISPLAY_NAME} is PuppyOne's managed coding Agent, powered by a pinned Pi SDK kernel.`,
+  iconKey: BUILT_IN_AGENT_ICON_KEY,
   priority: 100,
   execution: {
-    kind: "managed-local-process",
+    kind: "sdk-mediated-process",
     distribution: "bundled",
-    controller: "bundled-adapter",
+    controller: "bundled-sdk",
   },
-  protocol: { kind: "acp", transport: "stdio-json-rpc" },
-  integration: { kind: "managed-harness", adapter: "generic-acp" },
+  protocol: { kind: "rpc", transport: "stdio-jsonl" },
+  integration: { kind: "managed-harness", adapter: "custom" },
   trust: { level: "bundled-verified", publisher: "PuppyOne" },
   ownership: {
     harness: "puppyone",
@@ -27,9 +31,11 @@ export const PUPPYONE_AGENT_RUNTIME_MANIFEST = defineAgentRuntimeManifest({
     billing: ["puppyone", "user-provider"],
     session: "puppyone",
   },
+  source: "pinned-pi-sdk",
+  compatibility: PUPPYONE_PI_KERNEL.protocol,
 });
 
 export const PUPPYONE_AGENT_RUNTIME_DESCRIPTOR = Object.freeze({
   ...runtimeDescriptorFromManifest(PUPPYONE_AGENT_RUNTIME_MANIFEST),
-  upstream: OPENCODE_UPSTREAM,
+  upstream: PUPPYONE_PI_KERNEL,
 });

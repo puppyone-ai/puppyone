@@ -30,10 +30,12 @@ contracts here.
   exposes Pull only when relevant, and places Stash and destructive cleanup
   behind the secondary-action menu. Selecting a change replaces the list with
   its file diff inside the same right sidebar rather than navigating the main
-  editor surface.
-- `GitHistorySidebar.tsx` owns the repository History surface selected by the
-  right-sidebar shell. History, Changes, and Chat are mutually exclusive
-  sibling surfaces, not tabs in Chat's auxiliary workbench.
+  editor surface. It is the sole shell-level Git entry and exposes History as
+  a secondary view from its compact header.
+- `GitHistorySidebar.tsx` owns the repository History view inside the Git
+  right-sidebar flow. Its root Back action returns to Changes; commit detail
+  Back returns to the History list. History remains separate from Chat's
+  auxiliary workbench.
 - `GitHistoryTimeline.tsx` owns the virtualized commit timeline shared by the
   History surface. It groups commits into collapsible local-calendar days and
   keeps each row to a commit message, compact change totals, and a restrained

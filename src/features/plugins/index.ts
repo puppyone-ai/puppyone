@@ -4,4 +4,5 @@ export {
   PluginsSidebar,
   type PluginsSection,
 } from "./PluginsSidebar";
-export { isPluginsNavigationVisible, isViewerPluginsEnabled } from "./pluginFeature";
+export { PluginsDialog, type PluginsDialogProps } from "./PluginsDialog";
+export { isViewerPluginsEnabled } from "./pluginFeature";

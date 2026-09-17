@@ -2,8 +2,14 @@ import { AgentRuntimeHost, AgentRuntimeRegistry } from "../runtime/agent-runtime
 import { createClaudeRuntimeDefinition } from "../runtimes/claude/claude-runtime-definition.mjs";
 import { createCodexRuntimeDefinition } from "../runtimes/codex/codex-runtime-definition.mjs";
 import { createCursorRuntimeDefinition } from "../runtimes/cursor/cursor-runtime-definition.mjs";
+import { createHermesRuntimeDefinition } from "../runtimes/hermes/hermes-runtime-definition.mjs";
 import { createOpenCodeNativeRuntimeDefinition } from "../runtimes/opencode-native/opencode-native-runtime-definition.mjs";
 import { createPiRuntimeDefinition } from "../runtimes/pi/pi-runtime-definition.mjs";
+import { createPuppyOneAgentRuntimeDefinition } from "../runtimes/puppyone-agent/puppyone-agent-runtime-definition.mjs";
+import {
+  createWorkBuddyChinaRuntimeDefinition,
+  createWorkBuddyInternationalRuntimeDefinition,
+} from "../runtimes/workbuddy/workbuddy-runtime-definition.mjs";
 
 export const DEFAULT_AGENT_RUNTIME_ID = "codex";
 
@@ -11,11 +17,18 @@ export const DEFAULT_AGENT_RUNTIME_ID = "codex";
 export function createDefaultAgentRuntimeHost({
   logger = console,
   appVersion = "0.0.0",
+  appPath,
+  userDataPath,
+  executablePath,
   codex = {},
   claude = {},
   cursor = {},
   openCodeNative = {},
   pi = {},
+  workBuddyChina = {},
+  workBuddyInternational = {},
+  hermes = {},
+  puppyOneAgent = {},
 } = {}) {
   const definitions = [
     createCodexRuntimeDefinition({ appVersion, ...codex }),
@@ -23,6 +36,16 @@ export function createDefaultAgentRuntimeHost({
     createOpenCodeNativeRuntimeDefinition({ appVersion, logger, ...openCodeNative }),
     createPiRuntimeDefinition({ logger, ...pi }),
     createCursorRuntimeDefinition(cursor),
+    createWorkBuddyChinaRuntimeDefinition({ appVersion, logger, ...workBuddyChina }),
+    createWorkBuddyInternationalRuntimeDefinition({ appVersion, logger, ...workBuddyInternational }),
+    createHermesRuntimeDefinition({ appVersion, logger, ...hermes }),
+    createPuppyOneAgentRuntimeDefinition({
+      appPath,
+      userDataPath,
+      executablePath,
+      logger,
+      ...puppyOneAgent,
+    }),
   ];
   return new AgentRuntimeHost(new AgentRuntimeRegistry(definitions, {
     defaultRuntimeId: DEFAULT_AGENT_RUNTIME_ID,

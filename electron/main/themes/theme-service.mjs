@@ -223,7 +223,7 @@ function createStarterThemeCss({ themeId, themeName }) {
   }
 
   .dark .theme-root {
-    --po-canvas: #161413;
+    --po-canvas: #161616;
     --po-accent: #60a5fa;
   }
 }

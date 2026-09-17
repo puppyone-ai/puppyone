@@ -27,11 +27,16 @@
   --agent-empty-brand-foreground: color-mix(in srgb, var(--agent-text-subtle) 64%, var(--agent-canvas));
   --agent-empty-brand-foreground-hover: color-mix(in srgb, var(--agent-text-muted) 76%, var(--agent-canvas));
   --agent-tool-action-foreground: var(--agent-text-muted);
+  --agent-tool-active-foreground: color-mix(in srgb, var(--agent-text) 78%, var(--agent-text-muted));
   --agent-tool-evidence-rail: var(--agent-border);
   --agent-blocking-surface: color-mix(in srgb, var(--agent-control-surface) 52%, var(--agent-canvas));
   --agent-blocking-border: var(--agent-border-subtle);
+  --agent-blocking-attention-border: color-mix(in srgb, var(--po-warning) 48%, var(--agent-border-subtle));
   --agent-blocking-icon-surface: color-mix(in srgb, var(--po-warning) 10%, transparent);
   --agent-blocking-icon-foreground: color-mix(in srgb, var(--po-warning) 62%, var(--agent-text-muted));
+  --agent-recovery-surface: color-mix(in srgb, var(--po-warning) 7%, var(--agent-canvas));
+  --agent-recovery-border: color-mix(in srgb, var(--po-warning) 34%, var(--agent-border-subtle));
+  --agent-recovery-foreground: color-mix(in srgb, var(--po-warning) 66%, var(--agent-text));
   --agent-accent: var(--po-accent);
   --agent-accent-soft: color-mix(in srgb, var(--po-accent) 16%, transparent);
   /* Shared interaction roles; feature geometry remains in foundation.css. */
@@ -61,6 +66,8 @@
   --agent-focus-ring: color-mix(in srgb, var(--agent-accent) 68%, transparent);
   --agent-table-header-surface: color-mix(in srgb, var(--agent-control-surface) 76%, var(--agent-canvas));
   --agent-table-alternate-surface: color-mix(in srgb, var(--agent-control-surface) 28%, transparent);
+  --agent-inline-code-surface: color-mix(in srgb, var(--agent-text) 8%, var(--agent-canvas));
+  --agent-inline-code-border: color-mix(in srgb, var(--agent-text) 14%, var(--agent-canvas));
   --agent-code-surface: color-mix(in srgb, var(--agent-control-surface) 88%, var(--agent-canvas));
   --agent-code-header-surface: color-mix(in srgb, var(--agent-control-surface) 30%, transparent);
   --agent-readiness-border: color-mix(in srgb, var(--po-warning) 35%, var(--po-divider));

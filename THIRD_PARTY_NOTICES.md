@@ -101,21 +101,23 @@ request.
 
 ## OpenCode
 
-PuppyOne Desktop can distribute and run the OpenCode coding-agent harness as
-the managed kernel behind PuppyOne Agent. The adopted runtime release is
-`v1.17.18` at commit
-`b8374b5a7c532e51aeb66b1dee9278de91526ef5`; its prompt hashes are taken from
-that exact commit. Broader architecture behavior was also audited at later
-source commit `9976269ab1accfc9f9dc98a4a688c516934de422`.
-The main process communicates with the runtime through Agent Client Protocol
-v1 over NDJSON JSON-RPC 2.0. The retired HTTP SDK client is not shipped.
+PuppyOne Desktop can connect to a user's own OpenCode installation through its
+Agent Client Protocol endpoint. PuppyOne does not redistribute an OpenCode
+binary and does not use OpenCode as the managed kernel behind PuppyOne Agent.
+OpenCode remains owned, configured, authenticated, and updated by the user.
 
-OpenCode is Copyright (c) 2025 opencode and licensed under the MIT License.
-The complete license text is distributed at `vendor/opencode/LICENSE` and in
-the packaged `resources/opencode/LICENSE` file.
+## Pi SDK
 
-The exact artifact hashes, prompt-source hashes, and source-adoption ledger are
-distributed in `vendor/opencode/`.
+PuppyOne Agent embeds the exact production dependency
+`@earendil-works/pi-coding-agent@0.85.1` from source commit
+`d981de1229ef899957bbe968bc8dcda02a21f477`. PuppyOne uses the official SDK
+session runtime and RPC mode as its execution kernel while retaining a separate
+PuppyOne product identity, managed profile, permission policy, and session
+store. It does not execute the user's Pi binary or load the user's Pi profile.
+
+Pi is Copyright (c) 2025 Mario Zechner and licensed under the MIT License. The
+complete license and immutable source-adoption record are distributed at
+`vendor/pi-kernel/LICENSE` and `vendor/pi-kernel/SOURCE_ADOPTION.json`.
 
 ## Claude Agent SDK
 

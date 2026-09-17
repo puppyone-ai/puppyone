@@ -169,6 +169,7 @@ function parseAgentRequestBody(channel, value) {
         rootPath: requiredString(input.rootPath, "rootPath", MAX_PATH_LENGTH),
         sessionId: requiredOpaqueId(input.sessionId, "sessionId"),
         commandId: optionalOpaqueId(input.commandId, "commandId"),
+        recoveryOfTurnId: optionalOpaqueId(input.recoveryOfTurnId, "recoveryOfTurnId"),
         ...commandPreconditions(input),
         prompt: requiredString(input.prompt, "prompt", MAX_MESSAGE_LENGTH, { allowEmpty: true, preserveWhitespace: true }),
         model: optionalString(input.model, "model", 512),

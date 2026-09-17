@@ -20,6 +20,7 @@ for (const requiredPath of [
   "src/features/app-shell/workspace-surfaces/workspaceSurfaceRegistry.ts",
   "src/features/app-shell/workspace-surfaces/WorkspaceSurfaceOutlet.tsx",
   "src/features/app-shell/auxiliary/AuxiliaryPanelHost.tsx",
+  "src/features/plugins/PluginsDialog.tsx",
   "src/features/settings/sidebar/SettingsSidebar.tsx",
   "src/features/settings/sidebar/settingsSidebarModel.ts",
   "src/features/source-control/sidebar/GitLocalStatusPanels.tsx",
@@ -102,8 +103,11 @@ const registrySource = read(absolute("src/features/app-shell/workspace-surfaces/
 const registryTypes = read(absolute("src/features/app-shell/workspace-surfaces/workspaceSurfaceTypes.ts"));
 const workspaceContent = read(absolute("src/features/app-shell/DesktopWorkspaceContent.tsx"));
 const workspaceDataSurface = read(absolute("src/features/app-shell/DesktopDataWorkspaceSurface.tsx"));
-for (const id of ["data", "git", "plugins", "cloud", "settings"]) {
+for (const id of ["data", "git", "cloud", "settings"]) {
   if (!registrySource.includes(`id: "${id}"`)) errors.push(`Workspace Surface Registry is missing ${id}`);
+}
+if (registrySource.includes('id: "plugins"') || registryTypes.includes('| "plugins"')) {
+  errors.push("Plugins must remain an application dialog, not a Workspace Surface.");
 }
 for (const retiredTopLevelId of ["access", "automation"]) {
   if (registrySource.includes(`id: "${retiredTopLevelId}"`)) {
@@ -118,6 +122,9 @@ if (!registryTypes.includes("ResolvedWorkspaceSurface") || !registryTypes.includ
 }
 if (!workspaceContent.includes("useWorkspaceSurfaceContent") || !workspaceContent.includes("resolvedSurface")) {
   errors.push("DesktopWorkspaceContent must render one resolved Workspace Surface instance.");
+}
+if (!workspaceContent.includes("<PluginsDialog") || !workspaceContent.includes("pluginsOpen && viewerPluginsEnabled")) {
+  errors.push("DesktopWorkspaceContent must host the experiment-gated Plugins application dialog.");
 }
 if (/\b(?:explorerSlot|mainSlot)\s*=/.test(workspaceContent) || /activeView\s*===/.test(workspaceContent)) {
   errors.push("DesktopWorkspaceContent reintroduced independent route selection instead of one resolved surface.");

@@ -3,6 +3,7 @@
 }
 
 .desktop-settings-dialog-backdrop,
+.desktop-plugins-dialog-backdrop,
 .desktop-cloud-dialog-backdrop {
   padding: 40px;
   background: color-mix(in srgb, var(--po-backdrop) 84%, transparent);
@@ -11,6 +12,7 @@
 }
 
 .desktop-settings-dialog,
+.desktop-plugins-dialog,
 .desktop-cloud-dialog {
   --desktop-task-dialog-header-bg: var(--po-header);
   --desktop-task-dialog-header-text: var(--po-text-muted);
@@ -25,6 +27,7 @@
 }
 
 .desktop-settings-dialog-header,
+.desktop-plugins-dialog-header,
 .desktop-cloud-dialog-header {
   position: relative;
   box-sizing: border-box;
@@ -38,6 +41,7 @@
 }
 
 .desktop-settings-dialog-header::after,
+.desktop-plugins-dialog-header::after,
 .desktop-cloud-dialog-header::after {
   position: absolute;
   inset-inline: 1px;
@@ -49,12 +53,14 @@
 }
 
 .desktop-settings-dialog-title-row,
+.desktop-plugins-dialog-title-row,
 .desktop-cloud-dialog-title-row {
   align-items: center;
   gap: 6px;
 }
 
 .desktop-settings-dialog-title-row h2,
+.desktop-plugins-dialog-title-row h2,
 .desktop-cloud-dialog-title-row h2 {
   color: var(--desktop-task-dialog-header-text);
   font-size: var(--po-font-size-chrome, var(--po-type-header-content, 13px));
@@ -63,6 +69,7 @@
 }
 
 .desktop-settings-dialog-leading,
+.desktop-plugins-dialog-leading,
 .desktop-cloud-dialog-leading {
   display: inline-flex;
   width: 20px;
@@ -75,6 +82,7 @@
 }
 
 .desktop-settings-dialog-header .desktop-dialog-icon-button,
+.desktop-plugins-dialog-header .desktop-dialog-icon-button,
 .desktop-cloud-dialog-header .desktop-dialog-icon-button {
   width: var(--desktop-chrome-control-size);
   height: var(--desktop-titlebar-control-height);
@@ -83,12 +91,14 @@
 }
 
 .desktop-settings-dialog-header .desktop-dialog-icon-button:hover:not(:disabled),
+.desktop-plugins-dialog-header .desktop-dialog-icon-button:hover:not(:disabled),
 .desktop-cloud-dialog-header .desktop-dialog-icon-button:hover:not(:disabled) {
   background: var(--desktop-task-dialog-header-hover);
   color: var(--po-text);
 }
 
 .desktop-settings-dialog-header .desktop-dialog-icon-button:focus-visible,
+.desktop-plugins-dialog-header .desktop-dialog-icon-button:focus-visible,
 .desktop-cloud-dialog-header .desktop-dialog-icon-button:focus-visible {
   background: var(--desktop-task-dialog-header-hover);
   box-shadow: inset 0 0 0 1px var(--desktop-task-dialog-header-focus);
@@ -96,6 +106,7 @@
 }
 
 .desktop-settings-dialog-layout,
+.desktop-plugins-dialog-layout,
 .desktop-cloud-dialog-layout {
   display: grid;
   min-height: 0;
@@ -106,6 +117,8 @@
 
 .desktop-settings-dialog-navigation,
 .desktop-settings-dialog-content,
+.desktop-plugins-dialog-navigation,
+.desktop-plugins-dialog-content,
 .desktop-cloud-dialog-navigation,
 .desktop-cloud-dialog-content {
   min-width: 0;
@@ -114,6 +127,7 @@
 }
 
 .desktop-settings-dialog-navigation,
+.desktop-plugins-dialog-navigation,
 .desktop-cloud-dialog-navigation {
   display: flex;
   border-inline-end: 1px solid var(--po-border-subtle);
@@ -124,6 +138,12 @@
   background: transparent;
 }
 
+.desktop-plugins-dialog-navigation .desktop-plugins-sidebar {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+}
+
 .desktop-cloud-dialog-navigation .desktop-cloud-service-sidebar {
   width: 100%;
   height: 100%;
@@ -131,6 +151,7 @@
 }
 
 .desktop-settings-dialog-content,
+.desktop-plugins-dialog-content,
 .desktop-cloud-dialog-content {
   display: flex;
   background: var(--po-canvas);
@@ -143,11 +164,13 @@
 
 @media (max-width: 720px) {
   .desktop-settings-dialog-backdrop,
+  .desktop-plugins-dialog-backdrop,
   .desktop-cloud-dialog-backdrop {
     padding: 16px;
   }
 
   .desktop-settings-dialog,
+  .desktop-plugins-dialog,
   .desktop-cloud-dialog {
     width: calc(100vw - 32px) !important;
     height: calc(100vh - 32px);
@@ -155,6 +178,7 @@
   }
 
   .desktop-settings-dialog-layout,
+  .desktop-plugins-dialog-layout,
   .desktop-cloud-dialog-layout {
     grid-template-columns: 164px minmax(0, 1fr);
   }

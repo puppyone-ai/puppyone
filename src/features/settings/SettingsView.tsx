@@ -53,7 +53,6 @@ export function SettingsView({
   requestedSubThemeId,
   subThemeCatalog,
   fileIconTheme,
-  sidebarNavigationVisibilitySettings,
   filesVisibilitySettings,
   createNewMenuSettings,
   experimentalSettings,
@@ -78,7 +77,6 @@ export function SettingsView({
   onPointerCursorsChange,
   onSubThemeChange,
   onFileIconThemeChange,
-  onSidebarNavigationVisibilitySettingsChange,
   onFilesVisibilitySettingsChange,
   onCreateNewMenuSettingsChange,
   onExperimentalSettingsChange,
@@ -265,7 +263,6 @@ export function SettingsView({
               detail={t("settings.appearance.detail")}
             />
             <div className="desktop-settings-list">
-              <InterfaceStyleSetting value={interfaceStyle} onChange={onInterfaceStyleChange} />
               <InterfacePaletteSettings
                 interfaceStyle={interfaceStyle}
                 subThemeId={resolvedAppearance.subThemeId}
@@ -362,32 +359,6 @@ export function SettingsView({
                   ))}
                 </div>
               </div>
-              {experimentalSettings.enableViewerPlugins && (
-                <div className="desktop-settings-row desktop-settings-row-control">
-                  <span title={t("settings.appearance.pluginsShortcut.detail")}>
-                    {t("settings.appearance.pluginsShortcut.title")}
-                  </span>
-                  <label
-                    className="desktop-settings-switch"
-                    title={t("settings.appearance.pluginsShortcut.detail")}
-                  >
-                    <input
-                      type="checkbox"
-                      aria-label={t("settings.appearance.pluginsShortcut.title")}
-                      aria-description={t("settings.appearance.pluginsShortcut.detail")}
-                      checked={sidebarNavigationVisibilitySettings.enabled.plugins}
-                      onChange={(event) => onSidebarNavigationVisibilitySettingsChange({
-                        ...sidebarNavigationVisibilitySettings,
-                        enabled: {
-                          ...sidebarNavigationVisibilitySettings.enabled,
-                          plugins: event.target.checked,
-                        },
-                      })}
-                    />
-                    <span aria-hidden="true" />
-                  </label>
-                </div>
-              )}
               <div className="desktop-settings-row desktop-settings-row-control desktop-settings-wide-control-row desktop-settings-tools-row">
                 <span>{t("settings.appearance.headerElements.title")}</span>
                 <div className="desktop-settings-tool-list">
@@ -453,6 +424,7 @@ export function SettingsView({
                   <span aria-hidden="true" />
                 </label>
               </div>
+              <InterfaceStyleSetting value={interfaceStyle} onChange={onInterfaceStyleChange} />
             </div>
           </div>
         </div>

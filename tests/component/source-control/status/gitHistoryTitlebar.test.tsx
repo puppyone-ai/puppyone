@@ -19,40 +19,35 @@ afterEach(() => {
 });
 
 describe("Git right-sidebar titlebar entries", () => {
-  it("keeps Changes left of History and Agent rightmost", () => {
+  it("keeps the high-frequency Changes entry and removes standalone History", () => {
     const container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
-    const onToggleGitHistory = vi.fn();
     const onToggleGitChanges = vi.fn();
 
     act(() => root?.render(withTestLocalization(
       <DesktopTitlebarActions
         titlebarActionsSettings={{
           ...DEFAULT_TITLEBAR_ACTIONS_SETTINGS,
-          order: ["terminal", "changes", "history"],
+          order: ["terminal", "changes"],
         }}
         terminalSidebarOpen={false}
         terminalToolEnabled
-        gitHistoryAvailable
-        gitHistoryOpen
         gitChangesAvailable
+        gitChangesOpen
         gitChangesStatus={{ conflicts: 0, incoming: 4, localChanges: 12, outgoing: 2 }}
         onToggleTerminal={vi.fn()}
         onToggleGitChanges={onToggleGitChanges}
-        onToggleGitHistory={onToggleGitHistory}
       />,
     )));
 
     const history = container.querySelector<HTMLButtonElement>(".desktop-titlebar-history");
     const changes = container.querySelector<HTMLButtonElement>(".desktop-titlebar-changes");
-    expect(history?.querySelector(".lucide-history")).not.toBeNull();
-    expect(history?.getAttribute("aria-label")).toBe("History");
-    expect(history?.getAttribute("aria-pressed")).toBe("true");
+    expect(history).toBeNull();
     expect(changes?.getAttribute("aria-label")).toContain("Changes, 12 files");
     expect(changes?.getAttribute("aria-label")).toContain("Pull 4 commits");
     expect(changes?.getAttribute("aria-label")).toContain("2 local commits waiting");
-    expect(changes?.getAttribute("aria-pressed")).toBe("false");
+    expect(changes?.getAttribute("aria-pressed")).toBe("true");
     expect(Array.from(changes?.children ?? []).some((child) => child.tagName === "svg"))
       .toBe(false);
     expect(changes?.querySelector(".desktop-titlebar-git-indicator.local")?.textContent).toBe("12");
@@ -71,19 +66,15 @@ describe("Git right-sidebar titlebar entries", () => {
       (button) => button.getAttribute("aria-label"),
     )).toEqual([
       "Changes, 12 files, Pull 4 commits, 2 local commits waiting.",
-      "History",
       "Show Agent",
     ]);
     const dividers = container.querySelectorAll(".desktop-titlebar-action-divider");
-    expect(dividers).toHaveLength(2);
+    expect(dividers).toHaveLength(1);
     expect(changes?.nextElementSibling).toBe(dividers[0]);
-    expect(dividers[0]?.nextElementSibling).toBe(history);
 
     act(() => {
-      history?.click();
       changes?.click();
     });
-    expect(onToggleGitHistory).toHaveBeenCalledOnce();
     expect(onToggleGitChanges).toHaveBeenCalledOnce();
   });
 

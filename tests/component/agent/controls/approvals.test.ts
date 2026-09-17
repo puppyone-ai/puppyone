@@ -36,6 +36,10 @@ describe("Desktop Agent renderer surfaces", () => {
     const buttons = Array.from(container.querySelectorAll("button"));
     expect(buttons.length).toBeGreaterThan(0);
     expect(buttons.every((button) => button.disabled)).toBe(true);
+    const card = container.querySelector(".desktop-agent-approval");
+    expect(card?.getAttribute("data-state")).toBe("resolving");
+    expect(card?.getAttribute("aria-busy")).toBe("true");
+    expect(container.querySelector(".desktop-agent-approval-status")?.textContent).toBe("Submitting…");
   });
 
   it("keeps approval copy concise and preserves every provider decision", () => {
@@ -64,12 +68,43 @@ describe("Desktop Agent renderer surfaces", () => {
     }));
 
     expect(container.textContent?.split(repeatedCopy)).toHaveLength(2);
+    expect(container.querySelector(".desktop-agent-approval-title")?.textContent).toBe(repeatedCopy);
+    expect(container.querySelector(".desktop-agent-approval-heading strong")).toBeNull();
+    expect(container.querySelector(".desktop-agent-approval-status")?.textContent).toBe("Needs your approval");
+    expect(container.querySelector(".desktop-agent-approval")?.getAttribute("data-state")).toBe("waiting");
     const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>("button"));
     expect(buttons.map((button) => button.textContent)).toEqual(["Deny", "Allow for session", "Allow once"]);
+    expect(buttons[0].classList.contains("is-quiet")).toBe(true);
     act(() => buttons[0].click());
     act(() => buttons[1].click());
     act(() => buttons[2].click());
     expect(onResolve.mock.calls.map(([decision]) => decision)).toEqual(["decline", "acceptForSession", "accept"]);
+  });
+
+  it("shows the queue count instead of a redundant waiting label for multiple approvals", () => {
+    const container = render(React.createElement(AgentApprovalDock, {
+      approval: {
+        requestId: "req-queue",
+        turnId: "turn-1",
+        itemId: "item-1",
+        kind: "command",
+        title: "Search the web",
+        command: null,
+        cwd: null,
+        commandActions: [],
+        networkApprovalContext: null,
+        grantRoot: null,
+        policyChangeRequested: false,
+        reason: null,
+        availableDecisions: ["accept", "decline", "cancel"],
+        sequence: 1,
+      },
+      queueLength: 3,
+      resolving: false,
+      onResolve: vi.fn(),
+    }));
+
+    expect(container.querySelector(".desktop-agent-approval-status")?.textContent).toBe("3 pending");
   });
 
   it("renders material network and filesystem approval scope", () => {

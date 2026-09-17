@@ -100,7 +100,54 @@ export class AgentTurnSubmissionCoordinator {
     });
   }
 
-  private async dispatchIntent(intent: AgentSubmissionIntent, dispatch: (sessionId: string) => Promise<void>) {
+  /** Starts an explicit follow-up without consuming the user's independent draft or references. */
+  async continueFromRecovery(turnId: string, prompt: string) {
+    if (this.disposed || this.activeIntentId) return false;
+    const bridge = this.requireBridge("startAgentTurn");
+    const state = this.options.readState();
+    const latestTurn = state.projection.turns.at(-1);
+    const text = prompt.trim();
+    if (!text || !state.session || state.submitting || state.pendingIntent || state.projection.runningTurnId) return false;
+    if (latestTurn?.id !== turnId || latestTurn.status !== "completed"
+      || latestTurn.completionQuality !== "degraded"
+      || latestTurn.recovery?.kind !== "degraded-completion") return false;
+    if (state.inspection?.capabilities?.modelSelection && !state.selectedModel) {
+      this.options.patch({ error: createAgentError("model-required") });
+      return false;
+    }
+    const intent = createSubmissionIntent({
+      recoveryOfTurnId: turnId,
+      referenceEpoch: this.options.references.referenceEpoch,
+      prompt: text,
+      model: state.selectedModel,
+      effort: state.selectedEffort,
+      mode: state.selectedMode,
+      references: [],
+      promptMentions: [],
+    });
+    return this.dispatchIntent(intent, async (sessionId) => {
+      await bridge.startAgentTurn({
+        rootPath: this.options.workspaceRoot,
+        sessionId,
+        commandId: intent.id,
+        recoveryOfTurnId: turnId,
+        ...commandPreconditions(this.options.readState()),
+        prompt: intent.prompt,
+        model: intent.model,
+        effort: intent.effort,
+        mode: intent.mode,
+        referenceEpoch: intent.referenceEpoch,
+        references: [],
+        promptMentions: [],
+      });
+    }, { preserveDraft: true });
+  }
+
+  private async dispatchIntent(
+    intent: AgentSubmissionIntent,
+    dispatch: (sessionId: string) => Promise<void>,
+    { preserveDraft = false }: { preserveDraft?: boolean } = {},
+  ) {
     this.activeIntentId = intent.id;
     let sessionId = this.options.readState().session?.id ?? null;
     const isCurrent = () => !this.disposed && this.activeIntentId === intent.id
@@ -110,10 +157,10 @@ export class AgentTurnSubmissionCoordinator {
       submitting: true,
       pendingPrompt: intent.prompt,
       pendingIntent: intent,
-      draft: "", draftMentions: [], references: [],
+      ...(!preserveDraft ? { draft: "", draftMentions: [], references: [] } : {}),
       error: null,
     });
-    this.options.writeDraft("", []);
+    if (!preserveDraft) this.options.writeDraft("", []);
     try {
       if (!sessionId) {
         const prepared = await this.options.prepareSession();
@@ -140,8 +187,10 @@ export class AgentTurnSubmissionCoordinator {
       if (accepted) {
         this.releaseSubmittedPreviews(intent);
         this.options.patch({ error: formatAgentError(error) });
-      } else {
+      } else if (!preserveDraft) {
         this.restoreDraft(intent, formatAgentError(error));
+      } else {
+        this.options.patch({ error: formatAgentError(error) });
       }
       return false;
     } finally {

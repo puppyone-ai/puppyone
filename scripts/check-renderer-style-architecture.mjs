@@ -240,7 +240,7 @@ function read(relativePath) {
 }
 
 function readAbsolute(filePath) {
-  return readFileSync(filePath, "utf8");
+  return readFileSync(filePath, "utf8").replace(/\r\n?/g, "\n");
 }
 
 function walkRendererSource(directory) {

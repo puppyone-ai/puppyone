@@ -15,7 +15,7 @@ describe("native Agent backend discovery", () => {
     expect(parseClaudeVersion("Error: denied\nNode.js v22.17.0\n")).toBeNull();
   });
 
-  it("keeps the user's OpenCode profile separate from PuppyOne Agent's managed profile", () => {
+  it("keeps the user's OpenCode profile separate from Built-in Agent's managed profile", () => {
     const environment = buildUserOpenCodeEnvironment({
       HOME: "/home/user",
       PATH: "/usr/bin",

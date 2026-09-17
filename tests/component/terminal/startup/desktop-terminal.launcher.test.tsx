@@ -7,7 +7,8 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AGENT_CHAT_CREATION_RECIPES,
-  PUPPYONE_AGENT_CREATION_RECIPE,
+  BUILT_IN_AGENT_CREATION_RECIPE,
+  filterAgentChatCreationRecipesByLocalAgentIds,
   localAgentIdForAgentChatRuntime,
 } from "../../../../src/features/app-shell/auxiliary-workbench/agentChatCreationRecipes";
 import {
@@ -103,7 +104,7 @@ describe("Unified Workbench launcher", () => {
       <TerminalLauncher
         agentMode="chat"
         discoveryPhase="ready"
-        availableAgentIds={["codex", "claude", "cursor", "opencode", "pi", "hermes"]}
+        availableAgentIds={["codex", "claude", "cursor", "opencode", "pi", "workbuddy-china", "workbuddy-international", "hermes"]}
         chatRecipes={AGENT_CHAT_CREATION_RECIPES}
         onCreateChat={onCreateChat}
         onLaunch={onLaunch}
@@ -119,20 +120,37 @@ describe("Unified Workbench launcher", () => {
       ".desktop-terminal-launcher-tool",
     ) ?? [];
     expect(Array.from(agentButtons, (button) => button.textContent)).toEqual([
-      "Codex",
       "Claude Code",
+      "Codex",
       "Cursor",
+      "Hermes Agent",
       "OpenCode",
       "Pi",
+      "WorkBuddy (China)",
+      "WorkBuddy (International)",
+      "Built-in Agent",
     ]);
-    expect(container.textContent).not.toContain("PuppyOne");
+    expect(container.textContent).toContain("Built-in Agent");
+    expect(Array.from(
+      findButton(container, "Built-in Agent")?.querySelectorAll("img") ?? [],
+      (image) => image.getAttribute("src"),
+    )).toEqual([
+      "/assets/icons/agents/built-in-agent.svg",
+      "/assets/icons/agents/built-in-agent-dark.svg",
+    ]);
+    expect(Array.from(
+      findButton(container, "WorkBuddy (China)")?.querySelectorAll("img") ?? [],
+      (image) => image.getAttribute("src"),
+    )).toEqual([
+      "/assets/icons/agents/workbuddy.png",
+    ]);
     act(() => agentButtons[0]?.click());
     expect(onCreateChat).toHaveBeenCalledWith(AGENT_CHAT_CREATION_RECIPES[0]);
     expect(onLaunch).not.toHaveBeenCalled();
 
     expect(container.querySelectorAll(".desktop-terminal-launcher-shell")).toHaveLength(1);
     expect(container.textContent).not.toContain("Pi Agent");
-    expect(container.textContent).not.toContain("Hermes Agent");
+    expect(container.textContent).toContain("Hermes Agent");
   });
 
   it("keeps the full Terminal Agent catalog command-free and renders only detected ids", () => {
@@ -212,19 +230,33 @@ describe("Unified Workbench launcher", () => {
       .toBe("start with an agent");
   });
 
-  it("keeps the managed PuppyOne recipe reserved but unregistered from the launcher", () => {
+  it("keeps local recipes alphabetized while Built-in Agent stays last and independent of discovery", () => {
     expect(AGENT_CHAT_CREATION_RECIPES.map(({ id }) => id)).toEqual([
-      "codex",
       "claude",
+      "codex",
       "cursor",
+      "hermes",
       "opencode-native",
       "pi",
+      "workbuddy-china",
+      "workbuddy-international",
+      "puppyone-agent",
     ]);
-    expect(PUPPYONE_AGENT_CREATION_RECIPE).toMatchObject({
+    const localRecipes = AGENT_CHAT_CREATION_RECIPES.filter(({ availability }) => availability !== "bundled");
+    expect(localRecipes.map(({ label }) => label)).toEqual(
+      [...localRecipes.map(({ label }) => label)].sort((left, right) => left.localeCompare(right, "en")),
+    );
+    expect(AGENT_CHAT_CREATION_RECIPES.at(-1)).toBe(BUILT_IN_AGENT_CREATION_RECIPE);
+    expect(BUILT_IN_AGENT_CREATION_RECIPE).toMatchObject({
       id: "puppyone-agent",
-      status: "coming-soon",
+      label: "Built-in Agent",
+      iconKey: "built-in-agent",
+      status: "available",
+      availability: "bundled",
     });
-    expect(AGENT_CHAT_CREATION_RECIPES).not.toContain(PUPPYONE_AGENT_CREATION_RECIPE);
+    expect(AGENT_CHAT_CREATION_RECIPES).toContain(BUILT_IN_AGENT_CREATION_RECIPE);
+    expect(filterAgentChatCreationRecipesByLocalAgentIds(AGENT_CHAT_CREATION_RECIPES, []))
+      .toEqual([BUILT_IN_AGENT_CREATION_RECIPE]);
     expect(localAgentIdForAgentChatRuntime("opencode-native")).toBe("opencode");
     expect(getDesktopTerminalLauncher("codex").id).toBe("codex");
     expect(getDesktopTerminalLauncher("hermes").id).toBe("hermes");

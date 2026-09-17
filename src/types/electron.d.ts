@@ -1216,6 +1216,9 @@ declare global {
         intent: import("../platform/resourceDragSession").ResourceDropIntent;
         targetResource?: string;
       }) => Promise<{ entries: import("@puppyone/shared-ui").ExplorerReferenceDragEntry[] } | null>;
+      inspectResourceDrop: (request: { files: File[] }) => Promise<{
+        entries: Array<{ path: string; name: string; entryType: "file" | "directory" }>;
+      }>;
       onResourceDragState: (listener: (state: import("../platform/resourceDragSession").ResourceDragState) => void) => () => void;
       startResourceDrag: (request: { resources: string[] }) => Promise<boolean>;
       startProjectRootDrag: (request: { path: string }) => Promise<boolean>;

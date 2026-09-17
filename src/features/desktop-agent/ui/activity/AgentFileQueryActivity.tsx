@@ -1,4 +1,3 @@
-import { FileSearch, FolderSearch, ListTree, Search } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
 import {
   agentActivityToolId,
@@ -8,6 +7,7 @@ import {
 import { collectAgentToolResultLines } from "../../domain/agent-tool-evidence";
 import type { AgentActivity } from "../../domain/agent-projection-types";
 import { AgentActivityShell } from "./AgentActivityShell";
+import { AgentToolGlyph } from "./AgentToolGlyph";
 import { AgentToolEvidenceNode, AgentToolEvidenceTree } from "./AgentToolEvidenceTree";
 import { AgentToolTextEvidence } from "./AgentToolTextEvidence";
 
@@ -21,7 +21,7 @@ export function AgentFileQueryActivity({ activity, onOpenFile }: { activity: Age
     <AgentActivityShell
       title={formatAgentToolName(tool, t)}
       status={activity.status}
-      icon={iconFor(tool)}
+      icon={<AgentToolGlyph tool={tool} status={activity.status} />}
       className={`desktop-agent-file-query is-${tool}`}
     >
       {output && (
@@ -58,11 +58,4 @@ function resultPath(line: string) {
   if (numbered) return numbered;
   const plain = line.trim();
   return plain && !plain.includes("\0") && !/^https?:\/\//iu.test(plain) ? plain : "";
-}
-
-function iconFor(tool: string) {
-  if (tool === "read") return <FileSearch size={13} />;
-  if (tool === "grep" || tool === "search") return <Search size={13} />;
-  if (tool === "list") return <ListTree size={13} />;
-  return <FolderSearch size={13} />;
 }

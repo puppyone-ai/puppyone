@@ -19,8 +19,11 @@ const PAYLOAD_KEYS = Object.freeze({
   "session.resumed": ["title", "status"],
   "session.updated": ["title", "status"],
   "session.closed": ["status"],
-  "turn.started": ["prompt", "userMessageId", "submissionId", "status", "referenceDisplays", "promptMentions", "model", "effort", "mode", "restored"],
-  "turn.completed": ["status", "durationMs", "restored"],
+  "turn.started": ["prompt", "recoveryOfTurnId", "userMessageId", "submissionId", "status", "referenceDisplays", "promptMentions", "model", "effort", "mode", "restored"],
+  "turn.completed": [
+    "status", "durationMs", "restored", "completionQuality", "failureScope", "failureCode",
+    "retryable", "transportHealth", "sideEffects", "diagnostic",
+  ],
   "turn.failed": ["status", "message", "durationMs", "restored"],
   "turn.interrupted": ["status", "message", "durationMs", "restored"],
   "user.message": ["text", "clientUserMessageId", "userMessageId", "submissionId", "referenceDisplays", "promptMentions", "restored"],
@@ -67,7 +70,7 @@ export function assertAgentEventEnvelope(value) {
   if (event.type === "question.requested" && !Array.isArray(payload.questions)) {
     throw contractError("AgentEvent(question.requested).payload.questions", "must be an array");
   }
-  for (const key of ["clientUserMessageId", "userMessageId", "submissionId", "requestId", "recoveryId"]) {
+  for (const key of ["clientUserMessageId", "userMessageId", "submissionId", "requestId", "recoveryId", "recoveryOfTurnId"]) {
     if (payload[key] !== undefined) optionalOpaqueId(payload[key], `AgentEvent.payload.${key}`);
   }
   if (event.type === "user.message") {
@@ -91,6 +94,19 @@ export function assertAgentEventEnvelope(value) {
       if (payload[key] !== undefined && payload[key] !== null) {
         positiveInteger(payload[key], `AgentEvent(provider.connection.updated).payload.${key}`);
       }
+    }
+  }
+  if (event.type === "turn.completed" && payload.completionQuality !== undefined) {
+    enumValue(payload.completionQuality, "AgentEvent(turn.completed).payload.completionQuality", ["complete", "degraded"]);
+    if (payload.completionQuality === "degraded") {
+      enumValue(payload.failureScope, "AgentEvent(turn.completed).payload.failureScope", ["child-task", "tool", "upstream-request", "turn"]);
+      requiredString(payload.failureCode, "AgentEvent(turn.completed).payload.failureCode", 160);
+      if (payload.retryable !== null && typeof payload.retryable !== "boolean") {
+        throw contractError("AgentEvent(turn.completed).payload.retryable", "must be boolean or null");
+      }
+      enumValue(payload.transportHealth, "AgentEvent(turn.completed).payload.transportHealth", ["healthy", "recovering", "exited", "unknown"]);
+      enumValue(payload.sideEffects, "AgentEvent(turn.completed).payload.sideEffects", ["none", "possible", "confirmed", "unknown"]);
+      if (payload.diagnostic !== undefined) requiredString(payload.diagnostic, "AgentEvent(turn.completed).payload.diagnostic", 2_000);
     }
   }
   return value;

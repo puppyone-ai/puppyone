@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 export type WorkspaceSurfaceId =
   | "data"
   | "git"
-  | "plugins"
   | "cloud"
   | "settings";
 
@@ -22,7 +21,6 @@ export type WorkspaceSurfaceNavigation = {
 
 export type WorkspaceSurfaceCapabilities = {
   cloudEnabled: boolean;
-  pluginsEnabled: boolean;
 };
 
 export type WorkspaceSurfaceContent = {

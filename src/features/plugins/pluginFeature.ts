@@ -1,7 +1,4 @@
-import type {
-  ExperimentalSettings,
-  SidebarNavigationVisibilitySettings,
-} from "../../preferences";
+import type { ExperimentalSettings } from "../../preferences";
 
 export function isViewerPluginsEnabled({
   settings,
@@ -9,14 +6,4 @@ export function isViewerPluginsEnabled({
   settings: ExperimentalSettings;
 }) {
   return settings.enableViewerPlugins;
-}
-
-export function isPluginsNavigationVisible({
-  featureEnabled,
-  visibility,
-}: {
-  featureEnabled: boolean;
-  visibility: SidebarNavigationVisibilitySettings;
-}) {
-  return featureEnabled && visibility.enabled.plugins;
 }

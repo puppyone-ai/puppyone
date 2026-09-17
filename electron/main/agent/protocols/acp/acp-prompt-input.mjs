@@ -18,26 +18,33 @@ export async function materializeAcpReferences(references, profile = {}) {
     if (reference?.kind !== "staged-attachment") return reference;
     const kind = classifyAgentAttachment({ mime: reference.mime, name: reference.displayName ?? reference.name });
     if (kind === "image" && reference.snapshotUrl) return reference;
-    if ((kind === "image" && (!nativeProfile.image || !ACP_NATIVE_IMAGE_MIME_TYPE_SET.has(reference.mime)))
-      || (kind === "text" && !nativeProfile.embeddedText)) {
+    if (kind === "image" && (!nativeProfile.image || !ACP_NATIVE_IMAGE_MIME_TYPE_SET.has(reference.mime))) {
       throw unsupportedAttachmentError(kind);
     }
-    if (!["image", "text"].includes(kind) || typeof reference.path !== "string" || !path.isAbsolute(reference.path)) {
+    if (!["image", "text", "binary"].includes(kind)
+      || typeof reference.path !== "string" || !path.isAbsolute(reference.path)) {
       throw unsupportedAttachmentError(kind);
     }
     const metadata = await fs.promises.lstat(reference.path).catch(() => null);
-    if (!metadata?.isFile() || metadata.isSymbolicLink() || metadata.size > ACP_INLINE_IMAGE_MAX_BYTES) {
+    if (!metadata?.isFile() || metadata.isSymbolicLink()) {
       throw materializationError(kind);
     }
-    const bytes = await fs.promises.readFile(reference.path);
     if (kind === "image") {
+      if (metadata.size > ACP_INLINE_IMAGE_MAX_BYTES) throw materializationError(kind);
+      const bytes = await fs.promises.readFile(reference.path);
       return { ...reference, snapshotUrl: `data:${reference.mime};base64,${bytes.toString("base64")}` };
     }
+    if (!nativeProfile.embeddedText || kind !== "text" || metadata.size > ACP_INLINE_IMAGE_MAX_BYTES) {
+      return reference;
+    }
+    const bytes = await fs.promises.readFile(reference.path);
     let snapshotText;
     try {
       snapshotText = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-    } catch (cause) {
-      throw materializationError(kind, cause);
+    } catch {
+      // The ACP baseline still accepts a resource link. Invalid UTF-8 should
+      // not turn a valid local path reference into a rejected attachment.
+      return reference;
     }
     return { ...reference, snapshotText };
   }));
@@ -74,6 +81,10 @@ export function buildAcpPromptBlocks({ prompt, instructions, references, workspa
         });
         continue;
       }
+      if (["text", "binary"].includes(kind) && typeof reference.path === "string" && path.isAbsolute(reference.path)) {
+        blocks.push(resourceLink(reference.path, reference));
+        continue;
+      }
       throw unsupportedAttachmentError(kind);
     }
     const filename = typeof reference?.path === "string" ? path.resolve(reference.path) : null;
@@ -82,10 +93,21 @@ export function buildAcpPromptBlocks({ prompt, instructions, references, workspa
     }
     if (seen.has(filename)) continue;
     seen.add(filename);
-    const name = text(reference?.name, 300) || path.basename(filename);
-    blocks.push({ type: "resource_link", uri: pathToFileURL(filename).href, name, title: name });
+    blocks.push(resourceLink(filename, reference));
   }
   return blocks;
+}
+
+function resourceLink(filename, reference) {
+  const name = text(reference?.displayName ?? reference?.name, 300) || path.basename(filename);
+  return {
+    type: "resource_link",
+    uri: pathToFileURL(filename).href,
+    name,
+    title: name,
+    ...(text(reference?.mime, 160) ? { mimeType: text(reference.mime, 160) } : {}),
+    ...(Number.isSafeInteger(reference?.size) && reference.size >= 0 ? { size: reference.size } : {}),
+  };
 }
 
 function dataUrlParts(value) {

@@ -8,6 +8,13 @@
   --desktop-titlebar-active: var(--po-selected);
   --desktop-titlebar-focus: var(--po-focus-ring);
   --desktop-titlebar-divider: var(--po-header-divider);
+  --desktop-titlebar-context-font-family: var(--po-font-ui);
+  --desktop-titlebar-context-font-size: var(--po-font-size-chrome, 13px);
+  --desktop-titlebar-context-font-weight: var(--po-font-weight-chrome, 500);
+  --desktop-titlebar-context-line-height: var(--po-type-header-line-height, 20px);
+  --desktop-titlebar-workspace-inline-padding: 6px;
+  --desktop-titlebar-workspace-icon-slot-size: 14px;
+  --desktop-titlebar-workspace-icon-label-gap: 6px;
   /* The native traffic lights use a fixed, profile-owned position. Derive
    * both layout edges from the same stable inset instead of two independently
    * refreshed titlebar-area environment values, which can change briefly when
@@ -43,7 +50,25 @@
   --desktop-titlebar-windows-control-width: calc(
     var(--desktop-titlebar-windows-controls-width) / 3
   );
-  --desktop-titlebar-windows-symbol-color: #1f1f1f;
+  /* Project and branch labels are workspace navigation, so their optical
+   * rhythm follows the file tree instead of native caption-button symbols. */
+  --desktop-titlebar-context-font-family: var(--po-font-ui);
+  --desktop-titlebar-context-font-size:
+    var(--desktop-sidebar-font-size, var(--po-type-left-sidebar-content));
+  --desktop-titlebar-context-font-weight:
+    var(--desktop-sidebar-font-weight, var(--po-text-weight-regular));
+  --desktop-titlebar-context-line-height:
+    var(--desktop-sidebar-line-height, var(--po-type-left-sidebar-line-height));
+  --desktop-titlebar-workspace-inline-padding:
+    var(--desktop-sidebar-row-content-left, 6px);
+  --desktop-titlebar-workspace-icon-slot-size:
+    var(--desktop-sidebar-icon-slot-size, 18px);
+  --desktop-titlebar-workspace-icon-label-gap:
+    var(--desktop-sidebar-icon-label-gap, 4px);
+  /* App-owned actions share the semantic titlebar foreground instead of
+   * inferring contrast from a light/dark class. This keeps default, cloud,
+   * and interface-style titlebars legible from the same source of truth. */
+  --desktop-titlebar-windows-symbol-color: var(--desktop-titlebar-text);
   --desktop-titlebar-windows-hover-background: color-mix(
     in srgb,
     var(--desktop-titlebar-windows-symbol-color) 8%,
@@ -56,14 +81,9 @@
   );
   --desktop-titlebar-safe-area-x: env(titlebar-area-x, 0px);
   --desktop-titlebar-safe-area-width: env(titlebar-area-width, calc(100% - 138px));
-  --desktop-titlebar-content-start: 12px;
+  --desktop-titlebar-content-start: var(--desktop-sidebar-row-left-gap, 12px);
   height: 38px;
   min-height: 38px;
-}
-
-.app-shell.dark .desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"],
-:root[data-interface-style="windows-xp"] .desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] {
-  --desktop-titlebar-windows-symbol-color: #f5f5f5;
 }
 
 .desktop-titlebar[data-window-full-screen="true"] {
@@ -189,9 +209,10 @@
 .desktop-titlebar-context-name {
   min-width: 0;
   overflow: hidden;
-  font-size: var(--po-font-size-chrome, 13px);
-  font-weight: var(--po-font-weight-chrome, 500);
-  line-height: var(--po-type-header-line-height, 20px);
+  font-family: var(--desktop-titlebar-context-font-family);
+  font-size: var(--desktop-titlebar-context-font-size);
+  font-weight: var(--desktop-titlebar-context-font-weight);
+  line-height: var(--desktop-titlebar-context-line-height);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -401,10 +422,17 @@
 }
 
 .desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-action-divider {
-  display: none;
+  display: block;
+  flex: 0 0 1px;
+  margin-inline: 0;
+  background: color-mix(
+    in srgb,
+    var(--desktop-titlebar-windows-symbol-color) 18%,
+    transparent
+  );
 }
 
-.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-action:not(.desktop-titlebar-update):not(.desktop-titlebar-changes) {
+.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-action:where(:not(.desktop-titlebar-update):not(.desktop-titlebar-changes)) {
   width: var(--desktop-titlebar-windows-control-width);
   min-width: var(--desktop-titlebar-windows-control-width);
   height: 100%;
@@ -432,6 +460,7 @@
 .desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-actions .desktop-titlebar-changes {
   width: auto;
   min-width: var(--desktop-titlebar-windows-control-width);
+  height: 100%;
   flex: 0 0 auto;
   gap: 4px;
   padding-inline: 10px;
@@ -473,6 +502,9 @@
   transition: none;
 }
 
+/* Keep the geometry layer deliberately lower-specificity than the interaction
+ * layer. In particular, :where() above prevents the excluded-class guard from
+ * outranking hover/pressed/selected states on History and Agent. */
 .desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-action:hover {
   background: var(--desktop-titlebar-windows-hover-background);
   color: var(--desktop-titlebar-windows-symbol-color);
@@ -516,13 +548,13 @@
 .desktop-titlebar-workspace-button {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--desktop-titlebar-workspace-icon-label-gap);
   justify-content: start;
   width: auto;
   max-width: 100%;
   height: var(--desktop-titlebar-control-height);
   min-width: 0;
-  padding: 0 6px;
+  padding: 0 var(--desktop-titlebar-workspace-inline-padding);
   border: 0;
   border-radius: var(--desktop-toolbar-action-radius);
   background: transparent;
@@ -543,10 +575,10 @@
   box-shadow: inset 0 0 0 1px var(--desktop-titlebar-focus);
 }
 
-.desktop-titlebar-workspace-mark {
-  width: 14px;
-  height: 14px;
-  flex: 0 0 14px;
+.desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark {
+  width: var(--desktop-titlebar-workspace-icon-slot-size);
+  height: var(--desktop-titlebar-workspace-icon-slot-size);
+  flex: 0 0 var(--desktop-titlebar-workspace-icon-slot-size);
   color: var(--desktop-titlebar-text-subtle, var(--desktop-titlebar-text-muted));
 }
 
@@ -588,9 +620,10 @@
   min-width: 0;
   overflow: hidden;
   color: var(--desktop-titlebar-text-muted);
-  font-size: var(--po-font-size-chrome, 13px);
-  font-weight: var(--po-font-weight-chrome, 500);
-  line-height: var(--po-type-header-line-height, 20px);
+  font-family: var(--desktop-titlebar-context-font-family);
+  font-size: var(--desktop-titlebar-context-font-size);
+  font-weight: var(--desktop-titlebar-context-font-weight);
+  line-height: var(--desktop-titlebar-context-line-height);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -697,9 +730,10 @@
 .desktop-titlebar-branch-button span {
   min-width: 0;
   overflow: hidden;
-  font-size: var(--po-font-size-chrome, 13px);
-  font-weight: var(--po-font-weight-chrome, 500);
-  line-height: var(--po-type-header-line-height, 20px);
+  font-family: var(--desktop-titlebar-context-font-family);
+  font-size: var(--desktop-titlebar-context-font-size);
+  font-weight: var(--desktop-titlebar-context-font-weight);
+  line-height: var(--desktop-titlebar-context-line-height);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

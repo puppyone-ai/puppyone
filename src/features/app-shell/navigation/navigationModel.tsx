@@ -1,4 +1,3 @@
-import { Blocks } from "lucide-react";
 import type { MessageFormatter } from "@puppyone/localization";
 import type { DesktopView } from "../../../components/DesktopCloudShell";
 import type { GitStatusEntry, GitStatusSnapshot } from "../../../types/electron";
@@ -10,13 +9,11 @@ import type {
 
 const DESKTOP_NAV_ITEMS: readonly DesktopNavigationItem[] = [
   { view: "git", labelId: "shell.navigation.changes", icon: VersionControlIcon, iconSize: 18 },
-  { view: "plugins", labelId: "shell.navigation.plugins", icon: Blocks },
 ] as const;
 
 export function resolveNavigationItems({
   availableSurfaceIds,
   gitEnabled = true,
-  pluginsEnabled = false,
 }: DesktopNavigationAvailability) {
   if (availableSurfaceIds) {
     const available = new Set(availableSurfaceIds);
@@ -27,10 +24,7 @@ export function resolveNavigationItems({
 
   return {
     localItems: DESKTOP_NAV_ITEMS
-      .filter((item) => (
-        (gitEnabled || item.view !== "git")
-        && (pluginsEnabled || item.view !== "plugins")
-      )),
+      .filter((item) => gitEnabled || item.view !== "git"),
   };
 }
 

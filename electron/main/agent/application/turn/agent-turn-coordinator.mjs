@@ -61,7 +61,11 @@ export function createAgentTurnCoordinator({
       ? (reference) => session.adapter.referenceMentionDelivery(reference)
       : undefined;
     const preparedInput = prepareAgentTurnReferenceInput(request, session.capabilities, deliveryForReference);
-    const publicIntent = startCommandIntent(preparedInput, { model, effort, mode });
+    const publicIntent = startCommandIntent(
+      preparedInput,
+      { model, effort, mode },
+      normalizeOptionalString(request?.recoveryOfTurnId) || null,
+    );
     const fingerprint = commandFingerprint("start", {
       ...publicIntent,
       references: preparedInput.references,

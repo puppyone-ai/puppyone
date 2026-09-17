@@ -26,7 +26,8 @@ vi.mock("../../../../src/features/source-control/SourceControlSidebar", () => ({
   ),
 }));
 
-vi.mock("../../../../src/features/source-control/WorkingFileDetail", () => ({
+vi.mock("../../../../src/features/source-control/WorkingFileDetail", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../../../src/features/source-control/WorkingFileDetail")>(),
   WorkingFileDetail: ({ selection }: { selection: GitWorkingSelection }) => (
     <div className="test-change-detail">{selection.path}</div>
   ),
@@ -48,6 +49,10 @@ describe("Changes right sidebar", () => {
     const root = createRoot(container);
     roots.push(root);
     const onSelectWorkingFile = vi.fn();
+    const onOpenHistory = vi.fn();
+    const onOpenFile = vi.fn();
+    const onStagePaths = vi.fn(async () => true);
+    const onDiscardPaths = vi.fn(async () => true);
 
     function Harness() {
       const [selection, setSelection] = useState<GitWorkingSelection | null>(null);
@@ -74,10 +79,10 @@ describe("Changes right sidebar", () => {
               onSelectWorkingFile(nextSelection);
               setSelection(nextSelection);
             },
-            stagePaths: succeed,
+            stagePaths: onStagePaths,
             stageAll: succeed,
             unstagePaths: succeed,
-            discardPaths: succeed,
+            discardPaths: onDiscardPaths,
             discardAll: succeed,
             stageAndCommit: succeed,
             commit: succeed,
@@ -92,7 +97,8 @@ describe("Changes right sidebar", () => {
           workingFileDiff={null}
           workingFileDiffLoading={false}
           workingFileDiffError={null}
-          onOpenFile={vi.fn()}
+          onOpenFile={onOpenFile}
+          onOpenHistory={onOpenHistory}
           cloudBackup={{ loading: false, error: null, start: vi.fn() }}
         />
       );
@@ -100,6 +106,12 @@ describe("Changes right sidebar", () => {
 
     act(() => root.render(withTestLocalization(<Harness />)));
     expect(container.querySelector(".test-change-row")).not.toBeNull();
+    const history = container.querySelector<HTMLButtonElement>('button[aria-label="History"]');
+    expect(history?.textContent).toBe("");
+    expect(history?.querySelector(".lucide-history")).not.toBeNull();
+
+    act(() => history?.click());
+    expect(onOpenHistory).toHaveBeenCalledOnce();
 
     act(() => container.querySelector<HTMLButtonElement>(".test-change-row")?.click());
 
@@ -110,8 +122,17 @@ describe("Changes right sidebar", () => {
     });
     expect(container.querySelector(".test-change-detail")?.textContent).toBe("src/app.ts");
     expect(container.querySelector(".test-change-row")).toBeNull();
+    const detailHeader = container.querySelector(".desktop-git-changes-detail-header");
+    expect(detailHeader?.querySelector(".desktop-git-view-back")).not.toBeNull();
+    expect(Array.from(detailHeader?.querySelectorAll(".desktop-working-file-actions button") ?? [])
+      .map((button) => button.textContent)).toEqual(["Open file", "Stage", "Discard"]);
 
-    act(() => container.querySelector<HTMLButtonElement>(".desktop-history-detail-back")?.click());
+    act(() => detailHeader?.querySelectorAll<HTMLButtonElement>(".desktop-working-file-actions button").item(1).click());
+    act(() => detailHeader?.querySelectorAll<HTMLButtonElement>(".desktop-working-file-actions button").item(2).click());
+    expect(onStagePaths).toHaveBeenCalledWith(["src/app.ts"]);
+    expect(onDiscardPaths).toHaveBeenCalledWith(["src/app.ts"]);
+
+    act(() => detailHeader?.querySelector<HTMLButtonElement>(".desktop-git-view-back")?.click());
 
     expect(container.querySelector(".test-change-row")).not.toBeNull();
     expect(container.querySelector(".test-change-detail")).toBeNull();

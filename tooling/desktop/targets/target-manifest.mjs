@@ -20,7 +20,7 @@ const TARGETS = deepFreeze([
     updateTrack: "nsis",
     upstreamRuntimeKey: "win32-x64",
     verifier: "windows",
-    participation: { internal: "optional", stable: "optional" },
+    participation: { internal: "optional", stable: "required" },
   },
   {
     ...createDesktopTarget({ platform: "linux", arch: "x64" }),
@@ -87,6 +87,9 @@ export function assertDesktopTargetManifest() {
   }
   if (!TARGETS.some((target) => target.platform === "macos" && target.participation.stable === "required")) {
     errors.push("the shipped macOS Stable target must remain required");
+  }
+  if (!TARGETS.some((target) => target.platform === "windows" && target.participation.stable === "required")) {
+    errors.push("the shipped Windows Stable target must remain required");
   }
   if (errors.length > 0) {
     throw new Error(`Invalid Desktop target manifest:\n${errors.map((error) => `- ${error}`).join("\n")}`);

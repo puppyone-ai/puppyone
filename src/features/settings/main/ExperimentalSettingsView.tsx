@@ -16,6 +16,7 @@ export function ExperimentalSettingsView({
     messageKey: string;
     settingKey: keyof ExperimentalSettings;
   }> = [
+    { messageKey: "builtInAgent", settingKey: "enableBuiltInAgent" },
     { messageKey: "projectSwitcherRail", settingKey: "enableProjectSwitcherRail" },
     { messageKey: "multiRootWorkspaces", settingKey: "enableMultiRootWorkspaces" },
     { messageKey: "viewerPlugins", settingKey: "enableViewerPlugins" },
@@ -24,6 +25,7 @@ export function ExperimentalSettingsView({
       ? [{ messageKey: "gitAutoCommit", settingKey: "enableGitAutoCommit" as const }]
       : []),
     { messageKey: "markdownBlockDrag", settingKey: "enableMarkdownBlockDrag" },
+    { messageKey: "markdownHeadingOutline", settingKey: "enableMarkdownHeadingOutline" },
     ...(assetLibraryHomeAvailable
       ? [{ messageKey: "projectsHome", settingKey: "enableAssetLibraryHome" as const }]
       : []),

@@ -45,7 +45,6 @@ export function createOpenCodeNativeRuntimeDefinition({
         appVersion,
         logger,
         runtimeDescriptor: OPENCODE_NATIVE_RUNTIME_DESCRIPTOR,
-        managed: false,
     }),
   };
 }

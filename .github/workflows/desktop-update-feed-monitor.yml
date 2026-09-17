@@ -38,28 +38,18 @@ jobs:
           --channel stable
           --require-latest-history-head
 
-      - name: Verify Windows Stable feed when established
+      - name: Verify required Windows Stable feed
         id: windows_update_feed
         shell: bash
         run: |
           set -euo pipefail
           POINTER="https://downloads.puppyone.ai/desktop/stable/windows/x64/nsis/latest/latest.json"
-          STATUS="$(curl --silent --output /dev/null --write-out '%{http_code}' --max-redirs 0 "${POINTER}")"
-          if [ "${STATUS}" = "404" ]; then
-            echo "state=not-published" >> "${GITHUB_OUTPUT}"
-            exit 0
-          fi
-          if [ "${STATUS}" != "200" ]; then
-            echo "Windows Stable pointer returned HTTP ${STATUS}." >&2
-            exit 1
-          fi
           node scripts/verify-desktop-windows-update-feed.mjs
           node scripts/verify-desktop-release-version.mjs \
             --channel stable \
             --require-latest-history-head \
             --catalog-url "https://downloads.puppyone.ai/desktop/stable/windows/x64/nsis/releases.json" \
             --latest-pointer-url "${POINTER}"
-          echo "state=verified" >> "${GITHUB_OUTPUT}"
 
       - name: Summarize update feed health
         if: ${{ always() }}
@@ -67,7 +57,6 @@ jobs:
           VERIFY_OUTCOME: ${{ steps.update_feed.outcome }}
           HISTORY_OUTCOME: ${{ steps.release_history.outcome }}
           WINDOWS_OUTCOME: ${{ steps.windows_update_feed.outcome }}
-          WINDOWS_STATE: ${{ steps.windows_update_feed.outputs.state }}
         run: |
           {
             echo "### Desktop Stable update feed"
@@ -76,7 +65,7 @@ jobs:
             echo "- Monotonic release history: ${HISTORY_OUTCOME}"
             echo "- Machine update origin: https://updates.puppyone.ai/desktop/stable/mac/latest/stable-mac.yml"
             echo "- Public release pointer: https://downloads.puppyone.ai/desktop/stable/mac/latest/latest.json"
-            echo "- Windows feed: ${WINDOWS_OUTCOME} (${WINDOWS_STATE:-unknown})"
+            echo "- Windows feed: ${WINDOWS_OUTCOME}"
             echo "- Windows machine update origin: https://updates.puppyone.ai/desktop/stable/windows/x64/nsis/latest/stable.yml"
             echo "- Windows public release pointer: https://downloads.puppyone.ai/desktop/stable/windows/x64/nsis/latest/latest.json"
           } >> "${GITHUB_STEP_SUMMARY}"

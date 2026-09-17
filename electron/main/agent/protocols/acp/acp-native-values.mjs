@@ -10,13 +10,12 @@ export function isUnavailableAcpSessionError(error) {
 export function publicModels(config, fallbackProviderId) {
   const variants = config.efforts.available.map((entry) => entry.id);
   return config.models.available.map((model, index) => {
-    const providerId = model.id.includes("/") ? model.id.slice(0, model.id.indexOf("/")) : fallbackProviderId;
-    const modelId = model.id.includes("/") ? model.id.slice(model.id.indexOf("/") + 1) : model.id;
+    const identity = splitModelIdentity(model.id, fallbackProviderId);
     return {
       id: model.id,
       model: model.id,
-      providerId,
-      modelId,
+      providerId: identity.providerId,
+      modelId: identity.modelId,
       displayName: model.name || model.id,
       description: model.description || "",
       isDefault: model.id === config.models.currentId || (!config.models.currentId && index === 0),
@@ -24,6 +23,24 @@ export function publicModels(config, fallbackProviderId) {
       defaultVariant: variants.includes(config.efforts.currentId) ? config.efforts.currentId : variants[0] ?? null,
     };
   });
+}
+
+function splitModelIdentity(value, fallbackProviderId) {
+  const id = text(value, 2_000);
+  const colon = id.indexOf(":");
+  const slash = id.indexOf("/");
+  if (colon > 0 && (slash < 0 || colon < slash)) {
+    if (id.startsWith("custom:")) {
+      const endpointSeparator = id.indexOf(":", colon + 1);
+      if (endpointSeparator > colon + 1) return {
+        providerId: id.slice(0, endpointSeparator),
+        modelId: id.slice(endpointSeparator + 1),
+      };
+    }
+    return { providerId: id.slice(0, colon), modelId: id.slice(colon + 1) };
+  }
+  if (slash > 0) return { providerId: id.slice(0, slash), modelId: id.slice(slash + 1) };
+  return { providerId: fallbackProviderId, modelId: id };
 }
 
 export function publicProviders(models) {

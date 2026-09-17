@@ -37,6 +37,9 @@ export function MarkdownViewer(context: MarkdownViewerProps) {
           readOnly={!controls.canEdit}
           livePreview
           blockDragEnabled={context.editorInteractionPreferences.markdownBlockDragEnabled}
+          headingOutlineEnabled={
+            context.editorInteractionPreferences.markdownHeadingOutlineEnabled === true
+          }
           aiEditFile={context.aiEditFile}
           htmlTrustMode={context.htmlTrustMode}
           documentPath={context.document.path}

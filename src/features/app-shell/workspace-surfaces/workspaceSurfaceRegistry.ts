@@ -21,20 +21,14 @@ const WORKSPACE_SURFACE_CONTRIBUTIONS = [
     isAvailable: () => true,
   }),
   defineWorkspaceSurface({
-    id: "plugins",
-    navigation: { labelId: "shell.navigation.plugins", group: "workspace", order: 30 },
-    lifecycle: { sidebar: "on-demand", main: "on-demand" },
-    isAvailable: ({ pluginsEnabled }) => pluginsEnabled,
-  }),
-  defineWorkspaceSurface({
     id: "cloud",
-    navigation: { labelId: "shell.navigation.cloud", group: "cloud-hub", order: 40 },
+    navigation: { labelId: "shell.navigation.cloud", group: "cloud-hub", order: 30 },
     lifecycle: { sidebar: "on-demand", main: "on-demand" },
     isAvailable: ({ cloudEnabled }) => cloudEnabled,
   }),
   defineWorkspaceSurface({
     id: "settings",
-    navigation: { labelId: "shell.navigation.settings", group: "settings", order: 50 },
+    navigation: { labelId: "shell.navigation.settings", group: "settings", order: 40 },
     lifecycle: { sidebar: "on-demand", main: "on-demand" },
     isAvailable: () => true,
   }),

@@ -81,7 +81,7 @@ export function TerminalLauncher({
   const shell = getDesktopTerminalLauncher("shell");
   const scanning = discoveryPhase === "idle" || discoveryPhase === "loading";
   const busy = launching || chatPreparing;
-  const availableAgentIdSet = new Set<DesktopTerminalLauncherId>(availableAgentIds);
+  const availableAgentIdSet = new Set<LocalAgentInstallationId>(availableAgentIds);
   const terminalAgentLaunchers = DESKTOP_TERMINAL_LAUNCHERS.filter(
     (launcher): launcher is TerminalAgentLauncherDefinition => (
       launcher.id !== "shell" && availableAgentIdSet.has(launcher.id)
@@ -130,7 +130,7 @@ export function TerminalLauncher({
           className="desktop-terminal-launcher-group is-agents"
           data-agent-mode={agentMode}
           data-discovery-phase={discoveryPhase}
-          data-detected-terminal-agent-count={availableAgentIds.length}
+          data-detected-terminal-agent-count={terminalAgentLaunchers.length}
         >
           <header className="desktop-terminal-launcher-heading">
             <h2 id={titleId}>

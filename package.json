@@ -1,7 +1,7 @@
 {
   "name": "@puppyone/desktop",
   "private": true,
-  "version": "0.3.22",
+  "version": "0.3.23",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -24,7 +24,7 @@
     "generate:sub-themes": "node scripts/generate-builtin-sub-themes.mjs",
     "check:interface-styles": "node scripts/generate-interface-styles.mjs --check",
     "check:sub-themes": "node scripts/generate-builtin-sub-themes.mjs --check",
-    "check:boundaries": "npm run check:interface-styles && npm run check:sub-themes && node scripts/check-repository-layout.mjs && npm run check:test-layout && node scripts/check-puppy-brand-assets.mjs && node scripts/check-renderer-asset-architecture.mjs && node scripts/check-test-fixture-privacy.mjs && node scripts/check-local-workspace-architecture.mjs && node scripts/check-cloud-frontend-architecture.mjs && node scripts/check-repository-target-architecture.mjs && node scripts/check-desktop-platform-architecture.mjs && node scripts/check-local-agent-installation-architecture.mjs && node scripts/check-desktop-build-identity-architecture.mjs && node scripts/check-desktop-telemetry-architecture.mjs && node scripts/check-git-auto-commit-architecture.mjs && node scripts/check-macos-release-config.mjs && node scripts/check-localization.mjs && node scripts/check-renderer-style-architecture.mjs && node scripts/check-window-layout-architecture.mjs && node scripts/check-native-surface-layering.mjs && node scripts/check-data-ui-boundaries.mjs && node scripts/check-markdown-architecture.mjs && node scripts/check-viewer-contract.mjs && node scripts/check-editor-document-session.mjs && node scripts/check-sidebar-architecture.mjs && node scripts/check-workbench-architecture.mjs && node scripts/check-agent-architecture.mjs && node scripts/check-agent-activity-architecture.mjs && node scripts/check-opencode-provenance.mjs && node scripts/check-claude-agent-sdk-provenance.mjs && node scripts/check-agent-ui-provenance.mjs && node scripts/check-automation-plugin-boundaries.mjs",
+    "check:boundaries": "npm run check:interface-styles && npm run check:sub-themes && node scripts/check-repository-layout.mjs && npm run check:test-layout && node scripts/check-puppy-brand-assets.mjs && node scripts/check-renderer-asset-architecture.mjs && node scripts/check-test-fixture-privacy.mjs && node scripts/check-local-workspace-architecture.mjs && node scripts/check-cloud-frontend-architecture.mjs && node scripts/check-repository-target-architecture.mjs && node scripts/check-desktop-platform-architecture.mjs && node scripts/check-local-agent-installation-architecture.mjs && node scripts/check-desktop-build-identity-architecture.mjs && node scripts/check-desktop-telemetry-architecture.mjs && node scripts/check-git-auto-commit-architecture.mjs && node scripts/check-macos-release-config.mjs && node scripts/check-localization.mjs && node scripts/check-renderer-style-architecture.mjs && node scripts/check-window-layout-architecture.mjs && node scripts/check-native-surface-layering.mjs && node scripts/check-data-ui-boundaries.mjs && node scripts/check-markdown-architecture.mjs && node scripts/check-viewer-contract.mjs && node scripts/check-editor-document-session.mjs && node scripts/check-sidebar-architecture.mjs && node scripts/check-workbench-architecture.mjs && node scripts/check-agent-architecture.mjs && node scripts/check-agent-activity-architecture.mjs && node scripts/check-pi-kernel-provenance.mjs && node scripts/check-claude-agent-sdk-provenance.mjs && node scripts/check-agent-ui-provenance.mjs && node scripts/check-automation-plugin-boundaries.mjs",
     "check:puppy-brand-assets": "node scripts/check-puppy-brand-assets.mjs",
     "check:renderer-assets": "node scripts/check-renderer-asset-architecture.mjs",
     "check:test-fixture-privacy": "node scripts/check-test-fixture-privacy.mjs",
@@ -36,7 +36,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "prepare:desktop-build:dev": "node scripts/prepare-desktop-build.mjs --channel dev",
-    "dev": "npm run build:native-drag && npm run prepare:desktop-build:dev && node scripts/prepare-opencode-dev-runtime.mjs --optional && node scripts/dev-electron.mjs",
+    "dev": "npm run build:native-drag && npm run prepare:desktop-build:dev && node scripts/dev-electron.mjs",
     "dev:update-preview": "VITE_DESKTOP_UPDATE_PREVIEW=downloaded VITE_DESKTOP_UPDATE_PREVIEW_VERSION=0.3.0-preview.1 VITE_DESKTOP_CLOUD_API_URL=https://api.puppyone.ai/api/v1 VITE_DESKTOP_CLOUD_WEB_URL=https://app.puppyone.ai npm run dev",
     "dev:renderer": "vite",
     "dev:browser": "vite --host 127.0.0.1",
@@ -46,17 +46,14 @@
     "package:viewer-pack": "node scripts/package-viewer-pack.mjs",
     "check:artifact-budgets": "node scripts/check-packaged-artifact-budgets.mjs",
     "check:viewer-pack-trust": "node scripts/check-viewer-pack-release.mjs",
-    "stage:opencode-runtime": "node scripts/stage-opencode-runtime.mjs",
-    "prepare:opencode-runtime": "node scripts/prepare-opencode-dev-runtime.mjs",
-    "check:opencode-release": "node scripts/check-opencode-release.mjs",
     "dist:mac": "npm run prepare:desktop-build:dev && npm run dist:mac:prepared",
-    "dist:mac:prepared": "npm run check:shared-ui && npm run build && npm run check:viewer-pack-trust && npm run check:opencode-release && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --config generated/electron-builder.json --mac --publish never",
+    "dist:mac:prepared": "npm run check:shared-ui && npm run build && npm run check:viewer-pack-trust && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --config generated/electron-builder.json --mac --publish never",
     "package:terminal-preview": "node scripts/build-terminal-preview-package.mjs",
     "dist:mac:terminal-preview": "npm run dist:mac && npm run package:terminal-preview",
-    "prepare:mac:release": "npm run check:shared-ui && npm run build && npm run check:viewer-pack-trust && npm run check:opencode-release",
+    "prepare:mac:release": "npm run check:shared-ui && npm run build && npm run check:viewer-pack-trust",
     "package:mac:release": "node scripts/build-macos-stable-release.mjs --package-only",
     "dist:mac:release": "node scripts/build-macos-stable-release.mjs",
-    "prepare:windows:release": "npm run check:shared-ui && npm run build && npm run check:viewer-pack-trust && npm run check:opencode-release",
+    "prepare:windows:release": "npm run check:shared-ui && npm run build && npm run check:viewer-pack-trust",
     "package:windows:prepared": "electron-builder --config generated/electron-builder.json --win nsis --x64 --publish never",
     "package:windows:release": "npm run package:windows:prepared && node scripts/verify-packaged-desktop-build.mjs --target windows-x64",
     "preview": "vite preview --host 127.0.0.1",
@@ -124,6 +121,7 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.159",
+    "@earendil-works/pi-coding-agent": "0.85.1",
     "@xterm/addon-serialize": "0.14.0",
     "@xterm/addon-unicode11": "0.9.0",
     "@xterm/addon-web-links": "^0.12.0",
@@ -177,7 +175,8 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "globals": "^17.7.0",
     "happy-dom": "^20.10.6",
-    "js-yaml": "4.3.1",
+    "js-yaml": "4.3.2",
+    "katex": "^0.16.47",
     "lucide-react": "^0.562.0",
     "mermaid": "^11.16.1",
     "node-api-headers": "1.9.0",
@@ -193,6 +192,11 @@
     "vitest": "^4.1.10",
     "wrangler": "4.127.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  },
+  "overrides": {
+    "fast-uri": "3.1.6",
+    "hono": "4.13.5",
+    "qs": "6.16.0"
   },
   "build": {
     "electronUpdaterCompatibility": ">=2.16",
@@ -214,6 +218,7 @@
       "packages/shared-ui/**",
       "vendor/claudian/**",
       "vendor/claude-agent-sdk/**",
+      "vendor/pi-kernel/**",
       "!node_modules/@anthropic-ai/claude-agent-sdk-*/**",
       "LICENSE",
       "NOTICE",
@@ -223,15 +228,6 @@
       "!**/*.test.*",
       "!**/*.spec.*",
       "!**/*.bench.*"
-    ],
-    "extraResources": [
-      {
-        "from": "vendor/opencode",
-        "to": "opencode",
-        "filter": [
-          "**/*"
-        ]
-      }
     ]
   }
 }

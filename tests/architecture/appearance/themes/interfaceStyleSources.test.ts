@@ -20,7 +20,7 @@ describe("Interface style registry", () => {
     expect(preferences).toContain("window.getComputedStyle(titlebar).backgroundColor");
     expect(preferences).toContain("titlebarBackground,");
     expect(nativeFirstPaint).toContain('"background": "#fafafa"');
-    expect(nativeFirstPaint).toContain('"background": "#161413"');
+    expect(nativeFirstPaint).toContain('"background": "#161616"');
   });
 
   it("uses Neutral as the attribute-free fallback and packages Warm independently", () => {

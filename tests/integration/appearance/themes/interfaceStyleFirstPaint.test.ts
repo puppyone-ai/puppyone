@@ -60,7 +60,7 @@ describe("Interface style registry", () => {
       { themeMode: "light", preset: "neutral", subThemeId: "default.neutral", expected: "#fafafa" },
       { themeMode: "light", preset: "warm", subThemeId: "default.warm", expected: "#fbfaf7" },
       { themeMode: "light", preset: "graphite", subThemeId: "default.graphite", expected: "#fbfbfc" },
-      { themeMode: "dark", preset: "default", subThemeId: "default.neutral", expected: "#161413" },
+      { themeMode: "dark", preset: "default", subThemeId: "default.neutral", expected: "#161616" },
       { themeMode: "dark", preset: "warm", subThemeId: "default.warm", expected: "#18130f" },
       { themeMode: "dark", preset: "graphite", subThemeId: "default.graphite", expected: "#17181c" },
     ] as const;

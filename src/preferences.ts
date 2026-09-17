@@ -58,11 +58,6 @@ export type SidebarNavigationLayout = "bottom-horizontal";
 
 export type SidebarNavigationPlacement = "bottom";
 export type SidebarNavigationOrientation = "horizontal";
-export const OPTIONAL_SIDEBAR_NAVIGATION_ITEM_IDS = ["plugins"] as const;
-export type OptionalSidebarNavigationItemId = typeof OPTIONAL_SIDEBAR_NAVIGATION_ITEM_IDS[number];
-export type SidebarNavigationVisibilitySettings = {
-  enabled: Record<OptionalSidebarNavigationItemId, boolean>;
-};
 export type FilesVisibilitySettings = {
   showHiddenFiles: boolean;
   excludePatterns: string[];
@@ -73,7 +68,7 @@ export type RightSidebarToolsSettings = {
   enabled: Record<RightSidebarToolId, boolean>;
   order: RightSidebarToolId[];
 };
-export const TITLEBAR_ACTION_IDS = ["changes", "history", "terminal"] as const;
+export const TITLEBAR_ACTION_IDS = ["changes", "terminal"] as const;
 export type TitlebarActionId = typeof TITLEBAR_ACTION_IDS[number];
 export type TitlebarActionsSettings = {
   enabled: Record<TitlebarActionId, boolean>;
@@ -85,12 +80,14 @@ export type LocalAgentsSettings = {
 };
 export type ExperimentalSettings = {
   enableAssetLibraryHome: boolean;
+  enableBuiltInAgent: boolean;
   enableCloudAutomation: boolean;
   enableCloudWorkspace: boolean;
   enableEditorSaveStatus: boolean;
   enableFirstProjectStarter: boolean;
   enableGitAutoCommit: boolean;
   enableMarkdownBlockDrag: boolean;
+  enableMarkdownHeadingOutline: boolean;
   enableMultiRootWorkspaces: boolean;
   enablePuppyFlowFiles: boolean;
   enableProjectSwitcherRail: boolean;
@@ -114,7 +111,6 @@ export const MARKDOWN_PRESENTATION_STORAGE_KEY = "puppyone.desktop.markdownPrese
 export const MARKDOWN_EMPHASIS_STORAGE_KEY = "puppyone.desktop.markdownEmphasis";
 export const FILE_ICON_THEME_STORAGE_KEY = "puppyone.desktop.fileIconTheme";
 export const SIDEBAR_NAVIGATION_LAYOUT_STORAGE_KEY = "puppyone.desktop.sidebarNavigationLayout";
-export const SIDEBAR_NAVIGATION_VISIBILITY_STORAGE_KEY = "puppyone.desktop.sidebarNavigationVisibility";
 export const FILES_VISIBILITY_STORAGE_KEY = "puppyone.desktop.filesVisibility";
 export const RIGHT_SIDEBAR_TOOLS_STORAGE_KEY = "puppyone.desktop.rightSidebarTools";
 export const TITLEBAR_ACTIONS_STORAGE_KEY = "puppyone.desktop.titlebarActions";
@@ -136,11 +132,6 @@ export const DEFAULT_DIFF_MARKERS: DiffMarkers = "color";
 export const DEFAULT_GIT_DISPLAY_MODE: GitDisplayMode = "simple";
 export const DEFAULT_GIT_SIDEBAR_LAYOUT: GitSidebarLayout = "cards";
 export const DEFAULT_SIDEBAR_NAVIGATION_LAYOUT: SidebarNavigationLayout = "bottom-horizontal";
-export const DEFAULT_SIDEBAR_NAVIGATION_VISIBILITY_SETTINGS: SidebarNavigationVisibilitySettings = {
-  enabled: {
-    plugins: true,
-  },
-};
 export const DEFAULT_EXPLORER_EXCLUDE_PATTERNS = [
   "**/.git",
   "**/.puppyone",
@@ -161,7 +152,6 @@ export const DEFAULT_RIGHT_SIDEBAR_TOOLS_SETTINGS: RightSidebarToolsSettings = {
 };
 export const DEFAULT_TITLEBAR_ACTIONS_SETTINGS: TitlebarActionsSettings = {
   enabled: {
-    history: true,
     changes: true,
     terminal: true,
   },
@@ -175,12 +165,14 @@ export const DEFAULT_AGENT_FILE_ACTIVITY_INDICATORS_ENABLED = false;
 export const DEFAULT_AI_EDIT_ASSIST_ENABLED = false;
 export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
   enableAssetLibraryHome: false,
+  enableBuiltInAgent: false,
   enableCloudAutomation: false,
   enableCloudWorkspace: false,
   enableEditorSaveStatus: false,
   enableFirstProjectStarter: false,
   enableGitAutoCommit: false,
   enableMarkdownBlockDrag: false,
+  enableMarkdownHeadingOutline: false,
   enableMultiRootWorkspaces: false,
   enablePuppyFlowFiles: false,
   enableProjectSwitcherRail: false,
@@ -310,26 +302,6 @@ export function getSidebarNavigationOrientation(_layout: SidebarNavigationLayout
   return "horizontal";
 }
 
-export function parseSidebarNavigationVisibilitySettings(
-  value: string | null | undefined,
-): SidebarNavigationVisibilitySettings {
-  if (!value) return DEFAULT_SIDEBAR_NAVIGATION_VISIBILITY_SETTINGS;
-
-  try {
-    const parsed = JSON.parse(value) as { enabled?: Partial<Record<OptionalSidebarNavigationItemId, unknown>> } | null;
-    if (!parsed || typeof parsed !== "object" || !parsed.enabled || typeof parsed.enabled !== "object") {
-      return DEFAULT_SIDEBAR_NAVIGATION_VISIBILITY_SETTINGS;
-    }
-    return {
-      enabled: {
-        plugins: parsed.enabled.plugins !== false,
-      },
-    };
-  } catch {
-    return DEFAULT_SIDEBAR_NAVIGATION_VISIBILITY_SETTINGS;
-  }
-}
-
 export function parseFilesVisibilitySettings(value: string | null | undefined): FilesVisibilitySettings {
   if (!value) return DEFAULT_FILES_VISIBILITY_SETTINGS;
 
@@ -375,7 +347,6 @@ export function parseTitlebarActionsSettings(value: string | null | undefined): 
 
     return {
       enabled: {
-        history: readTitlebarActionEnabled(parsed, "history", true),
         changes: readTitlebarActionEnabled(parsed, "changes", true),
         terminal: readTitlebarActionEnabled(parsed, "terminal", true),
       },
@@ -403,7 +374,9 @@ export function parseLocalAgentsSettings(
       ? parsed.hiddenTerminalAgentIds
       : []).filter(
       (id): id is string => typeof id === "string" && /^[a-z0-9][a-z0-9._-]{0,79}$/u.test(id),
-    ))).slice(0, 16);
+    ).flatMap((id) => id === "workbuddy"
+      ? ["workbuddy-china", "workbuddy-international"]
+      : [id]))).slice(0, 16);
     return {
       hiddenTerminalAgentIds,
       chatHistoryDiscoveryEnabled: parsed.chatHistoryDiscoveryEnabled === true,
@@ -436,6 +409,7 @@ export function parseExperimentalSettings(value: string | null | undefined): Exp
 
     return {
       enableAssetLibraryHome: parsed.enableAssetLibraryHome === true,
+      enableBuiltInAgent: parsed.enableBuiltInAgent === true,
       enableCloudAutomation: parsed.enableCloudAutomation === true,
       enableCloudWorkspace: parsed.enableCloudWorkspace === true,
       enableEditorSaveStatus: parsed.enableEditorSaveStatus === true,
@@ -444,6 +418,7 @@ export function parseExperimentalSettings(value: string | null | undefined): Exp
       // from renderer localStorage. The Electron capability bridge hydrates it.
       enableGitAutoCommit: false,
       enableMarkdownBlockDrag: parsed.enableMarkdownBlockDrag === true,
+      enableMarkdownHeadingOutline: parsed.enableMarkdownHeadingOutline === true,
       enableMultiRootWorkspaces: parsed.enableMultiRootWorkspaces === true,
       enablePuppyFlowFiles: parsed.enablePuppyFlowFiles === true,
       enableProjectSwitcherRail: parsed.enableProjectSwitcherRail === true,

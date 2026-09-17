@@ -113,8 +113,9 @@ describe("Project switcher rail", () => {
     expect(startProjectRootDrag).toHaveBeenCalledWith({ path: active.path });
   });
 
-  it("keeps app-level Settings and Feedback utilities at the bottom of the expanded rail", async () => {
+  it("keeps app-level Plugins, Settings, and Feedback utilities at the bottom of the expanded rail", async () => {
     const active = workspace("active", "Alpha", "/projects/alpha");
+    const onOpenPlugins = vi.fn();
     const onOpenSettings = vi.fn();
     const host = document.createElement("div");
     document.body.append(host);
@@ -127,7 +128,9 @@ describe("Project switcher rail", () => {
         expanded
         recentWorkspaces={[]}
         onCreateNew={() => undefined}
+        onOpenPlugins={onOpenPlugins}
         onOpenSettings={onOpenSettings}
+        pluginsOpen
         settingsOpen
         onSelectProject={() => undefined}
         utilitySlot={<button type="button" data-testid="feedback">Feedback</button>}
@@ -135,11 +138,16 @@ describe("Project switcher rail", () => {
     )));
 
     const utilities = host.querySelector(".desktop-project-switcher-rail-utilities");
+    const plugins = utilities?.querySelector<HTMLButtonElement>("[data-navigation-item='plugins']");
     const settings = utilities?.querySelector<HTMLButtonElement>("[data-navigation-item='settings']");
     const feedback = utilities?.querySelector<HTMLButtonElement>("[data-testid='feedback']");
     expect(utilities?.parentElement?.classList.contains("desktop-project-switcher-rail")).toBe(true);
     expect(utilities?.classList.contains("desktop-sidebar-navigation-surface")).toBe(true);
     expect(utilities?.getAttribute("data-placement")).toBe("bottom");
+    expect(plugins?.classList.contains("desktop-sidebar-footer-button")).toBe(true);
+    expect(plugins?.getAttribute("aria-haspopup")).toBe("dialog");
+    expect(plugins?.getAttribute("aria-expanded")).toBe("true");
+    expect(plugins?.getAttribute("aria-label")).toBe("Plugins");
     expect(settings?.classList.contains("desktop-sidebar-footer-button")).toBe(true);
     expect(settings?.hasAttribute("aria-current")).toBe(false);
     expect(settings?.getAttribute("aria-haspopup")).toBe("dialog");
@@ -148,7 +156,9 @@ describe("Project switcher rail", () => {
     expect(settings?.querySelector(".desktop-sidebar-nav-label")).toBeNull();
     expect(feedback?.textContent).toBe("Feedback");
 
+    await act(async () => plugins?.click());
     await act(async () => settings?.click());
+    expect(onOpenPlugins).toHaveBeenCalledOnce();
     expect(onOpenSettings).toHaveBeenCalledOnce();
   });
 

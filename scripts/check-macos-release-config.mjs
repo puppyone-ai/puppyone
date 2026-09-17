@@ -103,7 +103,7 @@ if (scripts["publish:mac:r2"] || scripts["dist:mac:publish"]) {
   errors.push("stable R2 publishing must only happen through the canonical GitHub Release workflow");
 }
 if (
-  scripts["prepare:mac:release"] !== "npm run check:shared-ui && npm run build && npm run check:viewer-pack-trust && npm run check:opencode-release"
+  scripts["prepare:mac:release"] !== "npm run check:shared-ui && npm run build && npm run check:viewer-pack-trust"
   || scripts["package:mac:release"] !== "node scripts/build-macos-stable-release.mjs --package-only"
 ) {
   errors.push("stable CI must prepare without deployment secrets before entering the signing step");

@@ -507,6 +507,7 @@ describe("typography architecture", () => {
     const base = source("src/styles/base.css");
     const markdown = source("packages/shared-ui/src/styles/editor/markdown-editor.css");
     const markdownContent = source("packages/shared-ui/src/styles/editor/markdown-content.css");
+    const markdownMath = source("packages/shared-ui/src/styles/editor/markdown-math.css");
     const plainText = source("packages/shared-ui/src/styles/editor/editor-chrome.css");
     const editableTable = source("packages/shared-ui/src/styles/editor/editable-table.css");
     const officePreview = source("packages/shared-ui/src/styles/editor/media-office-preview.css");
@@ -522,6 +523,7 @@ describe("typography architecture", () => {
     const typographyRuntime = source("src/features/typography/typographyRuntime.ts");
     const appearanceRuntime = source("src/features/appearance/AppearanceRuntime.tsx");
     const app = source("src/App.tsx");
+    const rendererMain = source("src/main.tsx");
 
     expect(styles).toContain('@import "./styles/typography/foundations.css" layer(tokens);');
     expect(styles).toContain('@import "./styles/typography/locales.css" layer(tokens);');
@@ -538,6 +540,7 @@ describe("typography architecture", () => {
     expect(foundations).toContain("--po-right-sidebar-code-font-size:");
     expect(foundations).toContain("--po-user-text-size-conversation");
     expect(foundations).toContain("--po-text-weight-medium: 500;");
+    expect(foundations).toContain("--po-plain-text-reading-weight: var(--po-text-weight-medium);");
     expect(foundations).toContain("--po-content-reading-line-height: var(--po-type-editor-line-height, 24px);");
     expect(foundations).toContain("--po-content-reading-letter-spacing: 0;");
     expect(roles).toContain("--po-font-ui-primary: \"Geist Sans\";");
@@ -556,6 +559,9 @@ describe("typography architecture", () => {
     expect(locales).toContain('"Hiragino Sans", "Yu Gothic", "Meiryo", "Noto Sans CJK JP"');
     expect(locales).toContain('"Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans CJK KR"');
     expect(locales).toContain("--po-content-reading-weight: 500;");
+    expect(locales).toContain(':root[data-desktop-platform="windows"]');
+    expect(locales).toContain("--po-content-reading-weight: var(--po-text-weight-regular, 400);");
+    expect(locales).toContain("--po-plain-text-reading-weight: var(--po-text-weight-regular, 400);");
     expect(locales).not.toContain("--po-content-reading-letter-spacing:");
     expect(locales).not.toContain("--po-content-reading-line-height:");
     expect(base).toContain("font-feature-settings: normal;");
@@ -566,6 +572,10 @@ describe("typography architecture", () => {
     expect(markdownContent).toContain("--po-editor-content-font: var(--po-font-editor-content-user, var(--po-md-content-font));");
     expect(markdownContent).toContain('[data-font-editor-content-mode="explicit"]');
     expect(markdownContent).toContain("font-family: var(--po-font-editor-content-user) !important;");
+    expect(markdownContent).toContain(".cm-md-math-inline-widget");
+    expect(markdownContent).not.toContain("font-family: revert");
+    expect(markdownMath).not.toContain("font-family: revert");
+    expect(markdownMath).not.toMatch(/font-family:\s*KaTeX_/);
     expect(markdownContent).toContain(".cm-line:not(.cm-md-code-block-line)");
     expect(markdownContent).toContain('[data-po-theme-surface="markdown"] .cm-md-inline-code,');
     expect(markdownContent).toContain('[data-po-theme-surface="markdown"] .cm-md-code-textarea,');
@@ -575,7 +585,7 @@ describe("typography architecture", () => {
     expect(markdown).toContain("font-feature-settings: normal;");
     expect(plainText).toContain("font-family: var(--po-font-editor-content-user, var(--po-font-content, var(--po-font-sans)));");
     expect(plainText).toContain("font-size: var(--po-text-size-content, 16px);");
-    expect(plainText).toContain("font-weight: var(--po-text-weight-medium);");
+    expect(plainText).toContain("font-weight: var(--po-plain-text-reading-weight, var(--po-text-weight-medium, 500));");
     expect(source("src/features/data-workspace/browser.css"))
       .toContain("--po-tree-row-font-size: var(--po-type-left-sidebar-content);");
     expect(source("src/features/data-workspace/browser.css"))
@@ -583,7 +593,7 @@ describe("typography architecture", () => {
     expect(editableTable).toContain("--po-editable-table-font-size: var(--po-type-editor-data");
     expect(officePreview).toContain("--office-sheet-default-font-size: var(--po-type-editor-data");
     expect(officePreview).toContain("font-size: var(--po-type-editor-content");
-    expect(agentTranscript).toContain("font-family: var(--po-font-content, var(--po-font-sans));");
+    expect(agentTranscript).toContain("font-family: var(--agent-font-family);");
     expect(agentTranscript).toContain("font-size: var(--agent-conversation-font-size);");
     expect(agentTranscript).toContain("font-size: var(--agent-font-size-meta);");
     expect(agentActivities).toContain("font-size: var(--agent-code-font-size);");
@@ -605,11 +615,14 @@ describe("typography architecture", () => {
     expect(typographyRuntime).toContain("style: buildTypographyCustomProperties(resolved)");
     expect(typographyRuntime).toContain("const props = createTypographyRootProps(resolved)");
     expect(typographyRuntime).not.toContain('"--po-font-content": resolved.content.family');
-    expect(app).toContain("fontCatalog,\n    locale,");
+    expect(app).toMatch(/fontCatalog,\r?\n\s+locale,/);
     expect(appearanceRuntime).not.toContain("data-content-text-size");
     expect(appearanceRuntime).not.toContain("appearance.textSize");
     expect(appearanceRuntime).toContain("SurfaceAppearanceProvider");
     expect(app).toContain("...surfaceAppearance.rootProps");
+    expect(rendererMain).toContain('import { readDesktopPlatformCapabilities } from "./platform/desktopPlatformClient";');
+    expect(rendererMain).toContain("readDesktopPlatformCapabilities(),");
+    expect(rendererMain).toContain("document.documentElement.dataset.desktopPlatform = platformCapabilities.platform;");
     expect(app).not.toContain("data-interface-text-size={textSize}");
     expect(app).not.toContain("data-terminal-text-size={textSize}");
     expect(app).not.toContain("data-text-size={textSize}");

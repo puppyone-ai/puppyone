@@ -6,7 +6,6 @@ import {
 } from "../../../../../electron/main/agent/runtimes/opencode-protocol/opencode-acp-adapter.mjs";
 
 const NATIVE_RUNTIME = Object.freeze({ id: "opencode-native", displayName: "OpenCode", kind: "native-cli" });
-const MANAGED_RUNTIME = Object.freeze({ id: "puppyone-agent", displayName: "PuppyOne Agent", kind: "managed-harness" });
 
 describe("OpenCode ACP AgentRuntimePort adapter", () => {
   it("maps probed image snapshots and workspace resources to exact ACP prompt blocks", () => {
@@ -74,7 +73,7 @@ describe("OpenCode ACP AgentRuntimePort adapter", () => {
       attachments: {
         image: { accepted: true },
         text: { accepted: true },
-        binary: { accepted: false },
+        binary: { accepted: true },
       },
     });
     expect(inspection.capabilities.revision).toBe("opencode-native-acp:1:image1:embedded1");
@@ -161,39 +160,6 @@ describe("OpenCode ACP AgentRuntimePort adapter", () => {
     await adapter.dispose();
   });
 
-  it("isolates the managed PuppyOne kernel with the pinned profile and pure loopback launch", async () => {
-    const connections = [];
-    const adapter = new OpenCodeAcpAdapter({
-      readiness: readiness({ source: "bundled" }),
-      workspaceRoot: "/workspace",
-      runtimeDescriptor: MANAGED_RUNTIME,
-      managed: true,
-      connectionFactory: (options) => {
-        const connection = new FakeAcpConnection(options);
-        connections.push(connection);
-        return connection;
-      },
-      fileSystemFactory: () => ({ readTextFile: vi.fn(), writeTextFile: vi.fn() }),
-      projectInstructionLoader: vi.fn(async () => ({ source: null, text: "", bytes: 0 })),
-    });
-
-    await adapter.createSession({ model: "openai/gpt-5", mode: "build" });
-    expect(connections[0].options.args).toEqual([
-      "acp",
-      "--cwd=/workspace",
-      "--hostname=127.0.0.1",
-      "--port=0",
-      "--pure",
-    ]);
-    expect(JSON.parse(connections[0].options.env.OPENCODE_CONFIG_CONTENT)).toMatchObject({
-      default_agent: "puppyone",
-      agent: {
-        puppyone: { permission: { "*": "ask" } },
-        "puppyone-plan": { permission: { "*": "deny" } },
-      },
-    });
-    await adapter.dispose();
-  });
 });
 
 class FakeAcpConnection extends EventEmitter {

@@ -29,7 +29,7 @@ import {
   buildAcpPromptBlocks,
   materializeAcpReferences,
 } from "./acp-prompt-input.mjs";
-import { AcpHistoryCollector } from "./acp-history-collector.mjs";
+import { AcpHistoryReplay } from "./acp-history-replay.mjs";
 import { AgentProviderSessionUnavailableError } from "../../runtime/agent-runtime-port.mjs";
 
 const METADATA_SETTLE_MS = 75;
@@ -86,14 +86,15 @@ export const BASE_ACP_CAPABILITIES = Object.freeze({
         maxBytes: ACP_INLINE_IMAGE_MAX_BYTES,
       }),
       text: Object.freeze({
-        accepted: false,
+        // ACP requires every Agent to accept resource links. Embedded text is
+        // an optional optimization negotiated separately at runtime.
+        accepted: true,
         mimeTypes: ACP_EMBEDDED_TEXT_MIME_TYPES,
         extensions: ACP_EMBEDDED_TEXT_EXTENSIONS,
-        maxBytes: ACP_INLINE_IMAGE_MAX_BYTES,
       }),
       audio: Object.freeze({ accepted: false }),
       video: Object.freeze({ accepted: false }),
-      binary: Object.freeze({ accepted: false }),
+      binary: Object.freeze({ accepted: true }),
     }),
     limits: Object.freeze({
       maxCount: 32,
@@ -136,9 +137,11 @@ export class AcpRuntimeAdapter {
     accountType = runtimeDescriptor?.id,
     sessionTitles = {},
     authenticationMethodId = null,
+    authenticationMethodSelector = null,
     capabilityOverrides = {},
     referenceInputProfile = {},
     questionMethods = [],
+    completionInspectorFactory = null,
     eventSource = `${runtimeDescriptor?.id || "agent"}-acp`,
     onDispose = () => {},
   }) {
@@ -173,11 +176,18 @@ export class AcpRuntimeAdapter {
       resumed: sessionTitles.resumed || `${runtimeDescriptor.displayName} session`,
     };
     this.authenticationMethodId = text(authenticationMethodId, 160) || null;
+    this.authenticationMethodSelector = typeof authenticationMethodSelector === "function"
+      ? authenticationMethodSelector
+      : null;
+    this.authenticatedMethodId = null;
     this.capabilityOverrides = capabilityOverrides;
     this.referenceInputProfile = Object.freeze({
       embeddedText: referenceInputProfile?.embeddedText === true,
     });
     this.questionMethods = new Set(array(questionMethods).map((method) => text(method, 160)).filter(Boolean));
+    this.completionInspectorFactory = typeof completionInspectorFactory === "function"
+      ? completionInspectorFactory
+      : null;
     this.eventSource = eventSource;
     this.onDispose = onDispose;
     this.connection = null;
@@ -193,7 +203,7 @@ export class AcpRuntimeAdapter {
     this.exitExpected = false;
     this.disposed = false;
     this.historicalEvents = [];
-    this.historyCollector = null;
+    this.historyReplay = null;
   }
 
   hasActiveProcess() {
@@ -237,7 +247,7 @@ export class AcpRuntimeAdapter {
     await this.#connect("session");
     let response;
     if (kind === "resume") {
-      this.historyCollector = new AcpHistoryCollector();
+      this.historyReplay = new AcpHistoryReplay();
       try {
         const sessionId = requiredId(threadId, `${this.runtimeDescriptor.displayName} ACP session id`);
         const native = this.client?.agentCapabilities ?? {};
@@ -267,11 +277,11 @@ export class AcpRuntimeAdapter {
         this.#syncSession(response);
         await delay(METADATA_SETTLE_MS);
       } finally {
-        this.historyCoverage = this.historyCollector?.truncated ? "partial" : "unknown";
-        this.historicalEvents = this.historyCollector?.events(
+        this.historicalEvents = this.historyReplay?.events(
           nativeSessionId(response?.sessionId) ?? nativeSessionId(threadId),
         ) ?? [];
-        this.historyCollector = null;
+        this.historyCoverage = this.historyReplay?.truncated ? "partial" : "unknown";
+        this.historyReplay = null;
       }
     } else if (kind === "create") {
       response = await this.client.newSession({ cwd: this.workspaceRoot, mcpServers: [] });
@@ -369,7 +379,11 @@ export class AcpRuntimeAdapter {
       workspaceRoot: this.workspaceRoot,
       profile: referenceProfile,
     });
-    const active = { turnId, normalizer, interrupted: false, references: allReferences };
+    const completionInspector = this.completionInspectorFactory?.({
+      turnId,
+      runtimeVersion: this.client?.agentInfo?.version ?? this.readiness.version ?? null,
+    }) ?? null;
+    const active = { turnId, normalizer, completionInspector, interrupted: false, references: allReferences };
     this.activeTurn = active;
     void this.#runPrompt(active, blocks);
     return { turnId };
@@ -414,9 +428,13 @@ export class AcpRuntimeAdapter {
       void this.persistenceReporter.confirm();
       const usage = normalizeAcpPromptUsage(response?.usage);
       if (usage) this.onEvent(event("usage.updated", this.sessionId, active.turnId, null, usage));
+      const completion = !active.interrupted
+        ? safelyInspectCompletion(active.completionInspector, { response }, this.logger)
+        : null;
       this.onEvent(event(active.interrupted ? "turn.interrupted" : "turn.completed", this.sessionId, active.turnId, null, {
         status: active.interrupted ? "interrupted" : "completed",
         stopReason: text(response?.stopReason, 160) || null,
+        ...(completion ?? {}),
       }));
     } catch (error) {
       if (this.activeTurn !== active || this.disposed) return;
@@ -488,10 +506,13 @@ export class AcpRuntimeAdapter {
       },
     });
     await this.client.initialize();
-    if (this.authenticationMethodId) {
-      const advertised = this.client.authMethods.some((method) => method?.id === this.authenticationMethodId);
+    const authenticationMethodId = this.authenticationMethodId
+      ?? (text(this.authenticationMethodSelector?.(this.client.authMethods), 160) || null);
+    if (authenticationMethodId) {
+      const advertised = this.client.authMethods.some((method) => method?.id === authenticationMethodId);
       if (!advertised) throw new Error(`${this.runtimeDescriptor.displayName} did not advertise the required authentication method.`);
-      await this.client.authenticate({ methodId: this.authenticationMethodId });
+      await this.client.authenticate({ methodId: authenticationMethodId });
+      this.authenticatedMethodId = authenticationMethodId;
     }
   }
 
@@ -502,6 +523,7 @@ export class AcpRuntimeAdapter {
     this.client = null;
     this.connection = null;
     this.connectionMode = null;
+    this.authenticatedMethodId = null;
     client?.dispose();
     if (connection) this.closingConnections.add(connection);
     connection?.dispose?.(reason, { expected });
@@ -572,7 +594,7 @@ export class AcpRuntimeAdapter {
           text: {
             ...BASE_ACP_CAPABILITIES.referenceInputs.attachments.text,
             ...(this.capabilityOverrides.referenceInputs?.attachments?.text ?? {}),
-            accepted: acceptsEmbeddedText,
+            accepted: true,
           },
         },
         limits: {
@@ -585,7 +607,7 @@ export class AcpRuntimeAdapter {
 
   #inspection() {
     const models = publicModels(this.sessionConfig, this.runtimeDescriptor.id);
-    const accountReady = models.length > 0 || Boolean(this.authenticationMethodId);
+    const accountReady = models.length > 0 || Boolean(this.authenticatedMethodId);
     return {
       account: {
         account: accountReady ? {
@@ -654,14 +676,18 @@ export class AcpRuntimeAdapter {
         throw new Error(`The selected ${this.runtimeDescriptor.displayName} model is no longer available.`);
       }
       const configId = this.sessionConfig.models.configId;
-      if (!configId) throw new Error(`This ${this.runtimeDescriptor.displayName} ACP runtime does not support changing models.`);
-      const response = await this.client.setConfigOption({
-        configId,
-        sessionId: this.sessionId,
-        type: "select",
-        value: requestedModel,
-      });
-      this.#syncConfigOptions(response?.configOptions);
+      if (configId) {
+        const response = await this.client.setConfigOption({
+          configId,
+          sessionId: this.sessionId,
+          type: "select",
+          value: requestedModel,
+        });
+        this.#syncConfigOptions(response?.configOptions);
+      } else {
+        await this.client.setModel({ sessionId: this.sessionId, modelId: requestedModel });
+        this.sessionConfig.models.currentId = requestedModel;
+      }
     }
     const requestedEffort = resolveRequestedAcpEffort(effort, this.sessionConfig.efforts);
     if (effort && !requestedEffort) {
@@ -708,7 +734,7 @@ export class AcpRuntimeAdapter {
     if (!this.sessionId && nativeSessionId(notification.sessionId)) this.sessionId = notification.sessionId;
     if (notification.sessionId !== this.sessionId) return;
     const update = notification.update;
-    if (this.historyCollector) this.historyCollector.accept(notification);
+    if (this.historyReplay) this.historyReplay.accept(notification);
     if (update?.sessionUpdate === "available_commands_update") {
       this.commands = array(update.availableCommands).slice(0, 500).map((command) => ({
         name: text(command?.name, 160).replace(/^\//u, ""),
@@ -727,12 +753,16 @@ export class AcpRuntimeAdapter {
       return;
     }
     if (!this.activeTurn) return;
+    safelyObserveCompletion(this.activeTurn.completionInspector, notification, this.logger);
     for (const normalized of this.activeTurn.normalizer.normalize(notification)) this.onEvent(normalized);
   }
 
   #withSession(request, operation) {
     if (!this.sessionId || request?.sessionId !== this.sessionId) {
       throw new Error(`ACP file request does not belong to the active ${this.runtimeDescriptor.displayName} session.`);
+    }
+    if (this.historyReplay) {
+      throw new Error(`ACP file requests are unavailable while ${this.runtimeDescriptor.displayName} history is loading.`);
     }
     return operation();
   }
@@ -779,4 +809,24 @@ function requiredId(value, label) {
 
 function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function safelyObserveCompletion(inspector, notification, logger) {
+  if (!inspector?.observe) return;
+  try {
+    inspector.observe(notification);
+  } catch {
+    logger?.warn?.("ACP completion inspection ignored an invalid native update.");
+  }
+}
+
+function safelyInspectCompletion(inspector, context, logger) {
+  if (!inspector?.complete) return null;
+  try {
+    const completion = inspector.complete(context);
+    return completion && typeof completion === "object" ? completion : null;
+  } catch {
+    logger?.warn?.("ACP completion inspection could not classify the completed turn.");
+    return null;
+  }
 }

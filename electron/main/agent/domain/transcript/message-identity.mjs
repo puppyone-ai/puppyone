@@ -17,6 +17,9 @@ export function associateAgentUserMessage(event, control) {
       submissionId: command.commandId,
       ...(command.intent ? {
         ...(event.type === 'turn.started' ? { prompt: command.intent.prompt } : { text: command.intent.prompt }),
+        ...(event.type === 'turn.started' && command.intent.recoveryOfTurnId
+          ? { recoveryOfTurnId: command.intent.recoveryOfTurnId }
+          : {}),
         referenceDisplays: command.intent.referenceDisplays,
         promptMentions: command.intent.promptMentions,
       } : {}),

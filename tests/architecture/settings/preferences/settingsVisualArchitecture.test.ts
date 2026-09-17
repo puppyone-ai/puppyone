@@ -285,6 +285,14 @@ describe("settings visual architecture", () => {
     }
   });
 
+  it("keeps the interface Style switcher as the last Appearance control", () => {
+    const view = source("src/features/settings/SettingsView.tsx");
+    const styleSetting = view.indexOf("<InterfaceStyleSetting");
+    const pointerCursors = view.indexOf('settings.appearance.pointerCursors.title');
+
+    expect(styleSetting).toBeGreaterThan(pointerCursors);
+  });
+
   it("uses one flat Settings contract and removes legacy card primitives", () => {
     const components = source("src/features/settings/components.tsx");
     const view = source("src/features/settings/SettingsView.tsx");

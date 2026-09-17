@@ -1,4 +1,3 @@
-import { FilePenLine } from "lucide-react";
 import { Fragment } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import {
@@ -6,12 +5,14 @@ import {
 } from "../../domain/agent-activity-presentation";
 import type { AgentActivity } from "../../domain/agent-projection-types";
 import { AgentActivityShell } from "./AgentActivityShell";
+import { AgentToolGlyph } from "./AgentToolGlyph";
 import { AgentToolEvidenceNode, AgentToolEvidenceTree } from "./AgentToolEvidenceTree";
 import { AgentToolTextEvidence } from "./AgentToolTextEvidence";
 
 export function AgentFileChangeActivity({ activity, onOpenFile }: { activity: AgentActivity; onOpenFile?: (path: string) => void }) {
   const { t, formatNumber } = useLocalization();
   const changes = fileChangesForActivity(activity);
+  const tool = agentActivityToolId(activity);
   const totals = fileChangeTotals(changes);
   const path = pathForActivity(activity);
   const output = outputForActivity(activity);
@@ -19,9 +20,9 @@ export function AgentFileChangeActivity({ activity, onOpenFile }: { activity: Ag
   const files = changes.length ? changes : path ? [{ path, diff: "", blocks: [], truncated: false }] : [];
   return (
     <AgentActivityShell
-      title={formatAgentToolName(agentActivityToolId(activity), t)}
+      title={formatAgentToolName(tool, t)}
       status={activity.status}
-      icon={<FilePenLine size={13} />}
+      icon={<AgentToolGlyph tool={tool} status={activity.status} />}
       metadata={totals && <span className="desktop-agent-tool-diff-stats" dir="ltr">
         <span className="is-addition">+{formatNumber(totals.additions)}</span>
         <span className="is-deletion">−{formatNumber(totals.deletions)}</span>

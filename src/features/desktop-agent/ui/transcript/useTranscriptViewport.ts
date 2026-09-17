@@ -26,6 +26,7 @@ export function useTranscriptViewport({ rows, scrollRef, initialScrollTop, initi
   const [spacing, setSpacing] = useState(agentTimelineSpacing);
   const [scrollTop, setScrollTop] = useState(initialScrollTop);
   const [viewportHeight, setViewportHeight] = useState(640);
+  const [contentWidth, setContentWidth] = useState(640);
   const [scrollEdgeState, setScrollEdgeState] = useState({ atTop: true, topFade: 0 });
   const [pinned, setPinned] = useState(initialPinned);
   const pinnedRef = useRef(initialPinned);
@@ -163,6 +164,8 @@ export function useTranscriptViewport({ rows, scrollRef, initialScrollTop, initi
     };
     setSpacing(previous => previous.workHandoff === nextSpacing.workHandoff && previous.turnHandoff === nextSpacing.turnHandoff ? previous : nextSpacing);
     setViewportHeight(element.clientHeight);
+    const nextContentWidth = canvasRef.current?.getBoundingClientRect().width ?? element.clientWidth;
+    setContentWidth(previous => Math.abs(previous - nextContentWidth) < 0.5 ? previous : nextContentWidth);
   }, [captureReadingPosition, scrollRef]);
 
   useLayoutEffect(() => {
@@ -227,6 +230,7 @@ export function useTranscriptViewport({ rows, scrollRef, initialScrollTop, initi
   }, [captureReadingPosition, flushMeasurements, initialScrollTop, readGeometry, scrollRef, settleViewport, writeScroll]);
 
   useLayoutEffect(() => {
+    readGeometry();
     if (flushMeasurements()) return;
     settleViewport();
   });
@@ -270,7 +274,7 @@ export function useTranscriptViewport({ rows, scrollRef, initialScrollTop, initi
       : scrollTop;
     return visibleAgentTimelineRange(layout.offsets, rows.length, top, viewportHeight);
   }, [layout, rows, scrollTop, viewportHeight, pinned]);
-  return { canvasRef, observeTail, scrollEdgeState, layout, range, pinned, observeMeasuredRow, commitMeasurement, handleScroll, jumpToLatest };
+  return { canvasRef, observeTail, contentWidth, scrollEdgeState, layout, range, pinned, observeMeasuredRow, commitMeasurement, handleScroll, jumpToLatest };
 }
 
 function boundedMeasurements(input: Record<string, number>, mounted = new Set<string>(), valid?: Set<string>) {

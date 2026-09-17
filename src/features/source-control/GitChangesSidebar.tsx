@@ -1,15 +1,16 @@
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, History } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocalization } from "@puppyone/localization";
 import type { GitCommitDetail } from "../../types/electron";
 import { GitSidebar, type GitSidebarProps } from "./SourceControlSidebar";
-import { WorkingFileDetail } from "./WorkingFileDetail";
+import { WorkingFileActions, WorkingFileDetail } from "./WorkingFileDetail";
 
 export type GitChangesSidebarProps = GitSidebarProps & Readonly<{
   workingFileDiff: GitCommitDetail | null;
   workingFileDiffLoading: boolean;
   workingFileDiffError: string | null;
   onOpenFile: (path: string) => void;
+  onOpenHistory: () => void;
 }>;
 
 /**
@@ -26,6 +27,7 @@ export function GitChangesSidebar({
   workingFileDiffLoading,
   workingFileDiffError,
   onOpenFile,
+  onOpenHistory,
 }: GitChangesSidebarProps) {
   const { t } = useLocalization();
   const [detailVisible, setDetailVisible] = useState(false);
@@ -35,6 +37,7 @@ export function GitChangesSidebar({
   }, [view.selectedWorkingFile]);
 
   const closeDetail = () => setDetailVisible(false);
+  const selection = view.selectedWorkingFile;
 
   return (
     <section
@@ -47,43 +50,65 @@ export function GitChangesSidebar({
       }}
     >
       <div className="desktop-git-changes-sidebar-content">
-        {detailVisible && view.selectedWorkingFile ? (
+        {detailVisible && selection ? (
           <div className="desktop-git-changes-detail">
-            <button
-              className="desktop-history-detail-back"
-              type="button"
-              aria-label={t("shared-ui.navigation.back")}
-              title={t("shared-ui.navigation.back")}
-              onClick={closeDetail}
-            >
-              <ArrowLeft size={15} strokeWidth={1.8} aria-hidden="true" />
-            </button>
+            <header className="desktop-git-view-header desktop-git-changes-detail-header">
+              <button
+                className="desktop-git-view-back"
+                type="button"
+                aria-label={t("shared-ui.navigation.back")}
+                title={t("shared-ui.navigation.back")}
+                onClick={closeDetail}
+              >
+                <ArrowLeft size={15} strokeWidth={1.8} aria-hidden="true" />
+              </button>
+              <WorkingFileActions
+                selection={selection}
+                operationLoading={view.operationLoading}
+                onStagePaths={actions.stagePaths}
+                onUnstagePaths={actions.unstagePaths}
+                onDiscardPaths={actions.discardPaths}
+                onOpenFile={onOpenFile}
+              />
+            </header>
             <WorkingFileDetail
-              selection={view.selectedWorkingFile}
+              selection={selection}
               detail={workingFileDiff}
               loading={workingFileDiffLoading}
               error={workingFileDiffError}
-              operationLoading={view.operationLoading}
               operationError={view.operationError}
-              onStagePaths={actions.stagePaths}
-              onUnstagePaths={actions.unstagePaths}
-              onDiscardPaths={actions.discardPaths}
               onOpenFile={onOpenFile}
             />
           </div>
         ) : (
-          <GitSidebar
-            repository={repository}
-            view={view}
-            actions={{
-              ...actions,
-              selectWorkingFile: (selection) => {
-                actions.selectWorkingFile(selection);
-                setDetailVisible(true);
-              },
-            }}
-            cloudBackup={cloudBackup}
-          />
+          <>
+            <header className="desktop-git-view-header">
+              <span className="desktop-git-view-title">
+                {t("source-control.label.changes")}
+              </span>
+              <button
+                className="desktop-git-view-action"
+                type="button"
+                title={t("source-control.history.title")}
+                aria-label={t("source-control.history.title")}
+                onClick={onOpenHistory}
+              >
+                <History size={14} strokeWidth={1.8} aria-hidden="true" />
+              </button>
+            </header>
+            <GitSidebar
+              repository={repository}
+              view={view}
+              actions={{
+                ...actions,
+                selectWorkingFile: (selection) => {
+                  actions.selectWorkingFile(selection);
+                  setDetailVisible(true);
+                },
+              }}
+              cloudBackup={cloudBackup}
+            />
+          </>
         )}
       </div>
     </section>

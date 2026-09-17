@@ -5,7 +5,7 @@ export const FALLBACK_SUB_THEME_FIRST_PAINT = Object.freeze({
     "colorScheme": "light"
   },
   "dark": {
-    "background": "#161413",
+    "background": "#161616",
     "colorScheme": "dark"
   }
 });

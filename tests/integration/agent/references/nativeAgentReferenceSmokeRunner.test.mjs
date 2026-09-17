@@ -39,6 +39,9 @@ describe("native Agent reference visibility smoke", () => {
     ["cursor", true, false, false, ["workspace-text", "staged-image"]],
     ["opencode-native", true, true, false, ["workspace-text", "staged-image", "staged-utf8-text"]],
     ["pi", true, true, true, ["workspace-text", "staged-image", "staged-utf8-text"]],
+    ["workbuddy-china", true, true, false, ["workspace-text", "staged-image", "staged-utf8-text"]],
+    ["workbuddy-international", true, true, false, ["workspace-text", "staged-image", "staged-utf8-text"]],
+    ["hermes", true, true, true, ["workspace-text", "staged-image", "staged-utf8-text"]],
   ])("proves only the negotiated %s input set is model-visible", async (
     runtimeId,
     imageAccepted,
@@ -253,6 +256,9 @@ describe("native Agent smoke runtime selection", () => {
       "cursor",
       "opencode-native",
       "pi",
+      "workbuddy-china",
+      "workbuddy-international",
+      "hermes",
     ]);
     expect(requestedNativeAgentRuntimeIds(["--runtimes=all"])).toEqual({
       valid: true,

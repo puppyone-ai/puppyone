@@ -8,7 +8,7 @@ export const SUB_THEME_BOOTSTRAP = Object.freeze({
       "colorScheme": "light"
     },
     "dark": {
-      "background": "#161413",
+      "background": "#161616",
       "colorScheme": "dark"
     }
   },
@@ -19,7 +19,7 @@ export const SUB_THEME_BOOTSTRAP = Object.freeze({
         "colorScheme": "light"
       },
       "dark": {
-        "background": "#161413",
+        "background": "#161616",
         "colorScheme": "dark"
       }
     },

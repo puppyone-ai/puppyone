@@ -23,6 +23,7 @@ export type GitHistorySidebarProps = Readonly<{
   initializing: boolean;
   onInitialize: () => Promise<boolean>;
   onSelectCommit: (commitId: string) => void;
+  onBack: () => void;
 }>;
 
 export function GitHistorySidebar({
@@ -38,6 +39,7 @@ export function GitHistorySidebar({
   initializing,
   onInitialize,
   onSelectCommit,
+  onBack,
 }: GitHistorySidebarProps) {
   const { t } = useLocalization();
   const [detailVisible, setDetailVisible] = useState(false);
@@ -48,29 +50,41 @@ export function GitHistorySidebar({
   useEffect(() => {
     if (!selectedCommit) setDetailVisible(false);
   }, [selectedCommit]);
+  const handleBack = () => {
+    if (detailVisible) {
+      setDetailVisible(false);
+      return;
+    }
+    onBack();
+  };
 
   return (
     <section
       className="desktop-git-history-sidebar"
       aria-label={t("source-control.history.ariaLabel")}
       onKeyDown={(event) => {
-        if (event.key !== "Escape" || !detailVisible) return;
+        if (event.key !== "Escape") return;
         event.stopPropagation();
-        setDetailVisible(false);
+        handleBack();
       }}
     >
+      <header className="desktop-git-view-header desktop-git-history-header">
+        <button
+          className="desktop-git-view-back"
+          type="button"
+          aria-label={t("shared-ui.navigation.back")}
+          title={t("shared-ui.navigation.back")}
+          onClick={handleBack}
+        >
+          <ArrowLeft size={15} strokeWidth={1.8} aria-hidden="true" />
+        </button>
+        <span className="desktop-git-view-title">
+          {t("source-control.history.title")}
+        </span>
+      </header>
       <div className="desktop-git-history-sidebar-content">
         {detailVisible && selectedCommit ? (
           <div className="desktop-history-detail-scroll" data-po-scrollbar="content">
-            <button
-              className="desktop-history-detail-back"
-              type="button"
-              aria-label={t("shared-ui.navigation.back")}
-              title={t("shared-ui.navigation.back")}
-              onClick={() => setDetailVisible(false)}
-            >
-              <ArrowLeft size={15} strokeWidth={1.8} aria-hidden="true" />
-            </button>
             <GitCommitDetail
               commit={selectedCommit}
               detail={commitDetail}

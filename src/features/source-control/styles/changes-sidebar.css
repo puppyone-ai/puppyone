@@ -32,32 +32,15 @@
 }
 
 .desktop-git-changes-sidebar .desktop-commit-detail {
-  padding: 4px 14px 32px;
-}
-
-.desktop-git-changes-sidebar .desktop-working-file-toolbar {
-  margin-bottom: 10px;
+  padding: 8px 14px 32px;
 }
 
 .desktop-git-changes-sidebar .desktop-file-diff-list {
   gap: 8px;
 }
 
-.desktop-git-changes-sidebar .desktop-file-diff-header {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 3px;
-  align-items: start;
-  padding-block: 8px;
-}
-
-.desktop-git-changes-sidebar .desktop-file-diff-identity {
-  grid-row: 1;
-  justify-content: flex-start;
-  text-align: start;
-}
-
-.desktop-git-changes-sidebar .desktop-file-diff-facts {
-  grid-row: 2;
+.desktop-git-changes-detail-header {
+  padding-left: 8px;
 }
 
 .desktop-git-changes-sidebar .desktop-diff-line {

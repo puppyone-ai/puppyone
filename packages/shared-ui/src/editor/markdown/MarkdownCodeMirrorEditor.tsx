@@ -12,6 +12,7 @@ import {
 import { markdownLivePreviewContextExtension } from "./core/editor/markdownLivePreviewContext";
 import { markdownAiEditExtension } from "./core/editor/markdownAiEditExtension";
 import { markdownBlockDragExtension } from "./core/interaction/markdownBlockDrag";
+import { markdownHeadingOutlineExtension } from "./core/interaction/markdownHeadingOutline";
 import { getMarkdownPlanIndex } from "./core/plans/markdownPlanIndex";
 import { markdownRevealedSourceEffect } from "./core/state/revealedSource";
 import { getDocRevision } from "./platform/brokers/transactionBroker";
@@ -50,6 +51,7 @@ export type MarkdownCodeMirrorEditorProps = {
   readOnly: boolean;
   livePreview: boolean;
   blockDragEnabled?: boolean;
+  headingOutlineEnabled?: boolean;
   aiEditFile?: AiEditFile | null;
   htmlTrustMode?: MarkdownHtmlTrustMode;
   documentPath?: string;
@@ -79,6 +81,7 @@ export function MarkdownCodeMirrorEditor({
   readOnly,
   livePreview,
   blockDragEnabled = false,
+  headingOutlineEnabled = false,
   aiEditFile = null,
   htmlTrustMode = "safe",
   documentPath = "",
@@ -157,6 +160,7 @@ export function MarkdownCodeMirrorEditor({
   const languageCompartmentRef = useRef(new Compartment());
   const livePreviewCoreCompartmentRef = useRef(new Compartment());
   const blockDragCompartmentRef = useRef(new Compartment());
+  const headingOutlineCompartmentRef = useRef(new Compartment());
   const livePreviewContextCompartmentRef = useRef(new Compartment());
   const aiEditCompartmentRef = useRef(new Compartment());
   const localizationCompartmentRef = useRef(new Compartment());
@@ -164,6 +168,8 @@ export function MarkdownCodeMirrorEditor({
   const previewActivatedRef = useRef(false);
   const blockDragEnabledRef = useRef(blockDragEnabled);
   blockDragEnabledRef.current = blockDragEnabled;
+  const headingOutlineEnabledRef = useRef(headingOutlineEnabled);
+  headingOutlineEnabledRef.current = headingOutlineEnabled;
   const previewGenerationRef = useRef(0);
   const [previewState, setPreviewState] = useState<MarkdownPreviewPresentationState>(
     () => livePreview ? "pending" : "source",
@@ -207,6 +213,7 @@ export function MarkdownCodeMirrorEditor({
           livePreviewContextCompartmentRef.current.reconfigure([]),
           livePreviewCoreCompartmentRef.current.reconfigure([]),
           blockDragCompartmentRef.current.reconfigure([]),
+          headingOutlineCompartmentRef.current.reconfigure([]),
         ],
       });
     } catch (error) {
@@ -259,6 +266,7 @@ export function MarkdownCodeMirrorEditor({
           livePreviewContextCompartmentRef.current.of([]),
           livePreviewCoreCompartmentRef.current.of([]),
           blockDragCompartmentRef.current.of([]),
+          headingOutlineCompartmentRef.current.of([]),
           aiEditCompartmentRef.current.of(markdownAiEditExtension(initialConfig.aiEditFile)),
           EditorView.updateListener.of((update) => {
             if (!update.docChanged) return;
@@ -462,6 +470,9 @@ export function MarkdownCodeMirrorEditor({
                 blockDragCompartmentRef.current.reconfigure(
                   blockDragEnabledRef.current ? markdownBlockDragExtension() : [],
                 ),
+                headingOutlineCompartmentRef.current.reconfigure(
+                  headingOutlineEnabledRef.current ? markdownHeadingOutlineExtension() : [],
+                ),
               ],
             });
           } catch (error) {
@@ -496,6 +507,16 @@ export function MarkdownCodeMirrorEditor({
       ),
     });
   }, [blockDragEnabled, livePreview]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || !livePreview || !previewActivatedRef.current) return;
+    view.dispatch({
+      effects: headingOutlineCompartmentRef.current.reconfigure(
+        headingOutlineEnabled ? markdownHeadingOutlineExtension() : [],
+      ),
+    });
+  }, [headingOutlineEnabled, livePreview]);
 
   useEffect(() => {
     const view = viewRef.current;

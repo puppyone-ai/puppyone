@@ -18,7 +18,10 @@ import {
   resolveProjectContextAssetKind,
   type ProjectContextAssetKind,
 } from "./ProjectContextAssetMark";
-import { DesktopSidebarSettingsButton } from "./navigation/DesktopNavigationItems";
+import {
+  DesktopSidebarPluginsButton,
+  DesktopSidebarSettingsButton,
+} from "./navigation/DesktopNavigationItems";
 import type { DesktopView } from "../../components/DesktopCloudShell";
 import { beginProjectRootDrag } from "./projectRootDrag";
 export {
@@ -43,7 +46,9 @@ type ProjectSwitcherRailProps = Readonly<{
   expanded?: boolean;
   recentWorkspaces: readonly RecentWorkspaceHomeItem[];
   onCreateNew: () => void;
+  onOpenPlugins?: () => void;
   onOpenSettings?: () => void;
+  pluginsOpen?: boolean;
   settingsOpen?: boolean;
   onSelectProject: (path: string) => void | Promise<void>;
   utilitySlot?: ReactNode;
@@ -59,7 +64,9 @@ export function ProjectSwitcherRail({
   expanded = false,
   recentWorkspaces,
   onCreateNew,
+  onOpenPlugins,
   onOpenSettings,
+  pluginsOpen = false,
   settingsOpen = false,
   onSelectProject,
   utilitySlot,
@@ -246,12 +253,19 @@ export function ProjectSwitcherRail({
           <bdi dir="auto">{compactTooltip.label}</bdi>
         </span>
       )}
-      {(onOpenSettings || utilitySlot) && (
+      {(onOpenPlugins || onOpenSettings || utilitySlot) && (
         <div
           className="desktop-project-switcher-rail-utilities desktop-sidebar-navigation-surface"
           data-placement="bottom"
         >
           <div className="desktop-sidebar-footer-actions">
+            {onOpenPlugins && (
+              <DesktopSidebarPluginsButton
+                buttonClassName="desktop-sidebar-footer-button"
+                onOpenPlugins={onOpenPlugins}
+                pluginsOpen={pluginsOpen}
+              />
+            )}
             {onOpenSettings && (
               <DesktopSidebarSettingsButton
                 buttonClassName="desktop-sidebar-footer-button"

@@ -1,8 +1,8 @@
 /**
  * Canonical paths for static assets copied from `public/` into the renderer.
  *
- * Keep third-party service marks grouped by product surface instead of mixing
- * them with PuppyOne-owned brand assets. Every path is repository-relative to
+ * Keep Agent identity marks grouped by product surface instead of mixing them
+ * with PuppyOne product-brand assets. Every path is repository-relative to
  * `public/` and must be resolved through `resolveRendererPublicAssetUrl`.
  */
 export const RENDERER_ASSET_PATHS = {
@@ -40,6 +40,13 @@ export const RENDERER_ASSET_PATHS = {
       pi: {
         light: "assets/icons/agents/pi.svg",
         dark: "assets/icons/agents/pi-dark.svg",
+      },
+      workbuddy: {
+        light: "assets/icons/agents/workbuddy.png",
+      },
+      builtInAgent: {
+        light: "assets/icons/agents/built-in-agent.svg",
+        dark: "assets/icons/agents/built-in-agent-dark.svg",
       },
     },
     integrations: {

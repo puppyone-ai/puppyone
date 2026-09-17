@@ -174,6 +174,8 @@ export function areEditorPaneDocumentRuntimePropsEqual(
       === next.editorInteractionPreferences.showSaveStatus
     && previous.editorInteractionPreferences.markdownBlockDragEnabled
       === next.editorInteractionPreferences.markdownBlockDragEnabled
+    && previous.editorInteractionPreferences.markdownHeadingOutlineEnabled
+      === next.editorInteractionPreferences.markdownHeadingOutlineEnabled
     && previous.fileIconTheme === next.fileIconTheme
     && samePaneEnvironment(
       previous.markdownEnvironment,

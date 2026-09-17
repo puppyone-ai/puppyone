@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
 import { AcpClient } from "../../../../../electron/main/agent/protocols/acp/acp-client.mjs";
+import { acpResolveApproval } from "../../../../../electron/main/agent/protocols/acp/acp-interactions.mjs";
 import { JsonlRpcErrorResponse } from "../../../../../electron/main/agent/transports/jsonl-rpc-connection.mjs";
 
 describe("provider-neutral ACP client", () => {
@@ -41,6 +42,20 @@ describe("provider-neutral ACP client", () => {
     expect(connection.notify.mock.calls.map(([method]) => method)).toEqual(["session/cancel", "cancel"]);
   });
 
+  it("uses the standard ACP model-selection method", async () => {
+    const connection = new FakeConnection();
+    connection.responses.set("session/set_model", {});
+    const client = new AcpClient({ connection });
+
+    await expect(client.setModel({ sessionId: "session-1", modelId: "provider:model" })).resolves.toEqual({});
+
+    expect(connection.request).toHaveBeenCalledWith(
+      "session/set_model",
+      { sessionId: "session-1", modelId: "provider:model" },
+      { timeoutMs: 30_000 },
+    );
+  });
+
   it("correlates permission and workspace-file callbacks without exposing unknown methods", async () => {
     const connection = new FakeConnection();
     const delegate = {
@@ -61,6 +76,32 @@ describe("provider-neutral ACP client", () => {
     expect(connection.respond).toHaveBeenCalledWith(3, {});
     expect(connection.respondError).toHaveBeenCalledWith(4, -32601, "ACP client method is not supported.");
     client.dispose();
+  });
+
+  it("preserves an advertised session-scoped permission option", () => {
+    const resolve = vi.fn();
+    const adapter = {
+      activeTurn: { turnId: "turn-1" },
+      pendingApprovals: new Map([["approval-1", {
+        turnId: "turn-1",
+        options: [
+          { optionId: "allow_always", kind: "allow_always" },
+          { optionId: "allow_session", kind: "allow_always" },
+        ],
+        resolve,
+      }]]),
+      runtimeDescriptor: { displayName: "fixture" },
+    };
+
+    acpResolveApproval(adapter, {
+      requestId: "approval-1",
+      decision: "acceptForSession",
+      turnId: "turn-1",
+    });
+
+    expect(resolve).toHaveBeenCalledWith({
+      outcome: { outcome: "selected", optionId: "allow_session" },
+    });
   });
 
   it("retires the connection when an asynchronous session callback fails", async () => {
