@@ -35,7 +35,9 @@ describe("preset viewer host composition", () => {
     });
 
     expect(container.querySelector(".document-preview")).not.toBeNull();
+    expect(container.querySelector(".document-preview__name")?.textContent).toBe("scene.glb");
     expect(container.textContent).toContain("Binary file");
+    expect(container.textContent).not.toContain("model/gltf-binary");
     expect(container.querySelector('[data-testid="install-viewer"]')).toBeNull();
   });
 
