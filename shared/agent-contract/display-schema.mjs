@@ -113,6 +113,7 @@ function validateEntry(key, entry) {
     if (entry.replyStatus != null) enumValue(entry.replyStatus, key+'.replyStatus', ['queued', 'dispatching', 'accepted', 'rejected', 'cancelled', 'outcome-unknown']);
   } else if (key === 'turns') {
     enumValue(entry.status, 'turn.status', ['running', 'outcome-unknown', 'completed', 'failed', 'interrupted']);
+    if (entry.recoveryOfTurnId !== undefined) idValue(entry.recoveryOfTurnId);
     for (const id of boundedArray(entry.partIds, 'turn.partIds')) idValue(id);
     if (entry.completionQuality !== undefined) enumValue(entry.completionQuality, 'turn.completionQuality', ['complete', 'degraded']);
     if (entry.recovery !== undefined) {

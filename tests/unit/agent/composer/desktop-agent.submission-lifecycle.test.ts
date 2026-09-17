@@ -106,6 +106,7 @@ describe("Shared Agent submission lifecycle", () => {
     await expect(h.coordinator.continueFromRecovery("turn-degraded", "Inspect state and continue")).resolves.toBe(true);
     expect(h.start).toHaveBeenCalledWith(expect.objectContaining({
       prompt: "Inspect state and continue",
+      recoveryOfTurnId: "turn-degraded",
       references: [],
       promptMentions: [],
     }));

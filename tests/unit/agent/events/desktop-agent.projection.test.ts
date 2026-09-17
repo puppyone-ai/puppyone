@@ -182,7 +182,7 @@ describe("Desktop Agent transcript projection", () => {
 
   it("projects degraded completion as a settled turn with an actionable recovery fact", () => {
     const projection = applyAgentEvents(createAgentProjection(), [
-      event(1, "turn.started", { prompt: "Finish it" }, "turn-degraded"),
+      event(1, "turn.started", { prompt: "Finish it", recoveryOfTurnId: "turn-original" }, "turn-degraded"),
       event(2, "assistant.completed", {
         text: "Error: RetriableError: [canceled] http/2 stream closed with error code CANCEL (0x8)",
       }, "turn-degraded", "cursor-error"),
@@ -203,6 +203,7 @@ describe("Desktop Agent transcript projection", () => {
     expect(projection.terminalState).toBe("completed");
     expect(projection.turns[0]).toMatchObject({
       id: "turn-degraded",
+      recoveryOfTurnId: "turn-original",
       status: "completed",
       completionQuality: "degraded",
       recovery: {

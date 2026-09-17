@@ -147,6 +147,7 @@ export type AgentPart =
 
 export type AgentTurn = {
   id: string;
+  recoveryOfTurnId?: string;
   status: "running" | "outcome-unknown" | AgentTurnTerminalState;
   startedAtSequence: number;
   startedAtMs: number | null;

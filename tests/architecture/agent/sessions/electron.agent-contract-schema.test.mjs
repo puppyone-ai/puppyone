@@ -34,6 +34,7 @@ describe("shared Agent contract", () => {
     expect(parseAgentIpcRequest("agent:turn-start", {
       rootPath: "/workspace",
       sessionId: "session-1",
+      recoveryOfTurnId: "turn-original",
       prompt: "  keep whitespace  ",
       effort: "high",
       unknownPrivilegedField: { shell: true },
@@ -42,6 +43,7 @@ describe("shared Agent contract", () => {
     })).toEqual({
       rootPath: "/workspace",
       sessionId: "session-1",
+      recoveryOfTurnId: "turn-original",
       prompt: "  keep whitespace  ",
       effort: "high",
       attachments: [{ path: "/workspace/a.md", name: "a.md" }],
@@ -178,6 +180,7 @@ describe("shared Agent contract", () => {
     }))).toThrow(/connection\.updated.*state/i);
     const referenceDisplay = { id: "ref-1", kind: "attachment", displayName: "capture.png", mime: "image/png", size: 3 };
     expect(assertAgentEventEnvelope(event("turn.started", { referenceDisplays: [referenceDisplay] }))).toBeTruthy();
+    expect(assertAgentEventEnvelope(event("turn.started", { recoveryOfTurnId: "turn-original" }))).toBeTruthy();
     expect(assertAgentEventEnvelope(event("turn.completed", {
       completionQuality: "degraded",
       failureScope: "upstream-request",

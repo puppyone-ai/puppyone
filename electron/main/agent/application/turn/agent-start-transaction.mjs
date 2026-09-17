@@ -56,6 +56,7 @@ export async function executeAgentStartTransaction(context, {
         payload: {
           status: "running",
           prompt: displayPrompt,
+          ...(request.recoveryOfTurnId ? { recoveryOfTurnId: request.recoveryOfTurnId } : {}),
           userMessageId: session.actor.control.commands.find(entry => entry.commandId === commandId)?.userMessageId,
           submissionId: commandId,
           model,

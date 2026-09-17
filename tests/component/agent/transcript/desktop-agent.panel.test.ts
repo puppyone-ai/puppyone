@@ -376,6 +376,7 @@ describe("Project-owned Agent Chat Workbench lifecycle", () => {
 
     expect(harness.bridge.startAgentTurn).toHaveBeenCalledWith(expect.objectContaining({
       sessionId: "session-1",
+      recoveryOfTurnId: "turn-degraded",
       references: [],
       promptMentions: [],
     }));

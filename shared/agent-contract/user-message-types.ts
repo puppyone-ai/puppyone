@@ -63,6 +63,7 @@ export type AgentReferenceDisplay = {
 
 export type AgentSubmissionIntent = {
   id: string;
+  recoveryOfTurnId?: string;
   referenceEpoch: string;
   prompt: string;
   model: string | null;

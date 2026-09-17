@@ -116,6 +116,7 @@ export class AgentTurnSubmissionCoordinator {
       return false;
     }
     const intent = createSubmissionIntent({
+      recoveryOfTurnId: turnId,
       referenceEpoch: this.options.references.referenceEpoch,
       prompt: text,
       model: state.selectedModel,
@@ -129,6 +130,7 @@ export class AgentTurnSubmissionCoordinator {
         rootPath: this.options.workspaceRoot,
         sessionId,
         commandId: intent.id,
+        recoveryOfTurnId: turnId,
         ...commandPreconditions(this.options.readState()),
         prompt: intent.prompt,
         model: intent.model,

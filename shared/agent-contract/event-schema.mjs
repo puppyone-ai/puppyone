@@ -19,7 +19,7 @@ const PAYLOAD_KEYS = Object.freeze({
   "session.resumed": ["title", "status"],
   "session.updated": ["title", "status"],
   "session.closed": ["status"],
-  "turn.started": ["prompt", "userMessageId", "submissionId", "status", "referenceDisplays", "promptMentions", "model", "effort", "mode", "restored"],
+  "turn.started": ["prompt", "recoveryOfTurnId", "userMessageId", "submissionId", "status", "referenceDisplays", "promptMentions", "model", "effort", "mode", "restored"],
   "turn.completed": [
     "status", "durationMs", "restored", "completionQuality", "failureScope", "failureCode",
     "retryable", "transportHealth", "sideEffects", "diagnostic",
@@ -70,7 +70,7 @@ export function assertAgentEventEnvelope(value) {
   if (event.type === "question.requested" && !Array.isArray(payload.questions)) {
     throw contractError("AgentEvent(question.requested).payload.questions", "must be an array");
   }
-  for (const key of ["clientUserMessageId", "userMessageId", "submissionId", "requestId", "recoveryId"]) {
+  for (const key of ["clientUserMessageId", "userMessageId", "submissionId", "requestId", "recoveryId", "recoveryOfTurnId"]) {
     if (payload[key] !== undefined) optionalOpaqueId(payload[key], `AgentEvent.payload.${key}`);
   }
   if (event.type === "user.message") {

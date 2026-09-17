@@ -335,6 +335,7 @@ export type AgentEventPayloadMap = {
   "session.closed": { status?: string };
   "turn.started": AgentRestoredPayload & {
     prompt?: string;
+    recoveryOfTurnId?: string;
     userMessageId?: string;
     submissionId?: string;
     status?: string;
@@ -594,6 +595,7 @@ export type AgentCommandDeliveryStatus = "queued" | "dispatching" | "accepted" |
 
 export type AgentControlStartIntent = {
   prompt: string;
+  recoveryOfTurnId?: string | null;
   promptMentions: AgentPromptReferenceMention[];
   referenceDisplays: AgentReferenceDisplay[];
   model: string | null;
@@ -796,6 +798,7 @@ export type AgentTurnStartRequest = AgentCommandPrecondition & {
   rootPath: string;
   sessionId: string;
   commandId?: string;
+  recoveryOfTurnId?: string;
   prompt: string;
   model?: string | null;
   effort?: string | null;

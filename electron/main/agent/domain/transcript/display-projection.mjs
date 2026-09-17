@@ -78,6 +78,9 @@ function updateTurn(projection, event) {
     }
     if (!turn)
         return null;
+    if (event.type === "turn.started" && readString(event.payload.recoveryOfTurnId)) {
+        turn = { ...turn, recoveryOfTurnId: readString(event.payload.recoveryOfTurnId) };
+    }
     const eventAtMs = parseAgentEventTime(event.emittedAt);
     if ((event.type === "approval.requested" || event.type === "question.requested")
         && turn.userWaitStartedAtMs == null
