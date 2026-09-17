@@ -34,7 +34,7 @@ export default [
   {
     ignores: [
       "archive/**", "artifacts/**", "dist/**", "release/**", "node_modules/**",
-      "vendor/claudian/**", "vendor/opencode/**",
+      "vendor/claudian/**", "vendor/pi-kernel/**",
       "src-tauri/**", "build/**", "public/**", "**/*.d.ts", "eslint.config.js",
     ],
   },

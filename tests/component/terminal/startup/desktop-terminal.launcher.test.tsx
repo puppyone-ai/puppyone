@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AGENT_CHAT_CREATION_RECIPES,
   PUPPYONE_AGENT_CREATION_RECIPE,
+  filterAgentChatCreationRecipesByLocalAgentIds,
   localAgentIdForAgentChatRuntime,
 } from "../../../../src/features/app-shell/auxiliary-workbench/agentChatCreationRecipes";
 import {
@@ -119,15 +120,16 @@ describe("Unified Workbench launcher", () => {
       ".desktop-terminal-launcher-tool",
     ) ?? [];
     expect(Array.from(agentButtons, (button) => button.textContent)).toEqual([
-      "Codex",
       "Claude Code",
+      "Codex",
       "Cursor",
-      "WorkBuddy",
       "Hermes Agent",
       "OpenCode",
       "Pi",
+      "PuppyOne",
+      "WorkBuddy",
     ]);
-    expect(container.textContent).not.toContain("PuppyOne");
+    expect(container.textContent).toContain("PuppyOne");
     act(() => agentButtons[0]?.click());
     expect(onCreateChat).toHaveBeenCalledWith(AGENT_CHAT_CREATION_RECIPES[0]);
     expect(onLaunch).not.toHaveBeenCalled();
@@ -214,21 +216,28 @@ describe("Unified Workbench launcher", () => {
       .toBe("start with an agent");
   });
 
-  it("keeps the managed PuppyOne recipe reserved but unregistered from the launcher", () => {
+  it("keeps recipes alphabetized while the managed PuppyOne recipe stays independent of local discovery", () => {
     expect(AGENT_CHAT_CREATION_RECIPES.map(({ id }) => id)).toEqual([
-      "codex",
       "claude",
+      "codex",
       "cursor",
-      "workbuddy",
       "hermes",
       "opencode-native",
       "pi",
+      "puppyone-agent",
+      "workbuddy",
     ]);
+    expect(AGENT_CHAT_CREATION_RECIPES.map(({ label }) => label)).toEqual(
+      [...AGENT_CHAT_CREATION_RECIPES.map(({ label }) => label)].sort((left, right) => left.localeCompare(right, "en")),
+    );
     expect(PUPPYONE_AGENT_CREATION_RECIPE).toMatchObject({
       id: "puppyone-agent",
-      status: "coming-soon",
+      status: "available",
+      availability: "bundled",
     });
-    expect(AGENT_CHAT_CREATION_RECIPES).not.toContain(PUPPYONE_AGENT_CREATION_RECIPE);
+    expect(AGENT_CHAT_CREATION_RECIPES).toContain(PUPPYONE_AGENT_CREATION_RECIPE);
+    expect(filterAgentChatCreationRecipesByLocalAgentIds(AGENT_CHAT_CREATION_RECIPES, []))
+      .toEqual([PUPPYONE_AGENT_CREATION_RECIPE]);
     expect(localAgentIdForAgentChatRuntime("opencode-native")).toBe("opencode");
     expect(getDesktopTerminalLauncher("codex").id).toBe("codex");
     expect(getDesktopTerminalLauncher("hermes").id).toBe("hermes");

@@ -370,6 +370,9 @@ const agentSessionRepository = createAgentSessionRepository({
 const agentProcessSupervisor = createAgentProcessSupervisor({ maxConcurrentStarts: 2 });
 const agentRuntimeRegistry = createDefaultAgentRuntimeHost({
   appVersion: desktopBuildInfo.version,
+  appPath: app.getAppPath(),
+  userDataPath: app.getPath("userData"),
+  executablePath: process.execPath,
 });
 const agentAttachmentStore = createAgentAttachmentStore({
   rootPath: path.join(app.getPath("userData"), "agent-runtime", "attachments"),
@@ -389,6 +392,11 @@ const agentService = createAgentProcessService({
   modulePath: path.join(__dirname, "utility", "agent", "main.mjs"),
   budget: itemHostBudget,
   appVersion: desktopBuildInfo.version,
+  runtimeEnvironment: {
+    appPath: app.getAppPath(),
+    userDataPath: app.getPath("userData"),
+    executablePath: process.execPath,
+  },
   catalogService: agentCatalogService,
   conversationCatalog: agentConversationCatalog,
   attachmentStore: agentAttachmentStore,

@@ -72,6 +72,7 @@ export type AuxiliaryWorkbenchCreationRecipe = Readonly<{
   label: string;
   iconKey: string | null;
   status: "available" | "unavailable" | "coming-soon";
+  availability?: "local-installation" | "bundled";
 }>;
 
 export type AuxiliaryWorkbenchPreparationContext = Readonly<{

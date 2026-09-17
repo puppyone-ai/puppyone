@@ -7,7 +7,8 @@ const SESSION_METHODS = ["startTurn", "steerTurn", "interruptTurn", "resolveAppr
 
 /** Main retains authority and routing metadata, never a running Agent actor. */
 export function createAgentProcessService({ utilityProcess, modulePath, budget, appVersion,
-  catalogService, conversationCatalog, attachmentStore, onHostEvent = () => {}, createHost = createUtilityHost }) {
+  runtimeEnvironment = {}, catalogService, conversationCatalog, attachmentStore,
+  onHostEvent = () => {}, createHost = createUtilityHost }) {
   const records = new Set();
   const bySession = new Map();
   const closed = new Map();
@@ -69,7 +70,7 @@ export function createAgentProcessService({ utilityProcess, modulePath, budget, 
       sessionId: null, instanceId: null, host: null };
     record.host = createHost({ utilityProcess, modulePath, budget,
       identity: { key, ownerId: sender.id, projectId: request.projectContext?.projectId ?? root, kind: "agent" },
-      initialize: { ownerId: sender.id, root, appVersion },
+      initialize: { ownerId: sender.id, root, appVersion, runtimeEnvironment },
       handle: async (name, args) => {
         const [scope, methodName] = name.split(":");
         if (scope === "attachments" && ["releaseLease", "revokeLeased", "revoke"].includes(methodName)) {

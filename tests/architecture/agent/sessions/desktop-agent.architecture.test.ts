@@ -308,12 +308,11 @@ describe("Desktop Agent architecture boundaries", () => {
   it("keeps Core backend-neutral and concrete backends in the single production composition root", () => {
     const registry = source("electron/main/agent/runtime/agent-runtime-registry.mjs");
     const bootstrap = source("electron/main/agent/bootstrap/create-agent-runtime-host.mjs");
-    const reservedPuppyOneRuntime = source("electron/main/agent/runtimes/puppyone-agent/puppyone-agent-runtime-definition.mjs");
+    const puppyOneRuntime = source("electron/main/agent/runtimes/puppyone-agent/puppyone-agent-runtime-definition.mjs");
     const contract = source("shared/agent-contract/schema.mjs");
     expect(registry).not.toMatch(/opencode|codex|claude|cursor|workbuddy|hermes/i);
-    expect(bootstrap).not.toContain("createPuppyOneAgentRuntimeDefinition");
-    expect(bootstrap).not.toContain('"puppyone-agent"');
-    expect(reservedPuppyOneRuntime).toContain("createPuppyOneAgentRuntimeDefinition");
+    expect(bootstrap).toContain("createPuppyOneAgentRuntimeDefinition");
+    expect(puppyOneRuntime).toContain("createPuppyOneAgentRuntimeDefinition");
     expect(bootstrap).toContain("createCodexRuntimeDefinition");
     expect(bootstrap).toContain("createClaudeRuntimeDefinition");
     expect(bootstrap).toContain("createOpenCodeNativeRuntimeDefinition");
@@ -353,13 +352,14 @@ describe("Desktop Agent architecture boundaries", () => {
     expect(main).toContain("agentProcessSupervisor");
   });
 
-  it("keeps ACP lifecycle generic and OpenCode policy/runtime selection explicit", () => {
+  it("keeps ACP lifecycle generic and user-owned OpenCode selection explicit", () => {
     const adapter = source("electron/main/agent/runtimes/opencode-protocol/opencode-acp-adapter.mjs");
     const acpCore = source("electron/main/agent/protocols/acp/acp-runtime-adapter.mjs");
     const controller = source("src/features/desktop-agent/application/AgentSessionController.ts");
     const panel = source("src/features/desktop-agent/ui/AgentChatTabPanel.tsx");
     expect(adapter).toContain("extends AcpRuntimeAdapter");
-    expect(adapter).toContain("managedOpenCodeAcpConfig");
+    expect(adapter).toContain('accountType: "opencode-native"');
+    expect(adapter).not.toMatch(/PuppyOne Agent|managedOpenCode/u);
     expect(acpCore).toContain("client.newSession");
     expect(acpCore).toContain("resolveAcpModels");
     expect(acpCore).toContain("publicProviders");

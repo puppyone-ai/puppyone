@@ -5,9 +5,10 @@ import { describe, expect, it } from "vitest";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const piRoot = path.join(repoRoot, "electron/main/agent/runtimes/pi");
+const protocolRoot = path.join(repoRoot, "electron/main/agent/protocols/pi-rpc");
 
 describe("Pi RuntimeDefinition plug-in architecture", () => {
-  it("keeps the complete native protocol unit inside one runtime folder", () => {
+  it("keeps user Pi policy thin over the shared Pi RPC protocol layer", () => {
     const expectedFiles = [
       "pi-identity.mjs",
       "pi-discovery.mjs",
@@ -21,14 +22,18 @@ describe("Pi RuntimeDefinition plug-in architecture", () => {
 
     const definition = source("electron/main/agent/runtimes/pi/pi-runtime-definition.mjs");
     const identity = source("electron/main/agent/runtimes/pi/pi-identity.mjs");
-    const client = source("electron/main/agent/runtimes/pi/pi-rpc-client.mjs");
+    const client = source("electron/main/agent/protocols/pi-rpc/pi-rpc-client.mjs");
+    const protocolAdapter = source("electron/main/agent/protocols/pi-rpc/pi-rpc-runtime-adapter.mjs");
     const adapter = source("electron/main/agent/runtimes/pi/pi-rpc-adapter.mjs");
     expect(definition).toContain("createPiRuntimeDefinition");
     expect(definition).toContain("manifest: PI_RUNTIME_MANIFEST");
     expect(definition).toContain("createAdapter:");
     expect(identity).toContain('transport: "stdio-jsonl"');
-    expect(client).toContain('args: ["--mode", "rpc", "--no-approve", ...args]');
+    expect(existsSync(protocolRoot)).toBe(true);
+    expect(client).toContain('args: [...argsPrefix, "--mode", "rpc", "--no-approve", ...args]');
     expect(client).not.toContain('jsonrpc: "2.0"');
+    expect(adapter).toContain("extends PiRpcRuntimeAdapter");
+    expect(protocolAdapter).not.toMatch(/runtimes\/(?:pi|puppyone-agent)/u);
     expect(adapter).not.toMatch(/protocols\/acp|runtimes\/(?:codex|claude|cursor|opencode)/u);
   });
 
@@ -63,7 +68,7 @@ describe("Pi RuntimeDefinition plug-in architecture", () => {
       }
     }
     expect(source("src/features/app-shell/auxiliary-workbench/agentChatCreationRecipes.ts"))
-      .toContain('{ id: "pi", label: "Pi", iconKey: "pi", status: "available" }');
+      .toContain('id: "pi", label: "Pi", iconKey: "pi", status: "available", availability: "local-installation"');
     expect(source("packages/shared-ui/src/core/agentBrandCatalog.ts")).toContain('pi: defineBrand("pi", "Pi Agent"');
     expect(source("src/features/desktop-agent/ui/AgentBrandMark.tsx")).toContain("resolveAgentBrand");
   });

@@ -123,19 +123,6 @@ jobs:
             --source-tag "${{ inputs.promotion_source_tag }}" \
             --github-output "${GITHUB_OUTPUT}"
 
-      - name: Stage pinned OpenCode runtime without deployment secrets
-        env:
-          PLATFORM_KEY: ${{ steps.release.outputs.target_runtime_key }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          VERSION="$(node -p "JSON.parse(require('fs').readFileSync('vendor/opencode/runtime-manifest.json', 'utf8')).runtimeRelease.version")"
-          ARCHIVE="$(node -e "const m=require('./vendor/opencode/runtime-manifest.json'); const a=m.artifacts[process.argv[1]]; if(!a) process.exit(2); process.stdout.write(a.archive)" "${PLATFORM_KEY}")"
-          DOWNLOAD="${RUNNER_TEMP}/${ARCHIVE}"
-          curl --fail --location --retry 3 --output "${DOWNLOAD}" \
-            "https://github.com/anomalyco/opencode/releases/download/v${VERSION}/${ARCHIVE}"
-          npm run stage:opencode-runtime -- "${DOWNLOAD}"
-
       - name: Prepare release application without deployment secrets
         run: npm run prepare:mac:release
 
@@ -328,16 +315,6 @@ jobs:
           --commit "$env:GITHUB_SHA"
           --source-tag "${{ inputs.promotion_source_tag }}"
           --github-output "$env:GITHUB_OUTPUT"
-
-      - name: Stage pinned Windows OpenCode runtime
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          $manifest = Get-Content "vendor/opencode/runtime-manifest.json" -Raw | ConvertFrom-Json
-          $artifact = $manifest.artifacts.'win32-x64'
-          $download = Join-Path $env:RUNNER_TEMP $artifact.archive
-          Invoke-WebRequest -Uri "https://github.com/anomalyco/opencode/releases/download/v$($manifest.runtimeRelease.version)/$($artifact.archive)" -OutFile $download
-          npm run stage:opencode-runtime -- $download
 
       - name: Prepare Windows release application without signing secrets
         run: npm run prepare:windows:release

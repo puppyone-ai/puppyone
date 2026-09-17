@@ -304,10 +304,12 @@ function AppContent() {
   const agentChatRuntimeVisibility = useMemo(() => {
     const hiddenLocalAgentIds = new Set(localAgentsSettings.hiddenTerminalAgentIds);
     const activeRecipes = AGENT_CHAT_CREATION_RECIPES.filter(
-      (recipe) => !hiddenLocalAgentIds.has(localAgentIdForAgentChatRuntime(recipe.id)),
+      (recipe) => recipe.availability === "bundled"
+        || !hiddenLocalAgentIds.has(localAgentIdForAgentChatRuntime(recipe.id)),
     );
     const hiddenRuntimeIds: string[] = AGENT_CHAT_CREATION_RECIPES.flatMap(
-      (recipe) => hiddenLocalAgentIds.has(localAgentIdForAgentChatRuntime(recipe.id))
+      (recipe) => recipe.availability !== "bundled"
+        && hiddenLocalAgentIds.has(localAgentIdForAgentChatRuntime(recipe.id))
         ? [recipe.id]
         : [],
     );

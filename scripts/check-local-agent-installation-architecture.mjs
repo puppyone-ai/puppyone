@@ -70,9 +70,9 @@ for (const file of walk(resolve("electron/main/platform"))) {
   }
 }
 
-const managedOpenCode = read("electron/main/agent/runtimes/puppyone-agent/managed-opencode-discovery.mjs");
-if (managedOpenCode.includes("installationId:")) {
-  errors.push("Managed OpenCode must not fall back to the user-installed OpenCode definition");
+const managedPuppyOne = read("electron/main/agent/runtimes/puppyone-agent/puppyone-agent-discovery.mjs");
+if (managedPuppyOne.includes("installationId:") || managedPuppyOne.includes("discoverExecutable(")) {
+  errors.push("Managed PuppyOne Agent must not fall back to any user-installed Agent definition");
 }
 
 for (const file of walk(resolve("electron/main/local-agent-installation/definitions"))) {

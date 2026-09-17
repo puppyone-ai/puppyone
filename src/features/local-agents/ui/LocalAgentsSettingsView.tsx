@@ -39,6 +39,7 @@ export function LocalAgentsSettingsView({
   const detected = useMemo(() => {
     const ids = new Set<string>(detectedAgentIds);
     return AGENT_CHAT_CREATION_RECIPES.flatMap((recipe) => {
+      if (recipe.availability === "bundled") return [];
       const localAgentId = localAgentIdForAgentChatRuntime(recipe.id);
       if (!ids.has(localAgentId)) return [];
       return [{

@@ -44,7 +44,7 @@ for (const relativePath of retiredPaths) {
   }
 }
 
-const allowedVendorEntries = new Set(["claude-agent-sdk", "claudian", "opencode"]);
+const allowedVendorEntries = new Set(["claude-agent-sdk", "claudian", "pi-kernel"]);
 for (const entry of readdirSync(path.join(repoRoot, "vendor"), { withFileTypes: true })) {
   if (entry.name.startsWith(".")) continue;
   if (!allowedVendorEntries.has(entry.name)) {

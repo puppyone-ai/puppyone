@@ -14,10 +14,12 @@ describe("Agent production composition", () => {
       cursor: readiness("cursor", "protocol-unavailable"),
       workbuddy: readiness("workbuddy", "ready"),
       hermes: readiness("hermes", "ready"),
+      "puppyone-agent": readiness("puppyone-agent", "ready"),
     });
 
     const catalog = await host.discover();
     expect(host.descriptors().map((runtime) => runtime.id)).toEqual([
+      "puppyone-agent",
       "codex",
       "claude",
       "opencode-native",
@@ -37,6 +39,7 @@ describe("Agent production composition", () => {
       runtime.protocol.kind,
       runtime.trust.level,
     ])).toEqual([
+      ["puppyone-agent", "managed-harness", "rpc", "bundled-verified"],
       ["codex", "specialized-native", "app-server", "first-party"],
       ["claude", "specialized-native", "agent-sdk", "first-party"],
       ["opencode-native", "native-protocol", "acp", "first-party"],
@@ -45,7 +48,7 @@ describe("Agent production composition", () => {
       ["pi", "specialized-native", "rpc", "first-party"],
       ["workbuddy", "native-protocol", "acp", "first-party"],
     ]);
-    expect(() => host.require("puppyone-agent")).toThrow("Unknown Agent runtime: puppyone-agent");
+    expect(host.require("puppyone-agent").descriptor.displayName).toBe("PuppyOne Agent");
     await host.dispose();
   });
 
@@ -59,6 +62,7 @@ describe("Agent production composition", () => {
       cursor: brokenDiscovery,
       workbuddy: readiness("workbuddy", "not-installed"),
       hermes: readiness("hermes", "not-installed"),
+      "puppyone-agent": readiness("puppyone-agent", "ready"),
     }, { rawDiscovery: true });
 
     const catalog = await host.discover();
@@ -81,6 +85,7 @@ function productionHost(values, { rawDiscovery = false } = {}) {
     cursor: { discovery: discovery("cursor") },
     workBuddy: { discovery: discovery("workbuddy") },
     hermes: { discovery: discovery("hermes") },
+    puppyOneAgent: { discovery: discovery("puppyone-agent") },
   });
 }
 

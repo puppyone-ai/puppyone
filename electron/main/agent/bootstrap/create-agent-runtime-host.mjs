@@ -5,6 +5,7 @@ import { createCursorRuntimeDefinition } from "../runtimes/cursor/cursor-runtime
 import { createHermesRuntimeDefinition } from "../runtimes/hermes/hermes-runtime-definition.mjs";
 import { createOpenCodeNativeRuntimeDefinition } from "../runtimes/opencode-native/opencode-native-runtime-definition.mjs";
 import { createPiRuntimeDefinition } from "../runtimes/pi/pi-runtime-definition.mjs";
+import { createPuppyOneAgentRuntimeDefinition } from "../runtimes/puppyone-agent/puppyone-agent-runtime-definition.mjs";
 import { createWorkBuddyRuntimeDefinition } from "../runtimes/workbuddy/workbuddy-runtime-definition.mjs";
 
 export const DEFAULT_AGENT_RUNTIME_ID = "codex";
@@ -13,6 +14,9 @@ export const DEFAULT_AGENT_RUNTIME_ID = "codex";
 export function createDefaultAgentRuntimeHost({
   logger = console,
   appVersion = "0.0.0",
+  appPath,
+  userDataPath,
+  executablePath,
   codex = {},
   claude = {},
   cursor = {},
@@ -20,6 +24,7 @@ export function createDefaultAgentRuntimeHost({
   pi = {},
   workBuddy = {},
   hermes = {},
+  puppyOneAgent = {},
 } = {}) {
   const definitions = [
     createCodexRuntimeDefinition({ appVersion, ...codex }),
@@ -29,6 +34,13 @@ export function createDefaultAgentRuntimeHost({
     createCursorRuntimeDefinition(cursor),
     createWorkBuddyRuntimeDefinition({ appVersion, logger, ...workBuddy }),
     createHermesRuntimeDefinition({ appVersion, logger, ...hermes }),
+    createPuppyOneAgentRuntimeDefinition({
+      appPath,
+      userDataPath,
+      executablePath,
+      logger,
+      ...puppyOneAgent,
+    }),
   ];
   return new AgentRuntimeHost(new AgentRuntimeRegistry(definitions, {
     defaultRuntimeId: DEFAULT_AGENT_RUNTIME_ID,
