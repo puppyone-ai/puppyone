@@ -108,7 +108,7 @@ describe("built-in Sub Theme package architecture", () => {
     )).not.toThrow();
   });
 
-  it("keeps Neutral's Dark shell surfaces distinct from the editor", async () => {
+  it("keeps Neutral's Dark chrome unified and distinct from the editor", async () => {
     const sourcePath = "sub-themes/default-neutral/theme.css";
     const theme = parseSingleFileThemeCss(
       readFileSync(path.join(repoRoot, sourcePath), "utf8"),
@@ -128,7 +128,7 @@ describe("built-in Sub Theme package architecture", () => {
     const darkHost = `[data-po-appearance-root][data-sub-theme-id="default.neutral"]:where(.dark)`;
     const darkTokens = declarationsForSelector(result.css, darkHost);
     expect(darkTokens["--po-surface-canvas"]).toBe("#161616");
-    expect(darkTokens["--po-surface-chrome"]).toBe("#242424");
+    expect(darkTokens["--po-surface-chrome"]).toBe("#202020");
     expect(darkTokens["--po-surface-panel"]).toBe("#1a1a1a");
     expect(darkTokens["--po-surface-panel-raised"]).toBe("#222222");
     expect(darkTokens["--po-surface-overlay"]).toBe("#2a2a2a");

@@ -113,7 +113,7 @@
 
   :root[data-initial-theme="dark"], :where([data-po-appearance-root].dark) {
     --po-surface-canvas: #161616;
-    --po-surface-chrome: #242424;
+    --po-surface-chrome: #202020;
     --po-surface-panel: #1a1a1a;
     --po-surface-panel-raised: #222222;
     --po-surface-overlay: #2a2a2a;
