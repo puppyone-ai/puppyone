@@ -8,6 +8,8 @@ const LOCAL_AGENT_ID_BY_RUNTIME_ID: Readonly<Record<string, string>> = Object.fr
   "opencode-native": "opencode",
 });
 
+export const BUILT_IN_AGENT_RUNTIME_ID = "puppyone-agent" as const;
+
 export function compareAgentChatCreationRecipesAlphabetically(
   left: AuxiliaryWorkbenchCreationRecipe,
   right: AuxiliaryWorkbenchCreationRecipe,
@@ -57,12 +59,35 @@ export function filterAgentChatCreationRecipesByLocalAgentIds(
   ));
 }
 
+export function resolveAgentChatRuntimeVisibility(
+  recipes: readonly AuxiliaryWorkbenchCreationRecipe[],
+  {
+    hiddenLocalAgentIds,
+    builtInAgentEnabled,
+  }: {
+    hiddenLocalAgentIds: readonly string[];
+    builtInAgentEnabled: boolean;
+  },
+) {
+  const hiddenLocalAgents = new Set(hiddenLocalAgentIds);
+  const isHidden = (recipe: AuxiliaryWorkbenchCreationRecipe) => {
+    if (recipe.id === BUILT_IN_AGENT_RUNTIME_ID) return !builtInAgentEnabled;
+    return recipe.availability !== "bundled"
+      && hiddenLocalAgents.has(localAgentIdForAgentChatRuntime(recipe.id));
+  };
+
+  return Object.freeze({
+    activeRecipes: Object.freeze(recipes.filter((recipe) => !isHidden(recipe))),
+    hiddenRuntimeIds: Object.freeze(recipes.filter(isHidden).map(({ id }) => id)),
+  });
+}
+
 /**
  * Product-owned Agent. Its managed Pi SDK kernel ships with PuppyOne and does
  * not participate in user-installed Agent discovery or visibility settings.
  */
 export const BUILT_IN_AGENT_CREATION_RECIPE = Object.freeze({
-  id: "puppyone-agent",
+  id: BUILT_IN_AGENT_RUNTIME_ID,
   label: "Built-in Agent",
   iconKey: "built-in-agent",
   status: "available",

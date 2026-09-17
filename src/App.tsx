@@ -134,7 +134,7 @@ import type {
 } from "./features/app-shell/auxiliary-workbench/types";
 import {
   AGENT_CHAT_CREATION_RECIPES,
-  localAgentIdForAgentChatRuntime,
+  resolveAgentChatRuntimeVisibility,
 } from "./features/app-shell/auxiliary-workbench/agentChatCreationRecipes";
 import { useSubThemeCatalog, useSubThemeNativeMenu } from "./features/themes/useSubThemeCatalog";
 import {
@@ -302,19 +302,11 @@ function AppContent() {
     [createNewMenuSettings, experimentalSettings],
   );
   const agentChatRuntimeVisibility = useMemo(() => {
-    const hiddenLocalAgentIds = new Set(localAgentsSettings.hiddenTerminalAgentIds);
-    const activeRecipes = AGENT_CHAT_CREATION_RECIPES.filter(
-      (recipe) => recipe.availability === "bundled"
-        || !hiddenLocalAgentIds.has(localAgentIdForAgentChatRuntime(recipe.id)),
-    );
-    const hiddenRuntimeIds: string[] = AGENT_CHAT_CREATION_RECIPES.flatMap(
-      (recipe) => recipe.availability !== "bundled"
-        && hiddenLocalAgentIds.has(localAgentIdForAgentChatRuntime(recipe.id))
-        ? [recipe.id]
-        : [],
-    );
-    return Object.freeze({ activeRecipes, hiddenRuntimeIds });
-  }, [localAgentsSettings.hiddenTerminalAgentIds]);
+    return resolveAgentChatRuntimeVisibility(AGENT_CHAT_CREATION_RECIPES, {
+      hiddenLocalAgentIds: localAgentsSettings.hiddenTerminalAgentIds,
+      builtInAgentEnabled: experimentalSettings.enableBuiltInAgent,
+    });
+  }, [experimentalSettings.enableBuiltInAgent, localAgentsSettings.hiddenTerminalAgentIds]);
   const assetLibraryHomeEnabled = isAssetLibraryHomeEnabled({
     available: assetLibraryHomeAvailable,
     optedIn: experimentalSettings.enableAssetLibraryHome,

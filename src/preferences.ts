@@ -85,6 +85,7 @@ export type LocalAgentsSettings = {
 };
 export type ExperimentalSettings = {
   enableAssetLibraryHome: boolean;
+  enableBuiltInAgent: boolean;
   enableCloudAutomation: boolean;
   enableCloudWorkspace: boolean;
   enableEditorSaveStatus: boolean;
@@ -175,6 +176,7 @@ export const DEFAULT_AGENT_FILE_ACTIVITY_INDICATORS_ENABLED = false;
 export const DEFAULT_AI_EDIT_ASSIST_ENABLED = false;
 export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
   enableAssetLibraryHome: false,
+  enableBuiltInAgent: false,
   enableCloudAutomation: false,
   enableCloudWorkspace: false,
   enableEditorSaveStatus: false,
@@ -436,6 +438,7 @@ export function parseExperimentalSettings(value: string | null | undefined): Exp
 
     return {
       enableAssetLibraryHome: parsed.enableAssetLibraryHome === true,
+      enableBuiltInAgent: parsed.enableBuiltInAgent === true,
       enableCloudAutomation: parsed.enableCloudAutomation === true,
       enableCloudWorkspace: parsed.enableCloudWorkspace === true,
       enableEditorSaveStatus: parsed.enableEditorSaveStatus === true,

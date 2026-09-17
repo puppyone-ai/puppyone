@@ -165,6 +165,8 @@
   "editor.markdownPresentation.preview.tail": " 一起使用。",
   "experimental.title": "实验性功能",
   "experimental.detail": "选择体验早期桌面功能。所有实验默认关闭。",
+  "experimental.builtInAgent.title": "Built-in Agent",
+  "experimental.builtInAgent.detail": "在 Agent Chat 中显示 PuppyOne 实验性的内置 Agent。它使用应用随附的 Pi SDK 运行。",
   "experimental.projectSwitcherRail.title": "项目切换侧栏",
   "experimental.projectSwitcherRail.detail": "在文件侧栏左侧显示一条用于跨项目切换的图标栏。",
   "experimental.multiRootWorkspaces.title": "多项目工作区",

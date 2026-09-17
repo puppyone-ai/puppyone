@@ -165,6 +165,8 @@
   "editor.markdownPresentation.preview.tail": " underneath.",
   "experimental.title": "Experimental",
   "experimental.detail": "Opt in to early desktop experiences. Every experiment is off by default.",
+  "experimental.builtInAgent.title": "Built-in Agent",
+  "experimental.builtInAgent.detail": "Show PuppyOne's experimental Built-in Agent in Agent Chat. It runs on the bundled Pi SDK.",
   "experimental.projectSwitcherRail.title": "Project switcher rail",
   "experimental.projectSwitcherRail.detail": "Show a cross-project icon rail to the left of the file sidebar.",
   "experimental.multiRootWorkspaces.title": "Multi-project workspaces",

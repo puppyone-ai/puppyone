@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   AGENT_CHAT_CREATION_RECIPES,
+  BUILT_IN_AGENT_RUNTIME_ID,
+  resolveAgentChatRuntimeVisibility,
   sortAgentChatCreationRecipesAlphabetically,
   sortAgentChatCreationRecipesForDisplay,
 } from "../../../../src/features/app-shell/auxiliary-workbench/agentChatCreationRecipes";
@@ -36,6 +38,23 @@ describe("Agent Chat creation recipe ordering", () => {
 
     expect(sortAgentChatCreationRecipesForDisplay([bundled, local]).map(({ id }) => id))
       .toEqual(["local", "bundled"]);
+  });
+
+  it("hides Built-in Agent by default and exposes it only after experimental opt-in", () => {
+    const disabled = resolveAgentChatRuntimeVisibility(AGENT_CHAT_CREATION_RECIPES, {
+      hiddenLocalAgentIds: [],
+      builtInAgentEnabled: false,
+    });
+    expect(disabled.activeRecipes.map(({ id }) => id)).not.toContain(BUILT_IN_AGENT_RUNTIME_ID);
+    expect(disabled.hiddenRuntimeIds).toContain(BUILT_IN_AGENT_RUNTIME_ID);
+
+    const enabled = resolveAgentChatRuntimeVisibility(AGENT_CHAT_CREATION_RECIPES, {
+      hiddenLocalAgentIds: ["codex"],
+      builtInAgentEnabled: true,
+    });
+    expect(enabled.activeRecipes.at(-1)?.id).toBe(BUILT_IN_AGENT_RUNTIME_ID);
+    expect(enabled.activeRecipes.map(({ id }) => id)).not.toContain("codex");
+    expect(enabled.hiddenRuntimeIds).toEqual(["codex"]);
   });
 
   it("sorts case-insensitively, uses id as a stable tie-breaker, and preserves the registry", () => {

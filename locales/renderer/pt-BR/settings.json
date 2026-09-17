@@ -128,6 +128,8 @@
   "editor.diffMarkers.color": "Cor",
   "experimental.title": "Experimental",
   "experimental.detail": "Ative antecipadamente experiências do desktop. Todos os experimentos ficam desativados por padrão.",
+  "experimental.builtInAgent.title": "Built-in Agent",
+  "experimental.builtInAgent.detail": "Mostra o agente integrado experimental da PuppyOne no Agent Chat. Ele usa o Pi SDK incluído no aplicativo.",
   "experimental.projectSwitcherRail.title": "Barra de troca de projetos",
   "experimental.projectSwitcherRail.detail": "Mostra uma barra de ícones entre projetos à esquerda da barra lateral de arquivos.",
   "experimental.multiRootWorkspaces.title": "Espaços de trabalho com vários projetos",

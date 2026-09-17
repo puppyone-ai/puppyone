@@ -128,6 +128,8 @@
   "editor.diffMarkers.color": "Farbe",
   "experimental.title": "Experimentell",
   "experimental.detail": "Aktiviere frühe Desktop-Funktionen. Alle Experimente sind standardmäßig deaktiviert.",
+  "experimental.builtInAgent.title": "Built-in Agent",
+  "experimental.builtInAgent.detail": "Zeigt den experimentellen integrierten Agent von PuppyOne in Agent Chat an. Er verwendet das mitgelieferte Pi SDK.",
   "experimental.projectSwitcherRail.title": "Projektwechselleiste",
   "experimental.projectSwitcherRail.detail": "Zeigt links neben der Datei-Seitenleiste eine projektübergreifende Symbolleiste an.",
   "experimental.multiRootWorkspaces.title": "Arbeitsbereiche mit mehreren Projekten",

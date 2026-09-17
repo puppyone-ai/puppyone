@@ -128,6 +128,8 @@
   "editor.diffMarkers.color": "色",
   "experimental.title": "実験的機能",
   "experimental.detail": "開発初期のデスクトップ機能を有効にします。すべてデフォルトではオフです。",
+  "experimental.builtInAgent.title": "Built-in Agent",
+  "experimental.builtInAgent.detail": "Agent Chat に PuppyOne の実験的な内蔵エージェントを表示します。同梱の Pi SDK で動作します。",
   "experimental.projectSwitcherRail.title": "プロジェクト切り替えバー",
   "experimental.projectSwitcherRail.detail": "ファイルサイドバーの左側に、プロジェクトを切り替えるアイコンバーを表示します。",
   "experimental.multiRootWorkspaces.title": "マルチプロジェクトワークスペース",
