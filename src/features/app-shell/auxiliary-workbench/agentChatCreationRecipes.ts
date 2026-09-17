@@ -1,8 +1,26 @@
 import type { AuxiliaryWorkbenchCreationRecipe } from "./types";
 
+const AGENT_CHAT_RECIPE_LABEL_COLLATOR = new Intl.Collator("en", {
+  sensitivity: "base",
+});
+
 const LOCAL_AGENT_ID_BY_RUNTIME_ID: Readonly<Record<string, string>> = Object.freeze({
   "opencode-native": "opencode",
 });
+
+export function compareAgentChatCreationRecipesAlphabetically(
+  left: AuxiliaryWorkbenchCreationRecipe,
+  right: AuxiliaryWorkbenchCreationRecipe,
+) {
+  return AGENT_CHAT_RECIPE_LABEL_COLLATOR.compare(left.label, right.label)
+    || AGENT_CHAT_RECIPE_LABEL_COLLATOR.compare(left.id, right.id);
+}
+
+export function sortAgentChatCreationRecipesAlphabetically(
+  recipes: readonly AuxiliaryWorkbenchCreationRecipe[],
+) {
+  return [...recipes].sort(compareAgentChatCreationRecipesAlphabetically);
+}
 
 export function localAgentIdForAgentChatRuntime(runtimeId: string) {
   return LOCAL_AGENT_ID_BY_RUNTIME_ID[runtimeId] ?? runtimeId;
@@ -31,17 +49,22 @@ export const PUPPYONE_AGENT_CREATION_RECIPE = Object.freeze({
   availability: "bundled",
 } as const satisfies AuxiliaryWorkbenchCreationRecipe);
 
-/** Composition-owned product order for recipes currently exposed in the launcher. */
-export const AGENT_CHAT_CREATION_RECIPES = Object.freeze([
+/** Registration order has no display semantics; the exported catalog is sorted below. */
+const AGENT_CHAT_CREATION_RECIPE_REGISTRY = Object.freeze([
+  PUPPYONE_AGENT_CREATION_RECIPE,
   Object.freeze({ id: "claude", label: "Claude Code", iconKey: "claude", status: "available", availability: "local-installation" }),
   Object.freeze({ id: "codex", label: "Codex", iconKey: "codex", status: "available", availability: "local-installation" }),
   Object.freeze({ id: "cursor", label: "Cursor", iconKey: "cursor", status: "available", availability: "local-installation" }),
   Object.freeze({ id: "hermes", label: "Hermes Agent", iconKey: "hermes", status: "available", availability: "local-installation" }),
   Object.freeze({ id: "opencode-native", label: "OpenCode", iconKey: "opencode", status: "available", availability: "local-installation" }),
   Object.freeze({ id: "pi", label: "Pi", iconKey: "pi", status: "available", availability: "local-installation" }),
-  PUPPYONE_AGENT_CREATION_RECIPE,
   Object.freeze({ id: "workbuddy", label: "WorkBuddy", iconKey: "workbuddy", status: "available", availability: "local-installation" }),
 ] as const satisfies readonly AuxiliaryWorkbenchCreationRecipe[]);
+
+/** Display catalog ordered by English label, independent of registration order. */
+export const AGENT_CHAT_CREATION_RECIPES = Object.freeze(
+  sortAgentChatCreationRecipesAlphabetically(AGENT_CHAT_CREATION_RECIPE_REGISTRY),
+);
 
 export const AGENT_CHAT_LOCAL_AGENT_IDS = Object.freeze(
   AGENT_CHAT_CREATION_RECIPES
