@@ -1,5 +1,6 @@
 import { File, Folder, Image, Paperclip } from "lucide-react";
 import type { AgentReferenceDisplay } from "../domain/agent-contract";
+import { isAgentMediaReference } from "../domain/agent-prompt-mentions";
 
 export function AgentReferenceDisplayList({ references }: { references: AgentReferenceDisplay[] }) {
   if (references.length === 0) return null;
@@ -11,7 +12,7 @@ export function AgentReferenceDisplayList({ references }: { references: AgentRef
             ? <Folder size={12} aria-hidden="true" />
             : reference.kind === "workspace-file"
               ? <File size={12} aria-hidden="true" />
-              : reference.mime?.startsWith("image/")
+              : isAgentMediaReference(reference)
                 ? <Image size={12} aria-hidden="true" />
                 : <Paperclip size={12} aria-hidden="true" />}
           <span>{reference.displayName}</span>

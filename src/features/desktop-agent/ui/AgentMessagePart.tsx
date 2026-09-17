@@ -4,6 +4,7 @@ import { SafeMarkdown } from "./SafeMarkdown";
 import { AgentReferenceDisplayList } from "./AgentReferenceDisplayList";
 import { AgentPromptInlineContent } from "./AgentPromptInlineContent";
 import { useAgentStreamPresentation } from "./useAgentStreamPresentation";
+import { isAgentMediaReference } from "../domain/agent-prompt-mentions";
 
 type AgentMessagePartProps = {
   part: Extract<AgentPart, { kind: "user" | "assistant" }>;
@@ -34,7 +35,7 @@ export function AgentMessagePart({ part, runtimeLabel }: AgentMessagePartProps) 
       {isAssistant
         ? <SafeMarkdown text={presentedText || (part.streaming ? "…" : "")} streaming={part.streaming} />
         : <>
-            <AgentReferenceDisplayList references={(part.references ?? []).filter((reference) => reference.mime?.startsWith("image/") === true)} />
+            <AgentReferenceDisplayList references={(part.references ?? []).filter(isAgentMediaReference)} />
             {part.text && <AgentPromptInlineContent
               text={part.text}
               mentions={part.promptMentions}

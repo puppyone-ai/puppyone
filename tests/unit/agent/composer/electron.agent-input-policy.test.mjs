@@ -109,5 +109,25 @@ describe("Agent semantic reference admission policy", () => {
       { referenceId: "ref-image", start: 0, end: 10 },
     ], "@image.png", [{ ...file, id: "ref-image", displayName: "image.png", mime: "image/png" }]))
       .toThrow(/native media/i);
+    expect(normalizePromptReferenceMentions([
+      { referenceId: "ref-svg", start: 0, end: 12 },
+    ], "@diagram.svg", [{
+      ...file,
+      id: "ref-svg",
+      relativePath: "diagram.svg",
+      displayName: "diagram.svg",
+      mime: "image/svg+xml",
+    }]))
+      .toEqual([{ referenceId: "ref-svg", start: 0, end: 12 }]);
+    expect(normalizePromptReferenceMentions([
+      { referenceId: "ref-directory", start: 0, end: 11 },
+    ], "@assets.png", [{
+      ...file,
+      id: "ref-directory",
+      entryType: "directory",
+      relativePath: "assets.png",
+      displayName: "assets.png",
+      mime: "inode/directory",
+    }])).toEqual([{ referenceId: "ref-directory", start: 0, end: 11 }]);
   });
 });

@@ -1,9 +1,20 @@
 import { EventEmitter } from "node:events";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
-import { createResourceDragSessionService } from "../../../../electron/main/resource-drag-session-service.mjs";
+import {
+  createResourceDragSessionService,
+  inspectLocalResourceDrop,
+} from "../../../../electron/main/resource-drag-session-service.mjs";
 
 const services = [];
-afterEach(() => { for (const service of services.splice(0)) service.dispose(); vi.useRealTimers(); });
+const temporaryRoots = [];
+afterEach(async () => {
+  for (const service of services.splice(0)) service.dispose();
+  await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+  vi.useRealTimers();
+});
 const uri = (path) => `puppyone-local://workspace/a/${path}`;
 function fixture() {
   const event = (id) => ({ sender: Object.assign(new EventEmitter(), { id, isDestroyed: () => false, send: vi.fn() }) });
@@ -164,4 +175,19 @@ it("rechecks the admitted path after asynchronous preparation", async () => {
   });
   await expect(f.start()).rejects.toThrow(/detached/);
   expect(f.native.start).not.toHaveBeenCalled();
+});
+
+it("classifies external Finder files and folders without granting or importing them", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "puppyone-drop-inspect-"));
+  temporaryRoots.push(root);
+  const file = path.join(root, "notes.md");
+  const directory = path.join(root, "Design System");
+  await writeFile(file, "notes");
+  await mkdir(directory);
+
+  await expect(inspectLocalResourceDrop([file, directory])).resolves.toEqual([
+    { path: file, name: "notes.md", entryType: "file" },
+    { path: directory, name: "Design System", entryType: "directory" },
+  ]);
+  await expect(inspectLocalResourceDrop(["relative/path"])).rejects.toThrow(/absolute/i);
 });

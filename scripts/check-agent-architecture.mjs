@@ -178,7 +178,7 @@ if (!controllerRegistrySource.includes("rollbackPreparation")) {
 }
 
 const composerRootSource = readFileSync(path.join(rendererUiRoot, "AgentComposer.tsx"), "utf8");
-for (const leaf of ["AgentAttachmentButton.tsx", "AgentCommandSuggestions.tsx", "AgentDraftReferenceList.tsx"]) {
+for (const leaf of ["AgentAttachmentButton.tsx", "AgentCommandSuggestions.tsx", "AgentVisualAttachmentList.tsx"]) {
   const leafPath = path.join(rendererComposerRoot, leaf);
   if (!existsSync(leafPath)) {
     errors.push(`${relative(leafPath)} is required; keep Composer acquisition, suggestions and draft references in private leaves`);

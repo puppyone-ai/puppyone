@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   agentPromptMentionText,
+  isAgentMediaReference,
   normalizeAgentPromptMentions,
   splitAgentPromptMentions,
 } from "../../../../src/features/desktop-agent/domain/agent-prompt-mentions";
@@ -54,5 +55,18 @@ describe("Desktop Agent structured prompt mentions", () => {
       size: 1,
       status: "ready",
     })).toBe("@docs/guides/notes.md");
+  });
+
+  it("reserves visual cards for raster images and treats SVG as a text path reference", () => {
+    expect(isAgentMediaReference({ displayName: "capture.png", mime: "image/png" })).toBe(true);
+    expect(isAgentMediaReference({ displayName: "diagram.svg", mime: "image/svg+xml" })).toBe(false);
+    expect(isAgentMediaReference({ displayName: "photo.webp" })).toBe(true);
+    expect(isAgentMediaReference({ displayName: "notes.md", mime: "text/markdown" })).toBe(false);
+    expect(isAgentMediaReference({
+      kind: "workspace-entry",
+      entryType: "directory",
+      displayName: "assets.png",
+      mime: "inode/directory",
+    })).toBe(false);
   });
 });

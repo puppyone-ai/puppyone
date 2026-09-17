@@ -4,10 +4,15 @@ import type {
   AgentReferenceDisplay,
 } from "./agent-contract";
 import { agentReferenceMentionText } from "../../../../shared/agent-contract/reference-identity.mjs";
+import { classifyAgentAttachment } from "./agent-reference-capabilities";
 
 /** Images are native media inputs. Every other reference is an inline path mention. */
-export function isAgentMediaReference(reference: Pick<AgentDraftReference | AgentReferenceDisplay, "mime">) {
-  return reference.mime?.startsWith("image/") === true;
+export function isAgentMediaReference(reference: Pick<AgentDraftReference | AgentReferenceDisplay, "mime" | "displayName"> & {
+  kind?: AgentDraftReference["kind"] | AgentReferenceDisplay["kind"];
+  entryType?: "file" | "directory";
+}) {
+  if (reference.kind === "workspace-directory" || reference.entryType === "directory") return false;
+  return classifyAgentAttachment({ mime: reference.mime, name: reference.displayName }) === "image";
 }
 
 export function agentPromptMentionText(reference: AgentDraftReference) {

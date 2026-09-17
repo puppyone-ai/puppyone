@@ -1,5 +1,5 @@
 import { isWorkspaceResourceReference } from "../../../shared/workspace-resource-reference.mjs";
-import { createResourceDragSessionService } from "../resource-drag-session-service.mjs";
+import { createResourceDragSessionService, inspectLocalResourceDrop } from "../resource-drag-session-service.mjs";
 
 export function registerResourceTransferIpcHandlers({
   ipcMain,
@@ -29,6 +29,9 @@ export function registerResourceTransferIpcHandlers({
   ipcMain.handle("resource-transfer:resolve", async (event, request) => {
     return resolveEntries(event, request);
   });
+  ipcMain.handle("resource-transfer:inspect-drop", async (_event, request) => ({
+    entries: await inspectLocalResourceDrop(request?.paths),
+  }));
   const sessions = nativeDrag ? createResourceDragSessionService({ native: nativeDrag, resolveEntries, getWindow }) : null;
   ipcMain.handle("resource-transfer:start-drag", (event, request) => {
     if (Object.hasOwn(request ?? {}, "projectRootPath")) {

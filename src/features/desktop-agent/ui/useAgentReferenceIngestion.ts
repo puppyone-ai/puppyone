@@ -13,7 +13,7 @@ import {
   acceptsAgentAttachment,
   hasAgentAttachmentSupport,
 } from "../domain/agent-reference-capabilities";
-import { resolveResourceDropSource } from "../../../platform/resourceDragSession";
+import { resolveLocalResourceDropSource } from "../../../platform/resourceDragSession";
 import { useResourceDragPreview } from "../../../platform/useResourceDragPreview";
 import type { AgentReferenceDropEvent } from "./agentReferenceDropEvent";
 
@@ -155,7 +155,10 @@ function canIngestDataTransfer(
   if (source.files.length === 0) {
     return hasAgentAttachmentSupport(capabilities);
   }
-  return source.files.every((file) => acceptsAgentAttachment(capabilities, {
+  // Chromium exposes Finder folders through DataTransfer.files before Main
+  // can stat them. A directory-capable runtime must therefore admit the drop
+  // for authoritative file-vs-directory inspection after release.
+  return capabilities.workspace.directories || source.files.every((file) => acceptsAgentAttachment(capabilities, {
     mime: file.type,
     name: file.name,
   }));
@@ -167,8 +170,8 @@ async function ingestDataTransfer(
   controller: AgentSessionController,
   resolveWorkspaceReference: AgentWorkspaceReferenceResolver | undefined,
   isCurrent: () => boolean,
-): Promise<number | "workspace-mismatch" | "resource-unavailable"> {
-  const source = await resolveResourceDropSource(classifyReferenceDataTransfer(dataTransfer), "agent-reference");
+): Promise<number | "workspace-mismatch" | "resource-unavailable" | "path-inserted"> {
+  const source = await resolveLocalResourceDropSource(classifyReferenceDataTransfer(dataTransfer), "agent-reference");
   if (!isCurrent()) return 0;
   if (source.kind === "workspace-entries") {
     const paths: string[] = [];
@@ -203,6 +206,16 @@ async function ingestDataTransfer(
       return 0;
     }
     return controller.addWorkspacePaths(paths, visualPreviews);
+  }
+  if (source.kind === "local-entries") {
+    const files = source.entries.filter((entry) => entry.entryType === "file").map((entry) => entry.file);
+    let count = files.length > 0 ? await controller.stageExternalFiles(files) : 0;
+    let insertedPath = false;
+    for (const directory of source.entries.filter((entry) => entry.entryType === "directory")) {
+      if (await controller.addPathTextOrDraft(directory.path)) count += 1;
+      else insertedPath = true;
+    }
+    return count > 0 ? count : insertedPath ? "path-inserted" : 0;
   }
   if (source.kind === "files") return controller.stageExternalFiles(source.files);
   if (source.kind === "text") return (await controller.addPathTextOrDraft(source.text)) ? 1 : 0;

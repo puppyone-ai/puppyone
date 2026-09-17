@@ -48,38 +48,57 @@ describe("ACP native reference mapping", () => {
     expect(JSON.stringify(blocks)).not.toContain(filename);
   });
 
-  it("rejects text when the ACP runtime did not negotiate embeddedContext", async () => {
+  it("falls back to the required ACP resource link when embeddedContext is unavailable", async () => {
     const root = await temporaryRoot();
     const filename = path.join(root, "notes.md");
     await fs.promises.writeFile(filename, "notes");
-    await expect(materializeAcpReferences([{
+    const [materialized] = await materializeAcpReferences([{
       kind: "staged-attachment",
       path: filename,
       name: "notes.md",
       mime: "text/markdown",
-    }], { embeddedText: false })).rejects.toMatchObject({
-      code: "REFERENCE_RUNTIME_CAPABILITY_MISSING",
-    });
+      size: 5,
+    }], { embeddedText: false });
+    expect(buildAcpPromptBlocks({
+      prompt: "Review @notes.md",
+      workspaceRoot: root,
+      references: [materialized],
+    })).toEqual([
+      { type: "text", text: "Review @notes.md" },
+      {
+        type: "resource_link",
+        uri: pathToFileURL(filename).href,
+        name: "notes.md",
+        title: "notes.md",
+        mimeType: "text/markdown",
+        size: 5,
+      },
+    ]);
   });
 
-  it("rejects invalid UTF-8 and generic binary files without silent omission", async () => {
+  it("keeps invalid UTF-8 and binary files as path resources without reading them into the prompt", async () => {
     const root = await temporaryRoot();
     const invalidText = path.join(root, "invalid.txt");
     const pdf = path.join(root, "paper.pdf");
     await fs.promises.writeFile(invalidText, Buffer.from([0xff, 0xfe, 0xfd]));
     await fs.promises.writeFile(pdf, "%PDF-1.7");
-    await expect(materializeAcpReferences([{
+    const references = await materializeAcpReferences([{
       kind: "staged-attachment",
       path: invalidText,
       name: "invalid.txt",
       mime: "text/plain",
-    }], { embeddedText: true })).rejects.toMatchObject({ code: "REFERENCE_MATERIALIZATION_FAILED" });
-    await expect(materializeAcpReferences([{
+    }, {
       kind: "staged-attachment",
       path: pdf,
       name: "paper.pdf",
       mime: "application/pdf",
-    }], { embeddedText: true })).rejects.toMatchObject({ code: "REFERENCE_RUNTIME_CAPABILITY_MISSING" });
+    }], { embeddedText: true });
+    expect(buildAcpPromptBlocks({ prompt: "Inspect", workspaceRoot: root, references, profile: { embeddedText: true } }))
+      .toEqual([
+        { type: "text", text: "Inspect" },
+        { type: "resource_link", uri: pathToFileURL(invalidText).href, name: "invalid.txt", title: "invalid.txt", mimeType: "text/plain" },
+        { type: "resource_link", uri: pathToFileURL(pdf).href, name: "paper.pdf", title: "paper.pdf", mimeType: "application/pdf" },
+      ]);
   });
 
   it("keeps workspace resource links inside the assigned workspace", () => {
