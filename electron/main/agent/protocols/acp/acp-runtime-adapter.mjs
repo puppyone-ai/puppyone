@@ -86,14 +86,15 @@ export const BASE_ACP_CAPABILITIES = Object.freeze({
         maxBytes: ACP_INLINE_IMAGE_MAX_BYTES,
       }),
       text: Object.freeze({
-        accepted: false,
+        // ACP requires every Agent to accept resource links. Embedded text is
+        // an optional optimization negotiated separately at runtime.
+        accepted: true,
         mimeTypes: ACP_EMBEDDED_TEXT_MIME_TYPES,
         extensions: ACP_EMBEDDED_TEXT_EXTENSIONS,
-        maxBytes: ACP_INLINE_IMAGE_MAX_BYTES,
       }),
       audio: Object.freeze({ accepted: false }),
       video: Object.freeze({ accepted: false }),
-      binary: Object.freeze({ accepted: false }),
+      binary: Object.freeze({ accepted: true }),
     }),
     limits: Object.freeze({
       maxCount: 32,
@@ -572,7 +573,7 @@ export class AcpRuntimeAdapter {
           text: {
             ...BASE_ACP_CAPABILITIES.referenceInputs.attachments.text,
             ...(this.capabilityOverrides.referenceInputs?.attachments?.text ?? {}),
-            accepted: acceptsEmbeddedText,
+            accepted: true,
           },
         },
         limits: {

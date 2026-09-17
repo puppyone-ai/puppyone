@@ -74,7 +74,7 @@ describe("OpenCode ACP AgentRuntimePort adapter", () => {
       attachments: {
         image: { accepted: true },
         text: { accepted: true },
-        binary: { accepted: false },
+        binary: { accepted: true },
       },
     });
     expect(inspection.capabilities.revision).toBe("opencode-native-acp:1:image1:embedded1");

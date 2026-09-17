@@ -87,6 +87,27 @@
   vertical-align: baseline;
   white-space: pre;
 }
+.desktop-agent-prompt-mention.is-error {
+  border-color: var(--agent-reference-error-border);
+  background: var(--agent-reference-error-surface);
+  color: var(--po-danger);
+}
+.desktop-agent-prompt-mention.is-resolving { opacity: 0.68; }
+.desktop-agent-prompt-mention-label { min-width: 0; }
+.desktop-agent-prompt-mention-action {
+  display: inline-grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+}
+.desktop-agent-prompt-mention-action:hover { background: var(--agent-row-hover-surface); }
 .desktop-agent-composer-actions {
   display: flex;
   min-width: 0;
@@ -179,7 +200,7 @@
 .desktop-agent-composer-action.is-stop:disabled { color: var(--agent-canvas); opacity: 0.52; }
 .desktop-agent-composer-action.is-stop:disabled::before { background: var(--agent-text); }
 
-.desktop-agent-reference-cards {
+.desktop-agent-visual-attachments {
   display: flex;
   width: 100%;
   min-width: 0;
@@ -188,7 +209,7 @@
   gap: 14px;
   padding: 12px 12px 0;
 }
-.desktop-agent-reference-card {
+.desktop-agent-visual-attachment {
   position: relative;
   display: flex;
   height: var(--agent-reference-card-height);
@@ -198,33 +219,11 @@
   border-radius: 6px;
   background: var(--agent-control-surface);
   color: var(--agent-text);
-  font-size: var(--agent-font-size-meta);
-}
-.desktop-agent-reference-card.is-file-card {
-  width: min(174px, 100%);
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px 6px 6px;
-}
-.desktop-agent-reference-file-icon {
-  display: grid;
-  width: 38px;
-  height: 38px;
-  flex: 0 0 auto;
-  place-items: center;
-  border-radius: 4px;
-  background: var(--agent-row-hover-surface);
-  color: var(--agent-text-muted);
-}
-.desktop-agent-reference-card-copy { display: grid; min-width: 0; gap: 3px; line-height: 1.15; }
-.desktop-agent-reference-card-copy strong { overflow: hidden; font-size: var(--agent-font-size); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
-.desktop-agent-reference-card-copy small { overflow: hidden; color: var(--agent-text-subtle); font-size: var(--agent-font-size-caption); line-height: var(--agent-caption-line-height); text-overflow: ellipsis; white-space: nowrap; }
-.desktop-agent-reference-card.is-image-card {
   width: var(--agent-reference-card-height);
   flex: 0 0 var(--agent-reference-card-height);
   background: var(--agent-row-hover-surface);
 }
-.desktop-agent-reference-image-preview {
+.desktop-agent-visual-attachment-preview {
   display: grid;
   width: 100%;
   height: 100%;
@@ -233,8 +232,8 @@
   border-radius: 5px;
   color: var(--agent-text-muted);
 }
-.desktop-agent-reference-image-preview img { width: 100%; height: 100%; object-fit: cover; }
-.desktop-agent-reference-card-actions {
+.desktop-agent-visual-attachment-preview img { width: 100%; height: 100%; object-fit: cover; }
+.desktop-agent-visual-attachment-actions {
   position: absolute;
   z-index: 2;
   inset-block-start: -14px;
@@ -242,7 +241,7 @@
   display: flex;
   gap: 2px;
 }
-.desktop-agent-reference-card-actions > button {
+.desktop-agent-visual-attachment-actions > button {
   display: grid;
   width: var(--po-control-size-micro);
   height: var(--po-control-size-micro);
@@ -255,10 +254,10 @@
   box-shadow: var(--po-menu-shadow-compact);
   color: var(--agent-text-muted);
 }
-.desktop-agent-reference-card-actions > button:hover { background: var(--po-hover); color: var(--po-text); }
-.desktop-agent-reference-card.is-resolving { opacity: 0.72; }
-.desktop-agent-reference-card.is-error { border-color: var(--agent-reference-error-border); }
-.desktop-agent-reference-card-status {
+.desktop-agent-visual-attachment-actions > button:hover { background: var(--po-hover); color: var(--po-text); }
+.desktop-agent-visual-attachment.is-resolving { opacity: 0.72; }
+.desktop-agent-visual-attachment.is-error { border-color: var(--agent-reference-error-border); }
+.desktop-agent-visual-attachment-status {
   position: absolute;
   inset-block-end: 3px;
   inset-inline-end: 3px;
@@ -270,7 +269,7 @@
   background: var(--agent-reference-surface);
   color: var(--agent-text-muted);
 }
-.desktop-agent-reference-card-status.is-error { background: var(--agent-reference-error-surface); color: var(--po-danger); }
+.desktop-agent-visual-attachment-status.is-error { background: var(--agent-reference-error-surface); color: var(--po-danger); }
 .desktop-agent-attachment-control { position: relative; display: grid; flex: 0 0 auto; }
 .desktop-agent-reference-trigger {
   display: grid;

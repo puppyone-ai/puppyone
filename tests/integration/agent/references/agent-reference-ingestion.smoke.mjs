@@ -183,16 +183,16 @@ async function runProductionLayoutSmoke() {
     url.hash = "agent-visual-smoke";
     await window.loadURL(url.href);
     await waitForRenderer(window, `(() => ({
-      cards: document.querySelectorAll('.desktop-agent-reference-cards > .desktop-agent-reference-card').length,
+      cards: document.querySelectorAll('.desktop-agent-visual-attachments > .desktop-agent-visual-attachment').length,
       mentions: document.querySelectorAll('.desktop-agent-prompt-mention').length,
-    }))()`, (value) => value?.cards === 2 && value?.mentions === 1);
+    }))()`, (value) => value?.cards === 1 && value?.mentions === 2);
     for (const width of [420, 560, 760]) {
       window.setContentSize(width, 820);
       await new Promise((resolve) => setTimeout(resolve, 50));
       const snapshot = await window.webContents.executeJavaScript(`(() => {
         const boundary = document.querySelector('.desktop-agent-boundary');
         const trigger = document.querySelector('.desktop-agent-reference-trigger');
-        const error = document.querySelector('.desktop-agent-reference-card.is-error small');
+        const error = document.querySelector('.desktop-agent-prompt-mention.is-error');
         const promptContent = document.querySelector('.desktop-agent-prompt-editor .cm-content');
         const modelTrigger = document.querySelector('.desktop-agent-composer-picker.is-model .desktop-agent-picker-trigger');
         const effortTrigger = document.querySelector('.desktop-agent-composer-picker.is-effort .desktop-agent-picker-trigger');
@@ -207,13 +207,12 @@ async function runProductionLayoutSmoke() {
           width: Math.round(boundary?.getBoundingClientRect().width || 0),
           viewport: window.innerWidth,
           overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
-          draftCards: document.querySelectorAll('.desktop-agent-reference-cards > .desktop-agent-reference-card').length,
-          fileCards: document.querySelectorAll('.desktop-agent-reference-card.is-file-card').length,
+          visualAttachments: document.querySelectorAll('.desktop-agent-visual-attachments > .desktop-agent-visual-attachment').length,
           inlineMentions: document.querySelectorAll('.desktop-agent-prompt-mention').length,
-          imageCards: document.querySelectorAll('.desktop-agent-reference-card.is-image-card img').length,
+          imagePreviews: document.querySelectorAll('.desktop-agent-visual-attachment img').length,
           transcriptMediaChips: document.querySelectorAll('.desktop-agent-message-references > span').length,
           addLabel: trigger?.getAttribute('aria-label') || '',
-          visibleError: error?.textContent || '',
+          inlineError: error?.getAttribute('title') || '',
           composerTextStarts: {
             prompt: textStart(promptContent, promptStyle),
             model: textStart(modelTrigger, modelStyle),
@@ -230,10 +229,10 @@ async function runProductionLayoutSmoke() {
         && snapshot.composerTextStarts.model !== null
         && Math.abs(snapshot.composerTextStarts.prompt - snapshot.composerTextStarts.model) <= 0.5;
       if (snapshot.theme !== theme || snapshot.width <= 0 || snapshot.width > snapshot.viewport
-        || snapshot.overflow || snapshot.draftCards !== 2 || snapshot.fileCards !== 1
-        || snapshot.inlineMentions !== 1
-        || snapshot.imageCards !== 1 || snapshot.transcriptMediaChips !== 1
-        || !snapshot.addLabel || !snapshot.visibleError || !pickerPaddingIsBalanced
+        || snapshot.overflow || snapshot.visualAttachments !== 1
+        || snapshot.inlineMentions !== 2
+        || snapshot.imagePreviews !== 1 || snapshot.transcriptMediaChips !== 1
+        || !snapshot.addLabel || !snapshot.inlineError || !pickerPaddingIsBalanced
         || !composerTextIsAligned) {
         throw new Error(`Production Agent reference layout smoke failed: ${JSON.stringify(snapshot)}`);
       }

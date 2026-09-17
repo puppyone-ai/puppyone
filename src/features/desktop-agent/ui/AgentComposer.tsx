@@ -9,7 +9,7 @@ import type {
 import type { AgentSessionControl, AgentSessionControlId } from "../domain/agent-session-controls";
 import { AgentCommandSuggestions, visibleAgentCommands } from "./composer/AgentCommandSuggestions";
 import { AgentComposerToolbar } from "./composer/AgentComposerToolbar";
-import { AgentDraftReferenceList } from "./composer/AgentDraftReferenceList";
+import { AgentVisualAttachmentList } from "./composer/AgentVisualAttachmentList";
 import { AgentPromptEditor } from "./composer/AgentPromptEditor";
 import { isAgentMediaReference } from "../domain/agent-prompt-mentions";
 import type { AgentReferenceDropEvent } from "./agentReferenceDropEvent";
@@ -103,8 +103,9 @@ export function AgentComposer({
     if (onDraftDocumentChange) onDraftDocumentChange(nextDraft, nextMentions);
     else onDraftChange(nextDraft);
   };
-  // Failed inputs stay actionable while successful files live only in the prompt.
-  const mediaReferences = references.filter((reference) => isAgentMediaReference(reference) || reference.status === "error");
+  // Only native visual inputs use the attachment shelf. Every non-image file,
+  // including a rejected one, keeps one consistent inline path representation.
+  const mediaReferences = references.filter(isAgentMediaReference);
   return (
     <div className="desktop-agent-composer-shell">
       <AgentCommandSuggestions
@@ -117,7 +118,7 @@ export function AgentComposer({
       >
         <div className="desktop-agent-composer-row">
           <div className="desktop-agent-composer-input-row">
-            <AgentDraftReferenceList
+            <AgentVisualAttachmentList
               references={mediaReferences}
               getPreviewUrl={getReferencePreviewUrl}
               onRemove={onRemoveReference}
@@ -134,6 +135,7 @@ export function AgentComposer({
                 ariaLabel={t("agent.composer.message", { agent: bidiIsolate(runtimeLabel) })}
                 onChange={updateDraftDocument}
                 onRemoveReference={onRemoveReference}
+                onRetryReference={onRetryReference}
                 onDrop={onDrop}
                 onPaste={onPaste}
                 onSubmit={() => void submit()}

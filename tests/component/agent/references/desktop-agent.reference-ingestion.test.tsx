@@ -63,6 +63,28 @@ describe("Desktop Agent reference ingestion", () => {
     expect(controller.stageExternalFiles).not.toHaveBeenCalled();
   });
 
+  it("inserts a Finder folder path instead of staging it as a file attachment", async () => {
+    const controller = controllerFixture();
+    const folder = new File([], "Design System");
+    window.puppyoneDesktop = {
+      claimResourceDrop: vi.fn(async () => null),
+      inspectResourceDrop: vi.fn(async () => ({
+        entries: [{ path: "/Users/example/Design System", name: "Design System", entryType: "directory" }],
+      })),
+    } as unknown as NonNullable<typeof window.puppyoneDesktop>;
+    const container = render(<IngestionHarness controller={controller} />);
+    const boundary = container.querySelector<HTMLElement>(".desktop-agent-boundary")!;
+    const transfer = fileTransfer([folder]);
+
+    act(() => boundary.dispatchEvent(dragEvent("dragover", transfer)));
+    expect(transfer.dropEffect).toBe("copy");
+    await act(async () => boundary.dispatchEvent(dragEvent("drop", transfer)));
+
+    await vi.waitFor(() => expect(controller.addPathTextOrDraft)
+      .toHaveBeenCalledWith("/Users/example/Design System"));
+    expect(controller.stageExternalFiles).not.toHaveBeenCalled();
+  });
+
   it("discards late native drop admission after its target unmounts", async () => {
     const controller = controllerFixture();
     let finish!: (value: unknown) => void;
@@ -224,32 +246,14 @@ describe("Desktop Agent reference ingestion", () => {
     expect(controller.stageExternalFiles.mock.calls[3]?.[0][0]).toBe(markdown);
   });
 
-  it("opens the file picker directly from plus and keeps status-aware retryable chips", () => {
+  it("opens the file picker directly and keeps failed non-image references inline", async () => {
     const onRetryReference = vi.fn();
     const onRemoveReference = vi.fn();
     const onAddExternalFiles = vi.fn();
-    const container = render(<AgentComposer
-      draft=""
-      onDraftChange={vi.fn()}
-      disabled={false}
-      running={false}
-      stopping={false}
-      submitting={false}
-      referenceCapabilities={capabilities()}
-      references={[{
-        id: "failed-ref",
-        kind: "workspace-entry",
-        entryType: "file",
-        relativePath: "missing.md",
-        displayName: "missing.md",
-        status: "error",
-        error: { code: "workspace-resolution-failed", message: "File no longer exists" },
-      }]}
+    const container = render(<RetryMentionHarness
       onAddExternalFiles={onAddExternalFiles}
-      onRetryReference={onRetryReference}
-      onRemoveReference={onRemoveReference}
-      onSubmit={vi.fn(async () => true)}
-      onStop={vi.fn()}
+      onRetry={onRetryReference}
+      onRemove={onRemoveReference}
     />);
     const trigger = container.querySelector<HTMLButtonElement>('button[aria-label="Add files from computer"]')!;
     const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]')!;
@@ -260,16 +264,62 @@ describe("Desktop Agent reference ingestion", () => {
     expect(openFilePicker).toHaveBeenCalledTimes(1);
     expect(document.querySelector('[role="menu"]')).toBeNull();
 
-    const retry = container.querySelector<HTMLButtonElement>('button[aria-label*="Retry reference"]')!;
-    const failedCard = container.querySelector(".desktop-agent-reference-card.is-error");
-    expect(failedCard?.getAttribute("title")).toContain("This workspace item could not be added");
-    expect(failedCard?.getAttribute("title")).toContain("File no longer exists");
+    await vi.waitFor(() => expect(container.querySelector(".desktop-agent-prompt-mention.is-error")).not.toBeNull());
+    const failedMention = container.querySelector(".desktop-agent-prompt-mention.is-error");
+    const retry = failedMention?.querySelector<HTMLButtonElement>('button[aria-label*="Retry reference"]')!;
+    expect(container.querySelector(".desktop-agent-visual-attachments")).toBeNull();
+    expect(failedMention?.getAttribute("title")).toContain("This workspace item could not be added");
+    expect(failedMention?.getAttribute("title")).toContain("File no longer exists");
     expect(container.textContent).not.toContain("File no longer exists");
-    expect(container.querySelector(".desktop-agent-reference-card-copy small")?.textContent)
-      .toContain("This workspace item could not be added");
     act(() => retry.click());
     expect(onRetryReference).toHaveBeenCalledWith("failed-ref");
-    expect((container.querySelector('button[aria-label="Send message"]') as HTMLButtonElement).disabled).toBe(true);
+    expect(onRemoveReference).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(container.querySelector(".desktop-agent-prompt-mention")?.getAttribute("data-reference-id"))
+      .toBe("ready-ref"));
+    expect(container.querySelector(".desktop-agent-prompt-mention.is-error")).toBeNull();
+    expect((container.querySelector(".cm-content")?.textContent?.match(/@missing\.md/g) ?? [])).toHaveLength(1);
+    expect((container.querySelector('button[aria-label="Send message"]') as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("shows resolving files inline while retaining failed images as visual attachments", async () => {
+    const container = render(<AgentComposer
+      draft=""
+      onDraftChange={vi.fn()}
+      disabled={false}
+      running={false}
+      stopping={false}
+      submitting={false}
+      referenceCapabilities={capabilities()}
+      references={[
+        {
+          id: "pending-file",
+          kind: "staged-attachment",
+          displayName: "notes.txt",
+          mime: "text/plain",
+          size: 0,
+          status: "resolving",
+        },
+        {
+          id: "failed-image",
+          kind: "staged-attachment",
+          displayName: "capture.png",
+          mime: "image/png",
+          size: 0,
+          status: "error",
+          error: { code: "image-unsupported", message: "Image rejected" },
+        },
+      ]}
+      onRemoveReference={vi.fn()}
+      onRetryReference={vi.fn()}
+      onSubmit={vi.fn(async () => true)}
+      onStop={vi.fn()}
+    />);
+
+    await vi.waitFor(() => expect(container.querySelector(".desktop-agent-prompt-mention.is-resolving")?.textContent)
+      .toContain("@notes.txt"));
+    expect(container.querySelectorAll(".desktop-agent-visual-attachment")).toHaveLength(1);
+    expect(container.querySelector(".desktop-agent-visual-attachment.is-error")?.getAttribute("aria-label"))
+      .toContain("capture.png");
   });
 
   it("renders images in the media area and Markdown as an atomic inline prompt mention", async () => {
@@ -318,6 +368,14 @@ describe("Desktop Agent reference ingestion", () => {
           size: 5,
           status: "ready",
         },
+        {
+          id: "svg-ref",
+          kind: "staged-attachment",
+          displayName: "diagram.svg",
+          mime: "image/svg+xml",
+          size: 8,
+          status: "ready",
+        },
       ]}
       getReferencePreviewUrl={(id) => id === "image-ref" ? "blob:agent-preview" : null}
       onRemoveReference={vi.fn()}
@@ -326,9 +384,9 @@ describe("Desktop Agent reference ingestion", () => {
     />);
 
     const composer = container.querySelector(".desktop-agent-composer")!;
-    const cards = composer.querySelector(".desktop-agent-reference-cards")!;
-    const imageCard = composer.querySelector(".desktop-agent-reference-card.is-image-card")!;
-    const preview = imageCard.querySelector<HTMLImageElement>(".desktop-agent-reference-image-preview img");
+    const cards = composer.querySelector(".desktop-agent-visual-attachments")!;
+    const imageCard = composer.querySelector(".desktop-agent-visual-attachment")!;
+    const preview = imageCard.querySelector<HTMLImageElement>(".desktop-agent-visual-attachment-preview img");
     const promptEditor = composer.querySelector(".desktop-agent-prompt-editor")!;
     const toolbar = composer.querySelector(".desktop-agent-composer-trailing")!;
     const leading = toolbar.querySelector(".desktop-agent-composer-leading")!;
@@ -339,8 +397,8 @@ describe("Desktop Agent reference ingestion", () => {
     const send = actions.querySelector(".desktop-agent-composer-action")!;
     const modelTrigger = modelPicker.querySelector<HTMLButtonElement>('[aria-label="Agent model"]')!;
     const effortTrigger = effortPicker.querySelector<HTMLButtonElement>('[aria-label="Reasoning effort"]')!;
-    const remove = imageCard.querySelector<HTMLButtonElement>(".desktop-agent-reference-card-actions button:last-child")!;
-    await vi.waitFor(() => expect(composer.querySelector(".desktop-agent-prompt-mention")?.textContent).toContain("@docs/SECURITY.md"));
+    const remove = imageCard.querySelector<HTMLButtonElement>(".desktop-agent-visual-attachment-actions button:last-child")!;
+    await vi.waitFor(() => expect(composer.querySelectorAll(".desktop-agent-prompt-mention")).toHaveLength(2));
     const mention = composer.querySelector(".desktop-agent-prompt-mention");
     expect(mention?.getAttribute("title")).toBe("docs/SECURITY.md");
     expect(mention?.getAttribute("data-reference-kind")).toBe("workspace-entry");
@@ -348,12 +406,16 @@ describe("Desktop Agent reference ingestion", () => {
     expect(mention?.getAttribute("contenteditable")).toBe("false");
     expect(onDraftDocumentChange).toHaveBeenCalledWith(
       expect.stringContaining("@docs/SECURITY.md"),
-      [expect.objectContaining({ referenceId: "markdown-ref", start: expect.any(Number), end: expect.any(Number) })],
+      expect.arrayContaining([
+        expect.objectContaining({ referenceId: "markdown-ref", start: expect.any(Number), end: expect.any(Number) }),
+        expect.objectContaining({ referenceId: "svg-ref", start: expect.any(Number), end: expect.any(Number) }),
+      ]),
     );
+    expect(composer.textContent).toContain("@diagram.svg");
     expect(onDraftDocumentChange.mock.calls.some(([, mentions]) => (
       mentions.some((mention: { referenceId: string }) => mention.referenceId === "image-ref")
     ))).toBe(false);
-    expect(composer.querySelector(".desktop-agent-reference-card.is-file-card")).toBeNull();
+    expect(composer.querySelectorAll(".desktop-agent-visual-attachment")).toHaveLength(1);
     expect(preview?.getAttribute("src")).toBe("blob:agent-preview");
     expect(cards.compareDocumentPosition(promptEditor) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
     expect(promptEditor.compareDocumentPosition(toolbar) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
@@ -367,7 +429,7 @@ describe("Desktop Agent reference ingestion", () => {
     expect(effortTrigger.querySelector("svg")).toBeNull();
     expect(modelPicker.compareDocumentPosition(effortPicker) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
     expect(attachment.compareDocumentPosition(send) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
-    expect(remove.closest(".desktop-agent-reference-card-actions")).not.toBeNull();
+    expect(remove.closest(".desktop-agent-visual-attachment-actions")).not.toBeNull();
     act(() => effortTrigger.click());
     expect(document.querySelectorAll('.desktop-agent-picker-list [role="group"]')).toHaveLength(0);
     const light = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="option"]'))
@@ -476,6 +538,58 @@ function StructuredMentionHarness({ onRemove }: { onRemove: (id: string) => void
       setReferences((current) => current.filter((reference) => reference.id !== id));
       onRemove(id);
     }}
+    onSubmit={vi.fn(async () => true)}
+    onStop={vi.fn()}
+  />;
+}
+
+function RetryMentionHarness({
+  onAddExternalFiles,
+  onRetry,
+  onRemove,
+}: {
+  onAddExternalFiles: (files: File[]) => void;
+  onRetry: (id: string) => void;
+  onRemove: (id: string) => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const [mentions, setMentions] = useState<AgentPromptReferenceMention[]>([]);
+  const [references, setReferences] = useState<AgentDraftReference[]>([{
+    id: "failed-ref",
+    kind: "workspace-entry",
+    entryType: "file",
+    relativePath: "missing.md",
+    displayName: "missing.md",
+    status: "error",
+    error: { code: "workspace-resolution-failed", message: "File no longer exists" },
+  }]);
+  return <AgentComposer
+    draft={draft}
+    draftMentions={mentions}
+    onDraftChange={setDraft}
+    onDraftDocumentChange={(value, nextMentions) => {
+      setDraft(value);
+      setMentions(nextMentions);
+    }}
+    disabled={false}
+    running={false}
+    stopping={false}
+    submitting={false}
+    referenceCapabilities={capabilities()}
+    references={references}
+    onAddExternalFiles={onAddExternalFiles}
+    onRetryReference={(id) => {
+      onRetry(id);
+      setReferences([{
+        id: "ready-ref",
+        kind: "workspace-entry",
+        entryType: "file",
+        relativePath: "missing.md",
+        displayName: "missing.md",
+        status: "ready",
+      }]);
+    }}
+    onRemoveReference={onRemove}
     onSubmit={vi.fn(async () => true)}
     onStop={vi.fn()}
   />;

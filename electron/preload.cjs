@@ -296,6 +296,14 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
     intent: request.intent, targetResource: request.targetResource,
     paths: request.files.map((file) => webUtils.getPathForFile(file)),
   }),
+  inspectResourceDrop: (request) => {
+    const files = Array.isArray(request?.files) ? request.files : [];
+    const paths = files.map((file) => webUtils.getPathForFile(file));
+    if (paths.length === 0 || paths.some((entry) => typeof entry !== "string" || !entry.trim())) {
+      return Promise.reject(new Error("One or more dropped resources could not be resolved."));
+    }
+    return ipcRenderer.invoke("resource-transfer:inspect-drop", { paths });
+  },
   onResourceDragState: (listener) => {
     const handler = (_event, state) => listener(state);
     ipcRenderer.on("resource-transfer:state", handler);

@@ -53,7 +53,7 @@ describe("Desktop Agent architecture boundaries", () => {
     const composerToolbar = source("src/features/desktop-agent/ui/composer/AgentComposerToolbar.tsx");
     const attachmentButton = source("src/features/desktop-agent/ui/composer/AgentAttachmentButton.tsx");
     const commandSuggestions = source("src/features/desktop-agent/ui/composer/AgentCommandSuggestions.tsx");
-    const draftReferences = source("src/features/desktop-agent/ui/composer/AgentDraftReferenceList.tsx");
+    const visualAttachments = source("src/features/desktop-agent/ui/composer/AgentVisualAttachmentList.tsx");
     const sessionControlPicker = source("src/features/desktop-agent/ui/AgentSessionControlPicker.tsx");
     const sessionControls = source("src/features/desktop-agent/domain/agent-session-controls.ts");
     const picker = source("src/features/desktop-agent/ui/AgentPickerPopover.tsx");
@@ -127,7 +127,7 @@ describe("Desktop Agent architecture boundaries", () => {
     expect(composer.split("\n").length).toBeLessThan(190);
     expect(composer).not.toContain("function ReferenceChip");
     expect(composer).toContain("<AgentCommandSuggestions");
-    expect(composer).toContain("<AgentDraftReferenceList");
+    expect(composer).toContain("<AgentVisualAttachmentList");
     expect(composer).toContain("<AgentComposerToolbar");
     expect(composerToolbar).toContain("<AgentAttachmentButton");
     expect(composerToolbar).toContain("<AgentSessionControlPicker");
@@ -150,7 +150,9 @@ describe("Desktop Agent architecture boundaries", () => {
     expect(composerToolbar.split("\n").length).toBeLessThan(130);
     expect(attachmentButton).not.toMatch(/useState|DesktopOverlayLayer|role="menu"/);
     expect(commandSuggestions).not.toMatch(/useState|AgentSessionController/);
-    expect(draftReferences).not.toMatch(/useState|AgentSessionController/);
+    expect(visualAttachments).not.toMatch(/useState|AgentSessionController/);
+    expect(visualAttachments).toContain("references.filter(isAgentMediaReference)");
+    expect(visualAttachments).not.toMatch(/is-file-card|FileText|Paperclip/);
     expect(composer).not.toMatch(/\.style(?:\.|\[)/);
     expect(composer).not.toContain("ResizeObserver");
     expect(composer).toContain("<AgentPromptEditor");

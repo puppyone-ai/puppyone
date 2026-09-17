@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import fs from "node:fs";
 import path from "node:path";
 import { isWorkspaceResourceReference, parseWorkspaceResourceReference } from "../../shared/workspace-resource-reference.mjs";
 
@@ -152,6 +153,22 @@ export function createResourceDragSessionService({ native, resolveEntries, getWi
 
     dispose() { for (const session of [...sessions.values()]) discard(session); },
   };
+}
+
+/** Inspect an OS drop without granting file access or changing workspace state. */
+export async function inspectLocalResourceDrop(paths) {
+  if (!Array.isArray(paths) || paths.length === 0 || paths.length > 32) {
+    throw new TypeError("Between 1 and 32 dropped resource paths are required.");
+  }
+  return Promise.all(paths.map(async (sourcePath) => {
+    if (typeof sourcePath !== "string" || !path.isAbsolute(sourcePath)) {
+      throw new TypeError("Dropped resource paths must be absolute.");
+    }
+    const metadata = await fs.promises.stat(sourcePath);
+    const entryType = metadata.isDirectory() ? "directory" : metadata.isFile() ? "file" : null;
+    if (!entryType) throw new Error("Dropped resources must be files or directories.");
+    return { path: sourcePath, name: path.basename(sourcePath), entryType };
+  }));
 }
 
 function toPublicEntry(entry) {

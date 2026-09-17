@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import { CursorAcpAdapter } from "../../../../../electron/main/agent/runtimes/cursor/cursor-acp-adapter.mjs";
 import { discoverCursorBackend } from "../../../../../electron/main/agent/runtimes/cursor/cursor-discovery.mjs";
@@ -104,14 +105,40 @@ describe("Cursor ACP runtime", () => {
       referenceInputs: {
         attachments: {
           image: { accepted: true },
-          text: { accepted: false },
+          text: { accepted: true },
+          binary: { accepted: true },
         },
       },
     });
     expect(inspection.capabilities.revision).toBe("cursor-acp:1:image1:embedded0");
 
     await adapter.createSession({ mode: "agent" });
-    const { turnId } = await adapter.startTurn({ prompt: "Fix it" });
+    const stagedPath = fileURLToPath(import.meta.url);
+    const { turnId } = await adapter.startTurn({
+      prompt: "Fix @cursor-notes.txt",
+      references: [{
+        kind: "staged-attachment",
+        path: stagedPath,
+        displayName: "cursor-notes.txt",
+        mime: "text/plain",
+        inlineMentioned: true,
+        mentionDelivery: "resource",
+      }],
+    });
+    await vi.waitFor(() => expect(connection.request).toHaveBeenCalledWith(
+      "session/prompt",
+      expect.objectContaining({
+        prompt: [
+          { type: "text", text: "Fix @cursor-notes.txt" },
+          expect.objectContaining({
+            type: "resource_link",
+            uri: pathToFileURL(stagedPath).href,
+            name: "cursor-notes.txt",
+          }),
+        ],
+      }),
+      { timeoutMs: 0 },
+    ));
     connection.sendUpdate({ sessionUpdate: "agent_message_chunk", messageId: "answer", content: { type: "text", text: "Done" } });
     connection.sendRequest(11, "cursor/ask_question", {
       toolCallId: "question-tool",

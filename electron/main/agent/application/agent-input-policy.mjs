@@ -149,7 +149,10 @@ export function normalizePromptReferenceMentions(value, prompt, references) {
     const referenceId = normalizeRequiredId(entry.referenceId, "Reference mention id");
     const reference = byId.get(referenceId);
     if (!reference) throw new Error("Agent prompt reference mention is not backed by an authorized reference.");
-    if (reference.mime?.startsWith("image/")) throw new Error("Image references must use the native media input channel.");
+    const directory = reference.kind === "workspace-entry" && reference.entryType === "directory";
+    if (!directory && classifyAgentAttachment({ mime: reference.mime, name: reference.displayName ?? reference.name }) === "image") {
+      throw new Error("Image references must use the native media input channel.");
+    }
     const start = Number.isSafeInteger(entry.start) ? entry.start : -1;
     const end = Number.isSafeInteger(entry.end) ? entry.end : -1;
     if (start < boundary || end <= start || end > prompt.length) throw new Error("Agent prompt reference mention range is invalid.");
