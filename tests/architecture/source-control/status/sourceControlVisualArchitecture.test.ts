@@ -285,7 +285,9 @@ describe("source-control visual architecture", () => {
     expect(historyTimelineSource).toContain('className="desktop-git-history-loading"');
     expect(historyTimelineSource).toContain('t("source-control.status.readingHistory")');
     expect(changesSidebarSource).toContain("<WorkingFileDetail");
-    expect(changesSidebarSource).toContain('className="desktop-history-detail-back"');
+    expect(changesSidebarSource).toContain('className="desktop-git-view-header desktop-git-changes-detail-header"');
+    expect(changesSidebarSource).toContain('className="desktop-git-view-back"');
+    expect(changesSidebarSource).toContain("<WorkingFileActions");
     expect(sourceControlSidebarSource).not.toContain('className="desktop-git-commit-composer"');
     expect(sourceControlSidebarSectionsSource).toContain('className="desktop-git-commit-staged-action"');
     expect(sourceControlSidebarSectionsSource).toContain('className="desktop-git-stage-commit-action"');
@@ -549,27 +551,27 @@ describe("source-control visual architecture", () => {
       diffCss,
       '.desktop-file-diff[data-content-mode="metadata"] .desktop-file-diff-header',
     ));
-    const format = compact(readCssBlock(diffCss, ".desktop-file-format-label"));
     const stats = compact(readCssBlock(diffCss, ".desktop-file-diff-stat"));
-    expect(header).toContain("grid-template-columns: max-content minmax(0, 1fr);");
+    const identity = compact(readCssBlock(diffCss, ".desktop-file-diff-identity"));
+    const name = compact(readCssBlock(diffCss, ".desktop-file-diff-name"));
+    expect(header).toContain("grid-template-columns: minmax(0, 1fr) auto;");
+    expect(header).toContain("min-height: 32px;");
     expect(metadataHeader).toContain("border-bottom: 0;");
-    expect(format).toContain("color: var(--po-text);");
-    expect(format).toContain("font-weight: 650;");
-    expect(format).not.toContain("border-radius:");
-    expect(format).not.toContain("background:");
+    expect(identity).toContain("justify-content: flex-start;");
+    expect(name).toContain("font-size: var(--po-type-left-sidebar-content, 14px);");
     expect(stats).toContain("font-variant-numeric: tabular-nums;");
-    expect(stats).toContain("font-weight: 650;");
+    expect(stats).toContain("font-size: var(--po-type-left-sidebar-meta, 12px);");
 
-    const factsIndex = fileDiffSurfaceSource.indexOf('className="desktop-file-diff-facts"');
-    const formatIndex = fileDiffSurfaceSource.indexOf('className="desktop-file-format-label"');
+    const identityIndex = fileDiffSurfaceSource.indexOf('className="desktop-file-diff-identity"');
+    const nameIndex = fileDiffSurfaceSource.indexOf('className="desktop-file-diff-name"');
     const statusIndex = fileDiffSurfaceSource.indexOf("desktop-change-badge");
     const statsIndex = fileDiffSurfaceSource.indexOf('className="desktop-file-diff-stat"');
-    const identityIndex = fileDiffSurfaceSource.indexOf('className="desktop-file-diff-identity"');
-    expect(factsIndex).toBeGreaterThan(-1);
-    expect(formatIndex).toBeGreaterThan(factsIndex);
-    expect(statusIndex).toBeGreaterThan(formatIndex);
+    expect(identityIndex).toBeGreaterThan(-1);
+    expect(nameIndex).toBeGreaterThan(identityIndex);
+    expect(statusIndex).toBeGreaterThan(nameIndex);
     expect(statsIndex).toBeGreaterThan(statusIndex);
-    expect(identityIndex).toBeGreaterThan(statsIndex);
+    expect(fileDiffSurfaceSource).not.toContain("desktop-file-format-label");
+    expect(fileDiffSurfaceSource).not.toContain("desktop-file-diff-directory");
     expect(fileDiffSurfaceSource).toContain("resolveDiffViewer(file)");
     expect(fileDiffSurfaceSource).toContain("resolvedViewer={resolvedViewer}");
     expect(workingFileDetailSource).not.toContain("desktop-working-diff-context");
@@ -601,7 +603,7 @@ describe("source-control visual architecture", () => {
   it("shares one 24px action-size contract across Source Control", () => {
     const contract = compact(readCssBlock(
       sidebarBaseCss,
-      ".desktop-git-sidebar,\n.desktop-history-detail-view",
+      ".desktop-git-sidebar,\n.desktop-history-detail-view,\n.desktop-git-changes-sidebar",
     ));
     const operation = compact(readCssBlock(
       sidebarResourcesCss,
@@ -611,7 +613,7 @@ describe("source-control visual architecture", () => {
     expect(contract).toContain("--git-action-size: 24px;");
     expect(contract).toContain("--git-action-radius: var(--desktop-toolbar-action-radius);");
     expect(contract).toContain("--git-action-padding-inline: 7px;");
-    expect(contract).toContain("--git-action-font-size: var(--po-type-ui-meta, 13px);");
+    expect(contract).toContain("--git-action-font-size: var(--po-type-left-sidebar-meta, 12px);");
     expect(operation).toContain("height: var(--git-action-size);");
     expect(operation).toContain("padding: 0 var(--git-action-padding-inline);");
     expect(operation).not.toContain("height: 28px;");
@@ -732,7 +734,7 @@ describe("source-control visual architecture", () => {
     expect(lineView).toContain('className="line-prefix"');
   });
 
-  it("keeps sidebar metadata quieter while preserving the shared file-icon system", () => {
+  it("matches file rows to the left-sidebar type scale while preserving the shared file-icon system", () => {
     const sidebar = compact(readCssBlock(sidebarBaseCss, ".desktop-git-sidebar"));
     const workingTreeMain = compact(readCssBlock(
       sidebarResourcesCss,
@@ -740,13 +742,13 @@ describe("source-control visual architecture", () => {
     ));
 
     expect(sidebar).toContain(
-      "--git-font-main: var(--po-type-right-sidebar-meta, 13px);",
+      "--git-font-main: var(--po-type-left-sidebar-content, 14px);",
     );
     expect(sidebar).toContain(
-      "--git-font-small: var(--po-type-right-sidebar-meta, 13px);",
+      "--git-font-small: var(--po-type-left-sidebar-meta, 12px);",
     );
     expect(sidebar).toContain(
-      "--git-line-height: var(--po-type-right-sidebar-meta-line-height, 19px);",
+      "--git-line-height: var(--po-type-left-sidebar-line-height, 19px);",
     );
     expect(sidebar).toContain(
       "--git-weight-regular: var(--desktop-sidebar-font-weight, var(--po-text-weight-medium, 500));",
@@ -771,10 +773,10 @@ describe("source-control visual architecture", () => {
     expect(viewTitle).toContain("font-size: var(--po-type-right-sidebar-meta, 13px);");
     expect(viewTitle).toContain("font-weight: var(--po-text-weight-regular, 400);");
     expect(historySidebarCss).toContain(
-      "--git-font-main: var(--po-type-right-sidebar-meta, 13px);",
+      "--git-font-main: var(--po-type-left-sidebar-content, 14px);",
     );
     expect(historySidebarCss).toContain(
-      "--git-font-small: var(--po-type-right-sidebar-meta, 13px);",
+      "--git-font-small: var(--po-type-left-sidebar-meta, 12px);",
     );
     expect(historyListCss).toContain("font-size: var(--git-font-main);");
     expect(historyListCss).toContain("font-weight: var(--git-weight-regular);");

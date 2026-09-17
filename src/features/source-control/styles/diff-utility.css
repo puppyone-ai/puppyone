@@ -19,11 +19,11 @@
 
 .desktop-file-diff-header {
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   min-width: 0;
-  gap: 10px;
-  min-height: 36px;
+  gap: 8px;
+  min-height: 32px;
   padding: 0 10px;
   border-bottom: 1px solid var(--po-border-subtle);
   background: color-mix(in srgb, var(--po-canvas) 94%, var(--po-text) 2%);
@@ -34,54 +34,25 @@
   border-bottom: 0;
 }
 
-.desktop-file-diff-facts {
-  display: inline-flex;
-  min-width: 0;
-  align-items: center;
-  gap: 7px;
-}
-
-.desktop-file-format-label {
-  display: block;
-  max-width: 112px;
-  overflow: hidden;
-  color: var(--po-text);
-  font-size: var(--po-type-ui-caption, 12px);
-  font-weight: 650;
-  line-height: 18px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .desktop-file-diff-identity {
   display: flex;
   min-width: 0;
-  align-items: baseline;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: flex-start;
   gap: 6px;
   overflow: hidden;
-  text-align: right;
-}
-
-.desktop-file-diff-name,
-.desktop-file-diff-directory {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-align: start;
 }
 
 .desktop-file-diff-name {
   flex: 0 1 auto;
+  overflow: hidden;
   color: var(--po-text);
-  font-size: var(--po-type-ui-meta, 13px);
-  font-weight: 600;
-}
-
-.desktop-file-diff-directory {
-  flex: 0 2 auto;
-  color: var(--po-text-subtle);
-  font-size: var(--po-type-ui-micro, 11px);
-  font-weight: 500;
+  font-size: var(--po-type-left-sidebar-content, 14px);
+  font-weight: var(--desktop-sidebar-font-weight, var(--po-text-weight-regular, 400));
+  line-height: var(--po-type-left-sidebar-line-height, 19px);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .desktop-file-diff-stat {
@@ -89,8 +60,8 @@
   flex: 0 0 auto;
   gap: 6px;
   font-variant-numeric: tabular-nums;
-  font-size: var(--po-type-ui-caption, 12px);
-  font-weight: 650;
+  font-size: var(--po-type-left-sidebar-meta, 12px);
+  font-weight: 600;
 }
 
 .desktop-change-badge {
@@ -102,8 +73,8 @@
   border-radius: 4px;
   background: var(--po-control);
   color: var(--po-text-muted);
-  font-size: var(--po-type-ui-micro, 11px);
-  font-weight: 600;
+  font-size: var(--po-type-left-sidebar-meta, 12px);
+  font-weight: 500;
 }
 
 .desktop-change-badge.added,

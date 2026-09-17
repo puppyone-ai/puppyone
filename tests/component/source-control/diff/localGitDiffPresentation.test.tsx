@@ -5,7 +5,7 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GitFileDiffSurface } from "../../../../src/features/source-control/diff/GitFileDiffSurface";
-import { WorkingFileDetail } from "../../../../src/features/source-control/WorkingFileDetail";
+import { WorkingFileActions, WorkingFileDetail } from "../../../../src/features/source-control/WorkingFileDetail";
 import type { GitFileDiff } from "../../../../src/types/electron";
 import { withTestLocalization } from "../../../support/react/localization";
 
@@ -26,11 +26,7 @@ describe("local Git diff presentation", () => {
         detail={null}
         loading
         error={null}
-        operationLoading={null}
         operationError={null}
-        onStagePaths={async () => true}
-        onUnstagePaths={async () => true}
-        onDiscardPaths={async () => true}
         onOpenFile={vi.fn()}
       />,
     );
@@ -50,11 +46,7 @@ describe("local Git diff presentation", () => {
         detail={{ commit_id: "local-commits", files: [file] }}
         loading={false}
         error={null}
-        operationLoading={null}
         operationError={null}
-        onStagePaths={async () => true}
-        onUnstagePaths={async () => true}
-        onDiscardPaths={async () => true}
         onOpenFile={vi.fn()}
       />,
     );
@@ -64,17 +56,17 @@ describe("local Git diff presentation", () => {
       .toBe(embedded.querySelector(".desktop-file-diff")?.outerHTML);
     expect(focused.querySelector(".desktop-working-file-toolbar")).toBeNull();
     expect(focused.querySelector(".desktop-working-diff-context")).toBeNull();
-    expect(focused.querySelector(".desktop-file-format-label")?.textContent).toBe("Markdown");
+    expect(focused.querySelector(".desktop-file-format-label")).toBeNull();
     expect(focused.querySelector(".desktop-change-badge")?.textContent).toBe("Added");
     expect(focused.querySelector(".desktop-file-diff-stat")?.textContent).toBe("+2−0");
     expect(focused.querySelector(".desktop-file-diff-name")?.textContent).toBe("ISSUE-030.md");
-    expect(focused.querySelector(".desktop-file-diff-directory")?.textContent).toBe("dev issues/3-done");
+    expect(focused.querySelector(".desktop-file-diff-directory")).toBeNull();
     expect(focused.textContent).not.toContain("OUTGOING");
     expect(focused.textContent).not.toContain("Net changes");
     expect(focused.querySelector(".without-header")).toBeNull();
   });
 
-  it("orders canonical format, status and totals before the path identity", () => {
+  it("keeps file identity and status on one line with totals aligned separately", () => {
     const file: GitFileDiff = {
       ...textFile(),
       path: "src/current/new.ts",
@@ -85,20 +77,19 @@ describe("local Git diff presentation", () => {
     };
     const surface = render(<GitFileDiffSurface file={file} />);
     const header = surface.querySelector(".desktop-file-diff-header");
-    const facts = header?.children.item(0);
-    const identity = header?.children.item(1);
+    const identity = header?.children.item(0);
+    const stats = header?.children.item(1);
 
     expect(header?.getAttribute("data-file-format")).toBe("typescript");
-    expect(Array.from(facts?.children ?? []).map((element) => element.className)).toEqual([
-      "desktop-file-format-label",
+    expect(Array.from(identity?.children ?? []).map((element) => element.className)).toEqual([
+      "desktop-file-diff-name",
       "desktop-change-badge renamed",
-      "desktop-file-diff-stat",
     ]);
-    expect(facts?.textContent).toBe("TypeScriptRenamed+7−3");
-    expect(identity?.className).toBe("desktop-file-diff-identity");
-    expect(identity?.textContent).toBe("old.ts → new.tssrc/legacy → src/current");
+    expect(identity?.textContent).toBe("old.ts → new.tsRenamed");
     expect(identity?.getAttribute("title")).toBe("src/legacy/old.ts → src/current/new.ts");
     expect(identity?.getAttribute("aria-label")).toBe("src/legacy/old.ts → src/current/new.ts");
+    expect(stats?.className).toBe("desktop-file-diff-stat");
+    expect(stats?.textContent).toBe("+7−3");
   });
 
   it("keeps local mutations in a separate low-emphasis toolbar without restoring scope copy", () => {
@@ -109,19 +100,25 @@ describe("local Git diff presentation", () => {
         detail={{ commit_id: "working-tree", files: [file] }}
         loading={false}
         error={null}
-        operationLoading={null}
         operationError={null}
-        onStagePaths={async () => true}
-        onUnstagePaths={async () => true}
-        onDiscardPaths={async () => true}
         onOpenFile={vi.fn()}
+        toolbar={(
+          <WorkingFileActions
+            selection={{ path: file.path, status: "added", staged: false, origin: "local" }}
+            operationLoading={null}
+            onStagePaths={async () => true}
+            onUnstagePaths={async () => true}
+            onDiscardPaths={async () => true}
+            onOpenFile={vi.fn()}
+          />
+        )}
       />,
     );
 
     expect(Array.from(surface.querySelectorAll(".desktop-working-file-toolbar button"))
       .map((button) => button.textContent)).toEqual(["Open file", "Stage", "Discard"]);
     expect(surface.querySelector(".desktop-working-diff-context")).toBeNull();
-    expect(surface.querySelector(".desktop-file-diff-facts")?.textContent).toBe("MarkdownAdded+2−0");
+    expect(surface.querySelector(".desktop-file-diff-header")?.textContent).toBe("ISSUE-030.mdAdded+2−0");
   });
 });
 

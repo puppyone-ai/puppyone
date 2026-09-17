@@ -3,7 +3,7 @@ import { RefreshCw } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import type { GitCommitDetail, GitStatusSnapshot } from "../../types/electron";
 import type { GitWorkingSelection } from "./types";
-import { WorkingFileDetail } from "./WorkingFileDetail";
+import { WorkingFileActions, WorkingFileDetail } from "./WorkingFileDetail";
 import { VersionControlSetupState } from "./VersionControlSetupState";
 
 type GitStatusViewProps = {
@@ -63,12 +63,18 @@ export function GitStatusView({
         detail={workingFileDiff}
         loading={workingFileDiffLoading}
         error={workingFileDiffError}
-        operationLoading={operationLoading}
         operationError={operationError}
-        onStagePaths={onStagePaths}
-        onUnstagePaths={onUnstagePaths}
-        onDiscardPaths={onDiscardPaths}
         onOpenFile={onOpenWorkingFile}
+        toolbar={(
+          <WorkingFileActions
+            selection={selectedWorkingFile}
+            operationLoading={operationLoading}
+            onStagePaths={onStagePaths}
+            onUnstagePaths={onUnstagePaths}
+            onDiscardPaths={onDiscardPaths}
+            onOpenFile={onOpenWorkingFile}
+          />
+        )}
       />
     );
   }

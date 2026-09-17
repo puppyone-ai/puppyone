@@ -1,9 +1,9 @@
 .desktop-git-history-sidebar {
   --git-row-radius: var(--desktop-sidebar-row-radius);
   --git-sidebar-content-right: var(--desktop-sidebar-row-content-right);
-  --git-font-main: var(--po-type-right-sidebar-meta, 13px);
-  --git-font-small: var(--po-type-right-sidebar-meta, 13px);
-  --git-line-height: var(--po-type-right-sidebar-meta-line-height, 19px);
+  --git-font-main: var(--po-type-left-sidebar-content, 14px);
+  --git-font-small: var(--po-type-left-sidebar-meta, 12px);
+  --git-line-height: var(--po-type-left-sidebar-line-height, 19px);
   --git-weight-regular: var(--desktop-sidebar-font-weight, var(--po-text-weight-medium, 500));
   --git-control-radius: 8px;
   --desktop-history-date-row-size: 36px;
@@ -18,33 +18,6 @@
   flex-direction: column;
   overflow: hidden;
   background: var(--po-surface-auxiliary);
-  color: var(--po-text);
-}
-
-.desktop-history-detail-back {
-  display: inline-flex;
-  width: 28px;
-  height: 28px;
-  align-items: center;
-  justify-content: center;
-  margin: 8px 0 0 10px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--desktop-toolbar-action-radius);
-  background: transparent;
-  color: var(--po-text-subtle);
-  appearance: none;
-  outline: 0;
-}
-
-.desktop-history-detail-back:hover {
-  background: var(--po-hover);
-  color: var(--po-text);
-}
-
-.desktop-history-detail-back:focus-visible {
-  background: var(--po-hover);
-  box-shadow: inset 0 0 0 1px var(--po-focus-ring);
   color: var(--po-text);
 }
 

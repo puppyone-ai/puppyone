@@ -120,7 +120,6 @@
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
-  margin-inline-start: auto;
 }
 
 .desktop-working-file-actions .secondary-action,
