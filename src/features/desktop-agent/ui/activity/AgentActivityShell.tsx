@@ -33,6 +33,9 @@ export function AgentActivityShell({
     : standaloneExpanded;
   const hasDetail = children !== undefined && children !== null && children !== false && children !== "";
   const visibleSummary = summary?.slice(0, 2_048);
+  const compactLabel = groupDisclosure
+    ? visibleSummary ? `${title}: ${visibleSummary}` : title
+    : undefined;
   const toggleExpanded = () => {
     if (!hasDetail) return;
     if (groupDisclosure) {
@@ -51,6 +54,8 @@ export function AgentActivityShell({
           type="button"
           className={`desktop-agent-tool-row${metadata ? " has-metadata" : ""}`}
           disabled={!hasDetail}
+          aria-label={compactLabel}
+          title={compactLabel}
           aria-expanded={hasDetail ? expanded : undefined}
           onClick={toggleExpanded}
         >

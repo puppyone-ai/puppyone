@@ -280,6 +280,7 @@
   "activity.file-changes": "Alterações de arquivos",
   "activity.tool-activity": "Atividade da ferramenta",
   "activity.agent-activity": "Atividade do agente",
+  "activity.moreTools": "Mais {value} ferramentas",
   "activity.provider-error": "Erro do provedor",
   "activity.provider-warning": "Aviso do provedor",
   "activity.fileChanges": "{count, plural, =0 {Alterações de arquivos} one {# arquivo alterado} other {# arquivos alterados}}",

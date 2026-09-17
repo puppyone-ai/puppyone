@@ -313,6 +313,12 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
     expect(css).toMatch(/--agent-tool-evidence-rail:\s*var\(--agent-border\)/);
     expect(css).toMatch(/\.desktop-agent-tool-icon\s*\{[^}]*display:\s*grid[^}]*color:\s*var\(--agent-tool-action-foreground\)/s);
     expect(css).toMatch(/\.desktop-agent-tool-name\s*\{[^}]*color:\s*var\(--agent-tool-action-foreground\)/s);
+    expect(css).toMatch(/\.desktop-agent-tool-rail\s*\{[^}]*display:\s*flex[^}]*flex-wrap:\s*nowrap[^}]*overflow:\s*hidden/s);
+    expect(css).toMatch(/\.desktop-agent-tool-group-item \.desktop-agent-tool-name\s*\{[^}]*display:\s*none/s);
+    expect(css).toMatch(/\.desktop-agent-tool-group-item \.desktop-agent-tool-summary,[^{]*\.desktop-agent-tool-group-item \.desktop-agent-tool-metadata\s*\{[^}]*display:\s*none/s);
+    expect(css).toMatch(/\.desktop-agent-tool-overflow\s*\{[^}]*width:\s*var\(--agent-tool-rail-overflow-size\)[^}]*font-variant-numeric:\s*tabular-nums/s);
+    expect(activityShell).toContain("aria-label={compactLabel}");
+    expect(activityShell).toContain("title={compactLabel}");
     expect(css).toMatch(/\.desktop-agent-reasoning \.desktop-agent-tool-name\s*\{[^}]*color:\s*var\(--agent-text-muted\)/s);
     expect(css).not.toContain(".desktop-agent-tool-chevron");
     expect(activityShell).not.toContain("ChevronDown");

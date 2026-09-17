@@ -96,7 +96,7 @@ function AgentTranscriptView({
     parts: sourceTimeline.parts,
     rows: groupAgentToolRows(sourceTimeline.rows, sourceTimeline.parts, compactRowHeight),
   }), [compactRowHeight, sourceTimeline]);
-  const { canvasRef, observeTail, layout, range, pinned, observeMeasuredRow, commitMeasurement,
+  const { canvasRef, observeTail, contentWidth, layout, range, pinned, observeMeasuredRow, commitMeasurement,
     handleScroll, jumpToLatest, scrollEdgeState } = useTranscriptViewport({ rows: timeline.rows, scrollRef,
       initialScrollTop, initialMeasurements, initialPinned, initialGeometry, onViewportChange });
   const visibleRows = timeline.rows.slice(range.start, range.end);
@@ -205,6 +205,7 @@ function AgentTranscriptView({
                         parts={parts}
                         rowId={row.id}
                         runtimeLabel={runtimeLabel}
+                        availableWidth={contentWidth}
                         onOpenFile={onOpenFile}
                         onRowHeightChange={commitMeasurement}
                       />

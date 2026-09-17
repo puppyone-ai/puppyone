@@ -280,6 +280,7 @@
   "activity.file-changes": "文件更改",
   "activity.tool-activity": "工具活动",
   "activity.agent-activity": "智能体活动",
+  "activity.moreTools": "另外 {value} 个工具",
   "activity.provider-error": "提供商错误",
   "activity.provider-warning": "提供商警告",
   "activity.fileChanges": "{count, plural, =0 {文件更改} other {已更改 # 个文件}}",

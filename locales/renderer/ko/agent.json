@@ -280,6 +280,7 @@
   "activity.file-changes": "파일 변경",
   "activity.tool-activity": "도구 활동",
   "activity.agent-activity": "에이전트 활동",
+  "activity.moreTools": "도구 {value}개 더 보기",
   "activity.provider-error": "제공자 오류",
   "activity.provider-warning": "제공자 경고",
   "activity.fileChanges": "{count, plural, =0 {파일 변경} other {파일 #개 변경됨}}",

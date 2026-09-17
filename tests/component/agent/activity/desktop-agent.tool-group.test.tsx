@@ -4,8 +4,10 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
 import { createAgentProjection, type AgentPart } from "../../../support/agent/agentDisplayFixture";
 import { AgentTranscript } from "../../../../src/features/desktop-agent/ui/AgentTranscript";
+import { AgentToolActivityGroup } from "../../../../src/features/desktop-agent/ui/AgentToolActivityGroup";
 import {
   AGENT_TOOL_GROUP_LIMIT,
+  agentToolRailVisibleCount,
   groupAgentToolRows,
 } from "../../../../src/features/desktop-agent/ui/agent-tool-group-presentation";
 import { buildAgentTimeline } from "../../../../src/features/desktop-agent/ui/transcript/transcript-rows";
@@ -33,13 +35,37 @@ describe("Desktop Agent compact tool groups", () => {
     expect(rows[2].partIds).toEqual(["tool:grep"]);
   });
 
-  it("uses the active application control size for compact grid estimates", () => {
+  it("uses one application control row for a compact tool rail estimate", () => {
     const projection = fixtureProjection();
     const timeline = buildAgentTimeline(projection, 34);
     const rows = groupAgentToolRows(timeline.rows, timeline.parts, 34);
 
     expect(rows[0].estimatedHeight).toBe(34);
     expect(rows[2].estimatedHeight).toBe(34);
+  });
+
+  it("reserves a complete +N slot instead of wrapping overflowing tools", () => {
+    expect(agentToolRailVisibleCount({
+      total: 12,
+      width: 380,
+      itemWidth: 28,
+      gap: 4,
+      overflowWidth: 36,
+    })).toBe(12);
+    expect(agentToolRailVisibleCount({
+      total: 12,
+      width: 164,
+      itemWidth: 28,
+      gap: 4,
+      overflowWidth: 36,
+    })).toBe(4);
+    expect(agentToolRailVisibleCount({
+      total: 12,
+      width: 36,
+      itemWidth: 28,
+      gap: 4,
+      overflowWidth: 36,
+    })).toBe(0);
   });
 
   it("removes resolved approval rows and rejoins the surrounding tool flow", () => {
@@ -131,7 +157,7 @@ describe("Desktop Agent compact tool groups", () => {
     expect(rows.flatMap((row) => row.partIds)).toEqual(projection.parts.map((part) => part.id));
   });
 
-  it("renders compact tool headers in one wrapping group and opens one shared detail at a time", () => {
+  it("renders compact tool headers in one non-wrapping group and opens one shared detail at a time", () => {
     const container = render(<AgentTranscript projection={fixtureProjection()} loading={false} />);
     const groups = container.querySelectorAll(".desktop-agent-tool-group");
     const firstGroup = groups[0];
@@ -153,6 +179,40 @@ describe("Desktop Agent compact tool groups", () => {
     expect(firstGroup.querySelectorAll(".desktop-agent-tool-branch")).toHaveLength(1);
     expect(firstGroup.querySelector(".desktop-agent-tool-group-detail")?.textContent).toContain("contents");
     expect(firstGroup.querySelector(".desktop-agent-tool-group-detail")?.textContent).not.toContain("npm test");
+  });
+
+  it("renders only fitting icons and exposes hidden tools through a +N disclosure", () => {
+    const parts = Array.from({ length: 8 }, (_, index) => (
+      toolPart(`tool:${index}`, "turn:rail", "tool", index + 1, index % 2 ? "read" : "bash", `file-${index}.ts`, "contents")
+    ));
+    const container = render(
+      <AgentToolActivityGroup
+        parts={parts}
+        rowId="row:rail"
+        runtimeLabel="Cursor"
+        availableWidth={108}
+        onRowHeightChange={() => undefined}
+      />,
+    );
+
+    const rail = container.querySelector(".desktop-agent-tool-rail")!;
+    const visibleButtons = rail.querySelectorAll<HTMLButtonElement>(".desktop-agent-tool-row");
+    const overflow = rail.querySelector<HTMLButtonElement>(".desktop-agent-tool-overflow")!;
+    expect(visibleButtons).toHaveLength(2);
+    expect(visibleButtons[0].getAttribute("aria-label")).toBe("Bash");
+    expect(visibleButtons[0].title).toBe("Bash");
+    expect(overflow.textContent).toBe("+6");
+    expect(overflow.getAttribute("aria-expanded")).toBe("false");
+
+    act(() => overflow.click());
+    expect(overflow.getAttribute("aria-expanded")).toBe("true");
+    expect(container.querySelectorAll(".desktop-agent-tool-overflow-item > .desktop-agent-tool-call")).toHaveLength(6);
+    const hiddenButton = container.querySelector<HTMLButtonElement>(
+      ".desktop-agent-tool-overflow-item .desktop-agent-tool-row",
+    )!;
+    act(() => hiddenButton.click());
+    expect(hiddenButton.getAttribute("aria-expanded")).toBe("true");
+    expect(container.querySelector(".desktop-agent-tool-group-detail")?.textContent).toContain("contents");
   });
 });
 

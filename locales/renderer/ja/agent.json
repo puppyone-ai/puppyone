@@ -280,6 +280,7 @@
   "activity.file-changes": "ファイルの変更",
   "activity.tool-activity": "ツールのアクティビティ",
   "activity.agent-activity": "エージェントのアクティビティ",
+  "activity.moreTools": "他 {value} 件のツール",
   "activity.provider-error": "プロバイダーエラー",
   "activity.provider-warning": "プロバイダーの警告",
   "activity.fileChanges": "{count, plural, =0 {ファイルの変更} other {# 件のファイルを変更}}",

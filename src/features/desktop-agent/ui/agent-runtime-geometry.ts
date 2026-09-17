@@ -19,6 +19,20 @@ export function agentVirtualRowGeometry(offset: number): AgentRuntimeGeometryVar
   return variables({ "--agent-virtual-row-offset": pixels(offset) });
 }
 
+export function agentToolRailGeometry({ itemWidth, gap, overflowWidth, groupInset }: {
+  itemWidth: number;
+  gap: number;
+  overflowWidth: number;
+  groupInset: number;
+}): AgentRuntimeGeometryVariables {
+  return variables({
+    "--agent-tool-rail-item-size": pixels(itemWidth),
+    "--agent-tool-rail-gap": pixels(gap),
+    "--agent-tool-rail-overflow-size": pixels(overflowWidth),
+    "--agent-tool-rail-group-inset": pixels(groupInset),
+  });
+}
+
 export function agentEmptyLogoGeometry(turns: number): AgentRuntimeGeometryVariables {
   return variables({ "--agent-empty-logo-turns": integer(turns) });
 }
