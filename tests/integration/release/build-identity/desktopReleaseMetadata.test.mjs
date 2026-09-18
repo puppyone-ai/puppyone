@@ -184,7 +184,7 @@ describe("desktop release metadata", () => {
       channel: "internal",
       provenance: "backfill",
       github: {
-        releaseUrl: "https://github.com/puppyone-ai/puppyone-desktop/releases/tag/v0.1.1-internal.1",
+        releaseUrl: "https://github.com/puppyone-ai/puppyone/releases/tag/v0.1.1-internal.1",
       },
     });
   });
@@ -337,9 +337,9 @@ function baseMetadata() {
     commitSha,
     publicOrigin: "https://downloads.puppyone.ai",
     publishedAt: "2026-07-24T12:00:00.000Z",
-    repository: "puppyone-ai/puppyone-desktop",
+    repository: "puppyone-ai/puppyone",
     version: "0.1.2",
-    workflowRunUrl: "https://github.com/puppyone-ai/puppyone-desktop/actions/runs/123",
+    workflowRunUrl: "https://github.com/puppyone-ai/puppyone/actions/runs/123",
   };
 }
 

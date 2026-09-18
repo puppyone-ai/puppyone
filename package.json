@@ -5,11 +5,11 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/puppyone-ai/puppyone-desktop.git"
+    "url": "git+https://github.com/puppyone-ai/puppyone.git"
   },
-  "homepage": "https://github.com/puppyone-ai/puppyone-desktop#readme",
+  "homepage": "https://github.com/puppyone-ai/puppyone#readme",
   "bugs": {
-    "url": "https://github.com/puppyone-ai/puppyone-desktop/issues"
+    "url": "https://github.com/puppyone-ai/puppyone/issues"
   },
   "type": "module",
   "main": "electron/main.mjs",
