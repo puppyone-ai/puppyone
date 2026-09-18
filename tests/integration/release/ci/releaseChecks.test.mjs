@@ -25,7 +25,7 @@ describe("pre-release check definitions", () => {
     expect(actual.checks.map((entry) => entry.id)).toEqual([
       "lint", "test-types", "updater-p0", "tests", "markdown-focus", "native-resize-cursor", "build", "agent-viewport",
       "agent-tools", "project-sessions", "sidebar-visibility", "appearance", "auxiliary-appearance",
-      "item-utilities", "editor-runtime", "editor-panes", "pdf-app", "platform-contracts",
+      "item-utilities", "editor-runtime", "editor-panes", "pdf-app", "database-app", "platform-contracts",
     ]);
     expect(actual.checks.find((entry) => entry.id === "updater-p0").command).toEqual(["npm", "run", "test:updater-p0:coverage"]);
     expect(createPlan(actual, { checkId: "agent-viewport" }).map((entry) => entry.id)).toEqual(["build", "agent-viewport"]);
@@ -36,6 +36,11 @@ describe("pre-release check definitions", () => {
     expect(pdf.command).toEqual(["npm", "run", "smoke:pdf-app"]);
     expect(pdf.artifacts).toContain("{checkDir}/evidence/result.json");
     expect(createPlan(actual, { checkId: "pdf-app" }).map(entry => entry.id)).toEqual(["build", "pdf-app"]);
+    const database = actual.checks.find((entry) => entry.id === "database-app");
+    expect(database.command).toEqual(["npm", "run", "smoke:database-app"]);
+    expect(database.platforms).toEqual(["darwin"]);
+    expect(database.artifacts).toContain("{checkDir}/evidence/result.json");
+    expect(createPlan(actual, { checkId: "database-app" }).map(entry => entry.id)).toEqual(["build", "database-app"]);
     expect(createPlan(actual, { group: "app" }).filter((entry) => entry.id === "build")).toHaveLength(1);
   });
 
