@@ -151,6 +151,10 @@ describe("puppyone-local protocol capability enforcement", () => {
     expect(Array.from(new Uint8Array(await response.arrayBuffer()))).toEqual([1, 2, 3]);
     expect(readWorkspaceFile).toHaveBeenCalledWith(ROOT, "report.xlsx", { rangeHeader: null });
 
+    const viewerNavigation = await handler(createRequest(`${url}#page=3&zoom=125`, "null"));
+    expect(viewerNavigation.status).toBe(200);
+    expect(readWorkspaceFile).toHaveBeenLastCalledWith(ROOT, "report.xlsx", { rangeHeader: null });
+
     const changedPath = new URL(url);
     changedPath.pathname = changedPath.pathname.replace("report.xlsx", "secret.txt");
     expect((await handler(createRequest(changedPath.toString(), "null"))).status).toBe(403);

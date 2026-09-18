@@ -75,8 +75,9 @@ matrix; its registry guard and runner live beside it. Fixtures stay under
 
 `npm run smoke:editor-pane-contracts` runs every registered built-in Viewer,
 including fallback: 18 file fixtures × two split directions. It exercises real
-renderers, live resize, controller split/move, menu close, native PDF teardown,
-and companion undo/redo through real filesystem IPC. App Preview uses a
+renderers, live resize, controller split/move, menu close, DOM PDF teardown,
+and companion undo/redo through real filesystem IPC. PDF uses its production
+capability protocol and a DOM-owned Chromium PDF Viewer iframe. App Preview uses a
 controlled runtime port and a real separate-origin iframe. OS child-surface
 pointer forwarding is tested separately; this matrix injects Chromium input into
 the owner renderer. Its `editor-panes` app gate runs the complete matrix. The
@@ -110,10 +111,10 @@ for composited residue. After collapse, actual Editor pixels are compared with
 the owner renderer (inset region; channel tolerance 30, fewer than 0.5% differing
 pixels for caret/raster noise). Both crops and full composites are retained.
 Missing screen permission is explicitly recorded as OS pixel checks not run;
-strict acceptance fails instead of substituting page capture. PDF still uses a
-native WebContentsView, which page screenshots omit: the existing PDF pane matrix
-checks the actual composed window after menu close in both split directions.
-Require this with `npm run smoke:editor-pane-contracts -- --case pdf --require-compositor`.
+strict acceptance fails instead of substituting page capture. PDF is part of the
+owner renderer's DOM/compositor tree, so the PDF pane matrix uses ordinary page
+capture and verifies that closing the Pane removes both the iframe and Chromium
+PDF Viewer frame in both split directions.
 
 ## Coverage and native acceptance
 
@@ -128,11 +129,11 @@ concurrency, persistence, recovery and native-window acceptance boundaries.
 CI runs on PRs and pushes to both `qubits` and `main`. App checks run on Linux
 and macOS; platform contracts use the declared target matrix.
 `npm run smoke:resource-transfer:acceptance` separately exercises real macOS
-CoreGraphics input: file/directory/multiple payloads, Editor split/repeat/cancel,
-and an actual PDF native surface over the receiving Pane. It needs event-posting
+CoreGraphics input: file/directory/multiple payloads and Editor split/repeat/cancel.
+It needs event-posting
 permission and temporarily controls the pointer. It uses isolated projects,
 restores the pointer and records a unique source-bound report. It does not claim
-Windows/Linux native gesture coverage or all PDF-format application behavior.
+Windows/Linux native gesture coverage or PDF-format application behavior.
 
 ## Evidence and packaging
 

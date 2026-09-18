@@ -20,7 +20,12 @@ export function registerLocalFileProtocol({
       const corsOrigin = getTrustedCorsOrigin(request, applicationUrl);
       if (corsOrigin === false) return new Response("Forbidden", { status: 403 });
 
-      const { token, purpose, requestPath } = parseLocalFileUrl(request.url);
+      // Chromium includes the navigation fragment in custom-protocol requests,
+      // unlike HTTP. Fragments are client-side Viewer state (for example PDF
+      // page/zoom/chrome flags), never part of capability authorization.
+      const capabilityUrl = new URL(request.url);
+      capabilityUrl.hash = "";
+      const { token, purpose, requestPath } = parseLocalFileUrl(capabilityUrl.toString());
       const capability = typeof resolveCapability === "function"
         ? resolveCapability({ token, purpose, requestPath })
         : null;

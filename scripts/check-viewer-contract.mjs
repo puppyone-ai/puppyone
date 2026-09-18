@@ -70,18 +70,39 @@ const pdfContributionSource = readFileSync(
   "utf8",
 );
 if (
-  pdfContributionSource.includes("load:")
-  || pdfContributionSource.includes("render:")
+  !pdfContributionSource.includes("render:")
+  || !pdfContributionSource.includes("PdfViewer")
   || pdfContributionSource.includes("pdfjs")
 ) {
   errors.push(
-    "Browser-engine PDF Viewer cannot ship an app-owned renderer implementation",
+    "Browser-engine PDF Viewer must register its DOM-owned PdfViewer without app-owned PDF parsing",
   );
+}
+
+const pdfViewerSource = readFileSync(
+  path.join(repoRoot, "packages/shared-ui/src/editor/viewers/pdf/PdfViewer.tsx"),
+  "utf8",
+);
+for (const token of [
+  "<iframe",
+  "ResourcePreviewState",
+  "configureChromiumPdfViewerUrl",
+  "requestAnimationFrame",
+  'data-document-surface-ready={ready ? "true" : undefined}',
+]) {
+  if (!pdfViewerSource.includes(token)) {
+    errors.push(`DOM-embedded PDF Viewer is missing ${token}`);
+  }
+}
+for (const forbidden of ["WebContentsView", "setBounds", "ResizeObserver", "sandbox="]) {
+  if (pdfViewerSource.includes(forbidden)) {
+    errors.push(`DOM-embedded PDF Viewer bypasses normal Editor layout (${forbidden})`);
+  }
 }
 
 const pdfDefinition = getPresetViewerDefinitionForViewerId("pdf-preview");
 if (
-  pdfDefinition.surfaceIsolation !== "isolated-webcontents"
+  pdfDefinition.surfaceIsolation !== "inline"
   || pdfDefinition.computeIsolation !== "browser-engine"
   || pdfDefinition.runtime !== "eager"
   || pdfDefinition.contentSandbox !== "none"
@@ -89,10 +110,10 @@ if (
   || pdfDefinition.resourcePolicy.maxCanvasPixels !== 0
   || pdfDefinition.resourcePolicy.maxActiveCanvases !== 0
   || pdfDefinition.resourcePolicy.maxWorkers !== 0
-  || pdfDefinition.recoveryPolicy.maxAutomaticRetries !== 1
+  || pdfDefinition.recoveryPolicy.maxAutomaticRetries !== 0
   || pdfDefinition.recoveryPolicy.supportsSafeMode !== false
 ) {
-  errors.push("PDF Viewer must delegate to Chromium in an isolated, retryable native surface");
+  errors.push("PDF Viewer must embed Chromium PDFium in an inline Editor DOM surface");
 }
 
 const presetRendererSource = readFileSync(
@@ -166,37 +187,18 @@ for (const relativePath of [
   }
 }
 
-const editorSurfaceManagerSource = readFileSync(
-  path.join(repoRoot, "electron/main/editor-surfaces/session-manager.mjs"),
-  "utf8",
-);
-for (const token of [
-  'sandbox: true',
-  'contextIsolation: true',
-  'nodeIntegration: false',
-  'plugins: true',
-  'browserSession,',
-  'session: browserSession',
-  'CHROMIUM_PDF_VIEWER_URL_PREFIX',
-  'waitForChromiumPdfViewer(entry)',
-  'normalizeBrowserEngineNavigationUrl',
-  '"render-process-gone"',
-  '"unresponsive"',
-  'forcefullyCrashRenderer',
-  '"navigation-timeout"',
+for (const forbidden of [
+  "createEditorSurfaceSessionManager",
+  "registerEditorSurfaceIpcHandlers",
+  '"persist:puppyone-pdf-viewer"',
+  "editorSurfaceManager",
 ]) {
-  if (!editorSurfaceManagerSource.includes(token)) {
-    errors.push(`Built-in Editor Surface fault domain is missing ${token}`);
+  if (mainSource.includes(forbidden)) {
+    errors.push(`Electron main must not attach built-in PDF outside the Editor DOM (${forbidden})`);
   }
 }
-if (editorSurfaceManagerSource.includes("preload:")) {
-  errors.push("Browser-engine Editor Surfaces must not inject an application preload");
-}
-if (editorSurfaceManagerSource.includes("temp:built-in-editor")) {
-  errors.push("Chromium PDF Viewer cannot run in an Electron temporary partition");
-}
-if (!mainSource.includes('"persist:puppyone-pdf-viewer"')) {
-  errors.push("Chromium PDF Viewer must use its dedicated persistent browser partition");
+if (!mainSource.includes("plugins: true")) {
+  errors.push("Desktop BrowserWindow must enable Chromium's built-in PDF Viewer plugin");
 }
 
 const documentSurfaceConsumers = [

@@ -913,29 +913,6 @@ export type DesktopThemeMenuState = Readonly<{
   }>[];
 }>;
 
-export type EditorSurfaceBounds = Readonly<{
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}>;
-
-export type EditorSurfaceAppearance = Readonly<{
-  dark: boolean;
-  direction: "ltr" | "rtl";
-  attributes: Readonly<Record<string, string>>;
-  variables: Readonly<Record<string, string>>;
-}>;
-
-export type EditorSurfaceState = Readonly<{
-  sessionId: string;
-  viewerId: string;
-  status: "loading" | "ready" | "unresponsive" | "crashed" | "error" | "disposed";
-  reason?: string;
-  message?: string;
-  exitCode?: number | null;
-}>;
-
 declare global {
   interface Window {
     puppyoneDesktop?: {
@@ -1134,38 +1111,6 @@ declare global {
           bounds: { x: number; y: number; width: number; height: number };
         }) => Promise<{ ok?: boolean; visible?: boolean } | void>;
         destroy: (request: { id: string }) => Promise<{ ok?: boolean } | void>;
-      };
-      editorSurfaces: {
-        activate: (request: {
-          viewerId: string;
-          documentPath: string;
-          documentRevision?: string | null;
-          resourceUrl: string;
-          title: string;
-          safeMode?: boolean;
-          bounds: EditorSurfaceBounds;
-          geometryRevision: number;
-          visible: boolean;
-          appearance: EditorSurfaceAppearance;
-        }) => Promise<{
-          sessionId: string;
-          viewerId: string;
-          safeMode: boolean;
-          processId: number | null;
-          status: EditorSurfaceState["status"];
-        }>;
-        setBounds: (request: {
-          sessionId: string;
-          bounds: EditorSurfaceBounds;
-          geometryRevision: number;
-          visible: boolean;
-        }) => Promise<{ ok: boolean; applied?: boolean; geometryRevision?: number }>;
-        updateAppearance: (request: {
-          sessionId: string;
-          appearance: EditorSurfaceAppearance;
-        }) => Promise<{ ok: boolean }>;
-        destroy: (request: { sessionId: string }) => Promise<{ ok: boolean }>;
-        onState: (callback: (state: EditorSurfaceState) => void) => () => void;
       };
       getInitialWorkspace: () => Promise<LastWorkspaceResult>;
       getLastWorkspace: () => Promise<LastWorkspaceResult>;

@@ -232,9 +232,6 @@ function parseDefinition(input: unknown, index: number): PresetViewerDefinition 
     throw new TypeError(`Main-thread preset viewer ${record.id} cannot declare worker capacity.`);
   }
   if (record.computeIsolation === "browser-engine") {
-    if (record.surfaceIsolation !== "isolated-webcontents") {
-      throw new TypeError(`Browser-engine preset viewer ${record.id} must use an isolated surface.`);
-    }
     if (record.source !== "resource" || record.runtime !== "eager") {
       throw new TypeError(`Browser-engine preset viewer ${record.id} must eagerly navigate to a resource.`);
     }

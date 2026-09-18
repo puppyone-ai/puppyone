@@ -77,7 +77,7 @@ describe("preset viewer contribution contract", () => {
     ))).toBe(true);
     expect(resolveEditorViewer(document("report.pdf")).viewer).toMatchObject({
       runtime: "eager",
-      surfaceIsolation: "isolated-webcontents",
+      surfaceIsolation: "inline",
       computeIsolation: "browser-engine",
       contentSandbox: "none",
       resourcePolicy: {
@@ -87,9 +87,10 @@ describe("preset viewer contribution contract", () => {
         maxActiveCanvases: 0,
         maxWorkers: 0,
       },
-      recoveryPolicy: { maxAutomaticRetries: 1, supportsSafeMode: false },
+      recoveryPolicy: { maxAutomaticRetries: 0, supportsSafeMode: false },
       surfacePreparation: "requires-visible",
       readinessSignal: "frame-paint",
+      render: expect.any(Function),
     });
     expect(resolveEditorViewer(document("page.html")).viewer.surfacePreparation)
       .toBe("hidden-safe");

@@ -32,7 +32,8 @@ describe("preset viewer preload cache", () => {
   it("never evaluates an isolated Viewer implementation in the shell renderer", async () => {
     const load = vi.fn(async () => ({ default: () => null }));
     const viewer: LazyPresetViewerContribution = {
-      ...getPresetViewerDefinition("pdf-preview"),
+      ...getPresetViewerDefinition("markdown"),
+      surfaceIsolation: "isolated-webcontents",
       match: () => true,
       load,
     };

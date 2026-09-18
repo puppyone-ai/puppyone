@@ -1,6 +1,6 @@
 import { redo, undo, undoDepth } from "@codemirror/commands";
 import { TestLocalizationProvider } from "@puppyone/localization/testing";
-import { EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT, getEditorPanes, PresetViewerRuntimeHostProvider, withEditorDocumentOperations,
+import { EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT, getEditorPanes, withEditorDocumentOperations,
   type DataPort, type DocumentDataNode, type DocumentPersistenceRequest, type DocumentPersistenceResult, type EditorSplitDirection, type FileContent } from "@puppyone/shared-ui";
 import "@puppyone/shared-ui/shared-ui.css";
 import { useEffect, useRef } from "react";
@@ -9,7 +9,6 @@ import { closeAllDocumentWorkingCopies } from "../../../../packages/shared-ui/sr
 import { editorTaskScheduler } from "../../../../packages/shared-ui/src/editor/runtime/EditorTaskScheduler";
 import { useDesktopEditorWorkbench } from "../../../../src/features/editor-workbench/controller/useDesktopEditorWorkbench";
 import { DesktopEditorSplitView } from "../../../../src/features/editor-workbench/layout/DesktopEditorSplitView";
-import { desktopPresetViewerRuntimeHost } from "../../../../src/features/editor-surfaces";
 import {
   getNativeSurfaceLayoutActivitySnapshot,
   isNativeSurfaceLayoutStable,
@@ -23,18 +22,16 @@ import { requireEditorView } from "../../../support/editor/editorView";
 import { EDITOR_PANE_CASES, paneCaseNode, type EditorPaneCase } from "../../../fixtures/editor/runtime/editorPaneCases";
 
 type Point = { x: number; y: number };
-type NativeState = { sessions: { id: string; bounds: { x: number; y: number; width: number; height: number }; ready: boolean }[]; destroyed: number };
 declare global {
   interface Window {
     paneContracts: {
-      config(): Promise<{ appUrl: string; caseId: string | null }>;
+      config(): Promise<{ appUrl: string; caseId: string | null; pdfUrl: string }>;
       capture(id: string): Promise<void>;
       verifyClosed(id: string): Promise<void>;
       seed(files: Record<string, string>): Promise<void>;
       read(path: string): Promise<FileContent>;
       persist(request: DocumentPersistenceRequest): Promise<DocumentPersistenceResult>;
       input(request: { kind: "drag"; from: Point; to: Point; ratio: number }): Promise<void>;
-      nativeState(): Promise<NativeState>;
       record(result: unknown): Promise<void>;
     };
     editorPaneContracts?: { run(): Promise<unknown> };
@@ -48,6 +45,7 @@ let controller: ReturnType<typeof useDesktopEditorWorkbench>;
 let root: Root | null = null;
 let appSubscriptions = 0;
 let appUrl: string;
+let pdfUrl: string;
 const wait = (ms = 25) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 function assert(condition: unknown, message: string): asserts condition { if (!condition) throw new Error(message); }
 async function until(check: () => unknown | Promise<unknown>, label: string) {
@@ -85,7 +83,7 @@ async function mount(testCase: EditorPaneCase) {
   const port = withEditorDocumentOperations({
     listChildren: async (path) => path == null ? [{ id: "docs", name: "docs", path: "docs", type: "folder", source: "local" }] : [],
     readFile: (path) => window.paneContracts.read(path),
-    getFileUrl: async () => testCase.id === "pdf" ? "puppyone-local://file/pane-contracts/sample_document.pdf"
+    getFileUrl: async () => testCase.id === "pdf" ? pdfUrl
       : testCase.id === "html" ? "puppyone-local://file/pane-contracts/page.html"
       : testCase.resource ? `/tests/fixtures/editor/formats/samples/${testCase.resource}` : "",
     documentPersistence: { kind: "local-fs", storageIdentity: `pane-contracts:${testCase.id}`, persist: (request) => window.paneContracts.persist(request) },
@@ -95,9 +93,9 @@ async function mount(testCase: EditorPaneCase) {
     },
   } satisfies DataPort);
   root = createRoot(document.getElementById("root")!);
-  root.render(<TestLocalizationProvider messages={englishCatalog}><PresetViewerRuntimeHostProvider adapter={desktopPresetViewerRuntimeHost}>
+  root.render(<TestLocalizationProvider messages={englishCatalog}>
     <Harness subject={subject} port={port} />
-  </PresetViewerRuntimeHostProvider></TestLocalizationProvider>);
+  </TestLocalizationProvider>);
   await until(() => document.querySelector(testCase.selector), `${testCase.id} did not render`);
   await until(() => ready(testCase, paneFor(subject.path)), `${testCase.id} content not ready`);
   assert(paneFor(subject.path).querySelector("[data-viewer-id]")?.getAttribute("data-viewer-id") === testCase.viewerId, "The source pipeline selected an unexpected Viewer");
@@ -109,7 +107,7 @@ async function ready(testCase: EditorPaneCase, owner: HTMLElement) {
   if (!element) return false;
   if (element instanceof HTMLMediaElement) return element.readyState >= (element instanceof HTMLVideoElement ? 2 : 1) && !element.error;
   if (element instanceof HTMLImageElement) return element.complete && element.naturalWidth > 0;
-  if (testCase.id === "pdf") return (await window.paneContracts.nativeState()).sessions.some(({ ready }) => ready);
+  if (testCase.id === "pdf") return !owner.querySelector('[aria-busy="true"]');
   if (testCase.id === "word") return (element.shadowRoot?.querySelectorAll("section.office-docx").length ?? 0) > 0
     && Boolean(element.shadowRoot?.textContent?.includes("PuppyOne DOCX Preview")) && !owner.querySelector('[aria-busy="true"]');
   if (testCase.id === "presentation") {
@@ -210,15 +208,8 @@ async function runCase(testCase: EditorPaneCase, direction: EditorSplitDirection
   assert(undoDepth(view.state) > 0, "Resize lost the companion undo history");
   await until(() => ready(testCase, subjectPane), "Resize lost rendered content");
   checkSubjectState();
-  if (testCase.id === "pdf") {
-    await until(async () => {
-      const entry = (await window.paneContracts.nativeState()).sessions[0];
-      return entry && Math.abs(entry.bounds.width - rect.width) < 3 && entry.bounds.height <= rect.height && entry.bounds.height > 0;
-    }, "Native PDF bounds did not follow the pane");
-  }
   await resize(direction, 0.65);
-  // Capture evidence only after pointer-driven behavior is complete. Native
-  // WebContents capture can change the focused child on hosted Linux; evidence
+  // Capture evidence only after pointer-driven behavior is complete; evidence
   // collection must not become an input precondition for the product contract.
   await window.paneContracts.capture(`${testCase.id}-${direction}`);
   controller.movePane(subjectId, companionId, direction === "horizontal" ? "vertical" : "horizontal", "first");
@@ -238,7 +229,7 @@ async function runCase(testCase: EditorPaneCase, direction: EditorSplitDirection
   await until(async () => (await window.paneContracts.read(sibling.path)).content === originalText, "Undo did not persist after closing the other pane");
   assert(redo(view), "Close lost redo");
   await until(async () => (await window.paneContracts.read(sibling.path)).content?.endsWith("User edit"), "Redo did not persist");
-  await until(async () => (await window.paneContracts.nativeState()).sessions.length === 0 && appSubscriptions === 0 && editorTaskScheduler.snapshot().length === 0, "Closed Viewer retained native sessions, subscriptions or Worker tasks");
+  await until(async () => appSubscriptions === 0 && editorTaskScheduler.snapshot().length === 0, "Closed Viewer retained subscriptions or Worker tasks");
   if (testCase.id === "pdf") await window.paneContracts.verifyClosed(`pdf-${direction}`);
   assert((await window.paneContracts.read(subject.path)).content === (testCase.content ?? ""), "Pane operations wrote to the unrelated subject document");
   await closeThroughMenu(companion);
@@ -254,6 +245,7 @@ window.editorPaneContracts = { async run() {
   const results = [];
   const config = await window.paneContracts.config();
   appUrl = config.appUrl;
+  pdfUrl = config.pdfUrl;
   const cases = config.caseId ? EDITOR_PANE_CASES.filter(testCase => testCase.id === config.caseId) : EDITOR_PANE_CASES;
   assert(cases.length > 0, "Unknown selected pane fixture");
   try {

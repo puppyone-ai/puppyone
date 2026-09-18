@@ -85,7 +85,7 @@
     "smoke:agent-tool-stability": "npm run build && node tests/support/runners/run-agent-tool-stability-smoke.mjs",
     "smoke:viewer-pack": "electron tests/integration/extensions/viewer-packs/viewer-pack.smoke.mjs",
     "smoke:app-preview": "electron tests/integration/editor/formats/app-preview/app-preview-iframe.smoke.mjs",
-    "smoke:pdf-isolated": "electron tests/integration/editor/formats/pdf/isolated-pdf-surface.smoke.mjs",
+    "smoke:pdf-dom": "electron tests/integration/editor/formats/pdf/dom-embedded-pdf-surface.smoke.mjs",
     "audit:viewer-gpu": "electron tests/performance/scenarios/editor/viewers/audit-viewer-gpu.mjs",
     "smoke:renderer-performance": "npm run build && node tests/support/runners/run-renderer-performance-smoke.mjs",
     "smoke:renderer-cold-performance": "npm run build && node tests/support/runners/run-renderer-performance-smoke.mjs --cold --visible --with-link-index",
@@ -114,7 +114,7 @@
     "smoke:project-sessions": "electron tests/e2e/workspace/projects/project-sessions.smoke.mjs",
     "test:typecheck": "tsc -p tests/config/tsconfig.json && tsc -p tests/config/tsconfig.tooling.json",
     "test:core:coverage": "vitest run --config tests/config/vitest.core-coverage.config.ts",
-    "smoke:resource-transfer:acceptance": "npm run build:native-drag && electron tests/integration/platform/drag-drop/resource-transfer.smoke.mjs --automated && electron tests/integration/platform/drag-drop/resource-transfer.smoke.mjs --automated --editor && electron tests/integration/platform/drag-drop/resource-transfer.smoke.mjs --automated --pdf",
+    "smoke:resource-transfer:acceptance": "npm run build:native-drag && electron tests/integration/platform/drag-drop/resource-transfer.smoke.mjs --automated && electron tests/integration/platform/drag-drop/resource-transfer.smoke.mjs --automated --editor",
     "smoke:editor-pane-contracts": "electron tests/integration/editor/runtime/editor-pane-contracts.smoke.mjs",
     "smoke:sidebar-visibility": "electron tests/e2e/workbench/layout/sidebar-visibility.smoke.mjs",
     "smoke:sidebar-visibility:acceptance": "electron tests/e2e/workbench/layout/sidebar-visibility.smoke.mjs --native"

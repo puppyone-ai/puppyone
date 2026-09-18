@@ -218,18 +218,6 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
     setBounds: (request) => ipcRenderer.invoke("markdown-web-embed:set-bounds", request),
     destroy: (request) => ipcRenderer.invoke("markdown-web-embed:destroy", request),
   },
-  editorSurfaces: {
-    activate: (request) => ipcRenderer.invoke("editor-surface:activate", request),
-    setBounds: (request) => ipcRenderer.invoke("editor-surface:set-bounds", request),
-    updateAppearance: (request) => ipcRenderer.invoke("editor-surface:update-appearance", request),
-    destroy: (request) => ipcRenderer.invoke("editor-surface:destroy", request),
-    onState: (callback) => {
-      if (typeof callback !== "function") return () => {};
-      const listener = (_event, payload) => callback(payload);
-      ipcRenderer.on("editor-surface:state", listener);
-      return () => ipcRenderer.removeListener("editor-surface:state", listener);
-    },
-  },
   getInitialWorkspace: () => ipcRenderer.invoke("window:get-initial-workspace"),
   getLastWorkspace: () => ipcRenderer.invoke("workspace:get-last"),
   getRecentWorkspaces: () => ipcRenderer.invoke("workspace:get-recent"),

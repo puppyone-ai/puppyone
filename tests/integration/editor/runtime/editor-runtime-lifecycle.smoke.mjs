@@ -3,9 +3,8 @@ import * as fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { app, BrowserWindow, ipcMain, session, WebContentsView } from "electron";
-import { createEditorSurfaceSessionManager } from "../../../../electron/main/editor-surfaces/session-manager.mjs";
+import { fileURLToPath } from "node:url";
+import { app, BrowserWindow, ipcMain } from "electron";
 import { registerWorkspaceFileIpcHandlers } from "../../../../electron/main/ipc/workspace-files-ipc.mjs";
 import { createLocalFileCapabilityStore } from "../../../../electron/main/local-file-capabilities.mjs";
 
@@ -18,7 +17,6 @@ app.setPath("userData", path.join(tempRoot, "user-data"));
 app.commandLine.appendSwitch("disable-gpu");
 let window = null;
 let vite = null;
-let nativeSurfaces = null;
 
 app.whenReady().then(async () => {
   let exitCode = 0;
@@ -58,25 +56,10 @@ app.whenReady().then(async () => {
       return window.editorRuntimeLifecycleFixture.run();
     })()`);
     if (await fsp.readFile(path.join(workspaceRoot, "renamed.md"), "utf8") !== "# Agent version 9") throw new Error("Final disk content differs from the accepted Agent baseline");
-    nativeSurfaces = createEditorSurfaceSessionManager({ WebContentsView, browserSession: session.defaultSession,
-      getOwnerWindow: (owner) => owner === window.webContents.id ? window : null,
-      admitResource: async () => ({ byteLength: 1024, navigationUrl: pathToFileURL(path.join(repoRoot, "tests/fixtures/editor/formats/samples/sample_document.pdf")).href }),
-    });
-    const pdf = await nativeSurfaces.activate({ ownerWebContentsId: window.webContents.id, viewerId: "pdf-preview",
-      documentPath: "sample_document.pdf", documentRevision: "smoke", resourceUrl: "puppyone-local://file/smoke/file-preview/sample_document.pdf",
-      title: "Lifecycle PDF", bounds: { x: 0, y: 0, width: 800, height: 600 }, geometryRevision: 1, visible: true,
-      appearance: { dark: false, direction: "ltr", attributes: {}, variables: {} },
-    });
-    const pdfContents = nativeSurfaces.values()[0].view.webContents;
-    await nativeSurfaces.destroy(pdf.sessionId, window.webContents.id);
-    if (!pdfContents.isDestroyed() || nativeSurfaces.values().length !== 0) throw new Error("Native PDF WebContents remained alive after its close acknowledgement");
-    result.checks.push("real Chromium PDF WebContents confirmed destruction before releasing its session");
     console.log(JSON.stringify(result, null, 2));
   } catch (error) { exitCode = 1; console.error(error?.stack ?? error); }
   finally {
     clearTimeout(deadline);
-    try { await nativeSurfaces?.destroyAll(); }
-    catch (error) { exitCode = 1; console.error(error); }
     window?.destroy();
     await vite?.close();
     await fsp.rm(tempRoot, { recursive: true, force: true });

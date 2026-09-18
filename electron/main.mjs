@@ -96,7 +96,6 @@ import { createLocalFileCapabilityStore } from "./main/local-file-capabilities.m
 import { createProjectAppearanceStore } from "./main/project-appearance/project-appearance-store.mjs";
 import { createProjectAppearanceService } from "./main/project-appearance/project-appearance-service.mjs";
 import { registerProjectIconProtocol } from "./main/project-appearance/project-icon-protocol.mjs";
-import { createEditorSurfaceResourceAdmission } from "./main/editor-surfaces/resource-admission.mjs";
 import { installWindowNavigationSecurity, requireNonEmptyString } from "./main/security.mjs";
 import { createTerminalProcessService } from "./main/item-hosts/terminal-process-service.mjs";
 import { createAgentProcessService } from "./main/item-hosts/agent-process-service.mjs";
@@ -146,8 +145,6 @@ import {
 import { resolveViewerPackFeatureProfile } from "./main/viewer-packs/feature-profile.mjs";
 import { resolveGitAutoCommitFeatureProfile } from "./main/git-auto-commit/feature-profile.mjs";
 import { createGitAutoCommitHost } from "./main/git-auto-commit/host.mjs";
-import { createEditorSurfaceSessionManager } from "./main/editor-surfaces/session-manager.mjs";
-import { registerEditorSurfaceIpcHandlers } from "./main/editor-surfaces/ipc.mjs";
 
 // Must run before any console.* / IPC replyWithError logging: broken inherited
 // stdout/stderr (Dock launch, detached child, closed terminal) otherwise throws
@@ -253,7 +250,6 @@ let appPreviewRuntime = null;
 let viewerPackHost = null;
 let viewerPackRuntime = null;
 let markdownWebEmbedService = null;
-let editorSurfaceManager = null;
 const itemHostBudget = createItemHostBudget({}, { readMetrics: () => app.getAppMetrics() });
 let stopLocaleNativeRefresh = null;
 const windowsById = new Map();
@@ -320,7 +316,6 @@ const documentSessionCloseCoordinator = createDocumentSessionCloseCoordinator({
   t: (messageId, values) => localeService.t(messageId, values),
   onCloseCancelled: applicationQuitIntent.cancel,
   closeResources: async (window) => {
-    await editorSurfaceManager?.destroyForOwner(window.webContents.id);
     return (await projectSessions.closeWindow(window.webContents.id)).closed;
   },
 });
@@ -444,7 +439,6 @@ const projectSessions = createProjectSessionHost({
   terminalService,
   getSender: (id) => webContents.fromId(id),
   closeProjectServices: async (owner, root) => {
-    await editorSurfaceManager?.destroyForResource(owner, root);
     await Promise.all([
       appPreviewRuntime?.closeSessionsForWorkspaceRoot(owner, root),
       workspaceWatchService.stopForWorkspaceRoot(owner, root),
@@ -525,6 +519,7 @@ async function createWindow(options = {}) {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      plugins: true,
       preload: preloadPath,
       additionalArguments: [
         ...viewerPackFeatureProfile.rendererArguments,
@@ -638,7 +633,6 @@ async function createWindow(options = {}) {
     nativeSurfaceOcclusion.releaseOwner(webContentsId);
     nativeSurfacePointerPassthrough.releaseOwner(webContentsId);
     viewerPackHost?.destroySessionsForOwner(webContentsId);
-    void editorSurfaceManager?.destroyForOwner(webContentsId).catch((error) => console.error("Editor Surface retirement failed:", error));
     appPreviewRuntime?.closeSessionsForWindow(webContentsId);
   });
 
@@ -662,7 +656,6 @@ async function createWindow(options = {}) {
     }).catch((error) => console.error("Project shutdown failed:", error));
     releaseWindowWorkspaceById(webContentsId, window);
     viewerPackHost?.destroySessionsForOwner(webContentsId);
-    void editorSurfaceManager?.destroyForOwner(webContentsId).catch((error) => console.error("Editor Surface retirement failed:", error));
     appPreviewRuntime?.closeSessionsForWindow(webContentsId);
     nativeSurfaceOcclusion.releaseOwner(webContentsId);
     nativeSurfacePointerPassthrough.releaseOwner(webContentsId);
@@ -808,28 +801,6 @@ app.whenReady().then(async () => {
     store: projectAppearanceStore,
     applicationUrl: rendererApplicationUrl,
   });
-  const editorSurfaceBrowserSession = electronSession.fromPartition(
-    "persist:puppyone-pdf-viewer",
-    { cache: false },
-  );
-  editorSurfaceBrowserSession.setPermissionRequestHandler(
-    (_webContents, _permission, callback) => callback(false),
-  );
-  editorSurfaceBrowserSession.setPermissionCheckHandler(() => false);
-  editorSurfaceManager = createEditorSurfaceSessionManager({
-    WebContentsView,
-    browserSession: editorSurfaceBrowserSession,
-    getOwnerWindow: (ownerWebContentsId) => windowsById.get(ownerWebContentsId) ?? null,
-    nativeSurfaceOcclusion,
-    nativeSurfacePointerPassthrough,
-    admitResource: createEditorSurfaceResourceAdmission({
-      inspectLocalCapability: localFileCapabilities.inspect,
-      statWorkspaceFile,
-      resolveWorkspaceFilePath: resolveLocalWorkspaceFilePath,
-      canonicalizeWorkspacePath,
-      isOpenWorkspaceRoot,
-    }),
-  });
   const appPreviewProcessRuntime = createAppPreviewRuntime({
     app,
     dialog,
@@ -915,7 +886,6 @@ app.on("will-quit", () => {
   cloudAuthService.dispose();
   updateService?.dispose();
   telemetryHost?.dispose();
-  void editorSurfaceManager?.destroyAll().catch((error) => console.error("Editor Surface retirement failed:", error));
   viewerPackHost?.destroyAllSessions();
   appPreviewRuntime?.closeAll();
   markdownWebEmbedService?.dispose();
@@ -961,10 +931,6 @@ function registerIpcHandlers() {
     getWindow: (sender) => BrowserWindow.fromWebContents(sender),
   });
   app.once("will-quit", () => resourceTransfer.dispose());
-  registerEditorSurfaceIpcHandlers({
-    trustedIpcMain,
-    manager: editorSurfaceManager,
-  });
   registerAppearanceIpcHandlers({
     ipcMain: trustedIpcMain,
     BrowserWindow,
@@ -1068,7 +1034,6 @@ function registerIpcHandlers() {
     shell,
     authorizeWorkspaceRoot,
     convertOfficeDocument: desktopPlatformHost.documents.convertOfficeDocumentToDocx,
-    retireEditorSurfacesForResource: (owner, resource) => editorSurfaceManager?.destroyForResource(owner, resource),
     localFileCapabilities,
     workspaceWatchService,
     workspaceMutationTracker,
@@ -1559,7 +1524,6 @@ function assignWindowWorkspaceComposition(window, folders, options = {}) {
 function releaseWindowWorkspaceById(webContentsId, window = null) {
   gitAutoCommitHost.releaseWindow(webContentsId);
   viewerPackHost?.destroySessionsForOwner(webContentsId);
-  void editorSurfaceManager?.destroyForOwner(webContentsId).catch((error) => console.error("Editor Surface retirement failed:", error));
   localFileCapabilities.revokeSender(webContentsId);
   const state = windowStateById.get(webContentsId);
   const workspacePaths = [...new Set([...(state?.folderPaths ?? []), ...projectSessions.snapshot(webContentsId).projects.map((project) => project.rootPath)])];

@@ -280,7 +280,7 @@ app.whenReady().then(async () => {
     const sourceAfter = await readSourceIdentity(repo);
     if (source.fingerprint !== sourceAfter.fingerprint) failure ??= new Error("Source changed during acceptance");
     await fs.writeFile(path.join(output, "result.json"), JSON.stringify({ passed: !failure, source, sourceAfter, steps, captures, captureErrors,
-      compositor: nativeCapture ? "OS composed window capture; DOM contributions, native PDF covered separately" : "not-run: screen permission unavailable",
+      compositor: nativeCapture ? "OS composed window capture; DOM contributions include PDF" : "not-run: screen permission unavailable",
       input: nativeInput ? "CoreGraphics OS click/wheel" : "Chromium input; native hit testing requires --native", failure: failure?.stack }, null, 2));
     console.log(`Sidebar visibility evidence: ${output}`);
     // On Linux, main.mjs quits when the final BrowserWindow closes. Persist

@@ -74,7 +74,6 @@ export function registerWorkspaceFileIpcHandlers({
   workspaceMutationTracker = null,
   gitMetadataWatchService = null,
   convertOfficeDocument = unsupportedOfficeDocumentConverter,
-  retireEditorSurfacesForResource = null,
   t = defaultTranslate,
 }) {
   const officeConversionSessionsBySender = new Map();
@@ -300,7 +299,6 @@ export function registerWorkspaceFileIpcHandlers({
     const rootPath = await authorizeWorkspaceRoot(event, request?.rootPath);
     return runWorkspaceMutation(rootPath, async () => {
       const previousPath = request?.path;
-      if (retireEditorSurfacesForResource) await retireEditorSurfacesForResource(requireIpcSenderId(event), await resolveExistingWorkspacePath(rootPath, previousPath));
       const result = await renameWorkspaceEntry(rootPath, request);
       await absorbWorkspaceEditReviewPath(rootPath, previousPath);
       await absorbWorkspaceEditReviewPath(rootPath, result.path);
@@ -312,7 +310,6 @@ export function registerWorkspaceFileIpcHandlers({
     const rootPath = await authorizeWorkspaceRoot(event, request?.rootPath);
     return runWorkspaceMutation(rootPath, async () => {
       const previousPath = request?.fromPath;
-      if (retireEditorSurfacesForResource) await retireEditorSurfacesForResource(requireIpcSenderId(event), await resolveExistingWorkspacePath(rootPath, previousPath));
       const result = await moveWorkspaceEntry(rootPath, request);
       await absorbWorkspaceEditReviewPath(rootPath, previousPath);
       await absorbWorkspaceEditReviewPath(rootPath, result.path);
@@ -351,7 +348,6 @@ export function registerWorkspaceFileIpcHandlers({
   ipcMain.handle("workspace:delete-entry", async (event, request) => {
     const rootPath = await authorizeWorkspaceRoot(event, request?.rootPath);
     return runWorkspaceMutation(rootPath, async () => {
-      if (retireEditorSurfacesForResource) await retireEditorSurfacesForResource(requireIpcSenderId(event), await resolveExistingWorkspacePath(rootPath, request?.path));
       const result = await deleteWorkspaceEntry(rootPath, request);
       await absorbWorkspaceEditReviewPath(rootPath, result.path);
       return result;

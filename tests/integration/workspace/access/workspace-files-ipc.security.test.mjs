@@ -24,20 +24,6 @@ afterEach(async () => {
 });
 
 describe("workspace file IPC authorization", () => {
-  it.each([
-    ["workspace:rename-entry", { path: "note.txt", nextName: "renamed.txt" }],
-    ["workspace:move-entry", { fromPath: "note.txt", toPath: "moved.txt" }],
-    ["workspace:delete-entry", { path: "note.txt" }],
-  ])("does not mutate disk through %s until native editor exit is confirmed", async (channel, request) => {
-    const retireEditorSurfacesForResource = vi.fn().mockRejectedValue(new Error("Native editor exit is unconfirmed"));
-    const { handlers } = createHarness(() => root, { retireEditorSurfacesForResource });
-    await writeFile(path.join(root, "note.txt"), "preserve me");
-    await expect(handlers.get(channel)({ sender: { id: 8 } }, { rootPath: root, ...request }))
-      .rejects.toThrow("Native editor exit is unconfirmed");
-    expect(retireEditorSurfacesForResource).toHaveBeenCalledWith(8, path.join(await fs.promises.realpath(root), "note.txt"));
-    expect(await readFile(path.join(root, "note.txt"), "utf8")).toBe("preserve me");
-  });
-
   it("acknowledges a committed save and rename even if review bookkeeping fails", async () => {
     const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const review = vi.spyOn(editReview, "absorbWorkspaceEditReviewPath").mockRejectedValue(new Error("review unavailable"));
@@ -482,7 +468,7 @@ describe("workspace file IPC authorization", () => {
 
 function createHarness(
   getWorkspaceRootForSender,
-  { convertOfficeDocument, dialog, gitMetadataWatchService, workspaceWatchService, retireEditorSurfacesForResource } = {},
+  { convertOfficeDocument, dialog, gitMetadataWatchService, workspaceWatchService } = {},
 ) {
   const handlers = new Map();
   const ipcMain = {
@@ -512,7 +498,6 @@ function createHarness(
     gitMetadataWatchService,
     workspaceWatchService,
     convertOfficeDocument,
-    retireEditorSurfacesForResource,
   });
 
   return { handlers, shell, localFileCapabilities };

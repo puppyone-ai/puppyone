@@ -12,9 +12,6 @@ for (const requiredPath of [
   "electron/main/ipc/native-surface-occlusion-ipc.mjs",
   "electron/main/native-surfaces/pointer-passthrough-coordinator.mjs",
   "electron/main/ipc/native-surface-pointer-passthrough-ipc.mjs",
-  "electron/main/editor-surfaces/session-manager.mjs",
-  "electron/main/editor-surfaces/resource-admission.mjs",
-  "electron/main/editor-surfaces/ipc.mjs",
   "src/features/native-surfaces/nativeSurfaceOcclusion.ts",
   "src/features/native-surfaces/nativeSurfacePointerRoutingRegions.ts",
   "src/features/native-surfaces/useNativeSurfacePointerRoutingRegion.ts",
@@ -41,7 +38,6 @@ for (const token of [
 for (const relativePath of [
   "electron/main/markdown-web-embed-service.mjs",
   "electron/main/viewer-packs/session-manager.mjs",
-  "electron/main/editor-surfaces/session-manager.mjs",
 ]) {
   const source = read(relativePath);
   if (!source.includes("nativeSurfaceOcclusion?.register?.")) {
@@ -156,65 +152,29 @@ const nativeGeometrySource = read("src/features/native-surfaces/nativeSurfaceGeo
 if (nativeTransitionSource.includes("suspendWithin") || nativeGeometrySource.includes("suspendWithin")) {
   errors.push("Pane layout transitions must sample clipped native bounds instead of hiding native content");
 }
-const builtInSurfaceController = read("src/features/editor-surfaces/BuiltInEditorSurfaceController.tsx");
-for (const token of [
-  "useNativeSurfaceGeometry",
-  "geometryRevision",
-  "visible: geometry.visible",
-]) {
-  if (!builtInSurfaceController.includes(token)) {
-    errors.push(`Built-in native Viewer does not publish authoritative geometry (${token})`);
-  }
-}
-const editorSurfaceManager = read("electron/main/editor-surfaces/session-manager.mjs");
-for (const token of [
-  "geometryRevision",
-  "geometryVisible",
-  "nextRevision <= entry.geometryRevision",
-  "await admitResource?.(",
-]) {
-  if (!editorSurfaceManager.includes(token)) {
-    errors.push(`Editor Surface manager does not reject stale geometry (${token})`);
-  }
-}
-for (const token of [
-  "browserSession,",
-  "session: browserSession",
-  "plugins: true",
-  "entry.view.webContents.loadURL(entry.navigationUrl)",
-  "waitForChromiumPdfViewer(entry)",
-]) {
-  if (!editorSurfaceManager.includes(token)) {
-    errors.push(`Chromium PDF Surface is missing its native browser contract (${token})`);
-  }
-}
-if (existsSync(absolute("electron/editor-surface-preload.cjs"))) {
-  errors.push("Chromium PDF Surface must not restore the deprecated application preload");
-}
-for (const token of [
-  '"persist:puppyone-pdf-viewer"',
-  "editorSurfaceBrowserSession.setPermissionRequestHandler",
-  "editorSurfaceBrowserSession.setPermissionCheckHandler",
-]) {
-  if (!mainSource.includes(token)) {
-    errors.push(`Electron main does not isolate the Chromium PDF browser session (${token})`);
-  }
-}
-for (const token of [
-  "createEditorSurfaceResourceAdmission",
-  "inspectLocalCapability: localFileCapabilities.inspect",
-]) {
-  if (!mainSource.includes(token)) {
-    errors.push(`Electron main does not install authoritative Editor Surface resource admission (${token})`);
-  }
-}
 for (const relativePath of [
   "electron/main/markdown-web-embed-service.mjs",
   "electron/main/viewer-packs/session-manager.mjs",
-  "electron/main/editor-surfaces/session-manager.mjs",
 ]) {
   if (!read(relativePath).includes("nativeSurfacePointerPassthrough?.register?.")) {
     errors.push(`${relativePath} does not register its native view for drag pointer passthrough`);
+  }
+}
+
+const pdfViewerSource = read("packages/shared-ui/src/editor/viewers/pdf/PdfViewer.tsx");
+for (const forbidden of ["WebContentsView", "useNativeSurfaceGeometry", "setBounds", "ResizeObserver"]) {
+  if (pdfViewerSource.includes(forbidden)) {
+    errors.push(`PDF Viewer must inherit geometry from the Editor DOM (${forbidden})`);
+  }
+}
+for (const obsoletePath of [
+  "electron/main/editor-surfaces/session-manager.mjs",
+  "electron/main/editor-surfaces/resource-admission.mjs",
+  "electron/main/editor-surfaces/ipc.mjs",
+  "src/features/editor-surfaces/BuiltInEditorSurfaceController.tsx",
+]) {
+  if (existsSync(absolute(obsoletePath))) {
+    errors.push(`obsolete built-in native PDF path still exists: ${obsoletePath}`);
   }
 }
 for (const relativePath of ["packages/shared-ui/src/styles/data-workspace.css"]) {
