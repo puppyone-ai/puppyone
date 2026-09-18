@@ -11,6 +11,7 @@ export function DocumentPreview({
 }) {
   const { t } = useLocalization();
   const fileName = document.name || document.path || label || t("editor.file");
+  const fileType = binaryFileType(document);
 
   return (
     <div
@@ -18,12 +19,19 @@ export function DocumentPreview({
       role="status"
       aria-label={t("editor.preview.unavailableFor", { name: bidiIsolate(fileName) })}
     >
-      <div className="document-preview__signal" aria-hidden="true" />
       <section className="document-preview__summary">
-        <span className="document-preview__rule" aria-hidden="true" />
-        <h2 className="document-preview__label" dir="auto">{label}</h2>
-        <span className="document-preview__rule" aria-hidden="true" />
+        <h2 className="document-preview__label" dir="auto">
+          {label}{fileType && <span className="document-preview__type" dir="ltr">{` · ${fileType}`}</span>}
+        </h2>
       </section>
     </div>
   );
+}
+
+function binaryFileType(document: EditorDocument): string | null {
+  const name = (document.name || document.path).split(/[\\/]/).at(-1) ?? "";
+  const dot = name.lastIndexOf(".");
+  if (dot > 0 && dot < name.length - 1) return name.slice(dot + 1).toLocaleUpperCase();
+  const subtype = document.mimeType?.split("/", 2)[1];
+  return subtype && subtype !== "octet-stream" ? subtype.toLocaleUpperCase() : null;
 }

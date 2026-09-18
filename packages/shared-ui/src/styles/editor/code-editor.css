@@ -1,5 +1,4 @@
-.code-preview,
-.document-preview {
+.code-preview {
   min-height: 100%;
   overflow: hidden;
   border: 1px solid var(--po-border-subtle);

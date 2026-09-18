@@ -33,9 +33,9 @@ describe("binary fallback viewer", () => {
 
     const surface = container.querySelector(".document-preview");
     expect(surface).not.toBeNull();
-    expect(surface?.textContent).toBe("Binary file");
+    expect(surface?.textContent).toBe("Binary file · BIN");
     expect(surface?.getAttribute("aria-label")).toContain("payload.bin");
-    expect(container.querySelector(".document-preview__signal")).not.toBeNull();
+    expect(container.querySelector(".document-preview__signal, .document-preview__rule")).toBeNull();
     expect(container.querySelector("iframe, canvas, [contenteditable=true]")).toBeNull();
   });
 });

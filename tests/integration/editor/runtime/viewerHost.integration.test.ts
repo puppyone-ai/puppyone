@@ -35,7 +35,7 @@ describe("preset viewer host composition", () => {
     });
 
     expect(container.querySelector(".document-preview")).not.toBeNull();
-    expect(container.querySelector(".document-preview__label")?.textContent).toBe("Binary file");
+    expect(container.querySelector(".document-preview__label")?.textContent).toBe("Binary file · GLB");
     expect(container.querySelector(".document-preview")?.getAttribute("aria-label")).toContain("scene.glb");
     expect(container.textContent).not.toContain("scene.glb");
     expect(container.textContent).not.toContain("model/gltf-binary");
