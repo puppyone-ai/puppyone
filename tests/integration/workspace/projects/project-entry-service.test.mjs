@@ -51,18 +51,18 @@ describe("project entry service", () => {
   });
 
   it("accepts GitHub HTTPS and SSH forms and derives the local folder name", () => {
-    expect(requireGitRepository("https://github.com/puppyone-ai/puppyone-desktop.git", "github")).toMatchObject({
+    expect(requireGitRepository("https://github.com/puppyone-ai/puppyone.git", "github")).toMatchObject({
       provider: "github",
       owner: "puppyone-ai",
-      name: "puppyone-desktop",
+      name: "puppyone",
     });
-    expect(requireGitRepository("git@github.com:puppyone-ai/puppyone-desktop.git", "github")).toMatchObject({
+    expect(requireGitRepository("git@github.com:puppyone-ai/puppyone.git", "github")).toMatchObject({
       owner: "puppyone-ai",
-      name: "puppyone-desktop",
+      name: "puppyone",
     });
-    expect(requireGitRepository("ssh://git@github.com/puppyone-ai/puppyone-desktop.git", "github")).toMatchObject({
+    expect(requireGitRepository("ssh://git@github.com/puppyone-ai/puppyone.git", "github")).toMatchObject({
       owner: "puppyone-ai",
-      name: "puppyone-desktop",
+      name: "puppyone",
     });
   });
 

@@ -115,7 +115,7 @@ describe("Product analytics setting", () => {
       .find((link) => link.textContent?.includes("Learn More"));
     await act(async () => learnMore?.click());
     expect(bridge.openExternalUrl).toHaveBeenCalledWith(
-      "https://github.com/puppyone-ai/puppyone-desktop/blob/main/README.md#privacy",
+      "https://github.com/puppyone-ai/puppyone/blob/main/README.md#privacy",
     );
   });
 });

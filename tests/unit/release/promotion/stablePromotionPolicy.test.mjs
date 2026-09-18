@@ -125,11 +125,11 @@ function releaseFixture(buildNumber, publishedAt) {
     publishedAt,
     commitSha,
     source: {
-      repository: "puppyone-ai/puppyone-desktop",
-      workflowRunUrl: "https://github.com/puppyone-ai/puppyone-desktop/actions/runs/123",
+      repository: "puppyone-ai/puppyone",
+      workflowRunUrl: "https://github.com/puppyone-ai/puppyone/actions/runs/123",
     },
     github: {
-      releaseUrl: `https://github.com/puppyone-ai/puppyone-desktop/releases/tag/v${buildInfo.version}`,
+      releaseUrl: `https://github.com/puppyone-ai/puppyone/releases/tag/v${buildInfo.version}`,
       visibility: "draft",
     },
     r2: {
@@ -168,7 +168,7 @@ function assetFixture(version, kind) {
       url: `https://downloads.puppyone.ai/${prefix}/${name}`,
     },
     github: {
-      url: `https://github.com/puppyone-ai/puppyone-desktop/releases/download/v${version}/${name}`,
+      url: `https://github.com/puppyone-ai/puppyone/releases/download/v${version}/${name}`,
     },
     latestAlias: kind === "terminal-preview"
       ? "puppyone-terminal-preview-latest-arm64.tgz"
