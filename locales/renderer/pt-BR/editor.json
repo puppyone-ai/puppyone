@@ -1,4 +1,5 @@
 {
+  "pdf.timeout": "A prévia do PDF demorou demais para carregar. Tente novamente ou abra no aplicativo padrão.",
   "app.back": "Voltar",
   "app.controls": "Controles da visualização do aplicativo",
   "app.failed": "Falha na visualização do aplicativo",

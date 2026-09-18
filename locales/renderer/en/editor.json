@@ -1,4 +1,5 @@
 {
+  "pdf.timeout": "The PDF preview took too long to load. Retry or open it in the default app.",
   "app.back": "Back",
   "app.controls": "App Preview controls",
   "app.failed": "App preview failed",

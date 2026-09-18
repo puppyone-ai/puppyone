@@ -1,4 +1,5 @@
 {
+  "pdf.timeout": "Das Laden der PDF-Vorschau hat zu lange gedauert. Erneut versuchen oder in der Standard-App öffnen.",
   "app.back": "Zurück",
   "app.controls": "Steuerelemente der App-Vorschau",
   "app.failed": "App-Vorschau fehlgeschlagen",

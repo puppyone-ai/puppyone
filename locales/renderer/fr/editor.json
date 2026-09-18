@@ -1,4 +1,5 @@
 {
+  "pdf.timeout": "Le chargement du PDF a expiré. Réessayez ou ouvrez-le dans l’application par défaut.",
   "app.back": "Précédent",
   "app.controls": "Contrôles d’aperçu de l’application",
   "app.failed": "Échec de l’aperçu de l’application",

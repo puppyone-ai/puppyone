@@ -1,4 +1,5 @@
 {
+  "pdf.timeout": "La vista previa del PDF tardó demasiado. Reintenta o ábrelo en la aplicación predeterminada.",
   "app.back": "Atrás",
   "app.controls": "Controles de la vista previa de la aplicación",
   "app.failed": "La vista previa de la aplicación falló",

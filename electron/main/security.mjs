@@ -1,5 +1,6 @@
 import path from "node:path";
 import { requireSafeExternalUrl } from "./external-navigation-service.mjs";
+import { isEmbeddedPdfFrame, isAllowedPdfResource } from "./embedded-pdf-security.mjs";
 
 export { requireSafeExternalUrl } from "./external-navigation-service.mjs";
 
@@ -71,7 +72,8 @@ export function installWindowNavigationSecurity({
   webContents.on("will-redirect", handleTopLevelNavigation);
   webContents.on("will-frame-navigate", (details) => {
     if (!details || details.isMainFrame) return;
-    if (shouldBlockEmbeddedFrameNavigation(details.url, applicationUrl)) {
+    if ((isEmbeddedPdfFrame(details.frame) && !isAllowedPdfResource(details.url))
+      || shouldBlockEmbeddedFrameNavigation(details.url, applicationUrl)) {
       details.preventDefault();
     }
   });

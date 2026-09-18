@@ -1,5 +1,6 @@
 import { Readable } from "node:stream";
 import { parseSingleByteRange } from "../../local-api/files/byte-range.mjs";
+import { openPdfResource } from "./pdf-resource.mjs";
 
 export function registerLocalFileProtocol({
   protocol,
@@ -13,6 +14,7 @@ export function registerLocalFileProtocol({
   applicationUrl,
 }) {
   protocol.handle("puppyone-local", async (request) => {
+    let responseHeaders = { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" };
     try {
       if (request.method && request.method !== "GET" && request.method !== "HEAD") {
         return new Response("Method not allowed", { status: 405 });
@@ -46,6 +48,30 @@ export function registerLocalFileProtocol({
         "Cache-Control": "no-store",
         "X-Content-Type-Options": "nosniff",
       };
+      responseHeaders = { ...securityHeaders, ...corsHeaders };
+      if (contentType === "application/pdf") {
+        const file = await openPdfResource(canonicalRoot, relativePath, {
+          method: request.method ?? "GET", rangeHeader: request.headers.get("range"), signal: request.signal,
+        });
+        // Revocation or project removal during async filesystem admission must
+        // not publish a new response after its authority has retired.
+        if (!resolveCapability({ token, purpose, requestPath })
+          || (isOpenWorkspaceRoot && !isOpenWorkspaceRoot(canonicalRoot))) {
+          file.stream?.destroy();
+          return new Response("Forbidden", { status: 403, headers: responseHeaders });
+        }
+        if (file.unsatisfiable) return new Response(null, {
+          status: 416, headers: { ...responseHeaders, "Content-Range": `bytes */${file.size}` },
+        });
+        return new Response(file.stream ? Readable.toWeb(file.stream) : null, {
+          status: file.partial ? 206 : 200,
+          headers: {
+            ...responseHeaders, "Content-Type": contentType,
+            "Content-Length": String(file.end - file.start + 1), "Accept-Ranges": "bytes",
+            ...(file.partial ? { "Content-Range": `bytes ${file.start}-${file.end}/${file.size}` } : {}),
+          },
+        });
+      }
       if (capability.snapshot) {
         const bytes = capability.snapshot.bytes;
         const range = parseSingleByteRange(request.headers.get("range"), bytes.length);
@@ -141,8 +167,11 @@ export function registerLocalFileProtocol({
       }
 
       return new Response(bytes, responseInit);
-    } catch {
-      return new Response("Not found", { status: 404 });
+    } catch (error) {
+      const status = [413, 415].includes(error?.status) ? error.status : 404;
+      return new Response(status === 413 ? "PDF preview limit exceeded" : status === 415 ? "Invalid PDF resource" : "Not found", {
+        status, headers: responseHeaders,
+      });
     }
   });
 }

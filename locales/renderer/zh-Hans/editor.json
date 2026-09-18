@@ -1,4 +1,5 @@
 {
+  "pdf.timeout": "PDF 预览加载超时。请重试或使用默认应用打开。",
   "app.back": "后退",
   "app.controls": "应用预览控件",
   "app.failed": "应用预览失败",

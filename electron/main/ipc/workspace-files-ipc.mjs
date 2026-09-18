@@ -29,6 +29,7 @@ async function absorbWorkspaceEditReviewPath(rootPath, resource) {
 import { isPotentiallyExecutableFile } from "../security.mjs";
 import { buildLocalFileCapabilityUrl } from "../local-file-capabilities.mjs";
 import { parseLocalFileUrl } from "../local-file-protocol.mjs";
+import { openPdfResource } from "../pdf-resource.mjs";
 import {
   instantiateWorkspaceTemplate,
   loadBundledSlidesFont,
@@ -119,6 +120,9 @@ export function registerWorkspaceFileIpcHandlers({
     if (!metadata.isFile()) throw new Error("Local file resource must be a regular file.");
 
     const relativePath = path.relative(rootPath, canonicalFilePath).split(path.sep).join("/");
+    if (getMimeType(relativePath) === "application/pdf") {
+      await openPdfResource(rootPath, relativePath);
+    }
     let snapshot;
     if (request.expectedVersion !== undefined) {
       if (typeof request.expectedVersion !== "string" || request.expectedVersion.length > 256) throw new Error("Invalid resource version.");

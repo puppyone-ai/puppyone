@@ -92,6 +92,7 @@ import { registerWindowLayoutIpcHandlers } from "./main/ipc/window-layout-ipc.mj
 import { registerProjectAppearanceIpcHandlers } from "./main/ipc/project-appearance-ipc.mjs";
 import { registerGitMetadataWatchIpcHandlers } from "./main/ipc/git-metadata-watch-ipc.mjs";
 import { registerLocalFileProtocol } from "./main/local-file-protocol.mjs";
+import { installEmbeddedContentSessionSecurity } from "./main/embedded-pdf-security.mjs";
 import { createLocalFileCapabilityStore } from "./main/local-file-capabilities.mjs";
 import { createProjectAppearanceStore } from "./main/project-appearance/project-appearance-store.mjs";
 import { createProjectAppearanceService } from "./main/project-appearance/project-appearance-service.mjs";
@@ -753,6 +754,7 @@ app.on("second-instance", (_event, argv, workingDirectory, launchIntent) => {
 });
 
 app.whenReady().then(async () => {
+  installEmbeddedContentSessionSecurity(electronSession.defaultSession, { applicationUrl: rendererApplicationUrl });
   await localeService.initialize();
   const updatePreferenceStore = createDesktopUpdatePreferenceStore({
     filePath: path.join(app.getPath("userData"), "desktop-update-preferences.json"),

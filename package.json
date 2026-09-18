@@ -86,6 +86,7 @@
     "smoke:viewer-pack": "electron tests/integration/extensions/viewer-packs/viewer-pack.smoke.mjs",
     "smoke:app-preview": "electron tests/integration/editor/formats/app-preview/app-preview-iframe.smoke.mjs",
     "smoke:pdf-dom": "electron tests/integration/editor/formats/pdf/dom-embedded-pdf-surface.smoke.mjs",
+    "smoke:pdf-app": "electron tests/e2e/editor/formats/pdf/editor-pdf.smoke.mjs",
     "audit:viewer-gpu": "electron tests/performance/scenarios/editor/viewers/audit-viewer-gpu.mjs",
     "smoke:renderer-performance": "npm run build && node tests/support/runners/run-renderer-performance-smoke.mjs",
     "smoke:renderer-cold-performance": "npm run build && node tests/support/runners/run-renderer-performance-smoke.mjs --cold --visible --with-link-index",

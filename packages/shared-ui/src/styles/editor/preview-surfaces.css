@@ -68,6 +68,11 @@
 }
 
 .pdf-preview-shell {
+  flex-direction: column;
+}
+
+.pdf-preview-shell,
+.pdf-preview-surface {
   position: relative;
   display: flex;
   flex: 1;
@@ -90,10 +95,39 @@
   background: var(--po-panel-raised);
 }
 
-.pdf-preview-shell > .document-surface-pending {
+.pdf-preview-surface > .document-surface-pending {
   position: absolute;
   z-index: 1;
   inset: 0;
+}
+
+.pdf-preview-actions {
+  display: flex;
+  flex: none;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 4px 8px;
+}
+
+.pdf-preview-shell button {
+  min-height: var(--po-control-size-tight);
+  padding: 2px 8px;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: 4px;
+  background: var(--po-control);
+  color: var(--po-text-muted);
+  font: inherit;
+  cursor: var(--po-clickable-cursor, default);
+}
+
+.pdf-preview-shell button:hover {
+  background: var(--po-control-hover);
+  color: var(--po-text);
+}
+
+.pdf-preview-shell button:focus-visible {
+  outline: 2px solid var(--po-focus-ring);
+  outline-offset: 2px;
 }
 
 .html-preview-shell {

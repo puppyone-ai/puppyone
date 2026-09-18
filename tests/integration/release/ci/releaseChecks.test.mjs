@@ -25,13 +25,17 @@ describe("pre-release check definitions", () => {
     expect(actual.checks.map((entry) => entry.id)).toEqual([
       "lint", "test-types", "updater-p0", "tests", "markdown-focus", "native-resize-cursor", "build", "agent-viewport",
       "agent-tools", "project-sessions", "sidebar-visibility", "appearance", "auxiliary-appearance",
-      "item-utilities", "editor-runtime", "editor-panes", "platform-contracts",
+      "item-utilities", "editor-runtime", "editor-panes", "pdf-app", "platform-contracts",
     ]);
     expect(actual.checks.find((entry) => entry.id === "updater-p0").command).toEqual(["npm", "run", "test:updater-p0:coverage"]);
     expect(createPlan(actual, { checkId: "agent-viewport" }).map((entry) => entry.id)).toEqual(["build", "agent-viewport"]);
     const visibility = actual.checks.find((entry) => entry.id === "sidebar-visibility");
     expect(visibility.command).toEqual(["npm", "run", "smoke:sidebar-visibility"]);
     expect(visibility.artifacts).toContain("{checkDir}/evidence/result.json");
+    const pdf = actual.checks.find((entry) => entry.id === "pdf-app");
+    expect(pdf.command).toEqual(["npm", "run", "smoke:pdf-app"]);
+    expect(pdf.artifacts).toContain("{checkDir}/evidence/result.json");
+    expect(createPlan(actual, { checkId: "pdf-app" }).map(entry => entry.id)).toEqual(["build", "pdf-app"]);
     expect(createPlan(actual, { group: "app" }).filter((entry) => entry.id === "build")).toHaveLength(1);
   });
 

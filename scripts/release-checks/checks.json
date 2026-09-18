@@ -354,6 +354,18 @@
       ]
     },
     {
+      "id": "pdf-app",
+      "name": "DOM PDF: real projects, zoom, sidebar, Settings and resource failures",
+      "group": "app",
+      "command": ["npm", "run", "smoke:pdf-app"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": ["build"],
+      "timeoutSeconds": 240,
+      "runtime": "electron",
+      "environment": { "PUPPYONE_PDF_APP_ARTIFACT_DIR": "{checkDir}/evidence" },
+      "artifacts": ["{checkDir}/evidence/result.json", "{checkDir}/evidence"]
+    },
+    {
       "id": "platform-contracts",
       "name": "Native platform contracts",
       "group": "platform",
