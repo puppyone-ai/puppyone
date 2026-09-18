@@ -4,17 +4,13 @@ import { useLocalization } from "@puppyone/localization/react";
 
 export function DocumentPreview({
   document,
-  title,
+  label,
 }: {
   document: EditorDocument;
-  title: string;
+  label: string;
 }) {
   const { t } = useLocalization();
-  const fallbackTitle = title.trim();
-  const fileName = document.name || document.path || fallbackTitle || t("editor.file");
-  const status = fallbackTitle && fallbackTitle !== fileName
-    ? fallbackTitle
-    : t("editor.preview.unavailable");
+  const fileName = document.name || document.path || label || t("editor.file");
 
   return (
     <div
@@ -22,9 +18,11 @@ export function DocumentPreview({
       role="status"
       aria-label={t("editor.preview.unavailableFor", { name: bidiIsolate(fileName) })}
     >
+      <div className="document-preview__signal" aria-hidden="true" />
       <section className="document-preview__summary">
-        <h2 className="document-preview__name" dir="auto">{fileName}</h2>
-        <p className="document-preview__status" dir="auto">{status}</p>
+        <span className="document-preview__rule" aria-hidden="true" />
+        <h2 className="document-preview__label" dir="auto">{label}</h2>
+        <span className="document-preview__rule" aria-hidden="true" />
       </section>
     </div>
   );

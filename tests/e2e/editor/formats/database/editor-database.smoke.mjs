@@ -123,13 +123,13 @@ try {
   await bounds("settings-overlay");
   await fs.writeFile(path.join(output, "settings-over-database.png"), (await window.webContents.capturePage()).toPNG());
   await click(".desktop-settings-dialog .desktop-dialog-icon-button");
-  await evaluate("[...document.querySelectorAll('.database-preview button')].find(b=>b.textContent==='Next page').click()");
+  await click('.database-preview button[aria-label="Next page"]');
   await until(() => evaluate("document.querySelectorAll('.database-preview tbody tr').length===7"), "second engine page"); steps.push("50+7 engine pagination");
   await openFile("large.db"); await ready("268435456"); steps.push({ label: "large BLOB projected without full source IPC", sourceBytes: (await fs.stat(files[1])).size });
   await project("Database B"); await openFile("note.md"); await noDatabase("project-switch");
   await openFile("sample.db"); await ready("123456789012345678901234567890"); steps.push("DuckDB via same DOM provider");
   await fs.writeFile(path.join(output, "duckdb-ready.png"), (await window.webContents.capturePage()).toPNG());
-  await openFile("unknown.db"); await until(() => evaluate("document.querySelector('.database-preview [role=alert]')?.textContent.includes('unrecognized-format')"), "unknown format fallback");
+  await openFile("unknown.db"); await until(() => evaluate("document.querySelector('.database-preview [role=alert]')?.dataset.errorCode==='unrecognized-format'"), "unknown format fallback");
   await until(() => hosts.every(host => host.exited), "unknown closes previous engine");
   await project("Database A"); await openFile("sample.db"); await ready("SQLite row");
   await fs.rename(path.join(roots[0], "sample.db"), path.join(roots[0], "previous.db"));

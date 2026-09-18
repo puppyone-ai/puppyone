@@ -23,6 +23,7 @@
   "database.unsupported": "この形式、バージョン、またはオブジェクトは未対応です。",
   "database.budget": "プレビューがリソースまたは時間の上限を超えました。",
   "database.permission": "アクセスが拒否されたか、権限が取り消されました。",
+  "database.unavailable": "このデータベースをプレビューできません。",
   "pdf.timeout": "PDF プレビューの読み込みがタイムアウトしました。再試行するか、既定のアプリで開いてください。",
   "app.back": "戻る",
   "app.controls": "アプリプレビューのコントロール",

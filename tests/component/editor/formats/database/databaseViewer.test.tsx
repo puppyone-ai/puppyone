@@ -43,8 +43,10 @@ describe("registered database DOM viewer", () => {
     expect(container.querySelector(".database-preview")).not.toBeNull();
     expect(container.querySelector("td")?.textContent).toContain("<script>");
     expect(container.querySelector("script, iframe, canvas, [contenteditable=true]")).toBeNull();
-    expect(container.textContent).toContain("Read-only"); expect(container.textContent).toContain("total unknown");
-    const next = [...container.querySelectorAll("button")].find((button) => button.textContent === "Next page")!;
+    expect(container.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe("items");
+    expect(container.textContent).not.toContain("Read-only");
+    expect(container.textContent).not.toContain("total unknown");
+    const next = container.querySelector<HTMLButtonElement>('button[aria-label="Next page"]')!;
     await act(async () => next.click());
     expect(value.readPage).toHaveBeenLastCalledWith({ cursor: "next" }, expect.any(AbortSignal));
   });
@@ -83,6 +85,7 @@ describe("registered database DOM viewer", () => {
     await act(async () => vi.advanceTimersByTime(60_001));
     expect(container.querySelector("td")).toBeNull();
     expect(container.querySelector("[role=alert]")?.textContent).toContain("snapshot expired");
+    expect(container.querySelector("[role=alert]")?.getAttribute("data-error-code")).toBe("stale-input");
     expect(value.close).toHaveBeenCalled();
   });
 });

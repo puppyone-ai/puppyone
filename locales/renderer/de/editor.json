@@ -23,6 +23,7 @@
   "database.unsupported": "Dieses Format, diese Version oder dieses Objekt wird nicht unterstützt.",
   "database.budget": "Die Vorschau hat das Ressourcen- oder Zeitlimit überschritten.",
   "database.permission": "Der Zugriff wurde verweigert oder widerrufen.",
+  "database.unavailable": "Diese Datenbank kann nicht als Vorschau angezeigt werden.",
   "pdf.timeout": "Das Laden der PDF-Vorschau hat zu lange gedauert. Erneut versuchen oder in der Standard-App öffnen.",
   "app.back": "Zurück",
   "app.controls": "Steuerelemente der App-Vorschau",

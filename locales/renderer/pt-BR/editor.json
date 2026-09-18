@@ -23,6 +23,7 @@
   "database.unsupported": "Este formato, versão ou objeto não é compatível.",
   "database.budget": "A prévia excedeu o limite de recursos ou de tempo.",
   "database.permission": "O acesso foi negado ou revogado.",
+  "database.unavailable": "Não foi possível visualizar este banco de dados.",
   "pdf.timeout": "A prévia do PDF demorou demais para carregar. Tente novamente ou abra no aplicativo padrão.",
   "app.back": "Voltar",
   "app.controls": "Controles da visualização do aplicativo",

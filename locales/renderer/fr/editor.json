@@ -23,6 +23,7 @@
   "database.unsupported": "Ce format, cette version ou cet objet n’est pas pris en charge.",
   "database.budget": "L’aperçu a dépassé la limite de ressources ou de temps.",
   "database.permission": "L’accès a été refusé ou révoqué.",
+  "database.unavailable": "Impossible de prévisualiser cette base de données.",
   "pdf.timeout": "Le chargement du PDF a expiré. Réessayez ou ouvrez-le dans l’application par défaut.",
   "app.back": "Précédent",
   "app.controls": "Contrôles d’aperçu de l’application",

@@ -23,6 +23,7 @@
   "database.unsupported": "暂不支持此格式、版本或对象。",
   "database.budget": "预览超过资源或时间限制。",
   "database.permission": "访问被拒绝或授权已撤销。",
+  "database.unavailable": "无法预览此数据库。",
   "pdf.timeout": "PDF 预览加载超时。请重试或使用默认应用打开。",
   "app.back": "后退",
   "app.controls": "应用预览控件",

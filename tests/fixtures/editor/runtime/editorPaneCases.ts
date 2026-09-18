@@ -41,7 +41,7 @@ export const EDITOR_PANE_CASES: readonly EditorPaneCase[] = [
   { id: "video", viewerId: "video-preview", name: "clip.webm", type: "video", resource: "pane-contract.webm", selector: "video" },
   { id: "text", viewerId: "text", name: "plain.txt", type: "text", content: "Plain text pane", selector: ".cm-editor" },
   { id: "code", viewerId: "text", name: "worker.py", type: "code", content: "value = 'pane'", selector: ".cm-editor" },
-  { id: "fallback", viewerId: "document-placeholder", name: "unknown.pane-binary", type: "file", selector: ".document-preview__name" },
+  { id: "fallback", viewerId: "document-placeholder", name: "unknown.pane-binary", type: "file", selector: ".document-preview__label" },
 ];
 
 export function paneCaseNode(testCase: EditorPaneCase): DocumentDataNode {

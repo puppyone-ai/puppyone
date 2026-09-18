@@ -23,6 +23,7 @@
   "database.unsupported": "This format, version or object is not supported.",
   "database.budget": "The preview exceeded its resource or time limit.",
   "database.permission": "Access was denied or revoked.",
+  "database.unavailable": "This database cannot be previewed.",
   "pdf.timeout": "The PDF preview took too long to load. Retry or open it in the default app.",
   "app.back": "Back",
   "app.controls": "App Preview controls",

@@ -23,6 +23,7 @@
   "database.unsupported": "No se admite este formato, versión u objeto.",
   "database.budget": "La vista previa superó el límite de recursos o de tiempo.",
   "database.permission": "Se denegó o revocó el acceso.",
+  "database.unavailable": "No se puede previsualizar esta base de datos.",
   "pdf.timeout": "La vista previa del PDF tardó demasiado. Reintenta o ábrelo en la aplicación predeterminada.",
   "app.back": "Atrás",
   "app.controls": "Controles de la vista previa de la aplicación",
