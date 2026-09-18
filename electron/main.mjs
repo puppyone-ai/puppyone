@@ -1,4 +1,5 @@
 import { installBrokenStdioGuards } from "./main/stdio-guard.mjs";
+import { createDatabasePreviewService, registerDatabasePreviewIpc } from "./main/database-preview/service.mjs";
 import { app, BrowserWindow, dialog, ipcMain, Menu, MessageChannelMain, nativeImage, nativeTheme, powerMonitor, protocol, safeStorage, session as electronSession, shell, utilityProcess, webContents, WebContentsView } from "electron";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import fs from "node:fs";
@@ -324,6 +325,13 @@ documentSessionCloseCoordinator.registerIpc(trustedIpcMain);
 const authorizeWorkspaceRoot = createSenderWorkspaceAuthorization({
   getWorkspaceRootsForSender,
 });
+const databasePreviewService = createDatabasePreviewService({
+  getMemoryBytes: (host) => (app.getAppMetrics().find((entry) => entry.pid === host.pid)?.memory.workingSetSize ?? 0) * 1024,
+  spawnHost: () => utilityProcess.fork(path.join(__dirname, "utility", "database-preview", "main.mjs"), [], {
+    serviceName: "Database Preview", stdio: "ignore", execArgv: ["--max-old-space-size=128"],
+    env: process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {},
+  }),
+});
 const resolveWorkspaceResource = createWorkspaceResourceResolver({
   getFoldersForSender: (sender) => projectSessions.folders(sender.id),
   authorizeWorkspaceRoot,
@@ -445,6 +453,7 @@ const projectSessions = createProjectSessionHost({
       workspaceWatchService.stopForWorkspaceRoot(owner, root),
       gitMetadataWatchService.stopForWorkspaceRoot(owner, root),
       localFileCapabilities.revokeWorkspaceRoot(owner, root),
+      databasePreviewService.closeRoot(owner, root),
     ]);
   },
 });
@@ -911,7 +920,7 @@ app.on("before-quit", createApplicationCloseCoordinator({
   getWindows: () => BrowserWindow.getAllWindows(),
   closeResources: async () => {
     await projectSessions.closeAllWindows();
-    await Promise.all([agentService.closeAll(), terminalService.closeAll()]);
+    await Promise.all([agentService.closeAll(), terminalService.closeAll(), databasePreviewService.closeAll()]);
   },
   onFailure: async () => {
     applicationQuitIntent.cancel();
@@ -1042,6 +1051,7 @@ function registerIpcHandlers() {
     gitMetadataWatchService,
     t: (messageId, values) => localeService.t(messageId, values),
   });
+  registerDatabasePreviewIpc({ ipcMain: trustedIpcMain, service: databasePreviewService, authorizeWorkspaceRoot });
 
   registerAppPreviewIpcHandlers({
     ipcMain: trustedIpcMain,
@@ -1524,6 +1534,7 @@ function assignWindowWorkspaceComposition(window, folders, options = {}) {
 }
 
 function releaseWindowWorkspaceById(webContentsId, window = null) {
+  void databasePreviewService.closeOwner(webContentsId).catch(() => {});
   gitAutoCommitHost.releaseWindow(webContentsId);
   viewerPackHost?.destroySessionsForOwner(webContentsId);
   localFileCapabilities.revokeSender(webContentsId);

@@ -25,6 +25,7 @@ export type GenericViewerId =
   | "audio-preview"
   | "video-preview"
   | "pdf-preview"
+  | "database-preview"
   | "office-preview"
   | "binary-placeholder";
 

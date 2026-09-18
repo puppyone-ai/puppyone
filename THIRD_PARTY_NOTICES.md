@@ -1,5 +1,16 @@
 # Third-party notices
 
+## DuckDB Node Neo
+
+Read-only database previews use `@duckdb/node-api` 1.5.5-r.5 and its matching
+native bindings, redistributed under the MIT License. Copyright 2018–2025
+Stichting DuckDB Foundation. Complete license notices ship in the packaged
+`node_modules/@duckdb/` dependencies, including `node-api/LICENSE`.
+Upstream source: https://github.com/duckdb/duckdb-node-neo
+
+SQLite previews use Electron's bundled Node.js `node:sqlite` binding and SQLite
+engine; their notices are included with the Electron distribution.
+
 ## jsdiff
 
 Agent edit previews use the `diff` package (jsdiff), redistributed under the

@@ -294,6 +294,7 @@ export type DataCapabilities = {
 };
 
 export type DataPort = {
+  previewServices?: import("../editor/preview-services/types").EditorPreviewServices;
   listChildren: (folderPath: string | null) => Promise<DataNode[]>;
   /** Resolve one workspace-relative entry without enumerating or previewing its siblings. */
   resolveNode?: (path: string) => Promise<DataNode | null>;

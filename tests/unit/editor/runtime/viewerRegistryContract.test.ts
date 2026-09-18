@@ -57,7 +57,7 @@ describe("preset viewer contribution contract", () => {
     expect(Object.isFrozen(PRESET_VIEWER_REGISTRY)).toBe(true);
     expect(Object.isFrozen(PRESET_VIEWERS)).toBe(true);
     expect(new Set(PRESET_VIEWERS.map((viewer) => viewer.source))).toEqual(
-      new Set(["content", "resource", "content-and-resource"]),
+      new Set(["content", "resource", "content-and-resource", "resource-session"]),
     );
     expect(PRESET_VIEWER_REGISTRY.fallback.source).toBe("none");
     expect(PRESET_VIEWER_REGISTRY.fallback.id).toBe(PRESET_VIEWER_MANIFEST.fallbackViewerId);

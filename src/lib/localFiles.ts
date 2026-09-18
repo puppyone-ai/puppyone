@@ -41,6 +41,7 @@ import {
   detectAppPreviewSetup,
 } from "../features/data-workspace/appPreviewCreation";
 import { parseAppPreviewManifest } from "../../shared/appPreviewManifest.js";
+import { createDatabasePreviewPort } from "../platform/databasePreviewClient";
 
 export type { Workspace };
 export type FileKind = DataNodeKind;
@@ -54,6 +55,7 @@ export function createLocalDocumentStorageIdentity(rootPath: string): string {
 
 export function createLocalDataPort(rootPath: string): DataPort {
   return {
+    previewServices: { database: createDatabasePreviewPort(rootPath, getDesktopBridge) },
     listChildren: (folderPath) => loadFolderChildren(rootPath, folderPath),
     resolveNode: (path) => getDesktopBridge().resolveNode({ rootPath, path }),
     // Text/content reads do not mint a browser capability URL. Resource URLs

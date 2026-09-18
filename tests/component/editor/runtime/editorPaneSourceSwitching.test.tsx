@@ -21,6 +21,12 @@ afterEach(() => {
 });
 
 describe("editor pane source switching", () => {
+  it("does not buffer a database or allocate a file URL before its native-session viewer opens", async () => {
+    const readFile = createReadFile(); const dataPort = createDataPort(readFile); const container = createContainer();
+    await renderSinglePane(container, node("sample.db", "file", "application/octet-stream"), dataPort);
+    expect(readFile).not.toHaveBeenCalled(); expect(dataPort.getFileUrl).not.toHaveBeenCalled();
+    expect(paneState(container).loading).toBe("false");
+  });
   it("keeps a late watcher read from replacing a saved pane baseline or conflicting with newer typing", async () => {
     const markdown = node("notes.md", "markdown", "text/markdown");
     const base = { ...fileContent(markdown), content: "one", version: "v1" };

@@ -1211,6 +1211,9 @@ declare global {
         expectedVersion?: string;
       }) => Promise<{ url: string }>;
       revokeFileUrl: (request: { url: string }) => Promise<{ revoked: boolean }>;
+      openDatabasePreview: import("../platform/databasePreviewClient").DatabaseBridge["openDatabasePreview"];
+      readDatabasePreviewPage: import("../platform/databasePreviewClient").DatabaseBridge["readDatabasePreviewPage"];
+      closeDatabasePreview: import("../platform/databasePreviewClient").DatabaseBridge["closeDatabasePreview"];
       convertOfficeDocumentToDocx: (
         request: WorkspaceConvertOfficeDocumentToDocxRequest,
       ) => Promise<WorkspaceConvertOfficeDocumentToDocxResult>;

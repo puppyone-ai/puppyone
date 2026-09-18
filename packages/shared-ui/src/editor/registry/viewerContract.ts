@@ -4,7 +4,7 @@
  * registry; a viewer contribution only declares host capabilities.
  */
 
-export const PRESET_VIEWER_CONTRACT_VERSION = 7 as const;
+export const PRESET_VIEWER_CONTRACT_VERSION = 8 as const;
 
 export const PRESET_VIEWER_CAPABILITIES = ["edit", "preview", "placeholder"] as const;
 export type CoreViewerCapability = (typeof PRESET_VIEWER_CAPABILITIES)[number];
@@ -12,6 +12,7 @@ export type CoreViewerCapability = (typeof PRESET_VIEWER_CAPABILITIES)[number];
 export const PRESET_VIEWER_SOURCES = [
   "content",
   "resource",
+  "resource-session",
   "content-and-resource",
   "none",
 ] as const;
@@ -39,6 +40,7 @@ export const PRESET_VIEWER_COMPUTE_ISOLATIONS = [
   "main-thread",
   "worker",
   "browser-engine",
+  "native-process",
 ] as const;
 export type PresetViewerComputeIsolation =
   (typeof PRESET_VIEWER_COMPUTE_ISOLATIONS)[number];

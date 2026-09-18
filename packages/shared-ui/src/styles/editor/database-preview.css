@@ -1,0 +1,36 @@
+.database-preview {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  color: var(--po-text);
+  background: var(--po-editor-bg);
+}
+.database-preview-toolbar, .database-preview-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--po-divider);
+  font-size: var(--po-type-ui-caption, 12px);
+}
+.database-preview-toolbar strong { margin-inline-end: auto; }
+.database-preview select { max-width: min(320px, 50vw); }
+.database-preview button, .database-preview select {
+  color: inherit;
+  background: var(--po-control);
+  border: 1px solid var(--po-divider);
+  border-radius: 4px;
+  padding: 4px 8px;
+}
+.database-preview button:disabled { opacity: 0.45; cursor: default; }
+.database-preview-grid { flex: 1; min-height: 0; min-width: 0; overflow: auto; }
+.database-preview table { border-collapse: separate; border-spacing: 0; font-size: var(--po-type-ui-meta, 13px); width: max-content; min-width: 100%; }
+.database-preview th, .database-preview td { min-width: 100px; max-width: 320px; padding: 6px 10px; border-bottom: 1px solid var(--po-divider); border-inline-end: 1px solid var(--po-divider); white-space: pre-wrap; overflow-wrap: anywhere; vertical-align: top; }
+.database-preview th { position: sticky; top: 0; z-index: 1; background: var(--po-control); text-align: start; }
+.database-preview td[data-cell-kind="null"] { color: var(--po-text-muted); }
+.database-preview :focus-visible { outline: 2px solid var(--po-focus-ring); outline-offset: -2px; }

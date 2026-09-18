@@ -20,6 +20,7 @@
 /* Shared table language + structured CSV editor */
 @import "./editor/editable-table.css";
 @import "./editor/csv-table-editor.css";
+@import "./editor/database-preview.css";
 
 /* Structured PuppyFlow editor */
 @import "./editor/puppyflow-editor.css";

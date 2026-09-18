@@ -157,6 +157,13 @@ export function createWorkbenchDataService(
       const node = await requireProvider(target.folder).resolveNode?.(target.providerPath);
       return node ? mapNode(target.folder, node) : null;
     },
+    previewServices: { database: { open: async (path, signal) => {
+      const target = resolveResource(path);
+      if (target.providerPath === null) throw new Error("invalid-request");
+      const port = requireProvider(target.folder).previewServices?.database;
+      if (!port) throw new Error("capability-unavailable");
+      return port.open(target.providerPath, signal);
+    } } },
     readFile: async (path, options) => {
       const target = resolveResource(path);
       if (target.providerPath === null) throw new Error("A Workspace Folder root is not a document.");
