@@ -345,6 +345,9 @@ describe("Desktop Agent architecture boundaries", () => {
     expect(cursorDiscovery).toContain('status: "ready"');
     expect(workBuddy).toContain("extends AcpRuntimeAdapter");
     expect(workBuddy).toContain("channel.authenticationMethodId");
+    expect(workBuddy).toContain('requestExtension("_codebuddy.ai/getUserInfo"');
+    expect(workBuddy).toContain("WORKBUDDY_CONFIG_DIR: configDirectory");
+    expect(workBuddy).toContain("CODEBUDDY_CONFIG_DIR: configDirectory");
     expect(workBuddyDiscovery).toContain("installationId: channel.installationId");
     expect(workBuddyDiscovery).toContain('compatibility: readiness.status === "ready" ? "acp-v1" : "unavailable"');
     expect(hermes).toContain("extends AcpRuntimeAdapter");
