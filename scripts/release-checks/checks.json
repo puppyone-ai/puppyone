@@ -366,6 +366,18 @@
       "artifacts": ["{checkDir}/evidence/result.json", "{checkDir}/evidence"]
     },
     {
+      "id": "database-app",
+      "name": "SQLite/DuckDB: DOM containment, bounded pages, source integrity and native exit",
+      "group": "app",
+      "command": ["npm", "run", "smoke:database-app"],
+      "platforms": ["darwin"],
+      "dependsOn": ["build"],
+      "timeoutSeconds": 240,
+      "runtime": "electron",
+      "environment": { "PUPPYONE_DATABASE_APP_ARTIFACT_DIR": "{checkDir}/evidence" },
+      "artifacts": ["{checkDir}/evidence/result.json", "{checkDir}/evidence"]
+    },
+    {
       "id": "platform-contracts",
       "name": "Native platform contracts",
       "group": "platform",
