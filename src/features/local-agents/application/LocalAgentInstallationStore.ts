@@ -135,12 +135,8 @@ export class LocalAgentInstallationStore {
   }
 
   private applySnapshot(snapshot: LocalAgentInstallationSnapshot, phase: LocalAgentInstallationDiscoveryPhase) {
-    const failedIds = new Set(
-      snapshot.results.filter(({ status }) => status === "failed").map(({ agentId }) => agentId),
-    );
-    const retainedIds = this.state.ids.filter((agentId) => failedIds.has(agentId));
     this.replace({
-      ids: normalizeAvailableLocalAgentIds([...snapshot.availableAgentIds, ...retainedIds]),
+      ids: normalizeAvailableLocalAgentIds([...snapshot.availableAgentIds, ...(snapshot.retainedAgentIds ?? [])]),
       phase,
       snapshot,
       hasFailures: snapshot.results.some(({ status, reasonCode }) => status === "failed" || reasonCode === "environment-unavailable"),

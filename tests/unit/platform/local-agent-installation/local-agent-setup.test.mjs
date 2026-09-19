@@ -9,7 +9,7 @@ import { DESKTOP_TERMINAL_LAUNCHERS } from "../../../../src/features/desktop-ter
 import { AGENT_CHAT_CREATION_RECIPES } from "../../../../src/features/app-shell/auxiliary-workbench/agentChatCreationRecipes";
 
 const preferences = { enabled: true, dismissedSetupIds: [], snoozedUntil: {} };
-const request = { clientId: "test:1", surface: "chat", eligibleInstallationIds: setupRegistry.map(({ id }) => id), hiddenAgentIds: [], preferences, refreshPresence: false };
+const request = { clientId: "test:1", surface: "chat", eligibleInstallationIds: setupRegistry.map(({ id }) => id), hiddenAgentIds: [], preferences };
 const companions = companionIdentities.map(({ id }) => ({ companionId: id, status: "present" }));
 const snapshot = (status = "not-found", generation = 1) => ({ generation, results: setupRegistry.map(({ id }) => ({ agentId: id, status })) });
 const deferred = () => { let resolve; const promise = new Promise((done) => { resolve = done; }); return { promise, resolve }; };
@@ -93,10 +93,10 @@ describe("setup advisor and trusted guide broker", () => {
     expect(adviseSetup({ registry: setupRegistry, platform: "unsupported", request, installations: snapshot(), companions, now: 0, sessionSuppressed: new Set() })).toEqual([]);
   });
 
-  it("fences refreshing, found, newer-generation, expired and released receipts", async () => {
+  it("fences recommendation generations, found installations, replaced and released receipts", async () => {
     const h = harness();
     const inspected = await h.service.inspect(1, request);
-    const action = { clientId: request.clientId, revision: inspected.revision, setupId: "codex", actionId: "open-guide", mode: "manual" };
+    const action = { clientId: request.clientId, revision: inspected.revision, setupId: "codex", actionId: "open-guide", mode: "recommendation" };
     h.installationService.isScanning.mockReturnValue(true);
     expect(await h.service.act(1, action)).toEqual({ status: "stale" });
     h.installationService.isScanning.mockReturnValue(false);
@@ -104,11 +104,39 @@ describe("setup advisor and trusted guide broker", () => {
     expect(await h.service.act(1, action)).toEqual({ status: "detected" });
     h.setSnapshot(snapshot("not-found", 2));
     expect(await h.service.act(1, action)).toEqual({ status: "stale" });
-    h.setSnapshot(snapshot()); h.setTime(31_000);
+    h.setSnapshot(snapshot());
+    await h.service.inspect(1, request);
     expect(await h.service.act(1, action)).toEqual({ status: "stale" });
-    h.setTime(1_000); h.service.release(1);
-    expect(await h.service.act(1, action)).toEqual({ status: "stale" });
+    const replacement = await h.service.inspect(1, request);
+    h.service.release(1);
+    expect(await h.service.act(1, { ...action, revision: replacement.revision })).toEqual({ status: "stale" });
     expect(h.openExternal).not.toHaveBeenCalled();
+  });
+
+  it.each(["manual", "recommendation"])("opens %s guides after 30 seconds and a day without rescanning", async (mode) => {
+    const h = harness();
+    h.setSnapshot({ ...snapshot(), completedAt: new Date(1_000).toISOString() });
+    const inspected = await h.service.inspect(1, request);
+    const action = { clientId: request.clientId, revision: inspected.revision, setupId: "codex", actionId: "open-guide", mode };
+    h.setTime(32_000);
+    expect(await h.service.act(1, action)).toEqual({ status: "guide-opened" });
+    h.setTime(86_401_000);
+    expect(await h.service.act(1, action)).toEqual({ status: "guide-opened" });
+    h.service.release(1);
+    const reopened = await h.service.inspect(1, request);
+    expect(await h.service.act(1, { ...action, revision: reopened.revision })).toEqual({ status: "guide-opened" });
+    expect(h.installationService.discover).not.toHaveBeenCalled();
+  });
+
+  it("allows an explicit manual guide independently of scanning or a changed observation", async () => {
+    const h = harness(); const inspected = await h.service.inspect(1, request);
+    const action = { clientId: request.clientId, revision: inspected.revision, setupId: "codex", actionId: "open-guide", mode: "manual" };
+    h.installationService.isScanning.mockReturnValue(true);
+    expect(await h.service.act(1, action)).toEqual({ status: "guide-opened" });
+    h.installationService.isScanning.mockReturnValue(false); h.setSnapshot(snapshot("not-found", 2));
+    expect(await h.service.act(1, action)).toEqual({ status: "guide-opened" });
+    h.setSnapshot(snapshot("found", 3));
+    expect(await h.service.act(1, action)).toEqual({ status: "detected" });
   });
 
   it("does not reopen a released view after slow evidence and suppresses duplicate guide clicks", async () => {
@@ -180,33 +208,76 @@ describe("companion presence lifecycle", () => {
     const gate = deferred();
     const port = { inspect: vi.fn().mockResolvedValueOnce(companions).mockReturnValueOnce(gate.promise) };
     const service = createCompanionPresenceService({ port });
-    const value = await service.discover(); const revision = service.getRevision(value);
+    const value = await service.discover({ installationGeneration: 1 }); const revision = service.getRevision(value);
     expect(service.isCurrentRevision(revision)).toBe(true);
-    const refresh = service.discover({ refresh: true });
+    const refresh = service.discover({ installationGeneration: 2 });
     expect(service.isCurrentRevision(revision)).toBe(false);
     gate.resolve([{ companionId: "codex", status: "not-found" }]); await refresh;
     expect(service.isCurrentRevision(revision)).toBe(false);
     service.dispose();
   });
-  it("coalesces windows, queues one refresh, caches healthy results and expires after 30 seconds", async () => {
-    const gate = deferred(); let clock = 0;
+  it("coalesces windows and queues only the newest installation generation", async () => {
+    const gate = deferred();
     const port = { inspect: vi.fn().mockReturnValueOnce(gate.promise).mockResolvedValue(companions) };
-    const service = createCompanionPresenceService({ port, now: () => clock });
-    const initial = service.discover(); expect(service.discover()).toBe(initial);
-    const refresh = service.discover({ refresh: true }); expect(service.discover({ refresh: true })).toBe(refresh);
+    const service = createCompanionPresenceService({ port });
+    const initial = service.discover({ installationGeneration: 1 }); expect(service.discover({ installationGeneration: 1 })).toBe(initial);
+    const refresh = service.discover({ installationGeneration: 2 }); expect(service.discover({ installationGeneration: 3 })).toBe(refresh);
     gate.resolve(companions); await refresh;
     expect(port.inspect).toHaveBeenCalledTimes(2);
-    await service.discover(); expect(port.inspect).toHaveBeenCalledTimes(2);
-    clock = 30_000; await service.discover(); expect(port.inspect).toHaveBeenCalledTimes(3);
+    await service.discover({ installationGeneration: 3 }); await service.discover({ installationGeneration: 1 });
+    expect(port.inspect).toHaveBeenCalledTimes(2);
     service.dispose(); expect(await service.discover()).toEqual([]);
   });
 
-  it("does not negative-cache unknown or failing observations", async () => {
+  it("retains unknown as unknown until explicit discovery advances the generation", async () => {
     const port = { inspect: vi.fn().mockRejectedValueOnce(new Error("private path"))
       .mockResolvedValueOnce([{ companionId: "codex", status: "unknown" }]).mockResolvedValue(companions) };
     const service = createCompanionPresenceService({ port });
-    expect(JSON.stringify(await service.discover())).not.toContain("private path");
-    await service.discover(); await service.discover(); expect(port.inspect).toHaveBeenCalledTimes(3);
+    const failed = await service.discover({ installationGeneration: 1 });
+    expect(JSON.stringify(failed)).not.toContain("private path");
+    expect(failed.every(({ status }) => status === "unknown")).toBe(true);
+    expect(await service.discover({ installationGeneration: 1 })).toBe(failed);
+    expect(port.inspect).toHaveBeenCalledOnce();
+    await service.discover({ installationGeneration: 2 }); await service.discover({ installationGeneration: 3 });
+    expect(port.inspect).toHaveBeenCalledTimes(3);
+    service.dispose();
+  });
+
+  it("preserves completed evidence on release and rejects late canceled results and queued work", async () => {
+    const gate = deferred();
+    const port = { inspect: vi.fn().mockResolvedValueOnce(companions).mockReturnValueOnce(gate.promise)
+      .mockResolvedValue([{ companionId: "codex", status: "not-found" }]) };
+    const service = createCompanionPresenceService({ port });
+    const initial = await service.discover({ installationGeneration: 1 });
+    const refresh = service.discover({ installationGeneration: 2 });
+    const queued = service.discover({ installationGeneration: 3 });
+    service.cancel();
+    gate.resolve([{ companionId: "codex", status: "not-found" }]);
+    expect(await refresh).toEqual([]); expect(await queued).toEqual([]);
+    expect(await service.discover({ installationGeneration: 1 })).toBe(initial);
+    expect(service.isCurrentRevision(service.getRevision(initial))).toBe(true);
+    expect(port.inspect).toHaveBeenCalledTimes(2);
+    await service.discover({ installationGeneration: 3 });
+    expect(service.isCurrentRevision(service.getRevision(initial))).toBe(false);
+    expect(port.inspect).toHaveBeenCalledTimes(3);
+    service.dispose();
+  });
+
+  it("reuses the same Main evidence after views close, time passes, and another window opens", async () => {
+    let current = { ...snapshot(), completedAt: new Date(1_000).toISOString() }; let clock = 1_000;
+    const port = { inspect: vi.fn(async () => companions) };
+    const presenceService = createCompanionPresenceService({ port });
+    const installationService = { getSnapshot: () => current, isScanning: () => false, discover: vi.fn() };
+    const service = createLocalAgentSetupService({ installationService, presenceService, platform: "darwin", openExternal: vi.fn(), now: () => clock });
+    await service.inspect(1, request); service.release(1);
+    clock = 86_401_000;
+    const reopened = await service.inspect(2, request);
+    expect(reopened.entries.some(({ recommended }) => recommended)).toBe(true);
+    expect(port.inspect).toHaveBeenCalledOnce();
+    expect(installationService.discover).not.toHaveBeenCalled();
+    current = snapshot("not-found", 2);
+    await Promise.all([service.inspect(2, request), service.inspect(3, request)]);
+    expect(port.inspect).toHaveBeenCalledTimes(2);
     service.dispose();
   });
 });

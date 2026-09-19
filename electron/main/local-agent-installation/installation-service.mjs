@@ -141,6 +141,10 @@ export function createLocalAgentInstallationService(options = {}) {
       for (const observer of observers) safelyPublish(observer, progress);
     }));
     const results = stableResults(registry, settled);
+    const previouslyAvailable = new Set([
+      ...(latestSnapshot?.availableAgentIds ?? []),
+      ...(latestSnapshot?.retainedAgentIds ?? []),
+    ]);
     const completedAt = new Date(now()).toISOString();
     return assertLocalAgentInstallationSnapshot({
       schemaVersion: 1,
@@ -151,6 +155,8 @@ export function createLocalAgentInstallationService(options = {}) {
       source: "scan",
       results,
       availableAgentIds: results.filter(({ status }) => status === "found").map(({ agentId }) => agentId),
+      retainedAgentIds: results.filter(({ agentId, status }) => status === "failed" && previouslyAvailable.has(agentId))
+        .map(({ agentId }) => agentId),
     });
   }
 

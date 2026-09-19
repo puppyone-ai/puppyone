@@ -21,7 +21,7 @@ export function createLocalAgentSetupService({ installationService, presenceServ
   async function inspectRequest(ownerId, request) {
     const key = `${ownerId}:${request.clientId}`;
     const revision = randomUUID();
-    const record = { ownerId, revision, request, at: now(), snapshot: null, busy: false };
+    const record = { ownerId, revision, request, snapshot: null, busy: false };
     clients.delete(key);
     clients.set(key, record);
     cancelUnusedPresence();
@@ -31,13 +31,11 @@ export function createLocalAgentSetupService({ installationService, presenceServ
       if (until > now()) sessionSuppressed.add(id);
     }
     const current = installationService.getSnapshot();
-    const scanning = installationService.isScanning();
-    const [installations, companions] = await Promise.all([
-      // Inspecting a recommendation is a read, not consent to run a new scan.
-      // Old evidence remains visible; action receipts still enforce freshness.
-      scanning || !current ? installationService.discover() : current,
-      request.preferences.enabled ? presenceService.discover({ refresh: request.refreshPresence }) : [],
-    ]);
+    // Main's installation generation, not mounting a view or a timer, owns refresh.
+    const installations = current ?? await installationService.discover();
+    if (disposed || clients.get(key) !== record) throw new Error("Setup request superseded.");
+    const companions = request.preferences.enabled
+      ? await presenceService.discover({ installationGeneration: installations.generation }) : [];
     if (disposed || clients.get(key) !== record) throw new Error("Setup request superseded.");
     record.presenceRevision = presenceService.getRevision?.(companions);
     const currentCompanions = presenceService.isCurrentRevision?.(record.presenceRevision) === false ? [] : companions;
@@ -45,8 +43,6 @@ export function createLocalAgentSetupService({ installationService, presenceServ
       revision, installationGeneration: installations.generation,
       entries: adviseSetup({ registry: setupRegistry, platform, request, installations, companions: currentCompanions, now: now(), sessionSuppressed }),
     };
-    record.at = now();
-    record.evidenceAt = Number.isFinite(Date.parse(installations.completedAt)) ? Date.parse(installations.completedAt) : record.at;
     return record.snapshot;
   }
 
@@ -55,9 +51,7 @@ export function createLocalAgentSetupService({ installationService, presenceServ
     if (input.actionId !== "open-guide" || !["manual", "recommendation"].includes(input.mode)
       || typeof input.revision !== "string") throw new Error("Invalid setup action.");
     const record = clients.get(`${ownerId}:${clientId(input.clientId)}`);
-    if (disposed || !record?.snapshot || record.revision !== input.revision || record.busy
-      || now() < record.at || now() - record.at >= 30_000
-      || now() - record.evidenceAt >= 30_000 || installationService.isScanning()) return { status: "stale" };
+    if (disposed || !record?.snapshot || record.revision !== input.revision || record.busy) return { status: "stale" };
     const route = setupRegistry.find(({ id }) => id === input.setupId);
     const entry = record.snapshot.entries.find(({ setupId }) => setupId === input.setupId);
     if (!route || !entry || !route.platforms.includes(platform)) throw new Error("Unavailable setup route.");
@@ -65,9 +59,11 @@ export function createLocalAgentSetupService({ installationService, presenceServ
     if (current?.results.some(({ agentId, status }) => agentId === route.installationId && status === "found")) {
       return { status: "detected" };
     }
-    if (input.mode === "recommendation" && !entry.recommended) return { status: "stale" };
-    if (input.mode === "recommendation" && presenceService.isCurrentRevision?.(record.presenceRevision) === false) return { status: "stale" };
-    if (current?.generation !== record.snapshot.installationGeneration) return { status: "stale" };
+    // Opening a fixed official guide is read-only. Session evidence does not expire
+    // on a wall clock; recommendations still require the same authoritative scan.
+    if (input.mode === "recommendation" && (!entry.recommended || installationService.isScanning()
+      || presenceService.isCurrentRevision?.(record.presenceRevision) === false
+      || current?.generation !== record.snapshot.installationGeneration)) return { status: "stale" };
     record.busy = true;
     try {
       await openExternal(route.guideUrl);
@@ -88,8 +84,8 @@ export function createLocalAgentSetupService({ installationService, presenceServ
 }
 
 function parseRequest(input) {
-  exactKeys(input, ["clientId", "surface", "eligibleInstallationIds", "hiddenAgentIds", "preferences", "refreshPresence"]);
-  if (!["chat", "terminal"].includes(input.surface) || typeof input.refreshPresence !== "boolean") throw new Error("Invalid setup context.");
+  exactKeys(input, ["clientId", "surface", "eligibleInstallationIds", "hiddenAgentIds", "preferences"]);
+  if (!["chat", "terminal"].includes(input.surface)) throw new Error("Invalid setup context.");
   const preferences = input.preferences;
   exactKeys(preferences, ["enabled", "dismissedSetupIds", "snoozedUntil"]);
   if (typeof preferences.enabled !== "boolean") throw new Error("Invalid setup preference.");

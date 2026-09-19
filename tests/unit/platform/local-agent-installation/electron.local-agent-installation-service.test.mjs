@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createLocalAgentInstallationService } from "../../../../electron/main/local-agent-installation/installation-service.mjs";
 import { defaultLocalAgentInstallationRegistry } from "../../../../electron/main/local-agent-installation/installation-registry.mjs";
 import { DESKTOP_TERMINAL_LAUNCHERS } from "../../../../src/features/desktop-terminal/model/terminalLaunchers.ts";
+import { assertLocalAgentInstallationSnapshot } from "../../../../shared/local-agent-installation/schema.mjs";
 
 describe("Local Agent installation service", () => {
   it("publishes fast results before slow siblings and replays them to late observers without rescanning", async () => {
@@ -84,6 +85,28 @@ describe("Local Agent installation service", () => {
     expect(JSON.stringify(result)).not.toContain("/private/tools");
     await service.discover();
     expect(resolveInstallation).toHaveBeenCalledTimes(8);
+  });
+
+  it("owns retained evidence across failures and removes it only after definitive absence", async () => {
+    let status = "found";
+    const service = createLocalAgentInstallationService({ createResolutionContext: async () => ({}),
+      resolveInstallation: async ({ id }) => ({ status: id === "codex" ? status : "not-found" }) });
+    expect(await service.discover()).toMatchObject({ availableAgentIds: ["codex"], retainedAgentIds: [] });
+    status = "failed";
+    for (let index = 0; index < 2; index++) {
+      const failed = await service.discover({ refresh: true });
+      expect(failed).toMatchObject({ availableAgentIds: [], retainedAgentIds: ["codex"] });
+      expect(failed.results[0].status).toBe("failed");
+      expect(await service.discover()).toMatchObject({ retainedAgentIds: ["codex"], source: "memory-cache" });
+      expect(Object.isFrozen(failed.retainedAgentIds)).toBe(true);
+      expect(() => assertLocalAgentInstallationSnapshot({ ...failed, retainedAgentIds: ["claude"] })).toThrow();
+      expect(() => assertLocalAgentInstallationSnapshot({ ...failed, retainedAgentIds: ["codex", "codex"] })).toThrow();
+    }
+    status = "not-found";
+    expect(await service.discover({ refresh: true })).toMatchObject({ availableAgentIds: [], retainedAgentIds: [] });
+    status = "failed";
+    expect(await service.discover({ refresh: true })).toMatchObject({ availableAgentIds: [], retainedAgentIds: [] });
+    service.dispose();
   });
 
   it("reuses the application-session snapshot regardless of age and only scans on explicit refresh", async () => {

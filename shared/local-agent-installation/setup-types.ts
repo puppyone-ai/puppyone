@@ -11,7 +11,6 @@ export type LocalAgentSetupRequest = {
   eligibleInstallationIds: readonly string[];
   hiddenAgentIds: readonly string[];
   preferences: LocalAgentSetupPreferences;
-  refreshPresence: boolean;
 };
 export type LocalAgentSetupEntry = {
   setupId: string;

@@ -21,6 +21,11 @@ const settle = () => evaluate("new Promise(resolve => requestAnimationFrame(() =
 const buttons = 'Array.from(document.querySelectorAll(".desktop-terminal-launcher-tool"))';
 const setState = state => evaluate(`window.__launcherDiscoverySmoke.setDiscovery(${JSON.stringify(state)})`).then(settle);
 async function capture(name) {
+  assert(await evaluate(`(() => {
+    const feedback = document.querySelector('.desktop-terminal-launcher-discovery');
+    const bundled = document.querySelector('.desktop-terminal-launcher-bundled');
+    return !feedback || feedback.getBoundingClientRect().bottom <= bundled.getBoundingClientRect().top;
+  })()`), name + ": local feedback must precede Built-in Agent");
   const bounds = await evaluate(`(() => {
     const panel = document.querySelector('.desktop-terminal-launcher');
     const rows = [...document.querySelectorAll('.desktop-terminal-launcher-tools > *')];

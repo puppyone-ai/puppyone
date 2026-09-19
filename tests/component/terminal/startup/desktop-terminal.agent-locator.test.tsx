@@ -8,6 +8,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { useLocalAgentInstallations } from "../../../../src/features/local-agents/controller/useLocalAgentInstallations";
 import { TerminalLauncher } from "../../../../src/features/desktop-terminal/ui/TerminalLauncher";
 import { withTestLocalization } from "../../../support/react/localization";
+import { LocalAgentInstallationStore } from "../../../../src/features/local-agents/application/LocalAgentInstallationStore";
+import { createLocalAgentInstallationService } from "../../../../electron/main/local-agent-installation/installation-service.mjs";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -23,6 +25,34 @@ afterEach(() => {
 });
 
 describe("shared Local Agent installation controller", () => {
+  it("shows identical failed-scan evidence in an existing window and a newly opened window", async () => {
+    let status = "found";
+    const listeners = new Set<(value: unknown) => void>();
+    const service = createLocalAgentInstallationService({ createResolutionContext: async () => ({}),
+      resolveInstallation: async ({ id }: { id: string }) => ({ status: id === "codex" ? status : "not-found" }),
+      publishSnapshot: (value: unknown) => { for (const listener of listeners) listener(value); },
+    });
+    const locate = vi.fn((request: { refresh?: boolean }) => service.discover(request));
+    installBridge(locate, { onLocalAgentInstallationsChanged(callback: (value: unknown) => void) {
+      listeners.add(callback); return () => listeners.delete(callback);
+    } });
+    const existing = new LocalAgentInstallationStore(); const newlyOpened = new LocalAgentInstallationStore();
+    try {
+      existing.ensureLoaded();
+      await vi.waitFor(() => expect(existing.getSnapshot().phase).toBe("ready"));
+      status = "failed"; await existing.refresh();
+      newlyOpened.ensureLoaded();
+      await vi.waitFor(() => expect(newlyOpened.getSnapshot().phase).toBe("ready"));
+      expect(existing.getSnapshot().ids).toEqual(["codex"]);
+      expect(newlyOpened.getSnapshot().ids).toEqual(existing.getSnapshot().ids);
+      expect(newlyOpened.getSnapshot().snapshot?.results[0].status).toBe("failed");
+      expect(service.getDiagnostics().scanCount).toBe(2);
+      status = "not-found"; await newlyOpened.refresh();
+      expect(existing.getSnapshot().ids).toEqual([]);
+      expect(newlyOpened.getSnapshot().ids).toEqual([]);
+    } finally { existing.dispose(); newlyOpened.dispose(); service.dispose(); }
+  });
+
   it("only shows discovery feedback for the initial scan and an explicit refresh, never a reopened launcher", async () => {
     vi.useFakeTimers();
     const first = deferred<unknown>(); const refreshed = deferred<unknown>();
@@ -185,6 +215,7 @@ describe("shared Local Agent installation controller", () => {
         ...snapshot([]),
         generation: 2,
         scanId: "local-agent-scan:2",
+        retainedAgentIds: ["codex"],
         results: [{
           agentId: "codex",
           displayName: "Codex",
@@ -297,7 +328,7 @@ describe("shared Local Agent installation controller", () => {
       completedAgentCount: 1, totalAgentCount: 8 }));
     expect(latest.current?.ids).toEqual(["codex", "claude", "hermes"]);
     await act(async () => {
-      second.resolve({ ...snapshot(["hermes"], 2), results: [
+      second.resolve({ ...snapshot(["hermes"], 2), retainedAgentIds: ["codex"], results: [
         { agentId: "codex", displayName: "Codex", status: "failed" },
         { agentId: "claude", displayName: "Claude", status: "not-found" }, installationResult("hermes"),
       ] });

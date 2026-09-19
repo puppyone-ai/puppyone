@@ -22,6 +22,12 @@ export function normalizeLocalAgentInstallationSnapshot(value: unknown): LocalAg
   }
   const results = normalizeResults(candidate.results);
   const availableAgentIds = normalizeAvailableLocalAgentIds(candidate.availableAgentIds);
+  const rawRetainedIds = candidate.retainedAgentIds === undefined ? [] : candidate.retainedAgentIds;
+  const retainedAgentIds = normalizeAvailableLocalAgentIds(rawRetainedIds);
+  const failed = new Set(results.filter(({ status }) => status === "failed").map(({ agentId }) => agentId));
+  if (retainedAgentIds.length !== (rawRetainedIds as unknown[]).length || retainedAgentIds.some((id) => !failed.has(id))) {
+    throw new Error("Invalid retained Local Agent installations.");
+  }
   const found = results.filter(({ status }) => status === "found").map(({ agentId }) => agentId);
   if (availableAgentIds.join("\0") !== found.join("\0")) {
     throw new Error("Invalid Local Agent installation availability.");
@@ -34,6 +40,7 @@ export function normalizeLocalAgentInstallationSnapshot(value: unknown): LocalAg
     completedAt: candidate.completedAt as string,
     source: candidate.source,
     availableAgentIds,
+    retainedAgentIds,
     results,
   };
 }

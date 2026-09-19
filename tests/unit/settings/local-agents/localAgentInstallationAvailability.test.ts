@@ -50,6 +50,16 @@ describe("Local Agent installation availability", () => {
       totalAgentCount: 6,
     })).toThrow(/progress/i);
   });
+
+  it("accepts Main's retained failed evidence without upgrading it to found", () => {
+    const failed = snapshot({ retainedAgentIds: ["codex"], results: [{ ...found("codex"), status: "failed" }] });
+    expect(normalizeLocalAgentInstallationSnapshot(failed)).toMatchObject({ availableAgentIds: [], retainedAgentIds: ["codex"] });
+    for (const retainedAgentIds of [["claude"], ["codex", "codex"], ["unknown"], null]) {
+      expect(() => normalizeLocalAgentInstallationSnapshot({ ...failed, retainedAgentIds })).toThrow();
+    }
+    expect(() => normalizeLocalAgentInstallationSnapshot(snapshot({ retainedAgentIds: ["codex"], availableAgentIds: ["codex"], results: [found("codex")] }))).toThrow();
+    expect(normalizeLocalAgentInstallationSnapshot(snapshot()).retainedAgentIds).toEqual([]);
+  });
 });
 
 function snapshot(overrides: Record<string, unknown> = {}) {

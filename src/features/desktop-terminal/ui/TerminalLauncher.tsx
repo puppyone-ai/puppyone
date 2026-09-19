@@ -87,6 +87,7 @@ export function TerminalLauncher({
 }: TerminalLauncherProps) {
   const { t } = useLocalization();
   const toolsRef = useRef<HTMLDivElement>(null);
+  const bundledToolsRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const [localState] = useState(() => new WorkbenchLauncherState());
   const state = ownedState ?? localState;
@@ -108,7 +109,7 @@ export function TerminalLauncher({
     : discoveryFailed ? "terminal.launcher.detectionIncomplete"
       : discoveryEmpty ? "terminal.launcher.noneInstalled" : "terminal.launcher.detectionComplete";
   const agentRows = agentMode === "chat"
-    ? chatRecipes.map((recipe) => <DiscoveryAgentRow key={recipe.id} animate={feedbackVisible && recipe.availability !== "bundled"}>
+    ? chatRecipes.filter((recipe) => recipe.availability !== "bundled").map((recipe) => <DiscoveryAgentRow key={recipe.id} animate={feedbackVisible}>
         <ChatRecipeButton
           creationAvailable={Boolean(onCreateChat && chatCreationAvailable && !busy)}
           recipe={recipe}
@@ -118,6 +119,11 @@ export function TerminalLauncher({
     : terminalAgentLaunchers.map((launcher) => <DiscoveryAgentRow key={launcher.id} animate={feedbackVisible}>
         <TerminalAgentButton launcher={launcher} launchAvailable={terminalEnabled && !busy} onLaunch={onLaunch} />
       </DiscoveryAgentRow>);
+  const bundledRows = agentMode === "chat"
+    ? chatRecipes.filter((recipe) => recipe.availability === "bundled").map((recipe) =>
+      <DiscoveryAgentRow key={recipe.id} animate={false}>
+        <ChatRecipeButton creationAvailable={Boolean(onCreateChat && chatCreationAvailable && !busy)} recipe={recipe} onCreate={onCreateChat} />
+      </DiscoveryAgentRow>) : [];
 
   if (historyOpen && history && onRestoreHistoryTarget) {
     return (
@@ -193,9 +199,14 @@ export function TerminalLauncher({
               failed={discoveryFailed} empty={discoveryEmpty} busy={busy} />}
 
           {agentSetup?.(() => {
-            const target = toolsRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)");
+            const target = toolsRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")
+              ?? bundledToolsRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)");
             (target ?? titleRef.current)?.focus();
           })}
+
+          <div ref={bundledToolsRef} className="desktop-terminal-launcher-tools desktop-terminal-launcher-bundled" role="list">
+            {bundledRows}
+          </div>
 
           {terminalEnabled && (
             <>

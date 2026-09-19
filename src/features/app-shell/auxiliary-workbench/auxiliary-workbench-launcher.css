@@ -133,6 +133,8 @@
   min-width: 0;
 }
 
+.desktop-terminal-launcher-tools:empty { display: none; }
+
 .desktop-terminal-launcher-availability {
   position: absolute;
   width: 1px;

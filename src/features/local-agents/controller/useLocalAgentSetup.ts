@@ -20,7 +20,6 @@ export function useLocalAgentSetup({ enabled, surface, eligibleInstallationIds, 
   const scanning = discovery.phase === "idle" || discovery.phase === "loading";
   const request: LocalAgentSetupRequest = {
     clientId, surface, eligibleInstallationIds, hiddenAgentIds, preferences,
-    refreshPresence: scanning,
   };
   const requestJson = JSON.stringify(request);
   // Idle→loading and cumulative broadcasts belong to the same scan. Only its

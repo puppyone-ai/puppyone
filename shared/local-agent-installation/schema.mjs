@@ -31,6 +31,11 @@ export function assertLocalAgentInstallationSnapshot(value) {
   }
   const results = assertResults(value.results);
   const availableAgentIds = assertAvailableIds(value.availableAgentIds);
+  const retainedAgentIds = assertAvailableIds(value.retainedAgentIds === undefined ? [] : value.retainedAgentIds);
+  const failed = new Set(results.filter(({ status }) => status === "failed").map(({ agentId }) => agentId));
+  if (retainedAgentIds.some((id) => !failed.has(id))) {
+    throw new TypeError("Retained Local Agent installations must have failed observations.");
+  }
   const found = results.filter(({ status }) => status === "found").map(({ agentId }) => agentId);
   if (availableAgentIds.join("\0") !== found.join("\0")) {
     throw new TypeError("Local Agent installation availability does not match its results.");
@@ -43,6 +48,7 @@ export function assertLocalAgentInstallationSnapshot(value) {
     completedAt: value.completedAt,
     source: value.source,
     availableAgentIds,
+    retainedAgentIds,
     results,
   });
 }

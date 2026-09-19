@@ -222,6 +222,9 @@ describe("Unified Workbench launcher", () => {
     expect(container.querySelector(".desktop-terminal-launcher-availability")?.textContent)
       .toContain("Checking local agents");
     expect(container.querySelector(".desktop-terminal-launcher-discovery")?.closest("[role=list]")).toBeNull();
+    expect(container.querySelector(".desktop-terminal-launcher-discovery")!.compareDocumentPosition(builtIn!))
+      .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(builtIn?.closest("[aria-busy]")).toBeNull();
     expect(container.querySelector(".desktop-terminal-launcher-discovery-count")).toBeNull();
     expect(container.querySelector(".desktop-terminal-launcher-discovery .terminal-activity-grid")).toBeNull();
     const announcement = container.querySelector("[role=status]")?.textContent;
@@ -234,7 +237,7 @@ describe("Unified Workbench launcher", () => {
     expect(document.activeElement).toBe(codexButton);
     expect(container.querySelector("[role=status]")?.textContent).toBe(announcement);
     expect(Array.from(tools?.children ?? [], row => row.textContent)).toEqual([
-      "Claude Code", "Codex", "Built-in Agent",
+      "Claude Code", "Codex",
     ]);
     expect(findButton(container, "Built-in Agent")).toBe(builtIn);
     act(() => root?.render(render("ready", ["codex", "claude"])));
@@ -280,6 +283,16 @@ describe("Unified Workbench launcher", () => {
     expect(container.querySelector(".desktop-terminal-launcher-discovery")?.textContent).toBe("No Agent CLIs found");
     act(() => root?.render(withTestLocalization(<TerminalLauncher {...props} discoveryPhase="error" />)));
     expect(container.querySelector(".desktop-terminal-launcher-discovery")?.textContent).toContain("Scan again");
+  });
+
+  it.each([false, true])("keeps local feedback and setup above bundled Agents with failed=%s", (failed) => {
+    const container = renderLauncher(<TerminalLauncher agentMode="chat" discoveryPhase="ready"
+      availableAgentIds={[]} discoveryHasFailures={failed} chatRecipes={[BUILT_IN_AGENT_CREATION_RECIPE]}
+      agentSetup={() => <div data-setup>Local setup</div>} onCreateChat={vi.fn()} onLaunch={vi.fn()} onRefresh={vi.fn()} />);
+    const bundled = findButton(container, "Built-in Agent")!;
+    for (const selector of [".desktop-terminal-launcher-discovery", "[data-setup]"]) {
+      expect(container.querySelector(selector)!.compareDocumentPosition(bundled)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    }
   });
 
   it("starts feedback only when presented and retires entry motion before hidden tabs can replay it", () => {

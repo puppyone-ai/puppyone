@@ -38,6 +38,7 @@ async function click(label) {
   await settle();
 }
 async function capture(name) {
+  assert(await evaluate("document.querySelector('.local-agent-setup').getBoundingClientRect().bottom <= document.querySelector('.desktop-terminal-launcher-bundled').getBoundingClientRect().top"), "Local setup must precede Built-in Agent");
   const metrics = await evaluate(`(() => {
     const panel = document.querySelector('.desktop-terminal-launcher');
     const setup = document.querySelector('.local-agent-setup');
@@ -60,7 +61,7 @@ async function run() {
     { theme: "dark", width: 280, height: 500, rtl: false },
     { theme: "light", width: 280, height: 500, rtl: true },
   ]) {
-    current = { generation: 1, results: [{ agentId: "codex", status: "not-found" }, { agentId: "cursor", status: "not-found" }] };
+    current = { generation: 1, completedAt: new Date(Date.now() - 86_400_000).toISOString(), results: [{ agentId: "codex", status: "not-found" }, { agentId: "cursor", status: "not-found" }] };
     window = new BrowserWindow({ show: true, width: variant.width + 100, height: variant.height,
       webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false,
         preload: path.join(repo, "tests/fixtures/platform/local-agent-setup/preload.cjs") } });
