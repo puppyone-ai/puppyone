@@ -31,7 +31,9 @@ describe("DataWorkspace Markdown environment", () => {
     const folder: DataNode = { id: "notes", path: "notes", name: "notes", type: "folder", source: "local" };
     const file: DataNode = { id: "notes/open.md", path: "notes/open.md", name: "open.md", type: "markdown", source: "local" };
     const children = [file, { ...file, id: "notes/other.md", path: "notes/other.md", name: "other.md" }];
-    const dataPort: DataPort = { listChildren: vi.fn(async (path) => path === "notes" ? children : [folder]) };
+    let resolveChildren!: (nodes: DataNode[]) => void;
+    const childRequest = new Promise<DataNode[]>((resolve) => { resolveChildren = resolve; });
+    const dataPort: DataPort = { listChildren: vi.fn(async (path) => path === "notes" ? childRequest : [folder]) };
     const source = "| Name | Value |\n| --- | --- |\n| one | unchanged<br />value |\n\nParagraph **below** the table.";
     let latestState: DataWorkspaceState | null = null;
     const container = document.createElement("div");
@@ -64,6 +66,10 @@ describe("DataWorkspace Markdown environment", () => {
     const row = container.querySelector<HTMLElement>('[data-explorer-path="notes"]')!;
     expect(row).not.toBeNull();
     await act(async () => row.click());
+    expect(latestState!.markdownEnvironment.linkGraph).toBe(initialGraph);
+    expect(container.querySelector(".cm-md-table-widget")).toBe(table);
+    expect(view.state.doc.toString()).toBe(source);
+    await act(async () => resolveChildren(children));
     await waitForCondition(() => latestState!.tree[0]?.children?.length === 2);
     await waitForCondition(() => view.state.facet(markdownLinkGraphFacet) === latestState!.markdownEnvironment.linkGraph);
     expect(latestState!.markdownEnvironment.linkGraph).not.toBe(initialGraph);

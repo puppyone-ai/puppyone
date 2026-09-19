@@ -48,7 +48,7 @@ const fixture = {
   refreshLinks() { revision += 1; view.dispatch({ effects: context.reconfigure(makeContext()) }); },
   snapshot() {
     const selection = view.state.selection.main;
-    return { anchor: selection.anchor, head: selection.head, text: view.state.sliceDoc(selection.from, selection.to), scrollTop: view.scrollDOM.scrollTop, selecting: view.state.field(markdownPointerSelectionField), reveal: view.state.field(markdownLivePreviewDecorations).revealRange };
+    return { anchor: selection.anchor, head: selection.head, text: view.state.sliceDoc(selection.from, selection.to), scrollTop: view.scrollDOM.scrollTop, selecting: view.state.field(markdownPointerSelectionField), reveal: view.state.field(markdownLivePreviewDecorations).revealRange, hasFocus: view.hasFocus, sourceUnchanged: view.state.doc.toString() === source };
   },
 };
 document.querySelector("#folder")!.addEventListener("click", () => fixture.refreshLinks());

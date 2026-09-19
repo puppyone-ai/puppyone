@@ -9,10 +9,13 @@ import { app, BrowserWindow } from "electron";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../../..");
 const tempRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "puppyone-md-selection-"));
 app.setPath("userData", path.join(tempRoot, "profile"));
+// Destroying the last window must not quit with Electron's default success
+// code before async cleanup finishes and we publish the assertion exit code.
+app.on("window-all-closed", () => {});
 let owner;
 let vite;
 let focusLease;
-const report = { cases: [], sidebar: null, interactions: null };
+const report = { cases: [], sidebar: null, interactions: null, ignoredKeyboardEvents: 0, focusChanges: [], error: null };
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const evaluate = (body) => owner.webContents.executeJavaScript(`(async () => { const f = window.markdownSelectionFixture; ${body} })()`, true);
 async function point(pos) {
@@ -28,8 +31,17 @@ async function run() {
   vite = await createServer({ root: repoRoot, logLevel: "error", server: { host: "127.0.0.1", port: 0, strictPort: false } });
   await vite.listen();
   owner = new BrowserWindow({ show: false, width: 850, height: 760, webPreferences: { backgroundThrottling: false, contextIsolation: true, nodeIntegration: false, sandbox: true } });
+  // This fixture injects mouse input only. Do not let physical keyboard
+  // input edit the synthetic source while its transparent window owns focus.
+  owner.webContents.on("before-input-event", (event) => {
+    report.ignoredKeyboardEvents += 1;
+    event.preventDefault();
+  });
+  owner.on("focus", () => report.focusChanges.push({ focused: true, at: Date.now() }));
+  owner.on("blur", () => report.focusChanges.push({ focused: false, at: Date.now() }));
   owner.webContents.on("console-message", (details) => { if (details.level === "error") console.error(details.message); });
   await owner.loadURL(`http://127.0.0.1:${vite.httpServer.address().port}/tests/fixtures/editor/formats/markdown/selection-stability.html`);
+  if (process.argv.includes("--self-test-failure")) assert.fail("Intentional runner exit-code verification");
   owner.setOpacity(0);
   // Exercise Chromium input without accepting unrelated physical pointer
   // movement from the user's desktop through the transparent fixture window.
@@ -76,6 +88,10 @@ async function run() {
     cases.push({ name, expected: { anchor, head }, before, down, move, after });
   }
   for (const sample of cases) {
+    for (const [phase, snapshot] of Object.entries({ before: sample.before, down: sample.down, move: sample.move, after: sample.after })) {
+      assert.ok(snapshot.sourceUnchanged, `${sample.name}: source changed during ${phase}`);
+      assert.ok(snapshot.hasFocus, `${sample.name}: fixture lost focus during ${phase}`);
+    }
     assert.equal(sample.move.anchor, sample.expected.anchor, `${sample.name}: moving anchor`);
     assert.equal(sample.move.head, sample.expected.head, `${sample.name}: moving head`);
     assert.equal(sample.after.anchor, sample.expected.anchor, `${sample.name}: anchor`);
@@ -136,7 +152,11 @@ async function run() {
   assert.ok(sidebar.samples.every((top) => Math.abs(top - sidebar.baseline) < 0.75), "paragraph geometry remains stable across folder loads");
   console.log(JSON.stringify({ ok: true, selections: cases.map(({ name, after }) => ({ name, anchor: after.anchor, head: after.head })), sidebar, interactions: report.interactions }, null, 2));
 }
-app.whenReady().then(run).then(() => finish(0), (error) => { console.error(error); return finish(1); });
+app.whenReady().then(run).then(() => finish(0), (error) => {
+  report.error = error instanceof Error ? error.stack : String(error);
+  console.error(error);
+  return finish(1);
+}).catch((error) => { console.error(error); app.exit(1); });
 async function finish(code) {
   clearInterval(focusLease);
   const reportDir = process.env.PUPPYONE_MARKDOWN_SELECTION_ARTIFACT_DIR
@@ -147,5 +167,5 @@ async function finish(code) {
   owner?.destroy();
   await vite?.close();
   await fsp.rm(tempRoot, { recursive: true, force: true });
-  process.exit(code);
+  app.exit(code);
 }
