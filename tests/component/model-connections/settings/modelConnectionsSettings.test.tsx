@@ -39,11 +39,24 @@ it("allows logged-out discovery without saving or running a model, then reuses t
 it("uses a password field for Key input and clears it when the editor closes", async () => {
   const { store } = fixture(); await render(store);
   act(() => button("Add connection").click());
-  const auth = document.querySelectorAll("select")[1];
+  const auth = document.querySelector('select[id$="-auth"]') as HTMLSelectElement;
   act(() => { auth.value = "bearer"; auth.dispatchEvent(new Event("change", { bubbles: true })); });
   const input = document.querySelector('input[type="password"]') as HTMLInputElement;
   expect(input.autocomplete).toBe("off");
   act(() => button("Cancel").click());
   expect(document.querySelector('input[type="password"]')).toBeNull();
   expect(JSON.stringify(store.getSnapshot())).not.toContain("apiKey");
+});
+it("starts an API connection with URL and write-only Key, without local discovery", async () => {
+  const { client, store } = fixture();
+  const container = document.createElement("div"); document.body.append(container); root = createRoot(container);
+  await act(async () => root?.render(withTestLocalization(<ModelConnectionsSettings embedded sourceKind="api" store={store} />)));
+  expect(document.body.textContent).not.toContain("Find local services");
+  act(() => button("Add connection").click());
+  expect((document.querySelector('select[id$="-driver"]') as HTMLSelectElement).value).toBe("openai-compatible");
+  expect((document.querySelector('input[type="url"]') as HTMLInputElement).value).toBe("");
+  expect(document.querySelector('input[type="password"]')).not.toBeNull();
+  await act(async () => document.querySelector("form")?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+  expect(client.save).toHaveBeenCalledWith(expect.objectContaining({ sourceKind: "api", auth: "bearer", driver: "openai-compatible" }));
+  expect(client.discover).not.toHaveBeenCalled();
 });

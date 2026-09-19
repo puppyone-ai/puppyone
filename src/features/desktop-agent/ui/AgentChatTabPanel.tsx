@@ -15,7 +15,7 @@ import { AgentComposer, DEFAULT_AGENT_COMPOSER_PLACEHOLDER_ID } from "./AgentCom
 import { AgentEmptyState } from "./AgentEmptyState";
 import { AgentPanelLayout } from "./AgentPanelLayout";
 import { AgentPanelStatus } from "./AgentPanelStatus";
-import { AgentModelConnections } from "./AgentModelConnections";
+import { BuiltInAgentCompute } from "./built-in-agent/BuiltInAgentCompute";
 import type { AgentSessionControlId } from "../domain/agent-session-controls";
 import { AgentQuestionDock } from "./AgentQuestionDock";
 import { AgentRecoverySurface } from "./AgentRecoverySurface";
@@ -67,6 +67,8 @@ export function AgentChatTabPanel({
   const { t } = useLocalization();
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
   const [pendingConnectionModel, setPendingConnectionModel] = useState<string | null>(null);
+  const [computeReady, setComputeReady] = useState(false);
+  const [computeReset, setComputeReset] = useState(0);
   const selectedModelCapabilities = state.inspection?.models.find((model) => model.model === state.selectedModel)?.modelCapabilities;
   const referenceCapabilities = useMemo(() => {
     const base = state.inspection?.capabilities?.referenceInputs;
@@ -116,7 +118,7 @@ export function AgentChatTabPanel({
     selectedModel: state.selectedModel,
   }), [inspection, state.selectedEffort, state.selectedMode, state.selectedModel]);
   const modelSelectionAvailable = Boolean(capabilities?.modelSelection);
-  const routingReady = Boolean(agentRuntimeSelected && (!modelSelectionAvailable || (
+  const routingReady = Boolean(agentRuntimeSelected && !pendingConnectionModel && (!capabilities?.modelConnections || computeReady) && (!modelSelectionAvailable || (
     state.selectedModel && runtimeModels.some((model) => model.model === state.selectedModel)
   )) && routingPreferences.preferencesReady);
   const preparingSession = state.sessionPreparation === "preparing";
@@ -218,7 +220,9 @@ export function AgentChatTabPanel({
       onViewportChange={handleViewportChange} onOpenFile={onOpenFile}
     />}
     dock={startupLoading ? null : <>
-      {capabilities?.modelConnections && <AgentModelConnections disabled={submissionPending || Boolean(state.projection.runningTurnId)} onClose={() => void controller.refreshModelConnections()} />}
+      {capabilities?.modelConnections && <BuiltInAgentCompute key={`${state.selectedRuntimeId}:${state.selectedModel}:${computeReset}`}
+        models={runtimeModels} selectedModel={state.selectedModel} disabled={loading || submissionPending || Boolean(state.projection.runningTurnId)}
+        onSelectModel={(model) => selectSessionControl("model", model)} onCatalogChange={() => void controller.refreshModelConnections()} onReadyChange={setComputeReady} />}
       {capabilities?.readOnly && <p role="status">{t("settings.modelConnections.readOnly")}</p>}
       {pendingConnectionModel && <div role="alertdialog" aria-label={t("settings.modelConnections.newConversation")}>
         <p>{t("settings.modelConnections.switchWarning")}</p>
@@ -226,7 +230,7 @@ export function AgentChatTabPanel({
           const model = pendingConnectionModel; setPendingConnectionModel(null);
           void controller.startNewModelConnection(model);
         }}>{t("settings.modelConnections.newConversation")}</button>
-        <button type="button" onClick={() => setPendingConnectionModel(null)}>{t("common.action.cancel")}</button>
+        <button type="button" onClick={() => { setPendingConnectionModel(null); setComputeReset((value) => value + 1); }}>{t("common.action.cancel")}</button>
       </div>}
       {state.projection.approvals[0] && <AgentApprovalDock
         key={state.projection.approvals[0].requestId}
@@ -256,7 +260,7 @@ export function AgentChatTabPanel({
         running={Boolean(state.projection.runningTurnId)} stopping={state.stopping} submitting={submissionPending}
         placeholder={composerPlaceholder} runtimeLabel={runtimeLabel}
         configurationDisabled={loading || submissionPending}
-        sessionControls={sessionControls}
+        sessionControls={capabilities?.modelConnections ? sessionControls.filter((control) => control.id !== "model") : sessionControls}
         onSelectSessionControl={selectSessionControl}
         commands={capabilities?.slashCommands ? inspection?.commands ?? [] : []}
         references={state.references} getReferencePreviewUrl={controller.getReferencePreviewUrl}

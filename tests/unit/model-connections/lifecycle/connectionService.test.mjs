@@ -18,6 +18,13 @@ function fixture(overrides = {}) {
 }
 
 describe("model connection contracts", () => {
+  it("migrates legacy categories and preserves explicit intent independently of transport", () => {
+    expect(parseConnectionCommand("save", input).sourceKind).toBe("local");
+    expect(parseConnectionCommand("save", { ...input, baseUrl: "https://example.com" }).sourceKind).toBe("api");
+    expect(parseConnectionCommand("save", { ...input, sourceKind: "api" }).sourceKind).toBe("api");
+    expect(parseConnectionCommand("save", { ...input, sourceKind: "local", baseUrl: "https://example.com" }).sourceKind).toBe("local");
+    expect(() => parseConnectionCommand("save", { ...input, sourceKind: "managed" })).toThrow();
+  });
   it("canonicalizes loopback and reverse-proxy prefixes without duplicate v1", () => {
     expect(normalizeModelBaseUrl("http://localhost:1234/v1/")).toBe("http://127.0.0.1:1234/v1");
     expect(normalizeModelBaseUrl("https://example.com/proxy/v1")).toBe("https://example.com/proxy/v1");
@@ -34,6 +41,29 @@ describe("model connection contracts", () => {
 });
 
 describe("model connection lifecycle", () => {
+  it("loads a pre-category configuration without changing its route or security generation", async () => {
+    const { service, saved, store, credentials, request, verifyModel } = fixture();
+    const connection = (await service.save(input)).connections[0];
+    delete saved()[0].sourceKind;
+    const restarted = createModelConnectionService({ store, credentials, request, verifyModel, drivers: [openaiCompatibleDriver] });
+    expect((await restarted.read()).connections[0]).toMatchObject({ id: connection.id, sourceKind: "local", configGeneration: 1 });
+    expect(saved()[0].securityGeneration).toBe(1);
+    expect(store.write).toHaveBeenCalledOnce();
+    await restarted.dispose(); await service.dispose();
+  });
+  it("persists source intent without changing endpoint authority or revoking a live session", async () => {
+    const { service, saved } = fixture();
+    const connection = (await service.save({ ...input, sourceKind: "local" })).connections[0];
+    await service.verify({ id: connection.id, expectedGeneration: 1, modelId: "test/model" });
+    const route = modelRoute(connection.id, "test/model"); const onRevoke = vi.fn();
+    const lease = await service.acquire({ route, scope: "category", onRevoke });
+    const updated = await service.save({ ...input, id: connection.id, expectedGeneration: 1, sourceKind: "api" });
+    expect(updated.connections[0]).toMatchObject({ sourceKind: "api", transport: "loopback", executionLocation: "unknown" });
+    expect(saved()[0]).toMatchObject({ sourceKind: "api", securityGeneration: 1 });
+    service.validate({ leaseId: lease.leaseId, scope: "category", route });
+    expect(onRevoke).not.toHaveBeenCalled();
+    await service.dispose();
+  });
   it("requires the persisted history security revision before issuing a resume credential", async () => {
     const { service } = fixture();
     const connection = (await service.save(input)).connections[0];

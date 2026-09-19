@@ -83,6 +83,7 @@
     "smoke:item-utilities": "electron tests/integration/workbench/item-hosts/item-utility-isolation.smoke.mjs",
     "smoke:model-connections": "electron tests/integration/model-connections/runtime/model-connections.smoke.mjs",
     "smoke:model-connections-settings": "electron tests/e2e/model-connections/settings/model-connections-settings.smoke.mjs",
+    "smoke:built-in-compute": "electron tests/e2e/model-connections/settings/model-connections-settings.smoke.mjs --compute",
     "smoke:auxiliary-appearance": "electron tests/integration/workbench/layout/auxiliary-appearance.smoke.mjs",
     "smoke:agent-discovery-feedback": "electron tests/integration/terminal/startup/agent-discovery-feedback.smoke.mjs",
     "smoke:agent-references": "electron tests/integration/agent/references/agent-reference-ingestion.smoke.mjs",
