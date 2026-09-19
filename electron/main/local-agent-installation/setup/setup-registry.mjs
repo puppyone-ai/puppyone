@@ -16,16 +16,16 @@ const routes = [
   ["cursor", "cursor", "external-cli", "https://cursor.com/docs/cli/installation", ["darwin", "linux"]],
   ["opencode", "opencode-native", "external-cli", "https://opencode.ai/docs", ["darwin", "linux", "win32"]],
   ["pi", "pi", "external-cli", "https://github.com/earendil-works/pi/tree/main/packages/coding-agent", ["darwin", "linux", "win32"]],
-  ["workbuddy-china", "workbuddy-china", "app-bundled-runtime", "https://www.codebuddy.cn/docs/workbuddy/FirstTask", ["darwin"]],
-  ["workbuddy-international", "workbuddy-international", "app-bundled-runtime", "https://www.codebuddy.ai/docs/workbuddy", ["darwin"]],
+  ["workbuddy-china", "workbuddy-china", "app-bundled-runtime", "https://www.codebuddy.cn/docs/workbuddy/FirstTask", ["darwin"], null],
+  ["workbuddy-international", "workbuddy-international", "app-bundled-runtime", "https://www.codebuddy.ai/docs/workbuddy", ["darwin"], null],
   ["hermes", "hermes", "companion-managed-runtime", "https://github.com/NousResearch/hermes-agent/blob/main/apps/desktop/README.md", ["darwin", "linux"]],
 ];
 
-export const setupRegistry = Object.freeze(routes.map(([id, runtimeId, strategy, guideUrl, platforms]) => {
+export const setupRegistry = Object.freeze(routes.map(([id, runtimeId, strategy, guideUrl, platforms, terminalRecipeId = id]) => {
   const installation = defaultLocalAgentInstallationRegistry.find((entry) => entry.id === id);
   if (!installation || new URL(guideUrl).protocol !== "https:") throw new Error("Invalid local Agent setup route.");
   return Object.freeze({
-    id, installationId: id, runtimeId, terminalRecipeId: id,
+    id, installationId: id, runtimeId, terminalRecipeId,
     displayName: installation.displayName, strategy, guideUrl,
     platforms: Object.freeze(platforms), reviewedAt: "2026-09-19",
     companionId: companionIdentities.some((entry) => entry.id === id) ? id : null,

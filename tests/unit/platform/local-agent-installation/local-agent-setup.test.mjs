@@ -5,6 +5,8 @@ import { setupRegistry, companionIdentities } from "../../../../electron/main/lo
 import { createLocalAgentInstallationService } from "../../../../electron/main/local-agent-installation/installation-service.mjs";
 import { adviseSetup } from "../../../../electron/main/local-agent-installation/setup/setup-advisor.mjs";
 import { normalizeSetupPreferences } from "../../../../src/features/local-agents/model/localAgentSetupPreferences";
+import { DESKTOP_TERMINAL_LAUNCHERS } from "../../../../src/features/desktop-terminal/model/terminalLaunchers";
+import { AGENT_CHAT_CREATION_RECIPES } from "../../../../src/features/app-shell/auxiliary-workbench/agentChatCreationRecipes";
 
 const preferences = { enabled: true, dismissedSetupIds: [], snoozedUntil: {} };
 const request = { clientId: "test:1", surface: "chat", eligibleInstallationIds: setupRegistry.map(({ id }) => id), hiddenAgentIds: [], preferences, refreshPresence: false };
@@ -23,6 +25,17 @@ function harness() {
 }
 
 describe("setup advisor and trusted guide broker", () => {
+  it("keeps trusted target recipes aligned and rejects Chat-only routes on Terminal even when requested", async () => {
+    expect(setupRegistry.map(({ runtimeId }) => runtimeId).sort())
+      .toEqual(AGENT_CHAT_CREATION_RECIPES.filter(({ availability }) => availability !== "bundled").map(({ id }) => id).sort());
+    expect(setupRegistry.flatMap(({ terminalRecipeId }) => terminalRecipeId ? [terminalRecipeId] : []).sort())
+      .toEqual(DESKTOP_TERMINAL_LAUNCHERS.filter(({ id }) => id !== "shell").map(({ id }) => id).sort());
+    const h = harness();
+    const inspected = await h.service.inspect(1, { ...request, surface: "terminal" });
+    expect(inspected.entries.some(({ setupId }) => setupId.startsWith("workbuddy-"))).toBe(false);
+    await expect(h.service.act(1, { clientId: request.clientId, revision: inspected.revision, setupId: "workbuddy-china", actionId: "open-guide", mode: "manual" })).rejects.toThrow("Unavailable");
+    expect(h.openExternal).not.toHaveBeenCalled();
+  });
   it("recommends companion-backed missing CLIs only; catalog is independent from readiness", async () => {
     const h = harness();
     const result = await h.service.inspect(1, request);

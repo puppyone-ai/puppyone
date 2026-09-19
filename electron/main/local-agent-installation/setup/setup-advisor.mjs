@@ -3,6 +3,7 @@ export function adviseSetup({ registry, platform, request, installations, compan
   const environmentHealthy = !installations.results.some(({ reasonCode }) =>
     reasonCode === "environment-unavailable" || reasonCode === "context-error");
   return registry.filter((route) => route.platforms.includes(platform)
+    && (request.surface === "chat" ? Boolean(route.runtimeId) : Boolean(route.terminalRecipeId))
     && request.eligibleInstallationIds.includes(route.installationId)).map((route) => {
     const observed = installations.results.find(({ agentId }) => agentId === route.installationId);
     const status = observed?.status === "found" ? "found"
