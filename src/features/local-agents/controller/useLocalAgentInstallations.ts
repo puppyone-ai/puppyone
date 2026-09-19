@@ -7,6 +7,7 @@ let sharedBridge: Window["puppyoneDesktop"] | undefined;
 function getSharedStore() {
   const bridge = window.puppyoneDesktop;
   if (!sharedStore || sharedBridge !== bridge) {
+    sharedStore?.dispose();
     sharedBridge = bridge;
     sharedStore = new LocalAgentInstallationStore();
   }
@@ -16,7 +17,7 @@ function getSharedStore() {
 export function useLocalAgentInstallations({ enabled }: { enabled: boolean }) {
   const store = useMemo(getSharedStore, []);
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
-  useEffect(() => enabled ? store.activate() : undefined, [enabled, store]);
+  useEffect(() => { if (enabled) store.ensureLoaded(); }, [enabled, store]);
   return {
     ...snapshot,
     refresh: store.refresh,

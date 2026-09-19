@@ -99,7 +99,6 @@ export function LocalAgentSetupSection({ enabled, surface, eligibleInstallationI
       const status = await setup.openGuide(selected.setupId, selectedMode);
       if (generation === actionGeneration.current) {
         setActionStatus(status);
-        if (status === "stale" || status === "detected") onRefresh();
       }
     } catch { if (generation === actionGeneration.current) setActionStatus("failed"); }
     finally { if (generation === actionGeneration.current) setActing(false); }
@@ -153,14 +152,14 @@ export function LocalAgentSetupSection({ enabled, surface, eligibleInstallationI
               : selected.strategy === "companion-managed-runtime" ? "settings.agentSetup.managed" : "settings.agentSetup.install",
       { agent: selected?.displayName ?? selectedId })}</p>
       {selected?.installationId === "claude" && surface === "chat" && <p>{t("settings.agentSetup.claude")}</p>}
-      <p>{t("settings.agentSetup.return")}</p>
+      <p>{t("settings.agentSetup.return", { scan: t("settings.localAgents.scan") })}</p>
       <div className="local-agent-setup-actions">
         <button type="button" className="local-agent-setup-primary" aria-disabled={busy || setup.error || !guidanceAvailable || selected?.status === "found"}
           onClick={() => { if (!setup.error) void openGuide(); }}>{t("settings.agentSetup.guide")}</button>
         <button type="button" disabled={busy} onClick={() => { setActionStatus(null); onRefresh(); }}>{t("settings.localAgents.scan")}</button>
         <button type="button" onClick={close}>{t("common.action.close")}</button>
       </div>
-      <p role="status">{actionStatus ? t(`settings.agentSetup.${actionStatus}`) : ""}</p>
+      <p role="status">{actionStatus ? t(`settings.agentSetup.${actionStatus}`, { scan: t("settings.localAgents.scan") }) : ""}</p>
     </div>}
   </section>;
 }

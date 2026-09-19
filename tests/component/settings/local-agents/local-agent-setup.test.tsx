@@ -6,7 +6,7 @@ import { TestLocalizationProvider } from "@puppyone/localization/testing";
 import { mergeCatalogNamespaces } from "@puppyone/localization/core";
 import { LocalAgentSetupSection } from "../../../../src/features/local-agents/ui/LocalAgentSetupSection";
 import { installDesktopBridge } from "../../../support/electron/desktopBridge";
-import type { LocalAgentSetupSnapshot, LocalAgentSetupRequest } from "../../../../shared/local-agent-installation/setup-types";
+import type { LocalAgentSetupSnapshot, LocalAgentSetupRequest, LocalAgentSetupActionResult } from "../../../../shared/local-agent-installation/setup-types";
 import type { LocalAgentInstallationSnapshot } from "../../../../shared/local-agent-installation/types";
 import settings from "../../../../locales/renderer/en/settings.json";
 import common from "../../../../locales/renderer/en/common.json";
@@ -36,7 +36,7 @@ async function click(label: string) { await act(async () => { button(label).clic
 async function mount() {
   let response = setupSnapshot();
   const inspect = vi.fn(async (_request: LocalAgentSetupRequest) => response);
-  const action = vi.fn(async () => ({ status: "guide-opened" as const }));
+  const action = vi.fn(async (): Promise<LocalAgentSetupActionResult> => ({ status: "guide-opened" }));
   const release = vi.fn(async () => {});
   const onPreferencesChange = vi.fn(); const onRefresh = vi.fn();
   const launcherButton = document.createElement("button");
@@ -58,6 +58,15 @@ async function mount() {
 }
 
 describe("Local Agent activation guidance", () => {
+  it("asks for an explicit scan after stale guidance instead of silently rescanning", async () => {
+    const h = await mount();
+    h.action.mockResolvedValueOnce({ status: "stale" });
+    await click("Activate Codex"); await click("Open official setup guide");
+    expect(h.onRefresh).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain("Installation information changed");
+    await click("Scan"); expect(h.onRefresh).toHaveBeenCalledOnce();
+  });
+
   it("shows one stable recommendation, explains activation and only opens a trusted guide", async () => {
     const h = await mount();
     expect(document.querySelectorAll(".local-agent-setup-card")).toHaveLength(1);
