@@ -125,6 +125,7 @@ async function runSmoke() {
               importLineHeight: getComputedStyle(importLabel).lineHeight,
               importFamily: getComputedStyle(importLabel).fontFamily,
               importBackground: getComputedStyle(importButton).backgroundColor,
+              importColor: getComputedStyle(importButton).color,
               importIcon: rect(importButton.querySelector('.po-button__icon svg')),
               importArtworkCount: importButton.querySelectorAll('img, svg').length,
               importMarks: importMarks.map(rect),
@@ -236,6 +237,7 @@ async function runSmoke() {
           await evaluate("Promise.all(document.querySelector('.onboarding-entry-import').getAnimations().map(animation => animation.finished))");
           assert.equal(await evaluate("getComputedStyle(document.querySelector('.onboarding-entry-import')).backgroundColor"), 'rgba(0, 0, 0, 0)', `${context}: no hover background`);
           assert.equal(await evaluate("getComputedStyle(document.querySelector('.onboarding-entry-import')).boxShadow"), 'none', `${context}: no hover button shadow`);
+          assert.equal(await evaluate("getComputedStyle(document.querySelector('.onboarding-entry-import')).color"), snapshot.importColor, `${context}: hover keeps the resting foreground tone`);
           // Real keyboard focus must remain visible and Enter must open the creation dialog.
           window.focus();
           window.webContents.focus();
@@ -262,6 +264,7 @@ async function runSmoke() {
           await until("document.activeElement?.matches(':focus-visible')");
           assert.equal(await evaluate("getComputedStyle(document.activeElement).outlineStyle"), "solid", `${context}: import focus ring`);
           assert.equal(await evaluate("getComputedStyle(document.activeElement).backgroundColor"), 'rgba(0, 0, 0, 0)', `${context}: keyboard focus keeps transparent background`);
+          assert.equal(await evaluate("getComputedStyle(document.activeElement).color"), snapshot.importColor, `${context}: keyboard focus keeps the resting foreground tone`);
           window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Enter" });
           window.webContents.sendInputEvent({ type: "char", keyCode: "\r" });
           window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Enter" });

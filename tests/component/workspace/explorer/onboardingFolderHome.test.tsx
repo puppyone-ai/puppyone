@@ -241,6 +241,9 @@ describe("project folder home", () => {
       /\.onboarding-entry-import-area\s*\{[^}]*margin-block-start:\s*8px;/s,
     );
     expect(onboardingCss).toMatch(
+      /\.onboarding-entry-import:hover:not\(:disabled\),\s*\.onboarding-entry-import:active:not\(:disabled\),\s*\.onboarding-entry-import:focus-visible\s*\{[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;[^}]*color:\s*var\(--po-text-muted\);/s,
+    );
+    expect(onboardingCss).toMatch(
       /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-entry-action-default\s*\{[^}]*width:\s*fit-content;[^}]*min-width:\s*0;[^}]*justify-content:\s*flex-start;/s,
     );
   });
