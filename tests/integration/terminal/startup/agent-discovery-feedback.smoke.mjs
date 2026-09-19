@@ -50,8 +50,35 @@ async function capture(name) {
   const expectedSize = name.includes("-large-") ? "16px" : name.includes("-small-") ? "13px" : "14px";
   assert(sidebarWeight === "400" && labels.length > 0 && labels.every(value => value.size === expectedSize && value.weight === sidebarWeight), name + ": launcher labels must match regular sidebar weight and the selected size");
   assert(!feedback || (feedback.size === labels[0].size && feedback.weight === labels[0].weight && feedback.lineHeight === labels[0].lineHeight), name + ": discovery copy differs from Agent labels");
+  const geometry = await evaluate(`(() => {
+    const entries = document.querySelector('.desktop-terminal-launcher-entries');
+    const rtl = getComputedStyle(entries).direction === 'rtl';
+    const rows = [...entries.querySelectorAll('.desktop-terminal-launcher-tool, .desktop-terminal-launcher-discovery')];
+    const measure = row => {
+      const box = row.getBoundingClientRect();
+      const label = row.querySelector(':scope > span:last-child').getBoundingClientRect();
+      const icon = row.querySelector('.desktop-terminal-launcher-icon, .desktop-terminal-launcher-discovery-icon').getBoundingClientRect();
+      const style = getComputedStyle(row);
+      const lineHeight = parseFloat(getComputedStyle(row.querySelector(':scope > span:last-child')).lineHeight);
+      return { height: box.height, labelHeight: label.height, minHeight: style.minHeight,
+        labelInset: rtl ? box.right - label.right : label.left - box.left,
+        iconCenter: rtl ? box.right - (icon.left + icon.width / 2) : icon.left + icon.width / 2 - box.left,
+        firstLineIconOffset: icon.top + icon.height / 2 - label.top - lineHeight / 2,
+        lineHeight, padding: style.padding, border: style.borderWidth,
+        top: box.top, bottom: box.bottom };
+    };
+    return { rows: rows.map(measure), gaps: rows.slice(1).map((row, index) => row.getBoundingClientRect().top - rows[index].getBoundingClientRect().bottom),
+      busy: entries.hasAttribute('aria-busy') };
+  })()`);
+  const reference = geometry.rows.at(-1);
+  const close = (left, right) => Math.abs(left - right) < 1;
+  assert(!geometry.busy && geometry.gaps.every(gap => close(gap, 1)), name + ": row spacing differs across discovery / Built-in boundaries");
+  assert(geometry.rows.every(row => close(row.labelInset, reference.labelInset) && close(row.iconCenter, reference.iconCenter)
+    && row.padding === reference.padding && row.border === reference.border && row.minHeight === reference.minHeight
+    && (row.labelHeight > row.lineHeight + 1 || close(row.height, reference.height))
+    && close(row.firstLineIconOffset, 0)), name + ": discovery row geometry differs from Agent rows");
   await writeFile(path.join(artifacts, name + ".png"), (await window.capturePage()).toPNG());
-  results.push({ name, ...bounds });
+  results.push({ name, ...bounds, geometry });
 }
 
 async function run() {
@@ -91,7 +118,6 @@ async function run() {
     assert(await evaluate("document.querySelectorAll('.desktop-terminal-launcher-discovery').length === 1"), "Missing scan feedback");
     assert(await evaluate("!document.querySelector('.desktop-terminal-launcher-discovery').closest('[role=list]')"), "Scan status masquerades as an Agent");
     assert(await evaluate("!document.querySelector('.desktop-terminal-launcher-discovery-count, .desktop-terminal-launcher-discovery .desktop-terminal-activity-grid')"), "Legacy counter or activity grid remains");
-    if (!variant.scale) assert(await evaluate("document.querySelector('.desktop-terminal-launcher-discovery').getBoundingClientRect().height < 25"), "Cold scan feedback is not compact");
     assert(await evaluate("!document.querySelector('.local-agent-setup')"), "Empty launcher has setup chrome");
     await capture(label + "-cold");
     const scanning = { phase: "loading", ids: ["codex"], completed: 1, refreshing: false, failed: false };
@@ -129,6 +155,7 @@ async function run() {
     }
     assert(await evaluate(`${buttons}.filter(button => !button.disabled).length === 9`), "Refresh cleared or disabled usable rows");
     assert(await evaluate("document.querySelector('.desktop-terminal-launcher-discovery').textContent === 'Refreshing agents…'"), "Missing refresh semantics");
+    await capture(label + "-refreshing");
     await setState({ ...scanning, phase: "ready", ids, failed: true });
     assert(await evaluate("document.querySelector('.desktop-terminal-launcher-discovery').textContent.includes('Scan again')"), "Missing retry feedback");
     await evaluate("document.querySelector('.desktop-terminal-launcher-discovery').scrollIntoView({ block: 'nearest' })");

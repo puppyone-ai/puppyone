@@ -27,7 +27,9 @@ export function LauncherDiscoveryFeedback({ scanning, refreshing, failed, empty,
     : failed ? "terminal.launcher.detectionIncomplete" : empty ? "terminal.launcher.noneInstalled" : null;
   if (!message) return null;
   return <div className="desktop-terminal-launcher-discovery" data-scanning={scanning}>
-    {scanning && !busy && <span className="desktop-terminal-launcher-discovery-spinner" aria-hidden="true" />}
+    <span className="desktop-terminal-launcher-discovery-icon" aria-hidden="true">
+      {scanning && !busy && <span className="desktop-terminal-launcher-discovery-spinner" />}
+    </span>
     <span>{t(message)}</span>
   </div>;
 }
