@@ -6,6 +6,7 @@ import {
   resolveSurfaceAppearance,
 } from "../../../../src/features/appearance/AppearanceRuntime";
 import { resolveAppearance } from "../../../../src/features/appearance/resolveAppearance";
+import { BUILTIN_SUB_THEMES } from "../../../../src/features/themes/builtinSubThemes";
 import {
   BUILTIN_FONT_IDS,
   DEFAULT_TYPOGRAPHY_PREFERENCES,
@@ -16,6 +17,18 @@ import {
 import { DEFAULT_MARKDOWN_PRESENTATION_SETTINGS } from "../../../../src/features/markdown/markdownPresentation";
 
 describe("resolved surface appearance", () => {
+  it("invalidates imperative consumers when local CSS changes without an ID or version change", () => {
+    const theme = BUILTIN_SUB_THEMES.find(theme => theme.id === "default.neutral")!;
+    const revision = (css: string) => resolveAppearance({
+      interfaceStyle: "default", themeMode: "light",
+      sidebarNavigationLayout: "bottom-horizontal", fileIconTheme: "default",
+      subThemeCatalog: { diagnostics: [], subThemes: BUILTIN_SUB_THEMES.map(entry => entry !== theme ? entry : {
+        ...theme, variants: { ...theme.variants, light: { compiledCss: { ...theme.variants.light!.compiledCss, application: css } } },
+      }) },
+    }).appearanceRevision;
+    expect(revision("color A")).toBe(revision("color A"));
+    expect(revision("color A")).not.toBe(revision("color B"));
+  });
   it("publishes one typed follow-theme boundary with provenance", () => {
     const surface = createSurface();
 

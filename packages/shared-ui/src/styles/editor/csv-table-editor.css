@@ -1,3 +1,8 @@
+:is(.csv-table-editor, [data-po-selection-scope="csv"]) {
+  --po-selection-background: var(--po-host-csv-selection-bg, var(--po-text-selection-bg));
+  --po-selection-inactive-background: var(--po-host-csv-selection-inactive-bg, var(--po-text-selection-inactive-bg));
+}
+
 .csv-table-editor {
   /* CSV is a data view, not a document card. Its viewport may fill the pane,
      while the table keeps stable, content-owned tracks like a Notion view. */

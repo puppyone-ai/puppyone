@@ -28,6 +28,16 @@ export function readTerminalAppearance(source: HTMLElement): TerminalAppearance 
 
 export function readTerminalTheme(element: HTMLElement): ITheme {
   const source = resolveTerminalAppearanceSource(element);
+  const window = source.ownerDocument.defaultView;
+  const forcedColors = window?.matchMedia("(forced-colors: active)").matches;
+  const selectionBackground = forcedColors ? resolveCssColor(source, "Highlight") : cssColor(
+    source, "--po-terminal-selection",
+    cssColor(source, "--po-text-selection-bg", "rgba(37, 99, 235, 0.24)"),
+  );
+  const selectionInactiveBackground = forcedColors ? selectionBackground : cssColor(
+    source, "--po-terminal-selection-inactive",
+    cssColor(source, "--po-text-selection-inactive-bg", "rgba(37, 99, 235, 0.132)"),
+  );
   return {
     background: cssColor(
       source,
@@ -36,11 +46,9 @@ export function readTerminalTheme(element: HTMLElement): ITheme {
     ),
     foreground: cssColor(source, "--po-terminal-fg", cssColor(source, "--po-text", "#2f2a23")),
     cursor: cssColor(source, "--po-terminal-cursor", cssColor(source, "--po-text", "#2f2a23")),
-    selectionBackground: cssColor(
-      source,
-      "--po-terminal-selection",
-      cssColor(source, "--po-selected", "rgba(73, 55, 35, 0.17)"),
-    ),
+    selectionBackground: source.ownerDocument.hasFocus() ? selectionBackground : selectionInactiveBackground,
+    selectionInactiveBackground,
+    selectionForeground: forcedColors ? resolveCssColor(source, "HighlightText") : undefined,
     scrollbarSliderBackground: "transparent",
     scrollbarSliderHoverBackground: "transparent",
     scrollbarSliderActiveBackground: "transparent",
@@ -70,8 +78,8 @@ export function readTerminalTheme(element: HTMLElement): ITheme {
 
 export function applyTerminalAppearance(terminal: Terminal, appearance: TerminalAppearance) {
   terminal.options.theme = appearance.theme;
-  terminal.options.fontFamily = appearance.fontFamily;
-  terminal.options.fontSize = appearance.fontSize;
+  if (terminal.options.fontFamily !== appearance.fontFamily) terminal.options.fontFamily = appearance.fontFamily;
+  if (terminal.options.fontSize !== appearance.fontSize) terminal.options.fontSize = appearance.fontSize;
   terminal.refresh(0, Math.max(0, terminal.rows - 1));
   return appearance.defaultColors;
 }

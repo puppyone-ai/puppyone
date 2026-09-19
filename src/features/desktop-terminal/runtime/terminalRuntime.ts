@@ -318,12 +318,14 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
 
   applyAppearance(appearance = this.appearance) {
     if (this.disposed) return;
+    const metricsChanged = appearance.fontFamily !== this.appearance.fontFamily
+      || appearance.fontSize !== this.appearance.fontSize;
     this.appearance = appearance;
     if (!this.terminal) return;
     this.defaultColors = applyTerminalAppearance(this.terminal, appearance);
     this.syncDefaultColorsToPty();
     this.syncScrollbarPresentation();
-    this.scheduleFit();
+    if (metricsChanged) this.scheduleFit();
   }
 
   private requestIdentity() {

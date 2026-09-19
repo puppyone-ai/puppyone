@@ -1,5 +1,5 @@
 /** @vitest-environment happy-dom */
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   readTerminalFontFamily,
   readTerminalFontSize,
@@ -12,9 +12,39 @@ import {
 
 afterEach(() => {
   document.body.replaceChildren();
+  vi.restoreAllMocks();
 });
 
 describe("terminal default-color negotiation", () => {
+  it("uses product selection pairs and dims a retained terminal on window blur", () => {
+    const focused = vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    const owner = document.createElement("div");
+    owner.style.setProperty("--po-text-selection-bg", "rgba(30, 120, 80, 0.3)");
+    owner.style.setProperty("--po-text-selection-inactive-bg", "rgba(30, 120, 80, 0.15)");
+    document.body.append(owner);
+    const active = readTerminalTheme(owner);
+    expect(active.selectionBackground).toBe("rgba(30, 120, 80, 0.3)");
+    expect(active.selectionForeground).toBeUndefined();
+    focused.mockReturnValue(false);
+    expect(readTerminalTheme(owner).selectionBackground).toBe(active.selectionInactiveBackground);
+    owner.style.setProperty("--po-terminal-selection-inactive", "rgba(140, 90, 200, 0.2)");
+    expect(readTerminalTheme(owner).selectionBackground).toBe("rgba(140, 90, 200, 0.2)");
+  });
+
+  it("does not reassign terminal font metrics during a color-only refresh", () => {
+    const owner = document.createElement("div"); document.body.append(owner);
+    const appearance = readTerminalAppearance(owner);
+    const options = { theme: appearance.theme };
+    const fontFamily = vi.fn();
+    const fontSize = vi.fn();
+    Object.defineProperties(options, {
+      fontFamily: { get: () => appearance.fontFamily, set: fontFamily },
+      fontSize: { get: () => appearance.fontSize, set: fontSize },
+    });
+    applyTerminalAppearance({ options, rows: 24, refresh: vi.fn() } as never, appearance);
+    expect(fontFamily).not.toHaveBeenCalled();
+    expect(fontSize).not.toHaveBeenCalled();
+  });
   it("captures the explicit owning surface before the runtime is detached", () => {
     const source = document.createElement("section");
     source.style.setProperty("--po-terminal-bg", "rgb(22, 20, 19)");

@@ -234,6 +234,39 @@ Typography targets accept bounded pixel defaults for `--po-text-size-interface`,
 
 PuppyOne maps these author-facing names to private host-boundary variables during compilation. Do not author `--po-host-*` variables directly.
 
+### Text selection
+
+Themes define selection **backgrounds**, while PuppyOne owns browser,
+CodeMirror, CSV, Agent and terminal rendering. Text, syntax and ANSI foreground
+colors remain intact. `--po-selected` continues to mean selected controls.
+
+| Target | Active selection | Inactive selection |
+| --- | --- | --- |
+| application | `--po-text-selection-bg` | `--po-text-selection-inactive-bg` |
+| markdown (optional override) | `--po-md-selection-bg` | `--po-md-selection-inactive-bg` |
+| csv (optional override) | `--po-csv-selection-bg` | `--po-csv-selection-inactive-bg` |
+| application (terminal override) | `--po-terminal-selection` | `--po-terminal-selection-inactive` |
+
+```css
+/* Inside @puppyone application */
+:root {
+  --po-text-selection-bg: color-mix(in srgb, var(--po-accent) 24%, transparent);
+}
+```
+
+Omitting these tokens uses the product's accent-derived default. Markdown,
+CSV and terminal inherit the global selection pair unless overridden. Providing
+only an active color automatically derives its inactive counterpart using the
+product's shared opacity ratio. Light and Dark may provide different values.
+Keep backgrounds translucent so syntax and text remain readable.
+
+Selection values and their dependencies must be supported CSS colors. Unknown
+tokens, cycles, unresolved domain references, and OS colors such as `Highlight`
+or `AccentColor` are rejected, including conditional alternatives. A domain
+color reference must be declared or have a color fallback. Theme authors do not
+write `::selection`, editor selectors, or `!important`. In forced-colors mode
+PuppyOne deliberately uses the system's accessible highlight pair.
+
 ## Troubleshooting
 
 - If a theme is absent, inspect the diagnostics shown in Appearance settings.
