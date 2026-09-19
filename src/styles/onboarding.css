@@ -391,6 +391,31 @@
   --onboarding-row-font-size: var(--po-type-ui-caption, 12px);
   --onboarding-row-font-weight: 400;
   --onboarding-row-line-height: 16px;
+  height: auto;
+  padding-block: 8px;
+}
+
+.onboarding-entry-import .po-button__label {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+.onboarding-entry-import-brands {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0.76;
+  filter: grayscale(1);
+}
+
+.onboarding-entry-import-brands .onboarding-import-mark {
+  width: 18px;
+  height: 18px;
+}
+
+.onboarding-entry-import:disabled .onboarding-entry-import-brands {
+  opacity: 0.3;
 }
 
 .onboarding-import-mark {

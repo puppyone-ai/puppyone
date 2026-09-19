@@ -65,7 +65,8 @@ async function runSmoke() {
             const create = document.querySelector('[data-onboarding-action=create]');
             const open = document.querySelector('[data-onboarding-action=open]');
             const importButton = document.querySelector('.onboarding-entry-import');
-            const importLabel = importButton.querySelector('.po-button__label');
+            const importLabel = importButton.querySelector('.onboarding-entry-import-label');
+            const importMarks = [...importButton.querySelectorAll('.onboarding-import-mark')];
             const divider = document.querySelector('.onboarding-entry-action-divider');
             const label = create.querySelector('.po-button__label');
             const brand = document.querySelector('.onboarding-brand-lockup');
@@ -89,6 +90,11 @@ async function runSmoke() {
               importWeight: getComputedStyle(importLabel).fontWeight,
               importLineHeight: getComputedStyle(importLabel).lineHeight,
               importArtworkCount: importButton.querySelectorAll('img, svg').length,
+              importMarks: importMarks.map(rect),
+              importBrandIds: importMarks.map(image => image.dataset.importBrand),
+              importBrandLabels: importMarks.map(image => image.alt),
+              importLabel: rect(importLabel),
+              importBrands: rect(importButton.querySelector('.onboarding-entry-import-brands')),
               importText: importButton.textContent,
               dividerBackground: getComputedStyle(divider).backgroundColor,
               actionCount: buttons.length,
@@ -99,7 +105,7 @@ async function runSmoke() {
                 }),
               outside: buttons.some(button => { const r = button.getBoundingClientRect(); return r.left < 0 || r.right > innerWidth || r.top < 38 || r.bottom > innerHeight; }),
               tagline: !!document.querySelector('.onboarding-brand-tagline'),
-              imagesLoaded: images.length === 1 && images.every(image => image.complete && image.naturalWidth > 0),
+              imagesLoaded: images.length === 4 && images.every(image => image.complete && image.naturalWidth > 0),
             };
           })()`);
           const context = `${locale}/${theme}/${width}x${height}`;
@@ -121,7 +127,15 @@ async function runSmoke() {
           assert.equal(snapshot.importFont, 12, `${context}: quiet caption size`);
           assert.equal(snapshot.importWeight, '400', `${context}: regular import text`);
           assert.equal(snapshot.importLineHeight, '16px', `${context}: compact caption line height`);
-          assert.equal(snapshot.importArtworkCount, 0, `${context}: source logos belong in the picker`);
+          assert.equal(snapshot.importArtworkCount, 3, `${context}: three source logos`);
+          assert.deepEqual(snapshot.importBrandIds, ['github', 'notion', 'google-drive'], `${context}: familiar import sources`);
+          assert.deepEqual(snapshot.importBrandLabels, ['GitHub', 'Notion', 'Google Drive'], `${context}: named logos for assistive technology`);
+          assert.equal(snapshot.importBrands.y - snapshot.importLabel.y - snapshot.importLabel.height, 8, `${context}: compact logo row below text`);
+          assert.ok(snapshot.importMarks.every(mark => mark.width === 18 && mark.height === 18), `${context}: legible logo size`);
+          for (let i = 1; i < snapshot.importMarks.length; i++) {
+            const previous = snapshot.importMarks[i - 1];
+            assert.equal(snapshot.importMarks[i].x - previous.x - previous.width, 4, `${context}: compact logo spacing`);
+          }
           assert.equal(snapshot.importText, importLabels[locale], `${context}: complete localized text`);
           assert.equal(snapshot.divider.height, 1, `${context}: subtle one-pixel divider`);
           assert.equal(snapshot.divider.width, snapshot.create.width, `${context}: divider matches CTA width`);
@@ -130,7 +144,7 @@ async function runSmoke() {
           assert.ok(snapshot.importButton.y - snapshot.divider.y - snapshot.divider.height >= 8, `${context}: space below divider`);
           assert.ok(snapshot.importButton.height >= 28, `${context}: text entry retains a usable hit target`);
           assert.equal(snapshot.actionCount, 3, `${context}: no extra logo buttons`);
-          for (const item of [snapshot.create, snapshot.brand, snapshot.launcher, snapshot.divider, snapshot.importButton]) {
+          for (const item of [snapshot.create, snapshot.brand, snapshot.launcher, snapshot.divider, snapshot.importButton, snapshot.importBrands]) {
             assert.ok(Math.abs(item.x + item.width / 2 - width / 2) < 1, `${context}: horizontal centering`);
           }
           assert.ok(Math.abs(snapshot.launcher.y + snapshot.launcher.height / 2 - height / 2) < 1, `${context}: vertical centering`);

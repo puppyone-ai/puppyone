@@ -283,16 +283,21 @@ describe("project folder home", () => {
     expect(actions[0]?.classList.contains("onboarding-entry-action-folder")).toBe(false);
     expect(actions[0]?.querySelector(".onboarding-entry-create-icon")).not.toBeNull();
     expect(actions[1]?.querySelector(".lucide-folder-open")).not.toBeNull();
-    expect(actions[2]?.querySelector("img, svg, .po-button__icon")).toBeNull();
+    expect(actions[2]?.querySelector("svg, .po-button__icon")).toBeNull();
     expect(actions[2]?.disabled).toBe(false);
-    // Import is a text-only entry below the divider, with one accessible target.
+    // Import keeps one accessible target, with named source marks below its label.
     const importGroup = container.querySelector(".onboarding-entry-import");
     expect(importGroup).toBe(actions[2]);
     expect(importGroup?.getAttribute("aria-label")).toBeNull();
     expect(importGroup?.getAttribute("aria-haspopup")).toBe("dialog");
     expect(importGroup?.querySelectorAll("button, [tabindex]")).toHaveLength(0);
     expect(container.querySelectorAll(".onboarding-entry-actions button")).toHaveLength(3);
-    expect(container.querySelector(".onboarding-entry-actions .onboarding-import-mark")).toBeNull();
+    const marks = [...importGroup!.querySelectorAll<HTMLImageElement>(".onboarding-import-mark")];
+    expect(marks.map((mark) => mark.dataset.importBrand)).toEqual(["github", "notion", "google-drive"]);
+    expect(marks.map((mark) => mark.alt)).toEqual(["GitHub", "Notion", "Google Drive"]);
+    const preview = importGroup!.querySelector(".onboarding-entry-import-brands");
+    const importLabel = importGroup!.querySelector(".onboarding-entry-import-label");
+    expect(importLabel!.compareDocumentPosition(preview as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const divider = container.querySelector(".onboarding-entry-action-divider");
     expect(divider?.getAttribute("role")).toBe("separator");
     expect(divider?.parentElement).toBe(importGroup?.parentElement);
@@ -477,7 +482,13 @@ describe("project folder home", () => {
     expect(onCloneRepository).not.toHaveBeenCalled();
   });
 
-  it.each([".onboarding-entry-import", ".onboarding-entry-import .po-button__label"])("opens the common source picker from the text entry (%s)", async (selector) => {
+  it.each([
+    ".onboarding-entry-import",
+    ".onboarding-entry-import-label",
+    ".onboarding-entry-import [data-import-brand='github']",
+    ".onboarding-entry-import [data-import-brand='notion']",
+    ".onboarding-entry-import [data-import-brand='google-drive']",
+  ])("opens the common source picker from the import entry (%s)", async (selector) => {
     const onDefaultProjectLocation = vi.fn(async () => null);
     const container = renderHome({
       onCloneRepository: vi.fn(async () => true),
@@ -503,12 +514,15 @@ describe("project folder home", () => {
     expect(container.querySelector("[role='dialog']")?.getAttribute("aria-label")).toBe("Import");
   });
 
-  it("keeps the text import entry disabled when import is unavailable", async () => {
+  it("keeps the label and source marks disabled when import is unavailable", async () => {
     const container = renderHome();
     const button = container.querySelector<HTMLButtonElement>(".onboarding-entry-import");
     expect(button?.disabled).toBe(true);
     expect(button?.querySelectorAll("button, [tabindex]")).toHaveLength(0);
-    await act(async () => button?.querySelector<HTMLElement>(".po-button__label")?.click());
+    await act(async () => {
+      button?.querySelector<HTMLElement>(".onboarding-entry-import-label")?.click();
+      button?.querySelector<HTMLImageElement>(".onboarding-import-mark")?.click();
+    });
     expect(container.querySelector("[role='dialog']")).toBeNull();
   });
 

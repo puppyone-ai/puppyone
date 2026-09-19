@@ -3,7 +3,10 @@ import { useLocalization } from "@puppyone/localization";
 import { FilePlus2, FolderOpen } from "lucide-react";
 import type { ReactNode } from "react";
 import { InlineLoading } from "../loading";
+import { ImportSourceMark } from "./ImportSourceMark";
 import type { OnboardingHomeState } from "./types";
+
+const IMPORT_PREVIEW_BRANDS = ["github", "notion", "google-drive"] as const;
 
 type OnboardingEntryActionsProps = {
   state: OnboardingHomeState;
@@ -23,7 +26,7 @@ type OnboardingEntryActionsProps = {
  * Homepage entry actions. "Create an empty project" is the default path because it
  * is the only entry that does not require the user to hunt for an existing
  * folder first. Importing existing work sits below the two direct-start
- * actions as a quieter text entry; product marks belong in the source picker.
+ * actions as a quieter entry, with a compact source preview below its label.
  */
 export function OnboardingEntryActions({
   state,
@@ -82,7 +85,10 @@ export function OnboardingEntryActions({
             aria-haspopup="dialog"
             onClick={onCloneRepository}
           >
-            {t("onboarding.action.importFromApps")}
+            <span className="onboarding-entry-import-label">{t("onboarding.action.importFromApps")}</span>
+            <span className="onboarding-entry-import-brands">
+              {IMPORT_PREVIEW_BRANDS.map((brand) => <ImportSourceMark key={brand} brand={brand} />)}
+            </span>
           </Button>
         </div>
 
