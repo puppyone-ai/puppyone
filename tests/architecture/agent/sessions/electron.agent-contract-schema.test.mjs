@@ -15,6 +15,26 @@ import {
 } from "../../../../shared/agent-contract/schema.mjs";
 
 describe("shared Agent contract", () => {
+  it("bounds inline attachment input and strips renderer MIME claims", () => {
+    const context = { rootPath: "/workspace", epoch: "draft" };
+    const bytes = new Uint8Array([1, 2]);
+    expect(parseAgentIpcRequest("agent:reference-stage", {
+      ...context, sources: [{ name: "clipboard.png", bytes, mime: "image/png", authorized: true }, { path: "/selected/image.png" }],
+    })).toEqual({ ...context, sources: [{ name: "clipboard.png", bytes }, { path: "/selected/image.png" }] });
+    for (const input of [
+      { sources: [] },
+      { sources: Array.from({ length: 33 }, () => ({ name: "image.png", bytes })) },
+      { sourcePaths: ["/selected/image.png"], sources: [{ name: "image.png", bytes }] },
+      { sources: [{ path: "/selected/image.png", bytes }] },
+      { sources: [{ name: "../image.png", bytes }] },
+      { sources: [{ name: "image.png", bytes: [] }] },
+      { sources: [{ name: "image.png", bytes: new Uint8Array() }] },
+      { sources: [{ name: "image.png", bytes: new Uint8Array(25 * 1024 * 1024) }, { name: "more.png", bytes }] },
+    ]) {
+      expect(() => parseAgentIpcRequest("agent:reference-stage", { ...context, ...input })).toThrow(/Invalid Agent contract/);
+    }
+  });
+
   it("keeps runtime constants synchronized with the TypeScript contract", () => {
     const source = readFileSync(new URL("../../../../shared/agent-contract/types.ts", import.meta.url), "utf8");
     expect(typeLiterals(source, "AgentEventType", "AgentCanonicalToolResult")).toEqual([...AGENT_EVENT_TYPES]);
