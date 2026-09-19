@@ -179,7 +179,8 @@ for (const forbidden of ["window.open", "puppyoneDesktop", "<a "]) {
 }
 
 for (const relativePath of [
-  "packages/shared-ui/src/editor/viewers/html/HtmlViewer.tsx",
+  "packages/shared-ui/src/editor/viewers/html/HtmlPreviewFrame.tsx",
+  "packages/shared-ui/src/editor/viewers/html/HtmlVisualSurface.tsx",
   "packages/shared-ui/src/editor/viewers/app/SandboxedAppFrame.tsx",
 ]) {
   if (!readFileSync(path.join(repoRoot, relativePath), "utf8").includes("sandbox=")) {

@@ -332,6 +332,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
       rootPath: request?.rootPath,
       targetFolderPath: request?.targetFolderPath ?? null,
       sourcePaths,
+      ...(request?.preferredName === undefined ? {} : { preferredName: request.preferredName }),
     });
   },
   deleteEntry: (request) => ipcRenderer.invoke("workspace:delete-entry", request),

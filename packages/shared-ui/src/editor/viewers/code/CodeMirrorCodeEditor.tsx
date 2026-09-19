@@ -43,6 +43,8 @@ import { useDocumentModelOwner } from "../../document-session/DocumentModelOwner
 import { CodeMirrorDocumentModel, externalDocumentUpdate, getCodeMirrorDocumentRevision as getCodeDocumentRevision } from "../../document-session/CodeMirrorDocumentModel";
 
 export type CodeMirrorCodeEditorProps = {
+  /** A format-owned model shared with another representation of this document. */
+  model?: CodeMirrorDocumentModel;
   content: string;
   nodeName?: string;
   language?: string | null;
@@ -53,6 +55,7 @@ export type CodeMirrorCodeEditorProps = {
 };
 
 export function CodeMirrorCodeEditor({
+  model: providedModel,
   content,
   nodeName = "",
   language = null,
@@ -89,7 +92,7 @@ export function CodeMirrorCodeEditor({
     if (!host) return undefined;
     const initialConfig = initialEditorConfigRef.current;
 
-    const model = modelOwner?.getOrCreate("codemirror-code", () => new CodeMirrorDocumentModel(initialConfig.content))
+    const model = providedModel ?? modelOwner?.getOrCreate("codemirror-code", () => new CodeMirrorDocumentModel(initialConfig.content))
       ?? new CodeMirrorDocumentModel(initialConfig.content);
     modelOwner?.activate(model);
     modelRef.current = model;
@@ -171,11 +174,12 @@ export function CodeMirrorCodeEditor({
       view.destroy();
       viewRef.current = null;
       modelRef.current = null;
-      if (!modelOwner) model.dispose();
+      if (!modelOwner && !providedModel) model.dispose();
     };
-  }, [findAdapter, modelOwner]);
+  }, [findAdapter, modelOwner, providedModel]);
 
   useEffect(() => {
+    if (providedModel) return;
     const view = viewRef.current;
     if (!view) return;
 
@@ -187,7 +191,7 @@ export function CodeMirrorCodeEditor({
       revision: getCodeDocumentRevision(view.state.doc),
       origin: "model-initialization",
     });
-  }, [content]);
+  }, [content, providedModel]);
 
   useEffect(() => {
     const view = viewRef.current;

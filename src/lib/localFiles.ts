@@ -1,5 +1,6 @@
 import {
   canonicalizeResourcePath,
+  createDocumentAssetImportPort,
   type AiEditRequest,
   type DataNode,
   type DataNodeKind,
@@ -55,6 +56,7 @@ export function createLocalDocumentStorageIdentity(rootPath: string): string {
 
 export function createLocalDataPort(rootPath: string): DataPort {
   return {
+    editorAssets: createDocumentAssetImportPort((files, folder, options) => importWorkspaceFiles(rootPath, folder, files, options)),
     previewServices: { database: createDatabasePreviewPort(rootPath, getDesktopBridge) },
     listChildren: (folderPath) => loadFolderChildren(rootPath, folderPath),
     resolveNode: (path) => getDesktopBridge().resolveNode({ rootPath, path }),
@@ -163,7 +165,7 @@ export function createLocalDataPort(rootPath: string): DataPort {
       parentPath,
       name,
     }),
-    importFiles: (files, targetFolderPath) => importWorkspaceFiles(rootPath, targetFolderPath, files),
+    importFiles: (files, targetFolderPath, options) => importWorkspaceFiles(rootPath, targetFolderPath, files, options),
     renameNode: (path, nextName) => getDesktopBridge().renameEntry({ rootPath, path, nextName }).then(() => undefined),
     moveNode: (from, to) => getDesktopBridge().moveEntry({ rootPath, fromPath: from, toPath: to }).then(() => undefined),
     copyNode: (fromPath, targetFolderPath, options) => getDesktopBridge().copyEntry({
@@ -390,11 +392,13 @@ export async function importWorkspaceFiles(
   rootPath: string,
   targetFolderPath: string | null,
   files: File[],
+  options?: { preferredName?: string },
 ): Promise<WorkspaceImportEntriesResult> {
   return getDesktopBridge().importEntries({
     rootPath,
     targetFolderPath,
     files,
+    ...(options?.preferredName ? { preferredName: options.preferredName } : {}),
   });
 }
 

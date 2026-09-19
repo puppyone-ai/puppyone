@@ -897,6 +897,8 @@ export async function importWorkspaceEntries(rootPath, request) {
   if (sourcePaths.length === 0) {
     throw new Error("At least one source path is required.");
   }
+  const preferredName = request?.preferredName == null ? null : normalizeNewEntryName(request.preferredName);
+  if (preferredName && sourcePaths.length !== 1) throw new Error("A preferred import name requires exactly one source.");
 
   const targetFolderPath = request?.targetFolderPath ?? null;
   const targetFolder = await resolveExistingWorkspacePath(rootPath, targetFolderPath);
@@ -930,7 +932,7 @@ export async function importWorkspaceEntries(rootPath, request) {
       throw new Error("Only files and folders can be imported.");
     }
 
-    const name = normalizeNewEntryName(path.basename(sourcePath));
+    const name = preferredName ?? normalizeNewEntryName(path.basename(sourcePath));
     const relativePath = joinRelativePath(normalizedTargetParent, name);
     const targetPath = path.join(targetFolder, name);
     if (sourceMetadata.isDirectory() && isSameOrInsidePath(sourcePath, targetPath)) {

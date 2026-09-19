@@ -777,6 +777,8 @@ export type WorkspaceCopyEntryBetweenRootsRequest = Omit<WorkspaceCopyEntryReque
 };
 
 export type WorkspaceImportEntriesRequest = {
+  /** Optional basename for one file; native imports still reject existing destinations. */
+  preferredName?: string;
   rootPath: string;
   targetFolderPath: string | null;
   files: File[];
