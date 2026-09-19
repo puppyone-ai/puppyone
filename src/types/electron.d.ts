@@ -6,6 +6,8 @@ import type {
   Workspace,
 } from "@puppyone/shared-ui";
 import type { AppLanguagePreference, LocaleState } from "@puppyone/localization/core";
+import type { LocalAgentSetupRequest, LocalAgentSetupSnapshot, LocalAgentSetupAction, LocalAgentSetupActionResult } from "../../shared/local-agent-installation/setup-types";
+import type { ModelConnectionSnapshot, ModelConnectionCandidate, ModelConnectionResult, SaveModelConnectionRequest } from "../../shared/model-connections/types";
 import type { DesktopTerminalLauncherId } from "../features/desktop-terminal/model/terminalLaunchers";
 import type {
   AgentAccountReadRequest,
@@ -796,6 +798,8 @@ export type WorkspaceCopyEntryBetweenRootsRequest = Omit<WorkspaceCopyEntryReque
 };
 
 export type WorkspaceImportEntriesRequest = {
+  /** Optional basename for one file; native imports still reject existing destinations. */
+  preferredName?: string;
   rootPath: string;
   targetFolderPath: string | null;
   files: File[];
@@ -1232,6 +1236,7 @@ declare global {
         expectedVersion?: string;
       }) => Promise<{ url: string }>;
       revokeFileUrl: (request: { url: string }) => Promise<{ revoked: boolean }>;
+      createPreviewDocument: (request: { rootPath: string; path: string; content: string; interactive?: boolean }) => Promise<{ url: string }>;
       openDatabasePreview: import("../platform/databasePreviewClient").DatabaseBridge["openDatabasePreview"];
       readDatabasePreviewPage: import("../platform/databasePreviewClient").DatabaseBridge["readDatabasePreviewPage"];
       closeDatabasePreview: import("../platform/databasePreviewClient").DatabaseBridge["closeDatabasePreview"];
@@ -1532,6 +1537,20 @@ declare global {
         refresh?: boolean;
         requestId: string;
       }) => Promise<LocalAgentInstallationSnapshot>;
+      localAgentSetup?: {
+        inspect: (request: LocalAgentSetupRequest) => Promise<LocalAgentSetupSnapshot>;
+        act: (request: LocalAgentSetupAction) => Promise<LocalAgentSetupActionResult>;
+        release: (clientId: string) => Promise<void>;
+      };
+      modelConnections?: {
+        read: () => Promise<ModelConnectionResult<ModelConnectionSnapshot>>;
+        discover: () => Promise<ModelConnectionResult<ModelConnectionCandidate[]>>;
+        save: (request: SaveModelConnectionRequest) => Promise<ModelConnectionResult<ModelConnectionSnapshot>>;
+        remove: (request: { id: string; expectedGeneration: number }) => Promise<ModelConnectionResult<ModelConnectionSnapshot>>;
+        refresh: (request: { id: string }) => Promise<ModelConnectionResult<ModelConnectionSnapshot>>;
+        verify: (request: { id: string; expectedGeneration: number; modelId: string }) => Promise<ModelConnectionResult<ModelConnectionSnapshot>>;
+        subscribe: (listener: (snapshot: ModelConnectionSnapshot) => void) => () => void;
+      };
       onLocalAgentInstallationProgress: (
         callback: (event: LocalAgentInstallationProgressEvent) => void,
       ) => () => void;

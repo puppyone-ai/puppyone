@@ -3,12 +3,12 @@ import { assertLocalAgentInstallationSnapshot } from "../../../shared/local-agen
 import { createLocalAgentExecutableResolver } from "./executable-resolver.mjs";
 import { createLocalAgentInstallationRegistry } from "./installation-registry.mjs";
 
-const DEFAULT_CACHE_TTL_MS = 30_000;
-
 /**
  * Application-scoped authority for local installation discovery.
  *
- * Regular callers share an active scan. A hard refresh requested during that
+ * Ordinary reads reuse the last observation for this application session,
+ * including empty/failed results. Only an explicit refresh starts another scan.
+ * Before the first result, regular callers share an active scan. A refresh during that
  * scan is coalesced into one guaranteed follow-up scan, so refresh never
  * resolves with work that began before the user's action.
  */
@@ -17,7 +17,6 @@ export function createLocalAgentInstallationService(options = {}) {
     registry = createLocalAgentInstallationRegistry(),
     now = Date.now,
     monotonicNow = () => performance.now(),
-    cacheTtlMs = DEFAULT_CACHE_TTL_MS,
     publishSnapshot = null,
   } = options;
   const resolver = options.resolver ?? createLocalAgentExecutableResolver({
@@ -28,7 +27,6 @@ export function createLocalAgentInstallationService(options = {}) {
     ?? ((options) => resolver.createContext(options));
   const resolveInstallation = options.resolveInstallation
     ?? ((definition, context) => resolver.resolve(definition.id, { context }));
-  let cached = null;
   let latestSnapshot = null;
   let active = null;
   let queuedRefresh = null;
@@ -47,18 +45,19 @@ export function createLocalAgentInstallationService(options = {}) {
 
   function discover({ refresh = false, onProgress = null } = {}) {
     if (disposed) return Promise.reject(new Error("Local Agent installation service is closed."));
-    const requestedAt = now();
-    if (active) {
-      if (refresh) return enqueueFreshScan(onProgress);
-      addObserver(active.observers, onProgress);
-      return active.promise;
-    }
-    if (!refresh && cached && requestedAt - cached.cachedAt < cacheTtlMs) {
+    if (!refresh && latestSnapshot) {
       diagnostics.cacheHitCount += 1;
       return Promise.resolve(assertLocalAgentInstallationSnapshot({
-        ...cached.snapshot,
+        ...latestSnapshot,
         source: "memory-cache",
       }));
+    }
+    if (active) {
+      if (refresh) return enqueueFreshScan(onProgress);
+      const scan = active;
+      addObserver(scan.observers, onProgress);
+      safelyPublish(onProgress, scan.progress);
+      return scan.promise;
     }
     return startScan(onProgress ? new Set([onProgress]) : new Set());
   }
@@ -97,14 +96,11 @@ export function createLocalAgentInstallationService(options = {}) {
         diagnostics.lastAvailableCount = snapshot.availableAgentIds.length;
         if (!disposed && scanGeneration === generation) {
           latestSnapshot = snapshot;
-          cached = snapshot.results.some(({ status, reasonCode }) => status === "failed" || reasonCode === "environment-unavailable")
-            ? null
-            : { cachedAt: completedAtMs, snapshot };
           safelyPublish(publishSnapshot, snapshot);
         }
         return snapshot;
       });
-    active = { observers, promise: task, scanGeneration };
+    active = { observers, promise: task, scanGeneration, progress: null };
     void task.then(
       () => finishScan(task),
       () => finishScan(task),
@@ -133,13 +129,16 @@ export function createLocalAgentInstallationService(options = {}) {
       }
       settled.set(definition.id, publicResult(definition, observation));
       completedAgentCount += 1;
-      publishProgress(observers, {
+      const progress = createProgress({
         scanId,
         generation: scanGeneration,
         completedAgentCount,
         totalAgentCount: registry.length,
         results: stableResults(registry, settled),
       });
+      if (disposed || active?.scanGeneration !== scanGeneration) return;
+      active.progress = progress;
+      for (const observer of observers) safelyPublish(observer, progress);
     }));
     const results = stableResults(registry, settled);
     const completedAt = new Date(now()).toISOString();
@@ -176,7 +175,6 @@ export function createLocalAgentInstallationService(options = {}) {
     disposed = true;
     controller.abort();
     generation += 1;
-    cached = null;
     latestSnapshot = null;
     active = null;
     if (queuedRefresh) {
@@ -185,7 +183,7 @@ export function createLocalAgentInstallationService(options = {}) {
     }
   }
 
-  return Object.freeze({ discover, dispose, getDiagnostics, getSnapshot });
+  return Object.freeze({ discover, dispose, getDiagnostics, getSnapshot, isScanning: () => active !== null || queuedRefresh !== null });
 }
 
 function publicResult(definition, observation) {
@@ -209,22 +207,15 @@ function stableResults(registry, settled) {
   return registry.map(({ id }) => settled.get(id)).filter(Boolean);
 }
 
-function publishProgress(observers, progress) {
+function createProgress(progress) {
   const results = Object.freeze([...progress.results]);
-  const event = Object.freeze({
+  return Object.freeze({
     ...progress,
     results,
     availableAgentIds: Object.freeze(
       results.filter(({ status }) => status === "found").map(({ agentId }) => agentId),
     ),
   });
-  for (const observer of observers) {
-    try {
-      observer(event);
-    } catch {
-      // A renderer disappearing must not interrupt application-scoped discovery.
-    }
-  }
 }
 
 function addObserver(observers, observer) {
@@ -232,7 +223,7 @@ function addObserver(observers, observer) {
 }
 
 function safelyPublish(publishSnapshot, snapshot) {
-  if (typeof publishSnapshot !== "function") return;
+  if (typeof publishSnapshot !== "function" || !snapshot) return;
   try {
     publishSnapshot(snapshot);
   } catch {
@@ -249,6 +240,7 @@ function roundDuration(value) {
 }
 
 export const localAgentInstallationPolicy = Object.freeze({
-  cacheTtlMs: DEFAULT_CACHE_TTL_MS,
+  automaticScanScope: "application-session",
+  refreshRequiresExplicitAction: true,
   hardRefreshGuaranteesSubsequentScan: true,
 });

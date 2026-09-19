@@ -1,4 +1,7 @@
 import { installBrokenStdioGuards } from "./main/stdio-guard.mjs";
+import { createCompanionPresenceService } from "./main/local-agent-installation/setup/companion-presence-service.mjs";
+import { createLocalAgentSetupService } from "./main/local-agent-installation/setup/setup-service.mjs";
+import { registerLocalAgentSetupIpcHandlers } from "./main/ipc/local-agent-setup-ipc.mjs";
 import { createDatabasePreviewService, registerDatabasePreviewIpc } from "./main/database-preview/service.mjs";
 import { app, BrowserWindow, dialog, ipcMain, Menu, MessageChannelMain, nativeImage, nativeTheme, powerMonitor, protocol, safeStorage, session as electronSession, shell, utilityProcess, webContents, WebContentsView } from "electron";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -85,6 +88,9 @@ import { registerFeedbackIpcHandlers } from "./main/ipc/feedback-ipc.mjs";
 import { registerSystemIpcHandlers } from "./main/ipc/system-ipc.mjs";
 import { registerTerminalIpcHandlers } from "./main/ipc/terminal-ipc.mjs";
 import { registerLocalAgentInstallationIpcHandlers } from "./main/ipc/local-agent-installation-ipc.mjs";
+import { createModelConnections } from "./main/model-connections/index.mjs";
+import { registerModelConnectionsIpcHandlers } from "./main/ipc/model-connections-ipc.mjs";
+import { createPuppyOneModelVerifier } from "./main/agent/runtimes/puppyone-agent/model-connection-verifier.mjs";
 import { registerWorkspaceFileIpcHandlers } from "./main/ipc/workspace-files-ipc.mjs";
 import { registerWorkspaceGitIpcHandlers } from "./main/ipc/workspace-git-ipc.mjs";
 import { registerWorkspaceNavigationIpcHandlers } from "./main/ipc/workspace-navigation-ipc.mjs";
@@ -363,6 +369,12 @@ const localAgentInstallationService = createLocalAgentInstallationService({
     }
   },
 });
+const localAgentSetupService = createLocalAgentSetupService({
+  installationService: localAgentInstallationService,
+  presenceService: createCompanionPresenceService({ port: desktopPlatformHost.companionApps }),
+  platform: desktopPlatformHost.executableDiscovery.nodePlatform,
+  openExternal: (url) => shell.openExternal(url),
+});
 const agentEventCache = createEphemeralAgentSessionCache({ app });
 const agentConversationCatalog = createAgentConversationCatalog({
   filePath: path.join(app.getPath("userData"), "agent-runtime", "conversations.json"),
@@ -372,11 +384,16 @@ const agentSessionRepository = createAgentSessionRepository({
   conversationCatalog: agentConversationCatalog,
 });
 const agentProcessSupervisor = createAgentProcessSupervisor({ maxConcurrentStarts: 2 });
+const modelConnections = createModelConnections({
+  userDataPath: app.getPath("userData"), secureStorage: safeStorage,
+  verifyModel: createPuppyOneModelVerifier({ appPath: app.getAppPath(), userDataPath: app.getPath("userData"), executablePath: process.execPath }),
+});
 const agentRuntimeRegistry = createDefaultAgentRuntimeHost({
   appVersion: desktopBuildInfo.version,
   appPath: app.getAppPath(),
   userDataPath: app.getPath("userData"),
   executablePath: process.execPath,
+  puppyOneAgent: { modelConnectionPort: { read: () => modelConnections.catalog() } },
 });
 const agentAttachmentStore = createAgentAttachmentStore({
   rootPath: path.join(app.getPath("userData"), "agent-runtime", "attachments"),
@@ -392,6 +409,7 @@ const agentCatalogService = createAgentService({
   processSupervisor: agentProcessSupervisor,
 });
 const agentService = createAgentProcessService({
+  modelConnections,
   utilityProcess,
   modulePath: path.join(__dirname, "utility", "agent", "main.mjs"),
   budget: itemHostBudget,
@@ -405,6 +423,12 @@ const agentService = createAgentProcessService({
   conversationCatalog: agentConversationCatalog,
   attachmentStore: agentAttachmentStore,
   onHostEvent: (record, event) => sendSessionRuntimeFailure(webContents.fromId(record.ownerId), "agent", record, event),
+});
+modelConnections.subscribe((snapshot) => {
+  agentCatalogService.invalidateRuntimeReadiness();
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed() && !window.webContents.isDestroyed()) window.webContents.send("model-connections:changed", snapshot);
+  }
 });
 const localAgentInventory = createLocalAgentInventory({
   appVersion: desktopBuildInfo.version,
@@ -908,6 +932,8 @@ app.on("will-quit", () => {
   nativeSurfacePointerPassthrough.dispose();
   void terminalAgentActivityHost.dispose();
   localAgentInstallationService.dispose();
+  localAgentSetupService.dispose();
+  void modelConnections.dispose();
   localAgentInventory.dispose();
   if (gitAutoCommitHost.available) {
     powerMonitor.removeListener("resume", gitAutoCommitHost.reconcileAfterResume);
@@ -1098,6 +1124,8 @@ function registerIpcHandlers() {
     ipcMain: trustedIpcMain,
     installationService: localAgentInstallationService,
   });
+  registerModelConnectionsIpcHandlers({ ipcMain: trustedIpcMain, connections: modelConnections });
+  registerLocalAgentSetupIpcHandlers({ ipcMain: trustedIpcMain, setupService: localAgentSetupService });
   registerAgentActivityIpcHandlers({
     ipcMain: trustedIpcMain,
     activityHost: terminalAgentActivityHost,

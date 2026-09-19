@@ -5,6 +5,10 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createAgentAttachmentStore } from "../../../../electron/main/agent/agent-attachment-store.mjs";
 import { registerAgentIpcHandlers } from "../../../../electron/main/ipc/agent-ipc.mjs";
+import { buildCodexTurnInput } from "../../../../electron/main/agent/runtimes/codex/codex-reference-input.mjs";
+import { buildClaudeUserMessageContent } from "../../../../electron/main/agent/runtimes/claude/claude-prompt-input.mjs";
+import { buildPiTurnInput } from "../../../../electron/main/agent/protocols/pi-rpc/pi-prompt-input.mjs";
+import { materializeAcpReferences, buildAcpPromptBlocks } from "../../../../electron/main/agent/protocols/acp/acp-prompt-input.mjs";
 
 const temporaryRoots = [];
 
@@ -13,6 +17,36 @@ afterEach(async () => Promise.all(temporaryRoots.splice(0).map((root) => (
 ))));
 
 describe("Agent reference IPC authorization", () => {
+  it("delivers a pathless image through Main authorization to every native image encoder", async () => {
+    const root = await temporaryRoot();
+    const workspace = path.join(root, "workspace");
+    await fs.promises.mkdir(workspace);
+    const store = createAgentAttachmentStore({ rootPath: path.join(root, "staging") });
+    const bytes = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEUlEQVR4AWP8DwQMQMDEAAUAPfgEADYYS7QAAAAASUVORK5CYII=", "base64");
+    const startTurn = vi.fn(async () => ({ sessionId: "image-session", turnId: "image-turn" }));
+    const handlers = registerHandlers({ workspace, store, startTurn });
+    const owner = { sender: { id: 41 } };
+    try {
+      const [draft] = await handlers.get("agent:reference-stage")(owner, {
+        rootPath: workspace, epoch: "image-draft", sources: [{ name: "clipboard.png", bytes }],
+      });
+      await handlers.get("agent:turn-start")(owner, {
+        rootPath: workspace, sessionId: "image-session", prompt: "Describe the image",
+        referenceEpoch: "image-draft", references: [draft],
+      });
+      const references = startTurn.mock.calls[0][1].references;
+      const input = { prompt: "Describe the image", references, workspaceRoot: workspace };
+      const codexImage = buildCodexTurnInput(input.prompt, references, workspace).find((block) => block.type === "localImage");
+      expect(await fs.promises.readFile(codexImage.path)).toEqual(bytes);
+      const claude = await buildClaudeUserMessageContent(input);
+      expect(claude.find((block) => block.type === "image").source.data).toBe(bytes.toString("base64"));
+      expect((await buildPiTurnInput(input)).images[0].data).toBe(bytes.toString("base64"));
+      const profile = { image: true };
+      const acp = buildAcpPromptBlocks({ ...input, profile, references: await materializeAcpReferences(references, profile) });
+      expect(acp.find((block) => block.type === "image").data).toBe(bytes.toString("base64"));
+    } finally { await store.close(); }
+  });
+
   it("turns a preload file grant into an owner-bound, one-use snapshot", async () => {
     const root = await temporaryRoot();
     const workspace = path.join(root, "workspace");

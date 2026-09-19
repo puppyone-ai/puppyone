@@ -14,6 +14,7 @@ import {
 import { useFeatureFlag } from "../flags";
 import { followThemeContentFont, isFollowingThemeContentFont } from "../typography";
 import { LocalAgentsSettingsView } from "../local-agents";
+import { ModelConnectionsSettings } from "../model-connections";
 import { SettingsSectionHeader } from "./components";
 import { AccountSettingsView } from "./main/AccountSettingsView";
 import { ExperimentalSettingsView } from "./main/ExperimentalSettingsView";
@@ -131,6 +132,7 @@ export function SettingsView({
   if (activeSection === "privacy") {
     return <PrivacySettingsView />;
   }
+  if (activeSection === "model-connections") return <ModelConnectionsSettings />;
 
   if (activeSection === "local-agents") {
     return (

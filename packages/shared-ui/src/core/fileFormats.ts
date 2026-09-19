@@ -73,6 +73,7 @@ export const FILE_SEMANTIC_KINDS = [
   "word",
   "excel",
   "spreadsheet",
+  "database",
   "presentation",
   "archive",
   "document",

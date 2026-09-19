@@ -18,7 +18,12 @@ describe("Desktop Agent and Terminal chrome visual contract", () => {
   it("shows launcher content immediately while retaining tab and busy-state motion", () => {
     expect(terminalLauncherCss).not.toContain("desktop-terminal-launcher-tool-enter");
     expect(launcherCss).not.toContain("desktop-agent-runtime-launcher-option-enter");
-    expect(terminalLauncherCss).toContain("animation: desktop-terminal-launcher-scan");
+    // Initial page content is static; only results arriving during a visible
+    // scan fade in. The shared activity grid replaces the duplicate scan spinner.
+    expect(terminalLauncherCss).not.toContain("animation: desktop-terminal-launcher-scan");
+    expect(terminalLauncherCss).toContain("animation: desktop-terminal-launcher-discovered 140ms ease-out");
+    expect(source("src/features/desktop-terminal/ui/terminal-activity-grid.css")).toContain("animation: desktop-terminal-activity-cell");
+    expect(source("src/features/desktop-terminal/ui/LauncherDiscoveryFeedback.tsx")).toContain("useState(animate)");
     expect(launcherCss).toContain("animation: desktop-agent-runtime-launcher-spin");
     expect(terminalTabsCss).toContain("@starting-style");
     expect(terminalTabsCss).toContain("opacity 120ms ease");

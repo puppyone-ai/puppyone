@@ -1,0 +1,28 @@
+@layer features {
+  .model-connections-content { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .model-connections-embedded { max-height: 55vh; overflow: auto; padding: 12px; }
+  .model-connections h2, .model-connections h3, .model-connections p { margin: 0; }
+  .model-connections p, .model-connections small { overflow-wrap: anywhere; }
+  .model-connections small, .model-connection-hint { color: var(--po-text-muted); }
+  .model-connection-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .model-connection-card, .model-connection-setup fieldset, .model-connection-managed {
+    display: flex; flex-direction: column; gap: 10px; min-width: 0;
+    padding: 12px; border: 1px solid var(--po-divider); border-radius: 8px;
+  }
+  .model-connections button, .model-connections input, .model-connections select {
+    font: inherit; color: inherit; background: var(--po-canvas);
+    border: 1px solid var(--po-divider); border-radius: 6px; padding: 6px 9px;
+  }
+  .model-connections button:disabled { opacity: 0.5; }
+  .model-connections button:focus-visible, .model-connections input:focus-visible, .model-connections select:focus-visible {
+    outline: 2px solid var(--po-focus-ring); outline-offset: 2px;
+  }
+  .model-connection-setup label { font-weight: 500; }
+  .model-connection-checkbox { display: flex; align-items: start; gap: 8px; }
+  .model-connection-models, .model-connection-candidates { list-style: none; margin: 0; padding: 0; }
+  .model-connection-models li, .model-connection-candidates li { display: flex; gap: 12px; justify-content: space-between; align-items: center; padding: 8px 0; }
+  .model-connection-models li > div, .model-connection-candidates li > span { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .model-connection-models button { flex-shrink: 0; max-width: 45%; }
+  .model-connection-delete { display: flex; flex-wrap: wrap; gap: 8px; }
+  .model-connection-delete p { flex-basis: 100%; }
+}

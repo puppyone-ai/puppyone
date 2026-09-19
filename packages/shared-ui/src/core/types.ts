@@ -295,6 +295,7 @@ export type DataCapabilities = {
 
 export type DataPort = {
   previewServices?: import("../editor/preview-services/types").EditorPreviewServices;
+  editorAssets?: import("../editor/resource/DocumentAssetImport").DocumentAssetImportPort;
   listChildren: (folderPath: string | null) => Promise<DataNode[]>;
   /** Resolve one workspace-relative entry without enumerating or previewing its siblings. */
   resolveNode?: (path: string) => Promise<DataNode | null>;
@@ -309,7 +310,7 @@ export type DataPort = {
   createFolder?: (path: string) => Promise<void>;
   createFile?: (path: string, content?: string) => Promise<void>;
   instantiateTemplate?: (request: DataTemplateInstantiationRequest) => Promise<DataTemplateInstantiationResult>;
-  importFiles?: (files: File[], targetFolderPath: string | null) => Promise<DataImportResult>;
+  importFiles?: (files: File[], targetFolderPath: string | null, options?: { preferredName?: string }) => Promise<DataImportResult>;
   renameNode?: (path: string, nextName: string) => Promise<void>;
   deleteNode?: (path: string) => Promise<void>;
   moveNode?: (from: string, to: string) => Promise<void>;

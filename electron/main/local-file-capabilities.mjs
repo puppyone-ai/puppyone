@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import path from "node:path";
 
 const DEFAULT_MAX_CAPABILITIES_PER_SENDER = 2_048;
-const LOCAL_FILE_CAPABILITY_PURPOSES = new Set(["file-preview", "markdown-asset"]);
+const LOCAL_FILE_CAPABILITY_PURPOSES = new Set(["file-preview", "markdown-asset", "document-projection"]);
 
 /**
  * Issues opaque, sender-owned, purpose/resource-scoped bearer leases for local
@@ -34,6 +34,9 @@ export function createLocalFileCapabilityStore({
     const normalizedRelative = normalizeRelativePath(relativePath);
     const normalizedScope = requireScope(scope);
     const normalizedPurpose = requirePurpose(purpose);
+    if (normalizedPurpose === "document-projection" && (!snapshot || normalizedScope !== "exact")) {
+      throw new Error("Document projections require an immutable exact-resource snapshot.");
+    }
     const scopePath = normalizedScope === "directory"
       ? path.posix.dirname(normalizedRelative).replace(/^\.$/, "")
       : normalizedRelative;

@@ -149,11 +149,11 @@ describe("real isolated database engines", () => {
     try {
       const info = await host.open(1, { id: "first", rootPath: input.root, path: "sample.db" }, async () => input.root);
       await host.open(2, { id: "first", rootPath: input.root, path: "sample.db" }, async () => input.root);
-      await expect(host.page(3, { id: "first", objectId: "0" }, async () => input.root)).rejects.toMatchObject({ code: "stale-input" });
+      await expect(host.page(3, { id: "first", objectId: "0" }, async () => input.root)).rejects.toMatchObject({ code: "session-expired" });
       const objectId = info.objects.find((o) => o.name === "items").id;
       const first = await host.page(1, { id: "first", objectId }, async () => input.root);
       await host.page(1, { id: "first", cursor: first.cursor }, async () => input.root);
-      await expect(host.page(1, { id: "first", cursor: first.cursor }, async () => input.root)).rejects.toMatchObject({ code: "stale-input" });
+      await expect(host.page(1, { id: "first", cursor: first.cursor }, async () => input.root)).rejects.toMatchObject({ code: "invalid-request" });
       expect(host.sessionCount()).toBe(1);
       await expect(host.page(2, { id: "first", objectId }, async () => { throw Object.assign(new Error(), { code: "permission-denied" }); })).rejects.toMatchObject({ code: "permission-denied" });
       expect(host.sessionCount()).toBe(0);
@@ -170,6 +170,76 @@ describe("real isolated database engines", () => {
       const closing = host.close(1, "pending"); expect(host.sessionCount()).toBe(1);
       authorize(input.root); await closing; await rejection; expect(host.sessionCount()).toBe(0);
     } finally { await host.closeAll(); await input.cleanup(); }
+  });
+
+  for (const engine of ["sqlite", "duckdb"]) it(`${engine}: reopens with a new snapshot and rejects the retired cursor without changing the source`, async () => {
+    const input = await fixture(engine), host = service();
+    try {
+      const before = await fs.readFile(input.file);
+      const firstInfo = await host.open(1, { id: "first", rootPath: input.root, path: "sample.db" }, async () => input.root);
+      const tableName = firstInfo.objects.find((object) => object.name.endsWith("items")).name;
+      const first = await host.page(1, { id: "first", objectId: firstInfo.objects.find((object) => object.name === tableName).id }, async () => input.root);
+      await host.close(1, "first");
+      await expect(host.page(1, { id: "first", cursor: first.cursor }, async () => input.root)).rejects.toMatchObject({ code: "session-expired" });
+      const nextInfo = await host.open(1, { id: "second", rootPath: input.root, path: "sample.db" }, async () => input.root);
+      expect(nextInfo.snapshotEpoch).not.toBe(firstInfo.snapshotEpoch);
+      const page = await host.page(1, { id: "second", objectId: nextInfo.objects.find((object) => object.name === tableName).id }, async () => input.root);
+      expect(page.rows).toEqual(first.rows);
+      expect(page.cursor).not.toBe(first.cursor);
+      await expect(host.page(1, { id: "second", cursor: first.cursor }, async () => input.root)).rejects.toMatchObject({ code: "invalid-request" });
+      expect(host.sessionCount()).toBe(0);
+      expect(await fs.readFile(input.file)).toEqual(before);
+      expect(await fs.readdir(input.root)).toEqual(["sample.db"]);
+    } finally { await host.closeAll(); await input.cleanup(); }
+  }, 25000);
+
+  it("reclaims idle sessions with an expiry reason distinct from changed input", async () => {
+    vi.useFakeTimers();
+    const child = new EventEmitter();
+    child.kill = () => { child.emit("exit", 0); return true; };
+    child.postMessage = vi.fn((message) => queueMicrotask(() => {
+      if (message.method === "close") child.emit("exit", 0);
+      else child.emit("message", { id: message.id, result: { objects: [] } });
+    }));
+    const host = createDatabasePreviewService({ spawnHost: () => child });
+    try {
+      const now = Date.now();
+      const info = await host.open(1, { id: "idle", rootPath: "root", path: "sample.db" }, async () => "root");
+      expect(info.expiresAt).toBe(now + DATABASE_BUDGET.idleMs);
+      await vi.advanceTimersByTimeAsync(DATABASE_BUDGET.idleMs - 1);
+      expect(host.sessionCount()).toBe(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(host.sessionCount()).toBe(0);
+      await expect(host.page(1, { id: "idle", objectId: "0" }, async () => "root")).rejects.toMatchObject({ code: "session-expired" });
+      expect(publicDatabaseFailure({ code: "session-expired" })).toEqual({ code: "session-expired" });
+    } finally { await host.closeAll(); vi.useRealTimers(); }
+  });
+
+  it("keeps the absolute five-minute budget and reports expiry during a pending query", async () => {
+    vi.useFakeTimers();
+    let stall = false;
+    const child = new EventEmitter();
+    child.kill = () => { child.emit("exit", 0); return true; };
+    child.postMessage = vi.fn((message) => queueMicrotask(() => {
+      if (message.method === "close") child.emit("exit", 0);
+      else if (!stall) child.emit("message", { id: message.id, result: { objects: [] } });
+    }));
+    const host = createDatabasePreviewService({ spawnHost: () => child });
+    try {
+      const now = Date.now();
+      await host.open(1, { id: "active", rootPath: "root", path: "sample.db" }, async () => "root");
+      for (let elapsed = 50_000; elapsed <= 250_000; elapsed += 50_000) {
+        await vi.advanceTimersByTimeAsync(50_000);
+        const page = await host.page(1, { id: "active", objectId: "0" }, async () => "root");
+        expect(page.expiresAt).toBe(Math.min(now + DATABASE_BUDGET.sessionMs, Date.now() + DATABASE_BUDGET.idleMs));
+      }
+      await vi.advanceTimersByTimeAsync(49_000);
+      stall = true;
+      const expired = expect(host.page(1, { id: "active", objectId: "0" }, async () => "root")).rejects.toMatchObject({ code: "session-expired" });
+      await vi.advanceTimersByTimeAsync(1_100); await expired;
+      expect(host.sessionCount()).toBe(0);
+      expect(child.postMessage.mock.calls.filter(([message]) => message.method === "close")).toHaveLength(1);
+    } finally { await host.closeAll(); vi.useRealTimers(); }
   });
 
   it("does not release quota until the host exit is confirmed", async () => {

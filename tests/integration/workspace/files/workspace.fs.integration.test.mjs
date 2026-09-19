@@ -794,6 +794,17 @@ describe("copyWorkspaceEntry", () => {
 });
 
 describe("importWorkspaceEntries", () => {
+  it("imports one source under a validated preferred name without overwriting another asset", async () => {
+    const source = path.join(external, "original.png");
+    await writeFile(source, "image bytes");
+    const request = { sourcePaths: [source], targetFolderPath: null, preferredName: "image-unique.png" };
+    expect((await importWorkspaceEntries(root, request)).paths).toEqual(["image-unique.png"]);
+    expect(await readFile(path.join(root, "image-unique.png"), "utf8")).toBe("image bytes");
+    expect(await readFile(source, "utf8")).toBe("image bytes");
+    await expect(importWorkspaceEntries(root, request)).rejects.toThrow(/already exists/i);
+    await expect(importWorkspaceEntries(root, { ...request, preferredName: "../escape.png" })).rejects.toThrow();
+    await expect(importWorkspaceEntries(root, { ...request, sourcePaths: [source, source] })).rejects.toThrow(/exactly one/i);
+  });
   it("imports real external files and folders by copy", async () => {
     await writeFile(path.join(external, "import-me.txt"), "external content");
     await mkdir(path.join(external, "folder"));

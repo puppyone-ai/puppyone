@@ -4,9 +4,11 @@
  */
 
 @import "./control-geometry.css" layer(tokens);
+@import "./editor/text-selection.css";
 
 /* Preview hosts and shells (native, html, app previews) */
 @import "./editor/preview-surfaces.css";
+@import "./editor/html-editor.css";
 
 /* Media and Office document previews */
 @import "./editor/media-office-preview.css";

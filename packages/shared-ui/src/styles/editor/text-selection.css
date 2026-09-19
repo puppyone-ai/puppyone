@@ -1,0 +1,102 @@
+/* One semantic default per appearance boundary. Theme files override these
+   public tokens; ordinary descendants inherit rather than recompute them. */
+@layer tokens {
+  :root,
+  :where([data-po-appearance-root]) {
+    --po-text-selection-bg: color-mix(in srgb, var(--po-accent, #2563eb) 24%, transparent);
+    --po-text-selection-inactive-ratio: 55%;
+    --po-text-selection-inactive-bg: color-mix(in srgb, var(--po-text-selection-bg) var(--po-text-selection-inactive-ratio), transparent);
+    --po-selection-background: initial;
+    --po-selection-inactive-background: initial;
+    /* Empty optional overrides must not leak from an enclosing theme preview. */
+    --po-host-md-selection-bg: initial;
+    --po-host-md-selection-inactive-bg: initial;
+    --po-host-csv-selection-bg: initial;
+    --po-host-csv-selection-inactive-bg: initial;
+    --po-terminal-selection: initial;
+    --po-terminal-selection-inactive: initial;
+  }
+}
+
+/* Browser selection is a product primitive. Each originating element resolves
+   currentColor and its content-domain variables (including direct text nodes). */
+@layer primitives {
+  :where([data-po-appearance-root])::selection,
+  :where([data-po-appearance-root]) ::selection {
+    color: currentColor;
+    background-color: var(--po-selection-background, var(--po-text-selection-bg));
+  }
+
+  [data-po-native-selection="inactive"]::selection,
+  [data-po-native-selection="inactive"] ::selection,
+  :where([data-po-appearance-root]) :is(input, textarea, [contenteditable="true"]):not(:focus-within)::selection,
+  :where([data-po-appearance-root]) [contenteditable="true"]:not(:focus-within) ::selection {
+    background-color: var(--po-selection-inactive-background, var(--po-text-selection-inactive-bg));
+  }
+
+  :where([data-po-appearance-root]) :is(input, textarea, [contenteditable="true"]):focus::selection,
+  :where([data-po-appearance-root]) [contenteditable="true"]:focus ::selection {
+    background-color: var(--po-selection-background, var(--po-text-selection-bg));
+  }
+
+  :root[data-po-window-active="false"] :where([data-po-appearance-root])::selection,
+  :root[data-po-window-active="false"] :where([data-po-appearance-root]) ::selection {
+    background-color: var(--po-selection-inactive-background, var(--po-text-selection-inactive-bg));
+  }
+}
+
+/* CodeMirror injects unlayered CSS. This registered editor adapter owns its
+   two drawing paths, independently of theme IDs and editor behavior. */
+[data-po-selection-renderer="native"] .cm-content::selection,
+[data-po-selection-renderer="native"] .cm-content ::selection {
+  color: currentColor;
+  background-color: var(--po-selection-background, var(--po-text-selection-bg));
+}
+
+[data-po-selection-renderer="native"] .cm-content:not(:focus-within)::selection,
+[data-po-selection-renderer="native"] .cm-content:not(:focus-within) ::selection,
+[data-po-selection-renderer="drawn"] > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
+  background-color: var(--po-selection-inactive-background, var(--po-text-selection-inactive-bg));
+}
+
+[data-po-selection-renderer="drawn"].cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
+  background-color: var(--po-selection-background, var(--po-text-selection-bg));
+}
+
+/* CM's hideNativeSelection assigns Highlight !important to nested focusable
+   inputs. Only those independently editable descendants may override it. */
+[data-po-selection-renderer] .cm-content :is(input, textarea, [contenteditable="true"]):focus::selection,
+[data-po-selection-renderer] .cm-content [contenteditable="true"]:focus ::selection {
+  color: currentColor;
+  background-color: var(--po-selection-background, var(--po-text-selection-bg)) !important;
+}
+
+:root[data-po-window-active="false"] [data-po-selection-renderer="native"] .cm-content::selection,
+:root[data-po-window-active="false"] [data-po-selection-renderer="native"] .cm-content ::selection,
+:root[data-po-window-active="false"] [data-po-selection-renderer="drawn"] > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
+  background-color: var(--po-selection-inactive-background, var(--po-text-selection-inactive-bg));
+}
+
+:root[data-po-window-active="false"] [data-po-selection-renderer] .cm-content :is(input, textarea, [contenteditable="true"]):focus::selection,
+:root[data-po-window-active="false"] [data-po-selection-renderer] .cm-content [contenteditable="true"]:focus ::selection {
+  background-color: var(--po-selection-inactive-background, var(--po-text-selection-inactive-bg)) !important;
+}
+
+@layer accessibility {
+  @media (forced-colors: active) {
+    /* Native selection paints the primary range with the system color pair.
+       Drawn secondary ranges retain visible outlines without hiding glyphs. */
+    :where([data-po-appearance-root])::selection,
+    :where([data-po-appearance-root]) ::selection,
+    [data-po-selection-renderer] .cm-content::selection,
+    [data-po-selection-renderer] .cm-content ::selection {
+      color: HighlightText !important;
+      background-color: Highlight !important;
+    }
+
+    [data-po-selection-renderer="drawn"] > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
+      background-color: transparent !important;
+      outline: 1px solid Highlight;
+    }
+  }
+}

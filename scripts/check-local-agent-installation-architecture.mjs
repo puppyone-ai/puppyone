@@ -29,6 +29,10 @@ for (const file of [
   "shared/local-agent-installation/schema.mjs",
   "shared/local-agent-installation/types.ts",
   "src/features/local-agents/application/LocalAgentInstallationStore.ts",
+  "electron/main/local-agent-installation/setup/setup-registry.mjs",
+  "electron/main/local-agent-installation/setup/setup-advisor.mjs",
+  "electron/main/local-agent-installation/setup/setup-service.mjs",
+  "shared/local-agent-installation/setup-types.ts",
 ]) {
   if (!fs.existsSync(resolve(file))) errors.push(`${file} is required by the Local Agent installation boundary`);
 }
@@ -39,6 +43,15 @@ requireText(main, "desktopPlatformHost.executableDiscovery", "Installation disco
 const preload = read("electron/preload.cjs");
 requireText(preload, "discoverLocalAgentInstallations", "Preload must expose the installation discovery contract");
 requireText(preload, "onLocalAgentInstallationsChanged", "Preload must expose cross-window snapshot convergence");
+requireText(main, "createLocalAgentSetupService", "Main must own the setup advisor and action broker");
+requireText(main, "desktopPlatformHost.companionApps", "Companion evidence must use the read-only platform port");
+requireText(preload, "localAgentSetup:", "Preload must expose ID-only setup actions");
+for (const file of walk(resolve("electron/main/local-agent-installation/setup"))) {
+  if (/node:child_process|execFile\(|spawn\(|src\/features/u.test(fs.readFileSync(file, "utf8"))) {
+    errors.push(`${relative(file)} must not execute installers or depend on Renderer`);
+  }
+}
+requireText(read("electron/main/local-agent-installation/setup/setup-service.mjs"), "openExternal(route.guideUrl)", "Setup actions must resolve official guides from the trusted registry");
 
 const terminalLaunch = read("electron/main/terminal-agent/terminal-agent-launch-resolver.mjs");
 requireText(terminalLaunch, "createLocalAgentExecutableResolver", "Terminal launch must re-resolve through the shared installation engine");

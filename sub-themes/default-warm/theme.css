@@ -49,6 +49,7 @@
     --po-control-hover: rgba(255, 226, 191, 0.09);
     --po-focus-ring: rgba(240, 164, 93, 0.44);
     --po-accent: #f0a45d;
+    --po-text-selection-bg: color-mix(in srgb, var(--po-accent) 28%, transparent);
     --po-accent-text: #ffc078;
     --po-success: #7fca91;
     --po-warning: #f3bd68;

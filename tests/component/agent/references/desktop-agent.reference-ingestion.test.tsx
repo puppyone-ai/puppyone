@@ -322,6 +322,41 @@ describe("Desktop Agent reference ingestion", () => {
       .toContain("capture.png");
   });
 
+  it.each(["resolving", "ready", "error"] as const)("keeps only an accessible remove action on a %s image", (status) => {
+    const onRemoveReference = vi.fn();
+    const onRetryReference = vi.fn();
+    const container = render(<AgentComposer
+      draft=""
+      onDraftChange={vi.fn()}
+      disabled={false}
+      running={false}
+      stopping={false}
+      submitting={false}
+      referenceCapabilities={capabilities()}
+      references={[{
+        id: "image", kind: "staged-attachment", displayName: "capture.png",
+        mime: "image/png", size: 8, status,
+        ...(status === "error" ? { error: { code: "staging-failed", message: "Image could not be prepared" } } : {}),
+      }]}
+      onRemoveReference={onRemoveReference}
+      onRetryReference={onRetryReference}
+      onSubmit={vi.fn(async () => true)}
+      onStop={vi.fn()}
+    />);
+    const card = container.querySelector(".desktop-agent-visual-attachment")!;
+    const buttons = card.querySelectorAll<HTMLButtonElement>("button");
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]!.getAttribute("aria-label")).toContain("Remove reference");
+    expect(buttons[0]!.getAttribute("aria-label")).toContain("capture.png");
+    if (status === "error") {
+      expect(card.getAttribute("title")).toContain("Image could not be prepared");
+      expect(card.querySelector(".desktop-agent-visual-attachment-status.is-error")).not.toBeNull();
+    }
+    act(() => buttons[0]!.click());
+    expect(onRemoveReference).toHaveBeenCalledExactlyOnceWith("image");
+    expect(onRetryReference).not.toHaveBeenCalled();
+  });
+
   it("renders images in the media area and Markdown as an atomic inline prompt mention", async () => {
     const onSelectEffort = vi.fn();
     const onDraftDocumentChange = vi.fn();

@@ -121,10 +121,6 @@
   outline-offset: 1px;
 }
 
-.desktop-terminal-launcher-scan.is-scanning svg {
-  animation: desktop-terminal-launcher-scan 900ms linear infinite;
-}
-
 .desktop-terminal-launcher-tools {
   display: grid;
   min-width: 0;
@@ -148,6 +144,44 @@
   clip: rect(0 0 0 0);
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+.desktop-terminal-launcher-discovery {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 2px 8px;
+  box-sizing: border-box;
+  color: var(--po-text-subtle);
+  font-size: var(--po-type-right-sidebar-caption, 12px);
+  line-height: var(--po-type-right-sidebar-caption-line-height, 17px);
+  overflow-wrap: anywhere;
+}
+
+.desktop-terminal-launcher-discovery-spinner {
+  box-sizing: border-box;
+  width: 11px;
+  height: 11px;
+  flex: 0 0 11px;
+  margin-block-start: 3px;
+  border: 1.5px solid var(--po-border);
+  border-block-start-color: currentColor;
+  border-radius: 50%;
+  animation: desktop-terminal-launcher-scanning 900ms linear infinite;
+}
+
+@keyframes desktop-terminal-launcher-scanning {
+  to { transform: rotate(360deg); }
+}
+
+.desktop-terminal-launcher-heading h2:focus-visible {
+  outline: 1px solid var(--po-focus-ring);
+  outline-offset: 2px;
+}
+
+.desktop-terminal-launcher-discovered {
+  animation: desktop-terminal-launcher-discovered 140ms ease-out;
 }
 
 .desktop-terminal-launcher-error {
@@ -279,10 +313,9 @@
   color: currentColor;
 }
 
-@keyframes desktop-terminal-launcher-scan {
-  to {
-    transform: rotate(1turn);
-  }
+@keyframes desktop-terminal-launcher-discovered {
+  from { opacity: 0.4; }
+  to { opacity: 1; }
 }
 
 @container (min-width: 460px) {
@@ -298,7 +331,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .desktop-terminal-launcher-scan.is-scanning svg {
+  .desktop-terminal-launcher-discovered,
+  .desktop-terminal-launcher-discovery-spinner {
     animation: none;
   }
 }
@@ -307,6 +341,7 @@
   position: fixed;
   inset: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) auto;
   place-items: center;
   padding: 32px;

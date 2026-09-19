@@ -1,6 +1,8 @@
 const { contextBridge, ipcRenderer, webUtils } = require("electron");
 const externalViewerPacksEnabled = process.argv.includes("--puppyone-external-viewer-packs=1");
 const gitAutoCommitAvailable = process.argv.includes("--puppyone-git-auto-commit=1");
+const MAX_INLINE_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+let pendingInlineAttachmentBytes = 0;
 
 contextBridge.exposeInMainWorld("puppyoneDesktop", {
   connectAgentSession: (request) => ipcRenderer.invoke("agent:session-connect", request),
@@ -309,6 +311,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   readDatabasePreviewPage: (request) => ipcRenderer.invoke("database-preview:page", request),
   closeDatabasePreview: (request) => ipcRenderer.invoke("database-preview:close", request),
   getFileUrl: (request) => ipcRenderer.invoke("workspace:get-file-url", request),
+  createPreviewDocument: (request) => ipcRenderer.invoke("workspace:create-preview-document", request),
   revokeFileUrl: (request) => ipcRenderer.invoke("workspace:revoke-file-url", request),
   convertOfficeDocumentToDocx: (request) => ipcRenderer.invoke("workspace:convert-office-docx", request),
   cancelOfficeDocumentToDocxConversion: (request) => ipcRenderer.invoke("workspace:convert-office-docx-cancel", request),
@@ -331,6 +334,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
       rootPath: request?.rootPath,
       targetFolderPath: request?.targetFolderPath ?? null,
       sourcePaths,
+      ...(request?.preferredName === undefined ? {} : { preferredName: request.preferredName }),
     });
   },
   deleteEntry: (request) => ipcRenderer.invoke("workspace:delete-entry", request),
@@ -465,17 +469,38 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   archiveAgentSession: (request) => ipcRenderer.invoke("agent:session-archive", request),
   deleteAgentSession: (request) => ipcRenderer.invoke("agent:session-delete", request),
   closeAgentSession: (request) => ipcRenderer.invoke("agent:session-close", request),
-  stageAgentAttachments: (request) => {
+  stageAgentAttachments: async (request) => {
     const files = Array.isArray(request?.files) ? request.files : [];
+    if (files.length === 0 || files.length > 32) throw new Error("Select between 1 and 32 attachment files.");
+    // Capture native paths before any asynchronous byte reads. getPathForFile
+    // validates File identity; a genuine clipboard/browser File may have no path.
     const sourcePaths = files.map((file) => webUtils.getPathForFile(file));
-    if (sourcePaths.length === 0 || sourcePaths.some((sourcePath) => typeof sourcePath !== "string" || !sourcePath.trim())) {
-      return Promise.reject(new Error("One or more selected files could not be resolved."));
+    const context = { rootPath: request?.rootPath, epoch: request?.epoch };
+    if (sourcePaths.every((sourcePath) => typeof sourcePath === "string" && sourcePath.trim())) {
+      return ipcRenderer.invoke("agent:reference-stage", { ...context, sourcePaths });
     }
-    return ipcRenderer.invoke("agent:reference-stage", {
-      rootPath: request?.rootPath,
-      epoch: request?.epoch,
-      sourcePaths,
+    let inlineBytes = 0;
+    files.forEach((file, index) => {
+      if (sourcePaths[index]) return;
+      if (!Number.isSafeInteger(file.size) || file.size <= 0) throw new Error("The selected attachment is empty or invalid.");
+      inlineBytes += file.size;
     });
+    if (inlineBytes > MAX_INLINE_ATTACHMENT_BYTES || pendingInlineAttachmentBytes + inlineBytes > MAX_INLINE_ATTACHMENT_BYTES) {
+      throw new Error("Attachments exceed the 25 MB in-flight safety limit. Try fewer files at a time.");
+    }
+    pendingInlineAttachmentBytes += inlineBytes;
+    try {
+      const sources = [];
+      for (const [index, file] of files.entries()) {
+        if (sourcePaths[index]) { sources.push({ path: sourcePaths[index] }); continue; }
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        if (bytes.byteLength !== file.size) throw new Error("The selected attachment changed while it was being read.");
+        sources.push({ name: file.name, bytes });
+      }
+      return await ipcRenderer.invoke("agent:reference-stage", { ...context, sources });
+    } finally {
+      pendingInlineAttachmentBytes -= inlineBytes;
+    }
   },
   revokeAgentAttachments: (request) => ipcRenderer.invoke("agent:reference-revoke", request),
   resolveAgentWorkspaceReferences: (request) => ipcRenderer.invoke("agent:reference-resolve-workspace", request),
@@ -509,6 +534,24 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
     },
   } : {}),
   discoverLocalAgentInstallations: (request) => ipcRenderer.invoke("local-agent-installation:discover", request),
+  localAgentSetup: {
+    inspect: (request) => ipcRenderer.invoke("local-agent-setup:inspect", request),
+    act: (request) => ipcRenderer.invoke("local-agent-setup:act", request),
+    release: (clientId) => ipcRenderer.invoke("local-agent-setup:release", clientId),
+  },
+  modelConnections: {
+    read: () => ipcRenderer.invoke("model-connections:read"),
+    discover: () => ipcRenderer.invoke("model-connections:discover"),
+    save: (request) => ipcRenderer.invoke("model-connections:save", request),
+    remove: (request) => ipcRenderer.invoke("model-connections:remove", request),
+    refresh: (request) => ipcRenderer.invoke("model-connections:refresh", request),
+    verify: (request) => ipcRenderer.invoke("model-connections:verify", request),
+    subscribe: (callback) => {
+      const listener = (_event, snapshot) => callback(snapshot);
+      ipcRenderer.on("model-connections:changed", listener);
+      return () => ipcRenderer.removeListener("model-connections:changed", listener);
+    },
+  },
   onLocalAgentInstallationProgress: (callback) => {
     if (typeof callback !== "function") return () => {};
     const listener = (_event, payload) => callback(payload);

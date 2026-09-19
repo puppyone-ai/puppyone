@@ -49,6 +49,7 @@ describe("workspace file IPC authorization", () => {
       ["workspace:resolve-node", { rootPath: otherRoot, path: "secret.txt" }],
       ["workspace:read-file", { rootPath: otherRoot, path: "secret.txt" }],
       ["workspace:get-file-url", { rootPath: otherRoot, path: "secret.txt" }],
+      ["workspace:create-preview-document", { rootPath: otherRoot, path: "secret.html", content: "<p>preview</p>" }],
       ["workspace:convert-office-docx", { rootPath: otherRoot, path: "secret.rtf" }],
       ["workspace:write-file", { rootPath: otherRoot, path: "secret.txt", content: "changed" }],
       ["workspace:create-entry", { rootPath: otherRoot, parentPath: null, name: "new.txt", kind: "file" }],
@@ -69,6 +70,25 @@ describe("workspace file IPC authorization", () => {
 
     expect(await readFile(path.join(otherRoot, "secret.txt"), "utf8")).toBe("secret");
     await expect(readFile(path.join(otherRoot, "new.txt"), "utf8")).rejects.toThrow();
+  });
+
+  it("leases bounded projections without writing the file or granting adjacent-resource authority", async () => {
+    const { handlers, localFileCapabilities } = createHarness(() => root);
+    const event = { sender: { id: 8 } };
+    await writeFile(path.join(root, "page.html"), "original");
+    const create = handlers.get("workspace:create-preview-document");
+    const request = { rootPath: root, path: "page.html", content: "<p>disposable</p>" };
+    const { url } = await create(event, request);
+    const key = parseLocalFileUrl(url);
+    expect(localFileCapabilities.resolve(key).snapshot.bytes.toString()).toBe(request.content);
+    expect(localFileCapabilities.resolve({ ...key, requestPath: "other.html" })).toBeNull();
+    expect(localFileCapabilities.resolve({ ...key, purpose: "file-preview" })).toBeNull();
+    expect(await readFile(path.join(root, "page.html"), "utf8")).toBe("original");
+    await expect(create(event, { ...request, content: "x".repeat(2 * 1024 * 1024 + 1) })).rejects.toThrow(/unsupported/i);
+    await expect(create(event, { ...request, path: "../outside.html" })).rejects.toThrow();
+    expect((await handlers.get("workspace:revoke-file-url")({ sender: { id: 9 } }, { url })).revoked).toBe(false);
+    expect((await handlers.get("workspace:revoke-file-url")(event, { url })).revoked).toBe(true);
+    expect(localFileCapabilities.resolve(key)).toBeNull();
   });
 
   it("issues a matching immutable HTML snapshot and rejects a stale text version", async () => {

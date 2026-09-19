@@ -174,6 +174,7 @@ export function AgentPromptEditor({
     const state = EditorState.create({
       doc: value,
       extensions: [
+        EditorView.editorAttributes.of({ "data-po-selection-renderer": "native" }),
         mentionDecorations,
         history(),
         EditorView.lineWrapping,
