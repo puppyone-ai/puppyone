@@ -26,6 +26,32 @@ afterEach(() => {
 });
 
 describe("ExplorerTree interactive semantics", () => {
+  it("projects database identity into the shared glyph and skin hook for generic file nodes", () => {
+    const nodes: DataNode[] = [
+      { id: "sqlite", name: "data.db", path: "data.db", type: "file" },
+      { id: "duckdb", name: "data.duckdb", path: "data.duckdb", type: "binary" },
+    ];
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    act(() => renderWithTestLocalization(root,
+      <ExplorerTree
+        nodes={nodes}
+        activePath={null}
+        expandedPaths={new Set()}
+        showRoot={false}
+        onSelectNode={vi.fn()}
+      />,
+    ));
+
+    for (const node of nodes) {
+      const row = container.querySelector(`[data-explorer-path="${node.path}"]`);
+      const slot = row?.querySelector('.tree-icon-slot[data-file-kind="database"]');
+      expect(slot?.querySelector('svg[data-file-icon-shape="database-cylinder"]')).toBeTruthy();
+    }
+  });
+
   it("renders an empty root as zero rows so the list-end action starts the content", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

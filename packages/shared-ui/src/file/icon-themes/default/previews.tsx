@@ -6,10 +6,12 @@ import type {
 } from "../iconThemeTypes";
 import {
   DocShell,
+  renderCenteredIcon,
   renderDocShellPreview,
   renderFolderPreview,
   SNIPPET_PREVIEW_KINDS,
 } from "../shared/PreviewShell";
+import { DatabaseGlyph } from "../shared/semanticGlyphs";
 import { renderDefaultFolderPreviewGlyph } from "./glyphs";
 
 const DEFAULT_PREVIEW_GLYPH_RENDERERS = {
@@ -27,6 +29,7 @@ const DEFAULT_PREVIEW_GLYPH_RENDERERS = {
   word: renderDefaultWordPreviewGlyph,
   excel: renderDefaultExcelPreviewGlyph,
   spreadsheet: renderDefaultSpreadsheetPreviewGlyph,
+  database: DatabaseGlyph,
   presentation: renderDefaultPresentationPreviewGlyph,
   archive: renderDefaultArchivePreviewGlyph,
   document: renderDefaultDocumentPreviewGlyph,
@@ -43,6 +46,13 @@ export function renderDefaultPreview(
     return renderFolderPreview(
       context,
       DEFAULT_PREVIEW_GLYPH_RENDERERS.folder(context),
+    );
+  }
+
+  if (context.kind === "database") {
+    return renderCenteredIcon(
+      context.size,
+      renderDefaultPreviewGlyph({ ...context, size: Math.round(context.size * 0.78) }),
     );
   }
 

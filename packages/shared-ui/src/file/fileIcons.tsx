@@ -110,6 +110,7 @@ const FILE_KIND_LABELS: Partial<Record<FileVisualKind, string>> = {
   app: "APP",
   audio: "MP3",
   "context-map": "MAP",
+  database: "DB",
   excel: "XLS",
   html: "HTML",
   image: "IMG",

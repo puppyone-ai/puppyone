@@ -2644,6 +2644,7 @@
     {
       "id": "database-candidate",
       "label": "Database",
+      "semanticKind": "database",
       "extensions": [
         ".db",
         ".db3",
