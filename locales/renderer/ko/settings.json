@@ -1,4 +1,5 @@
 {
+  "agentSetup.options": "추천 옵션",
   "agentSetup.title": "Agent 설정",
   "agentSetup.suggestions": "설치된 앱을 기반으로 Agent 추천",
   "agentSetup.restore": "숨긴 추천 복원",

@@ -1,4 +1,5 @@
 {
+  "agentSetup.options": "推荐选项",
   "agentSetup.title": "设置 Agents",
   "agentSetup.suggestions": "根据已安装的 App 推荐 Agent",
   "agentSetup.restore": "恢复已忽略的推荐",

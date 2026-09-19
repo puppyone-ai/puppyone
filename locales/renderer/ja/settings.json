@@ -1,4 +1,5 @@
 {
+  "agentSetup.options": "おすすめのオプション",
   "agentSetup.title": "Agent を設定",
   "agentSetup.suggestions": "インストール済みアプリから Agent を提案",
   "agentSetup.restore": "非表示にした提案を復元",

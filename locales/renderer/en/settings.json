@@ -1,4 +1,5 @@
 {
+  "agentSetup.options": "Recommendation options",
   "agentSetup.title": "Set up Agents",
   "agentSetup.suggestions": "Suggest Agents from installed apps",
   "agentSetup.restore": "Restore dismissed suggestions",

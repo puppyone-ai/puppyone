@@ -178,7 +178,7 @@ export function LocalAgentsSettingsView({
               onPreferencesChange={(setupSuggestions) => onChange({ ...settings, setupSuggestions })}
               discovery={discovery}
               onRefresh={refresh}
-              showPreferences
+              presentation="settings"
             />
           </div>
         </div>

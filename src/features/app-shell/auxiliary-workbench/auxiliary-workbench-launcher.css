@@ -146,12 +146,12 @@
   white-space: nowrap;
 }
 
-.desktop-terminal-launcher-tools > .desktop-terminal-launcher-discovery {
+.desktop-terminal-launcher-discovery {
   display: flex;
-  min-height: var(--po-control-size-large);
-  align-items: center;
-  gap: 9px;
-  padding: 5px 8px;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 2px 8px;
   box-sizing: border-box;
   color: var(--po-text-subtle);
   font-size: var(--po-type-right-sidebar-caption, 12px);
@@ -160,13 +160,24 @@
 }
 
 .desktop-terminal-launcher-discovery-spinner {
-  flex: 0 0 18px;
-  place-content: center;
+  box-sizing: border-box;
+  width: 11px;
+  height: 11px;
+  flex: 0 0 11px;
+  margin-block-start: 3px;
+  border: 1.5px solid var(--po-border);
+  border-block-start-color: currentColor;
+  border-radius: 50%;
+  animation: desktop-terminal-launcher-scanning 900ms linear infinite;
 }
 
-.desktop-terminal-launcher-discovery-count {
-  display: block;
-  font-variant-numeric: tabular-nums;
+@keyframes desktop-terminal-launcher-scanning {
+  to { transform: rotate(360deg); }
+}
+
+.desktop-terminal-launcher-heading h2:focus-visible {
+  outline: 1px solid var(--po-focus-ring);
+  outline-offset: 2px;
 }
 
 .desktop-terminal-launcher-discovered {
@@ -320,7 +331,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .desktop-terminal-launcher-discovered {
+  .desktop-terminal-launcher-discovered,
+  .desktop-terminal-launcher-discovery-spinner {
     animation: none;
   }
 }
