@@ -20,10 +20,11 @@ describe("binary fallback visual architecture", () => {
     expect(surface).toContain("background: var(--po-editor-bg);");
 
     const summary = readCssBlock(documentPreviewCss, ".document-preview__summary");
+    expect(summary).toContain("width: min(280px");
     expect(summary).toContain("aspect-ratio: 1;");
     expect(summary).toContain("background: repeating-linear-gradient(");
     expect(summary).toContain("var(--po-text-muted) 32%");
-    expect(summary).toContain("border: 0;");
+    expect(summary).toContain("border: 1px solid color-mix(in srgb, var(--po-text-muted) 42%, transparent);");
     expect(summary).toContain("border-radius: 0;");
   });
 });

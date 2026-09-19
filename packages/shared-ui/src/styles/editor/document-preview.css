@@ -16,11 +16,11 @@
 
 .document-preview__summary {
   display: grid;
-  width: min(360px, calc(100cqw - 64px), calc(100cqh - 64px));
+  width: min(280px, calc(100cqw - 64px), calc(100cqh - 64px));
   aspect-ratio: 1;
   box-sizing: border-box;
   place-items: center;
-  border: 0;
+  border: 1px solid color-mix(in srgb, var(--po-text-muted) 42%, transparent);
   border-radius: 0;
   background: repeating-linear-gradient(
     132deg,
