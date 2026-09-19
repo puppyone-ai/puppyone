@@ -25,5 +25,6 @@ describe("Built-in compute selection ownership", () => {
     expect(source).toContain('data-po-scrollbar="content"');
     expect(css).toContain("max-height: min(50vh, 480px); overflow: auto");
     expect(css).toContain(".model-connections-embedded { max-height: none; overflow: visible; }");
+    expect(css).not.toMatch(/cursor:\s*pointer/u);
   });
 });

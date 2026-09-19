@@ -17,7 +17,7 @@
   .desktop-agent-compute-model > span { color: var(--po-text-muted); font-size: var(--po-text-size-hint); }
   .desktop-agent-compute-configure, .desktop-agent-compute-pending > button {
     align-self: flex-start; padding: 3px 0; border: 0; background: transparent; color: var(--po-accent); font: inherit;
-    font-size: var(--po-text-size-hint); cursor: pointer;
+    font-size: var(--po-text-size-hint);
   }
   .desktop-agent-compute-pending > button { display: block; }
   .desktop-agent-compute .model-connections-embedded { max-height: none; overflow: visible; }
