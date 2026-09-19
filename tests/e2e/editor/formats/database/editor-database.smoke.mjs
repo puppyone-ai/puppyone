@@ -39,6 +39,7 @@ const large = new DatabaseSync(path.join(roots[0], "large.db"));
 large.exec("CREATE TABLE payload(id INTEGER PRIMARY KEY, bytes BLOB); INSERT INTO payload VALUES(1,zeroblob(268435456));"); large.close();
 const duck = await DuckDBInstance.create(path.join(roots[1], "sample.db")); const connection = await duck.connect();
 await connection.run("CREATE TABLE items AS SELECT range AS id, 'DuckDB row' AS label, 123456789012345678901234567890::HUGEINT AS big FROM range(57)");
+await connection.run("CREATE VIEW item_summary AS SELECT count(*)::BIGINT AS total FROM items");
 connection.closeSync(); duck.closeSync();
 const registry = createWorkspaceStateStore({ app, filename: "desktop-workspace-state.json", canonicalizeWorkspacePath: root => fs.realpath(root), workspaceFromPath });
 for (const root of [...roots].reverse()) await registry.rememberWorkspaceComposition([await workspaceFromPath(root)]);
@@ -76,6 +77,11 @@ async function click(selector) {
   await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
 }
 const openFile = name => click(`.tree-row.file[aria-label="${name}"]`);
+async function clickObject(name) {
+  const selector = `.database-preview [role="tab"][aria-label="${name}"]`;
+  await until(() => evaluate(`(() => { const tab=document.querySelector(${JSON.stringify(selector)}); return Boolean(tab&&tab.getAttribute('aria-disabled')!=='true'); })()`), `object ${name} available`);
+  await click(selector);
+}
 async function ready(text) {
   await until(() => evaluate(`document.querySelector('.database-preview tbody')?.textContent.includes(${JSON.stringify(text)})`), `ready ${text}`);
   assert.equal(window.contentView.children.length, 0, "Database must not allocate native display surfaces");
@@ -127,7 +133,9 @@ try {
   await until(() => evaluate("document.querySelectorAll('.database-preview tbody tr').length===7"), "second engine page"); steps.push("50+7 engine pagination");
   await openFile("large.db"); await ready("268435456"); steps.push({ label: "large BLOB projected without full source IPC", sourceBytes: (await fs.stat(files[1])).size });
   await project("Database B"); await openFile("note.md"); await noDatabase("project-switch");
-  await openFile("sample.db"); await ready("123456789012345678901234567890"); steps.push("DuckDB via same DOM provider");
+  await openFile("sample.db"); await clickObject("main.items"); await ready("123456789012345678901234567890"); steps.push("DuckDB via same DOM provider");
+  await clickObject("main.item_summary");
+  await ready("57"); steps.push("DuckDB view tab is clickable and paged through the isolated provider");
   await fs.writeFile(path.join(output, "duckdb-ready.png"), (await window.webContents.capturePage()).toPNG());
   await openFile("unknown.db"); await until(() => evaluate("document.querySelector('.database-preview [role=alert]')?.dataset.errorCode==='unrecognized-format'"), "unknown format fallback");
   await until(() => hosts.every(host => host.exited), "unknown closes previous engine");

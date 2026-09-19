@@ -3,7 +3,7 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FilePreview } from "../../../../../packages/shared-ui/src/editor/host/FilePreview";
-import type { DatabasePreviewSession, EditorPreviewServices } from "../../../../../packages/shared-ui/src/editor/preview-services/types";
+import type { DatabaseObject, DatabasePreviewSession, EditorPreviewServices } from "../../../../../packages/shared-ui/src/editor/preview-services/types";
 import { retireEditorHostLeases } from "../../../../../packages/shared-ui/src/editor/runtime/EditorHostLeases";
 import { withTestLocalization } from "../../../../support/react/localization";
 
@@ -11,13 +11,13 @@ import { withTestLocalization } from "../../../../support/react/localization";
 let root: Root, container: HTMLDivElement;
 beforeEach(() => { container = document.createElement("div"); document.body.append(container); root = createRoot(container); });
 afterEach(async () => { act(() => root.unmount()); await retireEditorHostLeases(); document.body.innerHTML = ""; vi.useRealTimers(); });
-function session(label: string): DatabasePreviewSession {
+function session(label: string, objects: readonly DatabaseObject[] = [{ id: "0", name: "items", kind: "table", readable: true }], engine: "sqlite" | "duckdb" = "sqlite"): DatabasePreviewSession {
   const expiresAt = Date.now() + 60_000;
   const columns = [{ id: "0", name: "label", type: "TEXT", primaryKey: false }];
-  return { ready: Promise.resolve({ engine: "sqlite", engineVersion: "test", snapshotEpoch: label, expiresAt, pageRows: 50, pageColumns: 24,
+  return { ready: Promise.resolve({ engine, engineVersion: "test", snapshotEpoch: label, expiresAt, pageRows: 50, pageColumns: 24,
     adapterVersion: 1, binding: "test", dataModel: "relational", consistency: "read-transaction",
     capabilities: { metadata: true, browse: true, filter: false, sort: false, count: false, sql: false },
-    objects: [{ id: "0", name: "items", kind: "table", readable: true }] }),
+    objects }),
     close: vi.fn(async () => undefined),
     readPage: vi.fn(async () => ({ snapshotEpoch: label, expiresAt, columns, visibleColumns: columns,
       rows: [[{ kind: "text", text: label, truncated: false }]], cursor: "next", hasMore: true })),
@@ -49,6 +49,30 @@ describe("registered database DOM viewer", () => {
     const next = container.querySelector<HTMLButtonElement>('button[aria-label="Next page"]')!;
     await act(async () => next.click());
     expect(value.readPage).toHaveBeenLastCalledWith({ cursor: "next" }, expect.any(AbortSignal));
+  });
+
+  it("keeps unavailable objects discoverable while supported DuckDB views remain operable", async () => {
+    const value = session("view row", [
+      { id: "0", name: "main.items", kind: "BASE TABLE", readable: true },
+      { id: "1", name: "audit.safe_view", kind: "VIEW", readable: true },
+      { id: "2", name: "sqlite_unsafe", kind: "view", readable: false, unavailableReason: "unsupported-object-kind" },
+    ], "duckdb");
+    await render({ database: { open: async () => value } }); await ready();
+    const tabs = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+    expect(tabs).toHaveLength(3);
+    expect(tabs[2].getAttribute("aria-disabled")).toBe("true");
+    expect(tabs[2].hasAttribute("disabled")).toBe(false);
+    expect(tabs[2].title).toContain("cannot be previewed");
+    tabs[0].focus();
+    await act(async () => tabs[0].dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+    expect(document.activeElement).toBe(tabs[1]);
+    const readPage = vi.mocked(value.readPage);
+    const calls = readPage.mock.calls.length;
+    await act(async () => tabs[2].click());
+    expect(readPage).toHaveBeenCalledTimes(calls);
+    await act(async () => tabs[1].click());
+    expect(readPage).toHaveBeenLastCalledWith({ objectId: "1", columnOffset: 0 }, expect.any(AbortSignal));
+    expect(tabs[1].getAttribute("aria-selected")).toBe("true");
   });
 
   it("drops late opening results across A→B→A and releases every native lease", async () => {

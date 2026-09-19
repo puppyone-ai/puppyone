@@ -11,6 +11,7 @@ export type PlainTextEditorProps = {
   nodeName?: string;
   readOnly?: boolean;
   onChange?: (content: string) => void;
+  textSelectionScope?: "csv";
 };
 
 export function PlainTextEditor({
@@ -18,6 +19,7 @@ export function PlainTextEditor({
   nodeName = "",
   readOnly = true,
   onChange,
+  textSelectionScope,
 }: PlainTextEditorProps) {
   const { locale, t } = useLocalization();
   const lowerName = nodeName.toLowerCase();
@@ -26,6 +28,7 @@ export function PlainTextEditor({
   return (
     <div
       className="plain-text-editor"
+      data-po-selection-scope={textSelectionScope}
       data-po-scrollbar="content"
       data-po-typography-role="content"
       lang={locale}

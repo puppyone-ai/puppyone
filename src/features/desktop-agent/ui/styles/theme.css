@@ -73,7 +73,6 @@
   --agent-readiness-border: color-mix(in srgb, var(--po-warning) 35%, var(--po-divider));
   --agent-readiness-surface: color-mix(in srgb, var(--po-warning) 7%, var(--po-panel));
   --agent-picker-warning-text: color-mix(in srgb, var(--po-warning) 76%, var(--po-text-muted));
-  --agent-selection-surface: color-mix(in srgb, var(--agent-text) 16%, transparent);
   --agent-mention-border: color-mix(in srgb, var(--agent-accent) 36%, var(--agent-border-subtle));
   --agent-mention-surface: color-mix(in srgb, var(--agent-accent-soft) 58%, transparent);
   --agent-mention-text: color-mix(in srgb, var(--agent-accent) 78%, var(--agent-text));

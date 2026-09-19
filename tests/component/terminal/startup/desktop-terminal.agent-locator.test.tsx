@@ -212,6 +212,85 @@ describe("shared Local Agent installation controller", () => {
     expect(latest.current?.phase).toBe("ready");
     expect(latest.current?.ids).toEqual(["codex", "opencode", "hermes"]);
   });
+
+  it("rejects regressing counts, malformed progress and old scans across progress, broadcasts and invoke", async () => {
+    const final = deferred<unknown>();
+    const locate = vi.fn().mockReturnValue(final.promise);
+    const bridge = installBridge(locate);
+    const latest: { current: LocatorView | null } = { current: null };
+    mount(value => { latest.current = value; });
+    const requestId = locate.mock.calls[0]?.[0]?.requestId;
+    const progress = { ...snapshot(["codex", "opencode"], 3), requestId, completedAgentCount: 2, totalAgentCount: 8 };
+    act(() => bridge.emitProgress(progress));
+    expect(latest.current?.progress?.completedAgentCount).toBe(2);
+    const accepted = latest.current;
+    for (const invalid of [
+      { ...progress, ...snapshot(["claude"], 3), completedAgentCount: 1 },
+      { ...progress, ...snapshot(["claude"], 2), completedAgentCount: 1 },
+      { ...progress, scanId: "other-scan" },
+      { ...progress, completedAgentCount: 3 },
+      { ...progress, availableAgentIds: ["claude"] },
+      { ...progress, totalAgentCount: 9 },
+    ]) act(() => bridge.emitProgress(invalid));
+    act(() => bridge.emitChanged(snapshot(["claude"], 2)));
+    expect(latest.current).toBe(accepted);
+    act(() => bridge.emitChanged(snapshot(["hermes"], 4)));
+    // An initial scan's broadcast can arrive before its invoke response; it
+    // must not rename that same cold request to a background refresh.
+    expect(latest.current?.refreshing).toBe(false);
+    act(() => bridge.emitProgress(progress));
+    await act(async () => { final.resolve(snapshot(["codex"], 3)); await final.promise; });
+    expect(latest.current?.ids).toEqual(["hermes"]);
+    expect(latest.current?.snapshot?.generation).toBe(4);
+    expect(latest.current?.phase).toBe("ready");
+    expect(latest.current?.progress).toBeNull();
+  });
+
+  it("retains results while refreshing, clears old warnings, and removes only definitive missing installations", async () => {
+    const first = deferred<unknown>();
+    const second = deferred<unknown>();
+    const locate = vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    const bridge = installBridge(locate);
+    const latest: { current: LocatorView | null } = { current: null };
+    mount(value => { latest.current = value; });
+    await act(async () => {
+      first.resolve({ ...snapshot(["codex", "claude"]), results: [
+        { ...installationResult("codex"), reasonCode: "environment-unavailable" }, installationResult("claude"),
+      ] });
+      await first.promise;
+    });
+    expect(latest.current?.hasFailures).toBe(true);
+    act(() => { void latest.current?.refresh(); });
+    expect(latest.current?.ids).toEqual(["codex", "claude"]);
+    expect(latest.current?.hasFailures).toBe(false);
+    expect(latest.current?.refreshing).toBe(true);
+    act(() => bridge.emitProgress({ ...snapshot(["hermes"], 2), requestId: locate.mock.calls[1]?.[0]?.requestId,
+      completedAgentCount: 1, totalAgentCount: 8 }));
+    expect(latest.current?.ids).toEqual(["codex", "claude", "hermes"]);
+    await act(async () => {
+      second.resolve({ ...snapshot(["hermes"], 2), results: [
+        { agentId: "codex", displayName: "Codex", status: "failed" },
+        { agentId: "claude", displayName: "Claude", status: "not-found" }, installationResult("hermes"),
+      ] });
+      await second.promise;
+    });
+    expect(latest.current?.ids).toEqual(["codex", "hermes"]);
+    expect(latest.current?.hasFailures).toBe(true);
+    expect(latest.current?.progress).toBeNull();
+  });
+
+  it("ignores events and responses after the last consumer leaves", async () => {
+    const final = deferred<unknown>();
+    const locate = vi.fn(() => final.promise);
+    const bridge = installBridge(locate);
+    const latest: { current: LocatorView | null } = { current: null };
+    const harness = mount(value => { latest.current = value; });
+    harness.setEnabled(false);
+    const stopped = latest.current;
+    act(() => bridge.emitChanged(snapshot(["codex"])));
+    await act(async () => { final.resolve(snapshot(["codex"])); await final.promise; });
+    expect(latest.current).toBe(stopped);
+  });
 });
 
 function mount(onValue: (value: LocatorView) => void) {
@@ -237,6 +316,7 @@ function installBridge(
   additionalBridgeMethods: Record<string, unknown> = {},
 ) {
   const progressCallback: { current: ((event: unknown) => void) | null } = { current: null };
+  const changedCallback: { current: ((event: unknown) => void) | null } = { current: null };
   Object.defineProperty(window, "puppyoneDesktop", {
     configurable: true,
     value: {
@@ -245,11 +325,15 @@ function installBridge(
         progressCallback.current = callback;
         return () => { progressCallback.current = null; };
       }),
-      onLocalAgentInstallationsChanged: vi.fn(() => () => {}),
+      onLocalAgentInstallationsChanged: vi.fn((callback) => {
+        changedCallback.current = callback;
+        return () => { changedCallback.current = null; };
+      }),
       ...additionalBridgeMethods,
     },
   });
   return {
+    emitChanged(event: unknown) { changedCallback.current?.(event); },
     emitProgress(event: unknown) {
       progressCallback.current?.(event);
     },

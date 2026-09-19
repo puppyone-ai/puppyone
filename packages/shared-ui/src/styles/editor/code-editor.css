@@ -141,11 +141,6 @@
   font-weight: 500;
 }
 
-.code-codemirror-editor .cm-selectionBackground,
-.code-codemirror-editor .cm-focused .cm-selectionBackground {
-  background: var(--po-selected);
-}
-
 .code-codemirror-editor .cm-selectionMatch {
   border-radius: 2px;
   background: var(--po-code-occurrence);

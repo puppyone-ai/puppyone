@@ -13,6 +13,48 @@ afterEach(async () => Promise.all(temporaryRoots.splice(0).map((root) => (
 ))));
 
 describe("Agent main-owned attachment staging", () => {
+  it("gives pathless images the same private snapshot, deduplication and owner-bound lease", async () => {
+    const root = await temporaryRoot();
+    const bytes = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+    const store = createAgentAttachmentStore({ rootPath: path.join(root, "staging") });
+    try {
+      const request = { ownerId: 7, workspaceRoot: root, epoch: "clipboard" };
+      const [draft] = await store.stage({ ...request, sources: [{ name: "clipboard.png", bytes }] });
+      expect(draft).toMatchObject({ displayName: "clipboard.png", mime: "image/png", status: "ready", size: bytes.length });
+      expect(draft).not.toHaveProperty("path");
+      expect(draft).not.toHaveProperty("bytes");
+      const [duplicate] = await store.stage({ ...request, sources: [{ name: "clipboard.png", bytes }] });
+      expect(duplicate).toEqual(draft);
+      const [authorized] = await store.authorize({ ...request, references: [draft] });
+      expect(await fs.promises.readFile(authorized.path)).toEqual(bytes);
+      expect(await fs.promises.readdir(path.dirname(authorized.path))).toEqual([path.basename(authorized.path)]);
+      await expect(store.authorize({ ...request, ownerId: 8, references: [draft] })).rejects.toThrow(/invalid|belongs/i);
+      await store.lease({ ...request, tokens: [draft.token], leaseId: "clipboard-turn" });
+      await expect(store.revoke({ ...request, tokens: [draft.token] })).resolves.toEqual({ revoked: 0 });
+      await store.revokeLeased({ ...request, tokens: [draft.token] });
+      await expect(fs.promises.stat(authorized.path)).rejects.toThrow();
+    } finally { await store.close(); }
+  });
+
+  it("validates inline sources and enforces their byte budget in Main", async () => {
+    const root = await temporaryRoot();
+    const store = createAgentAttachmentStore({ rootPath: path.join(root, "staging") });
+    const request = { ownerId: 7, workspaceRoot: root, epoch: "clipboard" };
+    try {
+      for (const source of [
+        { name: "image.png", bytes: "not bytes" },
+        { name: "../image.png", bytes: new Uint8Array([1]) },
+        { name: "image.png", bytes: new Uint8Array(0) },
+      ]) {
+        await expect(store.stage({ ...request, sources: [source] })).rejects.toThrow(/invalid|empty/i);
+      }
+      await expect(store.stage({ ...request, sources: [{ name: "large.png", bytes: new Uint8Array(agentAttachmentStoreLimits.maxReferenceBytes + 1) }] }))
+        .rejects.toThrow(/25 MB/i);
+      await expect(store.stage({ ...request, sources: [{ name: "fake.png", bytes: new Uint8Array([1, 2, 3]) }] }))
+        .resolves.toEqual([expect.objectContaining({ mime: "application/octet-stream" })]);
+    } finally { await store.close(); }
+  });
+
   it("revokes one Root's grants without touching sibling Root attachments", async () => {
     const root = await temporaryRoot();
     const source = path.join(root, "note.txt");

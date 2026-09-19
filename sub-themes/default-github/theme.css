@@ -38,6 +38,7 @@
     --po-control: #f6f8fa;
     --po-control-hover: #eef1f4;
     --po-accent: #666666;
+    --po-text-selection-bg: color-mix(in srgb, var(--po-accent) 22%, transparent);
     --po-accent-text: #555555;
     --po-focus-ring: #888888;
     --po-text-inverse: #ffffff;
@@ -74,6 +75,7 @@
     --po-control: #21262d;
     --po-control-hover: #30363d;
     --po-accent: #a0a0a0;
+    --po-text-selection-bg: color-mix(in srgb, var(--po-accent) 28%, transparent);
     --po-accent-text: #c7c7c7;
     --po-focus-ring: #9a9a9a;
     --po-text-inverse: #111111;

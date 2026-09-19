@@ -43,6 +43,7 @@
     --po-backdrop: rgba(41, 39, 35, 0.22);
     --po-backdrop-strong: rgba(41, 39, 35, 0.32);
     --po-accent: #2563eb;
+    --po-text-selection-bg: color-mix(in srgb, var(--po-accent) 22%, transparent);
     --po-accent-text: #1d4ed8;
     --po-success: #168145;
     --po-success-contrast: #fffefa;
@@ -90,7 +91,6 @@
     --po-json-null: #6f6a60;
     --po-json-icon: #68645c;
     --po-terminal-cursor: #80786d;
-    --po-terminal-selection: rgba(91, 82, 70, 0.14);
     --po-terminal-black: #5d574f;
     --po-terminal-red: #a66b65;
     --po-terminal-green: #687a55;
@@ -109,6 +109,7 @@
     --po-terminal-bright-white: #766f65;
     --po-scrollbar-thumb: rgba(45, 43, 38, 0.13);
     --po-scrollbar-thumb-hover: rgba(45, 43, 38, 0.22);
+    --po-text-selection-inactive-bg: color-mix(in srgb, var(--po-text-selection-bg) var(--po-text-selection-inactive-ratio), transparent);
   }
 
   :root[data-initial-theme="dark"], :where([data-po-appearance-root].dark) {
@@ -159,6 +160,7 @@
     --po-backdrop: rgba(0, 0, 0, 0.65);
     --po-backdrop-strong: rgba(0, 0, 0, 0.82);
     --po-accent: #60a5fa;
+    --po-text-selection-bg: color-mix(in srgb, var(--po-accent) 28%, transparent);
     --po-accent-text: #93c5fd;
     --po-success: #34d399;
     --po-success-contrast: #0a0a0a;
@@ -206,7 +208,6 @@
     --po-json-null: #94a3b8;
     --po-json-icon: #cbd5e1;
     --po-terminal-cursor: #d1cec6;
-    --po-terminal-selection: rgba(211, 208, 197, 0.16);
     --po-terminal-black: #626059;
     --po-terminal-red: #bd8581;
     --po-terminal-green: #9ba67b;
@@ -225,4 +226,5 @@
     --po-terminal-bright-white: #d2cec5;
     --po-scrollbar-thumb: rgba(255, 255, 255, 0.08);
     --po-scrollbar-thumb-hover: rgba(255, 255, 255, 0.16);
+    --po-text-selection-inactive-bg: color-mix(in srgb, var(--po-text-selection-bg) var(--po-text-selection-inactive-ratio), transparent);
   }

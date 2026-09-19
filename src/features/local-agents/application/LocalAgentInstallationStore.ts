@@ -1,4 +1,4 @@
-import type { LocalAgentInstallationSnapshot } from "../../../../shared/local-agent-installation/types";
+import type { LocalAgentInstallationProgressEvent, LocalAgentInstallationSnapshot } from "../../../../shared/local-agent-installation/types";
 import {
   discoverLocalAgentInstallations,
   subscribeToLocalAgentInstallationChanges,
@@ -16,6 +16,8 @@ export type LocalAgentInstallationStoreSnapshot = {
   phase: LocalAgentInstallationDiscoveryPhase;
   snapshot: LocalAgentInstallationSnapshot | null;
   hasFailures: boolean;
+  refreshing: boolean;
+  progress: LocalAgentInstallationProgressEvent | null;
 };
 
 const INITIAL_STATE: LocalAgentInstallationStoreSnapshot = Object.freeze({
@@ -23,6 +25,8 @@ const INITIAL_STATE: LocalAgentInstallationStoreSnapshot = Object.freeze({
   phase: "idle",
   snapshot: null,
   hasFailures: false,
+  refreshing: false,
+  progress: null,
 });
 
 let nextRequestId = 0;
@@ -33,6 +37,8 @@ export class LocalAgentInstallationStore {
   private activeConsumers = 0;
   private requestGeneration = 0;
   private activeRequestId: string | null = null;
+  private observedGeneration = 0;
+  private observedScanId: string | null = null;
   private unsubscribeProgress: (() => void) | null = null;
   private unsubscribeChanges: (() => void) | null = null;
   private lastLifecycleRefreshAt = 0;
@@ -77,18 +83,19 @@ export class LocalAgentInstallationStore {
     const generation = ++this.requestGeneration;
     const requestId = `local-agent-installation:${++nextRequestId}`;
     this.activeRequestId = requestId;
-    this.patch({ phase: "loading" });
+    this.patch({ phase: "loading", progress: null, hasFailures: false, refreshing: this.state.snapshot !== null });
     try {
       const snapshot = normalizeLocalAgentInstallationSnapshot(
         await discoverLocalAgentInstallations(refresh, requestId),
       );
       if (generation !== this.requestGeneration) return;
       this.activeRequestId = null;
-      this.applySnapshot(snapshot, "ready");
+      if (this.acceptScan(snapshot)) this.applySnapshot(snapshot, "ready");
+      else this.patch({ phase: this.state.snapshot ? "ready" : "error", progress: null, refreshing: false });
     } catch {
       if (generation !== this.requestGeneration) return;
       this.activeRequestId = null;
-      this.patch({ phase: "error" });
+      this.patch({ phase: "error", progress: null, refreshing: false });
     }
   };
 
@@ -96,10 +103,17 @@ export class LocalAgentInstallationStore {
     try {
       const progress = normalizeLocalAgentInstallationProgress(value);
       if (progress.requestId !== this.activeRequestId) return;
+      if (this.state.snapshot && progress.generation <= this.state.snapshot.generation) return;
+      const previous = this.state.progress;
+      if (previous?.generation === progress.generation
+        && (progress.completedAgentCount <= previous.completedAgentCount
+          || progress.totalAgentCount !== previous.totalAgentCount)) return;
+      if (!this.acceptScan(progress)) return;
       this.patch({
         ids: normalizeAvailableLocalAgentIds([...this.state.ids, ...progress.availableAgentIds]),
         phase: "loading",
-        hasFailures: progress.results.some(({ status, reasonCode }) => status === "failed" || reasonCode === "environment-unavailable") || this.state.hasFailures,
+        hasFailures: progress.results.some(({ status, reasonCode }) => status === "failed" || reasonCode === "environment-unavailable"),
+        progress,
       });
     } catch {
       // Progress is advisory; the final invoke result remains authoritative.
@@ -109,12 +123,20 @@ export class LocalAgentInstallationStore {
   private handleChanged = (value: unknown) => {
     try {
       const snapshot = normalizeLocalAgentInstallationSnapshot(value);
-      if (this.state.snapshot && snapshot.generation < this.state.snapshot.generation) return;
+      if (!this.acceptScan(snapshot)) return;
       this.applySnapshot(snapshot, this.activeRequestId ? "loading" : "ready");
     } catch {
       // Ignore malformed cross-window notifications.
     }
   };
+
+  private acceptScan(scan: { generation: number; scanId: string }) {
+    if (scan.generation < this.observedGeneration
+      || (scan.generation === this.observedGeneration && scan.scanId !== this.observedScanId)) return false;
+    this.observedGeneration = scan.generation;
+    this.observedScanId = scan.scanId;
+    return true;
+  }
 
   private handleLifecycleRefresh = () => {
     if (this.activeConsumers === 0 || document.visibilityState === "hidden" || this.state.phase === "loading") return;
@@ -134,6 +156,8 @@ export class LocalAgentInstallationStore {
       phase,
       snapshot,
       hasFailures: snapshot.results.some(({ status, reasonCode }) => status === "failed" || reasonCode === "environment-unavailable"),
+      progress: null,
+      refreshing: phase === "loading" && this.state.refreshing,
     });
   }
 
