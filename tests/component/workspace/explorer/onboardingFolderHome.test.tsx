@@ -226,7 +226,7 @@ describe("project folder home", () => {
     );
   });
 
-  it("uses one launcher geometry with quiet spacing between the title and actions", () => {
+  it("uses one launcher geometry with a shared first-section rule", () => {
     expect(onboardingCss).toMatch(
       /\.onboarding-launcher\s*\{[^}]*display:\s*grid;[^}]*width:\s*var\(--onboarding-column-width\);[^}]*gap:\s*var\(--onboarding-section-gap\);/s,
     );
@@ -234,14 +234,11 @@ describe("project folder home", () => {
       /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-launcher/,
     );
     expect(onboardingCss).toMatch(
-      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-primary-area\s*\{[^}]*padding-block-start:\s*19px;[^}]*\}/s,
-    );
-    expect(onboardingCss).not.toMatch(
-      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-primary-area\s*\{[^}]*border(?:-top)?:/s,
+      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-primary-area\s*\{[^}]*padding-block-start:\s*18px;[^}]*border-top:\s*1px solid var\(--po-border\);/s,
     );
     expect(onboardingCss).not.toContain(".onboarding-entry-action-divider");
     expect(onboardingCss).toMatch(
-      /\.onboarding-entry-import-area\s*\{[^}]*margin-block-start:\s*17px;/s,
+      /\.onboarding-entry-import-area\s*\{[^}]*margin-block-start:\s*8px;/s,
     );
     expect(onboardingCss).toMatch(
       /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-entry-action-default\s*\{[^}]*width:\s*fit-content;[^}]*min-width:\s*0;[^}]*justify-content:\s*flex-start;/s,
