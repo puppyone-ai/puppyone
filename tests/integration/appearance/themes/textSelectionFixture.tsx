@@ -132,10 +132,13 @@ async function verifyTheme(theme: SubThemeDefinition, mode: "light" | "dark") {
     editor.focus(); editor.dispatch({ selection: { anchor: 0, head: 10 } }); await frames();
     const expected = color(editor.dom, "var(--po-selection-background, var(--po-text-selection-bg))");
     const expectedInactive = color(editor.dom, "var(--po-selection-inactive-background, var(--po-text-selection-inactive-bg))");
-    const drawn = id === "code" ? element("#code .cm-selectionBackground") : null;
-    check((drawn ? getComputedStyle(drawn).backgroundColor : selectionColor(editor.contentDOM)) === expected, `${id}: active selection mismatch`);
+    // CodeMirror can replace its painted rectangles during focus/layout updates.
+    const actual = () => id === "code"
+      ? getComputedStyle(element("#code .cm-selectionBackground")).backgroundColor
+      : selectionColor(editor.contentDOM);
+    check(actual() === expected, `${id}: active selection mismatch: ${actual()} vs ${expected}`);
     element("#blur").focus(); await frames();
-    check((drawn ? getComputedStyle(drawn).backgroundColor : selectionColor(editor.contentDOM)) === expectedInactive, `${id}: inactive selection mismatch`);
+    check(actual() === expectedInactive, `${id}: inactive selection mismatch: ${actual()} vs ${expectedInactive}`);
   }
   const csvInput = element("#csv-source textarea") as HTMLTextAreaElement;
   csvInput.focus(); csvInput.select();
