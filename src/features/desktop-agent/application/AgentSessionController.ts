@@ -600,12 +600,13 @@ export class AgentSessionController {
     if (!sessionId || !turnId) return;
     if (this.state.stopRequest?.status === "sending") return;
     const bridge = this.requireBridge("interruptAgentTurn");
-    if (!this.stopIntent || this.stopIntent.sessionId !== sessionId || this.stopIntent.turnId !== turnId) {
+    if (!this.stopIntent || this.stopIntent.sessionId !== sessionId || this.stopIntent.turnId !== turnId
+      || this.stopIntent.instanceId !== this.state.session?.instanceId) {
       this.stopIntent = { rootPath: this.workspaceRoot, sessionId, turnId,
         instanceId: this.state.session?.instanceId, commandId: controlCommandId("interrupt"), ...commandPreconditions(this.state) };
     }
     const intent = this.stopIntent;
-    const request = { commandId: intent.commandId!, sessionId, turnId, status: "sending" as const };
+    const request = { commandId: intent.commandId!, sessionId, instanceId: intent.instanceId, turnId, status: "sending" as const };
     this.patch({ stopRequest: request, stopping: true, error: null });
     try {
       const receipt = await waitForScopedOperation(bridge.interruptAgentTurn(intent), this.stopScope.signal, 5000);
@@ -783,6 +784,7 @@ function deriveControlReplicaState(state: AgentControllerState): AgentController
     pendingPrompt: view.pendingPrompt ?? localPending,
     submitting: view.submitting || Boolean(state.pendingIntent),
     stopRequest: state.stopRequest && (state.stopRequest.sessionId !== state.session.id
+      || state.stopRequest.instanceId !== state.session.instanceId
       || (state.replicaStatus === "live" && state.stopRequest.turnId !== state.projection.runningTurnId)) ? null : state.stopRequest,
     stopping: state.stopRequest?.status === "sending" || (state.replicaStatus === "live" && view.stopping),
   };

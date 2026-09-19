@@ -1420,6 +1420,7 @@ function AppContent() {
                   store={projectWorkbench}
                   active={presentation.contentVisible && rightSidebarSurface === "chat"}
                   contributions={auxiliaryWorkbenchContributions}
+                  onManageExecutions={() => { void window.puppyoneDesktop?.openItemExecutionManager(); }}
                   onRetryProjectClose={() => {
                     const folder = workbenchWorkspace?.folders.find((entry) => entry.workspace.path === projectWorkbench.context.rootPath);
                     if (folder) void handleRemoveProject(folder);

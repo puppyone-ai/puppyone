@@ -11,13 +11,33 @@ const receipt = (request: ItemExecutionRequest): ItemExecutionSummary => ({ ...r
 afterEach(() => vi.useRealTimers());
 function fixture() {
   const create = vi.fn(async (_input: unknown) => snapshot);
+  const resume = vi.fn(async (_input: unknown) => snapshot);
+  const fork = vi.fn(async (_input: unknown) => ({ session: { ...snapshot.session, id: "fork" } }));
   const terminate = vi.fn(async (request: ItemExecutionRequest) => receipt(request));
-  const client = createManagedAgentClient({ createAgentSession: create } as unknown as AgentClientPort,
+  const client = createManagedAgentClient({ createAgentSession: create, resumeAgentSession: resume, forkAgentSession: fork } as unknown as AgentClientPort,
     { terminateItemExecution: terminate, listItemExecutions: async () => [], retryItemExecutionCleanup: terminate }, projectContext, "agent-item");
-  return { client, create, terminate };
+  return { client, create, resume, fork, terminate };
 }
 
 describe("Agent adaptation of shared item management", () => {
+  it("does not terminate an existing execution after a failed resume request", async () => {
+    const f = fixture();
+    await f.client.createAgentSession({ rootPath: "/project" });
+    f.resume.mockRejectedValueOnce(new Error("temporary request failure"));
+    await expect(f.client.resumeAgentSession({ rootPath: "/project", sessionId: "conversation" })).rejects.toThrow(/temporary/);
+    expect(f.terminate).not.toHaveBeenCalled();
+    await f.client.resumeAgentSession({ rootPath: "/project", sessionId: "conversation" });
+    await f.client.terminateAgentExecution?.();
+    expect(f.terminate).toHaveBeenCalledOnce();
+  });
+  it("retains execution identity when a native fork changes its conversation", async () => {
+    const f = fixture();
+    await f.client.createAgentSession({ rootPath: "/project" });
+    await f.client.forkAgentSession({ rootPath: "/project", sessionId: "conversation" });
+    await f.client.resumeAgentSession({ rootPath: "/project", sessionId: "fork" });
+    const created = f.create.mock.calls[0][0] as { creationId: string };
+    expect(f.resume.mock.calls[0][0]).toMatchObject({ creationId: created.creationId });
+  });
   it("binds creation before awaiting native readiness and hands off without waiting", async () => {
     const f = fixture();
     let finish!: (value: typeof snapshot) => void;

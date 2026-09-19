@@ -54,7 +54,7 @@ export type AgentControllerState = {
   error: AgentErrorDescriptor | null;
   submitting: boolean;
   stopping: boolean;
-  stopRequest?: { commandId: string; sessionId: string; turnId: string; status: "sending" | "accepted" | "unconfirmed" } | null;
+  stopRequest?: { commandId: string; sessionId: string; instanceId?: string; turnId: string; status: "sending" | "accepted" | "unconfirmed" } | null;
   displayRecovery?: { policy: "automatic" | "paused" | "exhausted"; attempt: number; maxAttempts: number };
   initialized: boolean;
 };

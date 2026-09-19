@@ -50,7 +50,6 @@ export function getElectronFilePath(file: File) {
   return window.puppyoneDesktop?.getPathForFile?.(file) || null;
 }
 
-
 /** A project-owned client captures its generation once, including deferred commands. */
 export function createProjectAgentClientProvider(context: ProjectSessionContext, getClient: AgentClientProvider = getElectronAgentClient): AgentClientProvider {
   let source: AgentClientPort | undefined;

@@ -53,6 +53,13 @@ e2e command runs project sessions followed by the fixture-based Agent/Terminal
 sidebar workflow. Both run without paid requests.
 
 Other `smoke:*` commands are explicit focused checks, not implicitly part of CI.
+`smoke:item-lifecycle` is the `item-lifecycle` app gate: the production Main
+supervisor and utility runtime face blocked initialization, uncooperative
+disposal and a real child process group. It verifies bounded outer termination,
+a responsive sibling and zero resource leases, without user profiles or paid
+requests. Shared close handoff, operation identity, Main management and Agent
+display recovery also have unit/component coverage. Remote-provider cancellation
+and recovery across a Main crash are not inferred from this fixture.
 `smoke:agent-attachment-ui` is the `agent-attachment-ui` app gate: the complete
 production Chat UI, project-scoped client, Preload and Main authorization accept
 native-picker and pathless drop/paste images, keep a single remove button and

@@ -26,7 +26,7 @@ export function createManagedAgentClient(base: AgentClientPort, management: Item
     } catch (error) {
       // Failed/unknown create may have acquired resources. Seal that exact scope
       // before allowing an explicit user retry to allocate another execution.
-      if (!terminated && active === target) {
+      if (!reusing && !terminated && active === target) {
         try {
           await handOffItemExecution(management, { kind: "agent", itemId, creationId: target.creationId,
             operationId: `terminate-${target.creationId}`, projectContext });
@@ -41,6 +41,14 @@ export function createManagedAgentClient(base: AgentClientPort, management: Item
     createAgentSession: request => execute("createAgentSession", request) as ReturnType<AgentClientPort["createAgentSession"]>,
     openAgentSession: request => execute("openAgentSession", request) as ReturnType<AgentClientPort["openAgentSession"]>,
     resumeAgentSession: request => execute("resumeAgentSession", request) as ReturnType<AgentClientPort["resumeAgentSession"]>,
+    forkAgentSession: async request => {
+      const target = active;
+      if (terminated || !target) throw new Error("This tab no longer owns a running execution.");
+      const result = await base.forkAgentSession(request);
+      if (terminated || active !== target) throw new Error("The execution ended while forking its conversation.");
+      target.sessionId = result.session.id;
+      return result;
+    },
     closeAgentSession: async request => {
       const result = await base.closeAgentSession(request);
       if (result.closed && active?.sessionId === request.sessionId) active = null;

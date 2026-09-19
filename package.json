@@ -81,6 +81,7 @@
     "smoke:native-agent-references": "node tests/integration/agent/references/native-agent-references.smoke.mjs",
     "smoke:terminal-p0": "electron tests/support/runners/terminal-p0.smoke.mjs",
     "smoke:item-utilities": "electron tests/integration/workbench/item-hosts/item-utility-isolation.smoke.mjs",
+    "smoke:item-lifecycle": "electron tests/integration/workbench/item-hosts/item-lifecycle-supervision.smoke.mjs",
     "smoke:model-connections": "electron tests/integration/model-connections/runtime/model-connections.smoke.mjs",
     "smoke:model-connections-settings": "electron tests/e2e/model-connections/settings/model-connections-settings.smoke.mjs",
     "smoke:built-in-compute": "electron tests/e2e/model-connections/settings/model-connections-settings.smoke.mjs --compute",

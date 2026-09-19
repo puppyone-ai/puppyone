@@ -336,6 +336,17 @@
       ]
     },
     {
+      "id": "item-lifecycle",
+      "name": "Shared execution supervision under blocked startup and disposal",
+      "group": "app",
+      "command": ["npm", "run", "smoke:item-lifecycle"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": [],
+      "timeoutSeconds": 90,
+      "runtime": "electron",
+      "artifacts": []
+    },
+    {
       "id": "item-utilities",
       "name": "Isolated Agent and Terminal utility lifecycle",
       "group": "app",
