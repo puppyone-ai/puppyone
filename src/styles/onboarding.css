@@ -383,7 +383,7 @@
 .onboarding-entry-import:focus-visible {
   background: transparent;
   box-shadow: none;
-  color: var(--po-text);
+  color: var(--po-text-muted);
 }
 
 .onboarding-entry-import .po-button__label {
