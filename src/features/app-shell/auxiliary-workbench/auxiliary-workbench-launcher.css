@@ -121,10 +121,6 @@
   outline-offset: 1px;
 }
 
-.desktop-terminal-launcher-scan.is-scanning svg {
-  animation: desktop-terminal-launcher-scan 900ms linear infinite;
-}
-
 .desktop-terminal-launcher-tools {
   display: grid;
   min-width: 0;
@@ -148,6 +144,33 @@
   clip: rect(0 0 0 0);
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+.desktop-terminal-launcher-tools > .desktop-terminal-launcher-discovery {
+  display: flex;
+  min-height: var(--po-control-size-large);
+  align-items: center;
+  gap: 9px;
+  padding: 5px 8px;
+  box-sizing: border-box;
+  color: var(--po-text-subtle);
+  font-size: var(--po-type-right-sidebar-caption, 12px);
+  line-height: var(--po-type-right-sidebar-caption-line-height, 17px);
+  overflow-wrap: anywhere;
+}
+
+.desktop-terminal-launcher-discovery-spinner {
+  flex: 0 0 18px;
+  place-content: center;
+}
+
+.desktop-terminal-launcher-discovery-count {
+  display: block;
+  font-variant-numeric: tabular-nums;
+}
+
+.desktop-terminal-launcher-discovered {
+  animation: desktop-terminal-launcher-discovered 140ms ease-out;
 }
 
 .desktop-terminal-launcher-error {
@@ -279,10 +302,9 @@
   color: currentColor;
 }
 
-@keyframes desktop-terminal-launcher-scan {
-  to {
-    transform: rotate(1turn);
-  }
+@keyframes desktop-terminal-launcher-discovered {
+  from { opacity: 0.4; }
+  to { opacity: 1; }
 }
 
 @container (min-width: 460px) {
@@ -298,7 +320,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .desktop-terminal-launcher-scan.is-scanning svg {
+  .desktop-terminal-launcher-discovered {
     animation: none;
   }
 }
@@ -307,6 +329,7 @@
   position: fixed;
   inset: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) auto;
   place-items: center;
   padding: 32px;
