@@ -21,6 +21,12 @@ createRoot(document.getElementById("root")!).render(
   <TestLocalizationProvider locale={locale} messages={messages}>
     <MinimalOnboarding
       appearance={createTestSurfaceAppearance({ themeMode })}
+      projectItems={query.get("state") === "projects" ? [{
+        id: "example-project",
+        label: "Notes",
+        localPath: "/example/Projects/Notes",
+        lastOpenedAt: null,
+      }] : []}
       onChooseWorkspace={noop}
       onOpenWorkspacePath={noop}
       onOpenDroppedWorkspace={noop}

@@ -46,8 +46,9 @@
 }
 
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-homepage {
-  --onboarding-column-width: 280px;
+  --onboarding-column-width: 360px;
   --onboarding-brand-content-gap: 40px;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .onboarding-shell[data-onboarding-state="projects"] .onboarding-homepage {
@@ -62,6 +63,7 @@
   display: grid;
   width: var(--onboarding-column-width);
   max-width: 100%;
+  min-width: 0;
   justify-self: center;
   justify-items: stretch;
   gap: var(--onboarding-brand-content-gap);
@@ -388,21 +390,34 @@
 }
 
 .onboarding-entry-import {
-  --onboarding-row-font-size: var(--po-type-ui-caption, 12px);
-  --onboarding-row-font-weight: 400;
-  --onboarding-row-line-height: 16px;
   height: auto;
-  padding-block: 8px;
+  padding-block: 6px;
+}
+
+/* An inline action, not a filled button, including pointer and keyboard states. */
+.onboarding-entry-import:hover:not(:disabled),
+.onboarding-entry-import:active:not(:disabled),
+.onboarding-entry-import:focus-visible {
+  background: transparent;
+  box-shadow: none;
+  color: var(--po-text);
 }
 
 .onboarding-entry-import .po-button__label {
-  display: grid;
-  justify-items: center;
-  gap: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  white-space: normal;
+}
+
+.onboarding-entry-import-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .onboarding-entry-import-brands {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 4px;
   opacity: 0.76;

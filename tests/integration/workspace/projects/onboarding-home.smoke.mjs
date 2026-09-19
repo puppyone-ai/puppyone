@@ -50,11 +50,15 @@ async function runSmoke() {
     const importIntros = { "zh-Hans": "把 SaaS 里的数据变成文件，保存到本地。", en: "Turn SaaS data into files on your computer.", fr: "Transformez vos données SaaS en fichiers locaux." };
     for (const locale of Object.keys(labels)) {
       for (const theme of ["dark", "light"]) {
-        for (const [width, height] of [[900, 680], [563, 469], [360, 520]]) {
+        for (const [state, width, height] of [
+          ["empty", 900, 680], ["empty", 563, 469], ["empty", 360, 520],
+          ["projects", 900, 680], ["projects", 640, 535],
+        ]) {
           window.setContentSize(width, height);
           const url = new URL(`http://127.0.0.1:${server.httpServer.address().port}/tests/fixtures/workspace/projects/onboarding-home.html`);
           url.searchParams.set("locale", locale);
           url.searchParams.set("theme", theme);
+          url.searchParams.set("state", state);
           await window.loadURL(url.href);
           // A renderer must exist before attaching; keep keyboard assertions
           // stable if another desktop app takes OS focus during the matrix.
@@ -62,7 +66,7 @@ async function runSmoke() {
           await window.webContents.debugger.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true });
           await until("!!document.querySelector('[data-onboarding-action=create]') && !document.querySelector('[data-onboarding-empty-state-intro]')");
           const snapshot = await evaluate(`(() => {
-            const rect = (element) => { const r = element.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; };
+            const rect = (element) => { if (!element) return null; const r = element.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; };
             const create = document.querySelector('[data-onboarding-action=create]');
             const open = document.querySelector('[data-onboarding-action=open]');
             const importButton = document.querySelector('.onboarding-entry-import');
@@ -83,13 +87,16 @@ async function runSmoke() {
               openFont: parseFloat(getComputedStyle(open.querySelector('.po-button__label')).fontSize),
               openFamily: getComputedStyle(open.querySelector('.po-button__label')).fontFamily,
               openHeight: rect(open).height,
-              brandFont: getComputedStyle(brand.querySelector('.onboarding-brand-name')).fontSize,
+              brandFont: getComputedStyle(brand.querySelector('.onboarding-brand-name, .onboarding-brand-prompt')).fontSize,
               brandMarkWidth: rect(brand.querySelector('img')).width,
               actionIconWidth: rect(create.querySelector('svg')).width,
               importButton: rect(importButton), divider: rect(divider), open: rect(open),
               importFont: parseFloat(getComputedStyle(importLabel).fontSize),
               importWeight: getComputedStyle(importLabel).fontWeight,
               importLineHeight: getComputedStyle(importLabel).lineHeight,
+              importFamily: getComputedStyle(importLabel).fontFamily,
+              importBackground: getComputedStyle(importButton).backgroundColor,
+              importIcon: rect(importButton.querySelector('.po-button__icon svg')),
               importArtworkCount: importButton.querySelectorAll('img, svg').length,
               importMarks: importMarks.map(rect),
               importBrandIds: importMarks.map(image => image.dataset.importBrand),
@@ -97,7 +104,7 @@ async function runSmoke() {
               importLabel: rect(importLabel),
               importBrands: rect(importButton.querySelector('.onboarding-entry-import-brands')),
               importText: importButton.textContent,
-              dividerBackground: getComputedStyle(divider).backgroundColor,
+              dividerBackground: divider && getComputedStyle(divider).backgroundColor,
               actionCount: buttons.length,
               clipped: buttons.some(button => button.scrollWidth > button.clientWidth + 1)
                 || buttons.some(button => {
@@ -109,14 +116,15 @@ async function runSmoke() {
               imagesLoaded: images.length === 4 && images.every(image => image.complete && image.naturalWidth > 0),
             };
           })()`);
-          const context = `${locale}/${theme}/${width}x${height}`;
+          const context = `${state}/${locale}/${theme}/${width}x${height}`;
           assert.equal(snapshot.label, labels[locale], context);
           assert.equal(snapshot.tagline, false, context);
           assert.ok(snapshot.imagesLoaded, `${context}: all brand assets must load`);
           assert.ok(!snapshot.clipped && !snapshot.outside, `${context}: clipped or offscreen controls`);
           // Preserve the compact pre-redesign scale, not a large marketing CTA.
           assert.equal(snapshot.create.height, snapshot.openHeight, `${context}: shared row height`);
-          assert.ok(snapshot.create.height <= 34 && snapshot.create.width >= 180 && snapshot.create.width < 220, `${context}: slightly wider compact button`);
+          assert.ok(snapshot.create.height <= 34, `${context}: compact button height`);
+          if (state === 'empty') assert.ok(snapshot.create.width >= 180 && snapshot.create.width < 220, `${context}: slightly wider compact button`);
           assert.equal(snapshot.createFont, 14, `${context}: original body size`);
           assert.equal(snapshot.createFont, snapshot.openFont, `${context}: no CTA size override`);
           assert.equal(snapshot.createFamily, snapshot.openFamily, `${context}: shared font family`);
@@ -125,31 +133,48 @@ async function runSmoke() {
           assert.equal(snapshot.brandFont, '19px', `${context}: original brand size`);
           assert.equal(snapshot.brandMarkWidth, 28, `${context}: original brand mark`);
           assert.equal(snapshot.actionIconWidth, 14, `${context}: original action icon`);
-          assert.equal(snapshot.importFont, 12, `${context}: quiet caption size`);
-          assert.equal(snapshot.importWeight, '400', `${context}: regular import text`);
-          assert.equal(snapshot.importLineHeight, '16px', `${context}: compact caption line height`);
-          assert.equal(snapshot.importArtworkCount, 3, `${context}: three source logos`);
+          assert.equal(snapshot.importFont, snapshot.createFont, `${context}: import uses the same CTA text size`);
+          assert.equal(snapshot.importWeight, snapshot.createWeight, `${context}: shared CTA weight`);
+          assert.equal(snapshot.importLineHeight, snapshot.createLineHeight, `${context}: shared CTA line height`);
+          assert.equal(snapshot.importFamily, snapshot.createFamily, `${context}: shared CTA font`);
+          assert.equal(snapshot.importBackground, 'rgba(0, 0, 0, 0)', `${context}: transparent text action`);
+          assert.equal(snapshot.importArtworkCount, 4, `${context}: action icon plus three source logos`);
+          assert.equal(snapshot.importIcon.width, snapshot.actionIconWidth, `${context}: shared action icon size`);
           assert.deepEqual(snapshot.importBrandIds, ['github', 'notion', 'google-drive'], `${context}: familiar import sources`);
           assert.deepEqual(snapshot.importBrandLabels, ['GitHub', 'Notion', 'Google Drive'], `${context}: named logos for assistive technology`);
-          assert.equal(snapshot.importBrands.y - snapshot.importLabel.y - snapshot.importLabel.height, 8, `${context}: compact logo row below text`);
+          assert.equal(snapshot.importBrands.x - snapshot.importLabel.x - snapshot.importLabel.width, 12, `${context}: source logos follow text inline`);
+          assert.ok(Math.abs(snapshot.importBrands.y + snapshot.importBrands.height / 2 - snapshot.importLabel.y - snapshot.importLabel.height / 2) < 1, `${context}: vertically aligned label and logos`);
+          if (width >= 563) assert.equal(snapshot.importLabel.height, 18, `${context}: single-line text at desktop widths`);
           assert.ok(snapshot.importMarks.every(mark => mark.width === 18 && mark.height === 18), `${context}: legible logo size`);
           for (let i = 1; i < snapshot.importMarks.length; i++) {
             const previous = snapshot.importMarks[i - 1];
             assert.equal(snapshot.importMarks[i].x - previous.x - previous.width, 4, `${context}: compact logo spacing`);
           }
           assert.equal(snapshot.importText, importLabels[locale], `${context}: complete localized text`);
-          assert.equal(snapshot.divider.height, 1, `${context}: subtle one-pixel divider`);
-          assert.equal(snapshot.divider.width, snapshot.create.width, `${context}: divider matches CTA width`);
-          assert.notEqual(snapshot.dividerBackground, 'rgba(0, 0, 0, 0)', `${context}: visible divider`);
-          assert.ok(snapshot.divider.y - snapshot.open.y - snapshot.open.height >= 12, `${context}: separation from direct-start actions`);
-          assert.ok(snapshot.importButton.y - snapshot.divider.y - snapshot.divider.height >= 8, `${context}: space below divider`);
+          if (state === 'empty') {
+            assert.equal(snapshot.divider.height, 1, `${context}: subtle one-pixel divider`);
+            assert.equal(snapshot.divider.width, snapshot.create.width, `${context}: divider matches CTA width`);
+            assert.notEqual(snapshot.dividerBackground, 'rgba(0, 0, 0, 0)', `${context}: visible divider`);
+            assert.ok(snapshot.divider.y - snapshot.open.y - snapshot.open.height >= 12, `${context}: separation from direct-start actions`);
+            assert.ok(snapshot.importButton.y - snapshot.divider.y - snapshot.divider.height >= 8, `${context}: space below divider`);
+            for (const item of [snapshot.create, snapshot.brand, snapshot.launcher, snapshot.divider, snapshot.importButton]) {
+              assert.ok(Math.abs(item.x + item.width / 2 - width / 2) < 1, `${context}: horizontal centering ${JSON.stringify(item)}`);
+            }
+            assert.ok(Math.abs(snapshot.launcher.y + snapshot.launcher.height / 2 - height / 2) < 1, `${context}: vertical centering`);
+          } else {
+            assert.equal(snapshot.divider, null, `${context}: project list layout stays unchanged`);
+            assert.equal(snapshot.importButton.x, snapshot.open.x, `${context}: import aligns with existing actions`);
+            assert.equal(snapshot.importButton.x, snapshot.create.x, `${context}: shared left edge`);
+          }
           assert.ok(snapshot.importButton.height >= 28, `${context}: text entry retains a usable hit target`);
           assert.equal(snapshot.actionCount, 3, `${context}: no extra logo buttons`);
-          for (const item of [snapshot.create, snapshot.brand, snapshot.launcher, snapshot.divider, snapshot.importButton, snapshot.importBrands]) {
-            assert.ok(Math.abs(item.x + item.width / 2 - width / 2) < 1, `${context}: horizontal centering`);
-          }
-          assert.ok(Math.abs(snapshot.launcher.y + snapshot.launcher.height / 2 - height / 2) < 1, `${context}: vertical centering`);
-          await writeFile(path.join(screenshots, `${locale}-${theme}-${width}.png`), (await window.capturePage()).toPNG());
+          const prefix = state === 'empty' ? '' : 'projects-';
+          await writeFile(path.join(screenshots, `${prefix}${locale}-${theme}-${width}.png`), (await window.capturePage()).toPNG());
+          window.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(snapshot.importButton.x + snapshot.importButton.width / 2), y: Math.round(snapshot.importButton.y + snapshot.importButton.height / 2) });
+          await until("document.querySelector('.onboarding-entry-import').matches(':hover')");
+          await evaluate("Promise.all(document.querySelector('.onboarding-entry-import').getAnimations().map(animation => animation.finished))");
+          assert.equal(await evaluate("getComputedStyle(document.querySelector('.onboarding-entry-import')).backgroundColor"), 'rgba(0, 0, 0, 0)', `${context}: no hover background`);
+          assert.equal(await evaluate("getComputedStyle(document.querySelector('.onboarding-entry-import')).boxShadow"), 'none', `${context}: no hover button shadow`);
           // Real keyboard focus must remain visible and Enter must open the creation dialog.
           window.focus();
           window.webContents.focus();
@@ -175,6 +200,7 @@ async function runSmoke() {
           await until("document.activeElement?.dataset.onboardingAction === 'clone'");
           await until("document.activeElement?.matches(':focus-visible')");
           assert.equal(await evaluate("getComputedStyle(document.activeElement).outlineStyle"), "solid", `${context}: import focus ring`);
+          assert.equal(await evaluate("getComputedStyle(document.activeElement).backgroundColor"), 'rgba(0, 0, 0, 0)', `${context}: keyboard focus keeps transparent background`);
           window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Enter" });
           window.webContents.sendInputEvent({ type: "char", keyCode: "\r" });
           window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Enter" });
@@ -226,7 +252,7 @@ async function runSmoke() {
           }
           assert.equal(picker.focus, 'git', `${context}: first source keeps initial keyboard focus`);
           assert.equal(picker.focusWidth, '1px', `${context}: restrained visible focus ring`);
-          await writeFile(path.join(screenshots, `import-${locale}-${theme}-${width}.png`), (await window.capturePage()).toPNG());
+          await writeFile(path.join(screenshots, `${prefix}import-${locale}-${theme}-${width}.png`), (await window.capturePage()).toPNG());
           window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Tab" });
           window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Tab" });
           await until("document.activeElement?.dataset.importSource === 'notion'");
@@ -237,7 +263,7 @@ async function runSmoke() {
         }
       }
     }
-    console.log(`Onboarding visual smoke passed: 18 cases; screenshots: ${screenshots}`);
+    console.log(`Onboarding visual smoke passed: 30 cases; screenshots: ${screenshots}`);
   } catch (error) {
     console.error(error);
     if (window && !window.isDestroyed()) console.error(await evaluate("({ active: document.activeElement?.outerHTML, dialogs: document.querySelectorAll('[role=dialog]').length, text: document.body.innerText })"));

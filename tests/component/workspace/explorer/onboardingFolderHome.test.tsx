@@ -283,9 +283,9 @@ describe("project folder home", () => {
     expect(actions[0]?.classList.contains("onboarding-entry-action-folder")).toBe(false);
     expect(actions[0]?.querySelector(".onboarding-entry-create-icon")).not.toBeNull();
     expect(actions[1]?.querySelector(".lucide-folder-open")).not.toBeNull();
-    expect(actions[2]?.querySelector("svg, .po-button__icon")).toBeNull();
+    expect(actions[2]?.querySelector(".po-button__icon .lucide-download")).not.toBeNull();
     expect(actions[2]?.disabled).toBe(false);
-    // Import keeps one accessible target, with named source marks below its label.
+    // Import keeps one accessible target, with an action icon and named source marks.
     const importGroup = container.querySelector(".onboarding-entry-import");
     expect(importGroup).toBe(actions[2]);
     expect(importGroup?.getAttribute("aria-label")).toBeNull();
@@ -491,6 +491,7 @@ describe("project folder home", () => {
 
   it.each([
     ".onboarding-entry-import",
+    ".onboarding-entry-import .po-button__icon",
     ".onboarding-entry-import-label",
     ".onboarding-entry-import [data-import-brand='github']",
     ".onboarding-entry-import [data-import-brand='notion']",

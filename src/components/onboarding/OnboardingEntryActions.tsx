@@ -1,6 +1,6 @@
 import { Button } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
-import { FilePlus2, FolderOpen } from "lucide-react";
+import { Download, FilePlus2, FolderOpen } from "lucide-react";
 import type { ReactNode } from "react";
 import { InlineLoading } from "../loading";
 import { ImportSourceMark } from "./ImportSourceMark";
@@ -26,7 +26,7 @@ type OnboardingEntryActionsProps = {
  * Homepage entry actions. "Create an empty project" is the default path because it
  * is the only entry that does not require the user to hunt for an existing
  * folder first. Importing existing work sits below the two direct-start
- * actions as a quieter entry, with a compact source preview below its label.
+ * actions as a text-like entry, with a compact source preview beside its label.
  */
 export function OnboardingEntryActions({
   state,
@@ -83,6 +83,7 @@ export function OnboardingEntryActions({
             tone="neutral"
             disabled={busy || !canCloneRepository}
             aria-haspopup="dialog"
+            leadingIcon={<Download aria-hidden="true" />}
             onClick={onCloneRepository}
           >
             <span className="onboarding-entry-import-label">{t("onboarding.action.importFromApps")}</span>
