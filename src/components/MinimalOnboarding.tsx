@@ -22,11 +22,7 @@ import type {
   WorkspaceProjectLocationGrant,
 } from "../types/electron";
 import { DesktopWindowDragRegion } from "./DesktopWindowChrome";
-import {
-  OnboardingImportDialog,
-  importSourceForBrand,
-  type OnboardingImportSource,
-} from "./OnboardingImportDialog";
+import { OnboardingImportDialog } from "./OnboardingImportDialog";
 import { OnboardingProjectEntryDialog } from "./OnboardingProjectEntryDialog";
 import { OnboardingBrandLockup } from "./onboarding/OnboardingBrandLockup";
 import { OnboardingEmptyStateIntro } from "./onboarding/OnboardingEmptyStateIntro";
@@ -79,7 +75,7 @@ export function MinimalOnboarding({
   const [removingPath, setRemovingPath] = useState<string | null>(null);
   const [draggingPath, setDraggingPath] = useState<string | null>(null);
   const [entryDialog, setEntryDialog] = useState<
-    { kind: "create" } | { kind: "clone"; source: OnboardingImportSource | null } | null
+    { kind: "create" } | { kind: "clone" } | null
   >(null);
   const items = useMemo(
     () => (projectItems ?? recentWorkspaces.map(({ workspace, lastOpenedAt }) => ({
@@ -253,10 +249,7 @@ export function MinimalOnboarding({
             ) : undefined}
             onOpenFolder={() => void chooseFolder()}
             onCreateProject={() => setEntryDialog({ kind: "create" })}
-            onCloneRepository={(brand) => setEntryDialog({
-              kind: "clone",
-              source: brand ? importSourceForBrand(brand) : null,
-            })}
+            onCloneRepository={() => setEntryDialog({ kind: "clone" })}
           />
         </div>
 
@@ -272,8 +265,6 @@ export function MinimalOnboarding({
       )}
       {entryDialog?.kind === "clone" && onCloneRepository && (
         <OnboardingImportDialog
-          key={entryDialog.source ?? "sources"}
-          initialSource={entryDialog.source}
           onClose={() => setEntryDialog(null)}
           onDefaultLocation={onDefaultProjectLocation}
           onChooseLocation={onChooseProjectLocation}

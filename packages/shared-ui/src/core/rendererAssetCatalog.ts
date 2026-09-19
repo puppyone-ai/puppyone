@@ -57,6 +57,7 @@ export const RENDERER_ASSET_PATHS = {
       gmail: "assets/icons/integrations/gmail.svg",
       googleCalendar: "assets/icons/integrations/google-calendar.svg",
       googleDocs: "assets/icons/integrations/google-docs.svg",
+      googleDrive: "assets/icons/integrations/google-drive.svg",
       googleSheets: "assets/icons/integrations/google-sheets.svg",
       linear: "assets/icons/integrations/linear.svg",
       notion: "assets/icons/integrations/notion.svg",

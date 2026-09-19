@@ -1,27 +1,23 @@
 import { RENDERER_ASSET_PATHS, resolveRendererPublicAssetUrl } from "@puppyone/shared-ui";
 
 /** Apps a user can bring work in from. "git" is rendered as GitHub + GitLab. */
-export type ImportSourceBrand = "github" | "gitlab" | "notion" | "obsidian" | "airtable";
+export type ImportSourceBrand = "github" | "gitlab" | "notion" | "google-drive" | "obsidian" | "airtable";
 
-export const IMPORT_SOURCE_BRANDS: ReadonlyArray<ImportSourceBrand> = [
+/** A decorative preview, not a second set of source-selection buttons. */
+export const IMPORT_PREVIEW_BRANDS: ReadonlyArray<ImportSourceBrand> = [
   "github",
-  "gitlab",
   "notion",
-  "obsidian",
-  "airtable",
+  "google-drive",
 ];
 
 const BRAND_LABELS: Record<ImportSourceBrand, string> = {
   github: "GitHub",
   gitlab: "GitLab",
   notion: "Notion",
+  "google-drive": "Google Drive",
   obsidian: "Obsidian",
   airtable: "Airtable",
 };
-
-export function getImportSourceBrandLabel(brand: ImportSourceBrand) {
-  return BRAND_LABELS[brand];
-}
 
 /**
  * Third-party product mark. Marks are decorative next to their own label, so
@@ -40,7 +36,9 @@ export function ImportSourceMark({
     <img
       className={`onboarding-import-mark is-${brand} ${className}`.trim()}
       data-import-brand={brand}
-      src={resolveRendererPublicAssetUrl(RENDERER_ASSET_PATHS.icons.integrations[brand])}
+      src={resolveRendererPublicAssetUrl(brand === "google-drive"
+        ? RENDERER_ASSET_PATHS.icons.integrations.googleDrive
+        : RENDERER_ASSET_PATHS.icons.integrations[brand])}
       alt={decorative ? "" : BRAND_LABELS[brand]}
       draggable={false}
     />
