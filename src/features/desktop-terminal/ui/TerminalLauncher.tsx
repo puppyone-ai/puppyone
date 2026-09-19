@@ -1,5 +1,5 @@
 import { AlertCircle, History, RefreshCw } from "lucide-react";
-import { useState, useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { WorkbenchLauncherState } from "../../app-shell/auxiliary-workbench/WorkbenchLauncherState";
 import { useLocalization } from "@puppyone/localization/react";
 import type {
@@ -35,6 +35,7 @@ type TerminalLauncherProps = {
   discoveryRefreshing?: boolean;
   discoveryHasInstallations?: boolean;
   availableAgentIds: readonly LocalAgentInstallationId[];
+  agentSetup?: ReactNode;
   chatCreationAvailable?: boolean;
   chatPreparing?: boolean;
   chatRecipes?: readonly AuxiliaryWorkbenchCreationRecipe[];
@@ -64,6 +65,7 @@ export function TerminalLauncher({
   agentMode,
   discoveryPhase,
   availableAgentIds,
+  agentSetup,
   discoveryProgress = null,
   discoveryHasFailures = false,
   discoveryRefreshing = false,
@@ -191,6 +193,8 @@ export function TerminalLauncher({
           <div className="desktop-terminal-launcher-tools" role="list" aria-busy={scanning}>
             {agentRows}
           </div>
+
+          {agentSetup}
 
           {terminalEnabled && (
             <>

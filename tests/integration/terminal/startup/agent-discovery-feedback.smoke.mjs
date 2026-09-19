@@ -109,7 +109,7 @@ async function run() {
     await evaluate("document.querySelector('.desktop-terminal-launcher-discovery').scrollIntoView({ block: 'nearest' })");
     await capture(label + "-partial-failure");
     await setState({ ...scanning, phase: "ready", ids: [], completed: 8 });
-    assert(await evaluate("document.querySelector('.desktop-terminal-launcher-discovery').textContent === 'No installed Agents found'"), "Missing definitive empty state");
+    assert(await evaluate("document.querySelector('.desktop-terminal-launcher-discovery').textContent === 'No Agent CLIs found'"), "Missing definitive empty state");
     await capture(label + "-empty");
     window.destroy();
   }

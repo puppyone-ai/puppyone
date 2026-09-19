@@ -34,6 +34,7 @@ import {
   DEFAULT_SIDEBAR_NAVIGATION_LAYOUT,
   TITLEBAR_ACTIONS_STORAGE_KEY,
   parseCreateNewMenuSettings,
+  parseLocalAgentsSettings,
   type CreateNewMenuSettings,
   type DiffMarkers,
   type ExperimentalSettings,
@@ -439,6 +440,16 @@ export function useDesktopPreferences(
   useEffect(() => {
     window.localStorage.setItem(LOCAL_AGENTS_STORAGE_KEY, JSON.stringify(localAgentsSettings));
   }, [localAgentsSettings]);
+
+  useEffect(() => {
+    const syncLocalAgents = (event: StorageEvent) => {
+      if (event.key === LOCAL_AGENTS_STORAGE_KEY || event.key === null) {
+        setLocalAgentsSettings(parseLocalAgentsSettings(event.key === null ? null : event.newValue));
+      }
+    };
+    window.addEventListener("storage", syncLocalAgents);
+    return () => window.removeEventListener("storage", syncLocalAgents);
+  }, []);
 
   useLayoutEffect(() => {
     window.localStorage.setItem(
