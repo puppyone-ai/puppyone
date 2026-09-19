@@ -43,9 +43,16 @@ export function normalizeLocalAgentInstallationProgress(value: unknown): LocalAg
   if (!safeId(candidate.requestId) || !safeId(candidate.scanId)
     || !Number.isSafeInteger(candidate.generation) || (candidate.generation as number) < 1
     || !Number.isSafeInteger(candidate.completedAgentCount) || (candidate.completedAgentCount as number) < 0
-    || !Number.isSafeInteger(candidate.totalAgentCount) || (candidate.totalAgentCount as number) < 0
+    || !Number.isSafeInteger(candidate.totalAgentCount) || (candidate.totalAgentCount as number) < 1
+    || (candidate.totalAgentCount as number) > LOCAL_AGENT_INSTALLATION_IDS.length
     || (candidate.completedAgentCount as number) > (candidate.totalAgentCount as number)) {
     throw new Error("Invalid Local Agent installation progress.");
+  }
+  const results = normalizeResults(candidate.results);
+  const availableAgentIds = normalizeAvailableLocalAgentIds(candidate.availableAgentIds);
+  const found = results.filter(({ status }) => status === "found").map(({ agentId }) => agentId);
+  if (candidate.completedAgentCount !== results.length || availableAgentIds.join("\0") !== found.join("\0")) {
+    throw new Error("Inconsistent Local Agent installation progress.");
   }
   return {
     requestId: candidate.requestId as string,
@@ -53,8 +60,8 @@ export function normalizeLocalAgentInstallationProgress(value: unknown): LocalAg
     generation: candidate.generation as number,
     completedAgentCount: candidate.completedAgentCount as number,
     totalAgentCount: candidate.totalAgentCount as number,
-    availableAgentIds: normalizeAvailableLocalAgentIds(candidate.availableAgentIds),
-    results: normalizeResults(candidate.results),
+    availableAgentIds,
+    results,
   };
 }
 
