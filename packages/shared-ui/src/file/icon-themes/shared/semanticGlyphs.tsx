@@ -26,9 +26,11 @@ export function WorkflowGlyph({ color, size }: FileIconRenderContext): ReactNode
 
 /** Database family identity, independent of the detected storage engine. */
 export function DatabaseGlyph({ color, size }: FileIconRenderContext): ReactNode {
+  // Inset the 24-unit Lucide artwork by 20% without changing the shared icon slot.
   return (
     <Database
       size={size}
+      viewBox="-3 -3 30 30"
       color={color}
       strokeWidth={1.65}
       aria-hidden="true"
