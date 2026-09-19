@@ -53,9 +53,13 @@ export function parseConnectionCommand(command, raw) {
   if (input.apiKey != null && (typeof input.apiKey !== "string" || input.apiKey.length < 8 || input.apiKey.length > MODEL_CONNECTION_LIMITS.keyBytes || /[\r\n\0]/u.test(input.apiKey))) throw connectionError("INVALID_KEY");
   const context = input.manualContextWindow ?? null;
   if (context !== null && (!Number.isSafeInteger(context) || context < 1024 || context > 10_000_000)) throw connectionError("INVALID_CONTEXT");
+  const baseUrl = normalizeModelBaseUrl(input.baseUrl);
+  // Migrate pre-category records without changing connection identity or security authority.
+  const sourceKind = input.sourceKind ?? (input.driver !== "openai-compatible" || isLoopbackHost(new URL(baseUrl).hostname) ? "local" : "api");
+  if (!["local", "api"].includes(sourceKind)) throw connectionError("INVALID_CONFIGURATION");
   return {
     id, expectedGeneration: id ? input.expectedGeneration : null,
-    driver: input.driver, name: text(input.name, 120), baseUrl: normalizeModelBaseUrl(input.baseUrl), auth: input.auth,
+    sourceKind, driver: input.driver, name: text(input.name, 120), baseUrl, auth: input.auth,
     ...(input.apiKey != null ? { apiKey: input.apiKey } : {}),
     defaultModelId: text(input.defaultModelId, 300, true), manualModelId: text(input.manualModelId, 300, true),
     manualContextWindow: context, serverToolsDisabled: input.serverToolsDisabled === true,
@@ -77,7 +81,7 @@ export function assertConnectionSnapshot(value) {
   if (value.connections.length > MODEL_CONNECTION_LIMITS.connections) throw connectionError("INVALID_RESPONSE");
   for (const connection of value.connections) {
     connectionId(connection.id);
-    if (!MODEL_CONNECTION_DRIVERS.includes(connection.driver) || typeof connection.credentialConfigured !== "boolean") throw connectionError("INVALID_RESPONSE");
+    if (!MODEL_CONNECTION_DRIVERS.includes(connection.driver) || !["local", "api"].includes(connection.sourceKind) || typeof connection.credentialConfigured !== "boolean") throw connectionError("INVALID_RESPONSE");
   }
   // Deny secret-bearing structures even if an implementation accidentally returns one.
   const forbidden = new Set(["apikey", "credentialref", "secret", "authorization", "lease", "refreshtoken"]);
