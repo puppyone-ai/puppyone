@@ -1,5 +1,13 @@
 # Third-party notices
 
+## Google Drive product mark
+
+The import source picker uses Google's Google Drive product mark to identify
+downloaded Drive files. Google Drive and its logo are trademarks of Google LLC;
+their inclusion does not imply endorsement or an account-connected integration.
+The SVG is bundled unchanged from Google's product asset endpoint:
+https://www.gstatic.com/images/branding/productlogos/drive_2026/v2/web/192px.svg
+
 ## DuckDB Node Neo
 
 Read-only database previews use `@duckdb/node-api` 1.5.5-r.5 and its matching

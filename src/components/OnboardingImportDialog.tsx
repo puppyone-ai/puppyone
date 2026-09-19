@@ -6,7 +6,7 @@ import {
   DesktopDialogCloseButton,
   DesktopDialogRoot,
 } from "./DesktopDialog";
-import { ImportSourceMark, type ImportSourceBrand } from "./onboarding/ImportSourceMark";
+import { ImportSourceMark } from "./onboarding/ImportSourceMark";
 
 /**
  * Import is framed as "bring your work back into files you own", not as a Git
@@ -14,7 +14,7 @@ import { ImportSourceMark, type ImportSourceBrand } from "./onboarding/ImportSou
  * to Markdown / CSV / DOCX, so its path is a short guide that ends in the
  * regular folder picker.
  */
-export type OnboardingImportSource = "git" | "notion" | "obsidian" | "airtable" | "folder";
+export type OnboardingImportSource = "git" | "notion" | "google-drive" | "obsidian" | "airtable" | "folder";
 
 type RepositoryProvider = "github" | "gitlab";
 
@@ -29,14 +29,10 @@ const GUIDED_SOURCES: ReadonlyArray<Readonly<{
   stepCount: number;
 }>> = [
   { id: "notion", stepCount: 3 },
+  { id: "google-drive", stepCount: 3 },
   { id: "obsidian", stepCount: 2 },
   { id: "airtable", stepCount: 3 },
 ];
-
-/** Maps a product mark shown on the homepage to the import path it opens. */
-export function importSourceForBrand(brand: ImportSourceBrand): OnboardingImportSource {
-  return brand === "github" || brand === "gitlab" ? "git" : brand;
-}
 
 export function RepositoryProviderMark({ provider }: { provider: RepositoryProvider }) {
   return (
@@ -66,8 +62,6 @@ export function detectRepositoryProvider(value: string): RepositoryProvider | nu
 
 export type OnboardingImportDialogProps = {
   onClose: () => void;
-  /** Skips the source list when the user already picked an app on the homepage. */
-  initialSource?: OnboardingImportSource | null;
   /** Issues a grant for the built-in projects folder without a picker. */
   onDefaultLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
   /** Opens the native picker and issues a grant for the chosen folder. */
@@ -79,14 +73,13 @@ export type OnboardingImportDialogProps = {
 
 export function OnboardingImportDialog({
   onClose,
-  initialSource = null,
   onDefaultLocation,
   onChooseLocation,
   onImportRepository,
   onOpenFolder,
 }: OnboardingImportDialogProps) {
   const { t } = useLocalization();
-  const [source, setSource] = useState<OnboardingImportSource | null>(initialSource);
+  const [source, setSource] = useState<OnboardingImportSource | null>(null);
   const [busy, setBusy] = useState(false);
   const title = source === null
     ? t("onboarding.entry.import.title")

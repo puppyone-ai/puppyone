@@ -263,6 +263,11 @@
   width: fit-content;
 }
 
+.onboarding-shell[data-onboarding-state="empty"] .onboarding-entry-action-default {
+  min-width: min(160px, 100%);
+  justify-content: center;
+}
+
 .onboarding-entry-action {
   box-sizing: border-box;
   width: fit-content;
@@ -362,53 +367,42 @@
   color: var(--po-text);
 }
 
-/* Keep import and its app shortcuts together as one compact, wrapping row.
- * Each mark remains a separate, keyboard-accessible import entry point. */
-.onboarding-entry-import {
-  display: flex;
-  flex-wrap: wrap;
-  min-width: 0;
+/* One import action, with a decorative source preview instead of extra CTAs. */
+.onboarding-entry-import .po-button__label {
+  display: inline-flex;
   align-items: center;
   gap: 8px;
 }
 
-.onboarding-shell[data-onboarding-state="empty"] .onboarding-entry-import {
-  justify-content: center;
-}
-
 .onboarding-entry-import-brands {
   display: flex;
-  flex-wrap: wrap;
+  flex: 0 0 auto;
   align-items: center;
-  justify-content: center;
-  gap: 2px;
+  opacity: 0.72;
+  filter: grayscale(1);
+  transition: opacity 130ms ease-out;
 }
 
 .onboarding-entry-import-brand {
   display: grid;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--desktop-control-radius);
-  background: transparent;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--onboarding-import-mark-background, var(--po-canvas));
   place-items: center;
-  cursor: var(--po-clickable-cursor, default);
-  transition: background 130ms ease-out;
 }
 
-.onboarding-entry-import-brand:hover:not(:disabled),
-.onboarding-entry-import-brand:focus-visible {
-  background: color-mix(in srgb, var(--po-text) 5%, transparent);
+.onboarding-entry-import-brand + .onboarding-entry-import-brand {
+  margin-inline-start: -6px;
 }
 
-.onboarding-entry-import-brand:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--po-accent) 36%, transparent);
-  outline-offset: 1px;
+.onboarding-entry-import:hover:not(:disabled),
+.onboarding-entry-import:focus-visible {
+  --onboarding-import-mark-background: color-mix(in srgb, var(--po-text) 5%, var(--po-canvas));
 }
 
-.onboarding-entry-import-brand:disabled {
-  cursor: default;
+.onboarding-entry-import-more {
+  flex: 0 0 auto;
 }
 
 .onboarding-import-mark {
@@ -426,31 +420,12 @@
   filter: invert(1);
 }
 
-.onboarding-entry-import-brand .onboarding-import-mark {
-  opacity: 0.62;
-  filter: grayscale(1);
-  transition: opacity 130ms ease-out, filter 130ms ease-out;
+.onboarding-entry-import:hover:not(:disabled) .onboarding-entry-import-brands,
+.onboarding-entry-import:focus-visible .onboarding-entry-import-brands {
+  opacity: 0.9;
 }
 
-.dark .onboarding-entry-import-brand .onboarding-import-mark.is-github,
-.dark .onboarding-entry-import-brand .onboarding-import-mark.is-notion {
-  filter: grayscale(1) invert(1);
-}
-
-.onboarding-entry-import-brand:hover:not(:disabled) .onboarding-import-mark,
-.onboarding-entry-import-brand:focus-visible .onboarding-import-mark {
-  opacity: 1;
-  filter: none;
-}
-
-.dark .onboarding-entry-import-brand:hover:not(:disabled) .onboarding-import-mark.is-github,
-.dark .onboarding-entry-import-brand:hover:not(:disabled) .onboarding-import-mark.is-notion,
-.dark .onboarding-entry-import-brand:focus-visible .onboarding-import-mark.is-github,
-.dark .onboarding-entry-import-brand:focus-visible .onboarding-import-mark.is-notion {
-  filter: invert(1);
-}
-
-.onboarding-entry-import-brand:disabled .onboarding-import-mark {
+.onboarding-entry-import:disabled .onboarding-entry-import-brands {
   opacity: 0.3;
 }
 

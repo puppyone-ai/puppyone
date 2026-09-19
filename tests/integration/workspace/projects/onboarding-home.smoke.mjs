@@ -81,11 +81,16 @@ async function runSmoke() {
               brandMarkWidth: rect(brand.querySelector('img')).width,
               actionIconWidth: rect(create.querySelector('svg')).width,
               importMarkWidths: images.slice(1).map(image => rect(image).width),
+              importStack: [...document.querySelectorAll('.onboarding-entry-import-brand')].map(rect),
+              importBrandIds: images.slice(1).map(image => image.dataset.importBrand),
+              importText: document.querySelector('.onboarding-entry-import-label').textContent,
+              importEllipsis: document.querySelector('.onboarding-entry-import-more').textContent,
+              actionCount: buttons.length,
               clipped: buttons.some(button => button.scrollWidth > button.clientWidth + 1)
                 || label.scrollWidth > label.clientWidth + 1,
               outside: buttons.some(button => { const r = button.getBoundingClientRect(); return r.left < 0 || r.right > innerWidth || r.top < 38 || r.bottom > innerHeight; }),
               tagline: !!document.querySelector('.onboarding-brand-tagline'),
-              imagesLoaded: images.length === 6 && images.every(image => image.complete && image.naturalWidth > 0),
+              imagesLoaded: images.length === 4 && images.every(image => image.complete && image.naturalWidth > 0),
             };
           })()`);
           const context = `${locale}/${theme}/${width}x${height}`;
@@ -95,7 +100,7 @@ async function runSmoke() {
           assert.ok(!snapshot.clipped && !snapshot.outside, `${context}: clipped or offscreen controls`);
           // Preserve the compact pre-redesign scale, not a large marketing CTA.
           assert.equal(snapshot.create.height, snapshot.openHeight, `${context}: shared row height`);
-          assert.ok(snapshot.create.height <= 34 && snapshot.create.width < 220, `${context}: compact intrinsic button`);
+          assert.ok(snapshot.create.height <= 34 && snapshot.create.width >= 160 && snapshot.create.width < 220, `${context}: slightly wider compact button`);
           assert.equal(snapshot.createFont, 14, `${context}: original body size`);
           assert.equal(snapshot.createFont, snapshot.openFont, `${context}: no CTA size override`);
           assert.equal(snapshot.createFamily, snapshot.openFamily, `${context}: shared font family`);
@@ -105,6 +110,14 @@ async function runSmoke() {
           assert.equal(snapshot.brandMarkWidth, 28, `${context}: original brand mark`);
           assert.equal(snapshot.actionIconWidth, 14, `${context}: original action icon`);
           assert.ok(snapshot.importMarkWidths.every(width => width === 14), `${context}: original import marks`);
+          assert.deepEqual(snapshot.importBrandIds, ['github', 'notion', 'google-drive'], `${context}: source preview`);
+          assert.equal(snapshot.actionCount, 3, `${context}: no extra logo buttons`);
+          assert.equal(snapshot.importEllipsis, '…', `${context}: more sources`);
+          if (locale === 'en') assert.equal(snapshot.importText, 'Import from', context);
+          for (let i = 1; i < snapshot.importStack.length; i++) {
+            const previous = snapshot.importStack[i - 1];
+            assert.ok(snapshot.importStack[i].x < previous.x + previous.width, `${context}: overlapping marks`);
+          }
           for (const item of [snapshot.create, snapshot.brand, snapshot.launcher]) {
             assert.ok(Math.abs(item.x + item.width / 2 - width / 2) < 1, `${context}: horizontal centering`);
           }
@@ -126,6 +139,18 @@ async function runSmoke() {
           window.webContents.sendInputEvent({ type: "char", keyCode: "\r" });
           window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Enter" });
           await until("!!document.querySelector('.onboarding-entry-dialog')");
+          window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Escape" });
+          window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Escape" });
+          await until("!document.querySelector('.onboarding-entry-dialog')");
+          await evaluate("document.querySelector('[data-onboarding-action=open]').focus()");
+          window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Tab" });
+          window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Tab" });
+          await until("document.activeElement?.dataset.onboardingAction === 'clone'");
+          window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Enter" });
+          window.webContents.sendInputEvent({ type: "char", keyCode: "\r" });
+          window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Enter" });
+          await until("!!document.querySelector('.is-import-sources')");
+          assert.equal(await evaluate("document.querySelectorAll('.onboarding-import-source').length"), 6, `${context}: all sources in dialog`);
           console.log(`Passed ${context}`);
         }
       }
