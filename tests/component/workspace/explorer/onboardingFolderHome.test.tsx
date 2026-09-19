@@ -207,9 +207,12 @@ describe("project folder home", () => {
     );
   });
 
-  it("left-aligns the empty-state primary action with the other entry actions", () => {
+  it("uses a full-width title divider and a content-hugging primary action", () => {
     expect(onboardingCss).toMatch(
-      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-entry-action-default\s*\{[^}]*justify-content:\s*flex-start;/s,
+      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-brand-lockup\s*\{[^}]*padding-block-end:\s*16px;[^}]*border-bottom:\s*1px solid var\(--po-border\);/s,
+    );
+    expect(onboardingCss).toMatch(
+      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-entry-action-default\s*\{[^}]*width:\s*fit-content;[^}]*min-width:\s*0;[^}]*justify-content:\s*flex-start;/s,
     );
   });
 
@@ -301,6 +304,7 @@ describe("project folder home", () => {
     const marks = [...importGroup!.querySelectorAll<HTMLImageElement>(".onboarding-import-mark")];
     expect(marks.map((mark) => mark.dataset.importBrand)).toEqual(["github", "notion", "google-drive"]);
     expect(marks.map((mark) => mark.alt)).toEqual(["GitHub", "Notion", "Google Drive"]);
+    expect(importGroup?.querySelector(".onboarding-entry-import-more.lucide-plus")).not.toBeNull();
     const preview = importGroup!.querySelector(".onboarding-entry-import-brands");
     const importLabel = importGroup!.querySelector(".onboarding-entry-import-label");
     expect(importLabel!.compareDocumentPosition(preview as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -896,7 +900,7 @@ function expectBrandLockup(
     expect(lockup?.querySelector(".onboarding-brand-name")).toBeNull();
   } else {
     expect(lockup?.querySelector(".onboarding-brand-prompt")).toBeNull();
-    expect(lockup?.querySelector(".onboarding-brand-name")?.textContent).toBe("puppyone");
+    expect(lockup?.querySelector(".onboarding-brand-name")?.textContent).toBe("Start with your files. Agent-ready.");
   }
   expect(lockup?.querySelectorAll("p")).toHaveLength(0);
   expect(lockup?.querySelector(".onboarding-brand-tagline")).toBeNull();

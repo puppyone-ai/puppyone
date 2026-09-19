@@ -46,6 +46,7 @@ async function runSmoke() {
       if (details.level === "error") console.error(details.message);
     });
     const labels = { "zh-Hans": "新建空项目", en: "New empty project", fr: "Créer un projet vide" };
+    const projectPrompts = { "zh-Hans": "你想从哪个项目开始？", en: "Which project do you want to start with?", fr: "Avec quel projet souhaitez-vous commencer ?" };
     const importLabels = { "zh-Hans": "导入", en: "Import", fr: "Importer" };
     const importIntros = { "zh-Hans": "把 SaaS 里的数据变成文件，保存到本地。", en: "Turn SaaS data into files on your computer.", fr: "Transformez vos données SaaS en fichiers locaux." };
     for (const locale of Object.keys(labels)) {
@@ -80,11 +81,16 @@ async function runSmoke() {
             const projectPanel = document.querySelector('.onboarding-recent-projects');
             const projectRow = document.querySelector('.onboarding-project-row');
             const projectPanelStyle = projectPanel && getComputedStyle(projectPanel);
+            const brandStyle = getComputedStyle(brand);
             const buttons = [...document.querySelectorAll('.onboarding-entry-actions button')];
             const images = [...document.querySelectorAll('.onboarding-brand-lockup img, .onboarding-entry-import img')];
             return {
               create: rect(create), brand: rect(brand), launcher: rect(launcher), actions: rect(actions), label: create.textContent,
+              brandText: brand.querySelector('.onboarding-brand-name, .onboarding-brand-prompt').textContent,
+              brandBorderBottom: brandStyle.borderBottomWidth,
+              brandPaddingBottom: brandStyle.paddingBottom,
               createFont: parseFloat(getComputedStyle(label).fontSize),
+              createMinWidth: getComputedStyle(create).minWidth,
               createWeight: getComputedStyle(label).fontWeight,
               createLineHeight: getComputedStyle(label).lineHeight,
               createFamily: getComputedStyle(label).fontFamily,
@@ -120,6 +126,7 @@ async function runSmoke() {
               importBrandLabels: importMarks.map(image => image.alt),
               importLabel: rect(importLabel),
               importBrands: rect(importButton.querySelector('.onboarding-entry-import-brands')),
+              importMore: rect(importButton.querySelector('.onboarding-entry-import-more')),
               importText: importButton.textContent,
               dividerBackground: divider && getComputedStyle(divider).backgroundColor,
               actionCount: buttons.length,
@@ -135,13 +142,17 @@ async function runSmoke() {
           })()`);
           const context = `${state}/${locale}/${theme}/${width}x${height}`;
           assert.equal(snapshot.label, labels[locale], context);
+          assert.equal(snapshot.brandText, state === 'empty' ? 'Start with your files. Agent-ready.' : projectPrompts[locale], `${context}: state-specific title`);
           assert.equal(snapshot.tagline, false, context);
           assert.ok(snapshot.imagesLoaded, `${context}: all brand assets must load`);
           assert.ok(!snapshot.clipped && !snapshot.outside, `${context}: clipped or offscreen controls`);
           // Preserve the compact pre-redesign scale, not a large marketing CTA.
           assert.equal(snapshot.create.height, snapshot.openHeight, `${context}: shared row height`);
           assert.ok(snapshot.create.height <= 34, `${context}: compact button height`);
-          if (state === 'empty') assert.ok(snapshot.create.width >= 180 && snapshot.create.width < 220, `${context}: slightly wider compact button`);
+          if (state === 'empty') {
+            assert.equal(snapshot.createMinWidth, '0px', `${context}: primary action hugs its content`);
+            assert.ok(snapshot.create.width < 220, `${context}: compact content-hugging button`);
+          }
           assert.equal(snapshot.createFont, 14, `${context}: original body size`);
           assert.equal(snapshot.createFont, snapshot.openFont, `${context}: no CTA size override`);
           assert.equal(snapshot.createFamily, snapshot.openFamily, `${context}: shared font family`);
@@ -155,7 +166,7 @@ async function runSmoke() {
           assert.equal(snapshot.importLineHeight, snapshot.createLineHeight, `${context}: shared CTA line height`);
           assert.equal(snapshot.importFamily, snapshot.createFamily, `${context}: shared CTA font`);
           assert.equal(snapshot.importBackground, 'rgba(0, 0, 0, 0)', `${context}: transparent text action`);
-          assert.equal(snapshot.importArtworkCount, 4, `${context}: action icon plus three source logos`);
+          assert.equal(snapshot.importArtworkCount, 5, `${context}: action icon, three source logos and more indicator`);
           assert.equal(snapshot.importIcon.width, snapshot.actionIconWidth, `${context}: shared action icon size`);
           assert.deepEqual(snapshot.importBrandIds, ['github', 'notion', 'google-drive'], `${context}: familiar import sources`);
           assert.deepEqual(snapshot.importBrandLabels, ['GitHub', 'Notion', 'Google Drive'], `${context}: named logos for assistive technology`);
@@ -167,6 +178,8 @@ async function runSmoke() {
             const previous = snapshot.importMarks[i - 1];
             assert.equal(snapshot.importMarks[i].x - previous.x - previous.width, 4, `${context}: compact logo spacing`);
           }
+          assert.equal(snapshot.importMore.width, 14, `${context}: restrained import-more indicator`);
+          assert.equal(snapshot.importMore.x - snapshot.importBrands.x - snapshot.importBrands.width, 6, `${context}: plus follows the source logos`);
           assert.equal(snapshot.importText, importLabels[locale], `${context}: complete localized text`);
           assert.equal(snapshot.brand.width, width >= 563 ? 440 : 324, `${context}: shared responsive column width`);
           assert.equal(snapshot.brand.x, snapshot.actions.x, `${context}: brand and actions share a left edge`);
@@ -177,8 +190,10 @@ async function runSmoke() {
           assert.equal(snapshot.actionIcon.x, snapshot.openIcon.x, `${context}: create content is left aligned with the other actions`);
           assert.ok(Math.abs(snapshot.brand.x + snapshot.brand.width / 2 - width / 2) < 1, `${context}: shared column is centered`);
           if (state === 'empty') {
+            assert.equal(snapshot.brandBorderBottom, '1px', `${context}: title divider spans the shared column`);
+            assert.equal(snapshot.brandPaddingBottom, '16px', `${context}: title has restrained space above its divider`);
             assert.equal(snapshot.divider.height, 1, `${context}: subtle one-pixel divider`);
-            assert.equal(snapshot.divider.width, snapshot.create.width, `${context}: divider matches CTA width`);
+            assert.ok(snapshot.divider.width >= snapshot.create.width, `${context}: import divider remains at least as wide as the content-hugging CTA`);
             assert.notEqual(snapshot.dividerBackground, 'rgba(0, 0, 0, 0)', `${context}: visible divider`);
             assert.ok(snapshot.divider.y - snapshot.open.y - snapshot.open.height >= 12, `${context}: separation from direct-start actions`);
             assert.ok(snapshot.importButton.y - snapshot.divider.y - snapshot.divider.height >= 8, `${context}: space below divider`);
@@ -187,6 +202,7 @@ async function runSmoke() {
             assert.equal(snapshot.launcher.width, snapshot.brand.width, `${context}: launcher uses the shared width`);
             assert.ok(Math.abs(snapshot.launcher.y + snapshot.launcher.height / 2 - height / 2) < 1, `${context}: vertical centering`);
           } else {
+            assert.equal(snapshot.brandBorderBottom, '0px', `${context}: project list owns the returning-state divider`);
             assert.equal(snapshot.divider, null, `${context}: project list layout stays unchanged`);
             assert.equal(snapshot.projectPanel.x, snapshot.brand.x, `${context}: project frame shares the content left edge`);
             assert.equal(snapshot.projectPanel.width, snapshot.brand.width, `${context}: project frame uses the shared width`);

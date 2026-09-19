@@ -1,6 +1,7 @@
 {
   "projects.title": "Proyectos",
   "brand.name": "puppyone",
+  "brand.agentReadyMessage": "Start with your files. Agent-ready.",
   "telemetry.notice": "Los datos de uso anónimos nos ayudan a mejorar puppyone.",
   "telemetry.learnMore": "Más información",
   "section.getStarted": "Empieza con puppyone",
