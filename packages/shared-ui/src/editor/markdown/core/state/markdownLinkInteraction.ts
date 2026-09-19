@@ -30,7 +30,7 @@ export type MarkdownLinkResolutionContext = Readonly<{
   documentPath: string;
   linkGraph: MarkdownLinkGraph | null;
   linkCommands: MarkdownLinkCommands;
-  hasSameDocumentHeading: (fragment: string) => boolean;
+  hasSameDocumentTarget: (fragment: string) => boolean;
   editing?: boolean;
 }>;
 
@@ -47,7 +47,7 @@ export function resolveMarkdownHrefInteraction(
   if (!isSafeHref(value)) return withEditing(unavailable("unsafe"), context.editing);
 
   if (value.startsWith("#")) {
-    return withEditing(context.hasSameDocumentHeading(value)
+    return withEditing(context.hasSameDocumentTarget(value)
       ? navigate("same-document", null)
       : unavailable("unresolved"), context.editing);
   }
@@ -72,7 +72,7 @@ export function resolveWikiLinkInteraction(
 ): MarkdownLinkInteraction {
   const value = target.trim();
   if (value.startsWith("#")) {
-    return withEditing(context.hasSameDocumentHeading(value)
+    return withEditing(context.hasSameDocumentTarget(value)
       ? navigate("same-document", null)
       : unavailable("unresolved"), context.editing);
   }

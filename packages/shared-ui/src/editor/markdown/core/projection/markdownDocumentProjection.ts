@@ -39,6 +39,7 @@ import { getLivePreviewFocusState } from "../state/livePreviewFocus";
 import { resolvePaneLocalInlineRevealRange } from "../state/livePreviewReveal";
 import { getMarkdownPlansInRange } from "../plans/markdownPlanIndex";
 import { getDocRevision } from "../../platform/brokers/transactionBroker";
+import { getMarkdownFragmentPosition } from "../links/markdownFragmentTargets";
 
 type ProjectionRangeReason = "benchmark";
 
@@ -52,6 +53,7 @@ export type MarkdownProjectionRangeRequest = {
 type MarkdownDocumentProjection = {
   decorations: DecorationSet;
   atomicRanges: DecorationSet;
+  fragmentLinks: DecorationSet;
   focused: boolean;
   inputComposing: boolean;
   composingLineKey: string;
@@ -100,6 +102,7 @@ export const markdownLivePreviewDecorations = StateField.define<MarkdownDocument
 
     let decorations = previous.decorations.map(transaction.changes);
     let atomicRanges = previous.atomicRanges.map(transaction.changes);
+    let fragmentLinks = previous.fragmentLinks.map(transaction.changes);
     let blockRanges = transaction.docChanged
       ? previous.blockRanges.map((range) => mapRange(range, transaction.changes))
       : previous.blockRanges;
@@ -108,9 +111,13 @@ export const markdownLivePreviewDecorations = StateField.define<MarkdownDocument
     if (contextInvalidation === "global") {
       decorations = Decoration.none;
       atomicRanges = Decoration.none;
+      fragmentLinks = Decoration.none;
       projectionDiagnostics.globalInvalidations += 1;
       patchRanges.push(getDocumentProjectionRange(transaction.state));
     } else {
+      if (transaction.docChanged || syntaxTree(transaction.startState) !== syntaxTree(transaction.state)) {
+        addChangedFragmentLinkRanges(patchRanges, fragmentLinks, transaction);
+      }
       if (transaction.docChanged) {
         const changedRanges = getChangedProjectionRanges(transaction);
         patchRanges.push(...changedRanges);
@@ -186,6 +193,9 @@ export const markdownLivePreviewDecorations = StateField.define<MarkdownDocument
       const builders = buildProjectionRange(transaction.state, range, revealRange, revealedSourceRange, composingLine);
       decorations = replaceDecorationRange(decorations, range, builders.decorations);
       atomicRanges = replaceDecorationRange(atomicRanges, range, builders.atomicRanges);
+      fragmentLinks = replaceDecorationRange(
+        fragmentLinks, range, builders.decorations.filter(({ value }) => getDecorationFragment(value) !== null),
+      );
     }
     if (mergedRanges.length > 0) {
       blockRanges = replaceBlockRanges(transaction.state, blockRanges, mergedRanges);
@@ -194,6 +204,7 @@ export const markdownLivePreviewDecorations = StateField.define<MarkdownDocument
     return {
       decorations,
       atomicRanges,
+      fragmentLinks,
       focused,
       inputComposing,
       composingLineKey: composingLine ? `${composingLine.from}:${composingLine.to}` : "",
@@ -209,6 +220,32 @@ export const markdownLivePreviewDecorations = StateField.define<MarkdownDocument
     ];
   },
 });
+
+/** A distant target edit changes link affordances without replacing widgets. */
+function addChangedFragmentLinkRanges(
+  ranges: InlineRevealRange[],
+  decorations: DecorationSet,
+  transaction: Transaction,
+) {
+  const changed = new Map<string, boolean>();
+  decorations.between(0, transaction.state.doc.length, (from, to, decoration) => {
+    const fragment = getDecorationFragment(decoration);
+    if (fragment === null) return;
+    let availabilityChanged = changed.get(fragment);
+    if (availabilityChanged === undefined) {
+      availabilityChanged = (getMarkdownFragmentPosition(transaction.startState, fragment) !== null)
+        !== (getMarkdownFragmentPosition(transaction.state, fragment) !== null);
+      changed.set(fragment, availabilityChanged);
+    }
+    if (availabilityChanged) ranges.push({ from, to });
+  });
+}
+
+function getDecorationFragment(decoration: Decoration): string | null {
+  const attributes = decoration.spec.attributes;
+  const fragment = attributes?.["data-md-href"] ?? attributes?.["data-wiki-target"];
+  return typeof fragment === "string" && fragment.startsWith("#") ? fragment : null;
+}
 
 export function requestMarkdownProjectionRange(
   state: EditorState,
@@ -248,6 +285,9 @@ function createInitialProjection(state: EditorState): MarkdownDocumentProjection
     atomicRanges: builders.atomicRanges.length > 0
       ? Decoration.set(builders.atomicRanges, true)
       : Decoration.none,
+    fragmentLinks: Decoration.set(
+      builders.decorations.filter(({ value }) => getDecorationFragment(value) !== null), true,
+    ),
     focused: false,
     inputComposing: false,
     composingLineKey: getComposingBlockLineKey(state),

@@ -37,6 +37,41 @@ import { CENTERED_README_HEADER } from "../../../../../fixtures/editor/formats/m
 const inertAssetResolver: MarkdownAssetUrlResolver = () => null;
 const mountedViews: EditorView[] = [];
 
+describe("Markdown empty HTML anchors", () => {
+  it.each(['<a id="target"></a>', '<a id=target></a>'])(
+    "hides %s in both live preview and isolated inline preview",
+    (anchor) => {
+      const view = mountLive(`Before ${anchor} after`, true);
+      expect(view.contentDOM.textContent).toBe("Before  after");
+      expect(view.state.doc.toString()).toBe(`Before ${anchor} after`);
+
+      const preview = document.createElement("div");
+      renderMarkdownInlineFromSharedPolicy(preview, `Before ${anchor} after`);
+      expect(preview.textContent).toBe("Before  after");
+      expect(preview.querySelector("a")?.id).toBe("md-doc-target");
+    },
+  );
+
+  it("keeps an unclosed anchor visible instead of repairing the authored source", () => {
+    const source = "Before <a id=target><a> after";
+    const view = mountLive(source, true);
+    expect(view.contentDOM.textContent).toBe(source);
+  });
+
+  it("reveals an anchor for editing and folds it again without changing source", async () => {
+    const source = 'Before <a id="target"></a> after';
+    const view = mountLive(source, false);
+    expect(view.contentDOM.textContent).toBe("Before  after");
+    view.focus();
+    await new Promise((resolve) => window.setTimeout(resolve, 20));
+    view.dispatch({ selection: { anchor: source.indexOf("target") + 1 } });
+    expect(view.contentDOM.textContent).toBe(source);
+    view.dispatch({ selection: { anchor: source.length } });
+    expect(view.contentDOM.textContent).toBe("Before  after");
+    expect(view.state.doc.toString()).toBe(source);
+  });
+});
+
 afterEach(() => {
   for (const view of mountedViews.splice(0)) view.destroy();
   document.body.replaceChildren();
