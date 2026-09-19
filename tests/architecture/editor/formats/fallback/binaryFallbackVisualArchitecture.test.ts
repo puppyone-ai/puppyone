@@ -17,6 +17,14 @@ describe("binary fallback visual architecture", () => {
     const surface = readCssBlock(documentPreviewCss, ".document-preview");
     expect(surface).toContain("border: 0;");
     expect(surface).toContain("border-radius: 0;");
+    expect(surface).toContain("background: var(--po-editor-bg);");
+
+    const summary = readCssBlock(documentPreviewCss, ".document-preview__summary");
+    expect(summary).toContain("aspect-ratio: 1;");
+    expect(summary).toContain("background: repeating-linear-gradient(");
+    expect(summary).toContain("var(--po-text-muted) 32%");
+    expect(summary).toContain("border: 0;");
+    expect(summary).toContain("border-radius: 0;");
   });
 });
 
