@@ -95,6 +95,7 @@ async function runSmoke() {
               brandMarkWidth: rect(brand.querySelector('img')).width,
               actionIconWidth: rect(create.querySelector('svg')).width,
               actionIcon: rect(create.querySelector('.po-button__icon')),
+              openIcon: rect(open.querySelector('.po-button__icon')),
               importButton: rect(importButton), divider: rect(divider), open: rect(open),
               projectPanel: rect(projectPanel),
               projectRow: rect(projectRow),
@@ -173,6 +174,7 @@ async function runSmoke() {
           assert.equal(snapshot.create.x, snapshot.actions.x, `${context}: no extra action-area left padding`);
           assert.equal(snapshot.open.x, snapshot.create.x, `${context}: open aligns with create`);
           assert.equal(snapshot.importButton.x, snapshot.create.x, `${context}: import aligns with create`);
+          assert.equal(snapshot.actionIcon.x, snapshot.openIcon.x, `${context}: create content is left aligned with the other actions`);
           assert.ok(Math.abs(snapshot.brand.x + snapshot.brand.width / 2 - width / 2) < 1, `${context}: shared column is centered`);
           if (state === 'empty') {
             assert.equal(snapshot.divider.height, 1, `${context}: subtle one-pixel divider`);

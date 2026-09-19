@@ -207,6 +207,12 @@ describe("project folder home", () => {
     );
   });
 
+  it("left-aligns the empty-state primary action with the other entry actions", () => {
+    expect(onboardingCss).toMatch(
+      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-entry-action-default\s*\{[^}]*justify-content:\s*flex-start;/s,
+    );
+  });
+
   it("exposes one vertical projects-state contract", () => {
     const container = renderHome({
       projectItems: [{

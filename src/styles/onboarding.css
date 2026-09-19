@@ -266,7 +266,7 @@
 
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-entry-action-default {
   min-width: min(180px, 100%);
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 .onboarding-entry-action {
