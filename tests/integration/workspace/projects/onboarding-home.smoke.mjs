@@ -46,7 +46,7 @@ async function runSmoke() {
     window.webContents.on("console-message", (details) => {
       if (details.level === "error") console.error(details.message);
     });
-    const labels = { en: "New empty project" };
+    const labels = { en: "New project" };
     const projectPrompts = { en: "Which project do you want to start with?" };
     const importLabels = { en: "Import" };
     const importIntros = { en: "Turn SaaS data into files on your computer." };
@@ -254,6 +254,20 @@ async function runSmoke() {
           window.webContents.sendInputEvent({ type: "char", keyCode: "\r" });
           window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Enter" });
           await until("!!document.querySelector('.onboarding-entry-dialog')");
+          await until("!document.querySelector('.onboarding-entry-dialog button[type=submit]').disabled");
+          const createDialog = await evaluate(`(() => {
+            const dialog = document.querySelector('.onboarding-entry-dialog');
+            return {
+              name: dialog.querySelector('input').value,
+              selects: dialog.querySelectorAll('select').length,
+              localNotes: dialog.querySelectorAll('.onboarding-entry-local-note').length,
+              starterCopy: /Getting Started|Blank folder/.test(dialog.textContent),
+            };
+          })()`);
+          assert.match(createDialog.name, /^My project [A-F0-9]{4}$/, `${context}: collision-resistant default project name`);
+          assert.deepEqual({ ...createDialog, name: undefined }, {
+            name: undefined, selects: 0, localNotes: 0, starterCopy: false,
+          }, `${context}: one-action create dialog`);
           window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Escape" });
           window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Escape" });
           await until("!document.querySelector('.onboarding-entry-dialog')");
