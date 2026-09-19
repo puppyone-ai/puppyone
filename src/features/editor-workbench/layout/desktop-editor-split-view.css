@@ -120,7 +120,9 @@
 
 .desktop-editor-pane-handle-shell {
   position: absolute;
-  z-index: 12;
+  /* Pane chrome must stay above every Viewer surface, including embedded
+   * Chromium/PDF iframe composition and the pane interaction frame. */
+  z-index: calc(var(--po-pane-resizer-z-index, 35) + 2);
   display: flex;
   width: 52px;
   height: 20px;

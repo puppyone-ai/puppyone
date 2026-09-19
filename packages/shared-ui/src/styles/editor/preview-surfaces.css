@@ -101,14 +101,6 @@
   inset: 0;
 }
 
-.pdf-preview-actions {
-  display: flex;
-  flex: none;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 4px 8px;
-}
-
 .pdf-preview-shell button {
   min-height: var(--po-control-size-tight);
   padding: 2px 8px;

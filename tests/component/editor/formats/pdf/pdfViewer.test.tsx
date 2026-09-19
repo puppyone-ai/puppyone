@@ -2,6 +2,10 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  EditorPaneMenuContributionProvider,
+  type EditorPaneMenuContribution,
+} from "../../../../../packages/shared-ui/src/editor/editorPaneMenuContribution";
 import { PdfViewer, PDF_ATTACHMENT_TIMEOUT_MS, configureChromiumPdfViewerUrl } from "../../../../../packages/shared-ui/src/editor/viewers/pdf/PdfViewer";
 import { withTestLocalization } from "../../../../support/react/localization";
 import type { Window as HappyWindow } from "happy-dom";
@@ -37,10 +41,16 @@ afterEach(() => {
 });
 const surface = () => container.querySelector<HTMLElement>(".pdf-preview-surface");
 const iframe = () => container.querySelector<HTMLIFrameElement>("iframe");
-async function render(id = "A", workspaceId = "one", loading = false) {
-  await act(async () => root?.render(withTestLocalization(<PdfViewer
+async function render(id = "A", workspaceId = "one", loading = false,
+  onContributionChange?: (contribution: EditorPaneMenuContribution | null) => void) {
+  const viewer = <PdfViewer
     document={{ path: "report.pdf", name: "report.pdf", type: "pdf" }} workspaceId={workspaceId}
-    fileUrl={url(id)} fileUrlLoading={loading} fileUrlError={null} />)));
+    fileUrl={url(id)} fileUrlLoading={loading} fileUrlError={null} />;
+  await act(async () => root?.render(withTestLocalization(onContributionChange
+    ? <EditorPaneMenuContributionProvider onContributionChange={onContributionChange}>
+        {viewer}
+      </EditorPaneMenuContributionProvider>
+    : viewer)));
 }
 async function load(frame = iframe()!) { await act(async () => frame.dispatchEvent(new Event("load"))); }
 function paint() { act(() => { for (const callback of [...frames.values()]) callback(performance.now()); frames.clear(); }); }
@@ -49,6 +59,29 @@ describe("DOM-owned PDF transport and attachment lifecycle", () => {
   it("preserves PDF URL parameters without exposing filesystem paths", () => {
     expect(configureChromiumPdfViewerUrl(url("A"))).toBe(url("A") + "#toolbar=0&navpanes=0");
     expect(configureChromiumPdfViewerUrl(url("A") + "#page=3")).toContain("#page=3&toolbar=0");
+  });
+
+  it("keeps PDF actions out of the Viewer and contributes reload to pane chrome", async () => {
+    const contributions: Array<EditorPaneMenuContribution | null> = [];
+    await render("A", "one", false, (next) => { contributions.push(next); });
+    const contribution = contributions.find((next): next is EditorPaneMenuContribution => next !== null);
+
+    expect(container.querySelector(".pdf-preview-actions")).toBeNull();
+    expect(container.querySelector(".pdf-preview-shell > button")).toBeNull();
+    expect(contribution?.documentId).toBe("report.pdf");
+    expect(contribution?.viewItems).toHaveLength(1);
+    expect(contribution?.viewItems[0]).toMatchObject({
+      kind: "command",
+      id: "pdf-reload",
+      label: "Reload page",
+      disabled: false,
+    });
+
+    const firstFrame = iframe();
+    const reload = contribution?.viewItems[0];
+    if (reload?.kind !== "command") throw new Error("Missing PDF reload command");
+    await act(async () => reload.run());
+    expect(iframe()).not.toBe(firstFrame);
   });
 
   it("admits before attaching, rechecks after load, and never claims PDF parse success", async () => {

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocalization } from "@puppyone/localization/react";
+import { useEditorPaneMenuContributionPublisher } from "../../editorPaneMenuContribution";
 import { DocumentSurfacePending } from "../../host/DocumentSurfaceHost";
 import { getPresetViewerDefinition } from "../../registry/presetViewerManifest";
 import type { PresetViewerRenderContext } from "../../registry/viewerTypes";
@@ -9,32 +10,39 @@ import { ResourcePreviewState } from "../media/ResourceViewers";
 import { preflightPdfResource } from "./pdfResourcePreflight";
 
 type PdfViewerProps = Pick<PresetViewerRenderContext,
-  "document" | "fileUrl" | "fileUrlLoading" | "fileUrlError" | "openExternalFile" | "workspaceId"
+  "document" | "fileUrl" | "fileUrlLoading" | "fileUrlError" | "workspaceId"
 > & Partial<Pick<PresetViewerRenderContext, "resourcePolicy">>;
 
 export const PDF_ATTACHMENT_TIMEOUT_MS = 15_000;
 
 export function PdfViewer({ document, fileUrl, fileUrlLoading, fileUrlError, resourcePolicy,
-  openExternalFile, workspaceId }: PdfViewerProps) {
+  workspaceId }: PdfViewerProps) {
   const { t } = useLocalization();
   const [attempt, setAttempt] = useState(0);
-  const [externalError, setExternalError] = useState(false);
+  const publishPaneMenuContribution = useEditorPaneMenuContributionPublisher();
+  const reload = useCallback(() => setAttempt((value) => value + 1), []);
   const maxBytes = resourcePolicy?.maxSourceBytes ?? getPresetViewerDefinition("pdf-preview").resourcePolicy.maxSourceBytes;
+
+  useLayoutEffect(() => {
+    if (!publishPaneMenuContribution) return undefined;
+    publishPaneMenuContribution({
+      documentId: document.path,
+      viewItems: [{
+        kind: "command",
+        id: "pdf-reload",
+        label: t("editor.app.reload"),
+        disabled: !fileUrl || fileUrlLoading,
+        run: reload,
+      }],
+    });
+    return () => publishPaneMenuContribution(null);
+  }, [document.path, fileUrl, fileUrlLoading, publishPaneMenuContribution, reload, t]);
+
   return (
     <div className="pdf-preview-shell">
-      <div className="pdf-preview-actions">
-        {fileUrl && !fileUrlLoading && <button type="button" onClick={() => setAttempt((value) => value + 1)}>
-          {t("editor.app.reload")}
-        </button>}
-        {openExternalFile && <button type="button" onClick={() => {
-          setExternalError(false);
-          void openExternalFile(document.path).catch(() => setExternalError(true));
-        }}>{t("editor.openDefaultApp")}</button>}
-      </div>
-      {externalError && <div role="alert">{t("editor.preview.unavailable")}</div>}
       <ResourcePreviewState fileUrl={fileUrlLoading ? null : fileUrl} loading={fileUrlLoading} error={fileUrlError} kind="pdf">
         {(url) => <PdfPreviewSurface key={JSON.stringify([workspaceId, document.path, url, maxBytes, attempt])}
-          url={url} name={document.name} maxBytes={maxBytes} onRetry={() => setAttempt((value) => value + 1)} />}
+          url={url} name={document.name} maxBytes={maxBytes} onRetry={reload} />}
       </ResourcePreviewState>
     </div>
   );

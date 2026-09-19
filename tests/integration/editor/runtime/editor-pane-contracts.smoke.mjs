@@ -46,14 +46,19 @@ app.on("window-all-closed", () => {});
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function pdfReady(contents) {
-  const frames = [...contents.mainFrame.frames];
-  while (frames.length) {
-    const frame = frames.shift();
-    if (frame.url.startsWith("chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/")) {
-      try { return await frame.executeJavaScript("Boolean(document.querySelector('pdf-viewer')?.documentDimensions?.pageDimensions?.length)"); }
-      catch { return false; } // PDF OOPIF can be replaced while committing navigation.
+  const deadline = Date.now() + 8_000;
+  while (Date.now() < deadline) {
+    const frames = [...contents.mainFrame.frames];
+    while (frames.length) {
+      const frame = frames.shift();
+      if (frame.url.startsWith("chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/")) {
+        try {
+          if (await frame.executeJavaScript("Boolean(document.querySelector('pdf-viewer')?.documentDimensions?.pageDimensions?.length)")) return true;
+        } catch { /* PDF OOPIF can be replaced while committing navigation. */ }
+      }
+      frames.push(...frame.frames);
     }
-    frames.push(...frame.frames);
+    await wait(100);
   }
   return false;
 }
@@ -142,13 +147,6 @@ try {
   ipcMain.handle("pane-contracts:input", async (_event, request) => {
     window.focus();
     window.webContents.focus();
-    const splitterFocused = await window.webContents.executeJavaScript(`(() => {
-      const splitter = document.querySelector('.desktop-editor-splitter');
-      splitter?.focus();
-      return document.activeElement === splitter;
-    })()`);
-    assert(splitterFocused, "Split handle did not regain focus before pane input");
-    await wait(50);
     const send = async (type, point, pressed = false) => {
       const x = Math.round(point.x);
       const y = Math.round(point.y);
@@ -157,6 +155,20 @@ try {
         ...(type === "mouseMove" ? (pressed ? { modifiers: ["leftButtonDown"] } : {}) : { button: "left", clickCount: 1 }),
       });
     };
+    if (request.kind === "click") {
+      await send("mouseMove", request.at);
+      await wait(50);
+      await send("mouseDown", request.at, true);
+      await send("mouseUp", request.at);
+      return;
+    }
+    const splitterFocused = await window.webContents.executeJavaScript(`(() => {
+      const splitter = document.querySelector('.desktop-editor-splitter');
+      splitter?.focus();
+      return document.activeElement === splitter;
+    })()`);
+    assert(splitterFocused, "Split handle did not regain focus before pane input");
+    await wait(50);
     await send("mouseMove", request.from);
     await send("mouseDown", request.from, true);
     for (let attempt = 0; attempt < 50; attempt++) {

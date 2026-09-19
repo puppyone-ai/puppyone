@@ -31,7 +31,10 @@ declare global {
       seed(files: Record<string, string>): Promise<void>;
       read(path: string): Promise<FileContent>;
       persist(request: DocumentPersistenceRequest): Promise<DocumentPersistenceResult>;
-      input(request: { kind: "drag"; from: Point; to: Point; ratio: number }): Promise<void>;
+      input(request:
+        | { kind: "drag"; from: Point; to: Point; ratio: number }
+        | { kind: "click"; at: Point }
+      ): Promise<void>;
       record(result: unknown): Promise<void>;
     };
     editorPaneContracts?: { run(): Promise<unknown> };
@@ -167,12 +170,30 @@ async function closeThroughMenu(owner: HTMLElement) {
   );
 }
 
+async function verifyPdfPaneMenuThroughPointer(owner: HTMLElement) {
+  assert(!owner.querySelector(".pdf-preview-actions"), "PDF rendered a private action header");
+  const handle = owner.querySelector<HTMLButtonElement>(".desktop-editor-pane-handle");
+  assert(handle, "Missing PDF pane menu handle");
+  const rect = handle.getBoundingClientRect();
+  await window.paneContracts.input({
+    kind: "click",
+    at: { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 },
+  });
+  await until(() => document.querySelector(".desktop-editor-pane-menu"), "PDF pane menu was not pointer reachable above its iframe");
+  const menu = document.querySelector<HTMLElement>(".desktop-editor-pane-menu")!;
+  assert(menu.textContent?.includes("Reload page"), "PDF reload was not moved into the pane menu");
+  assert(menu.querySelector('[aria-label="Open in default app"]'), "PDF external open was not available in the pane menu");
+  handle.click();
+  await until(() => !document.querySelector(".desktop-editor-pane-menu"), "PDF pane menu did not close");
+}
+
 async function runCase(testCase: EditorPaneCase, direction: EditorSplitDirection) {
   const subject = await mount(testCase);
   const subjectPane = paneFor(subject.path);
   const subjectId = subjectPane.dataset.editorPaneId!;
   const surface = subjectPane.querySelector(testCase.selector)!;
   const subjectView = surface.classList.contains("cm-editor") ? requireEditorView(surface as HTMLElement) : null;
+  if (testCase.id === "pdf") await verifyPdfPaneMenuThroughPointer(subjectPane);
   if (subjectView) subjectView.dispatch({ selection: { anchor: 1, head: Math.min(4, subjectView.state.doc.length) } });
   const selection = subjectView?.state.selection.toJSON();
   const subjectModel = subjectView?.state.doc.toString();
