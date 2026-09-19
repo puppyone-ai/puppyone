@@ -156,8 +156,6 @@
   padding: 2px 8px;
   box-sizing: border-box;
   color: var(--po-text-subtle);
-  font-size: var(--po-type-right-sidebar-caption, 12px);
-  line-height: var(--po-type-right-sidebar-caption-line-height, 17px);
   overflow-wrap: anywhere;
 }
 
@@ -166,7 +164,7 @@
   width: 11px;
   height: 11px;
   flex: 0 0 11px;
-  margin-block-start: 3px;
+  margin-block-start: calc((var(--po-type-right-sidebar-control-line-height, 19px) - 11px) / 2);
   border: 1.5px solid var(--po-border);
   border-block-start-color: currentColor;
   border-radius: 50%;
@@ -271,14 +269,22 @@
   box-shadow: inset 0 0 0 1px var(--po-focus-ring);
 }
 
+/* Discovery copy and usable rows share a scale; regular weight matches the
+ * left sidebar without coupling this surface to its size preferences. */
+.desktop-terminal-launcher-discovery,
+.desktop-terminal-launcher-tool > span:last-child,
+.desktop-terminal-launcher-shell > span:last-child,
+.desktop-terminal-launcher-history > span:last-child {
+  font-size: var(--po-type-right-sidebar-content, 14px);
+  font-weight: var(--po-text-weight-regular, 400);
+  line-height: var(--po-type-right-sidebar-control-line-height, 19px);
+}
+
 .desktop-terminal-launcher-tool > span:last-child,
 .desktop-terminal-launcher-shell > span:last-child,
 .desktop-terminal-launcher-history > span:last-child {
   min-width: 0;
   overflow: hidden;
-  font-size: var(--po-type-right-sidebar-content, 14px);
-  font-weight: 500;
-  line-height: var(--po-type-right-sidebar-control-line-height, 19px);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
