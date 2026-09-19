@@ -190,7 +190,7 @@ describe("project folder home", () => {
     const projectActions = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-entry-action")];
     expect(projectActions).toHaveLength(3);
     expect(projectActions.map((action) => action.textContent)).toEqual([
-      "New empty project",
+      "New project",
       "Open a folder",
       "Import",
     ]);
@@ -316,7 +316,7 @@ describe("project folder home", () => {
     const actions = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-entry-action")];
     expect(actions).toHaveLength(3);
     expect(actions.map((action) => action.textContent)).toEqual([
-      "New empty project",
+      "New project",
       "Open a folder",
       "Import",
     ]);
@@ -365,7 +365,7 @@ describe("project folder home", () => {
     expect(onCloneRepository).not.toHaveBeenCalled();
   });
 
-  it("prefills the built-in projects folder so creating needs only a name", async () => {
+  it("prefills the name and built-in projects folder for one-action creation", async () => {
     const onDefaultProjectLocation = vi.fn(async () => ({
       grantId: "default-1",
       path: "/Users/example/Documents/PuppyOne",
@@ -392,14 +392,14 @@ describe("project folder home", () => {
     expect(onChooseProjectLocation).not.toHaveBeenCalled();
     expect(container.querySelector(".onboarding-entry-location-path")?.textContent).toBe("/Users/example/Documents/PuppyOne");
     expect(container.querySelector(".onboarding-entry-location-action")?.textContent).toBe("Change");
-    expect(container.querySelector(".onboarding-entry-local-note")?.textContent).toBe(
-      "Files are created locally. Setup does not upload them.",
-    );
     const projectName = container.querySelector<HTMLInputElement>(".onboarding-entry-dialog input");
-    expect(projectName?.placeholder).toBe("My project");
+    expect(projectName?.value).toMatch(/^My project [A-F0-9]{4}$/);
+    const defaultName = projectName?.value;
+    expect(container.querySelector(".onboarding-entry-dialog select")).toBeNull();
+    expect(container.textContent).not.toContain("Files are created locally");
+    expect(container.textContent).not.toContain("Getting Started");
+    expect(container.textContent).not.toContain("Blank folder");
     const createButton = container.querySelector<HTMLButtonElement>(".onboarding-entry-dialog button[type='submit']");
-    expect(createButton?.disabled).toBe(true);
-    setInputValue(projectName, "Knowledge Base");
     expect(createButton?.disabled).toBe(false);
     await act(async () => {
       createButton?.click();
@@ -409,7 +409,7 @@ describe("project folder home", () => {
       operationId: expect.any(String),
       locale: "en",
       source: { kind: "template", ref: { sourceId: "builtin", id: "puppyone.project.getting-started", version: 1 } },
-      name: "Knowledge Base",
+      name: defaultName,
       locationGrantId: "default-1",
     });
     expect(container.querySelector(".onboarding-entry-dialog")).toBeNull();

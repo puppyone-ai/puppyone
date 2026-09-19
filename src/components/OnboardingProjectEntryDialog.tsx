@@ -9,8 +9,9 @@ import {
 
 /**
  * Project initialization dialog. The location is prefilled with the built-in
- * projects folder so the default path is name → Enter, with no folder picker.
- * Browse remains available as "Change" for people who want another location.
+ * projects folder and the project name is prefilled, so the default path is a
+ * single Create action. Browse and name editing remain available as escape
+ * hatches. Every project starts with the built-in Getting Started file.
  */
 export function OnboardingProjectEntryDialog({
   onClose,
@@ -24,8 +25,9 @@ export function OnboardingProjectEntryDialog({
   onSubmit: (request: WorkspaceCreateProjectRequest) => Promise<WorkspaceCreateProjectResult>;
 }) {
   const { t, locale } = useLocalization();
-  const [value, setValue] = useState("");
-  const [starter, setStarter] = useState<"get-started" | "blank">("get-started");
+  const [value, setValue] = useState(() => (
+    `${t("onboarding.entry.create.defaultName")} ${crypto.randomUUID().slice(0, 4).toUpperCase()}`
+  ));
   const requestRef = useRef<WorkspaceCreateProjectRequest | null>(null);
   const [created, setCreated] = useState<WorkspaceCreateProjectResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -65,7 +67,7 @@ export function OnboardingProjectEntryDialog({
         locationGrantId: location.grantId,
         operationId: crypto.randomUUID(),
         locale,
-        source: starter === "blank" ? { kind: "blank" } : {
+        source: {
           kind: "template",
           ref: { sourceId: "builtin", id: "puppyone.project.getting-started", version: 1 },
         },
@@ -146,7 +148,7 @@ export function OnboardingProjectEntryDialog({
                 spellCheck={false}
                 disabled={fieldsDisabled}
                 data-desktop-dialog-initial-focus="true"
-                placeholder={t("onboarding.entry.create.namePlaceholder")}
+                onFocus={(event) => event.currentTarget.select()}
                 onChange={(event) => {
                   setValue(event.target.value);
                   requestRef.current = null;
@@ -182,28 +184,8 @@ export function OnboardingProjectEntryDialog({
                       : "onboarding.entry.create.browse")}
                 </span>
               </button>
-              <p className="onboarding-entry-dialog-note onboarding-entry-local-note">
-                {t("onboarding.entry.create.localNote")}
-              </p>
             </div>
           </div>
-          <label className="onboarding-entry-create-field">
-            <span className="onboarding-entry-create-label">{t("onboarding.entry.create.starterLabel")}</span>
-            <select
-              className="onboarding-entry-create-input"
-              value={starter}
-              disabled={fieldsDisabled}
-              onChange={(event) => {
-                setStarter(event.target.value as "get-started" | "blank");
-                requestRef.current = null;
-                setError(null);
-              }}
-            >
-              <option value="get-started">{t("onboarding.entry.create.starterGuide")}</option>
-              <option value="blank">{t("onboarding.entry.create.starterBlank")}</option>
-            </select>
-            <span className="onboarding-entry-dialog-note">{t(starter === "blank" ? "onboarding.entry.create.blankNote" : "onboarding.entry.create.guideNote")}</span>
-          </label>
           {created && <p className="onboarding-entry-dialog-note" role="status">{t("onboarding.entry.create.createdNote", { path: created.initialization.path })}</p>}
           {error && <p className="desktop-dialog-error" role="alert">{error}</p>}
         </div>

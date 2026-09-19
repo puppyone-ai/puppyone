@@ -111,12 +111,6 @@
   color: var(--po-danger);
 }
 
-.onboarding-entry-local-note {
-  color: var(--po-text-subtle);
-  font-size: var(--po-type-ui-meta, 13px);
-  line-height: 17px;
-}
-
 /* Import: source list */
 
 .onboarding-import-repository-form {
