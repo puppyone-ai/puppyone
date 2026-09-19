@@ -62,8 +62,21 @@ describe("file icon semantics", () => {
           expect(markup.match(/<svg\b/g)).toHaveLength(1);
           expect(markup).not.toContain('viewBox="0 0 44 54"');
           expect(markup).not.toContain("drop-shadow");
-          expect(markup).toContain("var(--po-file-accent-default)");
+          expect(markup).toContain("var(--po-file-accent-code)");
+          expect(markup).toContain('viewBox="-3 -3 30 30"');
         }
+      }
+    },
+  );
+
+  it.each(FILE_ICON_THEMES)(
+    "keeps database icon slots stable while reducing the artwork in the $id theme",
+    ({ id }) => {
+      for (const size of [14, 18, 24]) {
+        const markup = renderToStaticMarkup(<FileGlyphIcon name="data.db" size={size} theme={id} />);
+        expect(markup).toContain(`width="${size}"`);
+        expect(markup).toContain(`height="${size}"`);
+        expect(markup).toContain('viewBox="-3 -3 30 30"');
       }
     },
   );
