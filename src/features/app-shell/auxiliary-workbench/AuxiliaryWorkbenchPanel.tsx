@@ -109,6 +109,9 @@ export function AuxiliaryWorkbenchPanel({ store, contributions, active, renderLa
         </div>, hosts.get(item.id)!, item.id);
       })}
     </div>
+    <button type="button" className="desktop-terminal-workbench-create-retry" onClick={() => { void window.puppyoneDesktop?.openItemExecutionManager(); }}>
+      {t("workspace.workbench.manageExecutions")}
+    </button>
     {closeCoordinator.pending && <AuxiliaryWorkbenchCloseDialog pending={closeCoordinator.pending} committing={closeCoordinator.committing} onDismiss={closeCoordinator.dismiss} onConfirm={() => { void closeCoordinator.confirm(); }} />}
   </section>;
 }

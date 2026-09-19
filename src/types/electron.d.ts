@@ -387,6 +387,7 @@ export type GitBranchGraphSnapshot = {
 };
 
 export type TerminalCreateRequest = {
+  creationId?: string;
   projectContext?: import("../../shared/project-session-contract/types").ProjectSessionContext;
   id: string;
   /** Explicit Folder capability required when a window has multiple roots. */
@@ -941,6 +942,10 @@ declare global {
   interface Window {
     puppyoneDesktop?: {
       connectAgentSession: (request: import("../../shared/session-transport/types").AgentConnectionRequest) => Promise<import("../../shared/session-transport/types").SessionConnection>;
+      terminateItemExecution: import("../../shared/item-host-contract/lifecycle").ItemLifecyclePort["terminateItemExecution"];
+      retryItemExecutionCleanup: import("../../shared/item-host-contract/lifecycle").ItemLifecyclePort["retryItemExecutionCleanup"];
+      listItemExecutions: import("../../shared/item-host-contract/lifecycle").ItemLifecyclePort["listItemExecutions"];
+      openItemExecutionManager: () => Promise<void>;
       connectTerminalSession: (request: import("../../shared/session-transport/types").TerminalConnectionRequest) => Promise<import("../../shared/session-transport/types").SessionConnection>;
       onSessionRuntimeFailure: (listener: (failure: import("../../shared/session-transport/types").SessionRuntimeFailure) => void) => () => void;
       getWindowChromeState: () => Promise<{ fullScreen: boolean; maximized: boolean }>;

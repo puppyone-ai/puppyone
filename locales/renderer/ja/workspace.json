@@ -1,4 +1,5 @@
 {
+  "workbench.manageExecutions": "実行中のインスタンスを管理",
   "workbench.newTab": "新しいタブ",
   "projectSessions.sessionCloseFailed": "セッションを閉じられませんでした。再試行してください。",
   "projectSessions.closing": "プロジェクトを閉じています…",

@@ -1,25 +1,26 @@
 import { AgentSessionController } from "./AgentSessionController";
 import type { AgentClientProvider } from "./AgentClientPort";
+import type { ItemCloseResult } from "../../../../shared/item-host-contract/lifecycle";
 
 /** Owned by one project generation; disposing it releases local replicas only. */
 export class AgentControllerRegistry {
   private readonly controllers = new Map<string, AgentSessionController>();
-  private readonly closing = new Map<AgentSessionController, Promise<boolean>>();
+  private readonly closing = new Map<AgentSessionController, Promise<boolean | ItemCloseResult>>();
   private disposed = false;
 
-  constructor(private readonly root: string, private readonly createClient: () => AgentClientProvider, private readonly preserveDraftOnDispose = false) {}
+  constructor(private readonly root: string, private readonly createClient: (itemId: string) => AgentClientProvider, private readonly preserveDraftOnDispose = false) {}
 
   get(id: string) {
     if (this.disposed) throw new Error("This project's Agent controllers have been released.");
     let controller = this.controllers.get(id);
     if (!controller) {
-      controller = new AgentSessionController(this.root, this.createClient());
+      controller = new AgentSessionController(this.root, this.createClient(id));
       this.controllers.set(id, controller);
     }
     return controller;
   }
 
-  close(id: string): Promise<boolean> {
+  close(id: string): Promise<boolean | ItemCloseResult> {
     const controller = this.controllers.get(id);
     if (!controller) return Promise.resolve(true);
     const pending = this.closing.get(controller);
@@ -30,10 +31,11 @@ export class AgentControllerRegistry {
   }
 
   private async closeController(id: string, controller: AgentSessionController) {
-    if (!await controller.closeTabSession()) return false;
+    const result = await controller.closeTabSession();
+    if (!result) return false;
     controller.dispose();
     if (this.controllers.get(id) === controller) this.controllers.delete(id);
-    return true;
+    return result;
   }
 
   async discard(id: string) {

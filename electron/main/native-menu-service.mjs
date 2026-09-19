@@ -15,6 +15,7 @@ export function createDesktopNativeMenuService({
   t,
   onNewWindow,
   onCheckForUpdates,
+  onManageExecutions = () => undefined,
   onSelectTheme = () => undefined,
   onOpenThemesDirectory = () => undefined,
   logger = console,
@@ -49,6 +50,8 @@ export function createDesktopNativeMenuService({
         click: action("file.newWindow", onNewWindow),
       },
       { type: "separator" },
+      { id: "file.manageExecutions", label: t("native.execution.title"),
+        click: action("file.manageExecutions", onManageExecutions) },
       { role: "close" },
     ],
   });

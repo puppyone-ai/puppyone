@@ -35,6 +35,8 @@ import type {
 
 /** Renderer-side port implemented by the typed Electron preload adapter. */
 export interface AgentClientPort {
+  terminateAgentExecution?(): Promise<import("../../../../shared/item-host-contract/lifecycle").ItemCloseResult>;
+  manageAgentExecutions?(): Promise<void>;
   discoverAgentRuntimes(request?: AgentRuntimeRequest): Promise<AgentRuntimeInspection>;
   discoverLocalAgentConnections(request?: AgentLocalConnectionsRequest): Promise<AgentLocalConnectionsSnapshot>;
   listAgentModels(request?: AgentModelsListRequest): Promise<AgentModel[]>;

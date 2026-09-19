@@ -96,6 +96,27 @@ it("repeated send while the same steer is pending has one dispatch", async () =>
 });
 
 describe("AgentSessionController", () => {
+  it("keeps Stop feedback independent of the display and retries the same command identity", async () => {
+    vi.useFakeTimers();
+    let emit: ((event: AgentEvent) => void) | undefined;
+    const bridge = { ...bridgeFixture(listener => { emit = listener; }),
+      interruptAgentTurn: vi.fn<AgentClientPort["interruptAgentTurn"]>(async request => ({ sessionId: request.sessionId, turnId: request.turnId, interruptRequested: true })) };
+    const controller = new AgentSessionController("/workspace", () => bridge as never);
+    try {
+      await controller.initialize();
+      emit?.(event(2, "turn.started", { prompt: "Running" }, "turn-1"));
+      bridge.interruptAgentTurn.mockImplementationOnce(() => new Promise(() => {}));
+      const stopping = controller.stop();
+      expect(controller.getSnapshot().stopping).toBe(true);
+      await controller.stop();
+      expect(bridge.interruptAgentTurn).toHaveBeenCalledOnce();
+      await vi.advanceTimersByTimeAsync(5000); await stopping;
+      expect(controller.getSnapshot().stopRequest?.status).toBe("unconfirmed");
+      expect(controller.getSnapshot().stopping).toBe(false);
+      await controller.stop();
+      expect(bridge.interruptAgentTurn.mock.calls[1]?.[0]).toEqual(bridge.interruptAgentTurn.mock.calls[0]?.[0]);
+    } finally { controller.dispose(); vi.useRealTimers(); }
+  });
   it("requires a fresh conversation for a model connection change and clears old drafts", async () => {
     const bridge = bridgeFixture(() => {}, { modelConnections: true });
     const first = snapshot("session-1", [], { modelConnections: true });
@@ -453,16 +474,16 @@ describe("AgentSessionController", () => {
     });
   });
 
-  it("refuses to close a tab while its turn is running", async () => {
+  it("allows confirmed tab closure even while the displayed turn is running", async () => {
     let eventListener: ((event: AgentEvent) => void) | undefined;
     const bridge = bridgeFixture((listener) => { eventListener = listener; });
     const controller = new AgentSessionController("/workspace", () => bridge as never);
     await controller.initialize();
     eventListener?.(event(2, "turn.started", { prompt: "Keep going" }, "turn-1"));
 
-    await expect(controller.closeTabSession()).resolves.toBe(false);
-    expect(bridge.closeAgentSession).not.toHaveBeenCalled();
-    expect(controller.getSnapshot().error?.code).toBe("active-turn");
+    await expect(controller.closeTabSession()).resolves.toBe(true);
+    expect(bridge.closeAgentSession).toHaveBeenCalledOnce();
+    expect(controller.getSnapshot().error?.code).not.toBe("active-turn");
   });
 
   it("selects the backend catalog's first model and derives any internal inference route from the model", async () => {

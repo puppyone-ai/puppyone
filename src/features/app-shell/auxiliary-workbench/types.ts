@@ -123,8 +123,10 @@ export type AuxiliaryWorkbenchCloseAdapter = Readonly<{
   decide: (
     context: AuxiliaryWorkbenchCloseContext,
   ) => AuxiliaryWorkbenchCloseDecision | Promise<AuxiliaryWorkbenchCloseDecision>;
-  /** Returns true only after feature-owned resources are safe to detach. */
-  commit: (context: AuxiliaryWorkbenchCloseContext) => boolean | Promise<boolean>;
+  /** Native contributions return a confirmed release or explicit Main handoff.
+   * Boolean remains supported for resource-free/legacy contributions only. */
+  commit: (context: AuxiliaryWorkbenchCloseContext) => boolean | import("../../../../shared/item-host-contract/lifecycle").ItemCloseResult
+    | Promise<boolean | import("../../../../shared/item-host-contract/lifecycle").ItemCloseResult>;
 }>;
 
 export type AuxiliaryWorkbenchContribution = Readonly<{

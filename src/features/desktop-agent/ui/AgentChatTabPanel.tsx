@@ -205,10 +205,13 @@ export function AgentChatTabPanel({
     ariaLabel={t("agent.panel.chat", { agent: bidiIsolate(runtimeLabel) })}
     phase={state.phase} announcement={referenceIngestion.announcement}
     onDragOver={referenceIngestion.onDragOver} onDrop={referenceIngestion.onDrop}
-    status={hasStatus ? <AgentPanelStatus
+    status={hasStatus || state.stopRequest || state.displayRecovery?.policy === "paused" || state.displayRecovery?.policy === "exhausted" ? <AgentPanelStatus
       unavailable={unavailable} failed={failed} error={state.error ?? (state.phase === "runtime-exited" ? { code: "runtime-exited", params: { runtime: runtimeLabel } } : null)}
       runtimeLabel={runtimeLabel} readiness={readiness ?? undefined}
       onRetry={() => void controller.initialize(true)}
+      recovery={state.displayRecovery} stopRequest={state.stopRequest}
+      onPauseRecovery={() => controller.pauseDisplayRecovery()} onRetryRecovery={() => void controller.retryDisplayRecovery()}
+      onManageExecutions={() => void controller.manageExecutions()}
     /> : null}
     conversationOverlay={showReadyEmptyState
       ? <AgentEmptyState runtimeIconKey={runtimeIconKey} runtimeLabel={runtimeLabel} />
@@ -260,7 +263,7 @@ export function AgentChatTabPanel({
         focusRequest={focusRequest}
         draft={state.draft} draftMentions={state.draftMentions} onDraftChange={handleDraftChange}
         onDraftDocumentChange={handleDraftDocumentChange}
-        disabled={Boolean(capabilities?.readOnly) || loading || unavailable || failed || !routingReady || state.projection.approvals.length > 0 || state.projection.questions.length > 0}
+        disabled={Boolean(capabilities?.readOnly) || state.replicaStatus === "stale" || state.replicaStatus === "subscribing" || loading || unavailable || failed || !routingReady || state.projection.approvals.length > 0 || state.projection.questions.length > 0}
         running={Boolean(state.projection.runningTurnId)} stopping={state.stopping} submitting={submissionPending}
         placeholder={composerPlaceholder} runtimeLabel={runtimeLabel}
         configurationDisabled={loading || submissionPending}

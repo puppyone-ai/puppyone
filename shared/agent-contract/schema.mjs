@@ -47,6 +47,10 @@ const {
 export function parseAgentIpcRequest(channel, value) {
   const request = parseAgentRequestBody(channel, value);
   if (value?.instanceId != null) request.instanceId = requiredOpaqueId(value.instanceId, "instanceId");
+  if (["agent:session-create", "agent:session-open", "agent:session-resume"].includes(channel)) {
+    if (value?.itemId != null) request.itemId = requiredOpaqueId(value.itemId, "itemId");
+    if (value?.creationId != null) request.creationId = requiredOpaqueId(value.creationId, "creationId");
+  }
   return request;
 }
 

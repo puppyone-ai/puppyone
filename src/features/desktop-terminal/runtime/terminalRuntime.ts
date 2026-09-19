@@ -5,6 +5,7 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Terminal, type IDisposable } from "@xterm/xterm";
 import type { TerminalCreateRequest, TerminalDataEvent } from "../../../types/electron";
+import type { ItemCloseResult } from "../../../../shared/item-host-contract/lifecycle";
 import type { DesktopTerminalSessionStatus } from "../model/terminalSessions";
 import type { DesktopTerminalLauncherId } from "../model/terminalLaunchers";
 import { unwrapProjectSessionResult } from "../../../../shared/project-session-contract/schema.mjs";
@@ -71,6 +72,7 @@ type TerminalRuntimeOptions = {
 export type TerminalDisplayData = TerminalDataEvent & { reset?: boolean; cols?: number; rows?: number; checkpointState?: unknown; acknowledge?: () => void };
 export type TerminalBridge = Pick<NonNullable<Window["puppyoneDesktop"]>, "createTerminal" | "writeTerminal" | "resizeTerminal" | "updateTerminalAppearance" | "closeTerminal" | "onTerminalExit" | "openExternalUrl"> & {
   canonicalOutput?: boolean;
+  terminateExecution?: () => Promise<ItemCloseResult>;
   dispose?: () => void;
   onTerminalError?: (callback: (message: string) => void) => () => void;
   onTerminalData: (callback: (event: TerminalDisplayData) => void) => () => void;
@@ -118,7 +120,7 @@ export interface TerminalRuntimeHandle {
   readonly scrollbarState: TerminalScrollbarState;
   applyAppearance: (appearance?: TerminalAppearance) => void;
   dispose: () => void;
-  close?: () => Promise<void>;
+  close?: () => Promise<void | ItemCloseResult>;
   focus: () => void;
   getMinimumViewportSize: () => TerminalMinimumViewportSize;
   mount: (container: HTMLDivElement) => void;
@@ -140,7 +142,7 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
   private readonly projectContext: TerminalRuntimeOptions["projectContext"];
   private instanceId: string | undefined;
   private startPromise: Promise<void> | null = null;
-  private closePromise: Promise<void> | null = null;
+  private closePromise: Promise<void | ItemCloseResult> | null = null;
   private readonly sessionId: string;
   private readonly launcherId: DesktopTerminalLauncherId;
   private readonly workspacePath: string;
@@ -335,6 +337,11 @@ export class TerminalRuntime implements TerminalRuntimeHandle {
   close() {
     if (this.closePromise) return this.closePromise;
     this.closePromise = (async () => {
+      if (this.bridge?.terminateExecution) {
+        const result = await this.bridge.terminateExecution();
+        this.dispose();
+        return result;
+      }
       await this.startPromise;
       if (this.instanceId || this.bridge?.canonicalOutput || (!this.projectContext && this.ptyReady)) {
         const bridge = this.bridge;

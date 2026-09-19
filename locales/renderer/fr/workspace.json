@@ -1,4 +1,5 @@
 {
+  "workbench.manageExecutions": "Gérer les instances en cours",
   "workbench.newTab": "Nouvel onglet",
   "projectSessions.sessionCloseFailed": "Impossible de fermer cette session. Réessayez.",
   "projectSessions.closing": "Fermeture du projet…",

@@ -6,6 +6,10 @@ let pendingInlineAttachmentBytes = 0;
 
 contextBridge.exposeInMainWorld("puppyoneDesktop", {
   connectAgentSession: (request) => ipcRenderer.invoke("agent:session-connect", request),
+  terminateItemExecution: (request) => ipcRenderer.invoke("item-execution:terminate", request),
+  retryItemExecutionCleanup: (request) => ipcRenderer.invoke("item-execution:retry-cleanup", request),
+  listItemExecutions: (request) => ipcRenderer.invoke("item-execution:list", request),
+  openItemExecutionManager: () => ipcRenderer.invoke("item-execution:manage"),
   connectTerminalSession: (request) => ipcRenderer.invoke("terminal:connect", request),
   onSessionRuntimeFailure: (callback) => {
     const listener = (_event, failure) => callback(failure);

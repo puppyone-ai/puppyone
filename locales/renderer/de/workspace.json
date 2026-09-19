@@ -1,4 +1,5 @@
 {
+  "workbench.manageExecutions": "Laufende Instanzen verwalten",
   "workbench.newTab": "Neuer Tab",
   "projectSessions.sessionCloseFailed": "Diese Sitzung konnte nicht geschlossen werden. Bitte erneut versuchen.",
   "projectSessions.closing": "Projekt wird geschlossen…",

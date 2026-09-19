@@ -91,6 +91,7 @@ export class AgentSessionPreparer {
       await bridge.closeAgentSession({
         rootPath: this.options.workspaceRoot,
         sessionId: snapshot.session.id,
+        instanceId: snapshot.session.instanceId,
         removePersistence: true,
       });
     } catch {

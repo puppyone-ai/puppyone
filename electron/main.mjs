@@ -107,6 +107,9 @@ import { registerProjectIconProtocol } from "./main/project-appearance/project-i
 import { installWindowNavigationSecurity, requireNonEmptyString } from "./main/security.mjs";
 import { createTerminalProcessService } from "./main/item-hosts/terminal-process-service.mjs";
 import { createAgentProcessService } from "./main/item-hosts/agent-process-service.mjs";
+import { createItemLifecycleSupervisor } from "./main/item-hosts/item-lifecycle-supervisor.mjs";
+import { createItemLifecycleManager } from "./main/item-hosts/item-lifecycle-menu.mjs";
+import { registerItemLifecycleIpc } from "./main/ipc/item-lifecycle-ipc.mjs";
 import { createItemHostBudget } from "./main/item-hosts/resource-budget.mjs";
 import { registerSessionConnectionIpcHandlers, sendSessionRuntimeFailure } from "./main/ipc/session-connection-ipc.mjs";
 import { createLocalAgentInstallationService } from "./main/local-agent-installation/index.mjs";
@@ -311,6 +314,10 @@ const nativeMenuService = createDesktopNativeMenuService({
   t: (messageId, values) => localeService.t(messageId, values),
   onNewWindow: () => createWindow(),
   onCheckForUpdates: checkForUpdatesFromNativeMenu,
+  onManageExecutions: () => {
+    const window = getLastFocusedWindow();
+    return window && !window.isDestroyed() ? manageItemExecutions(window.webContents.id) : undefined;
+  },
   onSelectTheme: (request) => {
     const window = getLastFocusedWindow();
     if (!window || window.isDestroyed() || window.webContents.isDestroyed()) return;
@@ -348,7 +355,11 @@ const terminalAgentActivityHost = createDefaultTerminalAgentActivityHost({
   executablePath: process.execPath,
   getWebContents: (webContentsId) => webContents.fromId(webContentsId),
 });
+const itemLifecycle = createItemLifecycleSupervisor();
+const manageItemExecutions = createItemLifecycleManager({ lifecycle: itemLifecycle, dialog,
+  t: (id, values) => localeService.t(id, values) });
 const terminalService = createTerminalProcessService({
+  lifecycle: itemLifecycle,
   utilityProcess,
   modulePath: path.join(__dirname, "utility", "terminal", "main.mjs"),
   budget: itemHostBudget,
@@ -409,6 +420,7 @@ const agentCatalogService = createAgentService({
   processSupervisor: agentProcessSupervisor,
 });
 const agentService = createAgentProcessService({
+  lifecycle: itemLifecycle,
   modelConnections,
   utilityProcess,
   modulePath: path.join(__dirname, "utility", "agent", "main.mjs"),
@@ -961,6 +973,7 @@ app.on("before-quit", createApplicationCloseCoordinator({
 
 function registerIpcHandlers() {
   registerSessionConnectionIpcHandlers({ ipcMain: trustedIpcMain, MessageChannelMain, projectSessions, agentService, terminalService });
+  registerItemLifecycleIpc({ ipcMain: trustedIpcMain, lifecycle: itemLifecycle, projectSessions, manage: manageItemExecutions });
   registerProjectSessionIpc({ ipcMain: trustedIpcMain, projectSessions });
   const resourceTransfer = registerResourceTransferIpcHandlers({
     ipcMain: trustedIpcMain,

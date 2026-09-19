@@ -1143,11 +1143,12 @@ function AppContent() {
       close: Object.freeze<AuxiliaryWorkbenchCloseAdapter>({
         decide: ({ snapshot }) => snapshot.running
           ? Object.freeze({
-              kind: "blocked" as const,
+              kind: "confirm" as const,
+              tone: "danger" as const,
               dialog: Object.freeze({
                 title: t("agent.closeDialog.activeTitle", { title: snapshot.title }),
                 detail: t("agent.closeDialog.activeDetail"),
-                actionLabel: t("agent.closeDialog.keepOpen"),
+                actionLabel: t("common.action.close"),
               }),
             })
           : Object.freeze({ kind: "close" as const }),

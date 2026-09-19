@@ -22,6 +22,8 @@ export function createUtilityHost({ utilityProcess, modulePath, identity, budget
   child.stderr?.on("data", (chunk) => { diagnosticBytes = Math.min(Number.MAX_SAFE_INTEGER, diagnosticBytes + chunk.length); });
   let exited = false;
   let closing = false;
+  let closePromise = null;
+  let escalationRequested = false;
   let lastHeartbeat = Date.now();
   let failure = null;
   let resolveExit;
@@ -42,10 +44,25 @@ export function createUtilityHost({ utilityProcess, modulePath, identity, budget
     }
   }, 2_000);
   watchdog.unref?.();
-  child.once("spawn", () => lease.bindProcess(child.pid, "utility", fail));
+  const forceExit = () => {
+    escalationRequested = true;
+    if (exited || !child.pid) return;
+    // Use only this live Child object's PID, never a renderer-supplied/reloaded PID.
+    try { process.kill(child.pid, "SIGKILL"); }
+    catch (error) { if (error.code !== "ESRCH") logger.warn?.("Unable to force execution exit:", error.code); }
+  };
+  child.once("spawn", () => {
+    lease.bindProcess(child.pid, "utility", fail);
+    if (escalationRequested) forceExit();
+  });
   child.on("message", (message) => {
     if (message?.generation !== generation) return;
     if (message.type === "native-process") nativeProcesses.receive(message);
+    else if (message.type === "shutdown-ready" && closing) {
+      void nativeProcesses.close().then(() => {
+        if (!exited) child.postMessage({ type: "terminate-exit", generation });
+      }).catch(() => forceExit());
+    }
     else if (message.type === "heartbeat") {
       lastHeartbeat = Date.now();
       if (message.rss > budget.policy.utilityRssBytes) fail(hostError("HOST_MEMORY_BUDGET", "The execution host exceeded its memory budget."));
@@ -76,35 +93,34 @@ export function createUtilityHost({ utilityProcess, modulePath, identity, budget
     get exited() { return exited; },
     async call(method, args = [], options) {
       await ready;
+      if (closing) throw hostError("HOST_CLOSING", "This execution no longer accepts work.");
       if (failure) throw failure;
       return rpc.call(method, args, options);
     },
     attachPort(port, binding) {
-      if (exited || failure) { port.close(); throw failure ?? hostError("HOST_EXITED", "The execution host exited."); }
+      if (closing || exited || failure) { port.close(); throw failure ?? hostError("HOST_EXITED", "The execution host exited."); }
       child.postMessage({ type: "display-port", generation, binding }, [port]);
     },
-    async close() {
-      if (exited) {
-        await nativeProcesses.close();
-        lease.release();
-        resolveExit(exitInfo);
-        return exitInfo;
+    close({ startedAt = performance.now() } = {}) {
+      if (closePromise) return closePromise;
+      closing = true;
+      clearInterval(watchdog);
+      // Out-of-band admission seal: never queue behind initialize or a full RPC mailbox.
+      if (!exited) {
+        try { child.postMessage({ type: "terminate", generation }); } catch { forceExit(); }
       }
-      if (!closing) {
-        closing = true;
-        try { await ready; await rpc.call("shutdown", [], { timeoutMs: budget.policy.closeTimeoutMs }); }
-        catch (error) { logger.warn?.("Instance shutdown did not acknowledge:", error.code ?? error.name); child.kill(); }
-      }
-      let timer;
-      try {
-        return await Promise.race([exit, new Promise((_, reject) => {
-          timer = setTimeout(() => {
-            child.kill();
-            reject(hostError("HOST_CLOSE_UNCONFIRMED", "Execution process exit is not confirmed; its resource lease is retained."));
-          }, budget.policy.closeTimeoutMs);
-          timer.unref?.();
-        })]);
-      } finally { clearTimeout(timer); }
+      const elapsedMs = Math.max(0, performance.now() - startedAt);
+      const graceMs = Math.max(0, Math.min(2000, budget.policy.closeTimeoutMs / 2) - elapsedMs);
+      const escalation = setTimeout(forceExit, graceMs);
+      let deadline;
+      const cleanup = exited ? nativeProcesses.close().then(() => { lease.release(); resolveExit(exitInfo); return exitInfo; }) : exit;
+      closePromise = Promise.race([cleanup, new Promise((_, reject) => {
+        deadline = setTimeout(() => {
+          forceExit();
+          reject(hostError("HOST_CLOSE_UNCONFIRMED", "Execution process exit is not confirmed; its resource lease is retained."));
+        }, Math.max(0, budget.policy.closeTimeoutMs - elapsedMs));
+      })]).finally(() => { clearTimeout(escalation); clearTimeout(deadline); closePromise = null; });
+      return closePromise;
     },
     diagnostics: () => ({ generation, pid: child.pid ?? null, exited, closing, failure: failure?.code ?? null, nativeProcesses: nativeProcesses.snapshot(), ...rpc.diagnostics() }),
   });

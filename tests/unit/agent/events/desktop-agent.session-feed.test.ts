@@ -32,6 +32,50 @@ async function harness() {
 }
 
 describe('Renderer display replica against the Main SessionActor and feed', () => {
+  it('does not dispatch an attach cancelled before its microtask starts', async () => {
+    vi.useFakeTimers(); const h = await harness(); await h.controller.initialize();
+    const before = h.bridge.attachAgentSession.mock.calls.length;
+    const retry = h.controller.retryDisplayRecovery();
+    h.controller.pauseDisplayRecovery();
+    await retry;
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(h.bridge.attachAgentSession).toHaveBeenCalledTimes(before);
+    expect(h.controller.getSnapshot().displayRecovery?.policy).toBe('paused');
+  });
+  it('pauses retries and releases a late attach without resuming on initialize', async () => {
+    vi.useFakeTimers(); const h = await harness(); await h.controller.initialize();
+    const attach = h.bridge.attachAgentSession.getMockImplementation()!;
+    const receipt = await attach({rootPath:'/workspace',sessionId:h.snapshot.session.id});
+    let finish!: (value: typeof receipt) => void;
+    h.bridge.attachAgentSession.mockImplementationOnce(() => new Promise(resolve => {finish=resolve;}));
+    const repair = h.controller.retryDisplayRecovery();
+    await vi.advanceTimersByTimeAsync(0);
+    h.controller.pauseDisplayRecovery();
+    await repair;
+    finish(receipt);
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(h.controller.getSnapshot().displayRecovery?.policy).toBe('paused');
+    expect(h.bridge.attachAgentSession).toHaveBeenCalledTimes(2);
+    expect(h.bridge.detachAgentSession).toHaveBeenCalledWith(expect.objectContaining({subscriptionId:receipt.subscriptionId}));
+    expect(mainStartCount(h.main)).toBe(0);
+    await h.controller.retryDisplayRecovery();
+    expect(h.controller.getSnapshot().replicaStatus).toBe('live');
+  });
+  it('bounds automatic recovery attempts and permits an explicit retry', async () => {
+    vi.useFakeTimers(); const h = await harness();
+    const attach = h.bridge.attachAgentSession.getMockImplementation()!;
+    h.bridge.attachAgentSession.mockRejectedValue(new Error('feed unavailable'));
+    await h.controller.initialize();
+    await vi.advanceTimersByTimeAsync(300_000);
+    expect(h.controller.getSnapshot().displayRecovery?.policy).toBe('exhausted');
+    const attempts = h.bridge.attachAgentSession.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(300_000);
+    expect(h.bridge.attachAgentSession).toHaveBeenCalledTimes(attempts);
+    h.bridge.attachAgentSession.mockImplementation(attach);
+    await h.controller.retryDisplayRecovery();
+    expect(h.controller.getSnapshot().replicaStatus).toBe('live');
+    expect(mainStartCount(h.main)).toBe(0);
+  });
   it('ends a missing runtime instance instead of retrying it as a history gap', async () => {
     vi.useFakeTimers(); const h = await harness(); await h.controller.initialize();
     h.bridge.readAgentSessionWatermark.mockRejectedValue(new AgentOperationError({

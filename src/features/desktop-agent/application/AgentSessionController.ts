@@ -11,7 +11,9 @@ import type {
   AgentApprovalDecision,
   AgentQuestionResolution,
   AgentSessionSnapshot,
+  AgentTurnInterruptRequest,
 } from "../domain/agent-contract";
+import { ManagedOperationScope, waitForScopedOperation } from "../../session-transport/ManagedOperationScope";
 import { AgentSessionOpenError } from "../domain/agent-session-open-error";
 import { AgentSessionReplica } from "./AgentSessionReplica";
 import { agentControllerTransitions, type AgentControllerState } from "./agent-controller-state";
@@ -53,6 +55,8 @@ export class AgentSessionController {
   private lastInspectionAt = 0;
   private modelCatalogEpoch = 0;
   private disposed = false;
+  private stopIntent: AgentTurnInterruptRequest | null = null;
+  private readonly stopScope = new ManagedOperationScope();
 
   constructor(
     workspaceRoot: string,
@@ -144,6 +148,7 @@ export class AgentSessionController {
   dispose({ preserveDraft = false } = {}) {
     if (this.disposed) return;
     this.disposed = true;
+    this.stopScope.cancel();
     this.submission.dispose();
     this.sessionPreparer.dispose();
     this.sessionReplica.dispose();
@@ -553,15 +558,19 @@ export class AgentSessionController {
   }
 
   async closeTabSession() {
+    this.stopScope.cancel();
+    this.submission.invalidate();
+    this.sessionPreparer.dispose();
+    this.sessionReplica.pauseRecovery();
     const closed = await this.sessionLifecycle.closeSession();
     if (!closed) return false;
     const pendingReferences = this.state.pendingIntent?.references ?? [];
     this.submission.invalidate();
-    await this.referenceDrafts.reset([
+    void this.referenceDrafts.reset([
       ...this.state.references,
       ...pendingReferences,
-    ]);
-    return true;
+    ]).catch(() => {});
+    return closed;
   }
 
   /** Closes prepared native ownership before releasing renderer resources. */
@@ -589,20 +598,28 @@ export class AgentSessionController {
     const sessionId = this.state.session?.id;
     const turnId = this.state.projection.runningTurnId;
     if (!sessionId || !turnId) return;
+    if (this.state.stopRequest?.status === "sending") return;
     const bridge = this.requireBridge("interruptAgentTurn");
-    this.patch({ stopping: true, error: null });
+    if (!this.stopIntent || this.stopIntent.sessionId !== sessionId || this.stopIntent.turnId !== turnId) {
+      this.stopIntent = { rootPath: this.workspaceRoot, sessionId, turnId,
+        instanceId: this.state.session?.instanceId, commandId: controlCommandId("interrupt"), ...commandPreconditions(this.state) };
+    }
+    const intent = this.stopIntent;
+    const request = { commandId: intent.commandId!, sessionId, turnId, status: "sending" as const };
+    this.patch({ stopRequest: request, stopping: true, error: null });
     try {
-      await bridge.interruptAgentTurn({
-        rootPath: this.workspaceRoot,
-        sessionId,
-        turnId,
-        commandId: controlCommandId("interrupt"),
-        ...commandPreconditions(this.state),
-      });
+      const receipt = await waitForScopedOperation(bridge.interruptAgentTurn(intent), this.stopScope.signal, 5000);
+      if (this.state.stopRequest !== request) return;
+      this.patch({ stopping: false, stopRequest: { ...request, status: receipt.interruptRequested ? "accepted" : "unconfirmed" } });
     } catch (error) {
-      this.patch({ stopping: false, error: formatAgentError(error) });
+      if (this.state.stopRequest !== request) return;
+      this.patch({ stopping: false, stopRequest: { ...request, status: "unconfirmed" }, error: formatAgentError(error) });
     }
   }
+
+  pauseDisplayRecovery() { this.sessionReplica.pauseRecovery(); }
+  retryDisplayRecovery() { return this.sessionReplica.retryRecovery(); }
+  manageExecutions() { return this.bridgeProvider()?.manageAgentExecutions?.(); }
 
   async resolveApproval(decision: AgentApprovalDecision) {
     const approval = this.state.projection.approvals[0];
@@ -765,7 +782,9 @@ function deriveControlReplicaState(state: AgentControllerState): AgentController
     session: { ...state.session, activeTurnId: state.projection.runningTurnId, terminalState: view.terminalState },
     pendingPrompt: view.pendingPrompt ?? localPending,
     submitting: view.submitting || Boolean(state.pendingIntent),
-    stopping: view.stopping,
+    stopRequest: state.stopRequest && (state.stopRequest.sessionId !== state.session.id
+      || (state.replicaStatus === "live" && state.stopRequest.turnId !== state.projection.runningTurnId)) ? null : state.stopRequest,
+    stopping: state.stopRequest?.status === "sending" || (state.replicaStatus === "live" && view.stopping),
   };
 }
 

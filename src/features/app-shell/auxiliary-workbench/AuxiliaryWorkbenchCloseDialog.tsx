@@ -30,8 +30,8 @@ export function AuxiliaryWorkbenchCloseDialog({
   return (
     <DesktopOverlayLayer>
       <DesktopDialogRoot
-        dismissalPolicy={committing ? "action-required" : "dismissible"}
-        dismissOnBackdrop={!committing}
+        dismissalPolicy="dismissible"
+        dismissOnBackdrop
         onClose={onDismiss}
       >
         <DesktopDialogSurface
@@ -51,7 +51,6 @@ export function AuxiliaryWorkbenchCloseDialog({
             </div>
             <DesktopDialogCloseButton
               title={t("common.action.close")}
-              disabled={committing}
               onClick={onDismiss}
             />
           </header>
@@ -65,11 +64,10 @@ export function AuxiliaryWorkbenchCloseDialog({
               <Button
                 className="desktop-workbench-close-dialog-action"
                 tone="neutral"
-                disabled={committing}
                 data-desktop-dialog-initial-focus="true"
                 onClick={onDismiss}
               >
-                {t("common.action.cancel")}
+                {t(committing ? "common.action.close" : "common.action.cancel")}
               </Button>
             )}
             <Button

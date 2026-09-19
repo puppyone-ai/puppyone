@@ -72,7 +72,8 @@ describe("DesktopNativeMenuService", () => {
 
     const fileItems = applicationTemplate[1].submenu;
     const newWindow = fileItems.find((item) => item.id === "file.newWindow");
-    expect(fileItems).toHaveLength(3);
+    expect(fileItems).toHaveLength(4);
+    expect(fileItems.some(item => item.id === "file.manageExecutions")).toBe(true);
     expect(newWindow).toMatchObject({ label: "New Window", accelerator: "CmdOrCtrl+N" });
     expect(fileItems[1]).toEqual({ type: "separator" });
     expect(fileItems.at(-1)).toEqual({ role: "close" });

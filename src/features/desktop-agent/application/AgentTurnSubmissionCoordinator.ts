@@ -44,7 +44,8 @@ export class AgentTurnSubmissionCoordinator {
     const text = normalized.prompt;
     const attachmentOnly = state.references.length > 0
       && state.inspection?.capabilities?.referenceInputs?.attachmentOnly === true;
-    if ((!text && !attachmentOnly) || state.submitting || state.pendingIntent) return false;
+    if ((!text && !attachmentOnly) || state.submitting || state.pendingIntent
+      || state.replicaStatus === "stale" || state.replicaStatus === "subscribing") return false;
     if (state.references.some((reference) => reference.status !== "ready")) {
       this.options.patch({ error: createAgentError("references-not-ready") });
       return false;
@@ -107,7 +108,8 @@ export class AgentTurnSubmissionCoordinator {
     const state = this.options.readState();
     const latestTurn = state.projection.turns.at(-1);
     const text = prompt.trim();
-    if (!text || !state.session || state.submitting || state.pendingIntent || state.projection.runningTurnId) return false;
+    if (!text || !state.session || state.submitting || state.pendingIntent || state.projection.runningTurnId
+      || state.replicaStatus === "stale" || state.replicaStatus === "subscribing") return false;
     if (latestTurn?.id !== turnId || latestTurn.status !== "completed"
       || latestTurn.completionQuality !== "degraded"
       || latestTurn.recovery?.kind !== "degraded-completion") return false;

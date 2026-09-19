@@ -14,20 +14,30 @@ export function runItemHost({ createService, methods, onDisplay = () => {} }) {
   owner.isDestroyed = () => shuttingDown;
   owner.send = (channel, payload) => display?.postMessage({ type: "event", channel, payload, generation });
   const emit = (event) => parent.postMessage({ type: "event", generation, event });
+  let shutdownPromise;
+  const shutdown = () => {
+    shuttingDown = true;
+    display?.close();
+    display = null;
+    shutdownPromise ??= Promise.resolve().then(() => service?.closeAll()).then(() => {
+      // Stay alive to reap children until Main verifies their cleanup. Exiting
+      // first can leave an orphan/zombie group that cannot be confirmed closed.
+      parent.postMessage({ type: "shutdown-ready", generation });
+      return { closed: true };
+    });
+    return shutdownPromise;
+  };
   const rpc = createHostRpc({ generation, send: (message) => parent.postMessage(message), handle: async (method, args) => {
     if (method === "initialize") {
-      if (identity) throw hostError("HOST_INITIALIZED", "The instance host is already initialized.");
+      if (identity || shuttingDown) throw hostError("HOST_INITIALIZED", "The instance host is already initialized or closing.");
       identity = args[0];
       owner.id = identity.ownerId;
       service = await createService({ identity, owner, callMain: (name, values) => rpc.call(name, values), emit });
+      if (shuttingDown) { await service.closeAll(); throw hostError("HOST_CLOSING", "The host closed during initialization."); }
       return { pid: process.pid };
     }
     if (method === "shutdown") {
-      shuttingDown = true;
-      await service?.closeAll();
-      display?.close();
-      setTimeout(() => process.exit(0), 20);
-      return { closed: true };
+      return shutdown();
     }
     if (!service || shuttingDown || !methods.has(method)) throw hostError("HOST_METHOD", "The instance does not expose this operation.");
     if (["create", "createSession", "resumeSession", "openSession"].includes(method)) {
@@ -40,7 +50,12 @@ export function runItemHost({ createService, methods, onDisplay = () => {} }) {
   parent.on("message", (event) => {
     const message = event.data;
     if (message?.generation !== generation) { event.ports?.forEach((port) => port.close()); return; }
-    if (message.type === "display-port") {
+    if (message.type === "terminate") {
+      // Reserved management path is independent of ordinary RPC capacity.
+      void shutdown().catch(() => {});
+    } else if (message.type === "terminate-exit" && shuttingDown) {
+      process.exit(0);
+    } else if (message.type === "display-port") {
       const port = event.ports?.[0];
       if (!port || !service || shuttingDown) { port?.close(); return; }
       display?.close();
