@@ -48,6 +48,14 @@ describe("theme selection color contract", () => {
   });
 
   it("requires a defined or fallback domain color rather than emitting an unresolved var", async () => {
+    await expect(compile("@media (min-width: 1000px) { :root { --po-md-link-color: red } } :root { --po-md-selection-bg: var(--po-md-link-color) }", "markdown"))
+      .rejects.toThrow("value or fallback");
+    await expect(compile(":root { --po-text-selection-inactive-bg: var(--po-terminal-selection-inactive) }"))
+      .rejects.toThrow("value or fallback");
+    expect((await compile(":root { --po-text-selection-inactive-bg: var(--po-terminal-selection-inactive, #abcdef) }")).css)
+      .toContain("var(--po-terminal-selection-inactive, #abcdef)");
+    expect((await compile(":root { --po-terminal-selection: #abcdef; --po-text-selection-inactive-bg: var(--po-terminal-selection-inactive) }")).css)
+      .toContain("--po-terminal-selection-inactive: color-mix");
     await expect(compile(":root { --po-md-selection-bg: var(--po-md-link-color) }", "markdown"))
       .rejects.toThrow("value or fallback");
     expect((await compile(":root { --po-md-selection-bg: var(--po-md-link-color, #abcdef) }", "markdown")).css)

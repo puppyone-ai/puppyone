@@ -263,7 +263,9 @@ Keep backgrounds translucent so syntax and text remain readable.
 Selection values and their dependencies must be supported CSS colors. Unknown
 tokens, cycles, unresolved domain references, and OS colors such as `Highlight`
 or `AccentColor` are rejected, including conditional alternatives. A domain
-color reference must be declared or have a color fallback. Theme authors do not
+color reference must be unconditionally declared or have a color fallback;
+references to omitted optional selection overrides also require a fallback.
+Theme authors do not
 write `::selection`, editor selectors, or `!important`. In forced-colors mode
 PuppyOne deliberately uses the system's accessible highlight pair.
 

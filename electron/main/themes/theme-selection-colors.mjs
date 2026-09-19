@@ -22,7 +22,7 @@ export function validateSelectionColors(root, { target, publicColors, inheritedC
     for (const node of rule.nodes) {
       if (node.type !== "decl") continue;
       mode.set(node.prop, node.value);
-      declarations.push({ mode, property: node.prop, value: node.value });
+      declarations.push({ mode, property: node.prop, value: node.value, unconditional: rule.parent.type === "root" });
     }
   });
   // Dependency edges for omitted product defaults. Actual paint formulas live
@@ -37,16 +37,26 @@ export function validateSelectionColors(root, { target, publicColors, inheritedC
     ]),
   ]);
   const selectionTokens = new Set(pairs.flat());
+  const optionalPairs = Object.values(TEXT_SELECTION_TOKEN_PAIRS).flat()
+    .filter(([active]) => active !== "--po-text-selection-bg");
+  const optionalTokens = new Set(optionalPairs.flat());
   for (const mode of [common, dark]) {
     const values = new Map([...defaults, ...common, ...(mode === dark ? dark : [])]);
     // Conditional dependencies must be safe too. Conservatively validate every
     // authored alternative, even if another rule usually wins the cascade.
     const alternatives = new Map();
+    const definite = new Set();
     for (const entry of declarations) {
       if (entry.mode !== common && mode !== dark) continue;
       const entries = alternatives.get(entry.property) ?? new Set();
       entries.add(entry.value);
       alternatives.set(entry.property, entries);
+      if (entry.unconditional) definite.add(entry.property);
+    }
+    for (const [active, inactive] of optionalPairs) {
+      if (!alternatives.has(inactive)) {
+        values.set(inactive, `var(${alternatives.has(active) ? active : "--po-text-selection-inactive-bg"})`);
+      }
     }
     let visits = 0;
     const validate = (value, ancestry = []) => {
@@ -61,6 +71,12 @@ export function validateSelectionColors(root, { target, publicColors, inheritedC
           const children = node.children.toArray();
           const name = children[0]?.type === "Identifier" ? children[0].name : "";
           if (!publicColors.has(name)) throw new TypeError(`Selection color references unknown color token: ${name}.`);
+          const definitelyAvailable = definite.has(name)
+            || optionalPairs.some(([active, inactive]) => name === inactive && definite.has(active))
+            || (inheritedColors.has(name) && !optionalTokens.has(name));
+          if (!definitelyAvailable && children.length === 1) {
+            throw new TypeError(`Selection color requires a value or fallback for ${name}.`);
+          }
           if (ancestry.includes(name)) throw new TypeError(`Selection color dependency cycle: ${[...ancestry, name].join(" -> ")}.`);
           if (children.length > 1) {
             if (children.length !== 3 || children[1].type !== "Operator" || children[1].value !== "," || children[2].type !== "Value") {
@@ -68,7 +84,13 @@ export function validateSelectionColors(root, { target, publicColors, inheritedC
             }
             validate(generate(children[2]), [...ancestry, name]);
           }
-          if (alternatives.has(name)) {
+          const optionalMissing = optionalTokens.has(name) && !alternatives.has(name)
+            && !optionalPairs.some(([active, inactive]) => name === inactive && alternatives.has(active));
+          if (optionalMissing) {
+            // Adapter fallbacks are not CSS declarations. An absent optional
+            // override cannot be referenced as if it were a defined alias.
+            if (children.length === 1) throw new TypeError(`Selection color requires a value or fallback for ${name}.`);
+          } else if (alternatives.has(name)) {
             for (const alternative of alternatives.get(name)) validate(alternative, [...ancestry, name]);
           } else if (values.has(name)) validate(values.get(name), [...ancestry, name]);
           else if (!inheritedColors.has(name) && children.length === 1) {
@@ -90,7 +112,10 @@ export function validateSelectionColors(root, { target, publicColors, inheritedC
       });
       if (!lexer.matchType("color", ast).matched) throw new TypeError(`Selection color must be a CSS color: ${value}.`);
     };
-    for (const token of selectionTokens) validate(values.get(token), [token]);
+    for (const token of selectionTokens) {
+      if (optionalTokens.has(token) && !alternatives.has(token)) continue;
+      validate(values.get(token), [token]);
+    }
     // Check earlier and conditional selection declarations too; last-value
     // validation alone could miss a branch activated by @media / @supports.
     for (const entry of declarations) {

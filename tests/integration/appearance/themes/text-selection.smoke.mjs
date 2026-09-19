@@ -27,7 +27,7 @@ async function run() {
 try {
   server = await createServer({ root, cacheDir: path.join(temporary, "vite-cache"), logLevel: "error",
     optimizeDeps: { entries: ["tests/fixtures/appearance/themes/text-selection.html"] },
-    server: { host: "127.0.0.1", port: 0, hmr: false, watch: null },
+    server: { host: "127.0.0.1", port: 5198, strictPort: false, hmr: false, watch: null },
   });
   await server.listen();
   window = new BrowserWindow({ show: true, width: 1200, height: 950, webPreferences: { backgroundThrottling: false, contextIsolation: true, sandbox: true } });
