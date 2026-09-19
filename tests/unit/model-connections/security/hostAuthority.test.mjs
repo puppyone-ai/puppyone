@@ -7,7 +7,7 @@ function fixture(runtimeId = "puppyone-agent") {
   let options;
   const modelConnections = { catalog: vi.fn(async () => ({})), acquire: vi.fn(async () => ({ leaseId: "lease", configuration: { apiKey: "synthetic-private-key" } })),
     validate: vi.fn(), release: vi.fn(), releaseScope: vi.fn() };
-  const conversationCatalog = { findById: vi.fn(async () => ({ runtimeId, selectedModel: selected })) };
+  const conversationCatalog = { findById: vi.fn(async () => ({ runtimeId, selectedModel: selected, modelBindingRevision: "durable-fence" })) };
   const host = { exited: false, call: vi.fn(async () => ({ session: { id: "session", instanceId: "instance", runtimeId } })), close: vi.fn(async () => { host.exited = true; }) };
   const createHost = vi.fn((value) => { options = value; return host; });
   const service = createAgentProcessService({ modelConnections, conversationCatalog, attachmentStore: {}, catalogService: {}, createHost });
@@ -34,10 +34,11 @@ describe("Main authorizes model credentials by utility instance and route", () =
     await service.closeItem(1, "item");
   });
   it("uses persisted history authority instead of a renderer-supplied replacement model", async () => {
-    const { service, sender, options } = fixture();
+    const { service, sender, options, modelConnections } = fixture();
     await service.resumeSession(sender, { sessionId: "session", runtimeId: "puppyone-agent", model: other }, "/project");
     await expect(options().handle("model-connections:acquire", [other])).rejects.toMatchObject({ code: "HOST_AUTHORITY" });
     await options().handle("model-connections:acquire", [selected]);
+    expect(modelConnections.acquire).toHaveBeenCalledWith(expect.objectContaining({ expectedBindingRevision: "durable-fence" }));
     await service.closeItem(1, "item");
   });
   it("reserves history before an asynchronous catalog read", async () => {

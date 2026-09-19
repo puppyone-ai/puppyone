@@ -1,5 +1,5 @@
 {
-  "modelConnections.readOnly": "モデル接続が利用できないため、この履歴は読み取り専用です。接続を復元して開き直すか、別のモデルで新しい会話を開始してください。",
+  "modelConnections.readOnly": "モデル接続が利用できないか、安全設定が変更されたため、この履歴は読み取り専用です。未変更の接続を復元して開き直すか、この履歴を送信せず新しい会話を開始してください。",
   "modelConnections.title": "モデル接続",
   "modelConnections.detail": "ローカルモデルや独自のクラウド API に接続します。接続はアプリ全体で共有され、PuppyOne へのログインは不要です。",
   "modelConnections.error": "接続エラー：{code}",

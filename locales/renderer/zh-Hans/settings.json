@@ -1,5 +1,5 @@
 {
-  "modelConnections.readOnly": "模型连接不可用，此历史仅供阅读。恢复连接后重新打开，或使用其他模型开始新对话。",
+  "modelConnections.readOnly": "模型连接不可用或安全配置已更改，此历史仅供阅读。恢复未更改的连接后可重新打开；配置已更改时，请开始新对话，不会发送此历史。",
   "modelConnections.title": "模型连接",
   "modelConnections.detail": "连接本地模型或你自己的云端 API。连接由应用统一管理，无需登录 PuppyOne。",
   "modelConnections.error": "连接错误：{code}",

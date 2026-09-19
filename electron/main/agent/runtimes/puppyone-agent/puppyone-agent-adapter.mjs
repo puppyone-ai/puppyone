@@ -51,7 +51,13 @@ export class PuppyOneAgentAdapter extends PiRpcRuntimeAdapter {
 
   async bootstrapSession({ kind, threadId, ...selection }) {
     const inspection = await this.inspect();
-    if (this.modelBinding && kind === "resume" && !inspection.models.some((model) => model.model === selection.model)) {
+    let bindingChanged = false;
+    if (this.modelBinding && kind === "resume" && inspection.models.some((model) => model.model === selection.model)) {
+      // Main compares the durable history fence, never a renderer-supplied value.
+      try { await this.modelBinding.acquire(selection.model); }
+      catch (error) { if (error?.code !== "MODEL_BINDING_CHANGED") throw error; bindingChanged = true; }
+    }
+    if (this.modelBinding && kind === "resume" && (bindingChanged || !inspection.models.some((model) => model.model === selection.model))) {
       // Read through the SDK's native session API without authorizing ANY endpoint.
       this.readOnly = true;
       this.modelBinding.enableReadOnly();
@@ -89,7 +95,7 @@ export class PuppyOneAgentAdapter extends PiRpcRuntimeAdapter {
     try {
       const result = await super.createSession(options);
       this.selectedConnectionModel = options.model;
-      return this.modelBinding ? { ...result, effort: null } : result;
+      return this.modelBinding ? { ...result, effort: null, modelBindingRevision: this.modelBindingRevision() } : result;
     } catch (error) { await this.modelBinding?.dispose(); throw error; }
   }
 
@@ -98,7 +104,7 @@ export class PuppyOneAgentAdapter extends PiRpcRuntimeAdapter {
     try {
       const result = await super.resumeSession(options);
       this.selectedConnectionModel = options.model;
-      return this.modelBinding ? { ...result, effort: null } : result;
+      return this.modelBinding ? { ...result, effort: null, modelBindingRevision: this.modelBindingRevision() } : result;
     } catch (error) { await this.modelBinding?.dispose(); throw error; }
   }
 
@@ -112,6 +118,11 @@ export class PuppyOneAgentAdapter extends PiRpcRuntimeAdapter {
     const result = await super.startTurn(options);
     this.selectedConnectionModel = route;
     return result;
+  }
+
+  modelBindingRevision() {
+    const configuration = this.modelBinding.configuration;
+    return `${configuration.connectionId}:${configuration.securityGeneration}`;
   }
 
   async steerTurn(options) {

@@ -34,6 +34,19 @@ describe("model connection contracts", () => {
 });
 
 describe("model connection lifecycle", () => {
+  it("requires the persisted history security revision before issuing a resume credential", async () => {
+    const { service } = fixture();
+    const connection = (await service.save(input)).connections[0];
+    const route = modelRoute(connection.id, "test/model");
+    await service.verify({ id: connection.id, expectedGeneration: 1, modelId: "test/model" });
+    await expect(service.acquire({ route, scope: "old-history", expectedBindingRevision: null })).rejects.toMatchObject({ code: "MODEL_BINDING_CHANGED" });
+    const first = await service.acquire({ route, scope: "history", expectedBindingRevision: `${connection.id}:1` });
+    service.release({ leaseId: first.leaseId, scope: "history" });
+    await service.save({ ...input, id: connection.id, expectedGeneration: 1, baseUrl: "http://localhost:1234" });
+    await service.verify({ id: connection.id, expectedGeneration: 2, modelId: "test/model" });
+    await expect(service.acquire({ route, scope: "history", expectedBindingRevision: `${connection.id}:1` })).rejects.toMatchObject({ code: "MODEL_BINDING_CHANGED" });
+    await service.dispose();
+  });
   it("keeps name/default edits separate from credential rotation and invalidates only old security leases", async () => {
     const { service, credentials } = fixture();
     const base = { ...input, auth: "bearer", apiKey: "first-private-key" };

@@ -1,5 +1,5 @@
 {
-  "modelConnections.readOnly": "모델 연결을 사용할 수 없어 이 기록은 읽기 전용입니다. 연결을 복원하고 다시 열거나 다른 모델로 새 대화를 시작하세요.",
+  "modelConnections.readOnly": "모델 연결을 사용할 수 없거나 보안 설정이 변경되어 이 기록은 읽기 전용입니다. 변경되지 않은 연결을 복원하여 다시 열거나 이 기록을 전송하지 않고 새 대화를 시작하세요.",
   "modelConnections.title": "모델 연결",
   "modelConnections.detail": "로컬 모델이나 자신의 클라우드 API를 연결하세요. 연결은 앱 전체에서 공유되며 PuppyOne 로그인이 필요하지 않습니다.",
   "modelConnections.error": "연결 오류: {code}",

@@ -1,5 +1,5 @@
 {
-  "modelConnections.readOnly": "Este historial es de solo lectura porque su conexión no está disponible. Restablece la conexión y vuelve a abrirlo, o inicia otra conversación.",
+  "modelConnections.readOnly": "Este historial es de solo lectura: la conexión no está disponible o cambió su configuración de seguridad. Restablece la conexión sin cambios y vuelve a abrirlo, o inicia otra conversación sin enviar este historial.",
   "modelConnections.title": "Conexiones de modelos",
   "modelConnections.detail": "Conecta modelos locales o tu propia API en la nube. Las conexiones se comparten en la aplicación; no requieren iniciar sesión en PuppyOne.",
   "modelConnections.error": "Error de conexión: {code}",

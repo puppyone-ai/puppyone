@@ -197,13 +197,14 @@ export function createModelConnectionService({ store, credentials, drivers, requ
         return service.read();
       } finally { leases.delete(leaseId); verifying.delete(entry.id); }
     },
-    async acquire({ route, scope, onRevoke }) {
+    async acquire({ route, scope, onRevoke, expectedBindingRevision }) {
       await initialize(); await mutations; active();
       if (typeof scope !== "string" || !scope) throw connectionError("AUTHORITY_REQUIRED");
       const selection = parseModelRoute(route);
       let entry = current(selection.connectionId);
       if (!catalogs.has(entry.id)) await refresh({ id: entry.id });
       entry = current(selection.connectionId);
+      if (expectedBindingRevision !== undefined && expectedBindingRevision !== `${entry.id}:${entry.securityGeneration}`) throw connectionError("MODEL_BINDING_CHANGED");
       const model = findModel(entry, selection.modelId);
       const configuration = await privateConfiguration(entry, model);
       if (records.get(entry.id) !== entry || disposed) throw connectionError("CONFIGURATION_CONFLICT");
@@ -237,5 +238,5 @@ const ERROR_CODES = new Set(["INVALID_CONNECTION", "INVALID_CONFIGURATION", "INV
   "MODEL_REQUIRED", "MODEL_UNAVAILABLE", "MODEL_VERIFICATION_REQUIRED", "CONTEXT_REQUIRED", "SERVER_TOOLS_MUST_BE_DISABLED", "VERIFICATION_UNAVAILABLE",
   "VERIFICATION_FAILED", "CREDENTIAL_REQUIRED", "CREDENTIAL_UNAVAILABLE", "SECURE_STORAGE_UNAVAILABLE", "RUNTIME_CLEANUP_FAILED", "STORE_INVALID",
   "NETWORK_ERROR", "TIMEOUT", "CANCELLED", "INVALID_RESPONSE", "RESPONSE_TOO_LARGE", "AUTHENTICATION_FAILED", "ENDPOINT_NOT_FOUND", "ENDPOINT_ERROR",
-  "REDIRECT_REJECTED", "SERVICE_CLOSED", "LEASE_REVOKED", "AUTHORITY_REQUIRED", "BUSY"]);
+  "REDIRECT_REJECTED", "SERVICE_CLOSED", "LEASE_REVOKED", "AUTHORITY_REQUIRED", "BUSY", "MODEL_BINDING_CHANGED"]);
 export function knownErrorCode(error) { return ERROR_CODES.has(error?.code) ? error.code : "OPERATION_FAILED"; }

@@ -111,6 +111,7 @@ export function persistedRecordFromSession(session) {
     updatedAt: session.updatedAt,
     terminalState: session.terminalState,
     selectedModel: session.selectedModel,
+    ...(session.modelBindingRevision ? { modelBindingRevision: session.modelBindingRevision } : {}),
     selectedEffort: session.selectedEffort,
     selectedMode: session.selectedMode,
     lastSequence: session.sequence,
@@ -119,6 +120,7 @@ export function persistedRecordFromSession(session) {
 }
 
 export function applyProviderSession(session, providerSession) {
+  if (providerSession.modelBindingRevision) session.modelBindingRevision = providerSession.modelBindingRevision;
   session.providerSessionId = providerSession.providerSessionId;
   session.title = providerSession.title || session.title;
   session.selectedModel = providerSession.model || session.selectedModel;

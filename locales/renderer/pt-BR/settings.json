@@ -1,5 +1,5 @@
 {
-  "modelConnections.readOnly": "Este histórico é somente leitura porque sua conexão está indisponível. Restaure a conexão e reabra, ou inicie uma nova conversa.",
+  "modelConnections.readOnly": "Este histórico é somente leitura: a conexão está indisponível ou suas configurações de segurança mudaram. Restaure a conexão sem alterações e reabra, ou inicie uma conversa sem enviar este histórico.",
   "modelConnections.title": "Conexões de modelos",
   "modelConnections.detail": "Conecte modelos locais ou sua própria API na nuvem. As conexões são compartilhadas no app e não exigem login no PuppyOne.",
   "modelConnections.error": "Erro de conexão: {code}",

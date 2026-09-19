@@ -83,6 +83,7 @@ export function createAgentProcessService({ utilityProcess, modulePath, budget, 
     const record = { key, ownerId: sender.id, itemId: sender.hostItemId ?? key, root,
       sessionId: null, instanceId: null, host: null,
       runtimeId: persistedRoute?.runtimeId ?? request.runtimeId,
+      expectedBindingRevision: method === "createSession" ? undefined : persistedRoute?.modelBindingRevision ?? null,
       allowedModelRoute: persistedRoute?.selectedModel ?? request.model, closing: false };
     try { record.host = createHost({ utilityProcess, modulePath, budget,
       identity: { key, ownerId: sender.id, projectId: request.projectContext?.projectId ?? root, kind: "agent" },
@@ -96,7 +97,8 @@ export function createAgentProcessService({ utilityProcess, modulePath, budget, 
           if (methodName === "read") return modelConnections.catalog();
           if (methodName === "acquire") {
             if (parseModelRoute(args[0]).connectionId !== parseModelRoute(record.allowedModelRoute).connectionId) throw hostError("HOST_AUTHORITY", "The session cannot acquire another model connection.");
-            return modelConnections.acquire({ route: args[0], scope: record.key, onRevoke: () => shutdown(record) });
+            return modelConnections.acquire({ route: args[0], scope: record.key,
+              expectedBindingRevision: record.expectedBindingRevision, onRevoke: () => shutdown(record) });
           }
           if (methodName === "validate") return modelConnections.validate({ leaseId: args[0], route: args[1], scope: record.key });
           throw hostError("HOST_METHOD", "Unknown model connection operation.");

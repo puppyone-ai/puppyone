@@ -1,5 +1,5 @@
 {
-  "modelConnections.readOnly": "This history is read-only because its model connection is unavailable. Restore the connection and reopen, or start a new conversation with another model.",
+  "modelConnections.readOnly": "This history is read-only because its model connection is unavailable or its security settings changed. Restore the unchanged connection and reopen, or start a new conversation without sending this history.",
   "modelConnections.title": "Model connections",
   "modelConnections.detail": "Connect local models or your own cloud API. Connections are shared by the app; no PuppyOne sign-in is required.",
   "modelConnections.error": "Connection error: {code}",

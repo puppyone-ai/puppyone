@@ -78,23 +78,35 @@ async function run() {
     const completed = await until(() => service.replay(owner, identity, workspace), (value) => value.events.some((event) => event.type === "turn.completed"));
     assert.match(JSON.stringify(completed), /Native model connection smoke passed/);
     assert.equal(JSON.stringify(completed).includes(secret), false);
+    assert.equal((await conversationCatalog.findById(identity.sessionId, workspace)).modelBindingRevision, `${connection.id}:1`);
     const pids = service.diagnostics().map((entry) => entry.pid);
     assert.notEqual(pids[0], process.pid);
-    await connections.remove({ id: connection.id, expectedGeneration: 1 });
+    await service.closeAll();
+    const resumed = await service.openSession(owner, { sessionId: identity.sessionId, runtimeId: "puppyone-agent" }, workspace);
+    assert.equal(resumed.status, "opened");
+    assert.notEqual(resumed.snapshot.capabilities.readOnly, true, "Unchanged connection must resume normally.");
+    const rotated = await connections.save({ ...connection, id: connection.id, expectedGeneration: 1, apiKey: secret });
     assert.equal(service.getSessionCount(), 0, "Revocation must stop the authorized utility and worker.");
     assert.equal(budget.snapshot().length, 0);
+    await connections.verify({ id: connection.id, expectedGeneration: rotated.connections[0].configGeneration, modelId: "smoke-model" });
+    const changed = await service.openSession(owner, { sessionId: identity.sessionId, runtimeId: "puppyone-agent" }, workspace);
+    assert.equal(changed.status, "opened");
+    assert.equal(changed.snapshot.capabilities.readOnly, true, "Old history must not acquire changed credentials, even with a ready model.");
+    assert.equal(requests, 5, "Resuming with a changed connection must not perform inference.");
+    await service.closeAll();
+    await connections.remove({ id: connection.id, expectedGeneration: 2 });
     const reopened = await service.openSession(owner, { sessionId: identity.sessionId, runtimeId: "puppyone-agent" }, workspace);
     assert.equal(reopened.status, "opened");
     assert.equal(reopened.snapshot.capabilities.readOnly, true);
     assert.match(JSON.stringify(reopened.snapshot.display), /Native model connection smoke passed/);
-    assert.equal(requests, 3, "Opening unavailable history must not perform inference.");
+    assert.equal(requests, 5, "Opening unavailable history must not perform inference.");
     await service.closeAll();
     for (const file of await fs.readdir(userDataPath, { recursive: true })) {
       const full = path.join(userDataPath, file);
       if ((await fs.stat(full)).isFile()) assert.equal((await fs.readFile(full)).includes(Buffer.from(secret)), false, `Credential leaked: ${file}`);
     }
     console.log(JSON.stringify({ ok: true, platform: process.platform, encryptedStorage: true, mainUtilityWorkerRoundTrip: true,
-      revocation: true, readOnlyHistory: true, inferenceRequests: requests, remainingResourceLeases: budget.snapshot().length }, null, 2));
+      revocation: true, durableHistoryFence: true, readOnlyHistory: true, inferenceRequests: requests, remainingResourceLeases: budget.snapshot().length }, null, 2));
   } catch (error) { failed = true; console.error(error); }
   finally {
     await service?.closeAll().catch((error) => { failed = true; console.error(error); });
