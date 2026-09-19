@@ -190,22 +190,24 @@ export function TerminalLauncher({
             </div>
           )}
 
-          <div ref={toolsRef} className="desktop-terminal-launcher-tools" role="list" aria-busy={scanning}>
-            {agentRows}
-          </div>
+          <div className="desktop-terminal-launcher-entries">
+            <div ref={toolsRef} className="desktop-terminal-launcher-tools" role="list" aria-busy={scanning}>
+              {agentRows}
+            </div>
 
-          {(feedbackVisible || (!scanning && (discoveryFailed || discoveryEmpty))) &&
-            <LauncherDiscoveryFeedback scanning={scanning} refreshing={discoveryRefreshing}
-              failed={discoveryFailed} empty={discoveryEmpty} busy={busy} />}
+            {(feedbackVisible || (!scanning && (discoveryFailed || discoveryEmpty))) &&
+              <LauncherDiscoveryFeedback scanning={scanning} refreshing={discoveryRefreshing}
+                failed={discoveryFailed} empty={discoveryEmpty} busy={busy} />}
 
-          {agentSetup?.(() => {
-            const target = toolsRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")
-              ?? bundledToolsRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)");
-            (target ?? titleRef.current)?.focus();
-          })}
+            {agentSetup?.(() => {
+              const target = toolsRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")
+                ?? bundledToolsRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)");
+              (target ?? titleRef.current)?.focus();
+            })}
 
-          <div ref={bundledToolsRef} className="desktop-terminal-launcher-tools desktop-terminal-launcher-bundled" role="list">
-            {bundledRows}
+            <div ref={bundledToolsRef} className="desktop-terminal-launcher-tools desktop-terminal-launcher-bundled" role="list">
+              {bundledRows}
+            </div>
           </div>
 
           {terminalEnabled && (

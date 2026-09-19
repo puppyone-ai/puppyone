@@ -121,6 +121,8 @@
   outline-offset: 1px;
 }
 
+/* Separate accessible lists, one visual row rhythm across their boundary. */
+.desktop-terminal-launcher-entries,
 .desktop-terminal-launcher-tools {
   display: grid;
   min-width: 0;
@@ -133,6 +135,7 @@
   min-width: 0;
 }
 
+.desktop-terminal-launcher-entries:not(:has(> :not(:empty))),
 .desktop-terminal-launcher-tools:empty { display: none; }
 
 .desktop-terminal-launcher-availability {
@@ -149,22 +152,25 @@
 }
 
 .desktop-terminal-launcher-discovery {
-  display: flex;
-  min-width: 0;
-  align-items: flex-start;
-  gap: 6px;
-  padding: 2px 8px;
-  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-content: center;
+  align-items: start;
   color: var(--po-text-subtle);
   overflow-wrap: anywhere;
+}
+
+.desktop-terminal-launcher-discovery-icon {
+  display: grid;
+  width: 18px;
+  height: var(--po-type-right-sidebar-control-line-height, 19px);
+  place-items: center;
 }
 
 .desktop-terminal-launcher-discovery-spinner {
   box-sizing: border-box;
   width: 11px;
   height: 11px;
-  flex: 0 0 11px;
-  margin-block-start: calc((var(--po-type-right-sidebar-control-line-height, 19px) - 11px) / 2);
   border: 1.5px solid var(--po-border);
   border-block-start-color: currentColor;
   border-radius: 50%;
@@ -213,18 +219,26 @@
   display: none;
 }
 
+/* Status rows align with actions without inheriting button interaction. */
+.desktop-terminal-launcher-discovery,
+.desktop-terminal-launcher-tool,
+.desktop-terminal-launcher-shell,
+.desktop-terminal-launcher-history {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: var(--po-control-size-large);
+  gap: 9px;
+  padding: 5px 8px;
+  border: 1px solid transparent;
+}
+
 .desktop-terminal-launcher-tool,
 .desktop-terminal-launcher-shell,
 .desktop-terminal-launcher-history {
   position: relative;
   display: flex;
   width: 100%;
-  min-width: 0;
-  min-height: var(--po-control-size-large);
   align-items: center;
-  gap: 9px;
-  padding: 5px 8px;
-  border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
   color: var(--po-text-muted);

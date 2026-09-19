@@ -76,7 +76,6 @@ export function OnboardingEntryActions({
         </div>
 
         <div className="onboarding-entry-import-area">
-          {firstRun && <div className="onboarding-entry-action-divider" role="separator" />}
           <Button
             className="onboarding-entry-action onboarding-entry-import"
             data-onboarding-action="clone"

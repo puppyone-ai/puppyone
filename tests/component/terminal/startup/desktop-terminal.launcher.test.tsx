@@ -217,6 +217,14 @@ describe("Unified Workbench launcher", () => {
     expect(container.querySelector(".desktop-terminal-launcher-discovery")).toBeNull();
     act(() => vi.advanceTimersByTime(1));
     expect(container.querySelectorAll(".desktop-terminal-launcher-discovery")).toHaveLength(1);
+    const entries = container.querySelector(".desktop-terminal-launcher-entries");
+    const feedback = container.querySelector(".desktop-terminal-launcher-discovery");
+    expect(entries?.hasAttribute("aria-busy")).toBe(false);
+    expect(tools?.parentElement).toBe(entries);
+    expect(feedback?.parentElement).toBe(entries);
+    expect(container.querySelector(".desktop-terminal-launcher-bundled")?.parentElement).toBe(entries);
+    expect(feedback?.querySelector(".desktop-terminal-launcher-discovery-icon")?.getAttribute("aria-hidden")).toBe("true");
+    expect(feedback?.querySelector("button, [tabindex]")).toBeNull();
     expect(tools?.getAttribute("aria-busy")).toBe("true");
     expect(container.querySelector("[role=status]")?.closest("[aria-busy=true]")).toBeNull();
     expect(container.querySelector(".desktop-terminal-launcher-availability")?.textContent)
@@ -318,6 +326,8 @@ describe("Unified Workbench launcher", () => {
     act(() => vi.advanceTimersByTime(200));
     expect(container.querySelector(".desktop-terminal-launcher-discovered")).toBeNull();
     expect(container.querySelectorAll(".desktop-terminal-activity-grid")).toHaveLength(1);
+    expect(container.querySelector(".desktop-terminal-launcher-discovery-icon")).not.toBeNull();
+    expect(container.querySelector(".desktop-terminal-launcher-discovery-spinner")).toBeNull();
   });
 
   it("supports a standalone Chat launcher without exposing the Shell frame", () => {

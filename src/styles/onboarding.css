@@ -150,8 +150,8 @@
   max-width: none;
   justify-items: stretch;
   gap: 12px;
-  padding-block-start: 18px;
-  border-top: 1px solid var(--po-border);
+  /* Preserve the title-to-action rhythm without drawing a decorative rule. */
+  padding-block-start: 19px;
 }
 
 .onboarding-telemetry-disclosure {
@@ -359,24 +359,17 @@
   color: var(--po-text);
 }
 
-/* Keep importing visually separate from creating or opening a local project. */
+/* Keep importing visually separate without adding a decorative rule. */
 .onboarding-entry-import-area {
   display: grid;
   width: 100%;
   min-width: 0;
   justify-items: start;
-  gap: 8px;
-  margin-block-start: 8px;
+  margin-block-start: 17px;
 }
 
 .onboarding-shell[data-onboarding-state="projects"] .onboarding-entry-import-area {
   display: contents;
-}
-
-.onboarding-entry-action-divider {
-  width: min(180px, 100%);
-  height: 1px;
-  background: color-mix(in srgb, var(--po-border) 65%, transparent);
 }
 
 .onboarding-entry-import {

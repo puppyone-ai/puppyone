@@ -20,6 +20,16 @@ let root: Root | null = null;
 const originalClipboard = navigator.clipboard;
 const originalConfirm = window.confirm;
 const onboardingCss = readFileSync("src/styles/onboarding.css", "utf8");
+const agentReadyMessages = {
+  de: "Deine Dateien. Für Agents bereit.",
+  en: "Start with your files. Agent-ready.",
+  es: "Tus archivos. Listos para Agents.",
+  fr: "Vos fichiers. Prêts pour les Agents.",
+  ja: "自分のファイルから。Agent 対応。",
+  ko: "내 파일로 시작. Agent 지원.",
+  "pt-BR": "Seus arquivos. Prontos para Agents.",
+  "zh-Hans": "从你的文件开始。为 Agent 就绪。",
+} as const;
 
 afterEach(() => {
   act(() => root?.unmount());
@@ -40,6 +50,15 @@ afterEach(() => {
 });
 
 describe("project folder home", () => {
+  it("localizes the agent-ready brand promise in every renderer locale", () => {
+    for (const [locale, expected] of Object.entries(agentReadyMessages)) {
+      const messages = JSON.parse(
+        readFileSync(`locales/renderer/${locale}/onboarding.json`, "utf8"),
+      ) as Record<string, string>;
+      expect(messages["brand.agentReadyMessage"], locale).toBe(expected);
+    }
+  });
+
   it("applies the effective Sub Theme on the real onboarding appearance root", () => {
     const styles = document.createElement("style");
     styles.textContent = `
@@ -207,7 +226,7 @@ describe("project folder home", () => {
     );
   });
 
-  it("uses one launcher geometry with a full-width first-section divider", () => {
+  it("uses one launcher geometry with quiet spacing between the title and actions", () => {
     expect(onboardingCss).toMatch(
       /\.onboarding-launcher\s*\{[^}]*display:\s*grid;[^}]*width:\s*var\(--onboarding-column-width\);[^}]*gap:\s*var\(--onboarding-section-gap\);/s,
     );
@@ -215,7 +234,14 @@ describe("project folder home", () => {
       /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-launcher/,
     );
     expect(onboardingCss).toMatch(
-      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-primary-area\s*\{[^}]*padding-block-start:\s*18px;[^}]*border-top:\s*1px solid var\(--po-border\);/s,
+      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-primary-area\s*\{[^}]*padding-block-start:\s*19px;[^}]*\}/s,
+    );
+    expect(onboardingCss).not.toMatch(
+      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-primary-area\s*\{[^}]*border(?:-top)?:/s,
+    );
+    expect(onboardingCss).not.toContain(".onboarding-entry-action-divider");
+    expect(onboardingCss).toMatch(
+      /\.onboarding-entry-import-area\s*\{[^}]*margin-block-start:\s*17px;/s,
     );
     expect(onboardingCss).toMatch(
       /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-entry-action-default\s*\{[^}]*width:\s*fit-content;[^}]*min-width:\s*0;[^}]*justify-content:\s*flex-start;/s,
@@ -314,11 +340,8 @@ describe("project folder home", () => {
     const preview = importGroup!.querySelector(".onboarding-entry-import-brands");
     const importLabel = importGroup!.querySelector(".onboarding-entry-import-label");
     expect(importLabel!.compareDocumentPosition(preview as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    const divider = container.querySelector(".onboarding-entry-action-divider");
-    expect(divider?.getAttribute("role")).toBe("separator");
-    expect(divider?.parentElement).toBe(importGroup?.parentElement);
-    expect(actions[1]!.compareDocumentPosition(divider as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(divider!.compareDocumentPosition(importGroup as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(container.querySelector(".onboarding-entry-action-divider")).toBeNull();
+    expect(actions[1]!.compareDocumentPosition(importGroup as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const launcher = container.querySelector(".onboarding-launcher");
     expect(launcher?.contains(container.querySelector(".onboarding-brand-lockup"))).toBe(true);
     expect(launcher?.contains(container.querySelector(".onboarding-entry-actions"))).toBe(true);
