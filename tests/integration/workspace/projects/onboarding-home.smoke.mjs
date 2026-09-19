@@ -73,7 +73,6 @@ async function runSmoke() {
             const importButton = document.querySelector('.onboarding-entry-import');
             const importLabel = importButton.querySelector('.onboarding-entry-import-label');
             const importMarks = [...importButton.querySelectorAll('.onboarding-import-mark')];
-            const divider = document.querySelector('.onboarding-entry-action-divider');
             const label = create.querySelector('.po-button__label');
             const brand = document.querySelector('.onboarding-brand-lockup');
             const launcher = document.querySelector('.onboarding-launcher');
@@ -108,7 +107,7 @@ async function runSmoke() {
               actionIconWidth: rect(create.querySelector('svg')).width,
               actionIcon: rect(create.querySelector('.po-button__icon')),
               openIcon: rect(open.querySelector('.po-button__icon')),
-              importButton: rect(importButton), divider: rect(divider), open: rect(open),
+              importButton: rect(importButton), open: rect(open),
               projectPanel: rect(projectPanel),
               projectRow: rect(projectRow),
               projectIcon: rect(projectRow?.querySelector('.desktop-menu-item-icon')),
@@ -135,7 +134,6 @@ async function runSmoke() {
               importBrands: rect(importButton.querySelector('.onboarding-entry-import-brands')),
               importMore: rect(importButton.querySelector('.onboarding-entry-import-more')),
               importText: importButton.textContent,
-              dividerBackground: divider && getComputedStyle(divider).backgroundColor,
               actionCount: buttons.length,
               reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
               clipped: buttons.some(button => button.scrollWidth > button.clientWidth + 1)
@@ -200,23 +198,18 @@ async function runSmoke() {
           assert.ok(Math.abs(snapshot.brand.x + snapshot.brand.width / 2 - width / 2) < 1, `${context}: shared column is centered`);
           assert.equal(snapshot.launcher.x, snapshot.brand.x, `${context}: launcher uses the shared left edge`);
           assert.equal(snapshot.launcher.width, snapshot.brand.width, `${context}: launcher uses the shared width`);
-          assert.equal(snapshot.firstSection.x, snapshot.brand.x, `${context}: first section divider uses the shared left edge`);
-          assert.equal(snapshot.firstSection.width, snapshot.brand.width, `${context}: first section divider spans the shared column`);
+          assert.equal(snapshot.firstSection.x, snapshot.brand.x, `${context}: first content section uses the shared left edge`);
+          assert.equal(snapshot.firstSection.width, snapshot.brand.width, `${context}: first content section spans the shared column`);
           const titleToSectionGap = height <= 620 ? 40 : height <= 760 ? 52 : 64;
-          assert.ok(Math.abs(snapshot.firstSection.y - snapshot.brand.y - snapshot.brand.height - titleToSectionGap) < 1, `${context}: shared title-to-divider gap`);
+          assert.ok(Math.abs(snapshot.firstSection.y - snapshot.brand.y - snapshot.brand.height - titleToSectionGap) < 1, `${context}: shared title-to-section gap`);
           assert.ok(Math.abs(snapshot.firstClickable.y - snapshot.brand.y - snapshot.brand.height - titleToSectionGap - 19) < 1, `${context}: shared title-to-first-clickable gap`);
           assert.ok(Math.abs(snapshot.launcher.y + snapshot.launcher.height / 2 - height / 2) < 1, `${context}: shared launcher is vertically centered`);
           if (state === 'empty') {
-            assert.equal(snapshot.primaryBorderTop, '1px', `${context}: primary section owns the empty-state divider`);
-            assert.equal(snapshot.primaryPaddingTop, '18px', `${context}: first action follows the shared frame inset`);
-            assert.equal(snapshot.divider.height, 1, `${context}: subtle one-pixel divider`);
-            assert.ok(snapshot.divider.width >= snapshot.create.width, `${context}: import divider remains at least as wide as the content-hugging CTA`);
-            assert.notEqual(snapshot.dividerBackground, 'rgba(0, 0, 0, 0)', `${context}: visible divider`);
-            assert.ok(snapshot.divider.y - snapshot.open.y - snapshot.open.height >= 12, `${context}: separation from direct-start actions`);
-            assert.ok(snapshot.importButton.y - snapshot.divider.y - snapshot.divider.height >= 8, `${context}: space below divider`);
-            assert.equal(snapshot.divider.x, snapshot.brand.x, `${context}: divider shares the content left edge`);
+            assert.equal(snapshot.primaryBorderTop, '0px', `${context}: no decorative title divider`);
+            assert.equal(snapshot.primaryPaddingTop, '19px', `${context}: removed divider keeps the existing title-to-action rhythm`);
+            assert.ok(snapshot.importButton.y - snapshot.open.y - snapshot.open.height >= 20, `${context}: whitespace separates import from direct-start actions`);
+            assert.equal(await evaluate("document.querySelector('.onboarding-entry-action-divider')"), null, `${context}: no decorative import divider`);
           } else {
-            assert.equal(snapshot.divider, null, `${context}: project list layout stays unchanged`);
             assert.equal(snapshot.projectPanel.x, snapshot.brand.x, `${context}: project frame shares the content left edge`);
             assert.equal(snapshot.projectPanel.width, snapshot.brand.width, `${context}: project frame uses the shared width`);
             assert.equal(snapshot.projectRow.x, snapshot.brand.x, `${context}: project row has no container-side inset`);
