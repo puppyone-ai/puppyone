@@ -99,6 +99,14 @@ Editor's click/focus/scroll and retention of sessions and Agent drafts. Only
 provider discovery/execution uses a synthetic runtime. GPU rendering stays on.
 Agent/Terminal share the window DOM; execution remains in utility processes.
 
+The `markdown-selection` app gate (`npm run smoke:markdown-selection-stability`)
+uses Chromium mouse input to check forward/backward single-character selection,
+CJK, selection across paragraphs, revealed links above the pointer, outside
+release, cancellation, link navigation versus dragging, and table/paragraph
+geometry across link-index refreshes. Component coverage also drives a real
+DataWorkspace folder's first child load and verifies relevant wiki links still
+refresh. These checks do not claim OS-level pointer injection or full theme/RTL coverage.
+
 The `sidebar-visibility` app gate and `test:e2e` run this workflow by default.
 `npm run smoke:sidebar-visibility` runs it alone after building.
 `npm run smoke:sidebar-visibility:acceptance` also sends real macOS CoreGraphics

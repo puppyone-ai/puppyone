@@ -115,6 +115,20 @@
       "artifacts": []
     },
     {
+      "id": "markdown-selection",
+      "name": "Markdown pointer selection and workspace projection stability",
+      "group": "app",
+      "command": ["npm", "run", "smoke:markdown-selection-stability"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": [],
+      "timeoutSeconds": 120,
+      "runtime": "electron",
+      "artifacts": ["{checkDir}/markdown-selection/report.json"],
+      "environment": {
+        "PUPPYONE_MARKDOWN_SELECTION_ARTIFACT_DIR": "{checkDir}/markdown-selection"
+      }
+    },
+    {
       "id": "native-resize-cursor",
       "name": "Native split resize cursor recovery",
       "group": "app",

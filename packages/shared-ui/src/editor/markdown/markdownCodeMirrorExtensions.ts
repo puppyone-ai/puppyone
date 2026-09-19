@@ -23,6 +23,7 @@ import { markdownLivePreviewContextExtension } from "./core/editor/markdownLiveP
 import { markdownComposingBlockLineField, markdownInputCompositionExtension } from "./core/state/composingBlockLine";
 import { markdownRevealedSourceField } from "./core/state/revealedSource";
 import { markdownLivePreviewFocusExtension } from "./core/state/livePreviewFocus";
+import { markdownPointerSelectionExtension } from "./core/state/pointerSelection";
 import { markdownHeadingIndexField } from "./core/links/markdownHeadingIndex";
 import { markdownAssetUrlResolverFacet, markdownWorkspaceRootFacet } from "./core/editor/markdownLivePreviewContext";
 import { getMarkdownEmbedHost, disposeMarkdownEmbedHost } from "./platform/codemirror/embedHost";
@@ -136,6 +137,7 @@ export function markdownLivePreviewCoreExtension(
   const composition = getMarkdownFeatureComposition(dialect);
   return [
     markdownHiddenMarkerSelectionNormalizer,
+    markdownPointerSelectionExtension,
     markdownLivePreviewFocusExtension(),
     markdownInputCompositionExtension,
     markdownComposingBlockLineField,

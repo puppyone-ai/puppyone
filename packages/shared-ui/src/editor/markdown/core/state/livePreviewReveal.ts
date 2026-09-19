@@ -1,6 +1,7 @@
 import type { EditorState, Transaction } from "@codemirror/state";
 import type { InlineRevealRange } from "../decorations/decorationPrimitives";
 import { getInlineRevealElement } from "../syntax/markdownElements";
+import { markdownPointerSelectionField } from "./pointerSelection";
 
 /**
  * Resolve the source fragment revealed by one Markdown EditorView.
@@ -18,6 +19,14 @@ export function resolvePaneLocalInlineRevealRange(
   focused: boolean,
 ): InlineRevealRange | null {
   const mappedPreviousRange = mapInlineRevealRange(previousRange, transaction);
+  const selecting = transaction.state.field(markdownPointerSelectionField, false) ?? false;
+  if (selecting) return mappedPreviousRange;
+  const pointerReleased = transaction.startState.field(markdownPointerSelectionField, false) === true;
+  // A nonempty selection must keep the same line boxes even after release or
+  // refocus. Reconcile when the user next places a caret or edits the source.
+  if (!transaction.state.selection.main.empty && !transaction.docChanged) {
+    return mappedPreviousRange;
+  }
   if (!focused) {
     if (!mappedPreviousRange || (!transaction.docChanged && !transaction.reconfigured)) {
       return mappedPreviousRange;
@@ -31,6 +40,7 @@ export function resolvePaneLocalInlineRevealRange(
   const selectionChanged = !transaction.startState.selection.eq(transaction.state.selection);
   if (
     !enteredPane
+    && !pointerReleased
     && !selectionChanged
     && !transaction.docChanged
     && !transaction.reconfigured

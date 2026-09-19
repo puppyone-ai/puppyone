@@ -22,8 +22,19 @@ import type { MarkdownInlinePreviewRenderer } from "../../shared/preview/markdow
 import { createMarkdownTableInlineViewportController } from "./tableInlineViewportController";
 import { getMappedWidgetSourceRange } from "../../shared/widgets/widgetDom";
 import { createMarkdownTableColumnLayoutController } from "./tableColumnLayoutController";
+import { getInlinePreviewLinkIdentity } from "../../core/links/inlinePreviewLinkIdentity";
 
 export class MarkdownTableWidget extends WidgetType {
+  private linkIdentity: string | undefined;
+
+  private getLinkIdentity(): string {
+    return this.linkIdentity ??= getInlinePreviewLinkIdentity(
+      this.rows.flatMap((row) => row.cells.map((cell) => cell.text)),
+      this.markdownLinkGraph,
+      this.documentPath,
+    );
+  }
+
   constructor(
     private readonly from: number,
     private readonly to: number,
@@ -49,7 +60,8 @@ export class MarkdownTableWidget extends WidgetType {
       widget.renderKey === this.renderKey &&
       widget.layoutEstimatedHeight === this.layoutEstimatedHeight &&
       markdownTableExecutionsEqual(widget.execution, this.execution) &&
-      (widget.markdownLinkGraph?.revision ?? 0) === (this.markdownLinkGraph?.revision ?? 0) &&
+      ((widget.markdownLinkGraph?.revision ?? 0) === (this.markdownLinkGraph?.revision ?? 0)
+        || widget.getLinkIdentity() === this.getLinkIdentity()) &&
       widget.documentPath === this.documentPath &&
       widget._markdownAssetUrlResolver === this._markdownAssetUrlResolver &&
       widget.renderInlinePreview === this.renderInlinePreview

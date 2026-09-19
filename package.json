@@ -64,6 +64,7 @@
     "smoke:pptx-renderer": "electron tests/integration/editor/formats/office/pptx-renderer.smoke.mjs",
     "smoke:markdown-table-inline-viewport": "electron tests/integration/editor/formats/markdown/tables/markdown-table-inline-viewport.smoke.mjs",
     "smoke:markdown-pane-focus-continuity": "electron tests/integration/workbench/focus/markdown-pane-focus-continuity.smoke.mjs",
+    "smoke:markdown-selection-stability": "electron tests/integration/editor/formats/markdown/rendering/markdown-selection-stability.smoke.mjs",
     "smoke:native-resize-cursor": "electron tests/integration/platform/native-surfaces/native-resize-cursor.smoke.mjs",
     "smoke:editor-runtime-lifecycle": "electron tests/integration/editor/runtime/editor-runtime-lifecycle.smoke.mjs",
     "smoke:markdown-line-geometry": "npm run build && electron tests/integration/editor/formats/markdown/rendering/markdown-line-geometry.smoke.mjs",
