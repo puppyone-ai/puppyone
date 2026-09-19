@@ -16,6 +16,8 @@ const SELECTABLE_WIDGET_SELECTOR = [
   ".cm-md-html-widget",
   ".cm-md-image-widget",
   ".cm-md-math-block-widget",
+  ".cm-md-mdx-tabs-widget",
+  ".cm-md-video-widget",
 ].join(", ");
 
 const SELECTED_CLASS = "is-doc-selected";
@@ -27,13 +29,16 @@ export const markdownBlockWidgetSelectionExtension = ViewPlugin.fromClass(
     }
 
     update(update: ViewUpdate) {
-      if (update.selectionSet || update.docChanged || update.viewportChanged || update.focusChanged) {
+      const projectionChanged = update.startState.field(markdownLivePreviewDecorations, false)?.decorations
+        !== update.state.field(markdownLivePreviewDecorations, false)?.decorations;
+      if (update.selectionSet || update.docChanged || update.viewportChanged || update.focusChanged || projectionChanged) {
         this.scheduleRefresh();
       }
     }
 
     private scheduleRefresh() {
       this.view.requestMeasure({
+        key: this,
         read: () => null,
         write: () => this.refresh(),
       });
@@ -59,7 +64,8 @@ export const markdownBlockWidgetSelectionExtension = ViewPlugin.fromClass(
 
 function isFocusInsideSelectableWidget(view: EditorView): boolean {
   const active = view.contentDOM.ownerDocument.activeElement;
-  return active instanceof Element && Boolean(active.closest(SELECTABLE_WIDGET_SELECTOR));
+  return active instanceof Element && view.contentDOM.contains(active)
+    && Boolean(active.closest(SELECTABLE_WIDGET_SELECTOR));
 }
 
 function isWidgetCovered(

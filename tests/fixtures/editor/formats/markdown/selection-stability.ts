@@ -5,6 +5,7 @@ import { markdownLivePreviewContextExtension } from "../../../../../packages/sha
 import { createMarkdownLinkGraph } from "../../../../../packages/shared-ui/src/editor/markdown/core/links/markdownLinkGraph";
 import { markdownLivePreviewDecorations } from "../../../../../packages/shared-ui/src/editor/markdown/core/projection/markdownDocumentProjection";
 import { markdownPointerSelectionField } from "../../../../../packages/shared-ui/src/editor/markdown/core/state/pointerSelection";
+import { markdownRevealedSourceEffect, markdownRevealedSourceField } from "../../../../../packages/shared-ui/src/editor/markdown/core/state/revealedSource";
 import "@puppyone/shared-ui/shared-ui.css";
 
 const style = document.createElement("style");
@@ -45,10 +46,17 @@ const fixture = {
   view,
   source,
   openedUrls,
+  replaceSource(doc: string) {
+    // Match the production snapshot port's whole-document replacement boundary.
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: doc }, selection: { anchor: 0 }, effects: markdownRevealedSourceEffect.of(null) });
+  },
   refreshLinks() { revision += 1; view.dispatch({ effects: context.reconfigure(makeContext()) }); },
-  snapshot() {
+  revealSource(from: number, to: number, presentation: "inline" | "block") {
+    view.dispatch({ effects: markdownRevealedSourceEffect.of({ from, to, presentation }), selection: { anchor: from + 3 } });
+  },
+  snapshot(expectedSource = source) {
     const selection = view.state.selection.main;
-    return { anchor: selection.anchor, head: selection.head, text: view.state.sliceDoc(selection.from, selection.to), scrollTop: view.scrollDOM.scrollTop, selecting: view.state.field(markdownPointerSelectionField), reveal: view.state.field(markdownLivePreviewDecorations).revealRange, hasFocus: view.hasFocus, sourceUnchanged: view.state.doc.toString() === source };
+    return { anchor: selection.anchor, head: selection.head, text: view.state.sliceDoc(selection.from, selection.to), scrollTop: view.scrollDOM.scrollTop, selecting: view.state.field(markdownPointerSelectionField), reveal: view.state.field(markdownLivePreviewDecorations).revealRange, expandedSource: view.state.field(markdownRevealedSourceField), hasFocus: view.hasFocus, sourceUnchanged: view.state.doc.toString() === expectedSource };
   },
 };
 document.querySelector("#folder")!.addEventListener("click", () => fixture.refreshLinks());

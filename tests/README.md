@@ -98,6 +98,11 @@ Pointer lifecycle behavior belongs in
 release ordering, cancellation, consecutive gestures, pane isolation, committed
 edits and destruction run through real EditorView events/transactions with only
 coordinate measurement controlled by happy-dom.
+This also covers explicitly expanded inline/block source: range selection keeps
+it open, while an outside single click folds it only after release.
+`markdownBlockWidgetSelection.test.ts` checks Tabs/video accents, reapplication
+after a table is replaced, and sibling-pane focus ownership. Image deletion and
+dynamic read-only enforcement belong in `embeds/markdownImageInteraction.test.ts`.
 
 The `markdown-selection` app gate (`npm run smoke:markdown-selection-stability`)
 uses Chromium mouse input to check forward/backward single-character selection,
@@ -111,6 +116,10 @@ exit code 1, then requires both a successful exit and a positive completion
 report from the real scenarios. Closing the fixture window cannot turn a
 failed assertion into a passing release check. The mouse-only fixture rejects
 physical keyboard input and asserts its source remains unchanged.
+Pointer injection waits for the matching DOM event to finish, rather than a
+fixed delay. A further scenario checks the exact backward character and paragraph
+position below expanded display-math source; dependency fonts are served from
+the actual node_modules directory when using an isolated worktree.
 
 ## Sidebar visibility and residual content
 

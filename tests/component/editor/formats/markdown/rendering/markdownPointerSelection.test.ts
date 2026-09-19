@@ -6,6 +6,7 @@ import { markdownCodeMirrorBaseExtensions, markdownLivePreviewExtension } from "
 import { markdownLivePreviewDecorations } from "../../../../../../packages/shared-ui/src/editor/markdown/core/projection/markdownDocumentProjection";
 import { markdownLivePreviewFocusEffect } from "../../../../../../packages/shared-ui/src/editor/markdown/core/state/livePreviewFocus";
 import { markdownPointerSelectionField } from "../../../../../../packages/shared-ui/src/editor/markdown/core/state/pointerSelection";
+import { markdownRevealedSourceEffect, markdownRevealedSourceField } from "../../../../../../packages/shared-ui/src/editor/markdown/core/state/revealedSource";
 
 const source = "Prefix **abcdefghij** suffix\n\nOther paragraph.";
 const caret = source.indexOf("abcdefghij") + 4;
@@ -18,10 +19,10 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function createView() {
+function createView(doc = source) {
   const view = new EditorView({
     parent: document.body.appendChild(document.createElement("div")),
-    state: EditorState.create({ doc: source, extensions: [
+    state: EditorState.create({ doc, extensions: [
       ...markdownCodeMirrorBaseExtensions(false), markdownLivePreviewExtension(),
     ] }),
   });
@@ -47,6 +48,54 @@ const reveal = (view: EditorView) => view.state.field(markdownLivePreviewDecorat
 const released = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("Markdown pointer selection lifecycle", () => {
+  for (const [presentation, fragment] of [["inline", "$x^2$"], ["block", "$$\nx^2\n$$"]] as const) {
+    it(`retains expanded ${presentation} source while dragging in the following paragraph`, async () => {
+      const doc = `${fragment}\n\nFollowing paragraph.`;
+      const view = createView(doc);
+      const expanded = { from: 0, to: fragment.length, presentation };
+      view.dispatch({ effects: markdownRevealedSourceEffect.of(expanded), selection: { anchor: 3 } });
+      const anchor = doc.indexOf("paragraph") + 4;
+      mouse(view.contentDOM, "mousedown", anchor);
+      expect(view.state.field(markdownRevealedSourceField)).toEqual(expanded);
+      mouse(document, "mousemove", anchor - 1);
+      mouse(document, "mouseup", anchor - 1, 0);
+      await released();
+      expect(view.state.field(markdownRevealedSourceField)).toEqual(expanded);
+      // happy-dom has no multi-line hit testing. Assert the selected interval
+      // here; the Chromium scenario owns exact anchor/head direction and pixels.
+      expect(view.state.selection.main).toMatchObject({ from: anchor - 1, to: anchor });
+      view.dispatch({ selection: { anchor } });
+      expect(view.state.field(markdownRevealedSourceField)).toBeNull();
+      expect(view.state.doc.toString()).toBe(doc);
+    });
+
+    it(`folds expanded ${presentation} source after an outside single click completes`, async () => {
+      const doc = `${fragment}\n\nFollowing paragraph.`;
+      const view = createView(doc);
+      const expanded = { from: 0, to: fragment.length, presentation };
+      view.dispatch({ effects: markdownRevealedSourceEffect.of(expanded), selection: { anchor: 3 } });
+      const anchor = doc.indexOf("paragraph") + 4;
+      mouse(view.contentDOM, "mousedown", anchor);
+      expect(view.state.field(markdownRevealedSourceField)).toEqual(expanded);
+      mouse(document, "mouseup", anchor, 0);
+      await released();
+      expect(view.state.field(markdownRevealedSourceField)).toBeNull();
+      expect(view.state.selection.main.head).toBe(anchor);
+      expect(view.state.doc.toString()).toBe(doc);
+    });
+
+    it(`retains expanded ${presentation} source for a keyboard range leaving it`, () => {
+      const doc = `${fragment}\n\nFollowing paragraph.`;
+      const view = createView(doc);
+      const expanded = { from: 0, to: fragment.length, presentation };
+      view.dispatch({ effects: markdownRevealedSourceEffect.of(expanded), selection: { anchor: 3 } });
+      view.dispatch({ selection: { anchor: 3, head: doc.length }, userEvent: "select.extend" });
+      expect(view.state.field(markdownRevealedSourceField)).toEqual(expanded);
+      view.dispatch({ changes: { from: 3, to: doc.length, insert: "replacement" }, selection: { anchor: 14 }, userEvent: "input.type" });
+      expect(view.state.doc.toString()).toBe(doc.slice(0, 3) + "replacement");
+    });
+  }
+
   it("keeps backward selection geometry through an outside release, then permits caret editing", async () => {
     const view = createView();
     mouse(view.contentDOM, "mousedown");
@@ -135,16 +184,22 @@ describe("Markdown pointer selection lifecycle", () => {
   });
 
   it("removes document listeners and cancels deferred dispatch on destruction", async () => {
+    const addListener = vi.spyOn(document, "addEventListener");
+    const removeListener = vi.spyOn(document, "removeEventListener");
     const view = createView();
+    const listeners = addListener.mock.calls.filter(([type]) => ["mousemove", "mouseup", "pointercancel"].includes(type));
     mouse(view.contentDOM, "mousedown");
     mouse(document, "mouseup", caret, 0);
+    expect(active(view)).toBe(true);
     view.destroy();
     views.delete(view);
-    const dispatch = vi.spyOn(view, "dispatch");
+    for (const listener of listeners) expect(removeListener).toHaveBeenCalledWith(...listener);
     mouse(document, "mousemove", caret, 0);
     mouse(document, "mouseup", caret, 0);
     window.dispatchEvent(new Event("blur"));
     await released();
-    expect(dispatch).not.toHaveBeenCalled();
+    // CodeMirror may still publish its own queued focus transaction after
+    // destroy. The disposed gesture must never publish a release transaction.
+    expect(active(view)).toBe(true);
   });
 });

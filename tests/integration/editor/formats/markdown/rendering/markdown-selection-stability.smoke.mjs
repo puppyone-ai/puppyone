@@ -15,20 +15,37 @@ app.on("window-all-closed", () => {});
 let owner;
 let vite;
 let focusLease;
-const report = { cases: [], sidebar: null, interactions: null, ignoredKeyboardEvents: 0, focusChanges: [], error: null };
+const report = { cases: [], expandedSources: [], sidebar: null, interactions: null, ignoredKeyboardEvents: 0, focusChanges: [], error: null };
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const evaluate = (body) => owner.webContents.executeJavaScript(`(async () => { const f = window.markdownSelectionFixture; ${body} })()`, true);
 async function point(pos) {
   return evaluate(`const r = f.view.coordsAtPos(${pos}); return { x: Math.round(r.left), y: Math.round((r.top + r.bottom) / 2) };`);
 }
 async function input(type, point, extra = {}) {
+  const domType = { mouseDown: "mousedown", mouseMove: "mousemove", mouseUp: "mouseup" }[type];
+  // Chromium can coalesce/delay pointer moves. Observe actual event completion
+  // instead of assuming a fixed sleep means the renderer consumed the input.
+  await evaluate(`f.pendingInput = new Promise((resolve, reject) => {
+    const onInput = (event) => {
+      if (event.clientX !== ${point.x} || event.clientY !== ${point.y}) return;
+      clearTimeout(timer);
+      document.removeEventListener(${JSON.stringify(domType)}, onInput, true);
+      setTimeout(resolve, 0);
+    };
+    const timer = setTimeout(() => {
+      document.removeEventListener(${JSON.stringify(domType)}, onInput, true);
+      reject(new Error('Chromium did not deliver ${domType}'));
+    }, 2000);
+    document.addEventListener(${JSON.stringify(domType)}, onInput, true);
+  });`);
   owner.webContents.sendInputEvent({ type, ...point, button: "left", clickCount: 1, ...(type === "mouseMove" ? { modifiers: ["leftButtonDown"] } : {}), ...extra });
-  await wait(40);
+  await evaluate("await f.pendingInput; delete f.pendingInput;");
 }
 
 async function run() {
   const { createServer } = await import("vite");
-  vite = await createServer({ root: repoRoot, logLevel: "error", server: { host: "127.0.0.1", port: 0, strictPort: false } });
+  const dependencyRoot = await fsp.realpath(path.join(repoRoot, "node_modules"));
+  vite = await createServer({ root: repoRoot, logLevel: "error", server: { host: "127.0.0.1", port: 0, strictPort: false, fs: { allow: [repoRoot, dependencyRoot] } } });
   await vite.listen();
   owner = new BrowserWindow({ show: false, width: 850, height: 760, webPreferences: { backgroundThrottling: false, contextIsolation: true, nodeIntegration: false, sandbox: true } });
   // This fixture injects mouse input only. Do not let physical keyboard
@@ -119,7 +136,7 @@ async function run() {
   assert.equal((await evaluate("return f.snapshot();")).selecting, false, "pointer cancellation ends gesture");
   await input("mouseUp", { x: 700, y: 650 });
 
-  await evaluate("f.view.dispatch({ changes: { from: 0, to: f.view.state.doc.length, insert: 'Body [External](https://example.com) tail' }, selection: { anchor: 0 } });");
+  await evaluate("f.replaceSource('Body [External](https://example.com) tail');");
   await wait(60);
   const linkPoint = await point(10);
   await input("mouseDown", linkPoint);
@@ -132,8 +149,33 @@ async function run() {
   assert.equal(await evaluate("return f.openedUrls.length;"), 1, "dragging link text does not navigate");
   report.interactions = { singleClick: true, outsideRelease: true, cancel: true, linkClick: true, linkDrag: true };
 
+  const mathSource = "$$\nx = 1\n+ 2\n+ 3\n+ 4\n+ 5\n+ 6\n$$";
+  const expandedDoc = `${mathSource}\n\nTarget paragraph abcdefghijklmnopqrstuvwxyz\n\n${"Following paragraph.\n\n".repeat(15)}`;
+  await evaluate(`f.replaceSource(${JSON.stringify(expandedDoc)}); f.view.focus(); f.revealSource(0, ${mathSource.length}, 'block');`);
+  await wait(60);
+  const expandedAnchor = expandedDoc.indexOf("abcdefgh") + 5;
+  const expandedStart = await point(expandedAnchor);
+  const expandedEnd = await point(expandedAnchor - 1);
+  const expandedBefore = await evaluate(`return f.snapshot(${JSON.stringify(expandedDoc)});`);
+  await input("mouseDown", expandedStart);
+  const expandedDown = await evaluate(`return f.snapshot(${JSON.stringify(expandedDoc)});`);
+  await input("mouseMove", expandedEnd);
+  await input("mouseMove", expandedEnd);
+  await input("mouseUp", expandedEnd);
+  const expandedAfter = await evaluate(`return f.snapshot(${JSON.stringify(expandedDoc)});`);
+  const expandedSample = { name: "backward character below expanded math source", expected: { anchor: expandedAnchor, head: expandedAnchor - 1 }, before: expandedBefore, down: expandedDown, after: expandedAfter, beforePoint: expandedStart, afterPoint: await point(expandedAnchor) };
+  report.expandedSources.push(expandedSample);
+  for (const snapshot of [expandedBefore, expandedDown, expandedAfter]) {
+    assert.ok(snapshot.sourceUnchanged && snapshot.hasFocus, "expanded-source scenario retains source and focus");
+  }
+  assert.deepEqual(expandedDown.expandedSource, expandedBefore.expandedSource, "expanded source stays open during mousedown hit testing");
+  assert.deepEqual(expandedAfter.expandedSource, expandedBefore.expandedSource, "expanded source stays open after a range selection");
+  assert.equal(expandedAfter.anchor, expandedAnchor, "expanded-source selection anchor");
+  assert.equal(expandedAfter.head, expandedAnchor - 1, "expanded-source selection head");
+  assert.ok(Math.abs(expandedSample.afterPoint.y - expandedStart.y) < 0.75, "expanded-source paragraph geometry remains stable");
+
   const sidebar = await evaluate(`
-    f.view.dispatch({ changes: { from: 0, to: f.view.state.doc.length, insert: '| Name | Value |\\n| --- | --- |\\n| one | unchanged |\\n\\nText below the table.' }, selection: { anchor: 0 } });
+    f.replaceSource('| Name | Value |\\n| --- | --- |\\n| one | unchanged |\\n\\nText below the table.');
     const table = f.view.dom.querySelector('.cm-md-table-widget');
     await new Promise(resolve => setTimeout(resolve, 60));
     const text = Array.from(f.view.contentDOM.querySelectorAll('.cm-line')).find(line => line.textContent.includes('Text below'));
@@ -150,7 +192,7 @@ async function run() {
   assert.ok(sidebar.tableMounted, "sidebar scenario has a real table");
   assert.ok(sidebar.tableRetained, "loading unrelated folder entries must retain the table DOM");
   assert.ok(sidebar.samples.every((top) => Math.abs(top - sidebar.baseline) < 0.75), "paragraph geometry remains stable across folder loads");
-  console.log(JSON.stringify({ ok: true, selections: cases.map(({ name, after }) => ({ name, anchor: after.anchor, head: after.head })), sidebar, interactions: report.interactions }, null, 2));
+  console.log(JSON.stringify({ ok: true, selections: cases.map(({ name, after }) => ({ name, anchor: after.anchor, head: after.head })), expandedSources: report.expandedSources, sidebar, interactions: report.interactions }, null, 2));
 }
 app.whenReady().then(run).then(() => finish(0), (error) => {
   report.error = error instanceof Error ? error.stack : String(error);
