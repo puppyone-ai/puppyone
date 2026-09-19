@@ -56,6 +56,7 @@ export class PiRpcClient extends EventEmitter {
     maxStderrBytes = DEFAULT_MAX_STDERR_BYTES,
     maxPending = DEFAULT_MAX_PENDING,
     forceKillTimeoutMs = DEFAULT_FORCE_KILL_TIMEOUT_MS,
+    sensitiveValues = [],
   }) {
     super();
     validateLaunch(executablePath, [...argsPrefix, ...args], cwd);
@@ -63,6 +64,8 @@ export class PiRpcClient extends EventEmitter {
     this.maxStderrBytes = maxStderrBytes;
     this.maxPending = maxPending;
     this.forceKillTimeoutMs = forceKillTimeoutMs;
+    this.redactSensitive = (text) => sensitiveValues.reduce((result, secret) => secret
+      ? result.split(JSON.stringify(secret).slice(1, -1)).join("[redacted]").split(secret).join("[redacted]") : result, String(text));
     this.nextRequestId = 1;
     this.pending = new Map();
     this.seenResponseIds = new Set();
@@ -146,15 +149,15 @@ export class PiRpcClient extends EventEmitter {
   waitForExit(options) { return waitForManagedAgentExit(this, options); }
 
   getDiagnostics() {
-    return redactSecretText(this.stderrBuffer.slice(-this.maxStderrBytes));
+    return redactSecretText(this.redactSensitive(this.stderrBuffer).slice(-this.maxStderrBytes));
   }
 
   dispose(reason = "Pi RPC connection closed.", { expected = true } = {}) {
     if (this.closed) return;
     this.closed = true;
     this.exitExpected = Boolean(expected);
-    this.closeReason = redactSecretText(reason);
-    this.#rejectPending(new Error(reason));
+    this.closeReason = redactSecretText(this.redactSensitive(reason));
+    this.#rejectPending(new Error(this.closeReason));
     try {
       this.child.stdin?.end?.();
     } catch {
@@ -194,7 +197,7 @@ export class PiRpcClient extends EventEmitter {
   #receiveLine(line) {
     let message;
     try {
-      message = JSON.parse(line);
+      message = JSON.parse(this.redactSensitive(line));
     } catch {
       this.#protocolFailure("Pi RPC emitted malformed protocol data.");
       return;

@@ -147,6 +147,10 @@ export type AgentCapabilities = {
   mcp: boolean;
   skills: boolean;
   compaction: boolean;
+  /** This runtime consumes application-owned model connections. */
+  modelConnections?: boolean;
+  /** This native history is readable, but its model connection is unavailable. */
+  readOnly?: boolean;
   /** Independent native History operations; sessionHistory is a compatibility projection. */
   history?: {
     discovery: "unsupported" | "paged";
@@ -203,6 +207,8 @@ export type AgentModel = {
   variants?: string[];
   defaultVariant?: string | null;
   contextWindow?: number | null;
+  connectionId?: string;
+  modelCapabilities?: { text: "supported" | "unsupported" | "unknown"; tools: "supported" | "unsupported" | "unknown"; images: "supported" | "unsupported" | "unknown"; reasoning?: "supported" | "unsupported" | "unknown" };
 };
 
 export type AgentInferenceProvider = {

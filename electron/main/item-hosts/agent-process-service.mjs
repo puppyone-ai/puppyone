@@ -1,13 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { createUtilityHost } from "./utility-host.mjs";
 import { hostError } from "../../../shared/item-host-contract/rpc.mjs";
+import { parseModelRoute } from "../../../shared/model-connections/schema.mjs";
 
 const SESSION_METHODS = ["startTurn", "steerTurn", "interruptTurn", "resolveApproval", "resolveQuestion", "replay",
   "attachSession", "acknowledgeSession", "readSessionWatermark", "detachSession", "compactSession"];
 
 /** Main retains authority and routing metadata, never a running Agent actor. */
 export function createAgentProcessService({ utilityProcess, modulePath, budget, appVersion,
-  runtimeEnvironment = {}, catalogService, conversationCatalog, attachmentStore,
+  runtimeEnvironment = {}, catalogService, conversationCatalog, attachmentStore, modelConnections = null,
   onHostEvent = () => {}, createHost = createUtilityHost }) {
   const records = new Set();
   const bySession = new Map();
@@ -23,7 +24,9 @@ export function createAgentProcessService({ utilityProcess, modulePath, budget, 
     return record;
   };
   const shutdown = async (record) => {
+    record.closing = true;
     await record.host.close();
+    modelConnections?.releaseScope(record.key);
     records.delete(record);
     if (bySession.get(record.sessionId) === record) bySession.delete(record.sessionId);
     if (record.instanceId) {
@@ -65,14 +68,39 @@ export function createAgentProcessService({ utilityProcess, modulePath, budget, 
     }
     const locator = method !== "createSession" && request.sessionId ? `${root}:${request.sessionId}` : null;
     if (locator && pendingSessions.has(locator)) throw hostError("SESSION_DUPLICATE", "This Agent history is already opening.");
+    if (locator) pendingSessions.add(locator);
     const key = randomUUID();
+    let persistedRoute = null;
+    try {
+      if (modelConnections && method !== "createSession") persistedRoute = request.sessionId
+        ? await conversationCatalog.findById(request.sessionId, root)
+        : await conversationCatalog.findLatest(root, request.runtimeId);
+      // Catalog reads yield; another create may have claimed this item meanwhile.
+      if (sender.hostItemId && [...records].some((record) => record.ownerId === sender.id && record.itemId === sender.hostItemId)) {
+        throw hostError("SESSION_DUPLICATE", "This item already owns a starting or live Agent session.");
+      }
+    } catch (error) { if (locator) pendingSessions.delete(locator); throw error; }
     const record = { key, ownerId: sender.id, itemId: sender.hostItemId ?? key, root,
-      sessionId: null, instanceId: null, host: null };
-    record.host = createHost({ utilityProcess, modulePath, budget,
+      sessionId: null, instanceId: null, host: null,
+      runtimeId: persistedRoute?.runtimeId ?? request.runtimeId,
+      allowedModelRoute: persistedRoute?.selectedModel ?? request.model, closing: false };
+    try { record.host = createHost({ utilityProcess, modulePath, budget,
       identity: { key, ownerId: sender.id, projectId: request.projectContext?.projectId ?? root, kind: "agent" },
-      initialize: { ownerId: sender.id, root, appVersion, runtimeEnvironment },
+      initialize: { ownerId: sender.id, root, appVersion, runtimeEnvironment, modelConnectionsEnabled: Boolean(modelConnections) },
       handle: async (name, args) => {
         const [scope, methodName] = name.split(":");
+        if (scope === "model-connections") {
+          if (!modelConnections || record.runtimeId !== "puppyone-agent" || !records.has(record)) throw hostError("HOST_AUTHORITY", "Model connection authority is unavailable.");
+          if (methodName === "release") return modelConnections.release({ leaseId: args[0], scope: record.key });
+          if (record.closing || record.host.exited) throw hostError("HOST_AUTHORITY", "Model connection authority has expired.");
+          if (methodName === "read") return modelConnections.catalog();
+          if (methodName === "acquire") {
+            if (parseModelRoute(args[0]).connectionId !== parseModelRoute(record.allowedModelRoute).connectionId) throw hostError("HOST_AUTHORITY", "The session cannot acquire another model connection.");
+            return modelConnections.acquire({ route: args[0], scope: record.key, onRevoke: () => shutdown(record) });
+          }
+          if (methodName === "validate") return modelConnections.validate({ leaseId: args[0], route: args[1], scope: record.key });
+          throw hostError("HOST_METHOD", "Unknown model connection operation.");
+        }
         if (scope === "attachments" && ["releaseLease", "revokeLeased", "revoke"].includes(methodName)) {
           if (args[0]?.ownerId !== sender.id || args[0]?.workspaceRoot !== root) throw hostError("HOST_AUTHORITY", "Attachment owner does not match this host.");
           return attachmentStore[methodName](...args);
@@ -92,10 +120,9 @@ export function createAgentProcessService({ utilityProcess, modulePath, budget, 
         throw hostError("HOST_METHOD", "Unauthorized Agent host operation.");
       },
       onEvent: (event) => onHostEvent(record, event),
-      onExit: (event) => onHostEvent(record, { type: "host-exited", ...event }),
-    });
+      onExit: (event) => { modelConnections?.releaseScope(record.key); onHostEvent(record, { type: "host-exited", ...event }); },
+    }); } catch (error) { if (locator) pendingSessions.delete(locator); throw error; }
     records.add(record);
-    if (locator) pendingSessions.add(locator);
     try {
       const result = await record.host.call(method, [request, root]);
       const snapshot = method === "openSession" ? result?.snapshot : result;

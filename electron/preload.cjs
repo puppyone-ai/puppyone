@@ -508,6 +508,19 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
     },
   } : {}),
   discoverLocalAgentInstallations: (request) => ipcRenderer.invoke("local-agent-installation:discover", request),
+  modelConnections: {
+    read: () => ipcRenderer.invoke("model-connections:read"),
+    discover: () => ipcRenderer.invoke("model-connections:discover"),
+    save: (request) => ipcRenderer.invoke("model-connections:save", request),
+    remove: (request) => ipcRenderer.invoke("model-connections:remove", request),
+    refresh: (request) => ipcRenderer.invoke("model-connections:refresh", request),
+    verify: (request) => ipcRenderer.invoke("model-connections:verify", request),
+    subscribe: (callback) => {
+      const listener = (_event, snapshot) => callback(snapshot);
+      ipcRenderer.on("model-connections:changed", listener);
+      return () => ipcRenderer.removeListener("model-connections:changed", listener);
+    },
+  },
   onLocalAgentInstallationProgress: (callback) => {
     if (typeof callback !== "function") return () => {};
     const listener = (_event, payload) => callback(payload);

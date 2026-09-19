@@ -136,10 +136,10 @@ export function applyInspection(session, inspection) {
   session.commands = Array.isArray(inspection.commands) ? inspection.commands : [];
   session.capabilities = normalizeCapabilitySnapshot(inspection.capabilities);
   if (inspection.runtime) session.runtime = { ...session.runtime, ...sanitizeAgentRuntimeDescriptor(inspection.runtime) };
-  if (session.selectedModel && !session.models.some((model) => model.model === session.selectedModel)) {
+  if (!inspection.capabilities?.modelConnections && session.selectedModel && !session.models.some((model) => model.model === session.selectedModel)) {
     session.selectedModel = null;
   }
-  if (!session.selectedModel) {
+  if (!session.selectedModel && !inspection.capabilities?.modelConnections) {
     const providerIds = new Set(session.models.map(modelProviderId).filter(Boolean));
     if (providerIds.size <= 1) {
       const [providerId] = providerIds;
@@ -148,6 +148,10 @@ export function applyInspection(session, inspection) {
         : session.models;
       session.selectedModel = providerModels.find((model) => model.isDefault)?.model ?? providerModels[0]?.model ?? null;
     }
+  }
+  if (!session.selectedModel && inspection.capabilities?.modelConnections) {
+    const defaults = session.models.filter((model) => model.isDefault);
+    session.selectedModel = defaults.length === 1 ? defaults[0].model : null;
   }
   const selectedModel = session.models.find((model) => model.model === session.selectedModel);
   const efforts = selectedModel?.variants ?? [];

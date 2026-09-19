@@ -100,6 +100,7 @@ export function createAgentService({
   };
 
   return {
+    invalidateRuntimeReadiness: () => runtimeResolutionCoordinator.clear(),
     assertSessionInstance: (sender, request, root, options) => sessionStore.assertInstance(sender, request, root, options),
     discoverProviders: (_sender, request = {}, workspaceRoot = /** @type {string | null} */ (null)) => runtimeCatalog.discover(request, workspaceRoot),
     listModels: (_sender, request = {}, workspaceRoot = /** @type {string | null} */ (null)) => runtimeCatalog.listModels(request, workspaceRoot),
