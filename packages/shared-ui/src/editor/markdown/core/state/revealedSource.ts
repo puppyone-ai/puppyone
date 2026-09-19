@@ -1,4 +1,5 @@
 import { StateEffect, StateField } from "@codemirror/state";
+import { markdownPointerSelectionField } from "./pointerSelection";
 
 export type MarkdownRevealedSourceRange = {
   from: number;
@@ -28,6 +29,14 @@ export const markdownRevealedSourceField = StateField.define<MarkdownRevealedSou
       presentation: value.presentation,
     } satisfies MarkdownRevealedSourceRange;
     const selection = transaction.state.selection.main;
+    // Expanded atoms change line width/height when folded. Keep the same
+    // projection through mouse hit testing and a covering/adjacent selection,
+    // just as for automatically revealed inline syntax. Reconcile on the next
+    // caret placement or committed edit; explicit effects above still win.
+    if (!transaction.docChanged && (
+      transaction.state.field(markdownPointerSelectionField, false)
+      || !selection.empty
+    )) return mapped;
     return selection.from >= mapped.from && selection.to <= mapped.to
       ? mapped
       : null;

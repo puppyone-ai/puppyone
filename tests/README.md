@@ -89,6 +89,38 @@ pointer forwarding is tested separately; this matrix injects Chromium input into
 the owner renderer. Its `editor-panes` app gate runs the complete matrix. The
 optional `-- --case pdf` selection is diagnostic and is recorded in its report.
 
+## Markdown selection and workspace projection
+
+Pure inline-preview dependency rules belong in
+`unit/editor/formats/markdown/links/inlinePreviewLinkIdentity.test.ts`.
+Pointer lifecycle behavior belongs in
+`component/editor/formats/markdown/rendering/markdownPointerSelection.test.ts`:
+release ordering, cancellation, consecutive gestures, pane isolation, committed
+edits and destruction run through real EditorView events/transactions with only
+coordinate measurement controlled by happy-dom.
+This also covers explicitly expanded inline/block source: range selection keeps
+it open, while an outside single click folds it only after release.
+`markdownBlockWidgetSelection.test.ts` checks Tabs/video accents, reapplication
+after a table is replaced, and sibling-pane focus ownership. Image deletion and
+dynamic read-only enforcement belong in `embeds/markdownImageInteraction.test.ts`.
+
+The `markdown-selection` app gate (`npm run smoke:markdown-selection-stability`)
+uses Chromium mouse input to check forward/backward single-character selection,
+CJK, selection across paragraphs, revealed links above the pointer, outside
+release, cancellation, link navigation versus dragging, and table/paragraph
+geometry across link-index refreshes. Component coverage also drives a real
+DataWorkspace folder's first child load and verifies relevant wiki links still
+refresh. These checks do not claim OS-level pointer injection or full theme/RTL coverage.
+Its Node runner first verifies that an intentional Electron assertion returns
+exit code 1, then requires both a successful exit and a positive completion
+report from the real scenarios. Closing the fixture window cannot turn a
+failed assertion into a passing release check. The mouse-only fixture rejects
+physical keyboard input and asserts its source remains unchanged.
+Pointer injection waits for the matching DOM event to finish, rather than a
+fixed delay. A further scenario checks the exact backward character and paragraph
+position below expanded display-math source; dependency fonts are served from
+the actual node_modules directory when using an isolated worktree.
+
 ## Sidebar visibility and residual content
 
 `integration/workbench/layout/sidebarVisibility.integration.test.tsx` connects

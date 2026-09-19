@@ -117,6 +117,7 @@ export class ImagePreviewWidget extends WidgetType {
         return;
       }
       if (event.key !== "Backspace" && event.key !== "Delete") return;
+      if (view.state.readOnly) return;
       const range = getSourceRange();
       if (!range) return;
       event.preventDefault();
