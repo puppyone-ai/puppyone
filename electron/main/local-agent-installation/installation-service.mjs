@@ -50,8 +50,10 @@ export function createLocalAgentInstallationService(options = {}) {
     const requestedAt = now();
     if (active) {
       if (refresh) return enqueueFreshScan(onProgress);
-      addObserver(active.observers, onProgress);
-      return active.promise;
+      const scan = active;
+      addObserver(scan.observers, onProgress);
+      safelyPublish(onProgress, scan.progress);
+      return scan.promise;
     }
     if (!refresh && cached && requestedAt - cached.cachedAt < cacheTtlMs) {
       diagnostics.cacheHitCount += 1;
@@ -104,7 +106,7 @@ export function createLocalAgentInstallationService(options = {}) {
         }
         return snapshot;
       });
-    active = { observers, promise: task, scanGeneration };
+    active = { observers, promise: task, scanGeneration, progress: null };
     void task.then(
       () => finishScan(task),
       () => finishScan(task),
@@ -133,13 +135,16 @@ export function createLocalAgentInstallationService(options = {}) {
       }
       settled.set(definition.id, publicResult(definition, observation));
       completedAgentCount += 1;
-      publishProgress(observers, {
+      const progress = createProgress({
         scanId,
         generation: scanGeneration,
         completedAgentCount,
         totalAgentCount: registry.length,
         results: stableResults(registry, settled),
       });
+      if (disposed || active?.scanGeneration !== scanGeneration) return;
+      active.progress = progress;
+      for (const observer of observers) safelyPublish(observer, progress);
     }));
     const results = stableResults(registry, settled);
     const completedAt = new Date(now()).toISOString();
@@ -209,22 +214,15 @@ function stableResults(registry, settled) {
   return registry.map(({ id }) => settled.get(id)).filter(Boolean);
 }
 
-function publishProgress(observers, progress) {
+function createProgress(progress) {
   const results = Object.freeze([...progress.results]);
-  const event = Object.freeze({
+  return Object.freeze({
     ...progress,
     results,
     availableAgentIds: Object.freeze(
       results.filter(({ status }) => status === "found").map(({ agentId }) => agentId),
     ),
   });
-  for (const observer of observers) {
-    try {
-      observer(event);
-    } catch {
-      // A renderer disappearing must not interrupt application-scoped discovery.
-    }
-  }
 }
 
 function addObserver(observers, observer) {
@@ -232,7 +230,7 @@ function addObserver(observers, observer) {
 }
 
 function safelyPublish(publishSnapshot, snapshot) {
-  if (typeof publishSnapshot !== "function") return;
+  if (typeof publishSnapshot !== "function" || !snapshot) return;
   try {
     publishSnapshot(snapshot);
   } catch {

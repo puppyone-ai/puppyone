@@ -4,6 +4,48 @@ import { defaultLocalAgentInstallationRegistry } from "../../../../electron/main
 import { DESKTOP_TERMINAL_LAUNCHERS } from "../../../../src/features/desktop-terminal/model/terminalLaunchers.ts";
 
 describe("Local Agent installation service", () => {
+  it("publishes fast results before slow siblings and replays them to late observers without rescanning", async () => {
+    const gates = new Map(defaultLocalAgentInstallationRegistry.map(({ id }) => [id, deferred()]));
+    const resolver = vi.fn(definition => gates.get(definition.id).promise);
+    const service = createLocalAgentInstallationService({
+      createResolutionContext: async () => ({}), resolveInstallation: resolver,
+    });
+    const progress = vi.fn();
+    const finished = vi.fn();
+    const first = service.discover({ onProgress: progress });
+    void first.then(finished);
+    await vi.waitFor(() => expect(resolver).toHaveBeenCalledTimes(8));
+    gates.get("hermes").resolve({ status: "found", candidate: { source: "fixture" } });
+    await vi.waitFor(() => expect(progress).toHaveBeenCalledOnce());
+    expect(finished).not.toHaveBeenCalled();
+    expect(progress.mock.calls[0][0]).toMatchObject({ availableAgentIds: ["hermes"], completedAgentCount: 1, totalAgentCount: 8 });
+    const late = vi.fn();
+    expect(service.discover({ onProgress: late })).toBe(first);
+    expect(late).toHaveBeenCalledWith(progress.mock.calls[0][0]);
+    expect(resolver).toHaveBeenCalledTimes(8);
+    // A dead renderer must not break the shared scan or progress replay.
+    expect(() => service.discover({ onProgress: () => { throw new Error("closed"); } })).not.toThrow();
+    for (const [id, gate] of gates) if (id !== "hermes") gate.resolve({ status: "not-found" });
+    await first;
+    expect(late).toHaveBeenCalledTimes(8);
+    expect(finished).toHaveBeenCalledOnce();
+  });
+
+  it("does not publish late progress after disposal", async () => {
+    const gate = deferred();
+    const progress = vi.fn();
+    const publishSnapshot = vi.fn();
+    const service = createLocalAgentInstallationService({
+      createResolutionContext: () => gate.promise, publishSnapshot,
+      resolveInstallation: async () => ({ status: "not-found" }),
+    });
+    const scan = service.discover({ onProgress: progress });
+    service.dispose();
+    gate.resolve({});
+    await scan;
+    expect(progress).not.toHaveBeenCalled();
+    expect(publishSnapshot).not.toHaveBeenCalled();
+  });
   it("keeps the application registry aligned with launcher products", () => {
     expect(defaultLocalAgentInstallationRegistry.map(({ id }) => id)).toEqual([
       "codex",

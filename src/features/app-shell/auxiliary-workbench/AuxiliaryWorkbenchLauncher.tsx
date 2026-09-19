@@ -40,9 +40,14 @@ export function AuxiliaryWorkbenchLauncher({ store, contributions, hiddenAgentId
   };
   return <TerminalLauncher
     state={launcherState}
+    presented={presented}
     titleId={`workbench-launcher-${store.context.generation}-${itemId ?? "empty"}`}
     agentMode={chat ? "chat" : "terminal"}
     discoveryPhase={discovery.phase}
+    discoveryProgress={discovery.progress}
+    discoveryHasFailures={discovery.hasFailures}
+    discoveryRefreshing={discovery.refreshing}
+    discoveryHasInstallations={discovery.ids.length > 0}
     availableAgentIds={availableAgentIds}
     terminalEnabled={Boolean(terminal)}
     launching={snapshot.preparingKinds.has("terminal") || snapshot.closing}
