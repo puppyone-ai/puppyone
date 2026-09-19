@@ -7,6 +7,10 @@ type OnboardingBrandLockupProps = {
   resolvedTheme: "light" | "dark";
 };
 
+/**
+ * First-run shows what puppyone is before asking for a decision; returning
+ * users only see the project prompt.
+ */
 export function OnboardingBrandLockup({ state, resolvedTheme }: OnboardingBrandLockupProps) {
   const { t } = useLocalization();
   const hasProjects = state === "projects";
@@ -23,6 +27,12 @@ export function OnboardingBrandLockup({ state, resolvedTheme }: OnboardingBrandL
         <span className={hasProjects ? "onboarding-brand-prompt" : "onboarding-brand-name"}>
           {t(hasProjects ? "onboarding.section.chooseProject" : "onboarding.brand.name")}
         </span>
+        {!hasProjects && (
+          <>
+            <p className="onboarding-brand-tagline">{t("onboarding.brand.tagline")}</p>
+            <p className="onboarding-brand-description">{t("onboarding.brand.description")}</p>
+          </>
+        )}
       </div>
     </header>
   );

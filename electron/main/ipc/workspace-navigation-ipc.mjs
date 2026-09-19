@@ -9,6 +9,7 @@ export function registerWorkspaceNavigationIpcHandlers({
   createProjectForCurrentWindow,
   cloneRepositoryForCurrentWindow,
   selectProjectLocationForCurrentWindow,
+  getDefaultProjectLocationForCurrentWindow,
   selectWorkspaceForCurrentWindow,
   selectWorkspaceForCurrentComposition,
   selectWorkspaceForNewWindow,
@@ -72,6 +73,10 @@ export function registerWorkspaceNavigationIpcHandlers({
 
   ipcMain.handle("workspace:select-project-location-current", async (event) => {
     return selectProjectLocationForCurrentWindow(event.sender);
+  });
+
+  ipcMain.handle("workspace:default-project-location-current", async (event) => {
+    return getDefaultProjectLocationForCurrentWindow(event.sender);
   });
 
   ipcMain.handle("workspace:clone-repository-current", async (event, request) => {

@@ -7,6 +7,7 @@ import type {
 import {
   cloneRepository as cloneRepositoryBridge,
   createLocalProject as createLocalProjectBridge,
+  getDefaultLocalProjectLocation as getDefaultLocalProjectLocationBridge,
   openDroppedWorkspaceInCurrentWindow as openDroppedWorkspaceInCurrentWindowBridge,
   openWorkspaceInCurrentWindow as openWorkspaceInCurrentWindowBridge,
   openWorkspaceInNewWindow as openWorkspaceInNewWindowBridge,
@@ -43,6 +44,10 @@ export async function createLocalProjectTarget(
 
 export async function selectLocalProjectLocationTarget(): Promise<WorkspaceProjectLocationGrant | null> {
   return selectLocalProjectLocationBridge();
+}
+
+export async function defaultLocalProjectLocationTarget(): Promise<WorkspaceProjectLocationGrant | null> {
+  return getDefaultLocalProjectLocationBridge();
 }
 
 export async function cloneRepositoryTarget(

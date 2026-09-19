@@ -31,6 +31,7 @@ import { CLOUD_HUB_ENTRY_SECTION, type CloudWorkspaceSection } from "./features/
 import {
   MinimalOnboarding,
 } from "./components/MinimalOnboarding";
+import { OnboardingImportDialog } from "./components/OnboardingImportDialog";
 import { OnboardingProjectEntryDialog } from "./components/OnboardingProjectEntryDialog";
 import { AssetLibraryHome } from "./components/AssetLibraryHome";
 import {
@@ -209,6 +210,7 @@ function AppContent() {
     clearWorkspace,
     cloneRepository,
     createProject,
+    defaultProjectLocation,
     forgetActiveWorkspace,
     handleWorkspaceOpenResult,
     openDroppedWorkspace,
@@ -1268,6 +1270,7 @@ function AppContent() {
       <Homepage
         onChooseWorkspace={openFolder}
         onChooseProjectLocation={chooseProjectLocation}
+        onDefaultProjectLocation={defaultProjectLocation}
         onCreateProject={createProject}
         onCloneRepository={cloneRepository}
         onOpenDroppedWorkspace={openDroppedWorkspace}
@@ -1527,6 +1530,10 @@ function AppContent() {
               experimentalSettings.enableFirstProjectStarter
               && activeWorkspaceEntryKind === "created"
             }
+            starterDocumentAutoCreate={
+              !experimentalSettings.enableFirstProjectStarter
+              && activeWorkspaceEntryKind === "created"
+            }
             git={git}
             onActiveDataNodeChange={handleActiveDataNodeChange}
             onActiveDataPathChange={handleActiveDataPathChange}
@@ -1651,20 +1658,19 @@ function AppContent() {
           )}
           {projectEntryDialog === "create" && (
             <OnboardingProjectEntryDialog
-              kind="create"
               onClose={() => setProjectEntryDialog(null)}
+              onDefaultLocation={defaultProjectLocation}
               onChooseLocation={chooseProjectLocation}
-              onSubmit={(value, locationGrantId) => createProject({
-                name: value,
-                locationGrantId: locationGrantId ?? "",
-              })}
+              onSubmit={(name, locationGrantId) => createProject({ name, locationGrantId })}
             />
           )}
           {projectEntryDialog === "clone" && (
-            <OnboardingProjectEntryDialog
-              kind="clone"
+            <OnboardingImportDialog
               onClose={() => setProjectEntryDialog(null)}
-              onSubmit={(value) => cloneRepository({ repositoryUrl: value })}
+              onDefaultLocation={defaultProjectLocation}
+              onChooseLocation={chooseProjectLocation}
+              onImportRepository={(request) => cloneRepository(request)}
+              onOpenFolder={() => void openFolder()}
             />
           )}
           {gitOperationError && !pendingBranchSwitch && (

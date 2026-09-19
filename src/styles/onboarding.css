@@ -134,6 +134,36 @@
   white-space: nowrap;
 }
 
+.onboarding-shell[data-onboarding-state="empty"] .onboarding-brand-lockup {
+  align-items: flex-start;
+}
+
+.onboarding-shell[data-onboarding-state="empty"] .onboarding-brand-copy {
+  gap: 6px;
+}
+
+.onboarding-brand-tagline,
+.onboarding-brand-description {
+  margin: 0;
+  max-width: 42ch;
+  font-family: var(--po-font-sans);
+  text-wrap: pretty;
+}
+
+.onboarding-brand-tagline {
+  margin-top: 2px;
+  color: var(--po-text);
+  font-size: var(--po-type-ui-body, 14px);
+  font-weight: var(--po-text-weight-medium, 500);
+  line-height: 20px;
+}
+
+.onboarding-brand-description {
+  color: var(--po-text-subtle);
+  font-size: var(--po-type-ui-meta, 13px);
+  line-height: 18px;
+}
+
 .onboarding-brand-prompt {
   display: block;
   max-width: 100%;
@@ -348,18 +378,17 @@
   font-weight: var(--po-text-weight-medium, 500);
 }
 
-.onboarding-shell[data-onboarding-state="empty"] .onboarding-entry-action-default:hover:not(:disabled),
-.onboarding-shell[data-onboarding-state="empty"] .onboarding-entry-action-default.is-dragging,
-.onboarding-shell[data-onboarding-state="empty"].dragging .onboarding-entry-action-default {
+.onboarding-shell[data-onboarding-state="empty"] .onboarding-entry-action-default:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--po-text) 88%, var(--po-canvas));
   background: color-mix(in srgb, var(--po-text) 88%, var(--po-canvas));
   color: var(--po-canvas);
 }
 
-.onboarding-entry-action-default:disabled[aria-busy="true"] {
-  border-color: var(--po-text-muted);
-  background: var(--po-text-muted);
-  color: var(--po-canvas);
+/* Dropping a folder always targets "Open a folder", not the default action. */
+.onboarding-shell.dragging .onboarding-entry-action[data-onboarding-action="open"] {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--po-text) 5%, transparent);
+  color: var(--po-text);
 }
 
 .onboarding-projects-layout {

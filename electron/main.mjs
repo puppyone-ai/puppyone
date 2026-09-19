@@ -423,6 +423,8 @@ const workspaceStateStore = createWorkspaceStateStore({
 const projectEntryService = createProjectEntryService();
 const projectEntryOperationSenders = new Set();
 const projectLocationGrants = createProjectLocationGrantStore();
+/** Folder under the user's Documents directory that hosts projects created without a folder picker. */
+const DEFAULT_PROJECTS_FOLDER_NAME = "PuppyOne";
 const cloudAuthService = createCloudAuthService({
   app,
   requestCloudApi,
@@ -1005,6 +1007,7 @@ function registerIpcHandlers() {
     createProjectForCurrentWindow,
     cloneRepositoryForCurrentWindow,
     selectProjectLocationForCurrentWindow,
+    getDefaultProjectLocationForCurrentWindow,
     selectWorkspaceForCurrentWindow,
     selectWorkspaceForCurrentComposition,
     selectWorkspaceForNewWindow,
@@ -1320,15 +1323,35 @@ async function selectProjectLocationForCurrentWindow(sender) {
   });
 }
 
+/**
+ * Issues a grant for the built-in projects folder so that creating or importing
+ * a project does not require a native folder picker. The path is chosen by the
+ * main process, never by the renderer, so it stays inside the grant model.
+ */
+async function getDefaultProjectLocationForCurrentWindow(sender) {
+  return runProjectEntryOperation(sender, async () => {
+    const parentPath = path.join(app.getPath("documents"), DEFAULT_PROJECTS_FOLDER_NAME);
+    await fs.promises.mkdir(parentPath, { recursive: true });
+    const canonicalPath = await fs.promises.realpath(parentPath);
+    return projectLocationGrants.issue(sender, canonicalPath);
+  });
+}
+
 async function cloneRepositoryForCurrentWindow(sender, request) {
   const repository = requireGitRepository(request?.repositoryUrl);
   return runProjectEntryOperation(sender, async () => {
-    const parentPath = await selectProjectParentDirectory(sender, "clone");
+    const grantId = typeof request?.locationGrantId === "string" && request.locationGrantId
+      ? request.locationGrantId
+      : null;
+    const parentPath = grantId
+      ? projectLocationGrants.resolve(sender, grantId)
+      : await selectProjectParentDirectory(sender, "clone");
     if (!parentPath) return null;
     const project = await projectEntryService.cloneRepository({
       parentPath,
       repositoryUrl: repository.url,
     });
+    if (grantId) projectLocationGrants.revoke(sender, grantId);
     return openWorkspaceInCurrentWindow(sender, project.path);
   });
 }

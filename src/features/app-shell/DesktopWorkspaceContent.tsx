@@ -53,6 +53,8 @@ type DesktopWorkspaceContentProps = {
   fileClipboardController: FileClipboardController;
   desktopUpdates: DesktopUpdatesController;
   firstProjectStarterEligible: boolean;
+  /** Newly created empty projects get a Getting Started document without asking. */
+  starterDocumentAutoCreate: boolean;
   git: DesktopGitController;
   onActiveDataPathChange: (
     path: string | null,
@@ -111,6 +113,7 @@ export function DesktopWorkspaceContent({
   fileClipboardController,
   desktopUpdates,
   firstProjectStarterEligible,
+  starterDocumentAutoCreate,
   git,
   onActiveDataPathChange,
   onActiveDataNodeChange,
@@ -217,6 +220,7 @@ export function DesktopWorkspaceContent({
         fileClipboardController={fileClipboardController}
         fileOperationNotice={fileOperationNotice}
         firstProjectStarterEligible={firstProjectStarterEligible}
+        starterDocumentAutoCreate={starterDocumentAutoCreate}
         navigation={{
           activeView: resolvedActiveView,
           availableSurfaceIds,

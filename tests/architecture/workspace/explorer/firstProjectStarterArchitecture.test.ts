@@ -13,6 +13,18 @@ describe("first project starter architecture", () => {
     expect(app).toContain('activeWorkspaceEntryKind === "created"');
   });
 
+  it("gives a newly created empty project its Getting Started document without a chooser by default", () => {
+    const app = source("src/App.tsx");
+    const surface = source("src/features/app-shell/DesktopDataWorkspaceSurface.tsx");
+
+    // The experimental chooser and the default auto-created guide are mutually exclusive.
+    expect(app).toContain("starterDocumentAutoCreate={");
+    expect(app).toContain("!experimentalSettings.enableFirstProjectStarter");
+    expect(surface).toContain('resolveEmptyWorkspaceStarterSelection("get-started", t)');
+    expect(surface).toContain('currentWorkspaceRootStatus !== "empty"');
+    expect(surface).toContain("autoStarterWorkspaceKeyRef.current === explorerSession.key");
+  });
+
   it("keeps starter writes explicit, root-qualified, and outside the workspace tree renderer", () => {
     const surface = source("src/features/app-shell/DesktopDataWorkspaceSurface.tsx");
     const dialog = source("src/features/app-shell/EmptyWorkspaceOnboardingDialog.tsx");

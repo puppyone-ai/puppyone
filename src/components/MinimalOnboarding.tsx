@@ -21,6 +21,7 @@ import type {
   WorkspaceProjectLocationGrant,
 } from "../types/electron";
 import { DesktopWindowDragRegion } from "./DesktopWindowChrome";
+import { OnboardingImportDialog } from "./OnboardingImportDialog";
 import { OnboardingProjectEntryDialog } from "./OnboardingProjectEntryDialog";
 import { OnboardingBrandLockup } from "./onboarding/OnboardingBrandLockup";
 import { OnboardingEmptyStateIntro } from "./onboarding/OnboardingEmptyStateIntro";
@@ -39,6 +40,7 @@ export type OnboardingOperationStatus = {
 export type MinimalOnboardingProps = {
   onChooseWorkspace: () => Promise<void>;
   onChooseProjectLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
+  onDefaultProjectLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
   onCreateProject?: (request: WorkspaceCreateProjectRequest) => Promise<boolean>;
   onCloneRepository?: (request: WorkspaceCloneRepositoryRequest) => Promise<boolean>;
   onOpenWorkspacePath: (path: string) => Promise<void>;
@@ -55,6 +57,7 @@ export type MinimalOnboardingProps = {
 export function MinimalOnboarding({
   onChooseWorkspace,
   onChooseProjectLocation,
+  onDefaultProjectLocation,
   onCreateProject,
   onCloneRepository,
   onOpenWorkspacePath,
@@ -251,20 +254,19 @@ export function MinimalOnboarding({
       </section>
       {entryDialog === "create" && onCreateProject && onChooseProjectLocation && (
         <OnboardingProjectEntryDialog
-          kind="create"
           onClose={() => setEntryDialog(null)}
+          onDefaultLocation={onDefaultProjectLocation}
           onChooseLocation={onChooseProjectLocation}
-          onSubmit={(value, locationGrantId) => onCreateProject({
-            name: value,
-            locationGrantId: locationGrantId ?? "",
-          })}
+          onSubmit={(name, locationGrantId) => onCreateProject({ name, locationGrantId })}
         />
       )}
       {entryDialog === "clone" && onCloneRepository && (
-        <OnboardingProjectEntryDialog
-          kind="clone"
+        <OnboardingImportDialog
           onClose={() => setEntryDialog(null)}
-          onSubmit={(value) => onCloneRepository({ repositoryUrl: value })}
+          onDefaultLocation={onDefaultProjectLocation}
+          onChooseLocation={onChooseProjectLocation}
+          onImportRepository={(request) => onCloneRepository(request)}
+          onOpenFolder={() => void chooseFolder()}
         />
       )}
       {showEmptyStateIntro && (

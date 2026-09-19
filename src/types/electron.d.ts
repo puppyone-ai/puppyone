@@ -720,6 +720,8 @@ export type WorkspaceProjectLocationGrant = {
 
 export type WorkspaceCloneRepositoryRequest = {
   repositoryUrl: string;
+  /** Optional location grant; when omitted the main process asks with a folder picker. */
+  locationGrantId?: string | null;
 };
 
 export type WorkspaceCreateEntryKind = "file" | "folder";
@@ -1147,6 +1149,7 @@ declare global {
       detachFolder: (folderPath: string) => Promise<WorkspaceDetachResult>;
       selectFolderInNewWindow: () => Promise<WorkspaceOpenResult | null>;
       selectLocalProjectLocation: () => Promise<WorkspaceProjectLocationGrant | null>;
+      getDefaultLocalProjectLocation: () => Promise<WorkspaceProjectLocationGrant | null>;
       createLocalProject: (
         request: WorkspaceCreateProjectRequest,
       ) => Promise<WorkspaceOpenResult | null>;

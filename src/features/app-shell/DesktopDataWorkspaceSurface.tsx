@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ComponentProps,
   type MouseEvent as ReactMouseEvent,
@@ -59,6 +60,7 @@ import {
   EmptyWorkspaceOnboardingDialog,
   markFirstProjectStarterCompleted,
   readFirstProjectStarterCompleted,
+  resolveEmptyWorkspaceStarterSelection,
   resolveWorkspaceRootOnboardingStatus,
   shouldShowFirstProjectStarter,
   type EmptyWorkspaceStarterSelection,
@@ -80,6 +82,7 @@ export type DesktopDataWorkspaceSurfaceProps = {
   fileClipboardController: FileClipboardController;
   fileOperationNotice: string | null;
   firstProjectStarterEligible: boolean;
+  starterDocumentAutoCreate: boolean;
   navigation: {
     activeView: DesktopView;
     availableSurfaceIds: readonly DesktopView[];
@@ -133,6 +136,7 @@ export function DesktopDataWorkspaceSurface({
   fileClipboardController,
   fileOperationNotice,
   firstProjectStarterEligible,
+  starterDocumentAutoCreate,
   navigation,
   onActiveDataNodeChange,
   onResourceMove,
@@ -215,32 +219,25 @@ export function DesktopDataWorkspaceSurface({
     completed: firstProjectStarterCompleted,
     workspaceStatus: currentWorkspaceRootStatus,
   });
-  const confirmWorkspaceStarter = useCallback(async (selection: EmptyWorkspaceStarterSelection) => {
-    if (selection.file) {
-      if (!dataPort.createFile) throw new Error(t("workspace.emptyOnboarding.createUnavailable"));
-      const folder = workspaceFolders.find((candidate) => candidate.uri === activeWorkspaceRootPath);
-      if (!folder || !activeWorkspaceRootPath) {
-        throw new Error("A Workspace Folder is required to create the starter document.");
-      }
-      const resourcePath = qualifyDataResourcePath(activeWorkspaceRootPath, selection.file.path);
-      await dataPort.createFile(resourcePath, selection.file.content);
-      const node: DataNode = {
-        id: resourcePath,
-        name: selection.file.path,
-        path: resourcePath,
-        type: getFileSemanticKind(selection.file.path, "file"),
-        resourceUri: resourcePath,
-        workspaceFolderId: folder.id,
-      };
-      markFirstProjectStarterCompleted();
-      setFirstProjectStarterCompleted(true);
-      onWorkspaceStarterCreated(resourcePath);
-      await onActiveDataPathChange(resourcePath, node);
-      return;
+  const createStarterDocument = useCallback(async (selection: EmptyWorkspaceStarterSelection) => {
+    if (!selection.file) return;
+    if (!dataPort.createFile) throw new Error(t("workspace.emptyOnboarding.createUnavailable"));
+    const folder = workspaceFolders.find((candidate) => candidate.uri === activeWorkspaceRootPath);
+    if (!folder || !activeWorkspaceRootPath) {
+      throw new Error("A Workspace Folder is required to create the starter document.");
     }
-
-    markFirstProjectStarterCompleted();
-    setFirstProjectStarterCompleted(true);
+    const resourcePath = qualifyDataResourcePath(activeWorkspaceRootPath, selection.file.path);
+    await dataPort.createFile(resourcePath, selection.file.content);
+    const node: DataNode = {
+      id: resourcePath,
+      name: selection.file.path,
+      path: resourcePath,
+      type: getFileSemanticKind(selection.file.path, "file"),
+      resourceUri: resourcePath,
+      workspaceFolderId: folder.id,
+    };
+    onWorkspaceStarterCreated(resourcePath);
+    await onActiveDataPathChange(resourcePath, node);
   }, [
     activeWorkspaceRootPath,
     dataPort,
@@ -249,6 +246,26 @@ export function DesktopDataWorkspaceSurface({
     t,
     workspaceFolders,
   ]);
+  const confirmWorkspaceStarter = useCallback(async (selection: EmptyWorkspaceStarterSelection) => {
+    await createStarterDocument(selection);
+    markFirstProjectStarterCompleted();
+    setFirstProjectStarterCompleted(true);
+  }, [createStarterDocument]);
+  // A freshly created project should never greet the user with three empty
+  // panes. Write the Getting Started guide once per workspace and open it.
+  const autoStarterWorkspaceKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (
+      !starterDocumentAutoCreate
+      || currentWorkspaceRootStatus !== "empty"
+      || autoStarterWorkspaceKeyRef.current === explorerSession.key
+    ) return;
+    autoStarterWorkspaceKeyRef.current = explorerSession.key;
+    void createStarterDocument(resolveEmptyWorkspaceStarterSelection("get-started", t))
+      .catch((error: unknown) => {
+        console.warn("[puppyone] Could not create the Getting Started document.", error);
+      });
+  }, [createStarterDocument, currentWorkspaceRootStatus, explorerSession.key, starterDocumentAutoCreate, t]);
   // DataWorkspace's width input is the expanded content-plane width. The
   // Shell's resolved width becomes zero while collapsed and must never replace
   // that retained geometry, or the Explorer children will reflow during exit.

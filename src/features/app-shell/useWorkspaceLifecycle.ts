@@ -19,6 +19,7 @@ import {
 import {
   cloneRepositoryTarget,
   createLocalProjectTarget,
+  defaultLocalProjectLocationTarget,
   openDroppedWorkspaceTarget,
   openWorkspaceTarget,
   selectLocalProjectLocationTarget,
@@ -272,6 +273,10 @@ export function useWorkspaceLifecycle({
     return selectLocalProjectLocationTarget();
   }, []);
 
+  const defaultProjectLocation = useCallback(async (): Promise<WorkspaceProjectLocationGrant | null> => {
+    return defaultLocalProjectLocationTarget();
+  }, []);
+
   const cloneRepository = useCallback(async (request: WorkspaceCloneRepositoryRequest) => {
     const navigation = ++navigationRequestRef.current;
     const result = await cloneRepositoryTarget(request);
@@ -372,6 +377,7 @@ export function useWorkspaceLifecycle({
     chooseProjectLocation,
     cloneRepository,
     createProject,
+    defaultProjectLocation,
     forgetActiveWorkspace,
     handleWorkspaceOpenResult,
     openDroppedWorkspace,

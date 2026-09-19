@@ -357,6 +357,10 @@ export async function selectLocalProjectLocation(): Promise<WorkspaceProjectLoca
   return getDesktopBridge().selectLocalProjectLocation();
 }
 
+export async function getDefaultLocalProjectLocation(): Promise<WorkspaceProjectLocationGrant | null> {
+  return getDesktopBridge().getDefaultLocalProjectLocation();
+}
+
 export async function cloneRepository(
   request: WorkspaceCloneRepositoryRequest,
 ): Promise<WorkspaceOpenResult | null> {

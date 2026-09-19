@@ -92,6 +92,173 @@
   color: color-mix(in srgb, #fc6d26 82%, var(--po-text-muted));
 }
 
+.onboarding-clone-hint {
+  margin-top: 10px;
+  color: var(--po-text-subtle);
+  font-size: var(--po-type-ui-meta, 13px);
+  line-height: 17px;
+}
+
+.onboarding-clone-hint.is-unsupported {
+  color: var(--po-danger);
+}
+
+.onboarding-entry-local-note {
+  color: var(--po-text-subtle);
+  font-size: var(--po-type-ui-meta, 13px);
+  line-height: 17px;
+}
+
+/* Import: source list */
+
+.onboarding-import-repository-form {
+  display: contents;
+}
+
+.onboarding-import-intro {
+  margin: 0 0 14px;
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-body, 14px);
+  line-height: 20px;
+}
+
+.onboarding-import-sources {
+  display: grid;
+  gap: 6px;
+}
+
+.onboarding-import-source {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  grid-template-columns: 28px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 11px;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: 9px;
+  background: var(--po-panel-raised);
+  color: var(--po-text);
+  font: inherit;
+  text-align: start;
+  cursor: var(--po-clickable-cursor, default);
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.onboarding-import-source:hover {
+  border-color: var(--po-border-strong);
+  background: var(--po-hover);
+}
+
+.onboarding-import-source:focus-visible {
+  border-color: var(--po-focus-ring);
+  outline: 2px solid var(--po-focus-ring);
+  outline-offset: 1px;
+}
+
+.onboarding-import-source-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  place-items: center;
+  background: color-mix(in srgb, var(--po-text) 6%, transparent);
+  color: var(--po-text-muted);
+}
+
+.onboarding-import-source-icon > svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.8;
+}
+
+.onboarding-import-source-marks {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.onboarding-import-source-marks > svg {
+  width: 12px;
+  height: 12px;
+}
+
+.onboarding-import-source-marks > .is-gitlab {
+  color: color-mix(in srgb, #fc6d26 82%, var(--po-text-muted));
+}
+
+.onboarding-import-source-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.onboarding-import-source-copy > strong {
+  color: var(--po-text);
+  font-size: var(--po-type-ui-body, 14px);
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.onboarding-import-source-copy > span {
+  color: var(--po-text-subtle);
+  font-size: var(--po-type-ui-meta, 13px);
+  line-height: 17px;
+}
+
+.onboarding-import-source-chevron {
+  width: 16px;
+  height: 16px;
+  color: var(--po-text-subtle);
+}
+
+.onboarding-import-back {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--po-text) 7%, transparent);
+  color: var(--po-text-muted);
+  cursor: var(--po-clickable-cursor, default);
+}
+
+.onboarding-import-back:hover:not(:disabled) {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.onboarding-import-back:focus-visible {
+  outline: 2px solid var(--po-focus-ring);
+  outline-offset: 1px;
+}
+
+/* Import: guided export → open-folder steps */
+
+.onboarding-import-steps {
+  display: grid;
+  margin: 0;
+  padding-inline-start: 22px;
+  gap: 8px;
+  color: var(--po-text);
+  font-size: var(--po-type-ui-body, 14px);
+  line-height: 20px;
+}
+
+.onboarding-import-outcome {
+  margin: 14px 0 0;
+  color: var(--po-text-subtle);
+  font-size: var(--po-type-ui-meta, 13px);
+  line-height: 17px;
+}
+
+.onboarding-import-location {
+  margin-top: 16px;
+}
+
 .onboarding-entry-create-fields {
   display: grid;
   min-width: 0;

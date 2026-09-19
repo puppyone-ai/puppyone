@@ -274,6 +274,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   detachFolder: (folderPath) => ipcRenderer.invoke("workspace:detach-current", folderPath),
   selectFolderInNewWindow: () => ipcRenderer.invoke("workspace:select-folder-new-window"),
   selectLocalProjectLocation: () => ipcRenderer.invoke("workspace:select-project-location-current"),
+  getDefaultLocalProjectLocation: () => ipcRenderer.invoke("workspace:default-project-location-current"),
   createLocalProject: (request) => ipcRenderer.invoke("workspace:create-project-current", request),
   cloneRepository: (request) => ipcRenderer.invoke("workspace:clone-repository-current", request),
   getPathForFile: (file) => webUtils.getPathForFile(file),
