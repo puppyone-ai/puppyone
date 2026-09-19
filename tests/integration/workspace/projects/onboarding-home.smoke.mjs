@@ -205,9 +205,10 @@ async function runSmoke() {
           assert.ok(Math.abs(snapshot.firstClickable.y - snapshot.brand.y - snapshot.brand.height - titleToSectionGap - 19) < 1, `${context}: shared title-to-first-clickable gap`);
           assert.ok(Math.abs(snapshot.launcher.y + snapshot.launcher.height / 2 - height / 2) < 1, `${context}: shared launcher is vertically centered`);
           if (state === 'empty') {
-            assert.equal(snapshot.primaryBorderTop, '0px', `${context}: no decorative title divider`);
-            assert.equal(snapshot.primaryPaddingTop, '19px', `${context}: removed divider keeps the existing title-to-action rhythm`);
-            assert.ok(snapshot.importButton.y - snapshot.open.y - snapshot.open.height >= 20, `${context}: whitespace separates import from direct-start actions`);
+            assert.equal(snapshot.primaryBorderTop, '1px', `${context}: title rule frames the first content section`);
+            assert.equal(snapshot.primaryPaddingTop, '18px', `${context}: first action follows the shared frame inset`);
+            const openToImportGap = snapshot.importButton.y - snapshot.open.y - snapshot.open.height;
+            assert.ok(openToImportGap >= 14 && openToImportGap <= 18, `${context}: compact whitespace separates import from direct-start actions`);
             assert.equal(await evaluate("document.querySelector('.onboarding-entry-action-divider')"), null, `${context}: no decorative import divider`);
           } else {
             assert.equal(snapshot.projectPanel.x, snapshot.brand.x, `${context}: project frame shares the content left edge`);

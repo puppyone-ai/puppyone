@@ -150,8 +150,8 @@
   max-width: none;
   justify-items: stretch;
   gap: 12px;
-  /* Preserve the title-to-action rhythm without drawing a decorative rule. */
-  padding-block-start: 19px;
+  padding-block-start: 18px;
+  border-top: 1px solid var(--po-border);
 }
 
 .onboarding-telemetry-disclosure {
@@ -365,7 +365,7 @@
   width: 100%;
   min-width: 0;
   justify-items: start;
-  margin-block-start: 17px;
+  margin-block-start: 8px;
 }
 
 .onboarding-shell[data-onboarding-state="projects"] .onboarding-entry-import-area {
