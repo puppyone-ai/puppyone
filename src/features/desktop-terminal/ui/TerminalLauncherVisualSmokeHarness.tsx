@@ -15,14 +15,15 @@ export function TerminalLauncherVisualSmokeHarness() {
   const query = new URLSearchParams(window.location.search);
   const width = clamp(Number(query.get("width")) || 420, 280, 760);
   const theme = query.get("theme") === "light" ? "light" : "dark";
+  const scale = query.get("scale") === "small" ? "small" : query.get("scale") === "large" ? "large" : "medium";
   const appearance = useMemo(() => resolveSurfaceAppearance({
     appearance: resolveAppearance({ interfaceStyle: "default", themeMode: theme,
       sidebarNavigationLayout: "bottom-horizontal", fileIconTheme: "default" }),
-    typography: resolveTypography(DEFAULT_TYPOGRAPHY_PREFERENCES),
+    typography: resolveTypography({ ...DEFAULT_TYPOGRAPHY_PREFERENCES, scale }),
     markdownPresentation: DEFAULT_MARKDOWN_PRESENTATION_SETTINGS,
     loadingAnimationPreset: "ikun", lightThemePreset: "neutral", darkThemePreset: "default",
     pointerCursors: false, diffMarkers: "color",
-  }), [theme]);
+  }), [theme, scale]);
   // Like the real shell, resolve inherited semantic tokens at the document
   // boundary; changing only a nested preview's palette leaves stale root aliases.
   useLayoutEffect(() => { applySurfaceAppearanceToElement(document.documentElement, appearance); }, [appearance]);

@@ -29,13 +29,27 @@ async function capture(name) {
   const bounds = await evaluate(`(() => {
     const panel = document.querySelector('.desktop-terminal-launcher');
     const rows = [...document.querySelectorAll('.desktop-terminal-launcher-tools > *')];
+    const labels = [...panel.querySelectorAll('.desktop-terminal-launcher-tool > span:last-child, .desktop-terminal-launcher-shell > span:last-child, .desktop-terminal-launcher-history > span:last-child')];
+    const feedback = panel.querySelector('.desktop-terminal-launcher-discovery');
+    const metrics = element => {
+      const style = getComputedStyle(element);
+      return { size: style.fontSize, weight: style.fontWeight, lineHeight: style.lineHeight };
+    };
+    const reference = document.createElement('button');
+    reference.className = 'po-sidebar-row'; panel.append(reference);
+    const sidebarWeight = getComputedStyle(reference).fontWeight; reference.remove();
     return { overflow: panel.scrollWidth > panel.clientWidth + 1,
       outsideViewport: panel.getBoundingClientRect().left < 0 || panel.getBoundingClientRect().right > innerWidth + 1,
       clipped: rows.some(row => row.scrollWidth > row.clientWidth + 1),
       scrollable: panel.scrollHeight > panel.clientHeight,
-      focus: document.activeElement?.textContent };
+      focus: document.activeElement?.textContent,
+      typography: { labels: labels.map(metrics), feedback: feedback ? metrics(feedback) : null, sidebarWeight } };
   })()`);
   assert(!bounds.overflow && !bounds.clipped && !bounds.outsideViewport, name + ": horizontal overflow");
+  const { labels, feedback, sidebarWeight } = bounds.typography;
+  const expectedSize = name.includes("-large-") ? "16px" : name.includes("-small-") ? "13px" : "14px";
+  assert(sidebarWeight === "400" && labels.length > 0 && labels.every(value => value.size === expectedSize && value.weight === sidebarWeight), name + ": launcher labels must match regular sidebar weight and the selected size");
+  assert(!feedback || (feedback.size === labels[0].size && feedback.weight === labels[0].weight && feedback.lineHeight === labels[0].lineHeight), name + ": discovery copy differs from Agent labels");
   await writeFile(path.join(artifacts, name + ".png"), (await window.capturePage()).toPNG());
   results.push({ name, ...bounds });
 }
@@ -46,12 +60,14 @@ async function run() {
     { theme: "light", width: 420, height: 760, reduced: false, rtl: false },
     { theme: "dark", width: 280, height: 360, reduced: false, rtl: false },
     { theme: "light", width: 280, height: 500, reduced: true, rtl: true },
+    { theme: "light", width: 420, height: 760, reduced: true, rtl: false, scale: "small" },
+    { theme: "dark", width: 280, height: 500, reduced: true, rtl: false, scale: "large" },
   ]) {
-    const label = `${variant.theme}-${variant.width}-${variant.rtl ? "rtl-reduced" : "ltr"}`;
+    const label = `${variant.theme}-${variant.width}${variant.scale ? `-${variant.scale}` : ""}-${variant.rtl ? "rtl-reduced" : "ltr"}`;
     window = new BrowserWindow({ show: true, width: variant.width + 100, height: variant.height,
       webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false } });
     await window.loadURL(pathToFileURL(path.join(repo, "dist/index.html")).href
-      + `?scenario=discovery&agentMode=chat&theme=${variant.theme}&width=${variant.width}#terminal-launcher-visual-smoke`);
+      + `?scenario=discovery&agentMode=chat&theme=${variant.theme}&width=${variant.width}&scale=${variant.scale ?? "medium"}#terminal-launcher-visual-smoke`);
     window.webContents.debugger.attach("1.3");
     await window.webContents.debugger.sendCommand("Emulation.setEmulatedMedia", {
       features: [{ name: "prefers-reduced-motion", value: variant.reduced ? "reduce" : "no-preference" }],
@@ -75,7 +91,7 @@ async function run() {
     assert(await evaluate("document.querySelectorAll('.desktop-terminal-launcher-discovery').length === 1"), "Missing scan feedback");
     assert(await evaluate("!document.querySelector('.desktop-terminal-launcher-discovery').closest('[role=list]')"), "Scan status masquerades as an Agent");
     assert(await evaluate("!document.querySelector('.desktop-terminal-launcher-discovery-count, .desktop-terminal-launcher-discovery .desktop-terminal-activity-grid')"), "Legacy counter or activity grid remains");
-    assert(await evaluate("document.querySelector('.desktop-terminal-launcher-discovery').getBoundingClientRect().height < 25"), "Cold scan feedback is not compact");
+    if (!variant.scale) assert(await evaluate("document.querySelector('.desktop-terminal-launcher-discovery').getBoundingClientRect().height < 25"), "Cold scan feedback is not compact");
     assert(await evaluate("!document.querySelector('.local-agent-setup')"), "Empty launcher has setup chrome");
     await capture(label + "-cold");
     const scanning = { phase: "loading", ids: ["codex"], completed: 1, refreshing: false, failed: false };

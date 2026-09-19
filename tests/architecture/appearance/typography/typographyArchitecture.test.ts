@@ -18,6 +18,15 @@ import {
 } from "../../../../src/features/typography";
 
 describe("typography architecture", () => {
+  it("shares regular-weight content typography between discovery feedback and launcher labels", () => {
+    const launcher = source("src/features/app-shell/auxiliary-workbench/auxiliary-workbench-launcher.css");
+    const sharedRule = launcher.match(/\.desktop-terminal-launcher-discovery,\s*\.desktop-terminal-launcher-tool > span:last-child,[^{]+\{([^}]+)\}/)?.[1];
+    expect(sharedRule).toContain("font-size: var(--po-type-right-sidebar-content, 14px);");
+    expect(sharedRule).toContain("font-weight: var(--po-text-weight-regular, 400);");
+    expect(sharedRule).toContain("line-height: var(--po-type-right-sidebar-control-line-height, 19px);");
+    expect(source("src/styles/tokens.css")).toContain("--desktop-sidebar-font-weight: var(--po-text-weight-regular);");
+  });
+
   it("rebinds scale-derived control geometry at each appearance boundary", () => {
     const tokens = readFileSync(new URL("../../../../src/styles/tokens.css", import.meta.url), "utf8");
     expect(tokens).toMatch(
