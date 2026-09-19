@@ -11,9 +11,15 @@ export async function openSqlite(source) {
     const query = (sql, ...args) => { const stmt = db.prepare(sql); stmt.setReadBigInts(true); return stmt.all(...args); };
     const entries = query("SELECT name, type, ncol FROM pragma_table_list WHERE schema='main' AND name NOT LIKE 'sqlite_%' LIMIT ?", budget.maxObjects + 1);
     if (entries.length > budget.maxObjects) throw databaseError("budget-exceeded");
-    const objects = entries.map((entry, index) => ({ id: String(index), name: entry.name, kind: entry.type,
-      readable: entry.type === "table" && Number(entry.ncol) <= budget.maxColumns
-        && query("SELECT hidden FROM pragma_table_xinfo(?) WHERE hidden<>0 LIMIT 1", entry.name).length === 0 }));
+    const objects = entries.map((entry, index) => {
+      const tooWide = Number(entry.ncol) > budget.maxColumns;
+      const hasHiddenColumns = entry.type === "table"
+        && query("SELECT hidden FROM pragma_table_xinfo(?) WHERE hidden<>0 LIMIT 1", entry.name).length > 0;
+      const readable = entry.type === "table" && !tooWide && !hasHiddenColumns;
+      return { id: String(index), name: entry.name, kind: entry.type, readable,
+        ...(readable ? {} : { unavailableReason: entry.type !== "table" ? "unsupported-object-kind"
+          : tooWide ? "too-many-columns" : "generated-or-hidden-columns" }) };
+    });
     const version = String(query("SELECT sqlite_version() AS version")[0].version);
     let iterator = null;
     // A strict authorizer restricts even malicious schema execution to the

@@ -80,7 +80,7 @@
   text-overflow: ellipsis;
 }
 
-.database-preview__object-tab:hover:not(:disabled) {
+.database-preview__object-tab:hover:not([aria-disabled="true"]) {
   background: color-mix(in srgb, var(--po-hover) 52%, transparent);
   color: var(--po-text);
 }
@@ -101,7 +101,7 @@
   content: "";
 }
 
-.database-preview__object-tab:disabled:not([aria-selected="true"]) {
+.database-preview__object-tab[aria-disabled="true"]:not([aria-selected="true"]) {
   cursor: default;
   opacity: 0.38;
 }
