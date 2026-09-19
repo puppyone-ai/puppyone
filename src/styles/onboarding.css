@@ -46,7 +46,6 @@
 }
 
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-homepage {
-  --onboarding-brand-content-gap: 40px;
   grid-template-columns: minmax(0, 1fr);
 }
 
@@ -55,23 +54,19 @@
 }
 
 .onboarding-launcher {
-  display: contents;
-}
-
-.onboarding-shell[data-onboarding-state="empty"] .onboarding-launcher {
   display: grid;
   width: var(--onboarding-column-width);
   max-width: 100%;
   min-width: 0;
   justify-self: center;
   justify-items: stretch;
-  gap: 20px;
+  gap: var(--onboarding-section-gap);
 }
 
 .onboarding-brand-lockup {
   display: flex;
-  width: min(var(--onboarding-column-width), 100%);
-  max-width: var(--onboarding-column-width);
+  width: 100%;
+  max-width: none;
   min-width: 0;
   box-sizing: border-box;
   align-items: center;
@@ -82,15 +77,6 @@
   color: var(--po-text-muted);
   text-align: start;
   user-select: none;
-}
-
-.onboarding-shell[data-onboarding-state="empty"] .onboarding-brand-lockup {
-  width: 100%;
-  max-width: none;
-  justify-content: flex-start;
-  padding-block-end: 16px;
-  border-bottom: 1px solid var(--po-border);
-  margin-block-end: 0;
 }
 
 .onboarding-brand-copy {
@@ -149,7 +135,7 @@
 
 .onboarding-primary-area {
   display: grid;
-  width: min(var(--onboarding-column-width), 100%);
+  width: 100%;
   min-width: 0;
   box-sizing: border-box;
   justify-self: center;
@@ -164,6 +150,8 @@
   max-width: none;
   justify-items: stretch;
   gap: 12px;
+  padding-block-start: 18px;
+  border-top: 1px solid var(--po-border);
 }
 
 .onboarding-telemetry-disclosure {

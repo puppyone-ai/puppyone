@@ -77,18 +77,24 @@ async function runSmoke() {
             const label = create.querySelector('.po-button__label');
             const brand = document.querySelector('.onboarding-brand-lockup');
             const launcher = document.querySelector('.onboarding-launcher');
+            const primary = document.querySelector('.onboarding-primary-area');
             const actions = document.querySelector('.onboarding-entry-actions');
             const projectPanel = document.querySelector('.onboarding-recent-projects');
             const projectRow = document.querySelector('.onboarding-project-row');
             const projectPanelStyle = projectPanel && getComputedStyle(projectPanel);
-            const brandStyle = getComputedStyle(brand);
+            const primaryStyle = getComputedStyle(primary);
+            const firstSection = projectPanel || primary;
+            const firstClickable = projectRow || create;
             const buttons = [...document.querySelectorAll('.onboarding-entry-actions button')];
             const images = [...document.querySelectorAll('.onboarding-brand-lockup img, .onboarding-entry-import img')];
             return {
               create: rect(create), brand: rect(brand), launcher: rect(launcher), actions: rect(actions), label: create.textContent,
               brandText: brand.querySelector('.onboarding-brand-name, .onboarding-brand-prompt').textContent,
-              brandBorderBottom: brandStyle.borderBottomWidth,
-              brandPaddingBottom: brandStyle.paddingBottom,
+              primary: rect(primary),
+              primaryBorderTop: primaryStyle.borderTopWidth,
+              primaryPaddingTop: primaryStyle.paddingTop,
+              firstSection: rect(firstSection),
+              firstClickable: rect(firstClickable),
               createFont: parseFloat(getComputedStyle(label).fontSize),
               createMinWidth: getComputedStyle(create).minWidth,
               createWeight: getComputedStyle(label).fontWeight,
@@ -113,6 +119,7 @@ async function runSmoke() {
                 borderLeft: projectPanelStyle.borderLeftWidth,
                 paddingRight: projectPanelStyle.paddingRight,
                 paddingLeft: projectPanelStyle.paddingLeft,
+                paddingTop: projectPanelStyle.paddingTop,
               },
               importFont: parseFloat(getComputedStyle(importLabel).fontSize),
               importWeight: getComputedStyle(importLabel).fontWeight,
@@ -189,20 +196,24 @@ async function runSmoke() {
           assert.equal(snapshot.importButton.x, snapshot.create.x, `${context}: import aligns with create`);
           assert.equal(snapshot.actionIcon.x, snapshot.openIcon.x, `${context}: create content is left aligned with the other actions`);
           assert.ok(Math.abs(snapshot.brand.x + snapshot.brand.width / 2 - width / 2) < 1, `${context}: shared column is centered`);
+          assert.equal(snapshot.launcher.x, snapshot.brand.x, `${context}: launcher uses the shared left edge`);
+          assert.equal(snapshot.launcher.width, snapshot.brand.width, `${context}: launcher uses the shared width`);
+          assert.equal(snapshot.firstSection.x, snapshot.brand.x, `${context}: first section divider uses the shared left edge`);
+          assert.equal(snapshot.firstSection.width, snapshot.brand.width, `${context}: first section divider spans the shared column`);
+          const titleToSectionGap = height <= 620 ? 40 : height <= 760 ? 52 : 64;
+          assert.ok(Math.abs(snapshot.firstSection.y - snapshot.brand.y - snapshot.brand.height - titleToSectionGap) < 1, `${context}: shared title-to-divider gap`);
+          assert.ok(Math.abs(snapshot.firstClickable.y - snapshot.brand.y - snapshot.brand.height - titleToSectionGap - 19) < 1, `${context}: shared title-to-first-clickable gap`);
+          assert.ok(Math.abs(snapshot.launcher.y + snapshot.launcher.height / 2 - height / 2) < 1, `${context}: shared launcher is vertically centered`);
           if (state === 'empty') {
-            assert.equal(snapshot.brandBorderBottom, '1px', `${context}: title divider spans the shared column`);
-            assert.equal(snapshot.brandPaddingBottom, '16px', `${context}: title has restrained space above its divider`);
+            assert.equal(snapshot.primaryBorderTop, '1px', `${context}: primary section owns the empty-state divider`);
+            assert.equal(snapshot.primaryPaddingTop, '18px', `${context}: first action follows the shared frame inset`);
             assert.equal(snapshot.divider.height, 1, `${context}: subtle one-pixel divider`);
             assert.ok(snapshot.divider.width >= snapshot.create.width, `${context}: import divider remains at least as wide as the content-hugging CTA`);
             assert.notEqual(snapshot.dividerBackground, 'rgba(0, 0, 0, 0)', `${context}: visible divider`);
             assert.ok(snapshot.divider.y - snapshot.open.y - snapshot.open.height >= 12, `${context}: separation from direct-start actions`);
             assert.ok(snapshot.importButton.y - snapshot.divider.y - snapshot.divider.height >= 8, `${context}: space below divider`);
             assert.equal(snapshot.divider.x, snapshot.brand.x, `${context}: divider shares the content left edge`);
-            assert.equal(snapshot.launcher.x, snapshot.brand.x, `${context}: launcher uses the shared left edge`);
-            assert.equal(snapshot.launcher.width, snapshot.brand.width, `${context}: launcher uses the shared width`);
-            assert.ok(Math.abs(snapshot.launcher.y + snapshot.launcher.height / 2 - height / 2) < 1, `${context}: vertical centering`);
           } else {
-            assert.equal(snapshot.brandBorderBottom, '0px', `${context}: project list owns the returning-state divider`);
             assert.equal(snapshot.divider, null, `${context}: project list layout stays unchanged`);
             assert.equal(snapshot.projectPanel.x, snapshot.brand.x, `${context}: project frame shares the content left edge`);
             assert.equal(snapshot.projectPanel.width, snapshot.brand.width, `${context}: project frame uses the shared width`);
@@ -210,7 +221,7 @@ async function runSmoke() {
             assert.equal(snapshot.projectIcon.x, snapshot.actionIcon.x, `${context}: project and action icons align`);
             assert.deepEqual(snapshot.projectPanelFrame, {
               borderTop: '1px', borderRight: '0px', borderBottom: '1px', borderLeft: '0px',
-              paddingRight: '0px', paddingLeft: '0px',
+              paddingRight: '0px', paddingLeft: '0px', paddingTop: '18px',
             }, `${context}: horizontal-rule project frame without side padding`);
           }
           assert.ok(snapshot.importButton.height >= 28, `${context}: text entry retains a usable hit target`);

@@ -207,9 +207,15 @@ describe("project folder home", () => {
     );
   });
 
-  it("uses a full-width title divider and a content-hugging primary action", () => {
+  it("uses one launcher geometry with a full-width first-section divider", () => {
     expect(onboardingCss).toMatch(
-      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-brand-lockup\s*\{[^}]*padding-block-end:\s*16px;[^}]*border-bottom:\s*1px solid var\(--po-border\);/s,
+      /\.onboarding-launcher\s*\{[^}]*display:\s*grid;[^}]*width:\s*var\(--onboarding-column-width\);[^}]*gap:\s*var\(--onboarding-section-gap\);/s,
+    );
+    expect(onboardingCss).not.toMatch(
+      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-launcher/,
+    );
+    expect(onboardingCss).toMatch(
+      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-primary-area\s*\{[^}]*padding-block-start:\s*18px;[^}]*border-top:\s*1px solid var\(--po-border\);/s,
     );
     expect(onboardingCss).toMatch(
       /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-entry-action-default\s*\{[^}]*width:\s*fit-content;[^}]*min-width:\s*0;[^}]*justify-content:\s*flex-start;/s,
