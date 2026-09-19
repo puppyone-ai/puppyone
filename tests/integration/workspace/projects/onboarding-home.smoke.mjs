@@ -47,6 +47,7 @@ async function runSmoke() {
     });
     const labels = { "zh-Hans": "新建空项目", en: "New empty project", fr: "Créer un projet vide" };
     const importLabels = { "zh-Hans": "从其他应用导入…", en: "Import from other apps…", fr: "Importer depuis d’autres apps…" };
+    const importIntros = { "zh-Hans": "把 SaaS 里的数据变成文件，保存到本地。", en: "Turn SaaS data into files on your computer.", fr: "Transformez vos données SaaS en fichiers locaux." };
     for (const locale of Object.keys(labels)) {
       for (const theme of ["dark", "light"]) {
         for (const [width, height] of [[900, 680], [563, 469], [360, 520]]) {
@@ -178,8 +179,60 @@ async function runSmoke() {
           window.webContents.sendInputEvent({ type: "char", keyCode: "\r" });
           window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Enter" });
           await until("!!document.querySelector('.is-import-sources')");
+          await evaluate("Promise.all(document.querySelector('.is-import-sources').getAnimations().map(animation => animation.finished))");
           assert.equal(await evaluate("document.querySelectorAll('.onboarding-import-source').length"), 6, `${context}: all sources in dialog`);
           await until("[...document.querySelectorAll('.onboarding-import-source img')].length === 6 && [...document.querySelectorAll('.onboarding-import-source img')].every(image => image.complete && image.naturalWidth > 0)");
+          const picker = await evaluate(`(() => {
+            const dialog = document.querySelector('.is-import-sources');
+            const rows = [...dialog.querySelectorAll('.onboarding-import-source')];
+            const bounds = dialog.getBoundingClientRect();
+            return {
+              width: bounds.width, height: bounds.height,
+              intro: dialog.querySelector('.onboarding-import-intro').textContent,
+              paragraphs: dialog.querySelectorAll('p').length,
+              decoration: dialog.querySelectorAll('.desktop-dialog-leading, .onboarding-import-source-chevron, .onboarding-import-source-copy').length,
+              listItems: dialog.querySelectorAll('ul > li > button').length,
+              rows: rows.map(row => {
+                const css = getComputedStyle(row);
+                const label = row.querySelector('.onboarding-import-source-label');
+                const icon = row.querySelector('.onboarding-import-source-icon');
+                return {
+                  height: row.getBoundingClientRect().height,
+                  border: css.borderTopWidth,
+                  background: css.backgroundColor,
+                  hover: row.matches(':hover'),
+                  iconBackground: getComputedStyle(icon).backgroundColor,
+                  weight: getComputedStyle(label).fontWeight,
+                  labelOnly: row.textContent === label.textContent,
+                  clipped: row.scrollWidth > row.clientWidth || label.scrollWidth > label.clientWidth,
+                };
+              }),
+              focus: document.activeElement?.dataset.importSource,
+              focusWidth: getComputedStyle(document.activeElement).outlineWidth,
+            };
+          })()`);
+          assert.ok(picker.width <= 360 && picker.height <= 360, `${context}: compact source dialog`);
+          assert.equal(picker.intro, importIntros[locale], `${context}: one short description`);
+          assert.equal(picker.paragraphs, 1, `${context}: no per-source descriptions`);
+          assert.equal(picker.decoration, 0, `${context}: no header badge or row arrows`);
+          assert.equal(picker.listItems, 6, `${context}: native list and button semantics`);
+          for (const row of picker.rows) {
+            assert.equal(row.height, 36, `${context}: compact single-line source row`);
+            assert.equal(row.border, '0px', `${context}: no card border`);
+            assert.equal(row.iconBackground, 'rgba(0, 0, 0, 0)', `${context}: no icon tile`);
+            if (!row.hover) assert.equal(row.background, 'rgba(0, 0, 0, 0)', `${context}: no card fill`);
+            assert.equal(row.weight, '400', `${context}: regular source names`);
+            assert.ok(row.labelOnly && !row.clipped, `${context}: source name only, without clipping`);
+          }
+          assert.equal(picker.focus, 'git', `${context}: first source keeps initial keyboard focus`);
+          assert.equal(picker.focusWidth, '1px', `${context}: restrained visible focus ring`);
+          await writeFile(path.join(screenshots, `import-${locale}-${theme}-${width}.png`), (await window.capturePage()).toPNG());
+          window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Tab" });
+          window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Tab" });
+          await until("document.activeElement?.dataset.importSource === 'notion'");
+          window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Escape" });
+          window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Escape" });
+          await until("!document.querySelector('[role=dialog]') && document.activeElement?.dataset.onboardingAction === 'clone'");
           console.log(`Passed ${context}`);
         }
       }

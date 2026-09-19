@@ -443,7 +443,7 @@ describe("project folder home", () => {
     expect(dialog?.getAttribute("aria-label")).toBe("Import");
     expect(dialog?.classList.contains("is-import")).toBe(true);
     expect(container.querySelector(".onboarding-import-intro")?.textContent).toBe(
-      "Your notes, docs and tables belong in files you own. Pick where they live today.",
+      "Turn SaaS data into files on your computer.",
     );
     const sources = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-import-source")];
     expect(sources.map((source) => source.dataset.importSource)).toEqual([
@@ -454,7 +454,7 @@ describe("project folder home", () => {
       "airtable",
       "folder",
     ]);
-    expect(sources.map((source) => source.querySelector("strong")?.textContent)).toEqual([
+    expect(sources.map((source) => source.textContent)).toEqual([
       "GitHub or GitLab",
       "Notion",
       "Google Drive",
@@ -463,6 +463,13 @@ describe("project folder home", () => {
       "Any folder of files",
     ]);
     expect(container.querySelector(".onboarding-entry-dialog input")).toBeNull();
+    expect(dialog?.querySelectorAll("p")).toHaveLength(1);
+    expect(dialog?.querySelector(".desktop-dialog-leading, .onboarding-import-source-chevron, .onboarding-import-source-copy")).toBeNull();
+    expect(dialog?.getAttribute("aria-describedby")).toBe(dialog?.querySelector(".onboarding-import-intro")?.id);
+    expect(dialog?.querySelectorAll(".onboarding-import-sources > li > button")).toHaveLength(6);
+    expect(sources.every((source) => source.getAttribute("role") === null)).toBe(true);
+    expect(sources.every((source) => source.children.length === 2)).toBe(true);
+    expect(document.activeElement).toBe(sources[0]);
     // Rows show the real product marks, not generic glyphs.
     expect(
       [...sources[0]!.querySelectorAll<HTMLImageElement>(".onboarding-import-source-marks img")]

@@ -1,5 +1,5 @@
-import { ArrowLeft, ChevronRight, Download, FolderOpen } from "lucide-react";
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { ArrowLeft, FolderOpen } from "lucide-react";
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization";
 import type { WorkspaceProjectLocationGrant } from "../types/electron";
 import {
@@ -79,6 +79,7 @@ export function OnboardingImportDialog({
   onOpenFolder,
 }: OnboardingImportDialogProps) {
   const { t } = useLocalization();
+  const introId = useId();
   const [source, setSource] = useState<OnboardingImportSource | null>(null);
   const [busy, setBusy] = useState(false);
   const title = source === null
@@ -109,16 +110,13 @@ export function OnboardingImportDialog({
         role="dialog"
         aria-modal="true"
         aria-label={title}
+        aria-describedby={source === null ? introId : undefined}
         data-import-source={source ?? "sources"}
         onClick={(event) => event.stopPropagation()}
       >
         <header className="desktop-dialog-header">
           <div className="desktop-dialog-title-row">
-            {source === null ? (
-              <span className="desktop-dialog-leading repository" aria-hidden="true">
-                <Download size={16} strokeWidth={1.8} />
-              </span>
-            ) : (
+            {source !== null && (
               <button
                 className="onboarding-import-back"
                 type="button"
@@ -140,7 +138,7 @@ export function OnboardingImportDialog({
         </header>
 
         {source === null && (
-          <ImportSourceList onSelect={selectSource} />
+          <ImportSourceList introId={introId} onSelect={selectSource} />
         )}
         {source === "git" && (
           <RepositoryImportStep
@@ -159,12 +157,12 @@ export function OnboardingImportDialog({
   );
 }
 
-function ImportSourceList({ onSelect }: { onSelect: (source: OnboardingImportSource) => void }) {
+function ImportSourceList({ introId, onSelect }: { introId: string; onSelect: (source: OnboardingImportSource) => void }) {
   const { t } = useLocalization();
   return (
     <div className="desktop-dialog-body desktop-file-dialog-body onboarding-entry-dialog-body">
-      <p className="onboarding-import-intro">{t("onboarding.entry.import.intro")}</p>
-      <div className="onboarding-import-sources" role="list">
+      <p id={introId} className="onboarding-import-intro">{t("onboarding.entry.import.intro")}</p>
+      <ul className="onboarding-import-sources">
         <ImportSourceRow
           source="git"
           icon={(
@@ -174,7 +172,6 @@ function ImportSourceList({ onSelect }: { onSelect: (source: OnboardingImportSou
             </span>
           )}
           title={t("onboarding.entry.import.source.git.title")}
-          detail={t("onboarding.entry.import.source.git.detail")}
           initialFocus
           onSelect={onSelect}
         />
@@ -184,7 +181,6 @@ function ImportSourceList({ onSelect }: { onSelect: (source: OnboardingImportSou
             source={id}
             icon={<ImportSourceMark brand={id} decorative />}
             title={t(`onboarding.entry.import.source.${id}.title`)}
-            detail={t(`onboarding.entry.import.source.${id}.detail`)}
             onSelect={onSelect}
           />
         ))}
@@ -192,10 +188,9 @@ function ImportSourceList({ onSelect }: { onSelect: (source: OnboardingImportSou
           source="folder"
           icon={<FolderOpen aria-hidden="true" />}
           title={t("onboarding.entry.import.source.folder.title")}
-          detail={t("onboarding.entry.import.source.folder.detail")}
           onSelect={onSelect}
         />
-      </div>
+      </ul>
     </div>
   );
 }
@@ -204,33 +199,28 @@ function ImportSourceRow({
   source,
   icon,
   title,
-  detail,
   initialFocus = false,
   onSelect,
 }: {
   source: OnboardingImportSource;
   icon: ReactNode;
   title: string;
-  detail: string;
   initialFocus?: boolean;
   onSelect: (source: OnboardingImportSource) => void;
 }) {
   return (
-    <button
-      className="onboarding-import-source"
-      type="button"
-      role="listitem"
-      data-import-source={source}
-      data-desktop-dialog-initial-focus={initialFocus ? "true" : undefined}
-      onClick={() => onSelect(source)}
-    >
-      <span className="onboarding-import-source-icon" aria-hidden="true">{icon}</span>
-      <span className="onboarding-import-source-copy">
-        <strong>{title}</strong>
-        <span>{detail}</span>
-      </span>
-      <ChevronRight className="onboarding-import-source-chevron" aria-hidden="true" />
-    </button>
+    <li>
+      <button
+        className="onboarding-import-source"
+        type="button"
+        data-import-source={source}
+        data-desktop-dialog-initial-focus={initialFocus ? "true" : undefined}
+        onClick={() => onSelect(source)}
+      >
+        <span className="onboarding-import-source-icon" aria-hidden="true">{icon}</span>
+        <span className="onboarding-import-source-label">{title}</span>
+      </button>
+    </li>
   );
 }
 
