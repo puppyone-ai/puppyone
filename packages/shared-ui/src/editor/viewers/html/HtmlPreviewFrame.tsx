@@ -2,6 +2,8 @@ import { getHtmlPreviewInteractionCss } from "../../htmlPreviewInteraction";
 import { parse, parseFragment, serialize, type DefaultTreeAdapterTypes as Tree } from "parse5";
 import type { MarkdownHtmlTrustMode } from "../../registry/viewerTypes";
 import { useVisibleFrameReadiness } from "../shared/useVisibleFrameReadiness";
+import { useEffect, useMemo, useState } from "react";
+import { useEditorPreviewServices } from "../../preview-services/EditorPreviewServices";
 
 export function HtmlPreviewFrame({
   path,
@@ -26,6 +28,25 @@ export function HtmlPreviewFrame({
     hasContentSnapshot ? `${content.length}:${hashString(content)}` : "",
   ].join("|");
   const frameReadiness = useVisibleFrameReadiness(frameKey);
+  const projectionPort = useEditorPreviewServices().services?.documentProjection;
+  const projection = useMemo(() => hasContentSnapshot ? buildHtmlPreviewDocument(content, fileUrl, getHtmlPreviewPolicy(htmlTrustMode)) : null,
+    [content, fileUrl, htmlTrustMode, hasContentSnapshot]);
+  const [resource, setResource] = useState<{ key: string; url: string | null } | null>(null);
+  const useProjection = !!projectionPort && projection !== null && projection.length <= 2 * 1024 * 1024 && /\.html?$/i.test(path);
+  useEffect(() => {
+    if (!useProjection || !projectionPort || projection === null) return;
+    const abort = new AbortController();
+    let release: (() => Promise<void>) | undefined;
+    // Ordinary previews retain their existing link/interaction policy through the iframe sandbox.
+    void projectionPort.create(path, projection, abort.signal, { interactive: true }).then(async (lease) => {
+      if (abort.signal.aborted) { await lease.close(); return; }
+      release = lease.close;
+      setResource({ key: frameKey, url: lease.url });
+    }).catch(() => { if (!abort.signal.aborted) setResource({ key: frameKey, url: null }); });
+    return () => { abort.abort(); void release?.().catch(() => undefined); };
+  }, [projectionPort, projection, useProjection, path, frameKey, htmlTrustMode]);
+  const resourceReady = resource?.key === frameKey;
+  const projectionUrl = resourceReady ? resource.url : undefined;
 
   return (
     <iframe
@@ -35,8 +56,8 @@ export function HtmlPreviewFrame({
       title={title}
       sandbox={policy.sandbox}
       referrerPolicy="no-referrer"
-      src={useFileUrl ? fileUrl ?? undefined : undefined}
-      srcDoc={!useFileUrl && hasContentSnapshot ? buildHtmlPreviewDocument(content, fileUrl, policy) : undefined}
+      src={projectionUrl ?? (useFileUrl ? fileUrl ?? undefined : undefined)}
+      srcDoc={!useFileUrl && !projectionUrl && (!useProjection || resourceReady) ? projection ?? undefined : undefined}
       aria-busy={!frameReadiness.ready}
       onLoad={frameReadiness.onFrameLoad}
     />

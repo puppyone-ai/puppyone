@@ -2,6 +2,8 @@ const { contextBridge, ipcRenderer, webUtils } = require("electron");
 contextBridge.exposeInMainWorld("htmlTestDisk", {
   read: () => ipcRenderer.invoke("html-test:read"),
   persist: (request) => ipcRenderer.invoke("html-test:persist", request),
+  projection: (content) => ipcRenderer.invoke("html-test:projection", content),
+  revoke: (url) => ipcRenderer.invoke("html-test:revoke", url),
   importImage: (file, folder, preferredName) => ipcRenderer.invoke("html-test:image", {
     sourcePaths: [webUtils.getPathForFile(file)], targetFolderPath: folder, preferredName,
   }),

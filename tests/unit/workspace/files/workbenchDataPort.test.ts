@@ -50,6 +50,27 @@ function provider(name: string): DataPort {
 }
 
 describe("WorkbenchDataService", () => {
+  it("routes projection leases and image imports through the document's owning Folder", async () => {
+    const workbench = createWorkbenchWorkspace([workspace("a", "Alpha", "/alpha"), workspace("b", "Beta", "/beta")]);
+    const providers = new Map<string, DataPort>();
+    const lease = { url: "puppyone-local://projection", close: vi.fn(async () => undefined) };
+    const service = createWorkbenchDataService(workbench, { createProvider(folder) {
+      const result = provider(folder.name);
+      result.previewServices = { documentProjection: { create: vi.fn(async () => lease) } };
+      result.editorAssets = { importImage: vi.fn(async () => ({ path: "pages/image.png" })) };
+      providers.set(folder.id, result); return result;
+    } });
+    const folder = workbench.folders[1]!;
+    const uri = createWorkspaceResourceUri(folder.uri, "pages/index.html");
+    const signal = new AbortController().signal;
+    const file = {} as File;
+    expect(await service.dataPort.previewServices?.documentProjection?.create(uri, "<p>projection</p>", signal)).toBe(lease);
+    expect(providers.get(folder.id)?.previewServices?.documentProjection?.create).toHaveBeenCalledWith("pages/index.html", "<p>projection</p>", signal, undefined);
+    expect(await service.dataPort.editorAssets?.importImage(uri, file)).toEqual({ path: createWorkspaceResourceUri(folder.uri, "pages/image.png") });
+    expect(providers.get(folder.id)?.editorAssets?.importImage).toHaveBeenCalledWith("pages/index.html", file);
+    expect(providers.get(workbench.folders[0]!.id)?.editorAssets?.importImage).not.toHaveBeenCalled();
+    await expect(service.dataPort.editorAssets?.importImage("file:///outside/index.html", file)).rejects.toThrow();
+  });
   it("assembles ordered Workspace Folder roots into one Explorer tree", async () => {
     const workbench = createWorkbenchWorkspace([
       workspace("a", "Alpha", "/alpha"),

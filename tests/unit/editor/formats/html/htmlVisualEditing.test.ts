@@ -17,6 +17,10 @@ function setup(content: string) {
 }
 
 describe("HTML source-based visual editing", () => {
+  it("keeps imported references portable when workbench identities are encoded Resource URIs", () => {
+    expect(imageSourceReference("file:///project/%E4%B8%AD%20x/page.html", "file:///project/%E4%B8%AD%20x/image.png", null)).toBe("image.png");
+    expect(imageSourceReference("file:///project/%E4%B8%AD%20x/page.html", "file:///project/%E4%B8%AD%20x/image.png", "assets/")).toBe("../image.png");
+  });
   it("preserves an unquoted attribute's trailing slash when inserting another attribute", () => {
     const { model, session, id } = setup('<img src=images/><img src="image.png"/>');
     session.apply(id("img"), model.revision, { kind: "attribute", name: "alt", value: "First" }, "a");

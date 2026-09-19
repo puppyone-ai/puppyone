@@ -310,6 +310,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   readDatabasePreviewPage: (request) => ipcRenderer.invoke("database-preview:page", request),
   closeDatabasePreview: (request) => ipcRenderer.invoke("database-preview:close", request),
   getFileUrl: (request) => ipcRenderer.invoke("workspace:get-file-url", request),
+  createPreviewDocument: (request) => ipcRenderer.invoke("workspace:create-preview-document", request),
   revokeFileUrl: (request) => ipcRenderer.invoke("workspace:revoke-file-url", request),
   convertOfficeDocumentToDocx: (request) => ipcRenderer.invoke("workspace:convert-office-docx", request),
   cancelOfficeDocumentToDocxConversion: (request) => ipcRenderer.invoke("workspace:convert-office-docx-cancel", request),

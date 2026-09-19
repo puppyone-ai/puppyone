@@ -40,6 +40,7 @@ export function registerLocalFileProtocol({
       if (typeof isOpenWorkspaceRoot === "function" && !isOpenWorkspaceRoot(canonicalRoot)) {
         return new Response("Forbidden", { status: 403 });
       }
+      if (!resolveCapability({ token, purpose, requestPath })) return new Response("Forbidden", { status: 403 });
       const contentType = getMimeType(relativePath) ?? "application/octet-stream";
       const corsHeaders = corsOrigin
         ? { "Access-Control-Allow-Origin": corsOrigin, Vary: "Origin" }
@@ -47,6 +48,10 @@ export function registerLocalFileProtocol({
       const securityHeaders = {
         "Cache-Control": "no-store",
         "X-Content-Type-Options": "nosniff",
+        // Enforce an opaque sandbox even if a projection lease is navigated outside its iframe.
+        ...(purpose === "document-projection" ? { "Content-Security-Policy": capability.snapshot?.interactive
+          ? "sandbox allow-downloads allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-scripts"
+          : "sandbox allow-scripts" } : {}),
       };
       responseHeaders = { ...securityHeaders, ...corsHeaders };
       if (contentType === "application/pdf") {

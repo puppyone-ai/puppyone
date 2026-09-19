@@ -12,6 +12,7 @@ import "@puppyone/shared-ui/editor.css";
 declare global {
   interface Window {
     htmlTestDisk: { read(): Promise<FileContent>; persist(request: DocumentPersistenceRequest): Promise<DocumentPersistenceResult>;
+      projection(content: string): Promise<{ url: string }>; revoke(url: string): Promise<void>;
       importImage(file: File, folder: string | null, name?: string): Promise<{ paths: string[] }>; agentWrite(content: string): Promise<void> };
     htmlFixture: { refresh(): Promise<void>; close(): Promise<void>; source(): string | null; tasks(): number; reopen(): Promise<void> };
   }
@@ -20,12 +21,17 @@ let update!: (value: FileContent | null) => void;
 const initial = await window.htmlTestDisk.read();
 const assets = createDocumentAssetImportPort(async (files, folder, options) => window.htmlTestDisk.importImage(files[0]!, folder, options?.preferredName));
 const persistence = { kind: "local-fs" as const, storageIdentity: "html-native-smoke", persist: window.htmlTestDisk.persist };
+const previewServices = { documentProjection: { async create(_path: string, content: string, signal: AbortSignal) {
+  signal.throwIfAborted();
+  const { url } = await window.htmlTestDisk.projection(content);
+  return { url, close: () => window.htmlTestDisk.revoke(url) };
+} } };
 function Fixture() {
   const [content, setContent] = useState<FileContent | null>(initial);
   update = setContent;
   return <TestLocalizationProvider messages={englishCatalog}><FilePreview
     node={content ? { id: "page.html", path: "page.html", name: "page.html", type: "html" } : null}
-    fileContent={content} documentPersistence={persistence} editorAssets={assets} editorSaveMode="auto"
+    fileContent={content} documentPersistence={persistence} editorAssets={assets} previewServices={previewServices} editorSaveMode="auto"
     fileUrl="puppyone-local://html-test/page.html"
     showHeader={false} hideSourceView={false} htmlTrustMode="safe" /></TestLocalizationProvider>;
 }

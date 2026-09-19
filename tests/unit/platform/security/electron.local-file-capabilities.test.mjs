@@ -164,6 +164,34 @@ describe("puppyone-local protocol capability enforcement", () => {
     expect((await handler(createRequest(url.replace(token, "invalid"), "null"))).status).toBe(403);
   });
 
+  it("enforces an opaque sandbox on disposable projections and revokes their authority", async () => {
+    const store = createLocalFileCapabilityStore();
+    const token = store.issue({ senderId: 9, rootPath: ROOT, relativePath: "index.html", purpose: "document-projection",
+      snapshot: { bytes: Buffer.from("<p>preview</p>"), version: "v1", relativePath: "index.html" } });
+    const url = buildLocalFileCapabilityUrl({ relativePath: "index.html", token, purpose: "document-projection" });
+    const { handler, readWorkspaceFile } = createProtocolHarness(store);
+    const response = await handler(createRequest(url, "null"));
+    expect(response.headers.get("content-security-policy")).toBe("sandbox allow-scripts");
+    expect(await response.text()).toBe("<p>preview</p>");
+    expect(readWorkspaceFile).not.toHaveBeenCalled();
+    store.revokeWorkspaceRoot(9, ROOT);
+    expect((await handler(createRequest(url, "null"))).status).toBe(403);
+  });
+
+  it("does not publish a projection revoked while asynchronous admission is pending", async () => {
+    const store = createLocalFileCapabilityStore();
+    const request = { senderId: 9, rootPath: ROOT, relativePath: "index.html", purpose: "document-projection" };
+    expect(() => store.issue(request)).toThrow(/immutable exact-resource/);
+    const token = store.issue({ ...request, snapshot: { bytes: Buffer.from("preview"), version: "v1", relativePath: "index.html" } });
+    const url = buildLocalFileCapabilityUrl({ relativePath: "index.html", token, purpose: "document-projection" });
+    let admit;
+    const { handler } = createProtocolHarness(store, { canonicalizeWorkspacePath: () => new Promise(resolve => { admit = resolve; }) });
+    const response = handler(createRequest(url, "null"));
+    store.revokeSender(9);
+    admit(ROOT);
+    expect((await response).status).toBe(403);
+  });
+
   it("serves the immutable input version, including ranges, without rereading changed disk content", async () => {
     const store = createLocalFileCapabilityStore();
     const bytes = Buffer.from("version one");
@@ -277,7 +305,7 @@ describe("puppyone-local protocol capability enforcement", () => {
   });
 });
 
-function createProtocolHarness(store) {
+function createProtocolHarness(store, options = {}) {
   let handler = null;
   const protocol = {
     handle: vi.fn((_scheme, nextHandler) => {
@@ -297,6 +325,7 @@ function createProtocolHarness(store) {
     isOpenWorkspaceRoot: () => true,
     resolveCapability: store.resolve,
     applicationUrl: "file:///Applications/puppyone/dist/index.html",
+    ...options,
   });
   if (!handler) throw new Error("Protocol handler was not registered.");
   return {

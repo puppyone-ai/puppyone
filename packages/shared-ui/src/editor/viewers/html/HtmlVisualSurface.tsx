@@ -2,6 +2,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProp
 import { useLocalization } from "@puppyone/localization/react";
 import type { CodeMirrorDocumentModel } from "../../document-session/CodeMirrorDocumentModel";
 import { useDocumentAssetImport } from "../../resource/DocumentAssetImport";
+import { useEditorPreviewServices } from "../../preview-services/EditorPreviewServices";
+import type { DocumentProjectionLease } from "../../preview-services/types";
 import { useEditorTaskController, useEditorTaskOwner } from "../../runtime/EditorTaskContext";
 import { editorTaskScheduler } from "../../runtime/EditorTaskScheduler";
 import { HtmlVisualSession, type HtmlPreviewPatch } from "./HtmlVisualSession";
@@ -19,10 +21,11 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, regist
 }) {
   const { t } = useLocalization();
   const assets = useDocumentAssetImport();
+  const projectionPort = useEditorPreviewServices().services?.documentProjection;
   const owner = useEditorTaskOwner();
   const createController = useEditorTaskController();
   const [generation, setGeneration] = useState(0);
-  const [projection, setProjection] = useState<{ session: HtmlVisualSession; source: string } | null>(null);
+  const [projection, setProjection] = useState<{ session: HtmlVisualSession; source: string; url?: string } | null>(null);
   const [selection, setSelection] = useState<HtmlSelectionMessage | null>(null);
   const [textInput, setTextInput] = useState<{ id: string; initial: string; gesture: string } | null>(null);
   const [ready, setReady] = useState(false);
@@ -50,6 +53,7 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, regist
   useEffect(() => {
     const abort = createController();
     let session: HtmlVisualSession | null = null;
+    let documentLease: DocumentProjectionLease | null = null;
     setProjection(null); setSelection(null); setTextInput(null); setReady(false); setError(null);
     port.current?.close(); port.current = null;
     const baseRevision = model.revision;
@@ -67,17 +71,23 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, regist
         const source = buildHtmlEditingProjection(session.index, resourceUrl.current, session.id);
         return { value: { session, source }, stop: () => undefined };
       }).then(async (lease) => {
-        if (!abort.signal.aborted) setProjection(lease.value);
         await lease.close();
+        if (abort.signal.aborted) return;
+        if (projectionPort) {
+          documentLease = await projectionPort.create(path, lease.value.source, abort.signal);
+          if (abort.signal.aborted) { await documentLease.close(); documentLease = null; return; }
+        }
+        if (!abort.signal.aborted && lease.value.session.valid) setProjection({ ...lease.value, url: documentLease?.url });
       }).catch(() => { if (!abort.signal.aborted) setError(t("editor.html.unsupported")); });
     }, 0);
     return () => {
       clearTimeout(timer); abort.abort(); session?.dispose(); port.current?.close(); port.current = null;
+      void documentLease?.close().catch(() => undefined);
       if (bridgeTimeout.current) clearTimeout(bridgeTimeout.current);
       if (pendingStyle.current) { clearTimeout(pendingStyle.current.timeout); pendingStyle.current.finish(); }
       pendingStyle.current = null;
     };
-  }, [model, path, generation, owner, createController, t]);
+  }, [model, path, generation, owner, createController, t, projectionPort]);
 
   useEffect(() => {
     if (projection?.session.valid) port.current?.postMessage({ type: "base", value: resolveHtmlBase(fileUrl, projection.session.index.baseHref) });
@@ -154,7 +164,7 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, regist
       }
     };
     channel.port1.start();
-    // An opaque srcdoc origin cannot be named as targetOrigin. The transferred port is bound to this frame and session.
+    // A sandboxed projection has an opaque origin. The transferred port is bound to this frame and session.
     frame.current.contentWindow.postMessage({ type: "puppyone-html-connect", session: session.id }, "*", [channel.port2]);
   };
   const importImage = (file: File) => {
@@ -197,7 +207,8 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, regist
     <div className="html-visual-editor__body">
       <div className="html-visual-editor__viewport">
         {projection && <iframe key={projection.session.id} ref={frame} className="native-preview-frame"
-          title={title} sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={projection.source} onLoad={connect} aria-busy={!ready} />}
+          title={title} sandbox="allow-scripts" referrerPolicy="no-referrer" src={projection.url}
+          srcDoc={projection.url ? undefined : projection.source} onLoad={connect} aria-busy={!ready} />}
         {rect && <div className="html-editor-selection" style={{ ...overlayStyle, height: Math.max(24, rect.height) }} />}
         {textInput && selection?.id === textInput.id && <HtmlTextInput key={textInput.gesture} initial={textInput.initial}
           style={textStyle} registerPrepare={registerTextPrepare} finish={() => setTextInput(null)}

@@ -157,7 +157,21 @@ export function createWorkbenchDataService(
       const node = await requireProvider(target.folder).resolveNode?.(target.providerPath);
       return node ? mapNode(target.folder, node) : null;
     },
-    previewServices: { database: { open: async (path, signal) => {
+    editorAssets: { importImage: async (path, file) => {
+      const target = resolveResource(path);
+      if (target.providerPath === null) throw new Error("invalid-request");
+      const port = requireProvider(target.folder).editorAssets;
+      if (!port) throw new Error("capability-unavailable");
+      const result = await port.importImage(target.providerPath, file);
+      return { path: toResourcePath(target.folder, result.path) };
+    } },
+    previewServices: { documentProjection: { create: async (path, content, signal, options) => {
+      const target = resolveResource(path);
+      if (target.providerPath === null) throw new Error("invalid-request");
+      const port = requireProvider(target.folder).previewServices?.documentProjection;
+      if (!port) throw new Error("capability-unavailable");
+      return port.create(target.providerPath, content, signal, options);
+    } }, database: { open: async (path, signal) => {
       const target = resolveResource(path);
       if (target.providerPath === null) throw new Error("invalid-request");
       const port = requireProvider(target.folder).previewServices?.database;
@@ -241,11 +255,11 @@ export function createWorkbenchDataService(
         parentPath: target.providerPath,
       }));
     },
-    importFiles: async (files, targetFolderPath) => {
+    importFiles: async (files, targetFolderPath, options) => {
       const target = resolveResource(targetFolderPath);
       const provider = requireProvider(target.folder);
       if (!provider.importFiles) throw new Error("File import is unavailable for this provider.");
-      const result = await provider.importFiles(files, target.providerPath);
+      const result = await provider.importFiles(files, target.providerPath, options);
       return {
         ...result,
         paths: result.paths.map((path) => toResourcePath(target.folder, path)),

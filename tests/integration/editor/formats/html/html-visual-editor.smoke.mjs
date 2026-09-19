@@ -8,9 +8,10 @@ import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, ipcMain, protocol } from "electron";
 import { registerWorkspaceFileIpcHandlers } from "../../../../../electron/main/ipc/workspace-files-ipc.mjs";
 import { createLocalFileCapabilityStore } from "../../../../../electron/main/local-file-capabilities.mjs";
+import { parseLocalFileUrl } from "../../../../../electron/main/local-file-protocol.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
-const temp = await fsp.mkdtemp(path.join(os.tmpdir(), "puppyone-html-native-"));
+const temp = await fsp.realpath(await fsp.mkdtemp(path.join(os.tmpdir(), "puppyone-html-native-")));
 const workspace = path.join(temp, "workspace");
 await fsp.mkdir(workspace);
 const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN5kAAAAASUVORK5CYII=';
@@ -22,12 +23,13 @@ await fsp.writeFile(path.join(workspace, "page.html"), original);
 app.setPath("userData", path.join(temp, "user-data"));
 protocol.registerSchemesAsPrivileged([{ scheme: "puppyone-local", privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 let win = null, vite = null;
+const projectionSources = new Map();
 const evaluate = (code) => win.webContents.executeJavaScript(code);
 const disk = () => fsp.readFile(path.join(workspace, "page.html"), "utf8");
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 async function until(predicate, label) { for (let i = 0; i < 250; i++) { if (await predicate()) return; await wait(30); } throw new Error(`Timed out: ${label}`); }
 async function button(label) { await evaluate(`Array.from(document.querySelectorAll('button')).find(b=>b.textContent===${JSON.stringify(label)})?.click()`); }
-const preview = () => win.webContents.mainFrame.frames.find(frame => frame.url === "about:srcdoc");
+const preview = () => win.webContents.mainFrame.frames.find(frame => frame.url === "about:srcdoc" || frame.url.includes("/document-projection/"));
 async function clickElement(selector, twice = false) {
   const child = preview(); assert.ok(child, "preview frame exists");
   const rect = await child.executeJavaScript(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
@@ -41,17 +43,28 @@ app.whenReady().then(async () => {
   let code = 0;
   const timeout = setTimeout(() => { console.error("HTML smoke timed out"); app.exit(1); }, 90000);
   try {
+    const localFileCapabilities = createLocalFileCapabilityStore();
     protocol.handle('puppyone-local', async request => {
       const url = new URL(request.url);
+      if (url.host === 'file') {
+        const capability = localFileCapabilities.resolve(parseLocalFileUrl(request.url));
+        if (!capability?.snapshot) return new Response('', { status: 403 });
+        return new Response(capability.snapshot.bytes, { headers: { 'content-type': 'text/html', 'content-security-policy': 'sandbox allow-scripts' } });
+      }
       if (url.host !== 'html-test' || !/^\/(?:old|image-[a-z0-9-]+)\.png$/.test(url.pathname)) return new Response('', { status: 403 });
       return new Response(await fsp.readFile(path.join(workspace, url.pathname.slice(1))), { headers: { 'content-type': 'image/png' } });
     });
     const handlers = new Map();
     registerWorkspaceFileIpcHandlers({ app, fs, BrowserWindow, ipcMain: { handle: (key, handler) => handlers.set(key, handler) }, dialog: {}, shell: {},
-      localFileCapabilities: createLocalFileCapabilityStore(), authorizeWorkspaceRoot: async (event, root) => {
+      localFileCapabilities, authorizeWorkspaceRoot: async (event, root) => {
         assert.equal(event.sender, win.webContents); assert.equal(root, workspace); return workspace;
       } });
     ipcMain.handle("html-test:read", event => handlers.get("workspace:read-file")(event, { rootPath: workspace, path: "page.html" }));
+    ipcMain.handle("html-test:projection", async (event, content) => {
+      const result = await handlers.get("workspace:create-preview-document")(event, { rootPath: workspace, path: "page.html", content });
+      projectionSources.set(result.url, content); return result;
+    });
+    ipcMain.handle("html-test:revoke", (event, url) => handlers.get("workspace:revoke-file-url")(event, { url }));
     ipcMain.handle("html-test:persist", (event, request) => handlers.get("workspace:write-file")(event,
       { rootPath: workspace, path: request.path, content: request.content, expectedVersion: request.baseVersion }));
     ipcMain.handle("html-test:image", async (event, request) => {
@@ -157,7 +170,10 @@ app.whenReady().then(async () => {
     await evaluate("window.htmlFixture.close()");
     await until(() => evaluate("window.htmlFixture.tasks()===0"), "task cleanup");
     await evaluate("window.htmlFixture.reopen()");
-    await until(() => evaluate("document.querySelector('iframe')?.srcdoc.includes('Agent version')"), "reopened disk");
+    await until(async () => {
+      const url = await evaluate("document.querySelector('iframe')?.src");
+      return projectionSources.get(url)?.includes("Agent version");
+    }, "reopened disk");
     console.log(JSON.stringify({ passed: true, electron: process.versions.electron, platform: process.platform,
       checks: ["safe bridge", "native IME and Unicode input", "lossless source", "stable iframe", "shared source and undo", "style and cascade",
         "native image import and rendering", "image undo preserves asset", "scroll and zoom geometry", "bounded visual fallback", "disk-first external update", "close and reopen"] }));

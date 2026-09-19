@@ -1215,6 +1215,7 @@ declare global {
         expectedVersion?: string;
       }) => Promise<{ url: string }>;
       revokeFileUrl: (request: { url: string }) => Promise<{ revoked: boolean }>;
+      createPreviewDocument: (request: { rootPath: string; path: string; content: string; interactive?: boolean }) => Promise<{ url: string }>;
       openDatabasePreview: import("../platform/databasePreviewClient").DatabaseBridge["openDatabasePreview"];
       readDatabasePreviewPage: import("../platform/databasePreviewClient").DatabaseBridge["readDatabasePreviewPage"];
       closeDatabasePreview: import("../platform/databasePreviewClient").DatabaseBridge["closeDatabasePreview"];

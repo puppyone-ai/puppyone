@@ -57,7 +57,16 @@ export function createLocalDocumentStorageIdentity(rootPath: string): string {
 export function createLocalDataPort(rootPath: string): DataPort {
   return {
     editorAssets: createDocumentAssetImportPort((files, folder, options) => importWorkspaceFiles(rootPath, folder, files, options)),
-    previewServices: { database: createDatabasePreviewPort(rootPath, getDesktopBridge) },
+    previewServices: {
+      database: createDatabasePreviewPort(rootPath, getDesktopBridge),
+      documentProjection: { async create(path, content, signal, options) {
+        signal.throwIfAborted();
+        const { url } = await getDesktopBridge().createPreviewDocument({ rootPath, path, content, interactive: options?.interactive });
+        const close = async () => { await getDesktopBridge().revokeFileUrl({ url }); };
+        if (signal.aborted) { await close(); signal.throwIfAborted(); }
+        return { url, close };
+      } },
+    },
     listChildren: (folderPath) => loadFolderChildren(rootPath, folderPath),
     resolveNode: (path) => getDesktopBridge().resolveNode({ rootPath, path }),
     // Text/content reads do not mint a browser capability URL. Resource URLs
