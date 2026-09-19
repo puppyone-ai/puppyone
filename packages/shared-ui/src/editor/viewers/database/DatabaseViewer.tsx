@@ -19,10 +19,9 @@ import type {
   DatabaseInfo,
   DatabaseObjectUnavailableReason,
   DatabasePage,
-  DatabasePreviewSession,
 } from "../../preview-services/types";
 import { useEditorDependencies, useEditorTaskOwner } from "../../runtime/EditorTaskContext";
-import { acquireEditorHostLease } from "../../runtime/EditorHostLeases";
+import { createDatabasePreviewReader, type DatabasePreviewReader } from "./DatabasePreviewReader";
 import { useDocumentModelOwner } from "../../document-session/DocumentModelOwner";
 import type { PresetViewerRenderContext } from "../../registry/viewerTypes";
 
@@ -43,9 +42,10 @@ export function DatabaseViewer({ document, openExternalFile }: PresetViewerRende
   const [columnOffset, setColumnOffset] = useState(0);
   const [page, setPage] = useState<DisplayPage | null>(null);
   const [tab, setTab] = useState<"data" | "schema">("data");
+  const [restarted, setRestarted] = useState(false);
   const objectTabId = useId();
   const objectTabRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const session = useRef<DatabasePreviewSession | null>(null);
+  const reader = useRef<DatabasePreviewReader | null>(null);
   const controller = useRef<AbortController | null>(null);
   const epoch = useRef(0);
   const view = useRef<ViewState>({ selectedName: "", columnOffset: 0 });
@@ -53,21 +53,16 @@ export function DatabaseViewer({ document, openExternalFile }: PresetViewerRende
   useEffect(() => {
     const token = ++epoch.current;
     const abort = new AbortController(); controller.current = abort;
-    setInfo(null); setPage(null); setError(null); setBusy(true);
+    setInfo(null); setPage(null); setError(null); setBusy(true); setRestarted(false);
     const port = services?.database;
     if (!port || !owner) { setError("capability-unavailable"); setBusy(false); return () => { abort.abort(); epoch.current++; }; }
     const tracking = dependencies.index.begin();
     // A finite candidate set only; unknown inputs never trigger directory scans.
     for (const suffix of ["", "-journal", "-wal", "-shm", ".wal"]) tracking.track("resource", `${document.path}${suffix}`);
     tracking.commit();
-    const lease = acquireEditorHostLease(owner, async (signal) => {
-      const value = await port.open(document.path, signal);
-      return { value, release: value.close };
-    }, abort.signal);
-    void lease.ready.then(async (value) => {
-      if (abort.signal.aborted || token !== epoch.current) return;
-      session.current = value;
-      const info = await value.ready;
+    const value = createDatabasePreviewReader(port, document.path, owner, abort.signal);
+    reader.current = value;
+    void value.open().then(async (info) => {
       if (abort.signal.aborted || token !== epoch.current) return;
       setInfo(info);
       const saved = modelOwner?.readViewState<ViewState>("database");
@@ -75,12 +70,14 @@ export function DatabaseViewer({ document, openExternalFile }: PresetViewerRende
         ?? info.objects.find((entry) => entry.readable);
       if (object) {
         setSelected(object.id); setColumnOffset(0); view.current = { selectedName: object.name, columnOffset: 0 };
-        let result = await value.readPage({ objectId: object.id }, abort.signal);
+        let loaded = await value.read({ objectName: object.name });
         const savedOffset = saved?.selectedName === object.name ? saved.columnOffset : 0;
-        if (savedOffset && Number.isSafeInteger(savedOffset) && savedOffset > 0 && savedOffset < (result.columns?.length ?? 0)) {
-          result = await value.readPage({ objectId: object.id, columnOffset: savedOffset }, abort.signal);
+        if (savedOffset && Number.isSafeInteger(savedOffset) && savedOffset > 0 && savedOffset < (loaded.page.columns?.length ?? 0)) {
+          loaded = await value.read({ objectName: object.name, columnOffset: savedOffset });
         }
         if (!abort.signal.aborted && token === epoch.current) {
+          const result = loaded.page;
+          setInfo(loaded.info); setSelected(loaded.objectId);
           const offset = Number(result.visibleColumns?.[0]?.id ?? 0);
           setColumnOffset(offset); view.current.columnOffset = offset;
           setPage({ ...result, columns: result.columns ?? [], visibleColumns: result.visibleColumns ?? [], offset: 0 });
@@ -88,37 +85,34 @@ export function DatabaseViewer({ document, openExternalFile }: PresetViewerRende
       }
     }).catch((failure: unknown) => {
       if (!abort.signal.aborted && token === epoch.current) setError(failure instanceof Error ? failure.message : "host-failed");
-      void lease.close().catch(() => {});
+      void value.close().catch(() => {});
     }).finally(() => { if (!abort.signal.aborted && token === epoch.current) setBusy(false); });
     return () => {
       // This ref is a generation counter, not a DOM ref to capture at setup.
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      epoch.current++; session.current = null; abort.abort();
+      epoch.current++; reader.current = null; abort.abort();
       modelOwner?.writeViewState("database", view.current);
-      void lease.close().catch(() => { /* Exit remains registered with the common host barrier. */ });
+      void value.close().catch(() => { /* Exit remains registered with the common host barrier. */ });
     };
   }, [services?.database, owner, document.path, revision, dependencies.index, dependencies.revision, attempt, modelOwner]);
 
-  const expiresAt = page?.expiresAt ?? info?.expiresAt;
-  useEffect(() => {
-    if (!expiresAt) return;
-    const timer = setTimeout(() => {
-      setPage(null); setError("stale-input"); controller.current?.abort();
-      void session.current?.close().catch(() => {});
-    }, Math.max(0, expiresAt - Date.now()));
-    return () => clearTimeout(timer);
-  }, [expiresAt]);
-
   const read = async (objectId: string, offset: number, next = false) => {
-    const value = session.current, abort = controller.current, token = epoch.current;
-    if (!value || !abort || busy) return;
-    setBusy(true); setError(null);
+    const value = reader.current, abort = controller.current, token = epoch.current;
+    const object = info?.objects.find((entry) => entry.id === objectId);
+    if (!value || !abort || !object || busy) return;
+    setBusy(true); setError(null); setRestarted(false);
     try {
-      const result = await value.readPage(next && page?.cursor ? { cursor: page.cursor } : { objectId, columnOffset: offset }, abort.signal);
+      const { info: nextInfo, page: result, objectId: nextId, continued } = await value.read({
+        objectName: object.name, columnOffset: offset,
+        cursor: next ? page?.cursor : undefined, snapshotEpoch: page?.snapshotEpoch,
+      });
       if (abort.signal.aborted || token !== epoch.current) return;
-      setSelected(objectId); setColumnOffset(offset); view.current = { selectedName: info?.objects.find((object) => object.id === objectId)?.name ?? "", columnOffset: offset };
-      setPage({ ...result, columns: result.columns ?? page?.columns ?? [], visibleColumns: result.visibleColumns ?? page?.visibleColumns ?? [],
-        offset: next ? (page?.offset ?? 0) + (page?.rows.length ?? 0) : 0 });
+      setInfo(nextInfo); setSelected(nextId); setColumnOffset(offset);
+      view.current = { selectedName: object.name, columnOffset: offset };
+      setRestarted(next && !continued);
+      setPage({ ...result, columns: result.columns ?? (continued ? page?.columns : undefined) ?? [],
+        visibleColumns: result.visibleColumns ?? (continued ? page?.visibleColumns : undefined) ?? [],
+        offset: continued ? (page?.offset ?? 0) + (page?.rows.length ?? 0) : 0 });
     } catch (failure) { if (!abort.signal.aborted && token === epoch.current) { setPage(null); setError(failure instanceof Error ? failure.message : "host-failed"); } }
     finally { if (!abort.signal.aborted && token === epoch.current) setBusy(false); }
   };
@@ -205,6 +199,7 @@ export function DatabaseViewer({ document, openExternalFile }: PresetViewerRende
           </div>
         </div>
         <footer className="database-preview__pager">
+          {restarted && <span className="database-preview__restart" role="status" title={t("editor.database.restarted")}>{t("editor.database.restarted")}</span>}
           <span className="database-preview__range">{page.rows.length ? `${page.offset + 1}–${page.offset + page.rows.length}` : "0"}</span>
           <DatabaseIconButton label={t("editor.database.first")} disabled={busy || page.offset === 0} onClick={() => { void read(selected, columnOffset); }}><ChevronsLeft /></DatabaseIconButton>
           <DatabaseIconButton label={t("editor.database.next")} disabled={busy || !page.hasMore} onClick={() => { void read(selected, columnOffset, true); }}><ChevronRight /></DatabaseIconButton>

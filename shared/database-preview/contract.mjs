@@ -45,7 +45,7 @@ export function quoteIdentifier(value) { return `"${String(value).replaceAll('"'
 export function publicDatabaseFailure(error) {
   const known = new Set(["unrecognized-format", "unsupported-version", "missing-member", "permission-denied",
     "busy", "recovery-required", "corrupt", "capability-unavailable", "budget-exceeded", "timeout",
-    "cancelled", "stale-input", "host-failed", "exit-unconfirmed", "invalid-request", "unsupported-object"]);
+    "cancelled", "session-expired", "stale-input", "host-failed", "exit-unconfirmed", "invalid-request", "unsupported-object"]);
   if (known.has(error?.code)) return { code: error.code };
   if (["EACCES", "EPERM", "ELOOP"].includes(error?.code)) return { code: "permission-denied" };
   if (error?.code === "ENOENT") return { code: "missing-member" };

@@ -30,7 +30,7 @@ onMessage(async (request) => {
     } else if (request.method === "page" && adapter) {
       await verifyDatabaseSource(source);
       if (request.cursor) {
-        if (request.cursor !== cursor) throw databaseError("stale-input");
+        if (request.cursor !== cursor) throw databaseError("invalid-request");
       } else {
         const schema = await adapter.select(String(request.objectId), boundedInteger(request.columnOffset, DATABASE_BUDGET.maxColumns));
         result = schema;

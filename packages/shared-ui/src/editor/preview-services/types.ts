@@ -9,7 +9,9 @@ export type DatabaseInfo = Readonly<{
   adapterVersion: 1; binding: string; dataModel: "relational"; consistency: "read-transaction";
   capabilities: Readonly<{ metadata: true; browse: true; filter: false; sort: false; count: false; sql: false }>;
   engine: string; engineVersion: string; objects: readonly DatabaseObject[];
-  snapshotEpoch: string; pageRows: number; pageColumns: number; expiresAt: number;
+  snapshotEpoch: string; pageRows: number; pageColumns: number;
+  /** Native connection deadline, not the validity of an already rendered page. */
+  expiresAt: number;
 }>;
 export type DatabasePage = Readonly<{
   rows: readonly (readonly DatabaseCell[])[]; columns?: readonly DatabaseColumn[];

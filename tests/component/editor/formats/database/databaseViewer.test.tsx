@@ -3,7 +3,7 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FilePreview } from "../../../../../packages/shared-ui/src/editor/host/FilePreview";
-import type { DatabaseObject, DatabasePreviewSession, EditorPreviewServices } from "../../../../../packages/shared-ui/src/editor/preview-services/types";
+import type { DatabaseObject, DatabasePage, DatabasePreviewSession, EditorPreviewServices } from "../../../../../packages/shared-ui/src/editor/preview-services/types";
 import { retireEditorHostLeases } from "../../../../../packages/shared-ui/src/editor/runtime/EditorHostLeases";
 import { withTestLocalization } from "../../../../support/react/localization";
 
@@ -34,6 +34,20 @@ async function ready() {
     await act(async () => new Promise((resolve) => setTimeout(resolve, 5)));
   }
   throw new Error(container.textContent ?? "Database viewer did not mount");
+}
+
+async function timed(open: NonNullable<EditorPreviewServices["database"]>["open"]) {
+  // Resolve the lazy viewer before installing virtual time, even for -t runs.
+  await render({ database: { open: async () => session("warmup") } }); await ready();
+  vi.useFakeTimers();
+  await render({ database: { open } }, "timed.db");
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+  expect(container.querySelector("td")).not.toBeNull();
+}
+async function click(label: string) {
+  const button = container.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
+  expect(button).not.toBeNull();
+  await act(async () => button!.click());
 }
 
 describe("registered database DOM viewer", () => {
@@ -99,17 +113,155 @@ describe("registered database DOM viewer", () => {
     expect(container.textContent).toContain("after");
   });
 
-  it("conceals stale data at lease expiry and explains safe failure", async () => {
-    const value = session("private row");
-    await render({ database: { open: async () => value } }); await ready();
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-    // A fresh revision installs the expiry timer under the fake clock.
-    const services = { database: { open: async () => value } };
-    await render(services, "sample.db", "project-A", 1);
-    await act(async () => vi.advanceTimersByTime(60_001));
+  it("releases an idle native lease without clearing the page or repeatedly reopening while reading", async () => {
+    const value = session("retained row"), open = vi.fn(async () => value);
+    await timed(open);
+    const cell = container.querySelector<HTMLTableCellElement>("td")!;
+    cell.focus();
+    await act(async () => { await vi.advanceTimersByTimeAsync(360_000); });
+    expect(container.querySelector("td")).toBe(cell);
+    expect(document.activeElement).toBe(cell);
+    expect(cell.textContent).toBe("retained row");
+    expect(container.querySelector("[role=alert]")).toBeNull();
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(value.close).toHaveBeenCalledTimes(1);
+    await click("Schema");
+    expect(container.querySelector(".database-preview__table--schema")).not.toBeNull();
+    expect(open).toHaveBeenCalledTimes(1);
+  });
+
+  it("reconnects on next-page intent, remaps object IDs, and never replays an old cursor", async () => {
+    const old = session("old page");
+    let fresh!: DatabasePreviewSession;
+    const open = vi.fn().mockResolvedValueOnce(old).mockImplementation(async () => {
+      fresh = session("fresh page", [{ id: "new-id", name: "items", kind: "table", readable: true }]);
+      return fresh;
+    });
+    await timed(open);
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_001); });
+    await click("Next page");
+    expect(open).toHaveBeenCalledTimes(2);
+    expect(fresh.readPage).toHaveBeenCalledExactlyOnceWith({ objectId: "new-id", columnOffset: 0 }, expect.any(AbortSignal));
+    expect(container.querySelector("td")?.textContent).toBe("fresh page");
+    expect(container.querySelector(".database-preview__range")?.textContent).toBe("1–1");
+    expect(container.querySelector('[role="status"]')?.textContent).toContain("back to first page");
+    await click("Next page");
+    expect(fresh.readPage).toHaveBeenLastCalledWith({ cursor: "next" }, expect.any(AbortSignal));
+    expect(container.querySelector(".database-preview__range")?.textContent).toBe("2–2");
+    expect(container.querySelector('[role="status"]')).toBeNull();
+  });
+
+  it("selects the requested table after idle recovery instead of defaulting to the first table", async () => {
+    const objects = [{ id: "0", name: "items", kind: "table", readable: true }, { id: "1", name: "other", kind: "table", readable: true }];
+    const old = session("old", objects);
+    let fresh!: DatabasePreviewSession;
+    const open = vi.fn().mockResolvedValueOnce(old).mockImplementation(async () => {
+      fresh = session("other row", objects.map((object) => ({ ...object, id: `new-${object.id}` })));
+      return fresh;
+    });
+    await timed(open);
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_001); });
+    await click("other");
+    expect(fresh.readPage).toHaveBeenCalledExactlyOnceWith({ objectId: "new-1", columnOffset: 0 }, expect.any(AbortSignal));
+    expect(container.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe("other");
+    expect(container.querySelector('[role="status"]')).toBeNull();
+  });
+
+  it("does not let the previous idle timer cancel a page query already in flight", async () => {
+    const value = session("before"), open = vi.fn(async () => value);
+    await timed(open);
+    let finish!: (page: DatabasePage) => void;
+    vi.mocked(value.readPage).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(59_000); });
+    await click("Next page");
+    await click("Next page"); // Busy UI must not issue a duplicate query.
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000); });
+    const last = vi.mocked(value.readPage).mock.calls.at(-1)!;
+    expect(last[1].aborted).toBe(false);
+    expect(value.close).not.toHaveBeenCalled();
+    expect(value.readPage).toHaveBeenCalledTimes(2);
+    await act(async () => finish({ rows: [[{ kind: "text", text: "after", truncated: false }]],
+      cursor: null, hasMore: false, snapshotEpoch: "before", expiresAt: Date.now() + 60_000 }));
+    expect(container.querySelector("td")?.textContent).toBe("after");
+    expect(container.querySelector("[role=alert]")).toBeNull();
+    expect(open).toHaveBeenCalledTimes(1);
+  });
+
+  it("recovers once when the native session expires before the renderer timer", async () => {
+    const old = session("before"), fresh = session("after");
+    const open = vi.fn().mockResolvedValueOnce(old).mockResolvedValueOnce(fresh);
+    await timed(open);
+    vi.mocked(old.readPage).mockRejectedValueOnce(new Error("session-expired"));
+    await click("Next page");
+    expect(old.close).toHaveBeenCalledTimes(1);
+    expect(open).toHaveBeenCalledTimes(2);
+    expect(fresh.readPage).toHaveBeenCalledExactlyOnceWith({ objectId: "0", columnOffset: 0 }, expect.any(AbortSignal));
+    expect(container.querySelector("td")?.textContent).toBe("after");
+  });
+
+  it.each(["stale-input", "permission-denied", "recovery-required", "timeout", "invalid-request"])(
+    "clears unsafe results and does not automatically retry %s",
+    async (code) => {
+      const value = session("private row"), open = vi.fn(async () => value);
+      await timed(open);
+      vi.mocked(value.readPage).mockRejectedValueOnce(new Error(code));
+      await click("Next page");
+      expect(container.querySelector("td")).toBeNull();
+      expect(container.querySelector("[role=alert]")?.getAttribute("data-error-code")).toBe(code);
+      expect(open).toHaveBeenCalledTimes(1);
+      expect(value.close).toHaveBeenCalled();
+    },
+  );
+
+  it("bounds automatic recovery when a replacement session also expires", async () => {
+    const old = session("old"), fresh = session("fresh");
+    const open = vi.fn().mockResolvedValueOnce(old).mockResolvedValue(fresh);
+    await timed(open);
+    vi.mocked(old.readPage).mockRejectedValue(new Error("session-expired"));
+    vi.mocked(fresh.readPage).mockRejectedValue(new Error("session-expired"));
+    await click("Next page");
+    expect(open).toHaveBeenCalledTimes(2);
+    expect(container.querySelector("[role=alert]")?.getAttribute("data-error-code")).toBe("session-expired");
+    expect(container.querySelector("[role=alert]")?.textContent).not.toContain("file has changed");
+  });
+
+  it("waits for confirmed exit before opening a replacement session", async () => {
+    const old = session("old"), open = vi.fn(async () => old);
+    await timed(open);
+    vi.mocked(old.close).mockRejectedValue(new Error("exit-unconfirmed"));
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_001); });
+    expect(container.querySelector("td")?.textContent).toBe("old");
+    await click("Next page");
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(container.querySelector("[role=alert]")?.getAttribute("data-error-code")).toBe("exit-unconfirmed");
+    vi.mocked(old.close).mockResolvedValue(undefined);
+  });
+
+  it("discards delayed recovery results after switching workspace", async () => {
+    const old = session("old");
+    let finish!: (session: DatabasePreviewSession) => void;
+    const open = vi.fn().mockResolvedValueOnce(old).mockImplementationOnce(() => new Promise<DatabasePreviewSession>((resolve) => { finish = resolve; }));
+    await timed(open);
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_001); });
+    await click("Next page");
+    await render({ database: { open: async () => session("current workspace") } }, "other.db", "project-B");
+    const late = session("late private row");
+    await act(async () => finish(late));
+    expect(late.close).toHaveBeenCalledTimes(1);
+    expect(late.readPage).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("current workspace");
+    expect(container.textContent).not.toContain("late private row");
+  });
+
+  it("invalidates a retained page on real input-generation change even after the connection is asleep", async () => {
+    const old = session("retained private row"), open = vi.fn().mockResolvedValueOnce(old)
+      .mockRejectedValueOnce(new Error("permission-denied"));
+    await timed(open);
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_001); });
+    expect(container.querySelector("td")?.textContent).toBe("retained private row");
+    await render({ database: { open } }, "timed.db", "project-A", 1);
     expect(container.querySelector("td")).toBeNull();
-    expect(container.querySelector("[role=alert]")?.textContent).toContain("snapshot expired");
-    expect(container.querySelector("[role=alert]")?.getAttribute("data-error-code")).toBe("stale-input");
-    expect(value.close).toHaveBeenCalled();
+    expect(container.querySelector("[role=alert]")?.getAttribute("data-error-code")).toBe("permission-denied");
+    expect(open).toHaveBeenCalledTimes(2);
   });
 });
