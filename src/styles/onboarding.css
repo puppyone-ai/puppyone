@@ -46,7 +46,6 @@
 }
 
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-homepage {
-  --onboarding-column-width: 360px;
   --onboarding-brand-content-gap: 40px;
   grid-template-columns: minmax(0, 1fr);
 }
@@ -88,7 +87,7 @@
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-brand-lockup {
   width: 100%;
   max-width: none;
-  justify-content: center;
+  justify-content: flex-start;
   margin-block-end: 0;
 }
 
@@ -226,9 +225,9 @@
   box-sizing: border-box;
   align-items: start;
   justify-self: center;
-  justify-items: stretch;
+  justify-items: start;
   gap: 8px;
-  padding: 0;
+  padding: 0 18px 18px;
   border: 0;
 }
 
@@ -251,13 +250,13 @@
 
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-entry-action-primary {
   width: 100%;
-  place-items: center;
+  justify-items: start;
 }
 
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-entry-action-secondary {
   width: 100%;
   align-content: start;
-  justify-items: center;
+  justify-items: start;
   gap: 2px;
 }
 
@@ -374,7 +373,7 @@
   display: grid;
   width: 100%;
   min-width: 0;
-  justify-items: center;
+  justify-items: start;
   gap: 8px;
   margin-block-start: 8px;
 }

@@ -76,10 +76,11 @@ async function runSmoke() {
             const label = create.querySelector('.po-button__label');
             const brand = document.querySelector('.onboarding-brand-lockup');
             const launcher = document.querySelector('.onboarding-launcher');
+            const actions = document.querySelector('.onboarding-entry-actions');
             const buttons = [...document.querySelectorAll('.onboarding-entry-actions button')];
             const images = [...document.querySelectorAll('.onboarding-brand-lockup img, .onboarding-entry-import img')];
             return {
-              create: rect(create), brand: rect(brand), launcher: rect(launcher), label: create.textContent,
+              create: rect(create), brand: rect(brand), launcher: rect(launcher), actions: rect(actions), label: create.textContent,
               createFont: parseFloat(getComputedStyle(label).fontSize),
               createWeight: getComputedStyle(label).fontWeight,
               createLineHeight: getComputedStyle(label).lineHeight,
@@ -151,26 +152,37 @@ async function runSmoke() {
             assert.equal(snapshot.importMarks[i].x - previous.x - previous.width, 4, `${context}: compact logo spacing`);
           }
           assert.equal(snapshot.importText, importLabels[locale], `${context}: complete localized text`);
+          assert.equal(snapshot.brand.width, width >= 563 ? 440 : 324, `${context}: shared responsive column width`);
+          assert.equal(snapshot.brand.x, snapshot.actions.x, `${context}: brand and actions share a left edge`);
+          assert.equal(snapshot.brand.width, snapshot.actions.width, `${context}: shared content-column width`);
+          assert.equal(snapshot.create.x, snapshot.actions.x + 18, `${context}: actions use the same left inset`);
+          assert.equal(snapshot.open.x, snapshot.create.x, `${context}: open aligns with create`);
+          assert.equal(snapshot.importButton.x, snapshot.create.x, `${context}: import aligns with create`);
+          assert.ok(Math.abs(snapshot.brand.x + snapshot.brand.width / 2 - width / 2) < 1, `${context}: shared column is centered`);
           if (state === 'empty') {
             assert.equal(snapshot.divider.height, 1, `${context}: subtle one-pixel divider`);
             assert.equal(snapshot.divider.width, snapshot.create.width, `${context}: divider matches CTA width`);
             assert.notEqual(snapshot.dividerBackground, 'rgba(0, 0, 0, 0)', `${context}: visible divider`);
             assert.ok(snapshot.divider.y - snapshot.open.y - snapshot.open.height >= 12, `${context}: separation from direct-start actions`);
             assert.ok(snapshot.importButton.y - snapshot.divider.y - snapshot.divider.height >= 8, `${context}: space below divider`);
-            for (const item of [snapshot.create, snapshot.brand, snapshot.launcher, snapshot.divider, snapshot.importButton]) {
-              assert.ok(Math.abs(item.x + item.width / 2 - width / 2) < 1, `${context}: horizontal centering ${JSON.stringify(item)}`);
-            }
+            assert.equal(snapshot.launcher.x, snapshot.brand.x, `${context}: launcher uses the shared left edge`);
+            assert.equal(snapshot.launcher.width, snapshot.brand.width, `${context}: launcher uses the shared width`);
             assert.ok(Math.abs(snapshot.launcher.y + snapshot.launcher.height / 2 - height / 2) < 1, `${context}: vertical centering`);
           } else {
             assert.equal(snapshot.divider, null, `${context}: project list layout stays unchanged`);
-            assert.equal(snapshot.importButton.x, snapshot.open.x, `${context}: import aligns with existing actions`);
-            assert.equal(snapshot.importButton.x, snapshot.create.x, `${context}: shared left edge`);
           }
           assert.ok(snapshot.importButton.height >= 28, `${context}: text entry retains a usable hit target`);
           assert.equal(snapshot.actionCount, 3, `${context}: no extra logo buttons`);
           const prefix = state === 'empty' ? '' : 'projects-';
           await writeFile(path.join(screenshots, `${prefix}${locale}-${theme}-${width}.png`), (await window.capturePage()).toPNG());
-          window.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(snapshot.importButton.x + snapshot.importButton.width / 2), y: Math.round(snapshot.importButton.y + snapshot.importButton.height / 2) });
+          await window.webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
+            type: 'mouseMoved', x: 1, y: 39,
+          });
+          await window.webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
+            type: 'mouseMoved',
+            x: Math.round(snapshot.importButton.x + snapshot.importButton.width / 2),
+            y: Math.round(snapshot.importButton.y + snapshot.importButton.height / 2),
+          });
           await until("document.querySelector('.onboarding-entry-import').matches(':hover')");
           await evaluate("Promise.all(document.querySelector('.onboarding-entry-import').getAnimations().map(animation => animation.finished))");
           assert.equal(await evaluate("getComputedStyle(document.querySelector('.onboarding-entry-import')).backgroundColor"), 'rgba(0, 0, 0, 0)', `${context}: no hover background`);
