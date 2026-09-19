@@ -15,7 +15,10 @@ describe("Built-in compute selection ownership", () => {
   });
   it("keeps source choice in Built-in UI and reuses the connection domain for setup", () => {
     const source = read("src/features/desktop-agent/ui/built-in-agent/BuiltInAgentCompute.tsx");
-    expect(source).toContain('id: "managed"'); expect(source).toContain('id: "api"'); expect(source).toContain('id: "local"');
+    expect(source).toContain('currentConnection?.sourceKind ?? "managed"');
+    expect(source).toContain('CUSTOM_SOURCES = ["api", "local"]');
+    expect(source).toContain('useState(false)');
+    expect(source).not.toContain('desktop-agent-compute-sources');
     expect(source).toContain('<ModelConnectionsSettings key={source} embedded sourceKind={source} store={store}');
     expect(source).not.toMatch(/fetch\s*\(|ipcRenderer|safeStorage|localStorage|pi-coding-agent/u);
   });

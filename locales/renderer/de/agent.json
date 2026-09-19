@@ -1,4 +1,9 @@
 {
+  "compute.cloud": "Puppyone Cloud",
+  "compute.cloudUnavailable": "Cloud-Inferenz ist noch nicht verfügbar",
+  "compute.customize": "Eigene API oder eigenes Modell verwenden",
+  "compute.customizeTitle": "Modellzugang anpassen",
+  "compute.useCloud": "Puppyone Cloud verwenden",
   "compute.title": "Rechenquelle",
   "compute.source.managed": "Offizielle Cloud",
   "compute.source.api": "Eigene API",

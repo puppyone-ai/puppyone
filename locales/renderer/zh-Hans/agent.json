@@ -1,4 +1,9 @@
 {
+  "compute.cloud": "Puppyone 云",
+  "compute.cloudUnavailable": "云端推理暂未开放",
+  "compute.customize": "Bring your own API or your model",
+  "compute.customizeTitle": "自定义模型连接",
+  "compute.useCloud": "使用 Puppyone 云",
   "compute.title": "算力来源",
   "compute.source.managed": "官方云",
   "compute.source.api": "自带 API",

@@ -1,4 +1,9 @@
 {
+  "compute.cloud": "Puppyone Cloud",
+  "compute.cloudUnavailable": "クラウド推論はまだ利用できません",
+  "compute.customize": "独自の API やモデルを使用",
+  "compute.customizeTitle": "モデル接続をカスタマイズ",
+  "compute.useCloud": "Puppyone Cloud を使用",
   "compute.title": "推論リソース",
   "compute.source.managed": "公式クラウド",
   "compute.source.api": "自分の API",

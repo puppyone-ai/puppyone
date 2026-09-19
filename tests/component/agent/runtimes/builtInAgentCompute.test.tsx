@@ -40,15 +40,20 @@ async function render({ selectedModel = null as string | null, disabled = false,
     disabled={disabled} onSelectModel={onSelectModel} onReadyChange={onReadyChange} onCatalogChange={onCatalogChange} />)));
   return { client, onSelectModel, onReadyChange, onCatalogChange };
 }
-it("requires choosing compute before a model and never probes or runs on initial render", async () => {
+it("defaults to quiet Puppyone Cloud without exposing setup choices or running a model", async () => {
   const { client, onReadyChange, onSelectModel } = await render();
-  expect(document.querySelectorAll('.desktop-agent-compute-sources button')).toHaveLength(3);
+  expect(document.querySelector('.desktop-agent-compute-summary')?.textContent).toContain("Puppyone Cloud");
+  expect(document.querySelector('.desktop-agent-compute-options')).toBeNull();
+  expect(document.querySelector('.desktop-agent-compute-editor')).toBeNull();
+  expect(button("Bring your own API or your model").getAttribute("aria-expanded")).toBe("false");
+  expect(document.body.textContent).toContain("Cloud inference is not available yet");
   expect(document.querySelector('button[aria-label="Agent model"]')).toBeNull();
   expect(onReadyChange).toHaveBeenLastCalledWith(false);
   expect(client.discover).not.toHaveBeenCalled(); expect(client.verify).not.toHaveBeenCalled(); expect(onSelectModel).not.toHaveBeenCalled();
 });
 it("only offers local models after choosing local, and only commits an explicit model choice", async () => {
   const { onSelectModel, onReadyChange } = await render();
+  act(() => button("Bring your own API or your model").click());
   act(() => button("Local models").click());
   act(() => button("Agent model").click());
   expect(document.body.textContent).toContain("Local Llama"); expect(document.body.textContent).not.toContain("API model");
@@ -59,6 +64,7 @@ it("only offers local models after choosing local, and only commits an explicit 
 it("pauses sending while browsing another source and can return to the actual route", async () => {
   const { onReadyChange, onSelectModel } = await render({ selectedModel: models[0].model });
   expect(onReadyChange).toHaveBeenLastCalledWith(true);
+  act(() => button("Bring your own API or your model").click());
   act(() => button("Bring your API").click());
   expect(onReadyChange).toHaveBeenLastCalledWith(false);
   act(() => button("Agent model").click());
@@ -69,20 +75,46 @@ it("pauses sending while browsing another source and can return to the actual ro
 });
 it("keeps official cloud visible but unavailable without falling back to a BYOK model", async () => {
   const { onReadyChange, onSelectModel, client } = await render({ selectedModel: models[0].model });
-  act(() => button("Official cloud").click());
-  expect(document.body.textContent).toContain("Not available in this build.");
+  act(() => button("Bring your own API or your model").click());
+  act(() => button("Use Puppyone Cloud").click());
+  expect(document.body.textContent).toContain("Cloud inference is not available yet");
+  expect(document.querySelector('.desktop-agent-compute-editor')).toBeNull();
   expect(document.querySelector('button[aria-label="Agent model"]')).toBeNull();
   expect(onReadyChange).toHaveBeenLastCalledWith(false); expect(onSelectModel).not.toHaveBeenCalled(); expect(client.save).not.toHaveBeenCalled();
 });
 it("reuses the scoped connection form for a new API source", async () => {
   const { client } = await render({ empty: true });
-  act(() => button("Bring your API").click()); act(() => button("Add connection").click());
+  act(() => button("Bring your own API or your model").click()); act(() => button("Add connection").click());
   expect(document.querySelector('input[type="password"]')).not.toBeNull();
   expect((document.querySelector('select[id$="-driver"]') as HTMLSelectElement).value).toBe("openai-compatible");
   expect(document.body.textContent).not.toContain("Find local services"); expect(client.discover).not.toHaveBeenCalled();
 });
 it("keeps source selection disabled during a turn", async () => {
   const { onSelectModel } = await render({ selectedModel: models[0].model, disabled: true });
-  expect([...document.querySelectorAll<HTMLButtonElement>('.desktop-agent-compute-sources button')].every((entry) => entry.disabled)).toBe(true);
+  expect(button("Bring your own API or your model").disabled).toBe(true);
+  expect(button("Agent model").disabled).toBe(true);
   expect(onSelectModel).not.toHaveBeenCalled();
+});
+it("restores the actual custom route when an uncommitted customization is closed", async () => {
+  const { onReadyChange, onSelectModel } = await render({ selectedModel: models[0].model });
+  expect(document.querySelector('.desktop-agent-compute-summary')?.textContent).toContain("Local models");
+  act(() => button("Bring your own API or your model").click());
+  act(() => button("Bring your API").click());
+  expect(onReadyChange).toHaveBeenLastCalledWith(false);
+  act(() => button("Close").click());
+  expect(onReadyChange).toHaveBeenLastCalledWith(true);
+  expect(document.querySelector('.desktop-agent-compute-editor')).toBeNull();
+  expect(document.querySelector('.desktop-agent-compute-summary')?.textContent).toContain("Local models");
+  expect(onSelectModel).not.toHaveBeenCalled();
+});
+it("closes a new connection editor back to cloud and discards the write-only Key form", async () => {
+  const { client, onReadyChange } = await render({ empty: true });
+  act(() => button("Bring your own API or your model").click());
+  act(() => button("Add connection").click());
+  expect(document.querySelector('input[type="password"]')).not.toBeNull();
+  act(() => button("Close").click());
+  expect(document.querySelector('input[type="password"]')).toBeNull();
+  expect(document.querySelector('.desktop-agent-compute-summary')?.textContent).toContain("Puppyone Cloud");
+  expect(onReadyChange).toHaveBeenLastCalledWith(false);
+  expect(client.save).not.toHaveBeenCalled();
 });

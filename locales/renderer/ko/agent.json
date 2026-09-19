@@ -1,4 +1,9 @@
 {
+  "compute.cloud": "Puppyone Cloud",
+  "compute.cloudUnavailable": "클라우드 추론은 아직 사용할 수 없습니다",
+  "compute.customize": "내 API 또는 모델 사용",
+  "compute.customizeTitle": "모델 연결 사용자 지정",
+  "compute.useCloud": "Puppyone Cloud 사용",
   "compute.title": "추론 리소스",
   "compute.source.managed": "공식 클라우드",
   "compute.source.api": "내 API",
