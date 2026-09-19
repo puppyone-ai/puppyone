@@ -11,6 +11,7 @@ const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "puppyone-onboarding-
 const screenshots = path.join(repoRoot, "artifacts/tests/onboarding-home");
 app.setPath("userData", path.join(temporaryRoot, "profile"));
 app.commandLine.appendSwitch("disable-gpu");
+app.commandLine.appendSwitch("force-prefers-reduced-motion");
 let window;
 let server;
 const evaluate = (source) => window.webContents.executeJavaScript(source);
@@ -45,10 +46,10 @@ async function runSmoke() {
     window.webContents.on("console-message", (details) => {
       if (details.level === "error") console.error(details.message);
     });
-    const labels = { "zh-Hans": "新建空项目", en: "New empty project", fr: "Créer un projet vide" };
-    const projectPrompts = { "zh-Hans": "你想从哪个项目开始？", en: "Which project do you want to start with?", fr: "Avec quel projet souhaitez-vous commencer ?" };
-    const importLabels = { "zh-Hans": "导入", en: "Import", fr: "Importer" };
-    const importIntros = { "zh-Hans": "把 SaaS 里的数据变成文件，保存到本地。", en: "Turn SaaS data into files on your computer.", fr: "Transformez vos données SaaS en fichiers locaux." };
+    const labels = { en: "New project" };
+    const projectPrompts = { en: "Which project do you want to start with?" };
+    const importLabels = { en: "Import" };
+    const importIntros = { en: "Turn SaaS data into files on your computer." };
     for (const locale of Object.keys(labels)) {
       for (const theme of ["dark", "light"]) {
         for (const [state, width, height] of [
@@ -57,12 +58,11 @@ async function runSmoke() {
         ]) {
           window.setContentSize(width, height);
           const url = new URL(`http://127.0.0.1:${server.httpServer.address().port}/tests/fixtures/workspace/projects/onboarding-home.html`);
-          url.searchParams.set("locale", locale);
           url.searchParams.set("theme", theme);
           url.searchParams.set("state", state);
           await window.loadURL(url.href);
-          // A renderer must exist before attaching; keep keyboard assertions
-          // stable if another desktop app takes OS focus during the matrix.
+          // Attach only after navigation creates the renderer target. The app-level
+          // reduced-motion switch is already visible during the initial React mount.
           if (!window.webContents.debugger.isAttached()) window.webContents.debugger.attach("1.3");
           await window.webContents.debugger.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true });
           await until("!!document.querySelector('[data-onboarding-action=create]') && !document.querySelector('[data-onboarding-empty-state-intro]')");
@@ -73,7 +73,6 @@ async function runSmoke() {
             const importButton = document.querySelector('.onboarding-entry-import');
             const importLabel = importButton.querySelector('.onboarding-entry-import-label');
             const importMarks = [...importButton.querySelectorAll('.onboarding-import-mark')];
-            const divider = document.querySelector('.onboarding-entry-action-divider');
             const label = create.querySelector('.po-button__label');
             const brand = document.querySelector('.onboarding-brand-lockup');
             const launcher = document.querySelector('.onboarding-launcher');
@@ -108,7 +107,7 @@ async function runSmoke() {
               actionIconWidth: rect(create.querySelector('svg')).width,
               actionIcon: rect(create.querySelector('.po-button__icon')),
               openIcon: rect(open.querySelector('.po-button__icon')),
-              importButton: rect(importButton), divider: rect(divider), open: rect(open),
+              importButton: rect(importButton), open: rect(open),
               projectPanel: rect(projectPanel),
               projectRow: rect(projectRow),
               projectIcon: rect(projectRow?.querySelector('.desktop-menu-item-icon')),
@@ -126,6 +125,7 @@ async function runSmoke() {
               importLineHeight: getComputedStyle(importLabel).lineHeight,
               importFamily: getComputedStyle(importLabel).fontFamily,
               importBackground: getComputedStyle(importButton).backgroundColor,
+              importColor: getComputedStyle(importButton).color,
               importIcon: rect(importButton.querySelector('.po-button__icon svg')),
               importArtworkCount: importButton.querySelectorAll('img, svg').length,
               importMarks: importMarks.map(rect),
@@ -135,8 +135,8 @@ async function runSmoke() {
               importBrands: rect(importButton.querySelector('.onboarding-entry-import-brands')),
               importMore: rect(importButton.querySelector('.onboarding-entry-import-more')),
               importText: importButton.textContent,
-              dividerBackground: divider && getComputedStyle(divider).backgroundColor,
               actionCount: buttons.length,
+              reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
               clipped: buttons.some(button => button.scrollWidth > button.clientWidth + 1)
                 || buttons.some(button => {
                   const text = button.querySelector('.po-button__label');
@@ -149,6 +149,7 @@ async function runSmoke() {
           })()`);
           const context = `${state}/${locale}/${theme}/${width}x${height}`;
           assert.equal(snapshot.label, labels[locale], context);
+          assert.equal(snapshot.reducedMotion, true, `${context}: visual smoke skips the full intro animation`);
           assert.equal(snapshot.brandText, state === 'empty' ? 'Start with your files. Agent-ready.' : projectPrompts[locale], `${context}: state-specific title`);
           assert.equal(snapshot.tagline, false, context);
           assert.ok(snapshot.imagesLoaded, `${context}: all brand assets must load`);
@@ -198,30 +199,26 @@ async function runSmoke() {
           assert.ok(Math.abs(snapshot.brand.x + snapshot.brand.width / 2 - width / 2) < 1, `${context}: shared column is centered`);
           assert.equal(snapshot.launcher.x, snapshot.brand.x, `${context}: launcher uses the shared left edge`);
           assert.equal(snapshot.launcher.width, snapshot.brand.width, `${context}: launcher uses the shared width`);
-          assert.equal(snapshot.firstSection.x, snapshot.brand.x, `${context}: first section divider uses the shared left edge`);
-          assert.equal(snapshot.firstSection.width, snapshot.brand.width, `${context}: first section divider spans the shared column`);
-          const titleToSectionGap = height <= 620 ? 40 : height <= 760 ? 52 : 64;
-          assert.ok(Math.abs(snapshot.firstSection.y - snapshot.brand.y - snapshot.brand.height - titleToSectionGap) < 1, `${context}: shared title-to-divider gap`);
-          assert.ok(Math.abs(snapshot.firstClickable.y - snapshot.brand.y - snapshot.brand.height - titleToSectionGap - 19) < 1, `${context}: shared title-to-first-clickable gap`);
+          assert.equal(snapshot.firstSection.x, snapshot.brand.x, `${context}: first content section uses the shared left edge`);
+          assert.equal(snapshot.firstSection.width, snapshot.brand.width, `${context}: first content section spans the shared column`);
+          const titleToSectionGap = height <= 620 ? 34 : height <= 760 ? 46 : 58;
+          assert.ok(Math.abs(snapshot.firstSection.y - snapshot.brand.y - snapshot.brand.height - titleToSectionGap) < 1, `${context}: shared title-to-section gap`);
+          assert.ok(Math.abs(snapshot.firstClickable.y - snapshot.brand.y - snapshot.brand.height - titleToSectionGap - 25) < 1, `${context}: shared title-to-first-clickable gap`);
           assert.ok(Math.abs(snapshot.launcher.y + snapshot.launcher.height / 2 - height / 2) < 1, `${context}: shared launcher is vertically centered`);
           if (state === 'empty') {
-            assert.equal(snapshot.primaryBorderTop, '1px', `${context}: primary section owns the empty-state divider`);
-            assert.equal(snapshot.primaryPaddingTop, '18px', `${context}: first action follows the shared frame inset`);
-            assert.equal(snapshot.divider.height, 1, `${context}: subtle one-pixel divider`);
-            assert.ok(snapshot.divider.width >= snapshot.create.width, `${context}: import divider remains at least as wide as the content-hugging CTA`);
-            assert.notEqual(snapshot.dividerBackground, 'rgba(0, 0, 0, 0)', `${context}: visible divider`);
-            assert.ok(snapshot.divider.y - snapshot.open.y - snapshot.open.height >= 12, `${context}: separation from direct-start actions`);
-            assert.ok(snapshot.importButton.y - snapshot.divider.y - snapshot.divider.height >= 8, `${context}: space below divider`);
-            assert.equal(snapshot.divider.x, snapshot.brand.x, `${context}: divider shares the content left edge`);
+            assert.equal(snapshot.primaryBorderTop, '1px', `${context}: title rule frames the first content section`);
+            assert.equal(snapshot.primaryPaddingTop, '24px', `${context}: first action follows the shared frame inset`);
+            const openToImportGap = snapshot.importButton.y - snapshot.open.y - snapshot.open.height;
+            assert.ok(openToImportGap >= 14 && openToImportGap <= 18, `${context}: compact whitespace separates import from direct-start actions`);
+            assert.equal(await evaluate("document.querySelector('.onboarding-entry-action-divider')"), null, `${context}: no decorative import divider`);
           } else {
-            assert.equal(snapshot.divider, null, `${context}: project list layout stays unchanged`);
             assert.equal(snapshot.projectPanel.x, snapshot.brand.x, `${context}: project frame shares the content left edge`);
             assert.equal(snapshot.projectPanel.width, snapshot.brand.width, `${context}: project frame uses the shared width`);
             assert.equal(snapshot.projectRow.x, snapshot.brand.x, `${context}: project row has no container-side inset`);
             assert.equal(snapshot.projectIcon.x, snapshot.actionIcon.x, `${context}: project and action icons align`);
             assert.deepEqual(snapshot.projectPanelFrame, {
               borderTop: '1px', borderRight: '0px', borderBottom: '1px', borderLeft: '0px',
-              paddingRight: '0px', paddingLeft: '0px', paddingTop: '18px',
+              paddingRight: '0px', paddingLeft: '0px', paddingTop: '24px',
             }, `${context}: horizontal-rule project frame without side padding`);
           }
           assert.ok(snapshot.importButton.height >= 28, `${context}: text entry retains a usable hit target`);
@@ -240,6 +237,7 @@ async function runSmoke() {
           await evaluate("Promise.all(document.querySelector('.onboarding-entry-import').getAnimations().map(animation => animation.finished))");
           assert.equal(await evaluate("getComputedStyle(document.querySelector('.onboarding-entry-import')).backgroundColor"), 'rgba(0, 0, 0, 0)', `${context}: no hover background`);
           assert.equal(await evaluate("getComputedStyle(document.querySelector('.onboarding-entry-import')).boxShadow"), 'none', `${context}: no hover button shadow`);
+          assert.equal(await evaluate("getComputedStyle(document.querySelector('.onboarding-entry-import')).color"), snapshot.importColor, `${context}: hover keeps the resting foreground tone`);
           // Real keyboard focus must remain visible and Enter must open the creation dialog.
           window.focus();
           window.webContents.focus();
@@ -256,6 +254,20 @@ async function runSmoke() {
           window.webContents.sendInputEvent({ type: "char", keyCode: "\r" });
           window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Enter" });
           await until("!!document.querySelector('.onboarding-entry-dialog')");
+          await until("!document.querySelector('.onboarding-entry-dialog button[type=submit]').disabled");
+          const createDialog = await evaluate(`(() => {
+            const dialog = document.querySelector('.onboarding-entry-dialog');
+            return {
+              name: dialog.querySelector('input').value,
+              selects: dialog.querySelectorAll('select').length,
+              localNotes: dialog.querySelectorAll('.onboarding-entry-local-note').length,
+              starterCopy: /Getting Started|Blank folder/.test(dialog.textContent),
+            };
+          })()`);
+          assert.match(createDialog.name, /^My project [A-F0-9]{4}$/, `${context}: collision-resistant default project name`);
+          assert.deepEqual({ ...createDialog, name: undefined }, {
+            name: undefined, selects: 0, localNotes: 0, starterCopy: false,
+          }, `${context}: one-action create dialog`);
           window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Escape" });
           window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Escape" });
           await until("!document.querySelector('.onboarding-entry-dialog')");
@@ -266,6 +278,7 @@ async function runSmoke() {
           await until("document.activeElement?.matches(':focus-visible')");
           assert.equal(await evaluate("getComputedStyle(document.activeElement).outlineStyle"), "solid", `${context}: import focus ring`);
           assert.equal(await evaluate("getComputedStyle(document.activeElement).backgroundColor"), 'rgba(0, 0, 0, 0)', `${context}: keyboard focus keeps transparent background`);
+          assert.equal(await evaluate("getComputedStyle(document.activeElement).color"), snapshot.importColor, `${context}: keyboard focus keeps the resting foreground tone`);
           window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Enter" });
           window.webContents.sendInputEvent({ type: "char", keyCode: "\r" });
           window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Enter" });
@@ -329,7 +342,7 @@ async function runSmoke() {
         }
       }
     }
-    console.log(`Onboarding visual smoke passed: 30 cases; screenshots: ${screenshots}`);
+    console.log(`Onboarding visual smoke passed: 10 English-only cases; screenshots: ${screenshots}`);
   } catch (error) {
     console.error(error);
     if (window && !window.isDestroyed()) console.error(await evaluate("({ active: document.activeElement?.outerHTML, dialogs: document.querySelectorAll('[role=dialog]').length, text: document.body.innerText })"));

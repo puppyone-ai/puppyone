@@ -1206,11 +1206,7 @@ declare global {
         absolutePath: string;
         entryType: "file" | "directory";
       }>>;
-      stageAgentAttachments: (request: {
-        rootPath: string;
-        epoch: string;
-        files: File[];
-      }) => Promise<import("../../shared/agent-contract/types").AgentDraftReference[]>;
+      stageAgentAttachments: (request: import("../../shared/agent-contract/types").AgentReferenceStageBridgeRequest) => Promise<import("../../shared/agent-contract/types").AgentDraftReference[]>;
       revokeAgentAttachments: (request: {
         rootPath: string;
         tokens: string[];

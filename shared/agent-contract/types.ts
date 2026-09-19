@@ -1,4 +1,5 @@
 import type { AgentProjection, AgentDisplayPatch } from "./display-types";
+import type { ProjectSessionContext } from "../project-session-contract/types";
 import type { AgentFileReference, AgentReferenceStatus, AgentReferenceError, AgentWorkspaceEntryReference, AgentStagedAttachmentReference, AgentDraftReference, AgentPromptReferenceMention, AgentReferenceDisplay, AgentSubmissionIntent } from "./user-message-types";
 export type * from "./user-message-types";
 export type * from "./display-types";
@@ -831,6 +832,11 @@ export type AgentReferenceStageRequest = {
   rootPath: string;
   epoch: string;
   files: File[];
+};
+
+/** Transport request after the project-scoped client binds its immutable owner context. */
+export type AgentReferenceStageBridgeRequest = AgentReferenceStageRequest & {
+  projectContext: ProjectSessionContext;
 };
 
 export type AgentReferenceRevokeRequest = {

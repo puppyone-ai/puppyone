@@ -7,6 +7,7 @@ import { pathToFileURL, fileURLToPath } from "node:url";
 import { app, BrowserWindow, dialog, ipcMain, nativeImage, nativeTheme } from "electron";
 import { createAgentAttachmentStore } from "../../../../electron/main/agent/agent-attachment-store.mjs";
 import { registerAgentIpcHandlers } from "../../../../electron/main/ipc/agent-ipc.mjs";
+import { createProjectSessionService } from "../../../../electron/main/workspace/project-sessions/project-session-service.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const preloadPath = path.join(repoRoot, "electron", "preload.cjs");
@@ -20,6 +21,7 @@ const epoch = "electron-smoke-draft";
 const originalImage = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEUlEQVR4AWP8DwQMQMDEAAUAPfgEADYYS7QAAAAASUVORK5CYII=", "base64");
 const grantsOnly = process.argv.includes("--grants-only");
 const windows = [];
+const projectSessions = createProjectSessionService();
 let attachmentStore = null;
 let consumedReference = null;
 
@@ -40,6 +42,7 @@ async function runSmoke() {
   await attachmentStore.initialize();
   registerAgentIpcHandlers({
     ipcMain,
+    projectSessions,
     attachmentStore,
     dialog,
     getDialogOwnerWindow: (sender) => BrowserWindow.fromWebContents(sender),
@@ -49,6 +52,11 @@ async function runSmoke() {
     },
     localAgentInventory: { discover: async () => ({ connections: [], scannedAt: new Date(0).toISOString(), warnings: [] }) },
     agentService: {
+      assertSessionInstance(_sender, request) {
+        if (request.sessionId !== "electron-smoke-session" || request.instanceId !== "electron-smoke-instance") {
+          throw new Error("Electron smoke session instance mismatch.");
+        }
+      },
       getReferenceInputCapabilities: () => ({
         schemaVersion: 1,
         workspace: { files: true, directories: true },
@@ -101,7 +109,9 @@ function registerLocalizationFixture() {
 async function runNativeGrantSmoke() {
   console.log("agent-reference smoke: creating native grant window");
   const window = createWindow({ show: false, width: 760, height: 700, preload: true });
-  await window.loadURL(referenceHarnessUrl());
+  const record = projectSessions.open(window.webContents.id, { path: workspacePath, workspace: { id: "reference-smoke-project" } });
+  const projectContext = { projectId: record.projectId, rootPath: record.rootPath, generation: record.generation };
+  await window.loadURL(referenceHarnessUrl(projectContext));
   console.log("agent-reference smoke: native grant window loaded");
   await waitForRenderer(window, "Boolean(window.puppyoneDesktop && window.puppyoneSmoke)", Boolean);
 
@@ -153,6 +163,11 @@ async function runNativeGrantSmoke() {
     throw new Error("Electron smoke did not resolve the ordered multi-entry Explorer selection.");
   }
 
+  const failures = await window.webContents.executeJavaScript("window.puppyoneSmoke.checkProjectFailures()", true);
+  if (failures.join(",") !== "PROJECT_CONTEXT_REQUIRED,PROJECT_STALE,PROJECT_UNAUTHORIZED") {
+    throw new Error(`Electron smoke project authorization regressed: ${JSON.stringify(failures)}`);
+  }
+
   await fsp.writeFile(imagePath, "source changed after staging");
   await window.webContents.executeJavaScript("window.puppyoneSmoke.startTurn()", true);
   if (!consumedReference || !consumedReference.bytes.equals(originalImage) || consumedReference.path === imagePath) {
@@ -172,6 +187,7 @@ async function runNativeGrantSmoke() {
     nativeGrantRoutes: results.map((entry) => entry.source),
     explorerEntries: workspaceReferences.map((reference) => `${reference.entryType}:${reference.relativePath}`),
     immutableSnapshotBytes: consumedReference.bytes.byteLength,
+    projectAuthorizationFailures: failures,
   };
 }
 
@@ -382,7 +398,7 @@ function createWindow({ show, width, height, preload }) {
   return window;
 }
 
-function referenceHarnessUrl() {
+function referenceHarnessUrl(projectContext) {
   const html = `<!doctype html>
     <html><body>
       <input id="native-file-input" type="file" accept="image/png">
@@ -391,11 +407,13 @@ function referenceHarnessUrl() {
       <script>
         const rootPath = ${JSON.stringify(workspacePath)};
         const epoch = ${JSON.stringify(epoch)};
+        const projectContext = ${JSON.stringify(projectContext)};
         const results = [];
         let pickerStarted = false;
         let workspaceReferences = [];
         async function ingest(source, files) {
-          const references = await window.puppyoneDesktop.stageAgentAttachments({ rootPath, epoch, files });
+          const references = await window.puppyoneDesktop.stageAgentAttachments({ rootPath, epoch, projectContext, files });
+          if (references?.agentFailure) throw new Error(references.agentFailure.code + ': ' + references.agentFailure.message);
           results.push({ source, references });
           return references;
         }
@@ -443,6 +461,7 @@ function referenceHarnessUrl() {
           async resolveWorkspace() {
             workspaceReferences = await window.puppyoneDesktop.resolveAgentWorkspaceReferences({
               rootPath,
+              projectContext,
               paths: ['alpha.md', 'beta.md', 'src'],
             });
             return workspaceReferences;
@@ -450,7 +469,9 @@ function referenceHarnessUrl() {
           startTurn() {
             return window.puppyoneDesktop.startAgentTurn({
               rootPath,
+              projectContext,
               sessionId: 'electron-smoke-session',
+              instanceId: 'electron-smoke-instance',
               prompt: 'Inspect the staged image and workspace selection.',
               referenceEpoch: epoch,
               references: [...workspaceReferences, results[0].references[0]],
@@ -459,8 +480,21 @@ function referenceHarnessUrl() {
           revokeCurrent() {
             return window.puppyoneDesktop.revokeAgentAttachments({
               rootPath,
+              projectContext,
               tokens: [results[0].references[0].token],
             });
+          },
+          async checkProjectFailures() {
+            const codes = [];
+            for (const request of [
+              { projectContext: undefined },
+              { projectContext: { ...projectContext, generation: 'obsolete' } },
+              { rootPath: rootPath + '-other' },
+            ]) {
+              const result = await window.puppyoneDesktop.stageAgentAttachments({ rootPath, epoch, projectContext, files: [input.files[0]], ...request });
+              codes.push(result?.agentFailure?.code || 'unexpected-success');
+            }
+            return codes;
           },
         };
       </script>

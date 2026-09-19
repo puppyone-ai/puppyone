@@ -20,6 +20,16 @@ let root: Root | null = null;
 const originalClipboard = navigator.clipboard;
 const originalConfirm = window.confirm;
 const onboardingCss = readFileSync("src/styles/onboarding.css", "utf8");
+const agentReadyMessages = {
+  de: "Deine Dateien. Für Agents bereit.",
+  en: "Start with your files. Agent-ready.",
+  es: "Tus archivos. Listos para Agents.",
+  fr: "Vos fichiers. Prêts pour les Agents.",
+  ja: "自分のファイルから。Agent 対応。",
+  ko: "내 파일로 시작. Agent 지원.",
+  "pt-BR": "Seus arquivos. Prontos para Agents.",
+  "zh-Hans": "从你的文件开始。为 Agent 就绪。",
+} as const;
 
 afterEach(() => {
   act(() => root?.unmount());
@@ -40,6 +50,15 @@ afterEach(() => {
 });
 
 describe("project folder home", () => {
+  it("localizes the agent-ready brand promise in every renderer locale", () => {
+    for (const [locale, expected] of Object.entries(agentReadyMessages)) {
+      const messages = JSON.parse(
+        readFileSync(`locales/renderer/${locale}/onboarding.json`, "utf8"),
+      ) as Record<string, string>;
+      expect(messages["brand.agentReadyMessage"], locale).toBe(expected);
+    }
+  });
+
   it("applies the effective Sub Theme on the real onboarding appearance root", () => {
     const styles = document.createElement("style");
     styles.textContent = `
@@ -171,7 +190,7 @@ describe("project folder home", () => {
     const projectActions = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-entry-action")];
     expect(projectActions).toHaveLength(3);
     expect(projectActions.map((action) => action.textContent)).toEqual([
-      "New empty project",
+      "New project",
       "Open a folder",
       "Import",
     ]);
@@ -207,7 +226,7 @@ describe("project folder home", () => {
     );
   });
 
-  it("uses one launcher geometry with a full-width first-section divider", () => {
+  it("uses one launcher geometry with a shared first-section rule", () => {
     expect(onboardingCss).toMatch(
       /\.onboarding-launcher\s*\{[^}]*display:\s*grid;[^}]*width:\s*var\(--onboarding-column-width\);[^}]*gap:\s*var\(--onboarding-section-gap\);/s,
     );
@@ -215,7 +234,20 @@ describe("project folder home", () => {
       /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-launcher/,
     );
     expect(onboardingCss).toMatch(
-      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-primary-area\s*\{[^}]*padding-block-start:\s*18px;[^}]*border-top:\s*1px solid var\(--po-border\);/s,
+      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-primary-area\s*\{[^}]*padding-block-start:\s*var\(--onboarding-first-section-inset\);[^}]*border-top:\s*1px solid var\(--po-border\);/s,
+    );
+    expect(onboardingCss).toMatch(
+      /\.onboarding-homepage\s*\{[^}]*--onboarding-brand-content-gap:\s*58px;[^}]*--onboarding-first-section-inset:\s*24px;/s,
+    );
+    expect(onboardingCss).toMatch(
+      /\.onboarding-recent-projects\s*\{[^}]*padding:\s*var\(--onboarding-first-section-inset\) 0 18px;[^}]*border-block:\s*1px solid var\(--po-border\);/s,
+    );
+    expect(onboardingCss).not.toContain(".onboarding-entry-action-divider");
+    expect(onboardingCss).toMatch(
+      /\.onboarding-entry-import-area\s*\{[^}]*margin-block-start:\s*8px;/s,
+    );
+    expect(onboardingCss).toMatch(
+      /\.onboarding-entry-import:hover:not\(:disabled\),\s*\.onboarding-entry-import:active:not\(:disabled\),\s*\.onboarding-entry-import:focus-visible\s*\{[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;[^}]*color:\s*var\(--po-text-muted\);/s,
     );
     expect(onboardingCss).toMatch(
       /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-entry-action-default\s*\{[^}]*width:\s*fit-content;[^}]*min-width:\s*0;[^}]*justify-content:\s*flex-start;/s,
@@ -284,7 +316,7 @@ describe("project folder home", () => {
     const actions = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-entry-action")];
     expect(actions).toHaveLength(3);
     expect(actions.map((action) => action.textContent)).toEqual([
-      "New empty project",
+      "New project",
       "Open a folder",
       "Import",
     ]);
@@ -314,11 +346,8 @@ describe("project folder home", () => {
     const preview = importGroup!.querySelector(".onboarding-entry-import-brands");
     const importLabel = importGroup!.querySelector(".onboarding-entry-import-label");
     expect(importLabel!.compareDocumentPosition(preview as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    const divider = container.querySelector(".onboarding-entry-action-divider");
-    expect(divider?.getAttribute("role")).toBe("separator");
-    expect(divider?.parentElement).toBe(importGroup?.parentElement);
-    expect(actions[1]!.compareDocumentPosition(divider as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(divider!.compareDocumentPosition(importGroup as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(container.querySelector(".onboarding-entry-action-divider")).toBeNull();
+    expect(actions[1]!.compareDocumentPosition(importGroup as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const launcher = container.querySelector(".onboarding-launcher");
     expect(launcher?.contains(container.querySelector(".onboarding-brand-lockup"))).toBe(true);
     expect(launcher?.contains(container.querySelector(".onboarding-entry-actions"))).toBe(true);
@@ -336,7 +365,7 @@ describe("project folder home", () => {
     expect(onCloneRepository).not.toHaveBeenCalled();
   });
 
-  it("prefills the built-in projects folder so creating needs only a name", async () => {
+  it("prefills the name and built-in projects folder for one-action creation", async () => {
     const onDefaultProjectLocation = vi.fn(async () => ({
       grantId: "default-1",
       path: "/Users/example/Documents/PuppyOne",
@@ -363,14 +392,14 @@ describe("project folder home", () => {
     expect(onChooseProjectLocation).not.toHaveBeenCalled();
     expect(container.querySelector(".onboarding-entry-location-path")?.textContent).toBe("/Users/example/Documents/PuppyOne");
     expect(container.querySelector(".onboarding-entry-location-action")?.textContent).toBe("Change");
-    expect(container.querySelector(".onboarding-entry-local-note")?.textContent).toBe(
-      "Files are created locally. Setup does not upload them.",
-    );
     const projectName = container.querySelector<HTMLInputElement>(".onboarding-entry-dialog input");
-    expect(projectName?.placeholder).toBe("My project");
+    expect(projectName?.value).toMatch(/^My project [A-F0-9]{4}$/);
+    const defaultName = projectName?.value;
+    expect(container.querySelector(".onboarding-entry-dialog select")).toBeNull();
+    expect(container.textContent).not.toContain("Files are created locally");
+    expect(container.textContent).not.toContain("Getting Started");
+    expect(container.textContent).not.toContain("Blank folder");
     const createButton = container.querySelector<HTMLButtonElement>(".onboarding-entry-dialog button[type='submit']");
-    expect(createButton?.disabled).toBe(true);
-    setInputValue(projectName, "Knowledge Base");
     expect(createButton?.disabled).toBe(false);
     await act(async () => {
       createButton?.click();
@@ -380,7 +409,7 @@ describe("project folder home", () => {
       operationId: expect.any(String),
       locale: "en",
       source: { kind: "template", ref: { sourceId: "builtin", id: "puppyone.project.getting-started", version: 1 } },
-      name: "Knowledge Base",
+      name: defaultName,
       locationGrantId: "default-1",
     });
     expect(container.querySelector(".onboarding-entry-dialog")).toBeNull();

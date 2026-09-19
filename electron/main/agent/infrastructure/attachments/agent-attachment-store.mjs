@@ -9,7 +9,9 @@ const MAX_TOTAL_REFERENCE_BYTES = agentContractLimits.maxTotalReferenceBytes;
 const DEFAULT_TTL_MS = 30 * 60_000;
 const COPY_CHUNK_BYTES = 64 * 1024;
 
-/** Main-owned, process-scoped immutable snapshots for external Agent inputs. */
+/** Main-owned, process-scoped immutable snapshots for external Agent inputs.
+ * @param {{ rootPath: string, fsModule?: typeof fs, now?: () => number, ttlMs?: number }} [options]
+ */
 export function createAgentAttachmentStore({
   rootPath,
   fsModule = fs,

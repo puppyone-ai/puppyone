@@ -53,6 +53,13 @@ e2e command runs project sessions followed by the fixture-based Agent/Terminal
 sidebar workflow. Both run without paid requests.
 
 Other `smoke:*` commands are explicit focused checks, not implicitly part of CI.
+`smoke:agent-attachment-ui` is the `agent-attachment-ui` app gate: the complete
+production Chat UI, project-scoped client, Preload and Main authorization accept
+native-picker and pathless drop/paste images, keep a single remove button and
+submit text plus image. Only native runtime discovery/execution is a fixture;
+CDP file selection and synthetic DOM events are not OS gesture certification.
+The separate `smoke:agent-references` checks immutable snapshot bytes, denied
+project contexts and the light/dark layout matrix.
 `smoke:text-selection` is the `text-selection` app gate: production styles and
 editors in Electron, every built-in mode, domain overrides, same-ID CSS reload,
 retained editor state, nested table inputs, native mouse/keyboard selection,

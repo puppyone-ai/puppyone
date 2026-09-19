@@ -97,6 +97,20 @@
       }
     },
     {
+      "id": "agent-attachment-ui",
+      "name": "Project-scoped image ingestion and submission through Chat UI",
+      "group": "app",
+      "command": ["npm", "run", "smoke:agent-attachment-ui"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": ["build"],
+      "timeoutSeconds": 120,
+      "runtime": "electron",
+      "artifacts": ["{checkDir}/attachment-ui/result.json"],
+      "environment": {
+        "PUPPYONE_ATTACHMENT_UI_ARTIFACT_DIR": "{checkDir}/attachment-ui"
+      }
+    },
+    {
       "id": "markdown-focus",
       "name": "Markdown pane focus continuity",
       "group": "app",
