@@ -285,6 +285,7 @@ function scopeDocumentToken(value: string, kind: "class" | "id"): string | null 
     .map((token) => token.trim())
     .filter(Boolean);
   if (tokens.length === 0) return null;
+  if (kind === "id" && tokens.length !== 1) return null;
 
   const scoped = tokens
     .map((token) => {

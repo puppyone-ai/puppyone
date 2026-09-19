@@ -15,7 +15,7 @@ app.on("window-all-closed", () => {});
 let owner;
 let vite;
 let focusLease;
-const report = { cases: [], expandedSources: [], sidebar: null, interactions: null, ignoredKeyboardEvents: 0, focusChanges: [], error: null };
+const report = { cases: [], expandedSources: [], htmlAnchors: null, sidebar: null, interactions: null, ignoredKeyboardEvents: 0, focusChanges: [], error: null };
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const evaluate = (body) => owner.webContents.executeJavaScript(`(async () => { const f = window.markdownSelectionFixture; ${body} })()`, true);
 async function point(pos) {
@@ -174,6 +174,40 @@ async function run() {
   assert.equal(expandedAfter.head, expandedAnchor - 1, "expanded-source selection head");
   assert.ok(Math.abs(expandedSample.afterPoint.y - expandedStart.y) < 0.75, "expanded-source paragraph geometry remains stable");
 
+  const htmlAnchor = `<a id="target_${"segment_".repeat(18)}"></a>`;
+  const anchorDoc = `Before\n\n${htmlAnchor}\n\nTarget paragraph abcdefghijklmnopqrstuvwxyz\n\n${"Following paragraph.\n\n".repeat(15)}`;
+  const anchorSelection = anchorDoc.indexOf("abcdefgh") + 5;
+  await evaluate(`f.replaceSource(${JSON.stringify(anchorDoc)}); f.view.focus(); f.view.dispatch({ selection: { anchor: ${anchorDoc.indexOf("target_") + 2} } });`);
+  await wait(60);
+  const htmlStart = await point(anchorSelection);
+  const htmlEnd = await point(anchorSelection - 1);
+  const htmlBefore = await evaluate(`return f.snapshot(${JSON.stringify(anchorDoc)});`);
+  assert.ok(htmlBefore.reveal, "anchor source is revealed before dragging");
+  await input("mouseDown", htmlStart);
+  await input("mouseMove", htmlEnd);
+  await input("mouseMove", htmlEnd);
+  await input("mouseUp", htmlEnd);
+  const htmlAfter = await evaluate(`return f.snapshot(${JSON.stringify(anchorDoc)});`);
+  const htmlAfterPoint = await point(anchorSelection);
+  assert.equal(htmlAfter.anchor, anchorSelection, "HTML anchor scenario selection anchor");
+  assert.equal(htmlAfter.head, anchorSelection - 1, "HTML anchor scenario backward single character");
+  assert.deepEqual(htmlAfter.reveal, htmlBefore.reveal, "anchor reveal geometry stays frozen while selecting");
+  assert.ok(htmlAfter.sourceUnchanged && htmlAfter.hasFocus, "HTML anchor source and focus remain intact");
+  assert.ok(Math.abs(htmlAfterPoint.y - htmlStart.y) < 0.75, "HTML anchor source does not move following text during drag");
+
+  const navigationDoc = `[Jump](#destination)\n\n${"Body paragraph for scrolling.\n\n".repeat(35)}<a id="destination"></a>\n\nDestination body`;
+  await evaluate(`f.replaceSource(${JSON.stringify(navigationDoc)}); f.view.dispatch({ selection: { anchor: 0 } }); f.view.scrollDOM.scrollTop = 0;`);
+  await wait(60);
+  assert.equal(await evaluate("return f.view.contentDOM.querySelector('[data-md-href]')?.dataset.mdLinkInteraction;"), "navigate", "offscreen anchor is actionable");
+  const navigationPoint = await point(3);
+  await input("mouseDown", navigationPoint);
+  await input("mouseUp", navigationPoint);
+  await wait(60);
+  const navigation = await evaluate(`const r = f.view.coordsAtPos(${navigationDoc.indexOf('<a id=')}); const bounds = f.view.scrollDOM.getBoundingClientRect(); return { scrollTop: f.view.scrollDOM.scrollTop, targetTop: r?.top, top: bounds.top, bottom: bounds.bottom, sourceUnchanged: f.view.state.doc.toString() === ${JSON.stringify(navigationDoc)} };`);
+  assert.ok(navigation.scrollTop > 0 && navigation.targetTop >= navigation.top - 1 && navigation.targetTop < navigation.bottom, "native link click scrolls to offscreen HTML anchor");
+  assert.ok(navigation.sourceUnchanged, "anchor navigation preserves source");
+  report.htmlAnchors = { before: htmlBefore, after: htmlAfter, beforePoint: htmlStart, afterPoint: htmlAfterPoint, navigation };
+
   const sidebar = await evaluate(`
     f.replaceSource('| Name | Value |\\n| --- | --- |\\n| one | unchanged |\\n\\nText below the table.');
     const table = f.view.dom.querySelector('.cm-md-table-widget');
@@ -192,7 +226,7 @@ async function run() {
   assert.ok(sidebar.tableMounted, "sidebar scenario has a real table");
   assert.ok(sidebar.tableRetained, "loading unrelated folder entries must retain the table DOM");
   assert.ok(sidebar.samples.every((top) => Math.abs(top - sidebar.baseline) < 0.75), "paragraph geometry remains stable across folder loads");
-  console.log(JSON.stringify({ ok: true, selections: cases.map(({ name, after }) => ({ name, anchor: after.anchor, head: after.head })), expandedSources: report.expandedSources, sidebar, interactions: report.interactions }, null, 2));
+  console.log(JSON.stringify({ ok: true, selections: cases.map(({ name, after }) => ({ name, anchor: after.anchor, head: after.head })), expandedSources: report.expandedSources, htmlAnchors: report.htmlAnchors, sidebar, interactions: report.interactions }, null, 2));
 }
 app.whenReady().then(run).then(() => finish(0), (error) => {
   report.error = error instanceof Error ? error.stack : String(error);

@@ -3,12 +3,15 @@ import { getMarkdownHtmlBlock } from "./htmlBlockModel";
 import { HtmlBlockWidget } from "./htmlBlockWidget";
 import { getMarkdownInlineHtmlInRange } from "./inlineHtmlModel";
 import { compileHtmlBlockElementPlan, compileInlineHtmlElementPlan } from "./htmlPlan";
+import { markdownFragmentTargetsFacet } from "../../core/links/markdownFragmentTargets";
+import { getMarkdownInlineHtmlAnchors } from "./inlineHtmlAnchors";
 
 export const htmlFeature = defineMarkdownFeature({
   id: "html",
   semanticKinds: ["inlineHtml", "htmlBlock"],
   inlineWidgetKinds: [],
   blockWidgetKinds: ["htmlBlock"],
+  livePreviewExtensions: [markdownFragmentTargetsFacet.of(getMarkdownInlineHtmlAnchors)],
   collectRange(state, from, to) {
     return getMarkdownInlineHtmlInRange(state, from, to).map((inlineHtml) => ({
       kind: "inlineHtml" as const,

@@ -26,7 +26,7 @@ import {
 } from "./decorationPrimitives";
 import { markdownLocalizationFacet } from "../editor/markdownLocalization";
 import { markdownLinkCommandsFacet } from "../editor/markdownLivePreviewContext";
-import { getMarkdownHeadingPosition } from "../links/markdownHeadingIndex";
+import { getMarkdownFragmentPosition } from "../links/markdownFragmentTargets";
 import {
   resolveMarkdownHrefInteraction,
   resolveWikiLinkInteraction,
@@ -266,7 +266,7 @@ function applyInlineHtmlPlan(
         documentPath,
         linkGraph: markdownLinkGraph,
         linkCommands: state.facet(markdownLinkCommandsFacet),
-        hasSameDocumentHeading: (fragment) => getMarkdownHeadingPosition(state, fragment) !== null,
+        hasSameDocumentTarget: (fragment) => getMarkdownFragmentPosition(state, fragment) !== null,
         editing: revealSourceSyntax,
       }),
     ));
@@ -324,7 +324,7 @@ function addWikiLinkElementDecoration(
     documentPath,
     linkGraph: markdownLinkGraph,
     linkCommands: state.facet(markdownLinkCommandsFacet),
-    hasSameDocumentHeading: (fragment) => getMarkdownHeadingPosition(state, fragment) !== null,
+    hasSameDocumentTarget: (fragment) => getMarkdownFragmentPosition(state, fragment) !== null,
     editing: revealSourceSyntax,
   });
   const classes = [
@@ -375,7 +375,7 @@ function addLinkElementDecoration(
     documentPath,
     linkGraph: markdownLinkGraph,
     linkCommands: state.facet(markdownLinkCommandsFacet),
-    hasSameDocumentHeading: (fragment) => getMarkdownHeadingPosition(state, fragment) !== null,
+    hasSameDocumentTarget: (fragment) => getMarkdownFragmentPosition(state, fragment) !== null,
     editing: revealSourceSyntax,
   });
   const linkClasses = [
