@@ -83,10 +83,10 @@ describe("Local Agent installation service", () => {
     });
     expect(JSON.stringify(result)).not.toContain("/private/tools");
     await service.discover();
-    expect(resolveInstallation).toHaveBeenCalledTimes(16);
+    expect(resolveInstallation).toHaveBeenCalledTimes(8);
   });
 
-  it("uses the short cache only for ordinary reads and always scans on explicit refresh", async () => {
+  it("reuses the application-session snapshot regardless of age and only scans on explicit refresh", async () => {
     let now = 1_000;
     const resolveInstallation = vi.fn(async () => ({ status: "not-found", reasonCode: "not-found" }));
     const service = createLocalAgentInstallationService({
@@ -97,11 +97,29 @@ describe("Local Agent installation service", () => {
 
     expect((await service.discover()).source).toBe("scan");
     expect(resolveInstallation).toHaveBeenCalledTimes(8);
-    now += 1_000;
+    now += 86_400_000;
     expect((await service.discover()).source).toBe("memory-cache");
     expect(resolveInstallation).toHaveBeenCalledTimes(8);
     expect((await service.discover({ refresh: true })).source).toBe("scan");
     expect(resolveInstallation).toHaveBeenCalledTimes(16);
+    service.dispose();
+    const nextLaunch = createLocalAgentInstallationService({ createResolutionContext: async () => ({}), resolveInstallation });
+    expect((await nextLaunch.discover()).source).toBe("scan");
+    expect(resolveInstallation).toHaveBeenCalledTimes(24);
+    nextLaunch.dispose();
+  });
+
+  it("ordinary reads during an explicit refresh return the previous snapshot without waiting", async () => {
+    const gate = deferred();
+    const createResolutionContext = vi.fn().mockResolvedValueOnce({}).mockReturnValueOnce(gate.promise);
+    const service = createLocalAgentInstallationService({ createResolutionContext,
+      resolveInstallation: async () => ({ status: "found", candidate: { source: "fixture" } }) });
+    const initial = await service.discover();
+    const pending = service.discover({ refresh: true });
+    expect(await service.discover()).toMatchObject({ source: "memory-cache", generation: initial.generation });
+    gate.resolve({}); await pending;
+    expect(service.getDiagnostics().scanCount).toBe(2);
+    service.dispose();
   });
 
   it("queues one guaranteed follow-up scan when refresh is clicked during an active scan", async () => {

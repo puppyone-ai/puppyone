@@ -74,7 +74,22 @@ async function run() {
     await until("Boolean(document.querySelector('.local-agent-setup-card'))");
     const name = `${variant.theme}-${variant.width}-${variant.rtl ? "rtl" : "ltr"}`;
     assert(await evaluate("document.querySelectorAll('.local-agent-setup-card').length === 1"), "Only one recommendation allowed");
+    assert(await evaluate("!Array.from(document.querySelectorAll('button')).some(button => button.textContent === 'Set up Agents')"), "Settings directory leaked into launcher");
+    assert(await evaluate("!document.querySelector('.local-agent-setup-options').open"), "Secondary options should start collapsed");
     await capture(`${name}-recommendation`);
+    await evaluate("document.querySelector('.local-agent-setup-options summary').click()");
+    await settle();
+    assert(await evaluate(`(() => {
+      const panel = document.querySelector('.desktop-terminal-launcher').getBoundingClientRect();
+      const options = document.querySelector('.local-agent-setup-options > div').getBoundingClientRect();
+      return options.width > 0 && options.left >= panel.left && options.right <= panel.right;
+    })()`), "Recommendation options overflow the sidebar");
+    await capture(`${name}-options`);
+    await evaluate("document.querySelector('.local-agent-setup-options button').focus()");
+    window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Escape" });
+    window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Escape" });
+    await settle();
+    assert(await evaluate("!document.querySelector('.local-agent-setup-options').open && document.activeElement.tagName === 'SUMMARY'"), "Escape did not collapse options and restore focus");
     await click("Activate Codex");
     assert(await evaluate("document.activeElement.tagName === 'H3'"), "Activation did not focus setup heading");
     await click("Open official setup guide");
@@ -89,7 +104,8 @@ async function run() {
     assert(await evaluate("Array.from(document.querySelectorAll('.desktop-terminal-launcher-tool')).some(button => button.textContent === 'Codex' && !button.disabled)"), "Detected Agent not usable");
     await capture(`${name}-detected`);
     await click("Close");
-    assert(await evaluate("document.activeElement.textContent === 'Set up Agents'"), "Close did not restore focus");
+    assert(await evaluate("document.activeElement.textContent === 'Codex'"), "Close did not return to the usable Agent");
+    assert(await evaluate("!document.querySelector('.local-agent-setup')"), "Launcher retained setup chrome after recommendation ended");
     assert(await evaluate("!document.querySelector('.local-agent-setup-card')"), "A second recommendation replaced the first");
     await evaluate("document.querySelector('.desktop-terminal-launcher-shell').scrollIntoView({ block: 'nearest' })");
     assert(await evaluate("document.querySelector('.desktop-terminal-launcher-shell').getBoundingClientRect().bottom <= innerHeight"), "Terminal inaccessible at low height");

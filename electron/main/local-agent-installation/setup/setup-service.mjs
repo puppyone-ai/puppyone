@@ -31,11 +31,11 @@ export function createLocalAgentSetupService({ installationService, presenceServ
       if (until > now()) sessionSuppressed.add(id);
     }
     const current = installationService.getSnapshot();
-    const evidenceAt = Date.parse(current?.completedAt);
-    const expired = Number.isFinite(evidenceAt) && (now() < evidenceAt || now() - evidenceAt >= 30_000);
     const scanning = installationService.isScanning();
     const [installations, companions] = await Promise.all([
-      scanning || !current || expired ? installationService.discover({ refresh: expired && !scanning }) : current,
+      // Inspecting a recommendation is a read, not consent to run a new scan.
+      // Old evidence remains visible; action receipts still enforce freshness.
+      scanning || !current ? installationService.discover() : current,
       request.preferences.enabled ? presenceService.discover({ refresh: request.refreshPresence }) : [],
     ]);
     if (disposed || clients.get(key) !== record) throw new Error("Setup request superseded.");

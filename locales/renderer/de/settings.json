@@ -1,4 +1,5 @@
 {
+  "agentSetup.options": "Empfehlungsoptionen",
   "agentSetup.title": "Agents einrichten",
   "agentSetup.suggestions": "Agents anhand installierter Apps vorschlagen",
   "agentSetup.restore": "Verworfene Vorschläge wiederherstellen",
@@ -14,9 +15,9 @@
   "agentSetup.managed": "Schließe die lokale Einrichtung in {agent} ab. Eine App mit Remote-Verbindung stellt möglicherweise keine lokale Laufzeit bereit.",
   "agentSetup.install": "Installiere die offizielle {agent}-CLI gemäß der Anleitung. Die Desktop-App allein stellt den benötigten Befehl nicht bereit.",
   "agentSetup.claude": "Diese Chat-Integration benötigt separate API- oder unterstützte Cloud-Zugangsdaten; ein Claude-Desktop-Abonnement reicht nicht aus.",
-  "agentSetup.return": "Kehre nach der Einrichtung zur erneuten Prüfung zu Puppyone zurück. Installation und Anmeldung erfolgen nicht automatisch.",
+  "agentSetup.return": "Kehre nach der Einrichtung zu Puppyone zurück und wähle {scan}. Installation und Anmeldung erfolgen nicht automatisch.",
   "agentSetup.guide": "Offizielle Anleitung öffnen",
-  "agentSetup.guide-opened": "Offizielle Anleitung geöffnet. Schließe die Einrichtung dort ab und kehre zu Puppyone zurück.",
+  "agentSetup.guide-opened": "Offizielle Anleitung geöffnet. Schließe die Einrichtung ab, kehre zurück und wähle {scan}.",
   "agentSetup.stale": "Die Installationsinformationen haben sich geändert. Prüfe sie erneut, bevor du fortfährst.",
   "agentSetup.failed": "Die Einrichtung konnte nicht geöffnet oder geprüft werden. Versuche es erneut.",
   "modelConnections.sourceKind": "Verbindungskategorie",

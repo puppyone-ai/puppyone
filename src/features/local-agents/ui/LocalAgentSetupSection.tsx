@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { MoreHorizontal } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
 import type { LocalAgentSetupPreferences } from "../../../../shared/local-agent-installation/setup-types";
 import type { LocalAgentInstallationStoreSnapshot } from "../application/LocalAgentInstallationStore";
@@ -7,7 +8,7 @@ import { normalizeSetupPreferences } from "../model/localAgentSetupPreferences";
 import "./local-agent-setup.css";
 
 export function LocalAgentSetupSection({ enabled, surface, eligibleInstallationIds, hiddenAgentIds, preferences: input,
-  onPreferencesChange, discovery, onRefresh, showPreferences = false }: {
+  onPreferencesChange, discovery, onRefresh, presentation = "launcher", onReturnToLauncher }: {
   enabled: boolean;
   surface: "chat" | "terminal";
   eligibleInstallationIds: readonly string[];
@@ -16,7 +17,8 @@ export function LocalAgentSetupSection({ enabled, surface, eligibleInstallationI
   onPreferencesChange?: (value: LocalAgentSetupPreferences) => void;
   discovery: LocalAgentInstallationStoreSnapshot;
   onRefresh: () => void;
-  showPreferences?: boolean;
+  presentation?: "launcher" | "settings";
+  onReturnToLauncher?: () => void;
 }) {
   const { t } = useLocalization();
   const preferences = normalizeSetupPreferences(input);
@@ -30,12 +32,15 @@ export function LocalAgentSetupSection({ enabled, surface, eligibleInstallationI
   const [acting, setActing] = useState(false);
   const [cardFocused, setCardFocused] = useState(false);
   const directoryButton = useRef<HTMLButtonElement>(null);
+  const activateButton = useRef<HTMLButtonElement>(null);
+  const restoreFocus = useRef(false);
   const viewHeading = useRef<HTMLHeadingElement>(null);
   const actionGeneration = useRef(0);
   const entries = setup.snapshot?.entries ?? [];
   const chosen = entries.find((entry) => entry.setupId === chosenId);
   const selected = entries.find((entry) => entry.setupId === selectedId);
   const busy = setup.busy || acting || !enabled;
+  const isSettings = presentation === "settings";
   const guidanceAvailable = selected && (selectedMode === "manual" || selected.recommended);
   const recommended = chosen?.recommended && !dismissed && preferences.enabled
     && !hiddenAgentIds.includes(chosen.installationId)
@@ -52,8 +57,16 @@ export function LocalAgentSetupSection({ enabled, surface, eligibleInstallationI
     if (selectedId && enabled) viewHeading.current?.focus();
     return () => { actionGeneration.current += 1; };
   }, [selectedId, enabled]);
+  useLayoutEffect(() => {
+    if (!restoreFocus.current) return;
+    restoreFocus.current = false;
+    const target = isSettings ? directoryButton.current : activateButton.current;
+    if (target) target.focus();
+    else onReturnToLauncher?.();
+  }, [selectedId, directoryOpen, dismissed, isSettings, onReturnToLauncher]);
 
   if (!setup.supported) return null;
+  if (!isSettings && !selectedId && !(chosen && (recommended || cardFocused))) return null;
   function open(id: string, mode: "manual" | "recommendation" = "manual") {
     setActionStatus(null);
     setSelectedId(id);
@@ -67,15 +80,16 @@ export function LocalAgentSetupSection({ enabled, surface, eligibleInstallationI
     setDirectoryOpen(false);
     setActing(false);
     setActionStatus(null);
-    directoryButton.current?.focus();
+    restoreFocus.current = true;
   }
   function dismiss(permanent: boolean) {
     if (!chosen) return;
+    setCardFocused(false);
     setDismissed(true);
     onPreferencesChange?.(permanent
       ? { ...preferences, dismissedSetupIds: [...new Set([...preferences.dismissedSetupIds, chosen.setupId])] }
       : { ...preferences, snoozedUntil: { ...preferences.snoozedUntil, [chosen.setupId]: Date.now() + 7 * 24 * 60 * 60 * 1_000 } });
-    directoryButton.current?.focus();
+    restoreFocus.current = true;
   }
   async function openGuide() {
     if (!selected || !guidanceAvailable || busy || selected.status === "found") return;
@@ -85,14 +99,13 @@ export function LocalAgentSetupSection({ enabled, surface, eligibleInstallationI
       const status = await setup.openGuide(selected.setupId, selectedMode);
       if (generation === actionGeneration.current) {
         setActionStatus(status);
-        if (status === "stale" || status === "detected") onRefresh();
       }
     } catch { if (generation === actionGeneration.current) setActionStatus("failed"); }
     finally { if (generation === actionGeneration.current) setActing(false); }
   }
 
-  return <section className="local-agent-setup" aria-label={t("settings.agentSetup.title")}>
-    {showPreferences && <div className="local-agent-setup-preferences">
+  return <section className="local-agent-setup" data-presentation={presentation} aria-label={t("settings.agentSetup.title")}>
+    {isSettings && <div className="local-agent-setup-preferences">
       <label className="local-agent-setup-toggle">
         <input type="checkbox" checked={preferences.enabled} onChange={(event) => onPreferencesChange?.({ ...preferences, enabled: event.target.checked })} />
         <span>{t("settings.agentSetup.suggestions")}</span>
@@ -105,14 +118,27 @@ export function LocalAgentSetupSection({ enabled, surface, eligibleInstallationI
       onFocus={() => setCardFocused(true)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setCardFocused(false); }}>
       <p>{t(recommended ? "settings.agentSetup.recommendation" : "settings.agentSetup.updated", { agent: chosen.displayName })}</p>
       <div className="local-agent-setup-actions">
-        <button type="button" aria-disabled={busy || !recommended} onClick={() => { if (recommended && !busy) open(chosen.setupId, "recommendation"); }}>{t("settings.agentSetup.activate", { agent: chosen.displayName })}</button>
-        <button type="button" aria-disabled={!recommended} onClick={() => { if (recommended) dismiss(false); }}>{t("settings.agentSetup.later")}</button>
-        <button type="button" aria-disabled={!recommended} onClick={() => { if (recommended) dismiss(true); }}>{t("settings.agentSetup.never")}</button>
+        <button ref={activateButton} className="local-agent-setup-primary" type="button" aria-disabled={busy || !recommended} onClick={() => { if (recommended && !busy) open(chosen.setupId, "recommendation"); }}>{t("settings.agentSetup.activate", { agent: chosen.displayName })}</button>
+        <details className="local-agent-setup-options" onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false;
+        }} onKeyDown={(event) => {
+          if (event.key !== "Escape" || !event.currentTarget.open) return;
+          event.preventDefault();
+          event.stopPropagation();
+          event.currentTarget.open = false;
+          event.currentTarget.querySelector("summary")?.focus();
+        }}>
+          <summary aria-label={t("settings.agentSetup.options")} title={t("settings.agentSetup.options")}><MoreHorizontal size={16} aria-hidden="true" /></summary>
+          <div>
+            <button type="button" aria-disabled={!recommended} onClick={() => { if (recommended) dismiss(false); }}>{t("settings.agentSetup.later")}</button>
+            <button type="button" aria-disabled={!recommended} onClick={() => { if (recommended) dismiss(true); }}>{t("settings.agentSetup.never")}</button>
+          </div>
+        </details>
       </div>
     </div>}
-    <button type="button" ref={directoryButton} aria-expanded={directoryOpen || selectedId !== null}
-      onClick={() => directoryOpen || selectedId ? close() : setDirectoryOpen(true)}>{t("settings.agentSetup.title")}</button>
-    {directoryOpen && <div className="local-agent-setup-directory">
+    {isSettings && <button type="button" ref={directoryButton} aria-expanded={directoryOpen || selectedId !== null}
+      onClick={() => directoryOpen || selectedId ? close() : setDirectoryOpen(true)}>{t("settings.agentSetup.title")}</button>}
+    {isSettings && directoryOpen && <div className="local-agent-setup-directory">
       {entries.map((entry) => <button type="button" key={entry.setupId} disabled={busy} onClick={() => open(entry.setupId)}>{entry.displayName}</button>)}
       {entries.length === 0 && <p>{t(setup.error ? "settings.agentSetup.failed" : setup.busy ? "settings.localAgents.scanning" : "settings.agentSetup.empty")}</p>}
       {setup.error && <button type="button" onClick={onRefresh}>{t("settings.localAgents.retry")}</button>}
@@ -126,14 +152,14 @@ export function LocalAgentSetupSection({ enabled, surface, eligibleInstallationI
               : selected.strategy === "companion-managed-runtime" ? "settings.agentSetup.managed" : "settings.agentSetup.install",
       { agent: selected?.displayName ?? selectedId })}</p>
       {selected?.installationId === "claude" && surface === "chat" && <p>{t("settings.agentSetup.claude")}</p>}
-      <p>{t("settings.agentSetup.return")}</p>
+      <p>{t("settings.agentSetup.return", { scan: t("settings.localAgents.scan") })}</p>
       <div className="local-agent-setup-actions">
-        <button type="button" aria-disabled={busy || setup.error || !guidanceAvailable || selected?.status === "found"}
+        <button type="button" className="local-agent-setup-primary" aria-disabled={busy || setup.error || !guidanceAvailable || selected?.status === "found"}
           onClick={() => { if (!setup.error) void openGuide(); }}>{t("settings.agentSetup.guide")}</button>
         <button type="button" disabled={busy} onClick={() => { setActionStatus(null); onRefresh(); }}>{t("settings.localAgents.scan")}</button>
         <button type="button" onClick={close}>{t("common.action.close")}</button>
       </div>
-      <p role="status">{actionStatus ? t(`settings.agentSetup.${actionStatus}`) : ""}</p>
+      <p role="status">{actionStatus ? t(`settings.agentSetup.${actionStatus}`, { scan: t("settings.localAgents.scan") }) : ""}</p>
     </div>}
   </section>;
 }

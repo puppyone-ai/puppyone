@@ -57,17 +57,17 @@ export function TerminalLauncherVisualSmokeHarness() {
           <TerminalLauncher
             agentMode={agentMode}
             discoveryPhase={discovery.phase}
-            discoveryProgress={discovery.completed ? { completedAgentCount: discovery.completed, totalAgentCount: 8 } : null}
             discoveryRefreshing={discovery.refreshing}
             discoveryHasFailures={discovery.failed}
             availableAgentIds={discovery.ids}
-            agentSetup={setupScenario && <LocalAgentSetupSection enabled surface="chat"
+            agentSetup={setupScenario ? (onReturnToLauncher) => <LocalAgentSetupSection enabled surface="chat"
+              onReturnToLauncher={onReturnToLauncher}
               eligibleInstallationIds={["codex", "cursor"]} hiddenAgentIds={[]}
               preferences={setupPreferences} onPreferencesChange={setSetupPreferences}
               discovery={{ ids: discovery.ids, phase: discovery.phase, hasFailures: discovery.failed, refreshing: discovery.refreshing, progress: null,
                 snapshot: { schemaVersion: 1, generation: discovery.completed, scanId: `fixture:${discovery.completed}`,
                   source: "scan", results: [], availableAgentIds: discovery.ids, requestedAt: "2026-09-19T00:00:00Z", completedAt: "2026-09-19T00:00:00Z" } }}
-              onRefresh={() => setDiscovery((current) => ({ ...current, phase: "loading", refreshing: true }))} />}
+              onRefresh={() => setDiscovery((current) => ({ ...current, phase: "loading", refreshing: true }))} /> : undefined}
             chatRecipes={discoveryScenario ? filterAgentChatCreationRecipesByLocalAgentIds(AGENT_CHAT_CREATION_RECIPES, discovery.ids) : AGENT_CHAT_CREATION_RECIPES}
             onCreateChat={(recipe) => setSelection(`chat:${recipe.id}`)}
             onLaunch={setSelection}

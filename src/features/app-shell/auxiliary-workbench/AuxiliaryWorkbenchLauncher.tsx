@@ -49,12 +49,12 @@ export function AuxiliaryWorkbenchLauncher({ store, contributions, hiddenAgentId
     titleId={`workbench-launcher-${store.context.generation}-${itemId ?? "empty"}`}
     agentMode={chat ? "chat" : "terminal"}
     discoveryPhase={discovery.phase}
-    discoveryProgress={discovery.progress}
     discoveryHasFailures={discovery.hasFailures}
     discoveryRefreshing={discovery.refreshing}
     discoveryHasInstallations={discovery.ids.length > 0}
     availableAgentIds={availableAgentIds}
-    agentSetup={<LocalAgentSetupSection
+    agentSetup={(onReturnToLauncher) => <LocalAgentSetupSection
+      onReturnToLauncher={onReturnToLauncher}
       enabled={presented && !historyOpen}
       surface={chat ? "chat" : "terminal"}
       eligibleInstallationIds={chat ? AGENT_CHAT_LOCAL_AGENT_IDS : terminal ? DESKTOP_TERMINAL_LAUNCHERS.filter(({ id }) => id !== "shell").map(({ id }) => id) : []}

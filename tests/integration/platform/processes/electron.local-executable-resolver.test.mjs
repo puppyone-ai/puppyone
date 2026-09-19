@@ -205,7 +205,8 @@ describe("ordered installation discovery", () => {
       expect.objectContaining({ agentId: "codex", status: "failed", reasonCode: "environment-unavailable" }),
     ]) });
     await executable(path.join(home, ".local", "bin", "codex"));
-    await expect(service.discover()).resolves.toMatchObject({ source: "scan", availableAgentIds: ["codex"] });
+    await expect(service.discover()).resolves.toMatchObject({ source: "memory-cache", availableAgentIds: [] });
+    await expect(service.discover({ refresh: true })).resolves.toMatchObject({ source: "scan", availableAgentIds: ["codex"] });
     service.dispose();
   });
 });

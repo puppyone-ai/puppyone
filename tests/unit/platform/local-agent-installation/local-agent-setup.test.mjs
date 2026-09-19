@@ -157,7 +157,7 @@ describe("setup advisor and trusted guide broker", () => {
     expect(h.installationService.discover).not.toHaveBeenCalled();
   });
 
-  it("refreshes expired installation evidence once even when setup is reopened without a focus event", async () => {
+  it("does not refresh expired installation evidence just because setup is reopened", async () => {
     const h = harness(); h.setTime(40_000);
     h.setSnapshot({ ...snapshot(), completedAt: new Date(1_000).toISOString() });
     h.installationService.discover.mockImplementation(async () => {
@@ -165,7 +165,7 @@ describe("setup advisor and trusted guide broker", () => {
       h.setSnapshot(value); return value;
     });
     await h.service.inspect(1, request); await h.service.inspect(1, request);
-    expect(h.installationService.discover).toHaveBeenCalledExactlyOnceWith({ refresh: true });
+    expect(h.installationService.discover).not.toHaveBeenCalled();
   });
 
   it("normalizes persisted preferences without preserving unknown IDs or installation evidence", () => {

@@ -1,4 +1,5 @@
 {
+  "agentSetup.options": "Recommendation options",
   "agentSetup.title": "Set up Agents",
   "agentSetup.suggestions": "Suggest Agents from installed apps",
   "agentSetup.restore": "Restore dismissed suggestions",
@@ -14,9 +15,9 @@
   "agentSetup.managed": "Complete local setup in {agent}. A desktop app configured for a remote connection may not provide a local runtime.",
   "agentSetup.install": "Install the official {agent} CLI using the guide. A desktop app alone does not provide the command Puppyone needs.",
   "agentSetup.claude": "This Chat integration requires separate API or supported cloud credentials; a Claude Desktop subscription is not sufficient.",
-  "agentSetup.return": "Return to Puppyone after setup to check again. Nothing is installed or signed in automatically.",
+  "agentSetup.return": "After setup, return to Puppyone and choose {scan}. Nothing is installed or signed in automatically.",
   "agentSetup.guide": "Open official setup guide",
-  "agentSetup.guide-opened": "Official guide opened. Complete setup there, then return to Puppyone.",
+  "agentSetup.guide-opened": "Official guide opened. Complete setup, then return and choose {scan}.",
   "agentSetup.stale": "Installation information changed. Check again before continuing.",
   "agentSetup.failed": "Could not open or check setup. Please retry.",
   "modelConnections.sourceKind": "Connection category",
