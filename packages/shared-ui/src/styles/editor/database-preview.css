@@ -331,6 +331,7 @@
   bottom: 16px;
   display: flex;
   height: 34px;
+  max-width: calc(100% - 36px);
   box-sizing: border-box;
   align-items: center;
   gap: 1px;
@@ -349,6 +350,18 @@
   font-size: var(--po-text-size-caption, 11px);
   font-variant-numeric: tabular-nums;
   text-align: center;
+}
+
+.database-preview__restart {
+  min-width: 0;
+  max-width: 180px;
+  margin-inline-end: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--po-text-muted);
+  font-size: var(--po-text-size-caption, 11px);
+  line-height: 1.2;
 }
 
 .database-preview__pager-glyph {

@@ -19,6 +19,7 @@ import {
 import {
   cloneRepositoryTarget,
   createLocalProjectTarget,
+  defaultLocalProjectLocationTarget,
   openDroppedWorkspaceTarget,
   openWorkspaceTarget,
   selectLocalProjectLocationTarget,
@@ -29,6 +30,7 @@ import type {
   WorkspaceCreateProjectRequest,
   WorkspaceOpenResult,
   WorkspaceProjectLocationGrant,
+  ProjectInitializationReceipt,
 } from "../../types/electron";
 import {
   getRecentWorkspaceItems,
@@ -55,6 +57,10 @@ export function useWorkspaceLifecycle({
   const [restoringWorkspace, setRestoringWorkspace] = useState(true);
   const [restoreWorkspaceError, setRestoreWorkspaceError] = useState<string | null>(null);
   const [activeWorkspaceEntryKind, setActiveWorkspaceEntryKind] = useState<WorkspaceEntryKind>("restored");
+  const [initialProjectDocument, setInitialProjectDocument] = useState<ProjectInitializationReceipt | null>(null);
+  const consumeInitialProjectDocument = useCallback((operationId: string) => {
+    setInitialProjectDocument((current) => current?.operationId === operationId ? null : current);
+  }, []);
   const recentWorkspaceRequestRef = useRef(0);
   const navigationRequestRef = useRef(0);
   const workbenchWorkspaceContextRef = useRef<WorkbenchWorkspaceContext | null>(null);
@@ -76,6 +82,7 @@ export function useWorkspaceLifecycle({
     workbenchWorkspaceId?: string | null,
   ) => {
     if (nextWorkspaces.length === 0) return;
+    setInitialProjectDocument(null);
     setWorkspaces((current) => {
       const nextIds = new Set(nextWorkspaces.map((item) => item.id));
       return [...nextWorkspaces, ...current.filter((item) => !nextIds.has(item.id))];
@@ -150,6 +157,7 @@ export function useWorkspaceLifecycle({
   ) => {
     if (!result) return;
     if (result.status === "opened-current" && result.workspace) {
+      setInitialProjectDocument(null);
       setActiveWorkspaceEntryKind(entryKind);
       activateWorkspaceComposition(result.workspaces?.length ? result.workspaces : [result.workspace], result.workspaceId);
     } else {
@@ -264,12 +272,19 @@ export function useWorkspaceLifecycle({
   const createProject = useCallback(async (request: WorkspaceCreateProjectRequest) => {
     const navigation = ++navigationRequestRef.current;
     const result = await createLocalProjectTarget(request);
-    if (navigation === navigationRequestRef.current) handleWorkspaceOpenResult(result, "created");
-    return result !== null;
+    if (navigation === navigationRequestRef.current && result.opening.status === "opened") {
+      handleWorkspaceOpenResult(result.opening.result, "created");
+      if (result.opening.result.status === "opened-current") setInitialProjectDocument(result.initialization);
+    }
+    return result;
   }, [handleWorkspaceOpenResult]);
 
   const chooseProjectLocation = useCallback(async (): Promise<WorkspaceProjectLocationGrant | null> => {
     return selectLocalProjectLocationTarget();
+  }, []);
+
+  const defaultProjectLocation = useCallback(async (): Promise<WorkspaceProjectLocationGrant | null> => {
+    return defaultLocalProjectLocationTarget();
   }, []);
 
   const cloneRepository = useCallback(async (request: WorkspaceCloneRepositoryRequest) => {
@@ -287,6 +302,7 @@ export function useWorkspaceLifecycle({
   }, []);
 
   const clearWorkspace = useCallback(() => {
+    setInitialProjectDocument(null);
     navigationRequestRef.current += 1;
     workbenchWorkspaceContextRef.current = null;
     setActiveWorkspaceEntryKind("restored");
@@ -295,6 +311,7 @@ export function useWorkspaceLifecycle({
   }, [onWorkspaceCleared]);
 
   const forgetActiveWorkspace = useCallback(async () => {
+    setInitialProjectDocument(null);
     const navigation = ++navigationRequestRef.current;
     const currentWorkspaceId = workspace?.id ?? null;
     await forgetLastWorkspace();
@@ -367,11 +384,14 @@ export function useWorkspaceLifecycle({
     addProject,
     addExistingProject,
     activeWorkspaceEntryKind,
+    initialProjectDocument,
+    consumeInitialProjectDocument,
     activateWorkspace,
     clearWorkspace,
     chooseProjectLocation,
     cloneRepository,
     createProject,
+    defaultProjectLocation,
     forgetActiveWorkspace,
     handleWorkspaceOpenResult,
     openDroppedWorkspace,

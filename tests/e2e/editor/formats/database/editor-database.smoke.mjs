@@ -13,6 +13,7 @@ import { workspaceFromPath } from "../../../../../local-api/workspace.mjs";
 import { createWorkspaceStateStore } from "../../../../../electron/main/workspace-state-store.mjs";
 import { getDesktopBuildChannelPolicy } from "../../../../../shared/desktop-build-identity.mjs";
 import { readSourceIdentity } from "../../../../../scripts/release-checks/execution.mjs";
+import { DATABASE_BUDGET } from "../../../../../shared/database-preview/contract.mjs";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "puppyone-editor-database-"));
@@ -97,11 +98,25 @@ async function noDatabase(label) {
   await until(() => evaluate("!document.querySelector('.database-preview')"), `${label} DOM detached`);
   await until(() => hosts.every(host => host.exited), `${label} native hosts exited`); steps.push(label);
 }
+async function idleRecovery(engine) {
+  await evaluate("window.__retainedDatabaseCell=document.querySelector('.database-preview td')");
+  const openedHosts = hosts.length;
+  console.log(`${engine}: waiting for the real ${DATABASE_BUDGET.idleMs}ms idle deadline`);
+  await wait(DATABASE_BUDGET.idleMs + 500);
+  assert(await evaluate("window.__retainedDatabaseCell===document.querySelector('.database-preview td')&&!document.querySelector('.database-preview [role=alert]')"), `${engine}: retained DOM page`);
+  await until(() => hosts.every(host => host.exited), `${engine}: idle native host exited`);
+  assert.equal(hosts.length, openedHosts, `${engine}: no background reconnect loop`);
+  await click('.database-preview button[aria-label="Next page"]');
+  await until(() => evaluate("Boolean(document.querySelector('.database-preview__restart'))"), `${engine}: explicit first-page recovery`);
+  assert(await evaluate("document.querySelectorAll('.database-preview tbody tr').length===50&&document.querySelector('.database-preview__range').textContent==='1–50'"));
+  assert.equal(hosts.length, openedHosts + 1, `${engine}: one replacement host`);
+  steps.push(`${engine}: idle native exit retains the page; next-page intent safely reconnects at page one`);
+}
 async function project(name) {
   await evaluate(`(() => { const b=[...document.querySelectorAll('.desktop-project-switcher-rail-project')].find(e=>e.getAttribute('aria-label')?.includes(${JSON.stringify(name)}));if(!b)throw Error('Missing project');b.click();})()`);
   await until(() => evaluate(`[...document.querySelectorAll('.desktop-project-switcher-rail-project')].some(e=>e.getAttribute('aria-label')?.includes(${JSON.stringify(name)})&&e.getAttribute('aria-current')==='page')`), name);
 }
-const deadline = setTimeout(() => { console.error("Database acceptance timed out"); app.exit(1); }, 180_000);
+const deadline = setTimeout(() => { console.error("Database acceptance timed out"); app.exit(1); }, 220_000);
 await import("../../../../../electron/main.mjs");
 // Electron's ESM entry must finish evaluating before app.ready can fire.
 app.whenReady().then(async () => {
@@ -129,11 +144,13 @@ try {
   await bounds("settings-overlay");
   await fs.writeFile(path.join(output, "settings-over-database.png"), (await window.webContents.capturePage()).toPNG());
   await click(".desktop-settings-dialog .desktop-dialog-icon-button");
+  await idleRecovery("SQLite");
   await click('.database-preview button[aria-label="Next page"]');
   await until(() => evaluate("document.querySelectorAll('.database-preview tbody tr').length===7"), "second engine page"); steps.push("50+7 engine pagination");
   await openFile("large.db"); await ready("268435456"); steps.push({ label: "large BLOB projected without full source IPC", sourceBytes: (await fs.stat(files[1])).size });
   await project("Database B"); await openFile("note.md"); await noDatabase("project-switch");
   await openFile("sample.db"); await clickObject("main.items"); await ready("123456789012345678901234567890"); steps.push("DuckDB via same DOM provider");
+  await idleRecovery("DuckDB");
   await clickObject("main.item_summary");
   await ready("57"); steps.push("DuckDB view tab is clickable and paged through the isolated provider");
   await fs.writeFile(path.join(output, "duckdb-ready.png"), (await window.webContents.capturePage()).toPNG());

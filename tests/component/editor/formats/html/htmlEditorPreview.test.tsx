@@ -21,7 +21,7 @@ afterEach(() => {
 });
 
 describe("HTML editor and safe preview", () => {
-  it("opens in editable Source mode and previews the latest snapshot without script authority", async () => {
+  it("opens a safe preview and exposes editable Source with the latest snapshot", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -43,6 +43,11 @@ describe("HTML editor and safe preview", () => {
       await Promise.resolve();
     });
 
+    for (let attempt = 0; attempt < 100 && !container.querySelector("iframe"); attempt++) {
+      await act(async () => new Promise((resolve) => setTimeout(resolve, 5)));
+    }
+    expect(container.querySelector("iframe")).not.toBeNull();
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="HTML source"]')?.click());
     const editorElement = container.querySelector<HTMLElement>(".cm-editor");
     if (!editorElement) throw new Error("HTML CodeMirror editor did not mount.");
     const editor = requireEditorView(editorElement);
@@ -54,7 +59,7 @@ describe("HTML editor and safe preview", () => {
 
     const previewButton = container.querySelector<HTMLButtonElement>('[aria-label="HTML preview"]');
     if (!previewButton) throw new Error("HTML Preview mode button did not mount.");
-    act(() => previewButton.click());
+    await act(async () => previewButton.click());
 
     const frame = container.querySelector<HTMLIFrameElement>("iframe.native-preview-frame");
     expect(frame).not.toBeNull();
@@ -93,6 +98,7 @@ describe("HTML editor and safe preview", () => {
         </DocumentSessionBoundary>,
       ));
     });
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="HTML source"]')?.click());
     const editorElement = container.querySelector<HTMLElement>(".cm-editor");
     if (!editorElement) throw new Error("HTML CodeMirror editor did not mount.");
     const editor = requireEditorView(editorElement);
@@ -100,7 +106,7 @@ describe("HTML editor and safe preview", () => {
       changes: { from: 4, to: 10, insert: "After" },
       userEvent: "input.type",
     }));
-    act(() => container.querySelector<HTMLButtonElement>('[aria-label="HTML preview"]')?.click());
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="HTML preview"]')?.click());
     await act(async () => closeDocumentWorkingCopy({
       storageIdentity: "test:html-preview",
       resourcePath: "page.html",

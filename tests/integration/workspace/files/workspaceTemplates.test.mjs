@@ -21,20 +21,20 @@ describe("built-in Slides workspace template", () => {
     const result = await instantiateWorkspaceTemplate(workspaceRoot, {
       templateId: BUILT_IN_SLIDES_TEMPLATE_ID,
       parentPath: null,
-      name: "Quarterly <Plan>",
+      name: "Quarterly & Plan",
     }, { fontBytes: Buffer.from("font-fixture") });
 
     expect(result).toEqual({
-      rootPath: "Quarterly <Plan>",
-      openPath: "Quarterly <Plan>/Quarterly <Plan>.puppyoneapp",
+      rootPath: "Quarterly & Plan",
+      openPath: "Quarterly & Plan/Quarterly & Plan.puppyoneapp",
       createdPaths: [
-        "Quarterly <Plan>",
-        "Quarterly <Plan>/Quarterly <Plan>.puppyoneapp",
-        "Quarterly <Plan>/index.html",
-        "Quarterly <Plan>/puppyone-slides.css",
-        "Quarterly <Plan>/puppyone-slides.js",
-        "Quarterly <Plan>/assets",
-        "Quarterly <Plan>/assets/geist-sans.woff2",
+        "Quarterly & Plan",
+        "Quarterly & Plan/Quarterly & Plan.puppyoneapp",
+        "Quarterly & Plan/index.html",
+        "Quarterly & Plan/puppyone-slides.css",
+        "Quarterly & Plan/puppyone-slides.js",
+        "Quarterly & Plan/assets",
+        "Quarterly & Plan/assets/geist-sans.woff2",
       ],
       template: { id: "slides.default", version: 1 },
     });
@@ -44,13 +44,13 @@ describe("built-in Slides workspace template", () => {
       "utf8",
     );
     expect(parseAppPreviewManifest(manifestText, { appPath: result.openPath })).toMatchObject({
-      name: "Quarterly <Plan>",
+      name: "Quarterly & Plan",
       launch: { kind: "static-file", path: "index.html" },
       permissions: { workspace: [] },
     });
     const html = await readFile(path.join(workspaceRoot, result.rootPath, "index.html"), "utf8");
     const css = await readFile(path.join(workspaceRoot, result.rootPath, "puppyone-slides.css"), "utf8");
-    expect(html).toContain("Quarterly &lt;Plan&gt;");
+    expect(html).toContain("Quarterly &amp; Plan");
     expect(html).not.toMatch(/https?:\/\//);
     expect(css).toContain("--po-slide-accent");
     expect(css).toContain('url("assets/geist-sans.woff2")');

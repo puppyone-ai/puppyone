@@ -377,6 +377,10 @@ describe("recent workspace authorization", () => {
       grantId: "location-1",
       path: root,
     }));
+    const getDefaultProjectLocationForCurrentWindow = vi.fn(async () => ({
+      grantId: "default-1",
+      path: path.join(root, "PuppyOne"),
+    }));
     const selectWorkspaceForCurrentComposition = vi.fn(async () => ({
       status: "attached-current",
       workspaces: [],
@@ -392,6 +396,7 @@ describe("recent workspace authorization", () => {
       createProjectForCurrentWindow,
       cloneRepositoryForCurrentWindow,
       selectProjectLocationForCurrentWindow,
+      getDefaultProjectLocationForCurrentWindow,
       createCloudWorkspaceFromRequest: vi.fn(),
       openVirtualWorkspaceInNewWindow: vi.fn(),
       selectWorkspaceForCurrentWindow: vi.fn(),
@@ -423,6 +428,11 @@ describe("recent workspace authorization", () => {
     await expect(handlers.get("workspace:select-project-location-current")(event))
       .resolves.toEqual({ grantId: "location-1", path: root });
     expect(selectProjectLocationForCurrentWindow).toHaveBeenCalledWith(event.sender);
+    // The default location is issued by the main process without a picker, but it
+    // still flows through the same grant model as a browsed folder.
+    await expect(handlers.get("workspace:default-project-location-current")(event))
+      .resolves.toEqual({ grantId: "default-1", path: path.join(root, "PuppyOne") });
+    expect(getDefaultProjectLocationForCurrentWindow).toHaveBeenCalledWith(event.sender);
     await expect(handlers.get("workspace:select-folder-attach")(event))
       .resolves.toEqual({ status: "attached-current", workspaces: [] });
     expect(selectWorkspaceForCurrentComposition).toHaveBeenCalledWith(event.sender);

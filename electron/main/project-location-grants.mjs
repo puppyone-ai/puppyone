@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
  */
 export function createProjectLocationGrantStore({ createId = randomUUID } = {}) {
   const grantBySender = new WeakMap();
+  const committedOperationBySender = new WeakMap();
 
   return Object.freeze({
     issue(sender, canonicalPath) {
@@ -19,16 +20,34 @@ export function createProjectLocationGrantStore({ createId = randomUUID } = {}) 
         path: canonicalPath,
       });
       grantBySender.set(sender, grant);
+      committedOperationBySender.delete(sender);
       return grant;
     },
 
-    resolve(sender, grantId) {
+    resolve(sender, grantId, operationId = null) {
       requireSender(sender);
       const grant = grantBySender.get(sender);
       if (typeof grantId !== "string" || !grantId || grant?.grantId !== grantId) {
         throw new Error("Choose a project location before creating the project.");
       }
+      const committedOperation = committedOperationBySender.get(sender);
+      if (committedOperation && committedOperation !== operationId) {
+        throw new Error("Choose a new project location grant for a different creation operation.");
+      }
       return grant.path;
+    },
+
+    bindCommittedOperation(sender, grantId, operationId) {
+      requireSender(sender);
+      const grant = grantBySender.get(sender);
+      if (grant?.grantId !== grantId || typeof operationId !== "string" || !operationId) {
+        throw new Error("A valid project location grant and operation are required.");
+      }
+      const committedOperation = committedOperationBySender.get(sender);
+      if (committedOperation && committedOperation !== operationId) {
+        throw new Error("This location grant has already committed a different operation.");
+      }
+      committedOperationBySender.set(sender, operationId);
     },
 
     revoke(sender, grantId) {
@@ -36,6 +55,7 @@ export function createProjectLocationGrantStore({ createId = randomUUID } = {}) 
       const grant = grantBySender.get(sender);
       if (!grant || grant.grantId !== grantId) return false;
       grantBySender.delete(sender);
+      committedOperationBySender.delete(sender);
       return true;
     },
   });

@@ -7,6 +7,16 @@ import {
 import { source, windowsXpStylePack } from "../../../support/appearance/styleFixtures";
 
 describe("Interface style registry", () => {
+  it("keeps the database cylinder visible instead of covering it with XP generic file artwork", () => {
+    const explorer = source("src/styles/interfaces/windows-xp/features/explorer.css");
+    expect(explorer).toMatch(
+      /\.explorer-tree-shell \.tree-row\.file \.tree-icon-slot\[data-file-kind="database"\]\s*\{\s*background-image: none;/,
+    );
+    expect(explorer).toMatch(
+      /\.explorer-tree-shell \.tree-row\.file \.tree-icon-slot\[data-file-kind="database"\] > svg\s*\{\s*opacity: 1;/,
+    );
+  });
+
   it("keeps the native window underlay on the generated first-paint contract", () => {
     const main = source("electron/main.mjs");
     const preload = source("electron/preload.cjs");

@@ -201,6 +201,18 @@
   background-image: url("../assets/explorer-file-executable.svg?inline");
 }
 
+/* No native database artwork is registered: retain the semantic cylinder
+ * instead of hiding it under the generic document association. */
+:root[data-interface-style="windows-xp"]
+  .explorer-tree-shell .tree-row.file .tree-icon-slot[data-file-kind="database"] {
+  background-image: none;
+}
+
+:root[data-interface-style="windows-xp"]
+  .explorer-tree-shell .tree-row.file .tree-icon-slot[data-file-kind="database"] > svg {
+  opacity: 1;
+}
+
 /* Native XP TreeView rows do not paint a modern full-width hover wash. */
 :root[data-interface-style="windows-xp"]
   .explorer-tree-shell .tree-row:hover:not(:disabled) {

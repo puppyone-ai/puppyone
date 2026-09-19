@@ -8,7 +8,7 @@ export function createDatabasePreviewService({ spawnHost, getMemoryBytes = () =>
   const keyFor = (owner, id) => `${owner}:${id}`;
   function requireId(id) { if (typeof id !== "string" || !/^[a-zA-Z0-9-]{1,100}$/.test(id)) throw databaseError("invalid-request"); }
   function request(entry, method, payload, timeoutMs) {
-    if (entry.closing || entry.pending) return Promise.reject(databaseError(entry.closing ? "cancelled" : "busy"));
+    if (entry.closing || entry.pending) return Promise.reject(databaseError(entry.expired ? "session-expired" : entry.closing ? "cancelled" : "busy"));
     clearTimeout(entry.idle);
     return new Promise((resolve, reject) => {
       const id = randomUUID();
@@ -19,10 +19,14 @@ export function createDatabasePreviewService({ spawnHost, getMemoryBytes = () =>
       catch { entry.pending.reject(databaseError("host-failed")); }
     });
   }
-  function armIdle(entry) { clearTimeout(entry.idle); entry.idle = setTimeout(() => { void close(entry).catch(() => {}); }, budget.idleMs); }
-  async function close(entry) {
+  function expire(entry) { entry.expired = true; void close(entry).catch(() => {}); }
+  function armIdle(entry) { clearTimeout(entry.idle); entry.idle = setTimeout(() => expire(entry), budget.idleMs); }
+  function close(entry) {
+    return entry.stopping ??= closeOnce(entry).catch((error) => { entry.stopping = null; throw error; });
+  }
+  async function closeOnce(entry) {
     entry.closing = true;
-    entry.pending?.reject(databaseError("cancelled"));
+    entry.pending?.reject(databaseError(entry.expired ? "session-expired" : "cancelled"));
     clearTimeout(entry.idle); clearTimeout(entry.expiry);
     await entry.created;
     if (!entry.host || entry.exited) { sessions.delete(entry.key); return; }
@@ -75,7 +79,7 @@ export function createDatabasePreviewService({ spawnHost, getMemoryBytes = () =>
             void close(entry).catch(() => {});
           }
         }, 500);
-        entry.expiry = setTimeout(() => { void close(entry).catch(() => {}); }, budget.sessionMs);
+        entry.expiry = setTimeout(() => expire(entry), budget.sessionMs);
         // Probing is supervised too: slow filesystem reads must not escape the
         // open deadline or make cancellation depend on an unresolved main I/O.
         const result = await request(entry, "open", { rootPath: entry.root, path: requestInput.path }, budget.openMs);
@@ -87,12 +91,12 @@ export function createDatabasePreviewService({ spawnHost, getMemoryBytes = () =>
     async page(owner, input, authorize) {
       requireId(input.id);
       const entry = sessions.get(keyFor(owner, input.id));
-      if (!entry) throw databaseError("stale-input");
+      if (!entry) throw databaseError("session-expired");
       try {
-        if (entry.root !== await authorize()) throw databaseError("stale-input");
+        if (entry.root !== await authorize()) throw databaseError("permission-denied");
         const result = await request(entry, "page", { objectId: input.objectId, columnOffset: input.columnOffset, cursor: input.cursor }, budget.queryMs);
         await authorize();
-        if (entry.closing) throw databaseError("cancelled");
+        if (entry.closing) throw databaseError(entry.expired ? "session-expired" : "cancelled");
         return result;
       } catch (error) { await close(entry); throw error; }
     },

@@ -1,0 +1,91 @@
+@layer features {
+  .local-agent-setup {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 10px;
+    margin-block-start: 4px;
+    color: var(--po-text-muted);
+    font-size: 12px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+  .local-agent-setup p { margin: 0; }
+  .local-agent-setup h3 { margin: 0; font-size: inherit; color: var(--po-text); }
+  .local-agent-setup-card, .local-agent-setup-detail, .local-agent-setup-preferences {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .local-agent-setup-card, .local-agent-setup-detail {
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid var(--po-border);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--po-text) 2%, transparent);
+  }
+  .local-agent-setup-actions, .local-agent-setup-directory {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+  .local-agent-setup button {
+    align-self: flex-start;
+    min-width: 0;
+    max-width: 100%;
+    padding: 4px 8px;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--po-text);
+    font: inherit;
+    text-align: start;
+    white-space: normal;
+    cursor: var(--po-clickable-cursor, default);
+  }
+  .local-agent-setup button:hover:not(:disabled, [aria-disabled="true"]), .local-agent-setup-options summary:hover {
+    background: var(--po-hover);
+  }
+  .local-agent-setup .local-agent-setup-primary {
+    border-color: var(--po-border);
+    background: var(--po-hover);
+    font-weight: 500;
+  }
+  .local-agent-setup-detail .local-agent-setup-primary { width: 100%; text-align: center; }
+  .local-agent-setup-options { margin-inline-start: auto; }
+  .local-agent-setup-options summary {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    border-radius: 5px;
+    list-style: none;
+    cursor: var(--po-clickable-cursor, default);
+  }
+  .local-agent-setup-options summary::-webkit-details-marker { display: none; }
+  .local-agent-setup-options > div {
+    position: absolute;
+    z-index: 2;
+    inset-inline-end: 0;
+    top: calc(100% + 4px);
+    box-sizing: border-box;
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    padding: 4px;
+    border: 1px solid var(--po-border);
+    border-radius: 6px;
+    background: var(--po-surface-auxiliary);
+    box-shadow: 0 4px 12px color-mix(in srgb, #000 12%, transparent);
+  }
+  .local-agent-setup-options button { width: 100%; }
+  .local-agent-setup [role="status"]:empty { display: none; }
+  .local-agent-setup button:disabled, .local-agent-setup button[aria-disabled="true"] { opacity: 0.5; }
+  .local-agent-setup button:focus-visible, .local-agent-setup h3:focus-visible, .local-agent-setup summary:focus-visible {
+    outline: 1px solid var(--po-focus-ring);
+    outline-offset: 2px;
+  }
+  .local-agent-setup-toggle { display: flex; align-items: flex-start; gap: 8px; }
+}

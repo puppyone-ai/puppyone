@@ -3,16 +3,21 @@ import { useLocalization } from "@puppyone/localization/react";
 import type { AuxiliaryWorkbenchContribution, AuxiliaryWorkbenchCreationRecipe, AuxiliaryWorkbenchHistoryTarget } from "./types";
 import type { WorkbenchLauncherContext } from "./AuxiliaryWorkbenchPanel";
 import type { ProjectWorkbenchStore } from "./ProjectWorkbenchStore";
-import { filterAgentChatCreationRecipesByLocalAgentIds } from "./agentChatCreationRecipes";
+import { AGENT_CHAT_LOCAL_AGENT_IDS, filterAgentChatCreationRecipesByLocalAgentIds } from "./agentChatCreationRecipes";
+import type { LocalAgentSetupPreferences } from "../../../../shared/local-agent-installation/setup-types";
+import { LocalAgentSetupSection } from "../../local-agents/ui/LocalAgentSetupSection";
+import { DESKTOP_TERMINAL_LAUNCHERS } from "../../desktop-terminal/model/terminalLaunchers";
 import { useLocalAgentInstallations } from "../../local-agents/controller/useLocalAgentInstallations";
 import { TerminalLauncher } from "../../desktop-terminal/ui/TerminalLauncher";
 import { WorkbenchLauncherState } from "./WorkbenchLauncherState";
 
 /** Product composition: generic workbench admission plus feature-owned launchers. */
-export function AuxiliaryWorkbenchLauncher({ store, contributions, hiddenAgentIds, groupId, itemId, presented }: WorkbenchLauncherContext & {
+export function AuxiliaryWorkbenchLauncher({ store, contributions, hiddenAgentIds, setupPreferences, onSetupPreferencesChange, groupId, itemId, presented }: WorkbenchLauncherContext & {
   store: ProjectWorkbenchStore;
   contributions: readonly AuxiliaryWorkbenchContribution[];
   hiddenAgentIds: readonly string[];
+  setupPreferences?: LocalAgentSetupPreferences;
+  onSetupPreferencesChange?: (preferences: LocalAgentSetupPreferences) => void;
 }) {
   const { t } = useLocalization();
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot);
@@ -44,11 +49,21 @@ export function AuxiliaryWorkbenchLauncher({ store, contributions, hiddenAgentId
     titleId={`workbench-launcher-${store.context.generation}-${itemId ?? "empty"}`}
     agentMode={chat ? "chat" : "terminal"}
     discoveryPhase={discovery.phase}
-    discoveryProgress={discovery.progress}
     discoveryHasFailures={discovery.hasFailures}
     discoveryRefreshing={discovery.refreshing}
     discoveryHasInstallations={discovery.ids.length > 0}
     availableAgentIds={availableAgentIds}
+    agentSetup={(onReturnToLauncher) => <LocalAgentSetupSection
+      onReturnToLauncher={onReturnToLauncher}
+      enabled={presented && !historyOpen}
+      surface={chat ? "chat" : "terminal"}
+      eligibleInstallationIds={chat ? AGENT_CHAT_LOCAL_AGENT_IDS : terminal ? DESKTOP_TERMINAL_LAUNCHERS.filter(({ id }) => id !== "shell").map(({ id }) => id) : []}
+      hiddenAgentIds={hiddenAgentIds}
+      preferences={setupPreferences}
+      onPreferencesChange={onSetupPreferencesChange}
+      discovery={discovery}
+      onRefresh={discovery.refresh}
+    />}
     terminalEnabled={Boolean(terminal)}
     launching={snapshot.preparingKinds.has("terminal") || snapshot.closing}
     chatPreparing={snapshot.preparingKinds.has("agent-chat")}

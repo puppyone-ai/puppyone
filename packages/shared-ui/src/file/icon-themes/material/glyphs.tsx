@@ -5,6 +5,7 @@ import type {
 } from "../iconThemeTypes";
 import {
   AppGlyph,
+  DatabaseGlyph,
   DocumentLinesSymbol,
   ExcelSpreadsheetGlyph,
   PresentationDocumentGlyph,
@@ -29,6 +30,7 @@ export const materialGlyphRenderers = {
   word: renderMaterialWordGlyph,
   excel: renderMaterialExcelGlyph,
   spreadsheet: renderMaterialSpreadsheetGlyph,
+  database: DatabaseGlyph,
   presentation: renderMaterialPresentationGlyph,
   archive: renderMaterialArchiveGlyph,
   document: renderMaterialLinesDocumentGlyph,

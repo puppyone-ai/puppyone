@@ -6,6 +6,8 @@ import { act, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useLocalAgentInstallations } from "../../../../src/features/local-agents/controller/useLocalAgentInstallations";
+import { TerminalLauncher } from "../../../../src/features/desktop-terminal/ui/TerminalLauncher";
+import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -17,9 +19,38 @@ afterEach(() => {
   root = null;
   document.body.innerHTML = "";
   delete (window as Window & { puppyoneDesktop?: unknown }).puppyoneDesktop;
+  vi.useRealTimers();
 });
 
 describe("shared Local Agent installation controller", () => {
+  it("only shows discovery feedback for the initial scan and an explicit refresh, never a reopened launcher", async () => {
+    vi.useFakeTimers();
+    const first = deferred<unknown>(); const refreshed = deferred<unknown>();
+    const locate = vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(refreshed.promise);
+    installBridge(locate);
+    const container = document.createElement("div"); document.body.append(container); root = createRoot(container);
+    const render = (enabled: boolean) => act(() => root?.render(withTestLocalization(<SessionLauncher enabled={enabled} />)));
+    render(true);
+    act(() => vi.advanceTimersByTime(200));
+    expect(container.querySelector(".desktop-terminal-launcher-discovery")?.textContent).toBe("Checking local agents…");
+    await act(async () => { first.resolve(snapshot(["codex"])); await first.promise; });
+    render(false); render(true);
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+      window.dispatchEvent(new Event("focus"));
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(locate).toHaveBeenCalledOnce();
+    expect(container.querySelector(".desktop-terminal-launcher-discovery")).toBeNull();
+    expect(container.querySelector<HTMLButtonElement>(".desktop-terminal-launcher-tool")?.disabled).toBe(false);
+    act(() => container.querySelector<HTMLButtonElement>(".desktop-terminal-launcher-scan")?.click());
+    act(() => vi.advanceTimersByTime(200));
+    expect(container.querySelector(".desktop-terminal-launcher-discovery")?.textContent).toBe("Refreshing agents…");
+    expect(locate).toHaveBeenCalledTimes(2);
+    await act(async () => { refreshed.resolve(snapshot(["codex", "claude"], 2)); await refreshed.promise; });
+    expect(container.querySelector(".desktop-terminal-launcher-discovery")).toBeNull();
+  });
+
   it("shows a retry state when a known installation is found through an incomplete environment", async () => {
     const result = deferred<unknown>();
     installBridge(vi.fn(() => result.promise));
@@ -62,12 +93,9 @@ describe("shared Local Agent installation controller", () => {
     expect(setAgentActivityEnrollment).not.toHaveBeenCalled();
   });
 
-  it("forces a new scan when the right sidebar launcher is presented again", async () => {
+  it("reuses the session result on reopen, remount, window focus and visibility changes", async () => {
     const first = deferred<unknown>();
-    const second = deferred<unknown>();
-    const locate = vi.fn()
-      .mockReturnValueOnce(first.promise)
-      .mockReturnValueOnce(second.promise);
+    const locate = vi.fn().mockReturnValueOnce(first.promise);
     installBridge(locate);
     const latest: { current: LocatorView | null } = { current: null };
     const harness = mount((value) => { latest.current = value; });
@@ -78,18 +106,19 @@ describe("shared Local Agent installation controller", () => {
       await first.promise;
     });
     expect(latest.current?.ids).toEqual(["claude"]);
-    harness.setEnabled(false);
-    harness.setEnabled(true);
-    await vi.waitFor(() => expect(locate).toHaveBeenCalledTimes(2));
+    for (let index = 0; index < 3; index++) {
+      harness.setEnabled(false);
+      harness.setEnabled(true);
+    }
     await act(async () => {
-      second.resolve(snapshot(["codex", "claude"], 2));
-      await second.promise;
+      window.dispatchEvent(new Event("focus"));
+      document.dispatchEvent(new Event("visibilitychange"));
     });
-    expect(latest.current?.ids).toEqual(["codex", "claude"]);
-    expect(locate).toHaveBeenNthCalledWith(2, {
-      refresh: true,
-      requestId: expect.stringMatching(/^local-agent-installation:/u),
-    });
+    act(() => root?.unmount());
+    mount(value => { latest.current = value; });
+    expect(latest.current?.ids).toEqual(["claude"]);
+    expect(latest.current?.phase).toBe("ready");
+    expect(locate).toHaveBeenCalledOnce();
   });
 
   it("ignores an older discovery response after a forced refresh", async () => {
@@ -279,17 +308,53 @@ describe("shared Local Agent installation controller", () => {
     expect(latest.current?.progress).toBeNull();
   });
 
-  it("ignores events and responses after the last consumer leaves", async () => {
+  it("finishes the initial scan while hidden and receives other windows' explicit refreshes", async () => {
     const final = deferred<unknown>();
     const locate = vi.fn(() => final.promise);
     const bridge = installBridge(locate);
     const latest: { current: LocatorView | null } = { current: null };
     const harness = mount(value => { latest.current = value; });
     harness.setEnabled(false);
-    const stopped = latest.current;
-    act(() => bridge.emitChanged(snapshot(["codex"])));
     await act(async () => { final.resolve(snapshot(["codex"])); await final.promise; });
-    expect(latest.current).toBe(stopped);
+    act(() => bridge.emitChanged(snapshot(["codex", "claude"], 2)));
+    harness.setEnabled(true);
+    expect(latest.current?.ids).toEqual(["codex", "claude"]);
+    expect(latest.current?.phase).toBe("ready");
+    expect(locate).toHaveBeenCalledOnce();
+  });
+
+  it("reopening during the first scan keeps the same request and progressive results", async () => {
+    const final = deferred<unknown>();
+    const locate = vi.fn((_request?: { requestId?: string; refresh?: boolean }) => final.promise);
+    const bridge = installBridge(locate);
+    const latest: { current: LocatorView | null } = { current: null };
+    const harness = mount(value => { latest.current = value; });
+    harness.setEnabled(false);
+    harness.setEnabled(true);
+    act(() => bridge.emitProgress({ ...snapshot(["codex"]), requestId: locate.mock.calls[0]?.[0]?.requestId,
+      completedAgentCount: 1, totalAgentCount: 8 }));
+    expect(latest.current?.ids).toEqual(["codex"]);
+    expect(locate).toHaveBeenCalledOnce();
+    await act(async () => { final.resolve(snapshot(["codex"])); await final.promise; });
+    expect(latest.current?.phase).toBe("ready");
+  });
+
+  it.each(["empty", "failed"])("does not silently retry a %s first result on reopen", async (outcome) => {
+    const locate = vi.fn().mockImplementation(async () => {
+      if (outcome === "failed") throw new Error("IPC unavailable");
+      return snapshot([]);
+    });
+    installBridge(locate);
+    const latest: { current: LocatorView | null } = { current: null };
+    const harness = mount(value => { latest.current = value; });
+    await act(async () => {});
+    harness.setEnabled(false); harness.setEnabled(true);
+    expect(locate).toHaveBeenCalledOnce();
+    expect(latest.current?.phase).toBe(outcome === "empty" ? "ready" : "error");
+    locate.mockResolvedValueOnce(snapshot(["codex"], 2));
+    await act(async () => { await latest.current?.refresh(); });
+    expect(locate).toHaveBeenCalledTimes(2);
+    expect(latest.current?.ids).toEqual(["codex"]);
   });
 });
 
@@ -309,6 +374,13 @@ function Harness({ enabled, onValue }: { enabled: boolean; onValue: (value: Loca
   const value = useLocalAgentInstallations({ enabled });
   useEffect(() => onValue(value), [onValue, value]);
   return null;
+}
+
+function SessionLauncher({ enabled }: { enabled: boolean }) {
+  const discovery = useLocalAgentInstallations({ enabled });
+  return enabled ? <TerminalLauncher agentMode="terminal" discoveryPhase={discovery.phase}
+    discoveryRefreshing={discovery.refreshing} discoveryHasFailures={discovery.hasFailures}
+    availableAgentIds={discovery.ids} onLaunch={() => {}} onRefresh={discovery.refresh} /> : null;
 }
 
 function installBridge(

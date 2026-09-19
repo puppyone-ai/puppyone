@@ -46,8 +46,8 @@
 }
 
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-homepage {
-  --onboarding-column-width: 440px;
-  min-height: min(430px, 100%);
+  --onboarding-column-width: 280px;
+  --onboarding-brand-content-gap: 40px;
 }
 
 .onboarding-shell[data-onboarding-state="projects"] .onboarding-homepage {
@@ -60,7 +60,7 @@
 
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-launcher {
   display: grid;
-  width: max-content;
+  width: var(--onboarding-column-width);
   max-width: 100%;
   justify-self: center;
   justify-items: stretch;
@@ -86,7 +86,7 @@
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-brand-lockup {
   width: 100%;
   max-width: none;
-  justify-content: flex-start;
+  justify-content: center;
   margin-block-end: 0;
 }
 
@@ -131,7 +131,17 @@
 }
 
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-brand-name {
+  font-size: calc(var(--po-type-ui-heading, 19px) + 3px);
+  line-height: 28px;
   white-space: nowrap;
+}
+
+.onboarding-shell[data-onboarding-state="empty"] .onboarding-brand-mark,
+.onboarding-shell[data-onboarding-state="empty"] .onboarding-brand-mark-artwork {
+  width: 32px;
+  max-width: 32px;
+  height: 32px;
+  flex-basis: 32px;
 }
 
 .onboarding-brand-prompt {
@@ -159,7 +169,7 @@
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-primary-area {
   width: 100%;
   max-width: none;
-  justify-items: start;
+  justify-items: stretch;
   gap: 12px;
 }
 
@@ -224,8 +234,8 @@
   box-sizing: border-box;
   align-items: start;
   justify-self: center;
-  justify-items: start;
-  gap: 8px;
+  justify-items: stretch;
+  gap: 10px;
   padding: 0;
   border: 0;
 }
@@ -248,19 +258,23 @@
 }
 
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-entry-action-primary {
-  width: fit-content;
-  place-items: start;
+  width: 100%;
+  place-items: stretch;
 }
 
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-entry-action-secondary {
-  width: fit-content;
+  width: 100%;
   align-content: start;
-  justify-items: start;
-  gap: 2px;
+  justify-items: stretch;
+  gap: 12px;
 }
 
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-entry-action {
-  width: fit-content;
+  width: 100%;
+  min-height: 38px;
+  height: auto;
+  justify-content: center;
+  padding: 8px 12px;
 }
 
 .onboarding-entry-action {
@@ -348,18 +362,135 @@
   font-weight: var(--po-text-weight-medium, 500);
 }
 
+.onboarding-shell[data-onboarding-state="empty"] .onboarding-entry-action-default {
+  --onboarding-row-font-size: calc(var(--po-type-ui-body, 14px) + 2px);
+  --onboarding-row-font-weight: 600;
+  --onboarding-row-line-height: 24px;
+  min-height: 48px;
+  padding: 11px 20px;
+  gap: 10px;
+}
+
+.onboarding-entry-action-default .po-button__icon,
+.onboarding-entry-action-default .po-button__icon > svg {
+  width: 18px;
+  max-width: 18px;
+  height: 18px;
+  flex-basis: 18px;
+}
+
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-entry-action-default:hover:not(:disabled),
-.onboarding-shell[data-onboarding-state="empty"] .onboarding-entry-action-default.is-dragging,
-.onboarding-shell[data-onboarding-state="empty"].dragging .onboarding-entry-action-default {
+.onboarding-shell[data-onboarding-state="empty"] .onboarding-entry-action-default:focus-visible:not(:disabled) {
   border-color: color-mix(in srgb, var(--po-text) 88%, var(--po-canvas));
   background: color-mix(in srgb, var(--po-text) 88%, var(--po-canvas));
   color: var(--po-canvas);
 }
 
-.onboarding-entry-action-default:disabled[aria-busy="true"] {
-  border-color: var(--po-text-muted);
-  background: var(--po-text-muted);
-  color: var(--po-canvas);
+/* Dropping a folder always targets "Open a folder", not the default action. */
+.onboarding-shell.dragging .onboarding-entry-action[data-onboarding-action="open"] {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--po-text) 5%, transparent);
+  color: var(--po-text);
+}
+
+/* Keep import and its app shortcuts together as one compact, wrapping row.
+ * Each mark remains a separate, keyboard-accessible import entry point. */
+.onboarding-entry-import {
+  display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.onboarding-shell[data-onboarding-state="empty"] .onboarding-entry-import {
+  justify-content: center;
+}
+
+.onboarding-shell[data-onboarding-state="empty"] .onboarding-entry-import > .onboarding-entry-action {
+  width: fit-content;
+  min-height: 32px;
+  padding: 4px 6px;
+}
+
+.onboarding-entry-import-brands {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.onboarding-entry-import-brand {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--desktop-control-radius);
+  background: transparent;
+  place-items: center;
+  cursor: var(--po-clickable-cursor, default);
+  transition: background 130ms ease-out;
+}
+
+.onboarding-entry-import-brand:hover:not(:disabled),
+.onboarding-entry-import-brand:focus-visible {
+  background: color-mix(in srgb, var(--po-text) 5%, transparent);
+}
+
+.onboarding-entry-import-brand:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--po-accent) 36%, transparent);
+  outline-offset: 1px;
+}
+
+.onboarding-entry-import-brand:disabled {
+  cursor: default;
+}
+
+.onboarding-import-mark {
+  display: block;
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* GitHub and Notion ship as solid black marks; flip them on dark surfaces. */
+.dark .onboarding-import-mark.is-github,
+.dark .onboarding-import-mark.is-notion {
+  filter: invert(1);
+}
+
+.onboarding-entry-import-brand .onboarding-import-mark {
+  width: 16px;
+  height: 16px;
+  opacity: 0.62;
+  filter: grayscale(1);
+  transition: opacity 130ms ease-out, filter 130ms ease-out;
+}
+
+.dark .onboarding-entry-import-brand .onboarding-import-mark.is-github,
+.dark .onboarding-entry-import-brand .onboarding-import-mark.is-notion {
+  filter: grayscale(1) invert(1);
+}
+
+.onboarding-entry-import-brand:hover:not(:disabled) .onboarding-import-mark,
+.onboarding-entry-import-brand:focus-visible .onboarding-import-mark {
+  opacity: 1;
+  filter: none;
+}
+
+.dark .onboarding-entry-import-brand:hover:not(:disabled) .onboarding-import-mark.is-github,
+.dark .onboarding-entry-import-brand:hover:not(:disabled) .onboarding-import-mark.is-notion,
+.dark .onboarding-entry-import-brand:focus-visible .onboarding-import-mark.is-github,
+.dark .onboarding-entry-import-brand:focus-visible .onboarding-import-mark.is-notion {
+  filter: invert(1);
+}
+
+.onboarding-entry-import-brand:disabled .onboarding-import-mark {
+  opacity: 0.3;
 }
 
 .onboarding-projects-layout {

@@ -1,4 +1,7 @@
 import { installBrokenStdioGuards } from "./main/stdio-guard.mjs";
+import { createCompanionPresenceService } from "./main/local-agent-installation/setup/companion-presence-service.mjs";
+import { createLocalAgentSetupService } from "./main/local-agent-installation/setup/setup-service.mjs";
+import { registerLocalAgentSetupIpcHandlers } from "./main/ipc/local-agent-setup-ipc.mjs";
 import { createDatabasePreviewService, registerDatabasePreviewIpc } from "./main/database-preview/service.mjs";
 import { app, BrowserWindow, dialog, ipcMain, Menu, MessageChannelMain, nativeImage, nativeTheme, powerMonitor, protocol, safeStorage, session as electronSession, shell, utilityProcess, webContents, WebContentsView } from "electron";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -366,6 +369,12 @@ const localAgentInstallationService = createLocalAgentInstallationService({
     }
   },
 });
+const localAgentSetupService = createLocalAgentSetupService({
+  installationService: localAgentInstallationService,
+  presenceService: createCompanionPresenceService({ port: desktopPlatformHost.companionApps }),
+  platform: desktopPlatformHost.executableDiscovery.nodePlatform,
+  openExternal: (url) => shell.openExternal(url),
+});
 const agentEventCache = createEphemeralAgentSessionCache({ app });
 const agentConversationCatalog = createAgentConversationCatalog({
   filePath: path.join(app.getPath("userData"), "agent-runtime", "conversations.json"),
@@ -435,9 +444,13 @@ const workspaceStateStore = createWorkspaceStateStore({
   workspaceFromPath,
   resolveWorkspaceIdentity: resolveLocalWorkspaceIdentity,
 });
-const projectEntryService = createProjectEntryService();
+const projectEntryService = createProjectEntryService({
+  journalDirectory: () => path.join(app.getPath("userData"), "project-initialization"),
+});
 const projectEntryOperationSenders = new Set();
 const projectLocationGrants = createProjectLocationGrantStore();
+/** Folder under the user's Documents directory that hosts projects created without a folder picker. */
+const DEFAULT_PROJECTS_FOLDER_NAME = "PuppyOne";
 const cloudAuthService = createCloudAuthService({
   app,
   requestCloudApi,
@@ -919,6 +932,7 @@ app.on("will-quit", () => {
   nativeSurfacePointerPassthrough.dispose();
   void terminalAgentActivityHost.dispose();
   localAgentInstallationService.dispose();
+  localAgentSetupService.dispose();
   void modelConnections.dispose();
   localAgentInventory.dispose();
   if (gitAutoCommitHost.available) {
@@ -1021,6 +1035,7 @@ function registerIpcHandlers() {
     createProjectForCurrentWindow,
     cloneRepositoryForCurrentWindow,
     selectProjectLocationForCurrentWindow,
+    getDefaultProjectLocationForCurrentWindow,
     selectWorkspaceForCurrentWindow,
     selectWorkspaceForCurrentComposition,
     selectWorkspaceForNewWindow,
@@ -1110,6 +1125,7 @@ function registerIpcHandlers() {
     installationService: localAgentInstallationService,
   });
   registerModelConnectionsIpcHandlers({ ipcMain: trustedIpcMain, connections: modelConnections });
+  registerLocalAgentSetupIpcHandlers({ ipcMain: trustedIpcMain, setupService: localAgentSetupService });
   registerAgentActivityIpcHandlers({
     ipcMain: trustedIpcMain,
     activityHost: terminalAgentActivityHost,
@@ -1317,15 +1333,26 @@ async function showWorkspaceOpenDialog(ownerWindow) {
 
 async function createProjectForCurrentWindow(sender, request) {
   const name = requireProjectName(request?.name);
-  return runProjectEntryOperation(sender, async () => {
-    const parentPath = projectLocationGrants.resolve(sender, request?.locationGrantId);
+  if (!request?.operationId || !request?.source) throw new Error("A project initialization request is required.");
+  return runProjectEntryOperation(sender, () => workspaceNavigation.run(sender.id, async (assertOpen) => {
+    const parentPath = projectLocationGrants.resolve(sender, request?.locationGrantId, request.operationId);
     const project = await projectEntryService.createProject({
       parentPath,
       name,
+      source: request.source,
+      operationId: request.operationId,
+      locale: request.locale ?? localeService.getSnapshot().locale,
     });
-    projectLocationGrants.revoke(sender, request.locationGrantId);
-    return openWorkspaceInCurrentWindow(sender, project.path);
-  });
+    // Retain authority only for this committed operation, not another create.
+    projectLocationGrants.bindCommittedOperation(sender, request.locationGrantId, request.operationId);
+    try {
+      assertOpen();
+      const result = await openWorkspaceInCurrentWindowNow(sender, project.path, {}, assertOpen);
+      return { initialization: project.initialization, opening: { status: "opened", result } };
+    } catch (error) {
+      return { initialization: project.initialization, opening: { status: "failed", message: error instanceof Error ? error.message : String(error) } };
+    }
+  }));
 }
 
 async function selectProjectLocationForCurrentWindow(sender) {
@@ -1337,15 +1364,35 @@ async function selectProjectLocationForCurrentWindow(sender) {
   });
 }
 
+/**
+ * Issues a grant for the built-in projects folder so that creating or importing
+ * a project does not require a native folder picker. The path is chosen by the
+ * main process, never by the renderer, so it stays inside the grant model.
+ */
+async function getDefaultProjectLocationForCurrentWindow(sender) {
+  return runProjectEntryOperation(sender, async () => {
+    const parentPath = path.join(app.getPath("documents"), DEFAULT_PROJECTS_FOLDER_NAME);
+    await fs.promises.mkdir(parentPath, { recursive: true });
+    const canonicalPath = await fs.promises.realpath(parentPath);
+    return projectLocationGrants.issue(sender, canonicalPath);
+  });
+}
+
 async function cloneRepositoryForCurrentWindow(sender, request) {
   const repository = requireGitRepository(request?.repositoryUrl);
   return runProjectEntryOperation(sender, async () => {
-    const parentPath = await selectProjectParentDirectory(sender, "clone");
+    const grantId = typeof request?.locationGrantId === "string" && request.locationGrantId
+      ? request.locationGrantId
+      : null;
+    const parentPath = grantId
+      ? projectLocationGrants.resolve(sender, grantId)
+      : await selectProjectParentDirectory(sender, "clone");
     if (!parentPath) return null;
     const project = await projectEntryService.cloneRepository({
       parentPath,
       repositoryUrl: repository.url,
     });
+    if (grantId) projectLocationGrants.revoke(sender, grantId);
     return openWorkspaceInCurrentWindow(sender, project.path);
   });
 }

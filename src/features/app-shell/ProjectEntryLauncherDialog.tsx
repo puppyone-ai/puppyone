@@ -1,4 +1,4 @@
-import { FilePlus2, FolderOpen, GitFork, Plus } from "lucide-react";
+import { Download, FilePlus2, FolderOpen, Plus } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import type { ReactNode } from "react";
 import {
@@ -59,19 +59,20 @@ export function ProjectEntryLauncherDialog({
             aria-label={title}
           >
             <ProjectEntryOption
-              icon={<FolderOpen />}
-              label={t("onboarding.action.openFolder")}
-              initialFocus
-              onClick={onOpenFolder}
-            />
-            <ProjectEntryOption
               icon={<FilePlus2 />}
               label={t("onboarding.action.createLocalProject")}
+              initialFocus={canCreateProject}
               disabled={!canCreateProject}
               onClick={onCreateProject}
             />
             <ProjectEntryOption
-              icon={<GitFork />}
+              icon={<FolderOpen />}
+              label={t("onboarding.action.openFolder")}
+              initialFocus={!canCreateProject}
+              onClick={onOpenFolder}
+            />
+            <ProjectEntryOption
+              icon={<Download />}
               label={t("onboarding.action.cloneRepository")}
               disabled={!canCloneRepository}
               onClick={onCloneRepository}

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import {
+  Database,
   File as LucideFile,
   FileArchive,
   FileAudio,
@@ -20,6 +21,7 @@ import type {
 } from "../iconThemeTypes";
 import { createIconTheme } from "../themeFactory";
 import {
+  DatabaseGlyph,
   ExcelSpreadsheetGlyph,
   PresentationDocumentGlyph,
   SpreadsheetGridGlyph,
@@ -28,6 +30,7 @@ import {
 } from "../shared/semanticGlyphs";
 
 function renderMinimalGlyph(context: FileIconRenderContext): ReactNode {
+  if (context.kind === "database") return <DatabaseGlyph {...context} />;
   if (context.kind === "context-map") return <TreasureMapGlyph {...context} />;
   if (context.kind === "spreadsheet") {
     return (
@@ -113,6 +116,7 @@ const MINIMAL_LUCIDE_ICONS = {
   word: FileText,
   excel: LucideFile,
   spreadsheet: LucideFile,
+  database: Database,
   presentation: FileText,
   archive: FileArchive,
   document: FileText,
@@ -137,6 +141,7 @@ const minimalGlyphRenderers = {
   word: renderMinimalGlyph,
   excel: renderMinimalGlyph,
   spreadsheet: renderMinimalGlyph,
+  database: renderMinimalGlyph,
   presentation: renderMinimalGlyph,
   archive: renderMinimalGlyph,
   document: renderMinimalGlyph,

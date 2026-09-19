@@ -1,5 +1,5 @@
 import { AlertCircle, History, RefreshCw } from "lucide-react";
-import { useState, useSyncExternalStore } from "react";
+import { useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { WorkbenchLauncherState } from "../../app-shell/auxiliary-workbench/WorkbenchLauncherState";
 import { useLocalization } from "@puppyone/localization/react";
 import type {
@@ -15,7 +15,7 @@ import {
   type DesktopTerminalLauncherId,
 } from "../model/terminalLaunchers";
 import { TerminalActivityGrid } from "./TerminalActivityGrid";
-import { DiscoveryAgentRow, LauncherDiscoveryFeedback, useDelayedDiscoveryFeedback, type LauncherDiscoveryProgress } from "./LauncherDiscoveryFeedback";
+import { DiscoveryAgentRow, LauncherDiscoveryFeedback, useDelayedDiscoveryFeedback } from "./LauncherDiscoveryFeedback";
 import { WorkbenchLauncherIcon } from "../../app-shell/auxiliary-workbench/layout/WorkbenchLauncherIcon";
 import "../../app-shell/auxiliary-workbench/auxiliary-workbench-launcher.css";
 
@@ -30,11 +30,11 @@ type TerminalLauncherProps = {
   presented?: boolean;
   agentMode: TerminalLauncherAgentMode;
   discoveryPhase: LocalAgentInstallationDiscoveryPhase;
-  discoveryProgress?: LauncherDiscoveryProgress | null;
   discoveryHasFailures?: boolean;
   discoveryRefreshing?: boolean;
   discoveryHasInstallations?: boolean;
   availableAgentIds: readonly LocalAgentInstallationId[];
+  agentSetup?: (onReturnToLauncher: () => void) => ReactNode;
   chatCreationAvailable?: boolean;
   chatPreparing?: boolean;
   chatRecipes?: readonly AuxiliaryWorkbenchCreationRecipe[];
@@ -64,7 +64,7 @@ export function TerminalLauncher({
   agentMode,
   discoveryPhase,
   availableAgentIds,
-  discoveryProgress = null,
+  agentSetup,
   discoveryHasFailures = false,
   discoveryRefreshing = false,
   discoveryHasInstallations = availableAgentIds.length > 0,
@@ -86,6 +86,8 @@ export function TerminalLauncher({
   titleId = "desktop-terminal-launcher-title",
 }: TerminalLauncherProps) {
   const { t } = useLocalization();
+  const toolsRef = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const [localState] = useState(() => new WorkbenchLauncherState());
   const state = ownedState ?? localState;
   const { historyOpen, openingTargetId, historyRevision } = useSyncExternalStore(state.subscribe, state.getSnapshot);
@@ -116,12 +118,6 @@ export function TerminalLauncher({
     : terminalAgentLaunchers.map((launcher) => <DiscoveryAgentRow key={launcher.id} animate={feedbackVisible}>
         <TerminalAgentButton launcher={launcher} launchAvailable={terminalEnabled && !busy} onLaunch={onLaunch} />
       </DiscoveryAgentRow>);
-  const bundledIndex = agentMode === "chat" ? chatRecipes.findIndex(({ availability }) => availability === "bundled") : -1;
-  if (feedbackVisible || (!scanning && (discoveryFailed || discoveryEmpty))) {
-    agentRows.splice(bundledIndex < 0 ? agentRows.length : bundledIndex, 0,
-      <LauncherDiscoveryFeedback key="discovery-feedback" scanning={scanning} refreshing={discoveryRefreshing}
-        failed={discoveryFailed} empty={discoveryEmpty} progress={discoveryProgress} busy={busy} />);
-  }
 
   if (historyOpen && history && onRestoreHistoryTarget) {
     return (
@@ -161,7 +157,7 @@ export function TerminalLauncher({
           data-detected-terminal-agent-count={terminalAgentLaunchers.length}
         >
           <header className="desktop-terminal-launcher-heading">
-            <h2 id={titleId}>
+            <h2 id={titleId} ref={titleRef} tabIndex={-1}>
               {busy && (
                 <TerminalActivityGrid className="desktop-terminal-launcher-spinner" />
               )}
@@ -188,9 +184,18 @@ export function TerminalLauncher({
             </div>
           )}
 
-          <div className="desktop-terminal-launcher-tools" role="list" aria-busy={scanning}>
+          <div ref={toolsRef} className="desktop-terminal-launcher-tools" role="list" aria-busy={scanning}>
             {agentRows}
           </div>
+
+          {(feedbackVisible || (!scanning && (discoveryFailed || discoveryEmpty))) &&
+            <LauncherDiscoveryFeedback scanning={scanning} refreshing={discoveryRefreshing}
+              failed={discoveryFailed} empty={discoveryEmpty} busy={busy} />}
+
+          {agentSetup?.(() => {
+            const target = toolsRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)");
+            (target ?? titleRef.current)?.focus();
+          })}
 
           {terminalEnabled && (
             <>

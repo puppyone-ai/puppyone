@@ -114,14 +114,8 @@ describe("Experimental settings", () => {
     const toggle = host.querySelector<HTMLInputElement>(
       'input[aria-label="First project starting point"]',
     );
-    expect(toggle).not.toBeNull();
-    expect(toggle?.checked).toBe(false);
-
-    act(() => toggle?.click());
-    expect(onChange).toHaveBeenCalledWith({
-      ...DEFAULT_EXPERIMENTAL_SETTINGS,
-      enableFirstProjectStarter: true,
-    });
+    expect(toggle).toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("offers an off-by-default Automation opt-in", () => {

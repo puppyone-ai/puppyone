@@ -1,6 +1,6 @@
-import { history, historyField, redoDepth, undoDepth } from "@codemirror/commands";
+import { history, historyField, isolateHistory, redo, redoDepth, undo, undoDepth } from "@codemirror/commands";
 import {
-  Annotation, Compartment, EditorState, StateEffect, Transaction,
+  Annotation, Compartment, EditorState, StateEffect, Text, Transaction,
   type Extension, type TransactionSpec,
 } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
@@ -8,6 +8,8 @@ import type { EditorSourceSnapshot, EditorSourceSnapshotPort } from "../sourceSn
 import { DOCUMENT_HISTORY_POLICY } from "./historyPolicy";
 
 export const externalDocumentUpdate = Annotation.define<boolean>();
+const localEditGroup = Annotation.define<string>();
+export type DocumentTextEdit = Readonly<{ from: number; to: number; expectedText: string; insert: string }>;
 const revisions = new WeakMap<object, string>();
 let revisionSequence = 0;
 
@@ -30,9 +32,53 @@ export class CodeMirrorDocumentModel implements EditorSourceSnapshotPort {
   private historyChangeBytes = 0;
   private disposed = false;
   private inputEnabled = true;
+  private readonly listeners = new Set<(transaction: Transaction) => void>();
+  private editGroup: string | null = null;
 
-  constructor(content: string, private readonly revisionOf = getCodeMirrorDocumentRevision) {
-    this.state = EditorState.create({ doc: content, extensions: this.coreExtensions() });
+  constructor(content: string, private readonly revisionOf = getCodeMirrorDocumentRevision,
+    private readonly preserveLineEndings = false) {
+    this.state = EditorState.create({ doc: preserveLineEndings ? Text.of(content.split("\n")) : content, extensions: this.coreExtensions() });
+  }
+
+  get editorState(): EditorState { return this.view?.state ?? this.state; }
+  get revision(): string { return this.revisionOf(this.editorState.doc); }
+  get editable(): boolean { return this.inputEnabled && !this.disposed; }
+  get retired(): boolean { return this.disposed; }
+
+  subscribeTransactions(listener: (transaction: Transaction) => void): () => void {
+    this.listeners.add(listener);
+    return () => { this.listeners.delete(listener); };
+  }
+
+  /** Compare and apply one complete local operation, including when no view is mounted. */
+  applyLocalEdits(baseRevision: string, edits: readonly DocumentTextEdit[], group: string): boolean {
+    if (!this.editable || baseRevision !== this.revision || edits.length === 0) return false;
+    const state = this.editorState;
+    let end = -1;
+    let previousStart = -1;
+    const ordered = [...edits].sort((a, b) => a.from - b.from);
+    for (const edit of ordered) {
+      if (!Number.isInteger(edit.from) || !Number.isInteger(edit.to) || edit.from < 0
+        || edit.to < edit.from || edit.to > state.doc.length || edit.from < end || edit.from === previousStart
+        || state.doc.sliceString(edit.from, edit.to) !== edit.expectedText) return false;
+      end = edit.to;
+      previousStart = edit.from;
+    }
+    if (ordered.every((edit) => edit.expectedText === edit.insert)) return true;
+    this.dispatch({ changes: ordered,
+      // CodeMirror's compose events join an explicitly continuing gesture even across pauses.
+      annotations: [localEditGroup.of(group), Transaction.userEvent.of(this.editGroup === group ? "input.type.compose" : "input.type.compose.start"),
+        ...(this.editGroup === group ? [] : [isolateHistory.of("before")])],
+    });
+    if (this.editorState.doc === state.doc) return false;
+    this.editGroup = group;
+    return true;
+  }
+
+  moveHistory(direction: "undo" | "redo"): boolean {
+    if (!this.editable) return false;
+    this.editGroup = null;
+    return (direction === "undo" ? undo : redo)({ state: this.editorState, dispatch: (transaction) => this.dispatch(transaction) });
   }
 
   createViewState(extensions: Extension): EditorState {
@@ -62,10 +108,7 @@ export class CodeMirrorDocumentModel implements EditorSourceSnapshotPort {
     view.update(transactions);
     this.state = view.state;
     for (const transaction of transactions) {
-      if (!transaction.docChanged || transaction.annotation(externalDocumentUpdate)) continue;
-      transaction.changes.iterChanges((from, to, _fromB, _toB, inserted) => {
-        this.historyChangeBytes += (to - from + inserted.length) * 2;
-      });
+      this.recordTransaction(transaction);
     }
     // History's own event limit bounds ordinary typing. Serialize only after
     // substantial edits or at detach, never stringify the document per key.
@@ -89,6 +132,7 @@ export class CodeMirrorDocumentModel implements EditorSourceSnapshotPort {
     });
     this.dispatch({ effects: this.historySlot.reconfigure(this.historyExtension()) });
     this.historyChangeBytes = 0;
+    this.editGroup = null;
     return this.readSnapshot();
   };
 
@@ -107,6 +151,7 @@ export class CodeMirrorDocumentModel implements EditorSourceSnapshotPort {
     this.inputEnabled = false;
     this.view = null;
     this.scroll = undefined;
+    this.listeners.clear();
     this.state = EditorState.create();
   };
 
@@ -115,20 +160,32 @@ export class CodeMirrorDocumentModel implements EditorSourceSnapshotPort {
   }
 
   private coreExtensions(): Extension {
-    return [this.historySlot.of(this.historyExtension()), EditorState.transactionFilter.of((transaction) => (
+    return [this.preserveLineEndings ? EditorState.lineSeparator.of("\n") : [], this.historySlot.of(this.historyExtension()), EditorState.transactionFilter.of((transaction) => (
       this.inputEnabled || !transaction.docChanged || transaction.annotation(externalDocumentUpdate) ? transaction : []
     ))];
   }
 
-  private dispatch(spec: TransactionSpec): void {
+  private dispatch(spec: TransactionSpec | Transaction): void {
     if (this.view) {
       this.view.dispatch(spec);
       this.state = this.view.state;
     } else {
-      const transaction = this.state.update(spec);
+      const transaction = spec instanceof Transaction ? spec : this.state.update(spec);
       this.scroll = this.scroll?.map(transaction.changes);
       this.state = transaction.state;
+      this.recordTransaction(transaction);
+      if (transaction.docChanged && (this.historyChangeBytes > DOCUMENT_HISTORY_POLICY.maxBytes
+        || undoDepth(this.state) + redoDepth(this.state) > DOCUMENT_HISTORY_POLICY.maxEntries)) this.trimHistory();
     }
+  }
+
+  private recordTransaction(transaction: Transaction): void {
+    if (!transaction.docChanged && !transaction.annotation(externalDocumentUpdate)) return;
+    if (!transaction.annotation(localEditGroup)) this.editGroup = null;
+    if (!transaction.annotation(externalDocumentUpdate)) transaction.changes.iterChanges((from, to, _fromB, _toB, inserted) => {
+      this.historyChangeBytes += (to - from + inserted.length) * 2;
+    });
+    for (const listener of this.listeners) listener(transaction);
   }
 
   private trimHistory(): void {

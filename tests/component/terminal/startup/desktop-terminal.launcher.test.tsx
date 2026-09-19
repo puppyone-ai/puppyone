@@ -32,6 +32,16 @@ afterEach(() => {
 });
 
 describe("Unified Workbench launcher", () => {
+  it.each([false, true])("returns setup focus to the launcher with installed=%s", (installed) => {
+    const container = renderLauncher(<TerminalLauncher agentMode="terminal" discoveryPhase="ready"
+      availableAgentIds={installed ? ["codex"] : []} onLaunch={vi.fn()} onRefresh={vi.fn()}
+      agentSetup={(onReturn) => <button onClick={onReturn}>Close setup</button>} />);
+    act(() => findButton(container, "Close setup")?.click());
+    expect(document.activeElement).toBe(installed
+      ? container.querySelector(".desktop-terminal-launcher-tool") : container.querySelector("h2"));
+    expect(container.querySelector(".desktop-terminal-launcher-tools")?.contains(findButton(container, "Close setup")!)).toBe(false);
+  });
+
   it("resolves Pi Workbench chrome through the same brand registry as Local Agents settings", () => {
     const container = renderLauncher(<WorkbenchLauncherIcon iconKey="pi" />);
     const icon = container.querySelector(".desktop-terminal-launcher-icon.is-pi");
@@ -181,7 +191,7 @@ describe("Unified Workbench launcher", () => {
     expect(DESKTOP_TERMINAL_LAUNCHERS.every((launcher) => !("command" in launcher))).toBe(true);
   });
 
-  it("delays one feedback row, adds usable results immediately, and preserves keyed focus", () => {
+  it("delays compact feedback outside the Agent list, adds results immediately, and preserves keyed focus", () => {
     vi.useFakeTimers();
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -191,7 +201,6 @@ describe("Unified Workbench launcher", () => {
         agentMode="chat"
         discoveryPhase={phase}
         availableAgentIds={ids}
-        discoveryProgress={{ completedAgentCount: ids.length, totalAgentCount: 8 }}
         chatRecipes={filterAgentChatCreationRecipesByLocalAgentIds(AGENT_CHAT_CREATION_RECIPES, ids)}
         onCreateChat={vi.fn()}
         onLaunch={vi.fn()}
@@ -211,7 +220,10 @@ describe("Unified Workbench launcher", () => {
     expect(tools?.getAttribute("aria-busy")).toBe("true");
     expect(container.querySelector("[role=status]")?.closest("[aria-busy=true]")).toBeNull();
     expect(container.querySelector(".desktop-terminal-launcher-availability")?.textContent)
-      .toContain("Looking for installed Agents");
+      .toContain("Checking local agents");
+    expect(container.querySelector(".desktop-terminal-launcher-discovery")?.closest("[role=list]")).toBeNull();
+    expect(container.querySelector(".desktop-terminal-launcher-discovery-count")).toBeNull();
+    expect(container.querySelector(".desktop-terminal-launcher-discovery .terminal-activity-grid")).toBeNull();
     const announcement = container.querySelector("[role=status]")?.textContent;
     act(() => root?.render(render("loading", ["codex"])));
     const codexButton = findButton(container, "Codex");
@@ -222,7 +234,7 @@ describe("Unified Workbench launcher", () => {
     expect(document.activeElement).toBe(codexButton);
     expect(container.querySelector("[role=status]")?.textContent).toBe(announcement);
     expect(Array.from(tools?.children ?? [], row => row.textContent)).toEqual([
-      "Claude Code", "Codex", "Looking for installed Agents…Checked 2 of 8", "Built-in Agent",
+      "Claude Code", "Codex", "Built-in Agent",
     ]);
     expect(findButton(container, "Built-in Agent")).toBe(builtIn);
     act(() => root?.render(render("ready", ["codex", "claude"])));
@@ -246,7 +258,7 @@ describe("Unified Workbench launcher", () => {
     const codex = findButton(container, "Codex");
     act(() => root?.render(withTestLocalization(<TerminalLauncher {...props} discoveryPhase="loading" discoveryRefreshing />)));
     act(() => vi.advanceTimersByTime(200));
-    expect(container.querySelector(".desktop-terminal-launcher-discovery")?.textContent).toBe("Refreshing installed Agents…");
+    expect(container.querySelector(".desktop-terminal-launcher-discovery")?.textContent).toBe("Refreshing agents…");
     expect(container.querySelector(".desktop-terminal-launcher-discovered")).toBeNull();
     expect(findButton(container, "Codex")).toBe(codex);
     act(() => codex?.click());
@@ -258,14 +270,14 @@ describe("Unified Workbench launcher", () => {
       chatRecipes: [BUILT_IN_AGENT_CREATION_RECIPE], onCreateChat: vi.fn(), onLaunch: vi.fn(), onRefresh: vi.fn() };
     const container = renderLauncher(<TerminalLauncher {...props} discoveryPhase="ready" discoveryHasFailures />);
     expect(container.querySelector(".desktop-terminal-launcher-discovery")?.textContent).toContain("Could not check all Agents");
-    expect(container.textContent).not.toContain("No installed Agents found");
+    expect(container.textContent).not.toContain("No Agent CLIs found");
     expect(findButton(container, "Built-in Agent")?.disabled).toBe(false);
     act(() => container.querySelector<HTMLButtonElement>(".desktop-terminal-launcher-scan")?.click());
     expect(props.onRefresh).toHaveBeenCalledOnce();
     act(() => root?.render(withTestLocalization(<TerminalLauncher {...props} discoveryPhase="ready" discoveryHasInstallations />)));
     expect(container.querySelector(".desktop-terminal-launcher-discovery")).toBeNull();
     act(() => root?.render(withTestLocalization(<TerminalLauncher {...props} discoveryPhase="ready" />)));
-    expect(container.querySelector(".desktop-terminal-launcher-discovery")?.textContent).toBe("No installed Agents found");
+    expect(container.querySelector(".desktop-terminal-launcher-discovery")?.textContent).toBe("No Agent CLIs found");
     act(() => root?.render(withTestLocalization(<TerminalLauncher {...props} discoveryPhase="error" />)));
     expect(container.querySelector(".desktop-terminal-launcher-discovery")?.textContent).toContain("Scan again");
   });

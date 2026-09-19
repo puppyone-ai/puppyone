@@ -511,6 +511,9 @@ async function createEditorHarness(formatCase: FormatCase) {
           saveMode="manual"
         />,
       )));
+      if (formatCase.viewerId === "html-artifact" && !container.querySelector(".cm-editor")) {
+        await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="HTML source"]')?.click());
+      }
     },
     save() {
       container.querySelector(".editor-document-session-boundary")!.dispatchEvent(

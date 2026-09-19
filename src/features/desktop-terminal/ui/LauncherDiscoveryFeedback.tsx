@@ -1,11 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization/react";
-import type { LocalAgentInstallationProgressEvent } from "../../../../shared/local-agent-installation/types";
-import { TerminalActivityGrid } from "./TerminalActivityGrid";
-
-export type LauncherDiscoveryProgress = Pick<LocalAgentInstallationProgressEvent,
-  "completedAgentCount" | "totalAgentCount">;
-
 /** Delay only the indicator, never discovery or usable results. */
 export function useDelayedDiscoveryFeedback(scanning: boolean) {
   const [visible, setVisible] = useState(false);
@@ -20,12 +14,11 @@ export function useDelayedDiscoveryFeedback(scanning: boolean) {
   return scanning && visible;
 }
 
-export function LauncherDiscoveryFeedback({ scanning, refreshing, failed, empty, progress, busy }: {
+export function LauncherDiscoveryFeedback({ scanning, refreshing, failed, empty, busy }: {
   scanning: boolean;
   refreshing: boolean;
   failed: boolean;
   empty: boolean;
-  progress: LauncherDiscoveryProgress | null;
   busy: boolean;
 }) {
   const { t } = useLocalization();
@@ -33,17 +26,9 @@ export function LauncherDiscoveryFeedback({ scanning, refreshing, failed, empty,
     ? refreshing ? "terminal.launcher.refreshing" : "terminal.launcher.detecting"
     : failed ? "terminal.launcher.detectionIncomplete" : empty ? "terminal.launcher.noneInstalled" : null;
   if (!message) return null;
-  return <div className="desktop-terminal-launcher-discovery" role="listitem" data-scanning={scanning}>
-    {scanning && !busy && <TerminalActivityGrid className="desktop-terminal-launcher-discovery-spinner" />}
-    <span>
-      <span>{t(message)}</span>
-      {scanning && progress && <span className="desktop-terminal-launcher-discovery-count">
-        {t("terminal.launcher.detectionProgress", {
-          completed: progress.completedAgentCount,
-          total: progress.totalAgentCount,
-        })}
-      </span>}
-    </span>
+  return <div className="desktop-terminal-launcher-discovery" data-scanning={scanning}>
+    {scanning && !busy && <span className="desktop-terminal-launcher-discovery-spinner" aria-hidden="true" />}
+    <span>{t(message)}</span>
   </div>;
 }
 

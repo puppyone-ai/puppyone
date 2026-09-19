@@ -1,4 +1,5 @@
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import {
   copyWorkspaceEntry,
   copyWorkspaceEntryBetweenRoots,
@@ -158,6 +159,24 @@ export function registerWorkspaceFileIpcHandlers({
     return {
       url: buildLocalFileCapabilityUrl({ rootPath, relativePath, token, purpose }),
     };
+  });
+
+  // Disposable renderer projections are immutable, exact-resource leases, never file writes.
+  // A real protocol navigation avoids inheriting the application CSP through srcdoc/blob.
+  ipcMain.handle("workspace:create-preview-document", async (event, request) => {
+    const rootPath = await authorizeWorkspaceRoot(event, request?.rootPath);
+    if (typeof request?.content !== "string" || request.content.length > 2 * 1024 * 1024
+      || Buffer.byteLength(request.content, "utf8") > 4 * 1024 * 1024
+      || typeof request.path !== "string" || !/\.html?$/i.test(request.path)) throw new Error("Unsupported preview document.");
+    const canonicalPath = await resolveExistingWorkspacePath(rootPath, request.path);
+    if (!(await fs.promises.stat(canonicalPath)).isFile()) throw new Error("Preview requires a regular file.");
+    const relativePath = path.relative(rootPath, canonicalPath).split(path.sep).join("/");
+    if (!/\.html?$/i.test(relativePath)) throw new Error("Unsupported preview document.");
+    const bytes = Buffer.from(request.content, "utf8");
+    const token = localFileCapabilities.issue({ senderId: requireIpcSenderId(event), rootPath, relativePath,
+      scope: "exact", purpose: "document-projection", reuse: false,
+      snapshot: { bytes, relativePath, version: randomUUID(), interactive: request.interactive === true } });
+    return { url: buildLocalFileCapabilityUrl({ relativePath, token, purpose: "document-projection" }) };
   });
 
   ipcMain.handle("workspace:revoke-file-url", async (event, request) => {

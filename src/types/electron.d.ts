@@ -6,6 +6,7 @@ import type {
   Workspace,
 } from "@puppyone/shared-ui";
 import type { AppLanguagePreference, LocaleState } from "@puppyone/localization/core";
+import type { LocalAgentSetupRequest, LocalAgentSetupSnapshot, LocalAgentSetupAction, LocalAgentSetupActionResult } from "../../shared/local-agent-installation/setup-types";
 import type { ModelConnectionSnapshot, ModelConnectionCandidate, ModelConnectionResult, SaveModelConnectionRequest } from "../../shared/model-connections/types";
 import type { DesktopTerminalLauncherId } from "../features/desktop-terminal/model/terminalLaunchers";
 import type {
@@ -712,6 +713,24 @@ export type WorkspaceDetachResult = {
 export type WorkspaceCreateProjectRequest = {
   name: string;
   locationGrantId: string;
+  operationId: string;
+  source: { kind: "blank" } | { kind: "template"; ref: { sourceId: "builtin"; id: "puppyone.project.getting-started"; version: 1 } };
+  locale: string;
+};
+
+export type ProjectInitializationReceipt = {
+  operationId: string;
+  outcome: "committed";
+  path: string;
+  name: string;
+  createdPaths: string[];
+  initialOpenPath: string | null;
+  template: { sourceId: string; id: string; version: number; digest: string; resolvedLocale: string } | null;
+};
+
+export type WorkspaceCreateProjectResult = {
+  initialization: ProjectInitializationReceipt;
+  opening: { status: "opened"; result: WorkspaceOpenResult } | { status: "failed"; message: string };
 };
 
 export type WorkspaceProjectLocationGrant = {
@@ -721,6 +740,8 @@ export type WorkspaceProjectLocationGrant = {
 
 export type WorkspaceCloneRepositoryRequest = {
   repositoryUrl: string;
+  /** Optional location grant; when omitted the main process asks with a folder picker. */
+  locationGrantId?: string | null;
 };
 
 export type WorkspaceCreateEntryKind = "file" | "folder";
@@ -777,6 +798,8 @@ export type WorkspaceCopyEntryBetweenRootsRequest = Omit<WorkspaceCopyEntryReque
 };
 
 export type WorkspaceImportEntriesRequest = {
+  /** Optional basename for one file; native imports still reject existing destinations. */
+  preferredName?: string;
   rootPath: string;
   targetFolderPath: string | null;
   files: File[];
@@ -1148,9 +1171,10 @@ declare global {
       detachFolder: (folderPath: string) => Promise<WorkspaceDetachResult>;
       selectFolderInNewWindow: () => Promise<WorkspaceOpenResult | null>;
       selectLocalProjectLocation: () => Promise<WorkspaceProjectLocationGrant | null>;
+      getDefaultLocalProjectLocation: () => Promise<WorkspaceProjectLocationGrant | null>;
       createLocalProject: (
         request: WorkspaceCreateProjectRequest,
-      ) => Promise<WorkspaceOpenResult | null>;
+      ) => Promise<WorkspaceCreateProjectResult>;
       cloneRepository: (
         request: WorkspaceCloneRepositoryRequest,
       ) => Promise<WorkspaceOpenResult | null>;
@@ -1212,6 +1236,7 @@ declare global {
         expectedVersion?: string;
       }) => Promise<{ url: string }>;
       revokeFileUrl: (request: { url: string }) => Promise<{ revoked: boolean }>;
+      createPreviewDocument: (request: { rootPath: string; path: string; content: string; interactive?: boolean }) => Promise<{ url: string }>;
       openDatabasePreview: import("../platform/databasePreviewClient").DatabaseBridge["openDatabasePreview"];
       readDatabasePreviewPage: import("../platform/databasePreviewClient").DatabaseBridge["readDatabasePreviewPage"];
       closeDatabasePreview: import("../platform/databasePreviewClient").DatabaseBridge["closeDatabasePreview"];
@@ -1512,6 +1537,11 @@ declare global {
         refresh?: boolean;
         requestId: string;
       }) => Promise<LocalAgentInstallationSnapshot>;
+      localAgentSetup?: {
+        inspect: (request: LocalAgentSetupRequest) => Promise<LocalAgentSetupSnapshot>;
+        act: (request: LocalAgentSetupAction) => Promise<LocalAgentSetupActionResult>;
+        release: (clientId: string) => Promise<void>;
+      };
       modelConnections?: {
         read: () => Promise<ModelConnectionResult<ModelConnectionSnapshot>>;
         discover: () => Promise<ModelConnectionResult<ModelConnectionCandidate[]>>;

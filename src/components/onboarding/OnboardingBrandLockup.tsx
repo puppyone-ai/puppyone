@@ -7,6 +7,9 @@ type OnboardingBrandLockupProps = {
   resolvedTheme: "light" | "dark";
 };
 
+/**
+ * First-run shows the product name; returning users see the project prompt.
+ */
 export function OnboardingBrandLockup({ state, resolvedTheme }: OnboardingBrandLockupProps) {
   const { t } = useLocalization();
   const hasProjects = state === "projects";

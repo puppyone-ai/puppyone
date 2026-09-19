@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Workflow } from "lucide-react";
+import { Database, Workflow } from "lucide-react";
 import type { FileIconRenderContext } from "../iconThemeTypes";
 
 export function AppGlyph({ color, size }: FileIconRenderContext): ReactNode {
@@ -22,6 +22,21 @@ export function AppGlyph({ color, size }: FileIconRenderContext): ReactNode {
 
 export function WorkflowGlyph({ color, size }: FileIconRenderContext): ReactNode {
   return <Workflow size={size} color={color} strokeWidth={1.9} aria-hidden="true" />;
+}
+
+/** Database family identity, independent of the detected storage engine. */
+export function DatabaseGlyph({ color, size }: FileIconRenderContext): ReactNode {
+  // Inset the 24-unit Lucide artwork by 20% without changing the shared icon slot.
+  return (
+    <Database
+      size={size}
+      viewBox="-3 -3 30 30"
+      color={color}
+      strokeWidth={1.65}
+      aria-hidden="true"
+      data-file-icon-shape="database-cylinder"
+    />
+  );
 }
 
 /** Product mark for Context Map documents: a folded game-style treasure map

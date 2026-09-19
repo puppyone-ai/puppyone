@@ -123,6 +123,7 @@ function RegularEditorPaneDocumentRuntime({
 
   return (
     <FilePreview
+      editorAssets={dataPort.editorAssets}
       previewServices={dataPort.previewServices}
       inputGeneration={source.generation}
       node={node}

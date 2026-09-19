@@ -276,6 +276,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   detachFolder: (folderPath) => ipcRenderer.invoke("workspace:detach-current", folderPath),
   selectFolderInNewWindow: () => ipcRenderer.invoke("workspace:select-folder-new-window"),
   selectLocalProjectLocation: () => ipcRenderer.invoke("workspace:select-project-location-current"),
+  getDefaultLocalProjectLocation: () => ipcRenderer.invoke("workspace:default-project-location-current"),
   createLocalProject: (request) => ipcRenderer.invoke("workspace:create-project-current", request),
   cloneRepository: (request) => ipcRenderer.invoke("workspace:clone-repository-current", request),
   getPathForFile: (file) => webUtils.getPathForFile(file),
@@ -310,6 +311,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   readDatabasePreviewPage: (request) => ipcRenderer.invoke("database-preview:page", request),
   closeDatabasePreview: (request) => ipcRenderer.invoke("database-preview:close", request),
   getFileUrl: (request) => ipcRenderer.invoke("workspace:get-file-url", request),
+  createPreviewDocument: (request) => ipcRenderer.invoke("workspace:create-preview-document", request),
   revokeFileUrl: (request) => ipcRenderer.invoke("workspace:revoke-file-url", request),
   convertOfficeDocumentToDocx: (request) => ipcRenderer.invoke("workspace:convert-office-docx", request),
   cancelOfficeDocumentToDocxConversion: (request) => ipcRenderer.invoke("workspace:convert-office-docx-cancel", request),
@@ -332,6 +334,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
       rootPath: request?.rootPath,
       targetFolderPath: request?.targetFolderPath ?? null,
       sourcePaths,
+      ...(request?.preferredName === undefined ? {} : { preferredName: request.preferredName }),
     });
   },
   deleteEntry: (request) => ipcRenderer.invoke("workspace:delete-entry", request),
@@ -531,6 +534,11 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
     },
   } : {}),
   discoverLocalAgentInstallations: (request) => ipcRenderer.invoke("local-agent-installation:discover", request),
+  localAgentSetup: {
+    inspect: (request) => ipcRenderer.invoke("local-agent-setup:inspect", request),
+    act: (request) => ipcRenderer.invoke("local-agent-setup:act", request),
+    release: (clientId) => ipcRenderer.invoke("local-agent-setup:release", clientId),
+  },
   modelConnections: {
     read: () => ipcRenderer.invoke("model-connections:read"),
     discover: () => ipcRenderer.invoke("model-connections:discover"),

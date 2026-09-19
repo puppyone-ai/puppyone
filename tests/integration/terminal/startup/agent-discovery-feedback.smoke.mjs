@@ -68,6 +68,10 @@ async function run() {
     assert(variant.theme === "dark" ? brightness < 100 : brightness > 180, label + ": wrong actual surface palette");
     assert(await evaluate(`${buttons}.map(button => button.textContent).join('|') === 'Built-in Agent'`), "Cold scan must retain Built-in Agent");
     assert(await evaluate("document.querySelectorAll('.desktop-terminal-launcher-discovery').length === 1"), "Missing scan feedback");
+    assert(await evaluate("!document.querySelector('.desktop-terminal-launcher-discovery').closest('[role=list]')"), "Scan status masquerades as an Agent");
+    assert(await evaluate("!document.querySelector('.desktop-terminal-launcher-discovery-count, .desktop-terminal-launcher-discovery .desktop-terminal-activity-grid')"), "Legacy counter or activity grid remains");
+    assert(await evaluate("document.querySelector('.desktop-terminal-launcher-discovery').getBoundingClientRect().height < 25"), "Cold scan feedback is not compact");
+    assert(await evaluate("!document.querySelector('.local-agent-setup')"), "Empty launcher has setup chrome");
     await capture(label + "-cold");
     const scanning = { phase: "loading", ids: ["codex"], completed: 1, refreshing: false, failed: false };
     await setState(scanning);
@@ -75,8 +79,8 @@ async function run() {
     await setState({ ...scanning, ids: ["codex", "claude"], completed: 2 });
     assert(await evaluate("document.activeElement === window.__focusedAgent && !window.__focusedAgent.disabled"), "Incremental result lost focus or was disabled");
     assert(await evaluate(`${buttons}.map(button => button.textContent).join('|') === 'Claude Code|Codex|Built-in Agent'`), "Unstable display order");
-    assert(await evaluate("document.querySelector('[role=status]').textContent === 'Looking for installed Agents…'"), "Progress counts should not churn live announcements");
-    if (variant.reduced) assert(await evaluate("Array.from(document.querySelectorAll('.desktop-terminal-launcher-discovered, .desktop-terminal-activity-grid > span')).every(node => getComputedStyle(node).animationName === 'none')"), "Reduced motion still animates");
+    assert(await evaluate("document.querySelector('[role=status]').textContent === 'Checking local agents…'"), "Progress counts should not churn live announcements");
+    if (variant.reduced) assert(await evaluate("Array.from(document.querySelectorAll('.desktop-terminal-launcher-discovered, .desktop-terminal-launcher-discovery-spinner')).every(node => getComputedStyle(node).animationName === 'none')"), "Reduced motion still animates");
     await capture(label + "-incremental");
     window.focus();
     window.webContents.focus();
@@ -103,13 +107,13 @@ async function run() {
       await new Promise(resolve => setTimeout(resolve, 25));
     }
     assert(await evaluate(`${buttons}.filter(button => !button.disabled).length === 9`), "Refresh cleared or disabled usable rows");
-    assert(await evaluate("document.querySelector('.desktop-terminal-launcher-discovery').textContent === 'Refreshing installed Agents…'"), "Missing refresh semantics");
+    assert(await evaluate("document.querySelector('.desktop-terminal-launcher-discovery').textContent === 'Refreshing agents…'"), "Missing refresh semantics");
     await setState({ ...scanning, phase: "ready", ids, failed: true });
     assert(await evaluate("document.querySelector('.desktop-terminal-launcher-discovery').textContent.includes('Scan again')"), "Missing retry feedback");
     await evaluate("document.querySelector('.desktop-terminal-launcher-discovery').scrollIntoView({ block: 'nearest' })");
     await capture(label + "-partial-failure");
     await setState({ ...scanning, phase: "ready", ids: [], completed: 8 });
-    assert(await evaluate("document.querySelector('.desktop-terminal-launcher-discovery').textContent === 'No installed Agents found'"), "Missing definitive empty state");
+    assert(await evaluate("document.querySelector('.desktop-terminal-launcher-discovery').textContent === 'No Agent CLIs found'"), "Missing definitive empty state");
     await capture(label + "-empty");
     window.destroy();
   }
