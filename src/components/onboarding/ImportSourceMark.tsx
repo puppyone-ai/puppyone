@@ -3,13 +3,6 @@ import { RENDERER_ASSET_PATHS, resolveRendererPublicAssetUrl } from "@puppyone/s
 /** Apps a user can bring work in from. "git" is rendered as GitHub + GitLab. */
 export type ImportSourceBrand = "github" | "gitlab" | "notion" | "google-drive" | "obsidian" | "airtable";
 
-/** A decorative preview, not a second set of source-selection buttons. */
-export const IMPORT_PREVIEW_BRANDS: ReadonlyArray<ImportSourceBrand> = [
-  "github",
-  "notion",
-  "google-drive",
-];
-
 const BRAND_LABELS: Record<ImportSourceBrand, string> = {
   github: "GitHub",
   gitlab: "GitLab",

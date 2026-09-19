@@ -46,6 +46,7 @@ async function runSmoke() {
       if (details.level === "error") console.error(details.message);
     });
     const labels = { "zh-Hans": "新建空项目", en: "New empty project", fr: "Créer un projet vide" };
+    const importLabels = { "zh-Hans": "从其他应用导入…", en: "Import from other apps…", fr: "Importer depuis d’autres apps…" };
     for (const locale of Object.keys(labels)) {
       for (const theme of ["dark", "light"]) {
         for (const [width, height] of [[900, 680], [563, 469], [360, 520]]) {
@@ -63,6 +64,9 @@ async function runSmoke() {
             const rect = (element) => { const r = element.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; };
             const create = document.querySelector('[data-onboarding-action=create]');
             const open = document.querySelector('[data-onboarding-action=open]');
+            const importButton = document.querySelector('.onboarding-entry-import');
+            const importLabel = importButton.querySelector('.po-button__label');
+            const divider = document.querySelector('.onboarding-entry-action-divider');
             const label = create.querySelector('.po-button__label');
             const brand = document.querySelector('.onboarding-brand-lockup');
             const launcher = document.querySelector('.onboarding-launcher');
@@ -80,19 +84,22 @@ async function runSmoke() {
               brandFont: getComputedStyle(brand.querySelector('.onboarding-brand-name')).fontSize,
               brandMarkWidth: rect(brand.querySelector('img')).width,
               actionIconWidth: rect(create.querySelector('svg')).width,
-              importMarkWidths: images.slice(1).map(image => rect(image).width),
-              importMarks: [...document.querySelectorAll('.onboarding-entry-import-brand')].map(rect),
-              importActionIcon: rect(document.querySelector('.onboarding-entry-import .po-button__icon > svg')),
-              importLabel: rect(document.querySelector('.onboarding-entry-import-label')),
-              importBrandIds: images.slice(1).map(image => image.dataset.importBrand),
-              importText: document.querySelector('.onboarding-entry-import-label').textContent,
-              importEllipsis: document.querySelector('.onboarding-entry-import').textContent.includes('…'),
+              importButton: rect(importButton), divider: rect(divider), open: rect(open),
+              importFont: parseFloat(getComputedStyle(importLabel).fontSize),
+              importWeight: getComputedStyle(importLabel).fontWeight,
+              importLineHeight: getComputedStyle(importLabel).lineHeight,
+              importArtworkCount: importButton.querySelectorAll('img, svg').length,
+              importText: importButton.textContent,
+              dividerBackground: getComputedStyle(divider).backgroundColor,
               actionCount: buttons.length,
               clipped: buttons.some(button => button.scrollWidth > button.clientWidth + 1)
-                || label.scrollWidth > label.clientWidth + 1,
+                || buttons.some(button => {
+                  const text = button.querySelector('.po-button__label');
+                  return text && text.scrollWidth > text.clientWidth + 1;
+                }),
               outside: buttons.some(button => { const r = button.getBoundingClientRect(); return r.left < 0 || r.right > innerWidth || r.top < 38 || r.bottom > innerHeight; }),
               tagline: !!document.querySelector('.onboarding-brand-tagline'),
-              imagesLoaded: images.length === 4 && images.every(image => image.complete && image.naturalWidth > 0),
+              imagesLoaded: images.length === 1 && images.every(image => image.complete && image.naturalWidth > 0),
             };
           })()`);
           const context = `${locale}/${theme}/${width}x${height}`;
@@ -111,19 +118,19 @@ async function runSmoke() {
           assert.equal(snapshot.brandFont, '19px', `${context}: original brand size`);
           assert.equal(snapshot.brandMarkWidth, 28, `${context}: original brand mark`);
           assert.equal(snapshot.actionIconWidth, 14, `${context}: original action icon`);
-          assert.ok(snapshot.importMarkWidths.every(width => width === 18), `${context}: legible source marks`);
-          assert.equal(snapshot.importActionIcon.width, 14, `${context}: original import action icon`);
-          assert.ok(snapshot.importActionIcon.x < snapshot.importLabel.x, `${context}: action icon before label`);
-          assert.deepEqual(snapshot.importBrandIds, ['github', 'notion', 'google-drive'], `${context}: source preview`);
+          assert.equal(snapshot.importFont, 12, `${context}: quiet caption size`);
+          assert.equal(snapshot.importWeight, '400', `${context}: regular import text`);
+          assert.equal(snapshot.importLineHeight, '16px', `${context}: compact caption line height`);
+          assert.equal(snapshot.importArtworkCount, 0, `${context}: source logos belong in the picker`);
+          assert.equal(snapshot.importText, importLabels[locale], `${context}: complete localized text`);
+          assert.equal(snapshot.divider.height, 1, `${context}: subtle one-pixel divider`);
+          assert.equal(snapshot.divider.width, snapshot.create.width, `${context}: divider matches CTA width`);
+          assert.notEqual(snapshot.dividerBackground, 'rgba(0, 0, 0, 0)', `${context}: visible divider`);
+          assert.ok(snapshot.divider.y - snapshot.open.y - snapshot.open.height >= 12, `${context}: separation from direct-start actions`);
+          assert.ok(snapshot.importButton.y - snapshot.divider.y - snapshot.divider.height >= 8, `${context}: space below divider`);
+          assert.ok(snapshot.importButton.height >= 28, `${context}: text entry retains a usable hit target`);
           assert.equal(snapshot.actionCount, 3, `${context}: no extra logo buttons`);
-          assert.equal(snapshot.importEllipsis, false, `${context}: no extra visual punctuation`);
-          if (locale === 'en') assert.equal(snapshot.importText, 'Import from', context);
-          assert.ok(snapshot.importMarks[0].x - snapshot.importLabel.x - snapshot.importLabel.width >= 12, `${context}: space after import label`);
-          for (let i = 1; i < snapshot.importMarks.length; i++) {
-            const previous = snapshot.importMarks[i - 1];
-            assert.equal(snapshot.importMarks[i].x - previous.x - previous.width, 8, `${context}: distinct source silhouettes`);
-          }
-          for (const item of [snapshot.create, snapshot.brand, snapshot.launcher]) {
+          for (const item of [snapshot.create, snapshot.brand, snapshot.launcher, snapshot.divider, snapshot.importButton]) {
             assert.ok(Math.abs(item.x + item.width / 2 - width / 2) < 1, `${context}: horizontal centering`);
           }
           assert.ok(Math.abs(snapshot.launcher.y + snapshot.launcher.height / 2 - height / 2) < 1, `${context}: vertical centering`);
@@ -151,11 +158,14 @@ async function runSmoke() {
           window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Tab" });
           window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Tab" });
           await until("document.activeElement?.dataset.onboardingAction === 'clone'");
+          await until("document.activeElement?.matches(':focus-visible')");
+          assert.equal(await evaluate("getComputedStyle(document.activeElement).outlineStyle"), "solid", `${context}: import focus ring`);
           window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Enter" });
           window.webContents.sendInputEvent({ type: "char", keyCode: "\r" });
           window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Enter" });
           await until("!!document.querySelector('.is-import-sources')");
           assert.equal(await evaluate("document.querySelectorAll('.onboarding-import-source').length"), 6, `${context}: all sources in dialog`);
+          await until("[...document.querySelectorAll('.onboarding-import-source img')].length === 6 && [...document.querySelectorAll('.onboarding-import-source img')].every(image => image.complete && image.naturalWidth > 0)");
           console.log(`Passed ${context}`);
         }
       }

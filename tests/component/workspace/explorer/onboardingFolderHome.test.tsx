@@ -173,7 +173,7 @@ describe("project folder home", () => {
     expect(projectActions.map((action) => action.textContent)).toEqual([
       "New empty project",
       "Open a folder",
-      "Import from",
+      "Import from other apps…",
     ]);
     expect(projectActions.every((action) => action.classList.contains("po-button--neutral"))).toBe(true);
     expect(projectActions.every((action) => !action.classList.contains("onboarding-entry-action-cta"))).toBe(true);
@@ -271,7 +271,7 @@ describe("project folder home", () => {
     expect(actions.map((action) => action.textContent)).toEqual([
       "New empty project",
       "Open a folder",
-      "Import from",
+      "Import from other apps…",
     ]);
     expect(actions.every((action) => action.classList.contains("po-button"))).toBe(true);
     expect(actions[0]?.classList.contains("po-button--neutral")).toBe(true);
@@ -283,35 +283,27 @@ describe("project folder home", () => {
     expect(actions[0]?.classList.contains("onboarding-entry-action-folder")).toBe(false);
     expect(actions[0]?.querySelector(".onboarding-entry-create-icon")).not.toBeNull();
     expect(actions[1]?.querySelector(".lucide-folder-open")).not.toBeNull();
-    expect(actions[2]?.querySelector(".po-button__icon .lucide-download")).not.toBeNull();
+    expect(actions[2]?.querySelector("img, svg, .po-button__icon")).toBeNull();
     expect(actions[2]?.disabled).toBe(false);
-    // Source marks are decorative children of one accessible import button.
+    // Import is a text-only entry below the divider, with one accessible target.
     const importGroup = container.querySelector(".onboarding-entry-import");
     expect(importGroup).toBe(actions[2]);
-    expect(importGroup?.getAttribute("aria-label")).toBe("Import");
+    expect(importGroup?.getAttribute("aria-label")).toBeNull();
     expect(importGroup?.getAttribute("aria-haspopup")).toBe("dialog");
     expect(importGroup?.querySelectorAll("button, [tabindex]")).toHaveLength(0);
     expect(container.querySelectorAll(".onboarding-entry-actions button")).toHaveLength(3);
-    const brandRow = importGroup?.querySelector(".onboarding-entry-import-brands");
-    expect(brandRow?.getAttribute("aria-hidden")).toBe("true");
-    const brands = [...(brandRow?.querySelectorAll<HTMLImageElement>(".onboarding-import-mark") ?? [])];
-    expect(brands.map((mark) => mark.dataset.importBrand)).toEqual([
-      "github",
-      "notion",
-      "google-drive",
-    ]);
-    for (const mark of brands) {
-      expect(mark.getAttribute("alt")).toBe("");
-      expect(mark.getAttribute("src")).toContain(`assets/icons/integrations/${mark.dataset.importBrand}.`);
-    }
-    expect(importGroup?.textContent).not.toContain("…");
+    expect(container.querySelector(".onboarding-entry-actions .onboarding-import-mark")).toBeNull();
+    const divider = container.querySelector(".onboarding-entry-action-divider");
+    expect(divider?.getAttribute("role")).toBe("separator");
+    expect(divider?.parentElement).toBe(importGroup?.parentElement);
+    expect(actions[1]!.compareDocumentPosition(divider as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(divider!.compareDocumentPosition(importGroup as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const launcher = container.querySelector(".onboarding-launcher");
     expect(launcher?.contains(container.querySelector(".onboarding-brand-lockup"))).toBe(true);
     expect(launcher?.contains(container.querySelector(".onboarding-entry-actions"))).toBe(true);
     expect(container.querySelector(".onboarding-entry-action-primary")?.contains(actions[0] as Node)).toBe(true);
     expect([...container.querySelectorAll(".onboarding-entry-action-secondary .onboarding-entry-action")]).toEqual([
       actions[1],
-      actions[2],
     ]);
     expect(requireSurface(container).dataset.onboardingState).toBe("empty");
     expect(container.querySelector(".onboarding-projects-layout")).toBeNull();
@@ -485,7 +477,7 @@ describe("project folder home", () => {
     expect(onCloneRepository).not.toHaveBeenCalled();
   });
 
-  it.each(["github", "notion", "google-drive"])("opens the common source picker when the %s preview is clicked", async (brand) => {
+  it.each([".onboarding-entry-import", ".onboarding-entry-import .po-button__label"])("opens the common source picker from the text entry (%s)", async (selector) => {
     const onDefaultProjectLocation = vi.fn(async () => null);
     const container = renderHome({
       onCloneRepository: vi.fn(async () => true),
@@ -494,7 +486,7 @@ describe("project folder home", () => {
     });
 
     await act(async () => {
-      container.querySelector<HTMLImageElement>(`.onboarding-entry-import img[data-import-brand='${brand}']`)?.click();
+      container.querySelector<HTMLElement>(selector)?.click();
     });
     expect(container.querySelector("[role='dialog']")?.getAttribute("aria-label")).toBe("Import");
     expect(container.querySelectorAll(".onboarding-import-source")).toHaveLength(6);
@@ -505,18 +497,18 @@ describe("project folder home", () => {
     expect(container.querySelector("[role='dialog']")).toBeNull();
 
     await act(async () => {
-      container.querySelector<SVGElement>(".onboarding-entry-import .lucide-download")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      container.querySelector<HTMLButtonElement>(".onboarding-entry-import")?.click();
       await Promise.resolve();
     });
     expect(container.querySelector("[role='dialog']")?.getAttribute("aria-label")).toBe("Import");
   });
 
-  it("keeps the complete import preview disabled when import is unavailable", async () => {
+  it("keeps the text import entry disabled when import is unavailable", async () => {
     const container = renderHome();
     const button = container.querySelector<HTMLButtonElement>(".onboarding-entry-import");
     expect(button?.disabled).toBe(true);
     expect(button?.querySelectorAll("button, [tabindex]")).toHaveLength(0);
-    await act(async () => button?.querySelector<HTMLImageElement>(".onboarding-import-mark")?.click());
+    await act(async () => button?.querySelector<HTMLElement>(".po-button__label")?.click());
     expect(container.querySelector("[role='dialog']")).toBeNull();
   });
 

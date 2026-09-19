@@ -367,33 +367,30 @@
   color: var(--po-text);
 }
 
-/* One import action, with a decorative source preview instead of extra CTAs. */
-.onboarding-entry-import .po-button__label {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.onboarding-entry-import-brands {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 8px;
-  opacity: 0.76;
-  filter: grayscale(1);
-  transition: opacity 130ms ease-out;
-}
-
-.onboarding-entry-import-brand {
+/* Keep importing visually separate from creating or opening a local project. */
+.onboarding-entry-import-area {
   display: grid;
-  width: 18px;
-  height: 18px;
-  place-items: center;
+  width: 100%;
+  min-width: 0;
+  justify-items: center;
+  gap: 8px;
+  margin-block-start: 8px;
 }
 
-.onboarding-entry-import-brand .onboarding-import-mark {
-  width: 18px;
-  height: 18px;
+.onboarding-shell[data-onboarding-state="projects"] .onboarding-entry-import-area {
+  display: contents;
+}
+
+.onboarding-entry-action-divider {
+  width: min(180px, 100%);
+  height: 1px;
+  background: color-mix(in srgb, var(--po-border) 65%, transparent);
+}
+
+.onboarding-entry-import {
+  --onboarding-row-font-size: var(--po-type-ui-caption, 12px);
+  --onboarding-row-font-weight: 400;
+  --onboarding-row-line-height: 16px;
 }
 
 .onboarding-import-mark {
@@ -409,15 +406,6 @@
 .dark .onboarding-import-mark.is-github,
 .dark .onboarding-import-mark.is-notion {
   filter: invert(1);
-}
-
-.onboarding-entry-import:hover:not(:disabled) .onboarding-entry-import-brands,
-.onboarding-entry-import:focus-visible .onboarding-entry-import-brands {
-  opacity: 0.9;
-}
-
-.onboarding-entry-import:disabled .onboarding-entry-import-brands {
-  opacity: 0.3;
 }
 
 .onboarding-projects-layout {

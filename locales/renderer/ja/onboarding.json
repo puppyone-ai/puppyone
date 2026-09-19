@@ -15,6 +15,7 @@
   "action.openFolder": "フォルダを開く",
   "action.createLocalProject": "空のプロジェクトを作成",
   "action.cloneRepository": "インポート",
+  "action.importFromApps": "他のアプリからインポート…",
   "entry.create.title": "プロジェクトを作成",
   "entry.create.nameLabel": "プロジェクト名",
   "entry.create.namePlaceholder": "マイプロジェクト",

@@ -15,6 +15,7 @@
   "action.openFolder": "Abrir uma pasta",
   "action.createLocalProject": "Criar projeto vazio",
   "action.cloneRepository": "Importar",
+  "action.importFromApps": "Importar de outros apps…",
   "entry.create.title": "Criar um projeto",
   "entry.create.nameLabel": "Nome do projeto",
   "entry.create.namePlaceholder": "Meu projeto",
