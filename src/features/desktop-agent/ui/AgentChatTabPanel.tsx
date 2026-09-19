@@ -93,6 +93,10 @@ export function AgentChatTabPanel({
   const failed = state.phase === "failed" || state.phase === "runtime-exited";
   const hasCommittedTranscript = [state.projection.rows, state.projection.parts, state.projection.messages, state.projection.activities]
     .some((entries) => entries.length > 0);
+  // An unconfigured first-use connection is onboarding, not a failed Agent session.
+  // Saved routes, history, credentials errors and actual runtime failures retain recovery UI.
+  const computeOnboarding = Boolean(capabilities?.modelConnections && readiness?.code === "RUNTIME_SETUP_REQUIRED"
+    && !state.selectedModel && !state.session && !hasCommittedTranscript && !state.error && !failed);
   const startupLoading = presented && (!state.initialized || loading) && !state.pendingPrompt && !hasCommittedTranscript;
   const sessionKey = useTranscriptScope(controller, state.session?.id ?? null, state.selectedRuntimeId);
   const viewport = useMemo(() => ({ sessionKey, value: controller.readViewport() }), [controller, sessionKey]).value;
@@ -130,7 +134,7 @@ export function AgentChatTabPanel({
     ? !state.session || preparingSession ? "preparing-session" : "starting-turn"
     : null;
   useAgentSessionPreparation(controller, state, commandTarget && routingReady);
-  const composerPlaceholder = unavailable || failed
+  const composerPlaceholder = computeOnboarding ? t(DEFAULT_AGENT_COMPOSER_PLACEHOLDER_ID) : unavailable || failed
     ? t("agent.composer.placeholder.preparing")
     : !agentRuntimeSelected
       ? t("agent.composer.placeholder.chooseAgent")
@@ -145,13 +149,13 @@ export function AgentChatTabPanel({
     ? "needs-attention"
     : state.session ? sessionStatusCode(sessionStatus) : readinessStatusCode(readiness);
   const title = state.session?.title || (agentRuntimeSelected ? runtimeLabel : t("agent.header.newChat"));
-  const hasStatus = unavailable || failed || Boolean(state.error);
+  const hasStatus = (unavailable && !computeOnboarding) || failed || Boolean(state.error);
   const hasSubmittedConversation = hasCommittedTranscript
     || Boolean(state.pendingPrompt)
     || Boolean(state.pendingIntent)
     || state.projection.approvals.length > 0
     || state.projection.questions.length > 0;
-  const showReadyEmptyState = routingReady
+  const showReadyEmptyState = (routingReady || computeOnboarding)
     && state.initialized
     && !loading
     && !hasStatus

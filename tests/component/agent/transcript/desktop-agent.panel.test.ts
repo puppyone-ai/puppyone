@@ -30,6 +30,28 @@ afterEach(() => {
 });
 
 describe("Project-owned Agent Chat Workbench lifecycle", () => {
+  it.each([
+    ["RUNTIME_SETUP_REQUIRED", false],
+    ["AUTHENTICATION_REQUIRED", true],
+    ["RUNTIME_VERSION_UNSUPPORTED", true],
+  ])("keeps first-use compute onboarding distinct from %s recovery", async (code, showRecovery) => {
+    const harness = createBridgeHarness();
+    const inspection = readyInspection();
+    const readiness = { ...inspection.readiness, status: "setup-required", code };
+    harness.bridge.discoverAgentProviders = vi.fn(async () => ({
+      ...inspection, readiness, models: [], providers: [], account: null,
+      runtimes: [{ ...inspection.runtimes[0], readiness }],
+      capabilities: { ...capabilities(), modelConnections: true },
+    }));
+    const container = renderPanel(harness.bridge);
+    await flushEffects(); await flushEffects();
+    expect(Boolean(container.querySelector(".desktop-agent-readiness"))).toBe(showRecovery);
+    expect(Boolean(container.querySelector(".desktop-agent-empty-state"))).toBe(!showRecovery);
+    expect(container.querySelector(".desktop-agent-compute-summary")?.textContent).toContain("Puppyone Cloud");
+    expect((container.querySelector('button[aria-label="Send message"]') as HTMLButtonElement).disabled).toBe(true);
+    expect(harness.bridge.createAgentSession).not.toHaveBeenCalled();
+  });
+
   it("keeps history out of the runtime chooser so choosing an Agent always starts a new chat", async () => {
     const harness = createBridgeHarness();
     const codex = {
