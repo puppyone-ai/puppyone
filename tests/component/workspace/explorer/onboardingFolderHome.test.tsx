@@ -234,7 +234,13 @@ describe("project folder home", () => {
       /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-launcher/,
     );
     expect(onboardingCss).toMatch(
-      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-primary-area\s*\{[^}]*padding-block-start:\s*18px;[^}]*border-top:\s*1px solid var\(--po-border\);/s,
+      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-primary-area\s*\{[^}]*padding-block-start:\s*var\(--onboarding-first-section-inset\);[^}]*border-top:\s*1px solid var\(--po-border\);/s,
+    );
+    expect(onboardingCss).toMatch(
+      /\.onboarding-homepage\s*\{[^}]*--onboarding-brand-content-gap:\s*58px;[^}]*--onboarding-first-section-inset:\s*24px;/s,
+    );
+    expect(onboardingCss).toMatch(
+      /\.onboarding-recent-projects\s*\{[^}]*padding:\s*var\(--onboarding-first-section-inset\) 0 18px;[^}]*border-block:\s*1px solid var\(--po-border\);/s,
     );
     expect(onboardingCss).not.toContain(".onboarding-entry-action-divider");
     expect(onboardingCss).toMatch(

@@ -201,13 +201,13 @@ async function runSmoke() {
           assert.equal(snapshot.launcher.width, snapshot.brand.width, `${context}: launcher uses the shared width`);
           assert.equal(snapshot.firstSection.x, snapshot.brand.x, `${context}: first content section uses the shared left edge`);
           assert.equal(snapshot.firstSection.width, snapshot.brand.width, `${context}: first content section spans the shared column`);
-          const titleToSectionGap = height <= 620 ? 40 : height <= 760 ? 52 : 64;
+          const titleToSectionGap = height <= 620 ? 34 : height <= 760 ? 46 : 58;
           assert.ok(Math.abs(snapshot.firstSection.y - snapshot.brand.y - snapshot.brand.height - titleToSectionGap) < 1, `${context}: shared title-to-section gap`);
-          assert.ok(Math.abs(snapshot.firstClickable.y - snapshot.brand.y - snapshot.brand.height - titleToSectionGap - 19) < 1, `${context}: shared title-to-first-clickable gap`);
+          assert.ok(Math.abs(snapshot.firstClickable.y - snapshot.brand.y - snapshot.brand.height - titleToSectionGap - 25) < 1, `${context}: shared title-to-first-clickable gap`);
           assert.ok(Math.abs(snapshot.launcher.y + snapshot.launcher.height / 2 - height / 2) < 1, `${context}: shared launcher is vertically centered`);
           if (state === 'empty') {
             assert.equal(snapshot.primaryBorderTop, '1px', `${context}: title rule frames the first content section`);
-            assert.equal(snapshot.primaryPaddingTop, '18px', `${context}: first action follows the shared frame inset`);
+            assert.equal(snapshot.primaryPaddingTop, '24px', `${context}: first action follows the shared frame inset`);
             const openToImportGap = snapshot.importButton.y - snapshot.open.y - snapshot.open.height;
             assert.ok(openToImportGap >= 14 && openToImportGap <= 18, `${context}: compact whitespace separates import from direct-start actions`);
             assert.equal(await evaluate("document.querySelector('.onboarding-entry-action-divider')"), null, `${context}: no decorative import divider`);
@@ -218,7 +218,7 @@ async function runSmoke() {
             assert.equal(snapshot.projectIcon.x, snapshot.actionIcon.x, `${context}: project and action icons align`);
             assert.deepEqual(snapshot.projectPanelFrame, {
               borderTop: '1px', borderRight: '0px', borderBottom: '1px', borderLeft: '0px',
-              paddingRight: '0px', paddingLeft: '0px', paddingTop: '18px',
+              paddingRight: '0px', paddingLeft: '0px', paddingTop: '24px',
             }, `${context}: horizontal-rule project frame without side padding`);
           }
           assert.ok(snapshot.importButton.height >= 28, `${context}: text entry retains a usable hit target`);

@@ -32,7 +32,8 @@
 .onboarding-homepage {
   --onboarding-column-width: 440px;
   --onboarding-section-gap: 30px;
-  --onboarding-brand-content-gap: 64px;
+  --onboarding-brand-content-gap: 58px;
+  --onboarding-first-section-inset: 24px;
   --onboarding-row-font-size: var(--po-type-ui-body, 14px);
   --onboarding-row-font-weight: 500;
   --onboarding-row-line-height: 18px;
@@ -150,7 +151,7 @@
   max-width: none;
   justify-items: stretch;
   gap: 12px;
-  padding-block-start: 18px;
+  padding-block-start: var(--onboarding-first-section-inset);
   border-top: 1px solid var(--po-border);
 }
 
@@ -466,7 +467,7 @@
   grid-template-rows: minmax(0, 1fr);
   justify-self: center;
   gap: 8px;
-  padding: 18px 0;
+  padding: var(--onboarding-first-section-inset) 0 18px;
   border-block: 1px solid var(--po-border);
   border-inline: 0;
   border-radius: 0;
@@ -645,7 +646,7 @@
 @media (max-height: 760px) {
   .onboarding-homepage {
     --onboarding-section-gap: 24px;
-    --onboarding-brand-content-gap: 52px;
+    --onboarding-brand-content-gap: 46px;
   }
 
   .onboarding-shell[data-onboarding-state="empty"] .onboarding-homepage {
@@ -669,7 +670,7 @@
 
   .onboarding-homepage {
     --onboarding-section-gap: 20px;
-    --onboarding-brand-content-gap: 40px;
+    --onboarding-brand-content-gap: 34px;
   }
 
   .onboarding-shell[data-onboarding-state="projects"] .onboarding-homepage {
