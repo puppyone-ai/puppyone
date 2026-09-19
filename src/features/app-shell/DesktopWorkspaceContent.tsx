@@ -52,9 +52,6 @@ type DesktopWorkspaceContentProps = {
   }>;
   fileClipboardController: FileClipboardController;
   desktopUpdates: DesktopUpdatesController;
-  firstProjectStarterEligible: boolean;
-  /** Newly created empty projects get a Getting Started document without asking. */
-  starterDocumentAutoCreate: boolean;
   git: DesktopGitController;
   onActiveDataPathChange: (
     path: string | null,
@@ -65,7 +62,6 @@ type DesktopWorkspaceContentProps = {
   onRemoveProject: (folder: WorkspaceFolder) => void | Promise<void>;
   onCreateEntryMenu: (parentPath: string | null, anchorRect: DesktopCreateEntryAnchorInput) => void;
   onDismissCreateEntryMenu: () => void;
-  onWorkspaceStarterCreated: (path: string) => void;
   onFilesVisibilitySettingsChange: (settings: FilesVisibilitySettings) => void;
   onNavigate: (view: DesktopView) => void;
   onCloseCloud: () => void;
@@ -112,8 +108,6 @@ export function DesktopWorkspaceContent({
   externalOpen,
   fileClipboardController,
   desktopUpdates,
-  firstProjectStarterEligible,
-  starterDocumentAutoCreate,
   git,
   onActiveDataPathChange,
   onActiveDataNodeChange,
@@ -121,7 +115,6 @@ export function DesktopWorkspaceContent({
   onRemoveProject,
   onCreateEntryMenu,
   onDismissCreateEntryMenu,
-  onWorkspaceStarterCreated,
   onFilesVisibilitySettingsChange,
   onNavigate,
   onCloseCloud,
@@ -219,8 +212,6 @@ export function DesktopWorkspaceContent({
         editorInteractionPreferences={editorInteractionPreferences}
         fileClipboardController={fileClipboardController}
         fileOperationNotice={fileOperationNotice}
-        firstProjectStarterEligible={firstProjectStarterEligible}
-        starterDocumentAutoCreate={starterDocumentAutoCreate}
         navigation={{
           activeView: resolvedActiveView,
           availableSurfaceIds,
@@ -244,7 +235,6 @@ export function DesktopWorkspaceContent({
         onRemoveProject={onRemoveProject}
         onCreateEntryMenu={onCreateEntryMenu}
         onDismissCreateEntryMenu={onDismissCreateEntryMenu}
-        onWorkspaceStarterCreated={onWorkspaceStarterCreated}
         onNodeActionMenu={onNodeActionMenu}
         preferences={preferences}
         resolvedSurface={resolvedSurface}

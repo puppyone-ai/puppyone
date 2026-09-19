@@ -29,7 +29,6 @@ export function ExperimentalSettingsView({
     ...(assetLibraryHomeAvailable
       ? [{ messageKey: "projectsHome", settingKey: "enableAssetLibraryHome" as const }]
       : []),
-    { messageKey: "firstProjectStarter", settingKey: "enableFirstProjectStarter" },
     { messageKey: "cloudWorkspace", settingKey: "enableCloudWorkspace" },
     { messageKey: "cloudAutomation", settingKey: "enableCloudAutomation" },
     { messageKey: "flowFiles", settingKey: "enablePuppyFlowFiles" },

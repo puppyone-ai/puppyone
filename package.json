@@ -36,13 +36,13 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "prepare:desktop-build:dev": "node scripts/prepare-desktop-build.mjs --channel dev",
-    "dev": "npm run build:native-drag && npm run prepare:desktop-build:dev && node scripts/dev-electron.mjs",
+    "dev": "npm run build:native-drag && npm run build:native-templates && npm run prepare:desktop-build:dev && node scripts/dev-electron.mjs",
     "dev:update-preview": "VITE_DESKTOP_UPDATE_PREVIEW=downloaded VITE_DESKTOP_UPDATE_PREVIEW_VERSION=0.3.0-preview.1 VITE_DESKTOP_CLOUD_API_URL=https://api.puppyone.ai/api/v1 VITE_DESKTOP_CLOUD_WEB_URL=https://app.puppyone.ai npm run dev",
     "dev:renderer": "vite",
     "dev:browser": "vite --host 127.0.0.1",
     "dev:desktop-telemetry-edge": "wrangler dev --config cloudflare/desktop-telemetry/wrangler.jsonc",
     "postinstall": "node scripts/fix-node-pty-permissions.mjs && node scripts/patch-xterm-webgl-atlas.mjs && node scripts/patch-dmg-builder-window-size.mjs && node scripts/patch-codemirror-scheduling.mjs",
-    "build": "node scripts/check-desktop-build-environment.mjs && npm run build:native-drag && node scripts/patch-codemirror-scheduling.mjs && npm run check:boundaries && tsc && npm run test:typecheck && vite build && node scripts/check-renderer-public-assets.mjs && node scripts/check-bundle-budget.mjs && node scripts/check-packaged-artifact-budgets.mjs",
+    "build": "node scripts/check-desktop-build-environment.mjs && npm run build:native-drag && npm run build:native-templates && node scripts/patch-codemirror-scheduling.mjs && npm run check:boundaries && tsc && npm run test:typecheck && vite build && node scripts/check-renderer-public-assets.mjs && node scripts/check-bundle-budget.mjs && node scripts/check-packaged-artifact-budgets.mjs",
     "package:viewer-pack": "node scripts/package-viewer-pack.mjs",
     "check:artifact-budgets": "node scripts/check-packaged-artifact-budgets.mjs",
     "check:viewer-pack-trust": "node scripts/check-viewer-pack-release.mjs",
@@ -104,6 +104,8 @@
     "test:watch": "vitest",
     "bench:performance": "vitest bench --run --no-file-parallelism --maxWorkers=1",
     "build:native-drag": "node scripts/build-native-resource-drag.mjs",
+    "build:native-templates": "node scripts/build-native-template-publisher.mjs",
+    "pretest": "npm run build:native-templates",
     "smoke:resource-transfer": "npm run build:native-drag && electron tests/integration/platform/drag-drop/resource-transfer.smoke.mjs",
     "test:unit": "vitest run tests/unit",
     "test:component": "vitest run tests/component",
@@ -207,7 +209,8 @@
     "asarUnpack": [
       "node_modules/node-pty/**",
       "node_modules/@duckdb/**",
-      "electron/main/platform/macos/native/*.node"
+      "electron/main/platform/macos/native/*.node",
+      "local-api/templates/native/*.node"
     ],
     "directories": {
       "output": "release"

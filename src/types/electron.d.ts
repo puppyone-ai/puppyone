@@ -711,6 +711,24 @@ export type WorkspaceDetachResult = {
 export type WorkspaceCreateProjectRequest = {
   name: string;
   locationGrantId: string;
+  operationId: string;
+  source: { kind: "blank" } | { kind: "template"; ref: { sourceId: "builtin"; id: "puppyone.project.getting-started"; version: 1 } };
+  locale: string;
+};
+
+export type ProjectInitializationReceipt = {
+  operationId: string;
+  outcome: "committed";
+  path: string;
+  name: string;
+  createdPaths: string[];
+  initialOpenPath: string | null;
+  template: { sourceId: string; id: string; version: number; digest: string; resolvedLocale: string } | null;
+};
+
+export type WorkspaceCreateProjectResult = {
+  initialization: ProjectInitializationReceipt;
+  opening: { status: "opened"; result: WorkspaceOpenResult } | { status: "failed"; message: string };
 };
 
 export type WorkspaceProjectLocationGrant = {
@@ -1152,7 +1170,7 @@ declare global {
       getDefaultLocalProjectLocation: () => Promise<WorkspaceProjectLocationGrant | null>;
       createLocalProject: (
         request: WorkspaceCreateProjectRequest,
-      ) => Promise<WorkspaceOpenResult | null>;
+      ) => Promise<WorkspaceCreateProjectResult>;
       cloneRepository: (
         request: WorkspaceCloneRepositoryRequest,
       ) => Promise<WorkspaceOpenResult | null>;

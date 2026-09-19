@@ -84,6 +84,7 @@ export type ExperimentalSettings = {
   enableCloudAutomation: boolean;
   enableCloudWorkspace: boolean;
   enableEditorSaveStatus: boolean;
+  /** Legacy preference retained for decoding only; project creation owns templates. */
   enableFirstProjectStarter: boolean;
   enableGitAutoCommit: boolean;
   enableMarkdownBlockDrag: boolean;

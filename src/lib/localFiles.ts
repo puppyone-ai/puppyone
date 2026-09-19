@@ -26,6 +26,7 @@ import type {
   RecentWorkspacesResult,
   WorkspaceCloneRepositoryRequest,
   WorkspaceCreateProjectRequest,
+  WorkspaceCreateProjectResult,
   WorkspaceCreateEntryKind,
   WorkspaceCreateEntryResult,
   WorkspaceInstantiateTemplateResult,
@@ -349,7 +350,7 @@ export async function selectWorkspaceFolderInNewWindow(): Promise<WorkspaceOpenR
 
 export async function createLocalProject(
   request: WorkspaceCreateProjectRequest,
-): Promise<WorkspaceOpenResult | null> {
+): Promise<WorkspaceCreateProjectResult> {
   return getDesktopBridge().createLocalProject(request);
 }
 

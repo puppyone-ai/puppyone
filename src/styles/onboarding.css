@@ -95,6 +95,16 @@
   min-width: 0;
 }
 
+.onboarding-brand-tagline {
+  max-width: 330px;
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--po-text-muted);
+  text-wrap: balance;
+}
+
 .onboarding-brand-mark {
   display: grid;
   box-sizing: border-box;
@@ -131,26 +141,6 @@
 }
 
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-brand-name {
-  white-space: nowrap;
-}
-
-.onboarding-shell[data-onboarding-state="empty"] .onboarding-brand-lockup {
-  align-items: flex-start;
-}
-
-.onboarding-shell[data-onboarding-state="empty"] .onboarding-brand-copy {
-  gap: 4px;
-}
-
-/* One quiet line under the name. It must stay a single line so the launcher
- * column keeps its compact, centered footprint. */
-.onboarding-brand-tagline {
-  margin: 0;
-  color: var(--po-text-muted);
-  font-family: var(--po-font-sans);
-  font-size: var(--po-type-ui-body, 14px);
-  font-weight: var(--po-text-weight-regular, 400);
-  line-height: 18px;
   white-space: nowrap;
 }
 
@@ -379,6 +369,98 @@
   border-color: transparent;
   background: color-mix(in srgb, var(--po-text) 5%, transparent);
   color: var(--po-text);
+}
+
+/* "Import from" is followed by the apps it understands. The marks sit under
+ * the label, aligned with its text, so the two lines read as one sentence.
+ * They are muted until hovered; each mark opens that app's import path. */
+.onboarding-entry-import {
+  display: grid;
+  min-width: 0;
+  justify-items: start;
+}
+
+.onboarding-entry-import-brands {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-block-start: -2px;
+  padding-inline-start: calc(
+    var(--po-menu-item-padding-inline)
+    + var(--po-menu-icon-slot-size)
+    + var(--po-menu-item-gap)
+    - 5px
+  );
+}
+
+.onboarding-entry-import-brand {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--desktop-control-radius);
+  background: transparent;
+  place-items: center;
+  cursor: var(--po-clickable-cursor, default);
+  transition: background 130ms ease-out;
+}
+
+.onboarding-entry-import-brand:hover:not(:disabled),
+.onboarding-entry-import-brand:focus-visible {
+  background: color-mix(in srgb, var(--po-text) 5%, transparent);
+}
+
+.onboarding-entry-import-brand:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--po-accent) 36%, transparent);
+  outline-offset: 1px;
+}
+
+.onboarding-entry-import-brand:disabled {
+  cursor: default;
+}
+
+.onboarding-import-mark {
+  display: block;
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* GitHub and Notion ship as solid black marks; flip them on dark surfaces. */
+.dark .onboarding-import-mark.is-github,
+.dark .onboarding-import-mark.is-notion {
+  filter: invert(1);
+}
+
+.onboarding-entry-import-brand .onboarding-import-mark {
+  opacity: 0.62;
+  filter: grayscale(1);
+  transition: opacity 130ms ease-out, filter 130ms ease-out;
+}
+
+.dark .onboarding-entry-import-brand .onboarding-import-mark.is-github,
+.dark .onboarding-entry-import-brand .onboarding-import-mark.is-notion {
+  filter: grayscale(1) invert(1);
+}
+
+.onboarding-entry-import-brands:hover .onboarding-import-mark,
+.onboarding-entry-import-brand:focus-visible .onboarding-import-mark {
+  opacity: 1;
+  filter: none;
+}
+
+.dark .onboarding-entry-import-brands:hover .onboarding-import-mark.is-github,
+.dark .onboarding-entry-import-brands:hover .onboarding-import-mark.is-notion,
+.dark .onboarding-entry-import-brand:focus-visible .onboarding-import-mark.is-github,
+.dark .onboarding-entry-import-brand:focus-visible .onboarding-import-mark.is-notion {
+  filter: invert(1);
+}
+
+.onboarding-entry-import-brand:disabled .onboarding-import-mark {
+  opacity: 0.3;
 }
 
 .onboarding-projects-layout {

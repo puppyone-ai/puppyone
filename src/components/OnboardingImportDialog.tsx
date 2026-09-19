@@ -1,13 +1,4 @@
-import {
-  ArrowLeft,
-  ChevronRight,
-  Download,
-  FolderOpen,
-  Gem,
-  NotebookText,
-  Table2,
-  type LucideIcon,
-} from "lucide-react";
+import { ArrowLeft, ChevronRight, Download, FolderOpen } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization";
 import type { WorkspaceProjectLocationGrant } from "../types/electron";
@@ -15,6 +6,7 @@ import {
   DesktopDialogCloseButton,
   DesktopDialogRoot,
 } from "./DesktopDialog";
+import { ImportSourceMark, type ImportSourceBrand } from "./onboarding/ImportSourceMark";
 
 /**
  * Import is framed as "bring your work back into files you own", not as a Git
@@ -34,13 +26,17 @@ const REPOSITORY_PROVIDER_MARKS = {
 /** Sources whose path is "export from the app, then open that folder here". */
 const GUIDED_SOURCES: ReadonlyArray<Readonly<{
   id: Exclude<OnboardingImportSource, "git" | "folder">;
-  icon: LucideIcon;
   stepCount: number;
 }>> = [
-  { id: "notion", icon: NotebookText, stepCount: 3 },
-  { id: "obsidian", icon: Gem, stepCount: 2 },
-  { id: "airtable", icon: Table2, stepCount: 3 },
+  { id: "notion", stepCount: 3 },
+  { id: "obsidian", stepCount: 2 },
+  { id: "airtable", stepCount: 3 },
 ];
+
+/** Maps a product mark shown on the homepage to the import path it opens. */
+export function importSourceForBrand(brand: ImportSourceBrand): OnboardingImportSource {
+  return brand === "github" || brand === "gitlab" ? "git" : brand;
+}
 
 export function RepositoryProviderMark({ provider }: { provider: RepositoryProvider }) {
   return (
@@ -70,6 +66,8 @@ export function detectRepositoryProvider(value: string): RepositoryProvider | nu
 
 export type OnboardingImportDialogProps = {
   onClose: () => void;
+  /** Skips the source list when the user already picked an app on the homepage. */
+  initialSource?: OnboardingImportSource | null;
   /** Issues a grant for the built-in projects folder without a picker. */
   onDefaultLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
   /** Opens the native picker and issues a grant for the chosen folder. */
@@ -81,13 +79,14 @@ export type OnboardingImportDialogProps = {
 
 export function OnboardingImportDialog({
   onClose,
+  initialSource = null,
   onDefaultLocation,
   onChooseLocation,
   onImportRepository,
   onOpenFolder,
 }: OnboardingImportDialogProps) {
   const { t } = useLocalization();
-  const [source, setSource] = useState<OnboardingImportSource | null>(null);
+  const [source, setSource] = useState<OnboardingImportSource | null>(initialSource);
   const [busy, setBusy] = useState(false);
   const title = source === null
     ? t("onboarding.entry.import.title")
@@ -177,8 +176,8 @@ function ImportSourceList({ onSelect }: { onSelect: (source: OnboardingImportSou
           source="git"
           icon={(
             <span className="onboarding-import-source-marks" aria-hidden="true">
-              <RepositoryProviderMark provider="github" />
-              <RepositoryProviderMark provider="gitlab" />
+              <ImportSourceMark brand="github" decorative />
+              <ImportSourceMark brand="gitlab" decorative />
             </span>
           )}
           title={t("onboarding.entry.import.source.git.title")}
@@ -186,11 +185,11 @@ function ImportSourceList({ onSelect }: { onSelect: (source: OnboardingImportSou
           initialFocus
           onSelect={onSelect}
         />
-        {GUIDED_SOURCES.map(({ id, icon: Icon }) => (
+        {GUIDED_SOURCES.map(({ id }) => (
           <ImportSourceRow
             key={id}
             source={id}
-            icon={<Icon aria-hidden="true" />}
+            icon={<ImportSourceMark brand={id} decorative />}
             title={t(`onboarding.entry.import.source.${id}.title`)}
             detail={t(`onboarding.entry.import.source.${id}.detail`)}
             onSelect={onSelect}

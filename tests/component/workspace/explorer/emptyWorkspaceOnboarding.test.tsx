@@ -1,155 +1,98 @@
 /** @vitest-environment happy-dom */
-import { act } from "react";
+import { act, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { createWorkspaceFolder, qualifyDataResourcePath } from "@puppyone/shared-ui";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  EmptyWorkspaceOnboardingDialog,
-  FIRST_PROJECT_STARTER_STORAGE_KEY,
-  markFirstProjectStarterCompleted,
-  readFirstProjectStarterCompleted,
-  resolveEmptyWorkspaceStarterSelection,
-  resolveWorkspaceRootOnboardingStatus,
-  shouldShowFirstProjectStarter,
-} from "../../../../src/features/app-shell/EmptyWorkspaceOnboardingDialog";
-import { testT, withTestLocalization } from "../../../support/react/localization";
+import { useInitialProjectDocument } from "../../../../src/features/app-shell/useInitialProjectDocument";
+import { OnboardingProjectEntryDialog } from "../../../../src/components/OnboardingProjectEntryDialog";
+import type { ProjectInitializationReceipt, WorkspaceCreateProjectRequest, WorkspaceCreateProjectResult } from "../../../../src/types/electron";
+import { withTestLocalization } from "../../../support/react/localization";
 
-(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
-  .IS_REACT_ACT_ENVIRONMENT = true;
-
+(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root | null = null;
+afterEach(() => { act(() => root?.unmount()); root = null; document.body.replaceChildren(); });
 
-afterEach(() => {
-  act(() => root?.unmount());
-  root = null;
-  document.body.innerHTML = "";
-  window.localStorage.clear();
+const folder = createWorkspaceFolder({ id: "notes", name: "Notes", path: "/projects/Notes", status: "recording" });
+const receipt: ProjectInitializationReceipt = {
+  operationId: "operation-one", outcome: "committed", path: "/projects/Notes", name: "Notes",
+  createdPaths: ["Getting Started.md"], initialOpenPath: "Getting Started.md", template: null,
+};
+function Harness(props: Parameters<typeof useInitialProjectDocument>[0]) { useInitialProjectDocument(props); return null; }
+function mount() { const host = document.createElement("div"); document.body.append(host); root = createRoot(host); return host; }
+async function flush() { await Promise.resolve(); await Promise.resolve(); }
+function setName(host: HTMLElement, name: string) {
+  const input = host.querySelector("input")!;
+  act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, name); input.dispatchEvent(new Event("input", { bubbles: true })); });
+}
+
+describe("committed project opening intent", () => {
+  it("opens once under StrictMode and targets the receipt's folder in a multi-root workspace", async () => {
+    mount();
+    const other = createWorkspaceFolder({ id: "other", name: "Other", path: "/projects/Other", status: "recording" });
+    const props = { receipt, folders: [other, folder], openDocument: vi.fn(), consume: vi.fn(), onError: vi.fn() };
+    await act(async () => { root!.render(<StrictMode><Harness {...props} /></StrictMode>); await flush(); });
+    await act(async () => { root!.render(<StrictMode><Harness {...props} folders={[other, folder]} /></StrictMode>); await flush(); });
+    expect(props.consume).toHaveBeenCalledExactlyOnceWith(receipt.operationId);
+    expect(props.openDocument).toHaveBeenCalledExactlyOnceWith(
+      qualifyDataResourcePath(folder.uri, "Getting Started.md"),
+      expect.objectContaining({ workspaceFolderId: folder.id }),
+    );
+  });
+
+  it("does nothing for existing folders, Blank, or an unrelated active workspace", async () => {
+    mount();
+    const props = { receipt: null, folders: [folder], openDocument: vi.fn(), consume: vi.fn(), onError: vi.fn() };
+    await act(async () => { root!.render(<Harness {...props} />); await flush(); });
+    await act(async () => { root!.render(<Harness {...props} receipt={receipt} folders={[]} />); await flush(); });
+    expect(props.consume).not.toHaveBeenCalled();
+    await act(async () => { root!.render(<Harness {...props} receipt={{ ...receipt, initialOpenPath: null }} />); await flush(); });
+    expect(props.consume).toHaveBeenCalledOnce();
+    expect(props.openDocument).not.toHaveBeenCalled();
+  });
+
+  it("reports an opening failure without regenerating the document", async () => {
+    mount();
+    const props = { receipt, folders: [folder], openDocument: vi.fn(async () => { throw new Error("Document unavailable"); }), consume: vi.fn(), onError: vi.fn() };
+    await act(async () => { root!.render(<Harness {...props} />); await flush(); });
+    expect(props.onError).toHaveBeenCalledWith("Document unavailable");
+    expect(props.openDocument).toHaveBeenCalledOnce();
+  });
 });
 
-describe("first project starting point", () => {
-  it("classifies the workspace root only after loading succeeds", () => {
-    expect(resolveWorkspaceRootOnboardingStatus({
-      rootLoading: true,
-      loadError: null,
-      rootEntryCount: 0,
-    })).toBe("loading");
-    expect(resolveWorkspaceRootOnboardingStatus({
-      rootLoading: false,
-      loadError: "Permission denied",
-      rootEntryCount: 0,
-    })).toBe("unavailable");
-    expect(resolveWorkspaceRootOnboardingStatus({
-      rootLoading: false,
-      loadError: null,
-      rootEntryCount: 1,
-    })).toBe("ready");
-    expect(resolveWorkspaceRootOnboardingStatus({
-      rootLoading: false,
-      loadError: null,
-      rootEntryCount: 0,
-    })).toBe("empty");
-  });
-
-  it("shows only for the first eligible locally-created empty project", () => {
-    expect(shouldShowFirstProjectStarter({
-      eligible: true,
-      completed: false,
-      workspaceStatus: "empty",
-    })).toBe(true);
-    expect(shouldShowFirstProjectStarter({
-      eligible: false,
-      completed: false,
-      workspaceStatus: "empty",
-    })).toBe(false);
-    expect(shouldShowFirstProjectStarter({
-      eligible: true,
-      completed: true,
-      workspaceStatus: "empty",
-    })).toBe(false);
-    expect(shouldShowFirstProjectStarter({
-      eligible: true,
-      completed: false,
-      workspaceStatus: "ready",
-    })).toBe(false);
-  });
-
-  it("persists completion independently from a workspace path", () => {
-    expect(readFirstProjectStarterCompleted()).toBe(false);
-    markFirstProjectStarterCompleted();
-    expect(window.localStorage.getItem(FIRST_PROJECT_STARTER_STORAGE_KEY)).toBe("completed");
-    expect(readFirstProjectStarterCompleted()).toBe(true);
-  });
-
-  it("resolves blank and the three starter files without multi-file side effects", () => {
-    expect(resolveEmptyWorkspaceStarterSelection("blank", testT)).toEqual({
-      id: "blank",
-      file: null,
-    });
-    expect(resolveEmptyWorkspaceStarterSelection("get-started", testT)).toEqual({
-      id: "get-started",
-      file: expect.objectContaining({
-        path: "Getting Started.md",
-        content: expect.stringContaining("# Getting started with Puppyone"),
-      }),
-    });
-    expect(resolveEmptyWorkspaceStarterSelection("notes", testT)).toEqual({
-      id: "notes",
-      file: { path: "Notes.md", content: "# Notes\n\n" },
-    });
-    expect(resolveEmptyWorkspaceStarterSelection("data", testT)).toEqual({
-      id: "data",
-      file: {
-        path: "Data.csv",
-        content: "Column 1,Column 2,Column 3\n,,\n,,\n",
-      },
-    });
-  });
-
-  it("uses the global layer and requires a selected starting point", async () => {
-    const onConfirm = vi.fn(async () => undefined);
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    root = createRoot(container);
-
-    act(() => root?.render(withTestLocalization(
-      <EmptyWorkspaceOnboardingDialog onConfirm={onConfirm} />,
-    )));
-
-    const overlayRoot = document.querySelector<HTMLElement>("#desktop-overlay-root");
-    const dialog = overlayRoot?.querySelector<HTMLElement>(".empty-workspace-starter-dialog");
-    expect(dialog).not.toBeNull();
-    expect(dialog?.closest("#desktop-overlay-root")).toBe(overlayRoot);
-    expect(container.querySelector(".desktop-dialog-surface")).toBeNull();
-    expect(dialog?.textContent).toContain("Choose a starting point");
-    expect(dialog?.textContent).toContain("Blank");
-    expect(dialog?.textContent).toContain("Get started");
-    expect(dialog?.textContent).toContain("Notes");
-    expect(dialog?.textContent).toContain("Data table");
-    expect(dialog?.textContent).not.toContain("This project is empty");
-    expect(dialog?.textContent).not.toContain("New file");
-    expect(dialog?.querySelector('[aria-label="Close"]')).toBeNull();
-
-    const radios = Array.from(dialog?.querySelectorAll<HTMLInputElement>('input[type="radio"]') ?? []);
-    const continueButton = dialog?.querySelector<HTMLButtonElement>(".desktop-dialog-footer button");
-    expect(radios.map((radio) => radio.value)).toEqual(["blank", "get-started", "notes", "data"]);
-    expect(continueButton?.disabled).toBe(true);
-
-    const backdrop = overlayRoot?.querySelector<HTMLElement>(".desktop-dialog-backdrop");
-    act(() => {
-      backdrop?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
-      backdrop?.click();
-      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-    });
-    expect(onConfirm).not.toHaveBeenCalled();
-
-    act(() => radios[1]?.click());
-    expect(continueButton?.disabled).toBe(false);
-    await act(async () => {
-      continueButton?.click();
-      await Promise.resolve();
-    });
-    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({
-      id: "get-started",
-      file: expect.objectContaining({ path: "Getting Started.md" }),
+describe("project template selection", () => {
+  it("keeps one default-location request under StrictMode and supports true Blank", async () => {
+    const host = mount();
+    const onSubmit = vi.fn(async (request: WorkspaceCreateProjectRequest): Promise<WorkspaceCreateProjectResult> => ({
+      initialization: { ...receipt, operationId: request.operationId, initialOpenPath: null, createdPaths: [] },
+      opening: { status: "opened", result: { status: "opened-current", workspaceId: "notes", path: receipt.path, workspace: folder.workspace } },
     }));
+    const onDefaultLocation = vi.fn(async () => ({ grantId: "location", path: "/projects" }));
+    const onClose = vi.fn();
+    await act(async () => { root!.render(withTestLocalization(<StrictMode><OnboardingProjectEntryDialog onClose={onClose} onDefaultLocation={onDefaultLocation} onSubmit={onSubmit} /></StrictMode>)); await flush(); });
+    expect(onDefaultLocation).toHaveBeenCalledOnce();
+    const select = host.querySelector("select")!;
+    expect(select.value).toBe("get-started");
+    act(() => { select.value = "blank"; select.dispatchEvent(new Event("change", { bubbles: true })); });
+    setName(host, "Notes");
+    await act(async () => { host.querySelector<HTMLButtonElement>('button[type="submit"]')!.click(); await flush(); });
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ name: "Notes", source: { kind: "blank" }, operationId: expect.any(String) }));
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("retains the exact operation when creation committed but opening failed", async () => {
+    const host = mount();
+    const onSubmit = vi.fn(async (request: WorkspaceCreateProjectRequest): Promise<WorkspaceCreateProjectResult> => ({
+      initialization: { ...receipt, operationId: request.operationId },
+      opening: { status: "failed", message: "Window unavailable" },
+    }));
+    await act(async () => { root!.render(withTestLocalization(<OnboardingProjectEntryDialog onClose={vi.fn()} onDefaultLocation={async () => ({ grantId: "location", path: "/projects" })} onSubmit={onSubmit} />)); await flush(); });
+    setName(host, "Notes");
+    await act(async () => { host.querySelector<HTMLButtonElement>('button[type="submit"]')!.click(); await flush(); });
+    expect(host.textContent).toContain("Project created at /projects/Notes");
+    expect(host.querySelector("input")!.disabled).toBe(true);
+    expect(host.querySelector('button[type="submit"]')!.textContent).toBe("Open created project");
+    await act(async () => { host.querySelector<HTMLButtonElement>('button[type="submit"]')!.click(); await flush(); });
+    expect(onSubmit).toHaveBeenCalledTimes(2);
+    expect(onSubmit.mock.calls[1]![0]).toBe(onSubmit.mock.calls[0]![0]);
   });
 });

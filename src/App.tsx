@@ -1,3 +1,4 @@
+import { useInitialProjectDocument } from "./features/app-shell/useInitialProjectDocument";
 import {
   lazy,
   Suspense,
@@ -205,7 +206,8 @@ function AppContent() {
   const {
     addProject,
     addExistingProject,
-    activeWorkspaceEntryKind,
+    initialProjectDocument,
+    consumeInitialProjectDocument,
     chooseProjectLocation,
     clearWorkspace,
     cloneRepository,
@@ -564,10 +566,6 @@ function AppContent() {
     return () => window.removeEventListener("keydown", handleSettingsShortcut);
   }, [openSettingsDialog]);
 
-  const handleWorkspaceStarterCreated = useCallback((path: string) => {
-    refreshWorkspaceContent(path);
-    void refreshGitStatus("first-project-starter");
-  }, [refreshGitStatus, refreshWorkspaceContent]);
   const {
     puppyoneConfig,
     puppyoneConfigError,
@@ -872,6 +870,14 @@ function AppContent() {
   }, [refreshGitStatus, refreshWorkspaceContent, savePuppyoneConfig]);
 
   const [workspaceSurfaceError, setWorkspaceSurfaceError] = useState<string | null>(null);
+
+  useInitialProjectDocument({
+    receipt: dataPort ? initialProjectDocument : null,
+    folders: workbenchWorkspace?.folders ?? [],
+    openDocument: handleActiveDataPathChange,
+    consume: consumeInitialProjectDocument,
+    onError: setWorkspaceSurfaceError,
+  });
 
   const closeSwitcher = useCallback(() => {
     setSwitcherOpen(false);
@@ -1526,14 +1532,6 @@ function AppContent() {
             editorWorkbench={editorWorkbench}
             externalOpen={externalFileOpen}
             desktopUpdates={desktopUpdates}
-            firstProjectStarterEligible={
-              experimentalSettings.enableFirstProjectStarter
-              && activeWorkspaceEntryKind === "created"
-            }
-            starterDocumentAutoCreate={
-              !experimentalSettings.enableFirstProjectStarter
-              && activeWorkspaceEntryKind === "created"
-            }
             git={git}
             onActiveDataNodeChange={handleActiveDataNodeChange}
             onActiveDataPathChange={handleActiveDataPathChange}
@@ -1541,7 +1539,6 @@ function AppContent() {
             onRemoveProject={handleRemoveProject}
             onCreateEntryMenu={openCreateEntryMenu}
             onDismissCreateEntryMenu={() => setCreateEntryDraft(null)}
-            onWorkspaceStarterCreated={handleWorkspaceStarterCreated}
             fileClipboardController={fileClipboardController}
             onFilesVisibilitySettingsChange={handleFilesVisibilitySettingsChange}
             onNavigate={navigateDesktopView}
@@ -1661,7 +1658,7 @@ function AppContent() {
               onClose={() => setProjectEntryDialog(null)}
               onDefaultLocation={defaultProjectLocation}
               onChooseLocation={chooseProjectLocation}
-              onSubmit={(name, locationGrantId) => createProject({ name, locationGrantId })}
+              onSubmit={createProject}
             />
           )}
           {projectEntryDialog === "clone" && (

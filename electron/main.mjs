@@ -420,7 +420,9 @@ const workspaceStateStore = createWorkspaceStateStore({
   workspaceFromPath,
   resolveWorkspaceIdentity: resolveLocalWorkspaceIdentity,
 });
-const projectEntryService = createProjectEntryService();
+const projectEntryService = createProjectEntryService({
+  journalDirectory: () => path.join(app.getPath("userData"), "project-initialization"),
+});
 const projectEntryOperationSenders = new Set();
 const projectLocationGrants = createProjectLocationGrantStore();
 /** Folder under the user's Documents directory that hosts projects created without a folder picker. */
@@ -1303,15 +1305,26 @@ async function showWorkspaceOpenDialog(ownerWindow) {
 
 async function createProjectForCurrentWindow(sender, request) {
   const name = requireProjectName(request?.name);
-  return runProjectEntryOperation(sender, async () => {
-    const parentPath = projectLocationGrants.resolve(sender, request?.locationGrantId);
+  if (!request?.operationId || !request?.source) throw new Error("A project initialization request is required.");
+  return runProjectEntryOperation(sender, () => workspaceNavigation.run(sender.id, async (assertOpen) => {
+    const parentPath = projectLocationGrants.resolve(sender, request?.locationGrantId, request.operationId);
     const project = await projectEntryService.createProject({
       parentPath,
       name,
+      source: request.source,
+      operationId: request.operationId,
+      locale: request.locale ?? localeService.getSnapshot().locale,
     });
-    projectLocationGrants.revoke(sender, request.locationGrantId);
-    return openWorkspaceInCurrentWindow(sender, project.path);
-  });
+    // Retain authority only for this committed operation, not another create.
+    projectLocationGrants.bindCommittedOperation(sender, request.locationGrantId, request.operationId);
+    try {
+      assertOpen();
+      const result = await openWorkspaceInCurrentWindowNow(sender, project.path, {}, assertOpen);
+      return { initialization: project.initialization, opening: { status: "opened", result } };
+    } catch (error) {
+      return { initialization: project.initialization, opening: { status: "failed", message: error instanceof Error ? error.message : String(error) } };
+    }
+  }));
 }
 
 async function selectProjectLocationForCurrentWindow(sender) {

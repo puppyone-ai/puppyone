@@ -1,14 +1,14 @@
 import { FolderOpen, FolderPlus } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useLocalization } from "@puppyone/localization";
-import type { WorkspaceProjectLocationGrant } from "../types/electron";
+import type { WorkspaceCreateProjectRequest, WorkspaceCreateProjectResult, WorkspaceProjectLocationGrant } from "../types/electron";
 import {
   DesktopDialogCloseButton,
   DesktopDialogRoot,
 } from "./DesktopDialog";
 
 /**
- * "Create an empty project" dialog. The location is prefilled with the built-in
+ * Project initialization dialog. The location is prefilled with the built-in
  * projects folder so the default path is name → Enter, with no folder picker.
  * Browse remains available as "Change" for people who want another location.
  */
@@ -21,23 +21,27 @@ export function OnboardingProjectEntryDialog({
   onClose: () => void;
   onDefaultLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
   onChooseLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
-  onSubmit: (name: string, locationGrantId: string) => Promise<boolean>;
+  onSubmit: (request: WorkspaceCreateProjectRequest) => Promise<WorkspaceCreateProjectResult>;
 }) {
-  const { t } = useLocalization();
+  const { t, locale } = useLocalization();
   const [value, setValue] = useState("");
+  const [starter, setStarter] = useState<"get-started" | "blank">("get-started");
+  const requestRef = useRef<WorkspaceCreateProjectRequest | null>(null);
+  const [created, setCreated] = useState<WorkspaceCreateProjectResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [choosingLocation, setChoosingLocation] = useState(false);
   const [location, setLocation] = useState<WorkspaceProjectLocationGrant | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const defaultLocationRequested = useRef(false);
+  const defaultLocationRequest = useRef<Promise<WorkspaceProjectLocationGrant | null> | null>(null);
   const busy = submitting || choosingLocation;
+  const fieldsDisabled = busy || created !== null;
   const title = t("onboarding.entry.create.title");
 
   useEffect(() => {
-    if (!onDefaultLocation || defaultLocationRequested.current) return;
-    defaultLocationRequested.current = true;
+    if (!onDefaultLocation) return;
+    defaultLocationRequest.current ??= onDefaultLocation();
     let cancelled = false;
-    void onDefaultLocation()
+    void defaultLocationRequest.current
       .then((grant) => {
         if (!cancelled && grant) setLocation((current) => current ?? grant);
       })
@@ -56,11 +60,23 @@ export function OnboardingProjectEntryDialog({
     setError(null);
     setSubmitting(true);
     try {
-      const opened = await onSubmit(name, location.grantId);
-      if (opened) {
+      requestRef.current ??= {
+        name,
+        locationGrantId: location.grantId,
+        operationId: crypto.randomUUID(),
+        locale,
+        source: starter === "blank" ? { kind: "blank" } : {
+          kind: "template",
+          ref: { sourceId: "builtin", id: "puppyone.project.getting-started", version: 1 },
+        },
+      };
+      const result = await onSubmit(requestRef.current);
+      if (result.opening.status === "opened") {
         onClose();
         return;
       }
+      setCreated(result);
+      setError(result.opening.message);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : String(nextError));
     }
@@ -73,7 +89,10 @@ export function OnboardingProjectEntryDialog({
     setChoosingLocation(true);
     try {
       const nextLocation = await onChooseLocation();
-      if (nextLocation) setLocation(nextLocation);
+      if (nextLocation) {
+        setLocation(nextLocation);
+        requestRef.current = null;
+      }
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : String(nextError));
     } finally {
@@ -125,11 +144,12 @@ export function OnboardingProjectEntryDialog({
                 autoCorrect="off"
                 autoComplete="off"
                 spellCheck={false}
-                disabled={busy}
+                disabled={fieldsDisabled}
                 data-desktop-dialog-initial-focus="true"
                 placeholder={t("onboarding.entry.create.namePlaceholder")}
                 onChange={(event) => {
                   setValue(event.target.value);
+                  requestRef.current = null;
                   setError(null);
                 }}
               />
@@ -141,7 +161,7 @@ export function OnboardingProjectEntryDialog({
               <button
                 className="onboarding-entry-location-picker onboarding-entry-browse-button"
                 type="button"
-                disabled={busy || !onChooseLocation}
+                disabled={fieldsDisabled || !onChooseLocation}
                 aria-label={t("onboarding.entry.create.locationLabel")}
                 onClick={() => void chooseLocation()}
               >
@@ -167,6 +187,24 @@ export function OnboardingProjectEntryDialog({
               </p>
             </div>
           </div>
+          <label className="onboarding-entry-create-field">
+            <span className="onboarding-entry-create-label">{t("onboarding.entry.create.starterLabel")}</span>
+            <select
+              className="onboarding-entry-create-input"
+              value={starter}
+              disabled={fieldsDisabled}
+              onChange={(event) => {
+                setStarter(event.target.value as "get-started" | "blank");
+                requestRef.current = null;
+                setError(null);
+              }}
+            >
+              <option value="get-started">{t("onboarding.entry.create.starterGuide")}</option>
+              <option value="blank">{t("onboarding.entry.create.starterBlank")}</option>
+            </select>
+            <span className="onboarding-entry-dialog-note">{t(starter === "blank" ? "onboarding.entry.create.blankNote" : "onboarding.entry.create.guideNote")}</span>
+          </label>
+          {created && <p className="onboarding-entry-dialog-note" role="status">{t("onboarding.entry.create.createdNote", { path: created.initialization.path })}</p>}
           {error && <p className="desktop-dialog-error" role="alert">{error}</p>}
         </div>
 
@@ -186,7 +224,7 @@ export function OnboardingProjectEntryDialog({
           >
             {t(submitting
               ? "onboarding.entry.create.submitting"
-              : "onboarding.entry.create.submit")}
+              : created ? "onboarding.entry.create.retryOpen" : "onboarding.entry.create.submit")}
           </button>
         </footer>
       </form>

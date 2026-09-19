@@ -1,6 +1,7 @@
 import type {
   WorkspaceCloneRepositoryRequest,
   WorkspaceCreateProjectRequest,
+  WorkspaceCreateProjectResult,
   WorkspaceOpenResult,
   WorkspaceProjectLocationGrant,
 } from "../types/electron";
@@ -38,7 +39,7 @@ export async function openDroppedWorkspaceTarget(folder: File): Promise<Workspac
 
 export async function createLocalProjectTarget(
   request: WorkspaceCreateProjectRequest,
-): Promise<WorkspaceOpenResult | null> {
+): Promise<WorkspaceCreateProjectResult> {
   return createLocalProjectBridge(request);
 }
 

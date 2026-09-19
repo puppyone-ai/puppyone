@@ -8,8 +8,8 @@ type OnboardingBrandLockupProps = {
 };
 
 /**
- * First-run shows what puppyone is before asking for a decision; returning
- * users only see the project prompt.
+ * First-run shows the product name; returning users see the project prompt.
+ * First-run retains the product's one-line positioning.
  */
 export function OnboardingBrandLockup({ state, resolvedTheme }: OnboardingBrandLockupProps) {
   const { t } = useLocalization();
@@ -27,9 +27,7 @@ export function OnboardingBrandLockup({ state, resolvedTheme }: OnboardingBrandL
         <span className={hasProjects ? "onboarding-brand-prompt" : "onboarding-brand-name"}>
           {t(hasProjects ? "onboarding.section.chooseProject" : "onboarding.brand.name")}
         </span>
-        {!hasProjects && (
-          <p className="onboarding-brand-tagline">{t("onboarding.brand.tagline")}</p>
-        )}
+        {!hasProjects && <p className="onboarding-brand-tagline">{t("onboarding.brand.tagline")}</p>}
       </div>
     </header>
   );

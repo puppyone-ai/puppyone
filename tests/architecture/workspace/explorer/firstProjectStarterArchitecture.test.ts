@@ -1,43 +1,29 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-describe("first project starter architecture", () => {
-  it("distinguishes a newly-created project from open, restore, and clone entry paths", () => {
-    const lifecycle = source("src/features/app-shell/useWorkspaceLifecycle.ts");
-    const app = source("src/App.tsx");
-
-    expect(lifecycle).toContain('handleWorkspaceOpenResult(result, "created")');
-    expect(lifecycle).toContain('handleWorkspaceOpenResult(result, "cloned")');
-    expect(lifecycle).toContain('entryKind: WorkspaceEntryKind = "opened"');
-    expect(app).toContain("experimentalSettings.enableFirstProjectStarter");
-    expect(app).toContain('activeWorkspaceEntryKind === "created"');
+describe("project initialization ownership", () => {
+  it("keeps file generation out of the mounted workspace and editor open intent", () => {
+    const surface = source("src/features/app-shell/DesktopDataWorkspaceSurface.tsx");
+    const openIntent = source("src/features/app-shell/useInitialProjectDocument.ts");
+    expect(surface).not.toMatch(/createStarterDocument|starterDocumentAutoCreate|EmptyWorkspaceOnboardingDialog/);
+    expect(openIntent).not.toMatch(/createFile\(|writeFile\(|localStorage/);
+    expect(openIntent).toContain("qualifyDataResourcePath");
   });
 
-  it("gives a newly created empty project its Getting Started document without a chooser by default", () => {
-    const app = source("src/App.tsx");
-    const surface = source("src/features/app-shell/DesktopDataWorkspaceSurface.tsx");
-
-    // The experimental chooser and the default auto-created guide are mutually exclusive.
-    expect(app).toContain("starterDocumentAutoCreate={");
-    expect(app).toContain("!experimentalSettings.enableFirstProjectStarter");
-    expect(surface).toContain('resolveEmptyWorkspaceStarterSelection("get-started", t)');
-    expect(surface).toContain('currentWorkspaceRootStatus !== "empty"');
-    expect(surface).toContain("autoStarterWorkspaceKeyRef.current === explorerSession.key");
+  it("shares one materializer between project templates and Slides", () => {
+    expect(source("electron/main/project-initialization-service.mjs")).toContain('local-api/templates/materialize.mjs');
+    expect(source("local-api/workspace-templates.mjs")).toContain('./templates/materialize.mjs');
+    expect(source("local-api/workspace-templates.mjs")).not.toContain("fs.rename(");
   });
 
-  it("keeps starter writes explicit, root-qualified, and outside the workspace tree renderer", () => {
-    const surface = source("src/features/app-shell/DesktopDataWorkspaceSurface.tsx");
-    const dialog = source("src/features/app-shell/EmptyWorkspaceOnboardingDialog.tsx");
-
-    expect(surface).toContain("qualifyDataResourcePath(activeWorkspaceRootPath, selection.file.path)");
-    expect(surface).toContain("await dataPort.createFile(resourcePath, selection.file.content)");
-    expect(surface).toContain("workspaceFolderId: folder.id");
-    expect(dialog).toContain('id: "blank"');
-    expect(dialog).toContain('file: null');
-    expect(dialog).not.toContain("createFolder(");
+  it("packages the offline template content and safe publication primitive", () => {
+    const pkg = JSON.parse(source("package.json"));
+    expect(pkg.build.files).toContain("local-api/**");
+    expect(pkg.build.asarUnpack).toContain("local-api/templates/native/*.node");
+    expect(pkg.scripts.build).toContain("build:native-templates");
+    expect(pkg.scripts.dev).toContain("build:native-templates");
   });
 });
-
 function source(relativePath: string) {
   return readFileSync(new URL(`../../../../${relativePath}`, import.meta.url), "utf8");
 }

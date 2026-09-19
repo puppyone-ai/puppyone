@@ -23,7 +23,7 @@ describe("project entry service", () => {
   it("creates one empty child directory under the selected parent", async () => {
     const service = createProjectEntryService();
 
-    await expect(service.createProject({ parentPath, name: "  Notes  " })).resolves.toEqual({
+    await expect(service.createProject({ parentPath, name: "  Notes  " })).resolves.toMatchObject({
       path: path.join(parentPath, "Notes"),
       name: "Notes",
     });

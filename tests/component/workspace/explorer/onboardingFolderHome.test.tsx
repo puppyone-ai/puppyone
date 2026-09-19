@@ -10,7 +10,7 @@ import { PUPPY_BRAND_MARK_ASSETS } from "../../../../src/components/brand/PuppyB
 import {
   EMPTY_STATE_INTRO_FALLBACK_TIMEOUT_MS,
 } from "../../../../src/components/onboarding/emptyStateIntro";
-import type { DesktopTelemetryState } from "../../../../src/types/electron";
+import type { WorkspaceCreateProjectRequest, WorkspaceCreateProjectResult, DesktopTelemetryState } from "../../../../src/types/electron";
 import { renderWithTestLocalization } from "../../../support/react/localization";
 import { createTestSurfaceAppearance } from "../../../support/react/surfaceAppearance";
 
@@ -171,9 +171,9 @@ describe("project folder home", () => {
     const projectActions = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-entry-action")];
     expect(projectActions).toHaveLength(3);
     expect(projectActions.map((action) => action.textContent)).toEqual([
-      "Create an empty project",
+      "Create a project",
       "Open a folder",
-      "Import from another app",
+      "Import from",
     ]);
     expect(projectActions.every((action) => action.classList.contains("po-button--neutral"))).toBe(true);
     expect(projectActions.every((action) => !action.classList.contains("onboarding-entry-action-cta"))).toBe(true);
@@ -256,7 +256,7 @@ describe("project folder home", () => {
       grantId: "location-1",
       path: "/Users/example/Desktop",
     }));
-    const onCreateProject = vi.fn(async () => true);
+    const onCreateProject = vi.fn(createProjectResult);
     const onCloneRepository = vi.fn(async () => true);
     const container = renderHome({
       onChooseWorkspace,
@@ -269,9 +269,9 @@ describe("project folder home", () => {
     const actions = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-entry-action")];
     expect(actions).toHaveLength(3);
     expect(actions.map((action) => action.textContent)).toEqual([
-      "Create an empty project",
+      "Create a project",
       "Open a folder",
-      "Import from another app",
+      "Import from",
     ]);
     expect(actions.every((action) => action.classList.contains("po-button"))).toBe(true);
     expect(actions[0]?.classList.contains("po-button--neutral")).toBe(true);
@@ -285,6 +285,32 @@ describe("project folder home", () => {
     expect(actions[1]?.querySelector(".lucide-folder-open")).not.toBeNull();
     expect(actions[2]?.querySelector(".lucide-download")).not.toBeNull();
     expect(actions[2]?.disabled).toBe(false);
+    // "Import from" is completed by the apps it understands, as marks.
+    const importGroup = container.querySelector(".onboarding-entry-import");
+    expect(importGroup?.firstElementChild).toBe(actions[2]);
+    const brandRow = importGroup?.querySelector(".onboarding-entry-import-brands");
+    expect(brandRow?.getAttribute("role")).toBe("group");
+    expect(brandRow?.getAttribute("aria-label")).toBe("Import from");
+    const brands = [...(brandRow?.querySelectorAll<HTMLButtonElement>(".onboarding-entry-import-brand") ?? [])];
+    expect(brands.map((brand) => brand.dataset.importBrand)).toEqual([
+      "github",
+      "gitlab",
+      "notion",
+      "obsidian",
+      "airtable",
+    ]);
+    expect(brands.map((brand) => brand.getAttribute("aria-label"))).toEqual([
+      "GitHub",
+      "GitLab",
+      "Notion",
+      "Obsidian",
+      "Airtable",
+    ]);
+    for (const brand of brands) {
+      const mark = brand.querySelector<HTMLImageElement>("img.onboarding-import-mark");
+      expect(mark?.getAttribute("alt")).toBe("");
+      expect(mark?.getAttribute("src")).toContain(`assets/icons/integrations/${brand.dataset.importBrand}.`);
+    }
     const launcher = container.querySelector(".onboarding-launcher");
     expect(launcher?.contains(container.querySelector(".onboarding-brand-lockup"))).toBe(true);
     expect(launcher?.contains(container.querySelector(".onboarding-entry-actions"))).toBe(true);
@@ -312,7 +338,7 @@ describe("project folder home", () => {
       grantId: "location-1",
       path: "/Users/example/Desktop",
     }));
-    const onCreateProject = vi.fn(async () => true);
+    const onCreateProject = vi.fn(createProjectResult);
     const container = renderHome({
       onDefaultProjectLocation,
       onChooseProjectLocation,
@@ -324,14 +350,14 @@ describe("project folder home", () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(container.querySelector("[role='dialog']")?.getAttribute("aria-label")).toBe("Create an empty project");
-    expect(container.querySelector(".desktop-dialog-title-row > h2")?.textContent).toBe("Create an empty project");
+    expect(container.querySelector("[role='dialog']")?.getAttribute("aria-label")).toBe("Create a project");
+    expect(container.querySelector(".desktop-dialog-title-row > h2")?.textContent).toBe("Create a project");
     expect(onDefaultProjectLocation).toHaveBeenCalledOnce();
     expect(onChooseProjectLocation).not.toHaveBeenCalled();
     expect(container.querySelector(".onboarding-entry-location-path")?.textContent).toBe("/Users/example/Documents/PuppyOne");
     expect(container.querySelector(".onboarding-entry-location-action")?.textContent).toBe("Change");
     expect(container.querySelector(".onboarding-entry-local-note")?.textContent).toBe(
-      "Files stay on this computer unless you choose to publish them.",
+      "Files are created locally. Setup does not upload them.",
     );
     const projectName = container.querySelector<HTMLInputElement>(".onboarding-entry-dialog input");
     expect(projectName?.placeholder).toBe("My project");
@@ -344,6 +370,9 @@ describe("project folder home", () => {
       await Promise.resolve();
     });
     expect(onCreateProject).toHaveBeenCalledWith({
+      operationId: expect.any(String),
+      locale: "en",
+      source: { kind: "template", ref: { sourceId: "builtin", id: "puppyone.project.getting-started", version: 1 } },
       name: "Knowledge Base",
       locationGrantId: "default-1",
     });
@@ -359,7 +388,7 @@ describe("project folder home", () => {
       grantId: "location-1",
       path: "/Users/example/Desktop",
     }));
-    const onCreateProject = vi.fn(async () => true);
+    const onCreateProject = vi.fn(createProjectResult);
     const container = renderHome({
       onDefaultProjectLocation,
       onChooseProjectLocation,
@@ -383,6 +412,9 @@ describe("project folder home", () => {
       await Promise.resolve();
     });
     expect(onCreateProject).toHaveBeenCalledWith({
+      operationId: expect.any(String),
+      locale: "en",
+      source: { kind: "template", ref: { sourceId: "builtin", id: "puppyone.project.getting-started", version: 1 } },
       name: "Knowledge Base",
       locationGrantId: "location-1",
     });
@@ -395,7 +427,7 @@ describe("project folder home", () => {
     }));
     const container = renderHome({
       onChooseProjectLocation,
-      onCreateProject: vi.fn(async () => true),
+      onCreateProject: vi.fn(createProjectResult),
     });
 
     await act(async () => {
@@ -438,6 +470,15 @@ describe("project folder home", () => {
       "Any folder of files",
     ]);
     expect(container.querySelector(".onboarding-entry-dialog input")).toBeNull();
+    // Rows show the real product marks, not generic glyphs.
+    expect(
+      [...sources[0]!.querySelectorAll<HTMLImageElement>(".onboarding-import-source-marks img")]
+        .map((mark) => mark.dataset.importBrand),
+    ).toEqual(["github", "gitlab"]);
+    expect(sources.slice(1, 4).map((source) => (
+      source.querySelector<HTMLImageElement>(".onboarding-import-source-icon img")?.dataset.importBrand
+    ))).toEqual(["notion", "obsidian", "airtable"]);
+    expect(sources[4]?.querySelector(".lucide-folder-open")).not.toBeNull();
 
     await act(async () => {
       sources[4]?.click();
@@ -446,6 +487,38 @@ describe("project folder home", () => {
     expect(container.querySelector(".onboarding-entry-dialog")).toBeNull();
     expect(onChooseWorkspace).toHaveBeenCalledOnce();
     expect(onCloneRepository).not.toHaveBeenCalled();
+  });
+
+  it("opens the matching import path when a mark on the homepage is clicked", async () => {
+    const onDefaultProjectLocation = vi.fn(async () => null);
+    const container = renderHome({
+      onCloneRepository: vi.fn(async () => true),
+      onChooseWorkspace: vi.fn(async () => undefined),
+      onDefaultProjectLocation,
+    });
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>(".onboarding-entry-import-brand[data-import-brand='notion']")?.click();
+    });
+    expect(container.querySelector("[role='dialog']")?.getAttribute("aria-label")).toBe("Import from Notion");
+    expect(container.querySelector(".onboarding-import-source")).toBeNull();
+    expect(container.querySelectorAll(".onboarding-import-steps > li")).toHaveLength(3);
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>(".onboarding-import-back")?.click();
+    });
+    expect(container.querySelector("[role='dialog']")?.getAttribute("aria-label")).toBe("Import");
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>(".desktop-dialog-header .desktop-dialog-icon-button")?.click();
+    });
+    expect(container.querySelector("[role='dialog']")).toBeNull();
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>(".onboarding-entry-import-brand[data-import-brand='gitlab']")?.click();
+      await Promise.resolve();
+    });
+    expect(container.querySelector("[role='dialog']")?.getAttribute("aria-label")).toBe("Import a repository");
+    expect(container.querySelector(".onboarding-entry-dialog input")).not.toBeNull();
   });
 
   it("guides a Notion export into the regular folder picker", async () => {
@@ -785,16 +858,13 @@ function expectBrandLockup(
   if (state === "projects") {
     expect(lockup?.querySelector(".onboarding-brand-prompt")?.textContent).toBe("Which project do you want to start with?");
     expect(lockup?.querySelector(".onboarding-brand-name")).toBeNull();
-    expect(lockup?.querySelector(".onboarding-brand-tagline")).toBeNull();
-    expect(lockup?.querySelector(".onboarding-brand-description")).toBeNull();
   } else {
     expect(lockup?.querySelector(".onboarding-brand-prompt")).toBeNull();
     expect(lockup?.querySelector(".onboarding-brand-name")?.textContent).toBe("puppyone");
-    expect(lockup?.querySelector(".onboarding-brand-tagline")?.textContent).toBe(
-      "A local-first editor. Built for you and your agents.",
-    );
-    expect(lockup?.querySelector(".onboarding-brand-description")).toBeNull();
   }
+  expect(lockup?.querySelectorAll("p")).toHaveLength(state === "empty" ? 1 : 0);
+  if (state === "empty") expect(lockup?.querySelector(".onboarding-brand-tagline")?.textContent)
+    .toBe("A local file workspace built for you and your agent.");
   expect(lockup?.querySelector(".onboarding-brand-version")).toBeNull();
   expect(container.querySelector(".onboarding-brand-context")).toBeNull();
 }
@@ -895,4 +965,11 @@ function setInputValue(input: HTMLInputElement | null, value: string) {
     setter?.call(input, value);
     input.dispatchEvent(new Event("input", { bubbles: true }));
   });
+}
+
+async function createProjectResult(request: WorkspaceCreateProjectRequest): Promise<WorkspaceCreateProjectResult> {
+  return {
+    initialization: { operationId: request.operationId, outcome: "committed", name: request.name, path: "/projects/" + request.name, createdPaths: ["Getting Started.md"], initialOpenPath: "Getting Started.md", template: null },
+    opening: { status: "opened", result: { status: "opened-current", workspaceId: "test", path: "/projects/" + request.name, workspace: null } },
+  };
 }

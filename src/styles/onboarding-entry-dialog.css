@@ -173,19 +173,20 @@
   stroke-width: 1.8;
 }
 
+.onboarding-import-source-icon > .onboarding-import-mark {
+  width: 16px;
+  height: 16px;
+}
+
 .onboarding-import-source-marks {
   display: inline-flex;
   align-items: center;
   gap: 3px;
 }
 
-.onboarding-import-source-marks > svg {
+.onboarding-import-source-marks > .onboarding-import-mark {
   width: 12px;
   height: 12px;
-}
-
-.onboarding-import-source-marks > .is-gitlab {
-  color: color-mix(in srgb, #fc6d26 82%, var(--po-text-muted));
 }
 
 .onboarding-import-source-copy {

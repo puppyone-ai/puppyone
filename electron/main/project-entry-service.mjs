@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { cloneGitRepository } from "../../local-api/git/runner.mjs";
+import { createProjectInitializationService } from "./project-initialization-service.mjs";
 
 const PROJECT_NAME_MAX_LENGTH = 120;
 const WINDOWS_RESERVED_NAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
@@ -9,14 +10,17 @@ export function createProjectEntryService({
   fsPromises = fs.promises,
   pathModule = path,
   cloneGit = cloneGitRepository,
+  journalDirectory = null,
 } = {}) {
+  const initialization = createProjectInitializationService({ journalDirectory });
   return Object.freeze({
-    async createProject({ parentPath, name }) {
+    async createProject({ parentPath, name, source = { kind: "blank" }, locale = "en", operationId }) {
       const projectName = requireProjectName(name);
       const canonicalParent = await requireDirectory(parentPath, fsPromises, pathModule);
       const projectPath = resolveChildPath(canonicalParent, projectName, pathModule);
       try {
-        await fsPromises.mkdir(projectPath, { recursive: false });
+        const receipt = await initialization.initialize({ parentPath: canonicalParent, name: projectName, source, locale, operationId });
+        return { path: projectPath, name: projectName, initialization: receipt };
       } catch (error) {
         if (error?.code === "EEXIST") {
           throw projectEntryError(
@@ -26,7 +30,6 @@ export function createProjectEntryService({
         }
         throw error;
       }
-      return { path: projectPath, name: projectName };
     },
 
     async cloneRepository({ parentPath, repositoryUrl, signal }) {

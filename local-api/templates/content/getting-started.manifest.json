@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "puppyone.project.getting-started",
+  "version": 1,
+  "scope": "project",
+  "defaultLocale": "en",
+  "locales": ["en", "zh-Hans"],
+  "digests": {
+    "en": "87e414cc46845bc12ed5750c87b55dc70706f409b66faf809bcb3aac482b51b6",
+    "zh-Hans": "5758183c8574c50f327ca0dfdffc556bebcbb76b7a800191feb56ad684a4c4e7"
+  },
+  "files": [
+    {
+      "path": "Getting Started.md",
+      "sources": {
+        "en": "en/getting-started.md",
+        "zh-Hans": "zh-Hans/getting-started.md"
+      }
+    }
+  ],
+  "initialOpenPath": "Getting Started.md"
+}

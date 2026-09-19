@@ -3,6 +3,12 @@ import { useLocalization } from "@puppyone/localization";
 import { Download, FilePlus2, FolderOpen } from "lucide-react";
 import type { ReactNode } from "react";
 import { InlineLoading } from "../loading";
+import {
+  IMPORT_SOURCE_BRANDS,
+  ImportSourceMark,
+  getImportSourceBrandLabel,
+  type ImportSourceBrand,
+} from "./ImportSourceMark";
 import type { OnboardingHomeState } from "./types";
 
 type OnboardingEntryActionsProps = {
@@ -15,13 +21,15 @@ type OnboardingEntryActionsProps = {
   footer?: ReactNode;
   onOpenFolder: () => void;
   onCreateProject: () => void;
-  onCloneRepository: () => void;
+  /** Opens the import dialog; a brand jumps straight to that app's path. */
+  onCloneRepository: (brand?: ImportSourceBrand) => void;
 };
 
 /**
  * Homepage entry actions. "Create an empty project" is the default path because it
  * is the only entry that does not require the user to hunt for an existing
- * folder first. Opening a folder and importing a repository are secondary.
+ * folder first. Opening a folder and importing are secondary; import shows the
+ * apps it understands as marks so the label needs no explanation.
  */
 export function OnboardingEntryActions({
   state,
@@ -69,16 +77,38 @@ export function OnboardingEntryActions({
             {t("onboarding.action.openFolder")}
           </Button>
 
-          <Button
-            className="onboarding-entry-action"
-            data-onboarding-action="clone"
-            tone="neutral"
-            disabled={busy || !canCloneRepository}
-            leadingIcon={<Download aria-hidden="true" />}
-            onClick={onCloneRepository}
-          >
-            {t("onboarding.action.cloneRepository")}
-          </Button>
+          <div className="onboarding-entry-import">
+            <Button
+              className="onboarding-entry-action"
+              data-onboarding-action="clone"
+              tone="neutral"
+              disabled={busy || !canCloneRepository}
+              leadingIcon={<Download aria-hidden="true" />}
+              onClick={() => onCloneRepository()}
+            >
+              {t("onboarding.action.cloneRepository")}
+            </Button>
+            <div
+              className="onboarding-entry-import-brands"
+              role="group"
+              aria-label={t("onboarding.action.cloneRepository")}
+            >
+              {IMPORT_SOURCE_BRANDS.map((brand) => (
+                <button
+                  key={brand}
+                  className="onboarding-entry-import-brand"
+                  type="button"
+                  data-import-brand={brand}
+                  disabled={busy || !canCloneRepository}
+                  aria-label={getImportSourceBrandLabel(brand)}
+                  title={getImportSourceBrandLabel(brand)}
+                  onClick={() => onCloneRepository(brand)}
+                >
+                  <ImportSourceMark brand={brand} decorative />
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
       </div>
