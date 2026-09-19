@@ -15,6 +15,7 @@ import {
   type DesktopTerminalLauncherId,
 } from "../model/terminalLaunchers";
 import { TerminalActivityGrid } from "./TerminalActivityGrid";
+import { DiscoveryAgentRow, LauncherDiscoveryFeedback, useDelayedDiscoveryFeedback, type LauncherDiscoveryProgress } from "./LauncherDiscoveryFeedback";
 import { WorkbenchLauncherIcon } from "../../app-shell/auxiliary-workbench/layout/WorkbenchLauncherIcon";
 import "../../app-shell/auxiliary-workbench/auxiliary-workbench-launcher.css";
 
@@ -26,8 +27,13 @@ type TerminalAgentLauncherDefinition = Exclude<
 
 type TerminalLauncherProps = {
   state?: WorkbenchLauncherState;
+  presented?: boolean;
   agentMode: TerminalLauncherAgentMode;
   discoveryPhase: LocalAgentInstallationDiscoveryPhase;
+  discoveryProgress?: LauncherDiscoveryProgress | null;
+  discoveryHasFailures?: boolean;
+  discoveryRefreshing?: boolean;
+  discoveryHasInstallations?: boolean;
   availableAgentIds: readonly LocalAgentInstallationId[];
   chatCreationAvailable?: boolean;
   chatPreparing?: boolean;
@@ -54,9 +60,14 @@ type TerminalLauncherProps = {
  */
 export function TerminalLauncher({
   state: ownedState,
+  presented = true,
   agentMode,
   discoveryPhase,
   availableAgentIds,
+  discoveryProgress = null,
+  discoveryHasFailures = false,
+  discoveryRefreshing = false,
+  discoveryHasInstallations = availableAgentIds.length > 0,
   chatCreationAvailable = true,
   chatPreparing = false,
   chatRecipes = [],
@@ -80,6 +91,7 @@ export function TerminalLauncher({
   const { historyOpen, openingTargetId, historyRevision } = useSyncExternalStore(state.subscribe, state.getSnapshot);
   const shell = getDesktopTerminalLauncher("shell");
   const scanning = discoveryPhase === "idle" || discoveryPhase === "loading";
+  const feedbackVisible = useDelayedDiscoveryFeedback(scanning && presented && !historyOpen);
   const busy = launching || chatPreparing;
   const availableAgentIdSet = new Set<LocalAgentInstallationId>(availableAgentIds);
   const terminalAgentLaunchers = DESKTOP_TERMINAL_LAUNCHERS.filter(
@@ -87,13 +99,29 @@ export function TerminalLauncher({
       launcher.id !== "shell" && availableAgentIdSet.has(launcher.id)
     ),
   );
-  const availabilityMessage = discoveryPhase === "error"
-    ? "terminal.launcher.detectionFailed"
-    : scanning
-      ? "terminal.launcher.detecting"
-      : agentMode === "terminal" && terminalAgentLaunchers.length === 0
-        ? "terminal.launcher.noneInstalled"
-        : null;
+  const discoveryFailed = discoveryPhase === "error" || discoveryHasFailures;
+  const discoveryEmpty = discoveryPhase === "ready" && !discoveryFailed && !discoveryHasInstallations;
+  const availabilityMessage = scanning
+    ? feedbackVisible ? discoveryRefreshing ? "terminal.launcher.refreshing" : "terminal.launcher.detecting" : null
+    : discoveryFailed ? "terminal.launcher.detectionIncomplete"
+      : discoveryEmpty ? "terminal.launcher.noneInstalled" : "terminal.launcher.detectionComplete";
+  const agentRows = agentMode === "chat"
+    ? chatRecipes.map((recipe) => <DiscoveryAgentRow key={recipe.id} animate={feedbackVisible && recipe.availability !== "bundled"}>
+        <ChatRecipeButton
+          creationAvailable={Boolean(onCreateChat && chatCreationAvailable && !busy)}
+          recipe={recipe}
+          onCreate={onCreateChat}
+        />
+      </DiscoveryAgentRow>)
+    : terminalAgentLaunchers.map((launcher) => <DiscoveryAgentRow key={launcher.id} animate={feedbackVisible}>
+        <TerminalAgentButton launcher={launcher} launchAvailable={terminalEnabled && !busy} onLaunch={onLaunch} />
+      </DiscoveryAgentRow>);
+  const bundledIndex = agentMode === "chat" ? chatRecipes.findIndex(({ availability }) => availability === "bundled") : -1;
+  if (feedbackVisible || (!scanning && (discoveryFailed || discoveryEmpty))) {
+    agentRows.splice(bundledIndex < 0 ? agentRows.length : bundledIndex, 0,
+      <LauncherDiscoveryFeedback key="discovery-feedback" scanning={scanning} refreshing={discoveryRefreshing}
+        failed={discoveryFailed} empty={discoveryEmpty} progress={discoveryProgress} busy={busy} />);
+  }
 
   if (historyOpen && history && onRestoreHistoryTarget) {
     return (
@@ -143,7 +171,7 @@ export function TerminalLauncher({
             </h2>
             <button
               type="button"
-              className={`desktop-terminal-launcher-scan ${scanning ? "is-scanning" : ""}`}
+              className="desktop-terminal-launcher-scan"
               onClick={onRefresh}
               disabled={busy || scanning}
               aria-label={t("terminal.launcher.scanAgain")}
@@ -160,28 +188,8 @@ export function TerminalLauncher({
             </div>
           )}
 
-          <div className="desktop-terminal-launcher-tools" role="list">
-            {agentMode === "chat"
-              ? chatRecipes.map((recipe) => (
-                  <div key={recipe.id} role="listitem">
-                    <ChatRecipeButton
-                      creationAvailable={Boolean(
-                        onCreateChat && chatCreationAvailable && !busy,
-                      )}
-                      recipe={recipe}
-                      onCreate={onCreateChat}
-                    />
-                  </div>
-                ))
-              : terminalAgentLaunchers.map((launcher) => (
-                  <div key={launcher.id} role="listitem">
-                    <TerminalAgentButton
-                      launcher={launcher}
-                      launchAvailable={terminalEnabled && !busy}
-                      onLaunch={onLaunch}
-                    />
-                  </div>
-                ))}
+          <div className="desktop-terminal-launcher-tools" role="list" aria-busy={scanning}>
+            {agentRows}
           </div>
 
           {terminalEnabled && (
@@ -202,11 +210,9 @@ export function TerminalLauncher({
             </>
           )}
 
-          {availabilityMessage && (
-            <div className="desktop-terminal-launcher-availability" aria-live="polite">
-              <span>{t(availabilityMessage)}</span>
-            </div>
-          )}
+          <div className="desktop-terminal-launcher-availability" role="status" aria-live="polite" aria-atomic="true">
+            {availabilityMessage ? t(availabilityMessage) : ""}
+          </div>
         </div>
 
         {history && onRestoreHistoryTarget && (
