@@ -15,7 +15,7 @@
   "action.openFolder": "폴더 열기",
   "action.createLocalProject": "빈 프로젝트 만들기",
   "action.cloneRepository": "가져오기",
-  "action.importFromApps": "다른 앱에서 가져오기…",
+  "action.importFromApps": "가져오기",
   "entry.create.title": "프로젝트 만들기",
   "entry.create.nameLabel": "프로젝트 이름",
   "entry.create.namePlaceholder": "내 프로젝트",

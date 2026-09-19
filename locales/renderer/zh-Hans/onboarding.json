@@ -15,7 +15,7 @@
   "action.openFolder": "打开文件夹",
   "action.createLocalProject": "新建空项目",
   "action.cloneRepository": "导入",
-  "action.importFromApps": "从其他应用导入…",
+  "action.importFromApps": "导入",
   "entry.create.title": "新建项目",
   "entry.create.nameLabel": "项目名称",
   "entry.create.namePlaceholder": "我的项目",

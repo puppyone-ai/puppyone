@@ -173,7 +173,7 @@ describe("project folder home", () => {
     expect(projectActions.map((action) => action.textContent)).toEqual([
       "New empty project",
       "Open a folder",
-      "Import from other apps…",
+      "Import",
     ]);
     expect(projectActions.every((action) => action.classList.contains("po-button--neutral"))).toBe(true);
     expect(projectActions.every((action) => !action.classList.contains("onboarding-entry-action-cta"))).toBe(true);
@@ -271,7 +271,7 @@ describe("project folder home", () => {
     expect(actions.map((action) => action.textContent)).toEqual([
       "New empty project",
       "Open a folder",
-      "Import from other apps…",
+      "Import",
     ]);
     expect(actions.every((action) => action.classList.contains("po-button"))).toBe(true);
     expect(actions[0]?.classList.contains("po-button--neutral")).toBe(true);

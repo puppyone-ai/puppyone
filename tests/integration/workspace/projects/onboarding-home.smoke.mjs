@@ -46,7 +46,7 @@ async function runSmoke() {
       if (details.level === "error") console.error(details.message);
     });
     const labels = { "zh-Hans": "新建空项目", en: "New empty project", fr: "Créer un projet vide" };
-    const importLabels = { "zh-Hans": "从其他应用导入…", en: "Import from other apps…", fr: "Importer depuis d’autres apps…" };
+    const importLabels = { "zh-Hans": "导入", en: "Import", fr: "Importer" };
     const importIntros = { "zh-Hans": "把 SaaS 里的数据变成文件，保存到本地。", en: "Turn SaaS data into files on your computer.", fr: "Transformez vos données SaaS en fichiers locaux." };
     for (const locale of Object.keys(labels)) {
       for (const theme of ["dark", "light"]) {

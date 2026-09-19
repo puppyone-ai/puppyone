@@ -15,7 +15,7 @@
   "action.openFolder": "Open a folder",
   "action.createLocalProject": "New empty project",
   "action.cloneRepository": "Import from",
-  "action.importFromApps": "Import from other apps…",
+  "action.importFromApps": "Import",
   "entry.create.title": "Create a project",
   "entry.create.nameLabel": "Project name",
   "entry.create.namePlaceholder": "My project",
