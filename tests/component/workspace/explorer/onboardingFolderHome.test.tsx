@@ -171,9 +171,9 @@ describe("project folder home", () => {
     const projectActions = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-entry-action")];
     expect(projectActions).toHaveLength(3);
     expect(projectActions.map((action) => action.textContent)).toEqual([
-      "Create a project",
+      "New empty project",
       "Open a folder",
-      "Import from",
+      "Import",
     ]);
     expect(projectActions.every((action) => action.classList.contains("po-button--neutral"))).toBe(true);
     expect(projectActions.every((action) => !action.classList.contains("onboarding-entry-action-cta"))).toBe(true);
@@ -269,9 +269,9 @@ describe("project folder home", () => {
     const actions = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-entry-action")];
     expect(actions).toHaveLength(3);
     expect(actions.map((action) => action.textContent)).toEqual([
-      "Create a project",
+      "New empty project",
       "Open a folder",
-      "Import from",
+      "Import",
     ]);
     expect(actions.every((action) => action.classList.contains("po-button"))).toBe(true);
     expect(actions[0]?.classList.contains("po-button--neutral")).toBe(true);
@@ -285,12 +285,12 @@ describe("project folder home", () => {
     expect(actions[1]?.querySelector(".lucide-folder-open")).not.toBeNull();
     expect(actions[2]?.querySelector(".lucide-download")).not.toBeNull();
     expect(actions[2]?.disabled).toBe(false);
-    // "Import from" is completed by the apps it understands, as marks.
+    // Import has separately accessible shortcuts for each supported app.
     const importGroup = container.querySelector(".onboarding-entry-import");
     expect(importGroup?.firstElementChild).toBe(actions[2]);
     const brandRow = importGroup?.querySelector(".onboarding-entry-import-brands");
     expect(brandRow?.getAttribute("role")).toBe("group");
-    expect(brandRow?.getAttribute("aria-label")).toBe("Import from");
+    expect(brandRow?.getAttribute("aria-label")).toBe("Import");
     const brands = [...(brandRow?.querySelectorAll<HTMLButtonElement>(".onboarding-entry-import-brand") ?? [])];
     expect(brands.map((brand) => brand.dataset.importBrand)).toEqual([
       "github",
@@ -862,9 +862,8 @@ function expectBrandLockup(
     expect(lockup?.querySelector(".onboarding-brand-prompt")).toBeNull();
     expect(lockup?.querySelector(".onboarding-brand-name")?.textContent).toBe("puppyone");
   }
-  expect(lockup?.querySelectorAll("p")).toHaveLength(state === "empty" ? 1 : 0);
-  if (state === "empty") expect(lockup?.querySelector(".onboarding-brand-tagline")?.textContent)
-    .toBe("A local file workspace built for you and your agent.");
+  expect(lockup?.querySelectorAll("p")).toHaveLength(0);
+  expect(lockup?.querySelector(".onboarding-brand-tagline")).toBeNull();
   expect(lockup?.querySelector(".onboarding-brand-version")).toBeNull();
   expect(container.querySelector(".onboarding-brand-context")).toBeNull();
 }

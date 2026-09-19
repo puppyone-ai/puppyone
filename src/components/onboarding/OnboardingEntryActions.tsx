@@ -29,7 +29,7 @@ type OnboardingEntryActionsProps = {
  * Homepage entry actions. "Create an empty project" is the default path because it
  * is the only entry that does not require the user to hunt for an existing
  * folder first. Opening a folder and importing are secondary; import shows the
- * apps it understands as marks so the label needs no explanation.
+ * apps it understands as a compact row of independently accessible shortcuts.
  */
 export function OnboardingEntryActions({
   state,
