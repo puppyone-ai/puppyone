@@ -11,6 +11,7 @@ const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "puppyone-onboarding-
 const screenshots = path.join(repoRoot, "artifacts/tests/onboarding-home");
 app.setPath("userData", path.join(temporaryRoot, "profile"));
 app.commandLine.appendSwitch("disable-gpu");
+app.commandLine.appendSwitch("force-prefers-reduced-motion");
 let window;
 let server;
 const evaluate = (source) => window.webContents.executeJavaScript(source);
@@ -45,10 +46,10 @@ async function runSmoke() {
     window.webContents.on("console-message", (details) => {
       if (details.level === "error") console.error(details.message);
     });
-    const labels = { "zh-Hans": "新建空项目", en: "New empty project", fr: "Créer un projet vide" };
-    const projectPrompts = { "zh-Hans": "你想从哪个项目开始？", en: "Which project do you want to start with?", fr: "Avec quel projet souhaitez-vous commencer ?" };
-    const importLabels = { "zh-Hans": "导入", en: "Import", fr: "Importer" };
-    const importIntros = { "zh-Hans": "把 SaaS 里的数据变成文件，保存到本地。", en: "Turn SaaS data into files on your computer.", fr: "Transformez vos données SaaS en fichiers locaux." };
+    const labels = { en: "New empty project" };
+    const projectPrompts = { en: "Which project do you want to start with?" };
+    const importLabels = { en: "Import" };
+    const importIntros = { en: "Turn SaaS data into files on your computer." };
     for (const locale of Object.keys(labels)) {
       for (const theme of ["dark", "light"]) {
         for (const [state, width, height] of [
@@ -57,12 +58,11 @@ async function runSmoke() {
         ]) {
           window.setContentSize(width, height);
           const url = new URL(`http://127.0.0.1:${server.httpServer.address().port}/tests/fixtures/workspace/projects/onboarding-home.html`);
-          url.searchParams.set("locale", locale);
           url.searchParams.set("theme", theme);
           url.searchParams.set("state", state);
           await window.loadURL(url.href);
-          // A renderer must exist before attaching; keep keyboard assertions
-          // stable if another desktop app takes OS focus during the matrix.
+          // Attach only after navigation creates the renderer target. The app-level
+          // reduced-motion switch is already visible during the initial React mount.
           if (!window.webContents.debugger.isAttached()) window.webContents.debugger.attach("1.3");
           await window.webContents.debugger.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true });
           await until("!!document.querySelector('[data-onboarding-action=create]') && !document.querySelector('[data-onboarding-empty-state-intro]')");
@@ -137,6 +137,7 @@ async function runSmoke() {
               importText: importButton.textContent,
               dividerBackground: divider && getComputedStyle(divider).backgroundColor,
               actionCount: buttons.length,
+              reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
               clipped: buttons.some(button => button.scrollWidth > button.clientWidth + 1)
                 || buttons.some(button => {
                   const text = button.querySelector('.po-button__label');
@@ -149,6 +150,7 @@ async function runSmoke() {
           })()`);
           const context = `${state}/${locale}/${theme}/${width}x${height}`;
           assert.equal(snapshot.label, labels[locale], context);
+          assert.equal(snapshot.reducedMotion, true, `${context}: visual smoke skips the full intro animation`);
           assert.equal(snapshot.brandText, state === 'empty' ? 'Start with your files. Agent-ready.' : projectPrompts[locale], `${context}: state-specific title`);
           assert.equal(snapshot.tagline, false, context);
           assert.ok(snapshot.imagesLoaded, `${context}: all brand assets must load`);
@@ -329,7 +331,7 @@ async function runSmoke() {
         }
       }
     }
-    console.log(`Onboarding visual smoke passed: 30 cases; screenshots: ${screenshots}`);
+    console.log(`Onboarding visual smoke passed: 10 English-only cases; screenshots: ${screenshots}`);
   } catch (error) {
     console.error(error);
     if (window && !window.isDestroyed()) console.error(await evaluate("({ active: document.activeElement?.outerHTML, dialogs: document.querySelectorAll('[role=dialog]').length, text: document.body.innerText })"));

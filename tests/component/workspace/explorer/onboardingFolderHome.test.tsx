@@ -20,6 +20,16 @@ let root: Root | null = null;
 const originalClipboard = navigator.clipboard;
 const originalConfirm = window.confirm;
 const onboardingCss = readFileSync("src/styles/onboarding.css", "utf8");
+const agentReadyMessages = {
+  de: "Deine Dateien. Für Agents bereit.",
+  en: "Start with your files. Agent-ready.",
+  es: "Tus archivos. Listos para Agents.",
+  fr: "Vos fichiers. Prêts pour les Agents.",
+  ja: "自分のファイルから。Agent 対応。",
+  ko: "내 파일로 시작. Agent 지원.",
+  "pt-BR": "Seus arquivos. Prontos para Agents.",
+  "zh-Hans": "从你的文件开始。为 Agent 就绪。",
+} as const;
 
 afterEach(() => {
   act(() => root?.unmount());
@@ -40,6 +50,15 @@ afterEach(() => {
 });
 
 describe("project folder home", () => {
+  it("localizes the agent-ready brand promise in every renderer locale", () => {
+    for (const [locale, expected] of Object.entries(agentReadyMessages)) {
+      const messages = JSON.parse(
+        readFileSync(`locales/renderer/${locale}/onboarding.json`, "utf8"),
+      ) as Record<string, string>;
+      expect(messages["brand.agentReadyMessage"], locale).toBe(expected);
+    }
+  });
+
   it("applies the effective Sub Theme on the real onboarding appearance root", () => {
     const styles = document.createElement("style");
     styles.textContent = `
