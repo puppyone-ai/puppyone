@@ -54,6 +54,10 @@ async function runSmoke() {
           url.searchParams.set("locale", locale);
           url.searchParams.set("theme", theme);
           await window.loadURL(url.href);
+          // A renderer must exist before attaching; keep keyboard assertions
+          // stable if another desktop app takes OS focus during the matrix.
+          if (!window.webContents.debugger.isAttached()) window.webContents.debugger.attach("1.3");
+          await window.webContents.debugger.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true });
           await until("!!document.querySelector('[data-onboarding-action=create]') && !document.querySelector('[data-onboarding-empty-state-intro]')");
           const snapshot = await evaluate(`(() => {
             const rect = (element) => { const r = element.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; };
@@ -67,7 +71,16 @@ async function runSmoke() {
             return {
               create: rect(create), brand: rect(brand), launcher: rect(launcher), label: create.textContent,
               createFont: parseFloat(getComputedStyle(label).fontSize),
+              createWeight: getComputedStyle(label).fontWeight,
+              createLineHeight: getComputedStyle(label).lineHeight,
+              createFamily: getComputedStyle(label).fontFamily,
               openFont: parseFloat(getComputedStyle(open.querySelector('.po-button__label')).fontSize),
+              openFamily: getComputedStyle(open.querySelector('.po-button__label')).fontFamily,
+              openHeight: rect(open).height,
+              brandFont: getComputedStyle(brand.querySelector('.onboarding-brand-name')).fontSize,
+              brandMarkWidth: rect(brand.querySelector('img')).width,
+              actionIconWidth: rect(create.querySelector('svg')).width,
+              importMarkWidths: images.slice(1).map(image => rect(image).width),
               clipped: buttons.some(button => button.scrollWidth > button.clientWidth + 1)
                 || label.scrollWidth > label.clientWidth + 1,
               outside: buttons.some(button => { const r = button.getBoundingClientRect(); return r.left < 0 || r.right > innerWidth || r.top < 38 || r.bottom > innerHeight; }),
@@ -80,8 +93,18 @@ async function runSmoke() {
           assert.equal(snapshot.tagline, false, context);
           assert.ok(snapshot.imagesLoaded, `${context}: all brand assets must load`);
           assert.ok(!snapshot.clipped && !snapshot.outside, `${context}: clipped or offscreen controls`);
-          assert.ok(snapshot.create.height >= 48 && snapshot.create.width >= 260, `${context}: CTA must be prominent`);
-          assert.ok(snapshot.createFont > snapshot.openFont, `${context}: CTA type hierarchy`);
+          // Preserve the compact pre-redesign scale, not a large marketing CTA.
+          assert.equal(snapshot.create.height, snapshot.openHeight, `${context}: shared row height`);
+          assert.ok(snapshot.create.height <= 34 && snapshot.create.width < 220, `${context}: compact intrinsic button`);
+          assert.equal(snapshot.createFont, 14, `${context}: original body size`);
+          assert.equal(snapshot.createFont, snapshot.openFont, `${context}: no CTA size override`);
+          assert.equal(snapshot.createFamily, snapshot.openFamily, `${context}: shared font family`);
+          assert.equal(snapshot.createWeight, '500', `${context}: original medium weight`);
+          assert.equal(snapshot.createLineHeight, '18px', `${context}: original line height`);
+          assert.equal(snapshot.brandFont, '19px', `${context}: original brand size`);
+          assert.equal(snapshot.brandMarkWidth, 28, `${context}: original brand mark`);
+          assert.equal(snapshot.actionIconWidth, 14, `${context}: original action icon`);
+          assert.ok(snapshot.importMarkWidths.every(width => width === 14), `${context}: original import marks`);
           for (const item of [snapshot.create, snapshot.brand, snapshot.launcher]) {
             assert.ok(Math.abs(item.x + item.width / 2 - width / 2) < 1, `${context}: horizontal centering`);
           }
