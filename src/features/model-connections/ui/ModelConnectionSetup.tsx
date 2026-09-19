@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import { useLocalization } from "@puppyone/localization";
-import type { ModelConnection, ModelConnectionCandidate, ModelConnectionDriver, SaveModelConnectionRequest } from "../../../../shared/model-connections/types";
+import type { ModelConnection, ModelConnectionCandidate, ModelConnectionDriver, ModelConnectionSourceKind, SaveModelConnectionRequest } from "../../../../shared/model-connections/types";
 
 const DRIVERS: { id: ModelConnectionDriver; name: string; url: string }[] = [
   { id: "ollama", name: "Ollama", url: "http://127.0.0.1:11434/v1" },
@@ -9,19 +9,23 @@ const DRIVERS: { id: ModelConnectionDriver; name: string; url: string }[] = [
   { id: "openai-compatible", name: "API", url: "" },
 ];
 
-export function ModelConnectionSetup({ connection, candidate, busy, onSave, onCancel }: {
+export function ModelConnectionSetup({ connection, candidate, sourceKind: fixedSourceKind, busy, onSave, onCancel }: {
   connection?: ModelConnection;
   candidate?: ModelConnectionCandidate;
+  sourceKind?: ModelConnectionSourceKind;
   busy: boolean;
   onSave: (request: SaveModelConnectionRequest) => Promise<boolean>;
   onCancel: () => void;
 }) {
   const { t } = useLocalization();
   const formId = useId();
-  const [driver, setDriver] = useState<ModelConnectionDriver>(connection?.driver ?? candidate?.driver ?? "ollama");
-  const [name, setName] = useState(connection?.name ?? candidate?.name ?? "Ollama");
-  const [baseUrl, setBaseUrl] = useState(connection?.baseUrl ?? candidate?.baseUrl ?? DRIVERS[0].url);
-  const [auth, setAuth] = useState<"none" | "bearer">(connection?.auth ?? (candidate?.driver === "unsloth" ? "bearer" : "none"));
+  const [sourceKind, setSourceKind] = useState<ModelConnectionSourceKind>(fixedSourceKind ?? connection?.sourceKind ?? (candidate ? "local" : "api"));
+  const initialDriver = connection?.driver ?? candidate?.driver ?? (sourceKind === "api" ? "openai-compatible" : "ollama");
+  const initialDefinition = DRIVERS.find((entry) => entry.id === initialDriver)!;
+  const [driver, setDriver] = useState<ModelConnectionDriver>(initialDriver);
+  const [name, setName] = useState(connection?.name ?? candidate?.name ?? initialDefinition.name);
+  const [baseUrl, setBaseUrl] = useState(connection?.baseUrl ?? candidate?.baseUrl ?? initialDefinition.url);
+  const [auth, setAuth] = useState<"none" | "bearer">(connection?.auth ?? (["unsloth", "openai-compatible"].includes(initialDriver) ? "bearer" : "none"));
   const [apiKey, setApiKey] = useState("");
   const [manualModelId, setManualModelId] = useState(connection?.manualModelId ?? "");
   const [defaultModelId, setDefaultModelId] = useState(connection?.defaultModelId ?? "");
@@ -36,7 +40,7 @@ export function ModelConnectionSetup({ connection, candidate, busy, onSave, onCa
     event.preventDefault();
     const request: SaveModelConnectionRequest = {
       ...(connection ? { id: connection.id, expectedGeneration: connection.configGeneration } : {}),
-      driver, name, baseUrl, auth, ...(auth === "bearer" && apiKey ? { apiKey } : {}),
+      sourceKind, driver, name, baseUrl, auth, ...(auth === "bearer" && apiKey ? { apiKey } : {}),
       manualModelId: manualModelId || null, defaultModelId: defaultModelId || null,
       manualContextWindow: context ? Number(context) : null, serverToolsDisabled,
     };
@@ -45,6 +49,17 @@ export function ModelConnectionSetup({ connection, candidate, busy, onSave, onCa
   }}>
     <fieldset disabled={busy}>
       <legend>{t(connection ? "settings.modelConnections.edit" : "settings.modelConnections.add")}</legend>
+      {!fixedSourceKind && <>
+        <label htmlFor={`${formId}-source`}>{t("settings.modelConnections.sourceKind")}</label>
+        <select id={`${formId}-source`} value={sourceKind} onChange={(event) => {
+          const next = event.target.value as ModelConnectionSourceKind;
+          setSourceKind(next);
+          if (!connection) selectDriver(next === "api" ? "openai-compatible" : "ollama");
+        }}>
+          <option value="api">{t("settings.modelConnections.source.api")}</option>
+          <option value="local">{t("settings.modelConnections.source.local")}</option>
+        </select>
+      </>}
       <label htmlFor={`${formId}-driver`}>{t("settings.modelConnections.service")}</label>
       <select id={`${formId}-driver`} value={driver} onChange={(event) => selectDriver(event.target.value as ModelConnectionDriver)}>
         {DRIVERS.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}</option>)}
