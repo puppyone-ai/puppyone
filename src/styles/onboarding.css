@@ -139,29 +139,19 @@
 }
 
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-brand-copy {
-  gap: 6px;
+  gap: 4px;
 }
 
-.onboarding-brand-tagline,
-.onboarding-brand-description {
-  margin: 0;
-  max-width: 42ch;
-  font-family: var(--po-font-sans);
-  text-wrap: pretty;
-}
-
+/* One quiet line under the name. It must stay a single line so the launcher
+ * column keeps its compact, centered footprint. */
 .onboarding-brand-tagline {
-  margin-top: 2px;
-  color: var(--po-text);
+  margin: 0;
+  color: var(--po-text-muted);
+  font-family: var(--po-font-sans);
   font-size: var(--po-type-ui-body, 14px);
-  font-weight: var(--po-text-weight-medium, 500);
-  line-height: 20px;
-}
-
-.onboarding-brand-description {
-  color: var(--po-text-subtle);
-  font-size: var(--po-type-ui-meta, 13px);
+  font-weight: var(--po-text-weight-regular, 400);
   line-height: 18px;
+  white-space: nowrap;
 }
 
 .onboarding-brand-prompt {

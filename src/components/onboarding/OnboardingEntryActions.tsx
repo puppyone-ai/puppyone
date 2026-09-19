@@ -19,7 +19,7 @@ type OnboardingEntryActionsProps = {
 };
 
 /**
- * Homepage entry actions. "Create a new project" is the default path because it
+ * Homepage entry actions. "Create an empty project" is the default path because it
  * is the only entry that does not require the user to hunt for an existing
  * folder first. Opening a folder and importing a repository are secondary.
  */

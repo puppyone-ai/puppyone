@@ -8,7 +8,7 @@ import {
 } from "./DesktopDialog";
 
 /**
- * "Create a new project" dialog. The location is prefilled with the built-in
+ * "Create an empty project" dialog. The location is prefilled with the built-in
  * projects folder so the default path is name → Enter, with no folder picker.
  * Browse remains available as "Change" for people who want another location.
  */

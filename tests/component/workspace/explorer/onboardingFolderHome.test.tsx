@@ -171,7 +171,7 @@ describe("project folder home", () => {
     const projectActions = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-entry-action")];
     expect(projectActions).toHaveLength(3);
     expect(projectActions.map((action) => action.textContent)).toEqual([
-      "Create a new project",
+      "Create an empty project",
       "Open a folder",
       "Import from another app",
     ]);
@@ -269,7 +269,7 @@ describe("project folder home", () => {
     const actions = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-entry-action")];
     expect(actions).toHaveLength(3);
     expect(actions.map((action) => action.textContent)).toEqual([
-      "Create a new project",
+      "Create an empty project",
       "Open a folder",
       "Import from another app",
     ]);
@@ -324,8 +324,8 @@ describe("project folder home", () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(container.querySelector("[role='dialog']")?.getAttribute("aria-label")).toBe("Create a new project");
-    expect(container.querySelector(".desktop-dialog-title-row > h2")?.textContent).toBe("Create a new project");
+    expect(container.querySelector("[role='dialog']")?.getAttribute("aria-label")).toBe("Create an empty project");
+    expect(container.querySelector(".desktop-dialog-title-row > h2")?.textContent).toBe("Create an empty project");
     expect(onDefaultProjectLocation).toHaveBeenCalledOnce();
     expect(onChooseProjectLocation).not.toHaveBeenCalled();
     expect(container.querySelector(".onboarding-entry-location-path")?.textContent).toBe("/Users/example/Documents/PuppyOne");
@@ -791,9 +791,9 @@ function expectBrandLockup(
     expect(lockup?.querySelector(".onboarding-brand-prompt")).toBeNull();
     expect(lockup?.querySelector(".onboarding-brand-name")?.textContent).toBe("puppyone");
     expect(lockup?.querySelector(".onboarding-brand-tagline")?.textContent).toBe(
-      "Your files and your agents, in one local workspace.",
+      "A local-first editor. Built for you and your agents.",
     );
-    expect(lockup?.querySelector(".onboarding-brand-description")?.textContent).toContain("Nothing leaves this computer");
+    expect(lockup?.querySelector(".onboarding-brand-description")).toBeNull();
   }
   expect(lockup?.querySelector(".onboarding-brand-version")).toBeNull();
   expect(container.querySelector(".onboarding-brand-context")).toBeNull();

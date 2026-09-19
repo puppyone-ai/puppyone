@@ -28,10 +28,7 @@ export function OnboardingBrandLockup({ state, resolvedTheme }: OnboardingBrandL
           {t(hasProjects ? "onboarding.section.chooseProject" : "onboarding.brand.name")}
         </span>
         {!hasProjects && (
-          <>
-            <p className="onboarding-brand-tagline">{t("onboarding.brand.tagline")}</p>
-            <p className="onboarding-brand-description">{t("onboarding.brand.description")}</p>
-          </>
+          <p className="onboarding-brand-tagline">{t("onboarding.brand.tagline")}</p>
         )}
       </div>
     </header>
