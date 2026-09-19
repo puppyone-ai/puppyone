@@ -1,6 +1,10 @@
 export type DatabaseCell = Readonly<{ kind: string; text: string; truncated: boolean; bytes?: number }>;
 export type DatabaseColumn = Readonly<{ id: string; name: string; type: string; primaryKey: boolean }>;
-export type DatabaseObject = Readonly<{ id: string; name: string; kind: string; readable: boolean }>;
+export type DatabaseObjectUnavailableReason = "unsupported-object-kind" | "too-many-columns" | "generated-or-hidden-columns";
+export type DatabaseObject = Readonly<{
+  id: string; name: string; kind: string; readable: boolean;
+  unavailableReason?: DatabaseObjectUnavailableReason;
+}>;
 export type DatabaseInfo = Readonly<{
   adapterVersion: 1; binding: string; dataModel: "relational"; consistency: "read-transaction";
   capabilities: Readonly<{ metadata: true; browse: true; filter: false; sort: false; count: false; sql: false }>;

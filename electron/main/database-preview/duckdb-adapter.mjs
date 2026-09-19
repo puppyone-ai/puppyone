@@ -18,7 +18,11 @@ export async function openDuckdb(source) {
     const rows = await (await connection.run(`SELECT table_schema, table_name, table_type FROM information_schema.tables
       WHERE table_catalog=current_database() ORDER BY table_schema, table_name LIMIT ${budget.maxObjects + 1}`)).getRows();
     if (rows.length > budget.maxObjects) throw databaseError("budget-exceeded");
-    const entries = rows.map(([schema, name, kind], index) => ({ id: String(index), name, schema, kind, readable: kind === "BASE TABLE" }));
+    const entries = rows.map(([schema, name, kind], index) => {
+      const readable = kind === "BASE TABLE" || kind === "VIEW";
+      return { id: String(index), name, schema, kind, readable,
+        ...(readable ? {} : { unavailableReason: "unsupported-object-kind" }) };
+    });
     const [[version]] = await (await connection.run("SELECT version()")).getRows();
     let stream = null, chunkRows = [], chunkIndex = 0, types = [];
     return {
