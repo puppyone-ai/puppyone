@@ -173,7 +173,7 @@ describe("project folder home", () => {
     expect(projectActions.map((action) => action.textContent)).toEqual([
       "New empty project",
       "Open a folder",
-      "Import from…",
+      "Import from",
     ]);
     expect(projectActions.every((action) => action.classList.contains("po-button--neutral"))).toBe(true);
     expect(projectActions.every((action) => !action.classList.contains("onboarding-entry-action-cta"))).toBe(true);
@@ -271,7 +271,7 @@ describe("project folder home", () => {
     expect(actions.map((action) => action.textContent)).toEqual([
       "New empty project",
       "Open a folder",
-      "Import from…",
+      "Import from",
     ]);
     expect(actions.every((action) => action.classList.contains("po-button"))).toBe(true);
     expect(actions[0]?.classList.contains("po-button--neutral")).toBe(true);
@@ -283,7 +283,7 @@ describe("project folder home", () => {
     expect(actions[0]?.classList.contains("onboarding-entry-action-folder")).toBe(false);
     expect(actions[0]?.querySelector(".onboarding-entry-create-icon")).not.toBeNull();
     expect(actions[1]?.querySelector(".lucide-folder-open")).not.toBeNull();
-    expect(actions[2]?.querySelector(".lucide-download")).toBeNull();
+    expect(actions[2]?.querySelector(".po-button__icon .lucide-download")).not.toBeNull();
     expect(actions[2]?.disabled).toBe(false);
     // Source marks are decorative children of one accessible import button.
     const importGroup = container.querySelector(".onboarding-entry-import");
@@ -304,7 +304,7 @@ describe("project folder home", () => {
       expect(mark.getAttribute("alt")).toBe("");
       expect(mark.getAttribute("src")).toContain(`assets/icons/integrations/${mark.dataset.importBrand}.`);
     }
-    expect(importGroup?.querySelector(".onboarding-entry-import-more")?.textContent).toBe("…");
+    expect(importGroup?.textContent).not.toContain("…");
     const launcher = container.querySelector(".onboarding-launcher");
     expect(launcher?.contains(container.querySelector(".onboarding-brand-lockup"))).toBe(true);
     expect(launcher?.contains(container.querySelector(".onboarding-entry-actions"))).toBe(true);
@@ -505,7 +505,7 @@ describe("project folder home", () => {
     expect(container.querySelector("[role='dialog']")).toBeNull();
 
     await act(async () => {
-      container.querySelector<HTMLElement>(".onboarding-entry-import-more")?.click();
+      container.querySelector<SVGElement>(".onboarding-entry-import .lucide-download")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       await Promise.resolve();
     });
     expect(container.querySelector("[role='dialog']")?.getAttribute("aria-label")).toBe("Import");
@@ -516,7 +516,7 @@ describe("project folder home", () => {
     const button = container.querySelector<HTMLButtonElement>(".onboarding-entry-import");
     expect(button?.disabled).toBe(true);
     expect(button?.querySelectorAll("button, [tabindex]")).toHaveLength(0);
-    await act(async () => button?.querySelector<HTMLElement>(".onboarding-entry-import-more")?.click());
+    await act(async () => button?.querySelector<HTMLImageElement>(".onboarding-import-mark")?.click());
     expect(container.querySelector("[role='dialog']")).toBeNull();
   });
 

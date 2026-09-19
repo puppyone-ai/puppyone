@@ -1,6 +1,6 @@
 import { Button } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
-import { FilePlus2, FolderOpen } from "lucide-react";
+import { Download, FilePlus2, FolderOpen } from "lucide-react";
 import type { ReactNode } from "react";
 import { InlineLoading } from "../loading";
 import {
@@ -27,7 +27,7 @@ type OnboardingEntryActionsProps = {
  * Homepage entry actions. "Create an empty project" is the default path because it
  * is the only entry that does not require the user to hunt for an existing
  * folder first. Opening a folder and importing are secondary; import shows
- * a few sources as one quiet, decorative stack within a single entry point.
+ * a few legible source marks within a single entry point.
  */
 export function OnboardingEntryActions({
   state,
@@ -82,6 +82,7 @@ export function OnboardingEntryActions({
             disabled={busy || !canCloneRepository}
             aria-label={t("onboarding.entry.import.title")}
             aria-haspopup="dialog"
+            leadingIcon={<Download aria-hidden="true" />}
             onClick={onCloneRepository}
           >
             <span className="onboarding-entry-import-label">{t("onboarding.action.cloneRepository")}</span>
@@ -92,7 +93,6 @@ export function OnboardingEntryActions({
                 </span>
               ))}
             </span>
-            <span className="onboarding-entry-import-more" aria-hidden="true">…</span>
           </Button>
         </div>
 

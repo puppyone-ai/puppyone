@@ -81,10 +81,12 @@ async function runSmoke() {
               brandMarkWidth: rect(brand.querySelector('img')).width,
               actionIconWidth: rect(create.querySelector('svg')).width,
               importMarkWidths: images.slice(1).map(image => rect(image).width),
-              importStack: [...document.querySelectorAll('.onboarding-entry-import-brand')].map(rect),
+              importMarks: [...document.querySelectorAll('.onboarding-entry-import-brand')].map(rect),
+              importActionIcon: rect(document.querySelector('.onboarding-entry-import .po-button__icon > svg')),
+              importLabel: rect(document.querySelector('.onboarding-entry-import-label')),
               importBrandIds: images.slice(1).map(image => image.dataset.importBrand),
               importText: document.querySelector('.onboarding-entry-import-label').textContent,
-              importEllipsis: document.querySelector('.onboarding-entry-import-more').textContent,
+              importEllipsis: document.querySelector('.onboarding-entry-import').textContent.includes('…'),
               actionCount: buttons.length,
               clipped: buttons.some(button => button.scrollWidth > button.clientWidth + 1)
                 || label.scrollWidth > label.clientWidth + 1,
@@ -100,7 +102,7 @@ async function runSmoke() {
           assert.ok(!snapshot.clipped && !snapshot.outside, `${context}: clipped or offscreen controls`);
           // Preserve the compact pre-redesign scale, not a large marketing CTA.
           assert.equal(snapshot.create.height, snapshot.openHeight, `${context}: shared row height`);
-          assert.ok(snapshot.create.height <= 34 && snapshot.create.width >= 160 && snapshot.create.width < 220, `${context}: slightly wider compact button`);
+          assert.ok(snapshot.create.height <= 34 && snapshot.create.width >= 180 && snapshot.create.width < 220, `${context}: slightly wider compact button`);
           assert.equal(snapshot.createFont, 14, `${context}: original body size`);
           assert.equal(snapshot.createFont, snapshot.openFont, `${context}: no CTA size override`);
           assert.equal(snapshot.createFamily, snapshot.openFamily, `${context}: shared font family`);
@@ -109,14 +111,17 @@ async function runSmoke() {
           assert.equal(snapshot.brandFont, '19px', `${context}: original brand size`);
           assert.equal(snapshot.brandMarkWidth, 28, `${context}: original brand mark`);
           assert.equal(snapshot.actionIconWidth, 14, `${context}: original action icon`);
-          assert.ok(snapshot.importMarkWidths.every(width => width === 14), `${context}: original import marks`);
+          assert.ok(snapshot.importMarkWidths.every(width => width === 18), `${context}: legible source marks`);
+          assert.equal(snapshot.importActionIcon.width, 14, `${context}: original import action icon`);
+          assert.ok(snapshot.importActionIcon.x < snapshot.importLabel.x, `${context}: action icon before label`);
           assert.deepEqual(snapshot.importBrandIds, ['github', 'notion', 'google-drive'], `${context}: source preview`);
           assert.equal(snapshot.actionCount, 3, `${context}: no extra logo buttons`);
-          assert.equal(snapshot.importEllipsis, '…', `${context}: more sources`);
+          assert.equal(snapshot.importEllipsis, false, `${context}: no extra visual punctuation`);
           if (locale === 'en') assert.equal(snapshot.importText, 'Import from', context);
-          for (let i = 1; i < snapshot.importStack.length; i++) {
-            const previous = snapshot.importStack[i - 1];
-            assert.ok(snapshot.importStack[i].x < previous.x + previous.width, `${context}: overlapping marks`);
+          assert.ok(snapshot.importMarks[0].x - snapshot.importLabel.x - snapshot.importLabel.width >= 12, `${context}: space after import label`);
+          for (let i = 1; i < snapshot.importMarks.length; i++) {
+            const previous = snapshot.importMarks[i - 1];
+            assert.equal(snapshot.importMarks[i].x - previous.x - previous.width, 8, `${context}: distinct source silhouettes`);
           }
           for (const item of [snapshot.create, snapshot.brand, snapshot.launcher]) {
             assert.ok(Math.abs(item.x + item.width / 2 - width / 2) < 1, `${context}: horizontal centering`);

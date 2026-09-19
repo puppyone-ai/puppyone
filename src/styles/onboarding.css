@@ -264,7 +264,7 @@
 }
 
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-entry-action-default {
-  min-width: min(160px, 100%);
+  min-width: min(180px, 100%);
   justify-content: center;
 }
 
@@ -371,14 +371,15 @@
 .onboarding-entry-import .po-button__label {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
 .onboarding-entry-import-brands {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-  opacity: 0.72;
+  gap: 8px;
+  opacity: 0.76;
   filter: grayscale(1);
   transition: opacity 130ms ease-out;
 }
@@ -387,22 +388,12 @@
   display: grid;
   width: 18px;
   height: 18px;
-  border-radius: 50%;
-  background: var(--onboarding-import-mark-background, var(--po-canvas));
   place-items: center;
 }
 
-.onboarding-entry-import-brand + .onboarding-entry-import-brand {
-  margin-inline-start: -6px;
-}
-
-.onboarding-entry-import:hover:not(:disabled),
-.onboarding-entry-import:focus-visible {
-  --onboarding-import-mark-background: color-mix(in srgb, var(--po-text) 5%, var(--po-canvas));
-}
-
-.onboarding-entry-import-more {
-  flex: 0 0 auto;
+.onboarding-entry-import-brand .onboarding-import-mark {
+  width: 18px;
+  height: 18px;
 }
 
 .onboarding-import-mark {
