@@ -283,6 +283,20 @@
       "artifacts": []
     },
     {
+      "id": "text-selection",
+      "name": "Themed text selection across renderers",
+      "group": "app",
+      "command": ["npm", "run", "smoke:text-selection"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": ["build"],
+      "timeoutSeconds": 180,
+      "runtime": "electron",
+      "environment": {
+        "PUPPYONE_TEXT_SELECTION_ARTIFACT_DIR": "{checkDir}/evidence"
+      },
+      "artifacts": ["{checkDir}/evidence/result.json"]
+    },
+    {
       "id": "auxiliary-appearance",
       "name": "Auxiliary workbench appearance and startup colors",
       "group": "app",

@@ -53,6 +53,12 @@ e2e command runs project sessions followed by the fixture-based Agent/Terminal
 sidebar workflow. Both run without paid requests.
 
 Other `smoke:*` commands are explicit focused checks, not implicitly part of CI.
+`smoke:text-selection` is the `text-selection` app gate: production styles and
+editors in Electron, every built-in mode, domain overrides, same-ID CSS reload,
+retained editor state, nested table inputs, native mouse/keyboard selection,
+copy handlers and forced-colors. Active-window assertions use Chromium focus
+emulation so concurrent windows cannot steal test focus. It writes computed
+results, screenshots and source fingerprints under `artifacts/tests/appearance/`.
 `smoke:native-agents` and `smoke:native-agent-references` deliberately require
 `RUN_NATIVE_AGENT_SMOKE=1` / `RUN_NATIVE_AGENT_REFERENCE_SMOKE=1`, respectively, and local runtime/account setup; they can execute real
 Agent requests. `smoke:codex-agent` likewise uses a locally installed Codex

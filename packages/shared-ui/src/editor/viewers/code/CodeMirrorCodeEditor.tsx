@@ -94,6 +94,7 @@ export function CodeMirrorCodeEditor({
     modelOwner?.activate(model);
     modelRef.current = model;
     const state = model.createViewState([
+        EditorView.editorAttributes.of({ "data-po-selection-renderer": "drawn" }),
         lineNumbers(),
         foldGutter({ openText: "⌄", closedText: "›" }),
         highlightSpecialChars(),

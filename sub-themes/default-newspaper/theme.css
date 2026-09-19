@@ -30,6 +30,7 @@
     --po-hover: rgb(105 83 52 / 8%);
     --po-selected: rgb(105 83 52 / 14%);
     --po-accent: #795f39;
+    --po-text-selection-bg: color-mix(in srgb, var(--po-accent) 22%, transparent);
     --po-accent-text: #624a2b;
     --po-focus-ring: #9a7a4a;
     --po-shell-divider: #c8c0b3;
@@ -61,6 +62,7 @@
     --po-hover: rgb(194 164 117 / 10%);
     --po-selected: rgb(194 164 117 / 17%);
     --po-accent: #c2a475;
+    --po-text-selection-bg: color-mix(in srgb, var(--po-accent) 28%, transparent);
     --po-accent-text: #d6bd95;
     --po-focus-ring: #b69769;
     --po-shell-divider: #4c473f;

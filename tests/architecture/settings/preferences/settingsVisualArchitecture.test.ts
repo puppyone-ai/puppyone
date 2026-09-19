@@ -15,7 +15,7 @@ describe("settings visual architecture", () => {
     const language = source("src/features/settings/LanguageSetting.tsx");
 
     expect(types).toContain('"general" | "privacy" | "local-project"');
-    expect(types).toContain('"appearance" | "typography" | "local-agents" | "new-menu"');
+    expect(types).toContain('"appearance" | "typography" | "local-agents" | "model-connections" | "new-menu"');
     expect(types).toContain('| "typography"');
     expect(types).not.toContain('| "editor"');
     expect(types).not.toContain('"external-apps"');

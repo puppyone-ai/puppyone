@@ -10,11 +10,17 @@ import {
   Rows3,
   Table2,
 } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import { DocumentSurfacePending } from "../../host/DocumentSurfaceHost";
 import { useEditorPreviewServices } from "../../preview-services/EditorPreviewServices";
-import type { DatabaseColumn, DatabaseInfo, DatabasePage, DatabasePreviewSession } from "../../preview-services/types";
+import type {
+  DatabaseColumn,
+  DatabaseInfo,
+  DatabaseObjectUnavailableReason,
+  DatabasePage,
+  DatabasePreviewSession,
+} from "../../preview-services/types";
 import { useEditorDependencies, useEditorTaskOwner } from "../../runtime/EditorTaskContext";
 import { acquireEditorHostLease } from "../../runtime/EditorHostLeases";
 import { useDocumentModelOwner } from "../../document-session/DocumentModelOwner";
@@ -37,6 +43,8 @@ export function DatabaseViewer({ document, openExternalFile }: PresetViewerRende
   const [columnOffset, setColumnOffset] = useState(0);
   const [page, setPage] = useState<DisplayPage | null>(null);
   const [tab, setTab] = useState<"data" | "schema">("data");
+  const objectTabId = useId();
+  const objectTabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const session = useRef<DatabasePreviewSession | null>(null);
   const controller = useRef<AbortController | null>(null);
   const epoch = useRef(0);
@@ -123,6 +131,17 @@ export function DatabaseViewer({ document, openExternalFile }: PresetViewerRende
             ? t("editor.database.unsupported")
             : t("editor.database.unavailable");
   const hasColumnPages = Boolean(info && page && page.columns.length > info.pageColumns);
+  const selectedObjectIndex = info?.objects.findIndex((object) => object.id === selected) ?? -1;
+  const moveObjectTabFocus = (event: ReactKeyboardEvent<HTMLButtonElement>, index: number, count: number) => {
+    let target = index;
+    if (event.key === "ArrowRight") target = (index + 1) % count;
+    else if (event.key === "ArrowLeft") target = (index - 1 + count) % count;
+    else if (event.key === "Home") target = 0;
+    else if (event.key === "End") target = count - 1;
+    else return;
+    event.preventDefault();
+    objectTabRefs.current[target]?.focus();
+  };
 
   return <section className="database-preview" aria-busy={busy} data-document-surface-ready={!busy || info ? "true" : undefined}>
     {error ? <div className="database-preview__failure" role="alert" data-error-code={error}>
@@ -138,16 +157,27 @@ export function DatabaseViewer({ document, openExternalFile }: PresetViewerRende
           <Database size={15} strokeWidth={1.8} aria-hidden="true" />
         </span>
         <div className="database-preview__object-tabs" role="tablist" aria-label={t("editor.database.objects")} data-po-scrollbar="content">
-          {info.objects.map((object) => <button
-            className="database-preview__object-tab"
-            type="button"
-            role="tab"
-            aria-selected={selected === object.id}
-            key={object.id}
-            disabled={busy || !object.readable}
-            title={object.name}
-            onClick={() => { void read(object.id, 0); }}
-          ><Table2 size={13} strokeWidth={1.8} aria-hidden="true" /><span dir="auto">{object.name}</span></button>)}
+          {info.objects.map((object, index) => {
+            const unavailable = object.readable ? null : t(databaseObjectUnavailableMessage(object.unavailableReason));
+            const inaccessible = busy || !object.readable;
+            const label = unavailable ? `${object.name} · ${unavailable}` : object.name;
+            return <button
+              className="database-preview__object-tab"
+              type="button"
+              role="tab"
+              id={`${objectTabId}-${index}`}
+              aria-controls={`${objectTabId}-panel`}
+              aria-disabled={inaccessible || undefined}
+              aria-label={label}
+              aria-selected={selected === object.id}
+              key={object.id}
+              ref={(node) => { objectTabRefs.current[index] = node; }}
+              tabIndex={selected === object.id ? 0 : -1}
+              title={label}
+              onClick={() => { if (!inaccessible) void read(object.id, 0); }}
+              onKeyDown={(event) => moveObjectTabFocus(event, index, info.objects.length)}
+            ><Table2 size={13} strokeWidth={1.8} aria-hidden="true" /><span dir="auto">{object.name}</span></button>;
+          })}
         </div>
         <nav className="database-preview__actions" aria-label={t("editor.database.title")}>
           {busy && <span className="database-preview__busy" aria-hidden="true"><LoaderCircle /></span>}
@@ -159,7 +189,10 @@ export function DatabaseViewer({ document, openExternalFile }: PresetViewerRende
         </nav>
       </header>
       {page ? <>
-        <div className="database-preview__scroll" tabIndex={0} role="region" aria-label={tab === "data" ? t("editor.database.data") : t("editor.database.schema")} data-po-scrollbar="content">
+        <div className="database-preview__scroll" id={`${objectTabId}-panel`} tabIndex={0} role="tabpanel"
+          aria-labelledby={selectedObjectIndex >= 0 ? `${objectTabId}-${selectedObjectIndex}` : undefined}
+          aria-label={selectedObjectIndex < 0 ? (tab === "data" ? t("editor.database.data") : t("editor.database.schema")) : undefined}
+          data-po-scrollbar="content">
           <div className="database-preview__frame">
             {tab === "schema" ? <table className="database-preview__table database-preview__table--schema"><thead><tr><th>{t("editor.database.field")}</th><th>{t("editor.database.type")}</th></tr></thead>
               <tbody>{page.visibleColumns.map((column) => <tr key={column.id}><td dir="auto">{column.name}</td><td><span className="database-preview__type">{column.type}</span>{column.primaryKey && <span className="database-preview__key">{"PK" /* Stable database schema token. */}</span>}</td></tr>)}</tbody></table>
@@ -182,6 +215,12 @@ export function DatabaseViewer({ document, openExternalFile }: PresetViewerRende
       </> : <div className="database-preview__empty"><Table2 size={20} strokeWidth={1.5} aria-hidden="true" /><span>{t("editor.database.empty")}</span></div>}
     </> : <DocumentSurfacePending label={t("editor.loadingFile")} />}
   </section>;
+}
+
+function databaseObjectUnavailableMessage(reason?: DatabaseObjectUnavailableReason) {
+  if (reason === "too-many-columns") return "editor.database.objectUnavailableColumns" as const;
+  if (reason === "generated-or-hidden-columns") return "editor.database.objectUnavailableGenerated" as const;
+  return "editor.database.objectUnavailableKind" as const;
 }
 
 function DatabaseIconButton({ active = false, children, disabled = false, label, onClick }: {

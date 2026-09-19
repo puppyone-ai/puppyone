@@ -71,6 +71,7 @@ export function markdownCodeMirrorBaseExtensions(
  */
 export function markdownCodeMirrorUrgentExtensions(readOnly: boolean, includeHistory = true): Extension[] {
   return [
+    EditorView.editorAttributes.of({ "data-po-selection-renderer": "native" }),
     highlightSpecialChars(),
     ...(includeHistory ? [history()] : []),
     dropCursor(),

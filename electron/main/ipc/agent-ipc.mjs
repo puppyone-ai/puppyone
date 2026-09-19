@@ -177,6 +177,7 @@ export function registerAgentIpcHandlers({
       workspaceRoot,
       epoch: request.epoch,
       sourcePaths: request.sourcePaths,
+      sources: request.sources,
     });
   });
   register("agent:reference-revoke", async (event, request) => {

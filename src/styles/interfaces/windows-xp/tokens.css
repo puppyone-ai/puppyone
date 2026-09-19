@@ -126,6 +126,8 @@
   --po-backdrop: rgba(0, 0, 0, 0.22);
   --po-backdrop-strong: rgba(0, 0, 0, 0.38);
   --po-accent: #0054e3;
+  --po-text-selection-bg: rgba(49, 106, 197, 0.28);
+  --po-text-selection-inactive-bg: rgba(49, 106, 197, 0.15);
   --po-accent-text: #003399;
   --po-success: #27862a;
   --po-success-contrast: #ffffff;
@@ -152,7 +154,6 @@
   --po-scrollbar-thumb-hover: #b9caf4;
   --po-terminal-fg: #000000;
   --po-terminal-cursor: #000080;
-  --po-terminal-selection: rgba(49, 106, 197, 0.28);
 
   /* File colors stay compatible with every existing icon theme while moving
    * the catalog toward XP Explorer's warm yellow and saturated type accents. */

@@ -4,6 +4,7 @@
  */
 
 @import "./control-geometry.css" layer(tokens);
+@import "./editor/text-selection.css";
 
 /* Preview hosts and shells (native, html, app previews) */
 @import "./editor/preview-surfaces.css";

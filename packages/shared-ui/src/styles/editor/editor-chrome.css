@@ -188,7 +188,3 @@ button.editor-save-chip {
   color: var(--po-text-disabled);
   font-style: italic;
 }
-
-.plain-text-editor__surface::selection {
-  background: var(--po-selected);
-}

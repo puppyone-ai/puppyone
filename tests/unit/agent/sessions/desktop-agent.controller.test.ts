@@ -96,6 +96,39 @@ it("repeated send while the same steer is pending has one dispatch", async () =>
 });
 
 describe("AgentSessionController", () => {
+  it("requires a fresh conversation for a model connection change and clears old drafts", async () => {
+    const bridge = bridgeFixture(() => {}, { modelConnections: true });
+    const first = snapshot("session-1", [], { modelConnections: true });
+    const secondModel = { id: "local/test", model: "local/test", connectionId: "local", providerId: "local", displayName: "Local test", description: "", isDefault: false };
+    first.models.push(secondModel);
+    bridge.resumeAgentSession.mockResolvedValueOnce(first);
+    const next = snapshot("session-2", [], { modelConnections: true });
+    next.session.selectedModel = secondModel.model; next.models = first.models;
+    bridge.createAgentSession.mockResolvedValueOnce(next);
+    const controller = new AgentSessionController("/workspace", () => bridge as never);
+    try {
+      await controller.initialize(); controller.setDraft("private old draft");
+      expect(controller.requiresNewModelConnectionSession(secondModel.model)).toBe(true);
+      controller.selectModel(secondModel.model);
+      expect(controller.getSnapshot().selectedModel).toBe("openai/gpt-5");
+      await controller.startNewModelConnection(secondModel.model);
+      expect(bridge.closeAgentSession).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "session-1", removePersistence: false }));
+      expect(bridge.createAgentSession).toHaveBeenCalledWith(expect.objectContaining({ model: secondModel.model }));
+      expect(controller.getSnapshot()).toMatchObject({ draft: "", references: [], selectedModel: secondModel.model, submitting: false });
+      expect(bridge.startAgentTurn).not.toHaveBeenCalled();
+    } finally { controller.dispose(); }
+  });
+  it("preserves an unavailable model route instead of choosing a different connection", async () => {
+    const bridge = bridgeFixture(() => {}, { modelConnections: true });
+    const saved = snapshot("session-1", [], { modelConnections: true });
+    saved.session.selectedModel = "deleted/model";
+    bridge.resumeAgentSession.mockResolvedValueOnce(saved);
+    const controller = new AgentSessionController("/workspace", () => bridge as never);
+    try {
+      await controller.initialize();
+      expect(controller.getSnapshot().selectedModel).toBe("deleted/model");
+    } finally { controller.dispose(); }
+  });
   it.each([true, false])("keeps newer steer drafts, references and mentions on receipt (accepted=%s)", async (accepted) => {
     let emit: (event: AgentEvent) => void = () => {};
     const bridge = bridgeFixture(listener => { emit = listener; }, {

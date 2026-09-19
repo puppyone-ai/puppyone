@@ -27,7 +27,3 @@
 .desktop-agent-prompt-editor .cm-line { padding: 0; }
 .desktop-agent-prompt-editor .cm-placeholder { color: var(--agent-text-subtle); }
 .desktop-agent-prompt-editor .cm-cursor { border-inline-start-color: var(--agent-text); }
-.desktop-agent-prompt-editor .cm-selectionBackground,
-.desktop-agent-prompt-editor .cm-content ::selection {
-  background: var(--po-selection, var(--agent-selection-surface));
-}

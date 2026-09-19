@@ -1,5 +1,5 @@
 import type { AgentViewportGeometry } from "../domain/agent-ui-state";
-import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
 import type { AgentSessionController } from "../application/AgentSessionController";
@@ -15,6 +15,8 @@ import { AgentComposer, DEFAULT_AGENT_COMPOSER_PLACEHOLDER_ID } from "./AgentCom
 import { AgentEmptyState } from "./AgentEmptyState";
 import { AgentPanelLayout } from "./AgentPanelLayout";
 import { AgentPanelStatus } from "./AgentPanelStatus";
+import { AgentModelConnections } from "./AgentModelConnections";
+import type { AgentSessionControlId } from "../domain/agent-session-controls";
 import { AgentQuestionDock } from "./AgentQuestionDock";
 import { AgentRecoverySurface } from "./AgentRecoverySurface";
 import { AgentRuntimeLauncher } from "./AgentRuntimeLauncher";
@@ -64,10 +66,17 @@ export function AgentChatTabPanel({
 }: AgentChatTabPanelProps) {
   const { t } = useLocalization();
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
+  const [pendingConnectionModel, setPendingConnectionModel] = useState<string | null>(null);
+  const selectedModelCapabilities = state.inspection?.models.find((model) => model.model === state.selectedModel)?.modelCapabilities;
+  const referenceCapabilities = useMemo(() => {
+    const base = state.inspection?.capabilities?.referenceInputs;
+    if (!base || !state.inspection?.capabilities?.modelConnections) return base;
+    return { ...base, attachments: { ...base.attachments, image: { ...base.attachments.image, accepted: selectedModelCapabilities?.images === "supported" } } };
+  }, [state.inspection?.capabilities, selectedModelCapabilities]);
   const referenceIngestion = useAgentReferenceIngestion({
     controller,
     workspaceId,
-    capabilities: state.inspection?.capabilities?.referenceInputs,
+    capabilities: referenceCapabilities,
     resolveWorkspaceReference,
   });
   const inspection = state.inspection;
@@ -166,6 +175,13 @@ export function AgentChatTabPanel({
     controller.setDraftDocument(draft, mentions);
   }, [controller]);
   const handleSubmit = useCallback((prompt: string) => controller.submit(prompt), [controller]);
+  const selectSessionControl = (id: AgentSessionControlId, value: string) => {
+    if (id === "model" && controller.requiresNewModelConnectionSession(value)) {
+      setPendingConnectionModel(value);
+      return;
+    }
+    routingPreferences.selectSessionControl(id, value);
+  };
 
   if (state.initialized && inspection && !agentRuntimeSelected && !loading && !failed) {
     return <AgentPanelLayout
@@ -202,6 +218,16 @@ export function AgentChatTabPanel({
       onViewportChange={handleViewportChange} onOpenFile={onOpenFile}
     />}
     dock={startupLoading ? null : <>
+      {capabilities?.modelConnections && <AgentModelConnections disabled={submissionPending || Boolean(state.projection.runningTurnId)} onClose={() => void controller.refreshModelConnections()} />}
+      {capabilities?.readOnly && <p role="status">{t("settings.modelConnections.readOnly")}</p>}
+      {pendingConnectionModel && <div role="alertdialog" aria-label={t("settings.modelConnections.newConversation")}>
+        <p>{t("settings.modelConnections.switchWarning")}</p>
+        <button type="button" onClick={() => {
+          const model = pendingConnectionModel; setPendingConnectionModel(null);
+          void controller.startNewModelConnection(model);
+        }}>{t("settings.modelConnections.newConversation")}</button>
+        <button type="button" onClick={() => setPendingConnectionModel(null)}>{t("common.action.cancel")}</button>
+      </div>}
       {state.projection.approvals[0] && <AgentApprovalDock
         key={state.projection.approvals[0].requestId}
         approval={state.projection.approvals[0]} queueLength={state.projection.approvals.length}
@@ -226,15 +252,15 @@ export function AgentChatTabPanel({
         focusRequest={focusRequest}
         draft={state.draft} draftMentions={state.draftMentions} onDraftChange={handleDraftChange}
         onDraftDocumentChange={handleDraftDocumentChange}
-        disabled={loading || unavailable || failed || !routingReady || state.projection.approvals.length > 0 || state.projection.questions.length > 0}
+        disabled={Boolean(capabilities?.readOnly) || loading || unavailable || failed || !routingReady || state.projection.approvals.length > 0 || state.projection.questions.length > 0}
         running={Boolean(state.projection.runningTurnId)} stopping={state.stopping} submitting={submissionPending}
         placeholder={composerPlaceholder} runtimeLabel={runtimeLabel}
         configurationDisabled={loading || submissionPending}
         sessionControls={sessionControls}
-        onSelectSessionControl={routingPreferences.selectSessionControl}
+        onSelectSessionControl={selectSessionControl}
         commands={capabilities?.slashCommands ? inspection?.commands ?? [] : []}
         references={state.references} getReferencePreviewUrl={controller.getReferencePreviewUrl}
-        referenceCapabilities={capabilities?.referenceInputs}
+        referenceCapabilities={referenceCapabilities}
         steerAvailable={Boolean(capabilities?.steer)} queueAvailable={Boolean(capabilities?.queue)}
         onRemoveReference={(id) => controller.removeReference(id)} onRetryReference={(id) => controller.retryReference(id)}
         onAddExternalFiles={referenceIngestion.addExternalFiles} onDrop={referenceIngestion.onEditorDrop}

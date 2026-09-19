@@ -16,6 +16,7 @@ import { stripPuppyOneProviderCredentials } from "../puppyone-agent-environment.
 import { BUILT_IN_AGENT_DISPLAY_NAME } from "../puppyone-agent-public-identity.mjs";
 import { createPuppyOnePolicyExtension } from "./policy.mjs";
 import { resolvePuppyOneSession } from "./session-resolver.mjs";
+import { createConnectionModelRuntime, createMemoryModelRuntime, installModelFetchBoundary, readModelConfiguration, verifyConnectionModel } from "./model-configuration.mjs";
 
 export function puppyOneWorkerProbe() {
   return Object.freeze({
@@ -37,6 +38,18 @@ export async function runPuppyOneAgentWorker({
   fsModule = fs,
 } = {}) {
   const options = parseWorkerArguments(argv);
+  const readOnly = env.PUPPYONE_MODEL_CONNECTION_READ_ONLY === "1";
+  const connection = env.PUPPYONE_MODEL_CONNECTION_BOOTSTRAP === "1" ? await readModelConfiguration() : null;
+  if (connection) globalThis.fetch = installModelFetchBoundary(connection);
+  if (readOnly) globalThis.fetch = async () => { throw new Error("Read-only history cannot perform inference."); };
+  if (options.verifyModel) {
+    if (!connection) throw new Error("Model verification requires private configuration.");
+    try {
+      await verifyConnectionModel(connection, { signal: AbortSignal.timeout(60_000) });
+      process.stdout.write(`${JSON.stringify({ verified: true })}\n`);
+    } catch { process.stdout.write(`${JSON.stringify({ verified: false })}\n`); process.exitCode = 1; }
+    return;
+  }
   const profilePath = requireAbsolutePath(env.PUPPYONE_AGENT_HOME, "PUPPYONE_AGENT_HOME");
   const agentDir = path.join(profilePath, "pi");
   const sessionDir = path.join(profilePath, "sessions");
@@ -45,7 +58,7 @@ export async function runPuppyOneAgentWorker({
     fsModule.promises.mkdir(sessionDir, { recursive: true, mode: 0o700 }),
   ]);
 
-  const modelRuntime = await ModelRuntime.create({
+  const modelRuntime = readOnly ? await createMemoryModelRuntime() : connection ? await createConnectionModelRuntime(connection) : await ModelRuntime.create({
     authPath: path.join(agentDir, "auth.json"),
     modelsPath: path.join(agentDir, "models.json"),
   });
@@ -101,6 +114,7 @@ export function parseWorkerArguments(argv) {
   const values = Array.isArray(argv) ? argv.slice(0, 16) : [];
   let noSession = false;
   let sessionId = null;
+  let verifyModel = false;
   for (let index = 0; index < values.length; index += 1) {
     const value = values[index];
     if (value === "--mode") {
@@ -111,12 +125,14 @@ export function parseWorkerArguments(argv) {
       noSession = true;
     } else if (value === "--session") {
       sessionId = validSessionId(values[++index]);
+    } else if (value === "--verify-model") {
+      verifyModel = true;
     } else {
       throw new Error(`Unsupported ${BUILT_IN_AGENT_DISPLAY_NAME} worker argument: ${String(value).slice(0, 120)}`);
     }
   }
   if (noSession && sessionId) throw new Error(`${BUILT_IN_AGENT_DISPLAY_NAME} cannot combine --no-session and --session.`);
-  return Object.freeze({ noSession, sessionId });
+  return Object.freeze({ noSession, sessionId, verifyModel });
 }
 
 function managedTools(cwd, platform) {

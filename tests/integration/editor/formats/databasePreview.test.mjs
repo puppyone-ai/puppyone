@@ -77,7 +77,7 @@ describe("real isolated database engines", () => {
     } finally { await input.cleanup(); }
   });
 
-  for (const engine of ["sqlite", "duckdb"]) it(`${engine}: bounds values and refuses views or arbitrary SQL`, async () => {
+  for (const engine of ["sqlite", "duckdb"]) it(`${engine}: bounds values, admits supported objects and refuses arbitrary SQL`, async () => {
     const input = await fixture(engine), host = service();
     try {
       if (engine === "sqlite") {
@@ -86,25 +86,47 @@ describe("real isolated database engines", () => {
         db.prepare('INSERT INTO "quoted\"\"table" VALUES (?, ?, NULL, zeroblob(1048576), ?)').run("x".repeat(10000), "", 1.2345678901234567);
         db.exec("CREATE TABLE generated(a INT, b INT GENERATED ALWAYS AS (a+1));"); db.close();
       } else {
+        const externalCsv = path.join(input.root, "external.csv");
+        await fs.writeFile(externalCsv, "secret\nnot available to preview\n");
         const db = await DuckDBInstance.create(input.file), connection = await db.connect();
         await connection.run(`CREATE TABLE typed AS SELECT repeat('x',10000) AS long, '' AS empty, NULL::VARCHAR AS missing,
           '123'::BLOB AS bytes, 1234567890123456789.1234567890123456789::DECIMAL(38,19) AS precise, [1,2,3] AS nested`);
-        await connection.run("CREATE VIEW unsafe AS SELECT * FROM read_csv_auto('/not-permitted.csv')", undefined).catch(() => {});
-        await connection.run("CREATE VIEW safe_view AS SELECT * FROM typed");
+        await connection.run(`CREATE VIEW unsafe AS SELECT * FROM read_csv_auto('${externalCsv.replaceAll("'", "''")}')`);
+        await connection.run("CREATE VIEW safe_view AS SELECT count(*)::BIGINT AS total FROM typed");
         connection.closeSync(); db.closeSync();
       }
       const info = await host.open(1, { id: "typed", rootPath: input.root, path: "sample.db" }, async () => input.root);
-      expect(info.objects.filter((o) => /view/i.test(o.kind)).every((o) => !o.readable)).toBe(true);
-      expect(info.objects.find((o) => o.name === "generated")?.readable ?? false).toBe(false);
+      const views = info.objects.filter((object) => /view/i.test(object.kind));
+      if (engine === "sqlite") {
+        expect(views.every((object) => !object.readable && object.unavailableReason === "unsupported-object-kind")).toBe(true);
+        expect(info.objects.find((object) => object.name === "generated")).toMatchObject({
+          readable: false,
+          unavailableReason: "generated-or-hidden-columns",
+        });
+      } else {
+        expect(info.objects.find((object) => object.name.endsWith("safe_view"))).toMatchObject({ readable: true });
+        expect(info.objects.find((object) => object.name.endsWith("unsafe"))).toMatchObject({ readable: true });
+      }
       const object = info.objects.find((o) => o.name.includes(engine === "sqlite" ? "quoted" : "typed"));
       const page = await host.page(1, { id: "typed", objectId: object.id }, async () => input.root);
       expect(page.rows[0][0]).toMatchObject({ text: "x".repeat(256), truncated: true });
       expect(page.rows[0][1]).toMatchObject({ text: "" }); expect(page.rows[0][2].kind).toBe("null");
       expect(page.rows[0][3]).toMatchObject({ kind: "blob", bytes: engine === "sqlite" ? 1048576 : 3 });
       expect(page.rows[0][4].text).toBe(engine === "sqlite" ? "1.2345678901234567" : "1234567890123456789.1234567890123456789");
-      if (engine === "duckdb") expect(page.rows[0][5].kind).toBe("complex");
+      if (engine === "duckdb") {
+        expect(page.rows[0][5].kind).toBe("complex");
+        const safeView = info.objects.find((entry) => entry.name.endsWith("safe_view"));
+        const viewPage = await host.page(1, { id: "typed", objectId: safeView.id }, async () => input.root);
+        expect(viewPage.rows).toEqual([[{ kind: "scalar", text: "1", truncated: false }]]);
+      }
       await expect(host.page(1, { id: "typed", objectId: "items; DROP TABLE items" }, async () => input.root)).rejects.toMatchObject({ code: "unsupported-object" });
       expect(host.sessionCount()).toBe(0);
+      if (engine === "duckdb") {
+        const unsafeInfo = await host.open(1, { id: "unsafe", rootPath: input.root, path: "sample.db" }, async () => input.root);
+        const unsafeView = unsafeInfo.objects.find((entry) => entry.name.endsWith("unsafe"));
+        await expect(host.page(1, { id: "unsafe", objectId: unsafeView.id }, async () => input.root)).rejects.toMatchObject({ code: "permission-denied" });
+        expect(host.sessionCount()).toBe(0);
+      }
     } finally { await host.closeAll(); await input.cleanup(); }
   }, 25000);
 

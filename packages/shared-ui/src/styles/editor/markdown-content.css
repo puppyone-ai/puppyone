@@ -6,6 +6,8 @@
  * intrinsic controls; they must not redefine this type scale or block rhythm.
  */
 .markdown-codemirror-editor {
+  --po-selection-background: var(--po-host-md-selection-bg, var(--po-text-selection-bg));
+  --po-selection-inactive-background: var(--po-host-md-selection-inactive-bg, var(--po-text-selection-inactive-bg));
   --po-md-presentation-version: 2;
   --po-md-surface-background: var(--po-host-md-surface-background, var(--po-editor-bg));
   /* Themes own only the primary face. PuppyOne recomposes locale, Emoji, and

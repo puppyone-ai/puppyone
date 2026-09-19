@@ -40,6 +40,12 @@ export function chooseAgentModel(
 ) {
   const models = listAgentModelsForProvider(inspection, providerId);
   if (current && models.some((model) => model.model === current)) return current;
+  // An unavailable app-managed route must not silently become a different endpoint or paid model.
+  if (inspection?.capabilities?.modelConnections && current) return current;
+  if (inspection?.capabilities?.modelConnections) {
+    const defaults = models.filter((model) => model.isDefault);
+    return defaults.length === 1 ? defaults[0].model : null;
+  }
   // The native backend owns catalog ordering. Keep the first advertised model
   // as the deterministic blank-composer default; an explicit user choice is
   // retained only while it remains valid for this backend/provider.

@@ -259,11 +259,6 @@
   line-height: 1.2;
 }
 
-.markdown-codemirror-editor .cm-selectionBackground,
-.markdown-codemirror-editor .cm-focused .cm-selectionBackground {
-  background: var(--po-selected);
-}
-
 .markdown-codemirror-editor .cm-placeholder {
   color: var(--po-text-disabled);
   font-style: italic;
