@@ -1,4 +1,7 @@
 import { installBrokenStdioGuards } from "./main/stdio-guard.mjs";
+import { createCompanionPresenceService } from "./main/local-agent-installation/setup/companion-presence-service.mjs";
+import { createLocalAgentSetupService } from "./main/local-agent-installation/setup/setup-service.mjs";
+import { registerLocalAgentSetupIpcHandlers } from "./main/ipc/local-agent-setup-ipc.mjs";
 import { createDatabasePreviewService, registerDatabasePreviewIpc } from "./main/database-preview/service.mjs";
 import { app, BrowserWindow, dialog, ipcMain, Menu, MessageChannelMain, nativeImage, nativeTheme, powerMonitor, protocol, safeStorage, session as electronSession, shell, utilityProcess, webContents, WebContentsView } from "electron";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -365,6 +368,12 @@ const localAgentInstallationService = createLocalAgentInstallationService({
       }
     }
   },
+});
+const localAgentSetupService = createLocalAgentSetupService({
+  installationService: localAgentInstallationService,
+  presenceService: createCompanionPresenceService({ port: desktopPlatformHost.companionApps }),
+  platform: desktopPlatformHost.executableDiscovery.nodePlatform,
+  openExternal: (url) => shell.openExternal(url),
 });
 const agentEventCache = createEphemeralAgentSessionCache({ app });
 const agentConversationCatalog = createAgentConversationCatalog({
@@ -919,6 +928,7 @@ app.on("will-quit", () => {
   nativeSurfacePointerPassthrough.dispose();
   void terminalAgentActivityHost.dispose();
   localAgentInstallationService.dispose();
+  localAgentSetupService.dispose();
   void modelConnections.dispose();
   localAgentInventory.dispose();
   if (gitAutoCommitHost.available) {
@@ -1110,6 +1120,7 @@ function registerIpcHandlers() {
     installationService: localAgentInstallationService,
   });
   registerModelConnectionsIpcHandlers({ ipcMain: trustedIpcMain, connections: modelConnections });
+  registerLocalAgentSetupIpcHandlers({ ipcMain: trustedIpcMain, setupService: localAgentSetupService });
   registerAgentActivityIpcHandlers({
     ipcMain: trustedIpcMain,
     activityHost: terminalAgentActivityHost,

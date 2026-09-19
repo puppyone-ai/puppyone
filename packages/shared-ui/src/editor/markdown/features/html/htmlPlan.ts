@@ -41,18 +41,25 @@ export function compileInlineHtmlElementPlan(
   }
 
   const contentRange = element.contentRange;
-  if (!contentRange || contentRange.from >= contentRange.to) {
+  const emptyAnchor = contentRange?.from === contentRange?.to
+    && policy.value.tagName === "a"
+    && Boolean(policy.value.attributes.id);
+  if (!contentRange || (contentRange.from >= contentRange.to && !emptyAnchor)) {
     return visibleSourcePlan(sourceRange, [
       ...policy.value.diagnostics,
       { code: "inline-html.empty-content", message: "inline HTML content range is empty" },
     ]);
   }
 
+  // A target-only anchor has no visible text. Keep its source as one atomic
+  // marker so deletion cannot leave half a tag pair or a caret between tags.
+  const markerRanges = emptyAnchor ? [sourceRange] : element.markerRanges;
+
   return {
     presentation: "inlineMark",
     sourceRange,
     contentRange: cloneRange(contentRange),
-    markerRanges: element.markerRanges.map(cloneRange),
+    markerRanges: markerRanges.map(cloneRange),
     mark: {
       kind: "inlineHtmlMark",
       tagName: policy.value.tagName,
@@ -63,7 +70,7 @@ export function compileInlineHtmlElementPlan(
     capabilities: {
       reveal: true,
       atomic: true,
-      deleteUnits: element.markerRanges.map(cloneRange),
+      deleteUnits: markerRanges.map(cloneRange),
     },
   };
 }

@@ -190,7 +190,7 @@ export function createLocalAgentInstallationService(options = {}) {
     }
   }
 
-  return Object.freeze({ discover, dispose, getDiagnostics, getSnapshot });
+  return Object.freeze({ discover, dispose, getDiagnostics, getSnapshot, isScanning: () => active !== null || queuedRefresh !== null });
 }
 
 function publicResult(definition, observation) {

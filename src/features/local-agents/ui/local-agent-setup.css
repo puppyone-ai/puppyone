@@ -1,0 +1,47 @@
+@layer features {
+  .local-agent-setup {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 10px;
+    margin-block-start: 12px;
+    color: var(--po-text-muted);
+    font-size: 12px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+  .local-agent-setup p { margin: 0; }
+  .local-agent-setup h3 { margin: 0; font-size: inherit; color: var(--po-text); }
+  .local-agent-setup-card, .local-agent-setup-detail, .local-agent-setup-preferences {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .local-agent-setup-card, .local-agent-setup-detail {
+    border-inline-start: 2px solid var(--po-border);
+    padding-inline-start: 10px;
+  }
+  .local-agent-setup-actions, .local-agent-setup-directory {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .local-agent-setup button {
+    align-self: flex-start;
+    min-width: 0;
+    max-width: 100%;
+    padding: 4px 8px;
+    border: 1px solid var(--po-border);
+    background: transparent;
+    color: var(--po-text);
+    font: inherit;
+    text-align: start;
+    white-space: normal;
+  }
+  .local-agent-setup button:disabled, .local-agent-setup button[aria-disabled="true"] { opacity: 0.5; }
+  .local-agent-setup button:focus-visible, .local-agent-setup h3:focus-visible {
+    outline: 2px solid var(--po-text);
+    outline-offset: 2px;
+  }
+  .local-agent-setup-toggle { display: flex; align-items: flex-start; gap: 8px; }
+}

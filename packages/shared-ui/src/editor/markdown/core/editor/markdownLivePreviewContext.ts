@@ -10,7 +10,7 @@ import {
   type CapabilityPurpose,
 } from "../../platform/security/capabilityPrincipal";
 import { getDocRevision } from "../../platform/brokers/transactionBroker";
-import { getMarkdownHeadingPosition } from "../links/markdownHeadingIndex";
+import { getMarkdownFragmentPosition } from "../links/markdownFragmentTargets";
 import {
   MarkdownLinkInteractionSession,
   resolveMarkdownHrefInteraction,
@@ -289,10 +289,10 @@ function openWikiLinkTarget(wikiTarget: string, view: EditorView): boolean {
     documentPath: sourcePath,
     linkGraph,
     linkCommands,
-    hasSameDocumentHeading: (fragment) => getMarkdownHeadingPosition(view.state, fragment) !== null,
+    hasSameDocumentTarget: (fragment) => getMarkdownFragmentPosition(view.state, fragment) !== null,
   });
   if (interaction.action !== "navigate") return false;
-  if (interaction.kind === "same-document") return revealMarkdownHeading(view, wikiTarget);
+  if (interaction.kind === "same-document") return revealMarkdownFragment(view, wikiTarget);
 
   if (!interaction.resolvedTarget || !linkCommands.openWikiLink) return false;
   linkCommands.openWikiLink(interaction.resolvedTarget, sourcePath);
@@ -307,10 +307,10 @@ export function openMarkdownHref(href: string, view: EditorView): boolean {
     documentPath,
     linkGraph,
     linkCommands,
-    hasSameDocumentHeading: (fragment) => getMarkdownHeadingPosition(view.state, fragment) !== null,
+    hasSameDocumentTarget: (fragment) => getMarkdownFragmentPosition(view.state, fragment) !== null,
   });
   if (interaction.action !== "navigate") return false;
-  if (interaction.kind === "same-document") return revealMarkdownHeading(view, href);
+  if (interaction.kind === "same-document") return revealMarkdownFragment(view, href);
 
   const host = getMarkdownEmbedHost(view);
   const result = host.links.resolve(
@@ -324,7 +324,7 @@ export function openMarkdownHref(href: string, view: EditorView): boolean {
     const resolvedTarget = linkGraph?.resolveMarkdownLink(documentPath, result.path) ?? null;
     if (!resolvedTarget?.exists || !linkCommands.openWikiLink) return false;
     if (resolvedTarget.path === documentPath && resolvedTarget.heading) {
-      return revealMarkdownHeading(view, `#${resolvedTarget.heading}`);
+      return revealMarkdownFragment(view, `#${resolvedTarget.heading}`);
     }
     linkCommands.openWikiLink(resolvedTarget, documentPath);
     return true;
@@ -337,8 +337,8 @@ export function openMarkdownHref(href: string, view: EditorView): boolean {
   return false;
 }
 
-function revealMarkdownHeading(view: EditorView, fragment: string): boolean {
-  const position = getMarkdownHeadingPosition(view.state, fragment);
+function revealMarkdownFragment(view: EditorView, fragment: string): boolean {
+  const position = getMarkdownFragmentPosition(view.state, fragment);
   if (position === null) return false;
   view.dispatch({ effects: EditorView.scrollIntoView(position, { y: "start" }) });
   return true;

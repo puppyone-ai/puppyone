@@ -17,7 +17,7 @@
   "launcher.agentStartFailed": "The Agent could not start. Check its local installation and try again.",
   "launcher.description": "Choose an installed Agent for this project. A terminal session starts only after you make a selection.",
   "launcher.detecting": "Looking for installed Agents…",
-  "launcher.noneInstalled": "No installed Agents found",
+  "launcher.noneInstalled": "No Agent CLIs found",
   "launcher.detectionFailed": "Unable to detect installed Agents",
   "launcher.refreshing": "Refreshing installed Agents…",
   "launcher.detectionIncomplete": "Could not check all Agents. Scan again.",

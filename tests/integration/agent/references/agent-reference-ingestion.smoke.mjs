@@ -199,6 +199,10 @@ async function runProductionLayoutSmoke() {
         const promptContent = document.querySelector('.desktop-agent-prompt-editor .cm-content');
         const modelTrigger = document.querySelector('.desktop-agent-composer-picker.is-model .desktop-agent-picker-trigger');
         const effortTrigger = document.querySelector('.desktop-agent-composer-picker.is-effort .desktop-agent-picker-trigger');
+        const imageCard = document.querySelector('.desktop-agent-visual-attachment');
+        const imageActions = Array.from(imageCard?.querySelectorAll('button') || []);
+        const cardRect = imageCard?.getBoundingClientRect();
+        const removeRect = imageActions[0]?.getBoundingClientRect();
         const promptStyle = promptContent ? getComputedStyle(promptContent) : null;
         const modelStyle = modelTrigger ? getComputedStyle(modelTrigger) : null;
         const effortStyle = effortTrigger ? getComputedStyle(effortTrigger) : null;
@@ -213,6 +217,11 @@ async function runProductionLayoutSmoke() {
           visualAttachments: document.querySelectorAll('.desktop-agent-visual-attachments > .desktop-agent-visual-attachment').length,
           inlineMentions: document.querySelectorAll('.desktop-agent-prompt-mention').length,
           imagePreviews: document.querySelectorAll('.desktop-agent-visual-attachment img').length,
+          imageActionCount: imageActions.length,
+          imageRemoveLabel: imageActions[0]?.getAttribute('aria-label') || '',
+          compactCornerRemove: Boolean(cardRect && removeRect && removeRect.width <= 24
+            && removeRect.height <= 24 && Math.abs(removeRect.right - cardRect.right) <= 8
+            && Math.abs(removeRect.top - cardRect.top) <= 8),
           transcriptMediaChips: document.querySelectorAll('.desktop-agent-message-references > span').length,
           addLabel: trigger?.getAttribute('aria-label') || '',
           inlineError: error?.getAttribute('title') || '',
@@ -235,6 +244,7 @@ async function runProductionLayoutSmoke() {
         || snapshot.overflow || snapshot.visualAttachments !== 1
         || snapshot.inlineMentions !== 2
         || snapshot.imagePreviews !== 1 || snapshot.transcriptMediaChips !== 1
+        || snapshot.imageActionCount !== 1 || !snapshot.imageRemoveLabel || !snapshot.compactCornerRemove
         || !snapshot.addLabel || !snapshot.inlineError || !pickerPaddingIsBalanced
         || !composerTextIsAligned) {
         throw new Error(`Production Agent reference layout smoke failed: ${JSON.stringify(snapshot)}`);
@@ -341,6 +351,15 @@ async function runProductionLayoutSmoke() {
     const image = await window.capturePage();
     if (image.isEmpty()) throw new Error(`Production Agent reference ${theme} capture was empty.`);
     await window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))`, true);
+    const artifactDirectory = process.env.PUPPYONE_AGENT_RENDER_ARTIFACT_DIR;
+    if (artifactDirectory) {
+      const rect = await window.webContents.executeJavaScript(`(() => {
+        const rect = document.querySelector('.desktop-agent-composer').getBoundingClientRect();
+        return { x: Math.floor(rect.x), y: Math.floor(rect.y), width: Math.ceil(rect.width), height: Math.ceil(rect.height) };
+      })()`, true);
+      await fsp.mkdir(path.resolve(artifactDirectory), { recursive: true });
+      await fsp.writeFile(path.join(path.resolve(artifactDirectory), `reference-composer-${theme}.png`), (await window.capturePage(rect)).toPNG());
+    }
   }
   window.destroy();
   return { productionLayoutMatrix: matrix, pickerThemes };

@@ -10,12 +10,64 @@ import {
 } from "../../../../packages/shared-ui/src/file/fileIcons";
 import {
   getSemanticKindForFormat,
+  getPreferredMimeType,
   resolveFileFormat,
   type FileFormat,
 } from "../../../../packages/shared-ui/src/core/fileFormats";
 import { FILE_ICON_THEME_REGISTRY } from "../../../../packages/shared-ui/src/file/icon-themes/registry";
 
 describe("file icon semantics", () => {
+  it.each(["data.db", "data.db3", "data.sqlite", "data.sqlite3", "data.duckdb", "data.ddb", "DATA.DB"])(
+    "classifies %s as a database without changing binary admission",
+    (name) => {
+      expect(getFileVisualKind(name, "file")).toBe("database");
+      expect(getFileVisualKind(name, "binary")).toBe("database");
+      expect(resolveFileFormat({ name })).toMatchObject({
+        id: "database-candidate",
+        semanticKind: "database",
+        category: "binary",
+        defaultViewer: "database-preview",
+        editable: false,
+        ingestStrategy: "raw",
+      });
+    },
+  );
+
+  it.each(["application/vnd.sqlite3", "application/x-sqlite3", "application/vnd.duckdb"])(
+    "resolves %s to the same database semantic identity",
+    (mimeType) => {
+      expect(getSemanticKindForFormat(resolveFileFormat({ mimeType }))).toBe("database");
+    },
+  );
+
+  it("does not mistake arbitrary binary files for databases or DB candidates for SQLite", () => {
+    expect(getPreferredMimeType("data.db")).toBe("application/octet-stream");
+    expect(getPreferredMimeType("data.db3")).toBe("application/octet-stream");
+    expect(getFileVisualKind("firmware.bin")).toBe("file");
+    expect(getFileVisualKind("firmware.bin", "binary")).toBe("binary");
+    expect(getFileVisualKind("unknown.unregistered")).toBe("file");
+    expect(getSemanticKindForFormat(resolveFileFormat({ mimeType: "application/octet-stream" }))).not.toBe("database");
+  });
+
+  it.each(FILE_ICON_THEMES)(
+    "renders standalone database cylinders for glyphs and previews in the $id theme",
+    ({ id }) => {
+      for (const name of ["data.db", "data.db3", "data.sqlite", "data.sqlite3", "data.duckdb", "data.ddb"]) {
+        for (const markup of [
+          renderToStaticMarkup(<FileGlyphIcon name={name} type="binary" size={18} theme={id} />),
+          renderToStaticMarkup(<FilePreviewIcon name={name} type="file" size={56} theme={id} />),
+        ]) {
+          expect(markup).toContain('data-file-icon-shape="database-cylinder"');
+          expect(markup).toContain("<ellipse");
+          expect(markup.match(/<svg\b/g)).toHaveLength(1);
+          expect(markup).not.toContain('viewBox="0 0 44 54"');
+          expect(markup).not.toContain("drop-shadow");
+          expect(markup).toContain("var(--po-file-accent-default)");
+        }
+      }
+    },
+  );
+
   it.each(["table.csv", "table.tsv", "table.ods"])("classifies %s as a generic spreadsheet", (name) => {
     expect(getFileVisualKind(name)).toBe("spreadsheet");
   });

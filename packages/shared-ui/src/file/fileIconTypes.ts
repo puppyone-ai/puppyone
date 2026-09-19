@@ -32,6 +32,7 @@ const KIND_ACCENT = {
   word: "var(--po-file-accent-word)",
   excel: "var(--po-file-accent-sheet)",
   spreadsheet: "var(--po-file-accent-sheet)",
+  database: "var(--po-file-accent-default)",
   presentation: "var(--po-file-accent-presentation)",
   archive: "var(--po-file-accent-pdf)",
   document: "var(--po-file-accent-default)",

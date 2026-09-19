@@ -1,3 +1,4 @@
+import { normalizeSetupPreferences } from "./features/local-agents/model/localAgentSetupPreferences";
 import {
   DEFAULT_TYPOGRAPHY_PREFERENCES,
   parseTypographyPreferences,
@@ -77,6 +78,7 @@ export type TitlebarActionsSettings = {
 export type LocalAgentsSettings = {
   hiddenTerminalAgentIds: string[];
   chatHistoryDiscoveryEnabled: boolean;
+  setupSuggestions?: import("../shared/local-agent-installation/setup-types").LocalAgentSetupPreferences;
 };
 export type ExperimentalSettings = {
   enableAssetLibraryHome: boolean;
@@ -366,6 +368,7 @@ export function parseLocalAgentsSettings(
       hiddenTerminalAgentIds?: unknown;
       enabledAgentIds?: unknown;
       chatHistoryDiscoveryEnabled?: unknown;
+      setupSuggestions?: unknown;
     } | null;
     // The legacy enabledAgentIds field controlled Editor provider visibility.
     // It must not silently hide Terminal launchers after the preference changes meaning.
@@ -380,6 +383,7 @@ export function parseLocalAgentsSettings(
     return {
       hiddenTerminalAgentIds,
       chatHistoryDiscoveryEnabled: parsed.chatHistoryDiscoveryEnabled === true,
+      ...(parsed.setupSuggestions ? { setupSuggestions: normalizeSetupPreferences(parsed.setupSuggestions) } : {}),
     };
   } catch {
     return DEFAULT_LOCAL_AGENTS_SETTINGS;

@@ -258,14 +258,14 @@ describe("Unified Workbench launcher", () => {
       chatRecipes: [BUILT_IN_AGENT_CREATION_RECIPE], onCreateChat: vi.fn(), onLaunch: vi.fn(), onRefresh: vi.fn() };
     const container = renderLauncher(<TerminalLauncher {...props} discoveryPhase="ready" discoveryHasFailures />);
     expect(container.querySelector(".desktop-terminal-launcher-discovery")?.textContent).toContain("Could not check all Agents");
-    expect(container.textContent).not.toContain("No installed Agents found");
+    expect(container.textContent).not.toContain("No Agent CLIs found");
     expect(findButton(container, "Built-in Agent")?.disabled).toBe(false);
     act(() => container.querySelector<HTMLButtonElement>(".desktop-terminal-launcher-scan")?.click());
     expect(props.onRefresh).toHaveBeenCalledOnce();
     act(() => root?.render(withTestLocalization(<TerminalLauncher {...props} discoveryPhase="ready" discoveryHasInstallations />)));
     expect(container.querySelector(".desktop-terminal-launcher-discovery")).toBeNull();
     act(() => root?.render(withTestLocalization(<TerminalLauncher {...props} discoveryPhase="ready" />)));
-    expect(container.querySelector(".desktop-terminal-launcher-discovery")?.textContent).toBe("No installed Agents found");
+    expect(container.querySelector(".desktop-terminal-launcher-discovery")?.textContent).toBe("No Agent CLIs found");
     act(() => root?.render(withTestLocalization(<TerminalLauncher {...props} discoveryPhase="error" />)));
     expect(container.querySelector(".desktop-terminal-launcher-discovery")?.textContent).toContain("Scan again");
   });

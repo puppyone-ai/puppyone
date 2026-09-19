@@ -13,6 +13,7 @@ const repo = path.resolve(import.meta.dirname, "../../../..");
 const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "puppyone-model-settings-"));
 const workspace = path.join(temporary, "workspace"); await fs.mkdir(workspace);
 const output = path.join(repo, "artifacts/tests/model-connections/settings"); await fs.mkdir(output, { recursive: true });
+const computeSmoke = process.argv.includes("--compute");
 app.setAppPath(repo);
 app.setPath("appData", path.join(temporary, "app-data"));
 app.setPath("userData", path.join(app.getPath("appData"), getDesktopBuildChannelPolicy("dev").userDataName));
@@ -22,9 +23,27 @@ const registry = createWorkspaceStateStore({ app, filename: "desktop-workspace-s
 await registry.rememberWorkspaceComposition([await workspaceFromPath(workspace)]);
 process.argv.push(workspace);
 let metadataReads = 0;
+let inferenceRequests = 0;
 const server = http.createServer((request, response) => {
-  assert.equal(request.url, "/v1/models"); assert.equal(request.headers.authorization, "Bearer synthetic-settings-key"); metadataReads++;
-  response.setHeader("content-type", "application/json"); response.end(JSON.stringify({ data: [{ id: "ui-test-model" }] }));
+  assert.equal(request.headers.authorization, "Bearer synthetic-settings-key");
+  if (request.url === "/v1/models") {
+    metadataReads++;
+    response.setHeader("content-type", "application/json"); response.end(JSON.stringify({ data: [{ id: "ui-test-model" }] })); return;
+  }
+  assert.equal(computeSmoke, true); assert.equal(request.url, "/v1/chat/completions");
+  let raw = "";
+  request.on("data", (chunk) => { raw += chunk; });
+  request.on("end", () => {
+    inferenceRequests++;
+    const body = JSON.parse(raw);
+    const isVerification = body.tools?.some((tool) => tool.function?.name === "puppyone_connection_check");
+    const toolCall = isVerification && !body.messages.some((message) => message.role === "tool");
+    const delta = toolCall ? { tool_calls: [{ index: 0, id: "compute_check", type: "function", function: { name: "puppyone_connection_check", arguments: '{"token":"puppyone-model-check"}' } }] } : { content: "Compute source smoke complete." };
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    response.write(`data: ${JSON.stringify({ id: "compute", object: "chat.completion.chunk", choices: [{ index: 0, delta, finish_reason: null }] })}\n\n`);
+    response.write(`data: ${JSON.stringify({ id: "compute", object: "chat.completion.chunk", choices: [{ index: 0, delta: {}, finish_reason: toolCall ? "tool_calls" : "stop" }] })}\n\n`);
+    response.end("data: [DONE]\n\n");
+  });
 });
 await new Promise((resolve, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", resolve); });
 let window;
@@ -35,12 +54,65 @@ async function until(read, label) {
   throw new Error(`Settings smoke: ${label}`);
 }
 async function clickText(label) {
-  await evaluate(`(() => { const b=[...document.querySelectorAll('button')].find(e=>e.textContent.trim()===${JSON.stringify(label)}); if(!b)throw Error('Button missing'); b.click(); })()`);
+  await evaluate(`(() => { const b=[...document.querySelectorAll('button')].find(e=>e.textContent.trim()===${JSON.stringify(label)} || e.getAttribute('aria-label')===${JSON.stringify(label)}); if(!b)throw Error('Button missing: '+${JSON.stringify(label)}); b.click(); })()`);
 }
 async function fill(selector, value) {
   await evaluate(`(() => { const input=document.querySelector(${JSON.stringify(selector)}); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(value)}); input.dispatchEvent(new Event('input',{bubbles:true})); })()`);
 }
 const deadline = setTimeout(() => { console.error("Settings smoke timed out."); app.exit(1); }, 90_000);
+async function capture(name) {
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  await fs.writeFile(path.join(output, name), (await window.webContents.capturePage()).toPNG());
+}
+async function checkComputeChoice() {
+  await clickText("Verify Agent support");
+  await until(() => evaluate("document.querySelector('.model-connection-card')?.textContent.includes('Tool round-trip verified')"), "verified model");
+  await clickText("Experimental");
+  await evaluate("document.querySelector('input[aria-label=\"Built-in Agent\"]').click()");
+  await clickText("Close");
+  await evaluate("document.querySelector('.desktop-titlebar-terminal, .desktop-shell-toolbar-terminal').click()");
+  await until(() => evaluate("Boolean(document.querySelector('.desktop-terminal-launcher-tool[title=\"Built-in Agent\"]'))"), "built-in Harness choice");
+  await clickText("Built-in Agent");
+  await until(() => evaluate("document.querySelectorAll('.desktop-agent-compute-sources button').length===3"), "three compute choices");
+  assert.equal(await evaluate("Boolean(document.querySelector('.desktop-agent-composer button[aria-label=\"Agent model\"]'))"), false, "Built-in must not show a second unscoped model picker");
+  await capture("built-in-compute-choice.png");
+  await clickText("Bring your API");
+  await until(() => evaluate("document.querySelector('.desktop-agent-compute button[aria-label=\"Agent model\"]')?.disabled===false"), "API model picker");
+  await clickText("Agent model"); await clickText("ui-test-model");
+  await until(() => evaluate("document.querySelector('.desktop-agent-boundary')?.getAttribute('data-phase')==='ready'"), "ready native session");
+  await evaluate("document.querySelector('.desktop-agent-prompt-editor .cm-content').focus()");
+  await window.webContents.insertText("Reply with a short confirmation.");
+  await until(() => evaluate("document.querySelector('button[aria-label=\"Send message\"]')?.disabled===false"), "routed send enabled");
+  await clickText("Send message");
+  await until(() => evaluate("document.querySelector('.desktop-agent-conversation-region')?.textContent.includes('Compute source smoke complete.')"), "actual model response");
+  await until(() => evaluate("document.querySelector('.desktop-agent-compute-sources button')?.disabled===false"), "turn finished");
+  await capture("built-in-compute-api.png");
+  assert.equal(inferenceRequests, 3);
+  await clickText("Official cloud");
+  await evaluate("document.querySelector('.desktop-agent-prompt-editor .cm-content').focus()"); await window.webContents.insertText("Do not send this to the old source.");
+  assert.equal(await evaluate("document.querySelector('button[aria-label=\"Send message\"]')?.disabled"), true);
+  assert.equal(await evaluate("document.querySelector('.desktop-agent-compute')?.textContent.includes('Not available in this build.')"), true);
+  await clickText("Return to the current connection");
+  await clickText("Local models");
+  assert.equal(await evaluate("document.querySelector('.desktop-agent-compute')?.textContent.includes('Find local services')"), true);
+  assert.equal(await evaluate("document.querySelector('button[aria-label=\"Send message\"]')?.disabled"), true);
+  assert.equal(await evaluate("document.querySelector('.desktop-agent-compute')?.textContent.includes('Native UI test')"), false, "Local source must not contain the API connection");
+  await capture("built-in-compute-local.png");
+  window.setSize(1000, 720);
+  await capture("built-in-compute-local-compact.png");
+  assert.equal(await evaluate(`(() => {
+    const section = document.querySelector('.desktop-agent-compute');
+    const buttons = [...section.querySelectorAll('.desktop-agent-compute-sources button')];
+    const send = document.querySelector('button[aria-label="Send message"]').getBoundingClientRect();
+    return buttons.every(button => { const rect = button.getBoundingClientRect(); return rect.top >= 0 && rect.right <= innerWidth; })
+      && section.scrollWidth <= section.clientWidth && send.bottom <= innerHeight;
+  })()`), true, "Compute choices and composer stay accessible in a compact window");
+  assert.equal(inferenceRequests, 3, "Browsing sources must not infer or silently fall back");
+  await evaluate("window.dispatchEvent(new KeyboardEvent('keydown',{key:',',metaKey:true,bubbles:true}))");
+  await until(() => evaluate("Boolean(document.querySelector('.desktop-settings-dialog'))"), "settings reopen");
+  await clickText("Model connections");
+}
 await import("../../../../electron/main.mjs");
 app.whenReady().then(async () => {
   let failed = false;
@@ -67,13 +139,16 @@ app.whenReady().then(async () => {
     assert.equal(metadataReads, 1, "Saving reads metadata only");
     const publicSnapshot = await evaluate("window.puppyoneDesktop.modelConnections.read()");
     assert.equal(publicSnapshot.ok, true); assert.equal(JSON.stringify(publicSnapshot).includes("synthetic-settings-key"), false);
+    assert.equal(publicSnapshot.value.connections[0].sourceKind, "api", "Explicit API category is independent of loopback transport");
     assert.equal(await evaluate("Boolean(document.querySelector('input[type=password]'))"), false);
     await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     await new Promise((resolve) => setTimeout(resolve, 500));
     await fs.writeFile(path.join(output, "model-connections.png"), (await window.webContents.capturePage()).toPNG());
+    if (computeSmoke) await checkComputeChoice();
     await clickText("Remove"); await clickText("Remove and stop chats");
     await until(async () => (await evaluate("window.puppyoneDesktop.modelConnections.read()")).value.connections.length === 0, "delete persisted");
-    console.log(JSON.stringify({ ok: true, actualAppRenderer: true, loggedOutSettings: true, secureWriteOnlySave: true, catalogVisible: true, confirmedRemoval: true }));
+    console.log(JSON.stringify({ ok: true, actualAppRenderer: true, loggedOutSettings: true, secureWriteOnlySave: true, catalogVisible: true, confirmedRemoval: true,
+      ...(computeSmoke ? { threeComputeSources: true, sourceScopedModels: true, actualAgentTurn: true, noImplicitSourceFallback: true, inferenceRequests } : {}) }));
   } catch (error) {
     failed = true; console.error(error);
     if (window) await fs.writeFile(path.join(output, "failure.png"), (await window.webContents.capturePage()).toPNG());

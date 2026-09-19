@@ -1,4 +1,6 @@
 export type ModelConnectionDriver = "ollama" | "lm-studio" | "unsloth" | "openai-compatible";
+/** User-facing connection category, not proof of where inference executes. */
+export type ModelConnectionSourceKind = "local" | "api";
 export type ModelCapability = "supported" | "unsupported" | "unknown";
 export type ConnectionModel = {
   id: string;
@@ -13,6 +15,7 @@ export type ConnectionModel = {
 };
 export type ModelConnection = {
   id: string;
+  sourceKind: ModelConnectionSourceKind;
   driver: ModelConnectionDriver;
   name: string;
   baseUrl: string;
@@ -47,6 +50,7 @@ export type ModelConnectionSnapshot = {
 export type ModelConnectionCandidate = { driver: ModelConnectionDriver; baseUrl: string; name: string };
 export type SaveModelConnectionRequest = {
   id?: string;
+  sourceKind?: ModelConnectionSourceKind;
   expectedGeneration?: number;
   driver: ModelConnectionDriver;
   name: string;

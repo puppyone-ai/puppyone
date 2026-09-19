@@ -6,6 +6,7 @@ import type {
   Workspace,
 } from "@puppyone/shared-ui";
 import type { AppLanguagePreference, LocaleState } from "@puppyone/localization/core";
+import type { LocalAgentSetupRequest, LocalAgentSetupSnapshot, LocalAgentSetupAction, LocalAgentSetupActionResult } from "../../shared/local-agent-installation/setup-types";
 import type { ModelConnectionSnapshot, ModelConnectionCandidate, ModelConnectionResult, SaveModelConnectionRequest } from "../../shared/model-connections/types";
 import type { DesktopTerminalLauncherId } from "../features/desktop-terminal/model/terminalLaunchers";
 import type {
@@ -1514,6 +1515,11 @@ declare global {
         refresh?: boolean;
         requestId: string;
       }) => Promise<LocalAgentInstallationSnapshot>;
+      localAgentSetup?: {
+        inspect: (request: LocalAgentSetupRequest) => Promise<LocalAgentSetupSnapshot>;
+        act: (request: LocalAgentSetupAction) => Promise<LocalAgentSetupActionResult>;
+        release: (clientId: string) => Promise<void>;
+      };
       modelConnections?: {
         read: () => Promise<ModelConnectionResult<ModelConnectionSnapshot>>;
         discover: () => Promise<ModelConnectionResult<ModelConnectionCandidate[]>>;

@@ -5,6 +5,7 @@ import type {
 } from "../iconThemeTypes";
 import {
   AppGlyph,
+  DatabaseGlyph,
   ExcelSpreadsheetGlyph,
   PresentationDocumentGlyph,
   SpreadsheetGridGlyph,
@@ -28,6 +29,7 @@ export const defaultGlyphRenderers = {
   word: renderDefaultWordGlyph,
   excel: renderDefaultExcelGlyph,
   spreadsheet: renderDefaultSpreadsheetGlyph,
+  database: DatabaseGlyph,
   presentation: renderDefaultPresentationGlyph,
   archive: renderDefaultDocumentGlyph,
   document: renderDefaultDocumentGlyph,

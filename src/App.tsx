@@ -1414,7 +1414,9 @@ function AppContent() {
                     const folder = workbenchWorkspace?.folders.find((entry) => entry.workspace.path === projectWorkbench.context.rootPath);
                     if (folder) void handleRemoveProject(folder);
                   }}
-                  renderLauncher={(context) => <AuxiliaryWorkbenchLauncher {...context} store={projectWorkbench} contributions={auxiliaryWorkbenchContributions} hiddenAgentIds={localAgentsSettings.hiddenTerminalAgentIds} />}
+                  renderLauncher={(context) => <AuxiliaryWorkbenchLauncher {...context} store={projectWorkbench} contributions={auxiliaryWorkbenchContributions} hiddenAgentIds={localAgentsSettings.hiddenTerminalAgentIds}
+                    setupPreferences={localAgentsSettings.setupSuggestions}
+                    onSetupPreferencesChange={(setupSuggestions) => setLocalAgentsSettings({ ...localAgentsSettings, setupSuggestions })} />}
                 />}
               </div>
               <div

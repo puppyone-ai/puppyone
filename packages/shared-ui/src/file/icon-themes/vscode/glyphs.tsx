@@ -8,6 +8,7 @@ import type {
   FileIconRendererMap,
 } from "../iconThemeTypes";
 import {
+  DatabaseGlyph,
   DocumentLinesSymbol,
   ExcelSpreadsheetGlyph,
   PresentationDocumentGlyph,
@@ -28,6 +29,9 @@ export function renderVsCodeGlyph(
   }
   if (context.kind === "context-map") {
     return <TreasureMapGlyph {...context} color={color} />;
+  }
+  if (context.kind === "database") {
+    return <DatabaseGlyph {...context} color={color} />;
   }
   if (context.kind === "spreadsheet") {
     return (
@@ -98,6 +102,7 @@ export const vscodeGlyphRenderers = {
   word: renderVsCodeGlyph,
   excel: renderVsCodeGlyph,
   spreadsheet: renderVsCodeGlyph,
+  database: renderVsCodeGlyph,
   presentation: renderVsCodeGlyph,
   archive: renderVsCodeGlyph,
   document: renderVsCodeGlyph,
@@ -142,7 +147,7 @@ function VsCodeSymbol({
 
 type VsCodeFileKind = Exclude<
   FileVisualKind,
-  "folder" | "spreadsheet" | "word" | "excel" | "presentation"
+  "folder" | "spreadsheet" | "database" | "word" | "excel" | "presentation"
 >;
 
 type SymbolContext = {
