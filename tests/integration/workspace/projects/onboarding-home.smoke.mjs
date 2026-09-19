@@ -77,6 +77,9 @@ async function runSmoke() {
             const brand = document.querySelector('.onboarding-brand-lockup');
             const launcher = document.querySelector('.onboarding-launcher');
             const actions = document.querySelector('.onboarding-entry-actions');
+            const projectPanel = document.querySelector('.onboarding-recent-projects');
+            const projectRow = document.querySelector('.onboarding-project-row');
+            const projectPanelStyle = projectPanel && getComputedStyle(projectPanel);
             const buttons = [...document.querySelectorAll('.onboarding-entry-actions button')];
             const images = [...document.querySelectorAll('.onboarding-brand-lockup img, .onboarding-entry-import img')];
             return {
@@ -91,7 +94,19 @@ async function runSmoke() {
               brandFont: getComputedStyle(brand.querySelector('.onboarding-brand-name, .onboarding-brand-prompt')).fontSize,
               brandMarkWidth: rect(brand.querySelector('img')).width,
               actionIconWidth: rect(create.querySelector('svg')).width,
+              actionIcon: rect(create.querySelector('.po-button__icon')),
               importButton: rect(importButton), divider: rect(divider), open: rect(open),
+              projectPanel: rect(projectPanel),
+              projectRow: rect(projectRow),
+              projectIcon: rect(projectRow?.querySelector('.desktop-menu-item-icon')),
+              projectPanelFrame: projectPanelStyle && {
+                borderTop: projectPanelStyle.borderTopWidth,
+                borderRight: projectPanelStyle.borderRightWidth,
+                borderBottom: projectPanelStyle.borderBottomWidth,
+                borderLeft: projectPanelStyle.borderLeftWidth,
+                paddingRight: projectPanelStyle.paddingRight,
+                paddingLeft: projectPanelStyle.paddingLeft,
+              },
               importFont: parseFloat(getComputedStyle(importLabel).fontSize),
               importWeight: getComputedStyle(importLabel).fontWeight,
               importLineHeight: getComputedStyle(importLabel).lineHeight,
@@ -155,7 +170,7 @@ async function runSmoke() {
           assert.equal(snapshot.brand.width, width >= 563 ? 440 : 324, `${context}: shared responsive column width`);
           assert.equal(snapshot.brand.x, snapshot.actions.x, `${context}: brand and actions share a left edge`);
           assert.equal(snapshot.brand.width, snapshot.actions.width, `${context}: shared content-column width`);
-          assert.equal(snapshot.create.x, snapshot.actions.x + 18, `${context}: actions use the same left inset`);
+          assert.equal(snapshot.create.x, snapshot.actions.x, `${context}: no extra action-area left padding`);
           assert.equal(snapshot.open.x, snapshot.create.x, `${context}: open aligns with create`);
           assert.equal(snapshot.importButton.x, snapshot.create.x, `${context}: import aligns with create`);
           assert.ok(Math.abs(snapshot.brand.x + snapshot.brand.width / 2 - width / 2) < 1, `${context}: shared column is centered`);
@@ -165,11 +180,20 @@ async function runSmoke() {
             assert.notEqual(snapshot.dividerBackground, 'rgba(0, 0, 0, 0)', `${context}: visible divider`);
             assert.ok(snapshot.divider.y - snapshot.open.y - snapshot.open.height >= 12, `${context}: separation from direct-start actions`);
             assert.ok(snapshot.importButton.y - snapshot.divider.y - snapshot.divider.height >= 8, `${context}: space below divider`);
+            assert.equal(snapshot.divider.x, snapshot.brand.x, `${context}: divider shares the content left edge`);
             assert.equal(snapshot.launcher.x, snapshot.brand.x, `${context}: launcher uses the shared left edge`);
             assert.equal(snapshot.launcher.width, snapshot.brand.width, `${context}: launcher uses the shared width`);
             assert.ok(Math.abs(snapshot.launcher.y + snapshot.launcher.height / 2 - height / 2) < 1, `${context}: vertical centering`);
           } else {
             assert.equal(snapshot.divider, null, `${context}: project list layout stays unchanged`);
+            assert.equal(snapshot.projectPanel.x, snapshot.brand.x, `${context}: project frame shares the content left edge`);
+            assert.equal(snapshot.projectPanel.width, snapshot.brand.width, `${context}: project frame uses the shared width`);
+            assert.equal(snapshot.projectRow.x, snapshot.brand.x, `${context}: project row has no container-side inset`);
+            assert.equal(snapshot.projectIcon.x, snapshot.actionIcon.x, `${context}: project and action icons align`);
+            assert.deepEqual(snapshot.projectPanelFrame, {
+              borderTop: '1px', borderRight: '0px', borderBottom: '1px', borderLeft: '0px',
+              paddingRight: '0px', paddingLeft: '0px',
+            }, `${context}: horizontal-rule project frame without side padding`);
           }
           assert.ok(snapshot.importButton.height >= 28, `${context}: text entry retains a usable hit target`);
           assert.equal(snapshot.actionCount, 3, `${context}: no extra logo buttons`);
@@ -218,6 +242,7 @@ async function runSmoke() {
           window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Enter" });
           await until("!!document.querySelector('.is-import-sources')");
           await evaluate("Promise.all(document.querySelector('.is-import-sources').getAnimations().map(animation => animation.finished))");
+          await until("document.activeElement?.dataset.importSource === 'git'");
           assert.equal(await evaluate("document.querySelectorAll('.onboarding-import-source').length"), 6, `${context}: all sources in dialog`);
           await until("[...document.querySelectorAll('.onboarding-import-source img')].length === 6 && [...document.querySelectorAll('.onboarding-import-source img')].every(image => image.complete && image.naturalWidth > 0)");
           const picker = await evaluate(`(() => {

@@ -215,7 +215,7 @@
   justify-self: center;
   justify-items: start;
   gap: 8px;
-  padding: 0 18px 18px;
+  padding: 0 0 18px;
 }
 
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-entry-actions {
@@ -227,7 +227,7 @@
   justify-self: center;
   justify-items: start;
   gap: 8px;
-  padding: 0 18px 18px;
+  padding: 0 0 18px;
   border: 0;
 }
 
@@ -277,7 +277,7 @@
   min-height: var(--po-menu-item-height);
   justify-content: flex-start;
   gap: var(--po-menu-item-gap);
-  padding: 0 var(--po-menu-item-padding-inline);
+  padding: 0 calc(var(--po-menu-item-padding-inline) - 1px);
   border: 1px solid transparent;
   border-radius: var(--desktop-control-radius);
   background: transparent;
@@ -467,8 +467,9 @@
   grid-template-rows: minmax(0, 1fr);
   justify-self: center;
   gap: 8px;
-  padding: 18px;
-  border: 1px solid var(--po-border);
+  padding: 18px 0;
+  border-block: 1px solid var(--po-border);
+  border-inline: 0;
   border-radius: 0;
   transition: border-color 120ms ease;
 }
