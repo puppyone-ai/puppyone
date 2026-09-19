@@ -469,13 +469,16 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   archiveAgentSession: (request) => ipcRenderer.invoke("agent:session-archive", request),
   deleteAgentSession: (request) => ipcRenderer.invoke("agent:session-delete", request),
   closeAgentSession: (request) => ipcRenderer.invoke("agent:session-close", request),
+  /** @param {import('../shared/agent-contract/types').AgentReferenceStageBridgeRequest} request */
   stageAgentAttachments: async (request) => {
     const files = Array.isArray(request?.files) ? request.files : [];
     if (files.length === 0 || files.length > 32) throw new Error("Select between 1 and 32 attachment files.");
     // Capture native paths before any asynchronous byte reads. getPathForFile
     // validates File identity; a genuine clipboard/browser File may have no path.
     const sourcePaths = files.map((file) => webUtils.getPathForFile(file));
-    const context = { rootPath: request?.rootPath, epoch: request?.epoch };
+    // Source conversion must preserve the project client’s captured generation.
+    // Main validates it against the sender; never infer a currently active project.
+    const context = { rootPath: request?.rootPath, epoch: request?.epoch, projectContext: request?.projectContext };
     if (sourcePaths.every((sourcePath) => typeof sourcePath === "string" && sourcePath.trim())) {
       return ipcRenderer.invoke("agent:reference-stage", { ...context, sourcePaths });
     }

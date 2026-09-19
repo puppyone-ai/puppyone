@@ -87,6 +87,7 @@
     "smoke:auxiliary-appearance": "electron tests/integration/workbench/layout/auxiliary-appearance.smoke.mjs",
     "smoke:agent-discovery-feedback": "electron tests/integration/terminal/startup/agent-discovery-feedback.smoke.mjs",
     "smoke:agent-references": "electron tests/integration/agent/references/agent-reference-ingestion.smoke.mjs",
+    "smoke:agent-attachment-ui": "electron tests/e2e/agent/references/project-attachment-ingestion.smoke.mjs",
     "smoke:agent-render-stability": "npm run build && node tests/support/runners/run-agent-render-stability-smoke.mjs",
     "smoke:agent-tool-stability": "npm run build && node tests/support/runners/run-agent-tool-stability-smoke.mjs",
     "smoke:viewer-pack": "electron tests/integration/extensions/viewer-packs/viewer-pack.smoke.mjs",

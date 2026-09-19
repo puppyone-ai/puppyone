@@ -1,5 +1,6 @@
 import type {
   AgentDraftReference,
+  AgentReferenceError,
   AgentReferenceInputCapabilities,
 } from "../domain/agent-contract";
 import {
@@ -8,7 +9,7 @@ import {
 } from "../domain/agent-reference-capabilities";
 import type { AgentClientPort, AgentClientProvider } from "./AgentClientPort";
 import type { AgentControllerState } from "./agent-controller-state";
-import { AgentKnownError, formatAgentError } from "./agent-error";
+import { AgentKnownError, AgentOperationError, formatAgentError } from "./agent-error";
 import { mergeAgentReferences } from "./agent-controller-values";
 import { parseWorkspaceResourceReference } from "../../../../shared/workspace-resource-reference.mjs";
 import {
@@ -327,7 +328,7 @@ function attachmentReferenceError(file: File, error: unknown): AgentDraftReferen
     mime: file.type || "application/octet-stream",
     size: Number.isFinite(file.size) ? file.size : 0,
     status: "error",
-    error: { code: "staging-failed", message: safeReferenceError(error) },
+    error: referenceOperationError(error, "staging-failed"),
   };
 }
 
@@ -341,7 +342,7 @@ function workspaceReferenceError(referencePath: string, error: unknown): AgentDr
     relativePath: displayName,
     displayName,
     status: "error",
-    error: { code: "workspace-resolution-failed", message: safeReferenceError(error) },
+    error: referenceOperationError(error, "workspace-resolution-failed"),
   };
 }
 
@@ -397,6 +398,19 @@ function safeReferenceError(error: unknown) {
     .replace(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?/i, "")
     .replace(/[\r\n]+/g, " ")
     .slice(0, 500) || "The reference could not be added.";
+}
+
+function referenceOperationError(error: unknown, fallbackCode: string): AgentReferenceError {
+  const message = safeReferenceError(error);
+  if (!(error instanceof AgentOperationError)) return { code: fallbackCode, message };
+  // The client already validated the pure-data failure envelope. Keep its reason
+  // through draft projection instead of misclassifying authorization as file I/O.
+  return {
+    code: error.failure.code,
+    message,
+    retryable: error.failure.retryable,
+    ...(error.failure.stage ? { stage: error.failure.stage } : {}),
+  };
 }
 
 function safeReleaseVisualPreview(preview: AgentReferenceVisualPreview | undefined) {

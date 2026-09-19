@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { AgentReferenceDraftManager } from "../../../../src/features/desktop-agent/application/AgentReferenceDraftManager";
+import { AgentOperationError } from "../../../../src/features/desktop-agent/application/agent-error";
 import type { AgentControllerState } from "../../../../src/features/desktop-agent/application/agent-controller-state";
 import type { AgentClientPort } from "../../../../src/features/desktop-agent/application/AgentClientPort";
 import type { AgentDraftReference } from "../../../../src/features/desktop-agent/domain/agent-contract";
@@ -12,6 +13,25 @@ function fixture(resolve: AgentClientPort["resolveAgentWorkspaceReferences"], at
 const reference = { id: "b", kind: "workspace-entry" as const, entryType: "file" as const, relativePath: "docs/b.md", displayName: "b.md", status: "ready" as const, resourceUri: "puppyone-local://workspace/b/docs/b.md", workspaceName: "repo-b" };
 
 describe("root-qualified reference drafts", () => {
+  it.each(["attachment", "workspace"])("preserves the structured failure reason for a %s reference", async (kind) => {
+    const error = new AgentOperationError({ schemaVersion: 1, code: "PROJECT_CLOSING", message: "This project is closing.", stage: "authorization", retryable: true, actions: [] });
+    const fail = async () => { throw error; };
+    const f = fixture(fail, { stageAgentAttachments: fail });
+    if (kind === "attachment") await f.manager.stageExternalFiles([new File(["image"], "image.png", { type: "image/png" })]);
+    else await f.manager.addWorkspacePaths(["image.png"]);
+    expect(f.readState().references[0]?.error).toEqual({ code: "PROJECT_CLOSING", message: "This project is closing.", stage: "authorization", retryable: true });
+  });
+
+  it("keeps legacy failures bounded without inventing retry policy", async () => {
+    const f = fixture(async () => [], { stageAgentAttachments: async () => { throw new Error("read failed\n".repeat(100)); } });
+    await f.manager.stageExternalFiles([new File(["image"], "image.png", { type: "image/png" })]);
+    const error = f.readState().references[0]!.error!;
+    expect(error.code).toBe("staging-failed");
+    expect(error.message.length).toBeLessThanOrEqual(500);
+    expect(error.message).not.toContain("\n");
+    expect(error).not.toHaveProperty("retryable");
+  });
+
   it.each(["remove", "reset", "dispose"])("does not resurrect an image when %s happens during staging", async (action) => {
     let complete!: (value: AgentDraftReference[]) => void;
     const revoke = vi.fn(async () => ({ revoked: 1 }));

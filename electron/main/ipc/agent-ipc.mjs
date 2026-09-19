@@ -22,7 +22,7 @@ export function registerAgentIpcHandlers({
   attachmentStore,
   dialog,
   getDialogOwnerWindow,
-  projectSessions = null,
+  projectSessions = /** @type {ReturnType<typeof import('../workspace/project-sessions/project-session-service.mjs').createProjectSessionService> | null} */ (null),
 }) {
   const register = (channel, handler) => {
     ipcMain.handle(channel, async (event, rawRequest) => {
