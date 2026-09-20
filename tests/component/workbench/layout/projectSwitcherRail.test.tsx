@@ -14,6 +14,10 @@ import {
   resolveProjectSwitcherRailWidth,
   resolveProjectSwitcherRailItems,
 } from "../../../../src/features/app-shell/ProjectSwitcherRail";
+import {
+  ProjectEntryFlow,
+  useProjectEntryFlow,
+} from "../../../../src/features/app-shell/ProjectEntryFlow";
 import { ProjectEntryLauncherDialog } from "../../../../src/features/app-shell/ProjectEntryLauncherDialog";
 import { withTestLocalization } from "../../../support/react/localization";
 
@@ -524,7 +528,7 @@ describe("Project switcher rail", () => {
   it("routes the create launcher through the three existing Project entry paths", async () => {
     const onOpenFolder = vi.fn();
     const onCreateProject = vi.fn();
-    const onCloneRepository = vi.fn();
+    const onImport = vi.fn();
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
@@ -532,11 +536,11 @@ describe("Project switcher rail", () => {
     await act(async () => root?.render(withTestLocalization(
       <ProjectEntryLauncherDialog
         canCreateProject
-        canCloneRepository
+        canImport
         onClose={() => undefined}
         onOpenFolder={onOpenFolder}
         onCreateProject={onCreateProject}
-        onCloneRepository={onCloneRepository}
+        onImport={onImport}
       />,
     )));
 
@@ -547,9 +551,56 @@ describe("Project switcher rail", () => {
     await act(async () => options[2]?.click());
     expect(onOpenFolder).toHaveBeenCalledOnce();
     expect(onCreateProject).toHaveBeenCalledOnce();
-    expect(onCloneRepository).toHaveBeenCalledOnce();
+    expect(onImport).toHaveBeenCalledOnce();
+  });
+
+  it("hands the in-project launcher off to the shared Import flow", async () => {
+    const onImportRepository = vi.fn(async () => true);
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+
+    await act(async () => root?.render(withTestLocalization(
+      <ProjectEntryFlowHarness onImportRepository={onImportRepository} />,
+    )));
+    await act(async () => host.querySelector<HTMLButtonElement>("[data-open-project-entry]")?.click());
+
+    const launcherOptions = host.querySelectorAll<HTMLButtonElement>(
+      ".desktop-project-entry-option",
+    );
+    expect(launcherOptions).toHaveLength(3);
+    await act(async () => launcherOptions[2]?.click());
+
+    expect(host.querySelector(".desktop-project-entry-launcher")).toBeNull();
+    expect(host.querySelector("[role='dialog']")?.getAttribute("aria-label")).toBe("Import");
+    expect(host.querySelectorAll(".onboarding-import-source")).toHaveLength(6);
+    expect(onImportRepository).not.toHaveBeenCalled();
   });
 });
+
+function ProjectEntryFlowHarness({
+  onImportRepository,
+}: {
+  onImportRepository: () => Promise<boolean>;
+}) {
+  const controller = useProjectEntryFlow();
+  return (
+    <>
+      <button type="button" data-open-project-entry onClick={controller.openLauncher}>
+        Open Project setup
+      </button>
+      <ProjectEntryFlow
+        controller={controller}
+        onOpenFolder={() => undefined}
+        onChooseLocation={async () => null}
+        onCreateProject={async () => {
+          throw new Error("not used");
+        }}
+        onImportRepository={onImportRepository}
+      />
+    </>
+  );
+}
 
 function workspace(id: string, name: string, path: string): Workspace {
   return {

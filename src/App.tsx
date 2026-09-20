@@ -32,8 +32,6 @@ import { CLOUD_HUB_ENTRY_SECTION, type CloudWorkspaceSection } from "./features/
 import {
   MinimalOnboarding,
 } from "./components/MinimalOnboarding";
-import { OnboardingImportDialog } from "./components/OnboardingImportDialog";
-import { OnboardingProjectEntryDialog } from "./components/OnboardingProjectEntryDialog";
 import { AssetLibraryHome } from "./components/AssetLibraryHome";
 import {
   closeAgentChatWorkbenchItem,
@@ -146,7 +144,10 @@ import {
   resolveProjectSwitcherCompactWidth,
   resolveProjectSwitcherRailWidth,
 } from "./features/app-shell/ProjectSwitcherRail";
-import { ProjectEntryLauncherDialog } from "./features/app-shell/ProjectEntryLauncherDialog";
+import {
+  ProjectEntryFlow,
+  useProjectEntryFlow,
+} from "./features/app-shell/ProjectEntryFlow";
 
 const AgentChatWorkbenchItem = lazy(loadAgentChatWorkbenchItem);
 const AgentChatHistoryBrowser = lazy(loadAgentChatHistoryBrowser);
@@ -202,7 +203,7 @@ function AppContent() {
   } = useDesktopCloudSession(cloudEnabled);
   const [activeCloudSection, setActiveCloudSection] = useState<CloudWorkspaceSection>("initialize");
   const [switcherOpen, setSwitcherOpen] = useState(false);
-  const [projectEntryDialog, setProjectEntryDialog] = useState<"launcher" | "create" | "clone" | null>(null);
+  const projectEntryFlow = useProjectEntryFlow();
   const {
     addProject,
     addExistingProject,
@@ -1375,7 +1376,7 @@ function AppContent() {
               activeWorkspace={workspace}
               expanded={expanded}
               recentWorkspaces={recentWorkspaceItems}
-              onCreateNew={() => setProjectEntryDialog("launcher")}
+              onCreateNew={projectEntryFlow.openLauncher}
               pluginsOpen={pluginsDialogOpen}
               onOpenPlugins={experimentalSettings.enableViewerPlugins
                 ? openPluginsDialog
@@ -1652,36 +1653,14 @@ function AppContent() {
               onCommitAndSwitch={() => void handleCommitAndCheckoutBranch()}
             />
           )}
-          {projectEntryDialog === "launcher" && (
-            <ProjectEntryLauncherDialog
-              canCreateProject
-              canCloneRepository
-              onClose={() => setProjectEntryDialog(null)}
-              onOpenFolder={() => {
-                setProjectEntryDialog(null);
-                void openFolder();
-              }}
-              onCreateProject={() => setProjectEntryDialog("create")}
-              onCloneRepository={() => setProjectEntryDialog("clone")}
-            />
-          )}
-          {projectEntryDialog === "create" && (
-            <OnboardingProjectEntryDialog
-              onClose={() => setProjectEntryDialog(null)}
-              onDefaultLocation={defaultProjectLocation}
-              onChooseLocation={chooseProjectLocation}
-              onSubmit={createProject}
-            />
-          )}
-          {projectEntryDialog === "clone" && (
-            <OnboardingImportDialog
-              onClose={() => setProjectEntryDialog(null)}
-              onDefaultLocation={defaultProjectLocation}
-              onChooseLocation={chooseProjectLocation}
-              onImportRepository={(request) => cloneRepository(request)}
-              onOpenFolder={() => void openFolder()}
-            />
-          )}
+          <ProjectEntryFlow
+            controller={projectEntryFlow}
+            onDefaultLocation={defaultProjectLocation}
+            onChooseLocation={chooseProjectLocation}
+            onCreateProject={createProject}
+            onImportRepository={cloneRepository}
+            onOpenFolder={() => void openFolder()}
+          />
           {gitOperationError && !pendingBranchSwitch && (
             <GitOperationErrorDialog
               error={gitOperationError}

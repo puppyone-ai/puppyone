@@ -10,6 +10,10 @@ import {
 import type { ResolvedSurfaceAppearance } from "../features/appearance/AppearanceRuntime";
 import { useWorkspaceFolderDrop } from "../features/app-shell/useWorkspaceFolderDrop";
 import {
+  ProjectEntryFlow,
+  useProjectEntryFlow,
+} from "../features/app-shell/ProjectEntryFlow";
+import {
   getProjectName,
   type ProjectHomeItem,
   type RecentWorkspaceHomeItem,
@@ -22,8 +26,6 @@ import type {
   WorkspaceProjectLocationGrant,
 } from "../types/electron";
 import { DesktopWindowDragRegion } from "./DesktopWindowChrome";
-import { OnboardingImportDialog } from "./OnboardingImportDialog";
-import { OnboardingProjectEntryDialog } from "./OnboardingProjectEntryDialog";
 import { OnboardingBrandLockup } from "./onboarding/OnboardingBrandLockup";
 import { OnboardingEmptyStateIntro } from "./onboarding/OnboardingEmptyStateIntro";
 import {
@@ -78,9 +80,7 @@ export function MinimalOnboarding({
   const [openingPath, setOpeningPath] = useState<string | null>(null);
   const [removingPath, setRemovingPath] = useState<string | null>(null);
   const [draggingPath, setDraggingPath] = useState<string | null>(null);
-  const [entryDialog, setEntryDialog] = useState<
-    { kind: "create" } | { kind: "clone" } | null
-  >(null);
+  const projectEntryFlow = useProjectEntryFlow();
   const items = useMemo(
     () => (projectItems ?? recentWorkspaces.map(({ workspace, lastOpenedAt }) => ({
       id: workspace.id,
@@ -244,7 +244,7 @@ export function MinimalOnboarding({
               busy={busy}
               canCreateProject={Boolean(onCreateProject && onChooseProjectLocation)}
               prominent
-              onCreateProject={() => setEntryDialog({ kind: "create" })}
+              onCreateProject={projectEntryFlow.openCreate}
             />
           )}
           actions={<OnboardingEntryActions
@@ -255,8 +255,8 @@ export function MinimalOnboarding({
             canCreateProject={Boolean(onCreateProject && onChooseProjectLocation)}
             canCloneRepository={Boolean(onCloneRepository)}
             onOpenFolder={() => void chooseFolder()}
-            onCreateProject={() => setEntryDialog({ kind: "create" })}
-            onCloneRepository={() => setEntryDialog({ kind: "clone" })}
+            onCreateProject={projectEntryFlow.openCreate}
+            onCloneRepository={projectEntryFlow.openImport}
           />}
         />
 
@@ -265,23 +265,14 @@ export function MinimalOnboarding({
       {onboardingState === "empty" && (
         <OnboardingTelemetryDisclosure ready={!showEmptyStateIntro} />
       )}
-      {entryDialog?.kind === "create" && onCreateProject && onChooseProjectLocation && (
-        <OnboardingProjectEntryDialog
-          onClose={() => setEntryDialog(null)}
-          onDefaultLocation={onDefaultProjectLocation}
-          onChooseLocation={onChooseProjectLocation}
-          onSubmit={onCreateProject}
-        />
-      )}
-      {entryDialog?.kind === "clone" && onCloneRepository && (
-        <OnboardingImportDialog
-          onClose={() => setEntryDialog(null)}
-          onDefaultLocation={onDefaultProjectLocation}
-          onChooseLocation={onChooseProjectLocation}
-          onImportRepository={(request) => onCloneRepository(request)}
-          onOpenFolder={() => void chooseFolder()}
-        />
-      )}
+      <ProjectEntryFlow
+        controller={projectEntryFlow}
+        onDefaultLocation={onDefaultProjectLocation}
+        onChooseLocation={onChooseProjectLocation}
+        onCreateProject={onCreateProject}
+        onImportRepository={onCloneRepository}
+        onOpenFolder={() => void chooseFolder()}
+      />
       {showEmptyStateIntro && (
         <OnboardingEmptyStateIntro onComplete={completeEmptyStateIntro} />
       )}
