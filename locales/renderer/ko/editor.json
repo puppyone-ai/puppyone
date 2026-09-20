@@ -427,5 +427,14 @@
   "html.style.padding": "안쪽 여백",
   "html.style.border-radius": "모서리 반경",
   "html.style.width": "너비",
-  "html.style.height": "높이"
+  "html.style.height": "높이",
+  "html.showPage": "페이지 표시",
+  "html.showCode": "코드 표시",
+  "html.formatText": "텍스트 서식",
+  "html.bold": "굵게",
+  "html.align.left": "왼쪽 정렬",
+  "html.align.center": "가운데 정렬",
+  "html.align.right": "오른쪽 정렬",
+  "html.chooseColor": "{color} 선택",
+  "html.customColor": "사용자 지정"
 }

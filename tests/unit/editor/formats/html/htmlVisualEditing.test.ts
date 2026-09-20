@@ -172,6 +172,18 @@ describe("HTML projection and resource boundaries", () => {
     expect(projected).toContain("script-src-attr 'none'");
     expect(model.readSnapshot().content).toBe(source);
   });
+  it("preserves static SVG charts without script, foreign content or external use references", () => {
+    const source = '<!doctype html><svg viewBox="0 0 100 100"><defs><path id="line" d="M0 0L100 100"/></defs><use href="#line"/><text>Chart</text><script>bad()</script><foreignObject><div>unsafe</div></foreignObject><use href="https://evil.example/x.svg#line"/></svg>';
+    const { model, session } = setup(source);
+    const projected = buildHtmlEditingProjection(session.index, null, session.id);
+    expect(projected).toContain('<svg viewBox="0 0 100 100">');
+    expect(projected).toContain('href="#line"');
+    expect(projected).toContain('<text>Chart</text>');
+    expect(projected).not.toContain('bad()');
+    expect(projected).not.toContain('foreignObject');
+    expect(projected).not.toContain('evil.example');
+    expect(model.readSnapshot().content).toBe(source);
+  });
   it("calculates portable image references respecting base and Unicode paths", () => {
     expect(imageSourceReference("pages/index.html", "pages/新 图.png", null)).toBe("%E6%96%B0%20%E5%9B%BE.png");
     expect(imageSourceReference("pages/index.html", "pages/image.png", "assets/")).toBe("../image.png");

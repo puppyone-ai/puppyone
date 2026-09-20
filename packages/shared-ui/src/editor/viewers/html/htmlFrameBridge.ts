@@ -2,7 +2,7 @@
 export const HTML_FRAME_BRIDGE = String.raw`
 (() => {
   'use strict';
-  let port = null, selected = null, enabled = true, frame = 0;
+  let port = null, selected = null, enabled = true, frame = 0, typing = null;
   const nodes = new Map();
   const attribute = 'data-puppyone-html-target';
   document.querySelectorAll('[' + attribute + ']').forEach((node) => {
@@ -10,11 +10,20 @@ export const HTML_FRAME_BRIDGE = String.raw`
     if (nodes.has(id)) { nodes.set(id, null); return; }
     nodes.set(id, node);
   });
+  const typingStyle = document.createElement('style');
+  typingStyle.textContent = '[data-puppyone-html-typing]{color:transparent!important;-webkit-text-fill-color:transparent!important;text-shadow:none!important}';
+  document.head.append(typingStyle);
+  const setTyping = (id) => {
+    if (typing) nodes.get(typing)?.removeAttribute('data-puppyone-html-typing');
+    typing = id;
+    if (typing) nodes.get(typing)?.setAttribute('data-puppyone-html-typing', '');
+  };
   const send = (value) => { if (port) port.postMessage(value); };
   const measure = (edit = false) => {
     if (!selected) return;
     const node = nodes.get(selected);
     if (!node || !node.isConnected) return;
+    const editing = typing; setTyping(null);
     const rect = node.getBoundingClientRect(), style = getComputedStyle(node);
     let left = 0, top = 0, right = innerWidth, bottom = innerHeight;
     let transformed = style.writingMode !== 'horizontal-tb';
@@ -28,7 +37,13 @@ export const HTML_FRAME_BRIDGE = String.raw`
         if (current.overflowY !== 'visible') { top = Math.max(top, bounds.top); bottom = Math.min(bottom, bounds.bottom); }
       }
     }
-    send({ type: 'selection', id: selected, edit, rect: {
+    let anchor = rect;
+    if (node.tagName !== 'IMG' && node.textContent.trim()) {
+      const range = document.createRange(); range.selectNodeContents(node);
+      const textBounds = range.getBoundingClientRect();
+      if (textBounds.width > 0 && textBounds.height > 0) anchor = textBounds;
+    }
+    send({ type: 'selection', id: selected, edit, anchor: { x: anchor.x, y: anchor.y, width: anchor.width, height: anchor.height }, rect: {
       x: rect.x, y: rect.y, width: rect.width, height: rect.height
     }, clip: { top: Math.max(0, top - rect.top), right: Math.max(0, rect.right - right),
       bottom: Math.max(0, rect.bottom - bottom), left: Math.max(0, left - rect.left) },
@@ -36,9 +51,12 @@ export const HTML_FRAME_BRIDGE = String.raw`
       lineHeight: style.lineHeight, color: style.color, backgroundColor: style.backgroundColor,
       textAlign: style.textAlign, padding: style.padding, borderRadius: style.borderRadius,
       width: style.width, height: style.height, margin: style.margin,
+      letterSpacing: style.letterSpacing, fontStyle: style.fontStyle, textTransform: style.textTransform, textDecoration: style.textDecoration,
       transformed } });
+    setTyping(editing);
   };
   const schedule = () => {
+    send({ type: 'viewport', x: scrollX, y: scrollY });
     if (!frame) frame = requestAnimationFrame(() => { frame = 0; measure(); });
   };
   const select = (event, edit) => {
@@ -49,13 +67,14 @@ export const HTML_FRAME_BRIDGE = String.raw`
     selected = target.getAttribute(attribute);
     measure(edit);
   };
-  document.addEventListener('click', (event) => select(event, false), true);
+  document.addEventListener('click', (event) => select(event, true), true);
   document.addEventListener('dblclick', (event) => select(event, true), true);
   document.addEventListener('submit', (event) => event.preventDefault(), true);
   document.addEventListener('dragstart', (event) => event.preventDefault(), true);
   document.addEventListener('keydown', (event) => {
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
-      event.preventDefault(); if (enabled) send({ type: 'history', direction: event.shiftKey ? 'redo' : 'undo' });
+    if (event.isComposing) return;
+    if ((event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === 'z' || event.ctrlKey && event.key.toLowerCase() === 'y')) {
+      event.preventDefault(); if (enabled) send({ type: 'history', direction: event.shiftKey || event.key.toLowerCase() === 'y' ? 'redo' : 'undo' });
     } else if (event.key === 'Enter') select(event, true);
     else if (event.key === 'Escape') { selected = null; send({ type: 'clear' }); }
   }, true);
@@ -71,6 +90,8 @@ export const HTML_FRAME_BRIDGE = String.raw`
     port = event.ports[0];
     port.onmessage = ({ data }) => {
       if (!data || typeof data !== 'object') return;
+      if (data.type === 'typing') { setTyping(nodes.has(data.id) ? data.id : null); return; }
+      if (data.type === 'clear') { selected = null; setTyping(null); return; }
       if (data.type === 'enabled') { enabled = data.value === true; return; }
       if (data.type === 'base') {
         let base = document.querySelector('base');
@@ -83,10 +104,20 @@ export const HTML_FRAME_BRIDGE = String.raw`
         });
         schedule(); return;
       }
+      if ((data.type === 'scroll' || data.type === 'restore-scroll') && Number.isFinite(data.x) && Number.isFinite(data.y)) {
+        if (data.type === 'restore-scroll') scrollTo(data.x, data.y);
+        else {
+          let container = nodes.get(selected)?.parentElement;
+          while (container && !(['auto', 'scroll'].includes(getComputedStyle(container).overflowY) && container.scrollHeight > container.clientHeight)) container = container.parentElement;
+          (container || window).scrollBy(data.x, data.y);
+        }
+        return;
+      }
       if (data.type === 'measure') { schedule(); return; }
       if (data.type === 'check-style' && typeof data.request === 'string') {
         const node = nodes.get(data.id);
         if (!node) return;
+        const editing = typing; setTyping(null);
         const original = node.getAttribute('style');
         let supported = false;
         try {
@@ -97,6 +128,7 @@ export const HTML_FRAME_BRIDGE = String.raw`
           supported = normal === forced;
         } finally {
           if (original === null) node.removeAttribute('style'); else node.setAttribute('style', original);
+          setTyping(editing);
         }
         send({ type: 'style-check', request: data.request, supported });
         return;

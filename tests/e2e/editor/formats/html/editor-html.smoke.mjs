@@ -57,8 +57,17 @@ async function click(selector) {
   await until(() => evaluate(`Boolean(document.querySelector(${JSON.stringify(selector)}))`), selector);
   await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
 }
-async function button(label) {
-  await evaluate(`(()=>{const b=[...document.querySelectorAll('.html-editor-toolbar button')].find(b=>b.textContent===${JSON.stringify(label)});if(!b)throw Error('Missing button');b.click()})()`);
+async function mode(label) {
+  await click('.desktop-editor-pane-handle');
+  await until(() => evaluate(`Boolean([...document.querySelectorAll('[role="menuitem"]')].find(b=>b.textContent===${JSON.stringify(label)}))`), 'mode menu');
+  await evaluate(`([...document.querySelectorAll('[role="menuitem"]')].find(b=>b.textContent===${JSON.stringify(label)})).click()`);
+}
+async function history(direction) {
+  await ready();
+  await evaluate("document.querySelector('.html-visual-editor iframe').focus()");
+  const modifiers = [process.platform === 'darwin' ? 'meta' : 'control', ...(direction === 'redo' ? ['shift'] : [])];
+  window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Z', modifiers });
+  window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Z', modifiers });
 }
 async function ready() {
   await until(() => evaluate("document.querySelector('.html-visual-editor iframe')?.getAttribute('aria-busy')==='false'"), "editing bridge ready");
@@ -70,16 +79,16 @@ app.whenReady().then(async () => {
     window = await until(() => BrowserWindow.getAllWindows()[0], "main window"); window.setSize(1200, 850); window.show();
     await until(() => evaluate("!!document.querySelector('.app-shell')"), "app ready");
     await click('.tree-row.file[aria-label="page.html"]');
-    await until(() => evaluate("!!document.querySelector('.html-editor-toolbar')"), "HTML provider mounted from Explorer");
+    await until(() => evaluate("!!document.querySelector('.html-visual-editor')"), "HTML provider mounted from Explorer");
     await until(() => imageResponses.some(response => response.url.endsWith("/old.png") && response.status === 200),
       "safe preview relative image resolves under production CSP");
     assert.equal(await disk(), original);
-    await button("Edit page"); await ready();
+    await ready();
     window.webContents.debugger.attach("1.3");
     const rect = await frame().executeJavaScript("(()=>{const r=document.querySelector('#title').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()");
     const outer = await evaluate("(()=>{const r=document.querySelector('.html-visual-editor iframe').getBoundingClientRect();return {x:r.x,y:r.y}})()");
     for (const type of ["mousePressed", "mouseReleased"]) await window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", {
-      type, x: Math.round(rect.x + outer.x), y: Math.round(rect.y + outer.y), button: "left", clickCount: 2,
+      type, x: Math.round(rect.x + outer.x), y: Math.round(rect.y + outer.y), button: "left", clickCount: 1,
     });
     await until(() => evaluate("!!document.querySelector('.html-editor-text-input')"), "native text input reached from workbench");
     const routing = frame().routingId;
@@ -89,19 +98,19 @@ app.whenReady().then(async () => {
     assert.equal(frame().routingId, routing, "save echo/resource refresh must not reload the active frame");
     assert.equal(await disk(), original.replace("Original title", "Edited from Explorer 中文"));
     steps.push("Explorer entry, native text input, lossless production autosave and stable frame");
-    await button("HTML source");
+    await mode("Show code");
     await until(() => evaluate("document.querySelector('.cm-content')?.textContent.includes('Edited from Explorer 中文')"), "same source model");
-    await button("Edit page"); await ready();
-    await button("Undo"); await until(async () => await disk() === original, "shared undo");
-    await button("Redo"); await until(async () => (await disk()).includes("Edited from Explorer 中文"), "shared redo");
+    await mode("Show page"); await ready();
+    await history("undo"); await until(async () => await disk() === original, "shared undo");
+    await history("redo"); await until(async () => (await disk()).includes("Edited from Explorer 中文"), "shared redo");
     await ready();
     const imageBounds = await frame().executeJavaScript("(()=>{const r=document.querySelector('#cover').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()");
     for (const type of ["mousePressed", "mouseReleased"]) await window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", {
       type, x: Math.round(imageBounds.x + outer.x), y: Math.round(imageBounds.y + outer.y), button: "left", clickCount: 1,
     });
-    await until(() => evaluate("!!document.querySelector('.html-editor-inspector input[type=file]')"), "workbench image import capability");
+    await until(() => evaluate("!!document.querySelector('.html-floating-toolbar input[type=file]')"), "workbench image import capability");
     const { root: domRoot } = await window.webContents.debugger.sendCommand("DOM.getDocument");
-    const { nodeId } = await window.webContents.debugger.sendCommand("DOM.querySelector", { nodeId: domRoot.nodeId, selector: ".html-editor-inspector input[type=file]" });
+    const { nodeId } = await window.webContents.debugger.sendCommand("DOM.querySelector", { nodeId: domRoot.nodeId, selector: ".html-floating-toolbar input[type=file]" });
     await window.webContents.debugger.sendCommand("DOM.setFileInputFiles", { nodeId, files: [selectedImage] });
     await until(async () => /src="image-[a-z0-9-]+\.png"/.test(await disk()), "URI-routed image import and save");
     await until(() => frame().executeJavaScript("document.querySelector('#cover').naturalWidth===1"), "production image resource rendered");
@@ -112,7 +121,7 @@ app.whenReady().then(async () => {
     await until(async () => {
       const current = frame(); return current && await current.executeJavaScript("document.body.textContent.includes('External replacement')");
     }, "real workspace watcher external update");
-    await button("Undo"); await wait(200);
+    await history("undo"); await wait(200);
     assert.equal(await disk(), "<!DOCTYPE html><h1>External replacement</h1>");
     steps.push("source/visual shared history and real filesystem watcher invalidation");
     await click('.tree-row.file[aria-label="note.md"]');

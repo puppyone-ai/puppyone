@@ -427,5 +427,14 @@
   "html.style.padding": "内边距",
   "html.style.border-radius": "圆角",
   "html.style.width": "宽度",
-  "html.style.height": "高度"
+  "html.style.height": "高度",
+  "html.showPage": "显示页面",
+  "html.showCode": "显示代码",
+  "html.formatText": "文字格式",
+  "html.bold": "加粗",
+  "html.align.left": "左对齐",
+  "html.align.center": "居中",
+  "html.align.right": "右对齐",
+  "html.chooseColor": "选择 {color}",
+  "html.customColor": "自定义"
 }

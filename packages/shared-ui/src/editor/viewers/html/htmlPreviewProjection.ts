@@ -5,6 +5,8 @@ import { attribute, escapeHtmlAttribute, HTML_TARGET_ATTRIBUTE, isHtmlElement, t
 const REMOVED = new Set("script noscript iframe frame frameset object embed applet template base meta portal fencedframe".split(" "));
 const URL_ATTRIBUTES = new Set(["href", "src", "poster", "background", "xlink:href"]);
 const REMOVED_ATTRIBUTES = new Set(["srcdoc", "nonce", "integrity", "action", "formaction", "target", "ping", "download", "autofocus", "contenteditable", "is", "srcset", "imagesrcset", "http-equiv"]);
+// Static report charts remain visible, without granting SVG executable or editing authority.
+const SVG_TAGS = new Set("svg g path rect circle ellipse line polyline polygon text tspan defs linearGradient radialGradient stop clipPath mask pattern use title desc".split(" "));
 
 export function resolveHtmlBase(fileUrl: string | null | undefined, sourceBase: string | null): string | null {
   try {
@@ -19,10 +21,13 @@ export function buildHtmlEditingProjection(index: HtmlSourceIndex, fileUrl: stri
   const clean = (parent: Tree.ParentNode) => {
     parent.childNodes = parent.childNodes.filter((node) => {
       if (node.nodeName === "#documentType" || node.nodeName === "#comment" || node.nodeName === "#text") return true;
-      if (!isHtmlElement(node) || REMOVED.has(node.tagName)) return false;
+      if (!("tagName" in node)) return false;
+      const svg = node.namespaceURI === "http://www.w3.org/2000/svg" && SVG_TAGS.has(node.tagName);
+      if (!svg && (!isHtmlElement(node) || REMOVED.has(node.tagName))) return false;
       if (node.tagName === "link" && (attribute(node, "rel")?.toLowerCase() !== "stylesheet")) return false;
       node.attrs = node.attrs.filter((entry) => {
         if (entry.name.startsWith("on") || entry.name.startsWith("data-puppyone-") || REMOVED_ATTRIBUTES.has(entry.name)) return false;
+        if (svg && entry.name === "href") return /^#[a-zA-Z_][\w:.-]*$/.test(entry.value);
         if (URL_ATTRIBUTES.has(entry.name)) {
           // Navigation is disabled. Images and styles may only use admitted resource protocols.
           if (entry.name === "href" && node.tagName !== "link") return false;
