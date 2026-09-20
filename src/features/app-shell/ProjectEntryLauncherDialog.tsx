@@ -6,6 +6,7 @@ import {
   DesktopDialogRoot,
   DesktopDialogSurface,
 } from "../../components/DesktopDialog";
+import { ImportSourcePreview } from "../../components/onboarding/ImportSourcePreview";
 
 export type ProjectEntryLauncherDialogProps = Readonly<{
   canImport: boolean;
@@ -74,6 +75,7 @@ export function ProjectEntryLauncherDialog({
             <ProjectEntryOption
               icon={<Download />}
               label={t("onboarding.action.cloneRepository")}
+              accessory={<ImportSourcePreview />}
               disabled={!canImport}
               onClick={onImport}
             />
@@ -85,12 +87,14 @@ export function ProjectEntryLauncherDialog({
 }
 
 function ProjectEntryOption({
+  accessory,
   disabled = false,
   icon,
   initialFocus = false,
   label,
   onClick,
 }: Readonly<{
+  accessory?: ReactNode;
   disabled?: boolean;
   icon: ReactNode;
   initialFocus?: boolean;
@@ -108,7 +112,10 @@ function ProjectEntryOption({
       <span className="desktop-project-entry-option-icon" aria-hidden="true">
         {icon}
       </span>
-      <span>{label}</span>
+      <span className="desktop-project-entry-option-content">
+        <span>{label}</span>
+        {accessory}
+      </span>
     </button>
   );
 }

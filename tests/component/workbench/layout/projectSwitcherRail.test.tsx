@@ -546,6 +546,10 @@ describe("Project switcher rail", () => {
 
     const options = host.querySelectorAll<HTMLButtonElement>(".desktop-project-entry-option");
     expect(options).toHaveLength(3);
+    expect(Array.from(
+      options[2]?.querySelectorAll<HTMLImageElement>(".onboarding-import-mark") ?? [],
+      (mark) => mark.dataset.importBrand,
+    )).toEqual(["github", "notion", "google-drive"]);
     await act(async () => options[0]?.click());
     await act(async () => options[1]?.click());
     await act(async () => options[2]?.click());

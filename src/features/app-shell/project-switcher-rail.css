@@ -473,6 +473,10 @@ body.desktop-project-switcher-resizing * {
   padding-block-end: 10px;
 }
 
+.desktop-project-entry-launcher .desktop-dialog-title-row {
+  align-items: center;
+}
+
 .desktop-project-entry-launcher-body {
   padding: 4px 12px 12px;
 }
@@ -527,6 +531,17 @@ body.desktop-project-switcher-resizing * {
   width: 15px;
   height: 15px;
   stroke-width: 1.8;
+}
+
+.desktop-project-entry-option-content {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.desktop-project-entry-option:disabled .onboarding-entry-import-source-preview {
+  opacity: 0.3;
 }
 
 @media (prefers-reduced-motion: reduce) {
