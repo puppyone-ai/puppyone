@@ -361,5 +361,8 @@
   "compute.sandbox": "沙盒 · 测试付款",
   "compute.pendingCredit": "{amount} 用量待结算",
   "compute.insufficientCredit": "充值后即可使用此模型。",
-  "compute.paymentUnavailable": "暂时无法刷新 Agent 余额，请重试。"
+  "compute.paymentUnavailable": "暂时无法刷新 Agent 余额，请重试。",
+  "compute.walletTitle": "AI token 余额",
+  "compute.walletDetail": "随时充值，按模型实际用量扣费，无订阅。",
+  "compute.trialGranted": "已获一次性试用余额：{amount}"
 }

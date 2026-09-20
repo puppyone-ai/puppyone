@@ -361,5 +361,8 @@
   "compute.sandbox": "Sandbox · test payment",
   "compute.pendingCredit": "{amount} pending usage",
   "compute.insufficientCredit": "Add credit to use this model.",
-  "compute.paymentUnavailable": "Could not refresh Agent credits. Please retry."
+  "compute.paymentUnavailable": "Could not refresh Agent credits. Please retry.",
+  "compute.walletTitle": "AI token balance",
+  "compute.walletDetail": "Top up whenever you need. Pay for model usage, with no subscription.",
+  "compute.trialGranted": "One-time trial credit received: {amount}"
 }

@@ -224,7 +224,7 @@
   "appearance.pointerCursors.title": "Pointer cursors",
   "appearance.pointerCursors.detail": "Show a hand cursor only over links and navigation destinations.",
   "account.title": "Account",
-  "account.detail": "PuppyOne Cloud account and desktop sign-in session.",
+  "account.detail": "Sign in to manage your personal account and AI token balance.",
   "account.statusLabel": "Status",
   "account.status.restoring": "Restoring",
   "account.status.offline": "Signed in — offline",

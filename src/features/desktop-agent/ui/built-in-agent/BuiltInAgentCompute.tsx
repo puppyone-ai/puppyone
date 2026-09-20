@@ -101,6 +101,7 @@ export function BuiltInAgentCompute({
             {t("agent.compute.refreshBalance")}
           </button>
           {(managed.reservedMicroUsd ?? 0) > 0 && <small>{t("agent.compute.pendingCredit", { amount: money(managed.reservedMicroUsd ?? 0) })}</small>}
+          {(managed.trialGrantedMicroUsd ?? 0) > 0 && <small>{t("agent.compute.trialGranted", { amount: money(managed.trialGrantedMicroUsd ?? 0) })}</small>}
           {managed.reason === "insufficient-credit" && <small>{t("agent.compute.insufficientCredit")}</small>}
         </>}
       {(state.error || managed?.errorCode) && <small role="alert">{t("agent.compute.paymentUnavailable")}</small>}

@@ -5,7 +5,7 @@ import { parseConnectionCommand } from "../../../../shared/model-connections/sch
 const services = [];
 afterEach(async () => { await Promise.all(services.splice(0).map((service) => service.dispose())); });
 
-function fixture({ signedIn = true, balance = 5_000_000 } = {}) {
+function fixture({ signedIn = true, balance = 5_000_000, trial = 0 } = {}) {
   let state = { status: signedIn ? "authenticated" : "signed-out", session: signedIn ? {
     user_id: "user-one", session_generation: "session-one", api_base_url: "https://qubits-api.puppyone.ai/api/v1",
   } : null };
@@ -26,7 +26,7 @@ function fixture({ signedIn = true, balance = 5_000_000 } = {}) {
   const openExternal = vi.fn();
   const service = withManagedConnection({ connections, getAuth: () => auth,
     apiBase: "https://qubits-api.puppyone.ai/api/v1", openExternal,
-    requestPublic: async () => ({ sandbox: true, packs: [{ id: "test-credit", price_cents: 500, credit_micro_usd: 5_000_000 }],
+    requestPublic: async () => ({ sandbox: true, trial_credit_micro_usd: trial, packs: [{ id: "test-credit", price_cents: 500, credit_micro_usd: 5_000_000 }],
       models: [{ id: "test/model", name: "Test", context_window: 32768, max_output_tokens: 4096 }] }),
   });
   services.push(service);
@@ -97,5 +97,21 @@ describe("Main-owned managed Agent connection", () => {
       available_micro_usd: 1, balance_micro_usd: 1, reserved_micro_usd: 0,
     } : { checkout_url: "https://attacker.example/checkout" });
     await expect(service.managed({ action: "checkout", packId: "test-credit" })).rejects.toThrow("INVALID_RESPONSE");
+  });
+});
+
+
+describe("one-time trial activation", () => {
+  it("claims only after sign-in and once per account session before reading balance", async () => {
+    const signedOut = fixture({ signedIn: false, trial: 1_000_000 });
+    await signedOut.service.read();
+    expect(signedOut.auth.requestSessionApi).not.toHaveBeenCalled();
+    const { service, auth } = fixture({ trial: 1_000_000 });
+    await service.read();
+    await service.managed({ action: "refresh" });
+    const calls = auth.requestSessionApi.mock.calls;
+    expect(calls.filter((call) => call[1] === "/ai/trial")).toHaveLength(1);
+    expect(calls[0]).toEqual(["https://qubits-api.puppyone.ai/api/v1", "/ai/trial", { method: "POST", body: "{}" }]);
+    expect(calls[1][1]).toBe("/ai/balance");
   });
 });

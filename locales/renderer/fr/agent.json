@@ -361,5 +361,8 @@
   "compute.sandbox": "Sandbox · paiement test",
   "compute.pendingCredit": "{amount} en attente de facturation",
   "compute.insufficientCredit": "Ajoutez du crédit pour utiliser ce modèle.",
-  "compute.paymentUnavailable": "Impossible de charger le solde Agent. Réessayez."
+  "compute.paymentUnavailable": "Impossible de charger le solde Agent. Réessayez.",
+  "compute.walletTitle": "Solde de tokens IA",
+  "compute.walletDetail": "Rechargez selon vos besoins. Payez à l’usage du modèle, sans abonnement.",
+  "compute.trialGranted": "Crédit d’essai unique reçu : {amount}"
 }

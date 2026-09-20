@@ -200,7 +200,7 @@ function AppContent() {
     cloudSession,
     cloudSessionRestoring,
     handleCloudSessionChange: updateCloudSession,
-  } = useDesktopCloudSession(cloudEnabled);
+  } = useDesktopCloudSession();
   const [activeCloudSection, setActiveCloudSection] = useState<CloudWorkspaceSection>("initialize");
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const projectEntryFlow = useProjectEntryFlow();

@@ -83,6 +83,7 @@ export type LocalAgentsSettings = {
 export type ExperimentalSettings = {
   enableAirtableImport: boolean;
   enableAssetLibraryHome: boolean;
+  /** Compatibility field: Built-in Agent has graduated from Experimental. */
   enableBuiltInAgent: boolean;
   enableCloudAutomation: boolean;
   enableCloudWorkspace: boolean;
@@ -173,7 +174,7 @@ export const DEFAULT_AI_EDIT_ASSIST_ENABLED = false;
 export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
   enableAirtableImport: false,
   enableAssetLibraryHome: false,
-  enableBuiltInAgent: false,
+  enableBuiltInAgent: true,
   enableCloudAutomation: false,
   enableCloudWorkspace: false,
   enableEditorSaveStatus: false,
@@ -423,7 +424,7 @@ export function parseExperimentalSettings(value: string | null | undefined): Exp
     return {
       enableAirtableImport: parsed.enableAirtableImport === true,
       enableAssetLibraryHome: parsed.enableAssetLibraryHome === true,
-      enableBuiltInAgent: parsed.enableBuiltInAgent === true,
+      enableBuiltInAgent: true,
       enableCloudAutomation: parsed.enableCloudAutomation === true,
       enableCloudWorkspace: parsed.enableCloudWorkspace === true,
       enableEditorSaveStatus: parsed.enableEditorSaveStatus === true,

@@ -51,6 +51,7 @@ export type ModelConnectionSnapshot = {
     reason: "gateway-unavailable" | "sign-in-required" | "insufficient-credit" | "ready";
     signedIn?: boolean; sandbox?: boolean; balanceMicroUsd?: number; reservedMicroUsd?: number;
     availableMicroUsd?: number; errorCode?: string | null; apiOrigin?: string | null;
+    trialGrantedMicroUsd?: number;
     packs?: { id: string; name: string; price_cents: number; credit_micro_usd: number }[];
   };
 };

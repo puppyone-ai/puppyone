@@ -211,11 +211,10 @@ describe("experimental preferences", () => {
     expect(parseExperimentalSettings(JSON.stringify({ [settingKey]: true }))[settingKey]).toBe(true);
   });
 
-  it("keeps Built-in Agent hidden unless the user explicitly opts in", () => {
-    expect(parseExperimentalSettings(null).enableBuiltInAgent).toBe(false);
-    expect(parseExperimentalSettings("not-json").enableBuiltInAgent).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableBuiltInAgent: false })).enableBuiltInAgent).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableBuiltInAgent: true })).enableBuiltInAgent).toBe(true);
+  it("makes Built-in Agent available after graduating from experiments", () => {
+    for (const value of [null, "not-json", JSON.stringify({ enableBuiltInAgent: false }), JSON.stringify({ enableBuiltInAgent: true })]) {
+      expect(parseExperimentalSettings(value).enableBuiltInAgent).toBe(true);
+    }
   });
 
   it.each([true, false])("ignores retired Agent Chat preferences set to %s without changing other experiments", (enabled) => {

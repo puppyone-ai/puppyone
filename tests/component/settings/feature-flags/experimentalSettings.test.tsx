@@ -45,29 +45,17 @@ describe("Experimental settings", () => {
     });
   });
 
-  it("offers an off-by-default Built-in Agent opt-in", () => {
-    const onChange = vi.fn();
+  it("keeps Cloud experimental while Built-in Agent is publicly available", () => {
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
-
     act(() => root?.render(withTestLocalization(
-      <ExperimentalSettingsView
-        settings={DEFAULT_EXPERIMENTAL_SETTINGS}
-        assetLibraryHomeAvailable={false}
-        onChange={onChange}
-      />,
+      <ExperimentalSettingsView settings={DEFAULT_EXPERIMENTAL_SETTINGS}
+        assetLibraryHomeAvailable={false} onChange={vi.fn()} />,
     )));
-
-    const toggle = host.querySelector<HTMLInputElement>('input[aria-label="Built-in Agent"]');
-    expect(toggle).not.toBeNull();
-    expect(toggle?.checked).toBe(false);
-
-    act(() => toggle?.click());
-    expect(onChange).toHaveBeenCalledWith({
-      ...DEFAULT_EXPERIMENTAL_SETTINGS,
-      enableBuiltInAgent: true,
-    });
+    expect(host.querySelector('input[aria-label="Built-in Agent"]')).toBeNull();
+    expect(DEFAULT_EXPERIMENTAL_SETTINGS.enableBuiltInAgent).toBe(true);
+    expect(DEFAULT_EXPERIMENTAL_SETTINGS.enableCloudWorkspace).toBe(false);
   });
 
   it("offers an off-by-default cross-Project switcher rail", () => {

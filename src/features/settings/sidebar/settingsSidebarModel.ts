@@ -44,6 +44,7 @@ export const SETTINGS_SIDEBAR_GROUPS = [
       { id: "typography", labelId: "settings.sidebar.typography", icon: Type, disabled: false },
       { id: "new-menu", labelId: "settings.sidebar.createNew", icon: ListPlus, disabled: false },
       { id: "privacy", labelId: "settings.sidebar.privacy", icon: ShieldCheck, disabled: false },
+      { id: "account", labelId: "settings.sidebar.account", icon: UserRound, disabled: false },
       { id: "experimental", labelId: "settings.sidebar.experimental", icon: FlaskConical, disabled: false },
     ],
   },
@@ -69,7 +70,6 @@ export const SETTINGS_SIDEBAR_GROUPS = [
     labelId: "settings.sidebar.cloud",
     requiresCloud: true,
     items: [
-      { id: "account", labelId: "settings.sidebar.account", icon: UserRound, disabled: false },
       { id: "cloud", labelId: "settings.sidebar.cloudHosting", icon: Cloud, disabled: false },
     ],
   },

@@ -16,7 +16,6 @@ export function ExperimentalSettingsView({
     messageKey: string;
     settingKey: keyof ExperimentalSettings;
   }> = [
-    { messageKey: "builtInAgent", settingKey: "enableBuiltInAgent" },
     { messageKey: "projectSwitcherRail", settingKey: "enableProjectSwitcherRail" },
     { messageKey: "multiRootWorkspaces", settingKey: "enableMultiRootWorkspaces" },
     { messageKey: "notionImport", settingKey: "enableNotionImport" },

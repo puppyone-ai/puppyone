@@ -13,6 +13,7 @@ import {
   supportsDesktopCloudOAuth,
 } from "../../../lib/cloudSession";
 import { SettingsSectionHeader, SettingsSubsection, SettingsValueRow } from "../components";
+import { AccountAICredits } from "./AccountAICredits";
 
 type AccountAuthOperation = "signin" | "signout";
 
@@ -159,6 +160,7 @@ export function AccountSettingsView({
             )}
           </SettingsSubsection>
         </div>
+        {signedIn && sessionMatchesService && <AccountAICredits key={cloudSession?.user_id} />}
       </div>
     </section>
   );

@@ -361,5 +361,8 @@
   "compute.sandbox": "Sandbox · pago de prueba",
   "compute.pendingCredit": "{amount} pendiente de liquidar",
   "compute.insufficientCredit": "Añade crédito para usar este modelo.",
-  "compute.paymentUnavailable": "No se pudo actualizar el saldo del Agent. Reinténtalo."
+  "compute.paymentUnavailable": "No se pudo actualizar el saldo del Agent. Reinténtalo.",
+  "compute.walletTitle": "Saldo de tokens de IA",
+  "compute.walletDetail": "Recarga cuando lo necesites. Paga por el uso del modelo, sin suscripción.",
+  "compute.trialGranted": "Crédito de prueba único recibido: {amount}"
 }

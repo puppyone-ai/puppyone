@@ -14,6 +14,7 @@ export function withManagedConnection({ connections, getAuth, apiBase, requestPu
   let session = null;
   let catalog = null;
   let balance = null;
+  let trialClaimedFor = null;
   let error = null;
   let revision = 0;
   let generation = 1;
@@ -49,6 +50,7 @@ export function withManagedConnection({ connections, getAuth, apiBase, requestPu
         signedIn: Boolean(session), sandbox: catalog?.sandbox ?? false,
         balanceMicroUsd: balance?.balance_micro_usd ?? 0, reservedMicroUsd: balance?.reserved_micro_usd ?? 0,
         availableMicroUsd: balance?.available_micro_usd ?? 0, packs: catalog?.packs ?? [],
+        trialGrantedMicroUsd: balance?.trial_granted_micro_usd ?? 0,
         errorCode: error, apiOrigin: origin },
     });
   };
@@ -70,6 +72,7 @@ export function withManagedConnection({ connections, getAuth, apiBase, requestPu
       generation++;
       session = next;
       balance = null;
+      trialClaimedFor = null;
       lastRefresh = 0;
       publish();
     }
@@ -95,6 +98,13 @@ export function withManagedConnection({ connections, getAuth, apiBase, requestPu
         if (!origin) throw connectionError("GATEWAY_UNAVAILABLE");
         const nextCatalog = await requestPublic(origin, "/ai/catalog", { method: "GET", redirect: "error" });
         if (!Array.isArray(nextCatalog?.models) || !Array.isArray(nextCatalog?.packs)) throw connectionError("INVALID_RESPONSE");
+        if (capturedGeneration !== generation || disposed) return;
+        const claimUser = session?.user_id;
+        if (claimUser && nextCatalog.trial_credit_micro_usd > 0 && trialClaimedFor !== claimUser) {
+          await getAuth().requestSessionApi(origin, "/ai/trial", { method: "POST", body: "{}" });
+          if (capturedGeneration !== generation || disposed) return;
+          trialClaimedFor = claimUser;
+        }
         const nextBalance = session ? await getAuth().requestSessionApi(origin, "/ai/balance", { method: "GET" }) : null;
         if (capturedGeneration !== generation || disposed) return;
         catalog = nextCatalog;
