@@ -31,6 +31,8 @@
   "modelConnections.add": "Añadir conexión",
   "modelConnections.discovering": "Buscando…",
   "modelConnections.discover": "Buscar servicios locales",
+  "modelConnections.enterUrl": "Introducir URL local",
+  "modelConnections.addAnother": "Añadir otra conexión",
   "modelConnections.discoveryHelp": "Solo comprueba puertos locales conocidos. No guarda conexiones ni ejecuta modelos.",
   "modelConnections.connect": "Conectar",
   "modelConnections.empty": "Aún no hay conexiones.",

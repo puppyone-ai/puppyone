@@ -17,9 +17,11 @@ describe("Built-in compute selection ownership", () => {
     const source = read("src/features/desktop-agent/ui/built-in-agent/BuiltInAgentCompute.tsx");
     expect(source).toContain('currentConnection?.sourceKind ?? "managed"');
     expect(source).toContain('CUSTOM_SOURCES = ["api", "local"]');
-    expect(source).toContain('useState(false)');
+    expect(source).toContain('CustomizationStage = "closed" | "chooser" | "source"');
     expect(source).not.toContain('desktop-agent-compute-sources');
-    expect(source).toContain('<ModelConnectionsSettings key={source} embedded sourceKind={source} store={store}');
+    expect(source).toContain('<ModelConnectionQuickSetup key={`${source}:${showSetup}`} sourceKind={source}');
+    expect(source).toContain('createNew={showSetup} onCancel={() => setShowSetup(false)} store={store}');
+    expect(source).not.toContain('ModelConnectionsSettings');
     expect(source).not.toMatch(/fetch\s*\(|ipcRenderer|safeStorage|localStorage|pi-coding-agent/u);
   });
   it("bounds the expanded compute setup so the shared composer remains reachable", () => {
@@ -27,7 +29,13 @@ describe("Built-in compute selection ownership", () => {
     const css = read("src/features/desktop-agent/ui/built-in-agent/built-in-agent-compute.css");
     expect(source).toContain('data-po-scrollbar="content"');
     expect(css).toContain("max-height: min(50vh, 480px); overflow: auto");
-    expect(css).toContain(".model-connections-embedded { max-height: none; overflow: visible; }");
     expect(css).not.toMatch(/cursor:\s*pointer/u);
+  });
+  it("keeps focused first-run setup inside the connection domain", () => {
+    const quick = read("src/features/model-connections/ui/ModelConnectionQuickSetup.tsx");
+    expect(quick).toContain("useModelConnections");
+    expect(quick).toContain("store.discover()");
+    expect(quick).toContain("store.save(request)");
+    expect(quick).not.toMatch(/fetch\s*\(|ipcRenderer|safeStorage|localStorage/u);
   });
 });

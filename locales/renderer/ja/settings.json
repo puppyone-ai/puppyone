@@ -31,6 +31,8 @@
   "modelConnections.add": "接続を追加",
   "modelConnections.discovering": "検索中…",
   "modelConnections.discover": "ローカルサービスを検索",
+  "modelConnections.enterUrl": "ローカル URL を入力",
+  "modelConnections.addAnother": "別の接続を追加",
   "modelConnections.discoveryHelp": "既知のローカルポートのみを確認します。接続の保存やモデルの実行は行いません。",
   "modelConnections.connect": "接続",
   "modelConnections.empty": "接続はまだありません。",

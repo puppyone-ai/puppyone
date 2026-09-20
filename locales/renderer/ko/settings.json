@@ -31,6 +31,8 @@
   "modelConnections.add": "연결 추가",
   "modelConnections.discovering": "검색 중…",
   "modelConnections.discover": "로컬 서비스 찾기",
+  "modelConnections.enterUrl": "로컬 URL 입력",
+  "modelConnections.addAnother": "다른 연결 추가",
   "modelConnections.discoveryHelp": "알려진 로컬 포트만 확인합니다. 연결을 저장하거나 모델을 실행하지 않습니다.",
   "modelConnections.connect": "연결",
   "modelConnections.empty": "아직 연결이 없습니다.",

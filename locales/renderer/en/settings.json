@@ -31,6 +31,8 @@
   "modelConnections.add": "Add connection",
   "modelConnections.discovering": "Discovering…",
   "modelConnections.discover": "Find local services",
+  "modelConnections.enterUrl": "Enter local URL",
+  "modelConnections.addAnother": "Add another connection",
   "modelConnections.discoveryHelp": "Checks only known localhost ports. Nothing is saved and no model runs until you choose an action.",
   "modelConnections.connect": "Connect",
   "modelConnections.empty": "No connections yet.",

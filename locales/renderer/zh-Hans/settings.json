@@ -31,6 +31,8 @@
   "modelConnections.add": "添加连接",
   "modelConnections.discovering": "正在发现…",
   "modelConnections.discover": "发现本地服务",
+  "modelConnections.enterUrl": "手动输入 URL",
+  "modelConnections.addAnother": "添加其他连接",
   "modelConnections.discoveryHelp": "仅检查已知的本机端口，不自动保存连接，也不会运行模型。",
   "modelConnections.connect": "连接",
   "modelConnections.empty": "尚未添加连接。",

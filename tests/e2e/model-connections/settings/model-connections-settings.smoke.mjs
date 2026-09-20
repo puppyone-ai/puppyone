@@ -54,7 +54,7 @@ async function until(read, label) {
   throw new Error(`Settings smoke: ${label}`);
 }
 async function clickText(label) {
-  await evaluate(`(() => { const b=[...document.querySelectorAll('button')].find(e=>e.textContent.trim()===${JSON.stringify(label)} || e.getAttribute('aria-label')===${JSON.stringify(label)}); if(!b)throw Error('Button missing: '+${JSON.stringify(label)}); b.click(); })()`);
+  await evaluate(`(() => { const b=[...document.querySelectorAll('button')].find(e=>e.textContent.trim()===${JSON.stringify(label)} || e.querySelector('strong')?.textContent.trim()===${JSON.stringify(label)} || e.getAttribute('aria-label')===${JSON.stringify(label)}); if(!b)throw Error('Button missing: '+${JSON.stringify(label)}); b.click(); })()`);
 }
 async function fill(selector, value) {
   await evaluate(`(() => { const input=document.querySelector(${JSON.stringify(selector)}); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(value)}); input.dispatchEvent(new Event('input',{bubbles:true})); })()`);
@@ -90,7 +90,17 @@ async function checkComputeChoice() {
   assert.equal(await evaluate("Boolean(document.querySelector('.desktop-agent-composer button[aria-label=\"Agent model\"]'))"), false, "Built-in must not show a second unscoped model picker");
   await capture("built-in-compute-choice.png");
   await clickText("Bring your own API or your model");
+  assert.equal(await evaluate("document.querySelector('.desktop-agent-compute')?.textContent.includes('How do you want to connect?')"), true);
+  assert.equal(await evaluate("Boolean(document.querySelector('.desktop-agent-compute input, .desktop-agent-compute button[aria-label=\"Agent model\"]'))"), false, "Source chooser must not expose a form or model picker");
+  await capture("built-in-compute-source-chooser.png");
+  await clickText("Bring your API");
   await until(() => evaluate("document.querySelector('.desktop-agent-compute button[aria-label=\"Agent model\"]')?.disabled===false"), "API model picker");
+  await capture("built-in-compute-api-picker.png");
+  await clickText("Add another connection");
+  assert.equal(await evaluate("Boolean(document.querySelector('.desktop-agent-compute input[type=url], .desktop-agent-compute input[type=password]'))"), true);
+  assert.equal(await evaluate("document.querySelector('.desktop-agent-compute')?.textContent.includes('No connections yet')"), false);
+  await capture("built-in-compute-api-form.png");
+  await clickText("Cancel");
   await clickText("Agent model"); await clickText("ui-test-model");
   await until(() => evaluate("document.querySelector('.desktop-agent-boundary')?.getAttribute('data-phase')==='ready'"), "ready native session");
   await evaluate("document.querySelector('.desktop-agent-prompt-editor .cm-content').focus()");
@@ -102,11 +112,11 @@ async function checkComputeChoice() {
   await capture("built-in-compute-api.png");
   assert.equal(inferenceRequests, 3);
   await clickText("Bring your own API or your model");
+  await clickText("Back");
   await clickText("Use Puppyone Cloud");
   await evaluate("document.querySelector('.desktop-agent-prompt-editor .cm-content').focus()"); await window.webContents.insertText("Do not send this to the old source.");
   assert.equal(await evaluate("document.querySelector('button[aria-label=\"Send message\"]')?.disabled"), true);
   assert.equal(await evaluate("document.querySelector('.desktop-agent-compute')?.textContent.includes('Cloud inference is not available yet')"), true);
-  await clickText("Return to the current connection");
   await clickText("Bring your own API or your model");
   await clickText("Local models");
   assert.equal(await evaluate("document.querySelector('.desktop-agent-compute')?.textContent.includes('Find local services')"), true);
@@ -117,7 +127,7 @@ async function checkComputeChoice() {
   await capture("built-in-compute-local-compact.png");
   assert.equal(await evaluate(`(() => {
     const section = document.querySelector('.desktop-agent-compute');
-    const buttons = [...section.querySelectorAll('.desktop-agent-compute-options button')];
+    const buttons = [...section.querySelectorAll('button')];
     const send = document.querySelector('button[aria-label="Send message"]').getBoundingClientRect();
     return buttons.every(button => { const rect = button.getBoundingClientRect(); return rect.top >= 0 && rect.right <= innerWidth; })
       && section.scrollWidth <= section.clientWidth && send.bottom <= innerHeight;

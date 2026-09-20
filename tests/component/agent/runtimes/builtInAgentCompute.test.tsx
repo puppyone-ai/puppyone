@@ -29,7 +29,8 @@ function fixture(empty = false) {
   return { client, store: new ModelConnectionStore(client) };
 }
 function button(label: string) {
-  const match = [...document.querySelectorAll("button")].find((entry) => entry.textContent === label || entry.getAttribute("aria-label") === label);
+  const match = [...document.querySelectorAll("button")].find((entry) => entry.textContent === label
+    || entry.querySelector("strong")?.textContent === label || entry.getAttribute("aria-label") === label);
   if (!match) throw new Error(`Missing button: ${label}`); return match;
 }
 async function render({ selectedModel = null as string | null, disabled = false, empty = false } = {}) {
@@ -54,6 +55,8 @@ it("defaults to quiet Puppyone Cloud without exposing setup choices or running a
 it("only offers local models after choosing local, and only commits an explicit model choice", async () => {
   const { onSelectModel, onReadyChange } = await render();
   act(() => button("Bring your own API or your model").click());
+  expect(document.body.textContent).toContain("How do you want to connect?");
+  expect(document.querySelector('input[type="url"]')).toBeNull();
   act(() => button("Local models").click());
   act(() => button("Agent model").click());
   expect(document.body.textContent).toContain("Local Llama"); expect(document.body.textContent).not.toContain("API model");
@@ -65,29 +68,50 @@ it("pauses sending while browsing another source and can return to the actual ro
   const { onReadyChange, onSelectModel } = await render({ selectedModel: models[0].model });
   expect(onReadyChange).toHaveBeenLastCalledWith(true);
   act(() => button("Bring your own API or your model").click());
+  act(() => button("Back").click());
   act(() => button("Bring your API").click());
   expect(onReadyChange).toHaveBeenLastCalledWith(false);
   act(() => button("Agent model").click());
   expect(document.body.textContent).toContain("API model"); expect(document.body.textContent).not.toContain("Local Llama");
   act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
-  act(() => button("Return to the current connection").click());
+  act(() => button("Close").click());
   expect(onReadyChange).toHaveBeenLastCalledWith(true); expect(onSelectModel).not.toHaveBeenCalled();
 });
 it("keeps official cloud visible but unavailable without falling back to a BYOK model", async () => {
   const { onReadyChange, onSelectModel, client } = await render({ selectedModel: models[0].model });
   act(() => button("Bring your own API or your model").click());
+  act(() => button("Back").click());
   act(() => button("Use Puppyone Cloud").click());
   expect(document.body.textContent).toContain("Cloud inference is not available yet");
   expect(document.querySelector('.desktop-agent-compute-editor')).toBeNull();
   expect(document.querySelector('button[aria-label="Agent model"]')).toBeNull();
   expect(onReadyChange).toHaveBeenLastCalledWith(false); expect(onSelectModel).not.toHaveBeenCalled(); expect(client.save).not.toHaveBeenCalled();
 });
-it("reuses the scoped connection form for a new API source", async () => {
+it("opens a focused URL and Key form for a new API source", async () => {
   const { client } = await render({ empty: true });
-  act(() => button("Bring your own API or your model").click()); act(() => button("Add connection").click());
+  act(() => button("Bring your own API or your model").click());
+  expect(document.body.textContent).toContain("How do you want to connect?");
+  expect(document.body.textContent).not.toContain("No connections yet");
+  act(() => button("Bring your API").click());
   expect(document.querySelector('input[type="password"]')).not.toBeNull();
-  expect((document.querySelector('select[id$="-driver"]') as HTMLSelectElement).value).toBe("openai-compatible");
+  expect(document.querySelector('input[type="url"]')).not.toBeNull();
+  expect(document.querySelector('select[id$="-driver"]')).toBeNull();
   expect(document.body.textContent).not.toContain("Find local services"); expect(client.discover).not.toHaveBeenCalled();
+});
+it("keeps local discovery explicit and offers a manual URL as the only alternative", async () => {
+  const { client } = await render({ empty: true });
+  act(() => button("Bring your own API or your model").click());
+  act(() => button("Local models").click());
+  expect(document.body.textContent).toContain("Find local services");
+  expect(document.body.textContent).toContain("Enter local URL");
+  expect(document.querySelector('input[type="url"]')).toBeNull();
+  expect(client.discover).not.toHaveBeenCalled();
+  await act(async () => button("Find local services").click());
+  expect(client.discover).toHaveBeenCalledTimes(1);
+  expect(document.body.textContent).not.toContain("No connections yet");
+  act(() => button("Enter local URL").click());
+  expect(document.querySelector('input[type="url"]')).not.toBeNull();
+  expect((document.querySelector('select[id$="-service"]') as HTMLSelectElement).value).toBe("ollama");
 });
 it("keeps source selection disabled during a turn", async () => {
   const { onSelectModel } = await render({ selectedModel: models[0].model, disabled: true });
@@ -99,6 +123,7 @@ it("restores the actual custom route when an uncommitted customization is closed
   const { onReadyChange, onSelectModel } = await render({ selectedModel: models[0].model });
   expect(document.querySelector('.desktop-agent-compute-summary')?.textContent).toContain("Local models");
   act(() => button("Bring your own API or your model").click());
+  act(() => button("Back").click());
   act(() => button("Bring your API").click());
   expect(onReadyChange).toHaveBeenLastCalledWith(false);
   act(() => button("Close").click());
@@ -110,7 +135,7 @@ it("restores the actual custom route when an uncommitted customization is closed
 it("closes a new connection editor back to cloud and discards the write-only Key form", async () => {
   const { client, onReadyChange } = await render({ empty: true });
   act(() => button("Bring your own API or your model").click());
-  act(() => button("Add connection").click());
+  act(() => button("Bring your API").click());
   expect(document.querySelector('input[type="password"]')).not.toBeNull();
   act(() => button("Close").click());
   expect(document.querySelector('input[type="password"]')).toBeNull();
