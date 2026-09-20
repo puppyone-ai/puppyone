@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
-import { AlignCenter, AlignLeft, AlignRight, Bold, ImagePlus, Type, RotateCcw } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, Bold, ImagePlus, PaintBucket, Type, RotateCcw } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
 import type { HtmlSelectionMessage } from "./htmlBridgeProtocol";
 import type { HtmlEditOperation, HtmlStyleProperty } from "./htmlEditCompiler";
@@ -46,12 +46,24 @@ export function HtmlFloatingToolbar({ selection, viewport, text, image, alt, dis
   const style = (property: HtmlStyleProperty, value: string) => apply({ kind: "style", property, value });
   const button = (label: string, icon: ReactNode, action: () => void, pressed?: boolean) => <button type="button"
     title={label} aria-label={label} disabled={disabled} aria-pressed={pressed} onClick={action}>{icon}</button>;
-  const colorButton = (property: "color" | "background-color", value: string) => <button type="button"
-    title={t(`editor.html.style.${property}`)} aria-label={t(`editor.html.style.${property}`)} disabled={disabled}
-    data-palette={property} aria-expanded={palette === property} aria-haspopup="dialog"
-    onClick={() => setPalette(palette === property ? null : property)}>
-    <span className="html-floating-toolbar__color-dot"><span style={{ background: value }} /></span>
-  </button>;
+  const colorButton = (property: "color" | "background-color", value: string) => {
+    const textColor = property === "color";
+    return <button type="button" className="html-floating-toolbar__color-control"
+      title={t(`editor.html.style.${property}`)} aria-label={t(`editor.html.style.${property}`)} disabled={disabled}
+      data-palette={property} data-color-role={textColor ? "text" : "background"}
+      aria-expanded={palette === property} aria-haspopup="dialog"
+      onClick={() => setPalette(palette === property ? null : property)}>
+      {textColor
+        ? <span className="html-floating-toolbar__text-color" aria-hidden="true">
+          <span className="html-floating-toolbar__text-color-glyph">A</span>
+          <span className="html-floating-toolbar__text-color-value"><span style={{ background: value }} /></span>
+        </span>
+        : <span className="html-floating-toolbar__background-color" aria-hidden="true">
+          <PaintBucket size={16} strokeWidth={1.8} />
+          <span className="html-floating-toolbar__background-color-value"><span style={{ background: value }} /></span>
+        </span>}
+    </button>;
+  };
   const weight = Number.parseInt(String(styles.fontWeight), 10);
   const bold = weight >= 600 || styles.fontWeight === "bold";
   return <div ref={toolbar} className="html-floating-toolbar" data-html-control

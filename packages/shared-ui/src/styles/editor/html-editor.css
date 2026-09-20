@@ -41,10 +41,19 @@
 .html-floating-toolbar button:disabled, .html-floating-toolbar select:disabled, .html-floating-toolbar [aria-disabled="true"] { opacity: .45; cursor: default; }
 .html-floating-toolbar select { width: 48px; padding-inline: 4px; }
 .html-floating-toolbar__divider { width: 1px; height: 16px; background: var(--po-divider, #e1e3e6); margin: 0 3px; }
-.html-floating-toolbar__color-dot { display: block; width: 16px; height: 16px; overflow: hidden; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--po-text, #202124) 22%, transparent);
-  background: repeating-conic-gradient(#ddd 0% 25%, white 0% 50%) 0 0 / 6px 6px; }
-.html-floating-toolbar__color-dot > span { display: block; width: 100%; height: 100%; }
-.html-floating-toolbar button[aria-expanded="true"] .html-floating-toolbar__color-dot { outline: 2px solid var(--html-editor-accent); outline-offset: 2px; }
+.html-floating-toolbar .html-floating-toolbar__color-control { width: 30px; min-width: 30px; padding-inline: 5px; }
+.html-floating-toolbar__text-color { display: grid; grid-template-rows: 15px 3px; place-items: center; width: 16px; height: 18px; }
+.html-floating-toolbar__text-color-glyph { font: 600 15px/15px var(--po-font-ui, system-ui); }
+.html-floating-toolbar__text-color-value { display: block; width: 15px; height: 3px; overflow: hidden; border-radius: 999px;
+  background: repeating-conic-gradient(#ddd 0% 25%, white 0% 50%) 0 0 / 4px 4px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--po-text, #202124) 20%, transparent); }
+.html-floating-toolbar__text-color-value > span { display: block; width: 100%; height: 100%; }
+.html-floating-toolbar__background-color { position: relative; display: grid; place-items: center; width: 18px; height: 18px; }
+.html-floating-toolbar__background-color-value { position: absolute; right: -2px; bottom: -2px; display: block; width: 8px; height: 8px; overflow: hidden;
+  border: 2px solid var(--po-panel, #ffffff); border-radius: 50%; background: repeating-conic-gradient(#ddd 0% 25%, white 0% 50%) 0 0 / 4px 4px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--po-text, #202124) 28%, transparent); }
+.html-floating-toolbar__background-color-value > span { display: block; width: 100%; height: 100%; }
+.html-floating-toolbar button[aria-expanded="true"] { color: var(--html-editor-accent); background: color-mix(in srgb, var(--html-editor-accent) 10%, var(--po-panel, #ffffff)); }
 .html-floating-toolbar__popover { position: absolute; bottom: calc(100% + 8px); width: 154px; box-sizing: border-box; padding: 10px; border: 1px solid var(--po-divider, #e1e3e6); border-radius: 14px;
   background: var(--po-panel, #fff); box-shadow: 0 4px 16px #00000016; }
 .html-floating-toolbar__swatches { display: grid; grid-template-columns: repeat(5, 20px); gap: 8px; }

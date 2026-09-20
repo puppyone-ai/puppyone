@@ -200,6 +200,30 @@ app.whenReady().then(async () => {
     await until(() => evaluate("document.querySelector('iframe')?.getAttribute('aria-busy')==='false'"), "history projection");
     await editElement("#title");
     await until(() => evaluate("!!document.querySelector('.html-floating-toolbar')"), "style inspector");
+    const colorCues = await evaluate(`(()=>{
+      const text = document.querySelector('[data-color-role="text"]');
+      const background = document.querySelector('[data-color-role="background"]');
+      const underline = text?.querySelector('.html-floating-toolbar__text-color-value');
+      const dot = background?.querySelector('.html-floating-toolbar__background-color-value');
+      return {
+        controls: document.querySelectorAll('.html-floating-toolbar__color-control').length,
+        labels: [text?.getAttribute('aria-label'), background?.getAttribute('aria-label')],
+        textGlyph: text?.querySelector('.html-floating-toolbar__text-color-glyph')?.textContent,
+        textHasBucket: !!text?.querySelector('svg'),
+        backgroundHasBucket: !!background?.querySelector('svg'),
+        underlineHeight: underline && getComputedStyle(underline).height,
+        dotRadius: dot && getComputedStyle(dot).borderRadius,
+      };
+    })()`);
+    assert.deepEqual(colorCues, {
+      controls: 2,
+      labels: ['Text color', 'Background color'],
+      textGlyph: 'A',
+      textHasBucket: false,
+      backgroundHasBucket: true,
+      underlineHeight: '3px',
+      dotRadius: '50%',
+    }, 'text and background color controls have distinct compact visual cues');
     const beforeTray = await evaluate("document.querySelector('.html-floating-toolbar').getBoundingClientRect().toJSON()");
     await control('[aria-label="Text color"]');
     await until(() => evaluate("!!document.querySelector('.html-floating-toolbar__popover')"), 'color tray');
