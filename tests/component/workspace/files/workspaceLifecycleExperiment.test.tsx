@@ -33,6 +33,7 @@ const localFiles = vi.hoisted(() => ({
   openWorkspaceInCurrentWindow: vi.fn(),
   openWorkspaceInNewWindow: vi.fn(),
   removeRecentWorkspace: vi.fn(),
+  renameRecentWorkspace: vi.fn(),
   selectLocalProjectLocation: vi.fn(),
   selectWorkspaceFolder: vi.fn(),
   selectWorkspaceFolderInNewWindow: vi.fn(),
@@ -295,6 +296,41 @@ describe("multi-project Workspace experiment", () => {
     expect(harness.current.workbenchWorkspace?.folders.map((folder) => folder.id)).toEqual([
       sibling.workspaceInstanceId,
     ]);
+  });
+
+  it("renames the Project presentation without changing its Folder identity", async () => {
+    const primary = workspace("rename-primary", "Folder name", "/projects/folder-name");
+    localFiles.getInitialWorkspace.mockResolvedValue({
+      workspaceId: "workbench:rename",
+      path: primary.path,
+      workspace: primary,
+      workspaces: [primary],
+      error: null,
+    });
+    localFiles.getRecentWorkspaces.mockResolvedValue({
+      workspaces: [primary],
+      items: [{ workspace: primary, lastOpenedAt: null }],
+      errors: [],
+    });
+    const harness = await renderHarness(false, vi.fn());
+
+    await act(async () => harness.current.renameProject(primary.path, "Research Notes"));
+
+    expect(localFiles.renameRecentWorkspace).toHaveBeenCalledWith(
+      primary.path,
+      "Research Notes",
+    );
+    expect(harness.current.workspace).toMatchObject({
+      name: "Research Notes",
+      path: primary.path,
+      workspaceInstanceId: primary.workspaceInstanceId,
+    });
+    expect(harness.current.workbenchWorkspace?.id).toBe("workbench:rename");
+    expect(harness.current.workbenchWorkspace?.folders[0]).toMatchObject({
+      id: primary.workspaceInstanceId,
+      name: "Research Notes",
+      workspace: { name: "Research Notes", path: primary.path },
+    });
   });
 });
 

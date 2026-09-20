@@ -21,6 +21,34 @@ afterEach(() => {
 });
 
 describe("Local Agent settings views", () => {
+  it("opens with every discovered Hook off without enrolling during discovery", async () => {
+    const providers = [
+      provider("codex", "Codex", true, "not-configured"),
+      provider("claude", "Claude Code", true, "not-configured"),
+      provider("cursor", "Cursor Agent CLI", true, "not-configured"),
+    ];
+    const getEnrollment = vi.fn(async () => enrollment(providers));
+    const setEnrollment = vi.fn(async () => ({ enrollment: "enabled" }));
+    window.puppyoneDesktop = bridge({
+      terminalAgents: ["codex", "claude", "cursor"],
+      getEnrollment,
+      setEnrollment,
+    });
+
+    render(<LocalAgentsSettingsView
+      settings={{ hiddenTerminalAgentIds: [], chatHistoryDiscoveryEnabled: false }}
+      onChange={vi.fn()}
+      onActivityIndicatorsEnabledChange={vi.fn()}
+    />);
+
+    await vi.waitFor(() => expect(document.querySelectorAll(".desktop-local-agent-hook-option")).toHaveLength(3));
+    expect(Array.from(document.querySelectorAll<HTMLInputElement>(
+      ".desktop-local-agent-hook-option input[type=\"checkbox\"]",
+    )).every(({ checked }) => !checked)).toBe(true);
+    expect(getEnrollment).toHaveBeenCalledOnce();
+    expect(setEnrollment).not.toHaveBeenCalled();
+  });
+
   it("uses local product detection and persists only hidden launcher ids", async () => {
     window.puppyoneDesktop = bridge({
       terminalAgents: ["codex", "pi", "workbuddy-china", "workbuddy-international", "hermes"],

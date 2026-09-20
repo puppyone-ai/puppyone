@@ -15,6 +15,7 @@ import {
   resolveProjectSwitcherRailWidth,
   resolveProjectSwitcherRailItems,
 } from "../../../../src/features/app-shell/ProjectSwitcherRail";
+import { resolveProjectRowMenuPosition } from "../../../../src/features/app-shell/ProjectRowActions";
 import {
   ProjectEntryFlow,
   useProjectEntryFlow,
@@ -154,6 +155,94 @@ describe("Project switcher rail", () => {
     expect(host.querySelector(".desktop-project-switcher-rail-toggle")).toBeNull();
     expect(host.querySelector(".desktop-project-switcher-rail-footer")).toBeNull();
     expect(rail?.querySelector(".desktop-project-switcher-rail-title")).toBeNull();
+  });
+
+  it("opens a Project actions menu and confirms rename or unlink in centered dialogs", async () => {
+    const active = workspace("active", "Alpha", "/projects/alpha");
+    const beta = workspace("beta", "Beta", "/projects/beta");
+    const onRenameProject = vi.fn(async () => undefined);
+    const onUnlinkProject = vi.fn(async () => undefined);
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+
+    await act(async () => root?.render(withTestLocalization(
+      <ProjectSwitcherRail
+        activeWorkspace={active}
+        expanded
+        recentWorkspaces={[{ workspace: beta }]}
+        onCreateNew={() => undefined}
+        onRenameProject={onRenameProject}
+        onSelectProject={() => undefined}
+        onUnlinkProject={onUnlinkProject}
+      />,
+    )));
+
+    const actionButtons = host.querySelectorAll<HTMLButtonElement>(
+      ".desktop-project-switcher-row-action",
+    );
+    expect(actionButtons).toHaveLength(2);
+    expect(actionButtons[1]?.getAttribute("aria-label")).toContain("Beta");
+    expect(actionButtons[1]?.getAttribute("aria-haspopup")).toBe("menu");
+
+    await act(async () => actionButtons[1]?.click());
+    const menu = document.body.querySelector<HTMLElement>(".desktop-project-row-actions-menu");
+    expect(menu?.getAttribute("role")).toBe("menu");
+    expect(Array.from(menu?.querySelectorAll(".desktop-menu-item") ?? [], (item) => item.textContent))
+      .toEqual(["Rename…", "Unlink…"]);
+
+    await act(async () => menu?.querySelector<HTMLButtonElement>(".desktop-menu-item")?.click());
+    const renameDialog = document.body.querySelector<HTMLElement>("[role='dialog']");
+    expect(renameDialog?.textContent).toContain("Rename project");
+    expect(renameDialog?.textContent).toContain("The local folder stays the same.");
+    const nameInput = renameDialog?.querySelector<HTMLInputElement>("input");
+    expect(nameInput?.value).toBe("Beta");
+    await act(async () => {
+      if (!nameInput) return;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")
+        ?.set?.call(nameInput, "Research Notes");
+      nameInput.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const renameSubmit = renameDialog?.querySelector<HTMLButtonElement>("button[type='submit']");
+    await act(async () => renameSubmit?.click());
+    expect(onRenameProject).toHaveBeenCalledWith(beta.path, "Research Notes");
+    expect(document.body.querySelector("[role='dialog']")).toBeNull();
+
+    await act(async () => actionButtons[1]?.click());
+    const unlinkMenu = document.body.querySelector<HTMLElement>(".desktop-project-row-actions-menu");
+    const unlinkItem = [...(unlinkMenu?.querySelectorAll<HTMLButtonElement>(".desktop-menu-item") ?? [])]
+      .find((item) => item.textContent === "Unlink…");
+    await act(async () => unlinkItem?.click());
+    const unlinkDialog = document.body.querySelector<HTMLElement>("[role='dialog']");
+    expect(unlinkDialog?.textContent).toContain("Local files will stay on disk.");
+    const unlinkButton = [...(unlinkDialog?.querySelectorAll<HTMLButtonElement>("button") ?? [])]
+      .find((button) => button.textContent === "Unlink");
+    await act(async () => unlinkButton?.click());
+    expect(onUnlinkProject).toHaveBeenCalledWith(beta.path);
+  });
+
+  it("keeps Project actions out of the compact rail and clamps the expanded menu to the viewport", async () => {
+    const active = workspace("active", "Alpha", "/projects/alpha");
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+
+    await act(async () => root?.render(withTestLocalization(
+      <ProjectSwitcherRail
+        activeWorkspace={active}
+        recentWorkspaces={[]}
+        onCreateNew={() => undefined}
+        onRenameProject={async () => undefined}
+        onSelectProject={() => undefined}
+        onUnlinkProject={async () => undefined}
+      />,
+    )));
+
+    expect(host.querySelector(".desktop-project-switcher-row-action")).toBeNull();
+    expect(resolveProjectRowMenuPosition({ bottom: 790, right: 990 }, 1_000, 800)).toEqual({
+      top: 710,
+      left: 806,
+    });
   });
 
   it("exports a Project row as a Finder-compatible native folder drag", async () => {

@@ -294,6 +294,10 @@ export async function removeRecentWorkspace(folderPath: string): Promise<void> {
   await getDesktopBridge().removeRecentWorkspace(folderPath);
 }
 
+export async function renameRecentWorkspace(folderPath: string, name: string): Promise<void> {
+  await getDesktopBridge().renameRecentWorkspace({ folderPath, name });
+}
+
 export async function openExternalUrl(href: string): Promise<void> {
   await getDesktopBridge().openExternalUrl(href);
 }
