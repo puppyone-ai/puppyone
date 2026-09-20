@@ -195,6 +195,7 @@ async function runProductionLayoutSmoke() {
   const window = createWindow({ show: false, width: 760, height: 820, preload: false });
   const matrix = [];
   const pickerThemes = [];
+  const imageControls = [];
   for (const theme of ["light", "dark"]) {
     nativeTheme.themeSource = theme;
     const url = pathToFileURL(rendererPath);
@@ -234,6 +235,7 @@ async function runProductionLayoutSmoke() {
           inlineMentions: document.querySelectorAll('.desktop-agent-prompt-mention').length,
           imagePreviews: document.querySelectorAll('.desktop-agent-visual-attachment img').length,
           imageActionCount: imageActions.length,
+          imageSize: { width: cardRect?.width, height: cardRect?.height },
           imageRemoveLabel: imageActions[0]?.getAttribute('aria-label') || '',
           compactCornerRemove: Boolean(cardRect && removeRect && removeRect.width <= 24
             && removeRect.height <= 24 && Math.abs(removeRect.right - cardRect.right) <= 8
@@ -261,12 +263,14 @@ async function runProductionLayoutSmoke() {
         || snapshot.inlineMentions !== 2
         || snapshot.imagePreviews !== 1 || snapshot.transcriptMediaChips !== 1
         || snapshot.imageActionCount !== 1 || !snapshot.imageRemoveLabel || !snapshot.compactCornerRemove
+        || snapshot.imageSize.width !== 40 || snapshot.imageSize.height !== 40
         || !snapshot.addLabel || !snapshot.inlineError || !pickerPaddingIsBalanced
         || !composerTextIsAligned) {
         throw new Error(`Production Agent reference layout smoke failed: ${JSON.stringify(snapshot)}`);
       }
       matrix.push(`${theme}:${width}`);
     }
+    imageControls.push(await checkImageControls(window, theme));
     const directPicker = await window.webContents.executeJavaScript(`(() => ({
       input: Boolean(document.querySelector('.desktop-agent-attachment-control input[type=file]')),
       menu: Boolean(document.querySelector('[role=menu]')),
@@ -378,7 +382,68 @@ async function runProductionLayoutSmoke() {
     }
   }
   window.destroy();
-  return { productionLayoutMatrix: matrix, pickerThemes };
+  return { productionLayoutMatrix: matrix, pickerThemes, imageControls };
+}
+
+async function checkImageControls(window, theme) {
+  const debug = window.webContents.debugger;
+  debug.attach("1.3");
+  await debug.sendCommand("DOM.enable");
+  await debug.sendCommand("CSS.enable");
+  const { root } = await debug.sendCommand("DOM.getDocument");
+  const node = async (selector) => (await debug.sendCommand("DOM.querySelector", { nodeId: root.nodeId, selector })).nodeId;
+  const cardId = await node(".desktop-agent-visual-attachment");
+  const buttonId = await node(".desktop-agent-visual-attachment-actions > button");
+  const hover = (nodeId, enabled) => debug.sendCommand("CSS.forcePseudoState", { nodeId, forcedPseudoClasses: enabled ? ["hover"] : [] });
+  const read = () => window.webContents.executeJavaScript(`(async () => {
+    const card = document.querySelector('.desktop-agent-visual-attachment');
+    await Promise.all(card.getAnimations({subtree:true}).filter(animation => animation.effect?.getComputedTiming().iterations !== Infinity).map(animation => animation.finished));
+    const actions = card.querySelector('.desktop-agent-visual-attachment-actions');
+    const button = actions.querySelector('button');
+    const buttonStyle = getComputedStyle(button);
+    return { visible: getComputedStyle(actions).opacity, hitTest: getComputedStyle(actions).pointerEvents,
+      opacity: buttonStyle.opacity, background: buttonStyle.backgroundColor, color: buttonStyle.color,
+      cardOpacity: getComputedStyle(card).opacity,
+      previewOpacity: getComputedStyle(card.querySelector('.desktop-agent-visual-attachment-preview')).opacity,
+      focusable: button.tabIndex === 0 && !button.disabled, focused: document.activeElement === button,
+      hoverAvailable: matchMedia('(hover: hover)').matches };
+  })()`, true);
+  const capture = async (state) => {
+    const directory = process.env.PUPPYONE_AGENT_RENDER_ARTIFACT_DIR;
+    if (!directory) return;
+    await fsp.mkdir(path.resolve(directory), { recursive: true });
+    await fsp.writeFile(path.join(path.resolve(directory), `image-control-${theme}-${state}.png`), (await window.capturePage()).toPNG());
+  };
+  try {
+    await window.webContents.executeJavaScript("document.activeElement?.blur()", true);
+    const idle = await read();
+    if (!idle.focusable || (idle.hoverAvailable && (idle.visible !== "0" || idle.hitTest !== "none"))) {
+      throw new Error(`Image remove should be quiet but keyboard reachable: ${JSON.stringify(idle)}`);
+    }
+    await capture("idle");
+    await hover(cardId, true);
+    const cardHover = await read();
+    if (cardHover.visible !== "1" || cardHover.hitTest !== "auto") throw new Error("Image hover did not reveal remove.");
+    await hover(buttonId, true);
+    const buttonHover = await read();
+    if (buttonHover.visible !== "1" || buttonHover.opacity !== "1" || buttonHover.cardOpacity !== "1"
+      || buttonHover.background === cardHover.background || buttonHover.color === cardHover.color
+      || buttonHover.previewOpacity !== idle.previewOpacity) {
+      throw new Error(`Image remove hover must emphasize without fading: ${JSON.stringify({ cardHover, buttonHover })}`);
+    }
+    await capture("hover");
+    await hover(buttonId, false); await hover(cardId, false);
+    await window.webContents.executeJavaScript("document.querySelector('.desktop-agent-visual-attachment-actions > button').focus()", true);
+    const focused = await read();
+    if (!focused.focused || focused.visible !== "1" || focused.hitTest !== "auto") throw new Error("Keyboard focus did not reveal image remove.");
+    await window.webContents.executeJavaScript("document.activeElement.blur()", true);
+    const blurred = await read();
+    if (blurred.hoverAvailable && blurred.visible !== "0") throw new Error("Image remove stayed visible after leaving.");
+    return { theme, idle, cardHover, buttonHover, focused, blurred };
+  } finally {
+    await hover(buttonId, false); await hover(cardId, false);
+    debug.detach();
+  }
 }
 
 function createWindow({ show, width, height, preload }) {

@@ -60,7 +60,7 @@ function VisualAttachmentCard({ reference, previewUrl, onRemove }: {
       <span className="desktop-agent-visual-attachment-preview">
         {previewUrl
           ? <img src={previewUrl} alt="" draggable={false} />
-          : <Image size={22} aria-hidden="true" />}
+          : <Image size={18} aria-hidden="true" />}
       </span>
       {reference.status === "resolving" && (
         <span className="desktop-agent-visual-attachment-status" aria-hidden="true">

@@ -24,7 +24,7 @@
   --agent-composer-toolbar-padding-inline: 8px;
   /* Prompt and picker labels share one text edge even when either inset changes. */
   --agent-composer-picker-padding-inline: calc(var(--agent-composer-text-inset-inline) - var(--agent-composer-toolbar-padding-inline));
-  --agent-reference-card-height: 52px;
+  --agent-reference-card-height: 40px;
   --agent-empty-state-dock-reserve: calc(
     var(--agent-dock-padding-top)
     + var(--agent-composer-input-min-height)

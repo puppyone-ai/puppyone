@@ -208,7 +208,7 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
     expect(attachmentButton).not.toContain('role="menu"');
     expect(css).toMatch(/\.desktop-agent-reference-trigger\s*\{[^}]*width:\s*var\(--agent-control-size\)[^}]*height:\s*var\(--agent-control-size\)[^}]*color:\s*var\(--agent-text-subtle\)/s);
     expect(css).toMatch(/\.desktop-agent-reference-trigger:hover:not\(:disabled\)\s*\{[^}]*color:\s*var\(--agent-text-muted\)/s);
-    expect(css).toMatch(/--agent-reference-card-height:\s*52px/);
+    expect(css).toMatch(/--agent-reference-card-height:\s*40px/);
     expect(css).toMatch(/\.desktop-agent-visual-attachments\s*\{[^}]*display:\s*flex[^}]*gap:\s*14px[^}]*padding:\s*12px 12px 0/s);
     expect(css).toMatch(/\.desktop-agent-visual-attachment\s*\{[^}]*height:\s*var\(--agent-reference-card-height\)[^}]*overflow:\s*visible[^}]*border-radius:\s*6px[^}]*width:\s*var\(--agent-reference-card-height\)/s);
     expect(css).not.toContain(".desktop-agent-reference-card.is-file-card");
@@ -216,6 +216,11 @@ describe("Desktop Agent Cursor-style sidebar visual contract", () => {
     expect(css).toMatch(/\.desktop-agent-visual-attachment-actions\s*\{[^}]*inset-block-start:\s*-6px[^}]*inset-inline-end:\s*-6px/s);
     expect(css).toMatch(/\.desktop-agent-visual-attachment-actions > button\s*\{[^}]*width:\s*var\(--po-control-size-micro\)[^}]*height:\s*var\(--po-control-size-micro\)[^}]*background:\s*var\(--po-menu-bg\)/s);
     expect(css).toMatch(/\.desktop-agent-visual-attachment-actions > button:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--agent-focus-ring\)/s);
+    expect(css).toMatch(/\.desktop-agent-visual-attachment-actions\s*\{[^}]*opacity:\s*0[^}]*pointer-events:\s*none/s);
+    expect(css).toMatch(/\.desktop-agent-visual-attachment:is\(:hover, :focus-within\) \.desktop-agent-visual-attachment-actions\s*\{[^}]*opacity:\s*1[^}]*pointer-events:\s*auto/s);
+    expect(css).toMatch(/@media \(hover: none\)\s*\{\s*\.desktop-agent-visual-attachment-actions\s*\{[^}]*opacity:\s*1[^}]*pointer-events:\s*auto/s);
+    expect(css).toMatch(/--agent-reference-action-hover-surface:\s*color-mix\(in srgb, var\(--po-menu-bg\), var\(--po-text\) 12%\)/);
+    expect(css).toMatch(/\.desktop-agent-visual-attachment-actions > button:hover\s*\{[^}]*background:\s*var\(--agent-reference-action-hover-surface\)[^}]*color:\s*var\(--po-text\)[^}]*opacity:\s*1/s);
     expect(css).toMatch(/\.desktop-agent-visual-attachment\.is-error\s*\{[^}]*border-color:\s*var\(--agent-reference-error-border\)/s);
     expect(composer.indexOf("<AgentVisualAttachmentList")).toBeLessThan(composer.lastIndexOf("<AgentPromptEditor"));
     expect(composer.indexOf("<AgentVisualAttachmentList")).toBeLessThan(composer.indexOf("<AgentComposerToolbar"));

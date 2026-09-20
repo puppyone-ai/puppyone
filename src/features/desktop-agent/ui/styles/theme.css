@@ -14,6 +14,7 @@
   --agent-user-message-border: color-mix(in srgb, var(--agent-border-subtle) 62%, transparent);
   --agent-reference-surface: color-mix(in srgb, var(--agent-composer-surface) 92%, transparent);
   --agent-reference-error-surface: color-mix(in srgb, var(--po-danger) 12%, var(--agent-composer-surface));
+  --agent-reference-action-hover-surface: color-mix(in srgb, var(--po-menu-bg), var(--po-text) 12%);
   --agent-control-surface: color-mix(in srgb, var(--po-header) 82%, var(--po-panel-raised));
   --agent-border: var(--po-border-strong);
   --agent-border-subtle: var(--po-divider);
