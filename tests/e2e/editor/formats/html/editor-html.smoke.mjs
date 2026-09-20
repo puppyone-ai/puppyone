@@ -62,11 +62,18 @@ async function nativeClick(selector, inFrame = false) {
   const target = inFrame ? frame() : window.webContents;
   const point = await target.executeJavaScript(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
   if (inFrame) {
+    await until(() => target.executeJavaScript(`document.elementFromPoint(${point.x},${point.y})?.closest(${JSON.stringify(selector)})?.matches(${JSON.stringify(selector)})`),
+      `frame hit target ${selector}`);
     const outer = await evaluate("(()=>{const r=document.querySelector('.html-visual-editor iframe').getBoundingClientRect();return {x:r.x,y:r.y}})()");
     point.x += outer.x; point.y += outer.y;
   }
   await window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mouseMoved", ...point });
   await evaluate("new Promise(resolve=>requestAnimationFrame(resolve))");
+  if (!inFrame) {
+    await until(() => evaluate(`document.elementFromPoint(${point.x},${point.y})?.closest(${JSON.stringify(selector)})?.matches(${JSON.stringify(selector)})`),
+      `native hit target ${selector}`);
+  }
+  await window.webContents.capturePage();
   for (const type of ["mousePressed", "mouseReleased"]) await window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", {
     type, ...point, button: "left", clickCount: 1,
   });
