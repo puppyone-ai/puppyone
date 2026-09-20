@@ -23,7 +23,7 @@ type OnboardingEntryActionsProps = {
 };
 
 /**
- * Homepage entry actions. "Create an empty project" is the default path because it
+ * Homepage entry actions. "New empty project" is the default path because it
  * is the only entry that does not require the user to hunt for an existing
  * folder first. Importing existing work sits below the two direct-start
  * actions as a text-like entry, with a compact source preview beside its label.

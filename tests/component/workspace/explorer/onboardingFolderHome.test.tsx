@@ -190,7 +190,7 @@ describe("project folder home", () => {
     const projectActions = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-entry-action")];
     expect(projectActions).toHaveLength(3);
     expect(projectActions.map((action) => action.textContent)).toEqual([
-      "New project",
+      "New empty project",
       "Open a folder",
       "Import",
     ]);
@@ -238,6 +238,9 @@ describe("project folder home", () => {
     );
     expect(onboardingCss).toMatch(
       /\.onboarding-homepage\s*\{[^}]*--onboarding-brand-content-gap:\s*58px;[^}]*--onboarding-first-section-inset:\s*24px;/s,
+    );
+    expect(onboardingCss).toMatch(
+      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-brand-lockup\s*\{[^}]*margin-block-end:\s*calc\(var\(--onboarding-first-section-inset\) - var\(--onboarding-section-gap\)\);/s,
     );
     expect(onboardingCss).toMatch(
       /\.onboarding-recent-projects\s*\{[^}]*padding:\s*var\(--onboarding-first-section-inset\) 0 18px;[^}]*border-block:\s*1px solid var\(--po-border\);/s,
@@ -319,7 +322,7 @@ describe("project folder home", () => {
     const actions = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-entry-action")];
     expect(actions).toHaveLength(3);
     expect(actions.map((action) => action.textContent)).toEqual([
-      "New project",
+      "New empty project",
       "Open a folder",
       "Import",
     ]);

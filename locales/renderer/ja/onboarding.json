@@ -14,7 +14,7 @@
   "projects.untitled": "名称未設定のプロジェクト",
   "action.createCloudProject": "Cloud プロジェクトを作成",
   "action.openFolder": "フォルダを開く",
-  "action.createLocalProject": "新規プロジェクト",
+  "action.createLocalProject": "空のプロジェクトを作成",
   "action.cloneRepository": "インポート",
   "action.importFromApps": "インポート",
   "entry.create.title": "プロジェクトを作成",

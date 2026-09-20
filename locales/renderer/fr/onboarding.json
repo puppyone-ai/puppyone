@@ -14,7 +14,7 @@
   "projects.untitled": "Projet sans titre",
   "action.createCloudProject": "Créer un projet Cloud",
   "action.openFolder": "Ouvrir un dossier",
-  "action.createLocalProject": "Nouveau projet",
+  "action.createLocalProject": "Nouveau projet vide",
   "action.cloneRepository": "Importer",
   "action.importFromApps": "Importer",
   "entry.create.title": "Créer un projet",

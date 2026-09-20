@@ -14,7 +14,7 @@
   "projects.untitled": "未命名项目",
   "action.createCloudProject": "创建云端项目",
   "action.openFolder": "打开文件夹",
-  "action.createLocalProject": "新建项目",
+  "action.createLocalProject": "新建空项目",
   "action.cloneRepository": "导入",
   "action.importFromApps": "导入",
   "entry.create.title": "新建项目",

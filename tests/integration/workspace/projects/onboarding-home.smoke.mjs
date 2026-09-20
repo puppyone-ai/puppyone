@@ -46,7 +46,7 @@ async function runSmoke() {
     window.webContents.on("console-message", (details) => {
       if (details.level === "error") console.error(details.message);
     });
-    const labels = { en: "New project" };
+    const labels = { en: "New empty project" };
     const projectPrompts = { en: "Which project do you want to start with?" };
     const importLabels = { en: "Import" };
     const importIntros = { en: "Turn SaaS data into files on your computer." };
@@ -131,6 +131,8 @@ async function runSmoke() {
               importIcon: rect(importButton.querySelector('.po-button__icon svg')),
               importArtworkCount: importButton.querySelectorAll('img, svg').length,
               importMarks: importMarks.map(rect),
+              importMarkOpacities: importMarks.map(mark => getComputedStyle(mark).opacity),
+              importMarkFilters: importMarks.map(mark => getComputedStyle(mark).filter),
               importBrandIds: importMarks.map(image => image.dataset.importBrand),
               importBrandLabels: importMarks.map(image => image.alt),
               importLabel: rect(importLabel),
@@ -183,10 +185,12 @@ async function runSmoke() {
           assert.equal(snapshot.importBrands.x - snapshot.importLabel.x - snapshot.importLabel.width, 12, `${context}: source logos follow text inline`);
           assert.ok(Math.abs(snapshot.importBrands.y + snapshot.importBrands.height / 2 - snapshot.importLabel.y - snapshot.importLabel.height / 2) < 1, `${context}: vertically aligned label and logos`);
           if (width >= 563) assert.equal(snapshot.importLabel.height, 18, `${context}: single-line text at desktop widths`);
-          assert.ok(snapshot.importMarks.every(mark => mark.width === 18 && mark.height === 18), `${context}: legible logo size`);
+          assert.ok(snapshot.importMarks.every(mark => mark.width === 17 && mark.height === 17), `${context}: restrained logo size`);
+          assert.deepEqual([...new Set(snapshot.importMarkOpacities)], ['0.48'], `${context}: source logos share one quiet opacity`);
+          assert.equal(new Set(snapshot.importMarkFilters).size, 1, `${context}: source logos share one monochrome treatment`);
           for (let i = 1; i < snapshot.importMarks.length; i++) {
             const previous = snapshot.importMarks[i - 1];
-            assert.equal(snapshot.importMarks[i].x - previous.x - previous.width, 4, `${context}: compact logo spacing`);
+            assert.equal(snapshot.importMarks[i].x - previous.x - previous.width, -5, `${context}: source logos overlap`);
           }
           assert.equal(snapshot.importMore.width, 14, `${context}: restrained import-more indicator`);
           assert.equal(snapshot.importMore.x - snapshot.importBrands.x - snapshot.importBrands.width, 6, `${context}: plus follows the source logos`);
@@ -203,7 +207,7 @@ async function runSmoke() {
           assert.equal(snapshot.launcher.width, snapshot.brand.width, `${context}: launcher uses the shared width`);
           assert.equal(snapshot.firstSection.x, snapshot.brand.x, `${context}: first content section uses the shared left edge`);
           assert.equal(snapshot.firstSection.width, snapshot.brand.width, `${context}: first content section spans the shared column`);
-          const titleToSectionGap = height <= 620 ? 34 : height <= 760 ? 46 : 58;
+          const titleToSectionGap = state === 'empty' ? 24 : height <= 620 ? 34 : height <= 760 ? 46 : 58;
           assert.ok(Math.abs(snapshot.firstSection.y - snapshot.brand.y - snapshot.brand.height - titleToSectionGap) < 1, `${context}: shared title-to-section gap`);
           assert.ok(Math.abs(snapshot.firstClickable.y - snapshot.brand.y - snapshot.brand.height - titleToSectionGap - 25) < 1, `${context}: shared title-to-first-clickable gap`);
           assert.ok(Math.abs(snapshot.launcher.y + snapshot.launcher.height / 2 - height / 2) < 1, `${context}: shared launcher is vertically centered`);

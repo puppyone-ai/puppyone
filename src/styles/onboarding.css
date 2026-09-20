@@ -81,6 +81,12 @@
   user-select: none;
 }
 
+/* In the empty state, the title, divider, and first action form one balanced
+ * vertical rhythm: 24px above the rule and 24px below it. */
+.onboarding-shell[data-onboarding-state="empty"] .onboarding-brand-lockup {
+  margin-block-end: calc(var(--onboarding-first-section-inset) - var(--onboarding-section-gap));
+}
+
 .onboarding-brand-copy {
   display: grid;
   min-width: 0;
@@ -410,9 +416,7 @@
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 4px;
-  opacity: 0.76;
-  filter: grayscale(1);
+  gap: 0;
 }
 
 .onboarding-entry-import-source-preview {
@@ -431,8 +435,27 @@
 }
 
 .onboarding-entry-import-brands .onboarding-import-mark {
-  width: 18px;
-  height: 18px;
+  position: relative;
+  width: 17px;
+  height: 17px;
+  opacity: 0.48;
+  filter: grayscale(1);
+}
+
+.onboarding-entry-import-brands .onboarding-import-mark + .onboarding-import-mark {
+  margin-inline-start: -5px;
+}
+
+.onboarding-entry-import-brands .onboarding-import-mark:nth-child(1) {
+  z-index: 3;
+}
+
+.onboarding-entry-import-brands .onboarding-import-mark:nth-child(2) {
+  z-index: 2;
+}
+
+.onboarding-entry-import-brands .onboarding-import-mark:nth-child(3) {
+  z-index: 1;
 }
 
 .onboarding-entry-import:disabled .onboarding-entry-import-source-preview {
@@ -452,6 +475,10 @@
 .dark .onboarding-import-mark.is-github,
 .dark .onboarding-import-mark.is-notion {
   filter: invert(1);
+}
+
+.dark .onboarding-entry-import-brands .onboarding-import-mark {
+  filter: grayscale(1) invert(1);
 }
 
 .onboarding-projects-layout {
