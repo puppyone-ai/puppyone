@@ -35,6 +35,10 @@ puppyone
 - **Puppyone Cloud (optional)** — Hosting, backup, and always-on MCP or CLI access.
 - **Cloud collaboration (optional)** — Invite teammates to hosted projects.
 
+The accepted pricing policy and rollout status are documented in
+[Product and pricing](product.md): Pro hosting at $15 per paid seat per month,
+with a separate prepaid AI token balance.
+
 ## Development checks
 
 See the [test directory and commands](tests/README.md) for unit, component,
