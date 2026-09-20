@@ -87,15 +87,27 @@ describe("Markdown table EditorView interactions", () => {
     }));
 
     const menu = document.querySelector<HTMLElement>(".cm-md-table-context-menu")!;
+    const iconButtons = Array.from(menu.querySelectorAll<HTMLButtonElement>(".desktop-menu-item.is-icon"));
+    expect(iconButtons.length).toBeGreaterThan(0);
+    expect(iconButtons.every((button) => button.querySelector(".po-editable-table-menu-icon"))).toBe(true);
+    expect(iconButtons.every((button) => button.title === button.getAttribute("aria-label"))).toBe(true);
+    expect(menu.querySelectorAll(".desktop-menu-section-list.is-icon-toolbar").length).toBeGreaterThan(0);
     expect((document.activeElement as HTMLElement | null)?.textContent).toContain("Insert row above");
     expect(firstBodyCell.dataset.mdTableEditing).toBe("true");
 
     document.activeElement?.dispatchEvent(new KeyboardEvent("keydown", {
       bubbles: true,
       cancelable: true,
-      key: "ArrowDown",
+      key: "ArrowRight",
     }));
     expect((document.activeElement as HTMLElement | null)?.textContent).toContain("Insert row below");
+
+    document.activeElement?.dispatchEvent(new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      key: "ArrowDown",
+    }));
+    expect((document.activeElement as HTMLElement | null)?.textContent).toContain("Duplicate row");
 
     document.activeElement?.dispatchEvent(new KeyboardEvent("keydown", {
       bubbles: true,

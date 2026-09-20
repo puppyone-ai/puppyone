@@ -4,6 +4,8 @@ import type { MessageFormatter } from "@puppyone/localization/core";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import type { CsvTableStructureOperation } from "./csvTableOperations";
+import { EditableTableMenuIcon } from "../../table/EditableTableMenuIcon";
+import type { EditableTableMenuIconName } from "../../table/editableTableMenuIcons";
 
 export type CsvTableMenuTarget = Readonly<{
   clientX: number;
@@ -31,6 +33,7 @@ type CsvTableMenuProps = Readonly<{
 type CsvTableMenuItem = Readonly<{
   destructive?: boolean;
   disabled?: boolean;
+  icon: EditableTableMenuIconName;
   id?: string;
   label: string;
   operation?: CsvTableStructureOperation;
@@ -38,9 +41,9 @@ type CsvTableMenuItem = Readonly<{
 }>;
 
 type CsvTableMenuSection = Readonly<{
-  id: "columns" | "rows";
+  id: "columns" | "layout" | "rows";
   items: readonly CsvTableMenuItem[];
-  label: string;
+  label?: string;
 }>;
 
 export function CsvTableMenu({
@@ -59,30 +62,36 @@ export function CsvTableMenu({
   const firstMovableRow = headerEnabled ? 1 : 0;
   const rowItems: readonly CsvTableMenuItem[] = [
         {
+          icon: "insert-row-above",
           disabled: target.rowIndex < firstMovableRow,
           label: t("editor.table.insertRowAbove"),
           operation: { type: "insert-row-above", rowIndex: target.rowIndex, columnIndex: target.columnIndex },
         },
         {
+          icon: "insert-row-below",
           label: t("editor.table.insertRowBelow"),
           operation: { type: "insert-row-below", rowIndex: target.rowIndex, columnIndex: target.columnIndex },
         },
         {
+          icon: "duplicate-row",
           disabled: target.rowIndex < firstMovableRow,
           label: t("editor.table.duplicateRow"),
           operation: { type: "duplicate-row", rowIndex: target.rowIndex, columnIndex: target.columnIndex },
         },
         {
+          icon: "move-up",
           disabled: target.rowIndex <= firstMovableRow,
           label: t("editor.table.moveRowUp"),
           operation: { type: "move-row-up", rowIndex: target.rowIndex, columnIndex: target.columnIndex },
         },
         {
+          icon: "move-down",
           disabled: target.rowIndex < firstMovableRow || target.rowIndex >= rowCount - 1,
           label: t("editor.table.moveRowDown"),
           operation: { type: "move-row-down", rowIndex: target.rowIndex, columnIndex: target.columnIndex },
         },
         {
+          icon: "delete",
           destructive: true,
           disabled: target.rowIndex < firstMovableRow,
           label: t("editor.table.deleteRow"),
@@ -91,23 +100,21 @@ export function CsvTableMenu({
       ];
   const columnItems: readonly CsvTableMenuItem[] = [
         {
-          id: "auto-fit-column",
-          label: t("editor.csv.autoFitColumn"),
-          run: () => onAutoFitColumn(target.columnIndex),
-        },
-        {
+          icon: "insert-column-left",
           label: t(direction === "rtl"
             ? "editor.table.insertColumnRight"
             : "editor.table.insertColumnLeft"),
           operation: { type: "insert-column-left", rowIndex: target.rowIndex, columnIndex: target.columnIndex },
         },
         {
+          icon: "insert-column-right",
           label: t(direction === "rtl"
             ? "editor.table.insertColumnLeft"
             : "editor.table.insertColumnRight"),
           operation: { type: "insert-column-right", rowIndex: target.rowIndex, columnIndex: target.columnIndex },
         },
         {
+          icon: "move-left",
           disabled: target.columnIndex === 0,
           label: t(direction === "rtl"
             ? "editor.table.moveColumnRight"
@@ -115,6 +122,7 @@ export function CsvTableMenu({
           operation: { type: "move-column-left", rowIndex: target.rowIndex, columnIndex: target.columnIndex },
         },
         {
+          icon: "move-right",
           disabled: target.columnIndex >= columnCount - 1,
           label: t(direction === "rtl"
             ? "editor.table.moveColumnLeft"
@@ -122,19 +130,30 @@ export function CsvTableMenu({
           operation: { type: "move-column-right", rowIndex: target.rowIndex, columnIndex: target.columnIndex },
         },
         {
+          icon: "delete",
           destructive: true,
           disabled: columnCount <= 1,
           label: t("editor.table.deleteColumn"),
           operation: { type: "delete-column", rowIndex: target.rowIndex, columnIndex: target.columnIndex },
         },
       ];
+  const layoutItems: readonly CsvTableMenuItem[] = [{
+    icon: "auto-fit-column",
+    id: "auto-fit-column",
+    label: t("editor.csv.autoFitColumn"),
+    run: () => onAutoFitColumn(target.columnIndex),
+  }];
   const sections: readonly CsvTableMenuSection[] = target.kind === "row"
     ? [{ id: "rows", label: t("editor.table.rows"), items: rowItems }]
     : target.kind === "column"
-      ? [{ id: "columns", label: t("editor.table.columns"), items: columnItems }]
+      ? [
+          { id: "columns", label: t("editor.table.columns"), items: columnItems },
+          { id: "layout", items: layoutItems },
+        ]
       : [
           { id: "rows", label: t("editor.table.rows"), items: rowItems },
           { id: "columns", label: t("editor.table.columns"), items: columnItems },
+          { id: "layout", items: layoutItems },
         ];
 
   useLayoutEffect(() => {
@@ -201,7 +220,7 @@ export function CsvTableMenu({
           if (element && !element.contains(element.ownerDocument.activeElement)) onClose(false);
         });
       }}
-      onKeyDown={(event) => handleMenuKeyDown(event, locale, onClose)}
+      onKeyDown={(event) => handleMenuKeyDown(event, direction, locale, onClose)}
       onMouseDown={(event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -210,20 +229,22 @@ export function CsvTableMenu({
       {sections.map((section) => (
         <section
           key={section.id}
-          className="desktop-menu-section"
+          className="desktop-menu-section is-icon-toolbar"
           role="group"
-          aria-label={section.label}
+          aria-label={section.label ?? section.items.map((item) => item.label).join(", ")}
         >
-          <div className="desktop-menu-section-label">{section.label}</div>
-          <div className="desktop-menu-section-list">
+          {section.label ? <div className="desktop-menu-section-label">{section.label}</div> : null}
+          <div className="desktop-menu-section-list is-icon-toolbar">
             {section.items.map((item) => (
               <button
                 key={item.id ?? item.operation?.type}
                 type="button"
                 role="menuitem"
-                className={`desktop-menu-item${item.destructive ? " danger" : ""}`}
+                className={`desktop-menu-item is-icon${item.destructive ? " danger" : ""}`}
                 disabled={item.disabled}
                 tabIndex={-1}
+                aria-label={item.label}
+                title={item.label}
                 onClick={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
@@ -234,7 +255,8 @@ export function CsvTableMenu({
                 }}
               >
                 <span className="desktop-menu-item-body">
-                  <span className="desktop-menu-item-label">{item.label}</span>
+                  <EditableTableMenuIcon name={item.icon} />
+                  <span className="desktop-menu-item-label po-editable-table-menu-visually-hidden">{item.label}</span>
                 </span>
               </button>
             ))}
@@ -253,6 +275,7 @@ export function CsvTableMenu({
 
 function handleMenuKeyDown(
   event: React.KeyboardEvent<HTMLDivElement>,
+  direction: "ltr" | "rtl",
   locale: string,
   onClose: (restoreFocus: boolean) => void,
 ) {
@@ -272,6 +295,11 @@ function handleMenuKeyDown(
     nextItem = items[(currentIndex + 1 + items.length) % items.length];
   } else if (event.key === "ArrowUp") {
     nextItem = items[(currentIndex < 0 ? items.length - 1 : currentIndex - 1 + items.length) % items.length];
+  } else if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+    const movesForward = (event.key === "ArrowRight") !== (direction === "rtl");
+    const offset = movesForward ? 1 : -1;
+    const origin = currentIndex < 0 ? (movesForward ? -1 : 0) : currentIndex;
+    nextItem = items[(origin + offset + items.length) % items.length];
   } else if (event.key === "Home") {
     nextItem = items[0];
   } else if (event.key === "End") {

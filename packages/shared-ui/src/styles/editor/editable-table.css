@@ -398,6 +398,13 @@
   gap: 2px;
 }
 
+.po-editable-table-context-menu .desktop-menu-section-list.is-icon-toolbar {
+  grid-auto-columns: 32px;
+  grid-auto-flow: column;
+  justify-content: start;
+  gap: 4px;
+}
+
 .po-editable-table-context-menu .desktop-menu-item {
   display: flex;
   align-items: center;
@@ -417,6 +424,41 @@
   line-height: 18px;
   text-align: start;
   transition: background 100ms ease, color 100ms ease;
+}
+
+.po-editable-table-context-menu .desktop-menu-item.is-icon {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  justify-content: center;
+  padding: 0;
+}
+
+.po-editable-table-context-menu .desktop-menu-item.is-icon .desktop-menu-item-body {
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+}
+
+.po-editable-table-menu-icon {
+  display: block;
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  pointer-events: none;
+}
+
+.po-editable-table-menu-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 .po-editable-table-context-menu .desktop-menu-item:hover:not(:disabled),

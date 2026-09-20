@@ -33,7 +33,8 @@ app.whenReady().then(async () => {
     vite = await createServer({ root, cacheDir: path.join(temporary, "vite"), logLevel: "error",
       server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null } });
     await vite.listen();
-    window = new BrowserWindow({ width: 1100, height: 970, show: true,
+    window = new BrowserWindow({ width: 1100, height: 970,
+      show: process.env.PUPPYONE_TABLE_INTERACTION_HIDDEN !== "1",
       webPreferences: { contextIsolation: true, sandbox: true, backgroundThrottling: false } });
     window.webContents.on("console-message", details => {
       if ((details.level === "error" || details.level === "warning") && !details.message.includes("Electron Security Warning")) errors.push(details.message);

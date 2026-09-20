@@ -636,8 +636,12 @@ describe("CSV table interactions", () => {
     });
 
     const menu = document.querySelector(".csv-table-editor__context-menu");
-    expect(menu?.querySelectorAll(".desktop-menu-section")).toHaveLength(2);
+    expect(menu?.querySelectorAll(".desktop-menu-section")).toHaveLength(3);
     expect(menu?.querySelectorAll('[role="menuitem"]')).toHaveLength(12);
+    expect(menu?.querySelectorAll(".desktop-menu-item.is-icon")).toHaveLength(12);
+    expect(menu?.querySelectorAll(".po-editable-table-menu-icon")).toHaveLength(12);
+    expect(Array.from(menu?.querySelectorAll<HTMLButtonElement>(".desktop-menu-item") ?? [])
+      .every((button) => button.title === button.getAttribute("aria-label"))).toBe(true);
     expect(findButton("Auto fit column")).not.toBeNull();
     const moveColumnRight = findButton("Move column right");
     await act(async () => {
@@ -660,7 +664,7 @@ describe("CSV table interactions", () => {
     });
 
     const menu = document.querySelector(".csv-table-editor__context-menu");
-    expect(menu?.querySelectorAll(".desktop-menu-section")).toHaveLength(1);
+    expect(menu?.querySelectorAll(".desktop-menu-section")).toHaveLength(2);
     expect(menu?.querySelectorAll('[role="menuitem"]')).toHaveLength(6);
     expect(menu?.querySelector(".desktop-menu-section-label")?.textContent).toBe("Columns");
     expect(findButton("Insert row below")).toBeNull();
