@@ -75,13 +75,12 @@ describe("settings visual architecture", () => {
 
     const desktopAppItems = sidebarModel.slice(
       sidebarModel.indexOf('id: "desktop-app"'),
-      sidebarModel.indexOf('\n  {\n    id: "local-project"', sidebarModel.indexOf('id: "desktop-app"') + 1),
+      sidebarModel.indexOf('\n  {\n    id: "agents"', sidebarModel.indexOf('id: "desktop-app"') + 1),
     );
     expectInOrder(desktopAppItems, [
       'labelId: "settings.sidebar.general"',
       'labelId: "settings.sidebar.appearance"',
       'labelId: "settings.sidebar.typography"',
-      'labelId: "settings.sidebar.localAgents"',
       'labelId: "settings.sidebar.createNew"',
       'labelId: "settings.sidebar.privacy"',
       'labelId: "settings.sidebar.experimental"',
@@ -90,6 +89,8 @@ describe("settings visual architecture", () => {
     expect(desktopAppItems).not.toContain("settings.sidebar.editor");
     expect(desktopAppItems).not.toContain("settings.sidebar.language");
     expect(desktopAppItems).not.toContain("settings.sidebar.localAgentHooks");
+    expect(desktopAppItems).not.toContain("settings.sidebar.localAgents");
+    expectInOrder(sidebarModel, ['id: "desktop-app"', 'id: "agents"', 'id: "local-project"']);
     expect(sidebarModel).toContain('labelId: "settings.sidebar.localProject"');
     expect(sidebarModel).toContain('labelId: "settings.sidebar.projectInfo"');
 
@@ -148,6 +149,7 @@ describe("settings visual architecture", () => {
       expect(catalog["sidebar.privacy"], locale).toBeTruthy();
       expect(catalog["sidebar.projectInfo"], locale).toBeTruthy();
       expect(catalog["sidebar.localAgents"], locale).toBeTruthy();
+      expect(catalog["sidebar.agents"], locale).toBeTruthy();
       expect(catalog["sidebar.createNew"], locale).toBeTruthy();
       expect(catalog["sidebar.typography"], locale).toBeTruthy();
       expect(catalog["sidebar.editor"], locale).toBeUndefined();
