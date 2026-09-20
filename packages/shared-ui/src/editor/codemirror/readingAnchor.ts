@@ -46,14 +46,6 @@ export function mapReadingAnchor(anchor: ReadingAnchor | null, update: ViewUpdat
     snapshot: anchor.snapshot?.map(update.changes) ?? null };
 }
 
-/** Public layout queries synchronously bring a requested measurement up to
- * date. Never call EditorView's private measure/readMeasured methods. This
- * boundary is covered by the real-engine resize test on dependency upgrades. */
-export function measureCodeMirrorLayout(view: EditorView, position: number): void {
-  view.requestMeasure();
-  view.coordsAtPos(Math.min(position, view.state.doc.length), 1);
-}
-
 export function restoreReadingAnchor(view: EditorView, anchor: ReadingAnchor): void {
   if (anchor.edge === "start" && anchor.snapshot) {
     view.dispatch({ effects: anchor.snapshot });

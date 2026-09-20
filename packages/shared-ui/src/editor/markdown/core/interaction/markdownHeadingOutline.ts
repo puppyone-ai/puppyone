@@ -1,3 +1,4 @@
+import { scrollCodeMirrorIntoView } from "../../../codemirror/navigationIntent";
 import type { Extension, EditorState } from "@codemirror/state";
 import {
   EditorView,
@@ -138,9 +139,7 @@ class MarkdownHeadingOutlineController {
   private jumpToHeading(index: number) {
     const heading = this.headings[index];
     if (!heading) return;
-    this.view.dispatch({
-      effects: EditorView.scrollIntoView(heading.from, { y: "start", yMargin: 16 }),
-    });
+    scrollCodeMirrorIntoView(this.view, heading.from, { y: "start", yMargin: 16 });
     this.view.focus();
     this.scheduleMeasure();
   }

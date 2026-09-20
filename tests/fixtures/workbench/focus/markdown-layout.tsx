@@ -1,4 +1,5 @@
 import { MarkdownLayoutProbe } from "./markdownLayoutProbe";
+import { mdiLayoutProbe } from "./markdownMdiLayoutProbe";
 import { EditorView } from "@codemirror/view";
 import { TestLocalizationProvider } from "@puppyone/localization/testing";
 import {
@@ -8,6 +9,7 @@ import {
   assignEditorToActivePane,
   createEditorInput,
   createEditorPaneLayout,
+  getEditorPanes,
   openEditor,
   splitEditorPane,
   updateEditorSplitRatio,
@@ -29,16 +31,19 @@ declare global {
   interface Window {
     markdownLayoutFixture?: {
       probe: MarkdownLayoutProbe;
+      mdi: typeof mdiLayoutProbe;
       panes: HTMLElement[];
       ready: boolean;
       readCount: number;
       views: EditorView[];
       releaseImage(): void;
+      setPaneCount(count: number): Promise<void>;
+      unmount(): void;
     };
   }
 }
 
-const paths = ["left-layout.md", "right-layout.md"] as const;
+const paths = Array.from({ length: 8 }, (_, index) => `pane-${index + 1}-layout.md`);
 let releaseImage = () => {};
 const imageReady = new Promise<void>(resolve => { releaseImage = resolve; });
 const source = [
@@ -67,22 +72,30 @@ const tree: DataNode[] = paths.map((path) => ({
 }));
 const fixture = {
   probe: new MarkdownLayoutProbe((): EditorView[] => fixture.views),
+  mdi: mdiLayoutProbe,
   panes: [] as HTMLElement[],
   ready: false,
   readCount: 0,
   views: [] as EditorView[],
   releaseImage,
+  setPaneCount: async (_count: number) => {},
+  unmount: () => {},
 };
 window.markdownLayoutFixture = fixture;
 
-let editorGroup = openEditor(EMPTY_EDITOR_GROUP, createEditorInput(paths[0]));
-editorGroup = openEditor(editorGroup, createEditorInput(paths[1]));
-let initialLayout = splitEditorPane(
-  createEditorPaneLayout(paths[0]),
-  "editor-pane-1",
-  "horizontal",
-);
-initialLayout = assignEditorToActivePane(initialLayout, paths[1]);
+const editorGroup = paths.reduce((group, path) => openEditor(group, createEditorInput(path)), EMPTY_EDITOR_GROUP);
+function layoutFor(count: number) {
+  let layout = createEditorPaneLayout(paths[0]);
+  let next = 1;
+  for (let level = 0; getEditorPanes(layout).length < count; level++) {
+    for (const pane of getEditorPanes(layout)) {
+      layout = splitEditorPane(layout, pane.id, level % 2 ? "vertical" : "horizontal");
+      layout = assignEditorToActivePane(layout, paths[next++]);
+    }
+  }
+  return layout;
+}
+const initialLayout = layoutFor(2);
 
 const dataPort: DataPort = {
   async getFileUrl() {
@@ -123,6 +136,20 @@ const markdownEnvironment = {
 };
 function HorizontalMarkdownSplitFixture() {
   const [layout, setLayout] = useState(initialLayout);
+  fixture.setPaneCount = async count => {
+    if (![2, 4, 8].includes(count)) throw new Error("Expected 2, 4 or 8 panes");
+    setLayout(layoutFor(count));
+    for (let attempt = 0; attempt < 300; attempt++) {
+      await new Promise(resolve => requestAnimationFrame(resolve));
+      const elements = [...document.querySelectorAll<HTMLElement>(".cm-editor")];
+      if (elements.length !== count) continue;
+      fixture.views = elements.map(element => requireEditorView(element));
+      fixture.panes = [...document.querySelectorAll<HTMLElement>(".desktop-editor-pane")];
+      await new Promise(resolve => setTimeout(resolve, 250));
+      return;
+    }
+    throw new Error(`Did not mount ${count} panes`);
+  };
   return (
     <TestLocalizationProvider messages={englishCatalog}>
       <DesktopEditorSplitView documentNavigation={unavailableDocumentNavigation}
@@ -148,7 +175,9 @@ function HorizontalMarkdownSplitFixture() {
 
 const rootElement = document.querySelector<HTMLElement>("#root");
 if (!rootElement) throw new Error("Markdown layout fixture root is missing");
-createRoot(rootElement).render(<HorizontalMarkdownSplitFixture />);
+const root = createRoot(rootElement);
+fixture.unmount = () => root.unmount();
+root.render(<HorizontalMarkdownSplitFixture />);
 requestAnimationFrame(() => publishFixtureWhenReady(0));
 
 function publishFixtureWhenReady(attempt: number) {

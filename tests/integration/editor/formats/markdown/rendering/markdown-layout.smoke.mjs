@@ -145,6 +145,11 @@ app.whenReady().then(async () => {
     await evaluate("window.probe.navigate()");
     await evaluate("window.probe.start(); window.probe.resize(20)");
     await record("after-navigation");
+    scenario = "concurrent-navigation-resize";
+    await evaluate("window.probe.prepare();");
+    await evaluate("window.probe.navigate(true)");
+    await evaluate("window.probe.start(); window.probe.resize(20)");
+    await record(scenario);
     scenario = "virtual-table";
     await evaluate("window.probe.prepareTable()");
     await evaluate("window.probe.start(); window.probe.typography()");
@@ -155,6 +160,31 @@ app.whenReady().then(async () => {
     await evaluate("window.probe.start(); window.probe.resize(20)");
     await record("source-mode");
     assert.equal(await evaluate("window.markdownLayoutFixture.readCount"), 2, "Geometry or mode changes reloaded a file");
+    // Predeclared budget for the complete document batch, not per pane.
+    // 60 Hz frame target and the browser long-task threshold, with actual
+    // machine/runtime versions saved alongside the measurements.
+    const budget = { p95BatchMs: 1000 / 60, maxBatchMs: 50 };
+    for (const count of [4, 8]) {
+      scenario = `nested-${count}-panes`;
+      window.setContentSize(1600, 1000);
+      const result = await evaluate(`window.markdownLayoutFixture.mdi.resize(${count})`);
+      results.push({ name: scenario, budget, ...result });
+      console.log(JSON.stringify({ name: scenario, maxError: result.maxError, p95BatchMs: result.p95BatchMs, maxBatchMs: result.maxBatchMs }));
+      assert(result.frames >= 3 && result.widths.every(widths => widths.length > 3), `${scenario}: panes did not actually resize`);
+      assert(result.maxError <= 1 && result.maxWidthLag <= 1, `${scenario}: geometry drifted`);
+      assert(result.p95BatchMs <= budget.p95BatchMs && result.maxBatchMs <= budget.maxBatchMs, `${scenario}: document layout exceeded budget`);
+      assert(result.maxPasses <= 3, `${scenario}: unbounded layout feedback`);
+    }
+    scenario = "appearance-only";
+    results.push({ name: scenario, ...await evaluate("window.markdownLayoutFixture.mdi.appearance()") });
+    scenario = "hidden-resume";
+    const resumed = await evaluate("window.markdownLayoutFixture.mdi.hiddenResume()");
+    results.push({ name: scenario, ...resumed });
+    assert(resumed.maxError <= 1 && resumed.maxWidthLag <= 1, "Resumed pane lost reading continuity");
+    scenario = "stale-document-callbacks";
+    results.push({ name: scenario, ...await evaluate("window.markdownLayoutFixture.mdi.staleDocument()") });
+    scenario = "dispose-late-callbacks";
+    results.push({ name: scenario, ...await evaluate("window.markdownLayoutFixture.mdi.dispose()") });
     assert.equal(errors.length, 0, errors.join("\n"));
 
   } catch (error) {

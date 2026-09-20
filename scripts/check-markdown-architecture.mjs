@@ -49,6 +49,9 @@ for (const directory of legacyDirectories) {
 
 for (const filePath of walkTypeScript(markdownRoot)) {
   const source = readFileSync(filePath, "utf8");
+  if (/EditorView\.scrollIntoView\s*\(/.test(stripComments(source))) {
+    errors.push(`${relative(filePath)} bypasses navigation intent; use scrollCodeMirrorIntoView so concurrent layout cannot restore an obsolete anchor`);
+  }
   for (const specifier of collectSpecifiers(source)) {
     const target = resolveRelativeModule(filePath, specifier);
     if (!target) continue;
@@ -123,9 +126,24 @@ for (const filePath of walkTypeScript(codeMirrorRoot)) {
     errors.push(`${relative(filePath)} writes scrollTop; use engine scroll effects to preserve one scroll owner`);
   }
 }
-const hostLayoutFile = path.join(sharedUiSourceRoot, "editor", "runtime", "editorLayout.ts");
-if (collectSpecifiers(readFileSync(hostLayoutFile, "utf8")).some(specifier => /codemirror|markdown/i.test(specifier))) {
-  errors.push(`${relative(hostLayoutFile)} imports an engine or format; the shell layout contract must remain engine-neutral`);
+for (const filename of ["editorLayout.ts", "editorLayoutScheduler.ts"]) {
+  const hostLayoutFile = path.join(sharedUiSourceRoot, "editor", "runtime", filename);
+  if (collectSpecifiers(readFileSync(hostLayoutFile, "utf8")).some(specifier => /codemirror|markdown|persistence|documentRegistry/i.test(specifier))) {
+    errors.push(`${relative(hostLayoutFile)} imports an engine, format or document model; the shell layout contract must remain engine-neutral`);
+  }
+}
+
+// A synchronous coordinate query is a reviewed application compatibility
+// contract, not an upstream guarantee. Upgrades require explicit review and
+// the real Electron layout gate, including multi-pane/lifecycle scenarios.
+const contract = JSON.parse(readFileSync(path.join(codeMirrorRoot, "layoutEngineContract.json"), "utf8"));
+const manifest = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
+const lock = JSON.parse(readFileSync(path.join(repoRoot, "package-lock.json"), "utf8"));
+const installed = JSON.parse(readFileSync(path.join(repoRoot, "node_modules", contract.package, "package.json"), "utf8"));
+const versions = [manifest.devDependencies[contract.package], lock.packages[""].devDependencies[contract.package], installed.version,
+  ...Object.entries(lock.packages).filter(([key]) => key.endsWith(`node_modules/${contract.package}`)).map(([, value]) => value.version)];
+if (versions.some(version => version !== contract.version)) {
+  errors.push(`${contract.id} requires exactly ${contract.package}@${contract.version}; review the adapter and rerun smoke:markdown-layout before upgrading (found ${versions.join(", ")})`);
 }
 
 if (errors.length > 0) {

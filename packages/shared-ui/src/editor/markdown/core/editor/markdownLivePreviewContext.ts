@@ -1,3 +1,4 @@
+import { scrollCodeMirrorIntoView } from "../../../codemirror/navigationIntent";
 import { EditorSelection, Facet, Prec, type Extension } from "@codemirror/state";
 import { EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import { findWikiLinkTokens } from "../links/wikiLinkModel";
@@ -340,7 +341,7 @@ export function openMarkdownHref(href: string, view: EditorView): boolean {
 function revealMarkdownFragment(view: EditorView, fragment: string): boolean {
   const position = getMarkdownFragmentPosition(view.state, fragment);
   if (position === null) return false;
-  view.dispatch({ effects: EditorView.scrollIntoView(position, { y: "start" }) });
+  scrollCodeMirrorIntoView(view, position, { y: "start" });
   return true;
 }
 

@@ -1,3 +1,5 @@
+import { scrollCodeMirrorIntoView } from "../../../../packages/shared-ui/src/editor/codemirror/navigationIntent";
+import { dispatchTypographyChange } from "../../../../packages/shared-ui/src/core/typography";
 import { EditorView } from "@codemirror/view";
 
 const wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
@@ -118,17 +120,20 @@ export class MarkdownLayoutProbe {
   }
 
   async typography() {
+    const measuredSizes = new Set<string>();
     for (const size of [15, 16, 18, 14]) {
       await frame();
-      for (const view of this.getViews()) view.dom.parentElement!.style.setProperty("--po-text-size-content", `${size}px`);
+      for (const view of this.getViews()) view.dom.style.setProperty("--po-md-content-size", `${size}px`);
+      dispatchTypographyChange(document, { generation: size, phase: "applied" });
+      measuredSizes.add(getComputedStyle(this.getViews()[0].contentDOM).fontSize);
     }
+    if (measuredSizes.size !== 4) throw new Error("Typography fixture did not change actual font size");
   }
 
-  async navigate() {
+  async navigate(resizeInSameTask = false) {
     const targets = this.getViews().map(view => view.state.doc.line(180).from);
-    this.getViews().forEach((view, index) => view.dispatch({
-      effects: EditorView.scrollIntoView(targets[index], { y: "start" }),
-    }));
+    this.getViews().forEach((view, index) => scrollCodeMirrorIntoView(view, targets[index], { y: "start" }));
+    if (resizeInSameTask) this.setRatio(0.6);
     await wait(150);
     this.getViews().forEach((view, index) => {
       const top = this.read({ view, position: targets[index], top: 0, edge: null }).top;
