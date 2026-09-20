@@ -8,7 +8,7 @@
   "lifecycle.retryDisplay": "메시지 동기화 재시도",
   "lifecycle.pauseDisplay": "자동 복구 일시 중지",
   "lifecycle.manageExecutions": "인스턴스 관리 / 종료",
-  "compute.managed": "관리형 컴퓨팅",
+  "compute.managed": "PuppyOne AI",
   "compute.managedBalance": "계정 잔액을 사용합니다",
   "compute.customize": "내 API 또는 로컬 모델 사용",
   "compute.title": "추론 리소스",
@@ -371,5 +371,11 @@
   "compute.usageReleased": "요금 없음",
   "compute.usageTokens": "입력: {input} (캐시: {cached}) · 출력: {output}",
   "compute.modelPrices": "백만 토큰당 모델 요금",
-  "compute.modelRates": "입력 {input} · 캐시 입력 {cached} · 출력 {output}"
+  "compute.modelRates": "입력 {input} · 캐시 입력 {cached} · 출력 {output}",
+  "compute.accessTitle": "로그인하여 PuppyOne AI 사용",
+  "compute.trialOffer": "계정마다 {amount}의 AI 크레딧을 한 번 받을 수 있습니다. 소진 후 충전하세요. 구독은 필요 없습니다.",
+  "compute.signInTrial": "로그인하고 {amount} 받기",
+  "compute.draftKept": "초안이 저장되었습니다. 로그인하거나 충전한 후 여기로 돌아와 전송하세요.",
+  "compute.readyToSend": "준비되었습니다. 전송을 눌러 계속하세요.",
+  "compute.topUpOptions": "충전 금액"
 }

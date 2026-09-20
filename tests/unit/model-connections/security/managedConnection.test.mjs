@@ -25,13 +25,15 @@ function fixture({ signedIn = true, balance = 5_000_000, trial = 0 } = {}) {
     dispose: vi.fn(), acquire: vi.fn(), validate: () => { throw new Error("LEASE_REVOKED"); },
     release: vi.fn(), releaseScope: vi.fn() };
   const openExternal = vi.fn();
+  const requestPublic = vi.fn(async () => ({ sandbox: true, trial_credit_micro_usd: trial, packs: [{ id: "test-credit", price_cents: 500, credit_micro_usd: 5_000_000 }],
+    models: [{ id: "test/model", name: "Test", context_window: 32768, max_output_tokens: 4096 }] }));
   const service = withManagedConnection({ connections, getAuth: () => auth,
     apiBase: "https://qubits-api.puppyone.ai/api/v1", openExternal,
-    requestPublic: async () => ({ sandbox: true, trial_credit_micro_usd: trial, packs: [{ id: "test-credit", price_cents: 500, credit_micro_usd: 5_000_000 }],
-      models: [{ id: "test/model", name: "Test", context_window: 32768, max_output_tokens: 4096 }] }),
+    requestPublic,
   });
   services.push(service);
-  return { service, auth, openExternal, connections,
+  return { service, auth, openExternal, connections, requestPublic,
+    signIn: () => { state = { status: "authenticated", session: { user_id: "user-one", session_generation: "session-one", api_base_url: "https://qubits-api.puppyone.ai/api/v1" } }; observer(state); },
     signOut: () => { state = { status: "signed-out", session: null }; observer(state); },
     replaceUser: () => { state = { status: "authenticated", session: { ...state.session, user_id: "user-two", session_generation: "session-two" } }; observer(state); } };
 }
@@ -103,6 +105,21 @@ describe("Main-owned managed Agent connection", () => {
 
 
 describe("one-time trial activation", () => {
+  it("refreshes the new account immediately when sign-in finishes during a catalog request", async () => {
+    const value = fixture({ signedIn: false, trial: 1_000_000 });
+    let finish;
+    value.requestPublic.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const firstRead = value.service.read();
+    await vi.waitFor(() => expect(finish).toBeTypeOf("function"));
+    value.signIn();
+    finish({ models: [], packs: [], trial_credit_micro_usd: 1_000_000 });
+    await firstRead;
+    await vi.waitFor(async () => expect((await value.service.read()).managed.available).toBe(true));
+    expect(value.auth.requestSessionApi.mock.calls.filter((call) => call[1] === "/ai/trial")).toHaveLength(1);
+    expect((await value.service.read()).managed.trialCreditMicroUsd).toBe(1_000_000);
+    expect(value.auth.openAgentStream).not.toHaveBeenCalled();
+  });
+
   it("claims only after sign-in and once per account session before reading balance", async () => {
     const signedOut = fixture({ signedIn: false, trial: 1_000_000 });
     await signedOut.service.read();

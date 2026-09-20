@@ -8,7 +8,7 @@
   "lifecycle.retryDisplay": "Tentar sincronização novamente",
   "lifecycle.pauseDisplay": "Pausar recuperação automática",
   "lifecycle.manageExecutions": "Gerenciar / encerrar instância",
-  "compute.managed": "Computação gerenciada",
+  "compute.managed": "PuppyOne AI",
   "compute.managedBalance": "Usa o saldo da sua conta",
   "compute.customize": "Use sua API ou modelo local",
   "compute.title": "Fonte de processamento",
@@ -371,5 +371,11 @@
   "compute.usageReleased": "Sem cobrança",
   "compute.usageTokens": "Entrada: {input} (cache: {cached}) · Saída: {output}",
   "compute.modelPrices": "Preços por milhão de tokens",
-  "compute.modelRates": "Entrada {input} · Entrada em cache {cached} · Saída {output}"
+  "compute.modelRates": "Entrada {input} · Entrada em cache {cached} · Saída {output}",
+  "compute.accessTitle": "Entre para usar o PuppyOne AI",
+  "compute.trialOffer": "Cada conta pode receber {amount} em créditos de IA uma vez. Recarregue quando acabar, sem assinatura.",
+  "compute.signInTrial": "Entre e receba {amount}",
+  "compute.draftKept": "Seu rascunho está salvo. Volte aqui para enviá-lo após entrar ou recarregar.",
+  "compute.readyToSend": "Tudo pronto. Clique em Enviar para continuar.",
+  "compute.topUpOptions": "Valores de recarga"
 }

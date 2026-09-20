@@ -70,7 +70,7 @@ function button(label: string) {
   return match as HTMLButtonElement;
 }
 
-async function render({ selectedModel = null as string | null, disabled = false, empty = false, managed = undefined as ModelConnectionSnapshot["managed"] | undefined } = {}) {
+async function render({ selectedModel = null as string | null, disabled = false, empty = false, accessPrompt = false, managed = undefined as ModelConnectionSnapshot["managed"] | undefined } = {}) {
   const { client, store } = fixture(empty, managed);
   const onSelectModel = vi.fn();
   const onReadyChange = vi.fn();
@@ -85,6 +85,7 @@ async function render({ selectedModel = null as string | null, disabled = false,
     models={empty ? [] : models}
     selectedModel={selectedModel}
     disabled={disabled}
+    accessPrompt={accessPrompt}
     onSelectModel={onSelectModel}
     onReadyChange={onReadyChange}
     onCatalogChange={onCatalogChange}
@@ -95,7 +96,7 @@ async function render({ selectedModel = null as string | null, disabled = false,
 
 it("defaults to managed compute and opens the only connection-management surface", async () => {
   const { client, onOpenModelConnections, onReadyChange, onSelectModel } = await render({ empty: true });
-  expect(document.querySelector(".desktop-agent-compute-summary")?.textContent).toContain("Managed compute");
+  expect(document.querySelector(".desktop-agent-compute-summary")?.textContent).toContain("PuppyOne AI");
   expect(document.body.textContent).toContain("Uses your account balance");
   expect(document.querySelector(".desktop-agent-compute-editor, input, select")).toBeNull();
   expect(document.querySelector('button[aria-label="Agent model"]')).toBeNull();
@@ -107,6 +108,7 @@ it("defaults to managed compute and opens the only connection-management surface
   expect(client.save).not.toHaveBeenCalled();
   expect(client.verify).not.toHaveBeenCalled();
   expect(onSelectModel).not.toHaveBeenCalled();
+  expect(document.querySelector(".desktop-agent-access-prompt")).toBeNull();
 });
 
 it("offers every ready configured model without configuring connections in Chat", async () => {
@@ -147,7 +149,7 @@ it("asks the controller to refresh when the shared connection catalog arrives", 
 });
 
 it("opens email sign-in without selecting a paid model or sending a turn", async () => {
-  const { client, onSelectModel, onReadyChange } = await render({ empty: true });
+  const { client, onSelectModel, onReadyChange } = await render({ empty: true, accessPrompt: true });
   await act(async () => button("Sign in with email").click());
   expect(client.managed).toHaveBeenCalledWith({ action: "sign-in" });
   expect(onReadyChange).toHaveBeenLastCalledWith(false);
@@ -155,7 +157,7 @@ it("opens email sign-in without selecting a paid model or sending a turn", async
 });
 
 it("blocks a selected managed model when the personal balance is empty", async () => {
-  const { client, onReadyChange, onSelectModel } = await render({ selectedModel: models[1].model,
+  const { client, onReadyChange, onSelectModel } = await render({ selectedModel: models[1].model, accessPrompt: true,
     managed: { available: false, reason: "insufficient-credit", signedIn: true, sandbox: true, availableMicroUsd: 0,
       packs: [{ id: "test-pack", name: "Sandbox credit", price_cents: 500, credit_micro_usd: 5_000_000 }] } });
   expect(document.body.textContent).toContain("Add credit to use this model.");
@@ -164,6 +166,16 @@ it("blocks a selected managed model when the personal balance is empty", async (
   expect(client.managed).toHaveBeenCalledWith({ action: "checkout", packId: "test-pack" });
   expect(onSelectModel).not.toHaveBeenCalled();
   expect(onReadyChange).toHaveBeenLastCalledWith(false);
+});
+
+it("offers the server-configured trial only after the first send attempt", async () => {
+  const { client } = await render({ empty: true, accessPrompt: true,
+    managed: { available: false, reason: "sign-in-required", signedIn: false, trialCreditMicroUsd: 1_000_000 } });
+  expect(document.body.textContent).toContain("Your draft is saved");
+  expect(document.body.textContent).toContain("Each account can claim $1.00");
+  await act(async () => button("Sign in to claim $1.00").click());
+  expect(client.managed).toHaveBeenCalledWith({ action: "sign-in" });
+  expect(client.managed).not.toHaveBeenCalledWith(expect.objectContaining({ action: "checkout" }));
 });
 
 it("enables a funded selected managed model and refreshes without auto-submitting", async () => {

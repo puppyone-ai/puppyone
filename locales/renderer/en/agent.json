@@ -8,7 +8,7 @@
   "lifecycle.retryDisplay": "Retry message sync",
   "lifecycle.pauseDisplay": "Pause automatic recovery",
   "lifecycle.manageExecutions": "Manage / terminate instance",
-  "compute.managed": "Managed compute",
+  "compute.managed": "PuppyOne AI",
   "compute.managedBalance": "Uses your account balance",
   "compute.customize": "Bring your own API or local model",
   "compute.title": "Compute source",
@@ -371,5 +371,11 @@
   "compute.usageReleased": "No charge",
   "compute.usageTokens": "Input: {input} (cached: {cached}) · Output: {output}",
   "compute.modelPrices": "Model prices per million tokens",
-  "compute.modelRates": "Input {input} · Cached input {cached} · Output {output}"
+  "compute.modelRates": "Input {input} · Cached input {cached} · Output {output}",
+  "compute.accessTitle": "Sign in to use PuppyOne AI",
+  "compute.trialOffer": "Each account can claim {amount} in AI credit once. Add more when it runs out. No subscription.",
+  "compute.signInTrial": "Sign in to claim {amount}",
+  "compute.draftKept": "Your draft is saved. Return here to send it after signing in or adding credit.",
+  "compute.readyToSend": "Ready. Press Send to continue.",
+  "compute.topUpOptions": "Top-up amounts"
 }

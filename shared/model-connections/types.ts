@@ -52,6 +52,7 @@ export type ModelConnectionSnapshot = {
     signedIn?: boolean; sandbox?: boolean; balanceMicroUsd?: number; reservedMicroUsd?: number;
     availableMicroUsd?: number; errorCode?: string | null; apiOrigin?: string | null;
     trialGrantedMicroUsd?: number;
+    trialCreditMicroUsd?: number;
     lastUsage?: {
       reservationId: string; modelId: string; status: "pending" | "settled" | "released";
       chargedMicroUsd: number | null; priceBookId: string | null;

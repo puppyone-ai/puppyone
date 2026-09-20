@@ -8,6 +8,8 @@
   .desktop-agent-compute-customize:hover:not(:disabled) { color: var(--po-text); text-decoration: underline; text-underline-offset: 3px; }
   .desktop-agent-compute button:disabled { opacity: 0.5; }
   .desktop-agent-compute button:focus-visible { outline: 2px solid var(--po-focus-ring); outline-offset: 2px; }
+  .desktop-agent-access-prompt { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--po-border); border-radius: 8px; background: var(--po-control); font-size: var(--po-text-size-caption); }
+  .desktop-agent-access-prompt p, .desktop-agent-access-ready { margin: 0; color: var(--po-text-muted); font-size: var(--po-text-size-caption); }
 .desktop-agent-credit-actions {
   display: flex;
   align-items: center;

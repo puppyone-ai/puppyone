@@ -54,6 +54,7 @@ export function withManagedConnection({ connections, getAuth, apiBase, requestPu
         balanceMicroUsd: balance?.balance_micro_usd ?? 0, reservedMicroUsd: balance?.reserved_micro_usd ?? 0,
         availableMicroUsd: balance?.available_micro_usd ?? 0, packs: catalog?.packs ?? [],
         trialGrantedMicroUsd: balance?.trial_granted_micro_usd ?? 0,
+        trialCreditMicroUsd: catalog?.trial_credit_micro_usd ?? 0,
         lastUsage, modelPrices: managedPrices(catalog),
         errorCode: error, apiOrigin: origin },
     });
@@ -127,9 +128,11 @@ export function withManagedConnection({ connections, getAuth, apiBase, requestPu
       } catch {
         if (capturedGeneration === generation) { error = "GATEWAY_UNAVAILABLE"; balance = null; }
       } finally {
-        lastRefresh = Date.now();
+        const sessionChanged = capturedGeneration !== generation;
+        lastRefresh = sessionChanged ? 0 : Date.now();
         pending = null;
         publish();
+        if (sessionChanged && !disposed) void refresh(true).catch(() => {});
       }
     })();
     return pending;

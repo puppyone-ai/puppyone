@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { LogIn, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import {
   getDesktopCloudApiBaseUrl,
@@ -115,7 +115,7 @@ export function AccountSettingsView({
               label={t("settings.account.email")}
               value={cloudSession?.user_email ?? t("settings.account.notSignedIn")}
             />
-            <SettingsValueRow
+            {!sessionMatchesService && <><SettingsValueRow
               label={t("settings.account.desktopService")}
               value={resolvedApiBaseUrl}
               title={resolvedApiBaseUrl}
@@ -126,11 +126,10 @@ export function AccountSettingsView({
               value={cloudSession?.api_base_url ?? t("settings.account.none")}
               title={cloudSession?.api_base_url}
               monospace={Boolean(cloudSession?.api_base_url)}
-            />
-            <div className="desktop-settings-row desktop-settings-row-control desktop-settings-account-actions-row">
+            /></>}
+            {signedIn && <div className="desktop-settings-row desktop-settings-row-control desktop-settings-account-actions-row">
               <span>{t("settings.account.authentication")}</span>
               <div className="desktop-settings-value desktop-settings-account-actions">
-                {signedIn ? (
                   <button
                     className="desktop-settings-action danger"
                     type="button"
@@ -140,19 +139,8 @@ export function AccountSettingsView({
                     <LogOut size={14} />
                     <span>{t(operation === "signout" ? "settings.account.signingOut" : "settings.account.signOut")}</span>
                   </button>
-                ) : (
-                  <button
-                    className="desktop-settings-action primary"
-                    type="button"
-                    disabled={busy || !desktopOAuthAvailable}
-                    onClick={() => void startWebSignIn()}
-                  >
-                    <LogIn size={14} />
-                    <span>{t(operation === "signin" ? "settings.account.openingBrowser" : "settings.account.signInWithBrowser")}</span>
-                  </button>
-                )}
               </div>
-            </div>
+            </div>}
             {(authError || authMessage) && (
               <div className={`desktop-settings-account-feedback ${authError ? "danger" : "success"}`}>
                 {authError ?? authMessage}
@@ -160,7 +148,8 @@ export function AccountSettingsView({
             )}
           </SettingsSubsection>
         </div>
-        {signedIn && sessionMatchesService && <AccountAICredits key={cloudSession?.user_id} />}
+        {sessionMatchesService && <AccountAICredits key={cloudSession?.user_id ?? "signed-out"}
+          onSignIn={() => void startWebSignIn()} signInDisabled={busy || !desktopOAuthAvailable} />}
       </div>
     </section>
   );

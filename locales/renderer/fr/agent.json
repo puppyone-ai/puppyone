@@ -8,7 +8,7 @@
   "lifecycle.retryDisplay": "Réessayer la synchronisation",
   "lifecycle.pauseDisplay": "Suspendre la récupération automatique",
   "lifecycle.manageExecutions": "Gérer / terminer l’instance",
-  "compute.managed": "Calcul géré",
+  "compute.managed": "PuppyOne AI",
   "compute.managedBalance": "Utilise le solde de votre compte",
   "compute.customize": "Utiliser votre API ou un modèle local",
   "compute.title": "Source de calcul",
@@ -371,5 +371,11 @@
   "compute.usageReleased": "Aucun frais",
   "compute.usageTokens": "Entrée : {input} (cache : {cached}) · Sortie : {output}",
   "compute.modelPrices": "Tarifs par million de tokens",
-  "compute.modelRates": "Entrée {input} · Entrée en cache {cached} · Sortie {output}"
+  "compute.modelRates": "Entrée {input} · Entrée en cache {cached} · Sortie {output}",
+  "compute.accessTitle": "Connectez-vous pour utiliser PuppyOne AI",
+  "compute.trialOffer": "Chaque compte peut recevoir {amount} de crédit IA une fois. Rechargez selon vos besoins, sans abonnement.",
+  "compute.signInTrial": "Se connecter et recevoir {amount}",
+  "compute.draftKept": "Votre brouillon est conservé. Revenez ici pour l’envoyer après connexion ou recharge.",
+  "compute.readyToSend": "Tout est prêt. Cliquez sur Envoyer pour continuer.",
+  "compute.topUpOptions": "Montants de recharge"
 }

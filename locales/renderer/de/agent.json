@@ -8,7 +8,7 @@
   "lifecycle.retryDisplay": "Synchronisierung wiederholen",
   "lifecycle.pauseDisplay": "Automatische Wiederherstellung pausieren",
   "lifecycle.manageExecutions": "Instanz verwalten / beenden",
-  "compute.managed": "Verwaltete Rechenleistung",
+  "compute.managed": "PuppyOne AI",
   "compute.managedBalance": "Verwendet dein Kontoguthaben",
   "compute.customize": "Eigene API oder lokales Modell verwenden",
   "compute.title": "Rechenquelle",
@@ -371,5 +371,11 @@
   "compute.usageReleased": "Keine Kosten",
   "compute.usageTokens": "Eingabe: {input} (Cache: {cached}) · Ausgabe: {output}",
   "compute.modelPrices": "Modellpreise pro Million Token",
-  "compute.modelRates": "Eingabe {input} · Cache-Eingabe {cached} · Ausgabe {output}"
+  "compute.modelRates": "Eingabe {input} · Cache-Eingabe {cached} · Ausgabe {output}",
+  "compute.accessTitle": "Für PuppyOne AI anmelden",
+  "compute.trialOffer": "Jedes Konto erhält einmalig {amount} KI-Guthaben. Bei Bedarf aufladen, ohne Abonnement.",
+  "compute.signInTrial": "Anmelden und {amount} erhalten",
+  "compute.draftKept": "Dein Entwurf bleibt erhalten. Nach der Anmeldung oder Aufladung kannst du ihn hier senden.",
+  "compute.readyToSend": "Bereit. Zum Fortfahren auf Senden klicken.",
+  "compute.topUpOptions": "Aufladebeträge"
 }

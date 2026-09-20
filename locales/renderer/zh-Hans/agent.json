@@ -8,7 +8,7 @@
   "lifecycle.retryDisplay": "立即重试消息同步",
   "lifecycle.pauseDisplay": "暂停自动恢复",
   "lifecycle.manageExecutions": "管理 / 终止实例",
-  "compute.managed": "托管算力",
+  "compute.managed": "PuppyOne AI",
   "compute.managedBalance": "使用账户余额",
   "compute.customize": "使用自带 API 或本地模型",
   "compute.title": "算力来源",
@@ -371,5 +371,11 @@
   "compute.usageReleased": "未扣款",
   "compute.usageTokens": "输入：{input}（缓存：{cached}）· 输出：{output}",
   "compute.modelPrices": "模型单价（每百万 token）",
-  "compute.modelRates": "输入 {input} · 缓存输入 {cached} · 输出 {output}"
+  "compute.modelRates": "输入 {input} · 缓存输入 {cached} · 输出 {output}",
+  "compute.accessTitle": "登录使用 PuppyOne AI",
+  "compute.trialOffer": "每个账号可领取一次 {amount} AI 试用余额，用完再充值，无需订阅。",
+  "compute.signInTrial": "登录领取 {amount}",
+  "compute.draftKept": "草稿已保留。登录或充值完成后，回到这里点击发送。",
+  "compute.readyToSend": "已就绪，点击发送即可继续。",
+  "compute.topUpOptions": "可充值金额"
 }

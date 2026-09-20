@@ -1,10 +1,12 @@
 import { useEffect, useRef } from "react";
-import { Cloud, KeyRound, Server } from "lucide-react";
+import { KeyRound, Server, Sparkles } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import type { AgentModel } from "../../domain/agent-contract";
 import { useModelConnections, type ModelConnectionStore } from "../../../model-connections";
 import { AgentSessionControlPicker } from "../AgentSessionControlPicker";
 import "./built-in-agent-compute.css";
+
+export type ComputeAccessRequired = "sign-in-required" | "insufficient-credit" | "gateway-unavailable" | null;
 
 /** Chat selects a ready route; Settings exclusively owns connection configuration. */
 export function BuiltInAgentCompute({
@@ -15,6 +17,8 @@ export function BuiltInAgentCompute({
   onCatalogChange,
   onOpenModelConnections,
   onReadyChange,
+  onAccessRequiredChange,
+  accessPrompt = false,
   store: suppliedStore,
 }: {
   models: AgentModel[];
@@ -24,6 +28,8 @@ export function BuiltInAgentCompute({
   onCatalogChange: () => void;
   onOpenModelConnections: () => void;
   onReadyChange: (ready: boolean) => void;
+  onAccessRequiredChange?: (reason: ComputeAccessRequired) => void;
+  accessPrompt?: boolean;
   store?: ModelConnectionStore;
 }) {
   const { t } = useLocalization();
@@ -43,12 +49,17 @@ export function BuiltInAgentCompute({
     .map((catalog) => catalog.connectionId));
   const readyModels = models.filter((model) => model.connectionId && readyConnectionIds.has(model.connectionId));
   const current = readyModels.find((model) => model.model === selectedModel);
-  const currentConnection = snapshot?.connections.find((connection) => connection.id === current?.connectionId);
+  const selected = models.find((model) => model.model === selectedModel);
+  const currentConnection = snapshot?.connections.find((connection) => connection.id === selected?.connectionId);
   const source = currentConnection?.sourceKind ?? "managed";
   const managed = snapshot?.managed;
   const ready = Boolean(current && currentConnection && (source !== "managed" || managed?.available));
+  const needsManagedAccess = source === "managed" && (!selectedModel || currentConnection?.sourceKind === "managed");
+  const accessRequired = needsManagedAccess && managed?.reason !== "ready"
+    ? managed?.reason ?? "gateway-unavailable" : null;
+  const showPrompt = accessPrompt && needsManagedAccess && !ready;
   const money = (micro: number) => new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 4 }).format(micro / 1_000_000);
-  const Icon = source === "managed" ? Cloud : source === "api" ? KeyRound : Server;
+  const Icon = source === "managed" ? Sparkles : source === "api" ? KeyRound : Server;
   const sourceLabel = source === "managed"
     ? t("agent.compute.managed")
     : source === "api"
@@ -56,6 +67,7 @@ export function BuiltInAgentCompute({
       : t("agent.compute.source.local");
 
   useEffect(() => { onReadyChange(ready); }, [onReadyChange, ready]);
+  useEffect(() => { onAccessRequiredChange?.(accessRequired); }, [onAccessRequiredChange, accessRequired]);
   useEffect(() => {
     if (!managed?.signedIn) return;
     const refresh = () => { if (!document.hidden) void store.managed({ action: "refresh" }); };
@@ -88,11 +100,9 @@ export function BuiltInAgentCompute({
         })),
       }} onSelect={(_id, model) => onSelectModel(model)} />}
     </div>
-    {source === "managed" && <div className="desktop-agent-credit-actions">
+    {source === "managed" && managed?.signedIn && <div className="desktop-agent-credit-actions">
       {managed?.sandbox && <small>{t("agent.compute.sandbox")}</small>}
-      {!managed?.signedIn ? <button type="button" disabled={disabled || state.pending.managed}
-        onClick={() => void store.managed({ action: "sign-in" })}>{t("agent.compute.signIn")}</button>
-        : <>
+      {!showPrompt && <>
           {(managed.packs ?? []).map((pack) => <button key={pack.id} type="button" disabled={disabled || state.pending.managed}
             onClick={() => void store.managed({ action: "checkout", packId: pack.id })}>
             {t("agent.compute.topUp", { amount: money(pack.price_cents * 10_000) })}
@@ -102,10 +112,27 @@ export function BuiltInAgentCompute({
           </button>
           {(managed.reservedMicroUsd ?? 0) > 0 && <small>{t("agent.compute.pendingCredit", { amount: money(managed.reservedMicroUsd ?? 0) })}</small>}
           {(managed.trialGrantedMicroUsd ?? 0) > 0 && <small>{t("agent.compute.trialGranted", { amount: money(managed.trialGrantedMicroUsd ?? 0) })}</small>}
-          {managed.reason === "insufficient-credit" && <small>{t("agent.compute.insufficientCredit")}</small>}
         </>}
       {(state.error || managed?.errorCode) && <small role="alert">{t("agent.compute.paymentUnavailable")}</small>}
     </div>}
+    {showPrompt && <div className="desktop-agent-access-prompt" role="region" aria-label={t("agent.compute.accessTitle")}>
+      <strong>{t(!managed?.signedIn ? "agent.compute.accessTitle" : managed.reason === "insufficient-credit"
+        ? "agent.compute.insufficientCredit" : "agent.compute.paymentUnavailable")}</strong>
+      {!managed?.signedIn && (managed?.trialCreditMicroUsd ?? 0) > 0 && <p>{t("agent.compute.trialOffer", { amount: money(managed?.trialCreditMicroUsd ?? 0) })}</p>}
+      <p>{t("agent.compute.draftKept")}</p>
+      <div className="desktop-agent-credit-actions">
+        {!managed?.signedIn ? <button type="button" disabled={disabled || state.pending.managed}
+          onClick={() => void store.managed({ action: "sign-in" })}>
+          {t((managed?.trialCreditMicroUsd ?? 0) > 0 ? "agent.compute.signInTrial" : "agent.compute.signIn", { amount: money(managed?.trialCreditMicroUsd ?? 0) })}
+        </button> : managed.reason === "insufficient-credit" && (managed.packs ?? []).map((pack) => <button key={pack.id} type="button"
+          disabled={disabled || state.pending.managed} onClick={() => void store.managed({ action: "checkout", packId: pack.id })}>
+          {t("agent.compute.topUp", { amount: money(pack.price_cents * 10_000) })}
+        </button>)}
+        <button type="button" disabled={state.pending.managed} onClick={() => void store.managed({ action: "refresh" })}>{t("agent.compute.refreshBalance")}</button>
+      </div>
+      {(state.error || managed?.errorCode) && <small role="alert">{t("agent.compute.paymentUnavailable")}</small>}
+    </div>}
+    {accessPrompt && ready && <p className="desktop-agent-access-ready" role="status">{t("agent.compute.readyToSend")}</p>}
     <button type="button" className="desktop-agent-compute-customize" disabled={disabled}
       onClick={onOpenModelConnections}>{t("agent.compute.customize")}</button>
   </section>;

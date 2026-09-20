@@ -15,7 +15,7 @@ import { AgentComposer, DEFAULT_AGENT_COMPOSER_PLACEHOLDER_ID } from "./AgentCom
 import { AgentEmptyState } from "./AgentEmptyState";
 import { AgentPanelLayout } from "./AgentPanelLayout";
 import { AgentPanelStatus } from "./AgentPanelStatus";
-import { BuiltInAgentCompute } from "./built-in-agent/BuiltInAgentCompute";
+import { BuiltInAgentCompute, type ComputeAccessRequired } from "./built-in-agent/BuiltInAgentCompute";
 import type { AgentSessionControlId } from "../domain/agent-session-controls";
 import { AgentQuestionDock } from "./AgentQuestionDock";
 import { AgentRecoverySurface } from "./AgentRecoverySurface";
@@ -71,6 +71,8 @@ export function AgentChatTabPanel({
   const [pendingConnectionModel, setPendingConnectionModel] = useState<string | null>(null);
   const [computeReady, setComputeReady] = useState(false);
   const [computeReset, setComputeReset] = useState(0);
+  const [computeAccessRequired, setComputeAccessRequired] = useState<ComputeAccessRequired>(null);
+  const [computeAccessPrompt, setComputeAccessPrompt] = useState(false);
   const selectedModelCapabilities = state.inspection?.models.find((model) => model.model === state.selectedModel)?.modelCapabilities;
   const referenceCapabilities = useMemo(() => {
     const base = state.inspection?.capabilities?.referenceInputs;
@@ -127,6 +129,8 @@ export function AgentChatTabPanel({
   const routingReady = Boolean(agentRuntimeSelected && !pendingConnectionModel && (!capabilities?.modelConnections || computeReady) && (!modelSelectionAvailable || (
     state.selectedModel && runtimeModels.some((model) => model.model === state.selectedModel)
   )) && routingPreferences.preferencesReady);
+  const canRequestComputeAccess = Boolean(capabilities?.modelConnections && agentRuntimeSelected && computeAccessRequired
+    && !pendingConnectionModel && !failed && !state.error && (computeOnboarding || !unavailable));
   const preparingSession = state.sessionPreparation === "preparing";
   const submissionPending = state.submitting || Boolean(state.pendingPrompt);
   // Main admission replaces the local preview before the native turn starts.
@@ -182,7 +186,15 @@ export function AgentChatTabPanel({
   const handleDraftDocumentChange = useCallback((draft: string, mentions: AgentPromptReferenceMention[]) => {
     controller.setDraftDocument(draft, mentions);
   }, [controller]);
-  const handleSubmit = useCallback((prompt: string) => controller.submit(prompt), [controller]);
+  const handleSubmit = useCallback(async (prompt: string) => {
+    if (!routingReady && canRequestComputeAccess) {
+      setComputeAccessPrompt(true);
+      return false;
+    }
+    if (!routingReady) return false;
+    setComputeAccessPrompt(false);
+    return controller.submit(prompt);
+  }, [controller, routingReady, canRequestComputeAccess]);
   const selectSessionControl = (id: AgentSessionControlId, value: string) => {
     if (id === "model" && controller.requiresNewModelConnectionSession(value)) {
       setPendingConnectionModel(value);
@@ -232,7 +244,8 @@ export function AgentChatTabPanel({
       {capabilities?.modelConnections && <BuiltInAgentCompute key={`${state.selectedRuntimeId}:${state.selectedModel}:${computeReset}`}
         models={runtimeModels} selectedModel={state.selectedModel} disabled={loading || submissionPending || Boolean(state.projection.runningTurnId)}
         onSelectModel={(model) => selectSessionControl("model", model)} onCatalogChange={() => void controller.refreshModelConnections()}
-        onOpenModelConnections={onOpenModelConnections} onReadyChange={setComputeReady} />}
+        onOpenModelConnections={onOpenModelConnections} onReadyChange={setComputeReady}
+        onAccessRequiredChange={setComputeAccessRequired} accessPrompt={computeAccessPrompt} />}
       {capabilities?.readOnly && <p role="status">{t("settings.modelConnections.readOnly")}</p>}
       {pendingConnectionModel && <div role="alertdialog" aria-label={t("settings.modelConnections.newConversation")}>
         <p>{t("settings.modelConnections.switchWarning")}</p>
@@ -266,7 +279,7 @@ export function AgentChatTabPanel({
         focusRequest={focusRequest}
         draft={state.draft} draftMentions={state.draftMentions} onDraftChange={handleDraftChange}
         onDraftDocumentChange={handleDraftDocumentChange}
-        disabled={Boolean(capabilities?.readOnly) || state.replicaStatus === "stale" || state.replicaStatus === "subscribing" || loading || unavailable || failed || !routingReady || state.projection.approvals.length > 0 || state.projection.questions.length > 0}
+        disabled={Boolean(capabilities?.readOnly) || state.replicaStatus === "stale" || state.replicaStatus === "subscribing" || loading || (unavailable && !canRequestComputeAccess) || failed || (!routingReady && !canRequestComputeAccess) || state.projection.approvals.length > 0 || state.projection.questions.length > 0}
         running={Boolean(state.projection.runningTurnId)} stopping={state.stopping} submitting={submissionPending}
         placeholder={composerPlaceholder} runtimeLabel={runtimeLabel}
         configurationDisabled={loading || submissionPending}

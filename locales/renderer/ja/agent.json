@@ -8,7 +8,7 @@
   "lifecycle.retryDisplay": "メッセージ同期を再試行",
   "lifecycle.pauseDisplay": "自動復旧を一時停止",
   "lifecycle.manageExecutions": "インスタンスを管理／終了",
-  "compute.managed": "マネージド推論",
+  "compute.managed": "PuppyOne AI",
   "compute.managedBalance": "アカウント残高を使用",
   "compute.customize": "独自の API またはローカルモデルを使用",
   "compute.title": "推論リソース",
@@ -371,5 +371,11 @@
   "compute.usageReleased": "課金なし",
   "compute.usageTokens": "入力：{input}（キャッシュ：{cached}）· 出力：{output}",
   "compute.modelPrices": "100万トークンあたりのモデル料金",
-  "compute.modelRates": "入力 {input} · キャッシュ入力 {cached} · 出力 {output}"
+  "compute.modelRates": "入力 {input} · キャッシュ入力 {cached} · 出力 {output}",
+  "compute.accessTitle": "ログインして PuppyOne AI を使う",
+  "compute.trialOffer": "各アカウントで一度だけ {amount} の AI クレジットを受け取れます。使い切ったらチャージ。サブスクリプションは不要です。",
+  "compute.signInTrial": "ログインして {amount} を受け取る",
+  "compute.draftKept": "下書きは保存されています。ログインまたはチャージ後、ここに戻って送信してください。",
+  "compute.readyToSend": "準備ができました。送信を押して続けてください。",
+  "compute.topUpOptions": "チャージ金額"
 }

@@ -52,3 +52,24 @@ it("shows personal credit and one-time top-up without any hosting subscription",
   await act(async () => completeCheckout?.(snapshot));
   expect(topUp.disabled).toBe(false);
 });
+
+it("shows the trial and recharge amounts before login without offering a subscription", async () => {
+  const snapshot: ModelConnectionSnapshot = { schemaVersion: 1, revision: 1, connections: [], catalogs: [],
+    managed: { available: false, reason: "sign-in-required", signedIn: false, trialCreditMicroUsd: 1_000_000,
+      packs: [{ id: "starter", name: "AI credit", price_cents: 500, credit_micro_usd: 5_000_000 }] } };
+  const managed = vi.fn(async () => snapshot);
+  const client: ModelConnectionClientPort = { read: async () => snapshot, save: async () => snapshot,
+    remove: async () => snapshot, refresh: async () => snapshot, verify: async () => snapshot,
+    discover: async () => [], subscribe: () => () => {}, managed };
+  const onSignIn = vi.fn();
+  const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
+  await act(async () => root?.render(withTestLocalization(<AccountAICredits store={new ModelConnectionStore(client)} onSignIn={onSignIn} />)));
+  expect(host.textContent).toContain("Each account can claim $1.00");
+  expect(host.textContent).toContain("$5.00");
+  expect(host.textContent).not.toContain("$0.00");
+  expect(host.textContent).not.toMatch(/Cloud hosting|Pro|Team|\$15|\$30/);
+  const signIn = [...host.querySelectorAll("button")].find((button) => button.textContent === "Sign in to claim $1.00")!;
+  await act(async () => signIn.click());
+  expect(onSignIn).toHaveBeenCalledOnce();
+  expect(managed).not.toHaveBeenCalledWith(expect.objectContaining({ action: "checkout" }));
+});
