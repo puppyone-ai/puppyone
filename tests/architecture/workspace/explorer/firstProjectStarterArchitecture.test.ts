@@ -40,6 +40,18 @@ describe("project initialization ownership", () => {
     expect(flow).not.toContain('"clone"');
   });
 
+  it("shares one Import source preview between home and Project setup", () => {
+    const homeActions = source("src/components/onboarding/OnboardingEntryActions.tsx");
+    const launcher = source("src/features/app-shell/ProjectEntryLauncherDialog.tsx");
+    const launcherStyles = source("src/features/app-shell/project-switcher-rail.css");
+
+    expect(homeActions).toContain("<ImportSourcePreview");
+    expect(launcher).toContain("<ImportSourcePreview");
+    expect(launcherStyles).toMatch(
+      /\.desktop-project-entry-launcher \.desktop-dialog-title-row\s*\{[^}]*align-items:\s*center;/s,
+    );
+  });
+
   it("shares one materializer between project templates and Slides", () => {
     expect(source("electron/main/project-initialization-service.mjs")).toContain('local-api/templates/materialize.mjs');
     expect(source("local-api/workspace-templates.mjs")).toContain('./templates/materialize.mjs');
