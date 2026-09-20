@@ -427,5 +427,14 @@
   "html.style.padding": "Espaçamento interno",
   "html.style.border-radius": "Raio dos cantos",
   "html.style.width": "Largura",
-  "html.style.height": "Altura"
+  "html.style.height": "Altura",
+  "html.showPage": "Mostrar página",
+  "html.showCode": "Mostrar código",
+  "html.formatText": "Formatação de texto",
+  "html.bold": "Negrito",
+  "html.align.left": "Alinhar à esquerda",
+  "html.align.center": "Centralizar",
+  "html.align.right": "Alinhar à direita",
+  "html.chooseColor": "Escolher {color}",
+  "html.customColor": "Personalizado"
 }

@@ -29,6 +29,19 @@ const disk = () => fsp.readFile(path.join(workspace, "page.html"), "utf8");
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 async function until(predicate, label) { for (let i = 0; i < 250; i++) { if (await predicate()) return; await wait(30); } throw new Error(`Timed out: ${label}`); }
 async function button(label) { await evaluate(`Array.from(document.querySelectorAll('button')).find(b=>b.textContent===${JSON.stringify(label)})?.click()`); }
+async function control(selector) {
+  const point = await evaluate(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
+  for (const type of ['mousePressed', 'mouseReleased']) await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
+    type, x: point.x, y: point.y, button: 'left', clickCount: 1,
+  });
+}
+async function history(direction) {
+  await until(() => evaluate("document.querySelector('.html-visual-editor iframe')?.getAttribute('aria-busy')==='false'"), "ready for history");
+  await evaluate("document.querySelector('iframe').focus()");
+  const modifiers = [process.platform === 'darwin' ? 'meta' : 'control', ...(direction === 'redo' ? ['shift'] : [])];
+  win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Z', modifiers });
+  win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Z', modifiers });
+}
 const preview = () => win.webContents.mainFrame.frames.find(frame => frame.url === "about:srcdoc" || frame.url.includes("/document-projection/"));
 async function clickElement(selector, twice = false) {
   const child = preview(); assert.ok(child, "preview frame exists");
@@ -49,7 +62,7 @@ app.whenReady().then(async () => {
       if (url.host === 'file') {
         const capability = localFileCapabilities.resolve(parseLocalFileUrl(request.url));
         if (!capability?.snapshot) return new Response('', { status: 403 });
-        return new Response(capability.snapshot.bytes, { headers: { 'content-type': 'text/html', 'content-security-policy': 'sandbox allow-scripts' } });
+        return new Response(capability.snapshot.bytes, { headers: { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': 'sandbox allow-scripts' } });
       }
       if (url.host !== 'html-test' || !/^\/(?:old|image-[a-z0-9-]+)\.png$/.test(url.pathname)) return new Response('', { status: 403 });
       return new Response(await fsp.readFile(path.join(workspace, url.pathname.slice(1))), { headers: { 'content-type': 'image/png' } });
@@ -85,7 +98,7 @@ app.whenReady().then(async () => {
     await win.loadURL(`http://127.0.0.1:${vite.httpServer.address().port}/tests/fixtures/editor/formats/html-visual-editor.html`);
     await until(() => evaluate("!!window.htmlFixture && !!document.querySelector('iframe')"), "initial preview");
     assert.equal(await disk(), original);
-    await button("Edit page");
+    assert.equal(await evaluate("!!document.querySelector('.html-editor-toolbar,.html-editor-inspector')"), false);
     await until(() => evaluate("document.querySelector('iframe')?.getAttribute('aria-busy')==='false'"), "bridge ready");
     assert.equal(await preview().executeJavaScript("!!window.evil"), false);
     assert.equal(await preview().executeJavaScript("typeof require"), "undefined");
@@ -96,9 +109,12 @@ app.whenReady().then(async () => {
     win.webContents.debugger.attach("1.3");
     win.focus(); win.webContents.focus(); await wait(200);
     await clickElement("#title");
-    await until(() => evaluate("!!document.querySelector('.html-editor-inspector')"), "element selection");
-    await clickElement("#title", true);
+    await until(() => evaluate("!!document.querySelector('.html-floating-toolbar')"), "element selection");
     await until(() => evaluate("!!document.querySelector('.html-editor-text-input')"), "text input");
+    assert.equal(await evaluate("getComputedStyle(document.querySelector('.html-editor-text-input')).backgroundColor"), "rgba(0, 0, 0, 0)");
+    const toolbarInside = () => evaluate("(()=>{const p=document.querySelector('iframe').getBoundingClientRect(),t=document.querySelector('.html-floating-toolbar').getBoundingClientRect();return t.left>=p.left && t.right<=p.right && t.top>=p.top && t.bottom<=p.bottom})()");
+    await until(toolbarInside, 'floating toolbar remains in pane');
+    await fsp.writeFile('/private/tmp/puppyone-html-inline-text.png', (await win.webContents.capturePage()).toPNG());
     await win.webContents.debugger.sendCommand('Input.imeSetComposition', { text: 'nihao', selectionStart: 5, selectionEnd: 5, replacementStart: 0, replacementEnd: 6 });
     await wait(100);
     assert.equal(await disk(), original, 'unconfirmed composition must not be persisted');
@@ -108,26 +124,30 @@ app.whenReady().then(async () => {
     assert.ok((await disk()).startsWith('<!DOCTYPE html>\r\n<!-- keep exactly -->\r\n'));
     win.webContents.sendInputEvent({ type: "keyDown", keyCode: "Enter", modifiers: ["meta"] });
     win.webContents.sendInputEvent({ type: "keyUp", keyCode: "Enter", modifiers: ["meta"] });
-    await button("HTML source");
+    await button("Show code");
     await until(() => evaluate("window.htmlFixture.source()?.includes('你好')"), "shared source model");
-    await button("Edit page");
+    await button("Show page");
     await until(() => evaluate("document.querySelector('iframe')?.getAttribute('aria-busy')==='false'"), "edit reattached");
-    await button("Undo");
+    await history("undo");
     await until(async () => (await disk()).includes(">Before</h1>"), "shared undo");
-    await button("Redo");
+    await history("redo");
     await until(async () => (await disk()).includes("你好"), "shared redo");
     await until(() => evaluate("document.querySelector('iframe')?.getAttribute('aria-busy')==='false'"), "history projection");
     await clickElement("#title");
-    await until(() => evaluate("!!document.querySelector('.html-editor-inspector')"), "style inspector");
-    await evaluate(`(()=>{const inputs=document.querySelectorAll('.html-editor-inspector input'); const input=inputs[inputs.length-1]; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'blue');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
-    await button("Apply");
-    await until(async () => (await disk()).includes('style="color: blue"'), "style persisted");
-    assert.equal(await preview().executeJavaScript("getComputedStyle(document.querySelector('#title')).color"), "rgb(0, 0, 255)");
+    await until(() => evaluate("!!document.querySelector('.html-floating-toolbar')"), "style inspector");
+    await control('[aria-label="Text color"]');
+    await control('[aria-label="Choose #3b82f6"]');
+    await until(async () => (await disk()).includes('style="color: #3b82f6"'), "style persisted");
+    assert.equal(await evaluate("document.activeElement?.classList.contains('html-editor-text-input')"), true, 'formatting keeps text focus');
+    await until(() => evaluate("getComputedStyle(document.querySelector('.html-editor-text-input')).color==='rgb(59, 130, 246)'"), "inline text mirrors formatting");
+    await evaluate("document.querySelector('.html-editor-text-input').blur()");
+    await until(() => preview().executeJavaScript("getComputedStyle(document.querySelector('#title')).color==='rgb(59, 130, 246)'"), "rendered text color");
     await clickElement("#locked");
-    await until(() => evaluate("document.querySelector('.html-editor-inspector strong')?.textContent==='<p>'"), "locked inspector");
+    await until(() => evaluate("document.querySelector('.html-editor-text-input')?.value==='Locked'"), "locked text");
     const beforeLocked = await disk();
-    await evaluate(`(()=>{const input=document.querySelector('.html-editor-inspector form input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'blue');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
-    await button("Apply"); await wait(150);
+    await control('[aria-label="Text color"]');
+    await control('[aria-label="Choose #3b82f6"]');
+    await wait(150);
     assert.equal(await disk(), beforeLocked, "important stylesheet must reject an ineffective override");
     await clickElement('#cover');
     await until(() => evaluate("!!document.querySelector('input[type=file]')"), 'image inspector');
@@ -139,10 +159,10 @@ app.whenReady().then(async () => {
     const imported = (await disk()).match(/src="(image-[a-z0-9-]+\.png)"/)[1];
     assert.ok((await fsp.stat(path.join(workspace, imported))).size > 0);
     await fsp.writeFile('/private/tmp/puppyone-html-editor.png', (await win.webContents.capturePage()).toPNG());
-    await button('Undo');
+    await history("undo");
     await until(async () => (await disk()).includes('src="old.png"'), 'image undo');
     assert.ok((await fsp.stat(path.join(workspace, imported))).size > 0, 'undo must not delete shared assets');
-    await button('Redo');
+    await history("redo");
     await until(async () => (await disk()).includes(imported), 'image redo');
     await until(() => evaluate("document.querySelector('iframe')?.getAttribute('aria-busy')==='false'"), 'image redo projection');
     await preview().executeJavaScript("document.querySelector('#bottom').scrollIntoView()");
@@ -154,18 +174,24 @@ app.whenReady().then(async () => {
       return Math.abs(host.x-child.x)<2 && Math.abs(host.y-child.y)<2;
     };
     await until(geometry, 'selection alignment after scrolling');
+    await until(toolbarInside, 'toolbar remains in pane after scrolling');
+    win.setSize(440, 600);
+    await until(() => evaluate("document.querySelector('iframe').clientWidth===440"), 'narrow viewport settled');
+    await preview().executeJavaScript("document.querySelector('#bottom').scrollIntoView()");
+    await until(toolbarInside, 'toolbar remains in narrow pane');
+    win.setSize(1100, 780);
     win.webContents.setZoomFactor(1.25);
     await until(geometry, 'selection alignment after zoom');
     win.webContents.setZoomFactor(1);
     await evaluate("window.htmlTestDisk.agentWrite('<p>'+ 'x'.repeat(512*1024) +'</p>').then(()=>window.htmlFixture.refresh())");
     await until(() => evaluate("document.body.innerText.includes('Direct editing is unavailable')"), 'bounded visual fallback');
-    await button('HTML source');
+    await button('Show code');
     await until(() => evaluate("window.htmlFixture.source()?.length===512*1024+7"), 'large file source fallback');
     await evaluate("window.htmlTestDisk.agentWrite('<h1>Agent version</h1>').then(()=>window.htmlFixture.refresh())");
     await until(() => evaluate("window.htmlFixture.source()==='<h1>Agent version</h1>'"), "external refresh");
-    await button('Edit page');
+    await button('Show page');
     await until(() => evaluate("document.querySelector('iframe')?.getAttribute('aria-busy')==='false'"), 'external editor ready');
-    await button("Undo"); await wait(100);
+    await history("undo"); await wait(100);
     assert.equal(await disk(), '<h1>Agent version</h1>');
     await evaluate("window.htmlFixture.close()");
     await until(() => evaluate("window.htmlFixture.tasks()===0"), "task cleanup");
@@ -180,7 +206,7 @@ app.whenReady().then(async () => {
   } catch (error) {
     code = 1; console.error(error?.stack ?? error);
     if (win) {
-      console.error(await evaluate("document.body.innerText"));
+      console.error(await evaluate("JSON.stringify({text:document.body.innerText,toolbar:document.querySelector('.html-floating-toolbar')?.getBoundingClientRect(),style:document.querySelector('.html-floating-toolbar')?.getAttribute('style'),frame:document.querySelector('iframe')?.getBoundingClientRect(),selection:document.querySelector('.html-editor-selection')?.getBoundingClientRect()})"));
       await fsp.writeFile('/private/tmp/puppyone-html-native-failure.png', (await win.webContents.capturePage()).toPNG());
     }
   }

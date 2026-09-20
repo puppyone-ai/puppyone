@@ -10,13 +10,14 @@ import { HtmlVisualSession, type HtmlPreviewPatch } from "./HtmlVisualSession";
 import { buildHtmlEditingProjection, resolveHtmlBase } from "./htmlPreviewProjection";
 import { decodeHtmlBridgeMessage, type HtmlSelectionMessage } from "./htmlBridgeProtocol";
 import { HTML_VISUAL_MAX_CHARS } from "./htmlSourceIndex";
-import { HtmlInspector } from "./HtmlInspector";
+import { HtmlFloatingToolbar } from "./HtmlFloatingToolbar";
 import { HtmlTextInput } from "./HtmlTextInput";
 import type { HtmlEditOperation } from "./htmlEditCompiler";
 import { imageSourceReference } from "./htmlImageReference";
 
-export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, registerPrepare }: {
+export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, registerPrepare, onUnavailable }: {
   model: CodeMirrorDocumentModel; path: string; title: string; fileUrl?: string | null; canEdit: boolean;
+  onUnavailable: () => void;
   registerPrepare: (prepare: (() => void | Promise<void>) | null) => void;
 }) {
   const { t } = useLocalization();
@@ -32,6 +33,8 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, regist
   const [error, setError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const frame = useRef<HTMLIFrameElement>(null);
+  const viewport = useRef<HTMLDivElement>(null);
+  const scroll = useRef({ x: 0, y: 0 });
   const port = useRef<MessagePort | null>(null);
   const prepareText = useRef<(() => void) | null>(null);
   const pendingImport = useRef<Promise<void> | null>(null);
@@ -58,7 +61,7 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, regist
     port.current?.close(); port.current = null;
     const baseRevision = model.revision;
     const timer = setTimeout(() => {
-      if (model.editorState.doc.length > HTML_VISUAL_MAX_CHARS) { setError(t("editor.html.unsupported")); return; }
+      if (model.editorState.doc.length > HTML_VISUAL_MAX_CHARS) { onUnavailable(); return; }
       void editorTaskScheduler.acquire({ owner: owner ?? { scope: "standalone", instance: path, generation },
         kind: "html-projection", inputBytes: model.editorState.doc.length * 2, maxInputBytes: HTML_VISUAL_MAX_CHARS * 2,
         priority: "interactive", signal: abort.signal }, () => {
@@ -78,7 +81,7 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, regist
           if (abort.signal.aborted) { await documentLease.close(); documentLease = null; return; }
         }
         if (!abort.signal.aborted && lease.value.session.valid) setProjection({ ...lease.value, url: documentLease?.url });
-      }).catch(() => { if (!abort.signal.aborted) setError(t("editor.html.unsupported")); });
+      }).catch(() => { if (!abort.signal.aborted) onUnavailable(); });
     }, 0);
     return () => {
       clearTimeout(timer); abort.abort(); session?.dispose(); port.current?.close(); port.current = null;
@@ -87,7 +90,7 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, regist
       if (pendingStyle.current) { clearTimeout(pendingStyle.current.timeout); pendingStyle.current.finish(); }
       pendingStyle.current = null;
     };
-  }, [model, path, generation, owner, createController, t, projectionPort]);
+  }, [model, path, generation, owner, createController, t, projectionPort, onUnavailable]);
 
   useEffect(() => {
     if (projection?.session.valid) port.current?.postMessage({ type: "base", value: resolveHtmlBase(fileUrl, projection.session.index.baseHref) });
@@ -97,6 +100,38 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, regist
     port.current?.postMessage({ type: "enabled", value: canEdit });
     if (!canEdit) { setSelection(null); setTextInput(null); }
   }, [canEdit]);
+
+  useEffect(() => {
+    port.current?.postMessage({ type: "typing", id: textInput?.id ?? null });
+  }, [textInput]);
+  const dismiss = useCallback(() => {
+    try { prepareText.current?.(); } catch { setError(t("editor.html.finishComposition")); return; } setTextInput(null); setSelection(null); selected.current = null;
+    port.current?.postMessage({ type: "clear" }); frame.current?.focus();
+  }, [t]);
+  useEffect(() => {
+    const outside = (event: PointerEvent) => {
+      if (!(event.target instanceof Node) || viewport.current?.contains(event.target)) return;
+      try { prepareText.current?.(); } catch { setError(t("editor.html.finishComposition")); return; }
+      setTextInput(null); setSelection(null); selected.current = null;
+      port.current?.postMessage({ type: "clear" });
+    };
+    document.addEventListener("pointerdown", outside);
+    return () => document.removeEventListener("pointerdown", outside);
+  }, [t]);
+
+  useEffect(() => {
+    const element = viewport.current;
+    if (!element) return;
+    const wheel = (event: WheelEvent) => {
+      if (!(event.target instanceof Element) || !event.target.closest(".html-editor-text-input")) return;
+      if (event.ctrlKey || event.metaKey) return;
+      event.preventDefault();
+      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? element.clientHeight : 1;
+      port.current?.postMessage({ type: "scroll", x: event.deltaX * unit, y: event.deltaY * unit });
+    };
+    element.addEventListener("wheel", wheel, { passive: false });
+    return () => element.removeEventListener("wheel", wheel);
+  }, []);
 
   const patch = (patches: HtmlPreviewPatch[]) => { if (patches.length) port.current?.postMessage({ type: "patch", patches }); };
   const apply = (operation: HtmlEditOperation, gesture: string = crypto.randomUUID()): boolean => {
@@ -122,7 +157,7 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, regist
   const startText = (current: HtmlSelectionMessage) => {
     if (!projection?.session.valid || !enabled.current || current.styles.transformed) return;
     const target = projection.session.read(current.id);
-    if (target.textEditable) setTextInput({ id: current.id, initial: target.text, gesture: crypto.randomUUID() });
+    if (target.textEditable && textInput?.id !== current.id) setTextInput({ id: current.id, initial: target.text, gesture: crypto.randomUUID() });
   };
   const connect = () => {
     const session = projection?.session;
@@ -137,10 +172,12 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, regist
       if (port.current !== channel.port1 || !session.valid) return;
       const message = decodeHtmlBridgeMessage(event.data);
       if (!message) return;
+      if (message.type === "viewport") { scroll.current = { x: message.x, y: message.y }; return; }
       if (message.type === "ready") {
         if (acknowledged || new Set(message.ids).size !== session.index.targets.size
           || message.ids.length !== session.index.targets.size || message.ids.some((id) => !session.index.targets.has(id))) return;
         acknowledged = true; if (bridgeTimeout.current) clearTimeout(bridgeTimeout.current); setReady(true);
+        channel.port1.postMessage({ type: "restore-scroll", ...scroll.current });
         channel.port1.postMessage({ type: "enabled", value: enabled.current });
         channel.port1.postMessage({ type: "base", value: resolveHtmlBase(resourceUrl.current, session.index.baseHref) });
       } else if (acknowledged && enabled.current) {
@@ -197,15 +234,25 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, regist
     fontWeight: String(selection?.styles.fontWeight ?? "normal"), lineHeight: String(selection?.styles.lineHeight ?? "normal"),
     textAlign: selection?.styles.textAlign as CSSProperties["textAlign"],
     padding: String(selection?.styles.padding ?? "0"),
+    color: String(selection?.styles.color ?? "inherit"),
+    letterSpacing: String(selection?.styles.letterSpacing ?? "normal"),
+    fontStyle: String(selection?.styles.fontStyle ?? "normal"),
+    textTransform: selection?.styles.textTransform as CSSProperties["textTransform"],
+    textDecoration: String(selection?.styles.textDecoration ?? "none"),
   };
   return <div className="html-visual-editor" onKeyDown={(event) => {
-    if (!event.nativeEvent.isComposing && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
-      event.preventDefault(); setTextInput(null); model.moveHistory(event.shiftKey ? "redo" : "undo");
-    }
+    if (event.nativeEvent.isComposing) return;
+    const key = event.key.toLowerCase();
+    if ((event.metaKey || event.ctrlKey) && (key === "z" || event.ctrlKey && key === "y")) {
+      event.preventDefault();
+      try { prepareText.current?.(); } catch { setError(t("editor.html.finishComposition")); return; }
+      setTextInput(null); model.moveHistory(key === "y" || event.shiftKey ? "redo" : "undo");
+    } else if (event.key === "Escape") { event.preventDefault(); dismiss(); }
   }}>
-    <div className="html-visual-editor__status" role="status">{error ?? (importing ? t("editor.html.importing") : ready ? t("editor.html.selectHint") : t("editor.html.preparing"))}</div>
+    {(error || importing || !ready) && <div className="html-visual-editor__status" role={error ? "alert" : "status"}>
+      {error ?? (importing ? t("editor.html.importing") : t("editor.html.preparing"))}</div>}
     <div className="html-visual-editor__body">
-      <div className="html-visual-editor__viewport">
+      <div className="html-visual-editor__viewport" ref={viewport}>
         {projection && <iframe key={projection.session.id} ref={frame} className="native-preview-frame"
           title={title} sandbox="allow-scripts" referrerPolicy="no-referrer" src={projection.url}
           srcDoc={projection.url ? undefined : projection.source} onLoad={connect} aria-busy={!ready} />}
@@ -213,10 +260,10 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, regist
         {textInput && selection?.id === textInput.id && <HtmlTextInput key={textInput.gesture} initial={textInput.initial}
           style={textStyle} registerPrepare={registerTextPrepare} finish={() => setTextInput(null)}
           apply={(value) => apply({ kind: "text", value }, textInput.gesture)} />}
+        {target && selection && <HtmlFloatingToolbar key={`${projection?.session.id}:${target.id}`} selection={selection} viewport={viewport}
+          text={!target.image} image={target.image} alt={target.attrs.get("alt") ?? ""}
+          disabled={!ready || !canEdit || importing} canImport={!!assets} apply={apply} importImage={importImage} dismiss={dismiss} />}
       </div>
-      {target && <HtmlInspector key={`${projection?.session.id}:${target.id}`} tag={target.tag} text={target.textEditable && selection?.styles.transformed !== true}
-        image={target.image} alt={target.attrs.get("alt") ?? ""} styles={selection?.styles ?? {}} disabled={!ready || !canEdit || importing} canImport={!!assets}
-        apply={apply} startText={() => { if (selection) startText(selection); }} importImage={importImage} />}
     </div>
   </div>;
 }

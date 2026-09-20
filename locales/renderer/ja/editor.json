@@ -427,5 +427,14 @@
   "html.style.padding": "内側の余白",
   "html.style.border-radius": "角の丸み",
   "html.style.width": "幅",
-  "html.style.height": "高さ"
+  "html.style.height": "高さ",
+  "html.showPage": "ページを表示",
+  "html.showCode": "コードを表示",
+  "html.formatText": "文字の書式",
+  "html.bold": "太字",
+  "html.align.left": "左揃え",
+  "html.align.center": "中央揃え",
+  "html.align.right": "右揃え",
+  "html.chooseColor": "{color} を選択",
+  "html.customColor": "カスタム"
 }

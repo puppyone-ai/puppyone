@@ -427,5 +427,14 @@
   "html.style.padding": "Espaciado interior",
   "html.style.border-radius": "Radio de esquina",
   "html.style.width": "Anchura",
-  "html.style.height": "Altura"
+  "html.style.height": "Altura",
+  "html.showPage": "Mostrar página",
+  "html.showCode": "Mostrar código",
+  "html.formatText": "Formato de texto",
+  "html.bold": "Negrita",
+  "html.align.left": "Alinear a la izquierda",
+  "html.align.center": "Centrar",
+  "html.align.right": "Alinear a la derecha",
+  "html.chooseColor": "Elegir {color}",
+  "html.customColor": "Personalizado"
 }

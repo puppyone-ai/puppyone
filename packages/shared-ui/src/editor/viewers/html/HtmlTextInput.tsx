@@ -12,7 +12,7 @@ export function HtmlTextInput({ initial, style, apply, finish, registerPrepare }
   const applyRef = useRef(apply); applyRef.current = apply;
   const valueRef = useRef(value); valueRef.current = value;
   useLayoutEffect(() => {
-    input.current?.focus();
+    input.current?.focus({ preventScroll: true });
     input.current?.select();
     registerPrepare(() => {
       if (composing.current) input.current?.blur();
@@ -29,12 +29,17 @@ export function HtmlTextInput({ initial, style, apply, finish, registerPrepare }
       valueRef.current = event.target.value; setValue(event.target.value);
       if (!composing.current) apply(event.target.value);
     }}
-    onBlur={() => { if (!composing.current) { apply(valueRef.current); finish(); } }}
+    onBlur={(event) => {
+      if (!composing.current) {
+        apply(valueRef.current);
+        if (!(event.relatedTarget instanceof Element) || !event.relatedTarget.closest("[data-html-control]")) finish();
+      }
+    }}
     onKeyDown={(event) => {
       if (composing.current || event.nativeEvent.isComposing) return;
-      if (event.key === "Escape") { event.preventDefault(); apply(initial); finish(); }
+      if (event.key === "Escape") { event.preventDefault(); finish(); }
       else if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); finish(); }
-      else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
+      else if ((event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === "z" || event.ctrlKey && event.key.toLowerCase() === "y")) {
         // The surface owns the single document history; native textarea history must not diverge.
         event.preventDefault(); finish();
       }

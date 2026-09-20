@@ -427,5 +427,14 @@
   "html.style.padding": "Innenabstand",
   "html.style.border-radius": "Eckenradius",
   "html.style.width": "Breite",
-  "html.style.height": "Höhe"
+  "html.style.height": "Höhe",
+  "html.showPage": "Seite anzeigen",
+  "html.showCode": "Code anzeigen",
+  "html.formatText": "Textformatierung",
+  "html.bold": "Fett",
+  "html.align.left": "Linksbündig",
+  "html.align.center": "Zentriert",
+  "html.align.right": "Rechtsbündig",
+  "html.chooseColor": "{color} wählen",
+  "html.customColor": "Benutzerdefiniert"
 }

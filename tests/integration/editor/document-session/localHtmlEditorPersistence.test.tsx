@@ -86,8 +86,8 @@ describe("local HTML editor persistence", () => {
       ));
     });
 
-    await waitFor(() => !!container.querySelector('[aria-label="HTML source"]'));
-    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="HTML source"]')?.click());
+    await waitFor(() => !!container.querySelector('.html-editor-options > button'));
+    await act(async () => container.querySelector<HTMLButtonElement>('.html-editor-options > button')?.click());
     const editor = await waitForEditor(container);
     act(() => editor.dispatch({
       changes: { from: editor.state.doc.length, insert: "<!-- After -->" },

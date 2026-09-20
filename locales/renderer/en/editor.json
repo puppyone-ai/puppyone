@@ -427,5 +427,14 @@
   "html.style.padding": "Padding",
   "html.style.border-radius": "Corner radius",
   "html.style.width": "Width",
-  "html.style.height": "Height"
+  "html.style.height": "Height",
+  "html.showPage": "Show page",
+  "html.showCode": "Show code",
+  "html.formatText": "Text formatting",
+  "html.bold": "Bold",
+  "html.align.left": "Align left",
+  "html.align.center": "Align center",
+  "html.align.right": "Align right",
+  "html.chooseColor": "Choose {color}",
+  "html.customColor": "Custom"
 }
