@@ -221,6 +221,7 @@ function AppContent() {
     openWorkspacePath,
     recentWorkspaceItems,
     removeWorkspaceFromRecents,
+    renameProject,
     removeProject,
     refreshRecentWorkspaceList,
     restoreWorkspaceError,
@@ -1020,6 +1021,14 @@ function AppContent() {
     setRightSidebarOpen,
   ]);
 
+  const unlinkProjectFromRail = useCallback(async (folderPath: string) => {
+    if (workspace?.path === folderPath) {
+      await unlinkCurrentWorkspace();
+      return;
+    }
+    await removeWorkspaceFromRecents(folderPath);
+  }, [removeWorkspaceFromRecents, unlinkCurrentWorkspace, workspace?.path]);
+
   const toggleWorkspaceSwitcher = useCallback(() => {
     const nextOpen = !switcherOpen;
     setSwitcherOpen(nextOpen);
@@ -1386,7 +1395,9 @@ function AppContent() {
                 : undefined}
               settingsOpen={settingsDialogOpen}
               onOpenSettings={openSettingsDialog}
+              onRenameProject={renameProject}
               onSelectProject={switchProjectFromRail}
+              onUnlinkProject={unlinkProjectFromRail}
               utilitySlot={(
                 <DesktopHelpLauncher
                   appearance={surfaceAppearance}

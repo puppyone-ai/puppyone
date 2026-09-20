@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-const WORKSPACE_REGISTRY_VERSION = 6;
+const WORKSPACE_REGISTRY_VERSION = 7;
 const RECENT_WORKSPACE_LIMIT = 20;
 const HYDRATION_CONCURRENCY = 4;
 
@@ -27,10 +27,11 @@ export function createWorkspaceStateStore({
     }
 
     try {
+      const record = await readRecentWorkspaceRecord(folderPath);
       return {
         workspaceId: composition.workspaceId,
         path: folderPath,
-        workspace: await workspaceFromPath(folderPath),
+        workspace: applyWorkspaceDisplayName(await workspaceFromPath(folderPath), record),
         error: null,
       };
     } catch (error) {
@@ -69,7 +70,10 @@ export function createWorkspaceStateStore({
           cursor += 1;
           const record = state.recentWorkspaceRecords[index];
           try {
-            const workspace = await workspaceFromPath(record.path);
+            const workspace = applyWorkspaceDisplayName(
+              await workspaceFromPath(record.path),
+              record,
+            );
             results[index] = {
               item: { workspace, lastOpenedAt: record.lastOpenedAt },
               error: null,
@@ -137,14 +141,21 @@ export function createWorkspaceStateStore({
     const identity = await resolveIdentity(canonicalPath, knownWorkspace);
     return enqueueMutation(async () => {
       const state = normalizeWorkspaceState(await readWorkspaceState());
-      const record = {
+      const previousRecord = state.recentWorkspaceRecords.find((item) => (
+        isSameWorkspaceRecord(item, {
+          workspaceInstanceId: identity.workspaceInstanceId,
+          fsIdentity: identity.fsIdentity,
+          path: canonicalPath,
+        })
+      ));
+      const record = withPreservedDisplayName({
         workspaceInstanceId: identity.workspaceInstanceId,
         puppyoneGitRemote: normalizePuppyoneGitRemote(identity.puppyoneGitRemote),
         fsIdentity: identity.fsIdentity,
         path: canonicalPath,
         name: identity.name ?? (path.basename(canonicalPath) || canonicalPath),
         lastOpenedAt: new Date(now()).toISOString(),
-      };
+      }, previousRecord);
       const recentWorkspaceRecords = [
         record,
         ...state.recentWorkspaceRecords.filter((item) => !isSameWorkspaceRecord(item, record)),
@@ -177,22 +188,28 @@ export function createWorkspaceStateStore({
 
     return enqueueMutation(async () => {
       const state = normalizeWorkspaceState(await readWorkspaceState());
+      const recordsWithDisplayNames = compositionRecords.map((record) => (
+        withPreservedDisplayName(
+          record,
+          state.recentWorkspaceRecords.find((item) => isSameWorkspaceRecord(item, record)),
+        )
+      ));
       const recentWorkspaceRecords = [
-        ...[...compositionRecords].reverse(),
+        ...[...recordsWithDisplayNames].reverse(),
         ...state.recentWorkspaceRecords.filter(
-          (record) => !compositionRecords.some((activeRecord) => (
+          (record) => !recordsWithDisplayNames.some((activeRecord) => (
             isSameWorkspaceRecord(record, activeRecord)
           )),
         ),
       ].slice(0, RECENT_WORKSPACE_LIMIT);
       await writeWorkspaceState(createPersistedState(
         recentWorkspaceRecords,
-        compositionRecords.map((record) => record.path),
+        recordsWithDisplayNames.map((record) => record.path),
         normalizeOptionalString(options.workbenchWorkspaceId)
           ?? state.lastActiveWorkbenchWorkspaceId
           ?? createPersistedWorkbenchWorkspaceId(),
       ));
-      return compositionRecords;
+      return recordsWithDisplayNames;
     });
   }
 
@@ -230,6 +247,43 @@ export function createWorkspaceStateStore({
       const activeWorkspacePaths = state.lastActiveWorkspacePaths.filter((item) => item !== matchingRecord.path);
       await writeWorkspaceState(createPersistedState(recentWorkspaceRecords, activeWorkspacePaths));
       return { removed: true, path: matchingRecord.path };
+    });
+  }
+
+  async function renameRecentWorkspacePath(folderPath, nextName) {
+    const displayName = normalizeWorkspaceDisplayName(nextName);
+    if (typeof folderPath !== "string" || !folderPath.trim()) {
+      throw new Error("Workspace path is required.");
+    }
+    const requestedPath = path.resolve(folderPath.trim());
+    let canonicalPath = null;
+    try {
+      canonicalPath = await canonicalizeWorkspacePath(requestedPath);
+    } catch {
+      // A stale registration remains renameable by its exact persisted path.
+    }
+    return enqueueMutation(async () => {
+      const state = normalizeWorkspaceState(await readWorkspaceState());
+      const recordIndex = state.recentWorkspaceRecords.findIndex((item) => (
+        item.path === requestedPath || (canonicalPath && item.path === canonicalPath)
+      ));
+      if (recordIndex < 0) {
+        throw new Error("Workspace path is not in the main-process recent workspace list.");
+      }
+      const current = state.recentWorkspaceRecords[recordIndex];
+      const renamed = {
+        ...current,
+        ...(displayName === current.name ? {} : { displayName }),
+      };
+      if (displayName === current.name) delete renamed.displayName;
+      const recentWorkspaceRecords = [...state.recentWorkspaceRecords];
+      recentWorkspaceRecords[recordIndex] = renamed;
+      await writeWorkspaceState(createPersistedState(
+        recentWorkspaceRecords,
+        state.lastActiveWorkspacePaths,
+        state.lastActiveWorkbenchWorkspaceId,
+      ));
+      return { renamed: true, path: current.path, name: displayName };
     });
   }
 
@@ -348,6 +402,14 @@ export function createWorkspaceStateStore({
     return path.join(app.getPath("userData"), filename);
   }
 
+  function readRecentWorkspaceRecord(folderPath) {
+    return enqueueMutation(async () => {
+      const state = normalizeWorkspaceState(await readWorkspaceState());
+      const requestedPath = path.resolve(folderPath);
+      return state.recentWorkspaceRecords.find((record) => record.path === requestedPath) ?? null;
+    });
+  }
+
   return {
     getLastWorkspaceResult,
     getRecentWorkspacesResult,
@@ -360,6 +422,7 @@ export function createWorkspaceStateStore({
     rememberRecentWorkspacePath,
     requireRecentWorkspacePath,
     removeRecentWorkspacePath,
+    renameRecentWorkspacePath,
     forgetLastWorkspacePath,
   };
 }
@@ -376,6 +439,7 @@ function normalizeWorkspaceState(state) {
         existing.puppyoneGitRemote = record.puppyoneGitRemote;
       }
       if (record.fsIdentity) existing.fsIdentity = record.fsIdentity;
+      if (record.displayName) existing.displayName = record.displayName;
       return;
     }
     records.push(record);
@@ -423,6 +487,9 @@ function normalizeWorkspaceRecord(value, fallbackTimestamp = null) {
     fsIdentity: normalizeOptionalString(value.fsIdentity),
     path: resolvedPath,
     name: normalizeOptionalString(value.name) ?? (path.basename(resolvedPath) || resolvedPath),
+    ...(normalizeOptionalString(value.displayName)
+      ? { displayName: normalizeOptionalString(value.displayName) }
+      : {}),
     lastOpenedAt: normalizeWorkspaceTimestamp(value.lastOpenedAt ?? fallbackTimestamp),
   };
 }
@@ -468,7 +535,7 @@ function normalizeActiveWorkspacePaths(state, records) {
 function lightweightWorkspaceFromRecord(record) {
   return {
     id: `local:${record.workspaceInstanceId}`,
-    name: record.name,
+    name: record.displayName ?? record.name,
     path: record.path,
     status: "protected",
     cloudState: "local",
@@ -477,6 +544,31 @@ function lightweightWorkspaceFromRecord(record) {
     ...(record.fsIdentity ? { fsIdentity: record.fsIdentity } : {}),
     hydrationState: "metadata",
   };
+}
+
+function applyWorkspaceDisplayName(workspace, record) {
+  return record?.displayName ? { ...workspace, name: record.displayName } : workspace;
+}
+
+function withPreservedDisplayName(record, previousRecord) {
+  return previousRecord?.displayName
+    ? {
+        ...record,
+        name: previousRecord.name,
+        displayName: previousRecord.displayName,
+      }
+    : record;
+}
+
+function normalizeWorkspaceDisplayName(value) {
+  if (typeof value !== "string") throw new TypeError("Project name is required.");
+  const normalized = value.trim();
+  if (!normalized) throw new Error("Project name is required.");
+  if (normalized.length > 120) throw new Error("Project name must be 120 characters or fewer.");
+  if (/[\u0000-\u001f\u007f]/u.test(normalized)) {
+    throw new Error("Project name contains unsupported characters.");
+  }
+  return normalized;
 }
 
 function isSameWorkspaceRecord(left, right) {

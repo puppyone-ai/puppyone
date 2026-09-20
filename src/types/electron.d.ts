@@ -1164,6 +1164,15 @@ declare global {
         removed: true;
         path: string;
       }>;
+      renameRecentWorkspace: (request: {
+        folderPath: string;
+        name: string;
+      }) => Promise<{
+        ok: true;
+        renamed: true;
+        path: string;
+        name: string;
+      }>;
       forgetLastWorkspace: () => Promise<void>;
       showHomepage: () => Promise<{ ok: boolean }>;
       readProjectSessions: () => Promise<import("../../shared/project-session-contract/types").ProjectSessionSnapshot>;

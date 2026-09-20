@@ -413,6 +413,20 @@ describe("recent workspace authorization", () => {
     await expect(handlers.get("workspace:open-current")(event, root)).resolves.toEqual({ status: "opened-current" });
     expect(openWorkspaceInCurrentWindow).toHaveBeenCalledWith(event.sender, await fs.promises.realpath(root));
 
+    await expect(handlers.get("workspace:rename-recent")(event, {
+      folderPath: otherRoot,
+      name: "Blocked",
+    })).rejects.toThrow(/recent workspace list/i);
+    await expect(handlers.get("workspace:rename-recent")(event, {
+      folderPath: root,
+      name: "Renamed project",
+    })).resolves.toEqual({
+      ok: true,
+      renamed: true,
+      path: await fs.promises.realpath(root),
+      name: "Renamed project",
+    });
+
     await expect(handlers.get("workspace:remove-recent")(event, otherRoot)).rejects.toThrow(/recent workspace list/i);
     await expect(handlers.get("workspace:remove-recent")(event, root)).resolves.toEqual({
       ok: true,

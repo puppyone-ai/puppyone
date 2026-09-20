@@ -39,7 +39,7 @@ describe("workspace registry lifecycle", () => {
     expect(result.items).toHaveLength(12);
     expect(new Set(result.items.map((item) => item.workspace.workspaceInstanceId)).size).toBe(12);
     const raw = JSON.parse(await fs.promises.readFile(path.join(root, "registry.json"), "utf8"));
-    expect(raw.version).toBe(6);
+    expect(raw.version).toBe(7);
     expect(raw.recentWorkspaces).toHaveLength(12);
   });
 
@@ -93,7 +93,7 @@ describe("workspace registry lifecycle", () => {
 
     expect(first.workspaceId).toMatch(/^workbench:/);
     expect(second.workspaceId).toBe(first.workspaceId);
-    expect(persisted.version).toBe(6);
+    expect(persisted.version).toBe(7);
     expect(persisted.lastActiveWorkbenchWorkspaceId).toBe(first.workspaceId);
   });
 
@@ -142,6 +142,50 @@ describe("workspace registry lifecycle", () => {
       path: persistedPath,
     });
     await expect(store.getRecentWorkspacesResult()).resolves.toMatchObject({ items: [] });
+  });
+
+  it("persists a Project display name without renaming its local folder", async () => {
+    const store = createStore();
+    const folder = path.join(root, "folder-on-disk");
+    await fs.promises.mkdir(folder);
+    await store.rememberWorkspaceComposition([createWorkspace(folder)], {
+      workbenchWorkspaceId: "workbench:renamed-project",
+    });
+
+    await expect(store.renameRecentWorkspacePath(folder, "Research Notes")).resolves.toEqual({
+      renamed: true,
+      path: await fs.promises.realpath(folder),
+      name: "Research Notes",
+    });
+
+    expect((await store.getRecentWorkspacesResult()).items[0].workspace.name).toBe("Research Notes");
+    expect((await store.hydrateRecentWorkspacesResult()).items[0].workspace.name).toBe("Research Notes");
+    expect((await store.getLastWorkspaceResult()).workspace.name).toBe("Research Notes");
+    await store.rememberWorkspaceComposition([{
+      ...createWorkspace(folder),
+      name: "Research Notes",
+    }], {
+      workbenchWorkspaceId: "workbench:renamed-project",
+    });
+    expect((await store.getRecentWorkspacesResult()).items[0].workspace.name).toBe("Research Notes");
+    expect((await fs.promises.stat(folder)).isDirectory()).toBe(true);
+
+    const persisted = JSON.parse(await fs.promises.readFile(path.join(root, "registry.json"), "utf8"));
+    expect(persisted.recentWorkspaces[0]).toMatchObject({
+      name: "folder-on-disk",
+      displayName: "Research Notes",
+      path: await fs.promises.realpath(folder),
+    });
+  });
+
+  it("rejects empty and unsupported Project display names", async () => {
+    const store = createStore();
+    const folder = path.join(root, "valid-project");
+    await fs.promises.mkdir(folder);
+    await store.rememberRecentWorkspacePath(folder);
+
+    await expect(store.renameRecentWorkspacePath(folder, "   ")).rejects.toThrow(/name is required/i);
+    await expect(store.renameRecentWorkspacePath(folder, "bad\u0000name")).rejects.toThrow(/unsupported/i);
   });
 
   it("deduplicates a symlink alias of the same physical workspace", async () => {
@@ -238,7 +282,7 @@ describe("workspace registry lifecycle", () => {
 
     await store.rememberRecentWorkspacePath(folder, beforeRewrite.items[0].workspace);
     const persisted = JSON.parse(await fs.promises.readFile(path.join(root, "registry.json"), "utf8"));
-    expect(persisted.version).toBe(6);
+    expect(persisted.version).toBe(7);
     expect(persisted.recentWorkspaces[0]).not.toHaveProperty("projectId");
   });
 

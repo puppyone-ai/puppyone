@@ -37,6 +37,14 @@ export function registerWorkspaceNavigationIpcHandlers({
     return { ok: true, ...result };
   });
 
+  ipcMain.handle("workspace:rename-recent", async (_event, request) => {
+    const result = await workspaceStateStore.renameRecentWorkspacePath(
+      request?.folderPath,
+      request?.name,
+    );
+    return { ok: true, ...result };
+  });
+
   ipcMain.handle("workspace:forget-last", async (event) => {
     await forgetCurrentWindowWorkspace(event.sender);
     return { ok: true };
