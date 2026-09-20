@@ -1,9 +1,10 @@
 /** @vitest-environment happy-dom */
 import { act, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { createWorkspaceFolder, qualifyDataResourcePath } from "@puppyone/shared-ui";
+import { createWorkspaceFolder, qualifyDataResourcePath, type DataPort } from "@puppyone/shared-ui";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { useInitialProjectDocument } from "../../../../src/features/app-shell/useInitialProjectDocument";
+import { useWorkspaceEntryBootstrap } from "../../../../src/features/app-shell/useWorkspaceEntryBootstrap";
+import type { WorkspaceEntryIntent } from "../../../../src/features/app-shell/workspaceEntryBootstrap";
 import { OnboardingProjectEntryDialog } from "../../../../src/components/OnboardingProjectEntryDialog";
 import type { ProjectInitializationReceipt, WorkspaceCreateProjectRequest, WorkspaceCreateProjectResult } from "../../../../src/types/electron";
 import { withTestLocalization } from "../../../support/react/localization";
@@ -17,50 +18,99 @@ const receipt: ProjectInitializationReceipt = {
   operationId: "operation-one", outcome: "committed", path: "/projects/Notes", name: "Notes",
   createdPaths: ["Getting Started.md"], initialOpenPath: "Getting Started.md", template: null,
 };
-function Harness(props: Parameters<typeof useInitialProjectDocument>[0]) { useInitialProjectDocument(props); return null; }
+const intent: WorkspaceEntryIntent = {
+  id: "entry-one",
+  kind: "created",
+  workspacePath: receipt.path,
+  preferredOpenPath: receipt.initialOpenPath,
+};
+function Harness(props: Parameters<typeof useWorkspaceEntryBootstrap>[0]) { useWorkspaceEntryBootstrap(props); return null; }
 function mount() { const host = document.createElement("div"); document.body.append(host); root = createRoot(host); return host; }
-async function flush() { await Promise.resolve(); await Promise.resolve(); }
+async function flush() { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); }
 function setName(host: HTMLElement, name: string) {
   const input = host.querySelector("input")!;
   act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, name); input.dispatchEvent(new Event("input", { bubbles: true })); });
 }
 
-describe("committed project opening intent", () => {
-  it("opens once under StrictMode and targets the receipt's folder in a multi-root workspace", async () => {
+describe("workspace entry bootstrap", () => {
+  it("opens a template's preferred document once and targets its folder in a multi-root workspace", async () => {
     mount();
     const other = createWorkspaceFolder({ id: "other", name: "Other", path: "/projects/Other", status: "recording" });
-    const props = { receipt, folders: [other, folder], openDocument: vi.fn(), consume: vi.fn(), onError: vi.fn() };
+    const preferredPath = qualifyDataResourcePath(folder.uri, "Getting Started.md");
+    const props = {
+      intent,
+      folders: [other, folder],
+      dataPort: {
+        listChildren: vi.fn(async () => []),
+        resolveNode: vi.fn(async (path: string) => path === preferredPath
+          ? { id: path, name: "Getting Started.md", path, type: "markdown" as const, workspaceFolderId: folder.id }
+          : null),
+      },
+      editorHydrated: true,
+      hasOpenEditors: false,
+      openDocument: vi.fn(),
+      consume: vi.fn(),
+      revealAgentWorkbench: vi.fn(),
+      onError: vi.fn(),
+    };
     await act(async () => { root!.render(<StrictMode><Harness {...props} /></StrictMode>); await flush(); });
     await act(async () => { root!.render(<StrictMode><Harness {...props} folders={[other, folder]} /></StrictMode>); await flush(); });
-    expect(props.consume).toHaveBeenCalledExactlyOnceWith(receipt.operationId);
+    expect(props.consume).toHaveBeenCalledExactlyOnceWith(intent.id);
     expect(props.openDocument).toHaveBeenCalledExactlyOnceWith(
-      qualifyDataResourcePath(folder.uri, "Getting Started.md"),
+      preferredPath,
       expect.objectContaining({ workspaceFolderId: folder.id }),
     );
+    expect(props.revealAgentWorkbench).toHaveBeenCalledExactlyOnceWith();
   });
 
-  it("does nothing for existing folders, Blank, or an unrelated active workspace", async () => {
+  it("opens README for an existing folder when there is no restored editor session", async () => {
     mount();
-    const props = { receipt: null, folders: [folder], openDocument: vi.fn(), consume: vi.fn(), onError: vi.fn() };
+    const readmePath = qualifyDataResourcePath(folder.uri, "README.md");
+    const props = {
+      intent: { ...intent, kind: "opened" as const, preferredOpenPath: null },
+      folders: [folder],
+      dataPort: {
+        listChildren: vi.fn(async () => [
+          { id: "z", name: "z.txt", path: qualifyDataResourcePath(folder.uri, "z.txt"), type: "text" as const },
+          { id: "readme", name: "README.md", path: readmePath, type: "markdown" as const },
+        ]),
+      } satisfies Pick<DataPort, "listChildren" | "resolveNode">,
+      editorHydrated: true,
+      hasOpenEditors: false,
+      openDocument: vi.fn(),
+      consume: vi.fn(),
+      revealAgentWorkbench: vi.fn(),
+      onError: vi.fn(),
+    };
     await act(async () => { root!.render(<Harness {...props} />); await flush(); });
-    await act(async () => { root!.render(<Harness {...props} receipt={receipt} folders={[]} />); await flush(); });
-    expect(props.consume).not.toHaveBeenCalled();
-    await act(async () => { root!.render(<Harness {...props} receipt={{ ...receipt, initialOpenPath: null }} />); await flush(); });
+    expect(props.openDocument).toHaveBeenCalledWith(readmePath, expect.objectContaining({ name: "README.md" }));
     expect(props.consume).toHaveBeenCalledOnce();
-    expect(props.openDocument).not.toHaveBeenCalled();
+    expect(props.revealAgentWorkbench).toHaveBeenCalledOnce();
   });
 
-  it("reports an opening failure without regenerating the document", async () => {
+  it("preserves a restored editor session while still revealing local Agents", async () => {
     mount();
-    const props = { receipt, folders: [folder], openDocument: vi.fn(async () => { throw new Error("Document unavailable"); }), consume: vi.fn(), onError: vi.fn() };
+    const props = {
+      intent: { ...intent, kind: "restored" as const, preferredOpenPath: null },
+      folders: [folder],
+      dataPort: { listChildren: vi.fn(async () => []) },
+      editorHydrated: true,
+      hasOpenEditors: true,
+      openDocument: vi.fn(),
+      consume: vi.fn(),
+      revealAgentWorkbench: vi.fn(),
+      onError: vi.fn(),
+    };
     await act(async () => { root!.render(<Harness {...props} />); await flush(); });
-    expect(props.onError).toHaveBeenCalledWith("Document unavailable");
-    expect(props.openDocument).toHaveBeenCalledOnce();
+    expect(props.dataPort.listChildren).not.toHaveBeenCalled();
+    expect(props.openDocument).not.toHaveBeenCalled();
+    expect(props.revealAgentWorkbench).toHaveBeenCalledOnce();
+    expect(props.consume).toHaveBeenCalledWith(intent.id);
   });
 });
 
 describe("project template selection", () => {
-  it("keeps one default-location request under StrictMode and supports true Blank", async () => {
+  it("keeps one default-location request under StrictMode and always creates the guide", async () => {
     const host = mount();
     const onSubmit = vi.fn(async (request: WorkspaceCreateProjectRequest): Promise<WorkspaceCreateProjectResult> => ({
       initialization: { ...receipt, operationId: request.operationId, initialOpenPath: null, createdPaths: [] },
@@ -70,12 +120,14 @@ describe("project template selection", () => {
     const onClose = vi.fn();
     await act(async () => { root!.render(withTestLocalization(<StrictMode><OnboardingProjectEntryDialog onClose={onClose} onDefaultLocation={onDefaultLocation} onSubmit={onSubmit} /></StrictMode>)); await flush(); });
     expect(onDefaultLocation).toHaveBeenCalledOnce();
-    const select = host.querySelector("select")!;
-    expect(select.value).toBe("get-started");
-    act(() => { select.value = "blank"; select.dispatchEvent(new Event("change", { bubbles: true })); });
+    expect(host.querySelector("select")).toBeNull();
     setName(host, "Notes");
     await act(async () => { host.querySelector<HTMLButtonElement>('button[type="submit"]')!.click(); await flush(); });
-    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ name: "Notes", source: { kind: "blank" }, operationId: expect.any(String) }));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      name: "Notes",
+      source: { kind: "template", ref: { sourceId: "builtin", id: "puppyone.project.getting-started", version: 1 } },
+      operationId: expect.any(String),
+    }));
     expect(onClose).toHaveBeenCalledOnce();
   });
 

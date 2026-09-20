@@ -85,7 +85,7 @@ async function checkDefaultCompute() {
 }
 async function checkComputeChoice() {
   await clickText("Verify Agent support");
-  await until(() => evaluate("document.querySelector('.model-connection-card')?.textContent.includes('Tool round-trip verified')"), "verified model");
+  await until(() => evaluate("document.querySelector('.model-connection-details')?.textContent.includes('Tool round-trip verified')"), "verified model");
   await clickText("Close");
   assert.equal(await evaluate("Boolean(document.querySelector('.desktop-agent-composer button[aria-label=\"Agent model\"]'))"), false, "Built-in must not show a second unscoped model picker");
   await capture("built-in-compute-choice.png");
@@ -148,19 +148,37 @@ app.whenReady().then(async () => {
     if (computeSmoke) await checkDefaultCompute();
     await evaluate("window.dispatchEvent(new KeyboardEvent('keydown',{key:',',metaKey:true,bubbles:true}))");
     await until(() => evaluate("Boolean(document.querySelector('.desktop-settings-dialog'))"), "dialog ready");
+    // Opening animation transforms the entire dialog; measure its settled geometry.
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    await clickText("Appearance");
+    await clickText("Light");
+    await until(() => evaluate("Boolean(document.querySelector('[data-theme-mode=light]'))"), "light appearance");
+    const referenceHeading = await evaluate("(() => { const h = document.querySelector('.desktop-settings-section-header h2'); return { left: h.getBoundingClientRect().left, size: getComputedStyle(h).fontSize }; })()");
     await clickText("Model connections");
     await until(() => evaluate("Boolean(document.querySelector('.model-connections'))"), "model settings ready");
+    const connectionHeading = await evaluate("(() => { const h = document.querySelector('.model-connections .desktop-settings-section-header h2'); return { left: h.getBoundingClientRect().left, size: getComputedStyle(h).fontSize }; })()");
+    assert.equal(connectionHeading.size, referenceHeading.size, "Model connections uses the same heading type as Appearance");
+    assert.ok(Math.abs(connectionHeading.left - referenceHeading.left) <= 1,
+      `Model connections aligns with Appearance: ${connectionHeading.left} / ${referenceHeading.left}`);
+    assert.equal(await evaluate("Boolean(document.querySelector('.desktop-settings-sidebar .lucide-plug'))"), true);
+    await capture("settings-connections-empty-light.png");
+    await clickText("Appearance");
+    await clickText("Dark");
+    await until(() => evaluate("Boolean(document.querySelector('[data-theme-mode=dark]'))"), "dark appearance");
+    await clickText("Model connections");
+    await capture("settings-connections-empty-dark.png");
     assert.equal((await evaluate("window.puppyoneDesktop.modelConnections.read()" )).value.connections.length, 0);
-    await clickText("Add connection");
-    await fill('.model-connection-setup input[id$="-name"]', "Native UI test");
-    await fill('input[type="url"]', `http://127.0.0.1:${server.address().port}/v1`);
-    await evaluate("(()=>{const s=document.querySelector('.model-connection-setup select[id$=\"-driver\"]');s.value='openai-compatible';s.dispatchEvent(new Event('change',{bubbles:true}));})()");
+    await clickText("Add API connection");
+    await capture("settings-connections-add-api.png");
     await fill('.model-connection-setup input[id$="-name"]', "Native UI test");
     await fill('input[type="url"]', `http://127.0.0.1:${server.address().port}/v1`);
     await until(() => evaluate("Boolean(document.querySelector('input[type=password]'))"), "write-only Key field");
     await fill('input[type="password"]', "synthetic-settings-key");
     await clickText("Save connection");
-    await until(() => evaluate("document.querySelector('.model-connection-card')?.textContent.includes('ui-test-model')"), "saved catalog");
+    await until(() => evaluate("document.querySelector('.model-connections-list-row')?.textContent.includes('Native UI test')"), "saved connection");
+    await capture("settings-connections-list.png");
+    await clickText("Native UI test");
+    await until(() => evaluate("document.querySelector('.model-connection-details')?.textContent.includes('ui-test-model')"), "saved catalog");
     assert.equal(metadataReads, 1, "Saving reads metadata only");
     const publicSnapshot = await evaluate("window.puppyoneDesktop.modelConnections.read()");
     assert.equal(publicSnapshot.ok, true); assert.equal(JSON.stringify(publicSnapshot).includes("synthetic-settings-key"), false);
@@ -170,6 +188,31 @@ app.whenReady().then(async () => {
     await new Promise((resolve) => setTimeout(resolve, 500));
     await fs.writeFile(path.join(output, "model-connections.png"), (await window.webContents.capturePage()).toPNG());
     if (computeSmoke) await checkComputeChoice();
+    if (computeSmoke) await clickText("Native UI test");
+    await clickText("Edit connection");
+    assert.equal(await evaluate("document.querySelector('input[type=password]').value"), "", "Saved Key remains write-only");
+    await fill('.model-connection-setup input[id$="-name"]', "Work API");
+    await clickText("Save connection");
+    await until(() => evaluate("document.querySelector('.model-connections .desktop-settings-section-header h2')?.textContent==='Work API'"), "renamed connection");
+    await clickText("Back");
+    await clickText("General");
+    await evaluate("(() => { const select = document.querySelector('.desktop-language-setting-select'); select.value='zh-Hans'; select.dispatchEvent(new Event('change',{bubbles:true})); })()");
+    await until(() => evaluate("document.documentElement.lang === 'zh-Hans'"), "Chinese settings");
+    await clickText("模型连接");
+    await capture("settings-connections-list-zh-dark.png");
+    await clickText("添加 API 连接");
+    await capture("settings-connections-form-zh-dark.png");
+    await clickText("取消");
+    await clickText("Work API");
+    await capture("settings-connections-detail-zh-dark.png");
+    window.setSize(900, 720);
+    await capture("settings-connections-detail-compact.png");
+    assert.equal(await evaluate("(() => { const body = document.querySelector('.model-connections .desktop-settings-body'); return body.scrollWidth <= body.clientWidth; })()"), true, "Settings remains usable without horizontal overflow");
+    await clickText("通用");
+    await evaluate("(() => { const select = document.querySelector('.desktop-language-setting-select'); select.value='en'; select.dispatchEvent(new Event('change',{bubbles:true})); })()");
+    await until(() => evaluate("document.documentElement.lang === 'en'"), "English settings restored");
+    await clickText("Model connections");
+    await clickText("Work API");
     await clickText("Remove"); await clickText("Remove and stop chats");
     await until(async () => (await evaluate("window.puppyoneDesktop.modelConnections.read()")).value.connections.length === 0, "delete persisted");
     console.log(JSON.stringify({ ok: true, actualAppRenderer: true, loggedOutSettings: true, secureWriteOnlySave: true, catalogVisible: true, confirmedRemoval: true,

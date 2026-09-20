@@ -1,70 +1,134 @@
+import { ChevronLeft, ChevronRight, KeyRound, Plus, RefreshCw, Server } from "lucide-react";
 import { useState } from "react";
 import { useLocalization } from "@puppyone/localization";
 import { bidiIsolate } from "@puppyone/localization/core";
 import type { ModelConnection, ModelConnectionCandidate, ModelConnectionSourceKind } from "../../../../shared/model-connections/types";
+import { SettingsSectionHeader } from "../../settings/components";
 import type { ModelConnectionStore } from "../application/ModelConnectionStore";
 import { useModelConnections } from "../controller/useModelConnections";
+import { ModelConnectionDetails } from "./ModelConnectionDetails";
 import { ModelConnectionSetup } from "./ModelConnectionSetup";
-import "./model-connections.css";
+import "./model-connections-settings.css";
 
-export function ModelConnectionsSettings({ embedded = false, sourceKind, store: suppliedStore }: { embedded?: boolean; sourceKind?: ModelConnectionSourceKind; store?: ModelConnectionStore }) {
+type SettingsPage =
+  | { kind: "list" }
+  | { kind: "detail"; id: string }
+  | { kind: "edit"; connection: ModelConnection }
+  | { kind: "add"; sourceKind: ModelConnectionSourceKind; candidate?: ModelConnectionCandidate };
+
+const SOURCE_KINDS = ["api", "local"] as const;
+
+export function ModelConnectionsSettings({ store: suppliedStore }: { store?: ModelConnectionStore }) {
   const { t } = useLocalization();
   const { state, store } = useModelConnections(suppliedStore);
-  const [editor, setEditor] = useState<{ connection?: ModelConnection; candidate?: ModelConnectionCandidate } | null>(null);
-  const [deleting, setDeleting] = useState<string | null>(null);
-  const connections = state.snapshot?.connections.filter((connection) => !sourceKind || connection.sourceKind === sourceKind) ?? [];
-  const localDiscovery = sourceKind !== "api";
-  return <section className={embedded ? "model-connections model-connections-embedded" : "desktop-utility-view desktop-settings-view model-connections"} data-po-scrollbar={embedded ? "content" : undefined}>
-    <div className={embedded ? "model-connections-content" : "desktop-utility-body desktop-settings-body model-connections-content"} data-po-scrollbar={embedded ? undefined : "content"}>
-      <header><h2>{t(sourceKind ? `settings.modelConnections.source.${sourceKind}` : "settings.modelConnections.title")}</h2>{!embedded && <p>{t("settings.modelConnections.detail")}</p>}</header>
-      {state.error && <p role="alert">{t("settings.modelConnections.error", { code: bidiIsolate(state.error) })}</p>}
-      {!state.snapshot && <button type="button" disabled={state.pending.read} onClick={() => void store.load()}>{t(state.pending.read ? "settings.modelConnections.loading" : "common.action.retry")}</button>}
-      <div className="model-connection-actions">
-        <button type="button" onClick={() => setEditor({})}>{t("settings.modelConnections.add")}</button>
-        {localDiscovery && <button type="button" disabled={state.pending.discover} onClick={() => void store.discover()}>{t(state.pending.discover ? "settings.modelConnections.discovering" : "settings.modelConnections.discover")}</button>}
-      </div>
-      {localDiscovery && <p className="model-connection-hint">{t("settings.modelConnections.discoveryHelp")}</p>}
-      {localDiscovery && state.candidates.length > 0 && <ul className="model-connection-candidates">
-        {state.candidates.map((candidate) => <li key={`${candidate.driver}:${candidate.baseUrl}`}>
-          <span>{candidate.name} <small dir="ltr">{candidate.baseUrl}</small></span>
-          <button type="button" onClick={() => setEditor({ candidate })}>{t("settings.modelConnections.connect")}</button>
-        </li>)}
-      </ul>}
-      {editor && <ModelConnectionSetup key={editor.connection?.id ?? editor.candidate?.baseUrl ?? "new"}
-        {...editor} sourceKind={sourceKind ?? (editor.candidate ? "local" : undefined)} busy={Boolean(state.pending.save)} onSave={store.save} onCancel={() => setEditor(null)} />}
-      {state.snapshot && connections.length === 0 && !editor && <p>{t("settings.modelConnections.empty")}</p>}
-      {connections.map((connection) => {
-        const catalog = state.snapshot?.catalogs.find((entry) => entry.connectionId === connection.id);
-        const busy = Boolean(state.pending[connection.id]);
-        return <article className="model-connection-card" key={connection.id}>
-          <header><h3>{connection.name}</h3><small>{t(connection.transport === "loopback" ? "settings.modelConnections.localConnection" : "settings.modelConnections.remoteConnection")}</small></header>
-          {!sourceKind && <small>{t(`settings.modelConnections.source.${connection.sourceKind}`)}</small>}
-          <p dir="ltr" className="model-connection-url">{connection.baseUrl}</p>
-          <p>{t(`settings.modelConnections.status.${catalog?.status ?? "unread"}`)}</p>
-          {catalog?.errorCode && <p role="status">{t("settings.modelConnections.error", { code: bidiIsolate(catalog.errorCode) })}</p>}
-          <div className="model-connection-actions">
-            <button type="button" disabled={busy} onClick={() => void store.refresh(connection.id)}>{t("settings.modelConnections.refresh")}</button>
-            <button type="button" disabled={busy || state.pending.save} onClick={() => setEditor({ connection })}>{t("settings.modelConnections.edit")}</button>
-            <button type="button" disabled={busy} onClick={() => setDeleting(connection.id)}>{t("settings.modelConnections.remove")}</button>
-          </div>
-          {deleting === connection.id && <div role="alert" className="model-connection-delete">
-            <p>{t("settings.modelConnections.deleteWarning")}</p>
-            <button type="button" disabled={busy} onClick={() => void store.remove({ id: connection.id, expectedGeneration: connection.configGeneration }).then((removed) => { if (removed) setDeleting(null); })}>{t("settings.modelConnections.confirmDelete")}</button>
-            <button type="button" onClick={() => setDeleting(null)}>{t("common.action.cancel")}</button>
-          </div>}
-          <ul className="model-connection-models">{catalog?.models.map((model) => <li key={model.id}>
-            <div><strong>{model.name}</strong><small dir="ltr">{model.id}</small>
-              <small>{t(model.verifiedAt ? "settings.modelConnections.verified" : model.capabilities.tools === "supported" ? "settings.modelConnections.advertised" : "settings.modelConnections.unverified")}</small>
-              {model.loaded !== null && <small>{t(model.loaded ? "settings.modelConnections.loaded" : "settings.modelConnections.notLoaded")}</small>}
+  const [page, setPage] = useState<SettingsPage>({ kind: "list" });
+  const [actionError, setActionError] = useState<string | null>(null);
+  const connections = state.snapshot?.connections ?? [];
+  const selected = page.kind === "detail" ? connections.find((connection) => connection.id === page.id) : undefined;
+  const editing = page.kind === "add" || page.kind === "edit";
+  const busy = Boolean(state.pending.save || (selected && state.pending[selected.id]));
+  const candidates = state.candidates.filter((candidate) => !connections.some((connection) =>
+    connection.driver === candidate.driver && connection.baseUrl === candidate.baseUrl));
+
+  const navigate = (next: SettingsPage) => { setActionError(null); setPage(next); };
+  const run = async (operation: () => Promise<boolean>) => {
+    setActionError(null);
+    const succeeded = await operation();
+    if (!succeeded) setActionError(store.getSnapshot().error);
+    return succeeded;
+  };
+  const returnPage: SettingsPage = page.kind === "edit" ? { kind: "detail", id: page.connection.id } : { kind: "list" };
+
+  return (
+    <section className="desktop-utility-view desktop-settings-view model-connections">
+      <div className="desktop-utility-body desktop-settings-body" data-po-scrollbar="content">
+        <div className="desktop-settings-section model-connections-section">
+          {page.kind !== "list" && (
+            <button type="button" className="desktop-settings-row-action model-connections-back" disabled={busy}
+              onClick={() => navigate(returnPage)}>
+              <ChevronLeft size={14} aria-hidden="true" />{t("settings.modelConnections.back")}
+            </button>
+          )}
+          <SettingsSectionHeader
+            title={editing ? t(page.kind === "edit" ? "settings.modelConnections.edit" : "settings.modelConnections.add")
+              : selected?.name ?? t("settings.modelConnections.title")}
+            detail={editing ? t(`settings.modelConnections.source.${page.kind === "edit" ? page.connection.sourceKind : page.sourceKind}`)
+              : selected?.baseUrl ?? t("settings.modelConnections.detail")}
+          />
+          {actionError && <p className="model-connections-feedback" role="alert">
+            {t("settings.modelConnections.error", { code: bidiIsolate(actionError) })}
+          </p>}
+          {editing ? (
+            <ModelConnectionSetup key={page.kind === "edit" ? page.connection.id : page.candidate?.baseUrl ?? page.sourceKind}
+              connection={page.kind === "edit" ? page.connection : undefined}
+              candidate={page.kind === "add" ? page.candidate : undefined}
+              sourceKind={page.kind === "edit" ? page.connection.sourceKind : page.sourceKind}
+              busy={Boolean(state.pending.save)} onSave={(request) => run(() => store.save(request))}
+              onCancel={() => navigate(returnPage)} />
+          ) : selected ? (
+            <ModelConnectionDetails connection={selected}
+              catalog={state.snapshot?.catalogs.find((entry) => entry.connectionId === selected.id)}
+              busy={busy} onEdit={() => navigate({ kind: "edit", connection: selected })}
+              onRefresh={() => run(() => store.refresh(selected.id))}
+              onVerify={(modelId) => run(() => store.verify({ id: selected.id, expectedGeneration: selected.configGeneration, modelId }))}
+              onRemove={async () => {
+                const removed = await run(() => store.remove({ id: selected.id, expectedGeneration: selected.configGeneration }));
+                if (removed) navigate({ kind: "list" });
+              }} />
+          ) : (
+            <div className="model-connections-groups">
+              {!state.snapshot && <div className="desktop-settings-row">
+                {state.pending.read ? <span role="status">{t("settings.modelConnections.loading")}</span>
+                  : <button type="button" className="desktop-settings-row-action" onClick={() => void run(store.load)}>{t("common.action.retry")}</button>}
+              </div>}
+              {SOURCE_KINDS.map((sourceKind) => {
+                const items = connections.filter((connection) => connection.sourceKind === sourceKind);
+                const Icon = sourceKind === "api" ? KeyRound : Server;
+                return <section className="model-connections-group" key={sourceKind} aria-label={t(`settings.modelConnections.source.${sourceKind}`)}>
+                  <header className="model-connections-group-heading">
+                    <h3>{t(`settings.modelConnections.source.${sourceKind}`)}</h3>
+                    <div className="model-connections-actions">
+                      {sourceKind === "local" && <button type="button" className="desktop-settings-row-action model-connections-text-action"
+                        disabled={state.pending.discover} onClick={() => { setActionError(null); void store.discover(); }}>
+                        <RefreshCw size={12} className={state.pending.discover ? "spin" : undefined} aria-hidden="true" />
+                        {t(state.pending.discover ? "settings.modelConnections.discovering" : "settings.modelConnections.discover")}
+                      </button>}
+                      <button type="button" className="desktop-settings-row-action model-connections-text-action"
+                        aria-label={t(`settings.modelConnections.add.${sourceKind}`)} onClick={() => navigate({ kind: "add", sourceKind })}>
+                        <Plus size={14} aria-hidden="true" />{t("settings.modelConnections.add")}
+                      </button>
+                    </div>
+                  </header>
+                  <div className="desktop-settings-list model-connections-list">
+                    {items.map((connection) => {
+                      const catalog = state.snapshot?.catalogs.find((entry) => entry.connectionId === connection.id);
+                      return <button type="button" className="desktop-settings-row model-connections-list-row" key={connection.id}
+                        onClick={() => navigate({ kind: "detail", id: connection.id })}>
+                        <Icon size={18} aria-hidden="true" />
+                        <span className="model-connections-identity"><strong>{connection.name}</strong><small dir="ltr">{connection.baseUrl}</small></span>
+                        <span className="model-connections-row-status">{t(`settings.modelConnections.status.${catalog?.status ?? "unread"}`)}</span>
+                        <ChevronRight size={14} aria-hidden="true" />
+                      </button>;
+                    })}
+                    {items.length === 0 && state.snapshot && <div className="desktop-settings-row model-connections-empty">
+                      <span>{t(`settings.modelConnections.empty.${sourceKind}`)}</span>
+                    </div>}
+                    {sourceKind === "local" && candidates.map((candidate) => (
+                      <div className="desktop-settings-row model-connections-candidate" key={`${candidate.driver}:${candidate.baseUrl}`}>
+                        <Server size={18} aria-hidden="true" />
+                        <span className="model-connections-identity"><strong>{candidate.name}</strong><small dir="ltr">{candidate.baseUrl}</small></span>
+                        <button type="button" className="desktop-settings-row-action" onClick={() => navigate({ kind: "add", sourceKind, candidate })}>
+                          {t("settings.modelConnections.connect")}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </section>;
+              })}
             </div>
-            <button type="button" disabled={busy || catalog.status !== "ready" || !model.contextWindow || (connection.driver === "unsloth" && !connection.serverToolsDisabled)}
-              onClick={() => void store.verify({ id: connection.id, expectedGeneration: connection.configGeneration, modelId: model.id })}>{t(busy ? "settings.modelConnections.working" : "settings.modelConnections.verify")}</button>
-          </li>)}</ul>
-          {catalog && !catalog.complete && catalog.status === "ready" && <p>{t("settings.modelConnections.incomplete")}</p>}
-        </article>;
-      })}
-      <p className="model-connection-hint">{t("settings.modelConnections.verificationHelp")}</p>
-      {!sourceKind && <aside className="model-connection-managed"><h3>{t("settings.modelConnections.managed")}</h3><p>{t("settings.modelConnections.managedUnavailable")}</p></aside>}
-    </div>
-  </section>;
+          )}
+        </div>
+      </div>
+    </section>
+  );
 }

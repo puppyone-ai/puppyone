@@ -7,6 +7,7 @@ import {
   GitBranch,
   ListPlus,
   Monitor,
+  Plug,
   Settings,
   ShieldCheck,
   Type,
@@ -41,11 +42,17 @@ export const SETTINGS_SIDEBAR_GROUPS = [
       { id: "general", labelId: "settings.sidebar.general", icon: Settings, disabled: false },
       { id: "appearance", labelId: "settings.sidebar.appearance", icon: Monitor, disabled: false },
       { id: "typography", labelId: "settings.sidebar.typography", icon: Type, disabled: false },
-      { id: "local-agents", labelId: "settings.sidebar.localAgents", icon: Bot, disabled: false },
-      { id: "model-connections", labelId: "settings.modelConnections.title", icon: Cloud, disabled: false },
       { id: "new-menu", labelId: "settings.sidebar.createNew", icon: ListPlus, disabled: false },
       { id: "privacy", labelId: "settings.sidebar.privacy", icon: ShieldCheck, disabled: false },
       { id: "experimental", labelId: "settings.sidebar.experimental", icon: FlaskConical, disabled: false },
+    ],
+  },
+  {
+    id: "agents",
+    labelId: "settings.sidebar.agents",
+    items: [
+      { id: "local-agents", labelId: "settings.sidebar.localAgents", icon: Bot, disabled: false },
+      { id: "model-connections", labelId: "settings.modelConnections.title", icon: Plug, disabled: false },
     ],
   },
   {

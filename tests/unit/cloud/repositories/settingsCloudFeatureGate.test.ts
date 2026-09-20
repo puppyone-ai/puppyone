@@ -17,6 +17,9 @@ describe("Settings Cloud feature gate", () => {
     expect(sections).toContain("privacy");
     expect(isSettingsSectionAvailable("privacy", { cloudEnabled: false })).toBe(true);
     expect(isSettingsSectionAvailable("experimental", { cloudEnabled: false })).toBe(true);
+    expect(groups.map((group) => group.id)).toEqual(["desktop-app", "agents", "local-project"]);
+    expect(groups.find((group) => group.id === "agents")?.items.map((item) => item.id)).toEqual(["local-agents", "model-connections"]);
+    expect(isSettingsSectionAvailable("model-connections", { cloudEnabled: false })).toBe(true);
   });
 
   it("reveals the complete Cloud settings group after PuppyOne Cloud is enabled", () => {

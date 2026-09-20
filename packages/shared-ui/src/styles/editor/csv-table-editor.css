@@ -5,7 +5,7 @@
 
 .csv-table-editor {
   /* CSV is a data view, not a document card. Its viewport may fill the pane,
-     while the table keeps stable, content-owned tracks like a Notion view. */
+     while the table keeps stable, content-owned tracks. */
   --po-csv-surface-background: var(--po-host-csv-surface-background, var(--po-editor-bg));
   --po-csv-surface-color: var(--po-host-csv-surface-color, var(--po-text));
   --po-csv-link-color: var(--po-host-csv-link-color, var(--po-accent));
