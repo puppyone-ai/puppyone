@@ -142,8 +142,14 @@ app.whenReady().then(async () => {
     await clickElement("#title");
     assert.equal(await evaluate("!!document.querySelector('.html-editor-text-input')"), false, 'page click does not start editing');
     assert.equal(await disk(), original);
-    assert.deepEqual(await evaluate("(()=>{const b=document.querySelector('.html-editor-pencil'),s=getComputedStyle(b);return {count:document.querySelectorAll('.html-editor-pencil').length,icons:b.querySelectorAll('svg').length,background:s.backgroundColor,shadow:s.boxShadow,border:s.borderTopWidth,stroke:getComputedStyle(document.querySelector('.html-editor-selection')).borderTopWidth}})()"),
-      {count:1,icons:1,background:'rgba(0, 0, 0, 0)',shadow:'none',border:'0px',stroke:'2px'}, 'single unplated handle and clear block stroke');
+    const outsideSurface = await evaluate("(()=>{const b=document.querySelector('.html-editor-pencil'),s=getComputedStyle(b);return {count:document.querySelectorAll('.html-editor-pencil').length,icons:b.querySelectorAll('svg').length,background:s.backgroundColor,shadow:s.boxShadow,border:s.borderTopWidth,backdrop:s.backdropFilter,stroke:getComputedStyle(document.querySelector('.html-editor-selection')).borderTopWidth}})()");
+    assert.equal(outsideSurface.count, 1, 'one edit handle');
+    assert.equal(outsideSurface.icons, 1, 'one pencil glyph');
+    assert.notEqual(outsideSurface.background, 'rgba(0, 0, 0, 0)', 'outside handle has a translucent surface');
+    assert.notEqual(outsideSurface.shadow, 'none', 'outside surface is visually separated from page content');
+    assert.equal(outsideSurface.border, '1px');
+    assert.match(outsideSurface.backdrop, /blur\(8px\)/);
+    assert.equal(outsideSurface.stroke, '2px', 'block stroke remains clear');
     const handleGeometry = () => evaluate("(()=>{const b=document.querySelector('.html-editor-pencil'),s=document.querySelector('.html-editor-selection');return {handle:b.getBoundingClientRect().toJSON(),selection:s.getBoundingClientRect().toJSON(),placement:b.dataset.placement}})()");
     const initialHandle = await handleGeometry();
     assert.equal(initialHandle.placement, 'right', 'use outside right before docking inside at top of pane');
@@ -242,8 +248,11 @@ app.whenReady().then(async () => {
     // Exercise a flush viewport edge without changing the document model or fixture file.
     await preview().executeJavaScript("document.querySelector('#card').style.cssText='position:fixed;top:0;left:0;right:0;height:120px;margin:0;padding:24px;background:#f7f8fa'");
     await until(() => evaluate("document.querySelector('.html-editor-pencil')?.dataset.placement==='inside'"), 'inside fallback only when both outside edges are unavailable');
+    await wait(180);
     const inside = await handleGeometry();
     assert.ok(inside.handle.left >= inside.selection.left && inside.handle.right <= inside.selection.right && inside.handle.top >= inside.selection.top, 'fallback stays in its block');
+    assert.deepEqual(await evaluate("(()=>{const s=getComputedStyle(document.querySelector('.html-editor-pencil'));return {background:s.backgroundColor,shadow:s.boxShadow,border:s.borderTopColor}})()"),
+      {background:'rgba(0, 0, 0, 0)',shadow:'none',border:'rgba(0, 0, 0, 0)'}, 'inside fallback does not cover page content with the outside surface');
     await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
     assert.ok(await evaluate("(()=>{const b=document.querySelector('.html-editor-pencil'),r=b.getBoundingClientRect();return document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('.html-editor-pencil')===b})()"), 'inside handle remains reachable beside the standalone source menu');
     await fsp.writeFile('/private/tmp/puppyone-html-handle-inside-fallback.png', (await win.webContents.capturePage()).toPNG());
@@ -305,7 +314,7 @@ app.whenReady().then(async () => {
       return projectionSources.get(url)?.includes("Agent version");
     }, "reopened disk");
     console.log(JSON.stringify({ passed: true, electron: process.versions.electron, platform: process.platform,
-      checks: ["single transparent outside handle, right-edge and inside fallback", "slow diagonal handle approach without target jumps", "2px hover border", "hover and click are read-only until pencil activation", "theme inheritance", "nested block editing preserves siblings", "keyboard pencil activation", "leave commits and dismisses; IME is protected", "separate circular palette above with stable toolbar", "safe bridge", "native IME and Unicode input", "lossless source", "stable iframe", "shared source and undo", "style and cascade",
+      checks: ["single translucent outside handle, right-edge and transparent inside fallback", "slow diagonal handle approach without target jumps", "2px hover border", "hover and click are read-only until pencil activation", "theme inheritance", "nested block editing preserves siblings", "keyboard pencil activation", "leave commits and dismisses; IME is protected", "separate circular palette above with stable toolbar", "safe bridge", "native IME and Unicode input", "lossless source", "stable iframe", "shared source and undo", "style and cascade",
         "native image import and rendering", "image undo preserves asset", "scroll and zoom geometry", "visible block border on light and dark backgrounds while typing and formatting", "bounded visual fallback", "disk-first external update", "close and reopen"] }));
   } catch (error) {
     code = 1; console.error(error?.stack ?? error);

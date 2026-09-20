@@ -13,9 +13,24 @@
 .html-editor-selection { position: absolute; pointer-events: none; box-sizing: border-box; z-index: 3;
   border: 2px solid var(--html-editor-accent); box-shadow: inset 0 0 0 1px #fff; }
 .html-editor-selection[data-editing="false"] { box-shadow: none; }
-.html-editor-pencil { position: absolute; z-index: 4; display: grid; place-items: center; padding: 0; border: 0; border-radius: 4px;
-  color: var(--po-text-muted, #68645c); background: transparent; box-shadow: none; cursor: pointer; }
-.html-editor-pencil:hover { color: var(--po-text, #292723); background: transparent; }
+.html-editor-pencil { position: absolute; z-index: 4; display: grid; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 7px;
+  color: var(--po-text-muted, #68645c); background: transparent; box-shadow: none; cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease; }
+/* Outside handles need a quiet surface so the glyph reads as attached UI rather than page content. */
+.html-editor-pencil:is([data-placement="above"], [data-placement="right"]) {
+  border-color: color-mix(in srgb, var(--po-divider, #e1e3e6) 78%, var(--po-text-muted, #68645c));
+  background: color-mix(in srgb, var(--po-panel, #fff) 78%, transparent);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--po-shadow, #000) 12%, transparent),
+    0 4px 12px color-mix(in srgb, var(--po-shadow, #000) 8%, transparent);
+  -webkit-backdrop-filter: blur(8px) saturate(1.05);
+  backdrop-filter: blur(8px) saturate(1.05); }
+.html-editor-pencil:hover { color: var(--po-text, #292723); }
+.html-editor-pencil:is([data-placement="above"], [data-placement="right"]):hover {
+  border-color: color-mix(in srgb, var(--html-editor-accent) 24%, var(--po-divider, #e1e3e6));
+  background: color-mix(in srgb, var(--po-panel, #fff) 90%, transparent);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--po-shadow, #000) 14%, transparent),
+    0 5px 14px color-mix(in srgb, var(--po-shadow, #000) 10%, transparent); }
+.html-editor-pencil[data-placement="inside"]:hover { background: color-mix(in srgb, var(--po-control-hover, #f1f3f5) 72%, transparent); }
 .html-editor-pencil > svg { pointer-events: none; }
 /* Bridge the small gap without adding a visible plate or a second control. */
 .html-editor-pencil[data-placement="above"]::before { content: ""; position: absolute; inset: 100% 0 auto; height: 8px; }

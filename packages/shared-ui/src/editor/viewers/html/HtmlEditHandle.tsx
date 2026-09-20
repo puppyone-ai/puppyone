@@ -32,7 +32,7 @@ function placeHandle(selection: HtmlSelectionMessage, pane: HTMLDivElement | nul
     width: SIZE, height: SIZE, edge: "inside" });
 }
 
-/** One small glyph, a generous transparent hit target, and outside-first docking like table handles. */
+/** One small glyph, a restrained translucent surface outside the block, and outside-first docking. */
 export function HtmlEditHandle({ selection, viewport, handle, bounds, keep, activate }: {
   selection: HtmlSelectionMessage; viewport: RefObject<HTMLDivElement>; handle: RefObject<HTMLButtonElement>;
   bounds: MutableRefObject<HtmlHandleBounds | null>; keep: () => void; activate: () => void;
