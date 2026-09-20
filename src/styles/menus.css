@@ -1,6 +1,5 @@
 .desktop-menu-surface,
-.desktop-titlebar-menu,
-.desktop-node-action-menu {
+.desktop-titlebar-menu {
   --po-menu-item-font-size: var(--po-type-ui-control, 13px);
   --po-menu-item-line-height: 18px;
   --po-menu-meta-font-size: var(--po-type-ui-meta, 12px);
@@ -29,17 +28,27 @@
   --po-menu-meta-line-height: var(--po-type-right-sidebar-meta-line-height, 19px);
 }
 
+.desktop-menu-surface[data-menu-typography-surface="left-sidebar"] {
+  --po-menu-item-font-size: var(--desktop-sidebar-font-size, 14px);
+  --po-menu-item-line-height: var(--desktop-sidebar-line-height, 19px);
+  --po-menu-meta-font-size: var(--desktop-sidebar-font-size-meta, 12px);
+  --po-menu-meta-line-height: var(--desktop-sidebar-line-height, 19px);
+}
+
+.desktop-sidebar-action-menu {
+  position: fixed;
+  z-index: var(--po-overlay-z-menu, 90);
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 24px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: var(--po-menu-padding);
+}
+
 .desktop-menu-surface[data-menu-elevation="compact"] {
   --interface-menu-box-shadow: var(--po-menu-shadow-compact);
 
   box-shadow: var(--po-menu-shadow-compact);
-}
-
-.desktop-create-entry-menu.desktop-node-action-menu {
-  border-color: var(--po-menu-border);
-  border-radius: var(--po-menu-radius);
-  background: var(--po-menu-bg);
-  box-shadow: var(--po-menu-shadow);
 }
 
 .desktop-branch-menu-row,

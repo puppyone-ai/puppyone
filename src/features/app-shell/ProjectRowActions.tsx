@@ -3,7 +3,6 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  type CSSProperties,
   type FormEvent,
 } from "react";
 import type { Workspace } from "@puppyone/shared-ui";
@@ -16,27 +15,36 @@ import {
 import {
   DesktopMenuItem,
   DesktopMenuSeparator,
-  DesktopMenuSurface,
 } from "../../components/DesktopMenu";
+import {
+  DesktopSidebarActionMenu,
+  resolveDesktopSidebarActionMenuPosition,
+} from "../../components/DesktopSidebarActionMenu";
 import { DesktopOverlayLayer } from "./DesktopOverlayPortal";
 
-type ProjectActionSurface = "menu" | "rename" | "unlink" | null;
+export type ProjectActionSurface = "menu" | "rename" | "unlink" | null;
+
+const PROJECT_ACTION_MENU_WIDTH = 184;
+const PROJECT_ACTION_MENU_ESTIMATED_HEIGHT = 82;
 
 export type ProjectRowActionsProps = Readonly<{
   workspace: Workspace;
+  surface: ProjectActionSurface;
+  onSurfaceChange: (surface: ProjectActionSurface) => void;
   onRenameProject?: (path: string, name: string) => Promise<void>;
   onUnlinkProject?: (path: string) => Promise<void>;
 }>;
 
 export function ProjectRowActions({
   workspace,
+  surface,
+  onSurfaceChange,
   onRenameProject,
   onUnlinkProject,
 }: ProjectRowActionsProps) {
   const { t } = useLocalization();
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [surface, setSurface] = useState<ProjectActionSurface>(null);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const [name, setName] = useState(workspace.name);
   const [pending, setPending] = useState<"rename" | "unlink" | null>(null);
@@ -58,12 +66,12 @@ export function ProjectRowActions({
     if (surface !== "menu") return undefined;
     const dismiss = (event: PointerEvent) => {
       if (event.target instanceof Node && menuRef.current?.contains(event.target)) return;
-      setSurface(null);
+      onSurfaceChange(null);
     };
     const dismissWithKeyboard = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setSurface(null);
+      if (event.key === "Escape") onSurfaceChange(null);
     };
-    const dismissOnViewportChange = () => setSurface(null);
+    const dismissOnViewportChange = () => onSurfaceChange(null);
     document.addEventListener("pointerdown", dismiss);
     document.addEventListener("keydown", dismissWithKeyboard);
     window.addEventListener("resize", dismissOnViewportChange);
@@ -74,12 +82,18 @@ export function ProjectRowActions({
       window.removeEventListener("resize", dismissOnViewportChange);
       window.removeEventListener("scroll", dismissOnViewportChange, true);
     };
-  }, [surface]);
+  }, [onSurfaceChange, surface]);
 
   const openMenu = (anchor: HTMLElement) => {
     setError(null);
-    setMenuPosition(resolveProjectRowMenuPosition(anchor.getBoundingClientRect()));
-    setSurface((current) => current === "menu" ? null : "menu");
+    setMenuPosition(resolveDesktopSidebarActionMenuPosition(
+      anchor.getBoundingClientRect(),
+      {
+        menuWidth: PROJECT_ACTION_MENU_WIDTH,
+        estimatedHeight: PROJECT_ACTION_MENU_ESTIMATED_HEIGHT,
+      },
+    ));
+    onSurfaceChange(surface === "menu" ? null : "menu");
   };
 
   const renameProject = async (event: FormEvent) => {
@@ -90,7 +104,7 @@ export function ProjectRowActions({
     setError(null);
     try {
       await onRenameProject(workspace.path, nextName);
-      setSurface(null);
+      onSurfaceChange(null);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : String(nextError));
     } finally {
@@ -105,7 +119,7 @@ export function ProjectRowActions({
     try {
       await onUnlinkProject(workspace.path);
       setPending(null);
-      setSurface(null);
+      onSurfaceChange(null);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : String(nextError));
       setPending(null);
@@ -135,13 +149,13 @@ export function ProjectRowActions({
 
       {surface === "menu" && (
         <DesktopOverlayLayer>
-          <DesktopMenuSurface
+          <DesktopSidebarActionMenu
             ref={menuRef}
             className="desktop-project-row-actions-menu"
             ariaLabel={t("shell.workspaceSwitcher.projectActionsFor", {
               project: bidiIsolate(workspace.name),
             })}
-            style={menuPosition as CSSProperties}
+            style={{ ...menuPosition, width: PROJECT_ACTION_MENU_WIDTH }}
             onPointerDown={(event) => event.stopPropagation()}
           >
             {onRenameProject && (
@@ -151,7 +165,7 @@ export function ProjectRowActions({
                 onClick={() => {
                   setName(workspace.name);
                   setError(null);
-                  setSurface("rename");
+                  onSurfaceChange("rename");
                 }}
               />
             )}
@@ -163,11 +177,11 @@ export function ProjectRowActions({
                 label={t("shell.workspaceSwitcher.unlinkProject")}
                 onClick={() => {
                   setError(null);
-                  setSurface("unlink");
+                  onSurfaceChange("unlink");
                 }}
               />
             )}
-          </DesktopMenuSurface>
+          </DesktopSidebarActionMenu>
         </DesktopOverlayLayer>
       )}
 
@@ -175,7 +189,7 @@ export function ProjectRowActions({
         <DesktopOverlayLayer>
           <DesktopDialogRoot
             dismissOnBackdrop={pending === null}
-            onClose={pending ? undefined : () => setSurface(null)}
+            onClose={pending ? undefined : () => onSurfaceChange(null)}
           >
             <form
               className="desktop-dialog-surface desktop-project-row-dialog"
@@ -193,7 +207,7 @@ export function ProjectRowActions({
                 <DesktopDialogCloseButton
                   title={t("common.action.close")}
                   disabled={pending !== null}
-                  onClick={() => setSurface(null)}
+                  onClick={() => onSurfaceChange(null)}
                 />
               </header>
               <div className="desktop-dialog-body">
@@ -221,7 +235,7 @@ export function ProjectRowActions({
                   className="desktop-dialog-button"
                   type="button"
                   disabled={pending !== null}
-                  onClick={() => setSurface(null)}
+                  onClick={() => onSurfaceChange(null)}
                 >
                   {t("common.action.cancel")}
                 </button>
@@ -244,7 +258,7 @@ export function ProjectRowActions({
         <DesktopOverlayLayer>
           <DesktopDialogRoot
             dismissOnBackdrop={pending === null}
-            onClose={pending ? undefined : () => setSurface(null)}
+            onClose={pending ? undefined : () => onSurfaceChange(null)}
           >
             <div
               className="desktop-dialog-surface desktop-project-row-dialog"
@@ -262,7 +276,7 @@ export function ProjectRowActions({
                 <DesktopDialogCloseButton
                   title={t("common.action.close")}
                   disabled={pending !== null}
-                  onClick={() => setSurface(null)}
+                  onClick={() => onSurfaceChange(null)}
                 />
               </header>
               <div className="desktop-dialog-body">
@@ -279,7 +293,7 @@ export function ProjectRowActions({
                   type="button"
                   disabled={pending !== null}
                   data-desktop-dialog-initial-focus="true"
-                  onClick={() => setSurface(null)}
+                  onClick={() => onSurfaceChange(null)}
                 >
                   {t("common.action.cancel")}
                 </button>
@@ -300,18 +314,4 @@ export function ProjectRowActions({
       )}
     </>
   );
-}
-
-export function resolveProjectRowMenuPosition(
-  anchor: Pick<DOMRect, "bottom" | "right">,
-  viewportWidth = window.innerWidth,
-  viewportHeight = window.innerHeight,
-): Readonly<{ top: number; left: number }> {
-  const margin = 8;
-  const width = 184;
-  const estimatedHeight = 82;
-  return {
-    top: Math.max(margin, Math.min(anchor.bottom + 4, viewportHeight - estimatedHeight - margin)),
-    left: Math.max(margin, Math.min(anchor.right - width, viewportWidth - width - margin)),
-  };
 }
