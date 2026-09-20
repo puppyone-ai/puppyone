@@ -226,10 +226,10 @@ async function runSmoke() {
           assert.equal(snapshot.primaryBorderTop, '1px', `${context}: shared primary frame has a top rule`);
           assert.equal(snapshot.primaryPaddingTop, '24px', `${context}: shared primary frame owns the content inset`);
           if (state === 'empty') {
-            assert.equal(snapshot.primaryBorderBottom, '0px', `${context}: empty primary section uses only the title-side rule`);
-            assert.equal(snapshot.primaryPaddingBottom, '0px', `${context}: empty primary section ends with its CTA`);
-            assert.equal(snapshot.primaryMarginBottom, '18px', `${context}: secondary actions move into one compact rhythm`);
-            assert.equal(snapshot.open.y - snapshot.firstSection.y - snapshot.firstSection.height, 18, `${context}: secondary actions sit just below the primary CTA`);
+            assert.equal(snapshot.primaryBorderBottom, '1px', `${context}: shared primary frame separates create from secondary actions`);
+            assert.equal(snapshot.primaryPaddingBottom, '18px', `${context}: create keeps a balanced inset above the divider`);
+            assert.equal(snapshot.primaryMarginBottom, '18px', `${context}: divider keeps the same inset above the open action`);
+            assert.equal(snapshot.open.y - snapshot.firstSection.y - snapshot.firstSection.height, 18, `${context}: open action sits below the shared divider`);
             const openToImportGap = snapshot.importButton.y - snapshot.open.y - snapshot.open.height;
             assert.ok(openToImportGap >= 1 && openToImportGap <= 4, `${context}: secondary actions form one compact group`);
             assert.equal(await evaluate("document.querySelector('.onboarding-entry-action-divider')"), null, `${context}: no decorative import divider`);

@@ -50,6 +50,7 @@
 
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-homepage {
   --onboarding-title-primary-gap: 24px;
+  --onboarding-primary-actions-gap: 18px;
   grid-template-columns: minmax(0, 1fr);
 }
 
@@ -151,12 +152,6 @@
   border-radius: 0;
   background: transparent;
   transition: border-color 120ms ease;
-}
-
-.onboarding-home-primary[data-onboarding-primary="create"] {
-  padding-block-end: 0;
-  margin-block-end: 18px;
-  border-block-end: 0;
 }
 
 .onboarding-home-primary[data-onboarding-primary="projects"] {

@@ -239,14 +239,14 @@ describe("project folder home", () => {
     expect(onboardingCss).toMatch(
       /\.onboarding-home-primary\s*\{[^}]*padding:\s*var\(--onboarding-primary-inset-start\) 0 var\(--onboarding-primary-inset-end\);[^}]*margin-block-end:\s*var\(--onboarding-primary-actions-gap\);[^}]*border-block:\s*1px solid var\(--po-border\);/s,
     );
-    expect(onboardingCss).toMatch(
-      /\.onboarding-home-primary\[data-onboarding-primary="create"\]\s*\{[^}]*padding-block-end:\s*0;[^}]*margin-block-end:\s*18px;[^}]*border-block-end:\s*0;/s,
+    expect(onboardingCss).not.toMatch(
+      /\.onboarding-home-primary\[data-onboarding-primary="create"\]/,
     );
     expect(onboardingCss).toMatch(
       /\.onboarding-homepage\s*\{[^}]*--onboarding-title-primary-gap:\s*58px;[^}]*--onboarding-primary-actions-gap:\s*30px;[^}]*--onboarding-primary-inset-start:\s*24px;/s,
     );
     expect(onboardingCss).toMatch(
-      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-homepage\s*\{[^}]*--onboarding-title-primary-gap:\s*24px;/s,
+      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-homepage\s*\{[^}]*--onboarding-title-primary-gap:\s*24px;[^}]*--onboarding-primary-actions-gap:\s*18px;/s,
     );
     expect(onboardingCss).toMatch(
       /\.onboarding-brand-lockup\s*\{[^}]*margin-block-end:\s*var\(--onboarding-title-primary-gap\);/s,
