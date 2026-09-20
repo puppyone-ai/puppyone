@@ -14,17 +14,16 @@ export function useDelayedDiscoveryFeedback(scanning: boolean) {
   return scanning && visible;
 }
 
-export function LauncherDiscoveryFeedback({ scanning, refreshing, failed, empty, busy }: {
+export function LauncherDiscoveryFeedback({ scanning, refreshing, empty, busy }: {
   scanning: boolean;
   refreshing: boolean;
-  failed: boolean;
   empty: boolean;
   busy: boolean;
 }) {
   const { t } = useLocalization();
   const message = scanning
     ? refreshing ? "terminal.launcher.refreshing" : "terminal.launcher.detecting"
-    : failed ? "terminal.launcher.detectionIncomplete" : empty ? "terminal.launcher.noneInstalled" : null;
+    : empty ? "terminal.launcher.noneInstalled" : null;
   if (!message) return null;
   return <div className="desktop-terminal-launcher-discovery" data-scanning={scanning}>
     <span className="desktop-terminal-launcher-discovery-icon" aria-hidden="true">

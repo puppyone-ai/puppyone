@@ -276,11 +276,12 @@ describe("Unified Workbench launcher", () => {
     expect(props.onCreateChat).toHaveBeenCalledOnce();
   });
 
-  it("shows retryable partial failure, never false empty, and respects hidden installations", () => {
+  it("silences discovery failure without falsely announcing empty or successful discovery", () => {
     const props = { agentMode: "chat" as const, availableAgentIds: [],
       chatRecipes: [BUILT_IN_AGENT_CREATION_RECIPE], onCreateChat: vi.fn(), onLaunch: vi.fn(), onRefresh: vi.fn() };
     const container = renderLauncher(<TerminalLauncher {...props} discoveryPhase="ready" discoveryHasFailures />);
-    expect(container.querySelector(".desktop-terminal-launcher-discovery")?.textContent).toContain("Could not check all Agents");
+    expect(container.querySelector(".desktop-terminal-launcher-discovery")).toBeNull();
+    expect(container.querySelector("[role=status]")?.textContent).toBe("");
     expect(container.textContent).not.toContain("No Agent CLIs found");
     expect(findButton(container, "Built-in Agent")?.disabled).toBe(false);
     act(() => container.querySelector<HTMLButtonElement>(".desktop-terminal-launcher-scan")?.click());
@@ -290,7 +291,32 @@ describe("Unified Workbench launcher", () => {
     act(() => root?.render(withTestLocalization(<TerminalLauncher {...props} discoveryPhase="ready" />)));
     expect(container.querySelector(".desktop-terminal-launcher-discovery")?.textContent).toBe("No Agent CLIs found");
     act(() => root?.render(withTestLocalization(<TerminalLauncher {...props} discoveryPhase="error" />)));
-    expect(container.querySelector(".desktop-terminal-launcher-discovery")?.textContent).toContain("Scan again");
+    expect(container.querySelector(".desktop-terminal-launcher-discovery")).toBeNull();
+    expect(container.querySelector("[role=status]")?.textContent).toBe("");
+  });
+
+  it.each(["ready", "error"] as const)("preserves usable rows and manual refresh after a silent %s failure", (phase) => {
+    const props = { agentMode: "chat" as const, availableAgentIds: ["codex" as const],
+      chatRecipes: filterAgentChatCreationRecipesByLocalAgentIds(AGENT_CHAT_CREATION_RECIPES, ["codex"]),
+      onCreateChat: vi.fn(), onLaunch: vi.fn(), onRefresh: vi.fn() };
+    const container = renderLauncher(<TerminalLauncher {...props} discoveryPhase="ready" />);
+    const codex = findButton(container, "Codex")!;
+    const bundled = findButton(container, "Built-in Agent")!;
+    act(() => codex.focus());
+    act(() => root?.render(withTestLocalization(<TerminalLauncher {...props} discoveryPhase={phase} discoveryHasFailures />)));
+    expect(container.querySelector(".desktop-terminal-launcher-discovery, [role=alert]")).toBeNull();
+    expect(container.querySelector("[role=status]")?.textContent).toBe("");
+    expect(findButton(container, "Codex")).toBe(codex);
+    expect(findButton(container, "Built-in Agent")).toBe(bundled);
+    expect(document.activeElement).toBe(codex);
+    expect(codex.disabled || bundled.disabled).toBe(false);
+    expect(props.onRefresh).not.toHaveBeenCalled();
+    const refresh = container.querySelector<HTMLButtonElement>(".desktop-terminal-launcher-scan")!;
+    expect(refresh.disabled).toBe(false);
+    act(() => refresh.click());
+    expect(props.onRefresh).toHaveBeenCalledOnce();
+    act(() => codex.click());
+    expect(props.onCreateChat).toHaveBeenCalledOnce();
   });
 
   it.each([false, true])("keeps local feedback and setup above bundled Agents with failed=%s", (failed) => {
@@ -298,7 +324,8 @@ describe("Unified Workbench launcher", () => {
       availableAgentIds={[]} discoveryHasFailures={failed} chatRecipes={[BUILT_IN_AGENT_CREATION_RECIPE]}
       agentSetup={() => <div data-setup>Local setup</div>} onCreateChat={vi.fn()} onLaunch={vi.fn()} onRefresh={vi.fn()} />);
     const bundled = findButton(container, "Built-in Agent")!;
-    for (const selector of [".desktop-terminal-launcher-discovery", "[data-setup]"]) {
+    expect(Boolean(container.querySelector(".desktop-terminal-launcher-discovery"))).toBe(!failed);
+    for (const selector of [...(failed ? [] : [".desktop-terminal-launcher-discovery"]), "[data-setup]"]) {
       expect(container.querySelector(selector)!.compareDocumentPosition(bundled)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     }
   });

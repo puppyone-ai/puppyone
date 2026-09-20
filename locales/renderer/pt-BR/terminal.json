@@ -20,7 +20,6 @@
   "launcher.noneInstalled": "Nenhuma CLI de Agent encontrada",
   "launcher.detectionFailed": "Não foi possível detectar os Agents instalados",
   "launcher.refreshing": "Atualizando Agents…",
-  "launcher.detectionIncomplete": "Não foi possível verificar todos os Agents. Busque novamente.",
   "launcher.detectionComplete": "Busca de Agents concluída",
   "launcher.detectionProgress": "{completed} de {total} verificados",
   "launcher.scanAgain": "Verificar novamente",
