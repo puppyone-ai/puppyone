@@ -35,6 +35,11 @@
   --po-editable-table-line-height: 1.45;
   --po-editable-table-row-min-height: 31px;
   --po-editable-table-header-font-weight: 650;
+  --po-editable-table-handle-background: var(--po-surface-editable-table-handle-background, color-mix(in srgb, var(--po-text) 8%, var(--po-editor-bg)));
+  --po-editable-table-handle-border: var(--po-surface-editable-table-handle-border, color-mix(in srgb, var(--po-text) 24%, var(--po-editor-bg)));
+  --po-editable-table-handle-color: var(--po-surface-editable-table-handle-color, var(--po-text-muted));
+  --po-editable-table-handle-hover-background: var(--po-surface-editable-table-handle-hover-background, color-mix(in srgb, var(--po-text) 12%, var(--po-editor-bg)));
+  --po-editable-table-handle-hover-border: var(--po-surface-editable-table-handle-hover-border, color-mix(in srgb, var(--po-text) 36%, var(--po-editor-bg)));
   --po-editable-table-handle-gutter: 14px;
   --po-editable-table-action-gutter: 18px;
   --po-editable-table-interaction-gutter: max(
@@ -72,10 +77,12 @@
   display: grid;
   box-sizing: border-box;
   place-items: center;
-  border: 0;
+  /* Revealed handles must read as complete controls before the pointer
+     reaches them. An opaque face also separates the dots from table lines. */
+  border: 1px solid var(--po-editable-table-handle-border);
   border-radius: 4px;
-  background: transparent;
-  color: var(--po-text-muted);
+  background: var(--po-editable-table-handle-background);
+  color: var(--po-editable-table-handle-color);
   pointer-events: none;
   transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
 }
@@ -99,12 +106,11 @@
 }
 
 .po-editable-table-drag-handle-visual::before {
-  background-image: radial-gradient(currentColor 0.65px, transparent 0.85px);
+  background-image: radial-gradient(currentColor 0.9px, transparent 1.1px);
   /* Start at a tile boundary so 12×4 and 4×12 render exactly three dots,
      without the extra clipped row/column produced by centered repetition. */
   background-position: 0 0;
   content: "";
-  opacity: 0.9;
 }
 
 .po-editable-table-column-handle {
@@ -146,13 +152,15 @@
 }
 
 .po-editable-table-drag-handle:hover .po-editable-table-drag-handle-visual {
-  background: color-mix(in srgb, var(--po-text) 8%, var(--po-editor-bg));
+  border-color: var(--po-editable-table-handle-hover-border);
+  background: var(--po-editable-table-handle-hover-background);
   color: var(--po-text);
 }
 
 .po-editable-table-drag-handle:focus-visible .po-editable-table-drag-handle-visual,
 .po-editable-table-drag-handle.is-menu-active .po-editable-table-drag-handle-visual,
 .po-editable-table-drag-handle.is-dragging .po-editable-table-drag-handle-visual {
+  border-color: var(--po-editable-table-selection-border);
   background: var(--po-editable-table-selection-border);
   color: #ffffff;
 }

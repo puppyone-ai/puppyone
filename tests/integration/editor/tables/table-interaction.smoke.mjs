@@ -98,6 +98,7 @@ app.whenReady().then(async () => {
         const point = await evaluate(`window.tableFixture.point('${kind}')`);
         window.webContents.sendInputEvent({ type: "mouseMove", ...point }); await wait();
         assert.deepEqual((await metrics()).backgrounds, baseline.backgrounds, "hover tinted cells");
+        await screenshot(`${mode}-${kind}-handles-visible`);
         await click(point);
         await evaluate(`window.tableFixture.selectText('${kind}')`); await wait();
         const focused = await metrics();
