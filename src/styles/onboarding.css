@@ -34,6 +34,7 @@
   --onboarding-section-gap: 30px;
   --onboarding-brand-content-gap: 58px;
   --onboarding-first-section-inset: 24px;
+  --onboarding-followup-gap: 30px;
   --onboarding-row-font-size: var(--po-type-ui-body, 14px);
   --onboarding-row-font-weight: 500;
   --onboarding-row-line-height: 18px;
@@ -151,8 +152,6 @@
   max-width: none;
   justify-items: stretch;
   gap: 12px;
-  padding-block-start: var(--onboarding-first-section-inset);
-  border-top: 1px solid var(--po-border);
 }
 
 .onboarding-telemetry-disclosure {
@@ -217,7 +216,7 @@
   align-items: start;
   justify-self: center;
   justify-items: start;
-  gap: 8px;
+  gap: 0;
   padding: 0 0 18px;
   border: 0;
 }
@@ -241,7 +240,10 @@
 
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-entry-action-primary {
   width: 100%;
+  box-sizing: border-box;
   justify-items: start;
+  padding: var(--onboarding-first-section-inset) 0 18px;
+  border-block: 1px solid var(--po-border);
 }
 
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-entry-action-secondary {
@@ -249,6 +251,7 @@
   align-content: start;
   justify-items: start;
   gap: 2px;
+  margin-block-start: var(--onboarding-followup-gap);
 }
 
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-entry-action {
@@ -367,6 +370,10 @@
   min-width: 0;
   justify-items: start;
   margin-block-start: 8px;
+}
+
+.onboarding-shell[data-onboarding-state="empty"] .onboarding-entry-import-area {
+  margin-block-start: 2px;
 }
 
 .onboarding-shell[data-onboarding-state="projects"] .onboarding-entry-import-area {
@@ -647,6 +654,7 @@
   .onboarding-homepage {
     --onboarding-section-gap: 24px;
     --onboarding-brand-content-gap: 46px;
+    --onboarding-followup-gap: 14px;
   }
 
   .onboarding-shell[data-onboarding-state="empty"] .onboarding-homepage {
@@ -671,6 +679,7 @@
   .onboarding-homepage {
     --onboarding-section-gap: 20px;
     --onboarding-brand-content-gap: 34px;
+    --onboarding-followup-gap: 18px;
   }
 
   .onboarding-shell[data-onboarding-state="projects"] .onboarding-homepage {

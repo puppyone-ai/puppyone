@@ -77,12 +77,13 @@ async function runSmoke() {
             const brand = document.querySelector('.onboarding-brand-lockup');
             const launcher = document.querySelector('.onboarding-launcher');
             const primary = document.querySelector('.onboarding-primary-area');
+            const primarySection = document.querySelector('.onboarding-entry-action-primary');
             const actions = document.querySelector('.onboarding-entry-actions');
             const projectPanel = document.querySelector('.onboarding-recent-projects');
             const projectRow = document.querySelector('.onboarding-project-row');
             const projectPanelStyle = projectPanel && getComputedStyle(projectPanel);
-            const primaryStyle = getComputedStyle(primary);
-            const firstSection = projectPanel || primary;
+            const primaryStyle = getComputedStyle(primarySection);
+            const firstSection = projectPanel || primarySection;
             const firstClickable = projectRow || create;
             const buttons = [...document.querySelectorAll('.onboarding-entry-actions button')];
             const images = [...document.querySelectorAll('.onboarding-brand-lockup img, .onboarding-entry-import img')];
@@ -92,6 +93,7 @@ async function runSmoke() {
               primary: rect(primary),
               primaryBorderTop: primaryStyle.borderTopWidth,
               primaryPaddingTop: primaryStyle.paddingTop,
+              primaryBorderBottom: primaryStyle.borderBottomWidth,
               firstSection: rect(firstSection),
               firstClickable: rect(firstClickable),
               createFont: parseFloat(getComputedStyle(label).fontSize),
@@ -207,9 +209,11 @@ async function runSmoke() {
           assert.ok(Math.abs(snapshot.launcher.y + snapshot.launcher.height / 2 - height / 2) < 1, `${context}: shared launcher is vertically centered`);
           if (state === 'empty') {
             assert.equal(snapshot.primaryBorderTop, '1px', `${context}: title rule frames the first content section`);
+            assert.equal(snapshot.primaryBorderBottom, '1px', `${context}: primary action completes the same frame as a project row`);
             assert.equal(snapshot.primaryPaddingTop, '24px', `${context}: first action follows the shared frame inset`);
+            assert.ok(snapshot.open.y - snapshot.firstSection.y - snapshot.firstSection.height >= 14, `${context}: secondary actions sit below the framed primary section`);
             const openToImportGap = snapshot.importButton.y - snapshot.open.y - snapshot.open.height;
-            assert.ok(openToImportGap >= 14 && openToImportGap <= 18, `${context}: compact whitespace separates import from direct-start actions`);
+            assert.ok(openToImportGap >= 1 && openToImportGap <= 4, `${context}: secondary actions form one compact group`);
             assert.equal(await evaluate("document.querySelector('.onboarding-entry-action-divider')"), null, `${context}: no decorative import divider`);
           } else {
             assert.equal(snapshot.projectPanel.x, snapshot.brand.x, `${context}: project frame shares the content left edge`);

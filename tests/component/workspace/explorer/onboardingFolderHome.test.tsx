@@ -234,7 +234,7 @@ describe("project folder home", () => {
       /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-launcher/,
     );
     expect(onboardingCss).toMatch(
-      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-primary-area\s*\{[^}]*padding-block-start:\s*var\(--onboarding-first-section-inset\);[^}]*border-top:\s*1px solid var\(--po-border\);/s,
+      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-entry-action-primary\s*\{[^}]*padding:\s*var\(--onboarding-first-section-inset\) 0 18px;[^}]*border-block:\s*1px solid var\(--po-border\);/s,
     );
     expect(onboardingCss).toMatch(
       /\.onboarding-homepage\s*\{[^}]*--onboarding-brand-content-gap:\s*58px;[^}]*--onboarding-first-section-inset:\s*24px;/s,
@@ -244,7 +244,10 @@ describe("project folder home", () => {
     );
     expect(onboardingCss).not.toContain(".onboarding-entry-action-divider");
     expect(onboardingCss).toMatch(
-      /\.onboarding-entry-import-area\s*\{[^}]*margin-block-start:\s*8px;/s,
+      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-entry-action-secondary\s*\{[^}]*margin-block-start:\s*var\(--onboarding-followup-gap\);/s,
+    );
+    expect(onboardingCss).toMatch(
+      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-entry-import-area\s*\{[^}]*margin-block-start:\s*2px;/s,
     );
     expect(onboardingCss).toMatch(
       /\.onboarding-entry-import:hover:not\(:disabled\),\s*\.onboarding-entry-import:active:not\(:disabled\),\s*\.onboarding-entry-import:focus-visible\s*\{[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;[^}]*color:\s*var\(--po-text-muted\);/s,
