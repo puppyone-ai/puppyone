@@ -9,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const indexPath = path.join(repoRoot, "dist", "index.html");
 const tempRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "puppyone-agent-approval-"));
-const fixtureTitle = "Web search: Notion 1.0 2016 launch Product Hunt original version screenshots Ivan Zhao Kyoto rewrite";
+const fixtureTitle = "Web search: early collaborative editor launch history";
 const captureDirectory = process.argv.find((argument) => argument.startsWith("--capture-dir="))?.slice("--capture-dir=".length) || null;
 app.setPath("userData", path.join(tempRoot, "user-data"));
 app.commandLine.appendSwitch("disable-renderer-backgrounding");

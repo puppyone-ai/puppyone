@@ -41,7 +41,7 @@ const menuCss = fs.readFileSync(path.join(root, "src/styles/menus.css"), "utf8")
 const layoutCss = fs.readFileSync(path.join(root, "src/styles/layout.css"), "utf8");
 const responsiveCss = fs.readFileSync(path.join(styleRoot, "responsive.css"), "utf8");
 
-describe("Desktop Agent Cursor-style sidebar visual contract", () => {
+describe("Desktop Agent sidebar visual contract", () => {
   it("keeps user prompts as full-width rows and Agent replies in document flow", () => {
     expect(css).toMatch(/--agent-inline-inset:\s*var\(--desktop-sidebar-row-left-gap, 12px\)/);
     expect(css).toMatch(/--agent-dock-padding-top:\s*12px/);

@@ -44,7 +44,7 @@ describe("Desktop Agent renderer surfaces", () => {
 
   it("keeps approval copy concise and preserves every provider decision", () => {
     const onResolve = vi.fn();
-    const repeatedCopy = "Web search: Notion launch screenshots";
+    const repeatedCopy = "Web search: early collaborative editor launch history";
     const container = render(React.createElement(AgentApprovalDock, {
       approval: {
         requestId: "req-search",
