@@ -14,6 +14,7 @@ import { markdownAiEditExtension } from "./core/editor/markdownAiEditExtension";
 import { markdownBlockDragExtension } from "./core/interaction/markdownBlockDrag";
 import { markdownHeadingOutlineExtension } from "./core/interaction/markdownHeadingOutline";
 import { getMarkdownPlanIndex } from "./core/plans/markdownPlanIndex";
+import { createMarkdownLayoutCoordinator } from "./platform/codemirror/layoutCoordinator";
 import { markdownRevealedSourceEffect } from "./core/state/revealedSource";
 import { getDocRevision } from "./platform/brokers/transactionBroker";
 import type { AiEditFile } from "../ai-edits/types";
@@ -292,7 +293,7 @@ export function MarkdownCodeMirrorEditor({
     findAdapter.attach(view);
     const unbindFormatHotkeys = bindMarkdownFormatHotkeys(view);
     const unsubscribeTypography = subscribeTypographyChanges(host.ownerDocument, () => {
-      view.requestMeasure();
+      createMarkdownLayoutCoordinator(view).invalidate("typography");
     });
     const snapshotPort: EditorSourceSnapshotPort = {
       retainedSource: model,
@@ -591,7 +592,7 @@ export function MarkdownCodeMirrorEditor({
   }, [value]);
 
   useLayoutEffect(() => {
-    viewRef.current?.requestMeasure();
+    if (viewRef.current) createMarkdownLayoutCoordinator(viewRef.current).invalidate("appearance");
   }, [appearanceRevision]);
 
   const previewMessage = previewState === "error"

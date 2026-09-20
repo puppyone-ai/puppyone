@@ -135,6 +135,24 @@ fixed delay. A further scenario checks the exact backward character and paragrap
 position below expanded display-math source; dependency fonts are served from
 the actual node_modules directory when using an isolated worktree.
 
+## Markdown viewport layout
+
+`npm run smoke:markdown-layout` is the `markdown-layout` app gate. It mounts two
+production Markdown panes and samples DOM character geometry after animation
+frames without calling CodeMirror measurement APIs during sampling. It asserts
+at most 1 CSS pixel of anchor drift and viewport-token lag throughout rapid and
+slow split changes, native Chromium splitter input, window resize, host width
+transitions, typography changes, delayed image decoding, mapped document edits,
+top/bottom boundaries, Source mode, and row continuity inside a virtual table.
+Wheel scrolling and explicit navigation must take
+precedence over the old anchor, then remain stable on subsequent resizing.
+The fixture checks source/selection integrity, emits per-frame `result.json`
+under `artifacts/tests/editor/layout/`, and captures the page on failure.
+This tests Chromium layout and input, not OS pointer injection or all fonts,
+themes, writing directions and native platforms. Dependency upgrades must pass
+this gate: the shared adapter uses public coordinate queries to flush pending
+CodeMirror measurement before paint.
+
 ## Sidebar visibility and residual content
 
 `integration/workbench/layout/sidebarVisibility.integration.test.tsx` connects

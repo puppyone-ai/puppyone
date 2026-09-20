@@ -256,9 +256,8 @@ describe("project folder home", () => {
     expect(onboardingCss).not.toContain(".onboarding-entry-action-secondary");
     expect(onboardingCss).not.toContain(".onboarding-recent-projects");
     expect(onboardingCss).not.toContain(".onboarding-projects-layout");
-    expect(onboardingCss).toMatch(
-      /\.onboarding-entry-import:hover:not\(:disabled\),\s*\.onboarding-entry-import:active:not\(:disabled\),\s*\.onboarding-entry-import:focus-visible\s*\{[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;[^}]*color:\s*var\(--po-text-muted\);/s,
-    );
+    expect(onboardingCss).not.toMatch(/\.onboarding-entry-import\s*\{[^}]*height:/s);
+    expect(onboardingCss).not.toMatch(/\.onboarding-entry-import:hover/);
   });
 
   it("exposes one vertical projects-state contract", () => {

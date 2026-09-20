@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      :root {
+        --po-accent: #4c70ff;
+        --po-border: #d8dbe2;
+        --po-canvas: #ffffff;
+        --po-control: #eef0f4;
+        --po-divider: #d6d9df;
+        --po-editor-bg: #ffffff;
+        --po-editor-content-edge-inset: 64px;
+        --po-font-content: system-ui, sans-serif;
+        --po-font-mono: ui-monospace, monospace;
+        --po-font-sans: system-ui, sans-serif;
+        --po-panel: #ffffff;
+        --po-text: #20232a;
+        --po-text-disabled: #a1a6b0;
+        --po-text-muted: #626873;
+        --po-text-subtle: #7a808c;
+        --po-text-size-content: 14px;
+      }
+
+      html,
+      body,
+      #root {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+      }
+
+      body {
+        overflow: hidden;
+      }
+
+      #root {
+        min-width: 0;
+        min-height: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="root"></main>
+    <script type="module" src="./markdown-layout.tsx"></script>
+  </body>
+</html>

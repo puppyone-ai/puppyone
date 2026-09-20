@@ -322,35 +322,20 @@
   color: var(--po-text);
 }
 
-/* Keep importing visually separate without adding a decorative rule. */
+/* Import stays in the same compact CTA system without adding a decorative rule. */
 .onboarding-entry-import-area {
   display: contents;
-}
-
-.onboarding-entry-import {
-  height: auto;
-  padding-block: 6px;
-}
-
-/* An inline action, not a filled button, including pointer and keyboard states. */
-.onboarding-entry-import:hover:not(:disabled),
-.onboarding-entry-import:active:not(:disabled),
-.onboarding-entry-import:focus-visible {
-  background: transparent;
-  box-shadow: none;
-  color: var(--po-text-muted);
 }
 
 .onboarding-entry-import .po-button__label {
   display: flex;
   align-items: center;
   gap: 10px;
-  white-space: normal;
+  white-space: nowrap;
 }
 
 .onboarding-entry-import-label {
   min-width: 0;
-  overflow-wrap: anywhere;
 }
 
 .onboarding-entry-import-brands {
@@ -397,10 +382,15 @@
 }
 
 .onboarding-entry-import-brand-badge .onboarding-import-mark {
-  width: 13px;
-  height: 13px;
-  opacity: 0.8;
-  filter: grayscale(1);
+  width: 14px;
+  height: 14px;
+  opacity: 0.9;
+  filter: grayscale(1) brightness(0.72);
+}
+
+.onboarding-entry-import-brand-badge .onboarding-import-mark.is-google-drive {
+  opacity: 1;
+  filter: grayscale(1) brightness(0.48) contrast(1.1);
 }
 
 .onboarding-entry-import:disabled .onboarding-entry-import-source-preview {
@@ -423,7 +413,11 @@
 }
 
 .dark .onboarding-entry-import-brand-badge .onboarding-import-mark {
-  filter: grayscale(1) invert(1);
+  filter: grayscale(1) brightness(0.72) invert(1);
+}
+
+.dark .onboarding-entry-import-brand-badge .onboarding-import-mark.is-google-drive {
+  filter: grayscale(1) brightness(0.48) invert(1) contrast(1.1);
 }
 
 .onboarding-project-list {

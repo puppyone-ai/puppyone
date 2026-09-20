@@ -104,9 +104,11 @@ export function TerminalLauncher({
   );
   const discoveryFailed = discoveryPhase === "error" || discoveryHasFailures;
   const discoveryEmpty = discoveryPhase === "ready" && !discoveryFailed && !discoveryHasInstallations;
+  // Background discovery is best-effort. Keep failures in the shared store,
+  // not in launcher copy or live announcements; manual refresh stays available.
   const availabilityMessage = scanning
     ? feedbackVisible ? discoveryRefreshing ? "terminal.launcher.refreshing" : "terminal.launcher.detecting" : null
-    : discoveryFailed ? "terminal.launcher.detectionIncomplete"
+    : discoveryFailed ? null
       : discoveryEmpty ? "terminal.launcher.noneInstalled" : "terminal.launcher.detectionComplete";
   const agentRows = agentMode === "chat"
     ? chatRecipes.filter((recipe) => recipe.availability !== "bundled").map((recipe) => <DiscoveryAgentRow key={recipe.id} animate={feedbackVisible}>
@@ -195,9 +197,9 @@ export function TerminalLauncher({
               {agentRows}
             </div>
 
-            {(feedbackVisible || (!scanning && (discoveryFailed || discoveryEmpty))) &&
+            {(feedbackVisible || (!scanning && discoveryEmpty)) &&
               <LauncherDiscoveryFeedback scanning={scanning} refreshing={discoveryRefreshing}
-                failed={discoveryFailed} empty={discoveryEmpty} busy={busy} />}
+                empty={discoveryEmpty} busy={busy} />}
 
             {agentSetup?.(() => {
               const target = toolsRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")
