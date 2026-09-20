@@ -38,6 +38,7 @@
     "lint:fix": "eslint . --fix",
     "prepare:desktop-build:dev": "node scripts/prepare-desktop-build.mjs --channel dev",
     "dev": "npm run build:native-drag && npm run build:native-templates && npm run prepare:desktop-build:dev && node scripts/dev-electron.mjs",
+    "dev:agent-sandbox": "node scripts/dev-agent-sandbox.mjs",
     "dev:update-preview": "VITE_DESKTOP_UPDATE_PREVIEW=downloaded VITE_DESKTOP_UPDATE_PREVIEW_VERSION=0.3.0-preview.1 VITE_DESKTOP_CLOUD_API_URL=https://api.puppyone.ai/api/v1 VITE_DESKTOP_CLOUD_WEB_URL=https://app.puppyone.ai npm run dev",
     "dev:renderer": "vite",
     "dev:browser": "vite --host 127.0.0.1",

@@ -41,6 +41,7 @@ let rendererHost = null;
 let rendererPort = null;
 let devUrl = null;
 let desktopCloudWebUrl = null;
+let desktopCloudApiUrl = null;
 let healthCheckInFlight = false;
 let healthCheck = null;
 let electron = null;
@@ -78,10 +79,10 @@ async function startDevelopmentEnvironment() {
     ) {
       throw new Error("PUPPYONE_DESKTOP_RENDERER_URL must use an HTTP loopback origin.");
     }
-    parseConfiguredHttpUrl(
+    desktopCloudApiUrl = parseConfiguredHttpUrl(
       developmentEnvironment.VITE_DESKTOP_CLOUD_API_URL,
       "VITE_DESKTOP_CLOUD_API_URL",
-    );
+    ).toString().replace(/\/+$/, "");
     const cloudWebUrl = parseConfiguredHttpUrl(
       developmentEnvironment.VITE_DESKTOP_CLOUD_WEB_URL,
       "VITE_DESKTOP_CLOUD_WEB_URL",
@@ -258,6 +259,7 @@ function startElectron() {
     env: {
       ...process.env,
       PUPPYONE_DESKTOP_DEV_URL: devUrl,
+      VITE_DESKTOP_CLOUD_API_URL: desktopCloudApiUrl,
       ...(desktopCloudWebUrl
         ? { VITE_DESKTOP_CLOUD_WEB_URL: desktopCloudWebUrl }
         : {}),
