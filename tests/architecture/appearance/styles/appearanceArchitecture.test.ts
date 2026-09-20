@@ -208,6 +208,25 @@ describe("appearance profile architecture", () => {
     expect(result.preferences.shared).not.toHaveProperty("textSize");
   });
 
+  it("migrates the retired branded file-icon theme ID inside a canonical document", () => {
+    const result = readAppearancePreferences(JSON.stringify({
+      schemaVersion: 6,
+      activeRootThemeId: "default",
+      shared: {
+        typography: DEFAULT_TYPOGRAPHY_PREFERENCES,
+        pointerCursors: false,
+        loadingAnimationPreset: "ikun",
+        fileIconTheme: "vscode",
+        sidebarNavigationLayout: "bottom-horizontal",
+      },
+      byRootTheme: {},
+      bySurface: {},
+    }), legacySnapshot());
+
+    expect(result.preferences.shared.fileIconTheme).toBe("semantic");
+    expect(serializeAppearancePreferences(result.preferences)).not.toContain('"vscode"');
+  });
+
   it("migrates legacy Light and Dark presets into independent Sub Theme memories", () => {
     const result = readAppearancePreferences(null, {
       ...legacySnapshot(),

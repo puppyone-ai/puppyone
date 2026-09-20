@@ -607,6 +607,7 @@ export {
   getFileIcon,
   getFileVisualKind,
   isFileIconThemeId,
+  parseFileIconThemeId,
 } from "./file/fileIcons";
 export type { FileIconThemeId, FileVisualKind } from "./file/fileIcons";
 

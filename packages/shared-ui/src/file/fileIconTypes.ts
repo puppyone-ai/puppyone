@@ -11,7 +11,7 @@ export const FILE_VISUAL_KINDS = FILE_SEMANTIC_KINDS;
  */
 export type FileVisualKind = FileSemanticKind;
 
-export type FileIconThemeId = "default" | "lines" | "vscode" | "material" | "minimal";
+export type FileIconThemeId = "default" | "lines" | "semantic" | "material" | "minimal";
 
 export type FileIconThemeMetadata = {
   id: FileIconThemeId;

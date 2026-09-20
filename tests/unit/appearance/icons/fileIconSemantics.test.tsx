@@ -6,6 +6,8 @@ import {
   FileGlyphIcon,
   FilePreviewIcon,
   getFileVisualKind,
+  isFileIconThemeId,
+  parseFileIconThemeId,
   type FileIconThemeId,
 } from "../../../../packages/shared-ui/src/file/fileIcons";
 import {
@@ -103,7 +105,7 @@ describe("file icon semantics", () => {
     expect(getFileVisualKind("Knowledge.contextmap")).toBe("context-map");
   });
 
-  it.each<FileIconThemeId>(["default", "lines", "vscode", "material", "minimal"])(
+  it.each<FileIconThemeId>(["default", "lines", "semantic", "material", "minimal"])(
     "renders Context Map as a treasure map product mark in the %s theme",
     (theme) => {
       const markup = renderToStaticMarkup(
@@ -180,7 +182,7 @@ describe("file icon semantics", () => {
     },
   );
 
-  it.each<FileIconThemeId>(["default", "lines", "vscode", "material", "minimal"])(
+  it.each<FileIconThemeId>(["default", "lines", "semantic", "material", "minimal"])(
     "renders spreadsheet glyphs as a standalone table grid in the %s theme",
     (theme) => {
       const markup = renderToStaticMarkup(<FileGlyphIcon name="table.csv" size={18} theme={theme} />);
@@ -190,7 +192,7 @@ describe("file icon semantics", () => {
     },
   );
 
-  it.each<FileIconThemeId>(["default", "lines", "vscode", "material", "minimal"])(
+  it.each<FileIconThemeId>(["default", "lines", "semantic", "material", "minimal"])(
     "renders a recognizable Word mark in the %s theme",
     (theme) => {
       const markup = renderToStaticMarkup(
@@ -202,7 +204,7 @@ describe("file icon semantics", () => {
     },
   );
 
-  it.each<FileIconThemeId>(["default", "lines", "vscode", "material", "minimal"])(
+  it.each<FileIconThemeId>(["default", "lines", "semantic", "material", "minimal"])(
     "renders a recognizable Excel mark in the %s theme",
     (theme) => {
       const markup = renderToStaticMarkup(
@@ -214,7 +216,7 @@ describe("file icon semantics", () => {
     },
   );
 
-  it.each<FileIconThemeId>(["default", "lines", "vscode", "material", "minimal"])(
+  it.each<FileIconThemeId>(["default", "lines", "semantic", "material", "minimal"])(
     "renders a recognizable presentation mark in the %s theme",
     (theme) => {
       const markup = renderToStaticMarkup(
@@ -252,13 +254,19 @@ describe("file icon semantics", () => {
     expect(FILE_ICON_THEMES.map(({ id }) => id)).toEqual([
       "default",
       "lines",
-      "vscode",
+      "semantic",
       "material",
       "minimal",
     ]);
   });
 
-  it.each<FileIconThemeId>(["default", "lines", "vscode", "material", "minimal"])(
+  it("migrates the retired branded theme ID without keeping it in the public contract", () => {
+    expect(isFileIconThemeId("vscode")).toBe(false);
+    expect(parseFileIconThemeId("vscode")).toBe("semantic");
+    expect(parseFileIconThemeId("semantic")).toBe("semantic");
+  });
+
+  it.each<FileIconThemeId>(["default", "lines", "semantic", "material", "minimal"])(
     "renders folder previews and their child count through the %s theme",
     (theme) => {
       const markup = renderToStaticMarkup(
