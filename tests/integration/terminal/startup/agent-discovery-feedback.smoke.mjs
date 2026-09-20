@@ -126,6 +126,14 @@ async function run() {
     await setState({ ...scanning, ids: ["codex", "claude"], completed: 2 });
     assert(await evaluate("document.activeElement === window.__focusedAgent && !window.__focusedAgent.disabled"), "Incremental result lost focus or was disabled");
     assert(await evaluate(`${buttons}.map(button => button.textContent).join('|') === 'Claude Code|Codex|Built-in Agent'`), "Unstable display order");
+    assert(await evaluate(`(() => {
+      const row = ${buttons}.find(button => button.textContent === 'Codex');
+      const icon = row?.querySelector('.desktop-terminal-launcher-icon.is-chatgpt');
+      const mark = icon?.querySelector('.po-agent-monochrome-brand-image');
+      const source = mark?.querySelector('image')?.getAttribute('href');
+      return source?.endsWith('/assets/icons/agents/chatgpt.png')
+        && getComputedStyle(mark).fill === getComputedStyle(icon).color;
+    })()`), "Codex Agent Chat must use a theme-visible ChatGPT mark");
     assert(await evaluate("document.querySelector('[role=status]').textContent === 'Checking local agents…'"), "Progress counts should not churn live announcements");
     if (variant.reduced) assert(await evaluate("Array.from(document.querySelectorAll('.desktop-terminal-launcher-discovered, .desktop-terminal-launcher-discovery-spinner')).every(node => getComputedStyle(node).animationName === 'none')"), "Reduced motion still animates");
     await capture(label + "-incremental");

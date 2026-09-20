@@ -21,7 +21,7 @@ export function AgentBrandMark({
 }: AgentBrandMarkProps) {
   const nativeBrand = resolveAgentBrand({ iconKey, label });
   if (nativeBrand) {
-    const monochrome = appearance === "monochrome"
+    const monochrome = (appearance === "monochrome" || nativeBrand.id === "chatgpt")
       && isMonochromeAgentBrandId(nativeBrand.id);
     return (
       <span

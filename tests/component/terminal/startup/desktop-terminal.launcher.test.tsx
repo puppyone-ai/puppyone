@@ -55,6 +55,32 @@ describe("Unified Workbench launcher", () => {
       ]);
   });
 
+  it("presents Codex Agent Chat with the ChatGPT mark while retaining its name", () => {
+    const codex = AGENT_CHAT_CREATION_RECIPES.find(({ id }) => id === "codex")!;
+    const container = renderLauncher(
+      <TerminalLauncher
+        agentMode="chat"
+        discoveryPhase="ready"
+        availableAgentIds={["codex"]}
+        terminalEnabled={false}
+        chatRecipes={[codex]}
+        onCreateChat={vi.fn()}
+        onLaunch={vi.fn()}
+        onRefresh={vi.fn()}
+      />,
+    );
+    const option = container.querySelector<HTMLButtonElement>(".desktop-terminal-launcher-tool");
+    const icon = option?.querySelector(".desktop-terminal-launcher-icon.is-chatgpt");
+
+    expect(option?.textContent).toBe("Codex");
+    expect(icon).not.toBeNull();
+    expect(icon?.querySelector("svg image")?.getAttribute("href"))
+      .toBe("/assets/icons/agents/chatgpt.png");
+    expect(icon?.querySelector(".po-agent-monochrome-brand-image")?.getAttribute("fill"))
+      .toBe("currentColor");
+    expect(option?.querySelector(".is-codex")).toBeNull();
+  });
+
   it("uses detected Terminal Agent commands and keeps Terminal in the same launch group", () => {
     const onLaunch = vi.fn();
     const container = renderLauncher(

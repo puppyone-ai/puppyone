@@ -1,7 +1,9 @@
-import type { SVGProps } from "react";
-import type { AgentBrandId } from "../core/agentBrandCatalog";
+import { useId, type SVGProps } from "react";
+import { getAgentBrand, type AgentBrandId } from "../core/agentBrandCatalog";
+import { resolveRendererPublicAssetUrl } from "../core/rendererPublicAsset";
 
 export const MONOCHROME_AGENT_BRAND_IDS = Object.freeze([
+  "chatgpt",
   "claude",
   "codex",
   "cursor",
@@ -26,6 +28,7 @@ export function AgentMonochromeBrandImage({
   className = "",
   ...svgProps
 }: AgentMonochromeBrandImageProps) {
+  const maskId = `po-chatgpt-mark-${useId().replaceAll(":", "")}`;
   const classes = ["po-agent-monochrome-brand-image", className].filter(Boolean).join(" ");
   const commonProps = {
     ...svgProps,
@@ -35,6 +38,26 @@ export function AgentMonochromeBrandImage({
     focusable: "false",
     preserveAspectRatio: "xMidYMid meet",
   } as const;
+
+  if (brandId === "chatgpt") {
+    const source = resolveRendererPublicAssetUrl(getAgentBrand("chatgpt")!.assets.light);
+    return (
+      <svg {...commonProps} viewBox="250 250 1906 1906">
+        <mask
+          id={maskId}
+          x="0"
+          y="0"
+          width="2406"
+          height="2406"
+          maskUnits="userSpaceOnUse"
+          style={{ maskType: "alpha" }}
+        >
+          <image href={source} width="2406" height="2406" />
+        </mask>
+        <rect width="2406" height="2406" mask={`url(#${maskId})`} />
+      </svg>
+    );
+  }
 
   if (brandId === "codex") {
     return (
