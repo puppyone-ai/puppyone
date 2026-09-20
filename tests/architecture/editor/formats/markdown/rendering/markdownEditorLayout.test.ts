@@ -402,7 +402,7 @@ describe("Markdown rich-block boundary affordance", () => {
       ".cm-md-table-widget-wrap:focus-within:not(.is-doc-selected) .cm-md-table-widget",
     );
     expect(selectedRule).toContain("border-color:");
-    expect(selectedRule).toContain("box-shadow: 0 0 0 2px var(--cm-md-block-selected-ring);");
+    expect(selectedRule).toContain("box-shadow: 0 0 0 1px var(--po-editable-table-selection-border);");
   });
 
   it("uses semantic fixed column tracks so cell focus cannot resize a Markdown table", () => {
@@ -510,7 +510,7 @@ describe("Markdown rich-block boundary affordance", () => {
 });
 
 describe("Markdown table affordance layout", () => {
-  it("uses one normal-state rule color for dividers and table lines", () => {
+  it("uses Markdown colors for prose dividers and shared tokens for table lines", () => {
     const nativeDividerRule = readCssRule(
       markdownEditorCss,
       ".markdown-codemirror-editor .cm-md-hr-widget::before",
@@ -534,11 +534,8 @@ describe("Markdown table affordance layout", () => {
 
     expect(nativeDividerRule).toContain("background: var(--po-md-rule-color);");
     expect(htmlDividerRule).toContain("background: var(--po-md-rule-color);");
-    expect(viewportRule).toContain(
-      "--po-editable-table-border: var(--po-surface-editable-table-border, var(--po-md-rule-color));",
-    );
-    expect(viewportRule).toContain("--po-surface-editable-table-cell-border");
-    expect(viewportRule).toContain("var(--po-md-rule-color)");
+    expect(viewportRule).not.toContain("--po-editable-table-border:");
+    expect(sharedTableCss).toContain("--po-surface-editable-table-cell-border");
     expect(tableRule).toContain("border: 1px solid var(--po-editable-table-border);");
     expect(cellRule).toContain("border-right: 1px solid var(--po-editable-table-cell-border);");
     expect(cellRule).toContain("border-bottom: 1px solid var(--po-editable-table-cell-border);");
@@ -697,12 +694,12 @@ describe("Markdown table affordance layout", () => {
 
     expect(columnHandleRule).toContain("width: 32px;");
     expect(columnHandleRule).toContain("height: 24px;");
-    expect(columnVisualRule).toContain("width: 26px;");
-    expect(columnVisualRule).toContain("height: 13px;");
+    expect(columnVisualRule).toContain("width: 22px;");
+    expect(columnVisualRule).toContain("height: 14px;");
     expect(rowHandleRule).toContain("width: 24px;");
-    expect(rowHandleRule).toContain("height: var(--po-control-size);");
-    expect(rowVisualRule).toContain("width: 13px;");
-    expect(rowVisualRule).toContain("height: 26px;");
+    expect(rowHandleRule).toContain("height: 32px;");
+    expect(rowVisualRule).toContain("width: 14px;");
+    expect(rowVisualRule).toContain("height: 22px;");
     expect(markdownTableCss).not.toContain(
       ".markdown-codemirror-editor .cm-md-table-drag-handle {",
     );

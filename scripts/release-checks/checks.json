@@ -157,6 +157,20 @@
       }
     },
     {
+      "id": "table-interaction",
+      "name": "Markdown and CSV table selection, editing and geometry",
+      "group": "app",
+      "command": ["npm", "run", "smoke:table-interaction"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": [],
+      "timeoutSeconds": 120,
+      "runtime": "electron",
+      "artifacts": ["{checkDir}/table-interaction/result.json"],
+      "environment": {
+        "PUPPYONE_TABLE_INTERACTION_ARTIFACT_DIR": "{checkDir}/table-interaction"
+      }
+    },
+    {
       "id": "native-resize-cursor",
       "name": "Native split resize cursor recovery",
       "group": "app",
