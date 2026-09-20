@@ -76,21 +76,20 @@ async function runSmoke() {
             const label = create.querySelector('.po-button__label');
             const brand = document.querySelector('.onboarding-brand-lockup');
             const launcher = document.querySelector('.onboarding-launcher');
-            const primary = document.querySelector('.onboarding-primary-area');
-            const primarySection = document.querySelector('.onboarding-entry-action-primary');
+            const primarySection = document.querySelector('.onboarding-home-primary');
             const actions = document.querySelector('.onboarding-entry-actions');
-            const projectPanel = document.querySelector('.onboarding-recent-projects');
+            const projectPanel = primarySection.dataset.onboardingPrimary === 'projects' ? primarySection : null;
             const projectRow = document.querySelector('.onboarding-project-row');
             const projectPanelStyle = projectPanel && getComputedStyle(projectPanel);
             const primaryStyle = getComputedStyle(primarySection);
-            const firstSection = projectPanel || primarySection;
+            const firstSection = primarySection;
             const firstClickable = projectRow || create;
-            const buttons = [...document.querySelectorAll('.onboarding-entry-actions button')];
+            const buttons = [...document.querySelectorAll('.onboarding-entry-action')];
             const images = [...document.querySelectorAll('.onboarding-brand-lockup img, .onboarding-entry-import img')];
             return {
               create: rect(create), brand: rect(brand), launcher: rect(launcher), actions: rect(actions), label: create.textContent,
               brandText: brand.querySelector('.onboarding-brand-name, .onboarding-brand-prompt').textContent,
-              primary: rect(primary),
+              primaryKind: primarySection.dataset.onboardingPrimary,
               primaryBorderTop: primaryStyle.borderTopWidth,
               primaryPaddingTop: primaryStyle.paddingTop,
               primaryBorderBottom: primaryStyle.borderBottomWidth,
@@ -211,10 +210,11 @@ async function runSmoke() {
           assert.ok(Math.abs(snapshot.firstSection.y - snapshot.brand.y - snapshot.brand.height - titleToSectionGap) < 1, `${context}: shared title-to-section gap`);
           assert.ok(Math.abs(snapshot.firstClickable.y - snapshot.brand.y - snapshot.brand.height - titleToSectionGap - 25) < 1, `${context}: shared title-to-first-clickable gap`);
           assert.ok(Math.abs(snapshot.launcher.y + snapshot.launcher.height / 2 - height / 2) < 1, `${context}: shared launcher is vertically centered`);
+          assert.equal(snapshot.primaryKind, state === 'empty' ? 'create' : 'projects', `${context}: one primary-section contract swaps content by state`);
+          assert.equal(snapshot.primaryBorderTop, '1px', `${context}: shared primary frame has a top rule`);
+          assert.equal(snapshot.primaryBorderBottom, '1px', `${context}: shared primary frame has a bottom rule`);
+          assert.equal(snapshot.primaryPaddingTop, '24px', `${context}: shared primary frame owns the content inset`);
           if (state === 'empty') {
-            assert.equal(snapshot.primaryBorderTop, '1px', `${context}: title rule frames the first content section`);
-            assert.equal(snapshot.primaryBorderBottom, '1px', `${context}: primary action completes the same frame as a project row`);
-            assert.equal(snapshot.primaryPaddingTop, '24px', `${context}: first action follows the shared frame inset`);
             assert.ok(snapshot.open.y - snapshot.firstSection.y - snapshot.firstSection.height >= 14, `${context}: secondary actions sit below the framed primary section`);
             const openToImportGap = snapshot.importButton.y - snapshot.open.y - snapshot.open.height;
             assert.ok(openToImportGap >= 1 && openToImportGap <= 4, `${context}: secondary actions form one compact group`);

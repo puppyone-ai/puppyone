@@ -1,4 +1,5 @@
 import { DesktopMenuItem, DesktopMenuSurface } from "../../components/DesktopMenu";
+import { OnboardingPrimarySection } from "../../components/onboarding/OnboardingPrimarySection";
 import { OnboardingProjectList } from "../../components/onboarding/OnboardingProjectList";
 import { DesktopWindowChrome } from "../../components/DesktopWindowChrome";
 import { DesktopShellLocationBar } from "../app-shell/DesktopShellLocationBar";
@@ -176,16 +177,18 @@ export function AppearanceVisualSmokeHarness() {
           <span className="desktop-titlebar-context-name">{t(profile.labelKey)}</span>
         </div>
         <div className="onboarding-homepage">
-          <OnboardingProjectList
-            items={[{ id: "typography-project", label: "PuppyOne", localPath: "/Users/demo/Desktop/PuppyOne", lastOpenedAt: null }]}
-            busy={false}
-            openingPath={null}
-            removingPath={null}
-            draggingPath={null}
-            onOpen={() => undefined}
-            onDragStart={() => undefined}
-            onDragEnd={() => undefined}
-          />
+          <OnboardingPrimarySection kind="projects">
+            <OnboardingProjectList
+              items={[{ id: "typography-project", label: "PuppyOne", localPath: "/Users/demo/Desktop/PuppyOne", lastOpenedAt: null }]}
+              busy={false}
+              openingPath={null}
+              removingPath={null}
+              draggingPath={null}
+              onOpen={() => undefined}
+              onDragStart={() => undefined}
+              onDragEnd={() => undefined}
+            />
+          </OnboardingPrimarySection>
         </div>
         <DesktopMenuItem className="typography-standalone-row" label={t(profile.labelKey)} detail={fixtureTreeNodes[2].name} />
         {(["header", "right-sidebar"] as const).map((surface) => (

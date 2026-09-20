@@ -111,12 +111,14 @@ describe("project folder home", () => {
       await Promise.resolve();
     });
 
-    const actionArea = container.querySelector(".onboarding-primary-area");
+    const surface = requireSurface(container);
+    const homepage = container.querySelector(".onboarding-homepage");
     const actions = container.querySelector(".onboarding-entry-actions");
     const disclosure = container.querySelector("[data-onboarding-telemetry-disclosure]");
     expect(disclosure).not.toBeNull();
-    expect(actionArea?.lastElementChild).toBe(disclosure);
-    expect(actions!.compareDocumentPosition(disclosure as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(disclosure?.parentElement).toBe(surface);
+    expect(homepage!.compareDocumentPosition(disclosure as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(actions?.contains(disclosure)).toBe(false);
     expect(bridge.markTelemetryNoticeSeen).toHaveBeenCalledOnce();
   });
 
@@ -198,13 +200,14 @@ describe("project folder home", () => {
     expect(projectActions.every((action) => !action.classList.contains("onboarding-entry-action-cta"))).toBe(true);
     expect(container.querySelector(".onboarding-entry-action-divider")).toBeNull();
     const brand = container.querySelector(".onboarding-brand-lockup");
-    const projects = container.querySelector(".onboarding-projects-layout");
-    const launcher = container.querySelector(".onboarding-primary-area");
+    const primary = container.querySelector(".onboarding-home-primary");
+    const actions = container.querySelector(".onboarding-entry-actions");
     expect(requireSurface(container).dataset.onboardingState).toBe("projects");
-    expect(container.querySelector(".onboarding-recent-projects")?.children).toHaveLength(1);
+    expect(primary?.getAttribute("data-onboarding-primary")).toBe("projects");
+    expect(primary?.children).toHaveLength(1);
     expect(container.querySelector(".onboarding-project-list")?.children).toHaveLength(1);
-    expect(brand!.compareDocumentPosition(projects as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(projects!.compareDocumentPosition(launcher as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(brand!.compareDocumentPosition(primary as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(primary!.compareDocumentPosition(actions as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("uses Puppy Lite only when the resolved theme is light", () => {
@@ -226,37 +229,32 @@ describe("project folder home", () => {
     );
   });
 
-  it("uses one launcher geometry with a shared first-section rule", () => {
+  it("uses one page skeleton and one framed primary section for both home states", () => {
     expect(onboardingCss).toMatch(
-      /\.onboarding-launcher\s*\{[^}]*display:\s*grid;[^}]*width:\s*var\(--onboarding-column-width\);[^}]*gap:\s*var\(--onboarding-section-gap\);/s,
+      /\.onboarding-launcher\s*\{[^}]*display:\s*grid;[^}]*width:\s*var\(--onboarding-column-width\);[^}]*gap:\s*0;/s,
     );
     expect(onboardingCss).not.toMatch(
       /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-launcher/,
     );
     expect(onboardingCss).toMatch(
-      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-entry-action-primary\s*\{[^}]*padding:\s*var\(--onboarding-first-section-inset\) 0 18px;[^}]*border-block:\s*1px solid var\(--po-border\);/s,
+      /\.onboarding-home-primary\s*\{[^}]*padding:\s*var\(--onboarding-primary-inset-start\) 0 var\(--onboarding-primary-inset-end\);[^}]*margin-block-end:\s*var\(--onboarding-primary-actions-gap\);[^}]*border-block:\s*1px solid var\(--po-border\);/s,
     );
     expect(onboardingCss).toMatch(
-      /\.onboarding-homepage\s*\{[^}]*--onboarding-brand-content-gap:\s*58px;[^}]*--onboarding-first-section-inset:\s*24px;/s,
+      /\.onboarding-homepage\s*\{[^}]*--onboarding-title-primary-gap:\s*58px;[^}]*--onboarding-primary-actions-gap:\s*30px;[^}]*--onboarding-primary-inset-start:\s*24px;/s,
     );
     expect(onboardingCss).toMatch(
-      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-brand-lockup\s*\{[^}]*margin-block-end:\s*calc\(var\(--onboarding-first-section-inset\) - var\(--onboarding-section-gap\)\);/s,
+      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-homepage\s*\{[^}]*--onboarding-title-primary-gap:\s*24px;/s,
     );
     expect(onboardingCss).toMatch(
-      /\.onboarding-recent-projects\s*\{[^}]*padding:\s*var\(--onboarding-first-section-inset\) 0 18px;[^}]*border-block:\s*1px solid var\(--po-border\);/s,
+      /\.onboarding-brand-lockup\s*\{[^}]*margin-block-end:\s*var\(--onboarding-title-primary-gap\);/s,
     );
     expect(onboardingCss).not.toContain(".onboarding-entry-action-divider");
-    expect(onboardingCss).toMatch(
-      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-entry-action-secondary\s*\{[^}]*margin-block-start:\s*var\(--onboarding-followup-gap\);/s,
-    );
-    expect(onboardingCss).toMatch(
-      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-entry-import-area\s*\{[^}]*margin-block-start:\s*2px;/s,
-    );
+    expect(onboardingCss).not.toContain(".onboarding-entry-action-primary");
+    expect(onboardingCss).not.toContain(".onboarding-entry-action-secondary");
+    expect(onboardingCss).not.toContain(".onboarding-recent-projects");
+    expect(onboardingCss).not.toContain(".onboarding-projects-layout");
     expect(onboardingCss).toMatch(
       /\.onboarding-entry-import:hover:not\(:disabled\),\s*\.onboarding-entry-import:active:not\(:disabled\),\s*\.onboarding-entry-import:focus-visible\s*\{[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;[^}]*color:\s*var\(--po-text-muted\);/s,
-    );
-    expect(onboardingCss).toMatch(
-      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-entry-action-default\s*\{[^}]*width:\s*fit-content;[^}]*min-width:\s*0;[^}]*justify-content:\s*flex-start;/s,
     );
   });
 
@@ -291,7 +289,8 @@ describe("project folder home", () => {
 
     expect(container.querySelectorAll(".folder-drop-zone")).toHaveLength(0);
     expectBrandLockup(container, "projects");
-    const panel = container.querySelector(".onboarding-recent-projects");
+    const panel = container.querySelector(".onboarding-home-primary");
+    expect(panel?.getAttribute("data-onboarding-primary")).toBe("projects");
     expect(panel?.lastElementChild?.classList.contains("onboarding-project-list")).toBe(true);
     const projectFolder = container.querySelector(".onboarding-project-row .lucide-folder");
     expect(projectFolder).not.toBeNull();
@@ -344,7 +343,7 @@ describe("project folder home", () => {
     expect(importGroup?.getAttribute("aria-label")).toBeNull();
     expect(importGroup?.getAttribute("aria-haspopup")).toBe("dialog");
     expect(importGroup?.querySelectorAll("button, [tabindex]")).toHaveLength(0);
-    expect(container.querySelectorAll(".onboarding-entry-actions button")).toHaveLength(3);
+    expect(container.querySelectorAll(".onboarding-entry-actions button")).toHaveLength(2);
     const marks = [...importGroup!.querySelectorAll<HTMLImageElement>(".onboarding-import-mark")];
     expect(marks.map((mark) => mark.dataset.importBrand)).toEqual(["github", "notion", "google-drive"]);
     expect(marks.map((mark) => mark.alt)).toEqual(["GitHub", "Notion", "Google Drive"]);
@@ -357,12 +356,15 @@ describe("project folder home", () => {
     const launcher = container.querySelector(".onboarding-launcher");
     expect(launcher?.contains(container.querySelector(".onboarding-brand-lockup"))).toBe(true);
     expect(launcher?.contains(container.querySelector(".onboarding-entry-actions"))).toBe(true);
-    expect(container.querySelector(".onboarding-entry-action-primary")?.contains(actions[0] as Node)).toBe(true);
-    expect([...container.querySelectorAll(".onboarding-entry-action-secondary .onboarding-entry-action")]).toEqual([
-      actions[1],
+    const primary = container.querySelector(".onboarding-home-primary");
+    expect(primary?.getAttribute("data-onboarding-primary")).toBe("create");
+    expect(primary?.contains(actions[0] as Node)).toBe(true);
+    expect(container.querySelector(".onboarding-entry-actions")?.contains(actions[0] as Node)).toBe(false);
+    expect([...container.querySelectorAll(".onboarding-entry-actions .onboarding-entry-action")]).toEqual([
+      actions[1], actions[2],
     ]);
     expect(requireSurface(container).dataset.onboardingState).toBe("empty");
-    expect(container.querySelector(".onboarding-projects-layout")).toBeNull();
+    expect(container.querySelector(".onboarding-project-list")).toBeNull();
     expect(container.textContent).not.toContain("Get started with puppyone");
 
     await act(async () => actions[1]?.click());

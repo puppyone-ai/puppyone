@@ -35,52 +35,48 @@ export function OnboardingProjectList({
   const { t, formatRelativeTime } = useLocalization();
 
   return (
-    <div className="onboarding-projects-layout">
-      <div className="onboarding-recent-projects">
-        <div className="onboarding-project-list" data-po-scrollbar="menu">
-          {items.map((item) => {
-            const name = getProjectName(item, t("onboarding.projects.untitled"));
-            const parentPath = getWorkspaceParentPathForDisplay(item.localPath);
-            const removing = removingPath === item.localPath;
-            const dragging = draggingPath === item.localPath;
-            return (
-              <div className={`onboarding-project-row-wrap ${removing ? "is-removing" : ""} ${dragging ? "is-dragging" : ""}`} key={item.id}>
-                <DesktopMenuItem
-                  className="onboarding-project-row"
-                  role="button"
-                  icon={<Folder size={14} strokeWidth={1.85} />}
-                  label={<bdi>{name}</bdi>}
-                  detail={parentPath ? <bdi dir="ltr" title={item.localPath}>{parentPath}</bdi> : undefined}
-                  trailing={openingPath === item.localPath
-                    ? <InlineLoading label={t("onboarding.status.opening")} size="xs" tone="neutral" />
-                    : formatRecentWorkspaceTime(item.lastOpenedAt, t, formatRelativeTime)}
-                  disabled={busy}
-                  aria-busy={openingPath === item.localPath || undefined}
-                  aria-label={t("onboarding.projects.open", { project: bidiIsolate(name) })}
-                  title={item.localPath}
-                  draggable={!busy}
-                  onClick={() => onOpen(item.localPath)}
-                  onDragStart={(event) => onDragStart(event, item)}
-                  onDragEnd={onDragEnd}
-                />
-                {onRemove && (
-                  <DesktopMenuIconButton
-                    className="onboarding-project-remove"
-                    disabled={busy && !removing}
-                    aria-busy={removing || undefined}
-                    label={t("onboarding.projects.removeFor", { project: bidiIsolate(name) })}
-                    title={t("onboarding.projects.removeHint")}
-                    onClick={() => onRemove(item)}
-                    icon={removing
-                      ? <InlineLoading label={null} size="xs" tone="neutral" />
-                      : <Unlink size={14} aria-hidden="true" />}
-                  />
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
+    <div className="onboarding-project-list" data-po-scrollbar="menu">
+      {items.map((item) => {
+        const name = getProjectName(item, t("onboarding.projects.untitled"));
+        const parentPath = getWorkspaceParentPathForDisplay(item.localPath);
+        const removing = removingPath === item.localPath;
+        const dragging = draggingPath === item.localPath;
+        return (
+          <div className={`onboarding-project-row-wrap ${removing ? "is-removing" : ""} ${dragging ? "is-dragging" : ""}`} key={item.id}>
+            <DesktopMenuItem
+              className="onboarding-project-row"
+              role="button"
+              icon={<Folder size={14} strokeWidth={1.85} />}
+              label={<bdi>{name}</bdi>}
+              detail={parentPath ? <bdi dir="ltr" title={item.localPath}>{parentPath}</bdi> : undefined}
+              trailing={openingPath === item.localPath
+                ? <InlineLoading label={t("onboarding.status.opening")} size="xs" tone="neutral" />
+                : formatRecentWorkspaceTime(item.lastOpenedAt, t, formatRelativeTime)}
+              disabled={busy}
+              aria-busy={openingPath === item.localPath || undefined}
+              aria-label={t("onboarding.projects.open", { project: bidiIsolate(name) })}
+              title={item.localPath}
+              draggable={!busy}
+              onClick={() => onOpen(item.localPath)}
+              onDragStart={(event) => onDragStart(event, item)}
+              onDragEnd={onDragEnd}
+            />
+            {onRemove && (
+              <DesktopMenuIconButton
+                className="onboarding-project-remove"
+                disabled={busy && !removing}
+                aria-busy={removing || undefined}
+                label={t("onboarding.projects.removeFor", { project: bidiIsolate(name) })}
+                title={t("onboarding.projects.removeHint")}
+                onClick={() => onRemove(item)}
+                icon={removing
+                  ? <InlineLoading label={null} size="xs" tone="neutral" />
+                  : <Unlink size={14} aria-hidden="true" />}
+              />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
