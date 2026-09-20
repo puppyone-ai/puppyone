@@ -17,6 +17,54 @@ afterEach(async () => {
 });
 
 describe("owned Agent activity Hook registration", () => {
+  it("keeps every Hook off in a fresh profile until the user explicitly enables one", async () => {
+    const homedir = await temporaryDirectory();
+    const install = vi.fn(async () => undefined);
+    const isCurrent = vi.fn(async () => true);
+    const ensureCurrent = vi.fn(async () => undefined);
+    const createService = () => createHookRegistrationService({
+      homedir,
+      bridgeInstaller: {
+        command: "puppyone-agent-hook.mjs",
+        install,
+        isCurrent,
+        ensureCurrent,
+      },
+    });
+    const service = createService();
+
+    const initial = await service.getSnapshot();
+    expect(initial.providers.filter(({ configurable }) => configurable))
+      .toEqual(expect.arrayContaining([
+        expect.objectContaining({ providerId: "codex", enrollment: "not-configured" }),
+        expect.objectContaining({ providerId: "claude", enrollment: "not-configured" }),
+        expect.objectContaining({ providerId: "cursor", enrollment: "not-configured" }),
+      ]));
+    expect(initial.providers.filter(({ configurable }) => !configurable)
+      .every(({ enrollment }) => enrollment === "basic-only")).toBe(true);
+    await expect(service.hasAnyEnabled()).resolves.toBe(false);
+    expect(install).not.toHaveBeenCalled();
+    expect(isCurrent).not.toHaveBeenCalled();
+    expect(ensureCurrent).not.toHaveBeenCalled();
+    await expect(readFile(path.join(homedir, ".codex", "hooks.json"), "utf8"))
+      .rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readFile(path.join(homedir, ".claude", "settings.json"), "utf8"))
+      .rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readFile(path.join(homedir, ".cursor", "hooks.json"), "utf8"))
+      .rejects.toMatchObject({ code: "ENOENT" });
+
+    await expect(service.setEnabled("codex", true)).resolves.toMatchObject({ enrollment: "enabled" });
+    expect(install).toHaveBeenCalledOnce();
+
+    const reopened = await createService().getSnapshot();
+    expect(reopened.providers.find(({ providerId }) => providerId === "codex"))
+      .toMatchObject({ enrollment: "enabled" });
+    expect(reopened.providers.find(({ providerId }) => providerId === "claude"))
+      .toMatchObject({ enrollment: "not-configured" });
+    expect(reopened.providers.find(({ providerId }) => providerId === "cursor"))
+      .toMatchObject({ enrollment: "not-configured" });
+  });
+
   it("merges and removes only Puppyone-owned Codex handlers", async () => {
     const directory = await temporaryDirectory();
     const configPath = path.join(directory, "hooks.json");
