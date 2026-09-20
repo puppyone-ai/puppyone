@@ -1,6 +1,7 @@
 #!/usr/bin/env electron
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { PNG } from "pngjs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
@@ -34,6 +35,17 @@ async function control(selector) {
   for (const type of ['mousePressed', 'mouseReleased']) await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
     type, x: point.x, y: point.y, button: 'left', clickCount: 1,
   });
+}
+async function visibleSelectionBorder() {
+  const box = await evaluate("(()=>{const e=document.querySelector('.html-editor-selection'),r=e.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,viewportWidth:innerWidth,color:getComputedStyle(e).borderTopColor.match(/[0-9]+/g).slice(0,3).map(Number)}})()");
+  const screenshot = PNG.sync.read((await win.webContents.capturePage()).toPNG());
+  const scale = screenshot.width / box.viewportWidth;
+  for (const [x, y] of [[box.x + box.width * .8, box.y + 1], [box.x + box.width - 1, box.y + box.height / 2]]) {
+    const offset = (Math.floor(y * scale) * screenshot.width + Math.floor(x * scale)) * 4;
+    // Native captures can apply the display color profile; distinguish paint from the page background.
+    assert.ok(box.color.every((channel, index) => Math.abs(screenshot.data[offset + index] - channel) <= 32),
+      `selected block border must be painted: ${JSON.stringify({box, scale, x, y, actual: [...screenshot.data.subarray(offset, offset + 3)]})}`);
+  }
 }
 async function history(direction) {
   await until(() => evaluate("document.querySelector('.html-visual-editor iframe')?.getAttribute('aria-busy')==='false'"), "ready for history");
@@ -114,6 +126,11 @@ app.whenReady().then(async () => {
     assert.equal(await evaluate("getComputedStyle(document.querySelector('.html-editor-text-input')).backgroundColor"), "rgba(0, 0, 0, 0)");
     const toolbarInside = () => evaluate("(()=>{const p=document.querySelector('iframe').getBoundingClientRect(),t=document.querySelector('.html-floating-toolbar').getBoundingClientRect();return t.left>=p.left && t.right<=p.right && t.top>=p.top && t.bottom<=p.bottom})()");
     await until(toolbarInside, 'floating toolbar remains in pane');
+    await visibleSelectionBorder();
+    await preview().executeJavaScript("document.body.style.background='#10294c'");
+    await visibleSelectionBorder();
+    await fsp.writeFile('/private/tmp/puppyone-html-selection-dark.png', (await win.webContents.capturePage()).toPNG());
+    await preview().executeJavaScript("document.body.style.background=''");
     await fsp.writeFile('/private/tmp/puppyone-html-inline-text.png', (await win.webContents.capturePage()).toPNG());
     await win.webContents.debugger.sendCommand('Input.imeSetComposition', { text: 'nihao', selectionStart: 5, selectionEnd: 5, replacementStart: 0, replacementEnd: 6 });
     await wait(100);
@@ -139,6 +156,7 @@ app.whenReady().then(async () => {
     await control('[aria-label="Choose #3b82f6"]');
     await until(async () => (await disk()).includes('style="color: #3b82f6"'), "style persisted");
     assert.equal(await evaluate("document.activeElement?.classList.contains('html-editor-text-input')"), true, 'formatting keeps text focus');
+    await visibleSelectionBorder();
     await until(() => evaluate("getComputedStyle(document.querySelector('.html-editor-text-input')).color==='rgb(59, 130, 246)'"), "inline text mirrors formatting");
     await evaluate("document.querySelector('.html-editor-text-input').blur()");
     await until(() => preview().executeJavaScript("getComputedStyle(document.querySelector('#title')).color==='rgb(59, 130, 246)'"), "rendered text color");
@@ -202,7 +220,7 @@ app.whenReady().then(async () => {
     }, "reopened disk");
     console.log(JSON.stringify({ passed: true, electron: process.versions.electron, platform: process.platform,
       checks: ["safe bridge", "native IME and Unicode input", "lossless source", "stable iframe", "shared source and undo", "style and cascade",
-        "native image import and rendering", "image undo preserves asset", "scroll and zoom geometry", "bounded visual fallback", "disk-first external update", "close and reopen"] }));
+        "native image import and rendering", "image undo preserves asset", "scroll and zoom geometry", "visible block border on light and dark backgrounds while typing and formatting", "bounded visual fallback", "disk-first external update", "close and reopen"] }));
   } catch (error) {
     code = 1; console.error(error?.stack ?? error);
     if (win) {
