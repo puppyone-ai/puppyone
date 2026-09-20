@@ -6,6 +6,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Workspace } from "@puppyone/shared-ui";
 import type { RecentWorkspaceHomeItem } from "../../../../src/features/app-shell/workspaceHomeModel";
+import type { ProjectAppearance } from "../../../../src/types/electron";
 import {
   getProjectSwitcherInitial,
   mergeProjectSwitcherRailOrder,
@@ -19,6 +20,7 @@ import {
   useProjectEntryFlow,
 } from "../../../../src/features/app-shell/ProjectEntryFlow";
 import { ProjectEntryLauncherDialog } from "../../../../src/features/app-shell/ProjectEntryLauncherDialog";
+import { DesktopCloudShell } from "../../../../src/components/DesktopCloudShell";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
@@ -34,6 +36,80 @@ afterEach(() => {
 });
 
 describe("Project switcher rail", () => {
+  it.each([false, true])("retains shell controls and New Project during pending navigation (expanded=%s)", async (expanded) => {
+    const alpha = workspace("alpha", "Alpha", "/projects/alpha");
+    const beta = workspace("beta", "Beta", "/projects/beta");
+    const switching = deferred<void>();
+    const onCreateNew = vi.fn();
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    const renderShell = (activeWorkspace: Workspace) => withTestLocalization(
+      <DesktopCloudShell
+        leadingRailWidth={220}
+        leadingRailCollapsed={!expanded}
+        leadingRailCollapsedWidth={56}
+        renderLeadingRail={(presentation) => (
+          <ProjectSwitcherRail activeWorkspace={activeWorkspace} expanded={presentation.expanded}
+            recentWorkspaces={[{ workspace: alpha }, { workspace: beta }]}
+            onCreateNew={onCreateNew} onSelectProject={() => switching.promise} />
+        )}
+      >
+        <div>{activeWorkspace.name}</div>
+      </DesktopCloudShell>,
+    );
+    await act(async () => root?.render(renderShell(alpha)));
+    const rail = host.querySelector(".desktop-project-switcher-rail");
+    const brand = host.querySelector(".desktop-titlebar-brand-icon");
+    expect(rail).not.toBeNull();
+    expect(brand).not.toBeNull();
+    const create = host.querySelector<HTMLButtonElement>(".desktop-project-switcher-rail-create")!;
+    const rows = [...host.querySelectorAll<HTMLButtonElement>(".desktop-project-switcher-rail-project")];
+    await act(async () => rows[1]!.click());
+    expect(rows[1]!.getAttribute("aria-busy")).toBe("true");
+    expect(create.disabled).toBe(false);
+    await act(async () => create.click());
+    expect(onCreateNew).toHaveBeenCalledOnce();
+    await act(async () => root?.render(renderShell(beta)));
+    await act(async () => switching.resolve());
+    expect(host.querySelector(".desktop-project-switcher-rail")).toBe(rail);
+    expect(host.querySelector(".desktop-titlebar-brand-icon")).toBe(brand);
+    expect(host.querySelector(".desktop-project-switcher-rail-create")).toBe(create);
+    expect([...host.querySelectorAll(".desktop-project-switcher-rail-project")]).toEqual(rows);
+    expect(rows[1]!.getAttribute("aria-current")).toBe("page");
+    expect(rows[1]!.hasAttribute("aria-busy")).toBe(false);
+  });
+
+  it("does not reload appearance data when switching among the same project identities", async () => {
+    const alpha = workspace("alpha", "Alpha", "/projects/alpha");
+    const beta = workspace("beta", "Beta", "/projects/beta");
+    const list = vi.fn(async () => []);
+    let onChanged!: (appearance: ProjectAppearance) => void;
+    window.puppyoneDesktop = { projectAppearance: {
+      list,
+      onChanged: (listener: typeof onChanged) => { onChanged = listener; return () => undefined; },
+    } } as unknown as NonNullable<typeof window.puppyoneDesktop>;
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    const render = (activeWorkspace: Workspace, recentWorkspaces: RecentWorkspaceHomeItem[]) => withTestLocalization(
+      <ProjectSwitcherRail activeWorkspace={activeWorkspace} recentWorkspaces={recentWorkspaces}
+        onCreateNew={() => undefined} onSelectProject={() => undefined} />,
+    );
+    await act(async () => root?.render(render(alpha, [{ workspace: beta }])));
+    await act(async () => root?.render(render(beta, [{ workspace: { ...alpha } }, { workspace: { ...beta } }])));
+    expect(list).toHaveBeenCalledTimes(1);
+    await act(async () => onChanged({
+      projectIdentity: "alpha-instance",
+      icon: { kind: "emoji", value: "🌱", updatedAt: "2026-09-20T00:00:00.000Z" },
+    }));
+    expect(host.querySelector(".desktop-project-switcher-rail-identity-badge")?.textContent).toBe("🌱");
+    expect(list).toHaveBeenCalledTimes(1);
+    const gamma = workspace("gamma", "Gamma", "/projects/gamma");
+    await act(async () => root?.render(render(beta, [{ workspace: alpha }, { workspace: gamma }])));
+    expect(list).toHaveBeenCalledTimes(2);
+  });
+
   it("sizes the compact rail from a square control plus stable inline padding", () => {
     expect(resolveProjectSwitcherRailWidth()).toBe(56);
     expect(resolveProjectSwitcherRailWidth(true)).toBe(220);

@@ -130,6 +130,7 @@
     "check:test-layout": "node scripts/check-test-layout.mjs",
     "smoke:workbench-header-motion": "electron tests/integration/workbench/tabs/workbench-header-motion.smoke.mjs",
     "smoke:project-sessions": "electron tests/e2e/workspace/projects/project-sessions.smoke.mjs",
+    "smoke:project-sidebar-stability": "electron tests/e2e/workspace/projects/project-sidebar-stability.smoke.mjs",
     "test:typecheck": "tsc -p tests/config/tsconfig.json && tsc -p tests/config/tsconfig.tooling.json",
     "test:core:coverage": "vitest run --config tests/config/vitest.core-coverage.config.ts",
     "smoke:resource-transfer:acceptance": "npm run build:native-drag && electron tests/integration/platform/drag-drop/resource-transfer.smoke.mjs --automated && electron tests/integration/platform/drag-drop/resource-transfer.smoke.mjs --automated --editor",

@@ -8,6 +8,7 @@ for (const flag of flags) {
   if (!["--agent-draft", "--native"].includes(flag)) throw new Error(`Unknown e2e option: ${flag}`);
 }
 const scenarios = [
+  ["../../e2e/workspace/projects/project-sidebar-stability.smoke.mjs"],
   ["../../e2e/workspace/projects/project-sessions.smoke.mjs", "--agent-draft"],
   ["../../e2e/workbench/layout/sidebar-visibility.smoke.mjs", "--native"],
 ];

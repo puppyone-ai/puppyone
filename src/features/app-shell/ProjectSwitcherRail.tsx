@@ -224,7 +224,6 @@ export function ProjectSwitcherRail({
           className={`desktop-project-switcher-rail-button desktop-project-switcher-rail-create ${expanded ? "desktop-project-switcher-rail-expanded-create po-sidebar-row" : "desktop-project-switcher-rail-compact-create"}`}
           type="button"
           aria-label={t("shell.workspaceSwitcher.createNew")}
-          disabled={Boolean(pendingPath)}
           title={t("shell.workspaceSwitcher.createNew")}
           onClick={onCreateNew}
         >
