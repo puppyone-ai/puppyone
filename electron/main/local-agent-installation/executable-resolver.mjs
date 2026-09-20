@@ -241,7 +241,10 @@ function buildCandidates({ descriptors, configuredCandidates, searchContext }) {
   };
   const pushConfigured = (entry) => {
     const descriptor = descriptors.find(({ fileName }) => path.basename(entry.path) === fileName) ?? descriptors[0];
-    push(entry.path, descriptor, safeSource(entry.source));
+    // Fixed definition-owned arguments travel with the managed entrypoint to
+    // every consumer (activation, readiness, Chat and Terminal).
+    const invocation = entry.argsPrefix ? { ...descriptor, argsPrefix: [...normalizeArgs(entry.argsPrefix), ...descriptor.argsPrefix] } : descriptor;
+    push(entry.path, invocation, safeSource(entry.source));
   };
   explicit.forEach(pushConfigured);
   pushSearchDirectories(searchContext, descriptors, push, (source) => source === "path-installation");

@@ -109,7 +109,7 @@ export function TerminalLauncher({
   const availabilityMessage = scanning
     ? feedbackVisible ? discoveryRefreshing ? "terminal.launcher.refreshing" : "terminal.launcher.detecting" : null
     : discoveryFailed ? null
-      : discoveryEmpty ? "terminal.launcher.noneInstalled" : "terminal.launcher.detectionComplete";
+      : discoveryEmpty ? null : "terminal.launcher.detectionComplete";
   const agentRows = agentMode === "chat"
     ? chatRecipes.filter((recipe) => recipe.availability !== "bundled").map((recipe) => <DiscoveryAgentRow key={recipe.id} animate={feedbackVisible}>
         <ChatRecipeButton
@@ -197,7 +197,7 @@ export function TerminalLauncher({
               {agentRows}
             </div>
 
-            {(feedbackVisible || (!scanning && discoveryEmpty)) &&
+            {feedbackVisible &&
               <LauncherDiscoveryFeedback scanning={scanning} refreshing={discoveryRefreshing}
                 empty={discoveryEmpty} busy={busy} />}
 

@@ -1545,6 +1545,7 @@ declare global {
         act: (request: LocalAgentSetupAction) => Promise<LocalAgentSetupActionResult>;
         release: (clientId: string) => Promise<void>;
       };
+      localAgentActivation?: import("../../shared/local-agent-activation/types").LocalAgentActivationBridge;
       modelConnections?: {
         read: () => Promise<ModelConnectionResult<ModelConnectionSnapshot>>;
         discover: () => Promise<ModelConnectionResult<ModelConnectionCandidate[]>>;

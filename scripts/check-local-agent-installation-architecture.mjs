@@ -53,6 +53,19 @@ for (const file of walk(resolve("electron/main/local-agent-installation/setup"))
 }
 requireText(read("electron/main/local-agent-installation/setup/setup-service.mjs"), "openExternal(route.guideUrl)", "Setup actions must resolve official guides from the trusted registry");
 
+requireText(main, "composeLocalAgentActivation", "Main must compose application-owned activation tasks");
+requireText(preload, "localAgentActivation:", "Activation needs a separate ID-only control channel");
+for (const file of walk(resolve("electron/main/local-agent-activation"))) {
+  if (/agent\/runtimes|src\/features|electron["']/u.test(fs.readFileSync(file, "utf8"))) {
+    errors.push(`${relative(file)} must receive Runtime/platform ports from composition, not import their implementations`);
+  }
+}
+for (const file of walk(resolve("src/features/local-agents"))) {
+  if (/node:child_process|electron\/main|child_process|shell\.openExternal/u.test(fs.readFileSync(file, "utf8"))) {
+    errors.push(`${relative(file)} must not execute setup or cross the privileged activation boundary`);
+  }
+}
+
 const terminalLaunch = read("electron/main/terminal-agent/terminal-agent-launch-resolver.mjs");
 requireText(terminalLaunch, "createLocalAgentExecutableResolver", "Terminal launch must re-resolve through the shared installation engine");
 const executableDiscovery = read("electron/main/agent/transports/executable-discovery.mjs");

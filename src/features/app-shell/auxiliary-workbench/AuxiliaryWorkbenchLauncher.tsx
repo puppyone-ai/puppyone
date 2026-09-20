@@ -6,6 +6,7 @@ import type { ProjectWorkbenchStore } from "./ProjectWorkbenchStore";
 import { AGENT_CHAT_LOCAL_AGENT_IDS, filterAgentChatCreationRecipesByLocalAgentIds } from "./agentChatCreationRecipes";
 import type { LocalAgentSetupPreferences } from "../../../../shared/local-agent-installation/setup-types";
 import { LocalAgentSetupSection } from "../../local-agents/ui/LocalAgentSetupSection";
+import { useLocalAgentActivation } from "../../local-agents/activation/LocalAgentActivationStore";
 import { DESKTOP_TERMINAL_LAUNCHERS } from "../../desktop-terminal/model/terminalLaunchers";
 import { useLocalAgentInstallations } from "../../local-agents/controller/useLocalAgentInstallations";
 import { TerminalLauncher } from "../../desktop-terminal/ui/TerminalLauncher";
@@ -31,7 +32,9 @@ export function AuxiliaryWorkbenchLauncher({ store, contributions, hiddenAgentId
     if (current) store.updateSnapshot(itemId, { ...current, title, accessibleLabel: title, iconKey: historyOpen ? "history" : null });
   }, [store, itemId, title, historyOpen]);
   const discovery = useLocalAgentInstallations({ enabled: presented });
-  const availableAgentIds = discovery.ids.filter((id) => !hiddenAgentIds.includes(id));
+  const activation = useLocalAgentActivation();
+  const pendingActivationIds = new Set(activation.snapshot.operations.filter(entry => !["ready", "detected"].includes(entry.status)).map(entry => entry.setupId));
+  const availableAgentIds = discovery.ids.filter((id) => !hiddenAgentIds.includes(id) && !pendingActivationIds.has(id));
   const chat = contributions.find((entry) => entry.kind === "agent-chat");
   const terminal = contributions.find((entry) => entry.kind === "terminal");
   const history = useMemo(() => chat?.history ? {

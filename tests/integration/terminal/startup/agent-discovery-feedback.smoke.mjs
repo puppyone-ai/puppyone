@@ -179,7 +179,7 @@ async function run() {
     await settle();
     assert(await evaluate("document.querySelector('.desktop-terminal-launcher-tools').getAttribute('aria-busy') === 'true'"), "Manual refresh must still start a scan after failure");
     await setState({ ...scanning, phase: "ready", ids: [], completed: 8 });
-    assert(await evaluate("document.querySelector('.desktop-terminal-launcher-discovery').textContent === 'No Agent CLIs found'"), "Missing definitive empty state");
+    assert(await evaluate("!document.querySelector('.desktop-terminal-launcher-discovery') && !document.body.textContent.includes('No Agent CLIs found')"), "Empty installation inventory must not add negative launcher copy");
     await capture(label + "-empty");
     window.destroy();
   }

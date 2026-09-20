@@ -315,7 +315,8 @@ describe("Unified Workbench launcher", () => {
     act(() => root?.render(withTestLocalization(<TerminalLauncher {...props} discoveryPhase="ready" discoveryHasInstallations />)));
     expect(container.querySelector(".desktop-terminal-launcher-discovery")).toBeNull();
     act(() => root?.render(withTestLocalization(<TerminalLauncher {...props} discoveryPhase="ready" />)));
-    expect(container.querySelector(".desktop-terminal-launcher-discovery")?.textContent).toBe("No Agent CLIs found");
+    expect(container.querySelector(".desktop-terminal-launcher-discovery")).toBeNull();
+    expect(container.textContent).not.toContain("No Agent CLIs found");
     act(() => root?.render(withTestLocalization(<TerminalLauncher {...props} discoveryPhase="error" />)));
     expect(container.querySelector(".desktop-terminal-launcher-discovery")).toBeNull();
     expect(container.querySelector("[role=status]")?.textContent).toBe("");
@@ -350,8 +351,8 @@ describe("Unified Workbench launcher", () => {
       availableAgentIds={[]} discoveryHasFailures={failed} chatRecipes={[BUILT_IN_AGENT_CREATION_RECIPE]}
       agentSetup={() => <div data-setup>Local setup</div>} onCreateChat={vi.fn()} onLaunch={vi.fn()} onRefresh={vi.fn()} />);
     const bundled = findButton(container, "Built-in Agent")!;
-    expect(Boolean(container.querySelector(".desktop-terminal-launcher-discovery"))).toBe(!failed);
-    for (const selector of [...(failed ? [] : [".desktop-terminal-launcher-discovery"]), "[data-setup]"]) {
+    expect(container.querySelector(".desktop-terminal-launcher-discovery")).toBeNull();
+    for (const selector of ["[data-setup]"]) {
       expect(container.querySelector(selector)!.compareDocumentPosition(bundled)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     }
   });

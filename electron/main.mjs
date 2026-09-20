@@ -2,8 +2,10 @@ import { installBrokenStdioGuards } from "./main/stdio-guard.mjs";
 import { createCompanionPresenceService } from "./main/local-agent-installation/setup/companion-presence-service.mjs";
 import { createLocalAgentSetupService } from "./main/local-agent-installation/setup/setup-service.mjs";
 import { registerLocalAgentSetupIpcHandlers } from "./main/ipc/local-agent-setup-ipc.mjs";
+import { composeLocalAgentActivation } from "./main/compose-local-agent-activation.mjs";
+import { registerLocalAgentActivationIpcHandlers } from "./main/ipc/local-agent-activation-ipc.mjs";
 import { createDatabasePreviewService, registerDatabasePreviewIpc } from "./main/database-preview/service.mjs";
-import { app, BrowserWindow, dialog, ipcMain, Menu, MessageChannelMain, nativeImage, nativeTheme, powerMonitor, protocol, safeStorage, session as electronSession, shell, utilityProcess, webContents, WebContentsView } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, MessageChannelMain, nativeImage, nativeTheme, net, powerMonitor, protocol, safeStorage, session as electronSession, shell, utilityProcess, webContents, WebContentsView } from "electron";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import fs from "node:fs";
 import { createRequire } from "node:module";
@@ -384,7 +386,19 @@ const localAgentSetupService = createLocalAgentSetupService({
   installationService: localAgentInstallationService,
   presenceService: createCompanionPresenceService({ port: desktopPlatformHost.companionApps }),
   platform: desktopPlatformHost.executableDiscovery.nodePlatform,
-  openExternal: (url) => shell.openExternal(url),
+  openExternal: (url) => externalNavigation.open(url),
+});
+const localAgentActivationService = composeLocalAgentActivation({
+  app, discoveryPort: desktopPlatformHost.executableDiscovery,
+  installationService: localAgentInstallationService,
+  fetch: (url, options) => net.fetch(url, { ...options, bypassCustomProtocolHandlers: true }),
+  openExternal: (url) => externalNavigation.open(url),
+  publish: (snapshot) => {
+    for (const window of windowsById.values()) {
+      try { if (!window.isDestroyed()) window.webContents.send("local-agent-activation:changed", snapshot); }
+      catch { /* Closed windows do not own the background operation. */ }
+    }
+  },
 });
 const agentEventCache = createEphemeralAgentSessionCache({ app });
 const agentConversationCatalog = createAgentConversationCatalog({
@@ -945,6 +959,7 @@ app.on("will-quit", () => {
   void terminalAgentActivityHost.dispose();
   localAgentInstallationService.dispose();
   localAgentSetupService.dispose();
+  localAgentActivationService.dispose();
   void modelConnections.dispose();
   localAgentInventory.dispose();
   if (gitAutoCommitHost.available) {
@@ -1139,6 +1154,7 @@ function registerIpcHandlers() {
   });
   registerModelConnectionsIpcHandlers({ ipcMain: trustedIpcMain, connections: modelConnections });
   registerLocalAgentSetupIpcHandlers({ ipcMain: trustedIpcMain, setupService: localAgentSetupService });
+  registerLocalAgentActivationIpcHandlers({ ipcMain: trustedIpcMain, service: localAgentActivationService });
   registerAgentActivityIpcHandlers({
     ipcMain: trustedIpcMain,
     activityHost: terminalAgentActivityHost,
