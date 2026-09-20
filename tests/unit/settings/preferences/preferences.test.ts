@@ -200,6 +200,17 @@ describe("local Agent preferences", () => {
 });
 
 describe("experimental preferences", () => {
+  it.each([
+    "enableNotionImport",
+    "enableGoogleDriveImport",
+    "enableAirtableImport",
+    "enableObsidianImport",
+  ] as const)("keeps %s off unless the user explicitly opts in", (settingKey) => {
+    expect(parseExperimentalSettings(null)[settingKey]).toBe(false);
+    expect(parseExperimentalSettings(JSON.stringify({ [settingKey]: false }))[settingKey]).toBe(false);
+    expect(parseExperimentalSettings(JSON.stringify({ [settingKey]: true }))[settingKey]).toBe(true);
+  });
+
   it("keeps Built-in Agent hidden unless the user explicitly opts in", () => {
     expect(parseExperimentalSettings(null).enableBuiltInAgent).toBe(false);
     expect(parseExperimentalSettings("not-json").enableBuiltInAgent).toBe(false);

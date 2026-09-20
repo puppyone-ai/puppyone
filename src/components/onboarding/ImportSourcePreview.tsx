@@ -1,13 +1,17 @@
-import { ImportSourceMark } from "./ImportSourceMark";
+import { ImportSourceMark, type ImportSourceBrand } from "./ImportSourceMark";
 
-export const IMPORT_PREVIEW_BRANDS = ["github", "notion", "google-drive"] as const;
+export const DEFAULT_IMPORT_PREVIEW_BRANDS: readonly ImportSourceBrand[] = ["github", "gitlab"];
 
 /** Shared compact source preview for every Project Import entry point. */
-export function ImportSourcePreview() {
+export function ImportSourcePreview({
+  brands = DEFAULT_IMPORT_PREVIEW_BRANDS,
+}: {
+  brands?: readonly ImportSourceBrand[];
+}) {
   return (
     <span className="onboarding-entry-import-source-preview">
       <span className="onboarding-entry-import-brands">
-        {IMPORT_PREVIEW_BRANDS.map((brand) => (
+        {brands.map((brand) => (
           <span className="onboarding-entry-import-brand-badge" key={brand}>
             <ImportSourceMark brand={brand} />
           </span>

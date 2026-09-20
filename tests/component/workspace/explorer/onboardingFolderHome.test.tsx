@@ -13,6 +13,7 @@ import {
 import type { WorkspaceCreateProjectRequest, WorkspaceCreateProjectResult, DesktopTelemetryState } from "../../../../src/types/electron";
 import { renderWithTestLocalization } from "../../../support/react/localization";
 import { createTestSurfaceAppearance } from "../../../support/react/surfaceAppearance";
+import { DEFAULT_EXPERIMENTAL_SETTINGS } from "../../../../src/preferences";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -30,6 +31,13 @@ const agentReadyMessages = {
   "pt-BR": "Seus arquivos. Prontos para Agents.",
   "zh-Hans": "从你的文件开始。为 Agent 就绪。",
 } as const;
+const ALL_EXPERIMENTAL_IMPORTS = {
+  ...DEFAULT_EXPERIMENTAL_SETTINGS,
+  enableAirtableImport: true,
+  enableGoogleDriveImport: true,
+  enableNotionImport: true,
+  enableObsidianImport: true,
+};
 
 afterEach(() => {
   act(() => root?.unmount());
@@ -347,11 +355,11 @@ describe("project folder home", () => {
     expect(importGroup?.querySelectorAll("button, [tabindex]")).toHaveLength(0);
     expect(container.querySelectorAll(".onboarding-entry-actions button")).toHaveLength(2);
     const marks = [...importGroup!.querySelectorAll<HTMLImageElement>(".onboarding-import-mark")];
-    expect(marks.map((mark) => mark.dataset.importBrand)).toEqual(["github", "notion", "google-drive"]);
-    expect(marks.map((mark) => mark.alt)).toEqual(["GitHub", "Notion", "Google Drive"]);
+    expect(marks.map((mark) => mark.dataset.importBrand)).toEqual(["github", "gitlab"]);
+    expect(marks.map((mark) => mark.alt)).toEqual(["GitHub", "GitLab"]);
     const badges = [...importGroup!.querySelectorAll(".onboarding-entry-import-brand-badge")];
-    expect(badges).toHaveLength(3);
-    expect(badges.map((badge) => badge.querySelectorAll(".onboarding-import-mark").length)).toEqual([1, 1, 1]);
+    expect(badges).toHaveLength(2);
+    expect(badges.map((badge) => badge.querySelectorAll(".onboarding-import-mark").length)).toEqual([1, 1]);
     expect(importGroup?.querySelector(".onboarding-entry-import-more, .lucide-plus")).toBeNull();
     const preview = importGroup!.querySelector(".onboarding-entry-import-brands");
     const importLabel = importGroup!.querySelector(".onboarding-entry-import-label");
@@ -492,7 +500,7 @@ describe("project folder home", () => {
     expect(createButton?.disabled).toBe(true);
   });
 
-  it("frames Import as bringing work back from other apps, with Git as one source", async () => {
+  it("hides experimental sources by default", async () => {
     const onCloneRepository = vi.fn(async () => true);
     const onChooseWorkspace = vi.fn(async () => undefined);
     const container = renderHome({ onCloneRepository, onChooseWorkspace });
@@ -510,32 +518,20 @@ describe("project folder home", () => {
     expect(sources.map((source) => source.dataset.importSource)).toEqual([
       "github",
       "gitlab",
-      "notion",
-      "google-drive",
-      "obsidian",
-      "airtable",
     ]);
     expect(sources.map((source) => source.textContent)).toEqual([
       "GitHub",
       "GitLab",
-      "Notion",
-      "Google Drive",
-      "Obsidian",
-      "Airtable",
     ]);
     expect(sources.map((source) => source.dataset.importMode)).toEqual([
       "repository",
       "repository",
-      "guided",
-      "guided",
-      "guided",
-      "guided",
     ]);
     expect(container.querySelector(".onboarding-entry-dialog input")).toBeNull();
     expect(dialog?.querySelectorAll("p")).toHaveLength(1);
     expect(dialog?.querySelector(".desktop-dialog-leading, .onboarding-import-source-chevron, .onboarding-import-source-copy")).toBeNull();
     expect(dialog?.getAttribute("aria-describedby")).toBe(dialog?.querySelector(".onboarding-import-intro")?.id);
-    expect(dialog?.querySelectorAll(".onboarding-import-sources > li > button")).toHaveLength(6);
+    expect(dialog?.querySelectorAll(".onboarding-import-sources > li > button")).toHaveLength(2);
     expect(sources.every((source) => source.getAttribute("role") === null)).toBe(true);
     expect(sources.every((source) => source.children.length === 2)).toBe(true);
     expect(document.activeElement).toBe(sources[0]);
@@ -543,9 +539,7 @@ describe("project folder home", () => {
     expect(sources.slice(0, 2).map((source) => (
       source.querySelector<HTMLImageElement>(".onboarding-import-source-icon img")?.dataset.importBrand
     ))).toEqual(["github", "gitlab"]);
-    expect(sources.slice(2).map((source) => (
-      source.querySelector<HTMLImageElement>(".onboarding-import-source-icon img")?.dataset.importBrand
-    ))).toEqual(["notion", "google-drive", "obsidian", "airtable"]);
+    expect(sources.slice(2)).toHaveLength(0);
     expect(container.querySelector(".onboarding-import-source .lucide-folder-open")).toBeNull();
     expect(onChooseWorkspace).not.toHaveBeenCalled();
     expect(onCloneRepository).not.toHaveBeenCalled();
@@ -557,13 +551,13 @@ describe("project folder home", () => {
     ".onboarding-entry-import-label",
     ".onboarding-entry-import [data-import-brand='github']",
     ".onboarding-entry-import [data-import-brand='notion']",
-    ".onboarding-entry-import [data-import-brand='google-drive']",
   ])("opens the common source picker from the import entry (%s)", async (selector) => {
     const onDefaultProjectLocation = vi.fn(async () => null);
     const container = renderHome({
       onCloneRepository: vi.fn(async () => true),
       onChooseWorkspace: vi.fn(async () => undefined),
       onDefaultProjectLocation,
+      experimentalSettings: ALL_EXPERIMENTAL_IMPORTS,
     });
 
     await act(async () => {
@@ -599,7 +593,11 @@ describe("project folder home", () => {
   it("guides Google Drive downloads to a local folder without account connection", async () => {
     const onChooseWorkspace = vi.fn(async () => undefined);
     const onCloneRepository = vi.fn(async () => true);
-    const container = renderHome({ onChooseWorkspace, onCloneRepository });
+    const container = renderHome({
+      experimentalSettings: ALL_EXPERIMENTAL_IMPORTS,
+      onChooseWorkspace,
+      onCloneRepository,
+    });
     await act(async () => container.querySelector<HTMLButtonElement>(".onboarding-entry-import")?.click());
     await act(async () => container.querySelector<HTMLButtonElement>(".onboarding-import-source[data-import-source='google-drive']")?.click());
     expect(container.querySelector("[role='dialog']")?.getAttribute("aria-label")).toBe("Import from Google Drive");
@@ -615,7 +613,11 @@ describe("project folder home", () => {
 
   it("guides a Notion export into the regular folder picker", async () => {
     const onChooseWorkspace = vi.fn(async () => undefined);
-    const container = renderHome({ onCloneRepository: vi.fn(async () => true), onChooseWorkspace });
+    const container = renderHome({
+      experimentalSettings: ALL_EXPERIMENTAL_IMPORTS,
+      onCloneRepository: vi.fn(async () => true),
+      onChooseWorkspace,
+    });
 
     await act(async () => {
       container.querySelector<HTMLButtonElement>("[data-onboarding-action='clone']")?.click();

@@ -3,6 +3,7 @@ import { useLocalization } from "@puppyone/localization";
 import { Download, FilePlus2, FolderOpen } from "lucide-react";
 import { InlineLoading } from "../loading";
 import { ImportSourcePreview } from "./ImportSourcePreview";
+import type { ImportSourceBrand } from "./ImportSourceMark";
 
 type OnboardingEntryActionsProps = {
   includeCreateProject: boolean;
@@ -11,6 +12,7 @@ type OnboardingEntryActionsProps = {
   draggingFolder: boolean;
   canCreateProject: boolean;
   canCloneRepository: boolean;
+  importPreviewBrands: readonly ImportSourceBrand[];
   onOpenFolder: () => void;
   onCreateProject: () => void;
   /** Opens the source picker. */
@@ -30,6 +32,7 @@ export function OnboardingEntryActions({
   draggingFolder,
   canCreateProject,
   canCloneRepository,
+  importPreviewBrands,
   onOpenFolder,
   onCreateProject,
   onCloneRepository,
@@ -56,6 +59,7 @@ export function OnboardingEntryActions({
       <ImportAction
         busy={busy}
         canCloneRepository={canCloneRepository}
+        importPreviewBrands={importPreviewBrands}
         onCloneRepository={onCloneRepository}
       />
     </div>
@@ -114,8 +118,9 @@ function OpenFolderAction({
 function ImportAction({
   busy,
   canCloneRepository,
+  importPreviewBrands,
   onCloneRepository,
-}: Pick<OnboardingEntryActionsProps, "busy" | "canCloneRepository" | "onCloneRepository">) {
+}: Pick<OnboardingEntryActionsProps, "busy" | "canCloneRepository" | "importPreviewBrands" | "onCloneRepository">) {
   const { t } = useLocalization();
 
   return (
@@ -130,7 +135,7 @@ function ImportAction({
         onClick={onCloneRepository}
       >
         <span className="onboarding-entry-import-label">{t("onboarding.action.importFromApps")}</span>
-        <ImportSourcePreview />
+        <ImportSourcePreview brands={importPreviewBrands} />
       </Button>
     </div>
   );

@@ -1,7 +1,8 @@
 import { RENDERER_ASSET_PATHS, resolveRendererPublicAssetUrl } from "@puppyone/shared-ui";
+import type { ImportSourceBrand } from "../../features/project-import/importSourceRegistry";
 
 /** Apps a user can bring work in from. "git" is rendered as GitHub + GitLab. */
-export type ImportSourceBrand = "github" | "gitlab" | "notion" | "google-drive" | "obsidian" | "airtable";
+export type { ImportSourceBrand } from "../../features/project-import/importSourceRegistry";
 
 const BRAND_LABELS: Record<ImportSourceBrand, string> = {
   github: "GitHub",

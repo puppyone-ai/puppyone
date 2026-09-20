@@ -625,7 +625,7 @@ describe("Project switcher rail", () => {
     expect(Array.from(
       options[2]?.querySelectorAll<HTMLImageElement>(".onboarding-import-mark") ?? [],
       (mark) => mark.dataset.importBrand,
-    )).toEqual(["github", "notion", "google-drive"]);
+    )).toEqual(["github", "gitlab"]);
     await act(async () => options[0]?.click());
     await act(async () => options[1]?.click());
     await act(async () => options[2]?.click());
@@ -653,7 +653,7 @@ describe("Project switcher rail", () => {
 
     expect(host.querySelector(".desktop-project-entry-launcher")).toBeNull();
     expect(host.querySelector("[role='dialog']")?.getAttribute("aria-label")).toBe("Import");
-    expect(host.querySelectorAll(".onboarding-import-source")).toHaveLength(6);
+    expect(host.querySelectorAll(".onboarding-import-source")).toHaveLength(2);
     expect(onImportRepository).not.toHaveBeenCalled();
   });
 });

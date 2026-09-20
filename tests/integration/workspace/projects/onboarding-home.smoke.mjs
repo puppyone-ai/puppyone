@@ -66,6 +66,7 @@ async function runSmoke() {
           if (!window.webContents.debugger.isAttached()) window.webContents.debugger.attach("1.3");
           await window.webContents.debugger.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true });
           await until("!!document.querySelector('[data-onboarding-action=create]') && !document.querySelector('[data-onboarding-empty-state-intro]')");
+          await until("[...document.querySelectorAll('.onboarding-brand-lockup img, .onboarding-entry-import img')].every(image => image.complete && image.naturalWidth > 0)");
           const snapshot = await evaluate(`(() => {
             const rect = (element) => { if (!element) return null; const r = element.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; };
             const create = document.querySelector('[data-onboarding-action=create]');
@@ -153,7 +154,8 @@ async function runSmoke() {
                 }),
               outside: buttons.some(button => { const r = button.getBoundingClientRect(); return r.left < 0 || r.right > innerWidth || r.top < 38 || r.bottom > innerHeight; }),
               tagline: !!document.querySelector('.onboarding-brand-tagline'),
-              imagesLoaded: images.length === 4 && images.every(image => image.complete && image.naturalWidth > 0),
+              imagesLoaded: images.length === 1 + importMarks.length
+                && images.every(image => image.complete && image.naturalWidth > 0),
             };
           })()`);
           const context = `${state}/${locale}/${theme}/${width}x${height}`;
@@ -183,10 +185,10 @@ async function runSmoke() {
           assert.equal(snapshot.importLineHeight, snapshot.createLineHeight, `${context}: shared CTA line height`);
           assert.equal(snapshot.importFamily, snapshot.createFamily, `${context}: shared CTA font`);
           assert.equal(snapshot.importBackground, 'rgba(0, 0, 0, 0)', `${context}: transparent text action`);
-          assert.equal(snapshot.importArtworkCount, 4, `${context}: action icon and three source logos`);
+          assert.equal(snapshot.importArtworkCount, 3, `${context}: action icon and production source logos`);
           assert.equal(snapshot.importIcon.width, snapshot.actionIconWidth, `${context}: shared action icon size`);
-          assert.deepEqual(snapshot.importBrandIds, ['github', 'notion', 'google-drive'], `${context}: familiar import sources`);
-          assert.deepEqual(snapshot.importBrandLabels, ['GitHub', 'Notion', 'Google Drive'], `${context}: named logos for assistive technology`);
+          assert.deepEqual(snapshot.importBrandIds, ['github', 'gitlab'], `${context}: experimental import sources stay hidden by default`);
+          assert.deepEqual(snapshot.importBrandLabels, ['GitHub', 'GitLab'], `${context}: named logos for assistive technology`);
           assert.equal(snapshot.importBrands.x - snapshot.importLabel.x - snapshot.importLabel.width, 6, `${context}: source badges sit close to the import label`);
           assert.ok(Math.abs(snapshot.importBrands.y + snapshot.importBrands.height / 2 - snapshot.importLabel.y - snapshot.importLabel.height / 2) < 1, `${context}: vertically aligned label and logos`);
           if (width >= 563) assert.equal(snapshot.importLabel.height, 18, `${context}: single-line text at desktop widths`);
@@ -194,13 +196,13 @@ async function runSmoke() {
           assert.deepEqual([...new Set(snapshot.importBadgeRadii)], ['50%'], `${context}: every source uses the same circular badge`);
           assert.equal(new Set(snapshot.importBadgeBackgrounds).size, 1, `${context}: source badges share one background tone`);
           assert.ok(snapshot.importMarks.every(mark => mark.width === 14 && mark.height === 14), `${context}: readable logo size inside each badge`);
-          assert.deepEqual(snapshot.importMarkOpacities, ['1', '1', '1'], `${context}: source logos render at full clarity`);
+          assert.deepEqual(snapshot.importMarkOpacities, ['1', '1'], `${context}: source logos render at full clarity`);
           assert.deepEqual(
             snapshot.importMarkFilters,
-            theme === 'dark' ? ['invert(1)', 'invert(1)', 'none'] : ['none', 'none', 'none'],
-            `${context}: solid marks adapt to the theme while Drive keeps its brand colors`,
+            theme === 'dark' ? ['invert(1)', 'none'] : ['none', 'none'],
+            `${context}: the solid GitHub mark adapts to the theme while GitLab keeps its brand colors`,
           );
-          assert.deepEqual(snapshot.importBadgeStackOrder, ['3', '2', '1'], `${context}: leftmost source badge sits above the badges to its right`);
+          assert.deepEqual(snapshot.importBadgeStackOrder, ['3', '2'], `${context}: leftmost source badge sits above the badge to its right`);
           for (let i = 1; i < snapshot.importBadges.length; i++) {
             const previous = snapshot.importBadges[i - 1];
             assert.equal(snapshot.importBadges[i].x - previous.x - previous.width, -6, `${context}: circular source badges overlap`);
@@ -343,8 +345,8 @@ async function runSmoke() {
           await until("!!document.querySelector('.is-import-sources')");
           await evaluate("Promise.all(document.querySelector('.is-import-sources').getAnimations().map(animation => animation.finished))");
           await until("document.activeElement?.dataset.importSource === 'github'");
-          assert.equal(await evaluate("document.querySelectorAll('.onboarding-import-source').length"), 6, `${context}: all sources in dialog`);
-          await until("[...document.querySelectorAll('.onboarding-import-source img')].length === 6 && [...document.querySelectorAll('.onboarding-import-source img')].every(image => image.complete && image.naturalWidth > 0)");
+          assert.equal(await evaluate("document.querySelectorAll('.onboarding-import-source').length"), 2, `${context}: only production sources in dialog`);
+          await until("[...document.querySelectorAll('.onboarding-import-source img')].length === 2 && [...document.querySelectorAll('.onboarding-import-source img')].every(image => image.complete && image.naturalWidth > 0)");
           const picker = await evaluate(`(() => {
             const dialog = document.querySelector('.is-import-sources');
             const rows = [...dialog.querySelectorAll('.onboarding-import-source')];
@@ -380,9 +382,9 @@ async function runSmoke() {
           assert.equal(picker.intro, importIntros[locale], `${context}: one short description`);
           assert.equal(picker.paragraphs, 1, `${context}: no per-source descriptions`);
           assert.equal(picker.decoration, 0, `${context}: no header badge or row arrows`);
-          assert.equal(picker.listItems, 6, `${context}: native list and button semantics`);
-          assert.deepEqual(picker.rows.map(row => row.source), ['github', 'gitlab', 'notion', 'google-drive', 'obsidian', 'airtable'], `${context}: providers are separate and redundant folder entry is absent`);
-          assert.deepEqual(picker.rows.map(row => row.mode), ['repository', 'repository', 'guided', 'guided', 'guided', 'guided'], `${context}: source capability is explicit in the DOM contract`);
+          assert.equal(picker.listItems, 2, `${context}: native list and button semantics`);
+          assert.deepEqual(picker.rows.map(row => row.source), ['github', 'gitlab'], `${context}: experimental sources are hidden and providers remain separate`);
+          assert.deepEqual(picker.rows.map(row => row.mode), ['repository', 'repository'], `${context}: source capability is explicit in the DOM contract`);
           for (const row of picker.rows) {
             assert.equal(row.height, 36, `${context}: compact single-line source row`);
             assert.equal(row.border, '0px', `${context}: no card border`);

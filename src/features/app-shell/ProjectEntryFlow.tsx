@@ -8,6 +8,14 @@ import type {
   WorkspaceProjectLocationGrant,
 } from "../../types/electron";
 import { ProjectEntryLauncherDialog } from "./ProjectEntryLauncherDialog";
+import {
+  DEFAULT_EXPERIMENTAL_SETTINGS,
+  type ExperimentalSettings,
+} from "../../preferences";
+import {
+  resolveImportPreviewBrands,
+  resolveVisibleImportSources,
+} from "../project-import/importSourceRegistry";
 
 export type ProjectEntryFlowStep = "launcher" | "create" | "import" | null;
 
@@ -49,6 +57,7 @@ export type ProjectEntryFlowProps = Readonly<{
     request: WorkspaceCreateProjectRequest,
   ) => Promise<WorkspaceCreateProjectResult>;
   onImportRepository?: (request: WorkspaceCloneRepositoryRequest) => Promise<boolean>;
+  experimentalSettings?: ExperimentalSettings;
 }>;
 
 export function ProjectEntryFlow({
@@ -58,12 +67,17 @@ export function ProjectEntryFlow({
   onChooseLocation,
   onCreateProject,
   onImportRepository,
+  experimentalSettings = DEFAULT_EXPERIMENTAL_SETTINGS,
 }: ProjectEntryFlowProps) {
+  const visibleImportSources = resolveVisibleImportSources(experimentalSettings);
+  const importPreviewBrands = resolveImportPreviewBrands(experimentalSettings);
+
   if (controller.step === "launcher") {
     return (
       <ProjectEntryLauncherDialog
         canCreateProject={Boolean(onCreateProject && onChooseLocation)}
         canImport={Boolean(onImportRepository)}
+        importPreviewBrands={importPreviewBrands}
         onClose={controller.close}
         onOpenFolder={() => {
           controller.close();
@@ -94,6 +108,7 @@ export function ProjectEntryFlow({
         onChooseLocation={onChooseLocation}
         onImportRepository={onImportRepository}
         onOpenFolder={onOpenFolder}
+        visibleSources={visibleImportSources}
       />
     );
   }

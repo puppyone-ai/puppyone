@@ -81,6 +81,7 @@ export type LocalAgentsSettings = {
   setupSuggestions?: import("../shared/local-agent-installation/setup-types").LocalAgentSetupPreferences;
 };
 export type ExperimentalSettings = {
+  enableAirtableImport: boolean;
   enableAssetLibraryHome: boolean;
   enableBuiltInAgent: boolean;
   enableCloudAutomation: boolean;
@@ -89,9 +90,12 @@ export type ExperimentalSettings = {
   /** Legacy preference retained for decoding only; project creation owns templates. */
   enableFirstProjectStarter: boolean;
   enableGitAutoCommit: boolean;
+  enableGoogleDriveImport: boolean;
   enableMarkdownBlockDrag: boolean;
   enableMarkdownHeadingOutline: boolean;
   enableMultiRootWorkspaces: boolean;
+  enableNotionImport: boolean;
+  enableObsidianImport: boolean;
   enablePuppyFlowFiles: boolean;
   enableProjectSwitcherRail: boolean;
   enableViewerPlugins: boolean;
@@ -167,6 +171,7 @@ export const DEFAULT_LOCAL_AGENTS_SETTINGS: LocalAgentsSettings = {
 export const DEFAULT_AGENT_FILE_ACTIVITY_INDICATORS_ENABLED = false;
 export const DEFAULT_AI_EDIT_ASSIST_ENABLED = false;
 export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
+  enableAirtableImport: false,
   enableAssetLibraryHome: false,
   enableBuiltInAgent: false,
   enableCloudAutomation: false,
@@ -174,9 +179,12 @@ export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
   enableEditorSaveStatus: false,
   enableFirstProjectStarter: false,
   enableGitAutoCommit: false,
+  enableGoogleDriveImport: false,
   enableMarkdownBlockDrag: false,
   enableMarkdownHeadingOutline: false,
   enableMultiRootWorkspaces: false,
+  enableNotionImport: false,
+  enableObsidianImport: false,
   enablePuppyFlowFiles: false,
   enableProjectSwitcherRail: false,
   enableViewerPlugins: false,
@@ -413,6 +421,7 @@ export function parseExperimentalSettings(value: string | null | undefined): Exp
     if (!parsed || typeof parsed !== "object") return DEFAULT_EXPERIMENTAL_SETTINGS;
 
     return {
+      enableAirtableImport: parsed.enableAirtableImport === true,
       enableAssetLibraryHome: parsed.enableAssetLibraryHome === true,
       enableBuiltInAgent: parsed.enableBuiltInAgent === true,
       enableCloudAutomation: parsed.enableCloudAutomation === true,
@@ -422,9 +431,12 @@ export function parseExperimentalSettings(value: string | null | undefined): Exp
       // Main-owned Git Auto Commit consent is intentionally never restored
       // from renderer localStorage. The Electron capability bridge hydrates it.
       enableGitAutoCommit: false,
+      enableGoogleDriveImport: parsed.enableGoogleDriveImport === true,
       enableMarkdownBlockDrag: parsed.enableMarkdownBlockDrag === true,
       enableMarkdownHeadingOutline: parsed.enableMarkdownHeadingOutline === true,
       enableMultiRootWorkspaces: parsed.enableMultiRootWorkspaces === true,
+      enableNotionImport: parsed.enableNotionImport === true,
+      enableObsidianImport: parsed.enableObsidianImport === true,
       enablePuppyFlowFiles: parsed.enablePuppyFlowFiles === true,
       enableProjectSwitcherRail: parsed.enableProjectSwitcherRail === true,
       enableViewerPlugins: parsed.enableViewerPlugins === true,

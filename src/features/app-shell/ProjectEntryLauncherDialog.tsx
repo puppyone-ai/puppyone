@@ -6,11 +6,16 @@ import {
   DesktopDialogRoot,
   DesktopDialogSurface,
 } from "../../components/DesktopDialog";
-import { ImportSourcePreview } from "../../components/onboarding/ImportSourcePreview";
+import {
+  DEFAULT_IMPORT_PREVIEW_BRANDS,
+  ImportSourcePreview,
+} from "../../components/onboarding/ImportSourcePreview";
+import type { ImportSourceBrand } from "../../components/onboarding/ImportSourceMark";
 
 export type ProjectEntryLauncherDialogProps = Readonly<{
   canImport: boolean;
   canCreateProject: boolean;
+  importPreviewBrands?: readonly ImportSourceBrand[];
   onImport: () => void;
   onClose: () => void;
   onCreateProject: () => void;
@@ -25,6 +30,7 @@ export type ProjectEntryLauncherDialogProps = Readonly<{
 export function ProjectEntryLauncherDialog({
   canImport,
   canCreateProject,
+  importPreviewBrands = DEFAULT_IMPORT_PREVIEW_BRANDS,
   onImport,
   onClose,
   onCreateProject,
@@ -75,7 +81,7 @@ export function ProjectEntryLauncherDialog({
             <ProjectEntryOption
               icon={<Download />}
               label={t("onboarding.action.cloneRepository")}
-              accessory={<ImportSourcePreview />}
+              accessory={<ImportSourcePreview brands={importPreviewBrands} />}
               disabled={!canImport}
               onClick={onImport}
             />

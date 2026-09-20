@@ -1296,6 +1296,7 @@ function AppContent() {
         recentWorkspaces={recentWorkspaceItems}
         initialError={restoreWorkspaceError}
         appearance={surfaceAppearance}
+        experimentalSettings={experimentalSettings}
       />,
     );
   }
@@ -1660,6 +1661,7 @@ function AppContent() {
             onCreateProject={createProject}
             onImportRepository={cloneRepository}
             onOpenFolder={() => void openFolder()}
+            experimentalSettings={experimentalSettings}
           />
           {gitOperationError && !pendingBranchSwitch && (
             <GitOperationErrorDialog

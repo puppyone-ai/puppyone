@@ -17,6 +17,34 @@ afterEach(() => {
 });
 
 describe("Experimental settings", () => {
+  it.each([
+    ["Notion import", "enableNotionImport"],
+    ["Google Drive import", "enableGoogleDriveImport"],
+    ["Airtable import", "enableAirtableImport"],
+    ["Obsidian import", "enableObsidianImport"],
+  ] as const)("offers an off-by-default %s source", (label, settingKey) => {
+    const onChange = vi.fn();
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+
+    act(() => root?.render(withTestLocalization(
+      <ExperimentalSettingsView
+        settings={DEFAULT_EXPERIMENTAL_SETTINGS}
+        assetLibraryHomeAvailable={false}
+        onChange={onChange}
+      />,
+    )));
+
+    const toggle = host.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`);
+    expect(toggle?.checked).toBe(false);
+    act(() => toggle?.click());
+    expect(onChange).toHaveBeenCalledWith({
+      ...DEFAULT_EXPERIMENTAL_SETTINGS,
+      [settingKey]: true,
+    });
+  });
+
   it("offers an off-by-default Built-in Agent opt-in", () => {
     const onChange = vi.fn();
     const host = document.createElement("div");

@@ -43,11 +43,26 @@ describe("project initialization ownership", () => {
   it("shares one Import source preview between home and Project setup", () => {
     const homeActions = source("src/components/onboarding/OnboardingEntryActions.tsx");
     const launcher = source("src/features/app-shell/ProjectEntryLauncherDialog.tsx");
+    const flow = source("src/features/app-shell/ProjectEntryFlow.tsx");
+    const importDialog = source("src/components/OnboardingImportDialog.tsx");
+    const importRegistry = source("src/features/project-import/importSourceRegistry.ts");
+    const experimentalSettings = source("src/features/settings/main/ExperimentalSettingsView.tsx");
     const launcherStyles = source("src/features/app-shell/project-switcher-rail.css");
     const onboardingStyles = source("src/styles/onboarding.css");
 
     expect(homeActions).toContain("<ImportSourcePreview");
     expect(launcher).toContain("<ImportSourcePreview");
+    expect(flow).toContain("resolveVisibleImportSources");
+    expect(flow).toContain("resolveImportPreviewBrands");
+    expect(importDialog).toContain("visibleSources.map");
+    expect(importRegistry).toContain('settingKey: "enableNotionImport"');
+    expect(importRegistry).toContain('settingKey: "enableGoogleDriveImport"');
+    expect(importRegistry).toContain('settingKey: "enableAirtableImport"');
+    expect(importRegistry).toContain('settingKey: "enableObsidianImport"');
+    expect(experimentalSettings).toContain('settingKey: "enableNotionImport"');
+    expect(experimentalSettings).toContain('settingKey: "enableGoogleDriveImport"');
+    expect(experimentalSettings).toContain('settingKey: "enableAirtableImport"');
+    expect(experimentalSettings).toContain('settingKey: "enableObsidianImport"');
     expect(launcherStyles).toMatch(
       /\.desktop-project-entry-launcher \.desktop-dialog-title-row\s*\{[^}]*align-items:\s*center;/s,
     );

@@ -19,6 +19,11 @@ import {
   type RecentWorkspaceHomeItem,
 } from "../features/app-shell/workspaceHomeModel";
 import { writeClipboardText } from "../features/settings/utils";
+import {
+  DEFAULT_EXPERIMENTAL_SETTINGS,
+  type ExperimentalSettings,
+} from "../preferences";
+import { resolveImportPreviewBrands } from "../features/project-import/importSourceRegistry";
 import type {
   WorkspaceCloneRepositoryRequest,
   WorkspaceCreateProjectRequest,
@@ -58,6 +63,7 @@ export type MinimalOnboardingProps = {
   operationStatus?: OnboardingOperationStatus | null;
   initialError?: string | null;
   appearance: ResolvedSurfaceAppearance;
+  experimentalSettings?: ExperimentalSettings;
 };
 
 /** Local repository entrypoint. Cloud is entered from an open repository only. */
@@ -74,6 +80,7 @@ export function MinimalOnboarding({
   projectItems,
   initialError = null,
   appearance,
+  experimentalSettings = DEFAULT_EXPERIMENTAL_SETTINGS,
 }: MinimalOnboardingProps) {
   const { t } = useLocalization();
   const [error, setError] = useState<string | null>(initialError);
@@ -81,6 +88,7 @@ export function MinimalOnboarding({
   const [removingPath, setRemovingPath] = useState<string | null>(null);
   const [draggingPath, setDraggingPath] = useState<string | null>(null);
   const projectEntryFlow = useProjectEntryFlow();
+  const importPreviewBrands = resolveImportPreviewBrands(experimentalSettings);
   const items = useMemo(
     () => (projectItems ?? recentWorkspaces.map(({ workspace, lastOpenedAt }) => ({
       id: workspace.id,
@@ -254,6 +262,7 @@ export function MinimalOnboarding({
             draggingFolder={folderDrop.dragging}
             canCreateProject={Boolean(onCreateProject && onChooseProjectLocation)}
             canCloneRepository={Boolean(onCloneRepository)}
+            importPreviewBrands={importPreviewBrands}
             onOpenFolder={() => void chooseFolder()}
             onCreateProject={projectEntryFlow.openCreate}
             onCloneRepository={projectEntryFlow.openImport}
@@ -272,6 +281,7 @@ export function MinimalOnboarding({
         onCreateProject={onCreateProject}
         onImportRepository={onCloneRepository}
         onOpenFolder={() => void chooseFolder()}
+        experimentalSettings={experimentalSettings}
       />
       {showEmptyStateIntro && (
         <OnboardingEmptyStateIntro onComplete={completeEmptyStateIntro} />
