@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { useLocalization } from "@puppyone/localization/react";
-import { Pencil } from "lucide-react";
 import type { CodeMirrorDocumentModel } from "../../document-session/CodeMirrorDocumentModel";
 import { useDocumentAssetImport } from "../../resource/DocumentAssetImport";
 import { useEditorPreviewServices } from "../../preview-services/EditorPreviewServices";
@@ -16,6 +15,7 @@ import { HtmlTextInput } from "./HtmlTextInput";
 import type { HtmlEditOperation } from "./htmlEditCompiler";
 import { imageSourceReference } from "./htmlImageReference";
 import { useHtmlEditPresence } from "./useHtmlEditPresence";
+import { HtmlEditHandle, type HtmlHandleBounds } from "./HtmlEditHandle";
 
 export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, registerPrepare, onUnavailable }: {
   model: CodeMirrorDocumentModel; path: string; title: string; fileUrl?: string | null; canEdit: boolean;
@@ -38,6 +38,7 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, regist
   const frame = useRef<HTMLIFrameElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
   const pencil = useRef<HTMLButtonElement>(null);
+  const handleBounds = useRef<HtmlHandleBounds | null>(null);
   const focusPencil = useRef(false);
   const active = useRef<string | null>(null);
   const composing = useRef(false);
@@ -126,7 +127,7 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, regist
     setTextInput(null); setSelection(null); selected.current = null; setActive(null); focusPencil.current = false;
     port.current?.postMessage({ type: "clear" });
   }, [t, setActive]);
-  const presence = useHtmlEditPresence({ viewport, selection: selected, leave: dismiss,
+  const presence = useHtmlEditPresence({ viewport, selection: selected, handleBounds, leave: dismiss,
     busy: () => composing.current || nativeControl.current || !!pendingImport.current || !!pendingStyle.current });
   const leaveRegion = presence.away;
   useEffect(() => {
@@ -287,14 +288,10 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, regist
           title={title} sandbox="allow-scripts" referrerPolicy="no-referrer" src={projection.url}
           srcDoc={projection.url ? undefined : projection.source} onLoad={connect} aria-busy={!ready} />}
         {rect && <div className="html-editor-selection" data-editing={!!editing} style={overlayStyle} />}
-        {selection && !editing && ready && canEdit && <button ref={pencil} type="button" className="html-editor-pencil" data-html-control
-          title={t("editor.html.editBlock")} aria-label={t("editor.html.editBlock")}
-          style={{ left: Math.max(4, Math.min(selection.rect.x + selection.rect.width - selection.clip.right - 30, (viewport.current?.clientWidth ?? 0) - 32)),
-            top: Math.max(4, selection.rect.y + selection.clip.top + 4),
-            visibility: selection.clip.top + selection.clip.bottom >= selection.rect.height || selection.clip.left + selection.clip.right >= selection.rect.width ? "hidden" : undefined }}
-          onFocus={presence.keep} onClick={() => {
+        {selection && !editing && ready && canEdit && <HtmlEditHandle selection={selection} viewport={viewport}
+          handle={pencil} bounds={handleBounds} keep={presence.keep} activate={() => {
             presence.keep(); setActive(selection.id); port.current?.postMessage({ type: "active", id: selection.id }); startText(selection);
-          }}><Pencil size={14} /></button>}
+          }} />}
         {textInput && selection?.id === textInput.id && <HtmlTextInput key={textInput.gesture} initial={textInput.initial}
           style={textStyle} registerPrepare={registerTextPrepare} finish={() => setTextInput(null)} onCompositionChange={setComposing}
           apply={(value) => apply({ kind: "text", value }, textInput.gesture)} />}

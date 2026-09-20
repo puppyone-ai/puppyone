@@ -12,10 +12,14 @@
 /* Draw inside the target: its clipping mask would erase an outside outline. Keep it above typing. */
 .html-editor-selection { position: absolute; pointer-events: none; box-sizing: border-box; z-index: 3;
   border: 2px solid var(--html-editor-accent); box-shadow: inset 0 0 0 1px #fff; }
-.html-editor-selection[data-editing="false"] { border-width: 1px; border-color: color-mix(in srgb, var(--html-editor-accent) 55%, transparent); box-shadow: none; }
-.html-editor-pencil { position: absolute; z-index: 4; display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 1px solid var(--po-divider, #e1e3e6); border-radius: 8px;
-  color: var(--html-editor-accent); background: var(--po-panel, #fff); box-shadow: 0 2px 8px #00000012; cursor: pointer; }
-.html-editor-pencil:hover { background: color-mix(in srgb, var(--html-editor-accent) 8%, var(--po-panel, #fff)); }
+.html-editor-selection[data-editing="false"] { box-shadow: none; }
+.html-editor-pencil { position: absolute; z-index: 4; display: grid; place-items: center; padding: 0; border: 0; border-radius: 4px;
+  color: var(--po-text-muted, #68645c); background: transparent; box-shadow: none; cursor: pointer; }
+.html-editor-pencil:hover { color: var(--po-text, #292723); background: transparent; }
+.html-editor-pencil > svg { pointer-events: none; }
+/* Bridge the small gap without adding a visible plate or a second control. */
+.html-editor-pencil[data-placement="above"]::before { content: ""; position: absolute; inset: 100% 0 auto; height: 8px; }
+.html-editor-pencil[data-placement="right"]::before { content: ""; position: absolute; inset: 0 auto 0 -8px; width: 8px; }
 .html-editor-pencil:focus-visible { outline: 2px solid var(--html-editor-accent); outline-offset: 2px; }
 .html-editor-text-input { position: absolute; z-index: 2; box-sizing: border-box; resize: none; margin: 0; padding: 0; border: 0;
   border-radius: 0; outline: none; background: transparent; overflow: auto; white-space: pre-wrap; }

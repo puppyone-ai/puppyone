@@ -54,9 +54,8 @@ async function visibleSelectionBorder() {
 async function history(direction) {
   await until(() => evaluate("document.querySelector('.html-visual-editor iframe')?.getAttribute('aria-busy')==='false'"), "ready for history");
   await evaluate("document.querySelector('iframe').focus()");
-  const modifiers = [process.platform === 'darwin' ? 'meta' : 'control', ...(direction === 'redo' ? ['shift'] : [])];
-  win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Z', modifiers });
-  win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Z', modifiers });
+  const modifiers = (process.platform === 'darwin' ? 4 : 2) | (direction === 'redo' ? 8 : 0);
+  for (const type of ['keyDown', 'keyUp']) await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent', { type, key: 'z', code: 'KeyZ', windowsVirtualKeyCode: 90, modifiers });
 }
 const preview = () => win.webContents.mainFrame.frames.find(frame => frame.url === "about:srcdoc" || frame.url.includes("/document-projection/"));
 async function clickElement(selector, hover = false) {
@@ -118,7 +117,7 @@ app.whenReady().then(async () => {
       optimizeDeps: { entries: ["tests/fixtures/editor/formats/html-visual-editor.html"], include: ["jszip", "xlsx"] },
       server: { host: "127.0.0.1", port: 5298, strictPort: false, hmr: false, watch: null } });
     await vite.listen();
-    win = new BrowserWindow({ show: true, width: 1100, height: 780, webPreferences: {
+    win = new BrowserWindow({ show: false, width: 1100, height: 780, webPreferences: {
       backgroundThrottling: false, sandbox: true, contextIsolation: true,
       preload: path.join(repoRoot, "tests/fixtures/editor/formats/html-visual-editor-preload.cjs"),
     } });
@@ -135,7 +134,7 @@ app.whenReady().then(async () => {
     assert.equal(await evaluate("document.querySelector('iframe').getAttribute('sandbox')"), "allow-scripts");
     const frameId = preview().routingId;
     win.webContents.debugger.attach("1.3");
-    win.focus(); win.webContents.focus(); await wait(200);
+    await win.webContents.debugger.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true });
     await clickElement("#title", true);
     await until(() => evaluate("!!document.querySelector('.html-editor-pencil')"), 'hover pencil');
     await wait(450);
@@ -143,7 +142,14 @@ app.whenReady().then(async () => {
     await clickElement("#title");
     assert.equal(await evaluate("!!document.querySelector('.html-editor-text-input')"), false, 'page click does not start editing');
     assert.equal(await disk(), original);
-    await fsp.writeFile('/private/tmp/puppyone-html-pencil-hover.png', (await win.webContents.capturePage()).toPNG());
+    assert.deepEqual(await evaluate("(()=>{const b=document.querySelector('.html-editor-pencil'),s=getComputedStyle(b);return {count:document.querySelectorAll('.html-editor-pencil').length,icons:b.querySelectorAll('svg').length,background:s.backgroundColor,shadow:s.boxShadow,border:s.borderTopWidth,stroke:getComputedStyle(document.querySelector('.html-editor-selection')).borderTopWidth}})()"),
+      {count:1,icons:1,background:'rgba(0, 0, 0, 0)',shadow:'none',border:'0px',stroke:'2px'}, 'single unplated handle and clear block stroke');
+    const handleGeometry = () => evaluate("(()=>{const b=document.querySelector('.html-editor-pencil'),s=document.querySelector('.html-editor-selection');return {handle:b.getBoundingClientRect().toJSON(),selection:s.getBoundingClientRect().toJSON(),placement:b.dataset.placement}})()");
+    const initialHandle = await handleGeometry();
+    assert.equal(initialHandle.placement, 'right', 'use outside right before docking inside at top of pane');
+    assert.ok(initialHandle.handle.left >= initialHandle.selection.right);
+    await visibleSelectionBorder();
+    await fsp.writeFile('/private/tmp/puppyone-html-handle-outside-right.png', (await win.webContents.capturePage()).toPNG());
     await control('.html-editor-pencil');
     await until(() => evaluate("!!document.querySelector('.html-floating-toolbar')"), "element selection");
     await until(() => evaluate("!!document.querySelector('.html-editor-text-input')"), "text input");
@@ -169,8 +175,7 @@ app.whenReady().then(async () => {
     await until(() => evaluate("!document.querySelector('.html-editor-selection,.html-floating-toolbar,.html-editor-text-input')"), 'commit and dismiss after leaving');
     assert.equal(preview().routingId, frameId, "typing must not reload the iframe");
     assert.ok((await disk()).startsWith('<!DOCTYPE html>\r\n<!-- keep exactly -->\r\n'));
-    win.webContents.sendInputEvent({ type: "keyDown", keyCode: "Enter", modifiers: ["meta"] });
-    win.webContents.sendInputEvent({ type: "keyUp", keyCode: "Enter", modifiers: ["meta"] });
+    for (const type of ["keyDown", "keyUp"]) await win.webContents.debugger.sendCommand("Input.dispatchKeyEvent", { type, key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 4 });
     await button("Show code");
     await until(() => evaluate("window.htmlFixture.source()?.includes('你好')"), "shared source model");
     await button("Show page");
@@ -220,7 +225,31 @@ app.whenReady().then(async () => {
     await history("redo");
     await until(async () => (await disk()).includes(imported), 'image redo');
     await until(() => evaluate("document.querySelector('iframe')?.getAttribute('aria-busy')==='false'"), 'image redo projection');
-    await editElement('#card');
+    await clickElement('#card', true);
+    await until(() => evaluate("document.querySelector('.html-editor-pencil')?.dataset.placement==='above'"), 'outside top handle');
+    const above = await handleGeometry();
+    assert.ok(above.handle.bottom < above.selection.top, 'handle is completely outside the block');
+    const start = {x:above.selection.left+above.selection.width*.25,y:above.selection.top+above.selection.height*.5};
+    const end = {x:above.handle.x+above.handle.width/2,y:above.handle.y+above.handle.height/2};
+    for (let step=0; step<=20; step++) {
+      await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', {type:'mouseMoved',x:start.x+(end.x-start.x)*step/20,y:start.y+(end.y-start.y)*step/20});
+      await wait(40);
+    }
+    await wait(400);
+    assert.equal((await handleGeometry()).selection.y, above.selection.y, 'slow diagonal approach keeps the original block');
+    assert.equal(await disk(), beforeLocked.replace('src="old.png"', `src="${imported}"`), 'hover and docking never write the source');
+    await fsp.writeFile('/private/tmp/puppyone-html-handle-outside-above.png', (await win.webContents.capturePage()).toPNG());
+    // Exercise a flush viewport edge without changing the document model or fixture file.
+    await preview().executeJavaScript("document.querySelector('#card').style.cssText='position:fixed;top:0;left:0;right:0;height:120px;margin:0;padding:24px;background:#f7f8fa'");
+    await until(() => evaluate("document.querySelector('.html-editor-pencil')?.dataset.placement==='inside'"), 'inside fallback only when both outside edges are unavailable');
+    const inside = await handleGeometry();
+    assert.ok(inside.handle.left >= inside.selection.left && inside.handle.right <= inside.selection.right && inside.handle.top >= inside.selection.top, 'fallback stays in its block');
+    await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+    assert.ok(await evaluate("(()=>{const b=document.querySelector('.html-editor-pencil'),r=b.getBoundingClientRect();return document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('.html-editor-pencil')===b})()"), 'inside handle remains reachable beside the standalone source menu');
+    await fsp.writeFile('/private/tmp/puppyone-html-handle-inside-fallback.png', (await win.webContents.capturePage()).toPNG());
+    await preview().executeJavaScript("document.querySelector('#card').style.cssText='margin-top:24px;padding:24px;height:160px;box-sizing:border-box;border-radius:18px;background:#f7f8fa'");
+    await until(() => evaluate("document.querySelector('.html-editor-pencil')?.dataset.placement==='above'"), 'return outside when room becomes available');
+    await control('.html-editor-pencil');
     assert.equal(await evaluate("!!document.querySelector('.html-editor-text-input')"), false, 'container editing keeps its child structure');
     assert.equal(await evaluate("getComputedStyle(document.querySelector('.html-editor-selection')).borderRadius"), '18px', 'border follows card corners');
     await clickElement('#card-title');
@@ -229,7 +258,6 @@ app.whenReady().then(async () => {
     await moveAway();
     await until(() => evaluate("!document.querySelector('.html-floating-toolbar,.html-editor-selection,.html-editor-text-input')"), 'leave normal input');
     await until(async () => (await disk()).includes('>Card edited</h2><p style="margin:0">Card detail</p>'), 'leaving persists only the edited child');
-    win.focus(); win.webContents.focus();
     await preview().executeJavaScript("document.querySelector('#card-title').focus()");
     await until(() => evaluate("document.activeElement?.tagName==='IFRAME'"), 'keyboard focus enters preview');
     await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r' });
@@ -277,7 +305,7 @@ app.whenReady().then(async () => {
       return projectionSources.get(url)?.includes("Agent version");
     }, "reopened disk");
     console.log(JSON.stringify({ passed: true, electron: process.versions.electron, platform: process.platform,
-      checks: ["hover and click are read-only until pencil activation", "theme inheritance", "nested block editing preserves siblings", "keyboard pencil activation", "leave commits and dismisses; IME is protected", "separate circular palette above with stable toolbar", "safe bridge", "native IME and Unicode input", "lossless source", "stable iframe", "shared source and undo", "style and cascade",
+      checks: ["single transparent outside handle, right-edge and inside fallback", "slow diagonal handle approach without target jumps", "2px hover border", "hover and click are read-only until pencil activation", "theme inheritance", "nested block editing preserves siblings", "keyboard pencil activation", "leave commits and dismisses; IME is protected", "separate circular palette above with stable toolbar", "safe bridge", "native IME and Unicode input", "lossless source", "stable iframe", "shared source and undo", "style and cascade",
         "native image import and rendering", "image undo preserves asset", "scroll and zoom geometry", "visible block border on light and dark backgrounds while typing and formatting", "bounded visual fallback", "disk-first external update", "close and reopen"] }));
   } catch (error) {
     code = 1; console.error(error?.stack ?? error);
