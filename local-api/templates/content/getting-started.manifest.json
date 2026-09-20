@@ -4,16 +4,37 @@
   "version": 1,
   "scope": "project",
   "defaultLocale": "en",
-  "locales": ["en", "zh-Hans"],
+  "locales": [
+    "de",
+    "en",
+    "es",
+    "fr",
+    "ja",
+    "ko",
+    "pt-BR",
+    "zh-Hans"
+  ],
   "digests": {
+    "de": "a40d14808508b7e87f18a21320b0cf151fe24eb826d7e6e1e443f287bb35a137",
     "en": "87e414cc46845bc12ed5750c87b55dc70706f409b66faf809bcb3aac482b51b6",
-    "zh-Hans": "5758183c8574c50f327ca0dfdffc556bebcbb76b7a800191feb56ad684a4c4e7"
+    "es": "6272df0ac7903ed06a3ca42483eb5657bb81dcf5ee5ff0d12f5b02286627d1c6",
+    "fr": "70a67cf2e2e316769669a02f8175fb2fadff76347e9a5f194ee69d9956edce60",
+    "ja": "671ba50ee1e9537b7cfe31ced8f7e162fe846319a7f3654fb61fd2f9d74ee6e1",
+    "ko": "1d76b28ef8debe186a7f0e38dc3436e72c1f1dd16a95172773f370d443af74f4",
+    "pt-BR": "dff57d6875e94a956e24cc87625fc0640ccb900e429483a8331e41f5fe4ca6a0",
+    "zh-Hans": "c6fef4f27969749b004285cf638c35a8316ef33370ff3b9eb51fefb312eac7dd"
   },
   "files": [
     {
       "path": "Getting Started.md",
       "sources": {
+        "de": "de/getting-started.md",
         "en": "en/getting-started.md",
+        "es": "es/getting-started.md",
+        "fr": "fr/getting-started.md",
+        "ja": "ja/getting-started.md",
+        "ko": "ko/getting-started.md",
+        "pt-BR": "pt-BR/getting-started.md",
         "zh-Hans": "zh-Hans/getting-started.md"
       }
     }

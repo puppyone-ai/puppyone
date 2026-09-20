@@ -85,8 +85,17 @@ describe("project initialization receipts", () => {
     expect(await fs.readdir(blank.path)).toEqual([]);
   });
 
-  it("falls back as a complete template and rejects unknown versions or sources", async () => {
-    expect((await resolveProjectTemplate(source, "fr")).template.resolvedLocale).toBe("en");
+  it("resolves every renderer locale and falls back only for unsupported locales", async () => {
+    const supportedLocales = ["de", "en", "es", "fr", "ja", "ko", "pt-BR", "zh-Hans"];
+    const english = (await resolveProjectTemplate(source, "en")).files[0].content.toString();
+    for (const locale of supportedLocales) {
+      const plan = await resolveProjectTemplate(source, locale);
+      expect(plan.template.resolvedLocale).toBe(locale);
+      expect(plan.files).toHaveLength(1);
+      expect(plan.files[0].path).toBe("Getting Started.md");
+      if (locale !== "en") expect(plan.files[0].content.toString()).not.toBe(english);
+    }
+    expect((await resolveProjectTemplate(source, "it")).template.resolvedLocale).toBe("en");
     for (const ref of [{ ...source.ref, version: 2 }, { ...source.ref, sourceId: "remote" }, { ...source.ref, id: "slides.default" }]) {
       await expect(resolveProjectTemplate({ kind: "template", ref }, "en")).rejects.toThrow(/unsupported/i);
     }

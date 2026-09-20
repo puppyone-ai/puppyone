@@ -330,7 +330,7 @@
 .onboarding-entry-import .po-button__label {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   white-space: nowrap;
 }
 
@@ -362,7 +362,7 @@
   place-items: center;
   border: 1px solid var(--po-canvas);
   border-radius: 50%;
-  background: color-mix(in srgb, var(--po-text-muted) 14%, var(--po-canvas));
+  background: color-mix(in srgb, var(--po-text-muted) 8%, var(--po-canvas));
 }
 
 .onboarding-entry-import-brand-badge + .onboarding-entry-import-brand-badge {
@@ -384,13 +384,8 @@
 .onboarding-entry-import-brand-badge .onboarding-import-mark {
   width: 14px;
   height: 14px;
-  opacity: 0.9;
-  filter: grayscale(1) brightness(0.72);
-}
-
-.onboarding-entry-import-brand-badge .onboarding-import-mark.is-google-drive {
   opacity: 1;
-  filter: grayscale(1) brightness(0.48) contrast(1.1);
+  filter: none;
 }
 
 .onboarding-entry-import:disabled .onboarding-entry-import-source-preview {
@@ -410,14 +405,6 @@
 .dark .onboarding-import-mark.is-github,
 .dark .onboarding-import-mark.is-notion {
   filter: invert(1);
-}
-
-.dark .onboarding-entry-import-brand-badge .onboarding-import-mark {
-  filter: grayscale(1) brightness(0.72) invert(1);
-}
-
-.dark .onboarding-entry-import-brand-badge .onboarding-import-mark.is-google-drive {
-  filter: grayscale(1) brightness(0.48) invert(1) contrast(1.1);
 }
 
 .onboarding-project-list {

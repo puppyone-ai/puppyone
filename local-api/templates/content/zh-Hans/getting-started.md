@@ -1,6 +1,6 @@
 # 开始使用 puppyone
 
-A local file workspace built for you and your agent.
+为你和你的 Agent 打造的本地文件工作空间。
 
 这个项目就是你电脑上的一个文件夹。这篇指南是普通的 Markdown 文件：你可以编辑、改名、移动或删除它。删除后，它不会自动生成回来。
 

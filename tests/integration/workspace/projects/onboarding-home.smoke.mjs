@@ -187,17 +187,19 @@ async function runSmoke() {
           assert.equal(snapshot.importIcon.width, snapshot.actionIconWidth, `${context}: shared action icon size`);
           assert.deepEqual(snapshot.importBrandIds, ['github', 'notion', 'google-drive'], `${context}: familiar import sources`);
           assert.deepEqual(snapshot.importBrandLabels, ['GitHub', 'Notion', 'Google Drive'], `${context}: named logos for assistive technology`);
-          assert.equal(snapshot.importBrands.x - snapshot.importLabel.x - snapshot.importLabel.width, 10, `${context}: source badges follow text inline`);
+          assert.equal(snapshot.importBrands.x - snapshot.importLabel.x - snapshot.importLabel.width, 6, `${context}: source badges sit close to the import label`);
           assert.ok(Math.abs(snapshot.importBrands.y + snapshot.importBrands.height / 2 - snapshot.importLabel.y - snapshot.importLabel.height / 2) < 1, `${context}: vertically aligned label and logos`);
           if (width >= 563) assert.equal(snapshot.importLabel.height, 18, `${context}: single-line text at desktop widths`);
           assert.ok(snapshot.importBadges.every(badge => badge.width === 20 && badge.height === 20), `${context}: readable circular source badges`);
           assert.deepEqual([...new Set(snapshot.importBadgeRadii)], ['50%'], `${context}: every source uses the same circular badge`);
           assert.equal(new Set(snapshot.importBadgeBackgrounds).size, 1, `${context}: source badges share one background tone`);
           assert.ok(snapshot.importMarks.every(mark => mark.width === 14 && mark.height === 14), `${context}: readable logo size inside each badge`);
-          assert.deepEqual(snapshot.importMarkOpacities, ['0.9', '0.9', '1'], `${context}: Drive is normalized to a clearer foreground`);
-          assert.ok(snapshot.importMarkFilters.every(filter => filter.includes('grayscale(1)')), `${context}: source logos remain monochrome`);
-          assert.equal(snapshot.importMarkFilters[0], snapshot.importMarkFilters[1], `${context}: solid marks share one treatment`);
-          assert.notEqual(snapshot.importMarkFilters[2], snapshot.importMarkFilters[0], `${context}: Drive compensates for its lighter source artwork`);
+          assert.deepEqual(snapshot.importMarkOpacities, ['1', '1', '1'], `${context}: source logos render at full clarity`);
+          assert.deepEqual(
+            snapshot.importMarkFilters,
+            theme === 'dark' ? ['invert(1)', 'invert(1)', 'none'] : ['none', 'none', 'none'],
+            `${context}: solid marks adapt to the theme while Drive keeps its brand colors`,
+          );
           assert.deepEqual(snapshot.importBadgeStackOrder, ['3', '2', '1'], `${context}: leftmost source badge sits above the badges to its right`);
           for (let i = 1; i < snapshot.importBadges.length; i++) {
             const previous = snapshot.importBadges[i - 1];
