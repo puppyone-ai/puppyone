@@ -74,8 +74,8 @@
   place-items: center;
   border: 0;
   border-radius: 4px;
-  background: color-mix(in srgb, var(--po-text) 8%, var(--po-editor-bg));
-  color: color-mix(in srgb, var(--po-text-muted) 74%, var(--po-text));
+  background: transparent;
+  color: var(--po-text-muted);
   pointer-events: none;
   transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
 }
@@ -90,8 +90,10 @@
 }
 
 .po-editable-table-drag-handle-visual::before {
-  background-image: radial-gradient(currentColor 0.8px, transparent 1px);
-  background-position: center;
+  background-image: radial-gradient(currentColor 0.65px, transparent 0.85px);
+  /* Start at a tile boundary so 12×8 and 8×12 render exactly six dots,
+     without the extra clipped row/column produced by centered repetition. */
+  background-position: 0 0;
   content: "";
   opacity: 0.9;
 }
@@ -135,7 +137,7 @@
 }
 
 .po-editable-table-drag-handle:hover .po-editable-table-drag-handle-visual {
-  background: color-mix(in srgb, var(--po-text) 14%, var(--po-editor-bg));
+  background: color-mix(in srgb, var(--po-text) 8%, var(--po-editor-bg));
   color: var(--po-text);
 }
 
