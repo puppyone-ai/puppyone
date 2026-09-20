@@ -14,12 +14,11 @@ import { useWorkbenchTabMoveDrag } from "./layout/interactions/useWorkbenchTabMo
 import { canPlaceWorkbenchSplit } from "./layout/workbenchSplitConstraints";
 
 export type WorkbenchLauncherContext = { groupId: string | null; itemId: string | null; presented: boolean };
-export function AuxiliaryWorkbenchPanel({ store, contributions, active, renderLauncher, onRetryProjectClose, onManageExecutions }: {
+export function AuxiliaryWorkbenchPanel({ store, contributions, active, renderLauncher, onRetryProjectClose }: {
   store: ProjectWorkbenchStore;
   contributions: readonly AuxiliaryWorkbenchContribution[];
   active: boolean;
   onRetryProjectClose?: () => void;
-  onManageExecutions?: () => void;
   renderLauncher(context: WorkbenchLauncherContext): ReactNode;
 }) {
   const { t } = useLocalization();
@@ -110,9 +109,6 @@ export function AuxiliaryWorkbenchPanel({ store, contributions, active, renderLa
         </div>, hosts.get(item.id)!, item.id);
       })}
     </div>
-    {onManageExecutions && <button type="button" className="desktop-terminal-workbench-create-retry" onClick={onManageExecutions}>
-      {t("workspace.workbench.manageExecutions")}
-    </button>}
     {closeCoordinator.pending && <AuxiliaryWorkbenchCloseDialog pending={closeCoordinator.pending} committing={closeCoordinator.committing} onDismiss={closeCoordinator.dismiss} onConfirm={() => { void closeCoordinator.confirm(); }} />}
   </section>;
 }

@@ -20,7 +20,6 @@
   "launcher.noneInstalled": "Agent CLI が見つかりません",
   "launcher.detectionFailed": "インストール済み Agent を検出できません",
   "launcher.refreshing": "Agent を更新中…",
-  "launcher.detectionIncomplete": "一部の Agent を確認できませんでした。再スキャンしてください。",
   "launcher.detectionComplete": "Agent のスキャンが完了しました",
   "launcher.detectionProgress": "{total} 件中 {completed} 件を確認済み",
   "launcher.scanAgain": "再スキャン",

@@ -193,9 +193,11 @@ async function runSmoke() {
           assert.ok(snapshot.importBadges.every(badge => badge.width === 20 && badge.height === 20), `${context}: readable circular source badges`);
           assert.deepEqual([...new Set(snapshot.importBadgeRadii)], ['50%'], `${context}: every source uses the same circular badge`);
           assert.equal(new Set(snapshot.importBadgeBackgrounds).size, 1, `${context}: source badges share one background tone`);
-          assert.ok(snapshot.importMarks.every(mark => mark.width === 13 && mark.height === 13), `${context}: readable logo size inside each badge`);
-          assert.deepEqual([...new Set(snapshot.importMarkOpacities)], ['0.8'], `${context}: source logos share one quiet opacity`);
-          assert.equal(new Set(snapshot.importMarkFilters).size, 1, `${context}: source logos share one monochrome treatment`);
+          assert.ok(snapshot.importMarks.every(mark => mark.width === 14 && mark.height === 14), `${context}: readable logo size inside each badge`);
+          assert.deepEqual(snapshot.importMarkOpacities, ['0.9', '0.9', '1'], `${context}: Drive is normalized to a clearer foreground`);
+          assert.ok(snapshot.importMarkFilters.every(filter => filter.includes('grayscale(1)')), `${context}: source logos remain monochrome`);
+          assert.equal(snapshot.importMarkFilters[0], snapshot.importMarkFilters[1], `${context}: solid marks share one treatment`);
+          assert.notEqual(snapshot.importMarkFilters[2], snapshot.importMarkFilters[0], `${context}: Drive compensates for its lighter source artwork`);
           assert.deepEqual(snapshot.importBadgeStackOrder, ['3', '2', '1'], `${context}: leftmost source badge sits above the badges to its right`);
           for (let i = 1; i < snapshot.importBadges.length; i++) {
             const previous = snapshot.importBadges[i - 1];
@@ -240,7 +242,7 @@ async function runSmoke() {
               paddingRight: '0px', paddingLeft: '0px', paddingTop: '24px',
             }, `${context}: horizontal-rule project frame without side padding`);
           }
-          assert.ok(snapshot.importButton.height >= 28, `${context}: text entry retains a usable hit target`);
+          assert.equal(snapshot.importButton.height, snapshot.openHeight, `${context}: import uses the shared CTA height`);
           assert.equal(snapshot.actionCount, 3, `${context}: no extra logo buttons`);
           const prefix = state === 'empty' ? '' : 'projects-';
           await writeFile(path.join(screenshots, `${prefix}${locale}-${theme}-${width}.png`), (await window.capturePage()).toPNG());
@@ -254,9 +256,23 @@ async function runSmoke() {
           });
           await until("document.querySelector('.onboarding-entry-import').matches(':hover')");
           await evaluate("Promise.all(document.querySelector('.onboarding-entry-import').getAnimations().map(animation => animation.finished))");
-          assert.equal(await evaluate("getComputedStyle(document.querySelector('.onboarding-entry-import')).backgroundColor"), 'rgba(0, 0, 0, 0)', `${context}: no hover background`);
-          assert.equal(await evaluate("getComputedStyle(document.querySelector('.onboarding-entry-import')).boxShadow"), 'none', `${context}: no hover button shadow`);
-          assert.equal(await evaluate("getComputedStyle(document.querySelector('.onboarding-entry-import')).color"), snapshot.importColor, `${context}: hover keeps the resting foreground tone`);
+          const importHover = await evaluate(`(() => {
+            const style = getComputedStyle(document.querySelector('.onboarding-entry-import'));
+            return { background: style.backgroundColor, color: style.color, boxShadow: style.boxShadow };
+          })()`);
+          await window.webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
+            type: 'mouseMoved',
+            x: Math.round(snapshot.open.x + snapshot.open.width / 2),
+            y: Math.round(snapshot.open.y + snapshot.open.height / 2),
+          });
+          await until("document.querySelector('[data-onboarding-action=open]').matches(':hover')");
+          await evaluate("Promise.all(document.querySelector('[data-onboarding-action=open]').getAnimations().map(animation => animation.finished))");
+          const openHover = await evaluate(`(() => {
+            const style = getComputedStyle(document.querySelector('[data-onboarding-action=open]'));
+            return { background: style.backgroundColor, color: style.color, boxShadow: style.boxShadow };
+          })()`);
+          assert.notEqual(importHover.background, 'rgba(0, 0, 0, 0)', `${context}: import has the shared CTA hover background`);
+          assert.deepEqual(importHover, openHover, `${context}: import and open share hover treatment`);
           // Real keyboard focus must remain visible and Enter must open the creation dialog.
           window.focus();
           window.webContents.focus();
@@ -295,9 +311,30 @@ async function runSmoke() {
           window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Tab" });
           await until("document.activeElement?.dataset.onboardingAction === 'clone'");
           await until("document.activeElement?.matches(':focus-visible')");
+          await evaluate("Promise.all(document.activeElement.getAnimations().map(animation => animation.finished))");
           assert.equal(await evaluate("getComputedStyle(document.activeElement).outlineStyle"), "solid", `${context}: import focus ring`);
-          assert.equal(await evaluate("getComputedStyle(document.activeElement).backgroundColor"), 'rgba(0, 0, 0, 0)', `${context}: keyboard focus keeps transparent background`);
-          assert.equal(await evaluate("getComputedStyle(document.activeElement).color"), snapshot.importColor, `${context}: keyboard focus keeps the resting foreground tone`);
+          const importFocus = await evaluate(`(() => {
+            const style = getComputedStyle(document.activeElement);
+            return { background: style.backgroundColor, color: style.color, outline: style.outline };
+          })()`);
+          await window.webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
+            type: 'mouseMoved', x: 1, y: 39,
+          });
+          await until("!document.querySelector('[data-onboarding-action=open]').matches(':hover')");
+          await evaluate("Promise.all(document.querySelector('[data-onboarding-action=open]').getAnimations().map(animation => animation.finished))");
+          window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Tab", modifiers: ["shift"] });
+          window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Tab", modifiers: ["shift"] });
+          await until("document.activeElement?.dataset.onboardingAction === 'open'");
+          await until("document.activeElement?.matches(':focus-visible')");
+          await evaluate("Promise.all(document.activeElement.getAnimations().map(animation => animation.finished))");
+          const openFocus = await evaluate(`(() => {
+            const style = getComputedStyle(document.activeElement);
+            return { background: style.backgroundColor, color: style.color, outline: style.outline };
+          })()`);
+          assert.deepEqual(importFocus, openFocus, `${context}: import and open share keyboard focus treatment`);
+          window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Tab" });
+          window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Tab" });
+          await until("document.activeElement?.dataset.onboardingAction === 'clone'");
           window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Enter" });
           window.webContents.sendInputEvent({ type: "char", keyCode: "\r" });
           window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Enter" });
