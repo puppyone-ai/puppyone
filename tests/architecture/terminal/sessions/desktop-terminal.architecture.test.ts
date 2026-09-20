@@ -179,7 +179,7 @@ describe("Desktop Terminal architecture boundaries", () => {
     expect(headerLayout).toContain("inlineStart");
     expect(headerCss).toMatch(/\.desktop-terminal-tab-rail\s*\{[^}]*flex:\s*1 1 auto;/s);
     expect(headerCss).toMatch(
-      /\.desktop-terminal-new-button\s*\{[^}]*flex:\s*0 0 var\(--desktop-terminal-tab-control-height\);[^}]*border:\s*0;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/s,
+      /\.desktop-terminal-new-button\.desktop-menu-icon-button\s*\{[^}]*min-inline-size:\s*var\(--desktop-terminal-tab-control-height\);[^}]*max-inline-size:\s*var\(--desktop-terminal-tab-control-height\);[^}]*inline-size:\s*var\(--desktop-terminal-tab-control-height\);[^}]*min-block-size:\s*var\(--desktop-terminal-tab-control-height\);[^}]*max-block-size:\s*var\(--desktop-terminal-tab-control-height\);[^}]*block-size:\s*var\(--desktop-terminal-tab-control-height\);[^}]*flex:\s*0 0 var\(--desktop-terminal-tab-control-height\);[^}]*border:\s*0;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/s,
     );
     expect(headerCss).toMatch(
       /\.desktop-terminal-tabs\s*\{[^}]*position:\s*relative;[^}]*width:\s*var\(--desktop-terminal-tabs-resolved-width\);/s,

@@ -78,6 +78,8 @@ function checkGeometry(frame, label) {
   assert(Math.abs(frame.plus.width - 28) < 0.1 && Math.abs(frame.plus.height - 28) < 0.1, `${label}: + changed size`);
   assert(frame.plus.y >= -0.1 && frame.plus.x + 28 <= frame.width + 1, `${label}: + escaped the Header`);
   const tabs = frame.tabs.filter(tab => tab.width > 1 && tab.opacity > 0.05).sort((a, b) => a.x - b.x);
+  assert(tabs.length > 0, `${label}: no visible tab to compare with +`);
+  assert(Math.abs(frame.plus.height - tabs[0].height) < 0.1, `${label}: + must match the tab height`);
   for (let index = 1; index < tabs.length; index++) {
     assert(tabs[index - 1].x + tabs[index - 1].width <= tabs[index].x + 1, `${label}: tabs overlap`);
   }
@@ -109,6 +111,7 @@ async function run() {
     await settle();
     console.log("Header measured");
     const before = await snapshot();
+    checkGeometry(before, `${name}: initial`);
     await clickPlus();
     const launcherId = await evaluate(`${api}.snapshot().topology.items.find(item => item.kind === 'launcher')?.id`);
     assert(launcherId, `${name}: real + click did not create a launcher`);
