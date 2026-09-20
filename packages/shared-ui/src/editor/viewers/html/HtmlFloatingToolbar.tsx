@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
-import { AlignCenter, AlignLeft, AlignRight, Bold, ImagePlus, PaintBucket, Type, RotateCcw } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, Bold, ImagePlus, Type, RotateCcw } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
 import type { HtmlSelectionMessage } from "./htmlBridgeProtocol";
 import type { HtmlEditOperation, HtmlStyleProperty } from "./htmlEditCompiler";
@@ -55,12 +55,10 @@ export function HtmlFloatingToolbar({ selection, viewport, text, image, alt, dis
       onClick={() => setPalette(palette === property ? null : property)}>
       {textColor
         ? <span className="html-floating-toolbar__text-color" aria-hidden="true">
-          <span className="html-floating-toolbar__text-color-glyph">A</span>
-          <span className="html-floating-toolbar__text-color-value"><span style={{ background: value }} /></span>
+          <span className="html-floating-toolbar__text-color-glyph" style={{ color: value }}>A</span>
         </span>
-        : <span className="html-floating-toolbar__background-color" aria-hidden="true">
-          <PaintBucket size={16} strokeWidth={1.8} />
-          <span className="html-floating-toolbar__background-color-value"><span style={{ background: value }} /></span>
+        : <span className="html-floating-toolbar__background-color-value" aria-hidden="true">
+          <span style={{ background: value }} />
         </span>}
     </button>;
   };

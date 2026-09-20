@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, type RefObject, type PointerEvent } fro
 import type { HtmlSelectionMessage } from "./htmlBridgeProtocol";
 import type { HtmlActionBounds } from "./HtmlBlockActionRail";
 
-/** The frame, pencil and floating controls form one transient editing region. */
+/** The frame, edit entry and floating controls form one transient editing region. */
 export function useHtmlEditPresence({ viewport, selection, handleBounds, busy, leave }: {
   viewport: RefObject<HTMLDivElement>; selection: RefObject<HtmlSelectionMessage | null>;
   handleBounds: RefObject<HtmlActionBounds | null>;

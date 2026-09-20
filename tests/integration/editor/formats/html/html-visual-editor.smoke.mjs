@@ -144,13 +144,14 @@ app.whenReady().then(async () => {
     await until(() => evaluate("!!document.querySelector('.html-editor-pencil')"), 'click reveals pencil');
     assert.equal(await evaluate("!!document.querySelector('.html-editor-text-input')"), false, 'page click does not start editing');
     assert.equal(await disk(), original);
-    const outsideSurface = await evaluate("(()=>{const b=document.querySelector('.html-editor-pencil'),s=getComputedStyle(b),selection=getComputedStyle(document.querySelector('.html-editor-selection'));return {count:document.querySelectorAll('.html-editor-pencil').length,icons:b.querySelectorAll('svg').length,background:s.backgroundColor,shadow:s.boxShadow,border:s.borderTopWidth,borderColor:s.borderTopColor,selectionColor:selection.borderTopColor,width:b.offsetWidth,height:b.offsetHeight,stroke:selection.borderTopWidth}})()");
+    const outsideSurface = await evaluate("(()=>{const b=document.querySelector('.html-editor-pencil'),s=getComputedStyle(b),selection=getComputedStyle(document.querySelector('.html-editor-selection'));return {count:document.querySelectorAll('.html-editor-pencil').length,icons:b.querySelectorAll('svg').length,background:s.backgroundColor,shadow:s.boxShadow,border:s.borderTopWidth,borderColor:s.borderTopColor,borderRadius:s.borderRadius,selectionColor:selection.borderTopColor,width:b.offsetWidth,height:b.offsetHeight,stroke:selection.borderTopWidth}})()");
     assert.equal(outsideSurface.count, 1, 'one edit handle');
     assert.equal(outsideSurface.icons, 1, 'one pencil glyph');
     assert.equal(outsideSurface.background, outsideSurface.selectionColor, 'edit handle uses the block selection color');
     assert.equal(outsideSurface.borderColor, outsideSurface.selectionColor, 'handle border and surface share one theme token');
     assert.notEqual(outsideSurface.shadow, 'none', 'outside surface is visually separated from page content');
     assert.equal(outsideSurface.border, '1px');
+    assert.equal(outsideSurface.borderRadius, '50%', 'edit affordance is a circle');
     assert.deepEqual([outsideSurface.width, outsideSurface.height], [26, 26], 'edit affordance stays compact');
     assert.equal(outsideSurface.stroke, '2px', 'block stroke remains clear');
     const handleGeometry = () => evaluate("(()=>{const b=document.querySelector('.html-editor-pencil'),s=document.querySelector('.html-editor-selection');return {handle:b.getBoundingClientRect().toJSON(),selection:s.getBoundingClientRect().toJSON(),placement:b.dataset.placement}})()");
@@ -159,20 +160,20 @@ app.whenReady().then(async () => {
     assert.ok(initialHandle.handle.top >= initialHandle.selection.bottom);
     await visibleSelectionBorder();
     await fsp.writeFile('/private/tmp/puppyone-html-handle-outside-below.png', (await win.webContents.capturePage()).toPNG());
-    await control('.html-editor-pencil');
-    await until(() => evaluate("!!document.querySelector('.html-floating-toolbar')"), "element selection");
-    await until(() => evaluate("!!document.querySelector('.html-editor-text-input')"), "text input");
-    assert.equal(await evaluate("!!document.querySelector('.html-editor-pencil[aria-pressed=true]')"), true, 'edit affordance remains in the active rail');
-    assert.equal(await evaluate("(()=>{const p=document.querySelector('.html-editor-pencil').getBoundingClientRect(),t=document.querySelector('.html-floating-toolbar').getBoundingClientRect();return Math.abs((p.top+p.bottom-t.top-t.bottom)/2)<1})()"), true,
-      'pencil and format menu share one vertical center');
-    assert.equal(await evaluate("getComputedStyle(document.querySelector('.html-editor-text-input')).backgroundColor"), "rgba(0, 0, 0, 0)");
-    const toolbarInside = () => evaluate("(()=>{const frame=document.querySelector('iframe'),toolbar=document.querySelector('.html-floating-toolbar');if(!frame||!toolbar)return false;const p=frame.getBoundingClientRect(),t=toolbar.getBoundingClientRect();return t.left>=p.left && t.right<=p.right && t.top>=p.top && t.bottom<=p.bottom})()");
-    await until(toolbarInside, 'floating toolbar remains in pane');
-    assert.equal(await evaluate("getComputedStyle(document.querySelector('.html-editor-selection')).borderTopColor"), 'rgb(37, 99, 235)', 'product theme accent');
     await evaluate("document.getElementById('root').style.setProperty('--po-accent','#14b8a6')");
     assert.equal(await evaluate("getComputedStyle(document.querySelector('.html-editor-selection')).borderTopColor"), 'rgb(20, 184, 166)', 'selection follows theme changes');
     await until(() => evaluate("getComputedStyle(document.querySelector('.html-editor-pencil')).backgroundColor==='rgb(20, 184, 166)'"), 'edit affordance follows the same theme change');
     await evaluate("document.getElementById('root').style.removeProperty('--po-accent')");
+    await control('.html-editor-pencil');
+    await until(() => evaluate("!!document.querySelector('.html-floating-toolbar')"), "element selection");
+    await until(() => evaluate("!!document.querySelector('.html-editor-text-input')"), "text input");
+    assert.equal(await evaluate("!!document.querySelector('.html-editor-pencil')"), false, 'edit affordance yields to the active format panel');
+    assert.equal(await evaluate("(()=>{const t=document.querySelector('.html-floating-toolbar').getBoundingClientRect(),s=document.querySelector('.html-editor-selection').getBoundingClientRect();return Math.abs((t.left+t.right-s.left-s.right)/2)<2})()"), true,
+      'active format panel owns the visual center');
+    assert.equal(await evaluate("getComputedStyle(document.querySelector('.html-editor-text-input')).backgroundColor"), "rgba(0, 0, 0, 0)");
+    const toolbarInside = () => evaluate("(()=>{const frame=document.querySelector('iframe'),toolbar=document.querySelector('.html-floating-toolbar');if(!frame||!toolbar)return false;const p=frame.getBoundingClientRect(),t=toolbar.getBoundingClientRect();return t.left>=p.left && t.right<=p.right && t.top>=p.top && t.bottom<=p.bottom})()");
+    await until(toolbarInside, 'floating toolbar remains in pane');
+    assert.equal(await evaluate("getComputedStyle(document.querySelector('.html-editor-selection')).borderTopColor"), 'rgb(37, 99, 235)', 'product theme accent');
     await visibleSelectionBorder();
     await preview().executeJavaScript("document.body.style.background='#10294c'");
     await visibleSelectionBorder();
@@ -203,15 +204,16 @@ app.whenReady().then(async () => {
     const colorCues = await evaluate(`(()=>{
       const text = document.querySelector('[data-color-role="text"]');
       const background = document.querySelector('[data-color-role="background"]');
-      const underline = text?.querySelector('.html-floating-toolbar__text-color-value');
+      const glyph = text?.querySelector('.html-floating-toolbar__text-color-glyph');
       const dot = background?.querySelector('.html-floating-toolbar__background-color-value');
       return {
         controls: document.querySelectorAll('.html-floating-toolbar__color-control').length,
         labels: [text?.getAttribute('aria-label'), background?.getAttribute('aria-label')],
-        textGlyph: text?.querySelector('.html-floating-toolbar__text-color-glyph')?.textContent,
-        textHasBucket: !!text?.querySelector('svg'),
-        backgroundHasBucket: !!background?.querySelector('svg'),
-        underlineHeight: underline && getComputedStyle(underline).height,
+        textGlyph: glyph?.textContent,
+        textGlyphColor: glyph && getComputedStyle(glyph).color,
+        textHasUnderline: !!text?.querySelector('.html-floating-toolbar__text-color-value'),
+        backgroundHasIcon: !!background?.querySelector('svg'),
+        dotSize: dot && [getComputedStyle(dot).width, getComputedStyle(dot).height],
         dotRadius: dot && getComputedStyle(dot).borderRadius,
       };
     })()`);
@@ -219,11 +221,12 @@ app.whenReady().then(async () => {
       controls: 2,
       labels: ['Text color', 'Background color'],
       textGlyph: 'A',
-      textHasBucket: false,
-      backgroundHasBucket: true,
-      underlineHeight: '3px',
+      textGlyphColor: 'rgb(0, 0, 0)',
+      textHasUnderline: false,
+      backgroundHasIcon: false,
+      dotSize: ['16px', '16px'],
       dotRadius: '50%',
-    }, 'text and background color controls have distinct compact visual cues');
+    }, 'the colored A and standalone background dot have distinct compact visual cues');
     const beforeTray = await evaluate("document.querySelector('.html-floating-toolbar').getBoundingClientRect().toJSON()");
     await control('[aria-label="Text color"]');
     await until(() => evaluate("!!document.querySelector('.html-floating-toolbar__popover')"), 'color tray');
@@ -291,8 +294,8 @@ app.whenReady().then(async () => {
     await until(() => evaluate("document.querySelector('.html-editor-pencil')?.dataset.placement==='above'"), 'return outside when room becomes available');
     await control('.html-editor-pencil');
     await until(() => evaluate("!!document.querySelector('.html-floating-toolbar')"), 'block action menu');
-    assert.equal(await evaluate("(()=>{const p=document.querySelector('.html-editor-pencil').getBoundingClientRect(),t=document.querySelector('.html-floating-toolbar').getBoundingClientRect(),s=document.querySelector('.html-editor-selection').getBoundingClientRect();return t.bottom<s.top&&Math.abs((p.top+p.bottom-t.top-t.bottom)/2)<1&&Math.abs((t.left+t.right-s.left-s.right)/2)<2&&Math.abs(p.right-s.right)<2})()"),
-      true, 'menu is centered above the block while the aligned pencil stays at its right edge');
+    assert.equal(await evaluate("(()=>{const p=document.querySelector('.html-editor-pencil'),t=document.querySelector('.html-floating-toolbar').getBoundingClientRect(),s=document.querySelector('.html-editor-selection').getBoundingClientRect();return !p&&t.bottom<s.top&&Math.abs((t.left+t.right-s.left-s.right)/2)<2})()"),
+      true, 'active menu is centered above the block after the pencil disappears');
     await fsp.writeFile('/private/tmp/puppyone-html-action-rail.png', (await win.webContents.capturePage()).toPNG());
     assert.equal(await evaluate("!!document.querySelector('.html-editor-text-input')"), false, 'container editing keeps its child structure');
     assert.equal(await evaluate("getComputedStyle(document.querySelector('.html-editor-selection')).borderRadius"), '18px', 'border follows card corners');
@@ -349,7 +352,7 @@ app.whenReady().then(async () => {
       return projectionSources.get(url)?.includes("Agent version");
     }, "reopened disk");
     console.log(JSON.stringify({ passed: true, electron: process.versions.electron, platform: process.platform,
-      checks: ["pointer movement is idle and click reveals selection", "single compact theme-colored action handle", "shared aligned rail above the selected block with bounded fallbacks", "slow diagonal handle approach without target jumps", "2px clicked border", "click is read-only until pencil activation", "theme inheritance", "nested block editing preserves siblings", "keyboard pencil activation", "leave commits and dismisses; IME is protected", "separate circular palette above with stable toolbar", "safe bridge", "native IME and Unicode input", "lossless source", "stable iframe", "shared source and undo", "style and cascade",
+      checks: ["pointer movement is idle and click reveals selection", "single circular theme-colored action handle", "edit handle yields to a centered active panel", "shared aligned rail above the selected block with bounded fallbacks", "slow diagonal handle approach without target jumps", "2px clicked border", "click is read-only until pencil activation", "theme inheritance", "nested block editing preserves siblings", "keyboard pencil activation", "leave commits and dismisses; IME is protected", "semantic color controls and separate circular palette", "safe bridge", "native IME and Unicode input", "lossless source", "stable iframe", "shared source and undo", "style and cascade",
         "native image import and rendering", "image undo preserves asset", "scroll and zoom geometry", "visible block border on light and dark backgrounds while typing and formatting", "bounded visual fallback", "disk-first external update", "close and reopen"] }));
   } catch (error) {
     code = 1; console.error(error?.stack ?? error);

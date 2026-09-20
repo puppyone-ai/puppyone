@@ -16,7 +16,7 @@
 .html-block-action-rail { position: absolute; inset-inline: 0; z-index: 4; pointer-events: none; }
 .html-block-action-rail__menu { position: absolute; width: max-content; max-width: calc(100% - 50px); pointer-events: auto; }
 .html-editor-pencil { --html-editor-pencil-surface: var(--html-editor-accent); position: absolute; display: grid; place-items: center;
-  padding: 0; border: 1px solid var(--html-editor-pencil-surface); border-radius: 7px; color: #fff;
+  padding: 0; border: 1px solid var(--html-editor-pencil-surface); border-radius: 50%; color: #fff;
   background: var(--html-editor-pencil-surface); box-shadow: 0 1px 2px color-mix(in srgb, var(--po-shadow, #000) 16%, transparent),
     0 4px 12px color-mix(in srgb, var(--po-shadow, #000) 12%, transparent); pointer-events: auto; cursor: pointer;
   transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease; }
@@ -42,15 +42,11 @@
 .html-floating-toolbar select { width: 48px; padding-inline: 4px; }
 .html-floating-toolbar__divider { width: 1px; height: 16px; background: var(--po-divider, #e1e3e6); margin: 0 3px; }
 .html-floating-toolbar .html-floating-toolbar__color-control { width: 30px; min-width: 30px; padding-inline: 5px; }
-.html-floating-toolbar__text-color { display: grid; grid-template-rows: 15px 3px; place-items: center; width: 16px; height: 18px; }
-.html-floating-toolbar__text-color-glyph { font: 600 15px/15px var(--po-font-ui, system-ui); }
-.html-floating-toolbar__text-color-value { display: block; width: 15px; height: 3px; overflow: hidden; border-radius: 999px;
-  background: repeating-conic-gradient(#ddd 0% 25%, white 0% 50%) 0 0 / 4px 4px;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--po-text, #202124) 20%, transparent); }
-.html-floating-toolbar__text-color-value > span { display: block; width: 100%; height: 100%; }
-.html-floating-toolbar__background-color { position: relative; display: grid; place-items: center; width: 18px; height: 18px; }
-.html-floating-toolbar__background-color-value { position: absolute; right: -2px; bottom: -2px; display: block; width: 8px; height: 8px; overflow: hidden;
-  border: 2px solid var(--po-panel, #ffffff); border-radius: 50%; background: repeating-conic-gradient(#ddd 0% 25%, white 0% 50%) 0 0 / 4px 4px;
+.html-floating-toolbar__text-color { display: grid; place-items: center; width: 18px; height: 18px; }
+.html-floating-toolbar__text-color-glyph { font: 700 17px/18px var(--po-font-ui, system-ui);
+  text-shadow: 0 0 1px #000, 0 0 1px #fff; }
+.html-floating-toolbar__background-color-value { display: block; width: 16px; height: 16px; overflow: hidden;
+  border: 1px solid var(--po-panel, #ffffff); border-radius: 50%; background: repeating-conic-gradient(#ddd 0% 25%, white 0% 50%) 0 0 / 4px 4px;
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--po-text, #202124) 28%, transparent); }
 .html-floating-toolbar__background-color-value > span { display: block; width: 100%; height: 100%; }
 .html-floating-toolbar button[aria-expanded="true"] { color: var(--html-editor-accent); background: color-mix(in srgb, var(--html-editor-accent) 10%, var(--po-panel, #ffffff)); }

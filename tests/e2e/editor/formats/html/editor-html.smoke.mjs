@@ -60,7 +60,7 @@ async function click(selector) {
 async function nativeClick(selector, inFrame = false) {
   await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
   const target = inFrame ? frame() : window.webContents;
-  const point = await target.executeJavaScript(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
+  let point = await target.executeJavaScript(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
   if (inFrame) {
     await until(() => target.executeJavaScript(`document.elementFromPoint(${point.x},${point.y})?.closest(${JSON.stringify(selector)})?.matches(${JSON.stringify(selector)})`),
       `frame hit target ${selector}`);
@@ -70,8 +70,13 @@ async function nativeClick(selector, inFrame = false) {
   await window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mouseMoved", ...point });
   await evaluate("new Promise(resolve=>requestAnimationFrame(resolve))");
   if (!inFrame) {
-    await until(() => evaluate(`document.elementFromPoint(${point.x},${point.y})?.closest(${JSON.stringify(selector)})?.matches(${JSON.stringify(selector)})`),
-      `native hit target ${selector}`);
+    point = await until(async () => {
+      const candidate = await evaluate(`(()=>{const r=document.querySelector(${JSON.stringify(selector)})?.getBoundingClientRect();return r&&{x:r.x+r.width/2,y:r.y+r.height/2}})()`);
+      if (!candidate) return null;
+      const hit = await evaluate(`document.elementFromPoint(${candidate.x},${candidate.y})?.closest(${JSON.stringify(selector)})?.matches(${JSON.stringify(selector)})`);
+      if (!hit) await window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mouseMoved", ...candidate });
+      return hit ? candidate : null;
+    }, `native hit target ${selector}`);
   }
   await window.webContents.capturePage();
   for (const type of ["mousePressed", "mouseReleased"]) await window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", {
@@ -84,8 +89,8 @@ async function activate(selector) {
   await until(() => evaluate("!!document.querySelector('.html-editor-pencil')"), "pencil entry");
   await nativeClick('.html-editor-pencil');
   await until(() => evaluate("!!document.querySelector('.html-floating-toolbar')"), "shared block action rail");
-  assert.equal(await evaluate("(()=>{const p=document.querySelector('.html-editor-pencil'),t=document.querySelector('.html-floating-toolbar'),s=document.querySelector('.html-editor-selection');if(!p||!t||!s)return false;const pr=p.getBoundingClientRect(),tr=t.getBoundingClientRect(),ps=getComputedStyle(p),ss=getComputedStyle(s);return p.getAttribute('aria-pressed')==='true'&&Math.abs((pr.top+pr.bottom-tr.top-tr.bottom)/2)<1&&ps.backgroundColor===ss.borderTopColor})()"),
-    true, "production rail keeps its active pencil aligned and theme-colored");
+  assert.equal(await evaluate("(()=>{const p=document.querySelector('.html-editor-pencil'),t=document.querySelector('.html-floating-toolbar'),v=document.querySelector('.html-visual-editor__viewport');if(p||!t||!v)return false;const tr=t.getBoundingClientRect(),vr=v.getBoundingClientRect();return tr.left>=vr.left&&tr.right<=vr.right&&tr.top>=vr.top&&tr.bottom<=vr.bottom})()"),
+    true, "production rail replaces its pencil with a bounded active panel");
 }
 async function mode(label) {
   await click('.desktop-editor-pane-handle');

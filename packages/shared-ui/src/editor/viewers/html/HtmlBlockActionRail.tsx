@@ -33,7 +33,7 @@ function sameLayout(left: ActionRailLayout | null, right: ActionRailLayout | nul
     && left.menu?.x === right.menu?.x && left.menu?.y === right.menu?.y;
 }
 
-function placeRail(selection: HtmlSelectionMessage, pane: HTMLDivElement, menu: HTMLDivElement | null): ActionRailLayout | null {
+function placeRail(selection: HtmlSelectionMessage, pane: HTMLDivElement, menu: HTMLDivElement | null, active: boolean): ActionRailLayout | null {
   if (pane.clientWidth < HANDLE_SIZE + PANE_MARGIN * 2 || pane.clientHeight < RAIL_HEIGHT + PANE_MARGIN * 2) return null;
   const { rect, clip } = selection;
   const left = Math.max(PANE_MARGIN, rect.x + clip.left);
@@ -64,7 +64,7 @@ function placeRail(selection: HtmlSelectionMessage, pane: HTMLDivElement, menu: 
   // Standalone HTML providers keep their source-view menu in this pane. The rail remains usable beside it.
   const sourceMenu = pane.closest(".html-document-editor")?.querySelector(".html-editor-options")?.getBoundingClientRect();
   const paneRect = pane.getBoundingClientRect();
-  if (sourceMenu && handleX + HANDLE_SIZE > sourceMenu.left - paneRect.left - ITEM_GAP
+  if (!active && sourceMenu && handleX + HANDLE_SIZE > sourceMenu.left - paneRect.left - ITEM_GAP
     && handleX < sourceMenu.right - paneRect.left + ITEM_GAP
     && handleY + HANDLE_SIZE > sourceMenu.top - paneRect.top - ITEM_GAP
     && handleY < sourceMenu.bottom - paneRect.top + ITEM_GAP) {
@@ -77,7 +77,7 @@ function placeRail(selection: HtmlSelectionMessage, pane: HTMLDivElement, menu: 
     const maxX = pane.clientWidth - menuWidth - PANE_MARGIN;
     let menuX = clamp((left + right - menuWidth) / 2, PANE_MARGIN, maxX);
     const overlapsHandle = () => menuX < handleX + HANDLE_SIZE + ITEM_GAP && menuX + menuWidth + ITEM_GAP > handleX;
-    if (overlapsHandle()) {
+    if (!active && overlapsHandle()) {
       const beforeHandle = handleX - ITEM_GAP - menuWidth;
       const afterHandle = handleX + HANDLE_SIZE + ITEM_GAP;
       if (beforeHandle >= PANE_MARGIN) menuX = beforeHandle;
@@ -89,8 +89,8 @@ function placeRail(selection: HtmlSelectionMessage, pane: HTMLDivElement, menu: 
 }
 
 /**
- * Owns the geometry for every block-level HTML action. The formatting menu is centered on the block while the
- * persistent edit affordance is pinned to its right edge; both share one dock, baseline, and viewport fallback.
+ * Owns the geometry for every block-level HTML action. The circular entry affordance is pinned to the block's
+ * right edge before activation; edit mode replaces it with a centered formatting menu on the same dock.
  */
 export function HtmlBlockActionRail({ selection, viewport, handle, bounds, active, keep, activate, children }: {
   selection: HtmlSelectionMessage;
@@ -109,8 +109,8 @@ export function HtmlBlockActionRail({ selection, viewport, handle, bounds, activ
     const pane = viewport.current;
     if (!pane) return;
     const place = () => {
-      const next = placeRail(selection, pane, menu.current);
-      bounds.current = next?.handle ?? null;
+      const next = placeRail(selection, pane, menu.current, active);
+      bounds.current = active ? null : next?.handle ?? null;
       setLayout((current) => sameLayout(current, next) ? current : next);
     };
     place();
@@ -126,9 +126,9 @@ export function HtmlBlockActionRail({ selection, viewport, handle, bounds, activ
     {children && <div ref={menu} className="html-block-action-rail__menu" data-html-control
       style={layout.menu ? { left: layout.menu.x, top: layout.menu.y } : { visibility: "hidden" }}
       onPointerEnter={keep} onFocus={keep}>{children}</div>}
-    <button ref={handle} type="button" className="html-editor-pencil" data-html-control data-placement={layout.dock}
+    {!active && <button ref={handle} type="button" className="html-editor-pencil" data-html-control data-placement={layout.dock}
       title={t("editor.html.editBlock")} aria-label={t("editor.html.editBlock")} aria-pressed={active}
       style={{ left: layout.handle.x, top: layout.handle.y - layout.y, width: layout.handle.width, height: layout.handle.height }}
-      onPointerEnter={keep} onFocus={keep} onClick={activate}><Pencil size={14} strokeWidth={2.2} /></button>
+      onPointerEnter={keep} onFocus={keep} onClick={activate}><Pencil size={14} strokeWidth={2.2} /></button>}
   </div>;
 }
