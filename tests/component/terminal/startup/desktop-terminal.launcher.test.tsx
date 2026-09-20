@@ -70,7 +70,7 @@ describe("Unified Workbench launcher", () => {
       />,
     );
     const option = container.querySelector<HTMLButtonElement>(".desktop-terminal-launcher-tool");
-    const icon = option?.querySelector(".desktop-terminal-launcher-icon.is-chatgpt");
+    const icon = option?.querySelector(".desktop-terminal-launcher-icon.is-codex");
 
     expect(option?.textContent).toBe("Codex");
     expect(icon).not.toBeNull();
@@ -78,7 +78,7 @@ describe("Unified Workbench launcher", () => {
       .toBe("/assets/icons/agents/chatgpt.png");
     expect(icon?.querySelector(".po-agent-monochrome-brand-image")?.getAttribute("fill"))
       .toBe("currentColor");
-    expect(option?.querySelector(".is-codex")).toBeNull();
+    expect(option?.querySelector(".is-chatgpt")).toBeNull();
   });
 
   it("uses detected Terminal Agent commands and keeps Terminal in the same launch group", () => {

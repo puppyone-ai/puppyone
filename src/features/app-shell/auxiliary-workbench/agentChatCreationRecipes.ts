@@ -98,7 +98,7 @@ export const BUILT_IN_AGENT_CREATION_RECIPE = Object.freeze({
 const AGENT_CHAT_CREATION_RECIPE_REGISTRY = Object.freeze([
   BUILT_IN_AGENT_CREATION_RECIPE,
   Object.freeze({ id: "claude", label: "Claude Code", iconKey: "claude", status: "available", availability: "local-installation" }),
-  Object.freeze({ id: "codex", label: "Codex", iconKey: "chatgpt", status: "available", availability: "local-installation" }),
+  Object.freeze({ id: "codex", label: "Codex", iconKey: "codex", status: "available", availability: "local-installation" }),
   Object.freeze({ id: "cursor", label: "Cursor", iconKey: "cursor", status: "available", availability: "local-installation" }),
   Object.freeze({ id: "hermes", label: "Hermes Agent", iconKey: "hermes", status: "available", availability: "local-installation" }),
   Object.freeze({ id: "opencode-native", label: "OpenCode", iconKey: "opencode", status: "available", availability: "local-installation" }),

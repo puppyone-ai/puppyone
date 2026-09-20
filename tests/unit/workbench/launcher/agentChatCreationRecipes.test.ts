@@ -33,7 +33,7 @@ describe("Agent Chat creation recipe ordering", () => {
     expect(Object.isFrozen(AGENT_CHAT_CREATION_RECIPES)).toBe(true);
     expect(AGENT_CHAT_CREATION_RECIPES.find(({ id }) => id === "codex")).toMatchObject({
       label: "Codex",
-      iconKey: "chatgpt",
+      iconKey: "codex",
     });
   });
 

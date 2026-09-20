@@ -3,12 +3,12 @@ import {
   runtimeDescriptorFromManifest,
 } from "../../runtime/agent-runtime-manifest.mjs";
 
-/** Codex keeps its product name while Agent Chat presents the ChatGPT mark. */
+/** Canonical Codex runtime identity; the renderer owns its visual mark mapping. */
 export const CODEX_RUNTIME_MANIFEST = defineAgentRuntimeManifest({
   id: "codex",
   displayName: "Codex",
   description: "Codex's native app-server, login, models, tools, approvals and sessions.",
-  iconKey: "chatgpt",
+  iconKey: "codex",
   priority: 50,
   execution: {
     kind: "local-process",

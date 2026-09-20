@@ -112,6 +112,7 @@ async function run() {
     console.log("Header measured");
     const before = await snapshot();
     checkGeometry(before, `${name}: initial`);
+    assert(await evaluate(`document.querySelector('.desktop-terminal-launcher-icon.is-codex svg image')?.getAttribute('href')?.endsWith('/assets/icons/agents/chatgpt.png') === true`), `${name}: Codex tab did not use the ChatGPT mark`);
     await clickPlus();
     const launcherId = await evaluate(`${api}.snapshot().topology.items.find(item => item.kind === 'launcher')?.id`);
     assert(launcherId, `${name}: real + click did not create a launcher`);

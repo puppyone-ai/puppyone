@@ -353,7 +353,7 @@ describe("Codex app-server normalization", () => {
     expect(inspection.runtime).toMatchObject({
       id: "codex",
       displayName: "Codex",
-      iconKey: "chatgpt",
+      iconKey: "codex",
     });
     expect(inspection.models[0]).toMatchObject({
       model: "gpt-5.5",

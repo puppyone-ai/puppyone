@@ -29,8 +29,8 @@ export function AgentLauncherIcon({
       aria-hidden="true"
     >
       {brand ? (
-        brand.id === "chatgpt"
-          ? <AgentMonochromeBrandImage brandId="chatgpt" />
+        brand.id === "chatgpt" || brand.id === "codex"
+          ? <AgentMonochromeBrandImage brandId={brand.id} />
           : <AgentBrandImage brandId={brand.id} />
       ) : chatFallback ? (
         <MessageSquare size={compact ? 14 : 16} strokeWidth={1.7} />

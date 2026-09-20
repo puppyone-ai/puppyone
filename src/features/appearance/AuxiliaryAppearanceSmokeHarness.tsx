@@ -147,7 +147,9 @@ export function AuxiliaryAppearanceSmokeHarness() {
     const start = async () => {
       const terminal = await store.create("terminal", null, contributions[0].creationRecipes!.find(recipe => recipe.id === "shell")!);
       if (cancelled) return;
-      const chatRecipe = contributions[1].creationRecipes?.[0] ?? null;
+      const chatRecipe = headerMotion
+        ? contributions[1].creationRecipes?.find((recipe) => recipe.id === "codex") ?? null
+        : contributions[1].creationRecipes?.[0] ?? null;
       const chat = await store.create("agent-chat", null, chatRecipe);
       if (cancelled) return;
       if (!terminal || !chat) throw new Error("Appearance fixture could not create contributions.");

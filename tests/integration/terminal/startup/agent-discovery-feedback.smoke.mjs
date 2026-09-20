@@ -128,7 +128,7 @@ async function run() {
     assert(await evaluate(`${buttons}.map(button => button.textContent).join('|') === 'Claude Code|Codex|Built-in Agent'`), "Unstable display order");
     assert(await evaluate(`(() => {
       const row = ${buttons}.find(button => button.textContent === 'Codex');
-      const icon = row?.querySelector('.desktop-terminal-launcher-icon.is-chatgpt');
+      const icon = row?.querySelector('.desktop-terminal-launcher-icon.is-codex');
       const mark = icon?.querySelector('.po-agent-monochrome-brand-image');
       const source = mark?.querySelector('image')?.getAttribute('href');
       return source?.endsWith('/assets/icons/agents/chatgpt.png')

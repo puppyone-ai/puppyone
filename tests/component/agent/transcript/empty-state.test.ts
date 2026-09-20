@@ -29,7 +29,7 @@ describe("Desktop Agent renderer surfaces", () => {
 
   it("renders the quiet runtime identity only for a ready empty conversation", () => {
     const emptyState = React.createElement(AgentEmptyState, {
-      runtimeIconKey: "chatgpt",
+      runtimeIconKey: "codex",
       runtimeLabel: "Codex",
     });
     const container = render(React.createElement(AgentTranscript, {
@@ -40,7 +40,7 @@ describe("Desktop Agent renderer surfaces", () => {
     }));
 
     expect(container.textContent).toContain(testT("agent.empty.prompt"));
-    const mark = container.querySelector(".desktop-agent-empty-state .desktop-agent-brand-mark.is-chatgpt.is-monochrome");
+    const mark = container.querySelector(".desktop-agent-empty-state .desktop-agent-brand-mark.is-codex.is-monochrome");
     expect(mark?.querySelector(".po-agent-monochrome-brand-image")?.getAttribute("fill")).toBe("currentColor");
     expect(mark?.querySelector("svg image")?.getAttribute("href")).toContain("/assets/icons/agents/chatgpt.png");
     expect(mark?.querySelector(".po-agent-brand-image")).toBeNull();

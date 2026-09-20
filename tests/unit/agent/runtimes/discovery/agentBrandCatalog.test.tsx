@@ -22,6 +22,22 @@ describe("Agent brand registry", () => {
       expect(brand.assets.light).toMatch(/^assets\/icons\/agents\//);
       if (brand.assets.dark) expect(brand.assets.dark).toMatch(/^assets\/icons\/agents\//);
     }
+    expect(AGENT_BRAND_CATALOG.codex.assets).toEqual(AGENT_BRAND_CATALOG.chatgpt.assets);
+  });
+
+  it("renders both Codex and ChatGPT identities with the ChatGPT monochrome mark", () => {
+    for (const brandId of ["codex", "chatgpt"] as const) {
+      const markup = renderToStaticMarkup(<AgentMonochromeBrandImage brandId={brandId} />);
+
+      expect(markup).toContain("assets/icons/agents/chatgpt.png");
+      expect(markup).toContain('fill="currentColor"');
+      expect(markup).not.toContain("codex-light.png");
+      expect(markup).not.toContain("codex-dark.png");
+    }
+
+    const imageMarkup = renderToStaticMarkup(<AgentBrandImage brandId="codex" />);
+    expect(imageMarkup).toContain("assets/icons/agents/chatgpt.png");
+    expect(imageMarkup).not.toContain("codex-light.png");
   });
 
   it("resolves runtime aliases without confusing Pi with ordinary words", () => {

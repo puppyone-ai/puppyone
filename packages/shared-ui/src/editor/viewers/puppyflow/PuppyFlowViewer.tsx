@@ -25,6 +25,7 @@ import {
 import { useStructuredDocumentModel } from "../../document-session/useStructuredDocumentModel";
 import type { PresetViewerRenderContext } from "../../registry/viewerTypes";
 import { AgentBrandImage } from "../../../brand/AgentBrandImage";
+import { AgentMonochromeBrandImage } from "../../../brand/AgentMonochromeBrandImage";
 import { resolveAgentBrand } from "../../../core/agentBrandCatalog";
 
 type PuppyFlowViewerProps = Pick<
@@ -405,7 +406,10 @@ function PuppyFlowStepRow({
 
 function PuppyFlowAgentLogo({ agentId }: { agentId: PuppyFlowAgentId }) {
   const brand = resolveAgentBrand({ id: agentId });
-  return brand ? <AgentBrandImage brandId={brand.id} /> : null;
+  if (!brand) return null;
+  return brand.id === "codex"
+    ? <AgentMonochromeBrandImage brandId="codex" />
+    : <AgentBrandImage brandId={brand.id} />;
 }
 
 function getTitleFromFilename(name: string, fallback: string): string {
