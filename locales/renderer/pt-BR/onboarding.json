@@ -33,7 +33,7 @@
   "entry.chooseLocationHint": "O repositório do {provider} será copiado para este computador.",
   "entry.clone.unsupportedUrl": "Insira uma URL de repositório do {provider}.",
   "entry.import.title": "Importar",
-  "entry.import.intro": "Importe repositórios Git diretamente. Para outros aplicativos, prepare primeiro os arquivos locais.",
+  "entry.import.intro": "Exporte o conteúdo destes aplicativos como arquivos locais.",
   "entry.import.back": "Voltar",
   "entry.import.saveTo": "Salvar em",
   "entry.import.saveToPicker": "Escolher uma pasta",

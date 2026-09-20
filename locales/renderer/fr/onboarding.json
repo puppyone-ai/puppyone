@@ -33,7 +33,7 @@
   "entry.chooseLocationHint": "Le dépôt {provider} sera copié sur cet ordinateur.",
   "entry.clone.unsupportedUrl": "Saisissez l’URL d’un dépôt {provider}.",
   "entry.import.title": "Importer",
-  "entry.import.intro": "Importez directement les dépôts Git. Pour les autres applications, préparez d’abord les fichiers locaux.",
+  "entry.import.intro": "Exportez le contenu de ces applications sous forme de fichiers locaux.",
   "entry.import.back": "Retour",
   "entry.import.saveTo": "Enregistrer dans",
   "entry.import.saveToPicker": "Choisir un dossier",

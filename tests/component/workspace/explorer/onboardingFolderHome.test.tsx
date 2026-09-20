@@ -504,7 +504,7 @@ describe("project folder home", () => {
     expect(dialog?.getAttribute("aria-label")).toBe("Import");
     expect(dialog?.classList.contains("is-import")).toBe(true);
     expect(container.querySelector(".onboarding-import-intro")?.textContent).toBe(
-      "Import Git repositories directly. For other apps, prepare the local files first.",
+      "Export content from these apps as local files.",
     );
     const sources = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-import-source")];
     expect(sources.map((source) => source.dataset.importSource)).toEqual([

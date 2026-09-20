@@ -33,7 +33,7 @@
   "entry.chooseLocationHint": "{provider} リポジトリをこのコンピューターにコピーします。",
   "entry.clone.unsupportedUrl": "{provider} リポジトリの URL を入力してください。",
   "entry.import.title": "インポート",
-  "entry.import.intro": "Git リポジトリは直接インポートできます。ほかのアプリは、先にローカルファイルを用意してください。",
+  "entry.import.intro": "これらのアプリの内容をローカルファイルとして書き出します。",
   "entry.import.back": "戻る",
   "entry.import.saveTo": "保存先",
   "entry.import.saveToPicker": "フォルダを選択",

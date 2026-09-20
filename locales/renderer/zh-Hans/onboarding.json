@@ -33,7 +33,7 @@
   "entry.chooseLocationHint": "{provider} 仓库会复制到这台电脑上。",
   "entry.clone.unsupportedUrl": "请输入 {provider} 仓库链接。",
   "entry.import.title": "导入",
-  "entry.import.intro": "Git 仓库可直接导入；其他应用需先准备好本地文件。",
+  "entry.import.intro": "把这些应用中的内容导出为本地文件。",
   "entry.import.back": "返回",
   "entry.import.saveTo": "保存到",
   "entry.import.saveToPicker": "选择文件夹",

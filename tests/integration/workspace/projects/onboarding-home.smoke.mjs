@@ -49,7 +49,7 @@ async function runSmoke() {
     const labels = { en: "New empty project" };
     const projectPrompts = { en: "Which project do you want to start with?" };
     const importLabels = { en: "Import" };
-    const importIntros = { en: "Import Git repositories directly. For other apps, prepare the local files first." };
+    const importIntros = { en: "Export content from these apps as local files." };
     for (const locale of Object.keys(labels)) {
       for (const theme of ["dark", "light"]) {
         for (const [state, width, height] of [
