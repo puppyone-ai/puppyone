@@ -12,6 +12,8 @@ const windows = [];
 
 app.setPath("userData", path.join(tempRoot, "user-data"));
 app.commandLine.appendSwitch("disable-gpu");
+// Cleanup must preserve a failing exit status after the last window closes.
+app.on("window-all-closed", () => {});
 
 const [scrollbarsCss, markdownEditorCss, markdownContentCss, editableTableCss, markdownTableCss] = await Promise.all([
   fsp.readFile(
@@ -224,6 +226,7 @@ async function measureScenario(viewportWidth, direction, reserveVerticalScrollba
         outerScrollLeft: outer.scrollLeft,
         outerScrollWidth: outer.scrollWidth,
         outerClientWidth: outer.clientWidth,
+        outerClientLeft: outer.getBoundingClientRect().left + outer.clientLeft,
         bodyScrollWidth: document.body.scrollWidth,
         viewportScrollWidth: viewport.scrollWidth,
         viewportClientWidth: viewport.clientWidth,
@@ -461,7 +464,7 @@ async function runSmoke() {
       const { initial, scrolled, end } = result;
       const actualViewportWidth = result.viewportWidth;
       const label = `${direction}-${actualViewportWidth}${reserveVerticalScrollbar ? "-vertical-scrollbar" : ""}`;
-      const expectedGutter = Math.max(64, (actualViewportWidth - 724) / 2);
+      const expectedGutter = Math.max(64, (initial.outerClientWidth - 724) / 2);
       const expectedInteractionGutter = 18;
       const expectedWideBlockEdgeInset = 0;
       const expectedViewportInset = Math.min(
@@ -469,15 +472,15 @@ async function runSmoke() {
         expectedGutter - expectedInteractionGutter,
       );
       const expectedInteractionStartInset = expectedGutter - expectedViewportInset;
-      const expectedSafeStart = expectedViewportInset;
-      const expectedBreakoutEnd = actualViewportWidth - expectedViewportInset;
+      const expectedSafeStart = initial.outerClientLeft + expectedViewportInset;
+      const expectedBreakoutEnd = initial.outerClientLeft + initial.outerClientWidth - expectedViewportInset;
       const expectedReadingRailEndInset = expectedInteractionStartInset;
 
       assert(initial.viewportScrollWidth > initial.viewportClientWidth, `${label}: fixture is not wide`);
       assert(
-        initial.dividerColor === initial.tableBorderColor
-          && initial.dividerColor === initial.cellBorderColor,
-        `${label}: Markdown rule colors diverged`,
+        initial.tableBorderColor === "rgb(214, 217, 223)"
+          && initial.tableBorderColor === initial.cellBorderColor,
+        `${label}: table lines must use the shared neutral divider color`,
       );
       assert(
         initial.dividerWidth === "1px"
@@ -520,10 +523,10 @@ async function runSmoke() {
           expectedReadingRailEndInset,
           `${label}: track reading-rail end padding`,
         );
-        assertNear(initial.scrollbarLeft, expectedGutter, `${label}: scrollbar reading-rail start`);
+        assertNear(initial.scrollbarLeft, initial.outerClientLeft + expectedGutter, `${label}: scrollbar reading-rail start`);
         assertNear(
           initial.scrollbarRight,
-          actualViewportWidth - expectedGutter,
+          initial.outerClientLeft + initial.outerClientWidth - expectedGutter,
           `${label}: scrollbar reading-rail end`,
         );
       }
@@ -534,8 +537,8 @@ async function runSmoke() {
       );
       assertNear(
         initial.columnHandleTop,
-        initial.viewportTop,
-        `${label}: column handle top is inside the scrollport clip`,
+        initial.tableTop - 12,
+        `${label}: column hit target is centered on the top border`,
       );
       assert(
         initial.columnHandleBottom > initial.tableTop,
@@ -547,7 +550,7 @@ async function runSmoke() {
           assertNear(initial.viewportRight, expectedBreakoutEnd, `${label}: editor edge end`);
         }
         assertNear(initial.tableLeft, initial.scrollbarLeft, `${label}: resting reading rail`);
-        assertNear(initial.rowHandleLeft, initial.tableLeft - 14, `${label}: row handle table edge`);
+        assertNear(initial.rowHandleLeft, initial.tableLeft - 12, `${label}: row handle table edge`);
         assert(initial.rowHandleLeft >= initial.viewportLeft - 1.5, `${label}: row handle is clipped at editor edge`);
         assert(initial.rowHandleRight > initial.tableLeft, `${label}: row handle no longer straddles table`);
         assertNear(scrolled.thirdLeft, scrolled.viewportLeft, `${label}: later column reaches editor edge`);
@@ -558,11 +561,11 @@ async function runSmoke() {
         assert(end.addLeft >= end.viewportLeft - 1.5, `${label}: add-column rail is unreachable`);
       } else {
         if (!reserveVerticalScrollbar) {
-          assertNear(initial.viewportRight, actualViewportWidth - expectedSafeStart, `${label}: editor edge`);
-          assertNear(initial.viewportLeft, actualViewportWidth - expectedBreakoutEnd, `${label}: editor edge end`);
+          assertNear(initial.viewportRight, expectedBreakoutEnd, `${label}: editor edge`);
+          assertNear(initial.viewportLeft, expectedSafeStart, `${label}: editor edge end`);
         }
         assertNear(initial.tableRight, initial.scrollbarRight, `${label}: resting reading rail`);
-        assertNear(initial.rowHandleRight, initial.tableRight + 14, `${label}: row handle table edge`);
+        assertNear(initial.rowHandleRight, initial.tableRight + 12, `${label}: row handle table edge`);
         assert(initial.rowHandleRight <= initial.viewportRight + 1.5, `${label}: row handle is clipped at editor edge`);
         assert(initial.rowHandleLeft < initial.tableRight, `${label}: row handle no longer straddles table`);
         assertNear(scrolled.thirdRight, scrolled.viewportRight, `${label}: later column reaches editor edge`);

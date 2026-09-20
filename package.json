@@ -61,6 +61,7 @@
     "preview": "vite preview --host 127.0.0.1",
     "smoke:local-api": "node tests/integration/workspace/files/local-api.smoke.mjs",
     "smoke:format-aware-diff": "electron tests/integration/source-control/diff/format-aware-diff.smoke.mjs",
+    "smoke:table-interaction": "electron tests/integration/editor/tables/table-interaction.smoke.mjs",
     "smoke:csv-table-layout": "electron tests/integration/editor/formats/csv/csv-table-sticky-layout.smoke.mjs",
     "smoke:office-preview-layout": "electron tests/integration/editor/formats/office/office-preview-layout.smoke.mjs",
     "smoke:pptx-renderer": "electron tests/integration/editor/formats/office/pptx-renderer.smoke.mjs",

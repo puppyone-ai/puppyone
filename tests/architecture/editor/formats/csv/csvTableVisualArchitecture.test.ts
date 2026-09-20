@@ -106,7 +106,7 @@ describe("CSV table visual architecture", () => {
       "--po-editable-table-border",
       "--po-editable-table-cell-border",
       "--po-editable-table-cell-padding",
-      "--po-editable-table-cell-focus-ring",
+      "--po-editable-table-cell-focus-shadow",
       "--po-editable-table-row-min-height",
       "--po-editable-table-header-font-weight",
     ]) {
@@ -257,12 +257,10 @@ describe("CSV table visual architecture", () => {
     );
     expect(csvTableCss).not.toContain(".csv-table-editor__surface::after");
     expect(csvTableCss).toMatch(
-      /\.csv-table-editor__table\s*\{[^}]*border:\s*1px solid color-mix\([^}]*border-radius:\s*0/s,
+      /\.csv-table-editor__table\s*\{[^}]*border:\s*1px solid var\(--po-editable-table-border\)[^}]*border-radius:\s*0/s,
     );
     expect(csvTableCss).toContain("--po-editable-table-cell-max-width: 560px");
-    expect(csvTableCss).toContain(
-      "--po-editable-table-background: var(--po-host-csv-table-background, transparent)",
-    );
+    expect(sharedTableCss).toContain("--po-editable-table-background:");
     expect(csvTableCss).toContain(".csv-table-editor__column-resize-handle");
     expect(csvColumnResizeSource).toContain("onDoubleClick");
     expect(csvColumnLayoutSource).toContain("View-only CSV column geometry");
@@ -279,10 +277,10 @@ describe("CSV table visual architecture", () => {
       /\.csv-table-editor__surface\[data-resize-preview\] \.csv-table-editor__table\s*\{[^}]*border-color:\s*var\(--csv-table-resize-preview-border\)[^}]*box-shadow:\s*none/s,
     );
     expect(csvTableCss).toMatch(
-      /\.csv-table-editor__table \.csv-table-editor__expansion-cell\s*\{[^}]*border-inline-end-color:\s*var\(--csv-table-resize-preview-grid\)[^}]*border-block-end-color:\s*var\(--csv-table-resize-preview-grid\)[^}]*background:\s*var\(--csv-table-resize-preview-data-background\)/s,
+      /\.csv-table-editor__table \.csv-table-editor__expansion-cell\s*\{[^}]*border-inline-end-color:\s*var\(--csv-table-resize-preview-grid\)[^}]*border-block-end-color:\s*var\(--csv-table-resize-preview-grid\)[^}]*background:\s*var\(--po-editable-table-background\)/s,
     );
     expect(csvTableCss).toContain(".csv-table-editor__expansion-record-index");
-    expect(csvTableCss).toContain("--csv-table-resize-preview-data-background");
+    expect(csvTableCss).toContain("--po-editable-table-background");
     expect(csvTableCss).not.toContain(".csv-table-editor__resize-preview {");
     expect(csvTableCss).not.toContain(".csv-table-editor__resize-preview-columns");
     expect(csvTableCss).not.toContain(".csv-table-editor__resize-preview-rows");
@@ -303,7 +301,7 @@ describe("CSV table visual architecture", () => {
     expect(csvControlsSource).toContain("po-editable-table-row-handle");
     expect(csvControlsSource).toContain('direction === "rtl" ? rect.right : rect.left');
     expect(sharedTableCss).toMatch(
-      /\.po-editable-table-row-handle \.po-editable-table-drag-handle-visual\s*\{[^}]*width:\s*13px[^}]*height:\s*26px/s,
+      /\.po-editable-table-row-handle \.po-editable-table-drag-handle-visual\s*\{[^}]*width:\s*14px[^}]*height:\s*22px/s,
     );
     expect(csvControlsSource).toContain("ROW_HANDLE_OUTER_REACH_PX = 9");
     expect(csvControlsSource).toContain("COLUMN_HANDLE_OUTER_REACH_PX = 9");

@@ -1,3 +1,4 @@
+import { createEditableTableSelection } from "../../../table/editableTableSelection";
 import type { EditorView } from "@codemirror/view";
 import type { MarkdownTableAlignment, MarkdownTableRow } from "./tableModel";
 import { stopCodeMirrorEvent } from "../../shared/widgets/widgetDom";
@@ -62,12 +63,13 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
   dropIndicator.className = "cm-md-table-drop-indicator po-editable-table-drop-indicator";
   dropIndicator.hidden = true;
   layer.append(columnHandle, rowHandle, dropIndicator);
+  const selection = createEditableTableSelection(context.table.parentElement!, context.table);
 
   // Single handle pair driven by the hovered cell: the row handle straddles
   // the left border of the hovered row, the column handle straddles the top
   // border of the hovered column. The header row is fixed and gets no row
   // handle. Visibility is class-driven (not [hidden]) so show/hide can fade
-  // and position changes can glide.
+  // without animating the handle away from its current cell.
   const hover: { columnIndex: number | null; rowIndex: number | null; dragging: boolean } = {
     columnIndex: null,
     rowIndex: null,
@@ -87,15 +89,9 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
   };
 
   const showHandleAt = (handle: HTMLElement, left: string, top: string) => {
-    const wasVisible = handle.classList.contains("is-visible");
     handle.style.left = left;
     handle.style.top = top;
-    if (!wasVisible) {
-      // Flush the position write first so the fade-in starts in place
-      // instead of gliding over from the previous row/column.
-      handle.getBoundingClientRect();
-      handle.classList.add("is-visible");
-    }
+    handle.classList.add("is-visible");
   };
 
   const positionHandles = () => {
@@ -140,7 +136,7 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
   };
 
   const updateHoverFromEvent = (event: Event) => {
-    if (disposed || hover.dragging) return;
+    if (disposed || hover.dragging || ownedMenu) return;
     const target = event.target;
     if (!(target instanceof Element)) return;
     const cell = target.closest("td, th");
@@ -227,6 +223,10 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
   };
 
   const setDragSourceHighlight = (kind: MarkdownTableDragKind, sourceIndex: number, active: boolean) => {
+    if (active) selection.show(kind, () => kind === "column"
+      ? getHeaderCellElements()[sourceIndex] ?? null
+      : getBodyRowElements().find(row => Number(row.dataset.mdTableRow) === sourceIndex) ?? null);
+    else selection.clear();
     if (kind === "row") {
       const row = getBodyRowElements().find(
         (candidate) => Number(candidate.dataset.mdTableRow) === sourceIndex,
@@ -480,6 +480,7 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
         closeActiveMarkdownTableMenu();
       }
       ownedMenu = null;
+      selection.dispose();
       setInteractionPinnedRow(null);
     },
   };
