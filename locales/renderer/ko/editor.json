@@ -395,6 +395,7 @@
   "viewer.noHostSurface": "이 뷰어 팩을 여기에 렌더링할 수 없습니다. 사용할 수 있는 호스트 화면이 없습니다.",
   "html.editPage": "페이지 편집",
   "html.properties": "요소 속성",
+  "html.editBlock": "블록 편집",
   "html.editText": "텍스트 편집",
   "html.replaceImage": "이미지 바꾸기",
   "html.altText": "대체 텍스트",

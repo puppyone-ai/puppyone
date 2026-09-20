@@ -6,6 +6,7 @@ import { closeDocumentWorkingCopy } from "../../../../packages/shared-ui/src/edi
 import { editorTaskScheduler } from "../../../../packages/shared-ui/src/editor/runtime/EditorTaskScheduler";
 import { requireEditorView } from "../../../support/editor/editorView";
 import englishCatalog from "../../../../src/localization/catalog-loaders/en";
+import "../../../../sub-themes/default-neutral/theme.css";
 import "@puppyone/shared-ui/shared-ui.css";
 import "@puppyone/shared-ui/editor.css";
 

@@ -395,6 +395,7 @@
   "viewer.noHostSurface": "Este paquete de visor no puede mostrarse aquí: no hay una superficie anfitriona disponible.",
   "html.editPage": "Editar página",
   "html.properties": "Propiedades del elemento",
+  "html.editBlock": "Editar bloque",
   "html.editText": "Editar texto",
   "html.replaceImage": "Reemplazar imagen",
   "html.altText": "Texto alternativo",

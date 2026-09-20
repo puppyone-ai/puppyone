@@ -395,6 +395,7 @@
   "viewer.noHostSurface": "This viewer pack cannot render here — no host surface is available.",
   "html.editPage": "Edit page",
   "html.properties": "Element properties",
+  "html.editBlock": "Edit block",
   "html.editText": "Edit text",
   "html.replaceImage": "Replace image",
   "html.altText": "Alternative text",

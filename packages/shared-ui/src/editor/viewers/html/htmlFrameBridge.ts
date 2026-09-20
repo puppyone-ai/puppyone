@@ -2,7 +2,7 @@
 export const HTML_FRAME_BRIDGE = String.raw`
 (() => {
   'use strict';
-  let port = null, selected = null, enabled = true, frame = 0, typing = null;
+  let port = null, selected = null, active = null, enabled = true, frame = 0, typing = null;
   const nodes = new Map();
   const attribute = 'data-puppyone-html-target';
   document.querySelectorAll('[' + attribute + ']').forEach((node) => {
@@ -11,7 +11,7 @@ export const HTML_FRAME_BRIDGE = String.raw`
     nodes.set(id, node);
   });
   const typingStyle = document.createElement('style');
-  typingStyle.textContent = '[data-puppyone-html-typing]{color:transparent!important;-webkit-text-fill-color:transparent!important;text-shadow:none!important}';
+  typingStyle.textContent = '[data-puppyone-html-typing]{color:transparent!important;-webkit-text-fill-color:transparent!important;text-shadow:none!important}[' + attribute + ']:focus{outline:none!important}';
   document.head.append(typingStyle);
   const setTyping = (id) => {
     if (typing) nodes.get(typing)?.removeAttribute('data-puppyone-html-typing');
@@ -19,7 +19,7 @@ export const HTML_FRAME_BRIDGE = String.raw`
     if (typing) nodes.get(typing)?.setAttribute('data-puppyone-html-typing', '');
   };
   const send = (value) => { if (port) port.postMessage(value); };
-  const measure = (edit = false) => {
+  const measure = (edit = false, reason = 'measure') => {
     if (!selected) return;
     const node = nodes.get(selected);
     if (!node || !node.isConnected) return;
@@ -43,7 +43,7 @@ export const HTML_FRAME_BRIDGE = String.raw`
       const textBounds = range.getBoundingClientRect();
       if (textBounds.width > 0 && textBounds.height > 0) anchor = textBounds;
     }
-    send({ type: 'selection', id: selected, edit, anchor: { x: anchor.x, y: anchor.y, width: anchor.width, height: anchor.height }, rect: {
+    send({ type: 'selection', id: selected, edit, reason, anchor: { x: anchor.x, y: anchor.y, width: anchor.width, height: anchor.height }, rect: {
       x: rect.x, y: rect.y, width: rect.width, height: rect.height
     }, clip: { top: Math.max(0, top - rect.top), right: Math.max(0, rect.right - right),
       bottom: Math.max(0, rect.bottom - bottom), left: Math.max(0, left - rect.left) },
@@ -63,12 +63,24 @@ export const HTML_FRAME_BRIDGE = String.raw`
     event.preventDefault(); event.stopPropagation();
     if (!enabled || !port) return;
     const target = event.target instanceof Element ? event.target.closest('[' + attribute + ']') : null;
+    if (active && nodes.get(active)?.contains(target)) {
+      active = target.getAttribute(attribute); selected = active; measure(true, 'select'); return;
+    }
+    active = null;
     if (!target) { selected = null; send({ type: 'clear' }); return; }
     selected = target.getAttribute(attribute);
-    measure(edit);
+    measure(edit, event.type === 'focusin' ? 'focus' : 'select');
   };
-  document.addEventListener('click', (event) => select(event, true), true);
-  document.addEventListener('dblclick', (event) => select(event, true), true);
+  document.addEventListener('click', (event) => select(event, false), true);
+  document.addEventListener('dblclick', (event) => select(event, false), true);
+  document.addEventListener('focusin', (event) => select(event, false), true);
+  document.addEventListener('pointermove', (event) => {
+    if (!enabled || !port) return;
+    const target = event.target instanceof Element ? event.target.closest('[' + attribute + ']') : null;
+    const id = target?.getAttribute(attribute);
+    if (!active && id && id !== selected) { selected = id; measure(false, 'hover'); }
+    send({ type: 'pointer', x: event.clientX, y: event.clientY });
+  }, true);
   document.addEventListener('submit', (event) => event.preventDefault(), true);
   document.addEventListener('dragstart', (event) => event.preventDefault(), true);
   document.addEventListener('keydown', (event) => {
@@ -76,7 +88,7 @@ export const HTML_FRAME_BRIDGE = String.raw`
     if ((event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === 'z' || event.ctrlKey && event.key.toLowerCase() === 'y')) {
       event.preventDefault(); if (enabled) send({ type: 'history', direction: event.shiftKey || event.key.toLowerCase() === 'y' ? 'redo' : 'undo' });
     } else if (event.key === 'Enter') select(event, true);
-    else if (event.key === 'Escape') { selected = null; send({ type: 'clear' }); }
+    else if (event.key === 'Escape') { selected = null; active = null; send({ type: 'clear' }); }
   }, true);
   addEventListener('scroll', schedule, true);
   addEventListener('resize', schedule);
@@ -91,7 +103,8 @@ export const HTML_FRAME_BRIDGE = String.raw`
     port.onmessage = ({ data }) => {
       if (!data || typeof data !== 'object') return;
       if (data.type === 'typing') { setTyping(nodes.has(data.id) ? data.id : null); return; }
-      if (data.type === 'clear') { selected = null; setTyping(null); return; }
+      if (data.type === 'active' && nodes.has(data.id)) { active = data.id; selected = active; measure(); return; }
+      if (data.type === 'clear') { selected = null; active = null; setTyping(null); return; }
       if (data.type === 'enabled') { enabled = data.value === true; return; }
       if (data.type === 'base') {
         let base = document.querySelector('base');

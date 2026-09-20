@@ -192,6 +192,10 @@ describe("HTML projection and resource boundaries", () => {
   it("rejects oversized, non-finite and unrecognized bridge messages", () => {
     expect(decodeHtmlBridgeMessage({ type: "patch", path: "secret" })).toBeNull();
     expect(decodeHtmlBridgeMessage({ type: "ready", ids: Array(12001).fill("t0") })).toBeNull();
-    expect(decodeHtmlBridgeMessage({ type: "selection", id: "t0", edit: true, rect: { x: NaN, y: 0, width: 10, height: 10 }, styles: {} })).toBeNull();
+    expect(decodeHtmlBridgeMessage({ type: "pointer", x: Infinity, y: 0 })).toBeNull();
+    expect(decodeHtmlBridgeMessage({ type: "pointer", x: 0, y: 1e8 })).toBeNull();
+    expect(decodeHtmlBridgeMessage({ type: "pointer", x: 12, y: 24, path: "secret" })).toEqual({ type: "pointer", x: 12, y: 24 });
+    expect(decodeHtmlBridgeMessage({ type: "selection", id: "t0", edit: true, reason: "select",
+      rect: { x: NaN, y: 0, width: 10, height: 10 }, clip: { top: 0, right: 0, bottom: 0, left: 0 }, styles: {} })).toBeNull();
   });
 });

@@ -395,6 +395,7 @@
   "viewer.noHostSurface": "Dieses Viewer Pack kann hier nicht dargestellt werden — es ist keine Host-Oberfläche verfügbar.",
   "html.editPage": "Seite bearbeiten",
   "html.properties": "Elementeigenschaften",
+  "html.editBlock": "Block bearbeiten",
   "html.editText": "Text bearbeiten",
   "html.replaceImage": "Bild ersetzen",
   "html.altText": "Alternativtext",

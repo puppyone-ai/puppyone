@@ -90,6 +90,8 @@ app.whenReady().then(async () => {
     for (const type of ["mousePressed", "mouseReleased"]) await window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", {
       type, x: Math.round(rect.x + outer.x), y: Math.round(rect.y + outer.y), button: "left", clickCount: 1,
     });
+    assert.equal(await evaluate("!!document.querySelector('.html-editor-text-input')"), false, 'page click is read-only');
+    await click('.html-editor-pencil');
     await until(() => evaluate("!!document.querySelector('.html-editor-text-input')"), "native text input reached from workbench");
     const routing = frame().routingId;
     await window.webContents.debugger.sendCommand("Input.insertText", { text: "Edited from Explorer 中文" });
@@ -108,6 +110,7 @@ app.whenReady().then(async () => {
     for (const type of ["mousePressed", "mouseReleased"]) await window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", {
       type, x: Math.round(imageBounds.x + outer.x), y: Math.round(imageBounds.y + outer.y), button: "left", clickCount: 1,
     });
+    await click('.html-editor-pencil');
     await until(() => evaluate("!!document.querySelector('.html-floating-toolbar input[type=file]')"), "workbench image import capability");
     const { root: domRoot } = await window.webContents.debugger.sendCommand("DOM.getDocument");
     const { nodeId } = await window.webContents.debugger.sendCommand("DOM.querySelector", { nodeId: domRoot.nodeId, selector: ".html-floating-toolbar input[type=file]" });

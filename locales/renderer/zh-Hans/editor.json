@@ -395,6 +395,7 @@
   "viewer.noHostSurface": "无法在此处呈现此查看器包，因为没有可用的宿主界面。",
   "html.editPage": "编辑页面",
   "html.properties": "元素属性",
+  "html.editBlock": "编辑此块",
   "html.editText": "编辑文字",
   "html.replaceImage": "替换图片",
   "html.altText": "替代文字",

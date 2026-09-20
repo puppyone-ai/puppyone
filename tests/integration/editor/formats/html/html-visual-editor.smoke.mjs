@@ -19,7 +19,7 @@ const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwM
 await fsp.writeFile(path.join(workspace, 'old.png'), Buffer.from(png, 'base64'));
 const selectedImage = path.join(temp, 'selected.png');
 await fsp.writeFile(selectedImage, Buffer.from(png, 'base64'));
-const original = '<!DOCTYPE html>\r\n<!-- keep exactly -->\r\n<html><head><style>body{margin:30px}h1{font-size:28px}#locked{color:red!important}</style><script>window.evil=true;parent.postMessage({type:"attack"},"*")</script></head><body onload="window.evil=true"><h1 id="title">Before</h1><p id="other">Other</p><p id="locked">Locked</p><img id="cover" src="old.png" alt="Old" width="64" height="64"><div style="height:1200px"></div><p id="bottom">Bottom</p></body></html>';
+const original = '<!DOCTYPE html>\r\n<!-- keep exactly -->\r\n<html><head><style>body{margin:30px}h1{font-size:28px}#locked{color:red!important}</style><script>window.evil=true;parent.postMessage({type:"attack"},"*")</script></head><body onload="window.evil=true"><h1 id="title">Before</h1><p id="other">Other</p><p id="locked">Locked</p><img id="cover" src="old.png" alt="Old" width="64" height="64"><section id="card" style="margin-top:24px;padding:24px;height:160px;box-sizing:border-box;border-radius:18px;background:#f7f8fa"><h2 id="card-title" style="margin:0">Card title</h2><p style="margin:0">Card detail</p></section><div style="height:1200px"></div><p id="bottom">Bottom</p></body></html>';
 await fsp.writeFile(path.join(workspace, "page.html"), original);
 app.setPath("userData", path.join(temp, "user-data"));
 protocol.registerSchemesAsPrivileged([{ scheme: "puppyone-local", privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
@@ -31,12 +31,16 @@ const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 async function until(predicate, label) { for (let i = 0; i < 250; i++) { if (await predicate()) return; await wait(30); } throw new Error(`Timed out: ${label}`); }
 async function button(label) { await evaluate(`Array.from(document.querySelectorAll('button')).find(b=>b.textContent===${JSON.stringify(label)})?.click()`); }
 async function control(selector) {
+  await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
   const point = await evaluate(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
+  await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
+  await evaluate("new Promise(resolve=>requestAnimationFrame(resolve))");
   for (const type of ['mousePressed', 'mouseReleased']) await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
     type, x: point.x, y: point.y, button: 'left', clickCount: 1,
   });
 }
 async function visibleSelectionBorder() {
+  await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
   const box = await evaluate("(()=>{const e=document.querySelector('.html-editor-selection'),r=e.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,viewportWidth:innerWidth,color:getComputedStyle(e).borderTopColor.match(/[0-9]+/g).slice(0,3).map(Number)}})()");
   const screenshot = PNG.sync.read((await win.webContents.capturePage()).toPNG());
   const scale = screenshot.width / box.viewportWidth;
@@ -55,13 +59,25 @@ async function history(direction) {
   win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Z', modifiers });
 }
 const preview = () => win.webContents.mainFrame.frames.find(frame => frame.url === "about:srcdoc" || frame.url.includes("/document-projection/"));
-async function clickElement(selector, twice = false) {
+async function clickElement(selector, hover = false) {
   const child = preview(); assert.ok(child, "preview frame exists");
   const rect = await child.executeJavaScript(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
   const outer = await evaluate(`(()=>{const r=document.querySelector('iframe').getBoundingClientRect();return {x:r.x,y:r.y}})()`);
   const x = Math.round(rect.x + outer.x), y = Math.round(rect.y + outer.y);
-  await win.webContents.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "left", clickCount: twice ? 2 : 1 });
-  await win.webContents.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "left", clickCount: twice ? 2 : 1 });
+  await win.webContents.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mouseMoved", x, y });
+  if (hover) return;
+  await win.webContents.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "left", clickCount: 1 });
+  await win.webContents.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "left", clickCount: 1 });
+}
+
+async function editElement(selector) {
+  await clickElement(selector);
+  await until(() => evaluate("!!document.querySelector('.html-editor-pencil')"), 'pencil available');
+  await control('.html-editor-pencil');
+  await until(() => evaluate("!!document.querySelector('.html-floating-toolbar')"), 'explicit edit mode');
+}
+async function moveAway() {
+  await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 5, y: 500 });
 }
 
 app.whenReady().then(async () => {
@@ -120,12 +136,24 @@ app.whenReady().then(async () => {
     const frameId = preview().routingId;
     win.webContents.debugger.attach("1.3");
     win.focus(); win.webContents.focus(); await wait(200);
+    await clickElement("#title", true);
+    await until(() => evaluate("!!document.querySelector('.html-editor-pencil')"), 'hover pencil');
+    await wait(450);
+    assert.equal(await evaluate("!!document.querySelector('.html-floating-toolbar,.html-editor-text-input')"), false, 'hover is read-only');
     await clickElement("#title");
+    assert.equal(await evaluate("!!document.querySelector('.html-editor-text-input')"), false, 'page click does not start editing');
+    assert.equal(await disk(), original);
+    await fsp.writeFile('/private/tmp/puppyone-html-pencil-hover.png', (await win.webContents.capturePage()).toPNG());
+    await control('.html-editor-pencil');
     await until(() => evaluate("!!document.querySelector('.html-floating-toolbar')"), "element selection");
     await until(() => evaluate("!!document.querySelector('.html-editor-text-input')"), "text input");
     assert.equal(await evaluate("getComputedStyle(document.querySelector('.html-editor-text-input')).backgroundColor"), "rgba(0, 0, 0, 0)");
     const toolbarInside = () => evaluate("(()=>{const p=document.querySelector('iframe').getBoundingClientRect(),t=document.querySelector('.html-floating-toolbar').getBoundingClientRect();return t.left>=p.left && t.right<=p.right && t.top>=p.top && t.bottom<=p.bottom})()");
     await until(toolbarInside, 'floating toolbar remains in pane');
+    assert.equal(await evaluate("getComputedStyle(document.querySelector('.html-editor-selection')).borderTopColor"), 'rgb(37, 99, 235)', 'product theme accent');
+    await evaluate("document.getElementById('root').style.setProperty('--po-accent','#14b8a6')");
+    assert.equal(await evaluate("getComputedStyle(document.querySelector('.html-editor-selection')).borderTopColor"), 'rgb(20, 184, 166)', 'selection follows theme changes');
+    await evaluate("document.getElementById('root').style.removeProperty('--po-accent')");
     await visibleSelectionBorder();
     await preview().executeJavaScript("document.body.style.background='#10294c'");
     await visibleSelectionBorder();
@@ -133,10 +161,12 @@ app.whenReady().then(async () => {
     await preview().executeJavaScript("document.body.style.background=''");
     await fsp.writeFile('/private/tmp/puppyone-html-inline-text.png', (await win.webContents.capturePage()).toPNG());
     await win.webContents.debugger.sendCommand('Input.imeSetComposition', { text: 'nihao', selectionStart: 5, selectionEnd: 5, replacementStart: 0, replacementEnd: 6 });
-    await wait(100);
+    await moveAway(); await wait(600);
+    assert.equal(await evaluate("!!document.querySelector('.html-editor-text-input')"), true, 'moving away must not discard IME');
     assert.equal(await disk(), original, 'unconfirmed composition must not be persisted');
     await win.webContents.debugger.sendCommand('Input.insertText', { text: '你好 😀 & title' });
     await until(async () => (await disk()).includes("你好 😀 &amp; title"), "text persisted");
+    await until(() => evaluate("!document.querySelector('.html-editor-selection,.html-floating-toolbar,.html-editor-text-input')"), 'commit and dismiss after leaving');
     assert.equal(preview().routingId, frameId, "typing must not reload the iframe");
     assert.ok((await disk()).startsWith('<!DOCTYPE html>\r\n<!-- keep exactly -->\r\n'));
     win.webContents.sendInputEvent({ type: "keyDown", keyCode: "Enter", modifiers: ["meta"] });
@@ -150,24 +180,31 @@ app.whenReady().then(async () => {
     await history("redo");
     await until(async () => (await disk()).includes("你好"), "shared redo");
     await until(() => evaluate("document.querySelector('iframe')?.getAttribute('aria-busy')==='false'"), "history projection");
-    await clickElement("#title");
+    await editElement("#title");
     await until(() => evaluate("!!document.querySelector('.html-floating-toolbar')"), "style inspector");
+    const beforeTray = await evaluate("document.querySelector('.html-floating-toolbar').getBoundingClientRect().toJSON()");
     await control('[aria-label="Text color"]');
-    await control('[aria-label="Choose #3b82f6"]');
-    await until(async () => (await disk()).includes('style="color: #3b82f6"'), "style persisted");
+    await until(() => evaluate("!!document.querySelector('.html-floating-toolbar__popover')"), 'color tray');
+    await wait(450);
+    assert.equal(await evaluate("(()=>{const p=document.querySelector('.html-floating-toolbar__popover').getBoundingClientRect(),t=document.querySelector('.html-floating-toolbar').getBoundingClientRect(),v=document.querySelector('iframe').getBoundingClientRect();return p.bottom<t.top && p.top>=v.top && p.left>=v.left && p.right<=v.right})()"), true, 'separate color tray is above and inside pane');
+    assert.deepEqual(await evaluate("document.querySelector('.html-floating-toolbar').getBoundingClientRect().toJSON()"), beforeTray, 'tray never moves toolbar');
+    assert.equal(await evaluate("[...document.querySelectorAll('.html-floating-toolbar__swatch')].every(e=>getComputedStyle(e).borderRadius==='50%')"), true, 'circular swatches');
+    await fsp.writeFile('/private/tmp/puppyone-html-pencil-palette.png', (await win.webContents.capturePage()).toPNG());
+    await control('[aria-label="Choose #2563eb"]');
+    await until(async () => (await disk()).includes('style="color: #2563eb"'), "style persisted");
     assert.equal(await evaluate("document.activeElement?.classList.contains('html-editor-text-input')"), true, 'formatting keeps text focus');
     await visibleSelectionBorder();
-    await until(() => evaluate("getComputedStyle(document.querySelector('.html-editor-text-input')).color==='rgb(59, 130, 246)'"), "inline text mirrors formatting");
+    await until(() => evaluate("getComputedStyle(document.querySelector('.html-editor-text-input')).color==='rgb(37, 99, 235)'"), "inline text mirrors formatting");
     await evaluate("document.querySelector('.html-editor-text-input').blur()");
-    await until(() => preview().executeJavaScript("getComputedStyle(document.querySelector('#title')).color==='rgb(59, 130, 246)'"), "rendered text color");
-    await clickElement("#locked");
+    await until(() => preview().executeJavaScript("getComputedStyle(document.querySelector('#title')).color==='rgb(37, 99, 235)'"), "rendered text color");
+    await editElement("#locked");
     await until(() => evaluate("document.querySelector('.html-editor-text-input')?.value==='Locked'"), "locked text");
     const beforeLocked = await disk();
     await control('[aria-label="Text color"]');
-    await control('[aria-label="Choose #3b82f6"]');
+    await control('[aria-label="Choose #2563eb"]');
     await wait(150);
     assert.equal(await disk(), beforeLocked, "important stylesheet must reject an ineffective override");
-    await clickElement('#cover');
+    await editElement('#cover');
     await until(() => evaluate("!!document.querySelector('input[type=file]')"), 'image inspector');
     const { root: domRoot } = await win.webContents.debugger.sendCommand('DOM.getDocument');
     const { nodeId } = await win.webContents.debugger.sendCommand('DOM.querySelector', { nodeId: domRoot.nodeId, selector: 'input[type=file]' });
@@ -183,8 +220,29 @@ app.whenReady().then(async () => {
     await history("redo");
     await until(async () => (await disk()).includes(imported), 'image redo');
     await until(() => evaluate("document.querySelector('iframe')?.getAttribute('aria-busy')==='false'"), 'image redo projection');
+    await editElement('#card');
+    assert.equal(await evaluate("!!document.querySelector('.html-editor-text-input')"), false, 'container editing keeps its child structure');
+    assert.equal(await evaluate("getComputedStyle(document.querySelector('.html-editor-selection')).borderRadius"), '18px', 'border follows card corners');
+    await clickElement('#card-title');
+    await until(() => evaluate("document.querySelector('.html-editor-text-input')?.value==='Card title'"), 'select text inside the active block');
+    await win.webContents.debugger.sendCommand('Input.insertText', { text: 'Card edited' });
+    await moveAway();
+    await until(() => evaluate("!document.querySelector('.html-floating-toolbar,.html-editor-selection,.html-editor-text-input')"), 'leave normal input');
+    await until(async () => (await disk()).includes('>Card edited</h2><p style="margin:0">Card detail</p>'), 'leaving persists only the edited child');
+    win.focus(); win.webContents.focus();
+    await preview().executeJavaScript("document.querySelector('#card-title').focus()");
+    await until(() => evaluate("document.activeElement?.tagName==='IFRAME'"), 'keyboard focus enters preview');
+    await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r' });
+    await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+    await until(() => evaluate("document.activeElement?.classList.contains('html-editor-pencil')"), 'keyboard reaches pencil');
+    await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r' });
+    await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+    await until(() => evaluate("document.activeElement?.classList.contains('html-editor-text-input')"), 'keyboard activates pencil');
+    await clickElement('#card-title', true);
+    await moveAway();
+    await until(() => evaluate("!document.querySelector('.html-floating-toolbar')"), 'keyboard editing also dismisses on leave');
     await preview().executeJavaScript("document.querySelector('#bottom').scrollIntoView()");
-    await clickElement('#bottom');
+    await editElement('#bottom');
     await until(() => evaluate("!!document.querySelector('.html-editor-selection')"), 'scrolled selection');
     const geometry = async () => {
       const child = await preview().executeJavaScript("(()=>{const r=document.querySelector('#bottom').getBoundingClientRect();return {x:r.x,y:r.y}})()");
@@ -219,12 +277,12 @@ app.whenReady().then(async () => {
       return projectionSources.get(url)?.includes("Agent version");
     }, "reopened disk");
     console.log(JSON.stringify({ passed: true, electron: process.versions.electron, platform: process.platform,
-      checks: ["safe bridge", "native IME and Unicode input", "lossless source", "stable iframe", "shared source and undo", "style and cascade",
+      checks: ["hover and click are read-only until pencil activation", "theme inheritance", "nested block editing preserves siblings", "keyboard pencil activation", "leave commits and dismisses; IME is protected", "separate circular palette above with stable toolbar", "safe bridge", "native IME and Unicode input", "lossless source", "stable iframe", "shared source and undo", "style and cascade",
         "native image import and rendering", "image undo preserves asset", "scroll and zoom geometry", "visible block border on light and dark backgrounds while typing and formatting", "bounded visual fallback", "disk-first external update", "close and reopen"] }));
   } catch (error) {
     code = 1; console.error(error?.stack ?? error);
     if (win) {
-      console.error(await evaluate("JSON.stringify({text:document.body.innerText,toolbar:document.querySelector('.html-floating-toolbar')?.getBoundingClientRect(),style:document.querySelector('.html-floating-toolbar')?.getAttribute('style'),frame:document.querySelector('iframe')?.getBoundingClientRect(),selection:document.querySelector('.html-editor-selection')?.getBoundingClientRect()})"));
+      console.error(await evaluate("JSON.stringify({text:document.body.innerText,active:document.activeElement?.outerHTML.slice(0,400),pencil:document.querySelector('.html-editor-pencil')?.outerHTML,toolbar:document.querySelector('.html-floating-toolbar')?.getBoundingClientRect(),style:document.querySelector('.html-floating-toolbar')?.getAttribute('style'),frame:document.querySelector('iframe')?.getBoundingClientRect(),selection:document.querySelector('.html-editor-selection')?.getBoundingClientRect()})"));
       await fsp.writeFile('/private/tmp/puppyone-html-native-failure.png', (await win.webContents.capturePage()).toPNG());
     }
   }

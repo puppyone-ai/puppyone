@@ -395,6 +395,7 @@
   "viewer.noHostSurface": "このビューアーパックはここでは表示できません。利用可能なホスト画面がありません。",
   "html.editPage": "ページを編集",
   "html.properties": "要素のプロパティ",
+  "html.editBlock": "ブロックを編集",
   "html.editText": "テキストを編集",
   "html.replaceImage": "画像を置換",
   "html.altText": "代替テキスト",

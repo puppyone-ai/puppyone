@@ -395,6 +395,7 @@
   "viewer.noHostSurface": "Este pacote de visualizador não pode ser renderizado aqui — nenhuma superfície do host está disponível.",
   "html.editPage": "Editar página",
   "html.properties": "Propriedades do elemento",
+  "html.editBlock": "Editar bloco",
   "html.editText": "Editar texto",
   "html.replaceImage": "Substituir imagem",
   "html.altText": "Texto alternativo",

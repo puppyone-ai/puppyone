@@ -395,6 +395,7 @@
   "viewer.noHostSurface": "Ce pack de visualisation ne peut pas être rendu ici : aucune surface hôte n’est disponible.",
   "html.editPage": "Modifier la page",
   "html.properties": "Propriétés de l’élément",
+  "html.editBlock": "Modifier le bloc",
   "html.editText": "Modifier le texte",
   "html.replaceImage": "Remplacer l’image",
   "html.altText": "Texte alternatif",
