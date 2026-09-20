@@ -210,6 +210,11 @@ describe("create entry menu", () => {
       (button) => button.textContent?.trim() ?? "",
     );
     expect(labels.some((label) => label.startsWith("Paste into folder"))).toBe(true);
+    const menu = container.querySelector<HTMLElement>(".desktop-node-action-menu");
+    expect(menu?.classList.contains("desktop-sidebar-action-menu")).toBe(true);
+    expect(menu?.dataset.menuTone).toBe("quiet");
+    expect(menu?.dataset.menuElevation).toBe("compact");
+    expect(menu?.dataset.menuTypographySurface).toBe("left-sidebar");
   });
 });
 

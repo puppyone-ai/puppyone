@@ -24,7 +24,10 @@ import {
 } from "./navigation/DesktopNavigationItems";
 import type { DesktopView } from "../../components/DesktopCloudShell";
 import { beginProjectRootDrag } from "./projectRootDrag";
-import { ProjectRowActions } from "./ProjectRowActions";
+import {
+  ProjectRowActions,
+  type ProjectActionSurface,
+} from "./ProjectRowActions";
 export {
   DEFAULT_PROJECT_SWITCHER_EXPANDED_WIDTH,
   MAX_PROJECT_SWITCHER_EXPANDED_WIDTH,
@@ -39,6 +42,11 @@ export type ProjectSwitcherRailItem = Readonly<{
   workspace: Workspace;
   initial: string;
   appearanceIdentity: string | null;
+}>;
+
+type ProjectActionSession = Readonly<{
+  projectPath: string;
+  surface: Exclude<ProjectActionSurface, null>;
 }>;
 
 type ProjectSwitcherRailProps = Readonly<{
@@ -80,6 +88,7 @@ export function ProjectSwitcherRail({
   const compactTooltipId = useId();
   const railRef = useRef<HTMLElement>(null);
   const [pendingPath, setPendingPath] = useState<string | null>(null);
+  const [projectActionSession, setProjectActionSession] = useState<ProjectActionSession | null>(null);
   const [compactTooltip, setCompactTooltip] = useState<{
     label: string;
     projectPath: string;
@@ -121,6 +130,28 @@ export function ProjectSwitcherRail({
     if (expanded) setCompactTooltip(null);
   }, [expanded]);
 
+  useEffect(() => {
+    setProjectActionSession((current) => {
+      if (!current) return null;
+      if (!expanded) return null;
+      return projects.some(({ workspace }) => workspace.path === current.projectPath)
+        ? current
+        : null;
+    });
+  }, [expanded, projects]);
+
+  const changeProjectActionSurface = (
+    projectPath: string,
+    surface: ProjectActionSurface,
+  ) => {
+    setProjectActionSession((current) => {
+      if (surface === null) {
+        return current?.projectPath === projectPath ? null : current;
+      }
+      return { projectPath, surface };
+    });
+  };
+
   const showCompactTooltip = (project: Workspace, target: HTMLElement) => {
     if (expanded || !railRef.current) return;
     const railRect = railRef.current.getBoundingClientRect();
@@ -143,6 +174,7 @@ export function ProjectSwitcherRail({
       (project.path === activeWorkspace.path && activeView !== "settings")
       || project.path === pendingPath
     ) return;
+    setProjectActionSession(null);
     queuedProjectRef.current = project;
     setPendingPath(project.path);
     if (switchInFlightRef.current) return;
@@ -229,6 +261,10 @@ export function ProjectSwitcherRail({
               {expanded && (onRenameProject || onUnlinkProject) && (
                 <ProjectRowActions
                   workspace={workspace}
+                  surface={projectActionSession?.projectPath === workspace.path
+                    ? projectActionSession.surface
+                    : null}
+                  onSurfaceChange={(surface) => changeProjectActionSurface(workspace.path, surface)}
                   onRenameProject={onRenameProject}
                   onUnlinkProject={onUnlinkProject}
                 />
@@ -241,7 +277,10 @@ export function ProjectSwitcherRail({
           type="button"
           aria-label={t("shell.workspaceSwitcher.createNew")}
           title={t("shell.workspaceSwitcher.createNew")}
-          onClick={onCreateNew}
+          onClick={() => {
+            setProjectActionSession(null);
+            onCreateNew();
+          }}
         >
           <span
             className={expanded

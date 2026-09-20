@@ -15,7 +15,7 @@ import {
   resolveProjectSwitcherRailWidth,
   resolveProjectSwitcherRailItems,
 } from "../../../../src/features/app-shell/ProjectSwitcherRail";
-import { resolveProjectRowMenuPosition } from "../../../../src/features/app-shell/ProjectRowActions";
+import { resolveDesktopSidebarActionMenuPosition } from "../../../../src/components/DesktopSidebarActionMenu";
 import {
   ProjectEntryFlow,
   useProjectEntryFlow,
@@ -185,9 +185,35 @@ describe("Project switcher rail", () => {
     expect(actionButtons[1]?.getAttribute("aria-label")).toContain("Beta");
     expect(actionButtons[1]?.getAttribute("aria-haspopup")).toBe("menu");
 
+    vi.spyOn(actionButtons[0]!, "getBoundingClientRect")
+      .mockReturnValue(new DOMRect(232, 16, 24, 28));
+    vi.spyOn(actionButtons[1]!, "getBoundingClientRect")
+      .mockReturnValue(new DOMRect(248, 52, 24, 28));
+
+    await act(async () => actionButtons[0]?.click());
+    expect(document.body.querySelectorAll(".desktop-project-row-actions-menu")).toHaveLength(1);
+    expect(actionButtons[0]?.getAttribute("aria-expanded")).toBe("true");
+
     await act(async () => actionButtons[1]?.click());
-    const menu = document.body.querySelector<HTMLElement>(".desktop-project-row-actions-menu");
+    expect(document.body.querySelectorAll(".desktop-project-row-actions-menu")).toHaveLength(1);
+    expect(actionButtons[0]?.getAttribute("aria-expanded")).toBe("false");
+    expect(actionButtons[1]?.getAttribute("aria-expanded")).toBe("true");
+    let menu = document.body.querySelector<HTMLElement>(".desktop-project-row-actions-menu");
+    expect(menu?.getAttribute("aria-label")).toContain("Beta");
+    expect(menu?.style.left).toBe("248px");
+    expect(menu?.style.top).toBe("84px");
+
+    await act(async () => actionButtons[1]?.click());
+    expect(document.body.querySelector(".desktop-project-row-actions-menu")).toBeNull();
+    expect(actionButtons[1]?.getAttribute("aria-expanded")).toBe("false");
+
+    await act(async () => actionButtons[1]?.click());
+    menu = document.body.querySelector<HTMLElement>(".desktop-project-row-actions-menu");
     expect(menu?.getAttribute("role")).toBe("menu");
+    expect(menu?.classList.contains("desktop-sidebar-action-menu")).toBe(true);
+    expect(menu?.dataset.menuTone).toBe("quiet");
+    expect(menu?.dataset.menuElevation).toBe("compact");
+    expect(menu?.dataset.menuTypographySurface).toBe("left-sidebar");
     expect(Array.from(menu?.querySelectorAll(".desktop-menu-item") ?? [], (item) => item.textContent))
       .toEqual(["Rename…", "Unlink…"]);
 
@@ -239,9 +265,19 @@ describe("Project switcher rail", () => {
     )));
 
     expect(host.querySelector(".desktop-project-switcher-row-action")).toBeNull();
-    expect(resolveProjectRowMenuPosition({ bottom: 790, right: 990 }, 1_000, 800)).toEqual({
-      top: 710,
-      left: 806,
+    expect(resolveDesktopSidebarActionMenuPosition(
+      { left: 232, bottom: 48 },
+      { menuWidth: 184, estimatedHeight: 82, viewportWidth: 1_000, viewportHeight: 800 },
+    )).toEqual({
+      top: 52,
+      left: 232,
+    });
+    expect(resolveDesktopSidebarActionMenuPosition(
+      { left: 990, bottom: 790 },
+      { menuWidth: 184, estimatedHeight: 82, viewportWidth: 1_000, viewportHeight: 800 },
+    )).toEqual({
+      top: 706,
+      left: 804,
     });
   });
 

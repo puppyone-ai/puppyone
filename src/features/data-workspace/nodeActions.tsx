@@ -34,6 +34,10 @@ import { useLocalization } from "@puppyone/localization/react";
 import { DesktopDialogCloseButton, DesktopDialogRoot } from "../../components/DesktopDialog";
 import { DesktopMenuItem, DesktopMenuSeparator, DesktopMenuSurface } from "../../components/DesktopMenu";
 import {
+  DesktopSidebarActionMenu,
+  resolveDesktopSidebarActionMenuPosition,
+} from "../../components/DesktopSidebarActionMenu";
+import {
   CREATE_NEW_SUBMENU_ID,
   type CreateNewItemId,
   type CreateNewMainMenuEntry,
@@ -667,15 +671,17 @@ function DesktopNodeActionPopover({
     + (menuRowCount * menuRowHeight)
     + (separatorCount * MENU_SEPARATOR_BLOCK_SIZE)
     + (errorMessage ? MENU_ERROR_BLOCK_SIZE : 0);
-  const position = getNodeActionMenuPosition(
+  const position = resolveDesktopSidebarActionMenuPosition(
     draft.anchor,
-    NODE_ACTION_MENU_WIDTH,
-    estimatedHeight,
+    {
+      menuWidth: NODE_ACTION_MENU_WIDTH,
+      estimatedHeight,
+    },
   );
   const menuStyle = {
-    "--node-action-menu-left": `${position.left}px`,
-    "--node-action-menu-top": `${position.top}px`,
-    "--node-action-menu-width": `${NODE_ACTION_MENU_WIDTH}px`,
+    left: `${position.left}px`,
+    top: `${position.top}px`,
+    width: `${NODE_ACTION_MENU_WIDTH}px`,
   } as CSSProperties;
 
   useEffect(() => {
@@ -709,7 +715,7 @@ function DesktopNodeActionPopover({
   }, [onCancel]);
 
   return (
-    <DesktopMenuSurface
+    <DesktopSidebarActionMenu
       ref={menuRef}
       className="desktop-node-action-menu"
       ariaLabel={t("workspace.node.actionsFor", { name: bidiIsolate(draft.node.name) })}
@@ -811,7 +817,7 @@ function DesktopNodeActionPopover({
         onClick={onDelete}
       />
       {errorMessage && <div className="desktop-node-action-error" dir="auto">{errorMessage}</div>}
-    </DesktopMenuSurface>
+    </DesktopSidebarActionMenu>
   );
 }
 
@@ -1265,18 +1271,6 @@ export function rectToCreateEntryAnchor(
     width: rect.width,
     height: rect.height,
     placement,
-  };
-}
-
-function getNodeActionMenuPosition(anchor: DesktopCreateEntryAnchor, menuWidth: number, estimatedHeight: number) {
-  const viewportWidth = typeof window === "undefined" ? 1024 : window.innerWidth;
-  const viewportHeight = typeof window === "undefined" ? 768 : window.innerHeight;
-  const maxLeft = Math.max(CREATE_ENTRY_MENU_MARGIN, viewportWidth - menuWidth - CREATE_ENTRY_MENU_MARGIN);
-  const maxTop = Math.max(CREATE_ENTRY_MENU_MARGIN, viewportHeight - estimatedHeight - CREATE_ENTRY_MENU_MARGIN);
-
-  return {
-    left: clampNumber(anchor.left, CREATE_ENTRY_MENU_MARGIN, maxLeft),
-    top: clampNumber(anchor.bottom + 4, CREATE_ENTRY_MENU_MARGIN, maxTop),
   };
 }
 

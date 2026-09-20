@@ -87,6 +87,7 @@ async function verifySwitches(expanded) {
   await evaluate(`localStorage.setItem('puppyone.desktop.experimental', JSON.stringify({ enableProjectSwitcherRail: true })); localStorage.setItem('puppyone.desktop.projectSwitcherExpanded', '${expanded}'); location.reload();`);
   await until("document.querySelectorAll('.desktop-project-switcher-rail-project').length === 3", "Project rail");
   await until(`document.querySelector('.desktop-project-switcher-rail')?.dataset.expanded === '${expanded}'`, `${mode} rail`);
+  if (expanded) await verifyActionMenuSession();
   const recordNavigation = () => { report.navigationCount += 1; };
   window.webContents.on("did-navigate", recordNavigation);
   await evaluate(`window.sidebarDocumentIdentity = crypto.randomUUID();`);
@@ -129,6 +130,55 @@ async function verifySwitches(expanded) {
     assert.ok(sample.frames.every((frame) => frame.animation === "none" && frame.avatarOpacity === "1"), `${sample.name}: project icon pulsed`);
     assert.ok(sample.frames.every((frame) => frame.x === sample.frames[0].x && frame.width === sample.frames[0].width), `${sample.name}: sidebar geometry changed`);
   }
+}
+
+async function verifyActionMenuSession() {
+  await evaluate("document.querySelectorAll('.desktop-project-switcher-row-action')[0].click()");
+  await until(
+    "document.querySelectorAll('.desktop-project-row-actions-menu').length === 1",
+    "first Project action menu",
+  );
+  const first = await evaluate(`(() => {
+    const button = document.querySelectorAll('.desktop-project-switcher-row-action')[0];
+    const menu = document.querySelector('.desktop-project-row-actions-menu');
+    const buttonRect = button.getBoundingClientRect();
+    const menuRect = menu.getBoundingClientRect();
+    return {
+      buttonLeft: buttonRect.left,
+      buttonBottom: buttonRect.bottom,
+      menuLeft: menuRect.left,
+      menuTop: menuRect.top,
+      tone: menu.dataset.menuTone,
+      elevation: menu.dataset.menuElevation,
+      typography: menu.dataset.menuTypographySurface,
+    };
+  })()`);
+  assert.equal(first.menuLeft, first.buttonLeft, "Project action menu is not start-aligned to its button");
+  assert.equal(first.menuTop, first.buttonBottom + 4, "Project action menu is not placed below its button");
+  assert.deepEqual(
+    [first.tone, first.elevation, first.typography],
+    ["quiet", "compact", "left-sidebar"],
+    "Project action menu does not use the shared Sidebar surface profile",
+  );
+
+  await evaluate("document.querySelectorAll('.desktop-project-switcher-row-action')[1].click()");
+  await until(
+    `document.querySelectorAll('.desktop-project-row-actions-menu').length === 1
+      && document.querySelector('.desktop-project-row-actions-menu')?.getAttribute('aria-label')?.includes('Project B')`,
+    "Project action session replacement",
+  );
+  assert.equal(
+    await evaluate("document.querySelectorAll('.desktop-project-row-actions-menu').length"),
+    1,
+    "Project action menus stacked instead of replacing the active session",
+  );
+
+  await evaluate("document.querySelectorAll('.desktop-project-switcher-row-action')[1].click()");
+  await until(
+    "document.querySelectorAll('.desktop-project-row-actions-menu').length === 0",
+    "Project action menu toggle close",
+  );
+  report.actionMenu = first;
 }
 
 // Main must register privileged protocols before ready; then release the entry
