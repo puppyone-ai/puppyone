@@ -25,13 +25,15 @@ describe("managed installation safety", () => {
     const file = path.join(root, "bad.tar"); await fs.writeFile(file, Buffer.concat([header.block, Buffer.alloc(1024)]));
     await expect(extractActivationArchive(file, output)).rejects.toMatchObject({ code: "archive" }); expect(await fs.readdir(output)).toEqual([]);
   });
-  it("carries the managed-only auto-update policy to every resolver consumer", async () => {
-    const root = await temporary(); const [{ argsPrefix }] = managedInstallationCandidate({ homedir: root, platform: "darwin" }, "cursor");
-    const file = path.join(root, "cursor-agent"); await fs.writeFile(file, "fixture", { mode: 0o755 });
-    const result = await resolveExecutableObservation({ names: ["cursor-agent"], configuredCandidates: [{ path: file, source: "product-fallback", argsPrefix }],
+  it.each(["cursor", "codex"])("leaves %s update policy to the vendor for managed and external installations", async id => {
+    const root = await temporary(); const [candidate] = managedInstallationCandidate({ homedir: root, platform: "darwin" }, id);
+    expect(candidate).not.toHaveProperty("argsPrefix");
+    await fs.mkdir(path.dirname(candidate.path), { recursive: true }); await fs.writeFile(candidate.path, "fixture", { mode: 0o755 });
+    const names = [path.basename(candidate.path)];
+    const result = await resolveExecutableObservation({ names, configuredCandidates: [candidate],
       searchContext: { directories: [], executableExtensions: [] } });
-    expect(result.candidate.argsPrefix).toEqual(["--disable-auto-update"]);
-    const external = await resolveExecutableObservation({ names: ["cursor-agent"], configuredCandidates: [{ path: file, source: "configured" }],
+    expect(result.candidate.argsPrefix).toEqual([]);
+    const external = await resolveExecutableObservation({ names, configuredCandidates: [{ path: candidate.path, source: "configured" }],
       searchContext: { directories: [], executableExtensions: [] } });
     expect(external.candidate.argsPrefix).toEqual([]);
   });
@@ -93,7 +95,7 @@ describe("managed installation safety", () => {
     const root = await temporary(); const file = path.join(root, "journal.json"); const journal = createActivationJournal(file);
     expect(await journal.read()).toEqual([]); await fs.writeFile(file, "{}"); await expect(journal.read()).rejects.toThrow();
     await Promise.all([1, 2, 3].map(revision => journal.write({ epoch: "test", revision, operations: [] })));
-    expect(JSON.parse(await fs.readFile(file, "utf8")).revision).toBe(3); expect(await journal.read()).toEqual([]);
+    expect(JSON.parse(await fs.readFile(file, "utf8"))).toMatchObject({ schemaVersion: 2, snapshot: { revision: 3 } }); expect(await journal.read()).toEqual([]);
     expect(await fs.readdir(root)).toEqual(["journal.json"]);
   });
   it("bounds subprocess output and time, scrubs injection environment, and cancels a real owned child", async () => {

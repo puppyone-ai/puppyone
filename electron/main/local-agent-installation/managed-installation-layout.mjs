@@ -9,6 +9,5 @@ export function managedInstallationRoot(homedir, installationId) {
 }
 export function managedInstallationCandidate({ homedir, platform }, installationId) {
   const root = managedInstallationRoot(homedir, installationId);
-  return root && platform === "darwin" ? [{ path: path.join(root, "current", entries[installationId]), source: "product-fallback",
-    ...(installationId === "cursor" ? { argsPrefix: ["--disable-auto-update"] } : {}) }] : [];
+  return root && platform === "darwin" ? [{ path: path.join(root, "current", entries[installationId]), source: "product-fallback" }] : [];
 }

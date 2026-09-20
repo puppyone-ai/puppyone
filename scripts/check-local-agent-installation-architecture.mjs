@@ -57,8 +57,11 @@ requireText(main, "composeLocalAgentActivation", "Main must compose application-
 requireText(preload, "localAgentActivation:", "Activation needs a separate ID-only control channel");
 for (const file of walk(resolve("electron/main/local-agent-activation"))) {
   if (/agent\/runtimes|src\/features|electron["']/u.test(fs.readFileSync(file, "utf8"))) {
-    errors.push(`${relative(file)} must receive Runtime/platform ports from composition, not import their implementations`);
+    errors.push(`${relative(file)} must remain installation-only and receive platform dependencies from composition`);
   }
+}
+if (/agent\/runtimes|agent\/connections/u.test(read("electron/main/compose-local-agent-activation.mjs"))) {
+  errors.push("Activation composition must not depend on runtime authentication or protocol readiness");
 }
 for (const file of walk(resolve("src/features/local-agents"))) {
   if (/node:child_process|electron\/main|child_process|shell\.openExternal/u.test(fs.readFileSync(file, "utf8"))) {

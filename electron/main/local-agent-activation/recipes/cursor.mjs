@@ -6,7 +6,6 @@ const digests = {
 export function cursorActivationRecipe(platform, arch) {
   if (platform !== "darwin" || !Object.hasOwn(digests, arch)) return null;
   return Object.freeze({ setupId: "cursor", version: "2026.09.18-9a7762b", entry: "cursor-agent", binary: "cursor-agent",
-    argsPrefix: Object.freeze(["--disable-auto-update"]),
     artifact: Object.freeze({ url: `https://downloads.cursor.com/lab/2026.09.18-9a7762b/darwin/${arch}/agent-cli-package.tar.gz`,
       algorithm: "sha256", digest: Buffer.from(digests[arch], "hex").toString("base64") }) });
 }

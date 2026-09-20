@@ -26,7 +26,7 @@ for (const [id, recipeFor] of [["codex", codexActivationRecipe], ["cursor", curs
       const entry = await installer.install(recipe, { signal: new AbortController().signal, verify: async executable => {
         assert((await fs.stat(executable)).isFile());
         if (arch === process.arch && process.platform === "darwin") {
-          const result = await runActivationProcess(executable, [...recipe.argsPrefix ?? [], "--version"], {
+          const result = await runActivationProcess(executable, ["--version"], {
             cwd: homedir, env: { PATH: "/usr/bin:/bin:/usr/sbin:/sbin", HOME: homedir,
               XDG_CONFIG_HOME: path.join(homedir, ".config"), AGENT_CLI_CREDENTIAL_STORE: "file" }, timeoutMs: 30_000,
           });

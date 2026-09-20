@@ -4,7 +4,7 @@ import { useLocalization } from "@puppyone/localization/react";
 import { DesktopDialogRoot, DesktopDialogSurface, DesktopDialogCloseButton } from "../../../components/DesktopDialog";
 import { AgentLauncherIcon } from "../../../components/brand/AgentLauncherIcon";
 import type { ActivationOperation, ActivationPlan } from "../../../../shared/local-agent-activation/types";
-import { isActivationActive } from "../../../../shared/local-agent-activation/schema.mjs";
+import { ACTIVATION_STEPS, isActivationActive } from "../../../../shared/local-agent-activation/schema.mjs";
 import type { LocalAgentActivationStore } from "./LocalAgentActivationStore";
 import "./local-agent-activation.css";
 
@@ -47,7 +47,7 @@ export function LocalAgentActivationDialog({ setupId, displayName, surface, oper
       <div className="desktop-dialog-body local-agent-activation-body">
         {confirming ? <>
           <p>{t(plan?.mode === "guided" ? "settings.activation.guided" : "settings.activation.consent", { agent: displayName })}</p>
-          <ol className="local-agent-activation-steps">{["prepare", "install", "login", "verify"].map(id => <li key={id}>{t(`settings.activation.step.${id}`)}</li>)}</ol>
+          <ol className="local-agent-activation-steps">{ACTIVATION_STEPS.map(id => <li key={id}>{t(`settings.activation.step.${id}`)}</li>)}</ol>
           <p className="local-agent-activation-note">{t("settings.activation.control")}</p>
           {plan?.mode === "automatic" && <details><summary>{t("settings.activation.details")}</summary>
             <p>{plan.publisher} · {plan.version}</p><p>{t("settings.activation.location")}</p>
@@ -78,8 +78,7 @@ export function LocalAgentActivationDialog({ setupId, displayName, surface, oper
         </> : <>
           {active && <button className="desktop-dialog-button" disabled={operation.status === "cancelling"}
             onClick={() => action("cancel")}>{t("settings.activation.cancel")}</button>}
-          {!active && operation && !["ready", "detected"].includes(operation.status) && <button className="desktop-dialog-button" onClick={() => setConfirming(true)}>{t("settings.activation.retry")}</button>}
-          {operation?.status === "authentication-required" && <button className="desktop-dialog-button primary" disabled={busy} onClick={() => action("login")}>{t("settings.activation.login")}</button>}
+          {!active && operation && operation.status !== "ready" && <button className="desktop-dialog-button" onClick={() => setConfirming(true)}>{t("settings.activation.retry")}</button>}
           {operation?.status === "setup-required" && <>
             <button className="desktop-dialog-button" disabled={busy} onClick={() => action("guide")}>{t("settings.agentSetup.guide")}</button>
             <button className="desktop-dialog-button primary" disabled={busy} onClick={() => action("check")}>{t("settings.activation.check")}</button>

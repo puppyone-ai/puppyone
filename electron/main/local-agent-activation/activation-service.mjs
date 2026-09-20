@@ -39,7 +39,7 @@ export function createLocalAgentActivationService({ registry, resolveInstallatio
     if (!plan || plan.ownerId !== ownerId || disposed) throw new Error("Invalid activation plan.");
     return plan;
   }
-  async function run(task, login = false) {
+  async function run(task) {
     const { entry, route } = task;
     const signal = task.controller.signal;
     try {
@@ -51,11 +51,18 @@ export function createLocalAgentActivationService({ registry, resolveInstallatio
       if (!candidate && route.recipe) {
         step(entry, "install", "running"); emit(entry, { status: "installing" });
         await installer.install(route.recipe, { signal,
-          verify: async file => route.port.verifyInstallation(await createContext({ file, signal, argsPrefix: route.recipe.argsPrefix })),
+          verify: async file => {
+            const context = await createContext({ file, signal });
+            const result = await context.run(["--version"]);
+            if (result.code !== 0 || !`${result.stdout}\n${result.stderr}`.trim()) throw new ActivationError("installation");
+          },
           committed: () => { task.committed = true; emit(entry, { installed: true }); },
         });
         check(task);
+        step(entry, "install", "complete"); step(entry, "verify", "running");
+        emit(entry, { status: "verifying" });
         candidate = await resolveInstallation(route.installationId, signal);
+        check(task);
         if (!candidate) throw new ActivationError("installation");
       }
       if (!candidate) {
@@ -63,25 +70,8 @@ export function createLocalAgentActivationService({ registry, resolveInstallatio
       }
       entry.installed = true;
       step(entry, "install", task.committed ? "complete" : "skipped");
-      if (!route.port) {
-        // A guided route only proves installation. It must not promise account
-        // readiness (notably Claude SDK and multi-provider OpenCode/Pi).
-        step(entry, "login", "skipped"); step(entry, "verify", "complete");
-        emit(entry, { status: "detected" }); return;
-      }
-      const context = await createContext({ candidate, signal });
-      await route.port.verifyInstallation(context); check(task);
-      step(entry, "login", "running"); emit(entry, { status: "verifying" });
-      if (login) {
-        emit(entry, { status: "authenticating" });
-        try { await route.port.login(context); } catch { check(task); throw new ActivationError("authentication"); }
-      }
-      const authentication = await route.port.authentication(context); check(task);
-      if (authentication === "signed-out") { emit(entry, { status: "authentication-required" }); return; }
-      if (authentication !== "signed-in") throw new ActivationError("authentication");
-      step(entry, "login", login ? "complete" : "skipped"); step(entry, "verify", "running");
-      emit(entry, { status: "verifying" });
-      try { await route.port.verifyReady(context); } catch { check(task); throw new ActivationError("verification"); }
+      // Discovery is the activation authority for every route. Existing CLIs
+      // need no version/account/protocol process here; runtime checks happen on launch.
       check(task); step(entry, "verify", "complete"); emit(entry, { status: "ready" });
     } catch (error) {
       if (signal.aborted || disposed) {
@@ -99,9 +89,9 @@ export function createLocalAgentActivationService({ registry, resolveInstallatio
       if (entry.installed) void Promise.resolve(refreshInstallations()).catch(() => {});
     }
   }
-  function launch(task, login) {
+  function launch(task) {
     task.running = true;
-    task.promise = run(task, login);
+    task.promise = run(task);
     return task.promise;
   }
   return {
@@ -135,14 +125,14 @@ export function createLocalAgentActivationService({ registry, resolveInstallatio
       try { await journal.write(snapshot()); } catch { emit(entry, { status: "failed", errorCode: "storage" }); return snapshot(); }
       if (!isActivationActive(entry.status) || task.controller.signal.aborted) return snapshot();
       for (const [id, older] of tasks) if (older.entry.setupId === route.id && id !== entry.operationId && !older.running) tasks.delete(id);
-      void launch(task, false); return snapshot();
+      void launch(task); return snapshot();
     },
     async act(_ownerId, input) {
       exactObject(input, ["operationId", "action"]);
       // Do not await journal I/O here: a stalled disk or provider cannot block
       // stopping a task already owned by this process.
       activationId(input.operationId);
-      if (!["cancel", "login", "check", "guide", "dismiss"].includes(input.action)) throw new Error("Invalid activation action.");
+      if (!["cancel", "check", "guide", "dismiss"].includes(input.action)) throw new Error("Invalid activation action.");
       if (input.action === "dismiss") {
         const entry = [...operations.values()].find(value => value.operationId === input.operationId);
         if (!entry || isActivationActive(entry.status)) throw new Error("Activation is still running.");
@@ -163,9 +153,8 @@ export function createLocalAgentActivationService({ registry, resolveInstallatio
         if (entry.status !== "setup-required") throw new Error("Guide is unavailable.");
         await openExternal(route.guideUrl);
       } else {
-        if (disposed || task.running || !["setup-required", "authentication-required"].includes(entry.status)) return snapshot();
-        if (input.action === "login" && (entry.status !== "authentication-required" || !route.port)) throw new Error("Login is unavailable.");
-        void launch(task, input.action === "login");
+        if (disposed || task.running || entry.status !== "setup-required") return snapshot();
+        void launch(task);
       }
       return snapshot();
     },

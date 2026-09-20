@@ -4,7 +4,6 @@ import type { LocalAgentInstallationId } from "../../../../shared/local-agent-in
 import type { LocalAgentInstallationDiscoveryPhase } from "../../local-agents/model/localAgentInstallationAvailability";
 import { TerminalLauncher } from "./TerminalLauncher";
 import { LocalAgentSetupSection } from "../../local-agents/ui/LocalAgentSetupSection";
-import { useLocalAgentActivation } from "../../local-agents/activation/LocalAgentActivationStore";
 import { DesktopOverlayPortal } from "../../app-shell/DesktopOverlayPortal";
 import type { LocalAgentSetupPreferences } from "../../../../shared/local-agent-installation/setup-types";
 import { resolveAppearance } from "../../appearance/resolveAppearance";
@@ -32,7 +31,6 @@ export function TerminalLauncherVisualSmokeHarness() {
   const agentMode = query.get("agentMode") === "chat" ? "chat" : "terminal";
   const [selection, setSelection] = useState<string | null>(null);
   const setupScenario = query.get("scenario") === "setup";
-  const activation = useLocalAgentActivation();
   const discoveryScenario = setupScenario || query.get("scenario") === "discovery";
   const [setupPreferences, setSetupPreferences] = useState<LocalAgentSetupPreferences>({ enabled: true, dismissedSetupIds: [], snoozedUntil: {} });
   const [discovery, setDiscovery] = useState<{
@@ -45,7 +43,6 @@ export function TerminalLauncherVisualSmokeHarness() {
     Object.assign(window, { __launcherDiscoverySmoke: { setDiscovery } });
     return () => { Reflect.deleteProperty(window, "__launcherDiscoverySmoke"); };
   }, [discoveryScenario]);
-  const usableIds = discovery.ids.filter(id => !activation.snapshot.operations.some(operation => operation.setupId === id && !["ready", "detected"].includes(operation.status)));
 
   return (
     <SurfaceAppearanceProvider value={appearance}>
@@ -65,7 +62,7 @@ export function TerminalLauncherVisualSmokeHarness() {
             discoveryPhase={discovery.phase}
             discoveryRefreshing={discovery.refreshing}
             discoveryHasFailures={discovery.failed}
-            availableAgentIds={usableIds}
+            availableAgentIds={discovery.ids}
             agentSetup={setupScenario ? (onReturnToLauncher) => <LocalAgentSetupSection enabled surface="chat"
               onReturnToLauncher={onReturnToLauncher}
               eligibleInstallationIds={["codex", "cursor"]} hiddenAgentIds={[]}
@@ -74,7 +71,7 @@ export function TerminalLauncherVisualSmokeHarness() {
                 snapshot: { schemaVersion: 1, generation: discovery.completed, scanId: `fixture:${discovery.completed}`,
                   source: "scan", results: [], availableAgentIds: discovery.ids, requestedAt: "2026-09-19T00:00:00Z", completedAt: "2026-09-19T00:00:00Z" } }}
               onRefresh={() => setDiscovery((current) => ({ ...current, phase: "loading", refreshing: true }))} /> : undefined}
-            chatRecipes={discoveryScenario ? filterAgentChatCreationRecipesByLocalAgentIds(AGENT_CHAT_CREATION_RECIPES, usableIds) : AGENT_CHAT_CREATION_RECIPES}
+            chatRecipes={discoveryScenario ? filterAgentChatCreationRecipesByLocalAgentIds(AGENT_CHAT_CREATION_RECIPES, discovery.ids) : AGENT_CHAT_CREATION_RECIPES}
             onCreateChat={(recipe) => setSelection(`chat:${recipe.id}`)}
             onLaunch={setSelection}
             onRefresh={() => setDiscovery(current => ({ ...current, phase: "loading", refreshing: true, failed: false, completed: 0 }))}

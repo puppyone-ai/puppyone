@@ -1,5 +1,5 @@
 #!/usr/bin/env electron
-// Real Electron/IPC/UI, synthetic installation/authentication. Never touches user CLIs.
+// Real Electron/IPC/UI, synthetic installation. Never touches user CLIs or login.
 import { app, BrowserWindow, ipcMain } from "electron";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -16,7 +16,7 @@ const artifacts = path.join(repo, "artifacts/tests/terminal/local-agent-setup");
 const source = await readSourceIdentity(repo);
 app.setPath("userData", await mkdtemp(path.join(os.tmpdir(), "puppyone-activation-smoke-")));
 app.on("window-all-closed", () => {});
-let window; let completeInstall; let installed = false; let signedIn = false;
+let window; let completeInstall; let installed = false;
 let current = { generation: 1, results: [{ agentId: "codex", status: "not-found" }, { agentId: "cursor", status: "not-found" }] };
 const evaluate = code => window.webContents.executeJavaScript(code, true);
 const assert = (value, message) => { if (!value) throw new Error(message); };
@@ -28,10 +28,9 @@ const setup = createLocalAgentSetupService({
 registerLocalAgentSetupIpcHandlers({ ipcMain, setupService: setup });
 const activation = createLocalAgentActivationService({
   registry: new Map(["codex", "cursor"].map(id => [id, { id, installationId: id, terminalRecipeId: id,
-    displayName: id === "codex" ? "Codex" : "Cursor", publisher: "Fixture", recipe: { version: "fixture" },
-    port: { verifyInstallation: async () => {}, authentication: async () => signedIn ? "signed-in" : "signed-out", login: async () => { signedIn = true; }, verifyReady: async () => {} } }])),
+    displayName: id === "codex" ? "Codex" : "Cursor", publisher: "Fixture", recipe: { version: "fixture" } }])),
   resolveInstallation: async () => installed ? { file: "/fixture" } : null,
-  createContext: async ({ signal }) => ({ signal }), journal: { read: async () => [], write: async () => {} }, openExternal: async () => {},
+  createContext: async () => ({ run: async () => ({ code: 0, stdout: "fixture", stderr: "" }) }), journal: { read: async () => [], write: async () => {} }, openExternal: async () => {},
   installer: { install: async (_recipe, { signal, committed }) => {
     await new Promise((resolve, reject) => { completeInstall = resolve; signal.addEventListener("abort", () => reject(signal.reason), { once: true }); });
     signal.throwIfAborted(); installed = true; committed();
@@ -77,7 +76,7 @@ async function capture(name) {
 async function run() {
   await mkdir(artifacts, { recursive: true });
   for (const variant of [{ theme: "light", width: 420, height: 760, rtl: false }, { theme: "dark", width: 280, height: 500, rtl: false }, { theme: "light", width: 280, height: 500, rtl: true }]) {
-    installed = false; signedIn = false;
+    installed = false;
     current = { generation: 1, results: [{ agentId: "codex", status: "not-found" }, { agentId: "cursor", status: "not-found" }] };
     window = new BrowserWindow({ show: true, width: variant.width + 100, height: variant.height,
       webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false,
@@ -104,14 +103,16 @@ async function run() {
     await until("document.querySelector('[role=dialog] [role=status]')?.textContent === 'Stopped'"); await capture(`${name}-stopped`);
     await click("Try again"); await until("!Array.from(document.querySelectorAll('button')).find(button => button.textContent === 'Install and activate').disabled");
     await click("Install and activate"); await until("document.querySelector('[role=dialog] [role=status]')?.textContent === 'Installing…'"); completeInstall(); await activation.settled();
-    await until("document.querySelector('[role=dialog] [role=status]')?.textContent === 'Sign-in needed'"); await capture(`${name}-login`);
-    await click("Sign in with browser"); await activation.settled(); await until("document.querySelector('[role=dialog] [role=status]')?.textContent === 'Activated'");
+    await until("document.querySelector('[role=dialog] [role=status]')?.textContent === 'Activated'");
+    await until("Array.from(document.querySelectorAll('.desktop-terminal-launcher-tool')).some(button => button.textContent === 'Codex' && !button.disabled)");
+    assert(await evaluate("document.querySelectorAll('.local-agent-activation-steps li').length === 3 && !document.querySelector('button[aria-label=\"Activate Codex\"]') && !document.body.textContent.includes('Sign-in needed')"), "Installed CLI still requires activation or login");
     await capture(`${name}-ready`);
     // Footer dismisses the receipt; header/Escape only hides the view.
     await evaluate("Array.from(document.querySelectorAll('.desktop-dialog-footer button')).find(button => button.textContent === 'Close').click()");
     await until("!document.querySelector('[role=dialog]')");
     await until("Array.from(document.querySelectorAll('.desktop-terminal-launcher-tool')).some(button => button.textContent === 'Codex' && !button.disabled)");
     assert(await evaluate("!document.querySelector('[aria-label=\"Stop activating Codex\"]')"), "Completed operation left a stop control");
+    await capture(`${name}-activated-launcher`);
     window.destroy();
   }
   const sourceAfter = await readSourceIdentity(repo); assert(source.fingerprint === sourceAfter.fingerprint, "Source changed during smoke verification");

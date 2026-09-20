@@ -1,7 +1,7 @@
-export const ACTIVATION_STATUSES = Object.freeze(["preparing", "installing", "setup-required", "authentication-required", "authenticating", "verifying", "ready", "detected", "cancelling", "cancelled", "failed", "interrupted"]);
-export const ACTIVATION_STEPS = Object.freeze(["prepare", "install", "login", "verify"]);
-export const ACTIVATION_ERRORS = Object.freeze(["installation-check", "download", "integrity", "archive", "installation-busy", "installation", "authentication", "verification", "interrupted", "storage", "timeout", "process", "unsupported"]);
-export const isActivationActive = (status) => ACTIVATION_STATUSES.includes(status) && !["ready", "detected", "cancelled", "failed", "interrupted"].includes(status);
+export const ACTIVATION_STATUSES = Object.freeze(["preparing", "installing", "setup-required", "verifying", "ready", "cancelling", "cancelled", "failed", "interrupted"]);
+export const ACTIVATION_STEPS = Object.freeze(["prepare", "install", "verify"]);
+export const ACTIVATION_ERRORS = Object.freeze(["installation-check", "download", "integrity", "archive", "installation-busy", "installation", "interrupted", "storage", "timeout", "process", "unsupported"]);
+export const isActivationActive = (status) => ACTIVATION_STATUSES.includes(status) && !["ready", "cancelled", "failed", "interrupted"].includes(status);
 
 export function exactObject(value, keys) {
   if (!value || typeof value !== "object" || Array.isArray(value)
@@ -23,7 +23,7 @@ export function assertActivationSnapshot(value) {
     if (ids.has(entry.setupId) || typeof entry.displayName !== "string" || entry.displayName.length > 100
       || !ACTIVATION_STATUSES.includes(entry.status) || typeof entry.installed !== "boolean"
       || !(entry.errorCode === null || ACTIVATION_ERRORS.includes(entry.errorCode))
-      || !Number.isSafeInteger(entry.updatedAt) || !Array.isArray(entry.steps) || entry.steps.length !== 4) throw new Error("Invalid activation operation.");
+      || !Number.isSafeInteger(entry.updatedAt) || !Array.isArray(entry.steps) || entry.steps.length !== ACTIVATION_STEPS.length) throw new Error("Invalid activation operation.");
     ids.add(entry.setupId);
     entry.steps.forEach((step, index) => {
       exactObject(step, ["id", "status"]);

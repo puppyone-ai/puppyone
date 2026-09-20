@@ -19,26 +19,26 @@ afterEach(() => { act(() => root?.unmount()); root = null; document.body.innerHT
 const preferences = { enabled: true, dismissedSetupIds: [], snoozedUntil: {} };
 function operation(status: ActivationOperation["status"] = "installing"): ActivationOperation {
   return { operationId: "operation:codex", setupId: "codex", displayName: "Codex", status, installed: false, errorCode: null, updatedAt: 1,
-    steps: [{ id: "prepare", status: "complete" }, { id: "install", status: "running" }, { id: "login", status: "pending" }, { id: "verify", status: "pending" }] };
+    steps: [{ id: "prepare", status: "complete" }, { id: "install", status: "running" }, { id: "verify", status: "pending" }] };
 }
 function button(label: string) {
   const found = Array.from(document.querySelectorAll("button")).find(node => node.getAttribute("aria-label") === label || node.textContent === label || node.title === label);
   if (!found) throw new Error(`Missing button: ${label}. ${document.body.textContent}`); return found;
 }
 async function click(label: string) { await act(async () => { button(label).click(); }); }
-async function mount({ existing, guided = false }: { existing?: ActivationOperation; guided?: boolean } = {}) {
+async function mount({ existing, guided = false, companionPresent = true }: { existing?: ActivationOperation; guided?: boolean; companionPresent?: boolean } = {}) {
   let value: ActivationSnapshot = { epoch: "fixture", revision: 1, operations: existing ? [existing] : [] };
   let listener: ((snapshot: ActivationSnapshot) => void) | undefined;
   const plan = vi.fn<LocalAgentActivationBridge["plan"]>(async ({ setupId, surface }) => ({ planId: `plan:${setupId}`, setupId, displayName: setupId,
     mode: guided ? "guided" : "automatic", version: guided ? null : "fixture", publisher: "Fixture", surface }));
   const start = vi.fn<LocalAgentActivationBridge["start"]>(async () => { value = { ...value, revision: value.revision + 1, operations: [operation()] }; listener?.(value); return value; });
   const action = vi.fn<LocalAgentActivationBridge["act"]>(async ({ action }) => {
-    value = { ...value, revision: value.revision + 1, operations: action === "dismiss" ? [] : value.operations.map(item => ({ ...item, status: action === "cancel" ? "cancelled" : "authenticating" })) };
+    value = { ...value, revision: value.revision + 1, operations: action === "dismiss" ? [] : value.operations.map(item => ({ ...item, status: action === "cancel" ? "cancelled" : "verifying" })) };
     listener?.(value); return value;
   });
   const bridge: LocalAgentActivationBridge = { read: async () => value, plan, start, act: action, openGuide: async () => {}, subscribe: callback => { listener = callback; return () => { listener = undefined; }; } };
   const setup: LocalAgentSetupSnapshot = { revision: "setup:1", installationGeneration: 1, entries: (["codex", "cursor"] as const).map(id => ({
-    setupId: id, installationId: id, displayName: id === "codex" ? "Codex" : "Cursor", strategy: "external-cli", status: "not-found", companionPresent: true, recommended: true,
+    setupId: id, installationId: id, displayName: id === "codex" ? "Codex" : "Cursor", strategy: "external-cli", status: "not-found", companionPresent, recommended: companionPresent,
   })) };
   const inspect = vi.fn(async () => setup);
   installDesktopBridge({ localAgentSetup: { inspect, act: async () => ({ status: "guide-opened" }), release: async () => {} }, localAgentActivation: bridge });
@@ -72,7 +72,9 @@ describe("Local Agent activation interaction", () => {
     const h = await mount(); await click("Activate Codex");
     expect(h.plan).toHaveBeenCalledWith({ setupId: "codex", surface: "chat" });
     expect(document.body.textContent).toContain("install the Codex CLI in the background");
-    expect(document.querySelectorAll(".local-agent-activation-steps li")).toHaveLength(4);
+    expect(document.querySelectorAll(".local-agent-activation-steps li")).toHaveLength(3);
+    expect(document.body.textContent).toContain("Once installed, it is activated");
+    expect(document.body.textContent).not.toContain("Sign in with browser");
     expect(h.start).not.toHaveBeenCalled(); await click("Install and activate");
     expect(h.start).toHaveBeenCalledWith({ planId: "plan:codex" });
     expect(document.querySelector("[aria-current=step]")?.textContent).toContain("Install CLI");
@@ -85,18 +87,30 @@ describe("Local Agent activation interaction", () => {
     await click("Stop activation"); expect(h.action).toHaveBeenCalledWith({ operationId: "operation:codex", action: "cancel" });
     expect(document.querySelector("[role=status]")?.textContent).toBe("Stopped");
   });
-  it("does not tie stopping to a pending login request or disable the close button", async () => {
-    const h = await mount({ existing: operation("authentication-required") }); await click("View Codex activation");
+  it("does not tie stopping to a pending installation check or disable the close button", async () => {
+    const h = await mount({ existing: operation("setup-required") }); await click("View Codex activation");
     h.action.mockImplementationOnce(() => new Promise(() => {}));
-    await click("Sign in with browser"); expect(button("Stop activation").disabled).toBe(false);
+    await click("Check installation"); expect(button("Stop activation").disabled).toBe(false);
     expect(button("Close").disabled).toBe(false); await click("Stop activation");
     expect(h.action).toHaveBeenLastCalledWith({ operationId: "operation:codex", action: "cancel" });
   });
-  it("does not hide an ongoing task when suggestions are disabled or installation discovery catches up", async () => {
+  it("does not hide an ongoing task when suggestions are disabled", async () => {
     const h = await mount({ existing: operation() });
-    await h.render({ preferences: { ...preferences, enabled: false }, discovery: { ...h.getProps().discovery, ids: ["codex"] } });
+    await h.render({ preferences: { ...preferences, enabled: false } });
     expect(button("View Codex activation")).toBeTruthy(); expect(button("Stop activating Codex")).toBeTruthy();
     expect(document.querySelectorAll(".local-agent-setup-row")).toHaveLength(1);
+  });
+  it.each(["installing", "cancelled", "failed", "interrupted", "ready"] as const)("CLI discovery overrides a stale %s receipt", async status => {
+    const h = await mount({ existing: operation(status) });
+    await h.render({ discovery: { ...h.getProps().discovery, ids: ["codex", "cursor"] } });
+    expect(document.querySelectorAll(".local-agent-setup-row")).toHaveLength(0);
+    expect(document.querySelector("[aria-label='Activate Codex']")).toBeNull();
+    expect(document.querySelector("[aria-label='Activate Cursor']")).toBeNull();
+    expect(h.start).not.toHaveBeenCalled();
+  });
+  it("does not recommend activation without a desktop app", async () => {
+    await mount({ companionPresent: false });
+    expect(document.querySelectorAll(".local-agent-setup-row")).toHaveLength(0);
   });
   it("shows retained installation after cancellation and requires new consent to retry", async () => {
     const h = await mount({ existing: { ...operation("cancelled"), installed: true } }); await click("View Codex activation");

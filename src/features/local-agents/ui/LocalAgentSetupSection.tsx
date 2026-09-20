@@ -28,7 +28,9 @@ export function LocalAgentSetupSection({ enabled, surface, eligibleInstallationI
   const isSettings = presentation === "settings";
   const entries = setup.snapshot?.entries ?? [];
   const operations = activation.snapshot.operations.filter(entry => eligibleInstallationIds.includes(entry.setupId));
-  const pending = operations.filter(entry => !["ready", "detected"].includes(entry.status));
+  // Receipts cannot override the installation inventory (including stale,
+  // failed, cancelled, or restored operations from an earlier activation).
+  const pending = operations.filter(entry => entry.status !== "ready" && !discovery.ids.some(id => id === entry.setupId));
   const rows = entries.filter(entry => !pending.some(task => task.setupId === entry.setupId) && entry.recommended
     && preferences.enabled && !hiddenAgentIds.includes(entry.installationId) && !discovery.ids.includes(entry.installationId)
     && !preferences.dismissedSetupIds.includes(entry.setupId) && !(preferences.snoozedUntil[entry.setupId] > Date.now()));
@@ -57,7 +59,7 @@ export function LocalAgentSetupSection({ enabled, surface, eligibleInstallationI
       const entry = rows.find(item => item.setupId === id);
       if (operation) return <div className="local-agent-setup-row" key={id}>
         <AgentLauncherIcon launcherId={operation.setupId} /><span className="local-agent-setup-row-name">{operation.displayName}
-          <small>{isActivationActive(operation.status) && <>{Math.max(1, operation.steps.findIndex(step => !["complete", "skipped"].includes(step.status)) + 1)}/4 · </>}{t(`settings.activation.status.${operation.status}`)}</small></span>
+          <small>{isActivationActive(operation.status) && <>{Math.max(1, operation.steps.findIndex(step => !["complete", "skipped"].includes(step.status)) + 1)}/{operation.steps.length} · </>}{t(`settings.activation.status.${operation.status}`)}</small></span>
         <span className="local-agent-setup-row-state"><button aria-label={t("settings.activation.viewAgent", { agent: operation.displayName })}
           onClick={() => setSelected({ id: operation.setupId, name: operation.displayName })}>{t("settings.activation.view")}</button>
           {isActivationActive(operation.status) && <button disabled={operation.status === "cancelling"}
