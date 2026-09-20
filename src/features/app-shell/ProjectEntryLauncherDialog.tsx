@@ -8,9 +8,9 @@ import {
 } from "../../components/DesktopDialog";
 
 export type ProjectEntryLauncherDialogProps = Readonly<{
-  canCloneRepository: boolean;
+  canImport: boolean;
   canCreateProject: boolean;
-  onCloneRepository: () => void;
+  onImport: () => void;
   onClose: () => void;
   onCreateProject: () => void;
   onOpenFolder: () => void;
@@ -22,9 +22,9 @@ export type ProjectEntryLauncherDialogProps = Readonly<{
  * creation, cloning, folder selection, and their follow-up dialogs.
  */
 export function ProjectEntryLauncherDialog({
-  canCloneRepository,
+  canImport,
   canCreateProject,
-  onCloneRepository,
+  onImport,
   onClose,
   onCreateProject,
   onOpenFolder,
@@ -74,8 +74,8 @@ export function ProjectEntryLauncherDialog({
             <ProjectEntryOption
               icon={<Download />}
               label={t("onboarding.action.cloneRepository")}
-              disabled={!canCloneRepository}
-              onClick={onCloneRepository}
+              disabled={!canImport}
+              onClick={onImport}
             />
           </div>
         </div>

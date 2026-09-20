@@ -23,6 +23,23 @@ describe("project initialization ownership", () => {
     expect(app).not.toContain("useInitialProjectDocument");
   });
 
+  it("routes home and in-project setup through one Project entry flow", () => {
+    const app = source("src/App.tsx");
+    const home = source("src/components/MinimalOnboarding.tsx");
+    const flow = source("src/features/app-shell/ProjectEntryFlow.tsx");
+
+    expect(app).toContain("useProjectEntryFlow");
+    expect(app).toContain("<ProjectEntryFlow");
+    expect(home).toContain("useProjectEntryFlow");
+    expect(home).toContain("<ProjectEntryFlow");
+    expect(app).not.toMatch(/Onboarding(?:Import|ProjectEntry)Dialog|ProjectEntryLauncherDialog/);
+    expect(home).not.toMatch(/Onboarding(?:Import|ProjectEntry)Dialog|ProjectEntryLauncherDialog/);
+    expect(flow).toContain("<ProjectEntryLauncherDialog");
+    expect(flow).toContain("<OnboardingProjectEntryDialog");
+    expect(flow).toContain("<OnboardingImportDialog");
+    expect(flow).not.toContain('"clone"');
+  });
+
   it("shares one materializer between project templates and Slides", () => {
     expect(source("electron/main/project-initialization-service.mjs")).toContain('local-api/templates/materialize.mjs');
     expect(source("local-api/workspace-templates.mjs")).toContain('./templates/materialize.mjs');
