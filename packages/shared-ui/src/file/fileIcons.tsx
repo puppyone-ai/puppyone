@@ -4,6 +4,7 @@ import {
   FILE_ICON_THEMES,
   getFileIconThemeDefinition,
   isFileIconThemeId,
+  parseFileIconThemeId,
 } from "./icon-themes/registry";
 import type { FileIconRenderContext } from "./icon-themes/iconThemeTypes";
 import {
@@ -18,6 +19,7 @@ export {
   FILE_VISUAL_KINDS,
   getFileAccent,
   isFileIconThemeId,
+  parseFileIconThemeId,
 };
 export type { FileIconThemeId, FileVisualKind };
 

@@ -9,6 +9,10 @@ import {
   setActiveMarkdownTableMenu,
 } from "./tableMenuState";
 import { getMarkdownLocalization } from "../../core/editor/markdownLocalization";
+import {
+  createEditableTableMenuIcon,
+  type EditableTableMenuIconName,
+} from "../../../table/editableTableMenuIcons";
 
 export type MarkdownTableMenuScope = "cell" | "column" | "row";
 
@@ -62,6 +66,7 @@ let markdownTableMenuSequence = 0;
 type MarkdownTableMenuItem = {
   destructive?: boolean;
   disabled?: boolean;
+  icon: EditableTableMenuIconName;
   label: string;
   operation?: MarkdownTableStructureOperation;
   radio?: boolean;
@@ -74,6 +79,7 @@ type MarkdownTableMenuSection = {
   id: "rows" | "columns" | "layout" | "alignment" | "table";
   label?: string;
   items: MarkdownTableMenuItem[];
+  toolbar: true;
 };
 
 export function showMarkdownTableContextMenu(
@@ -134,6 +140,11 @@ export function showMarkdownTableContextMenu(
     } else if (event.key === "ArrowUp") {
       const previousIndex = currentIndex < 0 ? items.length - 1 : currentIndex - 1;
       nextItem = items[(previousIndex + items.length) % items.length] ?? null;
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      const movesForward = (event.key === "ArrowRight") !== (menu.dir === "rtl");
+      const offset = movesForward ? 1 : -1;
+      const origin = currentIndex < 0 ? (movesForward ? -1 : 0) : currentIndex;
+      nextItem = items[(origin + offset + items.length) % items.length] ?? null;
     } else if (event.key === "Home") {
       nextItem = items[0] ?? null;
     } else if (event.key === "End") {
@@ -238,53 +249,63 @@ function getMarkdownTableMenuSections(
       label: t("editor.table.rows"),
       items: [
         {
+          icon: "insert-row-above",
           disabled: rowIndex === 0,
           label: t("editor.table.insertRowAbove"),
           operation: { type: "insert-row-above", rowIndex, columnIndex },
         },
         {
+          icon: "insert-row-below",
           label: t("editor.table.insertRowBelow"),
           operation: { type: "insert-row-below", rowIndex, columnIndex },
         },
         {
+          icon: "duplicate-row",
           label: t("editor.table.duplicateRow"),
           operation: { type: "duplicate-row", rowIndex, columnIndex },
         },
         {
+          icon: "move-up",
           disabled: rowIndex <= 1,
           label: t("editor.table.moveRowUp"),
           operation: { type: "move-row-up", rowIndex, columnIndex },
         },
         {
+          icon: "move-down",
           disabled: rowIndex === 0 || rowIndex >= rowCount - 1,
           label: t("editor.table.moveRowDown"),
           operation: { type: "move-row-down", rowIndex, columnIndex },
         },
         {
+          icon: "delete",
           destructive: true,
           disabled: rowIndex === 0,
           label: t("editor.table.deleteRow"),
           operation: { type: "delete-row", rowIndex, columnIndex },
         },
       ],
+      toolbar: true,
     },
     {
       id: "columns",
       label: t("editor.table.columns"),
       items: [
         {
+          icon: "insert-column-left",
           label: t(direction === "rtl"
             ? "editor.table.insertColumnRight"
             : "editor.table.insertColumnLeft"),
           operation: { type: "insert-column-left", rowIndex, columnIndex },
         },
         {
+          icon: "insert-column-right",
           label: t(direction === "rtl"
             ? "editor.table.insertColumnLeft"
             : "editor.table.insertColumnRight"),
           operation: { type: "insert-column-right", rowIndex, columnIndex },
         },
         {
+          icon: "move-left",
           disabled: columnIndex === 0,
           label: t(direction === "rtl"
             ? "editor.table.moveColumnRight"
@@ -292,6 +313,7 @@ function getMarkdownTableMenuSections(
           operation: { type: "move-column-left", rowIndex, columnIndex },
         },
         {
+          icon: "move-right",
           disabled: columnIndex >= columnCount - 1,
           label: t(direction === "rtl"
             ? "editor.table.moveColumnLeft"
@@ -299,17 +321,20 @@ function getMarkdownTableMenuSections(
           operation: { type: "move-column-right", rowIndex, columnIndex },
         },
         {
+          icon: "delete",
           destructive: true,
           disabled: columnCount <= 1,
           label: t("editor.table.deleteColumn"),
           operation: { type: "delete-column", rowIndex, columnIndex },
         },
       ],
+      toolbar: true,
     },
     {
       id: "alignment",
       label: t("editor.table.alignment"),
       items: alignmentItems.map(({ alignment, label }) => ({
+        icon: alignment === null ? "align-default" : `align-${alignment}` as EditableTableMenuIconName,
         label,
         operation: {
           type: "set-column-alignment",
@@ -320,14 +345,17 @@ function getMarkdownTableMenuSections(
         radio: true,
         selected: currentAlignment === alignment,
       })),
+      toolbar: true,
     },
     {
       id: "table",
       items: [{
+        icon: "delete",
         destructive: true,
         label: t("editor.table.deleteTable"),
         operation: { type: "delete-table", rowIndex, columnIndex },
       }],
+      toolbar: true,
     },
   ];
 
@@ -336,18 +364,22 @@ function getMarkdownTableMenuSections(
       id: "layout",
       items: [
         {
+          icon: "auto-fit-column",
           label: t("editor.table.autoFitColumn"),
           run: target.layoutActions.autoFitColumn,
         },
         {
+          icon: "fit-viewport",
           label: t("editor.table.fitToViewport"),
           run: target.layoutActions.fitToViewport,
         },
         {
+          icon: "reset-widths",
           label: t("editor.table.resetColumnWidths"),
           run: target.layoutActions.resetColumnWidths,
         },
       ],
+      toolbar: true,
     });
   }
 
@@ -392,7 +424,7 @@ function createMarkdownTableMenuSection(
   section: MarkdownTableMenuSection,
 ): HTMLElement {
   const sectionElement = document.createElement("section");
-  sectionElement.className = "desktop-menu-section";
+  sectionElement.className = `desktop-menu-section${section.toolbar ? " is-icon-toolbar" : ""}`;
   sectionElement.setAttribute("role", "group");
   if (section.label) {
     sectionElement.setAttribute("aria-label", section.label);
@@ -403,7 +435,7 @@ function createMarkdownTableMenuSection(
   }
 
   const list = document.createElement("div");
-  list.className = "desktop-menu-section-list";
+  list.className = `desktop-menu-section-list${section.toolbar ? " is-icon-toolbar" : ""}`;
   for (const item of section.items) {
     list.appendChild(createMarkdownTableMenuItem(document, context, item));
   }
@@ -422,16 +454,20 @@ function createMarkdownTableMenuItem(
   if (item.radio) button.setAttribute("aria-checked", item.selected ? "true" : "false");
   button.className = [
     "desktop-menu-item",
+    "is-icon",
     item.destructive ? "danger" : "",
     item.selected ? "selected" : "",
   ].filter(Boolean).join(" ");
   button.disabled = item.disabled === true;
   button.tabIndex = -1;
+  button.setAttribute("aria-label", item.label);
+  button.title = item.label;
 
   const body = document.createElement("span");
   body.className = "desktop-menu-item-body";
+  body.appendChild(createEditableTableMenuIcon(document, item.icon));
   const label = document.createElement("span");
-  label.className = "desktop-menu-item-label";
+  label.className = "desktop-menu-item-label po-editable-table-menu-visually-hidden";
   label.textContent = item.label;
   body.appendChild(label);
   button.appendChild(body);

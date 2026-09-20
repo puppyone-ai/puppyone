@@ -1,4 +1,4 @@
-import { isFileIconThemeId } from "@puppyone/shared-ui";
+import { parseFileIconThemeId } from "@puppyone/shared-ui";
 import {
   DARK_THEME_PRESET_STORAGE_KEY,
   INTERFACE_STYLE_STORAGE_KEY,
@@ -67,7 +67,7 @@ export function readLegacyAppearanceSnapshot(
     loadingAnimationPreset: parseLoadingAnimationPreset(
       storage.getItem(LOADING_ANIMATION_STORAGE_KEY),
     ),
-    fileIconTheme: isFileIconThemeId(storedFileIconTheme) ? storedFileIconTheme : "default",
+    fileIconTheme: parseFileIconThemeId(storedFileIconTheme) ?? "default",
     sidebarNavigationLayout: parseSidebarNavigationLayout(
       storage.getItem(SIDEBAR_NAVIGATION_LAYOUT_STORAGE_KEY),
     ),

@@ -292,7 +292,7 @@ async function measureScenario(viewportWidth, direction, reserveVerticalScrollba
 function focusStabilityFixtureHtml() {
   const longSource = "**The Game Awards focus source is deliberately wider than its rendered preview**";
   return `<!doctype html>
-    <html data-po-scrollbar-mode="product" data-interface-style="vscode">
+    <html data-po-scrollbar-mode="product" data-interface-style="default">
       <head>
         <meta charset="utf-8">
         <style>

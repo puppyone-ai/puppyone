@@ -17,15 +17,15 @@ import {
   WordDocumentGlyph,
 } from "../shared/semanticGlyphs";
 
-export function renderVsCodeGlyph(
+export function renderSemanticGlyph(
   context: FileIconRenderContext,
 ): ReactNode {
-  const color = getVsCodeAccent(context.kind);
-  const fill = getVsCodeFill(context.kind);
-  const foldFill = getVsCodeFoldFill(context.kind);
+  const color = getSemanticAccent(context.kind);
+  const fill = getSemanticFill(context.kind);
+  const foldFill = getSemanticFoldFill(context.kind);
 
   if (context.kind === "folder") {
-    return <VsCodeFolderGlyph size={context.size} />;
+    return <SemanticFolderGlyph size={context.size} />;
   }
   if (context.kind === "context-map") {
     return <TreasureMapGlyph {...context} color={color} />;
@@ -82,43 +82,43 @@ export function renderVsCodeGlyph(
         fill={fill}
       />
       <path d="M10.7 2.25V5.3h3.05" fill={foldFill} />
-      <VsCodeSymbol kind={kind} color={color} label={context.label} />
+      <SemanticSymbol kind={kind} color={color} label={context.label} />
     </svg>
   );
 }
 
-export const vscodeGlyphRenderers = {
-  folder: renderVsCodeGlyph,
-  app: renderVsCodeGlyph,
-  "context-map": renderVsCodeGlyph,
-  workflow: renderVsCodeGlyph,
-  markdown: renderVsCodeGlyph,
-  json: renderVsCodeGlyph,
-  html: renderVsCodeGlyph,
-  image: renderVsCodeGlyph,
-  audio: renderVsCodeGlyph,
-  pdf: renderVsCodeGlyph,
-  video: renderVsCodeGlyph,
-  word: renderVsCodeGlyph,
-  excel: renderVsCodeGlyph,
-  spreadsheet: renderVsCodeGlyph,
-  database: renderVsCodeGlyph,
-  presentation: renderVsCodeGlyph,
-  archive: renderVsCodeGlyph,
-  document: renderVsCodeGlyph,
-  binary: renderVsCodeGlyph,
-  code: renderVsCodeGlyph,
-  text: renderVsCodeGlyph,
-  file: renderVsCodeGlyph,
+export const semanticGlyphRenderers = {
+  folder: renderSemanticGlyph,
+  app: renderSemanticGlyph,
+  "context-map": renderSemanticGlyph,
+  workflow: renderSemanticGlyph,
+  markdown: renderSemanticGlyph,
+  json: renderSemanticGlyph,
+  html: renderSemanticGlyph,
+  image: renderSemanticGlyph,
+  audio: renderSemanticGlyph,
+  pdf: renderSemanticGlyph,
+  video: renderSemanticGlyph,
+  word: renderSemanticGlyph,
+  excel: renderSemanticGlyph,
+  spreadsheet: renderSemanticGlyph,
+  database: renderSemanticGlyph,
+  presentation: renderSemanticGlyph,
+  archive: renderSemanticGlyph,
+  document: renderSemanticGlyph,
+  binary: renderSemanticGlyph,
+  code: renderSemanticGlyph,
+  text: renderSemanticGlyph,
+  file: renderSemanticGlyph,
 } satisfies FileIconRendererMap<FileIconRenderContext>;
 
-export function renderVsCodeFolderPreviewGlyph(
+export function renderSemanticFolderPreviewGlyph(
   context: FileIconRenderContext,
 ): ReactNode {
-  return <VsCodeFolderGlyph size={context.size} />;
+  return <SemanticFolderGlyph size={context.size} />;
 }
 
-function VsCodeFolderGlyph({ size }: { size: number }) {
+function SemanticFolderGlyph({ size }: { size: number }) {
   const tabFill = "color-mix(in srgb, #dcb67a 70%, var(--po-file-icon-body))";
   const bodyFill = "color-mix(in srgb, #c99646 76%, var(--po-file-icon-body))";
 
@@ -133,30 +133,30 @@ function VsCodeFolderGlyph({ size }: { size: number }) {
   );
 }
 
-function VsCodeSymbol({
+function SemanticSymbol({
   kind,
   color,
   label,
 }: {
-  kind: VsCodeFileKind;
+  kind: SemanticFileKind;
   color: string;
   label: string;
 }) {
-  return VSCODE_SYMBOL_RENDERERS[kind]({ kind, color, label });
+  return SEMANTIC_SYMBOL_RENDERERS[kind]({ kind, color, label });
 }
 
-type VsCodeFileKind = Exclude<
+type SemanticFileKind = Exclude<
   FileVisualKind,
   "folder" | "spreadsheet" | "database" | "word" | "excel" | "presentation"
 >;
 
 type SymbolContext = {
-  kind: VsCodeFileKind;
+  kind: SemanticFileKind;
   color: string;
   label: string;
 };
 
-const VSCODE_SYMBOL_RENDERERS = {
+const SEMANTIC_SYMBOL_RENDERERS = {
   app: ({ color }) => (
     <>
       <path
@@ -191,8 +191,8 @@ const VSCODE_SYMBOL_RENDERERS = {
       {"{}"}
     </text>
   ),
-  html: renderVsCodeCodeSymbol,
-  code: renderVsCodeCodeSymbol,
+  html: renderSemanticCodeSymbol,
+  code: renderSemanticCodeSymbol,
   image: ({ color }) => (
     <>
       <rect x="5" y="6.15" width="8" height="6.3" rx="0.75" stroke={color} strokeWidth="1" />
@@ -218,14 +218,14 @@ const VSCODE_SYMBOL_RENDERERS = {
       <path d="M5.35 7.25 9 9.2l3.65-1.95M9 9.2v3.8" stroke={color} strokeWidth="0.8" opacity="0.86" />
     </>
   ),
-  pdf: renderVsCodeLabelSymbol,
-  document: renderVsCodeLabelSymbol,
-  binary: renderVsCodeLabelSymbol,
-  text: renderVsCodeLabelSymbol,
-  file: renderVsCodeLabelSymbol,
-} satisfies Record<VsCodeFileKind, (context: SymbolContext) => ReactNode>;
+  pdf: renderSemanticLabelSymbol,
+  document: renderSemanticLabelSymbol,
+  binary: renderSemanticLabelSymbol,
+  text: renderSemanticLabelSymbol,
+  file: renderSemanticLabelSymbol,
+} satisfies Record<SemanticFileKind, (context: SymbolContext) => ReactNode>;
 
-function renderVsCodeCodeSymbol({
+function renderSemanticCodeSymbol({
   color,
   kind,
 }: SymbolContext): ReactNode {
@@ -238,7 +238,7 @@ function renderVsCodeCodeSymbol({
   );
 }
 
-function renderVsCodeLabelSymbol({
+function renderSemanticLabelSymbol({
   color,
   kind,
   label,
@@ -258,7 +258,7 @@ function renderVsCodeLabelSymbol({
   );
 }
 
-function getVsCodeAccent(kind: FileVisualKind): string {
+function getSemanticAccent(kind: FileVisualKind): string {
   const overrides: Partial<Record<FileVisualKind, string>> = {
     archive: "var(--po-warning)",
     document: "var(--po-info)",
@@ -268,12 +268,12 @@ function getVsCodeAccent(kind: FileVisualKind): string {
   return overrides[kind] ?? getFileAccent(kind);
 }
 
-function getVsCodeFill(kind: FileVisualKind): string {
-  const accent = getVsCodeAccent(kind);
+function getSemanticFill(kind: FileVisualKind): string {
+  const accent = getSemanticAccent(kind);
   return `color-mix(in srgb, ${accent} 16%, var(--po-file-icon-body))`;
 }
 
-function getVsCodeFoldFill(kind: FileVisualKind): string {
-  const accent = getVsCodeAccent(kind);
+function getSemanticFoldFill(kind: FileVisualKind): string {
+  const accent = getSemanticAccent(kind);
   return `color-mix(in srgb, ${accent} 13%, var(--po-file-icon-fold))`;
 }

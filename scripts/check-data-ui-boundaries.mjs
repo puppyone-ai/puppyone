@@ -206,8 +206,8 @@ function findFileIconThemeArchitectureErrors() {
     "default/glyphs.tsx",
     "default/previews.tsx",
     "lines/index.tsx",
-    "vscode/index.ts",
-    "vscode/glyphs.tsx",
+    "semantic/index.ts",
+    "semantic/glyphs.tsx",
     "material/index.ts",
     "material/glyphs.tsx",
     "minimal/index.tsx",
@@ -251,7 +251,7 @@ function findFileIconThemeArchitectureErrors() {
   const requiredThemeFactories = new Map([
     ["default/index.ts", "createCustomPreviewIconTheme"],
     ["lines/index.tsx", "createThemeVariant"],
-    ["vscode/index.ts", "createIconTheme"],
+    ["semantic/index.ts", "createIconTheme"],
     ["material/index.ts", "createIconTheme"],
     ["minimal/index.tsx", "createIconTheme"],
   ]);
@@ -269,7 +269,7 @@ function findFileIconThemeArchitectureErrors() {
     }
   }
 
-  for (const themeName of ["default", "lines", "vscode", "material", "minimal"]) {
+  for (const themeName of ["default", "lines", "semantic", "material", "minimal"]) {
     const themeDirectory = path.join(fileIconThemeRoot, themeName);
     if (!existsSync(themeDirectory)) continue;
     for (const filePath of walk(themeDirectory)) {
@@ -295,7 +295,7 @@ function findFileIconThemeArchitectureErrors() {
     "default/glyphs.tsx",
     "default/previews.tsx",
     "material/glyphs.tsx",
-    "vscode/glyphs.tsx",
+    "semantic/glyphs.tsx",
     "minimal/index.tsx",
   ];
   const hiddenSemanticFallbackPatterns = [

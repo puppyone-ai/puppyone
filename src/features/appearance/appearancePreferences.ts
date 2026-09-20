@@ -1,4 +1,4 @@
-import { isFileIconThemeId, type FileIconThemeId } from "@puppyone/shared-ui";
+import { parseFileIconThemeId, type FileIconThemeId } from "@puppyone/shared-ui";
 import {
   parseLoadingAnimationPreset,
   parsePointerCursors,
@@ -261,9 +261,7 @@ function normalizeShared(
     loadingAnimationPreset: parseLoadingAnimationPreset(
       asString(shared.loadingAnimationPreset) ?? legacy.loadingAnimationPreset,
     ),
-    fileIconTheme: rawFileIconTheme && isFileIconThemeId(rawFileIconTheme)
-      ? rawFileIconTheme
-      : legacy.fileIconTheme,
+    fileIconTheme: parseFileIconThemeId(rawFileIconTheme) ?? legacy.fileIconTheme,
     sidebarNavigationLayout: parseSidebarNavigationLayout(
       asString(shared.sidebarNavigationLayout) ?? legacy.sidebarNavigationLayout,
     ),
