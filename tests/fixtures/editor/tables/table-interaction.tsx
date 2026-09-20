@@ -72,6 +72,28 @@ const api = {
     const target = selector === "cell" ? input(kind) : document.querySelector<HTMLElement>(`#${kind} ${selector}`)!;
     const rect = target.getBoundingClientRect(); return { x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2) };
   },
+  cellPoint(kind: string, row: number, column: number) {
+    const cells = table(kind).tBodies[0].rows[row].querySelectorAll<HTMLElement>(kind === "markdown" ? "td" : "td[data-csv-column]");
+    const rect = cells[column].getBoundingClientRect();
+    return { x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2) };
+  },
+  async captureHandleMotion(kind: string, hold = false) {
+    await new Promise(requestAnimationFrame);
+    const handles = ["column", "row"].map(axis => document.querySelector<HTMLElement>(`#${kind} .po-editable-table-${axis}-handle`)!);
+    const transitions = handles.flatMap(handle => handle.getAnimations()).filter((animation): animation is CSSTransition =>
+      animation instanceof CSSTransition && ["left", "top"].includes(animation.transitionProperty));
+    for (const transition of transitions) transition.pause();
+    const frames = [0, 40, 160].map(time => {
+      for (const transition of transitions) transition.currentTime = time;
+      return { time, handles: handles.map(handle => boxes(handle)) };
+    });
+    for (const transition of transitions) {
+      if (hold) transition.currentTime = 40;
+      else transition.finish();
+    }
+    return { properties: transitions.map(transition => transition.transitionProperty), frames,
+      held: hold ? handles.map(handle => boxes(handle)) : null };
+  },
   metrics(kind: string) {
     const element = table(kind), style = getComputedStyle(element), c = cell(kind), focus = getComputedStyle(c);
     const grip = document.querySelector<HTMLElement>(`#${kind} .po-editable-table-column-handle .po-editable-table-drag-handle-visual`)!;
@@ -81,6 +103,7 @@ const api = {
       backgrounds: [...element.querySelectorAll("th, td")].map(item => { const css = getComputedStyle(item); return [css.backgroundColor, css.backgroundImage]; }),
       textSelectionBackground: getComputedStyle(input(kind), "::selection").backgroundColor,
       cell: boxes(c), cellBorder: focus.borderRightWidth, cellFocus: focus.boxShadow,
+      dots: { width: getComputedStyle(grip, "::before").width, height: getComputedStyle(grip, "::before").height },
       grip: boxes(grip), gripShadow: getComputedStyle(grip).boxShadow, gripColor: getComputedStyle(grip).backgroundColor,
       outline: outline.hidden ? null : boxes(outline), outlineBorder: getComputedStyle(outline).borderTopWidth, blockSelected: element.closest(".cm-md-table-widget-wrap")?.classList.contains("is-doc-selected") ?? false,
       tableShadow: style.boxShadow,

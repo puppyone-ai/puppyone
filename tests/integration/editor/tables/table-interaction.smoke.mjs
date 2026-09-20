@@ -48,6 +48,10 @@ app.whenReady().then(async () => {
     const escape = async () => { window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Escape" }); window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Escape" }); await wait(); };
     await window.loadURL(`http://127.0.0.1:${port}/tests/fixtures/editor/tables/table-interaction.html`);
     await evaluate(`(async () => { for (let i=0; i<500 && !window.tableFixture; i++) await new Promise(r=>setTimeout(r,10)); await window.tableFixture.ready(); })()`);
+    window.webContents.debugger.attach("1.3");
+    const reducedMotion = value => window.webContents.debugger.sendCommand("Emulation.setEmulatedMedia", {
+      features: [{ name: "prefers-reduced-motion", value: value ? "reduce" : "no-preference" }],
+    });
     for (const mode of ["light", "dark"]) {
       await evaluate(`window.tableFixture.mode('${mode}')`);
       await screenshot(`${mode}-rest`);
@@ -59,6 +63,38 @@ app.whenReady().then(async () => {
         assert.equal(baseline.cellBorder, "1px", `${kind} cell stroke`);
         near(baseline.grip.width, 22, "compact grip width"); near(baseline.grip.height, 14, "compact grip height");
         assert.equal(baseline.gripShadow, "none", "grip must not look raised");
+        assert.deepEqual(baseline.dots, { width: "12px", height: "4px" }, "column handle needs a single line of three dots");
+        for (const reduced of [false, true]) {
+          await reducedMotion(reduced);
+          window.webContents.sendInputEvent({ type: "mouseMove", x: 3, y: 3 }); await wait();
+          window.webContents.sendInputEvent({ type: "mouseMove", ...await evaluate(`window.tableFixture.cellPoint('${kind}', 0, 0)`) });
+          const reveal = await evaluate(`window.tableFixture.captureHandleMotion('${kind}')`);
+          assert.equal(reveal.properties.length, 0, "first reveal flew in from a stale cell");
+          await wait();
+          window.webContents.sendInputEvent({ type: "mouseMove", ...await evaluate(`window.tableFixture.cellPoint('${kind}', 3, 2)`) });
+          const motion = await evaluate(`window.tableFixture.captureHandleMotion('${kind}')`);
+          if (reduced) assert.equal(motion.properties.length, 0, "reduced motion still glides");
+          else {
+            assert(motion.properties.includes("left") && motion.properties.includes("top"), "row/column pointer following lost its animation");
+            for (const [index, axis] of [[0, "x"], [1, "y"]]) {
+              const [start, middle, end] = motion.frames.map(frame => frame.handles[index][axis]);
+              assert(end - start > 10 && middle > start + 1 && middle < end - 1, `${kind} ${axis} handle did not glide between cells`);
+            }
+          }
+          if (!reduced) {
+            window.webContents.sendInputEvent({ type: "mouseMove", ...await evaluate(`window.tableFixture.cellPoint('${kind}', 0, 0)`) });
+            const interrupted = await evaluate(`window.tableFixture.captureHandleMotion('${kind}', true)`);
+            assert(interrupted.properties.length > 0, "rapid retarget fixture never started moving");
+            window.webContents.sendInputEvent({ type: "mouseMove", ...await evaluate(`window.tableFixture.cellPoint('${kind}', 2, 1)`) });
+            const retargeted = await evaluate(`window.tableFixture.captureHandleMotion('${kind}')`);
+            for (const [index, axis] of [[0, "x"], [1, "y"]]) {
+              near(retargeted.frames[0].handles[index][axis], interrupted.held[index][axis], `${kind} rapid retarget jumped away from its visible position`);
+            }
+            results.push({ mode, kind, state: "handle-rapid-retarget", interrupted, retargeted });
+          }
+          results.push({ mode, kind, state: "handle-motion", reduced, reveal, motion });
+        }
+        await reducedMotion(false);
         const point = await evaluate(`window.tableFixture.point('${kind}')`);
         window.webContents.sendInputEvent({ type: "mouseMove", ...point }); await wait();
         assert.deepEqual((await metrics()).backgrounds, baseline.backgrounds, "hover tinted cells");

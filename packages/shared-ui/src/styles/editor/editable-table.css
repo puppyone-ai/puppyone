@@ -89,9 +89,18 @@
   pointer-events: auto;
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  .po-editable-table-drag-handle.is-visible.is-following-pointer {
+    transition:
+      opacity 80ms ease,
+      left 160ms cubic-bezier(0.2, 0, 0, 1),
+      top 160ms cubic-bezier(0.2, 0, 0, 1);
+  }
+}
+
 .po-editable-table-drag-handle-visual::before {
   background-image: radial-gradient(currentColor 0.65px, transparent 0.85px);
-  /* Start at a tile boundary so 12×8 and 8×12 render exactly six dots,
+  /* Start at a tile boundary so 12×4 and 4×12 render exactly three dots,
      without the extra clipped row/column produced by centered repetition. */
   background-position: 0 0;
   content: "";
@@ -111,7 +120,7 @@
 
 .po-editable-table-column-handle .po-editable-table-drag-handle-visual::before {
   width: 12px;
-  height: 8px;
+  height: 4px;
   background-size: 4px 4px;
 }
 
@@ -131,7 +140,7 @@
 }
 
 .po-editable-table-row-handle .po-editable-table-drag-handle-visual::before {
-  width: 8px;
+  width: 4px;
   height: 12px;
   background-size: 4px 4px;
 }

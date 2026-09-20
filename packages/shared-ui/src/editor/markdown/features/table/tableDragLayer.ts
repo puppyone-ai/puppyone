@@ -1,3 +1,4 @@
+import { showEditableTableHandle } from "../../../table/editableTableHandle";
 import { createEditableTableSelection } from "../../../table/editableTableSelection";
 import type { EditorView } from "@codemirror/view";
 import type { MarkdownTableAlignment, MarkdownTableRow } from "./tableModel";
@@ -69,7 +70,7 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
   // the left border of the hovered row, the column handle straddles the top
   // border of the hovered column. The header row is fixed and gets no row
   // handle. Visibility is class-driven (not [hidden]) so show/hide can fade
-  // without animating the handle away from its current cell.
+  // while pointer retargeting glides between cells.
   const hover: { columnIndex: number | null; rowIndex: number | null; dragging: boolean } = {
     columnIndex: null,
     rowIndex: null,
@@ -88,13 +89,7 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
     handle.classList.toggle("is-visible", visible);
   };
 
-  const showHandleAt = (handle: HTMLElement, left: string, top: string) => {
-    handle.style.left = left;
-    handle.style.top = top;
-    handle.classList.add("is-visible");
-  };
-
-  const positionHandles = () => {
+  const positionHandles = (followPointer = false) => {
     if (disposed) return;
     const surface = layer.parentElement;
     if (!surface || !layer.isConnected) return;
@@ -103,7 +98,7 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
     const headerCell = hover.columnIndex == null ? null : getHeaderCellElements()[hover.columnIndex] ?? null;
     if (headerCell && hover.columnIndex != null) {
       const rect = headerCell.getBoundingClientRect();
-      showHandleAt(columnHandle, `${rect.left - surfaceRect.left + rect.width / 2}px`, "0px");
+      showEditableTableHandle(columnHandle, `${rect.left - surfaceRect.left + rect.width / 2}px`, "0px", followPointer);
       columnHandle.setAttribute(
         "aria-label",
         localization.t("editor.table.columnActions", {
@@ -121,10 +116,10 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
       const rect = bodyRow.getBoundingClientRect();
       if (localization.direction === "rtl") {
         rowHandle.style.right = "0px";
-        showHandleAt(rowHandle, "", `${rect.top - surfaceRect.top + rect.height / 2}px`);
+        showEditableTableHandle(rowHandle, "", `${rect.top - surfaceRect.top + rect.height / 2}px`, followPointer);
       } else {
         rowHandle.style.removeProperty("right");
-        showHandleAt(rowHandle, "0px", `${rect.top - surfaceRect.top + rect.height / 2}px`);
+        showEditableTableHandle(rowHandle, "0px", `${rect.top - surfaceRect.top + rect.height / 2}px`, followPointer);
       }
       rowHandle.setAttribute(
         "aria-label",
@@ -151,7 +146,7 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
     if (nextColumnIndex === hover.columnIndex && nextRowIndex === hover.rowIndex) return;
     hover.columnIndex = nextColumnIndex;
     hover.rowIndex = nextRowIndex;
-    positionHandles();
+    positionHandles(true);
   };
 
   const clearHover = () => {
@@ -182,6 +177,7 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
     const dispatchContext = buildDispatchContext();
     if (!dispatchContext) return;
     closeActiveMarkdownTableMenu();
+    positionHandles();
     setInteractionPinnedRow(kind === "row" ? sourceIndex : hover.rowIndex);
     setDragSourceHighlight(kind, sourceIndex, true);
     handle.classList.add("is-menu-active");
@@ -325,6 +321,7 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
     let lastClientY = startY;
 
     hover.dragging = true;
+    positionHandles();
     setInteractionPinnedRow(kind === "row" ? sourceIndex : hover.rowIndex);
     handle.setPointerCapture(pointerId);
     setDragSourceHighlight(kind, sourceIndex, true);
