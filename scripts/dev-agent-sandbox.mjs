@@ -12,9 +12,17 @@ try {
   if (catalog.sandbox !== true || !catalog.packs?.length || !catalog.models?.length) {
     throw new Error("The Agent catalog must explicitly identify an available sandbox.");
   }
+  if (typeof catalog.price_book_id !== "string" || !catalog.price_book_id
+    || catalog.models.some((model) => model.pricing?.pricing_method !== "rate_card_v1"
+      || model.pricing.currency !== "USD" || model.pricing.price_book_id !== catalog.price_book_id
+      || [model.pricing.input_micro_usd_per_million, model.pricing.cached_input_micro_usd_per_million,
+        model.pricing.output_micro_usd_per_million].some((rate) => !Number.isSafeInteger(rate) || rate < 0))) {
+    throw new Error("The Agent sandbox must publish an active customer token rate card.");
+  }
   console.info(`[agent-sandbox] Cloud API: ${apiBase}`);
   console.info(`[agent-sandbox] Email sign-in: ${webOrigin}`);
   console.info(`[agent-sandbox] Polar sandbox confirmed (${catalog.version}). Model calls use real provider credit.`);
+  console.info(`[agent-sandbox] Customer price book: ${catalog.price_book_id} (rate_card_v1).`);
   if (!process.argv.includes("--check")) {
     const npm = resolveNpmInvocation();
     const child = spawnManagedChild(npm.command, [...npm.argsPrefix, "run", "dev"], {
