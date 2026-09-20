@@ -347,7 +347,10 @@ describe("project folder home", () => {
     const marks = [...importGroup!.querySelectorAll<HTMLImageElement>(".onboarding-import-mark")];
     expect(marks.map((mark) => mark.dataset.importBrand)).toEqual(["github", "notion", "google-drive"]);
     expect(marks.map((mark) => mark.alt)).toEqual(["GitHub", "Notion", "Google Drive"]);
-    expect(importGroup?.querySelector(".onboarding-entry-import-more.lucide-plus")).not.toBeNull();
+    const badges = [...importGroup!.querySelectorAll(".onboarding-entry-import-brand-badge")];
+    expect(badges).toHaveLength(3);
+    expect(badges.map((badge) => badge.querySelectorAll(".onboarding-import-mark").length)).toEqual([1, 1, 1]);
+    expect(importGroup?.querySelector(".onboarding-entry-import-more, .lucide-plus")).toBeNull();
     const preview = importGroup!.querySelector(".onboarding-entry-import-brands");
     const importLabel = importGroup!.querySelector(".onboarding-entry-import-label");
     expect(importLabel!.compareDocumentPosition(preview as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

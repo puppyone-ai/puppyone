@@ -73,6 +73,7 @@ async function runSmoke() {
             const importButton = document.querySelector('.onboarding-entry-import');
             const importLabel = importButton.querySelector('.onboarding-entry-import-label');
             const importMarks = [...importButton.querySelectorAll('.onboarding-import-mark')];
+            const importBadges = [...importButton.querySelectorAll('.onboarding-entry-import-brand-badge')];
             const label = create.querySelector('.po-button__label');
             const brand = document.querySelector('.onboarding-brand-lockup');
             const launcher = document.querySelector('.onboarding-launcher');
@@ -132,11 +133,13 @@ async function runSmoke() {
               importMarks: importMarks.map(rect),
               importMarkOpacities: importMarks.map(mark => getComputedStyle(mark).opacity),
               importMarkFilters: importMarks.map(mark => getComputedStyle(mark).filter),
+              importBadges: importBadges.map(rect),
+              importBadgeBackgrounds: importBadges.map(badge => getComputedStyle(badge).backgroundColor),
+              importBadgeRadii: importBadges.map(badge => getComputedStyle(badge).borderRadius),
               importBrandIds: importMarks.map(image => image.dataset.importBrand),
               importBrandLabels: importMarks.map(image => image.alt),
               importLabel: rect(importLabel),
               importBrands: rect(importButton.querySelector('.onboarding-entry-import-brands')),
-              importMore: rect(importButton.querySelector('.onboarding-entry-import-more')),
               importText: importButton.textContent,
               actionCount: buttons.length,
               reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
@@ -177,22 +180,23 @@ async function runSmoke() {
           assert.equal(snapshot.importLineHeight, snapshot.createLineHeight, `${context}: shared CTA line height`);
           assert.equal(snapshot.importFamily, snapshot.createFamily, `${context}: shared CTA font`);
           assert.equal(snapshot.importBackground, 'rgba(0, 0, 0, 0)', `${context}: transparent text action`);
-          assert.equal(snapshot.importArtworkCount, 5, `${context}: action icon, three source logos and more indicator`);
+          assert.equal(snapshot.importArtworkCount, 4, `${context}: action icon and three source logos`);
           assert.equal(snapshot.importIcon.width, snapshot.actionIconWidth, `${context}: shared action icon size`);
           assert.deepEqual(snapshot.importBrandIds, ['github', 'notion', 'google-drive'], `${context}: familiar import sources`);
           assert.deepEqual(snapshot.importBrandLabels, ['GitHub', 'Notion', 'Google Drive'], `${context}: named logos for assistive technology`);
-          assert.equal(snapshot.importBrands.x - snapshot.importLabel.x - snapshot.importLabel.width, 12, `${context}: source logos follow text inline`);
+          assert.equal(snapshot.importBrands.x - snapshot.importLabel.x - snapshot.importLabel.width, 10, `${context}: source badges follow text inline`);
           assert.ok(Math.abs(snapshot.importBrands.y + snapshot.importBrands.height / 2 - snapshot.importLabel.y - snapshot.importLabel.height / 2) < 1, `${context}: vertically aligned label and logos`);
           if (width >= 563) assert.equal(snapshot.importLabel.height, 18, `${context}: single-line text at desktop widths`);
-          assert.ok(snapshot.importMarks.every(mark => mark.width === 17 && mark.height === 17), `${context}: restrained logo size`);
-          assert.deepEqual([...new Set(snapshot.importMarkOpacities)], ['0.48'], `${context}: source logos share one quiet opacity`);
+          assert.ok(snapshot.importBadges.every(badge => badge.width === 16 && badge.height === 16), `${context}: compact circular source badges`);
+          assert.deepEqual([...new Set(snapshot.importBadgeRadii)], ['50%'], `${context}: every source uses the same circular badge`);
+          assert.equal(new Set(snapshot.importBadgeBackgrounds).size, 1, `${context}: source badges share one background tone`);
+          assert.ok(snapshot.importMarks.every(mark => mark.width === 10 && mark.height === 10), `${context}: restrained logo size inside each badge`);
+          assert.deepEqual([...new Set(snapshot.importMarkOpacities)], ['0.72'], `${context}: source logos share one quiet opacity`);
           assert.equal(new Set(snapshot.importMarkFilters).size, 1, `${context}: source logos share one monochrome treatment`);
-          for (let i = 1; i < snapshot.importMarks.length; i++) {
-            const previous = snapshot.importMarks[i - 1];
-            assert.equal(snapshot.importMarks[i].x - previous.x - previous.width, -5, `${context}: source logos overlap`);
+          for (let i = 1; i < snapshot.importBadges.length; i++) {
+            const previous = snapshot.importBadges[i - 1];
+            assert.equal(snapshot.importBadges[i].x - previous.x - previous.width, -5, `${context}: circular source badges overlap`);
           }
-          assert.equal(snapshot.importMore.width, 14, `${context}: restrained import-more indicator`);
-          assert.equal(snapshot.importMore.x - snapshot.importBrands.x - snapshot.importBrands.width, 6, `${context}: plus follows the source logos`);
           assert.equal(snapshot.importText, importLabels[locale], `${context}: complete localized text`);
           assert.equal(snapshot.brand.width, width >= 563 ? 440 : 324, `${context}: shared responsive column width`);
           assert.equal(snapshot.brand.x, snapshot.actions.x, `${context}: brand and actions share a left edge`);

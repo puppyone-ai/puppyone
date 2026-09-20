@@ -1,6 +1,6 @@
 import { Button } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
-import { Download, FilePlus2, FolderOpen, Plus } from "lucide-react";
+import { Download, FilePlus2, FolderOpen } from "lucide-react";
 import { InlineLoading } from "../loading";
 import { ImportSourceMark } from "./ImportSourceMark";
 
@@ -134,9 +134,12 @@ function ImportAction({
         <span className="onboarding-entry-import-label">{t("onboarding.action.importFromApps")}</span>
         <span className="onboarding-entry-import-source-preview">
           <span className="onboarding-entry-import-brands">
-            {IMPORT_PREVIEW_BRANDS.map((brand) => <ImportSourceMark key={brand} brand={brand} />)}
+            {IMPORT_PREVIEW_BRANDS.map((brand) => (
+              <span className="onboarding-entry-import-brand-badge" key={brand}>
+                <ImportSourceMark brand={brand} />
+              </span>
+            ))}
           </span>
-          <Plus className="onboarding-entry-import-more" aria-hidden="true" />
         </span>
       </Button>
     </div>
