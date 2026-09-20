@@ -348,6 +348,7 @@
 }
 
 .onboarding-entry-import-brand-badge {
+  --onboarding-import-badge-surface: var(--po-canvas);
   position: relative;
   display: grid;
   box-sizing: border-box;
@@ -355,9 +356,13 @@
   height: 20px;
   flex: 0 0 20px;
   place-items: center;
-  border: 1px solid var(--po-canvas);
+  border: 1px solid var(--onboarding-import-badge-surface);
   border-radius: 50%;
-  background: color-mix(in srgb, var(--po-text-muted) 8%, var(--po-canvas));
+  background: color-mix(
+    in srgb,
+    var(--po-text-muted) 12%,
+    var(--onboarding-import-badge-surface)
+  );
 }
 
 .onboarding-entry-import-brand-badge + .onboarding-entry-import-brand-badge {

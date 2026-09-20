@@ -540,6 +540,10 @@ body.desktop-project-switcher-resizing * {
   gap: 6px;
 }
 
+.desktop-project-entry-launcher .onboarding-entry-import-brand-badge {
+  --onboarding-import-badge-surface: var(--po-overlay);
+}
+
 .desktop-project-entry-option:disabled .onboarding-entry-import-source-preview {
   opacity: 0.3;
 }

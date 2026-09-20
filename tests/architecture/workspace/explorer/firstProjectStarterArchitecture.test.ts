@@ -44,11 +44,18 @@ describe("project initialization ownership", () => {
     const homeActions = source("src/components/onboarding/OnboardingEntryActions.tsx");
     const launcher = source("src/features/app-shell/ProjectEntryLauncherDialog.tsx");
     const launcherStyles = source("src/features/app-shell/project-switcher-rail.css");
+    const onboardingStyles = source("src/styles/onboarding.css");
 
     expect(homeActions).toContain("<ImportSourcePreview");
     expect(launcher).toContain("<ImportSourcePreview");
     expect(launcherStyles).toMatch(
       /\.desktop-project-entry-launcher \.desktop-dialog-title-row\s*\{[^}]*align-items:\s*center;/s,
+    );
+    expect(onboardingStyles).toMatch(
+      /\.onboarding-entry-import-brand-badge\s*\{[^}]*--onboarding-import-badge-surface:\s*var\(--po-canvas\);[^}]*background:\s*color-mix\([\s\S]*var\(--onboarding-import-badge-surface\)/s,
+    );
+    expect(launcherStyles).toMatch(
+      /\.desktop-project-entry-launcher \.onboarding-entry-import-brand-badge\s*\{[^}]*--onboarding-import-badge-surface:\s*var\(--po-overlay\);/s,
     );
   });
 
