@@ -661,3 +661,5 @@ export { useEditorTaskOwner } from "./editor/runtime/EditorTaskContext";
 export { reconcilePendingDocumentOperations } from "./editor/document-session/documentResourceOperations";
 export { subscribeDocumentRetirements } from "./editor/document-session/documentRetirementEvents";
 export { createDocumentAssetImportPort } from "./editor/resource/DocumentAssetImport";
+
+export { commitEditorLayout } from "./editor/runtime/editorLayout";

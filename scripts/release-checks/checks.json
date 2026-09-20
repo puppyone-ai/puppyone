@@ -143,6 +143,20 @@
       }
     },
     {
+      "id": "markdown-layout",
+      "name": "Markdown reading anchor and pre-paint geometry",
+      "group": "app",
+      "command": ["npm", "run", "smoke:markdown-layout"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": [],
+      "timeoutSeconds": 120,
+      "runtime": "electron",
+      "artifacts": ["{checkDir}/markdown-layout/result.json"],
+      "environment": {
+        "PUPPYONE_MARKDOWN_LAYOUT_ARTIFACT_DIR": "{checkDir}/markdown-layout"
+      }
+    },
+    {
       "id": "native-resize-cursor",
       "name": "Native split resize cursor recovery",
       "group": "app",

@@ -82,7 +82,6 @@ export function getMarkdownEmbedHost(
     allowAutomaticLoad: options.allowAutomaticWebEmbedLoad === true,
   });
   const layout = createMarkdownLayoutCoordinator(view);
-  const unbindScrollViewportGeometry = bindMarkdownScrollViewportGeometry(view, layout);
 
   const host: MarkdownEmbedHost = {
     viewId: `md-view:${++viewSequence}`,
@@ -109,8 +108,6 @@ export function getMarkdownEmbedHost(
       assets.disposeAll();
       asyncRender.disposeAll();
       webEmbeds.disposeAll();
-      unbindScrollViewportGeometry();
-      layout.dispose();
       embedHosts.delete(view);
     },
   };
@@ -121,37 +118,4 @@ export function getMarkdownEmbedHost(
 
 export function disposeMarkdownEmbedHost(view: EditorView) {
   embedHosts.get(view)?.dispose();
-}
-
-const MARKDOWN_SCROLL_VIEWPORT_INLINE_SIZE_PROPERTY = "--po-markdown-scroll-viewport-inline-size";
-
-/**
- * Publish the real CodeMirror scroll client width as Host-owned presentation
- * geometry. CSS container units see the outer editor host, which includes a
- * reserved vertical scrollbar; wide widgets must use the smaller client box
- * or they create a second, editor-level horizontal overflow range.
- */
-function bindMarkdownScrollViewportGeometry(
-  view: EditorView,
-  layout: MarkdownLayoutCoordinator,
-): () => void {
-  const initialMeasureKey = {};
-  const publish = (inlineSize: number) => {
-    if (!Number.isFinite(inlineSize) || inlineSize <= 0) return;
-    view.dom.style.setProperty(
-      MARKDOWN_SCROLL_VIEWPORT_INLINE_SIZE_PROPERTY,
-      `${inlineSize}px`,
-    );
-  };
-  const stopObserving = layout.observe(view.scrollDOM, undefined, publish);
-  layout.schedule(
-    initialMeasureKey,
-    () => view.scrollDOM.clientWidth,
-    publish,
-  );
-
-  return () => {
-    stopObserving();
-    view.dom.style.removeProperty(MARKDOWN_SCROLL_VIEWPORT_INLINE_SIZE_PROPERTY);
-  };
 }

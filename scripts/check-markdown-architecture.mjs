@@ -10,6 +10,7 @@ const coreRoot = path.join(markdownRoot, "core");
 const featuresRoot = path.join(markdownRoot, "features");
 const platformRoot = path.join(markdownRoot, "platform");
 const sharedRoot = path.join(markdownRoot, "shared");
+const codeMirrorRoot = path.join(sharedUiSourceRoot, "editor", "codemirror");
 const legacyDirectories = [
   "adapters",
   "decorations",
@@ -104,6 +105,27 @@ for (const filePath of walkTypeScript(sharedUiSourceRoot)) {
       errors.push(`${relative(filePath)} imports Markdown internals ${relative(target)}; use editor/markdown/index.ts`);
     }
   }
+}
+
+for (const filePath of walkTypeScript(codeMirrorRoot)) {
+  const source = readFileSync(filePath, "utf8");
+  for (const specifier of collectSpecifiers(source)) {
+    const target = resolveRelativeModule(filePath, specifier);
+    if (target && isInside(target, markdownRoot)) {
+      errors.push(`${relative(filePath)} imports a format; shared engine layout must remain format-neutral`);
+    }
+  }
+  const code = stripComments(source);
+  if (/\.(?:measure|readMeasured)\s*\(/.test(code)) {
+    errors.push(`${relative(filePath)} calls a private CodeMirror measurement API`);
+  }
+  if (/\.scrollTop\s*(?:[+\-*/]=|=(?!=)|\+\+|--)/.test(code)) {
+    errors.push(`${relative(filePath)} writes scrollTop; use engine scroll effects to preserve one scroll owner`);
+  }
+}
+const hostLayoutFile = path.join(sharedUiSourceRoot, "editor", "runtime", "editorLayout.ts");
+if (collectSpecifiers(readFileSync(hostLayoutFile, "utf8")).some(specifier => /codemirror|markdown/i.test(specifier))) {
+  errors.push(`${relative(hostLayoutFile)} imports an engine or format; the shell layout contract must remain engine-neutral`);
 }
 
 if (errors.length > 0) {

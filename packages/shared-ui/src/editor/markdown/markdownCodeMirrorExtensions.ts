@@ -1,3 +1,4 @@
+import { markdownViewportLayoutExtension } from "./platform/codemirror/layoutCoordinator";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { HighlightStyle, bracketMatching, indentOnInput, syntaxHighlighting } from "@codemirror/language";
@@ -78,6 +79,7 @@ export function markdownCodeMirrorUrgentExtensions(readOnly: boolean, includeHis
     indentOnInput(),
     bracketMatching(),
     EditorView.lineWrapping,
+    markdownViewportLayoutExtension,
     trailingLineWhitespaceSelectionExtension,
     EditorView.contentAttributes.of({
       spellcheck: "false",
@@ -150,6 +152,7 @@ export function markdownLivePreviewCoreExtension(
     // undo and redo embedded-session relocation safely.
     markdownBlockRelocationHistoryExtension,
     markdownInlineViewportHistoryExtension,
+    markdownViewportLayoutExtension,
     markdownEmbedHostLifecycle,
     markdownLivePreviewDecorations,
     markdownBlockWidgetSelectionExtension,

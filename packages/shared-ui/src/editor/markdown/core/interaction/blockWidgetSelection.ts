@@ -24,6 +24,9 @@ const SELECTED_CLASS = "is-doc-selected";
 
 export const markdownBlockWidgetSelectionExtension = ViewPlugin.fromClass(
   class {
+    private disposed = false;
+    private refreshQueued = false;
+
     constructor(private readonly view: EditorView) {
       this.scheduleRefresh();
     }
@@ -31,16 +34,28 @@ export const markdownBlockWidgetSelectionExtension = ViewPlugin.fromClass(
     update(update: ViewUpdate) {
       const projectionChanged = update.startState.field(markdownLivePreviewDecorations, false)?.decorations
         !== update.state.field(markdownLivePreviewDecorations, false)?.decorations;
-      if (update.selectionSet || update.docChanged || update.viewportChanged || update.focusChanged || projectionChanged) {
+      if (update.selectionSet || update.docChanged || update.focusChanged || projectionChanged) {
         this.scheduleRefresh();
       }
     }
 
+    docViewUpdate() {
+      this.refresh();
+    }
+
+    destroy() {
+      this.disposed = true;
+    }
+
     private scheduleRefresh() {
-      this.view.requestMeasure({
-        key: this,
-        read: () => null,
-        write: () => this.refresh(),
+      if (this.refreshQueued) return;
+      this.refreshQueued = true;
+      // Selection accents only write classes; they do not measure geometry.
+      // A measure request on every viewport update restarts the engine's
+      // stabilization loop during large scroll/resize transitions.
+      queueMicrotask(() => {
+        this.refreshQueued = false;
+        if (!this.disposed) this.refresh();
       });
     }
 
