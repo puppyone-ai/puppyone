@@ -57,6 +57,26 @@ async function click(selector) {
   await until(() => evaluate(`Boolean(document.querySelector(${JSON.stringify(selector)}))`), selector);
   await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
 }
+async function nativeClick(selector, inFrame = false) {
+  await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+  const target = inFrame ? frame() : window.webContents;
+  const point = await target.executeJavaScript(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
+  if (inFrame) {
+    const outer = await evaluate("(()=>{const r=document.querySelector('.html-visual-editor iframe').getBoundingClientRect();return {x:r.x,y:r.y}})()");
+    point.x += outer.x; point.y += outer.y;
+  }
+  await window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mouseMoved", ...point });
+  await evaluate("new Promise(resolve=>requestAnimationFrame(resolve))");
+  for (const type of ["mousePressed", "mouseReleased"]) await window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", {
+    type, ...point, button: "left", clickCount: 1,
+  });
+}
+async function activate(selector) {
+  await nativeClick(selector, true);
+  assert.equal(await evaluate("!!document.querySelector('.html-editor-text-input')"), false, "page click is read-only");
+  await until(() => evaluate("!!document.querySelector('.html-editor-pencil')"), "pencil entry");
+  await nativeClick('.html-editor-pencil');
+}
 async function mode(label) {
   await click('.desktop-editor-pane-handle');
   await until(() => evaluate(`Boolean([...document.querySelectorAll('[role="menuitem"]')].find(b=>b.textContent===${JSON.stringify(label)}))`), 'mode menu');
@@ -65,9 +85,8 @@ async function mode(label) {
 async function history(direction) {
   await ready();
   await evaluate("document.querySelector('.html-visual-editor iframe').focus()");
-  const modifiers = [process.platform === 'darwin' ? 'meta' : 'control', ...(direction === 'redo' ? ['shift'] : [])];
-  window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Z', modifiers });
-  window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Z', modifiers });
+  const modifiers = (process.platform === 'darwin' ? 4 : 2) | (direction === 'redo' ? 8 : 0);
+  for (const type of ['keyDown', 'keyUp']) await window.webContents.debugger.sendCommand('Input.dispatchKeyEvent', { type, key: 'z', code: 'KeyZ', windowsVirtualKeyCode: 90, modifiers });
 }
 async function ready() {
   await until(() => evaluate("document.querySelector('.html-visual-editor iframe')?.getAttribute('aria-busy')==='false'"), "editing bridge ready");
@@ -76,22 +95,18 @@ const deadline = setTimeout(() => { console.error("HTML App acceptance timed out
 await import("../../../../../electron/main.mjs");
 app.whenReady().then(async () => {
   try {
-    window = await until(() => BrowserWindow.getAllWindows()[0], "main window"); window.setSize(1200, 850); window.show();
+    window = await until(() => BrowserWindow.getAllWindows()[0], "main window"); window.setSize(1200, 850);
     await until(() => evaluate("!!document.querySelector('.app-shell')"), "app ready");
+    window.hide();
+    window.webContents.debugger.attach("1.3");
+    await window.webContents.debugger.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true });
     await click('.tree-row.file[aria-label="page.html"]');
     await until(() => evaluate("!!document.querySelector('.html-visual-editor')"), "HTML provider mounted from Explorer");
     await until(() => imageResponses.some(response => response.url.endsWith("/old.png") && response.status === 200),
       "safe preview relative image resolves under production CSP");
     assert.equal(await disk(), original);
     await ready();
-    window.webContents.debugger.attach("1.3");
-    const rect = await frame().executeJavaScript("(()=>{const r=document.querySelector('#title').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()");
-    const outer = await evaluate("(()=>{const r=document.querySelector('.html-visual-editor iframe').getBoundingClientRect();return {x:r.x,y:r.y}})()");
-    for (const type of ["mousePressed", "mouseReleased"]) await window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", {
-      type, x: Math.round(rect.x + outer.x), y: Math.round(rect.y + outer.y), button: "left", clickCount: 1,
-    });
-    assert.equal(await evaluate("!!document.querySelector('.html-editor-text-input')"), false, 'page click is read-only');
-    await click('.html-editor-pencil');
+    await activate('#title');
     await until(() => evaluate("!!document.querySelector('.html-editor-text-input')"), "native text input reached from workbench");
     const routing = frame().routingId;
     await window.webContents.debugger.sendCommand("Input.insertText", { text: "Edited from Explorer 中文" });
@@ -106,11 +121,7 @@ app.whenReady().then(async () => {
     await history("undo"); await until(async () => await disk() === original, "shared undo");
     await history("redo"); await until(async () => (await disk()).includes("Edited from Explorer 中文"), "shared redo");
     await ready();
-    const imageBounds = await frame().executeJavaScript("(()=>{const r=document.querySelector('#cover').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()");
-    for (const type of ["mousePressed", "mouseReleased"]) await window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", {
-      type, x: Math.round(imageBounds.x + outer.x), y: Math.round(imageBounds.y + outer.y), button: "left", clickCount: 1,
-    });
-    await click('.html-editor-pencil');
+    await activate('#cover');
     await until(() => evaluate("!!document.querySelector('.html-floating-toolbar input[type=file]')"), "workbench image import capability");
     const { root: domRoot } = await window.webContents.debugger.sendCommand("DOM.getDocument");
     const { nodeId } = await window.webContents.debugger.sendCommand("DOM.querySelector", { nodeId: domRoot.nodeId, selector: ".html-floating-toolbar input[type=file]" });
