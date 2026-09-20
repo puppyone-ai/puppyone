@@ -25,6 +25,10 @@ export class ModelConnectionStore {
     return () => { if (--this.references === 0) { this.unsubscribe?.(); this.unsubscribe = null; } };
   };
   load = () => this.run("read", () => this.client.read());
+  managed = (request: import("../../../../shared/model-connections/types").ManagedConnectionAction) => this.run("managed", () => {
+    if (!this.client.managed) throw new Error("NATIVE_BRIDGE_UNAVAILABLE");
+    return this.client.managed(request);
+  });
   save = (request: SaveModelConnectionRequest) => this.run("save", () => this.client.save(request));
   remove = (request: ConnectionRevisionRequest) => this.run(request.id, () => this.client.remove(request));
   refresh = (id: string) => this.run(id, () => this.client.refresh({ id }));

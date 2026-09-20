@@ -37,6 +37,11 @@ export function parseConnectionCommand(command, raw) {
   const input = raw ?? {};
   if (typeof input !== "object" || Array.isArray(input)) throw connectionError("INVALID_CONFIGURATION");
   if (["read", "discover"].includes(command)) return {};
+  if (command === "managed") {
+    if (!["refresh", "sign-in", "checkout"].includes(input.action)) throw connectionError("INVALID_COMMAND");
+    if (input.action === "checkout" && !/^[a-z0-9_-]{1,64}$/u.test(input.packId ?? "")) throw connectionError("INVALID_CONFIGURATION");
+    return { action: input.action, ...(input.action === "checkout" ? { packId: input.packId } : {}) };
+  }
   if (["remove", "refresh", "verify"].includes(command)) {
     const parsed = { id: connectionId(input.id) };
     if (command !== "refresh") {
@@ -78,10 +83,11 @@ export function parseModelRoute(value) {
 
 export function assertConnectionSnapshot(value) {
   if (!value || value.schemaVersion !== 1 || !Number.isSafeInteger(value.revision) || !Array.isArray(value.connections) || !Array.isArray(value.catalogs)) throw connectionError("INVALID_RESPONSE");
-  if (value.connections.length > MODEL_CONNECTION_LIMITS.connections) throw connectionError("INVALID_RESPONSE");
+  if (value.connections.length > MODEL_CONNECTION_LIMITS.connections + 1) throw connectionError("INVALID_RESPONSE");
   for (const connection of value.connections) {
     connectionId(connection.id);
-    if (!MODEL_CONNECTION_DRIVERS.includes(connection.driver) || !["local", "api"].includes(connection.sourceKind) || typeof connection.credentialConfigured !== "boolean") throw connectionError("INVALID_RESPONSE");
+    if (!MODEL_CONNECTION_DRIVERS.includes(connection.driver) || !["local", "api", "managed"].includes(connection.sourceKind) || typeof connection.credentialConfigured !== "boolean") throw connectionError("INVALID_RESPONSE");
+    if (connection.sourceKind === "managed" && (connection.readOnly !== true || connection.driver !== "openai-compatible")) throw connectionError("INVALID_RESPONSE");
   }
   // Deny secret-bearing structures even if an implementation accidentally returns one.
   const forbidden = new Set(["apikey", "credentialref", "secret", "authorization", "lease", "refreshtoken"]);

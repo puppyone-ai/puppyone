@@ -27,7 +27,7 @@ export function BuiltInAgentCompute({
   store?: ModelConnectionStore;
 }) {
   const { t } = useLocalization();
-  const { state } = useModelConnections(suppliedStore);
+  const { state, store } = useModelConnections(suppliedStore);
   const lastRevision = useRef<number | null>(null);
   const catalogCallback = useRef(onCatalogChange);
   catalogCallback.current = onCatalogChange;
@@ -45,7 +45,9 @@ export function BuiltInAgentCompute({
   const current = readyModels.find((model) => model.model === selectedModel);
   const currentConnection = snapshot?.connections.find((connection) => connection.id === current?.connectionId);
   const source = currentConnection?.sourceKind ?? "managed";
-  const ready = Boolean(current && currentConnection);
+  const managed = snapshot?.managed;
+  const ready = Boolean(current && currentConnection && (source !== "managed" || managed?.available));
+  const money = (micro: number) => new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 4 }).format(micro / 1_000_000);
   const Icon = source === "managed" ? Cloud : source === "api" ? KeyRound : Server;
   const sourceLabel = source === "managed"
     ? t("agent.compute.managed")
@@ -54,6 +56,13 @@ export function BuiltInAgentCompute({
       : t("agent.compute.source.local");
 
   useEffect(() => { onReadyChange(ready); }, [onReadyChange, ready]);
+  useEffect(() => {
+    if (!managed?.signedIn) return;
+    const refresh = () => { if (!document.hidden) void store.managed({ action: "refresh" }); };
+    const timer = window.setInterval(refresh, 30_000);
+    window.addEventListener("focus", refresh);
+    return () => { window.clearInterval(timer); window.removeEventListener("focus", refresh); };
+  }, [managed?.signedIn, store]);
   useEffect(() => {
     const revision = snapshot?.revision;
     if (disabled || revision == null || revision === lastRevision.current) return;
@@ -65,7 +74,9 @@ export function BuiltInAgentCompute({
     <div className="desktop-agent-compute-summary">
       <Icon size={14} aria-hidden="true" />
       <span>{sourceLabel}</span>
-      {source === "managed" && <small>{t("agent.compute.managedBalance")}</small>}
+      {source === "managed" && <small>{managed?.signedIn
+        ? t("agent.compute.balance", { amount: money(managed.availableMicroUsd ?? 0) })
+        : t("agent.compute.managedBalance")}</small>}
       {readyModels.length > 0 && <AgentSessionControlPicker disabled={disabled} control={{
         id: "model",
         value: ready ? selectedModel : null,
@@ -77,6 +88,23 @@ export function BuiltInAgentCompute({
         })),
       }} onSelect={(_id, model) => onSelectModel(model)} />}
     </div>
+    {source === "managed" && <div className="desktop-agent-credit-actions">
+      {managed?.sandbox && <small>{t("agent.compute.sandbox")}</small>}
+      {!managed?.signedIn ? <button type="button" disabled={disabled || state.pending.managed}
+        onClick={() => void store.managed({ action: "sign-in" })}>{t("agent.compute.signIn")}</button>
+        : <>
+          {(managed.packs ?? []).map((pack) => <button key={pack.id} type="button" disabled={disabled || state.pending.managed}
+            onClick={() => void store.managed({ action: "checkout", packId: pack.id })}>
+            {t("agent.compute.topUp", { amount: money(pack.price_cents * 10_000) })}
+          </button>)}
+          <button type="button" disabled={state.pending.managed} onClick={() => void store.managed({ action: "refresh" })}>
+            {t("agent.compute.refreshBalance")}
+          </button>
+          {(managed.reservedMicroUsd ?? 0) > 0 && <small>{t("agent.compute.pendingCredit", { amount: money(managed.reservedMicroUsd ?? 0) })}</small>}
+          {managed.reason === "insufficient-credit" && <small>{t("agent.compute.insufficientCredit")}</small>}
+        </>}
+      {(state.error || managed?.errorCode) && <small role="alert">{t("agent.compute.paymentUnavailable")}</small>}
+    </div>}
     <button type="button" className="desktop-agent-compute-customize" disabled={disabled}
       onClick={onOpenModelConnections}>{t("agent.compute.customize")}</button>
   </section>;

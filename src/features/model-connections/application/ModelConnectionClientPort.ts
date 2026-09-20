@@ -2,6 +2,7 @@ import type { ModelConnectionCandidate, ModelConnectionSnapshot, SaveModelConnec
 
 export type ConnectionRevisionRequest = { id: string; expectedGeneration: number };
 export interface ModelConnectionClientPort {
+  managed?(request: import("../../../../shared/model-connections/types").ManagedConnectionAction): Promise<ModelConnectionSnapshot>;
   read(): Promise<ModelConnectionSnapshot>;
   save(request: SaveModelConnectionRequest): Promise<ModelConnectionSnapshot>;
   remove(request: ConnectionRevisionRequest): Promise<ModelConnectionSnapshot>;

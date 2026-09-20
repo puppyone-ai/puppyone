@@ -560,6 +560,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
     },
   },
   modelConnections: {
+    managed: (request) => ipcRenderer.invoke("model-connections:managed", request),
     read: () => ipcRenderer.invoke("model-connections:read"),
     discover: () => ipcRenderer.invoke("model-connections:discover"),
     save: (request) => ipcRenderer.invoke("model-connections:save", request),

@@ -353,5 +353,13 @@
   "markdown.showFull": "전체 답변 표시",
   "markdown.diagram": "Mermaid",
   "markdown.diagramRendering": "다이어그램 렌더링 중",
-  "markdown.image": "이미지"
+  "markdown.image": "이미지",
+  "compute.signIn": "이메일로 로그인",
+  "compute.balance": "사용 가능: {amount}",
+  "compute.topUp": "{amount} 충전",
+  "compute.refreshBalance": "잔액 새로고침",
+  "compute.sandbox": "샌드박스 · 테스트 결제",
+  "compute.pendingCredit": "{amount} 사용량 정산 대기",
+  "compute.insufficientCredit": "이 모델을 사용하려면 충전하세요.",
+  "compute.paymentUnavailable": "Agent 잔액을 새로고침할 수 없습니다. 다시 시도하세요."
 }

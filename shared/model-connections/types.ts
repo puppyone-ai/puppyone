@@ -1,6 +1,6 @@
 export type ModelConnectionDriver = "ollama" | "lm-studio" | "unsloth" | "openai-compatible";
 /** User-facing connection category, not proof of where inference executes. */
-export type ModelConnectionSourceKind = "local" | "api";
+export type ModelConnectionSourceKind = "local" | "api" | "managed";
 export type ModelCapability = "supported" | "unsupported" | "unknown";
 export type ConnectionModel = {
   id: string;
@@ -21,6 +21,7 @@ export type ModelConnection = {
   baseUrl: string;
   auth: "none" | "bearer";
   credentialConfigured: boolean;
+  readOnly?: boolean;
   configGeneration: number;
   defaultModelId: string | null;
   manualModelId: string | null;
@@ -45,7 +46,13 @@ export type ModelConnectionSnapshot = {
   revision: number;
   connections: ModelConnection[];
   catalogs: ModelCatalogSnapshot[];
-  managed: { available: false; reason: "gateway-unavailable" };
+  managed: {
+    available: boolean;
+    reason: "gateway-unavailable" | "sign-in-required" | "insufficient-credit" | "ready";
+    signedIn?: boolean; sandbox?: boolean; balanceMicroUsd?: number; reservedMicroUsd?: number;
+    availableMicroUsd?: number; errorCode?: string | null; apiOrigin?: string | null;
+    packs?: { id: string; name: string; price_cents: number; credit_micro_usd: number }[];
+  };
 };
 export type ModelConnectionCandidate = { driver: ModelConnectionDriver; baseUrl: string; name: string };
 export type SaveModelConnectionRequest = {
@@ -63,5 +70,6 @@ export type SaveModelConnectionRequest = {
   manualContextWindow?: number | null;
   serverToolsDisabled?: boolean;
 };
-export type ModelConnectionCommand = "read" | "save" | "remove" | "refresh" | "discover" | "verify";
+export type ManagedConnectionAction = { action: "refresh" | "sign-in" } | { action: "checkout"; packId: string };
+export type ModelConnectionCommand = "read" | "save" | "remove" | "refresh" | "discover" | "verify" | "managed";
 export type ModelConnectionResult<T> = { ok: true; value: T } | { ok: false; code: string };

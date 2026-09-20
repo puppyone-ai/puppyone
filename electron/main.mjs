@@ -91,6 +91,7 @@ import { registerSystemIpcHandlers } from "./main/ipc/system-ipc.mjs";
 import { registerTerminalIpcHandlers } from "./main/ipc/terminal-ipc.mjs";
 import { registerLocalAgentInstallationIpcHandlers } from "./main/ipc/local-agent-installation-ipc.mjs";
 import { createModelConnections } from "./main/model-connections/index.mjs";
+import { withManagedConnection } from "./main/model-connections/managed-connection.mjs";
 import { registerModelConnectionsIpcHandlers } from "./main/ipc/model-connections-ipc.mjs";
 import { createPuppyOneModelVerifier } from "./main/agent/runtimes/puppyone-agent/model-connection-verifier.mjs";
 import { registerWorkspaceFileIpcHandlers } from "./main/ipc/workspace-files-ipc.mjs";
@@ -409,9 +410,12 @@ const agentSessionRepository = createAgentSessionRepository({
   conversationCatalog: agentConversationCatalog,
 });
 const agentProcessSupervisor = createAgentProcessSupervisor({ maxConcurrentStarts: 2 });
-const modelConnections = createModelConnections({
+const modelConnections = withManagedConnection({ connections: createModelConnections({
   userDataPath: app.getPath("userData"), secureStorage: safeStorage,
   verifyModel: createPuppyOneModelVerifier({ appPath: app.getAppPath(), userDataPath: app.getPath("userData"), executablePath: process.execPath }),
+  }), getAuth: () => cloudAuthService,
+  apiBase: process.env.VITE_DESKTOP_CLOUD_API_URL || process.env.VITE_CLOUD_API_URL || "https://api.puppyone.ai/api/v1",
+  requestPublic: requestCloudApi, openExternal: (url) => externalNavigation.open(url),
 });
 const agentRuntimeRegistry = createDefaultAgentRuntimeHost({
   appVersion: desktopBuildInfo.version,

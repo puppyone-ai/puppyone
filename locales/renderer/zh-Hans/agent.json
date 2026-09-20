@@ -353,5 +353,13 @@
   "markdown.showFull": "显示完整回复",
   "markdown.diagram": "Mermaid",
   "markdown.diagramRendering": "正在渲染图表",
-  "markdown.image": "图片"
+  "markdown.image": "图片",
+  "compute.signIn": "邮箱登录",
+  "compute.balance": "可用余额：{amount}",
+  "compute.topUp": "充值 {amount}",
+  "compute.refreshBalance": "刷新余额",
+  "compute.sandbox": "沙盒 · 测试付款",
+  "compute.pendingCredit": "{amount} 用量待结算",
+  "compute.insufficientCredit": "充值后即可使用此模型。",
+  "compute.paymentUnavailable": "暂时无法刷新 Agent 余额，请重试。"
 }

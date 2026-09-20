@@ -1556,6 +1556,7 @@ declare global {
       };
       localAgentActivation?: import("../../shared/local-agent-activation/types").LocalAgentActivationBridge;
       modelConnections?: {
+        managed: (request: import("../../shared/model-connections/types").ManagedConnectionAction) => Promise<ModelConnectionResult<ModelConnectionSnapshot>>;
         read: () => Promise<ModelConnectionResult<ModelConnectionSnapshot>>;
         discover: () => Promise<ModelConnectionResult<ModelConnectionCandidate[]>>;
         save: (request: SaveModelConnectionRequest) => Promise<ModelConnectionResult<ModelConnectionSnapshot>>;

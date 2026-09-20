@@ -353,5 +353,13 @@
   "markdown.showFull": "回答をすべて表示",
   "markdown.diagram": "Mermaid",
   "markdown.diagramRendering": "図をレンダリング中",
-  "markdown.image": "画像"
+  "markdown.image": "画像",
+  "compute.signIn": "メールでログイン",
+  "compute.balance": "利用可能額：{amount}",
+  "compute.topUp": "{amount} をチャージ",
+  "compute.refreshBalance": "残高を更新",
+  "compute.sandbox": "サンドボックス · テスト決済",
+  "compute.pendingCredit": "{amount} の使用量を精算中",
+  "compute.insufficientCredit": "このモデルを使うにはチャージしてください。",
+  "compute.paymentUnavailable": "Agent の残高を更新できません。再試行してください。"
 }

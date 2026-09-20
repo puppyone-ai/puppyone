@@ -3,7 +3,7 @@ import { knownErrorCode } from "../model-connections/connection-service.mjs";
 
 /** Register only on the application's trusted-frame IPC facade, never on raw ipcMain. */
 export function registerModelConnectionsIpcHandlers({ ipcMain, connections }) {
-  for (const command of ["read", "save", "remove", "refresh", "discover", "verify"]) {
+  for (const command of ["read", "save", "remove", "refresh", "discover", "verify", "managed"]) {
     ipcMain.handle(`model-connections:${command}`, async (_event, raw) => {
       try {
         const request = parseConnectionCommand(command, raw);

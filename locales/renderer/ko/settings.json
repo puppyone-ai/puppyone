@@ -530,5 +530,6 @@
   "typography.preview.editor": "편집기",
   "typography.preview.rightSidebar": "오른쪽 사이드바",
   "typography.preview.chat": "채팅",
-  "typography.preview.message": "이 메모를 정리해 드릴게요."
+  "typography.preview.message": "이 메모를 정리해 드릴게요.",
+  "modelConnections.source.managed": "PuppyOne 계정"
 }

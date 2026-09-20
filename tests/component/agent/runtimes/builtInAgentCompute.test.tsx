@@ -24,7 +24,7 @@ const models: AgentModel[] = [
   { id: `${apiId}/cloud-model`, model: `${apiId}/cloud-model`, displayName: "API model", description: "My API", connectionId: apiId, variants: [], isDefault: false },
 ];
 
-function fixture(empty = false) {
+function fixture(empty = false, managed?: ModelConnectionSnapshot["managed"]) {
   const snapshot: ModelConnectionSnapshot = {
     schemaVersion: 1,
     revision: 1,
@@ -45,6 +45,11 @@ function fixture(empty = false) {
       errorCode: null,
     })),
   };
+  if (managed) {
+    snapshot.managed = managed;
+    snapshot.connections = [{ id: apiId, sourceKind: "managed", readOnly: true, driver: "openai-compatible", name: "PuppyOne", baseUrl: "https://example.com/api/v1/ai", auth: "bearer", credentialConfigured: true, configGeneration: 1, defaultModelId: null, manualModelId: null, manualContextWindow: 4096, serverToolsDisabled: true, transport: "remote", executionLocation: "unknown" }];
+    snapshot.catalogs = [{ connectionId: apiId, configGeneration: 1, status: "ready", endpoint: "reachable", authentication: "valid", observedAt: null, complete: true, models: [], errorCode: null }];
+  }
   const client: ModelConnectionClientPort = {
     read: vi.fn(async () => snapshot),
     save: vi.fn(async () => snapshot),
@@ -52,6 +57,7 @@ function fixture(empty = false) {
     refresh: vi.fn(async () => snapshot),
     verify: vi.fn(async () => snapshot),
     discover: vi.fn(async () => []),
+    managed: vi.fn(async () => snapshot),
     subscribe: () => () => {},
   };
   return { client, store: new ModelConnectionStore(client) };
@@ -64,8 +70,8 @@ function button(label: string) {
   return match as HTMLButtonElement;
 }
 
-async function render({ selectedModel = null as string | null, disabled = false, empty = false } = {}) {
-  const { client, store } = fixture(empty);
+async function render({ selectedModel = null as string | null, disabled = false, empty = false, managed = undefined as ModelConnectionSnapshot["managed"] | undefined } = {}) {
+  const { client, store } = fixture(empty, managed);
   const onSelectModel = vi.fn();
   const onReadyChange = vi.fn();
   const onCatalogChange = vi.fn();
@@ -138,4 +144,34 @@ it("disables both model selection and Settings navigation during a turn", async 
 it("asks the controller to refresh when the shared connection catalog arrives", async () => {
   const { onCatalogChange } = await render();
   expect(onCatalogChange).toHaveBeenCalledTimes(1);
+});
+
+it("opens email sign-in without selecting a paid model or sending a turn", async () => {
+  const { client, onSelectModel, onReadyChange } = await render({ empty: true });
+  await act(async () => button("Sign in with email").click());
+  expect(client.managed).toHaveBeenCalledWith({ action: "sign-in" });
+  expect(onReadyChange).toHaveBeenLastCalledWith(false);
+  expect(onSelectModel).not.toHaveBeenCalled();
+});
+
+it("blocks a selected managed model when the personal balance is empty", async () => {
+  const { client, onReadyChange, onSelectModel } = await render({ selectedModel: models[1].model,
+    managed: { available: false, reason: "insufficient-credit", signedIn: true, sandbox: true, availableMicroUsd: 0,
+      packs: [{ id: "test-pack", name: "Sandbox credit", price_cents: 500, credit_micro_usd: 5_000_000 }] } });
+  expect(document.body.textContent).toContain("Add credit to use this model.");
+  expect(onReadyChange).toHaveBeenLastCalledWith(false);
+  await act(async () => button("Add $5.00").click());
+  expect(client.managed).toHaveBeenCalledWith({ action: "checkout", packId: "test-pack" });
+  expect(onSelectModel).not.toHaveBeenCalled();
+  expect(onReadyChange).toHaveBeenLastCalledWith(false);
+});
+
+it("enables a funded selected managed model and refreshes without auto-submitting", async () => {
+  const { client, onReadyChange, onSelectModel } = await render({ selectedModel: models[1].model,
+    managed: { available: true, reason: "ready", signedIn: true, sandbox: true, availableMicroUsd: 4_990_000, reservedMicroUsd: 10_000 } });
+  expect(document.body.textContent).toContain("$4.99");
+  expect(onReadyChange).toHaveBeenLastCalledWith(true);
+  await act(async () => button("Refresh balance").click());
+  expect(client.managed).toHaveBeenCalledWith({ action: "refresh" });
+  expect(onSelectModel).not.toHaveBeenCalled();
 });

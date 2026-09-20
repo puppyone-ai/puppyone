@@ -7,6 +7,28 @@ import {
 const API = "https://api.puppyone.ai/api/v1";
 
 describe("main-owned Cloud Auth Broker", () => {
+  it("keeps Agent bearer auth in Main and aborts the open stream on sign-out", async () => {
+    const fetchImpl = vi.fn(async () => new Response("data: started\n\n", { headers: { "content-type": "text/event-stream" } }));
+    const fixture = createFixture({ fetchImpl });
+    fixture.requestCloudApi.mockImplementation(async (_base, path) => path === "/auth/refresh"
+      ? authResponse({ accessToken: jwtFor("user-123") }) : { ok: true });
+    const observed = [];
+    fixture.service.subscribe((state) => observed.push(state));
+    const opened = await fixture.service.openAgentStream(API, JSON.stringify({ model: "test/model" }), { requestId: "test-inference-001" });
+    expect(opened.response.status).toBe(200);
+    expect(fetchImpl.mock.calls[0][0]).toBe(`${API}/ai/chat/completions`);
+    const init = fetchImpl.mock.calls[0][1];
+    expect(init.headers.Authorization).toMatch(/^Bearer /);
+    expect(init.headers["Idempotency-Key"]).toBe("test-inference-001");
+    expect(init.redirect).toBe("error");
+    expect(init.signal.aborted).toBe(false);
+    await fixture.service.clearSession();
+    expect(init.signal.aborted).toBe(true);
+    expect(JSON.stringify(observed)).not.toMatch(/access_token|refresh_token|Bearer/);
+    opened.close();
+    fixture.service.dispose();
+  });
+
   it("adds auth without overriding the multipart boundary for managed Office uploads", async () => {
     const fixture = createFixture();
     fixture.requestCloudApi.mockImplementation(async (_apiBase, apiPath, init) => {

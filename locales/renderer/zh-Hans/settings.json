@@ -530,5 +530,6 @@
   "typography.preview.editor": "编辑器",
   "typography.preview.rightSidebar": "右侧栏",
   "typography.preview.chat": "聊天",
-  "typography.preview.message": "我可以帮你整理这些笔记。"
+  "typography.preview.message": "我可以帮你整理这些笔记。",
+  "modelConnections.source.managed": "PuppyOne 账户"
 }

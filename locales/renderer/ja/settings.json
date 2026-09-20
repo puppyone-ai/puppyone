@@ -530,5 +530,6 @@
   "typography.preview.editor": "エディター",
   "typography.preview.rightSidebar": "右サイドバー",
   "typography.preview.chat": "チャット",
-  "typography.preview.message": "このメモの整理をお手伝いします。"
+  "typography.preview.message": "このメモの整理をお手伝いします。",
+  "modelConnections.source.managed": "PuppyOne アカウント"
 }

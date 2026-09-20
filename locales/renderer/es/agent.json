@@ -353,5 +353,13 @@
   "markdown.showFull": "Mostrar respuesta completa",
   "markdown.diagram": "Mermaid",
   "markdown.diagramRendering": "Renderizando diagrama",
-  "markdown.image": "Imagen"
+  "markdown.image": "Imagen",
+  "compute.signIn": "Iniciar sesión con correo",
+  "compute.balance": "Disponible: {amount}",
+  "compute.topUp": "Añadir {amount}",
+  "compute.refreshBalance": "Actualizar saldo",
+  "compute.sandbox": "Sandbox · pago de prueba",
+  "compute.pendingCredit": "{amount} pendiente de liquidar",
+  "compute.insufficientCredit": "Añade crédito para usar este modelo.",
+  "compute.paymentUnavailable": "No se pudo actualizar el saldo del Agent. Reinténtalo."
 }

@@ -353,5 +353,13 @@
   "markdown.showFull": "Show full response",
   "markdown.diagram": "Mermaid",
   "markdown.diagramRendering": "Rendering diagram",
-  "markdown.image": "Image"
+  "markdown.image": "Image",
+  "compute.signIn": "Sign in with email",
+  "compute.balance": "Available: {amount}",
+  "compute.topUp": "Add {amount}",
+  "compute.refreshBalance": "Refresh balance",
+  "compute.sandbox": "Sandbox · test payment",
+  "compute.pendingCredit": "{amount} pending usage",
+  "compute.insufficientCredit": "Add credit to use this model.",
+  "compute.paymentUnavailable": "Could not refresh Agent credits. Please retry."
 }

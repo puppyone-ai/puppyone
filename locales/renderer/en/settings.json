@@ -530,5 +530,6 @@
   "typography.preview.editor": "Editor",
   "typography.preview.rightSidebar": "Right sidebar",
   "typography.preview.chat": "Chat",
-  "typography.preview.message": "I can help you organize these notes."
+  "typography.preview.message": "I can help you organize these notes.",
+  "modelConnections.source.managed": "PuppyOne account"
 }

@@ -10,6 +10,7 @@ async function unwrap<T>(operation: Promise<ModelConnectionResult<T>> | undefine
 }
 
 export const modelConnectionClient: ModelConnectionClientPort = {
+  managed: async (request) => assertConnectionSnapshot(await unwrap(window.puppyoneDesktop?.modelConnections?.managed(request))),
   read: async () => assertConnectionSnapshot(await unwrap(window.puppyoneDesktop?.modelConnections?.read())),
   save: async (request) => assertConnectionSnapshot(await unwrap(window.puppyoneDesktop?.modelConnections?.save(request))),
   remove: async (request) => assertConnectionSnapshot(await unwrap(window.puppyoneDesktop?.modelConnections?.remove(request))),

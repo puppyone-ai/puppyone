@@ -353,5 +353,13 @@
   "markdown.showFull": "Vollständige Antwort anzeigen",
   "markdown.diagram": "Mermaid",
   "markdown.diagramRendering": "Diagramm wird gerendert",
-  "markdown.image": "Bild"
+  "markdown.image": "Bild",
+  "compute.signIn": "Mit E-Mail anmelden",
+  "compute.balance": "Verfügbar: {amount}",
+  "compute.topUp": "{amount} aufladen",
+  "compute.refreshBalance": "Guthaben aktualisieren",
+  "compute.sandbox": "Sandbox · Testzahlung",
+  "compute.pendingCredit": "{amount} noch abzurechnen",
+  "compute.insufficientCredit": "Lade Guthaben auf, um dieses Modell zu nutzen.",
+  "compute.paymentUnavailable": "Agent-Guthaben konnte nicht geladen werden. Bitte erneut versuchen."
 }

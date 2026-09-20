@@ -353,5 +353,13 @@
   "markdown.showFull": "Afficher la réponse complète",
   "markdown.diagram": "Mermaid",
   "markdown.diagramRendering": "Rendu du diagramme",
-  "markdown.image": "Image"
+  "markdown.image": "Image",
+  "compute.signIn": "Se connecter par e-mail",
+  "compute.balance": "Disponible : {amount}",
+  "compute.topUp": "Ajouter {amount}",
+  "compute.refreshBalance": "Actualiser le solde",
+  "compute.sandbox": "Sandbox · paiement test",
+  "compute.pendingCredit": "{amount} en attente de facturation",
+  "compute.insufficientCredit": "Ajoutez du crédit pour utiliser ce modèle.",
+  "compute.paymentUnavailable": "Impossible de charger le solde Agent. Réessayez."
 }

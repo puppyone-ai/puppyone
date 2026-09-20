@@ -8,4 +8,24 @@
   .desktop-agent-compute-customize:hover:not(:disabled) { color: var(--po-text); text-decoration: underline; text-underline-offset: 3px; }
   .desktop-agent-compute button:disabled { opacity: 0.5; }
   .desktop-agent-compute button:focus-visible { outline: 2px solid var(--po-focus-ring); outline-offset: 2px; }
+.desktop-agent-credit-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: var(--po-text-size-caption);
+}
+
+.desktop-agent-credit-actions button {
+  border: 1px solid var(--po-border);
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  padding: 3px 6px;
+  cursor: pointer;
+}
+
+.desktop-agent-credit-actions button:disabled { opacity: 0.5; cursor: default; }
+
+.desktop-agent-credit-actions small { opacity: 0.75; }
 }
