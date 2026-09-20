@@ -144,29 +144,34 @@ app.whenReady().then(async () => {
     await until(() => evaluate("!!document.querySelector('.html-editor-pencil')"), 'click reveals pencil');
     assert.equal(await evaluate("!!document.querySelector('.html-editor-text-input')"), false, 'page click does not start editing');
     assert.equal(await disk(), original);
-    const outsideSurface = await evaluate("(()=>{const b=document.querySelector('.html-editor-pencil'),s=getComputedStyle(b);return {count:document.querySelectorAll('.html-editor-pencil').length,icons:b.querySelectorAll('svg').length,background:s.backgroundColor,shadow:s.boxShadow,border:s.borderTopWidth,backdrop:s.backdropFilter,stroke:getComputedStyle(document.querySelector('.html-editor-selection')).borderTopWidth}})()");
+    const outsideSurface = await evaluate("(()=>{const b=document.querySelector('.html-editor-pencil'),s=getComputedStyle(b),selection=getComputedStyle(document.querySelector('.html-editor-selection'));return {count:document.querySelectorAll('.html-editor-pencil').length,icons:b.querySelectorAll('svg').length,background:s.backgroundColor,shadow:s.boxShadow,border:s.borderTopWidth,borderColor:s.borderTopColor,selectionColor:selection.borderTopColor,width:b.offsetWidth,height:b.offsetHeight,stroke:selection.borderTopWidth}})()");
     assert.equal(outsideSurface.count, 1, 'one edit handle');
     assert.equal(outsideSurface.icons, 1, 'one pencil glyph');
-    assert.notEqual(outsideSurface.background, 'rgba(0, 0, 0, 0)', 'outside handle has a translucent surface');
+    assert.equal(outsideSurface.background, outsideSurface.selectionColor, 'edit handle uses the block selection color');
+    assert.equal(outsideSurface.borderColor, outsideSurface.selectionColor, 'handle border and surface share one theme token');
     assert.notEqual(outsideSurface.shadow, 'none', 'outside surface is visually separated from page content');
     assert.equal(outsideSurface.border, '1px');
-    assert.match(outsideSurface.backdrop, /blur\(8px\)/);
+    assert.deepEqual([outsideSurface.width, outsideSurface.height], [26, 26], 'edit affordance stays compact');
     assert.equal(outsideSurface.stroke, '2px', 'block stroke remains clear');
     const handleGeometry = () => evaluate("(()=>{const b=document.querySelector('.html-editor-pencil'),s=document.querySelector('.html-editor-selection');return {handle:b.getBoundingClientRect().toJSON(),selection:s.getBoundingClientRect().toJSON(),placement:b.dataset.placement}})()");
     const initialHandle = await handleGeometry();
-    assert.equal(initialHandle.placement, 'right', 'use outside right before docking inside at top of pane');
-    assert.ok(initialHandle.handle.left >= initialHandle.selection.right);
+    assert.equal(initialHandle.placement, 'below', 'the shared horizontal rail uses the available outside edge');
+    assert.ok(initialHandle.handle.top >= initialHandle.selection.bottom);
     await visibleSelectionBorder();
-    await fsp.writeFile('/private/tmp/puppyone-html-handle-outside-right.png', (await win.webContents.capturePage()).toPNG());
+    await fsp.writeFile('/private/tmp/puppyone-html-handle-outside-below.png', (await win.webContents.capturePage()).toPNG());
     await control('.html-editor-pencil');
     await until(() => evaluate("!!document.querySelector('.html-floating-toolbar')"), "element selection");
     await until(() => evaluate("!!document.querySelector('.html-editor-text-input')"), "text input");
+    assert.equal(await evaluate("!!document.querySelector('.html-editor-pencil[aria-pressed=true]')"), true, 'edit affordance remains in the active rail');
+    assert.equal(await evaluate("(()=>{const p=document.querySelector('.html-editor-pencil').getBoundingClientRect(),t=document.querySelector('.html-floating-toolbar').getBoundingClientRect();return Math.abs((p.top+p.bottom-t.top-t.bottom)/2)<1})()"), true,
+      'pencil and format menu share one vertical center');
     assert.equal(await evaluate("getComputedStyle(document.querySelector('.html-editor-text-input')).backgroundColor"), "rgba(0, 0, 0, 0)");
-    const toolbarInside = () => evaluate("(()=>{const p=document.querySelector('iframe').getBoundingClientRect(),t=document.querySelector('.html-floating-toolbar').getBoundingClientRect();return t.left>=p.left && t.right<=p.right && t.top>=p.top && t.bottom<=p.bottom})()");
+    const toolbarInside = () => evaluate("(()=>{const frame=document.querySelector('iframe'),toolbar=document.querySelector('.html-floating-toolbar');if(!frame||!toolbar)return false;const p=frame.getBoundingClientRect(),t=toolbar.getBoundingClientRect();return t.left>=p.left && t.right<=p.right && t.top>=p.top && t.bottom<=p.bottom})()");
     await until(toolbarInside, 'floating toolbar remains in pane');
     assert.equal(await evaluate("getComputedStyle(document.querySelector('.html-editor-selection')).borderTopColor"), 'rgb(37, 99, 235)', 'product theme accent');
     await evaluate("document.getElementById('root').style.setProperty('--po-accent','#14b8a6')");
     assert.equal(await evaluate("getComputedStyle(document.querySelector('.html-editor-selection')).borderTopColor"), 'rgb(20, 184, 166)', 'selection follows theme changes');
+    await until(() => evaluate("getComputedStyle(document.querySelector('.html-editor-pencil')).backgroundColor==='rgb(20, 184, 166)'"), 'edit affordance follows the same theme change');
     await evaluate("document.getElementById('root').style.removeProperty('--po-accent')");
     await visibleSelectionBorder();
     await preview().executeJavaScript("document.body.style.background='#10294c'");
@@ -248,19 +253,23 @@ app.whenReady().then(async () => {
     assert.equal(await disk(), beforeLocked.replace('src="old.png"', `src="${imported}"`), 'selection and docking never write the source');
     await fsp.writeFile('/private/tmp/puppyone-html-handle-outside-above.png', (await win.webContents.capturePage()).toPNG());
     // Exercise a flush viewport edge without changing the document model or fixture file.
-    await preview().executeJavaScript("document.querySelector('#card').style.cssText='position:fixed;top:0;left:0;right:0;height:120px;margin:0;padding:24px;background:#f7f8fa'");
+    await preview().executeJavaScript("document.querySelector('#card').style.cssText='position:fixed;inset:0;margin:0;padding:24px;background:#f7f8fa'");
     await until(() => evaluate("document.querySelector('.html-editor-pencil')?.dataset.placement==='inside'"), 'inside fallback only when both outside edges are unavailable');
     await wait(180);
     const inside = await handleGeometry();
     assert.ok(inside.handle.left >= inside.selection.left && inside.handle.right <= inside.selection.right && inside.handle.top >= inside.selection.top, 'fallback stays in its block');
-    assert.deepEqual(await evaluate("(()=>{const s=getComputedStyle(document.querySelector('.html-editor-pencil'));return {background:s.backgroundColor,shadow:s.boxShadow,border:s.borderTopColor}})()"),
-      {background:'rgba(0, 0, 0, 0)',shadow:'none',border:'rgba(0, 0, 0, 0)'}, 'inside fallback does not cover page content with the outside surface');
+    assert.equal(await evaluate("(()=>{const s=getComputedStyle(document.querySelector('.html-editor-pencil')),selection=getComputedStyle(document.querySelector('.html-editor-selection'));return s.backgroundColor===selection.borderTopColor&&s.borderTopColor===selection.borderTopColor})()"),
+      true, 'inside fallback preserves the selection color relationship');
     await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
     assert.ok(await evaluate("(()=>{const b=document.querySelector('.html-editor-pencil'),r=b.getBoundingClientRect();return document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('.html-editor-pencil')===b})()"), 'inside handle remains reachable beside the standalone source menu');
     await fsp.writeFile('/private/tmp/puppyone-html-handle-inside-fallback.png', (await win.webContents.capturePage()).toPNG());
     await preview().executeJavaScript("document.querySelector('#card').style.cssText='margin-top:24px;padding:24px;height:160px;box-sizing:border-box;border-radius:18px;background:#f7f8fa'");
     await until(() => evaluate("document.querySelector('.html-editor-pencil')?.dataset.placement==='above'"), 'return outside when room becomes available');
     await control('.html-editor-pencil');
+    await until(() => evaluate("!!document.querySelector('.html-floating-toolbar')"), 'block action menu');
+    assert.equal(await evaluate("(()=>{const p=document.querySelector('.html-editor-pencil').getBoundingClientRect(),t=document.querySelector('.html-floating-toolbar').getBoundingClientRect(),s=document.querySelector('.html-editor-selection').getBoundingClientRect();return t.bottom<s.top&&Math.abs((p.top+p.bottom-t.top-t.bottom)/2)<1&&Math.abs((t.left+t.right-s.left-s.right)/2)<2&&Math.abs(p.right-s.right)<2})()"),
+      true, 'menu is centered above the block while the aligned pencil stays at its right edge');
+    await fsp.writeFile('/private/tmp/puppyone-html-action-rail.png', (await win.webContents.capturePage()).toPNG());
     assert.equal(await evaluate("!!document.querySelector('.html-editor-text-input')"), false, 'container editing keeps its child structure');
     assert.equal(await evaluate("getComputedStyle(document.querySelector('.html-editor-selection')).borderRadius"), '18px', 'border follows card corners');
     await clickElement('#card-title');
@@ -285,8 +294,8 @@ app.whenReady().then(async () => {
     await until(() => evaluate("!!document.querySelector('.html-editor-selection')"), 'scrolled selection');
     const geometry = async () => {
       const child = await preview().executeJavaScript("(()=>{const r=document.querySelector('#bottom').getBoundingClientRect();return {x:r.x,y:r.y}})()");
-      const host = await evaluate("(()=>{const frame=document.querySelector('iframe').getBoundingClientRect();const box=document.querySelector('.html-editor-selection').getBoundingClientRect();return {x:box.x-frame.x,y:box.y-frame.y}})()");
-      return Math.abs(host.x-child.x)<2 && Math.abs(host.y-child.y)<2;
+      const host = await evaluate("(()=>{const frame=document.querySelector('iframe'),selection=document.querySelector('.html-editor-selection');if(!frame||!selection)return null;const f=frame.getBoundingClientRect(),box=selection.getBoundingClientRect();return {x:box.x-f.x,y:box.y-f.y}})()");
+      return !!host && Math.abs(host.x-child.x)<2 && Math.abs(host.y-child.y)<2;
     };
     await until(geometry, 'selection alignment after scrolling');
     await until(toolbarInside, 'toolbar remains in pane after scrolling');
@@ -316,7 +325,7 @@ app.whenReady().then(async () => {
       return projectionSources.get(url)?.includes("Agent version");
     }, "reopened disk");
     console.log(JSON.stringify({ passed: true, electron: process.versions.electron, platform: process.platform,
-      checks: ["pointer movement is idle and click reveals selection", "single translucent outside handle, right-edge and transparent inside fallback", "slow diagonal handle approach without target jumps", "2px clicked border", "click is read-only until pencil activation", "theme inheritance", "nested block editing preserves siblings", "keyboard pencil activation", "leave commits and dismisses; IME is protected", "separate circular palette above with stable toolbar", "safe bridge", "native IME and Unicode input", "lossless source", "stable iframe", "shared source and undo", "style and cascade",
+      checks: ["pointer movement is idle and click reveals selection", "single compact theme-colored action handle", "shared aligned rail above the selected block with bounded fallbacks", "slow diagonal handle approach without target jumps", "2px clicked border", "click is read-only until pencil activation", "theme inheritance", "nested block editing preserves siblings", "keyboard pencil activation", "leave commits and dismisses; IME is protected", "separate circular palette above with stable toolbar", "safe bridge", "native IME and Unicode input", "lossless source", "stable iframe", "shared source and undo", "style and cascade",
         "native image import and rendering", "image undo preserves asset", "scroll and zoom geometry", "visible block border on light and dark backgrounds while typing and formatting", "bounded visual fallback", "disk-first external update", "close and reopen"] }));
   } catch (error) {
     code = 1; console.error(error?.stack ?? error);

@@ -83,6 +83,9 @@ async function activate(selector) {
   assert.equal(await evaluate("!!document.querySelector('.html-editor-text-input')"), false, "page click is read-only");
   await until(() => evaluate("!!document.querySelector('.html-editor-pencil')"), "pencil entry");
   await nativeClick('.html-editor-pencil');
+  await until(() => evaluate("!!document.querySelector('.html-floating-toolbar')"), "shared block action rail");
+  assert.equal(await evaluate("(()=>{const p=document.querySelector('.html-editor-pencil'),t=document.querySelector('.html-floating-toolbar'),s=document.querySelector('.html-editor-selection');if(!p||!t||!s)return false;const pr=p.getBoundingClientRect(),tr=t.getBoundingClientRect(),ps=getComputedStyle(p),ss=getComputedStyle(s);return p.getAttribute('aria-pressed')==='true'&&Math.abs((pr.top+pr.bottom-tr.top-tr.bottom)/2)<1&&ps.backgroundColor===ss.borderTopColor})()"),
+    true, "production rail keeps its active pencil aligned and theme-colored");
 }
 async function mode(label) {
   await click('.desktop-editor-pane-handle');
@@ -140,7 +143,8 @@ app.whenReady().then(async () => {
     await fs.writeFile(path.join(output, "html-editor.png"), (await window.webContents.capturePage()).toPNG());
     await fs.writeFile(path.join(root, "page.html"), "<!DOCTYPE html><h1>External replacement</h1>");
     await until(async () => {
-      const current = frame(); return current && await current.executeJavaScript("document.body.textContent.includes('External replacement')");
+      const current = frame();
+      return current && await current.executeJavaScript("document.body?.textContent?.includes('External replacement')===true");
     }, "real workspace watcher external update");
     await history("undo"); await wait(200);
     assert.equal(await disk(), "<!DOCTYPE html><h1>External replacement</h1>");

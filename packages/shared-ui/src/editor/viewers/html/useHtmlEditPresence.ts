@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, type RefObject, type PointerEvent } from "react";
 import type { HtmlSelectionMessage } from "./htmlBridgeProtocol";
-import type { HtmlHandleBounds } from "./HtmlEditHandle";
+import type { HtmlActionBounds } from "./HtmlBlockActionRail";
 
 /** The frame, pencil and floating controls form one transient editing region. */
 export function useHtmlEditPresence({ viewport, selection, handleBounds, busy, leave }: {
   viewport: RefObject<HTMLDivElement>; selection: RefObject<HtmlSelectionMessage | null>;
-  handleBounds: RefObject<HtmlHandleBounds | null>;
+  handleBounds: RefObject<HtmlActionBounds | null>;
   busy: () => boolean; leave: () => void;
 }) {
   const latest = useRef({ busy, leave }); latest.current = { busy, leave };

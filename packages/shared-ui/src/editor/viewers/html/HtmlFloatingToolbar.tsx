@@ -15,7 +15,6 @@ export function HtmlFloatingToolbar({ selection, viewport, text, image, alt, dis
 }) {
   const { t } = useLocalization();
   const toolbar = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState<CSSProperties>({ visibility: "hidden" });
   const [popoverPosition, setPopoverPosition] = useState<CSSProperties>({});
   const [palette, setPalette] = useState<"color" | "background-color" | "alt" | null>(null);
   const [altValue, setAltValue] = useState(alt);
@@ -32,26 +31,18 @@ export function HtmlFloatingToolbar({ selection, viewport, text, image, alt, dis
     const pane = viewport.current, element = toolbar.current;
     if (!pane || !element) return;
     const place = () => {
-      const { rect, clip } = selection;
-      const anchor = selection.anchor ?? rect;
-      const left = Math.max(0, rect.x + clip.left), right = Math.min(pane.clientWidth, rect.x + rect.width - clip.right);
-      const top = Math.max(0, rect.y + clip.top), bottom = Math.min(pane.clientHeight, rect.y + rect.height - clip.bottom);
-      if (right <= left || bottom <= top) { setPosition({ visibility: "hidden" }); return; }
-      const width = element.offsetWidth, height = element.offsetHeight;
-      const anchorLeft = Math.max(left, anchor.x), anchorRight = Math.min(right, anchor.x + anchor.width);
-      const anchorTop = Math.max(top, anchor.y), anchorBottom = Math.min(bottom, anchor.y + anchor.height);
-      const x = Math.max(8, Math.min((anchorLeft + anchorRight - width) / 2, pane.clientWidth - width - 8));
-      // Reserve a compact tray above even while closed, so opening it never moves the toolbar.
-      const preferredTop = anchorTop >= height + 12 ? anchorTop - height - 8 : anchorBottom + 8;
-      setPosition({ left: x, top: Math.max(8, Math.min(Math.max(84, preferredTop), pane.clientHeight - height - 8)) });
       const trigger = element.querySelector<HTMLElement>(`[data-palette="${palette}"]`);
-      const center = trigger ? trigger.offsetLeft + trigger.offsetWidth / 2 : width / 2;
-      setPopoverPosition({ left: Math.max(8 - x, Math.min(center - 77, pane.clientWidth - x - 162)) });
+      const paneRect = pane.getBoundingClientRect();
+      const elementRect = element.getBoundingClientRect();
+      const center = trigger ? trigger.getBoundingClientRect().left + trigger.offsetWidth / 2 - elementRect.left : elementRect.width / 2;
+      const minimum = paneRect.left + 8 - elementRect.left;
+      const maximum = paneRect.right - 8 - elementRect.left - 154;
+      setPopoverPosition({ left: Math.max(minimum, Math.min(center - 77, Math.max(minimum, maximum))) });
     };
     place();
     const observer = new ResizeObserver(place); observer.observe(pane); observer.observe(element);
     return () => observer.disconnect();
-  }, [selection, viewport, palette]);
+  }, [viewport, palette]);
   const style = (property: HtmlStyleProperty, value: string) => apply({ kind: "style", property, value });
   const button = (label: string, icon: ReactNode, action: () => void, pressed?: boolean) => <button type="button"
     title={label} aria-label={label} disabled={disabled} aria-pressed={pressed} onClick={action}>{icon}</button>;
@@ -63,7 +54,7 @@ export function HtmlFloatingToolbar({ selection, viewport, text, image, alt, dis
   </button>;
   const weight = Number.parseInt(String(styles.fontWeight), 10);
   const bold = weight >= 600 || styles.fontWeight === "bold";
-  return <div ref={toolbar} className="html-floating-toolbar" style={position} data-html-control
+  return <div ref={toolbar} className="html-floating-toolbar" data-html-control
     onKeyDown={(event) => {
       if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); if (palette) setPalette(null); else dismiss(); }
     }}

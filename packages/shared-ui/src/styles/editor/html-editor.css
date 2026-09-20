@@ -13,35 +13,27 @@
 .html-editor-selection { position: absolute; pointer-events: none; box-sizing: border-box; z-index: 3;
   border: 2px solid var(--html-editor-accent); box-shadow: inset 0 0 0 1px #fff; }
 .html-editor-selection[data-editing="false"] { box-shadow: none; }
-.html-editor-pencil { position: absolute; z-index: 4; display: grid; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 7px;
-  color: var(--po-text-muted, #68645c); background: transparent; box-shadow: none; cursor: pointer;
-  transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease; }
-/* Outside handles need a quiet surface so the glyph reads as attached UI rather than page content. */
-.html-editor-pencil:is([data-placement="above"], [data-placement="right"]) {
-  border-color: color-mix(in srgb, var(--po-divider, #e1e3e6) 78%, var(--po-text-muted, #68645c));
-  background: color-mix(in srgb, var(--po-panel, #fff) 78%, transparent);
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--po-shadow, #000) 12%, transparent),
-    0 4px 12px color-mix(in srgb, var(--po-shadow, #000) 8%, transparent);
-  -webkit-backdrop-filter: blur(8px) saturate(1.05);
-  backdrop-filter: blur(8px) saturate(1.05); }
-.html-editor-pencil:hover { color: var(--po-text, #292723); }
-.html-editor-pencil:is([data-placement="above"], [data-placement="right"]):hover {
-  border-color: color-mix(in srgb, var(--html-editor-accent) 24%, var(--po-divider, #e1e3e6));
-  background: color-mix(in srgb, var(--po-panel, #fff) 90%, transparent);
-  box-shadow: 0 1px 3px color-mix(in srgb, var(--po-shadow, #000) 14%, transparent),
-    0 5px 14px color-mix(in srgb, var(--po-shadow, #000) 10%, transparent); }
-.html-editor-pencil[data-placement="inside"]:hover { background: color-mix(in srgb, var(--po-control-hover, #f1f3f5) 72%, transparent); }
+.html-block-action-rail { position: absolute; inset-inline: 0; z-index: 4; pointer-events: none; }
+.html-block-action-rail__menu { position: absolute; width: max-content; max-width: calc(100% - 50px); pointer-events: auto; }
+.html-editor-pencil { --html-editor-pencil-surface: var(--html-editor-accent); position: absolute; display: grid; place-items: center;
+  padding: 0; border: 1px solid var(--html-editor-pencil-surface); border-radius: 7px; color: #fff;
+  background: var(--html-editor-pencil-surface); box-shadow: 0 1px 2px color-mix(in srgb, var(--po-shadow, #000) 16%, transparent),
+    0 4px 12px color-mix(in srgb, var(--po-shadow, #000) 12%, transparent); pointer-events: auto; cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease; }
+.html-editor-pencil:hover { box-shadow: 0 2px 4px color-mix(in srgb, var(--po-shadow, #000) 18%, transparent),
+  0 6px 16px color-mix(in srgb, var(--po-shadow, #000) 14%, transparent); }
 .html-editor-pencil > svg { pointer-events: none; }
-/* Bridge the small gap without adding a visible plate or a second control. */
+/* Bridge the dock gap without adding hover-driven hit testing to the document. */
 .html-editor-pencil[data-placement="above"]::before { content: ""; position: absolute; inset: 100% 0 auto; height: 8px; }
-.html-editor-pencil[data-placement="right"]::before { content: ""; position: absolute; inset: 0 auto 0 -8px; width: 8px; }
+.html-editor-pencil[data-placement="below"]::before { content: ""; position: absolute; inset: auto 0 100%; height: 8px; }
 .html-editor-pencil:focus-visible { outline: 2px solid var(--html-editor-accent); outline-offset: 2px; }
 .html-editor-text-input { position: absolute; z-index: 2; box-sizing: border-box; resize: none; margin: 0; padding: 0; border: 0;
   border-radius: 0; outline: none; background: transparent; overflow: auto; white-space: pre-wrap; }
-.html-floating-toolbar { position: absolute; z-index: 4; max-width: calc(100% - 16px); box-sizing: border-box; border: 1px solid var(--po-divider, #e1e3e6); border-radius: 10px;
+.html-floating-toolbar { position: relative; width: max-content; max-width: 100%; box-sizing: border-box; border: 1px solid var(--po-divider, #e1e3e6); border-radius: 10px;
   padding: 4px; color: var(--po-text, #202124); background: var(--po-panel, #ffffff); font: 12px/1.4 var(--po-font-ui, system-ui);
   box-shadow: 0 4px 20px color-mix(in srgb, var(--po-shadow, #000000) 16%, transparent), 0 1px 3px color-mix(in srgb, var(--po-shadow, #000000) 8%, transparent); }
-.html-floating-toolbar__row { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; }
+.html-floating-toolbar__row { display: flex; align-items: center; flex-wrap: nowrap; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+.html-floating-toolbar__row::-webkit-scrollbar { display: none; }
 .html-floating-toolbar button, .html-floating-toolbar select { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; height: 28px; min-width: 28px; padding: 4px; border: 0; border-radius: 5px; color: inherit; background: transparent; font: inherit; cursor: pointer; }
 .html-floating-toolbar button:hover, .html-floating-toolbar select:hover, .html-floating-toolbar__image:hover { background: var(--po-control-hover, #f1f3f5); }
 .html-floating-toolbar button[aria-pressed="true"] { color: var(--html-editor-accent); background: color-mix(in srgb, var(--html-editor-accent) 10%, var(--po-panel, #ffffff)); }

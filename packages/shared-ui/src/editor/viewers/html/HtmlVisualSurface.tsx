@@ -15,7 +15,7 @@ import { HtmlTextInput } from "./HtmlTextInput";
 import type { HtmlEditOperation } from "./htmlEditCompiler";
 import { imageSourceReference } from "./htmlImageReference";
 import { useHtmlEditPresence } from "./useHtmlEditPresence";
-import { HtmlEditHandle, type HtmlHandleBounds } from "./HtmlEditHandle";
+import { HtmlBlockActionRail, type HtmlActionBounds } from "./HtmlBlockActionRail";
 
 export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, registerPrepare, onUnavailable }: {
   model: CodeMirrorDocumentModel; path: string; title: string; fileUrl?: string | null; canEdit: boolean;
@@ -38,7 +38,7 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, regist
   const frame = useRef<HTMLIFrameElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
   const pencil = useRef<HTMLButtonElement>(null);
-  const handleBounds = useRef<HtmlHandleBounds | null>(null);
+  const handleBounds = useRef<HtmlActionBounds | null>(null);
   const focusPencil = useRef(false);
   const active = useRef<string | null>(null);
   const composing = useRef(false);
@@ -287,17 +287,18 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, regist
           title={title} sandbox="allow-scripts" referrerPolicy="no-referrer" src={projection.url}
           srcDoc={projection.url ? undefined : projection.source} onLoad={connect} aria-busy={!ready} />}
         {rect && <div className="html-editor-selection" data-editing={!!editing} style={overlayStyle} />}
-        {selection && !editing && ready && canEdit && <HtmlEditHandle selection={selection} viewport={viewport}
-          handle={pencil} bounds={handleBounds} keep={presence.keep} activate={() => {
+        {selection && ready && canEdit && <HtmlBlockActionRail selection={selection} viewport={viewport}
+          handle={pencil} bounds={handleBounds} active={!!editing} keep={presence.keep} activate={() => {
             presence.keep(); setActive(selection.id); port.current?.postMessage({ type: "active", id: selection.id }); startText(selection);
-          }} />}
+          }}>
+          {target && editing && <HtmlFloatingToolbar key={`${projection?.session.id}:${target.id}`} selection={selection} viewport={viewport}
+            text={!target.image} image={target.image} alt={target.attrs.get("alt") ?? ""}
+            disabled={!ready || !canEdit || importing} canImport={!!assets} apply={apply} importImage={importImage} dismiss={dismiss}
+            onNativeControl={setNativeControl} onCompositionChange={setComposing} />}
+        </HtmlBlockActionRail>}
         {textInput && selection?.id === textInput.id && <HtmlTextInput key={textInput.gesture} initial={textInput.initial}
           style={textStyle} registerPrepare={registerTextPrepare} finish={() => setTextInput(null)} onCompositionChange={setComposing}
           apply={(value) => apply({ kind: "text", value }, textInput.gesture)} />}
-        {target && selection && editing && <HtmlFloatingToolbar key={`${projection?.session.id}:${target.id}`} selection={selection} viewport={viewport}
-          text={!target.image} image={target.image} alt={target.attrs.get("alt") ?? ""}
-          disabled={!ready || !canEdit || importing} canImport={!!assets} apply={apply} importImage={importImage} dismiss={dismiss}
-          onNativeControl={setNativeControl} onCompositionChange={setComposing} />}
       </div>
     </div>
   </div>;
