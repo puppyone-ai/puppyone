@@ -195,6 +195,8 @@ describe("HTML projection and resource boundaries", () => {
     expect(decodeHtmlBridgeMessage({ type: "pointer", x: Infinity, y: 0 })).toBeNull();
     expect(decodeHtmlBridgeMessage({ type: "pointer", x: 0, y: 1e8 })).toBeNull();
     expect(decodeHtmlBridgeMessage({ type: "pointer", x: 12, y: 24, path: "secret" })).toEqual({ type: "pointer", x: 12, y: 24 });
+    expect(decodeHtmlBridgeMessage({ type: "selection", id: "t0", edit: false, reason: "hover",
+      rect: { x: 0, y: 0, width: 10, height: 10 }, clip: { top: 0, right: 0, bottom: 0, left: 0 }, styles: {} })).toBeNull();
     expect(decodeHtmlBridgeMessage({ type: "selection", id: "t0", edit: true, reason: "select",
       rect: { x: NaN, y: 0, width: 10, height: 10 }, clip: { top: 0, right: 0, bottom: 0, left: 0 }, styles: {} })).toBeNull();
   });

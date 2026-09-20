@@ -136,10 +136,12 @@ app.whenReady().then(async () => {
     win.webContents.debugger.attach("1.3");
     await win.webContents.debugger.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true });
     await clickElement("#title", true);
-    await until(() => evaluate("!!document.querySelector('.html-editor-pencil')"), 'hover pencil');
     await wait(450);
-    assert.equal(await evaluate("!!document.querySelector('.html-floating-toolbar,.html-editor-text-input')"), false, 'hover is read-only');
+    assert.equal(await evaluate("!!document.querySelector('.html-editor-selection,.html-editor-pencil,.html-floating-toolbar,.html-editor-text-input')"), false,
+      'pointer movement does not reveal or measure editing UI');
+    assert.equal(await disk(), original, 'pointer movement is source inert');
     await clickElement("#title");
+    await until(() => evaluate("!!document.querySelector('.html-editor-pencil')"), 'click reveals pencil');
     assert.equal(await evaluate("!!document.querySelector('.html-editor-text-input')"), false, 'page click does not start editing');
     assert.equal(await disk(), original);
     const outsideSurface = await evaluate("(()=>{const b=document.querySelector('.html-editor-pencil'),s=getComputedStyle(b);return {count:document.querySelectorAll('.html-editor-pencil').length,icons:b.querySelectorAll('svg').length,background:s.backgroundColor,shadow:s.boxShadow,border:s.borderTopWidth,backdrop:s.backdropFilter,stroke:getComputedStyle(document.querySelector('.html-editor-selection')).borderTopWidth}})()");
@@ -231,7 +233,7 @@ app.whenReady().then(async () => {
     await history("redo");
     await until(async () => (await disk()).includes(imported), 'image redo');
     await until(() => evaluate("document.querySelector('iframe')?.getAttribute('aria-busy')==='false'"), 'image redo projection');
-    await clickElement('#card', true);
+    await clickElement('#card');
     await until(() => evaluate("document.querySelector('.html-editor-pencil')?.dataset.placement==='above'"), 'outside top handle');
     const above = await handleGeometry();
     assert.ok(above.handle.bottom < above.selection.top, 'handle is completely outside the block');
@@ -243,7 +245,7 @@ app.whenReady().then(async () => {
     }
     await wait(400);
     assert.equal((await handleGeometry()).selection.y, above.selection.y, 'slow diagonal approach keeps the original block');
-    assert.equal(await disk(), beforeLocked.replace('src="old.png"', `src="${imported}"`), 'hover and docking never write the source');
+    assert.equal(await disk(), beforeLocked.replace('src="old.png"', `src="${imported}"`), 'selection and docking never write the source');
     await fsp.writeFile('/private/tmp/puppyone-html-handle-outside-above.png', (await win.webContents.capturePage()).toPNG());
     // Exercise a flush viewport edge without changing the document model or fixture file.
     await preview().executeJavaScript("document.querySelector('#card').style.cssText='position:fixed;top:0;left:0;right:0;height:120px;margin:0;padding:24px;background:#f7f8fa'");
@@ -314,7 +316,7 @@ app.whenReady().then(async () => {
       return projectionSources.get(url)?.includes("Agent version");
     }, "reopened disk");
     console.log(JSON.stringify({ passed: true, electron: process.versions.electron, platform: process.platform,
-      checks: ["single translucent outside handle, right-edge and transparent inside fallback", "slow diagonal handle approach without target jumps", "2px hover border", "hover and click are read-only until pencil activation", "theme inheritance", "nested block editing preserves siblings", "keyboard pencil activation", "leave commits and dismisses; IME is protected", "separate circular palette above with stable toolbar", "safe bridge", "native IME and Unicode input", "lossless source", "stable iframe", "shared source and undo", "style and cascade",
+      checks: ["pointer movement is idle and click reveals selection", "single translucent outside handle, right-edge and transparent inside fallback", "slow diagonal handle approach without target jumps", "2px clicked border", "click is read-only until pencil activation", "theme inheritance", "nested block editing preserves siblings", "keyboard pencil activation", "leave commits and dismisses; IME is protected", "separate circular palette above with stable toolbar", "safe bridge", "native IME and Unicode input", "lossless source", "stable iframe", "shared source and undo", "style and cascade",
         "native image import and rendering", "image undo preserves asset", "scroll and zoom geometry", "visible block border on light and dark backgrounds while typing and formatting", "bounded visual fallback", "disk-first external update", "close and reopen"] }));
   } catch (error) {
     code = 1; console.error(error?.stack ?? error);

@@ -3,8 +3,6 @@ export const HTML_FRAME_BRIDGE = String.raw`
 (() => {
   'use strict';
   let port = null, selected = null, active = null, enabled = true, frame = 0, typing = null;
-  let hoverTimer = 0;
-  const cancelHover = () => { clearTimeout(hoverTimer); hoverTimer = 0; };
   const nodes = new Map();
   const attribute = 'data-puppyone-html-target';
   document.querySelectorAll('[' + attribute + ']').forEach((node) => {
@@ -62,7 +60,6 @@ export const HTML_FRAME_BRIDGE = String.raw`
     if (!frame) frame = requestAnimationFrame(() => { frame = 0; measure(); });
   };
   const select = (event, edit) => {
-    cancelHover();
     event.preventDefault(); event.stopPropagation();
     if (!enabled || !port) return;
     const target = event.target instanceof Element ? event.target.closest('[' + attribute + ']') : null;
@@ -78,18 +75,10 @@ export const HTML_FRAME_BRIDGE = String.raw`
   document.addEventListener('dblclick', (event) => select(event, false), true);
   document.addEventListener('focusin', (event) => select(event, false), true);
   document.addEventListener('pointermove', (event) => {
-    if (!enabled || !port) return;
-    const target = event.target instanceof Element ? event.target.closest('[' + attribute + ']') : null;
-    const id = target?.getAttribute(attribute);
-    cancelHover();
-    if (!active && id && id !== selected) {
-      const reveal = () => { hoverTimer = 0; selected = id; measure(false, 'hover'); };
-      // Do not chase neighboring blocks while the user moves toward the current block's handle.
-      if (selected) hoverTimer = setTimeout(reveal, 120); else reveal();
-    }
+    // Pointer movement is inert until an explicit click or keyboard focus selects a block.
+    if (!enabled || !port || !selected) return;
     send({ type: 'pointer', x: event.clientX, y: event.clientY });
   }, true);
-  document.documentElement.addEventListener('pointerleave', cancelHover);
   document.addEventListener('submit', (event) => event.preventDefault(), true);
   document.addEventListener('dragstart', (event) => event.preventDefault(), true);
   document.addEventListener('keydown', (event) => {
@@ -112,9 +101,9 @@ export const HTML_FRAME_BRIDGE = String.raw`
     port.onmessage = ({ data }) => {
       if (!data || typeof data !== 'object') return;
       if (data.type === 'typing') { setTyping(nodes.has(data.id) ? data.id : null); return; }
-      if (data.type === 'active' && nodes.has(data.id)) { cancelHover(); active = data.id; selected = active; measure(); return; }
-      if (data.type === 'clear') { cancelHover(); selected = null; active = null; setTyping(null); return; }
-      if (data.type === 'enabled') { cancelHover(); enabled = data.value === true; return; }
+      if (data.type === 'active' && nodes.has(data.id)) { active = data.id; selected = active; measure(); return; }
+      if (data.type === 'clear') { selected = null; active = null; setTyping(null); return; }
+      if (data.type === 'enabled') { enabled = data.value === true; return; }
       if (data.type === 'base') {
         let base = document.querySelector('base');
         if (!data.value) { base?.remove(); return; }
@@ -177,6 +166,6 @@ export const HTML_FRAME_BRIDGE = String.raw`
     port.start();
     send({ type: 'ready', ids: [...nodes].filter(([, node]) => node).map(([id]) => id) });
   });
-  addEventListener('pagehide', () => { cancelHover(); observer.disconnect(); if (frame) cancelAnimationFrame(frame); port?.close(); });
+  addEventListener('pagehide', () => { observer.disconnect(); if (frame) cancelAnimationFrame(frame); port?.close(); });
 })();
 `;

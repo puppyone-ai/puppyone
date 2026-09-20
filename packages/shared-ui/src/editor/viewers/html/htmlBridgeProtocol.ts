@@ -1,5 +1,5 @@
 export type HtmlSelectionMessage = { type: "selection"; id: string; edit: boolean;
-  reason: "hover" | "focus" | "select" | "measure";
+  reason: "focus" | "select" | "measure";
   anchor?: { x: number; y: number; width: number; height: number };
   rect: { x: number; y: number; width: number; height: number };
   clip: { top: number; right: number; bottom: number; left: number };
@@ -21,7 +21,7 @@ export function decodeHtmlBridgeMessage(value: unknown): HtmlBridgeMessage | nul
   if (message.type === "ready" && Array.isArray(message.ids) && message.ids.length <= 12000
     && message.ids.every((id) => typeof id === "string" && /^t[a-z0-9]{1,8}$/.test(id))) return { type: "ready", ids: message.ids };
   if (message.type !== "selection" || typeof message.id !== "string" || !/^t[a-z0-9]{1,8}$/.test(message.id)
-    || typeof message.reason !== "string" || !["hover", "focus", "select", "measure"].includes(message.reason)
+    || typeof message.reason !== "string" || !["focus", "select", "measure"].includes(message.reason)
     || typeof message.edit !== "boolean" || !message.rect || typeof message.rect !== "object"
     || !message.clip || typeof message.clip !== "object"
     || !message.styles || typeof message.styles !== "object") return null;

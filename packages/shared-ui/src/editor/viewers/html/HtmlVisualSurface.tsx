@@ -217,7 +217,6 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, regist
         else if (message.type === "selection" && session.index.targets.has(message.id)) {
           // A queued layout measurement cannot resurrect dismissed UI or change the active target.
           if (message.reason === "measure" && selected.current?.id !== message.id) return;
-          if (message.reason === "hover" && active.current) return;
           const continueEditing = !!active.current && message.edit;
           if (selected.current?.id !== message.id) {
             try { prepareText.current?.(); } catch { setError(t("editor.html.finishComposition")); return; }
