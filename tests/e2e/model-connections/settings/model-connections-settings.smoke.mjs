@@ -59,6 +59,13 @@ async function clickText(label) {
 async function fill(selector, value) {
   await evaluate(`(() => { const input=document.querySelector(${JSON.stringify(selector)}); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(value)}); input.dispatchEvent(new Event('input',{bubbles:true})); })()`);
 }
+async function ensureAgentSidebarOpen() {
+  const selector = ".desktop-titlebar-terminal, .desktop-shell-toolbar-terminal";
+  if (await evaluate(`document.querySelector(${JSON.stringify(selector)})?.getAttribute('aria-pressed') !== 'true'`)) {
+    await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
+  }
+  await until(() => evaluate(`document.querySelector(${JSON.stringify(selector)})?.getAttribute('aria-pressed') === 'true'`), "Agent sidebar open");
+}
 const deadline = setTimeout(() => { console.error("Settings smoke timed out."); app.exit(1); }, 90_000);
 async function capture(name) {
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
@@ -74,33 +81,31 @@ async function checkDefaultCompute() {
   await evaluate("document.querySelector('.desktop-titlebar-terminal, .desktop-shell-toolbar-terminal').click()");
   await until(() => evaluate("Boolean(document.querySelector('.desktop-terminal-launcher-tool[title=\"Built-in Agent\"]'))"), "built-in Harness choice");
   await clickText("Built-in Agent");
-  await until(() => evaluate("document.querySelector('.desktop-agent-compute-summary')?.textContent.includes('Puppyone Cloud')"), "default Puppyone Cloud");
+  await until(() => evaluate("document.querySelector('.desktop-agent-compute-summary')?.textContent.includes('Managed compute')"), "default managed compute");
+  await ensureAgentSidebarOpen();
   await until(() => evaluate("Boolean(document.querySelector('.desktop-agent-empty-state'))"), "quiet first-use identity");
   assert.equal(await evaluate("Boolean(document.querySelector('.desktop-agent-readiness'))"), false, "First-use setup is not an error banner");
-  assert.equal(await evaluate("Boolean(document.querySelector('.desktop-agent-compute-editor, .desktop-agent-compute-sources'))"), false, "Customization stays collapsed without three source cards");
-  assert.equal(await evaluate("document.querySelector('.desktop-agent-compute-customize')?.textContent"), "Bring your own API or your model");
+  assert.equal(await evaluate("Boolean(document.querySelector('.desktop-agent-compute-editor, .desktop-agent-compute-sources, .desktop-agent-compute input'))"), false, "Chat does not own connection configuration");
+  assert.equal(await evaluate("document.querySelector('.desktop-agent-compute-summary')?.textContent.includes('Uses your account balance')"), true);
+  assert.equal(await evaluate("document.querySelector('.desktop-agent-compute-customize')?.textContent"), "Bring your own API or local model");
   assert.equal(await evaluate("document.querySelector('button[aria-label=\"Send message\"]')?.disabled"), true, "Unavailable cloud must not be treated as a ready provider");
   assert.equal(metadataReads, 0); assert.equal(inferenceRequests, 0);
   await capture("built-in-compute-default.png");
+  await clickText("Bring your own API or local model");
+  await until(() => evaluate("Boolean(document.querySelector('.desktop-settings-dialog .model-connections'))"), "model connection settings from Chat");
+  assert.equal(await evaluate("document.querySelector('.desktop-settings-sidebar [aria-current=\"page\"]')?.textContent.trim()"), "Model connections");
+  await capture("built-in-compute-settings-entry.png");
+  await evaluate("document.querySelector('.desktop-settings-dialog button[aria-label=\"Close\"]').click()");
 }
 async function checkComputeChoice() {
   await clickText("Verify Agent support");
   await until(() => evaluate("document.querySelector('.model-connection-details')?.textContent.includes('Tool round-trip verified')"), "verified model");
-  await clickText("Close");
+  await evaluate("document.querySelector('.desktop-settings-dialog button[aria-label=\"Close\"]').click()");
+  await ensureAgentSidebarOpen();
+  await until(() => evaluate("Boolean(document.querySelector('.desktop-agent-compute'))"), "Chat restored after Settings");
   assert.equal(await evaluate("Boolean(document.querySelector('.desktop-agent-composer button[aria-label=\"Agent model\"]'))"), false, "Built-in must not show a second unscoped model picker");
+  await until(() => evaluate("document.querySelector('.desktop-agent-compute button[aria-label=\"Agent model\"]')?.disabled===false"), "verified model picker");
   await capture("built-in-compute-choice.png");
-  await clickText("Bring your own API or your model");
-  assert.equal(await evaluate("document.querySelector('.desktop-agent-compute')?.textContent.includes('How do you want to connect?')"), true);
-  assert.equal(await evaluate("Boolean(document.querySelector('.desktop-agent-compute input, .desktop-agent-compute button[aria-label=\"Agent model\"]'))"), false, "Source chooser must not expose a form or model picker");
-  await capture("built-in-compute-source-chooser.png");
-  await clickText("Bring your API");
-  await until(() => evaluate("document.querySelector('.desktop-agent-compute button[aria-label=\"Agent model\"]')?.disabled===false"), "API model picker");
-  await capture("built-in-compute-api-picker.png");
-  await clickText("Add another connection");
-  assert.equal(await evaluate("Boolean(document.querySelector('.desktop-agent-compute input[type=url], .desktop-agent-compute input[type=password]'))"), true);
-  assert.equal(await evaluate("document.querySelector('.desktop-agent-compute')?.textContent.includes('No connections yet')"), false);
-  await capture("built-in-compute-api-form.png");
-  await clickText("Cancel");
   await clickText("Agent model"); await clickText("ui-test-model");
   await until(() => evaluate("document.querySelector('.desktop-agent-boundary')?.getAttribute('data-phase')==='ready'"), "ready native session");
   await evaluate("document.querySelector('.desktop-agent-prompt-editor .cm-content').focus()");
@@ -111,31 +116,18 @@ async function checkComputeChoice() {
   await until(() => evaluate("document.querySelector('.desktop-agent-compute-customize')?.disabled===false"), "turn finished");
   await capture("built-in-compute-api.png");
   assert.equal(inferenceRequests, 3);
-  await clickText("Bring your own API or your model");
-  await clickText("Back");
-  await clickText("Use Puppyone Cloud");
-  await evaluate("document.querySelector('.desktop-agent-prompt-editor .cm-content').focus()"); await window.webContents.insertText("Do not send this to the old source.");
-  assert.equal(await evaluate("document.querySelector('button[aria-label=\"Send message\"]')?.disabled"), true);
-  assert.equal(await evaluate("document.querySelector('.desktop-agent-compute')?.textContent.includes('Cloud inference is not available yet')"), true);
-  await clickText("Bring your own API or your model");
-  await clickText("Local models");
-  assert.equal(await evaluate("document.querySelector('.desktop-agent-compute')?.textContent.includes('Find local services')"), true);
-  assert.equal(await evaluate("document.querySelector('button[aria-label=\"Send message\"]')?.disabled"), true);
-  assert.equal(await evaluate("document.querySelector('.desktop-agent-compute')?.textContent.includes('Native UI test')"), false, "Local source must not contain the API connection");
-  await capture("built-in-compute-local.png");
   window.setSize(1000, 720);
-  await capture("built-in-compute-local-compact.png");
+  await capture("built-in-compute-compact.png");
   assert.equal(await evaluate(`(() => {
     const section = document.querySelector('.desktop-agent-compute');
     const buttons = [...section.querySelectorAll('button')];
     const send = document.querySelector('button[aria-label="Send message"]').getBoundingClientRect();
     return buttons.every(button => { const rect = button.getBoundingClientRect(); return rect.top >= 0 && rect.right <= innerWidth; })
       && section.scrollWidth <= section.clientWidth && send.bottom <= innerHeight;
-  })()`), true, "Compute choices and composer stay accessible in a compact window");
-  assert.equal(inferenceRequests, 3, "Browsing sources must not infer or silently fall back");
-  await evaluate("window.dispatchEvent(new KeyboardEvent('keydown',{key:',',metaKey:true,bubbles:true}))");
-  await until(() => evaluate("Boolean(document.querySelector('.desktop-settings-dialog'))"), "settings reopen");
-  await clickText("Model connections");
+  })()`), true, "Compute summary and composer stay accessible in a compact window");
+  await clickText("Bring your own API or local model");
+  await until(() => evaluate("Boolean(document.querySelector('.desktop-settings-dialog .model-connections'))"), "settings reopen from Chat");
+  assert.equal(inferenceRequests, 3, "Opening Settings must not infer or change the active route");
 }
 await import("../../../../electron/main.mjs");
 app.whenReady().then(async () => {
@@ -216,7 +208,7 @@ app.whenReady().then(async () => {
     await clickText("Remove"); await clickText("Remove and stop chats");
     await until(async () => (await evaluate("window.puppyoneDesktop.modelConnections.read()")).value.connections.length === 0, "delete persisted");
     console.log(JSON.stringify({ ok: true, actualAppRenderer: true, loggedOutSettings: true, secureWriteOnlySave: true, catalogVisible: true, confirmedRemoval: true,
-      ...(computeSmoke ? { cloudDefault: true, quietFirstUse: true, optInCustomization: true, sourceScopedModels: true, actualAgentTurn: true, noImplicitSourceFallback: true, inferenceRequests } : {}) }));
+      ...(computeSmoke ? { managedDefault: true, quietFirstUse: true, settingsOwnedConfiguration: true, verifiedModelSelection: true, actualAgentTurn: true, noImplicitSourceFallback: true, inferenceRequests } : {}) }));
   } catch (error) {
     failed = true; console.error(error);
     if (window) await fs.writeFile(path.join(output, "failure.png"), (await window.webContents.capturePage()).toPNG());

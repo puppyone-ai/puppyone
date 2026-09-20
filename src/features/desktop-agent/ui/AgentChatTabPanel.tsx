@@ -37,6 +37,7 @@ type AgentChatTabPanelProps = {
   workspaceId: string;
   onPresentationChange: (presentation: AgentChatTabPresentation) => void;
   onOpenFile?: (path: string) => void;
+  onOpenModelConnections: () => void;
   preferredRuntimeId: string | null;
   onPreferredRuntimeChange?: (runtimeId: string | null) => void;
   preferredRoute: Readonly<AgentRoutePreference>;
@@ -55,6 +56,7 @@ export function AgentChatTabPanel({
   workspaceId,
   onPresentationChange,
   onOpenFile,
+  onOpenModelConnections,
   preferredRuntimeId,
   onPreferredRuntimeChange,
   preferredRoute,
@@ -229,7 +231,8 @@ export function AgentChatTabPanel({
     dock={startupLoading ? null : <>
       {capabilities?.modelConnections && <BuiltInAgentCompute key={`${state.selectedRuntimeId}:${state.selectedModel}:${computeReset}`}
         models={runtimeModels} selectedModel={state.selectedModel} disabled={loading || submissionPending || Boolean(state.projection.runningTurnId)}
-        onSelectModel={(model) => selectSessionControl("model", model)} onCatalogChange={() => void controller.refreshModelConnections()} onReadyChange={setComputeReady} />}
+        onSelectModel={(model) => selectSessionControl("model", model)} onCatalogChange={() => void controller.refreshModelConnections()}
+        onOpenModelConnections={onOpenModelConnections} onReadyChange={setComputeReady} />}
       {capabilities?.readOnly && <p role="status">{t("settings.modelConnections.readOnly")}</p>}
       {pendingConnectionModel && <div role="alertdialog" aria-label={t("settings.modelConnections.newConversation")}>
         <p>{t("settings.modelConnections.switchWarning")}</p>

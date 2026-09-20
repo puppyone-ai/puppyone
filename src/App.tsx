@@ -1146,6 +1146,7 @@ function AppContent() {
             preferredModel={agentPreferredModel}
             onPreferredModelChange={setAgentPreferredModel}
             onOpenFile={(path) => handleAgentOpenFile(context.item.rootId, path)}
+            onOpenModelConnections={() => openSettingsDialog("model-connections")}
             resolveWorkspaceReference={resolveAgentWorkspaceReference}
           />
         </Suspense>
@@ -1172,6 +1173,7 @@ function AppContent() {
     agentChatRuntimeVisibility,
     handleAgentOpenFile,
     localAgentsSettings,
+    openSettingsDialog,
     resolveAgentWorkspaceReference,
     setAgentPreferredModel,
     setAgentPreferredRoute,

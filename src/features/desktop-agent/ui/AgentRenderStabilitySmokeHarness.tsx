@@ -102,7 +102,8 @@ function RenderFixture({ fixture, update }: { fixture: Fixture; update: (fixture
     },
   }) as unknown as AgentSessionController, []);
   return <AgentChatTabPanel controller={controller} workspaceId="smoke" presented commandTarget={false}
-    onPresentationChange={noOp} preferredRuntimeId="codex" preferredRoute={{}} preferredModel={null} hiddenRuntimeIds={[]} />;
+    onPresentationChange={noOp} onOpenModelConnections={noOp}
+    preferredRuntimeId="codex" preferredRoute={{}} preferredModel={null} hiddenRuntimeIds={[]} />;
 }
 
 function projection(history: number, stage: Stage, activity = false, message = prompt): AgentProjection {

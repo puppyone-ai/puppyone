@@ -47,7 +47,7 @@ describe("Project-owned Agent Chat Workbench lifecycle", () => {
     await flushEffects(); await flushEffects();
     expect(Boolean(container.querySelector(".desktop-agent-readiness"))).toBe(showRecovery);
     expect(Boolean(container.querySelector(".desktop-agent-empty-state"))).toBe(!showRecovery);
-    expect(container.querySelector(".desktop-agent-compute-summary")?.textContent).toContain("Puppyone Cloud");
+    expect(container.querySelector(".desktop-agent-compute-summary")?.textContent).toContain("Managed compute");
     expect((container.querySelector('button[aria-label="Send message"]') as HTMLButtonElement).disabled).toBe(true);
     expect(harness.bridge.createAgentSession).not.toHaveBeenCalled();
   });
@@ -430,6 +430,7 @@ function renderPanelContent(preferredRuntimeId: string | null = null) {
     initialSnapshot: { title: "New chat", accessibleLabel: "New chat", detail: null, iconKey: null, status: "idle", running: false, resourceId: null },
     renderItem: (context) => React.createElement(AgentChatWorkbenchItem, {
       ...context, hiddenRuntimeIds: [], preferredRuntimeId, preferredRoute: {}, preferredModel: null,
+      onOpenModelConnections: vi.fn(),
     }),
     close: { decide: () => ({ kind: "close" }), commit: ({ project, item }) => requestCloseAgentChatWorkbenchItem(project, item.id) },
   };

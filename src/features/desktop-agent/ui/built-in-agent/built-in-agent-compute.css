@@ -1,28 +1,11 @@
 @layer features {
-  .desktop-agent-compute { display: flex; flex-direction: column; gap: 6px; min-width: 0; max-height: min(50vh, 480px); overflow: auto; }
-  .desktop-agent-compute > * { flex-shrink: 0; }
-  .desktop-agent-compute p { margin: 0; color: var(--po-text-muted); font-size: var(--po-text-size-hint); overflow-wrap: anywhere; }
+  .desktop-agent-compute { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .desktop-agent-compute-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; color: var(--po-text-muted); font-size: var(--po-text-size-caption); }
   .desktop-agent-compute-summary > svg { flex-shrink: 0; }
-  .desktop-agent-compute-summary > small { margin-inline-start: auto; color: var(--po-text-disabled); font-size: var(--po-text-size-caption); }
+  .desktop-agent-compute-summary > small { color: var(--po-text-disabled); font-size: var(--po-text-size-caption); }
+  .desktop-agent-compute-summary > .desktop-agent-picker { margin-inline-start: auto; min-width: 0; }
   .desktop-agent-compute-customize { align-self: flex-start; padding: 0; border: 0; background: transparent; color: var(--po-text-muted); font: inherit; font-size: var(--po-text-size-caption); text-align: start; }
   .desktop-agent-compute-customize:hover:not(:disabled) { color: var(--po-text); text-decoration: underline; text-underline-offset: 3px; }
-  .desktop-agent-compute-editor { display: flex; flex-direction: column; gap: 12px; padding: 12px; border: 1px solid var(--po-divider); border-radius: 10px; background: color-mix(in srgb, var(--po-canvas) 78%, transparent); }
-  .desktop-agent-compute-editor > header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 24px; font-size: var(--po-text-size-hint); color: var(--po-text); }
-  .desktop-agent-compute-editor > header:has(.desktop-agent-compute-back) { grid-template-columns: auto minmax(0, 1fr) auto; }
-  .desktop-agent-compute-editor > header > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-  .desktop-agent-compute-editor > header > button { display: inline-flex; align-items: center; gap: 2px; padding: 4px; border: 0; background: transparent; color: var(--po-text-muted); font: inherit; }
-  .desktop-agent-compute-question { color: var(--po-text) !important; font-size: var(--po-text-size-hint) !important; }
-  .desktop-agent-compute-options { display: flex; flex-direction: column; gap: 8px; }
-  .desktop-agent-compute-options > button { display: grid; grid-template-columns: 20px minmax(0, 1fr) 16px; align-items: center; gap: 10px; width: 100%; padding: 10px; border: 1px solid var(--po-divider); border-radius: 8px; background: transparent; color: var(--po-text); font: inherit; text-align: start; }
-  .desktop-agent-compute-options > button:hover:not(:disabled) { background: var(--po-hover); border-color: var(--po-border-strong, var(--po-divider)); }
-  .desktop-agent-compute-options > button > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .desktop-agent-compute-options > button small { color: var(--po-text-muted); overflow-wrap: anywhere; }
   .desktop-agent-compute button:disabled { opacity: 0.5; }
   .desktop-agent-compute button:focus-visible { outline: 2px solid var(--po-focus-ring); outline-offset: 2px; }
-  .desktop-agent-compute-model { display: flex; flex-direction: column; align-items: stretch; gap: 6px; min-width: 0; }
-  .desktop-agent-compute-model > span { color: var(--po-text); font-size: var(--po-text-size-hint); font-weight: 600; }
-  .desktop-agent-compute-secondary { align-self: flex-start; padding: 3px 0; border: 0; background: transparent; color: var(--po-text-muted); font: inherit; font-size: var(--po-text-size-caption); }
-  .desktop-agent-compute-secondary:hover:not(:disabled) { color: var(--po-text); text-decoration: underline; text-underline-offset: 3px; }
-  .desktop-agent-compute-back { margin-inline-start: -4px; font-size: var(--po-text-size-caption) !important; }
 }
