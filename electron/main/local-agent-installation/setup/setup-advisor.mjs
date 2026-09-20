@@ -1,9 +1,11 @@
+import { supportsSetupSurface } from "../../local-agent-catalog/agent-definition.mjs";
+
 /** Pure projection. Missing evidence must never become an installation claim. */
 export function adviseSetup({ registry, platform, request, installations, companions, now, sessionSuppressed }) {
   const environmentHealthy = !installations.results.some(({ reasonCode }) =>
     reasonCode === "environment-unavailable" || reasonCode === "context-error");
   return registry.filter((route) => route.platforms.includes(platform)
-    && (request.surface === "chat" ? Boolean(route.runtimeId) : Boolean(route.terminalRecipeId))
+    && supportsSetupSurface(route, request.surface)
     && request.eligibleInstallationIds.includes(route.installationId)).map((route) => {
     const observed = installations.results.find(({ agentId }) => agentId === route.installationId);
     const status = observed?.status === "found" ? "found"
