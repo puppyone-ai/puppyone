@@ -364,5 +364,12 @@
   "compute.paymentUnavailable": "Não foi possível atualizar o saldo do Agent. Tente novamente.",
   "compute.walletTitle": "Saldo de tokens de IA",
   "compute.walletDetail": "Recarregue quando precisar. Pague pelo uso do modelo, sem assinatura.",
-  "compute.trialGranted": "Crédito único de teste recebido: {amount}"
+  "compute.trialGranted": "Crédito único de teste recebido: {amount}",
+  "compute.latestUsage": "Última chamada ao modelo",
+  "compute.usageCharge": "Valor cobrado",
+  "compute.usagePending": "Uso aguardando cobrança",
+  "compute.usageReleased": "Sem cobrança",
+  "compute.usageTokens": "Entrada: {input} (cache: {cached}) · Saída: {output}",
+  "compute.modelPrices": "Preços por milhão de tokens",
+  "compute.modelRates": "Entrada {input} · Entrada em cache {cached} · Saída {output}"
 }

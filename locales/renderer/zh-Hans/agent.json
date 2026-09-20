@@ -364,5 +364,12 @@
   "compute.paymentUnavailable": "暂时无法刷新 Agent 余额，请重试。",
   "compute.walletTitle": "AI token 余额",
   "compute.walletDetail": "随时充值，按模型实际用量扣费，无订阅。",
-  "compute.trialGranted": "已获一次性试用余额：{amount}"
+  "compute.trialGranted": "已获一次性试用余额：{amount}",
+  "compute.latestUsage": "最近一次模型调用",
+  "compute.usageCharge": "实际扣款",
+  "compute.usagePending": "用量待结算",
+  "compute.usageReleased": "未扣款",
+  "compute.usageTokens": "输入：{input}（缓存：{cached}）· 输出：{output}",
+  "compute.modelPrices": "模型单价（每百万 token）",
+  "compute.modelRates": "输入 {input} · 缓存输入 {cached} · 输出 {output}"
 }

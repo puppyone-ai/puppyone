@@ -52,6 +52,13 @@ export type ModelConnectionSnapshot = {
     signedIn?: boolean; sandbox?: boolean; balanceMicroUsd?: number; reservedMicroUsd?: number;
     availableMicroUsd?: number; errorCode?: string | null; apiOrigin?: string | null;
     trialGrantedMicroUsd?: number;
+    lastUsage?: {
+      reservationId: string; modelId: string; status: "pending" | "settled" | "released";
+      chargedMicroUsd: number | null; priceBookId: string | null;
+      inputTokens: number | null; cachedTokens: number | null; outputTokens: number | null;
+    } | null;
+    modelPrices?: { modelId: string; name: string; inputMicroUsdPerMillion: number;
+      cachedMicroUsdPerMillion: number; outputMicroUsdPerMillion: number }[];
     packs?: { id: string; name: string; price_cents: number; credit_micro_usd: number }[];
   };
 };

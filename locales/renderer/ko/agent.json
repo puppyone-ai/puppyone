@@ -364,5 +364,12 @@
   "compute.paymentUnavailable": "Agent 잔액을 새로고침할 수 없습니다. 다시 시도하세요.",
   "compute.walletTitle": "AI 토큰 잔액",
   "compute.walletDetail": "필요할 때 충전하세요. 구독 없이 모델 사용량만큼 결제합니다.",
-  "compute.trialGranted": "일회성 체험 잔액 지급: {amount}"
+  "compute.trialGranted": "일회성 체험 잔액 지급: {amount}",
+  "compute.latestUsage": "최근 모델 호출",
+  "compute.usageCharge": "청구 금액",
+  "compute.usagePending": "사용량 정산 대기 중",
+  "compute.usageReleased": "요금 없음",
+  "compute.usageTokens": "입력: {input} (캐시: {cached}) · 출력: {output}",
+  "compute.modelPrices": "백만 토큰당 모델 요금",
+  "compute.modelRates": "입력 {input} · 캐시 입력 {cached} · 출력 {output}"
 }

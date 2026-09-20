@@ -364,5 +364,12 @@
   "compute.paymentUnavailable": "Could not refresh Agent credits. Please retry.",
   "compute.walletTitle": "AI token balance",
   "compute.walletDetail": "Top up whenever you need. Pay for model usage, with no subscription.",
-  "compute.trialGranted": "One-time trial credit received: {amount}"
+  "compute.trialGranted": "One-time trial credit received: {amount}",
+  "compute.latestUsage": "Latest model call",
+  "compute.usageCharge": "Charged",
+  "compute.usagePending": "Awaiting usage settlement",
+  "compute.usageReleased": "No charge",
+  "compute.usageTokens": "Input: {input} (cached: {cached}) · Output: {output}",
+  "compute.modelPrices": "Model prices per million tokens",
+  "compute.modelRates": "Input {input} · Cached input {cached} · Output {output}"
 }

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { withManagedConnection } from "../../../../electron/main/model-connections/managed-connection.mjs";
 import { parseConnectionCommand } from "../../../../shared/model-connections/schema.mjs";
+import { parseManagedUsage } from "../../../../electron/main/model-connections/managed-usage.mjs";
 
 const services = [];
 afterEach(async () => { await Promise.all(services.splice(0).map((service) => service.dispose())); });
@@ -113,5 +114,40 @@ describe("one-time trial activation", () => {
     expect(calls.filter((call) => call[1] === "/ai/trial")).toHaveLength(1);
     expect(calls[0]).toEqual(["https://qubits-api.puppyone.ai/api/v1", "/ai/trial", { method: "POST", body: "{}" }]);
     expect(calls[1][1]).toBe("/ai/balance");
+  });
+});
+
+describe("server-owned usage receipts", () => {
+  it("reads the settled charge after streaming and clears it when the account changes", async () => {
+    const value = fixture();
+    const reservationId = "00000000-0000-4000-8000-000000000001";
+    value.auth.openAgentStream.mockResolvedValue({ response: new Response('data: [DONE]\n\n', {
+      headers: { "content-type": "text/event-stream", "x-puppyone-reservation-id": reservationId },
+    }), close: vi.fn() });
+    value.auth.requestSessionApi.mockImplementation(async (_base, path) => path.startsWith("/ai/usage/") ? {
+      reservation_id: reservationId, status: "settled", model_id: "test/model", price_book_id: "prices-1",
+      charged_micro_usd: 47, provider_cost_usd: "PRIVATE-COST", provider_route: { private: true },
+      usage: { input_tokens: 10, cached_tokens: 4, output_tokens: 20 },
+    } : { balance_micro_usd: 999_953, available_micro_usd: 999_953, reserved_micro_usd: 0 });
+    const lease = await acquire(value.service);
+    const response = await fetch(`${lease.configuration.baseUrl}/chat/completions`, { method: "POST",
+      headers: { Authorization: `Bearer ${lease.configuration.apiKey}` },
+      body: JSON.stringify({ model: "test/model", messages: [{ role: "user", content: "hello" }] }) });
+    await response.text();
+    await value.service.managed({ action: "refresh" });
+    const snapshot = await value.service.read();
+    expect(snapshot.managed.lastUsage).toMatchObject({ status: "settled", chargedMicroUsd: 47,
+      inputTokens: 10, cachedTokens: 4, outputTokens: 20 });
+    expect(JSON.stringify(snapshot)).not.toContain("PRIVATE-COST");
+    value.replaceUser();
+    expect((await value.service.read()).managed.lastUsage).toBeNull();
+  });
+
+  it("does not turn missing usage or a mismatched receipt into a charge", () => {
+    expect(parseManagedUsage({ reservation_id: "wrong" }, "expected")).toBeNull();
+    expect(parseManagedUsage({ reservation_id: "id", status: "settled", model_id: "model",
+      charged_micro_usd: 1 }, "id")).toBeNull();
+    expect(parseManagedUsage({ reservation_id: "id", status: "running", model_id: "model",
+      charged_micro_usd: 0 }, "id")).toMatchObject({ status: "pending", chargedMicroUsd: null });
   });
 });

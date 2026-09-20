@@ -364,5 +364,12 @@
   "compute.paymentUnavailable": "Agent の残高を更新できません。再試行してください。",
   "compute.walletTitle": "AI トークン残高",
   "compute.walletDetail": "必要なときにチャージ。サブスクリプションなしでモデルの使用量に応じて支払います。",
-  "compute.trialGranted": "初回トライアル残高の付与額：{amount}"
+  "compute.trialGranted": "初回トライアル残高の付与額：{amount}",
+  "compute.latestUsage": "直近のモデル呼び出し",
+  "compute.usageCharge": "利用料金",
+  "compute.usagePending": "使用量の確定待ち",
+  "compute.usageReleased": "課金なし",
+  "compute.usageTokens": "入力：{input}（キャッシュ：{cached}）· 出力：{output}",
+  "compute.modelPrices": "100万トークンあたりのモデル料金",
+  "compute.modelRates": "入力 {input} · キャッシュ入力 {cached} · 出力 {output}"
 }

@@ -3,6 +3,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { once } from "node:events";
 import { assertConnectionSnapshot, connectionError, parseModelRoute } from "../../../shared/model-connections/schema.mjs";
 import { normalizeCloudApiBaseUrl } from "../../../shared/cloudEndpoint.js";
+import { managedPrices, parseManagedUsage } from "./managed-usage.mjs";
 
 /** Personal managed inference is a Main-owned, read-only connection. Only a
  * random per-lease loopback capability is bootstrapped into the Agent worker. */
@@ -15,6 +16,8 @@ export function withManagedConnection({ connections, getAuth, apiBase, requestPu
   let catalog = null;
   let balance = null;
   let trialClaimedFor = null;
+  let lastReservationId = null;
+  let lastUsage = null;
   let error = null;
   let revision = 0;
   let generation = 1;
@@ -51,6 +54,7 @@ export function withManagedConnection({ connections, getAuth, apiBase, requestPu
         balanceMicroUsd: balance?.balance_micro_usd ?? 0, reservedMicroUsd: balance?.reserved_micro_usd ?? 0,
         availableMicroUsd: balance?.available_micro_usd ?? 0, packs: catalog?.packs ?? [],
         trialGrantedMicroUsd: balance?.trial_granted_micro_usd ?? 0,
+        lastUsage, modelPrices: managedPrices(catalog),
         errorCode: error, apiOrigin: origin },
     });
   };
@@ -73,6 +77,8 @@ export function withManagedConnection({ connections, getAuth, apiBase, requestPu
       session = next;
       balance = null;
       trialClaimedFor = null;
+      lastReservationId = null;
+      lastUsage = null;
       lastRefresh = 0;
       publish();
     }
@@ -109,6 +115,14 @@ export function withManagedConnection({ connections, getAuth, apiBase, requestPu
         if (capturedGeneration !== generation || disposed) return;
         catalog = nextCatalog;
         balance = nextBalance;
+        const receiptId = lastReservationId;
+        if (session && receiptId) {
+          try {
+            const receipt = await getAuth().requestSessionApi(origin, `/ai/usage/${receiptId}`, { method: "GET" });
+            if (capturedGeneration !== generation || disposed) return;
+            if (receiptId === lastReservationId) lastUsage = parseManagedUsage(receipt, receiptId) ?? lastUsage;
+          } catch { /* A pending receipt must not hide an otherwise available wallet. */ }
+        }
         error = null;
       } catch {
         if (capturedGeneration === generation) { error = "GATEWAY_UNAVAILABLE"; balance = null; }
@@ -157,6 +171,13 @@ export function withManagedConnection({ connections, getAuth, apiBase, requestPu
             const value = JSON.parse(body);
             if (!record.models.has(value.model)) { response.writeHead(400).end(); return; }
             stream = await getAuth().openAgentStream(origin, body, { signal: controller.signal, requestId: randomUUID() });
+            const reservationId = stream.response.headers.get("x-puppyone-reservation-id");
+            if (record.generation === generation && /^[a-f0-9-]{36}$/u.test(reservationId ?? "")) {
+              lastReservationId = reservationId;
+              lastUsage = { reservationId, modelId: value.model, status: "pending", chargedMicroUsd: null,
+                priceBookId: null, inputTokens: null, cachedTokens: null, outputTokens: null };
+              publish();
+            }
             response.writeHead(stream.response.status, { "Content-Type": stream.response.headers.get("content-type") || "application/json",
               "Cache-Control": "no-store" });
             for await (const chunk of stream.response.body ?? []) {

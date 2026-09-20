@@ -364,5 +364,12 @@
   "compute.paymentUnavailable": "Impossible de charger le solde Agent. Réessayez.",
   "compute.walletTitle": "Solde de tokens IA",
   "compute.walletDetail": "Rechargez selon vos besoins. Payez à l’usage du modèle, sans abonnement.",
-  "compute.trialGranted": "Crédit d’essai unique reçu : {amount}"
+  "compute.trialGranted": "Crédit d’essai unique reçu : {amount}",
+  "compute.latestUsage": "Dernier appel au modèle",
+  "compute.usageCharge": "Montant débité",
+  "compute.usagePending": "Utilisation en cours de calcul",
+  "compute.usageReleased": "Aucun frais",
+  "compute.usageTokens": "Entrée : {input} (cache : {cached}) · Sortie : {output}",
+  "compute.modelPrices": "Tarifs par million de tokens",
+  "compute.modelRates": "Entrée {input} · Entrée en cache {cached} · Sortie {output}"
 }

@@ -18,6 +18,10 @@ it("shows personal credit and one-time top-up without any hosting subscription",
     managed: { available: true, reason: "ready", signedIn: true, sandbox: true,
       availableMicroUsd: 750_000, reservedMicroUsd: 250_000, trialGrantedMicroUsd: 1_000_000,
       packs: [{ id: "starter", name: "AI credit", price_cents: 500, credit_micro_usd: 5_000_000 }],
+      lastUsage: { reservationId: "receipt-1", modelId: "example-model", status: "settled", chargedMicroUsd: 47,
+        priceBookId: "prices-1", inputTokens: 10, cachedTokens: 4, outputTokens: 20 },
+      modelPrices: [{ modelId: "example-model", name: "Example Model", inputMicroUsdPerMillion: 1_000_000,
+        cachedMicroUsdPerMillion: 100_000, outputMicroUsdPerMillion: 2_000_000 }],
     },
   };
   let completeCheckout: ((value: ModelConnectionSnapshot) => void) | undefined;
@@ -35,6 +39,9 @@ it("shows personal credit and one-time top-up without any hosting subscription",
   expect(host.textContent).toContain("$0.75");
   expect(host.textContent).toContain("$1.00");
   expect(host.textContent).toContain("Sandbox");
+  expect(host.textContent).toContain("$0.000047");
+  expect(host.textContent).toContain("Input: 10 (cached: 4)");
+  expect(host.textContent).toContain("Model prices per million tokens");
   expect(host.textContent).not.toMatch(/Pro|Team|\$15|\$30/);
   const topUp = [...host.querySelectorAll("button")].find((button) => button.textContent?.includes("$5.00"))!;
   expect(topUp).toBeDefined();
