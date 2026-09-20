@@ -5,7 +5,6 @@
   min-width: 0;
   min-height: 0;
   box-sizing: border-box;
-  container-type: size;
   place-items: center;
   overflow: hidden;
   padding: 32px;
@@ -16,8 +15,9 @@
 
 .document-preview__summary {
   display: grid;
-  width: min(280px, calc(100cqw - 64px), calc(100cqh - 64px));
-  aspect-ratio: 1;
+  width: fit-content;
+  max-width: 100%;
+  padding: 16px 24px;
   box-sizing: border-box;
   place-items: center;
   border: 1px solid color-mix(in srgb, var(--po-text-muted) 42%, transparent);
@@ -38,7 +38,7 @@
   font-weight: 500;
   letter-spacing: 0.01em;
   line-height: 1.45;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .document-preview__type {
