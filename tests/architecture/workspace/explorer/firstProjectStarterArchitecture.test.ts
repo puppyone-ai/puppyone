@@ -4,10 +4,23 @@ import { describe, expect, it } from "vitest";
 describe("project initialization ownership", () => {
   it("keeps file generation out of the mounted workspace and editor open intent", () => {
     const surface = source("src/features/app-shell/DesktopDataWorkspaceSurface.tsx");
-    const openIntent = source("src/features/app-shell/useInitialProjectDocument.ts");
+    const openIntent = source("src/features/app-shell/useWorkspaceEntryBootstrap.ts");
+    const entryPolicy = source("src/features/app-shell/workspaceEntryBootstrap.ts");
     expect(surface).not.toMatch(/createStarterDocument|starterDocumentAutoCreate|EmptyWorkspaceOnboardingDialog/);
     expect(openIntent).not.toMatch(/createFile\(|writeFile\(|localStorage/);
-    expect(openIntent).toContain("qualifyDataResourcePath");
+    expect(entryPolicy).not.toMatch(/createFile\(|writeFile\(|localStorage/);
+    expect(entryPolicy).toContain("qualifyDataResourcePath");
+  });
+
+  it("routes create, open, clone, and restore through one entry bootstrap intent", () => {
+    const lifecycle = source("src/features/app-shell/useWorkspaceLifecycle.ts");
+    const app = source("src/App.tsx");
+    expect(lifecycle).toContain("WorkspaceEntryIntent");
+    expect(lifecycle).toContain('"created"');
+    expect(lifecycle).toContain('"cloned"');
+    expect(lifecycle).toContain('"restored"');
+    expect(app).toContain("useWorkspaceEntryBootstrap");
+    expect(app).not.toContain("useInitialProjectDocument");
   });
 
   it("shares one materializer between project templates and Slides", () => {

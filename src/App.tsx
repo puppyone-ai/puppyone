@@ -1,4 +1,4 @@
-import { useInitialProjectDocument } from "./features/app-shell/useInitialProjectDocument";
+import { useWorkspaceEntryBootstrap } from "./features/app-shell/useWorkspaceEntryBootstrap";
 import {
   lazy,
   Suspense,
@@ -206,8 +206,8 @@ function AppContent() {
   const {
     addProject,
     addExistingProject,
-    initialProjectDocument,
-    consumeInitialProjectDocument,
+    workspaceEntryIntent,
+    consumeWorkspaceEntryIntent,
     chooseProjectLocation,
     clearWorkspace,
     cloneRepository,
@@ -871,11 +871,20 @@ function AppContent() {
 
   const [workspaceSurfaceError, setWorkspaceSurfaceError] = useState<string | null>(null);
 
-  useInitialProjectDocument({
-    receipt: dataPort ? initialProjectDocument : null,
-    folders: workbenchWorkspace?.folders ?? [],
+  const revealAgentWorkbenchOnEntry = useCallback(() => {
+    setRightSidebarSurface("chat");
+    setRightSidebarOpen(true);
+  }, [setRightSidebarOpen, setRightSidebarSurface]);
+
+  useWorkspaceEntryBootstrap({
+    intent: dataPort ? workspaceEntryIntent : null,
+    dataPort,
+    editorHydrated: editorWorkbench.hydrated,
+    hasOpenEditors: editorWorkbench.state.editors.length > 0,
+    folders: workbenchWorkspace?.folders ?? EMPTY_WORKSPACE_FOLDERS,
     openDocument: handleActiveDataPathChange,
-    consume: consumeInitialProjectDocument,
+    consume: consumeWorkspaceEntryIntent,
+    revealAgentWorkbench: revealAgentWorkbenchOnEntry,
     onError: setWorkspaceSurfaceError,
   });
 

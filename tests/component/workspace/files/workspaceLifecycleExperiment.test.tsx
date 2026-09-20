@@ -65,6 +65,62 @@ afterEach(async () => {
 });
 
 describe("multi-project Workspace experiment", () => {
+  it("emits the same entry intent for created and opened projects", async () => {
+    const created = workspace("created", "Created", "/projects/created");
+    const opened = workspace("opened", "Opened", "/projects/opened");
+    localFiles.createLocalProject.mockResolvedValue({
+      initialization: {
+        operationId: "11111111-1111-4111-8111-111111111111",
+        outcome: "committed",
+        path: created.path,
+        name: created.name,
+        createdPaths: ["Getting Started.md"],
+        initialOpenPath: "Getting Started.md",
+        template: null,
+      },
+      opening: {
+        status: "opened",
+        result: {
+          status: "opened-current",
+          workspaceId: "workbench:created",
+          path: created.path,
+          workspace: created,
+          workspaces: [created],
+        },
+      },
+    });
+    localFiles.openWorkspaceInCurrentWindow.mockResolvedValue({
+      status: "opened-current",
+      workspaceId: "workbench:opened",
+      path: opened.path,
+      workspace: opened,
+      workspaces: [opened],
+    });
+    const harness = await renderHarness(false, vi.fn());
+
+    await act(async () => {
+      await harness.current.createProject({
+        name: created.name,
+        locationGrantId: "grant",
+        operationId: "11111111-1111-4111-8111-111111111111",
+        source: { kind: "template", ref: { sourceId: "builtin", id: "puppyone.project.getting-started", version: 1 } },
+        locale: "en",
+      });
+    });
+    expect(harness.current.workspaceEntryIntent).toMatchObject({
+      kind: "created",
+      workspacePath: created.path,
+      preferredOpenPath: "Getting Started.md",
+    });
+
+    await act(async () => harness.current.openWorkspacePath(opened.path));
+    expect(harness.current.workspaceEntryIntent).toMatchObject({
+      kind: "opened",
+      workspacePath: opened.path,
+      preferredOpenPath: null,
+    });
+  });
+
   it("blocks both Project attachment paths while the experiment is off", async () => {
     const onWorkspaceOpenSettled = vi.fn();
     const harness = await renderHarness(false, onWorkspaceOpenSettled);
