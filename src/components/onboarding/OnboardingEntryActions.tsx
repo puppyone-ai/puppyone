@@ -78,7 +78,7 @@ export function OnboardingCreateProjectAction({
     <Button
       className={`onboarding-entry-action ${prominent ? "onboarding-entry-action-default" : ""}`}
       data-onboarding-action="create"
-      tone="neutral"
+      tone={prominent ? "primary" : "neutral"}
       disabled={busy || !canCreateProject}
       leadingIcon={<FilePlus2 className="onboarding-entry-create-icon" aria-hidden="true" />}
       onClick={onCreateProject}

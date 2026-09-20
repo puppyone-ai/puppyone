@@ -180,17 +180,6 @@
   height: 18px;
 }
 
-.onboarding-import-source-marks {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.onboarding-import-source-marks > .onboarding-import-mark {
-  width: 16px;
-  height: 16px;
-}
-
 .onboarding-import-source-label {
   min-width: 0;
   color: var(--po-text);

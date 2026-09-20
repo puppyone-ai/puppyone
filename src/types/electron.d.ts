@@ -740,6 +740,8 @@ export type WorkspaceProjectLocationGrant = {
 };
 
 export type WorkspaceCloneRepositoryRequest = {
+  /** Locks the request to the source explicitly chosen in the import picker. */
+  provider?: "github" | "gitlab";
   repositoryUrl: string;
   /** Optional location grant; when omitted the main process asks with a folder picker. */
   locationGrantId?: string | null;

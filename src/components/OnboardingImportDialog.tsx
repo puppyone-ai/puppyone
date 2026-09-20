@@ -1,7 +1,10 @@
 import { ArrowLeft, FolderOpen } from "lucide-react";
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization";
-import type { WorkspaceProjectLocationGrant } from "../types/electron";
+import type {
+  WorkspaceCloneRepositoryRequest,
+  WorkspaceProjectLocationGrant,
+} from "../types/electron";
 import {
   DesktopDialogCloseButton,
   DesktopDialogRoot,
@@ -10,13 +13,18 @@ import { ImportSourceMark } from "./onboarding/ImportSourceMark";
 
 /**
  * Import is framed as "bring your work back into files you own", not as a Git
- * operation. Only Git hosts need code here: every other source already exports
- * to Markdown / CSV / DOCX, so its path is a short guide that ends in the
- * regular folder picker.
+ * operation. GitHub and GitLab are real clone operations. Every other source
+ * is an explicit export/open guide that ends in the regular folder picker; it
+ * must never be presented as an account connection or automatic conversion.
  */
-export type OnboardingImportSource = "git" | "notion" | "google-drive" | "obsidian" | "airtable" | "folder";
+export type RepositoryProvider = "github" | "gitlab";
+type GuidedImportSource = "notion" | "google-drive" | "obsidian" | "airtable";
+export type OnboardingImportSource = RepositoryProvider | GuidedImportSource;
 
-type RepositoryProvider = "github" | "gitlab";
+const REPOSITORY_PROVIDER_LABELS: Record<RepositoryProvider, string> = {
+  github: "GitHub",
+  gitlab: "GitLab",
+};
 
 const REPOSITORY_PROVIDER_MARKS = {
   github: "M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12",
@@ -25,7 +33,7 @@ const REPOSITORY_PROVIDER_MARKS = {
 
 /** Sources whose path is "export from the app, then open that folder here". */
 const GUIDED_SOURCES: ReadonlyArray<Readonly<{
-  id: Exclude<OnboardingImportSource, "git" | "folder">;
+  id: GuidedImportSource;
   stepCount: number;
 }>> = [
   { id: "notion", stepCount: 3 },
@@ -66,7 +74,7 @@ export type OnboardingImportDialogProps = {
   onDefaultLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
   /** Opens the native picker and issues a grant for the chosen folder. */
   onChooseLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
-  onImportRepository: (request: { repositoryUrl: string; locationGrantId: string | null }) => Promise<boolean>;
+  onImportRepository: (request: WorkspaceCloneRepositoryRequest) => Promise<boolean>;
   /** Opens the regular folder picker; used by every non-Git source. */
   onOpenFolder: () => void;
 };
@@ -84,6 +92,8 @@ export function OnboardingImportDialog({
   const [busy, setBusy] = useState(false);
   const title = source === null
     ? t("onboarding.entry.import.title")
+    : source === "github" || source === "gitlab"
+      ? t("onboarding.entry.import.repository.title", { provider: REPOSITORY_PROVIDER_LABELS[source] })
     : t(`onboarding.entry.import.${source}.title`);
 
   const openFolderAndClose = () => {
@@ -92,10 +102,6 @@ export function OnboardingImportDialog({
   };
 
   const selectSource = (nextSource: OnboardingImportSource) => {
-    if (nextSource === "folder") {
-      openFolderAndClose();
-      return;
-    }
     setSource(nextSource);
   };
 
@@ -140,8 +146,9 @@ export function OnboardingImportDialog({
         {source === null && (
           <ImportSourceList introId={introId} onSelect={selectSource} />
         )}
-        {source === "git" && (
+        {(source === "github" || source === "gitlab") && (
           <RepositoryImportStep
+            provider={source}
             onBusyChange={setBusy}
             onClose={onClose}
             onDefaultLocation={onDefaultLocation}
@@ -149,7 +156,7 @@ export function OnboardingImportDialog({
             onImportRepository={onImportRepository}
           />
         )}
-        {source !== null && source !== "git" && source !== "folder" && (
+        {source !== null && source !== "github" && source !== "gitlab" && (
           <GuidedImportStep source={source} onChooseFolder={openFolderAndClose} />
         )}
       </div>
@@ -164,32 +171,30 @@ function ImportSourceList({ introId, onSelect }: { introId: string; onSelect: (s
       <p id={introId} className="onboarding-import-intro">{t("onboarding.entry.import.intro")}</p>
       <ul className="onboarding-import-sources">
         <ImportSourceRow
-          source="git"
-          icon={(
-            <span className="onboarding-import-source-marks" aria-hidden="true">
-              <ImportSourceMark brand="github" decorative />
-              <ImportSourceMark brand="gitlab" decorative />
-            </span>
-          )}
-          title={t("onboarding.entry.import.source.git.title")}
+          source="github"
+          mode="repository"
+          icon={<ImportSourceMark brand="github" decorative />}
+          title={REPOSITORY_PROVIDER_LABELS.github}
           initialFocus
+          onSelect={onSelect}
+        />
+        <ImportSourceRow
+          source="gitlab"
+          mode="repository"
+          icon={<ImportSourceMark brand="gitlab" decorative />}
+          title={REPOSITORY_PROVIDER_LABELS.gitlab}
           onSelect={onSelect}
         />
         {GUIDED_SOURCES.map(({ id }) => (
           <ImportSourceRow
             key={id}
             source={id}
+            mode="guided"
             icon={<ImportSourceMark brand={id} decorative />}
             title={t(`onboarding.entry.import.source.${id}.title`)}
             onSelect={onSelect}
           />
         ))}
-        <ImportSourceRow
-          source="folder"
-          icon={<FolderOpen aria-hidden="true" />}
-          title={t("onboarding.entry.import.source.folder.title")}
-          onSelect={onSelect}
-        />
       </ul>
     </div>
   );
@@ -197,12 +202,14 @@ function ImportSourceList({ introId, onSelect }: { introId: string; onSelect: (s
 
 function ImportSourceRow({
   source,
+  mode,
   icon,
   title,
   initialFocus = false,
   onSelect,
 }: {
   source: OnboardingImportSource;
+  mode: "repository" | "guided";
   icon: ReactNode;
   title: string;
   initialFocus?: boolean;
@@ -214,6 +221,7 @@ function ImportSourceRow({
         className="onboarding-import-source"
         type="button"
         data-import-source={source}
+        data-import-mode={mode}
         data-desktop-dialog-initial-focus={initialFocus ? "true" : undefined}
         onClick={() => onSelect(source)}
       >
@@ -228,7 +236,7 @@ function GuidedImportStep({
   source,
   onChooseFolder,
 }: {
-  source: Exclude<OnboardingImportSource, "git" | "folder">;
+  source: GuidedImportSource;
   onChooseFolder: () => void;
 }) {
   const { t } = useLocalization();
@@ -260,12 +268,14 @@ function GuidedImportStep({
 }
 
 function RepositoryImportStep({
+  provider,
   onBusyChange,
   onClose,
   onDefaultLocation,
   onChooseLocation,
   onImportRepository,
 }: {
+  provider: RepositoryProvider;
   onBusyChange: (busy: boolean) => void;
   onClose: () => void;
   onDefaultLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
@@ -279,8 +289,8 @@ function RepositoryImportStep({
   const [location, setLocation] = useState<WorkspaceProjectLocationGrant | null>(null);
   const [error, setError] = useState<string | null>(null);
   const defaultLocationRequested = useRef(false);
-  const provider = detectRepositoryProvider(value);
-  const unsupportedUrl = value.trim().length > 0 && provider === null;
+  const detectedProvider = detectRepositoryProvider(value);
+  const unsupportedUrl = value.trim().length > 0 && detectedProvider !== provider;
   const busy = submitting || choosingLocation;
 
   useEffect(() => {
@@ -306,11 +316,12 @@ function RepositoryImportStep({
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const repositoryUrl = value.trim();
-    if (!repositoryUrl || busy || !provider) return;
+    if (!repositoryUrl || busy || detectedProvider !== provider) return;
     setError(null);
     setSubmitting(true);
     try {
       const opened = await onImportRepository({
+        provider,
         repositoryUrl,
         locationGrantId: location?.grantId ?? null,
       });
@@ -346,8 +357,7 @@ function RepositoryImportStep({
             <span className="onboarding-clone-url-label-row">
               <span>{t("onboarding.entry.clone.urlLabel")}</span>
               <span className="onboarding-clone-provider-marks" aria-hidden="true">
-                <RepositoryProviderMark provider="github" />
-                <RepositoryProviderMark provider="gitlab" />
+                <RepositoryProviderMark provider={provider} />
               </span>
             </span>
             <input
@@ -362,7 +372,7 @@ function RepositoryImportStep({
               aria-invalid={unsupportedUrl ? "true" : undefined}
               aria-describedby="onboarding-clone-hint"
               data-desktop-dialog-initial-focus="true"
-              placeholder={t("onboarding.entry.clone.urlPlaceholder")}
+              placeholder={`https://${provider}.com/owner/repository.git`}
               onChange={(event) => {
                 setValue(event.target.value);
                 setError(null);
@@ -376,7 +386,9 @@ function RepositoryImportStep({
           >
             {t(unsupportedUrl
               ? "onboarding.entry.clone.unsupportedUrl"
-              : "onboarding.entry.chooseLocationHint")}
+              : "onboarding.entry.chooseLocationHint", {
+              provider: REPOSITORY_PROVIDER_LABELS[provider],
+            })}
           </p>
           <div className="onboarding-entry-create-field onboarding-import-location">
             <span className="onboarding-entry-create-label">
@@ -423,7 +435,7 @@ function RepositoryImportStep({
         <button
           className="desktop-dialog-button primary file"
           type="submit"
-          disabled={busy || !value.trim() || !provider}
+          disabled={busy || !value.trim() || detectedProvider !== provider}
         >
           {t(submitting
             ? "onboarding.entry.clone.submitting"

@@ -104,6 +104,7 @@ describe("project entry service", () => {
 
     await expect(service.cloneRepository({
       parentPath,
+      provider: "github",
       repositoryUrl: "https://github.com/owner/repository.git",
     })).resolves.toMatchObject({
       path: path.join(parentPath, "repository"),
@@ -111,6 +112,18 @@ describe("project entry service", () => {
     });
     await expect(readFile(path.join(parentPath, "repository", "README.md"), "utf8")).resolves.toBe("hello\n");
     expect(cloneGit).toHaveBeenCalledOnce();
+  });
+
+  it("rejects a repository that does not match the selected provider before cloning", async () => {
+    const cloneGit = vi.fn();
+    const service = createProjectEntryService({ cloneGit });
+
+    await expect(service.cloneRepository({
+      parentPath,
+      provider: "github",
+      repositoryUrl: "https://gitlab.com/owner/repository.git",
+    })).rejects.toMatchObject({ code: "INVALID_REPOSITORY_URL" });
+    expect(cloneGit).not.toHaveBeenCalled();
   });
 
   it("does not replace a path created while a clone is running", async () => {

@@ -328,7 +328,7 @@ describe("project folder home", () => {
       "Import",
     ]);
     expect(actions.every((action) => action.classList.contains("po-button"))).toBe(true);
-    expect(actions[0]?.classList.contains("po-button--neutral")).toBe(true);
+    expect(actions[0]?.classList.contains("po-button--primary")).toBe(true);
     expect(actions[1]?.classList.contains("po-button--neutral")).toBe(true);
     expect(actions[0]?.classList.contains("onboarding-entry-action-default")).toBe(true);
     expect(actions[0]?.dataset.onboardingAction).toBe("create");
@@ -357,6 +357,9 @@ describe("project folder home", () => {
     const importLabel = importGroup!.querySelector(".onboarding-entry-import-label");
     expect(importLabel!.compareDocumentPosition(preview as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(container.querySelector(".onboarding-entry-action-divider")).toBeNull();
+    expect(onboardingCss).toMatch(
+      /\.onboarding-entry-action-default\s*\{[^}]*border-color:\s*var\(--po-accent\);[^}]*background:\s*var\(--po-accent\);[^}]*color:\s*var\(--po-text-inverse\);/s,
+    );
     expect(actions[1]!.compareDocumentPosition(importGroup as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const launcher = container.querySelector(".onboarding-launcher");
     expect(launcher?.contains(container.querySelector(".onboarding-brand-lockup"))).toBe(true);
@@ -501,24 +504,32 @@ describe("project folder home", () => {
     expect(dialog?.getAttribute("aria-label")).toBe("Import");
     expect(dialog?.classList.contains("is-import")).toBe(true);
     expect(container.querySelector(".onboarding-import-intro")?.textContent).toBe(
-      "Turn SaaS data into files on your computer.",
+      "Import Git repositories directly. For other apps, prepare the local files first.",
     );
     const sources = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-import-source")];
     expect(sources.map((source) => source.dataset.importSource)).toEqual([
-      "git",
+      "github",
+      "gitlab",
       "notion",
       "google-drive",
       "obsidian",
       "airtable",
-      "folder",
     ]);
     expect(sources.map((source) => source.textContent)).toEqual([
-      "GitHub or GitLab",
+      "GitHub",
+      "GitLab",
       "Notion",
       "Google Drive",
       "Obsidian",
       "Airtable",
-      "Any folder of files",
+    ]);
+    expect(sources.map((source) => source.dataset.importMode)).toEqual([
+      "repository",
+      "repository",
+      "guided",
+      "guided",
+      "guided",
+      "guided",
     ]);
     expect(container.querySelector(".onboarding-entry-dialog input")).toBeNull();
     expect(dialog?.querySelectorAll("p")).toHaveLength(1);
@@ -529,21 +540,14 @@ describe("project folder home", () => {
     expect(sources.every((source) => source.children.length === 2)).toBe(true);
     expect(document.activeElement).toBe(sources[0]);
     // Rows show the real product marks, not generic glyphs.
-    expect(
-      [...sources[0]!.querySelectorAll<HTMLImageElement>(".onboarding-import-source-marks img")]
-        .map((mark) => mark.dataset.importBrand),
-    ).toEqual(["github", "gitlab"]);
-    expect(sources.slice(1, 5).map((source) => (
+    expect(sources.slice(0, 2).map((source) => (
+      source.querySelector<HTMLImageElement>(".onboarding-import-source-icon img")?.dataset.importBrand
+    ))).toEqual(["github", "gitlab"]);
+    expect(sources.slice(2).map((source) => (
       source.querySelector<HTMLImageElement>(".onboarding-import-source-icon img")?.dataset.importBrand
     ))).toEqual(["notion", "google-drive", "obsidian", "airtable"]);
-    expect(sources[5]?.querySelector(".lucide-folder-open")).not.toBeNull();
-
-    await act(async () => {
-      sources[5]?.click();
-      await Promise.resolve();
-    });
-    expect(container.querySelector(".onboarding-entry-dialog")).toBeNull();
-    expect(onChooseWorkspace).toHaveBeenCalledOnce();
+    expect(container.querySelector(".onboarding-import-source .lucide-folder-open")).toBeNull();
+    expect(onChooseWorkspace).not.toHaveBeenCalled();
     expect(onCloneRepository).not.toHaveBeenCalled();
   });
 
@@ -655,18 +659,18 @@ describe("project folder home", () => {
       container.querySelector<HTMLButtonElement>("[data-onboarding-action='clone']")?.click();
     });
     await act(async () => {
-      container.querySelector<HTMLButtonElement>(".onboarding-import-source[data-import-source='git']")?.click();
+      container.querySelector<HTMLButtonElement>(".onboarding-import-source[data-import-source='github']")?.click();
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(container.querySelector("[role='dialog']")?.getAttribute("aria-label")).toBe("Import a repository");
+    expect(container.querySelector("[role='dialog']")?.getAttribute("aria-label")).toBe("Import from GitHub");
     const providerMarks = Array.from(
       container.querySelectorAll<SVGElement>(".onboarding-clone-provider-marks svg"),
     );
-    expect(providerMarks.map((mark) => mark.dataset.repositoryProvider)).toEqual(["github", "gitlab"]);
+    expect(providerMarks.map((mark) => mark.dataset.repositoryProvider)).toEqual(["github"]);
     expect(providerMarks.every((mark) => mark.getAttribute("fill") === "currentColor")).toBe(true);
     expect(container.querySelector(".onboarding-clone-hint")?.textContent).toBe(
-      "Works with GitHub and GitLab URLs. The repository is copied to this computer.",
+      "The GitHub repository will be copied to this computer.",
     );
     expect(onDefaultProjectLocation).toHaveBeenCalledOnce();
     expect(container.querySelector(".onboarding-entry-location-path")?.textContent).toBe("/Users/example/Documents/PuppyOne");
@@ -683,6 +687,7 @@ describe("project folder home", () => {
       await Promise.resolve();
     });
     expect(onCloneRepository).toHaveBeenCalledWith({
+      provider: "github",
       repositoryUrl: "https://github.com/puppyone-ai/puppyone.git",
       locationGrantId: "default-1",
     });
@@ -697,7 +702,7 @@ describe("project folder home", () => {
       container.querySelector<HTMLButtonElement>("[data-onboarding-action='clone']")?.click();
     });
     await act(async () => {
-      container.querySelector<HTMLButtonElement>(".onboarding-import-source[data-import-source='git']")?.click();
+      container.querySelector<HTMLButtonElement>(".onboarding-import-source[data-import-source='gitlab']")?.click();
     });
     const repositoryUrl = container.querySelector<HTMLInputElement>(".onboarding-entry-dialog input");
     setInputValue(repositoryUrl, "git@gitlab.com:puppyone/data/knowledge-base.git");
@@ -707,6 +712,7 @@ describe("project folder home", () => {
       await Promise.resolve();
     });
     expect(onCloneRepository).toHaveBeenCalledWith({
+      provider: "gitlab",
       repositoryUrl: "git@gitlab.com:puppyone/data/knowledge-base.git",
       locationGrantId: null,
     });
@@ -720,7 +726,7 @@ describe("project folder home", () => {
       container.querySelector<HTMLButtonElement>("[data-onboarding-action='clone']")?.click();
     });
     await act(async () => {
-      container.querySelector<HTMLButtonElement>(".onboarding-import-source[data-import-source='git']")?.click();
+      container.querySelector<HTMLButtonElement>(".onboarding-import-source[data-import-source='github']")?.click();
     });
     const repositoryUrl = container.querySelector<HTMLInputElement>(".onboarding-entry-dialog input");
     const submitButton = container.querySelector<HTMLButtonElement>(".onboarding-entry-dialog button[type='submit']");
@@ -728,7 +734,7 @@ describe("project folder home", () => {
 
     expect(repositoryUrl?.getAttribute("aria-invalid")).toBe("true");
     expect(container.querySelector(".onboarding-clone-hint")?.textContent).toBe(
-      "Only GitHub and GitLab URLs are supported right now.",
+      "Enter a GitHub repository URL.",
     );
     expect(container.querySelector(".onboarding-clone-hint")?.getAttribute("role")).toBe("alert");
     expect(submitButton?.disabled).toBe(true);

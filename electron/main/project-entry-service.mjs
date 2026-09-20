@@ -32,8 +32,8 @@ export function createProjectEntryService({
       }
     },
 
-    async cloneRepository({ parentPath, repositoryUrl, signal }) {
-      const repository = requireGitRepository(repositoryUrl);
+    async cloneRepository({ parentPath, provider = null, repositoryUrl, signal }) {
+      const repository = requireGitRepository(repositoryUrl, provider);
       const canonicalParent = await requireDirectory(parentPath, fsPromises, pathModule);
       const projectPath = resolveChildPath(canonicalParent, repository.name, pathModule);
       await requireMissingPath(projectPath, repository.name, fsPromises);

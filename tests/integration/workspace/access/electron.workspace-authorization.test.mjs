@@ -446,9 +446,11 @@ describe("recent workspace authorization", () => {
       locationGrantId: "location-1",
     });
     await expect(handlers.get("workspace:clone-repository-current")(event, {
+      provider: "github",
       repositoryUrl: "https://github.com/owner/repository.git",
     })).resolves.toEqual({ status: "cloned-current" });
     expect(cloneRepositoryForCurrentWindow).toHaveBeenCalledWith(event.sender, {
+      provider: "github",
       repositoryUrl: "https://github.com/owner/repository.git",
     });
     expect(handlers.has("workspace:remember-last")).toBe(false);

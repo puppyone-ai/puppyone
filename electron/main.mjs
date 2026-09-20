@@ -1392,7 +1392,8 @@ async function getDefaultProjectLocationForCurrentWindow(sender) {
 }
 
 async function cloneRepositoryForCurrentWindow(sender, request) {
-  const repository = requireGitRepository(request?.repositoryUrl);
+  const expectedProvider = request?.provider ?? null;
+  const repository = requireGitRepository(request?.repositoryUrl, expectedProvider);
   return runProjectEntryOperation(sender, async () => {
     const grantId = typeof request?.locationGrantId === "string" && request.locationGrantId
       ? request.locationGrantId
@@ -1403,6 +1404,7 @@ async function cloneRepositoryForCurrentWindow(sender, request) {
     if (!parentPath) return null;
     const project = await projectEntryService.cloneRepository({
       parentPath,
+      provider: repository.provider,
       repositoryUrl: repository.url,
     });
     if (grantId) projectLocationGrants.revoke(sender, grantId);

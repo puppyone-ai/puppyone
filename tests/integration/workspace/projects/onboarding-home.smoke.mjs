@@ -49,7 +49,7 @@ async function runSmoke() {
     const labels = { en: "New empty project" };
     const projectPrompts = { en: "Which project do you want to start with?" };
     const importLabels = { en: "Import" };
-    const importIntros = { en: "Turn SaaS data into files on your computer." };
+    const importIntros = { en: "Import Git repositories directly. For other apps, prepare the local files first." };
     for (const locale of Object.keys(labels)) {
       for (const theme of ["dark", "light"]) {
         for (const [state, width, height] of [
@@ -342,7 +342,7 @@ async function runSmoke() {
           window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Enter" });
           await until("!!document.querySelector('.is-import-sources')");
           await evaluate("Promise.all(document.querySelector('.is-import-sources').getAnimations().map(animation => animation.finished))");
-          await until("document.activeElement?.dataset.importSource === 'git'");
+          await until("document.activeElement?.dataset.importSource === 'github'");
           assert.equal(await evaluate("document.querySelectorAll('.onboarding-import-source').length"), 6, `${context}: all sources in dialog`);
           await until("[...document.querySelectorAll('.onboarding-import-source img')].length === 6 && [...document.querySelectorAll('.onboarding-import-source img')].every(image => image.complete && image.naturalWidth > 0)");
           const picker = await evaluate(`(() => {
@@ -360,6 +360,8 @@ async function runSmoke() {
                 const label = row.querySelector('.onboarding-import-source-label');
                 const icon = row.querySelector('.onboarding-import-source-icon');
                 return {
+                  source: row.dataset.importSource,
+                  mode: row.dataset.importMode,
                   height: row.getBoundingClientRect().height,
                   border: css.borderTopWidth,
                   background: css.backgroundColor,
@@ -379,6 +381,8 @@ async function runSmoke() {
           assert.equal(picker.paragraphs, 1, `${context}: no per-source descriptions`);
           assert.equal(picker.decoration, 0, `${context}: no header badge or row arrows`);
           assert.equal(picker.listItems, 6, `${context}: native list and button semantics`);
+          assert.deepEqual(picker.rows.map(row => row.source), ['github', 'gitlab', 'notion', 'google-drive', 'obsidian', 'airtable'], `${context}: providers are separate and redundant folder entry is absent`);
+          assert.deepEqual(picker.rows.map(row => row.mode), ['repository', 'repository', 'guided', 'guided', 'guided', 'guided'], `${context}: source capability is explicit in the DOM contract`);
           for (const row of picker.rows) {
             assert.equal(row.height, 36, `${context}: compact single-line source row`);
             assert.equal(row.border, '0px', `${context}: no card border`);
@@ -387,12 +391,12 @@ async function runSmoke() {
             assert.equal(row.weight, '400', `${context}: regular source names`);
             assert.ok(row.labelOnly && !row.clipped, `${context}: source name only, without clipping`);
           }
-          assert.equal(picker.focus, 'git', `${context}: first source keeps initial keyboard focus`);
+          assert.equal(picker.focus, 'github', `${context}: first source keeps initial keyboard focus`);
           assert.equal(picker.focusWidth, '1px', `${context}: restrained visible focus ring`);
           await writeFile(path.join(screenshots, `${prefix}import-${locale}-${theme}-${width}.png`), (await window.capturePage()).toPNG());
           window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Tab" });
           window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Tab" });
-          await until("document.activeElement?.dataset.importSource === 'notion'");
+          await until("document.activeElement?.dataset.importSource === 'gitlab'");
           window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Escape" });
           window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Escape" });
           await until("!document.querySelector('[role=dialog]') && document.activeElement?.dataset.onboardingAction === 'clone'");

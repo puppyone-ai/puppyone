@@ -297,17 +297,17 @@
 }
 
 .onboarding-entry-action-default {
-  border-color: var(--po-text);
-  background: var(--po-text);
-  color: var(--po-canvas);
+  border-color: var(--po-accent);
+  background: var(--po-accent);
+  color: var(--po-text-inverse);
   font-weight: var(--po-text-weight-medium, 500);
 }
 
 .onboarding-entry-action-default:hover:not(:disabled),
 .onboarding-entry-action-default:focus-visible:not(:disabled) {
-  border-color: color-mix(in srgb, var(--po-text) 88%, var(--po-canvas));
-  background: color-mix(in srgb, var(--po-text) 88%, var(--po-canvas));
-  color: var(--po-canvas);
+  border-color: color-mix(in srgb, var(--po-accent) 88%, var(--po-canvas));
+  background: color-mix(in srgb, var(--po-accent) 88%, var(--po-canvas));
+  color: var(--po-text-inverse);
 }
 
 /* Dropping a folder always targets "Open a folder", not the default action. */
