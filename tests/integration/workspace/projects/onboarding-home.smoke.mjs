@@ -93,6 +93,8 @@ async function runSmoke() {
               primaryKind: primarySection.dataset.onboardingPrimary,
               primaryBorderTop: primaryStyle.borderTopWidth,
               primaryPaddingTop: primaryStyle.paddingTop,
+              primaryPaddingBottom: primaryStyle.paddingBottom,
+              primaryMarginBottom: primaryStyle.marginBottom,
               primaryBorderBottom: primaryStyle.borderBottomWidth,
               firstSection: rect(firstSection),
               firstClickable: rect(firstClickable),
@@ -136,6 +138,7 @@ async function runSmoke() {
               importBadges: importBadges.map(rect),
               importBadgeBackgrounds: importBadges.map(badge => getComputedStyle(badge).backgroundColor),
               importBadgeRadii: importBadges.map(badge => getComputedStyle(badge).borderRadius),
+              importBadgeStackOrder: importBadges.map(badge => getComputedStyle(badge).zIndex),
               importBrandIds: importMarks.map(image => image.dataset.importBrand),
               importBrandLabels: importMarks.map(image => image.alt),
               importLabel: rect(importLabel),
@@ -187,15 +190,16 @@ async function runSmoke() {
           assert.equal(snapshot.importBrands.x - snapshot.importLabel.x - snapshot.importLabel.width, 10, `${context}: source badges follow text inline`);
           assert.ok(Math.abs(snapshot.importBrands.y + snapshot.importBrands.height / 2 - snapshot.importLabel.y - snapshot.importLabel.height / 2) < 1, `${context}: vertically aligned label and logos`);
           if (width >= 563) assert.equal(snapshot.importLabel.height, 18, `${context}: single-line text at desktop widths`);
-          assert.ok(snapshot.importBadges.every(badge => badge.width === 16 && badge.height === 16), `${context}: compact circular source badges`);
+          assert.ok(snapshot.importBadges.every(badge => badge.width === 20 && badge.height === 20), `${context}: readable circular source badges`);
           assert.deepEqual([...new Set(snapshot.importBadgeRadii)], ['50%'], `${context}: every source uses the same circular badge`);
           assert.equal(new Set(snapshot.importBadgeBackgrounds).size, 1, `${context}: source badges share one background tone`);
-          assert.ok(snapshot.importMarks.every(mark => mark.width === 10 && mark.height === 10), `${context}: restrained logo size inside each badge`);
-          assert.deepEqual([...new Set(snapshot.importMarkOpacities)], ['0.72'], `${context}: source logos share one quiet opacity`);
+          assert.ok(snapshot.importMarks.every(mark => mark.width === 13 && mark.height === 13), `${context}: readable logo size inside each badge`);
+          assert.deepEqual([...new Set(snapshot.importMarkOpacities)], ['0.8'], `${context}: source logos share one quiet opacity`);
           assert.equal(new Set(snapshot.importMarkFilters).size, 1, `${context}: source logos share one monochrome treatment`);
+          assert.deepEqual(snapshot.importBadgeStackOrder, ['3', '2', '1'], `${context}: leftmost source badge sits above the badges to its right`);
           for (let i = 1; i < snapshot.importBadges.length; i++) {
             const previous = snapshot.importBadges[i - 1];
-            assert.equal(snapshot.importBadges[i].x - previous.x - previous.width, -5, `${context}: circular source badges overlap`);
+            assert.equal(snapshot.importBadges[i].x - previous.x - previous.width, -6, `${context}: circular source badges overlap`);
           }
           assert.equal(snapshot.importText, importLabels[locale], `${context}: complete localized text`);
           assert.equal(snapshot.brand.width, width >= 563 ? 440 : 324, `${context}: shared responsive column width`);
@@ -216,14 +220,17 @@ async function runSmoke() {
           assert.ok(Math.abs(snapshot.launcher.y + snapshot.launcher.height / 2 - height / 2) < 1, `${context}: shared launcher is vertically centered`);
           assert.equal(snapshot.primaryKind, state === 'empty' ? 'create' : 'projects', `${context}: one primary-section contract swaps content by state`);
           assert.equal(snapshot.primaryBorderTop, '1px', `${context}: shared primary frame has a top rule`);
-          assert.equal(snapshot.primaryBorderBottom, '1px', `${context}: shared primary frame has a bottom rule`);
           assert.equal(snapshot.primaryPaddingTop, '24px', `${context}: shared primary frame owns the content inset`);
           if (state === 'empty') {
-            assert.ok(snapshot.open.y - snapshot.firstSection.y - snapshot.firstSection.height >= 14, `${context}: secondary actions sit below the framed primary section`);
+            assert.equal(snapshot.primaryBorderBottom, '0px', `${context}: empty primary section uses only the title-side rule`);
+            assert.equal(snapshot.primaryPaddingBottom, '0px', `${context}: empty primary section ends with its CTA`);
+            assert.equal(snapshot.primaryMarginBottom, '18px', `${context}: secondary actions move into one compact rhythm`);
+            assert.equal(snapshot.open.y - snapshot.firstSection.y - snapshot.firstSection.height, 18, `${context}: secondary actions sit just below the primary CTA`);
             const openToImportGap = snapshot.importButton.y - snapshot.open.y - snapshot.open.height;
             assert.ok(openToImportGap >= 1 && openToImportGap <= 4, `${context}: secondary actions form one compact group`);
             assert.equal(await evaluate("document.querySelector('.onboarding-entry-action-divider')"), null, `${context}: no decorative import divider`);
           } else {
+            assert.equal(snapshot.primaryBorderBottom, '1px', `${context}: project list keeps its bottom rule`);
             assert.equal(snapshot.projectPanel.x, snapshot.brand.x, `${context}: project frame shares the content left edge`);
             assert.equal(snapshot.projectPanel.width, snapshot.brand.width, `${context}: project frame uses the shared width`);
             assert.equal(snapshot.projectRow.x, snapshot.brand.x, `${context}: project row has no container-side inset`);

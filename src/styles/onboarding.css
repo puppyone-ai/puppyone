@@ -153,6 +153,12 @@
   transition: border-color 120ms ease;
 }
 
+.onboarding-home-primary[data-onboarding-primary="create"] {
+  padding-block-end: 0;
+  margin-block-end: 18px;
+  border-block-end: 0;
+}
+
 .onboarding-home-primary[data-onboarding-primary="projects"] {
   max-height: min(332px, calc(100vh - 380px));
   grid-template-rows: minmax(0, 1fr);
@@ -365,24 +371,36 @@
   position: relative;
   display: grid;
   box-sizing: border-box;
-  width: 16px;
-  height: 16px;
-  flex: 0 0 16px;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
   place-items: center;
   border: 1px solid var(--po-canvas);
   border-radius: 50%;
-  background: color-mix(in srgb, var(--po-text-muted) 12%, var(--po-canvas));
+  background: color-mix(in srgb, var(--po-text-muted) 14%, var(--po-canvas));
 }
 
 .onboarding-entry-import-brand-badge + .onboarding-entry-import-brand-badge {
-  margin-inline-start: -5px;
+  margin-inline-start: -6px;
+}
+
+.onboarding-entry-import-brand-badge:nth-child(1) {
+  z-index: 3;
+}
+
+.onboarding-entry-import-brand-badge:nth-child(2) {
+  z-index: 2;
+}
+
+.onboarding-entry-import-brand-badge:nth-child(3) {
+  z-index: 1;
 }
 
 .onboarding-entry-import-brand-badge .onboarding-import-mark {
-  width: 10px;
-  height: 10px;
-  opacity: 0.72;
-  filter: grayscale(1) contrast(0.28);
+  width: 13px;
+  height: 13px;
+  opacity: 0.8;
+  filter: grayscale(1);
 }
 
 .onboarding-entry-import:disabled .onboarding-entry-import-source-preview {
@@ -405,7 +423,7 @@
 }
 
 .dark .onboarding-entry-import-brand-badge .onboarding-import-mark {
-  filter: grayscale(1) invert(1) contrast(0.28);
+  filter: grayscale(1) invert(1);
 }
 
 .onboarding-project-list {
