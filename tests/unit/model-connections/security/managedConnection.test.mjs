@@ -48,6 +48,55 @@ async function acquire(service, onRevoke = vi.fn()) {
 }
 
 describe("Main-owned managed Agent connection", () => {
+  it("returns loading to UI inspection without waiting for the wallet, then publishes the ready catalog", async () => {
+    const value = fixture();
+    const wallet = Promise.withResolvers();
+    value.auth.requestSessionApi.mockReturnValueOnce(wallet.promise);
+    const updates = [];
+    value.service.subscribe((snapshot) => updates.push(snapshot));
+    const initial = await value.service.catalog({ waitForManaged: false });
+    expect(initial.managed).toMatchObject({ reason: "loading", signedIn: true, available: false });
+    expect(initial.connections).toEqual([]);
+    wallet.resolve({ balance_micro_usd: 5_000_000, available_micro_usd: 5_000_000, reserved_micro_usd: 0 });
+    const ready = await value.service.read();
+    expect(ready.managed).toMatchObject({ reason: "ready", available: true });
+    expect(updates.at(-1).catalogs[0].models[0].id).toBe("test/model");
+    expect(ready.revision).toBeGreaterThan(initial.revision);
+  });
+
+  it("keeps acquisition behind the refreshed balance even after nonblocking UI inspection", async () => {
+    const value = fixture();
+    const initial = await value.service.read();
+    const route = `${initial.connections[0].id}/test/model`;
+    const wallet = Promise.withResolvers();
+    value.auth.requestSessionApi.mockReturnValueOnce(wallet.promise);
+    const refreshing = value.service.managed({ action: "refresh" });
+    await vi.waitFor(() => expect(value.auth.requestSessionApi).toHaveBeenCalledTimes(2));
+    await value.service.catalog({ waitForManaged: false });
+    let settled = false;
+    const acquiring = value.service.acquire({ route, scope: "test-scope" }).finally(() => { settled = true; });
+    const denied = expect(acquiring).rejects.toMatchObject({ code: "CREDENTIAL_REQUIRED" });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    wallet.resolve({ balance_micro_usd: 0, available_micro_usd: 0, reserved_micro_usd: 0 });
+    await refreshing;
+    await denied;
+    expect(value.connections.acquire).not.toHaveBeenCalled();
+  });
+
+  it("exposes signed-out UI without waiting for the public directory", async () => {
+    const value = fixture({ signedIn: false });
+    const directory = Promise.withResolvers();
+    const catalog = await value.requestPublic();
+    value.requestPublic.mockReturnValueOnce(directory.promise);
+    const snapshot = await value.service.catalog({ waitForManaged: false });
+    expect(snapshot.managed).toMatchObject({ reason: "sign-in-required", signedIn: false, available: false });
+    expect(snapshot.connections).toEqual([]);
+    directory.resolve(catalog);
+    await value.service.read();
+    expect(value.auth.requestSessionApi).not.toHaveBeenCalled();
+  });
+
   it("exposes a read-only model and balance but no lease or credentials", async () => {
     const { service } = fixture();
     const snapshot = await service.read();

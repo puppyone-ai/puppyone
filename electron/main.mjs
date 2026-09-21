@@ -435,7 +435,7 @@ const agentRuntimeRegistry = createDefaultAgentRuntimeHost({
   appPath: app.getAppPath(),
   userDataPath: app.getPath("userData"),
   executablePath: process.execPath,
-  puppyOneAgent: { modelConnectionPort: { read: () => modelConnections.catalog() } },
+  puppyOneAgent: { modelConnectionPort: { read: () => modelConnections.catalog({ waitForManaged: false }) } },
 });
 const agentAttachmentStore = createAgentAttachmentStore({
   rootPath: path.join(app.getPath("userData"), "agent-runtime", "attachments"),

@@ -267,7 +267,19 @@ export function withManagedConnection({ connections, getAuth, apiBase, requestPu
   const service = {
     ...connections,
     async read() { await refresh(); return structuredClone(snapshot()); },
-    async catalog() { local = await connections.catalog(); await refresh(); return structuredClone(snapshot()); },
+    async catalog({ waitForManaged = true } = {}) {
+      await initialize();
+      const refreshing = refresh();
+      const localCatalog = connections.catalog().then((value) => { local = value; });
+      if (waitForManaged) await Promise.all([refreshing, localCatalog]);
+      else {
+        // UI inspection can expose setup/loading immediately. Published updates
+        // invalidate its readiness cache; session acquisition still awaits refresh.
+        void refreshing.catch(() => {});
+        await localCatalog;
+      }
+      return structuredClone(snapshot());
+    },
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     async managed({ action, packId } = {}) {
       await initialize();

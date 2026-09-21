@@ -239,7 +239,9 @@ export class AgentSessionController {
     const sessionId = this.state.session?.id;
     const epoch = ++this.modelCatalogEpoch;
     try {
-      const inspection = await this.requireBridge("discoverAgentRuntimes").discoverAgentRuntimes({ rootPath: this.workspaceRoot, runtimeId, refresh: true });
+      // Main invalidates inspection when connection state changes. Keep the
+      // executable discovery cache: a wallet update is not a CLI reinstall.
+      const inspection = await this.requireBridge("discoverAgentRuntimes").discoverAgentRuntimes({ rootPath: this.workspaceRoot, runtimeId, refresh: false });
       if (this.disposed || epoch !== this.modelCatalogEpoch || this.state.selectedRuntimeId !== runtimeId || this.state.session?.id !== sessionId) return;
       const previous = this.state.inspection;
       const boundConnection = agentProviderIdForModel(this.state.session?.selectedModel);

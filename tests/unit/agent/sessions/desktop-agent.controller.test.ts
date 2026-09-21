@@ -96,6 +96,22 @@ it("repeated send while the same steer is pending has one dispatch", async () =>
 });
 
 describe("AgentSessionController", () => {
+  it("updates model inspection without forcing executable discovery or replacing the session", async () => {
+    const bridge = bridgeFixture(() => {}, { modelConnections: true });
+    const controller = new AgentSessionController("/workspace", () => bridge as never);
+    try {
+      await controller.initialize();
+      const session = controller.getSnapshot().session;
+      bridge.resumeAgentSession.mockClear();
+      await controller.refreshModelConnections();
+      expect(bridge.discoverAgentRuntimes).toHaveBeenLastCalledWith({
+        rootPath: "/workspace", runtimeId: controller.getSnapshot().selectedRuntimeId, refresh: false,
+      });
+      expect(controller.getSnapshot().session).toEqual(session);
+      expect(bridge.resumeAgentSession).not.toHaveBeenCalled();
+    } finally { controller.dispose(); }
+  });
+
   it("keeps Stop feedback independent of the display and retries the same command identity", async () => {
     vi.useFakeTimers();
     let emit: ((event: AgentEvent) => void) | undefined;
