@@ -493,6 +493,7 @@ function renderPanelContent(preferredRuntimeId: string | null = null) {
     initialSnapshot: { title: "New chat", accessibleLabel: "New chat", detail: null, iconKey: null, status: "idle", running: false, resourceId: null },
     renderItem: (context) => React.createElement(AgentChatWorkbenchItem, {
       ...context, hiddenRuntimeIds: [], preferredRuntimeId, preferredRoute: {}, preferredModel: null,
+      onOpenAccount: vi.fn(),
       onOpenModelConnections: vi.fn(),
     }),
     close: { decide: () => ({ kind: "close" }), commit: ({ project, item }) => requestCloseAgentChatWorkbenchItem(project, item.id) },

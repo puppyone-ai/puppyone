@@ -364,6 +364,7 @@
   "compute.paymentUnavailable": "No se pudo actualizar el saldo del Agent. Reinténtalo.",
   "compute.signInUnavailable": "No se pudo abrir la página de inicio de sesión. Inténtalo de nuevo.",
   "compute.walletTitle": "Saldo de tokens de IA",
+  "compute.manageBalance": "Gestionar saldo de IA",
   "compute.walletDetail": "Recarga cuando lo necesites. Paga por el uso del modelo, sin suscripción.",
   "compute.trialGranted": "Crédito de prueba único recibido: {amount}",
   "compute.latestUsage": "Última llamada al modelo",

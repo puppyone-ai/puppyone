@@ -15,6 +15,7 @@ export function BuiltInAgentCompute({
   disabled,
   onSelectModel,
   onCatalogChange,
+  onOpenAccount,
   onOpenModelConnections,
   onReadyChange,
   onAccessRequiredChange,
@@ -26,6 +27,7 @@ export function BuiltInAgentCompute({
   disabled: boolean;
   onSelectModel: (model: string) => void;
   onCatalogChange: () => void;
+  onOpenAccount: () => void;
   onOpenModelConnections: () => void;
   onReadyChange: (ready: boolean) => void;
   onAccessRequiredChange?: (reason: ComputeAccessRequired) => void;
@@ -92,9 +94,6 @@ export function BuiltInAgentCompute({
     {!showPrompt && <div className="desktop-agent-compute-summary">
       <Icon size={14} aria-hidden="true" />
       <span>{sourceLabel}</span>
-      {source === "managed" && <small>{managed?.signedIn
-        ? t("agent.compute.balance", { amount: money(managed.availableMicroUsd ?? 0) })
-        : t("agent.compute.managedBalance")}</small>}
       {readyModels.length > 0 && <AgentSessionControlPicker disabled={disabled} control={{
         id: "model",
         value: ready ? selectedModel : null,
@@ -105,19 +104,6 @@ export function BuiltInAgentCompute({
           keywords: `${model.id} ${model.model}`,
         })),
       }} onSelect={(_id, model) => onSelectModel(model)} />}
-    </div>}
-    {!showPrompt && source === "managed" && managed?.signedIn && <div className="desktop-agent-credit-actions">
-      {managed?.sandbox && <small>{t("agent.compute.sandbox")}</small>}
-      {(managed.packs ?? []).map((pack) => <button key={pack.id} type="button" disabled={disabled || state.pending.managed}
-        onClick={() => void store.managed({ action: "checkout", packId: pack.id })}>
-        {t("agent.compute.topUp", { amount: money(pack.price_cents * 10_000) })}
-      </button>)}
-      <button type="button" disabled={state.pending.managed} onClick={() => void store.managed({ action: "refresh" })}>
-        {t("agent.compute.refreshBalance")}
-      </button>
-      {(managed.reservedMicroUsd ?? 0) > 0 && <small>{t("agent.compute.pendingCredit", { amount: money(managed.reservedMicroUsd ?? 0) })}</small>}
-      {(managed.trialGrantedMicroUsd ?? 0) > 0 && <small>{t("agent.compute.trialGranted", { amount: money(managed.trialGrantedMicroUsd ?? 0) })}</small>}
-      {(state.error || managed?.errorCode) && <small role="alert">{operationError}</small>}
     </div>}
     {showPrompt && <div className="desktop-agent-access-prompt" role="region" aria-label={t("agent.compute.accessTitle")}>
       <div className="desktop-agent-access-copy">
@@ -132,19 +118,15 @@ export function BuiltInAgentCompute({
           onClick={() => void store.managed({ action: "sign-in" })}>
           <span>{t((managed?.trialCreditMicroUsd ?? 0) > 0 ? "agent.compute.signInTrial" : "agent.compute.signIn", { amount: money(managed?.trialCreditMicroUsd ?? 0) })}</span>
           <ArrowRight size={15} aria-hidden="true" />
-        </button> : managed.reason === "insufficient-credit" ? (managed.packs ?? []).map((pack) => <button key={pack.id} type="button" className="desktop-agent-access-primary"
-          disabled={disabled || state.pending.managed} onClick={() => void store.managed({ action: "checkout", packId: pack.id })}>
-          {t("agent.compute.topUp", { amount: money(pack.price_cents * 10_000) })}
-        </button>) : <button type="button" className="desktop-agent-access-primary" disabled={state.pending.managed}
+        </button> : managed.reason === "insufficient-credit" ? <button type="button" className="desktop-agent-access-primary"
+          disabled={disabled} onClick={onOpenAccount}>
+          <span>{t("agent.compute.manageBalance")}</span>
+          <ArrowRight size={15} aria-hidden="true" />
+        </button> : <button type="button" className="desktop-agent-access-primary" disabled={state.pending.managed}
           onClick={() => void store.managed({ action: "refresh" })}>{t("agent.compute.refreshBalance")}</button>}
       </div>
-      {managed?.signedIn && managed.reason === "insufficient-credit" && <button type="button" className="desktop-agent-compute-customize"
-        disabled={state.pending.managed} onClick={() => void store.managed({ action: "refresh" })}>{t("agent.compute.refreshBalance")}</button>}
-      {customize}
-      {managed?.signedIn && managed.sandbox && <small>{t("agent.compute.sandbox")}</small>}
+      {!managed?.signedIn && customize}
       {(state.error || managed?.errorCode) && <small role="alert">{operationError}</small>}
     </div>}
-    {accessPrompt && ready && <p className="desktop-agent-access-ready" role="status">{t("agent.compute.readyToSend")}</p>}
-    {!showPrompt && customize}
   </section>;
 }

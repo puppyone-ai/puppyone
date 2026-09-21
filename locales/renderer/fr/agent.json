@@ -364,6 +364,7 @@
   "compute.paymentUnavailable": "Impossible de charger le solde Agent. Réessayez.",
   "compute.signInUnavailable": "Impossible d’ouvrir la page de connexion. Réessayez.",
   "compute.walletTitle": "Solde de tokens IA",
+  "compute.manageBalance": "Gérer le solde IA",
   "compute.walletDetail": "Rechargez selon vos besoins. Payez à l’usage du modèle, sans abonnement.",
   "compute.trialGranted": "Crédit d’essai unique reçu : {amount}",
   "compute.latestUsage": "Dernier appel au modèle",

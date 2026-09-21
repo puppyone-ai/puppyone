@@ -1155,6 +1155,7 @@ function AppContent() {
             preferredModel={agentPreferredModel}
             onPreferredModelChange={setAgentPreferredModel}
             onOpenFile={(path) => handleAgentOpenFile(context.item.rootId, path)}
+            onOpenAccount={() => openSettingsDialog("account")}
             onOpenModelConnections={() => openSettingsDialog("model-connections")}
             resolveWorkspaceReference={resolveAgentWorkspaceReference}
           />

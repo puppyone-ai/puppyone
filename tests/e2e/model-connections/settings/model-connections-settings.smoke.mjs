@@ -86,12 +86,15 @@ async function checkDefaultCompute() {
   await until(() => evaluate("Boolean(document.querySelector('.desktop-agent-empty-state'))"), "quiet first-use identity");
   assert.equal(await evaluate("Boolean(document.querySelector('.desktop-agent-readiness'))"), false, "First-use setup is not an error banner");
   assert.equal(await evaluate("Boolean(document.querySelector('.desktop-agent-compute-editor, .desktop-agent-compute-sources, .desktop-agent-compute input'))"), false, "Chat does not own connection configuration");
-  assert.equal(await evaluate("document.querySelector('.desktop-agent-compute-summary')?.textContent.includes('Uses your account balance')"), true);
-  assert.equal(await evaluate("document.querySelector('.desktop-agent-compute-customize')?.textContent"), "Bring your own API or local model");
+  assert.equal(await evaluate("document.querySelector('.desktop-agent-compute-summary')?.textContent.includes('Uses your account balance')"), false);
+  assert.equal(await evaluate("Boolean(document.querySelector('.desktop-agent-credit-actions'))"), false);
+  assert.equal(await evaluate("Boolean(document.querySelector('.desktop-agent-compute-customize'))"), false);
   assert.equal(await evaluate("document.querySelector('button[aria-label=\"Send message\"]')?.disabled"), true, "Unavailable cloud must not be treated as a ready provider");
   assert.equal(metadataReads, 0); assert.equal(inferenceRequests, 0);
   await capture("built-in-compute-default.png");
-  await clickText("Bring your own API or local model");
+  await evaluate("window.dispatchEvent(new KeyboardEvent('keydown',{key:',',metaKey:true,bubbles:true}))");
+  await until(() => evaluate("Boolean(document.querySelector('.desktop-settings-dialog'))"), "settings from Chat");
+  await clickText("Model connections");
   await until(() => evaluate("Boolean(document.querySelector('.desktop-settings-dialog .model-connections'))"), "model connection settings from Chat");
   assert.equal(await evaluate("document.querySelector('.desktop-settings-sidebar [aria-current=\"page\"]')?.textContent.trim()"), "Model connections");
   await capture("built-in-compute-settings-entry.png");
@@ -113,7 +116,6 @@ async function checkComputeChoice() {
   await until(() => evaluate("document.querySelector('button[aria-label=\"Send message\"]')?.disabled===false"), "routed send enabled");
   await clickText("Send message");
   await until(() => evaluate("document.querySelector('.desktop-agent-conversation-region')?.textContent.includes('Compute source smoke complete.')"), "actual model response");
-  await until(() => evaluate("document.querySelector('.desktop-agent-compute-customize')?.disabled===false"), "turn finished");
   await capture("built-in-compute-api.png");
   assert.equal(inferenceRequests, 3);
   window.setSize(1000, 720);
@@ -125,7 +127,9 @@ async function checkComputeChoice() {
     return buttons.every(button => { const rect = button.getBoundingClientRect(); return rect.top >= 0 && rect.right <= innerWidth; })
       && section.scrollWidth <= section.clientWidth && send.bottom <= innerHeight;
   })()`), true, "Compute summary and composer stay accessible in a compact window");
-  await clickText("Bring your own API or local model");
+  await evaluate("window.dispatchEvent(new KeyboardEvent('keydown',{key:',',metaKey:true,bubbles:true}))");
+  await until(() => evaluate("Boolean(document.querySelector('.desktop-settings-dialog'))"), "settings reopen from Chat");
+  await clickText("Model connections");
   await until(() => evaluate("Boolean(document.querySelector('.desktop-settings-dialog .model-connections'))"), "settings reopen from Chat");
   assert.equal(inferenceRequests, 3, "Opening Settings must not infer or change the active route");
 }

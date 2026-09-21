@@ -19,11 +19,17 @@ describe("Built-in compute selection ownership", () => {
     const app = read("src/App.tsx");
     const panel = read("src/features/desktop-agent/ui/AgentChatTabPanel.tsx");
     const source = read("src/features/desktop-agent/ui/built-in-agent/BuiltInAgentCompute.tsx");
+    const account = read("src/features/settings/main/AccountAICredits.tsx");
     const publicConnections = read("src/features/model-connections/index.ts");
     expect(app).toContain('onOpenModelConnections={() => openSettingsDialog("model-connections")}');
+    expect(app).toContain('onOpenAccount={() => openSettingsDialog("account")}');
     expect(panel).toContain("onOpenModelConnections={onOpenModelConnections}");
     expect(source).toContain("onClick={onOpenModelConnections}");
-    expect(source).toContain('t("agent.compute.managedBalance")');
+    expect(source).toContain("onClick={onOpenAccount}");
+    expect(source).not.toContain('t("agent.compute.balance"');
+    expect(source).not.toContain('t("agent.compute.topUp"');
+    expect(account).toContain('t("agent.compute.walletTitle"');
+    expect(account).toContain('t("agent.compute.topUp"');
     expect(source).not.toMatch(/ModelConnectionQuickSetup|ModelConnectionsSettings|store\.(save|discover|verify)\(/u);
     expect(publicConnections).not.toContain("ModelConnectionQuickSetup");
     expect(fs.existsSync(path.join(root, "src/features/model-connections/ui/ModelConnectionQuickSetup.tsx"))).toBe(false);

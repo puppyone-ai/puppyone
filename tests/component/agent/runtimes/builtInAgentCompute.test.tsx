@@ -75,6 +75,7 @@ async function render({ selectedModel = null as string | null, disabled = false,
   const onSelectModel = vi.fn();
   const onReadyChange = vi.fn();
   const onCatalogChange = vi.fn();
+  const onOpenAccount = vi.fn();
   const onOpenModelConnections = vi.fn();
   const container = document.createElement("div");
   container.className = "desktop-agent-boundary";
@@ -89,21 +90,26 @@ async function render({ selectedModel = null as string | null, disabled = false,
     onSelectModel={onSelectModel}
     onReadyChange={onReadyChange}
     onCatalogChange={onCatalogChange}
+    onOpenAccount={onOpenAccount}
     onOpenModelConnections={onOpenModelConnections}
   />)));
-  return { client, onSelectModel, onReadyChange, onCatalogChange, onOpenModelConnections };
+  return { client, onSelectModel, onReadyChange, onCatalogChange, onOpenAccount, onOpenModelConnections };
 }
 
-it("defaults to managed compute and opens the only connection-management surface", async () => {
-  const { client, onOpenModelConnections, onReadyChange, onSelectModel } = await render({ empty: true });
+it("keeps the initial managed summary free of account and billing details", async () => {
+  const { client, onOpenAccount, onOpenModelConnections, onReadyChange, onSelectModel } = await render({ empty: true });
   expect(document.querySelector(".desktop-agent-compute-summary")?.textContent).toContain("PuppyOne AI");
-  expect(document.body.textContent).toContain("Uses your account balance");
+  expect(document.body.textContent).not.toContain("Uses your account balance");
+  expect(document.body.textContent).not.toContain("Available:");
+  expect(document.body.textContent).not.toContain("Sandbox");
+  expect(document.body.textContent).not.toContain("Refresh balance");
+  expect(document.body.textContent).not.toContain("Bring your own API or local model");
   expect(document.querySelector(".desktop-agent-compute-editor, input, select")).toBeNull();
   expect(document.querySelector('button[aria-label="Agent model"]')).toBeNull();
 
-  act(() => button("Bring your own API or local model").click());
-  expect(onOpenModelConnections).toHaveBeenCalledTimes(1);
   expect(onReadyChange).toHaveBeenLastCalledWith(false);
+  expect(onOpenAccount).not.toHaveBeenCalled();
+  expect(onOpenModelConnections).not.toHaveBeenCalled();
   expect(client.discover).not.toHaveBeenCalled();
   expect(client.save).not.toHaveBeenCalled();
   expect(client.verify).not.toHaveBeenCalled();
@@ -129,15 +135,13 @@ it("restores a ready custom route while keeping management in Settings", async (
   expect(document.querySelector(".desktop-agent-compute-summary")?.textContent).toContain("Local Llama");
   expect(document.body.textContent).not.toContain("Uses your account balance");
   expect(onReadyChange).toHaveBeenLastCalledWith(true);
-
-  act(() => button("Bring your own API or local model").click());
-  expect(onOpenModelConnections).toHaveBeenCalledTimes(1);
+  expect(document.body.textContent).not.toContain("Bring your own API or local model");
+  expect(onOpenModelConnections).not.toHaveBeenCalled();
   expect(onReadyChange).toHaveBeenLastCalledWith(true);
 });
 
-it("disables both model selection and Settings navigation during a turn", async () => {
+it("disables model selection during a turn", async () => {
   const { onOpenModelConnections, onSelectModel } = await render({ selectedModel: models[0].model, disabled: true });
-  expect(button("Bring your own API or local model").disabled).toBe(true);
   expect(button("Agent model").disabled).toBe(true);
   expect(onOpenModelConnections).not.toHaveBeenCalled();
   expect(onSelectModel).not.toHaveBeenCalled();
@@ -149,9 +153,11 @@ it("asks the controller to refresh when the shared connection catalog arrives", 
 });
 
 it("opens email sign-in without selecting a paid model or sending a turn", async () => {
-  const { client, onSelectModel, onReadyChange } = await render({ empty: true, accessPrompt: true });
+  const { client, onOpenModelConnections, onSelectModel, onReadyChange } = await render({ empty: true, accessPrompt: true });
   await act(async () => button("Sign in with email").click());
   expect(client.managed).toHaveBeenCalledWith({ action: "sign-in" });
+  act(() => button("Bring your own API or local model").click());
+  expect(onOpenModelConnections).toHaveBeenCalledTimes(1);
   expect(onReadyChange).toHaveBeenLastCalledWith(false);
   expect(onSelectModel).not.toHaveBeenCalled();
 });
@@ -166,13 +172,15 @@ it("labels a failed browser handoff as a sign-in problem", async () => {
 });
 
 it("blocks a selected managed model when the personal balance is empty", async () => {
-  const { client, onReadyChange, onSelectModel } = await render({ selectedModel: models[1].model, accessPrompt: true,
+  const { client, onOpenAccount, onReadyChange, onSelectModel } = await render({ selectedModel: models[1].model, accessPrompt: true,
     managed: { available: false, reason: "insufficient-credit", signedIn: true, sandbox: true, availableMicroUsd: 0,
       packs: [{ id: "test-pack", name: "Sandbox credit", price_cents: 500, credit_micro_usd: 5_000_000 }] } });
   expect(document.body.textContent).toContain("Add credit to use this model.");
+  expect(document.body.textContent).not.toContain("Add $5");
   expect(onReadyChange).toHaveBeenLastCalledWith(false);
-  await act(async () => button("Add $5").click());
-  expect(client.managed).toHaveBeenCalledWith({ action: "checkout", packId: "test-pack" });
+  act(() => button("Manage AI balance").click());
+  expect(onOpenAccount).toHaveBeenCalledTimes(1);
+  expect(client.managed).not.toHaveBeenCalledWith(expect.objectContaining({ action: "checkout" }));
   expect(onSelectModel).not.toHaveBeenCalled();
   expect(onReadyChange).toHaveBeenLastCalledWith(false);
 });
@@ -188,12 +196,17 @@ it("offers the server-configured trial only after the first send attempt", async
   expect(client.managed).not.toHaveBeenCalledWith(expect.objectContaining({ action: "checkout" }));
 });
 
-it("enables a funded selected managed model and refreshes without auto-submitting", async () => {
+it("keeps funded managed compute to source and model only", async () => {
   const { client, onReadyChange, onSelectModel } = await render({ selectedModel: models[1].model,
     managed: { available: true, reason: "ready", signedIn: true, sandbox: true, availableMicroUsd: 4_990_000, reservedMicroUsd: 10_000 } });
-  expect(document.body.textContent).toContain("$4.99");
+  expect(document.querySelector(".desktop-agent-compute-summary")?.textContent).toContain("PuppyOne AI");
+  expect(document.body.textContent).not.toContain("$4.99");
+  expect(document.body.textContent).not.toContain("Sandbox");
+  expect(document.body.textContent).not.toContain("Refresh balance");
+  expect(document.body.textContent).not.toContain("One-time trial credit");
+  expect(document.body.textContent).not.toContain("Ready. Press Send");
+  expect(document.body.textContent).not.toContain("Bring your own API or local model");
   expect(onReadyChange).toHaveBeenLastCalledWith(true);
-  await act(async () => button("Refresh balance").click());
-  expect(client.managed).toHaveBeenCalledWith({ action: "refresh" });
+  expect(client.managed).not.toHaveBeenCalled();
   expect(onSelectModel).not.toHaveBeenCalled();
 });

@@ -28,7 +28,6 @@
   }
 
   .desktop-agent-compute-summary > svg { flex-shrink: 0; }
-  .desktop-agent-compute-summary > small { font: inherit; }
   .desktop-agent-compute-summary > .desktop-agent-picker { margin-inline-start: auto; min-width: 0; }
 
   .desktop-agent-compute-customize {
@@ -45,24 +44,6 @@
     text-decoration: underline;
     text-underline-offset: 3px;
   }
-
-  .desktop-agent-credit-actions {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-
-  .desktop-agent-credit-actions button {
-    padding: 4px 8px;
-    border: 1px solid var(--agent-border-subtle);
-    border-radius: 6px;
-    background: transparent;
-    color: inherit;
-  }
-
-  .desktop-agent-credit-actions button:hover:not(:disabled) { background: var(--agent-row-hover-surface); }
-  .desktop-agent-compute .desktop-agent-credit-actions small { font: inherit; }
 
   .desktop-agent-access-prompt {
     display: flex;
@@ -83,8 +64,7 @@
     line-height: 1.5;
   }
 
-  .desktop-agent-access-copy > p,
-  .desktop-agent-access-ready { margin: 0; }
+  .desktop-agent-access-copy > p { margin: 0; }
 
   .desktop-agent-access-actions { display: flex; flex-direction: column; gap: 8px; }
 

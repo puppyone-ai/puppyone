@@ -364,6 +364,7 @@
   "compute.paymentUnavailable": "Agent-Guthaben konnte nicht geladen werden. Bitte erneut versuchen.",
   "compute.signInUnavailable": "Die Anmeldeseite konnte nicht geöffnet werden. Bitte erneut versuchen.",
   "compute.walletTitle": "AI-Token-Guthaben",
+  "compute.manageBalance": "AI-Guthaben verwalten",
   "compute.walletDetail": "Bei Bedarf aufladen. Modellnutzung ohne Abonnement bezahlen.",
   "compute.trialGranted": "Einmaliges Testguthaben erhalten: {amount}",
   "compute.latestUsage": "Letzter Modellaufruf",

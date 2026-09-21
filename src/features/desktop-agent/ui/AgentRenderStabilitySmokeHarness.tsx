@@ -102,7 +102,7 @@ function RenderFixture({ fixture, update }: { fixture: Fixture; update: (fixture
     },
   }) as unknown as AgentSessionController, []);
   return <AgentChatTabPanel controller={controller} workspaceId="smoke" presented commandTarget={false}
-    onPresentationChange={noOp} onOpenModelConnections={noOp}
+    onPresentationChange={noOp} onOpenAccount={noOp} onOpenModelConnections={noOp}
     preferredRuntimeId="codex" preferredRoute={{}} preferredModel={null} hiddenRuntimeIds={[]} />;
 }
 

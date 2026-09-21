@@ -364,6 +364,7 @@
   "compute.paymentUnavailable": "暂时无法刷新 Agent 余额，请重试。",
   "compute.signInUnavailable": "暂时无法打开登录页面，请重试。",
   "compute.walletTitle": "AI token 余额",
+  "compute.manageBalance": "管理 AI 余额",
   "compute.walletDetail": "随时充值，按模型实际用量扣费，无订阅。",
   "compute.trialGranted": "已获一次性试用余额：{amount}",
   "compute.latestUsage": "最近一次模型调用",
