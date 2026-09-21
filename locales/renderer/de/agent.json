@@ -372,10 +372,10 @@
   "compute.usageTokens": "Eingabe: {input} (Cache: {cached}) · Ausgabe: {output}",
   "compute.modelPrices": "Modellpreise pro Million Token",
   "compute.modelRates": "Eingabe {input} · Cache-Eingabe {cached} · Ausgabe {output}",
-  "compute.accessTitle": "Für PuppyOne AI anmelden",
-  "compute.trialOffer": "Jedes Konto erhält einmalig {amount} KI-Guthaben. Bei Bedarf aufladen, ohne Abonnement.",
+  "compute.accessTitle": "PuppyOne AI nutzen",
+  "compute.trialOffer": "Einmalig {amount} KI-Guthaben pro Konto. Bei Bedarf aufladen, ohne Abo.",
   "compute.signInTrial": "Anmelden und {amount} erhalten",
-  "compute.draftKept": "Dein Entwurf bleibt erhalten. Nach der Anmeldung oder Aufladung kannst du ihn hier senden.",
+  "compute.draftKept": "Dein Entwurf bleibt erhalten. Sende ihn, sobald du bereit bist.",
   "compute.readyToSend": "Bereit. Zum Fortfahren auf Senden klicken.",
   "compute.topUpOptions": "Aufladebeträge"
 }

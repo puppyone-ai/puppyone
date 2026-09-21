@@ -372,10 +372,10 @@
   "compute.usageTokens": "Input: {input} (cached: {cached}) · Output: {output}",
   "compute.modelPrices": "Model prices per million tokens",
   "compute.modelRates": "Input {input} · Cached input {cached} · Output {output}",
-  "compute.accessTitle": "Sign in to use PuppyOne AI",
-  "compute.trialOffer": "Each account can claim {amount} in AI credit once. Add more when it runs out. No subscription.",
+  "compute.accessTitle": "Use PuppyOne AI",
+  "compute.trialOffer": "One-time {amount} AI credit per account. Top up as needed. No subscription.",
   "compute.signInTrial": "Sign in to claim {amount}",
-  "compute.draftKept": "Your draft is saved. Return here to send it after signing in or adding credit.",
+  "compute.draftKept": "Your draft is saved. Send it when you’re ready.",
   "compute.readyToSend": "Ready. Press Send to continue.",
   "compute.topUpOptions": "Top-up amounts"
 }

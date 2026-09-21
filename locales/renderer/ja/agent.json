@@ -372,10 +372,10 @@
   "compute.usageTokens": "入力：{input}（キャッシュ：{cached}）· 出力：{output}",
   "compute.modelPrices": "100万トークンあたりのモデル料金",
   "compute.modelRates": "入力 {input} · キャッシュ入力 {cached} · 出力 {output}",
-  "compute.accessTitle": "ログインして PuppyOne AI を使う",
-  "compute.trialOffer": "各アカウントで一度だけ {amount} の AI クレジットを受け取れます。使い切ったらチャージ。サブスクリプションは不要です。",
+  "compute.accessTitle": "PuppyOne AI を使う",
+  "compute.trialOffer": "各アカウントに一度だけ {amount} のお試し残高。使い切ったらチャージ、サブスク不要。",
   "compute.signInTrial": "ログインして {amount} を受け取る",
-  "compute.draftKept": "下書きは保存されています。ログインまたはチャージ後、ここに戻って送信してください。",
+  "compute.draftKept": "下書きは保存されています。準備ができたら送信してください。",
   "compute.readyToSend": "準備ができました。送信を押して続けてください。",
   "compute.topUpOptions": "チャージ金額"
 }

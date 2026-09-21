@@ -372,10 +372,10 @@
   "compute.usageTokens": "输入：{input}（缓存：{cached}）· 输出：{output}",
   "compute.modelPrices": "模型单价（每百万 token）",
   "compute.modelRates": "输入 {input} · 缓存输入 {cached} · 输出 {output}",
-  "compute.accessTitle": "登录使用 PuppyOne AI",
-  "compute.trialOffer": "每个账号可领取一次 {amount} AI 试用余额，用完再充值，无需订阅。",
+  "compute.accessTitle": "使用 PuppyOne AI",
+  "compute.trialOffer": "每个账号赠送 {amount} 试用余额，用完再充，无需订阅。",
   "compute.signInTrial": "登录领取 {amount}",
-  "compute.draftKept": "草稿已保留。登录或充值完成后，回到这里点击发送。",
+  "compute.draftKept": "草稿已保留，就绪后点击发送。",
   "compute.readyToSend": "已就绪，点击发送即可继续。",
   "compute.topUpOptions": "可充值金额"
 }

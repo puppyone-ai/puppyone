@@ -89,10 +89,10 @@ describe("Project-owned Agent Chat Workbench lifecycle", () => {
     const send = () => container.querySelector<HTMLButtonElement>('button[aria-label="Send message"]')!;
     expect(send().disabled).toBe(false);
     await act(async () => send().click());
-    expect(container.querySelector(".desktop-agent-access-prompt")?.textContent).toContain("Sign in to claim $1.00");
+    expect(container.querySelector(".desktop-agent-access-prompt")?.textContent).toContain("Sign in to claim $1");
     expect(harness.bridge.startAgentTurn).not.toHaveBeenCalled();
     expect(harness.bridge.createAgentSession).not.toHaveBeenCalled();
-    const signIn = [...container.querySelectorAll("button")].find((button) => button.textContent === "Sign in to claim $1.00")!;
+    const signIn = [...container.querySelectorAll("button")].find((button) => button.textContent === "Sign in to claim $1")!;
     await act(async () => signIn.click());
     expect(managed).toHaveBeenCalledWith({ action: "sign-in" });
     credit = { ...credit, revision: 101,

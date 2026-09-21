@@ -64,7 +64,7 @@ it("shows the trial and recharge amounts before login without offering a subscri
   const onSignIn = vi.fn();
   const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
   await act(async () => root?.render(withTestLocalization(<AccountAICredits store={new ModelConnectionStore(client)} onSignIn={onSignIn} />)));
-  expect(host.textContent).toContain("Each account can claim $1.00");
+  expect(host.textContent).toContain("One-time $1.00 AI credit per account");
   expect(host.textContent).toContain("$5.00");
   expect(host.textContent).not.toContain("$0.00");
   expect(host.textContent).not.toMatch(/Cloud hosting|Pro|Team|\$15|\$30/);

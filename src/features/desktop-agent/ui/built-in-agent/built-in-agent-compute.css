@@ -1,33 +1,113 @@
 @layer features {
-  .desktop-agent-compute { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-  .desktop-agent-compute-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; color: var(--po-text-muted); font-size: var(--po-text-size-caption); }
+  .desktop-agent-compute {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 8px;
+    color: var(--agent-text-muted);
+    font-family: var(--agent-font-family);
+    font-size: var(--agent-font-size-meta);
+    font-weight: var(--agent-font-weight);
+    line-height: 1.5;
+  }
+
+  .desktop-agent-compute button {
+    font: inherit;
+    cursor: var(--po-clickable-cursor, default);
+  }
+
+  .desktop-agent-compute button:disabled { opacity: 0.5; cursor: default; }
+  .desktop-agent-compute button:focus-visible { outline: 2px solid var(--agent-focus-ring); outline-offset: 3px; }
+
+  .desktop-agent-compute-summary {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
   .desktop-agent-compute-summary > svg { flex-shrink: 0; }
-  .desktop-agent-compute-summary > small { color: var(--po-text-disabled); font-size: var(--po-text-size-caption); }
+  .desktop-agent-compute-summary > small { font: inherit; }
   .desktop-agent-compute-summary > .desktop-agent-picker { margin-inline-start: auto; min-width: 0; }
-  .desktop-agent-compute-customize { align-self: flex-start; padding: 0; border: 0; background: transparent; color: var(--po-text-muted); font: inherit; font-size: var(--po-text-size-caption); text-align: start; }
-  .desktop-agent-compute-customize:hover:not(:disabled) { color: var(--po-text); text-decoration: underline; text-underline-offset: 3px; }
-  .desktop-agent-compute button:disabled { opacity: 0.5; }
-  .desktop-agent-compute button:focus-visible { outline: 2px solid var(--po-focus-ring); outline-offset: 2px; }
-  .desktop-agent-access-prompt { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--po-border); border-radius: 8px; background: var(--po-control); font-size: var(--po-text-size-caption); }
-  .desktop-agent-access-prompt p, .desktop-agent-access-ready { margin: 0; color: var(--po-text-muted); font-size: var(--po-text-size-caption); }
-.desktop-agent-credit-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  font-size: var(--po-text-size-caption);
-}
 
-.desktop-agent-credit-actions button {
-  border: 1px solid var(--po-border);
-  border-radius: 5px;
-  background: transparent;
-  color: inherit;
-  padding: 3px 6px;
-  cursor: pointer;
-}
+  .desktop-agent-compute-customize {
+    align-self: flex-start;
+    padding: 2px 0;
+    border: 0;
+    background: transparent;
+    color: var(--agent-text-muted);
+    text-align: start;
+  }
 
-.desktop-agent-credit-actions button:disabled { opacity: 0.5; cursor: default; }
+  .desktop-agent-compute-customize:hover:not(:disabled) {
+    color: var(--agent-text);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
 
-.desktop-agent-credit-actions small { opacity: 0.75; }
+  .desktop-agent-credit-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .desktop-agent-credit-actions button {
+    padding: 4px 8px;
+    border: 1px solid var(--agent-border-subtle);
+    border-radius: 6px;
+    background: transparent;
+    color: inherit;
+  }
+
+  .desktop-agent-credit-actions button:hover:not(:disabled) { background: var(--agent-row-hover-surface); }
+  .desktop-agent-compute .desktop-agent-credit-actions small { font: inherit; }
+
+  .desktop-agent-access-prompt {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid var(--agent-border-subtle);
+    border-radius: var(--agent-radius-composer);
+    background: var(--agent-canvas);
+  }
+
+  .desktop-agent-access-copy { display: flex; flex-direction: column; gap: 6px; }
+  .desktop-agent-access-copy > strong {
+    color: var(--agent-text);
+    font-size: var(--agent-font-size);
+    font-weight: var(--po-text-weight-semibold);
+    line-height: 1.5;
+  }
+
+  .desktop-agent-access-copy > p,
+  .desktop-agent-access-ready { margin: 0; }
+
+  .desktop-agent-access-actions { display: flex; flex-direction: column; gap: 8px; }
+
+  .desktop-agent-compute .desktop-agent-access-primary {
+    display: flex;
+    width: 100%;
+    min-height: var(--po-control-size-large);
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: var(--agent-text);
+    color: var(--agent-canvas);
+    font-size: var(--agent-font-size);
+    font-weight: var(--po-text-weight-medium);
+    text-align: center;
+    text-wrap: balance;
+  }
+
+  .desktop-agent-access-primary > svg { flex-shrink: 0; }
+  .desktop-agent-compute .desktop-agent-access-primary:hover:not(:disabled) { background: var(--agent-primary-hover-surface); }
+  .desktop-agent-access-prompt > .desktop-agent-compute-customize { align-self: center; text-align: center; }
+  .desktop-agent-compute .desktop-agent-access-prompt > small { font: inherit; }
 }

@@ -372,10 +372,10 @@
   "compute.usageTokens": "Entrada: {input} (caché: {cached}) · Salida: {output}",
   "compute.modelPrices": "Precios por millón de tokens",
   "compute.modelRates": "Entrada {input} · Entrada en caché {cached} · Salida {output}",
-  "compute.accessTitle": "Inicia sesión para usar PuppyOne AI",
-  "compute.trialOffer": "Cada cuenta puede recibir {amount} de saldo de IA una vez. Recarga cuando se agote, sin suscripción.",
+  "compute.accessTitle": "Usa PuppyOne AI",
+  "compute.trialOffer": "{amount} de saldo de prueba por cuenta, una sola vez. Recarga sin suscripción.",
   "compute.signInTrial": "Inicia sesión y recibe {amount}",
-  "compute.draftKept": "Tu borrador está guardado. Vuelve aquí para enviarlo después de iniciar sesión o recargar.",
+  "compute.draftKept": "Tu borrador está guardado. Envíalo cuando estés listo.",
   "compute.readyToSend": "Todo listo. Pulsa Enviar para continuar.",
   "compute.topUpOptions": "Importes de recarga"
 }

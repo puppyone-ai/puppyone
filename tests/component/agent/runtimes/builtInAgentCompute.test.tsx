@@ -162,7 +162,7 @@ it("blocks a selected managed model when the personal balance is empty", async (
       packs: [{ id: "test-pack", name: "Sandbox credit", price_cents: 500, credit_micro_usd: 5_000_000 }] } });
   expect(document.body.textContent).toContain("Add credit to use this model.");
   expect(onReadyChange).toHaveBeenLastCalledWith(false);
-  await act(async () => button("Add $5.00").click());
+  await act(async () => button("Add $5").click());
   expect(client.managed).toHaveBeenCalledWith({ action: "checkout", packId: "test-pack" });
   expect(onSelectModel).not.toHaveBeenCalled();
   expect(onReadyChange).toHaveBeenLastCalledWith(false);
@@ -171,9 +171,10 @@ it("blocks a selected managed model when the personal balance is empty", async (
 it("offers the server-configured trial only after the first send attempt", async () => {
   const { client } = await render({ empty: true, accessPrompt: true,
     managed: { available: false, reason: "sign-in-required", signedIn: false, trialCreditMicroUsd: 1_000_000 } });
-  expect(document.body.textContent).toContain("Your draft is saved");
-  expect(document.body.textContent).toContain("Each account can claim $1.00");
-  await act(async () => button("Sign in to claim $1.00").click());
+  expect(document.querySelector(".desktop-agent-compute-summary")).toBeNull();
+  expect([...document.querySelectorAll("button")].some((entry) => entry.textContent === "Refresh balance")).toBe(false);
+  expect(document.body.textContent).toContain("One-time $1 AI credit per account");
+  await act(async () => button("Sign in to claim $1").click());
   expect(client.managed).toHaveBeenCalledWith({ action: "sign-in" });
   expect(client.managed).not.toHaveBeenCalledWith(expect.objectContaining({ action: "checkout" }));
 });

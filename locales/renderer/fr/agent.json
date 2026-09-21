@@ -372,10 +372,10 @@
   "compute.usageTokens": "Entrée : {input} (cache : {cached}) · Sortie : {output}",
   "compute.modelPrices": "Tarifs par million de tokens",
   "compute.modelRates": "Entrée {input} · Entrée en cache {cached} · Sortie {output}",
-  "compute.accessTitle": "Connectez-vous pour utiliser PuppyOne AI",
-  "compute.trialOffer": "Chaque compte peut recevoir {amount} de crédit IA une fois. Rechargez selon vos besoins, sans abonnement.",
+  "compute.accessTitle": "Utiliser PuppyOne AI",
+  "compute.trialOffer": "{amount} de crédit offert une fois par compte. Rechargez sans abonnement.",
   "compute.signInTrial": "Se connecter et recevoir {amount}",
-  "compute.draftKept": "Votre brouillon est conservé. Revenez ici pour l’envoyer après connexion ou recharge.",
+  "compute.draftKept": "Votre brouillon est conservé. Envoyez-le quand vous le souhaitez.",
   "compute.readyToSend": "Tout est prêt. Cliquez sur Envoyer pour continuer.",
   "compute.topUpOptions": "Montants de recharge"
 }
