@@ -34,6 +34,7 @@ const mermaidMocks = vi.hoisted(() => ({
     cacheKey: "test-cache",
     themeKey: "test-theme",
   })),
+  setScale: vi.fn(),
   subscribe: vi.fn(() => () => undefined),
 }));
 
@@ -42,7 +43,12 @@ vi.mock("../../../../../../packages/shared-ui/src/editor/markdown/features/merma
   mountSanitizedMermaidSvg: (host: HTMLElement) => {
     const element = document.createElement("span");
     host.replaceChildren(element);
-    return { element, dispose: () => element.remove() };
+    return {
+      element,
+      intrinsicSize: { width: 1000, height: 400 },
+      setScale: mermaidMocks.setScale,
+      dispose: () => element.remove(),
+    };
   },
   renderMermaidDiagram: mermaidMocks.render,
   subscribeMermaidThemeChanges: mermaidMocks.subscribe,
@@ -673,6 +679,26 @@ describe("Markdown embedded runtime", () => {
 
     await Promise.resolve();
     await Promise.resolve();
+    widget.destroy(dom);
+  });
+
+  it("starts dense Mermaid diagrams at a readable scale and exposes bounded zoom controls", async () => {
+    const source = "```mermaid\ngraph TD; A-->B\n```";
+    const view = createView(source);
+    const widget = new MermaidBlockWidget("graph TD; A-->B", "mermaid", 0, source.length);
+    const dom = widget.toDOM(view);
+    view.dom.appendChild(dom);
+
+    const controls = dom.querySelector<HTMLElement>(".cm-md-mermaid-zoom-controls");
+    const actions = controls?.querySelectorAll<HTMLButtonElement>(".cm-md-mermaid-zoom-action");
+    await vi.waitFor(() => expect(controls?.hidden).toBe(false));
+    expect(dom.querySelector(".cm-md-mermaid-zoom-level")?.textContent).toBe("70%");
+    expect(mermaidMocks.setScale).toHaveBeenLastCalledWith(0.7);
+
+    actions?.[1]?.click();
+    expect(dom.querySelector(".cm-md-mermaid-zoom-level")?.textContent).toBe("80%");
+    expect(mermaidMocks.setScale.mock.calls.at(-1)?.[0]).toBeCloseTo(0.8);
+
     widget.destroy(dom);
   });
 

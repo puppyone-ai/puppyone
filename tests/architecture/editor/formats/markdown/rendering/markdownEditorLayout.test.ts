@@ -361,6 +361,24 @@ describe("Markdown image presentation", () => {
   });
 });
 
+describe("Markdown Mermaid viewport", () => {
+  it("keeps dense diagrams inside a bounded two-axis scrollport", () => {
+    const previewRule = readCssRule(
+      markdownCodeCss,
+      ".markdown-codemirror-editor .cm-md-mermaid-preview",
+    );
+    const svgRootRule = readCssRule(
+      markdownCodeCss,
+      ".markdown-codemirror-editor .cm-md-mermaid-svg-root",
+    );
+
+    expect(previewRule).toContain("display: block;");
+    expect(previewRule).toContain("max-height: min(68vh, 720px);");
+    expect(previewRule).toContain("overflow: auto;");
+    expect(svgRootRule).toContain("margin-inline: auto;");
+  });
+});
+
 describe("Markdown rich-block boundary affordance", () => {
   const richWidgetSelector = ".markdown-codemirror-editor :is(.cm-md-code-widget, .cm-md-mermaid-widget, .cm-md-html-widget, .cm-md-mdx-tabs-widget, .cm-md-image-widget, .cm-md-video-widget)";
   const richSurfaceSelector = ".markdown-codemirror-editor :is(.cm-md-code-panel, .cm-md-mermaid-body, .cm-md-html-widget-content, .cm-md-mdx-tabs-panels, .cm-md-image-widget, .cm-md-video-widget)";

@@ -231,6 +231,65 @@
   gap: 6px;
 }
 
+.markdown-codemirror-editor .cm-md-mermaid-zoom-controls {
+  display: inline-flex;
+  height: 24px;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--po-divider) 96%, var(--po-text-muted) 10%);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--po-panel-raised) 94%, transparent);
+  box-shadow: var(--po-shadow-sm);
+}
+
+.markdown-codemirror-editor .cm-md-mermaid-zoom-controls[hidden] {
+  display: none;
+}
+
+.markdown-codemirror-editor .cm-md-mermaid-zoom-action {
+  display: grid;
+  min-width: 26px;
+  height: 22px;
+  padding: 0 6px;
+  place-items: center;
+  border: 0;
+  border-inline-end: 1px solid color-mix(in srgb, var(--po-divider) 68%, transparent);
+  background: transparent;
+  color: var(--po-text-muted);
+  cursor: var(--po-clickable-cursor, default);
+  font-family: var(--po-font-sans);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.markdown-codemirror-editor .cm-md-mermaid-zoom-action.is-fit {
+  min-width: 38px;
+  border-inline-end: 0;
+  font-size: var(--po-type-ui-caption, 12px);
+  font-weight: 650;
+}
+
+.markdown-codemirror-editor .cm-md-mermaid-zoom-action:hover:not(:disabled) {
+  background: var(--po-control-hover);
+  color: var(--po-text);
+}
+
+.markdown-codemirror-editor .cm-md-mermaid-zoom-action:disabled {
+  color: color-mix(in srgb, var(--po-text-muted) 42%, transparent);
+  cursor: default;
+}
+
+.markdown-codemirror-editor .cm-md-mermaid-zoom-level {
+  min-width: 42px;
+  padding-inline: 5px;
+  color: var(--po-text-muted);
+  font-family: var(--po-font-mono);
+  font-size: 11px;
+  line-height: 22px;
+  text-align: center;
+  user-select: none;
+}
+
 .markdown-codemirror-editor .cm-md-mermaid-action {
   height: 24px;
   padding: 0 9px;
@@ -289,11 +348,13 @@
 }
 
 .markdown-codemirror-editor .cm-md-mermaid-preview {
-  display: grid;
+  display: block;
+  box-sizing: border-box;
   min-height: 132px;
+  max-height: min(68vh, 720px);
   max-width: 100%;
-  place-items: center;
   overflow: auto;
+  overscroll-behavior-x: contain;
   padding: 16px;
   border: 1px solid color-mix(in srgb, var(--po-divider) 70%, transparent);
   border-radius: 6px;
@@ -308,14 +369,15 @@
   cursor: default;
 }
 
-.markdown-codemirror-editor .cm-md-mermaid-preview svg {
+.markdown-codemirror-editor .cm-md-mermaid-svg-root {
   display: block;
-  max-width: 100%;
-  height: auto;
+  margin-inline: auto;
 }
 
 .markdown-codemirror-editor .cm-md-mermaid-preview.is-loading {
+  display: grid;
   align-content: center;
+  justify-items: center;
 }
 
 .markdown-codemirror-editor .cm-md-mermaid-loading {

@@ -19,7 +19,14 @@ export type MermaidRenderResult = {
 
 export type MermaidSvgMount = Readonly<{
   element: HTMLElement;
+  intrinsicSize: MermaidSvgIntrinsicSize | null;
+  setScale: (scale: number | "fit") => void;
   dispose: () => void;
+}>;
+
+export type MermaidSvgIntrinsicSize = Readonly<{
+  width: number;
+  height: number;
 }>;
 
 export type MermaidRenderRequest = {
@@ -38,6 +45,7 @@ export type MermaidThemeChangeUnsubscribe = () => void;
 const MERMAID_CACHE_LIMIT = 48;
 export const MERMAID_MAX_SOURCE_BYTES = 128 * 1024;
 export const MERMAID_MAX_SVG_BYTES = 4 * 1024 * 1024;
+const MERMAID_MAX_INTRINSIC_EDGE_PX = 4096;
 
 let mermaidModulePromise: Promise<MermaidModule> | null = null;
 let mermaidRenderQueue: Promise<void> = Promise.resolve();
@@ -325,18 +333,68 @@ export function mountSanitizedMermaidSvg(
   renderRoot.className = "po-safe-mermaid-svg-root";
   const shadowRoot = renderRoot.attachShadow({ mode: "open" });
   const style = document.createElement("style");
-  style.textContent = ":host{display:block;max-width:100%}svg{display:block;max-width:100%;height:auto}";
+  style.textContent = [
+    ":host{display:block;max-width:100%}",
+    "svg{display:block;max-width:100%;height:auto}",
+    ':host([data-mermaid-sizing="intrinsic"]){max-width:none}',
+    ':host([data-mermaid-sizing="intrinsic"]) svg{width:100%!important;max-width:none!important;height:auto!important}',
+  ].join("");
   const template = document.createElement("template");
   template.innerHTML = sanitizeMermaidSvg(svg);
+  const intrinsicSize = getMermaidSvgIntrinsicSize(template.content.querySelector("svg"));
   shadowRoot.append(style, template.content);
   bindInlineHtmlDomInteractions(shadowRoot, { openHref });
   host.replaceChildren(renderRoot);
+  const setScale = (scale: number | "fit") => {
+    if (scale === "fit" || !intrinsicSize) {
+      delete renderRoot.dataset.mermaidSizing;
+      renderRoot.style.removeProperty("width");
+      return;
+    }
+    const safeScale = Math.min(4, Math.max(0.05, Number.isFinite(scale) ? scale : 1));
+    renderRoot.dataset.mermaidSizing = "intrinsic";
+    renderRoot.style.width = `${roundMermaidCssPixel(intrinsicSize.width * safeScale)}px`;
+  };
   return Object.freeze({
     element: renderRoot,
+    intrinsicSize,
+    setScale,
     dispose: () => {
       if (renderRoot.parentNode === host) renderRoot.remove();
     },
   });
+}
+
+function getMermaidSvgIntrinsicSize(svg: SVGSVGElement | null): MermaidSvgIntrinsicSize | null {
+  if (!svg) return null;
+  const viewBox = svg.getAttribute("viewBox")
+    ?.trim()
+    .split(/[\s,]+/)
+    .map((part) => Number.parseFloat(part));
+  if (!viewBox || viewBox.length !== 4) return null;
+  const [, , viewBoxWidth, viewBoxHeight] = viewBox;
+  if (
+    !Number.isFinite(viewBoxWidth) ||
+    !Number.isFinite(viewBoxHeight) ||
+    viewBoxWidth <= 0 ||
+    viewBoxHeight <= 0
+  ) {
+    return null;
+  }
+
+  const safetyScale = Math.min(
+    1,
+    MERMAID_MAX_INTRINSIC_EDGE_PX / viewBoxWidth,
+    MERMAID_MAX_INTRINSIC_EDGE_PX / viewBoxHeight,
+  );
+  return Object.freeze({
+    width: roundMermaidCssPixel(viewBoxWidth * safetyScale),
+    height: roundMermaidCssPixel(viewBoxHeight * safetyScale),
+  });
+}
+
+function roundMermaidCssPixel(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 function isUnsafeMermaidSvgAttribute(attribute: Attr): boolean {

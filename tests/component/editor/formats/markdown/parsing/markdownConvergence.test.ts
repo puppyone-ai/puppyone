@@ -139,6 +139,40 @@ describe("Markdown HTML profile convergence", () => {
     expect(host.childElementCount).toBe(0);
   });
 
+  it("mounts dense Mermaid diagrams at a readable intrinsic scale", () => {
+    const host = document.createElement("div");
+    const mount = mountSanitizedMermaidSvg(
+      host,
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1640 620" style="max-width: 1640px"><text>Architecture</text></svg>',
+    );
+
+    expect(mount.intrinsicSize).toEqual({ width: 1640, height: 620 });
+    expect(mount.element.dataset.mermaidSizing).toBeUndefined();
+    expect(mount.element.style.width).toBe("");
+
+    mount.setScale(0.7);
+    expect(mount.element.dataset.mermaidSizing).toBe("intrinsic");
+    expect(mount.element.style.width).toBe("1148px");
+    expect(mount.element.shadowRoot?.querySelector("svg")?.getAttribute("viewBox")).toBe("0 0 1640 620");
+
+    mount.setScale("fit");
+    expect(mount.element.dataset.mermaidSizing).toBeUndefined();
+    expect(mount.element.style.width).toBe("");
+  });
+
+  it("keeps unmeasurable Mermaid fragments on the safe fit-width fallback", () => {
+    const host = document.createElement("div");
+    const mount = mountSanitizedMermaidSvg(
+      host,
+      '<svg xmlns="http://www.w3.org/2000/svg"><text>Fallback</text></svg>',
+    );
+
+    mount.setScale(1);
+    expect(mount.intrinsicSize).toBeNull();
+    expect(mount.element.dataset.mermaidSizing).toBeUndefined();
+    expect(mount.element.style.width).toBe("");
+  });
+
   it("rejects oversized Mermaid source before loading the renderer", async () => {
     await expect(renderMermaidDiagram({ source: "x".repeat(MERMAID_MAX_SOURCE_BYTES + 1) }))
       .rejects.toThrow(/source exceeds/i);
