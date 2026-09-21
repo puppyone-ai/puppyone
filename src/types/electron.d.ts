@@ -943,6 +943,13 @@ export type DesktopThemeMenuState = Readonly<{
 declare global {
   interface Window {
     puppyoneDesktop?: {
+      mermaid?: {
+        render: (request: { id: string; source: string; config: import("mermaid").MermaidConfig }) => Promise<{
+          ok: boolean; svg?: string; error?: string;
+          timings?: { engineMs: number; fontMs: number; renderMs: number; queueMs: number; hostMs: number };
+        }>;
+        cancel: (id: string) => Promise<void>;
+      };
       connectAgentSession: (request: import("../../shared/session-transport/types").AgentConnectionRequest) => Promise<import("../../shared/session-transport/types").SessionConnection>;
       terminateItemExecution: import("../../shared/item-host-contract/lifecycle").ItemLifecyclePort["terminateItemExecution"];
       retryItemExecutionCleanup: import("../../shared/item-host-contract/lifecycle").ItemLifecyclePort["retryItemExecutionCleanup"];

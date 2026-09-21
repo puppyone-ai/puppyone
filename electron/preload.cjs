@@ -5,6 +5,10 @@ const MAX_INLINE_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 let pendingInlineAttachmentBytes = 0;
 
 contextBridge.exposeInMainWorld("puppyoneDesktop", {
+  mermaid: {
+    render: (request) => ipcRenderer.invoke("mermaid:render", request),
+    cancel: (id) => ipcRenderer.invoke("mermaid:cancel", id),
+  },
   connectAgentSession: (request) => ipcRenderer.invoke("agent:session-connect", request),
   terminateItemExecution: (request) => ipcRenderer.invoke("item-execution:terminate", request),
   retryItemExecutionCleanup: (request) => ipcRenderer.invoke("item-execution:retry-cleanup", request),

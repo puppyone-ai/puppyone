@@ -69,6 +69,7 @@
     "smoke:markdown-table-inline-viewport": "electron tests/integration/editor/formats/markdown/tables/markdown-table-inline-viewport.smoke.mjs",
     "smoke:markdown-pane-focus-continuity": "electron tests/integration/workbench/focus/markdown-pane-focus-continuity.smoke.mjs",
     "smoke:markdown-layout": "electron tests/integration/editor/formats/markdown/rendering/markdown-layout.smoke.mjs",
+    "smoke:mermaid-runtime": "electron tests/integration/editor/formats/markdown/rendering/mermaid-process-isolation.smoke.mjs",
     "smoke:markdown-selection-stability": "node tests/support/runners/run-markdown-selection-smoke.mjs",
     "smoke:native-resize-cursor": "electron tests/integration/platform/native-surfaces/native-resize-cursor.smoke.mjs",
     "smoke:editor-runtime-lifecycle": "electron tests/integration/editor/runtime/editor-runtime-lifecycle.smoke.mjs",

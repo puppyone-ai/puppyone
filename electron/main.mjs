@@ -70,6 +70,9 @@ import { registerPlatformIpcHandlers } from "./main/ipc/platform-ipc.mjs";
 import { registerCloudIpcHandlers } from "./main/ipc/cloud-ipc.mjs";
 import { registerCloudPublishIpcHandlers } from "./main/ipc/cloud-publish-ipc.mjs";
 import { registerMarkdownWebEmbedIpcHandlers } from "./main/ipc/markdown-web-embed-ipc.mjs";
+import { registerMermaidIpc } from "./main/ipc/mermaid-ipc.mjs";
+import { createMermaidRenderService } from "./main/mermaid/render-service.mjs";
+import { createMermaidRendererHost } from "./main/mermaid/renderer-host.mjs";
 import {
   attachMarkdownFormatShortcuts,
   registerMarkdownFormatIpcHandlers,
@@ -217,6 +220,12 @@ if (!app.isPackaged && !devServerUrl) {
   }
 }
 const rendererApplicationUrl = devServerUrl || pathToFileURL(rendererDistPath).toString();
+const mermaidRenderService = createMermaidRenderService({
+  createHost: () => createMermaidRendererHost({ WebContentsView, session: electronSession,
+    url: new URL("mermaid-renderer.html", rendererApplicationUrl).href,
+    preload: path.join(__dirname, "mermaid-preload.cjs"),
+  }),
+});
 if (devServerUrl) app.commandLine.appendSwitch("remote-debugging-port", "9222");
 const viewerPackFeatureProfile = resolveViewerPackFeatureProfile({
   packageMetadata,
@@ -954,6 +963,7 @@ app.on("window-all-closed", () => {
 // renderer Document Sessions to drain. `will-quit` runs only after every
 // window accepted closing, so a failed flush can safely leave the app usable.
 app.on("will-quit", () => {
+  void mermaidRenderService.dispose().catch(console.error);
   stopLocaleNativeRefresh?.();
   localeService.dispose();
   cloudAuthService.dispose();
@@ -995,6 +1005,7 @@ app.on("before-quit", createApplicationCloseCoordinator({
 }));
 
 function registerIpcHandlers() {
+  registerMermaidIpc({ ipcMain: trustedIpcMain, service: mermaidRenderService });
   registerSessionConnectionIpcHandlers({ ipcMain: trustedIpcMain, MessageChannelMain, projectSessions, agentService, terminalService });
   registerItemLifecycleIpc({ ipcMain: trustedIpcMain, lifecycle: itemLifecycle, projectSessions, manage: manageItemExecutions });
   registerProjectSessionIpc({ ipcMain: trustedIpcMain, projectSessions });

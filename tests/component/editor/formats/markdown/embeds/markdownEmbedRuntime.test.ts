@@ -29,17 +29,19 @@ import {
 import type { MarkdownInlinePreviewRenderer } from "../../../../../../packages/shared-ui/src/editor/markdown/shared/preview/markdownInlinePreviewPort";
 
 const mermaidMocks = vi.hoisted(() => ({
-  render: vi.fn(async () => ({
+  render: vi.fn(async (_request: unknown) => ({
     svg: "<svg><text>diagram</text></svg>",
     cacheKey: "test-cache",
     themeKey: "test-theme",
   })),
   setScale: vi.fn(),
+  peek: vi.fn(() => null as null | { svg: string; cacheKey: string; themeKey: string }),
   subscribe: vi.fn(() => () => undefined),
 }));
 
 vi.mock("../../../../../../packages/shared-ui/src/editor/markdown/features/mermaid/mermaidRenderer", () => ({
   getMermaidThemeSnapshot: () => ({ key: "test-theme", config: {} }),
+  peekMermaidDiagram: mermaidMocks.peek,
   mountSanitizedMermaidSvg: (host: HTMLElement) => {
     const element = document.createElement("span");
     host.replaceChildren(element);
@@ -68,6 +70,7 @@ afterEach(() => {
   }
   document.body.replaceChildren();
   vi.clearAllMocks();
+  mermaidMocks.peek.mockReturnValue(null);
 });
 
 function createView(source: string): EditorView {
@@ -676,9 +679,23 @@ describe("Markdown embedded runtime", () => {
     const nextRevision = getDocRevision(view.state.doc);
     host.executionSessions.destroyForRevisionChange(previousRevision, nextRevision);
     expect(host.executionSessions.values()).toHaveLength(0);
+    const request = mermaidMocks.render.mock.calls[0]?.[0] as unknown as { signal: AbortSignal };
+    expect(request.signal.aborted).toBe(true);
 
     await Promise.resolve();
     await Promise.resolve();
+    widget.destroy(dom);
+  });
+
+  it("mounts cached Mermaid output synchronously without loading or a new render", () => {
+    mermaidMocks.peek.mockReturnValue({ svg: "<svg />", cacheKey: "warm", themeKey: "test-theme" });
+    const source = "```mermaid\ngraph TD; A-->B\n```";
+    const view = createView(source);
+    const widget = new MermaidBlockWidget("graph TD; A-->B", "mermaid", 0, source.length);
+    const dom = widget.toDOM(view); view.dom.appendChild(dom);
+    expect(dom.querySelector(".cm-md-mermaid-preview")?.classList.contains("is-loading")).toBe(false);
+    expect(dom.querySelector<HTMLElement>(".cm-md-mermaid-zoom-controls")?.hidden).toBe(false);
+    expect(mermaidMocks.render).not.toHaveBeenCalled();
     widget.destroy(dom);
   });
 

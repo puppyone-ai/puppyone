@@ -43,6 +43,8 @@ import { CodeMirrorFindAdapter } from "../find/codeMirrorFindAdapter";
 import { useRegisterEditorFindAdapter } from "../find/editorFind";
 import { useEditorAppearanceRevision } from "../../core/appearance/EditorAppearanceContext";
 import { useDocumentModelOwner } from "../document-session/DocumentModelOwner";
+import { useEditorTaskOwner } from "../runtime/EditorTaskContext";
+import { markdownTaskOwner } from "./platform/codemirror/markdownTaskOwner";
 import { CodeMirrorDocumentModel, externalDocumentUpdate } from "../document-session/CodeMirrorDocumentModel";
 
 const rendererPerformance = getRendererPerformanceTracker();
@@ -102,6 +104,8 @@ export function MarkdownCodeMirrorEditor({
   onPreviewError,
 }: MarkdownCodeMirrorEditorProps) {
   const appearanceRevision = useEditorAppearanceRevision();
+  const taskOwner = useEditorTaskOwner();
+  const taskOwnerCompartment = useRef(new Compartment());
   const { direction, formatNumber, locale, t } = useLocalization();
   const localization = useMemo(
     () => ({ direction, formatNumber, locale, t }),
@@ -258,6 +262,7 @@ export function MarkdownCodeMirrorEditor({
       },
       state: model.createViewState([
           ...markdownCodeMirrorUrgentExtensions(initialConfig.readOnly, false),
+          taskOwnerCompartment.current.of(markdownTaskOwner.of(taskOwner)),
           findAdapter.extension,
           localizationCompartmentRef.current.of(
             markdownLocalizationExtension(initialLocalizationRef.current, initialConfig.readOnly),
@@ -337,6 +342,10 @@ export function MarkdownCodeMirrorEditor({
       if (!modelOwner) model.dispose();
     };
   }, [findAdapter, modelOwner]);
+
+  useLayoutEffect(() => {
+    viewRef.current?.dispatch({ effects: taskOwnerCompartment.current.reconfigure(markdownTaskOwner.of(taskOwner)) });
+  }, [taskOwner]);
 
   useEffect(() => {
     const view = viewRef.current;

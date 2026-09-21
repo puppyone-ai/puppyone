@@ -1,5 +1,7 @@
 import {
   getMermaidThemeSnapshot,
+  peekMermaidDiagram,
+  useEditorTaskOwner,
   mountSanitizedMermaidSvg,
   renderMermaidDiagram,
   subscribeMermaidThemeChanges,
@@ -12,15 +14,18 @@ import { useAgentMarkdownEnvironment } from "./AgentMarkdownEnvironment";
 import { AgentMarkdownSourceBlock } from "./AgentMarkdownSourceBlock";
 import type { AgentMarkdownRichBlockProps } from "./agentMarkdownBlockRegistry";
 
-type MermaidState = "deferred" | "loading" | "ready" | "failed";
+type MermaidState = "deferred" | "pending" | "loading" | "ready" | "failed";
 
 export function AgentMarkdownMermaidBlock({ source }: AgentMarkdownRichBlockProps) {
   const { t } = useLocalization();
   const { openExternalUrl } = useAgentMarkdownEnvironment();
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const mountRef = useRef<MermaidSvgMount | null>(null);
+  const themeKeyRef = useRef("");
+  const owner = useEditorTaskOwner();
   const [visible, setVisible] = useState(() => typeof IntersectionObserver === "undefined");
   const [themeRevision, setThemeRevision] = useState(0);
-  const [state, setState] = useState<MermaidState>(visible ? "loading" : "deferred");
+  const [state, setState] = useState<MermaidState>(visible ? "pending" : "deferred");
 
   useEffect(() => {
     const host = hostRef.current;
@@ -34,36 +39,54 @@ export function AgentMarkdownMermaidBlock({ source }: AgentMarkdownRichBlockProp
     return () => observer.disconnect();
   }, [visible]);
 
-  useEffect(() => subscribeMermaidThemeChanges(() => setThemeRevision((value) => value + 1)), []);
+  useEffect(() => subscribeMermaidThemeChanges(() => {
+    if (hostRef.current && getMermaidThemeSnapshot(hostRef.current).key !== themeKeyRef.current) {
+      setThemeRevision((value) => value + 1);
+    }
+  }), []);
+
+  useEffect(() => () => { mountRef.current?.dispose(); mountRef.current = null; }, []);
 
   useEffect(() => {
     const host = hostRef.current;
     if (!host || !visible) return;
-    let cancelled = false;
-    let mount: MermaidSvgMount | null = null;
-    setState("loading");
-    void renderMermaidDiagram({ source, theme: getMermaidThemeSnapshot(host) }).then((result) => {
-      if (cancelled) return;
-      mount = mountSanitizedMermaidSvg(host, result.svg, openExternalUrl);
+    const controller = new AbortController();
+    const theme = getMermaidThemeSnapshot(host);
+    themeKeyRef.current = theme.key;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const present = (svg: string) => {
+      clearTimeout(timer);
+      mountRef.current?.dispose();
+      mountRef.current = mountSanitizedMermaidSvg(host, svg, openExternalUrl);
       setState("ready");
+    };
+    try {
+      const cached = peekMermaidDiagram(source, theme);
+      if (cached) { present(cached.svg); return; }
+    } catch { /* report through the render error path */ }
+    if (!mountRef.current) {
+      setState("pending");
+      timer = setTimeout(() => setState("loading"), 150);
+    }
+    void renderMermaidDiagram({ source, theme, signal: controller.signal, owner: owner ?? undefined }).then((result) => {
+      if (controller.signal.aborted) return;
+      present(result.svg);
     }).catch(() => {
-      if (cancelled) return;
-      host.replaceChildren();
+      clearTimeout(timer);
+      if (controller.signal.aborted) return;
       setState("failed");
     });
     return () => {
-      cancelled = true;
-      mount?.dispose();
+      clearTimeout(timer);
+      controller.abort();
     };
-  }, [openExternalUrl, source, themeRevision, visible]);
-
-  if (state === "failed") return <AgentMarkdownSourceBlock language="mermaid" source={source} />;
+  }, [openExternalUrl, owner, source, themeRevision, visible]);
 
   return (
     <figure className={`desktop-agent-mermaid is-${state}`}>
       <figcaption>{t("agent.markdown.diagram")}</figcaption>
       <div className="desktop-agent-mermaid-stage">
-        {state !== "ready" && (
+        {state === "loading" && (
           <InlineLoading
             label={null}
             size="xs"
@@ -71,7 +94,8 @@ export function AgentMarkdownMermaidBlock({ source }: AgentMarkdownRichBlockProp
             ariaLabel={t("agent.markdown.diagramRendering")}
           />
         )}
-        <div ref={hostRef} className="desktop-agent-mermaid-host" />
+        {state === "failed" && <AgentMarkdownSourceBlock language="mermaid" source={source} />}
+        <div ref={hostRef} className="desktop-agent-mermaid-host" hidden={state === "failed"} />
       </div>
     </figure>
   );

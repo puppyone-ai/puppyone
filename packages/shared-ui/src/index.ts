@@ -85,6 +85,8 @@ export {
 } from "./core/typography";
 export {
   getMermaidThemeSnapshot,
+  configureMermaidRenderTransport,
+  peekMermaidDiagram,
   mountSanitizedMermaidSvg,
   normalizeContentLanguage,
   renderMermaidDiagram,
@@ -95,6 +97,7 @@ export type {
   MarkdownContentLanguageResolution,
   MarkdownContentLanguageSource,
   MermaidRenderRequest,
+  MermaidRenderTransport,
   MermaidRenderResult,
   MermaidSvgMount,
   MermaidThemeSnapshot,

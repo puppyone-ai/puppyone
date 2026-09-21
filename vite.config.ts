@@ -103,6 +103,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         index: path.resolve(fileURLToPath(new URL("./", import.meta.url)), "index.html"),
+        mermaid: path.resolve(fileURLToPath(new URL("./", import.meta.url)), "mermaid-renderer.html"),
       },
     },
   },
