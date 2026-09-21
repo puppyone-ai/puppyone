@@ -80,7 +80,7 @@ it.each([false, true])("hides billing after logout even if the managed snapshot 
   await act(async () => root?.render(withTestLocalization(<AccountAICredits signedIn={false} store={store} onSignIn={onSignIn} />)));
   expect(host.textContent).not.toContain("Trial credit");
   expect(host.textContent).not.toContain("$0.75");
-  expect(host.textContent).toContain("$1.00");
+  expect(host.textContent).not.toContain("$1.00");
   expect(host.textContent).not.toContain("$5.00");
   expect(host.textContent).not.toContain("$0.00");
   expect(host.textContent).not.toContain("Latest usage");
@@ -89,7 +89,7 @@ it.each([false, true])("hides billing after logout even if the managed snapshot 
   expect(host.querySelector(".desktop-settings-subsection-detail")).toBeNull();
   expect(host.querySelector('[role="alert"]')).toBeNull();
   expect(host.textContent).not.toMatch(/Cloud hosting|Pro|Team|\$15|\$30/);
-  const signIn = [...host.querySelectorAll("button")].find((button) => button.textContent === "Sign in to claim $1.00")!;
+  const signIn = [...host.querySelectorAll("button")].find((button) => button.textContent === "Sign in")!;
   expect(store.getSnapshot().pending.managed).toBe(true);
   expect(signIn.disabled).toBe(false);
   await act(async () => signIn.click());

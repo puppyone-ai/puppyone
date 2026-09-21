@@ -59,7 +59,7 @@ export function AccountAICredits({ store: providedStore, signedIn, onSignIn, sig
           <div className="desktop-settings-value desktop-settings-account-actions">
             <button type="button" className="desktop-settings-action primary" disabled={signInDisabled || (!onSignIn && state.pending.managed)}
               onClick={() => onSignIn ? onSignIn() : void store.managed({ action: "sign-in" })}>
-              {t((credit?.trialCreditMicroUsd ?? 0) > 0 ? "agent.compute.signInTrial" : "agent.compute.signIn", { amount: money(credit?.trialCreditMicroUsd ?? 0) })}
+              {t("cloud.auth.signIn")}
             </button>
           </div>
         </div>
