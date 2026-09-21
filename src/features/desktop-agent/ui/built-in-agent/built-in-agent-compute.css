@@ -31,8 +31,9 @@
   .desktop-agent-compute-summary > .desktop-agent-picker { margin-inline-start: auto; min-width: 0; }
 
   .desktop-agent-compute-customize {
-    align-self: flex-start;
-    padding: 2px 0;
+    min-height: var(--po-control-size-compact);
+    margin-inline-start: auto;
+    padding: 0;
     border: 0;
     background: transparent;
     color: var(--agent-text-muted);
@@ -50,44 +51,48 @@
     min-width: 0;
     flex-direction: column;
     gap: 12px;
-    padding: 16px;
+    padding: 12px;
     border: 1px solid var(--agent-border-subtle);
     border-radius: var(--agent-radius-composer);
     background: var(--agent-canvas);
+    text-align: start;
   }
 
   .desktop-agent-access-copy { display: flex; flex-direction: column; gap: 6px; }
   .desktop-agent-access-copy > strong {
     color: var(--agent-text);
-    font-size: var(--agent-font-size);
-    font-weight: var(--po-text-weight-semibold);
+    font-size: inherit;
+    font-weight: var(--po-text-weight-medium);
     line-height: 1.5;
   }
 
   .desktop-agent-access-copy > p { margin: 0; }
 
-  .desktop-agent-access-actions { display: flex; flex-direction: column; gap: 8px; }
+  .desktop-agent-access-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+  }
 
   .desktop-agent-compute .desktop-agent-access-primary {
-    display: flex;
-    width: 100%;
-    min-height: var(--po-control-size-large);
+    display: inline-flex;
+    flex: 0 0 auto;
+    height: var(--po-control-size-compact);
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    padding: 8px 12px;
+    padding: 0 10px;
     border: 1px solid transparent;
     border-radius: 6px;
     background: var(--agent-text);
     color: var(--agent-canvas);
-    font-size: var(--agent-font-size);
+    font-size: inherit;
     font-weight: var(--po-text-weight-medium);
     text-align: center;
-    text-wrap: balance;
+    white-space: nowrap;
   }
 
-  .desktop-agent-access-primary > svg { flex-shrink: 0; }
   .desktop-agent-compute .desktop-agent-access-primary:hover:not(:disabled) { background: var(--agent-primary-hover-surface); }
-  .desktop-agent-access-prompt > .desktop-agent-compute-customize { align-self: center; text-align: center; }
   .desktop-agent-compute .desktop-agent-access-prompt > small { font: inherit; }
 }

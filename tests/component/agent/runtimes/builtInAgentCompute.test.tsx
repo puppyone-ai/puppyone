@@ -103,7 +103,7 @@ it("keeps the initial managed summary free of account and billing details", asyn
   expect(document.body.textContent).not.toContain("Available:");
   expect(document.body.textContent).not.toContain("Sandbox");
   expect(document.body.textContent).not.toContain("Refresh balance");
-  expect(document.body.textContent).not.toContain("Bring your own API or local model");
+  expect(document.body.textContent).not.toContain("Your API or local model");
   expect(document.querySelector(".desktop-agent-compute-editor, input, select")).toBeNull();
   expect(document.querySelector('button[aria-label="Agent model"]')).toBeNull();
 
@@ -135,7 +135,7 @@ it("restores a ready custom route while keeping management in Settings", async (
   expect(document.querySelector(".desktop-agent-compute-summary")?.textContent).toContain("Local Llama");
   expect(document.body.textContent).not.toContain("Uses your account balance");
   expect(onReadyChange).toHaveBeenLastCalledWith(true);
-  expect(document.body.textContent).not.toContain("Bring your own API or local model");
+  expect(document.body.textContent).not.toContain("Your API or local model");
   expect(onOpenModelConnections).not.toHaveBeenCalled();
   expect(onReadyChange).toHaveBeenLastCalledWith(true);
 });
@@ -154,9 +154,9 @@ it("asks the controller to refresh when the shared connection catalog arrives", 
 
 it("opens email sign-in without selecting a paid model or sending a turn", async () => {
   const { client, onOpenModelConnections, onSelectModel, onReadyChange } = await render({ empty: true, accessPrompt: true });
-  await act(async () => button("Sign in with email").click());
+  await act(async () => button("Sign in to start").click());
   expect(client.managed).toHaveBeenCalledWith({ action: "sign-in" });
-  act(() => button("Bring your own API or local model").click());
+  act(() => button("Your API or local model").click());
   expect(onOpenModelConnections).toHaveBeenCalledTimes(1);
   expect(onReadyChange).toHaveBeenLastCalledWith(false);
   expect(onSelectModel).not.toHaveBeenCalled();
@@ -165,7 +165,7 @@ it("opens email sign-in without selecting a paid model or sending a turn", async
 it("labels a failed browser handoff as a sign-in problem", async () => {
   const { client } = await render({ empty: true, accessPrompt: true });
   vi.mocked(client.managed!).mockRejectedValueOnce(new Error("AUTHENTICATION_FAILED"));
-  await act(async () => button("Sign in with email").click());
+  await act(async () => button("Sign in to start").click());
   expect(document.querySelector('[role="alert"]')?.textContent)
     .toBe("Could not open the sign-in page. Please retry.");
   expect(document.body.textContent).not.toContain("Could not refresh Agent credits");
@@ -191,7 +191,7 @@ it("offers the server-configured trial only after the first send attempt", async
   expect(document.querySelector(".desktop-agent-compute-summary")).toBeNull();
   expect([...document.querySelectorAll("button")].some((entry) => entry.textContent === "Refresh balance")).toBe(false);
   expect(document.body.textContent).toContain("One-time $1 AI credit per account");
-  await act(async () => button("Sign in to claim $1").click());
+  await act(async () => button("Sign in to start").click());
   expect(client.managed).toHaveBeenCalledWith({ action: "sign-in" });
   expect(client.managed).not.toHaveBeenCalledWith(expect.objectContaining({ action: "checkout" }));
 });
@@ -205,7 +205,7 @@ it("keeps funded managed compute to source and model only", async () => {
   expect(document.body.textContent).not.toContain("Refresh balance");
   expect(document.body.textContent).not.toContain("One-time trial credit");
   expect(document.body.textContent).not.toContain("Ready. Press Send");
-  expect(document.body.textContent).not.toContain("Bring your own API or local model");
+  expect(document.body.textContent).not.toContain("Your API or local model");
   expect(onReadyChange).toHaveBeenLastCalledWith(true);
   expect(client.managed).not.toHaveBeenCalled();
   expect(onSelectModel).not.toHaveBeenCalled();

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { ArrowRight, KeyRound, Server, Sparkles } from "lucide-react";
+import { KeyRound, Server, Sparkles } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import type { AgentModel } from "../../domain/agent-contract";
 import { useModelConnections, type ModelConnectionStore } from "../../../model-connections";
@@ -116,16 +116,14 @@ export function BuiltInAgentCompute({
       <div className="desktop-agent-access-actions">
         {!managed?.signedIn ? <button type="button" className="desktop-agent-access-primary" disabled={disabled || state.pending.managed}
           onClick={() => void store.managed({ action: "sign-in" })}>
-          <span>{t((managed?.trialCreditMicroUsd ?? 0) > 0 ? "agent.compute.signInTrial" : "agent.compute.signIn", { amount: money(managed?.trialCreditMicroUsd ?? 0) })}</span>
-          <ArrowRight size={15} aria-hidden="true" />
+          {t("agent.compute.signInToStart")}
         </button> : managed.reason === "insufficient-credit" ? <button type="button" className="desktop-agent-access-primary"
           disabled={disabled} onClick={onOpenAccount}>
           <span>{t("agent.compute.manageBalance")}</span>
-          <ArrowRight size={15} aria-hidden="true" />
         </button> : <button type="button" className="desktop-agent-access-primary" disabled={state.pending.managed}
           onClick={() => void store.managed({ action: "refresh" })}>{t("agent.compute.refreshBalance")}</button>}
+        {!managed?.signedIn && customize}
       </div>
-      {!managed?.signedIn && customize}
       {(state.error || managed?.errorCode) && <small role="alert">{operationError}</small>}
     </div>}
   </section>;
