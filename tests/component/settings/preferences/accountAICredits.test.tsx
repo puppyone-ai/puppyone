@@ -35,7 +35,7 @@ it("shows personal credit and one-time top-up without any hosting subscription",
     subscribe: () => () => {}, managed,
   };
   const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
-  await act(async () => root?.render(withTestLocalization(<AccountAICredits store={new ModelConnectionStore(client)} />)));
+  await act(async () => root?.render(withTestLocalization(<AccountAICredits signedIn store={new ModelConnectionStore(client)} />)));
   expect(host.textContent).toContain("$0.75");
   expect(host.textContent).toContain("$1.00");
   expect(host.textContent).toContain("Sandbox");
@@ -56,24 +56,58 @@ it("shows personal credit and one-time top-up without any hosting subscription",
   expect(topUp.disabled).toBe(false);
 });
 
-it("shows the trial and recharge amounts before login without offering a subscription", async () => {
+it.each([false, true])("hides billing after logout even if the managed snapshot is still signed in: %s", async (managedSignedIn) => {
   const snapshot: ModelConnectionSnapshot = { schemaVersion: 1, revision: 1, connections: [], catalogs: [],
-    managed: { available: false, reason: "sign-in-required", signedIn: false, trialCreditMicroUsd: 1_000_000,
-      packs: [{ id: "starter", name: "AI credit", price_cents: 500, credit_micro_usd: 5_000_000 }] } };
-  const managed = vi.fn(async () => snapshot);
+    managed: { available: managedSignedIn, reason: managedSignedIn ? "ready" : "sign-in-required",
+      signedIn: managedSignedIn, trialCreditMicroUsd: 1_000_000,
+      availableMicroUsd: 750_000, trialGrantedMicroUsd: 1_000_000,
+      errorCode: "GATEWAY_UNAVAILABLE",
+      packs: [{ id: "starter", name: "AI credit", price_cents: 500, credit_micro_usd: 5_000_000 }],
+      lastUsage: { reservationId: "stale-receipt", modelId: "example-model", status: "settled", chargedMicroUsd: 47,
+        priceBookId: "prices-1", inputTokens: 10, cachedTokens: 4, outputTokens: 20 },
+      modelPrices: [{ modelId: "example-model", name: "Example Model", inputMicroUsdPerMillion: 1_000_000,
+        cachedMicroUsdPerMillion: 100_000, outputMicroUsdPerMillion: 2_000_000 }] } };
+  let finishRefresh: (value: ModelConnectionSnapshot) => void;
+  const managed = vi.fn(() => new Promise<ModelConnectionSnapshot>((resolve) => { finishRefresh = resolve; }));
   const client: ModelConnectionClientPort = { read: async () => snapshot, save: async () => snapshot,
     remove: async () => snapshot, refresh: async () => snapshot, verify: async () => snapshot,
     discover: async () => [], subscribe: () => () => {}, managed };
   const onSignIn = vi.fn();
+  const store = new ModelConnectionStore(client);
   const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
-  await act(async () => root?.render(withTestLocalization(<AccountAICredits store={new ModelConnectionStore(client)} onSignIn={onSignIn} />)));
-  expect(host.textContent).toContain("Trial credit");
+  await act(async () => root?.render(withTestLocalization(<AccountAICredits signedIn={managedSignedIn} store={store} onSignIn={onSignIn} />)));
+  if (managedSignedIn) expect(host.textContent).toContain("$0.75");
+  await act(async () => root?.render(withTestLocalization(<AccountAICredits signedIn={false} store={store} onSignIn={onSignIn} />)));
+  expect(host.textContent).not.toContain("Trial credit");
+  expect(host.textContent).not.toContain("$0.75");
   expect(host.textContent).toContain("$1.00");
-  expect(host.textContent).toContain("$5.00");
+  expect(host.textContent).not.toContain("$5.00");
   expect(host.textContent).not.toContain("$0.00");
+  expect(host.textContent).not.toContain("Latest usage");
+  expect(host.textContent).not.toContain("Model prices per million tokens");
+  expect(host.textContent).not.toContain("Example Model");
+  expect(host.querySelector(".desktop-settings-subsection-detail")).toBeNull();
+  expect(host.querySelector('[role="alert"]')).toBeNull();
   expect(host.textContent).not.toMatch(/Cloud hosting|Pro|Team|\$15|\$30/);
   const signIn = [...host.querySelectorAll("button")].find((button) => button.textContent === "Sign in to claim $1.00")!;
+  expect(store.getSnapshot().pending.managed).toBe(true);
+  expect(signIn.disabled).toBe(false);
   await act(async () => signIn.click());
   expect(onSignIn).toHaveBeenCalledOnce();
   expect(managed).not.toHaveBeenCalledWith(expect.objectContaining({ action: "checkout" }));
+  await act(async () => finishRefresh!(snapshot));
+  expect(host.textContent).not.toContain("$0.75");
+  expect(host.textContent).not.toContain("Example Model");
+});
+
+it("does not ask a signed-in account to log in again while its wallet is loading", async () => {
+  const snapshot: ModelConnectionSnapshot = { schemaVersion: 1, revision: 1, connections: [], catalogs: [],
+    managed: { available: false, reason: "sign-in-required", signedIn: false } };
+  const client: ModelConnectionClientPort = { read: async () => snapshot, save: async () => snapshot,
+    remove: async () => snapshot, refresh: async () => snapshot, verify: async () => snapshot,
+    discover: async () => [], subscribe: () => () => {}, managed: async () => snapshot };
+  const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
+  await act(async () => root?.render(withTestLocalization(<AccountAICredits signedIn store={new ModelConnectionStore(client)} />)));
+  expect(host.querySelector("button")).toBeNull();
+  expect(host.textContent).not.toMatch(/\$|Sign in|Model prices/);
 });

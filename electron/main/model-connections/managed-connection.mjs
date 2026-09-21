@@ -80,6 +80,7 @@ export function withManagedConnection({ connections, getAuth, apiBase, requestPu
       trialClaimedFor = null;
       lastReservationId = null;
       lastUsage = null;
+      error = null;
       lastRefresh = 0;
       publish();
     }

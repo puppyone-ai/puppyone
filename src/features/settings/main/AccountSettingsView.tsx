@@ -148,6 +148,7 @@ export function AccountSettingsView({
             )}
           </SettingsSubsection>
           {sessionMatchesService && <AccountAICredits key={cloudSession?.user_id ?? "signed-out"}
+            signedIn={signedIn && !cloudSessionRestoring && cloudSession?.status !== "signing-out" && operation !== "signout"}
             onSignIn={() => void startWebSignIn()} signInDisabled={busy || !desktopOAuthAvailable} />}
         </div>
       </div>

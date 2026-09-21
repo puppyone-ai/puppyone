@@ -4,14 +4,16 @@ import { useModelConnections, type ModelConnectionStore } from "../../model-conn
 import { SettingsSubsection, SettingsValueRow } from "../components";
 
 /** Personal billing stays available independently of experimental Cloud hosting. */
-export function AccountAICredits({ store: providedStore, onSignIn, signInDisabled = false }: {
+export function AccountAICredits({ store: providedStore, signedIn, onSignIn, signInDisabled = false }: {
   store?: ModelConnectionStore;
+  signedIn: boolean;
   onSignIn?: () => void;
   signInDisabled?: boolean;
 }) {
   const { t } = useLocalization();
   const { state, store } = useModelConnections(providedStore);
   const credit = state.snapshot?.managed;
+  const showAccount = signedIn && credit?.signedIn;
   const operationError = state.error === "AUTHENTICATION_FAILED"
     ? t("agent.compute.signInUnavailable")
     : t("agent.compute.paymentUnavailable");
@@ -28,8 +30,9 @@ export function AccountAICredits({ store: providedStore, onSignIn, signInDisable
   }, [store]);
 
   return <>
-    <SettingsSubsection title={t("agent.compute.walletTitle")} detail={t("agent.compute.walletDetail")}>
-      {credit?.signedIn ? <>
+    <SettingsSubsection title={showAccount ? t("agent.compute.walletTitle") : undefined}
+      detail={showAccount ? t("agent.compute.walletDetail") : undefined}>
+      {showAccount ? <>
         <SettingsValueRow label={t("agent.compute.availableBalance")}
           value={credit.reason === "gateway-unavailable" ? "—" : money(credit.availableMicroUsd ?? 0)} />
         {(credit?.trialGrantedMicroUsd ?? 0) > 0 && <SettingsValueRow label={t("agent.compute.trialCredit")}
@@ -50,24 +53,21 @@ export function AccountAICredits({ store: providedStore, onSignIn, signInDisable
               onClick={() => void store.managed({ action: "refresh" })}>{t("agent.compute.refreshBalance")}</button>
           </div>
         </div>
-      </> : <>
-        {(credit?.trialCreditMicroUsd ?? 0) > 0 && <SettingsValueRow label={t("agent.compute.trialCredit")}
-          value={money(credit?.trialCreditMicroUsd ?? 0)} />}
-        {(credit?.packs?.length ?? 0) > 0 && <SettingsValueRow label={t("agent.compute.topUpOptions")}
-          value={credit?.packs?.map((pack) => money(pack.price_cents * 10_000)).join(" · ")} />}
+      </> : !signedIn ? <>
         <div className="desktop-settings-row desktop-settings-row-control">
           <span>{t("settings.account.authentication")}</span>
           <div className="desktop-settings-value desktop-settings-account-actions">
-            <button type="button" className="desktop-settings-action primary" disabled={signInDisabled || state.pending.managed}
+            <button type="button" className="desktop-settings-action primary" disabled={signInDisabled || (!onSignIn && state.pending.managed)}
               onClick={() => onSignIn ? onSignIn() : void store.managed({ action: "sign-in" })}>
               {t((credit?.trialCreditMicroUsd ?? 0) > 0 ? "agent.compute.signInTrial" : "agent.compute.signIn", { amount: money(credit?.trialCreditMicroUsd ?? 0) })}
             </button>
           </div>
         </div>
-      </>}
-      {(state.error || credit?.errorCode) && <div className="desktop-settings-account-feedback danger" role="alert">{operationError}</div>}
+      </> : null}
+      {((showAccount && (state.error || credit?.errorCode)) || state.error === "AUTHENTICATION_FAILED") &&
+        <div className="desktop-settings-account-feedback danger" role="alert">{operationError}</div>}
     </SettingsSubsection>
-    {credit?.lastUsage && <SettingsSubsection title={t("agent.compute.latestUsage")}>
+    {showAccount && credit.lastUsage && <SettingsSubsection title={t("agent.compute.latestUsage")}>
       <SettingsValueRow label={t("agent.model.placeholder")} value={credit.lastUsage.modelId} />
       <SettingsValueRow label={t("agent.compute.usageCharge")} value={credit.lastUsage.status === "settled"
         ? money(credit.lastUsage.chargedMicroUsd ?? 0)
@@ -77,7 +77,7 @@ export function AccountAICredits({ store: providedStore, onSignIn, signInDisable
         output: credit.lastUsage.outputTokens ?? 0,
       })} />}
     </SettingsSubsection>}
-    {(credit?.modelPrices?.length ?? 0) > 0 && <SettingsSubsection title={t("agent.compute.modelPrices")}>
+    {showAccount && (credit.modelPrices?.length ?? 0) > 0 && <SettingsSubsection title={t("agent.compute.modelPrices")}>
       {credit?.modelPrices?.map((model) => <SettingsValueRow key={model.modelId} label={model.name}
         value={t("agent.compute.modelRates", { input: money(model.inputMicroUsdPerMillion),
           cached: money(model.cachedMicroUsdPerMillion), output: money(model.outputMicroUsdPerMillion) })} />)}

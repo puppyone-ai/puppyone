@@ -99,6 +99,42 @@ describe("Main-owned managed Agent connection", () => {
     expect(response.status).toBe(401);
   });
 
+  it("clears account data immediately on logout and ignores a late balance response", async () => {
+    const value = fixture();
+    expect((await value.service.read()).managed.availableMicroUsd).toBe(5_000_000);
+    const updates = [];
+    const unsubscribe = value.service.subscribe((snapshot) => updates.push(snapshot.managed));
+    let finishBalance;
+    value.auth.requestSessionApi.mockImplementationOnce(() => new Promise((resolve) => { finishBalance = resolve; }));
+    const refresh = value.service.managed({ action: "refresh" });
+    await vi.waitFor(() => expect(finishBalance).toBeTypeOf("function"));
+    value.signOut();
+    expect(updates.at(-1)).toMatchObject({ signedIn: false, reason: "sign-in-required",
+      balanceMicroUsd: 0, availableMicroUsd: 0, reservedMicroUsd: 0, trialGrantedMicroUsd: 0,
+      lastUsage: null, errorCode: null });
+    finishBalance({ balance_micro_usd: 4_000_000, available_micro_usd: 3_000_000,
+      reserved_micro_usd: 1_000_000, trial_granted_micro_usd: 1_000_000 });
+    await refresh;
+    const after = (await value.service.read()).managed;
+    expect(after).toMatchObject({ signedIn: false, availableMicroUsd: 0, trialGrantedMicroUsd: 0 });
+    expect(updates.every((managed) => !managed.signedIn && managed.balanceMicroUsd === 0
+      && managed.reservedMicroUsd === 0 && managed.trialGrantedMicroUsd === 0)).toBe(true);
+    expect(value.auth.requestSessionApi.mock.calls.filter((call) => call[1] === "/ai/balance")).toHaveLength(2);
+    unsubscribe();
+  });
+
+  it("clears the previous account's billing error as soon as it signs out", async () => {
+    const value = fixture();
+    value.auth.requestSessionApi.mockRejectedValueOnce(new Error("Wallet unavailable"));
+    expect((await value.service.read()).managed.errorCode).toBe("GATEWAY_UNAVAILABLE");
+    const updates = [];
+    const unsubscribe = value.service.subscribe((snapshot) => updates.push(snapshot.managed));
+    value.signOut();
+    expect(updates[0]).toMatchObject({ signedIn: false, errorCode: null });
+    await value.service.read();
+    unsubscribe();
+  });
+
   it("opens a server-created sandbox checkout without exposing credentials to the renderer", async () => {
     const { service, auth, openExternal } = fixture();
     await service.managed({ action: "checkout", packId: "test-credit" });
@@ -142,7 +178,7 @@ describe("one-time trial activation", () => {
 });
 
 describe("server-owned usage receipts", () => {
-  it("reads the settled charge after streaming and clears it when the account changes", async () => {
+  it.each(["signOut", "replaceUser"])("reads the settled charge after streaming and clears it on %s", async (operation) => {
     const value = fixture();
     const reservationId = "00000000-0000-4000-8000-000000000001";
     value.auth.openAgentStream.mockResolvedValue({ response: new Response('data: [DONE]\n\n', {
@@ -163,7 +199,7 @@ describe("server-owned usage receipts", () => {
     expect(snapshot.managed.lastUsage).toMatchObject({ status: "settled", chargedMicroUsd: 47,
       inputTokens: 10, cachedTokens: 4, outputTokens: 20 });
     expect(JSON.stringify(snapshot)).not.toContain("PRIVATE-COST");
-    value.replaceUser();
+    value[operation]();
     expect((await value.service.read()).managed.lastUsage).toBeNull();
   });
 
