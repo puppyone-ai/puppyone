@@ -156,6 +156,15 @@ it("opens email sign-in without selecting a paid model or sending a turn", async
   expect(onSelectModel).not.toHaveBeenCalled();
 });
 
+it("labels a failed browser handoff as a sign-in problem", async () => {
+  const { client } = await render({ empty: true, accessPrompt: true });
+  vi.mocked(client.managed!).mockRejectedValueOnce(new Error("AUTHENTICATION_FAILED"));
+  await act(async () => button("Sign in with email").click());
+  expect(document.querySelector('[role="alert"]')?.textContent)
+    .toBe("Could not open the sign-in page. Please retry.");
+  expect(document.body.textContent).not.toContain("Could not refresh Agent credits");
+});
+
 it("blocks a selected managed model when the personal balance is empty", async () => {
   const { client, onReadyChange, onSelectModel } = await render({ selectedModel: models[1].model, accessPrompt: true,
     managed: { available: false, reason: "insufficient-credit", signedIn: true, sandbox: true, availableMicroUsd: 0,

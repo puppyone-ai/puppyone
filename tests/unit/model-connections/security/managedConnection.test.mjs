@@ -64,6 +64,13 @@ describe("Main-owned managed Agent connection", () => {
     await expect(acquire(service)).rejects.toThrow("CREDENTIAL_REQUIRED");
   });
 
+  it("maps browser handoff failures to a safe sign-in error", async () => {
+    const signedOut = fixture({ signedIn: false });
+    signedOut.auth.startOAuth.mockRejectedValueOnce(new Error("Desktop browser login is not configured"));
+    await expect(signedOut.service.managed({ action: "sign-in" }))
+      .rejects.toMatchObject({ code: "AUTHENTICATION_FAILED" });
+  });
+
   it("accepts only the private capability, fixed path, no browser Origin and configured model", async () => {
     const { service, auth } = fixture();
     const lease = await acquire(service);

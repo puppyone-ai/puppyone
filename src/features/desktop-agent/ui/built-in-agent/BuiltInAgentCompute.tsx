@@ -65,6 +65,9 @@ export function BuiltInAgentCompute({
     : source === "api"
       ? t("agent.compute.source.api")
       : t("agent.compute.source.local");
+  const operationError = state.error === "AUTHENTICATION_FAILED"
+    ? t("agent.compute.signInUnavailable")
+    : t("agent.compute.paymentUnavailable");
 
   useEffect(() => { onReadyChange(ready); }, [onReadyChange, ready]);
   useEffect(() => { onAccessRequiredChange?.(accessRequired); }, [onAccessRequiredChange, accessRequired]);
@@ -114,7 +117,7 @@ export function BuiltInAgentCompute({
       </button>
       {(managed.reservedMicroUsd ?? 0) > 0 && <small>{t("agent.compute.pendingCredit", { amount: money(managed.reservedMicroUsd ?? 0) })}</small>}
       {(managed.trialGrantedMicroUsd ?? 0) > 0 && <small>{t("agent.compute.trialGranted", { amount: money(managed.trialGrantedMicroUsd ?? 0) })}</small>}
-      {(state.error || managed?.errorCode) && <small role="alert">{t("agent.compute.paymentUnavailable")}</small>}
+      {(state.error || managed?.errorCode) && <small role="alert">{operationError}</small>}
     </div>}
     {showPrompt && <div className="desktop-agent-access-prompt" role="region" aria-label={t("agent.compute.accessTitle")}>
       <div className="desktop-agent-access-copy">
@@ -139,7 +142,7 @@ export function BuiltInAgentCompute({
         disabled={state.pending.managed} onClick={() => void store.managed({ action: "refresh" })}>{t("agent.compute.refreshBalance")}</button>}
       {customize}
       {managed?.signedIn && managed.sandbox && <small>{t("agent.compute.sandbox")}</small>}
-      {(state.error || managed?.errorCode) && <small role="alert">{t("agent.compute.paymentUnavailable")}</small>}
+      {(state.error || managed?.errorCode) && <small role="alert">{operationError}</small>}
     </div>}
     {accessPrompt && ready && <p className="desktop-agent-access-ready" role="status">{t("agent.compute.readyToSend")}</p>}
     {!showPrompt && customize}

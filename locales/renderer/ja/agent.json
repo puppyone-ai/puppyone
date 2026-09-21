@@ -362,6 +362,7 @@
   "compute.pendingCredit": "{amount} の使用量を精算中",
   "compute.insufficientCredit": "このモデルを使うにはチャージしてください。",
   "compute.paymentUnavailable": "Agent の残高を更新できません。再試行してください。",
+  "compute.signInUnavailable": "ログインページを開けませんでした。もう一度お試しください。",
   "compute.walletTitle": "AI トークン残高",
   "compute.walletDetail": "必要なときにチャージ。サブスクリプションなしでモデルの使用量に応じて支払います。",
   "compute.trialGranted": "初回トライアル残高の付与額：{amount}",

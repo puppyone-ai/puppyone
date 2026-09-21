@@ -362,6 +362,7 @@
   "compute.pendingCredit": "{amount} 사용량 정산 대기",
   "compute.insufficientCredit": "이 모델을 사용하려면 충전하세요.",
   "compute.paymentUnavailable": "Agent 잔액을 새로고침할 수 없습니다. 다시 시도하세요.",
+  "compute.signInUnavailable": "로그인 페이지를 열 수 없습니다. 다시 시도하세요.",
   "compute.walletTitle": "AI 토큰 잔액",
   "compute.walletDetail": "필요할 때 충전하세요. 구독 없이 모델 사용량만큼 결제합니다.",
   "compute.trialGranted": "일회성 체험 잔액 지급: {amount}",

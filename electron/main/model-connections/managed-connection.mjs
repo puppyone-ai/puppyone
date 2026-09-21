@@ -219,7 +219,10 @@ export function withManagedConnection({ connections, getAuth, apiBase, requestPu
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     async managed({ action, packId } = {}) {
       await initialize();
-      if (action === "sign-in") await getAuth().startOAuth({ apiBase: origin });
+      if (action === "sign-in") {
+        try { await getAuth().startOAuth({ apiBase: origin }); }
+        catch { throw connectionError("AUTHENTICATION_FAILED"); }
+      }
       else if (action === "checkout") {
         await refresh(true);
         if (!session || !catalog?.packs.some((pack) => pack.id === packId)) throw connectionError("INVALID_CONFIGURATION");

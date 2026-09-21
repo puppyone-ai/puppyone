@@ -12,6 +12,9 @@ export function AccountAICredits({ store: providedStore, onSignIn, signInDisable
   const { t } = useLocalization();
   const { state, store } = useModelConnections(providedStore);
   const credit = state.snapshot?.managed;
+  const operationError = state.error === "AUTHENTICATION_FAILED"
+    ? t("agent.compute.signInUnavailable")
+    : t("agent.compute.paymentUnavailable");
   const money = (micro: number) => new Intl.NumberFormat(undefined, {
     style: "currency", currency: "USD", maximumFractionDigits: 6,
   }).format(micro / 1_000_000);
@@ -54,7 +57,7 @@ export function AccountAICredits({ store: providedStore, onSignIn, signInDisable
             onClick={() => void store.managed({ action: "refresh" })}>{t("agent.compute.refreshBalance")}</button>
         </div>
       </div>
-      {(state.error || credit?.errorCode) && <p role="alert">{t("agent.compute.paymentUnavailable")}</p>}
+      {(state.error || credit?.errorCode) && <p role="alert">{operationError}</p>}
     </SettingsSubsection>
     {credit?.lastUsage && <SettingsSubsection>
       <SettingsValueRow label={t("agent.compute.latestUsage")} value={credit.lastUsage.modelId} />
