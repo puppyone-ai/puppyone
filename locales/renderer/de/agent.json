@@ -1,4 +1,6 @@
 {
+  "compute.connecting": "Verbindung zur Rechenleistung wird hergestellt…",
+  "compute.connectionUnavailable": "Der Rechendienst ist vorübergehend nicht verfügbar.",
   "lifecycle.displayStale": "Nachrichtenanzeige nicht synchron",
   "lifecycle.stopPending": "Status der Stoppanforderung",
   "lifecycle.paused": "Die automatische Wiederherstellung ist pausiert. Die Aufgabe läuft möglicherweise weiter.",

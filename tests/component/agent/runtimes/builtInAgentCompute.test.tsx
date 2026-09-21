@@ -93,7 +93,7 @@ async function render({ selectedModel = null as string | null, disabled = false,
     onOpenAccount={onOpenAccount}
     onOpenModelConnections={onOpenModelConnections}
   />)));
-  return { client, onSelectModel, onReadyChange, onCatalogChange, onOpenAccount, onOpenModelConnections };
+  return { client, store, onSelectModel, onReadyChange, onCatalogChange, onOpenAccount, onOpenModelConnections };
 }
 
 it("keeps the initial managed summary free of account and billing details", async () => {
@@ -169,6 +169,31 @@ it("labels a failed browser handoff as a sign-in problem", async () => {
   expect(document.querySelector('[role="alert"]')?.textContent)
     .toBe("Could not open the sign-in page. Please retry.");
   expect(document.body.textContent).not.toContain("Could not refresh Agent credits");
+});
+
+it.each(["loading", "ready"] as const)("shows preparation instead of a billing error while %s is awaiting a model", async (reason) => {
+  const { onReadyChange } = await render({ empty: true, accessPrompt: true,
+    managed: { signedIn: true, reason, available: reason === "ready" } });
+  expect(document.querySelector('[role="status"]')?.textContent).toBe("Connecting to compute…");
+  expect(document.querySelector('[aria-busy="true"]')).not.toBeNull();
+  expect(document.querySelector(".desktop-agent-access-primary")).toBeNull();
+  expect(document.body.textContent).not.toMatch(/Could not|Refresh balance|Add credit/);
+  expect(onReadyChange).toHaveBeenLastCalledWith(false);
+});
+
+it("offers retry after a confirmed failure and shows progress while retrying", async () => {
+  const { client, store } = await render({ empty: true, accessPrompt: true,
+    managed: { signedIn: true, reason: "gateway-unavailable", available: false, errorCode: "GATEWAY_UNAVAILABLE" } });
+  expect(document.body.textContent).toContain("Compute service is temporarily unavailable.");
+  expect(document.body.textContent).not.toContain("Refresh balance");
+  let finish: (snapshot: ModelConnectionSnapshot) => void;
+  vi.mocked(client.managed!).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  act(() => button("Retry").click());
+  expect(document.body.textContent).toContain("Connecting to compute…");
+  expect(document.body.textContent).not.toContain("Compute service is temporarily unavailable.");
+  expect(client.managed).toHaveBeenCalledWith({ action: "refresh" });
+  await act(async () => finish!(store.getSnapshot().snapshot!));
+  expect(button("Retry").disabled).toBe(false);
 });
 
 it("blocks a selected managed model when the personal balance is empty", async () => {

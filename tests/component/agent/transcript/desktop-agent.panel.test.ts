@@ -96,6 +96,14 @@ describe("Project-owned Agent Chat Workbench lifecycle", () => {
     await act(async () => signIn.click());
     expect(managed).toHaveBeenCalledWith({ action: "sign-in" });
     credit = { ...credit, revision: 101,
+      managed: { available: false, reason: "loading", signedIn: true } };
+    await act(async () => observe?.(credit));
+    await flushEffects(); await flushEffects();
+    expect(container.querySelector(".desktop-agent-access-prompt")?.textContent).toContain("Connecting to compute…");
+    expect(container.textContent).not.toContain("Could not refresh Agent credits");
+    expect(controller.getSnapshot().draft).toBe("Help me with this local project");
+    expect(harness.bridge.startAgentTurn).not.toHaveBeenCalled();
+    credit = { ...credit, revision: 102,
       managed: { available: true, reason: "ready", signedIn: true, availableMicroUsd: 1_000_000, trialGrantedMicroUsd: 1_000_000 },
       connections: [{ id: connectionId, sourceKind: "managed", driver: "openai-compatible", name: "PuppyOne", baseUrl: "https://example.test/ai",
         auth: "bearer", credentialConfigured: true, readOnly: true, configGeneration: 1, defaultModelId: "test-model", manualModelId: null,
@@ -106,6 +114,7 @@ describe("Project-owned Agent Chat Workbench lifecycle", () => {
     await act(async () => observe?.(credit));
     await flushEffects(); await flushEffects();
     expect(controller.getSnapshot().draft).toBe("Help me with this local project");
+    expect(container.querySelector(".desktop-agent-access-prompt")).toBeNull();
     expect(harness.bridge.startAgentTurn).not.toHaveBeenCalled();
     expect(managed).not.toHaveBeenCalledWith(expect.objectContaining({ action: "checkout" }));
     expect(send().disabled).toBe(false);

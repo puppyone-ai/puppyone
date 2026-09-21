@@ -1,4 +1,6 @@
 {
+  "compute.connecting": "Conectando al servicio de cómputo…",
+  "compute.connectionUnavailable": "El servicio de cómputo no está disponible temporalmente.",
   "lifecycle.displayStale": "La visualización de mensajes no está sincronizada",
   "lifecycle.stopPending": "Estado de la solicitud de detención",
   "lifecycle.paused": "La recuperación automática está pausada. La tarea podría seguir ejecutándose.",

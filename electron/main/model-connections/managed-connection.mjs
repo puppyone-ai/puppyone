@@ -48,7 +48,7 @@ export function withManagedConnection({ connections, getAuth, apiBase, requestPu
         status: "ready", endpoint: "reachable", authentication: "valid", observedAt: new Date().toISOString(),
         complete: true, models: models(), errorCode: null }] : [])],
       managed: { available: ready && balance.available_micro_usd > 0,
-        reason: !session ? "sign-in-required" : !ready ? "gateway-unavailable"
+        reason: !session ? "sign-in-required" : !ready ? (pending || !error ? "loading" : "gateway-unavailable")
           : balance.available_micro_usd > 0 ? "ready" : "insufficient-credit",
         signedIn: Boolean(session), sandbox: catalog?.sandbox ?? false,
         balanceMicroUsd: balance?.balance_micro_usd ?? 0, reservedMicroUsd: balance?.reserved_micro_usd ?? 0,
@@ -56,7 +56,7 @@ export function withManagedConnection({ connections, getAuth, apiBase, requestPu
         trialGrantedMicroUsd: balance?.trial_granted_micro_usd ?? 0,
         trialCreditMicroUsd: catalog?.trial_credit_micro_usd ?? 0,
         lastUsage, modelPrices: managedPrices(catalog),
-        errorCode: error, apiOrigin: origin },
+        errorCode: pending ? null : error, apiOrigin: origin },
     });
   };
   const publish = () => {
@@ -101,7 +101,7 @@ export function withManagedConnection({ connections, getAuth, apiBase, requestPu
     if (pending) return pending;
     if (!force && Date.now() - lastRefresh < 15_000) return;
     const capturedGeneration = generation;
-    pending = (async () => {
+    pending = Promise.resolve().then(async () => {
       try {
         if (!origin) throw connectionError("GATEWAY_UNAVAILABLE");
         const nextCatalog = await requestPublic(origin, "/ai/catalog", { method: "GET", redirect: "error" });
@@ -135,7 +135,8 @@ export function withManagedConnection({ connections, getAuth, apiBase, requestPu
         publish();
         if (sessionChanged && !disposed) void refresh(true).catch(() => {});
       }
-    })();
+    });
+    publish();
     return pending;
   }
 

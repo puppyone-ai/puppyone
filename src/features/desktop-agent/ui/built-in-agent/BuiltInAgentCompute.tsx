@@ -6,7 +6,7 @@ import { useModelConnections, type ModelConnectionStore } from "../../../model-c
 import { AgentSessionControlPicker } from "../AgentSessionControlPicker";
 import "./built-in-agent-compute.css";
 
-export type ComputeAccessRequired = "sign-in-required" | "insufficient-credit" | "gateway-unavailable" | null;
+export type ComputeAccessRequired = "loading" | "sign-in-required" | "insufficient-credit" | "gateway-unavailable" | null;
 
 /** Chat selects a ready route; Settings exclusively owns connection configuration. */
 export function BuiltInAgentCompute({
@@ -57,8 +57,10 @@ export function BuiltInAgentCompute({
   const managed = snapshot?.managed;
   const ready = Boolean(current && currentConnection && (source !== "managed" || managed?.available));
   const needsManagedAccess = source === "managed" && (!selectedModel || currentConnection?.sourceKind === "managed");
-  const accessRequired = needsManagedAccess && managed?.reason !== "ready"
-    ? managed?.reason ?? "gateway-unavailable" : null;
+  const connecting = !managed || managed.reason === "loading"
+    || Boolean(managed.signedIn && !ready && (state.pending.managed || managed.reason === "ready"));
+  const accessRequired = needsManagedAccess && !ready
+    ? connecting ? "loading" : managed?.reason === "ready" ? null : managed?.reason ?? "loading" : null;
   const showPrompt = accessPrompt && needsManagedAccess && !ready;
   const money = (micro: number) => new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 4 }).format(micro / 1_000_000);
   const Icon = source === "managed" ? Sparkles : source === "api" ? KeyRound : Server;
@@ -69,7 +71,7 @@ export function BuiltInAgentCompute({
       : t("agent.compute.source.local");
   const operationError = state.error === "AUTHENTICATION_FAILED"
     ? t("agent.compute.signInUnavailable")
-    : t("agent.compute.paymentUnavailable");
+    : t("agent.compute.connectionUnavailable");
 
   useEffect(() => { onReadyChange(ready); }, [onReadyChange, ready]);
   useEffect(() => { onAccessRequiredChange?.(accessRequired); }, [onAccessRequiredChange, accessRequired]);
@@ -105,15 +107,15 @@ export function BuiltInAgentCompute({
         })),
       }} onSelect={(_id, model) => onSelectModel(model)} />}
     </div>}
-    {showPrompt && <div className="desktop-agent-access-prompt" role="region" aria-label={t("agent.compute.accessTitle")}>
+    {showPrompt && <div className="desktop-agent-access-prompt" role="region" aria-label={t("agent.compute.accessTitle")} aria-busy={connecting}>
       <div className="desktop-agent-access-copy">
-        <strong>{t(!managed?.signedIn ? "agent.compute.accessTitle" : managed.reason === "insufficient-credit"
-          ? "agent.compute.insufficientCredit" : "agent.compute.paymentUnavailable")}</strong>
-        {!managed?.signedIn ? <p>{(managed?.trialCreditMicroUsd ?? 0) > 0
+        <strong role="status">{t(connecting ? "agent.compute.connecting" : !managed?.signedIn ? "agent.compute.accessTitle" : managed.reason === "insufficient-credit"
+          ? "agent.compute.insufficientCredit" : "agent.compute.connectionUnavailable")}</strong>
+        {!connecting && !managed?.signedIn ? <p>{(managed?.trialCreditMicroUsd ?? 0) > 0
           ? t("agent.compute.trialOffer", { amount: money(managed?.trialCreditMicroUsd ?? 0) })
           : t("agent.compute.walletDetail")}</p> : <p>{t("agent.compute.draftKept")}</p>}
       </div>
-      <div className="desktop-agent-access-actions">
+      {!connecting && <div className="desktop-agent-access-actions">
         {!managed?.signedIn ? <button type="button" className="desktop-agent-access-primary" disabled={disabled || state.pending.managed}
           onClick={() => void store.managed({ action: "sign-in" })}>
           {t("agent.compute.signInToStart")}
@@ -121,10 +123,10 @@ export function BuiltInAgentCompute({
           disabled={disabled} onClick={onOpenAccount}>
           <span>{t("agent.compute.manageBalance")}</span>
         </button> : <button type="button" className="desktop-agent-access-primary" disabled={state.pending.managed}
-          onClick={() => void store.managed({ action: "refresh" })}>{t("agent.compute.refreshBalance")}</button>}
+          onClick={() => void store.managed({ action: "refresh" })}>{t("common.action.retry")}</button>}
         {!managed?.signedIn && customize}
-      </div>
-      {(state.error || managed?.errorCode) && <small role="alert">{operationError}</small>}
+      </div>}
+      {!connecting && state.error && (!managed?.signedIn || managed.reason !== "gateway-unavailable") && <small role="alert">{operationError}</small>}
     </div>}
   </section>;
 }

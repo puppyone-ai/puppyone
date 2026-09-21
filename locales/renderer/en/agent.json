@@ -1,4 +1,6 @@
 {
+  "compute.connecting": "Connecting to compute…",
+  "compute.connectionUnavailable": "Compute service is temporarily unavailable.",
   "lifecycle.displayStale": "Message display is out of sync",
   "lifecycle.stopPending": "Stop request status",
   "lifecycle.paused": "Automatic message recovery is paused. The task may still be running.",

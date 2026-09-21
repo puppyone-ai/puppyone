@@ -48,7 +48,7 @@ export type ModelConnectionSnapshot = {
   catalogs: ModelCatalogSnapshot[];
   managed: {
     available: boolean;
-    reason: "gateway-unavailable" | "sign-in-required" | "insufficient-credit" | "ready";
+    reason: "loading" | "gateway-unavailable" | "sign-in-required" | "insufficient-credit" | "ready";
     signedIn?: boolean; sandbox?: boolean; balanceMicroUsd?: number; reservedMicroUsd?: number;
     availableMicroUsd?: number; errorCode?: string | null; apiOrigin?: string | null;
     trialGrantedMicroUsd?: number;

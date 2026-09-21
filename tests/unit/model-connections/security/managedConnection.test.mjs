@@ -71,6 +71,36 @@ describe("Main-owned managed Agent connection", () => {
       .rejects.toMatchObject({ code: "AUTHENTICATION_FAILED" });
   });
 
+  it("reports loading through sign-in and retries, and failure only after a request fails", async () => {
+    const value = fixture({ signedIn: false });
+    await value.service.read();
+    const updates = [];
+    value.service.subscribe((snapshot) => updates.push(snapshot.managed));
+    let failBalance;
+    value.auth.requestSessionApi.mockImplementationOnce(() => new Promise((_resolve, reject) => { failBalance = reject; }));
+    value.signIn();
+    await vi.waitFor(() => expect(failBalance).toBeTypeOf("function"));
+    expect(updates.at(-1)).toMatchObject({ signedIn: true, reason: "loading", errorCode: null });
+    expect(updates.every((state) => state.reason !== "gateway-unavailable")).toBe(true);
+    failBalance(new Error("Request timed out"));
+    expect((await value.service.read()).managed).toMatchObject({ reason: "gateway-unavailable", errorCode: "GATEWAY_UNAVAILABLE" });
+
+    let finishBalance;
+    value.auth.requestSessionApi.mockImplementationOnce(() => new Promise((resolve) => { finishBalance = resolve; }));
+    const retry = value.service.managed({ action: "refresh" });
+    await vi.waitFor(() => expect(finishBalance).toBeTypeOf("function"));
+    expect(updates.at(-1)).toMatchObject({ reason: "loading", errorCode: null });
+    finishBalance({ balance_micro_usd: 1_000_000, available_micro_usd: 1_000_000, reserved_micro_usd: 0 });
+    expect((await retry).managed).toMatchObject({ reason: "ready", available: true, errorCode: null });
+  });
+
+  it("leaves loading when the public request fails synchronously", async () => {
+    const value = fixture();
+    value.requestPublic.mockImplementationOnce(() => { throw new Error("Connection unavailable"); });
+    expect((await value.service.read()).managed.reason).toBe("gateway-unavailable");
+    expect((await value.service.managed({ action: "refresh" })).managed.reason).toBe("ready");
+  });
+
   it("accepts only the private capability, fixed path, no browser Origin and configured model", async () => {
     const { service, auth } = fixture();
     const lease = await acquire(service);
@@ -108,6 +138,7 @@ describe("Main-owned managed Agent connection", () => {
     value.auth.requestSessionApi.mockImplementationOnce(() => new Promise((resolve) => { finishBalance = resolve; }));
     const refresh = value.service.managed({ action: "refresh" });
     await vi.waitFor(() => expect(finishBalance).toBeTypeOf("function"));
+    updates.length = 0;
     value.signOut();
     expect(updates.at(-1)).toMatchObject({ signedIn: false, reason: "sign-in-required",
       balanceMicroUsd: 0, availableMicroUsd: 0, reservedMicroUsd: 0, trialGrantedMicroUsd: 0,

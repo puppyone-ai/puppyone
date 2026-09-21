@@ -1,4 +1,6 @@
 {
+  "compute.connecting": "Connexion au service de calcul…",
+  "compute.connectionUnavailable": "Le service de calcul est temporairement indisponible.",
   "lifecycle.displayStale": "L’affichage des messages n’est pas synchronisé",
   "lifecycle.stopPending": "État de la demande d’arrêt",
   "lifecycle.paused": "La récupération automatique est en pause. La tâche peut encore être en cours.",

@@ -34,7 +34,7 @@ export function AccountAICredits({ store: providedStore, signedIn, onSignIn, sig
       detail={showAccount ? t("agent.compute.walletDetail") : undefined}>
       {showAccount ? <>
         <SettingsValueRow label={t("agent.compute.availableBalance")}
-          value={credit.reason === "gateway-unavailable" ? "—" : money(credit.availableMicroUsd ?? 0)} />
+          value={credit.reason === "gateway-unavailable" || credit.reason === "loading" ? "—" : money(credit.availableMicroUsd ?? 0)} />
         {(credit?.trialGrantedMicroUsd ?? 0) > 0 && <SettingsValueRow label={t("agent.compute.trialCredit")}
           value={money(credit.trialGrantedMicroUsd ?? 0)} />}
         {(credit?.reservedMicroUsd ?? 0) > 0 && <SettingsValueRow label={t("agent.compute.pendingUsage")}

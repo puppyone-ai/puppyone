@@ -1,4 +1,6 @@
 {
+  "compute.connecting": "컴퓨팅 서비스에 연결 중…",
+  "compute.connectionUnavailable": "컴퓨팅 서비스를 일시적으로 이용할 수 없습니다.",
   "lifecycle.displayStale": "메시지 표시가 동기화되지 않았습니다",
   "lifecycle.stopPending": "중지 요청 상태",
   "lifecycle.paused": "자동 복구가 일시 중지되었습니다. 작업은 아직 실행 중일 수 있습니다.",

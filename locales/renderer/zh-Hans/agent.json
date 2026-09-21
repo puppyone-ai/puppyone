@@ -1,4 +1,6 @@
 {
+  "compute.connecting": "正在连接算力…",
+  "compute.connectionUnavailable": "暂时无法连接算力服务，请稍后重试。",
   "lifecycle.displayStale": "消息显示不同步",
   "lifecycle.stopPending": "停止请求状态",
   "lifecycle.paused": "已暂停自动恢复消息显示；任务可能仍在运行。",
