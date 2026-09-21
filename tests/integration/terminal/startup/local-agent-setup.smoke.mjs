@@ -27,7 +27,7 @@ const setup = createLocalAgentSetupService({
 });
 registerLocalAgentSetupIpcHandlers({ ipcMain, setupService: setup });
 const activation = createLocalAgentActivationService({
-  registry: new Map(["codex", "cursor"].map(id => [id, { id, installationId: id, terminalRecipeId: id,
+  registry: new Map(["codex", "cursor"].map(id => [id, { id, installationId: id, runtimeId: id, terminalRecipeId: id,
     displayName: id === "codex" ? "Codex" : "Cursor", publisher: "Fixture", recipe: { version: "fixture" } }])),
   resolveInstallation: async () => installed ? { file: "/fixture" } : null,
   createContext: async () => ({ run: async () => ({ code: 0, stdout: "fixture", stderr: "" }) }), journal: { read: async () => [], write: async () => {} }, openExternal: async () => {},

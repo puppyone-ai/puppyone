@@ -9,7 +9,7 @@ function harness({ restored = [], automatic = true } = {}) {
   const installer = { install: vi.fn(async (_recipe, { signal, verify, committed }) => {
     signal.throwIfAborted(); await verify("/fixture/codex"); installed = true; committed();
   }) };
-  const registry = new Map([["codex", { id: "codex", installationId: "codex", terminalRecipeId: "codex", displayName: "Codex",
+  const registry = new Map([["codex", { id: "codex", installationId: "codex", runtimeId: "codex", terminalRecipeId: "codex", displayName: "Codex",
     publisher: "OpenAI", guideUrl: "https://developers.openai.com/codex/cli", recipe: automatic ? { version: "1" } : null }]]);
   const journal = { read: vi.fn(async () => restored), write: vi.fn(async () => {}) };
   const resolveInstallation = vi.fn(async () => installed ? { file: "/fixture/codex" } : null);

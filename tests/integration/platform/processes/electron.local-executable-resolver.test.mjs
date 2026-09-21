@@ -251,7 +251,13 @@ describe.skipIf(process.platform === "win32" || !existsSync("/bin/zsh"))("fresh 
     const host = createTerminalShellHost({ agentLaunch: launch, environment: env });
     expect(host.loginShell).toBe(false);
     expect(host.commandEnvironment.PATH).toBe(`${newBin}:/usr/bin:/bin`);
-    const executed = await runBoundedProcessProbe(launch.executablePath, [], { env: host.commandEnvironment });
+    // This integration assertion checks real interpreter/environment routing,
+    // not the host's process-start latency. Deadline enforcement has separate
+    // bounded-probe tests; keep production limits unchanged under parallel CI.
+    const executed = await runBoundedProcessProbe(launch.executablePath, [], {
+      env: host.commandEnvironment, timeoutMs: 5_000,
+    });
+    expect(executed.code).toBe(0);
     expect(executed.stdout.trim()).toBe("selected environment");
     const readiness = await discoverCodexExecutable({ env, homedir: home });
     expect(readiness).toMatchObject({ status: "ready", executablePath: codex, version: "0.144.1",

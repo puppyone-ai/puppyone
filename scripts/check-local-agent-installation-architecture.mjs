@@ -23,6 +23,8 @@ for (const file of retiredFiles) {
 
 for (const file of [
   "electron/main/local-agent-installation/installation-registry.mjs",
+  "electron/main/local-agent-catalog/catalog.mjs",
+  "electron/main/local-agent-catalog/agent-definition.mjs",
   "electron/main/local-agent-installation/executable-resolver.mjs",
   "electron/main/local-agent-installation/installation-service.mjs",
   "electron/main/platform/common/executable-discovery-port.mjs",
@@ -38,6 +40,21 @@ for (const file of [
 }
 
 const main = read("electron/main.mjs");
+requireText(read("electron/main/local-agent-installation/installation-registry.mjs"), "defaultLocalAgentCatalog", "Installation identities must come from the shared catalog");
+requireText(read("electron/main/local-agent-installation/setup/setup-registry.mjs"), "defaultLocalAgentCatalog", "Setup and Companion identities must come from the shared catalog");
+requireText(read("electron/main/local-agent-activation/activation-registry.mjs"), "localAgentCapabilities", "Activation must select a declared capability, not a provider branch");
+for (const file of ["electron/main/local-agent-installation/setup/setup-registry.mjs", "electron/main/local-agent-activation/activation-registry.mjs"]) {
+  if (/\b(?:codex|claude|cursor|opencode|workbuddy|hermes)\b/u.test(read(file))) {
+    errors.push(`${file} must project the catalog instead of declaring product-specific policy`);
+  }
+}
+for (const directory of ["electron/main/local-agent-catalog", "electron/main/local-agent-activation/recipes"]) {
+  for (const file of walk(resolve(directory))) {
+    if (/node:(?:fs|child_process|net|https?|worker_threads)|\b(?:fetch|spawn|execFile|setInterval)\s*\(|process\.env|agent\/runtimes|agent\/connections|src\/features|(?:installation|activation|setup|companion-presence)-service|electron["']/u.test(read(relative(file)))) {
+      errors.push(`${relative(file)} must remain a pure capability declaration, not own IO or lifecycle`);
+    }
+  }
+}
 requireText(main, "createLocalAgentInstallationService", "Electron main must compose one application-scoped installation service");
 requireText(main, "desktopPlatformHost.executableDiscovery", "Installation discovery must consume the platform executable-discovery port");
 const preload = read("electron/preload.cjs");

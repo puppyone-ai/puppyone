@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { ACTIVATION_ERRORS, ACTIVATION_STEPS, activationId, assertActivationSnapshot, exactObject, isActivationActive } from "../../../shared/local-agent-activation/schema.mjs";
 import { ActivationError } from "./activation-error.mjs";
+import { supportsSetupSurface } from "../local-agent-catalog/agent-definition.mjs";
 
 /** Application-owned operations. Cancel never waits behind a provider operation. */
 export function createLocalAgentActivationService({ registry, resolveInstallation, installer, createContext,
@@ -31,7 +32,7 @@ export function createLocalAgentActivationService({ registry, resolveInstallatio
   function check(task) { task.controller.signal.throwIfAborted(); if (disposed) throw new ActivationError("interrupted"); }
   function routeFor(id, surface) {
     const route = registry.get(activationId(id));
-    if (!route || !["chat", "terminal"].includes(surface) || (surface === "terminal" && !route.terminalRecipeId)) throw new ActivationError("unsupported");
+    if (!route || !supportsSetupSurface(route, surface)) throw new ActivationError("unsupported");
     return route;
   }
   function getPlan(ownerId, id) {
@@ -51,8 +52,8 @@ export function createLocalAgentActivationService({ registry, resolveInstallatio
       if (!candidate && route.recipe) {
         step(entry, "install", "running"); emit(entry, { status: "installing" });
         await installer.install(route.recipe, { signal,
-          verify: async file => {
-            const context = await createContext({ file, signal });
+          verify: async (file, installationSignal = signal) => {
+            const context = await createContext({ file, signal: installationSignal });
             const result = await context.run(["--version"]);
             if (result.code !== 0 || !`${result.stdout}\n${result.stderr}`.trim()) throw new ActivationError("installation");
           },
@@ -86,7 +87,7 @@ export function createLocalAgentActivationService({ registry, resolveInstallatio
       task.running = false;
       // Refresh is a consequence of explicit setup, not of opening a view. It
       // never gates cancellation or retains the installation process.
-      if (entry.installed) void Promise.resolve(refreshInstallations()).catch(() => {});
+      if (entry.installed) void Promise.resolve().then(() => refreshInstallations()).catch(() => {});
     }
   }
   function launch(task) {
@@ -122,7 +123,11 @@ export function createLocalAgentActivationService({ registry, resolveInstallatio
       const task = { entry, route, surface: plan.surface, controller: new AbortController(), running: false, committed: false };
       operations.set(route.id, entry); tasks.set(entry.operationId, task); revision++;
       prepared.operationId = entry.operationId;
-      try { await journal.write(snapshot()); } catch { emit(entry, { status: "failed", errorCode: "storage" }); return snapshot(); }
+      try { await journal.write(snapshot()); } catch {
+        // A late storage failure must not overwrite an already acknowledged cancel.
+        if (!task.controller.signal.aborted) emit(entry, { status: "failed", errorCode: "storage" });
+        return snapshot();
+      }
       if (!isActivationActive(entry.status) || task.controller.signal.aborted) return snapshot();
       for (const [id, older] of tasks) if (older.entry.setupId === route.id && id !== entry.operationId && !older.running) tasks.delete(id);
       void launch(task); return snapshot();

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { defaultLocalAgentCatalog } from "../../../../electron/main/local-agent-catalog/catalog.mjs";
 import {
   DEFAULT_AGENT_RUNTIME_ID,
   createDefaultAgentRuntimeHost,
@@ -31,6 +32,8 @@ describe("Agent production composition", () => {
       "workbuddy-international",
     ]);
     expect(DEFAULT_AGENT_RUNTIME_ID).toBe("codex");
+    expect(defaultLocalAgentCatalog.flatMap(agent => agent.runtimeId ? [agent.runtimeId] : []).sort())
+      .toEqual(host.manifests().filter(runtime => runtime.execution.distribution === "user-installed").map(runtime => runtime.id).sort());
     expect(host.select(catalog)?.descriptor.id).toBe("codex");
     expect(host.select(catalog, "codex")?.descriptor.id).toBe("codex");
     expect(host.select(catalog, "missing")).toBeNull();
