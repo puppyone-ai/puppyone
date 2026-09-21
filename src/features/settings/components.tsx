@@ -9,11 +9,12 @@ export function SettingsSectionHeader({ title, detail }: { title: string; detail
   );
 }
 
-export function SettingsSubsection({ title, children }: { title?: string; children: ReactNode }) {
+export function SettingsSubsection({ title, detail, children }: { title?: string; detail?: string; children: ReactNode }) {
   const titleId = useId();
   const content = (
     <>
       {title && <h3 className="desktop-settings-subsection-title" id={titleId}>{title}</h3>}
+      {detail && <p className="desktop-settings-subsection-detail">{detail}</p>}
       <div className="desktop-settings-subsection-body">{children}</div>
     </>
   );

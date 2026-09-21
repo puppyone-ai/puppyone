@@ -86,11 +86,16 @@ describe("settings visual architecture", () => {
       'labelId: "settings.sidebar.experimental"',
     ]);
     expect(desktopAppItems).toContain("settings.sidebar.typography");
+    expect(desktopAppItems).not.toContain("settings.sidebar.account");
     expect(desktopAppItems).not.toContain("settings.sidebar.editor");
     expect(desktopAppItems).not.toContain("settings.sidebar.language");
     expect(desktopAppItems).not.toContain("settings.sidebar.localAgentHooks");
     expect(desktopAppItems).not.toContain("settings.sidebar.localAgents");
-    expectInOrder(sidebarModel, ['id: "desktop-app"', 'id: "agents"', 'id: "local-project"']);
+    expectInOrder(sidebarModel, ['id: "desktop-app"', 'id: "agents"', 'id: "local-project"', 'id: "cloud"']);
+    expectInOrder(sidebarModel.slice(sidebarModel.indexOf('id: "cloud"')), [
+      'labelId: "settings.sidebar.account"',
+      'labelId: "settings.sidebar.cloudHosting"',
+    ]);
     expect(sidebarModel).toContain('labelId: "settings.sidebar.localProject"');
     expect(sidebarModel).toContain('labelId: "settings.sidebar.projectInfo"');
 

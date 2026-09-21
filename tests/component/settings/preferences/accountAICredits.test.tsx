@@ -43,6 +43,9 @@ it("shows personal credit and one-time top-up without any hosting subscription",
   expect(host.textContent).toContain("Input: 10 (cached: 4)");
   expect(host.textContent).toContain("Model prices per million tokens");
   expect(host.textContent).not.toMatch(/Pro|Team|\$15|\$30/);
+  expect(host.querySelectorAll(".desktop-settings-subsection")).toHaveLength(3);
+  expect(host.querySelector(".desktop-settings-subsection-detail")?.textContent).toContain("no subscription");
+  expect(host.querySelector("p:not(.desktop-settings-subsection-detail)")).toBeNull();
   const topUp = [...host.querySelectorAll("button")].find((button) => button.textContent?.includes("$5.00"))!;
   expect(topUp).toBeDefined();
   act(() => topUp.click());
@@ -64,7 +67,8 @@ it("shows the trial and recharge amounts before login without offering a subscri
   const onSignIn = vi.fn();
   const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
   await act(async () => root?.render(withTestLocalization(<AccountAICredits store={new ModelConnectionStore(client)} onSignIn={onSignIn} />)));
-  expect(host.textContent).toContain("One-time $1.00 AI credit per account");
+  expect(host.textContent).toContain("Trial credit");
+  expect(host.textContent).toContain("$1.00");
   expect(host.textContent).toContain("$5.00");
   expect(host.textContent).not.toContain("$0.00");
   expect(host.textContent).not.toMatch(/Cloud hosting|Pro|Team|\$15|\$30/);

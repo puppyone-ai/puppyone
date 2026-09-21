@@ -21,6 +21,7 @@ export type SettingsSidebarItem = {
   labelId: string;
   icon: LucideIcon;
   disabled: boolean;
+  requiresCloud?: boolean;
 };
 
 export type SettingsSidebarGroupModel = {
@@ -34,7 +35,7 @@ export type SettingsVisibilityContext = {
   cloudEnabled: boolean;
 };
 
-export const SETTINGS_SIDEBAR_GROUPS = [
+export const SETTINGS_SIDEBAR_GROUPS: readonly SettingsSidebarGroupModel[] = [
   {
     id: "desktop-app",
     labelId: "settings.sidebar.desktopApp",
@@ -44,7 +45,6 @@ export const SETTINGS_SIDEBAR_GROUPS = [
       { id: "typography", labelId: "settings.sidebar.typography", icon: Type, disabled: false },
       { id: "new-menu", labelId: "settings.sidebar.createNew", icon: ListPlus, disabled: false },
       { id: "privacy", labelId: "settings.sidebar.privacy", icon: ShieldCheck, disabled: false },
-      { id: "account", labelId: "settings.sidebar.account", icon: UserRound, disabled: false },
       { id: "experimental", labelId: "settings.sidebar.experimental", icon: FlaskConical, disabled: false },
     ],
   },
@@ -68,17 +68,23 @@ export const SETTINGS_SIDEBAR_GROUPS = [
   {
     id: "cloud",
     labelId: "settings.sidebar.cloud",
-    requiresCloud: true,
     items: [
-      { id: "cloud", labelId: "settings.sidebar.cloudHosting", icon: Cloud, disabled: false },
+      { id: "account", labelId: "settings.sidebar.account", icon: UserRound, disabled: false },
+      { id: "cloud", labelId: "settings.sidebar.cloudHosting", icon: Cloud, disabled: false, requiresCloud: true },
     ],
   },
-] satisfies readonly SettingsSidebarGroupModel[];
+];
 
 export function resolveSettingsSidebarGroups({
   cloudEnabled,
 }: SettingsVisibilityContext): readonly SettingsSidebarGroupModel[] {
-  return SETTINGS_SIDEBAR_GROUPS.filter((group) => !group.requiresCloud || cloudEnabled);
+  return SETTINGS_SIDEBAR_GROUPS
+    .filter((group) => !group.requiresCloud || cloudEnabled)
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !item.requiresCloud || cloudEnabled),
+    }))
+    .filter((group) => group.items.length > 0);
 }
 
 export function isSettingsSectionAvailable(

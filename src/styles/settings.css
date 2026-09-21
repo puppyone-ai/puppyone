@@ -331,6 +331,15 @@
   line-height: 18px;
 }
 
+.desktop-settings-subsection-detail {
+  margin: -1px 0 2px;
+  padding-inline: 10px;
+  color: var(--po-text-subtle);
+  font-size: var(--po-text-size-meta, 12px);
+  font-weight: var(--po-text-weight-regular, 400);
+  line-height: 1.35;
+}
+
 .desktop-settings-subsection-body {
   display: grid;
   min-width: 0;
