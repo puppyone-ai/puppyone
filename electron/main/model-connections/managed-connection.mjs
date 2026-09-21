@@ -7,13 +7,15 @@ import { managedPrices, parseManagedUsage } from "./managed-usage.mjs";
 
 /** Personal managed inference is a Main-owned, read-only connection. Only a
  * random per-lease loopback capability is bootstrapped into the Agent worker. */
-export function withManagedConnection({ connections, getAuth, apiBase, requestPublic, openExternal }) {
+export function withManagedConnection({ connections, getAuth, apiBase, requestPublic, openExternal,
+  refreshTimeoutMs = 30_000, catalogTtlMs = 60_000 }) {
   const origin = normalizeCloudApiBaseUrl(apiBase);
   const listeners = new Set();
   const leases = new Map();
   let local = null;
   let session = null;
   let catalog = null;
+  let catalogRefreshedAt = 0;
   let balance = null;
   let trialClaimedFor = null;
   let lastReservationId = null;
@@ -23,6 +25,8 @@ export function withManagedConnection({ connections, getAuth, apiBase, requestPu
   let generation = 1;
   let lastRefresh = 0;
   let pending = null;
+  let refreshController = null;
+  let receiptPending = null;
   let disposed = false;
   let unsubscribeAuth = null;
   let server = null;
@@ -73,6 +77,7 @@ export function withManagedConnection({ connections, getAuth, apiBase, requestPu
     const next = state.session?.api_base_url === origin && !["signed-out", "signing-out"].includes(state.status)
       ? state.session : null;
     if (next?.session_generation !== session?.session_generation || next?.user_id !== session?.user_id) {
+      refreshController?.abort();
       for (const record of [...leases.values()]) revoke(record);
       generation++;
       session = next;
@@ -101,43 +106,88 @@ export function withManagedConnection({ connections, getAuth, apiBase, requestPu
     if (pending) return pending;
     if (!force && Date.now() - lastRefresh < 15_000) return;
     const capturedGeneration = generation;
+    const controller = new AbortController();
+    refreshController = controller;
+    const current = () => {
+      controller.signal.throwIfAborted();
+      if (capturedGeneration !== generation || disposed) throw connectionError("SESSION_CHANGED");
+    };
+    let timer;
+    const cancelled = new Promise((_resolve, reject) => {
+      controller.signal.addEventListener("abort", () => reject(controller.signal.reason), { once: true });
+      timer = setTimeout(() => controller.abort(connectionError("TIMEOUT")), refreshTimeoutMs);
+      timer.unref?.();
+    });
     pending = Promise.resolve().then(async () => {
       try {
-        if (!origin) throw connectionError("GATEWAY_UNAVAILABLE");
-        const nextCatalog = await requestPublic(origin, "/ai/catalog", { method: "GET", redirect: "error" });
-        if (!Array.isArray(nextCatalog?.models) || !Array.isArray(nextCatalog?.packs)) throw connectionError("INVALID_RESPONSE");
-        if (capturedGeneration !== generation || disposed) return;
-        const claimUser = session?.user_id;
-        if (claimUser && nextCatalog.trial_credit_micro_usd > 0 && trialClaimedFor !== claimUser) {
-          await getAuth().requestSessionApi(origin, "/ai/trial", { method: "POST", body: "{}" });
-          if (capturedGeneration !== generation || disposed) return;
-          trialClaimedFor = claimUser;
+        await Promise.race([cancelled, (async () => {
+          current();
+          if (!origin) throw connectionError("GATEWAY_UNAVAILABLE");
+          const claimUser = session?.user_id;
+          // Public prices and this user's wallet are independent reads. Reuse the
+          // short-lived directory; a wallet refresh must not fetch it every time.
+          const catalogRequest = catalog && Date.now() - catalogRefreshedAt < catalogTtlMs
+            ? Promise.resolve(catalog)
+            : Promise.resolve().then(async () => {
+              const result = await requestPublic(origin, "/ai/catalog", { method: "GET", redirect: "error", signal: controller.signal });
+              current();
+              if (!Array.isArray(result?.models) || !Array.isArray(result?.packs) || !result.models.length) throw connectionError("INVALID_RESPONSE");
+              catalog = result;
+              catalogRefreshedAt = Date.now();
+              return result;
+            });
+          const [nextCatalog, wallet] = await Promise.all([catalogRequest,
+            claimUser ? getAuth().requestSessionApi(origin, "/ai/balance", { method: "GET", signal: controller.signal }) : null]);
+          current();
+          let nextBalance = wallet;
+          if (claimUser && nextCatalog.trial_credit_micro_usd > 0 && trialClaimedFor !== claimUser) {
+            // A returning account has already received its lifetime grant. For
+            // a new account, the idempotent claim itself returns the new wallet.
+            if (!(wallet?.trial_granted_micro_usd > 0)) {
+              nextBalance = await getAuth().requestSessionApi(origin, "/ai/trial", { method: "POST", body: "{}", signal: controller.signal });
+              current();
+            }
+            trialClaimedFor = claimUser;
+          }
+          if (claimUser && !validBalance(nextBalance)) throw connectionError("INVALID_RESPONSE");
+          catalog = nextCatalog;
+          balance = nextBalance;
+          error = null;
+        })()]);
+      } catch (failure) {
+        controller.abort();
+        if (capturedGeneration === generation) {
+          error = failure?.code === "TIMEOUT" ? "TIMEOUT" : "GATEWAY_UNAVAILABLE";
+          balance = null;
         }
-        const nextBalance = session ? await getAuth().requestSessionApi(origin, "/ai/balance", { method: "GET" }) : null;
-        if (capturedGeneration !== generation || disposed) return;
-        catalog = nextCatalog;
-        balance = nextBalance;
-        const receiptId = lastReservationId;
-        if (session && receiptId) {
-          try {
-            const receipt = await getAuth().requestSessionApi(origin, `/ai/usage/${receiptId}`, { method: "GET" });
-            if (capturedGeneration !== generation || disposed) return;
-            if (receiptId === lastReservationId) lastUsage = parseManagedUsage(receipt, receiptId) ?? lastUsage;
-          } catch { /* A pending receipt must not hide an otherwise available wallet. */ }
-        }
-        error = null;
-      } catch {
-        if (capturedGeneration === generation) { error = "GATEWAY_UNAVAILABLE"; balance = null; }
       } finally {
+        clearTimeout(timer);
         const sessionChanged = capturedGeneration !== generation;
         lastRefresh = sessionChanged ? 0 : Date.now();
         pending = null;
+        if (refreshController === controller) refreshController = null;
         publish();
         if (sessionChanged && !disposed) void refresh(true).catch(() => {});
+        else if (!error && !disposed) refreshReceipt();
       }
     });
     publish();
     return pending;
+  }
+
+  function refreshReceipt() {
+    const receiptId = lastReservationId;
+    if (!session || !receiptId || receiptPending) return;
+    const capturedGeneration = generation;
+    const signal = AbortSignal.timeout(refreshTimeoutMs);
+    // Settlement history is not a prerequisite for preparing the next message.
+    receiptPending = Promise.resolve().then(() => getAuth().requestSessionApi(origin,
+      `/ai/usage/${receiptId}`, { method: "GET", signal }))
+      .then((receipt) => {
+        if (disposed || signal.aborted || capturedGeneration !== generation || receiptId !== lastReservationId) return;
+        lastUsage = parseManagedUsage(receipt, receiptId) ?? lastUsage;
+        publish();
+      }).catch(() => {}).finally(() => { receiptPending = null; });
   }
 
   async function startProxy() {
@@ -279,6 +329,7 @@ export function withManagedConnection({ connections, getAuth, apiBase, requestPu
     },
     async dispose() {
       disposed = true;
+      refreshController?.abort();
       unsubscribeAuth?.(); unsubscribeLocal(); listeners.clear();
       for (const record of [...leases.values()]) revoke(record);
       server?.closeAllConnections(); server?.close();
@@ -291,4 +342,9 @@ export function withManagedConnection({ connections, getAuth, apiBase, requestPu
     return structuredClone(snapshot());
   };
   return service;
+}
+
+function validBalance(value) {
+  return value && ["balance_micro_usd", "reserved_micro_usd", "available_micro_usd"]
+    .every((key) => Number.isSafeInteger(value[key]));
 }

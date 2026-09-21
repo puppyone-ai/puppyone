@@ -7,6 +7,25 @@ import {
 const API = "https://api.puppyone.ai/api/v1";
 
 describe("main-owned Cloud Auth Broker", () => {
+  it("preserves the caller's cancellation signal on an authenticated wallet request", async () => {
+    const fixture = createFixture();
+    let receivedSignal;
+    fixture.requestCloudApi.mockImplementation(async (_base, path, init) => {
+      if (path === "/auth/refresh") return authResponse({ accessToken: jwtFor("user-123") });
+      if (path === "/auth/initialize") return { ok: true };
+      receivedSignal = init.signal;
+      return new Promise((_resolve, reject) => init.signal.addEventListener("abort", () => reject(init.signal.reason), { once: true }));
+    });
+    const controller = new AbortController();
+    const request = fixture.service.requestSessionApi(API, "/ai/balance", { method: "GET", signal: controller.signal });
+    const rejected = expect(request).rejects.toThrow("Compute deadline");
+    await vi.waitFor(() => expect(receivedSignal).toBeDefined());
+    controller.abort(new Error("Compute deadline"));
+    await rejected;
+    expect(receivedSignal.aborted).toBe(true);
+    fixture.service.dispose();
+  });
+
   it("keeps Agent bearer auth in Main and aborts the open stream on sign-out", async () => {
     const fetchImpl = vi.fn(async () => new Response("data: started\n\n", { headers: { "content-type": "text/event-stream" } }));
     const fixture = createFixture({ fetchImpl });

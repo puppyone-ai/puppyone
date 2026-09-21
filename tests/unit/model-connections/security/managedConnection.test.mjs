@@ -6,7 +6,7 @@ import { parseManagedUsage } from "../../../../electron/main/model-connections/m
 const services = [];
 afterEach(async () => { await Promise.all(services.splice(0).map((service) => service.dispose())); });
 
-function fixture({ signedIn = true, balance = 5_000_000, trial = 0 } = {}) {
+function fixture({ signedIn = true, balance = 5_000_000, trial = 0, trialGranted = 0, ...options } = {}) {
   let state = { status: signedIn ? "authenticated" : "signed-out", session: signedIn ? {
     user_id: "user-one", session_generation: "session-one", api_base_url: "https://qubits-api.puppyone.ai/api/v1",
   } : null };
@@ -14,9 +14,12 @@ function fixture({ signedIn = true, balance = 5_000_000, trial = 0 } = {}) {
   const auth = {
     readState: async () => state,
     subscribe: (callback) => { observer = callback; return () => {}; },
-    requestSessionApi: vi.fn(async (_base, path) => path === "/ai/balance" ? {
-      balance_micro_usd: balance, available_micro_usd: balance, reserved_micro_usd: 0,
-    } : { checkout_url: "https://sandbox.polar.sh/checkout/test" }),
+    requestSessionApi: vi.fn(async (_base, path) => {
+      if (path === "/ai/trial") trialGranted = trial;
+      return ["/ai/balance", "/ai/trial"].includes(path) ? {
+        balance_micro_usd: balance, available_micro_usd: balance, reserved_micro_usd: 0, trial_granted_micro_usd: trialGranted,
+      } : { checkout_url: "https://sandbox.polar.sh/checkout/test" };
+    }),
     startOAuth: vi.fn(async () => {}),
     openAgentStream: vi.fn(async () => ({ response: new Response('data: [DONE]\n\n', { headers: { "content-type": "text/event-stream" } }), close: vi.fn() })),
   };
@@ -29,7 +32,7 @@ function fixture({ signedIn = true, balance = 5_000_000, trial = 0 } = {}) {
     models: [{ id: "test/model", name: "Test", context_window: 32768, max_output_tokens: 4096 }] }));
   const service = withManagedConnection({ connections, getAuth: () => auth,
     apiBase: "https://qubits-api.puppyone.ai/api/v1", openExternal,
-    requestPublic,
+    requestPublic, ...options,
   });
   services.push(service);
   return { service, auth, openExternal, connections, requestPublic,
@@ -99,6 +102,55 @@ describe("Main-owned managed Agent connection", () => {
     value.requestPublic.mockImplementationOnce(() => { throw new Error("Connection unavailable"); });
     expect((await value.service.read()).managed.reason).toBe("gateway-unavailable");
     expect((await value.service.managed({ action: "refresh" })).managed.reason).toBe("ready");
+  });
+
+  it("reads directory and wallet concurrently, then reuses the directory for balance refreshes", async () => {
+    const value = fixture();
+    const catalog = await value.requestPublic();
+    value.requestPublic.mockClear();
+    let finishCatalog;
+    value.requestPublic.mockImplementationOnce(() => new Promise((resolve) => { finishCatalog = resolve; }));
+    const read = value.service.read();
+    await vi.waitFor(() => expect(value.auth.requestSessionApi).toHaveBeenCalled());
+    expect(finishCatalog).toBeTypeOf("function");
+    finishCatalog(catalog);
+    expect((await read).managed.reason).toBe("ready");
+    await value.service.managed({ action: "refresh" });
+    expect(value.requestPublic).toHaveBeenCalledTimes(1);
+    expect(value.auth.requestSessionApi).toHaveBeenCalledTimes(2);
+  });
+
+  it("ends a stuck request at the deadline, allows retry, and ignores its late response", async () => {
+    const value = fixture({ refreshTimeoutMs: 50 });
+    let finishOld;
+    let oldSignal;
+    value.auth.requestSessionApi.mockImplementationOnce((_base, _path, init) => {
+      oldSignal = init.signal;
+      return new Promise((resolve) => { finishOld = resolve; });
+    });
+    expect((await value.service.read()).managed).toMatchObject({ reason: "gateway-unavailable", errorCode: "TIMEOUT" });
+    expect(oldSignal.aborted).toBe(true);
+    expect((await value.service.managed({ action: "refresh" })).managed).toMatchObject({ reason: "ready", availableMicroUsd: 5_000_000 });
+    finishOld({ balance_micro_usd: 0, available_micro_usd: 0, reserved_micro_usd: 0 });
+    await Promise.resolve();
+    expect((await value.service.read()).managed.availableMicroUsd).toBe(5_000_000);
+  });
+
+  it("reloads the public directory after its short cache expires", async () => {
+    const value = fixture();
+    await value.service.read();
+    const now = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 60_001);
+    try {
+      const snapshot = await value.service.managed({ action: "refresh" });
+      expect(snapshot.managed.reason).toBe("ready");
+      expect(value.requestPublic).toHaveBeenCalledTimes(2);
+    } finally { now.mockRestore(); }
+  });
+
+  it("rejects an empty model directory instead of leaving a funded account connecting forever", async () => {
+    const value = fixture();
+    value.requestPublic.mockResolvedValue({ models: [], packs: [] });
+    expect((await value.service.read()).managed.reason).toBe("gateway-unavailable");
   });
 
   it("accepts only the private capability, fixed path, no browser Origin and configured model", async () => {
@@ -194,7 +246,7 @@ describe("one-time trial activation", () => {
     expect(value.auth.openAgentStream).not.toHaveBeenCalled();
   });
 
-  it("claims only after sign-in and once per account session before reading balance", async () => {
+  it("claims only after sign-in and uses the claim response without reading the same balance twice", async () => {
     const signedOut = fixture({ signedIn: false, trial: 1_000_000 });
     await signedOut.service.read();
     expect(signedOut.auth.requestSessionApi).not.toHaveBeenCalled();
@@ -203,12 +255,39 @@ describe("one-time trial activation", () => {
     await service.managed({ action: "refresh" });
     const calls = auth.requestSessionApi.mock.calls;
     expect(calls.filter((call) => call[1] === "/ai/trial")).toHaveLength(1);
-    expect(calls[0]).toEqual(["https://qubits-api.puppyone.ai/api/v1", "/ai/trial", { method: "POST", body: "{}" }]);
-    expect(calls[1][1]).toBe("/ai/balance");
+    expect(calls.map((call) => call[1])).toEqual(["/ai/balance", "/ai/trial", "/ai/balance"]);
+    expect(calls[1][2]).toMatchObject({ method: "POST", body: "{}" });
+    expect((await service.read()).managed.trialGrantedMicroUsd).toBe(1_000_000);
+  });
+
+  it("does not claim again for an account whose server wallet already has a trial grant", async () => {
+    const value = fixture({ trial: 1_000_000, trialGranted: 1_000_000 });
+    expect((await value.service.read()).managed.reason).toBe("ready");
+    expect(value.auth.requestSessionApi.mock.calls.map((call) => call[1])).toEqual(["/ai/balance"]);
   });
 });
 
 describe("server-owned usage receipts", () => {
+  it("keeps a usable wallet ready while its previous usage receipt is still loading", async () => {
+    const value = fixture();
+    const reservationId = "00000000-0000-4000-8000-000000000002";
+    value.auth.openAgentStream.mockResolvedValue({ response: new Response('data: [DONE]\n\n', {
+      headers: { "content-type": "text/event-stream", "x-puppyone-reservation-id": reservationId },
+    }), close: vi.fn() });
+    let finishReceipt;
+    value.auth.requestSessionApi.mockImplementation(async (_base, path) => path.startsWith("/ai/usage/")
+      ? new Promise((resolve) => { finishReceipt = resolve; })
+      : { balance_micro_usd: 999_953, available_micro_usd: 999_953, reserved_micro_usd: 0 });
+    const lease = await acquire(value.service);
+    const response = await fetch(`${lease.configuration.baseUrl}/chat/completions`, { method: "POST",
+      headers: { Authorization: `Bearer ${lease.configuration.apiKey}` },
+      body: JSON.stringify({ model: "test/model", messages: [{ role: "user", content: "hello" }] }) });
+    await response.text();
+    expect((await value.service.managed({ action: "refresh" })).managed.reason).toBe("ready");
+    await vi.waitFor(() => expect(finishReceipt).toBeTypeOf("function"));
+    finishReceipt({ reservation_id: reservationId, status: "running", model_id: "test/model" });
+  });
+
   it.each(["signOut", "replaceUser"])("reads the settled charge after streaming and clears it on %s", async (operation) => {
     const value = fixture();
     const reservationId = "00000000-0000-4000-8000-000000000001";

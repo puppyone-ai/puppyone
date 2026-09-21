@@ -261,6 +261,7 @@ export function createCloudAuthService({
 
   async function requestSessionApi(apiBase, apiPath, init = {}) {
     assertNotDisposed();
+    init.signal?.throwIfAborted();
     if (authStatus === "signing-out") {
       const error = new Error("Cloud sign-out is in progress.");
       error.code = "SESSION_SIGNING_OUT";
@@ -479,13 +480,14 @@ export function createCloudAuthService({
 
   async function performAuthenticatedRequest(apiBase, apiPath, init, session, requestGeneration) {
     if (requestGeneration !== sessionGeneration) throw createSessionChangedError();
+    init.signal?.throwIfAborted();
     const controller = new AbortController();
     activeRequestControllers.add(controller);
     try {
       const result = await requestCloudApi(
         apiBase,
         apiPath,
-        withSessionHeaders(init, session, controller.signal),
+        withSessionHeaders(init, session, init.signal ? AbortSignal.any([controller.signal, init.signal]) : controller.signal),
       );
       if (requestGeneration !== sessionGeneration) throw createSessionChangedError();
       return result;
