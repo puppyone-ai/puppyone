@@ -1,6 +1,7 @@
 import { boundRendererValue, redactSecrets, redactSecretText } from "../../agent-events.mjs";
 import { createAgentFileChangeEvidence } from "../../runtime/agent-file-change-evidence.mjs";
 
+/** @param {{ turnId?: string | null, providerSessionId?: string | null, namespace?: string, runtimeLabel?: string }} [options] */
 export function createPiEventState({
   turnId = null,
   providerSessionId = null,

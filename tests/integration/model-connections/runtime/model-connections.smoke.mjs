@@ -17,6 +17,8 @@ const fixture = await fs.mkdtemp(path.join(os.tmpdir(), "puppyone-model-connecti
 const userDataPath = path.join(fixture, "profile");
 const workspace = path.join(fixture, "workspace");
 await fs.mkdir(workspace);
+const toolOutput = "Synthetic tool result visible in history.";
+await fs.writeFile(path.join(workspace, "fixture.txt"), toolOutput);
 app.setPath("userData", userDataPath);
 const budget = createItemHostBudget();
 const owner = { id: 1, hostItemId: "model-test-chat", isDestroyed: () => false, send() {} };
@@ -31,9 +33,18 @@ const server = http.createServer((request, response) => {
     requests++;
     const body = JSON.parse(raw);
     const verification = body.tools?.some((tool) => tool.function?.name === "puppyone_connection_check");
-    const toolCall = verification && !body.messages.some((message) => message.role === "tool");
-    const delta = toolCall ? { tool_calls: [{ index: 0, id: "call_check", type: "function", function: { name: "puppyone_connection_check", arguments: '{"token":"puppyone-model-check"}' } }] } : { content: "Native model connection smoke passed." };
+    const toolCall = !body.messages.some((message) => message.role === "tool");
+    const delta = toolCall ? { tool_calls: [{ index: 0, id: "call_check", type: "function", function: {
+      name: verification ? "puppyone_connection_check" : "read",
+      arguments: verification ? '{"token":"puppyone-model-check"}' : '{"path":"fixture.txt"}',
+    } }] } : { content: "Native model connection smoke passed." };
+    if (!verification && !toolCall) {
+      assert.equal(body.messages.find((message) => message.role === "assistant").reasoning_content, "Synthetic reasoning context.");
+      assert.ok(body.messages.some((message) => message.role === "tool" && message.content.includes(toolOutput)));
+    }
     response.writeHead(200, { "content-type": "text/event-stream" });
+    if (!verification && toolCall) response.write(`data: ${JSON.stringify({ id: "smoke", object: "chat.completion.chunk",
+      choices: [{ index: 0, delta: { reasoning_content: "Synthetic reasoning context." }, finish_reason: null }] })}\n\n`);
     response.write(`data: ${JSON.stringify({ id: "smoke", object: "chat.completion.chunk", choices: [{ index: 0, delta, finish_reason: null }] })}\n\n`);
     response.write(`data: ${JSON.stringify({ id: "smoke", object: "chat.completion.chunk", choices: [{ index: 0, delta: {}, finish_reason: toolCall ? "tool_calls" : "stop" }] })}\n\n`);
     response.end("data: [DONE]\n\n");
@@ -77,6 +88,9 @@ async function run() {
     await service.startTurn(owner, { ...identity, commandId: "native-smoke-turn", prompt: "Reply with a short confirmation.", model: route }, workspace);
     const completed = await until(() => service.replay(owner, identity, workspace), (value) => value.events.some((event) => event.type === "turn.completed"));
     assert.match(JSON.stringify(completed), /Native model connection smoke passed/);
+    assert.ok(completed.events.some((event) => event.type === "tool.started" && event.payload.tool === "read"));
+    assert.ok(completed.events.some((event) => event.type === "tool.completed" && event.payload.outputPreview.includes(toolOutput)));
+    assertToolDisplay(completed.display);
     assert.equal(JSON.stringify(completed).includes(secret), false);
     assert.equal((await conversationCatalog.findById(identity.sessionId, workspace)).modelBindingRevision, `${connection.id}:1`);
     const pids = service.diagnostics().map((entry) => entry.pid);
@@ -85,6 +99,7 @@ async function run() {
     const resumed = await service.openSession(owner, { sessionId: identity.sessionId, runtimeId: "puppyone-agent" }, workspace);
     assert.equal(resumed.status, "opened");
     assert.notEqual(resumed.snapshot.capabilities.readOnly, true, "Unchanged connection must resume normally.");
+    assertToolDisplay(resumed.snapshot.display);
     const rotated = await connections.save({ ...connection, id: connection.id, expectedGeneration: 1, apiKey: secret });
     assert.equal(service.getSessionCount(), 0, "Revocation must stop the authorized utility and worker.");
     assert.equal(budget.snapshot().length, 0);
@@ -92,21 +107,23 @@ async function run() {
     const changed = await service.openSession(owner, { sessionId: identity.sessionId, runtimeId: "puppyone-agent" }, workspace);
     assert.equal(changed.status, "opened");
     assert.equal(changed.snapshot.capabilities.readOnly, true, "Old history must not acquire changed credentials, even with a ready model.");
-    assert.equal(requests, 5, "Resuming with a changed connection must not perform inference.");
+    assert.equal(requests, 6, "Resuming with a changed connection must not perform inference.");
     await service.closeAll();
     await connections.remove({ id: connection.id, expectedGeneration: 2 });
     const reopened = await service.openSession(owner, { sessionId: identity.sessionId, runtimeId: "puppyone-agent" }, workspace);
     assert.equal(reopened.status, "opened");
     assert.equal(reopened.snapshot.capabilities.readOnly, true);
     assert.match(JSON.stringify(reopened.snapshot.display), /Native model connection smoke passed/);
-    assert.equal(requests, 5, "Opening unavailable history must not perform inference.");
+    assertToolDisplay(reopened.snapshot.display);
+    assert.equal(requests, 6, "Opening unavailable history must not perform inference.");
     await service.closeAll();
     for (const file of await fs.readdir(userDataPath, { recursive: true })) {
       const full = path.join(userDataPath, file);
       if ((await fs.stat(full)).isFile()) assert.equal((await fs.readFile(full)).includes(Buffer.from(secret)), false, `Credential leaked: ${file}`);
     }
     console.log(JSON.stringify({ ok: true, platform: process.platform, encryptedStorage: true, mainUtilityWorkerRoundTrip: true,
-      revocation: true, durableHistoryFence: true, readOnlyHistory: true, inferenceRequests: requests, remainingResourceLeases: budget.snapshot().length }, null, 2));
+      revocation: true, durableHistoryFence: true, readOnlyHistory: true, liveAndRestoredTools: true,
+      inferenceRequests: requests, remainingResourceLeases: budget.snapshot().length }, null, 2));
   } catch (error) { failed = true; console.error(error); }
   finally {
     await service?.closeAll().catch((error) => { failed = true; console.error(error); });
@@ -115,5 +132,12 @@ async function run() {
     await fs.rm(fixture, { recursive: true, force: true });
     clearTimeout(deadline); app.exit(failed ? 1 : 0);
   }
+}
+function assertToolDisplay(display) {
+  const tools = display.parts.filter((part) => part.kind === "tool");
+  assert.equal(tools.length, 1, "The native tool must survive live display and history restoration.");
+  assert.equal(tools[0].status, "completed");
+  assert.ok(tools[0].detail.outputPreview.includes(toolOutput));
+  assert.equal(JSON.stringify(display).includes("Synthetic reasoning context."), false);
 }
 app.whenReady().then(run).catch((error) => { console.error(error); app.exit(1); });
