@@ -39,6 +39,7 @@ describe("main-owned Cloud Auth Broker", () => {
     const init = fetchImpl.mock.calls[0][1];
     expect(init.headers.Authorization).toMatch(/^Bearer /);
     expect(init.headers["Idempotency-Key"]).toBe("test-inference-001");
+    expect(init.headers["X-Request-Id"]).toBe("test-inference-001");
     expect(init.redirect).toBe("error");
     expect(init.signal.aborted).toBe(false);
     await fixture.service.clearSession();

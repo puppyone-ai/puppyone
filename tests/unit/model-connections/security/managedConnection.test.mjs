@@ -228,7 +228,37 @@ describe("Main-owned managed Agent connection", () => {
     const response = await fetch(`${lease.configuration.baseUrl}/chat/completions`, { method: "POST",
       headers: { Authorization: `Bearer ${lease.configuration.apiKey}` }, body: '{}' });
     expect(response.status).toBe(401);
+    expect((await response.json()).error.code).toBe("ai_session_expired");
   });
+
+  it("keeps the server's protocol error and reference through the Main proxy", async () => {
+    const { service, auth } = fixture();
+    const lease = await acquire(service);
+    const upstream = { error: { code: "ai_request_invalid", message: "Invalid Agent request. Reference: reference-123", request_id: "reference-123" } };
+    auth.openAgentStream.mockResolvedValueOnce({ response: new Response(JSON.stringify(upstream), {
+      status: 422, headers: { "Content-Type": "application/json", "X-Request-Id": "reference-123" },
+    }), close: vi.fn() });
+    const response = await fetch(`${lease.configuration.baseUrl}/chat/completions`, { method: "POST",
+      headers: { Authorization: `Bearer ${lease.configuration.apiKey}` }, body: JSON.stringify({ model: "test/model" }) });
+    expect(response.status).toBe(422);
+    expect(response.headers.get("x-request-id")).toBe("reference-123");
+    expect(await response.json()).toEqual(upstream);
+    expect(auth.openAgentStream).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([['{', 400, "ai_request_invalid"], ['x'.repeat(524289), 413, "ai_request_too_large"]])(
+    "returns a readable local protocol error for invalid input (%#)", async (body, status, code) => {
+      const { service, auth } = fixture();
+      const lease = await acquire(service);
+      const response = await fetch(`${lease.configuration.baseUrl}/chat/completions`, { method: "POST",
+        headers: { Authorization: `Bearer ${lease.configuration.apiKey}` }, body });
+      expect(response.status).toBe(status);
+      const error = (await response.json()).error;
+      expect(error.code).toBe(code);
+      expect(error.message).toContain(response.headers.get("x-request-id"));
+      expect(auth.openAgentStream).not.toHaveBeenCalled();
+    },
+  );
 
   it("clears account data immediately on logout and ignores a late balance response", async () => {
     const value = fixture();

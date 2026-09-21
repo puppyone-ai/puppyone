@@ -194,19 +194,24 @@ export function withManagedConnection({ connections, getAuth, apiBase, requestPu
     if (serverReady) return serverReady;
     serverReady = (async () => {
       server = http.createServer(async (request, response) => {
+        const requestId = randomUUID();
+        const reject = (status, code, message) => {
+          response.writeHead(status, { "Content-Type": "application/json", "Cache-Control": "no-store", "X-Request-Id": requestId });
+          response.end(JSON.stringify({ error: { code, message: `${message} Reference: ${requestId}`, request_id: requestId } }));
+        };
         let stream = null;
         let record = null;
         try {
           if (request.method !== "POST" || request.url !== "/v1/chat/completions" || request.headers.origin
             || request.headers.host !== `127.0.0.1:${server.address().port}`) {
-            response.writeHead(403).end(); return;
+            reject(403, "ai_access_denied", "This Agent connection is not authorized."); return;
           }
           const capability = request.headers.authorization?.replace(/^Bearer /u, "");
           record = [...leases.values()].find((candidate) => candidate.capability === capability);
           if (!record || record.generation !== generation || record.controller.signal.aborted) {
-            response.writeHead(401).end(); return;
+            reject(401, "ai_session_expired", "The Agent connection has expired. Reopen the conversation."); return;
           }
-          if (record.busy) { response.writeHead(429).end(); return; }
+          if (record.busy) { reject(429, "ai_request_in_progress", "An Agent request is already in progress."); return; }
           record.busy = true;
           const controller = new AbortController();
           const abort = () => controller.abort();
@@ -219,13 +224,15 @@ export function withManagedConnection({ connections, getAuth, apiBase, requestPu
             let bytes = 0;
             for await (const chunk of request) {
               bytes += chunk.length;
-              if (bytes > 512 * 1024) { response.writeHead(413).end(); return; }
+              if (bytes > 512 * 1024) { reject(413, "ai_request_too_large", "This conversation is too large. Start a new conversation."); return; }
               chunks.push(chunk);
             }
             const body = Buffer.concat(chunks).toString("utf8");
-            const value = JSON.parse(body);
-            if (!record.models.has(value.model)) { response.writeHead(400).end(); return; }
-            stream = await getAuth().openAgentStream(origin, body, { signal: controller.signal, requestId: randomUUID() });
+            let value;
+            try { value = JSON.parse(body); }
+            catch { reject(400, "ai_request_invalid", "The Agent request is not valid JSON."); return; }
+            if (!record.models.has(value?.model)) { reject(400, "ai_model_unavailable", "Select an available Agent model."); return; }
+            stream = await getAuth().openAgentStream(origin, body, { signal: controller.signal, requestId });
             const reservationId = stream.response.headers.get("x-puppyone-reservation-id");
             if (record.generation === generation && /^[a-f0-9-]{36}$/u.test(reservationId ?? "")) {
               lastReservationId = reservationId;
@@ -234,7 +241,7 @@ export function withManagedConnection({ connections, getAuth, apiBase, requestPu
               publish();
             }
             response.writeHead(stream.response.status, { "Content-Type": stream.response.headers.get("content-type") || "application/json",
-              "Cache-Control": "no-store" });
+              "Cache-Control": "no-store", "X-Request-Id": stream.response.headers.get("x-request-id") || requestId });
             for await (const chunk of stream.response.body ?? []) {
               if (!response.write(chunk)) await once(response, "drain", { signal: controller.signal });
             }
@@ -246,8 +253,8 @@ export function withManagedConnection({ connections, getAuth, apiBase, requestPu
             record.busy = false;
           }
         } catch {
-          if (!response.headersSent) response.writeHead(503, { "Content-Type": "application/json" });
-          response.end(JSON.stringify({ error: { message: "Agent connection interrupted. Refresh your balance and try again." } }));
+          if (!response.headersSent) reject(503, "ai_connection_interrupted", "The Agent connection was interrupted. Try again.");
+          else response.destroy();
         } finally {
           stream?.close();
           if (record) void refresh(true).catch(() => {});

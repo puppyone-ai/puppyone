@@ -252,7 +252,7 @@ export function createCloudAuthService({
       const response = await fetchImpl(`${normalized}/ai/chat/completions`, {
         method: "POST", redirect: "error", signal: controller.signal,
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${captured.access_token}`,
-          "Idempotency-Key": requestId }, body,
+          "Idempotency-Key": requestId, "X-Request-Id": requestId }, body,
       });
       if (generation !== sessionGeneration) throw createSessionChangedError();
       return { response, close };
