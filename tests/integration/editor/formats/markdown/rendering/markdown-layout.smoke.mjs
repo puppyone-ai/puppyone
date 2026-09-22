@@ -42,7 +42,9 @@ app.whenReady().then(async () => {
     vite = await createServer({ root, cacheDir: path.join(temporary, "vite"), logLevel: "error",
       server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null } });
     await vite.listen();
-    window = new BrowserWindow({ width: 1100, height: 760, show: false,
+    // Layout/performance assertions require a presented surface. On Linux an
+    // unshown window still receives only ~1 rAF/s despite backgroundThrottling.
+    window = new BrowserWindow({ width: 1100, height: 760, show: true,
       webPreferences: { contextIsolation: true, sandbox: true, backgroundThrottling: false } });
     window.webContents.on("console-message", details => {
       if ((details.level === "error" || details.level === "warning") && !details.message.includes("Electron Security Warning")) {
