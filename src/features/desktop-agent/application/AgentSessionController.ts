@@ -54,6 +54,7 @@ export class AgentSessionController {
   private readonly submission: AgentTurnSubmissionCoordinator;
   private lastInspectionAt = 0;
   private modelCatalogEpoch = 0;
+  private sessionModelIds: ReadonlySet<string> = new Set();
   private disposed = false;
   private stopIntent: AgentTurnInterruptRequest | null = null;
   private readonly stopScope = new ManagedOperationScope();
@@ -245,10 +246,11 @@ export class AgentSessionController {
       if (this.disposed || epoch !== this.modelCatalogEpoch || this.state.selectedRuntimeId !== runtimeId || this.state.session?.id !== sessionId) return;
       const previous = this.state.inspection;
       const boundConnection = agentProviderIdForModel(this.state.session?.selectedModel);
-      // Existing Workers have an immutable model configuration. Newly added models
-      // on that connection become available after reopening/new conversation.
+      // The native snapshot owns the Worker's immutable model configuration.
+      // A transient empty catalog must not erase that binding: intersect the
+      // current catalog with native model IDs, never the previous UI catalog.
       const models = sessionId ? inspection.models.filter((model) => agentProviderIdForModel(model) !== boundConnection
-        || previous?.models.some((entry) => entry.model === model.model)) : inspection.models;
+        || this.sessionModelIds.has(model.model)) : inspection.models;
       this.patch({ inspection: { ...inspection, models, capabilities: inspection.capabilities ? {
         ...inspection.capabilities, ...(previous?.capabilities?.readOnly ? { readOnly: true } : {}),
       } : previous?.capabilities }, selectedModel: chooseAgentModel(inspection, this.state.selectedModel, null) });
@@ -693,6 +695,7 @@ export class AgentSessionController {
 
   private applySnapshotState(snapshot: AgentSessionSnapshot) {
     assertAgentSessionSnapshot(snapshot);
+    this.sessionModelIds = new Set(snapshot.models.map((model) => model.model));
     const inspection = this.state.inspection ? {
       ...this.state.inspection,
       runtime: snapshot.runtime ?? snapshot.session.runtime ?? this.state.inspection.runtime,
@@ -738,6 +741,7 @@ export class AgentSessionController {
     }
     let next = { ...this.state, ...patch };
     if (patch.session === null && patch.control === undefined) {
+      this.sessionModelIds = new Set();
       next = { ...next, control: null, replicaStatus: "detached" };
     }
     if (next.control && next.session) next = deriveControlReplicaState(next);
