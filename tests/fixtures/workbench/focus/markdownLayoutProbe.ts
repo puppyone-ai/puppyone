@@ -1,11 +1,12 @@
 import { scrollCodeMirrorIntoView } from "../../../../packages/shared-ui/src/editor/codemirror/navigationIntent";
 import { dispatchTypographyChange } from "../../../../packages/shared-ui/src/core/typography";
 import { EditorView } from "@codemirror/view";
+import { createMarkdownLayoutCoordinator } from "../../../../packages/shared-ui/src/editor/markdown/platform/codemirror/layoutCoordinator";
 
 const wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 const frame = () => new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 type Anchor = { view: EditorView; position: number; top: number; edge: "start" | "end" | null; element?: HTMLElement };
-type Sample = { top: number; width: number; token: number; scroll: number; error: number };
+type Sample = { top: number; width: number; committedWidth: number; scroll: number; error: number };
 
 /** Geometry sampling is deliberately DOM-only after baseline setup. Calling
  * coordsAtPos while sampling would repair the very scheduling bug under test. */
@@ -67,7 +68,7 @@ export class MarkdownLayoutProbe {
     const top = (anchor.element ?? range).getBoundingClientRect().top - view.scrollDOM.getBoundingClientRect().top;
     const scroll = view.scrollDOM;
     return { top, width: scroll.clientWidth, scroll: scroll.scrollTop,
-      token: parseFloat(view.dom.style.getPropertyValue("--po-markdown-scroll-viewport-inline-size")),
+      committedWidth: createMarkdownLayoutCoordinator(view).snapshot().committedWidth,
       error: anchor.edge === "start" ? Math.abs(scroll.scrollTop)
         : anchor.edge === "end" ? Math.abs(scroll.scrollHeight - scroll.clientHeight - scroll.scrollTop)
         : Math.abs(top - anchor.top) };
@@ -109,7 +110,7 @@ export class MarkdownLayoutProbe {
     });
     const all = this.samples.flat();
     return { frames: this.samples.length, maxError: Math.max(0, ...all.map(sample => sample.error)),
-      maxWidthLag: Math.max(0, ...all.map(sample => Math.abs(sample.width - sample.token))),
+      maxWidthLag: Math.max(0, ...all.map(sample => Math.abs(sample.width - sample.committedWidth))),
       widths: this.anchors.map((_anchor, index) => [...new Set(this.samples.map(samples => samples[index].width))]),
       samples: this.samples };
   }

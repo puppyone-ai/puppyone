@@ -22,14 +22,14 @@ export type CodeMirrorViewportLayout = {
   invalidate(reason: EditorLayoutReason): void;
   update(update: ViewUpdate): void;
   navigation(): void;
-  snapshot(): Readonly<{ revision: number; committedRevision: number; commits: number; skipped: number; maxCommitMs: number; disposed: boolean; suspended: boolean; faulted: boolean }>;
+  snapshot(): Readonly<{ revision: number; committedRevision: number; committedWidth: number; commits: number; skipped: number; maxCommitMs: number; disposed: boolean; suspended: boolean; faulted: boolean }>;
   dispose(): void;
 };
 
 /** View-local reading state and CodeMirror adaptation. The DOM Document owns
  * scheduling/observation; this layer owns neither file data nor a second height
  * map. It participates in the same phases as its sibling panes. */
-export function createCodeMirrorViewportLayout(view: EditorView, publishViewport: (inlineSize: number) => void): CodeMirrorViewportLayout {
+export function createCodeMirrorViewportLayout(view: EditorView): CodeMirrorViewportLayout {
   const engine = createCodeMirrorLayoutEngine(view);
   const observations = new Map<HTMLElement, Observation>();
   const pending = new Set<HTMLElement>();
@@ -97,7 +97,6 @@ export function createCodeMirrorViewportLayout(view: EditorView, publishViewport
     },
     write() {
       if (!measured || !active() || measured.document !== view.state.doc) return;
-      publishViewport(measured.width);
       // Every pane's boxes have already been read. Ignore callbacks from a
       // replaced widget registration even when its DOM element was reused.
       for (const change of measured.changes) {
@@ -208,7 +207,7 @@ export function createCodeMirrorViewportLayout(view: EditorView, publishViewport
       if (update.geometryChanged && view.scrollDOM.clientWidth === committedWidth
         && view.scrollDOM.clientHeight === committedHeight && revision === committedRevision) invalidate("geometry");
     },
-    snapshot: () => ({ revision, committedRevision, commits, skipped, maxCommitMs, disposed, suspended, faulted }),
+    snapshot: () => ({ revision, committedRevision, committedWidth, commits, skipped, maxCommitMs, disposed, suspended, faulted }),
     dispose() {
       if (disposed) return;
       disposed = true;

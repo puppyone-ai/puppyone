@@ -178,7 +178,6 @@ async function measureScenario(viewportWidth, direction, reserveVerticalScrollba
       const addColumn = document.querySelector(".cm-md-table-add-column");
       const columnHandle = document.querySelector(".cm-md-table-column-handle");
       const rowHandle = document.querySelector(".cm-md-table-row-handle");
-      root.style.setProperty("--po-markdown-scroll-viewport-inline-size", outer.clientWidth + "px");
       await nextFrame();
       const viewportMaximum = viewport.scrollWidth - viewport.clientWidth;
       scrollbarContent.style.inlineSize = scrollbar.clientWidth + viewportMaximum + "px";

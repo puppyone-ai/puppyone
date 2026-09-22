@@ -119,7 +119,7 @@ describe("Markdown editor layout", () => {
     expect(editorRule).toContain("--po-markdown-scroll-viewport-inline-size: 100cqw;");
     expect(editorRule).toContain("-webkit-font-smoothing: antialiased;");
     expect(editorRule).toContain("-moz-osx-font-smoothing: grayscale;");
-    expect(scrollerRule).not.toContain("container-type: inline-size;");
+    expect(scrollerRule).toContain("container-type: inline-size;");
   });
 
   it("keeps the full-width block edge separate from the document reading rail", () => {

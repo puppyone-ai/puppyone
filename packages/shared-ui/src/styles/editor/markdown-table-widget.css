@@ -62,9 +62,9 @@
       var(--po-markdown-editor-gutter-inline) - var(--cm-md-table-viewport-inline-inset)
     );
     --cm-md-table-reading-rail-end-inset: var(--cm-md-table-interaction-start-inset);
-    /* Keep actual sizing on the wrapper-relative rule above. The Host-owned
-       viewport token imports the scroller client width into the reading-rail
-       calculation; the wrapper still owns interaction inset accounting. */
+    /* Keep actual sizing on the wrapper-relative rule above. Container units
+       resolve against the scrollport content box, so reserved scrollbar
+       gutters do not enter the reading-rail calculation. */
   }
 }
 

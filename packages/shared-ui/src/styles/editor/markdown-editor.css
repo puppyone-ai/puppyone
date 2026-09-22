@@ -128,6 +128,10 @@
 }
 
 .markdown-codemirror-editor .cm-scroller {
+  /* Wide blocks resolve cqw against the real scrollport, including its
+     reserved scrollbar gutters. Avoid republishing inherited pixel tokens
+     across every line of every pane on each resize. */
+  container-type: inline-size;
   /* Wrapped Markdown owns vertical scrolling. Wide widgets own their own
      horizontal scrollports; their transient width must not create an outer
      horizontal scrollbar and change this viewport's height during layout. */
