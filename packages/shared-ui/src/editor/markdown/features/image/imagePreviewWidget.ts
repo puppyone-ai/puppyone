@@ -1,5 +1,6 @@
 import { EditorSelection } from "@codemirror/state";
 import { EditorView, type Rect, WidgetType } from "@codemirror/view";
+import { commitEditorLayout } from "../../../runtime/editorLayout";
 import { getMarkdownEmbedHost } from "../../platform/codemirror/embedHost";
 import { disposeWidgetSessionDom } from "../../platform/codemirror/widgetSession";
 import { isBrokerSafeResolvedAssetUrl } from "../../platform/policy/markdownAssetPolicy";
@@ -139,6 +140,9 @@ export class ImagePreviewWidget extends WidgetType {
     const createImage = (source: string, placeholder: HTMLElement) => {
       const image = document.createElement("img");
       image.alt = this.alt;
+      // CodeMirror already mounts only nearby widgets. This image must load
+      // while hidden so decoding completes before its atomic layout reveal.
+      image.loading = "eager";
       prepareBrokeredMarkdownImage(image, source);
       image.hidden = true;
       image.dataset.previewState = "loading";
@@ -147,11 +151,13 @@ export class ImagePreviewWidget extends WidgetType {
       image.addEventListener("load", () => {
         const reveal = () => {
           if (abort.signal.aborted || !image.isConnected) return;
-          image.hidden = false;
-          image.dataset.previewState = "ready";
-          image.removeAttribute("aria-hidden");
-          placeholder.remove();
-          measure.schedule();
+          commitEditorLayout(view.dom, () => {
+            image.hidden = false;
+            image.dataset.previewState = "ready";
+            image.removeAttribute("aria-hidden");
+            placeholder.remove();
+            measure.schedule();
+          });
         };
         if (typeof image.decode !== "function") {
           reveal();
@@ -161,8 +167,10 @@ export class ImagePreviewWidget extends WidgetType {
       }, { once: true });
       image.addEventListener("error", () => {
         if (abort.signal.aborted || !image.isConnected) return;
-        wrapper.replaceChildren(createPlaceholder(this.alt || this.source));
-        measure.schedule();
+        commitEditorLayout(view.dom, () => {
+          wrapper.replaceChildren(createPlaceholder(this.alt || this.source));
+          measure.schedule();
+        });
       }, { once: true });
       image.src = source;
       return image;

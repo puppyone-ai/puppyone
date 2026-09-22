@@ -93,7 +93,9 @@ export class MarkdownLayoutProbe {
   }
 
   async stop(allowDocumentChange = false) {
-    await wait(100);
+    // Wait for real frames instead of assuming a fixed timer contains them.
+    for (let index = 0; index < 6; index++) await frame();
+    await wait(0);
     this.active = false;
     cancelAnimationFrame(this.frameId);
     for (const timer of this.timers) clearTimeout(timer);

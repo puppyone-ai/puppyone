@@ -80,7 +80,7 @@ describe("Markdown image readiness", () => {
     expect(image?.getAttribute("src")).toBe("https://img.shields.io/badge/Docs-Read-blue");
     expect(image?.referrerPolicy).toBe("no-referrer");
     expect(image?.crossOrigin).toBe("anonymous");
-    expect(image?.loading).toBe("lazy");
+    expect(image?.loading).toBe("eager");
     expect(image?.decoding).toBe("async");
   });
 
