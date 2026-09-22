@@ -6,7 +6,7 @@ import {
   type WorkspaceFolder,
 } from "@puppyone/shared-ui";
 
-export type WorkspaceEntryKind = "restored" | "opened" | "created" | "cloned";
+export type WorkspaceEntryKind = "restored" | "opened" | "created" | "cloned" | "switched";
 
 /**
  * One renderer-owned admission intent for every way a Workspace becomes active.

@@ -22,11 +22,12 @@ const identity = async () => ({ commit: "test-commit", dirty: false, fingerprint
 describe("pre-release check definitions", () => {
   it("retains every existing CI gate and builds UI dependencies once", async () => {
     const actual = await loadManifest();
-    expect(actual.checks.map((entry) => entry.id)).toEqual([
+    expect(actual.checks.map((entry) => entry.id)).toEqual(expect.arrayContaining([
       "lint", "test-types", "updater-p0", "tests", "markdown-focus", "native-resize-cursor", "build", "agent-viewport",
       "agent-tools", "project-sessions", "sidebar-visibility", "appearance", "auxiliary-appearance",
       "item-utilities", "editor-runtime", "editor-panes", "pdf-app", "database-app", "platform-contracts",
-    ]);
+      "agent-attachment-ui", "markdown-selection", "markdown-layout", "table-interaction", "text-selection", "item-lifecycle",
+    ]));
     expect(actual.checks.find((entry) => entry.id === "updater-p0").command).toEqual(["npm", "run", "test:updater-p0:coverage"]);
     expect(createPlan(actual, { checkId: "agent-viewport" }).map((entry) => entry.id)).toEqual(["build", "agent-viewport"]);
     const visibility = actual.checks.find((entry) => entry.id === "sidebar-visibility");

@@ -194,14 +194,14 @@ export function useWorkspaceLifecycle({
     });
   }, [activateWorkspaceComposition, onWorkspaceOpenSettled, recentWorkspaceItems, refreshRecentWorkspaceList]);
 
-  const openWorkspacePath = useCallback(async (folderPath: string) => {
+  const openWorkspacePath = useCallback(async (folderPath: string, entryKind: WorkspaceEntryKind = "opened") => {
     const request = ++navigationRequestRef.current;
     const result = await openWorkspaceTarget({
       kind: "local",
       path: folderPath,
       placement: "current-window",
     });
-    if (request === navigationRequestRef.current) handleWorkspaceOpenResult(result);
+    if (request === navigationRequestRef.current) handleWorkspaceOpenResult(result, entryKind);
   }, [handleWorkspaceOpenResult]);
 
   const openDroppedWorkspace = useCallback(async (folder: File) => {

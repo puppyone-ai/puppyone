@@ -150,7 +150,7 @@ export function DatabaseViewer({ document, openExternalFile }: PresetViewerRende
         <span className="database-preview__engine" title={`${info.engine === "sqlite" ? "SQLite" : "DuckDB"} ${info.engineVersion} · ${t("editor.database.readonly")}`}>
           <Database size={15} strokeWidth={1.8} aria-hidden="true" />
         </span>
-        <div className="database-preview__object-tabs" role="tablist" aria-label={t("editor.database.objects")} data-po-scrollbar="content">
+        <div className="database-preview__object-tabs" role="tablist" aria-label={t("editor.database.objects")} data-po-scrollbar="hidden">
           {info.objects.map((object, index) => {
             const unavailable = object.readable ? null : t(databaseObjectUnavailableMessage(object.unavailableReason));
             const inaccessible = busy || !object.readable;

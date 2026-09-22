@@ -40,7 +40,8 @@ export function useWorkspaceEntryBootstrap({
 
     if (revealedIntentRef.current !== intent.id) {
       revealedIntentRef.current = intent.id;
-      revealAgentWorkbench();
+      // Switching projects preserves the user's current sidebar presentation.
+      if (intent.kind !== "switched") revealAgentWorkbench();
     }
 
     let cancelled = false;

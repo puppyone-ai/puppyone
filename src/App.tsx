@@ -767,7 +767,7 @@ function AppContent() {
     }
     try {
       if (!await drainWorkspaceNavigation()) return;
-      await openWorkspacePath(path);
+      await openWorkspacePath(path, "switched");
       navigateDesktopView(projectView);
     } catch (error) {
       setRestoreWorkspaceError(error instanceof Error ? error.message : String(error));

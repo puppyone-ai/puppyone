@@ -258,7 +258,7 @@
   color: var(--po-text-muted);
   cursor: var(--po-clickable-cursor, default);
   font-family: var(--po-font-sans);
-  font-size: 13px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 1;
 }
 
@@ -284,7 +284,7 @@
   padding-inline: 5px;
   color: var(--po-text-muted);
   font-family: var(--po-font-mono);
-  font-size: 11px;
+  font-size: var(--po-type-ui-micro, 11px);
   line-height: 22px;
   text-align: center;
   user-select: none;

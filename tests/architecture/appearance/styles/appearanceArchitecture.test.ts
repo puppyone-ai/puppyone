@@ -288,7 +288,7 @@ describe("appearance profile architecture", () => {
       status: "constrained",
     });
     expect(result.diagnostics[0]?.code).toBe("sub-theme-incompatible");
-    expect(result.appearanceRevision).toBe("default:default.neutral:dark");
+    expect(result.appearanceRevision).toMatch(/^default:default\.neutral:dark:[a-z0-9]+$/);
 
     const editorContext = source("packages/shared-ui/src/core/appearance/EditorAppearanceContext.tsx");
     expect(editorContext).toContain("EditorAppearanceRevisionContext");

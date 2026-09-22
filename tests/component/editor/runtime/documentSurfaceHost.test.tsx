@@ -194,6 +194,25 @@ describe("DocumentSurfaceReadinessBoundary", () => {
     await flushFrames();
     expect(onReady).toHaveBeenCalledTimes(1);
   });
+  it("does not starve handoff when a ready viewer reasserts its idle state", async () => {
+    const onReady = vi.fn();
+    const container = createContainer();
+    await act(async () => root?.render(
+      <DocumentSurfaceReadinessBoundary readinessKey="markdown" onReady={onReady}>
+        <div aria-busy="false">ready editor</div>
+      </DocumentSurfaceReadinessBoundary>,
+    ));
+    const editor = container.querySelector("[aria-busy]")!;
+    for (let frame = 0; frame < 3; frame++) {
+      await act(async () => {
+        editor.setAttribute("aria-busy", "false");
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      await flushOneFrame();
+    }
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
   it("waits for aria-busy to clear and for two stable animation frames", async () => {
     const onReady = vi.fn();
     const container = createContainer();

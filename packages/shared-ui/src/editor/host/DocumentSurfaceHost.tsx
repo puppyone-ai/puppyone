@@ -297,7 +297,9 @@ export function DocumentSurfaceReadinessBoundary({
       onReadyRef.current?.();
     };
     const observer = new MutationObserver(() => {
-      stableFrames = 0;
+      // Viewers may reassert aria-busy=false on every layout. Those redundant
+      // mutations must not starve the two non-busy frames needed for handoff.
+      if (root.querySelector('[aria-busy="true"]')) stableFrames = 0;
       scheduleCheck();
     });
 

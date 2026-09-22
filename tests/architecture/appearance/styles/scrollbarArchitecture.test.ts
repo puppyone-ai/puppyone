@@ -256,9 +256,9 @@ describe("scrollbar architecture", () => {
   });
 
   it("keeps the auxiliary resizer on the panel side of the Markdown scroll lane", () => {
-    expect(markdownEditorCss).toMatch(
-      /\.markdown-codemirror-editor \.cm-scroller\s*\{[^}]*overflow:\s*auto;/s,
-    );
+    const markdownScroller = readRule(markdownEditorCss, ".markdown-codemirror-editor .cm-scroller");
+    expect(markdownScroller).toContain("overflow-y: auto;");
+    expect(markdownScroller).toContain("overflow-x: hidden;");
     expect(auxiliaryPanelSource).toContain('className: "desktop-right-sidebar-resizer"');
     expect(auxiliaryPanelSource).toContain("<CollapsiblePaneFrame");
     expect(collapsiblePaneFrameSource).toContain("paneEdge");

@@ -28,7 +28,7 @@ describe("Built-in compute selection ownership", () => {
     expect(source).toContain("onClick={onOpenAccount}");
     expect(source).not.toContain('t("agent.compute.balance"');
     expect(source).not.toContain('t("agent.compute.topUp"');
-    expect(account).toContain('t("agent.compute.walletTitle"');
+    expect(account).toContain('t("agent.compute.availableBalance"');
     expect(account).toContain('t("agent.compute.topUp"');
     expect(source).not.toMatch(/ModelConnectionQuickSetup|ModelConnectionsSettings|store\.(save|discover|verify)\(/u);
     expect(publicConnections).not.toContain("ModelConnectionQuickSetup");

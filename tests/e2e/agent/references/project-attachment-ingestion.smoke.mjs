@@ -84,7 +84,8 @@ app.whenReady().then(async () => {
     window.webContents.setBackgroundThrottling(false);
     window.setSize(1200, 850); window.show(); window.webContents.focus();
     await until(() => evaluate("Boolean(document.querySelector('.app-shell'))"), "application mounted");
-    await evaluate("document.querySelector('.desktop-titlebar-terminal, .desktop-shell-toolbar-terminal').click()");
+    await evaluate("if (!document.querySelector('.desktop-right-sidebar')?.classList.contains('is-open')) document.querySelector('.desktop-titlebar-terminal, .desktop-shell-toolbar-terminal').click()");
+    await until(() => evaluate("document.querySelector('.desktop-right-sidebar')?.dataset.panePresentation === 'expanded'"), "Agent sidebar expanded");
     await until(() => evaluate("Boolean(document.querySelector('.desktop-terminal-launcher-tool[title=Codex]'))"), "Codex fixture available");
     await evaluate("document.querySelector('.desktop-terminal-launcher-tool[title=Codex]').click()");
     await until(() => evaluate("document.querySelector('.desktop-agent-reference-trigger')?.disabled===false"), "image ingestion enabled");
@@ -99,6 +100,7 @@ app.whenReady().then(async () => {
     await virtualImage("drop"); await ready("pathless-drop"); await remove();
     await virtualImage("paste"); await ready("pathless-paste");
     assert.equal(await evaluate("document.querySelector('button[aria-label=\"Send message\"]')?.disabled"), true, "Codex still requires text: a ready image is not an attachment-only capability");
+    await evaluate("document.querySelector('.desktop-agent-prompt-editor .cm-content').focus()");
     await window.webContents.insertText("Describe this image.");
     await until(() => evaluate("document.querySelector('button[aria-label=\"Send message\"]')?.disabled===false"), "text plus ready image enables send");
     await capture("ready-to-send.png");

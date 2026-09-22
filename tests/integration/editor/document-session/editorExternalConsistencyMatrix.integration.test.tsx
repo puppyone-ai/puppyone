@@ -512,7 +512,10 @@ async function createEditorHarness(formatCase: FormatCase) {
         />,
       )));
       if (formatCase.viewerId === "html-artifact" && !container.querySelector(".cm-editor")) {
-        await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="HTML source"]')?.click());
+        const sourceToggle = Array.from(container.querySelectorAll<HTMLButtonElement>(".html-editor-options button"))
+          .find((button) => button.textContent === "Show code");
+        expect(sourceToggle, "HTML view must expose its source-mode command").toBeDefined();
+        await act(async () => sourceToggle!.click());
       }
     },
     save() {

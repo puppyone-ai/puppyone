@@ -88,10 +88,10 @@ describe("workspace entry bootstrap", () => {
     expect(props.revealAgentWorkbench).toHaveBeenCalledOnce();
   });
 
-  it("preserves a restored editor session while still revealing local Agents", async () => {
+  it.each(["restored", "switched"] as const)("preserves an existing editor session on %s entry", async (kind) => {
     mount();
     const props = {
-      intent: { ...intent, kind: "restored" as const, preferredOpenPath: null },
+      intent: { ...intent, kind, preferredOpenPath: null },
       folders: [folder],
       dataPort: { listChildren: vi.fn(async () => []) },
       editorHydrated: true,
@@ -104,7 +104,7 @@ describe("workspace entry bootstrap", () => {
     await act(async () => { root!.render(<Harness {...props} />); await flush(); });
     expect(props.dataPort.listChildren).not.toHaveBeenCalled();
     expect(props.openDocument).not.toHaveBeenCalled();
-    expect(props.revealAgentWorkbench).toHaveBeenCalledOnce();
+    expect(props.revealAgentWorkbench).toHaveBeenCalledTimes(kind === "switched" ? 0 : 1);
     expect(props.consume).toHaveBeenCalledWith(intent.id);
   });
 });

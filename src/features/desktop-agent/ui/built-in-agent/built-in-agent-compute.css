@@ -61,7 +61,7 @@
   .desktop-agent-access-copy { display: flex; flex-direction: column; gap: 6px; }
   .desktop-agent-access-copy > strong {
     color: var(--agent-text);
-    font-size: inherit;
+    font-size: var(--agent-font-size-meta);
     font-weight: var(--po-text-weight-medium);
     line-height: 1.5;
   }
@@ -87,7 +87,7 @@
     border-radius: 6px;
     background: var(--agent-text);
     color: var(--agent-canvas);
-    font-size: inherit;
+    font-size: var(--agent-font-size-meta);
     font-weight: var(--po-text-weight-medium);
     text-align: center;
     white-space: nowrap;

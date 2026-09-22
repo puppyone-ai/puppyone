@@ -73,7 +73,7 @@ export function HtmlFloatingToolbar({ selection, viewport, text, image, alt, dis
       if ((event.target as Element).closest("button")) event.preventDefault();
       event.stopPropagation();
     }}>
-    <div className="html-floating-toolbar__row" role="toolbar" aria-label={t("editor.html.formatText")}>
+    <div className="html-floating-toolbar__row" data-po-scrollbar="hidden" role="toolbar" aria-label={t("editor.html.formatText")}>
       {text && <>
         <select aria-label={t("editor.html.style.font-size")} title={t("editor.html.style.font-size")}
           value={String(styles.fontSize ?? "16px")} disabled={disabled}
