@@ -25,7 +25,7 @@ export function createDomFromInlineHtmlSource(
   const tokens = scanMarkdownHtmlTagTokens(trimmed);
   const open = tokens.find((token) => !token.closing && !token.selfClosing);
   const close = tokens.find((token) => token.closing && token.tagName === open?.tagName);
-  if (!open || !close || close.from <= open.to) return null;
+  if (!open || !close || close.from < open.to) return null;
 
   const element: MarkdownInlineHtml = {
     kind: "inlineHtml",
@@ -43,6 +43,7 @@ export function createDomFromInlineHtmlSource(
 
   const policy = compileInlineHtmlRenderPlan(element);
   if (!policy.supported || policy.value.kind !== "mark") return null;
+  if (close.from === open.to && !(policy.value.tagName === "a" && policy.value.attributes.id)) return null;
 
   const node = document.createElement(policy.value.tagName);
   node.classList.add("cm-md-inline-html");

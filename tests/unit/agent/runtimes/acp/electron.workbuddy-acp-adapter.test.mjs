@@ -14,6 +14,7 @@ import {
   WORKBUDDY_CHINA_RUNTIME_DESCRIPTOR,
   WORKBUDDY_INTERNATIONAL_RUNTIME_DESCRIPTOR,
 } from "../../../../../electron/main/agent/runtimes/workbuddy/workbuddy-identity.mjs";
+import { workBuddyConfigDirectory } from "../../../../../electron/main/agent/runtimes/workbuddy/workbuddy-config-directory.mjs";
 
 describe("WorkBuddy ACP runtime", () => {
   it("keeps China and International native history identities separate and migratable", () => {
@@ -36,6 +37,25 @@ describe("WorkBuddy ACP runtime", () => {
     const currentEnvironment = { HOME: "/Users/test" };
     expect(legacyWorkBuddyRuntimeIdForSourceScope(china, currentEnvironment)).toBe("workbuddy-china");
     expect(legacyWorkBuddyRuntimeIdForSourceScope(international, currentEnvironment)).toBe("workbuddy-international");
+  });
+
+  it("resolves separate default profiles and honors channel-specific overrides", () => {
+    expect(workBuddyConfigDirectory({
+      channel: WORKBUDDY_CHINA_CHANNEL,
+      environment: { HOME: "/Users/test" },
+    })).toBe("/Users/test/.workbuddy");
+    expect(workBuddyConfigDirectory({
+      channel: WORKBUDDY_INTERNATIONAL_CHANNEL,
+      environment: { HOME: "/Users/test" },
+    })).toBe("/Users/test/.workbuddy-ai");
+    expect(workBuddyConfigDirectory({
+      channel: WORKBUDDY_INTERNATIONAL_CHANNEL,
+      environment: {
+        HOME: "/Users/test",
+        WORKBUDDY_CONFIG_DIR: "/profiles/shared",
+        WORKBUDDY_INTERNATIONAL_CONFIG_DIR: "~/profiles/international",
+      },
+    })).toBe("/Users/test/profiles/international");
   });
 
   it.each([
@@ -78,6 +98,7 @@ describe("WorkBuddy ACP runtime", () => {
       args: ["--acp"],
       cwd: "/workspace",
       env: {
+        WORKBUDDY_CONFIG_DIR: `/profiles/${channel.id}`,
         CODEBUDDY_CONFIG_DIR: `/profiles/${channel.id}`,
         CODEBUDDY_INTERNET_ENVIRONMENT: route,
         DISABLE_AUTOUPDATER: "1",
@@ -87,6 +108,7 @@ describe("WorkBuddy ACP runtime", () => {
     });
     expect(connection.request.mock.calls.map(([method]) => method)).toEqual([
       "initialize",
+      "_codebuddy.ai/getUserInfo",
       "authenticate",
       "session/new",
     ]);
@@ -113,6 +135,44 @@ describe("WorkBuddy ACP runtime", () => {
     await adapter.dispose();
   });
 
+  it("reuses an existing native login without forcing browser authentication", async () => {
+    const connection = new FakeWorkBuddyConnection({ authenticated: true });
+    const adapter = new WorkBuddyAcpAdapter({
+      channel: WORKBUDDY_CHINA_CHANNEL,
+      runtimeDescriptor: WORKBUDDY_CHINA_RUNTIME_DESCRIPTOR,
+      readiness: {
+        executablePath: "/Applications/WorkBuddy.app/Contents/Resources/cli/bin/codebuddy",
+        environment: { HOME: "/Users/test", PATH: "/usr/bin" },
+        version: "2.115.0",
+      },
+      workspaceRoot: "/workspace",
+      connectionFactory: (options) => {
+        connection.options = options;
+        return connection;
+      },
+      fileSystemFactory: () => ({ readTextFile: vi.fn(), writeTextFile: vi.fn() }),
+      projectInstructionLoader: vi.fn(async () => ({ source: null, text: "", bytes: 0 })),
+    });
+
+    await adapter.bootstrapSession({ kind: "create" });
+
+    expect(connection.options.env).toMatchObject({
+      WORKBUDDY_CONFIG_DIR: "/Users/test/.workbuddy",
+      CODEBUDDY_CONFIG_DIR: "/Users/test/.workbuddy",
+    });
+    expect(connection.request.mock.calls.map(([method]) => method)).toEqual([
+      "initialize",
+      "_codebuddy.ai/getUserInfo",
+      "session/new",
+    ]);
+    expect(connection.request).not.toHaveBeenCalledWith(
+      "authenticate",
+      expect.anything(),
+      expect.anything(),
+    );
+    await adapter.dispose();
+  });
+
   it("uses a side-effect-limited version and ACP help probe", async () => {
     const discover = vi.fn(async (options) => {
       expect(options.installationId).toBe("workbuddy-international");
@@ -123,6 +183,8 @@ describe("WorkBuddy ACP runtime", () => {
         DISABLE_ERROR_REPORTING: "1",
         DISABLE_TELEMETRY: "1",
         CODEBUDDY_INTERNET_ENVIRONMENT: "public",
+        WORKBUDDY_CONFIG_DIR: expect.stringContaining(".workbuddy-ai"),
+        CODEBUDDY_CONFIG_DIR: expect.stringContaining(".workbuddy-ai"),
         PUPPYONE_AGENT_BACKEND: "workbuddy-international",
       });
       return {
@@ -182,7 +244,7 @@ describe("WorkBuddy ACP runtime", () => {
 });
 
 class FakeWorkBuddyConnection extends EventEmitter {
-  constructor() {
+  constructor({ authenticated = false } = {}) {
     super();
     this.closed = false;
     this.request = vi.fn(async (method) => {
@@ -199,6 +261,9 @@ class FakeWorkBuddyConnection extends EventEmitter {
           { id: "internal", name: "Login with WeChat" },
         ],
       };
+      if (method === "_codebuddy.ai/getUserInfo") {
+        return authenticated ? { userInfo: { userId: "workbuddy-user", userName: "WorkBuddy User" } } : {};
+      }
       if (method === "authenticate") return {};
       if (method === "session/new") return { sessionId: "workbuddy-session" };
       throw new Error(`Unexpected WorkBuddy ACP request: ${method}`);

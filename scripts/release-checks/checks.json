@@ -97,6 +97,20 @@
       }
     },
     {
+      "id": "agent-attachment-ui",
+      "name": "Project-scoped image ingestion and submission through Chat UI",
+      "group": "app",
+      "command": ["npm", "run", "smoke:agent-attachment-ui"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": ["build"],
+      "timeoutSeconds": 120,
+      "runtime": "electron",
+      "artifacts": ["{checkDir}/attachment-ui/result.json"],
+      "environment": {
+        "PUPPYONE_ATTACHMENT_UI_ARTIFACT_DIR": "{checkDir}/attachment-ui"
+      }
+    },
+    {
       "id": "markdown-focus",
       "name": "Markdown pane focus continuity",
       "group": "app",
@@ -113,6 +127,48 @@
       "timeoutSeconds": 120,
       "runtime": "electron",
       "artifacts": []
+    },
+    {
+      "id": "markdown-selection",
+      "name": "Markdown pointer selection and workspace projection stability",
+      "group": "app",
+      "command": ["npm", "run", "smoke:markdown-selection-stability"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": [],
+      "timeoutSeconds": 120,
+      "runtime": "electron",
+      "artifacts": ["{checkDir}/markdown-selection/report.json", "{checkDir}/markdown-selection/runner.json"],
+      "environment": {
+        "PUPPYONE_MARKDOWN_SELECTION_ARTIFACT_DIR": "{checkDir}/markdown-selection"
+      }
+    },
+    {
+      "id": "markdown-layout",
+      "name": "Markdown reading anchor and pre-paint geometry",
+      "group": "app",
+      "command": ["npm", "run", "smoke:markdown-layout"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": [],
+      "timeoutSeconds": 120,
+      "runtime": "electron",
+      "artifacts": ["{checkDir}/markdown-layout/result.json"],
+      "environment": {
+        "PUPPYONE_MARKDOWN_LAYOUT_ARTIFACT_DIR": "{checkDir}/markdown-layout"
+      }
+    },
+    {
+      "id": "table-interaction",
+      "name": "Markdown and CSV table selection, editing and geometry",
+      "group": "app",
+      "command": ["npm", "run", "smoke:table-interaction"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": [],
+      "timeoutSeconds": 120,
+      "runtime": "electron",
+      "artifacts": ["{checkDir}/table-interaction/result.json"],
+      "environment": {
+        "PUPPYONE_TABLE_INTERACTION_ARTIFACT_DIR": "{checkDir}/table-interaction"
+      }
     },
     {
       "id": "native-resize-cursor",
@@ -269,6 +325,20 @@
       "artifacts": []
     },
     {
+      "id": "text-selection",
+      "name": "Themed text selection across renderers",
+      "group": "app",
+      "command": ["npm", "run", "smoke:text-selection"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": ["build"],
+      "timeoutSeconds": 180,
+      "runtime": "electron",
+      "environment": {
+        "PUPPYONE_TEXT_SELECTION_ARTIFACT_DIR": "{checkDir}/evidence"
+      },
+      "artifacts": ["{checkDir}/evidence/result.json"]
+    },
+    {
       "id": "auxiliary-appearance",
       "name": "Auxiliary workbench appearance and startup colors",
       "group": "app",
@@ -292,6 +362,17 @@
       "artifacts": [
         "{checkDir}/evidence/result.json"
       ]
+    },
+    {
+      "id": "item-lifecycle",
+      "name": "Shared execution supervision under blocked startup and disposal",
+      "group": "app",
+      "command": ["npm", "run", "smoke:item-lifecycle"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": [],
+      "timeoutSeconds": 90,
+      "runtime": "electron",
+      "artifacts": []
     },
     {
       "id": "item-utilities",
@@ -352,6 +433,30 @@
         "{checkDir}/evidence/result.json",
         "{checkDir}/evidence"
       ]
+    },
+    {
+      "id": "pdf-app",
+      "name": "DOM PDF: real projects, zoom, sidebar, Settings and resource failures",
+      "group": "app",
+      "command": ["npm", "run", "smoke:pdf-app"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": ["build"],
+      "timeoutSeconds": 240,
+      "runtime": "electron",
+      "environment": { "PUPPYONE_PDF_APP_ARTIFACT_DIR": "{checkDir}/evidence" },
+      "artifacts": ["{checkDir}/evidence/result.json", "{checkDir}/evidence"]
+    },
+    {
+      "id": "database-app",
+      "name": "SQLite/DuckDB: DOM containment, bounded pages, source integrity and native exit",
+      "group": "app",
+      "command": ["npm", "run", "smoke:database-app"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": ["build"],
+      "timeoutSeconds": 240,
+      "runtime": "electron",
+      "environment": { "PUPPYONE_DATABASE_APP_ARTIFACT_DIR": "{checkDir}/evidence" },
+      "artifacts": ["{checkDir}/evidence/result.json", "{checkDir}/evidence"]
     },
     {
       "id": "platform-contracts",

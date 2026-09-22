@@ -1,9 +1,19 @@
 const { contextBridge, ipcRenderer, webUtils } = require("electron");
 const externalViewerPacksEnabled = process.argv.includes("--puppyone-external-viewer-packs=1");
 const gitAutoCommitAvailable = process.argv.includes("--puppyone-git-auto-commit=1");
+const MAX_INLINE_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+let pendingInlineAttachmentBytes = 0;
 
 contextBridge.exposeInMainWorld("puppyoneDesktop", {
+  mermaid: {
+    render: (request) => ipcRenderer.invoke("mermaid:render", request),
+    cancel: (id) => ipcRenderer.invoke("mermaid:cancel", id),
+  },
   connectAgentSession: (request) => ipcRenderer.invoke("agent:session-connect", request),
+  terminateItemExecution: (request) => ipcRenderer.invoke("item-execution:terminate", request),
+  retryItemExecutionCleanup: (request) => ipcRenderer.invoke("item-execution:retry-cleanup", request),
+  listItemExecutions: (request) => ipcRenderer.invoke("item-execution:list", request),
+  openItemExecutionManager: () => ipcRenderer.invoke("item-execution:manage"),
   connectTerminalSession: (request) => ipcRenderer.invoke("terminal:connect", request),
   onSessionRuntimeFailure: (callback) => {
     const listener = (_event, failure) => callback(failure);
@@ -218,18 +228,6 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
     setBounds: (request) => ipcRenderer.invoke("markdown-web-embed:set-bounds", request),
     destroy: (request) => ipcRenderer.invoke("markdown-web-embed:destroy", request),
   },
-  editorSurfaces: {
-    activate: (request) => ipcRenderer.invoke("editor-surface:activate", request),
-    setBounds: (request) => ipcRenderer.invoke("editor-surface:set-bounds", request),
-    updateAppearance: (request) => ipcRenderer.invoke("editor-surface:update-appearance", request),
-    destroy: (request) => ipcRenderer.invoke("editor-surface:destroy", request),
-    onState: (callback) => {
-      if (typeof callback !== "function") return () => {};
-      const listener = (_event, payload) => callback(payload);
-      ipcRenderer.on("editor-surface:state", listener);
-      return () => ipcRenderer.removeListener("editor-surface:state", listener);
-    },
-  },
   getInitialWorkspace: () => ipcRenderer.invoke("window:get-initial-workspace"),
   getLastWorkspace: () => ipcRenderer.invoke("workspace:get-last"),
   getRecentWorkspaces: () => ipcRenderer.invoke("workspace:get-recent"),
@@ -258,6 +256,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
     },
   },
   removeRecentWorkspace: (folderPath) => ipcRenderer.invoke("workspace:remove-recent", folderPath),
+  renameRecentWorkspace: (request) => ipcRenderer.invoke("workspace:rename-recent", request),
   forgetLastWorkspace: () => ipcRenderer.invoke("workspace:forget-last"),
   showHomepage: () => ipcRenderer.invoke("workspace:show-homepage"),
   readProjectSessions: () => ipcRenderer.invoke("project-sessions:read"),
@@ -286,6 +285,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   detachFolder: (folderPath) => ipcRenderer.invoke("workspace:detach-current", folderPath),
   selectFolderInNewWindow: () => ipcRenderer.invoke("workspace:select-folder-new-window"),
   selectLocalProjectLocation: () => ipcRenderer.invoke("workspace:select-project-location-current"),
+  getDefaultLocalProjectLocation: () => ipcRenderer.invoke("workspace:default-project-location-current"),
   createLocalProject: (request) => ipcRenderer.invoke("workspace:create-project-current", request),
   cloneRepository: (request) => ipcRenderer.invoke("workspace:clone-repository-current", request),
   getPathForFile: (file) => webUtils.getPathForFile(file),
@@ -316,7 +316,11 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   listFolderChildren: (request) => ipcRenderer.invoke("workspace:list-folder-children", request),
   resolveNode: (request) => ipcRenderer.invoke("workspace:resolve-node", request),
   readFile: (request) => ipcRenderer.invoke("workspace:read-file", request),
+  openDatabasePreview: (request) => ipcRenderer.invoke("database-preview:open", request),
+  readDatabasePreviewPage: (request) => ipcRenderer.invoke("database-preview:page", request),
+  closeDatabasePreview: (request) => ipcRenderer.invoke("database-preview:close", request),
   getFileUrl: (request) => ipcRenderer.invoke("workspace:get-file-url", request),
+  createPreviewDocument: (request) => ipcRenderer.invoke("workspace:create-preview-document", request),
   revokeFileUrl: (request) => ipcRenderer.invoke("workspace:revoke-file-url", request),
   convertOfficeDocumentToDocx: (request) => ipcRenderer.invoke("workspace:convert-office-docx", request),
   cancelOfficeDocumentToDocxConversion: (request) => ipcRenderer.invoke("workspace:convert-office-docx-cancel", request),
@@ -339,6 +343,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
       rootPath: request?.rootPath,
       targetFolderPath: request?.targetFolderPath ?? null,
       sourcePaths,
+      ...(request?.preferredName === undefined ? {} : { preferredName: request.preferredName }),
     });
   },
   deleteEntry: (request) => ipcRenderer.invoke("workspace:delete-entry", request),
@@ -473,17 +478,41 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   archiveAgentSession: (request) => ipcRenderer.invoke("agent:session-archive", request),
   deleteAgentSession: (request) => ipcRenderer.invoke("agent:session-delete", request),
   closeAgentSession: (request) => ipcRenderer.invoke("agent:session-close", request),
-  stageAgentAttachments: (request) => {
+  /** @param {import('../shared/agent-contract/types').AgentReferenceStageBridgeRequest} request */
+  stageAgentAttachments: async (request) => {
     const files = Array.isArray(request?.files) ? request.files : [];
+    if (files.length === 0 || files.length > 32) throw new Error("Select between 1 and 32 attachment files.");
+    // Capture native paths before any asynchronous byte reads. getPathForFile
+    // validates File identity; a genuine clipboard/browser File may have no path.
     const sourcePaths = files.map((file) => webUtils.getPathForFile(file));
-    if (sourcePaths.length === 0 || sourcePaths.some((sourcePath) => typeof sourcePath !== "string" || !sourcePath.trim())) {
-      return Promise.reject(new Error("One or more selected files could not be resolved."));
+    // Source conversion must preserve the project client’s captured generation.
+    // Main validates it against the sender; never infer a currently active project.
+    const context = { rootPath: request?.rootPath, epoch: request?.epoch, projectContext: request?.projectContext };
+    if (sourcePaths.every((sourcePath) => typeof sourcePath === "string" && sourcePath.trim())) {
+      return ipcRenderer.invoke("agent:reference-stage", { ...context, sourcePaths });
     }
-    return ipcRenderer.invoke("agent:reference-stage", {
-      rootPath: request?.rootPath,
-      epoch: request?.epoch,
-      sourcePaths,
+    let inlineBytes = 0;
+    files.forEach((file, index) => {
+      if (sourcePaths[index]) return;
+      if (!Number.isSafeInteger(file.size) || file.size <= 0) throw new Error("The selected attachment is empty or invalid.");
+      inlineBytes += file.size;
     });
+    if (inlineBytes > MAX_INLINE_ATTACHMENT_BYTES || pendingInlineAttachmentBytes + inlineBytes > MAX_INLINE_ATTACHMENT_BYTES) {
+      throw new Error("Attachments exceed the 25 MB in-flight safety limit. Try fewer files at a time.");
+    }
+    pendingInlineAttachmentBytes += inlineBytes;
+    try {
+      const sources = [];
+      for (const [index, file] of files.entries()) {
+        if (sourcePaths[index]) { sources.push({ path: sourcePaths[index] }); continue; }
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        if (bytes.byteLength !== file.size) throw new Error("The selected attachment changed while it was being read.");
+        sources.push({ name: file.name, bytes });
+      }
+      return await ipcRenderer.invoke("agent:reference-stage", { ...context, sources });
+    } finally {
+      pendingInlineAttachmentBytes -= inlineBytes;
+    }
   },
   revokeAgentAttachments: (request) => ipcRenderer.invoke("agent:reference-revoke", request),
   resolveAgentWorkspaceReferences: (request) => ipcRenderer.invoke("agent:reference-resolve-workspace", request),
@@ -517,6 +546,37 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
     },
   } : {}),
   discoverLocalAgentInstallations: (request) => ipcRenderer.invoke("local-agent-installation:discover", request),
+  localAgentSetup: {
+    inspect: (request) => ipcRenderer.invoke("local-agent-setup:inspect", request),
+    act: (request) => ipcRenderer.invoke("local-agent-setup:act", request),
+    release: (clientId) => ipcRenderer.invoke("local-agent-setup:release", clientId),
+  },
+  localAgentActivation: {
+    read: () => ipcRenderer.invoke("local-agent-activation:read"),
+    plan: (request) => ipcRenderer.invoke("local-agent-activation:plan", request),
+    start: (request) => ipcRenderer.invoke("local-agent-activation:start", request),
+    act: (request) => ipcRenderer.invoke("local-agent-activation:act", request),
+    openGuide: (request) => ipcRenderer.invoke("local-agent-activation:guide", request),
+    subscribe: (callback) => {
+      const listener = (_event, snapshot) => callback(snapshot);
+      ipcRenderer.on("local-agent-activation:changed", listener);
+      return () => ipcRenderer.removeListener("local-agent-activation:changed", listener);
+    },
+  },
+  modelConnections: {
+    managed: (request) => ipcRenderer.invoke("model-connections:managed", request),
+    read: () => ipcRenderer.invoke("model-connections:read"),
+    discover: () => ipcRenderer.invoke("model-connections:discover"),
+    save: (request) => ipcRenderer.invoke("model-connections:save", request),
+    remove: (request) => ipcRenderer.invoke("model-connections:remove", request),
+    refresh: (request) => ipcRenderer.invoke("model-connections:refresh", request),
+    verify: (request) => ipcRenderer.invoke("model-connections:verify", request),
+    subscribe: (callback) => {
+      const listener = (_event, snapshot) => callback(snapshot);
+      ipcRenderer.on("model-connections:changed", listener);
+      return () => ipcRenderer.removeListener("model-connections:changed", listener);
+    },
+  },
   onLocalAgentInstallationProgress: (callback) => {
     if (typeof callback !== "function") return () => {};
     const listener = (_event, payload) => callback(payload);

@@ -10,6 +10,7 @@ export function createPuppyOneAgentRuntimeDefinition({
   userDataPath,
   executablePath,
   logger = console,
+  modelConnectionPort = null,
   discovery = createPuppyOneAgentDiscovery({ appPath, userDataPath, executablePath }),
   adapterFactory = (options) => new PuppyOneAgentAdapter(options),
 } = {}) {
@@ -21,6 +22,7 @@ export function createPuppyOneAgentRuntimeDefinition({
         readiness,
         logger,
         runtimeDescriptor: PUPPYONE_AGENT_RUNTIME_DESCRIPTOR,
+        modelConnectionPort,
     }),
   };
 }

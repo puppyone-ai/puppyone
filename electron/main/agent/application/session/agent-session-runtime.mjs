@@ -99,10 +99,13 @@ export function createAgentSessionRuntime({
       const inspected = await runRuntimeStart(session, "inspect", () => session.adapter.inspect());
       inspection = assertAgentRuntimeInspection(session.adapter, inspected, session.runtimeId);
     }
-    assertAuthenticated(inspection.account, selected.descriptor.displayName);
+    const readOnlyResume = kind === "resume" && providerSession && inspection.capabilities?.readOnly === true;
+    if (!readOnlyResume) assertAuthenticated(inspection.account, selected.descriptor.displayName);
     applyInspection(session, inspection);
-    requireAvailableModel(session, session.selectedModel);
-    requireAvailableEffort(session, session.selectedModel, session.selectedEffort);
+    if (!readOnlyResume) {
+      requireAvailableModel(session, session.selectedModel);
+      requireAvailableEffort(session, session.selectedModel, session.selectedEffort);
+    }
     if (!providerSession) {
       providerSession = kind === "resume"
         ? await runRuntimeStart(session, operation, () => session.adapter.resumeSession({

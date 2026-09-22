@@ -7,7 +7,7 @@ import {
 import type { AgentCapabilities, AgentRuntimeInspection } from "../../../../src/features/desktop-agent/domain/agent-contract";
 
 describe("Agent session control projection", () => {
-  it("projects Cursor-style model and mode capabilities without inventing effort", () => {
+  it("projects native model and mode capabilities without inventing effort", () => {
     const controls = deriveAgentSessionControls(inspection({
       models: [
         { id: "auto", model: "auto", displayName: "Auto", description: "", isDefault: true },

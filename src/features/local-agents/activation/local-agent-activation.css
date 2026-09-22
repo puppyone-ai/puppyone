@@ -1,0 +1,21 @@
+@layer features {
+  .local-agent-activation-dialog { max-width: calc(100vw - 24px); }
+  .local-agent-activation-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .local-agent-activation-title h2 { margin: 0; font-size: var(--po-type-ui-body-large, 15px); font-weight: 500; }
+  .local-agent-activation-body { display: flex; flex-direction: column; gap: 16px; font-size: var(--po-type-ui-meta, 13px); line-height: 1.6; }
+  .local-agent-activation-body p { margin: 0; }
+  .local-agent-activation-note, .local-agent-activation-body details { color: var(--po-text-muted); font-size: var(--po-type-ui-caption, 12px); }
+  .local-agent-activation-steps { margin: 0; padding-inline-start: 24px; }
+  .local-agent-activation-steps li { padding-block: 6px; }
+  .local-agent-activation-steps li[data-state] { display: flex; align-items: center; gap: 10px; margin-inline-start: -24px; color: var(--po-text-muted); }
+  .local-agent-activation-steps li[data-state="running"] { color: var(--po-text); }
+  .local-agent-activation-step-number { display: grid; place-items: center; width: 24px; height: 24px; flex-shrink: 0; border: 1px solid var(--po-border); border-radius: 50%; font-size: var(--po-type-ui-caption, 12px); }
+  .local-agent-activation-dialog .desktop-dialog-footer { flex-wrap: wrap; }
+  .local-agent-setup-row { box-sizing: border-box; display: flex; min-width: 0; min-height: var(--po-control-size-large); align-items: center; gap: 9px; padding: 5px 8px; border: 1px solid transparent; font-size: var(--po-type-right-sidebar-content, 14px); font-weight: var(--po-text-weight-regular, 400); line-height: var(--po-type-right-sidebar-control-line-height, 19px); }
+  .local-agent-setup-row-name { flex: 1; min-width: 0; color: var(--po-text-muted); }
+  .local-agent-setup .local-agent-setup-row-action { margin-inline-start: auto; align-self: center; padding: 2px 4px; font-size: var(--po-type-right-sidebar-caption, 12px); color: var(--po-text); }
+  .local-agent-setup-row-state { display: flex; align-items: center; gap: 4px; font-size: var(--po-type-right-sidebar-caption, 12px); }
+  .local-agent-setup-row-state button { padding: 2px 4px; }
+  .local-agent-setup[data-presentation="launcher"] { gap: 0; margin: 0; }
+  .local-agent-setup-row-name small { display: block; font-size: var(--po-type-right-sidebar-caption, 12px); font-weight: 400; }
+}

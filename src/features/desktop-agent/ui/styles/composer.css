@@ -236,10 +236,22 @@
 .desktop-agent-visual-attachment-actions {
   position: absolute;
   z-index: 2;
-  inset-block-start: -14px;
-  inset-inline-end: -14px;
+  inset-block-start: -6px;
+  inset-inline-end: -6px;
   display: flex;
-  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+}
+/* Keep the button in keyboard navigation while making pointer chrome quiet. */
+.desktop-agent-visual-attachment:is(:hover, :focus-within) .desktop-agent-visual-attachment-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (hover: none) {
+  .desktop-agent-visual-attachment-actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 .desktop-agent-visual-attachment-actions > button {
   display: grid;
@@ -248,14 +260,18 @@
   flex: 0 0 auto;
   place-items: center;
   padding: 0;
-  border: 1px solid var(--agent-border);
+  border: 0;
   border-radius: 50%;
   background: var(--po-menu-bg);
-  box-shadow: var(--po-menu-shadow-compact);
   color: var(--agent-text-muted);
 }
-.desktop-agent-visual-attachment-actions > button:hover { background: var(--po-hover); color: var(--po-text); }
-.desktop-agent-visual-attachment.is-resolving { opacity: 0.72; }
+.desktop-agent-visual-attachment-actions > button:hover {
+  background: var(--agent-reference-action-hover-surface);
+  color: var(--po-text);
+  opacity: 1;
+}
+.desktop-agent-visual-attachment-actions > button:focus-visible { outline: 2px solid var(--agent-focus-ring); outline-offset: 2px; }
+.desktop-agent-visual-attachment.is-resolving .desktop-agent-visual-attachment-preview { opacity: 0.72; }
 .desktop-agent-visual-attachment.is-error { border-color: var(--agent-reference-error-border); }
 .desktop-agent-visual-attachment-status {
   position: absolute;

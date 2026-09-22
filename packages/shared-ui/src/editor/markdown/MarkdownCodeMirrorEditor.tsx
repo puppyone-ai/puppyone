@@ -14,6 +14,7 @@ import { markdownAiEditExtension } from "./core/editor/markdownAiEditExtension";
 import { markdownBlockDragExtension } from "./core/interaction/markdownBlockDrag";
 import { markdownHeadingOutlineExtension } from "./core/interaction/markdownHeadingOutline";
 import { getMarkdownPlanIndex } from "./core/plans/markdownPlanIndex";
+import { createMarkdownLayoutCoordinator } from "./platform/codemirror/layoutCoordinator";
 import { markdownRevealedSourceEffect } from "./core/state/revealedSource";
 import { getDocRevision } from "./platform/brokers/transactionBroker";
 import type { AiEditFile } from "../ai-edits/types";
@@ -42,6 +43,8 @@ import { CodeMirrorFindAdapter } from "../find/codeMirrorFindAdapter";
 import { useRegisterEditorFindAdapter } from "../find/editorFind";
 import { useEditorAppearanceRevision } from "../../core/appearance/EditorAppearanceContext";
 import { useDocumentModelOwner } from "../document-session/DocumentModelOwner";
+import { useEditorTaskOwner } from "../runtime/EditorTaskContext";
+import { markdownTaskOwner } from "./platform/codemirror/markdownTaskOwner";
 import { CodeMirrorDocumentModel, externalDocumentUpdate } from "../document-session/CodeMirrorDocumentModel";
 
 const rendererPerformance = getRendererPerformanceTracker();
@@ -101,6 +104,8 @@ export function MarkdownCodeMirrorEditor({
   onPreviewError,
 }: MarkdownCodeMirrorEditorProps) {
   const appearanceRevision = useEditorAppearanceRevision();
+  const taskOwner = useEditorTaskOwner();
+  const taskOwnerCompartment = useRef(new Compartment());
   const { direction, formatNumber, locale, t } = useLocalization();
   const localization = useMemo(
     () => ({ direction, formatNumber, locale, t }),
@@ -257,6 +262,7 @@ export function MarkdownCodeMirrorEditor({
       },
       state: model.createViewState([
           ...markdownCodeMirrorUrgentExtensions(initialConfig.readOnly, false),
+          taskOwnerCompartment.current.of(markdownTaskOwner.of(taskOwner)),
           findAdapter.extension,
           localizationCompartmentRef.current.of(
             markdownLocalizationExtension(initialLocalizationRef.current, initialConfig.readOnly),
@@ -292,7 +298,7 @@ export function MarkdownCodeMirrorEditor({
     findAdapter.attach(view);
     const unbindFormatHotkeys = bindMarkdownFormatHotkeys(view);
     const unsubscribeTypography = subscribeTypographyChanges(host.ownerDocument, () => {
-      view.requestMeasure();
+      createMarkdownLayoutCoordinator(view).invalidate("typography");
     });
     const snapshotPort: EditorSourceSnapshotPort = {
       retainedSource: model,
@@ -336,6 +342,10 @@ export function MarkdownCodeMirrorEditor({
       if (!modelOwner) model.dispose();
     };
   }, [findAdapter, modelOwner]);
+
+  useLayoutEffect(() => {
+    viewRef.current?.dispatch({ effects: taskOwnerCompartment.current.reconfigure(markdownTaskOwner.of(taskOwner)) });
+  }, [taskOwner]);
 
   useEffect(() => {
     const view = viewRef.current;
@@ -591,7 +601,7 @@ export function MarkdownCodeMirrorEditor({
   }, [value]);
 
   useLayoutEffect(() => {
-    viewRef.current?.requestMeasure();
+    if (viewRef.current) createMarkdownLayoutCoordinator(viewRef.current).invalidate("appearance");
   }, [appearanceRevision]);
 
   const previewMessage = previewState === "error"

@@ -2,6 +2,13 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("Project-owned auxiliary workbench architecture", () => {
+  it("does not add execution administration to the primary Sidebar surface", () => {
+    const panel = source("src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel.tsx");
+    expect(panel).not.toMatch(/onManageExecutions|workbench\.manageExecutions|openItemExecutionManager/);
+    expect(source("src/App.tsx")).not.toContain("onManageExecutions=");
+    // Main supervision remains reachable from the native secondary menu, not a footer.
+    expect(source("electron/main/native-menu-service.mjs")).toContain('id: "file.manageExecutions"');
+  });
   it("owns shared geometry independently of Terminal and isolates vendor adapters", () => {
     const shared = source("src/features/app-shell/auxiliary-workbench/auxiliary-workbench.css");
     const terminal = source("src/features/desktop-terminal/ui/styles/terminal-surface.css");

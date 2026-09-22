@@ -17,6 +17,8 @@ import "../ui/desktop-agent.css";
 export type AgentChatWorkbenchItemProps = AuxiliaryWorkbenchItemRenderContext & Readonly<{
   hiddenRuntimeIds: readonly string[];
   onOpenFile?: (path: string) => void;
+  onOpenAccount: () => void;
+  onOpenModelConnections: () => void;
   onPreferredModelChange?: (model: string) => void;
   onPreferredRouteChange?: (route: AgentRoutePreference) => void;
   onPreferredRuntimeChange?: (runtimeId: string | null) => void;
@@ -31,6 +33,8 @@ export function AgentChatWorkbenchItem({
   item,
   project,
   onOpenFile,
+  onOpenAccount,
+  onOpenModelConnections,
   onPreferredModelChange,
   onPreferredRouteChange,
   onPreferredRuntimeChange,
@@ -60,6 +64,8 @@ export function AgentChatWorkbenchItem({
         workspaceId={item.contextId}
         onPresentationChange={present}
         onOpenFile={onOpenFile}
+        onOpenAccount={onOpenAccount}
+        onOpenModelConnections={onOpenModelConnections}
         preferredRuntimeId={preferredRuntimeId}
         onPreferredRuntimeChange={onPreferredRuntimeChange}
         preferredRoute={preferredRoute}

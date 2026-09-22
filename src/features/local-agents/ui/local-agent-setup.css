@@ -1,0 +1,11 @@
+@layer features {
+  .local-agent-setup { display: flex; min-width: 0; flex-direction: column; gap: 10px; margin-block-start: 4px; color: var(--po-text-muted); font-size: var(--po-type-ui-caption, 12px); line-height: 1.5; overflow-wrap: anywhere; }
+  .local-agent-setup p { margin: 0; }
+  .local-agent-setup-preferences { display: flex; flex-direction: column; gap: 10px; }
+  .local-agent-setup-directory { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .local-agent-setup button { align-self: flex-start; min-width: 0; max-width: 100%; padding: 4px 8px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--po-text); font: inherit; text-align: start; white-space: normal; cursor: var(--po-clickable-cursor, default); }
+  .local-agent-setup button:hover:not(:disabled) { background: var(--po-hover); }
+  .local-agent-setup button:disabled { opacity: 0.5; }
+  .local-agent-setup button:focus-visible { outline: 1px solid var(--po-focus-ring); outline-offset: 2px; }
+  .local-agent-setup-toggle { display: flex; align-items: flex-start; gap: 8px; }
+}

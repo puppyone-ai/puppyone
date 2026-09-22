@@ -1,3 +1,4 @@
+import { useWorkspaceEntryBootstrap } from "./features/app-shell/useWorkspaceEntryBootstrap";
 import {
   lazy,
   Suspense,
@@ -31,7 +32,6 @@ import { CLOUD_HUB_ENTRY_SECTION, type CloudWorkspaceSection } from "./features/
 import {
   MinimalOnboarding,
 } from "./components/MinimalOnboarding";
-import { OnboardingProjectEntryDialog } from "./components/OnboardingProjectEntryDialog";
 import { AssetLibraryHome } from "./components/AssetLibraryHome";
 import {
   closeAgentChatWorkbenchItem,
@@ -144,7 +144,10 @@ import {
   resolveProjectSwitcherCompactWidth,
   resolveProjectSwitcherRailWidth,
 } from "./features/app-shell/ProjectSwitcherRail";
-import { ProjectEntryLauncherDialog } from "./features/app-shell/ProjectEntryLauncherDialog";
+import {
+  ProjectEntryFlow,
+  useProjectEntryFlow,
+} from "./features/app-shell/ProjectEntryFlow";
 
 const AgentChatWorkbenchItem = lazy(loadAgentChatWorkbenchItem);
 const AgentChatHistoryBrowser = lazy(loadAgentChatHistoryBrowser);
@@ -197,18 +200,20 @@ function AppContent() {
     cloudSession,
     cloudSessionRestoring,
     handleCloudSessionChange: updateCloudSession,
-  } = useDesktopCloudSession(cloudEnabled);
+  } = useDesktopCloudSession();
   const [activeCloudSection, setActiveCloudSection] = useState<CloudWorkspaceSection>("initialize");
   const [switcherOpen, setSwitcherOpen] = useState(false);
-  const [projectEntryDialog, setProjectEntryDialog] = useState<"launcher" | "create" | "clone" | null>(null);
+  const projectEntryFlow = useProjectEntryFlow();
   const {
     addProject,
     addExistingProject,
-    activeWorkspaceEntryKind,
+    workspaceEntryIntent,
+    consumeWorkspaceEntryIntent,
     chooseProjectLocation,
     clearWorkspace,
     cloneRepository,
     createProject,
+    defaultProjectLocation,
     forgetActiveWorkspace,
     handleWorkspaceOpenResult,
     openDroppedWorkspace,
@@ -216,6 +221,7 @@ function AppContent() {
     openWorkspacePath,
     recentWorkspaceItems,
     removeWorkspaceFromRecents,
+    renameProject,
     removeProject,
     refreshRecentWorkspaceList,
     restoreWorkspaceError,
@@ -562,10 +568,6 @@ function AppContent() {
     return () => window.removeEventListener("keydown", handleSettingsShortcut);
   }, [openSettingsDialog]);
 
-  const handleWorkspaceStarterCreated = useCallback((path: string) => {
-    refreshWorkspaceContent(path);
-    void refreshGitStatus("first-project-starter");
-  }, [refreshGitStatus, refreshWorkspaceContent]);
   const {
     puppyoneConfig,
     puppyoneConfigError,
@@ -765,7 +767,7 @@ function AppContent() {
     }
     try {
       if (!await drainWorkspaceNavigation()) return;
-      await openWorkspacePath(path);
+      await openWorkspacePath(path, "switched");
       navigateDesktopView(projectView);
     } catch (error) {
       setRestoreWorkspaceError(error instanceof Error ? error.message : String(error));
@@ -870,6 +872,23 @@ function AppContent() {
   }, [refreshGitStatus, refreshWorkspaceContent, savePuppyoneConfig]);
 
   const [workspaceSurfaceError, setWorkspaceSurfaceError] = useState<string | null>(null);
+
+  const revealAgentWorkbenchOnEntry = useCallback(() => {
+    setRightSidebarSurface("chat");
+    setRightSidebarOpen(true);
+  }, [setRightSidebarOpen, setRightSidebarSurface]);
+
+  useWorkspaceEntryBootstrap({
+    intent: dataPort ? workspaceEntryIntent : null,
+    dataPort,
+    editorHydrated: editorWorkbench.hydrated,
+    hasOpenEditors: editorWorkbench.state.editors.length > 0,
+    folders: workbenchWorkspace?.folders ?? EMPTY_WORKSPACE_FOLDERS,
+    openDocument: handleActiveDataPathChange,
+    consume: consumeWorkspaceEntryIntent,
+    revealAgentWorkbench: revealAgentWorkbenchOnEntry,
+    onError: setWorkspaceSurfaceError,
+  });
 
   const closeSwitcher = useCallback(() => {
     setSwitcherOpen(false);
@@ -1002,6 +1021,14 @@ function AppContent() {
     setRightSidebarOpen,
   ]);
 
+  const unlinkProjectFromRail = useCallback(async (folderPath: string) => {
+    if (workspace?.path === folderPath) {
+      await unlinkCurrentWorkspace();
+      return;
+    }
+    await removeWorkspaceFromRecents(folderPath);
+  }, [removeWorkspaceFromRecents, unlinkCurrentWorkspace, workspace?.path]);
+
   const toggleWorkspaceSwitcher = useCallback(() => {
     const nextOpen = !switcherOpen;
     setSwitcherOpen(nextOpen);
@@ -1128,6 +1155,8 @@ function AppContent() {
             preferredModel={agentPreferredModel}
             onPreferredModelChange={setAgentPreferredModel}
             onOpenFile={(path) => handleAgentOpenFile(context.item.rootId, path)}
+            onOpenAccount={() => openSettingsDialog("account")}
+            onOpenModelConnections={() => openSettingsDialog("model-connections")}
             resolveWorkspaceReference={resolveAgentWorkspaceReference}
           />
         </Suspense>
@@ -1135,11 +1164,12 @@ function AppContent() {
       close: Object.freeze<AuxiliaryWorkbenchCloseAdapter>({
         decide: ({ snapshot }) => snapshot.running
           ? Object.freeze({
-              kind: "blocked" as const,
+              kind: "confirm" as const,
+              tone: "danger" as const,
               dialog: Object.freeze({
                 title: t("agent.closeDialog.activeTitle", { title: snapshot.title }),
                 detail: t("agent.closeDialog.activeDetail"),
-                actionLabel: t("agent.closeDialog.keepOpen"),
+                actionLabel: t("common.action.close"),
               }),
             })
           : Object.freeze({ kind: "close" as const }),
@@ -1153,6 +1183,7 @@ function AppContent() {
     agentChatRuntimeVisibility,
     handleAgentOpenFile,
     localAgentsSettings,
+    openSettingsDialog,
     resolveAgentWorkspaceReference,
     setAgentPreferredModel,
     setAgentPreferredRoute,
@@ -1268,6 +1299,7 @@ function AppContent() {
       <Homepage
         onChooseWorkspace={openFolder}
         onChooseProjectLocation={chooseProjectLocation}
+        onDefaultProjectLocation={defaultProjectLocation}
         onCreateProject={createProject}
         onCloneRepository={cloneRepository}
         onOpenDroppedWorkspace={openDroppedWorkspace}
@@ -1276,6 +1308,7 @@ function AppContent() {
         recentWorkspaces={recentWorkspaceItems}
         initialError={restoreWorkspaceError}
         appearance={surfaceAppearance}
+        experimentalSettings={experimentalSettings}
       />,
     );
   }
@@ -1356,14 +1389,16 @@ function AppContent() {
               activeWorkspace={workspace}
               expanded={expanded}
               recentWorkspaces={recentWorkspaceItems}
-              onCreateNew={() => setProjectEntryDialog("launcher")}
+              onCreateNew={projectEntryFlow.openLauncher}
               pluginsOpen={pluginsDialogOpen}
               onOpenPlugins={experimentalSettings.enableViewerPlugins
                 ? openPluginsDialog
                 : undefined}
               settingsOpen={settingsDialogOpen}
               onOpenSettings={openSettingsDialog}
+              onRenameProject={renameProject}
               onSelectProject={switchProjectFromRail}
+              onUnlinkProject={unlinkProjectFromRail}
               utilitySlot={(
                 <DesktopHelpLauncher
                   appearance={surfaceAppearance}
@@ -1414,7 +1449,9 @@ function AppContent() {
                     const folder = workbenchWorkspace?.folders.find((entry) => entry.workspace.path === projectWorkbench.context.rootPath);
                     if (folder) void handleRemoveProject(folder);
                   }}
-                  renderLauncher={(context) => <AuxiliaryWorkbenchLauncher {...context} store={projectWorkbench} contributions={auxiliaryWorkbenchContributions} hiddenAgentIds={localAgentsSettings.hiddenTerminalAgentIds} />}
+                  renderLauncher={(context) => <AuxiliaryWorkbenchLauncher {...context} store={projectWorkbench} contributions={auxiliaryWorkbenchContributions} hiddenAgentIds={localAgentsSettings.hiddenTerminalAgentIds}
+                    setupPreferences={localAgentsSettings.setupSuggestions}
+                    onSetupPreferencesChange={(setupSuggestions) => setLocalAgentsSettings({ ...localAgentsSettings, setupSuggestions })} />}
                 />}
               </div>
               <div
@@ -1523,10 +1560,6 @@ function AppContent() {
             editorWorkbench={editorWorkbench}
             externalOpen={externalFileOpen}
             desktopUpdates={desktopUpdates}
-            firstProjectStarterEligible={
-              experimentalSettings.enableFirstProjectStarter
-              && activeWorkspaceEntryKind === "created"
-            }
             git={git}
             onActiveDataNodeChange={handleActiveDataNodeChange}
             onActiveDataPathChange={handleActiveDataPathChange}
@@ -1534,7 +1567,6 @@ function AppContent() {
             onRemoveProject={handleRemoveProject}
             onCreateEntryMenu={openCreateEntryMenu}
             onDismissCreateEntryMenu={() => setCreateEntryDraft(null)}
-            onWorkspaceStarterCreated={handleWorkspaceStarterCreated}
             fileClipboardController={fileClipboardController}
             onFilesVisibilitySettingsChange={handleFilesVisibilitySettingsChange}
             onNavigate={navigateDesktopView}
@@ -1636,37 +1668,15 @@ function AppContent() {
               onCommitAndSwitch={() => void handleCommitAndCheckoutBranch()}
             />
           )}
-          {projectEntryDialog === "launcher" && (
-            <ProjectEntryLauncherDialog
-              canCreateProject
-              canCloneRepository
-              onClose={() => setProjectEntryDialog(null)}
-              onOpenFolder={() => {
-                setProjectEntryDialog(null);
-                void openFolder();
-              }}
-              onCreateProject={() => setProjectEntryDialog("create")}
-              onCloneRepository={() => setProjectEntryDialog("clone")}
-            />
-          )}
-          {projectEntryDialog === "create" && (
-            <OnboardingProjectEntryDialog
-              kind="create"
-              onClose={() => setProjectEntryDialog(null)}
-              onChooseLocation={chooseProjectLocation}
-              onSubmit={(value, locationGrantId) => createProject({
-                name: value,
-                locationGrantId: locationGrantId ?? "",
-              })}
-            />
-          )}
-          {projectEntryDialog === "clone" && (
-            <OnboardingProjectEntryDialog
-              kind="clone"
-              onClose={() => setProjectEntryDialog(null)}
-              onSubmit={(value) => cloneRepository({ repositoryUrl: value })}
-            />
-          )}
+          <ProjectEntryFlow
+            controller={projectEntryFlow}
+            onDefaultLocation={defaultProjectLocation}
+            onChooseLocation={chooseProjectLocation}
+            onCreateProject={createProject}
+            onImportRepository={cloneRepository}
+            onOpenFolder={() => void openFolder()}
+            experimentalSettings={experimentalSettings}
+          />
           {gitOperationError && !pendingBranchSwitch && (
             <GitOperationErrorDialog
               error={gitOperationError}

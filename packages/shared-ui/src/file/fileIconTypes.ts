@@ -11,7 +11,7 @@ export const FILE_VISUAL_KINDS = FILE_SEMANTIC_KINDS;
  */
 export type FileVisualKind = FileSemanticKind;
 
-export type FileIconThemeId = "default" | "lines" | "vscode" | "material" | "minimal";
+export type FileIconThemeId = "default" | "lines" | "semantic" | "material" | "minimal";
 
 export type FileIconThemeMetadata = {
   id: FileIconThemeId;
@@ -32,6 +32,7 @@ const KIND_ACCENT = {
   word: "var(--po-file-accent-word)",
   excel: "var(--po-file-accent-sheet)",
   spreadsheet: "var(--po-file-accent-sheet)",
+  database: "var(--po-file-accent-code)",
   presentation: "var(--po-file-accent-presentation)",
   archive: "var(--po-file-accent-pdf)",
   document: "var(--po-file-accent-default)",

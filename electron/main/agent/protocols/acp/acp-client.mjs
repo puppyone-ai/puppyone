@@ -73,6 +73,13 @@ export class AcpClient {
   }
 
   authenticate(params) { return this.#request("authenticate", params); }
+  requestExtension(method, params = {}, options = {}) {
+    if (this.disposed) throw new Error("ACP client is closed.");
+    if (typeof method !== "string" || !method.trim()) throw new TypeError("ACP extension method is required.");
+    return this.connection.request(method, params, {
+      timeoutMs: options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
+    });
+  }
   newSession(params) { return this.#request("newSession", params); }
   loadSession(params) { return this.#request("loadSession", params); }
   resumeSession(params) { return this.#request("resumeSession", params); }

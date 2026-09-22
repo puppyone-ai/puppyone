@@ -690,6 +690,35 @@ if (!cursorAcpSource.includes('questionMethods: ["cursor/ask_question"]') || !cu
   errors.push("Cursor must use the generic ACP core with isolated Cursor extensions");
 }
 
+// Model Connections is an app-level domain, not a concrete Agent implementation.
+const modelConnectionMain = path.join(repoRoot, "electron/main/model-connections");
+const modelConnectionRenderer = path.join(repoRoot, "src/features/model-connections");
+for (const file of walkSourceFiles(modelConnectionMain)) {
+  for (const specifier of collectSpecifiers(readFileSync(file, "utf8"))) {
+    const target = resolveRelativeModule(file, specifier);
+    if (/pi-coding-agent|desktop-agent|agent\/runtimes/.test(specifier) || (target && isInsideOrSame(target, mainRoot))) {
+      errors.push(`${relative(file)} reverses the Model Connections → Agent dependency boundary`);
+    }
+  }
+}
+for (const file of walkSourceFiles(modelConnectionRenderer)) {
+  const source = stripComments(readFileSync(file, "utf8"));
+  if (/\bfetch\s*\(|\b(?:localStorage|sessionStorage)\b|safeStorage|pi-coding-agent/.test(source)) {
+    errors.push(`${relative(file)} bypasses the Main-owned model connection authority`);
+  }
+  if (!isInsideOrSame(file, path.join(modelConnectionRenderer, "infrastructure")) && /window\.puppyoneDesktop|ipcRenderer/.test(source)) {
+    errors.push(`${relative(file)} bypasses the ModelConnectionClientPort`);
+  }
+}
+for (const file of walkSourceFiles(path.join(mainRuntimesRoot, "puppyone-agent"))) {
+  if (/safeStorage|createModelConnections|createModelCredentialStore/.test(stripComments(readFileSync(file, "utf8")))) {
+    errors.push(`${relative(file)} owns connection configuration or secure storage instead of consuming a scoped port`);
+  }
+}
+if (!mainEntrySource.includes("modelConnections,") || !mainEntrySource.includes("modelConnectionPort")) {
+  errors.push("Both Main catalog and session utility must receive Model Connections authority");
+}
+
 if (errors.length > 0) {
   console.error("Desktop Agent architecture boundary check failed:");
   for (const error of errors) console.error(`- ${error}`);

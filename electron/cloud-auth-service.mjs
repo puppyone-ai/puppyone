@@ -43,6 +43,7 @@ export function createCloudAuthService({
   const pendingOAuthStarts = new Map();
   const refreshPromises = new Map();
   const activeRequestControllers = new Set();
+  const stateSubscribers = new Set();
   const initializedSessionGenerations = new Set();
   const initializationPromises = new Map();
 
@@ -229,8 +230,38 @@ export function createCloudAuthService({
     }
   }
 
+  // Main-only streaming boundary. The general renderer JSON bridge cannot ask
+  // for this response or receive the bearer credential.
+  async function openAgentStream(apiBase, body, { signal, requestId } = {}) {
+    await requestSessionApi(apiBase, "/ai/balance", { method: "GET" });
+    const normalized = normalizeCloudApiBaseUrl(apiBase);
+    const captured = runtimeSession;
+    const generation = sessionGeneration;
+    if (!captured || !isSessionForApiBase(captured, normalized)) throw createSignedOutError(normalized);
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    if (signal?.aborted) controller.abort();
+    signal?.addEventListener("abort", abort, { once: true });
+    activeRequestControllers.add(controller);
+    const close = () => {
+      controller.abort();
+      signal?.removeEventListener("abort", abort);
+      activeRequestControllers.delete(controller);
+    };
+    try {
+      const response = await fetchImpl(`${normalized}/ai/chat/completions`, {
+        method: "POST", redirect: "error", signal: controller.signal,
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${captured.access_token}`,
+          "Idempotency-Key": requestId, "X-Request-Id": requestId }, body,
+      });
+      if (generation !== sessionGeneration) throw createSessionChangedError();
+      return { response, close };
+    } catch (error) { close(); throw error; }
+  }
+
   async function requestSessionApi(apiBase, apiPath, init = {}) {
     assertNotDisposed();
+    init.signal?.throwIfAborted();
     if (authStatus === "signing-out") {
       const error = new Error("Cloud sign-out is in progress.");
       error.code = "SESSION_SIGNING_OUT";
@@ -358,6 +389,7 @@ export function createCloudAuthService({
 
   function dispose() {
     disposed = true;
+    stateSubscribers.clear();
     for (const state of pendingOAuthStates.keys()) clearPendingOAuthState(state);
     pendingOAuthStarts.clear();
     initializationPromises.clear();
@@ -448,13 +480,14 @@ export function createCloudAuthService({
 
   async function performAuthenticatedRequest(apiBase, apiPath, init, session, requestGeneration) {
     if (requestGeneration !== sessionGeneration) throw createSessionChangedError();
+    init.signal?.throwIfAborted();
     const controller = new AbortController();
     activeRequestControllers.add(controller);
     try {
       const result = await requestCloudApi(
         apiBase,
         apiPath,
-        withSessionHeaders(init, session, controller.signal),
+        withSessionHeaders(init, session, init.signal ? AbortSignal.any([controller.signal, init.signal]) : controller.signal),
       );
       if (requestGeneration !== sessionGeneration) throw createSessionChangedError();
       return result;
@@ -584,6 +617,9 @@ export function createCloudAuthService({
 
   function broadcastPublicState() {
     const state = toPublicState();
+    for (const listener of stateSubscribers) {
+      try { listener(state); } catch { /* Observers cannot change authentication. */ }
+    }
     for (const window of getWindows()) {
       if (window.isDestroyed()) continue;
       window.webContents.send("cloud-auth:state", state);
@@ -609,6 +645,8 @@ export function createCloudAuthService({
     restoreSession,
     startOAuth,
     requestSessionApi,
+    openAgentStream,
+    subscribe(listener) { stateSubscribers.add(listener); return () => stateSubscribers.delete(listener); },
     clearSession,
     dispose,
   };

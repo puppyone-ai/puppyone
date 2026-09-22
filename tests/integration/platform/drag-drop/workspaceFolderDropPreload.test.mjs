@@ -29,15 +29,19 @@ describe("workspace folder drop preload boundary", () => {
 
     await bridge.selectLocalProjectLocation();
     expect(invoke).toHaveBeenCalledWith("workspace:select-project-location-current");
+    await bridge.getDefaultLocalProjectLocation();
+    expect(invoke).toHaveBeenCalledWith("workspace:default-project-location-current");
     await bridge.createLocalProject({ name: "Notes", locationGrantId: "location-1" });
     expect(invoke).toHaveBeenCalledWith("workspace:create-project-current", {
       name: "Notes",
       locationGrantId: "location-1",
     });
     await bridge.cloneRepository({
+      provider: "github",
       repositoryUrl: "https://github.com/owner/repository.git",
     });
     expect(invoke).toHaveBeenCalledWith("workspace:clone-repository-current", {
+      provider: "github",
       repositoryUrl: "https://github.com/owner/repository.git",
     });
   });

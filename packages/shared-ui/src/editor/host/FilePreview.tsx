@@ -1,4 +1,7 @@
 import { EditorTaskBoundary } from "../runtime/EditorTaskContext";
+import { DocumentAssetImportBoundary, type DocumentAssetImportPort } from "../resource/DocumentAssetImport";
+import { EditorPreviewServicesBoundary } from "../preview-services/EditorPreviewServices";
+import type { EditorPreviewServices } from "../preview-services/types";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
@@ -32,6 +35,9 @@ import type { DocumentPersistedCommit } from "../document-session/types";
 import { resolveViewerSurfacePreparationForDocument } from "../registry/viewerPackAdapter";
 
 export type FilePreviewProps = {
+  editorAssets?: DocumentAssetImportPort;
+  previewServices?: EditorPreviewServices;
+  inputGeneration?: number;
   node: DocumentDataNode | null;
   fileContent?: FileContent | null;
   fileUrl?: string | null;
@@ -66,6 +72,9 @@ export type FilePreviewProps = {
 };
 
 export function FilePreview({
+  editorAssets,
+  previewServices,
+  inputGeneration,
   node,
   fileContent,
   fileUrl = null,
@@ -156,6 +165,8 @@ export function FilePreview({
               onSurfaceReady={onSurfaceReady}
             >
               <EditorTaskBoundary storageIdentity={documentPersistence?.storageIdentity || workspaceId || "renderer"} resource={node.path}>
+              <EditorPreviewServicesBoundary services={previewServices} revision={inputGeneration}>
+              <DocumentAssetImportBoundary port={editorAssets}>
               <DataNodeEditorHost
                 node={node}
                 fileContent={fileContent}
@@ -189,6 +200,8 @@ export function FilePreview({
                 documentSourceKind={documentSourceKind}
                 onSurfaceReady={onSurfaceReady}
               />
+              </DocumentAssetImportBoundary>
+              </EditorPreviewServicesBoundary>
               </EditorTaskBoundary>
             </EditorPreviewBoundary>
           </div>

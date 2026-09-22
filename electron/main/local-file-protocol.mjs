@@ -1,5 +1,6 @@
 import { Readable } from "node:stream";
 import { parseSingleByteRange } from "../../local-api/files/byte-range.mjs";
+import { openPdfResource } from "./pdf-resource.mjs";
 
 export function registerLocalFileProtocol({
   protocol,
@@ -13,6 +14,7 @@ export function registerLocalFileProtocol({
   applicationUrl,
 }) {
   protocol.handle("puppyone-local", async (request) => {
+    let responseHeaders = { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" };
     try {
       if (request.method && request.method !== "GET" && request.method !== "HEAD") {
         return new Response("Method not allowed", { status: 405 });
@@ -20,7 +22,12 @@ export function registerLocalFileProtocol({
       const corsOrigin = getTrustedCorsOrigin(request, applicationUrl);
       if (corsOrigin === false) return new Response("Forbidden", { status: 403 });
 
-      const { token, purpose, requestPath } = parseLocalFileUrl(request.url);
+      // Chromium includes the navigation fragment in custom-protocol requests,
+      // unlike HTTP. Fragments are client-side Viewer state (for example PDF
+      // page/zoom/chrome flags), never part of capability authorization.
+      const capabilityUrl = new URL(request.url);
+      capabilityUrl.hash = "";
+      const { token, purpose, requestPath } = parseLocalFileUrl(capabilityUrl.toString());
       const capability = typeof resolveCapability === "function"
         ? resolveCapability({ token, purpose, requestPath })
         : null;
@@ -33,6 +40,7 @@ export function registerLocalFileProtocol({
       if (typeof isOpenWorkspaceRoot === "function" && !isOpenWorkspaceRoot(canonicalRoot)) {
         return new Response("Forbidden", { status: 403 });
       }
+      if (!resolveCapability({ token, purpose, requestPath })) return new Response("Forbidden", { status: 403 });
       const contentType = getMimeType(relativePath) ?? "application/octet-stream";
       const corsHeaders = corsOrigin
         ? { "Access-Control-Allow-Origin": corsOrigin, Vary: "Origin" }
@@ -40,7 +48,35 @@ export function registerLocalFileProtocol({
       const securityHeaders = {
         "Cache-Control": "no-store",
         "X-Content-Type-Options": "nosniff",
+        // Enforce an opaque sandbox even if a projection lease is navigated outside its iframe.
+        ...(purpose === "document-projection" ? { "Content-Security-Policy": capability.snapshot?.interactive
+          ? "sandbox allow-downloads allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-scripts"
+          : "sandbox allow-scripts" } : {}),
       };
+      responseHeaders = { ...securityHeaders, ...corsHeaders };
+      if (contentType === "application/pdf") {
+        const file = await openPdfResource(canonicalRoot, relativePath, {
+          method: request.method ?? "GET", rangeHeader: request.headers.get("range"), signal: request.signal,
+        });
+        // Revocation or project removal during async filesystem admission must
+        // not publish a new response after its authority has retired.
+        if (!resolveCapability({ token, purpose, requestPath })
+          || (isOpenWorkspaceRoot && !isOpenWorkspaceRoot(canonicalRoot))) {
+          file.stream?.destroy();
+          return new Response("Forbidden", { status: 403, headers: responseHeaders });
+        }
+        if (file.unsatisfiable) return new Response(null, {
+          status: 416, headers: { ...responseHeaders, "Content-Range": `bytes */${file.size}` },
+        });
+        return new Response(file.stream ? Readable.toWeb(file.stream) : null, {
+          status: file.partial ? 206 : 200,
+          headers: {
+            ...responseHeaders, "Content-Type": contentType,
+            "Content-Length": String(file.end - file.start + 1), "Accept-Ranges": "bytes",
+            ...(file.partial ? { "Content-Range": `bytes ${file.start}-${file.end}/${file.size}` } : {}),
+          },
+        });
+      }
       if (capability.snapshot) {
         const bytes = capability.snapshot.bytes;
         const range = parseSingleByteRange(request.headers.get("range"), bytes.length);
@@ -136,8 +172,11 @@ export function registerLocalFileProtocol({
       }
 
       return new Response(bytes, responseInit);
-    } catch {
-      return new Response("Not found", { status: 404 });
+    } catch (error) {
+      const status = [413, 415].includes(error?.status) ? error.status : 404;
+      return new Response(status === 413 ? "PDF preview limit exceeded" : status === 415 ? "Invalid PDF resource" : "Not found", {
+        status, headers: responseHeaders,
+      });
     }
   });
 }

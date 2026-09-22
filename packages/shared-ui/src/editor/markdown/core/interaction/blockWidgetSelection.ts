@@ -16,26 +16,46 @@ const SELECTABLE_WIDGET_SELECTOR = [
   ".cm-md-html-widget",
   ".cm-md-image-widget",
   ".cm-md-math-block-widget",
+  ".cm-md-mdx-tabs-widget",
+  ".cm-md-video-widget",
 ].join(", ");
 
 const SELECTED_CLASS = "is-doc-selected";
 
 export const markdownBlockWidgetSelectionExtension = ViewPlugin.fromClass(
   class {
+    private disposed = false;
+    private refreshQueued = false;
+
     constructor(private readonly view: EditorView) {
       this.scheduleRefresh();
     }
 
     update(update: ViewUpdate) {
-      if (update.selectionSet || update.docChanged || update.viewportChanged || update.focusChanged) {
+      const projectionChanged = update.startState.field(markdownLivePreviewDecorations, false)?.decorations
+        !== update.state.field(markdownLivePreviewDecorations, false)?.decorations;
+      if (update.selectionSet || update.docChanged || update.focusChanged || projectionChanged) {
         this.scheduleRefresh();
       }
     }
 
+    docViewUpdate() {
+      this.refresh();
+    }
+
+    destroy() {
+      this.disposed = true;
+    }
+
     private scheduleRefresh() {
-      this.view.requestMeasure({
-        read: () => null,
-        write: () => this.refresh(),
+      if (this.refreshQueued) return;
+      this.refreshQueued = true;
+      // Selection accents only write classes; they do not measure geometry.
+      // A measure request on every viewport update restarts the engine's
+      // stabilization loop during large scroll/resize transitions.
+      queueMicrotask(() => {
+        this.refreshQueued = false;
+        if (!this.disposed) this.refresh();
       });
     }
 
@@ -59,7 +79,8 @@ export const markdownBlockWidgetSelectionExtension = ViewPlugin.fromClass(
 
 function isFocusInsideSelectableWidget(view: EditorView): boolean {
   const active = view.contentDOM.ownerDocument.activeElement;
-  return active instanceof Element && Boolean(active.closest(SELECTABLE_WIDGET_SELECTOR));
+  return active instanceof Element && view.contentDOM.contains(active)
+    && Boolean(active.closest(SELECTABLE_WIDGET_SELECTOR));
 }
 
 function isWidgetCovered(

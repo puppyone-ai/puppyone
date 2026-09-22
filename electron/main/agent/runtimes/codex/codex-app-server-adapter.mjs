@@ -2,6 +2,7 @@ import { createNativePersistenceReporter } from "../../runtime/native-persistenc
 import { codexHistorySource } from "./codex-history-source.mjs";
 import { agentHistoryReadResult } from "../../runtime/agent-history-read-result.mjs";
 import { discoverCodexHistory } from "./codex-history-discovery.mjs";
+import { CODEX_RUNTIME_DESCRIPTOR } from "./codex-identity.mjs";
 import { codexResolveApproval, codexResolveQuestion, codexHandleServerRequest, codexHandleServerRequestResolved, codexClearPendingApprovalsForTurn, codexClearPendingApprovals, codexClearPendingQuestionsForTurn, codexClearPendingQuestions } from "./codex-interactions.mjs";
 import { normalizeCodexNotification } from "./codex-events.mjs";
 import { normalizeHistoricalThread } from "./codex-history-projection.mjs";
@@ -197,11 +198,11 @@ export class CodexAppServerAdapter {
       commands: [],
       capabilities: CODEX_CAPABILITIES,
       runtime: {
-        id: "codex",
-        displayName: "Codex",
+        id: CODEX_RUNTIME_DESCRIPTOR.id,
+        displayName: CODEX_RUNTIME_DESCRIPTOR.displayName,
         description: "Codex's native app-server runtime.",
         kind: "native-cli",
-        iconKey: "codex",
+        iconKey: CODEX_RUNTIME_DESCRIPTOR.iconKey,
         version: null,
         source: "external",
         compatibility: "versioned-app-server",

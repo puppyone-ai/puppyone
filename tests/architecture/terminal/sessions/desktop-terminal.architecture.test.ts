@@ -122,7 +122,8 @@ describe("Desktop Terminal architecture boundaries", () => {
     expect(launcher).toContain('aria-label={t("terminal.launcher.scanAgain")}');
     expect(launcherCss).toMatch(/\.desktop-terminal-launcher-content\s*\{[^}]*gap:\s*28px;/s);
     expect(launcherCss).toMatch(/\.desktop-terminal-launcher-heading h2\s*\{[^}]*font-size:\s*var\(--po-type-right-sidebar-meta, 13px\);[^}]*font-weight:\s*500;/s);
-    expect(launcherCss).toMatch(/\.desktop-terminal-launcher-tool,\s*\.desktop-terminal-launcher-shell,\s*\.desktop-terminal-launcher-history\s*\{[^}]*min-height:\s*var\(--po-control-size-large\);[^}]*border-radius:\s*6px;/s);
+    expect(launcherCss).toMatch(/\.desktop-terminal-launcher-discovery,\s*\.desktop-terminal-launcher-tool,\s*\.desktop-terminal-launcher-shell,\s*\.desktop-terminal-launcher-history\s*\{[^}]*min-height:\s*var\(--po-control-size-large\);/s);
+    expect(launcherCss).toMatch(/\.desktop-terminal-launcher-tool,\s*\.desktop-terminal-launcher-shell,\s*\.desktop-terminal-launcher-history\s*\{[^}]*border-radius:\s*6px;/s);
     expect(launcherCss).toContain('.desktop-terminal-launcher-tool[data-status="coming-soon"]::after');
     expect(launcherCss).not.toContain("aspect-ratio:");
     expect(header).toContain('import "../../../app-shell/auxiliary-workbench/layout/auxiliary-workbench-header.css"');
@@ -178,7 +179,7 @@ describe("Desktop Terminal architecture boundaries", () => {
     expect(headerLayout).toContain("inlineStart");
     expect(headerCss).toMatch(/\.desktop-terminal-tab-rail\s*\{[^}]*flex:\s*1 1 auto;/s);
     expect(headerCss).toMatch(
-      /\.desktop-terminal-new-button\s*\{[^}]*flex:\s*0 0 var\(--desktop-terminal-tab-control-height\);[^}]*border:\s*0;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/s,
+      /\.desktop-terminal-new-button\.desktop-menu-icon-button\s*\{[^}]*min-inline-size:\s*var\(--desktop-terminal-tab-control-height\);[^}]*max-inline-size:\s*var\(--desktop-terminal-tab-control-height\);[^}]*inline-size:\s*var\(--desktop-terminal-tab-control-height\);[^}]*min-block-size:\s*var\(--desktop-terminal-tab-control-height\);[^}]*max-block-size:\s*var\(--desktop-terminal-tab-control-height\);[^}]*block-size:\s*var\(--desktop-terminal-tab-control-height\);[^}]*flex:\s*0 0 var\(--desktop-terminal-tab-control-height\);[^}]*border:\s*0;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/s,
     );
     expect(headerCss).toMatch(
       /\.desktop-terminal-tabs\s*\{[^}]*position:\s*relative;[^}]*width:\s*var\(--desktop-terminal-tabs-resolved-width\);/s,

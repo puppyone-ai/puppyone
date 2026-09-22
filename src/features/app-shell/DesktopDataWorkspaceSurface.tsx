@@ -1,6 +1,5 @@
 import {
   useCallback,
-  useEffect,
   useMemo,
   useState,
   type ComponentProps,
@@ -11,8 +10,6 @@ import { Plus } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import {
   DataWorkspace,
-  qualifyDataResourcePath,
-  getFileSemanticKind,
   type AiEditRequest,
   type DataNode,
   type Workspace,
@@ -55,15 +52,6 @@ import {
 } from "../desktop-agent-presence";
 import type { ResolvedWorkbenchDataResource } from "../data-workspace/workbenchDataPort";
 import { useProjectExplorerSession } from "../data-workspace/useProjectExplorerSession";
-import {
-  EmptyWorkspaceOnboardingDialog,
-  markFirstProjectStarterCompleted,
-  readFirstProjectStarterCompleted,
-  resolveWorkspaceRootOnboardingStatus,
-  shouldShowFirstProjectStarter,
-  type EmptyWorkspaceStarterSelection,
-  type WorkspaceRootOnboardingStatus,
-} from "./EmptyWorkspaceOnboardingDialog";
 
 type DataWorkspaceProps = ComponentProps<typeof DataWorkspace>;
 
@@ -79,7 +67,6 @@ export type DesktopDataWorkspaceSurfaceProps = {
   editorInteractionPreferences: NonNullable<DataWorkspaceProps["editorInteractionPreferences"]>;
   fileClipboardController: FileClipboardController;
   fileOperationNotice: string | null;
-  firstProjectStarterEligible: boolean;
   navigation: {
     activeView: DesktopView;
     availableSurfaceIds: readonly DesktopView[];
@@ -106,7 +93,6 @@ export type DesktopDataWorkspaceSurfaceProps = {
   onRemoveProject: (folder: WorkspaceFolder) => void | Promise<void>;
   onCreateEntryMenu: (parentPath: string | null, anchorRect: DesktopCreateEntryAnchorInput) => void;
   onDismissCreateEntryMenu: () => void;
-  onWorkspaceStarterCreated: (path: string) => void;
   onNodeActionMenu: (node: DataNode, anchorRect: DOMRect, selectedNodes?: readonly DataNode[]) => void;
   preferences: DesktopPreferencesController;
   resolvedSurface: ResolvedWorkspaceSurface;
@@ -132,7 +118,6 @@ export function DesktopDataWorkspaceSurface({
   editorInteractionPreferences,
   fileClipboardController,
   fileOperationNotice,
-  firstProjectStarterEligible,
   navigation,
   onActiveDataNodeChange,
   onResourceMove,
@@ -140,7 +125,6 @@ export function DesktopDataWorkspaceSurface({
   onActiveDataPathChange,
   onCreateEntryMenu,
   onDismissCreateEntryMenu,
-  onWorkspaceStarterCreated,
   onNodeActionMenu,
   preferences,
   resolvedSurface,
@@ -173,13 +157,6 @@ export function DesktopDataWorkspaceSurface({
     "explorer-resize",
   );
   const [explorerResizeHandle, setExplorerResizeHandle] = useState<HTMLDivElement | null>(null);
-  const [workspaceRootStatus, setWorkspaceRootStatus] = useState<Readonly<{
-    workspaceKey: string;
-    status: WorkspaceRootOnboardingStatus;
-  }> | null>(null);
-  const [firstProjectStarterCompleted, setFirstProjectStarterCompleted] = useState(
-    readFirstProjectStarterCompleted,
-  );
   useNativeSurfacePointerRoutingRegion("explorer-resize", explorerResizeHandle);
   const { t } = useLocalization();
   const paneLayout = useDesktopPaneLayout();
@@ -197,58 +174,6 @@ export function DesktopDataWorkspaceSurface({
       : undefined,
     [workspaceFolders],
   );
-  const updateWorkspaceRootStatus = useCallback((
-    nextWorkspaceKey: string,
-    status: WorkspaceRootOnboardingStatus,
-  ) => {
-    setWorkspaceRootStatus((current) => (
-      current?.workspaceKey === nextWorkspaceKey && current.status === status
-        ? current
-        : { workspaceKey: nextWorkspaceKey, status }
-    ));
-  }, []);
-  const currentWorkspaceRootStatus = workspaceRootStatus?.workspaceKey === explorerSession.key
-    ? workspaceRootStatus.status
-    : null;
-  const showEmptyWorkspaceOnboarding = shouldShowFirstProjectStarter({
-    eligible: firstProjectStarterEligible,
-    completed: firstProjectStarterCompleted,
-    workspaceStatus: currentWorkspaceRootStatus,
-  });
-  const confirmWorkspaceStarter = useCallback(async (selection: EmptyWorkspaceStarterSelection) => {
-    if (selection.file) {
-      if (!dataPort.createFile) throw new Error(t("workspace.emptyOnboarding.createUnavailable"));
-      const folder = workspaceFolders.find((candidate) => candidate.uri === activeWorkspaceRootPath);
-      if (!folder || !activeWorkspaceRootPath) {
-        throw new Error("A Workspace Folder is required to create the starter document.");
-      }
-      const resourcePath = qualifyDataResourcePath(activeWorkspaceRootPath, selection.file.path);
-      await dataPort.createFile(resourcePath, selection.file.content);
-      const node: DataNode = {
-        id: resourcePath,
-        name: selection.file.path,
-        path: resourcePath,
-        type: getFileSemanticKind(selection.file.path, "file"),
-        resourceUri: resourcePath,
-        workspaceFolderId: folder.id,
-      };
-      markFirstProjectStarterCompleted();
-      setFirstProjectStarterCompleted(true);
-      onWorkspaceStarterCreated(resourcePath);
-      await onActiveDataPathChange(resourcePath, node);
-      return;
-    }
-
-    markFirstProjectStarterCompleted();
-    setFirstProjectStarterCompleted(true);
-  }, [
-    activeWorkspaceRootPath,
-    dataPort,
-    onActiveDataPathChange,
-    onWorkspaceStarterCreated,
-    t,
-    workspaceFolders,
-  ]);
   // DataWorkspace's width input is the expanded content-plane width. The
   // Shell's resolved width becomes zero while collapsed and must never replace
   // that retained geometry, or the Explorer children will reflow during exit.
@@ -445,13 +370,6 @@ export function DesktopDataWorkspaceSurface({
         mainSlot={resolvedSurface.id === "data"
           ? (state) => (
               <>
-                <WorkspaceRootOnboardingStatusReporter
-                  workspaceKey={explorerSession.key}
-                  rootLoading={state.rootLoading}
-                  loadError={state.loadError}
-                  rootEntryCount={state.tree.length}
-                  onStatusChange={updateWorkspaceRootStatus}
-                />
                 <DesktopEditorSplitView
                   aiEditRequest={activeAiEditRequest}
                   dataPort={dataPort}
@@ -502,36 +420,8 @@ export function DesktopDataWorkspaceSurface({
           />
         </div>
       )}
-      {showEmptyWorkspaceOnboarding && (
-        <EmptyWorkspaceOnboardingDialog
-          onConfirm={confirmWorkspaceStarter}
-        />
-      )}
     </div>
   );
-}
-
-function WorkspaceRootOnboardingStatusReporter({
-  workspaceKey,
-  rootLoading,
-  loadError,
-  rootEntryCount,
-  onStatusChange,
-}: {
-  workspaceKey: string;
-  rootLoading: boolean;
-  loadError: string | null;
-  rootEntryCount: number;
-  onStatusChange: (workspaceKey: string, status: WorkspaceRootOnboardingStatus) => void;
-}) {
-  useEffect(() => {
-    onStatusChange(workspaceKey, resolveWorkspaceRootOnboardingStatus({
-      rootLoading,
-      loadError,
-      rootEntryCount,
-    }));
-  }, [loadError, onStatusChange, rootEntryCount, rootLoading, workspaceKey]);
-  return null;
 }
 
 function getContextMenuAnchorRect(event: ReactMouseEvent<HTMLElement>): DOMRect {

@@ -3,12 +3,12 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const manifestJson = require("../../../packages/shared-ui/src/editor/registry/presetViewerManifest.json");
 
-const CONTRACT_VERSION = 7;
+const CONTRACT_VERSION = 8;
 const CAPABILITIES = new Set(["edit", "preview", "placeholder"]);
-const SOURCES = new Set(["content", "resource", "content-and-resource", "none"]);
+const SOURCES = new Set(["content", "resource", "resource-session", "content-and-resource", "none"]);
 const RUNTIMES = new Set(["eager", "lazy"]);
 const SURFACE_ISOLATIONS = new Set(["inline", "isolated-webcontents"]);
-const COMPUTE_ISOLATIONS = new Set(["main-thread", "worker", "browser-engine"]);
+const COMPUTE_ISOLATIONS = new Set(["main-thread", "worker", "browser-engine", "native-process"]);
 const CONTENT_SANDBOXES = new Set(["none", "sandboxed-frame"]);
 const MEMORY_CLASSES = new Set(["small", "medium", "large"]);
 const SURFACE_PREPARATIONS = new Set(["hidden-safe", "requires-visible"]);
@@ -195,9 +195,6 @@ function parseDefinition(input, index) {
     throw new TypeError(`Main-thread preset viewer ${record.id} cannot declare worker capacity.`);
   }
   if (record.computeIsolation === "browser-engine") {
-    if (record.surfaceIsolation !== "isolated-webcontents") {
-      throw new TypeError(`Browser-engine preset viewer ${record.id} must use an isolated surface.`);
-    }
     if (record.source !== "resource" || record.runtime !== "eager") {
       throw new TypeError(`Browser-engine preset viewer ${record.id} must eagerly navigate to a resource.`);
     }
@@ -212,6 +209,13 @@ function parseDefinition(input, index) {
   if (record.computeIsolation === "worker" && record.runtime !== "lazy") {
     throw new TypeError(`Worker-compute preset viewer ${record.id} must keep its runtime lazy.`);
   }
+  if (record.source === "resource-session" || record.computeIsolation === "native-process") {
+    if (record.source !== "resource-session" || record.computeIsolation !== "native-process"
+      || record.capability !== "preview" || record.runtime !== "lazy" || record.surfaceIsolation !== "inline"
+      || resourcePolicy.maxWorkers !== 0 || resourcePolicy.maxCanvasPixels !== 0 || resourcePolicy.maxActiveCanvases !== 0) {
+      throw new TypeError(`Native-session preset viewer ${record.id} must be a lazy, inline, read-only DOM surface.`);
+    }
+  }
   if (record.contentSandbox === "sandboxed-frame" && !record.surfaceTraits.includes("sandboxed")) {
     throw new TypeError(`Sandboxed-frame preset viewer ${record.id} must declare the sandboxed trait.`);
   }
@@ -223,7 +227,7 @@ function parseDefinition(input, index) {
   }
   if (
     record.computeIsolation !== "browser-engine"
-    && (record.surfaceFamily === "canvas" || record.surfaceTraits.includes("paginated"))
+    && (record.surfaceFamily === "canvas" || (record.surfaceFamily !== "grid" && record.surfaceTraits.includes("paginated")))
     && (resourcePolicy.maxCanvasPixels === 0 || resourcePolicy.maxActiveCanvases === 0)
   ) {
     throw new TypeError(`Canvas or paginated preset viewer ${record.id} must declare positive Canvas limits.`);

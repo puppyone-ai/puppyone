@@ -14,6 +14,7 @@
   --agent-user-message-border: color-mix(in srgb, var(--agent-border-subtle) 62%, transparent);
   --agent-reference-surface: color-mix(in srgb, var(--agent-composer-surface) 92%, transparent);
   --agent-reference-error-surface: color-mix(in srgb, var(--po-danger) 12%, var(--agent-composer-surface));
+  --agent-reference-action-hover-surface: color-mix(in srgb, var(--po-menu-bg), var(--po-text) 12%);
   --agent-control-surface: color-mix(in srgb, var(--po-header) 82%, var(--po-panel-raised));
   --agent-border: var(--po-border-strong);
   --agent-border-subtle: var(--po-divider);
@@ -73,7 +74,6 @@
   --agent-readiness-border: color-mix(in srgb, var(--po-warning) 35%, var(--po-divider));
   --agent-readiness-surface: color-mix(in srgb, var(--po-warning) 7%, var(--po-panel));
   --agent-picker-warning-text: color-mix(in srgb, var(--po-warning) 76%, var(--po-text-muted));
-  --agent-selection-surface: color-mix(in srgb, var(--agent-text) 16%, transparent);
   --agent-mention-border: color-mix(in srgb, var(--agent-accent) 36%, var(--agent-border-subtle));
   --agent-mention-surface: color-mix(in srgb, var(--agent-accent-soft) 58%, transparent);
   --agent-mention-text: color-mix(in srgb, var(--agent-accent) 78%, var(--agent-text));

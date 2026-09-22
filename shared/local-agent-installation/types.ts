@@ -28,6 +28,8 @@ export type LocalAgentInstallationSnapshot = {
   completedAt: string;
   source: "scan" | "memory-cache";
   availableAgentIds: LocalAgentInstallationId[];
+  /** Last confirmed installations whose current probe failed; never fresh found evidence. */
+  retainedAgentIds?: LocalAgentInstallationId[];
   results: LocalAgentInstallationResult[];
 };
 

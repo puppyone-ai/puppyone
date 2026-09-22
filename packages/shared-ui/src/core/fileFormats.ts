@@ -25,6 +25,7 @@ export type GenericViewerId =
   | "audio-preview"
   | "video-preview"
   | "pdf-preview"
+  | "database-preview"
   | "office-preview"
   | "binary-placeholder";
 
@@ -72,6 +73,7 @@ export const FILE_SEMANTIC_KINDS = [
   "word",
   "excel",
   "spreadsheet",
+  "database",
   "presentation",
   "archive",
   "document",

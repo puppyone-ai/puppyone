@@ -1,21 +1,16 @@
 import os from "node:os";
 import path from "node:path";
-import { historyStoragePath, localHistorySourceScope } from "../../runtime/history-source-scope.mjs";
+import { localHistorySourceScope } from "../../runtime/history-source-scope.mjs";
 import {
   WORKBUDDY_CHINA_CHANNEL,
   WORKBUDDY_INTERNATIONAL_CHANNEL,
   requireWorkBuddyChannel,
 } from "./workbuddy-channels.mjs";
+import { workBuddyConfigDirectory } from "./workbuddy-config-directory.mjs";
 
 export function workBuddyHistorySource({ channel: channelValue, environment = process.env } = {}) {
   const channel = requireWorkBuddyChannel(channelValue);
-  const home = environment.HOME || os.homedir();
-  const configuredRoot = environment[channel.configDirectoryEnvironmentVariable]
-    || environment.CODEBUDDY_CONFIG_DIR
-    || environment.WORKBUDDY_CONFIG_DIR
-    || "";
-  const defaultRoot = path.join(home, channel.configDirectoryName);
-  const configRoot = historyStoragePath(configuredRoot, defaultRoot, home);
+  const configRoot = workBuddyConfigDirectory({ channel, environment });
   // Keep the original namespace/selectors so existing single-registration
   // WorkBuddy sessions retain their exact native history identity.
   return localHistorySourceScope("workbuddy", { channel: channel.channel, configRoot }, {

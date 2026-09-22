@@ -4,6 +4,7 @@ import { useLocalization } from "@puppyone/localization";
 import type { LocalAgentsSettings } from "../../../preferences";
 import {
   AGENT_CHAT_CREATION_RECIPES,
+  AGENT_CHAT_LOCAL_AGENT_IDS,
   localAgentIdForAgentChatRuntime,
 } from "../../app-shell/auxiliary-workbench/agentChatCreationRecipes";
 import { useLocalAgentInstallations } from "../controller/useLocalAgentInstallations";
@@ -15,6 +16,7 @@ import {
   setTerminalAgentVisible,
 } from "../model/localAgentSelection";
 import { LocalAgentHooksSettingsSection } from "./LocalAgentHooksSettingsView";
+import { LocalAgentSetupSection } from "./LocalAgentSetupSection";
 
 const terminalLauncherById = new Map<string, (typeof DESKTOP_TERMINAL_LAUNCHERS)[number]>(
   DESKTOP_TERMINAL_LAUNCHERS.map((launcher) => [launcher.id, launcher]),
@@ -30,12 +32,13 @@ export function LocalAgentsSettingsView({
   onActivityIndicatorsEnabledChange: (enabled: boolean) => void;
 }) {
   const { t } = useLocalization();
+  const discovery = useLocalAgentInstallations({ enabled: true });
   const {
     ids: detectedAgentIds,
     hasFailures,
     phase,
     refresh,
-  } = useLocalAgentInstallations({ enabled: true });
+  } = discovery;
   const detected = useMemo(() => {
     const ids = new Set<string>(detectedAgentIds);
     return AGENT_CHAT_CREATION_RECIPES.flatMap((recipe) => {
@@ -165,6 +168,17 @@ export function LocalAgentsSettingsView({
               agentPhase={phase}
               onRefreshAgents={refresh}
               onActivityIndicatorsEnabledChange={onActivityIndicatorsEnabledChange}
+            />
+            <LocalAgentSetupSection
+              enabled
+              surface="chat"
+              eligibleInstallationIds={AGENT_CHAT_LOCAL_AGENT_IDS}
+              hiddenAgentIds={settings.hiddenTerminalAgentIds}
+              preferences={settings.setupSuggestions}
+              onPreferencesChange={(setupSuggestions) => onChange({ ...settings, setupSuggestions })}
+              discovery={discovery}
+              onRefresh={refresh}
+              presentation="settings"
             />
           </div>
         </div>

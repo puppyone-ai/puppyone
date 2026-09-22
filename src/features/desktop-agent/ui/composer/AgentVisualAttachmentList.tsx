@@ -1,4 +1,4 @@
-import { CircleAlert, Image, LoaderCircle, RefreshCcw, X } from "lucide-react";
+import { CircleAlert, Image, LoaderCircle, X } from "lucide-react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
 import type { AgentDraftReference } from "../../domain/agent-contract";
@@ -9,7 +9,6 @@ type AgentVisualAttachmentListProps = {
   references: AgentDraftReference[];
   getPreviewUrl?: (id: string) => string | null;
   onRemove?: (id: string) => void;
-  onRetry?: (id: string) => void;
 };
 
 /**
@@ -20,7 +19,6 @@ export function AgentVisualAttachmentList({
   references,
   getPreviewUrl,
   onRemove,
-  onRetry,
 }: AgentVisualAttachmentListProps) {
   const { t } = useLocalization();
   const visualAttachments = references.filter(isAgentMediaReference);
@@ -33,18 +31,16 @@ export function AgentVisualAttachmentList({
           reference={reference}
           previewUrl={getPreviewUrl?.(reference.id) ?? null}
           onRemove={() => onRemove?.(reference.id)}
-          onRetry={reference.status === "error" && onRetry ? () => onRetry(reference.id) : undefined}
         />
       ))}
     </div>
   );
 }
 
-function VisualAttachmentCard({ reference, previewUrl, onRemove, onRetry }: {
+function VisualAttachmentCard({ reference, previewUrl, onRemove }: {
   reference: AgentDraftReference;
   previewUrl: string | null;
   onRemove: () => void;
-  onRetry?: () => void;
 }) {
   const { t } = useLocalization();
   const statusLabel = reference.status === "resolving"
@@ -64,7 +60,7 @@ function VisualAttachmentCard({ reference, previewUrl, onRemove, onRetry }: {
       <span className="desktop-agent-visual-attachment-preview">
         {previewUrl
           ? <img src={previewUrl} alt="" draggable={false} />
-          : <Image size={22} aria-hidden="true" />}
+          : <Image size={18} aria-hidden="true" />}
       </span>
       {reference.status === "resolving" && (
         <span className="desktop-agent-visual-attachment-status" aria-hidden="true">
@@ -77,18 +73,10 @@ function VisualAttachmentCard({ reference, previewUrl, onRemove, onRetry }: {
         </span>
       )}
       <span className="desktop-agent-visual-attachment-actions">
-        {onRetry && (
-          <button
-            type="button"
-            aria-label={t("agent.reference.retry", { name: bidiIsolate(reference.displayName) })}
-            onClick={onRetry}
-          >
-            <RefreshCcw size={11} aria-hidden="true" />
-          </button>
-        )}
         <button
           type="button"
           aria-label={t("agent.reference.remove", { name: bidiIsolate(reference.displayName) })}
+          title={t("agent.reference.remove", { name: bidiIsolate(reference.displayName) })}
           onClick={onRemove}
         >
           <X size={12} aria-hidden="true" />

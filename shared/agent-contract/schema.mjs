@@ -47,6 +47,10 @@ const {
 export function parseAgentIpcRequest(channel, value) {
   const request = parseAgentRequestBody(channel, value);
   if (value?.instanceId != null) request.instanceId = requiredOpaqueId(value.instanceId, "instanceId");
+  if (["agent:session-create", "agent:session-open", "agent:session-resume"].includes(channel)) {
+    if (value?.itemId != null) request.itemId = requiredOpaqueId(value.itemId, "itemId");
+    if (value?.creationId != null) request.creationId = requiredOpaqueId(value.creationId, "creationId");
+  }
   return request;
 }
 
@@ -139,7 +143,7 @@ function parseAgentRequestBody(channel, value) {
       return {
         rootPath: requiredString(input.rootPath, "rootPath", MAX_PATH_LENGTH),
         epoch: requiredOpaqueId(input.epoch, "epoch"),
-        sourcePaths: boundedStringArray(input.sourcePaths, "sourcePaths", MAX_REFERENCE_COUNT, MAX_PATH_LENGTH),
+        ...attachmentStageSources(input),
       };
     case "agent:reference-revoke":
       return {
@@ -677,6 +681,30 @@ function sanitizeDraftReference(value, label, requireReady) {
     mime: requiredString(reference.mime, `${label}.mime`, 160),
     size: nonNegativeInteger(reference.size, `${label}.size`),
   };
+}
+
+function attachmentStageSources(input) {
+  if (input.sources === undefined) {
+    return { sourcePaths: boundedStringArray(input.sourcePaths, "sourcePaths", MAX_REFERENCE_COUNT, MAX_PATH_LENGTH) };
+  }
+  if (input.sourcePaths !== undefined) throw contractError("sources", "cannot be combined with sourcePaths");
+  const sources = assertArray(input.sources, "sources");
+  if (sources.length === 0 || sources.length > MAX_REFERENCE_COUNT) throw contractError("sources", "has an invalid count");
+  let byteLength = 0;
+  return { sources: sources.map((value, index) => {
+    const label = `sources[${index}]`;
+    const source = assertRecord(value, label);
+    if (source.path !== undefined) {
+      if (source.bytes !== undefined) throw contractError(label, "cannot contain both a path and bytes");
+      return { path: requiredString(source.path, `${label}.path`, MAX_PATH_LENGTH) };
+    }
+    const name = requiredString(source.name, `${label}.name`, 512);
+    if (/[\\/\u0000-\u001f\u007f]/.test(name)) throw contractError(label, "has an invalid file name");
+    if (!(source.bytes instanceof Uint8Array) || source.bytes.byteLength === 0) throw contractError(label, "requires non-empty bytes");
+    byteLength += source.bytes.byteLength;
+    if (byteLength > agentContractLimits.maxTotalReferenceBytes) throw contractError(label, "exceeds the 25 MB inline byte limit");
+    return { name, bytes: source.bytes };
+  }) };
 }
 
 function boundedStringArray(value, label, maximumEntries, maximumLength) {

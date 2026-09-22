@@ -1,5 +1,6 @@
 import { AgentRuntimeRegistry } from "../../../../electron/main/agent/runtime/agent-runtime-registry.mjs";
 import { createCodexRuntimeDefinition } from "../../../../electron/main/agent/runtimes/codex/codex-runtime-definition.mjs";
+import { CODEX_CAPABILITIES } from "../../../../electron/main/agent/runtimes/codex/codex-app-server-adapter.mjs";
 
 /** Test-only provider: no CLI, credentials, network, model or billable calls. */
 export function createFixtureAgentRuntime() {
@@ -10,7 +11,8 @@ export function createFixtureAgentRuntime() {
       version: "0.144.1", minimumVersion: "0.144.1", executablePath: "/fixture/codex", environment: {}, message: "ready", selectable: true }) },
     adapterFactory: (options) => ({
       inspect: async () => ({ account: { account: { type: "chatgpt", email: "fixture@example.invalid", planType: "plus" }, requiresOpenaiAuth: false },
-        models: [{ id: "fixture", model: "fixture", displayName: "Fixture", isDefault: true }], capabilities: { manualApprovals: true }, warnings: [] }),
+        models: [{ id: "fixture", model: "fixture", displayName: "Fixture", isDefault: true }],
+        capabilities: { manualApprovals: true, referenceInputs: CODEX_CAPABILITIES.referenceInputs }, warnings: [] }),
       createSession: async () => ({ providerSessionId: `fixture-${process.pid}-${++creates}`, title: `Fixture session ${creates}`, model: "fixture",
         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }),
       resumeSession: async () => { throw new Error("Display recovery must not resume the native fixture session."); },

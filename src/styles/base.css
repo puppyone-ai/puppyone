@@ -72,7 +72,7 @@ button {
 }
 
 /*
- * Linear-style pointer cursors are reserved for destinations and only appear
+ * Navigation pointer cursors are reserved for destinations and only appear
  * when the preference is enabled. Native links opt in automatically;
  * button-backed routes use the public data-po-interaction contract. Rebinding
  * the legacy component cursor token locally keeps feature CSS compatible

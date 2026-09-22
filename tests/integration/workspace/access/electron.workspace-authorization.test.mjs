@@ -377,6 +377,10 @@ describe("recent workspace authorization", () => {
       grantId: "location-1",
       path: root,
     }));
+    const getDefaultProjectLocationForCurrentWindow = vi.fn(async () => ({
+      grantId: "default-1",
+      path: path.join(root, "PuppyOne"),
+    }));
     const selectWorkspaceForCurrentComposition = vi.fn(async () => ({
       status: "attached-current",
       workspaces: [],
@@ -392,6 +396,7 @@ describe("recent workspace authorization", () => {
       createProjectForCurrentWindow,
       cloneRepositoryForCurrentWindow,
       selectProjectLocationForCurrentWindow,
+      getDefaultProjectLocationForCurrentWindow,
       createCloudWorkspaceFromRequest: vi.fn(),
       openVirtualWorkspaceInNewWindow: vi.fn(),
       selectWorkspaceForCurrentWindow: vi.fn(),
@@ -408,6 +413,20 @@ describe("recent workspace authorization", () => {
     await expect(handlers.get("workspace:open-current")(event, root)).resolves.toEqual({ status: "opened-current" });
     expect(openWorkspaceInCurrentWindow).toHaveBeenCalledWith(event.sender, await fs.promises.realpath(root));
 
+    await expect(handlers.get("workspace:rename-recent")(event, {
+      folderPath: otherRoot,
+      name: "Blocked",
+    })).rejects.toThrow(/recent workspace list/i);
+    await expect(handlers.get("workspace:rename-recent")(event, {
+      folderPath: root,
+      name: "Renamed project",
+    })).resolves.toEqual({
+      ok: true,
+      renamed: true,
+      path: await fs.promises.realpath(root),
+      name: "Renamed project",
+    });
+
     await expect(handlers.get("workspace:remove-recent")(event, otherRoot)).rejects.toThrow(/recent workspace list/i);
     await expect(handlers.get("workspace:remove-recent")(event, root)).resolves.toEqual({
       ok: true,
@@ -423,6 +442,11 @@ describe("recent workspace authorization", () => {
     await expect(handlers.get("workspace:select-project-location-current")(event))
       .resolves.toEqual({ grantId: "location-1", path: root });
     expect(selectProjectLocationForCurrentWindow).toHaveBeenCalledWith(event.sender);
+    // The default location is issued by the main process without a picker, but it
+    // still flows through the same grant model as a browsed folder.
+    await expect(handlers.get("workspace:default-project-location-current")(event))
+      .resolves.toEqual({ grantId: "default-1", path: path.join(root, "PuppyOne") });
+    expect(getDefaultProjectLocationForCurrentWindow).toHaveBeenCalledWith(event.sender);
     await expect(handlers.get("workspace:select-folder-attach")(event))
       .resolves.toEqual({ status: "attached-current", workspaces: [] });
     expect(selectWorkspaceForCurrentComposition).toHaveBeenCalledWith(event.sender);
@@ -436,9 +460,11 @@ describe("recent workspace authorization", () => {
       locationGrantId: "location-1",
     });
     await expect(handlers.get("workspace:clone-repository-current")(event, {
+      provider: "github",
       repositoryUrl: "https://github.com/owner/repository.git",
     })).resolves.toEqual({ status: "cloned-current" });
     expect(cloneRepositoryForCurrentWindow).toHaveBeenCalledWith(event.sender, {
+      provider: "github",
       repositoryUrl: "https://github.com/owner/repository.git",
     });
     expect(handlers.has("workspace:remember-last")).toBe(false);

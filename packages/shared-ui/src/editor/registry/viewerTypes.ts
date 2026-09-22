@@ -218,17 +218,20 @@ export type LazyPresetViewerImplementation = PresetViewerImplementationBase & Re
   render?: never;
 }>;
 
-/** A surface implemented by the browser engine itself. The renderer Host only
- * contributes matching metadata; Electron owns navigation and presentation. */
-export type BrowserEnginePresetViewerImplementation = PresetViewerImplementationBase & Readonly<{
+/** A surface attached outside the Editor DOM. The renderer Host contributes
+ * matching metadata only; a platform adapter owns navigation and presentation. */
+export type IsolatedPresetViewerImplementation = PresetViewerImplementationBase & Readonly<{
   load?: never;
   render?: never;
 }>;
 
+/** @deprecated Compute isolation does not determine visual containment. */
+export type BrowserEnginePresetViewerImplementation = IsolatedPresetViewerImplementation;
+
 export type PresetViewerImplementation =
   | EagerPresetViewerImplementation
   | LazyPresetViewerImplementation
-  | BrowserEnginePresetViewerImplementation;
+  | IsolatedPresetViewerImplementation;
 
 /**
  * Versioned contract for a viewer that ships with PuppyOne. Contributions are
@@ -240,13 +243,16 @@ export type EagerPresetViewerContribution = PresetViewerDefinition &
 export type LazyPresetViewerContribution = PresetViewerDefinition &
   Omit<LazyPresetViewerImplementation, "id">;
 
-export type BrowserEnginePresetViewerContribution = PresetViewerDefinition &
-  Omit<BrowserEnginePresetViewerImplementation, "id">;
+export type IsolatedPresetViewerContribution = PresetViewerDefinition &
+  Omit<IsolatedPresetViewerImplementation, "id">;
+
+/** @deprecated Compute isolation does not determine visual containment. */
+export type BrowserEnginePresetViewerContribution = IsolatedPresetViewerContribution;
 
 export type PresetViewerContribution = Readonly<
   | EagerPresetViewerContribution
   | LazyPresetViewerContribution
-  | BrowserEnginePresetViewerContribution
+  | IsolatedPresetViewerContribution
 >;
 
 /** @deprecated Prefer the product-semantic PresetViewerContribution name. */

@@ -220,7 +220,7 @@ export type MarkdownInlineFormatCoverage = {
 };
 
 /**
- * MarkText-style coverage: formats fully contain the selection, neighbors overlap it.
+ * Coverage semantics: formats fully contain the selection, while neighbors overlap it.
  * An inner selection like `hello` inside `**hello**` still counts as strong.
  */
 export function getInlineFormatCoverage(

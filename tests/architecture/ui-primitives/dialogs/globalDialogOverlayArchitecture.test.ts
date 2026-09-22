@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const FEATURE_OWNED_WINDOW_DIALOGS = [
-  "src/features/app-shell/EmptyWorkspaceOnboardingDialog.tsx",
   "src/features/automation/AutomationCreateDialog.tsx",
   "src/features/automation/AutomationManageDialog.tsx",
   "src/features/cloud/access-points/components/AccessPointManageDialog.tsx",

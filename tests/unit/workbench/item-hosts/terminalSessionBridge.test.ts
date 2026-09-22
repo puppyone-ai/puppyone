@@ -14,6 +14,8 @@ function setup() {
   const unsubscribe = vi.fn();
   const receipt: TerminalCreateResult = {id:"terminal-a", instanceId:"instance-a", pid:null, shell:"/bin/sh", inputShell:"/bin/sh", cwd:"/a"};
   const base = {
+    terminateItemExecution: vi.fn(async (request: any) => ({ ...request, executionId: "execution-a",
+      desiredLifecycle: "terminated", observedLifecycle: "stopping", cleanup: "running", revision: 1, errorCode: null })),
     createTerminal:vi.fn(async () => receipt),
     connectTerminalSession:vi.fn(async () => ({connection:"connection-a", hostGeneration:"host-a"})),
     closeTerminal:vi.fn(async () => true),
@@ -26,6 +28,21 @@ function setup() {
 const flush = async () => { await Promise.resolve(); await Promise.resolve(); };
 
 describe("DOM terminal session transport", () => {
+  it("hands off termination during startup without waiting for its create receipt", async () => {
+    const f = setup();
+    let finish!: (value: TerminalCreateResult) => void;
+    f.base.createTerminal.mockImplementation(() => new Promise(resolve => {finish=resolve;}));
+    const starting = f.bridge.createTerminal(f.request);
+    const rejected = expect(starting).rejects.toThrow(/closed during startup/);
+    f.bridge.writeTerminal({...f.request,data:"must-not-dispatch"});
+    expect(await f.bridge.terminateExecution?.()).toMatchObject({kind:"handed-off"});
+    expect(f.base.terminateItemExecution).toHaveBeenCalledWith(expect.objectContaining({kind:"terminal",itemId:"terminal-a",projectContext:f.request.projectContext}));
+    finish({id:"terminal-a",instanceId:"instance-a",pid:null,shell:"/bin/sh",inputShell:"/bin/sh",cwd:"/a"});
+    await rejected;
+    await flush();
+    expect(f.base.connectTerminalSession).not.toHaveBeenCalled();
+    expect(f.port.postMessage).not.toHaveBeenCalled();
+  });
   it("queues early input until the session connection is ready without retrying it", async () => {
     const f=setup();
     let finishStartup!: (receipt:Awaited<ReturnType<typeof f.base.createTerminal>>) => void;

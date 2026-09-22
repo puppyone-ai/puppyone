@@ -13,6 +13,7 @@ import {
 } from "../viewers/media/contributions";
 import { officeViewerContribution } from "../viewers/office/contribution";
 import { pdfViewerContribution } from "../viewers/pdf/contribution";
+import { databaseViewerContribution } from "../viewers/database/contribution";
 import { puppyFlowViewerContribution } from "../viewers/puppyflow/contribution";
 
 export const BUILTIN_VIEWER_CONTRIBUTIONS: readonly PresetViewerContribution[] = Object.freeze([
@@ -25,6 +26,7 @@ export const BUILTIN_VIEWER_CONTRIBUTIONS: readonly PresetViewerContribution[] =
   htmlViewerContribution,
   imageViewerContribution,
   pdfViewerContribution,
+  databaseViewerContribution,
   officeViewerContribution,
   audioViewerContribution,
   videoViewerContribution,

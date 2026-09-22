@@ -1,0 +1,60 @@
+.html-document-editor { --html-editor-accent: var(--po-accent, #2563eb); position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.html-document-editor > .native-preview, .html-document-editor > .code-codemirror-editor { flex: 1; min-height: 0; }
+.html-editor-options { position: absolute; right: 12px; top: 8px; z-index: 5; color: var(--po-text, #202124); }
+.html-editor-options summary { display: grid; place-items: center; width: 28px; height: 24px; border-radius: 6px; list-style: none; cursor: var(--po-clickable-cursor, default); background: var(--po-panel, #ffffff); }
+.html-editor-options summary::-webkit-details-marker { display: none; }
+.html-editor-options > button { position: absolute; right: 0; top: 28px; white-space: nowrap; padding: 8px 14px; border: 1px solid var(--po-divider, #e1e3e6); border-radius: 8px; background: var(--po-panel, #ffffff); color: inherit; font: inherit; cursor: var(--po-clickable-cursor, default); }
+.html-visual-editor { position: relative; display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; }
+.html-visual-editor__status { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 5; max-width: calc(100% - 32px); padding: 8px 12px; border: 1px solid var(--po-divider, #e1e3e6); border-radius: 8px; background: var(--po-panel, #ffffff); font-size: var(--po-type-ui-caption, 12px); color: var(--po-text-muted, #6b7280); overflow-wrap: anywhere; }
+.html-visual-editor__body { display: flex; flex: 1; min-height: 0; min-width: 0; }
+.html-visual-editor__viewport { position: relative; flex: 1; min-width: 0; min-height: 0; overflow: clip; background: white; }
+.html-visual-editor__viewport > iframe { width: 100%; height: 100%; display: block; border: 0; }
+/* Draw inside the target: its clipping mask would erase an outside outline. Keep it above typing. */
+.html-editor-selection { position: absolute; pointer-events: none; box-sizing: border-box; z-index: 3;
+  border: 2px solid var(--html-editor-accent); box-shadow: inset 0 0 0 1px #fff; }
+.html-editor-selection[data-editing="false"] { box-shadow: none; }
+.html-block-action-rail { position: absolute; inset-inline: 0; z-index: 4; pointer-events: none; }
+.html-block-action-rail__menu { position: absolute; width: max-content; max-width: calc(100% - 50px); pointer-events: auto; }
+.html-editor-pencil { --html-editor-pencil-surface: var(--html-editor-accent); position: absolute; display: grid; place-items: center;
+  padding: 0; border: 1px solid var(--html-editor-pencil-surface); border-radius: 50%; color: #fff;
+  background: var(--html-editor-pencil-surface); box-shadow: 0 1px 2px color-mix(in srgb, var(--po-shadow, #000) 16%, transparent),
+    0 4px 12px color-mix(in srgb, var(--po-shadow, #000) 12%, transparent); pointer-events: auto; cursor: var(--po-clickable-cursor, default);
+  transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease; }
+.html-editor-pencil:hover { box-shadow: 0 2px 4px color-mix(in srgb, var(--po-shadow, #000) 18%, transparent),
+  0 6px 16px color-mix(in srgb, var(--po-shadow, #000) 14%, transparent); }
+.html-editor-pencil > svg { pointer-events: none; }
+/* Bridge the dock gap without adding hover-driven hit testing to the document. */
+.html-editor-pencil[data-placement="above"]::before { content: ""; position: absolute; inset: 100% 0 auto; height: 8px; }
+.html-editor-pencil[data-placement="below"]::before { content: ""; position: absolute; inset: auto 0 100%; height: 8px; }
+.html-editor-pencil:focus-visible { outline: 2px solid var(--html-editor-accent); outline-offset: 2px; }
+.html-editor-text-input { position: absolute; z-index: 2; box-sizing: border-box; resize: none; margin: 0; padding: 0; border: 0;
+  border-radius: 0; outline: none; background: transparent; overflow: auto; white-space: pre-wrap; }
+.html-floating-toolbar { position: relative; width: max-content; max-width: 100%; box-sizing: border-box; border: 1px solid var(--po-divider, #e1e3e6); border-radius: 10px;
+  padding: 4px; color: var(--po-text, #202124); background: var(--po-panel, #ffffff); font-family: var(--po-font-ui, system-ui); font-size: var(--po-type-ui-caption, 12px); line-height: 1.4;
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--po-shadow, #000000) 16%, transparent), 0 1px 3px color-mix(in srgb, var(--po-shadow, #000000) 8%, transparent); }
+.html-floating-toolbar__row { display: flex; align-items: center; flex-wrap: nowrap; gap: 2px; overflow-x: auto; }
+.html-floating-toolbar button, .html-floating-toolbar select { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; height: 28px; min-width: 28px; padding: 4px; border: 0; border-radius: 5px; color: inherit; background: transparent; font: inherit; cursor: var(--po-clickable-cursor, default); }
+.html-floating-toolbar button:hover, .html-floating-toolbar select:hover, .html-floating-toolbar__image:hover { background: var(--po-control-hover, #f1f3f5); }
+.html-floating-toolbar button[aria-pressed="true"] { color: var(--html-editor-accent); background: color-mix(in srgb, var(--html-editor-accent) 10%, var(--po-panel, #ffffff)); }
+.html-floating-toolbar button:focus-visible, .html-floating-toolbar select:focus-visible, .html-floating-toolbar input:focus-visible { outline: 2px solid var(--html-editor-accent); outline-offset: 1px; }
+.html-floating-toolbar button:disabled, .html-floating-toolbar select:disabled, .html-floating-toolbar [aria-disabled="true"] { opacity: .45; cursor: default; }
+.html-floating-toolbar select { width: 48px; padding-inline: 4px; }
+.html-floating-toolbar__divider { width: 1px; height: 16px; background: var(--po-divider, #e1e3e6); margin: 0 3px; }
+.html-floating-toolbar .html-floating-toolbar__color-control { width: 30px; min-width: 30px; padding-inline: 5px; }
+.html-floating-toolbar__text-color { display: grid; place-items: center; width: 18px; height: 18px; }
+.html-floating-toolbar__text-color-glyph { font-family: var(--po-font-ui, system-ui); font-size: var(--po-type-ui-title, 17px); font-weight: 700; line-height: 18px;
+  text-shadow: 0 0 1px #000, 0 0 1px #fff; }
+.html-floating-toolbar__background-color-value { display: block; width: 16px; height: 16px; overflow: hidden;
+  border: 1px solid var(--po-panel, #ffffff); border-radius: 50%; background: repeating-conic-gradient(#ddd 0% 25%, white 0% 50%) 0 0 / 4px 4px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--po-text, #202124) 28%, transparent); }
+.html-floating-toolbar__background-color-value > span { display: block; width: 100%; height: 100%; }
+.html-floating-toolbar button[aria-expanded="true"] { color: var(--html-editor-accent); background: color-mix(in srgb, var(--html-editor-accent) 10%, var(--po-panel, #ffffff)); }
+.html-floating-toolbar__popover { position: absolute; bottom: calc(100% + 8px); width: 154px; box-sizing: border-box; padding: 10px; border: 1px solid var(--po-divider, #e1e3e6); border-radius: 14px;
+  background: var(--po-panel, #fff); box-shadow: 0 4px 16px #00000016; }
+.html-floating-toolbar__swatches { display: grid; grid-template-columns: repeat(5, 20px); gap: 8px; }
+.html-floating-toolbar .html-floating-toolbar__swatch, .html-floating-toolbar .html-floating-toolbar__reset { width: 20px; height: 20px; min-width: 20px; padding: 0; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--po-text, #202124) 15%, transparent); }
+.html-floating-toolbar__swatch:hover { outline: 2px solid var(--html-editor-accent); outline-offset: 2px; }
+.html-floating-toolbar__image { position: relative; display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 5px; cursor: var(--po-clickable-cursor, default); }
+.html-floating-toolbar__image input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: inherit; }
+.html-floating-toolbar__image:focus-within { outline: 2px solid var(--html-editor-accent); }
+.html-floating-toolbar__popover > input { box-sizing: border-box; max-width: 100%; padding: 6px 8px; border: 1px solid var(--po-divider, #e1e3e6); border-radius: 5px; color: inherit; background: var(--po-control, #f8f9fa); font: inherit; }

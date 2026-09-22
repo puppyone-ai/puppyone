@@ -6,6 +6,8 @@ import type {
   Workspace,
 } from "@puppyone/shared-ui";
 import type { AppLanguagePreference, LocaleState } from "@puppyone/localization/core";
+import type { LocalAgentSetupRequest, LocalAgentSetupSnapshot, LocalAgentSetupAction, LocalAgentSetupActionResult } from "../../shared/local-agent-installation/setup-types";
+import type { ModelConnectionSnapshot, ModelConnectionCandidate, ModelConnectionResult, SaveModelConnectionRequest } from "../../shared/model-connections/types";
 import type { DesktopTerminalLauncherId } from "../features/desktop-terminal/model/terminalLaunchers";
 import type {
   AgentAccountReadRequest,
@@ -385,6 +387,7 @@ export type GitBranchGraphSnapshot = {
 };
 
 export type TerminalCreateRequest = {
+  creationId?: string;
   projectContext?: import("../../shared/project-session-contract/types").ProjectSessionContext;
   id: string;
   /** Explicit Folder capability required when a window has multiple roots. */
@@ -711,6 +714,24 @@ export type WorkspaceDetachResult = {
 export type WorkspaceCreateProjectRequest = {
   name: string;
   locationGrantId: string;
+  operationId: string;
+  source: { kind: "blank" } | { kind: "template"; ref: { sourceId: "builtin"; id: "puppyone.project.getting-started"; version: 1 } };
+  locale: string;
+};
+
+export type ProjectInitializationReceipt = {
+  operationId: string;
+  outcome: "committed";
+  path: string;
+  name: string;
+  createdPaths: string[];
+  initialOpenPath: string | null;
+  template: { sourceId: string; id: string; version: number; digest: string; resolvedLocale: string } | null;
+};
+
+export type WorkspaceCreateProjectResult = {
+  initialization: ProjectInitializationReceipt;
+  opening: { status: "opened"; result: WorkspaceOpenResult } | { status: "failed"; message: string };
 };
 
 export type WorkspaceProjectLocationGrant = {
@@ -719,7 +740,11 @@ export type WorkspaceProjectLocationGrant = {
 };
 
 export type WorkspaceCloneRepositoryRequest = {
+  /** Locks the request to the source explicitly chosen in the import picker. */
+  provider?: "github" | "gitlab";
   repositoryUrl: string;
+  /** Optional location grant; when omitted the main process asks with a folder picker. */
+  locationGrantId?: string | null;
 };
 
 export type WorkspaceCreateEntryKind = "file" | "folder";
@@ -776,6 +801,8 @@ export type WorkspaceCopyEntryBetweenRootsRequest = Omit<WorkspaceCopyEntryReque
 };
 
 export type WorkspaceImportEntriesRequest = {
+  /** Optional basename for one file; native imports still reject existing destinations. */
+  preferredName?: string;
   rootPath: string;
   targetFolderPath: string | null;
   files: File[];
@@ -913,33 +940,21 @@ export type DesktopThemeMenuState = Readonly<{
   }>[];
 }>;
 
-export type EditorSurfaceBounds = Readonly<{
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}>;
-
-export type EditorSurfaceAppearance = Readonly<{
-  dark: boolean;
-  direction: "ltr" | "rtl";
-  attributes: Readonly<Record<string, string>>;
-  variables: Readonly<Record<string, string>>;
-}>;
-
-export type EditorSurfaceState = Readonly<{
-  sessionId: string;
-  viewerId: string;
-  status: "loading" | "ready" | "unresponsive" | "crashed" | "error" | "disposed";
-  reason?: string;
-  message?: string;
-  exitCode?: number | null;
-}>;
-
 declare global {
   interface Window {
     puppyoneDesktop?: {
+      mermaid?: {
+        render: (request: { id: string; source: string; config: import("mermaid").MermaidConfig }) => Promise<{
+          ok: boolean; svg?: string; error?: string;
+          timings?: { engineMs: number; fontMs: number; renderMs: number; queueMs: number; hostMs: number };
+        }>;
+        cancel: (id: string) => Promise<void>;
+      };
       connectAgentSession: (request: import("../../shared/session-transport/types").AgentConnectionRequest) => Promise<import("../../shared/session-transport/types").SessionConnection>;
+      terminateItemExecution: import("../../shared/item-host-contract/lifecycle").ItemLifecyclePort["terminateItemExecution"];
+      retryItemExecutionCleanup: import("../../shared/item-host-contract/lifecycle").ItemLifecyclePort["retryItemExecutionCleanup"];
+      listItemExecutions: import("../../shared/item-host-contract/lifecycle").ItemLifecyclePort["listItemExecutions"];
+      openItemExecutionManager: () => Promise<void>;
       connectTerminalSession: (request: import("../../shared/session-transport/types").TerminalConnectionRequest) => Promise<import("../../shared/session-transport/types").SessionConnection>;
       onSessionRuntimeFailure: (listener: (failure: import("../../shared/session-transport/types").SessionRuntimeFailure) => void) => () => void;
       getWindowChromeState: () => Promise<{ fullScreen: boolean; maximized: boolean }>;
@@ -1135,38 +1150,6 @@ declare global {
         }) => Promise<{ ok?: boolean; visible?: boolean } | void>;
         destroy: (request: { id: string }) => Promise<{ ok?: boolean } | void>;
       };
-      editorSurfaces: {
-        activate: (request: {
-          viewerId: string;
-          documentPath: string;
-          documentRevision?: string | null;
-          resourceUrl: string;
-          title: string;
-          safeMode?: boolean;
-          bounds: EditorSurfaceBounds;
-          geometryRevision: number;
-          visible: boolean;
-          appearance: EditorSurfaceAppearance;
-        }) => Promise<{
-          sessionId: string;
-          viewerId: string;
-          safeMode: boolean;
-          processId: number | null;
-          status: EditorSurfaceState["status"];
-        }>;
-        setBounds: (request: {
-          sessionId: string;
-          bounds: EditorSurfaceBounds;
-          geometryRevision: number;
-          visible: boolean;
-        }) => Promise<{ ok: boolean; applied?: boolean; geometryRevision?: number }>;
-        updateAppearance: (request: {
-          sessionId: string;
-          appearance: EditorSurfaceAppearance;
-        }) => Promise<{ ok: boolean }>;
-        destroy: (request: { sessionId: string }) => Promise<{ ok: boolean }>;
-        onState: (callback: (state: EditorSurfaceState) => void) => () => void;
-      };
       getInitialWorkspace: () => Promise<LastWorkspaceResult>;
       getLastWorkspace: () => Promise<LastWorkspaceResult>;
       getRecentWorkspaces: () => Promise<RecentWorkspacesResult>;
@@ -1188,6 +1171,15 @@ declare global {
         removed: true;
         path: string;
       }>;
+      renameRecentWorkspace: (request: {
+        folderPath: string;
+        name: string;
+      }) => Promise<{
+        ok: true;
+        renamed: true;
+        path: string;
+        name: string;
+      }>;
       forgetLastWorkspace: () => Promise<void>;
       showHomepage: () => Promise<{ ok: boolean }>;
       readProjectSessions: () => Promise<import("../../shared/project-session-contract/types").ProjectSessionSnapshot>;
@@ -1202,9 +1194,10 @@ declare global {
       detachFolder: (folderPath: string) => Promise<WorkspaceDetachResult>;
       selectFolderInNewWindow: () => Promise<WorkspaceOpenResult | null>;
       selectLocalProjectLocation: () => Promise<WorkspaceProjectLocationGrant | null>;
+      getDefaultLocalProjectLocation: () => Promise<WorkspaceProjectLocationGrant | null>;
       createLocalProject: (
         request: WorkspaceCreateProjectRequest,
-      ) => Promise<WorkspaceOpenResult | null>;
+      ) => Promise<WorkspaceCreateProjectResult>;
       cloneRepository: (
         request: WorkspaceCloneRepositoryRequest,
       ) => Promise<WorkspaceOpenResult | null>;
@@ -1231,11 +1224,7 @@ declare global {
         absolutePath: string;
         entryType: "file" | "directory";
       }>>;
-      stageAgentAttachments: (request: {
-        rootPath: string;
-        epoch: string;
-        files: File[];
-      }) => Promise<import("../../shared/agent-contract/types").AgentDraftReference[]>;
+      stageAgentAttachments: (request: import("../../shared/agent-contract/types").AgentReferenceStageBridgeRequest) => Promise<import("../../shared/agent-contract/types").AgentDraftReference[]>;
       revokeAgentAttachments: (request: {
         rootPath: string;
         tokens: string[];
@@ -1266,6 +1255,10 @@ declare global {
         expectedVersion?: string;
       }) => Promise<{ url: string }>;
       revokeFileUrl: (request: { url: string }) => Promise<{ revoked: boolean }>;
+      createPreviewDocument: (request: { rootPath: string; path: string; content: string; interactive?: boolean }) => Promise<{ url: string }>;
+      openDatabasePreview: import("../platform/databasePreviewClient").DatabaseBridge["openDatabasePreview"];
+      readDatabasePreviewPage: import("../platform/databasePreviewClient").DatabaseBridge["readDatabasePreviewPage"];
+      closeDatabasePreview: import("../platform/databasePreviewClient").DatabaseBridge["closeDatabasePreview"];
       convertOfficeDocumentToDocx: (
         request: WorkspaceConvertOfficeDocumentToDocxRequest,
       ) => Promise<WorkspaceConvertOfficeDocumentToDocxResult>;
@@ -1563,6 +1556,22 @@ declare global {
         refresh?: boolean;
         requestId: string;
       }) => Promise<LocalAgentInstallationSnapshot>;
+      localAgentSetup?: {
+        inspect: (request: LocalAgentSetupRequest) => Promise<LocalAgentSetupSnapshot>;
+        act: (request: LocalAgentSetupAction) => Promise<LocalAgentSetupActionResult>;
+        release: (clientId: string) => Promise<void>;
+      };
+      localAgentActivation?: import("../../shared/local-agent-activation/types").LocalAgentActivationBridge;
+      modelConnections?: {
+        managed: (request: import("../../shared/model-connections/types").ManagedConnectionAction) => Promise<ModelConnectionResult<ModelConnectionSnapshot>>;
+        read: () => Promise<ModelConnectionResult<ModelConnectionSnapshot>>;
+        discover: () => Promise<ModelConnectionResult<ModelConnectionCandidate[]>>;
+        save: (request: SaveModelConnectionRequest) => Promise<ModelConnectionResult<ModelConnectionSnapshot>>;
+        remove: (request: { id: string; expectedGeneration: number }) => Promise<ModelConnectionResult<ModelConnectionSnapshot>>;
+        refresh: (request: { id: string }) => Promise<ModelConnectionResult<ModelConnectionSnapshot>>;
+        verify: (request: { id: string; expectedGeneration: number; modelId: string }) => Promise<ModelConnectionResult<ModelConnectionSnapshot>>;
+        subscribe: (listener: (snapshot: ModelConnectionSnapshot) => void) => () => void;
+      };
       onLocalAgentInstallationProgress: (
         callback: (event: LocalAgentInstallationProgressEvent) => void,
       ) => () => void;

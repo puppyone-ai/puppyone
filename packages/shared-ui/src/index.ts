@@ -85,6 +85,8 @@ export {
 } from "./core/typography";
 export {
   getMermaidThemeSnapshot,
+  configureMermaidRenderTransport,
+  peekMermaidDiagram,
   mountSanitizedMermaidSvg,
   normalizeContentLanguage,
   renderMermaidDiagram,
@@ -95,6 +97,7 @@ export type {
   MarkdownContentLanguageResolution,
   MarkdownContentLanguageSource,
   MermaidRenderRequest,
+  MermaidRenderTransport,
   MermaidRenderResult,
   MermaidSvgMount,
   MermaidThemeSnapshot,
@@ -192,6 +195,7 @@ export type {
   RendererPerformanceTrace,
 } from "./performance/rendererPerformance";
 export { FilePreview } from "./editor/host/FilePreview";
+export type { EditorPreviewServices, DatabaseInfo, DatabasePage, DatabasePageRequest, DatabasePreviewSession, DatabasePreviewPort } from "./editor/preview-services/types";
 export type { FilePreviewProps } from "./editor/host/FilePreview";
 export { ProjectsHeader as WorkspaceHeader } from "./data/ProjectsHeader";
 export type {
@@ -606,6 +610,7 @@ export {
   getFileIcon,
   getFileVisualKind,
   isFileIconThemeId,
+  parseFileIconThemeId,
 } from "./file/fileIcons";
 export type { FileIconThemeId, FileVisualKind } from "./file/fileIcons";
 
@@ -659,3 +664,6 @@ export { acquireEditorHostLease } from "./editor/runtime/EditorHostLeases";
 export { useEditorTaskOwner } from "./editor/runtime/EditorTaskContext";
 export { reconcilePendingDocumentOperations } from "./editor/document-session/documentResourceOperations";
 export { subscribeDocumentRetirements } from "./editor/document-session/documentRetirementEvents";
+export { createDocumentAssetImportPort } from "./editor/resource/DocumentAssetImport";
+
+export { commitEditorLayout } from "./editor/runtime/editorLayout";

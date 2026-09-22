@@ -4,6 +4,7 @@ import { unwrapProjectSessionResult } from "../../../../shared/project-session-c
 import { receiveSessionPort } from "../../session-transport/sessionPorts";
 import { createHostRpc, type HostRpc } from "../../../../shared/item-host-contract/rpc.mjs";
 import { TerminalControlQueue } from "./TerminalControlQueue";
+import { handOffItemExecution } from "../../session-transport/itemLifecycleClient";
 
 /** A terminal screen consumes its utility's canonical output through one port. */
 export function createTerminalSessionBridge(base: NonNullable<Window["puppyoneDesktop"]>): TerminalBridge {
@@ -15,11 +16,15 @@ export function createTerminalSessionBridge(base: NonNullable<Window["puppyoneDe
   let disposed = false;
   let session: TerminalCreateResult | null = null;
   let creation: Promise<TerminalCreateResult> | null = null;
+  let creationRequest: TerminalCreateRequest | null = null;
+  const creationId = crypto.randomUUID();
+  let terminating = false;
   const reportError = (error: Error) => errorListeners.forEach(listener => listener(error.message));
   const controls = new TerminalControlQueue(async (method, request) => {
     // Input typed during startup is bounded by the existing queue, then sent once.
     if (!creation) throw new Error("Terminal session has not started.");
     const receipt = await creation;
+    if (terminating || disposed) throw new Error("Terminal input was cancelled by execution termination.");
     if (!rpc) throw new Error("Terminal connection is unavailable. Input was not retried.");
     // Startup input predates the receipt; bind every command to this session.
     return rpc.call(method, [{
@@ -51,9 +56,11 @@ export function createTerminalSessionBridge(base: NonNullable<Window["puppyoneDe
 
   async function startSession(request: TerminalCreateRequest): Promise<TerminalCreateResult> {
     if (disposed || session) throw new Error("Terminal connection is already used or released.");
+    creationRequest = request;
     try {
-      const receipt: TerminalCreateResult = unwrapProjectSessionResult(await base.createTerminal(request));
+      const receipt: TerminalCreateResult = unwrapProjectSessionResult(await base.createTerminal({ ...request, creationId }));
       session = receipt;
+      if (disposed || terminating) throw new Error("Terminal execution was closed during startup.");
       if (!request.projectContext || !receipt.instanceId) throw new Error("Terminal session identity is unavailable.");
       const binding = await base.connectTerminalSession({ id: receipt.id, instanceId: receipt.instanceId, projectContext: request.projectContext });
       const received = await receiveSessionPort(binding);
@@ -138,6 +145,18 @@ export function createTerminalSessionBridge(base: NonNullable<Window["puppyoneDe
     writeTerminal: request => controls.enqueue("input", request),
     resizeTerminal: request => controls.enqueue("resize", request),
     updateTerminalAppearance: request => controls.enqueue("appearance", request),
+    terminateExecution: async () => {
+      terminating = true;
+      controls.close();
+      if (!creationRequest) { dispose(); return { kind: "released" }; }
+      dispose();
+      const projectContext = creationRequest.projectContext;
+      if (!projectContext) throw new Error("Terminal project identity is unavailable.");
+      const result = await handOffItemExecution(base, { kind: "terminal", itemId: creationRequest.id!, creationId,
+        operationId: `terminate-${creationId}`, projectContext });
+      dispose();
+      return result;
+    },
     openExternalUrl: href => base.openExternalUrl(href),
     async closeTerminal(request) {
       // A failed connection may still own a PTY if rollback itself failed.

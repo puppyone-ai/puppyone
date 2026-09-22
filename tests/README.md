@@ -53,6 +53,26 @@ e2e command runs project sessions followed by the fixture-based Agent/Terminal
 sidebar workflow. Both run without paid requests.
 
 Other `smoke:*` commands are explicit focused checks, not implicitly part of CI.
+`smoke:item-lifecycle` is the `item-lifecycle` app gate: the production Main
+supervisor and utility runtime face blocked initialization, uncooperative
+disposal and a real child process group. It verifies bounded outer termination,
+a responsive sibling and zero resource leases, without user profiles or paid
+requests. Shared close handoff, operation identity, Main management and Agent
+display recovery also have unit/component coverage. Remote-provider cancellation
+and recovery across a Main crash are not inferred from this fixture.
+`smoke:agent-attachment-ui` is the `agent-attachment-ui` app gate: the complete
+production Chat UI, project-scoped client, Preload and Main authorization accept
+native-picker and pathless drop/paste images, keep a single remove button and
+submit text plus image. Only native runtime discovery/execution is a fixture;
+CDP file selection and synthetic DOM events are not OS gesture certification.
+The separate `smoke:agent-references` checks immutable snapshot bytes, denied
+project contexts and the light/dark layout matrix.
+`smoke:text-selection` is the `text-selection` app gate: production styles and
+editors in Electron, every built-in mode, domain overrides, same-ID CSS reload,
+retained editor state, nested table inputs, native mouse/keyboard selection,
+copy handlers and forced-colors. Active-window assertions use Chromium focus
+emulation so concurrent windows cannot steal test focus. It writes computed
+results, screenshots and source fingerprints under `artifacts/tests/appearance/`.
 `smoke:native-agents` and `smoke:native-agent-references` deliberately require
 `RUN_NATIVE_AGENT_SMOKE=1` / `RUN_NATIVE_AGENT_REFERENCE_SMOKE=1`, respectively, and local runtime/account setup; they can execute real
 Agent requests. `smoke:codex-agent` likewise uses a locally installed Codex
@@ -75,12 +95,63 @@ matrix; its registry guard and runner live beside it. Fixtures stay under
 
 `npm run smoke:editor-pane-contracts` runs every registered built-in Viewer,
 including fallback: 18 file fixtures × two split directions. It exercises real
-renderers, live resize, controller split/move, menu close, native PDF teardown,
-and companion undo/redo through real filesystem IPC. App Preview uses a
+renderers, live resize, controller split/move, menu close, DOM PDF teardown,
+and companion undo/redo through real filesystem IPC. PDF uses its production
+capability protocol and a DOM-owned Chromium PDF Viewer iframe. App Preview uses a
 controlled runtime port and a real separate-origin iframe. OS child-surface
 pointer forwarding is tested separately; this matrix injects Chromium input into
 the owner renderer. Its `editor-panes` app gate runs the complete matrix. The
 optional `-- --case pdf` selection is diagnostic and is recorded in its report.
+
+## Markdown selection and workspace projection
+
+Pure inline-preview dependency rules belong in
+`unit/editor/formats/markdown/links/inlinePreviewLinkIdentity.test.ts`.
+Pointer lifecycle behavior belongs in
+`component/editor/formats/markdown/rendering/markdownPointerSelection.test.ts`:
+release ordering, cancellation, consecutive gestures, pane isolation, committed
+edits and destruction run through real EditorView events/transactions with only
+coordinate measurement controlled by happy-dom.
+This also covers explicitly expanded inline/block source: range selection keeps
+it open, while an outside single click folds it only after release.
+`markdownBlockWidgetSelection.test.ts` checks Tabs/video accents, reapplication
+after a table is replaced, and sibling-pane focus ownership. Image deletion and
+dynamic read-only enforcement belong in `embeds/markdownImageInteraction.test.ts`.
+
+The `markdown-selection` app gate (`npm run smoke:markdown-selection-stability`)
+uses Chromium mouse input to check forward/backward single-character selection,
+CJK, selection across paragraphs, revealed links above the pointer, outside
+release, cancellation, link navigation versus dragging, and table/paragraph
+geometry across link-index refreshes. Component coverage also drives a real
+DataWorkspace folder's first child load and verifies relevant wiki links still
+refresh. These checks do not claim OS-level pointer injection or full theme/RTL coverage.
+Its Node runner first verifies that an intentional Electron assertion returns
+exit code 1, then requires both a successful exit and a positive completion
+report from the real scenarios. Closing the fixture window cannot turn a
+failed assertion into a passing release check. The mouse-only fixture rejects
+physical keyboard input and asserts its source remains unchanged.
+Pointer injection waits for the matching DOM event to finish, rather than a
+fixed delay. A further scenario checks the exact backward character and paragraph
+position below expanded display-math source; dependency fonts are served from
+the actual node_modules directory when using an isolated worktree.
+
+## Markdown viewport layout
+
+`npm run smoke:markdown-layout` is the `markdown-layout` app gate. It mounts two
+production Markdown panes and samples DOM character geometry after animation
+frames without calling CodeMirror measurement APIs during sampling. It asserts
+at most 1 CSS pixel of anchor drift and viewport-token lag throughout rapid and
+slow split changes, native Chromium splitter input, window resize, host width
+transitions, typography changes, delayed image decoding, mapped document edits,
+top/bottom boundaries, Source mode, and row continuity inside a virtual table.
+Wheel scrolling and explicit navigation must take
+precedence over the old anchor, then remain stable on subsequent resizing.
+The fixture checks source/selection integrity, emits per-frame `result.json`
+under `artifacts/tests/editor/layout/`, and captures the page on failure.
+This tests Chromium layout and input, not OS pointer injection or all fonts,
+themes, writing directions and native platforms. Dependency upgrades must pass
+this gate: the shared adapter uses public coordinate queries to flush pending
+CodeMirror measurement before paint.
 
 ## Sidebar visibility and residual content
 
@@ -110,10 +181,10 @@ for composited residue. After collapse, actual Editor pixels are compared with
 the owner renderer (inset region; channel tolerance 30, fewer than 0.5% differing
 pixels for caret/raster noise). Both crops and full composites are retained.
 Missing screen permission is explicitly recorded as OS pixel checks not run;
-strict acceptance fails instead of substituting page capture. PDF still uses a
-native WebContentsView, which page screenshots omit: the existing PDF pane matrix
-checks the actual composed window after menu close in both split directions.
-Require this with `npm run smoke:editor-pane-contracts -- --case pdf --require-compositor`.
+strict acceptance fails instead of substituting page capture. PDF is part of the
+owner renderer's DOM/compositor tree, so the PDF pane matrix uses ordinary page
+capture and verifies that closing the Pane removes both the iframe and Chromium
+PDF Viewer frame in both split directions.
 
 ## Coverage and native acceptance
 
@@ -128,11 +199,11 @@ concurrency, persistence, recovery and native-window acceptance boundaries.
 CI runs on PRs and pushes to both `qubits` and `main`. App checks run on Linux
 and macOS; platform contracts use the declared target matrix.
 `npm run smoke:resource-transfer:acceptance` separately exercises real macOS
-CoreGraphics input: file/directory/multiple payloads, Editor split/repeat/cancel,
-and an actual PDF native surface over the receiving Pane. It needs event-posting
+CoreGraphics input: file/directory/multiple payloads and Editor split/repeat/cancel.
+It needs event-posting
 permission and temporarily controls the pointer. It uses isolated projects,
 restores the pointer and records a unique source-bound report. It does not claim
-Windows/Linux native gesture coverage or all PDF-format application behavior.
+Windows/Linux native gesture coverage or PDF-format application behavior.
 
 ## Evidence and packaging
 

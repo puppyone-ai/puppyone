@@ -1,11 +1,6 @@
 .markdown-codemirror-editor .cm-md-table-widget-wrap {
   --cm-md-table-handle-gutter: var(--po-editable-table-handle-gutter);
   --cm-md-table-interaction-gutter: var(--po-editable-table-interaction-gutter);
-  --po-editable-table-border: var(--po-surface-editable-table-border, var(--po-md-rule-color));
-  --po-editable-table-cell-border: var(
-    --po-surface-editable-table-cell-border,
-    var(--po-md-rule-color)
-  );
   /* 220px is the compact initial/reset cap. Explicit auto-fit and manual
      resize may open a track to the shared readable maximum. */
   --po-editable-table-cell-max-width: 560px;
@@ -67,9 +62,9 @@
       var(--po-markdown-editor-gutter-inline) - var(--cm-md-table-viewport-inline-inset)
     );
     --cm-md-table-reading-rail-end-inset: var(--cm-md-table-interaction-start-inset);
-    /* Keep actual sizing on the wrapper-relative rule above. The Host-owned
-       viewport token imports the scroller client width into the reading-rail
-       calculation; the wrapper still owns interaction inset accounting. */
+    /* Keep actual sizing on the wrapper-relative rule above. Container units
+       resolve against the scrollport content box, so reserved scrollbar
+       gutters do not enter the reading-rail calculation. */
   }
 }
 
@@ -186,7 +181,6 @@
   color: var(--po-editable-table-color);
   font-size: var(--po-editable-table-font-size);
   line-height: var(--po-editable-table-line-height);
-  transition: border-color 140ms ease, box-shadow 140ms ease;
 }
 
 .markdown-codemirror-editor .cm-md-table-widget.is-windowed {
@@ -209,16 +203,8 @@
 
 /* Document selection sweeping over the table selects it as one block. */
 .markdown-codemirror-editor .cm-md-table-widget-wrap.is-doc-selected .cm-md-table-widget {
-  border-color: color-mix(in srgb, var(--po-accent) 52%, var(--po-divider));
-  box-shadow: 0 0 0 2px var(--cm-md-block-selected-ring);
-}
-
-.markdown-codemirror-editor .cm-md-table-widget-wrap.is-doc-selected .cm-md-table-widget td {
-  background: color-mix(in srgb, var(--po-accent) 8%, transparent);
-}
-
-.markdown-codemirror-editor .cm-md-table-widget-wrap.is-doc-selected .cm-md-table-widget th {
-  background: color-mix(in srgb, var(--po-accent) 12%, color-mix(in srgb, var(--po-control) 46%, transparent));
+  border-color: var(--po-editable-table-selection-border);
+  box-shadow: 0 0 0 1px var(--po-editable-table-selection-border);
 }
 
 .markdown-codemirror-editor .cm-md-table-widget th,
@@ -258,10 +244,6 @@
   border-bottom: 0;
 }
 
-.markdown-codemirror-editor .cm-md-table-widget tbody td:hover {
-  background: var(--po-editable-table-cell-hover-background);
-}
-
 .markdown-codemirror-editor .cm-md-table-align-left {
   text-align: left;
 }
@@ -299,13 +281,7 @@
 .markdown-codemirror-editor .cm-md-table-widget td:focus-within {
   position: relative;
   z-index: 1;
-  background: var(--po-editable-table-cell-focus-background);
-  box-shadow: inset 0 0 0 1.5px var(--po-editable-table-cell-focus-ring);
-  transition: background-color 120ms ease, box-shadow 120ms ease;
-}
-
-.markdown-codemirror-editor .cm-md-table-widget th:focus-within {
-  background: var(--po-editable-table-header-focus-background);
+  box-shadow: var(--po-editable-table-cell-focus-shadow);
 }
 
 /* Drag handles, drop indicators, and structure controls are owned by the

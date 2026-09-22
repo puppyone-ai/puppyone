@@ -3,6 +3,7 @@ export {
   FILE_ICON_THEME_REGISTRY,
   getFileIconThemeDefinition,
   isFileIconThemeId,
+  parseFileIconThemeId,
 } from "./icon-themes/registry";
 export type {
   FileIconPreviewContext,

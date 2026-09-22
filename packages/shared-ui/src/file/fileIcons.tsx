@@ -4,6 +4,7 @@ import {
   FILE_ICON_THEMES,
   getFileIconThemeDefinition,
   isFileIconThemeId,
+  parseFileIconThemeId,
 } from "./icon-themes/registry";
 import type { FileIconRenderContext } from "./icon-themes/iconThemeTypes";
 import {
@@ -18,6 +19,7 @@ export {
   FILE_VISUAL_KINDS,
   getFileAccent,
   isFileIconThemeId,
+  parseFileIconThemeId,
 };
 export type { FileIconThemeId, FileVisualKind };
 
@@ -110,6 +112,7 @@ const FILE_KIND_LABELS: Partial<Record<FileVisualKind, string>> = {
   app: "APP",
   audio: "MP3",
   "context-map": "MAP",
+  database: "DB",
   excel: "XLS",
   html: "HTML",
   image: "IMG",

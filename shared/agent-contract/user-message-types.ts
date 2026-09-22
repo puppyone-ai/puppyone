@@ -8,6 +8,9 @@ export type AgentReferenceStatus = "resolving" | "ready" | "error";
 export type AgentReferenceError = {
   code: string;
   message: string;
+  /** Safe operation metadata; no transport payloads, paths or grants. */
+  stage?: string;
+  retryable?: boolean;
 };
 
 export type AgentWorkspaceEntryReference = {

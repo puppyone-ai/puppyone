@@ -1,4 +1,5 @@
 import type { AgentProjection, AgentDisplayPatch } from "./display-types";
+import type { ProjectSessionContext } from "../project-session-contract/types";
 import type { AgentFileReference, AgentReferenceStatus, AgentReferenceError, AgentWorkspaceEntryReference, AgentStagedAttachmentReference, AgentDraftReference, AgentPromptReferenceMention, AgentReferenceDisplay, AgentSubmissionIntent } from "./user-message-types";
 export type * from "./user-message-types";
 export type * from "./display-types";
@@ -147,6 +148,10 @@ export type AgentCapabilities = {
   mcp: boolean;
   skills: boolean;
   compaction: boolean;
+  /** This runtime consumes application-owned model connections. */
+  modelConnections?: boolean;
+  /** This native history is readable, but its model connection is unavailable. */
+  readOnly?: boolean;
   /** Independent native History operations; sessionHistory is a compatibility projection. */
   history?: {
     discovery: "unsupported" | "paged";
@@ -203,6 +208,8 @@ export type AgentModel = {
   variants?: string[];
   defaultVariant?: string | null;
   contextWindow?: number | null;
+  connectionId?: string;
+  modelCapabilities?: { text: "supported" | "unsupported" | "unknown"; tools: "supported" | "unsupported" | "unknown"; images: "supported" | "unsupported" | "unknown"; reasoning?: "supported" | "unsupported" | "unknown" };
 };
 
 export type AgentInferenceProvider = {
@@ -825,6 +832,11 @@ export type AgentReferenceStageRequest = {
   rootPath: string;
   epoch: string;
   files: File[];
+};
+
+/** Transport request after the project-scoped client binds its immutable owner context. */
+export type AgentReferenceStageBridgeRequest = AgentReferenceStageRequest & {
+  projectContext: ProjectSessionContext;
 };
 
 export type AgentReferenceRevokeRequest = {

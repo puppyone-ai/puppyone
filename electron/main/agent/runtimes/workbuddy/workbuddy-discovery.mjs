@@ -10,6 +10,7 @@ import {
   runBounded,
 } from "../../transports/executable-discovery.mjs";
 import { requireWorkBuddyChannel } from "./workbuddy-channels.mjs";
+import { workBuddyConfigDirectory } from "./workbuddy-config-directory.mjs";
 import { WORKBUDDY_HOST_ENVIRONMENT } from "./workbuddy-environment.mjs";
 
 const ACP_PROBE_TIMEOUT_MS = 4_000;
@@ -107,9 +108,17 @@ export function parseWorkBuddyVersion(value) {
 
 export function buildWorkBuddyEnvironment(channelValue, baseEnv, loginEnv, options) {
   const channel = requireWorkBuddyChannel(channelValue);
+  const environment = buildAgentEnvironment(baseEnv, loginEnv, options);
+  const configDirectory = workBuddyConfigDirectory({
+    channel,
+    environment,
+    homedir: options?.homedir,
+  });
   return {
-    ...buildAgentEnvironment(baseEnv, loginEnv, options),
+    ...environment,
     ...WORKBUDDY_HOST_ENVIRONMENT,
+    WORKBUDDY_CONFIG_DIR: configDirectory,
+    CODEBUDDY_CONFIG_DIR: configDirectory,
     CODEBUDDY_INTERNET_ENVIRONMENT: channel.route,
     PUPPYONE_AGENT_BACKEND: channel.id,
   };

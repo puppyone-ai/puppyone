@@ -22,7 +22,7 @@ export function registerAgentIpcHandlers({
   attachmentStore,
   dialog,
   getDialogOwnerWindow,
-  projectSessions = null,
+  projectSessions = /** @type {ReturnType<typeof import('../workspace/project-sessions/project-session-service.mjs').createProjectSessionService> | null} */ (null),
 }) {
   const register = (channel, handler) => {
     ipcMain.handle(channel, async (event, rawRequest) => {
@@ -41,6 +41,7 @@ export function registerAgentIpcHandlers({
           const record = projectSessions.require(event.sender.id, context, { allowClosing: channel === "agent:session-close" || channel === "agent:session-detach", allowClosed: channel === "agent:session-close" });
           if (record.rootPath !== request.rootPath) throw projectSessionError("PROJECT_UNAUTHORIZED", "The operation belongs to another project.");
           request[AUTHORIZED_PROJECT] = record;
+          request.projectContext = { projectId: record.projectId, generation: record.generation, rootPath: record.rootPath };
           response = channel === "agent:session-close" || channel === "agent:session-detach"
             ? await invoke()
             : await projectSessions.run(event.sender.id, context, invoke);
@@ -177,6 +178,7 @@ export function registerAgentIpcHandlers({
       workspaceRoot,
       epoch: request.epoch,
       sourcePaths: request.sourcePaths,
+      sources: request.sources,
     });
   });
   register("agent:reference-revoke", async (event, request) => {

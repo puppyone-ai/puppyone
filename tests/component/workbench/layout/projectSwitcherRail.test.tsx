@@ -6,6 +6,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Workspace } from "@puppyone/shared-ui";
 import type { RecentWorkspaceHomeItem } from "../../../../src/features/app-shell/workspaceHomeModel";
+import type { ProjectAppearance } from "../../../../src/types/electron";
 import {
   getProjectSwitcherInitial,
   mergeProjectSwitcherRailOrder,
@@ -14,7 +15,13 @@ import {
   resolveProjectSwitcherRailWidth,
   resolveProjectSwitcherRailItems,
 } from "../../../../src/features/app-shell/ProjectSwitcherRail";
+import { resolveDesktopSidebarActionMenuPosition } from "../../../../src/components/DesktopSidebarActionMenu";
+import {
+  ProjectEntryFlow,
+  useProjectEntryFlow,
+} from "../../../../src/features/app-shell/ProjectEntryFlow";
 import { ProjectEntryLauncherDialog } from "../../../../src/features/app-shell/ProjectEntryLauncherDialog";
+import { DesktopCloudShell } from "../../../../src/components/DesktopCloudShell";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
@@ -30,6 +37,80 @@ afterEach(() => {
 });
 
 describe("Project switcher rail", () => {
+  it.each([false, true])("retains shell controls and New Project during pending navigation (expanded=%s)", async (expanded) => {
+    const alpha = workspace("alpha", "Alpha", "/projects/alpha");
+    const beta = workspace("beta", "Beta", "/projects/beta");
+    const switching = deferred<void>();
+    const onCreateNew = vi.fn();
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    const renderShell = (activeWorkspace: Workspace) => withTestLocalization(
+      <DesktopCloudShell
+        leadingRailWidth={220}
+        leadingRailCollapsed={!expanded}
+        leadingRailCollapsedWidth={56}
+        renderLeadingRail={(presentation) => (
+          <ProjectSwitcherRail activeWorkspace={activeWorkspace} expanded={presentation.expanded}
+            recentWorkspaces={[{ workspace: alpha }, { workspace: beta }]}
+            onCreateNew={onCreateNew} onSelectProject={() => switching.promise} />
+        )}
+      >
+        <div>{activeWorkspace.name}</div>
+      </DesktopCloudShell>,
+    );
+    await act(async () => root?.render(renderShell(alpha)));
+    const rail = host.querySelector(".desktop-project-switcher-rail");
+    const brand = host.querySelector(".desktop-titlebar-brand-icon");
+    expect(rail).not.toBeNull();
+    expect(brand).not.toBeNull();
+    const create = host.querySelector<HTMLButtonElement>(".desktop-project-switcher-rail-create")!;
+    const rows = [...host.querySelectorAll<HTMLButtonElement>(".desktop-project-switcher-rail-project")];
+    await act(async () => rows[1]!.click());
+    expect(rows[1]!.getAttribute("aria-busy")).toBe("true");
+    expect(create.disabled).toBe(false);
+    await act(async () => create.click());
+    expect(onCreateNew).toHaveBeenCalledOnce();
+    await act(async () => root?.render(renderShell(beta)));
+    await act(async () => switching.resolve());
+    expect(host.querySelector(".desktop-project-switcher-rail")).toBe(rail);
+    expect(host.querySelector(".desktop-titlebar-brand-icon")).toBe(brand);
+    expect(host.querySelector(".desktop-project-switcher-rail-create")).toBe(create);
+    expect([...host.querySelectorAll(".desktop-project-switcher-rail-project")]).toEqual(rows);
+    expect(rows[1]!.getAttribute("aria-current")).toBe("page");
+    expect(rows[1]!.hasAttribute("aria-busy")).toBe(false);
+  });
+
+  it("does not reload appearance data when switching among the same project identities", async () => {
+    const alpha = workspace("alpha", "Alpha", "/projects/alpha");
+    const beta = workspace("beta", "Beta", "/projects/beta");
+    const list = vi.fn(async () => []);
+    let onChanged!: (appearance: ProjectAppearance) => void;
+    window.puppyoneDesktop = { projectAppearance: {
+      list,
+      onChanged: (listener: typeof onChanged) => { onChanged = listener; return () => undefined; },
+    } } as unknown as NonNullable<typeof window.puppyoneDesktop>;
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    const render = (activeWorkspace: Workspace, recentWorkspaces: RecentWorkspaceHomeItem[]) => withTestLocalization(
+      <ProjectSwitcherRail activeWorkspace={activeWorkspace} recentWorkspaces={recentWorkspaces}
+        onCreateNew={() => undefined} onSelectProject={() => undefined} />,
+    );
+    await act(async () => root?.render(render(alpha, [{ workspace: beta }])));
+    await act(async () => root?.render(render(beta, [{ workspace: { ...alpha } }, { workspace: { ...beta } }])));
+    expect(list).toHaveBeenCalledTimes(1);
+    await act(async () => onChanged({
+      projectIdentity: "alpha-instance",
+      icon: { kind: "emoji", value: "🌱", updatedAt: "2026-09-20T00:00:00.000Z" },
+    }));
+    expect(host.querySelector(".desktop-project-switcher-rail-identity-badge")?.textContent).toBe("🌱");
+    expect(list).toHaveBeenCalledTimes(1);
+    const gamma = workspace("gamma", "Gamma", "/projects/gamma");
+    await act(async () => root?.render(render(beta, [{ workspace: alpha }, { workspace: gamma }])));
+    expect(list).toHaveBeenCalledTimes(2);
+  });
+
   it("sizes the compact rail from a square control plus stable inline padding", () => {
     expect(resolveProjectSwitcherRailWidth()).toBe(56);
     expect(resolveProjectSwitcherRailWidth(true)).toBe(220);
@@ -74,6 +155,130 @@ describe("Project switcher rail", () => {
     expect(host.querySelector(".desktop-project-switcher-rail-toggle")).toBeNull();
     expect(host.querySelector(".desktop-project-switcher-rail-footer")).toBeNull();
     expect(rail?.querySelector(".desktop-project-switcher-rail-title")).toBeNull();
+  });
+
+  it("opens a Project actions menu and confirms rename or unlink in centered dialogs", async () => {
+    const active = workspace("active", "Alpha", "/projects/alpha");
+    const beta = workspace("beta", "Beta", "/projects/beta");
+    const onRenameProject = vi.fn(async () => undefined);
+    const onUnlinkProject = vi.fn(async () => undefined);
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+
+    await act(async () => root?.render(withTestLocalization(
+      <ProjectSwitcherRail
+        activeWorkspace={active}
+        expanded
+        recentWorkspaces={[{ workspace: beta }]}
+        onCreateNew={() => undefined}
+        onRenameProject={onRenameProject}
+        onSelectProject={() => undefined}
+        onUnlinkProject={onUnlinkProject}
+      />,
+    )));
+
+    const actionButtons = host.querySelectorAll<HTMLButtonElement>(
+      ".desktop-project-switcher-row-action",
+    );
+    expect(actionButtons).toHaveLength(2);
+    expect(actionButtons[1]?.getAttribute("aria-label")).toContain("Beta");
+    expect(actionButtons[1]?.getAttribute("aria-haspopup")).toBe("menu");
+
+    vi.spyOn(actionButtons[0]!, "getBoundingClientRect")
+      .mockReturnValue(new DOMRect(232, 16, 24, 28));
+    vi.spyOn(actionButtons[1]!, "getBoundingClientRect")
+      .mockReturnValue(new DOMRect(248, 52, 24, 28));
+
+    await act(async () => actionButtons[0]?.click());
+    expect(document.body.querySelectorAll(".desktop-project-row-actions-menu")).toHaveLength(1);
+    expect(actionButtons[0]?.getAttribute("aria-expanded")).toBe("true");
+
+    await act(async () => actionButtons[1]?.click());
+    expect(document.body.querySelectorAll(".desktop-project-row-actions-menu")).toHaveLength(1);
+    expect(actionButtons[0]?.getAttribute("aria-expanded")).toBe("false");
+    expect(actionButtons[1]?.getAttribute("aria-expanded")).toBe("true");
+    let menu = document.body.querySelector<HTMLElement>(".desktop-project-row-actions-menu");
+    expect(menu?.getAttribute("aria-label")).toContain("Beta");
+    expect(menu?.style.left).toBe("248px");
+    expect(menu?.style.top).toBe("84px");
+
+    await act(async () => actionButtons[1]?.click());
+    expect(document.body.querySelector(".desktop-project-row-actions-menu")).toBeNull();
+    expect(actionButtons[1]?.getAttribute("aria-expanded")).toBe("false");
+
+    await act(async () => actionButtons[1]?.click());
+    menu = document.body.querySelector<HTMLElement>(".desktop-project-row-actions-menu");
+    expect(menu?.getAttribute("role")).toBe("menu");
+    expect(menu?.classList.contains("desktop-sidebar-action-menu")).toBe(true);
+    expect(menu?.dataset.menuTone).toBe("quiet");
+    expect(menu?.dataset.menuElevation).toBe("compact");
+    expect(menu?.dataset.menuTypographySurface).toBe("left-sidebar");
+    expect(Array.from(menu?.querySelectorAll(".desktop-menu-item") ?? [], (item) => item.textContent))
+      .toEqual(["Rename…", "Unlink…"]);
+
+    await act(async () => menu?.querySelector<HTMLButtonElement>(".desktop-menu-item")?.click());
+    const renameDialog = document.body.querySelector<HTMLElement>("[role='dialog']");
+    expect(renameDialog?.textContent).toContain("Rename project");
+    expect(renameDialog?.textContent).toContain("The local folder stays the same.");
+    const nameInput = renameDialog?.querySelector<HTMLInputElement>("input");
+    expect(nameInput?.value).toBe("Beta");
+    await act(async () => {
+      if (!nameInput) return;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")
+        ?.set?.call(nameInput, "Research Notes");
+      nameInput.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const renameSubmit = renameDialog?.querySelector<HTMLButtonElement>("button[type='submit']");
+    await act(async () => renameSubmit?.click());
+    expect(onRenameProject).toHaveBeenCalledWith(beta.path, "Research Notes");
+    expect(document.body.querySelector("[role='dialog']")).toBeNull();
+
+    await act(async () => actionButtons[1]?.click());
+    const unlinkMenu = document.body.querySelector<HTMLElement>(".desktop-project-row-actions-menu");
+    const unlinkItem = [...(unlinkMenu?.querySelectorAll<HTMLButtonElement>(".desktop-menu-item") ?? [])]
+      .find((item) => item.textContent === "Unlink…");
+    await act(async () => unlinkItem?.click());
+    const unlinkDialog = document.body.querySelector<HTMLElement>("[role='dialog']");
+    expect(unlinkDialog?.textContent).toContain("Local files will stay on disk.");
+    const unlinkButton = [...(unlinkDialog?.querySelectorAll<HTMLButtonElement>("button") ?? [])]
+      .find((button) => button.textContent === "Unlink");
+    await act(async () => unlinkButton?.click());
+    expect(onUnlinkProject).toHaveBeenCalledWith(beta.path);
+  });
+
+  it("keeps Project actions out of the compact rail and clamps the expanded menu to the viewport", async () => {
+    const active = workspace("active", "Alpha", "/projects/alpha");
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+
+    await act(async () => root?.render(withTestLocalization(
+      <ProjectSwitcherRail
+        activeWorkspace={active}
+        recentWorkspaces={[]}
+        onCreateNew={() => undefined}
+        onRenameProject={async () => undefined}
+        onSelectProject={() => undefined}
+        onUnlinkProject={async () => undefined}
+      />,
+    )));
+
+    expect(host.querySelector(".desktop-project-switcher-row-action")).toBeNull();
+    expect(resolveDesktopSidebarActionMenuPosition(
+      { left: 232, bottom: 48 },
+      { menuWidth: 184, estimatedHeight: 82, viewportWidth: 1_000, viewportHeight: 800 },
+    )).toEqual({
+      top: 52,
+      left: 232,
+    });
+    expect(resolveDesktopSidebarActionMenuPosition(
+      { left: 990, bottom: 790 },
+      { menuWidth: 184, estimatedHeight: 82, viewportWidth: 1_000, viewportHeight: 800 },
+    )).toEqual({
+      top: 706,
+      left: 804,
+    });
   });
 
   it("exports a Project row as a Finder-compatible native folder drag", async () => {
@@ -524,7 +729,7 @@ describe("Project switcher rail", () => {
   it("routes the create launcher through the three existing Project entry paths", async () => {
     const onOpenFolder = vi.fn();
     const onCreateProject = vi.fn();
-    const onCloneRepository = vi.fn();
+    const onImport = vi.fn();
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
@@ -532,24 +737,75 @@ describe("Project switcher rail", () => {
     await act(async () => root?.render(withTestLocalization(
       <ProjectEntryLauncherDialog
         canCreateProject
-        canCloneRepository
+        canImport
         onClose={() => undefined}
         onOpenFolder={onOpenFolder}
         onCreateProject={onCreateProject}
-        onCloneRepository={onCloneRepository}
+        onImport={onImport}
       />,
     )));
 
     const options = host.querySelectorAll<HTMLButtonElement>(".desktop-project-entry-option");
     expect(options).toHaveLength(3);
+    expect(Array.from(
+      options[2]?.querySelectorAll<HTMLImageElement>(".onboarding-import-mark") ?? [],
+      (mark) => mark.dataset.importBrand,
+    )).toEqual(["github", "gitlab"]);
     await act(async () => options[0]?.click());
     await act(async () => options[1]?.click());
     await act(async () => options[2]?.click());
     expect(onOpenFolder).toHaveBeenCalledOnce();
     expect(onCreateProject).toHaveBeenCalledOnce();
-    expect(onCloneRepository).toHaveBeenCalledOnce();
+    expect(onImport).toHaveBeenCalledOnce();
+  });
+
+  it("hands the in-project launcher off to the shared Import flow", async () => {
+    const onImportRepository = vi.fn(async () => true);
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+
+    await act(async () => root?.render(withTestLocalization(
+      <ProjectEntryFlowHarness onImportRepository={onImportRepository} />,
+    )));
+    await act(async () => host.querySelector<HTMLButtonElement>("[data-open-project-entry]")?.click());
+
+    const launcherOptions = host.querySelectorAll<HTMLButtonElement>(
+      ".desktop-project-entry-option",
+    );
+    expect(launcherOptions).toHaveLength(3);
+    await act(async () => launcherOptions[2]?.click());
+
+    expect(host.querySelector(".desktop-project-entry-launcher")).toBeNull();
+    expect(host.querySelector("[role='dialog']")?.getAttribute("aria-label")).toBe("Import");
+    expect(host.querySelectorAll(".onboarding-import-source")).toHaveLength(2);
+    expect(onImportRepository).not.toHaveBeenCalled();
   });
 });
+
+function ProjectEntryFlowHarness({
+  onImportRepository,
+}: {
+  onImportRepository: () => Promise<boolean>;
+}) {
+  const controller = useProjectEntryFlow();
+  return (
+    <>
+      <button type="button" data-open-project-entry onClick={controller.openLauncher}>
+        Open Project setup
+      </button>
+      <ProjectEntryFlow
+        controller={controller}
+        onOpenFolder={() => undefined}
+        onChooseLocation={async () => null}
+        onCreateProject={async () => {
+          throw new Error("not used");
+        }}
+        onImportRepository={onImportRepository}
+      />
+    </>
+  );
+}
 
 function workspace(id: string, name: string, path: string): Workspace {
   return {

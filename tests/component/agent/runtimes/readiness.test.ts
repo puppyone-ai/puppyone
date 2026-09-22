@@ -11,6 +11,26 @@ import { stripBidiIsolation } from "../../../support/react/localization";
 import { render } from "../../../support/agent/rendererHarness";
 
 describe("Desktop Agent renderer surfaces", () => {
+  it.each(['automatic', 'paused', 'exhausted'] as const)('keeps display recovery and termination actionable when %s', policy => {
+    const onPauseRecovery = vi.fn();
+    const onRetryRecovery = vi.fn();
+    const onManageExecutions = vi.fn();
+    const container = render(React.createElement(AgentPanelStatus, {
+      unavailable: false, failed: true, error: { code: 'event-gap' }, runtimeLabel: 'Agent', onRetry: vi.fn(),
+      recovery: { policy, attempt: 2, maxAttempts: 5 }, onPauseRecovery, onRetryRecovery, onManageExecutions,
+    }));
+    expect(container.querySelectorAll('[role="status"]')).toHaveLength(1);
+    const buttons = Array.from(container.querySelectorAll('button'));
+    buttons.find(button => button.textContent === 'Retry message sync')!.click();
+    buttons.find(button => button.textContent === 'Manage / terminate instance')!.click();
+    expect(onRetryRecovery).toHaveBeenCalledOnce();
+    expect(onManageExecutions).toHaveBeenCalledOnce();
+    const pause = buttons.find(button => button.textContent === 'Pause automatic recovery');
+    expect(Boolean(pause)).toBe(policy === 'automatic');
+    pause?.click();
+    expect(onPauseRecovery).toHaveBeenCalledTimes(policy === 'automatic' ? 1 : 0);
+    if (policy === 'automatic') expect(container.textContent).toContain('attempt 2 of 5');
+  });
   it.each([
     [
       "explicit sign-out",

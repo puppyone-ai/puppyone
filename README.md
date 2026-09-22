@@ -40,6 +40,14 @@ puppyone
 See the [test directory and commands](tests/README.md) for unit, component,
 integration, Electron and performance checks.
 
+For the local Agent payment test, run `npm run dev:agent-sandbox -- --check`,
+then `npm run dev:agent-sandbox` after closing the previous development instance.
+This starts the source build against qubits Cloud and Polar Sandbox; it does not
+reconfigure an installed Desktop. Model calls still use real provider credit.
+The canonical [sandbox runbook](https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppypay/operations/desktop-agent-sandbox.md)
+and [architecture](https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppyone/architecture/control-plane/desktop-agent-inference.md)
+are maintained in `puppy-issues` alongside this task branch.
+
 ## License
 
 Code is licensed under the [Apache License 2.0](LICENSE).

@@ -16,9 +16,12 @@ export function ExperimentalSettingsView({
     messageKey: string;
     settingKey: keyof ExperimentalSettings;
   }> = [
-    { messageKey: "builtInAgent", settingKey: "enableBuiltInAgent" },
     { messageKey: "projectSwitcherRail", settingKey: "enableProjectSwitcherRail" },
     { messageKey: "multiRootWorkspaces", settingKey: "enableMultiRootWorkspaces" },
+    { messageKey: "notionImport", settingKey: "enableNotionImport" },
+    { messageKey: "googleDriveImport", settingKey: "enableGoogleDriveImport" },
+    { messageKey: "obsidianImport", settingKey: "enableObsidianImport" },
+    { messageKey: "airtableImport", settingKey: "enableAirtableImport" },
     { messageKey: "viewerPlugins", settingKey: "enableViewerPlugins" },
     { messageKey: "editorSaveStatus", settingKey: "enableEditorSaveStatus" },
     ...(window.puppyoneDesktop?.getGitAutoCommitSettings
@@ -29,7 +32,6 @@ export function ExperimentalSettingsView({
     ...(assetLibraryHomeAvailable
       ? [{ messageKey: "projectsHome", settingKey: "enableAssetLibraryHome" as const }]
       : []),
-    { messageKey: "firstProjectStarter", settingKey: "enableFirstProjectStarter" },
     { messageKey: "cloudWorkspace", settingKey: "enableCloudWorkspace" },
     { messageKey: "cloudAutomation", settingKey: "enableCloudAutomation" },
     { messageKey: "flowFiles", settingKey: "enablePuppyFlowFiles" },

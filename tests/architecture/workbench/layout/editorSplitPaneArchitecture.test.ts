@@ -168,6 +168,9 @@ describe("editor split-pane architecture", () => {
     expect(splitStyles).toContain(".desktop-editor-pane[data-handle-hot]");
     const handleShellRule = readCssBlock(splitStyles, ".desktop-editor-pane-handle-shell");
     expect(handleShellRule).toContain("pointer-events: none;");
+    expect(handleShellRule).toContain(
+      "z-index: calc(var(--po-pane-resizer-z-index, 35) + 2);",
+    );
     expect(splitStyles).toContain("pointer-events: auto;");
     expect(splitStyles).toContain(".desktop-editor-drop-preview");
     expect(splitStyles).toContain(".desktop-editor-pane-move-preview");

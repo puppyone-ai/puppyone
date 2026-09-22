@@ -59,7 +59,7 @@
 .desktop-agent-inline-part { padding: 8px 9px; color: var(--agent-text-muted); font-size: var(--agent-font-size); }
 .desktop-agent-inline-part.is-muted { opacity: 0.72; }
 
-/* Cursor-style work evidence: compact disclosures, not a Research timeline. */
+/* Work evidence uses compact disclosures instead of a separate timeline. */
 .desktop-agent-tool-call,
 .desktop-agent-tool-group {
   --agent-tool-row-padding-inline: 4px;

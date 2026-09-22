@@ -6,16 +6,83 @@ import {
   FileGlyphIcon,
   FilePreviewIcon,
   getFileVisualKind,
+  isFileIconThemeId,
+  parseFileIconThemeId,
   type FileIconThemeId,
 } from "../../../../packages/shared-ui/src/file/fileIcons";
 import {
   getSemanticKindForFormat,
+  getPreferredMimeType,
   resolveFileFormat,
   type FileFormat,
 } from "../../../../packages/shared-ui/src/core/fileFormats";
 import { FILE_ICON_THEME_REGISTRY } from "../../../../packages/shared-ui/src/file/icon-themes/registry";
 
 describe("file icon semantics", () => {
+  it.each(["data.db", "data.db3", "data.sqlite", "data.sqlite3", "data.duckdb", "data.ddb", "DATA.DB"])(
+    "classifies %s as a database without changing binary admission",
+    (name) => {
+      expect(getFileVisualKind(name, "file")).toBe("database");
+      expect(getFileVisualKind(name, "binary")).toBe("database");
+      expect(resolveFileFormat({ name })).toMatchObject({
+        id: "database-candidate",
+        semanticKind: "database",
+        category: "binary",
+        defaultViewer: "database-preview",
+        editable: false,
+        ingestStrategy: "raw",
+      });
+    },
+  );
+
+  it.each(["application/vnd.sqlite3", "application/x-sqlite3", "application/vnd.duckdb"])(
+    "resolves %s to the same database semantic identity",
+    (mimeType) => {
+      expect(getSemanticKindForFormat(resolveFileFormat({ mimeType }))).toBe("database");
+    },
+  );
+
+  it("does not mistake arbitrary binary files for databases or DB candidates for SQLite", () => {
+    expect(getPreferredMimeType("data.db")).toBe("application/octet-stream");
+    expect(getPreferredMimeType("data.db3")).toBe("application/octet-stream");
+    expect(getFileVisualKind("firmware.bin")).toBe("file");
+    expect(getFileVisualKind("firmware.bin", "binary")).toBe("binary");
+    expect(getFileVisualKind("unknown.unregistered")).toBe("file");
+    expect(getSemanticKindForFormat(resolveFileFormat({ mimeType: "application/octet-stream" }))).not.toBe("database");
+  });
+
+  it.each(FILE_ICON_THEMES)(
+    "renders standalone database cylinders for glyphs and previews in the $id theme",
+    ({ id }) => {
+      for (const name of ["data.db", "data.db3", "data.sqlite", "data.sqlite3", "data.duckdb", "data.ddb"]) {
+        for (const markup of [
+          renderToStaticMarkup(<FileGlyphIcon name={name} type="binary" size={18} theme={id} />),
+          renderToStaticMarkup(<FilePreviewIcon name={name} type="file" size={56} theme={id} />),
+        ]) {
+          expect(markup).toContain('data-file-icon-shape="database-cylinder"');
+          expect(markup).toContain("<ellipse");
+          expect(markup.match(/<svg\b/g)).toHaveLength(1);
+          expect(markup).not.toContain('viewBox="0 0 44 54"');
+          expect(markup).not.toContain("drop-shadow");
+          expect(markup).toContain("var(--po-file-accent-code)");
+          expect(markup).toContain('viewBox="-3 -3 30 30"');
+        }
+      }
+    },
+  );
+
+  it.each(FILE_ICON_THEMES)(
+    "keeps database icon slots stable while reducing the artwork in the $id theme",
+    ({ id }) => {
+      for (const size of [14, 18, 24]) {
+        const markup = renderToStaticMarkup(<FileGlyphIcon name="data.db" size={size} theme={id} />);
+        expect(markup).toContain(`width="${size}"`);
+        expect(markup).toContain(`height="${size}"`);
+        expect(markup).toContain('viewBox="-3 -3 30 30"');
+      }
+    },
+  );
+
   it.each(["table.csv", "table.tsv", "table.ods"])("classifies %s as a generic spreadsheet", (name) => {
     expect(getFileVisualKind(name)).toBe("spreadsheet");
   });
@@ -38,7 +105,7 @@ describe("file icon semantics", () => {
     expect(getFileVisualKind("Knowledge.contextmap")).toBe("context-map");
   });
 
-  it.each<FileIconThemeId>(["default", "lines", "vscode", "material", "minimal"])(
+  it.each<FileIconThemeId>(["default", "lines", "semantic", "material", "minimal"])(
     "renders Context Map as a treasure map product mark in the %s theme",
     (theme) => {
       const markup = renderToStaticMarkup(
@@ -115,7 +182,7 @@ describe("file icon semantics", () => {
     },
   );
 
-  it.each<FileIconThemeId>(["default", "lines", "vscode", "material", "minimal"])(
+  it.each<FileIconThemeId>(["default", "lines", "semantic", "material", "minimal"])(
     "renders spreadsheet glyphs as a standalone table grid in the %s theme",
     (theme) => {
       const markup = renderToStaticMarkup(<FileGlyphIcon name="table.csv" size={18} theme={theme} />);
@@ -125,7 +192,7 @@ describe("file icon semantics", () => {
     },
   );
 
-  it.each<FileIconThemeId>(["default", "lines", "vscode", "material", "minimal"])(
+  it.each<FileIconThemeId>(["default", "lines", "semantic", "material", "minimal"])(
     "renders a recognizable Word mark in the %s theme",
     (theme) => {
       const markup = renderToStaticMarkup(
@@ -137,7 +204,7 @@ describe("file icon semantics", () => {
     },
   );
 
-  it.each<FileIconThemeId>(["default", "lines", "vscode", "material", "minimal"])(
+  it.each<FileIconThemeId>(["default", "lines", "semantic", "material", "minimal"])(
     "renders a recognizable Excel mark in the %s theme",
     (theme) => {
       const markup = renderToStaticMarkup(
@@ -149,7 +216,7 @@ describe("file icon semantics", () => {
     },
   );
 
-  it.each<FileIconThemeId>(["default", "lines", "vscode", "material", "minimal"])(
+  it.each<FileIconThemeId>(["default", "lines", "semantic", "material", "minimal"])(
     "renders a recognizable presentation mark in the %s theme",
     (theme) => {
       const markup = renderToStaticMarkup(
@@ -187,13 +254,19 @@ describe("file icon semantics", () => {
     expect(FILE_ICON_THEMES.map(({ id }) => id)).toEqual([
       "default",
       "lines",
-      "vscode",
+      "semantic",
       "material",
       "minimal",
     ]);
   });
 
-  it.each<FileIconThemeId>(["default", "lines", "vscode", "material", "minimal"])(
+  it("migrates the retired branded theme ID without keeping it in the public contract", () => {
+    expect(isFileIconThemeId("vscode")).toBe(false);
+    expect(parseFileIconThemeId("vscode")).toBe("semantic");
+    expect(parseFileIconThemeId("semantic")).toBe("semantic");
+  });
+
+  it.each<FileIconThemeId>(["default", "lines", "semantic", "material", "minimal"])(
     "renders folder previews and their child count through the %s theme",
     (theme) => {
       const markup = renderToStaticMarkup(

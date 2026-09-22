@@ -1,24 +1,23 @@
+:is(.csv-table-editor, [data-po-selection-scope="csv"]) {
+  --po-selection-background: var(--po-host-csv-selection-bg, var(--po-text-selection-bg));
+  --po-selection-inactive-background: var(--po-host-csv-selection-inactive-bg, var(--po-text-selection-inactive-bg));
+}
+
 .csv-table-editor {
   /* CSV is a data view, not a document card. Its viewport may fill the pane,
-     while the table keeps stable, content-owned tracks like a Notion view. */
+     while the table keeps stable, content-owned tracks. */
   --po-csv-surface-background: var(--po-host-csv-surface-background, var(--po-editor-bg));
   --po-csv-surface-color: var(--po-host-csv-surface-color, var(--po-text));
   --po-csv-link-color: var(--po-host-csv-link-color, var(--po-accent));
+  /* Preserve format-theme base colors; shared CSS owns all defaults and states. */
+  --po-editable-table-format-background: var(--po-host-csv-table-background);
+  --po-editable-table-format-border: var(--po-host-csv-table-border);
+  --po-editable-table-format-cell-border: var(--po-host-csv-cell-border);
+  --po-editable-table-format-header-background: var(--po-host-csv-header-background);
   --po-editable-table-cell-max-width: 560px;
   --po-editable-table-row-min-height: 31px;
-  --po-editable-table-radius: 0px;
-  --po-editable-table-background: var(--po-host-csv-table-background, transparent);
-  --po-editable-table-border: var(--po-host-csv-table-border, var(--po-divider));
-  --po-editable-table-cell-border: var(--po-host-csv-cell-border, var(--po-divider));
-  --po-editable-table-header-background: var(--po-host-csv-header-background, transparent);
-  --po-editable-table-sticky-header-background: var(--po-host-csv-header-background, var(--po-editor-bg));
-  --po-editable-table-header-font-weight: 600;
   --csv-table-record-index-width: var(--po-editable-table-row-min-height);
   --csv-table-record-index-background: var(--po-host-csv-index-background, color-mix(in srgb, var(--po-control) 18%, var(--po-editor-bg)));
-  --po-editable-table-cell-hover-background: var(--po-host-csv-cell-hover-background, var(--po-hover));
-  --po-editable-table-cell-focus-background: var(--po-host-csv-cell-focus-background, var(--po-selected));
-  --po-editable-table-cell-focus-ring: var(--po-host-csv-cell-focus-ring, var(--po-focus-ring));
-  --csv-table-record-index-active-background: color-mix(in srgb, var(--po-hover) 42%, var(--po-editor-bg));
   --csv-table-content-inline-start-inset: 32px;
   --csv-table-content-inline-end-inset: 32px;
   --csv-table-content-block-start-inset: 32px;
@@ -218,26 +217,8 @@
 }
 
 .csv-table-editor__surface {
-  --csv-table-resize-preview-border: color-mix(
-    in srgb,
-    var(--po-accent) 34%,
-    var(--po-editable-table-border)
-  );
-  --csv-table-resize-preview-grid: color-mix(
-    in srgb,
-    var(--po-accent) 10%,
-    var(--po-editable-table-cell-border)
-  );
-  --csv-table-resize-preview-data-background: color-mix(
-    in srgb,
-    var(--po-accent) 4%,
-    var(--po-editor-bg)
-  );
-  --csv-table-resize-preview-index-background: color-mix(
-    in srgb,
-    var(--po-accent) 3%,
-    var(--csv-table-record-index-background)
-  );
+  --csv-table-resize-preview-border: var(--po-editable-table-selection-border);
+  --csv-table-resize-preview-grid: var(--po-editable-table-cell-border);
   position: relative;
   display: inline-block;
   min-width: max-content;
@@ -252,7 +233,7 @@
   max-width: none;
   margin: 0;
   overflow: visible;
-  border: 1px solid color-mix(in srgb, var(--po-editable-table-border) 72%, transparent);
+  border: 1px solid var(--po-editable-table-border);
   border-radius: 0;
   border-collapse: separate;
   border-spacing: 0;
@@ -261,7 +242,6 @@
   color: var(--po-editable-table-color);
   font-size: var(--po-editable-table-font-size);
   line-height: var(--po-editable-table-line-height);
-  transition: border-color 140ms ease, box-shadow 140ms ease;
 }
 
 .csv-table-editor__drag-layer {
@@ -329,8 +309,8 @@
   max-width: var(--po-editable-table-cell-max-width);
   padding: 0;
   border: 0;
-  border-inline-end: 1px solid color-mix(in srgb, var(--po-editable-table-cell-border) 78%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--po-editable-table-cell-border) 78%, transparent);
+  border-inline-end: 1px solid var(--po-editable-table-cell-border);
+  border-bottom: 1px solid var(--po-editable-table-cell-border);
   text-align: start;
   vertical-align: top;
   white-space: normal;
@@ -475,17 +455,6 @@
 .csv-table-editor__surface[dir="rtl"]
   .csv-table-editor__row-handle.is-inline-docked {
   transform: translate(calc(-100% - 4px), -50%);
-}
-
-.csv-table-editor__table tbody tr:hover > .csv-table-editor__record-index,
-.csv-table-editor__table tbody tr:has(td:focus-within) > .csv-table-editor__record-index {
-  background:
-    linear-gradient(
-      var(--csv-table-record-index-active-background),
-      var(--csv-table-record-index-active-background)
-    ),
-    var(--po-editor-bg);
-  color: var(--po-text-muted);
 }
 
 .csv-table-editor__body-cell {
@@ -687,24 +656,10 @@
   white-space: nowrap;
 }
 
-.csv-table-editor__table tbody td:hover {
-  background: color-mix(in srgb, var(--po-editable-table-cell-hover-background) 72%, transparent);
-}
-
 .csv-table-editor__table th:focus-within,
 .csv-table-editor__table td:focus-within {
   z-index: 1;
-  background: var(--po-editable-table-cell-focus-background);
-  box-shadow: inset 0 0 0 1.5px var(--po-editable-table-cell-focus-ring);
-}
-
-.csv-table-editor__table th:focus-within {
-  background:
-    linear-gradient(
-      var(--po-editable-table-sticky-header-focus-background),
-      var(--po-editable-table-sticky-header-focus-background)
-    ),
-    var(--po-editor-bg);
+  box-shadow: var(--po-editable-table-cell-focus-shadow);
 }
 
 .csv-table-editor__table thead th:focus-within {
@@ -856,15 +811,15 @@
 .csv-table-editor__table .csv-table-editor__expansion-cell {
   border-inline-end-color: var(--csv-table-resize-preview-grid);
   border-block-end-color: var(--csv-table-resize-preview-grid);
-  background: var(--csv-table-resize-preview-data-background);
+  background: var(--po-editable-table-background);
   pointer-events: none;
 }
 
 .csv-table-editor__table .csv-table-editor__expansion-record-index {
   background:
     linear-gradient(
-      var(--csv-table-resize-preview-index-background),
-      var(--csv-table-resize-preview-index-background)
+      var(--csv-table-record-index-background),
+      var(--csv-table-record-index-background)
     ),
     var(--po-editor-bg);
   color: color-mix(

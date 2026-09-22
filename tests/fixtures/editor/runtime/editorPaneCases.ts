@@ -30,7 +30,10 @@ export const EDITOR_PANE_CASES: readonly EditorPaneCase[] = [
   })),
   { id: "html", viewerId: "html-artifact", name: "page.html", type: "html", content: "<!doctype html><h1>Pane preview</h1>", selector: "iframe.native-preview-frame" },
   { id: "image", viewerId: "image-preview", name: "image.png", type: "image", resource: "sample_image.png", selector: '.native-image-preview-shell[data-preview-state="ready"] img' },
-  { id: "pdf", viewerId: "pdf-preview", name: "document.pdf", type: "pdf", resource: "sample_document.pdf", selector: '.built-in-editor-surface[data-surface-status="ready"]' },
+  { id: "pdf", viewerId: "pdf-preview", name: "document.pdf", type: "pdf", resource: "sample_document.pdf", selector: '.pdf-preview-surface[data-preview-state="embedded"] iframe' },
+  // The generic renderer-only matrix verifies the unavailable-port fallback;
+  // editor-database.smoke.mjs separately exercises real native sessions.
+  { id: "database", viewerId: "database-preview", name: "sample.db", type: "file", selector: ".database-preview [role=alert]" },
   { id: "word", viewerId: "office-preview", name: "document.docx", type: "document", resource: "puppyone-preview-sample.docx", selector: ".office-docx-host" },
   { id: "spreadsheet", viewerId: "office-preview", name: "workbook.xlsx", type: "spreadsheet", resource: "puppyone-preview-sample.xlsx", selector: ".office-spreadsheet-grid tbody td" },
   { id: "presentation", viewerId: "office-preview", name: "slides.pptx", type: "presentation", resource: "puppyone-presentation-fidelity.pptx", selector: ".office-pptx-render-host" },
@@ -38,7 +41,7 @@ export const EDITOR_PANE_CASES: readonly EditorPaneCase[] = [
   { id: "video", viewerId: "video-preview", name: "clip.webm", type: "video", resource: "pane-contract.webm", selector: "video" },
   { id: "text", viewerId: "text", name: "plain.txt", type: "text", content: "Plain text pane", selector: ".cm-editor" },
   { id: "code", viewerId: "text", name: "worker.py", type: "code", content: "value = 'pane'", selector: ".cm-editor" },
-  { id: "fallback", viewerId: "document-placeholder", name: "unknown.pane-binary", type: "file", selector: ".document-preview__name" },
+  { id: "fallback", viewerId: "document-placeholder", name: "unknown.pane-binary", type: "file", selector: ".document-preview__label" },
 ];
 
 export function paneCaseNode(testCase: EditorPaneCase): DocumentDataNode {

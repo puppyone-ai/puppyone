@@ -1,3 +1,4 @@
+import { markdownViewportLayoutExtension } from "./platform/codemirror/layoutCoordinator";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { HighlightStyle, bracketMatching, indentOnInput, syntaxHighlighting } from "@codemirror/language";
@@ -23,6 +24,7 @@ import { markdownLivePreviewContextExtension } from "./core/editor/markdownLiveP
 import { markdownComposingBlockLineField, markdownInputCompositionExtension } from "./core/state/composingBlockLine";
 import { markdownRevealedSourceField } from "./core/state/revealedSource";
 import { markdownLivePreviewFocusExtension } from "./core/state/livePreviewFocus";
+import { markdownPointerSelectionExtension } from "./core/state/pointerSelection";
 import { markdownHeadingIndexField } from "./core/links/markdownHeadingIndex";
 import { markdownAssetUrlResolverFacet, markdownWorkspaceRootFacet } from "./core/editor/markdownLivePreviewContext";
 import { getMarkdownEmbedHost, disposeMarkdownEmbedHost } from "./platform/codemirror/embedHost";
@@ -70,12 +72,14 @@ export function markdownCodeMirrorBaseExtensions(
  */
 export function markdownCodeMirrorUrgentExtensions(readOnly: boolean, includeHistory = true): Extension[] {
   return [
+    EditorView.editorAttributes.of({ "data-po-selection-renderer": "native" }),
     highlightSpecialChars(),
     ...(includeHistory ? [history()] : []),
     dropCursor(),
     indentOnInput(),
     bracketMatching(),
     EditorView.lineWrapping,
+    markdownViewportLayoutExtension,
     trailingLineWhitespaceSelectionExtension,
     EditorView.contentAttributes.of({
       spellcheck: "false",
@@ -136,6 +140,7 @@ export function markdownLivePreviewCoreExtension(
   const composition = getMarkdownFeatureComposition(dialect);
   return [
     markdownHiddenMarkerSelectionNormalizer,
+    markdownPointerSelectionExtension,
     markdownLivePreviewFocusExtension(),
     markdownInputCompositionExtension,
     markdownComposingBlockLineField,
@@ -147,6 +152,7 @@ export function markdownLivePreviewCoreExtension(
     // undo and redo embedded-session relocation safely.
     markdownBlockRelocationHistoryExtension,
     markdownInlineViewportHistoryExtension,
+    markdownViewportLayoutExtension,
     markdownEmbedHostLifecycle,
     markdownLivePreviewDecorations,
     markdownBlockWidgetSelectionExtension,

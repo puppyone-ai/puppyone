@@ -1,4 +1,4 @@
-import { FilePlus2, FolderOpen, GitFork, Plus } from "lucide-react";
+import { Download, FilePlus2, FolderOpen, Plus } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import type { ReactNode } from "react";
 import {
@@ -6,11 +6,17 @@ import {
   DesktopDialogRoot,
   DesktopDialogSurface,
 } from "../../components/DesktopDialog";
+import {
+  DEFAULT_IMPORT_PREVIEW_BRANDS,
+  ImportSourcePreview,
+} from "../../components/onboarding/ImportSourcePreview";
+import type { ImportSourceBrand } from "../../components/onboarding/ImportSourceMark";
 
 export type ProjectEntryLauncherDialogProps = Readonly<{
-  canCloneRepository: boolean;
+  canImport: boolean;
   canCreateProject: boolean;
-  onCloneRepository: () => void;
+  importPreviewBrands?: readonly ImportSourceBrand[];
+  onImport: () => void;
   onClose: () => void;
   onCreateProject: () => void;
   onOpenFolder: () => void;
@@ -22,9 +28,10 @@ export type ProjectEntryLauncherDialogProps = Readonly<{
  * creation, cloning, folder selection, and their follow-up dialogs.
  */
 export function ProjectEntryLauncherDialog({
-  canCloneRepository,
+  canImport,
   canCreateProject,
-  onCloneRepository,
+  importPreviewBrands = DEFAULT_IMPORT_PREVIEW_BRANDS,
+  onImport,
   onClose,
   onCreateProject,
   onOpenFolder,
@@ -59,22 +66,24 @@ export function ProjectEntryLauncherDialog({
             aria-label={title}
           >
             <ProjectEntryOption
-              icon={<FolderOpen />}
-              label={t("onboarding.action.openFolder")}
-              initialFocus
-              onClick={onOpenFolder}
-            />
-            <ProjectEntryOption
               icon={<FilePlus2 />}
               label={t("onboarding.action.createLocalProject")}
+              initialFocus={canCreateProject}
               disabled={!canCreateProject}
               onClick={onCreateProject}
             />
             <ProjectEntryOption
-              icon={<GitFork />}
+              icon={<FolderOpen />}
+              label={t("onboarding.action.openFolder")}
+              initialFocus={!canCreateProject}
+              onClick={onOpenFolder}
+            />
+            <ProjectEntryOption
+              icon={<Download />}
               label={t("onboarding.action.cloneRepository")}
-              disabled={!canCloneRepository}
-              onClick={onCloneRepository}
+              accessory={<ImportSourcePreview brands={importPreviewBrands} />}
+              disabled={!canImport}
+              onClick={onImport}
             />
           </div>
         </div>
@@ -84,12 +93,14 @@ export function ProjectEntryLauncherDialog({
 }
 
 function ProjectEntryOption({
+  accessory,
   disabled = false,
   icon,
   initialFocus = false,
   label,
   onClick,
 }: Readonly<{
+  accessory?: ReactNode;
   disabled?: boolean;
   icon: ReactNode;
   initialFocus?: boolean;
@@ -107,7 +118,10 @@ function ProjectEntryOption({
       <span className="desktop-project-entry-option-icon" aria-hidden="true">
         {icon}
       </span>
-      <span>{label}</span>
+      <span className="desktop-project-entry-option-content">
+        <span>{label}</span>
+        {accessory}
+      </span>
     </button>
   );
 }

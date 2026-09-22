@@ -350,6 +350,11 @@ describe("Codex app-server normalization", () => {
     });
 
     const inspection = await adapter.inspect();
+    expect(inspection.runtime).toMatchObject({
+      id: "codex",
+      displayName: "Codex",
+      iconKey: "codex",
+    });
     expect(inspection.models[0]).toMatchObject({
       model: "gpt-5.5",
       variants: ["low", "xhigh"],

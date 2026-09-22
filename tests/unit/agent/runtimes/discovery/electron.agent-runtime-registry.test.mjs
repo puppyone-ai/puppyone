@@ -5,6 +5,65 @@ import { createRuntimeResolutionCoordinator } from "../../../../../electron/main
 import { createCachedRuntimeDiscovery } from "../../../../../electron/main/agent/connections/runtime-discovery-cache.mjs";
 
 describe("Agent runtime registry", () => {
+  it.each([false, true])("inspects only the selected runtime even when another probe is stuck (refresh=%s)", async (refresh) => {
+    const adapter = {
+      inspect: vi.fn(async () => ({ account: { account: null, requiresOpenaiAuth: false },
+        providers: [], models: [], modes: [], commands: [], capabilities: {}, warnings: [] })),
+      createSession: vi.fn(), resumeSession: vi.fn(), readHistory: vi.fn(),
+      startTurn: vi.fn(), interruptTurn: vi.fn(), dispose: vi.fn(),
+    };
+    const healthy = definition("healthy", 2, "ready", adapter);
+    const stuck = definition("stuck", 1, "ready", {});
+    stuck.discovery.discover.mockImplementation(() => new Promise(() => {}));
+    const registry = new AgentRuntimeRegistry([healthy, stuck]);
+    const resolver = createRuntimeResolutionCoordinator({ runtimeRegistry: registry });
+    try {
+      const catalog = await resolver.queryCatalog({ runtimeId: "healthy", refresh }, "/workspace");
+      expect(catalog).toMatchObject({ selectedRuntimeId: "healthy", readiness: { status: "ready" } });
+      expect(catalog.runtimes.map((entry) => entry.descriptor.id)).toEqual(["healthy"]);
+      expect(adapter.inspect).toHaveBeenCalledOnce();
+      expect(stuck.discovery.discover).not.toHaveBeenCalled();
+    } finally { await registry.dispose(); }
+  });
+
+  it("still discovers all runtimes for the unbound launcher without inspecting one", async () => {
+    const first = definition("first", 2, "ready", {});
+    const second = definition("second", 1, "not-installed", {});
+    const registry = new AgentRuntimeRegistry([first, second]);
+    const resolver = createRuntimeResolutionCoordinator({ runtimeRegistry: registry });
+    try {
+      const catalog = await resolver.queryCatalog();
+      expect(catalog.runtimes.map((entry) => entry.descriptor.id)).toEqual(["first", "second"]);
+      expect(first.discovery.discover).toHaveBeenCalledOnce();
+      expect(second.discovery.discover).toHaveBeenCalledOnce();
+      expect(first.createAdapter).not.toHaveBeenCalled();
+      expect(second.createAdapter).not.toHaveBeenCalled();
+    } finally { await registry.dispose(); }
+  });
+
+  it("rechecks invalidated model inspection while reusing cached executable discovery", async () => {
+    const adapter = {
+      inspect: vi.fn(async () => ({ account: { account: null, requiresOpenaiAuth: false },
+        providers: [], models: [], modes: [], commands: [], capabilities: {}, warnings: [] })),
+      createSession: vi.fn(), resumeSession: vi.fn(), readHistory: vi.fn(),
+      startTurn: vi.fn(), interruptTurn: vi.fn(), dispose: vi.fn(),
+    };
+    const runtime = definition("healthy", 1, "ready", adapter);
+    const probe = runtime.discovery.discover;
+    runtime.discovery = createCachedRuntimeDiscovery(probe);
+    const registry = new AgentRuntimeRegistry([runtime]);
+    const resolver = createRuntimeResolutionCoordinator({ runtimeRegistry: registry });
+    try {
+      await resolver.queryCatalog({ runtimeId: "healthy" }, "/workspace");
+      await resolver.queryCatalog({ runtimeId: "healthy" }, "/workspace");
+      expect(adapter.inspect).toHaveBeenCalledOnce();
+      resolver.clear();
+      await resolver.queryCatalog({ runtimeId: "healthy" }, "/workspace");
+      expect(adapter.inspect).toHaveBeenCalledTimes(2);
+      expect(probe).toHaveBeenCalledOnce();
+    } finally { await registry.dispose(); }
+  });
+
   it("resolves a selected healthy runtime without probing a stuck unrelated runtime", async () => {
     const healthy = definition("healthy", 2, "ready", {});
     const stuck = definition("stuck", 1, "ready", {});

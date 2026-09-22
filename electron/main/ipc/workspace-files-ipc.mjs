@@ -1,4 +1,5 @@
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import {
   copyWorkspaceEntry,
   copyWorkspaceEntryBetweenRoots,
@@ -29,6 +30,7 @@ async function absorbWorkspaceEditReviewPath(rootPath, resource) {
 import { isPotentiallyExecutableFile } from "../security.mjs";
 import { buildLocalFileCapabilityUrl } from "../local-file-capabilities.mjs";
 import { parseLocalFileUrl } from "../local-file-protocol.mjs";
+import { openPdfResource } from "../pdf-resource.mjs";
 import {
   instantiateWorkspaceTemplate,
   loadBundledSlidesFont,
@@ -74,7 +76,6 @@ export function registerWorkspaceFileIpcHandlers({
   workspaceMutationTracker = null,
   gitMetadataWatchService = null,
   convertOfficeDocument = unsupportedOfficeDocumentConverter,
-  retireEditorSurfacesForResource = null,
   t = defaultTranslate,
 }) {
   const officeConversionSessionsBySender = new Map();
@@ -120,6 +121,9 @@ export function registerWorkspaceFileIpcHandlers({
     if (!metadata.isFile()) throw new Error("Local file resource must be a regular file.");
 
     const relativePath = path.relative(rootPath, canonicalFilePath).split(path.sep).join("/");
+    if (getMimeType(relativePath) === "application/pdf") {
+      await openPdfResource(rootPath, relativePath);
+    }
     let snapshot;
     if (request.expectedVersion !== undefined) {
       if (typeof request.expectedVersion !== "string" || request.expectedVersion.length > 256) throw new Error("Invalid resource version.");
@@ -155,6 +159,24 @@ export function registerWorkspaceFileIpcHandlers({
     return {
       url: buildLocalFileCapabilityUrl({ rootPath, relativePath, token, purpose }),
     };
+  });
+
+  // Disposable renderer projections are immutable, exact-resource leases, never file writes.
+  // A real protocol navigation avoids inheriting the application CSP through srcdoc/blob.
+  ipcMain.handle("workspace:create-preview-document", async (event, request) => {
+    const rootPath = await authorizeWorkspaceRoot(event, request?.rootPath);
+    if (typeof request?.content !== "string" || request.content.length > 2 * 1024 * 1024
+      || Buffer.byteLength(request.content, "utf8") > 4 * 1024 * 1024
+      || typeof request.path !== "string" || !/\.html?$/i.test(request.path)) throw new Error("Unsupported preview document.");
+    const canonicalPath = await resolveExistingWorkspacePath(rootPath, request.path);
+    if (!(await fs.promises.stat(canonicalPath)).isFile()) throw new Error("Preview requires a regular file.");
+    const relativePath = path.relative(rootPath, canonicalPath).split(path.sep).join("/");
+    if (!/\.html?$/i.test(relativePath)) throw new Error("Unsupported preview document.");
+    const bytes = Buffer.from(request.content, "utf8");
+    const token = localFileCapabilities.issue({ senderId: requireIpcSenderId(event), rootPath, relativePath,
+      scope: "exact", purpose: "document-projection", reuse: false,
+      snapshot: { bytes, relativePath, version: randomUUID(), interactive: request.interactive === true } });
+    return { url: buildLocalFileCapabilityUrl({ relativePath, token, purpose: "document-projection" }) };
   });
 
   ipcMain.handle("workspace:revoke-file-url", async (event, request) => {
@@ -300,7 +322,6 @@ export function registerWorkspaceFileIpcHandlers({
     const rootPath = await authorizeWorkspaceRoot(event, request?.rootPath);
     return runWorkspaceMutation(rootPath, async () => {
       const previousPath = request?.path;
-      if (retireEditorSurfacesForResource) await retireEditorSurfacesForResource(requireIpcSenderId(event), await resolveExistingWorkspacePath(rootPath, previousPath));
       const result = await renameWorkspaceEntry(rootPath, request);
       await absorbWorkspaceEditReviewPath(rootPath, previousPath);
       await absorbWorkspaceEditReviewPath(rootPath, result.path);
@@ -312,7 +333,6 @@ export function registerWorkspaceFileIpcHandlers({
     const rootPath = await authorizeWorkspaceRoot(event, request?.rootPath);
     return runWorkspaceMutation(rootPath, async () => {
       const previousPath = request?.fromPath;
-      if (retireEditorSurfacesForResource) await retireEditorSurfacesForResource(requireIpcSenderId(event), await resolveExistingWorkspacePath(rootPath, previousPath));
       const result = await moveWorkspaceEntry(rootPath, request);
       await absorbWorkspaceEditReviewPath(rootPath, previousPath);
       await absorbWorkspaceEditReviewPath(rootPath, result.path);
@@ -351,7 +371,6 @@ export function registerWorkspaceFileIpcHandlers({
   ipcMain.handle("workspace:delete-entry", async (event, request) => {
     const rootPath = await authorizeWorkspaceRoot(event, request?.rootPath);
     return runWorkspaceMutation(rootPath, async () => {
-      if (retireEditorSurfacesForResource) await retireEditorSurfacesForResource(requireIpcSenderId(event), await resolveExistingWorkspacePath(rootPath, request?.path));
       const result = await deleteWorkspaceEntry(rootPath, request);
       await absorbWorkspaceEditReviewPath(rootPath, result.path);
       return result;

@@ -44,6 +44,7 @@
     --po-backdrop: rgba(37, 39, 44, 0.22);
     --po-backdrop-strong: rgba(37, 39, 44, 0.34);
     --po-accent: #4f46e5;
+    --po-text-selection-bg: color-mix(in srgb, var(--po-accent) 22%, transparent);
     --po-accent-text: #4338ca;
     --po-success: #13834a;
     --po-warning: #a66705;
@@ -115,6 +116,7 @@
     --po-backdrop: rgba(0, 0, 0, 0.65);
     --po-backdrop-strong: rgba(0, 0, 0, 0.82);
     --po-accent: #8b8cff;
+    --po-text-selection-bg: color-mix(in srgb, var(--po-accent) 28%, transparent);
     --po-accent-text: #b7b8ff;
     --po-focus-ring: rgba(139, 140, 255, 0.42);
     --po-success: #34d399;

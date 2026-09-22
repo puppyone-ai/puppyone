@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { Workspace } from "@puppyone/shared-ui";
 import type { ProjectAppearance } from "../../types/electron";
 
@@ -12,12 +12,15 @@ export function getProjectAppearanceIdentity(workspace: Workspace): string | nul
 }
 
 export function useProjectAppearanceCatalog(workspaces: readonly Workspace[]) {
-  const identities = useMemo(() => Array.from(new Set(
+  // Switching the active project reorders/recreates workspace projections.
+  // Appearance loading depends on membership, not that presentation order.
+  // Valid identities cannot contain the newline separator.
+  const identitiesKey = Array.from(new Set(
     workspaces.flatMap((workspace) => {
       const identity = getProjectAppearanceIdentity(workspace);
       return identity ? [identity] : [];
     }),
-  )), [workspaces]);
+  )).sort().join("\n");
   const [appearances, setAppearances] = useState<ReadonlyMap<string, ProjectAppearance>>(
     () => new Map(),
   );
@@ -26,7 +29,8 @@ export function useProjectAppearanceCatalog(workspaces: readonly Workspace[]) {
     const client = window.puppyoneDesktop?.projectAppearance;
     if (!client) return undefined;
     let active = true;
-    void client.list({ projectIdentities: identities }).then((items) => {
+    const projectIdentities = identitiesKey ? identitiesKey.split("\n") : [];
+    void client.list({ projectIdentities }).then((items) => {
       if (!active) return;
       setAppearances(new Map(items.map((appearance) => [
         appearance.projectIdentity,
@@ -38,7 +42,7 @@ export function useProjectAppearanceCatalog(workspaces: readonly Workspace[]) {
     return () => {
       active = false;
     };
-  }, [identities]);
+  }, [identitiesKey]);
 
   useEffect(() => window.puppyoneDesktop?.projectAppearance?.onChanged((appearance) => {
     setAppearances((current) => {

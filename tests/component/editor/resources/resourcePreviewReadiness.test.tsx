@@ -71,7 +71,8 @@ describe("resource preview readiness", () => {
     });
     await waitFor(() => getFileUrl.mock.calls.length === 1);
 
-    expect(container.querySelector(".document-preview__name")?.textContent).toBe("notes.bin");
+    expect(container.querySelector(".document-preview")?.getAttribute("aria-label")).toContain("notes.bin");
+    expect(container.querySelector(".document-preview__label")?.textContent).toBe("Binary file · BIN");
     expect(container.querySelector(".native-image-preview")).toBeNull();
     expect(container.querySelector(".document-surface-host")?.getAttribute("data-transitioning")).toBe("true");
     expect(container.querySelector('[data-surface-key="notes.bin"]')?.getAttribute("data-surface-state")).toBe("committed");

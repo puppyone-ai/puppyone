@@ -138,6 +138,7 @@ export class AcpRuntimeAdapter {
     sessionTitles = {},
     authenticationMethodId = null,
     authenticationMethodSelector = null,
+    isAlreadyAuthenticated = null,
     capabilityOverrides = {},
     referenceInputProfile = {},
     questionMethods = [],
@@ -178,6 +179,9 @@ export class AcpRuntimeAdapter {
     this.authenticationMethodId = text(authenticationMethodId, 160) || null;
     this.authenticationMethodSelector = typeof authenticationMethodSelector === "function"
       ? authenticationMethodSelector
+      : null;
+    this.isAlreadyAuthenticated = typeof isAlreadyAuthenticated === "function"
+      ? isAlreadyAuthenticated
       : null;
     this.authenticatedMethodId = null;
     this.capabilityOverrides = capabilityOverrides;
@@ -511,7 +515,11 @@ export class AcpRuntimeAdapter {
     if (authenticationMethodId) {
       const advertised = this.client.authMethods.some((method) => method?.id === authenticationMethodId);
       if (!advertised) throw new Error(`${this.runtimeDescriptor.displayName} did not advertise the required authentication method.`);
-      await this.client.authenticate({ methodId: authenticationMethodId });
+      const alreadyAuthenticated = await this.isAlreadyAuthenticated?.({
+        client: this.client,
+        authenticationMethodId,
+      }) === true;
+      if (!alreadyAuthenticated) await this.client.authenticate({ methodId: authenticationMethodId });
       this.authenticatedMethodId = authenticationMethodId;
     }
   }

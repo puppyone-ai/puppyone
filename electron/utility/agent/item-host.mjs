@@ -31,6 +31,12 @@ runItemHost({
       runtimeRegistry: createRuntimeRegistry({
         appVersion: identity.appVersion,
         ...identity.runtimeEnvironment,
+        ...(identity.modelConnectionsEnabled ? { puppyOneAgent: { modelConnectionPort: {
+          read: () => callMain("model-connections:read", []),
+          acquire: (route) => callMain("model-connections:acquire", [route]),
+          validate: (leaseId, route) => callMain("model-connections:validate", [leaseId, route]),
+          release: (leaseId) => callMain("model-connections:release", [leaseId]),
+        } } } : {}),
       }),
       sessionCache: createAgentSessionRepository({ eventCache: createEphemeralAgentSessionCache(), conversationCatalog: catalog }),
       conversationCatalog: catalog,

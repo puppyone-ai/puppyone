@@ -10,10 +10,9 @@ import {
 } from "../code-block/codeBlockModel";
 import {
   getMermaidThemeSnapshot,
-  mountSanitizedMermaidSvg,
+  peekMermaidDiagram,
   renderMermaidDiagram,
   subscribeMermaidThemeChanges,
-  type MermaidRenderResult,
 } from "./mermaidRenderer";
 import { MarkdownWidgetMeasureController } from "../../platform/codemirror/layoutCoordinator";
 import { estimateMermaidLayoutHeight } from "../code-block/codeBlockLayout";
@@ -32,6 +31,8 @@ import {
   MARKDOWN_RICH_BLOCK_EXECUTION,
   type MarkdownMountedBlockExecution,
 } from "../../core/plans/markdownBlockExecution";
+import { createMermaidViewportController } from "./mermaidViewportController";
+import { markdownTaskOwner } from "../../platform/codemirror/markdownTaskOwner";
 
 /**
  * Immutable Mermaid descriptor. Debounce, theme subscription, measure, and
@@ -95,6 +96,12 @@ export class MermaidBlockWidget extends WidgetType {
     let committed = false;
     let draftCode = recoveredDraft.code;
     let lastGoodSvg: string | null = null;
+    let lastThemeKey = "";
+    let loadingTimer: number | null = null;
+    const clearLoading = () => {
+      if (loadingTimer !== null) window.clearTimeout(loadingTimer);
+      loadingTimer = null;
+    };
     let textarea: HTMLTextAreaElement | null = null;
     let debounceTimer: number | null = null;
     let renderGeneration = 0;
@@ -106,7 +113,6 @@ export class MermaidBlockWidget extends WidgetType {
     const editButton = document.createElement("button");
     editButton.type = "button";
     editButton.className = "cm-md-mermaid-action";
-    toolbar.appendChild(editButton);
 
     const body = document.createElement("div");
     body.className = "cm-md-mermaid-body";
@@ -116,6 +122,12 @@ export class MermaidBlockWidget extends WidgetType {
     const errorStrip = document.createElement("div");
     errorStrip.className = "cm-md-mermaid-error";
     errorStrip.hidden = true;
+    const viewport = createMermaidViewportController({
+      preview,
+      t,
+      onGeometryChange: () => measure.schedule(),
+    });
+    toolbar.append(viewport.controls, editButton);
 
     const clearDebounce = () => {
       if (debounceTimer !== null) {
@@ -219,6 +231,7 @@ export class MermaidBlockWidget extends WidgetType {
     const runRender = (source: string) => {
       disposeActiveRender();
       const theme = getMermaidThemeSnapshot(view.dom);
+      lastThemeKey = theme.key;
       const generation = ++renderGeneration;
       let abortKey = "";
       const executionSession = host.executionSessions.create({
@@ -254,7 +267,8 @@ export class MermaidBlockWidget extends WidgetType {
         .run({
           key: renderKey,
           principal: executionSession.principal,
-          run: async () => renderMermaidDiagram({ source, theme }),
+          run: async (controller) => renderMermaidDiagram({ source, theme, signal: controller.signal,
+            owner: view.state.facet(markdownTaskOwner) ?? undefined }),
         })
         .then((result) => {
           if (!host.executionSessions.get(executionSession.id)) return;
@@ -263,7 +277,10 @@ export class MermaidBlockWidget extends WidgetType {
             return;
           }
           lastGoodSvg = result.value.svg;
-          setMermaidPreviewSvg(preview, result.value, (href) => openMarkdownHref(href, view));
+          clearLoading();
+          preview.classList.remove("is-loading");
+          preview.dataset.mermaidCacheKey = result.value.cacheKey;
+          viewport.mount(result.value.svg, (href) => openMarkdownHref(href, view));
           errorStrip.hidden = true;
           errorStrip.textContent = "";
           removeMermaidSourceFallback(preview);
@@ -278,8 +295,12 @@ export class MermaidBlockWidget extends WidgetType {
           }
           preview.classList.remove("is-loading");
           showMermaidError(errorStrip, error instanceof Error ? error : new Error(String(error)), t);
-          if (lastGoodSvg) mountMermaidPreviewSvg(preview, lastGoodSvg, (href) => openMarkdownHref(href, view));
-          else preview.replaceChildren(createMermaidSourceFallback(source, t));
+          clearLoading();
+          if (lastGoodSvg) viewport.mount(lastGoodSvg, (href) => openMarkdownHref(href, view));
+          else {
+            viewport.clear();
+            preview.replaceChildren(createMermaidSourceFallback(source, t));
+          }
           measure.schedule();
           executionSession.dispose();
         });
@@ -287,9 +308,13 @@ export class MermaidBlockWidget extends WidgetType {
 
     const renderPreview = (delayMs: number) => {
       const source = textarea?.value ?? draftCode;
+      clearLoading();
+      clearDebounce();
+      disposeActiveRender();
       if (!activated && !editing) {
         clearDebounce();
         disposeActiveRender();
+        viewport.clear();
         preview.classList.remove("is-loading");
         preview.replaceChildren(createDeferredMermaidPlaceholder(t, () => {
           activated = true;
@@ -297,9 +322,28 @@ export class MermaidBlockWidget extends WidgetType {
         }));
         return;
       }
+      const theme = getMermaidThemeSnapshot(view.dom);
+      lastThemeKey = theme.key;
+      try {
+        const cached = peekMermaidDiagram(source, theme);
+        if (cached) {
+          if (lastGoodSvg !== cached.svg) viewport.mount(cached.svg, (href) => openMarkdownHref(href, view));
+          lastGoodSvg = cached.svg;
+          preview.dataset.mermaidCacheKey = cached.cacheKey;
+          preview.classList.remove("is-loading");
+          errorStrip.hidden = true;
+          measure.schedule();
+          return;
+        }
+      } catch { /* Render reports validation errors through the normal error surface. */ }
       if (!lastGoodSvg) {
+        viewport.clear();
         preview.classList.add("is-loading");
-        preview.replaceChildren(createMermaidLoadingElement(t));
+        preview.replaceChildren();
+        loadingTimer = window.setTimeout(() => {
+          loadingTimer = null;
+          preview.replaceChildren(createMermaidLoadingElement(t));
+        }, 150);
       }
       clearDebounce();
       if (delayMs <= 0) {
@@ -350,7 +394,7 @@ export class MermaidBlockWidget extends WidgetType {
         else openEditor();
       };
 
-      if (!readOnly) shell.appendChild(toolbar);
+      shell.appendChild(toolbar);
 
       if (editing) {
         preview.onclick = (event) => {
@@ -424,14 +468,17 @@ export class MermaidBlockWidget extends WidgetType {
     renderSurface();
     measure.observe(shell);
     const unsubscribeTheme = subscribeMermaidThemeChanges(() => {
+      if (getMermaidThemeSnapshot(view.dom).key === lastThemeKey) return;
       renderPreview(0);
       measure.schedule();
     });
 
     host.sessions.mount(shell, () => ({
       dispose() {
+        clearLoading();
         clearDebounce();
         disposeActiveRender();
+        viewport.destroy();
         renderGeneration += 1;
         measure.destroy();
         unsubscribeTheme();
@@ -476,25 +523,6 @@ function readMermaidDraft(value: unknown, fallback: MermaidDraft): MermaidDraft 
     code: typeof candidate.code === "string" ? candidate.code : fallback.code,
     language: typeof candidate.language === "string" ? candidate.language : fallback.language,
   };
-}
-
-function setMermaidPreviewSvg(
-  preview: HTMLElement,
-  result: MermaidRenderResult,
-  openHref: (href: string) => void,
-) {
-  preview.classList.remove("is-loading");
-  preview.dataset.mermaidCacheKey = result.cacheKey;
-  mountMermaidPreviewSvg(preview, result.svg, openHref);
-}
-
-function mountMermaidPreviewSvg(
-  preview: HTMLElement,
-  svg: string,
-  openHref: (href: string) => void,
-) {
-  const mount = mountSanitizedMermaidSvg(preview, svg, openHref);
-  mount.element.classList.add("cm-md-mermaid-svg-root");
 }
 
 function showMermaidError(

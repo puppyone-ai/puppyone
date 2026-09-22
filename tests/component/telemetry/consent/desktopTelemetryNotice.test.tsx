@@ -84,12 +84,12 @@ describe("OnboardingTelemetryDisclosure", () => {
 
     const disclosure = container.querySelector<HTMLAnchorElement>(".onboarding-telemetry-disclosure a");
     expect(disclosure?.href).toBe(
-      "https://github.com/puppyone-ai/puppyone-desktop/blob/main/README.md#privacy",
+      "https://github.com/puppyone-ai/puppyone/blob/main/README.md#privacy",
     );
     await act(async () => disclosure?.click());
 
     expect(bridge.openExternalUrl).toHaveBeenCalledWith(
-      "https://github.com/puppyone-ai/puppyone-desktop/blob/main/README.md#privacy",
+      "https://github.com/puppyone-ai/puppyone/blob/main/README.md#privacy",
     );
   });
 });

@@ -139,7 +139,7 @@ if (DESKTOP_STABLE_TELEMETRY_INGEST_URL !== null && !/"TELEMETRY_MODE"\s*:\s*"ac
 const publicTelemetrySource = await readText("src/features/telemetry/publicDisclosure.ts");
 requireSource(
   publicTelemetrySource,
-  "https://github.com/puppyone-ai/puppyone-desktop/blob/main/README.md#privacy",
+  "https://github.com/puppyone-ai/puppyone/blob/main/README.md#privacy",
   "the product must link to the disclosure in the public Desktop repository",
 );
 const publicReadme = await readText("README.md");

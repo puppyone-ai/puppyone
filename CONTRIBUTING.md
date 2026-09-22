@@ -5,7 +5,7 @@ Thanks for considering contributing to puppyone desktop.
 ## Setup
 
 ```bash
-git clone https://github.com/puppyone-ai/puppyone-desktop.git
+git clone https://github.com/puppyone-ai/puppyone.git
 cd puppyone-desktop
 npm install
 npm run dev

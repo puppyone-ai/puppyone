@@ -3,6 +3,7 @@ import { AgentOperationError } from "../../application/agent-error";
 import type { AgentClientPort, AgentClientProvider } from "../../application/AgentClientPort";
 import type { ProjectSessionContext } from "../../../../../shared/project-session-contract/types";
 import { createAgentSessionClient } from "./agentSessionClient";
+import { createManagedAgentClient } from "./agentExecutionClient";
 
 const clients = new WeakMap<object, AgentClientPort>();
 
@@ -26,20 +27,21 @@ export const getElectronAgentClient: AgentClientProvider = () => {
     // `agent:providers-discover` is the stable IPC compatibility name. The
     // feature-facing port uses product-accurate runtime vocabulary.
     discoverAgentRuntimes: methods.discoverAgentProviders,
+    manageAgentExecutions: () => bridge.openItemExecutionManager(),
   } as unknown as AgentClientPort;
   clients.set(bridge, client);
   return client;
 };
 
 /** Each project controller owns a transcript port; session commands remain Main-authorized. */
-export function createElectronProjectAgentClient(context: ProjectSessionContext): AgentClientProvider {
+export function createElectronProjectAgentClient(context: ProjectSessionContext, itemId: string = crypto.randomUUID()): AgentClientProvider {
   let client: AgentClientPort | undefined;
   return createProjectAgentClientProvider(context, () => {
     if (client) return client;
     const bridge = window.puppyoneDesktop;
     const base = getElectronAgentClient();
     if (!bridge || !base) return undefined;
-    client = createAgentSessionClient(base, context, bridge.connectAgentSession, bridge.onSessionRuntimeFailure);
+    client = createManagedAgentClient(createAgentSessionClient(base, context, bridge.connectAgentSession, bridge.onSessionRuntimeFailure), bridge, context, itemId);
     return client;
   });
 }

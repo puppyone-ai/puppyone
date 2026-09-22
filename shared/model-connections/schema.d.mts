@@ -1,0 +1,12 @@
+import type { ModelConnectionSnapshot, ModelConnectionDriver, SaveModelConnectionRequest } from "./types";
+export const MODEL_CONNECTION_DRIVERS: readonly ModelConnectionDriver[];
+export const MODEL_CONNECTION_LIMITS: Readonly<{ connections: number; models: number; keyBytes: number; responseBytes: number }>;
+export function assertConnectionSnapshot(value: unknown): ModelConnectionSnapshot;
+export function connectionError(code: string): Error & { code: string };
+export function normalizeModelBaseUrl(value: unknown): string;
+export function isLoopbackHost(host: string): boolean;
+export function connectionId(value: unknown): string;
+export function modelRoute(connection: string, modelId: string): string;
+export function parseModelRoute(value: unknown): { connectionId: string; modelId: string };
+export function parseConnectionCommand(command: "save", raw: unknown): SaveModelConnectionRequest;
+export function parseConnectionCommand(command: string, raw: unknown): Record<string, unknown>;

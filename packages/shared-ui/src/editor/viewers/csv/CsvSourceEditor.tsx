@@ -67,6 +67,7 @@ export function CsvSourceEditor({
 
   return (
     <PlainTextEditor
+      textSelectionScope="csv"
       content={value}
       nodeName={nodeName}
       readOnly={readOnly}

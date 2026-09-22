@@ -1,5 +1,6 @@
 /** @vitest-environment happy-dom */
 import { EditorState } from "@codemirror/state";
+import { forceParsing, syntaxTree } from "@codemirror/language";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMarkdownLinkGraph } from "../../../../../../packages/shared-ui/src/editor/markdown/core/links/markdownLinkGraph";
@@ -8,6 +9,7 @@ import {
   markdownLivePreviewExtension,
 } from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
 import type { MarkdownLinkCommands } from "../../../../../../packages/shared-ui/src/editor/registry/viewerTypes";
+import { openMarkdownHref } from "../../../../../../packages/shared-ui/src/editor/markdown/core/editor/markdownLivePreviewContext";
 
 const views: EditorView[] = [];
 
@@ -17,6 +19,60 @@ afterEach(() => {
 });
 
 describe("Markdown live-preview link activation", () => {
+  it("resolves an empty explicit HTML anchor without a mounted target DOM element", () => {
+    const source = '[Jump](#target)\n\n<a id="target"></a>\n\nBody';
+    const view = createView(source, {});
+    expect(getLink(view).dataset.mdLinkInteraction).toBe("navigate");
+    expect(view.contentDOM.querySelector("#md-doc-target")).toBeNull();
+    const scroll = vi.spyOn(EditorView, "scrollIntoView");
+    try {
+      expect(openMarkdownHref("#target", view)).toBe(true);
+      expect(scroll).toHaveBeenCalledWith(source.indexOf("<a"), { y: "start" });
+    } finally {
+      scroll.mockRestore();
+    }
+  });
+
+  it("updates remote link affordances when a target is removed and restored", () => {
+    const source = '[Jump](#target)\n\nUnrelated paragraph\n\nMore body\n\n<a id="target"></a>';
+    const view = createView(source, {});
+    const from = source.indexOf('id="target"') + 4;
+    view.dispatch({ changes: { from, to: from + 6, insert: "renamed" } });
+    expect(getLink(view).dataset.mdLinkInteraction).toBe("unavailable");
+    expect(openMarkdownHref("#target", view)).toBe(false);
+    view.dispatch({ changes: { from, to: from + 7, insert: "target" } });
+    expect(getLink(view).dataset.mdLinkInteraction).toBe("navigate");
+    expect(openMarkdownHref("#target", view)).toBe(true);
+  });
+
+  it("updates a visible link when parsing reaches a target outside the viewport", () => {
+    const source = '[Jump](#target)\n\n' + 'Unrelated paragraph.\n\n'.repeat(400) + '<a id="target"></a>';
+    const view = createView(source, {});
+    expect(syntaxTree(view.state).length).toBeLessThan(source.length);
+    expect(getLink(view).dataset.mdLinkInteraction).toBe("unavailable");
+    expect(forceParsing(view, source.length, 1000)).toBe(true);
+    expect(getLink(view).dataset.mdLinkInteraction).toBe("navigate");
+    expect(openMarkdownHref("#target", view)).toBe(true);
+  });
+
+  it.each(['[Jump](#target)', '[[#target]]', '<a href="#target">Jump</a>'])(
+    "routes %s through the same explicit target resolver",
+    (linkSource) => {
+      const source = `${linkSource}\n\n<a id="target"></a>`;
+      const view = createView(source, {});
+      const link = view.contentDOM.querySelector<HTMLElement>('[data-md-link-interaction="navigate"]')!;
+      expect(link).not.toBeNull();
+      const scroll = vi.spyOn(EditorView, "scrollIntoView");
+      try {
+        link.focus();
+        link.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+        expect(scroll).toHaveBeenCalledExactlyOnceWith(source.lastIndexOf('<a id='), { y: "start" });
+      } finally {
+        scroll.mockRestore();
+      }
+    },
+  );
+
   it("projects navigation semantics from the same executable policy used by events", () => {
     const view = createView([
       "[Section](#section)",

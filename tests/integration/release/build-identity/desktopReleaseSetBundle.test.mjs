@@ -96,14 +96,14 @@ async function writeBundle({ bundleDirectory, buildInfo, target }) {
     publishedAt: buildInfo.builtAt,
     promotionSourceTag: "v1.2.3-internal.41",
     publisherNames: [],
-    repository: "puppyone-ai/puppyone-desktop",
+    repository: "puppyone-ai/puppyone",
     r2Prefix: isMacos
       ? "desktop/stable/mac/v1.2.3"
       : "desktop/stable/windows/v1.2.3/x64",
     tag: "v1.2.3",
     target,
     version: "1.2.3",
-    workflowRunUrl: "https://github.com/puppyone-ai/puppyone-desktop/actions/runs/42",
+    workflowRunUrl: "https://github.com/puppyone-ai/puppyone/actions/runs/42",
   });
   await Promise.all([
     fs.writeFile(path.join(bundleDirectory, "release.json"), jsonFile(manifest), "utf8"),

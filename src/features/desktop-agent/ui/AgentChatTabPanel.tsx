@@ -1,5 +1,5 @@
 import type { AgentViewportGeometry } from "../domain/agent-ui-state";
-import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
 import type { AgentSessionController } from "../application/AgentSessionController";
@@ -15,6 +15,8 @@ import { AgentComposer, DEFAULT_AGENT_COMPOSER_PLACEHOLDER_ID } from "./AgentCom
 import { AgentEmptyState } from "./AgentEmptyState";
 import { AgentPanelLayout } from "./AgentPanelLayout";
 import { AgentPanelStatus } from "./AgentPanelStatus";
+import { BuiltInAgentCompute, type ComputeAccessRequired } from "./built-in-agent/BuiltInAgentCompute";
+import type { AgentSessionControlId } from "../domain/agent-session-controls";
 import { AgentQuestionDock } from "./AgentQuestionDock";
 import { AgentRecoverySurface } from "./AgentRecoverySurface";
 import { AgentRuntimeLauncher } from "./AgentRuntimeLauncher";
@@ -35,6 +37,8 @@ type AgentChatTabPanelProps = {
   workspaceId: string;
   onPresentationChange: (presentation: AgentChatTabPresentation) => void;
   onOpenFile?: (path: string) => void;
+  onOpenAccount: () => void;
+  onOpenModelConnections: () => void;
   preferredRuntimeId: string | null;
   onPreferredRuntimeChange?: (runtimeId: string | null) => void;
   preferredRoute: Readonly<AgentRoutePreference>;
@@ -53,6 +57,8 @@ export function AgentChatTabPanel({
   workspaceId,
   onPresentationChange,
   onOpenFile,
+  onOpenAccount,
+  onOpenModelConnections,
   preferredRuntimeId,
   onPreferredRuntimeChange,
   preferredRoute,
@@ -64,10 +70,21 @@ export function AgentChatTabPanel({
 }: AgentChatTabPanelProps) {
   const { t } = useLocalization();
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
+  const [pendingConnectionModel, setPendingConnectionModel] = useState<string | null>(null);
+  const [computeReady, setComputeReady] = useState(false);
+  const [computeReset, setComputeReset] = useState(0);
+  const [computeAccessRequired, setComputeAccessRequired] = useState<ComputeAccessRequired>(null);
+  const [computeAccessPrompt, setComputeAccessPrompt] = useState(false);
+  const selectedModelCapabilities = state.inspection?.models.find((model) => model.model === state.selectedModel)?.modelCapabilities;
+  const referenceCapabilities = useMemo(() => {
+    const base = state.inspection?.capabilities?.referenceInputs;
+    if (!base || !state.inspection?.capabilities?.modelConnections) return base;
+    return { ...base, attachments: { ...base.attachments, image: { ...base.attachments.image, accepted: selectedModelCapabilities?.images === "supported" } } };
+  }, [state.inspection?.capabilities, selectedModelCapabilities]);
   const referenceIngestion = useAgentReferenceIngestion({
     controller,
     workspaceId,
-    capabilities: state.inspection?.capabilities?.referenceInputs,
+    capabilities: referenceCapabilities,
     resolveWorkspaceReference,
   });
   const inspection = state.inspection;
@@ -82,6 +99,10 @@ export function AgentChatTabPanel({
   const failed = state.phase === "failed" || state.phase === "runtime-exited";
   const hasCommittedTranscript = [state.projection.rows, state.projection.parts, state.projection.messages, state.projection.activities]
     .some((entries) => entries.length > 0);
+  // An unconfigured first-use connection is onboarding, not a failed Agent session.
+  // Saved routes, history, credentials errors and actual runtime failures retain recovery UI.
+  const computeOnboarding = Boolean(capabilities?.modelConnections && readiness?.code === "RUNTIME_SETUP_REQUIRED"
+    && !state.selectedModel && !state.session && !hasCommittedTranscript && !state.error && !failed);
   const startupLoading = presented && (!state.initialized || loading) && !state.pendingPrompt && !hasCommittedTranscript;
   const sessionKey = useTranscriptScope(controller, state.session?.id ?? null, state.selectedRuntimeId);
   const viewport = useMemo(() => ({ sessionKey, value: controller.readViewport() }), [controller, sessionKey]).value;
@@ -107,9 +128,11 @@ export function AgentChatTabPanel({
     selectedModel: state.selectedModel,
   }), [inspection, state.selectedEffort, state.selectedMode, state.selectedModel]);
   const modelSelectionAvailable = Boolean(capabilities?.modelSelection);
-  const routingReady = Boolean(agentRuntimeSelected && (!modelSelectionAvailable || (
+  const routingReady = Boolean(agentRuntimeSelected && !pendingConnectionModel && (!capabilities?.modelConnections || computeReady) && (!modelSelectionAvailable || (
     state.selectedModel && runtimeModels.some((model) => model.model === state.selectedModel)
   )) && routingPreferences.preferencesReady);
+  const canRequestComputeAccess = Boolean(capabilities?.modelConnections && agentRuntimeSelected && computeAccessRequired
+    && !pendingConnectionModel && !failed && !state.error && (computeOnboarding || !unavailable));
   const preparingSession = state.sessionPreparation === "preparing";
   const submissionPending = state.submitting || Boolean(state.pendingPrompt);
   // Main admission replaces the local preview before the native turn starts.
@@ -119,7 +142,7 @@ export function AgentChatTabPanel({
     ? !state.session || preparingSession ? "preparing-session" : "starting-turn"
     : null;
   useAgentSessionPreparation(controller, state, commandTarget && routingReady);
-  const composerPlaceholder = unavailable || failed
+  const composerPlaceholder = computeOnboarding ? t(DEFAULT_AGENT_COMPOSER_PLACEHOLDER_ID) : unavailable || failed
     ? t("agent.composer.placeholder.preparing")
     : !agentRuntimeSelected
       ? t("agent.composer.placeholder.chooseAgent")
@@ -134,13 +157,13 @@ export function AgentChatTabPanel({
     ? "needs-attention"
     : state.session ? sessionStatusCode(sessionStatus) : readinessStatusCode(readiness);
   const title = state.session?.title || (agentRuntimeSelected ? runtimeLabel : t("agent.header.newChat"));
-  const hasStatus = unavailable || failed || Boolean(state.error);
+  const hasStatus = (unavailable && !computeOnboarding) || failed || Boolean(state.error);
   const hasSubmittedConversation = hasCommittedTranscript
     || Boolean(state.pendingPrompt)
     || Boolean(state.pendingIntent)
     || state.projection.approvals.length > 0
     || state.projection.questions.length > 0;
-  const showReadyEmptyState = routingReady
+  const showReadyEmptyState = (routingReady || computeOnboarding)
     && state.initialized
     && !loading
     && !hasStatus
@@ -165,7 +188,22 @@ export function AgentChatTabPanel({
   const handleDraftDocumentChange = useCallback((draft: string, mentions: AgentPromptReferenceMention[]) => {
     controller.setDraftDocument(draft, mentions);
   }, [controller]);
-  const handleSubmit = useCallback((prompt: string) => controller.submit(prompt), [controller]);
+  const handleSubmit = useCallback(async (prompt: string) => {
+    if (!routingReady && canRequestComputeAccess) {
+      setComputeAccessPrompt(true);
+      return false;
+    }
+    if (!routingReady) return false;
+    setComputeAccessPrompt(false);
+    return controller.submit(prompt);
+  }, [controller, routingReady, canRequestComputeAccess]);
+  const selectSessionControl = (id: AgentSessionControlId, value: string) => {
+    if (id === "model" && controller.requiresNewModelConnectionSession(value)) {
+      setPendingConnectionModel(value);
+      return;
+    }
+    routingPreferences.selectSessionControl(id, value);
+  };
 
   if (state.initialized && inspection && !agentRuntimeSelected && !loading && !failed) {
     return <AgentPanelLayout
@@ -183,10 +221,13 @@ export function AgentChatTabPanel({
     ariaLabel={t("agent.panel.chat", { agent: bidiIsolate(runtimeLabel) })}
     phase={state.phase} announcement={referenceIngestion.announcement}
     onDragOver={referenceIngestion.onDragOver} onDrop={referenceIngestion.onDrop}
-    status={hasStatus ? <AgentPanelStatus
+    status={hasStatus || state.stopRequest || state.displayRecovery?.policy === "paused" || state.displayRecovery?.policy === "exhausted" ? <AgentPanelStatus
       unavailable={unavailable} failed={failed} error={state.error ?? (state.phase === "runtime-exited" ? { code: "runtime-exited", params: { runtime: runtimeLabel } } : null)}
       runtimeLabel={runtimeLabel} readiness={readiness ?? undefined}
       onRetry={() => void controller.initialize(true)}
+      recovery={state.displayRecovery} stopRequest={state.stopRequest}
+      onPauseRecovery={() => controller.pauseDisplayRecovery()} onRetryRecovery={() => void controller.retryDisplayRecovery()}
+      onManageExecutions={() => void controller.manageExecutions()}
     /> : null}
     conversationOverlay={showReadyEmptyState
       ? <AgentEmptyState runtimeIconKey={runtimeIconKey} runtimeLabel={runtimeLabel} />
@@ -202,6 +243,20 @@ export function AgentChatTabPanel({
       onViewportChange={handleViewportChange} onOpenFile={onOpenFile}
     />}
     dock={startupLoading ? null : <>
+      {capabilities?.modelConnections && <BuiltInAgentCompute key={`${state.selectedRuntimeId}:${state.selectedModel}:${computeReset}`}
+        models={runtimeModels} selectedModel={state.selectedModel} disabled={loading || submissionPending || Boolean(state.projection.runningTurnId)}
+        onSelectModel={(model) => selectSessionControl("model", model)} onCatalogChange={() => void controller.refreshModelConnections()}
+        onOpenAccount={onOpenAccount} onOpenModelConnections={onOpenModelConnections} onReadyChange={setComputeReady}
+        onAccessRequiredChange={setComputeAccessRequired} accessPrompt={computeAccessPrompt} />}
+      {capabilities?.readOnly && <p role="status">{t("settings.modelConnections.readOnly")}</p>}
+      {pendingConnectionModel && <div role="alertdialog" aria-label={t("settings.modelConnections.newConversation")}>
+        <p>{t("settings.modelConnections.switchWarning")}</p>
+        <button type="button" onClick={() => {
+          const model = pendingConnectionModel; setPendingConnectionModel(null);
+          void controller.startNewModelConnection(model);
+        }}>{t("settings.modelConnections.newConversation")}</button>
+        <button type="button" onClick={() => { setPendingConnectionModel(null); setComputeReset((value) => value + 1); }}>{t("common.action.cancel")}</button>
+      </div>}
       {state.projection.approvals[0] && <AgentApprovalDock
         key={state.projection.approvals[0].requestId}
         approval={state.projection.approvals[0]} queueLength={state.projection.approvals.length}
@@ -226,15 +281,15 @@ export function AgentChatTabPanel({
         focusRequest={focusRequest}
         draft={state.draft} draftMentions={state.draftMentions} onDraftChange={handleDraftChange}
         onDraftDocumentChange={handleDraftDocumentChange}
-        disabled={loading || unavailable || failed || !routingReady || state.projection.approvals.length > 0 || state.projection.questions.length > 0}
+        disabled={Boolean(capabilities?.readOnly) || state.replicaStatus === "stale" || state.replicaStatus === "subscribing" || loading || (unavailable && !canRequestComputeAccess) || failed || (!routingReady && !canRequestComputeAccess) || state.projection.approvals.length > 0 || state.projection.questions.length > 0}
         running={Boolean(state.projection.runningTurnId)} stopping={state.stopping} submitting={submissionPending}
         placeholder={composerPlaceholder} runtimeLabel={runtimeLabel}
         configurationDisabled={loading || submissionPending}
-        sessionControls={sessionControls}
-        onSelectSessionControl={routingPreferences.selectSessionControl}
+        sessionControls={capabilities?.modelConnections ? sessionControls.filter((control) => control.id !== "model") : sessionControls}
+        onSelectSessionControl={selectSessionControl}
         commands={capabilities?.slashCommands ? inspection?.commands ?? [] : []}
         references={state.references} getReferencePreviewUrl={controller.getReferencePreviewUrl}
-        referenceCapabilities={capabilities?.referenceInputs}
+        referenceCapabilities={referenceCapabilities}
         steerAvailable={Boolean(capabilities?.steer)} queueAvailable={Boolean(capabilities?.queue)}
         onRemoveReference={(id) => controller.removeReference(id)} onRetryReference={(id) => controller.retryReference(id)}
         onAddExternalFiles={referenceIngestion.addExternalFiles} onDrop={referenceIngestion.onEditorDrop}

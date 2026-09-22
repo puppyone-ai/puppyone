@@ -1,6 +1,7 @@
 import { displaySnapshot, withDisplayFeed } from "../../../support/agent/agentDisplayFixture";
 import { defineAgentEvent, type AgentEventPayloadMap } from "../../../support/agent/agentEventFixture";
-import { installDesktopBridge } from "../../../support/electron/desktopBridge";
+import { installDesktopBridge, type DesktopBridge } from "../../../support/electron/desktopBridge";
+import type { ModelConnectionSnapshot } from "../../../../shared/model-connections/types";
 /**
  * @vitest-environment happy-dom
  */
@@ -30,6 +31,98 @@ afterEach(() => {
 });
 
 describe("Project-owned Agent Chat Workbench lifecycle", () => {
+  it.each([
+    ["RUNTIME_SETUP_REQUIRED", false],
+    ["AUTHENTICATION_REQUIRED", true],
+    ["RUNTIME_VERSION_UNSUPPORTED", true],
+  ])("keeps first-use compute onboarding distinct from %s recovery", async (code, showRecovery) => {
+    const harness = createBridgeHarness();
+    const inspection = readyInspection();
+    const readiness = { ...inspection.readiness, status: "setup-required", code };
+    harness.bridge.discoverAgentProviders = vi.fn(async () => ({
+      ...inspection, readiness, models: [], providers: [], account: null,
+      runtimes: [{ ...inspection.runtimes[0], readiness }],
+      capabilities: { ...capabilities(), modelConnections: true },
+    }));
+    const container = renderPanel(harness.bridge);
+    await flushEffects(); await flushEffects();
+    expect(Boolean(container.querySelector(".desktop-agent-readiness"))).toBe(showRecovery);
+    expect(Boolean(container.querySelector(".desktop-agent-empty-state"))).toBe(!showRecovery);
+    expect(container.querySelector(".desktop-agent-compute-summary")?.textContent).toContain("Puppyone's token");
+    expect((container.querySelector('button[aria-label="Send message"]') as HTMLButtonElement).disabled).toBe(true);
+    expect(harness.bridge.createAgentSession).not.toHaveBeenCalled();
+  });
+
+  it("keeps the first draft through sign-in, grants access without checkout, and sends only on the next click", async () => {
+    const harness = createBridgeHarness();
+    const connectionId = "mc_11111111-1111-4111-8111-111111111111";
+    const model = { id: `${connectionId}/test-model`, model: `${connectionId}/test-model`, connectionId,
+      displayName: "Test model", description: "PuppyOne", isDefault: true };
+    let credit: ModelConnectionSnapshot = { schemaVersion: 1, revision: 100, connections: [], catalogs: [],
+      managed: { available: false, reason: "sign-in-required", signedIn: false, trialCreditMicroUsd: 1_000_000 } };
+    let observe: ((value: ModelConnectionSnapshot) => void) | undefined;
+    const result = async () => ({ ok: true as const, value: credit });
+    const managed = vi.fn(result);
+    const modelConnections: NonNullable<DesktopBridge["modelConnections"]> = {
+      read: result, save: result, remove: result, refresh: result, verify: result,
+      discover: async () => ({ ok: true, value: [] }), managed,
+      subscribe: (listener) => { observe = listener; return () => { observe = undefined; }; },
+    };
+    harness.bridge.discoverAgentProviders = vi.fn(async () => {
+      const inspection = readyInspection();
+      const readiness = credit.managed.available ? inspection.readiness
+        : { ...inspection.readiness, status: "setup-required", code: "RUNTIME_SETUP_REQUIRED" };
+      return { ...inspection, readiness, models: credit.managed.available ? [model] : [], providers: [], account: null,
+        runtimes: [{ ...inspection.runtimes[0], readiness }], capabilities: { ...capabilities(), modelConnections: true } };
+    });
+    harness.bridge.openAgentSession = vi.fn(async () => {
+      const opened = snapshot([]);
+      return { status: "opened", snapshot: { ...opened, models: [model], capabilities: { ...capabilities(), modelConnections: true },
+        session: { ...opened.session, selectedModel: model.model } } };
+    });
+    const container = renderPanel(harness.bridge, null, modelConnections);
+    await flushEffects(); await flushEffects();
+    const tabId = activeTabPanel(container).dataset.terminalSessionPaneId!;
+    const controller = projectAgentControllers(project).get(tabId);
+    act(() => controller.setDraft("Help me with this local project"));
+    expect(container.querySelector(".desktop-agent-access-prompt")).toBeNull();
+    const send = () => container.querySelector<HTMLButtonElement>('button[aria-label="Send message"]')!;
+    expect(send().disabled).toBe(false);
+    await act(async () => send().click());
+    expect(container.querySelector(".desktop-agent-access-prompt")?.textContent).toContain("Sign in to start");
+    expect(harness.bridge.startAgentTurn).not.toHaveBeenCalled();
+    expect(harness.bridge.createAgentSession).not.toHaveBeenCalled();
+    const signIn = [...container.querySelectorAll("button")].find((button) => button.textContent === "Sign in to start")!;
+    await act(async () => signIn.click());
+    expect(managed).toHaveBeenCalledWith({ action: "sign-in" });
+    credit = { ...credit, revision: 101,
+      managed: { available: false, reason: "loading", signedIn: true } };
+    await act(async () => observe?.(credit));
+    await flushEffects(); await flushEffects();
+    expect(container.querySelector(".desktop-agent-access-prompt")?.textContent).toContain("Connecting to compute…");
+    expect(container.textContent).not.toContain("Could not refresh Agent credits");
+    expect(controller.getSnapshot().draft).toBe("Help me with this local project");
+    expect(harness.bridge.startAgentTurn).not.toHaveBeenCalled();
+    credit = { ...credit, revision: 102,
+      managed: { available: true, reason: "ready", signedIn: true, availableMicroUsd: 1_000_000, trialGrantedMicroUsd: 1_000_000 },
+      connections: [{ id: connectionId, sourceKind: "managed", driver: "openai-compatible", name: "PuppyOne", baseUrl: "https://example.test/ai",
+        auth: "bearer", credentialConfigured: true, readOnly: true, configGeneration: 1, defaultModelId: "test-model", manualModelId: null,
+        manualContextWindow: null, serverToolsDisabled: true, transport: "remote", executionLocation: "unknown" }],
+      catalogs: [{ connectionId, configGeneration: 1, status: "ready", endpoint: "reachable", authentication: "valid", observedAt: null,
+        complete: true, models: [], errorCode: null }],
+    };
+    await act(async () => observe?.(credit));
+    await flushEffects(); await flushEffects();
+    expect(controller.getSnapshot().draft).toBe("Help me with this local project");
+    expect(container.querySelector(".desktop-agent-access-prompt")).toBeNull();
+    expect(harness.bridge.startAgentTurn).not.toHaveBeenCalled();
+    expect(managed).not.toHaveBeenCalledWith(expect.objectContaining({ action: "checkout" }));
+    expect(send().disabled).toBe(false);
+    await act(async () => send().click());
+    await flushEffects();
+    expect(harness.bridge.startAgentTurn).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps history out of the runtime chooser so choosing an Agent always starts a new chat", async () => {
     const harness = createBridgeHarness();
     const codex = {
@@ -387,8 +480,9 @@ describe("Project-owned Agent Chat Workbench lifecycle", () => {
 function renderPanel(
   bridge: ReturnType<typeof createBridgeHarness>["bridge"],
   preferredRuntimeId: string | null = null,
+  modelConnections?: DesktopBridge["modelConnections"],
 ) {
-  installDesktopBridge(bridge);
+  installDesktopBridge({ ...bridge, ...(modelConnections ? { modelConnections } : {}) });
   project = new ProjectWorkbenchStore({ projectId: "workspace", generation: "open-1", rootPath: "/workspace" });
   // Component assertions use the controlled feed port. Real MessagePorts are
   // exercised by session transport contracts and the complete Desktop workflow.
@@ -408,6 +502,8 @@ function renderPanelContent(preferredRuntimeId: string | null = null) {
     initialSnapshot: { title: "New chat", accessibleLabel: "New chat", detail: null, iconKey: null, status: "idle", running: false, resourceId: null },
     renderItem: (context) => React.createElement(AgentChatWorkbenchItem, {
       ...context, hiddenRuntimeIds: [], preferredRuntimeId, preferredRoute: {}, preferredModel: null,
+      onOpenAccount: vi.fn(),
+      onOpenModelConnections: vi.fn(),
     }),
     close: { decide: () => ({ kind: "close" }), commit: ({ project, item }) => requestCloseAgentChatWorkbenchItem(project, item.id) },
   };

@@ -5,6 +5,7 @@ import { fileURLToPath, URL } from "node:url";
 import path from "node:path";
 import { rendererOutputLeasePlugin } from "./tooling/desktop/build/renderer-output-lease-plugin.mjs";
 import { cascadeBootstrapPlugin } from "./tooling/styles/cascade-bootstrap-plugin.mjs";
+import { cloudConfigurationPlugin } from "./tooling/desktop/build/cloud-configuration-plugin.mjs";
 
 const DESKTOP_CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
@@ -41,7 +42,7 @@ const desktopContentSecurityPolicyPlugin: Plugin = {
 
 export default defineConfig({
   base: "./",
-  plugins: [rendererOutputLeasePlugin(), react(), cascadeBootstrapPlugin(), desktopContentSecurityPolicyPlugin],
+  plugins: [rendererOutputLeasePlugin(), cloudConfigurationPlugin(), react(), cascadeBootstrapPlugin(), desktopContentSecurityPolicyPlugin],
   clearScreen: false,
   resolve: {
     alias: [
@@ -102,6 +103,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         index: path.resolve(fileURLToPath(new URL("./", import.meta.url)), "index.html"),
+        mermaid: path.resolve(fileURLToPath(new URL("./", import.meta.url)), "mermaid-renderer.html"),
       },
     },
   },

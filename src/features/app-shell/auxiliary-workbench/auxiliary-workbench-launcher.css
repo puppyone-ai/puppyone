@@ -121,10 +121,8 @@
   outline-offset: 1px;
 }
 
-.desktop-terminal-launcher-scan.is-scanning svg {
-  animation: desktop-terminal-launcher-scan 900ms linear infinite;
-}
-
+/* Separate accessible lists, one visual row rhythm across their boundary. */
+.desktop-terminal-launcher-entries,
 .desktop-terminal-launcher-tools {
   display: grid;
   min-width: 0;
@@ -137,6 +135,9 @@
   min-width: 0;
 }
 
+.desktop-terminal-launcher-entries:not(:has(> :not(:empty))),
+.desktop-terminal-launcher-tools:empty { display: none; }
+
 .desktop-terminal-launcher-availability {
   position: absolute;
   width: 1px;
@@ -148,6 +149,45 @@
   clip: rect(0 0 0 0);
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+.desktop-terminal-launcher-discovery {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-content: center;
+  align-items: start;
+  color: var(--po-text-subtle);
+  overflow-wrap: anywhere;
+}
+
+.desktop-terminal-launcher-discovery-icon {
+  display: grid;
+  width: 18px;
+  height: var(--po-type-right-sidebar-control-line-height, 19px);
+  place-items: center;
+}
+
+.desktop-terminal-launcher-discovery-spinner {
+  box-sizing: border-box;
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid var(--po-border);
+  border-block-start-color: currentColor;
+  border-radius: 50%;
+  animation: desktop-terminal-launcher-scanning 900ms linear infinite;
+}
+
+@keyframes desktop-terminal-launcher-scanning {
+  to { transform: rotate(360deg); }
+}
+
+.desktop-terminal-launcher-heading h2:focus-visible {
+  outline: 1px solid var(--po-focus-ring);
+  outline-offset: 2px;
+}
+
+.desktop-terminal-launcher-discovered {
+  animation: desktop-terminal-launcher-discovered 140ms ease-out;
 }
 
 .desktop-terminal-launcher-error {
@@ -179,18 +219,26 @@
   display: none;
 }
 
+/* Status rows align with actions without inheriting button interaction. */
+.desktop-terminal-launcher-discovery,
+.desktop-terminal-launcher-tool,
+.desktop-terminal-launcher-shell,
+.desktop-terminal-launcher-history {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: var(--po-control-size-large);
+  gap: 9px;
+  padding: 5px 8px;
+  border: 1px solid transparent;
+}
+
 .desktop-terminal-launcher-tool,
 .desktop-terminal-launcher-shell,
 .desktop-terminal-launcher-history {
   position: relative;
   display: flex;
   width: 100%;
-  min-width: 0;
-  min-height: var(--po-control-size-large);
   align-items: center;
-  gap: 9px;
-  padding: 5px 8px;
-  border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
   color: var(--po-text-muted);
@@ -235,14 +283,22 @@
   box-shadow: inset 0 0 0 1px var(--po-focus-ring);
 }
 
+/* Discovery copy and usable rows share a scale; regular weight matches the
+ * left sidebar without coupling this surface to its size preferences. */
+.desktop-terminal-launcher-discovery,
+.desktop-terminal-launcher-tool > span:last-child,
+.desktop-terminal-launcher-shell > span:last-child,
+.desktop-terminal-launcher-history > span:last-child {
+  font-size: var(--po-type-right-sidebar-content, 14px);
+  font-weight: var(--po-text-weight-regular, 400);
+  line-height: var(--po-type-right-sidebar-control-line-height, 19px);
+}
+
 .desktop-terminal-launcher-tool > span:last-child,
 .desktop-terminal-launcher-shell > span:last-child,
 .desktop-terminal-launcher-history > span:last-child {
   min-width: 0;
   overflow: hidden;
-  font-size: var(--po-type-right-sidebar-content, 14px);
-  font-weight: 500;
-  line-height: var(--po-type-right-sidebar-control-line-height, 19px);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -279,10 +335,9 @@
   color: currentColor;
 }
 
-@keyframes desktop-terminal-launcher-scan {
-  to {
-    transform: rotate(1turn);
-  }
+@keyframes desktop-terminal-launcher-discovered {
+  from { opacity: 0.4; }
+  to { opacity: 1; }
 }
 
 @container (min-width: 460px) {
@@ -298,7 +353,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .desktop-terminal-launcher-scan.is-scanning svg {
+  .desktop-terminal-launcher-discovered,
+  .desktop-terminal-launcher-discovery-spinner {
     animation: none;
   }
 }
@@ -307,6 +363,7 @@
   position: fixed;
   inset: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) auto;
   place-items: center;
   padding: 32px;

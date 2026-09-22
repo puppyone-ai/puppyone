@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { matchMarkdownFormatHotkey } from "../../../../../../packages/shared-ui/src/editor/markdown/core/commands/markdownFormatHotkeys";
 
 describe("Markdown format hotkeys", () => {
-  it("matches MarkText-style inline format shortcuts", () => {
+  it("matches the product inline-format shortcut contract", () => {
     expect(matchMarkdownFormatHotkey(createHotkey({ key: "b", metaKey: true }))).toBe("strong");
     expect(matchMarkdownFormatHotkey(createHotkey({ key: "i", metaKey: true }))).toBe("emphasis");
     expect(matchMarkdownFormatHotkey(createHotkey({ key: "u", metaKey: true }))).toBe("underline");

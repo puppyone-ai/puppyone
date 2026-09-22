@@ -43,6 +43,27 @@ afterEach(() => {
 });
 
 describe("Unified Workbench blank launcher flow", () => {
+  it.each(["chat", "terminal"])("does not let a failed activation receipt hide an installed CLI in the %s launcher", async mode => {
+    installTerminalAgentBridge(["codex", "cursor"]);
+    const read = vi.fn(async () => ({ epoch: "fixture", revision: 1, operations: [{
+      operationId: "old-codex", setupId: "codex", displayName: "Codex", status: "failed", installed: true,
+      errorCode: "installation", updatedAt: 1,
+      steps: ["prepare", "install", "verify"].map(id => ({ id, status: "complete" })),
+    }] }));
+    Object.assign(window.puppyoneDesktop!, { localAgentActivation: { read, subscribe: () => () => {} } });
+    const container = document.createElement("div"); document.body.appendChild(container); root = createRoot(container);
+    await act(async () => root?.render(withTestLocalization(<RightTerminalPanel active hiddenAgentIds={[]}
+      workspace={WORKSPACE} contributions={mode === "chat" ? [fakeChatContribution(new Map())] : []} />)));
+    expect(read).toHaveBeenCalled();
+    await vi.waitFor(() => {
+      const codex = Array.from(document.querySelectorAll<HTMLButtonElement>(".desktop-terminal-launcher-tool"))
+        .find(button => button.textContent?.trim() === "Codex");
+      expect(codex).toBeDefined(); expect(codex!.disabled).toBe(false);
+    });
+    expect(document.querySelector("[aria-label='Activate Codex']")).toBeNull();
+    if (mode === "chat") { await clickButton("Codex"); expect(document.querySelector('[data-fake-chat="codex"]')).not.toBeNull(); }
+  });
+
   it("intersects discovered Agents with the Active Chat visibility settings", async () => {
     installTerminalAgentBridge(["codex", "claude"]);
     const contribution = fakeChatContribution(new Map());

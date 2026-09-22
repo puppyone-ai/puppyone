@@ -17,7 +17,12 @@ afterEach(() => {
 });
 
 describe("Experimental settings", () => {
-  it("offers an off-by-default Built-in Agent opt-in", () => {
+  it.each([
+    ["Notion import", "enableNotionImport"],
+    ["Google Drive import", "enableGoogleDriveImport"],
+    ["Airtable import", "enableAirtableImport"],
+    ["Obsidian import", "enableObsidianImport"],
+  ] as const)("offers an off-by-default %s source", (label, settingKey) => {
     const onChange = vi.fn();
     const host = document.createElement("div");
     document.body.append(host);
@@ -31,15 +36,26 @@ describe("Experimental settings", () => {
       />,
     )));
 
-    const toggle = host.querySelector<HTMLInputElement>('input[aria-label="Built-in Agent"]');
-    expect(toggle).not.toBeNull();
+    const toggle = host.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`);
     expect(toggle?.checked).toBe(false);
-
     act(() => toggle?.click());
     expect(onChange).toHaveBeenCalledWith({
       ...DEFAULT_EXPERIMENTAL_SETTINGS,
-      enableBuiltInAgent: true,
+      [settingKey]: true,
     });
+  });
+
+  it("keeps Cloud experimental while Built-in Agent is publicly available", () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    act(() => root?.render(withTestLocalization(
+      <ExperimentalSettingsView settings={DEFAULT_EXPERIMENTAL_SETTINGS}
+        assetLibraryHomeAvailable={false} onChange={vi.fn()} />,
+    )));
+    expect(host.querySelector('input[aria-label="Built-in Agent"]')).toBeNull();
+    expect(DEFAULT_EXPERIMENTAL_SETTINGS.enableBuiltInAgent).toBe(true);
+    expect(DEFAULT_EXPERIMENTAL_SETTINGS.enableCloudWorkspace).toBe(false);
   });
 
   it("offers an off-by-default cross-Project switcher rail", () => {
@@ -114,14 +130,8 @@ describe("Experimental settings", () => {
     const toggle = host.querySelector<HTMLInputElement>(
       'input[aria-label="First project starting point"]',
     );
-    expect(toggle).not.toBeNull();
-    expect(toggle?.checked).toBe(false);
-
-    act(() => toggle?.click());
-    expect(onChange).toHaveBeenCalledWith({
-      ...DEFAULT_EXPERIMENTAL_SETTINGS,
-      enableFirstProjectStarter: true,
-    });
+    expect(toggle).toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("offers an off-by-default Automation opt-in", () => {

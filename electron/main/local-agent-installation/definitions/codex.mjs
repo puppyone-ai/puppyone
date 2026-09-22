@@ -1,4 +1,5 @@
 import path from "node:path";
+import { managedInstallationCandidate } from "../managed-installation-layout.mjs";
 
 export const codexInstallationDefinition = Object.freeze({
   id: "codex",
@@ -18,6 +19,7 @@ export const codexInstallationDefinition = Object.freeze({
         }
         : null,
       { path: path.join(homedir, ".local", "bin", executable), source: "product-fallback" },
+      ...managedInstallationCandidate({ homedir, platform }, "codex"),
     ].filter(Boolean);
   },
 });

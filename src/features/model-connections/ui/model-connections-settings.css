@@ -1,0 +1,117 @@
+@layer features {
+  .model-connections-section { min-width: 0; }
+
+  .model-connections-groups {
+    display: grid;
+    min-width: 0;
+    gap: 24px;
+    padding-inline: 10px;
+  }
+
+  .model-connections-group { display: grid; min-width: 0; gap: 7px; }
+  .model-connections-group-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 20px;
+  }
+
+  .model-connections-group-heading h3 {
+    margin: 0;
+    color: var(--po-text-muted);
+    font-size: var(--po-text-size-label, 13px);
+    font-weight: var(--po-text-weight-regular, 400);
+    line-height: 18px;
+  }
+
+  .model-connections-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .model-connections-text-action.desktop-settings-row-action {
+    height: var(--po-control-size-micro);
+    padding: 0 4px;
+    border: 0;
+    color: var(--po-text-subtle);
+    font-size: var(--po-text-size-caption, 11px);
+    font-weight: var(--po-text-weight-regular, 400);
+  }
+
+  .model-connections-list {
+    gap: 0;
+    padding: 4px;
+    border: 1px solid var(--po-border-subtle);
+    border-radius: 7px;
+    background: var(--po-panel);
+  }
+
+  .model-connections-list > .desktop-settings-row { min-height: var(--po-control-size-large); padding: 8px; gap: 10px; }
+  .model-connections-list-row {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    text-align: start;
+  }
+  .model-connections-list-row:hover { background: var(--po-hover); }
+  .model-connections-list-row:focus-visible { outline: 2px solid var(--po-focus-ring); outline-offset: -2px; }
+  .model-connections-list-row > svg, .model-connections-candidate > svg { flex-shrink: 0; color: var(--po-text-muted); }
+  .desktop-settings-row > .model-connections-identity { display: grid; min-width: 0; flex: 1 1 auto; gap: 3px; }
+  .model-connections-identity strong { overflow-wrap: anywhere; color: var(--po-text); font-weight: var(--po-text-weight-regular, 400); }
+  .model-connections-identity small {
+    overflow: hidden;
+    color: var(--po-text-subtle);
+    font-size: var(--po-text-size-caption, 11px);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .desktop-settings-row > .model-connections-row-status { max-width: 32%; font-size: var(--po-text-size-caption, 11px); text-align: end; }
+  .model-connections-empty > span { white-space: normal; overflow-wrap: anywhere; flex-shrink: 1; }
+  .model-connections-count { margin-inline-start: 4px; color: var(--po-text-subtle); }
+  .model-connections-hint, .model-connections-feedback, .model-connections-delete p {
+    margin: 0;
+    color: var(--po-text-subtle);
+    font-size: var(--po-text-size-caption, 11px);
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+  .model-connections-feedback { padding-inline: 10px; color: var(--po-danger); }
+  .model-connections-back.desktop-settings-row-action { justify-self: start; height: auto; padding: 0 10px; border: 0; }
+  .model-connections-section .desktop-settings-section-header span { overflow-wrap: anywhere; }
+  .model-connections-remove { border-top: 1px solid var(--po-border-subtle); padding-top: 16px; }
+  .model-connections-delete { display: grid; gap: 10px; }
+  .model-connections-danger.desktop-settings-row-action { color: var(--po-danger); }
+
+  .model-connection-setup { padding-inline: 10px; min-width: 0; }
+  .model-connection-setup fieldset { display: grid; min-width: 0; margin: 0; padding: 0; border: 0; gap: 20px; }
+  .model-connection-fields { display: grid; gap: 16px; }
+  .model-connection-field { display: grid; grid-template-columns: minmax(120px, 0.7fr) minmax(0, 1fr); align-items: center; gap: 6px 18px; }
+  .model-connection-field label, .model-connection-setup .model-connection-checkbox {
+    color: var(--po-text-subtle);
+    font-size: var(--po-text-size-label, 13px);
+    line-height: 1.45;
+  }
+  .model-connection-field .desktop-settings-text-input { width: 100%; }
+  .model-connection-field .desktop-settings-select { width: 100%; max-width: none; }
+  .model-connection-advanced summary:focus-visible {
+    outline: 2px solid var(--po-focus-ring);
+    outline-offset: 2px;
+  }
+  .model-connection-field small {
+    grid-column: 2;
+    color: var(--po-text-subtle);
+    font-size: var(--po-text-size-caption, 11px);
+    line-height: 1.5;
+  }
+  .model-connection-setup .model-connection-checkbox { display: flex; align-items: start; gap: 8px; }
+  .model-connection-advanced { padding-top: 16px; border-top: 1px solid var(--po-border-subtle); }
+  .model-connection-advanced summary { color: var(--po-text-muted); font-size: var(--po-text-size-label, 13px); }
+  .model-connection-advanced[open] summary { margin-bottom: 16px; }
+  .model-connection-form-actions { justify-content: flex-end; }
+  .model-connections .spin { animation: spin 0.85s linear infinite; }
+
+  @media (max-width: 800px) {
+    .model-connections-group-heading { flex-wrap: wrap; }
+    .model-connection-field { grid-template-columns: minmax(0, 1fr); }
+    .model-connection-field small { grid-column: 1; }
+    .model-connections-model { flex-wrap: wrap; }
+    .model-connections-model > .model-connections-identity { flex-basis: 100%; }
+  }
+}

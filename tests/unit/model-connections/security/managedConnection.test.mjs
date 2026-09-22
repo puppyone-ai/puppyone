@@ -1,0 +1,402 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { withManagedConnection } from "../../../../electron/main/model-connections/managed-connection.mjs";
+import { parseConnectionCommand } from "../../../../shared/model-connections/schema.mjs";
+import { parseManagedUsage } from "../../../../electron/main/model-connections/managed-usage.mjs";
+
+const services = [];
+afterEach(async () => { await Promise.all(services.splice(0).map((service) => service.dispose())); });
+
+function fixture({ signedIn = true, balance = 5_000_000, trial = 0, trialGranted = 0, ...options } = {}) {
+  let state = { status: signedIn ? "authenticated" : "signed-out", session: signedIn ? {
+    user_id: "user-one", session_generation: "session-one", api_base_url: "https://qubits-api.puppyone.ai/api/v1",
+  } : null };
+  let observer;
+  const auth = {
+    readState: async () => state,
+    subscribe: (callback) => { observer = callback; return () => {}; },
+    requestSessionApi: vi.fn(async (_base, path) => {
+      if (path === "/ai/trial") trialGranted = trial;
+      return ["/ai/balance", "/ai/trial"].includes(path) ? {
+        balance_micro_usd: balance, available_micro_usd: balance, reserved_micro_usd: 0, trial_granted_micro_usd: trialGranted,
+      } : { checkout_url: "https://sandbox.polar.sh/checkout/test" };
+    }),
+    startOAuth: vi.fn(async () => {}),
+    openAgentStream: vi.fn(async () => ({ response: new Response('data: [DONE]\n\n', { headers: { "content-type": "text/event-stream" } }), close: vi.fn() })),
+  };
+  const snapshot = { schemaVersion: 1, revision: 0, connections: [], catalogs: [], managed: { available: false, reason: "gateway-unavailable" } };
+  const connections = { read: async () => snapshot, catalog: async () => snapshot, subscribe: () => () => {},
+    dispose: vi.fn(), acquire: vi.fn(), validate: () => { throw new Error("LEASE_REVOKED"); },
+    release: vi.fn(), releaseScope: vi.fn() };
+  const openExternal = vi.fn();
+  const requestPublic = vi.fn(async () => ({ sandbox: true, trial_credit_micro_usd: trial, packs: [{ id: "test-credit", price_cents: 500, credit_micro_usd: 5_000_000 }],
+    models: [{ id: "test/model", name: "Test", context_window: 32768, max_output_tokens: 4096 }] }));
+  const service = withManagedConnection({ connections, getAuth: () => auth,
+    apiBase: "https://qubits-api.puppyone.ai/api/v1", openExternal,
+    requestPublic, ...options,
+  });
+  services.push(service);
+  return { service, auth, openExternal, connections, requestPublic,
+    signIn: () => { state = { status: "authenticated", session: { user_id: "user-one", session_generation: "session-one", api_base_url: "https://qubits-api.puppyone.ai/api/v1" } }; observer(state); },
+    signOut: () => { state = { status: "signed-out", session: null }; observer(state); },
+    replaceUser: () => { state = { status: "authenticated", session: { ...state.session, user_id: "user-two", session_generation: "session-two" } }; observer(state); } };
+}
+
+async function acquire(service, onRevoke = vi.fn()) {
+  const snapshot = await service.read();
+  const route = `${snapshot.connections[0].id}/test/model`;
+  return { route, ...await service.acquire({ route, scope: "test-scope", onRevoke }), onRevoke };
+}
+
+describe("Main-owned managed Agent connection", () => {
+  it("returns loading to UI inspection without waiting for the wallet, then publishes the ready catalog", async () => {
+    const value = fixture();
+    const wallet = Promise.withResolvers();
+    value.auth.requestSessionApi.mockReturnValueOnce(wallet.promise);
+    const updates = [];
+    value.service.subscribe((snapshot) => updates.push(snapshot));
+    const initial = await value.service.catalog({ waitForManaged: false });
+    expect(initial.managed).toMatchObject({ reason: "loading", signedIn: true, available: false });
+    expect(initial.connections).toEqual([]);
+    wallet.resolve({ balance_micro_usd: 5_000_000, available_micro_usd: 5_000_000, reserved_micro_usd: 0 });
+    const ready = await value.service.read();
+    expect(ready.managed).toMatchObject({ reason: "ready", available: true });
+    expect(updates.at(-1).catalogs[0].models[0].id).toBe("test/model");
+    expect(ready.revision).toBeGreaterThan(initial.revision);
+  });
+
+  it("keeps acquisition behind the refreshed balance even after nonblocking UI inspection", async () => {
+    const value = fixture();
+    const initial = await value.service.read();
+    const route = `${initial.connections[0].id}/test/model`;
+    const wallet = Promise.withResolvers();
+    value.auth.requestSessionApi.mockReturnValueOnce(wallet.promise);
+    const refreshing = value.service.managed({ action: "refresh" });
+    await vi.waitFor(() => expect(value.auth.requestSessionApi).toHaveBeenCalledTimes(2));
+    await value.service.catalog({ waitForManaged: false });
+    let settled = false;
+    const acquiring = value.service.acquire({ route, scope: "test-scope" }).finally(() => { settled = true; });
+    const denied = expect(acquiring).rejects.toMatchObject({ code: "CREDENTIAL_REQUIRED" });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    wallet.resolve({ balance_micro_usd: 0, available_micro_usd: 0, reserved_micro_usd: 0 });
+    await refreshing;
+    await denied;
+    expect(value.connections.acquire).not.toHaveBeenCalled();
+  });
+
+  it("exposes signed-out UI without waiting for the public directory", async () => {
+    const value = fixture({ signedIn: false });
+    const directory = Promise.withResolvers();
+    const catalog = await value.requestPublic();
+    value.requestPublic.mockReturnValueOnce(directory.promise);
+    const snapshot = await value.service.catalog({ waitForManaged: false });
+    expect(snapshot.managed).toMatchObject({ reason: "sign-in-required", signedIn: false, available: false });
+    expect(snapshot.connections).toEqual([]);
+    directory.resolve(catalog);
+    await value.service.read();
+    expect(value.auth.requestSessionApi).not.toHaveBeenCalled();
+  });
+
+  it("exposes a read-only model and balance but no lease or credentials", async () => {
+    const { service } = fixture();
+    const snapshot = await service.read();
+    expect(snapshot.managed.available).toBe(true);
+    expect(snapshot.connections[0].sourceKind).toBe("managed");
+    expect(JSON.stringify(snapshot)).not.toMatch(/apiKey|access_token|refresh_token|capability/);
+    expect(() => parseConnectionCommand("save", { ...snapshot.connections[0] })).toThrow();
+    await expect(service.remove({ id: snapshot.connections[0].id })).rejects.toThrow();
+  });
+
+  it("requires sign-in and balance for managed acquisition", async () => {
+    const signedOut = fixture({ signedIn: false });
+    expect((await signedOut.service.read()).managed.reason).toBe("sign-in-required");
+    await signedOut.service.managed({ action: "sign-in" });
+    expect(signedOut.auth.startOAuth).toHaveBeenCalledWith({ apiBase: "https://qubits-api.puppyone.ai/api/v1" });
+    const { service } = fixture({ balance: 0 });
+    await expect(acquire(service)).rejects.toThrow("CREDENTIAL_REQUIRED");
+  });
+
+  it("maps browser handoff failures to a safe sign-in error", async () => {
+    const signedOut = fixture({ signedIn: false });
+    signedOut.auth.startOAuth.mockRejectedValueOnce(new Error("Desktop browser login is not configured"));
+    await expect(signedOut.service.managed({ action: "sign-in" }))
+      .rejects.toMatchObject({ code: "AUTHENTICATION_FAILED" });
+  });
+
+  it("reports loading through sign-in and retries, and failure only after a request fails", async () => {
+    const value = fixture({ signedIn: false });
+    await value.service.read();
+    const updates = [];
+    value.service.subscribe((snapshot) => updates.push(snapshot.managed));
+    let failBalance;
+    value.auth.requestSessionApi.mockImplementationOnce(() => new Promise((_resolve, reject) => { failBalance = reject; }));
+    value.signIn();
+    await vi.waitFor(() => expect(failBalance).toBeTypeOf("function"));
+    expect(updates.at(-1)).toMatchObject({ signedIn: true, reason: "loading", errorCode: null });
+    expect(updates.every((state) => state.reason !== "gateway-unavailable")).toBe(true);
+    failBalance(new Error("Request timed out"));
+    expect((await value.service.read()).managed).toMatchObject({ reason: "gateway-unavailable", errorCode: "GATEWAY_UNAVAILABLE" });
+
+    let finishBalance;
+    value.auth.requestSessionApi.mockImplementationOnce(() => new Promise((resolve) => { finishBalance = resolve; }));
+    const retry = value.service.managed({ action: "refresh" });
+    await vi.waitFor(() => expect(finishBalance).toBeTypeOf("function"));
+    expect(updates.at(-1)).toMatchObject({ reason: "loading", errorCode: null });
+    finishBalance({ balance_micro_usd: 1_000_000, available_micro_usd: 1_000_000, reserved_micro_usd: 0 });
+    expect((await retry).managed).toMatchObject({ reason: "ready", available: true, errorCode: null });
+  });
+
+  it("leaves loading when the public request fails synchronously", async () => {
+    const value = fixture();
+    value.requestPublic.mockImplementationOnce(() => { throw new Error("Connection unavailable"); });
+    expect((await value.service.read()).managed.reason).toBe("gateway-unavailable");
+    expect((await value.service.managed({ action: "refresh" })).managed.reason).toBe("ready");
+  });
+
+  it("reads directory and wallet concurrently, then reuses the directory for balance refreshes", async () => {
+    const value = fixture();
+    const catalog = await value.requestPublic();
+    value.requestPublic.mockClear();
+    let finishCatalog;
+    value.requestPublic.mockImplementationOnce(() => new Promise((resolve) => { finishCatalog = resolve; }));
+    const read = value.service.read();
+    await vi.waitFor(() => expect(value.auth.requestSessionApi).toHaveBeenCalled());
+    expect(finishCatalog).toBeTypeOf("function");
+    finishCatalog(catalog);
+    expect((await read).managed.reason).toBe("ready");
+    await value.service.managed({ action: "refresh" });
+    expect(value.requestPublic).toHaveBeenCalledTimes(1);
+    expect(value.auth.requestSessionApi).toHaveBeenCalledTimes(2);
+  });
+
+  it("ends a stuck request at the deadline, allows retry, and ignores its late response", async () => {
+    const value = fixture({ refreshTimeoutMs: 50 });
+    let finishOld;
+    let oldSignal;
+    value.auth.requestSessionApi.mockImplementationOnce((_base, _path, init) => {
+      oldSignal = init.signal;
+      return new Promise((resolve) => { finishOld = resolve; });
+    });
+    expect((await value.service.read()).managed).toMatchObject({ reason: "gateway-unavailable", errorCode: "TIMEOUT" });
+    expect(oldSignal.aborted).toBe(true);
+    expect((await value.service.managed({ action: "refresh" })).managed).toMatchObject({ reason: "ready", availableMicroUsd: 5_000_000 });
+    finishOld({ balance_micro_usd: 0, available_micro_usd: 0, reserved_micro_usd: 0 });
+    await Promise.resolve();
+    expect((await value.service.read()).managed.availableMicroUsd).toBe(5_000_000);
+  });
+
+  it("reloads the public directory after its short cache expires", async () => {
+    const value = fixture();
+    await value.service.read();
+    const now = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 60_001);
+    try {
+      const snapshot = await value.service.managed({ action: "refresh" });
+      expect(snapshot.managed.reason).toBe("ready");
+      expect(value.requestPublic).toHaveBeenCalledTimes(2);
+    } finally { now.mockRestore(); }
+  });
+
+  it("rejects an empty model directory instead of leaving a funded account connecting forever", async () => {
+    const value = fixture();
+    value.requestPublic.mockResolvedValue({ models: [], packs: [] });
+    expect((await value.service.read()).managed.reason).toBe("gateway-unavailable");
+  });
+
+  it("accepts only the private capability, fixed path, no browser Origin and configured model", async () => {
+    const { service, auth } = fixture();
+    const lease = await acquire(service);
+    const url = `${lease.configuration.baseUrl}/chat/completions`;
+    const options = { method: "POST", headers: { Authorization: `Bearer ${lease.configuration.apiKey}` },
+      body: JSON.stringify({ model: "test/model", messages: [{ role: "user", content: "hello" }] }) };
+    expect((await fetch(url, { ...options, headers: {} })).status).toBe(401);
+    expect((await fetch(url, { ...options, headers: { ...options.headers, Origin: "https://attacker.example" } })).status).toBe(403);
+    expect((await fetch(`${lease.configuration.baseUrl}/models`, options)).status).toBe(403);
+    expect((await fetch(url, { ...options, body: JSON.stringify({ model: "arbitrary/expensive" }) })).status).toBe(400);
+    const response = await fetch(url, options);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("[DONE]");
+    expect(auth.openAgentStream).toHaveBeenCalledTimes(1);
+    expect(auth.openAgentStream.mock.calls[0][2].requestId).toMatch(/^[a-f0-9-]{36}$/);
+  });
+
+  it.each(["signOut", "replaceUser"])("revokes the local capability immediately on %s", async (operation) => {
+    const fixtureValue = fixture();
+    const lease = await acquire(fixtureValue.service);
+    fixtureValue[operation]();
+    expect(lease.onRevoke).toHaveBeenCalledOnce();
+    expect(() => fixtureValue.service.validate({ leaseId: lease.leaseId, route: lease.route, scope: "test-scope" })).toThrow();
+    const response = await fetch(`${lease.configuration.baseUrl}/chat/completions`, { method: "POST",
+      headers: { Authorization: `Bearer ${lease.configuration.apiKey}` }, body: '{}' });
+    expect(response.status).toBe(401);
+    expect((await response.json()).error.code).toBe("ai_session_expired");
+  });
+
+  it("keeps the server's protocol error and reference through the Main proxy", async () => {
+    const { service, auth } = fixture();
+    const lease = await acquire(service);
+    const upstream = { error: { code: "ai_request_invalid", message: "Invalid Agent request. Reference: reference-123", request_id: "reference-123" } };
+    auth.openAgentStream.mockResolvedValueOnce({ response: new Response(JSON.stringify(upstream), {
+      status: 422, headers: { "Content-Type": "application/json", "X-Request-Id": "reference-123" },
+    }), close: vi.fn() });
+    const response = await fetch(`${lease.configuration.baseUrl}/chat/completions`, { method: "POST",
+      headers: { Authorization: `Bearer ${lease.configuration.apiKey}` }, body: JSON.stringify({ model: "test/model" }) });
+    expect(response.status).toBe(422);
+    expect(response.headers.get("x-request-id")).toBe("reference-123");
+    expect(await response.json()).toEqual(upstream);
+    expect(auth.openAgentStream).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([['{', 400, "ai_request_invalid"], ['x'.repeat(524289), 413, "ai_request_too_large"]])(
+    "returns a readable local protocol error for invalid input (%#)", async (body, status, code) => {
+      const { service, auth } = fixture();
+      const lease = await acquire(service);
+      const response = await fetch(`${lease.configuration.baseUrl}/chat/completions`, { method: "POST",
+        headers: { Authorization: `Bearer ${lease.configuration.apiKey}` }, body });
+      expect(response.status).toBe(status);
+      const error = (await response.json()).error;
+      expect(error.code).toBe(code);
+      expect(error.message).toContain(response.headers.get("x-request-id"));
+      expect(auth.openAgentStream).not.toHaveBeenCalled();
+    },
+  );
+
+  it("clears account data immediately on logout and ignores a late balance response", async () => {
+    const value = fixture();
+    expect((await value.service.read()).managed.availableMicroUsd).toBe(5_000_000);
+    const updates = [];
+    const unsubscribe = value.service.subscribe((snapshot) => updates.push(snapshot.managed));
+    let finishBalance;
+    value.auth.requestSessionApi.mockImplementationOnce(() => new Promise((resolve) => { finishBalance = resolve; }));
+    const refresh = value.service.managed({ action: "refresh" });
+    await vi.waitFor(() => expect(finishBalance).toBeTypeOf("function"));
+    updates.length = 0;
+    value.signOut();
+    expect(updates.at(-1)).toMatchObject({ signedIn: false, reason: "sign-in-required",
+      balanceMicroUsd: 0, availableMicroUsd: 0, reservedMicroUsd: 0, trialGrantedMicroUsd: 0,
+      lastUsage: null, errorCode: null });
+    finishBalance({ balance_micro_usd: 4_000_000, available_micro_usd: 3_000_000,
+      reserved_micro_usd: 1_000_000, trial_granted_micro_usd: 1_000_000 });
+    await refresh;
+    const after = (await value.service.read()).managed;
+    expect(after).toMatchObject({ signedIn: false, availableMicroUsd: 0, trialGrantedMicroUsd: 0 });
+    expect(updates.every((managed) => !managed.signedIn && managed.balanceMicroUsd === 0
+      && managed.reservedMicroUsd === 0 && managed.trialGrantedMicroUsd === 0)).toBe(true);
+    expect(value.auth.requestSessionApi.mock.calls.filter((call) => call[1] === "/ai/balance")).toHaveLength(2);
+    unsubscribe();
+  });
+
+  it("clears the previous account's billing error as soon as it signs out", async () => {
+    const value = fixture();
+    value.auth.requestSessionApi.mockRejectedValueOnce(new Error("Wallet unavailable"));
+    expect((await value.service.read()).managed.errorCode).toBe("GATEWAY_UNAVAILABLE");
+    const updates = [];
+    const unsubscribe = value.service.subscribe((snapshot) => updates.push(snapshot.managed));
+    value.signOut();
+    expect(updates[0]).toMatchObject({ signedIn: false, errorCode: null });
+    await value.service.read();
+    unsubscribe();
+  });
+
+  it("opens a server-created sandbox checkout without exposing credentials to the renderer", async () => {
+    const { service, auth, openExternal } = fixture();
+    await service.managed({ action: "checkout", packId: "test-credit" });
+    expect(openExternal).toHaveBeenCalledWith("https://sandbox.polar.sh/checkout/test");
+    auth.requestSessionApi.mockImplementation(async (_base, path) => path === "/ai/balance" ? {
+      available_micro_usd: 1, balance_micro_usd: 1, reserved_micro_usd: 0,
+    } : { checkout_url: "https://attacker.example/checkout" });
+    await expect(service.managed({ action: "checkout", packId: "test-credit" })).rejects.toThrow("INVALID_RESPONSE");
+  });
+});
+
+
+describe("one-time trial activation", () => {
+  it("refreshes the new account immediately when sign-in finishes during a catalog request", async () => {
+    const value = fixture({ signedIn: false, trial: 1_000_000 });
+    let finish;
+    value.requestPublic.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const firstRead = value.service.read();
+    await vi.waitFor(() => expect(finish).toBeTypeOf("function"));
+    value.signIn();
+    finish({ models: [], packs: [], trial_credit_micro_usd: 1_000_000 });
+    await firstRead;
+    await vi.waitFor(async () => expect((await value.service.read()).managed.available).toBe(true));
+    expect(value.auth.requestSessionApi.mock.calls.filter((call) => call[1] === "/ai/trial")).toHaveLength(1);
+    expect((await value.service.read()).managed.trialCreditMicroUsd).toBe(1_000_000);
+    expect(value.auth.openAgentStream).not.toHaveBeenCalled();
+  });
+
+  it("claims only after sign-in and uses the claim response without reading the same balance twice", async () => {
+    const signedOut = fixture({ signedIn: false, trial: 1_000_000 });
+    await signedOut.service.read();
+    expect(signedOut.auth.requestSessionApi).not.toHaveBeenCalled();
+    const { service, auth } = fixture({ trial: 1_000_000 });
+    await service.read();
+    await service.managed({ action: "refresh" });
+    const calls = auth.requestSessionApi.mock.calls;
+    expect(calls.filter((call) => call[1] === "/ai/trial")).toHaveLength(1);
+    expect(calls.map((call) => call[1])).toEqual(["/ai/balance", "/ai/trial", "/ai/balance"]);
+    expect(calls[1][2]).toMatchObject({ method: "POST", body: "{}" });
+    expect((await service.read()).managed.trialGrantedMicroUsd).toBe(1_000_000);
+  });
+
+  it("does not claim again for an account whose server wallet already has a trial grant", async () => {
+    const value = fixture({ trial: 1_000_000, trialGranted: 1_000_000 });
+    expect((await value.service.read()).managed.reason).toBe("ready");
+    expect(value.auth.requestSessionApi.mock.calls.map((call) => call[1])).toEqual(["/ai/balance"]);
+  });
+});
+
+describe("server-owned usage receipts", () => {
+  it("keeps a usable wallet ready while its previous usage receipt is still loading", async () => {
+    const value = fixture();
+    const reservationId = "00000000-0000-4000-8000-000000000002";
+    value.auth.openAgentStream.mockResolvedValue({ response: new Response('data: [DONE]\n\n', {
+      headers: { "content-type": "text/event-stream", "x-puppyone-reservation-id": reservationId },
+    }), close: vi.fn() });
+    let finishReceipt;
+    value.auth.requestSessionApi.mockImplementation(async (_base, path) => path.startsWith("/ai/usage/")
+      ? new Promise((resolve) => { finishReceipt = resolve; })
+      : { balance_micro_usd: 999_953, available_micro_usd: 999_953, reserved_micro_usd: 0 });
+    const lease = await acquire(value.service);
+    const response = await fetch(`${lease.configuration.baseUrl}/chat/completions`, { method: "POST",
+      headers: { Authorization: `Bearer ${lease.configuration.apiKey}` },
+      body: JSON.stringify({ model: "test/model", messages: [{ role: "user", content: "hello" }] }) });
+    await response.text();
+    expect((await value.service.managed({ action: "refresh" })).managed.reason).toBe("ready");
+    await vi.waitFor(() => expect(finishReceipt).toBeTypeOf("function"));
+    finishReceipt({ reservation_id: reservationId, status: "running", model_id: "test/model" });
+  });
+
+  it.each(["signOut", "replaceUser"])("reads the settled charge after streaming and clears it on %s", async (operation) => {
+    const value = fixture();
+    const reservationId = "00000000-0000-4000-8000-000000000001";
+    value.auth.openAgentStream.mockResolvedValue({ response: new Response('data: [DONE]\n\n', {
+      headers: { "content-type": "text/event-stream", "x-puppyone-reservation-id": reservationId },
+    }), close: vi.fn() });
+    value.auth.requestSessionApi.mockImplementation(async (_base, path) => path.startsWith("/ai/usage/") ? {
+      reservation_id: reservationId, status: "settled", model_id: "test/model", price_book_id: "prices-1",
+      charged_micro_usd: 47, provider_cost_usd: "PRIVATE-COST", provider_route: { private: true },
+      usage: { input_tokens: 10, cached_tokens: 4, output_tokens: 20 },
+    } : { balance_micro_usd: 999_953, available_micro_usd: 999_953, reserved_micro_usd: 0 });
+    const lease = await acquire(value.service);
+    const response = await fetch(`${lease.configuration.baseUrl}/chat/completions`, { method: "POST",
+      headers: { Authorization: `Bearer ${lease.configuration.apiKey}` },
+      body: JSON.stringify({ model: "test/model", messages: [{ role: "user", content: "hello" }] }) });
+    await response.text();
+    await value.service.managed({ action: "refresh" });
+    const snapshot = await value.service.read();
+    expect(snapshot.managed.lastUsage).toMatchObject({ status: "settled", chargedMicroUsd: 47,
+      inputTokens: 10, cachedTokens: 4, outputTokens: 20 });
+    expect(JSON.stringify(snapshot)).not.toContain("PRIVATE-COST");
+    value[operation]();
+    expect((await value.service.read()).managed.lastUsage).toBeNull();
+  });
+
+  it("does not turn missing usage or a mismatched receipt into a charge", () => {
+    expect(parseManagedUsage({ reservation_id: "wrong" }, "expected")).toBeNull();
+    expect(parseManagedUsage({ reservation_id: "id", status: "settled", model_id: "model",
+      charged_micro_usd: 1 }, "id")).toBeNull();
+    expect(parseManagedUsage({ reservation_id: "id", status: "running", model_id: "model",
+      charged_micro_usd: 0 }, "id")).toMatchObject({ status: "pending", chargedMicroUsd: null });
+  });
+});

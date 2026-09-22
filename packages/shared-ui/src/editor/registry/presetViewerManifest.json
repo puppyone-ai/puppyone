@@ -1,5 +1,5 @@
 {
-  "contractVersion": 7,
+  "contractVersion": 8,
   "fallbackViewerId": "document-placeholder",
   "viewers": [
     {
@@ -136,11 +136,11 @@
       "capability": "preview",
       "source": "resource",
       "runtime": "eager",
-      "surfaceIsolation": "isolated-webcontents",
+      "surfaceIsolation": "inline",
       "computeIsolation": "browser-engine",
       "contentSandbox": "none",
       "resourcePolicy": { "memoryClass": "large", "maxSourceBytes": 536870912, "maxCanvasPixels": 0, "maxActiveCanvases": 0, "maxWorkers": 0 },
-      "recoveryPolicy": { "maxAutomaticRetries": 1, "supportsSafeMode": false },
+      "recoveryPolicy": { "maxAutomaticRetries": 0, "supportsSafeMode": false },
       "surfacePreparation": "requires-visible",
       "readinessSignal": "frame-paint",
       "surfaceFamily": "document",
@@ -161,6 +161,22 @@
       "readinessSignal": "first-rendered-frame",
       "surfaceFamily": "document",
       "surfaceTraits": ["paginated", "scrollable"]
+    },
+    {
+      "id": "database-preview",
+      "formatViewerIds": [],
+      "capability": "preview",
+      "source": "resource-session",
+      "runtime": "lazy",
+      "surfaceIsolation": "inline",
+      "computeIsolation": "native-process",
+      "contentSandbox": "none",
+      "resourcePolicy": { "memoryClass": "large", "maxSourceBytes": 8589934592, "maxCanvasPixels": 0, "maxActiveCanvases": 0, "maxWorkers": 0 },
+      "recoveryPolicy": { "maxAutomaticRetries": 0, "supportsSafeMode": false },
+      "surfacePreparation": "hidden-safe",
+      "readinessSignal": "dom-stable",
+      "surfaceFamily": "grid",
+      "surfaceTraits": ["tabular", "scrollable", "paginated"]
     },
     {
       "id": "audio-preview",

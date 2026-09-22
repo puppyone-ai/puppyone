@@ -31,6 +31,10 @@ describe("Agent Chat creation recipe ordering", () => {
       "Built-in Agent",
     ]);
     expect(Object.isFrozen(AGENT_CHAT_CREATION_RECIPES)).toBe(true);
+    expect(AGENT_CHAT_CREATION_RECIPES.find(({ id }) => id === "codex")).toMatchObject({
+      label: "Codex",
+      iconKey: "codex",
+    });
   });
 
   it("does not couple bundled placement to its display name", () => {

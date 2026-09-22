@@ -125,9 +125,9 @@ export function normalizePresetViewerContribution(
   ) {
     throw new TypeError(`Preset viewer ${record.id} cannot normalize content it does not receive.`);
   }
-  if (definition.computeIsolation === "browser-engine") {
+  if (definition.surfaceIsolation === "isolated-webcontents") {
     if (record.render !== undefined || record.load !== undefined) {
-      throw new TypeError(`Browser-engine preset viewer ${record.id} cannot ship a renderer implementation.`);
+      throw new TypeError(`Isolated-surface preset viewer ${record.id} cannot ship a renderer implementation.`);
     }
   } else if (definition.runtime === "eager") {
     if (typeof record.render !== "function" || record.load !== undefined) {

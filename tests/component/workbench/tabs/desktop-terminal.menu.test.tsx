@@ -529,7 +529,7 @@ describe("Desktop Terminal tab session manager", () => {
     expect(status?.classList.contains("is-activity")).toBe(false);
   });
 
-  it("makes cancellation the safe default before closing a terminal", () => {
+  it.each([false, true])("keeps the close dialog dismissible (committing=%s)", (committing) => {
     const onCancel = vi.fn();
     const onConfirm = vi.fn();
     const container = document.createElement("div");
@@ -550,7 +550,7 @@ describe("Desktop Terminal tab session manager", () => {
             },
           },
         }}
-        committing={false}
+        committing={committing}
         onDismiss={onCancel}
         onConfirm={onConfirm}
       />,
@@ -567,14 +567,15 @@ describe("Desktop Terminal tab session manager", () => {
     const confirmButton = Array.from(dialog?.querySelectorAll("button") ?? [])
       .find((button) => button.textContent?.trim() === "Close terminal");
     expect(confirmButton?.classList.contains("po-button--danger")).toBe(true);
-    expect(document.activeElement?.textContent).toBe("Cancel");
+    expect(confirmButton?.disabled).toBe(committing);
+    expect(document.activeElement?.textContent).toBe(committing ? "Close" : "Cancel");
 
-    clickButton(overlayRoot!, "Cancel");
+    clickButton(overlayRoot!, committing ? "Close" : "Cancel");
     expect(onCancel).toHaveBeenCalledOnce();
     expect(onConfirm).not.toHaveBeenCalled();
 
     clickButton(overlayRoot!, "Close terminal");
-    expect(onConfirm).toHaveBeenCalledOnce();
+    expect(onConfirm).toHaveBeenCalledTimes(committing ? 0 : 1);
   });
 });
 

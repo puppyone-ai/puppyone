@@ -57,7 +57,7 @@ describe("preset viewer contribution contract", () => {
     expect(Object.isFrozen(PRESET_VIEWER_REGISTRY)).toBe(true);
     expect(Object.isFrozen(PRESET_VIEWERS)).toBe(true);
     expect(new Set(PRESET_VIEWERS.map((viewer) => viewer.source))).toEqual(
-      new Set(["content", "resource", "content-and-resource"]),
+      new Set(["content", "resource", "content-and-resource", "resource-session"]),
     );
     expect(PRESET_VIEWER_REGISTRY.fallback.source).toBe("none");
     expect(PRESET_VIEWER_REGISTRY.fallback.id).toBe(PRESET_VIEWER_MANIFEST.fallbackViewerId);
@@ -77,7 +77,7 @@ describe("preset viewer contribution contract", () => {
     ))).toBe(true);
     expect(resolveEditorViewer(document("report.pdf")).viewer).toMatchObject({
       runtime: "eager",
-      surfaceIsolation: "isolated-webcontents",
+      surfaceIsolation: "inline",
       computeIsolation: "browser-engine",
       contentSandbox: "none",
       resourcePolicy: {
@@ -87,9 +87,10 @@ describe("preset viewer contribution contract", () => {
         maxActiveCanvases: 0,
         maxWorkers: 0,
       },
-      recoveryPolicy: { maxAutomaticRetries: 1, supportsSafeMode: false },
+      recoveryPolicy: { maxAutomaticRetries: 0, supportsSafeMode: false },
       surfacePreparation: "requires-visible",
       readinessSignal: "frame-paint",
+      render: expect.any(Function),
     });
     expect(resolveEditorViewer(document("page.html")).viewer.surfacePreparation)
       .toBe("hidden-safe");

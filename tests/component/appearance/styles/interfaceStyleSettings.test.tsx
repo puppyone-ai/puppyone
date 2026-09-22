@@ -73,7 +73,7 @@ function renderPalette(host: HTMLElement, interfaceStyle: InterfaceStyle) {
     interfaceStyle,
     themeMode: "system",
     sidebarNavigationLayout: "bottom-horizontal",
-    fileIconTheme: "vscode",
+    fileIconTheme: "semantic",
   }).decisions.themeMode;
   act(() => root?.render(withTestLocalization(
     <InterfacePaletteSettings

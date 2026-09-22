@@ -56,6 +56,8 @@ export function normalizeCapabilitySnapshot(value = {}) {
     ...(constraints ? { constraints } : {}),
     ...(history ? { history } : {}),
     ...(recovery ? { recovery } : {}),
+    ...(source.modelConnections === true ? { modelConnections: true } : {}),
+    ...(source.readOnly === true ? { readOnly: true } : {}),
     referenceInputs: normalizeReferenceInputCapabilities(source.referenceInputs, source),
   };
 }

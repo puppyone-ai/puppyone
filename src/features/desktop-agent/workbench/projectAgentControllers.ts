@@ -9,7 +9,7 @@ export function projectAgentControllers(project: AuxiliaryWorkbenchProject, opti
 } = {}) {
   return project.getResource("agent", () => new AgentControllerRegistry(
     project.context.rootPath,
-    options.createClient ?? (() => createElectronProjectAgentClient(project.context)),
+    options.createClient ?? ((itemId) => createElectronProjectAgentClient(project.context, itemId)),
     options.preserveDraftOnDispose ?? false,
   ));
 }

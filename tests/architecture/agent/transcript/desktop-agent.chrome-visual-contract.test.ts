@@ -18,7 +18,12 @@ describe("Desktop Agent and Terminal chrome visual contract", () => {
   it("shows launcher content immediately while retaining tab and busy-state motion", () => {
     expect(terminalLauncherCss).not.toContain("desktop-terminal-launcher-tool-enter");
     expect(launcherCss).not.toContain("desktop-agent-runtime-launcher-option-enter");
-    expect(terminalLauncherCss).toContain("animation: desktop-terminal-launcher-scan");
+    // Keep the refresh action static; only the separate status indicator spins.
+    expect(terminalLauncherCss).not.toMatch(/animation:\s*desktop-terminal-launcher-scan(?:\s|;)/);
+    expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-discovery-spinner\s*\{[^}]*animation:\s*desktop-terminal-launcher-scanning/s);
+    expect(terminalLauncherCss).toContain("animation: desktop-terminal-launcher-discovered 140ms ease-out");
+    expect(source("src/features/desktop-terminal/ui/terminal-activity-grid.css")).toContain("animation: desktop-terminal-activity-cell");
+    expect(source("src/features/desktop-terminal/ui/LauncherDiscoveryFeedback.tsx")).toContain("useState(animate)");
     expect(launcherCss).toContain("animation: desktop-agent-runtime-launcher-spin");
     expect(terminalTabsCss).toContain("@starting-style");
     expect(terminalTabsCss).toContain("opacity 120ms ease");
@@ -90,5 +95,14 @@ describe("Desktop Agent and Terminal chrome visual contract", () => {
     );
     expect(terminalTabsCss).toMatch(/\.desktop-terminal-tab-select\s*\{[^}]*font-size:\s*var\(--po-type-header-content, 15px\)[^}]*line-height:\s*var\(--po-type-header-line-height, 20px\)/s);
 
+  });
+
+  it("shares row spacing and geometry without merging discovery and bundled busy semantics", () => {
+    expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-entries,\s*\.desktop-terminal-launcher-tools\s*\{[^}]*gap:\s*1px/s);
+    expect(terminalLauncherCss).toContain(".desktop-terminal-launcher-entries:not(:has(> :not(:empty)))");
+    expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-discovery,\s*\.desktop-terminal-launcher-tool,\s*\.desktop-terminal-launcher-shell,\s*\.desktop-terminal-launcher-history\s*\{[^}]*min-height:\s*var\(--po-control-size-large\)[^}]*gap:\s*9px[^}]*padding:\s*5px 8px/s);
+    expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-discovery\s*\{[^}]*grid-template-columns:\s*18px minmax\(0, 1fr\)[^}]*align-content:\s*center/s);
+    expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-discovery-icon\s*\{[^}]*height:\s*var\(--po-type-right-sidebar-control-line-height, 19px\)/s);
+    expect(terminalLauncherCss).not.toMatch(/\.desktop-terminal-launcher-discovery:(?:hover|focus)/);
   });
 });

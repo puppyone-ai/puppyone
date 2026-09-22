@@ -384,16 +384,19 @@
   color: var(--po-text);
 }
 
-.desktop-terminal-new-button {
+.desktop-terminal-new-button.desktop-menu-icon-button {
   position: absolute;
   inset-block-start: 0;
   inset-inline-start: var(--desktop-terminal-new-inline-start);
   box-sizing: border-box;
-  min-width: var(--desktop-terminal-tab-control-height);
-  max-width: var(--desktop-terminal-tab-control-height);
-  width: var(--desktop-terminal-tab-control-height);
-  height: var(--desktop-terminal-tab-control-height);
+  min-inline-size: var(--desktop-terminal-tab-control-height);
+  max-inline-size: var(--desktop-terminal-tab-control-height);
+  inline-size: var(--desktop-terminal-tab-control-height);
+  min-block-size: var(--desktop-terminal-tab-control-height);
+  max-block-size: var(--desktop-terminal-tab-control-height);
+  block-size: var(--desktop-terminal-tab-control-height);
   flex: 0 0 var(--desktop-terminal-tab-control-height);
+  padding: 0;
   border: 0;
   border-radius: var(--desktop-toolbar-action-radius);
   background: transparent;

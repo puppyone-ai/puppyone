@@ -122,7 +122,6 @@ export function AgentComposer({
               references={mediaReferences}
               getPreviewUrl={getReferencePreviewUrl}
               onRemove={onRemoveReference}
-              onRetry={onRetryReference}
             />
             <div className="desktop-agent-prompt-editor-host">
               <AgentPromptEditor

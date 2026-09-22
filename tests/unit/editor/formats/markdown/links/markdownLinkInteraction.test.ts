@@ -25,7 +25,7 @@ function context(
       openWikiLink: vi.fn(),
       openExternalUrl: vi.fn(),
     },
-    hasSameDocumentHeading: (fragment) => fragment === "#current",
+    hasSameDocumentTarget: (fragment) => fragment === "#current",
     ...overrides,
   };
 }

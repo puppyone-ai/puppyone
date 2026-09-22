@@ -24,6 +24,10 @@ import {
 } from "./navigation/DesktopNavigationItems";
 import type { DesktopView } from "../../components/DesktopCloudShell";
 import { beginProjectRootDrag } from "./projectRootDrag";
+import {
+  ProjectRowActions,
+  type ProjectActionSurface,
+} from "./ProjectRowActions";
 export {
   DEFAULT_PROJECT_SWITCHER_EXPANDED_WIDTH,
   MAX_PROJECT_SWITCHER_EXPANDED_WIDTH,
@@ -40,6 +44,11 @@ export type ProjectSwitcherRailItem = Readonly<{
   appearanceIdentity: string | null;
 }>;
 
+type ProjectActionSession = Readonly<{
+  projectPath: string;
+  surface: Exclude<ProjectActionSurface, null>;
+}>;
+
 type ProjectSwitcherRailProps = Readonly<{
   activeView?: DesktopView;
   activeWorkspace: Workspace;
@@ -48,9 +57,11 @@ type ProjectSwitcherRailProps = Readonly<{
   onCreateNew: () => void;
   onOpenPlugins?: () => void;
   onOpenSettings?: () => void;
+  onRenameProject?: (path: string, name: string) => Promise<void>;
   pluginsOpen?: boolean;
   settingsOpen?: boolean;
   onSelectProject: (path: string) => void | Promise<void>;
+  onUnlinkProject?: (path: string) => Promise<void>;
   utilitySlot?: ReactNode;
 }>;
 
@@ -66,15 +77,18 @@ export function ProjectSwitcherRail({
   onCreateNew,
   onOpenPlugins,
   onOpenSettings,
+  onRenameProject,
   pluginsOpen = false,
   settingsOpen = false,
   onSelectProject,
+  onUnlinkProject,
   utilitySlot,
 }: ProjectSwitcherRailProps) {
   const { t } = useLocalization();
   const compactTooltipId = useId();
   const railRef = useRef<HTMLElement>(null);
   const [pendingPath, setPendingPath] = useState<string | null>(null);
+  const [projectActionSession, setProjectActionSession] = useState<ProjectActionSession | null>(null);
   const [compactTooltip, setCompactTooltip] = useState<{
     label: string;
     projectPath: string;
@@ -116,6 +130,28 @@ export function ProjectSwitcherRail({
     if (expanded) setCompactTooltip(null);
   }, [expanded]);
 
+  useEffect(() => {
+    setProjectActionSession((current) => {
+      if (!current) return null;
+      if (!expanded) return null;
+      return projects.some(({ workspace }) => workspace.path === current.projectPath)
+        ? current
+        : null;
+    });
+  }, [expanded, projects]);
+
+  const changeProjectActionSurface = (
+    projectPath: string,
+    surface: ProjectActionSurface,
+  ) => {
+    setProjectActionSession((current) => {
+      if (surface === null) {
+        return current?.projectPath === projectPath ? null : current;
+      }
+      return { projectPath, surface };
+    });
+  };
+
   const showCompactTooltip = (project: Workspace, target: HTMLElement) => {
     if (expanded || !railRef.current) return;
     const railRect = railRef.current.getBoundingClientRect();
@@ -138,6 +174,7 @@ export function ProjectSwitcherRail({
       (project.path === activeWorkspace.path && activeView !== "settings")
       || project.path === pendingPath
     ) return;
+    setProjectActionSession(null);
     queuedProjectRef.current = project;
     setPendingPath(project.path);
     if (switchInFlightRef.current) return;
@@ -181,52 +218,69 @@ export function ProjectSwitcherRail({
             project: bidiIsolate(workspace.name),
           })} · ${contextAssetLabel}`;
           return (
-            <button
-              className={`desktop-project-switcher-rail-button desktop-project-switcher-rail-project ${expanded ? "desktop-project-switcher-rail-expanded-project po-sidebar-row" : "desktop-project-switcher-rail-compact-project"}${active ? " active" : ""}`}
-              type="button"
-              aria-current={active ? "page" : undefined}
-              aria-label={label}
-              aria-describedby={compactTooltip?.projectPath === workspace.path && !expanded
-                ? compactTooltipId
-                : undefined}
-              aria-busy={pendingPath === workspace.path || undefined}
-              data-avatar-kind={expanded
-                ? `context-${contextAssetKind}`
-                : appearance?.icon?.kind ?? "initial"}
-              data-context-asset-kind={contextAssetKind}
-              data-pending={pendingPath === workspace.path ? "true" : undefined}
-              data-po-interaction="navigation"
-              draggable={Boolean(workspace.path.trim())}
+            <div
+              className="desktop-project-switcher-rail-project-row"
               key={workspace.path}
-              onClick={() => void selectProject(workspace)}
-              onDragStart={(event) => beginProjectRootDrag(event, workspace.path)}
-              onFocus={(event) => showCompactTooltip(workspace, event.currentTarget)}
-              onBlur={() => hideCompactTooltip(workspace.path)}
-              onMouseEnter={(event) => showCompactTooltip(workspace, event.currentTarget)}
-              onMouseLeave={() => hideCompactTooltip(workspace.path)}
             >
-              <ProjectSwitcherAvatar
-                imageUrl={appearance?.icon?.kind === "asset" ? appearance.icon.url : null}
-                emoji={appearance?.icon?.kind === "emoji" ? appearance.icon.value : null}
-                initial={initial}
-                contextAssetKind={contextAssetKind}
-                compact={!expanded}
-              />
-              {expanded && (
-                <span className="desktop-project-switcher-rail-label po-sidebar-row__label">
-                  {workspace.name}
-                </span>
+              <button
+                className={`desktop-project-switcher-rail-button desktop-project-switcher-rail-project ${expanded ? "desktop-project-switcher-rail-expanded-project po-sidebar-row" : "desktop-project-switcher-rail-compact-project"}${active ? " active" : ""}`}
+                type="button"
+                aria-current={active ? "page" : undefined}
+                aria-label={label}
+                aria-describedby={compactTooltip?.projectPath === workspace.path && !expanded
+                  ? compactTooltipId
+                  : undefined}
+                aria-busy={pendingPath === workspace.path || undefined}
+                data-avatar-kind={expanded
+                  ? `context-${contextAssetKind}`
+                  : appearance?.icon?.kind ?? "initial"}
+                data-context-asset-kind={contextAssetKind}
+                data-pending={pendingPath === workspace.path ? "true" : undefined}
+                data-po-interaction="navigation"
+                draggable={Boolean(workspace.path.trim())}
+                onClick={() => void selectProject(workspace)}
+                onDragStart={(event) => beginProjectRootDrag(event, workspace.path)}
+                onFocus={(event) => showCompactTooltip(workspace, event.currentTarget)}
+                onBlur={() => hideCompactTooltip(workspace.path)}
+                onMouseEnter={(event) => showCompactTooltip(workspace, event.currentTarget)}
+                onMouseLeave={() => hideCompactTooltip(workspace.path)}
+              >
+                <ProjectSwitcherAvatar
+                  imageUrl={appearance?.icon?.kind === "asset" ? appearance.icon.url : null}
+                  emoji={appearance?.icon?.kind === "emoji" ? appearance.icon.value : null}
+                  initial={initial}
+                  contextAssetKind={contextAssetKind}
+                  compact={!expanded}
+                />
+                {expanded && (
+                  <span className="desktop-project-switcher-rail-label po-sidebar-row__label">
+                    {workspace.name}
+                  </span>
+                )}
+              </button>
+              {expanded && (onRenameProject || onUnlinkProject) && (
+                <ProjectRowActions
+                  workspace={workspace}
+                  surface={projectActionSession?.projectPath === workspace.path
+                    ? projectActionSession.surface
+                    : null}
+                  onSurfaceChange={(surface) => changeProjectActionSurface(workspace.path, surface)}
+                  onRenameProject={onRenameProject}
+                  onUnlinkProject={onUnlinkProject}
+                />
               )}
-            </button>
+            </div>
           );
         })}
         <button
           className={`desktop-project-switcher-rail-button desktop-project-switcher-rail-create ${expanded ? "desktop-project-switcher-rail-expanded-create po-sidebar-row" : "desktop-project-switcher-rail-compact-create"}`}
           type="button"
           aria-label={t("shell.workspaceSwitcher.createNew")}
-          disabled={Boolean(pendingPath)}
           title={t("shell.workspaceSwitcher.createNew")}
-          onClick={onCreateNew}
+          onClick={() => {
+            setProjectActionSession(null);
+            onCreateNew();
+          }}
         >
           <span
             className={expanded

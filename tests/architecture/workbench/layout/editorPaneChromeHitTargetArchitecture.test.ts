@@ -24,6 +24,9 @@ describe("editor pane chrome hit-target architecture", () => {
     const handleRule = readCssBlock(splitStyles, ".desktop-editor-pane-handle");
 
     expect(shellRule).toContain("pointer-events: none;");
+    expect(shellRule).toContain(
+      "z-index: calc(var(--po-pane-resizer-z-index, 35) + 2);",
+    );
     expect(revealRule).toContain("opacity: 1;");
     expect(revealRule).not.toContain("pointer-events:");
     expect(handleRule).toContain("width: 27px;");

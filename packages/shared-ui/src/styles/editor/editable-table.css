@@ -4,53 +4,26 @@
  * language so their density and states cannot drift independently.
  */
 :where(.markdown-codemirror-editor .cm-md-table-widget-wrap, .csv-table-editor) {
-  --po-editable-table-border: var(
-    --po-surface-editable-table-border,
-    color-mix(in srgb, var(--po-divider) 96%, var(--po-text-muted) 10%)
-  );
-  --po-editable-table-cell-border: var(
-    --po-surface-editable-table-cell-border,
-    color-mix(in srgb, var(--po-divider) 92%, var(--po-text-muted) 8%)
-  );
-  --po-editable-table-radius: var(--po-surface-editable-table-radius, 4px);
-  --po-editable-table-background: var(
-    --po-surface-editable-table-background,
-    color-mix(in srgb, var(--po-panel) 42%, transparent)
-  );
-  --po-editable-table-color: color-mix(in srgb, var(--po-text) 82%, var(--po-text-muted));
+  --po-editable-table-border: var(--po-editable-table-format-border, var(--po-surface-editable-table-border, var(--po-divider)));
+  --po-editable-table-cell-border: var(--po-editable-table-format-cell-border, var(--po-surface-editable-table-cell-border, var(--po-editable-table-border)));
+  --po-editable-table-radius: 0px;
+  --po-editable-table-background: var(--po-editable-table-format-background, var(--po-surface-editable-table-background, transparent));
+  --po-editable-table-color: var(--po-text);
   --po-editable-table-header-background: var(
-    --po-surface-editable-table-header-background,
-    color-mix(in srgb, var(--po-control) 46%, transparent)
+    --po-editable-table-format-header-background,
+    var(--po-surface-editable-table-header-background, color-mix(in srgb, var(--po-text) 3%, var(--po-editor-bg)))
   );
   --po-editable-table-sticky-header-background: var(
-    --po-surface-editable-table-sticky-header-background,
-    color-mix(in srgb, var(--po-control) 46%, var(--po-editor-bg))
+    --po-editable-table-format-header-background,
+    var(--po-surface-editable-table-sticky-header-background, var(--po-editable-table-header-background))
   );
-  --po-editable-table-header-color: color-mix(in srgb, var(--po-text) 88%, var(--po-text-muted));
-  --po-editable-table-body-color: color-mix(in srgb, var(--po-text) 72%, var(--po-text-muted));
-  --po-editable-table-cell-hover-background: var(
-    --po-surface-editable-table-cell-hover-background,
-    color-mix(in srgb, var(--po-hover) 48%, transparent)
-  );
-  --po-editable-table-cell-focus-background: var(
-    --po-surface-editable-table-cell-focus-background,
-    color-mix(in srgb, var(--po-selected) 58%, transparent)
-  );
-  --po-editable-table-cell-focus-ring: color-mix(in srgb, var(--po-accent) 55%, transparent);
-  --po-editable-table-header-focus-background: color-mix(
-    in srgb,
-    var(--po-selected) 52%,
-    color-mix(in srgb, var(--po-control) 40%, transparent)
-  );
-  --po-editable-table-sticky-header-focus-background: color-mix(
-    in srgb,
-    var(--po-selected) 52%,
-    color-mix(in srgb, var(--po-control) 40%, var(--po-editor-bg))
-  );
-  --po-editable-table-hover-ring: var(
-    --cm-md-block-hover-ring,
-    color-mix(in srgb, var(--po-accent) 18%, transparent)
-  );
+  --po-editable-table-header-color: var(--po-text);
+  --po-editable-table-body-color: var(--po-text);
+  /* Structural selection has its own opaque stroke. Text selection still
+     uses the product's independent ::selection contract. */
+  --po-editable-table-selection-border: var(--po-surface-editable-table-selection-border, #2e87de);
+  --po-editable-table-cell-focus-ring: var(--po-editable-table-selection-border);
+  --po-editable-table-cell-focus-shadow: inset 0 0 0 2px var(--po-editable-table-cell-focus-ring);
   --po-editable-table-cell-min-width: 96px;
   --po-editable-table-cell-max-width: 280px;
   --po-editable-table-cell-padding-block: 6px;
@@ -62,6 +35,11 @@
   --po-editable-table-line-height: 1.45;
   --po-editable-table-row-min-height: 31px;
   --po-editable-table-header-font-weight: 650;
+  --po-editable-table-handle-background: var(--po-surface-editable-table-handle-background, color-mix(in srgb, var(--po-text) 8%, var(--po-editor-bg)));
+  --po-editable-table-handle-border: var(--po-surface-editable-table-handle-border, color-mix(in srgb, var(--po-text) 24%, var(--po-editor-bg)));
+  --po-editable-table-handle-color: var(--po-surface-editable-table-handle-color, var(--po-text-muted));
+  --po-editable-table-handle-hover-background: var(--po-surface-editable-table-handle-hover-background, color-mix(in srgb, var(--po-text) 12%, var(--po-editor-bg)));
+  --po-editable-table-handle-hover-border: var(--po-surface-editable-table-handle-hover-border, color-mix(in srgb, var(--po-text) 36%, var(--po-editor-bg)));
   --po-editable-table-handle-gutter: 14px;
   --po-editable-table-action-gutter: 18px;
   --po-editable-table-interaction-gutter: max(
@@ -76,7 +54,7 @@
 
 .po-editable-table-drag-layer {
   position: absolute;
-  z-index: 3;
+  z-index: 5;
   inset: 0;
   pointer-events: none;
 }
@@ -91,21 +69,20 @@
   cursor: grab;
   opacity: 0;
   pointer-events: none;
-  transition:
-    opacity 140ms ease,
-    left 160ms cubic-bezier(0.2, 0, 0, 1),
-    top 160ms cubic-bezier(0.2, 0, 0, 1);
+  transition: opacity 80ms ease;
+  z-index: 1;
 }
 
 .po-editable-table-drag-handle-visual {
   display: grid;
   box-sizing: border-box;
   place-items: center;
-  border: 1px solid color-mix(in srgb, var(--po-divider) 88%, var(--po-text-muted) 12%);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--po-panel) 94%, var(--po-control));
-  box-shadow: 0 1px 4px color-mix(in srgb, var(--po-shadow) 14%, transparent);
-  color: color-mix(in srgb, var(--po-text-muted) 74%, var(--po-text));
+  /* Revealed handles must read as complete controls before the pointer
+     reaches them. An opaque face also separates the dots from table lines. */
+  border: 1px solid var(--po-editable-table-handle-border);
+  border-radius: 4px;
+  background: var(--po-editable-table-handle-background);
+  color: var(--po-editable-table-handle-color);
   pointer-events: none;
   transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
 }
@@ -119,58 +96,73 @@
   pointer-events: auto;
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  .po-editable-table-drag-handle.is-visible.is-following-pointer {
+    transition:
+      opacity 80ms ease,
+      left 160ms cubic-bezier(0.2, 0, 0, 1),
+      top 160ms cubic-bezier(0.2, 0, 0, 1);
+  }
+}
+
 .po-editable-table-drag-handle-visual::before {
-  background-image: radial-gradient(currentColor 1.05px, transparent 1.2px);
-  background-position: center;
+  background-image: radial-gradient(currentColor 0.9px, transparent 1.1px);
+  /* Start at a tile boundary so 12×4 and 4×12 render exactly three dots,
+     without the extra clipped row/column produced by centered repetition. */
+  background-position: 0 0;
   content: "";
-  opacity: 0.9;
 }
 
 .po-editable-table-column-handle {
   width: 32px;
   height: 24px;
-  transform: translate(-50%, calc(-1 * var(--po-editable-table-handle-gutter)));
+  transform: translate(-50%, -50%);
 }
 
 .po-editable-table-column-handle .po-editable-table-drag-handle-visual {
-  width: 26px;
-  height: 13px;
+  width: 22px;
+  height: 14px;
 }
 
 .po-editable-table-column-handle .po-editable-table-drag-handle-visual::before {
-  width: 14px;
-  height: 5px;
-  background-size: 4.5px 4.5px;
+  width: 12px;
+  height: 4px;
+  background-size: 4px 4px;
 }
 
 .po-editable-table-row-handle {
   width: 24px;
-  height: var(--po-control-size);
-  transform: translate(calc(-1 * var(--po-editable-table-handle-gutter)), -50%);
+  height: 32px;
+  transform: translate(-50%, -50%);
 }
 
 [dir="rtl"] .po-editable-table-row-handle {
-  transform: translate(var(--po-editable-table-handle-gutter), -50%);
+  transform: translate(50%, -50%);
 }
 
 .po-editable-table-row-handle .po-editable-table-drag-handle-visual {
-  width: 13px;
-  height: 26px;
+  width: 14px;
+  height: 22px;
 }
 
 .po-editable-table-row-handle .po-editable-table-drag-handle-visual::before {
-  width: 5px;
-  height: 14px;
-  background-size: 4.5px 4.5px;
+  width: 4px;
+  height: 12px;
+  background-size: 4px 4px;
 }
 
-.po-editable-table-drag-handle:hover .po-editable-table-drag-handle-visual,
+.po-editable-table-drag-handle:hover .po-editable-table-drag-handle-visual {
+  border-color: var(--po-editable-table-handle-hover-border);
+  background: var(--po-editable-table-handle-hover-background);
+  color: var(--po-text);
+}
+
 .po-editable-table-drag-handle:focus-visible .po-editable-table-drag-handle-visual,
 .po-editable-table-drag-handle.is-menu-active .po-editable-table-drag-handle-visual,
 .po-editable-table-drag-handle.is-dragging .po-editable-table-drag-handle-visual {
-  border-color: color-mix(in srgb, var(--po-accent) 42%, var(--po-divider));
-  background: color-mix(in srgb, var(--po-accent) 10%, var(--po-panel));
-  color: color-mix(in srgb, var(--po-accent) 68%, var(--po-text));
+  border-color: var(--po-editable-table-selection-border);
+  background: var(--po-editable-table-selection-border);
+  color: #ffffff;
 }
 
 .po-editable-table-drag-handle:focus-visible {
@@ -194,9 +186,8 @@
 .po-editable-table-drop-indicator {
   position: absolute;
   z-index: 4;
-  border-radius: 2px;
-  background: var(--po-accent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--po-accent) 30%, transparent);
+  border-radius: 0;
+  background: var(--po-editable-table-selection-border);
   pointer-events: none;
 }
 
@@ -214,12 +205,52 @@
   margin-left: -1px;
 }
 
-.po-editable-table-interaction-root td.po-editable-table-drag-source {
-  background: color-mix(in srgb, var(--po-accent) 10%, transparent);
+/* A single perimeter spans the selected row/column, including virtual gaps.
+   It never paints a fill or participates in table layout/hit testing. */
+/* Scope the named anchor to one table so sibling panes never bind to each
+   other's selection. Chromium positions the perimeter in the same layout. */
+.po-editable-table-interaction-root {
+  anchor-scope: --po-editable-table-selection;
 }
 
-.po-editable-table-interaction-root th.po-editable-table-drag-source {
-  background: color-mix(in srgb, var(--po-accent) 12%, color-mix(in srgb, var(--po-control) 42%, transparent));
+.po-editable-table-selection-target {
+  anchor-name: --po-editable-table-selection;
+}
+
+.po-editable-table-selection-outline {
+  position: absolute;
+  z-index: 4;
+  box-sizing: border-box;
+  position-anchor: --po-editable-table-selection;
+  border: 2px solid var(--po-editable-table-selection-border);
+  border-radius: 0;
+  background: transparent;
+  pointer-events: none;
+}
+
+.po-editable-table-selection-outline[data-axis="column"] {
+  top: 0;
+  bottom: 0;
+  left: anchor(left);
+  width: anchor-size(width);
+}
+
+.po-editable-table-selection-outline[data-axis="row"] {
+  left: 0;
+  right: 0;
+  top: anchor(top);
+  height: anchor-size(height);
+}
+
+.po-editable-table-selection-outline[hidden] { display: none; }
+
+.po-editable-table-interaction-root:has(.po-editable-table-selection-outline:not([hidden])),
+.markdown-codemirror-editor .cm-md-table-widget-wrap.is-doc-selected {
+  --po-editable-table-cell-focus-shadow: none;
+  /* Structural selection owns the perimeter. Keep the native range for
+     clipboard semantics, but do not also paint its text runs inside a block. */
+  --po-selection-background: transparent;
+  --po-selection-inactive-background: transparent;
 }
 
 .po-editable-table-structure-button {
@@ -242,7 +273,7 @@
   box-sizing: border-box;
   place-items: center;
   border: 1px solid transparent;
-  border-radius: 7px;
+  border-radius: 2px;
   background: var(--po-editable-table-structure-background);
   color: transparent;
   /* Suppress legacy text glyphs in table widgets that survived a dev HMR
@@ -367,6 +398,13 @@
   gap: 2px;
 }
 
+.po-editable-table-context-menu .desktop-menu-section-list.is-icon-toolbar {
+  grid-auto-columns: 32px;
+  grid-auto-flow: column;
+  justify-content: start;
+  gap: 4px;
+}
+
 .po-editable-table-context-menu .desktop-menu-item {
   display: flex;
   align-items: center;
@@ -386,6 +424,41 @@
   line-height: 18px;
   text-align: start;
   transition: background 100ms ease, color 100ms ease;
+}
+
+.po-editable-table-context-menu .desktop-menu-item.is-icon {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  justify-content: center;
+  padding: 0;
+}
+
+.po-editable-table-context-menu .desktop-menu-item.is-icon .desktop-menu-item-body {
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+}
+
+.po-editable-table-menu-icon {
+  display: block;
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  pointer-events: none;
+}
+
+.po-editable-table-menu-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 .po-editable-table-context-menu .desktop-menu-item:hover:not(:disabled),

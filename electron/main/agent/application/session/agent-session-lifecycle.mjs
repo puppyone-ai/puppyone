@@ -131,6 +131,7 @@ export function createAgentSessionLifecycle({
         terminalState: persisted.terminalState || "idle",
       });
       session.providerSessionId = persisted.providerSessionId;
+      session.modelBindingRevision = persisted.modelBindingRevision ?? null;
       session.sourceScopeId = persisted.sourceScopeId ?? "default";
       sessionStore.add(session);
       session.projectOperation = operation;

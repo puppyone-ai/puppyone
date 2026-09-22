@@ -9,6 +9,7 @@ export function registerWorkspaceNavigationIpcHandlers({
   createProjectForCurrentWindow,
   cloneRepositoryForCurrentWindow,
   selectProjectLocationForCurrentWindow,
+  getDefaultProjectLocationForCurrentWindow,
   selectWorkspaceForCurrentWindow,
   selectWorkspaceForCurrentComposition,
   selectWorkspaceForNewWindow,
@@ -33,6 +34,14 @@ export function registerWorkspaceNavigationIpcHandlers({
 
   ipcMain.handle("workspace:remove-recent", async (_event, folderPath) => {
     const result = await workspaceStateStore.removeRecentWorkspacePath(folderPath);
+    return { ok: true, ...result };
+  });
+
+  ipcMain.handle("workspace:rename-recent", async (_event, request) => {
+    const result = await workspaceStateStore.renameRecentWorkspacePath(
+      request?.folderPath,
+      request?.name,
+    );
     return { ok: true, ...result };
   });
 
@@ -72,6 +81,10 @@ export function registerWorkspaceNavigationIpcHandlers({
 
   ipcMain.handle("workspace:select-project-location-current", async (event) => {
     return selectProjectLocationForCurrentWindow(event.sender);
+  });
+
+  ipcMain.handle("workspace:default-project-location-current", async (event) => {
+    return getDefaultProjectLocationForCurrentWindow(event.sender);
   });
 
   ipcMain.handle("workspace:clone-repository-current", async (event, request) => {

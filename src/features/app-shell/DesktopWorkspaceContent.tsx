@@ -52,7 +52,6 @@ type DesktopWorkspaceContentProps = {
   }>;
   fileClipboardController: FileClipboardController;
   desktopUpdates: DesktopUpdatesController;
-  firstProjectStarterEligible: boolean;
   git: DesktopGitController;
   onActiveDataPathChange: (
     path: string | null,
@@ -63,7 +62,6 @@ type DesktopWorkspaceContentProps = {
   onRemoveProject: (folder: WorkspaceFolder) => void | Promise<void>;
   onCreateEntryMenu: (parentPath: string | null, anchorRect: DesktopCreateEntryAnchorInput) => void;
   onDismissCreateEntryMenu: () => void;
-  onWorkspaceStarterCreated: (path: string) => void;
   onFilesVisibilitySettingsChange: (settings: FilesVisibilitySettings) => void;
   onNavigate: (view: DesktopView) => void;
   onCloseCloud: () => void;
@@ -110,7 +108,6 @@ export function DesktopWorkspaceContent({
   externalOpen,
   fileClipboardController,
   desktopUpdates,
-  firstProjectStarterEligible,
   git,
   onActiveDataPathChange,
   onActiveDataNodeChange,
@@ -118,7 +115,6 @@ export function DesktopWorkspaceContent({
   onRemoveProject,
   onCreateEntryMenu,
   onDismissCreateEntryMenu,
-  onWorkspaceStarterCreated,
   onFilesVisibilitySettingsChange,
   onNavigate,
   onCloseCloud,
@@ -216,7 +212,6 @@ export function DesktopWorkspaceContent({
         editorInteractionPreferences={editorInteractionPreferences}
         fileClipboardController={fileClipboardController}
         fileOperationNotice={fileOperationNotice}
-        firstProjectStarterEligible={firstProjectStarterEligible}
         navigation={{
           activeView: resolvedActiveView,
           availableSurfaceIds,
@@ -240,7 +235,6 @@ export function DesktopWorkspaceContent({
         onRemoveProject={onRemoveProject}
         onCreateEntryMenu={onCreateEntryMenu}
         onDismissCreateEntryMenu={onDismissCreateEntryMenu}
-        onWorkspaceStarterCreated={onWorkspaceStarterCreated}
         onNodeActionMenu={onNodeActionMenu}
         preferences={preferences}
         resolvedSurface={resolvedSurface}

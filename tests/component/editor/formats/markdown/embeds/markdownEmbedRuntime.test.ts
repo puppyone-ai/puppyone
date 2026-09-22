@@ -29,20 +29,28 @@ import {
 import type { MarkdownInlinePreviewRenderer } from "../../../../../../packages/shared-ui/src/editor/markdown/shared/preview/markdownInlinePreviewPort";
 
 const mermaidMocks = vi.hoisted(() => ({
-  render: vi.fn(async () => ({
+  render: vi.fn(async (_request: unknown) => ({
     svg: "<svg><text>diagram</text></svg>",
     cacheKey: "test-cache",
     themeKey: "test-theme",
   })),
+  setScale: vi.fn(),
+  peek: vi.fn(() => null as null | { svg: string; cacheKey: string; themeKey: string }),
   subscribe: vi.fn(() => () => undefined),
 }));
 
 vi.mock("../../../../../../packages/shared-ui/src/editor/markdown/features/mermaid/mermaidRenderer", () => ({
   getMermaidThemeSnapshot: () => ({ key: "test-theme", config: {} }),
+  peekMermaidDiagram: mermaidMocks.peek,
   mountSanitizedMermaidSvg: (host: HTMLElement) => {
     const element = document.createElement("span");
     host.replaceChildren(element);
-    return { element, dispose: () => element.remove() };
+    return {
+      element,
+      intrinsicSize: { width: 1000, height: 400 },
+      setScale: mermaidMocks.setScale,
+      dispose: () => element.remove(),
+    };
   },
   renderMermaidDiagram: mermaidMocks.render,
   subscribeMermaidThemeChanges: mermaidMocks.subscribe,
@@ -62,6 +70,7 @@ afterEach(() => {
   }
   document.body.replaceChildren();
   vi.clearAllMocks();
+  mermaidMocks.peek.mockReturnValue(null);
 });
 
 function createView(source: string): EditorView {
@@ -670,9 +679,43 @@ describe("Markdown embedded runtime", () => {
     const nextRevision = getDocRevision(view.state.doc);
     host.executionSessions.destroyForRevisionChange(previousRevision, nextRevision);
     expect(host.executionSessions.values()).toHaveLength(0);
+    const request = mermaidMocks.render.mock.calls[0]?.[0] as unknown as { signal: AbortSignal };
+    expect(request.signal.aborted).toBe(true);
 
     await Promise.resolve();
     await Promise.resolve();
+    widget.destroy(dom);
+  });
+
+  it("mounts cached Mermaid output synchronously without loading or a new render", () => {
+    mermaidMocks.peek.mockReturnValue({ svg: "<svg />", cacheKey: "warm", themeKey: "test-theme" });
+    const source = "```mermaid\ngraph TD; A-->B\n```";
+    const view = createView(source);
+    const widget = new MermaidBlockWidget("graph TD; A-->B", "mermaid", 0, source.length);
+    const dom = widget.toDOM(view); view.dom.appendChild(dom);
+    expect(dom.querySelector(".cm-md-mermaid-preview")?.classList.contains("is-loading")).toBe(false);
+    expect(dom.querySelector<HTMLElement>(".cm-md-mermaid-zoom-controls")?.hidden).toBe(false);
+    expect(mermaidMocks.render).not.toHaveBeenCalled();
+    widget.destroy(dom);
+  });
+
+  it("starts dense Mermaid diagrams at a readable scale and exposes bounded zoom controls", async () => {
+    const source = "```mermaid\ngraph TD; A-->B\n```";
+    const view = createView(source);
+    const widget = new MermaidBlockWidget("graph TD; A-->B", "mermaid", 0, source.length);
+    const dom = widget.toDOM(view);
+    view.dom.appendChild(dom);
+
+    const controls = dom.querySelector<HTMLElement>(".cm-md-mermaid-zoom-controls");
+    const actions = controls?.querySelectorAll<HTMLButtonElement>(".cm-md-mermaid-zoom-action");
+    await vi.waitFor(() => expect(controls?.hidden).toBe(false));
+    expect(dom.querySelector(".cm-md-mermaid-zoom-level")?.textContent).toBe("70%");
+    expect(mermaidMocks.setScale).toHaveBeenLastCalledWith(0.7);
+
+    actions?.[1]?.click();
+    expect(dom.querySelector(".cm-md-mermaid-zoom-level")?.textContent).toBe("80%");
+    expect(mermaidMocks.setScale.mock.calls.at(-1)?.[0]).toBeCloseTo(0.8);
+
     widget.destroy(dom);
   });
 

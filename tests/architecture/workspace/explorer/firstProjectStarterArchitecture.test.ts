@@ -1,31 +1,93 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-describe("first project starter architecture", () => {
-  it("distinguishes a newly-created project from open, restore, and clone entry paths", () => {
+describe("project initialization ownership", () => {
+  it("keeps file generation out of the mounted workspace and editor open intent", () => {
+    const surface = source("src/features/app-shell/DesktopDataWorkspaceSurface.tsx");
+    const openIntent = source("src/features/app-shell/useWorkspaceEntryBootstrap.ts");
+    const entryPolicy = source("src/features/app-shell/workspaceEntryBootstrap.ts");
+    expect(surface).not.toMatch(/createStarterDocument|starterDocumentAutoCreate|EmptyWorkspaceOnboardingDialog/);
+    expect(openIntent).not.toMatch(/createFile\(|writeFile\(|localStorage/);
+    expect(entryPolicy).not.toMatch(/createFile\(|writeFile\(|localStorage/);
+    expect(entryPolicy).toContain("qualifyDataResourcePath");
+  });
+
+  it("routes create, open, clone, and restore through one entry bootstrap intent", () => {
     const lifecycle = source("src/features/app-shell/useWorkspaceLifecycle.ts");
     const app = source("src/App.tsx");
-
-    expect(lifecycle).toContain('handleWorkspaceOpenResult(result, "created")');
-    expect(lifecycle).toContain('handleWorkspaceOpenResult(result, "cloned")');
-    expect(lifecycle).toContain('entryKind: WorkspaceEntryKind = "opened"');
-    expect(app).toContain("experimentalSettings.enableFirstProjectStarter");
-    expect(app).toContain('activeWorkspaceEntryKind === "created"');
+    expect(lifecycle).toContain("WorkspaceEntryIntent");
+    expect(lifecycle).toContain('"created"');
+    expect(lifecycle).toContain('"cloned"');
+    expect(lifecycle).toContain('"restored"');
+    expect(app).toContain("useWorkspaceEntryBootstrap");
+    expect(app).not.toContain("useInitialProjectDocument");
   });
 
-  it("keeps starter writes explicit, root-qualified, and outside the workspace tree renderer", () => {
-    const surface = source("src/features/app-shell/DesktopDataWorkspaceSurface.tsx");
-    const dialog = source("src/features/app-shell/EmptyWorkspaceOnboardingDialog.tsx");
+  it("routes home and in-project setup through one Project entry flow", () => {
+    const app = source("src/App.tsx");
+    const home = source("src/components/MinimalOnboarding.tsx");
+    const flow = source("src/features/app-shell/ProjectEntryFlow.tsx");
 
-    expect(surface).toContain("qualifyDataResourcePath(activeWorkspaceRootPath, selection.file.path)");
-    expect(surface).toContain("await dataPort.createFile(resourcePath, selection.file.content)");
-    expect(surface).toContain("workspaceFolderId: folder.id");
-    expect(dialog).toContain('id: "blank"');
-    expect(dialog).toContain('file: null');
-    expect(dialog).not.toContain("createFolder(");
+    expect(app).toContain("useProjectEntryFlow");
+    expect(app).toContain("<ProjectEntryFlow");
+    expect(home).toContain("useProjectEntryFlow");
+    expect(home).toContain("<ProjectEntryFlow");
+    expect(app).not.toMatch(/Onboarding(?:Import|ProjectEntry)Dialog|ProjectEntryLauncherDialog/);
+    expect(home).not.toMatch(/Onboarding(?:Import|ProjectEntry)Dialog|ProjectEntryLauncherDialog/);
+    expect(flow).toContain("<ProjectEntryLauncherDialog");
+    expect(flow).toContain("<OnboardingProjectEntryDialog");
+    expect(flow).toContain("<OnboardingImportDialog");
+    expect(flow).not.toContain('"clone"');
+  });
+
+  it("shares one Import source preview between home and Project setup", () => {
+    const homeActions = source("src/components/onboarding/OnboardingEntryActions.tsx");
+    const launcher = source("src/features/app-shell/ProjectEntryLauncherDialog.tsx");
+    const flow = source("src/features/app-shell/ProjectEntryFlow.tsx");
+    const importDialog = source("src/components/OnboardingImportDialog.tsx");
+    const importRegistry = source("src/features/project-import/importSourceRegistry.ts");
+    const experimentalSettings = source("src/features/settings/main/ExperimentalSettingsView.tsx");
+    const launcherStyles = source("src/features/app-shell/project-switcher-rail.css");
+    const onboardingStyles = source("src/styles/onboarding.css");
+
+    expect(homeActions).toContain("<ImportSourcePreview");
+    expect(launcher).toContain("<ImportSourcePreview");
+    expect(flow).toContain("resolveVisibleImportSources");
+    expect(flow).toContain("resolveImportPreviewBrands");
+    expect(importDialog).toContain("visibleSources.map");
+    expect(importRegistry).toContain('settingKey: "enableNotionImport"');
+    expect(importRegistry).toContain('settingKey: "enableGoogleDriveImport"');
+    expect(importRegistry).toContain('settingKey: "enableAirtableImport"');
+    expect(importRegistry).toContain('settingKey: "enableObsidianImport"');
+    expect(experimentalSettings).toContain('settingKey: "enableNotionImport"');
+    expect(experimentalSettings).toContain('settingKey: "enableGoogleDriveImport"');
+    expect(experimentalSettings).toContain('settingKey: "enableAirtableImport"');
+    expect(experimentalSettings).toContain('settingKey: "enableObsidianImport"');
+    expect(launcherStyles).toMatch(
+      /\.desktop-project-entry-launcher \.desktop-dialog-title-row\s*\{[^}]*align-items:\s*center;/s,
+    );
+    expect(onboardingStyles).toMatch(
+      /\.onboarding-entry-import-brand-badge\s*\{[^}]*--onboarding-import-badge-surface:\s*var\(--po-canvas\);[^}]*background:\s*color-mix\([\s\S]*var\(--onboarding-import-badge-surface\)/s,
+    );
+    expect(launcherStyles).toMatch(
+      /\.desktop-project-entry-launcher \.onboarding-entry-import-brand-badge\s*\{[^}]*--onboarding-import-badge-surface:\s*var\(--po-overlay\);/s,
+    );
+  });
+
+  it("shares one materializer between project templates and Slides", () => {
+    expect(source("electron/main/project-initialization-service.mjs")).toContain('local-api/templates/materialize.mjs');
+    expect(source("local-api/workspace-templates.mjs")).toContain('./templates/materialize.mjs');
+    expect(source("local-api/workspace-templates.mjs")).not.toContain("fs.rename(");
+  });
+
+  it("packages the offline template content and safe publication primitive", () => {
+    const pkg = JSON.parse(source("package.json"));
+    expect(pkg.build.files).toContain("local-api/**");
+    expect(pkg.build.asarUnpack).toContain("local-api/templates/native/*.node");
+    expect(pkg.scripts.build).toContain("build:native-templates");
+    expect(pkg.scripts.dev).toContain("build:native-templates");
   });
 });
-
 function source(relativePath: string) {
   return readFileSync(new URL(`../../../../${relativePath}`, import.meta.url), "utf8");
 }

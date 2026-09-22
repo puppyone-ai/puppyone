@@ -14,8 +14,17 @@ import { disposeWidgetSessionDom } from "../../platform/codemirror/widgetSession
 import type { MarkdownMountedBlockExecution } from "../../core/plans/markdownBlockExecution";
 import type { MarkdownInlinePreviewRenderer } from "../../shared/preview/markdownInlinePreviewPort";
 import { getMappedWidgetSourceRange } from "../../shared/widgets/widgetDom";
+import { getInlinePreviewLinkIdentity } from "../../core/links/inlinePreviewLinkIdentity";
 
 export class MarkdownMdxTabsWidget extends WidgetType {
+  private linkIdentity: string | undefined;
+
+  private getLinkIdentity(): string {
+    return this.linkIdentity ??= getInlinePreviewLinkIdentity(
+      this.tabs.map((tab) => tab.content), this.markdownLinkGraph, this.documentPath,
+    );
+  }
+
   constructor(
     private readonly from: number,
     private readonly to: number,
@@ -35,7 +44,8 @@ export class MarkdownMdxTabsWidget extends WidgetType {
       && other.from === this.from
       && other.to === this.to
       && other.source === this.source
-      && (other.markdownLinkGraph?.revision ?? 0) === (this.markdownLinkGraph?.revision ?? 0)
+      && ((other.markdownLinkGraph?.revision ?? 0) === (this.markdownLinkGraph?.revision ?? 0)
+        || other.getLinkIdentity() === this.getLinkIdentity())
       && other.documentPath === this.documentPath
       && other.renderInlinePreview === this.renderInlinePreview
       && other.layoutEstimatedHeight === this.layoutEstimatedHeight

@@ -4,11 +4,13 @@
  * content enter only after the opening is large enough to frame them.
  */
 .onboarding-homepage-shell {
-  --onboarding-empty-state-breathe-duration: 1300ms;
-  --onboarding-empty-state-reveal-duration: 1150ms;
-  --onboarding-empty-state-settle-duration: 250ms;
-  --onboarding-empty-state-content-lag: 160ms;
-  --onboarding-empty-state-content-duration: 620ms;
+  /* Total ≈ 1.1s. The homepage is inert while the intro plays, so it must
+   * not feel like a splash screen: breathe once, open, and get out of the way. */
+  --onboarding-empty-state-breathe-duration: 420ms;
+  --onboarding-empty-state-reveal-duration: 560ms;
+  --onboarding-empty-state-settle-duration: 120ms;
+  --onboarding-empty-state-content-lag: 80ms;
+  --onboarding-empty-state-content-duration: 420ms;
 }
 
 .onboarding-empty-state-intro {

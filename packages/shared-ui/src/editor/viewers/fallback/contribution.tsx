@@ -11,8 +11,7 @@ export const fallbackViewerContribution = definePresetViewer({
 
 function FallbackDocumentPreview({
   document,
-  content,
 }: Parameters<NonNullable<PresetViewerImplementation["render"]>>[0]) {
   const { t } = useLocalization();
-  return <DocumentPreview document={document} title={content || t("editor.preview.binaryFile")} />;
+  return <DocumentPreview document={document} label={t("editor.preview.binaryFile")} />;
 }

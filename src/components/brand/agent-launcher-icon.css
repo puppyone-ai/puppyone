@@ -34,6 +34,10 @@
   opacity: 0.9;
 }
 
+.desktop-terminal-launcher-icon.is-chatgpt {
+  opacity: 0.9;
+}
+
 .desktop-terminal-launcher-icon.is-opencode {
   background: #111418;
 }

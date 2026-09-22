@@ -24,9 +24,12 @@ export function createRuntimeResolutionCoordinator({
   const inspectionFlights = new Map();
 
   async function queryCatalog(request = {}, workspaceRoot = null) {
+    validateRequestedRuntime(request.runtimeId, false);
     if (request.refresh) readinessStore.clear();
     const resolutionGeneration = readinessStore.generation();
-    const catalog = await runtimeRegistry.discover({ refresh: Boolean(request.refresh) });
+    // A bound conversation must not wait for unrelated CLI installation/auth
+    // probes. Only the unbound launcher/history query needs the full catalog.
+    const catalog = await runtimeRegistry.discover({ refresh: Boolean(request.refresh), runtimeId: request.runtimeId });
     const selected = selectRequestedRuntime(catalog, request.runtimeId);
     const runtimes = catalog.map((entry) => ({
       descriptor: sanitizeAgentRuntimeDescriptor(entry.descriptor),

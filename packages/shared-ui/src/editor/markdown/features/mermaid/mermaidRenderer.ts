@@ -1,31 +1,30 @@
-import type mermaid from "mermaid";
 import type { MermaidConfig } from "mermaid";
 import { getSafeMarkdownHref } from "../../platform/policy/markdownUrlPolicy";
 import { subscribeTypographyChanges } from "../../../../core/typography";
 import { bindInlineHtmlDomInteractions } from "../html/inlineHtmlDomAdapter";
+import { getRendererPerformanceTracker } from "../../../../performance/rendererPerformance";
 
-type MermaidModule = typeof mermaid;
-
-export type MermaidThemeSnapshot = {
-  key: string;
-  config: MermaidConfig;
-};
-
-export type MermaidRenderResult = {
-  svg: string;
-  cacheKey: string;
-  themeKey: string;
-};
+import { createMermaidRenderService, MERMAID_MAX_SVG_BYTES,
+  type MermaidThemeSnapshot, type MermaidRenderRequest, type MermaidRenderResult,
+} from "./mermaidRenderService";
+export { MERMAID_MAX_SOURCE_BYTES, MERMAID_MAX_SVG_BYTES } from "./mermaidRenderService";
+export type { MermaidThemeSnapshot, MermaidRenderRequest, MermaidRenderResult,
+  MermaidRenderTransport } from "./mermaidRenderService";
+const renderService = createMermaidRenderService(sanitizeMermaidSvg);
+export const configureMermaidRenderTransport = renderService.configure;
+export const peekMermaidDiagram = renderService.peek;
 
 export type MermaidSvgMount = Readonly<{
   element: HTMLElement;
+  intrinsicSize: MermaidSvgIntrinsicSize | null;
+  setScale: (scale: number | "fit") => void;
   dispose: () => void;
 }>;
 
-export type MermaidRenderRequest = {
-  source: string;
-  theme?: MermaidThemeSnapshot;
-};
+export type MermaidSvgIntrinsicSize = Readonly<{
+  width: number;
+  height: number;
+}>;
 
 export type MermaidDebouncedRenderRequest = MermaidRenderRequest & {
   delayMs?: number;
@@ -35,21 +34,13 @@ export type MermaidDebouncedRenderRequest = MermaidRenderRequest & {
 
 export type MermaidThemeChangeUnsubscribe = () => void;
 
-const MERMAID_CACHE_LIMIT = 48;
-export const MERMAID_MAX_SOURCE_BYTES = 128 * 1024;
-export const MERMAID_MAX_SVG_BYTES = 4 * 1024 * 1024;
-
-let mermaidModulePromise: Promise<MermaidModule> | null = null;
-let mermaidRenderQueue: Promise<void> = Promise.resolve();
-let initializedThemeKey = "";
-let renderSequence = 0;
+const MERMAID_MAX_INTRINSIC_EDGE_PX = 4096;
 let themeObserver: MutationObserver | null = null;
 let colorSchemeQuery: MediaQueryList | null = null;
 let colorSchemeListener: (() => void) | null = null;
 let themeNotificationFrame: number | null = null;
 let typographyChangeUnsubscribe: (() => void) | null = null;
 
-const svgCache = new Map<string, string>();
 const themeChangeSubscribers = new Set<() => void>();
 
 export function getMermaidThemeSnapshot(root: Element = document.documentElement): MermaidThemeSnapshot {
@@ -137,84 +128,51 @@ export function getMermaidThemeSnapshot(root: Element = document.documentElement
 export async function renderMermaidDiagram({
   source,
   theme = getMermaidThemeSnapshot(),
+  signal,
+  owner,
 }: MermaidRenderRequest): Promise<MermaidRenderResult> {
-  if (utf8ByteLength(source) > MERMAID_MAX_SOURCE_BYTES) {
-    throw new Error("Mermaid source exceeds the render limit.");
-  }
-  const normalizedSource = normalizeMermaidSource(source);
-  if (!normalizedSource) {
-    throw new Error("Mermaid diagram is empty.");
-  }
-
-  const cacheKey = `${theme.key}\n${normalizedSource}`;
-  const cachedSvg = svgCache.get(cacheKey);
-  if (cachedSvg) {
-    touchCacheEntry(cacheKey, cachedSvg);
-    return {
-      svg: cachedSvg,
-      cacheKey,
-      themeKey: theme.key,
-    };
-  }
-
-  const sanitizedSvg = await enqueueMermaidRender(async () => {
-    const mermaidInstance = await getMermaidModule();
-    ensureMermaidInitialized(mermaidInstance, theme);
-
-    const parseResult = await mermaidInstance.parse(normalizedSource, { suppressErrors: true });
-    if (!parseResult) {
-      throw new Error("Invalid Mermaid syntax.");
-    }
-
-    const { svg } = await mermaidInstance.render(createMermaidRenderId(), normalizedSource);
-    if (utf8ByteLength(svg) > MERMAID_MAX_SVG_BYTES) {
-      throw new Error("Mermaid SVG exceeds the render limit.");
-    }
-    return sanitizeMermaidSvg(svg);
-  });
-  setCacheEntry(cacheKey, sanitizedSvg);
-
-  return {
-    svg: sanitizedSvg,
-    cacheKey,
-    themeKey: theme.key,
-  };
-}
-
-function enqueueMermaidRender<T>(render: () => Promise<T>): Promise<T> {
-  const queuedRender = mermaidRenderQueue.then(render, render);
-  mermaidRenderQueue = queuedRender.then(
-    () => undefined,
-    () => undefined,
-  );
-  return queuedRender;
+  return renderService.render({ source, theme, signal, owner });
 }
 
 export function createDebouncedMermaidRenderer() {
   let renderTimer: number | null = null;
   let requestId = 0;
   let disposed = false;
+  let controller: AbortController | null = null;
+  let detachAbort: (() => void) | null = null;
 
   return {
     render(request: MermaidDebouncedRenderRequest) {
+      if (disposed) return;
+      detachAbort?.();
+      controller?.abort();
+      controller = new AbortController();
+      const currentController = controller;
+      const signal = controller.signal;
+      const abort = () => currentController.abort();
+      request.signal?.addEventListener("abort", abort, { once: true });
+      detachAbort = () => request.signal?.removeEventListener("abort", abort);
+      if (request.signal?.aborted) abort();
       requestId += 1;
       const currentRequestId = requestId;
       if (renderTimer !== null) window.clearTimeout(renderTimer);
 
       renderTimer = window.setTimeout(() => {
         renderTimer = null;
-        renderMermaidDiagram(request)
+        renderMermaidDiagram({ ...request, signal })
           .then((result) => {
-            if (disposed || currentRequestId !== requestId) return;
+            if (disposed || signal.aborted || currentRequestId !== requestId) return;
             request.onResult(result);
           })
           .catch((error) => {
-            if (disposed || currentRequestId !== requestId) return;
+            if (disposed || signal.aborted || currentRequestId !== requestId) return;
             request.onError(toError(error));
           });
       }, request.delayMs ?? 250);
     },
     cancel() {
+      detachAbort?.();
+      controller?.abort();
       disposed = true;
       requestId += 1;
       if (renderTimer !== null) {
@@ -235,27 +193,8 @@ export function subscribeMermaidThemeChanges(callback: () => void): MermaidTheme
   };
 }
 
-function normalizeMermaidSource(source: string): string {
-  return source.replace(/\r\n?/g, "\n").trim();
-}
-
-async function getMermaidModule(): Promise<MermaidModule> {
-  mermaidModulePromise ??= import("mermaid").then((module) => module.default);
-  return mermaidModulePromise;
-}
-
-function ensureMermaidInitialized(mermaidInstance: MermaidModule, theme: MermaidThemeSnapshot) {
-  if (initializedThemeKey === theme.key) return;
-  mermaidInstance.initialize(theme.config);
-  initializedThemeKey = theme.key;
-}
-
-function createMermaidRenderId(): string {
-  renderSequence += 1;
-  return `puppyone-mermaid-${Date.now()}-${renderSequence}`;
-}
-
 export function sanitizeMermaidSvg(svg: string): string {
+  const startedAt = performance.now();
   if (utf8ByteLength(svg) > MERMAID_MAX_SVG_BYTES) {
     throw new Error("Mermaid SVG exceeds the render limit.");
   }
@@ -306,6 +245,7 @@ export function sanitizeMermaidSvg(svg: string): string {
   if (utf8ByteLength(sanitized) > MERMAID_MAX_SVG_BYTES) {
     throw new Error("Sanitized Mermaid SVG exceeds the render limit.");
   }
+  getRendererPerformanceTracker().recordOperation("mermaid_sanitize", performance.now() - startedAt);
   return sanitized;
 }
 
@@ -321,22 +261,74 @@ export function mountSanitizedMermaidSvg(
   svg: string,
   openHref: (href: string) => void = () => {},
 ): MermaidSvgMount {
+  const startedAt = performance.now();
   const renderRoot = document.createElement("span");
   renderRoot.className = "po-safe-mermaid-svg-root";
   const shadowRoot = renderRoot.attachShadow({ mode: "open" });
   const style = document.createElement("style");
-  style.textContent = ":host{display:block;max-width:100%}svg{display:block;max-width:100%;height:auto}";
+  style.textContent = [
+    ":host{display:block;max-width:100%}",
+    "svg{display:block;max-width:100%;height:auto}",
+    ':host([data-mermaid-sizing="intrinsic"]){max-width:none}',
+    ':host([data-mermaid-sizing="intrinsic"]) svg{width:100%!important;max-width:none!important;height:auto!important}',
+  ].join("");
   const template = document.createElement("template");
   template.innerHTML = sanitizeMermaidSvg(svg);
+  const intrinsicSize = getMermaidSvgIntrinsicSize(template.content.querySelector("svg"));
   shadowRoot.append(style, template.content);
   bindInlineHtmlDomInteractions(shadowRoot, { openHref });
   host.replaceChildren(renderRoot);
+  getRendererPerformanceTracker().recordOperation("mermaid_mount", performance.now() - startedAt);
+  const setScale = (scale: number | "fit") => {
+    if (scale === "fit" || !intrinsicSize) {
+      delete renderRoot.dataset.mermaidSizing;
+      renderRoot.style.removeProperty("width");
+      return;
+    }
+    const safeScale = Math.min(4, Math.max(0.05, Number.isFinite(scale) ? scale : 1));
+    renderRoot.dataset.mermaidSizing = "intrinsic";
+    renderRoot.style.width = `${roundMermaidCssPixel(intrinsicSize.width * safeScale)}px`;
+  };
   return Object.freeze({
     element: renderRoot,
+    intrinsicSize,
+    setScale,
     dispose: () => {
       if (renderRoot.parentNode === host) renderRoot.remove();
     },
   });
+}
+
+function getMermaidSvgIntrinsicSize(svg: SVGSVGElement | null): MermaidSvgIntrinsicSize | null {
+  if (!svg) return null;
+  const viewBox = svg.getAttribute("viewBox")
+    ?.trim()
+    .split(/[\s,]+/)
+    .map((part) => Number.parseFloat(part));
+  if (!viewBox || viewBox.length !== 4) return null;
+  const [, , viewBoxWidth, viewBoxHeight] = viewBox;
+  if (
+    !Number.isFinite(viewBoxWidth) ||
+    !Number.isFinite(viewBoxHeight) ||
+    viewBoxWidth <= 0 ||
+    viewBoxHeight <= 0
+  ) {
+    return null;
+  }
+
+  const safetyScale = Math.min(
+    1,
+    MERMAID_MAX_INTRINSIC_EDGE_PX / viewBoxWidth,
+    MERMAID_MAX_INTRINSIC_EDGE_PX / viewBoxHeight,
+  );
+  return Object.freeze({
+    width: roundMermaidCssPixel(viewBoxWidth * safetyScale),
+    height: roundMermaidCssPixel(viewBoxHeight * safetyScale),
+  });
+}
+
+function roundMermaidCssPixel(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 function isUnsafeMermaidSvgAttribute(attribute: Attr): boolean {
@@ -438,20 +430,6 @@ function scheduleMermaidThemeChangeNotification() {
     themeNotificationFrame = null;
     for (const callback of Array.from(themeChangeSubscribers)) callback();
   });
-}
-
-function setCacheEntry(cacheKey: string, svg: string) {
-  svgCache.set(cacheKey, svg);
-  while (svgCache.size > MERMAID_CACHE_LIMIT) {
-    const oldestKey = svgCache.keys().next().value;
-    if (!oldestKey) break;
-    svgCache.delete(oldestKey);
-  }
-}
-
-function touchCacheEntry(cacheKey: string, svg: string) {
-  svgCache.delete(cacheKey);
-  svgCache.set(cacheKey, svg);
 }
 
 function isDarkColor(value: string): boolean {

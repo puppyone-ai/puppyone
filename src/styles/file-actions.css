@@ -229,7 +229,7 @@
   outline: none;
 }
 
-.desktop-node-action-menu {
+.desktop-node-action-menu:not(.desktop-sidebar-action-menu) {
   position: fixed;
   top: var(--node-action-menu-top);
   left: var(--node-action-menu-left);
@@ -237,25 +237,10 @@
   width: var(--node-action-menu-width, 176px);
   max-width: calc(100vw - 24px);
   max-height: calc(100vh - 24px);
-  overflow-x: hidden;
-  overflow-y: auto;
   padding: var(--po-menu-padding);
-  border: 1px solid var(--po-menu-border);
-  border-radius: var(--po-menu-radius);
-  background: var(--po-menu-bg);
-  backdrop-filter: blur(20px);
-  color: var(--po-text);
-  box-shadow: var(--po-menu-shadow);
-  font-size: var(--po-type-left-sidebar-content, 14px);
 }
 
 .desktop-create-entry-menu.desktop-node-action-menu {
-  padding: var(--po-menu-padding);
-  border-color: var(--po-menu-border);
-  border-radius: var(--po-menu-radius);
-  background: var(--po-menu-bg);
-  font-size: var(--po-type-left-sidebar-content, 14px);
-  box-shadow: var(--po-menu-shadow);
   overflow: visible;
 }
 

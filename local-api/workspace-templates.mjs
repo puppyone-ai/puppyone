@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { materializeTemplate, requireRelativeTemplatePath } from "./templates/materialize.mjs";
 import {
   normalizeRelativePath,
   resolveExistingWorkspacePath,
@@ -9,7 +10,6 @@ import {
 export const BUILT_IN_SLIDES_TEMPLATE_ID = "slides.default";
 export const BUILT_IN_SLIDES_TEMPLATE_VERSION = 1;
 
-const TEMPLATE_DIR_PREFIX = ".puppyone-template-";
 const templateCreationQueues = new Map();
 
 export async function instantiateWorkspaceTemplate(rootPath, request, options = {}) {
@@ -30,26 +30,28 @@ export async function instantiateWorkspaceTemplate(rootPath, request, options = 
   }
 
   return serializeTemplateCreation(parent, async () => {
-    let stagingPath = null;
     try {
-      const folderName = await findAvailableFolderName(parent, title);
+      const filePlan = createSlidesTemplateFiles(title);
+      const plan = {
+        files: [
+          ...Object.entries(filePlan).map(([filePath, content]) => ({ path: filePath, content })),
+          { path: "assets/geist-sans.woff2", content: fontBytes },
+        ],
+        initialOpenPath: `${title}.puppyoneapp`,
+      };
+      let folderName;
+      for (let attempt = 0; attempt < 32; attempt += 1) {
+        folderName = await findAvailableFolderName(parent, title);
+        try {
+          await materializeTemplate({ parentPath: parent, name: folderName, plan });
+          break;
+        } catch (error) {
+          if (error.code !== "EEXIST" || attempt === 31) throw error;
+        }
+      }
       const normalizedParent = normalizeRelativePath(parentPath);
       const rootRelativePath = joinRelativePath(normalizedParent, folderName);
       resolveWorkspacePath(rootPath, rootRelativePath);
-
-      stagingPath = await fs.mkdtemp(path.join(parent, TEMPLATE_DIR_PREFIX));
-      await fs.mkdir(path.join(stagingPath, "assets"));
-      const filePlan = createSlidesTemplateFiles(title);
-      await Promise.all([
-        ...Object.entries(filePlan).map(([name, content]) => (
-          fs.writeFile(path.join(stagingPath, name), content, { encoding: "utf8", flag: "wx" })
-        )),
-        fs.writeFile(path.join(stagingPath, "assets", "geist-sans.woff2"), fontBytes, { flag: "wx" }),
-      ]);
-
-      const targetPath = path.join(parent, folderName);
-      await fs.rename(stagingPath, targetPath);
-      stagingPath = null;
 
       const appFileName = `${title}.puppyoneapp`;
       const openPath = joinRelativePath(rootRelativePath, appFileName);
@@ -73,8 +75,6 @@ export async function instantiateWorkspaceTemplate(rootPath, request, options = 
       };
     } catch (error) {
       throw new Error(`Unable to create Slides: ${error instanceof Error ? error.message : String(error)}`);
-    } finally {
-      if (stagingPath) await fs.rm(stagingPath, { recursive: true, force: true }).catch(() => {});
     }
   });
 }
@@ -215,6 +215,7 @@ function normalizeTemplateName(value) {
   if (!name) throw new Error("Slides name is required.");
   if (name === "." || name === ".." || /[\\/\0]/.test(name)) throw new Error("Slides name is invalid.");
   if (name.length > 120) throw new Error("Slides name is too long.");
+  requireRelativeTemplatePath(name);
   return name;
 }
 

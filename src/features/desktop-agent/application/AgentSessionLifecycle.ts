@@ -68,11 +68,9 @@ export class AgentSessionLifecycle {
   }
 
   async closeSession() {
-    if (this.options.readState().projection.runningTurnId) {
-      this.options.patch({ error: createAgentError("active-turn") });
-      return false;
-    }
     try {
+      const bridge = this.options.bridgeProvider();
+      if (bridge?.terminateAgentExecution) return await bridge.terminateAgentExecution();
       await this.closeActiveSession(false);
       return true;
     } catch (error) {
@@ -87,6 +85,8 @@ export class AgentSessionLifecycle {
    * policy does not apply to rollback.
    */
   async rollbackPreparation() {
+    const bridge = this.options.bridgeProvider();
+    if (bridge?.terminateAgentExecution) { await bridge.terminateAgentExecution(); return; }
     await this.closeActiveSession(false);
   }
 

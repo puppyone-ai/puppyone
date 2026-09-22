@@ -31,6 +31,8 @@ export function createHookRegistrationService({ bridgeInstaller, homedir = os.ho
   ]);
 
   async function getSnapshot() {
+    // Inspection is deliberately read-only: discovering an Agent never opts the
+    // user into its Hook. A Hook is enabled only after setEnabled(..., true).
     const providers = await Promise.all(PROVIDERS.map(async (provider) => {
       const registration = registrations.get(provider.providerId);
       let enrollment = registration

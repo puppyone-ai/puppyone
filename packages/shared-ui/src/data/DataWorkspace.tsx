@@ -1443,6 +1443,9 @@ export function DataWorkspace({
                   </div>
                 )}
                 <FilePreview
+                  editorAssets={dataPort.editorAssets}
+                  previewServices={dataPort.previewServices}
+                  inputGeneration={selectedInput.generation}
                   node={selectedFile}
                   fileContent={selectedFileContent}
                   fileUrl={selectedFileUrl}

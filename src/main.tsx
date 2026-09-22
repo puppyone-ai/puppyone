@@ -9,7 +9,6 @@ import {
   retireEditorTasks,
   holdEditorRuntimeAdmission,
   reconcilePendingDocumentOperations,
-  PresetViewerRuntimeHostProvider,
 } from "@puppyone/shared-ui";
 import { LocalizationProvider } from "@puppyone/localization/react";
 import { App } from "./App";
@@ -19,10 +18,11 @@ import { FeatureFlagsProvider } from "./features/flags";
 import { TypographyCatalogProvider } from "./features/typography";
 import { bootstrapRendererLocalization } from "./localization";
 import { startMarkdownFormatShortcutBridge } from "./lib/markdownFormatShortcutBridge";
-import { desktopPresetViewerRuntimeHost } from "./features/editor-surfaces";
+import { startDesktopMermaidClient } from "./platform/mermaid/desktopMermaidClient";
 import { readDesktopPlatformCapabilities } from "./platform/desktopPlatformClient";
 
 const rootElement = document.getElementById("root");
+startDesktopMermaidClient();
 if (!rootElement) throw new Error("PuppyOne renderer root is unavailable.");
 
 let activeCloseRequestId: string | null = null;
@@ -143,13 +143,7 @@ async function renderApplication() {
     surface = (
       <TypographyCatalogProvider>
         <FeatureFlagsProvider>
-          <PresetViewerRuntimeHostProvider
-            adapter={window.puppyoneDesktop?.editorSurfaces
-              ? desktopPresetViewerRuntimeHost
-              : null}
-          >
-            <App />
-          </PresetViewerRuntimeHostProvider>
+          <App />
         </FeatureFlagsProvider>
       </TypographyCatalogProvider>
     );

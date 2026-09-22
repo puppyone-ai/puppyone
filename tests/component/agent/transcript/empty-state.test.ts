@@ -40,9 +40,10 @@ describe("Desktop Agent renderer surfaces", () => {
     }));
 
     expect(container.textContent).toContain(testT("agent.empty.prompt"));
-    expect(container.querySelector(".desktop-agent-empty-state .desktop-agent-brand-mark.is-codex.is-monochrome")).not.toBeNull();
-    expect(container.querySelector(".desktop-agent-empty-state .po-agent-monochrome-brand-image")).not.toBeNull();
-    expect(container.querySelector(".desktop-agent-empty-state .po-agent-brand-image")).toBeNull();
+    const mark = container.querySelector(".desktop-agent-empty-state .desktop-agent-brand-mark.is-codex.is-monochrome");
+    expect(mark?.querySelector(".po-agent-monochrome-brand-image")?.getAttribute("fill")).toBe("currentColor");
+    expect(mark?.querySelector("svg image")?.getAttribute("href")).toContain("/assets/icons/agents/chatgpt.png");
+    expect(mark?.querySelector(".po-agent-brand-image")).toBeNull();
 
     const logoButton = container.querySelector<HTMLButtonElement>(".desktop-agent-empty-logo-button");
     expect(stripBidiIsolation(logoButton?.getAttribute("aria-label"))).toBe("Spin the Codex logo");

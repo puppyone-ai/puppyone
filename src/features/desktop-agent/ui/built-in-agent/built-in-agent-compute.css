@@ -1,0 +1,98 @@
+@layer features {
+  .desktop-agent-compute {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 8px;
+    color: var(--agent-text-muted);
+    font-family: var(--agent-font-family);
+    font-size: var(--agent-font-size-meta);
+    font-weight: var(--agent-font-weight);
+    line-height: 1.5;
+  }
+
+  .desktop-agent-compute button {
+    font: inherit;
+    cursor: var(--po-clickable-cursor, default);
+  }
+
+  .desktop-agent-compute button:disabled { opacity: 0.5; cursor: default; }
+  .desktop-agent-compute button:focus-visible { outline: 2px solid var(--agent-focus-ring); outline-offset: 3px; }
+
+  .desktop-agent-compute-summary {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .desktop-agent-compute-summary > svg { flex-shrink: 0; }
+  .desktop-agent-compute-summary > .desktop-agent-picker { margin-inline-start: auto; min-width: 0; }
+
+  .desktop-agent-compute-customize {
+    min-height: var(--po-control-size-compact);
+    margin-inline-start: auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--agent-text-muted);
+    text-align: start;
+  }
+
+  .desktop-agent-compute-customize:hover:not(:disabled) {
+    color: var(--agent-text);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .desktop-agent-access-prompt {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--agent-border-subtle);
+    border-radius: var(--agent-radius-composer);
+    background: var(--agent-canvas);
+    text-align: start;
+  }
+
+  .desktop-agent-access-copy { display: flex; flex-direction: column; gap: 6px; }
+  .desktop-agent-access-copy > strong {
+    color: var(--agent-text);
+    font-size: var(--agent-font-size-meta);
+    font-weight: var(--po-text-weight-medium);
+    line-height: 1.5;
+  }
+
+  .desktop-agent-access-copy > p { margin: 0; }
+
+  .desktop-agent-access-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+  }
+
+  .desktop-agent-compute .desktop-agent-access-primary {
+    display: inline-flex;
+    flex: 0 0 auto;
+    height: var(--po-control-size-compact);
+    align-items: center;
+    justify-content: center;
+    padding: 0 10px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: var(--agent-text);
+    color: var(--agent-canvas);
+    font-size: var(--agent-font-size-meta);
+    font-weight: var(--po-text-weight-medium);
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .desktop-agent-compute .desktop-agent-access-primary:hover:not(:disabled) { background: var(--agent-primary-hover-surface); }
+  .desktop-agent-compute .desktop-agent-access-prompt > small { font: inherit; }
+}

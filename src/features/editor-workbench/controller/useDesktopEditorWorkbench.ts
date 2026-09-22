@@ -41,6 +41,7 @@ import {
 import { EditorWorkbenchPersistenceScheduler } from "../persistence/editorWorkbenchPersistence";
 
 export type DesktopEditorWorkbenchController = Readonly<{
+  hydrated: boolean;
   state: EditorGroupState;
   paneLayout: EditorPaneLayoutState;
   activePath: string | null;
@@ -352,6 +353,7 @@ export function useDesktopEditorWorkbench(
   const activeEditor = workbench.group.editors.find((editor) => editor.id === activePane.editorId);
 
   return useMemo(() => ({
+    hydrated: record.storageKey === storageKey && record.hydrated,
     state: workbench.group,
     paneLayout: workbench.layout,
     activePath: activeEditor?.resource ?? null,
@@ -385,6 +387,9 @@ export function useDesktopEditorWorkbench(
     splitPane,
     rebaseResource,
     resizeSplit,
+    record.hydrated,
+    record.storageKey,
+    storageKey,
     workbench.group,
     workbench.layout,
   ]);

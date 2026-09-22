@@ -1,5 +1,4 @@
-.code-preview,
-.document-preview {
+.code-preview {
   min-height: 100%;
   overflow: hidden;
   border: 1px solid var(--po-border-subtle);
@@ -140,11 +139,6 @@
   background: transparent;
   color: var(--po-text);
   font-weight: 500;
-}
-
-.code-codemirror-editor .cm-selectionBackground,
-.code-codemirror-editor .cm-focused .cm-selectionBackground {
-  background: var(--po-selected);
 }
 
 .code-codemirror-editor .cm-selectionMatch {

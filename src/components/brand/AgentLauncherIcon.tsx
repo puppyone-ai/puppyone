@@ -1,6 +1,7 @@
 import { MessageSquare, SquareTerminal } from "lucide-react";
 import {
   AgentBrandImage,
+  AgentMonochromeBrandImage,
   resolveAgentBrand,
 } from "@puppyone/shared-ui";
 import "./agent-launcher-icon.css";
@@ -28,7 +29,9 @@ export function AgentLauncherIcon({
       aria-hidden="true"
     >
       {brand ? (
-        <AgentBrandImage brandId={brand.id} />
+        brand.id === "chatgpt" || brand.id === "codex"
+          ? <AgentMonochromeBrandImage brandId={brand.id} />
+          : <AgentBrandImage brandId={brand.id} />
       ) : chatFallback ? (
         <MessageSquare size={compact ? 14 : 16} strokeWidth={1.7} />
       ) : (

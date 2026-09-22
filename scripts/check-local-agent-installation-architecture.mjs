@@ -23,22 +23,68 @@ for (const file of retiredFiles) {
 
 for (const file of [
   "electron/main/local-agent-installation/installation-registry.mjs",
+  "electron/main/local-agent-catalog/catalog.mjs",
+  "electron/main/local-agent-catalog/agent-definition.mjs",
   "electron/main/local-agent-installation/executable-resolver.mjs",
   "electron/main/local-agent-installation/installation-service.mjs",
   "electron/main/platform/common/executable-discovery-port.mjs",
   "shared/local-agent-installation/schema.mjs",
   "shared/local-agent-installation/types.ts",
   "src/features/local-agents/application/LocalAgentInstallationStore.ts",
+  "electron/main/local-agent-installation/setup/setup-registry.mjs",
+  "electron/main/local-agent-installation/setup/setup-advisor.mjs",
+  "electron/main/local-agent-installation/setup/setup-service.mjs",
+  "shared/local-agent-installation/setup-types.ts",
 ]) {
   if (!fs.existsSync(resolve(file))) errors.push(`${file} is required by the Local Agent installation boundary`);
 }
 
 const main = read("electron/main.mjs");
+requireText(read("electron/main/local-agent-installation/installation-registry.mjs"), "defaultLocalAgentCatalog", "Installation identities must come from the shared catalog");
+requireText(read("electron/main/local-agent-installation/setup/setup-registry.mjs"), "defaultLocalAgentCatalog", "Setup and Companion identities must come from the shared catalog");
+requireText(read("electron/main/local-agent-activation/activation-registry.mjs"), "localAgentCapabilities", "Activation must select a declared capability, not a provider branch");
+for (const file of ["electron/main/local-agent-installation/setup/setup-registry.mjs", "electron/main/local-agent-activation/activation-registry.mjs"]) {
+  if (/\b(?:codex|claude|cursor|opencode|workbuddy|hermes)\b/u.test(read(file))) {
+    errors.push(`${file} must project the catalog instead of declaring product-specific policy`);
+  }
+}
+for (const directory of ["electron/main/local-agent-catalog", "electron/main/local-agent-activation/recipes"]) {
+  for (const file of walk(resolve(directory))) {
+    if (/node:(?:fs|child_process|net|https?|worker_threads)|\b(?:fetch|spawn|execFile|setInterval)\s*\(|process\.env|agent\/runtimes|agent\/connections|src\/features|(?:installation|activation|setup|companion-presence)-service|electron["']/u.test(read(relative(file)))) {
+      errors.push(`${relative(file)} must remain a pure capability declaration, not own IO or lifecycle`);
+    }
+  }
+}
 requireText(main, "createLocalAgentInstallationService", "Electron main must compose one application-scoped installation service");
 requireText(main, "desktopPlatformHost.executableDiscovery", "Installation discovery must consume the platform executable-discovery port");
 const preload = read("electron/preload.cjs");
 requireText(preload, "discoverLocalAgentInstallations", "Preload must expose the installation discovery contract");
 requireText(preload, "onLocalAgentInstallationsChanged", "Preload must expose cross-window snapshot convergence");
+requireText(main, "createLocalAgentSetupService", "Main must own the setup advisor and action broker");
+requireText(main, "desktopPlatformHost.companionApps", "Companion evidence must use the read-only platform port");
+requireText(preload, "localAgentSetup:", "Preload must expose ID-only setup actions");
+for (const file of walk(resolve("electron/main/local-agent-installation/setup"))) {
+  if (/node:child_process|execFile\(|spawn\(|src\/features/u.test(fs.readFileSync(file, "utf8"))) {
+    errors.push(`${relative(file)} must not execute installers or depend on Renderer`);
+  }
+}
+requireText(read("electron/main/local-agent-installation/setup/setup-service.mjs"), "openExternal(route.guideUrl)", "Setup actions must resolve official guides from the trusted registry");
+
+requireText(main, "composeLocalAgentActivation", "Main must compose application-owned activation tasks");
+requireText(preload, "localAgentActivation:", "Activation needs a separate ID-only control channel");
+for (const file of walk(resolve("electron/main/local-agent-activation"))) {
+  if (/agent\/runtimes|src\/features|electron["']/u.test(fs.readFileSync(file, "utf8"))) {
+    errors.push(`${relative(file)} must remain installation-only and receive platform dependencies from composition`);
+  }
+}
+if (/agent\/runtimes|agent\/connections/u.test(read("electron/main/compose-local-agent-activation.mjs"))) {
+  errors.push("Activation composition must not depend on runtime authentication or protocol readiness");
+}
+for (const file of walk(resolve("src/features/local-agents"))) {
+  if (/node:child_process|electron\/main|child_process|shell\.openExternal/u.test(fs.readFileSync(file, "utf8"))) {
+    errors.push(`${relative(file)} must not execute setup or cross the privileged activation boundary`);
+  }
+}
 
 const terminalLaunch = read("electron/main/terminal-agent/terminal-agent-launch-resolver.mjs");
 requireText(terminalLaunch, "createLocalAgentExecutableResolver", "Terminal launch must re-resolve through the shared installation engine");

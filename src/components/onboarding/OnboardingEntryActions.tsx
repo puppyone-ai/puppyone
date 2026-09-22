@@ -1,85 +1,142 @@
 import { Button } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
-import { FilePlus2, FolderOpen, GitFork } from "lucide-react";
-import type { ReactNode } from "react";
+import { Download, FilePlus2, FolderOpen } from "lucide-react";
 import { InlineLoading } from "../loading";
-import type { OnboardingHomeState } from "./types";
+import { ImportSourcePreview } from "./ImportSourcePreview";
+import type { ImportSourceBrand } from "./ImportSourceMark";
 
 type OnboardingEntryActionsProps = {
-  state: OnboardingHomeState;
+  includeCreateProject: boolean;
   busy: boolean;
   openingFolder: boolean;
   draggingFolder: boolean;
   canCreateProject: boolean;
   canCloneRepository: boolean;
-  footer?: ReactNode;
+  importPreviewBrands: readonly ImportSourceBrand[];
   onOpenFolder: () => void;
   onCreateProject: () => void;
+  /** Opens the source picker. */
   onCloneRepository: () => void;
 };
 
+/**
+ * Homepage entry actions. "New empty project" is the default path because it
+ * is the only entry that does not require the user to hunt for an existing
+ * folder first. Importing existing work sits below the two direct-start
+ * actions as the same compact CTA, with a source preview beside its label.
+ */
 export function OnboardingEntryActions({
-  state,
+  includeCreateProject,
   busy,
   openingFolder,
   draggingFolder,
   canCreateProject,
   canCloneRepository,
-  footer,
+  importPreviewBrands,
   onOpenFolder,
   onCreateProject,
   onCloneRepository,
 }: OnboardingEntryActionsProps) {
   const { t } = useLocalization();
-  const firstRun = state === "empty";
 
   return (
-    <div className="onboarding-primary-area">
-      <div className="onboarding-entry-actions" role="group" aria-label={t("onboarding.projects.title")}>
-        <div className="onboarding-entry-action-primary">
-          <Button
-            className={`onboarding-entry-action ${firstRun ? "onboarding-entry-action-default" : ""} ${draggingFolder ? "is-dragging" : ""}`}
-            data-onboarding-action="open"
-            tone="neutral"
-            disabled={busy}
-            aria-busy={openingFolder || undefined}
-            leadingIcon={openingFolder
-              ? <InlineLoading label={null} size="sm" tone="neutral" />
-              : <FolderOpen aria-hidden="true" />}
-            onClick={onOpenFolder}
-          >
-            {t(firstRun
-              ? "onboarding.action.startWithLocalFolder"
-              : "onboarding.action.openFolder")}
-          </Button>
-        </div>
+    <div className="onboarding-entry-actions" role="group" aria-label={t("onboarding.projects.title")}>
+      {includeCreateProject && (
+        <OnboardingCreateProjectAction
+          busy={busy}
+          canCreateProject={canCreateProject}
+          onCreateProject={onCreateProject}
+        />
+      )}
 
-        <div className="onboarding-entry-action-secondary">
-          <Button
-            className="onboarding-entry-action"
-            data-onboarding-action="create"
-            tone="neutral"
-            disabled={busy || !canCreateProject}
-            leadingIcon={<FilePlus2 className="onboarding-entry-create-icon" aria-hidden="true" />}
-            onClick={onCreateProject}
-          >
-            {t("onboarding.action.createLocalProject")}
-          </Button>
+      <OpenFolderAction
+        busy={busy}
+        openingFolder={openingFolder}
+        draggingFolder={draggingFolder}
+        onOpenFolder={onOpenFolder}
+      />
 
-          <Button
-            className="onboarding-entry-action"
-            data-onboarding-action="clone"
-            tone="neutral"
-            disabled={busy || !canCloneRepository}
-            leadingIcon={<GitFork aria-hidden="true" />}
-            onClick={onCloneRepository}
-          >
-            {t("onboarding.action.cloneRepository")}
-          </Button>
-        </div>
+      <ImportAction
+        busy={busy}
+        canCloneRepository={canCloneRepository}
+        importPreviewBrands={importPreviewBrands}
+        onCloneRepository={onCloneRepository}
+      />
+    </div>
+  );
+}
 
-      </div>
-      {footer}
+export function OnboardingCreateProjectAction({
+  busy,
+  canCreateProject,
+  prominent = false,
+  onCreateProject,
+}: Pick<OnboardingEntryActionsProps, "busy" | "canCreateProject" | "onCreateProject"> & {
+  prominent?: boolean;
+}) {
+  const { t } = useLocalization();
+
+  return (
+    <Button
+      className={`onboarding-entry-action ${prominent ? "onboarding-entry-action-default" : ""}`}
+      data-onboarding-action="create"
+      tone={prominent ? "primary" : "neutral"}
+      disabled={busy || !canCreateProject}
+      leadingIcon={<FilePlus2 className="onboarding-entry-create-icon" aria-hidden="true" />}
+      onClick={onCreateProject}
+    >
+      {t("onboarding.action.createLocalProject")}
+    </Button>
+  );
+}
+
+function OpenFolderAction({
+  busy,
+  openingFolder,
+  draggingFolder,
+  onOpenFolder,
+}: Pick<OnboardingEntryActionsProps, "busy" | "openingFolder" | "draggingFolder" | "onOpenFolder">) {
+  const { t } = useLocalization();
+
+  return (
+    <Button
+      className={`onboarding-entry-action ${draggingFolder ? "is-dragging" : ""}`}
+      data-onboarding-action="open"
+      tone="neutral"
+      disabled={busy}
+      aria-busy={openingFolder || undefined}
+      leadingIcon={openingFolder
+        ? <InlineLoading label={null} size="sm" tone="neutral" />
+        : <FolderOpen aria-hidden="true" />}
+      onClick={onOpenFolder}
+    >
+      {t("onboarding.action.openFolder")}
+    </Button>
+  );
+}
+
+function ImportAction({
+  busy,
+  canCloneRepository,
+  importPreviewBrands,
+  onCloneRepository,
+}: Pick<OnboardingEntryActionsProps, "busy" | "canCloneRepository" | "importPreviewBrands" | "onCloneRepository">) {
+  const { t } = useLocalization();
+
+  return (
+    <div className="onboarding-entry-import-area">
+      <Button
+        className="onboarding-entry-action onboarding-entry-import"
+        data-onboarding-action="clone"
+        tone="neutral"
+        disabled={busy || !canCloneRepository}
+        aria-haspopup="dialog"
+        leadingIcon={<Download aria-hidden="true" />}
+        onClick={onCloneRepository}
+      >
+        <span className="onboarding-entry-import-label">{t("onboarding.action.importFromApps")}</span>
+        <ImportSourcePreview brands={importPreviewBrands} />
+      </Button>
     </div>
   );
 }

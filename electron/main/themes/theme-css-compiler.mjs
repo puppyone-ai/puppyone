@@ -1,6 +1,8 @@
 import postcss from "postcss";
 import path from "node:path";
+import { parse, walk } from "css-tree";
 import { THEME_TARGETS } from "./theme-package-contract.mjs";
+import { completeSelectionPairs, validateSelectionColors } from "./theme-selection-colors.mjs";
 
 const targetSet = new Set(THEME_TARGETS);
 const themeIdPattern = /^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*){2,}$/;
@@ -41,6 +43,8 @@ const applicationColorTokens = new Set([
   "--po-sidebar-divider",
   "--po-hover",
   "--po-selected",
+  "--po-text-selection-bg",
+  "--po-text-selection-inactive-bg",
   "--po-active",
   "--po-accent",
   "--po-accent-text",
@@ -110,6 +114,7 @@ const applicationColorTokens = new Set([
   "--po-cloud-titlebar-focus",
   "--po-terminal-cursor",
   "--po-terminal-selection",
+  "--po-terminal-selection-inactive",
   "--po-terminal-black",
   "--po-terminal-red",
   "--po-terminal-green",
@@ -136,6 +141,8 @@ const typographyTokenMap = new Map([
   ["--po-terminal-font-size", Object.freeze({ host: "--po-theme-terminal-font-size", min: 10, max: 20 })],
 ]);
 const markdownTokenMap = new Map([
+  ["--po-md-selection-bg", "--po-host-md-selection-bg"],
+  ["--po-md-selection-inactive-bg", "--po-host-md-selection-inactive-bg"],
   ["--po-md-surface-background", "--po-host-md-surface-background"],
   ["--po-md-content-color", "--po-host-md-content-color"],
   ["--po-md-content-font", "--po-host-md-content-font"],
@@ -190,6 +197,8 @@ const markdownIntegerSizeTokens = new Set([
   "--po-md-h6-size",
 ]);
 const csvTokenMap = new Map([
+  ["--po-csv-selection-bg", "--po-host-csv-selection-bg"],
+  ["--po-csv-selection-inactive-bg", "--po-host-csv-selection-inactive-bg"],
   ["--po-csv-surface-background", "--po-host-csv-surface-background"],
   ["--po-csv-surface-color", "--po-host-csv-surface-color"],
   ["--po-editable-table-background", "--po-host-csv-table-background"],
@@ -232,6 +241,16 @@ export async function compileThemeCss({
   validateAtRules(root);
   validateModeContract(root, supportedModes, target);
   validateApplicationModeIsolation(root, { target, supportedModes });
+  validateSelectionColors(root, {
+    target,
+    inheritedColors: applicationColorTokens,
+    publicColors: new Set([
+      ...applicationColorTokens,
+      ...(target === "markdown" ? [...markdownTokenMap.keys()].filter((name) => /(?:color|background|selection-(?:bg|inactive-bg)|syntax-[a-z]+)$/.test(name)) : []),
+      ...(target === "csv" ? csvTokenMap.keys() : []),
+    ]),
+  });
+  completeSelectionPairs(root, target);
   const firstPaint = extractFirstPaint(root, { target, supportedModes });
   scopeRules(root, { themeId, target });
   await rewriteAssetUrls(root, resolveAssetUrl);
@@ -579,11 +598,13 @@ function validateDeclarations(root, { target }) {
         throw new TypeError(`Markdown size token ${property} must be a plain integer pixel value.`);
       }
       declaration.prop = mapped;
+      declaration.value = projectTokenReferences(declaration.value, markdownTokenMap);
     }
     if (target === "csv") {
       const mapped = csvTokenMap.get(property);
       if (!mapped) throw new TypeError("CSV Sub Themes may only declare public CSV tokens.");
       declaration.prop = mapped;
+      declaration.value = projectTokenReferences(declaration.value, csvTokenMap);
     }
     if (property === "position" && value === "fixed") {
       throw new TypeError("Theme CSS cannot use fixed positioning.");
@@ -592,6 +613,24 @@ function validateDeclarations(root, { target }) {
       throw new TypeError("Theme CSS contains an unsupported executable value.");
     }
   });
+}
+
+function projectTokenReferences(value, tokenMap) {
+  if (!value.includes("var(")) return value;
+  const replacements = [];
+  walk(parse(value, { context: "value", positions: true, parseCustomProperty: true }), {
+    visit: "Function",
+    enter(node) {
+      const token = node.children.first;
+      if (node.name.toLowerCase() === "var" && token?.type === "Identifier" && tokenMap.has(token.name)) {
+        replacements.push({ start: token.loc.start.offset, end: token.loc.end.offset, value: tokenMap.get(token.name) });
+      }
+    },
+  });
+  for (const replacement of replacements.sort((a, b) => b.start - a.start)) {
+    value = value.slice(0, replacement.start) + replacement.value + value.slice(replacement.end);
+  }
+  return value;
 }
 
 function parseIntegerPixelSize(value) {

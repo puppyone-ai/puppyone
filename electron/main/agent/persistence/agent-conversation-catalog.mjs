@@ -124,7 +124,7 @@ export function createAgentConversationCatalog({ filePath, logger = console, max
         ? { updatedAt: existing.updatedAt, createdAt: existing.createdAt, updatedAtKnown: true } : {}),
       // Discovery cannot change product-owned selections, archive or session observations.
       ...(existing ? Object.fromEntries(["archivedAt", "terminalState", "lastSequence", "selectedProviderId",
-        "selectedModel", "selectedVariant", "selectedEffort", "selectedMode", "capabilityRevision"]
+        "selectedModel", "selectedVariant", "selectedEffort", "selectedMode", "capabilityRevision", "modelBindingRevision"]
         .filter((key) => existing[key] != null).map((key) => [key, existing[key]])) : {}),
       origin: existing?.origin ?? "native-discovery",
       availability: "available",
@@ -281,6 +281,7 @@ function normalizeRecord(value) {
     partial: true,
     selectedProviderId: safeId(value.selectedProviderId) ?? providerIdFromModel(value.selectedModel ?? value.model),
     selectedModel: bounded(value.selectedModel ?? value.model, 512),
+    modelBindingRevision: bounded(value.modelBindingRevision, 160),
     selectedVariant: bounded(value.selectedVariant ?? value.variant, 160),
     selectedEffort: bounded(value.selectedEffort ?? value.effort, 160),
     selectedMode: bounded(value.selectedMode ?? value.mode, 160),

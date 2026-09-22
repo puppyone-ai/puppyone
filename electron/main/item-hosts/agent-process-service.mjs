@@ -1,14 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { createUtilityHost } from "./utility-host.mjs";
 import { hostError } from "../../../shared/item-host-contract/rpc.mjs";
+import { parseModelRoute } from "../../../shared/model-connections/schema.mjs";
+import { createItemLifecycleSupervisor } from "./item-lifecycle-supervisor.mjs";
 
 const SESSION_METHODS = ["startTurn", "steerTurn", "interruptTurn", "resolveApproval", "resolveQuestion", "replay",
   "attachSession", "acknowledgeSession", "readSessionWatermark", "detachSession", "compactSession"];
 
 /** Main retains authority and routing metadata, never a running Agent actor. */
 export function createAgentProcessService({ utilityProcess, modulePath, budget, appVersion,
-  runtimeEnvironment = {}, catalogService, conversationCatalog, attachmentStore,
-  onHostEvent = () => {}, createHost = createUtilityHost }) {
+  runtimeEnvironment = {}, catalogService, conversationCatalog, attachmentStore, modelConnections = null,
+  onHostEvent = () => {}, createHost = createUtilityHost, lifecycle = createItemLifecycleSupervisor() }) {
   const records = new Set();
   const bySession = new Map();
   const closed = new Map();
@@ -20,10 +22,11 @@ export function createAgentProcessService({ utilityProcess, modulePath, budget, 
       || (sender.hostItemId && sender.hostItemId !== record.itemId)) {
       throw hostError("SESSION_STALE", "This Agent instance is no longer owned by this project.");
     }
+    if (!allowClosed) lifecycle.assertActive(record.lifecycle);
     return record;
   };
-  const shutdown = async (record) => {
-    await record.host.close();
+  const release = (record) => {
+    modelConnections?.releaseScope(record.key);
     records.delete(record);
     if (bySession.get(record.sessionId) === record) bySession.delete(record.sessionId);
     if (record.instanceId) {
@@ -31,6 +34,7 @@ export function createAgentProcessService({ utilityProcess, modulePath, budget, 
       while (closed.size > 128) closed.delete(closed.keys().next().value);
     }
   };
+  const shutdown = (record) => lifecycle.close(record.lifecycle);
   const closeMatching = async (predicate) => {
     const matches = [...records].filter(predicate);
     const results = await Promise.allSettled(matches.map(shutdown));
@@ -45,7 +49,7 @@ export function createAgentProcessService({ utilityProcess, modulePath, budget, 
       const result = await record.host.call(method, [request, root]);
       // Resume may replace a retired native runtime while keeping its conversation
       // ID. Publish the new instance fence before the renderer attaches its feed.
-      if (!records.has(record) || bySession.get(request.sessionId) !== record) {
+      if (record.closing || !records.has(record) || bySession.get(request.sessionId) !== record) {
         throw hostError("SESSION_STALE", "This Agent instance is no longer owned by this project.");
       }
       try { operation?.assertCurrent(); }
@@ -66,13 +70,52 @@ export function createAgentProcessService({ utilityProcess, modulePath, budget, 
     const locator = method !== "createSession" && request.sessionId ? `${root}:${request.sessionId}` : null;
     if (locator && pendingSessions.has(locator)) throw hostError("SESSION_DUPLICATE", "This Agent history is already opening.");
     const key = randomUUID();
-    const record = { key, ownerId: sender.id, itemId: sender.hostItemId ?? key, root,
-      sessionId: null, instanceId: null, host: null };
-    record.host = createHost({ utilityProcess, modulePath, budget,
+    const itemId = request.itemId ?? sender.hostItemId ?? key;
+    const managed = lifecycle.reserve({ ownerId: sender.id, root, projectContext: request.projectContext,
+      kind: "agent", itemId, creationId: request.creationId ?? key });
+    if (locator) pendingSessions.add(locator);
+    const record = { key, ownerId: sender.id, itemId, root, lifecycle: managed,
+      sessionId: null, instanceId: null, host: null, runtimeId: request.runtimeId, closing: false };
+    records.add(record);
+    // Reserve before catalog reads. A close can now seal even pre-host startup.
+    lifecycle.attach(managed, { host: null, release: () => release(record), seal: () => { record.closing = true; } });
+    let persistedRoute = null;
+    try {
+      if (modelConnections && method !== "createSession") persistedRoute = request.sessionId
+        ? await conversationCatalog.findById(request.sessionId, root)
+        : await conversationCatalog.findLatest(root, request.runtimeId);
+      // Catalog reads yield; another create may have claimed this item meanwhile.
+      lifecycle.assertActive(managed);
+      if (sender.hostItemId && [...records].some((entry) => entry !== record && entry.ownerId === sender.id && entry.itemId === sender.hostItemId)) {
+        throw hostError("SESSION_DUPLICATE", "This item already owns a starting or live Agent session.");
+      }
+    } catch (error) { if (locator) pendingSessions.delete(locator); await shutdown(record); throw error; }
+    Object.assign(record, { runtimeId: persistedRoute?.runtimeId ?? request.runtimeId,
+      expectedBindingRevision: method === "createSession" ? undefined : persistedRoute?.modelBindingRevision ?? null,
+      allowedModelRoute: persistedRoute?.selectedModel ?? request.model });
+    try { record.host = createHost({ utilityProcess, modulePath, budget,
       identity: { key, ownerId: sender.id, projectId: request.projectContext?.projectId ?? root, kind: "agent" },
-      initialize: { ownerId: sender.id, root, appVersion, runtimeEnvironment },
+      initialize: { ownerId: sender.id, root, appVersion, runtimeEnvironment, modelConnectionsEnabled: Boolean(modelConnections) },
       handle: async (name, args) => {
         const [scope, methodName] = name.split(":");
+        if (scope === "model-connections") {
+          if (!modelConnections || record.runtimeId !== "puppyone-agent" || !records.has(record)) throw hostError("HOST_AUTHORITY", "Model connection authority is unavailable.");
+          if (methodName === "release") return modelConnections.release({ leaseId: args[0], scope: record.key });
+          if (record.closing || record.host.exited) throw hostError("HOST_AUTHORITY", "Model connection authority has expired.");
+          if (methodName === "read") return modelConnections.catalog();
+          if (methodName === "acquire") {
+            if (parseModelRoute(args[0]).connectionId !== parseModelRoute(record.allowedModelRoute).connectionId) throw hostError("HOST_AUTHORITY", "The session cannot acquire another model connection.");
+            const lease = await modelConnections.acquire({ route: args[0], scope: record.key,
+              expectedBindingRevision: record.expectedBindingRevision, onRevoke: () => shutdown(record) });
+            if (record.closing) {
+              modelConnections.releaseScope(record.key);
+              throw hostError("HOST_AUTHORITY", "The execution closed while acquiring its model lease.");
+            }
+            return lease;
+          }
+          if (methodName === "validate") return modelConnections.validate({ leaseId: args[0], route: args[1], scope: record.key });
+          throw hostError("HOST_METHOD", "Unknown model connection operation.");
+        }
         if (scope === "attachments" && ["releaseLease", "revokeLeased", "revoke"].includes(methodName)) {
           if (args[0]?.ownerId !== sender.id || args[0]?.workspaceRoot !== root) throw hostError("HOST_AUTHORITY", "Attachment owner does not match this host.");
           return attachmentStore[methodName](...args);
@@ -92,12 +135,16 @@ export function createAgentProcessService({ utilityProcess, modulePath, budget, 
         throw hostError("HOST_METHOD", "Unauthorized Agent host operation.");
       },
       onEvent: (event) => onHostEvent(record, event),
-      onExit: (event) => onHostEvent(record, { type: "host-exited", ...event }),
-    });
-    records.add(record);
-    if (locator) pendingSessions.add(locator);
+      onExit: (event) => {
+        lifecycle.observeExit(managed);
+        modelConnections?.releaseScope(record.key);
+        onHostEvent(record, { type: "host-exited", ...event });
+      },
+    }); } catch (error) { if (locator) pendingSessions.delete(locator); await shutdown(record); throw error; }
+    lifecycle.attach(managed, { host: record.host, release: () => release(record), seal: () => { record.closing = true; } });
     try {
       const result = await record.host.call(method, [request, root]);
+      lifecycle.assertActive(managed);
       const snapshot = method === "openSession" ? result?.snapshot : result;
       if (!snapshot?.session) { await shutdown(record); return result; }
       record.sessionId = snapshot.session.id;
@@ -106,6 +153,7 @@ export function createAgentProcessService({ utilityProcess, modulePath, budget, 
       if (bySession.has(record.sessionId)) throw hostError("SESSION_DUPLICATE", "This Agent session is already connected.");
       bySession.set(record.sessionId, record);
       operation?.assertCurrent();
+      lifecycle.markLive(managed);
       return result;
     } catch (error) { await shutdown(record).catch(() => {}); throw error; }
     finally { if (locator) pendingSessions.delete(locator); }
@@ -121,6 +169,7 @@ export function createAgentProcessService({ utilityProcess, modulePath, budget, 
     async forkSession(sender, request, root) {
       const record = requireOwned(sender, request, root);
       const snapshot = await record.host.call("forkSession", [request, root]);
+      lifecycle.assertActive(record.lifecycle);
       bySession.delete(record.sessionId);
       record.sessionId = snapshot.session.id;
       record.instanceId = snapshot.session.instanceId;
@@ -141,7 +190,6 @@ export function createAgentProcessService({ utilityProcess, modulePath, budget, 
     },
     async closeSession(sender, request, root) {
       const record = requireOwned(sender, request, root, { allowClosed: true });
-      if (!record.host.exited) await record.host.call("closeSession", [request, root]);
       await shutdown(record);
       return { sessionId: request.sessionId, closed: true };
     },
@@ -170,7 +218,8 @@ export function createAgentProcessService({ utilityProcess, modulePath, budget, 
     getSessionCount: () => records.size,
     getRetainedSessionCount: () => records.size,
     hasRuntimeResources: () => records.size > 0 || catalogService.hasRuntimeResources(),
-    diagnostics: () => [...records].map((record) => ({ sessionId: record.sessionId, itemId: record.itemId, ...record.host.diagnostics() })),
+    diagnostics: () => [...records].map((record) => ({ sessionId: record.sessionId, itemId: record.itemId,
+      lifecycle: lifecycle.summary(record.lifecycle), ...record.host?.diagnostics() })),
   };
   return service;
 }

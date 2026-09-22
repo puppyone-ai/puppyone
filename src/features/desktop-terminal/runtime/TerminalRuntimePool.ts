@@ -63,9 +63,9 @@ export class TerminalRuntimePool {
   async close(id: string) {
     const entry = this.entries.get(id);
     if (!entry) return true;
-    await entry.runtime.close();
+    const result = await entry.runtime.close();
     this.entries.delete(id);
-    return true;
+    return result ?? true;
   }
 
   discard(id: string) {

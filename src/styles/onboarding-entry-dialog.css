@@ -13,6 +13,15 @@
   width: min(440px, calc(100vw - 32px));
 }
 
+.onboarding-entry-dialog.is-import-sources {
+  --onboarding-entry-inset: 20px;
+  width: min(360px, calc(100vw - 32px));
+}
+
+.onboarding-entry-dialog.is-import-sources .desktop-dialog-header {
+  align-items: center;
+}
+
 .onboarding-entry-dialog .desktop-dialog-header {
   padding-block: var(--onboarding-entry-inset) 10px;
   padding-inline: var(--onboarding-entry-inset);
@@ -38,9 +47,8 @@
   padding-block: 10px 22px;
 }
 
-.onboarding-entry-dialog .desktop-dialog-leading.repository {
-  background: color-mix(in srgb, var(--po-text) 7%, transparent);
-  color: var(--po-text-muted);
+.onboarding-entry-dialog.is-import-sources .onboarding-entry-dialog-body {
+  padding-block: 4px 16px;
 }
 
 .onboarding-clone-workflow {
@@ -90,6 +98,140 @@
 
 .onboarding-clone-provider-marks > .is-gitlab {
   color: color-mix(in srgb, #fc6d26 82%, var(--po-text-muted));
+}
+
+.onboarding-clone-hint {
+  margin-top: 10px;
+  color: var(--po-text-subtle);
+  font-size: var(--po-type-ui-meta, 13px);
+  line-height: 17px;
+}
+
+.onboarding-clone-hint.is-unsupported {
+  color: var(--po-danger);
+}
+
+/* Import: source list */
+
+.onboarding-import-repository-form {
+  display: contents;
+}
+
+.onboarding-import-intro {
+  margin: 0 0 14px;
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-meta, 13px);
+  line-height: 18px;
+}
+
+.onboarding-import-sources {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.onboarding-import-source {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 36px;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--po-text);
+  font: inherit;
+  text-align: start;
+  cursor: var(--po-clickable-cursor, default);
+  transition: background 120ms ease;
+}
+
+.onboarding-import-source:hover {
+  background: var(--po-hover);
+}
+
+.onboarding-import-source:focus-visible {
+  outline: 1px solid var(--po-focus-ring);
+  outline-offset: -1px;
+}
+
+.onboarding-import-source-icon {
+  display: grid;
+  width: 36px;
+  height: 20px;
+  place-items: center;
+  color: var(--po-text-muted);
+}
+
+.onboarding-import-source-icon > svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.8;
+}
+
+.onboarding-import-source-icon > .onboarding-import-mark {
+  width: 18px;
+  height: 18px;
+}
+
+.onboarding-import-source-label {
+  min-width: 0;
+  color: var(--po-text);
+  font-size: var(--po-type-ui-body, 14px);
+  font-weight: 400;
+  line-height: 20px;
+}
+
+.onboarding-import-back {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--po-text) 7%, transparent);
+  color: var(--po-text-muted);
+  cursor: var(--po-clickable-cursor, default);
+}
+
+.onboarding-import-back:hover:not(:disabled) {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.onboarding-import-back:focus-visible {
+  outline: 2px solid var(--po-focus-ring);
+  outline-offset: 1px;
+}
+
+/* Import: guided export → open-folder steps */
+
+.onboarding-import-steps {
+  display: grid;
+  margin: 0;
+  padding-inline-start: 22px;
+  gap: 8px;
+  color: var(--po-text);
+  font-size: var(--po-type-ui-body, 14px);
+  line-height: 20px;
+}
+
+.onboarding-import-outcome {
+  margin: 14px 0 0;
+  color: var(--po-text-subtle);
+  font-size: var(--po-type-ui-meta, 13px);
+  line-height: 17px;
+}
+
+.onboarding-import-location {
+  margin-top: 16px;
 }
 
 .onboarding-entry-create-fields {

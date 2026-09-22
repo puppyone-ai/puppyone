@@ -31,6 +31,25 @@ afterEach(() => {
 });
 
 describe("Auxiliary Workbench close coordinator", () => {
+  it.each([true, false])("isolates pending closes across mixed items (first finishes early=%s)", async firstFinishesEarly => {
+    let finish!: (value: boolean) => void;
+    const pending = new Promise<boolean>(resolve => { finish = resolve; });
+    const onClosed = vi.fn();
+    renderCoordinator({ decide: () => ({ kind: "confirm", tone: "danger", dialog: { title: "Close?", detail: "Terminate execution", actionLabel: "Close" } }),
+      commit: ({item}) => item.id === ITEM.id ? pending : { kind: "released" } }, onClosed, true);
+    await act(async () => current().requestClose(ITEM.id));
+    let closing!: Promise<void>;
+    act(() => { closing = current().confirm(); });
+    await act(async () => current().requestClose("second-item"));
+    expect(current().committing).toBe(false);
+    if (firstFinishesEarly) {
+      await act(async () => { finish(true); await closing; });
+      expect(current().pending?.itemId).toBe("second-item");
+    }
+    await act(async () => current().confirm());
+    expect(onClosed).toHaveBeenCalledWith("second-item");
+    if (!firstFinishesEarly) await act(async () => { finish(true); await closing; });
+  });
   it("retains a failed close for retry without rejecting the UI event", async () => {
     const commit = vi.fn().mockRejectedValueOnce(new Error("still running")).mockResolvedValue(true);
     const onClosed = vi.fn();
@@ -138,6 +157,7 @@ describe("Auxiliary Workbench close coordinator", () => {
 function renderCoordinator(
   adapter: AuxiliaryWorkbenchCloseAdapter,
   onClosed: (itemId: string) => void = vi.fn(),
+  multiple = false,
 ) {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -149,7 +169,8 @@ function renderCoordinator(
     adapter,
   });
   act(() => root?.render(
-    <Harness resolveTarget={(itemId) => itemId === ITEM.id ? target : null} onClosed={onClosed} />,
+    <Harness resolveTarget={(itemId) => itemId === ITEM.id ? target : multiple && itemId === "second-item"
+      ? { ...target, context: { ...target.context, item: { ...ITEM, id: itemId, kind: "agent" } } } : null} onClosed={onClosed} />,
   ));
 }
 

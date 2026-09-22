@@ -43,19 +43,16 @@ describe("CI Electron smoke sandbox boundary", () => {
     expect(markdownFocusFixture).not.toContain("state={workspaceState}");
   });
 
-  it("routes hosted pointer evidence through the surface-appropriate transport", () => {
-    expect(editorPaneFixture).toContain(
-      "surfaces.values().length > 0",
-    );
-    expect(editorPaneFixture).toContain('inputDebugger.sendCommand("Input.dispatchMouseEvent"');
+  it("keeps pane input and PDF ownership inside the renderer DOM", () => {
     expect(editorPaneFixture).toContain("window.webContents.sendInputEvent");
-    expect(editorPaneFixture).toContain("if (nativeSurfaceOwned)");
-    expect(editorPaneFixture).toContain("Linux CDP can acknowledge mouseReleased");
-    expect(editorPaneFixture).toContain("if (stillResizing)");
     expect(editorPaneFixture).toContain("previewReachedTarget");
     expect(editorPaneFixture).toContain("Split handle did not publish the final pointer coordinate");
-    expect(editorPaneFixture).toContain("usedOwnerDomPreviewFallback");
-    expect(editorPaneFixture).toContain("new MouseEvent('mousemove'");
+    expect(editorPaneFixture).toContain("document.querySelector('.pdf-preview-frame') === null");
+    expect(editorPaneFixture).toContain("pdfFrameCount(contents) === 0");
+    expect(editorPaneFixture).toContain("plugins: true");
+    expect(editorPaneFixture).not.toContain("surfaces.values().length > 0");
+    expect(editorPaneFixture).not.toContain("Input.dispatchMouseEvent");
+    expect(editorPaneFixture).not.toContain("nativeSurfaceOwned");
     expect(sidebarResizeFixture).toContain('"restored pane and content geometry"');
     expect(sidebarResizeFixture).toContain(
       "Math.abs(restored.content.width-restored.viewport.width) <= 1",

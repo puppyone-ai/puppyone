@@ -5,7 +5,7 @@ import type { CreateNewMenuSettings, DarkThemePreset, ExperimentalSettings, File
 import type { ResolvedAppearance } from "../appearance/resolveAppearance";
 import type { SubThemeCatalogController } from "../themes/useSubThemeCatalog";
 
-export type SettingsSection = "general" | "privacy" | "local-project" | "appearance" | "typography" | "local-agents" | "new-menu" | "experimental" | "git" | "files" | "account" | "cloud";
+export type SettingsSection = "general" | "privacy" | "local-project" | "appearance" | "typography" | "local-agents" | "model-connections" | "new-menu" | "experimental" | "git" | "files" | "account" | "cloud";
 
 export type SettingsViewProps = {
   workspace: Workspace;

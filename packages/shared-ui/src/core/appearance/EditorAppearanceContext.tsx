@@ -1,4 +1,5 @@
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useLayoutEffect, type ReactNode } from "react";
+import { retainTextSelectionAppearance } from "./textSelectionAppearance";
 
 // This context deliberately carries no product theme ID, catalog, or token
 // payload. Hosts only signal that inherited appearance metrics changed so a
@@ -12,6 +13,7 @@ export function EditorAppearanceProvider({
   children: ReactNode;
   revision: string;
 }) {
+  useLayoutEffect(() => retainTextSelectionAppearance(document), []);
   return (
     <EditorAppearanceRevisionContext.Provider value={revision}>
       {children}

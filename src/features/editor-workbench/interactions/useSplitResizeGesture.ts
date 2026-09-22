@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, type PointerEvent } from "react";
 import {
   clampEditorSplitRatio,
+  commitEditorLayout,
   type EditorSplitDirection,
 } from "@puppyone/shared-ui";
 import {
@@ -48,8 +49,10 @@ export function useSplitResizeGesture({
   const applyPreview = useCallback((session: ResizeSession, nextRatio: number) => {
     const value = clampEditorSplitRatio(nextRatio);
     session.previewRatio = value;
-    session.container.style.setProperty("--desktop-editor-first-track", `${value}fr`);
-    session.container.style.setProperty("--desktop-editor-second-track", `${1 - value}fr`);
+    commitEditorLayout(session.container, () => {
+      session.container.style.setProperty("--desktop-editor-first-track", `${value}fr`);
+      session.container.style.setProperty("--desktop-editor-second-track", `${1 - value}fr`);
+    });
     session.handle.setAttribute("aria-valuenow", String(Math.round(value * 100)));
   }, []);
 

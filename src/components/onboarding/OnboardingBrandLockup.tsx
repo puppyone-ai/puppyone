@@ -7,6 +7,7 @@ type OnboardingBrandLockupProps = {
   resolvedTheme: "light" | "dark";
 };
 
+/** First-run states the file-first promise; returning users see the project prompt. */
 export function OnboardingBrandLockup({ state, resolvedTheme }: OnboardingBrandLockupProps) {
   const { t } = useLocalization();
   const hasProjects = state === "projects";
@@ -21,7 +22,7 @@ export function OnboardingBrandLockup({ state, resolvedTheme }: OnboardingBrandL
       </span>
       <div className="onboarding-brand-copy">
         <span className={hasProjects ? "onboarding-brand-prompt" : "onboarding-brand-name"}>
-          {t(hasProjects ? "onboarding.section.chooseProject" : "onboarding.brand.name")}
+          {t(hasProjects ? "onboarding.section.chooseProject" : "onboarding.brand.agentReadyMessage")}
         </span>
       </div>
     </header>

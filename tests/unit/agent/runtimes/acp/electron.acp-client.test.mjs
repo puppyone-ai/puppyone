@@ -56,6 +56,18 @@ describe("provider-neutral ACP client", () => {
     );
   });
 
+  it("sends an explicitly registered provider extension without method fallback", async () => {
+    const connection = new FakeConnection();
+    connection.responses.set("_fixture/status", { ready: true });
+    const client = new AcpClient({ connection });
+
+    await expect(client.requestExtension("_fixture/status", {}, { timeoutMs: 1_250 }))
+      .resolves.toEqual({ ready: true });
+
+    expect(connection.request).toHaveBeenCalledWith("_fixture/status", {}, { timeoutMs: 1_250 });
+    expect(() => client.requestExtension(" ")).toThrow("ACP extension method is required.");
+  });
+
   it("correlates permission and workspace-file callbacks without exposing unknown methods", async () => {
     const connection = new FakeConnection();
     const delegate = {

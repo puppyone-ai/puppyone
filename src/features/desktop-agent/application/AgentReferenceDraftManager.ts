@@ -1,5 +1,6 @@
 import type {
   AgentDraftReference,
+  AgentReferenceError,
   AgentReferenceInputCapabilities,
 } from "../domain/agent-contract";
 import {
@@ -8,7 +9,7 @@ import {
 } from "../domain/agent-reference-capabilities";
 import type { AgentClientPort, AgentClientProvider } from "./AgentClientPort";
 import type { AgentControllerState } from "./agent-controller-state";
-import { AgentKnownError, formatAgentError } from "./agent-error";
+import { AgentKnownError, AgentOperationError, formatAgentError } from "./agent-error";
 import { mergeAgentReferences } from "./agent-controller-values";
 import { parseWorkspaceResourceReference } from "../../../../shared/workspace-resource-reference.mjs";
 import {
@@ -143,6 +144,8 @@ export class AgentReferenceDraftManager {
 
   async stageExternalFiles(files: File[]) {
     const bridge = this.requireBridge("stageAgentAttachments");
+    const generation = this.acquisitionGeneration;
+    const epoch = this.epoch;
     const selected = files.slice(0, 32);
     const pending = selected.map((file) => pendingAttachment(file));
     pending.forEach((reference, index) => {
@@ -152,43 +155,55 @@ export class AgentReferenceDraftManager {
     const existingIds = new Set(state.references.map((reference) => reference.id));
     this.options.patch({ references: this.mergeAndValidate(state.references, pending), error: null });
     const completed = await Promise.all(selected.map(async (file, index) => {
+      const pendingId = pending[index]!.id;
+      const isCurrent = () => generation === this.acquisitionGeneration
+        && this.options.readState().references.some((entry) => entry.id === pendingId);
+      let result: AgentDraftReference;
       try {
         const [reference] = await bridge.stageAgentAttachments({
           rootPath: this.options.workspaceRoot,
-          epoch: this.epoch,
+          epoch,
           files: [file],
         });
         if (!reference) throw new Error("The selected attachment was not staged.");
+        if (!isCurrent()) {
+          await this.revokeUnretained(reference);
+          this.previews.delete(pendingId);
+          return null;
+        }
         const supported = this.withCapabilityStatus(reference);
-        if (supported.status === "error" && reference.kind === "staged-attachment" && reference.token) {
-          await bridge.revokeAgentAttachments?.({ rootPath: this.options.workspaceRoot, tokens: [reference.token] });
-          const failed = { ...supported, token: undefined };
-          this.previews.move(pending[index]!.id, failed.id);
-          return failed;
-        }
-        this.previews.move(pending[index]!.id, supported.id);
-        return supported;
+        if (supported.status === "error" && supported.kind === "staged-attachment" && supported.token) {
+          await bridge.revokeAgentAttachments?.({ rootPath: this.options.workspaceRoot, tokens: [supported.token] });
+          result = { ...supported, token: undefined };
+        } else result = supported;
       } catch (error) {
-        const failed = attachmentReferenceError(file, error);
-        this.previews.move(pending[index]!.id, failed.id);
-        return failed;
-      } finally {
-        const pendingId = pending[index]?.id;
-        if (pendingId) {
-          const latest = this.options.readState();
-          this.options.patch({ references: latest.references.filter((entry) => entry.id !== pendingId) });
-        }
+        result = attachmentReferenceError(file, error);
       }
+      if (!isCurrent()) {
+        await this.revokeUnretained(result);
+        this.previews.delete(pendingId);
+        return null;
+      }
+      // Replace each pending item atomically in its original position. A slow
+      // sibling must not hide a ready image or resurrect one the user removed.
+      const merged = this.mergeAndValidate([], this.options.readState().references.map((entry) => entry.id === pendingId ? result : entry));
+      const retained = merged.find((entry) => entry.id === result.id);
+      this.previews.move(pendingId, result.id);
+      if (retained?.status === "error") this.retryFiles.set(retained.id, file);
+      this.options.patch({ references: merged });
+      return retained ?? null;
     }));
-    const merged = this.mergeAndValidate(this.options.readState().references, completed);
-    completed.forEach((reference, index) => {
-      const mergedReference = merged.find((entry) => entry.id === reference.id);
-      if (mergedReference?.status === "error" && selected[index]) {
-        this.retryFiles.set(mergedReference.id, selected[index]);
-      }
-    });
-    this.options.patch({ references: merged });
-    return merged.filter((reference) => reference.status === "ready" && !existingIds.has(reference.id)).length;
+    const completedIds = new Set(completed.flatMap((reference) => reference ? [reference.id] : []));
+    return this.options.readState().references.filter((reference) => (
+      reference.status === "ready" && completedIds.has(reference.id) && !existingIds.has(reference.id)
+    )).length;
+  }
+
+  private async revokeUnretained(reference: AgentDraftReference) {
+    if (reference.kind !== "staged-attachment" || !reference.token) return;
+    // Staging deduplicates: a cancelled duplicate cannot revoke a retained image.
+    if (this.options.readState().references.some((entry) => entry.kind === "staged-attachment" && entry.token === reference.token)) return;
+    await this.revoke([reference]);
   }
 
   remove(id: string) {
@@ -313,7 +328,7 @@ function attachmentReferenceError(file: File, error: unknown): AgentDraftReferen
     mime: file.type || "application/octet-stream",
     size: Number.isFinite(file.size) ? file.size : 0,
     status: "error",
-    error: { code: "staging-failed", message: safeReferenceError(error) },
+    error: referenceOperationError(error, "staging-failed"),
   };
 }
 
@@ -327,7 +342,7 @@ function workspaceReferenceError(referencePath: string, error: unknown): AgentDr
     relativePath: displayName,
     displayName,
     status: "error",
-    error: { code: "workspace-resolution-failed", message: safeReferenceError(error) },
+    error: referenceOperationError(error, "workspace-resolution-failed"),
   };
 }
 
@@ -383,6 +398,19 @@ function safeReferenceError(error: unknown) {
     .replace(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?/i, "")
     .replace(/[\r\n]+/g, " ")
     .slice(0, 500) || "The reference could not be added.";
+}
+
+function referenceOperationError(error: unknown, fallbackCode: string): AgentReferenceError {
+  const message = safeReferenceError(error);
+  if (!(error instanceof AgentOperationError)) return { code: fallbackCode, message };
+  // The client already validated the pure-data failure envelope. Keep its reason
+  // through draft projection instead of misclassifying authorization as file I/O.
+  return {
+    code: error.failure.code,
+    message,
+    retryable: error.failure.retryable,
+    ...(error.failure.stage ? { stage: error.failure.stage } : {}),
+  };
 }
 
 function safeReleaseVisualPreview(preview: AgentReferenceVisualPreview | undefined) {

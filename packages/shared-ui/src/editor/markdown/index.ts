@@ -37,12 +37,15 @@ export {
 } from "./core/commands/markdownFormatHotkeys";
 export {
   getMermaidThemeSnapshot,
+  configureMermaidRenderTransport,
+  peekMermaidDiagram,
   mountSanitizedMermaidSvg,
   renderMermaidDiagram,
   subscribeMermaidThemeChanges,
 } from "./features/mermaid/mermaidRenderer";
 export type {
   MermaidRenderRequest,
+  MermaidRenderTransport,
   MermaidRenderResult,
   MermaidSvgMount,
   MermaidThemeSnapshot,

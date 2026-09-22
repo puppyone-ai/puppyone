@@ -2642,20 +2642,32 @@
       "ingestStrategy": "raw"
     },
     {
-      "id": "sqlite",
-      "label": "SQLite Database",
+      "id": "database-candidate",
+      "label": "Database",
+      "semanticKind": "database",
       "extensions": [
         ".db",
         ".db3",
         ".sqlite",
-        ".sqlite3"
+        ".sqlite3",
+        ".duckdb",
+        ".ddb"
       ],
       "mimeTypes": [
         "application/vnd.sqlite3",
-        "application/x-sqlite3"
+        "application/x-sqlite3",
+        "application/vnd.duckdb"
       ],
+      "mimeTypesByExtension": {
+        ".db": "application/octet-stream",
+        ".db3": "application/octet-stream",
+        ".sqlite": "application/vnd.sqlite3",
+        ".sqlite3": "application/vnd.sqlite3",
+        ".duckdb": "application/vnd.duckdb",
+        ".ddb": "application/vnd.duckdb"
+      },
       "category": "binary",
-      "defaultViewer": "binary-placeholder",
+      "defaultViewer": "database-preview",
       "editable": false,
       "ingestStrategy": "raw"
     },

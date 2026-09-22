@@ -1,14 +1,17 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { agentContractLimits } from "../../../../../shared/agent-contract/constants.mjs";
 
-const MAX_REFERENCES = 32;
-const MAX_REFERENCE_BYTES = 25 * 1024 * 1024;
-const MAX_TOTAL_REFERENCE_BYTES = 25 * 1024 * 1024;
+const MAX_REFERENCES = agentContractLimits.maxReferenceCount;
+const MAX_REFERENCE_BYTES = agentContractLimits.maxReferenceBytes;
+const MAX_TOTAL_REFERENCE_BYTES = agentContractLimits.maxTotalReferenceBytes;
 const DEFAULT_TTL_MS = 30 * 60_000;
 const COPY_CHUNK_BYTES = 64 * 1024;
 
-/** Main-owned, process-scoped immutable snapshots for external Agent inputs. */
+/** Main-owned, process-scoped immutable snapshots for external Agent inputs.
+ * @param {{ rootPath: string, fsModule?: typeof fs, now?: () => number, ttlMs?: number }} [options]
+ */
 export function createAgentAttachmentStore({
   rootPath,
   fsModule = fs,
@@ -41,49 +44,69 @@ export function createAgentAttachmentStore({
     return initialization;
   }
 
-  async function stage({ ownerId, workspaceRoot, epoch, sourcePaths }) {
+  async function stage({ ownerId, workspaceRoot, epoch, sourcePaths, sources }) {
     assertOpen();
     assertOwner(ownerId);
     assertWorkspace(workspaceRoot);
     assertOpaqueId(epoch, "reference epoch");
-    if (!Array.isArray(sourcePaths) || sourcePaths.length === 0 || sourcePaths.length > MAX_REFERENCES) {
+    if (sources !== undefined && sourcePaths !== undefined) throw new Error("Attachment sources are invalid.");
+    const selected = sources ?? (Array.isArray(sourcePaths) ? sourcePaths.map((sourcePath) => ({ path: sourcePath })) : null);
+    if (!Array.isArray(selected) || selected.length === 0 || selected.length > MAX_REFERENCES) {
       throw new Error("Select between 1 and 32 attachment files.");
     }
+    // Copy inline bytes before the first await. Only these bytes are granted;
+    // names/MIME supplied by the renderer never authorize a filesystem path.
+    let inlineBytes = 0;
+    const inputs = selected.map((input) => {
+      if (input?.path !== undefined && input.bytes === undefined) return { path: input.path };
+      if (input?.path !== undefined || !(input?.bytes instanceof Uint8Array)
+        || typeof input.name !== "string" || !input.name || input.name.length > 512
+        || /[\\/\u0000-\u001f\u007f]/.test(input.name)) throw new Error("The inline attachment is invalid.");
+      if (input.bytes.byteLength === 0) throw new Error("The selected attachment is empty.");
+      inlineBytes += input.bytes.byteLength;
+      if (inlineBytes > MAX_TOTAL_REFERENCE_BYTES) throw new Error("Attachments exceed the 25 MB total safety limit.");
+      return { name: input.name, bytes: Buffer.from(input.bytes) };
+    });
     await initialize();
     await sweepExpired();
     const result = [];
     const createdEntries = [];
     try {
-      for (const sourcePath of sourcePaths) {
-        const staged = await stageOne({ ownerId, workspaceRoot, epoch, sourcePath });
+      for (const input of inputs) {
+        const staged = await stageOne({ ownerId, workspaceRoot, epoch, input });
         result.push(staged.reference);
         if (staged.created) createdEntries.push(staged.entry);
       }
     } catch (error) {
       await revokeEntries(createdEntries);
-      throw new Error(safeStagingError(error, sourcePaths, processDirectory));
+      throw new Error(safeStagingError(error, inputs.flatMap((input) => typeof input.path === "string" ? [input.path] : []), processDirectory));
     }
     return result;
   }
 
-  async function stageOne({ ownerId, workspaceRoot, epoch, sourcePath }) {
-    if (typeof sourcePath !== "string" || !path.isAbsolute(sourcePath)) {
-      throw new Error("The selected attachment could not be resolved.");
+  async function stageOne({ ownerId, workspaceRoot, epoch, input }) {
+    const sourcePath = input.path;
+    let sourceLstat = null;
+    let source = null;
+    if (!input.bytes) {
+      if (typeof sourcePath !== "string" || !path.isAbsolute(sourcePath)) {
+        throw new Error("The selected attachment could not be resolved.");
+      }
+      sourceLstat = await fsModule.promises.lstat(sourcePath).catch(() => null);
+      if (!sourceLstat || sourceLstat.isSymbolicLink() || !sourceLstat.isFile()) {
+        throw new Error("Only regular, non-symbolic-link files can be attached.");
+      }
+      const flags = fsModule.constants.O_RDONLY | (fsModule.constants.O_NOFOLLOW ?? 0);
+      source = await fsModule.promises.open(sourcePath, flags).catch(() => null);
+      if (!source) throw new Error("The selected attachment changed before it could be staged.");
     }
-    const sourceLstat = await fsModule.promises.lstat(sourcePath).catch(() => null);
-    if (!sourceLstat || sourceLstat.isSymbolicLink() || !sourceLstat.isFile()) {
-      throw new Error("Only regular, non-symbolic-link files can be attached.");
-    }
-    const flags = fsModule.constants.O_RDONLY | (fsModule.constants.O_NOFOLLOW ?? 0);
-    const source = await fsModule.promises.open(sourcePath, flags).catch(() => null);
-    if (!source) throw new Error("The selected attachment changed before it could be staged.");
     const snapshotName = `${randomUUID()}.snapshot`;
     const snapshotPath = path.join(processDirectory, snapshotName);
     let destination = null;
     try {
-      const before = await source.stat();
-      if (!before.isFile()) throw new Error("Only regular files can be attached.");
-      if (!sameFileSnapshot(sourceLstat, before)) {
+      const before = source ? await source.stat() : { size: input.bytes.byteLength };
+      if (source && !before.isFile()) throw new Error("Only regular files can be attached.");
+      if (source && !sameFileSnapshot(sourceLstat, before)) {
         throw new Error("The selected attachment changed before it could be staged.");
       }
       if (before.size > MAX_REFERENCE_BYTES) throw new Error("An attachment exceeds the 25 MB safety limit.");
@@ -96,7 +119,9 @@ export function createAgentAttachmentStore({
       let offset = 0;
       while (offset < before.size) {
         const length = Math.min(buffer.byteLength, before.size - offset);
-        const { bytesRead } = await source.read(buffer, 0, length, offset);
+        const bytesRead = source
+          ? (await source.read(buffer, 0, length, offset)).bytesRead
+          : input.bytes.copy(buffer, 0, offset, offset + length);
         if (bytesRead <= 0) throw new Error("The selected attachment changed while it was being staged.");
         if (header.length < 16) header = Buffer.from(buffer.subarray(0, Math.min(bytesRead, 16)));
         hash.update(buffer.subarray(0, bytesRead));
@@ -107,8 +132,7 @@ export function createAgentAttachmentStore({
         }
         offset += bytesRead;
       }
-      const after = await source.stat();
-      if (!sameFileSnapshot(before, after) || offset !== before.size) {
+      if ((source && !sameFileSnapshot(before, await source.stat())) || offset !== before.size) {
         throw new Error("The selected attachment changed while it was being staged.");
       }
       await destination.sync();
@@ -116,8 +140,8 @@ export function createAgentAttachmentStore({
       destination = null;
       await fsModule.promises.chmod(snapshotPath, 0o600).catch(() => {});
 
-      const displayName = safeDisplayName(path.basename(sourcePath));
-      const mime = inferMimeType(sourcePath, header);
+      const displayName = safeDisplayName(input.name ?? path.basename(sourcePath));
+      const mime = inferMimeType(displayName, header);
       const digest = hash.digest("hex");
       const duplicate = Array.from(entries.values()).find((entry) => (
         entry.ownerId === ownerId
@@ -166,7 +190,7 @@ export function createAgentAttachmentStore({
       await fsModule.promises.rm(snapshotPath, { force: true }).catch(() => {});
       throw error;
     } finally {
-      await source.close().catch(() => {});
+      await source?.close().catch(() => {});
     }
   }
 

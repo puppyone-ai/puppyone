@@ -15,6 +15,10 @@
   -webkit-user-drag: none;
 }
 
+.markdown-codemirror-editor .cm-md-image-widget img[hidden] {
+  display: none;
+}
+
 .markdown-codemirror-editor .cm-md-image-widget.is-block {
   display: flex;
   width: 100%;

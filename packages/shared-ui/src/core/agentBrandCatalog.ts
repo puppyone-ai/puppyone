@@ -39,7 +39,8 @@ const agentAssets = RENDERER_ASSET_PATHS.icons.agents;
 export const AGENT_BRAND_CATALOG: Readonly<Record<AgentBrandId, AgentBrandDefinition>> = Object.freeze({
   chatgpt: defineBrand("chatgpt", "ChatGPT", ["chatgpt"], agentAssets.chatgpt),
   claude: defineBrand("claude", "Claude Code", ["claude", "anthropic"], agentAssets.claude, 0.84),
-  codex: defineBrand("codex", "Codex", ["codex", "openai"], agentAssets.codex),
+  // Codex keeps its own semantic identity and name while using the ChatGPT mark.
+  codex: defineBrand("codex", "Codex", ["codex", "openai"], agentAssets.chatgpt),
   cursor: defineBrand("cursor", "Cursor", ["cursor"], agentAssets.cursor, 0.84),
   hermes: defineBrand("hermes", "Hermes Agent", ["hermes"], agentAssets.hermes, 0.82),
   manus: defineBrand("manus", "Manus", ["manus"], agentAssets.manus),

@@ -128,7 +128,15 @@
 }
 
 .markdown-codemirror-editor .cm-scroller {
-  overflow: auto;
+  /* Wide blocks resolve cqw against the real scrollport, including its
+     reserved scrollbar gutters. Avoid republishing inherited pixel tokens
+     across every line of every pane on each resize. */
+  container-type: inline-size;
+  /* Wrapped Markdown owns vertical scrolling. Wide widgets own their own
+     horizontal scrollports; their transient width must not create an outer
+     horizontal scrollbar and change this viewport's height during layout. */
+  overflow-x: hidden;
+  overflow-y: auto;
   /* MDI pane focus may reveal Markdown source or exchange an embedded
      preview/edit surface, briefly changing document height. Reserve matching
      logical gutters up front so those content-local reflows can never move
@@ -257,11 +265,6 @@
   color: var(--po-text-subtle);
   font-size: var(--po-type-ui-caption, 12px);
   line-height: 1.2;
-}
-
-.markdown-codemirror-editor .cm-selectionBackground,
-.markdown-codemirror-editor .cm-focused .cm-selectionBackground {
-  background: var(--po-selected);
 }
 
 .markdown-codemirror-editor .cm-placeholder {

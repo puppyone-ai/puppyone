@@ -138,6 +138,7 @@ export function resolveAppearance(input: AppearanceResolutionInput): ResolvedApp
       input.interfaceStyle,
       subThemeResolution.subTheme.id,
       effectiveColorMode,
+      subThemeCssRevision(subThemeResolution.subTheme, effectiveColorMode),
     ].join(":"),
     diagnostics: subThemeResolution.diagnostics,
     decisions: Object.freeze({
@@ -152,6 +153,17 @@ export function resolveAppearance(input: AppearanceResolutionInput): ResolvedApp
     sidebarNavigationOrientation: getSidebarNavigationOrientation(sidebarNavigationLayout.effectiveValue),
     fileIconTheme: fileIconTheme.effectiveValue,
   });
+}
+
+/** A local author can save new CSS without changing the theme ID or version.
+ * Imperative consumers (xterm) must observe that change just like DOM CSS. */
+function subThemeCssRevision(subTheme: SubThemeDefinition, mode: ResolvedTheme): string {
+  const css = JSON.stringify(getSubThemeVariant(subTheme, mode)?.compiledCss ?? {});
+  let hash = 2166136261;
+  for (let index = 0; index < css.length; index += 1) {
+    hash = Math.imul(hash ^ css.charCodeAt(index), 16777619);
+  }
+  return (hash >>> 0).toString(36);
 }
 
 function resolveSubTheme({

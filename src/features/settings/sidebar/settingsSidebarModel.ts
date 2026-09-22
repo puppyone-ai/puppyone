@@ -7,6 +7,7 @@ import {
   GitBranch,
   ListPlus,
   Monitor,
+  Plug,
   Settings,
   ShieldCheck,
   Type,
@@ -20,6 +21,7 @@ export type SettingsSidebarItem = {
   labelId: string;
   icon: LucideIcon;
   disabled: boolean;
+  requiresCloud?: boolean;
 };
 
 export type SettingsSidebarGroupModel = {
@@ -33,7 +35,7 @@ export type SettingsVisibilityContext = {
   cloudEnabled: boolean;
 };
 
-export const SETTINGS_SIDEBAR_GROUPS = [
+export const SETTINGS_SIDEBAR_GROUPS: readonly SettingsSidebarGroupModel[] = [
   {
     id: "desktop-app",
     labelId: "settings.sidebar.desktopApp",
@@ -41,10 +43,17 @@ export const SETTINGS_SIDEBAR_GROUPS = [
       { id: "general", labelId: "settings.sidebar.general", icon: Settings, disabled: false },
       { id: "appearance", labelId: "settings.sidebar.appearance", icon: Monitor, disabled: false },
       { id: "typography", labelId: "settings.sidebar.typography", icon: Type, disabled: false },
-      { id: "local-agents", labelId: "settings.sidebar.localAgents", icon: Bot, disabled: false },
       { id: "new-menu", labelId: "settings.sidebar.createNew", icon: ListPlus, disabled: false },
       { id: "privacy", labelId: "settings.sidebar.privacy", icon: ShieldCheck, disabled: false },
       { id: "experimental", labelId: "settings.sidebar.experimental", icon: FlaskConical, disabled: false },
+    ],
+  },
+  {
+    id: "agents",
+    labelId: "settings.sidebar.agents",
+    items: [
+      { id: "local-agents", labelId: "settings.sidebar.localAgents", icon: Bot, disabled: false },
+      { id: "model-connections", labelId: "settings.modelConnections.title", icon: Plug, disabled: false },
     ],
   },
   {
@@ -59,18 +68,23 @@ export const SETTINGS_SIDEBAR_GROUPS = [
   {
     id: "cloud",
     labelId: "settings.sidebar.cloud",
-    requiresCloud: true,
     items: [
       { id: "account", labelId: "settings.sidebar.account", icon: UserRound, disabled: false },
-      { id: "cloud", labelId: "settings.sidebar.cloudHosting", icon: Cloud, disabled: false },
+      { id: "cloud", labelId: "settings.sidebar.cloudHosting", icon: Cloud, disabled: false, requiresCloud: true },
     ],
   },
-] satisfies readonly SettingsSidebarGroupModel[];
+];
 
 export function resolveSettingsSidebarGroups({
   cloudEnabled,
 }: SettingsVisibilityContext): readonly SettingsSidebarGroupModel[] {
-  return SETTINGS_SIDEBAR_GROUPS.filter((group) => !group.requiresCloud || cloudEnabled);
+  return SETTINGS_SIDEBAR_GROUPS
+    .filter((group) => !group.requiresCloud || cloudEnabled)
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !item.requiresCloud || cloudEnabled),
+    }))
+    .filter((group) => group.items.length > 0);
 }
 
 export function isSettingsSectionAvailable(

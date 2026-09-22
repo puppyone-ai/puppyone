@@ -67,6 +67,61 @@
   background: var(--po-panel-raised);
 }
 
+.pdf-preview-shell {
+  flex-direction: column;
+}
+
+.pdf-preview-shell,
+.pdf-preview-surface {
+  position: relative;
+  display: flex;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--po-editor-bg);
+}
+
+.pdf-preview-frame {
+  display: block;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  background: var(--po-panel-raised);
+}
+
+.pdf-preview-surface > .document-surface-pending {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+}
+
+.pdf-preview-shell button {
+  min-height: var(--po-control-size-tight);
+  padding: 2px 8px;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: 4px;
+  background: var(--po-control);
+  color: var(--po-text-muted);
+  font: inherit;
+  cursor: var(--po-clickable-cursor, default);
+}
+
+.pdf-preview-shell button:hover {
+  background: var(--po-control-hover);
+  color: var(--po-text);
+}
+
+.pdf-preview-shell button:focus-visible {
+  outline: 2px solid var(--po-focus-ring);
+  outline-offset: 2px;
+}
+
 .html-preview-shell {
   position: relative;
   display: flex;

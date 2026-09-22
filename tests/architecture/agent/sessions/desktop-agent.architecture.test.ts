@@ -86,8 +86,12 @@ describe("Desktop Agent architecture boundaries", () => {
     expect(emptyState).toContain("<AgentBrandMark");
     expect(emptyState).not.toMatch(/selectedModel|AgentModelPicker/);
     expect(source("src/features/desktop-agent/ui/AgentChatTabPanel.tsx")).toContain(
-      "const showReadyEmptyState = routingReady",
+      "const showReadyEmptyState = (routingReady || computeOnboarding)",
     );
+    const tabPanel = source("src/features/desktop-agent/ui/AgentChatTabPanel.tsx");
+    expect(tabPanel).toContain('capabilities?.modelConnections && readiness?.code === "RUNTIME_SETUP_REQUIRED"');
+    expect(tabPanel).toContain("!state.selectedModel && !state.session && !hasCommittedTranscript && !state.error && !failed");
+    expect(tabPanel).toContain("commandTarget && routingReady");
     expect(markdown).not.toContain("dangerouslySetInnerHTML");
     expect(markdownDocument).not.toContain("dangerouslySetInnerHTML");
     expect(markdownDocument).toContain("remarkGfm");
@@ -345,6 +349,9 @@ describe("Desktop Agent architecture boundaries", () => {
     expect(cursorDiscovery).toContain('status: "ready"');
     expect(workBuddy).toContain("extends AcpRuntimeAdapter");
     expect(workBuddy).toContain("channel.authenticationMethodId");
+    expect(workBuddy).toContain('requestExtension("_codebuddy.ai/getUserInfo"');
+    expect(workBuddy).toContain("WORKBUDDY_CONFIG_DIR: configDirectory");
+    expect(workBuddy).toContain("CODEBUDDY_CONFIG_DIR: configDirectory");
     expect(workBuddyDiscovery).toContain("installationId: channel.installationId");
     expect(workBuddyDiscovery).toContain('compatibility: readiness.status === "ready" ? "acp-v1" : "unavailable"');
     expect(hermes).toContain("extends AcpRuntimeAdapter");
