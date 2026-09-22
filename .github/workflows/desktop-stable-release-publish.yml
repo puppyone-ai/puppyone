@@ -359,9 +359,15 @@ jobs:
         run: |
           set -euo pipefail
           response="${RUNNER_TEMP}/github-release-before-upload.json"
-          release_id="$(gh api --paginate \
-            "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
-            --jq ".[] | select(.tag_name == \"${RELEASE_TAG}\") | .id")"
+          # The release list can lag a successful draft creation. Wait for
+          # visibility before uploading; never create another draft or skip verification.
+          for attempt in 1 2 3 4 5; do
+            release_id="$(gh api --paginate \
+              "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+              --jq ".[] | select(.tag_name == \"${RELEASE_TAG}\") | .id")"
+            if [ -n "${release_id}" ]; then break; fi
+            sleep "$((attempt * 2))"
+          done
           : "${release_id:?GitHub draft release ID is required}"
           gh api "repos/${GITHUB_REPOSITORY}/releases/${release_id}" > "${response}"
           mapfile -t files < <(find \

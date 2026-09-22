@@ -96,6 +96,31 @@ it("repeated send while the same steer is pending has one dispatch", async () =>
 });
 
 describe("AgentSessionController", () => {
+  it("recovers the bound model after a temporary empty catalog without authorizing new models", async () => {
+    const bridge = bridgeFixture(() => {}, { modelConnections: true });
+    const available = await bridge.discoverAgentRuntimes();
+    const controller = new AgentSessionController("/workspace", () => bridge as never);
+    try {
+      await controller.initialize();
+      controller.setDraft("Keep this draft through the wallet refresh");
+      const session = controller.getSnapshot().session;
+      bridge.resumeAgentSession.mockClear();
+      bridge.discoverAgentRuntimes.mockResolvedValueOnce({ ...available, models: [] });
+      await controller.refreshModelConnections();
+      expect(controller.getSnapshot().inspection?.models).toEqual([]);
+      expect(controller.getSnapshot().selectedModel).toBe("openai/gpt-5");
+      const added = { ...available.models[0], id: "openai/new-model", model: "openai/new-model" };
+      bridge.discoverAgentRuntimes.mockResolvedValueOnce({ ...available, models: [...available.models, added] });
+      await controller.refreshModelConnections();
+      expect(controller.getSnapshot().inspection?.models).toEqual(available.models);
+      expect(controller.getSnapshot().session).toEqual(session);
+      expect(controller.getSnapshot().draft).toBe("Keep this draft through the wallet refresh");
+      expect(bridge.resumeAgentSession).not.toHaveBeenCalled();
+      expect(await controller.submit(controller.getSnapshot().draft)).toBe(true);
+      expect(bridge.startAgentTurn).toHaveBeenCalledOnce();
+    } finally { controller.dispose(); }
+  });
+
   it("updates model inspection without forcing executable discovery or replacing the session", async () => {
     const bridge = bridgeFixture(() => {}, { modelConnections: true });
     const controller = new AgentSessionController("/workspace", () => bridge as never);
