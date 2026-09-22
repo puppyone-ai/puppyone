@@ -1,3 +1,18 @@
+/* Track ratios belong to this grid, never to its document descendants.
+ * Inheriting a changing ratio invalidates text styles in every nested editor
+ * during a drag, even though only grid-template consumes these properties. */
+@property --desktop-editor-first-track {
+  syntax: "*";
+  inherits: false;
+  initial-value: 1fr;
+}
+
+@property --desktop-editor-second-track {
+  syntax: "*";
+  inherits: false;
+  initial-value: 1fr;
+}
+
 .desktop-editor-split-view {
   --desktop-editor-divider-size: var(--po-pane-resizer-line-size, 1px);
   --desktop-editor-resize-hit-size: var(--po-pane-resizer-hit-size, 8px);

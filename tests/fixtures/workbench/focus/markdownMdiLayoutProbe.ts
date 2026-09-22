@@ -13,6 +13,12 @@ export const mdiLayoutProbe = {
     const views = [...fixture().views];
     await fixture().probe.prepare();
     const readCount = fixture().readCount;
+    for (const view of views) {
+      const style = getComputedStyle(view.contentDOM);
+      for (const property of ["--desktop-editor-first-track", "--desktop-editor-second-track"]) {
+        requireCondition(style.getPropertyValue(property).trim() === "1fr", "Split ratios leaked into document styles");
+      }
+    }
     const before = getEditorLayoutSnapshot(document);
     fixture().probe.start();
     for (let step = 0; step < 32; step++) {
