@@ -10,7 +10,7 @@
   "lifecycle.retryDisplay": "메시지 동기화 재시도",
   "lifecycle.pauseDisplay": "자동 복구 일시 중지",
   "lifecycle.manageExecutions": "인스턴스 관리 / 종료",
-  "compute.managed": "PuppyOne AI",
+  "compute.managed": "Puppyone's token",
   "compute.managedBalance": "계정 잔액을 사용합니다",
   "compute.customize": "내 API 또는 로컬 모델",
   "compute.title": "추론 리소스",

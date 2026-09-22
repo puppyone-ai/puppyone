@@ -98,7 +98,7 @@ async function render({ selectedModel = null as string | null, disabled = false,
 
 it("keeps the initial managed summary free of account and billing details", async () => {
   const { client, onOpenAccount, onOpenModelConnections, onReadyChange, onSelectModel } = await render({ empty: true });
-  expect(document.querySelector(".desktop-agent-compute-summary")?.textContent).toContain("PuppyOne AI");
+  expect(document.querySelector(".desktop-agent-compute-summary")?.textContent).toContain("Puppyone's token");
   expect(document.body.textContent).not.toContain("Uses your account balance");
   expect(document.body.textContent).not.toContain("Available:");
   expect(document.body.textContent).not.toContain("Sandbox");
@@ -224,7 +224,7 @@ it("offers the server-configured trial only after the first send attempt", async
 it.each([null, models[1].model])("hides the managed model and picker while retaining its readiness: %s", async (selectedModel) => {
   const { client, onReadyChange, onSelectModel } = await render({ selectedModel,
     managed: { available: true, reason: "ready", signedIn: true, sandbox: true, availableMicroUsd: 4_990_000, reservedMicroUsd: 10_000 } });
-  expect(document.querySelector(".desktop-agent-compute-summary")?.textContent).toContain("PuppyOne AI");
+  expect(document.querySelector(".desktop-agent-compute-summary")?.textContent).toContain("Puppyone's token");
   expect(document.body.textContent).not.toContain("$4.99");
   expect(document.body.textContent).not.toContain("Sandbox");
   expect(document.body.textContent).not.toContain("Refresh balance");

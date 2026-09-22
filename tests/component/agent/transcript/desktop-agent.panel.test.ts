@@ -48,7 +48,7 @@ describe("Project-owned Agent Chat Workbench lifecycle", () => {
     await flushEffects(); await flushEffects();
     expect(Boolean(container.querySelector(".desktop-agent-readiness"))).toBe(showRecovery);
     expect(Boolean(container.querySelector(".desktop-agent-empty-state"))).toBe(!showRecovery);
-    expect(container.querySelector(".desktop-agent-compute-summary")?.textContent).toContain("PuppyOne AI");
+    expect(container.querySelector(".desktop-agent-compute-summary")?.textContent).toContain("Puppyone's token");
     expect((container.querySelector('button[aria-label="Send message"]') as HTMLButtonElement).disabled).toBe(true);
     expect(harness.bridge.createAgentSession).not.toHaveBeenCalled();
   });

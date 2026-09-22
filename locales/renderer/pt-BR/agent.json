@@ -10,7 +10,7 @@
   "lifecycle.retryDisplay": "Tentar sincronização novamente",
   "lifecycle.pauseDisplay": "Pausar recuperação automática",
   "lifecycle.manageExecutions": "Gerenciar / encerrar instância",
-  "compute.managed": "PuppyOne AI",
+  "compute.managed": "Puppyone's token",
   "compute.managedBalance": "Usa o saldo da sua conta",
   "compute.customize": "Sua API ou modelo local",
   "compute.title": "Fonte de processamento",

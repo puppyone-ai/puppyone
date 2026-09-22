@@ -10,7 +10,7 @@
   "lifecycle.retryDisplay": "立即重试消息同步",
   "lifecycle.pauseDisplay": "暂停自动恢复",
   "lifecycle.manageExecutions": "管理 / 终止实例",
-  "compute.managed": "PuppyOne AI",
+  "compute.managed": "Puppyone's token",
   "compute.managedBalance": "使用账户余额",
   "compute.customize": "自带 API 或本地模型",
   "compute.title": "算力来源",

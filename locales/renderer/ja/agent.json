@@ -10,7 +10,7 @@
   "lifecycle.retryDisplay": "メッセージ同期を再試行",
   "lifecycle.pauseDisplay": "自動復旧を一時停止",
   "lifecycle.manageExecutions": "インスタンスを管理／終了",
-  "compute.managed": "PuppyOne AI",
+  "compute.managed": "Puppyone's token",
   "compute.managedBalance": "アカウント残高を使用",
   "compute.customize": "独自の API・ローカルモデル",
   "compute.title": "推論リソース",
