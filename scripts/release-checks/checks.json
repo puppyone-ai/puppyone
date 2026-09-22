@@ -451,7 +451,7 @@
       "name": "SQLite/DuckDB: DOM containment, bounded pages, source integrity and native exit",
       "group": "app",
       "command": ["npm", "run", "smoke:database-app"],
-      "platforms": ["darwin"],
+      "platforms": ["linux", "darwin"],
       "dependsOn": ["build"],
       "timeoutSeconds": 240,
       "runtime": "electron",

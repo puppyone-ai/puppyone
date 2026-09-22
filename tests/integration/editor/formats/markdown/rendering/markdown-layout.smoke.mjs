@@ -191,6 +191,24 @@ app.whenReady().then(async () => {
 
   } catch (error) {
     failure = error?.stack ?? String(error);
+    // Keep the failing, unprofiled acceptance result. A second diagnostic run
+    // captures the actual hosted machine's bottleneck without altering budgets
+    // or adding profiler overhead to the measurements used by the gate.
+    const paneCount = /^nested-(4|8)-panes$/.exec(scenario)?.[1];
+    if (paneCount && window && !window.isDestroyed()) {
+      try {
+        window.webContents.debugger.attach("1.3");
+        await window.webContents.debugger.sendCommand("Profiler.enable");
+        await window.webContents.debugger.sendCommand("Profiler.start");
+        await window.webContents.executeJavaScript(`window.markdownLayoutFixture.mdi.resize(${paneCount})`);
+        const { profile } = await window.webContents.debugger.sendCommand("Profiler.stop");
+        await fs.writeFile(path.join(artifactDirectory, `${scenario}.cpuprofile`), JSON.stringify(profile));
+      } catch (profileError) {
+        console.error(`Layout diagnostic capture failed: ${profileError.message}`);
+      } finally {
+        if (window.webContents.debugger.isAttached()) window.webContents.debugger.detach();
+      }
+    }
     if (window && !window.isDestroyed()) await fs.writeFile(path.join(artifactDirectory, "failure.png"), (await window.webContents.capturePage()).toPNG());
     throw error;
   } finally {

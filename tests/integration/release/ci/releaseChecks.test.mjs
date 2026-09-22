@@ -39,7 +39,7 @@ describe("pre-release check definitions", () => {
     expect(createPlan(actual, { checkId: "pdf-app" }).map(entry => entry.id)).toEqual(["build", "pdf-app"]);
     const database = actual.checks.find((entry) => entry.id === "database-app");
     expect(database.command).toEqual(["npm", "run", "smoke:database-app"]);
-    expect(database.platforms).toEqual(["darwin"]);
+    expect(database.platforms).toEqual(["linux", "darwin"]);
     expect(database.artifacts).toContain("{checkDir}/evidence/result.json");
     expect(createPlan(actual, { checkId: "database-app" }).map(entry => entry.id)).toEqual(["build", "database-app"]);
     expect(createPlan(actual, { group: "app" }).filter((entry) => entry.id === "build")).toHaveLength(1);
