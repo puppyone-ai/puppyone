@@ -221,8 +221,8 @@ it("offers the server-configured trial only after the first send attempt", async
   expect(client.managed).not.toHaveBeenCalledWith(expect.objectContaining({ action: "checkout" }));
 });
 
-it("keeps funded managed compute to source and model only", async () => {
-  const { client, onReadyChange, onSelectModel } = await render({ selectedModel: models[1].model,
+it.each([null, models[1].model])("hides the managed model and picker while retaining its readiness: %s", async (selectedModel) => {
+  const { client, onReadyChange, onSelectModel } = await render({ selectedModel,
     managed: { available: true, reason: "ready", signedIn: true, sandbox: true, availableMicroUsd: 4_990_000, reservedMicroUsd: 10_000 } });
   expect(document.querySelector(".desktop-agent-compute-summary")?.textContent).toContain("PuppyOne AI");
   expect(document.body.textContent).not.toContain("$4.99");
@@ -231,7 +231,9 @@ it("keeps funded managed compute to source and model only", async () => {
   expect(document.body.textContent).not.toContain("One-time trial credit");
   expect(document.body.textContent).not.toContain("Ready. Press Send");
   expect(document.body.textContent).not.toContain("Your API or local model");
-  expect(onReadyChange).toHaveBeenLastCalledWith(true);
+  expect(document.body.textContent).not.toContain("API model");
+  expect(document.querySelector('button[aria-label="Agent model"]')).toBeNull();
+  expect(onReadyChange).toHaveBeenLastCalledWith(Boolean(selectedModel));
   expect(client.managed).not.toHaveBeenCalled();
   expect(onSelectModel).not.toHaveBeenCalled();
 });

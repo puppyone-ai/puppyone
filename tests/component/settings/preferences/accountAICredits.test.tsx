@@ -12,7 +12,7 @@ import { withTestLocalization } from "../../../support/react/localization";
 let root: Root | null = null;
 afterEach(() => { act(() => root?.unmount()); root = null; document.body.replaceChildren(); });
 
-it("shows personal credit and one-time top-up without any hosting subscription", async () => {
+it("shows only the available balance, top-up and refresh actions", async () => {
   const snapshot: ModelConnectionSnapshot = {
     schemaVersion: 1, revision: 1, connections: [], catalogs: [],
     managed: { available: true, reason: "ready", signedIn: true, sandbox: true,
@@ -37,15 +37,14 @@ it("shows personal credit and one-time top-up without any hosting subscription",
   const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
   await act(async () => root?.render(withTestLocalization(<AccountAICredits signedIn store={new ModelConnectionStore(client)} />)));
   expect(host.textContent).toContain("$0.75");
-  expect(host.textContent).toContain("$1.00");
-  expect(host.textContent).toContain("Sandbox");
-  expect(host.textContent).toContain("$0.000047");
-  expect(host.textContent).toContain("Input: 10 (cached: 4)");
-  expect(host.textContent).toContain("Model prices per million tokens");
+  expect(host.textContent).not.toMatch(/\$1\.00|\$0\.25|Sandbox|Trial|Pending|Latest usage|\$0\.000047|Input:|Model prices|Example Model|example-model/);
   expect(host.textContent).not.toMatch(/Pro|Team|\$15|\$30/);
-  expect(host.querySelectorAll(".desktop-settings-subsection")).toHaveLength(3);
-  expect(host.querySelector(".desktop-settings-subsection-detail")?.textContent).toContain("no subscription");
-  expect(host.querySelector("p:not(.desktop-settings-subsection-detail)")).toBeNull();
+  expect(host.querySelectorAll(".desktop-settings-row")).toHaveLength(1);
+  expect(host.querySelector(".desktop-settings-subsection-title, .desktop-settings-subsection-detail")).toBeNull();
+  expect([...host.querySelectorAll("button")].map((button) => button.textContent)).toEqual(["Add $5.00", "Refresh balance"]);
+  managed.mockClear();
+  await act(async () => [...host.querySelectorAll("button")].find((button) => button.textContent === "Refresh balance")!.click());
+  expect(managed).toHaveBeenCalledExactlyOnceWith({ action: "refresh" });
   const topUp = [...host.querySelectorAll("button")].find((button) => button.textContent?.includes("$5.00"))!;
   expect(topUp).toBeDefined();
   act(() => topUp.click());

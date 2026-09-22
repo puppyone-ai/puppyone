@@ -50,6 +50,9 @@ export function BuiltInAgentCompute({
     })
     .map((catalog) => catalog.connectionId));
   const readyModels = models.filter((model) => model.connectionId && readyConnectionIds.has(model.connectionId));
+  const managedConnectionIds = new Set(snapshot?.connections
+    .filter((connection) => connection.sourceKind === "managed").map((connection) => connection.id));
+  const isManagedModel = (model: AgentModel) => Boolean(model.connectionId && managedConnectionIds.has(model.connectionId));
   const current = readyModels.find((model) => model.model === selectedModel);
   const selected = models.find((model) => model.model === selectedModel);
   const currentConnection = snapshot?.connections.find((connection) => connection.id === selected?.connectionId);
@@ -96,14 +99,14 @@ export function BuiltInAgentCompute({
     {!showPrompt && <div className="desktop-agent-compute-summary">
       <Icon size={14} aria-hidden="true" />
       <span>{sourceLabel}</span>
-      {readyModels.length > 0 && <AgentSessionControlPicker disabled={disabled} control={{
+      {readyModels.length > 0 && (source !== "managed" || !readyModels.some(isManagedModel)) && <AgentSessionControlPicker disabled={disabled} control={{
         id: "model",
         value: ready ? selectedModel : null,
         options: readyModels.map((model) => ({
           value: model.model,
-          label: model.displayName,
-          description: model.description,
-          keywords: `${model.id} ${model.model}`,
+          label: isManagedModel(model) ? t("agent.compute.managed") : model.displayName,
+          description: isManagedModel(model) ? undefined : model.description,
+          keywords: isManagedModel(model) ? undefined : `${model.id} ${model.model}`,
         })),
       }} onSelect={(_id, model) => onSelectModel(model)} />}
     </div>}
