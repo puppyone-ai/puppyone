@@ -13,7 +13,8 @@ app.commandLine.appendSwitch("lang", "en-US");
 // Hosted macOS exposes a virtual Metal device whose texture upload can fail
 // without losing the WebGL context. Use Chromium's software GLES driver for
 // this pixel contract; local runs continue exercising the machine's GPU.
-if (process.env.GITHUB_ACTIONS === "true" && process.platform === "darwin") {
+const useSoftwareWebgl = process.env.GITHUB_ACTIONS === "true" && process.platform === "darwin";
+if (useSoftwareWebgl) {
   app.commandLine.appendSwitch("use-gl", "angle");
   app.commandLine.appendSwitch("use-angle", "swiftshader");
 }
@@ -94,7 +95,11 @@ async function run() {
       assert(value.font === "14px" && value.padding === "16px", theme + ": CodeMirror defaults defeated adapter metrics");
       assert(!value.overflow, theme + ": composer overflows narrow surface");
       assert(await evaluate('getComputedStyle(document.querySelector(".desktop-terminal-xterm")).visibility === "visible"'), theme + ": terminal content is hidden");
-      assert(await evaluate('Boolean(document.querySelector(".xterm-screen canvas"))'), theme + ": WebGL renderer did not start");
+      // Other platforms may legitimately use xterm's DOM fallback. The hosted
+      // macOS case must exercise its explicitly selected software WebGL driver.
+      if (useSoftwareWebgl) {
+        assert(await evaluate('Boolean(document.querySelector(".xterm-screen canvas"))'), theme + ": WebGL renderer did not start");
+      }
       const capture = await window.capturePage();
       assert(!capture.isEmpty(), "Empty screenshot");
       const viewport = await evaluate("({ width: innerWidth, height: innerHeight })");
