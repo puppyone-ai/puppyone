@@ -138,7 +138,11 @@ if (mainSource.includes("app.getVersion()")) {
 }
 
 const updaterSource = await readText("electron/update-service.mjs");
-requireSource(updaterSource, "getDesktopBuildChannelPolicy", "the updater must derive its feed from channel policy");
+requireSource(updaterSource, "resolveDesktopApplicationIdentity", "the updater must share packaging's platform-aware Application Identity");
+requireSource(updaterSource, "createDesktopTargetFromNode", "the updater must select its feed using the runtime platform and architecture");
+if (updaterSource.includes("getDesktopBuildChannelPolicy")) {
+  errors.push("the updater must not use the legacy macOS-only channel feed");
+}
 requireSource(
   updaterSource,
   'ipcMain.handle("updates:check"',

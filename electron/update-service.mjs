@@ -4,8 +4,10 @@ import updaterPackage from "electron-updater";
 import log from "electron-log";
 import {
   assertDesktopBuildInfo,
-  getDesktopBuildChannelPolicy,
+  toDesktopReleaseIdentity,
 } from "../shared/desktop-build-identity.mjs";
+import { resolveDesktopApplicationIdentity } from "../shared/desktop/application-identity.mjs";
+import { createDesktopTargetFromNode } from "../shared/desktop/platform-contract.mjs";
 import { evaluateDesktopUpdateCandidate } from "../shared/desktop/update-policy.mjs";
 
 const UPDATE_STATE_CHANNEL = "updates:state";
@@ -40,9 +42,16 @@ export function resolveDesktopUpdateConfiguration({
   buildInfo,
   environment = {},
   isPackaged,
+  platform = process.platform,
+  arch = process.arch,
 }) {
   const identity = assertDesktopBuildInfo(buildInfo);
-  const policy = getDesktopBuildChannelPolicy(identity.channel);
+  // Match packaging's Application Identity; the legacy channel policy pins
+  // its feed to macOS and must not override a Windows/Linux app-update.yml.
+  const policy = resolveDesktopApplicationIdentity({
+    releaseIdentity: toDesktopReleaseIdentity(identity),
+    target: createDesktopTargetFromNode({ platform, arch }),
+  });
   const developmentFeedUrl = !isPackaged && identity.channel === "dev"
     ? normalizeUpdateFeedUrl(environment.PUPPYONE_DESKTOP_DEV_UPDATE_URL)
     : null;
@@ -69,6 +78,7 @@ export function createUpdateService({
   confirmRestartWithBlockers = () => false,
   environment = process.env,
   platform = process.platform,
+  arch = process.arch,
   autoUpdater,
   automaticallyDownloadUpdates = true,
   persistAutomaticallyDownloadUpdates = async () => {},
@@ -77,6 +87,8 @@ export function createUpdateService({
     buildInfo,
     environment,
     isPackaged: app.isPackaged,
+    platform,
+    arch,
   });
   const channel = configuration.channel;
   const currentVersion = configuration.currentVersion;

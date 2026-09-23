@@ -56,6 +56,9 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      - name: Test updater routing and monotonicity P0
+        run: npm run test:updater-p0
+
       - name: Pre-release Checks — platform
         run: npm run check:release -- --group platform
 
@@ -161,9 +164,6 @@ jobs:
 
       - name: Install locked dependencies
         run: npm ci
-
-      - name: Test updater monotonicity P0
-        run: npm run test:updater-p0
 
       - name: Resolve Windows package identity
         shell: pwsh
