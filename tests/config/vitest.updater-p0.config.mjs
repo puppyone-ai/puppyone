@@ -4,7 +4,10 @@ import { createTestConfig } from "./vitest.config.ts";
 
 const include = [
   "tests/unit/updates/policy/desktopUpdatePolicy.test.mjs",
+  "tests/unit/updates/policy/desktopUpdateFeedVerifier.test.mjs",
   "tests/unit/updates/installation/electron.update-service.test.mjs",
+  "tests/integration/updates/installation/desktopUpdateFeedRouting.test.mjs",
+  "tests/integration/updates/installation/windowsUpdaterDelivery.test.mjs",
   "tests/unit/release/build-identity/desktopReleaseVersionPolicy.test.mjs",
   "tests/unit/updates/installation/electron.native-update-menu-action.test.mjs",
   "tests/unit/updates/notifications/desktopUpdateTitlebarModel.test.ts",
@@ -14,6 +17,7 @@ const include = [
   "tests/component/updates/preferences/desktopUpdatesController.test.tsx",
   "tests/unit/updates/preferences/electron.update-preference-store.test.mjs",
   "tests/architecture/updates/installation/desktop-update.architecture.test.ts",
+  "tests/architecture/release/ci/ciIntegrationGates.test.mjs",
 ];
 
 export default defineConfig(async () => mergeConfig(await createTestConfig({ include }), {

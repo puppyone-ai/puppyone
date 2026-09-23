@@ -10,7 +10,8 @@ import { compileThemeCss } from "../../../../electron/main/themes/theme-css-comp
 import { readSourceIdentity } from "../../../../scripts/release-checks/execution.mjs";
 
 const root = fileURLToPath(new URL("../../../../", import.meta.url));
-const temporary = await mkdtemp(path.join(os.tmpdir(), "puppyone-selection-"));
+const temporary = process.env.PUPPYONE_TEXT_SELECTION_TEMP_DIR
+  ?? await mkdtemp(path.join(os.tmpdir(), "puppyone-selection-"));
 const artifacts = process.env.PUPPYONE_TEXT_SELECTION_ARTIFACT_DIR
   ?? path.join(root, "artifacts/tests/appearance/text-selection", new Date().toISOString().replaceAll(/[:.]/g, "-"));
 await mkdir(artifacts, { recursive: true });
@@ -31,7 +32,10 @@ try {
   });
   await server.listen();
   window = new BrowserWindow({ show: true, width: 1200, height: 950, webPreferences: { backgroundThrottling: false, contextIsolation: true, sandbox: true } });
-  window.webContents.on("console-message", event => { if (event.level === "error") errors.push(event.message); });
+  window.webContents.on("console-message", event => {
+    if (event.level === "error") errors.push(event.message);
+    if (event.message.startsWith("[selection]")) console.log(event.message);
+  });
   app.focus({ steal: true }); window.focus();
   await window.loadURL(`${server.resolvedUrls.local[0]}tests/fixtures/appearance/themes/text-selection.html`);
   let ready = false;
@@ -86,7 +90,8 @@ try {
   console.error(error, errors); exitCode = 1;
 } finally {
   window?.destroy(); await server?.close();
-  await rm(temporary, { recursive: true, force: true });
+  // The parent removes the profile after Electron releases its Windows locks.
+  if (!process.env.PUPPYONE_TEXT_SELECTION_TEMP_DIR) await rm(temporary, { recursive: true, force: true });
   app.exit(exitCode);
 }
 }

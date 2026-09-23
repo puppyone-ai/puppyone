@@ -66,6 +66,8 @@ describe("Desktop updater channel isolation", () => {
         PUPPYONE_DESKTOP_FORCE_DEV_UPDATE_CONFIG: "1",
       },
       isPackaged: true,
+      platform: "darwin",
+      arch: "arm64",
     })).toEqual({
       allowDowngrade: false,
       allowPrerelease: true,
@@ -88,6 +90,8 @@ describe("Desktop updater channel isolation", () => {
       buildInfo,
       environment: {},
       isPackaged: true,
+      platform: "darwin",
+      arch: "arm64",
     })).toMatchObject({
       allowDowngrade: false,
       allowPrerelease: false,
@@ -590,6 +594,54 @@ describe("Desktop updater restart safety", () => {
     expect(downloadUpdate).toHaveBeenCalledTimes(1);
     expect(confirmRestartWithBlockers).toHaveBeenCalledTimes(2);
     expect(quitAndInstall).toHaveBeenCalledOnce();
+  });
+});
+
+describe("Desktop updater platform routing", () => {
+  const targets = [
+    { platform: "win32", arch: "x64", path: "windows/x64/nsis/latest" },
+    { platform: "win32", arch: "arm64", path: "windows/arm64/nsis/latest" },
+    { platform: "darwin", arch: "arm64", path: "mac/latest" },
+    { platform: "darwin", arch: "x64", path: "mac/latest" },
+  ];
+
+  it.each(targets.flatMap((target) => ["stable", "internal"].map((channel) => ({
+    ...target,
+    channel,
+    origin: channel === "stable" ? "https://updates.puppyone.ai" : "https://downloads.puppyone.ai",
+  }))))("routes $channel on $platform/$arch to its own feed", ({ platform, arch, channel, origin, path }) => {
+    const configuration = resolveDesktopUpdateConfiguration({
+      buildInfo: resolveDesktopBuildIdentity({ baseVersion: "1.4.0", channel, buildNumber: 72, commitSha }),
+      environment: {
+        PUPPYONE_DESKTOP_UPDATE_URL: "https://attacker.invalid/latest",
+        PUPPYONE_DESKTOP_UPDATE_CHANNEL: "dev",
+        PUPPYONE_DESKTOP_DEV_UPDATE_URL: "https://attacker.invalid/dev",
+        PUPPYONE_DESKTOP_FORCE_DEV_UPDATE_CONFIG: "1",
+      },
+      isPackaged: true,
+      platform,
+      arch,
+    });
+    expect(configuration).toMatchObject({
+      feedUrl: `${origin}/desktop/${channel}/${path}`,
+      updateChannel: channel,
+      allowDowngrade: false,
+      allowPrerelease: channel === "internal",
+      forceDevUpdateConfig: false,
+    });
+  });
+
+  it.each(targets)("keeps packaged Development updates disabled on $platform/$arch", ({ platform, arch }) => {
+    expect(resolveDesktopUpdateConfiguration({
+      buildInfo: resolveDesktopBuildIdentity({ baseVersion: "1.4.0", channel: "dev", commitSha }),
+      environment: {
+        PUPPYONE_DESKTOP_DEV_UPDATE_URL: "https://localhost.invalid/dev",
+        PUPPYONE_DESKTOP_FORCE_DEV_UPDATE_CONFIG: "1",
+      },
+      isPackaged: true,
+      platform,
+      arch,
+    })).toMatchObject({ feedUrl: null, updateChannel: null, forceDevUpdateConfig: false });
   });
 });
 
