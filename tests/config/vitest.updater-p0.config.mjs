@@ -4,8 +4,10 @@ import { createTestConfig } from "./vitest.config.ts";
 
 const include = [
   "tests/unit/updates/policy/desktopUpdatePolicy.test.mjs",
+  "tests/unit/updates/policy/desktopUpdateFeedVerifier.test.mjs",
   "tests/unit/updates/installation/electron.update-service.test.mjs",
   "tests/integration/updates/installation/desktopUpdateFeedRouting.test.mjs",
+  "tests/integration/updates/installation/windowsUpdaterDelivery.test.mjs",
   "tests/unit/release/build-identity/desktopReleaseVersionPolicy.test.mjs",
   "tests/unit/updates/installation/electron.native-update-menu-action.test.mjs",
   "tests/unit/updates/notifications/desktopUpdateTitlebarModel.test.ts",
