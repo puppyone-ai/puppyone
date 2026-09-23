@@ -219,8 +219,10 @@ jobs:
               --cache-control "public, max-age=31536000, immutable" \
               --only-show-errors
           }
-          upload_bundle "${MACOS_BUNDLE_DIRECTORY}" "${MACOS_R2_PREFIX}"
-          upload_bundle "${WINDOWS_BUNDLE_DIRECTORY}" "${WINDOWS_R2_PREFIX}"
+          source scripts/release-support/parallel-release-targets.sh
+          run_release_targets upload_bundle \
+            "${MACOS_BUNDLE_DIRECTORY}" "${MACOS_R2_PREFIX}" \
+            "${WINDOWS_BUNDLE_DIRECTORY}" "${WINDOWS_R2_PREFIX}"
 
       - name: Verify both immutable releases and commit the Release Set
         env:
@@ -236,12 +238,9 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/verify-desktop-release-remote.mjs \
-            --bundle "${MACOS_BUNDLE_DIRECTORY}" \
-            --url-prefix "${PUBLIC_DOWNLOAD_ORIGIN}/${MACOS_R2_PREFIX}" \
-            --include-metadata true
-          node scripts/verify-desktop-release-remote.mjs \
-            --bundle "${WINDOWS_BUNDLE_DIRECTORY}" \
-            --url-prefix "${PUBLIC_DOWNLOAD_ORIGIN}/${WINDOWS_R2_PREFIX}" \
+            --target "${MACOS_BUNDLE_DIRECTORY}" "${PUBLIC_DOWNLOAD_ORIGIN}/${MACOS_R2_PREFIX}" \
+            --target "${WINDOWS_BUNDLE_DIRECTORY}" "${PUBLIC_DOWNLOAD_ORIGIN}/${WINDOWS_R2_PREFIX}" \
+            --concurrency 3 \
             --include-metadata true
           ENDPOINT="https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com"
           release_set_key="desktop/stable/release-sets/${RELEASE_TAG}/release-set.json"
@@ -370,27 +369,30 @@ jobs:
           done
           : "${release_id:?GitHub draft release ID is required}"
           gh api "repos/${GITHUB_REPOSITORY}/releases/${release_id}" > "${response}"
-          mapfile -t files < <(find \
-            "${MACOS_BUNDLE_DIRECTORY}/assets" \
-            "${WINDOWS_BUNDLE_DIRECTORY}/assets" \
-            -maxdepth 1 -type f -print | sort)
-          files+=(
-            "${MACOS_BUNDLE_DIRECTORY}/release.json"
-            "${MACOS_BUNDLE_DIRECTORY}/SHA256SUMS"
-            "${MACOS_BUNDLE_DIRECTORY}/build-info.json"
-          )
-          for file in "${files[@]}"; do
-            name="$(basename "${file}")"
-            present="$(node -e 'const p=require("node:path"); const r=require(p.resolve(process.argv[1])); process.stdout.write(String((r.assets||[]).some(a=>a.name===process.argv[2])))' "${response}" "${name}")"
-            if [ "${present}" = "true" ]; then
-              continue
+          upload_asset_set() {
+            local bundle="$1" include_metadata="$2" file name present
+            local -a files
+            mapfile -t files < <(find "${bundle}/assets" -maxdepth 1 -type f -print | sort)
+            if [ "${include_metadata}" = "true" ]; then
+              files+=("${bundle}/release.json" "${bundle}/SHA256SUMS" "${bundle}/build-info.json")
             fi
-            if [ "${EXISTING_DRAFT}" != "true" ]; then
-              echo "Public GitHub Release is missing required asset ${name}; refusing mutation." >&2
-              exit 1
-            fi
-            gh release upload "${RELEASE_TAG}" "${file}"
-          done
+            for file in "${files[@]}"; do
+              name="$(basename "${file}")"
+              present="$(node -e 'const p=require("node:path"); const r=require(p.resolve(process.argv[1])); process.stdout.write(String((r.assets||[]).some(a=>a.name===process.argv[2])))' "${response}" "${name}")"
+              if [ "${present}" = "true" ]; then
+                continue
+              fi
+              if [ "${EXISTING_DRAFT}" != "true" ]; then
+                echo "Public GitHub Release is missing required asset ${name}; refusing mutation." >&2
+                exit 1
+              fi
+              gh release upload "${RELEASE_TAG}" "${file}"
+            done
+          }
+          source scripts/release-support/parallel-release-targets.sh
+          run_release_targets upload_asset_set \
+            "${MACOS_BUNDLE_DIRECTORY}" true \
+            "${WINDOWS_BUNDLE_DIRECTORY}" false
 
       - name: Verify both target asset sets before publication
         env:
@@ -480,8 +482,10 @@ jobs:
                 --only-show-errors
             done
           }
-          stage_bundle "${MACOS_BUNDLE_DIRECTORY}" "${MACOS_LATEST_PREFIX}"
-          stage_bundle "${WINDOWS_BUNDLE_DIRECTORY}" "${WINDOWS_LATEST_PREFIX}"
+          source scripts/release-support/parallel-release-targets.sh
+          run_release_targets stage_bundle \
+            "${MACOS_BUNDLE_DIRECTORY}" "${MACOS_LATEST_PREFIX}" \
+            "${WINDOWS_BUNDLE_DIRECTORY}" "${WINDOWS_LATEST_PREFIX}"
 
       - name: Publish the verified complete GitHub Release
         if: ${{ steps.github_state.outputs.draft == 'true' }}
@@ -614,16 +618,14 @@ jobs:
             --bundle "${WINDOWS_BUNDLE_DIRECTORY}" --release-json "${response}" \
             --expect-draft false --include-metadata false --allow-extra-assets true
 
-          for origin in "${PUBLIC_DOWNLOAD_ORIGIN}" "${PUBLIC_UPDATE_ORIGIN}"; do
-            node scripts/verify-desktop-release-remote.mjs \
-              --bundle "${MACOS_BUNDLE_DIRECTORY}" \
-              --url-prefix "${origin}/${MACOS_LATEST_PREFIX}" \
-              --include-aliases true
-            node scripts/verify-desktop-release-remote.mjs \
-              --bundle "${WINDOWS_BUNDLE_DIRECTORY}" \
-              --url-prefix "${origin}/${WINDOWS_LATEST_PREFIX}" \
-              --include-aliases true
-          done
+          # One pool bounds ALL platform/origin requests, including latest aliases.
+          node scripts/verify-desktop-release-remote.mjs \
+            --target "${MACOS_BUNDLE_DIRECTORY}" "${PUBLIC_DOWNLOAD_ORIGIN}/${MACOS_LATEST_PREFIX}" \
+            --target "${WINDOWS_BUNDLE_DIRECTORY}" "${PUBLIC_DOWNLOAD_ORIGIN}/${WINDOWS_LATEST_PREFIX}" \
+            --target "${MACOS_BUNDLE_DIRECTORY}" "${PUBLIC_UPDATE_ORIGIN}/${MACOS_LATEST_PREFIX}" \
+            --target "${WINDOWS_BUNDLE_DIRECTORY}" "${PUBLIC_UPDATE_ORIGIN}/${WINDOWS_LATEST_PREFIX}" \
+            --concurrency 3 \
+            --include-aliases true
           node scripts/verify-desktop-stable-update-feed.mjs --expected-version "${RELEASE_VERSION}"
           node scripts/verify-desktop-windows-update-feed.mjs --expected-version "${RELEASE_VERSION}"
           node scripts/verify-desktop-release-version.mjs --channel stable --require-latest-history-head

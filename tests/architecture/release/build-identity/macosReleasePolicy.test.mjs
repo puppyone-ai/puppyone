@@ -184,6 +184,25 @@ describe("cross-platform stable release workflow", () => {
 });
 
 describe("atomic Stable Release Set publisher", () => {
+  it.each(["upload_bundle", "upload_asset_set", "stage_bundle"])("rejects serial %s transfers", task => {
+    const workflow = readFileSync(new URL("../../../../.github/workflows/desktop-stable-release-publish.yml", import.meta.url), "utf8")
+      .replace(`run_release_targets ${task}`, task);
+    expect(inspectAtomicStableReleasePublisherWorkflow(workflow)).toEqual(expect.arrayContaining([
+      expect.stringMatching(/must upload both targets concurrently/),
+    ]));
+  });
+
+  it.each([
+    ['--target "${WINDOWS_BUNDLE_DIRECTORY}" "${PUBLIC_UPDATE_ORIGIN}/${WINDOWS_LATEST_PREFIX}"', ""],
+    ["--include-aliases true", "--include-aliases false"],
+    ["--concurrency 3", "--concurrency 12"],
+    ["# One pool bounds ALL platform/origin requests, including latest aliases.", "node scripts/verify-desktop-release-remote.mjs"],
+  ])("rejects missing coverage or an independent verification pool: %s", (before, after) => {
+    const workflow = readFileSync(new URL("../../../../.github/workflows/desktop-stable-release-publish.yml", import.meta.url), "utf8")
+      .replace(before, after);
+    expect(inspectAtomicStableReleasePublisherWorkflow(workflow).length).toBeGreaterThan(0);
+  });
+
   it("validates both targets before mutation and compensates incomplete commits", () => {
     const workflow = readFileSync(
       new URL("../../../../.github/workflows/desktop-stable-release-publish.yml", import.meta.url),
