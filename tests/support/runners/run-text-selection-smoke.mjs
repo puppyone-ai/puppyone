@@ -13,7 +13,9 @@ const temporary = await mkdtemp(path.join(os.tmpdir(), "puppyone-selection-"));
 const artifactRoot = process.env.PUPPYONE_TEXT_SELECTION_ARTIFACT_DIR
   ?? path.join(root, "artifacts/tests/appearance/text-selection");
 await mkdir(artifactRoot, { recursive: true });
-const artifacts = await mkdtemp(path.join(artifactRoot, "run-"));
+// CI supplies an already unique check directory and expects result.json there.
+const artifacts = process.env.PUPPYONE_TEXT_SELECTION_ARTIFACT_DIR
+  ?? await mkdtemp(path.join(artifactRoot, "run-"));
 let child;
 let interrupted = false;
 const interrupt = () => { interrupted = true; child?.kill(); };
