@@ -75,7 +75,7 @@
     "smoke:editor-runtime-lifecycle": "electron tests/integration/editor/runtime/editor-runtime-lifecycle.smoke.mjs",
     "smoke:markdown-line-geometry": "npm run build && electron tests/integration/editor/formats/markdown/rendering/markdown-line-geometry.smoke.mjs",
     "smoke:markdown-theme-inheritance": "npm run build && electron tests/integration/editor/formats/markdown/rendering/markdown-theme-inheritance.smoke.mjs",
-    "smoke:text-selection": "electron tests/integration/appearance/themes/text-selection.smoke.mjs",
+    "smoke:text-selection": "node tests/support/runners/run-text-selection-smoke.mjs",
     "smoke:appearance-visual": "electron tests/integration/appearance/themes/appearance-visual-matrix.smoke.mjs && npm run smoke:typography-hierarchy",
     "smoke:typography-hierarchy": "electron tests/integration/appearance/typography/typography-hierarchy.smoke.mjs",
     "smoke:appearance-dialog": "electron tests/integration/appearance/themes/appearance-visual-matrix.smoke.mjs --dialog-only",

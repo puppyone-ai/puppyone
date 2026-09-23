@@ -9,6 +9,14 @@ const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const artifacts = process.env.PUPPYONE_AUXILIARY_ARTIFACT_DIR || path.join(repo, "artifacts/tests/workbench/auxiliary-appearance");
 app.setPath("userData", await mkdtemp(path.join(os.tmpdir(), "puppyone-auxiliary-appearance-profile-")));
 app.commandLine.appendSwitch("disable-renderer-backgrounding");
+app.commandLine.appendSwitch("lang", "en-US");
+// Hosted macOS exposes a virtual Metal device whose texture upload can fail
+// without losing the WebGL context. Use Chromium's software GLES driver for
+// this pixel contract; local runs continue exercising the machine's GPU.
+if (process.env.GITHUB_ACTIONS === "true" && process.platform === "darwin") {
+  app.commandLine.appendSwitch("use-gl", "angle");
+  app.commandLine.appendSwitch("use-angle", "swiftshader");
+}
 if (process.env.ELECTRON_DISABLE_SANDBOX === "1") app.commandLine.appendSwitch("no-sandbox");
 app.on("window-all-closed", () => {});
 let window;
@@ -57,6 +65,7 @@ async function snapshot() {
 async function run() {
   await mkdir(artifacts, { recursive: true });
   console.log("Auxiliary appearance artifacts:", artifacts);
+  await writeFile(path.join(artifacts, "gpu.json"), JSON.stringify(await app.getGPUInfo("complete"), null, 2));
   for (const theme of ["light", "dark", "windows-xp"]) {
     window = new BrowserWindow({ show: true, width: 960, height: 800, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false } });
     window.webContents.on("console-message", (_event, level, message) => { if (level >= 3) console.error(message); });
@@ -85,6 +94,7 @@ async function run() {
       assert(value.font === "14px" && value.padding === "16px", theme + ": CodeMirror defaults defeated adapter metrics");
       assert(!value.overflow, theme + ": composer overflows narrow surface");
       assert(await evaluate('getComputedStyle(document.querySelector(".desktop-terminal-xterm")).visibility === "visible"'), theme + ": terminal content is hidden");
+      assert(await evaluate('Boolean(document.querySelector(".xterm-screen canvas"))'), theme + ": WebGL renderer did not start");
       const capture = await window.capturePage();
       assert(!capture.isEmpty(), "Empty screenshot");
       const viewport = await evaluate("({ width: innerWidth, height: innerHeight })");

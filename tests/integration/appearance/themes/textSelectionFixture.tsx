@@ -49,6 +49,17 @@ function color(owner: HTMLElement, value: string) {
 }
 function selectionColor(owner: HTMLElement) { return getComputedStyle(owner, "::selection").backgroundColor; }
 
+async function waitForEditorFocus(editor: EditorView, focused: boolean) {
+  // CodeMirror publishes blur through a timer; two animation frames can finish
+  // before that timer on a fast display. Wait for the state, then check colors.
+  const deadline = performance.now() + 2000;
+  while (editor.hasFocus !== focused || editor.dom.classList.contains("cm-focused") !== focused) {
+    check(performance.now() < deadline, `Editor did not become ${focused ? "focused" : "unfocused"}`);
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  await frames();
+}
+
 function TerminalFixture() {
   const host = useRef<HTMLDivElement>(null);
   const [runtime] = useState(() => ({ applyAppearance: (appearance: ReturnType<typeof readTerminalAppearance>) => {
@@ -99,6 +110,7 @@ function Harness() {
 createRoot(element("#root")).render(<Harness />);
 
 async function verifyTheme(theme: SubThemeDefinition, mode: "light" | "dark") {
+  console.log(`[selection] ${theme.id} / ${mode}`);
   const retained = ["markdown", "source", "code", "agent"].map(id => {
     const editor = view(id);
     return { id, editor, doc: editor.state.doc, selection: editor.state.selection.toJSON(), undo: undoDepth(editor.state) };
@@ -129,7 +141,8 @@ async function verifyTheme(theme: SubThemeDefinition, mode: "light" | "dark") {
   check(selectionColor(input) === inactive, "Native input inactive color");
   for (const id of ["markdown", "source", "agent", "code"]) {
     const editor = view(id);
-    editor.focus(); editor.dispatch({ selection: { anchor: 0, head: 10 } }); await frames();
+    editor.focus(); editor.dispatch({ selection: { anchor: 0, head: 10 } });
+    await waitForEditorFocus(editor, true);
     const expected = color(editor.dom, "var(--po-selection-background, var(--po-text-selection-bg))");
     const expectedInactive = color(editor.dom, "var(--po-selection-inactive-background, var(--po-text-selection-inactive-bg))");
     // CodeMirror can replace its painted rectangles during focus/layout updates.
@@ -137,7 +150,7 @@ async function verifyTheme(theme: SubThemeDefinition, mode: "light" | "dark") {
       ? getComputedStyle(element("#code .cm-selectionBackground")).backgroundColor
       : selectionColor(editor.contentDOM);
     check(actual() === expected, `${id}: active selection mismatch: ${actual()} vs ${expected}`);
-    element("#blur").focus(); await frames();
+    element("#blur").focus(); await waitForEditorFocus(editor, false);
     check(actual() === expectedInactive, `${id}: inactive selection mismatch: ${actual()} vs ${expectedInactive}`);
   }
   const csvInput = element("#csv-source textarea") as HTMLTextAreaElement;
