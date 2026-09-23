@@ -15,6 +15,7 @@ const include = [
   "tests/component/updates/preferences/desktopUpdatesController.test.tsx",
   "tests/unit/updates/preferences/electron.update-preference-store.test.mjs",
   "tests/architecture/updates/installation/desktop-update.architecture.test.ts",
+  "tests/architecture/release/ci/ciIntegrationGates.test.mjs",
 ];
 
 export default defineConfig(async () => mergeConfig(await createTestConfig({ include }), {

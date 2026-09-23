@@ -19,11 +19,22 @@ describe("integration branch quality gates", () => {
     const linuxSetup = workflow.jobs["app-checks"].steps.find(step => step.name === "Prepare Linux display and multilingual fonts");
     expect(linuxSetup.if).toBe("runner.os == 'Linux'");
     expect(workflow.jobs["windows-package"]["runs-on"]).toBe("windows-2025");
-    const windowsSteps = workflow.jobs["windows-package"].steps;
-    const windowsUpdaterGate = windowsSteps.find(step => step.name === "Test updater monotonicity P0");
-    expect(windowsUpdaterGate.run).toBe("npm run test:updater-p0");
-    expect(windowsSteps.indexOf(windowsUpdaterGate)).toBeLessThan(
-      windowsSteps.findIndex(step => step.name === "Build and verify unsigned NSIS package"),
+  });
+
+  it("requires updater P0 checks on every native platform in the contracts matrix", () => {
+    const platformJob = workflow.jobs["platform-contracts"];
+    expect(platformJob.needs).toBe("resolve-desktop-targets");
+    expect(platformJob.strategy.matrix).toBe("${{ fromJSON(needs.resolve-desktop-targets.outputs.matrix) }}");
+    expect(platformJob["runs-on"]).toBe("${{ matrix.runner }}");
+    expect(platformJob.if).toBeUndefined();
+    expect(platformJob["continue-on-error"]).toBeUndefined();
+
+    const updaterGate = platformJob.steps.find(step => step.run === "npm run test:updater-p0");
+    expect(updaterGate).toBeDefined();
+    expect(updaterGate.if).toBeUndefined();
+    expect(updaterGate["continue-on-error"]).toBeUndefined();
+    expect(platformJob.steps.indexOf(updaterGate)).toBeGreaterThan(
+      platformJob.steps.findIndex(step => step.run === "npm ci"),
     );
   });
 
