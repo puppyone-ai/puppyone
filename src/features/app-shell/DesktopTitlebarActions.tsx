@@ -1,5 +1,5 @@
 import { Fragment, type ReactNode } from "react";
-import { CornerUpRight } from "lucide-react";
+import { Share } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import { getOrderedHeaderElementDefinitions, type HeaderElementRenderContext } from "./headerElements";
 import type { TitlebarActionsSettings } from "../../preferences";
@@ -93,7 +93,7 @@ export function DesktopTitlebarActions({
       id: "share",
       node: <button type="button" className="desktop-titlebar-action desktop-titlebar-share"
         title={t("shell.titlebar.share")} aria-label={t("shell.titlebar.share")} onClick={onShare}>
-        <CornerUpRight size={15} strokeWidth={1.8} aria-hidden="true" />
+        <Share size={16} strokeWidth={1.8} aria-hidden="true" />
       </button>,
     });
   }
@@ -130,7 +130,8 @@ export function DesktopTitlebarActions({
     <>
       {visibleTitlebarActionItems.map((item, index) => {
         const previousItem = visibleTitlebarActionItems[index - 1];
-        const separatesActionGroups = previousItem && previousItem.group !== item.group;
+        const separatesActionGroups = previousItem
+          && (previousItem.group !== item.group || previousItem.id === "share");
         return (
           <Fragment key={item.id}>
             {separatesActionGroups && (

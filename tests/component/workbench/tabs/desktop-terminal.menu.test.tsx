@@ -32,7 +32,7 @@ describe("Desktop Terminal tab session manager", () => {
     root = createRoot(container);
     const render = (shareEnabled: boolean) => act(() => root?.render(withTestLocalization(
       <DesktopTitlebarActions titlebarActionsSettings={DEFAULT_TITLEBAR_ACTIONS_SETTINGS}
-        terminalSidebarOpen={false} terminalToolEnabled shareEnabled={shareEnabled}
+        terminalSidebarOpen={false} terminalToolEnabled gitChangesAvailable shareEnabled={shareEnabled}
         onShare={onShare} onToggleTerminal={vi.fn()} />,
     )));
     render(false);
@@ -41,7 +41,9 @@ describe("Desktop Terminal tab session manager", () => {
     const share = container.querySelector<HTMLButtonElement>(".desktop-titlebar-share");
     expect(share?.textContent).toBe("");
     expect(share?.getAttribute("aria-label")).toBe("Share");
-    expect(share?.querySelector(".lucide-corner-up-right")).not.toBeNull();
+    expect(share?.querySelector(".lucide-share")).not.toBeNull();
+    expect(share?.nextElementSibling?.classList.contains("desktop-titlebar-action-divider")).toBe(true);
+    expect(share?.nextElementSibling?.nextElementSibling?.classList.contains("desktop-titlebar-changes")).toBe(true);
     act(() => share?.click());
     expect(onShare).toHaveBeenCalledOnce();
   });
