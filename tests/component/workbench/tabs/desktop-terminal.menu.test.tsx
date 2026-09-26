@@ -41,7 +41,7 @@ describe("Desktop Terminal tab session manager", () => {
     const share = container.querySelector<HTMLButtonElement>(".desktop-titlebar-share");
     expect(share?.textContent).toBe("");
     expect(share?.getAttribute("aria-label")).toBe("Share");
-    expect(share?.querySelector(".lucide-square-arrow-out-up-right")).not.toBeNull();
+    expect(share?.querySelector(".lucide-corner-up-right")).not.toBeNull();
     act(() => share?.click());
     expect(onShare).toHaveBeenCalledOnce();
   });

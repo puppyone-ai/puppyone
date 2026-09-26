@@ -1,5 +1,5 @@
 import { Fragment, type ReactNode } from "react";
-import { SquareArrowOutUpRight } from "lucide-react";
+import { CornerUpRight } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import { getOrderedHeaderElementDefinitions, type HeaderElementRenderContext } from "./headerElements";
 import type { TitlebarActionsSettings } from "../../preferences";
@@ -93,7 +93,7 @@ export function DesktopTitlebarActions({
       id: "share",
       node: <button type="button" className="desktop-titlebar-action desktop-titlebar-share"
         title={t("shell.titlebar.share")} aria-label={t("shell.titlebar.share")} onClick={onShare}>
-        <SquareArrowOutUpRight size={15} strokeWidth={1.8} aria-hidden="true" />
+        <CornerUpRight size={15} strokeWidth={1.8} aria-hidden="true" />
       </button>,
     });
   }
