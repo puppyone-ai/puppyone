@@ -324,13 +324,6 @@
   background: var(--desktop-titlebar-active);
 }
 
-.desktop-titlebar-actions .desktop-titlebar-share {
-  width: auto;
-  gap: 5px;
-  padding-inline: 7px;
-  white-space: nowrap;
-}
-
 .desktop-titlebar-trailing {
   display: inline-flex;
   min-width: 0;
