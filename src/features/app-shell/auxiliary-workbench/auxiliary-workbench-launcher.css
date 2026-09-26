@@ -86,7 +86,8 @@
   text-overflow: ellipsis;
 }
 
-.desktop-terminal-launcher-scan {
+.desktop-terminal-launcher-scan,
+.desktop-terminal-launcher-history {
   display: grid;
   width: 18px;
   height: 18px;
@@ -101,22 +102,26 @@
   pointer-events: auto;
 }
 
-.desktop-terminal-launcher-scan:hover:not(:disabled) {
+.desktop-terminal-launcher-scan:hover:not(:disabled),
+.desktop-terminal-launcher-history:hover:not(:disabled) {
   background: var(--po-hover);
   color: var(--po-text-muted);
 }
 
-.desktop-terminal-launcher-scan:disabled {
+.desktop-terminal-launcher-scan:disabled,
+.desktop-terminal-launcher-history:disabled {
   cursor: default;
   opacity: 0.52;
 }
 
-.desktop-terminal-launcher-scan:disabled:hover {
+.desktop-terminal-launcher-scan:disabled:hover,
+.desktop-terminal-launcher-history:disabled:hover {
   background: transparent;
   color: var(--po-text-subtle);
 }
 
-.desktop-terminal-launcher-scan:focus-visible {
+.desktop-terminal-launcher-scan:focus-visible,
+.desktop-terminal-launcher-history:focus-visible {
   outline: 1px solid var(--po-focus-ring);
   outline-offset: 1px;
 }
@@ -222,8 +227,7 @@
 /* Status rows align with actions without inheriting button interaction. */
 .desktop-terminal-launcher-discovery,
 .desktop-terminal-launcher-tool,
-.desktop-terminal-launcher-shell,
-.desktop-terminal-launcher-history {
+.desktop-terminal-launcher-shell {
   box-sizing: border-box;
   min-width: 0;
   min-height: var(--po-control-size-large);
@@ -233,8 +237,7 @@
 }
 
 .desktop-terminal-launcher-tool,
-.desktop-terminal-launcher-shell,
-.desktop-terminal-launcher-history {
+.desktop-terminal-launcher-shell {
   position: relative;
   display: flex;
   width: 100%;
@@ -247,27 +250,20 @@
   text-align: start;
 }
 
-.desktop-terminal-launcher-history {
-  color: var(--po-text-subtle);
-}
-
 .desktop-terminal-launcher-tool:hover:not(:disabled),
-.desktop-terminal-launcher-shell:hover:not(:disabled),
-.desktop-terminal-launcher-history:hover:not(:disabled) {
+.desktop-terminal-launcher-shell:hover:not(:disabled) {
   color: var(--po-text);
   background: var(--po-hover);
 }
 
 .desktop-terminal-launcher-tool:disabled,
-.desktop-terminal-launcher-shell:disabled,
-.desktop-terminal-launcher-history:disabled {
+.desktop-terminal-launcher-shell:disabled {
   cursor: default;
   opacity: 0.52;
 }
 
 .desktop-terminal-launcher-tool:focus-visible,
-.desktop-terminal-launcher-shell:focus-visible,
-.desktop-terminal-launcher-history:focus-visible {
+.desktop-terminal-launcher-shell:focus-visible {
   border-color: var(--po-focus-ring);
   outline: 0;
   box-shadow: inset 0 0 0 1px var(--po-focus-ring);
@@ -277,16 +273,14 @@
  * left sidebar without coupling this surface to its size preferences. */
 .desktop-terminal-launcher-discovery,
 .desktop-terminal-launcher-tool > span:last-child,
-.desktop-terminal-launcher-shell > span:last-child,
-.desktop-terminal-launcher-history > span:last-child {
+.desktop-terminal-launcher-shell > span:last-child {
   font-size: var(--po-type-right-sidebar-content, 14px);
   font-weight: var(--po-text-weight-regular, 400);
   line-height: var(--po-type-right-sidebar-control-line-height, 19px);
 }
 
 .desktop-terminal-launcher-tool > span:last-child,
-.desktop-terminal-launcher-shell > span:last-child,
-.desktop-terminal-launcher-history > span:last-child {
+.desktop-terminal-launcher-shell > span:last-child {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -296,17 +290,8 @@
 .desktop-terminal-launcher-tool:hover .desktop-terminal-launcher-icon,
 .desktop-terminal-launcher-tool:focus-visible .desktop-terminal-launcher-icon,
 .desktop-terminal-launcher-shell:hover .desktop-terminal-launcher-icon,
-.desktop-terminal-launcher-shell:focus-visible .desktop-terminal-launcher-icon,
-.desktop-terminal-launcher-history:hover .desktop-terminal-launcher-icon,
-.desktop-terminal-launcher-history:focus-visible .desktop-terminal-launcher-icon,
-.desktop-terminal-launcher-history:hover svg,
-.desktop-terminal-launcher-history:focus-visible svg {
+.desktop-terminal-launcher-shell:focus-visible .desktop-terminal-launcher-icon {
   opacity: 1;
-}
-
-.desktop-terminal-launcher-history > svg {
-  flex: 0 0 18px;
-  color: var(--po-text-subtle);
 }
 
 .desktop-terminal-launcher-tool[data-status="coming-soon"]::after {

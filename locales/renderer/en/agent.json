@@ -35,7 +35,6 @@
   "history.sourceUnverified": "This Agent cannot confirm that its history list is complete.",
   "history.catalogTruncated": "The local history limit was reached. Some conversations are not retained in this list.",
   "history.title": "Chat history",
-  "history.continueTitle": "continue a chat",
   "history.openButton": "History",
   "history.openAria": "Chat history",
   "history.back": "Back to Agents",

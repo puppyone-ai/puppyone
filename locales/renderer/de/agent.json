@@ -35,7 +35,6 @@
   "history.sourceUnverified": "Dieser Agent kann nicht bestätigen, dass sein Verlauf vollständig ist.",
   "history.catalogTruncated": "Das Limit des lokalen Verlaufs wurde erreicht. Einige Unterhaltungen werden nicht in dieser Liste gespeichert.",
   "history.title": "Chatverlauf",
-  "history.continueTitle": "Chat fortsetzen",
   "history.openButton": "Verlauf",
   "history.openAria": "Chatverlauf",
   "history.back": "Zurück zu den Agents",

@@ -185,6 +185,19 @@ export function TerminalLauncher({
             >
               <RefreshCw size={12} strokeWidth={1.7} aria-hidden="true" />
             </button>
+            {history && onRestoreHistoryTarget && (
+              <button
+                type="button"
+                className="desktop-terminal-launcher-history"
+                data-po-interaction="navigation"
+                onClick={onOpenHistory ?? (() => state.patch({ historyOpen: true }))}
+                disabled={busy}
+                aria-label={history.label}
+                title={history.label}
+              >
+                <History size={13} strokeWidth={1.7} aria-hidden="true" />
+              </button>
+            )}
           </header>
 
           {launchError && (
@@ -235,31 +248,6 @@ export function TerminalLauncher({
         </div>
 
         {cloudAgentCatalog}
-
-        {history && onRestoreHistoryTarget && (
-          <div className="desktop-terminal-launcher-group is-history-entry">
-            <header className="desktop-terminal-launcher-heading">
-              <h2>
-                <span>
-                  {t("agent.history.continueTitle")}
-                </span>
-              </h2>
-            </header>
-            <button
-              type="button"
-              className="desktop-terminal-launcher-history"
-              data-po-interaction="navigation"
-              onClick={onOpenHistory ?? (() => state.patch({ historyOpen: true }))}
-              disabled={busy}
-              aria-label={history.label}
-            >
-              {history.iconKey
-                ? <WorkbenchLauncherIcon iconKey={history.iconKey} />
-                : <History size={18} strokeWidth={1.45} aria-hidden="true" />}
-              <span>{history.label}</span>
-            </button>
-          </div>
-        )}
       </div>
     </section>
   );

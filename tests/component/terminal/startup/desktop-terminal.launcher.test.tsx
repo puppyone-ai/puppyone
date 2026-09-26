@@ -457,7 +457,9 @@ describe("Unified Workbench launcher", () => {
       />,
     );
 
-    expect(container.querySelectorAll(".desktop-terminal-launcher-group")).toHaveLength(2);
+    expect(container.querySelectorAll(".desktop-terminal-launcher-group")).toHaveLength(1);
+    expect(container.querySelector(".desktop-terminal-launcher-heading .desktop-terminal-launcher-history")).not.toBeNull();
+    expect(container.querySelector(".desktop-terminal-launcher-group.is-history-entry")).toBeNull();
     expect(renderBrowser).not.toHaveBeenCalled();
     act(() => findButton(container, "Chat history")?.click());
     expect(renderBrowser).toHaveBeenCalledWith(expect.objectContaining({
@@ -499,5 +501,5 @@ function renderLauncher(element: React.ReactElement) {
 
 function findButton(container: HTMLElement, text: string) {
   return Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
-    .find((candidate) => candidate.textContent?.includes(text));
+    .find((candidate) => candidate.textContent?.includes(text) || candidate.getAttribute("aria-label") === text);
 }

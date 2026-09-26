@@ -229,7 +229,8 @@ describe("Unified Workbench blank launcher flow", () => {
       ));
     });
 
-    expect(document.querySelector(".desktop-terminal-launcher-group.is-history-entry")).not.toBeNull();
+    expect(document.querySelector(".desktop-terminal-launcher-heading .desktop-terminal-launcher-history")).not.toBeNull();
+    expect(document.querySelector(".desktop-terminal-launcher-group.is-history-entry")).toBeNull();
     await clickButton("Chat history");
     expect(document.querySelector('[data-fake-history="true"]')).not.toBeNull();
     expect(document.querySelectorAll('[role="tab"]')).toHaveLength(1);
@@ -315,7 +316,7 @@ async function clickButton(label: string) {
     await Promise.resolve();
   });
   const button = Array.from(document.querySelectorAll<HTMLButtonElement>("button"))
-    .find((candidate) => candidate.textContent?.trim() === label);
+    .find((candidate) => candidate.textContent?.trim() === label || candidate.getAttribute("aria-label") === label);
   expect(button).not.toBeUndefined();
   await act(async () => {
     button?.click();

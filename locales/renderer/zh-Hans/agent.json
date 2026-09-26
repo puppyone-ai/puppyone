@@ -35,7 +35,6 @@
   "history.sourceUnverified": "这个 Agent 无法确认历史列表是否已查全。",
   "history.catalogTruncated": "本地历史列表已达到容量上限，部分对话未保留在列表中。",
   "history.title": "对话历史",
-  "history.continueTitle": "继续对话",
   "history.openButton": "历史",
   "history.openAria": "对话历史",
   "history.back": "返回智能体列表",
