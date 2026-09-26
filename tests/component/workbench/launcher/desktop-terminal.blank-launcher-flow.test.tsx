@@ -124,7 +124,9 @@ describe("Unified Workbench blank launcher flow", () => {
     expect(document.querySelector('[role="menu"]')).toBeNull();
     expect(document.querySelectorAll('[role="tab"]')).toHaveLength(2);
     expect(document.querySelector(".desktop-terminal-launcher-group.is-agents")).not.toBeNull();
-    expect(document.querySelector(".desktop-terminal-launcher-divider")).not.toBeNull();
+    expect(document.querySelector(".desktop-terminal-launcher-shell")?.closest(
+      ".desktop-terminal-launcher-entries",
+    )).not.toBeNull();
 
     await clickButton("Claude Code");
     await vi.waitFor(() => {

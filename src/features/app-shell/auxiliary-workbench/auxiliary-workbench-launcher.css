@@ -247,18 +247,8 @@
   text-align: start;
 }
 
-.desktop-terminal-launcher-shell {
-  color: var(--po-text-subtle);
-}
-
 .desktop-terminal-launcher-history {
   color: var(--po-text-subtle);
-}
-
-.desktop-terminal-launcher-divider {
-  height: 1px;
-  margin: 7px 8px 5px;
-  background: var(--po-border);
 }
 
 .desktop-terminal-launcher-tool:hover:not(:disabled),

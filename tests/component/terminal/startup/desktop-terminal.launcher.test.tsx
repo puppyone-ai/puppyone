@@ -97,7 +97,7 @@ describe("Unified Workbench launcher", () => {
     expect(groups).toHaveLength(1);
     expect(groups[0].classList).toContain("is-agents");
     expect(groups[0].getAttribute("data-agent-mode")).toBe("terminal");
-    expect(groups[0].querySelector("h2")?.textContent).toBe("start with an agent");
+    expect(groups[0].querySelector("h2")?.textContent).toBe("Use on this computer");
 
     const agentButtons = groups[0].querySelectorAll<HTMLButtonElement>(
       ".desktop-terminal-launcher-tool",
@@ -124,7 +124,8 @@ describe("Unified Workbench launcher", () => {
     );
     expect(shellButtons).toHaveLength(1);
     expect(shellButtons[0].textContent).toBe("Terminal");
-    expect(groups[0].querySelector(".desktop-terminal-launcher-divider")).not.toBeNull();
+    expect(shellButtons[0].closest(".desktop-terminal-launcher-entries")).not.toBeNull();
+    expect(groups[0].querySelector(".desktop-terminal-launcher-divider")).toBeNull();
     expect(container.querySelector(".desktop-terminal-launcher-rail")).toBeNull();
     expect(container.querySelector(".desktop-terminal-launcher-group.is-terminal")).toBeNull();
 
@@ -401,7 +402,7 @@ describe("Unified Workbench launcher", () => {
     expect(container.querySelector(".desktop-terminal-launcher-group.is-agents")).not.toBeNull();
     expect(container.querySelector(".desktop-terminal-launcher-group.is-shell")).toBeNull();
     expect(container.querySelector("#desktop-terminal-launcher-title")?.textContent)
-      .toBe("start with an agent");
+      .toBe("Use on this computer");
   });
 
   it("keeps local recipes alphabetized while Built-in Agent stays last and independent of discovery", () => {

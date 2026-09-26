@@ -116,7 +116,7 @@ describe("Desktop Terminal architecture boundaries", () => {
     expect(launcher).toContain("desktop-terminal-launcher-scan");
     expect(launcher).toContain("desktop-terminal-launcher-group is-agents");
     expect(launcher).toContain("desktop-terminal-launcher-group is-history-entry");
-    expect(launcher).toContain("desktop-terminal-launcher-divider");
+    expect(launcher).toContain("desktop-terminal-launcher-shell");
     expect(launcher).toContain('"terminal.launcher.title"');
     expect(launcher).toContain('"agent.history.continueTitle"');
     expect(launcher).toContain('aria-label={t("terminal.launcher.scanAgain")}');

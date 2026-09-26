@@ -81,7 +81,6 @@ describe("Desktop Agent and Terminal chrome visual contract", () => {
     expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-tool,\s*\.desktop-terminal-launcher-shell,\s*\.desktop-terminal-launcher-history\s*\{[^}]*min-height:\s*var\(--po-control-size-large\)[^}]*gap:\s*9px[^}]*padding:\s*5px 8px/s);
     expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-heading h2\s*\{[^}]*font-size:\s*var\(--po-type-right-sidebar-meta, 13px\)[^}]*line-height:\s*var\(--po-type-right-sidebar-meta-line-height, 19px\)/s);
     expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-tool > span:last-child,[^}]*\{[^}]*font-size:\s*var\(--po-type-right-sidebar-content, 14px\)[^}]*line-height:\s*var\(--po-type-right-sidebar-control-line-height, 19px\)/s);
-    expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-divider\s*\{[^}]*height:\s*1px/s);
     expect(terminalLauncherCss).not.toContain(".desktop-terminal-launcher-rail");
     expect(terminalLauncherCss).not.toContain("::-webkit-scrollbar");
     expect(terminalLauncherCss).not.toMatch(/scrollbar-(?:width|color)\s*:/);

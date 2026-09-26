@@ -172,7 +172,7 @@ export function TerminalLauncher({
                 <TerminalActivityGrid className="desktop-terminal-launcher-spinner" />
               )}
               <span>
-                {t(launching ? "terminal.launcher.launching" : "terminal.launcher.title")}
+                {t(launching ? "terminal.launcher.launching" : "terminal.launcher.localTitle")}
               </span>
             </h2>
             <button
@@ -212,11 +212,8 @@ export function TerminalLauncher({
             <div ref={bundledToolsRef} className="desktop-terminal-launcher-tools desktop-terminal-launcher-bundled" role="list">
               {bundledRows}
             </div>
-          </div>
 
-          {terminalEnabled && (
-            <>
-              <div className="desktop-terminal-launcher-divider" role="separator" />
+            {terminalEnabled && (
               <button
                 type="button"
                 className="desktop-terminal-launcher-shell"
@@ -229,8 +226,8 @@ export function TerminalLauncher({
                 <WorkbenchLauncherIcon launcherId="shell" />
                 <span>{t("terminal.title")}</span>
               </button>
-            </>
-          )}
+            )}
+          </div>
 
           <div className="desktop-terminal-launcher-availability" role="status" aria-live="polite" aria-atomic="true">
             {availabilityMessage ? t(availabilityMessage) : ""}
