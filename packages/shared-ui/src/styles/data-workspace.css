@@ -120,17 +120,18 @@
 
 .data-explorer-resizer {
   /*
-   * The frame retains a transparent 1px border. Anchor the painted stroke
-   * over that border so no sidebar-colored pixel remains before the Editor.
-   * The negative inset preserves the full hit lane without consuming space.
+   * With the frame border removed below, the shared chrome paints the last
+   * pixel inside the Explorer. The rest of this overlay is only a hit target.
    */
   inset-inline-start: auto;
-  inset-inline-end: calc(-1 * var(--po-pane-resizer-hit-size, 8px));
+  inset-inline-end: calc(1px - var(--po-pane-resizer-hit-size, 8px));
   background: transparent;
 }
 
 .data-content[data-resizable-explorer="true"] > .explorer-column {
-  border-inline-end-color: transparent;
+  /* The shared resize chrome owns this boundary. A transparent border still
+     consumes a layout pixel and exposes sidebar background beside the line. */
+  border-inline-end-width: 0;
 }
 
 body.data-sidebar-resizing,

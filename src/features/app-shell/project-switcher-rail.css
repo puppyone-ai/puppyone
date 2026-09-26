@@ -31,7 +31,7 @@
 }
 
 .desktop-shell-leading-rail:has(> .po-pane-edge-resize-handle) .desktop-project-switcher-rail {
-  border-inline-end-color: transparent;
+  border-inline-end-width: 0;
 }
 
 body.desktop-project-switcher-resizing,

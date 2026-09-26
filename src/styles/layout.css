@@ -282,9 +282,9 @@
 .desktop-view-surface-sidebar {
   background: var(--po-sidebar);
   /*
-   * Divider ownership belongs to DataWorkspace's .explorer-column host.
-   * This surface is injected inside that column; drawing another edge here
-   * would turn the shared 1px separator into a feature-dependent 2px line.
+   * DataWorkspace owns the outer boundary: the shared resize chrome when
+   * resizable, or the Explorer frame border otherwise. This injected surface
+   * must not draw an additional edge when the active view changes.
    */
 }
 
@@ -336,12 +336,12 @@
 }
 
 .desktop-right-sidebar-resizer:not(.po-collapsed-pane-edge-handle) {
-  /* Include the frame's border, without crossing into the Editor scrollbar. */
+  /* The shared painter sits on the pane edge, clear of the Editor scrollbar. */
   inset-inline-start: calc(-1 * var(--desktop-right-sidebar-border-start));
 }
 
 .desktop-right-sidebar:has(> .po-pane-edge-resize-handle) {
-  border-inline-start-color: transparent;
+  --desktop-right-sidebar-border-start: 0px;
 }
 
 body.desktop-right-sidebar-resizing,

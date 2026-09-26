@@ -155,7 +155,7 @@ describe("Sidebar architecture", () => {
   it("keeps direct resize canonical while visibility transitions preserve content width", () => {
     expect(sharedDataWorkspaceCss).toMatch(/\.data-content\s*\{[^}]*display:\s*flex/s);
     expect(sharedDataWorkspaceCss).toMatch(
-      /\.data-explorer-resizer\s*\{[^}]*inset-inline-start:\s*auto;[^}]*inset-inline-end:\s*calc\(-1 \* var\(--po-pane-resizer-hit-size, 8px\)\);[^}]*background:\s*transparent;/s,
+      /\.data-explorer-resizer\s*\{[^}]*inset-inline-start:\s*auto;[^}]*inset-inline-end:\s*calc\(1px - var\(--po-pane-resizer-hit-size, 8px\)\);[^}]*background:\s*transparent;/s,
     );
     for (const source of [dataWorkspaceSource, auxiliaryHostSource, desktopShellSource]) {
       expect(source).toContain("<CollapsiblePaneFrame");

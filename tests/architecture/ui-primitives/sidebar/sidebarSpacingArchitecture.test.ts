@@ -69,6 +69,7 @@ describe("sidebar spacing architecture", () => {
   it("shares one visible boundary between the Explorer scrollbar and Editor", () => {
     const explorerColumn = compact(readCssBlock(dataTreeCss, ".explorer-column"));
     const explorerResizer = compact(readCssBlock(dataTreeCss, ".data-explorer-resizer"));
+    const resizableExplorer = compact(readCssBlock(dataTreeCss, '.data-content[data-resizable-explorer="true"] > .explorer-column'));
 
     const injectedSurface = compact(readCssBlock(layoutCss, ".desktop-view-surface-sidebar"));
     expect(dataWorkspaceSource).toContain("<CollapsiblePaneFrame");
@@ -80,14 +81,25 @@ describe("sidebar spacing architecture", () => {
     expect(explorerColumn).toContain(
       "border-inline-end: 1px solid var(--po-sidebar-divider, var(--po-divider));",
     );
+    expect(resizableExplorer).toContain("border-inline-end-width: 0;");
     expect(explorerResizer).toContain("background: transparent;");
     expect(dataTreeCss).not.toContain(".data-explorer-resizer::after");
     expect(explorerResizer).toContain("inset-inline-start: auto;");
     expect(explorerResizer).toContain(
-      "inset-inline-end: calc(-1 * var(--po-pane-resizer-hit-size, 8px));",
+      "inset-inline-end: calc(1px - var(--po-pane-resizer-hit-size, 8px));",
     );
     expect(injectedSurface).not.toContain("border-inline-end:");
     expect(cloudSidebarCss).not.toContain("border-inline-end:");
+  });
+
+  it("gives resizable panes one boundary painter without hidden border width", () => {
+    const explorer = compact(readCssBlock(dataTreeCss, '.data-content[data-resizable-explorer="true"] > .explorer-column'));
+    const projectRail = compact(readCssBlock(projectSwitcherCss, ".desktop-shell-leading-rail:has(> .po-pane-edge-resize-handle) .desktop-project-switcher-rail"));
+    const auxiliary = compact(readCssBlock(layoutCss, ".desktop-right-sidebar:has(> .po-pane-edge-resize-handle)"));
+
+    expect(explorer).toContain("border-inline-end-width: 0;");
+    expect(projectRail).toContain("border-inline-end-width: 0;");
+    expect(auxiliary).toContain("--desktop-right-sidebar-border-start: 0px;");
   });
 
   it("defines one visual edge contract", () => {

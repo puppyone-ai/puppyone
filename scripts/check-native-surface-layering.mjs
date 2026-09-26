@@ -192,7 +192,7 @@ for (const relativePath of ["packages/shared-ui/src/styles/data-workspace.css"])
   }
   for (const token of [
     "inset-inline-start: auto",
-    "inset-inline-end: calc(-1 * var(--po-pane-resizer-hit-size, 8px))",
+    "inset-inline-end: calc(1px - var(--po-pane-resizer-hit-size, 8px))",
     "background: transparent",
   ]) {
     if (!resizer.includes(token)) {
@@ -201,6 +201,10 @@ for (const relativePath of ["packages/shared-ui/src/styles/data-workspace.css"])
   }
   if (resizer.includes("grid-column") || resizer.includes("position: relative")) {
     errors.push(`${relativePath} turns the overlay sash back into layout content`);
+  }
+  const resizableFrame = source.match(/\.data-content\[data-resizable-explorer="true"\]\s*>\s*\.explorer-column\s*\{([^}]*)\}/s)?.[1] ?? "";
+  if (!resizableFrame.includes("border-inline-end-width: 0")) {
+    errors.push(`${relativePath} reserves a second layout pixel under the shared Explorer divider`);
   }
 }
 

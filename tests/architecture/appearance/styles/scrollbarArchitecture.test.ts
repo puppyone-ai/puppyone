@@ -226,8 +226,10 @@ describe("scrollbar architecture", () => {
         /\.data-content\[data-resizable-explorer="true"\]\s*>\s*\.browser-column/,
       );
       expect(resizerRule).toContain(
-        "inset-inline-end: calc(-1 * var(--po-pane-resizer-hit-size, 8px));",
+        "inset-inline-end: calc(1px - var(--po-pane-resizer-hit-size, 8px));",
       );
+      expect(readRule(css, '.data-content[data-resizable-explorer="true"] > .explorer-column'))
+        .toContain("border-inline-end-width: 0;");
       expect(resizerRule).toContain("inset-inline-start: auto;");
       expect(resizerRule).toContain("background: transparent;");
       expect(resizerRule).not.toContain("transform:");

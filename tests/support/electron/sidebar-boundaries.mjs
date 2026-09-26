@@ -56,6 +56,18 @@ async function verifyBoundaries({ window, temp, label, until }) {
     assert(!idle.missing,`${selector} missing ${idle.missing}`);
     assert(idle.handle.width===8 && idle.paint.width===3,`${selector} hit/paint sizes`);
     assert(idle.line.color==='rgba(0, 0, 0, 0)',`${selector} idle highlight leaked`);
+    if(selector==='.data-explorer-resizer') {
+      const frameBorder=await evaluate("getComputedStyle(document.querySelector('.explorer-column')).borderInlineEndWidth");
+      assert(frameBorder==='0px',`Explorer frame still reserves a second divider pixel: ${frameBorder}`);
+    }
+    if(selector==='.desktop-project-switcher-resizer') {
+      const railBorder=await evaluate("getComputedStyle(document.querySelector('.desktop-project-switcher-rail')).borderInlineEndWidth");
+      assert(railBorder==='0px',`Project rail still reserves a second divider pixel: ${railBorder}`);
+    }
+    if(selector==='.desktop-right-sidebar-resizer') {
+      const frameBorder=await evaluate("getComputedStyle(document.querySelector('.desktop-right-sidebar')).borderInlineStartWidth");
+      assert(frameBorder==='0px',`Auxiliary frame still reserves a second divider pixel: ${frameBorder}`);
+    }
     const edgeX=idle.rtl?idle.paint.x+idle.paint.width-1:idle.paint.x;
     const inward=idle.rtl?-1:1;
     const y=idle.handle.y+90;

@@ -267,10 +267,18 @@ const dataContent = dataWorkspaceStyle.match(/\.data-content\s*\{([^}]*)\}/s)?.[
 const explorerResizer = dataWorkspaceStyle.match(/\.data-explorer-resizer\s*\{([^}]*)\}/s)?.[1] ?? "";
 for (const token of [
   "inset-inline-start: auto",
-  "inset-inline-end: calc(-1 * var(--po-pane-resizer-hit-size, 8px))",
+  "inset-inline-end: calc(1px - var(--po-pane-resizer-hit-size, 8px))",
   "background: transparent",
 ]) {
   if (!explorerResizer.includes(token)) errors.push(`Shared DataWorkspace is missing its frame-anchored resize sash contract (${token}).`);
+}
+const resizableExplorerFrame = dataWorkspaceStyle.match(/\.data-content\[data-resizable-explorer="true"\]\s*>\s*\.explorer-column\s*\{([^}]*)\}/s)?.[1] ?? "";
+if (!resizableExplorerFrame.includes("border-inline-end-width: 0")) {
+  errors.push("Shared DataWorkspace must not reserve a border pixel beneath the resize chrome.");
+}
+const auxiliaryFrame = layoutStyle.match(/\.desktop-right-sidebar:has\(> \.po-pane-edge-resize-handle\)\s*\{([^}]*)\}/s)?.[1] ?? "";
+if (!auxiliaryFrame.includes("--desktop-right-sidebar-border-start: 0px")) {
+  errors.push("Right Sidebar must not reserve a border pixel beneath the resize chrome.");
 }
 for (const token of [
   'viewportClassName="data-explorer-viewport"',
@@ -300,6 +308,10 @@ if (shellSource.includes("leadingRailCollapsedCssWidth")) {
   errors.push("The Workspace rail compact width must come from pane geometry, not a CSS override.");
 }
 const projectSwitcherStyle = read(absolute("src/features/app-shell/project-switcher-rail.css"));
+const projectRailFrame = projectSwitcherStyle.match(/\.desktop-shell-leading-rail:has\(> \.po-pane-edge-resize-handle\) \.desktop-project-switcher-rail\s*\{([^}]*)\}/s)?.[1] ?? "";
+if (!projectRailFrame.includes("border-inline-end-width: 0")) {
+  errors.push("Project rail must not reserve a border pixel beneath the resize chrome.");
+}
 if (!/\.po-collapsible-pane-frame\[data-pane-gesture="resizing"\]\s*\{[^}]*transition:\s*none;/s.test(sidebarPrimitiveStyle)) {
   errors.push("The shared frame must keep collapse-preview motion while direct resize stays pointer-synchronous.");
 }

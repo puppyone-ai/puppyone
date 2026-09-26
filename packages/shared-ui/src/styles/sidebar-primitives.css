@@ -268,8 +268,8 @@
   touch-action: none;
 }
 
-/* One painter for all open pane edges. The base stroke reproduces the
-   Explorer border; the adjacent highlight and ring retain its existing weight.
+/* One painter for all open pane edges. The base stroke replaces fallback
+   frame borders; the adjacent highlight and ring retain its existing weight.
    Native adapters reserve this fixed paint footprint, never the full hit lane. */
 .po-pane-edge-chrome {
   position: absolute;
