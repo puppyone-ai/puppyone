@@ -1,15 +1,4 @@
 @layer features {
-.desktop-cloud-agent-catalog {
-  gap: 10px;
-}
-
-.desktop-cloud-agent-catalog-detail {
-  margin: 0 8px;
-  color: var(--po-text-subtle);
-  font-size: var(--po-type-right-sidebar-caption, 12px);
-  line-height: var(--po-type-right-sidebar-caption-line-height, 17px);
-}
-
 .desktop-cloud-agent-catalog-list {
   display: grid;
   min-width: 0;
@@ -38,13 +27,36 @@
   padding-top: 11px;
 }
 
-.desktop-cloud-agent-catalog-dot {
-  box-sizing: border-box;
-  width: 9px;
-  height: 9px;
-  flex: 0 0 9px;
-  border: 1px solid var(--po-text-subtle);
-  border-radius: 50%;
+.desktop-cloud-agent-catalog-icon {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  place-items: center;
+  color: var(--po-text-subtle);
+}
+
+.desktop-cloud-agent-catalog-icon .po-agent-brand-image {
+  display: block;
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+.desktop-cloud-agent-catalog-icon .po-agent-brand-image[data-agent-brand-theme="dark"] {
+  display: none;
+}
+
+.dark .desktop-cloud-agent-catalog-icon .po-agent-brand-image[data-agent-brand-theme="light"] {
+  display: none;
+}
+
+.dark .desktop-cloud-agent-catalog-icon .po-agent-brand-image[data-agent-brand-theme="dark"] {
+  display: block;
+}
+
+.dark .desktop-cloud-agent-catalog-item[data-brand-id="github-copilot"] .po-agent-brand-image {
+  filter: invert(1);
 }
 
 .desktop-cloud-agent-catalog-name {

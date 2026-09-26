@@ -11,7 +11,6 @@
   "launcher.title": "启动一个 Agent",
   "launcher.localTitle": "在这台电脑上使用",
   "launcher.cloudAgents.title": "共享给其他 Agent",
-  "launcher.cloudAgents.detail": "连接后，所选文件会同步到云端，其他设备上的 Agent 可持续使用最新内容。连接功能即将推出。",
   "launcher.cloudAgents.custom": "自建 Agent",
   "launcher.cloudAgents.protocol": "MCP / API",
   "launcher.chat": "聊天",

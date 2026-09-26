@@ -11,7 +11,6 @@
   "launcher.title": "Agent 시작",
   "launcher.localTitle": "이 컴퓨터에서 사용",
   "launcher.cloudAgents.title": "다른 Agent와 공유",
-  "launcher.cloudAgents.detail": "연결하면 선택한 파일이 클라우드에 동기화되어 다른 기기의 Agent가 최신 내용을 계속 사용할 수 있습니다. 연결 기능은 곧 제공됩니다.",
   "launcher.cloudAgents.custom": "사용자 지정 Agent",
   "launcher.cloudAgents.protocol": "MCP / API",
   "launcher.chat": "채팅",

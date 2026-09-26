@@ -11,7 +11,6 @@
   "launcher.title": "start with an agent",
   "launcher.localTitle": "Use on this computer",
   "launcher.cloudAgents.title": "Share with other agents",
-  "launcher.cloudAgents.detail": "Once connected, selected files will sync to the cloud so agents on other devices can keep using the latest content. Connections are coming soon.",
   "launcher.cloudAgents.custom": "Custom agent",
   "launcher.cloudAgents.protocol": "MCP / API",
   "launcher.chat": "Chat",

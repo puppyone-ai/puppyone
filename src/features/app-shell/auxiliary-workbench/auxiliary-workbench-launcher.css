@@ -126,6 +126,16 @@
   outline-offset: 1px;
 }
 
+.desktop-terminal-launcher-history {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  inset-inline-end: 22px;
+  background: var(--po-surface-auxiliary);
+  box-shadow: 0 0 0 6px var(--po-surface-auxiliary);
+  transform: translateY(-50%);
+}
+
 /* Separate accessible lists, one visual row rhythm across their boundary. */
 .desktop-terminal-launcher-entries,
 .desktop-terminal-launcher-tools {

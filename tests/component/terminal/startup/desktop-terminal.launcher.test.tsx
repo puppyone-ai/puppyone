@@ -458,7 +458,7 @@ describe("Unified Workbench launcher", () => {
     );
 
     expect(container.querySelectorAll(".desktop-terminal-launcher-group")).toHaveLength(1);
-    expect(container.querySelector(".desktop-terminal-launcher-heading .desktop-terminal-launcher-history")).not.toBeNull();
+    expect(container.querySelector(".desktop-terminal-launcher-group.is-agents > .desktop-terminal-launcher-history")).not.toBeNull();
     expect(container.querySelector(".desktop-terminal-launcher-group.is-history-entry")).toBeNull();
     expect(renderBrowser).not.toHaveBeenCalled();
     act(() => findButton(container, "Chat history")?.click());

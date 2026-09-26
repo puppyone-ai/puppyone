@@ -1,5 +1,23 @@
 # Third-party notices
 
+## Cloud Agent catalog marks
+
+The experimental Cloud Agent catalog displays product marks for identification;
+showing a mark does not imply endorsement or an active connection.
+
+`replit.svg`, `gemini.svg`, `github-copilot.svg`, and `devin.svg` come from
+`@lobehub/icons-static-svg` 1.95.1. Lobe Icons is MIT licensed; its full
+license is included at `public/assets/icons/agents/lobe-icons-license.txt`.
+Upstream source: https://github.com/lobehub/lobe-icons
+
+`viktor.png` is Viktor's official favicon from
+https://viktor.com/favicon.png?v=2. `jules.svg` is Google's official Jules
+favicon from https://jules.google/favicon.svg. `copilot-studio.svg` is the
+Copilot Studio scalable icon from Microsoft's official Power Platform icon
+download: https://learn.microsoft.com/en-us/power-platform/guidance/icons
+
+The remaining catalog marks reuse the existing Agent brand registry.
+
 ## Google Drive product mark
 
 The import source picker uses Google's Google Drive product mark to identify

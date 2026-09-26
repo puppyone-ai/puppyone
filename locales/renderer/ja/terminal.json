@@ -11,7 +11,6 @@
   "launcher.title": "Agent を起動",
   "launcher.localTitle": "このパソコンで使う",
   "launcher.cloudAgents.title": "ほかの Agent に共有",
-  "launcher.cloudAgents.detail": "接続後、選択したファイルがクラウドに同期され、別の端末の Agent が最新の内容を使えるようになります。接続機能は近日公開予定です。",
   "launcher.cloudAgents.custom": "独自 Agent",
   "launcher.cloudAgents.protocol": "MCP / API",
   "launcher.chat": "チャット",

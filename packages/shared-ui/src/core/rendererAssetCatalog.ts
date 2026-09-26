@@ -48,6 +48,13 @@ export const RENDERER_ASSET_PATHS = {
         light: "assets/icons/agents/built-in-agent.svg",
         dark: "assets/icons/agents/built-in-agent-dark.svg",
       },
+      viktor: { light: "assets/icons/agents/viktor.png" },
+      replit: { light: "assets/icons/agents/replit.svg" },
+      gemini: { light: "assets/icons/agents/gemini.svg" },
+      githubCopilot: { light: "assets/icons/agents/github-copilot.svg" },
+      devin: { light: "assets/icons/agents/devin.svg" },
+      copilotStudio: { light: "assets/icons/agents/copilot-studio.svg" },
+      jules: { light: "assets/icons/agents/jules.svg" },
     },
     integrations: {
       airtable: "assets/icons/integrations/airtable.png",

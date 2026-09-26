@@ -126,6 +126,7 @@ describe("Desktop Terminal architecture boundaries", () => {
     expect(launcherCss).toMatch(/\.desktop-terminal-launcher-discovery,\s*\.desktop-terminal-launcher-tool,\s*\.desktop-terminal-launcher-shell\s*\{[^}]*min-height:\s*var\(--po-control-size-large\);/s);
     expect(launcherCss).toMatch(/\.desktop-terminal-launcher-tool,\s*\.desktop-terminal-launcher-shell\s*\{[^}]*border-radius:\s*6px;/s);
     expect(launcherCss).toMatch(/\.desktop-terminal-launcher-scan,\s*\.desktop-terminal-launcher-history\s*\{[^}]*width:\s*18px;[^}]*height:\s*18px;/s);
+    expect(launcherCss).toMatch(/\.desktop-terminal-launcher-history\s*\{[^}]*position:\s*absolute;[^}]*inset-inline-end:\s*22px;/s);
     expect(launcherCss).toContain('.desktop-terminal-launcher-tool[data-status="coming-soon"]::after');
     expect(launcherCss).not.toContain("aspect-ratio:");
     expect(header).toContain('import "../../../app-shell/auxiliary-workbench/layout/auxiliary-workbench-header.css"');

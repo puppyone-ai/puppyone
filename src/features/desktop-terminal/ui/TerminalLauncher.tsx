@@ -185,20 +185,20 @@ export function TerminalLauncher({
             >
               <RefreshCw size={12} strokeWidth={1.7} aria-hidden="true" />
             </button>
-            {history && onRestoreHistoryTarget && (
-              <button
-                type="button"
-                className="desktop-terminal-launcher-history"
-                data-po-interaction="navigation"
-                onClick={onOpenHistory ?? (() => state.patch({ historyOpen: true }))}
-                disabled={busy}
-                aria-label={history.label}
-                title={history.label}
-              >
-                <History size={13} strokeWidth={1.7} aria-hidden="true" />
-              </button>
-            )}
           </header>
+          {history && onRestoreHistoryTarget && (
+            <button
+              type="button"
+              className="desktop-terminal-launcher-history"
+              data-po-interaction="navigation"
+              onClick={onOpenHistory ?? (() => state.patch({ historyOpen: true }))}
+              disabled={busy}
+              aria-label={history.label}
+              title={history.label}
+            >
+              <History size={13} strokeWidth={1.7} aria-hidden="true" />
+            </button>
+          )}
 
           {launchError && (
             <div className="desktop-terminal-launcher-error" role="alert">
