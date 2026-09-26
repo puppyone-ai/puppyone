@@ -1,5 +1,6 @@
 @import "./data-workspace.css";
 @import "./sidebar-primitives.css";
+@import "../sidebar/collapsible-pane.css";
 
 .po-button,
 .po-icon-button {

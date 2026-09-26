@@ -307,9 +307,8 @@
 
 .desktop-right-sidebar {
   --desktop-right-sidebar-width: 560px;
-  --desktop-right-sidebar-border-start: 1px;
   --desktop-right-sidebar-border-end: 0px;
-  --desktop-right-sidebar-content-width: calc(var(--desktop-right-sidebar-width) - var(--desktop-right-sidebar-border-start) - var(--desktop-right-sidebar-border-end));
+  --desktop-right-sidebar-content-width: calc(var(--desktop-right-sidebar-width) - var(--desktop-right-sidebar-border-end));
   --desktop-right-sidebar-background: var(--po-surface-auxiliary);
   --po-surface-terminal: var(--po-surface-auxiliary);
   --po-terminal-bg: var(--po-surface-terminal);
@@ -318,30 +317,18 @@
   position: relative;
   z-index: 25;
   min-height: 0;
-  /* The viewport clips content; the frame must expose its border hit area. */
+  /* The viewport clips content; the frame exposes the shared edge hit area. */
   overflow: visible;
-  border-inline-start: 0 solid transparent;
   background: var(--desktop-right-sidebar-background);
-  transition-property: width, min-width, flex-basis, border-color;
+  transition-property: width, min-width, flex-basis;
 }
 
 .desktop-right-sidebar:not([data-pane-presentation="collapsed"]) {
   flex-shrink: 0;
-  border-inline-start-width: var(--desktop-right-sidebar-border-start);
-  border-inline-start-color: var(--po-sidebar-divider, var(--po-divider));
 }
 
 .desktop-right-sidebar:not(.is-open) {
   overflow: visible;
-}
-
-.desktop-right-sidebar-resizer:not(.po-collapsed-pane-edge-handle) {
-  /* The shared painter sits on the pane edge, clear of the Editor scrollbar. */
-  inset-inline-start: calc(-1 * var(--desktop-right-sidebar-border-start));
-}
-
-.desktop-right-sidebar:has(> .po-pane-edge-resize-handle) {
-  --desktop-right-sidebar-border-start: 0px;
 }
 
 body.desktop-right-sidebar-resizing,

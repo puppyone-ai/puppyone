@@ -414,19 +414,8 @@ describe("editor split-pane architecture", () => {
 
   it("keeps one Sidebar and Editor layout boundary under an overlay sash", () => {
     const explorerRule = readCssBlock(sharedDataWorkspaceStyles, ".explorer-column");
-    const resizerRule = readCssBlock(sharedDataWorkspaceStyles, ".data-explorer-resizer");
-
-
-    expect(explorerRule).toContain(
-      "border-inline-end: 1px solid var(--po-sidebar-divider, var(--po-divider));",
-    );
-    expect(resizerRule).toContain("background: transparent;");
-    expect(resizerRule).toContain("inset-inline-start: auto;");
-    expect(resizerRule).toContain(
-      "inset-inline-end: calc(1px - var(--po-pane-resizer-hit-size, 8px));",
-    );
-    expect(readCssBlock(sharedDataWorkspaceStyles, '.data-content[data-resizable-explorer="true"] > .explorer-column'))
-      .toContain("border-inline-end-width: 0;");
+    expect(explorerRule).not.toContain("border-inline-end:");
+    expect(sharedDataWorkspaceStyles).not.toMatch(/\.data-explorer-resizer\s*\{/);
     expect(sharedDataWorkspaceStyles).not.toContain(".data-explorer-resizer::after");
     expect(sharedDataWorkspaceStyles).not.toContain("grid-column: 3;");
     expect(sharedDataWorkspaceStyles).not.toMatch(
@@ -480,7 +469,7 @@ describe("editor split-pane architecture", () => {
     expect(tokens).toContain("--po-pane-resizer-active-color:");
     expect(tokens).toContain("--po-pane-resizer-active-ring:");
     expect(tokens).not.toMatch(/--po-pane-resizer-(?:hover-color|active-color|active-ring):[^;]*--po-accent/);
-    for (const styles of [readFileSync(new URL("../../../../packages/shared-ui/src/styles/sidebar-primitives.css", import.meta.url), "utf8"), splitStyles]) {
+    for (const styles of [readFileSync(new URL("../../../../packages/shared-ui/src/sidebar/collapsible-pane.css", import.meta.url), "utf8"), splitStyles]) {
       expect(styles).toContain("var(--po-pane-resizer-hover-color)");
       expect(styles).toContain("var(--po-pane-resizer-active-color)");
       expect(styles).toContain("var(--po-pane-resizer-active-ring)");

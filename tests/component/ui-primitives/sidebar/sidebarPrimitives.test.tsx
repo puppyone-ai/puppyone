@@ -52,6 +52,7 @@ describe("Sidebar primitives", () => {
     const handle = frame?.querySelector<HTMLElement>(":scope > .po-pane-edge-resize-handle");
 
     expect(frame?.getAttribute("data-pane-side")).toBe("inline-start");
+    expect(frame?.getAttribute("data-pane-edge")).toBe("resizable");
     expect(frame?.getAttribute("data-pane-collapsed")).toBe("true");
     expect(frame?.getAttribute("data-pane-content-visible")).toBe("false");
     expect(frame?.style.getPropertyValue("--po-collapsible-pane-content-width")).toBe("320px");
@@ -90,6 +91,7 @@ describe("Sidebar primitives", () => {
 
     const container = render(<Harness />);
     const frame = requireElement(container, ".po-collapsible-pane-frame");
+    expect(frame.dataset.paneEdge).toBe("static");
     const content = requireElement(container, ".po-collapsible-pane-content");
     const contentPlane = content.firstElementChild as HTMLElement;
     expect(frame.style.getPropertyValue("--po-collapsible-pane-frame-width")).toBe("320px");

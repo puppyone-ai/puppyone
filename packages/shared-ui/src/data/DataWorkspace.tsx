@@ -1284,7 +1284,6 @@ export function DataWorkspace({
         data-explorer-collapsed={explorerResize.collapsed ? "true" : undefined}
         data-explorer-gesture={explorerResize.phase === "idle" ? undefined : explorerResize.phase}
         data-explorer-dragging={explorerResize.dragging ? "true" : undefined}
-        data-resizable-explorer={resizableExplorer ? "true" : undefined}
         style={dataContentStyle}
       >
         <CollapsiblePaneFrame

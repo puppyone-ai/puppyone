@@ -180,7 +180,6 @@ for (const obsoletePath of [
 for (const relativePath of ["packages/shared-ui/src/styles/data-workspace.css"]) {
   const source = read(relativePath);
   const dataContent = source.match(/\.data-content\s*\{([^}]*)\}/s)?.[1] ?? "";
-  const resizer = source.match(/\.data-explorer-resizer\s*\{([^}]*)\}/s)?.[1] ?? "";
   if (!dataContent.includes("display: flex")) {
     errors.push(`${relativePath} does not let the shared pane frame own Explorer width`);
   }
@@ -190,22 +189,16 @@ for (const relativePath of ["packages/shared-ui/src/styles/data-workspace.css"])
   if (source.includes('.data-content[data-resizable-explorer="true"] > .browser-column')) {
     errors.push(`${relativePath} still routes the Editor through a removed third grid column`);
   }
-  for (const token of [
-    "inset-inline-start: auto",
-    "inset-inline-end: calc(1px - var(--po-pane-resizer-hit-size, 8px))",
-    "background: transparent",
-  ]) {
-    if (!resizer.includes(token)) {
-      errors.push(`${relativePath} does not overlay the native-routed sash at the shared pane boundary (${token})`);
-    }
+  const explorerFrame = source.match(/\.explorer-column\s*\{([^}]*)\}/s)?.[1] ?? "";
+  if (/\.data-explorer-resizer\s*\{/.test(source) || /border-inline-end\s*:/.test(explorerFrame)) {
+    errors.push(`${relativePath} duplicates shared Explorer edge geometry`);
   }
-  if (resizer.includes("grid-column") || resizer.includes("position: relative")) {
-    errors.push(`${relativePath} turns the overlay sash back into layout content`);
-  }
-  const resizableFrame = source.match(/\.data-content\[data-resizable-explorer="true"\]\s*>\s*\.explorer-column\s*\{([^}]*)\}/s)?.[1] ?? "";
-  if (!resizableFrame.includes("border-inline-end-width: 0")) {
-    errors.push(`${relativePath} reserves a second layout pixel under the shared Explorer divider`);
-  }
+}
+
+const paneFrameStyle = read("packages/shared-ui/src/sidebar/collapsible-pane.css");
+if (!paneFrameStyle.includes('inset-inline-end: calc(var(--po-pane-resizer-line-size, 1px) - var(--po-pane-resizer-hit-size, 8px))')
+  || !paneFrameStyle.includes('.po-collapsible-pane-frame[data-pane-edge="static"]')) {
+  errors.push("Shared pane frame must own both resize placement and the static boundary painter");
 }
 
 const desktopDataWorkspaceStyle = read("src/features/data-workspace/data-shell.css");

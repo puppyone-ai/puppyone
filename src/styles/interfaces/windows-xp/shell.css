@@ -644,7 +644,8 @@
 }
 
 :root[data-interface-style="windows-xp"] .desktop-right-sidebar.is-open {
-  border: 1px solid #2c6fc4;
+  border-block: 1px solid #2c6fc4;
+  border-inline-end: 1px solid #2c6fc4;
   background: var(--po-surface-auxiliary);
 }
 
@@ -728,14 +729,7 @@
   box-shadow: inset 1px 0 0 #ffffff;
 }
 
-/* Keep the Explorer/content boundary legible without repeating the strong
- * Luna window frame. The rule stays quiet at rest and gains contrast only
- * while the resize affordance is being used. */
-:root[data-interface-style="windows-xp"] .explorer-column {
-  border-inline-end-color: transparent;
-  box-shadow: none;
-}
-
+/* The shared pane paints the boundary; Luna only changes its hover/drag accent. */
 :root[data-interface-style="windows-xp"] .data-explorer-resizer::after {
   background: var(--po-shell-divider);
   box-shadow: none;

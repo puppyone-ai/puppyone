@@ -19,21 +19,6 @@
   --po-sidebar: var(--po-canvas);
 }
 
-.desktop-project-switcher-resizer {
-  inset-inline-start: auto;
-  inset-inline-end: calc(1px - var(--po-pane-resizer-hit-size, 8px));
-  background: transparent;
-}
-
-.desktop-project-switcher-resizer.po-collapsed-pane-edge-handle--inline-start {
-  inset-inline-start: auto;
-  inset-inline-end: calc(1px - var(--po-collapsed-pane-edge-hit-size, 12px));
-}
-
-.desktop-shell-leading-rail:has(> .po-pane-edge-resize-handle) .desktop-project-switcher-rail {
-  border-inline-end-width: 0;
-}
-
 body.desktop-project-switcher-resizing,
 body.desktop-project-switcher-resizing * {
   cursor: col-resize !important;
@@ -70,7 +55,6 @@ body.desktop-project-switcher-resizing * {
   flex-direction: column;
   align-items: stretch;
   padding: 0;
-  border-inline-end: 1px solid var(--po-sidebar-divider, var(--po-divider));
   background: var(--po-sidebar);
   color: var(--po-text-muted);
   user-select: none;
