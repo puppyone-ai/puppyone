@@ -181,7 +181,7 @@ async function verifyBoundaries({ window, temp, label, until }) {
   assert(explorerMotion.collapsedStartWidth<explorerMotion.lastWidth,'Explorer frame did not expand from its collapsed edge');
   assert(Math.abs(explorerMotion.lastWidth-220)<=1,
     `Explorer reopened at a stale pre-collapse width: ${JSON.stringify(explorerMotion)}`);
-  assert(explorerMotion.maxDividerDelta<=2,`Explorer divider left its animated frame: ${JSON.stringify(explorerMotion)}`);
+  assert(explorerMotion.maxDividerDelta<=1,`Explorer divider left its animated frame: ${JSON.stringify(explorerMotion)}`);
   assert(explorerMotion.contentWidths.length===1,`Explorer content reflowed during open motion: ${JSON.stringify(explorerMotion)}`);
   const right=await inspect(".desktop-right-sidebar-resizer");
   assert(!right.missing, 'Auxiliary divider missing');

@@ -192,7 +192,7 @@ for (const relativePath of ["packages/shared-ui/src/styles/data-workspace.css"])
   }
   for (const token of [
     "inset-inline-start: auto",
-    "inset-inline-end: calc(1px - var(--po-pane-resizer-hit-size, 8px))",
+    "inset-inline-end: calc(-1 * var(--po-pane-resizer-hit-size, 8px))",
     "background: transparent",
   ]) {
     if (!resizer.includes(token)) {

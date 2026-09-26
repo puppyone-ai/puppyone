@@ -267,7 +267,7 @@ const dataContent = dataWorkspaceStyle.match(/\.data-content\s*\{([^}]*)\}/s)?.[
 const explorerResizer = dataWorkspaceStyle.match(/\.data-explorer-resizer\s*\{([^}]*)\}/s)?.[1] ?? "";
 for (const token of [
   "inset-inline-start: auto",
-  "inset-inline-end: calc(1px - var(--po-pane-resizer-hit-size, 8px))",
+  "inset-inline-end: calc(-1 * var(--po-pane-resizer-hit-size, 8px))",
   "background: transparent",
 ]) {
   if (!explorerResizer.includes(token)) errors.push(`Shared DataWorkspace is missing its frame-anchored resize sash contract (${token}).`);

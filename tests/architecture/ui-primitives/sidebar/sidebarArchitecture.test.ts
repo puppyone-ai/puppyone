@@ -155,7 +155,7 @@ describe("Sidebar architecture", () => {
   it("keeps direct resize canonical while visibility transitions preserve content width", () => {
     expect(sharedDataWorkspaceCss).toMatch(/\.data-content\s*\{[^}]*display:\s*flex/s);
     expect(sharedDataWorkspaceCss).toMatch(
-      /\.data-explorer-resizer\s*\{[^}]*inset-inline-start:\s*auto;[^}]*inset-inline-end:\s*calc\(1px - var\(--po-pane-resizer-hit-size, 8px\)\);[^}]*background:\s*transparent;/s,
+      /\.data-explorer-resizer\s*\{[^}]*inset-inline-start:\s*auto;[^}]*inset-inline-end:\s*calc\(-1 \* var\(--po-pane-resizer-hit-size, 8px\)\);[^}]*background:\s*transparent;/s,
     );
     for (const source of [dataWorkspaceSource, auxiliaryHostSource, desktopShellSource]) {
       expect(source).toContain("<CollapsiblePaneFrame");
@@ -183,7 +183,7 @@ describe("Sidebar architecture", () => {
     expect(dataWorkspaceSource).toContain("explorerResize.width,");
     expect(dataSurfaceSource).toContain("paneLayout?.explorer.collapsed");
     expect(dataSurfaceSource).toContain("? preferences.explorerWidth");
-    expect(sidebarBoundarySmoke).toContain("explorerMotion.maxDividerDelta<=2");
+    expect(sidebarBoundarySmoke).toContain("explorerMotion.maxDividerDelta<=1");
     expect(sidebarBoundarySmoke).toContain("explorerMotion.contentWidths.length===1");
     expect(sidebarBoundarySmoke).toContain("collapsePreview.contentWidth");
     expect(sidebarBoundarySmoke).toContain("collapsePreview.temporarilyCollapsed");

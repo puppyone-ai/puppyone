@@ -120,11 +120,12 @@
 
 .data-explorer-resizer {
   /*
-   * Anchor the overlay sash to the animated Explorer frame. The negative
-   * inset preserves the full hit lane without consuming a Grid track.
+   * The frame retains a transparent 1px border. Anchor the painted stroke
+   * over that border so no sidebar-colored pixel remains before the Editor.
+   * The negative inset preserves the full hit lane without consuming space.
    */
   inset-inline-start: auto;
-  inset-inline-end: calc(1px - var(--po-pane-resizer-hit-size, 8px));
+  inset-inline-end: calc(-1 * var(--po-pane-resizer-hit-size, 8px));
   background: transparent;
 }
 

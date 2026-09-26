@@ -84,7 +84,7 @@ describe("sidebar spacing architecture", () => {
     expect(dataTreeCss).not.toContain(".data-explorer-resizer::after");
     expect(explorerResizer).toContain("inset-inline-start: auto;");
     expect(explorerResizer).toContain(
-      "inset-inline-end: calc(1px - var(--po-pane-resizer-hit-size, 8px));",
+      "inset-inline-end: calc(-1 * var(--po-pane-resizer-hit-size, 8px));",
     );
     expect(injectedSurface).not.toContain("border-inline-end:");
     expect(cloudSidebarCss).not.toContain("border-inline-end:");

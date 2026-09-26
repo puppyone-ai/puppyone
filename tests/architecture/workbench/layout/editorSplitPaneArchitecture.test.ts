@@ -423,7 +423,7 @@ describe("editor split-pane architecture", () => {
     expect(resizerRule).toContain("background: transparent;");
     expect(resizerRule).toContain("inset-inline-start: auto;");
     expect(resizerRule).toContain(
-      "inset-inline-end: calc(1px - var(--po-pane-resizer-hit-size, 8px));",
+      "inset-inline-end: calc(-1 * var(--po-pane-resizer-hit-size, 8px));",
     );
     expect(sharedDataWorkspaceStyles).not.toContain(".data-explorer-resizer::after");
     expect(sharedDataWorkspaceStyles).not.toContain("grid-column: 3;");
