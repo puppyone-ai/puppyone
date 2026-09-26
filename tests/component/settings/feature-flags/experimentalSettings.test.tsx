@@ -17,12 +17,7 @@ afterEach(() => {
 });
 
 describe("Experimental settings", () => {
-  it.each([
-    ["Notion import", "enableNotionImport"],
-    ["Google Drive import", "enableGoogleDriveImport"],
-    ["Airtable import", "enableAirtableImport"],
-    ["Obsidian import", "enableObsidianImport"],
-  ] as const)("offers an off-by-default %s source", (label, settingKey) => {
+  it("offers one default-off import experiment", () => {
     const onChange = vi.fn();
     const host = document.createElement("div");
     document.body.append(host);
@@ -36,12 +31,12 @@ describe("Experimental settings", () => {
       />,
     )));
 
-    const toggle = host.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`);
+    const toggle = host.querySelector<HTMLInputElement>('input[aria-label="Import from other apps"]');
     expect(toggle?.checked).toBe(false);
     act(() => toggle?.click());
     expect(onChange).toHaveBeenCalledWith({
       ...DEFAULT_EXPERIMENTAL_SETTINGS,
-      [settingKey]: true,
+      enableOtherAppImports: true,
     });
   });
 
@@ -54,11 +49,10 @@ describe("Experimental settings", () => {
         assetLibraryHomeAvailable={false} onChange={vi.fn()} />,
     )));
     expect(host.querySelector('input[aria-label="Built-in Agent"]')).toBeNull();
-    expect(DEFAULT_EXPERIMENTAL_SETTINGS.enableBuiltInAgent).toBe(true);
     expect(DEFAULT_EXPERIMENTAL_SETTINGS.enableCloudWorkspace).toBe(false);
   });
 
-  it("offers an off-by-default cloud Agent catalog switch", () => {
+  it("uses the Cloud switch for hosting and the cloud Agent catalog", () => {
     const onChange = vi.fn();
     const host = document.createElement("div");
     document.body.append(host);
@@ -68,13 +62,15 @@ describe("Experimental settings", () => {
         assetLibraryHomeAvailable={false} onChange={onChange} />,
     )));
 
-    const toggle = host.querySelector<HTMLInputElement>('input[aria-label="Cloud agents in sidebar"]');
+    const toggle = host.querySelector<HTMLInputElement>('input[aria-label="PuppyOne Cloud"]');
     expect(toggle?.checked).toBe(false);
     act(() => toggle?.click());
     expect(onChange).toHaveBeenCalledWith({
       ...DEFAULT_EXPERIMENTAL_SETTINGS,
-      enableCloudAgentCatalog: true,
+      enableCloudWorkspace: true,
     });
+    expect(host.querySelector('input[aria-label="Cloud agents in sidebar"]')).toBeNull();
+    expect(host.querySelector('input[aria-label="Editor save status"]')).toBeNull();
   });
 
   it("offers an off-by-default cross-Project switcher rail", () => {

@@ -26,6 +26,7 @@ import { InterfacePaletteSettings } from "./main/InterfacePaletteSettings";
 import { InterfaceStyleSetting } from "./main/InterfaceStyleSetting";
 import { SubThemeSettingsSection } from "./main/SubThemeSettingsSection";
 import { CreateNewSettingsView } from "./main/CreateNewSettingsView";
+import { OtherAppImportsSettingsView } from "./main/OtherAppImportsSettingsView";
 import { PulseGrid } from "../../components/loading";
 import { CloudHostingSettingsView, GitSettingsView } from "./main/RepositorySettingsViews";
 import { isSettingsSectionAvailable } from "./sidebar/settingsSidebarModel";
@@ -80,6 +81,7 @@ export function SettingsView({
   onFileIconThemeChange,
   onFilesVisibilitySettingsChange,
   onCreateNewMenuSettingsChange,
+  onOpenImport,
   onExperimentalSettingsChange,
   onRightSidebarToolsSettingsChange,
   onTitlebarActionsSettingsChange,
@@ -101,7 +103,10 @@ export function SettingsView({
   const [copyError, setCopyError] = useState<string | null>(null);
   const orderedHeaderElements = getOrderedHeaderElementDefinitions(titlebarActionsSettings.order);
 
-  if (!isSettingsSectionAvailable(activeSection, { cloudEnabled })) {
+  if (!isSettingsSectionAvailable(activeSection, {
+    cloudEnabled,
+    otherAppImportsEnabled: experimentalSettings.enableOtherAppImports,
+  })) {
     return (
       <GeneralSettingsView
         updateState={updateState}
@@ -239,6 +244,10 @@ export function SettingsView({
         onChange={onExperimentalSettingsChange}
       />
     );
+  }
+
+  if (activeSection === "other-app-imports") {
+    return <OtherAppImportsSettingsView onOpenImport={onOpenImport} />;
   }
 
   if (activeSection === "typography") {

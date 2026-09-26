@@ -33,10 +33,7 @@ const agentReadyMessages = {
 } as const;
 const ALL_EXPERIMENTAL_IMPORTS = {
   ...DEFAULT_EXPERIMENTAL_SETTINGS,
-  enableAirtableImport: true,
-  enableGoogleDriveImport: true,
-  enableNotionImport: true,
-  enableObsidianImport: true,
+  enableOtherAppImports: true,
 };
 
 afterEach(() => {

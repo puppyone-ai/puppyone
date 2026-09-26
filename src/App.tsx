@@ -310,9 +310,8 @@ function AppContent() {
   const agentChatRuntimeVisibility = useMemo(() => {
     return resolveAgentChatRuntimeVisibility(AGENT_CHAT_CREATION_RECIPES, {
       hiddenLocalAgentIds: localAgentsSettings.hiddenTerminalAgentIds,
-      builtInAgentEnabled: experimentalSettings.enableBuiltInAgent,
     });
-  }, [experimentalSettings.enableBuiltInAgent, localAgentsSettings.hiddenTerminalAgentIds]);
+  }, [localAgentsSettings.hiddenTerminalAgentIds]);
   const assetLibraryHomeEnabled = isAssetLibraryHomeEnabled({
     available: assetLibraryHomeAvailable,
     optedIn: experimentalSettings.enableAssetLibraryHome,
@@ -643,10 +642,13 @@ function AppContent() {
   }, [experimentalSettings.enableViewerPlugins]);
 
   useEffect(() => {
-    if (!isSettingsSectionAvailable(activeSettingsSection, { cloudEnabled })) {
+    if (!isSettingsSectionAvailable(activeSettingsSection, {
+      cloudEnabled,
+      otherAppImportsEnabled: experimentalSettings.enableOtherAppImports,
+    })) {
       setActiveSettingsSection("general");
     }
-  }, [activeSettingsSection, cloudEnabled]);
+  }, [activeSettingsSection, cloudEnabled, experimentalSettings.enableOtherAppImports]);
 
   useEffect(() => {
     const preventFileDropNavigation = (event: DragEvent) => {
@@ -1450,7 +1452,7 @@ function AppContent() {
                     if (folder) void handleRemoveProject(folder);
                   }}
                   renderLauncher={(context) => <AuxiliaryWorkbenchLauncher {...context} store={projectWorkbench} contributions={auxiliaryWorkbenchContributions} hiddenAgentIds={localAgentsSettings.hiddenTerminalAgentIds}
-                    showCloudAgents={experimentalSettings.enableCloudAgentCatalog}
+                    showCloudAgents={cloudEnabled}
                     setupPreferences={localAgentsSettings.setupSuggestions}
                     onSetupPreferencesChange={(setupSuggestions) => setLocalAgentsSettings({ ...localAgentsSettings, setupSuggestions })} />}
                 />}
@@ -1574,6 +1576,7 @@ function AppContent() {
             onCloseCloud={closeCloudDialog}
             onClosePlugins={closePluginsDialog}
             onOpenGitChanges={handleToggleGitChanges}
+            onOpenImport={projectEntryFlow.openImport}
             onOpenPlugins={openPluginsDialog}
             onNodeActionMenu={openNodeActionMenu}
             onOpenSettings={openSettingsDialog}
@@ -1617,6 +1620,10 @@ function AppContent() {
               workspace={focusedWorkspace ?? workspace}
               activeSection={activeSettingsSection}
               onSelectSection={setActiveSettingsSection}
+              onOpenImport={() => {
+                setSettingsDialogOpen(false);
+                projectEntryFlow.openImport();
+              }}
               preferences={preferences}
               subThemeCatalog={subThemeCatalog}
               onFilesVisibilitySettingsChange={handleFilesVisibilitySettingsChange}

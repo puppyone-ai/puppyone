@@ -55,14 +55,8 @@ describe("project initialization ownership", () => {
     expect(flow).toContain("resolveVisibleImportSources");
     expect(flow).toContain("resolveImportPreviewBrands");
     expect(importDialog).toContain("visibleSources.map");
-    expect(importRegistry).toContain('settingKey: "enableNotionImport"');
-    expect(importRegistry).toContain('settingKey: "enableGoogleDriveImport"');
-    expect(importRegistry).toContain('settingKey: "enableAirtableImport"');
-    expect(importRegistry).toContain('settingKey: "enableObsidianImport"');
-    expect(experimentalSettings).toContain('settingKey: "enableNotionImport"');
-    expect(experimentalSettings).toContain('settingKey: "enableGoogleDriveImport"');
-    expect(experimentalSettings).toContain('settingKey: "enableAirtableImport"');
-    expect(experimentalSettings).toContain('settingKey: "enableObsidianImport"');
+    expect(importRegistry).toContain("settings.enableOtherAppImports");
+    expect(experimentalSettings).toContain('settingKey: "enableOtherAppImports"');
     expect(launcherStyles).toMatch(
       /\.desktop-project-entry-launcher \.desktop-dialog-title-row\s*\{[^}]*align-items:\s*center;/s,
     );

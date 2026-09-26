@@ -12,6 +12,7 @@ describe("Settings Cloud feature gate", () => {
     const cloudGroup = groups.find((group) => group.id === "cloud");
     expect(sections).toContain("account");
     expect(sections).not.toContain("cloud");
+    expect(sections).not.toContain("other-app-imports");
     expect(cloudGroup?.items.map((item) => item.id)).toEqual(["account"]);
     expect(isSettingsSectionAvailable("account", { cloudEnabled: false })).toBe(true);
     expect(isSettingsSectionAvailable("cloud", { cloudEnabled: false })).toBe(false);
@@ -30,5 +31,16 @@ describe("Settings Cloud feature gate", () => {
     expect(cloudGroup?.items.map((item) => item.id)).toEqual(["account", "cloud"]);
     expect(isSettingsSectionAvailable("account", { cloudEnabled: true })).toBe(true);
     expect(isSettingsSectionAvailable("cloud", { cloudEnabled: true })).toBe(true);
+  });
+
+  it("shows the import settings page only while the import experiment is enabled", () => {
+    expect(isSettingsSectionAvailable("other-app-imports", {
+      cloudEnabled: false,
+      otherAppImportsEnabled: false,
+    })).toBe(false);
+    expect(isSettingsSectionAvailable("other-app-imports", {
+      cloudEnabled: false,
+      otherAppImportsEnabled: true,
+    })).toBe(true);
   });
 });

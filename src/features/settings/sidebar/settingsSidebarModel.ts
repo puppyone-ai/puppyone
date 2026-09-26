@@ -4,6 +4,7 @@ import {
   FileText,
   FlaskConical,
   FolderCog,
+  FolderInput,
   GitBranch,
   ListPlus,
   Monitor,
@@ -22,6 +23,7 @@ export type SettingsSidebarItem = {
   icon: LucideIcon;
   disabled: boolean;
   requiresCloud?: boolean;
+  requiresOtherAppImports?: boolean;
 };
 
 export type SettingsSidebarGroupModel = {
@@ -33,6 +35,7 @@ export type SettingsSidebarGroupModel = {
 
 export type SettingsVisibilityContext = {
   cloudEnabled: boolean;
+  otherAppImportsEnabled?: boolean;
 };
 
 export const SETTINGS_SIDEBAR_GROUPS: readonly SettingsSidebarGroupModel[] = [
@@ -44,6 +47,7 @@ export const SETTINGS_SIDEBAR_GROUPS: readonly SettingsSidebarGroupModel[] = [
       { id: "appearance", labelId: "settings.sidebar.appearance", icon: Monitor, disabled: false },
       { id: "typography", labelId: "settings.sidebar.typography", icon: Type, disabled: false },
       { id: "new-menu", labelId: "settings.sidebar.createNew", icon: ListPlus, disabled: false },
+      { id: "other-app-imports", labelId: "settings.sidebar.otherAppImports", icon: FolderInput, disabled: false, requiresOtherAppImports: true },
       { id: "privacy", labelId: "settings.sidebar.privacy", icon: ShieldCheck, disabled: false },
       { id: "experimental", labelId: "settings.sidebar.experimental", icon: FlaskConical, disabled: false },
     ],
@@ -77,12 +81,16 @@ export const SETTINGS_SIDEBAR_GROUPS: readonly SettingsSidebarGroupModel[] = [
 
 export function resolveSettingsSidebarGroups({
   cloudEnabled,
+  otherAppImportsEnabled = false,
 }: SettingsVisibilityContext): readonly SettingsSidebarGroupModel[] {
   return SETTINGS_SIDEBAR_GROUPS
     .filter((group) => !group.requiresCloud || cloudEnabled)
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => !item.requiresCloud || cloudEnabled),
+      items: group.items.filter((item) => (
+        (!item.requiresCloud || cloudEnabled)
+        && (!item.requiresOtherAppImports || otherAppImportsEnabled)
+      )),
     }))
     .filter((group) => group.items.length > 0);
 }

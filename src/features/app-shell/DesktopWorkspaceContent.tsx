@@ -67,6 +67,7 @@ type DesktopWorkspaceContentProps = {
   onCloseCloud: () => void;
   onClosePlugins: () => void;
   onOpenGitChanges: () => void;
+  onOpenImport: () => void;
   onOpenPlugins: () => void;
   onNodeActionMenu: (node: DataNode, anchorRect: DOMRect, selectedNodes?: readonly DataNode[]) => void;
   onOpenSettings: () => void;
@@ -120,6 +121,7 @@ export function DesktopWorkspaceContent({
   onCloseCloud,
   onClosePlugins,
   onOpenGitChanges,
+  onOpenImport,
   onOpenPlugins,
   onNodeActionMenu,
   onOpenSettings,
@@ -164,11 +166,10 @@ export function DesktopWorkspaceContent({
     workspacePath: workspace.path,
   });
   const editorInteractionPreferences = useMemo<EditorInteractionPreferences>(() => ({
-    showSaveStatus: preferences.experimentalSettings.enableEditorSaveStatus,
+    showSaveStatus: false,
     markdownBlockDragEnabled: preferences.experimentalSettings.enableMarkdownBlockDrag,
     markdownHeadingOutlineEnabled: preferences.experimentalSettings.enableMarkdownHeadingOutline,
   }), [
-    preferences.experimentalSettings.enableEditorSaveStatus,
     preferences.experimentalSettings.enableMarkdownBlockDrag,
     preferences.experimentalSettings.enableMarkdownHeadingOutline,
   ]);
@@ -186,6 +187,7 @@ export function DesktopWorkspaceContent({
     git,
     onFilesVisibilitySettingsChange,
     onOpenGitChanges,
+    onOpenImport,
     onPuppyoneConfigChange,
     onSelectSettingsSection,
     onUnlinkWorkspace,

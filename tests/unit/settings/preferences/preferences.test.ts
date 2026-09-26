@@ -200,21 +200,17 @@ describe("local Agent preferences", () => {
 });
 
 describe("experimental preferences", () => {
-  it.each([
-    "enableNotionImport",
-    "enableGoogleDriveImport",
-    "enableAirtableImport",
-    "enableObsidianImport",
-  ] as const)("keeps %s off unless the user explicitly opts in", (settingKey) => {
-    expect(parseExperimentalSettings(null)[settingKey]).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ [settingKey]: false }))[settingKey]).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ [settingKey]: true }))[settingKey]).toBe(true);
+  it("uses one default-off import experiment and preserves older import opt-ins", () => {
+    expect(parseExperimentalSettings(null).enableOtherAppImports).toBe(false);
+    expect(parseExperimentalSettings(JSON.stringify({ enableOtherAppImports: true })).enableOtherAppImports).toBe(true);
+    for (const legacyKey of ["enableNotionImport", "enableGoogleDriveImport", "enableAirtableImport", "enableObsidianImport"]) {
+      expect(parseExperimentalSettings(JSON.stringify({ [legacyKey]: true })).enableOtherAppImports).toBe(true);
+    }
   });
 
-  it("makes Built-in Agent available after graduating from experiments", () => {
-    for (const value of [null, "not-json", JSON.stringify({ enableBuiltInAgent: false }), JSON.stringify({ enableBuiltInAgent: true })]) {
-      expect(parseExperimentalSettings(value).enableBuiltInAgent).toBe(true);
-    }
+  it("drops retired Built-in Agent preferences", () => {
+    expect(parseExperimentalSettings(JSON.stringify({ enableBuiltInAgent: false })))
+      .not.toHaveProperty("enableBuiltInAgent");
   });
 
   it.each([true, false])("ignores retired Agent Chat preferences set to %s without changing other experiments", (enabled) => {
@@ -238,11 +234,10 @@ describe("experimental preferences", () => {
     expect(parseExperimentalSettings(JSON.stringify({ enableCloudWorkspace: true })).enableCloudWorkspace).toBe(true);
   });
 
-  it("keeps the cloud Agent catalog hidden unless the user explicitly opts in", () => {
-    expect(parseExperimentalSettings(null).enableCloudAgentCatalog).toBe(false);
-    expect(parseExperimentalSettings("not-json").enableCloudAgentCatalog).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableCloudAgentCatalog: false })).enableCloudAgentCatalog).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableCloudAgentCatalog: true })).enableCloudAgentCatalog).toBe(true);
+  it("does not let the retired catalog opt-in turn on Cloud hosting", () => {
+    expect(parseExperimentalSettings(JSON.stringify({ enableCloudAgentCatalog: true })).enableCloudWorkspace).toBe(false);
+    expect(parseExperimentalSettings(JSON.stringify({ enableCloudAgentCatalog: true })))
+      .not.toHaveProperty("enableCloudAgentCatalog");
   });
 
   it("keeps multi-project workspaces off unless the user explicitly opts in", () => {
@@ -270,18 +265,13 @@ describe("experimental preferences", () => {
     expect(parseExperimentalSettings(JSON.stringify({ enableCloudAutomation: true })).enableCloudAutomation).toBe(true);
   });
 
-  it("keeps the first-project starting point off unless the user explicitly opts in", () => {
-    expect(parseExperimentalSettings(null).enableFirstProjectStarter).toBe(false);
-    expect(parseExperimentalSettings("not-json").enableFirstProjectStarter).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableFirstProjectStarter: false })).enableFirstProjectStarter).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableFirstProjectStarter: true })).enableFirstProjectStarter).toBe(true);
-  });
-
-  it("keeps the editor save status hidden unless the user explicitly opts in", () => {
-    expect(parseExperimentalSettings(null).enableEditorSaveStatus).toBe(false);
-    expect(parseExperimentalSettings("not-json").enableEditorSaveStatus).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableEditorSaveStatus: false })).enableEditorSaveStatus).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableEditorSaveStatus: true })).enableEditorSaveStatus).toBe(true);
+  it("drops retired first-project and save-status preferences", () => {
+    const parsed = parseExperimentalSettings(JSON.stringify({
+      enableFirstProjectStarter: true,
+      enableEditorSaveStatus: true,
+    }));
+    expect(parsed).not.toHaveProperty("enableFirstProjectStarter");
+    expect(parsed).not.toHaveProperty("enableEditorSaveStatus");
   });
 
   it("ignores retired Context Map experiment values now that the feature is always available", () => {
