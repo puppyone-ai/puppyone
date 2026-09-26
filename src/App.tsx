@@ -211,8 +211,11 @@ function AppContent() {
     consumeWorkspaceEntryIntent,
     chooseProjectLocation,
     clearWorkspace,
-    cloneRepository,
-    importLocalFolder,
+    importSource,
+    connectImportSource,
+    listImportResources,
+    cancelImportSource,
+    onImportSourceProgress,
     createProject,
     defaultProjectLocation,
     forgetActiveWorkspace,
@@ -1318,8 +1321,11 @@ function AppContent() {
         onChooseProjectLocation={chooseProjectLocation}
         onDefaultProjectLocation={defaultProjectLocation}
         onCreateProject={createProject}
-        onCloneRepository={cloneRepository}
-        onImportLocalFolder={importLocalFolder}
+        onImportSource={importSource}
+        onConnectImportSource={connectImportSource}
+        onListImportResources={listImportResources}
+        onCancelImportSource={cancelImportSource}
+        onImportSourceProgress={onImportSourceProgress}
         onOpenDroppedWorkspace={openDroppedWorkspace}
         onOpenWorkspacePath={openWorkspacePath}
         onRemoveProject={removeWorkspaceFromRecents}
@@ -1705,8 +1711,11 @@ function AppContent() {
             onDefaultLocation={defaultProjectLocation}
             onChooseLocation={chooseProjectLocation}
             onCreateProject={createProject}
-            onImportRepository={cloneRepository}
-            onImportFolder={importLocalFolder}
+            onImportSource={importSource}
+            onConnectSource={connectImportSource}
+            onListResources={listImportResources}
+            onCancelImport={cancelImportSource}
+            onImportProgress={onImportSourceProgress}
             onOpenFolder={() => void openFolder()}
             experimentalSettings={experimentalSettings}
           />

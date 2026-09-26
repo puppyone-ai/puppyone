@@ -29,7 +29,11 @@ createRoot(document.getElementById("root")!).render(
       onChooseProjectLocation={location}
       onDefaultProjectLocation={location}
       onCreateProject={async () => { throw new Error("Visual fixture does not create projects"); }}
-      onCloneRepository={async () => false}
+      onImportSource={async () => false}
+      onConnectImportSource={async () => ({ connectionId: "fixture" })}
+      onListImportResources={async () => ({ items: [], nextCursor: null })}
+      onCancelImportSource={async () => ({ cancelled: true })}
+      onImportSourceProgress={() => () => undefined}
     />
   </TestLocalizationProvider>,
 );

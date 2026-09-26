@@ -16,10 +16,13 @@ import {
   removeRecentWorkspace,
   renameRecentWorkspace,
   selectWorkspaceFolderToAttach,
+  connectImportSource,
+  listImportResources,
+  cancelImportSource,
+  onImportSourceProgress,
 } from "../../lib/localFiles";
 import {
-  cloneRepositoryTarget,
-  importLocalFolderTarget,
+  importSourceTarget,
   createLocalProjectTarget,
   defaultLocalProjectLocationTarget,
   openDroppedWorkspaceTarget,
@@ -28,8 +31,7 @@ import {
   selectLocalWorkspaceFolder,
 } from "../../lib/workspaceOpening";
 import type {
-  WorkspaceCloneRepositoryRequest,
-  WorkspaceImportLocalFolderRequest,
+  WorkspaceImportSourceRequest,
   WorkspaceCreateProjectRequest,
   WorkspaceOpenResult,
   WorkspaceProjectLocationGrant,
@@ -317,16 +319,9 @@ export function useWorkspaceLifecycle({
     return defaultLocalProjectLocationTarget();
   }, []);
 
-  const cloneRepository = useCallback(async (request: WorkspaceCloneRepositoryRequest) => {
+  const importSource = useCallback(async (request: WorkspaceImportSourceRequest) => {
     const navigation = ++navigationRequestRef.current;
-    const result = await cloneRepositoryTarget(request);
-    if (navigation === navigationRequestRef.current) handleWorkspaceOpenResult(result, "cloned");
-    return result !== null;
-  }, [handleWorkspaceOpenResult]);
-
-  const importLocalFolder = useCallback(async (request: WorkspaceImportLocalFolderRequest) => {
-    const navigation = ++navigationRequestRef.current;
-    const result = await importLocalFolderTarget(request);
+    const result = await importSourceTarget(request);
     if (navigation === navigationRequestRef.current) handleWorkspaceOpenResult(result, "imported");
     return result !== null;
   }, [handleWorkspaceOpenResult]);
@@ -456,8 +451,11 @@ export function useWorkspaceLifecycle({
     activateWorkspace,
     clearWorkspace,
     chooseProjectLocation,
-    cloneRepository,
-    importLocalFolder,
+    importSource,
+    connectImportSource,
+    listImportResources,
+    cancelImportSource,
+    onImportSourceProgress,
     createProject,
     defaultProjectLocation,
     forgetActiveWorkspace,

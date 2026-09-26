@@ -8,6 +8,8 @@ import {
   requireProjectName,
 } from "../../../../electron/main/project-entry-service.mjs";
 import { createLocalProjectImportService } from "../../../../electron/main/project-import/service.mjs";
+import { createImportSourceRegistry } from "../../../../electron/main/project-import/registry.mjs";
+import { LOCAL_IMPORT_SOURCES } from "../../../../shared/project-import/sources.mjs";
 
 let parentPath;
 
@@ -21,6 +23,19 @@ afterEach(async () => {
 });
 
 describe("project entry service", () => {
+  it("loads every operational source from its registered module", async () => {
+    const registry = createImportSourceRegistry({
+      loadAdapter: async (id) => {
+        const module = await import(`../../../../electron/main/project-import/sources/${id}.mjs`);
+        return module.createImportSource({ cloneGit: vi.fn(), requireGitRepository, requireProjectName });
+      },
+    });
+    for (const descriptor of LOCAL_IMPORT_SOURCES.filter((source) => source.operational)) {
+      await expect(registry.require(descriptor.id)).resolves.toMatchObject({ descriptor });
+    }
+    await expect(registry.require("notion")).rejects.toMatchObject({ code: "IMPORT_SOURCE_UNAVAILABLE" });
+  });
+
   it("creates one empty child directory under the selected parent", async () => {
     const service = createProjectEntryService();
 
@@ -103,10 +118,9 @@ describe("project entry service", () => {
     });
     const service = createProjectEntryService({ cloneGit });
 
-    await expect(service.cloneRepository({
+    await expect(service.importProject({
       parentPath,
-      provider: "github",
-      repositoryUrl: "https://github.com/owner/repository.git",
+      source: { provider: "github", repositoryUrl: "https://github.com/owner/repository.git" },
     })).resolves.toMatchObject({
       path: path.join(parentPath, "repository"),
       name: "repository",
@@ -119,10 +133,9 @@ describe("project entry service", () => {
     const cloneGit = vi.fn();
     const service = createProjectEntryService({ cloneGit });
 
-    await expect(service.cloneRepository({
+    await expect(service.importProject({
       parentPath,
-      provider: "github",
-      repositoryUrl: "https://gitlab.com/owner/repository.git",
+      source: { provider: "github", repositoryUrl: "https://gitlab.com/owner/repository.git" },
     })).rejects.toMatchObject({ code: "INVALID_REPOSITORY_URL" });
     expect(cloneGit).not.toHaveBeenCalled();
   });
@@ -136,9 +149,9 @@ describe("project entry service", () => {
       }),
     });
 
-    await expect(service.cloneRepository({
+    await expect(service.importProject({
       parentPath,
-      repositoryUrl: "https://github.com/owner/repository.git",
+      source: { provider: "github", repositoryUrl: "https://github.com/owner/repository.git" },
     })).rejects.toMatchObject({ code: "PROJECT_ALREADY_EXISTS" });
     await expect(readFile(path.join(parentPath, "repository", "keep.txt"), "utf8")).resolves.toBe("keep\n");
     expect((await readdir(parentPath)).sort()).toEqual(["repository"]);
@@ -154,9 +167,9 @@ describe("project entry service", () => {
       }),
     });
 
-    await expect(service.cloneRepository({
+    await expect(service.importProject({
       parentPath,
-      repositoryUrl: "https://github.com/owner/repository.git",
+      source: { provider: "github", repositoryUrl: "https://github.com/owner/repository.git" },
     })).rejects.toMatchObject({ code: "CLONE_FAILED" });
     await expect(readFile(path.join(parentPath, "keep.txt"), "utf8")).resolves.toBe("keep");
     const remaining = await readdir(parentPath);
@@ -172,9 +185,9 @@ describe("project entry service", () => {
       }),
     });
 
-    await expect(service.cloneRepository({
+    await expect(service.importProject({
       parentPath,
-      repositoryUrl: "https://gitlab.com/owner/repository.git",
+      source: { provider: "gitlab", repositoryUrl: "https://gitlab.com/owner/repository.git" },
     })).rejects.toMatchObject({
       code: "CLONE_AUTHENTICATION_FAILED",
       message: expect.stringMatching(/GitLab authentication failed/),
@@ -267,25 +280,36 @@ describe("project entry service", () => {
 
   it("accepts a registered remote adapter through the same local publication boundary", async () => {
     const inspect = vi.fn(async (source) => ({ name: "Remote Notes", source }));
-    const materialize = vi.fn(async ({ stagingPath }) => {
-      await writeFile(path.join(stagingPath, "README.md"), "fetched from service\n");
+    const materialize = vi.fn(async ({ writer }) => {
+      await writer.writeFile("README.md", "fetched from service\n");
       await expect(access(path.join(parentPath, "Remote Notes")))
         .rejects.toMatchObject({ code: "ENOENT" });
     });
     const importer = createLocalProjectImportService({
       validateName: requireProjectName,
-      resolveSource: (id) => id === "remote-notes" ? { id, mode: "remote", operational: true } : null,
-      adapters: { "remote-notes": { mode: "remote", inspect, materialize } },
+      descriptors: [{ id: "remote-notes", label: "Remote Notes", mode: "remote", operational: true }],
+      adapters: { "remote-notes": {
+        mode: "remote", inspect, materialize,
+        connect: async () => ({ token: "main-only" }),
+        listResources: async () => ({ items: [{ id: "page-1", name: "Notes", kind: "document" }], nextCursor: null }),
+      } },
     });
+    const { connectionId } = await importer.connectSource({ provider: "remote-notes", ownerId: 1 });
+    await expect(importer.listResources({ provider: "remote-notes", connectionId, ownerId: 1 }))
+      .resolves.toMatchObject({ items: [{ id: "page-1" }] });
 
     await expect(importer.importProject({
       parentPath,
-      source: { provider: "remote-notes", resourceId: "page-1" },
+      ownerId: 1,
+      source: { provider: "remote-notes", connectionId, resourceId: "page-1" },
     })).resolves.toMatchObject({
       path: path.join(parentPath, "Remote Notes"),
       provider: "remote-notes",
     });
-    expect(inspect).toHaveBeenCalledWith({ provider: "remote-notes", resourceId: "page-1" });
+    expect(inspect).toHaveBeenCalledWith(
+      { provider: "remote-notes", connectionId, resourceId: "page-1" },
+      { connection: { token: "main-only" } },
+    );
     expect(materialize).toHaveBeenCalledOnce();
     expect(await readFile(path.join(parentPath, "Remote Notes", "README.md"), "utf8"))
       .toBe("fetched from service\n");
@@ -295,21 +319,126 @@ describe("project entry service", () => {
     const materialize = vi.fn();
     const importer = createLocalProjectImportService({
       validateName: requireProjectName,
-      resolveSource: () => ({ id: "remote-notes", mode: "remote", operational: true }),
+      descriptors: [{ id: "remote-notes", label: "Remote Notes", mode: "remote", operational: true }],
       adapters: {
         "remote-notes": {
           mode: "remote",
           inspect: async (source) => ({ name: "../escape", source }),
           materialize,
+          connect: async () => ({}),
+          listResources: async () => ({ items: [{ id: "page-1", name: "Page", kind: "document" }], nextCursor: null }),
         },
       },
     });
+    const { connectionId } = await importer.connectSource({ provider: "remote-notes", ownerId: 1 });
+    await importer.listResources({ provider: "remote-notes", connectionId, ownerId: 1 });
 
     await expect(importer.importProject({
       parentPath,
-      source: { provider: "remote-notes", resourceId: "page-1" },
+      ownerId: 1,
+      source: { provider: "remote-notes", connectionId, resourceId: "page-1" },
     })).rejects.toMatchObject({ code: "INVALID_PROJECT_NAME" });
     expect(materialize).not.toHaveBeenCalled();
+    expect(await readdir(parentPath)).toEqual([]);
+  });
+
+  it("loads a registered remote source module once and keeps its connection in Main", async () => {
+    const loadAdapter = vi.fn(async () => ({
+      mode: "remote",
+      connect: async () => ({ token: "secret" }),
+      listResources: async ({ connection }) => ({
+        items: [{ id: "doc-1", name: "Page", kind: "document", token: connection.token }],
+        nextCursor: null,
+      }),
+      inspect: async (source, { connection }) => ({ name: "Imported", source: { ...source, token: connection.token } }),
+      materialize: async ({ source, writer }) => writer.writeFile("notes/page.md", `# ${source.token}\n`),
+    }));
+    const importer = createLocalProjectImportService({
+      descriptors: [{ id: "sample-saas", label: "Sample", mode: "remote", operational: true }],
+      loadAdapter,
+      validateName: requireProjectName,
+    });
+    const { connectionId } = await importer.connectSource({ provider: "sample-saas", ownerId: 7 });
+    const page = await importer.listResources({ provider: "sample-saas", connectionId, ownerId: 7 });
+    expect(page).toEqual({ items: [{ id: "doc-1", name: "Page", kind: "document" }], nextCursor: null });
+    await expect(importer.importProject({
+      parentPath,
+      ownerId: 7,
+      source: { provider: "sample-saas", connectionId, resourceId: "doc-1" },
+    })).resolves.toMatchObject({ name: "Imported" });
+    expect(await readFile(path.join(parentPath, "Imported", "notes", "page.md"), "utf8")).toBe("# secret\n");
+    expect(loadAdapter).toHaveBeenCalledOnce();
+  });
+
+  it("binds remote connections and selected resources to their owner", async () => {
+    const materialize = vi.fn();
+    const importer = createLocalProjectImportService({
+      descriptors: [{ id: "sample-saas", label: "Sample", mode: "remote", operational: true }],
+      adapters: { "sample-saas": {
+        mode: "remote",
+        connect: async () => ({}),
+        listResources: async () => ({ items: [{ id: "allowed", name: "Allowed", kind: "document" }], nextCursor: null }),
+        inspect: async (source) => ({ name: "Imported", source }),
+        materialize,
+      } },
+      validateName: requireProjectName,
+    });
+    const { connectionId } = await importer.connectSource({ provider: "sample-saas", ownerId: 7 });
+    await expect(importer.listResources({ provider: "sample-saas", connectionId, ownerId: 8 }))
+      .rejects.toMatchObject({ code: "IMPORT_CONNECTION_EXPIRED" });
+    await expect(importer.importProject({ parentPath, ownerId: 7,
+      source: { provider: "sample-saas", connectionId, resourceId: "guessed" } }))
+      .rejects.toThrow(/Choose a resource/);
+    await importer.listResources({ provider: "sample-saas", connectionId, ownerId: 7 });
+    await expect(importer.importProject({ parentPath, ownerId: 8,
+      source: { provider: "sample-saas", connectionId, resourceId: "allowed" } }))
+      .rejects.toMatchObject({ code: "IMPORT_CONNECTION_EXPIRED" });
+    expect(materialize).not.toHaveBeenCalled();
+    expect(await readdir(parentPath)).toEqual([]);
+  });
+
+  it("rejects a provider path outside the project and removes the staging directory", async () => {
+    const importer = createLocalProjectImportService({
+      descriptors: [{ id: "sample-saas", label: "Sample", mode: "remote", operational: true }],
+      adapters: { "sample-saas": {
+        mode: "remote",
+        connect: async () => ({}),
+        listResources: async () => ({ items: [{ id: "doc", name: "Doc", kind: "document" }], nextCursor: null }),
+        inspect: async (source) => ({ name: "Imported", source }),
+        materialize: async ({ writer }) => writer.writeFile("../outside.md", "bad"),
+      } },
+      validateName: requireProjectName,
+    });
+    const { connectionId } = await importer.connectSource({ provider: "sample-saas", ownerId: 7 });
+    await importer.listResources({ provider: "sample-saas", connectionId, ownerId: 7 });
+    await expect(importer.importProject({ parentPath, ownerId: 7,
+      source: { provider: "sample-saas", connectionId, resourceId: "doc" } }))
+      .rejects.toMatchObject({ code: "INVALID_IMPORT_PATH" });
+    expect(await readdir(parentPath)).toEqual([]);
+  });
+
+  it("cancels a remote file stream before publication and cleans up its staging directory", async () => {
+    const controller = new AbortController();
+    const importer = createLocalProjectImportService({
+      descriptors: [{ id: "sample-saas", label: "Sample", mode: "remote", operational: true }],
+      adapters: { "sample-saas": {
+        mode: "remote",
+        connect: async () => ({}),
+        listResources: async () => ({ items: [{ id: "doc", name: "Doc", kind: "document" }], nextCursor: null }),
+        inspect: async (source) => ({ name: "Imported", source }),
+        materialize: async ({ writer }) => writer.writeFile("large.bin", (async function* () {
+          yield new Uint8Array([1]);
+          controller.abort();
+          yield new Uint8Array([2]);
+        })()),
+      } },
+      validateName: requireProjectName,
+    });
+    const { connectionId } = await importer.connectSource({ provider: "sample-saas", ownerId: 7 });
+    await importer.listResources({ provider: "sample-saas", connectionId, ownerId: 7 });
+    await expect(importer.importProject({ parentPath, ownerId: 7, signal: controller.signal,
+      source: { provider: "sample-saas", connectionId, resourceId: "doc" } }))
+      .rejects.toThrow(/cancelled/);
     expect(await readdir(parentPath)).toEqual([]);
   });
 });

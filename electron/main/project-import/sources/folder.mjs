@@ -20,7 +20,7 @@ export function createFolderImportSource({ io = fs, requireProjectName }) {
         source: { ...source, sourcePath: canonicalPath },
       };
     },
-    async materialize({ source, stagingPath, targetPath, signal }) {
+    async materialize({ source, writer, targetPath, signal }) {
       // Staging is a sibling of target. A destination inside the source would
       // otherwise cause the copy to discover its own output recursively.
       const relative = path.relative(source.sourcePath, targetPath);
@@ -44,7 +44,7 @@ export function createFolderImportSource({ io = fs, requireProjectName }) {
           }
         }
       }
-      await copyDirectory(source.sourcePath, stagingPath);
+      await writer.materializeDirectory((stagingPath) => copyDirectory(source.sourcePath, stagingPath));
     },
   });
 }

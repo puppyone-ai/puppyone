@@ -1,5 +1,6 @@
 export type LocalImportSource = Readonly<{
-  id: "github" | "gitlab" | "notion" | "google-drive" | "obsidian" | "airtable";
+  id: string;
+  label: string;
   mode: "repository" | "remote" | "folder";
   availability: "ready" | "experimental";
   operational: boolean;
@@ -7,4 +8,3 @@ export type LocalImportSource = Readonly<{
   stepCount?: number;
 }>;
 export const LOCAL_IMPORT_SOURCES: readonly LocalImportSource[];
-export function getLocalImportSource(id: string): LocalImportSource | null;

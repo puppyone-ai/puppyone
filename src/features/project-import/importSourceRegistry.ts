@@ -4,9 +4,10 @@ import { LOCAL_IMPORT_SOURCES } from "../../../shared/project-import/sources.mjs
 export type RepositoryImportSource = "github" | "gitlab";
 export type ExperimentalImportSource = "notion" | "google-drive" | "obsidian" | "airtable";
 export type LocalFolderImportSource = "obsidian";
-export type ImportSourceBrand = RepositoryImportSource | ExperimentalImportSource;
+export type ImportSourceBrand = string;
 export type ImportSourceDescriptor = Readonly<{
   id: ImportSourceBrand;
+  label: string;
   mode: "repository" | "remote" | "folder";
   availability: "ready" | "experimental";
   operational: boolean;

@@ -80,7 +80,7 @@ export function ProjectEntryLauncherDialog({
             />
             <ProjectEntryOption
               icon={<Download />}
-              label={t("onboarding.action.cloneRepository")}
+              label={t("onboarding.action.importFromApps")}
               accessory={<ImportSourcePreview brands={importPreviewBrands} />}
               disabled={!canImport}
               onClick={onImport}

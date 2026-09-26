@@ -25,8 +25,9 @@ import type {
   LastWorkspaceResult,
   PuppyoneWorkspaceConfig,
   RecentWorkspacesResult,
-  WorkspaceCloneRepositoryRequest,
-  WorkspaceImportLocalFolderRequest,
+  WorkspaceImportSourceRequest,
+  WorkspaceImportResourcePage,
+  WorkspaceImportProgress,
   WorkspaceCreateProjectRequest,
   WorkspaceCreateProjectResult,
   WorkspaceCreateEntryKind,
@@ -378,16 +379,29 @@ export async function getDefaultLocalProjectLocation(): Promise<WorkspaceProject
   return getDesktopBridge().getDefaultLocalProjectLocation();
 }
 
-export async function cloneRepository(
-  request: WorkspaceCloneRepositoryRequest,
-): Promise<WorkspaceOpenResult | null> {
-  return getDesktopBridge().cloneRepository(request);
+export async function connectImportSource(provider: string): Promise<{ connectionId: string }> {
+  return getDesktopBridge().connectImportSource({ provider });
 }
 
-export async function importLocalFolder(
-  request: WorkspaceImportLocalFolderRequest,
-): Promise<WorkspaceOpenResult | null> {
-  return getDesktopBridge().importLocalFolder(request);
+export async function listImportResources(request: {
+  provider: string;
+  connectionId: string;
+  parentId?: string | null;
+  cursor?: string | null;
+}): Promise<WorkspaceImportResourcePage> {
+  return getDesktopBridge().listImportResources(request);
+}
+
+export async function importSource(request: WorkspaceImportSourceRequest): Promise<WorkspaceOpenResult | null> {
+  return getDesktopBridge().importSource(request);
+}
+
+export async function cancelImportSource(taskId: string): Promise<{ cancelled: boolean }> {
+  return getDesktopBridge().cancelImportSource({ taskId });
+}
+
+export function onImportSourceProgress(listener: (progress: WorkspaceImportProgress) => void): () => void {
+  return getDesktopBridge().onImportSourceProgress(listener);
 }
 
 export async function createWorkspaceEntry(

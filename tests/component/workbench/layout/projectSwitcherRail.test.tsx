@@ -760,13 +760,13 @@ describe("Project switcher rail", () => {
   });
 
   it("hands the in-project launcher off to the shared Import flow", async () => {
-    const onImportRepository = vi.fn(async () => true);
+    const onImportSource = vi.fn(async () => true);
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
 
     await act(async () => root?.render(withTestLocalization(
-      <ProjectEntryFlowHarness onImportRepository={onImportRepository} />,
+      <ProjectEntryFlowHarness onImportSource={onImportSource} />,
     )));
     await act(async () => host.querySelector<HTMLButtonElement>("[data-open-project-entry]")?.click());
 
@@ -779,14 +779,14 @@ describe("Project switcher rail", () => {
     expect(host.querySelector(".desktop-project-entry-launcher")).toBeNull();
     expect(host.querySelector("[role='dialog']")?.getAttribute("aria-label")).toBe("Import");
     expect(host.querySelectorAll(".onboarding-import-source")).toHaveLength(2);
-    expect(onImportRepository).not.toHaveBeenCalled();
+    expect(onImportSource).not.toHaveBeenCalled();
   });
 });
 
 function ProjectEntryFlowHarness({
-  onImportRepository,
+  onImportSource,
 }: {
-  onImportRepository: () => Promise<boolean>;
+  onImportSource: () => Promise<boolean>;
 }) {
   const controller = useProjectEntryFlow();
   return (
@@ -801,7 +801,11 @@ function ProjectEntryFlowHarness({
         onCreateProject={async () => {
           throw new Error("not used");
         }}
-        onImportRepository={onImportRepository}
+        onImportSource={onImportSource}
+        onConnectSource={async () => ({ connectionId: "test" })}
+        onListResources={async () => ({ items: [], nextCursor: null })}
+        onCancelImport={async () => ({ cancelled: true })}
+        onImportProgress={() => () => undefined}
       />
     </>
   );

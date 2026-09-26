@@ -36,17 +36,20 @@ describe("workspace folder drop preload boundary", () => {
       name: "Notes",
       locationGrantId: "location-1",
     });
-    await bridge.cloneRepository({
+    await bridge.importSource({
       provider: "github",
-      repositoryUrl: "https://github.com/owner/repository.git",
+      taskId: "task-1",
+      selection: { repositoryUrl: "https://github.com/owner/repository.git" },
     });
-    expect(invoke).toHaveBeenCalledWith("workspace:clone-repository-current", {
+    expect(invoke).toHaveBeenCalledWith("workspace:import-source-current", {
       provider: "github",
-      repositoryUrl: "https://github.com/owner/repository.git",
+      taskId: "task-1",
+      selection: { repositoryUrl: "https://github.com/owner/repository.git" },
     });
-    await bridge.importLocalFolder({ provider: "obsidian", locationGrantId: "location-1" });
-    expect(invoke).toHaveBeenCalledWith("workspace:import-folder-current", {
+    await bridge.importSource({ provider: "obsidian", taskId: "task-2", locationGrantId: "location-1" });
+    expect(invoke).toHaveBeenCalledWith("workspace:import-source-current", {
       provider: "obsidian",
+      taskId: "task-2",
       locationGrantId: "location-1",
     });
   });

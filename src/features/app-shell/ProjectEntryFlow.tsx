@@ -2,8 +2,9 @@ import { useCallback, useMemo, useState } from "react";
 import { OnboardingImportDialog } from "../../components/OnboardingImportDialog";
 import { OnboardingProjectEntryDialog } from "../../components/OnboardingProjectEntryDialog";
 import type {
-  WorkspaceCloneRepositoryRequest,
-  WorkspaceImportLocalFolderRequest,
+  WorkspaceImportSourceRequest,
+  WorkspaceImportResourcePage,
+  WorkspaceImportProgress,
   WorkspaceCreateProjectRequest,
   WorkspaceCreateProjectResult,
   WorkspaceProjectLocationGrant,
@@ -57,8 +58,11 @@ export type ProjectEntryFlowProps = Readonly<{
   onCreateProject?: (
     request: WorkspaceCreateProjectRequest,
   ) => Promise<WorkspaceCreateProjectResult>;
-  onImportRepository?: (request: WorkspaceCloneRepositoryRequest) => Promise<boolean>;
-  onImportFolder?: (request: WorkspaceImportLocalFolderRequest) => Promise<boolean>;
+  onImportSource?: (request: WorkspaceImportSourceRequest) => Promise<boolean>;
+  onConnectSource?: (provider: string) => Promise<{ connectionId: string }>;
+  onListResources?: (request: { provider: string; connectionId: string; parentId?: string | null; cursor?: string | null }) => Promise<WorkspaceImportResourcePage>;
+  onCancelImport?: (taskId: string) => Promise<{ cancelled: boolean }>;
+  onImportProgress?: (listener: (progress: WorkspaceImportProgress) => void) => () => void;
   experimentalSettings?: ExperimentalSettings;
 }>;
 
@@ -68,8 +72,11 @@ export function ProjectEntryFlow({
   onDefaultLocation,
   onChooseLocation,
   onCreateProject,
-  onImportRepository,
-  onImportFolder,
+  onImportSource,
+  onConnectSource,
+  onListResources,
+  onCancelImport,
+  onImportProgress,
   experimentalSettings = DEFAULT_EXPERIMENTAL_SETTINGS,
 }: ProjectEntryFlowProps) {
   const visibleImportSources = resolveVisibleImportSources(experimentalSettings);
@@ -79,7 +86,7 @@ export function ProjectEntryFlow({
     return (
       <ProjectEntryLauncherDialog
         canCreateProject={Boolean(onCreateProject && onChooseLocation)}
-        canImport={Boolean(onImportRepository && onImportFolder)}
+        canImport={Boolean(onImportSource)}
         importPreviewBrands={importPreviewBrands}
         onClose={controller.close}
         onOpenFolder={() => {
@@ -103,14 +110,17 @@ export function ProjectEntryFlow({
     );
   }
 
-  if (controller.step === "import" && onImportRepository && onImportFolder) {
+  if (controller.step === "import" && onImportSource && onConnectSource && onListResources && onCancelImport && onImportProgress) {
     return (
       <OnboardingImportDialog
         onClose={controller.close}
         onDefaultLocation={onDefaultLocation}
         onChooseLocation={onChooseLocation}
-        onImportRepository={onImportRepository}
-        onImportFolder={onImportFolder}
+        onImportSource={onImportSource}
+        onConnectSource={onConnectSource}
+        onListResources={onListResources}
+        onCancelImport={onCancelImport}
+        onImportProgress={onImportProgress}
         visibleSources={visibleImportSources}
       />
     );

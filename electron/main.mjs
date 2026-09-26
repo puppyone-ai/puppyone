@@ -135,7 +135,6 @@ import {
   requireProjectName,
 } from "./main/project-entry-service.mjs";
 import { createProjectLocationGrantStore } from "./main/project-location-grants.mjs";
-import { getLocalImportSource } from "../shared/project-import/sources.mjs";
 import { createDesktopLocaleService } from "./main/localization/desktop-locale-service.mjs";
 import { createWorkspaceWatchService } from "./main/workspace-watch-service.mjs";
 import { createWorkspaceMutationTracker } from "./main/workspace-mutation-tracker.mjs";
@@ -492,6 +491,7 @@ const projectEntryService = createProjectEntryService({
   journalDirectory: () => path.join(app.getPath("userData"), "project-initialization"),
 });
 const projectEntryOperationSenders = new Set();
+const importSourceTasks = new Map();
 const projectLocationGrants = createProjectLocationGrantStore();
 /** Folder under the user's Documents directory that hosts projects created without a folder picker. */
 const DEFAULT_PROJECTS_FOLDER_NAME = "PuppyOne";
@@ -1081,8 +1081,10 @@ function registerIpcHandlers() {
     openWorkspaceInCurrentWindow,
     openWorkspaceInNewWindow,
     createProjectForCurrentWindow,
-    cloneRepositoryForCurrentWindow,
-    importFolderForCurrentWindow,
+    connectImportSourceForCurrentWindow,
+    listImportResourcesForCurrentWindow,
+    importSourceForCurrentWindow,
+    cancelImportSourceForCurrentWindow,
     selectProjectLocationForCurrentWindow,
     getDefaultProjectLocationForCurrentWindow,
     selectWorkspaceForCurrentWindow,
@@ -1428,56 +1430,98 @@ async function getDefaultProjectLocationForCurrentWindow(sender) {
   });
 }
 
-async function cloneRepositoryForCurrentWindow(sender, request) {
-  const expectedProvider = request?.provider ?? null;
-  const repository = requireGitRepository(request?.repositoryUrl, expectedProvider);
-  return runProjectEntryOperation(sender, async () => {
-    const grantId = typeof request?.locationGrantId === "string" && request.locationGrantId
-      ? request.locationGrantId
-      : null;
-    const parentPath = grantId
-      ? projectLocationGrants.resolve(sender, grantId)
-      : await selectProjectParentDirectory(sender, "clone");
-    if (!parentPath) return null;
-    const project = await projectEntryService.cloneRepository({
-      parentPath,
-      provider: repository.provider,
-      repositoryUrl: repository.url,
-    });
-    if (grantId) projectLocationGrants.revoke(sender, grantId);
-    return openWorkspaceInCurrentWindow(sender, project.path);
+async function connectImportSourceForCurrentWindow(sender, request) {
+  return runProjectEntryOperation(sender, () => projectEntryService.connectImportSource({
+    provider: request?.provider,
+    ownerId: sender.id,
+    context: { ownerWindow: getDialogOwnerWindow(sender), shell },
+  }));
+}
+
+async function listImportResourcesForCurrentWindow(sender, request) {
+  return projectEntryService.listImportResources({
+    provider: request?.provider,
+    connectionId: request?.connectionId,
+    ownerId: sender.id,
+    parentId: request?.parentId ?? null,
+    cursor: request?.cursor ?? null,
   });
 }
 
-async function importFolderForCurrentWindow(sender, request) {
-  if (getLocalImportSource(request?.provider)?.mode !== "folder") {
-    throw new Error("Unsupported local folder import source.");
+async function importSourceForCurrentWindow(sender, request) {
+  const descriptor = projectEntryService.getImportSource(request?.provider);
+  if (!descriptor?.operational) {
+    throw new Error("This import source is not available yet.");
+  }
+  const taskId = request?.taskId;
+  if (typeof taskId !== "string" || !/^[A-Za-z0-9_-]{1,100}$/.test(taskId)) {
+    throw new Error("An import task ID is required.");
   }
   return runProjectEntryOperation(sender, async () => {
-    const ownerWindow = getDialogOwnerWindow(sender);
-    const options = {
-      title: localeService.t("native.workspace.import.chooseSource"),
-      properties: ["openDirectory"],
-    };
-    const selected = ownerWindow && !ownerWindow.isDestroyed()
-      ? await dialog.showOpenDialog(ownerWindow, options)
-      : await dialog.showOpenDialog(options);
-    if (selected.canceled || selected.filePaths.length === 0) return null;
-    const sourcePath = selected.filePaths[0];
+    let source;
+    if (descriptor.mode === "folder") {
+      const ownerWindow = getDialogOwnerWindow(sender);
+      const options = {
+        title: localeService.t("native.workspace.import.chooseSource"),
+        properties: ["openDirectory"],
+      };
+      const selected = ownerWindow && !ownerWindow.isDestroyed()
+        ? await dialog.showOpenDialog(ownerWindow, options)
+        : await dialog.showOpenDialog(options);
+      if (selected.canceled || selected.filePaths.length === 0) return null;
+      source = { provider: descriptor.id, sourcePath: selected.filePaths[0] };
+    } else if (descriptor.mode === "repository") {
+      const repository = requireGitRepository(request?.selection?.repositoryUrl, descriptor.id);
+      source = { provider: descriptor.id, repositoryUrl: repository.url };
+    } else {
+      const connectionId = request?.selection?.connectionId;
+      const resourceId = request?.selection?.resourceId;
+      if (typeof connectionId !== "string" || typeof resourceId !== "string" || !resourceId) {
+        throw new Error("Choose a connected resource before importing.");
+      }
+      source = { provider: descriptor.id, connectionId, resourceId };
+    }
     const grantId = typeof request?.locationGrantId === "string" && request.locationGrantId
       ? request.locationGrantId
       : null;
     const parentPath = grantId
       ? projectLocationGrants.resolve(sender, grantId)
-      : await selectProjectParentDirectory(sender, "create");
+      : await selectProjectParentDirectory(sender, descriptor.mode === "repository" ? "clone" : "create");
     if (!parentPath) return null;
-    const project = await projectEntryService.importProject({
-      parentPath,
-      source: { kind: "folder", provider: request?.provider, sourcePath },
-    });
-    if (grantId) projectLocationGrants.revoke(sender, grantId);
-    return openWorkspaceInCurrentWindow(sender, project.path);
+    const controller = new AbortController();
+    const task = { taskId, controller, phase: "preparing" };
+    importSourceTasks.set(sender.id, task);
+    try {
+      const project = await projectEntryService.importProject({
+        parentPath,
+        source,
+        ownerId: sender.id,
+        signal: controller.signal,
+        onProgress: (progress) => {
+          task.phase = progress.phase;
+          try {
+            if (!sender.isDestroyed()) sender.send("workspace:import-source-progress", { taskId, ...progress });
+          } catch {
+            // A closing window must not turn a completed local import into a failure.
+          }
+        },
+      });
+      importSourceTasks.delete(sender.id);
+      if (grantId) projectLocationGrants.revoke(sender, grantId);
+      return openWorkspaceInCurrentWindow(sender, project.path);
+    } finally {
+      importSourceTasks.delete(sender.id);
+    }
   });
+}
+
+function cancelImportSourceForCurrentWindow(sender, request) {
+  const task = importSourceTasks.get(sender.id);
+  if (!task || task.taskId !== request?.taskId || task.phase === "publishing" || task.phase === "complete") {
+    return { cancelled: false };
+  }
+  task.controller.abort();
+  return { cancelled: true };
 }
 
 async function selectProjectParentDirectory(sender, kind) {

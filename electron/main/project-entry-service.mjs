@@ -3,8 +3,6 @@ import path from "node:path";
 import { cloneGitRepository } from "../../local-api/git/runner.mjs";
 import { createProjectInitializationService } from "./project-initialization-service.mjs";
 import { createLocalProjectImportService } from "./project-import/service.mjs";
-import { createGitImportSource } from "./project-import/sources/git.mjs";
-import { createFolderImportSource } from "./project-import/sources/folder.mjs";
 
 const PROJECT_NAME_MAX_LENGTH = 120;
 const WINDOWS_RESERVED_NAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
@@ -16,20 +14,24 @@ export function createProjectEntryService({
   journalDirectory = null,
 } = {}) {
   const initialization = createProjectInitializationService({ journalDirectory });
-  const gitImport = createGitImportSource({ cloneGit, requireGitRepository });
-  const folderImport = createFolderImportSource({ io: fsPromises, requireProjectName });
   const imports = createLocalProjectImportService({
     io: fsPromises,
     validateName: requireProjectName,
-    adapters: {
-      github: gitImport,
-      gitlab: gitImport,
-      obsidian: folderImport,
+    loadAdapter: async (id) => {
+      const module = await import(`./project-import/sources/${id}.mjs`);
+      return module.createImportSource({ cloneGit, requireGitRepository, io: fsPromises, requireProjectName });
     },
   });
-  async function importProject({ parentPath, source, signal }) {
+  async function importProject({ parentPath, source, ownerId, signal, onProgress }) {
     const canonicalParent = await requireDirectory(parentPath, fsPromises, pathModule);
-    return imports.importProject({ parentPath: canonicalParent, source, signal });
+    try {
+      return await imports.importProject({ parentPath: canonicalParent, source, ownerId, signal, onProgress });
+    } catch (error) {
+      if (source?.provider === "github" || source?.provider === "gitlab") {
+        throw normalizeCloneError(error, source.provider);
+      }
+      throw error;
+    }
   }
   return Object.freeze({
     async createProject({ parentPath, name, source = { kind: "blank" }, locale = "en", operationId }) {
@@ -52,19 +54,10 @@ export function createProjectEntryService({
 
     importProject,
 
-    async cloneRepository({ parentPath, provider = null, repositoryUrl, signal }) {
-      const repository = requireGitRepository(repositoryUrl, provider);
-      try {
-        const project = await importProject({
-          parentPath,
-          source: { kind: "git", provider: repository.provider, repositoryUrl: repository.url },
-          signal,
-        });
-        return { ...project, repositoryUrl: repository.url };
-      } catch (error) {
-        throw normalizeCloneError(error, repository.provider);
-      }
-    },
+    connectImportSource: imports.connectSource,
+    listImportResources: imports.listResources,
+    getImportSource: imports.registry.get,
+
   });
 }
 
@@ -241,7 +234,7 @@ function normalizeCloneError(error, provider) {
   if (error?.name === "AbortError" || error?.code === "ABORT_ERR") {
     return projectEntryError("CLONE_CANCELLED", "Repository cloning was cancelled.");
   }
-  if (typeof error?.code === "string" && error.code.startsWith("PROJECT_")) return error;
+  if (typeof error?.code === "string" && /^(PROJECT_|INVALID_|IMPORT_)/.test(error.code)) return error;
   const diagnostic = typeof error?.stderr === "string" ? error.stderr.trim() : "";
   if (/authentication failed|could not read username|permission denied \(publickey\)|terminal prompts disabled/i.test(diagnostic)) {
     const providerLabel = getProviderLabel(provider) ?? "Git provider";

@@ -6,8 +6,8 @@ export function createGitImportSource({ cloneGit, requireGitRepository }) {
       const repository = requireGitRepository(source.repositoryUrl, source.provider);
       return { name: repository.name, source: repository };
     },
-    async materialize({ source, stagingPath, signal }) {
-      await cloneGit(stagingPath, source.url, { signal });
+    async materialize({ source, writer, signal }) {
+      await writer.materializeDirectory((stagingPath) => cloneGit(stagingPath, source.url, { signal }));
     },
   });
 }

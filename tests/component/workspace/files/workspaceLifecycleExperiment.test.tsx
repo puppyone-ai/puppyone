@@ -20,7 +20,7 @@ import { createWorkbenchDataService } from "../../../../src/features/data-worksp
 
 const localFiles = vi.hoisted(() => ({
   attachWorkspaceFolder: vi.fn(),
-  cloneRepository: vi.fn(),
+  importSource: vi.fn(),
   copyWorkspaceEntryBetweenRoots: vi.fn(),
   createLocalDataPort: vi.fn(),
   createLocalProject: vi.fn(),

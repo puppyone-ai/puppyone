@@ -6,6 +6,7 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MinimalOnboarding, type MinimalOnboardingProps } from "../../../../src/components/MinimalOnboarding";
+import { OnboardingImportDialog } from "../../../../src/components/OnboardingImportDialog";
 import { PUPPY_BRAND_MARK_ASSETS } from "../../../../src/components/brand/PuppyBrandMark";
 import {
   EMPTY_STATE_INTRO_FALLBACK_TIMEOUT_MS,
@@ -316,12 +317,12 @@ describe("project folder home", () => {
       path: "/Users/example/Desktop",
     }));
     const onCreateProject = vi.fn(createProjectResult);
-    const onCloneRepository = vi.fn(async () => true);
+    const onImportSource = vi.fn(async () => true);
     const container = renderHome({
       onChooseWorkspace,
       onChooseProjectLocation,
       onCreateProject,
-      onCloneRepository,
+      onImportSource,
     });
 
     expectBrandLockup(container);
@@ -338,7 +339,7 @@ describe("project folder home", () => {
     expect(actions[0]?.classList.contains("onboarding-entry-action-default")).toBe(true);
     expect(actions[0]?.dataset.onboardingAction).toBe("create");
     expect(actions[1]?.dataset.onboardingAction).toBe("open");
-    expect(actions[2]?.dataset.onboardingAction).toBe("clone");
+    expect(actions[2]?.dataset.onboardingAction).toBe("import");
     expect(actions[0]?.classList.contains("onboarding-entry-action-folder")).toBe(false);
     expect(actions[0]?.querySelector(".onboarding-entry-create-icon")).not.toBeNull();
     expect(actions[1]?.querySelector(".lucide-folder-open")).not.toBeNull();
@@ -383,7 +384,7 @@ describe("project folder home", () => {
     await act(async () => actions[1]?.click());
     expect(onChooseWorkspace).toHaveBeenCalledTimes(1);
     expect(onCreateProject).not.toHaveBeenCalled();
-    expect(onCloneRepository).not.toHaveBeenCalled();
+    expect(onImportSource).not.toHaveBeenCalled();
   });
 
   it("prefills the name and built-in projects folder for one-action creation", async () => {
@@ -498,12 +499,12 @@ describe("project folder home", () => {
   });
 
   it("hides experimental sources by default", async () => {
-    const onCloneRepository = vi.fn(async () => true);
+    const onImportSource = vi.fn(async () => true);
     const onChooseWorkspace = vi.fn(async () => undefined);
-    const container = renderHome({ onCloneRepository, onChooseWorkspace });
+    const container = renderHome({ onImportSource, onChooseWorkspace });
 
     await act(async () => {
-      container.querySelector<HTMLButtonElement>("[data-onboarding-action='clone']")?.click();
+      container.querySelector<HTMLButtonElement>("[data-onboarding-action='import']")?.click();
     });
     const dialog = container.querySelector<HTMLElement>("[role='dialog']");
     expect(dialog?.getAttribute("aria-label")).toBe("Import");
@@ -539,7 +540,7 @@ describe("project folder home", () => {
     expect(sources.slice(2)).toHaveLength(0);
     expect(container.querySelector(".onboarding-import-source .lucide-folder-open")).toBeNull();
     expect(onChooseWorkspace).not.toHaveBeenCalled();
-    expect(onCloneRepository).not.toHaveBeenCalled();
+    expect(onImportSource).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -551,7 +552,7 @@ describe("project folder home", () => {
   ])("opens the common source picker from the import entry (%s)", async (selector) => {
     const onDefaultProjectLocation = vi.fn(async () => null);
     const container = renderHome({
-      onCloneRepository: vi.fn(async () => true),
+      onImportSource: vi.fn(async () => true),
       onChooseWorkspace: vi.fn(async () => undefined),
       onDefaultProjectLocation,
       experimentalSettings: ALL_EXPERIMENTAL_IMPORTS,
@@ -588,11 +589,10 @@ describe("project folder home", () => {
   });
 
   it("keeps remote providers unavailable until direct service adapters exist", async () => {
-    const onImportLocalFolder = vi.fn(async () => true);
+    const onImportSource = vi.fn(async () => true);
     const container = renderHome({
       experimentalSettings: ALL_EXPERIMENTAL_IMPORTS,
-      onCloneRepository: vi.fn(async () => true),
-      onImportLocalFolder,
+      onImportSource,
     });
     await act(async () => container.querySelector<HTMLButtonElement>(".onboarding-entry-import")?.click());
     for (const source of ["notion", "google-drive", "airtable"]) {
@@ -603,21 +603,62 @@ describe("project folder home", () => {
       await act(async () => button?.click());
     }
     expect(container.querySelector("[role='dialog']")?.getAttribute("aria-label")).toBe("Import");
-    expect(onImportLocalFolder).not.toHaveBeenCalled();
+    expect(onImportSource).not.toHaveBeenCalled();
+  });
+
+  it("uses the generic connection and resource picker for a registered SaaS source", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    const onClose = vi.fn();
+    const onConnectSource = vi.fn(async () => ({ connectionId: "session-1" }));
+    const onListResources = vi.fn(async () => ({
+      items: [{ id: "page-1", name: "Team notes", kind: "document" as const }],
+      nextCursor: null,
+    }));
+    const onImportSource = vi.fn(async () => true);
+    act(() => renderWithTestLocalization(root, <OnboardingImportDialog
+      onClose={onClose}
+      onImportSource={onImportSource}
+      onConnectSource={onConnectSource}
+      onListResources={onListResources}
+      onCancelImport={async () => ({ cancelled: true })}
+      onImportProgress={() => () => undefined}
+      visibleSources={[{ id: "sample-saas", label: "Sample SaaS", mode: "remote", availability: "experimental", operational: true, preview: false }]}
+    />));
+    await act(async () => container.querySelector<HTMLButtonElement>("[data-import-source='sample-saas']")?.click());
+    expect(container.querySelector("[role='dialog']")?.getAttribute("aria-label")).toBe("Import from Sample SaaS");
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>(".desktop-dialog-body .desktop-dialog-button.primary")?.click();
+      await Promise.resolve();
+    });
+    expect(onConnectSource).toHaveBeenCalledWith("sample-saas");
+    expect(onListResources).toHaveBeenCalledWith({ provider: "sample-saas", connectionId: "session-1", parentId: null, cursor: null });
+    await act(async () => container.querySelector<HTMLInputElement>("input[value='page-1']")?.click());
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>(".desktop-dialog-footer .desktop-dialog-button.primary")?.click();
+      await Promise.resolve();
+    });
+    expect(onImportSource).toHaveBeenCalledWith({
+      provider: "sample-saas",
+      taskId: expect.any(String),
+      selection: { connectionId: "session-1", resourceId: "page-1" },
+      locationGrantId: null,
+    });
+    expect(onClose).toHaveBeenCalledOnce();
   });
 
   it("copies an Obsidian vault through the local source adapter", async () => {
     const onChooseWorkspace = vi.fn(async () => undefined);
-    const onImportLocalFolder = vi.fn(async () => true);
+    const onImportSource = vi.fn(async () => true);
     const container = renderHome({
       experimentalSettings: ALL_EXPERIMENTAL_IMPORTS,
-      onCloneRepository: vi.fn(async () => true),
+      onImportSource,
       onChooseWorkspace,
-      onImportLocalFolder,
     });
 
     await act(async () => {
-      container.querySelector<HTMLButtonElement>("[data-onboarding-action='clone']")?.click();
+      container.querySelector<HTMLButtonElement>("[data-onboarding-action='import']")?.click();
     });
     await act(async () => {
       container.querySelector<HTMLButtonElement>(".onboarding-import-source[data-import-source='obsidian']")?.click();
@@ -628,20 +669,20 @@ describe("project folder home", () => {
       await Promise.resolve();
     });
     expect(container.querySelector(".onboarding-entry-dialog")).toBeNull();
-    expect(onImportLocalFolder).toHaveBeenCalledWith({ provider: "obsidian", locationGrantId: null });
+    expect(onImportSource).toHaveBeenCalledWith({ provider: "obsidian", locationGrantId: null, taskId: expect.any(String) });
     expect(onChooseWorkspace).not.toHaveBeenCalled();
   });
 
   it("imports a GitHub repository into the default location without a folder picker", async () => {
-    const onCloneRepository = vi.fn(async () => true);
+    const onImportSource = vi.fn(async () => true);
     const onDefaultProjectLocation = vi.fn(async () => ({
       grantId: "default-1",
       path: "/Users/example/Documents/PuppyOne",
     }));
-    const container = renderHome({ onCloneRepository, onDefaultProjectLocation });
+    const container = renderHome({ onImportSource, onDefaultProjectLocation });
 
     await act(async () => {
-      container.querySelector<HTMLButtonElement>("[data-onboarding-action='clone']")?.click();
+      container.querySelector<HTMLButtonElement>("[data-onboarding-action='import']")?.click();
     });
     await act(async () => {
       container.querySelector<HTMLButtonElement>(".onboarding-import-source[data-import-source='github']")?.click();
@@ -671,20 +712,21 @@ describe("project folder home", () => {
       submitButton?.click();
       await Promise.resolve();
     });
-    expect(onCloneRepository).toHaveBeenCalledWith({
+    expect(onImportSource).toHaveBeenCalledWith({
       provider: "github",
-      repositoryUrl: "https://github.com/puppyone-ai/puppyone.git",
+      selection: { repositoryUrl: "https://github.com/puppyone-ai/puppyone.git" },
       locationGrantId: "default-1",
+      taskId: expect.any(String),
     });
     expect(container.querySelector(".onboarding-entry-dialog")).toBeNull();
   });
 
   it("auto-detects a GitLab URL and passes a null grant when no default location exists", async () => {
-    const onCloneRepository = vi.fn(async () => true);
-    const container = renderHome({ onCloneRepository });
+    const onImportSource = vi.fn(async () => true);
+    const container = renderHome({ onImportSource });
 
     await act(async () => {
-      container.querySelector<HTMLButtonElement>("[data-onboarding-action='clone']")?.click();
+      container.querySelector<HTMLButtonElement>("[data-onboarding-action='import']")?.click();
     });
     await act(async () => {
       container.querySelector<HTMLButtonElement>(".onboarding-import-source[data-import-source='gitlab']")?.click();
@@ -696,19 +738,20 @@ describe("project folder home", () => {
       container.querySelector<HTMLButtonElement>(".onboarding-entry-dialog button[type='submit']")?.click();
       await Promise.resolve();
     });
-    expect(onCloneRepository).toHaveBeenCalledWith({
+    expect(onImportSource).toHaveBeenCalledWith({
       provider: "gitlab",
-      repositoryUrl: "git@gitlab.com:puppyone/data/knowledge-base.git",
+      selection: { repositoryUrl: "git@gitlab.com:puppyone/data/knowledge-base.git" },
       locationGrantId: null,
+      taskId: expect.any(String),
     });
   });
 
   it("explains unsupported repository URLs instead of silently disabling Import", async () => {
-    const onCloneRepository = vi.fn(async () => true);
-    const container = renderHome({ onCloneRepository });
+    const onImportSource = vi.fn(async () => true);
+    const container = renderHome({ onImportSource });
 
     await act(async () => {
-      container.querySelector<HTMLButtonElement>("[data-onboarding-action='clone']")?.click();
+      container.querySelector<HTMLButtonElement>("[data-onboarding-action='import']")?.click();
     });
     await act(async () => {
       container.querySelector<HTMLButtonElement>(".onboarding-import-source[data-import-source='github']")?.click();
@@ -723,7 +766,7 @@ describe("project folder home", () => {
     );
     expect(container.querySelector(".onboarding-clone-hint")?.getAttribute("role")).toBe("alert");
     expect(submitButton?.disabled).toBe(true);
-    expect(onCloneRepository).not.toHaveBeenCalled();
+    expect(onImportSource).not.toHaveBeenCalled();
   });
 
   it("shows project-opening progress only inside the project row", async () => {
@@ -916,12 +959,15 @@ function renderHome(
   root = createRoot(container);
   const props: MinimalOnboardingProps = {
     onChooseWorkspace: vi.fn(async () => undefined),
-    onImportLocalFolder: vi.fn(async () => true),
     onOpenDroppedWorkspace: vi.fn(async () => undefined),
     onOpenWorkspacePath: vi.fn(async () => undefined),
     appearance: createTestSurfaceAppearance(appearanceInput),
     ...overrides,
   };
+  props.onConnectImportSource ??= vi.fn(async () => ({ connectionId: "test-connection" }));
+  props.onListImportResources ??= vi.fn(async () => ({ items: [], nextCursor: null }));
+  props.onCancelImportSource ??= vi.fn(async () => ({ cancelled: true }));
+  props.onImportSourceProgress ??= vi.fn(() => () => undefined);
   act(() => renderWithTestLocalization(root, React.createElement(MinimalOnboarding, props)));
   return container;
 }

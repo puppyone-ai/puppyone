@@ -7,8 +7,10 @@ export function registerWorkspaceNavigationIpcHandlers({
   openWorkspaceInCurrentWindow,
   openWorkspaceInNewWindow,
   createProjectForCurrentWindow,
-  cloneRepositoryForCurrentWindow,
-  importFolderForCurrentWindow,
+  connectImportSourceForCurrentWindow,
+  listImportResourcesForCurrentWindow,
+  importSourceForCurrentWindow,
+  cancelImportSourceForCurrentWindow,
   selectProjectLocationForCurrentWindow,
   getDefaultProjectLocationForCurrentWindow,
   selectWorkspaceForCurrentWindow,
@@ -88,12 +90,20 @@ export function registerWorkspaceNavigationIpcHandlers({
     return getDefaultProjectLocationForCurrentWindow(event.sender);
   });
 
-  ipcMain.handle("workspace:clone-repository-current", async (event, request) => {
-    return cloneRepositoryForCurrentWindow(event.sender, request);
+  ipcMain.handle("workspace:import-source-connect", async (event, request) => {
+    return connectImportSourceForCurrentWindow(event.sender, request);
   });
 
-  ipcMain.handle("workspace:import-folder-current", async (event, request) => {
-    return importFolderForCurrentWindow(event.sender, request);
+  ipcMain.handle("workspace:import-source-list", async (event, request) => {
+    return listImportResourcesForCurrentWindow(event.sender, request);
+  });
+
+  ipcMain.handle("workspace:import-source-current", async (event, request) => {
+    return importSourceForCurrentWindow(event.sender, request);
+  });
+
+  ipcMain.handle("workspace:import-source-cancel", async (event, request) => {
+    return cancelImportSourceForCurrentWindow(event.sender, request);
   });
 
   ipcMain.handle("workspace:select-folder", async (event) => {
