@@ -4,9 +4,9 @@ import { useLocalization } from "@puppyone/localization";
 import {
   DEFAULT_VISIBLE_IMPORT_SOURCES,
   IMPORT_SOURCE_REGISTRY,
-  type ExperimentalImportSource,
   type ImportSourceBrand,
   type ImportSourceDescriptor,
+  type LocalFolderImportSource,
   type RepositoryImportSource,
 } from "../features/project-import/importSourceRegistry";
 import type {
@@ -23,9 +23,9 @@ import { ImportSourceMark } from "./onboarding/ImportSourceMark";
 
 /**
  * Import is framed as "bring your work back into files you own", not as a Git
- * operation. GitHub and GitLab clone into a local project. Other sources guide
- * users through an export, then copy the selected folder into a local project.
- * None of these sources connect an account or run ongoing synchronization.
+ * operation. GitHub and GitLab clone into a local project. Obsidian reads a
+ * local vault. Remote providers require a direct connector before they can be
+ * selected; their project files are published by the same Main coordinator.
  */
 export type RepositoryProvider = RepositoryImportSource;
 export type OnboardingImportSource = ImportSourceBrand;
@@ -155,8 +155,8 @@ export function OnboardingImportDialog({
             onImportRepository={onImportRepository}
           />
         )}
-        {source !== null && source !== "github" && source !== "gitlab" && (
-          <GuidedImportStep
+        {source === "obsidian" && (
+          <LocalFolderImportStep
             source={source}
             onBusyChange={setBusy}
             onClose={onClose}
@@ -184,7 +184,7 @@ function ImportSourceList({
     <div className="desktop-dialog-body desktop-file-dialog-body onboarding-entry-dialog-body">
       <p id={introId} className="onboarding-import-intro">{t("onboarding.entry.import.intro")}</p>
       <ul className="onboarding-import-sources">
-        {visibleSources.map(({ id, mode }, index) => (
+        {visibleSources.map(({ id, mode, operational }, index) => (
           <ImportSourceRow
             key={id}
             source={id}
@@ -194,6 +194,8 @@ function ImportSourceList({
               ? REPOSITORY_PROVIDER_LABELS[id]
               : t(`onboarding.entry.import.source.${id}.title`)}
             initialFocus={index === 0}
+            operational={operational}
+            unavailableLabel={t("onboarding.entry.import.directUnavailable")}
             onSelect={onSelect}
           />
         ))}
@@ -208,13 +210,17 @@ function ImportSourceRow({
   icon,
   title,
   initialFocus = false,
+  operational,
+  unavailableLabel,
   onSelect,
 }: {
   source: OnboardingImportSource;
-  mode: "repository" | "folder";
+  mode: "repository" | "remote" | "folder";
   icon: ReactNode;
   title: string;
   initialFocus?: boolean;
+  operational: boolean;
+  unavailableLabel: string;
   onSelect: (source: OnboardingImportSource) => void;
 }) {
   return (
@@ -225,16 +231,19 @@ function ImportSourceRow({
         data-import-source={source}
         data-import-mode={mode}
         data-desktop-dialog-initial-focus={initialFocus ? "true" : undefined}
+        disabled={!operational}
+        title={!operational ? unavailableLabel : undefined}
         onClick={() => onSelect(source)}
       >
         <span className="onboarding-import-source-icon" aria-hidden="true">{icon}</span>
         <span className="onboarding-import-source-label">{title}</span>
+        {!operational && <span className="onboarding-import-source-status">{unavailableLabel}</span>}
       </button>
     </li>
   );
 }
 
-function GuidedImportStep({
+function LocalFolderImportStep({
   source,
   onBusyChange,
   onClose,
@@ -242,7 +251,7 @@ function GuidedImportStep({
   onChooseLocation,
   onImportFolder,
 }: {
-  source: ExperimentalImportSource;
+  source: LocalFolderImportSource;
   onBusyChange: (busy: boolean) => void;
   onClose: () => void;
   onDefaultLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;

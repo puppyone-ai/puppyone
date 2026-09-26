@@ -34,6 +34,7 @@
   "entry.clone.unsupportedUrl": "{provider} リポジトリの URL を入力してください。",
   "entry.import.title": "インポート",
   "entry.import.intro": "これらのアプリの内容をローカルプロジェクトに取り込みます。",
+  "entry.import.directUnavailable": "直接取り込み準備中",
   "entry.import.back": "戻る",
   "entry.import.saveTo": "保存先",
   "entry.import.saveToPicker": "フォルダを選択",

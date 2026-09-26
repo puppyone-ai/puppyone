@@ -1,7 +1,8 @@
 import { useLocalization } from "@puppyone/localization";
+import { IMPORT_SOURCE_REGISTRY } from "../../project-import/importSourceRegistry";
 import { SettingsSectionHeader } from "../components";
 
-const SOURCES = ["notion", "google-drive", "airtable", "obsidian"] as const;
+const SOURCES = IMPORT_SOURCE_REGISTRY.filter(({ availability }) => availability === "experimental");
 
 export function OtherAppImportsSettingsView({ onOpenImport }: { onOpenImport: () => void }) {
   const { t } = useLocalization();
@@ -15,9 +16,10 @@ export function OtherAppImportsSettingsView({ onOpenImport }: { onOpenImport: ()
             detail={t("onboarding.entry.import.intro")}
           />
           <div className="desktop-settings-list">
-            {SOURCES.map((source) => (
-              <div className="desktop-settings-row" key={source}>
-                <span>{t(`onboarding.entry.import.source.${source}.title`)}</span>
+            {SOURCES.map(({ id, operational }) => (
+              <div className="desktop-settings-row" key={id}>
+                <span>{t(`onboarding.entry.import.source.${id}.title`)}</span>
+                {!operational && <span>{t("onboarding.entry.import.directUnavailable")}</span>}
               </div>
             ))}
           </div>

@@ -34,6 +34,7 @@
   "entry.clone.unsupportedUrl": "Gib eine {provider}-Repository-URL ein.",
   "entry.import.title": "Importieren",
   "entry.import.intro": "Übertrage Inhalte aus diesen Apps in ein lokales Projekt.",
+  "entry.import.directUnavailable": "Direktimport folgt",
   "entry.import.back": "Zurück",
   "entry.import.saveTo": "Speichern unter",
   "entry.import.saveToPicker": "Ordner wählen",

@@ -7,6 +7,7 @@ import {
   requireGitRepository,
   requireProjectName,
 } from "../../../../electron/main/project-entry-service.mjs";
+import { createLocalProjectImportService } from "../../../../electron/main/project-import/service.mjs";
 
 let parentPath;
 
@@ -190,11 +191,11 @@ describe("project entry service", () => {
     const service = createProjectEntryService();
     await expect(service.importProject({
       parentPath: destination,
-      source: { kind: "folder", provider: "notion", sourcePath },
+      source: { kind: "folder", provider: "obsidian", sourcePath },
     })).resolves.toMatchObject({
       path: path.join(destination, "notion-export"),
       name: "notion-export",
-      provider: "notion",
+      provider: "obsidian",
     });
     await writeFile(path.join(destination, "notion-export", "pages", "note.md"), "local\n");
     expect(await readFile(path.join(sourcePath, "pages", "note.md"), "utf8")).toBe("source\n");
@@ -230,7 +231,7 @@ describe("project entry service", () => {
     const service = createProjectEntryService();
     await expect(service.importProject({
       parentPath: destination,
-      source: { kind: "folder", provider: "google-drive", sourcePath },
+      source: { kind: "folder", provider: "obsidian", sourcePath },
     })).rejects.toThrow(/symbolic link/);
     expect(await readdir(destination)).toEqual([]);
     expect(await readFile(path.join(parentPath, "outside.txt"), "utf8")).toBe("private");
@@ -245,9 +246,70 @@ describe("project entry service", () => {
     const service = createProjectEntryService();
     await expect(service.importProject({
       parentPath: destination,
-      source: { kind: "folder", provider: "airtable", sourcePath },
+      source: { kind: "folder", provider: "obsidian", sourcePath },
     })).rejects.toThrow(/outside the source folder/);
     expect(await readdir(destination)).toEqual([]);
     expect(await readFile(path.join(sourcePath, "note.md"), "utf8")).toBe("source");
+  });
+
+  it("does not route an unimplemented remote provider through local folder copying", async () => {
+    const sourcePath = path.join(parentPath, "export");
+    await mkdir(sourcePath);
+    await writeFile(path.join(sourcePath, "note.md"), "source");
+
+    const service = createProjectEntryService();
+    await expect(service.importProject({
+      parentPath,
+      source: { kind: "folder", provider: "notion", sourcePath },
+    })).rejects.toMatchObject({ code: "IMPORT_SOURCE_UNAVAILABLE" });
+    expect(await readdir(parentPath)).toEqual(["export"]);
+  });
+
+  it("accepts a registered remote adapter through the same local publication boundary", async () => {
+    const inspect = vi.fn(async (source) => ({ name: "Remote Notes", source }));
+    const materialize = vi.fn(async ({ stagingPath }) => {
+      await writeFile(path.join(stagingPath, "README.md"), "fetched from service\n");
+      await expect(access(path.join(parentPath, "Remote Notes")))
+        .rejects.toMatchObject({ code: "ENOENT" });
+    });
+    const importer = createLocalProjectImportService({
+      validateName: requireProjectName,
+      resolveSource: (id) => id === "remote-notes" ? { id, mode: "remote", operational: true } : null,
+      adapters: { "remote-notes": { mode: "remote", inspect, materialize } },
+    });
+
+    await expect(importer.importProject({
+      parentPath,
+      source: { provider: "remote-notes", resourceId: "page-1" },
+    })).resolves.toMatchObject({
+      path: path.join(parentPath, "Remote Notes"),
+      provider: "remote-notes",
+    });
+    expect(inspect).toHaveBeenCalledWith({ provider: "remote-notes", resourceId: "page-1" });
+    expect(materialize).toHaveBeenCalledOnce();
+    expect(await readFile(path.join(parentPath, "Remote Notes", "README.md"), "utf8"))
+      .toBe("fetched from service\n");
+  });
+
+  it("validates a remote adapter's project name before creating staging", async () => {
+    const materialize = vi.fn();
+    const importer = createLocalProjectImportService({
+      validateName: requireProjectName,
+      resolveSource: () => ({ id: "remote-notes", mode: "remote", operational: true }),
+      adapters: {
+        "remote-notes": {
+          mode: "remote",
+          inspect: async (source) => ({ name: "../escape", source }),
+          materialize,
+        },
+      },
+    });
+
+    await expect(importer.importProject({
+      parentPath,
+      source: { provider: "remote-notes", resourceId: "page-1" },
+    })).rejects.toMatchObject({ code: "INVALID_PROJECT_NAME" });
+    expect(materialize).not.toHaveBeenCalled();
+    expect(await readdir(parentPath)).toEqual([]);
   });
 });

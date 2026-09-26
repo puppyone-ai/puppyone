@@ -547,7 +547,7 @@ describe("project folder home", () => {
     ".onboarding-entry-import .po-button__icon",
     ".onboarding-entry-import-label",
     ".onboarding-entry-import [data-import-brand='github']",
-    ".onboarding-entry-import [data-import-brand='notion']",
+    ".onboarding-entry-import [data-import-brand='obsidian']",
   ])("opens the common source picker from the import entry (%s)", async (selector) => {
     const onDefaultProjectLocation = vi.fn(async () => null);
     const container = renderHome({
@@ -587,31 +587,26 @@ describe("project folder home", () => {
     expect(container.querySelector("[role='dialog']")).toBeNull();
   });
 
-  it("guides Google Drive downloads to a local folder without account connection", async () => {
-    const onChooseWorkspace = vi.fn(async () => undefined);
-    const onCloneRepository = vi.fn(async () => true);
+  it("keeps remote providers unavailable until direct service adapters exist", async () => {
     const onImportLocalFolder = vi.fn(async () => true);
     const container = renderHome({
       experimentalSettings: ALL_EXPERIMENTAL_IMPORTS,
-      onChooseWorkspace,
-      onCloneRepository,
+      onCloneRepository: vi.fn(async () => true),
       onImportLocalFolder,
     });
     await act(async () => container.querySelector<HTMLButtonElement>(".onboarding-entry-import")?.click());
-    await act(async () => container.querySelector<HTMLButtonElement>(".onboarding-import-source[data-import-source='google-drive']")?.click());
-    expect(container.querySelector("[role='dialog']")?.getAttribute("aria-label")).toBe("Import from Google Drive");
-    expect(container.querySelectorAll(".onboarding-import-steps > li")).toHaveLength(3);
-    expect(container.querySelector(".onboarding-import-outcome")?.textContent).toContain("No Google account connection or ongoing sync.");
-    const action = container.querySelector<HTMLButtonElement>(".desktop-dialog-footer .desktop-dialog-button.primary");
-    expect(action?.textContent).toBe("Choose downloaded folder");
-    await act(async () => action?.click());
-    expect(onImportLocalFolder).toHaveBeenCalledWith({ provider: "google-drive", locationGrantId: null });
-    expect(onChooseWorkspace).not.toHaveBeenCalled();
-    expect(onCloneRepository).not.toHaveBeenCalled();
-    expect(container.querySelector("[role='dialog']")).toBeNull();
+    for (const source of ["notion", "google-drive", "airtable"]) {
+      const button = container.querySelector<HTMLButtonElement>(`.onboarding-import-source[data-import-source='${source}']`);
+      expect(button?.dataset.importMode).toBe("remote");
+      expect(button?.disabled).toBe(true);
+      expect(button?.textContent).toContain("Direct import pending");
+      await act(async () => button?.click());
+    }
+    expect(container.querySelector("[role='dialog']")?.getAttribute("aria-label")).toBe("Import");
+    expect(onImportLocalFolder).not.toHaveBeenCalled();
   });
 
-  it("guides a Notion export into the regular folder picker", async () => {
+  it("copies an Obsidian vault through the local source adapter", async () => {
     const onChooseWorkspace = vi.fn(async () => undefined);
     const onImportLocalFolder = vi.fn(async () => true);
     const container = renderHome({
@@ -624,21 +619,6 @@ describe("project folder home", () => {
     await act(async () => {
       container.querySelector<HTMLButtonElement>("[data-onboarding-action='clone']")?.click();
     });
-    await act(async () => {
-      container.querySelector<HTMLButtonElement>(".onboarding-import-source[data-import-source='notion']")?.click();
-    });
-    expect(container.querySelector("[role='dialog']")?.getAttribute("aria-label")).toBe("Import from Notion");
-    const steps = [...container.querySelectorAll(".onboarding-import-steps > li")];
-    expect(steps).toHaveLength(3);
-    expect(steps[1]?.textContent).toBe("Pick Markdown & CSV and include subpages.");
-    expect(container.querySelector(".onboarding-import-outcome")?.textContent).toContain("new local project on this computer");
-    const action = container.querySelector<HTMLButtonElement>(".desktop-dialog-footer .desktop-dialog-button.primary");
-    expect(action?.textContent).toBe("Choose exported folder");
-
-    await act(async () => {
-      container.querySelector<HTMLButtonElement>(".onboarding-import-back")?.click();
-    });
-    expect(container.querySelector("[role='dialog']")?.getAttribute("aria-label")).toBe("Import");
     await act(async () => {
       container.querySelector<HTMLButtonElement>(".onboarding-import-source[data-import-source='obsidian']")?.click();
     });

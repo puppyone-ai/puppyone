@@ -44,9 +44,9 @@ describe("workspace folder drop preload boundary", () => {
       provider: "github",
       repositoryUrl: "https://github.com/owner/repository.git",
     });
-    await bridge.importLocalFolder({ provider: "notion", locationGrantId: "location-1" });
+    await bridge.importLocalFolder({ provider: "obsidian", locationGrantId: "location-1" });
     expect(invoke).toHaveBeenCalledWith("workspace:import-folder-current", {
-      provider: "notion",
+      provider: "obsidian",
       locationGrantId: "location-1",
     });
   });

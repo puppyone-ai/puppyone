@@ -1,7 +1,8 @@
 export type LocalImportSource = Readonly<{
   id: "github" | "gitlab" | "notion" | "google-drive" | "obsidian" | "airtable";
-  mode: "repository" | "folder";
+  mode: "repository" | "remote" | "folder";
   availability: "ready" | "experimental";
+  operational: boolean;
   preview: boolean;
   stepCount?: number;
 }>;

@@ -34,6 +34,7 @@
   "entry.clone.unsupportedUrl": "Introduce una URL de repositorio de {provider}.",
   "entry.import.title": "Importar",
   "entry.import.intro": "Lleva el contenido de estas aplicaciones a un proyecto local.",
+  "entry.import.directUnavailable": "Importación directa pendiente",
   "entry.import.back": "Atrás",
   "entry.import.saveTo": "Guardar en",
   "entry.import.saveToPicker": "Elegir una carpeta",

@@ -748,7 +748,7 @@ export type WorkspaceCloneRepositoryRequest = {
 };
 
 export type WorkspaceImportLocalFolderRequest = {
-  provider: "notion" | "google-drive" | "obsidian" | "airtable";
+  provider: "obsidian";
   locationGrantId?: string | null;
 };
 

@@ -34,6 +34,7 @@
   "entry.clone.unsupportedUrl": "{provider} 저장소 URL을 입력하세요.",
   "entry.import.title": "가져오기",
   "entry.import.intro": "이 앱의 콘텐츠를 로컬 프로젝트로 가져옵니다.",
+  "entry.import.directUnavailable": "직접 가져오기 준비 중",
   "entry.import.back": "뒤로",
   "entry.import.saveTo": "저장 위치",
   "entry.import.saveToPicker": "폴더 선택",

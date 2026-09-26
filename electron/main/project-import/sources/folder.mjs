@@ -5,6 +5,7 @@ import { constants } from "node:fs";
 /** Copies an exported folder without changing the original or following links. */
 export function createFolderImportSource({ io = fs, requireProjectName }) {
   return Object.freeze({
+    mode: "folder",
     async inspect(source) {
       if (typeof source.sourcePath !== "string" || !path.isAbsolute(source.sourcePath)) {
         throw new Error("Choose a source folder before importing.");

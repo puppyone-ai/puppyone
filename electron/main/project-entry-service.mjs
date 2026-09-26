@@ -16,11 +16,15 @@ export function createProjectEntryService({
   journalDirectory = null,
 } = {}) {
   const initialization = createProjectInitializationService({ journalDirectory });
+  const gitImport = createGitImportSource({ cloneGit, requireGitRepository });
+  const folderImport = createFolderImportSource({ io: fsPromises, requireProjectName });
   const imports = createLocalProjectImportService({
     io: fsPromises,
-    sources: {
-      repository: createGitImportSource({ cloneGit, requireGitRepository }),
-      folder: createFolderImportSource({ io: fsPromises, requireProjectName }),
+    validateName: requireProjectName,
+    adapters: {
+      github: gitImport,
+      gitlab: gitImport,
+      obsidian: folderImport,
     },
   });
   async function importProject({ parentPath, source, signal }) {

@@ -34,6 +34,7 @@
   "entry.clone.unsupportedUrl": "请输入 {provider} 仓库链接。",
   "entry.import.title": "导入",
   "entry.import.intro": "把这些应用中的内容导入本地项目。",
+  "entry.import.directUnavailable": "直连待接入",
   "entry.import.back": "返回",
   "entry.import.saveTo": "保存到",
   "entry.import.saveToPicker": "选择文件夹",

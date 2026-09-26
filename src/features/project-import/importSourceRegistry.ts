@@ -3,11 +3,13 @@ import { LOCAL_IMPORT_SOURCES } from "../../../shared/project-import/sources.mjs
 
 export type RepositoryImportSource = "github" | "gitlab";
 export type ExperimentalImportSource = "notion" | "google-drive" | "obsidian" | "airtable";
+export type LocalFolderImportSource = "obsidian";
 export type ImportSourceBrand = RepositoryImportSource | ExperimentalImportSource;
 export type ImportSourceDescriptor = Readonly<{
   id: ImportSourceBrand;
-  mode: "repository" | "folder";
+  mode: "repository" | "remote" | "folder";
   availability: "ready" | "experimental";
+  operational: boolean;
   preview: boolean;
   stepCount?: number;
 }>;
@@ -31,7 +33,7 @@ export function resolveImportPreviewBrands(
   settings: ExperimentalSettings,
 ): ImportSourceBrand[] {
   return resolveVisibleImportSources(settings)
-    .filter(({ preview }) => preview)
+    .filter(({ preview, operational }) => preview && operational)
     .map(({ id }) => id)
     .slice(0, 3);
 }

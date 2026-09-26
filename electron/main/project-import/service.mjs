@@ -7,27 +7,26 @@ import { getLocalImportSource } from "../../../shared/project-import/sources.mjs
 export function createLocalProjectImportService({
   io = fs,
   publish = publishDirectory,
-  sources,
+  adapters,
+  resolveSource = getLocalImportSource,
+  validateName,
 } = {}) {
-  if (!sources?.repository || !sources?.folder) throw new Error("Local import source adapters are required.");
+  if (!adapters || typeof adapters !== "object") throw new Error("Local import source adapters are required.");
+  if (typeof validateName !== "function") throw new Error("Local import project name validation is required.");
   return Object.freeze({
     async importProject({ parentPath, source, signal }) {
-      if (source?.kind !== "git" && source?.kind !== "folder") {
-        throw new Error("Unsupported local project import source.");
-      }
-      const adapter = source.kind === "git" ? sources.repository : sources.folder;
+      const descriptor = resolveSource(source?.provider);
+      const adapter = descriptor && adapters[descriptor.id];
+      if (!descriptor?.operational || !adapter || descriptor.mode !== adapter.mode) throw unavailableSource();
       const prepared = await adapter.inspect(source);
-      const descriptor = getLocalImportSource(prepared.source.provider);
-      if (!descriptor || descriptor.mode !== (source.kind === "git" ? "repository" : "folder")) {
-        throw new Error("Unsupported local project import source.");
-      }
-      const targetPath = path.join(parentPath, prepared.name);
+      const name = validateName(prepared.name);
+      const targetPath = path.join(parentPath, name);
       const existing = await io.lstat(targetPath).then(() => true).catch((error) => {
         if (error?.code === "ENOENT") return false;
         throw error;
       });
-      if (existing) throw projectExists(prepared.name);
-      const stagingPath = await io.mkdtemp(path.join(parentPath, `.puppyone-import-${prepared.name}-`));
+      if (existing) throw projectExists(name);
+      const stagingPath = await io.mkdtemp(path.join(parentPath, `.puppyone-import-${name}-`));
       let published = false;
       try {
         await adapter.materialize({ source: prepared.source, stagingPath, targetPath, signal });
@@ -35,11 +34,11 @@ export function createLocalProjectImportService({
         try {
           await publish(stagingPath, targetPath);
         } catch (error) {
-          if (error?.code === "EEXIST") throw projectExists(prepared.name);
+          if (error?.code === "EEXIST") throw projectExists(name);
           throw error;
         }
         published = true;
-        return { path: targetPath, name: prepared.name, provider: descriptor.id };
+        return { path: targetPath, name, provider: descriptor.id };
       } finally {
         if (!published) await io.rm(stagingPath, { recursive: true, force: true });
       }
@@ -50,5 +49,11 @@ export function createLocalProjectImportService({
 function projectExists(name) {
   const error = new Error(`A file or folder named “${name}” already exists in that location.`);
   error.code = "PROJECT_ALREADY_EXISTS";
+  return error;
+}
+
+function unavailableSource() {
+  const error = new Error("This import source is not available yet.");
+  error.code = "IMPORT_SOURCE_UNAVAILABLE";
   return error;
 }

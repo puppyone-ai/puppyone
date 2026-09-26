@@ -470,11 +470,11 @@ describe("recent workspace authorization", () => {
       repositoryUrl: "https://github.com/owner/repository.git",
     });
     await expect(handlers.get("workspace:import-folder-current")(event, {
-      provider: "notion",
+      provider: "obsidian",
       locationGrantId: "location-1",
     })).resolves.toEqual({ status: "imported-current" });
     expect(importFolderForCurrentWindow).toHaveBeenCalledWith(event.sender, {
-      provider: "notion",
+      provider: "obsidian",
       locationGrantId: "location-1",
     });
     expect(handlers.has("workspace:remember-last")).toBe(false);
