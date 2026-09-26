@@ -232,6 +232,8 @@ describe("experimental preferences", () => {
     expect(parseExperimentalSettings("not-json").enableCloudWorkspace).toBe(false);
     expect(parseExperimentalSettings(JSON.stringify({ enableCloudWorkspace: false })).enableCloudWorkspace).toBe(false);
     expect(parseExperimentalSettings(JSON.stringify({ enableCloudWorkspace: true })).enableCloudWorkspace).toBe(true);
+    expect(parseExperimentalSettings(null).enableWorkbenchTabsInHeader).toBe(false);
+    expect(parseExperimentalSettings(JSON.stringify({ enableWorkbenchTabsInHeader: true })).enableWorkbenchTabsInHeader).toBe(true);
   });
 
   it("does not let the retired catalog opt-in turn on Cloud hosting", () => {

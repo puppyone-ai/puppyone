@@ -10,14 +10,12 @@ import { DESKTOP_TERMINAL_LAUNCHERS } from "../../desktop-terminal/model/termina
 import { useLocalAgentInstallations } from "../../local-agents/controller/useLocalAgentInstallations";
 import { TerminalLauncher } from "../../desktop-terminal/ui/TerminalLauncher";
 import { WorkbenchLauncherState } from "./WorkbenchLauncherState";
-import { CloudAgentCatalog } from "./CloudAgentCatalog";
 
 /** Product composition: generic workbench admission plus feature-owned launchers. */
-export function AuxiliaryWorkbenchLauncher({ store, contributions, hiddenAgentIds, showCloudAgents = false, setupPreferences, onSetupPreferencesChange, groupId, itemId, presented }: WorkbenchLauncherContext & {
+export function AuxiliaryWorkbenchLauncher({ store, contributions, hiddenAgentIds, setupPreferences, onSetupPreferencesChange, groupId, itemId, presented }: WorkbenchLauncherContext & {
   store: ProjectWorkbenchStore;
   contributions: readonly AuxiliaryWorkbenchContribution[];
   hiddenAgentIds: readonly string[];
-  showCloudAgents?: boolean;
   setupPreferences?: LocalAgentSetupPreferences;
   onSetupPreferencesChange?: (preferences: LocalAgentSetupPreferences) => void;
 }) {
@@ -55,7 +53,6 @@ export function AuxiliaryWorkbenchLauncher({ store, contributions, hiddenAgentId
     discoveryRefreshing={discovery.refreshing}
     discoveryHasInstallations={discovery.ids.length > 0}
     availableAgentIds={availableAgentIds}
-    cloudAgentCatalog={showCloudAgents ? <CloudAgentCatalog /> : undefined}
     agentSetup={(onReturnToLauncher) => <LocalAgentSetupSection
       onReturnToLauncher={onReturnToLauncher}
       enabled={presented && !historyOpen}

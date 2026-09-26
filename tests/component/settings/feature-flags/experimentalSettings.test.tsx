@@ -52,7 +52,7 @@ describe("Experimental settings", () => {
     expect(DEFAULT_EXPERIMENTAL_SETTINGS.enableCloudWorkspace).toBe(false);
   });
 
-  it("uses the Cloud switch for hosting and the cloud Agent catalog", () => {
+  it("uses the Cloud switch for hosting and sharing", () => {
     const onChange = vi.fn();
     const host = document.createElement("div");
     document.body.append(host);
@@ -71,6 +71,24 @@ describe("Experimental settings", () => {
     });
     expect(host.querySelector('input[aria-label="Cloud agents in sidebar"]')).toBeNull();
     expect(host.querySelector('input[aria-label="Editor save status"]')).toBeNull();
+  });
+
+  it("keeps Header chat tabs behind a separate default-off switch", () => {
+    const onChange = vi.fn();
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    act(() => root?.render(withTestLocalization(
+      <ExperimentalSettingsView settings={DEFAULT_EXPERIMENTAL_SETTINGS}
+        assetLibraryHomeAvailable={false} onChange={onChange} />,
+    )));
+    const toggle = host.querySelector<HTMLInputElement>('input[aria-label="Chat tabs in Header"]');
+    expect(toggle?.checked).toBe(false);
+    act(() => toggle?.click());
+    expect(onChange).toHaveBeenCalledWith({
+      ...DEFAULT_EXPERIMENTAL_SETTINGS,
+      enableWorkbenchTabsInHeader: true,
+    });
   });
 
   it("offers an off-by-default cross-Project switcher rail", () => {

@@ -84,6 +84,7 @@ export type ExperimentalSettings = {
   enableAssetLibraryHome: boolean;
   enableCloudAutomation: boolean;
   enableCloudWorkspace: boolean;
+  enableWorkbenchTabsInHeader: boolean;
   enableGitAutoCommit: boolean;
   enableMarkdownBlockDrag: boolean;
   enableMarkdownHeadingOutline: boolean;
@@ -167,6 +168,7 @@ export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
   enableAssetLibraryHome: false,
   enableCloudAutomation: false,
   enableCloudWorkspace: false,
+  enableWorkbenchTabsInHeader: false,
   enableGitAutoCommit: false,
   enableMarkdownBlockDrag: false,
   enableMarkdownHeadingOutline: false,
@@ -414,6 +416,7 @@ export function parseExperimentalSettings(value: string | null | undefined): Exp
       enableAssetLibraryHome: parsed.enableAssetLibraryHome === true,
       enableCloudAutomation: parsed.enableCloudAutomation === true,
       enableCloudWorkspace: parsed.enableCloudWorkspace === true,
+      enableWorkbenchTabsInHeader: parsed.enableWorkbenchTabsInHeader === true,
       // Main-owned Git Auto Commit consent is intentionally never restored
       // from renderer localStorage. The Electron capability bridge hydrates it.
       enableGitAutoCommit: false,

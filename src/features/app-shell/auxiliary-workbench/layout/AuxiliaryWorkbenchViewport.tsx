@@ -3,6 +3,9 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
+import { Plus, X } from "lucide-react";
+import { useLocalization } from "@puppyone/localization/react";
 import {
   isWorkbenchSplit,
   workbenchSplitNodeMinimumSize,
@@ -23,6 +26,7 @@ import { WorkbenchSplitResizeHandle } from "./WorkbenchSplitResizeHandle";
 import { workbenchPanelId, workbenchTabId } from "./workbenchSessionHeaderIds";
 import type { AuxiliaryWorkbenchHeaderItem } from "./AuxiliaryWorkbenchHeader.types";
 import { AuxiliaryWorkbenchHeader } from "./AuxiliaryWorkbenchHeader";
+import { AuxiliaryWorkbenchStatus } from "./AuxiliaryWorkbenchStatus";
 import { AuxiliaryWorkbenchItemHostSlot } from "./AuxiliaryWorkbenchItemHostSlot";
 
 export type AuxiliaryWorkbenchViewportProps = Readonly<{
@@ -34,6 +38,7 @@ export type AuxiliaryWorkbenchViewportProps = Readonly<{
   hosts: ReadonlyMap<string, HTMLDivElement>;
   root: AuxiliaryWorkbenchLayoutNode;
   itemMove: WorkbenchTabMoveDragController;
+  titlebarTabHost?: HTMLDivElement | null;
   onActivateItem: (itemId: string) => void;
   onCloseItem: (itemId: string) => void;
   onCreateItem: (groupId: string) => void;
@@ -46,6 +51,7 @@ export type AuxiliaryWorkbenchViewportProps = Readonly<{
 }>;
 
 export function AuxiliaryWorkbenchViewport(props: AuxiliaryWorkbenchViewportProps) {
+  const { t } = useLocalization();
   const groupById = useMemo(
     () => new Map(props.groups.map((group) => [group.id, group])),
     [props.groups],
@@ -54,7 +60,25 @@ export function AuxiliaryWorkbenchViewport(props: AuxiliaryWorkbenchViewportProp
     () => new Map(props.headerItems.map((item) => [item.id, item])),
     [props.headerItems],
   );
-  return (
+  return (<>
+    {props.titlebarTabHost && props.groups.length > 1 && createPortal(
+      <div className="desktop-titlebar-workbench-tabs" role="toolbar" aria-label={t("terminal.title")}>
+        {props.headerItems.map((item) => <div className="desktop-titlebar-workbench-tab" key={item.id}>
+          <button type="button" className="desktop-titlebar-workbench-tab-select"
+            aria-label={item.snapshot.accessibleLabel} aria-pressed={props.groups.some((group) => group.activeItemId === item.id && group.id === props.activeGroupId)}
+            title={item.snapshot.accessibleLabel} onClick={() => props.onActivateItem(item.id)}>
+            <AuxiliaryWorkbenchStatus className="desktop-titlebar-workbench-tab-status" item={item} />
+            <span className="desktop-titlebar-workbench-tab-title">{item.snapshot.title}</span>
+          </button>
+          <button type="button" className="desktop-titlebar-workbench-tab-close"
+            aria-label={`${t("common.action.close")} ${item.snapshot.accessibleLabel}`}
+            onClick={() => props.onCloseItem(item.id)}><X size={12} aria-hidden="true" /></button>
+        </div>)}
+        {props.activeGroupId && <button type="button" className="desktop-titlebar-workbench-new"
+          aria-label={t("workspace.workbench.newTab")} title={t("workspace.workbench.newTab")}
+          onClick={() => props.onCreateItem(props.activeGroupId!)}><Plus size={14} aria-hidden="true" /></button>}
+      </div>, props.titlebarTabHost,
+    )}
     <div className="desktop-terminal-group-viewport">
       <AuxiliaryWorkbenchLayoutNode
         {...props}
@@ -63,7 +87,7 @@ export function AuxiliaryWorkbenchViewport(props: AuxiliaryWorkbenchViewportProp
         node={props.root}
       />
     </div>
-  );
+  </>);
 }
 
 type LayoutNodeProps = AuxiliaryWorkbenchViewportProps & Readonly<{
@@ -84,9 +108,11 @@ function AuxiliaryWorkbenchGroupLeaf({
   activeGroupId,
   dropIntent,
   group,
+  groups,
   headerItemById,
   hosts,
   itemMove,
+  titlebarTabHost,
   onActivateItem,
   onCloseItem,
   onCreateItem,
@@ -99,24 +125,27 @@ function AuxiliaryWorkbenchGroupLeaf({
   const activeItem = headerItemById.get(group.activeItemId);
   const host = hosts.get(group.activeItemId);
 
+  const header = <AuxiliaryWorkbenchHeader
+    activeItemId={group.activeItemId}
+    dropInsertion={dropZones.tabBar}
+    groupId={group.id}
+    items={headerItems}
+    onActivate={onActivateItem}
+    onClose={onCloseItem}
+    onCreate={() => onCreateItem(group.id)}
+    onMoveByKeyboard={(itemId, edge) => onMoveByKeyboard(itemId, group.id, edge)}
+    presentedItemIds={[group.activeItemId]}
+    tabMove={itemMove}
+  />;
+  const moveHeader = titlebarTabHost && groups.length === 1;
   return (
     <WorkbenchGroupPane
       contentDropIntent={dropZones.content}
       focused={activeGroupId === group.id}
       groupId={group.id}
-      header={<AuxiliaryWorkbenchHeader
-        activeItemId={group.activeItemId}
-        dropInsertion={dropZones.tabBar}
-        groupId={group.id}
-        items={headerItems}
-        onActivate={onActivateItem}
-        onClose={onCloseItem}
-        onCreate={() => onCreateItem(group.id)}
-        onMoveByKeyboard={(itemId, edge) => onMoveByKeyboard(itemId, group.id, edge)}
-        presentedItemIds={[group.activeItemId]}
-        tabMove={itemMove}
-      />}
+      header={moveHeader ? null : header}
     >
+      {moveHeader && createPortal(header, titlebarTabHost)}
       {activeItem && host && (
         <AuxiliaryWorkbenchItemHostSlot
           focused={activeGroupId === group.id}

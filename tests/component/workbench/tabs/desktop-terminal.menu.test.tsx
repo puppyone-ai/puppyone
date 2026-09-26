@@ -25,6 +25,24 @@ afterEach(() => {
 });
 
 describe("Desktop Terminal tab session manager", () => {
+  it("shows Share only when Cloud is enabled and opens sharing", () => {
+    const container = document.createElement("div");
+    const onShare = vi.fn();
+    document.body.appendChild(container);
+    root = createRoot(container);
+    const render = (shareEnabled: boolean) => act(() => root?.render(withTestLocalization(
+      <DesktopTitlebarActions titlebarActionsSettings={DEFAULT_TITLEBAR_ACTIONS_SETTINGS}
+        terminalSidebarOpen={false} terminalToolEnabled shareEnabled={shareEnabled}
+        onShare={onShare} onToggleTerminal={vi.fn()} />,
+    )));
+    render(false);
+    expect(container.querySelector(".desktop-titlebar-share")).toBeNull();
+    render(true);
+    const share = container.querySelector<HTMLButtonElement>(".desktop-titlebar-share");
+    expect(share?.textContent).toBe("Share");
+    act(() => share?.click());
+    expect(onShare).toHaveBeenCalledOnce();
+  });
   it("presents one unified Agent Workbench toggle in the workspace toolbar", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

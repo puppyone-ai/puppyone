@@ -47,6 +47,7 @@
   "titlebar.hideTerminal": "Masquer le terminal",
   "titlebar.showTerminal": "Afficher le terminal",
   "titlebar.hideAgent": "Masquer Agent",
+  "titlebar.share": "Partager",
   "titlebar.showAgent": "Afficher Agent",
   "windowControls.minimize": "Réduire la fenêtre",
   "windowControls.maximize": "Agrandir ou restaurer la fenêtre",

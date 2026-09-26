@@ -1,4 +1,5 @@
 import { Fragment, type ReactNode } from "react";
+import { Share2 } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import { getOrderedHeaderElementDefinitions, type HeaderElementRenderContext } from "./headerElements";
 import type { TitlebarActionsSettings } from "../../preferences";
@@ -24,6 +25,8 @@ type DesktopTitlebarActionsProps = {
   onUpdateNow?: () => void;
   onToggleTerminal: () => void;
   onToggleGitChanges?: () => void;
+  shareEnabled?: boolean;
+  onShare?: () => void;
   placement?: "titlebar" | "toolbar";
   visibleGroups?: readonly DesktopTitlebarActionGroup[];
 };
@@ -41,6 +44,8 @@ export function DesktopTitlebarActions({
   onUpdateNow = () => {},
   onToggleTerminal,
   onToggleGitChanges = () => {},
+  shareEnabled = false,
+  onShare = () => {},
   placement = "titlebar",
   visibleGroups,
 }: DesktopTitlebarActionsProps) {
@@ -79,6 +84,18 @@ export function DesktopTitlebarActions({
           onUpdateNow={onUpdateNow}
         />
       ),
+    });
+  }
+
+  if (shareEnabled && placement === "titlebar") {
+    titlebarActionItems.push({
+      group: "header",
+      id: "share",
+      node: <button type="button" className="desktop-titlebar-action desktop-titlebar-share"
+        title={t("shell.titlebar.share")} aria-label={t("shell.titlebar.share")} onClick={onShare}>
+        <Share2 size={15} strokeWidth={1.9} aria-hidden="true" />
+        <span>{t("shell.titlebar.share")}</span>
+      </button>,
     });
   }
 

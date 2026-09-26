@@ -7,6 +7,7 @@ import {
   type CSSProperties,
   type ReactNode,
   type RefObject,
+  type Ref,
 } from "react";
 import { PanelLeft } from "lucide-react";
 import {
@@ -55,6 +56,7 @@ type DesktopCloudShellProps = {
   titlebarSidebarSlot?: ReactNode;
   titlebarEditorSlot?: ReactNode;
   titlebarActions?: ReactNode;
+  titlebarTabsHostRef?: Ref<HTMLDivElement>;
   navigationToolbarActions?: ReactNode;
   locationBar?: ReactNode;
   leftSidebarCollapsed?: boolean;
@@ -90,6 +92,7 @@ export function DesktopCloudShell({
   titlebarSidebarSlot,
   titlebarEditorSlot,
   titlebarActions,
+  titlebarTabsHostRef,
   navigationToolbarActions,
   locationBar,
   leftSidebarCollapsed = false,
@@ -322,6 +325,7 @@ export function DesktopCloudShell({
             </>
           )}
           actions={titlebarActions}
+          sessionTabsHostRef={titlebarTabsHostRef}
         />
 
         <div className="desktop-shell-below-header">

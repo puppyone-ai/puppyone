@@ -45,6 +45,7 @@ type DesktopWorkspaceContentProps = {
   activeView: DesktopView;
   cloud: DesktopWorkspaceCloudSurfaceController;
   cloudOpen?: boolean;
+  cloudShareMode?: boolean;
   dataPort: DataWorkspacePort | null;
   editorWorkbench: DesktopEditorWorkbenchController;
   externalOpen: Readonly<{
@@ -104,6 +105,7 @@ export function DesktopWorkspaceContent({
   activeView,
   cloud,
   cloudOpen = false,
+  cloudShareMode = false,
   dataPort,
   editorWorkbench,
   externalOpen,
@@ -258,6 +260,7 @@ export function DesktopWorkspaceContent({
       {workspaceSurface}
       {cloudOpen && (
         <CloudDialog
+          shareMode={cloudShareMode}
           sidebar={cloudSurface.sidebar}
           main={cloudSurface.main}
           onClose={onCloseCloud}

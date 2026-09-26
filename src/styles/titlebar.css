@@ -218,9 +218,117 @@
 }
 
 .desktop-titlebar-drag-fill {
+  display: flex;
   width: 100%;
   min-width: 0;
   align-self: stretch;
+}
+
+.desktop-titlebar-session-tabs-host {
+  display: flex;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  overflow: hidden;
+}
+
+.desktop-titlebar-session-tabs-host > .desktop-terminal-subheader,
+.desktop-titlebar-session-tabs-host > .desktop-titlebar-workbench-tabs {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+}
+
+.desktop-titlebar-session-tabs-host > .desktop-terminal-subheader {
+  --desktop-terminal-tab-bar-background: transparent;
+  --desktop-terminal-tab-bar-divider: 0;
+  --desktop-terminal-tab-idle-color: var(--desktop-titlebar-text-muted);
+  --desktop-terminal-tab-active-color: var(--desktop-titlebar-text);
+  --desktop-terminal-tab-active-background: var(--desktop-titlebar-active);
+  border: 0;
+  background: transparent;
+  color: var(--desktop-titlebar-text);
+}
+
+.desktop-titlebar-workbench-tabs {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.desktop-titlebar-workbench-tabs::-webkit-scrollbar { display: none; }
+
+.desktop-titlebar-workbench-tab {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  max-width: 170px;
+  border-radius: var(--desktop-toolbar-action-radius);
+  background: var(--desktop-titlebar-hover);
+}
+
+.desktop-titlebar-workbench-tab:has([aria-pressed="true"]) {
+  background: var(--desktop-titlebar-active);
+}
+
+.desktop-titlebar-workbench-tab-select,
+.desktop-titlebar-workbench-tab-close,
+.desktop-titlebar-workbench-new {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--desktop-titlebar-text);
+  cursor: pointer;
+}
+
+.desktop-titlebar-workbench-tab-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 5px 3px 5px 8px;
+  white-space: nowrap;
+}
+
+.desktop-titlebar-workbench-tab-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.desktop-titlebar-workbench-tab-status {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  align-items: center;
+  justify-content: center;
+}
+
+.desktop-titlebar-workbench-tab-close,
+.desktop-titlebar-workbench-new {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 23px;
+  height: 24px;
+  flex: 0 0 auto;
+  border-radius: var(--desktop-toolbar-action-radius);
+}
+
+.desktop-titlebar-workbench-tab-close:hover,
+.desktop-titlebar-workbench-new:hover {
+  background: var(--desktop-titlebar-active);
+}
+
+.desktop-titlebar-actions .desktop-titlebar-share {
+  width: auto;
+  gap: 5px;
+  padding-inline: 7px;
+  white-space: nowrap;
 }
 
 .desktop-titlebar-trailing {

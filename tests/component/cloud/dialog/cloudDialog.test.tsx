@@ -17,6 +17,15 @@ afterEach(() => {
 });
 
 describe("CloudDialog", () => {
+  it("labels the focused sharing entry as Share", () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    act(() => renderWithTestLocalization(root,
+      <CloudDialog shareMode sidebar={null} main={<div>Access</div>} onClose={vi.fn()} />,
+    ));
+    expect(document.querySelector(".desktop-cloud-dialog")?.getAttribute("aria-label")).toBe("Share");
+  });
   it("keeps Cloud navigation and content in the shared dismissible overlay", () => {
     const host = document.createElement("div");
     const onClose = vi.fn();

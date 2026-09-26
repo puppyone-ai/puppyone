@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode, type Ref } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import { useDesktopPlatformCapabilities } from "../platform/useDesktopPlatformCapabilities";
 import { PuppyBrandMark } from "./brand/PuppyBrandMark";
@@ -6,6 +6,7 @@ import { PuppyBrandMark } from "./brand/PuppyBrandMark";
 type DesktopWindowChromeProps = {
   context?: ReactNode;
   actions?: ReactNode;
+  sessionTabsHostRef?: Ref<HTMLDivElement>;
 };
 
 /**
@@ -18,6 +19,7 @@ type DesktopWindowChromeProps = {
 export function DesktopWindowChrome({
   context,
   actions,
+  sessionTabsHostRef,
 }: DesktopWindowChromeProps) {
   const { t } = useLocalization();
   const fullScreen = useWindowFullScreenState();
@@ -48,8 +50,10 @@ export function DesktopWindowChrome({
         <div
           className="desktop-titlebar-drag-fill"
           data-window-drag-region="true"
-          aria-hidden="true"
-        />
+          aria-hidden={sessionTabsHostRef ? undefined : true}
+        >
+          {sessionTabsHostRef && <div ref={sessionTabsHostRef} className="desktop-titlebar-session-tabs-host" data-window-no-drag="true" />}
+        </div>
         <div className="desktop-titlebar-trailing">
           {actions && (
             <div className="desktop-titlebar-actions">

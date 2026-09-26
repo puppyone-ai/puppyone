@@ -34,7 +34,6 @@ type TerminalLauncherProps = {
   discoveryRefreshing?: boolean;
   discoveryHasInstallations?: boolean;
   availableAgentIds: readonly LocalAgentInstallationId[];
-  cloudAgentCatalog?: ReactNode;
   agentSetup?: (onReturnToLauncher: () => void) => ReactNode;
   chatCreationAvailable?: boolean;
   chatPreparing?: boolean;
@@ -65,7 +64,6 @@ export function TerminalLauncher({
   agentMode,
   discoveryPhase,
   availableAgentIds,
-  cloudAgentCatalog,
   agentSetup,
   discoveryHasFailures = false,
   discoveryRefreshing = false,
@@ -247,7 +245,6 @@ export function TerminalLauncher({
           </div>
         </div>
 
-        {cloudAgentCatalog}
       </div>
     </section>
   );
