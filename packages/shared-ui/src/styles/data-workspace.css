@@ -609,6 +609,13 @@ body.data-sidebar-resizing .data-preview-accessory {
   flex: 0 0 auto;
 }
 
+/* Keep the More dots near the text stroke weight without shrinking its button. */
+.tree-row-action-button > .tree-row-action-ellipsis-icon {
+  width: 12px;
+  height: 12px;
+  stroke-width: 1;
+}
+
 .tree-row-action-button:hover,
 .tree-row-action-button:focus-visible {
   background: var(--po-control-hover);

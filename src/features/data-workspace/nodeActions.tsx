@@ -139,7 +139,7 @@ export function DesktopExplorerRowActions({
           aria-label={t("workspace.node.moreActionsFor", { name: bidiIsolate(node.name) })}
           onClick={(event) => onOpenNodeMenu(node, event.currentTarget.getBoundingClientRect())}
         >
-          <MoreVertical aria-hidden="true" />
+          <MoreVertical className="tree-row-action-ellipsis-icon" aria-hidden="true" />
         </button>
       )}
       {node?.workspaceFolderRoot && onRemoveWorkspaceRoot && (
