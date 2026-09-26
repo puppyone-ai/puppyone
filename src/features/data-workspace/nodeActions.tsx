@@ -9,7 +9,6 @@ import {
   FileText,
   FolderOpen,
   FolderPlus,
-  MoreVertical,
   Pencil,
   Plus,
   Scissors,
@@ -22,6 +21,7 @@ import {
   createDefaultPuppyFlowDocument,
   FileGlyphIcon,
   getMatchedExtension,
+  OverflowDots,
   serializePuppyFlowDocument,
   STANDARD_CONTROL_SIZE,
   type DataNode,
@@ -139,7 +139,7 @@ export function DesktopExplorerRowActions({
           aria-label={t("workspace.node.moreActionsFor", { name: bidiIsolate(node.name) })}
           onClick={(event) => onOpenNodeMenu(node, event.currentTarget.getBoundingClientRect())}
         >
-          <MoreVertical className="tree-row-action-ellipsis-icon" aria-hidden="true" />
+          <OverflowDots orientation="vertical" />
         </button>
       )}
       {node?.workspaceFolderRoot && onRemoveWorkspaceRoot && (

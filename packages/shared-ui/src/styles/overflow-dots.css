@@ -1,0 +1,20 @@
+.po-overflow-dots {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.po-overflow-dots--vertical {
+  flex-direction: column;
+}
+
+.po-overflow-dots > i {
+  display: block;
+  width: 2px;
+  height: 2px;
+  flex: 0 0 auto;
+  border-radius: 0;
+  background: currentColor;
+}

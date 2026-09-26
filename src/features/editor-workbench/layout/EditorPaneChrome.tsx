@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, type RefObject } from "react";
 import { useLocalization } from "@puppyone/localization";
+import { OverflowDots } from "@puppyone/shared-ui";
 import type {
   EditorFindCommand,
   EditorPaneLayoutLeaf,
@@ -121,7 +122,7 @@ export function EditorPaneChrome({
           onPointerCancel={paneMove.cancel}
           onLostPointerCapture={paneMove.lostCapture}
         >
-          <i /><i /><i />
+          <OverflowDots />
         </button>
       </div>
       <EditorPaneActionsMenu

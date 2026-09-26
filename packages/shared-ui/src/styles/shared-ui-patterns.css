@@ -1,4 +1,5 @@
 @import "./data-workspace.css";
+@import "./overflow-dots.css";
 @import "./sidebar-primitives.css";
 @import "../sidebar/collapsible-pane.css";
 

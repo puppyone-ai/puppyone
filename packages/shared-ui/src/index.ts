@@ -1,5 +1,6 @@
 export * from "./core/types";
 export { STANDARD_CONTROL_SIZE } from "./core/controlGeometry";
+export { OverflowDots } from "./primitives/OverflowDots";
 export {
   resolveCssPixelCustomProperty,
   useCssPixelCustomProperty,
