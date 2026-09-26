@@ -26,6 +26,7 @@ import {
 import { resolveImportPreviewBrands } from "../features/project-import/importSourceRegistry";
 import type {
   WorkspaceCloneRepositoryRequest,
+  WorkspaceImportLocalFolderRequest,
   WorkspaceCreateProjectRequest,
   WorkspaceCreateProjectResult,
   WorkspaceProjectLocationGrant,
@@ -55,6 +56,7 @@ export type MinimalOnboardingProps = {
   onDefaultProjectLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
   onCreateProject?: (request: WorkspaceCreateProjectRequest) => Promise<WorkspaceCreateProjectResult>;
   onCloneRepository?: (request: WorkspaceCloneRepositoryRequest) => Promise<boolean>;
+  onImportLocalFolder?: (request: WorkspaceImportLocalFolderRequest) => Promise<boolean>;
   onOpenWorkspacePath: (path: string) => Promise<void>;
   onOpenDroppedWorkspace: (folder: File) => Promise<void>;
   onRemoveProject?: (path: string) => Promise<void>;
@@ -73,6 +75,7 @@ export function MinimalOnboarding({
   onDefaultProjectLocation,
   onCreateProject,
   onCloneRepository,
+  onImportLocalFolder,
   onOpenWorkspacePath,
   onOpenDroppedWorkspace,
   onRemoveProject,
@@ -280,6 +283,7 @@ export function MinimalOnboarding({
         onChooseLocation={onChooseProjectLocation}
         onCreateProject={onCreateProject}
         onImportRepository={onCloneRepository}
+        onImportFolder={onImportLocalFolder}
         onOpenFolder={() => void chooseFolder()}
         experimentalSettings={experimentalSettings}
       />

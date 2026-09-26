@@ -288,6 +288,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   getDefaultLocalProjectLocation: () => ipcRenderer.invoke("workspace:default-project-location-current"),
   createLocalProject: (request) => ipcRenderer.invoke("workspace:create-project-current", request),
   cloneRepository: (request) => ipcRenderer.invoke("workspace:clone-repository-current", request),
+  importLocalFolder: (request) => ipcRenderer.invoke("workspace:import-folder-current", request),
   getPathForFile: (file) => webUtils.getPathForFile(file),
   resolveResourceReferences: (request) => ipcRenderer.invoke("resource-transfer:resolve", request),
   resourceDragSessionSupported: process.platform === "darwin",

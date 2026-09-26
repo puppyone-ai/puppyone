@@ -509,7 +509,7 @@ describe("project folder home", () => {
     expect(dialog?.getAttribute("aria-label")).toBe("Import");
     expect(dialog?.classList.contains("is-import")).toBe(true);
     expect(container.querySelector(".onboarding-import-intro")?.textContent).toBe(
-      "Export content from these apps as local files.",
+      "Bring content from these apps into a local project.",
     );
     const sources = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-import-source")];
     expect(sources.map((source) => source.dataset.importSource)).toEqual([
@@ -590,10 +590,12 @@ describe("project folder home", () => {
   it("guides Google Drive downloads to a local folder without account connection", async () => {
     const onChooseWorkspace = vi.fn(async () => undefined);
     const onCloneRepository = vi.fn(async () => true);
+    const onImportLocalFolder = vi.fn(async () => true);
     const container = renderHome({
       experimentalSettings: ALL_EXPERIMENTAL_IMPORTS,
       onChooseWorkspace,
       onCloneRepository,
+      onImportLocalFolder,
     });
     await act(async () => container.querySelector<HTMLButtonElement>(".onboarding-entry-import")?.click());
     await act(async () => container.querySelector<HTMLButtonElement>(".onboarding-import-source[data-import-source='google-drive']")?.click());
@@ -603,17 +605,20 @@ describe("project folder home", () => {
     const action = container.querySelector<HTMLButtonElement>(".desktop-dialog-footer .desktop-dialog-button.primary");
     expect(action?.textContent).toBe("Choose downloaded folder");
     await act(async () => action?.click());
-    expect(onChooseWorkspace).toHaveBeenCalledOnce();
+    expect(onImportLocalFolder).toHaveBeenCalledWith({ provider: "google-drive", locationGrantId: null });
+    expect(onChooseWorkspace).not.toHaveBeenCalled();
     expect(onCloneRepository).not.toHaveBeenCalled();
     expect(container.querySelector("[role='dialog']")).toBeNull();
   });
 
   it("guides a Notion export into the regular folder picker", async () => {
     const onChooseWorkspace = vi.fn(async () => undefined);
+    const onImportLocalFolder = vi.fn(async () => true);
     const container = renderHome({
       experimentalSettings: ALL_EXPERIMENTAL_IMPORTS,
       onCloneRepository: vi.fn(async () => true),
       onChooseWorkspace,
+      onImportLocalFolder,
     });
 
     await act(async () => {
@@ -626,7 +631,7 @@ describe("project folder home", () => {
     const steps = [...container.querySelectorAll(".onboarding-import-steps > li")];
     expect(steps).toHaveLength(3);
     expect(steps[1]?.textContent).toBe("Pick Markdown & CSV and include subpages.");
-    expect(container.querySelector(".onboarding-import-outcome")?.textContent).toContain("Everything stays on this computer.");
+    expect(container.querySelector(".onboarding-import-outcome")?.textContent).toContain("new local project on this computer");
     const action = container.querySelector<HTMLButtonElement>(".desktop-dialog-footer .desktop-dialog-button.primary");
     expect(action?.textContent).toBe("Choose exported folder");
 
@@ -643,7 +648,8 @@ describe("project folder home", () => {
       await Promise.resolve();
     });
     expect(container.querySelector(".onboarding-entry-dialog")).toBeNull();
-    expect(onChooseWorkspace).toHaveBeenCalledOnce();
+    expect(onImportLocalFolder).toHaveBeenCalledWith({ provider: "obsidian", locationGrantId: null });
+    expect(onChooseWorkspace).not.toHaveBeenCalled();
   });
 
   it("imports a GitHub repository into the default location without a folder picker", async () => {
@@ -930,6 +936,7 @@ function renderHome(
   root = createRoot(container);
   const props: MinimalOnboardingProps = {
     onChooseWorkspace: vi.fn(async () => undefined),
+    onImportLocalFolder: vi.fn(async () => true),
     onOpenDroppedWorkspace: vi.fn(async () => undefined),
     onOpenWorkspacePath: vi.fn(async () => undefined),
     appearance: createTestSurfaceAppearance(appearanceInput),

@@ -23,7 +23,7 @@ describe("workspace folder drop preload boundary", () => {
     expect(invoke).not.toHaveBeenCalled();
   });
 
-  it("exposes a location grant and narrow create/clone requests without accepting a renderer path", async () => {
+  it("exposes location grants and narrow create/import requests without accepting a renderer path", async () => {
     const invoke = vi.fn(async () => ({ status: "opened-current" }));
     const bridge = await loadPreloadBridge({ invoke, getPathForFile: () => "" });
 
@@ -43,6 +43,11 @@ describe("workspace folder drop preload boundary", () => {
     expect(invoke).toHaveBeenCalledWith("workspace:clone-repository-current", {
       provider: "github",
       repositoryUrl: "https://github.com/owner/repository.git",
+    });
+    await bridge.importLocalFolder({ provider: "notion", locationGrantId: "location-1" });
+    expect(invoke).toHaveBeenCalledWith("workspace:import-folder-current", {
+      provider: "notion",
+      locationGrantId: "location-1",
     });
   });
 

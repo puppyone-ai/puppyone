@@ -2,6 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { cloneGitRepository } from "../../local-api/git/runner.mjs";
 import { createProjectInitializationService } from "./project-initialization-service.mjs";
+import { createLocalProjectImportService } from "./project-import/service.mjs";
+import { createGitImportSource } from "./project-import/sources/git.mjs";
+import { createFolderImportSource } from "./project-import/sources/folder.mjs";
 
 const PROJECT_NAME_MAX_LENGTH = 120;
 const WINDOWS_RESERVED_NAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
@@ -13,6 +16,17 @@ export function createProjectEntryService({
   journalDirectory = null,
 } = {}) {
   const initialization = createProjectInitializationService({ journalDirectory });
+  const imports = createLocalProjectImportService({
+    io: fsPromises,
+    sources: {
+      repository: createGitImportSource({ cloneGit, requireGitRepository }),
+      folder: createFolderImportSource({ io: fsPromises, requireProjectName }),
+    },
+  });
+  async function importProject({ parentPath, source, signal }) {
+    const canonicalParent = await requireDirectory(parentPath, fsPromises, pathModule);
+    return imports.importProject({ parentPath: canonicalParent, source, signal });
+  }
   return Object.freeze({
     async createProject({ parentPath, name, source = { kind: "blank" }, locale = "en", operationId }) {
       const projectName = requireProjectName(name);
@@ -32,54 +46,20 @@ export function createProjectEntryService({
       }
     },
 
+    importProject,
+
     async cloneRepository({ parentPath, provider = null, repositoryUrl, signal }) {
       const repository = requireGitRepository(repositoryUrl, provider);
-      const canonicalParent = await requireDirectory(parentPath, fsPromises, pathModule);
-      const projectPath = resolveChildPath(canonicalParent, repository.name, pathModule);
-      await requireMissingPath(projectPath, repository.name, fsPromises);
-
-      const temporaryPath = await fsPromises.mkdtemp(
-        pathModule.join(canonicalParent, `.puppyone-clone-${repository.name}-`),
-      );
-      let ownsProjectPath = false;
       try {
-        await cloneGit(temporaryPath, repository.url, { signal });
-        try {
-          // Claim the final path exclusively after the network operation. This
-          // prevents rename() from replacing a directory created by another
-          // process while the clone was running.
-          await fsPromises.mkdir(projectPath, { recursive: false });
-          ownsProjectPath = true;
-        } catch (error) {
-          if (error?.code === "EEXIST") {
-            throw projectEntryError(
-              "PROJECT_ALREADY_EXISTS",
-              `A file or folder named “${repository.name}” already exists in that location.`,
-            );
-          }
-          throw error;
-        }
-        const entries = await fsPromises.readdir(temporaryPath);
-        for (const entry of entries) {
-          await fsPromises.rename(
-            pathModule.join(temporaryPath, entry),
-            pathModule.join(projectPath, entry),
-          );
-        }
-        await fsPromises.rmdir(temporaryPath);
+        const project = await importProject({
+          parentPath,
+          source: { kind: "git", provider: repository.provider, repositoryUrl: repository.url },
+          signal,
+        });
+        return { ...project, repositoryUrl: repository.url };
       } catch (error) {
-        await fsPromises.rm(temporaryPath, { recursive: true, force: true }).catch(() => undefined);
-        if (ownsProjectPath) {
-          await fsPromises.rm(projectPath, { recursive: true, force: true }).catch(() => undefined);
-        }
         throw normalizeCloneError(error, repository.provider);
       }
-
-      return {
-        path: projectPath,
-        name: repository.name,
-        repositoryUrl: repository.url,
-      };
     },
   });
 }
@@ -251,19 +231,6 @@ function resolveChildPath(parentPath, name, pathModule) {
     throw projectEntryError("INVALID_PROJECT_NAME", "Enter a valid project name.");
   }
   return childPath;
-}
-
-async function requireMissingPath(targetPath, projectName, fsPromises) {
-  try {
-    await fsPromises.lstat(targetPath);
-  } catch (error) {
-    if (error?.code === "ENOENT") return;
-    throw error;
-  }
-  throw projectEntryError(
-    "PROJECT_ALREADY_EXISTS",
-    `A file or folder named “${projectName}” already exists in that location.`,
-  );
 }
 
 function normalizeCloneError(error, provider) {

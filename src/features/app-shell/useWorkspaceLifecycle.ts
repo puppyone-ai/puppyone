@@ -19,6 +19,7 @@ import {
 } from "../../lib/localFiles";
 import {
   cloneRepositoryTarget,
+  importLocalFolderTarget,
   createLocalProjectTarget,
   defaultLocalProjectLocationTarget,
   openDroppedWorkspaceTarget,
@@ -28,6 +29,7 @@ import {
 } from "../../lib/workspaceOpening";
 import type {
   WorkspaceCloneRepositoryRequest,
+  WorkspaceImportLocalFolderRequest,
   WorkspaceCreateProjectRequest,
   WorkspaceOpenResult,
   WorkspaceProjectLocationGrant,
@@ -322,6 +324,13 @@ export function useWorkspaceLifecycle({
     return result !== null;
   }, [handleWorkspaceOpenResult]);
 
+  const importLocalFolder = useCallback(async (request: WorkspaceImportLocalFolderRequest) => {
+    const navigation = ++navigationRequestRef.current;
+    const result = await importLocalFolderTarget(request);
+    if (navigation === navigationRequestRef.current) handleWorkspaceOpenResult(result, "imported");
+    return result !== null;
+  }, [handleWorkspaceOpenResult]);
+
   const removeWorkspaceFromRecents = useCallback(async (folderPath: string) => {
     await removeRecentWorkspace(folderPath);
     recentWorkspaceRequestRef.current += 1;
@@ -448,6 +457,7 @@ export function useWorkspaceLifecycle({
     clearWorkspace,
     chooseProjectLocation,
     cloneRepository,
+    importLocalFolder,
     createProject,
     defaultProjectLocation,
     forgetActiveWorkspace,

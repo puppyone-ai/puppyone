@@ -26,6 +26,7 @@ import type {
   PuppyoneWorkspaceConfig,
   RecentWorkspacesResult,
   WorkspaceCloneRepositoryRequest,
+  WorkspaceImportLocalFolderRequest,
   WorkspaceCreateProjectRequest,
   WorkspaceCreateProjectResult,
   WorkspaceCreateEntryKind,
@@ -381,6 +382,12 @@ export async function cloneRepository(
   request: WorkspaceCloneRepositoryRequest,
 ): Promise<WorkspaceOpenResult | null> {
   return getDesktopBridge().cloneRepository(request);
+}
+
+export async function importLocalFolder(
+  request: WorkspaceImportLocalFolderRequest,
+): Promise<WorkspaceOpenResult | null> {
+  return getDesktopBridge().importLocalFolder(request);
 }
 
 export async function createWorkspaceEntry(

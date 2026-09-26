@@ -3,6 +3,7 @@ import { OnboardingImportDialog } from "../../components/OnboardingImportDialog"
 import { OnboardingProjectEntryDialog } from "../../components/OnboardingProjectEntryDialog";
 import type {
   WorkspaceCloneRepositoryRequest,
+  WorkspaceImportLocalFolderRequest,
   WorkspaceCreateProjectRequest,
   WorkspaceCreateProjectResult,
   WorkspaceProjectLocationGrant,
@@ -57,6 +58,7 @@ export type ProjectEntryFlowProps = Readonly<{
     request: WorkspaceCreateProjectRequest,
   ) => Promise<WorkspaceCreateProjectResult>;
   onImportRepository?: (request: WorkspaceCloneRepositoryRequest) => Promise<boolean>;
+  onImportFolder?: (request: WorkspaceImportLocalFolderRequest) => Promise<boolean>;
   experimentalSettings?: ExperimentalSettings;
 }>;
 
@@ -67,6 +69,7 @@ export function ProjectEntryFlow({
   onChooseLocation,
   onCreateProject,
   onImportRepository,
+  onImportFolder,
   experimentalSettings = DEFAULT_EXPERIMENTAL_SETTINGS,
 }: ProjectEntryFlowProps) {
   const visibleImportSources = resolveVisibleImportSources(experimentalSettings);
@@ -76,7 +79,7 @@ export function ProjectEntryFlow({
     return (
       <ProjectEntryLauncherDialog
         canCreateProject={Boolean(onCreateProject && onChooseLocation)}
-        canImport={Boolean(onImportRepository)}
+        canImport={Boolean(onImportRepository && onImportFolder)}
         importPreviewBrands={importPreviewBrands}
         onClose={controller.close}
         onOpenFolder={() => {
@@ -100,14 +103,14 @@ export function ProjectEntryFlow({
     );
   }
 
-  if (controller.step === "import" && onImportRepository) {
+  if (controller.step === "import" && onImportRepository && onImportFolder) {
     return (
       <OnboardingImportDialog
         onClose={controller.close}
         onDefaultLocation={onDefaultLocation}
         onChooseLocation={onChooseLocation}
         onImportRepository={onImportRepository}
-        onOpenFolder={onOpenFolder}
+        onImportFolder={onImportFolder}
         visibleSources={visibleImportSources}
       />
     );

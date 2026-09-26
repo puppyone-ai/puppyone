@@ -43,6 +43,7 @@
   "native.update.manual.failed.message": "{appName}에서 업데이트를 확인하지 못했습니다.",
   "native.update.manual.failed.detail": "나중에 다시 시도하세요.",
   "native.workspace.open.title": "로컬 PuppyOne 워크스페이스 열기",
+  "native.workspace.import.chooseSource": "가져올 폴더 선택",
   "native.workspace.create.chooseParent": "프로젝트를 만들 위치 선택",
   "native.workspace.create.chooseParentButton": "여기에 만들기",
   "native.workspace.clone.chooseParent": "저장소를 복제할 위치 선택",

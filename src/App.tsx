@@ -212,6 +212,7 @@ function AppContent() {
     chooseProjectLocation,
     clearWorkspace,
     cloneRepository,
+    importLocalFolder,
     createProject,
     defaultProjectLocation,
     forgetActiveWorkspace,
@@ -1318,6 +1319,7 @@ function AppContent() {
         onDefaultProjectLocation={defaultProjectLocation}
         onCreateProject={createProject}
         onCloneRepository={cloneRepository}
+        onImportLocalFolder={importLocalFolder}
         onOpenDroppedWorkspace={openDroppedWorkspace}
         onOpenWorkspacePath={openWorkspacePath}
         onRemoveProject={removeWorkspaceFromRecents}
@@ -1704,6 +1706,7 @@ function AppContent() {
             onChooseLocation={chooseProjectLocation}
             onCreateProject={createProject}
             onImportRepository={cloneRepository}
+            onImportFolder={importLocalFolder}
             onOpenFolder={() => void openFolder()}
             experimentalSettings={experimentalSettings}
           />

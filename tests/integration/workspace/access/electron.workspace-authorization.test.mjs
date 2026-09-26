@@ -373,6 +373,7 @@ describe("recent workspace authorization", () => {
     const openWorkspaceInNewWindow = vi.fn(async () => ({ status: "opened-new" }));
     const createProjectForCurrentWindow = vi.fn(async () => ({ status: "created-current" }));
     const cloneRepositoryForCurrentWindow = vi.fn(async () => ({ status: "cloned-current" }));
+    const importFolderForCurrentWindow = vi.fn(async () => ({ status: "imported-current" }));
     const selectProjectLocationForCurrentWindow = vi.fn(async () => ({
       grantId: "location-1",
       path: root,
@@ -395,6 +396,7 @@ describe("recent workspace authorization", () => {
       openWorkspaceInNewWindow,
       createProjectForCurrentWindow,
       cloneRepositoryForCurrentWindow,
+      importFolderForCurrentWindow,
       selectProjectLocationForCurrentWindow,
       getDefaultProjectLocationForCurrentWindow,
       createCloudWorkspaceFromRequest: vi.fn(),
@@ -466,6 +468,14 @@ describe("recent workspace authorization", () => {
     expect(cloneRepositoryForCurrentWindow).toHaveBeenCalledWith(event.sender, {
       provider: "github",
       repositoryUrl: "https://github.com/owner/repository.git",
+    });
+    await expect(handlers.get("workspace:import-folder-current")(event, {
+      provider: "notion",
+      locationGrantId: "location-1",
+    })).resolves.toEqual({ status: "imported-current" });
+    expect(importFolderForCurrentWindow).toHaveBeenCalledWith(event.sender, {
+      provider: "notion",
+      locationGrantId: "location-1",
     });
     expect(handlers.has("workspace:remember-last")).toBe(false);
     expect(handlers.has("workspace:from-path")).toBe(false);

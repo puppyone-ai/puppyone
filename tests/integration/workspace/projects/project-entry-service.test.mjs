@@ -1,4 +1,4 @@
-import { access, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -95,7 +95,7 @@ describe("project entry service", () => {
 
   it("keeps the final path absent while cloning, then publishes the completed result", async () => {
     const cloneGit = vi.fn(async (temporaryPath, repositoryUrl) => {
-      expect(path.basename(temporaryPath)).toMatch(/^\.puppyone-clone-repository-/);
+      expect(path.basename(temporaryPath)).toMatch(/^\.puppyone-import-repository-/);
       expect(repositoryUrl).toBe("https://github.com/owner/repository.git");
       await expect(access(path.join(parentPath, "repository"))).rejects.toMatchObject({ code: "ENOENT" });
       await writeFile(path.join(temporaryPath, "README.md"), "hello\n", "utf8");
@@ -178,5 +178,76 @@ describe("project entry service", () => {
       code: "CLONE_AUTHENTICATION_FAILED",
       message: expect.stringMatching(/GitLab authentication failed/),
     });
+  });
+
+  it("copies an exported folder into a new local project and leaves the source independent", async () => {
+    const sourcePath = path.join(parentPath, "notion-export");
+    const destination = path.join(parentPath, "projects");
+    await mkdir(path.join(sourcePath, "pages"), { recursive: true });
+    await mkdir(destination);
+    await writeFile(path.join(sourcePath, "pages", "note.md"), "source\n");
+
+    const service = createProjectEntryService();
+    await expect(service.importProject({
+      parentPath: destination,
+      source: { kind: "folder", provider: "notion", sourcePath },
+    })).resolves.toMatchObject({
+      path: path.join(destination, "notion-export"),
+      name: "notion-export",
+      provider: "notion",
+    });
+    await writeFile(path.join(destination, "notion-export", "pages", "note.md"), "local\n");
+    expect(await readFile(path.join(sourcePath, "pages", "note.md"), "utf8")).toBe("source\n");
+    expect(await readFile(path.join(destination, "notion-export", "pages", "note.md"), "utf8")).toBe("local\n");
+    expect(await readdir(destination)).toEqual(["notion-export"]);
+  });
+
+  it("does not overwrite an existing local project when importing a folder", async () => {
+    const sourcePath = path.join(parentPath, "vault");
+    const destination = path.join(parentPath, "projects");
+    await mkdir(sourcePath);
+    await mkdir(path.join(destination, "vault"), { recursive: true });
+    await writeFile(path.join(sourcePath, "note.md"), "source");
+    await writeFile(path.join(destination, "vault", "note.md"), "existing");
+
+    const service = createProjectEntryService();
+    await expect(service.importProject({
+      parentPath: destination,
+      source: { kind: "folder", provider: "obsidian", sourcePath },
+    })).rejects.toMatchObject({ code: "PROJECT_ALREADY_EXISTS" });
+    expect(await readFile(path.join(destination, "vault", "note.md"), "utf8")).toBe("existing");
+    expect(await readdir(destination)).toEqual(["vault"]);
+  });
+
+  it("rejects a linked file and removes only its own staging directory", async () => {
+    const sourcePath = path.join(parentPath, "export");
+    const destination = path.join(parentPath, "projects");
+    await mkdir(sourcePath);
+    await mkdir(destination);
+    await writeFile(path.join(parentPath, "outside.txt"), "private");
+    await symlink(path.join(parentPath, "outside.txt"), path.join(sourcePath, "linked.txt"));
+
+    const service = createProjectEntryService();
+    await expect(service.importProject({
+      parentPath: destination,
+      source: { kind: "folder", provider: "google-drive", sourcePath },
+    })).rejects.toThrow(/symbolic link/);
+    expect(await readdir(destination)).toEqual([]);
+    expect(await readFile(path.join(parentPath, "outside.txt"), "utf8")).toBe("private");
+  });
+
+  it("rejects a destination inside the imported folder before copying", async () => {
+    const sourcePath = path.join(parentPath, "export");
+    const destination = path.join(sourcePath, "projects");
+    await mkdir(destination, { recursive: true });
+    await writeFile(path.join(sourcePath, "note.md"), "source");
+
+    const service = createProjectEntryService();
+    await expect(service.importProject({
+      parentPath: destination,
+      source: { kind: "folder", provider: "airtable", sourcePath },
+    })).rejects.toThrow(/outside the source folder/);
+    expect(await readdir(destination)).toEqual([]);
+    expect(await readFile(path.join(sourcePath, "note.md"), "utf8")).toBe("source");
   });
 });

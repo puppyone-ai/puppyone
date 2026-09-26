@@ -43,6 +43,7 @@
   "native.update.manual.failed.message": "{appName} 未能完成更新检查。",
   "native.update.manual.failed.detail": "请稍后重试。",
   "native.workspace.open.title": "打开本地 PuppyOne 工作区",
+  "native.workspace.import.chooseSource": "选择要导入的文件夹",
   "native.workspace.create.chooseParent": "选择项目的创建位置",
   "native.workspace.create.chooseParentButton": "在此创建",
   "native.workspace.clone.chooseParent": "选择仓库的克隆位置",

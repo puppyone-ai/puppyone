@@ -43,6 +43,7 @@
   "native.update.manual.failed.message": "{appName} はアップデートを確認できませんでした。",
   "native.update.manual.failed.detail": "後でもう一度お試しください。",
   "native.workspace.open.title": "ローカルの PuppyOne ワークスペースを開く",
+  "native.workspace.import.chooseSource": "インポートするフォルダーを選択",
   "native.workspace.create.chooseParent": "プロジェクトの作成先を選択",
   "native.workspace.create.chooseParentButton": "ここに作成",
   "native.workspace.clone.chooseParent": "リポジトリのクローン先を選択",

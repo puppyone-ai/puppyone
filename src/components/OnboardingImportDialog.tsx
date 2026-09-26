@@ -1,5 +1,5 @@
-import { ArrowLeft, FolderOpen } from "lucide-react";
-import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { ArrowLeft } from "lucide-react";
+import { useEffect, useId, useState, type FormEvent, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization";
 import {
   DEFAULT_VISIBLE_IMPORT_SOURCES,
@@ -11,8 +11,10 @@ import {
 } from "../features/project-import/importSourceRegistry";
 import type {
   WorkspaceCloneRepositoryRequest,
+  WorkspaceImportLocalFolderRequest,
   WorkspaceProjectLocationGrant,
 } from "../types/electron";
+import { ImportLocationField, useImportLocation } from "../features/project-import/ImportLocationField";
 import {
   DesktopDialogCloseButton,
   DesktopDialogRoot,
@@ -21,9 +23,9 @@ import { ImportSourceMark } from "./onboarding/ImportSourceMark";
 
 /**
  * Import is framed as "bring your work back into files you own", not as a Git
- * operation. GitHub and GitLab are real clone operations. Every other source
- * is an explicit export/open guide that ends in the regular folder picker; it
- * must never be presented as an account connection or automatic conversion.
+ * operation. GitHub and GitLab clone into a local project. Other sources guide
+ * users through an export, then copy the selected folder into a local project.
+ * None of these sources connect an account or run ongoing synchronization.
  */
 export type RepositoryProvider = RepositoryImportSource;
 export type OnboardingImportSource = ImportSourceBrand;
@@ -71,8 +73,7 @@ export type OnboardingImportDialogProps = {
   /** Opens the native picker and issues a grant for the chosen folder. */
   onChooseLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
   onImportRepository: (request: WorkspaceCloneRepositoryRequest) => Promise<boolean>;
-  /** Opens the regular folder picker; used by every non-Git source. */
-  onOpenFolder: () => void;
+  onImportFolder: (request: WorkspaceImportLocalFolderRequest) => Promise<boolean>;
   /** Sources resolved from the shared capability and experiment registry. */
   visibleSources?: readonly ImportSourceDescriptor[];
 };
@@ -82,7 +83,7 @@ export function OnboardingImportDialog({
   onDefaultLocation,
   onChooseLocation,
   onImportRepository,
-  onOpenFolder,
+  onImportFolder,
   visibleSources = DEFAULT_VISIBLE_IMPORT_SOURCES,
 }: OnboardingImportDialogProps) {
   const { t } = useLocalization();
@@ -94,11 +95,6 @@ export function OnboardingImportDialog({
     : source === "github" || source === "gitlab"
       ? t("onboarding.entry.import.repository.title", { provider: REPOSITORY_PROVIDER_LABELS[source] })
     : t(`onboarding.entry.import.${source}.title`);
-
-  const openFolderAndClose = () => {
-    onClose();
-    onOpenFolder();
-  };
 
   const selectSource = (nextSource: OnboardingImportSource) => {
     setSource(nextSource);
@@ -160,7 +156,14 @@ export function OnboardingImportDialog({
           />
         )}
         {source !== null && source !== "github" && source !== "gitlab" && (
-          <GuidedImportStep source={source} onChooseFolder={openFolderAndClose} />
+          <GuidedImportStep
+            source={source}
+            onBusyChange={setBusy}
+            onClose={onClose}
+            onDefaultLocation={onDefaultLocation}
+            onChooseLocation={onChooseLocation}
+            onImportFolder={onImportFolder}
+          />
         )}
       </div>
     </DesktopDialogRoot>
@@ -208,7 +211,7 @@ function ImportSourceRow({
   onSelect,
 }: {
   source: OnboardingImportSource;
-  mode: "repository" | "guided";
+  mode: "repository" | "folder";
   icon: ReactNode;
   title: string;
   initialFocus?: boolean;
@@ -233,16 +236,45 @@ function ImportSourceRow({
 
 function GuidedImportStep({
   source,
-  onChooseFolder,
+  onBusyChange,
+  onClose,
+  onDefaultLocation,
+  onChooseLocation,
+  onImportFolder,
 }: {
   source: ExperimentalImportSource;
-  onChooseFolder: () => void;
+  onBusyChange: (busy: boolean) => void;
+  onClose: () => void;
+  onDefaultLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
+  onChooseLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
+  onImportFolder: OnboardingImportDialogProps["onImportFolder"];
 }) {
   const { t } = useLocalization();
+  const destination = useImportLocation({ onDefaultLocation, onChooseLocation });
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const busy = submitting || destination.choosing || destination.resolvingDefault;
+  useEffect(() => onBusyChange(busy), [busy, onBusyChange]);
   const stepCount = IMPORT_SOURCE_REGISTRY.find((entry) => entry.id === source)?.stepCount ?? 0;
   const steps = Array.from({ length: stepCount }, (_, index) => (
     t(`onboarding.entry.import.${source}.step${index + 1}`)
   ));
+
+  const submit = async () => {
+    if (busy) return;
+    setSubmitError(null);
+    setSubmitting(true);
+    try {
+      const opened = await onImportFolder({ provider: source, locationGrantId: destination.location?.grantId ?? null });
+      if (opened) {
+        onClose();
+        return;
+      }
+    } catch (nextError) {
+      setSubmitError(nextError instanceof Error ? nextError.message : String(nextError));
+    }
+    setSubmitting(false);
+  };
 
   return (
     <>
@@ -251,15 +283,24 @@ function GuidedImportStep({
           {steps.map((step, index) => <li key={index}>{step}</li>)}
         </ol>
         <p className="onboarding-import-outcome">{t(`onboarding.entry.import.${source}.outcome`)}</p>
+        <ImportLocationField
+          location={destination.location}
+          choosing={destination.choosing}
+          disabled={busy}
+          canChoose={destination.canChoose}
+          onChoose={() => void destination.choose()}
+        />
+        {(submitError || destination.error) && <p className="desktop-dialog-error" role="alert">{submitError || destination.error}</p>}
       </div>
       <footer className="desktop-dialog-footer">
         <button
           className="desktop-dialog-button primary file"
           type="button"
           data-desktop-dialog-initial-focus="true"
-          onClick={onChooseFolder}
+          disabled={busy}
+          onClick={() => void submit()}
         >
-          {t(`onboarding.entry.import.${source}.action`)}
+          {t(submitting ? "onboarding.entry.clone.submitting" : `onboarding.entry.import.${source}.action`)}
         </button>
       </footer>
     </>
@@ -284,33 +325,15 @@ function RepositoryImportStep({
   const { t } = useLocalization();
   const [value, setValue] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [choosingLocation, setChoosingLocation] = useState(false);
-  const [location, setLocation] = useState<WorkspaceProjectLocationGrant | null>(null);
+  const destination = useImportLocation({ onDefaultLocation, onChooseLocation });
   const [error, setError] = useState<string | null>(null);
-  const defaultLocationRequested = useRef(false);
   const detectedProvider = detectRepositoryProvider(value);
   const unsupportedUrl = value.trim().length > 0 && detectedProvider !== provider;
-  const busy = submitting || choosingLocation;
+  const busy = submitting || destination.choosing || destination.resolvingDefault;
 
   useEffect(() => {
     onBusyChange(busy);
   }, [busy, onBusyChange]);
-
-  useEffect(() => {
-    if (!onDefaultLocation || defaultLocationRequested.current) return;
-    defaultLocationRequested.current = true;
-    let cancelled = false;
-    void onDefaultLocation()
-      .then((grant) => {
-        if (!cancelled && grant) setLocation((current) => current ?? grant);
-      })
-      .catch(() => {
-        // Without a default the main process falls back to its own folder picker.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [onDefaultLocation]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -322,7 +345,7 @@ function RepositoryImportStep({
       const opened = await onImportRepository({
         provider,
         repositoryUrl,
-        locationGrantId: location?.grantId ?? null,
+        locationGrantId: destination.location?.grantId ?? null,
       });
       if (opened) {
         onClose();
@@ -332,20 +355,6 @@ function RepositoryImportStep({
       setError(nextError instanceof Error ? nextError.message : String(nextError));
     }
     setSubmitting(false);
-  };
-
-  const chooseLocation = async () => {
-    if (!onChooseLocation || busy) return;
-    setError(null);
-    setChoosingLocation(true);
-    try {
-      const nextLocation = await onChooseLocation();
-      if (nextLocation) setLocation(nextLocation);
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : String(nextError));
-    } finally {
-      setChoosingLocation(false);
-    }
   };
 
   return (
@@ -389,37 +398,15 @@ function RepositoryImportStep({
               provider: REPOSITORY_PROVIDER_LABELS[provider],
             })}
           </p>
-          <div className="onboarding-entry-create-field onboarding-import-location">
-            <span className="onboarding-entry-create-label">
-              {t("onboarding.entry.import.saveTo")}
-            </span>
-            <button
-              className="onboarding-entry-location-picker onboarding-entry-browse-button"
-              type="button"
-              disabled={busy || !onChooseLocation}
-              aria-label={t("onboarding.entry.import.saveTo")}
-              onClick={() => void chooseLocation()}
-            >
-              <FolderOpen aria-hidden="true" />
-              <bdi
-                className={`onboarding-entry-location-path ${location ? "is-selected" : ""}`}
-                dir="ltr"
-                title={location?.path}
-                aria-live="polite"
-              >
-                {location?.path ?? t("onboarding.entry.import.saveToPicker")}
-              </bdi>
-              <span className="onboarding-entry-location-action">
-                {t(choosingLocation
-                  ? "onboarding.entry.create.browsing"
-                  : location
-                    ? "onboarding.entry.create.change"
-                    : "onboarding.entry.create.browse")}
-              </span>
-            </button>
-          </div>
+          <ImportLocationField
+            location={destination.location}
+            choosing={destination.choosing}
+            disabled={busy}
+            canChoose={destination.canChoose}
+            onChoose={() => void destination.choose()}
+          />
         </div>
-        {error && <p className="desktop-dialog-error" role="alert">{error}</p>}
+        {(error || destination.error) && <p className="desktop-dialog-error" role="alert">{error || destination.error}</p>}
       </div>
 
       <footer className="desktop-dialog-footer">

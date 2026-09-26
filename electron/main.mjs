@@ -135,6 +135,7 @@ import {
   requireProjectName,
 } from "./main/project-entry-service.mjs";
 import { createProjectLocationGrantStore } from "./main/project-location-grants.mjs";
+import { getLocalImportSource } from "../shared/project-import/sources.mjs";
 import { createDesktopLocaleService } from "./main/localization/desktop-locale-service.mjs";
 import { createWorkspaceWatchService } from "./main/workspace-watch-service.mjs";
 import { createWorkspaceMutationTracker } from "./main/workspace-mutation-tracker.mjs";
@@ -1081,6 +1082,7 @@ function registerIpcHandlers() {
     openWorkspaceInNewWindow,
     createProjectForCurrentWindow,
     cloneRepositoryForCurrentWindow,
+    importFolderForCurrentWindow,
     selectProjectLocationForCurrentWindow,
     getDefaultProjectLocationForCurrentWindow,
     selectWorkspaceForCurrentWindow,
@@ -1441,6 +1443,37 @@ async function cloneRepositoryForCurrentWindow(sender, request) {
       parentPath,
       provider: repository.provider,
       repositoryUrl: repository.url,
+    });
+    if (grantId) projectLocationGrants.revoke(sender, grantId);
+    return openWorkspaceInCurrentWindow(sender, project.path);
+  });
+}
+
+async function importFolderForCurrentWindow(sender, request) {
+  if (getLocalImportSource(request?.provider)?.mode !== "folder") {
+    throw new Error("Unsupported local folder import source.");
+  }
+  return runProjectEntryOperation(sender, async () => {
+    const ownerWindow = getDialogOwnerWindow(sender);
+    const options = {
+      title: localeService.t("native.workspace.import.chooseSource"),
+      properties: ["openDirectory"],
+    };
+    const selected = ownerWindow && !ownerWindow.isDestroyed()
+      ? await dialog.showOpenDialog(ownerWindow, options)
+      : await dialog.showOpenDialog(options);
+    if (selected.canceled || selected.filePaths.length === 0) return null;
+    const sourcePath = selected.filePaths[0];
+    const grantId = typeof request?.locationGrantId === "string" && request.locationGrantId
+      ? request.locationGrantId
+      : null;
+    const parentPath = grantId
+      ? projectLocationGrants.resolve(sender, grantId)
+      : await selectProjectParentDirectory(sender, "create");
+    if (!parentPath) return null;
+    const project = await projectEntryService.importProject({
+      parentPath,
+      source: { kind: "folder", provider: request?.provider, sourcePath },
     });
     if (grantId) projectLocationGrants.revoke(sender, grantId);
     return openWorkspaceInCurrentWindow(sender, project.path);

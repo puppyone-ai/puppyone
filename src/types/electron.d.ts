@@ -747,6 +747,11 @@ export type WorkspaceCloneRepositoryRequest = {
   locationGrantId?: string | null;
 };
 
+export type WorkspaceImportLocalFolderRequest = {
+  provider: "notion" | "google-drive" | "obsidian" | "airtable";
+  locationGrantId?: string | null;
+};
+
 export type WorkspaceCreateEntryKind = "file" | "folder";
 
 export type WorkspaceCreateEntryRequest = {
@@ -1200,6 +1205,9 @@ declare global {
       ) => Promise<WorkspaceCreateProjectResult>;
       cloneRepository: (
         request: WorkspaceCloneRepositoryRequest,
+      ) => Promise<WorkspaceOpenResult | null>;
+      importLocalFolder: (
+        request: WorkspaceImportLocalFolderRequest,
       ) => Promise<WorkspaceOpenResult | null>;
       getPathForFile: (file: File) => string;
       resourceDragSessionSupported: boolean;
