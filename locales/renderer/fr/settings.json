@@ -288,6 +288,8 @@
   "experimental.firstProjectStarter.detail": "Affiche une fois le sélecteur expérimental Vide, Bien démarrer, Notes et Table de données après la création d’un projet local vide.",
   "experimental.cloudWorkspace.title": "PuppyOne Cloud",
   "experimental.cloudWorkspace.detail": "Afficher l’entrée Cloud dans la navigation et le rappel de publication Cloud dans le contrôle de source.",
+  "experimental.cloudAgentCatalog.title": "Agents cloud dans la barre latérale droite",
+  "experimental.cloudAgentCatalog.detail": "Affiche les agents cloud envisagés dans la barre latérale droite. La connexion n'est pas encore disponible ici.",
   "experimental.cloudAutomation.title": "Automation",
   "experimental.cloudAutomation.detail": "Afficher l’espace de travail Automation expérimental pour les exécutions planifiées et les sources de données connectées.",
   "experimental.appFiles.title": "Fichiers d’application PuppyOne",

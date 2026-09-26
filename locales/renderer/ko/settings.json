@@ -288,6 +288,8 @@
   "experimental.firstProjectStarter.detail": "빈 로컬 프로젝트를 만든 후 빈 프로젝트, 시작하기, 메모, 데이터 표 선택 화면을 한 번만 표시합니다.",
   "experimental.cloudWorkspace.title": "PuppyOne Cloud",
   "experimental.cloudWorkspace.detail": "탐색의 Cloud 항목과 소스 제어의 Cloud 게시 알림을 표시합니다.",
+  "experimental.cloudAgentCatalog.title": "오른쪽 사이드바의 클라우드 Agent",
+  "experimental.cloudAgentCatalog.detail": "오른쪽 사이드바에 연결 후보 클라우드 Agent를 표시합니다. 여기서는 아직 연결할 수 없습니다.",
   "experimental.cloudAutomation.title": "Automation",
   "experimental.cloudAutomation.detail": "예약 실행 및 연결된 데이터 소스를 위한 실험적인 Automation 작업 공간을 표시합니다.",
   "experimental.appFiles.title": "PuppyOne App 파일",

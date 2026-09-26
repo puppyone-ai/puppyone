@@ -86,6 +86,7 @@ export type ExperimentalSettings = {
   /** Compatibility field: Built-in Agent has graduated from Experimental. */
   enableBuiltInAgent: boolean;
   enableCloudAutomation: boolean;
+  enableCloudAgentCatalog: boolean;
   enableCloudWorkspace: boolean;
   enableEditorSaveStatus: boolean;
   /** Legacy preference retained for decoding only; project creation owns templates. */
@@ -176,6 +177,7 @@ export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
   enableAssetLibraryHome: false,
   enableBuiltInAgent: true,
   enableCloudAutomation: false,
+  enableCloudAgentCatalog: false,
   enableCloudWorkspace: false,
   enableEditorSaveStatus: false,
   enableFirstProjectStarter: false,
@@ -426,6 +428,7 @@ export function parseExperimentalSettings(value: string | null | undefined): Exp
       enableAssetLibraryHome: parsed.enableAssetLibraryHome === true,
       enableBuiltInAgent: true,
       enableCloudAutomation: parsed.enableCloudAutomation === true,
+      enableCloudAgentCatalog: parsed.enableCloudAgentCatalog === true,
       enableCloudWorkspace: parsed.enableCloudWorkspace === true,
       enableEditorSaveStatus: parsed.enableEditorSaveStatus === true,
       enableFirstProjectStarter: parsed.enableFirstProjectStarter === true,

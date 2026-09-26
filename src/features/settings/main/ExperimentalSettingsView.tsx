@@ -33,6 +33,7 @@ export function ExperimentalSettingsView({
       ? [{ messageKey: "projectsHome", settingKey: "enableAssetLibraryHome" as const }]
       : []),
     { messageKey: "cloudWorkspace", settingKey: "enableCloudWorkspace" },
+    { messageKey: "cloudAgentCatalog", settingKey: "enableCloudAgentCatalog" },
     { messageKey: "cloudAutomation", settingKey: "enableCloudAutomation" },
     { messageKey: "flowFiles", settingKey: "enablePuppyFlowFiles" },
   ];

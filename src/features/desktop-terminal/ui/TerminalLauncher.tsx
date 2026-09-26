@@ -34,6 +34,7 @@ type TerminalLauncherProps = {
   discoveryRefreshing?: boolean;
   discoveryHasInstallations?: boolean;
   availableAgentIds: readonly LocalAgentInstallationId[];
+  cloudAgentCatalog?: ReactNode;
   agentSetup?: (onReturnToLauncher: () => void) => ReactNode;
   chatCreationAvailable?: boolean;
   chatPreparing?: boolean;
@@ -64,6 +65,7 @@ export function TerminalLauncher({
   agentMode,
   discoveryPhase,
   availableAgentIds,
+  cloudAgentCatalog,
   agentSetup,
   discoveryHasFailures = false,
   discoveryRefreshing = false,
@@ -234,6 +236,8 @@ export function TerminalLauncher({
             {availabilityMessage ? t(availabilityMessage) : ""}
           </div>
         </div>
+
+        {cloudAgentCatalog}
 
         {history && onRestoreHistoryTarget && (
           <div className="desktop-terminal-launcher-group is-history-entry">

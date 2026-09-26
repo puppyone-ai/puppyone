@@ -288,6 +288,8 @@
   "experimental.firstProjectStarter.detail": "空のローカルプロジェクトを作成した後に、空白、はじめに、ノート、データ表の実験的な選択画面を一度だけ表示します。",
   "experimental.cloudWorkspace.title": "PuppyOne Cloud",
   "experimental.cloudWorkspace.detail": "ナビゲーションの Cloud 項目と、ソース管理の Cloud 公開リマインダーを表示します。",
+  "experimental.cloudAgentCatalog.title": "右サイドバーのクラウド Agent",
+  "experimental.cloudAgentCatalog.detail": "右サイドバーに接続候補のクラウド Agent を表示します。ここからの接続はまだできません。",
   "experimental.cloudAutomation.title": "Automation",
   "experimental.cloudAutomation.detail": "スケジュール実行と接続済みデータソースのための実験的な Automation ワークスペースを表示します。",
   "experimental.appFiles.title": "PuppyOne App ファイル",

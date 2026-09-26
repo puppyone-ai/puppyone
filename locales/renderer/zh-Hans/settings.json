@@ -325,6 +325,8 @@
   "experimental.firstProjectStarter.detail": "创建空白本地项目后，显示一次实验性的“空白、开始使用、笔记和数据表”选择器。",
   "experimental.cloudWorkspace.title": "PuppyOne Cloud",
   "experimental.cloudWorkspace.detail": "在导航中显示 Cloud 入口，并在源代码管理中显示 Cloud 发布提醒。",
+  "experimental.cloudAgentCatalog.title": "右侧栏云端 Agent",
+  "experimental.cloudAgentCatalog.detail": "在右侧栏显示云端 Agent 候选名单。暂时不能在这里完成连接。",
   "experimental.cloudAutomation.title": "Automation",
   "experimental.cloudAutomation.detail": "显示实验性的 Automation 工作区，用于定时运行任务和连接外部数据源。",
   "experimental.appFiles.title": "PuppyOne App 文件",

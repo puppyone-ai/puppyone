@@ -288,6 +288,8 @@
   "experimental.firstProjectStarter.detail": "Zeigt nach dem Erstellen eines leeren lokalen Projekts einmal die experimentelle Auswahl für Leer, Erste Schritte, Notizen und Datentabelle an.",
   "experimental.cloudWorkspace.title": "PuppyOne Cloud",
   "experimental.cloudWorkspace.detail": "Zeigt den Cloud-Eintrag in der Navigation und die Cloud-Veröffentlichungserinnerung in der Quellcodeverwaltung.",
+  "experimental.cloudAgentCatalog.title": "Cloud-Agents in der rechten Seitenleiste",
+  "experimental.cloudAgentCatalog.detail": "Zeigt mögliche Cloud-Agents in der rechten Seitenleiste. Verbindungen sind hier noch nicht verfügbar.",
   "experimental.cloudAutomation.title": "Automation",
   "experimental.cloudAutomation.detail": "Zeigt den experimentellen Automation-Arbeitsbereich für geplante Abläufe und verbundene Datenquellen.",
   "experimental.appFiles.title": "PuppyOne-App-Dateien",

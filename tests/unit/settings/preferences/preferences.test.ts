@@ -238,6 +238,13 @@ describe("experimental preferences", () => {
     expect(parseExperimentalSettings(JSON.stringify({ enableCloudWorkspace: true })).enableCloudWorkspace).toBe(true);
   });
 
+  it("keeps the cloud Agent catalog hidden unless the user explicitly opts in", () => {
+    expect(parseExperimentalSettings(null).enableCloudAgentCatalog).toBe(false);
+    expect(parseExperimentalSettings("not-json").enableCloudAgentCatalog).toBe(false);
+    expect(parseExperimentalSettings(JSON.stringify({ enableCloudAgentCatalog: false })).enableCloudAgentCatalog).toBe(false);
+    expect(parseExperimentalSettings(JSON.stringify({ enableCloudAgentCatalog: true })).enableCloudAgentCatalog).toBe(true);
+  });
+
   it("keeps multi-project workspaces off unless the user explicitly opts in", () => {
     expect(parseExperimentalSettings(null).enableMultiRootWorkspaces).toBe(false);
     expect(parseExperimentalSettings("not-json").enableMultiRootWorkspaces).toBe(false);

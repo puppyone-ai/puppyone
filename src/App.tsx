@@ -1450,6 +1450,7 @@ function AppContent() {
                     if (folder) void handleRemoveProject(folder);
                   }}
                   renderLauncher={(context) => <AuxiliaryWorkbenchLauncher {...context} store={projectWorkbench} contributions={auxiliaryWorkbenchContributions} hiddenAgentIds={localAgentsSettings.hiddenTerminalAgentIds}
+                    showCloudAgents={experimentalSettings.enableCloudAgentCatalog}
                     setupPreferences={localAgentsSettings.setupSuggestions}
                     onSetupPreferencesChange={(setupSuggestions) => setLocalAgentsSettings({ ...localAgentsSettings, setupSuggestions })} />}
                 />}

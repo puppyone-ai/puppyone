@@ -325,6 +325,8 @@
   "experimental.firstProjectStarter.detail": "Show the experimental Blank, Get started, Notes, and Data table chooser once after creating an empty local project.",
   "experimental.cloudWorkspace.title": "PuppyOne Cloud",
   "experimental.cloudWorkspace.detail": "Show the Cloud navigation entry and the Cloud publish reminder in Source Control.",
+  "experimental.cloudAgentCatalog.title": "Cloud agents in sidebar",
+  "experimental.cloudAgentCatalog.detail": "Show candidate cloud agents in the right sidebar. Connections are not available here yet.",
   "experimental.cloudAutomation.title": "Automation",
   "experimental.cloudAutomation.detail": "Show the experimental Automation workspace for scheduled runs and connected data sources.",
   "experimental.appFiles.title": "PuppyOne App files",

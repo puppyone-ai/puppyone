@@ -58,6 +58,25 @@ describe("Experimental settings", () => {
     expect(DEFAULT_EXPERIMENTAL_SETTINGS.enableCloudWorkspace).toBe(false);
   });
 
+  it("offers an off-by-default cloud Agent catalog switch", () => {
+    const onChange = vi.fn();
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    act(() => root?.render(withTestLocalization(
+      <ExperimentalSettingsView settings={DEFAULT_EXPERIMENTAL_SETTINGS}
+        assetLibraryHomeAvailable={false} onChange={onChange} />,
+    )));
+
+    const toggle = host.querySelector<HTMLInputElement>('input[aria-label="Cloud agents in sidebar"]');
+    expect(toggle?.checked).toBe(false);
+    act(() => toggle?.click());
+    expect(onChange).toHaveBeenCalledWith({
+      ...DEFAULT_EXPERIMENTAL_SETTINGS,
+      enableCloudAgentCatalog: true,
+    });
+  });
+
   it("offers an off-by-default cross-Project switcher rail", () => {
     const onChange = vi.fn();
     const host = document.createElement("div");
