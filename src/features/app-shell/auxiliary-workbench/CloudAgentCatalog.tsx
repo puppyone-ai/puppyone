@@ -15,7 +15,7 @@ const CLOUD_AGENTS: readonly Readonly<{ name: string; brandId: AgentBrandId }>[]
   { name: "Replit Agent", brandId: "replit" },
   { name: "Gemini", brandId: "gemini" },
   { name: "Codex Cloud", brandId: "codex" },
-  { name: "GitHub Copilot cloud agent", brandId: "github-copilot" },
+  { name: "GitHub Copilot", brandId: "github-copilot" },
   { name: "Devin", brandId: "devin" },
   { name: "Microsoft Copilot Studio", brandId: "copilot-studio" },
   { name: "Jules", brandId: "jules" },
