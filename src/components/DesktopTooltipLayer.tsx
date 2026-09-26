@@ -171,6 +171,8 @@ export function DesktopTooltipLayer() {
   }, [active, tooltipId]);
 
   if (!active) return null;
+  // The overlay root carries the selected UI font and small/medium/large scale.
+  const portalHost = document.getElementById("desktop-overlay-root") ?? document.body;
   return createPortal(
     <div
       ref={tooltipRef}
@@ -182,6 +184,6 @@ export function DesktopTooltipLayer() {
       <span className="desktop-tooltip-label" dir="auto">{active.label}</span>
       {active.shortcut && <kbd className="desktop-tooltip-shortcut">{active.shortcut}</kbd>}
     </div>,
-    document.body,
+    portalHost,
   );
 }

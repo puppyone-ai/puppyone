@@ -56,4 +56,14 @@ describe("DesktopTooltipLayer", () => {
     });
     expect(document.querySelector('[role="tooltip"]')).toBeNull();
   });
+
+  it("uses the themed overlay root for the selected typography scale", () => {
+    const overlayRoot = document.createElement("div");
+    overlayRoot.id = "desktop-overlay-root";
+    document.body.append(overlayRoot);
+    const button = mountTooltip();
+
+    act(() => button.focus());
+    expect(overlayRoot.querySelector('[role="tooltip"]')?.textContent).toBe("New");
+  });
 });
