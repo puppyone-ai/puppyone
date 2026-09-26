@@ -10,13 +10,13 @@ export function IconButton({
   label,
   className,
   type = "button",
+  title = label,
   ...props
 }: IconButtonProps) {
   const classes = ["po-icon-button", className].filter(Boolean).join(" ");
   return (
-    <button className={classes} type={type} aria-label={label} title={props.title ?? label} {...props}>
+    <button className={classes} type={type} aria-label={label} data-tooltip={title} {...props}>
       {icon}
     </button>
   );
 }
-

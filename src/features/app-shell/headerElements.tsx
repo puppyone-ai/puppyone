@@ -61,7 +61,7 @@ export const HEADER_ELEMENT_DEFINITIONS: readonly HeaderElementDefinition[] = [
             ? "desktop-shell-toolbar-button desktop-shell-toolbar-changes"
             : "desktop-titlebar-action desktop-titlebar-changes"}
           type="button"
-          title={statusLabel}
+          data-tooltip={statusLabel}
           aria-label={statusLabel}
           aria-pressed={changes.sidebarOpen}
           data-has-git-status={hasStatus ? "true" : undefined}
@@ -102,7 +102,7 @@ export const HEADER_ELEMENT_DEFINITIONS: readonly HeaderElementDefinition[] = [
             ? "desktop-shell-toolbar-button desktop-shell-toolbar-terminal"
             : "desktop-titlebar-action desktop-titlebar-terminal"}
           type="button"
-          title={toggleLabel}
+          data-tooltip={toggleLabel}
           aria-label={toggleLabel}
           aria-pressed={terminal.sidebarOpen}
           data-toolbar-action={toolbarPlacement ? "terminal" : undefined}

@@ -1331,12 +1331,12 @@ export function DataWorkspace({
                       <span>{labels?.root ?? t("shared-ui.explorer.root")}</span>
                       <div className="desktop-explorer-actions">
                         {resolvedCapabilities.create && onCreate && (
-                          <button type="button" aria-label={t("shared-ui.explorer.create")} onClick={() => onCreate(currentFolderPath)}>
+                          <button type="button" aria-label={t("shared-ui.explorer.create")} data-tooltip={t("shared-ui.explorer.create")} onClick={() => onCreate(currentFolderPath)}>
                             <Plus size={15} />
                           </button>
                         )}
                         {onMore && (
-                          <button type="button" aria-label={t("shared-ui.explorer.more")} onClick={() => onMore(workspaceState)}>
+                          <button type="button" aria-label={t("shared-ui.explorer.more")} data-tooltip={t("shared-ui.explorer.more")} onClick={() => onMore(workspaceState)}>
                             <MoreVertical size={15} />
                           </button>
                         )}

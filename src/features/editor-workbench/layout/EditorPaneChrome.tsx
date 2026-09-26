@@ -98,7 +98,7 @@ export function EditorPaneChrome({
           aria-label={handleLabel}
           aria-haspopup="menu"
           aria-expanded={actionsOpen}
-          title={handleLabel}
+          data-tooltip={handleLabel}
           onPointerEnter={() => {
             if (canMovePane && paneRef.current) paneMove.prepare(paneRef.current, pane.id);
           }}

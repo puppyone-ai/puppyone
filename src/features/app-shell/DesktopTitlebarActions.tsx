@@ -92,7 +92,7 @@ export function DesktopTitlebarActions({
       group: "header",
       id: "share",
       node: <button type="button" className="desktop-titlebar-action desktop-titlebar-share"
-        title={t("shell.titlebar.share")} aria-label={t("shell.titlebar.share")} onClick={onShare}>
+        data-tooltip={t("shell.titlebar.share")} aria-label={t("shell.titlebar.share")} onClick={onShare}>
         <Share size={16} strokeWidth={1.8} aria-hidden="true" />
       </button>,
     });

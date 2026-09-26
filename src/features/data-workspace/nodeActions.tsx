@@ -124,7 +124,7 @@ export function DesktopExplorerRowActions({
         <button
           className="tree-row-action-button"
           type="button"
-          title={t("workspace.node.createNew")}
+          data-tooltip={t("workspace.node.createNew")}
           aria-label={t("workspace.node.createNew")}
           onClick={(event) => onCreate(parentPath, event.currentTarget.getBoundingClientRect())}
         >
@@ -135,7 +135,7 @@ export function DesktopExplorerRowActions({
         <button
           className="tree-row-action-button"
           type="button"
-          title={t("workspace.node.moreActions")}
+          data-tooltip={t("workspace.node.moreActions")}
           aria-label={t("workspace.node.moreActionsFor", { name: bidiIsolate(node.name) })}
           onClick={(event) => onOpenNodeMenu(node, event.currentTarget.getBoundingClientRect())}
         >

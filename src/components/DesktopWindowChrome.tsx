@@ -65,7 +65,7 @@ export function DesktopWindowChrome({
               className="desktop-window-control is-minimize"
               type="button"
               aria-label={t("shell.windowControls.minimize")}
-              title={t("shell.windowControls.minimize")}
+              data-tooltip={t("shell.windowControls.minimize")}
               onClick={() => performWindowAction("minimize")}
             >
               <span aria-hidden="true" />
@@ -74,7 +74,7 @@ export function DesktopWindowChrome({
               className="desktop-window-control is-maximize"
               type="button"
               aria-label={t("shell.windowControls.maximize")}
-              title={t("shell.windowControls.maximize")}
+              data-tooltip={t("shell.windowControls.maximize")}
               onClick={() => performWindowAction("toggle-maximize")}
             >
               <span aria-hidden="true" />
@@ -83,7 +83,7 @@ export function DesktopWindowChrome({
               className="desktop-window-control is-close"
               type="button"
               aria-label={t("shell.windowControls.close")}
-              title={t("shell.windowControls.close")}
+              data-tooltip={t("shell.windowControls.close")}
               onClick={() => performWindowAction("close")}
             >
               <span aria-hidden="true" />

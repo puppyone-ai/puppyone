@@ -1,6 +1,5 @@
 import {
   useEffect,
-  useId,
   useMemo,
   useRef,
   useState,
@@ -85,15 +84,8 @@ export function ProjectSwitcherRail({
   utilitySlot,
 }: ProjectSwitcherRailProps) {
   const { t } = useLocalization();
-  const compactTooltipId = useId();
-  const railRef = useRef<HTMLElement>(null);
   const [pendingPath, setPendingPath] = useState<string | null>(null);
   const [projectActionSession, setProjectActionSession] = useState<ProjectActionSession | null>(null);
-  const [compactTooltip, setCompactTooltip] = useState<{
-    label: string;
-    projectPath: string;
-    top: number;
-  } | null>(null);
   const queuedProjectRef = useRef<Workspace | null>(null);
   const switchInFlightRef = useRef(false);
   const projectCatalog = useMemo(
@@ -127,10 +119,6 @@ export function ProjectSwitcherRail({
   }, [nextProjectOrder, projectOrder]);
 
   useEffect(() => {
-    if (expanded) setCompactTooltip(null);
-  }, [expanded]);
-
-  useEffect(() => {
     setProjectActionSession((current) => {
       if (!current) return null;
       if (!expanded) return null;
@@ -150,23 +138,6 @@ export function ProjectSwitcherRail({
       }
       return { projectPath, surface };
     });
-  };
-
-  const showCompactTooltip = (project: Workspace, target: HTMLElement) => {
-    if (expanded || !railRef.current) return;
-    const railRect = railRef.current.getBoundingClientRect();
-    const targetRect = target.getBoundingClientRect();
-    setCompactTooltip({
-      label: project.name,
-      projectPath: project.path,
-      top: targetRect.top - railRect.top + targetRect.height / 2,
-    });
-  };
-
-  const hideCompactTooltip = (projectPath: string) => {
-    setCompactTooltip((current) => (
-      current?.projectPath === projectPath ? null : current
-    ));
   };
 
   const selectProject = async (project: Workspace) => {
@@ -194,7 +165,6 @@ export function ProjectSwitcherRail({
 
   return (
     <nav
-      ref={railRef}
       className="desktop-project-switcher-rail"
       aria-label={t("shell.workspaceSwitcher.projects")}
       data-expanded={expanded ? "true" : "false"}
@@ -203,7 +173,6 @@ export function ProjectSwitcherRail({
       <div
         className="desktop-project-switcher-rail-list po-sidebar-list"
         data-po-scrollbar="sidebar"
-        onScroll={() => setCompactTooltip(null)}
       >
         {projects.map(({ workspace, initial, appearanceIdentity }) => {
           const active = activeView !== "settings" && workspace.path === activeWorkspace.path;
@@ -227,9 +196,8 @@ export function ProjectSwitcherRail({
                 type="button"
                 aria-current={active ? "page" : undefined}
                 aria-label={label}
-                aria-describedby={compactTooltip?.projectPath === workspace.path && !expanded
-                  ? compactTooltipId
-                  : undefined}
+                data-tooltip={expanded ? undefined : workspace.name}
+                data-tooltip-placement="right"
                 aria-busy={pendingPath === workspace.path || undefined}
                 data-avatar-kind={expanded
                   ? `context-${contextAssetKind}`
@@ -240,10 +208,6 @@ export function ProjectSwitcherRail({
                 draggable={Boolean(workspace.path.trim())}
                 onClick={() => void selectProject(workspace)}
                 onDragStart={(event) => beginProjectRootDrag(event, workspace.path)}
-                onFocus={(event) => showCompactTooltip(workspace, event.currentTarget)}
-                onBlur={() => hideCompactTooltip(workspace.path)}
-                onMouseEnter={(event) => showCompactTooltip(workspace, event.currentTarget)}
-                onMouseLeave={() => hideCompactTooltip(workspace.path)}
               >
                 <ProjectSwitcherAvatar
                   imageUrl={appearance?.icon?.kind === "asset" ? appearance.icon.url : null}
@@ -276,7 +240,8 @@ export function ProjectSwitcherRail({
           className={`desktop-project-switcher-rail-button desktop-project-switcher-rail-create ${expanded ? "desktop-project-switcher-rail-expanded-create po-sidebar-row" : "desktop-project-switcher-rail-compact-create"}`}
           type="button"
           aria-label={t("shell.workspaceSwitcher.createNew")}
-          title={t("shell.workspaceSwitcher.createNew")}
+          data-tooltip={t("shell.workspaceSwitcher.createNew")}
+          data-tooltip-placement={expanded ? "bottom" : "right"}
           onClick={() => {
             setProjectActionSession(null);
             onCreateNew();
@@ -297,16 +262,6 @@ export function ProjectSwitcherRail({
           )}
         </button>
       </div>
-      {!expanded && compactTooltip && (
-        <span
-          id={compactTooltipId}
-          className="desktop-project-switcher-rail-tooltip"
-          role="tooltip"
-          style={{ top: compactTooltip.top }}
-        >
-          <bdi dir="auto">{compactTooltip.label}</bdi>
-        </span>
-      )}
       {(onOpenPlugins || onOpenSettings || utilitySlot) && (
         <div
           className="desktop-project-switcher-rail-utilities desktop-sidebar-navigation-surface"

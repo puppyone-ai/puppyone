@@ -104,7 +104,7 @@ export function DesktopMenuIconButton({
       className={cx("desktop-menu-icon-button", className)}
       type={type}
       aria-label={label}
-      title={title}
+      data-tooltip={title}
       {...props}
     >
       {icon}

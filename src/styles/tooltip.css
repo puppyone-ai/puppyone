@@ -1,0 +1,48 @@
+.desktop-tooltip {
+  position: fixed;
+  z-index: calc(var(--po-overlay-root-z-index, 1000) + 100);
+  display: inline-flex;
+  box-sizing: border-box;
+  max-width: min(320px, calc(100vw - 16px));
+  min-height: 34px;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 9px 6px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 11px;
+  background: #303033;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24), 0 2px 6px rgba(0, 0, 0, 0.16);
+  color: #f4f4f5;
+  font-family: var(--po-font-ui, system-ui, sans-serif);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  pointer-events: none;
+  animation: desktop-tooltip-appear 100ms ease-out;
+}
+
+.desktop-tooltip-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.desktop-tooltip-shortcut {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border-radius: 7px;
+  background: #505053;
+  color: #dedee0;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+@keyframes desktop-tooltip-appear {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desktop-tooltip { animation: none; }
+}

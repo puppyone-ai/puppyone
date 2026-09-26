@@ -90,7 +90,7 @@ export function DesktopSidebarSettingsButton({
     <button
       className={`${buttonClassName} ${settingsOpen ? "active" : ""}`}
       type="button"
-      title={t("shell.navigation.settings")}
+      data-tooltip={t("shell.navigation.settings")}
       aria-label={t("shell.navigation.settings")}
       aria-haspopup="dialog"
       aria-expanded={settingsOpen}
@@ -130,7 +130,7 @@ export function DesktopSidebarPluginsButton({
     <button
       className={`${buttonClassName} ${pluginsOpen ? "active" : ""}`}
       type="button"
-      title={t("shell.navigation.plugins")}
+      data-tooltip={t("shell.navigation.plugins")}
       aria-label={t("shell.navigation.plugins")}
       aria-haspopup="dialog"
       aria-expanded={pluginsOpen}

@@ -481,7 +481,7 @@ describe("Project switcher rail", () => {
     expect(compactCloudMark?.getAttribute("width")).toBe("15");
   });
 
-  it("reveals a themed Project-name tooltip only for compact rows", async () => {
+  it("uses the shared tooltip for compact Project names and the create action", async () => {
     const active = workspace("active", "Alpha Project", "/projects/alpha");
     const host = document.createElement("div");
     document.body.append(host);
@@ -499,19 +499,13 @@ describe("Project switcher rail", () => {
     const compactRow = host.querySelector<HTMLButtonElement>(
       ".desktop-project-switcher-rail-project",
     );
-    await act(async () => compactRow?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })));
-
-    const tooltip = host.querySelector<HTMLElement>("[role='tooltip']");
-    expect(tooltip?.textContent).toBe("Alpha Project");
-    expect(tooltip?.classList.contains("desktop-project-switcher-rail-tooltip")).toBe(true);
-    expect(compactRow?.getAttribute("aria-describedby")).toBe(tooltip?.id);
+    expect(compactRow?.dataset.tooltip).toBe("Alpha Project");
+    expect(compactRow?.dataset.tooltipPlacement).toBe("right");
     expect(compactRow?.hasAttribute("title")).toBe(false);
-
-    await act(async () => compactRow?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true })));
-    expect(host.querySelector("[role='tooltip']")).toBeNull();
-
-    await act(async () => compactRow?.focus());
-    expect(host.querySelector("[role='tooltip']")?.textContent).toBe("Alpha Project");
+    const create = host.querySelector<HTMLButtonElement>(".desktop-project-switcher-rail-create");
+    expect(create?.dataset.tooltip).toBe("Create new");
+    expect(create?.dataset.tooltipPlacement).toBe("right");
+    expect(create?.hasAttribute("title")).toBe(false);
 
     await act(async () => root?.render(withTestLocalization(
       <ProjectSwitcherRail
@@ -522,7 +516,7 @@ describe("Project switcher rail", () => {
         onSelectProject={() => undefined}
       />,
     )));
-    expect(host.querySelector("[role='tooltip']")).toBeNull();
+    expect(host.querySelector<HTMLButtonElement>(".desktop-project-switcher-rail-project")?.dataset.tooltip).toBeUndefined();
   });
 
   it("derives a stable Unicode grapheme from the Project identity", () => {

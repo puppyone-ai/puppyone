@@ -75,7 +75,7 @@ export function AuxiliaryWorkbenchViewport(props: AuxiliaryWorkbenchViewportProp
             onClick={() => props.onCloseItem(item.id)}><X size={12} aria-hidden="true" /></button>
         </div>)}
         {props.activeGroupId && <button type="button" className="desktop-titlebar-workbench-new"
-          aria-label={t("workspace.workbench.newTab")} title={t("workspace.workbench.newTab")}
+          aria-label={t("workspace.workbench.newTab")} data-tooltip={t("workspace.workbench.newTab")}
           onClick={() => props.onCreateItem(props.activeGroupId!)}><Plus size={14} aria-hidden="true" /></button>}
       </div>, props.titlebarTabHost,
     )}
