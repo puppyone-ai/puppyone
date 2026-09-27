@@ -19,6 +19,7 @@ export function createCloudAuthService({
   revealWindow,
   secureStorage,
   externalNavigation,
+  getLocale = null,
   startCallbackServer = startLoopbackCallbackServer,
   fetchImpl = globalThis.fetch,
   localCloudWebUrl = null,
@@ -113,6 +114,8 @@ export function createCloudAuthService({
         callbackServer = await startCallbackServer({
           logger,
           appPath: app.getAppPath?.(),
+          getLocale,
+          onReturnToApp: revealWindow,
           onCallback: (callbackUrl) => handleCallback(callbackUrl),
           isExpectedCallback: (callbackUrl) => isExpectedPendingCallback(callbackUrl),
         });
@@ -196,7 +199,7 @@ export function createCloudAuthService({
 
       // Consume the local flow before exchange. Replayed callbacks can no longer
       // obtain the verifier, even if the backend code has not yet been consumed.
-      clearPendingOAuthState(state);
+      clearPendingOAuthState(state, { keepCallbackServer: true });
       const data = await requestCloudApi(pending.apiBase, "/auth/desktop/exchange", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -569,12 +572,12 @@ export function createCloudAuthService({
     else authStatus = "signed-out";
   }
 
-  function clearPendingOAuthState(state) {
+  function clearPendingOAuthState(state, { keepCallbackServer = false } = {}) {
     const pending = pendingOAuthStates.get(state);
     if (!pending) return;
     clearTimeout(pending.timeout);
     pendingOAuthStates.delete(state);
-    void pending.callbackServer?.close?.().catch(() => undefined);
+    if (!keepCallbackServer) void pending.callbackServer?.close?.().catch(() => undefined);
   }
 
   function findPendingOAuthState(startKey) {

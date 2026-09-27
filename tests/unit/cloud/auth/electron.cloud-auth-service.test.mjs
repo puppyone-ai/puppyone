@@ -185,15 +185,19 @@ describe("main-owned Cloud Auth Broker", () => {
     const fixture = createFixture({ credential: null });
     let onCallback = null;
     let isExpectedCallback = null;
+    let onReturnToApp = null;
+    const close = vi.fn(async () => {});
     fixture.startCallbackServer.mockImplementation(async ({
       onCallback: callback,
       isExpectedCallback: expectedCallback,
+      onReturnToApp: returnHandler,
     }) => {
       onCallback = callback;
       isExpectedCallback = expectedCallback;
+      onReturnToApp = returnHandler;
       return {
         redirectUri: "http://127.0.0.1:43123/auth/callback",
-        close: vi.fn(async () => {}),
+        close,
       };
     });
     fixture.requestCloudApi.mockImplementation(async (_base, path, init) => {
@@ -236,6 +240,8 @@ describe("main-owned Cloud Auth Broker", () => {
     );
 
     expect(signedIn).toMatchObject({ user_id: "oauth-user", status: "authenticated" });
+    expect(onReturnToApp).toBeTypeOf("function");
+    expect(close).not.toHaveBeenCalled();
     expect(fixture.credentialStore.write).toHaveBeenCalledWith(expect.objectContaining({
       version: 2,
       user_id: "oauth-user",

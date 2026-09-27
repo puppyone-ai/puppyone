@@ -1,9 +1,12 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
+import { PAGE_COPY, resolveCallbackLocale } from "./loopback-callback-copy.mjs";
 
 const CALLBACK_PATH = "/auth/callback";
 const MAX_CALLBACK_URL_LENGTH = 8 * 1024;
+const RETURN_ACTION_TTL_MS = 10 * 60 * 1000;
 // Matches puppyone-cloud/frontend/public/puppyone-logo.svg. Keep the final
 // callback self-contained: the one-time listener closes before assets can load.
 const BRAND_MARK = `<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -18,28 +21,11 @@ const BRAND_MARK = `<svg width="128" height="128" viewBox="0 0 128 128" fill="no
 <rect x="55.1133" y="69.0305" width="17" height="8" fill="#1C1D1F"/>
 <rect x="61.1133" y="71.0305" width="6" height="1" fill="white"/>
 </svg>`;
-const PAGE_COPY = {
-  en: {
-    success: ["Signed in successfully", "PuppyOne Desktop is ready to use.", "Return to the app to continue. You can close this browser tab."],
-    unrecognized: ["Sign-in link not recognized", "This page is not part of an active PuppyOne Desktop sign-in.", "Return to the app and start sign-in again."],
-    notReady: ["Sign-in is not ready", "PuppyOne Desktop is still preparing the sign-in request.", "Return to the app and try again."],
-    alreadyUsed: ["Sign-in link already used", "This sign-in link can only be opened once.", "If you're not signed in, return to the app and try again."],
-    stateMismatch: ["Sign-in could not be verified", "This page does not match the sign-in request from PuppyOne Desktop.", "Return to the app and start sign-in again."],
-    failed: ["Sign-in did not finish", "PuppyOne Desktop could not complete sign-in.", "Return to the app and try again."],
-  },
-  zh: {
-    success: ["登录成功", "PuppyOne Desktop 已准备就绪。", "返回应用继续使用。你可以关闭这个浏览器标签页。"],
-    unrecognized: ["无法识别登录链接", "此页面不属于当前的 PuppyOne Desktop 登录请求。", "请返回应用重新发起登录。"],
-    notReady: ["登录尚未准备好", "PuppyOne Desktop 正在准备登录请求。", "请返回应用重试。"],
-    alreadyUsed: ["登录链接已使用", "此登录链接只能使用一次。", "如果应用中尚未登录，请返回应用重试。"],
-    stateMismatch: ["无法验证登录", "此页面与 PuppyOne Desktop 发起的登录请求不匹配。", "请返回应用重新发起登录。"],
-    failed: ["登录未完成", "PuppyOne Desktop 未能完成登录。", "请返回应用重试。"],
-  },
-};
-
 export async function startLoopbackCallbackServer({
   onCallback,
   isExpectedCallback,
+  onReturnToApp = null,
+  getLocale = null,
   host = "127.0.0.1",
   appPath = null,
   logger = console,
@@ -53,15 +39,34 @@ export async function startLoopbackCallbackServer({
 
   let handled = false;
   let redirectUri = null;
+  let returnEnabled = false;
+  let returnTimer = null;
+  const returnPath = `/auth/return/${crypto.randomBytes(24).toString("base64url")}`;
   const geistFont = loadGeistFont(appPath, logger);
   const server = http.createServer(async (request, response) => {
-    const locale = preferredLocale(request.headers["accept-language"]);
+    let appLocale = null;
+    try { appLocale = getLocale?.(); } catch { /* Browser language remains the fallback. */ }
+    const locale = resolveCallbackLocale(appLocale, request.headers["accept-language"]);
     if (request.method !== "GET" || typeof request.url !== "string" || request.url.length > MAX_CALLBACK_URL_LENGTH) {
       respond(response, 404, "unrecognized", locale, geistFont);
       return;
     }
     if (!redirectUri) {
       respond(response, 503, "notReady", locale, geistFont);
+      return;
+    }
+
+    if (returnEnabled && request.url === returnPath) {
+      returnEnabled = false;
+      response.once("finish", () => {
+        void close().catch(() => undefined);
+        try {
+          Promise.resolve(onReturnToApp?.()).catch((error) => logger.warn?.("Unable to reveal PuppyOne Desktop.", error));
+        } catch (error) {
+          logger.warn?.("Unable to reveal PuppyOne Desktop.", error);
+        }
+      });
+      respond(response, 200, "success", locale, geistFont);
       return;
     }
 
@@ -77,29 +82,28 @@ export async function startLoopbackCallbackServer({
     }
 
     handled = true;
-    // Stop accepting new callbacks immediately, but never wait for close()
-    // before exchanging the one-time code: the active browser connection is
-    // itself what close() waits for.
-    void close().catch((error) => {
-      logger.warn?.("PuppyOne loopback callback listener did not close cleanly.", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    });
-
     try {
       const session = await onCallback(serializedCallbackUrl);
+      if (session && typeof onReturnToApp === "function") {
+        returnEnabled = true;
+        returnTimer = setTimeout(() => void close().catch(() => undefined), RETURN_ACTION_TTL_MS);
+        returnTimer.unref?.();
+      }
       respond(
         response,
         session ? 200 : 400,
         session ? "success" : "failed",
         locale,
         geistFont,
+        returnEnabled ? returnPath : null,
       );
+      if (!returnEnabled) void close().catch(() => undefined);
     } catch (error) {
       logger.warn?.("PuppyOne loopback callback failed.", {
         error: error instanceof Error ? error.message : String(error),
       });
       respond(response, 500, "failed", locale, geistFont);
+      void close().catch(() => undefined);
     }
   });
 
@@ -131,6 +135,8 @@ export async function startLoopbackCallbackServer({
   server.unref?.();
 
   async function close() {
+    if (returnTimer) clearTimeout(returnTimer);
+    returnTimer = null;
     if (!server.listening) return;
     await new Promise((resolve) => server.close(() => resolve()));
   }
@@ -139,11 +145,6 @@ export async function startLoopbackCallbackServer({
     redirectUri,
     close,
   };
-}
-
-function preferredLocale(acceptLanguage) {
-  const first = String(acceptLanguage || "").split(",", 1)[0].trim().toLowerCase();
-  return first === "zh" || first.startsWith("zh-") ? "zh" : "en";
 }
 
 function loadGeistFont(appPath, logger) {
@@ -159,9 +160,10 @@ function loadGeistFont(appPath, logger) {
   return null;
 }
 
-function respond(response, status, result, locale, geistFont) {
+function respond(response, status, result, locale, geistFont, returnPath = null) {
   const success = result === "success";
-  const [title, description, nextStep] = PAGE_COPY[locale][result];
+  const copy = PAGE_COPY[locale];
+  const [title, description, nextStep] = copy[result];
   const body = `<!doctype html>
 <html lang="${locale}">
 <head>
@@ -171,7 +173,7 @@ function respond(response, status, result, locale, geistFont) {
   <title>${escapeHtml(title)} · PuppyOne Desktop</title>
   <style>
     ${geistFont ? `@font-face { font-family: "Geist Sans"; src: url(data:font/woff2;base64,${geistFont}) format("woff2"); font-style: normal; font-weight: 100 900; font-display: swap; }` : ""}
-    :root { color-scheme: light; --po-inset: #e7e3db; --po-text: #292723; --po-text-muted: #68645c; --po-text-subtle: #928c83; --po-success: #168145; --po-danger: #dc2626; }
+    :root { color-scheme: light; --po-inset: #e7e3db; --po-text: #292723; --po-text-inverse: #fffefa; --po-text-muted: #68645c; --po-text-subtle: #928c83; --po-success: #168145; --po-danger: #dc2626; }
     * { box-sizing: border-box; }
     html { min-height: 100%; }
     body { min-height: 100vh; margin: 0; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--po-inset); color: var(--po-text); font-family: "Geist Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
@@ -180,9 +182,12 @@ function respond(response, status, result, locale, geistFont) {
     .brand svg { display: block; width: 100%; height: 100%; }
     h1 { margin: 0 0 32px; font-size: 24px; font-weight: 600; line-height: 32px; }
     .description { margin: 0; padding: 8px 12px; border-radius: 8px; color: var(${success ? "--po-success" : "--po-danger"}); background: color-mix(in srgb, var(${success ? "--po-success" : "--po-danger"}) 10%, transparent); font-size: 14px; line-height: 20px; }
-    .next-step { margin: 24px 0 0; color: var(--po-text-subtle); font-size: 12px; line-height: 18px; }
+    .return-button { display: flex; align-items: center; justify-content: center; min-height: 40px; margin-top: 24px; padding: 8px 16px; border-radius: 6px; background: var(--po-text); color: var(--po-text-inverse); font-size: 14px; font-weight: 600; line-height: 20px; text-decoration: none; }
+    .return-button:hover { opacity: .9; }
+    .return-button:focus-visible { outline: 3px solid var(--po-success); outline-offset: 3px; }
+    .next-step { margin: ${returnPath ? "16px" : "24px"} 0 0; color: var(--po-text-subtle); font-size: 12px; line-height: 18px; }
     @media (prefers-color-scheme: dark) {
-      :root { color-scheme: dark; --po-inset: #0d0d0d; --po-text: #fafafa; --po-text-muted: #a1a1aa; --po-text-subtle: #71717a; --po-success: #34d399; --po-danger: #f87171; }
+      :root { color-scheme: dark; --po-inset: #0d0d0d; --po-text: #fafafa; --po-text-inverse: #0a0a0a; --po-text-muted: #a1a1aa; --po-text-subtle: #71717a; --po-success: #34d399; --po-danger: #f87171; }
     }
   </style>
 </head>
@@ -191,6 +196,7 @@ function respond(response, status, result, locale, geistFont) {
     <div class="brand">${BRAND_MARK}</div>
     <h1>${escapeHtml(title)}</h1>
     <p class="description">${escapeHtml(description)}</p>
+    ${returnPath ? `<a class="return-button" href="${escapeHtml(returnPath)}">${escapeHtml(copy.returnButton)}</a>` : ""}
     <p class="next-step">${escapeHtml(nextStep)}</p>
   </main>
 </body>

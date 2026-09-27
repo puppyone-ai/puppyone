@@ -501,6 +501,7 @@ const cloudAuthService = createCloudAuthService({
   getCloudApiErrorMessage,
   secureStorage: safeStorage,
   externalNavigation,
+  getLocale: () => localeService.getSnapshot().locale,
   localCloudWebUrl: desktopCloudConfiguration?.webOrigin,
   getWindows: () => BrowserWindow.getAllWindows(),
   revealWindow: revealLastFocusedWindow,
