@@ -8,11 +8,12 @@
   align-items: center;
   gap: 8px;
   padding: 4px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--po-menu-border);
   border-radius: 9px;
-  background: #303033;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24), 0 2px 6px rgba(0, 0, 0, 0.16);
-  color: #f4f4f5;
+  background: var(--po-menu-bg);
+  background-clip: padding-box;
+  box-shadow: var(--po-menu-shadow);
+  color: var(--po-text);
   font-family: var(--po-font-ui, system-ui, sans-serif);
   font-size: var(--po-type-ui-caption, 12px);
   font-weight: 400;
@@ -30,8 +31,8 @@
   flex: 0 0 auto;
   padding: 1px 6px;
   border-radius: 6px;
-  background: #505053;
-  color: #dedee0;
+  background: color-mix(in srgb, var(--po-menu-bg) 88%, var(--po-text) 12%);
+  color: color-mix(in srgb, var(--po-text) 82%, var(--po-text-muted) 18%);
   font-family: inherit;
   font-size: var(--po-type-ui-micro, 11px);
   line-height: calc(var(--po-type-ui-micro, 11px) + 5px);
