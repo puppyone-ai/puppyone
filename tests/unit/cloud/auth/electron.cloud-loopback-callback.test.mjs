@@ -7,6 +7,7 @@ describe("desktop OAuth loopback callback", () => {
     const server = await startLoopbackCallbackServer({
       onCallback,
       isExpectedCallback: (callbackUrl) => new URL(callbackUrl).searchParams.get("state") === "state-1",
+      appPath: process.cwd(),
     });
 
     expect(server.redirectUri).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/auth\/callback$/);
@@ -24,11 +25,15 @@ describe("desktop OAuth loopback callback", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.get("content-security-policy")).toContain("default-src 'none'");
+    expect(response.headers.get("content-security-policy")).toContain("font-src data:");
     const page = await response.text();
     expect(page).toContain("Signed in successfully");
     expect(page).toContain("Return to the app to continue.");
+    expect(page).toContain('<svg width="128" height="128" viewBox="0 0 128 128"');
+    expect(page).toContain("data:font/woff2;base64,");
     expect(page).toContain("<style>");
     expect(page).not.toContain("<script");
+    expect(page).not.toContain("<img");
     await vi.waitFor(() => expect(onCallback).toHaveBeenCalledWith(callback));
   });
 

@@ -112,6 +112,7 @@ export function createCloudAuthService({
       try {
         callbackServer = await startCallbackServer({
           logger,
+          appPath: app.getAppPath?.(),
           onCallback: (callbackUrl) => handleCallback(callbackUrl),
           isExpectedCallback: (callbackUrl) => isExpectedPendingCallback(callbackUrl),
         });
