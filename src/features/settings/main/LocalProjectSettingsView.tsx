@@ -38,7 +38,7 @@ export function LocalProjectSettingsView({
           <SettingsSectionHeader
             title={t("settings.localProject.title")}
           />
-          <div className="desktop-settings-list">
+          <div className="desktop-settings-list desktop-settings-lead-list">
             <div className="desktop-settings-row">
               <span>{t("settings.localProject.name")}</span>
               <span className="desktop-settings-row-value" dir="auto" title={workspace.name}>{workspace.name}</span>

@@ -20,7 +20,7 @@ export function TypographySettingsView({
       <div className="desktop-utility-body desktop-settings-body" data-po-scrollbar="content">
         <div className="desktop-settings-section">
           <SettingsSectionHeader title={t("settings.typography.title")} />
-          <div className="desktop-settings-list">
+          <div className="desktop-settings-list desktop-settings-lead-list">
             <TypographyScaleSetting
               preferences={typographyPreferences}
               onChange={onTypographyPreferencesChange}

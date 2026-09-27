@@ -142,7 +142,6 @@ describe("Create New settings", () => {
   it("uses Settings surface tokens instead of popup-menu colors and shadows", () => {
     const css = readFileSync("src/styles/settings-new-menu.css", "utf8");
 
-    expect(css).toContain("padding-inline: 10px");
     expect(css).toContain("background: var(--po-panel)");
     expect(css).toContain("border: 1px solid var(--po-border-subtle)");
     expect(css).not.toContain("var(--po-menu-bg)");

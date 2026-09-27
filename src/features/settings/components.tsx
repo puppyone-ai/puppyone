@@ -8,7 +8,7 @@ export function SettingsSectionHeader({ title }: { title: string }) {
   );
 }
 
-export function SettingsSubsection({ title, detail, children }: { title?: string; detail?: string; children: ReactNode }) {
+export function SettingsSubsection({ title, detail, children, leading = false }: { title?: string; detail?: string; children: ReactNode; leading?: boolean }) {
   const titleId = useId();
   const content = (
     <>
@@ -19,9 +19,9 @@ export function SettingsSubsection({ title, detail, children }: { title?: string
   );
 
   return title ? (
-    <section className="desktop-settings-subsection" aria-labelledby={titleId}>{content}</section>
+    <section className={`desktop-settings-subsection${leading ? " desktop-settings-lead-group" : ""}`} aria-labelledby={titleId}>{content}</section>
   ) : (
-    <div className="desktop-settings-subsection">{content}</div>
+    <div className={`desktop-settings-subsection${leading ? " desktop-settings-lead-rows" : ""}`}>{content}</div>
   );
 }
 

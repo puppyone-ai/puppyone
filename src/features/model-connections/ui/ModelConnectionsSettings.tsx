@@ -74,17 +74,17 @@ export function ModelConnectionsSettings({ store: suppliedStore }: { store?: Mod
                 if (removed) navigate({ kind: "list" });
               }} />
           ) : (
-            <div className="model-connections-groups">
-              {!state.snapshot && <div className="desktop-settings-row">
+            <div className="desktop-settings-category-list desktop-settings-lead-categories">
+              {!state.snapshot && <div className="desktop-settings-row desktop-settings-lead-state">
                 {state.pending.read ? <span role="status">{t("settings.modelConnections.loading")}</span>
                   : <button type="button" className="desktop-settings-row-action" onClick={() => void run(store.load)}>{t("common.action.retry")}</button>}
               </div>}
               {SOURCE_KINDS.map((sourceKind) => {
                 const items = connections.filter((connection) => connection.sourceKind === sourceKind);
                 const Icon = sourceKind === "api" ? KeyRound : Server;
-                return <section className="model-connections-group" key={sourceKind} aria-label={t(`settings.modelConnections.source.${sourceKind}`)}>
-                  <header className="model-connections-group-heading">
-                    <h3>{t(`settings.modelConnections.source.${sourceKind}`)}</h3>
+                return <section className="desktop-settings-category" key={sourceKind} aria-label={t(`settings.modelConnections.source.${sourceKind}`)}>
+                  <header className="desktop-settings-category-header model-connections-group-heading">
+                    <h3 className="desktop-settings-category-title">{t(`settings.modelConnections.source.${sourceKind}`)}</h3>
                     <div className="model-connections-actions">
                       {sourceKind === "local" && <button type="button" className="desktop-settings-row-action model-connections-text-action"
                         disabled={state.pending.discover} onClick={() => { setActionError(null); void store.discover(); }}>

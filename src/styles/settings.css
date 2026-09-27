@@ -61,6 +61,10 @@
 
 .desktop-settings-section {
   --desktop-settings-content-max-width: var(--po-reading-content-width, 724px);
+  --desktop-settings-lead-row-height: 54px;
+  --desktop-settings-lead-group-top: 18px;
+  --desktop-settings-category-header-height: 40px;
+  --desktop-settings-title-gap: 12px;
 
   display: grid;
   width: 100%;
@@ -71,6 +75,20 @@
 
 .desktop-settings-section + .desktop-settings-section {
   margin-top: 20px;
+}
+
+[data-typography-scale="small"] .desktop-settings-section {
+  --desktop-settings-lead-row-height: 50px;
+  --desktop-settings-lead-group-top: 16px;
+  --desktop-settings-category-header-height: 36px;
+  --desktop-settings-title-gap: 10px;
+}
+
+[data-typography-scale="large"] .desktop-settings-section {
+  --desktop-settings-lead-row-height: 58px;
+  --desktop-settings-lead-group-top: 20px;
+  --desktop-settings-category-header-height: 44px;
+  --desktop-settings-title-gap: 14px;
 }
 
 .desktop-settings-heading-row {
@@ -94,7 +112,22 @@
 }
 
 .desktop-settings-section > :is(.desktop-settings-section-header, .desktop-settings-heading-row) {
-  margin-block-end: 12px;
+  margin-block-end: var(--desktop-settings-title-gap);
+}
+
+/* Only the first visible line of a page uses the shared lead rhythm. */
+.desktop-settings-lead-list > :first-child,
+.desktop-settings-lead-rows > .desktop-settings-subsection-body > :first-child,
+.desktop-settings-lead-state {
+  min-height: var(--desktop-settings-lead-row-height);
+}
+
+.desktop-settings-lead-group {
+  padding-block-start: var(--desktop-settings-lead-group-top);
+}
+
+.desktop-settings-lead-categories {
+  padding-block-start: 7px;
 }
 
 .desktop-settings-section-header h2 {
@@ -124,7 +157,7 @@
 .desktop-settings-category-header {
   display: flex;
   min-width: 0;
-  min-height: calc(var(--po-control-size) + 8px);
+  min-height: var(--desktop-settings-category-header-height);
   align-items: center;
   justify-content: space-between;
   gap: 10px;
@@ -132,6 +165,7 @@
 
 .desktop-settings-category-title {
   display: block;
+  margin: 0;
   color: var(--po-text-muted);
   font-size: var(--po-text-size-label, 13px);
   font-weight: var(--po-text-weight-regular, 400);

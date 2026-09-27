@@ -128,7 +128,7 @@ export function PuppyoneWorkspaceConfigSettings({
   };
 
   return (
-    <SettingsSubsection>
+    <SettingsSubsection leading>
       {loading && !config ? (
         <div className="desktop-settings-muted-row">{t("settings.workspaceConfig.reading")}</div>
       ) : (

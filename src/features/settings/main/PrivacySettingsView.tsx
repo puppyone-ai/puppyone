@@ -12,7 +12,7 @@ export function PrivacySettingsView() {
           <SettingsSectionHeader
             title={t("settings.privacy.title")}
           />
-          <div className="desktop-settings-list">
+          <div className="desktop-settings-list desktop-settings-lead-list">
             <ProductAnalyticsSettingsRow />
           </div>
         </div>

@@ -102,7 +102,7 @@ export function AccountSettingsView({
       <div className="desktop-utility-body desktop-settings-body" data-po-scrollbar="content">
         <div className="desktop-settings-section desktop-account-settings-section">
           <SettingsSectionHeader title={t("settings.account.title")} />
-          <SettingsSubsection>
+          <SettingsSubsection leading>
             <SettingsValueRow
               label={t("settings.account.statusLabel")}
               value={accountStatus}

@@ -60,11 +60,11 @@ export function CloudHostingSettingsView({
             onRefresh={onRefresh}
           />
           {error ? (
-            <div className="desktop-utility-empty danger">{error}</div>
+            <div className="desktop-utility-empty desktop-settings-lead-state danger">{error}</div>
           ) : loading && !status ? (
-            <div className="desktop-utility-empty">{t("settings.git.reading")}</div>
+            <div className="desktop-utility-empty desktop-settings-lead-state">{t("settings.git.reading")}</div>
           ) : status && !status.isRepo ? (
-            <div className="desktop-utility-empty">{t("settings.git.notRepository")}</div>
+            <div className="desktop-utility-empty desktop-settings-lead-state">{t("settings.git.notRepository")}</div>
           ) : (
             <>
               <PuppyoneWorkspaceConfigSettings
@@ -158,14 +158,14 @@ export function GitSettingsView({
             onRefresh={onRefresh}
           />
           {error ? (
-            <div className="desktop-utility-empty danger">{error}</div>
+            <div className="desktop-utility-empty desktop-settings-lead-state danger">{error}</div>
           ) : loading && !status ? (
-            <div className="desktop-utility-empty">{t("settings.git.reading")}</div>
+            <div className="desktop-utility-empty desktop-settings-lead-state">{t("settings.git.reading")}</div>
           ) : status && !status.isRepo ? (
-            <div className="desktop-utility-empty">{t("settings.git.notRepository")}</div>
+            <div className="desktop-utility-empty desktop-settings-lead-state">{t("settings.git.notRepository")}</div>
           ) : (
             <>
-              <SettingsSubsection title={t("settings.git.repository")}>
+              <SettingsSubsection title={t("settings.git.repository")} leading>
                 <SettingsValueRow label={t("settings.git.branch")} value={status?.branch ?? t("settings.git.detached")} />
                 <SettingsValueRow
                   label={t("settings.git.branches")}

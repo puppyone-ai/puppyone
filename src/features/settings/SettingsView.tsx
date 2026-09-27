@@ -272,7 +272,7 @@ export function SettingsView({
             <SettingsSectionHeader
               title={t("settings.appearance.title")}
             />
-            <div className="desktop-settings-list">
+            <div className="desktop-settings-list desktop-settings-lead-list">
               <InterfacePaletteSettings
                 interfaceStyle={interfaceStyle}
                 subThemeId={resolvedAppearance.subThemeId}

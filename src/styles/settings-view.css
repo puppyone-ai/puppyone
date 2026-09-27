@@ -198,7 +198,7 @@
     var(--desktop-utility-page-padding-bottom);
 }
 .desktop-language-setting-row {
-  align-items: flex-start;
+  align-items: center;
   padding-block: 7px;
 }
 

@@ -62,7 +62,7 @@ export function LocalAgentsSettingsView({
           <SettingsSectionHeader
             title={t("settings.localAgents.title")}
           />
-          <div className="desktop-settings-category-list">
+          <div className="desktop-settings-category-list desktop-settings-lead-categories">
             <section className="desktop-settings-category">
               <header className="desktop-settings-category-header">
                 <span className="desktop-settings-category-title">

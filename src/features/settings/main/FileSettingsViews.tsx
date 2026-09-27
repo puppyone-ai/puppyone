@@ -35,7 +35,7 @@ export function FilesSettingsView({
       <div className="desktop-utility-body desktop-settings-body" data-po-scrollbar="content">
         <div className="desktop-settings-section desktop-files-settings-section">
           <SettingsSectionHeader title={t("settings.files.title")} />
-          <SettingsSubsection>
+          <SettingsSubsection leading>
             <div className="desktop-settings-row desktop-settings-row-control desktop-settings-toggle-row desktop-files-toggle-row">
               <span>{t("settings.files.showHidden")}</span>
               <label className="desktop-settings-switch">

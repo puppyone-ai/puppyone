@@ -29,7 +29,7 @@ export function GeneralSettingsView({
       <div className="desktop-utility-body desktop-settings-body" data-po-scrollbar="content">
         <div className="desktop-settings-section">
           <SettingsSectionHeader title={t("settings.general.title")} />
-          <div className="desktop-settings-list">
+          <div className="desktop-settings-list desktop-settings-lead-list">
             <LanguageSettingRow />
             <DesktopBuildVersionSettingsRow />
             <AutomaticUpdateDownloadSettingRow
