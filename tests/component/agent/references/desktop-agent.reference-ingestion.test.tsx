@@ -435,7 +435,10 @@ describe("Desktop Agent reference ingestion", () => {
     const remove = imageCard.querySelector<HTMLButtonElement>(".desktop-agent-visual-attachment-actions button:last-child")!;
     await vi.waitFor(() => expect(composer.querySelectorAll(".desktop-agent-prompt-mention")).toHaveLength(2));
     const mention = composer.querySelector(".desktop-agent-prompt-mention");
-    expect(mention?.getAttribute("data-tooltip")).toBe("docs/SECURITY.md");
+    const mentionLabel = mention?.querySelector(".desktop-agent-prompt-mention-label");
+    expect(mention?.hasAttribute("data-tooltip")).toBe(false);
+    expect(mentionLabel?.getAttribute("data-tooltip")).toBe("docs/SECURITY.md");
+    expect(mentionLabel?.getAttribute("data-tooltip-when")).toBe("overflow");
     expect(mention?.getAttribute("data-reference-kind")).toBe("workspace-entry");
     expect(mention?.getAttribute("data-atomic")).toBe("true");
     expect(mention?.getAttribute("contenteditable")).toBe("false");

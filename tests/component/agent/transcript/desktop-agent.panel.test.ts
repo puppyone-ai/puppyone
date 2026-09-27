@@ -211,6 +211,8 @@ describe("Project-owned Agent Chat Workbench lifecycle", () => {
     expect(launcher.textContent).toContain("Start with an Agent");
     expect(launcher.textContent).toContain("Codex");
     expect(launcher.textContent).toContain("Claude Agent");
+    expect(Array.from(launcher.querySelectorAll(".desktop-agent-runtime-launcher-option"))
+      .every((option) => !option.hasAttribute("data-tooltip"))).toBe(true);
     expect(container.querySelector('.desktop-agent-header-region')).toBeNull();
     expect(container.querySelector('button[aria-label="Coding Agent"]')).toBeNull();
     expect(container.querySelector(".cm-content")).toBeNull();

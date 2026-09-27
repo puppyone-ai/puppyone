@@ -37,6 +37,11 @@ it("coordinates new-tab entry, the tab strip, and the stable trailing control", 
   expect(rail().dataset.layoutMotion).toBeUndefined();
   act(() => vi.advanceTimersByTime(20));
   const a = tab("a"), plus = container.querySelector(".desktop-terminal-new-button");
+  const aButton = a.querySelector<HTMLButtonElement>("[role=tab]")!;
+  const aTitle = a.querySelector<HTMLElement>(".desktop-terminal-tab-title")!;
+  expect(aButton.hasAttribute("data-tooltip")).toBe(false);
+  expect(aTitle.dataset.tooltip).toBe("a");
+  expect(aTitle.dataset.tooltipWhen).toBe("overflow");
   expect(a.querySelector(".desktop-terminal-launcher-icon.is-codex svg image")?.getAttribute("href"))
     .toBe("/assets/icons/agents/chatgpt.png");
   expect(rail().style.getPropertyValue("--desktop-terminal-new-inline-start")).toBe("147px");

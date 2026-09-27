@@ -201,7 +201,7 @@ export function CloudLocalOnlyWorkspace({
               <CloudPublishFolderMark className="desktop-cloud-publish-symbol-icon" />
             </div>
             <div className="desktop-cloud-publish-details local">
-              <Tooltip content={workspace.path}><p className="desktop-cloud-publish-project" dir="auto">
+              <Tooltip content={workspace.path} overflowOnly><p className="desktop-cloud-publish-project" dir="auto">
                 {workspace.name}
               </p></Tooltip>
               <ul className="desktop-cloud-publish-meta">

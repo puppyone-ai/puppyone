@@ -240,6 +240,9 @@ describe("CloudRepositoryOverview landing page", () => {
     expect(dashboard?.querySelector("[role='list']")).not.toBeNull();
     expect(dashboard?.querySelector(".desktop-cloud-overview-file-activity-header")).toBeNull();
     expect(fileRows).toHaveLength(5);
+    expect(Array.from(fileRows ?? []).every((row) => !row.hasAttribute("data-tooltip"))).toBe(true);
+    expect(Array.from(dashboard?.querySelectorAll<HTMLElement>(".desktop-cloud-overview-file-name") ?? [])
+      .every((name) => name.dataset.tooltipWhen === "overflow")).toBe(true);
     expect(fileRows?.[0]?.textContent).toContain("assets");
     expect(fileRows?.[1]?.textContent).toContain("docs");
     const usersRow = Array.from(fileRows ?? []).find((row) => row.textContent?.includes("users.csv"));
@@ -251,7 +254,7 @@ describe("CloudRepositoryOverview landing page", () => {
     expect(container.querySelector(".desktop-cloud-overview-deployment-board")).toBeNull();
     const pathFact = container.querySelector<HTMLElement>(".desktop-cloud-overview-path-fact");
     expect(pathFact?.querySelector("code")?.textContent).toBe("https://cloud.example/git/project-1.git");
-    expect(pathFact?.dataset.tooltip).toBe("https://cloud.example/git/project-1.git");
+    expect(pathFact?.dataset.tooltip).toBe("Copy value: Repository Git remote");
     expect(dashboard?.textContent).not.toContain("https://cloud.example/git/project-1.git");
     expect(dashboard?.textContent).not.toContain("release");
     expect(dashboard?.textContent).not.toContain("Private");

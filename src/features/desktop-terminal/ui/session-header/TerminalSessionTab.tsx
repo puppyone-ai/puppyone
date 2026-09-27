@@ -66,7 +66,7 @@ export const TerminalSessionTab = memo(function TerminalSessionTab({
         "--desktop-terminal-tab-resolved-width": `${width}px`,
       } as CSSProperties}
     >
-      <Tooltip content={presentation.accessibleLabel}><button
+      <Tooltip content={compact ? presentation.accessibleLabel : undefined}><button
         id={tabId(session.id)}
         type="button"
         className="desktop-terminal-tab-select"
@@ -112,7 +112,12 @@ export const TerminalSessionTab = memo(function TerminalSessionTab({
           runtime={runtime}
           session={session}
         />
-        <span className="desktop-terminal-tab-title">{presentation.pathLabel}</span>
+        <Tooltip
+          content={compact ? undefined : presentation.accessibleLabel}
+          overflowOnly
+        >
+          <span className="desktop-terminal-tab-title">{presentation.pathLabel}</span>
+        </Tooltip>
       </button></Tooltip>
       <DesktopMenuIconButton
         className="desktop-terminal-tab-close"

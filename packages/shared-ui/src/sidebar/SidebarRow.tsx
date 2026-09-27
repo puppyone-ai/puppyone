@@ -1,4 +1,3 @@
-import { Tooltip } from "../primitives/Tooltip";
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { joinSidebarClassNames } from "./classNames";
 
@@ -7,15 +6,14 @@ export type SidebarRowProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "chi
   icon?: ReactNode;
   label: ReactNode;
   meta?: ReactNode;
-  tooltip?: string;
 };
 
 export const SidebarRow = forwardRef<HTMLButtonElement, SidebarRowProps>(function SidebarRow(
-  { active = false, className, icon, label, meta, tooltip, type = "button", "aria-current": ariaCurrent, ...props },
+  { active = false, className, icon, label, meta, type = "button", "aria-current": ariaCurrent, ...props },
   ref,
 ) {
   return (
-    <Tooltip content={tooltip}><button
+    <button
       ref={ref}
       className={joinSidebarClassNames(
         "po-sidebar-row",
@@ -30,6 +28,6 @@ export const SidebarRow = forwardRef<HTMLButtonElement, SidebarRowProps>(functio
       {icon != null && <span className="po-sidebar-row__icon" aria-hidden="true">{icon}</span>}
       <span className="po-sidebar-row__label">{label}</span>
       {meta != null && <span className="po-sidebar-row__meta">{meta}</span>}
-    </button></Tooltip>
+    </button>
   );
 });

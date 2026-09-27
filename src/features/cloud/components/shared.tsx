@@ -94,20 +94,18 @@ export function CloudMainMetric({
 export function CloudAuthorityCell({
   label,
   value,
-  title,
   tone,
   mono,
 }: {
   label: string;
   value: string;
-  title?: string;
   tone?: "ready" | "warning";
   mono?: boolean;
 }) {
   return (
     <div className={`desktop-cloud-authority-cell ${tone ?? ""} ${mono ? "mono" : ""}`}>
       <span>{label}</span>
-      <Tooltip content={title ?? value}><strong>{value}</strong></Tooltip>
+      <strong>{value}</strong>
     </div>
   );
 }
@@ -137,8 +135,9 @@ export function CloudAssetGrid({
   return (
     <div className="desktop-cloud-asset-grid">
       {entries.map((entry) => (
-        <Tooltip content={entry.path || entry.name} key={entry.path || entry.name}><button
+        <button
           className="desktop-cloud-asset-tile"
+          key={entry.path || entry.name}
           type="button"
           onClick={() => onEntryClick(entry)}
         >
@@ -150,9 +149,11 @@ export function CloudAssetGrid({
               childrenCount={entry.children_count ?? undefined}
             />
           </span>
-          <strong>{entry.name || entry.path}</strong>
+          <Tooltip content={entry.path || entry.name} overflowOnly>
+            <strong>{entry.name || entry.path}</strong>
+          </Tooltip>
           <small>{formatCloudTreeEntryDetail(entry, localization)}</small>
-        </button></Tooltip>
+        </button>
       ))}
     </div>
   );

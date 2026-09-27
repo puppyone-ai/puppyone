@@ -227,7 +227,7 @@ function BranchGraphRow({
       </span>
 
       <span className="desktop-cloud-branch-graph-message">
-        <strong dir="auto">{message}</strong>
+        <Tooltip content={message} overflowOnly><strong dir="auto">{message}</strong></Tooltip>
         {row.kind === "commit" && (
           <code className="desktop-cloud-branch-graph-sha" dir="ltr">{shortCommit(row.id)}</code>
         )}
@@ -258,14 +258,14 @@ function BranchGraphRow({
   }
 
   return (
-    <Tooltip content={`${message} (${shortCommit(row.id)})`}><button
+    <button
       className="desktop-cloud-branch-graph-row"
       type="button"
       role="listitem"
       onClick={() => openCloudApp(`/projects/${projectId}/changes?commit=${encodeURIComponent(row.id)}`)}
     >
       {content}
-    </button></Tooltip>
+    </button>
   );
 }
 

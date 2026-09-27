@@ -63,15 +63,18 @@ export function CloudOverviewDashboard({
           ) : entries.length > 0 ? entries.map((entry) => {
             const updatedAt = getCloudOverviewEntryUpdatedAt(entry, history);
             return (
-              <Tooltip content={entry.path} key={`${entry.type}:${entry.path}`}><div
+              <div
                 className="desktop-cloud-overview-file-row"
+                key={`${entry.type}:${entry.path}`}
                 role="listitem"
               >
                 <span className="desktop-cloud-overview-file-primary">
                   <span className="desktop-cloud-overview-file-icon" aria-hidden="true">
                     <FileGlyphIcon name={entry.name} type={entry.type} size={15} />
                   </span>
-                  <strong className="desktop-cloud-overview-file-name" dir="auto">{entry.name}</strong>
+                  <Tooltip content={entry.path} overflowOnly>
+                    <strong className="desktop-cloud-overview-file-name" dir="auto">{entry.name}</strong>
+                  </Tooltip>
                 </span>
                 <span className="desktop-cloud-overview-file-modified">
                   {updatedAt ? (
@@ -82,7 +85,7 @@ export function CloudOverviewDashboard({
                     </time></Tooltip>
                   ) : "—"}
                 </span>
-              </div></Tooltip>
+              </div>
             );
           }) : (
             <div className="desktop-cloud-overview-files-empty">

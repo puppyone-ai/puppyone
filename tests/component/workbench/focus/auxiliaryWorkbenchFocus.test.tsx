@@ -73,6 +73,8 @@ it("moves a single group's tab bar into Header and lists every split session the
   )));
   render();
   expect(host.querySelectorAll('[role="tab"]')).toHaveLength(1);
+  expect(host.querySelector('[role="tab"]')?.hasAttribute("data-tooltip")).toBe(false);
+  expect(host.querySelector<HTMLElement>(".desktop-terminal-tab-title")?.dataset.tooltipWhen).toBe("overflow");
   expect(container.querySelector(".desktop-terminal-tab-group > .desktop-terminal-subheader")).toBeNull();
 
   const secondId = (await store.create("fixture", null))!;
@@ -81,6 +83,8 @@ it("moves a single group's tab bar into Header and lists every split session the
     edge: "right", groupId: "second", splitId: "split" }));
   render();
   expect(host.querySelectorAll(".desktop-titlebar-workbench-tab-select")).toHaveLength(2);
+  expect(host.querySelector(".desktop-titlebar-workbench-tab-select")?.hasAttribute("data-tooltip")).toBe(false);
+  expect(host.querySelector<HTMLElement>(".desktop-titlebar-workbench-tab-title")?.dataset.tooltipWhen).toBe("overflow");
   expect(container.querySelectorAll(".desktop-terminal-tab-group > .desktop-terminal-subheader")).toHaveLength(2);
   act(() => host.querySelector<HTMLButtonElement>(`[aria-label="Fixture"]`)?.click());
   expect(onReveal).toHaveBeenCalled();

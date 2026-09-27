@@ -369,24 +369,19 @@ function CloudAutomationAccessList({
                   const targetPath = formatAutomationPathTrailLabel(row.scope);
                   const highlighted = highlightedConnectionId === connector.id;
                   return (
-                    <Tooltip content={t("automation.connection.title", {
-                        name: bidiIsolate(connectionTitle),
-                        path: bidiIsolate(getScopePathLabel(row.scope)),
-                      })} key={row.id}><button
+                    <button
                       className={`desktop-cloud-automation-connection-card ${selectedRowId === row.id ? "selected" : ""} ${highlighted ? "created" : ""}`.trim()}
+                      key={row.id}
                       type="button"
                       onClick={() => onOpenRow(row.id)}
                     >
                       <span className="desktop-cloud-automation-route">
-                        <Tooltip content={t("automation.connection.source", {
-                            provider: bidiIsolate(group.label),
-                            name: bidiIsolate(connectionTitle),
-                          })}><span
+                        <span
                           className="desktop-cloud-automation-source-config"
-                              >
+                        >
                           {iconUrl ? <img src={iconUrl} alt="" /> : <ProviderIcon size={16} />}
                           <span>{group.label}</span>
-                        </span></Tooltip>
+                        </span>
                         <ArrowRight className="po-directional-icon" size={15} />
                         <span className="desktop-cloud-automation-path-trail">
                           <img src={resolveRendererPublicAssetUrl(RENDERER_ASSET_PATHS.icons.ui.folder)} alt="" />
@@ -415,7 +410,7 @@ function CloudAutomationAccessList({
                           })}
                         </span>
                       )}
-                    </button></Tooltip>
+                    </button>
                   );
                 })}
               </div>

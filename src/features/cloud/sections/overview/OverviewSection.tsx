@@ -178,7 +178,7 @@ function CloudOverviewPathFact({
   };
 
   return (
-    <Tooltip content={value ?? undefined}><button
+    <Tooltip content={value ? label : undefined}><button
       className="desktop-cloud-overview-header-fact desktop-cloud-overview-header-fact--interactive desktop-cloud-overview-path-fact"
       type="button"
       aria-label={loading ? t("cloud.common.loading") : value ? label : t("cloud.common.path")}

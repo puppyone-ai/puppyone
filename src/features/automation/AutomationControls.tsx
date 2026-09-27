@@ -255,7 +255,7 @@ function CloudAutomationResourcePicker({
             const selected = value?.resourceId === resource.id;
             return (
               <Tooltip content={resource.authorized
-                  ? resource.name
+                  ? undefined
                   : t("automation.resource.notAuthorized", { name: bidiIsolate(resource.name) })} key={`${resource.type}:${resource.id}`}><button
                 className={selected ? "selected" : undefined}
                 type="button"

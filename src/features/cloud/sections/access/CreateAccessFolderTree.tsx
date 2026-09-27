@@ -261,18 +261,27 @@ function FolderRow({
   return (
     <div className="desktop-cloud-create-access-tree-row-wrap">
       <TreeGuides depth={depth} isLastSibling={isLastSibling} ancestorLastSiblings={ancestorLastSiblings} />
-      <Tooltip content={t(expanded ? "cloud.access.create.collapseFolder" : "cloud.access.create.expandFolder", { path: formatTreePath(entry.path, t) })}><button
+      <div
         className={`desktop-cloud-create-access-tree-row folder ${selected ? "selected" : ""}`}
-        type="button"
         style={{ paddingInlineStart: 8 + depth * 16 }}
-        onClick={onToggle}
       >
-        <span className="desktop-cloud-create-access-tree-marker">
-          <TreeDisclosureMarker expanded={expanded} />
-        </span>
-        <span className="desktop-cloud-create-access-tree-name" dir="auto">{entry.name}</span>
+        <button
+          className="desktop-cloud-create-access-tree-toggle"
+          type="button"
+          aria-label={t(expanded ? "cloud.access.create.collapseFolder" : "cloud.access.create.expandFolder", {
+            path: formatTreePath(entry.path, t),
+          })}
+          onClick={onToggle}
+        >
+          <span className="desktop-cloud-create-access-tree-marker">
+            <TreeDisclosureMarker expanded={expanded} />
+          </span>
+          <Tooltip content={formatTreePath(entry.path, t)} overflowOnly>
+            <span className="desktop-cloud-create-access-tree-name" dir="auto">{entry.name}</span>
+          </Tooltip>
+        </button>
         <FolderRowStatus selected={selected} alreadyExists={alreadyExists} onSelect={onSelect} />
-      </button></Tooltip>
+      </div>
     </div>
   );
 }
@@ -292,15 +301,17 @@ function FileRow({
   return (
     <div className="desktop-cloud-create-access-tree-row-wrap">
       <TreeGuides depth={depth} isLastSibling={isLastSibling} ancestorLastSiblings={ancestorLastSiblings} />
-      <Tooltip content={formatTreePath(entry.path, t)}><div
+      <div
         className="desktop-cloud-create-access-tree-row file"
         aria-disabled="true"
         style={{ paddingInlineStart: 8 + depth * 16 }}
       >
         <span className="desktop-cloud-create-access-tree-marker" />
         <FileText size={15} />
-        <span className="desktop-cloud-create-access-tree-name" dir="auto">{entry.name}</span>
-      </div></Tooltip>
+        <Tooltip content={formatTreePath(entry.path, t)} overflowOnly>
+          <span className="desktop-cloud-create-access-tree-name" dir="auto">{entry.name}</span>
+        </Tooltip>
+      </div>
     </div>
   );
 }
@@ -317,7 +328,7 @@ function FolderRowStatus({
   const { t } = useLocalization();
   if (alreadyExists) return <AccessStatusText onSelect={onSelect} />;
   return (
-    <Tooltip content={t(selected ? "cloud.access.create.selectedFolder" : "cloud.access.create.selectFolder")}><button
+    <button
       className={`desktop-cloud-create-access-tree-status action ${selected ? "selected" : ""}`}
       type="button"
       onClick={(event) => {
@@ -329,7 +340,7 @@ function FolderRowStatus({
       <span aria-hidden="true">
         {selected ? <Check size={13} strokeWidth={2.6} /> : null}
       </span>
-    </button></Tooltip>
+    </button>
   );
 }
 

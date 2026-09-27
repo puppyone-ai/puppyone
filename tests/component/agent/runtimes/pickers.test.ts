@@ -75,7 +75,7 @@ describe("Desktop Agent renderer surfaces", () => {
     const composer = container.querySelector(".desktop-agent-composer") as HTMLElement;
     expect(container.querySelector('button[aria-label="Agent backend"]')).toBeNull();
     expect(runtimeTrigger.classList.contains("is-compact")).toBe(false);
-    expect(runtimeTrigger.dataset.tooltip).toContain("Switching Agent starts a new chat");
+    expect(runtimeTrigger.hasAttribute("data-tooltip")).toBe(false);
     expect(runtimeTrigger.querySelector(".desktop-agent-brand-mark")).not.toBeNull();
     expect(runtimeTrigger.textContent).toContain("Codex");
     expect(composer.querySelector('button[aria-label="Coding Agent"]')).toBeNull();
@@ -304,6 +304,7 @@ describe("Desktop Agent renderer surfaces", () => {
     }));
 
     const trigger = container.querySelector('button[aria-label="Coding Agent"]') as HTMLButtonElement;
+    expect(trigger.hasAttribute("data-tooltip")).toBe(false);
     act(() => trigger.click());
     const popup = document.querySelector(".desktop-agent-picker-list[role='listbox']") as HTMLElement;
     expect(popup).not.toBeNull();

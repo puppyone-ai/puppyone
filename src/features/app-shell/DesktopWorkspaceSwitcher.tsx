@@ -211,7 +211,7 @@ function DesktopProjectRow({
         <span className="desktop-menu-item-body">
           <bdi className="desktop-menu-item-label">{folder.name}</bdi>
           {detail && (
-            <Tooltip content={folder.workspace.path}><bdi
+            <Tooltip content={folder.workspace.path} overflowOnly><bdi
               className="desktop-menu-item-detail"
               dir="ltr"
             >

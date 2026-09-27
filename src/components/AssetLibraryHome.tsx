@@ -143,7 +143,7 @@ function LocalAssetCard({
   const name = item.label || item.localPath.split("/").at(-1) || t("onboarding.projects.untitled");
   return (
     <article className={`asset-library-card ${opening ? "is-opening" : ""}`}>
-      <Tooltip content={item.localPath}><button
+      <button
         className="asset-library-card-main"
         type="button"
         disabled={busy}
@@ -153,7 +153,7 @@ function LocalAssetCard({
       >
         <span className="asset-library-card-cover" data-signature="0" aria-hidden="true"><span className="asset-library-card-monogram">{name.slice(0, 2).toUpperCase()}</span></span>
         <span className="asset-library-card-body">
-          <bdi className="asset-library-card-title">{name}</bdi>
+          <Tooltip content={item.localPath} overflowOnly><bdi className="asset-library-card-title">{name}</bdi></Tooltip>
           <span className="asset-library-card-footer">
             <span className="asset-library-card-location local">
               {opening ? <InlineLoading label={t("onboarding.status.opening")} size="xs" tone="neutral" /> : <><Monitor size={13} strokeWidth={1.9} /><span>{t("onboarding.library.location.local")}</span></>}
@@ -161,7 +161,7 @@ function LocalAssetCard({
             <span className="asset-library-card-meta">{activity}</span>
           </span>
         </span>
-      </button></Tooltip>
+      </button>
     </article>
   );
 }

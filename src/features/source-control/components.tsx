@@ -160,7 +160,7 @@ function SourceControlPreviewResourceRow({
   const displayPath = getGitDisplayPath(resource);
   const displayName = getGitDisplayName(displayPath);
   return (
-    <Tooltip content={displayPath}><div className={`desktop-working-tree-row desktop-git-remote-preview-row ${selected ? "active" : ""}`}>
+    <div className={`desktop-working-tree-row desktop-git-remote-preview-row ${selected ? "active" : ""}`}>
       <button
         className="desktop-working-tree-main"
         type="button"
@@ -175,11 +175,11 @@ function SourceControlPreviewResourceRow({
           <FileGlyphIcon name={getGitResourceIconName(resource)} size={18} theme={fileIconTheme} />
         </span>
         <span className="desktop-working-tree-copy">
-          <span className="desktop-working-tree-name">{displayName}</span>
+          <Tooltip content={displayPath} overflowOnly><span className="desktop-working-tree-name">{displayName}</span></Tooltip>
           <GitResourceStatusMarker resource={resource} />
         </span>
       </button>
-    </div></Tooltip>
+    </div>
   );
 }
 
@@ -210,7 +210,7 @@ export function SourceControlWorkingTreeRow({
   const staged = resource.group === "index";
 
   return (
-    <Tooltip content={displayPath}><div
+    <div
       className={`desktop-working-tree-row ${staged ? "is-staged" : "is-unstaged"} ${selected ? "active" : ""}`}
     >
       <button
@@ -222,7 +222,7 @@ export function SourceControlWorkingTreeRow({
           <FileGlyphIcon name={getGitResourceIconName(resource)} size={18} theme={fileIconTheme} />
         </span>
         <span className="desktop-working-tree-copy">
-          <span className="desktop-working-tree-name">{displayName}</span>
+          <Tooltip content={displayPath} overflowOnly><span className="desktop-working-tree-name">{displayName}</span></Tooltip>
           <GitResourceStatusMarker resource={resource} />
         </span>
       </button>
@@ -260,7 +260,7 @@ export function SourceControlWorkingTreeRow({
           </button></Tooltip>
         )}
       </div>
-    </div></Tooltip>
+    </div>
   );
 }
 

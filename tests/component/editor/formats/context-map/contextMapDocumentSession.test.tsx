@@ -65,9 +65,15 @@ describe("Context Map Document Session integration", () => {
       ))
         .not.toBeNull();
     });
-    act(() => container.querySelector<HTMLButtonElement>(
+    const folderCard = container.querySelector<HTMLButtonElement>(
       'button.folder-relationship-card[data-node-path="Civil Law"]',
-    )?.click());
+    );
+    expect(folderCard?.hasAttribute("data-tooltip")).toBe(false);
+    expect(folderCard?.querySelector<HTMLElement>(".folder-relationship-card-copy strong")?.dataset.tooltip)
+      .toBe("Civil Law");
+    expect(folderCard?.querySelector<HTMLElement>(".folder-relationship-card-copy strong")?.dataset.tooltipWhen)
+      .toBe("overflow");
+    act(() => folderCard?.click());
 
     await vi.waitFor(() => expect(persist).toHaveBeenCalled());
     const persistedContent = persist.mock.calls.at(-1)?.[0].content ?? "";

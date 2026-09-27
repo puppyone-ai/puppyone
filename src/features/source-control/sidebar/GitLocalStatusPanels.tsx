@@ -2,6 +2,7 @@ import { Undo2 } from "lucide-react";
 import {
   SidebarEmptyState,
   SidebarIconButton,
+  Tooltip,
   type FileIconThemeId,
 } from "@puppyone/shared-ui";
 import type { MessageFormatter } from "@puppyone/localization";
@@ -91,18 +92,20 @@ export function createGitLocalStatusPanels({
           action={model.repositoryOperation ? (
             <div className="desktop-git-section-actions">
               {model.repositoryOperation.canAbort && (
-                <SidebarIconButton
-                  className="desktop-git-abort-operation-action"
-                  tone="danger"
-                  label={t("source-control.sync.abort")}
-                  disabled={disabled}
-                  onClick={() => {
-                    if (window.confirm(t("source-control.dialog.abortOperation"))) {
-                      void actions.abortOperation();
-                    }
-                  }}
-                  icon={<Undo2 size={13} />}
-                />
+                <Tooltip content={t("source-control.sync.abort")}>
+                  <SidebarIconButton
+                    className="desktop-git-abort-operation-action"
+                    tone="danger"
+                    label={t("source-control.sync.abort")}
+                    disabled={disabled}
+                    onClick={() => {
+                      if (window.confirm(t("source-control.dialog.abortOperation"))) {
+                        void actions.abortOperation();
+                      }
+                    }}
+                    icon={<Undo2 size={13} />}
+                  />
+                </Tooltip>
               )}
               {operationAction && (
                 <GitOperationButton

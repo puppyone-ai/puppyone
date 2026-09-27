@@ -104,9 +104,12 @@ describe("Automation landing page", () => {
     const container = renderAutomationPage([automationRow()]);
     const owned = container.querySelector(".desktop-cloud-automation-existing-section");
     const addMore = container.querySelector(".desktop-cloud-automation-add-more");
+    const connectionCard = owned?.querySelector<HTMLElement>(".desktop-cloud-automation-connection-card");
 
     expect(owned?.querySelector("h2")?.textContent).toBe("Your automations");
     expect(addMore?.querySelector("h2")?.textContent).toBe("Add more sources");
+    expect(connectionCard?.hasAttribute("data-tooltip")).toBe(false);
+    expect(connectionCard?.querySelector(".desktop-cloud-automation-source-config")?.hasAttribute("data-tooltip")).toBe(false);
     expect(((owned?.compareDocumentPosition(addMore as Node) ?? 0) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(true);
   });
 });

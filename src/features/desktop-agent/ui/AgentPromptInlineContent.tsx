@@ -11,7 +11,7 @@ export function AgentPromptInlineContent({ text, mentions = [], references = [] 
   return (
     <div className="desktop-agent-message-text">
       {splitAgentPromptMentions(text, mentions).map((part, index) => part.kind === "mention"
-        ? <Tooltip content={referenceTitle(referencesById.get(part.mention.referenceId))} key={`${part.mention.referenceId}:${part.mention.start}`}><span
+        ? <Tooltip content={referenceTitle(referencesById.get(part.mention.referenceId))} overflowOnly key={`${part.mention.referenceId}:${part.mention.start}`}><span
             className="desktop-agent-history-mention"
             data-reference-id={part.mention.referenceId}
             data-reference-kind={referencesById.get(part.mention.referenceId)?.kind ?? "unknown"}

@@ -209,7 +209,7 @@ function GitHistoryFilePreview({
       : null;
 
   return (
-    <Tooltip content={`${statusLabel}: ${displayPath}`}><span
+    <span
       className="desktop-history-row-file"
       data-status={change.status}
     >
@@ -217,8 +217,8 @@ function GitHistoryFilePreview({
         <FileGlyphIcon name={change.path} size={14} theme={fileIconTheme} />
       </span>
       {marker && <span className="desktop-history-row-file-marker" aria-hidden="true">{marker}</span>}
-      <bdi>{displayPath}</bdi>
-    </span></Tooltip>
+      <Tooltip content={`${statusLabel}: ${displayPath}`} overflowOnly><bdi>{displayPath}</bdi></Tooltip>
+    </span>
   );
 }
 

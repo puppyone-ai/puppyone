@@ -55,7 +55,8 @@ export function AgentRuntimeLauncher({
                   const ready = isSelectableAgentBackend(entry);
                   const detail = entry.readiness.message || entry.descriptor.description || "";
                   return (
-                    <Tooltip content={detail || entry.descriptor.displayName} key={entry.descriptor.id}><button
+                    <button
+                      key={entry.descriptor.id}
                       type="button"
                       className="desktop-agent-runtime-launcher-option"
                       data-po-interaction="navigation"
@@ -68,16 +69,18 @@ export function AgentRuntimeLauncher({
                       />
                       <span>{entry.descriptor.displayName}</span>
                       {!ready && (
-                        <CircleAlert
-                          className="desktop-agent-runtime-launcher-warning"
-                          size={13}
-                          strokeWidth={1.7}
-                          aria-label={detail
-                            ? t("agent.launcher.needsAttention", { agent: bidiIsolate(entry.descriptor.displayName) })
-                            : undefined}
-                        />
+                        <Tooltip content={detail || undefined}>
+                          <span
+                            className="desktop-agent-runtime-launcher-warning"
+                            aria-label={detail
+                              ? t("agent.launcher.needsAttention", { agent: bidiIsolate(entry.descriptor.displayName) })
+                              : undefined}
+                          >
+                            <CircleAlert size={13} strokeWidth={1.7} aria-hidden="true" />
+                          </span>
+                        </Tooltip>
                       )}
-                    </button></Tooltip>
+                    </button>
                   );
                 })}
               </div>

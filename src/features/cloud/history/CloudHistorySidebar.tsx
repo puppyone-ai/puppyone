@@ -163,7 +163,9 @@ function CloudHistorySidebarRow({
       <span className="desktop-cloud-history-sidebar-row-main">
         <span className="desktop-cloud-history-sidebar-row-title">
           {isCurrentHead && <span className="desktop-cloud-history-inline-ref head">HEAD</span>}
-          <bdi className="desktop-cloud-history-sidebar-row-message">{message}</bdi>
+          <Tooltip content={message} overflowOnly>
+            <bdi className="desktop-cloud-history-sidebar-row-message">{message}</bdi>
+          </Tooltip>
           {row.labels.filter((label) => (
             !(isCurrentHead && formatCloudGraphLabel(label, t) === "HEAD")
           )).map((label) => (
@@ -197,7 +199,7 @@ function CloudHistorySidebarRow({
   return (
     <div className="desktop-cloud-history-sidebar-item" data-history-row-kind={row.kind}>
       {isCommit ? (
-        <Tooltip content={`${message} (${shortCommit(row.id)})`}><button
+        <button
           className={className}
           type="button"
           aria-current={selected ? "true" : undefined}
@@ -205,11 +207,11 @@ function CloudHistorySidebarRow({
           onClick={() => onSelect(row.id)}
         >
           {contents}
-        </button></Tooltip>
+        </button>
       ) : (
-        <Tooltip content={message}><div className={className}>
+        <div className={className}>
           {contents}
-        </div></Tooltip>
+        </div>
       )}
     </div>
   );

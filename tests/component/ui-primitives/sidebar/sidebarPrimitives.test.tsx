@@ -137,9 +137,12 @@ describe("Sidebar primitives", () => {
     );
 
     const activeRow = container.querySelector<HTMLButtonElement>(".po-sidebar-row");
+    const iconButton = container.querySelector<HTMLButtonElement>('[aria-label="Refresh files"]');
     expect(activeRow?.getAttribute("aria-current")).toBe("page");
     expect(activeRow?.textContent).toContain("Files");
-    expect(container.querySelector('[aria-label="Refresh files"]')).not.toBeNull();
+    expect(activeRow?.hasAttribute("data-tooltip")).toBe(false);
+    expect(iconButton).not.toBeNull();
+    expect(iconButton?.hasAttribute("data-tooltip")).toBe(false);
     expect(container.querySelector(".desktop-tool-sidebar")).toBeNull();
   });
 

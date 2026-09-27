@@ -34,10 +34,10 @@ export function GitFileDiffSurface({
       data-content-mode={contentMode}
     >
       <div className="desktop-file-diff-header" data-file-format={format.id}>
-        <Tooltip content={displayPath}><div className="desktop-file-diff-identity" aria-label={displayPath} dir="ltr">
-          <span className="desktop-file-diff-name">{displayName}</span>
+        <div className="desktop-file-diff-identity" aria-label={displayPath} dir="ltr">
+          <Tooltip content={displayPath} overflowOnly><span className="desktop-file-diff-name">{displayName}</span></Tooltip>
           <span className={`desktop-change-badge ${file.status}`}>{getGitChangeLabel(file.status, t)}</span>
-        </div></Tooltip>
+        </div>
         {file.additions != null && file.deletions != null && (
           <span className="desktop-file-diff-stat" aria-label={t("source-control.diff.changeStats", {
             additions: file.additions,

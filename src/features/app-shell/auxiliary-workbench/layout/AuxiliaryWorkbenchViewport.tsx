@@ -65,12 +65,14 @@ export function AuxiliaryWorkbenchViewport(props: AuxiliaryWorkbenchViewportProp
     {props.titlebarTabHost && props.groups.length > 1 && createPortal(
       <div className="desktop-titlebar-workbench-tabs" role="toolbar" aria-label={t("terminal.title")}>
         {props.headerItems.map((item) => <div className="desktop-titlebar-workbench-tab" key={item.id}>
-          <Tooltip content={item.snapshot.accessibleLabel}><button type="button" className="desktop-titlebar-workbench-tab-select"
+          <button type="button" className="desktop-titlebar-workbench-tab-select"
             aria-label={item.snapshot.accessibleLabel} aria-pressed={props.groups.some((group) => group.activeItemId === item.id && group.id === props.activeGroupId)}
              onClick={() => props.onActivateItem(item.id)}>
             <AuxiliaryWorkbenchStatus className="desktop-titlebar-workbench-tab-status" item={item} />
-            <span className="desktop-titlebar-workbench-tab-title">{item.snapshot.title}</span>
-          </button></Tooltip>
+            <Tooltip content={item.snapshot.accessibleLabel} overflowOnly>
+              <span className="desktop-titlebar-workbench-tab-title">{item.snapshot.title}</span>
+            </Tooltip>
+          </button>
           <button type="button" className="desktop-titlebar-workbench-tab-close"
             aria-label={`${t("common.action.close")} ${item.snapshot.accessibleLabel}`}
             onClick={() => props.onCloseItem(item.id)}><X size={12} aria-hidden="true" /></button>

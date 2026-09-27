@@ -295,7 +295,7 @@ function ChatRecipeButton({
   const title = statusLabel ? `${recipe.label} — ${statusLabel}` : recipe.label;
 
   return (
-    <Tooltip content={title}><button
+    <Tooltip content={available ? undefined : title}><button
       type="button"
       className="desktop-terminal-launcher-tool"
       data-po-interaction="navigation"

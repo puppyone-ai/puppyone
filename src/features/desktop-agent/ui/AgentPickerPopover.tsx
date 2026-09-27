@@ -236,7 +236,7 @@ export function AgentPickerPopover({
 
   return (
     <div ref={rootRef} className={`desktop-agent-picker${placement === "header" ? " is-header" : ""}`}>
-      <Tooltip content={title}><button
+      <Tooltip content={compact ? title : undefined}><button
         ref={triggerRef}
         type="button"
         className={`desktop-agent-picker-trigger${compact ? " is-compact" : ""}`}
