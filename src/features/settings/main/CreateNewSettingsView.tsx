@@ -207,10 +207,10 @@ export function CreateNewSettingsView({
             title={t("settings.createNew.title")}
           />
 
-          <div className="desktop-create-new-layout">
-            <section className="desktop-create-new-editor">
-              <header className="desktop-create-new-group-header">
-                <span className="desktop-create-new-group-title">
+          <div className="desktop-settings-category-list">
+            <section className="desktop-settings-category">
+              <header className="desktop-settings-category-header">
+                <span className="desktop-settings-category-title">
                   {t("settings.createNew.location.main")}
                 </span>
               </header>
@@ -250,9 +250,9 @@ export function CreateNewSettingsView({
               </div>
             </section>
 
-            <section className="desktop-create-new-hidden-section">
-              <header className="desktop-create-new-group-header">
-                <span className="desktop-create-new-group-title">
+            <section className="desktop-settings-category">
+              <header className="desktop-settings-category-header">
+                <span className="desktop-settings-category-title">
                   {t("settings.createNew.hidden.title")}
                 </span>
               </header>

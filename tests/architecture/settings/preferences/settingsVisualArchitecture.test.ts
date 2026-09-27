@@ -53,10 +53,10 @@ describe("settings visual architecture", () => {
     expect(localAgentHooks).toContain("provider.configurable");
     expect(localAgentHooks).toContain("<AgentLauncherIcon");
     expect(localAgents).toContain("settings.localAgents.activeChat.title");
-    expect(localAgents).toContain("desktop-local-agent-settings-layout");
-    expect(localAgents).toContain("desktop-local-agent-group-title");
+    expect(localAgents).toContain("desktop-settings-category-list");
+    expect(localAgents).toContain("desktop-settings-category-title");
     expect(localAgents).toContain("desktop-local-agent-settings-table");
-    expect(localAgentHooks).toContain("desktop-local-agent-group-title");
+    expect(localAgentHooks).toContain("desktop-settings-category-title");
     expect(localAgentHooks).toContain("desktop-local-agent-settings-table");
     expect(localAgentHooks).not.toContain("<details");
     expect(localAgentHooks).not.toContain("<SettingsSectionHeader");
@@ -103,6 +103,22 @@ describe("settings visual architecture", () => {
     expect(language).toContain("void changeLanguage(nextPreference)");
     expect(language).not.toContain("<SettingsSectionHeader");
     expect(language).not.toContain("<button");
+  });
+
+  it("shares grouped settings layout between New Menu and Local Agents", () => {
+    const settings = source("src/styles/settings.css");
+    const newMenu = source("src/features/settings/main/CreateNewSettingsView.tsx");
+    const localAgents = source("src/features/local-agents/ui/LocalAgentsSettingsView.tsx");
+    const newMenuStyles = source("src/styles/settings-new-menu.css");
+
+    for (const view of [newMenu, localAgents]) {
+      expect(view).toContain("desktop-settings-category-list");
+      expect(view).toContain("desktop-settings-category-header");
+      expect(view).toContain("desktop-settings-category-title");
+    }
+    expect(settings).toContain(".desktop-settings-category-list {");
+    expect(settings).toContain(".desktop-settings-category-header {");
+    expect(newMenuStyles).not.toContain(".desktop-create-new-group-title");
   });
 
   it("owns cross-surface text controls in Typography rather than Appearance or Editor", () => {

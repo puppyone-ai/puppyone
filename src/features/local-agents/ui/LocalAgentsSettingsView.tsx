@@ -62,10 +62,10 @@ export function LocalAgentsSettingsView({
           <SettingsSectionHeader
             title={t("settings.localAgents.title")}
           />
-          <div className="desktop-local-agent-settings-layout">
-            <section className="desktop-local-agent-settings-group">
-              <header className="desktop-local-agent-group-header">
-                <span className="desktop-local-agent-group-title">
+          <div className="desktop-settings-category-list">
+            <section className="desktop-settings-category">
+              <header className="desktop-settings-category-header">
+                <span className="desktop-settings-category-title">
                   {t("settings.localAgents.activeChat.title")}
                 </span>
                 <button
@@ -135,9 +135,9 @@ export function LocalAgentsSettingsView({
                 )}
               </div>
             </section>
-            <section className="desktop-local-agent-settings-group desktop-local-agent-history-section">
-              <header className="desktop-local-agent-group-header">
-                <span className="desktop-local-agent-group-title">
+            <section className="desktop-settings-category desktop-local-agent-history-section">
+              <header className="desktop-settings-category-header">
+                <span className="desktop-settings-category-title">
                   {t("settings.localAgents.history.title")}
                 </span>
               </header>
