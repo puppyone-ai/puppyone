@@ -1,3 +1,4 @@
+import { Tooltip } from "../../../primitives/Tooltip";
 import { Link2, Unlink } from "lucide-react";
 import { useId, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from "react";
 import type { MessageFormatter } from "@puppyone/localization/core";
@@ -138,13 +139,12 @@ export function CsvCellEditor({
           <span className="csv-table-editor__reference-label" aria-hidden="true" dir="auto">
             {workspaceReference.label}
           </span>
-          <button
+          <Tooltip content={actionLabel}><button
             type="button"
             className="csv-table-editor__reference-action"
             data-po-interaction="navigation"
             disabled={!openable}
             aria-label={actionLabel}
-            data-tooltip={actionLabel}
             onPointerDown={(event) => {
               event.preventDefault();
               event.stopPropagation();
@@ -153,11 +153,11 @@ export function CsvCellEditor({
               event.stopPropagation();
               open();
             }}
-          >
+                                         >
             {workspaceReference.status !== "missing"
               ? <Link2 size={13} strokeWidth={1.8} aria-hidden="true" />
               : <Unlink size={13} strokeWidth={1.8} aria-hidden="true" />}
-          </button>
+          </button></Tooltip>
           <span id={previewId} className="csv-table-editor__reference-preview" role="tooltip">
             <span className="csv-table-editor__reference-kind">
               {t("editor.csv.reference.workspace")}

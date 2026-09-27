@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
 import {
+  Tooltip,
   RENDERER_ASSET_PATHS,
   resolveRendererPublicAssetUrl,
 } from "@puppyone/shared-ui";
@@ -243,14 +244,13 @@ export function CloudAutomationPage({
                   <RefreshCw size={14} />
                   {t("common.action.refresh")}
                 </button>
-                <button
+                <Tooltip content={t("automation.creation.dismissStatus")}><button
                   type="button"
                   aria-label={t("automation.creation.dismissStatus")}
-                  data-tooltip={t("automation.creation.dismissStatus")}
                   onClick={() => setCreationEcho(null)}
-                >
+                                                                          >
                   <X size={14} />
-                </button>
+                </button></Tooltip>
               </div>
             </section>
           )}
@@ -369,27 +369,24 @@ function CloudAutomationAccessList({
                   const targetPath = formatAutomationPathTrailLabel(row.scope);
                   const highlighted = highlightedConnectionId === connector.id;
                   return (
-                    <button
-                      className={`desktop-cloud-automation-connection-card ${selectedRowId === row.id ? "selected" : ""} ${highlighted ? "created" : ""}`.trim()}
-                      key={row.id}
-                      type="button"
-                      data-tooltip={t("automation.connection.title", {
+                    <Tooltip content={t("automation.connection.title", {
                         name: bidiIsolate(connectionTitle),
                         path: bidiIsolate(getScopePathLabel(row.scope)),
-                      })}
+                      })} key={row.id}><button
+                      className={`desktop-cloud-automation-connection-card ${selectedRowId === row.id ? "selected" : ""} ${highlighted ? "created" : ""}`.trim()}
+                      type="button"
                       onClick={() => onOpenRow(row.id)}
-                    >
+                                       >
                       <span className="desktop-cloud-automation-route">
-                        <span
-                          className="desktop-cloud-automation-source-config"
-                          data-tooltip={t("automation.connection.source", {
+                        <Tooltip content={t("automation.connection.source", {
                             provider: bidiIsolate(group.label),
                             name: bidiIsolate(connectionTitle),
-                          })}
-                        >
+                          })}><span
+                          className="desktop-cloud-automation-source-config"
+                              >
                           {iconUrl ? <img src={iconUrl} alt="" /> : <ProviderIcon size={16} />}
                           <span>{group.label}</span>
-                        </span>
+                        </span></Tooltip>
                         <ArrowRight className="po-directional-icon" size={15} />
                         <span className="desktop-cloud-automation-path-trail">
                           <img src={resolveRendererPublicAssetUrl(RENDERER_ASSET_PATHS.icons.ui.folder)} alt="" />
@@ -418,7 +415,7 @@ function CloudAutomationAccessList({
                           })}
                         </span>
                       )}
-                    </button>
+                    </button></Tooltip>
                   );
                 })}
               </div>

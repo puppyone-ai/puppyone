@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import {
   Check,
   Copy,
@@ -97,25 +98,23 @@ export function CloudRepositoryOverview({
                 <h1 dir="auto">{projectName}</h1>
                 <div className="desktop-cloud-overview-header-actions">
                   {project?.capabilities?.includes("project.settings.manage") === true && (
-                    <button
+                    <Tooltip content={t("cloud.route.settings.title")}><button
                       className="desktop-cloud-overview-settings-button"
                       type="button"
                       aria-label={t("cloud.route.settings.title")}
-                      data-tooltip={t("cloud.route.settings.title")}
                       onClick={() => onSelectSection("settings")}
-                    >
+                                                                       >
                       <SettingsIcon size={13} />
-                    </button>
+                    </button></Tooltip>
                   )}
-                  <button
+                  <Tooltip content={t("cloud.common.refresh")}><button
                     className="desktop-cloud-overview-refresh-button"
                     type="button"
                     aria-label={t("cloud.common.refresh")}
-                    data-tooltip={t("cloud.common.refresh")}
                     onClick={() => void onRefresh()}
-                  >
+                                                               >
                     <RefreshCw size={13} className={loading ? "spin" : undefined} />
-                  </button>
+                  </button></Tooltip>
                 </div>
               </div>
             </div>
@@ -179,15 +178,14 @@ function CloudOverviewPathFact({
   };
 
   return (
-    <button
+    <Tooltip content={value ?? undefined}><button
       className="desktop-cloud-overview-header-fact desktop-cloud-overview-header-fact--interactive desktop-cloud-overview-path-fact"
       type="button"
       aria-label={loading ? t("cloud.common.loading") : value ? label : t("cloud.common.path")}
       aria-busy={loading}
-      data-tooltip={value ?? undefined}
       disabled={!value}
       onClick={() => void handleCopy()}
-    >
+                                          >
       <span className="desktop-cloud-overview-header-fact-label">{t("cloud.common.path")}</span>
       <strong>
         {loading ? (
@@ -203,7 +201,7 @@ function CloudOverviewPathFact({
           </>
         )}
       </strong>
-    </button>
+    </button></Tooltip>
   );
 }
 
@@ -231,11 +229,11 @@ function CloudOverviewHeaderFact({
       onClick={onClick}
     >
       <span className="desktop-cloud-overview-header-fact-label">{label}</span>
-      <strong data-tooltip={valueTitle}>
+      <Tooltip content={valueTitle}><strong>
         {loading
           ? <span className="desktop-cloud-overview-value-skeleton" aria-hidden="true" />
           : value}
-      </strong>
+      </strong></Tooltip>
     </button>
   );
 }
@@ -270,16 +268,15 @@ function CloudOverviewStorageMeter({
       };
 
   return (
-    <div
+    <Tooltip content={pending ? t("cloud.common.loading") : detail}><div
       className={`desktop-cloud-overview-project-storage${pending ? " is-loading" : ""}`}
-      data-tooltip={pending ? t("cloud.common.loading") : detail}
       aria-busy={pending}
-    >
+                                                                    >
       <span className="desktop-cloud-overview-project-storage-track" {...progressProps}>
         {usage.percent !== null ? (
           <span style={{ width: `${usage.percent}%` }} />
         ) : null}
       </span>
-    </div>
+    </div></Tooltip>
   );
 }

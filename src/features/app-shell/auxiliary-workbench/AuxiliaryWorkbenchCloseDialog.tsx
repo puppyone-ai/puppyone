@@ -50,7 +50,7 @@ export function AuxiliaryWorkbenchCloseDialog({
               <h2>{decision.dialog.title}</h2>
             </div>
             <DesktopDialogCloseButton
-              title={t("common.action.close")}
+              label={t("common.action.close")}
               onClick={onDismiss}
             />
           </header>

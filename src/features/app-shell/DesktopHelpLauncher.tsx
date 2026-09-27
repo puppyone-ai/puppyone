@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import {
   useCallback,
   useEffect,
@@ -244,7 +245,7 @@ export function DesktopHelpLauncher(overlayTheme: DesktopHelpLauncherProps) {
                 </div>
                 <DesktopDialogCloseButton
                   className="desktop-feedback-close"
-                  title={t("common.action.close")}
+                  label={t("common.action.close")}
                   onClick={close}
                 />
               </header>
@@ -307,36 +308,34 @@ export function DesktopHelpLauncher(overlayTheme: DesktopHelpLauncherProps) {
                           onChange={handleScreenshotInput}
                         />
                         {screenshot ? (
-                          <button
+                          <Tooltip content={t("shell.feedback.removeScreenshot")}><button
                             className="desktop-feedback-screenshot"
                             type="button"
                             aria-label={t("shell.feedback.removeScreenshot")}
-                            data-tooltip={t("shell.feedback.removeScreenshot")}
                             disabled={submissionState === "sending" || submissionState === "sent"}
                             onClick={() => {
                               replaceScreenshot(null);
                               setAttachmentError("");
                               setAttachmentState("idle");
                             }}
-                          >
+                                                                                  >
                             <img src={screenshot.previewUrl} alt="" />
                             <span aria-hidden="true">
                               <Trash2 size={12} strokeWidth={1.9} />
                             </span>
-                          </button>
+                          </button></Tooltip>
                         ) : (
-                          <button
+                          <Tooltip content={t("shell.feedback.attachScreenshot")}><button
                             className="desktop-feedback-attach"
                             type="button"
                             aria-label={t("shell.feedback.attachScreenshot")}
-                            data-tooltip={t("shell.feedback.attachScreenshot")}
                             disabled={
                               attachmentState === "processing"
                               || submissionState === "sending"
                               || submissionState === "sent"
                             }
                             onClick={() => fileInputRef.current?.click()}
-                          >
+                                                                                  >
                             {attachmentState === "processing" ? (
                               <LoaderCircle
                                 className="desktop-feedback-spinner"
@@ -347,17 +346,16 @@ export function DesktopHelpLauncher(overlayTheme: DesktopHelpLauncherProps) {
                             ) : (
                               <ImagePlus size={16} strokeWidth={1.7} aria-hidden="true" />
                             )}
-                          </button>
+                          </button></Tooltip>
                         )}
                         {attachmentState === "error" && attachmentError ? (
-                          <span
+                          <Tooltip content={attachmentError}><span
                             className="desktop-feedback-attachment-error"
                             role="img"
                             aria-label={attachmentError}
-                            data-tooltip={attachmentError}
-                          >
+                                                             >
                             <CircleAlert size={14} strokeWidth={1.8} aria-hidden="true" />
-                          </span>
+                          </span></Tooltip>
                         ) : null}
                       </div>
                     </div>
@@ -396,14 +394,13 @@ export function DesktopHelpLauncher(overlayTheme: DesktopHelpLauncherProps) {
                   <span className="desktop-feedback-status" aria-live="polite">
                     {liveStatus}
                   </span>
-                  <button
+                  <Tooltip content={sendLabel}><button
                     className="desktop-dialog-button primary desktop-feedback-submit"
                     type="submit"
                     aria-label={sendLabel}
-                    data-tooltip={sendLabel}
                     data-state={submissionState}
                     disabled={!canSend}
-                  >
+                                               >
                     {submissionState === "sending" ? (
                       <LoaderCircle
                         className="desktop-feedback-spinner"
@@ -417,7 +414,7 @@ export function DesktopHelpLauncher(overlayTheme: DesktopHelpLauncherProps) {
                       <CircleAlert size={14} strokeWidth={1.9} aria-hidden="true" />
                     ) : null}
                     <span>{sendLabel}</span>
-                  </button>
+                  </button></Tooltip>
                 </footer>
               </form>
             </DesktopDialogSurface>
@@ -425,19 +422,18 @@ export function DesktopHelpLauncher(overlayTheme: DesktopHelpLauncherProps) {
         </DesktopOverlayPortal>
       ) : null}
 
-      <button
+      <Tooltip content={label}><button
         className="desktop-help-launcher"
         type="button"
         aria-label={label}
-        data-tooltip={label}
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={handleLauncherClick}
-      >
+                               >
         <span className="desktop-help-launcher-icon-slot" aria-hidden="true">
           <FeedbackHelpIcon />
         </span>
-      </button>
+      </button></Tooltip>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "../../../primitives/Tooltip";
 
 import { showEditableTableHandle } from "../../table/editableTableHandle";
 import { createEditableTableSelection } from "../../table/editableTableSelection";
@@ -571,7 +572,7 @@ export function CsvTableControls({
   return (
     <>
       <div className="po-editable-table-drag-layer csv-table-editor__drag-layer">
-        <button
+        <Tooltip content={t("editor.table.columnHandleHint")}><button
           ref={columnHandleRef}
           type="button"
           className="po-editable-table-drag-handle po-editable-table-column-handle csv-table-editor__column-handle"
@@ -579,7 +580,6 @@ export function CsvTableControls({
           aria-expanded="false"
           aria-haspopup="menu"
           aria-label={t("editor.table.columnHandleHint")}
-          data-tooltip={t("editor.table.columnHandleHint")}
           onPointerDown={(event) => startDrag(event, "column")}
           onContextMenu={(event) => openContextMenu(event, "column")}
           onMouseDown={(event) => {
@@ -590,10 +590,10 @@ export function CsvTableControls({
             event.preventDefault();
             event.stopPropagation();
           }}
-        >
+                                                              >
           <span className="po-editable-table-drag-handle-visual" aria-hidden="true" />
-        </button>
-        <button
+        </button></Tooltip>
+        <Tooltip content={t("editor.table.rowHandleHint")}><button
           ref={rowHandleRef}
           type="button"
           className="po-editable-table-drag-handle po-editable-table-row-handle csv-table-editor__row-handle"
@@ -601,7 +601,6 @@ export function CsvTableControls({
           aria-expanded="false"
           aria-haspopup="menu"
           aria-label={t("editor.table.rowHandleHint")}
-          data-tooltip={t("editor.table.rowHandleHint")}
           onPointerDown={(event) => startDrag(event, "row")}
           onContextMenu={(event) => openContextMenu(event, "row")}
           onMouseDown={(event) => {
@@ -612,9 +611,9 @@ export function CsvTableControls({
             event.preventDefault();
             event.stopPropagation();
           }}
-        >
+                                                           >
           <span className="po-editable-table-drag-handle-visual" aria-hidden="true" />
-        </button>
+        </button></Tooltip>
         <div
           ref={dropIndicatorRef}
           className="po-editable-table-drop-indicator csv-table-editor__drop-indicator"

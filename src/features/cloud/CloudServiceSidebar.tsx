@@ -119,7 +119,7 @@ export function CloudSidebarNavItem({
       active={active}
       disabled={item.locked}
       aria-disabled={item.locked || undefined}
-      title={lockedTitle}
+      tooltip={lockedTitle}
       onClick={() => {
         if (!item.locked) onSelect(item.id);
       }}

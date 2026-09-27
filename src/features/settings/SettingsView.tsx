@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState } from "react";
 import {
+  Tooltip,
   FILE_ICON_THEMES,
   PULSE_GRID_PRESET_FRAMES,
   PULSE_GRID_PRESET_IDS,
@@ -297,13 +298,9 @@ export function SettingsView({
                 <span>{t("settings.appearance.fileIcons.title")}</span>
                 <div className="desktop-theme-segment desktop-appearance-option-segment" aria-label={t("settings.appearance.fileIcons.ariaLabel")}>
                   {FILE_ICON_THEMES.map((theme) => (
-                    <button
-                      key={theme.id}
+                    <Tooltip content={fileIconDecision.reasonKey ? t(fileIconDecision.reasonKey) : undefined} key={theme.id}><button
                       className={`${fileIconDecision.effectiveValue === theme.id ? "active" : ""}${fileIconLocked || !isAppearanceValueAllowed(fileIconDecision, theme.id) ? " is-policy-controlled" : ""}`}
                       type="button"
-                      data-tooltip={fileIconDecision.reasonKey
-                        ? t(fileIconDecision.reasonKey)
-                        : t(`settings.appearance.fileIcons.${theme.id}.description`)}
                       aria-disabled={fileIconLocked || !isAppearanceValueAllowed(fileIconDecision, theme.id)}
                       aria-pressed={fileIconDecision.effectiveValue === theme.id}
                       onClick={() => {
@@ -311,10 +308,10 @@ export function SettingsView({
                           onFileIconThemeChange(theme.id);
                         }
                       }}
-                    >
+                                                                                                                             >
                       <FileGlyphIcon name="document.md" size={14} theme={theme.id} />
                       <span>{t(`settings.appearance.fileIcons.${theme.id}.label`)}</span>
-                    </button>
+                    </button></Tooltip>
                   ))}
                 </div>
                 {fileIconDecision.reasonKey && (
@@ -332,7 +329,6 @@ export function SettingsView({
                       key={layout}
                       className={gitSidebarLayout === layout ? "active" : ""}
                       type="button"
-                      data-tooltip={t(`settings.appearance.gitSidebarLayout.${layout}.description`)}
                       aria-pressed={gitSidebarLayout === layout}
                       onClick={() => onGitSidebarLayoutChange(layout)}
                     >
@@ -352,7 +348,6 @@ export function SettingsView({
                       key={presetId}
                       className={loadingAnimationPreset === presetId ? "active" : ""}
                       type="button"
-                      data-tooltip={t(`settings.appearance.loadingAnimation.${presetId}.description`)}
                       aria-pressed={loadingAnimationPreset === presetId}
                       onClick={() => onLoadingAnimationPresetChange(presetId)}
                     >
@@ -421,10 +416,7 @@ export function SettingsView({
               </div>
               <div className="desktop-settings-row desktop-settings-row-control">
                 <span id="desktop-pointer-cursors-label">{t("settings.appearance.pointerCursors.title")}</span>
-                <label
-                  className="desktop-settings-switch"
-                  data-tooltip={t("settings.appearance.pointerCursors.detail")}
-                >
+                <label className="desktop-settings-switch">
                   <input
                     type="checkbox"
                     checked={pointerCursors}

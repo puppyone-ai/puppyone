@@ -1,5 +1,6 @@
 import { ChevronDown, GitBranch } from "lucide-react";
 import {
+  Tooltip,
   FileGlyphIcon,
   VirtualSidebarList,
   useCssPixelCustomProperty,
@@ -153,18 +154,19 @@ function GitHistoryRow({
       className={`desktop-history-row ${isSelected ? "active" : ""}`}
       type="button"
       onClick={onClick}
-      data-tooltip={commit.message}
     >
       <span className="desktop-history-row-main">
         <span className="desktop-history-row-title">
-          <bdi className="desktop-history-row-message">
-            {commit.message || t("source-control.commit.noMessage")}
-          </bdi>
+          <Tooltip content={commit.message} overflowOnly>
+            <bdi className="desktop-history-row-message">
+              {commit.message || t("source-control.commit.noMessage")}
+            </bdi>
+          </Tooltip>
           {(hasAdditions || hasDeletions) && (
-            <span className="desktop-history-row-stat" data-tooltip={exactStats} aria-label={exactStats}>
+            <Tooltip content={exactStats}><span className="desktop-history-row-stat" aria-label={exactStats}>
               {hasAdditions && <span className="added">+{compactNumber(totals.additions)}</span>}
               {hasDeletions && <span className="deleted">-{compactNumber(totals.deletions)}</span>}
-            </span>
+            </span></Tooltip>
           )}
         </span>
         {visibleChanges.length > 0 && (
@@ -207,17 +209,16 @@ function GitHistoryFilePreview({
       : null;
 
   return (
-    <span
+    <Tooltip content={`${statusLabel}: ${displayPath}`}><span
       className="desktop-history-row-file"
       data-status={change.status}
-      data-tooltip={`${statusLabel}: ${displayPath}`}
-    >
+                                                        >
       <span className="desktop-history-row-file-icon" aria-hidden="true">
         <FileGlyphIcon name={change.path} size={14} theme={fileIconTheme} />
       </span>
       {marker && <span className="desktop-history-row-file-marker" aria-hidden="true">{marker}</span>}
       <bdi>{displayPath}</bdi>
-    </span>
+    </span></Tooltip>
   );
 }
 

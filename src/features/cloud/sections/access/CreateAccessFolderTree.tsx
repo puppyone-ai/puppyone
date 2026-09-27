@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import {
+  Tooltip,
   STANDARD_CONTROL_SIZE,
   useCssPixelCustomProperty,
 } from "@puppyone/shared-ui";
@@ -260,19 +261,18 @@ function FolderRow({
   return (
     <div className="desktop-cloud-create-access-tree-row-wrap">
       <TreeGuides depth={depth} isLastSibling={isLastSibling} ancestorLastSiblings={ancestorLastSiblings} />
-      <button
+      <Tooltip content={t(expanded ? "cloud.access.create.collapseFolder" : "cloud.access.create.expandFolder", { path: formatTreePath(entry.path, t) })}><button
         className={`desktop-cloud-create-access-tree-row folder ${selected ? "selected" : ""}`}
         type="button"
-        data-tooltip={t(expanded ? "cloud.access.create.collapseFolder" : "cloud.access.create.expandFolder", { path: formatTreePath(entry.path, t) })}
         style={{ paddingInlineStart: 8 + depth * 16 }}
         onClick={onToggle}
-      >
+                                                                                                                                                          >
         <span className="desktop-cloud-create-access-tree-marker">
           <TreeDisclosureMarker expanded={expanded} />
         </span>
         <span className="desktop-cloud-create-access-tree-name" dir="auto">{entry.name}</span>
         <FolderRowStatus selected={selected} alreadyExists={alreadyExists} onSelect={onSelect} />
-      </button>
+      </button></Tooltip>
     </div>
   );
 }
@@ -292,16 +292,15 @@ function FileRow({
   return (
     <div className="desktop-cloud-create-access-tree-row-wrap">
       <TreeGuides depth={depth} isLastSibling={isLastSibling} ancestorLastSiblings={ancestorLastSiblings} />
-      <div
+      <Tooltip content={formatTreePath(entry.path, t)}><div
         className="desktop-cloud-create-access-tree-row file"
-        data-tooltip={formatTreePath(entry.path, t)}
         aria-disabled="true"
         style={{ paddingInlineStart: 8 + depth * 16 }}
-      >
+                                                       >
         <span className="desktop-cloud-create-access-tree-marker" />
         <FileText size={15} />
         <span className="desktop-cloud-create-access-tree-name" dir="auto">{entry.name}</span>
-      </div>
+      </div></Tooltip>
     </div>
   );
 }
@@ -318,20 +317,19 @@ function FolderRowStatus({
   const { t } = useLocalization();
   if (alreadyExists) return <AccessStatusText onSelect={onSelect} />;
   return (
-    <button
+    <Tooltip content={t(selected ? "cloud.access.create.selectedFolder" : "cloud.access.create.selectFolder")}><button
       className={`desktop-cloud-create-access-tree-status action ${selected ? "selected" : ""}`}
       type="button"
-      data-tooltip={t(selected ? "cloud.access.create.selectedFolder" : "cloud.access.create.selectFolder")}
       onClick={(event) => {
         event.stopPropagation();
         onSelect();
       }}
-    >
+                                                                                                               >
       <span>{t(selected ? "cloud.common.selected" : "cloud.common.select")}</span>
       <span aria-hidden="true">
         {selected ? <Check size={13} strokeWidth={2.6} /> : null}
       </span>
-    </button>
+    </button></Tooltip>
   );
 }
 
@@ -341,17 +339,16 @@ function AccessStatusText({ onSelect }: { onSelect?: () => void }) {
     return <span className="desktop-cloud-create-access-tree-status">{t("cloud.access.create.hasAccess")}</span>;
   }
   return (
-    <button
+    <Tooltip content={t("cloud.access.create.openThisAccess")}><button
       className="desktop-cloud-create-access-tree-status existing"
       type="button"
-      data-tooltip={t("cloud.access.create.openThisAccess")}
       onClick={(event) => {
         event.stopPropagation();
         onSelect();
       }}
-    >
+                                                               >
       {t("cloud.access.create.hasAccess")}
-    </button>
+    </button></Tooltip>
   );
 }
 

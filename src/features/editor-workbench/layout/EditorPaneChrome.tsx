@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, type RefObject } from "react";
 import { useLocalization } from "@puppyone/localization";
-import { OverflowDots } from "@puppyone/shared-ui";
+import { Tooltip, OverflowDots } from "@puppyone/shared-ui";
 import type {
   EditorFindCommand,
   EditorPaneLayoutLeaf,
@@ -91,14 +91,13 @@ export function EditorPaneChrome({
   return (
     <>
       <div className="desktop-editor-pane-handle-shell">
-        <button
+        <Tooltip content={handleLabel}><button
           ref={handleRef}
           className="desktop-editor-pane-handle"
           type="button"
           aria-label={handleLabel}
           aria-haspopup="menu"
           aria-expanded={actionsOpen}
-          data-tooltip={handleLabel}
           onPointerEnter={() => {
             if (canMovePane && paneRef.current) paneMove.prepare(paneRef.current, pane.id);
           }}
@@ -121,9 +120,9 @@ export function EditorPaneChrome({
           }}
           onPointerCancel={paneMove.cancel}
           onLostPointerCapture={paneMove.lostCapture}
-        >
+                                       >
           <OverflowDots />
-        </button>
+        </button></Tooltip>
       </div>
       <EditorPaneActionsMenu
         anchorRef={handleRef}

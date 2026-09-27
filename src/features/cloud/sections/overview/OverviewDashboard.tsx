@@ -1,5 +1,5 @@
 import { useLocalization } from "@puppyone/localization/react";
-import { FileGlyphIcon } from "@puppyone/shared-ui";
+import { Tooltip, FileGlyphIcon } from "@puppyone/shared-ui";
 import type {
   DesktopCloudDashboard,
   DesktopCloudTree,
@@ -63,12 +63,10 @@ export function CloudOverviewDashboard({
           ) : entries.length > 0 ? entries.map((entry) => {
             const updatedAt = getCloudOverviewEntryUpdatedAt(entry, history);
             return (
-              <div
+              <Tooltip content={entry.path} key={`${entry.type}:${entry.path}`}><div
                 className="desktop-cloud-overview-file-row"
                 role="listitem"
-                data-tooltip={entry.path}
-                key={`${entry.type}:${entry.path}`}
-              >
+                                                                                >
                 <span className="desktop-cloud-overview-file-primary">
                   <span className="desktop-cloud-overview-file-icon" aria-hidden="true">
                     <FileGlyphIcon name={entry.name} type={entry.type} size={15} />
@@ -77,15 +75,14 @@ export function CloudOverviewDashboard({
                 </span>
                 <span className="desktop-cloud-overview-file-modified">
                   {updatedAt ? (
-                    <time
+                    <Tooltip content={formatFullTime(updatedAt, localization.formatDate)}><time
                       dateTime={updatedAt}
-                      data-tooltip={formatFullTime(updatedAt, localization.formatDate)}
-                    >
+                                                                                          >
                       {formatRelativeTime(updatedAt, localization)}
-                    </time>
+                    </time></Tooltip>
                   ) : "—"}
                 </span>
-              </div>
+              </div></Tooltip>
             );
           }) : (
             <div className="desktop-cloud-overview-files-empty">

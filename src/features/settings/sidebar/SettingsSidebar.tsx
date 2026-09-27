@@ -25,9 +25,9 @@ export function SettingsSidebar({ activeSection, cloudEnabled, otherAppImportsEn
                   aria-disabled={section.disabled}
                   icon={<Icon size={15} />}
                   label={label}
-                  title={section.disabled
+                  tooltip={section.disabled
                     ? t("settings.sidebar.notAvailable", { section: label })
-                    : label}
+                    : undefined}
                   onClick={() => onSelectSection(section.id)}
                   key={section.id}
                 />

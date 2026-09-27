@@ -34,7 +34,7 @@ describe("Typography settings", () => {
     const scale = host.querySelector('[aria-label="Application text size"]');
     expect(scale).not.toBeNull();
     expect(scale?.querySelectorAll("button")).toHaveLength(3);
-    expect(host.textContent).toContain("Adjust text size across PuppyOne.");
+    expect(host.textContent).not.toContain("Adjust text size across PuppyOne.");
     expect(host.textContent).not.toContain("Entire application");
     expect(host.querySelectorAll('[aria-pressed="true"]')).toHaveLength(1);
     expect(host.textContent).not.toContain("px");

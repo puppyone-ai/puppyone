@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { Plus } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization/react";
@@ -207,13 +208,12 @@ export function DesktopCloudCreateAccessDialog({
               </FieldLabel>
 
               <FieldLabel label={t("cloud.common.path")} required>
-                <div
+                <Tooltip content={selectedLabel} overflowOnly><div
                   className={`desktop-cloud-create-access-path-box ${selectedExistingScope ? "existing" : ""} ${normalizedSelected === null ? "empty" : ""}`}
-                  data-tooltip={selectedLabel}
-                >
+                                                              >
                   <TreeDisclosureMarker expanded={normalizedSelected !== null} />
                   <span>{selectedLabel}</span>
-                </div>
+                </div></Tooltip>
                 {selectedExistingScope ? (
                   <div className="desktop-cloud-create-access-field-note">
                     {t("cloud.access.create.pathAlreadyHasAccess")}

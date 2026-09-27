@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { Fragment } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import {
@@ -35,7 +36,7 @@ export function AgentFileChangeActivity({ activity, onOpenFile }: { activity: Ag
             <AgentToolEvidenceNode kind="result">
               <div className="desktop-agent-tool-file-path" dir="ltr">
                 {onOpenFile
-                  ? <button type="button" data-po-interaction="navigation" data-tooltip={file.path} onClick={() => onOpenFile(file.path)}>{file.path}</button>
+                  ? <Tooltip content={file.path} overflowOnly><button type="button" data-po-interaction="navigation" onClick={() => onOpenFile(file.path)}>{file.path}</button></Tooltip>
                   : <span>{file.path}</span>}
               </div>
             </AgentToolEvidenceNode>

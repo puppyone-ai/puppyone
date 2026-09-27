@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { AlertCircle, RefreshCw, X } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
 import { DesktopMenuIconButton } from "../../../../components/DesktopMenu";
@@ -18,12 +19,11 @@ export function AuxiliaryWorkbenchCreationFailure({
     ? t(messageKey)
     : t("terminal.workbench.itemLoadFailed", { item: failure.label });
   return (
-    <div
+    <Tooltip content={failure.detail || undefined}><div
       className="desktop-terminal-workbench-create-failure"
       role="alert"
       data-native-surface-occluder="true"
-      data-tooltip={failure.detail || undefined}
-    >
+                                                   >
       <AlertCircle size={14} strokeWidth={1.8} aria-hidden="true" />
       <span>{message}</span>
       {failure.retryable && onRetry && (
@@ -36,7 +36,7 @@ export function AuxiliaryWorkbenchCreationFailure({
         icon={<X size={12} strokeWidth={1.8} aria-hidden="true" />}
         onClick={onDismiss}
       />
-    </div>
+    </div></Tooltip>
   );
 }
 

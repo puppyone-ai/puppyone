@@ -82,8 +82,8 @@ describe("Desktop Build Identity UI", () => {
       .toContain("VersionInternal · 1.4.0-internal.72");
     expect(container.querySelector(".desktop-build-version-text")?.tagName).toBe("SPAN");
     expect(container.querySelector('[aria-label="Copy version information"]')).not.toBeNull();
-    expect(container.querySelector('[data-build-channel="internal"]')?.getAttribute("data-tooltip"))
-      .toContain("commit eeeeeeee");
+    expect(container.querySelector('[data-build-channel="internal"]')?.hasAttribute("data-tooltip"))
+      .toBe(false);
   });
 
   it("renders nothing when running without the Electron bridge", async () => {

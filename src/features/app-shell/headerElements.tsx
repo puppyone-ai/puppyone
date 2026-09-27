@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import type { ReactNode } from "react";
 import {
   ArrowDown,
@@ -56,18 +57,17 @@ export const HEADER_ELEMENT_DEFINITIONS: readonly HeaderElementDefinition[] = [
       const statusLabel = getGitStatusLabel(context.t, label, changes.status);
       const hasStatus = Object.values(changes.status).some((count) => count > 0);
       return (
-        <button
+        <Tooltip content={statusLabel}><button
           className={toolbarPlacement
             ? "desktop-shell-toolbar-button desktop-shell-toolbar-changes"
             : "desktop-titlebar-action desktop-titlebar-changes"}
           type="button"
-          data-tooltip={statusLabel}
           aria-label={statusLabel}
           aria-pressed={changes.sidebarOpen}
           data-has-git-status={hasStatus ? "true" : undefined}
           data-toolbar-action={toolbarPlacement ? "changes" : undefined}
           onClick={changes.onToggle}
-        >
+                                       >
           {toolbarPlacement && (
             <i className="desktop-shell-toolbar-button-icon" aria-hidden="true">
               <VersionControlIcon size={19} />
@@ -80,7 +80,7 @@ export const HEADER_ELEMENT_DEFINITIONS: readonly HeaderElementDefinition[] = [
             status={changes.status}
             showIdleEntry={!toolbarPlacement}
           />
-        </button>
+        </button></Tooltip>
       );
     },
   },
@@ -97,17 +97,16 @@ export const HEADER_ELEMENT_DEFINITIONS: readonly HeaderElementDefinition[] = [
         ? AGENT_ENTRY_LABEL
         : context.t(terminal.sidebarOpen ? "shell.titlebar.hideAgent" : "shell.titlebar.showAgent");
       return (
-        <button
+        <Tooltip content={toggleLabel}><button
           className={toolbarPlacement
             ? "desktop-shell-toolbar-button desktop-shell-toolbar-terminal"
             : "desktop-titlebar-action desktop-titlebar-terminal"}
           type="button"
-          data-tooltip={toggleLabel}
           aria-label={toggleLabel}
           aria-pressed={terminal.sidebarOpen}
           data-toolbar-action={toolbarPlacement ? "terminal" : undefined}
           onClick={terminal.onToggle}
-        >
+                                       >
           {toolbarPlacement ? (
             <i
               className="desktop-shell-toolbar-button-icon"
@@ -123,7 +122,7 @@ export const HEADER_ELEMENT_DEFINITIONS: readonly HeaderElementDefinition[] = [
               {AGENT_ENTRY_LABEL}
             </span>
           )}
-        </button>
+        </button></Tooltip>
       );
     },
   },

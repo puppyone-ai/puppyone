@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import type { ReactNode } from "react";
 import { FileText } from "lucide-react";
 import type { GitCommitDetail } from "../../types/electron";
@@ -91,16 +92,15 @@ export function WorkingFileActions({
   return (
     <div className="desktop-working-file-actions">
       {canOpenFile && (
-        <button
+        <Tooltip content={t("source-control.action.openInData")}><button
           type="button"
           className="secondary-action desktop-working-file-open"
-          data-tooltip={t("source-control.action.openInData")}
           disabled={disabled}
           onClick={() => onOpenFile(selection.path)}
-        >
+                                                                 >
           <FileText size={13} aria-hidden="true" />
           <span>{t("source-control.action.openFile")}</span>
-        </button>
+        </button></Tooltip>
       )}
       {selection.staged ? (
         <button type="button" className="secondary-action" disabled={disabled} onClick={() => void onUnstagePaths([selection.path])}>

@@ -6,6 +6,7 @@ import {
 import { useRef, type CSSProperties } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import {
+  Tooltip,
   SidebarRoot,
   STANDARD_CONTROL_SIZE,
   VirtualSidebarList,
@@ -196,20 +197,19 @@ function CloudHistorySidebarRow({
   return (
     <div className="desktop-cloud-history-sidebar-item" data-history-row-kind={row.kind}>
       {isCommit ? (
-        <button
+        <Tooltip content={`${message} (${shortCommit(row.id)})`}><button
           className={className}
           type="button"
           aria-current={selected ? "true" : undefined}
           data-commit-id={row.id}
-          data-tooltip={`${message} (${shortCommit(row.id)})`}
           onClick={() => onSelect(row.id)}
-        >
+                                                                 >
           {contents}
-        </button>
+        </button></Tooltip>
       ) : (
-        <div className={className} data-tooltip={message}>
+        <Tooltip content={message}><div className={className}>
           {contents}
-        </div>
+        </div></Tooltip>
       )}
     </div>
   );

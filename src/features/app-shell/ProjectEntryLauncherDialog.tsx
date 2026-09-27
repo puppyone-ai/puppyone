@@ -54,7 +54,7 @@ export function ProjectEntryLauncherDialog({
             <h2>{title}</h2>
           </div>
           <DesktopDialogCloseButton
-            title={t("common.action.close")}
+            label={t("common.action.close")}
             onClick={onClose}
           />
         </header>

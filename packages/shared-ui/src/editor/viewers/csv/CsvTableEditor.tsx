@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "../../../primitives/Tooltip";
 
 import type { MessageFormatter } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
@@ -600,24 +601,22 @@ export function CsvTableEditor({
 
             {!readOnly && (
               <>
-                <button
+                <Tooltip content={t("editor.csv.addRow")}><button
                   type="button"
                   className="csv-table-editor__structure-button csv-table-editor__add-row po-editable-table-structure-button po-editable-table-add-row"
                   onClick={addRow}
-                  data-tooltip={t("editor.csv.addRow")}
                   aria-label={t("editor.csv.addRow")}
-                >
+                                                          >
                   <span className="csv-table-editor__structure-button-visual po-editable-table-structure-button-visual" aria-hidden="true" />
-                </button>
-                <button
+                </button></Tooltip>
+                <Tooltip content={t("editor.csv.addColumn")}><button
                   type="button"
                   className="csv-table-editor__structure-button csv-table-editor__add-column po-editable-table-structure-button po-editable-table-add-column"
                   onClick={addColumn}
-                  data-tooltip={t("editor.csv.addColumn")}
                   aria-label={t("editor.csv.addColumn")}
-                >
+                                                             >
                   <span className="csv-table-editor__structure-button-visual po-editable-table-structure-button-visual" aria-hidden="true" />
-                </button>
+                </button></Tooltip>
                 <CsvTableControls
                   columnCount={columnCount}
                   direction={direction}
@@ -776,10 +775,6 @@ const MemoCsvBodyRow = memo(function CsvBodyRow({
           data-csv-record-index={rowIndex}
           data-csv-display-row={displayRowNumber}
           aria-label={t("editor.csv.rowNumber", {
-            row: displayRowNumber,
-            record: rowIndex + 1,
-          })}
-          data-tooltip={t("editor.csv.rowNumber", {
             row: displayRowNumber,
             record: rowIndex + 1,
           })}

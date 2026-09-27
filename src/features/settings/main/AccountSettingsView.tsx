@@ -118,13 +118,15 @@ export function AccountSettingsView({
             {!sessionMatchesService && <><SettingsValueRow
               label={t("settings.account.desktopService")}
               value={resolvedApiBaseUrl}
-              title={resolvedApiBaseUrl}
+              tooltip={resolvedApiBaseUrl}
+              tooltipOverflowOnly
               monospace
             />
             <SettingsValueRow
               label={t("settings.account.sessionService")}
               value={cloudSession?.api_base_url ?? t("settings.account.none")}
-              title={cloudSession?.api_base_url}
+              tooltip={cloudSession?.api_base_url}
+              tooltipOverflowOnly
               monospace={Boolean(cloudSession?.api_base_url)}
             /></>}
             {signedIn && <div className="desktop-settings-row desktop-settings-row-control desktop-settings-account-actions-row">

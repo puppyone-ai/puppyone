@@ -1,3 +1,4 @@
+import { activateTooltip } from "../../../../primitives/Tooltip";
 import { EditorSelection } from "@codemirror/state";
 import { EditorView, WidgetType } from "@codemirror/view";
 import { bidiIsolate } from "@puppyone/localization/core";
@@ -289,7 +290,7 @@ export class HtmlBlockWidget extends WidgetType {
       content.replaceChildren(createPreviewBlock(version));
       toggleButton.replaceChildren(createHtmlSourceIcon());
       const toggleLabel = t("editor.markdown.html.showSource");
-      toggleButton.dataset.tooltip = toggleLabel;
+      activateTooltip(toggleButton, toggleLabel);
       toggleButton.setAttribute("aria-label", toggleLabel);
       measure.schedule();
     };

@@ -95,10 +95,7 @@ export function LocalAgentsSettingsView({
                           <span className="desktop-local-agent-name">{displayName}</span>
                         </span>
                       </span>
-                      <label
-                        className="desktop-settings-switch"
-                        data-tooltip={t("settings.localAgents.toggle", { agent: displayName })}
-                      >
+                      <label className="desktop-settings-switch">
                         <input
                           type="checkbox"
                           checked={visible}
@@ -143,10 +140,7 @@ export function LocalAgentsSettingsView({
               <div className="desktop-settings-list desktop-local-agent-settings-table">
                 <div className="desktop-settings-row desktop-settings-row-control">
                   <span>{t("settings.localAgents.history.toggle")}</span>
-                  <label
-                    className="desktop-settings-switch"
-                    data-tooltip={t("settings.localAgents.history.toggle")}
-                  >
+                  <label className="desktop-settings-switch">
                     <input
                       type="checkbox"
                       checked={settings.chatHistoryDiscoveryEnabled}

@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocalization } from "@puppyone/localization";
@@ -69,15 +70,14 @@ export function GitHistorySidebar({
       }}
     >
       <header className="desktop-git-view-header desktop-git-history-header">
-        <button
+        <Tooltip content={t("shared-ui.navigation.back")}><button
           className="desktop-git-view-back"
           type="button"
           aria-label={t("shared-ui.navigation.back")}
-          data-tooltip={t("shared-ui.navigation.back")}
           onClick={handleBack}
-        >
+                                                          >
           <ArrowLeft size={15} strokeWidth={1.8} aria-hidden="true" />
-        </button>
+        </button></Tooltip>
         <span className="desktop-git-view-title">
           {t("source-control.history.title")}
         </span>

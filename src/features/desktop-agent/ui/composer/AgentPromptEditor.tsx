@@ -1,3 +1,4 @@
+import { activateTooltip } from "@puppyone/shared-ui";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { subscribeTypographyChanges, useEditorAppearanceRevision } from "@puppyone/shared-ui";
 import { bidiIsolate, type MessageFormatter } from "@puppyone/localization/core";
@@ -67,7 +68,7 @@ class AgentPromptReferenceWidget extends WidgetType {
   override toDOM(view: EditorView) {
     const element = document.createElement("span");
     element.className = `desktop-agent-prompt-mention is-${this.reference.status}`;
-    element.dataset.tooltip = this.reference.title;
+    activateTooltip(element, this.reference.title);
     element.dataset.referenceId = this.reference.referenceId;
     element.dataset.referenceKind = this.reference.referenceKind;
     element.dataset.referenceStatus = this.reference.status;

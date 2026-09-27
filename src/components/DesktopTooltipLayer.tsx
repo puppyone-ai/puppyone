@@ -16,6 +16,11 @@ const TRIGGER_GAP = 8;
 function readTooltip(target: HTMLElement): ActiveTooltip | null {
   const label = target.dataset.tooltip?.trim();
   if (!label) return null;
+  if (
+    target.dataset.tooltipWhen === "overflow"
+    && target.scrollWidth <= target.clientWidth + 1
+    && target.scrollHeight <= target.clientHeight + 1
+  ) return null;
   const placement = target.dataset.tooltipPlacement;
   return {
     target,
@@ -67,7 +72,10 @@ function positionTooltip(
   };
 }
 
-/** One tooltip surface for every explicitly marked desktop control or content hint. */
+/**
+ * One tooltip surface for explicitly authored hints. Visible labels should not
+ * repeat themselves here; clipped values can opt into `data-tooltip-when="overflow"`.
+ */
 export function DesktopTooltipLayer() {
   const tooltipId = useId();
   const tooltipRef = useRef<HTMLDivElement>(null);

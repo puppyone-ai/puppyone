@@ -107,7 +107,7 @@ export function createGitLocalStatusPanels({
               {operationAction && (
                 <GitOperationButton
                   className="desktop-git-continue-operation-action"
-                  title={operationAction.title}
+                  tooltip={operationAction.title}
                   disabled={disabled || operationAction.disabled}
                   icon={operationAction.icon}
                   label={operationAction.label}
@@ -155,7 +155,7 @@ export function createGitLocalStatusPanels({
           action={action ? (
             <GitOperationButton
               className="desktop-git-commit-push-action"
-              title={action.title}
+              tooltip={action.title}
               disabled={disabled || action.disabled}
               icon={action.icon}
               label={action.label}
@@ -208,7 +208,7 @@ export function createGitLocalStatusPanels({
             <div className="desktop-git-section-actions">
               <GitOperationButton
                 className="desktop-git-commit-staged-action"
-                title={action?.title ?? t("source-control.sync.commitStaged")}
+                tooltip={action?.title ?? t("source-control.sync.commitStaged")}
                 disabled={disabled || !action || action.disabled}
                 icon={action?.icon ?? "plus"}
                 label={action?.label ?? t("source-control.sync.commit")}
@@ -314,7 +314,7 @@ function createUnstagedActions({
     <div className="desktop-git-section-actions">
       <GitOperationButton
         className="desktop-git-stage-commit-action"
-        title={model.showStageAndCommitAction
+        tooltip={model.showStageAndCommitAction
           ? t("source-control.action.stageCommitTitle")
           : t("source-control.sync.resolveBeforeSync")}
         disabled={disabled || !model.showStageAndCommitAction}

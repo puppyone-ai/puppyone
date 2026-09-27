@@ -1,3 +1,4 @@
+import { activateTooltip } from "../../../../primitives/Tooltip";
 import {
   bindInlineHtmlDomInteractions,
   createDomFromInlineHtmlSource,
@@ -272,9 +273,9 @@ function appendWikiLink(target: Node, token: MarkdownWikiLinkToken, options: Mar
     const missing = document.createElement("span");
     missing.className = "cm-md-wiki-link-inline is-missing";
     missing.textContent = token.label;
-    missing.dataset.tooltip = options.t
+    activateTooltip(missing, options.t
       ? options.t("editor.markdown.missingLinkedNote", { target: bidiIsolate(token.target) })
-      : token.target;
+      : token.target);
     target.appendChild(missing);
     return;
   }
@@ -284,7 +285,7 @@ function appendWikiLink(target: Node, token: MarkdownWikiLinkToken, options: Mar
     ? "cm-md-wiki-link-inline is-resolved is-ambiguous"
     : "cm-md-wiki-link-inline is-resolved";
   link.textContent = token.label;
-  link.dataset.tooltip = resolvedTarget.path ?? token.target;
+  activateTooltip(link, resolvedTarget.path ?? token.target);
   const openWikiLink = options.markdownLinkCommands?.openWikiLink;
   if (!openWikiLink) {
     target.appendChild(link);
@@ -404,7 +405,7 @@ function createImageElement(
   image.hidden = true;
   image.dataset.previewState = "loading";
   image.setAttribute("aria-hidden", "true");
-  if (title) image.dataset.tooltip = title;
+  if (title) activateTooltip(image, title);
   image.addEventListener("load", () => {
     const reveal = () => {
       if (!image.isConnected || !placeholder.isConnected) return;

@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import {
   useEffect,
   useMemo,
@@ -191,13 +192,11 @@ export function ProjectSwitcherRail({
               className="desktop-project-switcher-rail-project-row"
               key={workspace.path}
             >
-              <button
+              <Tooltip content={expanded ? undefined : workspace.name} placement="right"><button
                 className={`desktop-project-switcher-rail-button desktop-project-switcher-rail-project ${expanded ? "desktop-project-switcher-rail-expanded-project po-sidebar-row" : "desktop-project-switcher-rail-compact-project"}${active ? " active" : ""}`}
                 type="button"
                 aria-current={active ? "page" : undefined}
                 aria-label={label}
-                data-tooltip={expanded ? undefined : workspace.name}
-                data-tooltip-placement="right"
                 aria-busy={pendingPath === workspace.path || undefined}
                 data-avatar-kind={expanded
                   ? `context-${contextAssetKind}`
@@ -208,7 +207,7 @@ export function ProjectSwitcherRail({
                 draggable={Boolean(workspace.path.trim())}
                 onClick={() => void selectProject(workspace)}
                 onDragStart={(event) => beginProjectRootDrag(event, workspace.path)}
-              >
+                                                                                         >
                 <ProjectSwitcherAvatar
                   imageUrl={appearance?.icon?.kind === "asset" ? appearance.icon.url : null}
                   emoji={appearance?.icon?.kind === "emoji" ? appearance.icon.value : null}
@@ -221,7 +220,7 @@ export function ProjectSwitcherRail({
                     {workspace.name}
                   </span>
                 )}
-              </button>
+              </button></Tooltip>
               {expanded && (onRenameProject || onUnlinkProject) && (
                 <ProjectRowActions
                   workspace={workspace}
@@ -236,17 +235,15 @@ export function ProjectSwitcherRail({
             </div>
           );
         })}
-        <button
+        <Tooltip content={t("shell.workspaceSwitcher.createNew")} placement={expanded ? "bottom" : "right"}><button
           className={`desktop-project-switcher-rail-button desktop-project-switcher-rail-create ${expanded ? "desktop-project-switcher-rail-expanded-create po-sidebar-row" : "desktop-project-switcher-rail-compact-create"}`}
           type="button"
           aria-label={t("shell.workspaceSwitcher.createNew")}
-          data-tooltip={t("shell.workspaceSwitcher.createNew")}
-          data-tooltip-placement={expanded ? "bottom" : "right"}
           onClick={() => {
             setProjectActionSession(null);
             onCreateNew();
           }}
-        >
+                                                                                                            >
           <span
             className={expanded
               ? "desktop-project-switcher-rail-avatar"
@@ -260,7 +257,7 @@ export function ProjectSwitcherRail({
               {t("shell.workspaceSwitcher.createNew")}
             </span>
           )}
-        </button>
+        </button></Tooltip>
       </div>
       {(onOpenPlugins || onOpenSettings || utilitySlot) && (
         <div

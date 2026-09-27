@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { Fragment, type ReactNode } from "react";
 import { Share } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
@@ -91,10 +92,10 @@ export function DesktopTitlebarActions({
     titlebarActionItems.push({
       group: "header",
       id: "share",
-      node: <button type="button" className="desktop-titlebar-action desktop-titlebar-share"
-        data-tooltip={t("shell.titlebar.share")} aria-label={t("shell.titlebar.share")} onClick={onShare}>
+      node: <Tooltip content={t("shell.titlebar.share")}><button type="button" className="desktop-titlebar-action desktop-titlebar-share"
+         aria-label={t("shell.titlebar.share")} onClick={onShare}>
         <Share size={16} strokeWidth={1.8} aria-hidden="true" />
-      </button>,
+      </button></Tooltip>,
     });
   }
 

@@ -11,6 +11,7 @@ import {
 } from "react";
 import { PanelLeft } from "lucide-react";
 import {
+  Tooltip,
   CollapsiblePaneFrame,
   useCollapsiblePaneResize,
   type CollapsiblePanePresentation,
@@ -305,15 +306,14 @@ export function DesktopCloudShell({
                 data-sidebar-state={sidebarState}
               >
                 {paneLayout.explorer.collapsed && leftSidebarPresent && onLeftSidebarExpand && (
-                  <button
+                  <Tooltip content={t("shared-ui.explorer.expandSidebar")}><button
                     className="desktop-titlebar-context-icon-button desktop-titlebar-sidebar-expand"
                     type="button"
                     aria-label={t("shared-ui.explorer.expandSidebar")}
-                    data-tooltip={t("shared-ui.explorer.expandSidebar")}
                     onClick={() => onLeftSidebarExpand()}
-                  >
+                                                                           >
                     <PanelLeft size={15} strokeWidth={1.8} aria-hidden="true" />
-                  </button>
+                  </button></Tooltip>
                 )}
                 {titlebarSidebarSlot}
               </div>

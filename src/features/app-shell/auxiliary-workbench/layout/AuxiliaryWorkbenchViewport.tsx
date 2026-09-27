@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 import { Plus, X } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
 import {
+  Tooltip,
   isWorkbenchSplit,
   workbenchSplitNodeMinimumSize,
   type AuxiliaryWorkbenchGroup,
@@ -64,19 +65,19 @@ export function AuxiliaryWorkbenchViewport(props: AuxiliaryWorkbenchViewportProp
     {props.titlebarTabHost && props.groups.length > 1 && createPortal(
       <div className="desktop-titlebar-workbench-tabs" role="toolbar" aria-label={t("terminal.title")}>
         {props.headerItems.map((item) => <div className="desktop-titlebar-workbench-tab" key={item.id}>
-          <button type="button" className="desktop-titlebar-workbench-tab-select"
+          <Tooltip content={item.snapshot.accessibleLabel}><button type="button" className="desktop-titlebar-workbench-tab-select"
             aria-label={item.snapshot.accessibleLabel} aria-pressed={props.groups.some((group) => group.activeItemId === item.id && group.id === props.activeGroupId)}
-            data-tooltip={item.snapshot.accessibleLabel} onClick={() => props.onActivateItem(item.id)}>
+             onClick={() => props.onActivateItem(item.id)}>
             <AuxiliaryWorkbenchStatus className="desktop-titlebar-workbench-tab-status" item={item} />
             <span className="desktop-titlebar-workbench-tab-title">{item.snapshot.title}</span>
-          </button>
+          </button></Tooltip>
           <button type="button" className="desktop-titlebar-workbench-tab-close"
             aria-label={`${t("common.action.close")} ${item.snapshot.accessibleLabel}`}
             onClick={() => props.onCloseItem(item.id)}><X size={12} aria-hidden="true" /></button>
         </div>)}
-        {props.activeGroupId && <button type="button" className="desktop-titlebar-workbench-new"
-          aria-label={t("workspace.workbench.newTab")} data-tooltip={t("workspace.workbench.newTab")}
-          onClick={() => props.onCreateItem(props.activeGroupId!)}><Plus size={14} aria-hidden="true" /></button>}
+        {props.activeGroupId && <Tooltip content={t("workspace.workbench.newTab")}><button type="button" className="desktop-titlebar-workbench-new"
+          aria-label={t("workspace.workbench.newTab")}
+          onClick={() => props.onCreateItem(props.activeGroupId!)}><Plus size={14} aria-hidden="true" /></button></Tooltip>}
       </div>, props.titlebarTabHost,
     )}
     <div className="desktop-terminal-group-viewport">

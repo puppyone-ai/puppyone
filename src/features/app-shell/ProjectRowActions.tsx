@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import {
   useEffect,
   useLayoutEffect,
@@ -128,7 +129,7 @@ export function ProjectRowActions({
 
   return (
     <>
-      <button
+      <Tooltip content={t("shell.workspaceSwitcher.projectActions")}><button
         className="desktop-project-switcher-row-action"
         type="button"
         aria-label={t("shell.workspaceSwitcher.projectActionsFor", {
@@ -136,16 +137,15 @@ export function ProjectRowActions({
         })}
         aria-haspopup="menu"
         aria-expanded={surface === "menu"}
-        data-tooltip={t("shell.workspaceSwitcher.projectActions")}
         onPointerDown={(event) => event.stopPropagation()}
         onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
           openMenu(event.currentTarget);
         }}
-      >
+                                                                     >
         <MoreVertical aria-hidden="true" />
-      </button>
+      </button></Tooltip>
 
       {surface === "menu" && (
         <DesktopOverlayLayer>
@@ -205,7 +205,7 @@ export function ProjectRowActions({
                   </h2>
                 </div>
                 <DesktopDialogCloseButton
-                  title={t("common.action.close")}
+                  label={t("common.action.close")}
                   disabled={pending !== null}
                   onClick={() => onSurfaceChange(null)}
                 />
@@ -274,7 +274,7 @@ export function ProjectRowActions({
                   </h2>
                 </div>
                 <DesktopDialogCloseButton
-                  title={t("common.action.close")}
+                  label={t("common.action.close")}
                   disabled={pending !== null}
                   onClick={() => onSurfaceChange(null)}
                 />

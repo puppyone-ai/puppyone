@@ -44,7 +44,6 @@ export function DesktopShellLocationBar({ onNavigate, path }: DesktopShellLocati
           value={value}
           aria-label={label}
           spellCheck={false}
-          data-tooltip={value}
           onChange={(event) => setValue(event.currentTarget.value)}
         />
         <span className="desktop-shell-location-bar-dropdown" aria-hidden="true">

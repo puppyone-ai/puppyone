@@ -1,6 +1,7 @@
 import { Fragment, useRef, type CSSProperties } from "react";
 import { ExternalLink, GitBranch, RefreshCw } from "lucide-react";
 import {
+  Tooltip,
   STANDARD_CONTROL_SIZE,
   useCssPixelCustomProperty,
   type Workspace,
@@ -121,9 +122,9 @@ export function CloudBranchesSection({
         </div>
         <div className="desktop-cloud-branches-toolbar" data-po-scrollbar="hidden">
           {currentBranchName && (
-            <span className="desktop-cloud-branches-token current" data-tooltip={currentBranchName}>
+            <Tooltip content={currentBranchName} overflowOnly><span className="desktop-cloud-branches-token current">
               {currentBranchName}
-            </span>
+            </span></Tooltip>
           )}
           <span className="desktop-cloud-branches-token">{t("cloud.branches.commitCount", { count: commitCount })}</span>
           {localBranchCount > 0 && <span className="desktop-cloud-branches-token local">{t("cloud.branches.localCount", { count: localBranchCount })}</span>}
@@ -136,7 +137,6 @@ export function CloudBranchesSection({
             type="button"
             onClick={() => void (hasLocalGraph ? gitGraphStatus.reload() : branchData.reload())}
             disabled={gitGraphStatus.loading || branchData.loading}
-            data-tooltip={t(hasLocalGraph ? "cloud.branches.refreshLocal" : "cloud.branches.refreshCloud")}
           >
             <RefreshCw size={13} className={(gitGraphStatus.loading || branchData.loading) ? "spin" : undefined} />
             <span>{t("cloud.common.refresh")}</span>
@@ -240,7 +240,7 @@ function BranchGraphRow({
           </span>
         ))}
         {row.stats && <BranchGraphStats stats={row.stats} />}
-        <span className="desktop-cloud-branch-graph-author" data-tooltip={author} dir="auto">{author}</span>
+        <Tooltip content={author} overflowOnly><span className="desktop-cloud-branch-graph-author" dir="auto">{author}</span></Tooltip>
         <time className="desktop-cloud-branch-graph-date">{row.createdAt ? formatRelativeTime(row.createdAt, localization) : t("cloud.status.unknown")}</time>
       </span>
     </>
@@ -251,7 +251,6 @@ function BranchGraphRow({
       <div
         className="desktop-cloud-branch-graph-row ref-only"
         role="listitem"
-        data-tooltip={message}
       >
         {content}
       </div>
@@ -259,15 +258,14 @@ function BranchGraphRow({
   }
 
   return (
-    <button
+    <Tooltip content={`${message} (${shortCommit(row.id)})`}><button
       className="desktop-cloud-branch-graph-row"
       type="button"
       role="listitem"
-      data-tooltip={`${message} (${shortCommit(row.id)})`}
       onClick={() => openCloudApp(`/projects/${projectId}/changes?commit=${encodeURIComponent(row.id)}`)}
-    >
+                                                             >
       {content}
-    </button>
+    </button></Tooltip>
   );
 }
 

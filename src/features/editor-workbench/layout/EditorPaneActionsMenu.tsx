@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import {
   useCallback,
   useEffect,
@@ -256,14 +257,12 @@ function PaneMenuSegmentedControl({
       {item.options.map((option, optionIndex) => {
         const selected = option.id === item.value;
         return (
-          <button
-            key={option.id}
+          <Tooltip content={option.label} key={option.id}><button
             className="desktop-editor-pane-menu-segment"
             type="button"
             role="menuitemradio"
             aria-label={option.label}
             aria-checked={selected}
-            data-tooltip={option.label}
             onClick={() => item.setValue(option.id)}
             onKeyDown={(event) => {
               if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
@@ -275,13 +274,13 @@ function PaneMenuSegmentedControl({
               const nextOption = item.options[nextIndex];
               const buttons = event.currentTarget.parentElement?.querySelectorAll<
                 HTMLButtonElement
-              >(".desktop-editor-pane-menu-segment");
+>(".desktop-editor-pane-menu-segment");
               buttons?.item(nextIndex).focus({ preventScroll: true });
               if (nextOption) item.setValue(nextOption.id);
             }}
-          >
+                                                          >
             {option.icon}
-          </button>
+          </button></Tooltip>
         );
       })}
     </div>

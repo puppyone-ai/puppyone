@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "../../primitives/Tooltip";
 
 import {
   createContext,
@@ -212,32 +213,29 @@ export function EditorFindHost({
             <span className="editor-find-widget__result" role="status" aria-live="polite">
               {resultLabel}
             </span>
-            <button
+            <Tooltip content={t("editor.find.previous")}><button
               type="button"
               disabled={!query || result.total === 0}
               onClick={() => move("previous")}
-              data-tooltip={t("editor.find.previous")}
               aria-label={t("editor.find.previous")}
-            >
+                                                         >
               <ChevronUp aria-hidden="true" size={15} strokeWidth={1.8} />
-            </button>
-            <button
+            </button></Tooltip>
+            <Tooltip content={t("editor.find.next")}><button
               type="button"
               disabled={!query || result.total === 0}
               onClick={() => move("next")}
-              data-tooltip={t("editor.find.next")}
               aria-label={t("editor.find.next")}
-            >
+                                                     >
               <ChevronDown aria-hidden="true" size={15} strokeWidth={1.8} />
-            </button>
-            <button
+            </button></Tooltip>
+            <Tooltip content={t("editor.find.close")}><button
               type="button"
               onClick={() => closeFind()}
-              data-tooltip={t("editor.find.close")}
               aria-label={t("editor.find.close")}
-            >
+                                                      >
               <X aria-hidden="true" size={15} strokeWidth={1.8} />
-            </button>
+            </button></Tooltip>
           </div>
         )}
       </div>

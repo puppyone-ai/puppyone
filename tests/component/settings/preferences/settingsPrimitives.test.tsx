@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   SettingsSectionHeader,
   SettingsSubsection,
+  SettingsToggle,
   SettingsValueRow,
 } from "../../../../src/features/settings/components";
 
@@ -76,5 +77,32 @@ describe("Settings primitives", () => {
     });
 
     expect(host.querySelector(".desktop-settings-value-text")?.getAttribute("dir")).toBe("ltr");
+  });
+
+  it("keeps accessibility descriptions separate from opt-in tooltips", () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+
+    act(() => {
+      root?.render(<>
+        <SettingsToggle checked={false} label="Automatic updates" description="Downloads in the background" onChange={() => {}} />
+        <SettingsValueRow label="Service" value="https://api.example.test/v1" />
+        <SettingsValueRow
+          label="Repository"
+          value="/a/very/long/path"
+          tooltip="/a/very/long/path"
+          tooltipOverflowOnly
+        />
+      </>);
+    });
+
+    const toggle = host.querySelector<HTMLElement>('input[aria-label="Automatic updates"]');
+    expect(toggle?.getAttribute("aria-description")).toBe("Downloads in the background");
+    expect(toggle?.hasAttribute("data-tooltip")).toBe(false);
+    const values = host.querySelectorAll<HTMLElement>(".desktop-settings-value-text");
+    expect(values[0]?.hasAttribute("data-tooltip")).toBe(false);
+    expect(values[1]?.dataset.tooltip).toBe("/a/very/long/path");
+    expect(values[1]?.dataset.tooltipWhen).toBe("overflow");
   });
 });

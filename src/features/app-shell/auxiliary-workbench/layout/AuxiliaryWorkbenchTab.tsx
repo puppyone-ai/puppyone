@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import {
   memo,
   type CSSProperties,
@@ -63,7 +64,7 @@ export const AuxiliaryWorkbenchTab = memo(function AuxiliaryWorkbenchTab({
         "--desktop-terminal-tab-resolved-width": `${width}px`,
       } as CSSProperties}
     >
-      <button
+      <Tooltip content={item.snapshot.accessibleLabel}><button
         id={tabId(item.id)}
         type="button"
         className="desktop-terminal-tab-select"
@@ -73,7 +74,6 @@ export const AuxiliaryWorkbenchTab = memo(function AuxiliaryWorkbenchTab({
         aria-selected={active}
         aria-keyshortcuts="Alt+Shift+ArrowLeft Alt+Shift+ArrowRight Alt+Shift+ArrowUp Alt+Shift+ArrowDown"
         tabIndex={active ? 0 : -1}
-        data-tooltip={item.snapshot.accessibleLabel}
         onClick={(event) => {
           if (consumeSuppressedClick()) {
             event.preventDefault();
@@ -104,10 +104,10 @@ export const AuxiliaryWorkbenchTab = memo(function AuxiliaryWorkbenchTab({
         }}
         onPointerCancel={tabMove.cancel}
         onLostPointerCapture={tabMove.lostCapture}
-      >
+                                                       >
         <AuxiliaryWorkbenchStatus key={`status:${item.id}`} className="desktop-terminal-tab-status" item={item} />
         <span key={`title:${item.id}`} className="desktop-terminal-tab-title">{item.snapshot.title}</span>
-      </button>
+      </button></Tooltip>
       <DesktopMenuIconButton
         className="desktop-terminal-tab-close"
         label={t("terminal.closeSession", { title: item.snapshot.title })}

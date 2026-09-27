@@ -1,3 +1,4 @@
+import { Tooltip } from "../primitives/Tooltip";
 import { Link2, MoreVertical, Plus } from "lucide-react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
@@ -1331,14 +1332,14 @@ export function DataWorkspace({
                       <span>{labels?.root ?? t("shared-ui.explorer.root")}</span>
                       <div className="desktop-explorer-actions">
                         {resolvedCapabilities.create && onCreate && (
-                          <button type="button" aria-label={t("shared-ui.explorer.create")} data-tooltip={t("shared-ui.explorer.create")} onClick={() => onCreate(currentFolderPath)}>
+                          <Tooltip content={t("shared-ui.explorer.create")}><button type="button" aria-label={t("shared-ui.explorer.create")} onClick={() => onCreate(currentFolderPath)}>
                             <Plus size={15} />
-                          </button>
+                          </button></Tooltip>
                         )}
                         {onMore && (
-                          <button type="button" aria-label={t("shared-ui.explorer.more")} data-tooltip={t("shared-ui.explorer.more")} onClick={() => onMore(workspaceState)}>
+                          <Tooltip content={t("shared-ui.explorer.more")}><button type="button" aria-label={t("shared-ui.explorer.more")} onClick={() => onMore(workspaceState)}>
                             <MoreVertical size={15} />
-                          </button>
+                          </button></Tooltip>
                         )}
                         {resolvedCapabilities.accessPoints && onAccess && (
                           <button type="button" aria-label={t("shared-ui.explorer.access")} onClick={() => onAccess(currentFolderPath)}>

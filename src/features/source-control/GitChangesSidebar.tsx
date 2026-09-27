@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { ArrowLeft, History } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocalization } from "@puppyone/localization";
@@ -53,15 +54,14 @@ export function GitChangesSidebar({
         {detailVisible && selection ? (
           <div className="desktop-git-changes-detail">
             <header className="desktop-git-view-header desktop-git-changes-detail-header">
-              <button
+              <Tooltip content={t("shared-ui.navigation.back")}><button
                 className="desktop-git-view-back"
                 type="button"
                 aria-label={t("shared-ui.navigation.back")}
-                data-tooltip={t("shared-ui.navigation.back")}
                 onClick={closeDetail}
-              >
+                                                                >
                 <ArrowLeft size={15} strokeWidth={1.8} aria-hidden="true" />
-              </button>
+              </button></Tooltip>
               <WorkingFileActions
                 selection={selection}
                 operationLoading={view.operationLoading}
@@ -86,15 +86,14 @@ export function GitChangesSidebar({
               <span className="desktop-git-view-title">
                 {t("source-control.label.changes")}
               </span>
-              <button
+              <Tooltip content={t("source-control.history.title")}><button
                 className="desktop-git-view-action"
                 type="button"
-                data-tooltip={t("source-control.history.title")}
                 aria-label={t("source-control.history.title")}
                 onClick={onOpenHistory}
-              >
+                                                                   >
                 <History size={14} strokeWidth={1.8} aria-hidden="true" />
-              </button>
+              </button></Tooltip>
             </header>
             <GitSidebar
               repository={repository}

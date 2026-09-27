@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { Check, Copy } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import { useEffect, useState } from "react";
@@ -51,13 +52,12 @@ export function GitCommitDetail({
           {isHead && <span className="desktop-head-badge">HEAD</span>}
         </div>
         <div className="desktop-commit-meta-row">
-          <button
+          <Tooltip content={copyLabel}><button
             className="desktop-commit-id-copy"
             type="button"
-            data-tooltip={copyLabel}
             aria-label={copyLabel}
             onClick={() => void copyCommitId()}
-          >
+                                       >
             <span className="desktop-commit-id-label" aria-hidden="true">
               {t("source-control.commit.id")}
             </span>
@@ -65,7 +65,7 @@ export function GitCommitDetail({
             {copied
               ? <Check size={12} strokeWidth={2} aria-hidden="true" />
               : <Copy size={12} strokeWidth={1.8} aria-hidden="true" />}
-          </button>
+          </button></Tooltip>
           <div className="desktop-commit-stats">
             <span>{t("source-control.commit.filesChanged", { count: totals.files })}</span>
             <span className="added">+{formatNumber(totals.additions)}</span>

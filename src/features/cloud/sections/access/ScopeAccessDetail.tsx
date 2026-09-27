@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { Settings } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useLocalization } from "@puppyone/localization/react";
@@ -184,7 +185,7 @@ export function DesktopCloudScopeAccessDetail({
       <div className="desktop-cloud-access-web-rail">
         <header className="desktop-cloud-access-web-scope-header">
           <div className="desktop-cloud-access-web-scope-copy">
-            <h1 data-tooltip={scopeName}>{scopeName}</h1>
+            <Tooltip content={scopeName} overflowOnly><h1>{scopeName}</h1></Tooltip>
             <div className={`desktop-cloud-access-web-aggregate ${aggregateTone}`}>
               <span className={`desktop-cloud-web-status-dot ${aggregateTone === "ready" ? "ready" : aggregateTone === "warning" ? "warning" : ""}`} aria-hidden="true" />
               <strong>{formatAccessPointAggregate(aggregate.code, t)}</strong>
@@ -193,21 +194,20 @@ export function DesktopCloudScopeAccessDetail({
             </div>
             <div className="desktop-cloud-access-web-meta">
               <span>{t("cloud.common.scope")}</span>
-              <code data-tooltip={scopePath}>{scopePath}</code>
+              <Tooltip content={scopePath} overflowOnly><code>{scopePath}</code></Tooltip>
               <span aria-hidden="true">·</span>
               <span>{modeLabel}</span>
             </div>
           </div>
-          {canManage && <button
+          {canManage && <Tooltip content={t(settingsOpen ? "cloud.common.closeSettings" : "cloud.common.openSettings")}><button
             className={`desktop-cloud-access-settings-button ${settingsOpen ? "active" : ""}`}
             type="button"
             aria-pressed={settingsOpen}
             aria-label={t(settingsOpen ? "cloud.scope.closeSettings" : "cloud.scope.openSettings")}
-            data-tooltip={t(settingsOpen ? "cloud.common.closeSettings" : "cloud.common.openSettings")}
             onClick={() => setSettingsOpen((open) => !open)}
-          >
+                                                                                                                        >
             <Settings size={13} />
-          </button>}
+          </button></Tooltip>}
         </header>
 
         {canManage && settingsOpen && (

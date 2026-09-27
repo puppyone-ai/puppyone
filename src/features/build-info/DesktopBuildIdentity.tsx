@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
@@ -30,25 +31,19 @@ export function DesktopBuildVersionSettingsRow() {
           className="desktop-build-version-text"
           data-build-channel={buildInfo.channel}
           dir="ltr"
-          data-tooltip={t("shell.build.version.title", {
-            channel,
-            commit: buildInfo.commitSha.slice(0, 8),
-            version: buildInfo.version,
-          })}
         >
           <span dir="auto">{channel}</span>
           <span aria-hidden="true"> · </span>
           {buildInfo.version}
         </span>
-        <button
+        <Tooltip content={t(copied ? "shell.build.copy.copied" : "shell.build.copy.action")}><button
           className="desktop-settings-action desktop-build-version-copy"
           type="button"
-          data-tooltip={t(copied ? "shell.build.copy.copied" : "shell.build.copy.action")}
           aria-label={t(copied ? "shell.build.copy.copied" : "shell.build.copy.action")}
           onClick={() => void copyVersionInformation()}
-        >
+                                                                                             >
           {copied ? <Check size={13} /> : <Copy size={13} />}
-        </button>
+        </button></Tooltip>
       </div>
     </div>
   );

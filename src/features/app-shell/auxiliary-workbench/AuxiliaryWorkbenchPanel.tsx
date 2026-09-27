@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useLocalization } from "@puppyone/localization/react";
@@ -86,11 +87,11 @@ export function AuxiliaryWorkbenchPanel({ store, contributions, active, renderLa
         {workbench.closeFailures.length > 0 && onRetryProjectClose && <button type="button" className="desktop-terminal-workbench-create-retry" onClick={onRetryProjectClose}>{t("workspace.projectSessions.retryClose")}</button>}
       </div>}
       {workbench.creationFailure && <AuxiliaryWorkbenchCreationFailure failure={workbench.creationFailure} onDismiss={store.dismissCreationFailure} onRetry={() => { void store.retryCreation(); }} />}
-      {closeCoordinator.failure && <div className="desktop-terminal-workbench-create-failure" role="alert" data-tooltip={closeCoordinator.failure.detail} data-native-surface-occluder="true">
+      {closeCoordinator.failure && <Tooltip content={closeCoordinator.failure.detail}><div className="desktop-terminal-workbench-create-failure" role="alert" data-native-surface-occluder="true">
         <span>{t("workspace.projectSessions.sessionCloseFailed")}</span>
         <button type="button" className="desktop-terminal-workbench-create-retry" onClick={() => { void closeCoordinator.requestClose(closeCoordinator.failure!.itemId); }}>{t("common.action.retry")}</button>
         <button type="button" className="desktop-terminal-workbench-create-retry" onClick={closeCoordinator.dismissFailure}>{t("common.action.close")}</button>
-      </div>}
+      </div></Tooltip>}
       {workbench.items.length === 0 ? renderLauncher({ groupId: null, itemId: null, presented }) : workbench.root && <AuxiliaryWorkbenchViewport
         activeGroupId={workbench.activeGroup?.id ?? null} dropIntent={itemMove.dropIntent} groups={workbench.groups} headerItems={headerItems} hosts={hosts} root={workbench.root} itemMove={itemMove}
         titlebarTabHost={titlebarTabHost}

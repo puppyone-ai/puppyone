@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "../../../primitives/Tooltip";
 
 import type { MessageFormatter } from "@puppyone/localization/core";
 import {
@@ -210,13 +211,12 @@ export function CsvColumnResizeLayer({
 
   return (
     <div className="csv-table-editor__column-resize-layer">
-      <button
+      <Tooltip content={t("editor.csv.resizeColumnHint")}><button
         ref={handleRef}
         type="button"
         className="csv-table-editor__column-resize-handle"
         tabIndex={-1}
         aria-label={t("editor.csv.resizeColumnHint")}
-        data-tooltip={t("editor.csv.resizeColumnHint")}
         onDoubleClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
@@ -224,7 +224,7 @@ export function CsvColumnResizeLayer({
           if (columnIndex != null) onAutoFitColumnRef.current(columnIndex);
         }}
         onPointerDown={startResize}
-      />
+      /></Tooltip>
     </div>
   );
 }

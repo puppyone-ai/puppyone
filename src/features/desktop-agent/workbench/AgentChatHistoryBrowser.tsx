@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { useMemo } from "react";
 import { ArrowLeft } from "lucide-react";
 import type { AuxiliaryWorkbenchHistoryBrowserContext } from "../../app-shell/auxiliary-workbench/types";
@@ -46,16 +47,15 @@ export function AgentChatHistoryBrowser({
       <div className="desktop-agent-boundary desktop-agent-runtime-launcher is-history">
         <section className="desktop-agent-history-permission-view" aria-label={question}>
           <header className="desktop-agent-history-toolbar">
-            <button
+            <Tooltip content={t("agent.history.back")}><button
               type="button"
               className="desktop-agent-history-toolbar-button"
               data-po-interaction="navigation"
               aria-label={t("agent.history.back")}
-              data-tooltip={t("agent.history.back")}
               onClick={onBack}
-            >
+                                                       >
               <ArrowLeft size={15} strokeWidth={1.7} aria-hidden="true" />
-            </button>
+            </button></Tooltip>
             <span aria-hidden="true" />
             <span aria-hidden="true" />
           </header>

@@ -333,7 +333,8 @@ describe("Desktop Agent sidebar visual contract", () => {
     expect(css).toMatch(/\.desktop-agent-tool-glyph\.is-read\.is-active \.desktop-agent-tool-glyph-scan\s*\{[^}]*desktop-agent-tool-read/s);
     expect(responsiveCss).toMatch(/prefers-reduced-motion:\s*reduce[\s\S]*\.desktop-agent-tool-glyph-motion,[\s\S]*\.desktop-agent-tool-glyph-scan,[\s\S]*\.desktop-agent-tool-glyph-ink\s*\{\s*animation:\s*none/s);
     expect(activityShell).toContain("aria-label={compactLabel}");
-    expect(activityShell).toContain("data-tooltip={compactLabel}");
+    expect(activityShell).toContain("<Tooltip content={compactLabel}>");
+    expect(activityShell).not.toContain("data-tooltip={compactLabel}");
     expect(css).toMatch(/\.desktop-agent-reasoning \.desktop-agent-tool-name\s*\{[^}]*color:\s*var\(--agent-text-muted\)/s);
     expect(css).not.toContain(".desktop-agent-tool-chevron");
     expect(activityShell).not.toContain("ChevronDown");

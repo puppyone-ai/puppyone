@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
 import { FolderOpen, Plus } from "lucide-react";
 import {
@@ -77,24 +78,22 @@ export function SubThemeSettingsSection({
                 </select>
               )}
             </div>
-            <button
+            <Tooltip content={t("settings.appearance.themes.openFolder")}><button
               className="desktop-theme-pack-icon-action"
               type="button"
               aria-label={t("settings.appearance.themes.openFolder")}
-              data-tooltip={t("settings.appearance.themes.openFolder")}
               onClick={() => void catalog.openDirectory()}
-            >
+                                                                          >
               <FolderOpen size={14} strokeWidth={1.8} aria-hidden="true" />
-            </button>
-            <button
+            </button></Tooltip>
+            <Tooltip content={t("settings.appearance.themes.add")}><button
               className="desktop-theme-pack-icon-action"
               type="button"
               aria-label={t("settings.appearance.themes.add")}
-              data-tooltip={t("settings.appearance.themes.add")}
               onClick={() => void onAddTheme()}
-            >
+                                                                   >
               <Plus size={14} strokeWidth={1.9} aria-hidden="true" />
-            </button>
+            </button></Tooltip>
           </div>
         </div>
       </div>

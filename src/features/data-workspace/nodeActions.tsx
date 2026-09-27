@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import {
+  Tooltip,
   createDefaultContextMapDocumentContent,
   createDefaultPuppyFlowDocument,
   FileGlyphIcon,
@@ -121,40 +122,37 @@ export function DesktopExplorerRowActions({
   return (
     <>
       {canCreate && (
-        <button
+        <Tooltip content={t("workspace.node.createNew")}><button
           className="tree-row-action-button"
           type="button"
-          data-tooltip={t("workspace.node.createNew")}
           aria-label={t("workspace.node.createNew")}
           onClick={(event) => onCreate(parentPath, event.currentTarget.getBoundingClientRect())}
-        >
+                                                         >
           <Plus aria-hidden="true" />
-        </button>
+        </button></Tooltip>
       )}
       {node && showMoreActions && (
-        <button
+        <Tooltip content={t("workspace.node.moreActions")}><button
           className="tree-row-action-button"
           type="button"
-          data-tooltip={t("workspace.node.moreActions")}
           aria-label={t("workspace.node.moreActionsFor", { name: bidiIsolate(node.name) })}
           onClick={(event) => onOpenNodeMenu(node, event.currentTarget.getBoundingClientRect())}
-        >
+                                                           >
           <OverflowDots orientation="vertical" />
-        </button>
+        </button></Tooltip>
       )}
       {node?.workspaceFolderRoot && onRemoveWorkspaceRoot && (
-        <button
+        <Tooltip content={t("shell.workspaceSwitcher.removeProject")}><button
           className="tree-row-action-button"
           type="button"
-          data-tooltip={t("shell.workspaceSwitcher.removeProject")}
           aria-label={t("shell.workspaceSwitcher.removeProjectNamed", { name: bidiIsolate(node.name) })}
           onClick={(event) => {
             event.stopPropagation();
             onRemoveWorkspaceRoot(node);
           }}
-        >
+                                                                      >
           <X aria-hidden="true" />
-        </button>
+        </button></Tooltip>
       )}
     </>
   );

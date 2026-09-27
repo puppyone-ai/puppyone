@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { AlertTriangle, CheckCircle2, Download, Info, RefreshCw, RotateCw } from "lucide-react";
 import { useLocalization, type MessageFormatter } from "@puppyone/localization";
 import type { DesktopUpdateState, DesktopUpdateStatus } from "../../types/electron";
@@ -22,17 +23,16 @@ export function DesktopUpdateSettingsRow({
   return (
     <div className="desktop-settings-row desktop-settings-row-control">
       <span>{t("updates.settings.title")}</span>
-      <button
+      <Tooltip content={action.disabled ? detail : undefined}><button
         className={`desktop-settings-action ${action.primary ? "primary" : ""}`}
         type="button"
-        data-tooltip={detail}
         aria-label={`${action.label}. ${detail}`}
         disabled={action.disabled}
         onClick={action.kind === "check" ? onCheckForUpdates : onUpdateNow}
-      >
+                                                              >
         <Icon size={14} className={action.spinning ? "spin" : undefined} />
         <span>{action.label}</span>
-      </button>
+      </button></Tooltip>
     </div>
   );
 }

@@ -32,7 +32,7 @@ export function GitIncomingUpdateNotice({
       </span>
       <GitOperationButton
         className="desktop-git-incoming-notice-pull"
-        title={title}
+        tooltip={title}
         disabled={disabled}
         icon="download"
         label={t("source-control.sync.pull")}

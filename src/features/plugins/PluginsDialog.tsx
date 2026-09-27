@@ -48,7 +48,7 @@ export function PluginsDialog({
               </span>
               <h2>{title}</h2>
             </div>
-            <DesktopDialogCloseButton title={t("common.action.close")} onClick={onClose} />
+            <DesktopDialogCloseButton label={t("common.action.close")} onClick={onClose} />
           </header>
 
           <div className="desktop-plugins-dialog-layout">

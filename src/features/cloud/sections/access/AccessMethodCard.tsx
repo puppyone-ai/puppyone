@@ -91,7 +91,7 @@ export function DesktopCloudAccessMethodCard({
                 {t(mcpError ? "cloud.status.error" : "cloud.status.off")}
               </span>
             </div>
-            <p data-tooltip={mcpError ?? meta.description}>{mcpError ?? meta.description}</p>
+            <p>{mcpError ?? meta.description}</p>
           </div>
         </div>
         {canManage && <button
@@ -99,7 +99,7 @@ export function DesktopCloudAccessMethodCard({
           type="button"
           disabled={creatingMcp}
           onClick={onCreateMcpEndpoint}
-        >
+                      >
           <span>{t(creatingMcp ? "cloud.access.method.mcp.creating" : mcpError ? "cloud.common.retry" : "cloud.access.method.mcp.create")}</span>
         </button>}
       </article>

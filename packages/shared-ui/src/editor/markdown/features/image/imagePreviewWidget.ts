@@ -1,3 +1,4 @@
+import { activateTooltip } from "../../../../primitives/Tooltip";
 import { EditorSelection } from "@codemirror/state";
 import { EditorView, type Rect, WidgetType } from "@codemirror/view";
 import { commitEditorLayout } from "../../../runtime/editorLayout";
@@ -61,7 +62,7 @@ export class ImagePreviewWidget extends WidgetType {
     const wrapper = document.createElement("span");
     wrapper.className = `cm-md-image-widget is-${this.displayMode}`;
     wrapper.dataset.displayMode = this.displayMode;
-    wrapper.dataset.tooltip = this.title ?? this.source;
+    activateTooltip(wrapper, this.title ?? this.source);
     wrapper.tabIndex = 0;
     wrapper.setAttribute("role", "img");
     wrapper.setAttribute("aria-label", this.alt || this.source);
@@ -147,7 +148,7 @@ export class ImagePreviewWidget extends WidgetType {
       image.hidden = true;
       image.dataset.previewState = "loading";
       image.setAttribute("aria-hidden", "true");
-      if (this.title) image.dataset.tooltip = this.title;
+      if (this.title) activateTooltip(image, this.title);
       image.addEventListener("load", () => {
         const reveal = () => {
           if (abort.signal.aborted || !image.isConnected) return;

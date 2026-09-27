@@ -42,7 +42,7 @@ export function LocalAgentActivationDialog({ setupId, displayName, surface, oper
     <DesktopDialogSurface className="local-agent-activation-dialog" width={420} ariaLabel={t("settings.agentSetup.activate", { agent: displayName })}>
       <header className="desktop-dialog-header">
         <div className="local-agent-activation-title"><AgentLauncherIcon launcherId={setupId} /><h2>{t("settings.agentSetup.activate", { agent: displayName })}</h2></div>
-        <DesktopDialogCloseButton title={t("common.action.close")} onClick={onClose} />
+        <DesktopDialogCloseButton label={t("common.action.close")} onClick={onClose} />
       </header>
       <div className="desktop-dialog-body local-agent-activation-body">
         {confirming ? <>

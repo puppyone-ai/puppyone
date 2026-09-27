@@ -7,6 +7,7 @@ import {
   Workflow,
 } from "lucide-react";
 import {
+  Tooltip,
   FileGlyphIcon,
   type DataNode,
   type FileIconThemeId,
@@ -131,7 +132,7 @@ export function CreateNewSettingsView({
     const dragAfter = dragTarget?.group === group && dragTarget.index === index + 1;
 
     return (
-      <div
+      <Tooltip content={!available ? t("settings.createNew.unavailable") : undefined} key={entry}><div
         className={`desktop-create-new-row ${isSubmenu ? "desktop-create-new-submenu-row" : "desktop-create-new-file-row"}`}
         data-drag-before={dragBefore || undefined}
         data-drag-after={dragAfter || undefined}
@@ -139,23 +140,20 @@ export function CreateNewSettingsView({
         data-entry={entry}
         data-group={group}
         data-unavailable={!available || undefined}
-        key={entry}
         role="listitem"
-        data-tooltip={!available ? t("settings.createNew.unavailable") : undefined}
         onDragOver={(event) => setRowDropTarget(event, group, index, entry)}
         onDrop={(event) => completeDrop(event, { group, index })}
-      >
-        <button
+                                                                                                  >
+        <Tooltip content={t("settings.createNew.dragToReorder", { type: label })}><button
           className="desktop-create-new-drag-handle"
           type="button"
           draggable
           aria-label={t("settings.createNew.dragToReorder", { type: label })}
-          data-tooltip={t("settings.createNew.dragToReorder", { type: label })}
           onDragStart={(event) => handleDragStart(event, entry)}
           onDragEnd={clearDragState}
-        >
+                                                                                  >
           <GripVertical size={14} aria-hidden="true" />
-        </button>
+        </button></Tooltip>
         {isSubmenu ? (
           <span className="desktop-create-new-submenu-glyph" aria-hidden="true">
             <Workflow size={15} />
@@ -176,7 +174,7 @@ export function CreateNewSettingsView({
             <ChevronRight className="po-directional-icon" size={14} aria-hidden="true" />
           </div>
         )}
-      </div>
+      </div></Tooltip>
     );
   };
 

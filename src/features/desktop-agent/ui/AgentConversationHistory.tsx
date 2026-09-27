@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { useMemo, useRef, useState } from "react";
 import { ArrowLeft, History, LoaderCircle, RefreshCw, Search } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
@@ -96,29 +97,27 @@ export function AgentConversationHistory({
       }}
     >
       <header className="desktop-agent-history-toolbar">
-        <button
+        <Tooltip content={t("agent.history.back")}><button
           type="button"
           className="desktop-agent-history-toolbar-button"
           data-po-interaction="navigation"
           aria-label={t("agent.history.back")}
-          data-tooltip={t("agent.history.back")}
           onClick={onBack}
-        >
+                                                   >
           <ArrowLeft size={15} strokeWidth={1.7} aria-hidden="true" />
-        </button>
+        </button></Tooltip>
         <div className="desktop-agent-history-search-slot">
-          <button
+          <Tooltip content={t("agent.history.search")}><button
             ref={searchButton}
             type="button"
             className="desktop-agent-history-toolbar-button"
             hidden={searchOpen}
             aria-label={t("agent.history.search")}
-            data-tooltip={t("agent.history.search")}
             aria-expanded={searchOpen}
             onClick={() => setSearchOpen(true)}
-          >
+                                                       >
             <Search size={15} strokeWidth={1.7} aria-hidden="true" />
-          </button>
+          </button></Tooltip>
           {searchOpen && <label className="desktop-agent-history-search">
             <Search size={13} strokeWidth={1.7} aria-hidden="true" />
             <input
@@ -131,21 +130,20 @@ export function AgentConversationHistory({
             />
           </label>}
         </div>
-        <button
+        <Tooltip content={t("agent.history.refresh")}><button
           type="button"
           className="desktop-agent-history-toolbar-button"
           aria-label={t("agent.history.refresh")}
-          data-tooltip={t("agent.history.refresh")}
           disabled={loading || refreshing || loadingMore}
           onClick={onRefresh}
-        >
+                                                      >
           <RefreshCw
             className={refreshing ? "is-spinning" : undefined}
             size={12}
             strokeWidth={1.7}
             aria-hidden="true"
           />
-        </button>
+        </button></Tooltip>
       </header>
 
       {loading ? (
@@ -177,7 +175,6 @@ export function AgentConversationHistory({
                   data-po-interaction="navigation"
                   aria-label={t("agent.history.open", { title: session.title })}
                   aria-busy={openingSessionId === session.id || undefined}
-                  data-tooltip={session.title}
                   disabled={openingSessionId !== null}
                   onClick={() => onOpen(session)}
                 >
@@ -187,7 +184,9 @@ export function AgentConversationHistory({
                     label={runtimeLabel}
                   />
                   <span className="desktop-agent-history-copy">
-                    <span className="desktop-agent-history-title">{session.title}</span>
+                    <Tooltip content={session.title} overflowOnly>
+                      <span className="desktop-agent-history-title">{session.title}</span>
+                    </Tooltip>
                   </span>
                   <time className="desktop-agent-history-time" dateTime={session.updatedAt}>
                     {session.updatedAtKnown === false ? "" : formatHistoryDate(session.updatedAt)}

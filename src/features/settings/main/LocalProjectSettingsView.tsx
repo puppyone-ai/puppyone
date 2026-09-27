@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { useState } from "react";
 import { ShieldCheck, Unlink } from "lucide-react";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
@@ -41,11 +42,11 @@ export function LocalProjectSettingsView({
           <div className="desktop-settings-list desktop-settings-lead-list">
             <div className="desktop-settings-row">
               <span>{t("settings.localProject.name")}</span>
-              <span className="desktop-settings-row-value" dir="auto" data-tooltip={workspace.name}>{workspace.name}</span>
+              <Tooltip content={workspace.name} overflowOnly><span className="desktop-settings-row-value" dir="auto">{workspace.name}</span></Tooltip>
             </div>
             <div className="desktop-settings-row">
               <span>{t("settings.localProject.path")}</span>
-              <span className="desktop-settings-row-value" dir="ltr" data-tooltip={workspace.path}>{workspace.path}</span>
+              <Tooltip content={workspace.path} overflowOnly><span className="desktop-settings-row-value" dir="ltr">{workspace.path}</span></Tooltip>
             </div>
             <div className="desktop-settings-row">
               <span>{t("settings.localProject.mode")}</span>
@@ -64,7 +65,6 @@ export function LocalProjectSettingsView({
                 className="desktop-settings-action danger"
                 type="button"
                 disabled={unlinking}
-                data-tooltip={t("settings.localProject.unlink.title")}
                 onClick={() => void unlinkWorkspace()}
               >
                 <Unlink size={14} />

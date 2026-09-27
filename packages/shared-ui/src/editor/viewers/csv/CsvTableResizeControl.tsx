@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "../../../primitives/Tooltip";
 
 import type { MessageFormatter } from "@puppyone/localization/core";
 import { ArrowDownRight } from "lucide-react";
@@ -347,7 +348,7 @@ export function CsvTableResizeControl({
         className={`csv-table-editor__resize-control${dragPreview ? " is-resizing" : ""}`}
         dir={direction}
       >
-        <button
+        <Tooltip content={t("editor.csv.expandTableHint")}><button
           ref={buttonRef}
           type="button"
           className="csv-table-editor__resize-handle"
@@ -355,21 +356,20 @@ export function CsvTableResizeControl({
           aria-haspopup="dialog"
           aria-label={t("editor.csv.expandTable")}
           disabled={!canExpand}
-          data-tooltip={t("editor.csv.expandTableHint")}
           onClick={handleClick}
           onLostPointerCapture={(event) => finishPointerInteraction(event, true)}
           onPointerCancel={(event) => finishPointerInteraction(event, true)}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={(event) => finishPointerInteraction(event, false)}
-        >
+                                                           >
           <span
             className="csv-table-editor__resize-handle-visual"
             aria-hidden="true"
           >
             <ArrowDownRight />
           </span>
-        </button>
+        </button></Tooltip>
 
         {pickerOpen && (
           <div
@@ -381,7 +381,7 @@ export function CsvTableResizeControl({
             aria-label={t("editor.csv.expandTable")}
           >
             <div className="csv-table-editor__resize-picker-summary" aria-live="polite">
-              <strong data-tooltip={pickerDimensionLabel}>{pickerDimensionLabel}</strong>
+              <strong>{pickerDimensionLabel}</strong>
               <span>{formatExpansionDelta(pickerSelection)}</span>
             </div>
             <div

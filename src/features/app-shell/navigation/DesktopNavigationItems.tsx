@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { useEffect, useRef, useState } from "react";
 import { Blocks, Settings } from "lucide-react";
 import { useLocalization, type MessageFormatter } from "@puppyone/localization";
@@ -87,16 +88,15 @@ export function DesktopSidebarSettingsButton({
 }) {
   const { t } = useLocalization();
   return (
-    <button
+    <Tooltip content={t("shell.navigation.settings")}><button
       className={`${buttonClassName} ${settingsOpen ? "active" : ""}`}
       type="button"
-      data-tooltip={t("shell.navigation.settings")}
       aria-label={t("shell.navigation.settings")}
       aria-haspopup="dialog"
       aria-expanded={settingsOpen}
       data-navigation-item="settings"
       onClick={onOpenSettings}
-    >
+                                                      >
       <i
         className={`desktop-sidebar-nav-icon-wrap${shellToolbar ? " desktop-shell-toolbar-button-icon" : ""}`}
         aria-hidden="true"
@@ -108,7 +108,7 @@ export function DesktopSidebarSettingsButton({
           {t("shell.navigation.settings")}
         </span>
       )}
-    </button>
+    </button></Tooltip>
   );
 }
 
@@ -127,16 +127,15 @@ export function DesktopSidebarPluginsButton({
 }) {
   const { t } = useLocalization();
   return (
-    <button
+    <Tooltip content={t("shell.navigation.plugins")}><button
       className={`${buttonClassName} ${pluginsOpen ? "active" : ""}`}
       type="button"
-      data-tooltip={t("shell.navigation.plugins")}
       aria-label={t("shell.navigation.plugins")}
       aria-haspopup="dialog"
       aria-expanded={pluginsOpen}
       data-navigation-item="plugins"
       onClick={onOpenPlugins}
-    >
+                                                     >
       <i
         className={`desktop-sidebar-nav-icon-wrap${shellToolbar ? " desktop-shell-toolbar-button-icon" : ""}`}
         aria-hidden="true"
@@ -148,7 +147,7 @@ export function DesktopSidebarPluginsButton({
           {t("shell.navigation.plugins")}
         </span>
       )}
-    </button>
+    </button></Tooltip>
   );
 }
 

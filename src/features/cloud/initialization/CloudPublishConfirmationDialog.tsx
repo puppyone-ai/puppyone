@@ -33,7 +33,7 @@ export function CloudPublishConfirmationDialog({
             <h2>{title}</h2>
           </div>
           <DesktopDialogCloseButton
-            title={t("common.action.close")}
+            label={t("common.action.close")}
             onClick={onCancel}
           />
         </header>

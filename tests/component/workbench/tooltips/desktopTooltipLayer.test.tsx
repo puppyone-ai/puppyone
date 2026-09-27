@@ -2,6 +2,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { Tooltip } from "../../../../packages/shared-ui/src/primitives/Tooltip";
 import { DesktopTooltipLayer } from "../../../../src/components/DesktopTooltipLayer";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -15,11 +16,16 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-function mountTooltip(label = "New", shortcut?: string) {
+function mountTooltip(label = "New", shortcut?: string, overflowOnly = false) {
   const host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
-  act(() => root?.render(<><button aria-label={label} data-tooltip={label} data-tooltip-shortcut={shortcut}>+</button><DesktopTooltipLayer /></>));
+  act(() => root?.render(<>
+    <Tooltip content={label} shortcut={shortcut} overflowOnly={overflowOnly}>
+      <button aria-label={label}>+</button>
+    </Tooltip>
+    <DesktopTooltipLayer />
+  </>));
   return host.querySelector<HTMLButtonElement>("button")!;
 }
 
@@ -65,5 +71,22 @@ describe("DesktopTooltipLayer", () => {
 
     act(() => button.focus());
     expect(overlayRoot.querySelector('[role="tooltip"]')?.textContent).toBe("New");
+  });
+
+  it("only shows overflow hints when their visible value is clipped", () => {
+    const button = mountTooltip("Full project path", undefined, true);
+    let scrollWidth = 80;
+    Object.defineProperties(button, {
+      clientWidth: { configurable: true, value: 120 },
+      scrollWidth: { configurable: true, get: () => scrollWidth },
+    });
+
+    act(() => button.focus());
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+
+    act(() => button.blur());
+    scrollWidth = 180;
+    act(() => button.focus());
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toBe("Full project path");
   });
 });

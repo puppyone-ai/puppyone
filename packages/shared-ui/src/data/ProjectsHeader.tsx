@@ -1,3 +1,4 @@
+import { Tooltip } from "../primitives/Tooltip";
 import type { CSSProperties, ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 
@@ -19,7 +20,7 @@ export function ProjectsHeader({ pathSegments, onBack, actionSlot }: ProjectsHea
       <div style={headerLeftStyle}>
         {onBack && (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", paddingInline: 8 }}>
-            <button
+            <Tooltip content={t("shared-ui.navigation.back")}><button
               onClick={onBack}
               style={backButtonStyle}
               onMouseEnter={(event) => {
@@ -30,15 +31,14 @@ export function ProjectsHeader({ pathSegments, onBack, actionSlot }: ProjectsHea
                 event.currentTarget.style.background = "transparent";
                 event.currentTarget.style.color = "var(--po-text-subtle)";
               }}
-              data-tooltip={t("shared-ui.navigation.back")}
               aria-label={t("shared-ui.navigation.back")}
               type="button"
-            >
+                                                              >
               <svg style={{ transform: direction === "rtl" ? "scaleX(-1)" : undefined }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M19 12H5" />
                 <path d="M12 19l-7-7 7-7" />
               </svg>
-            </button>
+            </button></Tooltip>
           </div>
         )}
 
@@ -48,15 +48,14 @@ export function ProjectsHeader({ pathSegments, onBack, actionSlot }: ProjectsHea
             return (
               <div key={index} style={{ display: "flex", alignItems: "center", minWidth: 0 }}>
                 {index > 0 && <span style={{ marginInline: 8, color: "var(--po-text-disabled)" }}>/</span>}
-                <span
+                <Tooltip content={typeof segment.label === "string" ? segment.label : undefined} overflowOnly><span
                   style={{
                     ...pathStyle,
                     color: isLast ? "var(--po-text)" : "var(--po-text-muted)",
                   }}
-                  data-tooltip={typeof segment.label === "string" ? segment.label : undefined}
-                >
+                                                                                                              >
                   {segment.label}
-                </span>
+                </span></Tooltip>
               </div>
             );
           })}

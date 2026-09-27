@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { CircleAlert, RefreshCw } from "lucide-react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
@@ -31,15 +32,14 @@ export function AgentRuntimeLauncher({
               <h2 id="desktop-agent-runtime-launcher-title">
                 <span>{t("agent.launcher.title")}</span>
               </h2>
-              <button
+              <Tooltip content={t("agent.launcher.scanAgain")}><button
                 type="button"
                 className="desktop-agent-runtime-launcher-refresh"
                 aria-label={t("agent.launcher.scanAgain")}
-                data-tooltip={t("agent.launcher.scanAgain")}
                 onClick={onRefresh}
-              >
+                                                               >
                 <RefreshCw size={12} strokeWidth={1.7} aria-hidden="true" />
-              </button>
+              </button></Tooltip>
             </header>
 
             <p
@@ -55,15 +55,13 @@ export function AgentRuntimeLauncher({
                   const ready = isSelectableAgentBackend(entry);
                   const detail = entry.readiness.message || entry.descriptor.description || "";
                   return (
-                    <button
-                      key={entry.descriptor.id}
+                    <Tooltip content={detail || entry.descriptor.displayName} key={entry.descriptor.id}><button
                       type="button"
                       className="desktop-agent-runtime-launcher-option"
                       data-po-interaction="navigation"
                       aria-label={entry.descriptor.displayName}
-                      data-tooltip={detail || entry.descriptor.displayName}
                       onClick={() => onLaunch(entry.descriptor.id)}
-                    >
+                                                                                                        >
                       <AgentBrandMark
                         iconKey={entry.descriptor.iconKey}
                         label={entry.descriptor.displayName}
@@ -79,7 +77,7 @@ export function AgentRuntimeLauncher({
                             : undefined}
                         />
                       )}
-                    </button>
+                    </button></Tooltip>
                   );
                 })}
               </div>

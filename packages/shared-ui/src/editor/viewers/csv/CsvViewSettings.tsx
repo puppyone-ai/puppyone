@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "../../../primitives/Tooltip";
 
 import type { MessageFormatter } from "@puppyone/localization/core";
 import { Settings2 } from "lucide-react";
@@ -61,7 +62,7 @@ export function CsvViewSettings({
 
   return (
     <div className="csv-table-editor__settings" dir={direction}>
-      <button
+      <Tooltip content={t("editor.csv.settings")}><button
         ref={buttonRef}
         type="button"
         className="csv-table-editor__settings-button"
@@ -69,11 +70,10 @@ export function CsvViewSettings({
         aria-controls={open ? popoverId : undefined}
         aria-expanded={open}
         aria-haspopup="dialog"
-        data-tooltip={t("editor.csv.settings")}
         onClick={() => setOpen((current) => !current)}
-      >
+                                                  >
         <Settings2 size={15} aria-hidden="true" />
-      </button>
+      </button></Tooltip>
 
       {open && (
         <div
@@ -87,7 +87,6 @@ export function CsvViewSettings({
         >
           <label
             className="csv-table-editor__view-toggle"
-            data-tooltip={t("editor.csv.header")}
           >
             <span className="csv-table-editor__view-toggle-label">
               {t("editor.csv.headerToggle")}
@@ -104,7 +103,6 @@ export function CsvViewSettings({
           </label>
           <label
             className="csv-table-editor__view-toggle"
-            data-tooltip={t("editor.csv.rowNumbers")}
           >
             <span className="csv-table-editor__view-toggle-label">
               {t("editor.csv.rowNumbersToggle")}

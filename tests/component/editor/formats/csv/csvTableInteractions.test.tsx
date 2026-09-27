@@ -54,8 +54,8 @@ describe("CSV table interactions", () => {
     expect(Array.from(container?.querySelectorAll(".csv-table-editor__record-index-label") ?? [])
       .map((label) => label.textContent?.trim())).toEqual(["1", "2"]);
     expect(container?.querySelectorAll(".csv-table-editor__record-index input")).toHaveLength(0);
-    expect(container?.querySelector("[data-csv-display-row='1']")?.getAttribute("data-tooltip"))
-      .toBe("Data row 1; CSV record 2");
+    expect(container?.querySelector("[data-csv-display-row='1']")?.hasAttribute("data-tooltip"))
+      .toBe(false);
 
     act(() => container?.querySelector<HTMLButtonElement>(".csv-table-editor__settings-button")?.click());
     const headerToggle = document.querySelector<HTMLInputElement>(

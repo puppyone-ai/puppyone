@@ -1,3 +1,4 @@
+import { Tooltip } from "../primitives/Tooltip";
 import type {
   CSSProperties,
   DragEvent as ReactDragEvent,
@@ -872,7 +873,9 @@ const TreeNodeRow = memo(function TreeNodeRow({
   }, [isFolder, node.path]);
 
   return (
-    <div
+    <Tooltip content={dragController.exportHint && !node.workspaceFolderRoot
+        ? `${node.name}\n${dragController.exportHint}`
+        : displayName.hidden || showExtensionDisambiguator ? node.name : undefined}><div
       id={getExplorerRowDomId(row.index)}
       className={`tree-row ${isFolder ? "folder" : "file"} ${node.workspaceFolderRoot ? "workspace-folder-root" : ""} ${workspaceGroupHeader ? "workspace-group-header" : ""} ${interaction.selected ? "selected" : ""} ${interaction.active ? "active" : ""} ${interaction.cut ? "clipboard-cut" : ""} ${interaction.loading ? "loading" : ""} ${interaction.dragging ? "dragging" : ""} ${interaction.dropOver ? "drop-target" : ""} ${interaction.dropParentOver ? "drop-parent-target" : ""} ${interaction.dropInvalid ? "drop-invalid" : ""} ${node.status ? `status-${node.status}` : ""}`}
       role="treeitem"
@@ -890,9 +893,6 @@ const TreeNodeRow = memo(function TreeNodeRow({
       aria-label={interaction.cut
         ? t("shared-ui.explorer.cutLabel", { name: bidiIsolate(node.name) })
         : node.name}
-      data-tooltip={dragController.exportHint && !node.workspaceFolderRoot
-        ? `${node.name}\n${dragController.exportHint}`
-        : displayName.hidden || showExtensionDisambiguator ? node.name : undefined}
       onDragStart={(event) => dragController.onNodeDragStart(event, node)}
       onDragEnd={dragController.onNodeDragEnd}
       onDragEnter={(event) => {
@@ -930,7 +930,7 @@ const TreeNodeRow = memo(function TreeNodeRow({
         onNodeContextMenu(node, event);
       } : undefined}
       style={{ "--depth": presentationDepth } as CSSProperties}
-    >
+                                                                                    >
       <span className="tree-row-content">
         <span
           className="tree-icon-slot"
@@ -974,7 +974,7 @@ const TreeNodeRow = memo(function TreeNodeRow({
           </span>
         )}
       </span>
-    </div>
+    </div></Tooltip>
   );
 }, areTreeNodeRowPropsEqual);
 

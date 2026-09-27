@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { ArrowLeft } from "lucide-react";
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization";
@@ -124,21 +125,20 @@ export function OnboardingImportDialog({
         <header className="desktop-dialog-header">
           <div className="desktop-dialog-title-row">
             {source !== null && (
-              <button
+              <Tooltip content={t("onboarding.entry.import.back")}><button
                 className="onboarding-import-back"
                 type="button"
                 disabled={busy}
                 aria-label={t("onboarding.entry.import.back")}
-                data-tooltip={t("onboarding.entry.import.back")}
                 onClick={() => setSource(null)}
-              >
+                                                                   >
                 <ArrowLeft size={16} strokeWidth={1.8} aria-hidden="true" />
-              </button>
+              </button></Tooltip>
             )}
             <h2>{title}</h2>
           </div>
           <DesktopDialogCloseButton
-            title={t("common.action.close")}
+            label={t("common.action.close")}
             disabled={busy}
             onClick={onClose}
           />
@@ -247,20 +247,19 @@ function ImportSourceRow({
 }) {
   return (
     <li>
-      <button
+      <Tooltip content={!operational ? unavailableLabel : undefined}><button
         className="onboarding-import-source"
         type="button"
         data-import-source={source}
         data-import-mode={mode}
         data-desktop-dialog-initial-focus={initialFocus ? "true" : undefined}
         disabled={!operational}
-        data-tooltip={!operational ? unavailableLabel : undefined}
         onClick={() => onSelect(source)}
-      >
+                                                                     >
         <span className="onboarding-import-source-icon" aria-hidden="true">{icon}</span>
         <span className="onboarding-import-source-label">{title}</span>
         {!operational && <span className="onboarding-import-source-status">{unavailableLabel}</span>}
-      </button>
+      </button></Tooltip>
     </li>
   );
 }

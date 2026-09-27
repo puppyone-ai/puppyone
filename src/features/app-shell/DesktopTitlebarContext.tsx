@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import type { RefObject } from "react";
 import type { Workspace, WorkspaceFolder } from "@puppyone/shared-ui";
 import { GitBranch } from "lucide-react";
@@ -141,18 +142,17 @@ function DesktopBranchSwitcher({
 
   return (
     <div className="desktop-titlebar-branch-wrap" ref={refObject}>
-      <button
+      <Tooltip content={disabled
+          ? loading ? undefined : branchLabel
+          : t("shell.branch.title", { branch: bidiIsolate(branchLabel) })}><button
         className="desktop-titlebar-branch-button"
         type="button"
         aria-label={t("shell.branch.switch", { branch: bidiIsolate(branchLabel) })}
         aria-expanded={open}
         aria-haspopup="menu"
         disabled={disabled}
-        data-tooltip={disabled
-          ? loading ? undefined : branchLabel
-          : t("shell.branch.title", { branch: bidiIsolate(branchLabel) })}
         onClick={onToggle}
-      >
+                                                                           >
         <GitBranch size={13} strokeWidth={1.8} aria-hidden="true" />
         <span
           className="desktop-titlebar-branch-label"
@@ -162,7 +162,7 @@ function DesktopBranchSwitcher({
             <span className="desktop-titlebar-branch-placeholder" aria-hidden="true" />
           ) : null)}
         </span>
-      </button>
+      </button></Tooltip>
 
       <DesktopTitlebarMenuLayer
         anchorRef={refObject}

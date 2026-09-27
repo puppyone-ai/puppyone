@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { AccessPointProviderIcon } from "../../access-points/presentation";
 import { useLocalization } from "@puppyone/localization/react";
 import { getAccessProviderLabel } from "./createAccessModel";
@@ -37,7 +38,7 @@ export function CreateAccessMethodRow({
       <CreateAccessSwitch
         checked={enabled}
         disabled={disabled}
-        title={locked ? t("cloud.access.create.alreadyEnabled") : disabled ? t("cloud.common.comingSoon") : undefined}
+        tooltip={locked ? t("cloud.access.create.alreadyEnabled") : disabled ? t("cloud.common.comingSoon") : undefined}
         ariaLabel={t("cloud.access.create.methodToggle", {
           method: providerLabel,
           state: t(enabled ? "cloud.common.on" : "cloud.common.off"),
@@ -51,28 +52,27 @@ export function CreateAccessMethodRow({
 function CreateAccessSwitch({
   checked,
   disabled,
-  title,
+  tooltip,
   ariaLabel,
   onChange,
 }: {
   checked: boolean;
   disabled?: boolean;
-  title?: string;
+  tooltip?: string;
   ariaLabel: string;
   onChange?: (checked: boolean) => void;
 }) {
   return (
-    <button
+    <Tooltip content={tooltip}><button
       className={`desktop-cloud-create-access-switch ${checked ? "checked" : ""}`}
       type="button"
       role="switch"
       aria-checked={checked}
       aria-label={ariaLabel}
-      data-tooltip={title}
       disabled={disabled}
       onClick={() => onChange?.(!checked)}
-    >
+                             >
       <span />
-    </button>
+    </button></Tooltip>
   );
 }

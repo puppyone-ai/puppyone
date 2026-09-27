@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import {
   forwardRef,
   type ButtonHTMLAttributes,
@@ -74,41 +75,42 @@ export function DesktopMenuSeparator({ className, ...props }: HTMLAttributes<HTM
   return <div className={cx("desktop-menu-separator", className)} aria-hidden="true" {...props} />;
 }
 
-export type DesktopMenuItemProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> & {
+export type DesktopMenuItemProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children" | "title"> & {
   detail?: ReactNode;
   destructive?: boolean;
   icon?: ReactNode;
   label: ReactNode;
   selected?: boolean;
   trailing?: ReactNode;
+  tooltip?: string | null;
 };
 
 export type DesktopMenuIconButtonProps = Omit<
   ButtonHTMLAttributes<HTMLButtonElement>,
-  "aria-label" | "children"
+  "aria-label" | "children" | "title"
 > & {
   icon: ReactNode;
   label: string;
+  tooltip?: string | null;
 };
 
 export function DesktopMenuIconButton({
   className,
   icon,
   label,
-  title = label,
+  tooltip = label,
   type = "button",
   ...props
 }: DesktopMenuIconButtonProps) {
   return (
-    <button
+    <Tooltip content={tooltip}><button
       className={cx("desktop-menu-icon-button", className)}
       type={type}
       aria-label={label}
-      data-tooltip={title}
       {...props}
-    >
+                               >
       {icon}
-    </button>
+    </button></Tooltip>
   );
 }
 
@@ -121,27 +123,26 @@ export const DesktopMenuItem = forwardRef<HTMLButtonElement, DesktopMenuItemProp
     label,
     role = "menuitem",
     selected,
-    title,
+    tooltip,
     trailing,
     ...props
   },
   ref,
 ) {
   return (
-    <button
+    <Tooltip content={tooltip}><button
       ref={ref}
       className={cx("desktop-menu-item", selected && "selected", destructive && "danger", className)}
       type="button"
       role={role}
-      data-tooltip={title}
       {...props}
-    >
+                               >
       {icon !== undefined && <span className="desktop-menu-item-icon" aria-hidden="true">{icon}</span>}
       <span className="desktop-menu-item-body">
         <span className="desktop-menu-item-label">{label}</span>
         {detail !== undefined && <span className="desktop-menu-item-detail">{detail}</span>}
       </span>
       {trailing !== undefined && <span className="desktop-menu-item-trailing">{trailing}</span>}
-    </button>
+    </button></Tooltip>
   );
 });

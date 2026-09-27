@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type RefObject } from "react";
 import {
+  Tooltip,
   createWorkspaceFolder,
   type Workspace,
   type WorkspaceFolder,
@@ -70,7 +71,9 @@ export function DesktopWorkspaceSwitcher({
   }, [multiRootWorkspacesEnabled, open]);
   return (
     <div className="desktop-titlebar-workspace-wrap" ref={refObject}>
-      <button
+      <Tooltip content={t("shell.workspaceSwitcher.projectTitle", {
+          project: bidiIsolate(workspace.name),
+        }) + ` · ${workspaceContextAssetLabel}`}><button
         className="desktop-titlebar-workspace-button local"
         type="button"
         aria-label={t("shell.workspaceSwitcher.openMenu", {
@@ -78,18 +81,15 @@ export function DesktopWorkspaceSwitcher({
         }) + ` · ${workspaceContextAssetLabel}`}
         aria-expanded={open}
         aria-haspopup="menu"
-        data-tooltip={t("shell.workspaceSwitcher.projectTitle", {
-          project: bidiIsolate(workspace.name),
-        }) + ` · ${workspaceContextAssetLabel}`}
         onClick={onToggle}
-      >
+                                                 >
         <ProjectContextAssetMark
           className="desktop-titlebar-workspace-mark"
           kind={workspaceContextAssetKind}
           size={14}
         />
         <bdi className="desktop-titlebar-workspace-name">{titlebarLabel}</bdi>
-      </button>
+      </button></Tooltip>
 
       <DesktopTitlebarMenuLayer
         anchorRef={refObject}
@@ -158,7 +158,11 @@ export function DesktopWorkspaceSwitcher({
               {unattachedProjects.map((project) => (
                 <DesktopMenuItem
                   className="desktop-project-add"
-                  detail={getWorkspaceParentPathForDisplay(project.path)}
+                  detail={(
+                    <Tooltip content={project.path} overflowOnly>
+                      <bdi dir="ltr">{getWorkspaceParentPathForDisplay(project.path)}</bdi>
+                    </Tooltip>
+                  )}
                   icon={(
                     <ProjectContextAssetMark
                       className="desktop-project-mark"
@@ -168,7 +172,6 @@ export function DesktopWorkspaceSwitcher({
                   key={project.id}
                   label={<bdi>{project.name}</bdi>}
                   onClick={() => onAddExistingProject?.(project.path)}
-                  title={`${project.name} - ${project.path}`}
                 />
               ))}
               <DesktopMenuItem
@@ -198,7 +201,6 @@ function DesktopProjectRow({
         className="desktop-menu-item desktop-project-option"
         role="menuitem"
         aria-disabled="true"
-        data-tooltip={`${folder.name} - ${folder.workspace.path}`}
       >
         <span className="desktop-menu-item-icon">
           <ProjectContextAssetMark
@@ -209,13 +211,12 @@ function DesktopProjectRow({
         <span className="desktop-menu-item-body">
           <bdi className="desktop-menu-item-label">{folder.name}</bdi>
           {detail && (
-            <bdi
+            <Tooltip content={folder.workspace.path}><bdi
               className="desktop-menu-item-detail"
               dir="ltr"
-              data-tooltip={folder.workspace.path}
-            >
+                                                     >
               {detail}
-            </bdi>
+            </bdi></Tooltip>
           )}
         </span>
       </div>

@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { bidiIsolate, useLocalization, type MessageFormatter } from "@puppyone/localization";
 import { Folder, Unlink } from "lucide-react";
 import type { DragEvent as ReactDragEvent } from "react";
@@ -48,14 +49,13 @@ export function OnboardingProjectList({
               role="button"
               icon={<Folder size={14} strokeWidth={1.85} />}
               label={<bdi>{name}</bdi>}
-              detail={parentPath ? <bdi dir="ltr" data-tooltip={item.localPath}>{parentPath}</bdi> : undefined}
+              detail={parentPath ? <Tooltip content={item.localPath} overflowOnly><bdi dir="ltr">{parentPath}</bdi></Tooltip> : undefined}
               trailing={openingPath === item.localPath
                 ? <InlineLoading label={t("onboarding.status.opening")} size="xs" tone="neutral" />
                 : formatRecentWorkspaceTime(item.lastOpenedAt, t, formatRelativeTime)}
               disabled={busy}
               aria-busy={openingPath === item.localPath || undefined}
               aria-label={t("onboarding.projects.open", { project: bidiIsolate(name) })}
-              title={item.localPath}
               draggable={!busy}
               onClick={() => onOpen(item.localPath)}
               onDragStart={(event) => onDragStart(event, item)}
@@ -67,7 +67,7 @@ export function OnboardingProjectList({
                 disabled={busy && !removing}
                 aria-busy={removing || undefined}
                 label={t("onboarding.projects.removeFor", { project: bidiIsolate(name) })}
-                title={t("onboarding.projects.removeHint")}
+                tooltip={t("onboarding.projects.removeHint")}
                 onClick={() => onRemove(item)}
                 icon={removing
                   ? <InlineLoading label={null} size="xs" tone="neutral" />

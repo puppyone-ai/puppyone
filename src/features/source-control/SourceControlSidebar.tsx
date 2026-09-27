@@ -1,4 +1,5 @@
 import {
+  Tooltip,
   SidebarEmptyState,
   SidebarRoot,
   SidebarScrollArea,
@@ -170,12 +171,11 @@ export function GitSidebar({ repository, view, actions, cloudBackup }: GitSideba
                   <div className="desktop-git-secondary-actions">
                     {(hasStashableChanges || hasDiscardableChanges) && (
                       <details className="desktop-git-more-actions">
-                        <summary
-                          data-tooltip={t("source-control.action.more")}
+                        <Tooltip content={t("source-control.action.more")}><summary
                           aria-label={t("source-control.action.more")}
-                        >
+                                                                           >
                           <MoreHorizontal size={15} aria-hidden="true" />
-                        </summary>
+                        </summary></Tooltip>
                         <div className="desktop-git-more-actions-menu">
                           {hasStashableChanges && (
                             <button

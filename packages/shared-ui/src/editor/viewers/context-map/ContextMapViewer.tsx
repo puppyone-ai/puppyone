@@ -1,3 +1,4 @@
+import { Tooltip } from "../../../primitives/Tooltip";
 import { useEditorDependencies } from "../../runtime/EditorTaskContext";
 import {
   useCallback,
@@ -877,28 +878,26 @@ function RadialRelationshipNode({
 
   if (isFolder && !isRoot) {
     return (
-      <button
+      <Tooltip content={t(expanded
+          ? "workspace.relationships.collapseFolder"
+          : "workspace.relationships.expandFolder", { name: entry.node.name })}><button
         className="folder-relationship-card folder-relationship-radial-node"
         {...interactionProps}
-        data-tooltip={t(expanded
-          ? "workspace.relationships.collapseFolder"
-          : "workspace.relationships.expandFolder", { name: entry.node.name })}
         type="button"
         onClick={() => onToggleFolder(entry.node)}
-      >
+                                                                                >
         {content}
-      </button>
+      </button></Tooltip>
     );
   }
 
   return (
-    <div
+    <Tooltip content={entry.node.name}><div
       className="folder-relationship-card folder-relationship-radial-node"
       {...interactionProps}
-      data-tooltip={entry.node.name}
-    >
+                                       >
       {content}
-    </div>
+    </div></Tooltip>
   );
 }
 
@@ -1260,28 +1259,26 @@ function LayeredRelationshipNode({
 
   if (isFolder && !isRoot) {
     return (
-      <button
+      <Tooltip content={t(expanded
+          ? "workspace.relationships.collapseFolder"
+          : "workspace.relationships.expandFolder", { name: entry.node.name })}><button
         className="folder-relationship-card folder-relationship-layered-node"
         {...interactionProps}
-        data-tooltip={t(expanded
-          ? "workspace.relationships.collapseFolder"
-          : "workspace.relationships.expandFolder", { name: entry.node.name })}
         type="button"
         onClick={() => onToggleFolder(entry.node)}
-      >
+                                                                                >
         {content}
-      </button>
+      </button></Tooltip>
     );
   }
 
   return (
-    <div
+    <Tooltip content={entry.node.name}><div
       className="folder-relationship-card folder-relationship-layered-node"
       {...interactionProps}
-      data-tooltip={entry.node.name}
-    >
+                                       >
       {content}
-    </div>
+    </div></Tooltip>
   );
 }
 
@@ -1943,15 +1940,14 @@ function RelationshipNode({
           onPointerMove={dragController.move}
           onPointerUp={dragController.finish}
         />
-        <button
+        <Tooltip content={t("workspace.relationships.collapseFolder", { name: node.name })}><button
           aria-label={t("workspace.relationships.collapseFolder", { name: node.name })}
           className="folder-relationship-collapse"
           type="button"
-          data-tooltip={t("workspace.relationships.collapseFolder", { name: node.name })}
           onClick={() => onToggleFolder(node)}
-        >
+                                                                                            >
           <ChevronUp size={14} aria-hidden="true" />
-        </button>
+        </button></Tooltip>
         {children.length > 0 ? (
           <RelationshipNodeLayout
             className="folder-relationship-group-children"
@@ -2006,29 +2002,27 @@ function RelationshipNode({
   } as const;
 
   if (node.type === "folder") return (
-    <button
+    <Tooltip content={t("workspace.relationships.expandFolder", { name: node.name })}><button
       className="folder-relationship-card"
       {...interactionProps}
       ref={registerCard(node.path)}
       type="button"
-      data-tooltip={t("workspace.relationships.expandFolder", { name: node.name })}
       onClick={() => {
         if (!dragController.consumeClick(node.path)) onToggleFolder(node);
       }}
-    >
+                                                                                      >
       {content}
-    </button>
+    </button></Tooltip>
   );
 
   return (
-    <div
+    <Tooltip content={node.name}><div
       className="folder-relationship-card"
       {...interactionProps}
       ref={registerCard(node.path)}
-      data-tooltip={node.name}
-    >
+                                 >
       {content}
-    </div>
+    </div></Tooltip>
   );
 }
 

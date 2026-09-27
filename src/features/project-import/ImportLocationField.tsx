@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { FolderOpen } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useLocalization } from "@puppyone/localization";
@@ -72,14 +73,13 @@ export function ImportLocationField({
         onClick={onChoose}
       >
         <FolderOpen aria-hidden="true" />
-        <bdi
+        <Tooltip content={location?.path} overflowOnly><bdi
           className={`onboarding-entry-location-path ${location ? "is-selected" : ""}`}
           dir="ltr"
-          data-tooltip={location?.path}
           aria-live="polite"
-        >
+                                                       >
           {location?.path ?? t("onboarding.entry.import.saveToPicker")}
-        </bdi>
+        </bdi></Tooltip>
         <span className="onboarding-entry-location-action">
           {t(choosing
             ? "onboarding.entry.create.browsing"

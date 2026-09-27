@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { useEffect, useRef, type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import { useNativeSurfaceOcclusionLease } from "../features/native-surfaces";
 
@@ -163,25 +164,24 @@ function isTopmostDesktopDialog(root: HTMLElement) {
 }
 
 export function DesktopDialogCloseButton({
-  title = "Close",
+  label = "Close",
   className = "",
   disabled,
   onClick,
 }: {
-  title?: string;
+  label?: string;
   className?: string;
   disabled?: boolean;
   onClick: () => void;
 }) {
   return (
-    <button
+    <Tooltip content={label}><button
       className={`desktop-dialog-icon-button ${className}`.trim()}
       type="button"
       disabled={disabled}
-      aria-label={title}
-      data-tooltip={title}
+      aria-label={label}
       onClick={onClick}
-    >
+                             >
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
         <path
           d="M5 5L11 11M11 5L5 11"
@@ -190,6 +190,6 @@ export function DesktopDialogCloseButton({
           strokeLinecap="round"
         />
       </svg>
-    </button>
+    </button></Tooltip>
   );
 }
