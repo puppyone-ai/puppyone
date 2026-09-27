@@ -14,13 +14,13 @@ describe("desktop tooltip theme", () => {
     style.textContent = `
       .test-appearance {
         --po-editor-bg: rgb(250, 250, 250);
-        --po-border-strong: rgb(210, 210, 210);
+        --po-border-subtle: rgb(232, 232, 232);
         --po-menu-shadow: none;
         --po-text: rgb(20, 20, 20);
       }
       .test-appearance.dark {
         --po-editor-bg: rgb(30, 30, 30);
-        --po-border-strong: rgb(70, 70, 70);
+        --po-border-subtle: rgb(48, 48, 48);
         --po-text: rgb(245, 245, 245);
       }
       ${tooltipCss}
@@ -39,7 +39,7 @@ describe("desktop tooltip theme", () => {
     appearance.classList.add("dark");
     expect(getComputedStyle(tooltip).backgroundColor).toBe("rgb(30, 30, 30)");
     expect(getComputedStyle(tooltip).color).toBe("rgb(245, 245, 245)");
-    expect(getComputedStyle(tooltip).borderTopColor).toBe("rgb(70, 70, 70)");
+    expect(getComputedStyle(tooltip).borderTopColor).toBe("rgb(48, 48, 48)");
 
     appearance.style.setProperty("--po-editor-bg", "rgb(65, 45, 95)");
     appearance.style.setProperty("--po-text", "rgb(255, 245, 255)");

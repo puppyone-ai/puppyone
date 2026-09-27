@@ -8,7 +8,7 @@
   align-items: center;
   gap: 8px;
   padding: 4px 8px;
-  border: 1px solid var(--po-border-strong);
+  border: 1px solid var(--po-border-subtle);
   border-radius: 9px;
   background: var(--po-editor-bg);
   background-clip: padding-box;
