@@ -153,7 +153,7 @@ export function CsvCellEditor({
               event.stopPropagation();
               open();
             }}
-                                         >
+          >
             {workspaceReference.status !== "missing"
               ? <Link2 size={13} strokeWidth={1.8} aria-hidden="true" />
               : <Unlink size={13} strokeWidth={1.8} aria-hidden="true" />}

@@ -266,7 +266,7 @@ function FolderRow({
         type="button"
         style={{ paddingInlineStart: 8 + depth * 16 }}
         onClick={onToggle}
-                                                                                                                                                          >
+      >
         <span className="desktop-cloud-create-access-tree-marker">
           <TreeDisclosureMarker expanded={expanded} />
         </span>
@@ -296,7 +296,7 @@ function FileRow({
         className="desktop-cloud-create-access-tree-row file"
         aria-disabled="true"
         style={{ paddingInlineStart: 8 + depth * 16 }}
-                                                       >
+      >
         <span className="desktop-cloud-create-access-tree-marker" />
         <FileText size={15} />
         <span className="desktop-cloud-create-access-tree-name" dir="auto">{entry.name}</span>
@@ -324,7 +324,7 @@ function FolderRowStatus({
         event.stopPropagation();
         onSelect();
       }}
-                                                                                                               >
+    >
       <span>{t(selected ? "cloud.common.selected" : "cloud.common.select")}</span>
       <span aria-hidden="true">
         {selected ? <Check size={13} strokeWidth={2.6} /> : null}
@@ -346,7 +346,7 @@ function AccessStatusText({ onSelect }: { onSelect?: () => void }) {
         event.stopPropagation();
         onSelect();
       }}
-                                                               >
+    >
       {t("cloud.access.create.hasAccess")}
     </button></Tooltip>
   );

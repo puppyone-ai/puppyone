@@ -262,7 +262,7 @@ function CloudAutomationResourcePicker({
                 disabled={!resource.authorized}
                 aria-pressed={selected}
                 onClick={() => onChange(automationSourceFromProviderResource(resource))}
-                                                                                                                                          >
+              >
                 <span>
                   <strong dir="auto">{resource.name}</strong>
                   {(resource.subtitle || resource.type) && <small>{resource.subtitle || resource.type}</small>}

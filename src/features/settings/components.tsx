@@ -50,7 +50,7 @@ export function SettingsValueRow({
         <Tooltip content={tooltip} overflowOnly={tooltipOverflowOnly}><span
           className={`desktop-settings-value-text ${monospace ? "desktop-settings-code" : ""} ${tone === "success" ? "success" : ""}`}
           dir={monospace ? "ltr" : "auto"}
-                                                                      >
+        >
           {value}
         </span></Tooltip>
         {action}

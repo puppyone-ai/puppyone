@@ -278,7 +278,7 @@ function PaneMenuSegmentedControl({
               buttons?.item(nextIndex).focus({ preventScroll: true });
               if (nextOption) item.setValue(nextOption.id);
             }}
-                                                          >
+          >
             {option.icon}
           </button></Tooltip>
         );

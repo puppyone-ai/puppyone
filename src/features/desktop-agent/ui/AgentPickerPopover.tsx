@@ -250,7 +250,7 @@ export function AgentPickerPopover({
         disabled={disabled}
         onClick={() => open ? close(false) : show()}
         onKeyDown={handleTriggerKeyDown}
-                               >
+      >
         {triggerIcon && <span className="desktop-agent-picker-trigger-mark">{triggerIcon}</span>}
         {!compact && <span className="desktop-agent-picker-trigger-value" dir="auto">{valueLabel || placeholder}</span>}
         {!compact && indicator === "chevron" && <ChevronDown size={12} aria-hidden="true" />}

@@ -67,7 +67,7 @@ export const HEADER_ELEMENT_DEFINITIONS: readonly HeaderElementDefinition[] = [
           data-has-git-status={hasStatus ? "true" : undefined}
           data-toolbar-action={toolbarPlacement ? "changes" : undefined}
           onClick={changes.onToggle}
-                                       >
+        >
           {toolbarPlacement && (
             <i className="desktop-shell-toolbar-button-icon" aria-hidden="true">
               <VersionControlIcon size={19} />
@@ -106,7 +106,7 @@ export const HEADER_ELEMENT_DEFINITIONS: readonly HeaderElementDefinition[] = [
           aria-pressed={terminal.sidebarOpen}
           data-toolbar-action={toolbarPlacement ? "terminal" : undefined}
           onClick={terminal.onToggle}
-                                       >
+        >
           {toolbarPlacement ? (
             <i
               className="desktop-shell-toolbar-button-icon"

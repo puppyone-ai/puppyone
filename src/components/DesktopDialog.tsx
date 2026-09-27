@@ -181,7 +181,7 @@ export function DesktopDialogCloseButton({
       disabled={disabled}
       aria-label={label}
       onClick={onClick}
-                             >
+    >
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
         <path
           d="M5 5L11 11M11 5L5 11"

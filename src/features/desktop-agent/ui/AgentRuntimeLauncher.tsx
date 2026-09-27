@@ -37,7 +37,7 @@ export function AgentRuntimeLauncher({
                 className="desktop-agent-runtime-launcher-refresh"
                 aria-label={t("agent.launcher.scanAgain")}
                 onClick={onRefresh}
-                                                               >
+              >
                 <RefreshCw size={12} strokeWidth={1.7} aria-hidden="true" />
               </button></Tooltip>
             </header>
@@ -61,7 +61,7 @@ export function AgentRuntimeLauncher({
                       data-po-interaction="navigation"
                       aria-label={entry.descriptor.displayName}
                       onClick={() => onLaunch(entry.descriptor.id)}
-                                                                                                        >
+                    >
                       <AgentBrandMark
                         iconKey={entry.descriptor.iconKey}
                         label={entry.descriptor.displayName}

@@ -141,7 +141,7 @@ export function CloudAssetGrid({
           className="desktop-cloud-asset-tile"
           type="button"
           onClick={() => onEntryClick(entry)}
-                                                                                   >
+        >
           <span className="desktop-cloud-asset-icon">
             <CloudFilePreviewIcon
               name={entry.name || entry.path}

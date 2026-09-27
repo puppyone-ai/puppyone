@@ -885,7 +885,7 @@ function RadialRelationshipNode({
         {...interactionProps}
         type="button"
         onClick={() => onToggleFolder(entry.node)}
-                                                                                >
+      >
         {content}
       </button></Tooltip>
     );
@@ -895,7 +895,7 @@ function RadialRelationshipNode({
     <Tooltip content={entry.node.name}><div
       className="folder-relationship-card folder-relationship-radial-node"
       {...interactionProps}
-                                       >
+    >
       {content}
     </div></Tooltip>
   );
@@ -1266,7 +1266,7 @@ function LayeredRelationshipNode({
         {...interactionProps}
         type="button"
         onClick={() => onToggleFolder(entry.node)}
-                                                                                >
+      >
         {content}
       </button></Tooltip>
     );
@@ -1276,7 +1276,7 @@ function LayeredRelationshipNode({
     <Tooltip content={entry.node.name}><div
       className="folder-relationship-card folder-relationship-layered-node"
       {...interactionProps}
-                                       >
+    >
       {content}
     </div></Tooltip>
   );
@@ -1945,7 +1945,7 @@ function RelationshipNode({
           className="folder-relationship-collapse"
           type="button"
           onClick={() => onToggleFolder(node)}
-                                                                                            >
+        >
           <ChevronUp size={14} aria-hidden="true" />
         </button></Tooltip>
         {children.length > 0 ? (
@@ -2010,7 +2010,7 @@ function RelationshipNode({
       onClick={() => {
         if (!dragController.consumeClick(node.path)) onToggleFolder(node);
       }}
-                                                                                      >
+    >
       {content}
     </button></Tooltip>
   );
@@ -2020,7 +2020,7 @@ function RelationshipNode({
       className="folder-relationship-card"
       {...interactionProps}
       ref={registerCard(node.path)}
-                                 >
+    >
       {content}
     </div></Tooltip>
   );

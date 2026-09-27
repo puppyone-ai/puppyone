@@ -58,7 +58,7 @@ export function AgentActivityShell({
           aria-label={compactLabel}
           aria-expanded={hasDetail ? expanded : undefined}
           onClick={toggleExpanded}
-                                        >
+        >
           <span className="desktop-agent-tool-icon" aria-hidden="true">{icon}</span>
           <strong className="desktop-agent-tool-name">{title}</strong>
           {metadata && <span className="desktop-agent-tool-metadata">{metadata}</span>}

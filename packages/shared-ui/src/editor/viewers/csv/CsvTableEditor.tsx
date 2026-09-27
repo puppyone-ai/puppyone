@@ -606,7 +606,7 @@ export function CsvTableEditor({
                   className="csv-table-editor__structure-button csv-table-editor__add-row po-editable-table-structure-button po-editable-table-add-row"
                   onClick={addRow}
                   aria-label={t("editor.csv.addRow")}
-                                                          >
+                >
                   <span className="csv-table-editor__structure-button-visual po-editable-table-structure-button-visual" aria-hidden="true" />
                 </button></Tooltip>
                 <Tooltip content={t("editor.csv.addColumn")}><button
@@ -614,7 +614,7 @@ export function CsvTableEditor({
                   className="csv-table-editor__structure-button csv-table-editor__add-column po-editable-table-structure-button po-editable-table-add-column"
                   onClick={addColumn}
                   aria-label={t("editor.csv.addColumn")}
-                                                             >
+                >
                   <span className="csv-table-editor__structure-button-visual po-editable-table-structure-button-visual" aria-hidden="true" />
                 </button></Tooltip>
                 <CsvTableControls

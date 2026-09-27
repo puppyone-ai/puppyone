@@ -385,7 +385,7 @@ export function TextEditorFrame({
             type="button"
             onClick={() => switchMode("live")}
             aria-label={liveModeLabel ?? t("editor.mode.live")}
-                                                                    >
+          >
             {liveModeIcon === "preview" ? <PreviewIcon /> : <PencilIcon />}
           </button></Tooltip>
           <Tooltip content={sourceModeLabel ?? t("editor.mode.source")}><button
@@ -393,7 +393,7 @@ export function TextEditorFrame({
             type="button"
             onClick={() => switchMode("source")}
             aria-label={sourceModeLabel ?? t("editor.mode.source")}
-                                                                        >
+          >
             <CodeIcon />
           </button></Tooltip>
         </div>

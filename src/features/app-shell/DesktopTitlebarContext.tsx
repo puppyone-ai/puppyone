@@ -152,7 +152,7 @@ function DesktopBranchSwitcher({
         aria-haspopup="menu"
         disabled={disabled}
         onClick={onToggle}
-                                                                           >
+      >
         <GitBranch size={13} strokeWidth={1.8} aria-hidden="true" />
         <span
           className="desktop-titlebar-branch-label"

@@ -35,7 +35,7 @@ export function AgentFilePresence({
       data-variant={variant}
       role="status"
       aria-label={label}
-                             >
+    >
       <span className="desktop-agent-file-presence-actor" aria-hidden="true">
         {initials(primary.providerLabel)}
       </span>

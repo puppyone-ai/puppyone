@@ -33,7 +33,7 @@ export function ProjectsHeader({ pathSegments, onBack, actionSlot }: ProjectsHea
               }}
               aria-label={t("shared-ui.navigation.back")}
               type="button"
-                                                              >
+            >
               <svg style={{ transform: direction === "rtl" ? "scaleX(-1)" : undefined }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M19 12H5" />
                 <path d="M12 19l-7-7 7-7" />
@@ -53,7 +53,7 @@ export function ProjectsHeader({ pathSegments, onBack, actionSlot }: ProjectsHea
                     ...pathStyle,
                     color: isLast ? "var(--po-text)" : "var(--po-text-muted)",
                   }}
-                                                                                                              >
+                >
                   {segment.label}
                 </span></Tooltip>
               </div>

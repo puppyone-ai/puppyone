@@ -71,7 +71,7 @@ export function CsvViewSettings({
         aria-expanded={open}
         aria-haspopup="dialog"
         onClick={() => setOpen((current) => !current)}
-                                                  >
+      >
         <Settings2 size={15} aria-hidden="true" />
       </button></Tooltip>
 

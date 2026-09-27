@@ -23,7 +23,7 @@ export function AuxiliaryWorkbenchCreationFailure({
       className="desktop-terminal-workbench-create-failure"
       role="alert"
       data-native-surface-occluder="true"
-                                                   >
+    >
       <AlertCircle size={14} strokeWidth={1.8} aria-hidden="true" />
       <span>{message}</span>
       {failure.retryable && onRetry && (

@@ -365,7 +365,7 @@ function OfficePreviewControls({
               aria-label={t("editor.office.zoomOut")}
               disabled={wordZoomControls.scale <= 0.5}
               onClick={wordZoomControls.onDecrease}
-                                                          >
+            >
               <Minus size={14} strokeWidth={2} />
             </button></Tooltip>
             <output className="office-preview__zoom-value" aria-live="polite">
@@ -377,7 +377,7 @@ function OfficePreviewControls({
               aria-label={t("editor.office.zoomIn")}
               disabled={wordZoomControls.scale >= 2}
               onClick={wordZoomControls.onIncrease}
-                                                         >
+            >
               <Plus size={14} strokeWidth={2} />
             </button></Tooltip>
             <Tooltip content={t("editor.office.fitWidth")}><button
@@ -387,7 +387,7 @@ function OfficePreviewControls({
               aria-pressed={wordZoomControls.isFit}
               data-active={wordZoomControls.isFit ? "true" : undefined}
               onClick={wordZoomControls.onFit}
-                                                           >
+            >
               <Maximize2 size={13} strokeWidth={2} />
             </button></Tooltip>
           </div>
@@ -1269,7 +1269,7 @@ function SpreadsheetPreview({
               selectCell({ rowPosition: row.rowPosition, columnPosition: cell.columnPosition }, false);
               gridWrapRef.current?.focus({ preventScroll: true });
             }}
-                                                                                                              >
+          >
             <span dir="auto">{cell.value}</span>
           </td></Tooltip>
         );
@@ -1379,7 +1379,7 @@ function SpreadsheetPreview({
             role="tab"
             aria-selected={index === activeSheet}
             onClick={() => onActiveSheetChange(index)}
-                                                                      >
+          >
             <span dir="auto">{sheet.name}</span>
           </button></Tooltip>
         ))}

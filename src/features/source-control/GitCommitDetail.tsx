@@ -57,7 +57,7 @@ export function GitCommitDetail({
             type="button"
             aria-label={copyLabel}
             onClick={() => void copyCommitId()}
-                                       >
+          >
             <span className="desktop-commit-id-label" aria-hidden="true">
               {t("source-control.commit.id")}
             </span>

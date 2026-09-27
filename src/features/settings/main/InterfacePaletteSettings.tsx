@@ -59,7 +59,7 @@ export function InterfacePaletteSettings({
                 onClick={() => {
                   if (!locked && isAppearanceValueAllowed(decision, mode)) onThemeModeChange(mode);
                 }}
-                                                                                                   >
+              >
                 <ThemePreview
                   mode={mode}
                   subThemeId={subThemeId}

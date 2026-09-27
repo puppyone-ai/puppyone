@@ -308,7 +308,7 @@ export function SettingsView({
                           onFileIconThemeChange(theme.id);
                         }
                       }}
-                                                                                                                             >
+                    >
                       <FileGlyphIcon name="document.md" size={14} theme={theme.id} />
                       <span>{t(`settings.appearance.fileIcons.${theme.id}.label`)}</span>
                     </button></Tooltip>

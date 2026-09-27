@@ -312,7 +312,7 @@ function InstalledPluginRow({
       <details className="desktop-plugin-menu">
         <Tooltip content={t("plugins.manage", { name: bidiIsolate(plugin.label) })}><summary
           aria-label={t("plugins.manage", { name: bidiIsolate(plugin.label) })}
-                                                                                    >
+        >
           <MoreHorizontal size={16} aria-hidden="true" />
         </summary></Tooltip>
         <div>

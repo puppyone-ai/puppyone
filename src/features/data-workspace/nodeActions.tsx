@@ -127,7 +127,7 @@ export function DesktopExplorerRowActions({
           type="button"
           aria-label={t("workspace.node.createNew")}
           onClick={(event) => onCreate(parentPath, event.currentTarget.getBoundingClientRect())}
-                                                         >
+        >
           <Plus aria-hidden="true" />
         </button></Tooltip>
       )}
@@ -137,7 +137,7 @@ export function DesktopExplorerRowActions({
           type="button"
           aria-label={t("workspace.node.moreActionsFor", { name: bidiIsolate(node.name) })}
           onClick={(event) => onOpenNodeMenu(node, event.currentTarget.getBoundingClientRect())}
-                                                           >
+        >
           <OverflowDots orientation="vertical" />
         </button></Tooltip>
       )}
@@ -150,7 +150,7 @@ export function DesktopExplorerRowActions({
             event.stopPropagation();
             onRemoveWorkspaceRoot(node);
           }}
-                                                                      >
+        >
           <X aria-hidden="true" />
         </button></Tooltip>
       )}

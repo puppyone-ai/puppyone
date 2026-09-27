@@ -248,7 +248,7 @@ export function CloudAutomationPage({
                   type="button"
                   aria-label={t("automation.creation.dismissStatus")}
                   onClick={() => setCreationEcho(null)}
-                                                                          >
+                >
                   <X size={14} />
                 </button></Tooltip>
               </div>
@@ -376,7 +376,7 @@ function CloudAutomationAccessList({
                       className={`desktop-cloud-automation-connection-card ${selectedRowId === row.id ? "selected" : ""} ${highlighted ? "created" : ""}`.trim()}
                       type="button"
                       onClick={() => onOpenRow(row.id)}
-                                       >
+                    >
                       <span className="desktop-cloud-automation-route">
                         <Tooltip content={t("automation.connection.source", {
                             provider: bidiIsolate(group.label),

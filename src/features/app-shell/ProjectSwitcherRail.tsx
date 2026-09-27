@@ -207,7 +207,7 @@ export function ProjectSwitcherRail({
                 draggable={Boolean(workspace.path.trim())}
                 onClick={() => void selectProject(workspace)}
                 onDragStart={(event) => beginProjectRootDrag(event, workspace.path)}
-                                                                                         >
+              >
                 <ProjectSwitcherAvatar
                   imageUrl={appearance?.icon?.kind === "asset" ? appearance.icon.url : null}
                   emoji={appearance?.icon?.kind === "emoji" ? appearance.icon.value : null}
@@ -243,7 +243,7 @@ export function ProjectSwitcherRail({
             setProjectActionSession(null);
             onCreateNew();
           }}
-                                                                                                            >
+        >
           <span
             className={expanded
               ? "desktop-project-switcher-rail-avatar"

@@ -274,7 +274,7 @@ export function GitSettingsView({
                       <div className="desktop-settings-remote-setting-url">
                         <Tooltip content={copyUrl ? maskRemoteUrl(copyUrl) : undefined} overflowOnly><code
                           dir="ltr"
-                                                                                                     >
+                        >
                           {copyUrl ? maskRemoteUrl(copyUrl) : t("settings.shared.notConfigured")}
                         </code></Tooltip>
                         {pushUrlDiffers && remote.pushUrl && (

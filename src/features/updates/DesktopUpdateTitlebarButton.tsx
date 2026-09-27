@@ -38,7 +38,7 @@ export function DesktopUpdateTitlebarButton({
       aria-busy={!presentation.interactive || undefined}
       disabled={!presentation.interactive}
       onClick={onUpdateNow}
-                             >
+    >
       <Icon
         size={15}
         strokeWidth={2.3}

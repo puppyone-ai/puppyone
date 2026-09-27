@@ -590,7 +590,7 @@ export function CsvTableControls({
             event.preventDefault();
             event.stopPropagation();
           }}
-                                                              >
+        >
           <span className="po-editable-table-drag-handle-visual" aria-hidden="true" />
         </button></Tooltip>
         <Tooltip content={t("editor.table.rowHandleHint")}><button
@@ -611,7 +611,7 @@ export function CsvTableControls({
             event.preventDefault();
             event.stopPropagation();
           }}
-                                                           >
+        >
           <span className="po-editable-table-drag-handle-visual" aria-hidden="true" />
         </button></Tooltip>
         <div

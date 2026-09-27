@@ -261,7 +261,7 @@ export function CloudManageAutomationDialog({
               type="button"
               aria-label={t("automation.manage.openInCloud")}
               onClick={onOpenAutomation}
-                                                                  >
+            >
               <ExternalLink size={14} />
             </button></Tooltip>
             <Tooltip content={t("automation.manage.delete")}><button
@@ -270,7 +270,7 @@ export function CloudManageAutomationDialog({
               disabled={busy !== null}
               aria-label={t("automation.manage.delete")}
               onClick={() => setDeleteConfirm(true)}
-                                                             >
+            >
               <Trash2 size={14} />
             </button></Tooltip>
             <DesktopDialogCloseButton disabled={busy !== null} onClick={onClose} />

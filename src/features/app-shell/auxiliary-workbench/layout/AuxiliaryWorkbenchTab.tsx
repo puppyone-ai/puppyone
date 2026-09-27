@@ -104,7 +104,7 @@ export const AuxiliaryWorkbenchTab = memo(function AuxiliaryWorkbenchTab({
         }}
         onPointerCancel={tabMove.cancel}
         onLostPointerCapture={tabMove.lostCapture}
-                                                       >
+      >
         <AuxiliaryWorkbenchStatus key={`status:${item.id}`} className="desktop-terminal-tab-status" item={item} />
         <span key={`title:${item.id}`} className="desktop-terminal-tab-title">{item.snapshot.title}</span>
       </button></Tooltip>

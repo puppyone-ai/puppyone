@@ -143,7 +143,7 @@ export function ProjectRowActions({
           event.stopPropagation();
           openMenu(event.currentTarget);
         }}
-                                                                     >
+      >
         <MoreVertical aria-hidden="true" />
       </button></Tooltip>
 

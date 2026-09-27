@@ -930,7 +930,7 @@ const TreeNodeRow = memo(function TreeNodeRow({
         onNodeContextMenu(node, event);
       } : undefined}
       style={{ "--depth": presentationDepth } as CSSProperties}
-                                                                                    >
+    >
       <span className="tree-row-content">
         <span
           className="tree-icon-slot"

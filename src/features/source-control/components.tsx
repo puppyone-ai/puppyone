@@ -212,7 +212,7 @@ export function SourceControlWorkingTreeRow({
   return (
     <Tooltip content={displayPath}><div
       className={`desktop-working-tree-row ${staged ? "is-staged" : "is-unstaged"} ${selected ? "active" : ""}`}
-                                   >
+    >
       <button
         className="desktop-working-tree-main"
         type="button"
@@ -233,7 +233,7 @@ export function SourceControlWorkingTreeRow({
           aria-label={t("source-control.action.discardPath", { path: bidiIsolate(resource.path) })}
           disabled={disabled}
           onClick={() => void onDiscardPaths(commandPaths)}
-                                                              >
+        >
           <Undo2 size={13} />
         </button></Tooltip>
       )}
@@ -245,7 +245,7 @@ export function SourceControlWorkingTreeRow({
             aria-label={t("source-control.action.unstagePath", { path: bidiIsolate(resource.path) })}
             disabled={disabled}
             onClick={() => void onUnstagePaths(commandPaths)}
-                                                                >
+          >
             <Minus size={13} />
           </button></Tooltip>
         ) : (
@@ -255,7 +255,7 @@ export function SourceControlWorkingTreeRow({
             aria-label={t("source-control.action.stagePath", { path: bidiIsolate(resource.path) })}
             disabled={disabled}
             onClick={() => void onStagePaths(commandPaths)}
-                                                              >
+          >
             <Plus size={13} />
           </button></Tooltip>
         )}

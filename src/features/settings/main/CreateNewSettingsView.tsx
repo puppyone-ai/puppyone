@@ -143,7 +143,7 @@ export function CreateNewSettingsView({
         role="listitem"
         onDragOver={(event) => setRowDropTarget(event, group, index, entry)}
         onDrop={(event) => completeDrop(event, { group, index })}
-                                                                                                  >
+      >
         <Tooltip content={t("settings.createNew.dragToReorder", { type: label })}><button
           className="desktop-create-new-drag-handle"
           type="button"
@@ -151,7 +151,7 @@ export function CreateNewSettingsView({
           aria-label={t("settings.createNew.dragToReorder", { type: label })}
           onDragStart={(event) => handleDragStart(event, entry)}
           onDragEnd={clearDragState}
-                                                                                  >
+        >
           <GripVertical size={14} aria-hidden="true" />
         </button></Tooltip>
         {isSubmenu ? (

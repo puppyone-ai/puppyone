@@ -173,7 +173,7 @@ export function OnboardingProjectEntryDialog({
                   className={`onboarding-entry-location-path ${location ? "is-selected" : ""}`}
                   dir="ltr"
                   aria-live="polite"
-                                                               >
+                >
                   {location?.path ?? t("onboarding.entry.create.locationPlaceholder")}
                 </bdi></Tooltip>
                 <span className="onboarding-entry-location-action">

@@ -258,7 +258,7 @@ export function PuppyFlowViewer({
               aria-label={t("editor.puppyflow.addStep")}
               disabled={!canEdit}
               onClick={addStep}
-                                                             >
+            >
               <span className="puppyflow-add-icon" aria-hidden="true">
                 <Plus size={15} />
               </span>
@@ -340,7 +340,7 @@ function PuppyFlowStepRow({
         onKeyDown={(event) => {
           handleStepGripKeyDown(event, onMoveByKeyboard);
         }}
-                                                           >
+      >
         <GripVertical size={16} />
       </button></Tooltip>
       <span className="puppyflow-step-index">{stepNumber}</span>

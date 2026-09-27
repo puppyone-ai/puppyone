@@ -66,7 +66,7 @@ export function CloudOverviewDashboard({
               <Tooltip content={entry.path} key={`${entry.type}:${entry.path}`}><div
                 className="desktop-cloud-overview-file-row"
                 role="listitem"
-                                                                                >
+              >
                 <span className="desktop-cloud-overview-file-primary">
                   <span className="desktop-cloud-overview-file-icon" aria-hidden="true">
                     <FileGlyphIcon name={entry.name} type={entry.type} size={15} />
@@ -77,7 +77,7 @@ export function CloudOverviewDashboard({
                   {updatedAt ? (
                     <Tooltip content={formatFullTime(updatedAt, localization.formatDate)}><time
                       dateTime={updatedAt}
-                                                                                          >
+                    >
                       {formatRelativeTime(updatedAt, localization)}
                     </time></Tooltip>
                   ) : "—"}

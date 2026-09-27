@@ -29,7 +29,7 @@ export function DesktopUpdateSettingsRow({
         aria-label={`${action.label}. ${detail}`}
         disabled={action.disabled}
         onClick={action.kind === "check" ? onCheckForUpdates : onUpdateNow}
-                                                              >
+      >
         <Icon size={14} className={action.spinning ? "spin" : undefined} />
         <span>{action.label}</span>
       </button></Tooltip>

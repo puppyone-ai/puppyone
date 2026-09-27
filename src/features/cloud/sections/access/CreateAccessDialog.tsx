@@ -210,7 +210,7 @@ export function DesktopCloudCreateAccessDialog({
               <FieldLabel label={t("cloud.common.path")} required>
                 <Tooltip content={selectedLabel} overflowOnly><div
                   className={`desktop-cloud-create-access-path-box ${selectedExistingScope ? "existing" : ""} ${normalizedSelected === null ? "empty" : ""}`}
-                                                              >
+                >
                   <TreeDisclosureMarker expanded={normalizedSelected !== null} />
                   <span>{selectedLabel}</span>
                 </div></Tooltip>

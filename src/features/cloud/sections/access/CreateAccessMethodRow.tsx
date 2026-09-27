@@ -71,7 +71,7 @@ function CreateAccessSwitch({
       aria-label={ariaLabel}
       disabled={disabled}
       onClick={() => onChange?.(!checked)}
-                             >
+    >
       <span />
     </button></Tooltip>
   );

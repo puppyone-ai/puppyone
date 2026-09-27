@@ -59,7 +59,7 @@ export function CloudCommitDetail({
               aria-label={t("cloud.history.refresh")}
               disabled={loading}
               onClick={() => void onRefresh()}
-                                                          >
+            >
               <RefreshCw size={13} className={loading ? "spin" : undefined} aria-hidden="true" />
             </button></Tooltip>
             {projectId && (
@@ -67,7 +67,7 @@ export function CloudCommitDetail({
                 type="button"
                 aria-label={t("cloud.history.viewCodeChanges")}
                 onClick={() => openCloudApp(`/projects/${projectId}/changes?commit=${encodeURIComponent(commit.commit_id)}`)}
-                                                                    >
+              >
                 <ExternalLink size={13} aria-hidden="true" />
               </button></Tooltip>
             )}

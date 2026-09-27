@@ -203,7 +203,7 @@ function CloudHistorySidebarRow({
           aria-current={selected ? "true" : undefined}
           data-commit-id={row.id}
           onClick={() => onSelect(row.id)}
-                                                                 >
+        >
           {contents}
         </button></Tooltip>
       ) : (

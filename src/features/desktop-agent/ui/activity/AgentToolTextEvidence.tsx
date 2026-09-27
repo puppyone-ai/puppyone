@@ -46,7 +46,7 @@ export function AgentToolTextEvidence({ text, className = "desktop-agent-tool-ou
               console.warn("Desktop Agent output copy failed", error);
             }
           }}
-                                                                                                          >
+        >
           <Copy size={12} aria-hidden="true" />
         </button></Tooltip>
       )}

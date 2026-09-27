@@ -96,7 +96,7 @@ export function DesktopSidebarSettingsButton({
       aria-expanded={settingsOpen}
       data-navigation-item="settings"
       onClick={onOpenSettings}
-                                                      >
+    >
       <i
         className={`desktop-sidebar-nav-icon-wrap${shellToolbar ? " desktop-shell-toolbar-button-icon" : ""}`}
         aria-hidden="true"
@@ -135,7 +135,7 @@ export function DesktopSidebarPluginsButton({
       aria-expanded={pluginsOpen}
       data-navigation-item="plugins"
       onClick={onOpenPlugins}
-                                                     >
+    >
       <i
         className={`desktop-sidebar-nav-icon-wrap${shellToolbar ? " desktop-shell-toolbar-button-icon" : ""}`}
         aria-hidden="true"

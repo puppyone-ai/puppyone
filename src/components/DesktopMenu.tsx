@@ -108,7 +108,7 @@ export function DesktopMenuIconButton({
       type={type}
       aria-label={label}
       {...props}
-                               >
+    >
       {icon}
     </button></Tooltip>
   );
@@ -136,7 +136,7 @@ export const DesktopMenuItem = forwardRef<HTMLButtonElement, DesktopMenuItemProp
       type="button"
       role={role}
       {...props}
-                               >
+    >
       {icon !== undefined && <span className="desktop-menu-item-icon" aria-hidden="true">{icon}</span>}
       <span className="desktop-menu-item-body">
         <span className="desktop-menu-item-label">{label}</span>

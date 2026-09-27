@@ -263,7 +263,7 @@ function BranchGraphRow({
       type="button"
       role="listitem"
       onClick={() => openCloudApp(`/projects/${projectId}/changes?commit=${encodeURIComponent(row.id)}`)}
-                                                             >
+    >
       {content}
     </button></Tooltip>
   );

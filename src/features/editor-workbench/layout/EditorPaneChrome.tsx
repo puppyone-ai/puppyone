@@ -120,7 +120,7 @@ export function EditorPaneChrome({
           }}
           onPointerCancel={paneMove.cancel}
           onLostPointerCapture={paneMove.lostCapture}
-                                       >
+        >
           <OverflowDots />
         </button></Tooltip>
       </div>

@@ -173,7 +173,7 @@ export function GitSidebar({ repository, view, actions, cloudBackup }: GitSideba
                       <details className="desktop-git-more-actions">
                         <Tooltip content={t("source-control.action.more")}><summary
                           aria-label={t("source-control.action.more")}
-                                                                           >
+                        >
                           <MoreHorizontal size={15} aria-hidden="true" />
                         </summary></Tooltip>
                         <div className="desktop-git-more-actions-menu">

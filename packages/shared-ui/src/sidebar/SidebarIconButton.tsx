@@ -24,7 +24,7 @@ export const SidebarIconButton = forwardRef<HTMLButtonElement, SidebarIconButton
       type={type}
       aria-label={label}
       {...props}
-                               >
+    >
       {icon}
     </button></Tooltip>
   );

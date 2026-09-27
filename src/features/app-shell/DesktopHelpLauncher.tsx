@@ -318,7 +318,7 @@ export function DesktopHelpLauncher(overlayTheme: DesktopHelpLauncherProps) {
                               setAttachmentError("");
                               setAttachmentState("idle");
                             }}
-                                                                                  >
+                          >
                             <img src={screenshot.previewUrl} alt="" />
                             <span aria-hidden="true">
                               <Trash2 size={12} strokeWidth={1.9} />
@@ -335,7 +335,7 @@ export function DesktopHelpLauncher(overlayTheme: DesktopHelpLauncherProps) {
                               || submissionState === "sent"
                             }
                             onClick={() => fileInputRef.current?.click()}
-                                                                                  >
+                          >
                             {attachmentState === "processing" ? (
                               <LoaderCircle
                                 className="desktop-feedback-spinner"
@@ -353,7 +353,7 @@ export function DesktopHelpLauncher(overlayTheme: DesktopHelpLauncherProps) {
                             className="desktop-feedback-attachment-error"
                             role="img"
                             aria-label={attachmentError}
-                                                             >
+                          >
                             <CircleAlert size={14} strokeWidth={1.8} aria-hidden="true" />
                           </span></Tooltip>
                         ) : null}
@@ -400,7 +400,7 @@ export function DesktopHelpLauncher(overlayTheme: DesktopHelpLauncherProps) {
                     aria-label={sendLabel}
                     data-state={submissionState}
                     disabled={!canSend}
-                                               >
+                  >
                     {submissionState === "sending" ? (
                       <LoaderCircle
                         className="desktop-feedback-spinner"
@@ -429,7 +429,7 @@ export function DesktopHelpLauncher(overlayTheme: DesktopHelpLauncherProps) {
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={handleLauncherClick}
-                               >
+      >
         <span className="desktop-help-launcher-icon-slot" aria-hidden="true">
           <FeedbackHelpIcon />
         </span>

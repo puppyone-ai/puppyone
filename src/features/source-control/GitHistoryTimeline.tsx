@@ -212,7 +212,7 @@ function GitHistoryFilePreview({
     <Tooltip content={`${statusLabel}: ${displayPath}`}><span
       className="desktop-history-row-file"
       data-status={change.status}
-                                                        >
+    >
       <span className="desktop-history-row-file-icon" aria-hidden="true">
         <FileGlyphIcon name={change.path} size={14} theme={fileIconTheme} />
       </span>

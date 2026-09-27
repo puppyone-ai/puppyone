@@ -41,7 +41,7 @@ export function DesktopBuildVersionSettingsRow() {
           type="button"
           aria-label={t(copied ? "shell.build.copy.copied" : "shell.build.copy.action")}
           onClick={() => void copyVersionInformation()}
-                                                                                             >
+        >
           {copied ? <Check size={13} /> : <Copy size={13} />}
         </button></Tooltip>
       </div>

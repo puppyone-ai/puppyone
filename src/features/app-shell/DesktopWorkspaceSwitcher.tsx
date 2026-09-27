@@ -82,7 +82,7 @@ export function DesktopWorkspaceSwitcher({
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={onToggle}
-                                                 >
+      >
         <ProjectContextAssetMark
           className="desktop-titlebar-workspace-mark"
           kind={workspaceContextAssetKind}
@@ -214,7 +214,7 @@ function DesktopProjectRow({
             <Tooltip content={folder.workspace.path}><bdi
               className="desktop-menu-item-detail"
               dir="ltr"
-                                                     >
+            >
               {detail}
             </bdi></Tooltip>
           )}

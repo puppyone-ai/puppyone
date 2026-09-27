@@ -131,7 +131,7 @@ export function OnboardingImportDialog({
                 disabled={busy}
                 aria-label={t("onboarding.entry.import.back")}
                 onClick={() => setSource(null)}
-                                                                   >
+              >
                 <ArrowLeft size={16} strokeWidth={1.8} aria-hidden="true" />
               </button></Tooltip>
             )}
@@ -255,7 +255,7 @@ function ImportSourceRow({
         data-desktop-dialog-initial-focus={initialFocus ? "true" : undefined}
         disabled={!operational}
         onClick={() => onSelect(source)}
-                                                                     >
+      >
         <span className="onboarding-import-source-icon" aria-hidden="true">{icon}</span>
         <span className="onboarding-import-source-label">{title}</span>
         {!operational && <span className="onboarding-import-source-status">{unavailableLabel}</span>}

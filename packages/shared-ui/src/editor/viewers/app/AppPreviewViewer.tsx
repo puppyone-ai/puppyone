@@ -265,7 +265,7 @@ function ToolbarButton({
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-                             >
+    >
       {children}
     </button></Tooltip>
   );

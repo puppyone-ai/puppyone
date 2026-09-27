@@ -150,7 +150,7 @@ function LocalAssetCard({
         aria-busy={opening || undefined}
         aria-label={t("onboarding.projects.open", { project: bidiIsolate(name) })}
         onClick={onOpen}
-                                        >
+      >
         <span className="asset-library-card-cover" data-signature="0" aria-hidden="true"><span className="asset-library-card-monogram">{name.slice(0, 2).toUpperCase()}</span></span>
         <span className="asset-library-card-body">
           <bdi className="asset-library-card-title">{name}</bdi>

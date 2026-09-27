@@ -106,7 +106,7 @@ export const TerminalSessionTab = memo(function TerminalSessionTab({
         }}
         onPointerCancel={tabMove.cancel}
         onLostPointerCapture={tabMove.lostCapture}
-                                                      >
+      >
         <TerminalSessionHeaderStatus
           className="desktop-terminal-tab-status"
           runtime={runtime}

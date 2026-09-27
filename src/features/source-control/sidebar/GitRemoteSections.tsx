@@ -38,7 +38,7 @@ export function GitRemotePrompt({
         aria-label={t("source-control.backup.dismissAriaLabel")}
         disabled={cloudBackupLoading}
         onClick={onDismiss}
-                                                            >
+      >
         <X size={13} />
       </button></Tooltip>
       <button

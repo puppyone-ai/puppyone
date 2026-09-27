@@ -311,7 +311,7 @@ export function DesktopCloudShell({
                     type="button"
                     aria-label={t("shared-ui.explorer.expandSidebar")}
                     onClick={() => onLeftSidebarExpand()}
-                                                                           >
+                  >
                     <PanelLeft size={15} strokeWidth={1.8} aria-hidden="true" />
                   </button></Tooltip>
                 )}

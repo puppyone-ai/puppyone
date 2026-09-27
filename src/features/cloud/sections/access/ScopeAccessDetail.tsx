@@ -205,7 +205,7 @@ export function DesktopCloudScopeAccessDetail({
             aria-pressed={settingsOpen}
             aria-label={t(settingsOpen ? "cloud.scope.closeSettings" : "cloud.scope.openSettings")}
             onClick={() => setSettingsOpen((open) => !open)}
-                                                                                                                        >
+          >
             <Settings size={13} />
           </button></Tooltip>}
         </header>

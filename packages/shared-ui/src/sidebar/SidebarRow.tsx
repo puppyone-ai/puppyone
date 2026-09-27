@@ -26,7 +26,7 @@ export const SidebarRow = forwardRef<HTMLButtonElement, SidebarRowProps>(functio
       data-active={active || undefined}
       aria-current={ariaCurrent ?? (active ? "page" : undefined)}
       {...props}
-                               >
+    >
       {icon != null && <span className="po-sidebar-row__icon" aria-hidden="true">{icon}</span>}
       <span className="po-sidebar-row__label">{label}</span>
       {meta != null && <span className="po-sidebar-row__meta">{meta}</span>}

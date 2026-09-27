@@ -103,7 +103,7 @@ export function AgentConversationHistory({
           data-po-interaction="navigation"
           aria-label={t("agent.history.back")}
           onClick={onBack}
-                                                   >
+        >
           <ArrowLeft size={15} strokeWidth={1.7} aria-hidden="true" />
         </button></Tooltip>
         <div className="desktop-agent-history-search-slot">
@@ -115,7 +115,7 @@ export function AgentConversationHistory({
             aria-label={t("agent.history.search")}
             aria-expanded={searchOpen}
             onClick={() => setSearchOpen(true)}
-                                                       >
+          >
             <Search size={15} strokeWidth={1.7} aria-hidden="true" />
           </button></Tooltip>
           {searchOpen && <label className="desktop-agent-history-search">
@@ -136,7 +136,7 @@ export function AgentConversationHistory({
           aria-label={t("agent.history.refresh")}
           disabled={loading || refreshing || loadingMore}
           onClick={onRefresh}
-                                                      >
+        >
           <RefreshCw
             className={refreshing ? "is-spinning" : undefined}
             size={12}

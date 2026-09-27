@@ -59,7 +59,7 @@ export function GitChangesSidebar({
                 type="button"
                 aria-label={t("shared-ui.navigation.back")}
                 onClick={closeDetail}
-                                                                >
+              >
                 <ArrowLeft size={15} strokeWidth={1.8} aria-hidden="true" />
               </button></Tooltip>
               <WorkingFileActions
@@ -91,7 +91,7 @@ export function GitChangesSidebar({
                 type="button"
                 aria-label={t("source-control.history.title")}
                 onClick={onOpenHistory}
-                                                                   >
+              >
                 <History size={14} strokeWidth={1.8} aria-hidden="true" />
               </button></Tooltip>
             </header>

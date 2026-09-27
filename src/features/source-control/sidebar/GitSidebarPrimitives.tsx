@@ -108,7 +108,7 @@ export function GitOperationButton({
       aria-busy={loading || undefined}
       disabled={disabled}
       onClick={onClick}
-                             >
+    >
       {loading ? <SourceControlDots /> : renderGitActionIcon(icon)}
       <span className="desktop-git-operation-label">{loading ? loadingLabel : label}</span>
     </button></Tooltip>

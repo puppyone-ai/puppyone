@@ -56,7 +56,7 @@ function VisualAttachmentCard({ reference, previewUrl, onRemove }: {
       dir="auto"
       role="listitem"
       aria-label={[reference.displayName, ...details].join(": ")}
-                                                       >
+    >
       <span className="desktop-agent-visual-attachment-preview">
         {previewUrl
           ? <img src={previewUrl} alt="" draggable={false} />
@@ -77,7 +77,7 @@ function VisualAttachmentCard({ reference, previewUrl, onRemove }: {
           type="button"
           aria-label={t("agent.reference.remove", { name: bidiIsolate(reference.displayName) })}
           onClick={onRemove}
-                                                                                                     >
+        >
           <X size={12} aria-hidden="true" />
         </button></Tooltip>
       </span>

@@ -83,7 +83,7 @@ export function SubThemeSettingsSection({
               type="button"
               aria-label={t("settings.appearance.themes.openFolder")}
               onClick={() => void catalog.openDirectory()}
-                                                                          >
+            >
               <FolderOpen size={14} strokeWidth={1.8} aria-hidden="true" />
             </button></Tooltip>
             <Tooltip content={t("settings.appearance.themes.add")}><button
@@ -91,7 +91,7 @@ export function SubThemeSettingsSection({
               type="button"
               aria-label={t("settings.appearance.themes.add")}
               onClick={() => void onAddTheme()}
-                                                                   >
+            >
               <Plus size={14} strokeWidth={1.9} aria-hidden="true" />
             </button></Tooltip>
           </div>

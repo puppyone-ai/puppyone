@@ -362,7 +362,7 @@ export function CsvTableResizeControl({
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={(event) => finishPointerInteraction(event, false)}
-                                                           >
+        >
           <span
             className="csv-table-editor__resize-handle-visual"
             aria-hidden="true"

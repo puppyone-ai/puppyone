@@ -103,7 +103,7 @@ export function CloudRepositoryOverview({
                       type="button"
                       aria-label={t("cloud.route.settings.title")}
                       onClick={() => onSelectSection("settings")}
-                                                                       >
+                    >
                       <SettingsIcon size={13} />
                     </button></Tooltip>
                   )}
@@ -112,7 +112,7 @@ export function CloudRepositoryOverview({
                     type="button"
                     aria-label={t("cloud.common.refresh")}
                     onClick={() => void onRefresh()}
-                                                               >
+                  >
                     <RefreshCw size={13} className={loading ? "spin" : undefined} />
                   </button></Tooltip>
                 </div>
@@ -185,7 +185,7 @@ function CloudOverviewPathFact({
       aria-busy={loading}
       disabled={!value}
       onClick={() => void handleCopy()}
-                                          >
+    >
       <span className="desktop-cloud-overview-header-fact-label">{t("cloud.common.path")}</span>
       <strong>
         {loading ? (
@@ -271,7 +271,7 @@ function CloudOverviewStorageMeter({
     <Tooltip content={pending ? t("cloud.common.loading") : detail}><div
       className={`desktop-cloud-overview-project-storage${pending ? " is-loading" : ""}`}
       aria-busy={pending}
-                                                                    >
+    >
       <span className="desktop-cloud-overview-project-storage-track" {...progressProps}>
         {usage.percent !== null ? (
           <span style={{ width: `${usage.percent}%` }} />

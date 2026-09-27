@@ -97,7 +97,7 @@ export function WorkingFileActions({
           className="secondary-action desktop-working-file-open"
           disabled={disabled}
           onClick={() => onOpenFile(selection.path)}
-                                                                 >
+        >
           <FileText size={13} aria-hidden="true" />
           <span>{t("source-control.action.openFile")}</span>
         </button></Tooltip>

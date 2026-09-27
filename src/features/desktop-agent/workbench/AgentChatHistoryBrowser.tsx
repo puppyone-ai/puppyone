@@ -53,7 +53,7 @@ export function AgentChatHistoryBrowser({
               data-po-interaction="navigation"
               aria-label={t("agent.history.back")}
               onClick={onBack}
-                                                       >
+            >
               <ArrowLeft size={15} strokeWidth={1.7} aria-hidden="true" />
             </button></Tooltip>
             <span aria-hidden="true" />

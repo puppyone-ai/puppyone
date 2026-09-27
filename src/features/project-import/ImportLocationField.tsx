@@ -77,7 +77,7 @@ export function ImportLocationField({
           className={`onboarding-entry-location-path ${location ? "is-selected" : ""}`}
           dir="ltr"
           aria-live="polite"
-                                                       >
+        >
           {location?.path ?? t("onboarding.entry.import.saveToPicker")}
         </bdi></Tooltip>
         <span className="onboarding-entry-location-action">
