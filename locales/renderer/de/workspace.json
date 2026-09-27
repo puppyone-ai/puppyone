@@ -4,7 +4,6 @@
   "projectSessions.closing": "Projekt wird geschlossen…",
   "projectSessions.closeFailed": "Einige Projektaufgaben konnten nicht beendet werden.",
   "projectSessions.retryClose": "Schließen erneut versuchen",
-  "drag.exportHint": "In einen Ordner, ins Terminal, zum Agent oder in eine andere App ziehen.",
   "drag.exportFailed": "Der Vorgang konnte nicht abgeschlossen werden. Prüfe, ob Quelle und Ziel verfügbar sind und das Ziel diesen Vorgang unterstützt.",
   "restoring.ariaLabel": "Letztes Projekt wird geöffnet",
   "restoring.message": "Letztes Projekt wird geöffnet…",

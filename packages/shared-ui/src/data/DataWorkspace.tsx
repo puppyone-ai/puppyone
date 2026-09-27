@@ -209,7 +209,6 @@ export type DataWorkspaceProps = {
   resourceDragEntries?: import("./ExplorerTree").ExplorerTreeProps["resourceDragEntries"];
   onResolveFileDrop?: import("./ExplorerTree").ExplorerTreeProps["onResolveFileDrop"];
   onExportNodes?: import("./ExplorerTree").ExplorerTreeProps["onExportNodes"];
-  dragExportHint?: string;
   onCutNodes?: (nodes: DataNode[]) => void | Promise<void>;
   onPasteNodes?: (targetFolderPath: string | null) => void | Promise<void>;
   onDuplicateNodes?: (nodes: DataNode[]) => void | Promise<void>;
@@ -300,7 +299,6 @@ export function DataWorkspace({
   onExportNodes,
   resourceDragEntries,
   onResolveFileDrop,
-  dragExportHint,
   onCutNodes,
   onPasteNodes,
   onDuplicateNodes,
@@ -1363,7 +1361,6 @@ export function DataWorkspace({
                       onExportNodes={onExportNodes}
                       resourceDragEntries={resourceDragEntries}
                       onResolveFileDrop={onResolveFileDrop}
-                      dragExportHint={dragExportHint}
                       activePath={resolvedActivePath}
                       selectedPaths={selectedNodePaths}
                       cutPaths={explorerCutPaths}

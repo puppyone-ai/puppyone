@@ -4,7 +4,6 @@
   "projectSessions.closing": "Cerrando este proyecto…",
   "projectSessions.closeFailed": "No se pudieron detener algunas tareas del proyecto.",
   "projectSessions.retryClose": "Reintentar cierre",
-  "drag.exportHint": "Arrastra a una carpeta, Terminal, Agent u otra aplicación.",
   "drag.exportFailed": "No se pudo completar la operación. Comprueba que el origen y el destino estén disponibles y que el destino admita esta operación.",
   "restoring.ariaLabel": "Abriendo el último proyecto",
   "restoring.message": "Abriendo el último proyecto…",

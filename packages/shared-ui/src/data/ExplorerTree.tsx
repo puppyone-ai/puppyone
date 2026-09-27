@@ -1,4 +1,3 @@
-import { Tooltip } from "../primitives/Tooltip";
 import type {
   CSSProperties,
   DragEvent as ReactDragEvent,
@@ -81,7 +80,6 @@ export type ExplorerTreeProps = {
   dragWorkspaceId?: string;
   /** Host-owned projection for native/text export; internal identity remains intact. */
   onExportNodes?: (nodes: readonly DataNode[], event: ReactDragEvent<HTMLElement>) => void;
-  dragExportHint?: string;
   /** Host-authenticated native source preview; never used as drop authority. */
   resourceDragEntries?: readonly ExplorerReferenceDragEntry[] | null;
   onResolveFileDrop?: (files: File[], targetFolderPath: string | null) => Promise<readonly ExplorerReferenceDragEntry[] | null>;
@@ -120,7 +118,6 @@ type TreeDropTarget = {
 
 type TreeDragController = {
   enabled: boolean;
-  exportHint?: string;
   onNodeDragStart: (event: ReactDragEvent<HTMLDivElement>, node: DataNode) => void;
   onNodeDragEnd: () => void;
   onRowDragOver: (
@@ -157,7 +154,6 @@ export function ExplorerTree({
   onExportNodes,
   resourceDragEntries,
   onResolveFileDrop,
-  dragExportHint,
   canMoveNodes = false,
   onSelectNode,
   onToggleFolder,
@@ -505,14 +501,12 @@ export function ExplorerTree({
   const dragController = useMemo<TreeDragController>(() => ({
     // Outbound copy/context drag is independent from in-tree move support.
     enabled: true,
-    exportHint: dragExportHint,
     onNodeDragStart: beginNodeDrag,
     onNodeDragEnd: clearDragState,
     onRowDragOver: dragOverRow,
     onRowDrop: dropOnRow,
   }), [
     beginNodeDrag,
-    dragExportHint,
     clearDragState,
     dragOverRow,
     dropOnRow,
@@ -873,9 +867,7 @@ const TreeNodeRow = memo(function TreeNodeRow({
   }, [isFolder, node.path]);
 
   return (
-    <Tooltip content={dragController.exportHint && !node.workspaceFolderRoot
-        ? `${node.name}\n${dragController.exportHint}`
-        : displayName.hidden || showExtensionDisambiguator ? node.name : undefined}><div
+    <div
       id={getExplorerRowDomId(row.index)}
       className={`tree-row ${isFolder ? "folder" : "file"} ${node.workspaceFolderRoot ? "workspace-folder-root" : ""} ${workspaceGroupHeader ? "workspace-group-header" : ""} ${interaction.selected ? "selected" : ""} ${interaction.active ? "active" : ""} ${interaction.cut ? "clipboard-cut" : ""} ${interaction.loading ? "loading" : ""} ${interaction.dragging ? "dragging" : ""} ${interaction.dropOver ? "drop-target" : ""} ${interaction.dropParentOver ? "drop-parent-target" : ""} ${interaction.dropInvalid ? "drop-invalid" : ""} ${node.status ? `status-${node.status}` : ""}`}
       role="treeitem"
@@ -974,7 +966,7 @@ const TreeNodeRow = memo(function TreeNodeRow({
           </span>
         )}
       </span>
-    </div></Tooltip>
+    </div>
   );
 }, areTreeNodeRowPropsEqual);
 

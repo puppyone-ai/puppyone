@@ -230,7 +230,6 @@ export function DesktopDataWorkspaceSurface({
         onExportNodes={exportNodes}
         resourceDragEntries={resourceDragPreview?.entries}
         onResolveFileDrop={resolveFileDrop}
-        dragExportHint={t("workspace.drag.exportHint")}
         key={explorerSession.key}
         workspace={workspace}
         labels={{ root: workspace.name }}

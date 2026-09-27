@@ -4,7 +4,6 @@ import { getMatchedExtension } from "../../core/fileFormats";
 export type ExplorerDisplayName = {
   primary: string;
   extension: string | null;
-  hidden: boolean;
 };
 
 export type ExplorerVisibleNodeRow = {
@@ -130,12 +129,12 @@ export function buildExplorerNodeIndex(nodes: readonly DataNode[]): ReadonlyMap<
 
 export function getExplorerDisplayName(node: DataNode): ExplorerDisplayName {
   if (node.type === "folder") {
-    return { primary: node.name, extension: null, hidden: false };
+    return { primary: node.name, extension: null };
   }
 
   const matchedExtension = getMatchedExtension(node.name);
   if (!matchedExtension) {
-    return { primary: node.name, extension: null, hidden: false };
+    return { primary: node.name, extension: null };
   }
 
   const suffix = `.${matchedExtension}`;
@@ -143,7 +142,6 @@ export function getExplorerDisplayName(node: DataNode): ExplorerDisplayName {
   return {
     primary: primary || node.name,
     extension: primary ? matchedExtension : null,
-    hidden: primary.length > 0,
   };
 }
 

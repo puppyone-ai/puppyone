@@ -227,7 +227,7 @@ describe("ExplorerTree interactive semantics", () => {
     expect(onSelectNode).not.toHaveBeenCalled();
   });
 
-  it("does not leave an internal move active when a host takes over native export", () => {
+  it("does not leave an internal move active or add a row tooltip when a host takes over native export", () => {
     const node: DataNode = { id: "readme", name: "README.md", path: "README.md", type: "markdown" };
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -235,8 +235,7 @@ describe("ExplorerTree interactive semantics", () => {
     const onExportNodes = vi.fn((_nodes, event) => event.preventDefault());
     act(() => renderWithTestLocalization(root,
       <ExplorerTree nodes={[node]} activePath={node.path} expandedPaths={new Set()} showRoot={false}
-        dragWorkspaceId="workspace" onSelectNode={vi.fn()} onExportNodes={onExportNodes}
-        dragExportHint="Option-drag to export files" />,
+        dragWorkspaceId="workspace" onSelectNode={vi.fn()} onExportNodes={onExportNodes} />,
     ));
     const row = container.querySelector<HTMLElement>("[role='treeitem']")!;
     const event = dragEvent("dragstart", fakeDataTransfer());
@@ -244,7 +243,7 @@ describe("ExplorerTree interactive semantics", () => {
     expect(onExportNodes).toHaveBeenCalledOnce();
     expect(event.defaultPrevented).toBe(true);
     expect(row.getAttribute("aria-grabbed")).not.toBe("true");
-    expect(row.dataset.tooltip).toContain("Option-drag");
+    expect(row.hasAttribute("data-tooltip")).toBe(false);
   });
 
   it("keeps outbound reference drag available when in-tree move is read-only", () => {

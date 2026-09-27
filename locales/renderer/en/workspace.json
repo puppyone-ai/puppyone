@@ -4,7 +4,6 @@
   "projectSessions.closing": "Closing this project…",
   "projectSessions.closeFailed": "Some project tasks could not be stopped.",
   "projectSessions.retryClose": "Retry closing",
-  "drag.exportHint": "Drag to a folder, Terminal, Agent, or another app.",
   "drag.exportFailed": "Unable to complete the drop. Check that the source and destination are still available and the destination supports this operation.",
   "restoring.ariaLabel": "Opening last project",
   "restoring.message": "Opening last project…",
