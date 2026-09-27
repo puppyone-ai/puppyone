@@ -9,11 +9,35 @@ describe("desktop OAuth loopback callback", () => {
     for (const copy of Object.values(PAGE_COPY)) {
       expect(Object.keys(copy)).toEqual(keys);
       expect(copy.returnButton.trim()).not.toBe("");
-      for (const key of keys.filter((value) => value !== "returnButton")) {
+      expect(copy.openAppManually.trim()).not.toBe("");
+      for (const key of keys.filter((value) => value !== "returnButton" && value !== "openAppManually")) {
         expect(copy[key]).toHaveLength(3);
         expect(copy[key].every((value) => typeof value === "string" && value.trim())).toBe(true);
       }
     }
+  });
+
+  it("offers a system launch fallback only for a known Desktop URL", async () => {
+    await expect(startLoopbackCallbackServer({
+      onCallback: async () => ({}),
+      isExpectedCallback: () => true,
+      returnAppUrl: "https://example.com/open",
+    })).rejects.toThrow("not a PuppyOne Desktop launch URL");
+
+    const server = await startLoopbackCallbackServer({
+      onCallback: async () => ({ status: "authenticated" }),
+      onReturnToApp: () => undefined,
+      isExpectedCallback: () => true,
+      returnAppUrl: "puppyone://open",
+    });
+    const response = await fetch(`${server.redirectUri}?state=state-1&code=code-1`);
+    const page = await response.text();
+    expect(page).toContain('href="puppyone://open"');
+    expect(page).toContain('class="return-fallback" hidden');
+    expect(page).toContain('form.addEventListener("submit"');
+    expect(response.headers.get("content-security-policy")).toMatch(/script-src 'nonce-[A-Za-z0-9+/=]+'/u);
+    expect(response.headers.get("content-security-policy")).toContain("connect-src 'self'");
+    await server.close();
   });
 
   it("binds a random 127.0.0.1 port and forwards only the exact callback path", async () => {

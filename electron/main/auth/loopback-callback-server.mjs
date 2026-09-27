@@ -2,6 +2,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { isKnownDesktopReturnUrl } from "../../../shared/desktop/return-to-app-link.mjs";
 import { PAGE_COPY, resolveCallbackLocale } from "./loopback-callback-copy.mjs";
 
 const CALLBACK_PATH = "/auth/callback";
@@ -25,6 +26,7 @@ export async function startLoopbackCallbackServer({
   onCallback,
   isExpectedCallback,
   onReturnToApp = null,
+  returnAppUrl = null,
   getLocale = null,
   host = "127.0.0.1",
   appPath = null,
@@ -35,6 +37,9 @@ export async function startLoopbackCallbackServer({
   }
   if (typeof isExpectedCallback !== "function") {
     throw new TypeError("Loopback callback isExpectedCallback is required.");
+  }
+  if (returnAppUrl !== null && !isKnownDesktopReturnUrl(returnAppUrl)) {
+    throw new TypeError("Loopback callback returnAppUrl is not a PuppyOne Desktop launch URL.");
   }
 
   let handled = false;
@@ -99,6 +104,7 @@ export async function startLoopbackCallbackServer({
         locale,
         geistFont,
         returnEnabled ? returnPath : null,
+        returnEnabled ? returnAppUrl : null,
       );
       if (!returnEnabled) void close().catch(() => undefined);
     } catch (error) {
@@ -163,10 +169,11 @@ function loadGeistFont(appPath, logger) {
   return null;
 }
 
-function respond(response, status, result, locale, geistFont, returnPath = null) {
+function respond(response, status, result, locale, geistFont, returnPath = null, returnAppUrl = null) {
   const success = result === "success";
   const copy = PAGE_COPY[locale];
   const [title, description, nextStep] = copy[result];
+  const scriptNonce = returnPath && returnAppUrl ? crypto.randomBytes(16).toString("base64") : null;
   const body = `<!doctype html>
 <html lang="${locale}">
 <head>
@@ -189,6 +196,8 @@ function respond(response, status, result, locale, geistFont, returnPath = null)
     .return-button { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 40px; padding: 8px 16px; border: 0; border-radius: 6px; background: var(--po-text); color: var(--po-text-inverse); font: inherit; font-size: 14px; font-weight: 600; line-height: 20px; cursor: pointer; }
     .return-button:hover { opacity: .9; }
     .return-button:focus-visible { outline: 3px solid var(--po-success); outline-offset: 3px; }
+    .return-fallback { margin: 12px 0 0; font-size: 12px; line-height: 18px; }
+    .return-fallback a { color: var(--po-text-muted); }
     .next-step { margin: ${returnPath ? "16px" : "24px"} 0 0; color: var(--po-text-subtle); font-size: 12px; line-height: 18px; }
     @media (prefers-color-scheme: dark) {
       :root { color-scheme: dark; --po-inset: #0d0d0d; --po-text: #fafafa; --po-text-inverse: #0a0a0a; --po-text-muted: #a1a1aa; --po-text-subtle: #71717a; --po-success: #34d399; --po-danger: #f87171; }
@@ -201,16 +210,36 @@ function respond(response, status, result, locale, geistFont, returnPath = null)
     <h1>${escapeHtml(title)}</h1>
     <p class="description">${escapeHtml(description)}</p>
     ${returnPath ? `<form class="return-form" method="post" action="${escapeHtml(returnPath)}" target="puppyone-return-frame"><button class="return-button" type="submit">${escapeHtml(copy.returnButton)}</button></form>` : ""}
+    ${scriptNonce ? `<p class="return-fallback" hidden><a href="${escapeHtml(returnAppUrl)}">${escapeHtml(copy.openAppManually)}</a></p>` : ""}
     <p class="next-step">${escapeHtml(nextStep)}</p>
   </main>
   ${returnPath ? `<iframe name="puppyone-return-frame" title="" hidden></iframe>` : ""}
+  ${scriptNonce ? `<script nonce="${scriptNonce}">
+    const form = document.querySelector(".return-form");
+    const fallback = document.querySelector(".return-fallback");
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 1200);
+      try {
+        const response = await fetch(form.action, { method: "POST", cache: "no-store", signal: controller.signal });
+        if (response.ok) return;
+      } catch {
+        // The Desktop listener has stopped; the system URL can restart the app.
+      } finally {
+        clearTimeout(timeout);
+      }
+      fallback.hidden = false;
+      fallback.querySelector("a").click();
+    });
+  </script>` : ""}
 </body>
 </html>`;
   response.writeHead(status, {
     "Content-Type": "text/html; charset=utf-8",
     "Content-Length": Buffer.byteLength(body),
     "Cache-Control": "no-store",
-    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; font-src data:; form-action 'self'; frame-src 'self'",
+    "Content-Security-Policy": `default-src 'none'; style-src 'unsafe-inline'; font-src data:; form-action 'self'; frame-src 'self'${scriptNonce ? `; script-src 'nonce-${scriptNonce}'; connect-src 'self'` : ""}`,
     "Referrer-Policy": "no-referrer",
     "X-Content-Type-Options": "nosniff",
     Connection: "close",

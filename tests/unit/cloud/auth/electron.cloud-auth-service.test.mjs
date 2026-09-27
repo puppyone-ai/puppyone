@@ -182,7 +182,7 @@ describe("main-owned Cloud Auth Broker", () => {
   });
 
   it("generates Desktop PKCE, binds the loopback redirect, exchanges the verifier once, and persists v2", async () => {
-    const fixture = createFixture({ credential: null });
+    const fixture = createFixture({ credential: null, returnAppUrl: "puppyone://open" });
     let onCallback = null;
     let isExpectedCallback = null;
     let onReturnToApp = null;
@@ -224,6 +224,9 @@ describe("main-owned Cloud Auth Broker", () => {
     });
 
     await fixture.service.startOAuth({ apiBase: API, provider: "github" });
+    expect(fixture.startCallbackServer).toHaveBeenCalledWith(expect.objectContaining({
+      returnAppUrl: "puppyone://open",
+    }));
     expect(fixture.openExternal).toHaveBeenCalledWith("https://app.puppyone.ai/login");
     expect(isExpectedCallback(
       "http://127.0.0.1:43123/auth/callback?state=oauth-state-1&code=exchange-code",
@@ -498,6 +501,7 @@ function createFixture({
   credential = createCredential(),
   fetchImpl = globalThis.fetch,
   localCloudWebUrl = "http://localhost:3000",
+  returnAppUrl = null,
   windowCount = 1,
 } = {}) {
   let storedCredential = credential;
@@ -532,6 +536,7 @@ function createFixture({
     credentialStore,
     fetchImpl,
     localCloudWebUrl,
+    returnAppUrl,
     externalNavigation: { open: openExternal },
     startCallbackServer,
     logger: { warn: vi.fn(), error: vi.fn() },

@@ -4,6 +4,7 @@
 export const PAGE_COPY = {
   en: {
     returnButton: "Return to PuppyOne Desktop",
+    openAppManually: "Desktop didn't open? Click here to launch it.",
     success: ["Signed in successfully", "PuppyOne Desktop is ready to use.", "You can close this browser tab."],
     unrecognized: ["Sign-in link not recognized", "This page is not part of an active PuppyOne Desktop sign-in.", "Return to the app and start sign-in again."],
     notReady: ["Sign-in is not ready", "PuppyOne Desktop is still preparing the sign-in request.", "Return to the app and try again."],
@@ -13,6 +14,7 @@ export const PAGE_COPY = {
   },
   es: {
     returnButton: "Volver a PuppyOne Desktop",
+    openAppManually: "¿No se abrió Desktop? Haz clic aquí para iniciarlo.",
     success: ["Sesión iniciada correctamente", "PuppyOne Desktop está listo para usarse.", "Puedes cerrar esta pestaña del navegador."],
     unrecognized: ["Enlace de inicio de sesión no reconocido", "Esta página no corresponde a un inicio de sesión activo de PuppyOne Desktop.", "Vuelve a la aplicación e inicia sesión de nuevo."],
     notReady: ["El inicio de sesión aún no está listo", "PuppyOne Desktop está preparando la solicitud de inicio de sesión.", "Vuelve a la aplicación e inténtalo de nuevo."],
@@ -22,6 +24,7 @@ export const PAGE_COPY = {
   },
   "pt-BR": {
     returnButton: "Voltar ao PuppyOne Desktop",
+    openAppManually: "O Desktop não abriu? Clique aqui para iniciá-lo.",
     success: ["Login realizado com sucesso", "O PuppyOne Desktop está pronto para uso.", "Você pode fechar esta aba do navegador."],
     unrecognized: ["Link de login não reconhecido", "Esta página não faz parte de um login ativo do PuppyOne Desktop.", "Volte ao aplicativo e inicie o login novamente."],
     notReady: ["O login ainda não está pronto", "O PuppyOne Desktop ainda está preparando a solicitação de login.", "Volte ao aplicativo e tente novamente."],
@@ -31,6 +34,7 @@ export const PAGE_COPY = {
   },
   fr: {
     returnButton: "Revenir à PuppyOne Desktop",
+    openAppManually: "Desktop ne s’est pas ouvert ? Cliquez ici pour le lancer.",
     success: ["Connexion réussie", "PuppyOne Desktop est prêt à être utilisé.", "Vous pouvez fermer cet onglet du navigateur."],
     unrecognized: ["Lien de connexion non reconnu", "Cette page ne correspond à aucune connexion active à PuppyOne Desktop.", "Retournez dans l’application et recommencez la connexion."],
     notReady: ["La connexion n’est pas encore prête", "PuppyOne Desktop prépare encore la demande de connexion.", "Retournez dans l’application et réessayez."],
@@ -40,6 +44,7 @@ export const PAGE_COPY = {
   },
   de: {
     returnButton: "Zurück zu PuppyOne Desktop",
+    openAppManually: "Desktop wurde nicht geöffnet? Klicke hier, um es zu starten.",
     success: ["Anmeldung erfolgreich", "PuppyOne Desktop ist einsatzbereit.", "Du kannst diesen Browser-Tab schließen."],
     unrecognized: ["Anmeldelink nicht erkannt", "Diese Seite gehört zu keiner aktiven Anmeldung bei PuppyOne Desktop.", "Kehre zur App zurück und starte die Anmeldung erneut."],
     notReady: ["Anmeldung noch nicht bereit", "PuppyOne Desktop bereitet die Anmeldung noch vor.", "Kehre zur App zurück und versuche es erneut."],
@@ -49,6 +54,7 @@ export const PAGE_COPY = {
   },
   ja: {
     returnButton: "PuppyOne Desktop に戻る",
+    openAppManually: "Desktop が開かない場合は、ここをクリックして起動してください。",
     success: ["ログインが完了しました", "PuppyOne Desktop を使用できます。", "このブラウザーのタブは閉じてもかまいません。"],
     unrecognized: ["ログインリンクを確認できません", "このページは有効な PuppyOne Desktop のログイン操作に含まれていません。", "アプリに戻ってログインをやり直してください。"],
     notReady: ["ログインの準備ができていません", "PuppyOne Desktop はログインの準備中です。", "アプリに戻ってもう一度お試しください。"],
@@ -58,6 +64,7 @@ export const PAGE_COPY = {
   },
   ko: {
     returnButton: "PuppyOne Desktop으로 돌아가기",
+    openAppManually: "Desktop이 열리지 않았나요? 여기를 클릭해 실행하세요.",
     success: ["로그인 완료", "PuppyOne Desktop을 사용할 준비가 되었습니다.", "이 브라우저 탭을 닫아도 됩니다."],
     unrecognized: ["로그인 링크를 확인할 수 없습니다", "이 페이지는 진행 중인 PuppyOne Desktop 로그인 요청에 속하지 않습니다.", "앱으로 돌아가 로그인을 다시 시작하세요."],
     notReady: ["로그인 준비가 끝나지 않았습니다", "PuppyOne Desktop이 로그인 요청을 준비하고 있습니다.", "앱으로 돌아가 다시 시도하세요."],
@@ -67,6 +74,7 @@ export const PAGE_COPY = {
   },
   "zh-Hans": {
     returnButton: "返回 PuppyOne Desktop",
+    openAppManually: "Desktop 没有打开？点击这里启动。",
     success: ["登录成功", "PuppyOne Desktop 已准备就绪。", "你可以关闭这个浏览器标签页。"],
     unrecognized: ["无法识别登录链接", "此页面不属于当前的 PuppyOne Desktop 登录请求。", "请返回应用重新发起登录。"],
     notReady: ["登录尚未准备好", "PuppyOne Desktop 正在准备登录请求。", "请返回应用重试。"],

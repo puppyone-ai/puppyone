@@ -7,6 +7,7 @@ import { registerLocalAgentActivationIpcHandlers } from "./main/ipc/local-agent-
 import { createDatabasePreviewService, registerDatabasePreviewIpc } from "./main/database-preview/service.mjs";
 import { app, BrowserWindow, dialog, ipcMain, Menu, MessageChannelMain, nativeImage, nativeTheme, net, powerMonitor, protocol, safeStorage, session as electronSession, shell, utilityProcess, webContents, WebContentsView } from "electron";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { getDesktopReturnScheme, getDesktopReturnUrl, isDesktopReturnUrl } from "../shared/desktop/return-to-app-link.mjs";
 import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -281,6 +282,7 @@ const windowStateById = new Map();
 const workspaceWindowByPath = new Map();
 const localFileCapabilities = createLocalFileCapabilityStore();
 let lastFocusedWindowId = null;
+let initialWindowReady = false;
 const trustedIpcMain = createTrustedIpcMain({
   ipcMain,
   applicationUrl: rendererApplicationUrl,
@@ -502,6 +504,7 @@ const cloudAuthService = createCloudAuthService({
   secureStorage: safeStorage,
   externalNavigation,
   getLocale: () => localeService.getSnapshot().locale,
+  returnAppUrl: app.isPackaged ? getDesktopReturnUrl(desktopBuildInfo.channel) : null,
   localCloudWebUrl: desktopCloudConfiguration?.webOrigin,
   getWindows: () => BrowserWindow.getAllWindows(),
   revealWindow: revealLastFocusedWindow,
@@ -835,7 +838,22 @@ app.on("second-instance", (_event, argv, workingDirectory, launchIntent) => {
   });
 });
 
+app.on("open-url", (event, url) => {
+  if (!isDesktopReturnUrl(url, desktopBuildInfo.channel)) return;
+  event.preventDefault();
+  if (initialWindowReady) revealLastFocusedWindow();
+  // A cold launch already creates the initial window during app.whenReady().
+});
+
 app.whenReady().then(async () => {
+  if (app.isPackaged && desktopPlatformHost.platform !== "linux") {
+    const returnScheme = getDesktopReturnScheme(desktopBuildInfo.channel);
+    try {
+      if (!app.isDefaultProtocolClient(returnScheme)) app.setAsDefaultProtocolClient(returnScheme);
+    } catch (error) {
+      console.warn("Unable to register the PuppyOne Desktop return link:", error);
+    }
+  }
   installEmbeddedContentSessionSecurity(electronSession.defaultSession, { applicationUrl: rendererApplicationUrl });
   await localeService.initialize();
   const updatePreferenceStore = createDesktopUpdatePreferenceStore({
@@ -936,6 +954,7 @@ app.whenReady().then(async () => {
     initialWorkspaceId: initialWorkspaceComposition.workspaceId,
     initialWorkspacePaths: initialWorkspaceComposition.paths,
   });
+  initialWindowReady = true;
 
   app.on("activate", () => {
     void localeService.refreshSystemLanguages().catch((error) => {

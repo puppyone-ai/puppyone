@@ -176,6 +176,7 @@ describe("desktop build identity", () => {
       executableName: "PuppyOne Internal",
       extraMetadata: { version: "1.4.0-internal.42" },
       buildVersion: "42",
+      protocols: [{ name: "Open PuppyOne Internal", schemes: ["puppyone-internal"], role: "None" }],
       publish: [{
         channel: "internal",
         url: DESKTOP_INTERNAL_UPDATE_FEED_URL,
@@ -232,6 +233,20 @@ describe("desktop build identity", () => {
       },
     ]));
     expect(stable.mac.icon).toBe("generated/app-icons/stable/icon.icns");
+    expect(development.protocols[0].schemes).toEqual(["puppyone-development"]);
+    expect(stable.protocols[0].schemes).toEqual(["puppyone"]);
+    const linux = createDesktopElectronBuilderConfig({
+      buildInfo: resolveDesktopBuildIdentity({
+        baseVersion: "1.4.0",
+        buildNumber: 43,
+        builtAt: "2026-07-26T10:00:00.000Z",
+        channel: "stable",
+        commitSha,
+      }),
+      packageMetadata: { build: {} },
+      target: { platform: "linux", arch: "x64" },
+    });
+    expect(linux.linux.mimeTypes).toContain("x-scheme-handler/puppyone");
     expect(stable.extraResources).toEqual(expect.arrayContaining([
       {
         from: "assets/brand/puppy/puppy-app-image.png",
