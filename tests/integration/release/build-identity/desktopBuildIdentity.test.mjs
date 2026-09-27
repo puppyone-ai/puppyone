@@ -176,7 +176,7 @@ describe("desktop build identity", () => {
       executableName: "PuppyOne Internal",
       extraMetadata: { version: "1.4.0-internal.42" },
       buildVersion: "42",
-      protocols: [{ name: "Open PuppyOne Internal", schemes: ["puppyone-internal"], role: "None" }],
+      protocols: [{ name: "Open PuppyOne Internal", schemes: ["puppyone-internal"], role: "Viewer" }],
       publish: [{
         channel: "internal",
         url: DESKTOP_INTERNAL_UPDATE_FEED_URL,

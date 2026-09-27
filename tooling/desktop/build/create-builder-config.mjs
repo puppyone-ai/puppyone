@@ -57,7 +57,7 @@ export function createDesktopElectronBuilderConfig({
     protocols: [{
       name: `Open ${application.applicationName}`,
       schemes: [getDesktopReturnScheme(release.channel)],
-      role: "None",
+      role: "Viewer",
     }],
     extraMetadata: {
       ...(baseBuild.extraMetadata ?? {}),
