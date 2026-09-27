@@ -1,4 +1,6 @@
 .desktop-tooltip {
+  --desktop-tooltip-bg: color-mix(in srgb, var(--po-menu-bg) 90%, var(--po-text) 10%);
+
   position: fixed;
   z-index: 2000;
   display: inline-flex;
@@ -11,6 +13,7 @@
   border: 1px solid var(--po-menu-border);
   border-radius: 9px;
   background: var(--po-menu-bg);
+  background: var(--desktop-tooltip-bg);
   background-clip: padding-box;
   box-shadow: var(--po-menu-shadow);
   color: var(--po-text);
@@ -31,7 +34,7 @@
   flex: 0 0 auto;
   padding: 1px 6px;
   border-radius: 6px;
-  background: color-mix(in srgb, var(--po-menu-bg) 88%, var(--po-text) 12%);
+  background: color-mix(in srgb, var(--desktop-tooltip-bg) 88%, var(--po-text) 12%);
   color: color-mix(in srgb, var(--po-text) 82%, var(--po-text-muted) 18%);
   font-family: inherit;
   font-size: var(--po-type-ui-micro, 11px);
