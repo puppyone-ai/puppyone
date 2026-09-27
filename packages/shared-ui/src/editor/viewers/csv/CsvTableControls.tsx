@@ -578,7 +578,8 @@ export function CsvTableControls({
           tabIndex={-1}
           aria-expanded="false"
           aria-haspopup="menu"
-          title={t("editor.table.columnHandleHint")}
+          aria-label={t("editor.table.columnHandleHint")}
+          data-tooltip={t("editor.table.columnHandleHint")}
           onPointerDown={(event) => startDrag(event, "column")}
           onContextMenu={(event) => openContextMenu(event, "column")}
           onMouseDown={(event) => {
@@ -599,7 +600,8 @@ export function CsvTableControls({
           tabIndex={-1}
           aria-expanded="false"
           aria-haspopup="menu"
-          title={t("editor.table.rowHandleHint")}
+          aria-label={t("editor.table.rowHandleHint")}
+          data-tooltip={t("editor.table.rowHandleHint")}
           onPointerDown={(event) => startDrag(event, "row")}
           onContextMenu={(event) => openContextMenu(event, "row")}
           onMouseDown={(event) => {

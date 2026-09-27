@@ -171,7 +171,7 @@ export function OnboardingProjectEntryDialog({
                 <bdi
                   className={`onboarding-entry-location-path ${location ? "is-selected" : ""}`}
                   dir="ltr"
-                  title={location?.path}
+                  data-tooltip={location?.path}
                   aria-live="polite"
                 >
                   {location?.path ?? t("onboarding.entry.create.locationPlaceholder")}

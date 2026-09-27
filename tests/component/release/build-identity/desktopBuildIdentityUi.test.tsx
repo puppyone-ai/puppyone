@@ -82,7 +82,7 @@ describe("Desktop Build Identity UI", () => {
       .toContain("VersionInternal · 1.4.0-internal.72");
     expect(container.querySelector(".desktop-build-version-text")?.tagName).toBe("SPAN");
     expect(container.querySelector('[aria-label="Copy version information"]')).not.toBeNull();
-    expect(container.querySelector('[data-build-channel="internal"]')?.getAttribute("title"))
+    expect(container.querySelector('[data-build-channel="internal"]')?.getAttribute("data-tooltip"))
       .toContain("commit eeeeeeee");
   });
 

@@ -45,11 +45,11 @@ export function HtmlFloatingToolbar({ selection, viewport, text, image, alt, dis
   }, [viewport, palette]);
   const style = (property: HtmlStyleProperty, value: string) => apply({ kind: "style", property, value });
   const button = (label: string, icon: ReactNode, action: () => void, pressed?: boolean) => <button type="button"
-    title={label} aria-label={label} disabled={disabled} aria-pressed={pressed} onClick={action}>{icon}</button>;
+    data-tooltip={label} aria-label={label} disabled={disabled} aria-pressed={pressed} onClick={action}>{icon}</button>;
   const colorButton = (property: "color" | "background-color", value: string) => {
     const textColor = property === "color";
     return <button type="button" className="html-floating-toolbar__color-control"
-      title={t(`editor.html.style.${property}`)} aria-label={t(`editor.html.style.${property}`)} disabled={disabled}
+      data-tooltip={t(`editor.html.style.${property}`)} aria-label={t(`editor.html.style.${property}`)} disabled={disabled}
       data-palette={property} data-color-role={textColor ? "text" : "background"}
       aria-expanded={palette === property} aria-haspopup="dialog"
       onClick={() => setPalette(palette === property ? null : property)}>
@@ -75,7 +75,7 @@ export function HtmlFloatingToolbar({ selection, viewport, text, image, alt, dis
     }}>
     <div className="html-floating-toolbar__row" data-po-scrollbar="hidden" role="toolbar" aria-label={t("editor.html.formatText")}>
       {text && <>
-        <select aria-label={t("editor.html.style.font-size")} title={t("editor.html.style.font-size")}
+        <select aria-label={t("editor.html.style.font-size")} data-tooltip={t("editor.html.style.font-size")}
           value={String(styles.fontSize ?? "16px")} disabled={disabled}
           onPointerDown={() => onNativeControl(true)} onBlur={() => onNativeControl(false)}
           onKeyDown={(event) => { if (event.key === "Escape" || event.key === "Enter") onNativeControl(false); }}
@@ -91,14 +91,14 @@ export function HtmlFloatingToolbar({ selection, viewport, text, image, alt, dis
       {text && <>
         <span className="html-floating-toolbar__divider" />
         {(["left", "center", "right"] as const).map((align) => <button key={align} type="button" disabled={disabled}
-          title={t(`editor.html.align.${align}`)} aria-label={t(`editor.html.align.${align}`)}
+          data-tooltip={t(`editor.html.align.${align}`)} aria-label={t(`editor.html.align.${align}`)}
           aria-pressed={styles.textAlign === align || styles.textAlign === "start" && align === "left"}
           onClick={() => style("text-align", align)}>
           {align === "left" ? <AlignLeft size={16} /> : align === "center" ? <AlignCenter size={16} /> : <AlignRight size={16} />}
         </button>)}
       </>}
       {image && <>
-        <label className="html-floating-toolbar__image" title={t("editor.html.replaceImage")} aria-disabled={disabled || !canImport}>
+        <label className="html-floating-toolbar__image" data-tooltip={t("editor.html.replaceImage")} aria-disabled={disabled || !canImport}>
           <ImagePlus size={16} /><span>{t("editor.html.replaceImage")}</span>
           <input type="file" aria-label={t("editor.html.replaceImage")} accept="image/png,image/jpeg,image/gif,image/webp"
             disabled={disabled || !canImport} onClick={() => onNativeControl(true)} onChange={(event) => {
@@ -126,10 +126,10 @@ export function HtmlFloatingToolbar({ selection, viewport, text, image, alt, dis
         } }} /> : <>
         <div className="html-floating-toolbar__swatches">
           {COLORS.map((color) => <button key={color} type="button" className="html-floating-toolbar__swatch"
-            aria-label={t("editor.html.chooseColor", { color })} title={color} disabled={disabled} style={{ background: color }}
+            aria-label={t("editor.html.chooseColor", { color })} data-tooltip={color} disabled={disabled} style={{ background: color }}
             onClick={() => { style(palette, color); setPalette(null); }} />)}
           <button type="button" className="html-floating-toolbar__reset" disabled={disabled}
-            title={t("editor.html.removeStyle")} aria-label={t("editor.html.removeStyle")}
+            data-tooltip={t("editor.html.removeStyle")} aria-label={t("editor.html.removeStyle")}
             onClick={() => { style(palette, ""); setPalette(null); }}><RotateCcw size={13} /></button>
         </div>
       </>}

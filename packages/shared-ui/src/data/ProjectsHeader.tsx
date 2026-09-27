@@ -30,7 +30,7 @@ export function ProjectsHeader({ pathSegments, onBack, actionSlot }: ProjectsHea
                 event.currentTarget.style.background = "transparent";
                 event.currentTarget.style.color = "var(--po-text-subtle)";
               }}
-              title={t("shared-ui.navigation.back")}
+              data-tooltip={t("shared-ui.navigation.back")}
               aria-label={t("shared-ui.navigation.back")}
               type="button"
             >
@@ -53,7 +53,7 @@ export function ProjectsHeader({ pathSegments, onBack, actionSlot }: ProjectsHea
                     ...pathStyle,
                     color: isLast ? "var(--po-text)" : "var(--po-text-muted)",
                   }}
-                  title={typeof segment.label === "string" ? segment.label : undefined}
+                  data-tooltip={typeof segment.label === "string" ? segment.label : undefined}
                 >
                   {segment.label}
                 </span>

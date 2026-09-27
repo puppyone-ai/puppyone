@@ -103,7 +103,7 @@ export function GitOperationButton({
     <button
       className={buttonClassName}
       type="button"
-      title={title}
+      data-tooltip={title}
       aria-label={loading ? loadingLabel : label}
       aria-busy={loading || undefined}
       disabled={disabled}

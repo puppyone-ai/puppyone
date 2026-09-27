@@ -129,7 +129,7 @@ export function OnboardingImportDialog({
                 type="button"
                 disabled={busy}
                 aria-label={t("onboarding.entry.import.back")}
-                title={t("onboarding.entry.import.back")}
+                data-tooltip={t("onboarding.entry.import.back")}
                 onClick={() => setSource(null)}
               >
                 <ArrowLeft size={16} strokeWidth={1.8} aria-hidden="true" />
@@ -254,7 +254,7 @@ function ImportSourceRow({
         data-import-mode={mode}
         data-desktop-dialog-initial-focus={initialFocus ? "true" : undefined}
         disabled={!operational}
-        title={!operational ? unavailableLabel : undefined}
+        data-tooltip={!operational ? unavailableLabel : undefined}
         onClick={() => onSelect(source)}
       >
         <span className="onboarding-import-source-icon" aria-hidden="true">{icon}</span>

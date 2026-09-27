@@ -263,7 +263,7 @@ function PaneMenuSegmentedControl({
             role="menuitemradio"
             aria-label={option.label}
             aria-checked={selected}
-            title={option.label}
+            data-tooltip={option.label}
             onClick={() => item.setValue(option.id)}
             onKeyDown={(event) => {
               if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;

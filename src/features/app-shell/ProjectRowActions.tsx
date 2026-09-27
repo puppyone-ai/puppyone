@@ -136,7 +136,7 @@ export function ProjectRowActions({
         })}
         aria-haspopup="menu"
         aria-expanded={surface === "menu"}
-        title={t("shell.workspaceSwitcher.projectActions")}
+        data-tooltip={t("shell.workspaceSwitcher.projectActions")}
         onPointerDown={(event) => event.stopPropagation()}
         onClick={(event) => {
           event.preventDefault();

@@ -75,7 +75,7 @@ describe("Desktop Agent renderer surfaces", () => {
     const composer = container.querySelector(".desktop-agent-composer") as HTMLElement;
     expect(container.querySelector('button[aria-label="Agent backend"]')).toBeNull();
     expect(runtimeTrigger.classList.contains("is-compact")).toBe(false);
-    expect(runtimeTrigger.title).toContain("Switching Agent starts a new chat");
+    expect(runtimeTrigger.dataset.tooltip).toContain("Switching Agent starts a new chat");
     expect(runtimeTrigger.querySelector(".desktop-agent-brand-mark")).not.toBeNull();
     expect(runtimeTrigger.textContent).toContain("Codex");
     expect(composer.querySelector('button[aria-label="Coding Agent"]')).toBeNull();
@@ -315,7 +315,7 @@ describe("Desktop Agent renderer surfaces", () => {
     const cursor = Array.from(popup.querySelectorAll('[role="option"]')).find((option) => option.textContent?.includes("Cursor Agent")) as HTMLButtonElement;
     expect(cursor.getAttribute("aria-disabled")).toBeNull();
     expect(cursor.querySelector(".desktop-agent-picker-warning")).not.toBeNull();
-    expect(cursor.querySelector(".desktop-agent-picker-warning")?.getAttribute("title")).toContain("Native protocol unavailable");
+    expect(cursor.querySelector(".desktop-agent-picker-warning")?.getAttribute("data-tooltip")).toContain("Native protocol unavailable");
     expect(popup.textContent).not.toContain("Native protocol unavailable");
     act(() => cursor.click());
     expect(onSelectRuntime).toHaveBeenCalledWith("cursor");

@@ -36,7 +36,7 @@ export function AgentToolTextEvidence({ text, className = "desktop-agent-tool-ou
           type="button"
           className="desktop-agent-tool-copy"
           aria-label={copied ? t("agent.activity.outputCopied") : t("agent.activity.copyFullOutput")}
-          title={copied ? t("agent.activity.outputCopied") : t("agent.activity.copyFullOutput")}
+          data-tooltip={copied ? t("agent.activity.outputCopied") : t("agent.activity.copyFullOutput")}
           onClick={async () => {
             if (!navigator.clipboard) return;
             try {

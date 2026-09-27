@@ -163,7 +163,7 @@ describe("Desktop Agent renderer surfaces", () => {
     expect(row.querySelector(".desktop-agent-tool-diff-stats")?.textContent).toBe("+2−1");
     expect(container.textContent).toContain("+2");
     expect(container.querySelector('button[aria-label="Review file changes"]')).toBeNull();
-    act(() => (container.querySelector('.desktop-agent-tool-file-path button[title="src/app.ts"]') as HTMLButtonElement).click());
+    act(() => (container.querySelector('.desktop-agent-tool-file-path button[data-tooltip="src/app.ts"]') as HTMLButtonElement).click());
     expect(onOpenFile).toHaveBeenCalledWith("src/app.ts");
   });
 

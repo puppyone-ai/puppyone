@@ -55,7 +55,7 @@ export function AgentActivityShell({
           className={`desktop-agent-tool-row${metadata ? " has-metadata" : ""}`}
           disabled={!hasDetail}
           aria-label={compactLabel}
-          title={compactLabel}
+          data-tooltip={compactLabel}
           aria-expanded={hasDetail ? expanded : undefined}
           onClick={toggleExpanded}
         >

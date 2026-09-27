@@ -86,7 +86,7 @@ export function AuxiliaryWorkbenchPanel({ store, contributions, active, renderLa
         {workbench.closeFailures.length > 0 && onRetryProjectClose && <button type="button" className="desktop-terminal-workbench-create-retry" onClick={onRetryProjectClose}>{t("workspace.projectSessions.retryClose")}</button>}
       </div>}
       {workbench.creationFailure && <AuxiliaryWorkbenchCreationFailure failure={workbench.creationFailure} onDismiss={store.dismissCreationFailure} onRetry={() => { void store.retryCreation(); }} />}
-      {closeCoordinator.failure && <div className="desktop-terminal-workbench-create-failure" role="alert" title={closeCoordinator.failure.detail} data-native-surface-occluder="true">
+      {closeCoordinator.failure && <div className="desktop-terminal-workbench-create-failure" role="alert" data-tooltip={closeCoordinator.failure.detail} data-native-surface-occluder="true">
         <span>{t("workspace.projectSessions.sessionCloseFailed")}</span>
         <button type="button" className="desktop-terminal-workbench-create-retry" onClick={() => { void closeCoordinator.requestClose(closeCoordinator.failure!.itemId); }}>{t("common.action.retry")}</button>
         <button type="button" className="desktop-terminal-workbench-create-retry" onClick={closeCoordinator.dismissFailure}>{t("common.action.close")}</button>

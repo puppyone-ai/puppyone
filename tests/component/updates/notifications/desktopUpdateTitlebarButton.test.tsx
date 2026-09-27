@@ -39,7 +39,7 @@ describe("DesktopUpdateTitlebarButton", () => {
 
     const button = host.querySelector<HTMLButtonElement>("button");
     expect(button?.textContent).toBe("Restart to update");
-    expect(button?.title).toBe("Version 1.5.0 is ready to install.");
+    expect(button?.dataset.tooltip).toBe("Version 1.5.0 is ready to install.");
     expect(button?.disabled).toBe(false);
     button?.click();
     expect(onUpdateNow).toHaveBeenCalledOnce();
@@ -58,7 +58,7 @@ describe("DesktopUpdateTitlebarButton", () => {
 
     const button = host.querySelector<HTMLButtonElement>("button");
     expect(button?.textContent).toBe("Download update");
-    expect(button?.title).toBe("Update 1.5.0 available");
+    expect(button?.dataset.tooltip).toBe("Update 1.5.0 available");
     button?.click();
     expect(onUpdateNow).toHaveBeenCalledOnce();
   });

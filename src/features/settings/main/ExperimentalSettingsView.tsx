@@ -44,7 +44,7 @@ export function ExperimentalSettingsView({
           <div className="desktop-settings-list desktop-settings-lead-list">
             {rows.map(({ messageKey, settingKey }) => (
               <div className="desktop-settings-row desktop-settings-row-control" key={settingKey}>
-                <span title={t(`settings.experimental.${messageKey}.detail`)}>
+                <span data-tooltip={t(`settings.experimental.${messageKey}.detail`)}>
                   {t(`settings.experimental.${messageKey}.title`)}
                 </span>
                 <SettingsToggle

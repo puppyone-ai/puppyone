@@ -14,7 +14,7 @@ export function AgentPromptInlineContent({ text, mentions = [], references = [] 
             className="desktop-agent-history-mention"
             data-reference-id={part.mention.referenceId}
             data-reference-kind={referencesById.get(part.mention.referenceId)?.kind ?? "unknown"}
-            title={referenceTitle(referencesById.get(part.mention.referenceId))}
+            data-tooltip={referenceTitle(referencesById.get(part.mention.referenceId))}
             key={`${part.mention.referenceId}:${part.mention.start}`}
           >{part.text}</span>
         : <span key={`text:${index}`}>{part.text}</span>)}

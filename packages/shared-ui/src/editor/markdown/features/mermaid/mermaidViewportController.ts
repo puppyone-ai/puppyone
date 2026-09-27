@@ -125,7 +125,7 @@ function createZoomButton(label: string, accessibleLabel: string): HTMLButtonEle
   button.type = "button";
   button.className = "cm-md-mermaid-zoom-action";
   button.textContent = label;
-  button.title = accessibleLabel;
+  button.dataset.tooltip = accessibleLabel;
   button.setAttribute("aria-label", accessibleLabel);
   return button;
 }

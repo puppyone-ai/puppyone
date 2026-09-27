@@ -383,7 +383,7 @@ export function TextEditorFrame({
             className={mode === "live" ? "active" : ""}
             type="button"
             onClick={() => switchMode("live")}
-            title={liveModeLabel ?? t("editor.mode.live")}
+            data-tooltip={liveModeLabel ?? t("editor.mode.live")}
             aria-label={liveModeLabel ?? t("editor.mode.live")}
           >
             {liveModeIcon === "preview" ? <PreviewIcon /> : <PencilIcon />}
@@ -392,7 +392,7 @@ export function TextEditorFrame({
             className={mode === "source" ? "active" : ""}
             type="button"
             onClick={() => switchMode("source")}
-            title={sourceModeLabel ?? t("editor.mode.source")}
+            data-tooltip={sourceModeLabel ?? t("editor.mode.source")}
             aria-label={sourceModeLabel ?? t("editor.mode.source")}
           >
             <CodeIcon />

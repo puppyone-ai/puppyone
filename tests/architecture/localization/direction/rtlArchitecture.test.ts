@@ -58,9 +58,9 @@ describe("RTL architecture", () => {
     expect(read("../../../../src/features/cloud/history/CloudHistorySidebar.tsx"))
       .toMatch(/aria-hidden="true"\s+dir="ltr"/);
     expect(read("../../../../src/features/settings/main/RepositorySettingsViews.tsx"))
-      .toContain('<code dir="ltr" title={copyUrl ?? ""}>');
+      .toContain('<code dir="ltr" data-tooltip={copyUrl ?? ""}>');
     expect(read("../../../../src/features/settings/main/LocalProjectSettingsView.tsx"))
-      .toContain('className="desktop-settings-row-value" dir="ltr" title={workspace.path}');
+      .toContain('className="desktop-settings-row-value" dir="ltr" data-tooltip={workspace.path}');
   });
 });
 

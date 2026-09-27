@@ -101,7 +101,6 @@ export function LocalAgentHooksSettingsSection({
           className="desktop-settings-row-action desktop-local-agent-group-action"
           type="button"
           aria-label={t("settings.localAgentHooks.refresh")}
-          title={t("settings.localAgentHooks.refresh")}
           disabled={loading || pendingProviderId !== null}
           onClick={() => void refresh()}
         >

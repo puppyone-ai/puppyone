@@ -144,7 +144,7 @@ export function CsvCellEditor({
             data-po-interaction="navigation"
             disabled={!openable}
             aria-label={actionLabel}
-            title={actionLabel}
+            data-tooltip={actionLabel}
             onPointerDown={(event) => {
               event.preventDefault();
               event.stopPropagation();

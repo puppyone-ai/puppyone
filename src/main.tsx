@@ -19,10 +19,12 @@ import { FeatureFlagsProvider } from "./features/flags";
 import { TypographyCatalogProvider } from "./features/typography";
 import { bootstrapRendererLocalization } from "./localization";
 import { startMarkdownFormatShortcutBridge } from "./lib/markdownFormatShortcutBridge";
+import { installNativeTitleSuppression } from "./lib/nativeTitleSuppression";
 import { startDesktopMermaidClient } from "./platform/mermaid/desktopMermaidClient";
 import { readDesktopPlatformCapabilities } from "./platform/desktopPlatformClient";
 
 const rootElement = document.getElementById("root");
+const stopNativeTitleSuppression = installNativeTitleSuppression();
 startDesktopMermaidClient();
 if (!rootElement) throw new Error("PuppyOne renderer root is unavailable.");
 
@@ -78,6 +80,7 @@ window.addEventListener("pagehide", () => {
   stopDocumentSessionFlushListener?.();
   stopDocumentSessionCloseCancelledListener?.();
   stopMarkdownFormatShortcutBridge();
+  stopNativeTitleSuppression();
 }, { once: true });
 
 const root = ReactDOM.createRoot(rootElement);

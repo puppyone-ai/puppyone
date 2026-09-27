@@ -121,7 +121,7 @@ export function CloudBranchesSection({
         </div>
         <div className="desktop-cloud-branches-toolbar" data-po-scrollbar="hidden">
           {currentBranchName && (
-            <span className="desktop-cloud-branches-token current" title={currentBranchName}>
+            <span className="desktop-cloud-branches-token current" data-tooltip={currentBranchName}>
               {currentBranchName}
             </span>
           )}
@@ -136,7 +136,7 @@ export function CloudBranchesSection({
             type="button"
             onClick={() => void (hasLocalGraph ? gitGraphStatus.reload() : branchData.reload())}
             disabled={gitGraphStatus.loading || branchData.loading}
-            title={t(hasLocalGraph ? "cloud.branches.refreshLocal" : "cloud.branches.refreshCloud")}
+            data-tooltip={t(hasLocalGraph ? "cloud.branches.refreshLocal" : "cloud.branches.refreshCloud")}
           >
             <RefreshCw size={13} className={(gitGraphStatus.loading || branchData.loading) ? "spin" : undefined} />
             <span>{t("cloud.common.refresh")}</span>
@@ -240,7 +240,7 @@ function BranchGraphRow({
           </span>
         ))}
         {row.stats && <BranchGraphStats stats={row.stats} />}
-        <span className="desktop-cloud-branch-graph-author" title={author} dir="auto">{author}</span>
+        <span className="desktop-cloud-branch-graph-author" data-tooltip={author} dir="auto">{author}</span>
         <time className="desktop-cloud-branch-graph-date">{row.createdAt ? formatRelativeTime(row.createdAt, localization) : t("cloud.status.unknown")}</time>
       </span>
     </>
@@ -251,7 +251,7 @@ function BranchGraphRow({
       <div
         className="desktop-cloud-branch-graph-row ref-only"
         role="listitem"
-        title={message}
+        data-tooltip={message}
       >
         {content}
       </div>
@@ -263,7 +263,7 @@ function BranchGraphRow({
       className="desktop-cloud-branch-graph-row"
       type="button"
       role="listitem"
-      title={`${message} (${shortCommit(row.id)})`}
+      data-tooltip={`${message} (${shortCommit(row.id)})`}
       onClick={() => openCloudApp(`/projects/${projectId}/changes?commit=${encodeURIComponent(row.id)}`)}
     >
       {content}

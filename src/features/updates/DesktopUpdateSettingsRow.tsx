@@ -25,7 +25,7 @@ export function DesktopUpdateSettingsRow({
       <button
         className={`desktop-settings-action ${action.primary ? "primary" : ""}`}
         type="button"
-        title={detail}
+        data-tooltip={detail}
         aria-label={`${action.label}. ${detail}`}
         disabled={action.disabled}
         onClick={action.kind === "check" ? onCheckForUpdates : onUpdateNow}

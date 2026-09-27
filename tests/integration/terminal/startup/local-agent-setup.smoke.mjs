@@ -51,7 +51,7 @@ async function until(code) {
   throw new Error(`Unmet UI condition: ${code}`);
 }
 async function click(label) {
-  await evaluate(`Array.from(document.querySelectorAll('button')).find(button => button.textContent === ${JSON.stringify(label)} || button.getAttribute('aria-label') === ${JSON.stringify(label)} || button.title === ${JSON.stringify(label)}).click()`);
+  await evaluate(`Array.from(document.querySelectorAll('button')).find(button => button.textContent === ${JSON.stringify(label)} || button.getAttribute('aria-label') === ${JSON.stringify(label)} || button.dataset.tooltip === ${JSON.stringify(label)}).click()`);
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
 }
 async function capture(name) {

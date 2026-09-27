@@ -33,7 +33,7 @@ export function DesktopUpdateTitlebarButton({
     <button
       className={`desktop-titlebar-action desktop-titlebar-update is-${presentation.kind}`}
       type="button"
-      title={label}
+      data-tooltip={label}
       aria-label={label}
       aria-busy={!presentation.interactive || undefined}
       disabled={!presentation.interactive}

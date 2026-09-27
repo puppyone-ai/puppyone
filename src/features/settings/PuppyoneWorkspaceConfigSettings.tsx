@@ -134,7 +134,7 @@ export function PuppyoneWorkspaceConfigSettings({
       ) : (
         <>
           <div className="desktop-settings-row desktop-settings-row-control desktop-puppyone-config-row desktop-hosting-service-panel">
-            <span title={t("settings.workspaceConfig.sourceService.detail")}>
+            <span data-tooltip={t("settings.workspaceConfig.sourceService.detail")}>
               {t("settings.workspaceConfig.sourceService.title")}
             </span>
             <div
@@ -148,7 +148,7 @@ export function PuppyoneWorkspaceConfigSettings({
                   type="button"
                   disabled={saving}
                   key={option.value}
-                  title={option.detail}
+                  data-tooltip={option.detail}
                   onClick={() => selectSourceService(option.value)}
                 >
                   <span>{option.label}</span>
@@ -160,7 +160,7 @@ export function PuppyoneWorkspaceConfigSettings({
           {showSourceGitHints && (
             <>
               <label className="desktop-settings-row desktop-settings-row-control desktop-puppyone-config-row">
-                <span title={t("settings.workspaceConfig.gitRemote.detail")}>
+                <span data-tooltip={t("settings.workspaceConfig.gitRemote.detail")}>
                   {t("settings.workspaceConfig.gitRemote.title")}
                 </span>
                 <select
@@ -178,7 +178,7 @@ export function PuppyoneWorkspaceConfigSettings({
               </label>
 
               <label className="desktop-settings-row desktop-settings-row-control desktop-puppyone-config-row">
-                <span title={t("settings.workspaceConfig.gitBranch.detail")}>
+                <span data-tooltip={t("settings.workspaceConfig.gitBranch.detail")}>
                   {t("settings.workspaceConfig.gitBranch.title")}
                 </span>
                 <input
@@ -200,10 +200,10 @@ export function PuppyoneWorkspaceConfigSettings({
           )}
 
           <div className="desktop-settings-row desktop-settings-row-control desktop-puppyone-config-row">
-            <span title={t("settings.workspaceConfig.backupEnabled.detail")}>
+            <span data-tooltip={t("settings.workspaceConfig.backupEnabled.detail")}>
               {t("settings.workspaceConfig.backupEnabled.title")}
             </span>
-            <label className="desktop-settings-switch" title={t("settings.workspaceConfig.backupEnabled.detail")}>
+            <label className="desktop-settings-switch" data-tooltip={t("settings.workspaceConfig.backupEnabled.detail")}>
               <input
                 type="checkbox"
                 aria-label={t("settings.workspaceConfig.backupEnabled.title")}
@@ -219,7 +219,7 @@ export function PuppyoneWorkspaceConfigSettings({
           {showBackupDetails && (
             <>
               <label className="desktop-settings-row desktop-settings-row-control desktop-puppyone-config-row">
-                <span title={t("settings.workspaceConfig.backupTarget.detail")}>
+                <span data-tooltip={t("settings.workspaceConfig.backupTarget.detail")}>
                   {t("settings.workspaceConfig.backupTarget.title")}
                 </span>
                 <select
@@ -243,7 +243,7 @@ export function PuppyoneWorkspaceConfigSettings({
               {draft.backup.service !== "puppyone" && (
                 <>
                   <label className="desktop-settings-row desktop-settings-row-control desktop-puppyone-config-row">
-                    <span title={t("settings.workspaceConfig.backupRemote.detail")}>
+                    <span data-tooltip={t("settings.workspaceConfig.backupRemote.detail")}>
                       {t("settings.workspaceConfig.backupRemote.title")}
                     </span>
                     <select
@@ -261,7 +261,7 @@ export function PuppyoneWorkspaceConfigSettings({
                   </label>
 
                   <label className="desktop-settings-row desktop-settings-row-control desktop-puppyone-config-row">
-                    <span title={t("settings.workspaceConfig.backupBranch.detail")}>
+                    <span data-tooltip={t("settings.workspaceConfig.backupBranch.detail")}>
                       {t("settings.workspaceConfig.backupBranch.title")}
                     </span>
                     <input

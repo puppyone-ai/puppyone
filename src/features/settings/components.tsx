@@ -47,7 +47,7 @@ export function SettingsValueRow({
         <span
           className={`desktop-settings-value-text ${monospace ? "desktop-settings-code" : ""} ${tone === "success" ? "success" : ""}`}
           dir={monospace ? "ltr" : "auto"}
-          title={title}
+          data-tooltip={title}
         >
           {value}
         </span>
@@ -71,7 +71,7 @@ export function SettingsToggle({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="desktop-settings-switch" title={description}>
+    <label className="desktop-settings-switch" data-tooltip={description}>
       <input
         type="checkbox"
         aria-label={label}

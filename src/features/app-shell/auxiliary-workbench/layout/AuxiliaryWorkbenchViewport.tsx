@@ -66,7 +66,7 @@ export function AuxiliaryWorkbenchViewport(props: AuxiliaryWorkbenchViewportProp
         {props.headerItems.map((item) => <div className="desktop-titlebar-workbench-tab" key={item.id}>
           <button type="button" className="desktop-titlebar-workbench-tab-select"
             aria-label={item.snapshot.accessibleLabel} aria-pressed={props.groups.some((group) => group.activeItemId === item.id && group.id === props.activeGroupId)}
-            title={item.snapshot.accessibleLabel} onClick={() => props.onActivateItem(item.id)}>
+            data-tooltip={item.snapshot.accessibleLabel} onClick={() => props.onActivateItem(item.id)}>
             <AuxiliaryWorkbenchStatus className="desktop-titlebar-workbench-tab-status" item={item} />
             <span className="desktop-titlebar-workbench-tab-title">{item.snapshot.title}</span>
           </button>

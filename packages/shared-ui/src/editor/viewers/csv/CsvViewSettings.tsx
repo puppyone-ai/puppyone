@@ -69,7 +69,7 @@ export function CsvViewSettings({
         aria-controls={open ? popoverId : undefined}
         aria-expanded={open}
         aria-haspopup="dialog"
-        title={t("editor.csv.settings")}
+        data-tooltip={t("editor.csv.settings")}
         onClick={() => setOpen((current) => !current)}
       >
         <Settings2 size={15} aria-hidden="true" />
@@ -87,7 +87,7 @@ export function CsvViewSettings({
         >
           <label
             className="csv-table-editor__view-toggle"
-            title={t("editor.csv.header")}
+            data-tooltip={t("editor.csv.header")}
           >
             <span className="csv-table-editor__view-toggle-label">
               {t("editor.csv.headerToggle")}
@@ -104,7 +104,7 @@ export function CsvViewSettings({
           </label>
           <label
             className="csv-table-editor__view-toggle"
-            title={t("editor.csv.rowNumbers")}
+            data-tooltip={t("editor.csv.rowNumbers")}
           >
             <span className="csv-table-editor__view-toggle-label">
               {t("editor.csv.rowNumbersToggle")}

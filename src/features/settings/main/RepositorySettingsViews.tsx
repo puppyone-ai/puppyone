@@ -186,7 +186,7 @@ export function GitSettingsView({
                     {t("settings.git.autoCommit.localOnly")}
                   </div>
                   <div className="desktop-settings-row desktop-settings-row-control">
-                    <span title={t("settings.git.autoCommit.enabled.detail")}>
+                    <span data-tooltip={t("settings.git.autoCommit.enabled.detail")}>
                       {t("settings.git.autoCommit.enabled.title")}
                     </span>
                     <SettingsToggle
@@ -270,8 +270,8 @@ export function GitSettingsView({
                         <span>{t("settings.git.remoteBranchCount", { count: remote.branches.length })}</span>
                       </div>
                       <div className="desktop-settings-remote-setting-url">
-                        <code dir="ltr" title={copyUrl ?? ""}>{copyUrl ? maskRemoteUrl(copyUrl) : t("settings.shared.notConfigured")}</code>
-                        {pushUrlDiffers && remote.pushUrl && <small title={remote.pushUrl}>{t("settings.git.pushUrlDiffers")}</small>}
+                        <code dir="ltr" data-tooltip={copyUrl ?? ""}>{copyUrl ? maskRemoteUrl(copyUrl) : t("settings.shared.notConfigured")}</code>
+                        {pushUrlDiffers && remote.pushUrl && <small data-tooltip={remote.pushUrl}>{t("settings.git.pushUrlDiffers")}</small>}
                       </div>
                       <CopyAction
                         copied={copiedRemoteKey === copyKey}

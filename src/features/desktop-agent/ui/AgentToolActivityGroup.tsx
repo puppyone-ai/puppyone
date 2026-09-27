@@ -104,7 +104,7 @@ function AgentToolActivityGroupView({
               count: hiddenParts.length,
               value: formatNumber(hiddenParts.length),
             })}
-            title={t("agent.activity.moreTools", {
+            data-tooltip={t("agent.activity.moreTools", {
               count: hiddenParts.length,
               value: formatNumber(hiddenParts.length),
             })}

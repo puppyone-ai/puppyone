@@ -40,7 +40,7 @@ export function CloudCommitDetail({
     <article className="desktop-commit-detail desktop-cloud-commit-detail">
       <div className="desktop-commit-summary desktop-cloud-commit-summary">
         <div className="desktop-commit-id-row desktop-cloud-commit-id-row">
-          <strong title={commit.commit_id} dir="ltr">{shortCommit(commit.commit_id)}</strong>
+          <strong data-tooltip={commit.commit_id} dir="ltr">{shortCommit(commit.commit_id)}</strong>
           {isHead && <span className="desktop-head-badge">HEAD</span>}
           {row.labels.filter((label) => (
             !(isHead && formatCloudGraphLabel(label, t) === "HEAD")
@@ -55,7 +55,7 @@ export function CloudCommitDetail({
           <div className="desktop-cloud-commit-actions">
             <button
               type="button"
-              title={t("cloud.history.refresh")}
+              data-tooltip={t("cloud.history.refresh")}
               aria-label={t("cloud.history.refresh")}
               disabled={loading}
               onClick={() => void onRefresh()}
@@ -65,7 +65,7 @@ export function CloudCommitDetail({
             {projectId && (
               <button
                 type="button"
-                title={t("cloud.history.viewCodeChanges")}
+                data-tooltip={t("cloud.history.viewCodeChanges")}
                 aria-label={t("cloud.history.viewCodeChanges")}
                 onClick={() => openCloudApp(`/projects/${projectId}/changes?commit=${encodeURIComponent(commit.commit_id)}`)}
               >
@@ -77,7 +77,7 @@ export function CloudCommitDetail({
         <p><bdi>{commit.message || t("cloud.history.updateWorkspace")}</bdi></p>
         <div className="desktop-commit-meta">
           <bdi>{author}</bdi>
-          <span title={exactTime || undefined}>
+          <span data-tooltip={exactTime || undefined}>
             {commit.created_at
               ? formatRelativeTime(commit.created_at, localization)
               : t("cloud.history.timeUnavailable")}

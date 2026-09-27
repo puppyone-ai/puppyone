@@ -399,7 +399,7 @@ function createTableStructureButton({
     ? "po-editable-table-add-row"
     : "po-editable-table-add-column");
   button.setAttribute("aria-label", label);
-  button.title = label;
+  button.dataset.tooltip = label;
   const visual = document.createElement("span");
   visual.className = "cm-md-table-structure-button-visual po-editable-table-structure-button-visual";
   visual.setAttribute("aria-hidden", "true");

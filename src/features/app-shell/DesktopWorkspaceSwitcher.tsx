@@ -78,7 +78,7 @@ export function DesktopWorkspaceSwitcher({
         }) + ` · ${workspaceContextAssetLabel}`}
         aria-expanded={open}
         aria-haspopup="menu"
-        title={t("shell.workspaceSwitcher.projectTitle", {
+        data-tooltip={t("shell.workspaceSwitcher.projectTitle", {
           project: bidiIsolate(workspace.name),
         }) + ` · ${workspaceContextAssetLabel}`}
         onClick={onToggle}
@@ -198,7 +198,7 @@ function DesktopProjectRow({
         className="desktop-menu-item desktop-project-option"
         role="menuitem"
         aria-disabled="true"
-        title={`${folder.name} - ${folder.workspace.path}`}
+        data-tooltip={`${folder.name} - ${folder.workspace.path}`}
       >
         <span className="desktop-menu-item-icon">
           <ProjectContextAssetMark
@@ -212,7 +212,7 @@ function DesktopProjectRow({
             <bdi
               className="desktop-menu-item-detail"
               dir="ltr"
-              title={folder.workspace.path}
+              data-tooltip={folder.workspace.path}
             >
               {detail}
             </bdi>

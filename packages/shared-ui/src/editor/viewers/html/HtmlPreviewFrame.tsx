@@ -53,7 +53,7 @@ export function HtmlPreviewFrame({
       key={frameKey}
       className="native-preview-frame"
       data-html-trust-mode={htmlTrustMode}
-      title={title}
+      aria-label={title}
       sandbox={policy.sandbox}
       referrerPolicy="no-referrer"
       src={projectionUrl ?? (useFileUrl ? fileUrl ?? undefined : undefined)}

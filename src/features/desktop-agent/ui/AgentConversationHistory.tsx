@@ -101,7 +101,7 @@ export function AgentConversationHistory({
           className="desktop-agent-history-toolbar-button"
           data-po-interaction="navigation"
           aria-label={t("agent.history.back")}
-          title={t("agent.history.back")}
+          data-tooltip={t("agent.history.back")}
           onClick={onBack}
         >
           <ArrowLeft size={15} strokeWidth={1.7} aria-hidden="true" />
@@ -113,7 +113,7 @@ export function AgentConversationHistory({
             className="desktop-agent-history-toolbar-button"
             hidden={searchOpen}
             aria-label={t("agent.history.search")}
-            title={t("agent.history.search")}
+            data-tooltip={t("agent.history.search")}
             aria-expanded={searchOpen}
             onClick={() => setSearchOpen(true)}
           >
@@ -135,7 +135,7 @@ export function AgentConversationHistory({
           type="button"
           className="desktop-agent-history-toolbar-button"
           aria-label={t("agent.history.refresh")}
-          title={t("agent.history.refresh")}
+          data-tooltip={t("agent.history.refresh")}
           disabled={loading || refreshing || loadingMore}
           onClick={onRefresh}
         >
@@ -177,7 +177,7 @@ export function AgentConversationHistory({
                   data-po-interaction="navigation"
                   aria-label={t("agent.history.open", { title: session.title })}
                   aria-busy={openingSessionId === session.id || undefined}
-                  title={session.title}
+                  data-tooltip={session.title}
                   disabled={openingSessionId !== null}
                   onClick={() => onOpen(session)}
                 >

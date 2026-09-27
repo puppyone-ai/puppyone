@@ -67,7 +67,7 @@ function positionTooltip(
   };
 }
 
-/** One tooltip surface for explicitly marked desktop controls. Content titles stay native. */
+/** One tooltip surface for every explicitly marked desktop control or content hint. */
 export function DesktopTooltipLayer() {
   const tooltipId = useId();
   const tooltipRef = useRef<HTMLDivElement>(null);

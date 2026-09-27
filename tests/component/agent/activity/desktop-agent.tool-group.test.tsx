@@ -227,7 +227,7 @@ describe("Desktop Agent compact tool groups", () => {
     const overflow = rail.querySelector<HTMLButtonElement>(".desktop-agent-tool-overflow")!;
     expect(visibleButtons).toHaveLength(2);
     expect(visibleButtons[0].getAttribute("aria-label")).toBe("Bash");
-    expect(visibleButtons[0].title).toBe("Bash");
+    expect(visibleButtons[0].dataset.tooltip).toBe("Bash");
     expect(overflow.textContent).toBe("+6");
     expect(overflow.getAttribute("aria-expanded")).toBe("false");
 

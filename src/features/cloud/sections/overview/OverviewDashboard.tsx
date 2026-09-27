@@ -66,7 +66,7 @@ export function CloudOverviewDashboard({
               <div
                 className="desktop-cloud-overview-file-row"
                 role="listitem"
-                title={entry.path}
+                data-tooltip={entry.path}
                 key={`${entry.type}:${entry.path}`}
               >
                 <span className="desktop-cloud-overview-file-primary">
@@ -79,7 +79,7 @@ export function CloudOverviewDashboard({
                   {updatedAt ? (
                     <time
                       dateTime={updatedAt}
-                      title={formatFullTime(updatedAt, localization.formatDate)}
+                      data-tooltip={formatFullTime(updatedAt, localization.formatDate)}
                     >
                       {formatRelativeTime(updatedAt, localization)}
                     </time>

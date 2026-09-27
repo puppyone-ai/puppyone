@@ -880,7 +880,7 @@ function RadialRelationshipNode({
       <button
         className="folder-relationship-card folder-relationship-radial-node"
         {...interactionProps}
-        title={t(expanded
+        data-tooltip={t(expanded
           ? "workspace.relationships.collapseFolder"
           : "workspace.relationships.expandFolder", { name: entry.node.name })}
         type="button"
@@ -895,7 +895,7 @@ function RadialRelationshipNode({
     <div
       className="folder-relationship-card folder-relationship-radial-node"
       {...interactionProps}
-      title={entry.node.name}
+      data-tooltip={entry.node.name}
     >
       {content}
     </div>
@@ -1263,7 +1263,7 @@ function LayeredRelationshipNode({
       <button
         className="folder-relationship-card folder-relationship-layered-node"
         {...interactionProps}
-        title={t(expanded
+        data-tooltip={t(expanded
           ? "workspace.relationships.collapseFolder"
           : "workspace.relationships.expandFolder", { name: entry.node.name })}
         type="button"
@@ -1278,7 +1278,7 @@ function LayeredRelationshipNode({
     <div
       className="folder-relationship-card folder-relationship-layered-node"
       {...interactionProps}
-      title={entry.node.name}
+      data-tooltip={entry.node.name}
     >
       {content}
     </div>
@@ -1947,7 +1947,7 @@ function RelationshipNode({
           aria-label={t("workspace.relationships.collapseFolder", { name: node.name })}
           className="folder-relationship-collapse"
           type="button"
-          title={t("workspace.relationships.collapseFolder", { name: node.name })}
+          data-tooltip={t("workspace.relationships.collapseFolder", { name: node.name })}
           onClick={() => onToggleFolder(node)}
         >
           <ChevronUp size={14} aria-hidden="true" />
@@ -2011,7 +2011,7 @@ function RelationshipNode({
       {...interactionProps}
       ref={registerCard(node.path)}
       type="button"
-      title={t("workspace.relationships.expandFolder", { name: node.name })}
+      data-tooltip={t("workspace.relationships.expandFolder", { name: node.name })}
       onClick={() => {
         if (!dragController.consumeClick(node.path)) onToggleFolder(node);
       }}
@@ -2025,7 +2025,7 @@ function RelationshipNode({
       className="folder-relationship-card"
       {...interactionProps}
       ref={registerCard(node.path)}
-      title={node.name}
+      data-tooltip={node.name}
     >
       {content}
     </div>

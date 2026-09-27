@@ -289,7 +289,7 @@ export class HtmlBlockWidget extends WidgetType {
       content.replaceChildren(createPreviewBlock(version));
       toggleButton.replaceChildren(createHtmlSourceIcon());
       const toggleLabel = t("editor.markdown.html.showSource");
-      toggleButton.title = toggleLabel;
+      toggleButton.dataset.tooltip = toggleLabel;
       toggleButton.setAttribute("aria-label", toggleLabel);
       measure.schedule();
     };

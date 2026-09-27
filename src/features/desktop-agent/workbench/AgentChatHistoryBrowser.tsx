@@ -51,7 +51,7 @@ export function AgentChatHistoryBrowser({
               className="desktop-agent-history-toolbar-button"
               data-po-interaction="navigation"
               aria-label={t("agent.history.back")}
-              title={t("agent.history.back")}
+              data-tooltip={t("agent.history.back")}
               onClick={onBack}
             >
               <ArrowLeft size={15} strokeWidth={1.7} aria-hidden="true" />

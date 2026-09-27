@@ -255,7 +255,7 @@ export function PuppyFlowViewer({
               className="puppyflow-add-button"
               type="button"
               aria-label={t("editor.puppyflow.addStep")}
-              title={t("editor.puppyflow.addStep")}
+              data-tooltip={t("editor.puppyflow.addStep")}
               disabled={!canEdit}
               onClick={addStep}
             >
@@ -335,7 +335,7 @@ function PuppyFlowStepRow({
         draggable={!readOnly}
         disabled={readOnly}
         aria-label={t("editor.puppyflow.reorderStep", { number: index + 1 })}
-        title={t("editor.puppyflow.reorderHint")}
+        data-tooltip={t("editor.puppyflow.reorderHint")}
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
         onKeyDown={(event) => {
@@ -374,7 +374,7 @@ function PuppyFlowStepRow({
             </select>
           </label>
           <span className="puppyflow-step-meta">{agent.provider} · {getAgentModelLabel(agent.id, t)}</span>
-          <span className="puppyflow-step-meta workdir" title={workdirTitle}>
+          <span className="puppyflow-step-meta workdir" data-tooltip={workdirTitle}>
             <Folder size={13} />
             <span dir={workdirIsPath ? "ltr" : "auto"}>{workdirLabel}</span>
           </span>

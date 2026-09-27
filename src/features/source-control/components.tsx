@@ -83,7 +83,7 @@ export function SourceControlResourceSummary({
   const label = t("source-control.commit.filesChanged", { count: resources.length });
 
   return (
-    <small className="desktop-git-resource-summary" title={label}>
+    <small className="desktop-git-resource-summary" data-tooltip={label}>
       {label}
     </small>
   );
@@ -163,7 +163,7 @@ function SourceControlPreviewResourceRow({
   const displayPath = getGitDisplayPath(resource);
   const displayName = getGitDisplayName(displayPath);
   return (
-    <div className={`desktop-working-tree-row desktop-git-remote-preview-row ${selected ? "active" : ""}`} title={displayPath}>
+    <div className={`desktop-working-tree-row desktop-git-remote-preview-row ${selected ? "active" : ""}`} data-tooltip={displayPath}>
       <button
         className="desktop-working-tree-main"
         type="button"
@@ -215,7 +215,7 @@ export function SourceControlWorkingTreeRow({
   return (
     <div
       className={`desktop-working-tree-row ${staged ? "is-staged" : "is-unstaged"} ${selected ? "active" : ""}`}
-      title={displayPath}
+      data-tooltip={displayPath}
     >
       <button
         className="desktop-working-tree-main"
@@ -234,7 +234,7 @@ export function SourceControlWorkingTreeRow({
         <button
           className="po-sidebar-icon-button danger desktop-working-tree-revert-action"
           type="button"
-          title={t("source-control.action.discard")}
+          data-tooltip={t("source-control.action.discard")}
           aria-label={t("source-control.action.discardPath", { path: bidiIsolate(resource.path) })}
           disabled={disabled}
           onClick={() => void onDiscardPaths(commandPaths)}
@@ -247,7 +247,7 @@ export function SourceControlWorkingTreeRow({
           <button
             className="po-sidebar-icon-button desktop-working-tree-state-action"
             type="button"
-            title={t("source-control.action.unstage")}
+            data-tooltip={t("source-control.action.unstage")}
             aria-label={t("source-control.action.unstagePath", { path: bidiIsolate(resource.path) })}
             disabled={disabled}
             onClick={() => void onUnstagePaths(commandPaths)}
@@ -258,7 +258,7 @@ export function SourceControlWorkingTreeRow({
           <button
             className="po-sidebar-icon-button desktop-working-tree-state-action"
             type="button"
-            title={t("source-control.action.stage")}
+            data-tooltip={t("source-control.action.stage")}
             aria-label={t("source-control.action.stagePath", { path: bidiIsolate(resource.path) })}
             disabled={disabled}
             onClick={() => void onStagePaths(commandPaths)}

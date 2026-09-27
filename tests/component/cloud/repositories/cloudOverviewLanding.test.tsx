@@ -251,14 +251,14 @@ describe("CloudRepositoryOverview landing page", () => {
     expect(container.querySelector(".desktop-cloud-overview-deployment-board")).toBeNull();
     const pathFact = container.querySelector<HTMLElement>(".desktop-cloud-overview-path-fact");
     expect(pathFact?.querySelector("code")?.textContent).toBe("https://cloud.example/git/project-1.git");
-    expect(pathFact?.title).toBe("https://cloud.example/git/project-1.git");
+    expect(pathFact?.dataset.tooltip).toBe("https://cloud.example/git/project-1.git");
     expect(dashboard?.textContent).not.toContain("https://cloud.example/git/project-1.git");
     expect(dashboard?.textContent).not.toContain("release");
     expect(dashboard?.textContent).not.toContain("Private");
     expect(container.textContent).not.toContain("Shared product research");
     const storage = container.querySelector<HTMLElement>(".desktop-cloud-overview-project-storage");
     expect(storage?.textContent).toBe("");
-    expect(storage?.title).toBe("100 MB of 500 MB");
+    expect(storage?.dataset.tooltip).toBe("100 MB of 500 MB");
     expect(storage?.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("20");
     expect(storage?.querySelector('[role="progressbar"]')?.getAttribute("aria-valuetext")).toBe("100 MB of 500 MB");
     expect(storage?.parentElement?.classList.contains("desktop-cloud-overview-landing-header")).toBe(true);

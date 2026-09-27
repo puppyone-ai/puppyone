@@ -101,7 +101,7 @@ export function CloudRepositoryOverview({
                       className="desktop-cloud-overview-settings-button"
                       type="button"
                       aria-label={t("cloud.route.settings.title")}
-                      title={t("cloud.route.settings.title")}
+                      data-tooltip={t("cloud.route.settings.title")}
                       onClick={() => onSelectSection("settings")}
                     >
                       <SettingsIcon size={13} />
@@ -111,7 +111,7 @@ export function CloudRepositoryOverview({
                     className="desktop-cloud-overview-refresh-button"
                     type="button"
                     aria-label={t("cloud.common.refresh")}
-                    title={t("cloud.common.refresh")}
+                    data-tooltip={t("cloud.common.refresh")}
                     onClick={() => void onRefresh()}
                   >
                     <RefreshCw size={13} className={loading ? "spin" : undefined} />
@@ -184,7 +184,7 @@ function CloudOverviewPathFact({
       type="button"
       aria-label={loading ? t("cloud.common.loading") : value ? label : t("cloud.common.path")}
       aria-busy={loading}
-      title={value ?? undefined}
+      data-tooltip={value ?? undefined}
       disabled={!value}
       onClick={() => void handleCopy()}
     >
@@ -231,7 +231,7 @@ function CloudOverviewHeaderFact({
       onClick={onClick}
     >
       <span className="desktop-cloud-overview-header-fact-label">{label}</span>
-      <strong title={valueTitle}>
+      <strong data-tooltip={valueTitle}>
         {loading
           ? <span className="desktop-cloud-overview-value-skeleton" aria-hidden="true" />
           : value}
@@ -272,7 +272,7 @@ function CloudOverviewStorageMeter({
   return (
     <div
       className={`desktop-cloud-overview-project-storage${pending ? " is-loading" : ""}`}
-      title={pending ? t("cloud.common.loading") : detail}
+      data-tooltip={pending ? t("cloud.common.loading") : detail}
       aria-busy={pending}
     >
       <span className="desktop-cloud-overview-project-storage-track" {...progressProps}>

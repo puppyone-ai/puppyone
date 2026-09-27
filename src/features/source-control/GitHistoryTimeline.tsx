@@ -153,7 +153,7 @@ function GitHistoryRow({
       className={`desktop-history-row ${isSelected ? "active" : ""}`}
       type="button"
       onClick={onClick}
-      title={commit.message}
+      data-tooltip={commit.message}
     >
       <span className="desktop-history-row-main">
         <span className="desktop-history-row-title">
@@ -161,7 +161,7 @@ function GitHistoryRow({
             {commit.message || t("source-control.commit.noMessage")}
           </bdi>
           {(hasAdditions || hasDeletions) && (
-            <span className="desktop-history-row-stat" title={exactStats} aria-label={exactStats}>
+            <span className="desktop-history-row-stat" data-tooltip={exactStats} aria-label={exactStats}>
               {hasAdditions && <span className="added">+{compactNumber(totals.additions)}</span>}
               {hasDeletions && <span className="deleted">-{compactNumber(totals.deletions)}</span>}
             </span>
@@ -210,7 +210,7 @@ function GitHistoryFilePreview({
     <span
       className="desktop-history-row-file"
       data-status={change.status}
-      title={`${statusLabel}: ${displayPath}`}
+      data-tooltip={`${statusLabel}: ${displayPath}`}
     >
       <span className="desktop-history-row-file-icon" aria-hidden="true">
         <FileGlyphIcon name={change.path} size={14} theme={fileIconTheme} />

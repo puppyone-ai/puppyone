@@ -224,7 +224,7 @@ try {
   await fs.writeFile(path.join(temp, "multi-root-editor.png"), (await window.webContents.capturePage()).toPNG());
   // B is already selected through Editor; close its project without touching A.
   assert(JSON.stringify(await tabIds()) === JSON.stringify(bTabs), "B tab state changed");
-  await click('.workspace-folder-root[aria-label="Project B"] button[title="Remove Project"]');
+  await click('.workspace-folder-root[aria-label="Project B"] button[data-tooltip="Remove Project"]');
   await until(() => b.exited, "explicit B close");
   assert(!a.exited, "Closing B stopped A");
   const remaining = await evaluate("window.puppyoneDesktop.readProjectSessions()");

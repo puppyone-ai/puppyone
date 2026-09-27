@@ -890,7 +890,7 @@ const TreeNodeRow = memo(function TreeNodeRow({
       aria-label={interaction.cut
         ? t("shared-ui.explorer.cutLabel", { name: bidiIsolate(node.name) })
         : node.name}
-      title={dragController.exportHint && !node.workspaceFolderRoot
+      data-tooltip={dragController.exportHint && !node.workspaceFolderRoot
         ? `${node.name}\n${dragController.exportHint}`
         : displayName.hidden || showExtensionDisambiguator ? node.name : undefined}
       onDragStart={(event) => dragController.onNodeDragStart(event, node)}

@@ -49,7 +49,7 @@ export function FilesSettingsView({
               </label>
             </div>
             <div className="desktop-settings-row desktop-settings-pattern-editor desktop-files-pattern-editor">
-              <span title={t("settings.files.patternCount", { count: normalizedDraft.length })}>
+              <span data-tooltip={t("settings.files.patternCount", { count: normalizedDraft.length })}>
                 {t("settings.files.excludePatterns")}
               </span>
               <div className="desktop-settings-pattern-control">

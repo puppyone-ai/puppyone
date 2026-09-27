@@ -146,7 +146,7 @@ export function DesktopExplorerRowActions({
         <button
           className="tree-row-action-button"
           type="button"
-          title={t("shell.workspaceSwitcher.removeProject")}
+          data-tooltip={t("shell.workspaceSwitcher.removeProject")}
           aria-label={t("shell.workspaceSwitcher.removeProjectNamed", { name: bidiIsolate(node.name) })}
           onClick={(event) => {
             event.stopPropagation();

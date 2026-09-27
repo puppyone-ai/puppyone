@@ -51,7 +51,7 @@ export function createMarkdownTableColumnLayoutController(
   handle.type = "button";
   handle.className = "cm-md-table-column-resize-handle";
   handle.tabIndex = -1;
-  handle.title = context.resizeHint;
+  handle.dataset.tooltip = context.resizeHint;
   resizeLayer.appendChild(handle);
   context.surface.appendChild(resizeLayer);
 

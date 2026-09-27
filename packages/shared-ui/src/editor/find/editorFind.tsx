@@ -216,7 +216,7 @@ export function EditorFindHost({
               type="button"
               disabled={!query || result.total === 0}
               onClick={() => move("previous")}
-              title={t("editor.find.previous")}
+              data-tooltip={t("editor.find.previous")}
               aria-label={t("editor.find.previous")}
             >
               <ChevronUp aria-hidden="true" size={15} strokeWidth={1.8} />
@@ -225,7 +225,7 @@ export function EditorFindHost({
               type="button"
               disabled={!query || result.total === 0}
               onClick={() => move("next")}
-              title={t("editor.find.next")}
+              data-tooltip={t("editor.find.next")}
               aria-label={t("editor.find.next")}
             >
               <ChevronDown aria-hidden="true" size={15} strokeWidth={1.8} />
@@ -233,7 +233,7 @@ export function EditorFindHost({
             <button
               type="button"
               onClick={() => closeFind()}
-              title={t("editor.find.close")}
+              data-tooltip={t("editor.find.close")}
               aria-label={t("editor.find.close")}
             >
               <X aria-hidden="true" size={15} strokeWidth={1.8} />

@@ -311,7 +311,7 @@ function InstalledPluginRow({
       <details className="desktop-plugin-menu">
         <summary
           aria-label={t("plugins.manage", { name: bidiIsolate(plugin.label) })}
-          title={t("plugins.manage", { name: bidiIsolate(plugin.label) })}
+          data-tooltip={t("plugins.manage", { name: bidiIsolate(plugin.label) })}
         >
           <MoreHorizontal size={16} aria-hidden="true" />
         </summary>

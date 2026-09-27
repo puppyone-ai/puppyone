@@ -223,7 +223,7 @@ export function AgentPickerPopover({
       label={<bdi dir="auto">{option.label}</bdi>}
       detail={option.meta ? <bdi dir="auto">{option.meta}</bdi> : undefined}
       trailing={option.warning
-        ? <span className="desktop-agent-picker-warning" title={option.warning} aria-label={option.warning}><CircleAlert size={14} strokeWidth={1.8} aria-hidden="true" /></span>
+        ? <span className="desktop-agent-picker-warning" data-tooltip={option.warning} aria-label={option.warning}><CircleAlert size={14} strokeWidth={1.8} aria-hidden="true" /></span>
         : option.selected
           ? <Check className="desktop-agent-picker-check" size={14} aria-hidden="true" />
           : undefined}
@@ -246,7 +246,7 @@ export function AgentPickerPopover({
         aria-description={triggerDescription || (compact && valueLabel
           ? t("agent.picker.selected", { value: bidiIsolate(valueLabel) })
           : undefined)}
-        title={title}
+        data-tooltip={title}
         disabled={disabled}
         onClick={() => open ? close(false) : show()}
         onKeyDown={handleTriggerKeyDown}

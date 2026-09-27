@@ -843,7 +843,7 @@ describe("project folder home", () => {
     const removeButton = container.querySelector<HTMLButtonElement>(".onboarding-project-remove");
 
     expect(removeButton?.getAttribute("aria-label")).toContain("Remove");
-    expect(removeButton?.title).toBe("Removes this registration only. Local files are not deleted.");
+    expect(removeButton?.dataset.tooltip).toBe("Removes this registration only. Local files are not deleted.");
     expect(removeButton?.querySelector(".lucide-unlink")).not.toBeNull();
     expect(removeButton?.querySelector(".lucide-x")).toBeNull();
     await act(async () => removeButton?.click());

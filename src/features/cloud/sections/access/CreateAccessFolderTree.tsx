@@ -263,7 +263,7 @@ function FolderRow({
       <button
         className={`desktop-cloud-create-access-tree-row folder ${selected ? "selected" : ""}`}
         type="button"
-        title={t(expanded ? "cloud.access.create.collapseFolder" : "cloud.access.create.expandFolder", { path: formatTreePath(entry.path, t) })}
+        data-tooltip={t(expanded ? "cloud.access.create.collapseFolder" : "cloud.access.create.expandFolder", { path: formatTreePath(entry.path, t) })}
         style={{ paddingInlineStart: 8 + depth * 16 }}
         onClick={onToggle}
       >
@@ -294,7 +294,7 @@ function FileRow({
       <TreeGuides depth={depth} isLastSibling={isLastSibling} ancestorLastSiblings={ancestorLastSiblings} />
       <div
         className="desktop-cloud-create-access-tree-row file"
-        title={formatTreePath(entry.path, t)}
+        data-tooltip={formatTreePath(entry.path, t)}
         aria-disabled="true"
         style={{ paddingInlineStart: 8 + depth * 16 }}
       >
@@ -321,7 +321,7 @@ function FolderRowStatus({
     <button
       className={`desktop-cloud-create-access-tree-status action ${selected ? "selected" : ""}`}
       type="button"
-      title={t(selected ? "cloud.access.create.selectedFolder" : "cloud.access.create.selectFolder")}
+      data-tooltip={t(selected ? "cloud.access.create.selectedFolder" : "cloud.access.create.selectFolder")}
       onClick={(event) => {
         event.stopPropagation();
         onSelect();
@@ -344,7 +344,7 @@ function AccessStatusText({ onSelect }: { onSelect?: () => void }) {
     <button
       className="desktop-cloud-create-access-tree-status existing"
       type="button"
-      title={t("cloud.access.create.openThisAccess")}
+      data-tooltip={t("cloud.access.create.openThisAccess")}
       onClick={(event) => {
         event.stopPropagation();
         onSelect();

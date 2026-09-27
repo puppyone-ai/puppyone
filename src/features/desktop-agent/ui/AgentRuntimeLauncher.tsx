@@ -35,7 +35,7 @@ export function AgentRuntimeLauncher({
                 type="button"
                 className="desktop-agent-runtime-launcher-refresh"
                 aria-label={t("agent.launcher.scanAgain")}
-                title={t("agent.launcher.scanAgain")}
+                data-tooltip={t("agent.launcher.scanAgain")}
                 onClick={onRefresh}
               >
                 <RefreshCw size={12} strokeWidth={1.7} aria-hidden="true" />
@@ -61,7 +61,7 @@ export function AgentRuntimeLauncher({
                       className="desktop-agent-runtime-launcher-option"
                       data-po-interaction="navigation"
                       aria-label={entry.descriptor.displayName}
-                      title={detail || entry.descriptor.displayName}
+                      data-tooltip={detail || entry.descriptor.displayName}
                       onClick={() => onLaunch(entry.descriptor.id)}
                     >
                       <AgentBrandMark

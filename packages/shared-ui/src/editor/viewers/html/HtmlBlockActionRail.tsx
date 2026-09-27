@@ -127,7 +127,7 @@ export function HtmlBlockActionRail({ selection, viewport, handle, bounds, activ
       style={layout.menu ? { left: layout.menu.x, top: layout.menu.y } : { visibility: "hidden" }}
       onPointerEnter={keep} onFocus={keep}>{children}</div>}
     {!active && <button ref={handle} type="button" className="html-editor-pencil" data-html-control data-placement={layout.dock}
-      title={t("editor.html.editBlock")} aria-label={t("editor.html.editBlock")} aria-pressed={active}
+      data-tooltip={t("editor.html.editBlock")} aria-label={t("editor.html.editBlock")} aria-pressed={active}
       style={{ left: layout.handle.x, top: layout.handle.y - layout.y, width: layout.handle.width, height: layout.handle.height }}
       onPointerEnter={keep} onFocus={keep} onClick={activate}><Pencil size={14} strokeWidth={2.2} /></button>}
   </div>;

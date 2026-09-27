@@ -35,7 +35,7 @@ export function GitRemotePrompt({
         className="desktop-git-backup-dismiss"
         type="button"
         aria-label={t("source-control.backup.dismissAriaLabel")}
-        title={t("source-control.action.dismiss")}
+        data-tooltip={t("source-control.action.dismiss")}
         disabled={cloudBackupLoading}
         onClick={onDismiss}
       >

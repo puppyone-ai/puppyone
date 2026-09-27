@@ -47,7 +47,7 @@ abstract class MathWidget extends WidgetType {
       rendered.textContent = this.presentation === "block"
         ? `$$\n${this.source}\n$$`
         : `$${this.source}$`;
-      if (error instanceof Error) wrapper.title = error.message;
+      if (error instanceof Error) wrapper.dataset.tooltip = error.message;
     }
     wrapper.appendChild(rendered);
     installMathInteractions(wrapper, view, this.sourceLength, this.presentation);

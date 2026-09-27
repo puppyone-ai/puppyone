@@ -73,12 +73,12 @@ export function AgentSurfaceHeader({
         {agentSelector && <div className="desktop-agent-session-agent-selector">{agentSelector}</div>}
       </div>
       <div className="desktop-agent-session-heading">
-        <strong title={title}>{title}</strong>
+        <strong data-tooltip={title}>{title}</strong>
         <span><i className={`is-${statusCode}`} />{statusLabel}</span>
       </div>
       <div className="desktop-agent-session-header-actions" ref={menuRef}>
-        {showNewSessionAction && <button type="button" className="desktop-agent-icon-button" aria-label={t("agent.header.newSession", { agent: bidiIsolate(runtimeLabel) })} title={t("agent.header.newSession", { agent: bidiIsolate(runtimeLabel) })} disabled={loading || newSessionDisabled} onClick={onNewSession}><Plus size={16} /></button>}
-        <button type="button" className="desktop-agent-icon-button" aria-label={t("agent.header.sessionActionsFor", { agent: bidiIsolate(runtimeLabel) })} title={t("agent.header.sessionActions")} aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((value) => !value)}><MoreHorizontal size={16} /></button>
+        {showNewSessionAction && <button type="button" className="desktop-agent-icon-button" aria-label={t("agent.header.newSession", { agent: bidiIsolate(runtimeLabel) })} data-tooltip={t("agent.header.newSession", { agent: bidiIsolate(runtimeLabel) })} disabled={loading || newSessionDisabled} onClick={onNewSession}><Plus size={16} /></button>}
+        <button type="button" className="desktop-agent-icon-button" aria-label={t("agent.header.sessionActionsFor", { agent: bidiIsolate(runtimeLabel) })} data-tooltip={t("agent.header.sessionActions")} aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((value) => !value)}><MoreHorizontal size={16} /></button>
         {menuOpen && (
           <DesktopMenuSurface ariaLabel={t("agent.header.sessionActionsFor", { agent: bidiIsolate(runtimeLabel) })} className="desktop-menu-surface desktop-agent-session-menu">
             <DesktopMenuItem icon={<CircleAlert size={15} />} label={t("agent.header.diagnostics")} detail={diagnostic || t("agent.header.noDiagnostics")} disabled />

@@ -268,8 +268,8 @@ describe("Desktop Agent reference ingestion", () => {
     const failedMention = container.querySelector(".desktop-agent-prompt-mention.is-error");
     const retry = failedMention?.querySelector<HTMLButtonElement>('button[aria-label*="Retry reference"]')!;
     expect(container.querySelector(".desktop-agent-visual-attachments")).toBeNull();
-    expect(failedMention?.getAttribute("title")).toContain("This workspace item could not be added");
-    expect(failedMention?.getAttribute("title")).toContain("File no longer exists");
+    expect(failedMention?.getAttribute("data-tooltip")).toContain("This workspace item could not be added");
+    expect(failedMention?.getAttribute("data-tooltip")).toContain("File no longer exists");
     expect(container.textContent).not.toContain("File no longer exists");
     act(() => retry.click());
     expect(onRetryReference).toHaveBeenCalledWith("failed-ref");
@@ -349,7 +349,7 @@ describe("Desktop Agent reference ingestion", () => {
     expect(buttons[0]!.getAttribute("aria-label")).toContain("Remove reference");
     expect(buttons[0]!.getAttribute("aria-label")).toContain("capture.png");
     if (status === "error") {
-      expect(card.getAttribute("title")).toContain("Image could not be prepared");
+      expect(card.getAttribute("data-tooltip")).toContain("Image could not be prepared");
       expect(card.querySelector(".desktop-agent-visual-attachment-status.is-error")).not.toBeNull();
     }
     act(() => buttons[0]!.click());
@@ -435,7 +435,7 @@ describe("Desktop Agent reference ingestion", () => {
     const remove = imageCard.querySelector<HTMLButtonElement>(".desktop-agent-visual-attachment-actions button:last-child")!;
     await vi.waitFor(() => expect(composer.querySelectorAll(".desktop-agent-prompt-mention")).toHaveLength(2));
     const mention = composer.querySelector(".desktop-agent-prompt-mention");
-    expect(mention?.getAttribute("title")).toBe("docs/SECURITY.md");
+    expect(mention?.getAttribute("data-tooltip")).toBe("docs/SECURITY.md");
     expect(mention?.getAttribute("data-reference-kind")).toBe("workspace-entry");
     expect(mention?.getAttribute("data-atomic")).toBe("true");
     expect(mention?.getAttribute("contenteditable")).toBe("false");

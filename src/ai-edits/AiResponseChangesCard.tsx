@@ -52,7 +52,7 @@ export function AiResponseChangesCard({
               setReviewOpen(true);
               onOpenFile?.(file.path);
             }}
-            title={file.path}
+            data-tooltip={file.path}
           >
             <span className="ai-response-changes-card__path" dir="ltr">{file.path}</span>
             <span className="ai-response-changes-card__stat" dir="ltr">
@@ -79,7 +79,7 @@ export function AiResponseChangesCard({
         >
           <header className="ai-edit-review-popover__header">
             <div>
-              <strong title={selectedFile.path} dir="ltr">{selectedFile.path}</strong>
+              <strong data-tooltip={selectedFile.path} dir="ltr">{selectedFile.path}</strong>
               <span dir="ltr">+{selectedFile.additions} -{selectedFile.deletions}</span>
             </div>
             <button

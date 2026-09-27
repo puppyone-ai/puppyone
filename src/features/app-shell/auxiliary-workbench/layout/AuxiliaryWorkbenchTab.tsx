@@ -73,7 +73,7 @@ export const AuxiliaryWorkbenchTab = memo(function AuxiliaryWorkbenchTab({
         aria-selected={active}
         aria-keyshortcuts="Alt+Shift+ArrowLeft Alt+Shift+ArrowRight Alt+Shift+ArrowUp Alt+Shift+ArrowDown"
         tabIndex={active ? 0 : -1}
-        title={item.snapshot.accessibleLabel}
+        data-tooltip={item.snapshot.accessibleLabel}
         onClick={(event) => {
           if (consumeSuppressedClick()) {
             event.preventDefault();

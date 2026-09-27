@@ -184,7 +184,7 @@ export function DesktopCloudScopeAccessDetail({
       <div className="desktop-cloud-access-web-rail">
         <header className="desktop-cloud-access-web-scope-header">
           <div className="desktop-cloud-access-web-scope-copy">
-            <h1 title={scopeName}>{scopeName}</h1>
+            <h1 data-tooltip={scopeName}>{scopeName}</h1>
             <div className={`desktop-cloud-access-web-aggregate ${aggregateTone}`}>
               <span className={`desktop-cloud-web-status-dot ${aggregateTone === "ready" ? "ready" : aggregateTone === "warning" ? "warning" : ""}`} aria-hidden="true" />
               <strong>{formatAccessPointAggregate(aggregate.code, t)}</strong>
@@ -193,7 +193,7 @@ export function DesktopCloudScopeAccessDetail({
             </div>
             <div className="desktop-cloud-access-web-meta">
               <span>{t("cloud.common.scope")}</span>
-              <code title={scopePath}>{scopePath}</code>
+              <code data-tooltip={scopePath}>{scopePath}</code>
               <span aria-hidden="true">·</span>
               <span>{modeLabel}</span>
             </div>
@@ -203,7 +203,7 @@ export function DesktopCloudScopeAccessDetail({
             type="button"
             aria-pressed={settingsOpen}
             aria-label={t(settingsOpen ? "cloud.scope.closeSettings" : "cloud.scope.openSettings")}
-            title={t(settingsOpen ? "cloud.common.closeSettings" : "cloud.common.openSettings")}
+            data-tooltip={t(settingsOpen ? "cloud.common.closeSettings" : "cloud.common.openSettings")}
             onClick={() => setSettingsOpen((open) => !open)}
           >
             <Settings size={13} />

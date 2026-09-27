@@ -48,7 +48,7 @@ export function OnboardingProjectList({
               role="button"
               icon={<Folder size={14} strokeWidth={1.85} />}
               label={<bdi>{name}</bdi>}
-              detail={parentPath ? <bdi dir="ltr" title={item.localPath}>{parentPath}</bdi> : undefined}
+              detail={parentPath ? <bdi dir="ltr" data-tooltip={item.localPath}>{parentPath}</bdi> : undefined}
               trailing={openingPath === item.localPath
                 ? <InlineLoading label={t("onboarding.status.opening")} size="xs" tone="neutral" />
                 : formatRecentWorkspaceTime(item.lastOpenedAt, t, formatRelativeTime)}

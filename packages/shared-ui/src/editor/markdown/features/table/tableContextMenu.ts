@@ -461,7 +461,7 @@ function createMarkdownTableMenuItem(
   button.disabled = item.disabled === true;
   button.tabIndex = -1;
   button.setAttribute("aria-label", item.label);
-  button.title = item.label;
+  button.dataset.tooltip = item.label;
 
   const body = document.createElement("span");
   body.className = "desktop-menu-item-body";

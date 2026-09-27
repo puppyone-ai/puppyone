@@ -41,11 +41,11 @@ export function LocalProjectSettingsView({
           <div className="desktop-settings-list desktop-settings-lead-list">
             <div className="desktop-settings-row">
               <span>{t("settings.localProject.name")}</span>
-              <span className="desktop-settings-row-value" dir="auto" title={workspace.name}>{workspace.name}</span>
+              <span className="desktop-settings-row-value" dir="auto" data-tooltip={workspace.name}>{workspace.name}</span>
             </div>
             <div className="desktop-settings-row">
               <span>{t("settings.localProject.path")}</span>
-              <span className="desktop-settings-row-value" dir="ltr" title={workspace.path}>{workspace.path}</span>
+              <span className="desktop-settings-row-value" dir="ltr" data-tooltip={workspace.path}>{workspace.path}</span>
             </div>
             <div className="desktop-settings-row">
               <span>{t("settings.localProject.mode")}</span>
@@ -64,7 +64,7 @@ export function LocalProjectSettingsView({
                 className="desktop-settings-action danger"
                 type="button"
                 disabled={unlinking}
-                title={t("settings.localProject.unlink.title")}
+                data-tooltip={t("settings.localProject.unlink.title")}
                 onClick={() => void unlinkWorkspace()}
               >
                 <Unlink size={14} />

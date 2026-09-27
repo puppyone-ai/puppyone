@@ -76,7 +76,7 @@ describe("registered database DOM viewer", () => {
     expect(tabs).toHaveLength(3);
     expect(tabs[2].getAttribute("aria-disabled")).toBe("true");
     expect(tabs[2].hasAttribute("disabled")).toBe(false);
-    expect(tabs[2].title).toContain("cannot be previewed");
+    expect(tabs[2].dataset.tooltip).toContain("cannot be previewed");
     tabs[0].focus();
     await act(async () => tabs[0].dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
     expect(document.activeElement).toBe(tabs[1]);

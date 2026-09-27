@@ -35,7 +35,7 @@ export function AgentFileChangeActivity({ activity, onOpenFile }: { activity: Ag
             <AgentToolEvidenceNode kind="result">
               <div className="desktop-agent-tool-file-path" dir="ltr">
                 {onOpenFile
-                  ? <button type="button" data-po-interaction="navigation" title={file.path} onClick={() => onOpenFile(file.path)}>{file.path}</button>
+                  ? <button type="button" data-po-interaction="navigation" data-tooltip={file.path} onClick={() => onOpenFile(file.path)}>{file.path}</button>
                   : <span>{file.path}</span>}
               </div>
             </AgentToolEvidenceNode>

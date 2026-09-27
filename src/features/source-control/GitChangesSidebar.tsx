@@ -57,7 +57,7 @@ export function GitChangesSidebar({
                 className="desktop-git-view-back"
                 type="button"
                 aria-label={t("shared-ui.navigation.back")}
-                title={t("shared-ui.navigation.back")}
+                data-tooltip={t("shared-ui.navigation.back")}
                 onClick={closeDetail}
               >
                 <ArrowLeft size={15} strokeWidth={1.8} aria-hidden="true" />
@@ -89,7 +89,7 @@ export function GitChangesSidebar({
               <button
                 className="desktop-git-view-action"
                 type="button"
-                title={t("source-control.history.title")}
+                data-tooltip={t("source-control.history.title")}
                 aria-label={t("source-control.history.title")}
                 onClick={onOpenHistory}
               >

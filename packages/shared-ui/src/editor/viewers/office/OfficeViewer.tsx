@@ -362,7 +362,7 @@ function OfficePreviewControls({
               type="button"
               className="office-preview__toolbar-button"
               aria-label={t("editor.office.zoomOut")}
-              title={t("editor.office.zoomOut")}
+              data-tooltip={t("editor.office.zoomOut")}
               disabled={wordZoomControls.scale <= 0.5}
               onClick={wordZoomControls.onDecrease}
             >
@@ -375,7 +375,7 @@ function OfficePreviewControls({
               type="button"
               className="office-preview__toolbar-button"
               aria-label={t("editor.office.zoomIn")}
-              title={t("editor.office.zoomIn")}
+              data-tooltip={t("editor.office.zoomIn")}
               disabled={wordZoomControls.scale >= 2}
               onClick={wordZoomControls.onIncrease}
             >
@@ -385,7 +385,7 @@ function OfficePreviewControls({
               type="button"
               className="office-preview__toolbar-button"
               aria-label={t("editor.office.fitWidth")}
-              title={t("editor.office.fitWidth")}
+              data-tooltip={t("editor.office.fitWidth")}
               aria-pressed={wordZoomControls.isFit}
               data-active={wordZoomControls.isFit ? "true" : undefined}
               onClick={wordZoomControls.onFit}
@@ -1268,7 +1268,7 @@ function SpreadsheetPreview({
                 ? SPREADSHEET_ROW_HEADER_WIDTH + columnOffsets[cell.columnPosition]
                 : null,
             )}
-            title={cell.value || undefined}
+            data-tooltip={cell.value || undefined}
             onClick={() => {
               selectCell({ rowPosition: row.rowPosition, columnPosition: cell.columnPosition }, false);
               gridWrapRef.current?.focus({ preventScroll: true });
@@ -1383,7 +1383,7 @@ function SpreadsheetPreview({
             type="button"
             role="tab"
             aria-selected={index === activeSheet}
-            title={sheet.name}
+            data-tooltip={sheet.name}
             onClick={() => onActiveSheetChange(index)}
           >
             <span dir="auto">{sheet.name}</span>

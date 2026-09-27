@@ -81,7 +81,7 @@ async function checkDefaultCompute() {
   await evaluate("document.querySelector('input[aria-label=\"Built-in Agent\"]').click()");
   await clickText("Close");
   await evaluate("document.querySelector('.desktop-titlebar-terminal, .desktop-shell-toolbar-terminal').click()");
-  await until(() => evaluate("Boolean(document.querySelector('.desktop-terminal-launcher-tool[title=\"Built-in Agent\"]'))"), "built-in Harness choice");
+  await until(() => evaluate("Boolean(document.querySelector('.desktop-terminal-launcher-tool[data-tooltip=\"Built-in Agent\"]'))"), "built-in Harness choice");
   await clickText("Built-in Agent");
   await until(() => evaluate(`document.querySelector('.desktop-agent-compute-summary')?.textContent.includes("Puppyone's token")`), "default managed compute");
   await ensureAgentSidebarOpen();

@@ -85,7 +85,7 @@ export function CloudMainMetric({
   return (
     <div className={`desktop-cloud-main-metric ${tone ?? ""} ${mono ? "mono" : ""}`}>
       <span>{label}</span>
-      <strong title={value}>{value}</strong>
+      <strong data-tooltip={value}>{value}</strong>
     </div>
   );
 }
@@ -106,7 +106,7 @@ export function CloudAuthorityCell({
   return (
     <div className={`desktop-cloud-authority-cell ${tone ?? ""} ${mono ? "mono" : ""}`}>
       <span>{label}</span>
-      <strong title={title ?? value}>{value}</strong>
+      <strong data-tooltip={title ?? value}>{value}</strong>
     </div>
   );
 }
@@ -140,7 +140,7 @@ export function CloudAssetGrid({
           className="desktop-cloud-asset-tile"
           key={entry.path || entry.name}
           type="button"
-          title={entry.path || entry.name}
+          data-tooltip={entry.path || entry.name}
           onClick={() => onEntryClick(entry)}
         >
           <span className="desktop-cloud-asset-icon">
@@ -303,7 +303,7 @@ export function CloudSourceDock({
 }) {
   const { t } = useLocalization();
   return (
-    <div className="desktop-cloud-source-dock" title={title}>
+    <div className="desktop-cloud-source-dock" data-tooltip={title}>
       <span className="desktop-cloud-web-status-dot ready" aria-hidden="true" />
       <strong>{t("cloud.common.cloudSource")}</strong>
       <em dir="auto">{remote}</em>
@@ -383,7 +383,7 @@ export function CloudProjectRow({
     <div className="desktop-cloud-project-row">
       <span><Cloud size={15} /></span>
       <div>
-        <strong title={project.name} dir="auto">{project.name}</strong>
+        <strong data-tooltip={project.name} dir="auto">{project.name}</strong>
         <small dir={project.description ? "auto" : undefined}>{project.description || t("cloud.project.updated", {
           time: bidiIsolate(project.updated_at ? formatRelativeTime(project.updated_at, localization) : t("cloud.time.recently")),
         })}</small>

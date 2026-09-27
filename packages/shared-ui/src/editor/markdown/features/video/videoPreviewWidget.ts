@@ -63,7 +63,7 @@ export class VideoPreviewWidget extends WidgetType {
     video.hidden = true;
     video.setAttribute("aria-hidden", "true");
     if (this.model.title) {
-      video.title = this.model.title;
+      video.dataset.tooltip = this.model.title;
       video.setAttribute("aria-label", this.model.title);
     }
     if (this.model.width) video.width = this.model.width;

@@ -261,7 +261,7 @@ function ToolbarButton({
       className={active ? "active" : ""}
       data-po-interaction={navigation ? "navigation" : undefined}
       type="button"
-      title={label}
+      data-tooltip={label}
       aria-label={label}
       disabled={disabled}
       onClick={onClick}

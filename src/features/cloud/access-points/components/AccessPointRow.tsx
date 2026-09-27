@@ -31,7 +31,7 @@ export function AccessPointRow({
     <button
       className={`desktop-cloud-access-point-row ${selected ? "selected" : ""}`}
       type="button"
-      title={`${title} · ${bidiIsolate(scopeName)} · ${bidiIsolate(scopePath)}`}
+      data-tooltip={`${title} · ${bidiIsolate(scopeName)} · ${bidiIsolate(scopePath)}`}
       onClick={onOpen}
     >
       <span className={`desktop-cloud-access-point-icon ${definition.tileProvider}`} aria-hidden="true">
@@ -44,7 +44,7 @@ export function AccessPointRow({
         <strong dir="auto">{title}</strong>
         <span>
           <span dir="auto">{scopeName}</span>
-          <code title={scopePath}>{scopePath}</code>
+          <code data-tooltip={scopePath}>{scopePath}</code>
         </span>
       </span>
       <span className="desktop-cloud-access-point-right">

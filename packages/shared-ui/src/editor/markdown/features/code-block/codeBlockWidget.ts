@@ -113,7 +113,7 @@ export class CodeBlockWidget extends WidgetType {
       const sourceReferenceText = formatMarkdownCodeSourceReference(this.sourceReference);
       sourceReference.className = "cm-md-code-source-reference";
       sourceReference.textContent = sourceReferenceText;
-      sourceReference.title = sourceReferenceText;
+      sourceReference.dataset.tooltip = sourceReferenceText;
       sourceReference.setAttribute(
         "aria-label",
         t("editor.markdown.code.source", { source: bidiIsolate(sourceReferenceText) }),

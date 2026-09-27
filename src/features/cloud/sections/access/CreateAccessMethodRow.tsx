@@ -68,7 +68,7 @@ function CreateAccessSwitch({
       role="switch"
       aria-checked={checked}
       aria-label={ariaLabel}
-      title={title}
+      data-tooltip={title}
       disabled={disabled}
       onClick={() => onChange?.(!checked)}
     >

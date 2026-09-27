@@ -141,7 +141,7 @@ export function CreateNewSettingsView({
         data-unavailable={!available || undefined}
         key={entry}
         role="listitem"
-        title={!available ? t("settings.createNew.unavailable") : undefined}
+        data-tooltip={!available ? t("settings.createNew.unavailable") : undefined}
         onDragOver={(event) => setRowDropTarget(event, group, index, entry)}
         onDrop={(event) => completeDrop(event, { group, index })}
       >
@@ -150,7 +150,7 @@ export function CreateNewSettingsView({
           type="button"
           draggable
           aria-label={t("settings.createNew.dragToReorder", { type: label })}
-          title={t("settings.createNew.dragToReorder", { type: label })}
+          data-tooltip={t("settings.createNew.dragToReorder", { type: label })}
           onDragStart={(event) => handleDragStart(event, entry)}
           onDragEnd={clearDragState}
         >

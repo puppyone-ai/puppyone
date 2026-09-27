@@ -22,7 +22,7 @@ function operation(status: ActivationOperation["status"] = "installing"): Activa
     steps: [{ id: "prepare", status: "complete" }, { id: "install", status: "running" }, { id: "verify", status: "pending" }] };
 }
 function button(label: string) {
-  const found = Array.from(document.querySelectorAll("button")).find(node => node.getAttribute("aria-label") === label || node.textContent === label || node.title === label);
+  const found = Array.from(document.querySelectorAll("button")).find(node => node.getAttribute("aria-label") === label || node.textContent === label || node.dataset.tooltip === label);
   if (!found) throw new Error(`Missing button: ${label}. ${document.body.textContent}`); return found;
 }
 async function click(label: string) { await act(async () => { button(label).click(); }); }

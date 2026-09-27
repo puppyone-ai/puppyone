@@ -9,7 +9,7 @@ export type SidebarRowProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "chi
 };
 
 export const SidebarRow = forwardRef<HTMLButtonElement, SidebarRowProps>(function SidebarRow(
-  { active = false, className, icon, label, meta, type = "button", "aria-current": ariaCurrent, ...props },
+  { active = false, className, icon, label, meta, title, type = "button", "aria-current": ariaCurrent, ...props },
   ref,
 ) {
   return (
@@ -23,6 +23,7 @@ export const SidebarRow = forwardRef<HTMLButtonElement, SidebarRowProps>(functio
       type={type}
       data-active={active || undefined}
       aria-current={ariaCurrent ?? (active ? "page" : undefined)}
+      data-tooltip={title}
       {...props}
     >
       {icon != null && <span className="po-sidebar-row__icon" aria-hidden="true">{icon}</span>}

@@ -179,7 +179,7 @@ export function TerminalLauncher({
               onClick={onRefresh}
               disabled={busy || scanning}
               aria-label={t("terminal.launcher.scanAgain")}
-              title={t("terminal.launcher.scanAgain")}
+              data-tooltip={t("terminal.launcher.scanAgain")}
             >
               <RefreshCw size={12} strokeWidth={1.7} aria-hidden="true" />
             </button>
@@ -192,7 +192,7 @@ export function TerminalLauncher({
               onClick={onOpenHistory ?? (() => state.patch({ historyOpen: true }))}
               disabled={busy}
               aria-label={history.label}
-              title={history.label}
+              data-tooltip={history.label}
             >
               <History size={13} strokeWidth={1.7} aria-hidden="true" />
             </button>
@@ -232,7 +232,7 @@ export function TerminalLauncher({
                 onClick={() => onLaunch(shell.id)}
                 disabled={busy}
                 aria-label={`${t("terminal.title")}. ${t(shell.descriptionMessage)}`}
-                title={t(shell.descriptionMessage)}
+                data-tooltip={t(shell.descriptionMessage)}
               >
                 <WorkbenchLauncherIcon launcherId="shell" />
                 <span>{t("terminal.title")}</span>
@@ -270,7 +270,7 @@ function TerminalAgentButton({
       data-po-interaction="navigation"
       disabled={!launchAvailable}
       aria-label={`${t("terminal.launcher.title")}: ${label}. ${description}`}
-      title={description}
+      data-tooltip={description}
       onClick={() => onLaunch(launcher.id)}
     >
       <WorkbenchLauncherIcon launcherId={launcher.id} />
@@ -305,7 +305,7 @@ function ChatRecipeButton({
       data-status={recipe.status}
       disabled={!available}
       aria-label={`${t("terminal.launcher.title")}: ${title}`}
-      title={title}
+      data-tooltip={title}
       onClick={() => onCreate?.(recipe)}
     >
       <WorkbenchLauncherIcon iconKey={recipe.iconKey} />

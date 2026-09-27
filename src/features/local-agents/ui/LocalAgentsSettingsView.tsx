@@ -72,7 +72,6 @@ export function LocalAgentsSettingsView({
                   className="desktop-settings-row-action desktop-local-agent-group-action"
                   type="button"
                   aria-label={t("settings.localAgents.scan")}
-                  title={t("settings.localAgents.scan")}
                   onClick={() => void refresh()}
                 >
                   <RefreshCw size={12} className={scanning ? "spin" : undefined} aria-hidden="true" />
@@ -98,7 +97,7 @@ export function LocalAgentsSettingsView({
                       </span>
                       <label
                         className="desktop-settings-switch"
-                        title={t("settings.localAgents.toggle", { agent: displayName })}
+                        data-tooltip={t("settings.localAgents.toggle", { agent: displayName })}
                       >
                         <input
                           type="checkbox"
@@ -146,7 +145,7 @@ export function LocalAgentsSettingsView({
                   <span>{t("settings.localAgents.history.toggle")}</span>
                   <label
                     className="desktop-settings-switch"
-                    title={t("settings.localAgents.history.toggle")}
+                    data-tooltip={t("settings.localAgents.history.toggle")}
                   >
                     <input
                       type="checkbox"

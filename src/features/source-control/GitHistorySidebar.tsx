@@ -73,7 +73,7 @@ export function GitHistorySidebar({
           className="desktop-git-view-back"
           type="button"
           aria-label={t("shared-ui.navigation.back")}
-          title={t("shared-ui.navigation.back")}
+          data-tooltip={t("shared-ui.navigation.back")}
           onClick={handleBack}
         >
           <ArrowLeft size={15} strokeWidth={1.8} aria-hidden="true" />

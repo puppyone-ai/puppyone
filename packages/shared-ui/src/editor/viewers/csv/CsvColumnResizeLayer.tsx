@@ -215,7 +215,8 @@ export function CsvColumnResizeLayer({
         type="button"
         className="csv-table-editor__column-resize-handle"
         tabIndex={-1}
-        title={t("editor.csv.resizeColumnHint")}
+        aria-label={t("editor.csv.resizeColumnHint")}
+        data-tooltip={t("editor.csv.resizeColumnHint")}
         onDoubleClick={(event) => {
           event.preventDefault();
           event.stopPropagation();

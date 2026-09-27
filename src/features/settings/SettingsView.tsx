@@ -301,7 +301,7 @@ export function SettingsView({
                       key={theme.id}
                       className={`${fileIconDecision.effectiveValue === theme.id ? "active" : ""}${fileIconLocked || !isAppearanceValueAllowed(fileIconDecision, theme.id) ? " is-policy-controlled" : ""}`}
                       type="button"
-                      title={fileIconDecision.reasonKey
+                      data-tooltip={fileIconDecision.reasonKey
                         ? t(fileIconDecision.reasonKey)
                         : t(`settings.appearance.fileIcons.${theme.id}.description`)}
                       aria-disabled={fileIconLocked || !isAppearanceValueAllowed(fileIconDecision, theme.id)}
@@ -332,7 +332,7 @@ export function SettingsView({
                       key={layout}
                       className={gitSidebarLayout === layout ? "active" : ""}
                       type="button"
-                      title={t(`settings.appearance.gitSidebarLayout.${layout}.description`)}
+                      data-tooltip={t(`settings.appearance.gitSidebarLayout.${layout}.description`)}
                       aria-pressed={gitSidebarLayout === layout}
                       onClick={() => onGitSidebarLayoutChange(layout)}
                     >
@@ -352,7 +352,7 @@ export function SettingsView({
                       key={presetId}
                       className={loadingAnimationPreset === presetId ? "active" : ""}
                       type="button"
-                      title={t(`settings.appearance.loadingAnimation.${presetId}.description`)}
+                      data-tooltip={t(`settings.appearance.loadingAnimation.${presetId}.description`)}
                       aria-pressed={loadingAnimationPreset === presetId}
                       onClick={() => onLoadingAnimationPresetChange(presetId)}
                     >
@@ -423,7 +423,7 @@ export function SettingsView({
                 <span id="desktop-pointer-cursors-label">{t("settings.appearance.pointerCursors.title")}</span>
                 <label
                   className="desktop-settings-switch"
-                  title={t("settings.appearance.pointerCursors.detail")}
+                  data-tooltip={t("settings.appearance.pointerCursors.detail")}
                 >
                   <input
                     type="checkbox"

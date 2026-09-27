@@ -81,7 +81,7 @@ export function SubThemeSettingsSection({
               className="desktop-theme-pack-icon-action"
               type="button"
               aria-label={t("settings.appearance.themes.openFolder")}
-              title={t("settings.appearance.themes.openFolder")}
+              data-tooltip={t("settings.appearance.themes.openFolder")}
               onClick={() => void catalog.openDirectory()}
             >
               <FolderOpen size={14} strokeWidth={1.8} aria-hidden="true" />
@@ -90,7 +90,7 @@ export function SubThemeSettingsSection({
               className="desktop-theme-pack-icon-action"
               type="button"
               aria-label={t("settings.appearance.themes.add")}
-              title={t("settings.appearance.themes.add")}
+              data-tooltip={t("settings.appearance.themes.add")}
               onClick={() => void onAddTheme()}
             >
               <Plus size={14} strokeWidth={1.9} aria-hidden="true" />

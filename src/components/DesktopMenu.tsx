@@ -121,6 +121,7 @@ export const DesktopMenuItem = forwardRef<HTMLButtonElement, DesktopMenuItemProp
     label,
     role = "menuitem",
     selected,
+    title,
     trailing,
     ...props
   },
@@ -132,6 +133,7 @@ export const DesktopMenuItem = forwardRef<HTMLButtonElement, DesktopMenuItemProp
       className={cx("desktop-menu-item", selected && "selected", destructive && "danger", className)}
       type="button"
       role={role}
+      data-tooltip={title}
       {...props}
     >
       {icon !== undefined && <span className="desktop-menu-item-icon" aria-hidden="true">{icon}</span>}

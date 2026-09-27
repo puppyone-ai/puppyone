@@ -33,7 +33,7 @@ export function GitFileDiffSurface({
       data-content-mode={contentMode}
     >
       <div className="desktop-file-diff-header" data-file-format={format.id}>
-        <div className="desktop-file-diff-identity" title={displayPath} aria-label={displayPath} dir="ltr">
+        <div className="desktop-file-diff-identity" data-tooltip={displayPath} aria-label={displayPath} dir="ltr">
           <span className="desktop-file-diff-name">{displayName}</span>
           <span className={`desktop-change-badge ${file.status}`}>{getGitChangeLabel(file.status, t)}</span>
         </div>

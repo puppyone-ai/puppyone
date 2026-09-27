@@ -91,7 +91,7 @@ export function DesktopCloudAccessMethodCard({
                 {t(mcpError ? "cloud.status.error" : "cloud.status.off")}
               </span>
             </div>
-            <p title={mcpError ?? meta.description}>{mcpError ?? meta.description}</p>
+            <p data-tooltip={mcpError ?? meta.description}>{mcpError ?? meta.description}</p>
           </div>
         </div>
         {canManage && <button

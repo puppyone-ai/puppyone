@@ -259,7 +259,7 @@ function CloudAutomationResourcePicker({
                 key={`${resource.type}:${resource.id}`}
                 disabled={!resource.authorized}
                 aria-pressed={selected}
-                title={resource.authorized
+                data-tooltip={resource.authorized
                   ? resource.name
                   : t("automation.resource.notAuthorized", { name: bidiIsolate(resource.name) })}
                 onClick={() => onChange(automationSourceFromProviderResource(resource))}
@@ -545,7 +545,7 @@ function CloudAutomationFolderBranch({
             <div className={`desktop-cloud-automation-folder-row ${selected ? "selected" : ""}`}>
               <button
                 type="button"
-                title={t(isExpanded ? "automation.destination.collapseFolder" : "automation.destination.expandFolder", {
+                data-tooltip={t(isExpanded ? "automation.destination.collapseFolder" : "automation.destination.expandFolder", {
                   name: bidiIsolate(folder.name),
                 })}
                 aria-label={t(isExpanded ? "automation.destination.collapseFolder" : "automation.destination.expandFolder", {

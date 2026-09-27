@@ -244,7 +244,7 @@ function AgentTranscriptView({
       {!pinned && timeline.rows.length > 0 && (
         <button className="desktop-agent-jump-latest" type="button" onClick={() => { jumpToLatest(); setUnreadCount(0); }} aria-label={unreadCount
           ? t("agent.transcript.jumpLatestUnread", { count: unreadCount })
-          : t("agent.transcript.jumpLatest")} title={t("agent.transcript.jumpLatest")}><ArrowDown size={15} /></button>
+          : t("agent.transcript.jumpLatest")} data-tooltip={t("agent.transcript.jumpLatest")}><ArrowDown size={15} /></button>
       )}
     </div>
   );

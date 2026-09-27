@@ -272,7 +272,7 @@ function appendWikiLink(target: Node, token: MarkdownWikiLinkToken, options: Mar
     const missing = document.createElement("span");
     missing.className = "cm-md-wiki-link-inline is-missing";
     missing.textContent = token.label;
-    missing.title = options.t
+    missing.dataset.tooltip = options.t
       ? options.t("editor.markdown.missingLinkedNote", { target: bidiIsolate(token.target) })
       : token.target;
     target.appendChild(missing);
@@ -284,7 +284,7 @@ function appendWikiLink(target: Node, token: MarkdownWikiLinkToken, options: Mar
     ? "cm-md-wiki-link-inline is-resolved is-ambiguous"
     : "cm-md-wiki-link-inline is-resolved";
   link.textContent = token.label;
-  link.title = resolvedTarget.path ?? token.target;
+  link.dataset.tooltip = resolvedTarget.path ?? token.target;
   const openWikiLink = options.markdownLinkCommands?.openWikiLink;
   if (!openWikiLink) {
     target.appendChild(link);
@@ -404,7 +404,7 @@ function createImageElement(
   image.hidden = true;
   image.dataset.previewState = "loading";
   image.setAttribute("aria-hidden", "true");
-  if (title) image.title = title;
+  if (title) image.dataset.tooltip = title;
   image.addEventListener("load", () => {
     const reveal = () => {
       if (!image.isConnected || !placeholder.isConnected) return;

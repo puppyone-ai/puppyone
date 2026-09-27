@@ -54,7 +54,7 @@ export function InterfacePaletteSettings({
                 className={`desktop-theme-choice ${decision.effectiveValue === mode ? "active" : ""}${locked || !isAppearanceValueAllowed(decision, mode) ? " is-policy-controlled" : ""}`}
                 type="button"
                 key={mode}
-                title={decision.reasonKey ? t(decision.reasonKey) : undefined}
+                data-tooltip={decision.reasonKey ? t(decision.reasonKey) : undefined}
                 aria-disabled={locked || !isAppearanceValueAllowed(decision, mode)}
                 aria-pressed={decision.effectiveValue === mode}
                 onClick={() => {

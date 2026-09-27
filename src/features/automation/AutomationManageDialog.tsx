@@ -259,7 +259,7 @@ export function CloudManageAutomationDialog({
               className="desktop-dialog-button desktop-cloud-automation-icon-action"
               type="button"
               aria-label={t("automation.manage.openInCloud")}
-              title={t("automation.manage.openInCloud")}
+              data-tooltip={t("automation.manage.openInCloud")}
               onClick={onOpenAutomation}
             >
               <ExternalLink size={14} />
@@ -269,7 +269,7 @@ export function CloudManageAutomationDialog({
               type="button"
               disabled={busy !== null}
               aria-label={t("automation.manage.delete")}
-              title={t("automation.manage.delete")}
+              data-tooltip={t("automation.manage.delete")}
               onClick={() => setDeleteConfirm(true)}
             >
               <Trash2 size={14} />

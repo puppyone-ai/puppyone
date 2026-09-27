@@ -145,7 +145,7 @@ function LocalAssetCard({
       <button
         className="asset-library-card-main"
         type="button"
-        title={item.localPath}
+        data-tooltip={item.localPath}
         disabled={busy}
         aria-busy={opening || undefined}
         aria-label={t("onboarding.projects.open", { project: bidiIsolate(name) })}

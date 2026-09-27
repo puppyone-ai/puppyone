@@ -355,7 +355,7 @@ export function CsvTableResizeControl({
           aria-haspopup="dialog"
           aria-label={t("editor.csv.expandTable")}
           disabled={!canExpand}
-          title={t("editor.csv.expandTableHint")}
+          data-tooltip={t("editor.csv.expandTableHint")}
           onClick={handleClick}
           onLostPointerCapture={(event) => finishPointerInteraction(event, true)}
           onPointerCancel={(event) => finishPointerInteraction(event, true)}
@@ -381,7 +381,7 @@ export function CsvTableResizeControl({
             aria-label={t("editor.csv.expandTable")}
           >
             <div className="csv-table-editor__resize-picker-summary" aria-live="polite">
-              <strong title={pickerDimensionLabel}>{pickerDimensionLabel}</strong>
+              <strong data-tooltip={pickerDimensionLabel}>{pickerDimensionLabel}</strong>
               <span>{formatExpansionDelta(pickerSelection)}</span>
             </div>
             <div

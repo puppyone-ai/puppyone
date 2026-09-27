@@ -75,7 +75,7 @@ export const TerminalSessionTab = memo(function TerminalSessionTab({
         aria-selected={active}
         aria-keyshortcuts="Alt+Shift+ArrowLeft Alt+Shift+ArrowRight Alt+Shift+ArrowUp Alt+Shift+ArrowDown"
         tabIndex={active ? 0 : -1}
-        title={presentation.accessibleLabel}
+        data-tooltip={presentation.accessibleLabel}
         onClick={(event) => {
           if (consumeSuppressedClick()) {
             event.preventDefault();

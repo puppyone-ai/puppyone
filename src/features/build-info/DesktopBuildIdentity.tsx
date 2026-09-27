@@ -30,7 +30,7 @@ export function DesktopBuildVersionSettingsRow() {
           className="desktop-build-version-text"
           data-build-channel={buildInfo.channel}
           dir="ltr"
-          title={t("shell.build.version.title", {
+          data-tooltip={t("shell.build.version.title", {
             channel,
             commit: buildInfo.commitSha.slice(0, 8),
             version: buildInfo.version,
@@ -43,7 +43,7 @@ export function DesktopBuildVersionSettingsRow() {
         <button
           className="desktop-settings-action desktop-build-version-copy"
           type="button"
-          title={t(copied ? "shell.build.copy.copied" : "shell.build.copy.action")}
+          data-tooltip={t(copied ? "shell.build.copy.copied" : "shell.build.copy.action")}
           aria-label={t(copied ? "shell.build.copy.copied" : "shell.build.copy.action")}
           onClick={() => void copyVersionInformation()}
         >

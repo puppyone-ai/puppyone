@@ -148,7 +148,7 @@ function DesktopBranchSwitcher({
         aria-expanded={open}
         aria-haspopup="menu"
         disabled={disabled}
-        title={disabled
+        data-tooltip={disabled
           ? loading ? undefined : branchLabel
           : t("shell.branch.title", { branch: bidiIsolate(branchLabel) })}
         onClick={onToggle}

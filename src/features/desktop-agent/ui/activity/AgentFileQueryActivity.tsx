@@ -45,8 +45,8 @@ function SearchResults({ results, onOpenFile }: { results: ReturnType<typeof col
       {results.lines.map((line, index) => {
         const path = resultPath(line);
         return path && onOpenFile
-          ? <button type="button" data-po-interaction="navigation" key={`${index}:${line}`} title={line} onClick={() => onOpenFile(path)}>{line}</button>
-          : <span key={`${index}:${line}`} title={line}>{line}</span>;
+          ? <button type="button" data-po-interaction="navigation" key={`${index}:${line}`} data-tooltip={line} onClick={() => onOpenFile(path)}>{line}</button>
+          : <span key={`${index}:${line}`} data-tooltip={line}>{line}</span>;
       })}
       {results.omittedLines > 0 && <small>{t("agent.activity.moreResults", { count: results.omittedLines, value: formatNumber(results.omittedLines) })}</small>}
     </div>

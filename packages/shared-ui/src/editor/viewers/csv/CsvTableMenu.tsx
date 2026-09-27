@@ -244,7 +244,7 @@ export function CsvTableMenu({
                 disabled={item.disabled}
                 tabIndex={-1}
                 aria-label={item.label}
-                title={item.label}
+                data-tooltip={item.label}
                 onClick={(event) => {
                   event.preventDefault();
                   event.stopPropagation();

@@ -228,7 +228,7 @@ export function CloudProjectSettingsSection({
                     <small>{t("cloud.settings.projectIdHelp")}</small>
                   </div>
                   <div>
-                    <code title={currentProject.id}>{currentProject.id}</code>
+                    <code data-tooltip={currentProject.id}>{currentProject.id}</code>
                     <button type="button" onClick={() => void handleCopyProjectId()}>
                       {copiedProjectId ? <Check size={13} /> : <Copy size={13} />}
                       <span>{t(copiedProjectId ? "cloud.common.copied" : "cloud.common.copyValue")}</span>

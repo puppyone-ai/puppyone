@@ -78,7 +78,7 @@ export class MarkdownMdxTabsWidget extends WidgetType {
     sourceButton.type = "button";
     sourceButton.className = "cm-md-mdx-source-toggle";
     sourceButton.textContent = "</>";
-    sourceButton.title = localization.t("editor.mode.source");
+    sourceButton.dataset.tooltip = localization.t("editor.mode.source");
     sourceButton.setAttribute("aria-label", localization.t("editor.mode.source"));
     toolbar.append(tabList, sourceButton);
 

@@ -89,7 +89,7 @@ function ChipButton({
     <button
       className={`editor-save-chip ${tone}`}
       type="button"
-      title={title}
+      data-tooltip={title}
       onClick={onClick}
     >
       {children}

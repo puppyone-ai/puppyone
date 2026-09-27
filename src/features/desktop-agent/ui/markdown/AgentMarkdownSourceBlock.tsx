@@ -10,7 +10,7 @@ export function AgentMarkdownSourceBlock({ language, source }: Readonly<{ langua
     <div className="desktop-agent-code-block" data-language={language || "text"}>
       <div className="desktop-agent-code-toolbar">
         <span className="desktop-agent-code-language">{language || "text"}</span>
-        <button type="button" className="desktop-agent-code-copy" aria-label={copyLabel} title={copyLabel} onClick={() => {
+        <button type="button" className="desktop-agent-code-copy" aria-label={copyLabel} data-tooltip={copyLabel} onClick={() => {
           const copy = navigator.clipboard?.writeText(source);
           void copy?.then(() => {
             setCopied(true);

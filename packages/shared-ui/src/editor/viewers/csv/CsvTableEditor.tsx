@@ -604,7 +604,7 @@ export function CsvTableEditor({
                   type="button"
                   className="csv-table-editor__structure-button csv-table-editor__add-row po-editable-table-structure-button po-editable-table-add-row"
                   onClick={addRow}
-                  title={t("editor.csv.addRow")}
+                  data-tooltip={t("editor.csv.addRow")}
                   aria-label={t("editor.csv.addRow")}
                 >
                   <span className="csv-table-editor__structure-button-visual po-editable-table-structure-button-visual" aria-hidden="true" />
@@ -613,7 +613,7 @@ export function CsvTableEditor({
                   type="button"
                   className="csv-table-editor__structure-button csv-table-editor__add-column po-editable-table-structure-button po-editable-table-add-column"
                   onClick={addColumn}
-                  title={t("editor.csv.addColumn")}
+                  data-tooltip={t("editor.csv.addColumn")}
                   aria-label={t("editor.csv.addColumn")}
                 >
                   <span className="csv-table-editor__structure-button-visual po-editable-table-structure-button-visual" aria-hidden="true" />
@@ -779,7 +779,7 @@ const MemoCsvBodyRow = memo(function CsvBodyRow({
             row: displayRowNumber,
             record: rowIndex + 1,
           })}
-          title={t("editor.csv.rowNumber", {
+          data-tooltip={t("editor.csv.rowNumber", {
             row: displayRowNumber,
             record: rowIndex + 1,
           })}

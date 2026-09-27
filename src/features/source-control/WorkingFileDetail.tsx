@@ -94,7 +94,7 @@ export function WorkingFileActions({
         <button
           type="button"
           className="secondary-action desktop-working-file-open"
-          title={t("source-control.action.openInData")}
+          data-tooltip={t("source-control.action.openInData")}
           disabled={disabled}
           onClick={() => onOpenFile(selection.path)}
         >

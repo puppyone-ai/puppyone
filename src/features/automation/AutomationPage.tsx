@@ -239,14 +239,14 @@ export function CloudAutomationPage({
                 </span>
               </div>
               <div className="desktop-cloud-automation-creation-echo-actions">
-                <button type="button" title={t("automation.creation.refreshStatus")} onClick={() => void refreshCreationStatus()}>
+                <button type="button" onClick={() => void refreshCreationStatus()}>
                   <RefreshCw size={14} />
                   {t("common.action.refresh")}
                 </button>
                 <button
                   type="button"
                   aria-label={t("automation.creation.dismissStatus")}
-                  title={t("automation.creation.dismissStatus")}
+                  data-tooltip={t("automation.creation.dismissStatus")}
                   onClick={() => setCreationEcho(null)}
                 >
                   <X size={14} />
@@ -373,7 +373,7 @@ function CloudAutomationAccessList({
                       className={`desktop-cloud-automation-connection-card ${selectedRowId === row.id ? "selected" : ""} ${highlighted ? "created" : ""}`.trim()}
                       key={row.id}
                       type="button"
-                      title={t("automation.connection.title", {
+                      data-tooltip={t("automation.connection.title", {
                         name: bidiIsolate(connectionTitle),
                         path: bidiIsolate(getScopePathLabel(row.scope)),
                       })}
@@ -382,7 +382,7 @@ function CloudAutomationAccessList({
                       <span className="desktop-cloud-automation-route">
                         <span
                           className="desktop-cloud-automation-source-config"
-                          title={t("automation.connection.source", {
+                          data-tooltip={t("automation.connection.source", {
                             provider: bidiIsolate(group.label),
                             name: bidiIsolate(connectionTitle),
                           })}

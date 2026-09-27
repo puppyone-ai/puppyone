@@ -201,13 +201,13 @@ function CloudHistorySidebarRow({
           type="button"
           aria-current={selected ? "true" : undefined}
           data-commit-id={row.id}
-          title={`${message} (${shortCommit(row.id)})`}
+          data-tooltip={`${message} (${shortCommit(row.id)})`}
           onClick={() => onSelect(row.id)}
         >
           {contents}
         </button>
       ) : (
-        <div className={className} title={message}>
+        <div className={className} data-tooltip={message}>
           {contents}
         </div>
       )}

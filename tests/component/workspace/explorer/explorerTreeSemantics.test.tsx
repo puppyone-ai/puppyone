@@ -244,7 +244,7 @@ describe("ExplorerTree interactive semantics", () => {
     expect(onExportNodes).toHaveBeenCalledOnce();
     expect(event.defaultPrevented).toBe(true);
     expect(row.getAttribute("aria-grabbed")).not.toBe("true");
-    expect(row.title).toContain("Option-drag");
+    expect(row.dataset.tooltip).toContain("Option-drag");
   });
 
   it("keeps outbound reference drag available when in-tree move is read-only", () => {

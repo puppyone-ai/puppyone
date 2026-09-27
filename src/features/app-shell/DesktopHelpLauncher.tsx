@@ -311,7 +311,7 @@ export function DesktopHelpLauncher(overlayTheme: DesktopHelpLauncherProps) {
                             className="desktop-feedback-screenshot"
                             type="button"
                             aria-label={t("shell.feedback.removeScreenshot")}
-                            title={t("shell.feedback.removeScreenshot")}
+                            data-tooltip={t("shell.feedback.removeScreenshot")}
                             disabled={submissionState === "sending" || submissionState === "sent"}
                             onClick={() => {
                               replaceScreenshot(null);
@@ -329,7 +329,7 @@ export function DesktopHelpLauncher(overlayTheme: DesktopHelpLauncherProps) {
                             className="desktop-feedback-attach"
                             type="button"
                             aria-label={t("shell.feedback.attachScreenshot")}
-                            title={t("shell.feedback.attachScreenshot")}
+                            data-tooltip={t("shell.feedback.attachScreenshot")}
                             disabled={
                               attachmentState === "processing"
                               || submissionState === "sending"
@@ -354,7 +354,7 @@ export function DesktopHelpLauncher(overlayTheme: DesktopHelpLauncherProps) {
                             className="desktop-feedback-attachment-error"
                             role="img"
                             aria-label={attachmentError}
-                            title={attachmentError}
+                            data-tooltip={attachmentError}
                           >
                             <CircleAlert size={14} strokeWidth={1.8} aria-hidden="true" />
                           </span>
@@ -400,7 +400,7 @@ export function DesktopHelpLauncher(overlayTheme: DesktopHelpLauncherProps) {
                     className="desktop-dialog-button primary desktop-feedback-submit"
                     type="submit"
                     aria-label={sendLabel}
-                    title={sendLabel}
+                    data-tooltip={sendLabel}
                     data-state={submissionState}
                     disabled={!canSend}
                   >
@@ -429,7 +429,7 @@ export function DesktopHelpLauncher(overlayTheme: DesktopHelpLauncherProps) {
         className="desktop-help-launcher"
         type="button"
         aria-label={label}
-        title={label}
+        data-tooltip={label}
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={handleLauncherClick}

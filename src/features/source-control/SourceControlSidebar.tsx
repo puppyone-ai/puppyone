@@ -171,7 +171,7 @@ export function GitSidebar({ repository, view, actions, cloudBackup }: GitSideba
                     {(hasStashableChanges || hasDiscardableChanges) && (
                       <details className="desktop-git-more-actions">
                         <summary
-                          title={t("source-control.action.more")}
+                          data-tooltip={t("source-control.action.more")}
                           aria-label={t("source-control.action.more")}
                         >
                           <MoreHorizontal size={15} aria-hidden="true" />

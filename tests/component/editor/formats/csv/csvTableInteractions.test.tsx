@@ -54,7 +54,7 @@ describe("CSV table interactions", () => {
     expect(Array.from(container?.querySelectorAll(".csv-table-editor__record-index-label") ?? [])
       .map((label) => label.textContent?.trim())).toEqual(["1", "2"]);
     expect(container?.querySelectorAll(".csv-table-editor__record-index input")).toHaveLength(0);
-    expect(container?.querySelector("[data-csv-display-row='1']")?.getAttribute("title"))
+    expect(container?.querySelector("[data-csv-display-row='1']")?.getAttribute("data-tooltip"))
       .toBe("Data row 1; CSV record 2");
 
     act(() => container?.querySelector<HTMLButtonElement>(".csv-table-editor__settings-button")?.click());
@@ -641,7 +641,7 @@ describe("CSV table interactions", () => {
     expect(menu?.querySelectorAll(".desktop-menu-item.is-icon")).toHaveLength(12);
     expect(menu?.querySelectorAll(".po-editable-table-menu-icon")).toHaveLength(12);
     expect(Array.from(menu?.querySelectorAll<HTMLButtonElement>(".desktop-menu-item") ?? [])
-      .every((button) => button.title === button.getAttribute("aria-label"))).toBe(true);
+      .every((button) => button.dataset.tooltip === button.getAttribute("aria-label"))).toBe(true);
     expect(findButton("Auto fit column")).not.toBeNull();
     const moveColumnRight = findButton("Move column right");
     await act(async () => {

@@ -7,7 +7,7 @@ export function AgentReferenceDisplayList({ references }: { references: AgentRef
   return (
     <div className="desktop-agent-message-references" role="list">
       {references.map((reference) => (
-        <span key={reference.id} title={reference.relativePath || reference.displayName} dir="auto" role="listitem">
+        <span key={reference.id} data-tooltip={reference.relativePath || reference.displayName} dir="auto" role="listitem">
           {reference.kind === "workspace-directory"
             ? <Folder size={12} aria-hidden="true" />
             : reference.kind === "workspace-file"
