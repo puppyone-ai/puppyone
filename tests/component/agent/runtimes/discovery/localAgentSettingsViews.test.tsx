@@ -61,7 +61,6 @@ describe("Local Agent settings views", () => {
     />);
 
     await vi.waitFor(() => expect(document.body.textContent).toContain("Codex"));
-    expect(document.body.textContent).toContain("Configure local Agents, chat history discovery, and Hooks.");
     expect(document.body.textContent).toContain("Pi Agent");
     expect(document.body.textContent).toContain("WorkBuddy (China)");
     expect(document.body.textContent).toContain("WorkBuddy (International)");

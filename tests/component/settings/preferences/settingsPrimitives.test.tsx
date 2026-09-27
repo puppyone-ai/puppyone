@@ -31,7 +31,7 @@ describe("Settings primitives", () => {
     act(() => {
       root?.render(
         <>
-          <SettingsSectionHeader title="الإعدادات" detail="تفضيلات التطبيق على هذا الجهاز." />
+          <SettingsSectionHeader title="الإعدادات" />
           <SettingsSubsection title="اللغة">
             <SettingsValueRow label="لغة التطبيق" value="العربية" />
           </SettingsSubsection>
@@ -40,6 +40,7 @@ describe("Settings primitives", () => {
     });
 
     expect(host.querySelector("h2")?.textContent).toBe("الإعدادات");
+    expect(host.querySelector(".desktop-settings-section-header")?.textContent).toBe("الإعدادات");
     const subsection = host.querySelector("section.desktop-settings-subsection");
     const heading = subsection?.querySelector("h3");
     expect(heading?.textContent).toBe("اللغة");

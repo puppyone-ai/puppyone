@@ -40,7 +40,7 @@ describe("settings visual architecture", () => {
     expect(general).not.toContain("AgentActivity");
     expect(general).not.toContain("localAgents");
     expect(localAgents).toContain('settings.localAgents.title');
-    expect(localAgents).toContain('detail={t("settings.localAgents.detail")}');
+    expect(localAgents).not.toContain('detail={t("settings.localAgents.detail")}');
     expect(localAgents).toContain("useLocalAgentInstallations");
     expect(localAgents).toContain("DESKTOP_TERMINAL_LAUNCHERS");
     expect(localAgents).toContain("<AgentLauncherIcon");
@@ -338,7 +338,7 @@ describe("settings visual architecture", () => {
       "settings.cloud.detail",
       "settings.git.detail",
     ]) {
-      expect(settingsImplementation, detailId).toContain(detailId);
+      expect(settingsImplementation, detailId).not.toContain(detailId);
     }
   });
 
@@ -359,7 +359,7 @@ describe("settings visual architecture", () => {
     expect(settings).toMatch(/\.desktop-settings-heading-row\s*{[^}]*padding-inline:\s*10px;/s);
     expect(settings).toMatch(/\.desktop-settings-section-header\s*{[^}]*padding-inline:\s*10px;/s);
     expect(settings).toMatch(/\.desktop-settings-heading-row \.desktop-settings-section-header\s*{[^}]*padding-inline:\s*0;/s);
-    expect(settings).toMatch(/\.desktop-settings-section-header h2\s*{[^}]*font-size:\s*var\(--po-text-size-section-title, 15px\);[^}]*font-weight:\s*var\(--po-text-weight-medium, 500\);[^}]*line-height:\s*20px;/s);
+    expect(settings).toMatch(/\.desktop-settings-section-header h2\s*{[^}]*font-size:\s*var\(--po-type-ui-page-title, 21px\);[^}]*font-weight:\s*var\(--po-text-weight-medium, 500\);[^}]*line-height:\s*1\.25;/s);
     expect(settings).toMatch(/\.desktop-settings-row\s*{[^}]*gap:\s*18px;[^}]*padding:\s*0 10px;/s);
     expect(settings).toMatch(/\.desktop-settings-row > \.desktop-settings-row-value\s*{[^}]*font-weight:\s*var\(--po-text-weight-regular, 400\);/s);
     expect(settings).toMatch(/\.desktop-settings-value-text\s*{[^}]*font-weight:\s*var\(--po-text-weight-regular, 400\);/s);

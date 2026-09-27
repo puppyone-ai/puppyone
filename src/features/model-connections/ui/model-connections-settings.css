@@ -74,7 +74,6 @@
   }
   .model-connections-feedback { padding-inline: 10px; color: var(--po-danger); }
   .model-connections-back.desktop-settings-row-action { justify-self: start; height: auto; padding: 0 10px; border: 0; }
-  .model-connections-section .desktop-settings-section-header span { overflow-wrap: anywhere; }
   .model-connections-remove { border-top: 1px solid var(--po-border-subtle); padding-top: 16px; }
   .model-connections-delete { display: grid; gap: 10px; }
   .model-connections-danger.desktop-settings-row-action { color: var(--po-danger); }

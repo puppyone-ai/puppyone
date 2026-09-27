@@ -20,6 +20,7 @@ export function ModelConnectionDetails({ connection, catalog, busy, onEdit, onRe
   return <div className="model-connections-groups model-connection-details">
     <div className="desktop-settings-list">
       <SettingsValueRow label={t("settings.modelConnections.sourceKind")} value={t(`settings.modelConnections.source.${connection.sourceKind}`)} />
+      <SettingsValueRow label={t("settings.modelConnections.url")} value={connection.baseUrl} monospace />
       <SettingsValueRow label={t("settings.modelConnections.apiKey")}
         value={t(connection.credentialConfigured ? "settings.modelConnections.keyConfigured" : "settings.modelConnections.noKey")}
         action={<button type="button" className="desktop-settings-row-action" disabled={busy} onClick={onEdit}>

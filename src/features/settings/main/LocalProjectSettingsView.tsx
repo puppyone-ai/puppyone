@@ -37,7 +37,6 @@ export function LocalProjectSettingsView({
         <div className="desktop-settings-section">
           <SettingsSectionHeader
             title={t("settings.localProject.title")}
-            detail={t("settings.localProject.detail")}
           />
           <div className="desktop-settings-list">
             <div className="desktop-settings-row">

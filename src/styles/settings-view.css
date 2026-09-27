@@ -158,7 +158,7 @@
 }
 
 .desktop-settings-dialog-content .desktop-settings-body {
-  padding-block: 26px 40px;
+  padding-block: 36px 40px;
   padding-inline: clamp(24px, 4vw, 42px);
 }
 
@@ -193,7 +193,7 @@
   align-content: start;
   justify-items: center;
   padding:
-    var(--desktop-utility-page-padding-top)
+    calc(var(--desktop-utility-page-padding-top) + 10px)
     var(--desktop-utility-page-padding-inline)
     var(--desktop-utility-page-padding-bottom);
 }

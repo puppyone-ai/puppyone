@@ -52,8 +52,6 @@ export function ModelConnectionsSettings({ store: suppliedStore }: { store?: Mod
           <SettingsSectionHeader
             title={editing ? t(page.kind === "edit" ? "settings.modelConnections.edit" : "settings.modelConnections.add")
               : selected?.name ?? t("settings.modelConnections.title")}
-            detail={editing ? t(`settings.modelConnections.source.${page.kind === "edit" ? page.connection.sourceKind : page.sourceKind}`)
-              : selected?.baseUrl ?? t("settings.modelConnections.detail")}
           />
           {actionError && <p className="model-connections-feedback" role="alert">
             {t("settings.modelConnections.error", { code: bidiIsolate(actionError) })}

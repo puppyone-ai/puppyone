@@ -271,7 +271,6 @@ export function SettingsView({
           <div className="desktop-settings-section">
             <SettingsSectionHeader
               title={t("settings.appearance.title")}
-              detail={t("settings.appearance.detail")}
             />
             <div className="desktop-settings-list">
               <InterfacePaletteSettings

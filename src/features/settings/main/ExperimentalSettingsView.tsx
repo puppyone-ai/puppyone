@@ -40,7 +40,6 @@ export function ExperimentalSettingsView({
         <div className="desktop-settings-section">
           <SettingsSectionHeader
             title={t("settings.experimental.title")}
-            detail={t("settings.experimental.detail")}
           />
           <div className="desktop-settings-list">
             {rows.map(({ messageKey, settingKey }) => (

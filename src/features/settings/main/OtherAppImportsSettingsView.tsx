@@ -13,7 +13,6 @@ export function OtherAppImportsSettingsView({ onOpenImport }: { onOpenImport: ()
         <div className="desktop-settings-section">
           <SettingsSectionHeader
             title={t("settings.experimental.otherAppImports.title")}
-            detail={t("onboarding.entry.import.intro")}
           />
           <div className="desktop-settings-list">
             {SOURCES.map(({ id, operational }) => (

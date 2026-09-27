@@ -11,7 +11,6 @@ export function PrivacySettingsView() {
         <div className="desktop-settings-section">
           <SettingsSectionHeader
             title={t("settings.privacy.title")}
-            detail={t("settings.privacy.detail")}
           />
           <div className="desktop-settings-list">
             <ProductAnalyticsSettingsRow />

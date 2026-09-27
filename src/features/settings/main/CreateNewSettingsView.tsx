@@ -205,7 +205,6 @@ export function CreateNewSettingsView({
         <div className="desktop-settings-section desktop-create-new-settings">
           <SettingsSectionHeader
             title={t("settings.createNew.title")}
-            detail={t("settings.createNew.detail")}
           />
 
           <div className="desktop-create-new-layout">

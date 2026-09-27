@@ -56,7 +56,6 @@ export function CloudHostingSettingsView({
         <div className="desktop-settings-section">
           <SettingsHeading
             title={t("settings.cloud.title")}
-            detail={t("settings.cloud.detail")}
             loading={loading}
             onRefresh={onRefresh}
           />
@@ -155,7 +154,6 @@ export function GitSettingsView({
         <div className="desktop-settings-section">
           <SettingsHeading
             title={t("settings.git.title")}
-            detail={t("settings.git.detail")}
             loading={loading}
             onRefresh={onRefresh}
           />
@@ -295,19 +293,17 @@ export function GitSettingsView({
 
 function SettingsHeading({
   title,
-  detail,
   loading,
   onRefresh,
 }: {
   title: string;
-  detail?: string;
   loading: boolean;
   onRefresh: () => void;
 }) {
   const { t } = useLocalization();
   return (
     <div className="desktop-settings-heading-row">
-      <SettingsSectionHeader title={title} detail={detail} />
+      <SettingsSectionHeader title={title} />
       <button className="desktop-settings-action" type="button" onClick={onRefresh} disabled={loading}>
         <RefreshCw size={14} className={loading ? "spin" : undefined} />
         <span>{t("common.action.refresh")}</span>

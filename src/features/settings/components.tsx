@@ -1,10 +1,9 @@
 import { useId, type ReactNode } from "react";
 
-export function SettingsSectionHeader({ title, detail }: { title: string; detail?: string }) {
+export function SettingsSectionHeader({ title }: { title: string }) {
   return (
     <div className="desktop-settings-section-header">
       <h2>{title}</h2>
-      {detail && <span>{detail}</span>}
     </div>
   );
 }
