@@ -42,6 +42,8 @@ describe("desktop OAuth loopback callback", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.get("content-security-policy")).toContain("default-src 'none'");
     expect(response.headers.get("content-security-policy")).toContain("font-src data:");
+    expect(response.headers.get("content-security-policy")).toContain("form-action 'self'");
+    expect(response.headers.get("content-security-policy")).toContain("frame-src 'self'");
     const page = await response.text();
     expect(page).toContain("Signed in successfully");
     expect(page).toContain("Return to PuppyOne Desktop");
@@ -51,18 +53,28 @@ describe("desktop OAuth loopback callback", () => {
     expect(page).toContain("<style>");
     expect(page).not.toContain("<script");
     expect(page).not.toContain("<img");
+    expect(page).toContain('method="post"');
+    expect(page).toContain('target="puppyone-return-frame"');
+    expect(page).toContain('name="puppyone-return-frame"');
     await vi.waitFor(() => expect(onCallback).toHaveBeenCalledWith(callback));
 
-    const returnPath = page.match(/href="(\/auth\/return\/[A-Za-z0-9_-]+)"/)?.[1];
+    const returnPath = page.match(/action="(\/auth\/return\/[A-Za-z0-9_-]+)"/)?.[1];
     expect(returnPath).toBeTruthy();
     const replay = await fetch(callback);
     expect(replay.status).toBe(409);
     const guessedReturn = await fetch(new URL("/auth/return/invalid", server.redirectUri));
     expect(guessedReturn.status).toBe(409);
     expect(onReturnToApp).not.toHaveBeenCalled();
-    const open = await fetch(new URL(returnPath, server.redirectUri));
-    expect(open.status).toBe(200);
+    const directNavigation = await fetch(new URL(returnPath, server.redirectUri));
+    expect(directNavigation.status).toBe(409);
+    expect(onReturnToApp).not.toHaveBeenCalled();
+    const open = await fetch(new URL(returnPath, server.redirectUri), { method: "POST" });
+    expect(open.status).toBe(204);
     await vi.waitFor(() => expect(onReturnToApp).toHaveBeenCalledOnce());
+    const returnAgain = await fetch(new URL(returnPath, server.redirectUri), { method: "POST" });
+    expect(returnAgain.status).toBe(204);
+    await vi.waitFor(() => expect(onReturnToApp).toHaveBeenCalledTimes(2));
+    await server.close();
   });
 
   it("shows a distinct localized failure when the Desktop exchange does not complete", async () => {

@@ -47,7 +47,7 @@ export async function startLoopbackCallbackServer({
     let appLocale = null;
     try { appLocale = getLocale?.(); } catch { /* Browser language remains the fallback. */ }
     const locale = resolveCallbackLocale(appLocale, request.headers["accept-language"]);
-    if (request.method !== "GET" || typeof request.url !== "string" || request.url.length > MAX_CALLBACK_URL_LENGTH) {
+    if (typeof request.url !== "string" || request.url.length > MAX_CALLBACK_URL_LENGTH) {
       respond(response, 404, "unrecognized", locale, geistFont);
       return;
     }
@@ -56,17 +56,20 @@ export async function startLoopbackCallbackServer({
       return;
     }
 
-    if (returnEnabled && request.url === returnPath) {
-      returnEnabled = false;
+    if (returnEnabled && request.method === "POST" && request.url === returnPath) {
       response.once("finish", () => {
-        void close().catch(() => undefined);
         try {
           Promise.resolve(onReturnToApp?.()).catch((error) => logger.warn?.("Unable to reveal PuppyOne Desktop.", error));
         } catch (error) {
           logger.warn?.("Unable to reveal PuppyOne Desktop.", error);
         }
       });
-      respond(response, 200, "success", locale, geistFont);
+      response.writeHead(204, { "Cache-Control": "no-store", "Content-Security-Policy": "default-src 'none'", Connection: "close" });
+      response.end();
+      return;
+    }
+    if (request.method !== "GET") {
+      respond(response, 404, "unrecognized", locale, geistFont);
       return;
     }
 
@@ -182,7 +185,8 @@ function respond(response, status, result, locale, geistFont, returnPath = null)
     .brand svg { display: block; width: 100%; height: 100%; }
     h1 { margin: 0 0 32px; font-size: 24px; font-weight: 600; line-height: 32px; }
     .description { margin: 0; padding: 8px 12px; border-radius: 8px; color: var(${success ? "--po-success" : "--po-danger"}); background: color-mix(in srgb, var(${success ? "--po-success" : "--po-danger"}) 10%, transparent); font-size: 14px; line-height: 20px; }
-    .return-button { display: flex; align-items: center; justify-content: center; min-height: 40px; margin-top: 24px; padding: 8px 16px; border-radius: 6px; background: var(--po-text); color: var(--po-text-inverse); font-size: 14px; font-weight: 600; line-height: 20px; text-decoration: none; }
+    .return-form { margin-top: 24px; }
+    .return-button { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 40px; padding: 8px 16px; border: 0; border-radius: 6px; background: var(--po-text); color: var(--po-text-inverse); font: inherit; font-size: 14px; font-weight: 600; line-height: 20px; cursor: pointer; }
     .return-button:hover { opacity: .9; }
     .return-button:focus-visible { outline: 3px solid var(--po-success); outline-offset: 3px; }
     .next-step { margin: ${returnPath ? "16px" : "24px"} 0 0; color: var(--po-text-subtle); font-size: 12px; line-height: 18px; }
@@ -196,16 +200,17 @@ function respond(response, status, result, locale, geistFont, returnPath = null)
     <div class="brand">${BRAND_MARK}</div>
     <h1>${escapeHtml(title)}</h1>
     <p class="description">${escapeHtml(description)}</p>
-    ${returnPath ? `<a class="return-button" href="${escapeHtml(returnPath)}">${escapeHtml(copy.returnButton)}</a>` : ""}
+    ${returnPath ? `<form class="return-form" method="post" action="${escapeHtml(returnPath)}" target="puppyone-return-frame"><button class="return-button" type="submit">${escapeHtml(copy.returnButton)}</button></form>` : ""}
     <p class="next-step">${escapeHtml(nextStep)}</p>
   </main>
+  ${returnPath ? `<iframe name="puppyone-return-frame" title="" hidden></iframe>` : ""}
 </body>
 </html>`;
   response.writeHead(status, {
     "Content-Type": "text/html; charset=utf-8",
     "Content-Length": Buffer.byteLength(body),
     "Cache-Control": "no-store",
-    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; font-src data:",
+    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; font-src data:; form-action 'self'; frame-src 'self'",
     "Referrer-Policy": "no-referrer",
     "X-Content-Type-Options": "nosniff",
     Connection: "close",
