@@ -93,6 +93,10 @@
   padding-inline: 0;
 }
 
+.desktop-settings-section > :is(.desktop-settings-section-header, .desktop-settings-heading-row) {
+  margin-block-end: 12px;
+}
+
 .desktop-settings-section-header h2 {
   margin: 0;
   color: var(--po-text);
