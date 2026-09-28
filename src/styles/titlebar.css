@@ -31,6 +31,7 @@
   min-height: var(--desktop-chrome-height);
   border-bottom: 0;
   background: var(--desktop-titlebar-bg);
+  box-shadow: none;
   color: var(--desktop-titlebar-text);
 }
 
