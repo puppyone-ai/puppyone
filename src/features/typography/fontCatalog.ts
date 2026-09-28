@@ -99,7 +99,7 @@ export const TYPOGRAPHY_SCALE_METRICS = Object.freeze({
     }),
     rightSidebar: Object.freeze({
       content: 13,
-      controlLineHeight: 19,
+      controlLineHeight: 18,
       meta: 12,
       metaLineHeight: 18,
       caption: 11,
@@ -158,7 +158,7 @@ export const TYPOGRAPHY_SCALE_METRICS = Object.freeze({
     }),
     rightSidebar: Object.freeze({
       content: 14,
-      controlLineHeight: 20,
+      controlLineHeight: 19,
       meta: 13,
       metaLineHeight: 19,
       caption: 12,
@@ -217,7 +217,7 @@ export const TYPOGRAPHY_SCALE_METRICS = Object.freeze({
     }),
     rightSidebar: Object.freeze({
       content: 16,
-      controlLineHeight: 22,
+      controlLineHeight: 21,
       meta: 14,
       metaLineHeight: 20,
       caption: 13,

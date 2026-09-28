@@ -72,7 +72,7 @@ async function capture(name) {
   })()`);
   const reference = geometry.rows.at(-1);
   const close = (left, right) => Math.abs(left - right) < 1;
-  assert(!geometry.busy && geometry.gaps.every(gap => close(gap, 3)), name + ": row spacing differs across discovery / Built-in boundaries");
+  assert(!geometry.busy && geometry.gaps.every(gap => close(gap, 1)), name + ": row spacing differs across discovery / Built-in boundaries");
   assert(geometry.rows.every(row => close(row.labelInset, reference.labelInset) && close(row.iconCenter, reference.iconCenter)
     && row.padding === reference.padding && row.border === reference.border && row.minHeight === reference.minHeight
     && (row.labelHeight > row.lineHeight + 1 || close(row.height, reference.height))

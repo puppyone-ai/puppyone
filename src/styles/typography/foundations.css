@@ -148,7 +148,7 @@
   );
   --po-type-right-sidebar-control-line-height: var(
     --po-user-right-sidebar-control-line-height,
-    20px
+    19px
   );
   --po-type-right-sidebar-meta: var(--po-user-right-sidebar-meta-font-size, 13px);
   --po-type-right-sidebar-meta-line-height: var(

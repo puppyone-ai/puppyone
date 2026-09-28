@@ -23,7 +23,7 @@
 
 .desktop-menu-surface[data-menu-typography-surface="right-sidebar"] {
   --po-menu-item-font-size: var(--po-type-right-sidebar-content, 14px);
-  --po-menu-item-line-height: var(--po-type-right-sidebar-control-line-height, 20px);
+  --po-menu-item-line-height: var(--po-type-right-sidebar-control-line-height, 19px);
   --po-menu-meta-font-size: var(--po-type-right-sidebar-meta, 13px);
   --po-menu-meta-line-height: var(--po-type-right-sidebar-meta-line-height, 19px);
 }
