@@ -24,6 +24,63 @@ afterEach(() => {
 });
 
 describe("titlebar Portal menu interactions", () => {
+  it("uses the Project icon for location and repeats that status in the normal Project menu", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    const workspace = createWorkspace("one", "Workspace one");
+
+    await act(async () => {
+      root?.render(withTestLocalization(
+        <DesktopWorkspaceSwitcher
+          open
+          refObject={createRef<HTMLDivElement>()}
+          titlebarLabel={workspace.name}
+          workspace={workspace}
+          workspaceFolders={[createWorkspaceFolder(workspace)]}
+          multiRootWorkspacesEnabled={false}
+          projectLocation={{ kind: "local", label: "Local only" }}
+          onClose={vi.fn()}
+          onGoHome={vi.fn()}
+          onToggle={vi.fn()}
+        />,
+      ));
+      await Promise.resolve();
+    });
+
+    const projectButton = container.querySelector<HTMLButtonElement>(".desktop-titlebar-workspace-button");
+    expect(projectButton?.querySelector(".lucide-laptop")).not.toBeNull();
+    expect(projectButton?.getAttribute("aria-label")).toContain("Local only");
+    expect(container.querySelector(".desktop-titlebar-project-location")).toBeNull();
+    const currentProject = requireMenu().querySelector<HTMLElement>(".desktop-project-option[data-project-location='local']");
+    expect(currentProject?.querySelector(".lucide-laptop")).not.toBeNull();
+    expect(currentProject?.textContent).toContain("Workspace one");
+    expect(currentProject?.textContent).toContain("Local only");
+
+    await act(async () => {
+      root?.render(withTestLocalization(
+        <DesktopWorkspaceSwitcher
+          open
+          refObject={createRef<HTMLDivElement>()}
+          titlebarLabel={workspace.name}
+          workspace={workspace}
+          workspaceFolders={[createWorkspaceFolder(workspace)]}
+          multiRootWorkspacesEnabled={false}
+          projectLocation={{ kind: "cloud", label: "Local + Cloud" }}
+          onClose={vi.fn()}
+          onGoHome={vi.fn()}
+          onToggle={vi.fn()}
+        />,
+      ));
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector(".desktop-titlebar-workspace-button .lucide-cloud")).not.toBeNull();
+    const cloudProject = requireMenu().querySelector<HTMLElement>(".desktop-project-option[data-project-location='cloud']");
+    expect(cloudProject?.querySelector(".lucide-cloud")).not.toBeNull();
+    expect(cloudProject?.textContent).toContain("Local + Cloud");
+  });
+
   it("keeps workspace menu actions clickable outside the native Header tree", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

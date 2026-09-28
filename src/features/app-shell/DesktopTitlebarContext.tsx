@@ -1,5 +1,5 @@
 import { Tooltip } from "@puppyone/shared-ui";
-import type { ReactNode, RefObject } from "react";
+import type { RefObject } from "react";
 import type { Workspace, WorkspaceFolder } from "@puppyone/shared-ui";
 import { GitBranch } from "lucide-react";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
@@ -7,7 +7,10 @@ import { DesktopMenuItem } from "../../components/DesktopMenu";
 import type { GitBranchSummary, GitStatusSnapshot } from "../../types/electron";
 import { BranchMenuGroup } from "../source-control/operationDialogs";
 import { DesktopTitlebarMenuLayer } from "./DesktopTitlebarMenuLayer";
-import { DesktopWorkspaceSwitcher } from "./DesktopWorkspaceSwitcher";
+import {
+  DesktopWorkspaceSwitcher,
+  type DesktopProjectLocation,
+} from "./DesktopWorkspaceSwitcher";
 
 export function DesktopTitlebarContext({
   activeGitStatus,
@@ -17,7 +20,7 @@ export function DesktopTitlebarContext({
   gitOperationLoading,
   localBranches,
   remoteBranches,
-  projectLocationControl,
+  projectLocation,
   workspace,
   workspaceFolders,
   multiRootWorkspacesEnabled,
@@ -46,23 +49,21 @@ export function DesktopTitlebarContext({
 
   return (
     <div className="desktop-titlebar-context">
-      <div className="desktop-titlebar-project-context-group">
-        <DesktopWorkspaceSwitcher
-          open={workspaceSwitcherOpen}
-          refObject={workspaceSwitcherRef}
-          titlebarLabel={workspaceTitlebarLabel}
-          workspace={workspace}
-          workspaceFolders={workspaceFolders}
-          multiRootWorkspacesEnabled={multiRootWorkspacesEnabled}
-          availableProjects={availableProjects}
-          onAddExistingProject={multiRootWorkspacesEnabled ? onAddExistingProject : undefined}
-          onOpenFolder={multiRootWorkspacesEnabled ? onAddProject : undefined}
-          onClose={onCloseWorkspaceSwitcher}
-          onGoHome={onGoHome}
-          onToggle={onToggleWorkspaceSwitcher}
-        />
-        {projectLocationControl}
-      </div>
+      <DesktopWorkspaceSwitcher
+        open={workspaceSwitcherOpen}
+        refObject={workspaceSwitcherRef}
+        titlebarLabel={workspaceTitlebarLabel}
+        workspace={workspace}
+        workspaceFolders={workspaceFolders}
+        multiRootWorkspacesEnabled={multiRootWorkspacesEnabled}
+        projectLocation={projectLocation}
+        availableProjects={availableProjects}
+        onAddExistingProject={multiRootWorkspacesEnabled ? onAddExistingProject : undefined}
+        onOpenFolder={multiRootWorkspacesEnabled ? onAddProject : undefined}
+        onClose={onCloseWorkspaceSwitcher}
+        onGoHome={onGoHome}
+        onToggle={onToggleWorkspaceSwitcher}
+      />
       <DesktopBranchSwitcher
         open={branchSwitcherOpen}
         refObject={branchSwitcherRef}
@@ -89,7 +90,7 @@ type DesktopTitlebarContextProps = {
   gitOperationLoading: string | null;
   localBranches: GitBranchSummary[];
   remoteBranches: GitBranchSummary[];
-  projectLocationControl?: ReactNode;
+  projectLocation?: DesktopProjectLocation;
   workspace: Workspace;
   workspaceFolders: readonly WorkspaceFolder[];
   multiRootWorkspacesEnabled: boolean;

@@ -5,7 +5,7 @@ import {
   type Workspace,
   type WorkspaceFolder,
 } from "@puppyone/shared-ui";
-import { ArrowLeft, FolderPlus } from "lucide-react";
+import { ArrowLeft, Cloud, FolderPlus, Laptop } from "lucide-react";
 import { DesktopMenuItem } from "../../components/DesktopMenu";
 import { DesktopTitlebarMenuLayer } from "./DesktopTitlebarMenuLayer";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
@@ -22,6 +22,7 @@ type DesktopWorkspaceSwitcherProps = {
   workspace: Workspace;
   workspaceFolders: readonly WorkspaceFolder[];
   multiRootWorkspacesEnabled: boolean;
+  projectLocation?: DesktopProjectLocation;
   availableProjects?: readonly Workspace[];
   onAddExistingProject?: (folderPath: string) => void;
   onOpenFolder?: () => void;
@@ -30,6 +31,11 @@ type DesktopWorkspaceSwitcherProps = {
   onToggle: () => void;
 };
 
+export type DesktopProjectLocation = Readonly<{
+  kind: "local" | "cloud";
+  label: string;
+}>;
+
 export function DesktopWorkspaceSwitcher({
   open,
   refObject,
@@ -37,6 +43,7 @@ export function DesktopWorkspaceSwitcher({
   workspace,
   workspaceFolders,
   multiRootWorkspacesEnabled,
+  projectLocation,
   availableProjects = [],
   onAddExistingProject,
   onOpenFolder,
@@ -47,7 +54,7 @@ export function DesktopWorkspaceSwitcher({
   const { t } = useLocalization();
   const [view, setView] = useState<"projects" | "add">("projects");
   const workspaceContextAssetKind = resolveProjectContextAssetKind(workspace);
-  const workspaceContextAssetLabel = t(workspaceContextAssetKind === "cloud"
+  const workspaceContextAssetLabel = projectLocation?.label ?? t(workspaceContextAssetKind === "cloud"
     ? "shell.workspaceSwitcher.contextAssetCloud"
     : "shell.workspaceSwitcher.contextAssetLocal");
   const attachedFolders = useMemo(
@@ -77,11 +84,19 @@ export function DesktopWorkspaceSwitcher({
         aria-haspopup="menu"
         onClick={onToggle}
       >
-        <ProjectContextAssetMark
-          className="desktop-titlebar-workspace-mark"
-          kind={workspaceContextAssetKind}
-          size={14}
-        />
+        {projectLocation ? (
+          <ProjectLocationMark
+            className="desktop-titlebar-workspace-mark"
+            kind={projectLocation.kind}
+            size={14}
+          />
+        ) : (
+          <ProjectContextAssetMark
+            className="desktop-titlebar-workspace-mark"
+            kind={workspaceContextAssetKind}
+            size={14}
+          />
+        )}
         <bdi className="desktop-titlebar-workspace-name">{titlebarLabel}</bdi>
       </button></Tooltip>
 
@@ -108,10 +123,11 @@ export function DesktopWorkspaceSwitcher({
               data-po-scrollbar="menu"
               data-workspace-menu-layout="workspace-composition-v1"
             >
-              {attachedFolders.map((folder) => (
+              {attachedFolders.map((folder, index) => (
                 <DesktopProjectRow
                   key={folder.id}
                   folder={folder}
+                  projectLocation={index === 0 ? projectLocation : undefined}
                 />
               ))}
               {multiRootWorkspacesEnabled && (
@@ -172,8 +188,10 @@ export function DesktopWorkspaceSwitcher({
 
 function DesktopProjectRow({
   folder,
+  projectLocation,
 }: {
   folder: WorkspaceFolder;
+  projectLocation?: DesktopProjectLocation;
 }) {
   const detail = getWorkspaceParentPathForDisplay(folder.workspace.path);
   return (
@@ -182,25 +200,58 @@ function DesktopProjectRow({
         className="desktop-menu-item desktop-project-option"
         role="menuitem"
         aria-disabled="true"
+        data-project-location={projectLocation?.kind}
       >
         <span className="desktop-menu-item-icon">
-          <ProjectContextAssetMark
-            className="desktop-project-mark"
-            kind={resolveProjectContextAssetKind(folder.workspace)}
-          />
+          {projectLocation ? (
+            <ProjectLocationMark
+              className="desktop-project-mark"
+              kind={projectLocation.kind}
+            />
+          ) : (
+            <ProjectContextAssetMark
+              className="desktop-project-mark"
+              kind={resolveProjectContextAssetKind(folder.workspace)}
+            />
+          )}
         </span>
         <span className="desktop-menu-item-body">
           <bdi className="desktop-menu-item-label">{folder.name}</bdi>
-          {detail && (
+          {projectLocation ? (
+            <span className="desktop-menu-item-detail desktop-project-location-label">
+              {projectLocation.label}
+            </span>
+          ) : detail ? (
             <Tooltip content={folder.workspace.path} overflowOnly><bdi
               className="desktop-menu-item-detail"
               dir="ltr"
             >
               {detail}
             </bdi></Tooltip>
-          )}
+          ) : null}
         </span>
       </div>
     </div>
+  );
+}
+
+function ProjectLocationMark({
+  className,
+  kind,
+  size = 15,
+}: {
+  className: string;
+  kind: DesktopProjectLocation["kind"];
+  size?: number;
+}) {
+  const Icon = kind === "cloud" ? Cloud : Laptop;
+  return (
+    <span
+      className={`desktop-project-location-mark ${className}`}
+      data-project-location={kind}
+      aria-hidden="true"
+    >
+      <Icon size={size} strokeWidth={1.75} />
+    </span>
   );
 }

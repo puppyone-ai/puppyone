@@ -1,3 +1,4 @@
+import type { MessageFormatter } from "@puppyone/localization/core";
 import type { ProjectCloudContext } from "../project/context/projectCloudContext";
 
 export type ProjectLocationKind = "local" | "local-cloud" | "resolving" | "attention";
@@ -24,4 +25,17 @@ export function resolveProjectLocationStatus(
   // project or turn its location into an authentication status.
   if (!signedIn) return { kind: "local-cloud" };
   return { kind: "attention" };
+}
+
+export function projectLocationBadge(status: ProjectLocationStatus, t: MessageFormatter): string {
+  switch (status.kind) {
+    case "local":
+      return t("cloud.share.location.local");
+    case "local-cloud":
+      return t("cloud.share.location.localCloud");
+    case "resolving":
+      return t("cloud.share.location.resolving");
+    case "attention":
+      return t("cloud.share.location.attention");
+  }
 }

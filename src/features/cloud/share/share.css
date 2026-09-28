@@ -1,92 +1,5 @@
 @layer features {
-  /* ── Project-context location segment ──────────────────────────── */
-  .desktop-titlebar-project-location-wrap {
-    position: relative;
-    display: inline-flex;
-    height: 100%;
-    align-items: center;
-  }
-
-  .desktop-titlebar-context-icon-button.desktop-titlebar-project-location {
-    width: 25px;
-    min-width: 25px;
-    flex: 0 0 auto;
-    border-start-start-radius: 2px;
-    border-end-start-radius: 2px;
-  }
-
-  .desktop-titlebar-project-location::before {
-    position: absolute;
-    inset-block: 5px;
-    inset-inline-start: 0;
-    width: 1px;
-    background: var(--desktop-titlebar-divider);
-    content: "";
-    pointer-events: none;
-  }
-
-  .desktop-titlebar-project-location-glyph {
-    position: relative;
-    display: inline-flex;
-    flex: 0 0 auto;
-  }
-
-  .desktop-titlebar-project-location-status-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .desktop-titlebar-project-location-status-icon > svg {
-    width: 14px;
-    height: 14px;
-  }
-
-  .desktop-titlebar-project-location-dot {
-    position: absolute;
-    right: -2px;
-    bottom: -1px;
-    width: 6px;
-    height: 6px;
-    border: 1px solid var(--desktop-titlebar-bg, var(--po-panel));
-    border-radius: 999px;
-    background: var(--po-text-disabled);
-  }
-
-  /* This is a hover preview, so keep it quieter and denser than a menu. */
-  .desktop-menu-surface.desktop-share-popover {
-    --po-menu-item-height: var(--po-control-size-compact);
-    --po-menu-item-padding-inline: 7px;
-    --po-menu-item-gap: 6px;
-    --po-menu-icon-slot-size: 16px;
-    --po-menu-item-font-size: var(--po-type-ui-caption, 12px);
-    --po-menu-item-line-height: 16px;
-
-    padding: 3px;
-    border-color: var(--po-border-subtle);
-    background: var(--po-editor-bg);
-    box-shadow: var(--po-menu-shadow-compact);
-    backdrop-filter: none;
-  }
-
-  .desktop-menu-surface.desktop-share-popover[data-positioned="true"] {
-    transform-origin: top center;
-    animation: desktop-share-popover-drop-in 120ms cubic-bezier(0.2, 0, 0, 1) both;
-  }
-
-  @keyframes desktop-share-popover-drop-in {
-    from {
-      opacity: 0;
-      transform: translateY(-5px);
-    }
-
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  /* Header location state. Authentication never changes this label or color. */
+  /* Sharing state. */
   .desktop-share-status-dot {
     flex: 0 0 auto;
     width: 8px;
@@ -96,13 +9,11 @@
     background: var(--po-text-disabled);
   }
 
-  .desktop-titlebar-project-location[data-project-location="resolving"] .desktop-titlebar-project-location-dot,
   .desktop-share-status[data-share-state="resolving"] .desktop-share-status-dot {
     background: var(--po-text-muted);
     animation: desktop-share-pulse 1.4s ease-in-out infinite;
   }
 
-  .desktop-titlebar-project-location[data-project-location="local-cloud"] .desktop-titlebar-project-location-dot,
   .desktop-share-status[data-share-state="published"] .desktop-share-status-dot {
     background: var(--po-accent);
   }
@@ -120,7 +31,6 @@
     animation: desktop-share-pulse 1.4s ease-in-out infinite;
   }
 
-  .desktop-titlebar-project-location[data-project-location="attention"] .desktop-titlebar-project-location-dot,
   .desktop-share-status[data-share-state="attention"] .desktop-share-status-dot {
     background: var(--po-danger);
   }
@@ -128,32 +38,6 @@
   @keyframes desktop-share-pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.35; }
-  }
-
-  .desktop-project-location {
-    display: grid;
-    gap: 0;
-    min-width: 0;
-  }
-
-  .desktop-project-location-status {
-    pointer-events: none;
-  }
-
-  .desktop-project-location-status-icon {
-    color: currentColor;
-  }
-
-  :is(.desktop-project-location-status-icon, .desktop-titlebar-project-location-status-icon)[data-location-state="local-cloud"] {
-    color: var(--po-accent);
-  }
-
-  :is(.desktop-project-location-status-icon, .desktop-titlebar-project-location-status-icon)[data-location-state="resolving"] {
-    color: var(--po-text-muted);
-  }
-
-  :is(.desktop-project-location-status-icon, .desktop-titlebar-project-location-status-icon)[data-location-state="attention"] {
-    color: var(--po-danger);
   }
 
   .desktop-share-status {
@@ -935,8 +819,6 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .desktop-share-popover,
-    .desktop-titlebar-project-location-dot,
     .desktop-share-status-dot,
     .desktop-share-status-reader-dot,
     .desktop-share-receipt-dot {

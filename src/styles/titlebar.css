@@ -181,22 +181,6 @@
   gap: var(--desktop-titlebar-button-gap);
 }
 
-.desktop-titlebar-project-context-group {
-  display: inline-flex;
-  max-width: calc(var(--desktop-titlebar-workspace-max-width) + 25px);
-  min-width: 0;
-  flex: 0 1 auto;
-  height: 100%;
-  align-items: center;
-  gap: 0;
-}
-
-.desktop-titlebar-project-context-group:has(.desktop-titlebar-project-location-wrap)
-  .desktop-titlebar-workspace-button {
-  border-start-end-radius: 2px;
-  border-end-end-radius: 2px;
-}
-
 .desktop-titlebar-context-item {
   display: inline-flex;
   align-items: center;

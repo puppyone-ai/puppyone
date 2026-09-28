@@ -1,6 +1,4 @@
-export { CloudProjectLocationControl } from "./CloudProjectLocationControl";
-export { CloudProjectLocationCard, projectLocationBadge } from "./CloudProjectLocationCard";
-export { resolveProjectLocationStatus } from "./projectLocationStatus";
+export { projectLocationBadge, resolveProjectLocationStatus } from "./projectLocationStatus";
 export type { ProjectLocationKind, ProjectLocationStatus } from "./projectLocationStatus";
 export { CloudShareStatusCard, shareStatusBadge, shareStatusHeadline } from "./CloudShareStatusCard";
 export { isActiveShare, isPendingShareLive, resolveCloudShareStatus } from "./shareStatus";

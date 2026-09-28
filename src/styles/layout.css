@@ -493,6 +493,11 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   pointer-events: none;
 }
 
+.desktop-project-option[data-project-location] {
+  color: var(--po-text-muted);
+  opacity: 1;
+}
+
 /* Keep every attached Project and its parent path on one quiet membership row. */
 .desktop-project-option .desktop-menu-item-label {
   max-width: 65%;
@@ -504,6 +509,11 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   flex: 1 1 auto;
   direction: ltr;
   text-align: start;
+}
+
+.desktop-project-option .desktop-project-location-label {
+  direction: inherit;
+  text-align: end;
 }
 
 .desktop-project-home-group {

@@ -118,8 +118,9 @@ import { getGitTitlebarStatus } from "./features/source-control/gitTitlebarStatu
 import { shouldBlockWorkspaceCloudResolution } from "./features/cloud/workspace/workspaceCloudResolutionKey";
 import { useCloudInitialization } from "./features/cloud/initialization/useCloudInitialization";
 import {
-  CloudProjectLocationControl,
   CloudShareProvider,
+  projectLocationBadge,
+  resolveProjectLocationStatus,
   ShareWizardDialog,
   useProjectShareActivity,
   type CloudShareActions,
@@ -570,17 +571,6 @@ function AppContent() {
     setSwitcherOpen(false);
     setBranchSwitcherOpen(false);
   }, [cloudEnabled, setBranchSwitcherOpen, setSidebarCollapsed]);
-  const openCloudProjectDialog = useCallback(() => {
-    if (!cloudEnabled) return;
-    setActiveView("data");
-    setActiveCloudSection("project");
-    setCloudDialogOpen(true);
-    setSettingsDialogOpen(false);
-    setPluginsDialogOpen(false);
-    setSidebarCollapsed(false);
-    setSwitcherOpen(false);
-    setBranchSwitcherOpen(false);
-  }, [cloudEnabled, setBranchSwitcherOpen, setSidebarCollapsed]);
   const closeCloudDialog = useCallback(() => setCloudDialogOpen(false), []);
 
   useEffect(() => {
@@ -725,6 +715,16 @@ function AppContent() {
     onSessionChange: updateCloudSession,
   });
   const cloudSignedIn = activeCloudSession !== null;
+  const projectLocationStatus = resolveProjectLocationStatus(projectCloudContext, cloudSignedIn);
+  const projectLocation = shareOnboardingEnabled
+    ? {
+        kind: projectLocationStatus.kind === "local"
+          || (projectLocationStatus.kind === "resolving" && !workspace?.puppyoneGitRemote?.projectId)
+          ? "local" as const
+          : "cloud" as const,
+        label: projectLocationBadge(projectLocationStatus, t),
+      }
+    : undefined;
   // The wizard stacks above the Cloud dialog so the Homepage is still there when it closes.
   const openShareWizard = useCallback((targetId: ShareTargetId | null, path = "") => {
     if (!shareOnboardingEnabled) return;
@@ -1396,15 +1396,7 @@ function AppContent() {
       gitOperationLoading={gitOperationLoading}
       localBranches={localBranches}
       remoteBranches={remoteBranches}
-      projectLocationControl={shareOnboardingEnabled
-        ? (
-          <CloudProjectLocationControl
-            projectContext={projectCloudContext}
-            signedIn={cloudSignedIn}
-            onOpenProject={openCloudProjectDialog}
-          />
-        )
-        : null}
+      projectLocation={projectLocation}
       workspace={workspace}
       workspaceFolders={workbenchWorkspace?.folders ?? []}
       multiRootWorkspacesEnabled={multiRootWorkspacesEnabled}
