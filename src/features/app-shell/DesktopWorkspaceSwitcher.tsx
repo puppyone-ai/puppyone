@@ -137,7 +137,6 @@ export function DesktopWorkspaceSwitcher({
               data-workspace-menu-layout="workspace-composition-v1"
             >
               <DesktopCurrentProjectLocation
-                name={attachedFolders[0]?.name ?? workspace.name}
                 fallbackKind={workspaceContextAssetKind}
                 fallbackLabel={workspaceContextAssetLabel}
                 location={projectLocation}
@@ -265,12 +264,10 @@ function DesktopCurrentProjectLocation({
   fallbackKind,
   fallbackLabel,
   location,
-  name,
 }: {
   fallbackKind: "local" | "cloud";
   fallbackLabel: string;
   location?: DesktopProjectLocation;
-  name: string;
 }) {
   const kind = location?.current ?? fallbackKind;
   return (
@@ -282,14 +279,11 @@ function DesktopCurrentProjectLocation({
       <ProjectLocationMark
         className="desktop-project-current-location-mark"
         kind={kind}
-        size={18}
+        size={16}
       />
-      <span className="desktop-project-current-location-body">
-        <bdi className="desktop-project-current-location-name">{name}</bdi>
-        <span className="desktop-project-current-location-meta">
-          {location && <span className="desktop-project-location-dot" aria-hidden="true" />}
-          <span>{fallbackLabel}</span>
-        </span>
+      <span className="desktop-project-current-location-meta">
+        {location && <span className="desktop-project-location-dot" aria-hidden="true" />}
+        <span>{fallbackLabel}</span>
       </span>
     </div>
   );

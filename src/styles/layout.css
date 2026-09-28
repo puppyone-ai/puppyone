@@ -472,18 +472,19 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 .desktop-project-current-location {
   display: flex;
   min-width: 0;
-  min-height: 56px;
+  min-height: 32px;
+  height: 32px;
   align-items: center;
-  gap: 10px;
-  padding: 6px 10px 10px;
+  gap: 9px;
+  padding: 0 10px;
   color: var(--po-text);
 }
 
 .desktop-project-current-location-mark {
   display: grid;
-  width: 22px;
-  height: 22px;
-  flex: 0 0 22px;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
   place-items: center;
   color: var(--po-text-muted);
 }
@@ -492,28 +493,19 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   display: block;
 }
 
-.desktop-project-current-location-body {
-  display: grid;
-  min-width: 0;
-  gap: 1px;
-}
-
-.desktop-project-current-location-name {
-  overflow: hidden;
-  color: var(--po-text);
-  font-size: var(--po-menu-item-font-size);
-  font-weight: var(--po-text-weight-regular, 400);
-  line-height: var(--po-menu-item-line-height);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .desktop-project-current-location-meta,
 .desktop-project-location-availability {
   display: inline-flex;
   min-width: 0;
   align-items: center;
   gap: 6px;
+  color: var(--po-text-muted);
+  font-size: var(--po-menu-item-font-size);
+  font-weight: var(--po-text-weight-regular, 400);
+  line-height: var(--po-menu-item-line-height);
+}
+
+.desktop-project-location-availability {
   color: var(--po-text-subtle);
   font-size: var(--po-menu-meta-font-size);
   line-height: var(--po-menu-meta-line-height);

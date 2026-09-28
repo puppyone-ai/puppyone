@@ -57,7 +57,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(container.querySelector(".desktop-titlebar-project-location")).toBeNull();
     const currentProject = requireMenu().querySelector<HTMLElement>(".desktop-project-current-location[data-project-location='local']");
     expect(currentProject?.querySelector(".lucide-laptop")).not.toBeNull();
-    expect(currentProject?.textContent).toContain("Workspace one");
+    expect(currentProject?.textContent).not.toContain("Workspace one");
     expect(currentProject?.textContent).toContain("This Mac");
     expect(currentProject?.querySelector(".desktop-project-location-dot")).not.toBeNull();
     const setup = requireMenu().querySelector<HTMLButtonElement>("[data-location-action='setup']");
@@ -173,7 +173,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(menu.textContent).toContain("Home");
     expect(menu.textContent).toContain("Add Project…");
     expect(menu.textContent).not.toContain("Open Folder in New Window…");
-    expect(menu.textContent).toContain("Workspace one");
+    expect(menu.textContent).not.toContain("Workspace one");
     expect(menu.textContent).toContain("Workspace two");
     expect(menu.textContent).not.toContain("Current workspace");
     expect(menu.textContent).not.toContain("Recent projects");
