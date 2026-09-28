@@ -38,6 +38,7 @@ export function CloudOverviewDashboard({
       aria-label={t("cloud.overview.fileListAria")}
       aria-busy={loading}
     >
+      <h2 className="desktop-cloud-overview-dashboard-title">{t("cloud.overview.filesLabel")}</h2>
       <section className="desktop-cloud-overview-files">
         <div
           className="desktop-cloud-overview-file-table"

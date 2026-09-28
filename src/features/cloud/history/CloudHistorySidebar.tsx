@@ -105,7 +105,7 @@ export function CloudProjectHistorySidebar({
             onClick={() => void onLoadMore()}
           >
             {loadingMore
-              ? <RefreshCw size={11} className="spin" aria-hidden="true" />
+              ? <RefreshCw size={11} className="animate-spin" aria-hidden="true" />
               : <ChevronDown size={11} aria-hidden="true" />}
             {t("cloud.common.loadMore")}
           </button>

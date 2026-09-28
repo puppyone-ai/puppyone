@@ -356,7 +356,7 @@ export function CloudLocalOnlyWorkspace({
               disabled={publishBusy || !publishEnabled}
               onClick={() => onPublishWorkspace(selectedOrganizationId ?? undefined)}
             >
-              {publishing && <RefreshCw size={13} className="spin" aria-hidden="true" />}
+              {publishing && <RefreshCw size={13} className="animate-spin" aria-hidden="true" />}
               <span>
                 {activeProgressStage
                   ? getCloudPublishProgressLabel(activeProgressStage, t)

@@ -126,7 +126,6 @@ export function CloudProjectRouteOutlet({
         loading={cloudData.loading}
         onCloudSessionChange={onSessionChange}
         onRefresh={onRefresh}
-        onOpenProject={onOpenProject}
         canManage={project.capabilities?.includes("access_surface.manage") === true}
       />
     );

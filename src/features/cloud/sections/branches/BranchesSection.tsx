@@ -138,7 +138,7 @@ export function CloudBranchesSection({
             onClick={() => void (hasLocalGraph ? gitGraphStatus.reload() : branchData.reload())}
             disabled={gitGraphStatus.loading || branchData.loading}
           >
-            <RefreshCw size={13} className={(gitGraphStatus.loading || branchData.loading) ? "spin" : undefined} />
+            <RefreshCw size={13} className={(gitGraphStatus.loading || branchData.loading) ? "animate-spin" : undefined} />
             <span>{t("cloud.common.refresh")}</span>
           </button>
           <button className="desktop-cloud-row-action" type="button" onClick={() => onOpenProject(projectId, "branches")}>

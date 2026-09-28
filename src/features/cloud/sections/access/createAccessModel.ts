@@ -1,5 +1,6 @@
 import type { DesktopCloudRepositoryView } from "../../../../lib/cloudApi";
 import type { MessageFormatter } from "@puppyone/localization/core";
+import type { AccessPointCatalogKind } from "../../access-points/model";
 import { normalizeCloudEntryPath } from "../../utils";
 
 export type OptionalAccessProvider = "mcp" | "sandbox";
@@ -62,6 +63,14 @@ export const CREATE_ACCESS_INTENT_OPTIONS: Array<{
     chipIds: ["cloud.access.create.chip.aiAgent", "cloud.access.create.chip.toolCalls"],
   },
 ];
+
+export function getCreateAccessIntentForCatalogKind(
+  kind: AccessPointCatalogKind,
+): CreateAccessIntent {
+  if (kind === "cli") return "cli";
+  if (kind === "git") return "git_remote";
+  return "ai_agent";
+}
 
 export function normalizeAccessPath(path: string) {
   return normalizeCloudEntryPath(path).replace(/\/+/g, "/");

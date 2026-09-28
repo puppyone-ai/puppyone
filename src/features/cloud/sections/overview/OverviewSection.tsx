@@ -1,10 +1,5 @@
 import { Tooltip } from "@puppyone/shared-ui";
-import {
-  Check,
-  Copy,
-  RefreshCw,
-} from "lucide-react";
-import { useState } from "react";
+import { RefreshCw } from "lucide-react";
 import type { Workspace } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import "./overview.css";
@@ -21,11 +16,11 @@ import type { DesktopCloudHistory } from "../../../../lib/cloudHistoryApi";
 import { getCloudRoute } from "../../routes/cloudRoutes";
 import type { CloudWorkspaceSection } from "../../types";
 import {
-  copyText,
   formatBytes,
   formatFullTime,
   formatRelativeTime,
 } from "../../utils";
+import { CloudOverviewActions } from "./OverviewActions";
 import { CloudOverviewDashboard } from "./OverviewDashboard";
 import {
   getCloudOverviewMetrics,
@@ -64,7 +59,6 @@ export function CloudRepositoryOverview({
   const localization = useLocalization();
   const { formatNumber, t } = localization;
   const projectName = project?.name ?? workspace.name;
-  const gitRemoteUrl = identity?.url?.trim() || null;
   const overviewMetrics = getCloudOverviewMetrics({
     scopes,
     connectors,
@@ -113,7 +107,7 @@ export function CloudRepositoryOverview({
                     aria-label={t("cloud.common.refresh")}
                     onClick={() => void onRefresh()}
                   >
-                    <RefreshCw size={13} className={loading ? "spin" : undefined} />
+                    <RefreshCw size={13} className={loading ? "animate-spin" : undefined} />
                   </button></Tooltip>
                 </div>
               </div>
@@ -140,10 +134,11 @@ export function CloudRepositoryOverview({
                   loading={initialLoading}
                   onClick={() => onSelectSection("access")}
                 />
-                <CloudOverviewPathFact value={gitRemoteUrl} loading={initialLoading} />
               </div>
             </div>
           </header>
+
+          <CloudOverviewActions onSelectSection={onSelectSection} />
 
           <CloudOverviewDashboard
             history={history}
@@ -154,54 +149,6 @@ export function CloudRepositoryOverview({
         </div>
       </main>
     </section>
-  );
-}
-
-function CloudOverviewPathFact({
-  value,
-  loading,
-}: {
-  value: string | null;
-  loading: boolean;
-}) {
-  const { t } = useLocalization();
-  const [copied, setCopied] = useState(false);
-  const label = copied
-    ? t("cloud.common.copied")
-    : `${t("cloud.common.copyValue")}: ${t("cloud.overview.repositoryRemote")}`;
-
-  const handleCopy = async () => {
-    if (!value) return;
-    await copyText(value);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1400);
-  };
-
-  return (
-    <Tooltip content={value ? label : undefined}><button
-      className="desktop-cloud-overview-header-fact desktop-cloud-overview-header-fact--interactive desktop-cloud-overview-path-fact"
-      type="button"
-      aria-label={loading ? t("cloud.common.loading") : value ? label : t("cloud.common.path")}
-      aria-busy={loading}
-      disabled={!value}
-      onClick={() => void handleCopy()}
-    >
-      <span className="desktop-cloud-overview-header-fact-label">{t("cloud.common.path")}</span>
-      <strong>
-        {loading ? (
-          <span className="desktop-cloud-overview-value-skeleton" aria-hidden="true" />
-        ) : (
-          <>
-            <code dir="ltr">{value ?? "—"}</code>
-            {value ? (
-              <span className="desktop-cloud-overview-path-copy" aria-hidden="true">
-                {copied ? <Check size={12} /> : <Copy size={12} />}
-              </span>
-            ) : null}
-          </>
-        )}
-      </strong>
-    </button></Tooltip>
   );
 }
 

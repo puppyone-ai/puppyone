@@ -2,25 +2,31 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const dashboardCss = readSource("../../../../src/features/cloud/sections/overview/styles/dashboard-grid.css");
+const actionsCss = readSource("../../../../src/features/cloud/sections/overview/styles/actions.css");
 const baseCss = readSource("../../../../src/features/cloud/sections/overview/styles/base.css");
-const projectIdentityCss = readSource("../../../../src/features/cloud/sections/overview/styles/project-identity.css");
 const resourceCss = readSource("../../../../src/features/cloud/sections/overview/styles/resource-cards.css");
 const statusCss = readSource("../../../../src/features/cloud/sections/overview/styles/status-cards.css");
 const dashboardSource = readSource("../../../../src/features/cloud/sections/overview/OverviewDashboard.tsx");
 const overviewSource = readSource("../../../../src/features/cloud/sections/overview/OverviewSection.tsx");
 
 describe("Cloud Overview visual architecture", () => {
-  it("makes the file table the full-width primary Overview surface", () => {
+  it("puts task-first connection paths before the secondary file inventory", () => {
     const layout = compact(readCssBlock(dashboardCss, ".desktop-cloud-overview-dashboard"));
+    const actionGrid = compact(readCssBlock(actionsCss, ".desktop-cloud-overview-action-grid"));
 
     expect(layout).toContain("display: block;");
     expect(layout).toContain("width: 100%;");
     expect(layout).toContain("margin-top: 30px;");
+    expect(actionGrid).toContain("grid-template-columns: repeat(2, minmax(0, 1fr));");
     expect(dashboardSource).not.toContain("OverviewSummaryCard");
     expect(dashboardSource).not.toContain("desktop-cloud-overview-summary-grid");
     expect(overviewSource).toContain("desktop-cloud-overview-header-facts");
     expect(overviewSource).not.toContain("CloudWorkspaceLoadingState");
     expect(overviewSource).toContain("const initialLoading = loading && !hasOverviewData;");
+    expect(overviewSource).toContain("<CloudOverviewActions");
+    expect(overviewSource.indexOf("<CloudOverviewActions")).toBeLessThan(
+      overviewSource.indexOf("<CloudOverviewDashboard"),
+    );
   });
 
   it("uses one rounded file frame without filters or extra headers", () => {
@@ -39,7 +45,7 @@ describe("Cloud Overview visual architecture", () => {
     expect(dashboardSource).not.toContain("desktop-cloud-overview-file-activity-header");
     expect(resourceCss).not.toContain("desktop-cloud-overview-file-activity-header");
     expect(dashboardSource).not.toContain("desktop-cloud-overview-files-header");
-    expect(dashboardSource).not.toContain("cloud.overview.filesLabel");
+    expect(dashboardSource).toContain("cloud.overview.filesLabel");
     expect(dashboardSource).toContain("desktop-cloud-overview-file-row skeleton");
     expect(resourceCss).toContain("desktop-cloud-overview-file-skeleton-name");
   });
@@ -60,30 +66,28 @@ describe("Cloud Overview visual architecture", () => {
     expect(dashboardSource).not.toMatch(/\bFolder\b.*from "lucide-react"/);
   });
 
-  it("gives storage a full-width unlabeled track above three quiet facts", () => {
+  it("gives storage a full-width unlabeled track above two quiet facts", () => {
     const header = compact(readCssBlock(baseCss, ".desktop-cloud-overview-landing-header"));
     const facts = compact(readCssBlock(statusCss, ".desktop-cloud-overview-header-facts"));
     const fact = compact(readCssBlock(statusCss, ".desktop-cloud-overview-header-fact"));
     const storage = compact(readCssBlock(statusCss, ".desktop-cloud-overview-project-storage"));
     const track = compact(readCssBlock(statusCss, ".desktop-cloud-overview-project-storage-track"));
-    const path = compact(readCssBlock(projectIdentityCss, ".desktop-cloud-overview-path-fact"));
     const titleRow = compact(readCssBlock(baseCss, ".desktop-cloud-overview-title-row"));
 
     expect(header).toContain("display: grid;");
     expect(header).toContain("width: 100%;");
     expect(facts).toContain("width: 100%;");
-    expect(facts).toContain("grid-template-columns: repeat(3, minmax(0, 1fr));");
+    expect(facts).toContain("grid-template-columns: repeat(2, minmax(0, 1fr));");
     expect(fact).toContain("border-inline-start: 1px solid var(--po-border-subtle);");
     expect(storage).toContain("width: 100%;");
     expect(track).toContain("height: 5px;");
     expect(statusCss).toContain("desktop-cloud-overview-value-skeleton");
     expect(statusCss).toContain("desktop-cloud-overview-project-storage.is-loading");
-    expect(path).toContain("width: auto;");
     expect(titleRow).toContain("align-items: center;");
     expect(overviewSource.match(/<CloudOverviewHeaderFact/g)).toHaveLength(2);
     expect(overviewSource).toContain("<CloudOverviewStorageMeter");
     expect(overviewSource).toContain('label={t("cloud.overview.activeConnections")}');
-    expect(overviewSource).toContain("<CloudOverviewPathFact");
+    expect(overviewSource).not.toContain("CloudOverviewPathFact");
     expect(overviewSource.indexOf("<CloudOverviewStorageMeter")).toBeLessThan(
       overviewSource.indexOf("desktop-cloud-overview-header-side"),
     );

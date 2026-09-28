@@ -22,7 +22,7 @@ export function CloudLocalGitStatusError({
           </div>
         </div>
         <button className="desktop-cloud-row-action" type="button" disabled={loading} onClick={onRetry}>
-          <RefreshCw size={13} className={loading ? "spin" : undefined} aria-hidden="true" />
+          <RefreshCw size={13} className={loading ? "animate-spin" : undefined} aria-hidden="true" />
           <span>{t("cloud.common.retry")}</span>
         </button>
       </section>

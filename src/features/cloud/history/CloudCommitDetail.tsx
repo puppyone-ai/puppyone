@@ -60,7 +60,7 @@ export function CloudCommitDetail({
               disabled={loading}
               onClick={() => void onRefresh()}
             >
-              <RefreshCw size={13} className={loading ? "spin" : undefined} aria-hidden="true" />
+              <RefreshCw size={13} className={loading ? "animate-spin" : undefined} aria-hidden="true" />
             </button></Tooltip>
             {projectId && (
               <Tooltip content={t("cloud.history.viewCodeChanges")}><button

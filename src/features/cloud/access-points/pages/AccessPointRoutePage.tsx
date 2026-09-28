@@ -7,10 +7,10 @@ import type {
   DesktopCloudScope,
   DesktopCloudSession,
 } from "../../../../lib/cloudApi";
-import type { CloudWorkspaceSection } from "../../types";
 import { getScopeDisplayName, getScopePathLabel } from "../../utils";
 import { DesktopCloudCreateAccessDialog } from "../../sections/access/CreateAccessDialog";
 import type { DesktopCloudCreateAccessCreated } from "../../sections/access/CreateAccessDialog";
+import { getCreateAccessIntentForCatalogKind } from "../../sections/access/createAccessModel";
 import { AccessPointCatalogPage, AccessPointManageDialog } from "../components";
 import {
   buildAccessPointProjection,
@@ -33,7 +33,6 @@ export function AccessPointRoutePage({
   canManage,
   onCloudSessionChange,
   onRefresh,
-  onOpenProject,
 }: {
   kind: AccessPointCatalogKind;
   projectId: string;
@@ -47,7 +46,6 @@ export function AccessPointRoutePage({
   canManage: boolean;
   onCloudSessionChange: (session: DesktopCloudSession | null) => void;
   onRefresh: () => Promise<void>;
-  onOpenProject: (projectId: string, section?: CloudWorkspaceSection) => void;
 }) {
   const { locale, t } = useLocalization();
   const [activeKind, setActiveKind] = useState<AccessPointCatalogKind>(kind);
@@ -109,7 +107,6 @@ export function AccessPointRoutePage({
         onStatusFilterChange={setStatusFilter}
         onOpenRow={(row) => setSelectedRowId(row.id)}
         onCreate={() => setCreateAccessOpen(true)}
-        onManageAll={() => onOpenProject(projectId, "access")}
       />
 
       {selectedRow && (
@@ -136,6 +133,7 @@ export function AccessPointRoutePage({
           scopes={projection.scopeRows}
           connectorsByTarget={projection.connectorsByTarget}
           mcpEndpointsByTarget={projection.mcpEndpointsByTarget}
+          initialIntent={getCreateAccessIntentForCatalogKind(kind)}
           onCloudSessionChange={onCloudSessionChange}
           onClose={() => setCreateAccessOpen(false)}
           onCreated={handleAccessCreated}

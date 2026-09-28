@@ -1,9 +1,9 @@
-/* Secondary project facts live in the header and never compete with the file table. */
+/* Secondary project facts stay quiet above the task-first entry points. */
 .desktop-cloud-overview-header-facts {
   display: grid;
   width: 100%;
   min-width: 0;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: stretch;
 }
 
