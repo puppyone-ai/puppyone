@@ -11,6 +11,7 @@ type DesktopTitlebarMenuLayerProps = {
   onDismiss: () => void;
   open: boolean;
   preferredMaxHeight: number;
+  preferredWidth?: number;
 };
 
 const TITLEBAR_CONTEXT_MENU_WIDTH = 300;
@@ -28,11 +29,12 @@ export function DesktopTitlebarMenuLayer({
   onDismiss,
   open,
   preferredMaxHeight,
+  preferredWidth = TITLEBAR_CONTEXT_MENU_WIDTH,
 }: DesktopTitlebarMenuLayerProps) {
   const { overlayRef, setOverlayRef, overlayPosition } = useAnchoredOverlayPosition({
     open,
     anchorRef,
-    preferredWidth: TITLEBAR_CONTEXT_MENU_WIDTH,
+    preferredWidth,
     preferredMaxHeight,
     gap,
     margin: 8,
@@ -78,7 +80,7 @@ export function DesktopTitlebarMenuLayer({
     : {
         left: 0,
         top: 0,
-        width: TITLEBAR_CONTEXT_MENU_WIDTH,
+        width: preferredWidth,
         maxHeight: preferredMaxHeight,
         visibility: "hidden",
         pointerEvents: "none",

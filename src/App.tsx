@@ -119,7 +119,6 @@ import { shouldBlockWorkspaceCloudResolution } from "./features/cloud/workspace/
 import { useCloudInitialization } from "./features/cloud/initialization/useCloudInitialization";
 import {
   CloudShareProvider,
-  projectLocationBadge,
   resolveProjectLocationStatus,
   ShareWizardDialog,
   useProjectShareActivity,
@@ -718,11 +717,14 @@ function AppContent() {
   const projectLocationStatus = resolveProjectLocationStatus(projectCloudContext, cloudSignedIn);
   const projectLocation = shareOnboardingEnabled
     ? {
-        kind: projectLocationStatus.kind === "local"
-          || (projectLocationStatus.kind === "resolving" && !workspace?.puppyoneGitRemote?.projectId)
-          ? "local" as const
-          : "cloud" as const,
-        label: projectLocationBadge(projectLocationStatus, t),
+        current: "local" as const,
+        localAvailable: true,
+        cloudState: projectLocationStatus.kind === "local"
+          || (projectLocationStatus.kind === "resolving" && !focusedWorkspace?.puppyoneGitRemote?.projectId)
+          ? "unavailable" as const
+          : projectLocationStatus.kind === "local-cloud"
+            ? cloudSignedIn ? "available" as const : "signed-out" as const
+            : projectLocationStatus.kind,
       }
     : undefined;
   // The wizard stacks above the Cloud dialog so the Homepage is still there when it closes.
@@ -1407,6 +1409,8 @@ function AppContent() {
       onAddProject={() => void addProject()}
       onAddExistingProject={(folderPath) => void addExistingProject(folderPath)}
       onGoHome={() => void goToHomepage()}
+      onSetupCloud={() => openShareWizard(null)}
+      onSwitchToCloud={openCloudDialog}
       onCloseWorkspaceSwitcher={closeWorkspaceSwitcher}
       onCloseBranchSwitcher={closeBranchSwitcher}
       onToggleBranchSwitcher={toggleBranchSwitcher}
@@ -1437,7 +1441,7 @@ function AppContent() {
     cloudEnabled,
     onOpenCloud: openCloudDialog,
     shareEnabled: shareOnboardingEnabled,
-    onShare: openCloudDialog,
+    onShare: () => openShareWizard(null),
   };
   const titlebarActions = (
     <DesktopTitlebarActions

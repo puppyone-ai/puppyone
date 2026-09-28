@@ -5,7 +5,15 @@ import {
   type Workspace,
   type WorkspaceFolder,
 } from "@puppyone/shared-ui";
-import { ArrowLeft, Cloud, FolderPlus, Laptop } from "lucide-react";
+import {
+  ArrowLeft,
+  ChevronRight,
+  Cloud,
+  FolderPlus,
+  Laptop,
+  LoaderCircle,
+  TriangleAlert,
+} from "lucide-react";
 import { DesktopMenuItem } from "../../components/DesktopMenu";
 import { DesktopTitlebarMenuLayer } from "./DesktopTitlebarMenuLayer";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
@@ -28,12 +36,17 @@ type DesktopWorkspaceSwitcherProps = {
   onOpenFolder?: () => void;
   onClose: () => void;
   onGoHome: () => void;
+  onSaveToLocal?: () => void;
+  onSetupCloud?: () => void;
+  onSwitchToCloud?: () => void;
+  onSwitchToLocal?: () => void;
   onToggle: () => void;
 };
 
 export type DesktopProjectLocation = Readonly<{
-  kind: "local" | "cloud";
-  label: string;
+  current: "local" | "cloud";
+  localAvailable: boolean;
+  cloudState: "unavailable" | "available" | "signed-out" | "resolving" | "attention";
 }>;
 
 export function DesktopWorkspaceSwitcher({
@@ -49,14 +62,22 @@ export function DesktopWorkspaceSwitcher({
   onOpenFolder,
   onClose,
   onGoHome,
+  onSaveToLocal,
+  onSetupCloud,
+  onSwitchToCloud,
+  onSwitchToLocal,
   onToggle,
 }: DesktopWorkspaceSwitcherProps) {
   const { t } = useLocalization();
   const [view, setView] = useState<"projects" | "add">("projects");
   const workspaceContextAssetKind = resolveProjectContextAssetKind(workspace);
-  const workspaceContextAssetLabel = projectLocation?.label ?? t(workspaceContextAssetKind === "cloud"
-    ? "shell.workspaceSwitcher.contextAssetCloud"
-    : "shell.workspaceSwitcher.contextAssetLocal");
+  const workspaceContextAssetLabel = projectLocation
+    ? t(projectLocation.current === "cloud"
+      ? "shell.workspaceSwitcher.location.cloud"
+      : "shell.workspaceSwitcher.location.thisMac")
+    : t(workspaceContextAssetKind === "cloud"
+      ? "shell.workspaceSwitcher.contextAssetCloud"
+      : "shell.workspaceSwitcher.contextAssetLocal");
   const attachedFolders = useMemo(
     () => workspaceFolders.length > 0
       ? workspaceFolders
@@ -87,7 +108,7 @@ export function DesktopWorkspaceSwitcher({
         {projectLocation ? (
           <ProjectLocationMark
             className="desktop-titlebar-workspace-mark"
-            kind={projectLocation.kind}
+            kind={projectLocation.current}
             size={16}
           />
         ) : (
@@ -107,43 +128,62 @@ export function DesktopWorkspaceSwitcher({
         onDismiss={onClose}
         open={open}
         preferredMaxHeight={520}
+        preferredWidth={320}
       >
         {view === "projects" ? (
           <>
+            <div
+              className="desktop-project-overview"
+              data-workspace-menu-layout="workspace-composition-v1"
+            >
+              <DesktopCurrentProjectLocation
+                name={attachedFolders[0]?.name ?? workspace.name}
+                fallbackKind={workspaceContextAssetKind}
+                fallbackLabel={workspaceContextAssetLabel}
+                location={projectLocation}
+              />
+              {projectLocation && (
+                <DesktopAlternateLocationAction
+                  location={projectLocation}
+                  onClose={onClose}
+                  onSaveToLocal={onSaveToLocal}
+                  onSetupCloud={onSetupCloud}
+                  onSwitchToCloud={onSwitchToCloud}
+                  onSwitchToLocal={onSwitchToLocal}
+                />
+              )}
+            </div>
+            {(attachedFolders.length > 1 || multiRootWorkspacesEnabled) && (
+              <div className="desktop-project-list" data-po-scrollbar="menu">
+                {attachedFolders.slice(1).map((folder) => (
+                <DesktopProjectRow
+                  key={folder.id}
+                  folder={folder}
+                />
+                ))}
+                {multiRootWorkspacesEnabled && (
+                  <DesktopMenuItem
+                    className="desktop-project-add desktop-project-add-folder"
+                    disabled={!onAddExistingProject && !onOpenFolder}
+                    icon={<FolderPlus size={15} strokeWidth={1.8} />}
+                    label={t("shell.workspaceSwitcher.addProject")}
+                    onClick={() => setView("add")}
+                  />
+                )}
+              </div>
+            )}
             <div className="desktop-project-home-group">
               <DesktopMenuItem
                 className="desktop-project-add desktop-project-home"
                 icon={<ArrowLeft className="po-directional-icon" size={15} strokeWidth={1.9} />}
-                label={t("shell.workspaceSwitcher.home")}
+                label={t("shell.workspaceSwitcher.goHome")}
                 onClick={onGoHome}
               />
-            </div>
-            <div
-              className="desktop-project-list"
-              data-po-scrollbar="menu"
-              data-workspace-menu-layout="workspace-composition-v1"
-            >
-              {attachedFolders.map((folder, index) => (
-                <DesktopProjectRow
-                  key={folder.id}
-                  folder={folder}
-                  projectLocation={index === 0 ? projectLocation : undefined}
-                />
-              ))}
-              {multiRootWorkspacesEnabled && (
-                <DesktopMenuItem
-                  className="desktop-project-add desktop-project-add-folder"
-                  disabled={!onAddExistingProject && !onOpenFolder}
-                  icon={<FolderPlus size={15} strokeWidth={1.8} />}
-                  label={t("shell.workspaceSwitcher.addProject")}
-                  onClick={() => setView("add")}
-                />
-              )}
             </div>
           </>
         ) : (
           <>
-            <div className="desktop-project-home-group">
+            <div className="desktop-project-back-group">
               <DesktopMenuItem
                 className="desktop-project-add desktop-project-home"
                 icon={<ArrowLeft className="po-directional-icon" size={15} strokeWidth={1.9} />}
@@ -188,10 +228,8 @@ export function DesktopWorkspaceSwitcher({
 
 function DesktopProjectRow({
   folder,
-  projectLocation,
 }: {
   folder: WorkspaceFolder;
-  projectLocation?: DesktopProjectLocation;
 }) {
   const detail = getWorkspaceParentPathForDisplay(folder.workspace.path);
   return (
@@ -200,28 +238,16 @@ function DesktopProjectRow({
         className="desktop-menu-item desktop-project-option"
         role="menuitem"
         aria-disabled="true"
-        data-project-location={projectLocation?.kind}
       >
         <span className="desktop-menu-item-icon">
-          {projectLocation ? (
-            <ProjectLocationMark
-              className="desktop-project-mark"
-              kind={projectLocation.kind}
-            />
-          ) : (
-            <ProjectContextAssetMark
-              className="desktop-project-mark"
-              kind={resolveProjectContextAssetKind(folder.workspace)}
-            />
-          )}
+          <ProjectContextAssetMark
+            className="desktop-project-mark"
+            kind={resolveProjectContextAssetKind(folder.workspace)}
+          />
         </span>
         <span className="desktop-menu-item-body">
           <bdi className="desktop-menu-item-label">{folder.name}</bdi>
-          {projectLocation ? (
-            <span className="desktop-menu-item-detail desktop-project-location-label">
-              {projectLocation.label}
-            </span>
-          ) : detail ? (
+          {detail ? (
             <Tooltip content={folder.workspace.path} overflowOnly><bdi
               className="desktop-menu-item-detail"
               dir="ltr"
@@ -235,13 +261,161 @@ function DesktopProjectRow({
   );
 }
 
+function DesktopCurrentProjectLocation({
+  fallbackKind,
+  fallbackLabel,
+  location,
+  name,
+}: {
+  fallbackKind: "local" | "cloud";
+  fallbackLabel: string;
+  location?: DesktopProjectLocation;
+  name: string;
+}) {
+  const kind = location?.current ?? fallbackKind;
+  return (
+    <div
+      className="desktop-project-current-location"
+      data-project-location={kind}
+      role="status"
+    >
+      <ProjectLocationMark
+        className="desktop-project-current-location-mark"
+        kind={kind}
+        size={18}
+      />
+      <span className="desktop-project-current-location-body">
+        <bdi className="desktop-project-current-location-name">{name}</bdi>
+        <span className="desktop-project-current-location-meta">
+          {location && <span className="desktop-project-location-dot" aria-hidden="true" />}
+          <span>{fallbackLabel}</span>
+        </span>
+      </span>
+    </div>
+  );
+}
+
+function DesktopAlternateLocationAction({
+  location,
+  onClose,
+  onSaveToLocal,
+  onSetupCloud,
+  onSwitchToCloud,
+  onSwitchToLocal,
+}: {
+  location: DesktopProjectLocation;
+  onClose: () => void;
+  onSaveToLocal?: () => void;
+  onSetupCloud?: () => void;
+  onSwitchToCloud?: () => void;
+  onSwitchToLocal?: () => void;
+}) {
+  const { t } = useLocalization();
+  const run = (action?: () => void) => () => {
+    if (!action) return;
+    onClose();
+    action();
+  };
+
+  if (location.current === "cloud") {
+    const action = location.localAvailable ? onSwitchToLocal : onSaveToLocal;
+    return (
+      <DesktopMenuItem
+        className="desktop-project-location-action"
+        data-location-action={location.localAvailable ? "switch" : "save"}
+        disabled={!action}
+        icon={<Laptop size={16} strokeWidth={1.75} />}
+        label={t(location.localAvailable
+          ? "shell.workspaceSwitcher.location.thisMac"
+          : "shell.workspaceSwitcher.location.saveToMac")}
+        detail={location.localAvailable ? (
+          <LocationAvailability label={t("shell.workspaceSwitcher.location.available")} />
+        ) : undefined}
+        trailing={<LocationActionVerb label={t(location.localAvailable
+          ? "shell.workspaceSwitcher.location.switch"
+          : "shell.workspaceSwitcher.location.save")} />}
+        onClick={run(action)}
+      />
+    );
+  }
+
+  if (location.cloudState === "unavailable") {
+    return (
+      <DesktopMenuItem
+        className="desktop-project-location-action"
+        data-location-action="setup"
+        disabled={!onSetupCloud}
+        icon={<Cloud size={16} strokeWidth={1.75} />}
+        label={t("shell.workspaceSwitcher.location.keepAvailable")}
+        detail={t("shell.workspaceSwitcher.location.keepAvailableHint")}
+        trailing={<LocationActionVerb label={t("shell.workspaceSwitcher.location.setup")} />}
+        onClick={run(onSetupCloud)}
+      />
+    );
+  }
+
+  if (location.cloudState === "resolving") {
+    return (
+      <DesktopMenuItem
+        className="desktop-project-location-action"
+        data-location-action="resolving"
+        disabled
+        icon={<LoaderCircle className="animate-spin" size={16} strokeWidth={1.75} />}
+        label={t("shell.workspaceSwitcher.location.cloud")}
+        detail={t("shell.workspaceSwitcher.location.checking")}
+      />
+    );
+  }
+
+  const attention = location.cloudState === "attention";
+  const signedOut = location.cloudState === "signed-out";
+  return (
+    <DesktopMenuItem
+      className="desktop-project-location-action"
+      data-location-action={attention ? "attention" : signedOut ? "signed-out" : "switch"}
+      disabled={!onSwitchToCloud}
+      icon={attention
+        ? <TriangleAlert size={16} strokeWidth={1.75} />
+        : <Cloud size={16} strokeWidth={1.75} />}
+      label={t("shell.workspaceSwitcher.location.cloud")}
+      detail={attention
+        ? t("shell.workspaceSwitcher.location.needsAttention")
+        : signedOut
+          ? t("shell.workspaceSwitcher.location.signInToAccess")
+          : <LocationAvailability label={t("shell.workspaceSwitcher.location.available")} />}
+      trailing={<LocationActionVerb label={t(attention
+        ? "shell.workspaceSwitcher.location.open"
+        : "shell.workspaceSwitcher.location.switch")} />}
+      onClick={run(onSwitchToCloud)}
+    />
+  );
+}
+
+function LocationAvailability({ label }: { label: string }) {
+  return (
+    <span className="desktop-project-location-availability">
+      <span className="desktop-project-location-dot" aria-hidden="true" />
+      <span>{label}</span>
+    </span>
+  );
+}
+
+function LocationActionVerb({ label }: { label: string }) {
+  return (
+    <span className="desktop-project-location-action-verb">
+      <span>{label}</span>
+      <ChevronRight className="po-directional-icon" size={14} strokeWidth={1.8} aria-hidden="true" />
+    </span>
+  );
+}
+
 function ProjectLocationMark({
   className,
   kind,
   size = 15,
 }: {
   className: string;
-  kind: DesktopProjectLocation["kind"];
+  kind: DesktopProjectLocation["current"];
   size?: number;
 }) {
   const Icon = kind === "cloud" ? Cloud : Laptop;

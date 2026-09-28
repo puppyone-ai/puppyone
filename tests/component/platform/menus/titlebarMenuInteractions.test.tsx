@@ -24,11 +24,13 @@ afterEach(() => {
 });
 
 describe("titlebar Portal menu interactions", () => {
-  it("uses the Project icon for location and repeats that status in the normal Project menu", async () => {
+  it("keeps the current location stable while the alternate Cloud row changes from setup to switch", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
     const workspace = createWorkspace("one", "Workspace one");
+    const onSetupCloud = vi.fn();
+    const onSwitchToCloud = vi.fn();
 
     await act(async () => {
       root?.render(withTestLocalization(
@@ -39,9 +41,10 @@ describe("titlebar Portal menu interactions", () => {
           workspace={workspace}
           workspaceFolders={[createWorkspaceFolder(workspace)]}
           multiRootWorkspacesEnabled={false}
-          projectLocation={{ kind: "local", label: "Local only" }}
+          projectLocation={{ current: "local", localAvailable: true, cloudState: "unavailable" }}
           onClose={vi.fn()}
           onGoHome={vi.fn()}
+          onSetupCloud={onSetupCloud}
           onToggle={vi.fn()}
         />,
       ));
@@ -50,12 +53,19 @@ describe("titlebar Portal menu interactions", () => {
 
     const projectButton = container.querySelector<HTMLButtonElement>(".desktop-titlebar-workspace-button");
     expect(projectButton?.querySelector(".lucide-laptop")).not.toBeNull();
-    expect(projectButton?.getAttribute("aria-label")).toContain("Local only");
+    expect(projectButton?.getAttribute("aria-label")).toContain("This Mac");
     expect(container.querySelector(".desktop-titlebar-project-location")).toBeNull();
-    const currentProject = requireMenu().querySelector<HTMLElement>(".desktop-project-option[data-project-location='local']");
+    const currentProject = requireMenu().querySelector<HTMLElement>(".desktop-project-current-location[data-project-location='local']");
     expect(currentProject?.querySelector(".lucide-laptop")).not.toBeNull();
     expect(currentProject?.textContent).toContain("Workspace one");
-    expect(currentProject?.textContent).toContain("Local only");
+    expect(currentProject?.textContent).toContain("This Mac");
+    expect(currentProject?.querySelector(".desktop-project-location-dot")).not.toBeNull();
+    const setup = requireMenu().querySelector<HTMLButtonElement>("[data-location-action='setup']");
+    expect(setup?.textContent).toContain("Keep available to Agents");
+    expect(setup?.textContent).toContain("Even when this Mac is offline.");
+    expect(setup?.textContent).toContain("Set up");
+    act(() => setup?.click());
+    expect(onSetupCloud).toHaveBeenCalledOnce();
 
     await act(async () => {
       root?.render(withTestLocalization(
@@ -66,19 +76,52 @@ describe("titlebar Portal menu interactions", () => {
           workspace={workspace}
           workspaceFolders={[createWorkspaceFolder(workspace)]}
           multiRootWorkspacesEnabled={false}
-          projectLocation={{ kind: "cloud", label: "Local + Cloud" }}
+          projectLocation={{ current: "local", localAvailable: true, cloudState: "available" }}
           onClose={vi.fn()}
           onGoHome={vi.fn()}
+          onSwitchToCloud={onSwitchToCloud}
           onToggle={vi.fn()}
         />,
       ));
       await Promise.resolve();
     });
 
-    expect(container.querySelector(".desktop-titlebar-workspace-button .lucide-cloud")).not.toBeNull();
-    const cloudProject = requireMenu().querySelector<HTMLElement>(".desktop-project-option[data-project-location='cloud']");
-    expect(cloudProject?.querySelector(".lucide-cloud")).not.toBeNull();
-    expect(cloudProject?.textContent).toContain("Local + Cloud");
+    expect(container.querySelector(".desktop-titlebar-workspace-button .lucide-laptop")).not.toBeNull();
+    const cloudAction = requireMenu().querySelector<HTMLButtonElement>("[data-location-action='switch']");
+    expect(cloudAction?.querySelector(".lucide-cloud")).not.toBeNull();
+    expect(cloudAction?.textContent).toContain("Cloud");
+    expect(cloudAction?.textContent).toContain("Available");
+    expect(cloudAction?.textContent).toContain("Switch");
+    act(() => cloudAction?.click());
+    expect(onSwitchToCloud).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      root?.render(withTestLocalization(
+        <DesktopWorkspaceSwitcher
+          open
+          refObject={createRef<HTMLDivElement>()}
+          titlebarLabel={workspace.name}
+          workspace={workspace}
+          workspaceFolders={[createWorkspaceFolder(workspace)]}
+          multiRootWorkspacesEnabled={false}
+          projectLocation={{ current: "local", localAvailable: true, cloudState: "signed-out" }}
+          onClose={vi.fn()}
+          onGoHome={vi.fn()}
+          onSwitchToCloud={onSwitchToCloud}
+          onToggle={vi.fn()}
+        />,
+      ));
+      await Promise.resolve();
+    });
+
+    const signedOutCloudAction = requireMenu()
+      .querySelector<HTMLButtonElement>("[data-location-action='signed-out']");
+    expect(signedOutCloudAction?.textContent).toContain("Cloud");
+    expect(signedOutCloudAction?.textContent).toContain("Sign in to access");
+    expect(signedOutCloudAction?.textContent).toContain("Switch");
+    expect(signedOutCloudAction?.querySelector(".desktop-project-location-dot")).toBeNull();
+    act(() => signedOutCloudAction?.click());
+    expect(onSwitchToCloud).toHaveBeenCalledTimes(2);
   });
 
   it("keeps workspace menu actions clickable outside the native Header tree", async () => {
@@ -120,7 +163,7 @@ describe("titlebar Portal menu interactions", () => {
     const menu = requireMenu();
     expect(container.contains(menu)).toBe(false);
     expect(menu.dataset.windowNoDrag).toBe("true");
-    expect(menu.style.width).toBe("300px");
+    expect(menu.style.width).toBe("320px");
     expect(menu.querySelector("[data-workspace-menu-layout='workspace-composition-v1']"))
       .not.toBeNull();
     expect(menu.textContent).toContain("Home");

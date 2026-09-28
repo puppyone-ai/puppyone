@@ -28,9 +28,15 @@ export function WorkspaceMenuVisualSmokeHarness() {
             workspace={currentWorkspace}
             workspaceFolders={folders}
             multiRootWorkspacesEnabled
+            projectLocation={{
+              current: "local",
+              localAvailable: true,
+              cloudState: "unavailable",
+            }}
             onOpenFolder={() => undefined}
             onClose={() => undefined}
             onGoHome={() => undefined}
+            onSetupCloud={() => undefined}
             onToggle={() => undefined}
           />
           <div className="workspace-menu-visual-branch">
