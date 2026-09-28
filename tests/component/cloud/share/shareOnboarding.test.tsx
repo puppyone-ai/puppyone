@@ -27,7 +27,6 @@ import {
   buildProjectShares,
   CloudShareHeaderControl,
   ShareWizardDialog,
-  type PendingShare,
   type ProjectSharesState,
 } from "../../../../src/features/cloud/share";
 
@@ -115,30 +114,18 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-describe("Header share status", () => {
+describe("Header project location", () => {
   function renderHeader({
     context = resolved,
-    shares = sharesState(),
     signedIn = true,
-    pending = null,
-    onOpenShare = vi.fn(),
-    onOpenCloud = vi.fn(),
   }: {
     context?: ProjectCloudContext;
-    shares?: ProjectSharesState;
     signedIn?: boolean;
-    pending?: PendingShare | null;
-    onOpenShare?: () => void;
-    onOpenCloud?: () => void;
   }) {
     act(() => root?.render(withTestLocalization(
       <CloudShareHeaderControl
         projectContext={context}
-        shares={shares}
         signedIn={signedIn}
-        pending={pending}
-        onOpenShare={onOpenShare}
-        onOpenCloud={onOpenCloud}
       />,
     )));
     return host.querySelector<HTMLButtonElement>(".desktop-titlebar-share");
@@ -146,98 +133,60 @@ describe("Header share status", () => {
 
   const popover = () => document.querySelector<HTMLElement>(".desktop-share-popover");
 
-  it("says the folder is only on this Mac and offers exactly one way forward", () => {
-    const onOpenShare = vi.fn();
-    const onOpenCloud = vi.fn();
+  it("shows a compact local-only location without sharing content", () => {
     const button = renderHeader({
       context: { status: "local-only", projectId: null },
-      shares: sharesState({ loaded: false }),
       signedIn: false,
-      onOpenShare,
-      onOpenCloud,
     });
 
-    expect(button?.dataset.shareState).toBe("local");
+    expect(button?.dataset.projectLocation).toBe("local");
     expect(button?.querySelector(".desktop-titlebar-share-label")?.textContent).toBe("Local");
-    expect(button?.getAttribute("aria-label")).toContain("Only on this Mac");
+    expect(button?.getAttribute("aria-label")).toContain("Current project · Local");
 
     act(() => button?.click());
     const card = popover();
     expect(card?.getAttribute("role")).toBe("dialog");
-    expect(card?.textContent).toContain("Only on this Mac · no Agent can read it");
-    expect(Array.from(card?.querySelectorAll(".desktop-share-status-showcase-item") ?? [])
-      .map((item) => item.textContent)).toEqual([
-      "VViktor", "CClaude", "CChatGPT", "SSlack", "GGrok", "MMCP",
-    ]);
-    expect(card?.querySelectorAll("input, select, [role='radio']")).toHaveLength(0);
-    const buttons = card?.querySelectorAll<HTMLButtonElement>("button") ?? [];
-    expect(Array.from(buttons).map((candidate) => candidate.textContent)).toEqual(["Share with a cloud Agent"]);
-
-    act(() => buttons[0]?.click());
-    expect(onOpenShare).toHaveBeenCalledTimes(1);
-    expect(onOpenCloud).not.toHaveBeenCalled();
-    expect(popover()).toBeNull();
+    expect(card?.textContent).toContain("Current projectLocalThis Mac");
+    expect(card?.textContent).not.toContain("PuppyOne Cloud");
+    expect(card?.textContent).not.toContain("Agent");
+    expect(card?.querySelectorAll("button")).toHaveLength(0);
   });
 
-  it("lists which Agents can read a shared project and whether they have used it", () => {
-    const shares = buildProjectShares(
-      [issuedEndpoint, { ...issuedEndpoint, id: "ep-docs", name: "Claude", accesses: [{ path: "docs", readonly: false }] }],
-      dashboardReads({ "ep-docs": new Date().toISOString() }),
-    );
-    const button = renderHeader({ shares: sharesState({ shares }) });
+  it("keeps a signed-out Cloud project labeled by location", () => {
+    const button = renderHeader({ signedIn: false });
 
-    expect(button?.dataset.shareState).toBe("shared");
-    expect(button?.querySelector(".desktop-titlebar-share-label")?.textContent).toBe("2 Agents");
+    expect(button?.dataset.projectLocation).toBe("local-cloud");
+    expect(button?.querySelector(".desktop-titlebar-share-label")?.textContent).toBe("Local + Cloud");
     act(() => button?.click());
-    const rows = Array.from(popover()?.querySelectorAll<HTMLElement>(".desktop-share-status-reader") ?? []);
-    expect(rows).toHaveLength(2);
-    expect(rows[0]?.textContent).toContain("Viktor");
-    expect(rows[0]?.textContent).toContain("Not used yet");
-    expect(rows[1]?.textContent).toContain("docs");
-    expect(rows[1]?.textContent).toContain("Read and write");
-    expect(rows[1]?.querySelector("[data-live='true']")).not.toBeNull();
-    expect(Array.from(popover()?.querySelectorAll("button") ?? []).map((candidate) => candidate.textContent))
-      .toEqual(["Manage sharing"]);
+    expect(popover()?.textContent).toContain("Current projectLocal + CloudThis MacPuppyOne Cloud");
+    expect(popover()?.textContent).not.toContain("Signed out");
+    expect(popover()?.textContent).not.toContain("Viktor");
+    expect(popover()?.querySelectorAll("button")).toHaveLength(0);
   });
 
-  it("keeps waiting for the first read after the dialog closes, then counts the reader", () => {
-    const pending: PendingShare = { targetId: "viktor", endpointId: "ep-new", issuedAt: "2026-09-28T10:00:00Z" };
-    const button = renderHeader({ shares: sharesState({ shares: buildProjectShares([issuedEndpoint], null) }), pending });
-
-    expect(button?.dataset.shareState).toBe("waiting");
-    expect(button?.querySelector(".desktop-titlebar-share-label")?.textContent).toBe("Waiting for Viktor…");
-    act(() => button?.click());
-    expect(popover()?.querySelector(".desktop-share-status-reader[data-waiting='true']")?.textContent)
-      .toContain("Waiting for first read");
-
-    const read = renderHeader({
-      shares: sharesState({
-        shares: buildProjectShares([issuedEndpoint], dashboardReads({ "ep-new": "2026-09-28T10:05:00Z" })),
-      }),
-      pending,
-    });
-    expect(read?.dataset.shareState).toBe("shared");
-    expect(read?.querySelector(".desktop-titlebar-share-label")?.textContent).toBe("1 Agent");
-  });
-
-  it("does not claim nobody can read a published project before its shares load", () => {
-    const button = renderHeader({ shares: sharesState({ loaded: false }) });
-    expect(button?.dataset.shareState).toBe("resolving");
-  });
-
-  it("sends Cloud problems to the Cloud panel instead of the Share dialog", () => {
-    const onOpenShare = vi.fn();
-    const onOpenCloud = vi.fn();
+  it("shows the Cloud link while signed out even when it cannot authorize it", () => {
     const button = renderHeader({
       context: { status: "not-authorized", projectId: "proj-1", message: { code: "workspace-unavailable" } },
-      onOpenShare,
-      onOpenCloud,
+      signedIn: false,
     });
-    expect(button?.dataset.shareState).toBe("attention");
+    expect(button?.dataset.projectLocation).toBe("local-cloud");
+    expect(button?.querySelector(".desktop-titlebar-share-label")?.textContent).toBe("Local + Cloud");
+  });
+
+  it("shows location resolution without making a sharing claim", () => {
+    const button = renderHeader({ context: { status: "resolving", projectId: null } });
+    expect(button?.dataset.projectLocation).toBe("resolving");
+    expect(button?.querySelector(".desktop-titlebar-share-label")?.textContent).toBe("Checking location…");
+  });
+
+  it("marks a signed-in Cloud link that needs attention", () => {
+    const button = renderHeader({
+      context: { status: "not-authorized", projectId: "proj-1", message: { code: "workspace-unavailable" } },
+    });
+    expect(button?.dataset.projectLocation).toBe("attention");
+    expect(button?.querySelector(".desktop-titlebar-share-label")?.textContent).toBe("Cloud issue");
     act(() => button?.click());
-    act(() => buttonWithText(popover(), "Fix in PuppyOne Cloud")?.click());
-    expect(onOpenCloud).toHaveBeenCalledTimes(1);
-    expect(onOpenShare).not.toHaveBeenCalled();
+    expect(popover()?.querySelector("[data-location-state='attention']")).not.toBeNull();
   });
 });
 

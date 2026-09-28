@@ -106,7 +106,7 @@ describe("Share-first Cloud Homepage", () => {
     const card = home?.querySelector<HTMLElement>(".desktop-share-status--page");
     expect(card?.dataset.shareState).toBe("published");
     expect(card?.textContent).toContain("Synced · no Agent can read it yet");
-    expect(card?.querySelectorAll(".desktop-share-status-showcase-item")).toHaveLength(6);
+    expect(card?.querySelector(".desktop-share-status-showcase")).toBeNull();
     expect(card?.querySelectorAll("input, select, [role='radio']")).toHaveLength(0);
     const primary = card?.querySelector<HTMLButtonElement>(".desktop-share-status-primary");
     expect(primary?.textContent).toBe("Share with a cloud Agent");

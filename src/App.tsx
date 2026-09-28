@@ -1431,11 +1431,7 @@ function AppContent() {
       ? (
         <CloudShareHeaderControl
           projectContext={projectCloudContext}
-          shares={projectShares}
           signedIn={cloudSignedIn}
-          pending={pendingShare}
-          onOpenShare={() => openShareWizard(null)}
-          onOpenCloud={openCloudDialog}
         />
       )
       : null,

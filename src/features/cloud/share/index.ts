@@ -1,4 +1,7 @@
 export { CloudShareHeaderControl } from "./CloudShareHeaderControl";
+export { CloudProjectLocationCard, projectLocationBadge } from "./CloudProjectLocationCard";
+export { resolveProjectLocationStatus } from "./projectLocationStatus";
+export type { ProjectLocationKind, ProjectLocationStatus } from "./projectLocationStatus";
 export { CloudShareStatusCard, shareStatusBadge, shareStatusHeadline } from "./CloudShareStatusCard";
 export { isActiveShare, isPendingShareLive, resolveCloudShareStatus } from "./shareStatus";
 export type { CloudShareStatus, CloudShareStatusKind, PendingShare } from "./shareStatus";

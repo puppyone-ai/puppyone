@@ -3,7 +3,7 @@ import { DesktopMenuSurface } from "../../../components/DesktopMenu";
 import { DesktopOverlayLayer } from "../../app-shell/DesktopOverlayPortal";
 import { useAnchoredOverlayPosition } from "../../app-shell/useAnchoredOverlayPosition";
 
-const SHARE_POPOVER_WIDTH = 340;
+const SHARE_POPOVER_WIDTH = 292;
 const SHARE_POPOVER_MAX_HEIGHT = 480;
 
 /**

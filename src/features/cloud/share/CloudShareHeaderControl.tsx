@@ -2,49 +2,33 @@ import { useLocalization } from "@puppyone/localization/react";
 import { Cloud } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ProjectCloudContext } from "../project/context/projectCloudContext";
+import { CloudProjectLocationCard, projectLocationBadge } from "./CloudProjectLocationCard";
 import { CloudSharePopover } from "./CloudSharePopover";
-import { CloudShareStatusCard, shareStatusBadge, shareStatusHeadline } from "./CloudShareStatusCard";
-import { resolveCloudShareStatus, type PendingShare } from "./shareStatus";
-import type { ProjectSharesState } from "./useProjectShares";
+import { resolveProjectLocationStatus } from "./projectLocationStatus";
 import "./share.css";
 
 const HOVER_OPEN_DELAY_MS = 150;
 const HOVER_CLOSE_DELAY_MS = 200;
 
 /**
- * The Header cloud control is a status indicator first: glyph, dot, and a
- * one-word label. Hovering reveals the read-only status card and a click pins
- * it. The card's single button is the only action: it opens the Share dialog,
- * or the Cloud panel when the project needs attention.
+ * The Header cloud control reports where the current project is available.
+ * Authentication and sharing details live in their own Cloud surfaces.
  */
 export function CloudShareHeaderControl({
   projectContext,
-  shares,
   signedIn,
-  pending,
-  onOpenShare,
-  onOpenCloud,
 }: {
   projectContext: ProjectCloudContext;
-  shares: ProjectSharesState;
   signedIn: boolean;
-  pending: PendingShare | null;
-  onOpenShare: () => void;
-  onOpenCloud: () => void;
 }) {
   const { t } = useLocalization();
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<number | null>(null);
-  const status = resolveCloudShareStatus({
-    context: projectContext,
-    shares: shares.shares,
-    sharesLoaded: shares.loaded || shares.error,
-    signedIn,
-    pending,
-  });
-  const ariaLabel = `${t("cloud.productName")} · ${shareStatusHeadline(status, t)}`;
+  const status = resolveProjectLocationStatus(projectContext, signedIn);
+  const locationLabel = projectLocationBadge(status, t);
+  const ariaLabel = `${t("cloud.share.location.title")} · ${locationLabel}`;
 
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) {
@@ -81,7 +65,7 @@ export function CloudShareHeaderControl({
         aria-label={ariaLabel}
         aria-haspopup="dialog"
         aria-expanded={open}
-        data-share-state={status.kind}
+        data-project-location={status.kind}
         onClick={() => {
           clearTimer();
           if (pinned) {
@@ -96,7 +80,7 @@ export function CloudShareHeaderControl({
           <Cloud size={15} strokeWidth={1.8} />
           <span className="desktop-titlebar-share-dot" />
         </span>
-        <span className="desktop-titlebar-share-label" aria-hidden="true">{shareStatusBadge(status, t)}</span>
+        <span className="desktop-titlebar-share-label" aria-hidden="true">{locationLabel}</span>
       </button>
 
       <CloudSharePopover
@@ -108,15 +92,7 @@ export function CloudShareHeaderControl({
         onPointerEnter={clearTimer}
         onPointerLeave={scheduleClose}
       >
-        <CloudShareStatusCard
-          status={status}
-          surface="popover"
-          onPrimary={() => {
-            dismiss();
-            if (status.kind === "attention") onOpenCloud();
-            else onOpenShare();
-          }}
-        />
+        <CloudProjectLocationCard status={status} />
       </CloudSharePopover>
     </div>
   );

@@ -3,23 +3,13 @@ import type { MessageFormatter } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
 import { formatCloudMessage } from "../cloudPresentation";
 import { formatRelativeTime } from "../utils";
-import { shareTargetLabelKey, type ShareTargetId } from "./shareTargets";
+import { shareTargetLabelKey } from "./shareTargets";
 import type { CloudShareStatus } from "./shareStatus";
 
-/** Empty-state illustration of who could read the folder. Brand names stay untranslated. */
-const SHOWCASE_TARGETS: ReadonlyArray<Readonly<{ id: ShareTargetId; name: string }>> = [
-  { id: "viktor", name: "Viktor" },
-  { id: "claude", name: "Claude" },
-  { id: "chatgpt", name: "ChatGPT" },
-  { id: "slack-bot", name: "Slack" },
-  { id: "grok", name: "Grok" },
-  { id: "mcp", name: "MCP" },
-];
-
 /**
- * The read-only answer to "which Agents can read this folder right now?".
- * It never configures anything: a status line, the readers (or who could be
- * one), and a single button. Configuration lives in the Share dialog.
+ * The Cloud Homepage answer to "which Agents can read this folder right now?".
+ * It never configures anything: a status line, current readers, and a single
+ * button. Configuration lives in the Share dialog.
  */
 export function CloudShareStatusCard({
   status,
@@ -35,7 +25,6 @@ export function CloudShareStatusCard({
   const hint = shareStatusHint(status, t);
   const managing = status.kind === "shared" || status.kind === "waiting";
   const showReaders = managing && status.readers.length > 0;
-  const showShowcase = status.kind === "local" || status.kind === "signed-out" || status.kind === "published";
   const primaryLabel = status.kind === "attention"
     ? t("cloud.share.status.action.fix")
     : managing
@@ -74,17 +63,6 @@ export function CloudShareStatusCard({
               </li>
             );
           })}
-        </ul>
-      )}
-
-      {showShowcase && (
-        <ul className="desktop-share-status-showcase" aria-label={t("cloud.share.status.showcaseLabel")}>
-          {SHOWCASE_TARGETS.map((target) => (
-            <li className="desktop-share-status-showcase-item" key={target.id}>
-              <span className="desktop-share-target-mark" aria-hidden="true">{target.name.slice(0, 1)}</span>
-              <small>{target.name}</small>
-            </li>
-          ))}
         </ul>
       )}
 
