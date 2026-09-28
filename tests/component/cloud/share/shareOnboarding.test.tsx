@@ -123,7 +123,7 @@ describe("Header project location", () => {
     context?: ProjectCloudContext;
     signedIn?: boolean;
     onShare?: () => void;
-  }) {
+  } = {}) {
     act(() => root?.render(withTestLocalization(
       <CloudShareHeaderControl
         projectContext={context}
@@ -136,20 +136,49 @@ describe("Header project location", () => {
 
   const popover = () => document.querySelector<HTMLElement>(".desktop-share-popover");
 
-  it("opens only after a click and toggles closed on a second click", () => {
+  it("previews on hover and opens the full Share flow on click", () => {
+    const onShare = vi.fn();
     const button = renderHeader({
       context: { status: "local-only", projectId: null },
       signedIn: false,
+      onShare,
     });
 
     act(() => button?.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
-    expect(popover()).toBeNull();
-
-    act(() => button?.click());
     expect(popover()).not.toBeNull();
 
     act(() => button?.click());
+    expect(onShare).toHaveBeenCalledOnce();
     expect(popover()).toBeNull();
+
+    act(() => button?.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
+    expect(popover()).toBeNull();
+    act(() => button?.dispatchEvent(new MouseEvent("pointerout", {
+      bubbles: true,
+      relatedTarget: document.body,
+    })));
+    act(() => button?.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
+    expect(popover()).not.toBeNull();
+  });
+
+  it("keeps the hover card open long enough to enter it, then dismisses it", () => {
+    vi.useFakeTimers();
+    try {
+      const button = renderHeader();
+      act(() => button?.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
+      expect(popover()).not.toBeNull();
+
+      act(() => button?.dispatchEvent(new MouseEvent("pointerout", {
+        bubbles: true,
+        relatedTarget: document.body,
+      })));
+      act(() => vi.advanceTimersByTime(119));
+      expect(popover()).not.toBeNull();
+      act(() => vi.advanceTimersByTime(1));
+      expect(popover()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("explains the local-only location and offers a visual sharing action", () => {
@@ -164,7 +193,7 @@ describe("Header project location", () => {
     expect(button?.querySelector(".desktop-titlebar-share-label")?.textContent).toBe("Local only");
     expect(button?.getAttribute("aria-label")).toContain("Current project · Local only");
 
-    act(() => button?.click());
+    act(() => button?.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
     const card = popover();
     expect(card?.getAttribute("role")).toBe("dialog");
     expect(card?.textContent).toContain("Local only");
@@ -186,7 +215,7 @@ describe("Header project location", () => {
 
     expect(button?.dataset.projectLocation).toBe("local-cloud");
     expect(button?.querySelector(".desktop-titlebar-share-label")?.textContent).toBe("Local + Cloud");
-    act(() => button?.click());
+    act(() => button?.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
     expect(popover()?.textContent).toContain("Local + Cloud");
     expect(popover()?.textContent).not.toContain("Signed out");
     expect(popover()?.textContent).not.toContain("Viktor");
@@ -214,7 +243,7 @@ describe("Header project location", () => {
     });
     expect(button?.dataset.projectLocation).toBe("attention");
     expect(button?.querySelector(".desktop-titlebar-share-label")?.textContent).toBe("Cloud issue");
-    act(() => button?.click());
+    act(() => button?.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
     expect(popover()?.querySelector("[data-location-state='attention']")).not.toBeNull();
   });
 });
