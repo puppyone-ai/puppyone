@@ -1,4 +1,5 @@
 import { createContext, useContext, type ReactNode } from "react";
+import type { PendingShare } from "./shareStatus";
 import type { ShareTargetId } from "./shareTargets";
 import type { ProjectSharesState } from "./useProjectShares";
 
@@ -8,6 +9,8 @@ import type { ProjectSharesState } from "./useProjectShares";
  */
 export type CloudShareActions = Readonly<{
   shares: ProjectSharesState;
+  signedIn: boolean;
+  pending: PendingShare | null;
   openShare: (targetId: ShareTargetId | null, path?: string) => void;
 }>;
 

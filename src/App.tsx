@@ -121,7 +121,7 @@ import {
   CloudShareHeaderControl,
   CloudShareProvider,
   ShareWizardDialog,
-  useProjectShares,
+  useProjectShareActivity,
   type CloudShareActions,
   type ShareTargetId,
   type ShareWizardFolderEntry,
@@ -702,15 +702,18 @@ function AppContent() {
   });
   const resolvedCloudProjectId = getResolvedCloudProjectId(projectCloudContext);
   const [shareWizard, setShareWizard] = useState<{ targetId: ShareTargetId | null; path: string } | null>(null);
-  const [shareWaitingForReceipt, setShareWaitingForReceipt] = useState(false);
-  const projectShares = useProjectShares({
+  const {
+    shares: projectShares,
+    pending: pendingShare,
+    setPending: setPendingShare,
+  } = useProjectShareActivity({
     session: activeCloudSession,
     apiBaseUrl: desktopCloudApiBaseUrl,
     projectId: resolvedCloudProjectId,
     enabled: shareOnboardingEnabled,
-    pollIntervalMs: shareWizard && shareWaitingForReceipt ? 5000 : 0,
     onSessionChange: updateCloudSession,
   });
+  const cloudSignedIn = activeCloudSession !== null;
   // The wizard stacks above the Cloud dialog so the Homepage is still there when it closes.
   const openShareWizard = useCallback((targetId: ShareTargetId | null, path = "") => {
     if (!shareOnboardingEnabled) return;
@@ -720,16 +723,15 @@ function AppContent() {
     setSwitcherOpen(false);
     setBranchSwitcherOpen(false);
   }, [setBranchSwitcherOpen, shareOnboardingEnabled]);
-  const closeShareWizard = useCallback(() => {
-    setShareWizard(null);
-    setShareWaitingForReceipt(false);
-  }, []);
+  const closeShareWizard = useCallback(() => setShareWizard(null), []);
   useEffect(() => {
     if (!shareOnboardingEnabled) setShareWizard(null);
   }, [shareOnboardingEnabled]);
   const cloudShareActions = useMemo<CloudShareActions | null>(() => (
-    shareOnboardingEnabled ? { shares: projectShares, openShare: openShareWizard } : null
-  ), [openShareWizard, projectShares, shareOnboardingEnabled]);
+    shareOnboardingEnabled
+      ? { shares: projectShares, signedIn: cloudSignedIn, pending: pendingShare, openShare: openShareWizard }
+      : null
+  ), [cloudSignedIn, openShareWizard, pendingShare, projectShares, shareOnboardingEnabled]);
   const listShareFolders = useCallback(async (): Promise<ShareWizardFolderEntry[]> => {
     if (!dataPort) return [];
     const children = await dataPort.listChildren(focusedWorkspaceFolder?.uri ?? null);
@@ -1430,8 +1432,9 @@ function AppContent() {
         <CloudShareHeaderControl
           projectContext={projectCloudContext}
           shares={projectShares}
-          signedIn={activeCloudSession !== null}
-          onShare={openShareWizard}
+          signedIn={cloudSignedIn}
+          pending={pendingShare}
+          onOpenShare={() => openShareWizard(null)}
           onOpenCloud={openCloudDialog}
         />
       )
@@ -1859,7 +1862,7 @@ function AppContent() {
               shares={projectShares}
               listTopLevelFolders={listShareFolders}
               onSessionChange={updateCloudSession}
-              onWaitingChange={setShareWaitingForReceipt}
+              onIssued={setPendingShare}
               onOpenCloud={() => {
                 closeShareWizard();
                 openCloudDialog();

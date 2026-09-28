@@ -1,19 +1,31 @@
 @layer features {
-  /* ── Header control ─────────────────────────────────────────────── */
+  /* ── Header control: glyph + status dot + one-word label ────────── */
   .desktop-titlebar-share-wrap {
     position: relative;
     display: inline-flex;
     align-items: center;
   }
 
-  .desktop-titlebar-share {
-    position: relative;
+  .desktop-titlebar-action.desktop-titlebar-share {
+    width: auto;
+    min-width: var(--desktop-chrome-control-size);
+    max-width: min(200px, 30vw);
+    flex: 0 0 auto;
+    gap: 6px;
+    padding: 0 8px 0 6px;
+    white-space: nowrap;
   }
 
-  .desktop-titlebar-share-badge {
+  .desktop-titlebar-share-glyph {
+    position: relative;
+    display: inline-flex;
+    flex: 0 0 auto;
+  }
+
+  .desktop-titlebar-share-dot {
     position: absolute;
-    right: 3px;
-    bottom: 3px;
+    right: -2px;
+    bottom: -1px;
     width: 7px;
     height: 7px;
     border: 1.5px solid var(--desktop-titlebar-bg, var(--po-panel));
@@ -21,25 +33,54 @@
     background: var(--po-text-disabled);
   }
 
-  .desktop-titlebar-share[data-share-state="signed-out"] .desktop-titlebar-share-badge,
-  .desktop-share-menu-status[data-share-state="signed-out"] .desktop-share-menu-status-dot {
-    background: var(--po-warning, #d97706);
+  .desktop-titlebar-share-label {
+    min-width: 0;
+    overflow: hidden;
+    font-size: var(--po-font-size-chrome, 13px);
+    font-weight: var(--po-text-weight-regular, 400);
+    line-height: var(--po-type-header-line-height, 20px);
+    text-overflow: ellipsis;
   }
 
-  .desktop-titlebar-share[data-share-state="resolving"] .desktop-titlebar-share-badge {
+  /* One color vocabulary for the Header dot and the status card dot. */
+  .desktop-share-status-dot {
+    flex: 0 0 auto;
+    width: 8px;
+    height: 8px;
+    margin-top: 6px;
+    border-radius: 999px;
+    background: var(--po-text-disabled);
+  }
+
+  .desktop-titlebar-share[data-share-state="resolving"] .desktop-titlebar-share-dot,
+  .desktop-share-status[data-share-state="resolving"] .desktop-share-status-dot {
     background: var(--po-text-muted);
     animation: desktop-share-pulse 1.4s ease-in-out infinite;
   }
 
-  .desktop-titlebar-share[data-share-state="published"] .desktop-titlebar-share-badge {
+  .desktop-titlebar-share[data-share-state="published"] .desktop-titlebar-share-dot,
+  .desktop-share-status[data-share-state="published"] .desktop-share-status-dot {
     background: var(--po-accent);
   }
 
-  .desktop-titlebar-share[data-share-state="shared"] .desktop-titlebar-share-badge {
+  .desktop-titlebar-share[data-share-state="shared"] .desktop-titlebar-share-dot,
+  .desktop-share-status[data-share-state="shared"] .desktop-share-status-dot {
     background: var(--po-success, #16a34a);
   }
 
-  .desktop-titlebar-share[data-share-state="attention"] .desktop-titlebar-share-badge {
+  .desktop-titlebar-share[data-share-state="signed-out"] .desktop-titlebar-share-dot,
+  .desktop-share-status[data-share-state="signed-out"] .desktop-share-status-dot {
+    background: var(--po-warning, #d97706);
+  }
+
+  .desktop-titlebar-share[data-share-state="waiting"] .desktop-titlebar-share-dot,
+  .desktop-share-status[data-share-state="waiting"] .desktop-share-status-dot {
+    background: var(--po-warning, #d97706);
+    animation: desktop-share-pulse 1.4s ease-in-out infinite;
+  }
+
+  .desktop-titlebar-share[data-share-state="attention"] .desktop-titlebar-share-dot,
+  .desktop-share-status[data-share-state="attention"] .desktop-share-status-dot {
     background: var(--po-danger);
   }
 
@@ -48,23 +89,97 @@
     50% { opacity: 0.35; }
   }
 
-  /* ── Header menu ────────────────────────────────────────────────── */
-  .desktop-share-menu {
-    --desktop-share-menu-width: 320px;
-    width: var(--desktop-share-menu-width);
+  /* ── Header popover: the read-only status card ──────────────────── */
+  .desktop-titlebar-menu.desktop-share-popover {
+    padding: 12px;
   }
 
-  .desktop-share-menu-status {
+  .desktop-share-status {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .desktop-share-status--page {
+    padding: 18px 20px;
+    border: 1px solid var(--po-border);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--po-surface) 72%, var(--po-canvas));
+  }
+
+  .desktop-share-status-head {
     display: flex;
     gap: 10px;
     align-items: flex-start;
-    padding: 10px 12px 8px;
   }
 
-  .desktop-share-menu-status-dot,
-  .desktop-share-menu-row-dot,
-  .desktop-share-receipt-dot {
+  .desktop-share-status-copy {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  .desktop-share-status-copy strong {
+    color: var(--po-text);
+    font-size: var(--po-type-ui-body, 14px);
+    font-weight: 600;
+    line-height: 20px;
+  }
+
+  .desktop-share-status--page .desktop-share-status-copy strong {
+    font-size: var(--po-type-ui-section-title, 16px);
+    line-height: 22px;
+  }
+
+  .desktop-share-status-copy small {
+    color: var(--po-text-muted);
+    font-size: var(--po-type-ui-caption, 12px);
+    line-height: 17px;
+  }
+
+  .desktop-share-status-readers {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .desktop-share-status-reader {
+    display: grid;
+    grid-template-columns: 8px minmax(0, 1fr);
+    column-gap: 10px;
+    row-gap: 1px;
+    padding: 7px 8px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--po-text) 4%, transparent);
+  }
+
+  .desktop-share-status-reader > strong,
+  .desktop-share-status-reader > small {
+    grid-column: 2;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .desktop-share-status-reader > strong {
+    color: var(--po-text);
+    font-size: var(--po-type-ui-hint, 13px);
+    font-weight: 560;
+    line-height: 18px;
+  }
+
+  .desktop-share-status-reader > small {
+    color: var(--po-text-muted);
+    font-size: var(--po-type-ui-caption, 12px);
+    line-height: 16px;
+  }
+
+  .desktop-share-status-reader-dot {
     flex: 0 0 auto;
+    grid-row: 1 / span 2;
     width: 8px;
     height: 8px;
     margin-top: 5px;
@@ -72,43 +187,93 @@
     background: var(--po-text-disabled);
   }
 
-  .desktop-share-menu-status[data-share-state="published"] .desktop-share-menu-status-dot { background: var(--po-accent); }
-  .desktop-share-menu-status[data-share-state="shared"] .desktop-share-menu-status-dot { background: var(--po-success, #16a34a); }
-  .desktop-share-menu-status[data-share-state="attention"] .desktop-share-menu-status-dot { background: var(--po-danger); }
-
-  .desktop-share-menu-status-copy,
-  .desktop-share-menu-row-copy {
-    display: grid;
-    gap: 2px;
-    min-width: 0;
-  }
-
-  .desktop-share-menu-status-copy strong,
-  .desktop-share-menu-row-copy strong {
-    font-size: var(--po-type-ui-body, 13px);
-    font-weight: 600;
-    color: var(--po-text);
-  }
-
-  .desktop-share-menu-status-copy small,
-  .desktop-share-menu-row-copy small {
-    font-size: var(--po-type-ui-meta, 12px);
-    line-height: 1.4;
-    color: var(--po-text-muted);
-  }
-
-  .desktop-share-menu-row {
-    display: flex;
-    gap: 10px;
-    align-items: flex-start;
-    padding: 6px 12px;
-  }
-
-  .desktop-share-menu-row-dot[data-live="true"] {
+  .desktop-share-status-reader-dot[data-live="true"] {
     background: var(--po-success, #16a34a);
   }
 
-  /* ── Target mark (shared by menu + wizard) ──────────────────────── */
+  .desktop-share-status-reader[data-waiting="true"] .desktop-share-status-reader-dot {
+    background: var(--po-warning, #d97706);
+    animation: desktop-share-pulse 1.4s ease-in-out infinite;
+  }
+
+  /* Who could read it: an illustration, never a picker. */
+  .desktop-share-status-showcase {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 4px;
+    margin: 0;
+    padding: 2px 0;
+    list-style: none;
+    opacity: 0.78;
+  }
+
+  .desktop-share-status--page .desktop-share-status-showcase {
+    grid-template-columns: repeat(6, 64px);
+    gap: 8px;
+  }
+
+  .desktop-share-status-showcase-item {
+    display: grid;
+    justify-items: center;
+    gap: 5px;
+    min-width: 0;
+  }
+
+  .desktop-share-status-showcase-item small {
+    max-width: 100%;
+    overflow: hidden;
+    color: var(--po-text-muted);
+    font-size: var(--po-type-ui-micro, 11px);
+    line-height: 14px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .desktop-share-status-primary {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: var(--po-control-size);
+    padding: 0 14px;
+    border: 1px solid var(--po-text);
+    border-radius: 8px;
+    background: var(--po-text);
+    color: var(--po-text-inverse);
+    font: inherit;
+    font-size: var(--po-type-ui-hint, 13px);
+    font-weight: 600;
+  }
+
+  .desktop-share-status-primary:hover {
+    background: color-mix(in srgb, var(--po-text) 86%, transparent);
+  }
+
+  .desktop-share-status-primary:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--po-accent) 68%, transparent);
+    outline-offset: 2px;
+  }
+
+  .desktop-share-status[data-share-state="shared"] .desktop-share-status-primary,
+  .desktop-share-status[data-share-state="waiting"] .desktop-share-status-primary {
+    border-color: var(--po-border);
+    background: transparent;
+    color: var(--po-text);
+  }
+
+  .desktop-share-status[data-share-state="shared"] .desktop-share-status-primary:hover,
+  .desktop-share-status[data-share-state="waiting"] .desktop-share-status-primary:hover {
+    background: var(--po-control-hover);
+  }
+
+  .desktop-share-status--page .desktop-share-status-primary {
+    justify-self: start;
+    width: auto;
+    min-width: 220px;
+  }
+
+  /* ── Target mark (status card showcase + dialog) ────────────────── */
   .desktop-share-target-mark {
     display: inline-flex;
     align-items: center;
@@ -127,14 +292,7 @@
     color: var(--po-text-muted);
   }
 
-  .desktop-share-target-mark.is-compact {
-    width: 20px;
-    height: 20px;
-    border-radius: 6px;
-    font-size: var(--po-type-ui-micro, 11px);
-  }
-
-  /* ── Wizard dialog ──────────────────────────────────────────────── */
+  /* ── Share dialog ───────────────────────────────────────────────── */
   .desktop-share-dialog {
     display: flex;
     flex-direction: column;
@@ -209,6 +367,81 @@
     color: var(--po-text);
   }
 
+  /* Readers step */
+  .desktop-share-readers-summary {
+    margin: 0;
+    color: var(--po-text-muted);
+    font-size: var(--po-type-ui-caption, 12px);
+    line-height: 17px;
+  }
+
+  .desktop-share-readers-list {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--po-divider);
+    border-radius: 10px;
+    list-style: none;
+  }
+
+  .desktop-share-readers-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 10px 12px;
+  }
+
+  .desktop-share-readers-row + .desktop-share-readers-row {
+    border-top: 1px solid var(--po-divider);
+  }
+
+  .desktop-share-readers-copy {
+    display: grid;
+    flex: 1 1 auto;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .desktop-share-readers-copy strong {
+    color: var(--po-text);
+    font-size: var(--po-type-ui-hint, 13px);
+    font-weight: 600;
+  }
+
+  .desktop-share-readers-copy small {
+    color: var(--po-text-muted);
+    font-size: var(--po-type-ui-caption, 12px);
+    line-height: 1.4;
+  }
+
+  .desktop-share-readers-actions {
+    display: inline-flex;
+    flex: 0 0 auto;
+    gap: 10px;
+    align-items: center;
+    align-self: center;
+  }
+
+  .desktop-share-readers-add {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    justify-self: start;
+    height: var(--po-control-size-compact);
+    padding: 0 10px;
+    border: 1px dashed var(--po-divider);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--po-text);
+    font: inherit;
+    font-size: var(--po-type-ui-hint, 13px);
+  }
+
+  .desktop-share-readers-add:hover {
+    background: var(--po-control-hover);
+  }
+
+  /* Target step */
   .desktop-share-target-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -532,6 +765,10 @@
     font: inherit;
   }
 
+  .desktop-share-inline-link:disabled {
+    opacity: 0.5;
+  }
+
   .desktop-share-receipt {
     display: flex;
     gap: 10px;
@@ -550,6 +787,15 @@
 
   .desktop-share-receipt strong {
     color: var(--po-text);
+  }
+
+  .desktop-share-receipt-dot {
+    flex: 0 0 auto;
+    width: 8px;
+    height: 8px;
+    margin-top: 5px;
+    border-radius: 999px;
+    background: var(--po-text-disabled);
   }
 
   .desktop-share-receipt.is-waiting .desktop-share-receipt-dot {
@@ -572,7 +818,7 @@
     gap: 8px;
   }
 
-  /* ── Cloud Homepage, Act 1: "who should read this?" ─────────────── */
+  /* ── Cloud Homepage, Act 1 ──────────────────────────────────────── */
   .desktop-share-home-catalog {
     gap: 0;
   }
@@ -585,150 +831,17 @@
 
   .desktop-share-home {
     display: grid;
-    gap: 22px;
+    gap: 16px;
     padding: 0 8px;
   }
 
-  .desktop-share-home-header {
-    display: grid;
-    max-width: 620px;
-    gap: 5px;
-  }
-
-  .desktop-share-home-header > span {
-    color: var(--po-text-subtle);
-    font-size: var(--po-type-ui-caption, 12px);
-    font-weight: 560;
-    letter-spacing: 0.035em;
-    line-height: 16px;
-    text-transform: uppercase;
-  }
-
-  .desktop-share-home-header h2,
-  .desktop-share-home-header p {
+  .desktop-share-home-title {
     margin: 0;
-  }
-
-  .desktop-share-home-header h2 {
     color: var(--po-text);
-    font-size: var(--po-type-ui-page-title, 21px);
+    font-size: var(--po-type-ui-title, 17px);
     font-weight: 600;
-    letter-spacing: -0.02em;
-    line-height: 26px;
-  }
-
-  .desktop-share-home-header p {
-    color: var(--po-text-muted);
-    font-size: var(--po-type-ui-body, 14px);
-    line-height: 20px;
-  }
-
-  .desktop-share-home-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-  }
-
-  .desktop-share-home-card {
-    display: grid;
-    grid-template-columns: 30px minmax(0, 1fr) 16px;
-    align-items: start;
-    gap: 11px;
-    min-width: 0;
-    min-height: 84px;
-    padding: 14px 14px 14px 16px;
-    border: 1px solid var(--po-border);
-    border-radius: 10px;
-    background: color-mix(in srgb, var(--po-surface) 72%, var(--po-canvas));
-    color: var(--po-text);
-    font: inherit;
-    text-align: start;
-    cursor: var(--po-clickable-cursor, default);
-    transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
-  }
-
-  .desktop-share-home-card:hover {
-    border-color: var(--po-border-strong);
-    background: var(--po-hover);
-    box-shadow: 0 2px 8px color-mix(in srgb, var(--po-shadow, #000) 7%, transparent);
-  }
-
-  .desktop-share-home-card:focus-visible {
-    outline: 2px solid color-mix(in srgb, var(--po-accent) 68%, transparent);
-    outline-offset: 2px;
-  }
-
-  .desktop-share-home-card[data-share-target="viktor"] {
-    grid-column: 1 / -1;
-    background: color-mix(in srgb, var(--po-accent) 4%, var(--po-surface));
-  }
-
-  .desktop-share-home-card-copy {
-    display: grid;
-    gap: 4px;
-    min-width: 0;
-  }
-
-  .desktop-share-home-card-copy > strong {
-    color: var(--po-text);
-    font-size: var(--po-type-ui-body, 14px);
-    font-weight: 580;
-    letter-spacing: -0.01em;
-    line-height: 19px;
-  }
-
-  .desktop-share-home-card-copy > span {
-    color: var(--po-text-muted);
-    font-size: var(--po-type-ui-caption, 12px);
-    line-height: 17px;
-  }
-
-  .desktop-share-home-card-chevron {
-    align-self: center;
-    color: var(--po-text-subtle);
-  }
-
-  .desktop-share-home-existing {
-    display: grid;
-    gap: 8px;
-  }
-
-  .desktop-share-home-existing h3 {
-    margin: 0;
-    color: var(--po-text-subtle);
-    font-size: var(--po-type-ui-caption, 12px);
-    font-weight: 560;
-    letter-spacing: 0.035em;
-    line-height: 16px;
-    text-transform: uppercase;
-  }
-
-  .desktop-share-home-existing ul {
-    display: grid;
-    margin: 0;
-    padding: 0;
-    border: 1px solid var(--po-border);
-    border-radius: 10px;
-    list-style: none;
-    background: var(--po-surface);
-  }
-
-  .desktop-share-home-row {
-    display: flex;
-    gap: 10px;
-    align-items: flex-start;
-    padding: 10px 14px;
-  }
-
-  .desktop-share-home-row + .desktop-share-home-row {
-    border-top: 1px solid var(--po-border);
-  }
-
-  .desktop-share-home-existing-hint {
-    margin: 0;
-    color: var(--po-text-muted);
-    font-size: var(--po-type-ui-caption, 12px);
-    line-height: 17px;
+    letter-spacing: -0.015em;
+    line-height: 24px;
   }
 
   /* Act 2 pointers: identity and history live one click away. */
@@ -786,17 +899,18 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .desktop-share-scope-columns {
-      grid-template-columns: 1fr;
-    }
-
-    .desktop-share-home-grid,
+    .desktop-share-scope-columns,
     .desktop-share-home-secondary {
       grid-template-columns: minmax(0, 1fr);
     }
+  }
 
-    .desktop-share-home-card[data-share-target="viktor"] {
-      grid-column: auto;
+  @media (prefers-reduced-motion: reduce) {
+    .desktop-titlebar-share-dot,
+    .desktop-share-status-dot,
+    .desktop-share-status-reader-dot,
+    .desktop-share-receipt-dot {
+      animation: none;
     }
   }
 }

@@ -1,165 +1,123 @@
-import { Tooltip } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
-import { Cloud, ExternalLink, Share2 } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
-import { DesktopMenuItem, DesktopMenuSection, DesktopMenuSeparator } from "../../../components/DesktopMenu";
-import { DesktopTitlebarMenuLayer } from "../../app-shell/DesktopTitlebarMenuLayer";
+import { Cloud } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ProjectCloudContext } from "../project/context/projectCloudContext";
-import { formatRelativeTime } from "../utils";
-import { SHARE_TARGETS, shareTargetLabelKey, shareTargetPreviewKey, type ShareTargetId } from "./shareTargets";
+import { CloudSharePopover } from "./CloudSharePopover";
+import { CloudShareStatusCard, shareStatusBadge, shareStatusHeadline } from "./CloudShareStatusCard";
+import { resolveCloudShareStatus, type PendingShare } from "./shareStatus";
 import type { ProjectSharesState } from "./useProjectShares";
 import "./share.css";
 
-export type CloudShareHeaderState = "local" | "signed-out" | "resolving" | "published" | "shared" | "attention";
-
-export function resolveCloudShareHeaderState(
-  context: ProjectCloudContext,
-  shareCount: number,
-  signedIn = true,
-): CloudShareHeaderState {
-  if (context.status === "local-only") return "local";
-  if (!signedIn) return "signed-out";
-  if (context.status === "resolving") return "resolving";
-  if (context.status === "resolved") return shareCount > 0 ? "shared" : "published";
-  return "attention";
-}
+const HOVER_OPEN_DELAY_MS = 150;
+const HOVER_CLOSE_DELAY_MS = 200;
 
 /**
- * The Header cloud icon doubles as the project's Local/Cloud indicator and
- * the only entry into sharing. Its menu answers two questions in order:
- * "who can read this today?" and "who should be able to next?".
+ * The Header cloud control is a status indicator first: glyph, dot, and a
+ * one-word label. Hovering reveals the read-only status card and a click pins
+ * it. The card's single button is the only action: it opens the Share dialog,
+ * or the Cloud panel when the project needs attention.
  */
 export function CloudShareHeaderControl({
   projectContext,
   shares,
-  signedIn = true,
-  onShare,
+  signedIn,
+  pending,
+  onOpenShare,
   onOpenCloud,
 }: {
   projectContext: ProjectCloudContext;
   shares: ProjectSharesState;
-  signedIn?: boolean;
-  onShare: (targetId: ShareTargetId | null) => void;
+  signedIn: boolean;
+  pending: PendingShare | null;
+  onOpenShare: () => void;
   onOpenCloud: () => void;
 }) {
-  const localization = useLocalization();
-  const { t } = localization;
+  const { t } = useLocalization();
   const [open, setOpen] = useState(false);
+  const [pinned, setPinned] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const close = useCallback(() => setOpen(false), []);
-  const state = resolveCloudShareHeaderState(projectContext, shares.shares.length, signedIn);
-  const statusLabel = state === "local"
-    ? t("cloud.share.header.local")
-    : state === "signed-out"
-      ? t("cloud.share.header.signedOut")
-    : state === "resolving"
-      ? t("cloud.share.header.resolving")
-      : state === "published"
-        ? t("cloud.share.header.publishedNoShares")
-        : state === "shared"
-          ? t("cloud.share.header.shared", { count: shares.shares.length })
-          : t("cloud.share.header.attention");
-  const statusHint = state === "local"
-    ? t("cloud.share.header.localHint")
-    : state === "signed-out"
-      ? t("cloud.share.header.signedOutHint")
-    : state === "shared"
-      ? t("cloud.share.header.sharedHint")
-      : state === "published"
-        ? t("cloud.share.header.publishedHint")
-        : null;
+  const timerRef = useRef<number | null>(null);
+  const status = resolveCloudShareStatus({
+    context: projectContext,
+    shares: shares.shares,
+    sharesLoaded: shares.loaded || shares.error,
+    signedIn,
+    pending,
+  });
+  const ariaLabel = `${t("cloud.productName")} · ${shareStatusHeadline(status, t)}`;
+
+  const clearTimer = useCallback(() => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+  const scheduleOpen = useCallback(() => {
+    clearTimer();
+    timerRef.current = window.setTimeout(() => setOpen(true), HOVER_OPEN_DELAY_MS);
+  }, [clearTimer]);
+  const scheduleClose = useCallback(() => {
+    clearTimer();
+    if (pinned) return;
+    timerRef.current = window.setTimeout(() => setOpen(false), HOVER_CLOSE_DELAY_MS);
+  }, [clearTimer, pinned]);
+  const dismiss = useCallback(() => {
+    clearTimer();
+    setPinned(false);
+    setOpen(false);
+  }, [clearTimer]);
+  useEffect(() => clearTimer, [clearTimer]);
 
   return (
-    <div className="desktop-titlebar-share-wrap" ref={wrapRef}>
-      <Tooltip content={`${t("cloud.productName")} · ${statusLabel}`}>
-        <button
-          type="button"
-          className="desktop-titlebar-action desktop-titlebar-cloud desktop-titlebar-share"
-          aria-label={`${t("cloud.productName")} · ${statusLabel}`}
-          aria-haspopup="menu"
-          aria-expanded={open}
-          data-share-state={state}
-          onClick={() => setOpen((value) => !value)}
-        >
-          <Cloud size={16} strokeWidth={1.8} aria-hidden="true" />
-          <span className="desktop-titlebar-share-badge" aria-hidden="true" />
-        </button>
-      </Tooltip>
-
-      <DesktopTitlebarMenuLayer
-        anchorRef={wrapRef}
-        className="desktop-share-menu"
-        onDismiss={close}
-        open={open}
-        preferredMaxHeight={560}
+    <div
+      className="desktop-titlebar-share-wrap"
+      ref={wrapRef}
+      onPointerEnter={scheduleOpen}
+      onPointerLeave={scheduleClose}
+    >
+      <button
+        type="button"
+        className="desktop-titlebar-action desktop-titlebar-cloud desktop-titlebar-share"
+        aria-label={ariaLabel}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        data-share-state={status.kind}
+        onClick={() => {
+          clearTimer();
+          if (pinned) {
+            dismiss();
+            return;
+          }
+          setPinned(true);
+          setOpen(true);
+        }}
       >
-        <div className="desktop-share-menu-status" data-share-state={state} role="status">
-          <span className="desktop-share-menu-status-dot" aria-hidden="true" />
-          <span className="desktop-share-menu-status-copy">
-            <strong>{statusLabel}</strong>
-            {statusHint && <small>{statusHint}</small>}
-          </span>
-        </div>
+        <span className="desktop-titlebar-share-glyph" aria-hidden="true">
+          <Cloud size={15} strokeWidth={1.8} />
+          <span className="desktop-titlebar-share-dot" />
+        </span>
+        <span className="desktop-titlebar-share-label" aria-hidden="true">{shareStatusBadge(status, t)}</span>
+      </button>
 
-        {shares.shares.length > 0 && (
-          <>
-            <DesktopMenuSeparator />
-            <DesktopMenuSection label={t("cloud.share.header.existing")}>
-              {shares.shares.map((share) => (
-                <div className="desktop-share-menu-row" key={share.id}>
-                  <span className="desktop-share-menu-row-dot" data-live={Boolean(share.lastSeenAt)} aria-hidden="true" />
-                  <span className="desktop-share-menu-row-copy">
-                    <strong dir="auto">{share.name}</strong>
-                    <small>
-                      {share.path ? <bdi>{share.path}</bdi> : t("cloud.share.header.wholeProject")}
-                      {" · "}
-                      {t(share.readonly ? "cloud.share.scope.readOnly" : "cloud.share.scope.readWrite")}
-                      {" · "}
-                      {share.lastSeenAt
-                        ? t("cloud.share.header.lastUsed", { time: formatRelativeTime(share.lastSeenAt, localization) })
-                        : t("cloud.share.header.neverUsed")}
-                    </small>
-                  </span>
-                </div>
-              ))}
-            </DesktopMenuSection>
-          </>
-        )}
-
-        <DesktopMenuSeparator />
-        <DesktopMenuSection label={t("cloud.share.header.menuTitle")}>
-          {SHARE_TARGETS.map((target) => (
-            <DesktopMenuItem
-              key={target.id}
-              className="desktop-share-menu-target"
-              data-share-target={target.id}
-              icon={(
-                <span className="desktop-share-target-mark is-compact" data-channel={target.channel}>
-                  {target.brand ? target.brand.slice(0, 1) : <Share2 size={11} />}
-                </span>
-              )}
-              label={t(shareTargetLabelKey(target.id))}
-              tooltip={t(shareTargetPreviewKey(target.id))}
-              onClick={() => {
-                close();
-                onShare(target.id);
-              }}
-            />
-          ))}
-        </DesktopMenuSection>
-
-        <DesktopMenuSeparator />
-        <DesktopMenuItem
-          className="desktop-share-menu-manage"
-          icon={<ExternalLink size={14} />}
-          label={t("cloud.share.header.manage")}
-          aria-haspopup="dialog"
-          onClick={() => {
-            close();
-            onOpenCloud();
+      <CloudSharePopover
+        anchorRef={wrapRef}
+        ariaLabel={ariaLabel}
+        open={open}
+        pinned={pinned}
+        onDismiss={dismiss}
+        onPointerEnter={clearTimer}
+        onPointerLeave={scheduleClose}
+      >
+        <CloudShareStatusCard
+          status={status}
+          surface="popover"
+          onPrimary={() => {
+            dismiss();
+            if (status.kind === "attention") onOpenCloud();
+            else onOpenShare();
           }}
         />
-      </DesktopTitlebarMenuLayer>
+      </CloudSharePopover>
     </div>
   );
 }

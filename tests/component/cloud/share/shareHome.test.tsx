@@ -37,6 +37,10 @@ function sharesState(overrides: Partial<ProjectSharesState> = {}): ProjectShares
   return { shares: [], loading: false, loaded: true, error: false, reload: vi.fn(async () => {}), ...overrides };
 }
 
+function shareActions(overrides: Partial<CloudShareActions> = {}): CloudShareActions {
+  return { shares: sharesState(), signedIn: true, pending: null, openShare: vi.fn(), ...overrides };
+}
+
 function overview(variant: "home" | "project", onSelectSection = vi.fn()) {
   return (
     <CloudRepositoryOverview
@@ -85,10 +89,9 @@ describe("Share-first Cloud Homepage", () => {
     expect(host.querySelector(".desktop-cloud-overview-actions")).not.toBeNull();
   });
 
-  it("opens with 'who should read this' and demotes identity to a second-act CTA", () => {
-    const openShare = vi.fn();
+  it("opens on the read-only status card and demotes identity to a second-act CTA", () => {
+    const actions = shareActions();
     const onSelectSection = vi.fn();
-    const actions: CloudShareActions = { shares: sharesState(), openShare };
     act(() => root?.render(withTestLocalization(
       <CloudShareProvider value={actions}>{overview("home", onSelectSection)}</CloudShareProvider>,
     )));
@@ -98,18 +101,20 @@ describe("Share-first Cloud Homepage", () => {
     expect(host.querySelector(".desktop-cloud-overview-landing-copy h1")).toBeNull();
     expect(host.querySelector(".desktop-cloud-overview-actions")).toBeNull();
     expect(host.querySelector(".desktop-cloud-overview-dashboard")).toBeNull();
-    expect(stripBidiIsolation(home?.querySelector("h2")?.textContent)).toBe("Share Atlas with…");
+    expect(stripBidiIsolation(home?.querySelector("h2")?.textContent)).toBe("Who can read Atlas");
 
-    const cards = Array.from(home?.querySelectorAll<HTMLButtonElement>(".desktop-share-home-card") ?? []);
-    expect(cards.map((card) => card.dataset.shareTarget)).toEqual([
-      "viktor", "claude", "chatgpt", "slack-bot", "grok", "person", "mcp",
-    ]);
-    expect(cards[0]?.textContent).toContain("Add custom MCP");
-    act(() => cards[0]?.click());
-    expect(openShare).toHaveBeenCalledWith("viktor");
+    const card = home?.querySelector<HTMLElement>(".desktop-share-status--page");
+    expect(card?.dataset.shareState).toBe("published");
+    expect(card?.textContent).toContain("Synced · no Agent can read it yet");
+    expect(card?.querySelectorAll(".desktop-share-status-showcase-item")).toHaveLength(6);
+    expect(card?.querySelectorAll("input, select, [role='radio']")).toHaveLength(0);
+    const primary = card?.querySelector<HTMLButtonElement>(".desktop-share-status-primary");
+    expect(primary?.textContent).toBe("Share with a cloud Agent");
+    act(() => primary?.click());
+    expect(actions.openShare).toHaveBeenCalledWith(null);
 
     const secondary = Array.from(home?.querySelectorAll<HTMLButtonElement>(".desktop-share-home-secondary-cta") ?? []);
-    expect(secondary[0]?.textContent).toContain("Atlas");
+    expect(secondary[0]?.textContent).toContain("Project");
     expect(secondary[0]?.textContent).toContain("10 files");
     expect(secondary[0]?.textContent).toContain("2 KB");
     act(() => secondary[0]?.click());
@@ -118,7 +123,7 @@ describe("Share-first Cloud Homepage", () => {
     expect(onSelectSection).toHaveBeenCalledWith("history");
   });
 
-  it("lists who can already read the project on the first act", () => {
+  it("lists the Agents that can read the project on the first act", () => {
     const shares = buildProjectShares([{
       id: "ep-1",
       project_id: "proj-1",
@@ -128,20 +133,23 @@ describe("Share-first Cloud Homepage", () => {
       accesses: [{ path: "docs", readonly: true }],
     }], null);
     act(() => root?.render(withTestLocalization(
-      <CloudShareProvider value={{ shares: sharesState({ shares }), openShare: vi.fn() }}>
+      <CloudShareProvider value={shareActions({ shares: sharesState({ shares }) })}>
         {overview("home")}
       </CloudShareProvider>,
     )));
-    const existing = host.querySelector<HTMLElement>(".desktop-share-home-existing");
-    expect(existing?.textContent).toContain("Who can read this");
-    expect(existing?.textContent).toContain("Viktor");
-    expect(existing?.textContent).toContain("docs");
-    expect(existing?.textContent).toContain("Not used yet");
+    const card = host.querySelector<HTMLElement>(".desktop-share-status--page");
+    expect(card?.dataset.shareState).toBe("shared");
+    expect(card?.textContent).toContain("Synced · 1 Agent can read it");
+    const reader = card?.querySelector<HTMLElement>(".desktop-share-status-reader");
+    expect(reader?.textContent).toContain("Viktor");
+    expect(reader?.textContent).toContain("docs");
+    expect(reader?.textContent).toContain("Not used yet");
+    expect(card?.querySelector(".desktop-share-status-primary")?.textContent).toBe("Manage sharing");
   });
 
   it("shows identity, storage, and files on the Project section without the job cards", () => {
     act(() => root?.render(withTestLocalization(
-      <CloudShareProvider value={{ shares: sharesState(), openShare: vi.fn() }}>{overview("project")}</CloudShareProvider>,
+      <CloudShareProvider value={shareActions()}>{overview("project")}</CloudShareProvider>,
     )));
     expect(host.querySelector(".desktop-share-home")).toBeNull();
     expect(host.querySelector(".desktop-cloud-overview-landing-copy h1")?.textContent).toBe("Atlas");
@@ -172,7 +180,7 @@ describe("Cloud sidebar under the Share experiment", () => {
     expect(labels()).toEqual(["Homepage", "Other Agents", "Access via CLI", "Team"]);
 
     act(() => root?.render(withTestLocalization(
-      <CloudShareProvider value={{ shares: sharesState(), openShare: vi.fn() }}>{sidebar("project")}</CloudShareProvider>,
+      <CloudShareProvider value={shareActions()}>{sidebar("project")}</CloudShareProvider>,
     )));
     expect(labels()).toEqual(["Homepage", "Project", "Other Agents", "Access via CLI", "Team"]);
     const active = Array.from(host.querySelectorAll<HTMLElement>(".po-sidebar-row[aria-current='page']"));

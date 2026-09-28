@@ -14,6 +14,8 @@ import type {
 } from "../../../../lib/cloudApi";
 import type { DesktopCloudHistory } from "../../../../lib/cloudHistoryApi";
 import { getCloudRoute } from "../../routes/cloudRoutes";
+import type { ProjectCloudContext } from "../../project/context/projectCloudContext";
+import { projectRootTarget } from "../../repositoryTarget";
 import { CloudShareHome, useCloudShare } from "../../share";
 import type { CloudWorkspaceSection } from "../../types";
 import {
@@ -39,6 +41,7 @@ export type CloudRepositoryOverviewVariant = "home" | "project";
 
 export function CloudRepositoryOverview({
   variant = "home",
+  projectContext,
   workspace,
   project,
   dashboard,
@@ -53,6 +56,8 @@ export function CloudRepositoryOverview({
   onRefresh,
 }: {
   variant?: CloudRepositoryOverviewVariant;
+  /** Needed for the Share-first Homepage status; the classic layout ignores it. */
+  projectContext?: ProjectCloudContext;
   workspace: Workspace;
   project: DesktopCloudProject | null;
   dashboard: DesktopCloudDashboard | null;
@@ -69,7 +74,9 @@ export function CloudRepositoryOverview({
   const localization = useLocalization();
   const { formatNumber, t } = localization;
   const share = useCloudShare();
-  const shareHome = share !== null && variant === "home";
+  const shareHomeContext = share !== null && variant === "home"
+    ? projectContext ?? resolvedContextFor(project?.id ?? null)
+    : null;
   const projectName = project?.name ?? workspace.name;
   const overviewMetrics = getCloudOverviewMetrics({
     scopes,
@@ -116,7 +123,7 @@ export function CloudRepositoryOverview({
     </div>
   );
 
-  if (shareHome) {
+  if (share && shareHomeContext) {
     const fileCount = dashboard?.nodes.files ?? null;
     const storage = storageUsage.bytes === null
       ? null
@@ -134,8 +141,8 @@ export function CloudRepositoryOverview({
               projectName={projectName}
               projectSummary={summaryParts.length > 0 ? summaryParts.join(" · ") : null}
               latestUpdateAt={latestUpdateAt}
-              shares={share.shares}
-              onShare={(targetId) => share.openShare(targetId)}
+              projectContext={shareHomeContext}
+              share={share}
               onSelectSection={onSelectSection}
             />
           </div>
@@ -269,4 +276,11 @@ function CloudOverviewStorageMeter({
       </span>
     </div></Tooltip>
   );
+}
+
+/** The Homepage only renders once the Project resolved; synthesize that context when the caller has none. */
+function resolvedContextFor(projectId: string | null): ProjectCloudContext {
+  return projectId
+    ? { status: "resolved", projectId, target: projectRootTarget(projectId) }
+    : { status: "resolving", projectId: null };
 }

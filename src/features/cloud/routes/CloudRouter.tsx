@@ -108,6 +108,7 @@ export function CloudRouter({
       cloudSession={cloudSession}
       cloudApiBaseUrl={cloudApiBaseUrl}
       cloudData={cloudData}
+      projectContext={projectContext ?? undefined}
       projectId={projectId}
       project={cloudData.project ?? { id: projectId, name: workspace.name }}
       loading={loading}

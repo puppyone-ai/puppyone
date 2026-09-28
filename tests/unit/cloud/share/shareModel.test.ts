@@ -5,10 +5,12 @@ import {
   buildProjectShares,
   buildShareHandoff,
   getShareTarget,
+  isActiveShare,
+  isPendingShareLive,
   isShareTargetId,
   maskApiKey,
   normalizeApiOrigin,
-  resolveCloudShareHeaderState,
+  resolveCloudShareStatus,
   SHARE_TARGETS,
   shareHasReceipt,
   shareTargetHandoffStepKey,
@@ -152,26 +154,52 @@ describe("share-first sidebar routes", () => {
   });
 });
 
-describe("header share state", () => {
-  it("tells local, published, shared, and attention apart", () => {
-    expect(resolveCloudShareHeaderState({ status: "local-only", projectId: null }, 0)).toBe("local");
-    expect(resolveCloudShareHeaderState({ status: "resolving", projectId: null }, 0)).toBe("resolving");
-    const resolved = {
-      status: "resolved" as const,
-      projectId: "proj-1",
-      target: projectRootTarget("proj-1"),
-    };
-    expect(resolveCloudShareHeaderState(resolved, 0)).toBe("published");
-    expect(resolveCloudShareHeaderState(
-      { status: "wrong-account", projectId: "proj-1", message: { code: "remote-sign-in" } },
-      0,
-      false,
-    )).toBe("signed-out");
-    expect(resolveCloudShareHeaderState({ status: "local-only", projectId: null }, 0, false)).toBe("local");
-    expect(resolveCloudShareHeaderState(resolved, 2)).toBe("shared");
-    expect(resolveCloudShareHeaderState(
-      { status: "not-authorized", projectId: "proj-1", message: { code: "workspace-unavailable" } },
-      3,
-    )).toBe("attention");
+describe("share status", () => {
+  const resolved = {
+    status: "resolved" as const,
+    projectId: "proj-1",
+    target: projectRootTarget("proj-1"),
+  };
+  const [share] = buildProjectShares([endpoint], null);
+  const pending = { targetId: "viktor" as const, endpointId: "ep-1", issuedAt: "2026-09-28T10:00:00Z" };
+  const kind = (options: Partial<Parameters<typeof resolveCloudShareStatus>[0]>) => resolveCloudShareStatus({
+    context: resolved,
+    shares: [],
+    signedIn: true,
+    pending: null,
+    ...options,
+  }).kind;
+
+  it("tells local, signed-out, published, shared, and attention apart", () => {
+    expect(kind({ context: { status: "local-only", projectId: null }, signedIn: false })).toBe("local");
+    expect(kind({ context: { status: "resolving", projectId: null } })).toBe("resolving");
+    expect(kind({ sharesLoaded: false })).toBe("resolving");
+    expect(kind({})).toBe("published");
+    expect(kind({ shares: [share] })).toBe("shared");
+    expect(kind({ shares: [{ ...share, status: "disabled" }] })).toBe("published");
+    expect(kind({
+      context: { status: "wrong-account", projectId: "proj-1", message: { code: "remote-sign-in" } },
+      signedIn: false,
+    })).toBe("signed-out");
+    const attention = resolveCloudShareStatus({
+      context: { status: "not-authorized", projectId: "proj-1", message: { code: "workspace-unavailable" } },
+      shares: [share],
+      signedIn: true,
+      pending: null,
+    });
+    expect(attention.kind).toBe("attention");
+    expect(attention.message).toEqual({ code: "workspace-unavailable" });
+  });
+
+  it("waits only while the issued share exists and has not been read since it was issued", () => {
+    expect(kind({ shares: [share], pending })).toBe("waiting");
+    expect(isPendingShareLive(pending, [share])).toBe(true);
+    const readBefore = { ...share, lastSeenAt: "2026-09-28T09:00:00Z" };
+    expect(kind({ shares: [readBefore], pending })).toBe("waiting");
+    const readAfter = { ...share, lastSeenAt: "2026-09-28T10:01:00Z" };
+    expect(kind({ shares: [readAfter], pending })).toBe("shared");
+    expect(kind({ shares: [], pending })).toBe("published");
+    expect(kind({ shares: [{ ...share, status: "disabled" }], pending })).toBe("published");
+    expect(isActiveShare({ ...share, status: "disabled" })).toBe(false);
   });
 });

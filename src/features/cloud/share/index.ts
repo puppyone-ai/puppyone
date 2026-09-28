@@ -1,8 +1,10 @@
-export { CloudShareHeaderControl, resolveCloudShareHeaderState } from "./CloudShareHeaderControl";
+export { CloudShareHeaderControl } from "./CloudShareHeaderControl";
+export { CloudShareStatusCard, shareStatusBadge, shareStatusHeadline } from "./CloudShareStatusCard";
+export { isActiveShare, isPendingShareLive, resolveCloudShareStatus } from "./shareStatus";
+export type { CloudShareStatus, CloudShareStatusKind, PendingShare } from "./shareStatus";
 export { CloudShareHome } from "./CloudShareHome";
 export { CloudShareProvider, useCloudShare } from "./CloudShareContext";
 export type { CloudShareActions } from "./CloudShareContext";
-export type { CloudShareHeaderState } from "./CloudShareHeaderControl";
 export { ShareWizardDialog } from "./ShareWizardDialog";
 export type {
   ShareWizardDialogProps,
@@ -22,3 +24,5 @@ export {
 export type { ShareChannel, ShareTarget, ShareTargetId } from "./shareTargets";
 export { buildProjectShares, shareHasReceipt, useProjectShares } from "./useProjectShares";
 export type { ProjectShare, ProjectSharesState } from "./useProjectShares";
+export { useProjectShareActivity } from "./useProjectShareActivity";
+export type { ProjectShareActivity } from "./useProjectShareActivity";

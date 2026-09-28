@@ -9,6 +9,7 @@ import {
   Folder,
   FolderTree,
   LoaderCircle,
+  Plus,
   Share2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -21,6 +22,7 @@ import { DesktopOverlayLayer } from "../../app-shell/DesktopOverlayPortal";
 import {
   createCloudMcpEndpoint,
   createCloudScope,
+  deleteCloudMcpEndpoint,
   getDesktopCloudWebUrl,
   listCloudScopes,
   type DesktopCloudMcpEndpoint,
@@ -41,7 +43,8 @@ import {
   type ProjectCloudContext,
 } from "../project/context/projectCloudContext";
 import { copyText, formatRelativeTime } from "../utils";
-import { buildShareHandoff, maskApiKey, type ShareHandoff } from "./shareHandoff";
+import { buildMcpServerUrl, buildShareHandoff, maskApiKey, type ShareHandoff } from "./shareHandoff";
+import { isActiveShare, type PendingShare } from "./shareStatus";
 import {
   SHARE_TARGETS,
   getShareTarget,
@@ -51,7 +54,7 @@ import {
   type ShareTarget,
   type ShareTargetId,
 } from "./shareTargets";
-import { shareHasReceipt, type ProjectSharesState } from "./useProjectShares";
+import { shareHasReceipt, type ProjectShare, type ProjectSharesState } from "./useProjectShares";
 import "./share.css";
 
 export type ShareWizardFolderEntry = Readonly<{ name: string; path: string }>;
@@ -75,12 +78,13 @@ export type ShareWizardDialogProps = {
   shares: ProjectSharesState;
   listTopLevelFolders: () => Promise<ShareWizardFolderEntry[]>;
   onSessionChange: (session: DesktopCloudSession | null) => void;
-  onWaitingChange: (waiting: boolean) => void;
+  /** An MCP share was issued; the Header keeps waiting for its first read after this dialog closes. */
+  onIssued: (pending: PendingShare) => void;
   onOpenCloud: () => void;
   onClose: () => void;
 };
 
-type ShareStep = "target" | "scope" | "connect";
+type ShareStep = "readers" | "target" | "scope" | "connect";
 
 type ConnectPhase =
   | { kind: "sign-in" }
@@ -100,18 +104,25 @@ const CHAT_MENTIONS: Partial<Record<ShareTargetId, string>> = {
 /**
  * One continuous task in one dialog: pick who → pick how much → make it
  * reachable (sign in / publish inline) → hand over something paste-ready →
- * stay open until the other side actually connects.
+ * stay open until the other side actually connects. When the project already
+ * has readers, it opens on them first (add another, or revoke one).
  */
 export function ShareWizardDialog(props: ShareWizardDialogProps) {
   const { t } = useLocalization();
+  const hasReaders = props.shares.shares.some(isActiveShare);
   const [targetId, setTargetId] = useState<ShareTargetId | null>(props.initialTargetId);
-  const [step, setStep] = useState<ShareStep>(props.initialTargetId ? "scope" : "target");
+  const [step, setStep] = useState<ShareStep>(() => (
+    props.initialTargetId ? "scope" : props.initialPath === "" && hasReaders ? "readers" : "target"
+  ));
   const [scope, setScope] = useState<ShareScope>({ path: props.initialPath, mode: "r" });
   const target = targetId ? getShareTarget(targetId) : null;
   const targetLabel = target ? t(shareTargetLabelKey(target.id)) : "";
-  const title = target
-    ? t("cloud.share.titleWithTarget", { project: bidiIsolate(props.workspaceName), target: targetLabel })
-    : t("cloud.share.title", { project: bidiIsolate(props.workspaceName) });
+  const project = bidiIsolate(props.workspaceName);
+  const title = step === "readers"
+    ? t("cloud.share.readers.title", { project })
+    : target
+      ? t("cloud.share.titleWithTarget", { project, target: targetLabel })
+      : t("cloud.share.title", { project });
 
   return (
     <DesktopOverlayLayer>
@@ -131,11 +142,24 @@ export function ShareWizardDialog(props: ShareWizardDialogProps) {
             <DesktopDialogCloseButton label={t("common.action.close")} onClick={props.onClose} />
           </header>
 
-          <ShareStepper step={step} />
+          {step !== "readers" && <ShareStepper step={step} />}
 
+          {step === "readers" && (
+            <ShareReadersStep
+              session={props.session}
+              apiBaseUrl={props.apiBaseUrl}
+              shares={props.shares}
+              onSessionChange={props.onSessionChange}
+              onAdd={() => setStep("target")}
+              onOpenCloud={props.onOpenCloud}
+              onClose={props.onClose}
+            />
+          )}
           {step === "target" && (
             <ShareTargetStep
               selected={targetId}
+              canGoBack={hasReaders}
+              onBack={() => setStep("readers")}
               onSelect={setTargetId}
               onNext={() => setStep("scope")}
             />
@@ -164,7 +188,7 @@ export function ShareWizardDialog(props: ShareWizardDialogProps) {
               scope={scope}
               onShareAnother={() => {
                 setTargetId(null);
-                setStep("target");
+                setStep(hasReaders ? "readers" : "target");
               }}
             />
           )}
@@ -183,7 +207,7 @@ function ShareStepper({ step }: { step: ShareStep }) {
     { id: "scope", label: t("cloud.share.step.scope") },
     { id: "connect", label: t("cloud.share.step.handoff") },
   ];
-  const activeIndex = steps.findIndex((entry) => entry.id === step);
+  const activeIndex = Math.max(0, steps.findIndex((entry) => entry.id === step));
   return (
     <ol className="desktop-share-stepper" aria-label={t("cloud.share.stepsLabel")}>
       {steps.map((entry, index) => (
@@ -204,10 +228,14 @@ function ShareStepper({ step }: { step: ShareStep }) {
 
 function ShareTargetStep({
   selected,
+  canGoBack,
+  onBack,
   onSelect,
   onNext,
 }: {
   selected: ShareTargetId | null;
+  canGoBack: boolean;
+  onBack: () => void;
   onSelect: (id: ShareTargetId) => void;
   onNext: () => void;
 }) {
@@ -245,7 +273,12 @@ function ShareTargetStep({
             : t("cloud.share.target.pickHint")}
         </div>
       </div>
-      <footer className="desktop-dialog-footer">
+      <footer className={`desktop-dialog-footer${canGoBack ? " two-action" : ""}`}>
+        {canGoBack && (
+          <button type="button" className="desktop-dialog-button" onClick={onBack}>
+            {t("cloud.share.action.back")}
+          </button>
+        )}
         <button
           type="button"
           className="desktop-dialog-button primary"
@@ -446,7 +479,7 @@ function ShareConnectStep({
   publish,
   shares,
   onSessionChange,
-  onWaitingChange,
+  onIssued,
   onOpenCloud,
   onClose,
   onShareAnother,
@@ -618,11 +651,12 @@ function ShareConnectStep({
     ? shares.shares.find((share) => share.id === ready.endpoint?.id) ?? null
     : null;
   const connected = Boolean(ready && target.channel === "mcp" && shareHasReceipt(liveShare, ready.issuedAt));
-  const waiting = Boolean(ready && target.channel === "mcp" && !connected);
+  const issuedEndpointId = ready?.endpoint?.id ?? null;
+  const issuedAt = ready?.issuedAt ?? null;
   useEffect(() => {
-    onWaitingChange(waiting);
-    return () => onWaitingChange(false);
-  }, [onWaitingChange, waiting]);
+    if (target.channel !== "mcp" || !issuedEndpointId || !issuedAt) return;
+    onIssued({ targetId: target.id, endpointId: issuedEndpointId, issuedAt });
+  }, [issuedAt, issuedEndpointId, onIssued, target.channel, target.id]);
 
   const projectLink = useMemo(() => {
     if (!projectId) return null;
@@ -737,6 +771,152 @@ function ShareConnectStep({
         </button>
       </footer>
     </>
+  );
+}
+
+/**
+ * Start page when the project already has readers: the same list the Header
+ * shows, plus the two things the Header never does, adding one and revoking
+ * one.
+ */
+function ShareReadersStep({
+  session,
+  apiBaseUrl,
+  shares,
+  onSessionChange,
+  onAdd,
+  onOpenCloud,
+  onClose,
+}: {
+  session: DesktopCloudSession | null;
+  apiBaseUrl: string | null;
+  shares: ProjectSharesState;
+  onSessionChange: (session: DesktopCloudSession | null) => void;
+  onAdd: () => void;
+  onOpenCloud: () => void;
+  onClose: () => void;
+}) {
+  const localization = useLocalization();
+  const { t } = localization;
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [revoking, setRevoking] = useState<string | null>(null);
+  const [revokeFailed, setRevokeFailed] = useState(false);
+  const readers = shares.shares.filter(isActiveShare);
+
+  const revoke = async (share: ProjectShare) => {
+    if (!session) return;
+    setRevoking(share.id);
+    setRevokeFailed(false);
+    try {
+      await deleteCloudMcpEndpoint(session, share.id, onSessionChange, apiBaseUrl);
+      setConfirming(null);
+      await shares.reload();
+    } catch {
+      setRevokeFailed(true);
+    } finally {
+      setRevoking(null);
+    }
+  };
+
+  return (
+    <>
+      <div className="desktop-dialog-body desktop-share-dialog-body desktop-share-readers">
+        <p className="desktop-share-readers-summary">
+          {readers.length > 0
+            ? t("cloud.share.readers.description", { count: readers.length })
+            : t("cloud.share.readers.empty")}
+        </p>
+        {readers.length > 0 && (
+          <ul className="desktop-share-readers-list" aria-label={t("cloud.share.readers.listLabel")}>
+            {readers.map((share) => {
+              const url = buildMcpServerUrl(apiBaseUrl, share.endpoint.api_key);
+              return (
+                <li className="desktop-share-readers-row" key={share.id}>
+                  <span className="desktop-share-status-reader-dot" data-live={Boolean(share.lastSeenAt)} aria-hidden="true" />
+                  <span className="desktop-share-readers-copy">
+                    <strong dir="auto">{share.name}</strong>
+                    <small>
+                      {share.path ? <bdi>{share.path}</bdi> : t("cloud.share.readers.wholeProject")}
+                      {" · "}
+                      {t(share.readonly ? "cloud.share.scope.readOnly" : "cloud.share.scope.readWrite")}
+                      {" · "}
+                      {share.lastSeenAt
+                        ? t("cloud.share.readers.lastUsed", { time: formatRelativeTime(share.lastSeenAt, localization) })
+                        : t("cloud.share.readers.neverUsed")}
+                    </small>
+                  </span>
+                  <span className="desktop-share-readers-actions">
+                    {confirming === share.id ? (
+                      <>
+                        <button
+                          type="button"
+                          className="desktop-dialog-button destructive"
+                          disabled={revoking === share.id}
+                          onClick={() => void revoke(share)}
+                        >
+                          {revoking === share.id
+                            ? <LoaderCircle size={13} className="animate-spin" aria-hidden="true" />
+                            : t("cloud.share.readers.confirmRevoke")}
+                        </button>
+                        <button type="button" className="desktop-dialog-button" onClick={() => setConfirming(null)}>
+                          {t("common.action.cancel")}
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        {url && <ReaderCopyUrlButton url={url} />}
+                        <button
+                          type="button"
+                          className="desktop-share-inline-link"
+                          disabled={!session}
+                          onClick={() => setConfirming(share.id)}
+                        >
+                          {t("cloud.share.readers.revoke")}
+                        </button>
+                      </>
+                    )}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {revokeFailed && <div className="desktop-dialog-error" role="alert">{t("cloud.share.readers.revokeFailed")}</div>}
+        <button type="button" className="desktop-share-readers-add" onClick={onAdd}>
+          <Plus size={14} aria-hidden="true" />
+          <span>{t("cloud.share.readers.add")}</span>
+        </button>
+      </div>
+      <footer className="desktop-dialog-footer two-action">
+        <button type="button" className="desktop-dialog-button" onClick={onOpenCloud}>
+          {t("cloud.share.readers.openCloud")}
+        </button>
+        <button type="button" className="desktop-dialog-button primary" onClick={onClose}>
+          {t("cloud.share.action.done")}
+        </button>
+      </footer>
+    </>
+  );
+}
+
+function ReaderCopyUrlButton({ url }: { url: string }) {
+  const { t } = useLocalization();
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return undefined;
+    const timer = window.setTimeout(() => setCopied(false), 1600);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+  return (
+    <button
+      type="button"
+      className="desktop-share-inline-link"
+      onClick={() => {
+        void copyText(url).then(() => setCopied(true)).catch(() => {});
+      }}
+    >
+      {t(copied ? "cloud.share.action.copied" : "cloud.share.readers.copyUrl")}
+    </button>
   );
 }
 
