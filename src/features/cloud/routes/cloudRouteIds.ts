@@ -3,6 +3,7 @@ export const CLOUD_WORKSPACE_SECTIONS = [
   "cloud-team",
   "cloud-billing",
   "contents",
+  "project",
   "history",
   "branches",
   "access",

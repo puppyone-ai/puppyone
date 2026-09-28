@@ -14,6 +14,7 @@ import type {
 } from "../../../../lib/cloudApi";
 import type { DesktopCloudHistory } from "../../../../lib/cloudHistoryApi";
 import { getCloudRoute } from "../../routes/cloudRoutes";
+import { CloudShareHome, useCloudShare } from "../../share";
 import type { CloudWorkspaceSection } from "../../types";
 import {
   formatBytes,
@@ -29,7 +30,15 @@ import {
   type CloudOverviewStorageUsage,
 } from "./overviewMetrics";
 
+/**
+ * `home` is the Cloud Homepage; `project` is the identity/data view the Share
+ * experiment demotes to a second sidebar entry. Without the experiment both
+ * render the classic overview.
+ */
+export type CloudRepositoryOverviewVariant = "home" | "project";
+
 export function CloudRepositoryOverview({
+  variant = "home",
   workspace,
   project,
   dashboard,
@@ -43,6 +52,7 @@ export function CloudRepositoryOverview({
   onSelectSection,
   onRefresh,
 }: {
+  variant?: CloudRepositoryOverviewVariant;
   workspace: Workspace;
   project: DesktopCloudProject | null;
   dashboard: DesktopCloudDashboard | null;
@@ -58,6 +68,8 @@ export function CloudRepositoryOverview({
 }) {
   const localization = useLocalization();
   const { formatNumber, t } = localization;
+  const share = useCloudShare();
+  const shareHome = share !== null && variant === "home";
   const projectName = project?.name ?? workspace.name;
   const overviewMetrics = getCloudOverviewMetrics({
     scopes,
@@ -81,6 +93,56 @@ export function CloudRepositoryOverview({
     || mcpEndpoints.length > 0,
   );
   const initialLoading = loading && !hasOverviewData;
+  const headerActions = (
+    <div className="desktop-cloud-overview-header-actions">
+      {project?.capabilities?.includes("project.settings.manage") === true && (
+        <Tooltip content={t("cloud.route.settings.title")}><button
+          className="desktop-cloud-overview-settings-button"
+          type="button"
+          aria-label={t("cloud.route.settings.title")}
+          onClick={() => onSelectSection("settings")}
+        >
+          <SettingsIcon size={13} />
+        </button></Tooltip>
+      )}
+      <Tooltip content={t("cloud.common.refresh")}><button
+        className="desktop-cloud-overview-refresh-button"
+        type="button"
+        aria-label={t("cloud.common.refresh")}
+        onClick={() => void onRefresh()}
+      >
+        <RefreshCw size={13} className={loading ? "animate-spin" : undefined} />
+      </button></Tooltip>
+    </div>
+  );
+
+  if (shareHome) {
+    const fileCount = dashboard?.nodes.files ?? null;
+    const storage = storageUsage.bytes === null
+      ? null
+      : `${formatBytes(storageUsage.bytes, localization)}${storageUsage.isLowerBound ? "+" : ""}`;
+    const summaryParts = [
+      fileCount === null ? null : t("cloud.history.fileCount", { count: fileCount }),
+      storage,
+    ].filter((part): part is string => Boolean(part));
+    return (
+      <section className="desktop-cloud-overview-page" aria-label={t("cloud.overview.ariaLabel")}>
+        <main className="desktop-cloud-overview-canvas" data-po-scrollbar="content">
+          <div className="desktop-cloud-overview-catalog desktop-share-home-catalog">
+            <div className="desktop-share-home-toolbar">{headerActions}</div>
+            <CloudShareHome
+              projectName={projectName}
+              projectSummary={summaryParts.length > 0 ? summaryParts.join(" · ") : null}
+              latestUpdateAt={latestUpdateAt}
+              shares={share.shares}
+              onShare={(targetId) => share.openShare(targetId)}
+              onSelectSection={onSelectSection}
+            />
+          </div>
+        </main>
+      </section>
+    );
+  }
 
   return (
     <section className="desktop-cloud-overview-page" aria-label={t("cloud.overview.ariaLabel")}>
@@ -90,26 +152,7 @@ export function CloudRepositoryOverview({
             <div className="desktop-cloud-overview-landing-copy">
               <div className="desktop-cloud-overview-title-row">
                 <h1 dir="auto">{projectName}</h1>
-                <div className="desktop-cloud-overview-header-actions">
-                  {project?.capabilities?.includes("project.settings.manage") === true && (
-                    <Tooltip content={t("cloud.route.settings.title")}><button
-                      className="desktop-cloud-overview-settings-button"
-                      type="button"
-                      aria-label={t("cloud.route.settings.title")}
-                      onClick={() => onSelectSection("settings")}
-                    >
-                      <SettingsIcon size={13} />
-                    </button></Tooltip>
-                  )}
-                  <Tooltip content={t("cloud.common.refresh")}><button
-                    className="desktop-cloud-overview-refresh-button"
-                    type="button"
-                    aria-label={t("cloud.common.refresh")}
-                    onClick={() => void onRefresh()}
-                  >
-                    <RefreshCw size={13} className={loading ? "animate-spin" : undefined} />
-                  </button></Tooltip>
-                </div>
+                {headerActions}
               </div>
             </div>
 
@@ -138,7 +181,7 @@ export function CloudRepositoryOverview({
             </div>
           </header>
 
-          <CloudOverviewActions onSelectSection={onSelectSection} />
+          {variant === "home" && <CloudOverviewActions onSelectSection={onSelectSection} />}
 
           <CloudOverviewDashboard
             history={history}

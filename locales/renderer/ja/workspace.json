@@ -208,5 +208,6 @@
   "relationships.collapseFolder": "{name}を折りたたむ",
   "relationships.openFile": "{name}を開く",
   "relationships.linkCount": "{count}リンク",
-  "relationships.noLinks": "この階層の項目間にリンクはありません"
+  "relationships.noLinks": "この階層の項目間にリンクはありません",
+  "node.shareWith": "共有先…"
 }

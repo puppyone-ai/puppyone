@@ -208,5 +208,6 @@
   "relationships.collapseFolder": "Contraer {name}",
   "relationships.openFile": "Abrir {name}",
   "relationships.linkCount": "{count, plural, =0 {Sin enlaces} one {# enlace} other {# enlaces}}",
-  "relationships.noLinks": "No hay enlaces entre los elementos de este nivel"
+  "relationships.noLinks": "No hay enlaces entre los elementos de este nivel",
+  "node.shareWith": "Compartir con…"
 }

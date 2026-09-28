@@ -118,6 +118,15 @@ import { getGitTitlebarStatus } from "./features/source-control/gitTitlebarStatu
 import { shouldBlockWorkspaceCloudResolution } from "./features/cloud/workspace/workspaceCloudResolutionKey";
 import { useCloudInitialization } from "./features/cloud/initialization/useCloudInitialization";
 import {
+  CloudShareHeaderControl,
+  CloudShareProvider,
+  ShareWizardDialog,
+  useProjectShares,
+  type CloudShareActions,
+  type ShareTargetId,
+  type ShareWizardFolderEntry,
+} from "./features/cloud/share";
+import {
   TYPOGRAPHY_SCALE_METRICS,
   useTypographyCatalog,
   useTypographyRuntime,
@@ -195,6 +204,9 @@ function AppContent() {
   // The build flag only marks availability; PuppyOne Cloud stays hidden until
   // the user opts into the experiment in Settings.
   const cloudEnabled = cloudAvailable && preferences.experimentalSettings.enableCloudWorkspace;
+  // Share onboarding rides on top of Cloud: the Header cloud icon becomes the
+  // project's Local/Cloud indicator and the only entry into sharing.
+  const shareOnboardingEnabled = cloudEnabled && preferences.experimentalSettings.enableShareOnboarding;
   const assetLibraryHomeAvailable = useFeatureFlag("assetLibraryHome");
   const {
     cloudSession,
@@ -689,6 +701,46 @@ function AppContent() {
     updateCloudSession,
   });
   const resolvedCloudProjectId = getResolvedCloudProjectId(projectCloudContext);
+  const [shareWizard, setShareWizard] = useState<{ targetId: ShareTargetId | null; path: string } | null>(null);
+  const [shareWaitingForReceipt, setShareWaitingForReceipt] = useState(false);
+  const projectShares = useProjectShares({
+    session: activeCloudSession,
+    apiBaseUrl: desktopCloudApiBaseUrl,
+    projectId: resolvedCloudProjectId,
+    enabled: shareOnboardingEnabled,
+    pollIntervalMs: shareWizard && shareWaitingForReceipt ? 5000 : 0,
+    onSessionChange: updateCloudSession,
+  });
+  // The wizard stacks above the Cloud dialog so the Homepage is still there when it closes.
+  const openShareWizard = useCallback((targetId: ShareTargetId | null, path = "") => {
+    if (!shareOnboardingEnabled) return;
+    setShareWizard({ targetId, path });
+    setSettingsDialogOpen(false);
+    setPluginsDialogOpen(false);
+    setSwitcherOpen(false);
+    setBranchSwitcherOpen(false);
+  }, [setBranchSwitcherOpen, shareOnboardingEnabled]);
+  const closeShareWizard = useCallback(() => {
+    setShareWizard(null);
+    setShareWaitingForReceipt(false);
+  }, []);
+  useEffect(() => {
+    if (!shareOnboardingEnabled) setShareWizard(null);
+  }, [shareOnboardingEnabled]);
+  const cloudShareActions = useMemo<CloudShareActions | null>(() => (
+    shareOnboardingEnabled ? { shares: projectShares, openShare: openShareWizard } : null
+  ), [openShareWizard, projectShares, shareOnboardingEnabled]);
+  const listShareFolders = useCallback(async (): Promise<ShareWizardFolderEntry[]> => {
+    if (!dataPort) return [];
+    const children = await dataPort.listChildren(focusedWorkspaceFolder?.uri ?? null);
+    return children
+      .filter((node) => node.type === "folder")
+      .map((node) => ({
+        name: node.name,
+        path: resolveWorkspaceResource(node.path)?.providerPath ?? node.name,
+      }))
+      .filter((entry) => entry.path.length > 0);
+  }, [dataPort, focusedWorkspaceFolder?.uri, resolveWorkspaceResource]);
 
   const workspacePath = focusedWorkspace?.path ?? null;
   const cloudHubWorkspaceIdentity = focusedWorkspace
@@ -1373,6 +1425,16 @@ function AppContent() {
     onToggleGitChanges: handleToggleGitChanges,
     cloudEnabled,
     onOpenCloud: openCloudDialog,
+    cloudShareControl: shareOnboardingEnabled
+      ? (
+        <CloudShareHeaderControl
+          projectContext={projectCloudContext}
+          shares={projectShares}
+          onShare={openShareWizard}
+          onOpenCloud={openCloudDialog}
+        />
+      )
+      : null,
   };
   const titlebarActions = (
     <DesktopTitlebarActions
@@ -1389,6 +1451,7 @@ function AppContent() {
 
   return (
     <SurfaceAppearanceProvider value={surfaceAppearance}>
+      <CloudShareProvider value={cloudShareActions}>
       <div
         className={`app-shell cloud-runtime ${resolvedTheme === "dark" ? "dark" : ""}`}
         {...surfaceAppearance.rootProps}
@@ -1769,11 +1832,44 @@ function AppContent() {
               onDelete={deleteNodeFromMenu}
               onOpenInDefaultApp={openNodeInDefaultAppFromMenu}
               onRevealInFinder={revealNodeInFinderFromMenu}
+              onShare={shareOnboardingEnabled
+                ? () => {
+                  const sharedPath = resolveWorkspaceResource(nodeActionMenu.node.path)?.providerPath ?? "";
+                  setNodeActionMenu(null);
+                  openShareWizard(null, sharedPath);
+                }
+                : undefined}
+            />
+          )}
+          {shareWizard && shareOnboardingEnabled && (
+            <ShareWizardDialog
+              workspaceName={(focusedWorkspace ?? workspace).name}
+              initialTargetId={shareWizard.targetId}
+              initialPath={shareWizard.path}
+              session={activeCloudSession}
+              apiBaseUrl={desktopCloudApiBaseUrl}
+              projectContext={projectCloudContext}
+              publish={{
+                loading: cloudBackupLoading,
+                progress: cloudPublishProgress,
+                error: cloudPublishError,
+                start: handleStartPuppyoneBackup,
+              }}
+              shares={projectShares}
+              listTopLevelFolders={listShareFolders}
+              onSessionChange={updateCloudSession}
+              onWaitingChange={setShareWaitingForReceipt}
+              onOpenCloud={() => {
+                closeShareWizard();
+                openCloudDialog();
+              }}
+              onClose={closeShareWizard}
             />
           )}
           </>
         </DesktopOverlayPortal>
       </div>
+      </CloudShareProvider>
     </SurfaceAppearanceProvider>
   );
 }

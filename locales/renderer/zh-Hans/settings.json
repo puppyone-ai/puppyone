@@ -311,6 +311,8 @@
   "experimental.projectsHome.detail": "试用面向云端和本地项目的统一卡片布局。",
   "experimental.cloudWorkspace.title": "PuppyOne Cloud",
   "experimental.cloudWorkspace.detail": "查看并管理当前项目在 PuppyOne Cloud 中的发布状态。",
+  "experimental.shareOnboarding.title": "从顶部栏分享",
+  "experimental.shareOnboarding.detail": "以分享为首幕的云端首页与 Header 云朵入口:选一个 Agent、原地发布、拿到可直接粘贴的链接。关闭后恢复经典云端布局。需要开启 PuppyOne Cloud。",
   "experimental.workbenchTabsInHeader.title": "在顶部显示会话标签",
   "experimental.workbenchTabsInHeader.detail": "在窗口顶部显示已打开的 Agent 对话和终端。",
   "experimental.cloudAutomation.title": "Automation",

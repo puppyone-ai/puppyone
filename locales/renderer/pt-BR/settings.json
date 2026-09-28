@@ -274,6 +274,8 @@
   "experimental.projectsHome.detail": "Experimente o layout unificado de cartões para projetos da Cloud e locais.",
   "experimental.cloudWorkspace.title": "PuppyOne Cloud",
   "experimental.cloudWorkspace.detail": "Ver e gerenciar o status de publicação deste projeto no PuppyOne Cloud.",
+  "experimental.shareOnboarding.title": "Compartilhar pelo cabeçalho",
+  "experimental.shareOnboarding.detail": "Página inicial do Cloud focada em compartilhar e ícone de nuvem no Header: escolha um Agente, publique na hora e receba um link pronto para colar. Desative para voltar ao layout clássico do Cloud. Requer PuppyOne Cloud.",
   "experimental.workbenchTabsInHeader.title": "Abas de chat no cabeçalho",
   "experimental.workbenchTabsInHeader.detail": "Mostrar chats de Agent e terminais abertos no cabeçalho da janela.",
   "experimental.cloudAutomation.title": "Automation",

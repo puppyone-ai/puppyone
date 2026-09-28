@@ -208,5 +208,6 @@
   "relationships.collapseFolder": "{name} 접기",
   "relationships.openFile": "{name} 열기",
   "relationships.linkCount": "링크 {count}개",
-  "relationships.noLinks": "현재 단계의 항목 사이에 링크가 없습니다"
+  "relationships.noLinks": "현재 단계의 항목 사이에 링크가 없습니다",
+  "node.shareWith": "공유 대상…"
 }

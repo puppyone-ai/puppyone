@@ -208,5 +208,6 @@
   "relationships.collapseFolder": "Collapse {name}",
   "relationships.openFile": "Open {name}",
   "relationships.linkCount": "{count, plural, =0 {No links} one {# link} other {# links}}",
-  "relationships.noLinks": "No links connect items at this level"
+  "relationships.noLinks": "No links connect items at this level",
+  "node.shareWith": "Share with…"
 }

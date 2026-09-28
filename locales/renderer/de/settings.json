@@ -274,6 +274,8 @@
   "experimental.projectsHome.detail": "Teste das einheitliche Kartenlayout für Cloud- und lokale Projekte.",
   "experimental.cloudWorkspace.title": "PuppyOne Cloud",
   "experimental.cloudWorkspace.detail": "Veröffentlichungsstatus dieses Projekts in PuppyOne Cloud anzeigen und verwalten.",
+  "experimental.shareOnboarding.title": "Aus der Kopfzeile teilen",
+  "experimental.shareOnboarding.detail": "Share-first Cloud-Startseite und Cloud-Symbol im Header: Agent wählen, direkt veröffentlichen, einfügbaren Link erhalten. Ausschalten stellt das klassische Cloud-Layout wieder her. Erfordert PuppyOne Cloud.",
   "experimental.workbenchTabsInHeader.title": "Chat-Tabs in der Kopfzeile",
   "experimental.workbenchTabsInHeader.detail": "Offene Agent-Chats und Terminals in der Fensterkopfzeile anzeigen.",
   "experimental.cloudAutomation.title": "Automation",

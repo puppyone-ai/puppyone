@@ -274,6 +274,8 @@
   "experimental.projectsHome.detail": "Essayez la disposition expérimentale des cartes unifiées pour les projets cloud et locaux.",
   "experimental.cloudWorkspace.title": "PuppyOne Cloud",
   "experimental.cloudWorkspace.detail": "Afficher et gérer l’état de publication de ce projet dans PuppyOne Cloud.",
+  "experimental.shareOnboarding.title": "Partager depuis l’en-tête",
+  "experimental.shareOnboarding.detail": "Page d'accueil Cloud axée sur le partage et icône nuage du Header : choisissez un Agent, publiez en ligne, obtenez un lien prêt à coller. Désactivez pour revenir à la mise en page Cloud classique. Nécessite PuppyOne Cloud.",
   "experimental.workbenchTabsInHeader.title": "Onglets de chat dans l’en-tête",
   "experimental.workbenchTabsInHeader.detail": "Afficher les conversations et terminaux ouverts dans l’en-tête de la fenêtre.",
   "experimental.cloudAutomation.title": "Automation",

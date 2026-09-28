@@ -29,6 +29,7 @@ export function ExperimentalSettingsView({
       ? [{ messageKey: "projectsHome", settingKey: "enableAssetLibraryHome" as const }]
       : []),
     { messageKey: "cloudWorkspace", settingKey: "enableCloudWorkspace" },
+    { messageKey: "shareOnboarding", settingKey: "enableShareOnboarding" },
     { messageKey: "workbenchTabsInHeader", settingKey: "enableWorkbenchTabsInHeader" },
     { messageKey: "cloudAutomation", settingKey: "enableCloudAutomation" },
     { messageKey: "flowFiles", settingKey: "enablePuppyFlowFiles" },

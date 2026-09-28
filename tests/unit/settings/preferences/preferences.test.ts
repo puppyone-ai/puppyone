@@ -236,6 +236,14 @@ describe("experimental preferences", () => {
     expect(parseExperimentalSettings(JSON.stringify({ enableWorkbenchTabsInHeader: true })).enableWorkbenchTabsInHeader).toBe(true);
   });
 
+  it("keeps Share from the Header on unless the user explicitly opts out", () => {
+    expect(parseExperimentalSettings(null).enableShareOnboarding).toBe(true);
+    expect(parseExperimentalSettings("not-json").enableShareOnboarding).toBe(true);
+    expect(parseExperimentalSettings(JSON.stringify({})).enableShareOnboarding).toBe(true);
+    expect(parseExperimentalSettings(JSON.stringify({ enableShareOnboarding: false })).enableShareOnboarding).toBe(false);
+    expect(parseExperimentalSettings(JSON.stringify({ enableShareOnboarding: true })).enableShareOnboarding).toBe(true);
+  });
+
   it("does not let the retired catalog opt-in turn on Cloud hosting", () => {
     expect(parseExperimentalSettings(JSON.stringify({ enableCloudAgentCatalog: true })).enableCloudWorkspace).toBe(false);
     expect(parseExperimentalSettings(JSON.stringify({ enableCloudAgentCatalog: true })))

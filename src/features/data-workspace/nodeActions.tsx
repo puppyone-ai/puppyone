@@ -12,6 +12,7 @@ import {
   Pencil,
   Plus,
   Scissors,
+  Share2,
   Trash2,
   Workflow,
   X,
@@ -562,6 +563,7 @@ export function DesktopNodeActionMenu({
   onDelete,
   onOpenInDefaultApp,
   onRevealInFinder,
+  onShare,
 }: {
   draft: DesktopNodeActionMenuDraft;
   experimentalSettings?: ExperimentalSettings | null;
@@ -582,6 +584,8 @@ export function DesktopNodeActionMenu({
   onDelete: () => void;
   onOpenInDefaultApp: () => void;
   onRevealInFinder: () => void;
+  /** Experimental Share onboarding: offered for a single folder only. */
+  onShare?: () => void;
 }) {
   if (draft.mode === "rename") {
     return (
@@ -614,6 +618,7 @@ export function DesktopNodeActionMenu({
         onDelete={onDelete}
         onOpenInDefaultApp={onOpenInDefaultApp}
         onRevealInFinder={onRevealInFinder}
+        onShare={onShare}
       />
   );
 }
@@ -636,6 +641,7 @@ function DesktopNodeActionPopover({
   onDelete,
   onOpenInDefaultApp,
   onRevealInFinder,
+  onShare,
 }: {
   draft: DesktopNodeActionMenuDraft;
   showRevealInFinder: boolean;
@@ -654,6 +660,8 @@ function DesktopNodeActionPopover({
   onDelete: () => void;
   onOpenInDefaultApp: () => void;
   onRevealInFinder: () => void;
+  /** Experimental Share onboarding: offered for a single folder only. */
+  onShare?: () => void;
 }) {
   const { t } = useLocalization();
   const platformCapabilities = useDesktopPlatformCapabilities();
@@ -672,8 +680,10 @@ function DesktopNodeActionPopover({
   const actionCount = Math.max(1, draft.nodes.length);
   const singleNodeAction = actionCount === 1;
   const errorMessage = formatDesktopNodeActionError(draft.error, t);
+  const showShare = Boolean(onShare) && singleNodeAction && draft.node.type === "folder";
   const menuRowCount = 4
     + (draft.node.type === "folder" ? 2 : 0)
+    + Number(showShare)
     + Number(singleNodeAction && showOpenInDefaultApp && draft.node.type !== "folder")
     + Number(singleNodeAction && showRevealInFinder)
     + Number(singleNodeAction)
@@ -783,6 +793,14 @@ function DesktopNodeActionPopover({
           label={draft.operation === "open" ? t("workspace.node.opening") : t("workspace.node.openDefaultApp")}
           disabled={draft.operation !== null}
           onClick={onOpenInDefaultApp}
+        />
+      )}
+      {showShare && (
+        <DesktopNodeActionMenuItem
+          icon={<Share2 size={14} />}
+          label={t("workspace.node.shareWith")}
+          disabled={draft.operation !== null}
+          onClick={() => onShare?.()}
         />
       )}
       {singleNodeAction && showRevealInFinder && (

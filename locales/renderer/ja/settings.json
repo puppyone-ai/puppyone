@@ -274,6 +274,8 @@
   "experimental.projectsHome.detail": "Cloud とローカルプロジェクトを統合した実験的なカードレイアウトを試します。",
   "experimental.cloudWorkspace.title": "PuppyOne Cloud",
   "experimental.cloudWorkspace.detail": "このプロジェクトの PuppyOne Cloud での公開状態を確認・管理します。",
+  "experimental.shareOnboarding.title": "ヘッダーから共有",
+  "experimental.shareOnboarding.detail": "共有を第一幕にしたクラウドホームと Header の雲アイコン:Agent を選び、その場で公開し、貼り付けるだけのリンクを取得。オフにすると従来のクラウドレイアウトに戻ります。PuppyOne Cloud が必要です。",
   "experimental.workbenchTabsInHeader.title": "ヘッダーにチャットタブを表示",
   "experimental.workbenchTabsInHeader.detail": "開いている Agent チャットとターミナルをウィンドウのヘッダーに表示します。",
   "experimental.cloudAutomation.title": "Automation",

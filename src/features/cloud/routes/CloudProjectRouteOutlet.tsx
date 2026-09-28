@@ -53,9 +53,10 @@ export function CloudProjectRouteOutlet({
 }) {
   const { t } = useLocalization();
 
-  if (activeSection === "contents") {
+  if (activeSection === "contents" || activeSection === "project") {
     return (
       <CloudRepositoryOverview
+        variant={activeSection === "project" ? "project" : "home"}
         workspace={workspace}
         project={project}
         dashboard={cloudData.dashboard}

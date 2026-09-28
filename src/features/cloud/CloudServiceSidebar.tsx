@@ -8,9 +8,11 @@ import {
   getCloudSidebarActiveSection,
   getCloudSignedOutSection,
   getAvailableCloudSection,
+  withShareHomeSidebarRoutes,
   type CloudRouteNavigationGroup,
   type CloudRouteDescriptor,
 } from "./routes/cloudRoutes";
+import { useCloudShare } from "./share/CloudShareContext";
 import { useFeatureFlag } from "../flags";
 
 type CloudSidebarNavEntry = {
@@ -43,6 +45,7 @@ export function CloudServiceSidebar({
 }: CloudServiceSidebarProps) {
   const { t } = useLocalization();
   const billingEnabled = useFeatureFlag("cloudBilling");
+  const shareHome = useCloudShare() !== null;
   const normalizedActiveSection = getAvailableCloudSection(activeSection, { automationEnabled });
   const signedIn = Boolean(getCloudAuthSession(cloudAuthState));
   const visibleActiveSection = getCloudSidebarActiveSection(
@@ -50,7 +53,10 @@ export function CloudServiceSidebar({
       ? normalizedActiveSection
       : getCloudSignedOutSection(normalizedActiveSection),
   );
-  const navItems: CloudSidebarNavEntry[] = CLOUD_BOUND_PROJECT_SIDEBAR_ROUTES.map((route: CloudRouteDescriptor) => ({
+  const sidebarRoutes = shareHome
+    ? withShareHomeSidebarRoutes(CLOUD_BOUND_PROJECT_SIDEBAR_ROUTES)
+    : CLOUD_BOUND_PROJECT_SIDEBAR_ROUTES;
+  const navItems: CloudSidebarNavEntry[] = sidebarRoutes.map((route: CloudRouteDescriptor) => ({
     ...route,
     locked: route.context === "project"
       ? projectAvailable

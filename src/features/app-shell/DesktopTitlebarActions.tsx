@@ -28,6 +28,11 @@ type DesktopTitlebarActionsProps = {
   onToggleGitChanges?: () => void;
   cloudEnabled?: boolean;
   onOpenCloud?: () => void;
+  /**
+   * Experimental Share onboarding replaces the plain Cloud button with a
+   * status-bearing control that owns its own menu.
+   */
+  cloudShareControl?: ReactNode;
   placement?: "titlebar" | "toolbar";
   visibleGroups?: readonly DesktopTitlebarActionGroup[];
 };
@@ -47,6 +52,7 @@ export function DesktopTitlebarActions({
   onToggleGitChanges = () => {},
   cloudEnabled = false,
   onOpenCloud = () => {},
+  cloudShareControl = null,
   placement = "titlebar",
   visibleGroups,
 }: DesktopTitlebarActionsProps) {
@@ -93,10 +99,12 @@ export function DesktopTitlebarActions({
     titlebarActionItems.push({
       group: "header",
       id: "cloud",
-      node: <Tooltip content={cloudLabel}><button type="button" className="desktop-titlebar-action desktop-titlebar-cloud"
-         aria-label={cloudLabel} onClick={onOpenCloud}>
-        <Cloud size={16} strokeWidth={1.8} aria-hidden="true" />
-      </button></Tooltip>,
+      node: cloudShareControl ?? (
+        <Tooltip content={cloudLabel}><button type="button" className="desktop-titlebar-action desktop-titlebar-cloud"
+           aria-label={cloudLabel} onClick={onOpenCloud}>
+          <Cloud size={16} strokeWidth={1.8} aria-hidden="true" />
+        </button></Tooltip>
+      ),
     });
   }
 

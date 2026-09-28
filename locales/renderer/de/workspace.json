@@ -208,5 +208,6 @@
   "relationships.collapseFolder": "{name} reduzieren",
   "relationships.openFile": "{name} öffnen",
   "relationships.linkCount": "{count, plural, =0 {Keine Links} one {# Link} other {# Links}}",
-  "relationships.noLinks": "Auf dieser Ebene sind keine Elemente verknüpft"
+  "relationships.noLinks": "Auf dieser Ebene sind keine Elemente verknüpft",
+  "node.shareWith": "Teilen mit…"
 }

@@ -73,6 +73,25 @@ describe("Experimental settings", () => {
     expect(host.querySelector('input[aria-label="Editor save status"]')).toBeNull();
   });
 
+  it("ships Share from the Header on, with its own switch to return to the classic layout", () => {
+    const onChange = vi.fn();
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    act(() => root?.render(withTestLocalization(
+      <ExperimentalSettingsView settings={DEFAULT_EXPERIMENTAL_SETTINGS}
+        assetLibraryHomeAvailable={false} onChange={onChange} />,
+    )));
+
+    const toggle = host.querySelector<HTMLInputElement>('input[aria-label="Share from the Header"]');
+    expect(toggle?.checked).toBe(true);
+    act(() => toggle?.click());
+    expect(onChange).toHaveBeenCalledWith({
+      ...DEFAULT_EXPERIMENTAL_SETTINGS,
+      enableShareOnboarding: false,
+    });
+  });
+
   it("keeps Header chat tabs behind a separate default-off switch", () => {
     const onChange = vi.fn();
     const host = document.createElement("div");

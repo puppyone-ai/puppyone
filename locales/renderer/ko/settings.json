@@ -274,6 +274,8 @@
   "experimental.projectsHome.detail": "Cloud 및 로컬 프로젝트를 위한 통합 카드 레이아웃을 사용해 봅니다.",
   "experimental.cloudWorkspace.title": "PuppyOne Cloud",
   "experimental.cloudWorkspace.detail": "이 프로젝트의 PuppyOne Cloud 게시 상태를 확인하고 관리합니다.",
+  "experimental.shareOnboarding.title": "헤더에서 공유",
+  "experimental.shareOnboarding.detail": "공유 우선 클라우드 홈과 Header 구름 아이콘: Agent를 선택하고 바로 게시하여 붙여 넣기용 링크를 받습니다. 끄면 기존 클라우드 레이아웃으로 돌아갑니다. PuppyOne Cloud가 필요합니다.",
   "experimental.workbenchTabsInHeader.title": "헤더에 채팅 탭 표시",
   "experimental.workbenchTabsInHeader.detail": "열린 Agent 채팅과 터미널을 창 헤더에 표시합니다.",
   "experimental.cloudAutomation.title": "Automation",

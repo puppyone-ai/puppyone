@@ -208,5 +208,6 @@
   "relationships.collapseFolder": "收起 {name}",
   "relationships.openFile": "打开 {name}",
   "relationships.linkCount": "{count} 个链接",
-  "relationships.noLinks": "当前层级的项目之间没有链接"
+  "relationships.noLinks": "当前层级的项目之间没有链接",
+  "node.shareWith": "分享给…"
 }

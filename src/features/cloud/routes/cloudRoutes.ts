@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { Clock3, Cloud, CreditCard, GitBranch, Grid2X2, House, Settings, ShieldCheck, SquareTerminal, Users } from "lucide-react";
+import { Clock3, Cloud, CreditCard, FolderOpen, GitBranch, Grid2X2, House, Settings, ShieldCheck, SquareTerminal, Users } from "lucide-react";
 import type { MessageFormatter } from "@puppyone/localization/core";
 import { getCloudAutomationWebPath } from "../../automation/automationDomain";
 import { McpLogoIcon } from "../components/McpLogoIcon";
@@ -97,6 +97,23 @@ export const CLOUD_ROUTES = [
     surface: "landing",
     resources: OVERVIEW_PROJECT_RESOURCES,
     showInSidebar: true,
+    navigationGroup: "project",
+    webPath: (projectId?: string) => `/projects/${requireProjectId(projectId)}/data`,
+  },
+  {
+    /**
+     * Project identity, storage, and files. Under the Share experiment the
+     * Homepage is Share-first and this becomes the second sidebar entry.
+     */
+    id: "project",
+    labelId: "cloud.route.project.label",
+    titleId: "cloud.route.project.title",
+    descriptionId: "cloud.route.project.description",
+    icon: FolderOpen,
+    context: "project",
+    surface: "landing",
+    resources: OVERVIEW_PROJECT_RESOURCES,
+    showInSidebar: false,
     navigationGroup: "project",
     webPath: (projectId?: string) => `/projects/${requireProjectId(projectId)}/data`,
   },
@@ -240,6 +257,19 @@ export const CLOUD_BOUND_PROJECT_SIDEBAR_ROUTES = [
   ...CLOUD_PROJECT_SIDEBAR_ROUTES,
   ...CLOUD_ORGANIZATION_ROUTES,
 ];
+
+/**
+ * Share experiment: Homepage answers "who should read this?", so Project
+ * identity and files get their own second entry right below it.
+ */
+export function withShareHomeSidebarRoutes(
+  routes: readonly CloudRouteDescriptor[],
+): CloudRouteDescriptor[] {
+  const projectRoute = getCloudRoute("project");
+  const homeIndex = routes.findIndex((route) => route.id === CLOUD_HUB_ENTRY_SECTION);
+  if (homeIndex === -1 || routes.includes(projectRoute)) return [...routes];
+  return [...routes.slice(0, homeIndex + 1), projectRoute, ...routes.slice(homeIndex + 1)];
+}
 
 export function normalizeCloudSection(
   section: CloudWorkspaceSection | string,
