@@ -167,6 +167,14 @@
   --desktop-sidebar-section-title-line-height: var(--po-type-left-sidebar-line-height);
   --desktop-sidebar-section-title-color: var(--po-text-subtle);
   --desktop-sidebar-section-title-disabled-color: var(--po-text-disabled);
+  /* Left navigation and right Agent text share one restrained foreground.
+   * Pull it slightly toward primary text so both rails stay readable while
+   * remaining quieter than selected rows and authored document content. */
+  --desktop-sidebar-text-color: color-mix(
+    in srgb,
+    var(--po-text-muted) 84%,
+    var(--po-text) 16%
+  );
   /*
    * Modern overlay scrollbars share one presented color across chrome,
    * editor, and terminal surfaces. The raw theme color remains available to

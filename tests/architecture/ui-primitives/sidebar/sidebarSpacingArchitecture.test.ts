@@ -130,6 +130,9 @@ describe("sidebar spacing architecture", () => {
       "--desktop-sidebar-section-title-disabled-color: var(--po-text-disabled);",
     );
     expect(semanticThemeScope).toContain(
+      "var(--po-text-muted) 84%,",
+    );
+    expect(semanticThemeScope).toContain(
       "--po-sidebar: color-mix(in srgb, var(--po-surface-chrome) 40%, var(--po-surface-editor));",
     );
     expect(root).toContain("--desktop-sidebar-font-weight: var(--po-text-weight-regular);");
@@ -388,6 +391,9 @@ describe("sidebar spacing architecture", () => {
     expect(treeRow).toContain("font-size: var(--tree-row-font-size);");
     expect(treeRow).toContain("font-weight: var(--tree-row-font-weight);");
     expect(treeRow).toContain("line-height: var(--tree-row-line-height);");
+    expect(treeRow).toContain(
+      "color: var(--desktop-sidebar-text-color, var(--po-text-muted));",
+    );
     expect(treeShell).toContain("--tree-row-action-size: var(--po-tree-row-action-size, 24px);");
     expect(treeShell).toContain("--tree-row-action-icon-size: var(--po-tree-row-action-icon-size, 15px);");
     expect(treeRowAction).toContain("width: var(--tree-row-action-size);");
@@ -433,6 +439,9 @@ describe("sidebar spacing architecture", () => {
     expect(dataAdapterCss).not.toContain("--po-tree-row-selected-bg:");
     expect(agentBoundary).toContain(
       "--agent-row-hover-surface: color-mix(in srgb, var(--po-hover) 86%, transparent);",
+    );
+    expect(agentBoundary).toContain(
+      "--agent-text-muted: var(--desktop-sidebar-text-color, var(--po-text-muted));",
     );
     expect(agentBoundary).not.toContain("--po-tree-row-hover-bg:");
     expect(agentBoundary).not.toContain("--po-tree-row-selected-bg:");

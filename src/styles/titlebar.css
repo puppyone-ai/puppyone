@@ -10,7 +10,8 @@
   --desktop-titlebar-divider: var(--po-header-divider);
   --desktop-titlebar-context-font-family: var(--po-font-ui);
   --desktop-titlebar-context-font-size: var(--po-font-size-chrome, 13px);
-  --desktop-titlebar-context-font-weight: var(--po-font-weight-chrome, 500);
+  --desktop-titlebar-context-font-weight:
+    var(--desktop-sidebar-font-weight, var(--po-text-weight-regular, 400));
   --desktop-titlebar-context-line-height: var(--po-type-header-line-height, 20px);
   --desktop-titlebar-workspace-inline-padding: 6px;
   --desktop-titlebar-workspace-icon-slot-size: 14px;

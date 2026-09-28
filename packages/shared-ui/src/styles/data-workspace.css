@@ -148,7 +148,7 @@ body.data-sidebar-resizing .data-preview-accessory {
 }
 
 .desktop-explorer-toolbar > span {
-  color: var(--po-text-muted);
+  color: var(--desktop-sidebar-text-color, var(--po-text-muted));
   font-size: var(--po-type-left-sidebar-content, 14px);
   font-weight: 650;
 }
@@ -367,7 +367,7 @@ body.data-sidebar-resizing .data-preview-accessory {
   border: 0;
   border-radius: var(--tree-row-radius);
   background: transparent;
-  color: var(--po-text-muted);
+  color: var(--desktop-sidebar-text-color, var(--po-text-muted));
   font-size: var(--tree-row-font-size);
   font-weight: var(--tree-row-font-weight);
   line-height: var(--tree-row-line-height);
@@ -383,7 +383,7 @@ body.data-sidebar-resizing .data-preview-accessory {
 
 .tree-row.root:hover {
   background: transparent;
-  color: var(--po-text-muted);
+  color: var(--desktop-sidebar-text-color, var(--po-text-muted));
 }
 
 .tree-row.root.root-command {

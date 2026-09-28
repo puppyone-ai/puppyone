@@ -102,7 +102,7 @@ describe("titlebar typography architecture", () => {
     expect(dividerRule).toContain("background: var(--desktop-titlebar-divider);");
   });
 
-  it("keeps chrome text at the shared medium-weight contract", () => {
+  it("matches titlebar context weight to ordinary sidebar elements", () => {
     const typographyRoot = readCssBlock(typographyFoundationsCss, ":root");
     const layoutRoot = readCssBlock(`\n${tokensCss}`, ":root");
     const titlebarRoot = readCssBlock(`\n${titlebarCss}`, ".desktop-titlebar");
@@ -123,7 +123,7 @@ describe("titlebar typography architecture", () => {
       "--desktop-titlebar-context-font-size: var(--po-font-size-chrome, 13px);",
     );
     expect(titlebarRoot).toContain(
-      "--desktop-titlebar-context-font-weight: var(--po-font-weight-chrome, 500);",
+      "var(--desktop-sidebar-font-weight, var(--po-text-weight-regular, 400));",
     );
     expect(titlebarRoot).toContain(
       "--desktop-titlebar-context-line-height: var(--po-type-header-line-height, 20px);",
