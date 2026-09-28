@@ -85,8 +85,8 @@ describe("Desktop Agent sidebar visual contract", () => {
     expect(css).not.toContain(".desktop-agent-message-actions");
     expect(messagePart).not.toContain("Copy response");
     expect(messagePart).not.toContain("clipboard");
-    expect(css).toMatch(/\.desktop-agent-message-text\s*\{[^}]*font-size:\s*var\(--agent-conversation-font-size\)[^}]*line-height:\s*var\(--agent-conversation-line-height\)/s);
-    expect(css).toMatch(/\.desktop-agent-markdown\s*\{[^}]*font-family:\s*var\(--agent-font-family\)[^}]*font-size:\s*var\(--agent-conversation-font-size\)[^}]*font-weight:\s*var\(--agent-font-weight\)[^}]*line-height:\s*var\(--agent-response-line-height\)/s);
+    expect(css).toMatch(/\.desktop-agent-message-text\s*\{[^}]*color:\s*var\(--agent-text-muted\)[^}]*font-size:\s*var\(--agent-conversation-font-size\)[^}]*line-height:\s*var\(--agent-conversation-line-height\)/s);
+    expect(css).toMatch(/\.desktop-agent-markdown\s*\{[^}]*color:\s*var\(--agent-text-muted\)[^}]*font-family:\s*var\(--agent-font-family\)[^}]*font-size:\s*var\(--agent-conversation-font-size\)[^}]*font-weight:\s*var\(--agent-font-weight\)[^}]*line-height:\s*var\(--agent-response-line-height\)/s);
     expect(css).toMatch(/\.desktop-agent-markdown h1,[^{]*\.desktop-agent-markdown h6\s*\{[^}]*font-size:\s*var\(--agent-conversation-font-size\)[^}]*font-weight:\s*var\(--po-text-weight-semibold, 600\)[^}]*line-height:\s*var\(--agent-response-line-height\)/s);
     expect(css).not.toContain("font-size: var(--po-type-right-sidebar-heading-1");
     expect(css).not.toContain("font-size: var(--po-type-right-sidebar-heading-2");
@@ -297,8 +297,8 @@ describe("Desktop Agent sidebar visual contract", () => {
     expect(css).toMatch(/--agent-control-line-height:\s*var\(--po-type-left-sidebar-line-height, 19px\)/);
     expect(css).toMatch(/--agent-conversation-font-size:\s*var\(--po-type-left-sidebar-content, 14px\)/);
     expect(css).toMatch(/--agent-composer-line-height:\s*1\.5em/);
-    expect(css).toMatch(/--agent-conversation-line-height:\s*1\.5/);
-    expect(css).toMatch(/--agent-response-line-height:\s*1\.5/);
+    expect(css).toMatch(/--agent-conversation-line-height:\s*1\.6/);
+    expect(css).toMatch(/--agent-response-line-height:\s*1\.6/);
     expect(css).toMatch(/--agent-font-size-meta:\s*var\(--po-type-left-sidebar-meta, 12px\)/);
     expect(css).toMatch(/--agent-font-size-caption:\s*var\(--po-type-right-sidebar-caption, 12px\)/);
     expect(css).toMatch(/--agent-font-size-micro:\s*var\(--po-type-right-sidebar-micro, 11px\)/);

@@ -39,8 +39,8 @@
   --agent-font-weight: var(--desktop-sidebar-font-weight, var(--po-text-weight-regular, 400));
   --agent-control-line-height: var(--po-type-left-sidebar-line-height, 19px);
   --agent-conversation-font-size: var(--po-type-left-sidebar-content, 14px);
-  --agent-conversation-line-height: 1.5;
-  --agent-response-line-height: 1.5;
+  --agent-conversation-line-height: 1.6;
+  --agent-response-line-height: 1.6;
   --agent-font-size-meta: var(--po-type-left-sidebar-meta, 12px);
   --agent-meta-line-height: var(--po-type-right-sidebar-meta-line-height, 19px);
   --agent-font-size-caption: var(--po-type-right-sidebar-caption, 12px);
