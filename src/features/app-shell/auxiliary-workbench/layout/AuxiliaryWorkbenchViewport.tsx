@@ -63,7 +63,7 @@ export function AuxiliaryWorkbenchViewport(props: AuxiliaryWorkbenchViewportProp
   );
   return (<>
     {props.titlebarTabHost && props.groups.length > 1 && createPortal(
-      <div className="desktop-titlebar-workbench-tabs" role="toolbar" aria-label={t("terminal.title")}>
+      <div className="desktop-titlebar-workbench-tabs" role="toolbar" aria-label={t("terminal.title")} data-po-scrollbar="hidden">
         {props.headerItems.map((item) => <div className="desktop-titlebar-workbench-tab" key={item.id}>
           <button type="button" className="desktop-titlebar-workbench-tab-select"
             aria-label={item.snapshot.accessibleLabel} aria-pressed={props.groups.some((group) => group.activeItemId === item.id && group.id === props.activeGroupId)}

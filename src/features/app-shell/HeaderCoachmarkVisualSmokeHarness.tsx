@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { FileText, Folder, GitBranch } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
 import { DesktopWindowChrome } from "../../components/DesktopWindowChrome";
@@ -31,6 +31,16 @@ const fixtureCopy = {
 export function HeaderCoachmarkVisualSmokeHarness() {
   const [active, setActive] = useState<HeaderCoachmarkId | null>(initialFeature);
   const { locale, setLanguagePreference } = useLocalization();
+
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    root.classList.add("dark");
+    root.dataset.initialTheme = "dark";
+    return () => {
+      root.classList.remove("dark");
+      delete root.dataset.initialTheme;
+    };
+  }, []);
 
   useEffect(() => {
     if (locale === "zh-Hans") return;

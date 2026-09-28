@@ -12,12 +12,12 @@ describe("project initialization ownership", () => {
     expect(entryPolicy).toContain("qualifyDataResourcePath");
   });
 
-  it("routes create, open, clone, and restore through one entry bootstrap intent", () => {
+  it("routes create, open, import, and restore through one entry bootstrap intent", () => {
     const lifecycle = source("src/features/app-shell/useWorkspaceLifecycle.ts");
     const app = source("src/App.tsx");
     expect(lifecycle).toContain("WorkspaceEntryIntent");
     expect(lifecycle).toContain('"created"');
-    expect(lifecycle).toContain('"cloned"');
+    expect(lifecycle).toContain('"imported"');
     expect(lifecycle).toContain('"restored"');
     expect(app).toContain("useWorkspaceEntryBootstrap");
     expect(app).not.toContain("useInitialProjectDocument");

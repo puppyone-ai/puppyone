@@ -372,7 +372,9 @@ jobs:
           upload_asset_set() {
             local bundle="$1" include_metadata="$2" file name present
             local -a files
-            mapfile -t files < <(find "${bundle}/assets" -maxdepth 1 -type f -print | sort)
+            while IFS= read -r file; do
+              files+=("${file}")
+            done < <(find "${bundle}/assets" -maxdepth 1 -type f -print | sort)
             if [ "${include_metadata}" = "true" ]; then
               files+=("${bundle}/release.json" "${bundle}/SHA256SUMS" "${bundle}/build-info.json")
             fi

@@ -45,7 +45,8 @@ describe("Desktop Terminal tab session manager", () => {
     expect(cloud?.getAttribute("aria-label")).toBe("PuppyOne Cloud");
     expect(cloud?.querySelector(".lucide-cloud")).not.toBeNull();
     expect(cloud?.nextElementSibling?.classList.contains("desktop-titlebar-action-divider")).toBe(true);
-    expect(cloud?.nextElementSibling?.nextElementSibling?.classList.contains("desktop-titlebar-changes")).toBe(true);
+    expect(cloud?.nextElementSibling?.nextElementSibling?.querySelector(".desktop-titlebar-changes"))
+      .not.toBeNull();
     act(() => cloud?.click());
     expect(onOpenCloud).toHaveBeenCalledOnce();
 

@@ -83,7 +83,9 @@ describe("Sidebar architecture", () => {
     expect(auxiliaryHostSource).toContain("CollapsiblePaneFrame");
     expect(auxiliaryHostSource).toContain("useCollapsiblePaneResize");
     expect(auxiliaryHostSource).toContain('orientation: "vertical"');
-    expect(settingsSidebarSource).toContain("resolveSettingsSidebarGroups({ cloudEnabled })");
+    expect(settingsSidebarSource).toContain(
+      "resolveSettingsSidebarGroups({ cloudEnabled, otherAppImportsEnabled })",
+    );
     expect(settingsModelSource).toContain("SETTINGS_SIDEBAR_GROUPS");
     expect(settingsModelSource).toContain("requiresCloud: true");
   });

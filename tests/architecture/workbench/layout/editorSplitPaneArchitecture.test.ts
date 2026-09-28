@@ -82,6 +82,10 @@ const splitStyles = readFileSync(
   new URL("../../../../src/features/editor-workbench/layout/desktop-editor-split-view.css", import.meta.url),
   "utf8",
 );
+const overflowDotsStyles = readFileSync(
+  new URL("../../../../packages/shared-ui/src/styles/overflow-dots.css", import.meta.url),
+  "utf8",
+);
 const menuStyles = readFileSync(
   new URL("../../../../src/styles/menus.css", import.meta.url),
   "utf8",
@@ -183,10 +187,12 @@ describe("editor split-pane architecture", () => {
     expect(handleRule).toContain("border: 0;");
     expect(handleRule).toContain("background: transparent;");
     expect(handleRule).toContain("var(--po-text-muted) 68%");
-    expect(handleRule).toContain("gap: 2px;");
+    expect(handleRule).not.toContain("gap:");
     expect(handleRule).not.toContain("box-shadow:");
     expect(handleRule).not.toContain("border-radius:");
-    const handleDotRule = readCssBlock(splitStyles, ".desktop-editor-pane-handle > i");
+    expect(paneChromeSource).toContain("<OverflowDots />");
+    expect(readCssBlock(overflowDotsStyles, ".po-overflow-dots")).toContain("gap: 2px;");
+    const handleDotRule = readCssBlock(overflowDotsStyles, ".po-overflow-dots > i");
     expect(handleDotRule).toContain("width: 2px;");
     expect(handleDotRule).toContain("height: 2px;");
     expect(handleDotRule).toContain("border-radius: 0;");

@@ -4,7 +4,7 @@
   display: inline-flex;
   box-sizing: border-box;
   max-width: min(320px, calc(100vw - 16px));
-  min-height: 30px;
+  min-height: var(--po-control-size);
   align-items: center;
   gap: 8px;
   padding: 4px 8px;

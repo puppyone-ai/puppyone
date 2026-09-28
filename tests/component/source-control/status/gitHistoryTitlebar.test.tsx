@@ -70,7 +70,8 @@ describe("Git right-sidebar titlebar entries", () => {
     ]);
     const dividers = container.querySelectorAll(".desktop-titlebar-action-divider");
     expect(dividers).toHaveLength(1);
-    expect(changes?.nextElementSibling).toBe(dividers[0]);
+    expect(changes?.closest(".desktop-header-coachmark-anchor")?.nextElementSibling)
+      .toBe(dividers[0]);
 
     act(() => {
       changes?.click();

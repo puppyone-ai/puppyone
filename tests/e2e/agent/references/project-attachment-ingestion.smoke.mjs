@@ -86,8 +86,9 @@ app.whenReady().then(async () => {
     await until(() => evaluate("Boolean(document.querySelector('.app-shell'))"), "application mounted");
     await evaluate("if (!document.querySelector('.desktop-right-sidebar')?.classList.contains('is-open')) document.querySelector('.desktop-titlebar-terminal, .desktop-shell-toolbar-terminal').click()");
     await until(() => evaluate("document.querySelector('.desktop-right-sidebar')?.dataset.panePresentation === 'expanded'"), "Agent sidebar expanded");
-    await until(() => evaluate("Boolean(document.querySelector('.desktop-terminal-launcher-tool[data-tooltip=Codex]'))"), "Codex fixture available");
-    await evaluate("document.querySelector('.desktop-terminal-launcher-tool[data-tooltip=Codex]').click()");
+    const codexLauncher = '.desktop-terminal-launcher-tool:not(:disabled)[aria-label*="Codex"]';
+    await until(() => evaluate(`Boolean(document.querySelector(${JSON.stringify(codexLauncher)}))`), "Codex fixture available");
+    await evaluate(`document.querySelector(${JSON.stringify(codexLauncher)}).click()`);
     await until(() => evaluate("document.querySelector('.desktop-agent-reference-trigger')?.disabled===false"), "image ingestion enabled");
 
     window.webContents.debugger.attach("1.3");

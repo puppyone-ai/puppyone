@@ -163,7 +163,7 @@
 
 .onboarding-import-source-status {
   color: var(--po-text-muted);
-  font-size: 12px;
+  font-size: var(--po-type-ui-caption, 12px);
 }
 
 .onboarding-import-source:focus-visible {

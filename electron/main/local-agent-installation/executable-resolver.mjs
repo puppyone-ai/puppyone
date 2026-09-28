@@ -404,7 +404,9 @@ async function inspectCandidateFile(filename, fsModule, {
       : null;
     return { status: "found", resolved, metadata, contentFingerprint };
   } catch (error) {
-    if (error?.code === "ENOENT" || error?.code === "ENOTDIR") return failed("not-found");
+    if (error?.code === "ENOENT" || error?.code === "ENOTDIR") {
+      return Object.freeze({ status: "not-found", reasonCode: "not-found" });
+    }
     if (error?.code === "EACCES" || error?.code === "EPERM") return failed("permission-denied");
     return failed("filesystem-error");
   }

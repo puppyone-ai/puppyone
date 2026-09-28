@@ -258,10 +258,7 @@
   align-items: center;
   gap: 3px;
   overflow-x: auto;
-  scrollbar-width: none;
 }
-
-.desktop-titlebar-workbench-tabs::-webkit-scrollbar { display: none; }
 
 .desktop-titlebar-workbench-tab {
   display: inline-flex;
@@ -283,7 +280,6 @@
   border: 0;
   background: transparent;
   color: var(--desktop-titlebar-text);
-  cursor: pointer;
 }
 
 .desktop-titlebar-workbench-tab-select {
@@ -437,53 +433,13 @@
 .desktop-header-coachmark-anchor[data-coachmark-active="true"] > .desktop-titlebar-action {
   background: var(--po-accent);
   color: var(--po-text-inverse);
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--po-accent) 76%, white),
-    0 0 0 3px color-mix(in srgb, var(--po-accent) 18%, transparent);
 }
 
 .desktop-titlebar-menu.desktop-header-coachmark {
-  --desktop-header-coachmark-accent: var(--po-accent);
-
   display: grid;
-  gap: calc(var(--po-menu-padding) * 3);
-  padding: calc(var(--po-menu-padding) * 4);
+  gap: calc(var(--po-menu-item-gap) + var(--po-menu-padding));
+  padding: calc(var(--po-menu-item-padding-inline) * 2);
   overflow: visible;
-  border-color: color-mix(
-    in srgb,
-    var(--desktop-header-coachmark-accent) 24%,
-    var(--po-menu-border)
-  );
-  border-radius: var(--po-menu-radius);
-  background: var(--po-menu-bg);
-  box-shadow:
-    var(--po-menu-shadow),
-    0 0 0 1px color-mix(in srgb, var(--desktop-header-coachmark-accent) 8%, transparent);
-}
-
-.desktop-header-coachmark::before {
-  position: absolute;
-  top: -6px;
-  right: 14px;
-  width: 10px;
-  height: 10px;
-  border-top: 1px solid color-mix(
-    in srgb,
-    var(--desktop-header-coachmark-accent) 24%,
-    var(--po-menu-border)
-  );
-  border-left: 1px solid color-mix(
-    in srgb,
-    var(--desktop-header-coachmark-accent) 24%,
-    var(--po-menu-border)
-  );
-  background: color-mix(
-    in srgb,
-    var(--desktop-header-coachmark-accent) 4%,
-    var(--po-menu-bg)
-  );
-  content: "";
-  transform: rotate(45deg);
 }
 
 .desktop-header-coachmark-intro {
@@ -499,18 +455,10 @@
   flex: 0 0 var(--po-control-size);
   align-items: center;
   justify-content: center;
-  border: 1px solid color-mix(
-    in srgb,
-    var(--desktop-header-coachmark-accent) 24%,
-    transparent
-  );
-  border-radius: var(--po-menu-radius);
-  background: color-mix(
-    in srgb,
-    var(--desktop-header-coachmark-accent) 13%,
-    transparent
-  );
-  color: var(--desktop-header-coachmark-accent);
+  border: 1px solid var(--po-menu-border);
+  border-radius: var(--po-menu-item-radius);
+  background: var(--po-control);
+  color: var(--po-accent);
 }
 
 .desktop-header-coachmark-glyph svg {
@@ -521,7 +469,7 @@
 .desktop-header-coachmark-copy {
   display: grid;
   min-width: 0;
-  gap: 5px;
+  gap: var(--po-menu-padding);
 }
 
 .desktop-header-coachmark-copy strong {
@@ -541,7 +489,7 @@
 .desktop-header-coachmark-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 6px;
+  gap: var(--po-menu-item-gap);
 }
 
 .desktop-header-coachmark-button {

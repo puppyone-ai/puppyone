@@ -9,6 +9,10 @@ const paneCss = readCss("../../../../packages/shared-ui/src/sidebar/collapsible-
 const sidebarPatternsCss = readCss("../../../../src/styles/sidebar/patterns.css");
 const dataAdapterCss = readCss("../../../../src/features/data-workspace/browser.css");
 const projectSwitcherCss = readCss("../../../../src/features/app-shell/project-switcher-rail.css");
+const projectSwitcherSource = readFileSync(
+  new URL("../../../../src/features/app-shell/ProjectSwitcherRail.tsx", import.meta.url),
+  "utf8",
+);
 const projectContextAssetMarkCss = readCss(
   "../../../../src/features/app-shell/project-context-asset-mark.css",
 );
@@ -338,9 +342,10 @@ describe("sidebar spacing architecture", () => {
     expect(projectSwitcherCss).toMatch(
       /\.desktop-project-switcher-rail-identity-badge\s*\{[^}]*position:\s*absolute;[^}]*width:\s*14px;[^}]*height:\s*14px;[^}]*font-size:\s*var\(--po-type-ui-micro, 11px\);/s,
     );
-    expect(projectSwitcherCss).toMatch(
-      /\.desktop-project-switcher-rail-tooltip\s*\{[^}]*inset-inline-start:\s*calc\(100% \+ 8px\);[^}]*border:\s*1px solid var\(--po-menu-border\);[^}]*background:\s*var\(--po-menu-bg\);[^}]*box-shadow:\s*var\(--po-menu-shadow-compact\);[^}]*font-weight:\s*var\(--po-text-weight-regular, 400\);/s,
+    expect(projectSwitcherSource).toContain(
+      "Tooltip content={expanded ? undefined : workspace.name}",
     );
+    expect(projectSwitcherCss).not.toContain(".desktop-project-switcher-rail-tooltip");
     expect(projectSwitcherCss).toMatch(
       /\.desktop-project-switcher-rail-context-avatar,[^{]+\{[^}]*border-radius:\s*0;[^}]*overflow:\s*visible;[^}]*background:\s*transparent;/s,
     );
