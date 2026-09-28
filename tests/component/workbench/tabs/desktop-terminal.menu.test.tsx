@@ -52,9 +52,9 @@ describe("Desktop Terminal tab session manager", () => {
     render(true, true);
     expect(container.querySelector(".desktop-titlebar-cloud")).toBeNull();
     const share = container.querySelector<HTMLButtonElement>(".desktop-titlebar-share");
-    expect(share?.textContent).toBe("");
+    expect(share?.textContent).toBe("Share");
     expect(share?.getAttribute("aria-label")).toBe("Share");
-    expect(share?.querySelector(".lucide-square-arrow-out-up-right")).not.toBeNull();
+    expect(share?.querySelector(".lucide-forward")).not.toBeNull();
     expect(share?.nextElementSibling?.classList.contains("desktop-titlebar-action-divider")).toBe(true);
     act(() => share?.click());
     expect(onShare).toHaveBeenCalledOnce();

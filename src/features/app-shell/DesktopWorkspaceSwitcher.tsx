@@ -88,13 +88,13 @@ export function DesktopWorkspaceSwitcher({
           <ProjectLocationMark
             className="desktop-titlebar-workspace-mark"
             kind={projectLocation.kind}
-            size={14}
+            size={16}
           />
         ) : (
           <ProjectContextAssetMark
             className="desktop-titlebar-workspace-mark"
             kind={workspaceContextAssetKind}
-            size={14}
+            size={16}
           />
         )}
         <bdi className="desktop-titlebar-workspace-name">{titlebarLabel}</bdi>

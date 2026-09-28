@@ -14,7 +14,7 @@
     var(--desktop-sidebar-font-weight, var(--po-text-weight-regular, 400));
   --desktop-titlebar-context-line-height: var(--po-type-header-line-height, 20px);
   --desktop-titlebar-workspace-inline-padding: 6px;
-  --desktop-titlebar-workspace-icon-slot-size: 14px;
+  --desktop-titlebar-workspace-icon-slot-size: 16px;
   --desktop-titlebar-workspace-icon-label-gap: 6px;
   /* The native traffic lights use a fixed, profile-owned position. Derive
    * both layout edges from the same stable inset instead of two independently
@@ -406,6 +406,27 @@
   transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
 }
 
+.desktop-titlebar-share {
+  width: auto;
+  min-width: var(--desktop-chrome-control-size);
+  gap: 6px;
+  padding-inline: 7px 8px;
+  font-family: var(--desktop-titlebar-context-font-family);
+  font-size: var(--desktop-titlebar-context-font-size);
+  font-weight: var(--desktop-titlebar-context-font-weight);
+  line-height: var(--desktop-titlebar-context-line-height);
+  white-space: nowrap;
+}
+
+.desktop-titlebar-share > svg {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.desktop-titlebar-share-label {
+  display: block;
+}
+
 .desktop-titlebar-update {
   --desktop-titlebar-update-accent: #2563eb;
 
@@ -584,6 +605,15 @@
   transition: none;
 }
 
+.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"]
+  .desktop-titlebar-action.desktop-titlebar-share {
+  width: auto;
+  min-width: var(--desktop-titlebar-windows-control-width);
+  flex-basis: auto;
+  gap: 6px;
+  padding-inline: 10px;
+}
+
 .desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-actions .desktop-titlebar-terminal {
   width: var(--desktop-titlebar-windows-control-width);
   min-width: var(--desktop-titlebar-windows-control-width);
@@ -710,10 +740,17 @@
 }
 
 .desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark {
+  display: inline-flex;
   width: var(--desktop-titlebar-workspace-icon-slot-size);
   height: var(--desktop-titlebar-workspace-icon-slot-size);
   flex: 0 0 var(--desktop-titlebar-workspace-icon-slot-size);
+  align-items: center;
+  justify-content: center;
   color: var(--desktop-titlebar-text-subtle, var(--desktop-titlebar-text-muted));
+}
+
+.desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark > svg {
+  display: block;
 }
 
 .desktop-titlebar-context-icon-button {

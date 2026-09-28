@@ -1,6 +1,6 @@
 import { Tooltip } from "@puppyone/shared-ui";
 import { Fragment, type ReactNode } from "react";
-import { Cloud, SquareArrowOutUpRight } from "lucide-react";
+import { Cloud, Forward } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import { getOrderedHeaderElementDefinitions, type HeaderElementRenderContext } from "./headerElements";
 import type { TitlebarActionsSettings } from "../../preferences";
@@ -105,7 +105,8 @@ export function DesktopTitlebarActions({
           aria-label={shareLabel}
           onClick={onShare}
         >
-          <SquareArrowOutUpRight size={15} strokeWidth={1.8} aria-hidden="true" />
+          <Forward size={16} strokeWidth={1.8} aria-hidden="true" />
+          <span className="desktop-titlebar-share-label">{shareLabel}</span>
         </button></Tooltip>
       ) : (
         <Tooltip content={cloudLabel}><button
