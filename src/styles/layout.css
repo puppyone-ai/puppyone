@@ -477,6 +477,8 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   align-items: center;
   gap: 9px;
   padding: 0 10px;
+  border-radius: var(--po-menu-item-radius);
+  background: var(--po-selected);
   color: var(--po-text);
 }
 
@@ -493,16 +495,32 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   display: block;
 }
 
-.desktop-project-current-location-meta,
+.desktop-project-current-location-label {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: var(--po-menu-item-font-size);
+  font-weight: var(--po-text-weight-regular, 400);
+  line-height: var(--po-menu-item-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-project-current-location-status,
 .desktop-project-location-availability {
   display: inline-flex;
   min-width: 0;
   align-items: center;
   gap: 6px;
-  color: var(--po-text-muted);
-  font-size: var(--po-menu-item-font-size);
+  color: var(--po-text-subtle);
+  font-size: var(--po-menu-meta-font-size);
   font-weight: var(--po-text-weight-regular, 400);
-  line-height: var(--po-menu-item-line-height);
+  line-height: var(--po-menu-meta-line-height);
+}
+
+.desktop-project-current-location-status {
+  flex: 0 0 auto;
+  margin-inline-start: auto;
 }
 
 .desktop-project-location-availability {
@@ -527,21 +545,18 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-location-action.desktop-project-cloud-setup {
-  --po-menu-icon-slot-size: 14px;
-  --po-menu-item-gap: 6px;
+  --po-menu-icon-slot-size: 16px;
+  --po-menu-item-gap: 4px;
 
-  width: auto;
+  width: 100%;
   min-height: 28px;
   height: 28px;
-  align-self: start;
-  margin-block: -4px 8px;
-  margin-inline-start: 36px;
-  padding: 0 6px;
+  margin-block: 2px 8px;
   border-top: 0;
-  border-radius: 6px;
+  border-radius: var(--po-menu-item-radius);
   background: transparent;
   color: var(--po-text-subtle);
-  font-size: var(--po-menu-meta-font-size);
+  font-size: var(--po-type-ui-meta, 12px);
 }
 
 .desktop-project-location-action.desktop-project-cloud-setup:hover:not(:disabled),
@@ -552,7 +567,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 
 .desktop-project-location-action.desktop-project-cloud-setup .desktop-menu-item-label {
   color: inherit;
-  font-size: var(--po-menu-meta-font-size);
+  font-size: var(--po-type-ui-meta, 12px);
   font-weight: var(--po-text-weight-regular, 400);
 }
 

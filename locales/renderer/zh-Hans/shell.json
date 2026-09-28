@@ -79,6 +79,7 @@
   "workspaceSwitcher.location.thisMac": "这台 Mac",
   "workspaceSwitcher.location.cloud": "云端",
   "workspaceSwitcher.location.available": "可用",
+  "workspaceSwitcher.location.online": "在线",
   "workspaceSwitcher.location.signInToAccess": "登录后访问",
   "workspaceSwitcher.location.checking": "正在检查……",
   "workspaceSwitcher.location.needsAttention": "需要处理",

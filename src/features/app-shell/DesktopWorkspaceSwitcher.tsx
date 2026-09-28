@@ -129,6 +129,9 @@ export function DesktopWorkspaceSwitcher({
                 fallbackKind={workspaceContextAssetKind}
                 fallbackLabel={workspaceContextAssetLabel}
                 location={projectLocation}
+                statusLabel={t(currentProjectLocationKind === "local"
+                  ? "shell.workspaceSwitcher.location.online"
+                  : "shell.workspaceSwitcher.location.available")}
               />
               {projectLocation && (
                 <DesktopAlternateLocationAction
@@ -253,10 +256,12 @@ function DesktopCurrentProjectLocation({
   fallbackKind,
   fallbackLabel,
   location,
+  statusLabel,
 }: {
   fallbackKind: "local" | "cloud";
   fallbackLabel: string;
   location?: DesktopProjectLocation;
+  statusLabel: string;
 }) {
   const kind = location?.current ?? fallbackKind;
   return (
@@ -270,9 +275,10 @@ function DesktopCurrentProjectLocation({
         kind={kind}
         size={16}
       />
-      <span className="desktop-project-current-location-meta">
+      <span className="desktop-project-current-location-label">{fallbackLabel}</span>
+      <span className="desktop-project-current-location-status">
         <span className="desktop-project-location-dot" aria-hidden="true" />
-        <span>{fallbackLabel}</span>
+        <span>{statusLabel}</span>
       </span>
     </div>
   );
@@ -334,7 +340,7 @@ function DesktopAlternateLocationAction({
         className="desktop-project-location-action desktop-project-cloud-setup"
         data-location-action={location.cloudState === "unavailable" ? "setup" : "signed-out"}
         disabled={!cloudSetupAction}
-        icon={<Cloud size={13} strokeWidth={1.75} />}
+        icon={<Cloud size={14} strokeWidth={1.75} />}
         label={t("shell.workspaceSwitcher.location.keepAvailable")}
         trailing={<ChevronRight className="po-directional-icon" size={12} strokeWidth={1.8} aria-hidden="true" />}
         onClick={run(cloudSetupAction)}

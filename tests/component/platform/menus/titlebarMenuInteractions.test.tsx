@@ -59,9 +59,13 @@ describe("titlebar Portal menu interactions", () => {
     expect(currentProject?.querySelector(".lucide-laptop")).not.toBeNull();
     expect(currentProject?.textContent).not.toContain("Workspace one");
     expect(currentProject?.textContent).toContain("This Mac");
+    expect(currentProject?.textContent).toContain("Online");
     expect(currentProject?.querySelector(".desktop-project-location-dot")).not.toBeNull();
+    expect(currentProject?.querySelector(".desktop-project-current-location-status"))
+      .not.toBeNull();
     const setup = requireMenu().querySelector<HTMLButtonElement>("[data-location-action='setup']");
-    expect(setup?.textContent).toContain("Keep available to Agents");
+    expect(setup?.textContent).toContain("Make it always available to Agents");
+    expect(setup?.textContent).not.toContain("24/7");
     expect(setup?.textContent).not.toContain("Even when this Mac is offline.");
     expect(setup?.textContent).not.toContain("Set up");
     expect(setup?.querySelector(".lucide-cloud")).not.toBeNull();
@@ -118,7 +122,7 @@ describe("titlebar Portal menu interactions", () => {
 
     const signedOutCloudAction = requireMenu()
       .querySelector<HTMLButtonElement>("[data-location-action='signed-out']");
-    expect(signedOutCloudAction?.textContent).toContain("Keep available to Agents");
+    expect(signedOutCloudAction?.textContent).toContain("Make it always available to Agents");
     expect(signedOutCloudAction?.textContent).not.toContain("Sign in to access");
     expect(signedOutCloudAction?.textContent).not.toContain("Switch");
     expect(signedOutCloudAction?.querySelector(".lucide-cloud")).not.toBeNull();
@@ -400,6 +404,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(requireMenu().textContent).not.toContain("Cloud");
     const currentLocation = requireMenu().querySelector(".desktop-project-current-location");
     expect(currentLocation?.textContent).toContain("This Mac");
+    expect(currentLocation?.textContent).toContain("Online");
     expect(currentLocation?.querySelector(".desktop-project-location-dot")).not.toBeNull();
   });
 });

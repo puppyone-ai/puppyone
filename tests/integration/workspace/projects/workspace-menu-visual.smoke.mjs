@@ -55,14 +55,24 @@ async function runSmoke() {
     const rows = [...menu.querySelectorAll('.desktop-project-option')];
     const currentLocation = menu.querySelector('.desktop-project-current-location');
     const locationAction = menu.querySelector('.desktop-project-cloud-setup');
+    const locationActionLabel = locationAction?.querySelector('.desktop-menu-item-label');
     const homeGroup = menu.querySelector('.desktop-project-home-group');
     const addProject = menu.querySelector('.desktop-project-add-folder');
     return {
       addProjectEnabled: addProject instanceof HTMLButtonElement && !addProject.disabled,
       currentLocationHeight: currentLocation?.getBoundingClientRect().height ?? 0,
+      currentLocationWidth: currentLocation?.getBoundingClientRect().width ?? 0,
+      currentLocationBackground: currentLocation ? getComputedStyle(currentLocation).backgroundColor : "",
       hasRepeatedProjectName: currentLocation?.textContent.includes('To-Do-List') ?? false,
       hasHomeDivider: getComputedStyle(homeGroup).borderTopWidth === '1px',
       locationActionHeight: locationAction?.getBoundingClientRect().height ?? 0,
+      locationActionWidth: locationAction?.getBoundingClientRect().width ?? 0,
+      locationActionBackground: locationAction ? getComputedStyle(locationAction).backgroundColor : "",
+      locationActionLabelFits: locationActionLabel
+        ? locationActionLabel.scrollWidth <= locationActionLabel.clientWidth
+        : false,
+      locationActionLabelClientWidth: locationActionLabel?.clientWidth ?? 0,
+      locationActionLabelScrollWidth: locationActionLabel?.scrollWidth ?? 0,
       menuWidth: menu.getBoundingClientRect().width,
       projectCount: rows.length,
       projectHeights: rows.map((row) => row.getBoundingClientRect().height),
@@ -75,12 +85,17 @@ async function runSmoke() {
   assert(snapshot.currentLocationHeight === 32, `Current location must stay one compact row: ${JSON.stringify(snapshot)}`);
   assert(!snapshot.hasRepeatedProjectName, `Header Project name must not repeat inside the menu: ${JSON.stringify(snapshot)}`);
   assert(snapshot.locationActionHeight === 28, `Cloud setup action must stay compact: ${JSON.stringify(snapshot)}`);
+  assert(snapshot.locationActionWidth === snapshot.currentLocationWidth, `Cloud setup action must align with the selected location row: ${JSON.stringify(snapshot)}`);
+  assert(snapshot.currentLocationBackground !== "rgba(0, 0, 0, 0)", `Current location must have a selected background: ${JSON.stringify(snapshot)}`);
+  assert(snapshot.locationActionBackground === "rgba(0, 0, 0, 0)", `Cloud setup action must remain visually quiet at rest: ${JSON.stringify(snapshot)}`);
+  assert(snapshot.locationActionLabelFits, `Cloud setup label must remain fully visible: ${JSON.stringify(snapshot)}`);
   assert(snapshot.menuWidth === 280, `Workspace menu must remain 280px wide: ${JSON.stringify(snapshot)}`);
   assert(snapshot.addProjectEnabled, `Add Project must be enabled: ${JSON.stringify(snapshot)}`);
   assert(snapshot.hasHomeDivider, `Home divider is missing: ${JSON.stringify(snapshot)}`);
   assert(
     snapshot.text.includes("Go to Home")
-      && snapshot.text.includes("Keep available to Agents")
+      && snapshot.text.includes("Online")
+      && snapshot.text.includes("Make it always available to Agents")
       && snapshot.text.includes("Add Project"),
     `Required actions are missing: ${JSON.stringify(snapshot)}`,
   );
