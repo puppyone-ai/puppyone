@@ -10,6 +10,8 @@ const layout = source("src/styles/layout.css");
 const titlebar = source("src/styles/titlebar.css");
 const fileActions = source("src/styles/file-actions.css");
 const nodeActions = source("src/features/data-workspace/nodeActions.tsx");
+const dataTree = source("packages/shared-ui/src/styles/data-workspace.css");
+const projectSwitcher = source("src/features/app-shell/project-switcher-rail.css");
 const plugins = source("src/features/plugins/plugins.css");
 const agentComposer = source("src/features/desktop-agent/ui/styles/composer.css");
 
@@ -73,6 +75,25 @@ describe("desktop menu appearance architecture", () => {
     expectSharedMenuRow(plugins, ".desktop-plugin-menu button");
     expectSharedMenuSurface(agentComposer, ".desktop-agent-command-menu");
     expectSharedMenuRow(agentComposer, ".desktop-agent-command-menu button");
+  });
+
+  it("keeps the launcher and its owning Sidebar row active while a menu is open", () => {
+    expect(tokens).toContain("--po-menu-trigger-row-open-background: var(--po-hover);");
+    expect(tokens).toContain("--po-menu-trigger-open-background: var(--po-control-hover);");
+    expect(nodeActions).toContain('aria-expanded={createMenuOpen}');
+    expect(nodeActions).toContain('aria-expanded={nodeMenuOpen}');
+    expect(dataTree).toContain(
+      '.tree-row:has(.tree-row-action-button[aria-expanded="true"])',
+    );
+    expect(dataTree).toContain(
+      "background: var(--po-menu-trigger-open-background, var(--po-control-hover));",
+    );
+    expect(projectSwitcher).toContain(
+      '.desktop-project-switcher-rail-project-row[data-menu-open="true"]',
+    );
+    expect(projectSwitcher).toContain(
+      "background: var(--po-menu-trigger-row-open-background, var(--desktop-project-switcher-row-hover));",
+    );
   });
 
   it("keeps branch metadata within the shared menu weight scale", () => {

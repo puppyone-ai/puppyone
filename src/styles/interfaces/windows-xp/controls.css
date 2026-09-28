@@ -65,7 +65,12 @@
     .desktop-explorer-actions button,
     .desktop-agent-icon-button,
     .tree-row-action-button
-  ):hover:not(:disabled) {
+  ):hover:not(:disabled),
+:root[data-interface-style="windows-xp"]
+  :where(
+    .desktop-agent-icon-button,
+    .tree-row-action-button
+  )[aria-expanded="true"]:not(:disabled) {
   border: 1px solid var(--xp-default-ring);
   background: linear-gradient(180deg, var(--xp-button-hover-start), var(--xp-button-hover-end));
   color: #000000;

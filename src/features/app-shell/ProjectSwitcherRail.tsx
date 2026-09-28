@@ -190,6 +190,10 @@ export function ProjectSwitcherRail({
           return (
             <div
               className="desktop-project-switcher-rail-project-row"
+              data-menu-open={projectActionSession?.projectPath === workspace.path
+                && projectActionSession.surface === "menu"
+                ? "true"
+                : undefined}
               key={workspace.path}
             >
               <Tooltip content={expanded ? undefined : workspace.name} placement="right"><button

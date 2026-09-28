@@ -60,6 +60,8 @@ type DesktopWorkspaceContentProps = {
   onActiveDataNodeChange: (node: DataNode | null) => void;
   onResourceMove: (previousPath: string, nextPath: string) => void | Promise<void>;
   onRemoveProject: (folder: WorkspaceFolder) => void | Promise<void>;
+  openCreateEntryParentPath: string | null | undefined;
+  openNodeActionPath: string | null;
   onCreateEntryMenu: (parentPath: string | null, anchorRect: DesktopCreateEntryAnchorInput) => void;
   onDismissCreateEntryMenu: () => void;
   onFilesVisibilitySettingsChange: (settings: FilesVisibilitySettings) => void;
@@ -114,6 +116,8 @@ export function DesktopWorkspaceContent({
   onActiveDataNodeChange,
   onResourceMove,
   onRemoveProject,
+  openCreateEntryParentPath,
+  openNodeActionPath,
   onCreateEntryMenu,
   onDismissCreateEntryMenu,
   onFilesVisibilitySettingsChange,
@@ -235,6 +239,8 @@ export function DesktopWorkspaceContent({
         onActiveDataPathChange={onActiveDataPathChange}
         onResourceMove={onResourceMove}
         onRemoveProject={onRemoveProject}
+        openCreateEntryParentPath={openCreateEntryParentPath}
+        openNodeActionPath={openNodeActionPath}
         onCreateEntryMenu={onCreateEntryMenu}
         onDismissCreateEntryMenu={onDismissCreateEntryMenu}
         onNodeActionMenu={onNodeActionMenu}

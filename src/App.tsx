@@ -1580,6 +1580,11 @@ function AppContent() {
             onActiveDataPathChange={handleActiveDataPathChange}
             onResourceMove={handleResourceMoved}
             onRemoveProject={handleRemoveProject}
+            openCreateEntryParentPath={createEntryDraft && !createEntryDraft.selectedKind
+              && createEntryDraft.anchor.placement !== "auto-end"
+              ? createEntryDraft.parentPath
+              : undefined}
+            openNodeActionPath={nodeActionMenu?.mode === "actions" ? nodeActionMenu.node.path : null}
             onCreateEntryMenu={openCreateEntryMenu}
             onDismissCreateEntryMenu={() => setCreateEntryDraft(null)}
             fileClipboardController={fileClipboardController}

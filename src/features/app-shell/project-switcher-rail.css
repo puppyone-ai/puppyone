@@ -269,7 +269,13 @@ body.desktop-project-switcher-resizing * {
 .desktop-project-switcher-row-action:hover,
 .desktop-project-switcher-row-action:focus-visible,
 .desktop-project-switcher-row-action[aria-expanded="true"] {
-  background: var(--po-control-hover);
+  background: var(--po-menu-trigger-open-background, var(--po-control-hover));
+  color: var(--po-text);
+}
+
+.desktop-project-switcher-rail-project-row[data-menu-open="true"]
+  .desktop-project-switcher-rail-project {
+  background: var(--po-menu-trigger-row-open-background, var(--desktop-project-switcher-row-hover));
   color: var(--po-text);
 }
 

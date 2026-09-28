@@ -181,6 +181,9 @@ describe("Project switcher rail", () => {
     const actionButtons = host.querySelectorAll<HTMLButtonElement>(
       ".desktop-project-switcher-row-action",
     );
+    const projectRows = host.querySelectorAll<HTMLElement>(
+      ".desktop-project-switcher-rail-project-row",
+    );
     expect(actionButtons).toHaveLength(2);
     expect(actionButtons[1]?.getAttribute("aria-label")).toContain("Beta");
     expect(actionButtons[1]?.getAttribute("aria-haspopup")).toBe("menu");
@@ -193,11 +196,14 @@ describe("Project switcher rail", () => {
     await act(async () => actionButtons[0]?.click());
     expect(document.body.querySelectorAll(".desktop-project-row-actions-menu")).toHaveLength(1);
     expect(actionButtons[0]?.getAttribute("aria-expanded")).toBe("true");
+    expect(projectRows[0]?.dataset.menuOpen).toBe("true");
 
     await act(async () => actionButtons[1]?.click());
     expect(document.body.querySelectorAll(".desktop-project-row-actions-menu")).toHaveLength(1);
     expect(actionButtons[0]?.getAttribute("aria-expanded")).toBe("false");
     expect(actionButtons[1]?.getAttribute("aria-expanded")).toBe("true");
+    expect(projectRows[0]?.dataset.menuOpen).toBeUndefined();
+    expect(projectRows[1]?.dataset.menuOpen).toBe("true");
     let menu = document.body.querySelector<HTMLElement>(".desktop-project-row-actions-menu");
     expect(menu?.getAttribute("aria-label")).toContain("Beta");
     expect(menu?.style.left).toBe("248px");
@@ -206,6 +212,7 @@ describe("Project switcher rail", () => {
     await act(async () => actionButtons[1]?.click());
     expect(document.body.querySelector(".desktop-project-row-actions-menu")).toBeNull();
     expect(actionButtons[1]?.getAttribute("aria-expanded")).toBe("false");
+    expect(projectRows[1]?.dataset.menuOpen).toBeUndefined();
 
     await act(async () => actionButtons[1]?.click());
     menu = document.body.querySelector<HTMLElement>(".desktop-project-row-actions-menu");

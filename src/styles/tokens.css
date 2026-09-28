@@ -235,6 +235,10 @@
    * without introducing a second tinted popup palette. */
   --po-menu-bg: var(--po-canvas);
   --po-menu-border: var(--po-border-subtle);
+  /* Menu launchers keep their context visible while a portaled popup owns
+   * focus. Rows and the compact action button use separate strengths. */
+  --po-menu-trigger-row-open-background: var(--po-hover);
+  --po-menu-trigger-open-background: var(--po-control-hover);
   --po-elevation-low: 0 2px 4px -2px
     color-mix(in srgb, var(--po-shadow) 32%, transparent);
   --po-elevation-popover: 0 3px 8px -4px

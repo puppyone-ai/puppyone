@@ -7,6 +7,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DesktopCreateEntryMenu,
+  DesktopExplorerRowActions,
   DesktopNodeActionMenu,
   type DesktopCreateEntryDraft,
   type DesktopNodeActionMenuDraft,
@@ -24,6 +25,26 @@ afterEach(() => {
 });
 
 describe("create entry menu", () => {
+  it("projects open menu state onto the exact Explorer row trigger", () => {
+    const container = render(
+      <DesktopExplorerRowActions
+        createMenuOpen
+        node={{ id: "docs", name: "docs", path: "/docs", type: "folder", children: null }}
+        nodeMenuOpen
+        parentPath="/docs"
+        onCreate={vi.fn()}
+        onOpenNodeMenu={vi.fn()}
+      />,
+    );
+    const buttons = container.querySelectorAll<HTMLButtonElement>(".tree-row-action-button");
+
+    expect(buttons).toHaveLength(2);
+    for (const button of buttons) {
+      expect(button.getAttribute("aria-haspopup")).toBe("menu");
+      expect(button.getAttribute("aria-expanded")).toBe("true");
+    }
+  });
+
   it("marks the Sidebar launcher menu as a full-width floating surface that can open upward", () => {
     const draft = createDraft();
     draft.anchor = {

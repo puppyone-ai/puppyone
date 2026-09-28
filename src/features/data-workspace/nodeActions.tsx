@@ -102,14 +102,18 @@ const MENU_ERROR_BLOCK_SIZE = 21;
 const DEFAULT_MENU_PADDING = 4;
 
 export function DesktopExplorerRowActions({
+  createMenuOpen = false,
   node,
+  nodeMenuOpen = false,
   parentPath,
   onCreate,
   onOpenNodeMenu,
   onRemoveWorkspaceRoot,
   showMoreActions = true,
 }: {
+  createMenuOpen?: boolean;
   node?: DataNode;
+  nodeMenuOpen?: boolean;
   parentPath: string | null;
   onCreate: (parentPath: string | null, anchorRect: DOMRect) => void;
   onOpenNodeMenu: (node: DataNode, anchorRect: DOMRect) => void;
@@ -126,6 +130,8 @@ export function DesktopExplorerRowActions({
           className="tree-row-action-button"
           type="button"
           aria-label={t("workspace.node.createNew")}
+          aria-haspopup="menu"
+          aria-expanded={createMenuOpen}
           onClick={(event) => onCreate(parentPath, event.currentTarget.getBoundingClientRect())}
         >
           <Plus aria-hidden="true" />
@@ -136,6 +142,8 @@ export function DesktopExplorerRowActions({
           className="tree-row-action-button"
           type="button"
           aria-label={t("workspace.node.moreActionsFor", { name: bidiIsolate(node.name) })}
+          aria-haspopup="menu"
+          aria-expanded={nodeMenuOpen}
           onClick={(event) => onOpenNodeMenu(node, event.currentTarget.getBoundingClientRect())}
         >
           <OverflowDots orientation="vertical" />
