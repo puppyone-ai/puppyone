@@ -118,14 +118,17 @@ describe("Header project location", () => {
   function renderHeader({
     context = resolved,
     signedIn = true,
+    onShare = vi.fn(),
   }: {
     context?: ProjectCloudContext;
     signedIn?: boolean;
+    onShare?: () => void;
   }) {
     act(() => root?.render(withTestLocalization(
       <CloudShareHeaderControl
         projectContext={context}
         signedIn={signedIn}
+        onShare={onShare}
       />,
     )));
     return host.querySelector<HTMLButtonElement>(".desktop-titlebar-share");
@@ -133,10 +136,12 @@ describe("Header project location", () => {
 
   const popover = () => document.querySelector<HTMLElement>(".desktop-share-popover");
 
-  it("shows a compact local-only location without sharing content", () => {
+  it("explains the local-only location and offers a visual sharing action", () => {
+    const onShare = vi.fn();
     const button = renderHeader({
       context: { status: "local-only", projectId: null },
       signedIn: false,
+      onShare,
     });
 
     expect(button?.dataset.projectLocation).toBe("local");
@@ -146,10 +151,15 @@ describe("Header project location", () => {
     act(() => button?.click());
     const card = popover();
     expect(card?.getAttribute("role")).toBe("dialog");
-    expect(card?.textContent).toContain("Current projectLocalThis Mac");
+    expect(card?.textContent).toContain("Your files are only on this Mac");
+    expect(card?.textContent).toContain("Share files with other Agents");
     expect(card?.textContent).not.toContain("PuppyOne Cloud");
-    expect(card?.textContent).not.toContain("Agent");
-    expect(card?.querySelectorAll("button")).toHaveLength(0);
+    expect(card?.querySelectorAll(".desktop-project-location-share-brand img")).toHaveLength(3);
+    const shareButton = card?.querySelector<HTMLButtonElement>(".desktop-project-location-share");
+    expect(shareButton?.disabled).toBe(false);
+    act(() => shareButton?.click());
+    expect(onShare).toHaveBeenCalledOnce();
+    expect(popover()).toBeNull();
   });
 
   it("keeps a signed-out Cloud project labeled by location", () => {
@@ -158,10 +168,10 @@ describe("Header project location", () => {
     expect(button?.dataset.projectLocation).toBe("local-cloud");
     expect(button?.querySelector(".desktop-titlebar-share-label")?.textContent).toBe("Local + Cloud");
     act(() => button?.click());
-    expect(popover()?.textContent).toContain("Current projectLocal + CloudThis MacPuppyOne Cloud");
+    expect(popover()?.textContent).toContain("Your files are on this Mac and PuppyOne Cloud");
     expect(popover()?.textContent).not.toContain("Signed out");
     expect(popover()?.textContent).not.toContain("Viktor");
-    expect(popover()?.querySelectorAll("button")).toHaveLength(0);
+    expect(popover()?.querySelector(".desktop-project-location-share")).not.toBeNull();
   });
 
   it("shows the Cloud link while signed out even when it cannot authorize it", () => {

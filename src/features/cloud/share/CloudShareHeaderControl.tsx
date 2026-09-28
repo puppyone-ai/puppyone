@@ -17,9 +17,11 @@ const HOVER_CLOSE_DELAY_MS = 200;
 export function CloudShareHeaderControl({
   projectContext,
   signedIn,
+  onShare,
 }: {
   projectContext: ProjectCloudContext;
   signedIn: boolean;
+  onShare: () => void;
 }) {
   const { t } = useLocalization();
   const [open, setOpen] = useState(false);
@@ -50,6 +52,10 @@ export function CloudShareHeaderControl({
     setPinned(false);
     setOpen(false);
   }, [clearTimer]);
+  const handleShare = useCallback(() => {
+    dismiss();
+    onShare();
+  }, [dismiss, onShare]);
   useEffect(() => clearTimer, [clearTimer]);
 
   return (
@@ -92,7 +98,7 @@ export function CloudShareHeaderControl({
         onPointerEnter={clearTimer}
         onPointerLeave={scheduleClose}
       >
-        <CloudProjectLocationCard status={status} />
+        <CloudProjectLocationCard status={status} onShare={handleShare} />
       </CloudSharePopover>
     </div>
   );

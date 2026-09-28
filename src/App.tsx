@@ -1429,6 +1429,7 @@ function AppContent() {
         <CloudShareHeaderControl
           projectContext={projectCloudContext}
           signedIn={cloudSignedIn}
+          onShare={() => openShareWizard(null)}
         />
       )
       : null,

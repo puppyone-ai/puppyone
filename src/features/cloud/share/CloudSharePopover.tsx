@@ -3,11 +3,11 @@ import { DesktopMenuSurface } from "../../../components/DesktopMenu";
 import { DesktopOverlayLayer } from "../../app-shell/DesktopOverlayPortal";
 import { useAnchoredOverlayPosition } from "../../app-shell/useAnchoredOverlayPosition";
 
-const SHARE_POPOVER_WIDTH = 292;
+const SHARE_POPOVER_WIDTH = 304;
 const SHARE_POPOVER_MAX_HEIGHT = 480;
 
 /**
- * Anchored, read-only status card under the Header cloud control. Opens on
+ * Anchored project-location card under the Header cloud control. Opens on
  * hover and stays while the pointer is inside; a click pins it until the user
  * clicks elsewhere or presses Escape.
  */

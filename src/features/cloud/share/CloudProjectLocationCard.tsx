@@ -1,72 +1,79 @@
+import { AgentBrandImage } from "@puppyone/shared-ui";
 import type { MessageFormatter } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
-import { ArrowRight, Cloud, Laptop, LoaderCircle, TriangleAlert } from "lucide-react";
-import type { ReactNode } from "react";
+import { ChevronRight, Cloud, Laptop, LoaderCircle, TriangleAlert } from "lucide-react";
 import type { ProjectLocationStatus } from "./projectLocationStatus";
 
-/** Compact read-only answer to "where is this project available?". */
-export function CloudProjectLocationCard({ status }: { status: ProjectLocationStatus }) {
+const LOCATION_SHARE_BRANDS = ["chatgpt", "claude", "viktor"] as const;
+
+/** Direct answer to where the files live, followed by the next useful action. */
+export function CloudProjectLocationCard({
+  status,
+  onShare,
+}: {
+  status: ProjectLocationStatus;
+  onShare: () => void;
+}) {
   const { t } = useLocalization();
-  const cloudState = status.kind === "resolving"
-    ? "resolving"
-    : status.kind === "attention"
-      ? "attention"
-      : status.kind === "local-cloud"
-        ? "available"
-        : null;
+  const sharingDisabled = status.kind === "resolving";
 
   return (
     <div className="desktop-project-location" data-project-location={status.kind}>
-      <span className="desktop-project-location-eyebrow">{t("cloud.share.location.title")}</span>
-      <strong className="desktop-project-location-summary">{projectLocationBadge(status, t)}</strong>
-
-      <div className="desktop-project-location-path" aria-label={projectLocationBadge(status, t)}>
-        <LocationNode
-          icon={<Laptop size={18} strokeWidth={1.7} />}
-          label={t("cloud.share.location.thisDevice")}
-        />
-
-        {cloudState && (
-          <>
-            <ArrowRight className="desktop-project-location-arrow" size={14} strokeWidth={1.6} aria-hidden="true" />
-            <LocationNode
-              icon={<Cloud size={18} strokeWidth={1.7} />}
-              label={t("cloud.productName")}
-              state={cloudState}
-              stateIcon={cloudState === "resolving"
-                ? <LoaderCircle className="animate-spin" size={13} strokeWidth={1.9} />
-                : cloudState === "attention"
-                  ? <TriangleAlert size={13} strokeWidth={1.9} />
-                  : null}
-            />
-          </>
-        )}
+      <div className="desktop-project-location-hero">
+        <span
+          className="desktop-project-location-hero-icon"
+          data-location-state={status.kind}
+          aria-hidden="true"
+        >
+          {status.kind === "resolving"
+            ? <LoaderCircle className="animate-spin" size={18} strokeWidth={1.7} />
+            : status.kind === "attention"
+              ? <TriangleAlert size={18} strokeWidth={1.7} />
+              : <Laptop size={19} strokeWidth={1.6} />}
+          {status.kind === "local-cloud" && (
+            <span className="desktop-project-location-cloud-badge">
+              <Cloud size={9} strokeWidth={2.2} />
+            </span>
+          )}
+        </span>
+        <strong className="desktop-project-location-headline">
+          {projectLocationHeadline(status, t)}
+        </strong>
       </div>
+
+      <button
+        type="button"
+        className="desktop-project-location-share"
+        disabled={sharingDisabled}
+        onClick={onShare}
+      >
+        <span className="desktop-project-location-share-label">
+          {t("cloud.share.location.shareAction")}
+        </span>
+        <span className="desktop-project-location-share-brands" aria-hidden="true">
+          {LOCATION_SHARE_BRANDS.map((brandId) => (
+            <span className="desktop-project-location-share-brand" key={brandId}>
+              <AgentBrandImage brandId={brandId} />
+            </span>
+          ))}
+        </span>
+        <ChevronRight className="po-directional-icon" size={17} strokeWidth={1.8} aria-hidden="true" />
+      </button>
     </div>
   );
 }
 
-function LocationNode({
-  icon,
-  label,
-  state = "available",
-  stateIcon = null,
-}: {
-  icon: ReactNode;
-  label: string;
-  state?: "available" | "resolving" | "attention";
-  stateIcon?: ReactNode;
-}) {
-  return (
-    <span
-      className={`desktop-project-location-node${stateIcon ? " has-state" : ""}`}
-      data-location-state={state}
-    >
-      <span className="desktop-project-location-icon" aria-hidden="true">{icon}</span>
-      <span className="desktop-project-location-label">{label}</span>
-      {stateIcon && <span className="desktop-project-location-state" aria-hidden="true">{stateIcon}</span>}
-    </span>
-  );
+function projectLocationHeadline(status: ProjectLocationStatus, t: MessageFormatter): string {
+  switch (status.kind) {
+    case "local":
+      return t("cloud.share.location.localHeadline");
+    case "local-cloud":
+      return t("cloud.share.location.localCloudHeadline");
+    case "resolving":
+      return t("cloud.share.location.resolvingHeadline");
+    case "attention":
+      return t("cloud.share.location.attentionHeadline");
+  }
 }
 
 export function projectLocationBadge(status: ProjectLocationStatus, t: MessageFormatter): string {
