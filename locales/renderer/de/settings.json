@@ -258,6 +258,8 @@
   "experimental.otherAppImports.title": "Aus anderen Apps importieren",
   "experimental.otherAppImports.detail": "Notion, Google Drive, Airtable und Obsidian im Import anzeigen und ihre Einstellungsseite hinzufügen.",
   "experimental.detail": "Aktiviere frühe Desktop-Funktionen. Alle Experimente sind standardmäßig deaktiviert.",
+  "experimental.alwaysShowOnboardingCoachmarks.title": "Onboarding-Hinweise immer anzeigen",
+  "experimental.alwaysShowOnboardingCoachmarks.detail": "Zeigt den Agent-Hinweis beim Öffnen eines Projekts und den Änderungshinweis bei lokalen Änderungen erneut an. Der Gelesen-Status wird dabei nicht gespeichert.",
   "experimental.projectSwitcherRail.title": "Projektwechselleiste",
   "experimental.projectSwitcherRail.detail": "Zeigt links neben der Datei-Seitenleiste eine projektübergreifende Symbolleiste an.",
   "experimental.multiRootWorkspaces.title": "Arbeitsbereiche mit mehreren Projekten",

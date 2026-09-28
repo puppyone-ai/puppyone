@@ -258,6 +258,8 @@
   "experimental.otherAppImports.title": "Importar de outros aplicativos",
   "experimental.otherAppImports.detail": "Mostrar Notion, Google Drive, Airtable e Obsidian em Importar e adicionar a página de configurações.",
   "experimental.detail": "Ative antecipadamente experiências do desktop. Todos os experimentos ficam desativados por padrão.",
+  "experimental.alwaysShowOnboardingCoachmarks.title": "Sempre mostrar dicas de introdução",
+  "experimental.alwaysShowOnboardingCoachmarks.detail": "Repete a dica do Agent sempre que você entra em um projeto e a dica de Alterações quando há edições locais. O estado de leitura não é salvo enquanto esta opção estiver ativa.",
   "experimental.projectSwitcherRail.title": "Barra de troca de projetos",
   "experimental.projectSwitcherRail.detail": "Mostra uma barra de ícones entre projetos à esquerda da barra lateral de arquivos.",
   "experimental.multiRootWorkspaces.title": "Espaços de trabalho com vários projetos",

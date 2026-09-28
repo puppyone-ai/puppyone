@@ -1,4 +1,5 @@
 import { useWorkspaceEntryBootstrap } from "./features/app-shell/useWorkspaceEntryBootstrap";
+import { useHeaderCoachmarks } from "./features/app-shell/headerCoachmarks";
 import {
   lazy,
   Suspense,
@@ -955,11 +956,6 @@ function AppContent() {
 
   const [workspaceSurfaceError, setWorkspaceSurfaceError] = useState<string | null>(null);
 
-  const revealAgentWorkbenchOnEntry = useCallback(() => {
-    setRightSidebarSurface("chat");
-    setRightSidebarOpen(true);
-  }, [setRightSidebarOpen, setRightSidebarSurface]);
-
   useWorkspaceEntryBootstrap({
     intent: dataPort ? workspaceEntryIntent : null,
     dataPort,
@@ -968,7 +964,6 @@ function AppContent() {
     folders: workbenchWorkspace?.folders ?? EMPTY_WORKSPACE_FOLDERS,
     openDocument: handleActiveDataPathChange,
     consume: consumeWorkspaceEntryIntent,
-    revealAgentWorkbench: revealAgentWorkbenchOnEntry,
     onError: setWorkspaceSurfaceError,
   });
 
@@ -1326,6 +1321,15 @@ function AppContent() {
     setRightSidebarSurface("changes");
     setRightSidebarOpen(true);
   }, [blurAuxiliarySurfaceFocus, setRightSidebarOpen, setRightSidebarSurface]);
+  const gitTitlebarStatus = getGitTitlebarStatus(activeGitStatus);
+  const headerCoachmarks = useHeaderCoachmarks({
+    agentOpen: agentSidebarOpen,
+    alwaysShow: experimentalSettings.enableAlwaysShowOnboardingCoachmarks,
+    changesOpen: gitSidebarOpen,
+    localChangeCount: activeGitStatus?.isRepo ? gitTitlebarStatus.localChanges : null,
+    workspaceEntryId: workspaceEntryIntent?.id ?? null,
+    workspaceScopeId: focusedWorkspace?.id ?? null,
+  });
   const handleToggleGitChanges = useCallback(() => {
     if (gitSidebarOpen) {
       setRightSidebarOpen(false);
@@ -1444,7 +1448,9 @@ function AppContent() {
     terminalToolEnabled: true,
     gitChangesAvailable: Boolean(focusedWorkspace),
     gitChangesOpen: gitSidebarOpen,
-    gitChangesStatus: getGitTitlebarStatus(activeGitStatus),
+    gitChangesStatus: gitTitlebarStatus,
+    activeCoachmark: headerCoachmarks.active,
+    onAcknowledgeCoachmark: headerCoachmarks.acknowledge,
     onUpdateNow: () => void desktopUpdates.updateNow(),
     onToggleTerminal: handleToggleAgentWorkbench,
     onToggleGitChanges: handleToggleGitChanges,

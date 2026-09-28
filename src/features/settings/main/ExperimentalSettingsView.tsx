@@ -18,6 +18,10 @@ export function ExperimentalSettingsView({
   }> = [
     { messageKey: "projectSwitcherRail", settingKey: "enableProjectSwitcherRail" },
     { messageKey: "multiRootWorkspaces", settingKey: "enableMultiRootWorkspaces" },
+    {
+      messageKey: "alwaysShowOnboardingCoachmarks",
+      settingKey: "enableAlwaysShowOnboardingCoachmarks",
+    },
     { messageKey: "otherAppImports", settingKey: "enableOtherAppImports" },
     { messageKey: "viewerPlugins", settingKey: "enableViewerPlugins" },
     ...(window.puppyoneDesktop?.getGitAutoCommitSettings

@@ -1,0 +1,103 @@
+.header-coachmark-visual-smoke {
+  width: 100vw;
+  min-width: 720px;
+  height: 100vh;
+  min-height: 520px;
+  overflow: hidden;
+  background: var(--po-canvas);
+}
+
+.header-coachmark-visual-smoke .desktop-shell {
+  width: 100%;
+  height: 100%;
+}
+
+.header-coachmark-visual-context {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  color: var(--desktop-titlebar-text-muted);
+  font-size: 13px;
+}
+
+.header-coachmark-visual-context strong {
+  color: var(--desktop-titlebar-text);
+  font-weight: 540;
+}
+
+.header-coachmark-visual-body {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  height: calc(100vh - var(--desktop-titlebar-height));
+}
+
+.header-coachmark-visual-explorer {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  padding: 13px 10px;
+  border-inline-end: 1px solid var(--po-border);
+  background: var(--po-panel);
+  color: var(--po-text-muted);
+  font-size: 13px;
+}
+
+.header-coachmark-visual-explorer-title {
+  padding: 4px 8px 10px;
+  color: var(--po-text-subtle);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.header-coachmark-visual-explorer > div:not(.header-coachmark-visual-explorer-title) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 6px;
+}
+
+.header-coachmark-visual-explorer > div.selected {
+  background: var(--po-selected);
+  color: var(--po-text);
+}
+
+.header-coachmark-visual-editor {
+  overflow: hidden;
+  background: var(--po-canvas);
+}
+
+.header-coachmark-visual-editor article {
+  width: min(720px, calc(100% - 80px));
+  margin: 62px auto;
+  color: var(--po-text);
+}
+
+.header-coachmark-visual-editor h1 {
+  margin: 0 0 14px;
+  font-size: 30px;
+}
+
+.header-coachmark-visual-editor h2 {
+  margin: 34px 0 10px;
+  font-size: 19px;
+}
+
+.header-coachmark-visual-editor p {
+  max-width: 620px;
+  color: var(--po-text-muted);
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+.header-coachmark-visual-note {
+  max-width: 580px;
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-inline-start: 3px solid var(--po-warning);
+  background: color-mix(in srgb, var(--po-warning) 7%, var(--po-surface));
+  color: var(--po-text);
+  font-size: 14px;
+}

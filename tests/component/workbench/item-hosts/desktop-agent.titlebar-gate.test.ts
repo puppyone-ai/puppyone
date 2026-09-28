@@ -80,6 +80,10 @@ function renderHeaderActions() {
   if (!definition) throw new Error("Terminal header action is missing.");
   const context: HeaderElementRenderContext = {
     t: testT,
+    coachmark: {
+      active: null,
+      acknowledge: vi.fn(),
+    },
     terminal: {
       enabled: true,
       onToggle: vi.fn(),

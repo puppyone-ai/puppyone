@@ -244,6 +244,15 @@ describe("experimental preferences", () => {
     expect(parseExperimentalSettings(JSON.stringify({ enableShareOnboarding: true })).enableShareOnboarding).toBe(true);
   });
 
+  it("keeps onboarding coachmark replay off unless the user explicitly opts in", () => {
+    expect(parseExperimentalSettings(null).enableAlwaysShowOnboardingCoachmarks).toBe(false);
+    expect(parseExperimentalSettings("not-json").enableAlwaysShowOnboardingCoachmarks).toBe(false);
+    expect(parseExperimentalSettings(JSON.stringify({ enableAlwaysShowOnboardingCoachmarks: false }))
+      .enableAlwaysShowOnboardingCoachmarks).toBe(false);
+    expect(parseExperimentalSettings(JSON.stringify({ enableAlwaysShowOnboardingCoachmarks: true }))
+      .enableAlwaysShowOnboardingCoachmarks).toBe(true);
+  });
+
   it("does not let the retired catalog opt-in turn on Cloud hosting", () => {
     expect(parseExperimentalSettings(JSON.stringify({ enableCloudAgentCatalog: true })).enableCloudWorkspace).toBe(false);
     expect(parseExperimentalSettings(JSON.stringify({ enableCloudAgentCatalog: true })))

@@ -427,6 +427,137 @@
   display: block;
 }
 
+.desktop-header-coachmark-anchor {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+.desktop-header-coachmark-anchor[data-coachmark-active="true"] > .desktop-titlebar-action {
+  background: var(--po-accent);
+  color: var(--po-text-inverse);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--po-accent) 76%, white),
+    0 0 0 3px color-mix(in srgb, var(--po-accent) 18%, transparent);
+}
+
+.desktop-titlebar-menu.desktop-header-coachmark {
+  --desktop-header-coachmark-accent: var(--po-accent);
+
+  display: grid;
+  gap: calc(var(--po-menu-padding) * 3);
+  padding: calc(var(--po-menu-padding) * 4);
+  overflow: visible;
+  border-color: color-mix(
+    in srgb,
+    var(--desktop-header-coachmark-accent) 24%,
+    var(--po-menu-border)
+  );
+  border-radius: var(--po-menu-radius);
+  background: var(--po-menu-bg);
+  box-shadow:
+    var(--po-menu-shadow),
+    0 0 0 1px color-mix(in srgb, var(--desktop-header-coachmark-accent) 8%, transparent);
+}
+
+.desktop-header-coachmark::before {
+  position: absolute;
+  top: -6px;
+  right: 14px;
+  width: 10px;
+  height: 10px;
+  border-top: 1px solid color-mix(
+    in srgb,
+    var(--desktop-header-coachmark-accent) 24%,
+    var(--po-menu-border)
+  );
+  border-left: 1px solid color-mix(
+    in srgb,
+    var(--desktop-header-coachmark-accent) 24%,
+    var(--po-menu-border)
+  );
+  background: color-mix(
+    in srgb,
+    var(--desktop-header-coachmark-accent) 4%,
+    var(--po-menu-bg)
+  );
+  content: "";
+  transform: rotate(45deg);
+}
+
+.desktop-header-coachmark-intro {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--po-menu-item-gap);
+}
+
+.desktop-header-coachmark-glyph {
+  display: inline-flex;
+  width: var(--po-control-size);
+  height: var(--po-control-size);
+  flex: 0 0 var(--po-control-size);
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(
+    in srgb,
+    var(--desktop-header-coachmark-accent) 24%,
+    transparent
+  );
+  border-radius: var(--po-menu-radius);
+  background: color-mix(
+    in srgb,
+    var(--desktop-header-coachmark-accent) 13%,
+    transparent
+  );
+  color: var(--desktop-header-coachmark-accent);
+}
+
+.desktop-header-coachmark-glyph svg {
+  width: var(--po-menu-icon-slot-size);
+  height: var(--po-menu-icon-slot-size);
+}
+
+.desktop-header-coachmark-copy {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.desktop-header-coachmark-copy strong {
+  color: var(--po-text);
+  font-size: var(--po-menu-item-font-size);
+  font-weight: var(--po-text-weight-semibold);
+  line-height: var(--po-menu-item-line-height);
+}
+
+.desktop-header-coachmark-copy p {
+  margin: 0;
+  color: var(--po-text-muted);
+  font-size: var(--po-menu-meta-font-size);
+  line-height: var(--po-menu-meta-line-height);
+}
+
+.desktop-header-coachmark-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.desktop-header-coachmark-button {
+  flex: 0 0 auto;
+}
+
+.desktop-header-coachmark-button.po-button--primary:hover:not(:disabled),
+.desktop-header-coachmark-button.po-button--primary:focus-visible:not(:disabled) {
+  background: color-mix(
+    in srgb,
+    var(--po-accent) 88%,
+    var(--po-canvas)
+  );
+  color: var(--po-text-inverse);
+}
+
 .desktop-titlebar-update {
   --desktop-titlebar-update-accent: #2563eb;
 
@@ -516,6 +647,13 @@
 
 .desktop-titlebar-git-indicator.local:not(.idle) svg {
   color: color-mix(in srgb, var(--po-warning) 76%, white);
+}
+
+.desktop-header-coachmark-anchor[data-coachmark-active="true"]
+  .desktop-titlebar-git-indicator.local:not(.idle),
+.desktop-header-coachmark-anchor[data-coachmark-active="true"]
+  .desktop-titlebar-git-indicator.local:not(.idle) svg {
+  color: inherit;
 }
 
 .desktop-titlebar-git-indicator svg {

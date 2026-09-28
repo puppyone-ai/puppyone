@@ -295,6 +295,8 @@
   "experimental.otherAppImports.title": "从其他应用导入",
   "experimental.otherAppImports.detail": "在导入中显示 Notion、Google Drive、Airtable 和 Obsidian，并添加对应的设置页。",
   "experimental.detail": "选择体验早期桌面功能。所有实验默认关闭。",
+  "experimental.alwaysShowOnboardingCoachmarks.title": "始终显示新手引导",
+  "experimental.alwaysShowOnboardingCoachmarks.detail": "每次进入项目都重新显示 Agent 引导；存在本地修改时重新显示“更改”引导。开启期间不保存已读状态。",
   "experimental.projectSwitcherRail.title": "项目切换侧栏",
   "experimental.projectSwitcherRail.detail": "在文件侧栏左侧显示一条用于跨项目切换的图标栏。",
   "experimental.multiRootWorkspaces.title": "多项目工作区",

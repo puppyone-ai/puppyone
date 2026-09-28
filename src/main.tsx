@@ -143,6 +143,11 @@ async function renderApplication() {
       "./features/app-shell/WorkspaceMenuVisualSmokeHarness"
     );
     surface = <WorkspaceMenuVisualSmokeHarness />;
+  } else if (window.location.hash === "#header-coachmark-visual-smoke") {
+    const { HeaderCoachmarkVisualSmokeHarness } = await import(
+      "./features/app-shell/HeaderCoachmarkVisualSmokeHarness"
+    );
+    surface = <HeaderCoachmarkVisualSmokeHarness />;
   } else {
     surface = (
       <TypographyCatalogProvider>

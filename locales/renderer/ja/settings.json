@@ -258,6 +258,8 @@
   "experimental.otherAppImports.title": "他のアプリからインポート",
   "experimental.otherAppImports.detail": "Notion、Google Drive、Airtable、Obsidian をインポートに表示し、設定ページを追加します。",
   "experimental.detail": "開発初期のデスクトップ機能を有効にします。すべてデフォルトではオフです。",
+  "experimental.alwaysShowOnboardingCoachmarks.title": "オンボーディングヒントを常に表示",
+  "experimental.alwaysShowOnboardingCoachmarks.detail": "プロジェクトを開くたびに Agent のヒントを、ローカル変更があるときに変更のヒントを再表示します。有効中は既読状態を保存しません。",
   "experimental.projectSwitcherRail.title": "プロジェクト切り替えバー",
   "experimental.projectSwitcherRail.detail": "ファイルサイドバーの左側に、プロジェクトを切り替えるアイコンバーを表示します。",
   "experimental.multiRootWorkspaces.title": "マルチプロジェクトワークスペース",

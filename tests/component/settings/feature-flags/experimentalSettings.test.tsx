@@ -165,6 +165,31 @@ describe("Experimental settings", () => {
     });
   });
 
+  it("offers an off-by-default onboarding replay switch", () => {
+    const onChange = vi.fn();
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+
+    act(() => root?.render(withTestLocalization(
+      <ExperimentalSettingsView
+        settings={DEFAULT_EXPERIMENTAL_SETTINGS}
+        assetLibraryHomeAvailable={false}
+        onChange={onChange}
+      />,
+    )));
+
+    const toggle = host.querySelector<HTMLInputElement>(
+      'input[aria-label="Always show onboarding hints"]',
+    );
+    expect(toggle?.checked).toBe(false);
+    act(() => toggle?.click());
+    expect(onChange).toHaveBeenCalledWith({
+      ...DEFAULT_EXPERIMENTAL_SETTINGS,
+      enableAlwaysShowOnboardingCoachmarks: true,
+    });
+  });
+
   it("offers an off-by-default first-project starting-point opt-in", () => {
     const onChange = vi.fn();
     const host = document.createElement("div");

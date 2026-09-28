@@ -82,6 +82,7 @@ export type LocalAgentsSettings = {
 };
 export type ExperimentalSettings = {
   enableAssetLibraryHome: boolean;
+  enableAlwaysShowOnboardingCoachmarks: boolean;
   enableCloudAutomation: boolean;
   enableCloudWorkspace: boolean;
   enableShareOnboarding: boolean;
@@ -167,6 +168,7 @@ export const DEFAULT_AGENT_FILE_ACTIVITY_INDICATORS_ENABLED = false;
 export const DEFAULT_AI_EDIT_ASSIST_ENABLED = false;
 export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
   enableAssetLibraryHome: false,
+  enableAlwaysShowOnboardingCoachmarks: false,
   enableCloudAutomation: false,
   enableCloudWorkspace: false,
   /** Share-first Cloud Homepage and Header entry. On by default; switch off for the classic layout. */
@@ -417,6 +419,7 @@ export function parseExperimentalSettings(value: string | null | undefined): Exp
 
     return {
       enableAssetLibraryHome: parsed.enableAssetLibraryHome === true,
+      enableAlwaysShowOnboardingCoachmarks: parsed.enableAlwaysShowOnboardingCoachmarks === true,
       enableCloudAutomation: parsed.enableCloudAutomation === true,
       enableCloudWorkspace: parsed.enableCloudWorkspace === true,
       enableShareOnboarding: parsed.enableShareOnboarding !== false,

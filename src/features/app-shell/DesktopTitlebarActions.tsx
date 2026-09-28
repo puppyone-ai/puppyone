@@ -14,6 +14,7 @@ import {
   EMPTY_GIT_TITLEBAR_STATUS,
   type GitTitlebarStatus,
 } from "../source-control/gitTitlebarStatus";
+import type { HeaderCoachmarkId } from "./headerCoachmarks";
 
 type DesktopTitlebarActionsProps = {
   desktopUpdateState?: DesktopUpdateState | null;
@@ -30,6 +31,8 @@ type DesktopTitlebarActionsProps = {
   onOpenCloud?: () => void;
   shareEnabled?: boolean;
   onShare?: () => void;
+  activeCoachmark?: HeaderCoachmarkId | null;
+  onAcknowledgeCoachmark?: (id: HeaderCoachmarkId) => void;
   placement?: "titlebar" | "toolbar";
   visibleGroups?: readonly DesktopTitlebarActionGroup[];
 };
@@ -51,6 +54,8 @@ export function DesktopTitlebarActions({
   onOpenCloud = () => {},
   shareEnabled = false,
   onShare = () => {},
+  activeCoachmark = null,
+  onAcknowledgeCoachmark = () => {},
   placement = "titlebar",
   visibleGroups,
 }: DesktopTitlebarActionsProps) {
@@ -59,6 +64,10 @@ export function DesktopTitlebarActions({
   const headerElementContext: HeaderElementRenderContext = {
     t,
     placement,
+    coachmark: {
+      active: activeCoachmark,
+      acknowledge: onAcknowledgeCoachmark,
+    },
     terminal: {
       enabled: terminalToolEnabled,
       onToggle: onToggleTerminal,

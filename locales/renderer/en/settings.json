@@ -295,6 +295,8 @@
   "experimental.otherAppImports.title": "Import from other apps",
   "experimental.otherAppImports.detail": "Show Notion, Google Drive, Airtable, and Obsidian in Import and add their Settings page.",
   "experimental.detail": "Opt in to early desktop experiences. Every experiment is off by default.",
+  "experimental.alwaysShowOnboardingCoachmarks.title": "Always show onboarding hints",
+  "experimental.alwaysShowOnboardingCoachmarks.detail": "Replay the Agent hint whenever you enter a project and the Changes hint whenever local edits are present. Dismissals are not saved while this is on.",
   "experimental.projectSwitcherRail.title": "Project switcher rail",
   "experimental.projectSwitcherRail.detail": "Show a cross-project icon rail to the left of the file sidebar.",
   "experimental.multiRootWorkspaces.title": "Multi-project workspaces",
