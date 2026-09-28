@@ -84,8 +84,8 @@
   --desktop-titlebar-safe-area-x: env(titlebar-area-x, 0px);
   --desktop-titlebar-safe-area-width: env(titlebar-area-width, calc(100% - 138px));
   --desktop-titlebar-content-start: var(--desktop-sidebar-row-left-gap, 12px);
-  height: 38px;
-  min-height: 38px;
+  height: 42px;
+  min-height: 42px;
 }
 
 .desktop-titlebar[data-window-full-screen="true"] {
@@ -110,7 +110,7 @@
   margin-left: var(--desktop-titlebar-safe-area-x);
   /* The divider is absolutely positioned and consumes no layout space. Keep
    * block insets symmetric so controls land on whole pixels at the default
-   * 38px/24px chrome geometry instead of being shifted by half a pixel. */
+   * 42px/28px chrome geometry instead of being shifted by half a pixel. */
   padding: 0 6px 0 var(--desktop-titlebar-content-start);
 }
 
@@ -121,7 +121,7 @@
 
 .desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-layout:has(.desktop-titlebar-actions)::after {
   position: absolute;
-  inset-block-start: 10px;
+  inset-block-start: 12px;
   inset-inline-end: 0;
   width: 1px;
   height: 18px;

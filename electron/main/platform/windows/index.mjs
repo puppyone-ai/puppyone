@@ -1,6 +1,6 @@
 import { unsupportedOfficeDocumentConverter } from "../common/unsupported-document-converter.mjs";
 
-export const WINDOWS_TITLE_BAR_OVERLAY_HEIGHT = 38;
+export const WINDOWS_TITLE_BAR_OVERLAY_HEIGHT = 42;
 
 export function createWindowsPlatformAdapter({ arch }) {
   return Object.freeze({

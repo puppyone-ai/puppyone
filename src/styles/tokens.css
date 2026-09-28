@@ -4,7 +4,7 @@
   /* Mirrored from electron/main/window-layout-contract.mjs and guarded by the architecture check. */
   --desktop-window-min-width: 640px;
   --desktop-toolbar-action-radius: 5px;
-  --desktop-chrome-height: 38px;
+  --desktop-chrome-height: 42px;
   /* Standard control geometry is owned by shared-ui/control-geometry.css. */
   --desktop-chrome-control-size: var(--po-control-size);
   --desktop-titlebar-control-height: var(--po-control-size-compact);

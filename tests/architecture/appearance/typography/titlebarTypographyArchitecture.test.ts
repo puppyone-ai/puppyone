@@ -114,6 +114,7 @@ describe("titlebar typography architecture", () => {
     expect(typographyRoot).toContain("--po-text-weight-medium: 500;");
     expect(typographyRoot).toContain("--po-font-weight-chrome: var(--po-text-weight-medium);");
     expect(controlGeometry).toContain("--po-control-size: 32px;");
+    expect(layoutRoot).toContain("--desktop-chrome-height: 42px;");
     expect(layoutRoot).toContain("--desktop-chrome-control-size: var(--po-control-size);");
     expect(layoutRoot).toContain("--desktop-toolbar-action-radius: 5px;");
     expect(layoutRoot).toContain("--desktop-titlebar-control-height: var(--po-control-size-compact);");
@@ -190,10 +191,11 @@ describe("titlebar typography architecture", () => {
     expect(windowsTitlebar).toContain(
       "--desktop-titlebar-content-start: var(--desktop-sidebar-row-left-gap, 12px);",
     );
-    expect(windowsTitlebar).toContain("height: 38px;");
-    expect(windowsTitlebar).toContain("min-height: 38px;");
+    expect(windowsTitlebar).toContain("height: 42px;");
+    expect(windowsTitlebar).toContain("min-height: 42px;");
     expect(windowsLayout).toContain("position: relative;");
     expect(windowsLayout).toContain("padding-right: 0;");
+    expect(windowsBoundaryDivider).toContain("inset-block-start: 12px;");
     expect(windowsBoundaryDivider).toContain("inset-inline-end: 0;");
     expect(windowsBoundaryDivider).toContain("width: 1px;");
     expect(windowsBoundaryDivider).toContain("height: 18px;");
