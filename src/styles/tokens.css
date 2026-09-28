@@ -4,12 +4,12 @@
   /* Mirrored from electron/main/window-layout-contract.mjs and guarded by the architecture check. */
   --desktop-window-min-width: 640px;
   --desktop-toolbar-action-radius: 5px;
-  --desktop-chrome-height: 42px;
+  --desktop-chrome-height: 40px;
   /* Standard control geometry is owned by shared-ui/control-geometry.css. */
   --desktop-chrome-control-size: var(--po-control-size);
   --desktop-titlebar-control-height: var(--po-control-size-compact);
   --desktop-titlebar-tool-action-width: 34px;
-  --desktop-titlebar-button-gap: 3px;
+  --desktop-titlebar-button-gap: 2px;
   --desktop-sidebar-control-size: var(--desktop-chrome-control-size);
   --desktop-sidebar-nav-height: calc(var(--desktop-sidebar-control-size) + 8px);
   --desktop-sidebar-nav-padding: 4px;
