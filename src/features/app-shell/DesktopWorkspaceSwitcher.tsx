@@ -117,7 +117,7 @@ export function DesktopWorkspaceSwitcher({
         onDismiss={onClose}
         open={open}
         preferredMaxHeight={520}
-        preferredWidth={320}
+        preferredWidth={280}
       >
         {view === "projects" ? (
           <>

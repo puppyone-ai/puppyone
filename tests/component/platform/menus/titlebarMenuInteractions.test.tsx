@@ -167,7 +167,7 @@ describe("titlebar Portal menu interactions", () => {
     const menu = requireMenu();
     expect(container.contains(menu)).toBe(false);
     expect(menu.dataset.windowNoDrag).toBe("true");
-    expect(menu.style.width).toBe("320px");
+    expect(menu.style.width).toBe("280px");
     expect(menu.querySelector("[data-workspace-menu-layout='workspace-composition-v1']"))
       .not.toBeNull();
     expect(menu.textContent).toContain("Home");
@@ -184,7 +184,13 @@ describe("titlebar Portal menu interactions", () => {
     expect(menu.querySelector(".desktop-project-copy-path")).toBeNull();
     expect(menu.querySelector(".desktop-project-option")?.getAttribute("aria-disabled"))
       .toBe("true");
-    act(() => menu.querySelector<HTMLButtonElement>(".desktop-project-home")?.click());
+    const homeButton = menu.querySelector<HTMLButtonElement>(".desktop-project-home");
+    act(() => {
+      homeButton?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+      homeButton?.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+      homeButton?.click();
+    });
+    expect(onClose).not.toHaveBeenCalled();
     act(() => menu.querySelector<HTMLButtonElement>(".desktop-project-add-folder")?.click());
     expect(menu.textContent).toContain("Projects");
     expect(menu.textContent).toContain("Workspace three");

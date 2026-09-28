@@ -75,7 +75,7 @@ async function runSmoke() {
   assert(snapshot.currentLocationHeight === 32, `Current location must stay one compact row: ${JSON.stringify(snapshot)}`);
   assert(!snapshot.hasRepeatedProjectName, `Header Project name must not repeat inside the menu: ${JSON.stringify(snapshot)}`);
   assert(snapshot.locationActionHeight === 28, `Cloud setup action must stay compact: ${JSON.stringify(snapshot)}`);
-  assert(snapshot.menuWidth === 320, `Workspace menu must remain 320px wide: ${JSON.stringify(snapshot)}`);
+  assert(snapshot.menuWidth === 280, `Workspace menu must remain 280px wide: ${JSON.stringify(snapshot)}`);
   assert(snapshot.addProjectEnabled, `Add Project must be enabled: ${JSON.stringify(snapshot)}`);
   assert(snapshot.hasHomeDivider, `Home divider is missing: ${JSON.stringify(snapshot)}`);
   assert(
