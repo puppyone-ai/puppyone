@@ -33,6 +33,23 @@ describe("Shared Agent submission lifecycle", () => {
     expect(await h.coordinator.submit(h.state().draft)).toBe(true);
   });
 
+  it("reconnects a settled provider before dispatching the next turn", async () => {
+    const h = harness();
+    const control = reduceAgentSessionControl(createAgentSessionControl(), { type: "adapter.attached" });
+    const exited = reduceAgentSessionControl(control, {
+      type: "adapter.exited",
+      adapterGeneration: control.adapterGeneration,
+      reason: "provider-idle-exit",
+    });
+    h.patch({ control: projectAgentControlView(exited) });
+
+    await expect(h.coordinator.submit("continue")).resolves.toBe(true);
+
+    expect(h.reconnect).toHaveBeenCalledOnce();
+    expect(h.start).toHaveBeenCalledOnce();
+    expect(h.reconnect.mock.invocationCallOrder[0]).toBeLessThan(h.start.mock.invocationCallOrder[0]);
+  });
+
   it("does not let an old receipt release a newer conversation's submission lock", async () => {
     const h = harness();
     const oldReceipt = Promise.withResolvers<void>();
@@ -127,11 +144,12 @@ function harness() {
   const patch = (value: Partial<AgentControllerState>) => { state = { ...state, ...value }; };
   const start = vi.fn(async () => {});
   const prepare = vi.fn(async () => true);
+  const reconnect = vi.fn(async () => true);
   const bridge = { startAgentTurn: start } as unknown as AgentClientPort;
   const references = new AgentReferenceDraftManager({ workspaceRoot: "/workspace", bridgeProvider: () => bridge, readState: () => state, patch, appendText: () => {} });
   const coordinator = new AgentTurnSubmissionCoordinator({
     workspaceRoot: "/workspace", bridgeProvider: () => bridge, references,
-    readState: () => state, patch, prepareSession: prepare, writeDraft: vi.fn(),
+    readState: () => state, patch, prepareSession: prepare, reconnectSession: reconnect, writeDraft: vi.fn(),
   });
-  return { state: () => state, patch, coordinator, start, prepare };
+  return { state: () => state, patch, coordinator, start, prepare, reconnect };
 }

@@ -172,6 +172,7 @@
   "picker.showing": "{total, number} 件中 {visible, number} 件を表示しています。検索して絞り込めます。",
   "readiness.sessionAttention": "{agent} セッションを確認してください",
   "readiness.sessionRecovery": "更新して保存済みセッションを復元してください。",
+  "readiness.reconnect": "再接続",
   "readiness.connect": "{agent} に接続",
   "readiness.needsAttention": "{agent} を確認してください",
   "readiness.setupRequired": "セッションを開始する前に、このプロバイダーへ接続するか更新してください。",

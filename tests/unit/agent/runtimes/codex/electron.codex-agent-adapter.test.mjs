@@ -397,6 +397,29 @@ describe("Codex app-server normalization", () => {
     adapter.dispose();
   });
 
+  it("accepts a correlated native start before a delayed turn/start RPC receipt", async () => {
+    const connection = new FakeConnection();
+    connection.results.set("thread/start", { thread: { id: "thread-1" } });
+    connection.results.set("turn/start", () => new Promise(() => {}));
+    const adapter = new CodexAppServerAdapter({
+      executablePath: "/usr/local/bin/codex",
+      environment: {},
+      workspaceRoot: "/workspace",
+      appVersion: "test",
+      connectionFactory: () => connection,
+    });
+    await adapter.createSession({ model: "gpt-5" });
+
+    const start = adapter.startTurn({ prompt: "hello", clientUserMessageId: "message-1", model: "gpt-5" });
+    connection.emit("notification", {
+      method: "turn/started",
+      params: { threadId: "thread-1", turn: { id: "turn-native", status: "inProgress" } },
+    });
+
+    await expect(start).resolves.toEqual({ turnId: "turn-native", clientUserMessageId: "message-1" });
+    adapter.dispose();
+  });
+
   it("classifies a missing native rollout as an unavailable saved session", async () => {
     const connection = new FakeConnection();
     connection.failures.set("thread/resume", new Error("thread/resume: no rollout found for thread id thread-stale"));

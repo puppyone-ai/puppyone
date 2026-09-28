@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { normalizeCapabilitySnapshot, sanitizeAgentEventEnvelope, sanitizeAgentRuntimeDescriptor } from "../../../../shared/agent-contract/schema.mjs";
 import { normalizeAgentEventWorkspacePaths } from "./agent-event-workspace-paths.mjs";
 import { AgentSessionActor } from "./agent-session-actor.mjs";
+import { isAgentIdleDisconnect } from "./agent-session-control.mjs";
 import { projectAgentControlView } from "./agent-control-view.mjs";
 
 const MAX_REPLAY_EVENTS = 1_000;
@@ -213,7 +214,7 @@ export function sessionSnapshot(session) {
 }
 
 function terminalStateFromControl(control) {
-  if (control.connection.status === "exited") return "provider-exited";
+  if (control.connection.status === "exited" && !isAgentIdleDisconnect(control)) return "provider-exited";
   if (control.execution.activeTurnId) return "running";
   if (control.execution.status === "outcome-unknown") return "outcome-unknown";
   return control.execution.nativeOutcome || "idle";

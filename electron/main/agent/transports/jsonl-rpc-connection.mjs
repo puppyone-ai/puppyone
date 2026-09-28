@@ -76,6 +76,7 @@ export class JsonlRpcConnection extends EventEmitter {
     this.nextRequestId = 1;
     this.pending = new Map();
     this.seenResponseIds = new Set();
+    this.ignoredResponseIds = new Set();
     this.receiveStdout = createJsonlFramer({
       maxLineBytes,
       onLine: (line) => this.#receiveLine(line),
@@ -111,7 +112,7 @@ export class JsonlRpcConnection extends EventEmitter {
     this.child.once("close", (code, signal) => this.#handleExit(code, signal, null));
   }
 
-  request(method, params, { timeoutMs = 20_000, signal } = {}) {
+  request(method, params, { timeoutMs = 20_000, signal, closeOnTimeout = true } = {}) {
     if (signal?.aborted) return Promise.reject(signal.reason ?? new Error("Native RPC request aborted before dispatch."));
     if (this.closed) return Promise.reject(new Error("The JSONL-RPC process is not connected."));
     if (this.pending.size >= this.maxPending) {
@@ -128,7 +129,11 @@ export class JsonlRpcConnection extends EventEmitter {
           // A timed-out JSON-RPC request has an ambiguous result, especially for
           // mutating methods such as turn/start. Retrying on the same connection
           // could submit the mutation twice, so retire the provider immediately.
-          this.dispose(error.message, { expected: false });
+          if (closeOnTimeout) this.dispose(error.message, { expected: false });
+          else {
+            this.ignoredResponseIds.add(String(id));
+            if (this.ignoredResponseIds.size > 512) this.ignoredResponseIds.delete(this.ignoredResponseIds.values().next().value);
+          }
         }, timeoutMs)
         : null;
       timer?.unref?.();
@@ -266,6 +271,11 @@ export class JsonlRpcConnection extends EventEmitter {
       return;
     }
     const id = String(message.id);
+    if (this.ignoredResponseIds.delete(id)) {
+      this.seenResponseIds.add(id);
+      if (this.seenResponseIds.size > 512) this.seenResponseIds.delete(this.seenResponseIds.values().next().value);
+      return;
+    }
     if (this.seenResponseIds.has(id)) {
       this.#protocolFailure(`The JSONL-RPC process emitted a duplicate response id: ${id}`);
       return;

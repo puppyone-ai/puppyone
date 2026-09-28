@@ -16,6 +16,10 @@ import {
   requireConnectedSession,
 } from "../../domain/agent-session-model.mjs";
 import { assertAgentRuntimeInspection } from "../../runtime/agent-runtime-port.mjs";
+import {
+  isAgentExecutionSettled,
+} from "../../domain/agent-session-control.mjs";
+import { AGENT_IDLE_DISCONNECT_REASON } from "../../../../../shared/agent-contract/constants.mjs";
 
 const INTERRUPT_CONFIRMATION_TIMEOUT_MS = 5_000;
 const MAX_TURN_DURATION_MS = 30 * 24 * 60 * 60 * 1_000;
@@ -208,6 +212,13 @@ export function createAgentSessionRuntime({
   function handleAdapterExit(session, adapterGeneration, info) {
     if (!sessionStore.isCurrent(session) || session.closing || session.providerExited || info?.expected || !session.providerSessionId) return;
     if (session.actor.control.adapterGeneration !== adapterGeneration) return;
+    if (isAgentExecutionSettled(session.actor.control)) {
+      retireProviderSession(session, {
+        reason: AGENT_IDLE_DISCONNECT_REASON,
+        diagnostic: info?.diagnostics || info?.error || "",
+      });
+      return;
+    }
     runtimeResolutionCoordinator.recordOperationFailure({
       runtimeId: session.runtimeId,
       workspaceRoot: session.workspaceRoot,
@@ -298,7 +309,7 @@ export function createAgentSessionRuntime({
     session.interruptFallbackTimer = null;
   }
 
-  function retireProviderSession(session, { providerMessage, diagnostic }) {
+  function retireProviderSession(session, { providerMessage = null, diagnostic, reason = "provider-exited" }) {
     if (!sessionStore.isCurrent(session) || session.closing || session.providerExited) return;
     const adapterGeneration = session.actor.control.adapterGeneration;
     clearInterruptFallback(session);
@@ -308,20 +319,22 @@ export function createAgentSessionRuntime({
     void revokeActiveAgentReferences(session, attachmentStore);
     // Process death proves that the connection ended, not that the native turn
     // failed. Only a correlated native terminal event may settle execution.
-    emit(session, {
-      type: "provider.error",
-      providerSessionId: session.providerSessionId,
-      turnId: activeTurnId,
-      payload: {
-        message: providerMessage,
-        diagnostic: redactSecretText(diagnostic || ""),
-        recoverable: true,
-      },
-    });
+    if (providerMessage) {
+      emit(session, {
+        type: "provider.error",
+        providerSessionId: session.providerSessionId,
+        turnId: activeTurnId,
+        payload: {
+          message: providerMessage,
+          diagnostic: redactSecretText(diagnostic || ""),
+          recoverable: true,
+        },
+      });
+    }
     session.actor.dispatch({
       type: "adapter.exited",
       adapterGeneration,
-      reason: "provider-exited",
+      reason,
     });
     clearTimeout(session.persistTimer);
     session.persistTimer = null;

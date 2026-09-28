@@ -172,6 +172,7 @@
   "picker.showing": "Se muestran {visible, number} de {total, number}. Busca para acotar.",
   "readiness.sessionAttention": "La sesión de {agent} necesita atención",
   "readiness.sessionRecovery": "Actualiza para recuperar la sesión guardada.",
+  "readiness.reconnect": "Reconectar",
   "readiness.connect": "Conectar {agent}",
   "readiness.needsAttention": "{agent} necesita atención",
   "readiness.setupRequired": "Conecta o actualiza este proveedor antes de iniciar una sesión.",

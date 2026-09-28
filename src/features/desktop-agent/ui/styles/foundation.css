@@ -394,28 +394,49 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   flex: 0 0 auto;
   align-items: start;
-  gap: 12px;
+  gap: 9px;
   margin: 0;
-  padding: 14px 16px;
-  border: 1px solid var(--agent-readiness-border);
-  border-radius: 14px;
-  background: var(--agent-readiness-surface);
-  color: var(--po-text);
+  padding: 10px 12px;
+  border: 1px solid var(--agent-border-subtle);
+  border-radius: 10px;
+  background: var(--agent-canvas);
+  color: var(--agent-text);
   font-size: var(--agent-font-size);
 }
 
-.desktop-agent-readiness p {
-  margin: 3px 0 0;
-  overflow-wrap: anywhere;
-  color: var(--po-text-muted);
-  line-height: 1.45;
+.desktop-agent-readiness-icon {
+  margin-top: 1px;
+  color: var(--agent-text-subtle);
 }
 
-.desktop-agent-readiness small {
+.desktop-agent-readiness.is-recovery .desktop-agent-readiness-icon {
+  color: var(--agent-notice-error-text);
+}
+
+.desktop-agent-readiness-copy { min-width: 0; }
+
+.desktop-agent-readiness-title {
   display: block;
-  margin-top: 6px;
-  color: var(--po-text-subtle);
+  font-size: var(--agent-font-size);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.desktop-agent-readiness-description {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--agent-text-muted);
   font-size: var(--agent-font-size-meta);
+  line-height: 1.4;
+}
+
+.desktop-agent-readiness-detail {
+  display: block;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+  color: var(--agent-text-subtle);
+  font-size: var(--agent-font-size-meta);
+  line-height: 1.4;
 }
 
 .desktop-agent-readiness-code {
@@ -423,18 +444,18 @@
   letter-spacing: 0.015em;
 }
 
-.desktop-agent-readiness button {
-  display: inline-flex;
-  min-height: var(--agent-control-size);
-  align-items: center;
+.desktop-agent-readiness-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.desktop-agent-readiness-action.desktop-agent-button {
+  height: var(--po-control-size-compact);
+  min-height: var(--po-control-size-compact);
   gap: 5px;
-  padding: 0 12px;
-  border: 1px solid var(--agent-border);
-  border-radius: 10px;
-  background: var(--agent-control-surface);
-  color: var(--agent-text);
-  font: inherit;
-  cursor: var(--po-clickable-cursor, default);
+  padding-inline: 9px;
 }
 
 .desktop-agent-inline-error {

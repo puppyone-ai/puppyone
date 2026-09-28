@@ -172,6 +172,7 @@
   "picker.showing": "{visible, number} von {total, number} werden angezeigt. Suche zum Eingrenzen.",
   "readiness.sessionAttention": "Die {agent}-Sitzung erfordert Aufmerksamkeit",
   "readiness.sessionRecovery": "Aktualisieren, um die gespeicherte Sitzung wiederherzustellen.",
+  "readiness.reconnect": "Neu verbinden",
   "readiness.connect": "{agent} verbinden",
   "readiness.needsAttention": "{agent} erfordert Aufmerksamkeit",
   "readiness.setupRequired": "Diesen Anbieter vor dem Start einer Sitzung verbinden oder aktualisieren.",

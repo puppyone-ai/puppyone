@@ -107,6 +107,27 @@ describe("Codex JSONL JSON-RPC transport", () => {
     }
   });
 
+  it("can report a timeout without closing when native evidence settled the mutation", async () => {
+    vi.useFakeTimers();
+    try {
+      const child = createChild();
+      const connection = createConnection(child);
+      const pending = connection.request("turn/start", {}, { timeoutMs: 20, closeOnTimeout: false });
+      const rejection = expect(pending).rejects.toMatchObject({ code: "JSONL_RPC_TIMEOUT" });
+
+      await vi.advanceTimersByTimeAsync(25);
+
+      await rejection;
+      expect(child.kill).not.toHaveBeenCalled();
+      expect(connection.closed).toBe(false);
+      child.stdout.write(`${JSON.stringify({ id: 1, result: { turn: { id: "late" } } })}\n`);
+      expect(child.kill).not.toHaveBeenCalled();
+      connection.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("escalates to a forced kill when the provider ignores graceful disposal", async () => {
     vi.useFakeTimers();
     try {

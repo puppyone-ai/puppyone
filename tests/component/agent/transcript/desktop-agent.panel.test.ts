@@ -294,7 +294,7 @@ describe("Project-owned Agent Chat Workbench lifecycle", () => {
 
     act(() => harness.exitListener?.({ sessionId: "session-1", reason: "provider-exited" }));
 
-    expect(stripBidiIsolation(container.textContent)).toContain("OpenCode stopped unexpectedly");
+    expect(stripBidiIsolation(container.textContent)).toContain("OpenCode disconnected while a task was running");
     expect(container.querySelector(".cm-content")?.getAttribute("aria-disabled")).toBe("false");
     expect((container.querySelector('button[aria-label="Send message"]') as HTMLButtonElement).disabled).toBe(true);
     await createChat();

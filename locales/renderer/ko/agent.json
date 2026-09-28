@@ -172,6 +172,7 @@
   "picker.showing": "{total, number}개 중 {visible, number}개 표시. 검색하여 범위를 좁히세요.",
   "readiness.sessionAttention": "{agent} 세션을 확인해야 합니다",
   "readiness.sessionRecovery": "새로 고쳐 저장된 세션을 복구하세요.",
+  "readiness.reconnect": "다시 연결",
   "readiness.connect": "{agent} 연결",
   "readiness.needsAttention": "{agent}를 확인해야 합니다",
   "readiness.setupRequired": "세션을 시작하기 전에 이 제공자를 연결하거나 업데이트하세요.",
