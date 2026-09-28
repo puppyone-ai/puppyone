@@ -37,7 +37,7 @@ export function CloudSharePopover({
     preferredMaxHeight: SHARE_POPOVER_MAX_HEIGHT,
     gap: 6,
     margin: 8,
-    alignment: "end",
+    alignment: "center",
     placementPreference: "below",
   });
 

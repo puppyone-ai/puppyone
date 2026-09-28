@@ -6,6 +6,7 @@ const appSource = source("src/App.tsx");
 const layerSource = source("src/features/app-shell/DesktopTitlebarMenuLayer.tsx");
 const projectSource = source("src/features/app-shell/DesktopWorkspaceSwitcher.tsx");
 const branchSource = source("src/features/app-shell/DesktopTitlebarContext.tsx");
+const cloudSharePopoverSource = source("src/features/cloud/share/CloudSharePopover.tsx");
 const titlebarCss = source("src/styles/titlebar.css");
 const dialogCss = source("src/styles/dialogs.css");
 
@@ -91,6 +92,11 @@ describe("titlebar menu overlay architecture", () => {
     });
     expect(clamped.left).toBe(8);
     expect(clamped.left + clamped.width).toBeLessThanOrEqual(212);
+  });
+
+  it("opens the Cloud project popup centered below its Header control", () => {
+    expect(cloudSharePopoverSource).toContain('alignment: "center"');
+    expect(cloudSharePopoverSource).toContain('placementPreference: "below"');
   });
 
   it("keeps a fixed-below pane menu below its trigger and scrolls within remaining space", () => {
