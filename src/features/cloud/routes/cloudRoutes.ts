@@ -268,7 +268,16 @@ export function withShareHomeSidebarRoutes(
   const projectRoute = getCloudRoute("project");
   const homeIndex = routes.findIndex((route) => route.id === CLOUD_HUB_ENTRY_SECTION);
   if (homeIndex === -1 || routes.includes(projectRoute)) return [...routes];
-  return [...routes.slice(0, homeIndex + 1), projectRoute, ...routes.slice(homeIndex + 1)];
+  const shareRoute = {
+    ...routes[homeIndex],
+    labelId: "cloud.share.location.shareAction",
+  };
+  return [
+    ...routes.slice(0, homeIndex),
+    shareRoute,
+    projectRoute,
+    ...routes.slice(homeIndex + 1),
+  ];
 }
 
 export function normalizeCloudSection(

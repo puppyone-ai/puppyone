@@ -1,51 +1,56 @@
 @layer features {
-  /* ── Header control: glyph + status dot + one-word label ────────── */
-  .desktop-titlebar-share-wrap {
+  /* ── Project-context location segment ──────────────────────────── */
+  .desktop-titlebar-project-location-wrap {
     position: relative;
     display: inline-flex;
+    height: 100%;
     align-items: center;
   }
 
-  .desktop-titlebar-action.desktop-titlebar-share {
-    width: auto;
-    min-width: var(--desktop-chrome-control-size);
-    max-width: min(200px, 30vw);
+  .desktop-titlebar-context-icon-button.desktop-titlebar-project-location {
+    width: 25px;
+    min-width: 25px;
     flex: 0 0 auto;
-    gap: 6px;
-    padding: 0 8px 0 6px;
-    white-space: nowrap;
+    border-start-start-radius: 2px;
+    border-end-start-radius: 2px;
   }
 
-  .desktop-titlebar-share-glyph {
+  .desktop-titlebar-project-location::before {
+    position: absolute;
+    inset-block: 5px;
+    inset-inline-start: 0;
+    width: 1px;
+    background: var(--desktop-titlebar-divider);
+    content: "";
+    pointer-events: none;
+  }
+
+  .desktop-titlebar-project-location-glyph {
     position: relative;
     display: inline-flex;
     flex: 0 0 auto;
   }
 
-  .desktop-titlebar-share-status-icon {
+  .desktop-titlebar-project-location-status-icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
   }
 
-  .desktop-titlebar-share-dot {
+  .desktop-titlebar-project-location-status-icon > svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .desktop-titlebar-project-location-dot {
     position: absolute;
     right: -2px;
     bottom: -1px;
-    width: 7px;
-    height: 7px;
-    border: 1.5px solid var(--desktop-titlebar-bg, var(--po-panel));
+    width: 6px;
+    height: 6px;
+    border: 1px solid var(--desktop-titlebar-bg, var(--po-panel));
     border-radius: 999px;
     background: var(--po-text-disabled);
-  }
-
-  .desktop-titlebar-share-label {
-    min-width: 0;
-    overflow: hidden;
-    font-size: var(--po-font-size-chrome, 13px);
-    font-weight: var(--po-text-weight-regular, 400);
-    line-height: var(--po-type-header-line-height, 20px);
-    text-overflow: ellipsis;
   }
 
   /* This is a hover preview, so keep it quieter and denser than a menu. */
@@ -91,13 +96,13 @@
     background: var(--po-text-disabled);
   }
 
-  .desktop-titlebar-share[data-project-location="resolving"] .desktop-titlebar-share-dot,
+  .desktop-titlebar-project-location[data-project-location="resolving"] .desktop-titlebar-project-location-dot,
   .desktop-share-status[data-share-state="resolving"] .desktop-share-status-dot {
     background: var(--po-text-muted);
     animation: desktop-share-pulse 1.4s ease-in-out infinite;
   }
 
-  .desktop-titlebar-share[data-project-location="local-cloud"] .desktop-titlebar-share-dot,
+  .desktop-titlebar-project-location[data-project-location="local-cloud"] .desktop-titlebar-project-location-dot,
   .desktop-share-status[data-share-state="published"] .desktop-share-status-dot {
     background: var(--po-accent);
   }
@@ -115,7 +120,7 @@
     animation: desktop-share-pulse 1.4s ease-in-out infinite;
   }
 
-  .desktop-titlebar-share[data-project-location="attention"] .desktop-titlebar-share-dot,
+  .desktop-titlebar-project-location[data-project-location="attention"] .desktop-titlebar-project-location-dot,
   .desktop-share-status[data-share-state="attention"] .desktop-share-status-dot {
     background: var(--po-danger);
   }
@@ -139,65 +144,16 @@
     color: currentColor;
   }
 
-  .desktop-project-location-status-icon[data-location-state="local-cloud"] {
+  :is(.desktop-project-location-status-icon, .desktop-titlebar-project-location-status-icon)[data-location-state="local-cloud"] {
     color: var(--po-accent);
   }
 
-  .desktop-project-location-status-icon[data-location-state="resolving"] {
+  :is(.desktop-project-location-status-icon, .desktop-titlebar-project-location-status-icon)[data-location-state="resolving"] {
     color: var(--po-text-muted);
   }
 
-  .desktop-project-location-status-icon[data-location-state="attention"] {
+  :is(.desktop-project-location-status-icon, .desktop-titlebar-project-location-status-icon)[data-location-state="attention"] {
     color: var(--po-danger);
-  }
-
-  .desktop-project-location-share {
-    color: var(--po-text-muted);
-  }
-
-  .desktop-project-location-share-trailing {
-    display: inline-flex;
-    gap: var(--po-menu-item-gap);
-    align-items: center;
-  }
-
-  .desktop-project-location-share-brands {
-    display: inline-flex;
-    gap: 4px;
-    align-items: center;
-  }
-
-  .desktop-project-location-share-brand {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: var(--po-menu-icon-slot-size);
-    height: var(--po-menu-icon-slot-size);
-    color: currentColor;
-  }
-
-  .desktop-project-location-share-brand .po-agent-brand-image {
-    width: 13px;
-    height: 13px;
-    object-fit: contain;
-  }
-
-  .desktop-project-location-mcp-mark {
-    width: 13px;
-    height: 13px;
-    background: currentColor;
-    mask-position: center;
-    mask-repeat: no-repeat;
-    mask-size: contain;
-    -webkit-mask-position: center;
-    -webkit-mask-repeat: no-repeat;
-    -webkit-mask-size: contain;
-  }
-
-  .desktop-share-popover .desktop-project-location-share-brand > svg,
-  .desktop-share-popover .desktop-project-location-share-trailing > svg {
-    width: 13px;
-    height: 13px;
   }
 
   .desktop-share-status {
@@ -980,7 +936,7 @@
 
   @media (prefers-reduced-motion: reduce) {
     .desktop-share-popover,
-    .desktop-titlebar-share-dot,
+    .desktop-titlebar-project-location-dot,
     .desktop-share-status-dot,
     .desktop-share-status-reader-dot,
     .desktop-share-receipt-dot {

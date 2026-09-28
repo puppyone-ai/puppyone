@@ -1,6 +1,6 @@
 import { Tooltip } from "@puppyone/shared-ui";
 import { Fragment, type ReactNode } from "react";
-import { Cloud } from "lucide-react";
+import { Cloud, SquareArrowOutUpRight } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import { getOrderedHeaderElementDefinitions, type HeaderElementRenderContext } from "./headerElements";
 import type { TitlebarActionsSettings } from "../../preferences";
@@ -28,11 +28,8 @@ type DesktopTitlebarActionsProps = {
   onToggleGitChanges?: () => void;
   cloudEnabled?: boolean;
   onOpenCloud?: () => void;
-  /**
-   * Experimental Share onboarding replaces the plain Cloud button with a
-   * status-bearing control that owns its own menu.
-   */
-  cloudShareControl?: ReactNode;
+  shareEnabled?: boolean;
+  onShare?: () => void;
   placement?: "titlebar" | "toolbar";
   visibleGroups?: readonly DesktopTitlebarActionGroup[];
 };
@@ -52,7 +49,8 @@ export function DesktopTitlebarActions({
   onToggleGitChanges = () => {},
   cloudEnabled = false,
   onOpenCloud = () => {},
-  cloudShareControl = null,
+  shareEnabled = false,
+  onShare = () => {},
   placement = "titlebar",
   visibleGroups,
 }: DesktopTitlebarActionsProps) {
@@ -96,12 +94,26 @@ export function DesktopTitlebarActions({
 
   if (cloudEnabled && placement === "titlebar") {
     const cloudLabel = t("cloud.productName");
+    const shareLabel = t("shell.titlebar.share");
     titlebarActionItems.push({
       group: "header",
-      id: "cloud",
-      node: cloudShareControl ?? (
-        <Tooltip content={cloudLabel}><button type="button" className="desktop-titlebar-action desktop-titlebar-cloud"
-           aria-label={cloudLabel} onClick={onOpenCloud}>
+      id: shareEnabled ? "share" : "cloud",
+      node: shareEnabled ? (
+        <Tooltip content={shareLabel}><button
+          type="button"
+          className="desktop-titlebar-action desktop-titlebar-share"
+          aria-label={shareLabel}
+          onClick={onShare}
+        >
+          <SquareArrowOutUpRight size={15} strokeWidth={1.8} aria-hidden="true" />
+        </button></Tooltip>
+      ) : (
+        <Tooltip content={cloudLabel}><button
+          type="button"
+          className="desktop-titlebar-action desktop-titlebar-cloud"
+          aria-label={cloudLabel}
+          onClick={onOpenCloud}
+        >
           <Cloud size={16} strokeWidth={1.8} aria-hidden="true" />
         </button></Tooltip>
       ),
@@ -141,7 +153,7 @@ export function DesktopTitlebarActions({
       {visibleTitlebarActionItems.map((item, index) => {
         const previousItem = visibleTitlebarActionItems[index - 1];
         const separatesActionGroups = previousItem
-          && (previousItem.group !== item.group || previousItem.id === "cloud");
+          && (previousItem.group !== item.group || previousItem.id === "cloud" || previousItem.id === "share");
         return (
           <Fragment key={item.id}>
             {separatesActionGroups && (

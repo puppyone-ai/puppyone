@@ -47,6 +47,7 @@
   "titlebar.hideTerminal": "隐藏终端",
   "titlebar.showTerminal": "显示终端",
   "titlebar.hideAgent": "隐藏 Agent",
+  "titlebar.share": "共享",
   "titlebar.showAgent": "显示 Agent",
   "windowControls.minimize": "最小化窗口",
   "windowControls.maximize": "最大化或还原窗口",

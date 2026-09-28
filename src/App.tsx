@@ -118,7 +118,7 @@ import { getGitTitlebarStatus } from "./features/source-control/gitTitlebarStatu
 import { shouldBlockWorkspaceCloudResolution } from "./features/cloud/workspace/workspaceCloudResolutionKey";
 import { useCloudInitialization } from "./features/cloud/initialization/useCloudInitialization";
 import {
-  CloudShareHeaderControl,
+  CloudProjectLocationControl,
   CloudShareProvider,
   ShareWizardDialog,
   useProjectShareActivity,
@@ -563,6 +563,17 @@ function AppContent() {
     if (!cloudEnabled) return;
     setActiveView("data");
     setActiveCloudSection(CLOUD_HUB_ENTRY_SECTION);
+    setCloudDialogOpen(true);
+    setSettingsDialogOpen(false);
+    setPluginsDialogOpen(false);
+    setSidebarCollapsed(false);
+    setSwitcherOpen(false);
+    setBranchSwitcherOpen(false);
+  }, [cloudEnabled, setBranchSwitcherOpen, setSidebarCollapsed]);
+  const openCloudProjectDialog = useCallback(() => {
+    if (!cloudEnabled) return;
+    setActiveView("data");
+    setActiveCloudSection("project");
     setCloudDialogOpen(true);
     setSettingsDialogOpen(false);
     setPluginsDialogOpen(false);
@@ -1385,6 +1396,15 @@ function AppContent() {
       gitOperationLoading={gitOperationLoading}
       localBranches={localBranches}
       remoteBranches={remoteBranches}
+      projectLocationControl={shareOnboardingEnabled
+        ? (
+          <CloudProjectLocationControl
+            projectContext={projectCloudContext}
+            signedIn={cloudSignedIn}
+            onOpenProject={openCloudProjectDialog}
+          />
+        )
+        : null}
       workspace={workspace}
       workspaceFolders={workbenchWorkspace?.folders ?? []}
       multiRootWorkspacesEnabled={multiRootWorkspacesEnabled}
@@ -1424,15 +1444,8 @@ function AppContent() {
     onToggleGitChanges: handleToggleGitChanges,
     cloudEnabled,
     onOpenCloud: openCloudDialog,
-    cloudShareControl: shareOnboardingEnabled
-      ? (
-        <CloudShareHeaderControl
-          projectContext={projectCloudContext}
-          signedIn={cloudSignedIn}
-          onShare={openCloudDialog}
-        />
-      )
-      : null,
+    shareEnabled: shareOnboardingEnabled,
+    onShare: openCloudDialog,
   };
   const titlebarActions = (
     <DesktopTitlebarActions

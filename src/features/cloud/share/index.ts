@@ -1,4 +1,4 @@
-export { CloudShareHeaderControl } from "./CloudShareHeaderControl";
+export { CloudProjectLocationControl } from "./CloudProjectLocationControl";
 export { CloudProjectLocationCard, projectLocationBadge } from "./CloudProjectLocationCard";
 export { resolveProjectLocationStatus } from "./projectLocationStatus";
 export type { ProjectLocationKind, ProjectLocationStatus } from "./projectLocationStatus";

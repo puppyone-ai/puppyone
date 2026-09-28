@@ -182,7 +182,7 @@ describe("Cloud sidebar under the Share experiment", () => {
     act(() => root?.render(withTestLocalization(
       <CloudShareProvider value={shareActions()}>{sidebar("project")}</CloudShareProvider>,
     )));
-    expect(labels()).toEqual(["Homepage", "Project", "Other Agents", "Access via CLI", "Team"]);
+    expect(labels()).toEqual(["Share", "Project", "Other Agents", "Access via CLI", "Team"]);
     const active = Array.from(host.querySelectorAll<HTMLElement>(".po-sidebar-row[aria-current='page']"));
     expect(active.map((row) => row.textContent?.trim())).toEqual(["Project"]);
   });

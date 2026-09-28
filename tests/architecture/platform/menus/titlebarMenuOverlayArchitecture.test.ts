@@ -101,12 +101,11 @@ describe("titlebar menu overlay architecture", () => {
     expect(cloudSharePopoverSource).toContain('placementPreference: "below"');
   });
 
-  it("composes the Cloud project popup from the shared menu row geometry", () => {
-    expect(cloudProjectLocationSource).toContain("<DesktopMenuItem");
-    expect(cloudProjectLocationSource).toContain("<DesktopMenuSeparator />");
+  it("keeps the Cloud project hover card read-only and on shared row geometry", () => {
+    expect(cloudProjectLocationSource).not.toContain("<DesktopMenuItem");
+    expect(cloudProjectLocationSource).not.toContain("<DesktopMenuSeparator");
     expect(cloudProjectLocationSource).toContain('className="desktop-menu-item desktop-project-location-status"');
     expect(cloudShareCss).not.toMatch(/\.desktop-project-location-status\s*\{[^}]*(?:height|padding|font-size):/s);
-    expect(cloudShareCss).not.toMatch(/\.desktop-project-location-share\s*\{[^}]*(?:height|padding|font-size):/s);
   });
 
   it("keeps a fixed-below pane menu below its trigger and scrolls within remaining space", () => {

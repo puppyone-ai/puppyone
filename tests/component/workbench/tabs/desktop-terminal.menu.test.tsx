@@ -25,15 +25,17 @@ afterEach(() => {
 });
 
 describe("Desktop Terminal tab session manager", () => {
-  it("shows the PuppyOne Cloud entry only when Cloud is enabled", () => {
+  it("shows Cloud normally and the standalone Share action during Share onboarding", () => {
     const container = document.createElement("div");
     const onOpenCloud = vi.fn();
+    const onShare = vi.fn();
     document.body.appendChild(container);
     root = createRoot(container);
-    const render = (cloudEnabled: boolean) => act(() => root?.render(withTestLocalization(
+    const render = (cloudEnabled: boolean, shareEnabled = false) => act(() => root?.render(withTestLocalization(
       <DesktopTitlebarActions titlebarActionsSettings={DEFAULT_TITLEBAR_ACTIONS_SETTINGS}
         terminalSidebarOpen={false} terminalToolEnabled gitChangesAvailable cloudEnabled={cloudEnabled}
-        onOpenCloud={onOpenCloud} onToggleTerminal={vi.fn()} />,
+        shareEnabled={shareEnabled} onOpenCloud={onOpenCloud} onShare={onShare}
+        onToggleTerminal={vi.fn()} />,
     )));
     render(false);
     expect(container.querySelector(".desktop-titlebar-cloud")).toBeNull();
@@ -46,6 +48,16 @@ describe("Desktop Terminal tab session manager", () => {
     expect(cloud?.nextElementSibling?.nextElementSibling?.classList.contains("desktop-titlebar-changes")).toBe(true);
     act(() => cloud?.click());
     expect(onOpenCloud).toHaveBeenCalledOnce();
+
+    render(true, true);
+    expect(container.querySelector(".desktop-titlebar-cloud")).toBeNull();
+    const share = container.querySelector<HTMLButtonElement>(".desktop-titlebar-share");
+    expect(share?.textContent).toBe("");
+    expect(share?.getAttribute("aria-label")).toBe("Share");
+    expect(share?.querySelector(".lucide-square-arrow-out-up-right")).not.toBeNull();
+    expect(share?.nextElementSibling?.classList.contains("desktop-titlebar-action-divider")).toBe(true);
+    act(() => share?.click());
+    expect(onShare).toHaveBeenCalledOnce();
   });
   it("presents one unified Agent Workbench toggle in the workspace toolbar", () => {
     const container = document.createElement("div");

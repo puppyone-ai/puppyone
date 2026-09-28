@@ -142,12 +142,15 @@ describe("project shares", () => {
 });
 
 describe("share-first sidebar routes", () => {
-  it("slots Project right after Homepage without touching the stable contract", () => {
+  it("turns Homepage into Share and slots Project after it without touching the stable contract", () => {
     expect(CLOUD_PROJECT_SIDEBAR_ROUTES.map((route) => route.id)).toEqual(["contents", "mcp", "cli", "automation"]);
     expect(getCloudRoute("project").showInSidebar).toBe(false);
     expect(getCloudRoute("project").navigationGroup).toBe("project");
-    const ids = withShareHomeSidebarRoutes(CLOUD_BOUND_PROJECT_SIDEBAR_ROUTES).map((route) => route.id);
+    const shareRoutes = withShareHomeSidebarRoutes(CLOUD_BOUND_PROJECT_SIDEBAR_ROUTES);
+    const ids = shareRoutes.map((route) => route.id);
     expect(ids.slice(0, 3)).toEqual(["contents", "project", "mcp"]);
+    expect(shareRoutes[0]?.labelId).toBe("cloud.share.location.shareAction");
+    expect(CLOUD_BOUND_PROJECT_SIDEBAR_ROUTES[0]?.labelId).toBe("cloud.route.contents.label");
     expect(ids.filter((id) => id === "project")).toHaveLength(1);
     expect(withShareHomeSidebarRoutes(withShareHomeSidebarRoutes(CLOUD_BOUND_PROJECT_SIDEBAR_ROUTES)).map((route) => route.id))
       .toEqual(ids);

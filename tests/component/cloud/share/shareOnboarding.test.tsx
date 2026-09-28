@@ -25,7 +25,7 @@ vi.mock("../../../../src/lib/cloudApi", async () => {
 
 import {
   buildProjectShares,
-  CloudShareHeaderControl,
+  CloudProjectLocationControl,
   ShareWizardDialog,
   type ProjectSharesState,
 } from "../../../../src/features/cloud/share";
@@ -118,37 +118,37 @@ describe("Header project location", () => {
   function renderHeader({
     context = resolved,
     signedIn = true,
-    onShare = vi.fn(),
+    onOpenProject = vi.fn(),
   }: {
     context?: ProjectCloudContext;
     signedIn?: boolean;
-    onShare?: () => void;
+    onOpenProject?: () => void;
   } = {}) {
     act(() => root?.render(withTestLocalization(
-      <CloudShareHeaderControl
+      <CloudProjectLocationControl
         projectContext={context}
         signedIn={signedIn}
-        onShare={onShare}
+        onOpenProject={onOpenProject}
       />,
     )));
-    return host.querySelector<HTMLButtonElement>(".desktop-titlebar-share");
+    return host.querySelector<HTMLButtonElement>(".desktop-titlebar-project-location");
   }
 
   const popover = () => document.querySelector<HTMLElement>(".desktop-share-popover");
 
-  it("previews on hover and opens the full Share flow on click", () => {
-    const onShare = vi.fn();
+  it("previews on hover and opens Project management on click", () => {
+    const onOpenProject = vi.fn();
     const button = renderHeader({
       context: { status: "local-only", projectId: null },
       signedIn: false,
-      onShare,
+      onOpenProject,
     });
 
     act(() => button?.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
     expect(popover()).not.toBeNull();
 
     act(() => button?.click());
-    expect(onShare).toHaveBeenCalledOnce();
+    expect(onOpenProject).toHaveBeenCalledOnce();
     expect(popover()).toBeNull();
 
     act(() => button?.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
@@ -181,45 +181,33 @@ describe("Header project location", () => {
     }
   });
 
-  it("explains the local-only location and offers a visual sharing action", () => {
-    const onShare = vi.fn();
+  it("explains the local-only location without mixing in a sharing action", () => {
     const button = renderHeader({
       context: { status: "local-only", projectId: null },
       signedIn: false,
-      onShare,
     });
 
     expect(button?.dataset.projectLocation).toBe("local");
-    expect(button?.querySelector(".desktop-titlebar-share-label")?.textContent).toBe("Local only");
     expect(button?.getAttribute("aria-label")).toContain("Current project · Local only");
 
     act(() => button?.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
     const card = popover();
     expect(card?.getAttribute("role")).toBe("dialog");
     expect(card?.textContent).toContain("Local only");
-    expect(card?.textContent).toContain("Share");
+    expect(card?.textContent).not.toContain("Share");
     expect(card?.textContent).not.toContain("PuppyOne Cloud");
-    expect(card?.querySelectorAll(".desktop-project-location-share-brand")).toHaveLength(3);
-    expect(card?.querySelector("[data-share-mark='mcp']")).not.toBeNull();
-    expect(card?.querySelector("[data-share-mark='viktor'] img")).not.toBeNull();
-    expect(card?.querySelector("[data-share-mark='person'] svg")).not.toBeNull();
-    const shareButton = card?.querySelector<HTMLButtonElement>(".desktop-project-location-share");
-    expect(shareButton?.disabled).toBe(false);
-    act(() => shareButton?.click());
-    expect(onShare).toHaveBeenCalledOnce();
-    expect(popover()).toBeNull();
+    expect(card?.querySelectorAll("button")).toHaveLength(0);
   });
 
   it("keeps a signed-out Cloud project labeled by location", () => {
     const button = renderHeader({ signedIn: false });
 
     expect(button?.dataset.projectLocation).toBe("local-cloud");
-    expect(button?.querySelector(".desktop-titlebar-share-label")?.textContent).toBe("Local + Cloud");
     act(() => button?.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
     expect(popover()?.textContent).toContain("Local + Cloud");
     expect(popover()?.textContent).not.toContain("Signed out");
     expect(popover()?.textContent).not.toContain("Viktor");
-    expect(popover()?.querySelector(".desktop-project-location-share")).not.toBeNull();
+    expect(popover()?.querySelector("button")).toBeNull();
   });
 
   it("shows the Cloud link while signed out even when it cannot authorize it", () => {
@@ -228,13 +216,13 @@ describe("Header project location", () => {
       signedIn: false,
     });
     expect(button?.dataset.projectLocation).toBe("local-cloud");
-    expect(button?.querySelector(".desktop-titlebar-share-label")?.textContent).toBe("Local + Cloud");
+    expect(button?.getAttribute("aria-label")).toContain("Local + Cloud");
   });
 
   it("shows location resolution without making a sharing claim", () => {
     const button = renderHeader({ context: { status: "resolving", projectId: null } });
     expect(button?.dataset.projectLocation).toBe("resolving");
-    expect(button?.querySelector(".desktop-titlebar-share-label")?.textContent).toBe("Checking location…");
+    expect(button?.getAttribute("aria-label")).toContain("Checking location…");
   });
 
   it("marks a signed-in Cloud link that needs attention", () => {
@@ -242,7 +230,7 @@ describe("Header project location", () => {
       context: { status: "not-authorized", projectId: "proj-1", message: { code: "workspace-unavailable" } },
     });
     expect(button?.dataset.projectLocation).toBe("attention");
-    expect(button?.querySelector(".desktop-titlebar-share-label")?.textContent).toBe("Cloud issue");
+    expect(button?.getAttribute("aria-label")).toContain("Cloud issue");
     act(() => button?.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
     expect(popover()?.querySelector("[data-location-state='attention']")).not.toBeNull();
   });

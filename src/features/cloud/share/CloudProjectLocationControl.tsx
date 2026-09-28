@@ -11,17 +11,17 @@ import { resolveProjectLocationStatus } from "./projectLocationStatus";
 import "./share.css";
 
 /**
- * The Header cloud control reports where the current project is available.
- * Hover previews that location; clicking enters the full Cloud / Share flow.
+ * Project-context control that reports where the current project's files are
+ * available. Hover previews the location; clicking opens Project management.
  */
-export function CloudShareHeaderControl({
+export function CloudProjectLocationControl({
   projectContext,
   signedIn,
-  onShare,
+  onOpenProject,
 }: {
   projectContext: ProjectCloudContext;
   signedIn: boolean;
-  onShare: () => void;
+  onOpenProject: () => void;
 }) {
   const { t } = useLocalization();
   const [open, setOpen] = useState(false);
@@ -55,11 +55,11 @@ export function CloudShareHeaderControl({
       setOpen(false);
     }, 120);
   }, []);
-  const handleShare = useCallback(() => {
+  const handleOpenProject = useCallback(() => {
     suppressPreviewUntilLeaveRef.current = true;
     dismiss();
-    onShare();
-  }, [dismiss, onShare]);
+    onOpenProject();
+  }, [dismiss, onOpenProject]);
 
   useEffect(() => () => {
     if (dismissTimerRef.current !== null) window.clearTimeout(dismissTimerRef.current);
@@ -67,26 +67,24 @@ export function CloudShareHeaderControl({
 
   return (
     <div
-      className="desktop-titlebar-share-wrap"
+      className="desktop-titlebar-project-location-wrap"
       ref={wrapRef}
       onPointerEnter={showPreview}
       onPointerLeave={scheduleDismiss}
     >
       <button
         type="button"
-        className="desktop-titlebar-action desktop-titlebar-cloud desktop-titlebar-share"
+        className="desktop-titlebar-context-icon-button desktop-titlebar-project-location"
         aria-label={ariaLabel}
         aria-haspopup="dialog"
         aria-expanded={open}
         data-project-location={status.kind}
-        onClick={handleShare}
-        onFocus={showPreview}
+        onClick={handleOpenProject}
       >
-        <span className="desktop-titlebar-share-glyph" aria-hidden="true">
-          <ProjectLocationGlyph status={status} className="desktop-titlebar-share-status-icon" />
-          <span className="desktop-titlebar-share-dot" />
+        <span className="desktop-titlebar-project-location-glyph" aria-hidden="true">
+          <ProjectLocationGlyph status={status} className="desktop-titlebar-project-location-status-icon" />
+          <span className="desktop-titlebar-project-location-dot" />
         </span>
-        <span className="desktop-titlebar-share-label" aria-hidden="true">{locationLabel}</span>
       </button>
 
       <CloudSharePopover
@@ -97,7 +95,7 @@ export function CloudShareHeaderControl({
         onPointerEnter={showPreview}
         onPointerLeave={scheduleDismiss}
       >
-        <CloudProjectLocationCard status={status} onShare={handleShare} />
+        <CloudProjectLocationCard status={status} />
       </CloudSharePopover>
     </div>
   );

@@ -47,6 +47,7 @@
   "titlebar.hideTerminal": "Terminal ausblenden",
   "titlebar.showTerminal": "Terminal anzeigen",
   "titlebar.hideAgent": "Agent ausblenden",
+  "titlebar.share": "Teilen",
   "titlebar.showAgent": "Agent anzeigen",
   "windowControls.minimize": "Fenster minimieren",
   "windowControls.maximize": "Fenster maximieren oder wiederherstellen",
