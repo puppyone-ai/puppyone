@@ -178,6 +178,9 @@ function startLocalCloudHealthCheck() {
       const results = await localCloudServices.probeAll();
       const unhealthy = results.filter((result) => !result.ready);
       if (unhealthy.length === 0) {
+        if (localCloudFailureCount > 0) {
+          console.info("[desktop-dev] Local Cloud is healthy again.");
+        }
         localCloudFailureCount = 0;
         return;
       }
@@ -186,13 +189,12 @@ function startLocalCloudHealthCheck() {
       const detail = unhealthy
         .map((result) => `${result.name}: ${result.detail}`)
         .join("; ");
-      if (localCloudFailureCount < 2) {
+      // A transient probe timeout must not terminate Desktop, Next, and the
+      // API together. Owned child exits are handled above; live services can
+      // recover while the developer keeps working locally.
+      if (localCloudFailureCount === 1 || localCloudFailureCount % 10 === 0) {
         console.warn(`[desktop-dev] Local Cloud health check failed; retrying (${detail}).`);
-        return;
       }
-
-      console.error(`[desktop-dev] Local Cloud became unhealthy (${detail}).`);
-      beginShutdown(1);
     } finally {
       localCloudHealthCheckInFlight = false;
     }
