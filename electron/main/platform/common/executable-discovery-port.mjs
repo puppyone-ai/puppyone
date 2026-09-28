@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import { readUserCommandEnvironment } from "./command-environment.mjs";
+import { createWindowsRegisteredApplicationLocator } from "../windows/registered-applications.mjs";
 
 /**
  * Platform-owned inputs used by executable discovery. Product definitions do
@@ -13,12 +14,16 @@ export function createExecutableDiscoveryPort({
   homedir = os.homedir(),
   fsModule = fs,
   readEnvironment = readUserCommandEnvironment,
+  findRegisteredApplications,
 } = {}) {
+  const registeredApplications = findRegisteredApplications
+    ?? createWindowsRegisteredApplicationLocator({ nodePlatform, environment: env }).find;
   return Object.freeze({
     nodePlatform,
     env,
     homedir,
     fsModule,
     captureEnvironment: ({ signal } = {}) => readEnvironment({ env, homedir, platform: nodePlatform, signal }),
+    findRegisteredApplications: (applicationNames, options) => registeredApplications(applicationNames, options),
   });
 }

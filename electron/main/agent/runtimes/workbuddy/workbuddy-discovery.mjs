@@ -61,7 +61,10 @@ export async function discoverWorkBuddyExecutable({
   let readiness = result;
   if (result.status === "ready" && result.executablePath) {
     try {
-      const protocolProbe = await probe(spawn, result.executablePath, ["--help"], {
+      const protocolProbe = await probe(spawn, result.executablePath, [
+        ...(result.argsPrefix ?? []),
+        "--help",
+      ], {
         signal,
         env: workBuddyProbeEnvironment(result.environment),
         timeoutMs: ACP_PROBE_TIMEOUT_MS,

@@ -28,6 +28,7 @@ for (const file of [
   "electron/main/local-agent-installation/executable-resolver.mjs",
   "electron/main/local-agent-installation/installation-service.mjs",
   "electron/main/platform/common/executable-discovery-port.mjs",
+  "electron/main/platform/windows/registered-applications.mjs",
   "shared/local-agent-installation/schema.mjs",
   "shared/local-agent-installation/types.ts",
   "src/features/local-agents/application/LocalAgentInstallationStore.ts",
@@ -41,6 +42,7 @@ for (const file of [
 
 const main = read("electron/main.mjs");
 requireText(read("electron/main/local-agent-installation/installation-registry.mjs"), "defaultLocalAgentCatalog", "Installation identities must come from the shared catalog");
+requireText(read("electron/main/local-agent-installation/installation-definition.mjs"), "registeredApplicationNames", "Trusted installation projection must preserve registered desktop-application identities");
 requireText(read("electron/main/local-agent-installation/setup/setup-registry.mjs"), "defaultLocalAgentCatalog", "Setup and Companion identities must come from the shared catalog");
 requireText(read("electron/main/local-agent-activation/activation-registry.mjs"), "localAgentCapabilities", "Activation must select a declared capability, not a provider branch");
 for (const file of ["electron/main/local-agent-installation/setup/setup-registry.mjs", "electron/main/local-agent-activation/activation-registry.mjs"]) {
@@ -57,6 +59,7 @@ for (const directory of ["electron/main/local-agent-catalog", "electron/main/loc
 }
 requireText(main, "createLocalAgentInstallationService", "Electron main must compose one application-scoped installation service");
 requireText(main, "desktopPlatformHost.executableDiscovery", "Installation discovery must consume the platform executable-discovery port");
+requireText(read("electron/main/platform/common/executable-discovery-port.mjs"), "findRegisteredApplications", "Platform must own registered desktop-application discovery");
 const preload = read("electron/preload.cjs");
 requireText(preload, "discoverLocalAgentInstallations", "Preload must expose the installation discovery contract");
 requireText(preload, "onLocalAgentInstallationsChanged", "Preload must expose cross-window snapshot convergence");
@@ -104,6 +107,10 @@ requireText(workBuddyDiscovery, "installationId: channel.installationId", "WorkB
 const workBuddyChannels = read("electron/main/agent/runtimes/workbuddy/workbuddy-channels.mjs");
 requireText(workBuddyChannels, 'installationId: "workbuddy-china"', "WorkBuddy China must own a stable installation identity");
 requireText(workBuddyChannels, 'installationId: "workbuddy-international"', "WorkBuddy International must own a stable installation identity");
+const workBuddyInstallation = read("electron/main/local-agent-installation/definitions/workbuddy.mjs");
+requireText(workBuddyInstallation, "registeredApplicationNames", "WorkBuddy Windows discovery must consume OS-owned application registration");
+requireText(workBuddyInstallation, "ELECTRON_RUN_AS_NODE", "WorkBuddy Windows discovery must preserve its Electron-hosted CLI launch recipe");
+requireText(workBuddyInstallation, "manifest", "WorkBuddy discovery must verify channel identity from the installed product manifest");
 requireText(read("electron/main/agent/runtimes/cursor/cursor-discovery.mjs"), 'resolver.resolve("cursor", { context })', "Cursor Runtime must use its shared environment and installation definition");
 
 const resolverSource = read("electron/main/local-agent-installation/executable-resolver.mjs");
