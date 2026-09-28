@@ -508,7 +508,6 @@ function AppContent() {
     handleCommitAndPushGit,
     handleCommitGit,
     handleContinueGitOperation,
-    handleDiscardAllGitChanges,
     handleDiscardGitPaths,
     handleInitializeGitRepository,
     handlePublishGitBranch,
@@ -517,7 +516,6 @@ function AppContent() {
     handleStageAllGitChanges,
     handleStageAndCommitGit,
     handleStageGitPaths,
-    handleStashGitChanges,
     handleStashAndCheckoutBranch,
     handleUnstageGitPaths,
     isGitRepositoryContextCurrent,
@@ -1499,7 +1497,6 @@ function AppContent() {
                     stageAll: handleStageAllGitChanges,
                     unstagePaths: handleUnstageGitPaths,
                     discardPaths: handleDiscardGitPaths,
-                    discardAll: handleDiscardAllGitChanges,
                     stageAndCommit: handleStageAndCommitGit,
                     commit: handleCommitGit,
                     commitAndPush: handleCommitAndPushGit,
@@ -1508,7 +1505,6 @@ function AppContent() {
                     pull: handlePullGit,
                     push: handlePushGit,
                     publish: handlePublishGitBranch,
-                    stash: handleStashGitChanges,
                   }}
                   workingFileDiff={gitWorkingFileDiff}
                   workingFileDiffLoading={gitWorkingFileDiffLoading}

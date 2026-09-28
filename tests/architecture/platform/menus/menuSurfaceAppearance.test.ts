@@ -10,7 +10,6 @@ const layout = source("src/styles/layout.css");
 const titlebar = source("src/styles/titlebar.css");
 const fileActions = source("src/styles/file-actions.css");
 const nodeActions = source("src/features/data-workspace/nodeActions.tsx");
-const gitActions = source("src/features/source-control/styles/sidebar-actions.css");
 const plugins = source("src/features/plugins/plugins.css");
 const agentComposer = source("src/features/desktop-agent/ui/styles/composer.css");
 
@@ -70,8 +69,6 @@ describe("desktop menu appearance architecture", () => {
   });
 
   it("routes richer popup implementations through the shared menu tokens", () => {
-    expectSharedMenuSurface(gitActions, ".desktop-git-more-actions-menu");
-    expectSharedMenuRow(gitActions, ".desktop-git-more-actions-menu button");
     expectSharedMenuSurface(plugins, ".desktop-plugin-menu > div");
     expectSharedMenuRow(plugins, ".desktop-plugin-menu button");
     expectSharedMenuSurface(agentComposer, ".desktop-agent-command-menu");

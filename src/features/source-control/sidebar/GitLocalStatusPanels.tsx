@@ -30,7 +30,6 @@ type LocalPanelActions = Pick<
   | "stageAll"
   | "unstagePaths"
   | "discardPaths"
-  | "discardAll"
   | "stageAndCommit"
   | "commit"
   | "commitAndPush"

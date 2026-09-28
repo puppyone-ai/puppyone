@@ -178,16 +178,6 @@
   --desktop-git-primary-fg-disabled: var(--po-text-disabled);
 }
 
-.desktop-git-secondary-actions {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-  width: var(--git-sidebar-control-width);
-  margin: 6px var(--git-sidebar-control-right-gap) 0 var(--git-sidebar-control-left-gap);
-}
-
 .desktop-git-incoming-notice {
   display: grid;
   box-sizing: border-box;
@@ -219,80 +209,6 @@
 
 .desktop-git-incoming-notice-pull {
   grid-column: 2;
-}
-
-.desktop-git-more-actions {
-  position: relative;
-}
-
-.desktop-git-more-actions > summary {
-  display: inline-flex;
-  width: var(--git-action-size);
-  height: var(--git-action-size);
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: var(--git-action-radius);
-  background: transparent;
-  color: var(--po-text-subtle);
-  cursor: default;
-  list-style: none;
-}
-
-.desktop-git-more-actions > summary::-webkit-details-marker {
-  display: none;
-}
-
-.desktop-git-more-actions > summary:hover,
-.desktop-git-more-actions[open] > summary {
-  background: var(--po-hover);
-  color: var(--po-text);
-}
-
-.desktop-git-more-actions > summary:focus-visible {
-  outline: none;
-  box-shadow: inset 0 0 0 1px var(--po-focus-ring);
-}
-
-.desktop-git-more-actions-menu {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 5px);
-  z-index: 4;
-  display: grid;
-  width: max-content;
-  min-width: 132px;
-  padding: var(--po-menu-padding);
-  border: 1px solid var(--po-menu-border);
-  border-radius: var(--po-menu-radius);
-  background: var(--po-menu-bg);
-  box-shadow: var(--po-menu-shadow-compact);
-}
-
-.desktop-git-more-actions-menu button {
-  min-height: var(--po-menu-item-height);
-  padding: 0 var(--po-menu-item-padding-inline);
-  border: 0;
-  border-radius: var(--po-menu-item-radius);
-  background: transparent;
-  color: var(--po-text-muted);
-  font: inherit;
-  font-size: var(--po-type-ui-control, 14px);
-  font-weight: var(--po-text-weight-regular, 400);
-  text-align: start;
-}
-
-.desktop-git-more-actions-menu button:hover:not(:disabled) {
-  background: var(--po-hover);
-  color: var(--po-text);
-}
-
-.desktop-git-more-actions-menu button.danger:hover:not(:disabled) {
-  color: var(--po-danger);
-}
-
-.desktop-git-more-actions-menu button:disabled {
-  color: var(--po-text-disabled);
 }
 
 .app-shell:not(.dark) .desktop-git-sidebar {

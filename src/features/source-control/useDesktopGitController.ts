@@ -8,7 +8,6 @@ import {
   commitAndCheckoutWorkspaceGitBranch,
   commitWorkspaceGit,
   continueWorkspaceGitOperation,
-  discardAllWorkspaceGitChanges,
   discardWorkspaceGitPaths,
   getWorkspaceGitBranchGraph,
   cancelWorkspaceGitBranchGraph,
@@ -20,7 +19,6 @@ import {
   pushWorkspaceGit,
   stageAllWorkspaceGitChanges,
   stageWorkspaceGitPaths,
-  stashWorkspaceGitChanges,
   stashAndCheckoutWorkspaceGitBranch,
   unstageAllWorkspaceGitChanges,
   unstageWorkspaceGitPaths,
@@ -435,20 +433,6 @@ export function useDesktopGitController({
     return runGitOperation("discard", (rootPath) => discardWorkspaceGitPaths(rootPath, paths));
   }, [runGitOperation, t, workspace]);
 
-  const handleDiscardAllGitChanges = useCallback(() => {
-    const discardableCount = activeGitStatus?.sourceControl.groups
-      .filter((group) => group.id === "workingTree" || group.id === "untracked" || group.id === "merge")
-      .reduce((total, group) => total + group.resources.length, 0) ?? 0;
-    if (discardableCount === 0) {
-      setGitOperationError(null);
-      return Promise.resolve(false);
-    }
-    if (!window.confirm(t("source-control.dialog.discard.count", { count: discardableCount }))) {
-      return Promise.resolve(false);
-    }
-    return runGitOperation("discard", (rootPath) => discardAllWorkspaceGitChanges(rootPath));
-  }, [activeGitStatus, runGitOperation, t]);
-
   const handleCommitGit = useCallback(async (message = "") => {
     if (!workspace) return false;
     const context = captureGitRepositoryContext(workspace.path);
@@ -549,10 +533,6 @@ export function useDesktopGitController({
 
   const handlePublishGitBranch = useCallback(() => {
     return runGitOperation("publish", (rootPath) => publishWorkspaceGitBranch(rootPath));
-  }, [runGitOperation]);
-
-  const handleStashGitChanges = useCallback(() => {
-    return runGitOperation("stash", (rootPath) => stashWorkspaceGitChanges(rootPath));
   }, [runGitOperation]);
 
   const handleContinueGitOperation = useCallback(() => {
@@ -748,7 +728,6 @@ export function useDesktopGitController({
     handleCommitAndCheckoutBranch,
     handleCommitAndPushGit,
     handleCommitGit,
-    handleDiscardAllGitChanges,
     handleDiscardGitPaths,
     handleInitializeGitRepository,
     handlePublishGitBranch,
@@ -757,7 +736,6 @@ export function useDesktopGitController({
     handleStageAllGitChanges,
     handleStageAndCommitGit,
     handleStageGitPaths,
-    handleStashGitChanges,
     handleStashAndCheckoutBranch,
     handleUnstageAllGitChanges,
     handleUnstageGitPaths,

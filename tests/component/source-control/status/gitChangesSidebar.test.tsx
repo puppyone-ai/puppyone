@@ -83,7 +83,6 @@ describe("Changes right sidebar", () => {
             stageAll: succeed,
             unstagePaths: succeed,
             discardPaths: onDiscardPaths,
-            discardAll: succeed,
             stageAndCommit: succeed,
             commit: succeed,
             commitAndPush: succeed,
@@ -92,7 +91,6 @@ describe("Changes right sidebar", () => {
             pull: succeed,
             push: succeed,
             publish: succeed,
-            stash: succeed,
           }}
           workingFileDiff={null}
           workingFileDiffLoading={false}

@@ -28,7 +28,6 @@ export type GitSidebarActions = {
   stageAll: () => Promise<boolean>;
   unstagePaths: (paths: string[]) => Promise<boolean>;
   discardPaths: (paths: string[]) => Promise<boolean>;
-  discardAll: () => Promise<boolean>;
   stageAndCommit: (message?: string) => Promise<boolean>;
   commit: (message?: string) => Promise<boolean>;
   commitAndPush: (message?: string) => Promise<boolean>;
@@ -37,7 +36,6 @@ export type GitSidebarActions = {
   pull: () => Promise<boolean>;
   push: () => Promise<boolean>;
   publish: () => Promise<boolean>;
-  stash: () => Promise<boolean>;
 };
 
 export type GitSidebarCloudBackup = {
