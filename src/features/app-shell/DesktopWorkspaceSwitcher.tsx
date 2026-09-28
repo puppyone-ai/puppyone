@@ -23,10 +23,7 @@ type DesktopWorkspaceSwitcherProps = {
   workspaceFolders: readonly WorkspaceFolder[];
   multiRootWorkspacesEnabled: boolean;
   availableProjects?: readonly Workspace[];
-  cloudEnabled?: boolean;
-  cloudOpen?: boolean;
   onAddExistingProject?: (folderPath: string) => void;
-  onOpenCloud?: () => void;
   onOpenFolder?: () => void;
   onClose: () => void;
   onGoHome: () => void;
@@ -41,10 +38,7 @@ export function DesktopWorkspaceSwitcher({
   workspaceFolders,
   multiRootWorkspacesEnabled,
   availableProjects = [],
-  cloudEnabled = false,
-  cloudOpen = false,
   onAddExistingProject,
-  onOpenCloud,
   onOpenFolder,
   onClose,
   onGoHome,
@@ -127,19 +121,6 @@ export function DesktopWorkspaceSwitcher({
                   icon={<FolderPlus size={15} strokeWidth={1.8} />}
                   label={t("shell.workspaceSwitcher.addProject")}
                   onClick={() => setView("add")}
-                />
-              )}
-              {cloudEnabled && onOpenCloud && (
-                <DesktopMenuItem
-                  className="desktop-project-cloud"
-                  icon={<ProjectContextAssetMark kind="cloud" size={15} />}
-                  label={t("shell.navigation.cloud")}
-                  aria-haspopup="dialog"
-                  aria-expanded={cloudOpen}
-                  onClick={() => {
-                    onClose();
-                    onOpenCloud();
-                  }}
                 />
               )}
             </div>

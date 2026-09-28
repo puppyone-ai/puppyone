@@ -248,9 +248,8 @@ describe("titlebar Portal menu interactions", () => {
     expect(branchButton?.querySelector(".desktop-titlebar-branch-placeholder")).not.toBeNull();
   });
 
-  it("shows the local context asset in the project control and keeps Cloud in its menu", async () => {
+  it("shows the local context asset and omits the Header Cloud entry from the project menu", async () => {
     const container = document.createElement("div");
-    const onOpenCloud = vi.fn();
     document.body.appendChild(container);
     root = createRoot(container);
 
@@ -260,8 +259,6 @@ describe("titlebar Portal menu interactions", () => {
           activeGitStatus={createGitStatus()}
           branchSwitcherOpen={false}
           branchSwitcherRef={createRef<HTMLDivElement>()}
-          cloudEnabled
-          cloudOpen
           gitStatusLoading={false}
           gitOperationLoading={null}
           localBranches={[]}
@@ -277,7 +274,6 @@ describe("titlebar Portal menu interactions", () => {
           onGoHome={vi.fn()}
           onAddProject={vi.fn()}
           onAddExistingProject={vi.fn()}
-          onOpenCloud={onOpenCloud}
           onToggleBranchSwitcher={vi.fn()}
           onToggleWorkspaceSwitcher={vi.fn()}
         />,
@@ -289,12 +285,8 @@ describe("titlebar Portal menu interactions", () => {
     expect(workspaceButton?.querySelector('[data-context-asset-kind="local"] .lucide-folder-closed')).not.toBeNull();
     expect(workspaceButton?.getAttribute("aria-label")).toContain("Local folder");
     expect(container.querySelector(".desktop-titlebar-cloud-button")).toBeNull();
-
-    const cloudMenuItem = requireMenu().querySelector<HTMLButtonElement>(".desktop-project-cloud");
-    expect(cloudMenuItem?.getAttribute("aria-haspopup")).toBe("dialog");
-    expect(cloudMenuItem?.getAttribute("aria-expanded")).toBe("true");
-    act(() => cloudMenuItem?.click());
-    expect(onOpenCloud).toHaveBeenCalledOnce();
+    expect(requireMenu().querySelector(".desktop-project-cloud")).toBeNull();
+    expect(requireMenu().textContent).not.toContain("Cloud");
   });
 });
 

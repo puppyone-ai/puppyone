@@ -1381,8 +1381,6 @@ function AppContent() {
       activeGitStatus={activeGitStatus}
       branchSwitcherOpen={branchSwitcherOpen}
       branchSwitcherRef={branchSwitcherRef}
-      cloudEnabled={cloudEnabled}
-      cloudOpen={cloudDialogOpen}
       gitStatusLoading={gitStatusLoading}
       gitOperationLoading={gitOperationLoading}
       localBranches={localBranches}
@@ -1394,7 +1392,6 @@ function AppContent() {
       workspaceSwitcherOpen={switcherOpen}
       workspaceSwitcherRef={switcherRef}
       onCheckoutBranch={handleCheckoutGitBranch}
-      onOpenCloud={openCloudDialog}
       onAddProject={() => void addProject()}
       onAddExistingProject={(folderPath) => void addExistingProject(folderPath)}
       onGoHome={() => void goToHomepage()}
