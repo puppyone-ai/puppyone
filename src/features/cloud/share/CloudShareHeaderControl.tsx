@@ -1,8 +1,11 @@
 import { useLocalization } from "@puppyone/localization/react";
-import { Cloud } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 import type { ProjectCloudContext } from "../project/context/projectCloudContext";
-import { CloudProjectLocationCard, projectLocationBadge } from "./CloudProjectLocationCard";
+import {
+  CloudProjectLocationCard,
+  ProjectLocationGlyph,
+  projectLocationBadge,
+} from "./CloudProjectLocationCard";
 import { CloudSharePopover } from "./CloudSharePopover";
 import { resolveProjectLocationStatus } from "./projectLocationStatus";
 import "./share.css";
@@ -46,7 +49,7 @@ export function CloudShareHeaderControl({
         onClick={() => setOpen((current) => !current)}
       >
         <span className="desktop-titlebar-share-glyph" aria-hidden="true">
-          <Cloud size={15} strokeWidth={1.8} />
+          <ProjectLocationGlyph status={status} className="desktop-titlebar-share-status-icon" />
           <span className="desktop-titlebar-share-dot" />
         </span>
         <span className="desktop-titlebar-share-label" aria-hidden="true">{locationLabel}</span>

@@ -161,16 +161,19 @@ describe("Header project location", () => {
     });
 
     expect(button?.dataset.projectLocation).toBe("local");
-    expect(button?.querySelector(".desktop-titlebar-share-label")?.textContent).toBe("Local");
-    expect(button?.getAttribute("aria-label")).toContain("Current project · Local");
+    expect(button?.querySelector(".desktop-titlebar-share-label")?.textContent).toBe("Local only");
+    expect(button?.getAttribute("aria-label")).toContain("Current project · Local only");
 
     act(() => button?.click());
     const card = popover();
     expect(card?.getAttribute("role")).toBe("dialog");
-    expect(card?.textContent).toContain("Your files are only on this Mac");
-    expect(card?.textContent).toContain("Share files with other Agents");
+    expect(card?.textContent).toContain("Local only");
+    expect(card?.textContent).toContain("Share");
     expect(card?.textContent).not.toContain("PuppyOne Cloud");
-    expect(card?.querySelectorAll(".desktop-project-location-share-brand img")).toHaveLength(3);
+    expect(card?.querySelectorAll(".desktop-project-location-share-brand")).toHaveLength(3);
+    expect(card?.querySelector("[data-share-mark='mcp']")).not.toBeNull();
+    expect(card?.querySelector("[data-share-mark='viktor'] img")).not.toBeNull();
+    expect(card?.querySelector("[data-share-mark='person'] svg")).not.toBeNull();
     const shareButton = card?.querySelector<HTMLButtonElement>(".desktop-project-location-share");
     expect(shareButton?.disabled).toBe(false);
     act(() => shareButton?.click());
@@ -184,7 +187,7 @@ describe("Header project location", () => {
     expect(button?.dataset.projectLocation).toBe("local-cloud");
     expect(button?.querySelector(".desktop-titlebar-share-label")?.textContent).toBe("Local + Cloud");
     act(() => button?.click());
-    expect(popover()?.textContent).toContain("Your files are on this Mac and PuppyOne Cloud");
+    expect(popover()?.textContent).toContain("Local + Cloud");
     expect(popover()?.textContent).not.toContain("Signed out");
     expect(popover()?.textContent).not.toContain("Viktor");
     expect(popover()?.querySelector(".desktop-project-location-share")).not.toBeNull();
