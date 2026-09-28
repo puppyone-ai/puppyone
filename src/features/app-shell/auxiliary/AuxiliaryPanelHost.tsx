@@ -34,6 +34,7 @@ export type AuxiliaryPanelHostProps = {
   maxWidth?: number;
   resizable?: boolean;
   onOpenChange?: (open: boolean) => void;
+  onRenderedWidthChange?: (width: number) => void;
   onWidthChange?: (width: number) => void;
 };
 
@@ -49,6 +50,7 @@ export function AuxiliaryPanelHost({
   maxWidth = 760,
   resizable = false,
   onOpenChange,
+  onRenderedWidthChange,
   onWidthChange,
 }: AuxiliaryPanelHostProps) {
   const { t } = useLocalization();
@@ -105,6 +107,19 @@ export function AuxiliaryPanelHost({
     AUXILIARY_LAYOUT_TRANSITION_PROPERTIES,
     !resize.dragging,
   );
+
+  useLayoutEffect(() => {
+    if (!panelElement || !onRenderedWidthChange) return undefined;
+    const publishWidth = () => {
+      onRenderedWidthChange(panelElement.getBoundingClientRect().width);
+    };
+    publishWidth();
+    if (typeof ResizeObserver !== "function") return undefined;
+    const observer = new ResizeObserver(publishWidth);
+    observer.observe(panelElement);
+    return () => observer.disconnect();
+  }, [onRenderedWidthChange, panelElement]);
+
   const liveExpandedWidth = clamp(resize.width, minWidth, maxWidth);
   const renderedExpandedWidth = resize.dragging
     ? open

@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -118,6 +119,7 @@ export function DesktopCloudShell({
   const bodyRef = useRef<HTMLDivElement>(null);
   const [navigationToolbarHost, setNavigationToolbarHost] = useState<HTMLDivElement | null>(null);
   const [leadingRailResizerElement, setLeadingRailResizerElement] = useState<HTMLDivElement | null>(null);
+  const [renderedRightSidebarWidth, setRenderedRightSidebarWidth] = useState(0);
   const bodyWidth = useObservedElementWidth(bodyRef);
   const resolvedLeadingRailMinWidth = Math.max(0, Math.round(leadingRailMinWidth));
   const resolvedLeadingRailMaxWidth = Math.max(
@@ -233,11 +235,25 @@ export function DesktopCloudShell({
     : paneLayout.explorer.collapsed
       ? "collapsed"
       : "expanded";
+  const rightSidebarPresent = Boolean(rightSidebar);
+  const trackRightSidebarHeader = rightSidebarPresent && (
+    paneLayout.rightSidebar.open || renderedRightSidebarWidth > 0.5
+  );
+  const handleRenderedRightSidebarWidthChange = useCallback((width: number) => {
+    const normalizedWidth = Math.max(0, width);
+    setRenderedRightSidebarWidth((current) => (
+      Math.abs(current - normalizedWidth) < 0.25 ? current : normalizedWidth
+    ));
+  }, []);
   const shellStyle = {
     "--desktop-shell-explorer-width": `${paneLayout.explorer.width}px`,
     "--desktop-shell-leading-rail-width": `${resolvedLeadingRailWidth}px`,
-    "--desktop-shell-right-sidebar-width": `${paneLayout.rightSidebar.width}px`,
+    "--desktop-shell-right-sidebar-width": `${renderedRightSidebarWidth}px`,
   } as CSSProperties;
+
+  useEffect(() => {
+    if (!rightSidebarPresent) setRenderedRightSidebarWidth(0);
+  }, [rightSidebarPresent]);
 
   useEffect(() => {
     publishWindowMinimumWidth(paneLayout.minimumWidth + resolvedLeadingRailWidth);
@@ -295,7 +311,7 @@ export function DesktopCloudShell({
     <div
       className="desktop-shell"
       data-leading-rail={leadingRailPresent ? "true" : undefined}
-      data-right-sidebar-open={paneLayout.rightSidebar.open ? "true" : undefined}
+      data-right-sidebar-open={trackRightSidebarHeader ? "true" : undefined}
       data-titlebar-sidebar-state={sidebarState}
       style={shellStyle}
     >
@@ -403,6 +419,7 @@ export function DesktopCloudShell({
                         maxWidth={paneLayout.rightSidebar.maxWidth}
                         resizable={resizableRightSidebar}
                         onOpenChange={onRightSidebarOpenChange}
+                        onRenderedWidthChange={handleRenderedRightSidebarWidthChange}
                         onWidthChange={onRightSidebarWidthChange}
                       >
                         {rightSidebar}

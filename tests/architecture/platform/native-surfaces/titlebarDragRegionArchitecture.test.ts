@@ -10,6 +10,10 @@ const windowChromeComponent = readFileSync(
 );
 const electronMain = readFileSync(new URL("../../../../electron/main.mjs", import.meta.url), "utf8");
 const desktopShell = readFileSync(new URL("../../../../src/components/DesktopCloudShell.tsx", import.meta.url), "utf8");
+const auxiliaryPanelHost = readFileSync(
+  new URL("../../../../src/features/app-shell/auxiliary/AuxiliaryPanelHost.tsx", import.meta.url),
+  "utf8",
+);
 const shellCss = readFileSync(new URL("../../../../src/styles/shell.css", import.meta.url), "utf8");
 const desktopMenu = readFileSync(new URL("../../../../src/components/DesktopMenu.tsx", import.meta.url), "utf8");
 const sharedWorkspaceCss = readFileSync(
@@ -68,8 +72,11 @@ describe("titlebar drag-region architecture", () => {
   });
 
   it("aligns the Cloud boundary with an expanded right sidebar", () => {
-    expect(desktopShell).toContain('"--desktop-shell-right-sidebar-width": `${paneLayout.rightSidebar.width}px`');
-    expect(desktopShell).toContain('data-right-sidebar-open={paneLayout.rightSidebar.open ? "true" : undefined}');
+    expect(desktopShell).toContain('"--desktop-shell-right-sidebar-width": `${renderedRightSidebarWidth}px`');
+    expect(desktopShell).toContain('data-right-sidebar-open={trackRightSidebarHeader ? "true" : undefined}');
+    expect(desktopShell).toContain("onRenderedWidthChange={handleRenderedRightSidebarWidthChange}");
+    expect(auxiliaryPanelHost).toContain("new ResizeObserver(publishWidth)");
+    expect(auxiliaryPanelHost).toContain("panelElement.getBoundingClientRect().width");
     expect(titlebarCss).toContain(
       '.desktop-shell[data-right-sidebar-open="true"] .desktop-titlebar-trailing',
     );
