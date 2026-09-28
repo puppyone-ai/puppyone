@@ -352,7 +352,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(branchButton?.querySelector(".desktop-titlebar-branch-placeholder")).not.toBeNull();
   });
 
-  it("shows the local context asset and omits the Header Cloud entry from the project menu", async () => {
+  it("shows the local location mark and omits the Header Cloud entry from the project menu", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -386,8 +386,9 @@ describe("titlebar Portal menu interactions", () => {
     });
 
     const workspaceButton = container.querySelector<HTMLButtonElement>(".desktop-titlebar-workspace-button");
-    expect(workspaceButton?.querySelector('[data-context-asset-kind="local"] .lucide-folder-closed')).not.toBeNull();
-    expect(workspaceButton?.getAttribute("aria-label")).toContain("Local folder");
+    expect(workspaceButton?.querySelector('.lucide-laptop')).not.toBeNull();
+    expect(workspaceButton?.querySelector('.lucide-folder-closed')).toBeNull();
+    expect(workspaceButton?.getAttribute("aria-label")).toContain("This Mac");
     expect(container.querySelector(".desktop-titlebar-cloud-button")).toBeNull();
     expect(requireMenu().querySelector(".desktop-project-cloud")).toBeNull();
     expect(requireMenu().textContent).not.toContain("Cloud");

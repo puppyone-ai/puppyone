@@ -71,18 +71,10 @@ export function DesktopWorkspaceSwitcher({
   const { t } = useLocalization();
   const [view, setView] = useState<"projects" | "add">("projects");
   const workspaceContextAssetKind = resolveProjectContextAssetKind(workspace);
-  const workspaceContextAssetLabel = projectLocation
-    ? t(projectLocation.current === "cloud"
-      ? "shell.workspaceSwitcher.location.cloud"
-      : "shell.workspaceSwitcher.location.thisMac")
-    : t(workspaceContextAssetKind === "cloud"
-      ? "shell.workspaceSwitcher.contextAssetCloud"
-      : "shell.workspaceSwitcher.contextAssetLocal");
-  const workspaceMenuLocationLabel = projectLocation
-    ? workspaceContextAssetLabel
-    : t(workspaceContextAssetKind === "cloud"
-      ? "shell.workspaceSwitcher.location.cloud"
-      : "shell.workspaceSwitcher.location.thisMac");
+  const currentProjectLocationKind = projectLocation?.current ?? workspaceContextAssetKind;
+  const workspaceContextAssetLabel = t(currentProjectLocationKind === "cloud"
+    ? "shell.workspaceSwitcher.location.cloud"
+    : "shell.workspaceSwitcher.location.thisMac");
   const attachedFolders = useMemo(
     () => workspaceFolders.length > 0
       ? workspaceFolders
@@ -110,19 +102,11 @@ export function DesktopWorkspaceSwitcher({
         aria-haspopup="menu"
         onClick={onToggle}
       >
-        {projectLocation ? (
-          <ProjectLocationMark
-            className="desktop-titlebar-workspace-mark"
-            kind={projectLocation.current}
-            size={16}
-          />
-        ) : (
-          <ProjectContextAssetMark
-            className="desktop-titlebar-workspace-mark"
-            kind={workspaceContextAssetKind}
-            size={16}
-          />
-        )}
+        <ProjectLocationMark
+          className="desktop-titlebar-workspace-mark"
+          kind={currentProjectLocationKind}
+          size={16}
+        />
         <bdi className="desktop-titlebar-workspace-name">{titlebarLabel}</bdi>
       </button></Tooltip>
 
@@ -143,7 +127,7 @@ export function DesktopWorkspaceSwitcher({
             >
               <DesktopCurrentProjectLocation
                 fallbackKind={workspaceContextAssetKind}
-                fallbackLabel={workspaceMenuLocationLabel}
+                fallbackLabel={workspaceContextAssetLabel}
                 location={projectLocation}
               />
               {projectLocation && (
