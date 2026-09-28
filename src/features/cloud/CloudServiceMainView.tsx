@@ -127,8 +127,6 @@ export function CloudServiceMainView({
         authState={cloudAuthState}
         apiBaseUrl={cloudApiBaseUrl}
         loadingLabel={t("cloud.loading.session")}
-        onSessionChange={onCloudSessionChange}
-        onRefresh={onRefresh}
       />
     );
   }

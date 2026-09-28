@@ -128,8 +128,6 @@ describe("current-repository Cloud navigation", () => {
         authState={{ status: "signed-out", apiBaseUrl: session.api_base_url }}
         apiBaseUrl={session.api_base_url}
         loadingLabel="Restoring Cloud session…"
-        onSessionChange={vi.fn()}
-        onRefresh={vi.fn()}
       />,
     ));
 
@@ -137,7 +135,8 @@ describe("current-repository Cloud navigation", () => {
     expect(container.querySelector(".desktop-entry-state-description")?.textContent)
       .toBe("Share this Cloud project with ChatGPT, Claude, and other Agents.");
     expect(container.querySelector(".desktop-cloud-auth-submit")?.textContent)
-      .toBe("Get Started");
+      .toBe("Sign in to PuppyOne Cloud");
+    expect(container.textContent).not.toContain("browser");
     expect(container.textContent).not.toContain("May upload");
     expect(container.querySelector(".desktop-cloud-mcp-illustration")).not.toBeNull();
 
@@ -147,8 +146,6 @@ describe("current-repository Cloud navigation", () => {
         authState={{ status: "signed-out", apiBaseUrl: session.api_base_url }}
         apiBaseUrl={session.api_base_url}
         loadingLabel="Restoring Cloud session…"
-        onSessionChange={vi.fn()}
-        onRefresh={vi.fn()}
       />,
     ));
     expect(container.querySelector("h1")?.textContent).toBe("Access this project from the CLI");
@@ -160,8 +157,6 @@ describe("current-repository Cloud navigation", () => {
         authState={{ status: "signed-out", apiBaseUrl: session.api_base_url }}
         apiBaseUrl={session.api_base_url}
         loadingLabel="Restoring Cloud session…"
-        onSessionChange={vi.fn()}
-        onRefresh={vi.fn()}
       />,
     ));
     expect(container.querySelector("h1")?.textContent).toBe("Git");
@@ -173,8 +168,6 @@ describe("current-repository Cloud navigation", () => {
         authState={{ status: "signed-out", apiBaseUrl: session.api_base_url }}
         apiBaseUrl={session.api_base_url}
         loadingLabel="Restoring Cloud session…"
-        onSessionChange={vi.fn()}
-        onRefresh={vi.fn()}
       />,
     ));
     expect(container.querySelector("h1")?.textContent).toBe("Automation");
@@ -186,8 +179,6 @@ describe("current-repository Cloud navigation", () => {
         authState={{ status: "signed-out", apiBaseUrl: session.api_base_url }}
         apiBaseUrl={session.api_base_url}
         loadingLabel="Restoring Cloud session…"
-        onSessionChange={vi.fn()}
-        onRefresh={vi.fn()}
       />,
     ));
     expect(container.querySelector("h1")?.textContent).toBe("PuppyOne Cloud");
@@ -204,8 +195,6 @@ describe("current-repository Cloud navigation", () => {
         authState={{ status: "signed-out", apiBaseUrl: session.api_base_url }}
         apiBaseUrl={session.api_base_url}
         loadingLabel="Restoring Cloud session…"
-        onSessionChange={vi.fn()}
-        onRefresh={vi.fn()}
       />,
     ));
     expect(container.querySelector("h1")?.textContent).toBe("Permissions");

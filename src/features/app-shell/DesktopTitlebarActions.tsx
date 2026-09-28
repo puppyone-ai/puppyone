@@ -1,6 +1,6 @@
 import { Tooltip } from "@puppyone/shared-ui";
 import { Fragment, type ReactNode } from "react";
-import { Share } from "lucide-react";
+import { Cloud } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import { getOrderedHeaderElementDefinitions, type HeaderElementRenderContext } from "./headerElements";
 import type { TitlebarActionsSettings } from "../../preferences";
@@ -26,8 +26,8 @@ type DesktopTitlebarActionsProps = {
   onUpdateNow?: () => void;
   onToggleTerminal: () => void;
   onToggleGitChanges?: () => void;
-  shareEnabled?: boolean;
-  onShare?: () => void;
+  cloudEnabled?: boolean;
+  onOpenCloud?: () => void;
   placement?: "titlebar" | "toolbar";
   visibleGroups?: readonly DesktopTitlebarActionGroup[];
 };
@@ -45,8 +45,8 @@ export function DesktopTitlebarActions({
   onUpdateNow = () => {},
   onToggleTerminal,
   onToggleGitChanges = () => {},
-  shareEnabled = false,
-  onShare = () => {},
+  cloudEnabled = false,
+  onOpenCloud = () => {},
   placement = "titlebar",
   visibleGroups,
 }: DesktopTitlebarActionsProps) {
@@ -88,13 +88,14 @@ export function DesktopTitlebarActions({
     });
   }
 
-  if (shareEnabled && placement === "titlebar") {
+  if (cloudEnabled && placement === "titlebar") {
+    const cloudLabel = t("cloud.productName");
     titlebarActionItems.push({
       group: "header",
-      id: "share",
-      node: <Tooltip content={t("shell.titlebar.share")}><button type="button" className="desktop-titlebar-action desktop-titlebar-share"
-         aria-label={t("shell.titlebar.share")} onClick={onShare}>
-        <Share size={16} strokeWidth={1.8} aria-hidden="true" />
+      id: "cloud",
+      node: <Tooltip content={cloudLabel}><button type="button" className="desktop-titlebar-action desktop-titlebar-cloud"
+         aria-label={cloudLabel} onClick={onOpenCloud}>
+        <Cloud size={16} strokeWidth={1.8} aria-hidden="true" />
       </button></Tooltip>,
     });
   }
@@ -132,7 +133,7 @@ export function DesktopTitlebarActions({
       {visibleTitlebarActionItems.map((item, index) => {
         const previousItem = visibleTitlebarActionItems[index - 1];
         const separatesActionGroups = previousItem
-          && (previousItem.group !== item.group || previousItem.id === "share");
+          && (previousItem.group !== item.group || previousItem.id === "cloud");
         return (
           <Fragment key={item.id}>
             {separatesActionGroups && (

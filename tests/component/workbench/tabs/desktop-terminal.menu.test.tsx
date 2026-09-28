@@ -25,27 +25,27 @@ afterEach(() => {
 });
 
 describe("Desktop Terminal tab session manager", () => {
-  it("shows Share only when Cloud is enabled and opens sharing", () => {
+  it("shows the PuppyOne Cloud entry only when Cloud is enabled", () => {
     const container = document.createElement("div");
-    const onShare = vi.fn();
+    const onOpenCloud = vi.fn();
     document.body.appendChild(container);
     root = createRoot(container);
-    const render = (shareEnabled: boolean) => act(() => root?.render(withTestLocalization(
+    const render = (cloudEnabled: boolean) => act(() => root?.render(withTestLocalization(
       <DesktopTitlebarActions titlebarActionsSettings={DEFAULT_TITLEBAR_ACTIONS_SETTINGS}
-        terminalSidebarOpen={false} terminalToolEnabled gitChangesAvailable shareEnabled={shareEnabled}
-        onShare={onShare} onToggleTerminal={vi.fn()} />,
+        terminalSidebarOpen={false} terminalToolEnabled gitChangesAvailable cloudEnabled={cloudEnabled}
+        onOpenCloud={onOpenCloud} onToggleTerminal={vi.fn()} />,
     )));
     render(false);
-    expect(container.querySelector(".desktop-titlebar-share")).toBeNull();
+    expect(container.querySelector(".desktop-titlebar-cloud")).toBeNull();
     render(true);
-    const share = container.querySelector<HTMLButtonElement>(".desktop-titlebar-share");
-    expect(share?.textContent).toBe("");
-    expect(share?.getAttribute("aria-label")).toBe("Share");
-    expect(share?.querySelector(".lucide-share")).not.toBeNull();
-    expect(share?.nextElementSibling?.classList.contains("desktop-titlebar-action-divider")).toBe(true);
-    expect(share?.nextElementSibling?.nextElementSibling?.classList.contains("desktop-titlebar-changes")).toBe(true);
-    act(() => share?.click());
-    expect(onShare).toHaveBeenCalledOnce();
+    const cloud = container.querySelector<HTMLButtonElement>(".desktop-titlebar-cloud");
+    expect(cloud?.textContent).toBe("");
+    expect(cloud?.getAttribute("aria-label")).toBe("PuppyOne Cloud");
+    expect(cloud?.querySelector(".lucide-cloud")).not.toBeNull();
+    expect(cloud?.nextElementSibling?.classList.contains("desktop-titlebar-action-divider")).toBe(true);
+    expect(cloud?.nextElementSibling?.nextElementSibling?.classList.contains("desktop-titlebar-changes")).toBe(true);
+    act(() => cloud?.click());
+    expect(onOpenCloud).toHaveBeenCalledOnce();
   });
   it("presents one unified Agent Workbench toggle in the workspace toolbar", () => {
     const container = document.createElement("div");

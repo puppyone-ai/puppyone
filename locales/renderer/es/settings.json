@@ -273,7 +273,7 @@
   "experimental.projectsHome.title": "Página de inicio de proyectos",
   "experimental.projectsHome.detail": "Prueba el diseño unificado de tarjetas para proyectos de Cloud y locales.",
   "experimental.cloudWorkspace.title": "PuppyOne Cloud",
-  "experimental.cloudWorkspace.detail": "Mostrar Cloud y un botón para compartir este proyecto con otros agentes.",
+  "experimental.cloudWorkspace.detail": "Ver y gestionar el estado de publicación de este proyecto en PuppyOne Cloud.",
   "experimental.workbenchTabsInHeader.title": "Pestañas de chat en la cabecera",
   "experimental.workbenchTabsInHeader.detail": "Mostrar los chats y terminales abiertos en la cabecera de la ventana.",
   "experimental.cloudAutomation.title": "Automation",

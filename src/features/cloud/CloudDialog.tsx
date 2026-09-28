@@ -1,4 +1,4 @@
-import { Cloud, Share } from "lucide-react";
+import { Cloud } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import type { ReactNode } from "react";
 import {
@@ -12,7 +12,6 @@ export type CloudDialogProps = {
   sidebar: ReactNode;
   main: ReactNode;
   onClose: () => void;
-  shareMode?: boolean;
 };
 
 /**
@@ -20,9 +19,9 @@ export type CloudDialogProps = {
  * content, while the Explorer, editors, and auxiliary sidebar remain mounted
  * underneath the shared desktop overlay layer.
  */
-export function CloudDialog({ sidebar, main, onClose, shareMode = false }: CloudDialogProps) {
+export function CloudDialog({ sidebar, main, onClose }: CloudDialogProps) {
   const { t } = useLocalization();
-  const title = t(shareMode ? "shell.titlebar.share" : "shell.navigation.cloud");
+  const title = t("cloud.productName");
 
   return (
     <DesktopOverlayLayer>
@@ -35,7 +34,7 @@ export function CloudDialog({ sidebar, main, onClose, shareMode = false }: Cloud
           <header className="desktop-dialog-header desktop-cloud-dialog-header">
             <div className="desktop-dialog-title-row desktop-cloud-dialog-title-row">
               <span className="desktop-cloud-dialog-leading" aria-hidden="true">
-                {shareMode ? <Share size={16} strokeWidth={1.9} /> : <Cloud size={15} strokeWidth={1.9} />}
+                <Cloud size={15} strokeWidth={1.9} />
               </span>
               <h2>{title}</h2>
             </div>

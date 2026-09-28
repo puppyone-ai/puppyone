@@ -273,7 +273,7 @@
   "experimental.projectsHome.title": "프로젝트 홈",
   "experimental.projectsHome.detail": "Cloud 및 로컬 프로젝트를 위한 통합 카드 레이아웃을 사용해 봅니다.",
   "experimental.cloudWorkspace.title": "PuppyOne Cloud",
-  "experimental.cloudWorkspace.detail": "Cloud 호스팅과 다른 Agent에게 프로젝트를 공유하는 버튼을 표시합니다.",
+  "experimental.cloudWorkspace.detail": "이 프로젝트의 PuppyOne Cloud 게시 상태를 확인하고 관리합니다.",
   "experimental.workbenchTabsInHeader.title": "헤더에 채팅 탭 표시",
   "experimental.workbenchTabsInHeader.detail": "열린 Agent 채팅과 터미널을 창 헤더에 표시합니다.",
   "experimental.cloudAutomation.title": "Automation",

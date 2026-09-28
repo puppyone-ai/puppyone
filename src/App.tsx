@@ -326,7 +326,6 @@ function AppContent() {
   const [pluginsDialogOpen, setPluginsDialogOpen] = useState(false);
   const [cloudDialogOpen, setCloudDialogOpen] = useState(false);
   const [titlebarTabHost, setTitlebarTabHost] = useState<HTMLDivElement | null>(null);
-  const [cloudShareMode, setCloudShareMode] = useState(false);
   const [workspaceRefreshToken, setWorkspaceRefreshToken] = useState<WorkspaceContentChange>({
     sequence: 0,
     entries: [],
@@ -552,7 +551,6 @@ function AppContent() {
   const closePluginsDialog = useCallback(() => setPluginsDialogOpen(false), []);
   const openCloudDialog = useCallback(() => {
     if (!cloudEnabled) return;
-    setCloudShareMode(false);
     setActiveView("data");
     setActiveCloudSection(CLOUD_HUB_ENTRY_SECTION);
     setCloudDialogOpen(true);
@@ -562,17 +560,6 @@ function AppContent() {
     setSwitcherOpen(false);
     setBranchSwitcherOpen(false);
   }, [cloudEnabled, setBranchSwitcherOpen, setSidebarCollapsed]);
-  const openShareDialog = useCallback(() => {
-    if (!cloudEnabled) return;
-    setActiveView("data");
-    setActiveCloudSection("mcp");
-    setCloudShareMode(true);
-    setCloudDialogOpen(true);
-    setSettingsDialogOpen(false);
-    setPluginsDialogOpen(false);
-    setSwitcherOpen(false);
-    setBranchSwitcherOpen(false);
-  }, [cloudEnabled, setBranchSwitcherOpen]);
   const closeCloudDialog = useCallback(() => setCloudDialogOpen(false), []);
 
   useEffect(() => {
@@ -1386,8 +1373,8 @@ function AppContent() {
     onUpdateNow: () => void desktopUpdates.updateNow(),
     onToggleTerminal: handleToggleAgentWorkbench,
     onToggleGitChanges: handleToggleGitChanges,
-    shareEnabled: cloudEnabled,
-    onShare: openShareDialog,
+    cloudEnabled,
+    onOpenCloud: openCloudDialog,
   };
   const titlebarActions = (
     <DesktopTitlebarActions
@@ -1588,7 +1575,6 @@ function AppContent() {
               onStartPuppyoneBackup: handleStartPuppyoneBackup,
             }}
             cloudOpen={cloudDialogOpen}
-            cloudShareMode={cloudShareMode}
             dataPort={dataPort}
             editorWorkbench={editorWorkbench}
             externalOpen={externalFileOpen}

@@ -273,7 +273,7 @@
   "experimental.projectsHome.title": "Projektstartseite",
   "experimental.projectsHome.detail": "Teste das einheitliche Kartenlayout für Cloud- und lokale Projekte.",
   "experimental.cloudWorkspace.title": "PuppyOne Cloud",
-  "experimental.cloudWorkspace.detail": "Cloud-Hosting und eine Schaltfläche zum Teilen mit anderen Agents anzeigen.",
+  "experimental.cloudWorkspace.detail": "Veröffentlichungsstatus dieses Projekts in PuppyOne Cloud anzeigen und verwalten.",
   "experimental.workbenchTabsInHeader.title": "Chat-Tabs in der Kopfzeile",
   "experimental.workbenchTabsInHeader.detail": "Offene Agent-Chats und Terminals in der Fensterkopfzeile anzeigen.",
   "experimental.cloudAutomation.title": "Automation",

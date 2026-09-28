@@ -8,27 +8,7 @@
     box-sizing: border-box;
   }
 
-  .desktop-cloud-auth-heading {
-    margin: 0 0 24px;
-    text-align: center;
-  }
-
-  .desktop-cloud-auth-heading h3,
-  .desktop-cloud-auth-heading p {
-    margin: 0;
-  }
-
-  .desktop-cloud-auth-heading p {
-    overflow: hidden;
-    color: var(--po-text-muted);
-    font-size: var(--desktop-cloud-body-size);
-    line-height: 1.4;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .desktop-cloud-auth-submit,
-  .desktop-cloud-auth-secondary {
+  .desktop-cloud-auth-submit {
     display: inline-flex;
     width: 100%;
     height: 40px;
@@ -47,51 +27,15 @@
     color: var(--po-text-inverse);
   }
 
-  .desktop-cloud-auth-secondary {
-    margin-top: 10px;
-    border: 1px solid var(--po-divider);
-    background: var(--po-control);
-    color: var(--po-text-muted);
-    font-weight: 500;
-  }
-
-  .desktop-cloud-auth-submit:disabled,
-  .desktop-cloud-auth-secondary:disabled {
+  .desktop-cloud-auth-submit:disabled {
     cursor: not-allowed;
     opacity: 0.5;
   }
 
-  .desktop-cloud-auth-state {
-    display: grid;
-    grid-template-columns: 24px minmax(0, 1fr);
-    gap: 10px;
-    margin-bottom: 12px;
-    padding: 12px;
-    border: 1px solid var(--po-divider);
-    border-radius: 8px;
-    background: var(--po-control);
-  }
-
-  .desktop-cloud-auth-state > span {
-    display: inline-flex;
-    width: 24px;
-    height: 24px;
-    align-items: center;
-    justify-content: center;
-    color: var(--po-success);
-  }
-
-  .desktop-cloud-auth-state strong,
-  .desktop-cloud-auth-state p,
   .desktop-cloud-auth-terms,
   .desktop-cloud-auth-feedback > div {
     font-size: var(--desktop-cloud-body-size);
     line-height: 1.35;
-  }
-
-  .desktop-cloud-auth-state p {
-    margin: 3px 0 0;
-    color: var(--po-text-muted);
   }
 
   .desktop-cloud-auth-terms {
@@ -115,11 +59,6 @@
   .desktop-cloud-auth-feedback .error {
     background: color-mix(in srgb, var(--po-danger) 10%, transparent);
     color: var(--po-danger);
-  }
-
-  .desktop-cloud-auth-feedback .success {
-    background: color-mix(in srgb, var(--po-success) 10%, transparent);
-    color: var(--po-success);
   }
 
   .desktop-cloud-product-mark {

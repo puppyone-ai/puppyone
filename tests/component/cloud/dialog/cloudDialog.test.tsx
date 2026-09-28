@@ -17,16 +17,7 @@ afterEach(() => {
 });
 
 describe("CloudDialog", () => {
-  it("labels the focused sharing entry as Share", () => {
-    const host = document.createElement("div");
-    document.body.append(host);
-    root = createRoot(host);
-    act(() => renderWithTestLocalization(root,
-      <CloudDialog shareMode sidebar={null} main={<div>Access</div>} onClose={vi.fn()} />,
-    ));
-    expect(document.querySelector(".desktop-cloud-dialog")?.getAttribute("aria-label")).toBe("Share");
-  });
-  it("keeps Cloud navigation and content in the shared dismissible overlay", () => {
+  it("keeps PuppyOne Cloud navigation and content in the shared dismissible overlay", () => {
     const host = document.createElement("div");
     const onClose = vi.fn();
     document.body.append(host);
@@ -43,7 +34,8 @@ describe("CloudDialog", () => {
     const overlayRoot = document.querySelector<HTMLElement>("#desktop-overlay-root");
     const dialog = overlayRoot?.querySelector<HTMLElement>(".desktop-cloud-dialog");
     expect(dialog?.getAttribute("role")).toBe("dialog");
-    expect(dialog?.getAttribute("aria-label")).toBe("Cloud");
+    expect(dialog?.getAttribute("aria-label")).toBe("PuppyOne Cloud");
+    expect(dialog?.querySelector(".lucide-cloud")).not.toBeNull();
     expect(host.querySelector(".desktop-cloud-dialog")).toBeNull();
     expect(dialog?.querySelector("[data-testid='cloud-navigation']")?.textContent)
       .toBe("Navigation");

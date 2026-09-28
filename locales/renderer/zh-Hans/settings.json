@@ -310,7 +310,7 @@
   "experimental.projectsHome.title": "项目首页",
   "experimental.projectsHome.detail": "试用面向云端和本地项目的统一卡片布局。",
   "experimental.cloudWorkspace.title": "PuppyOne Cloud",
-  "experimental.cloudWorkspace.detail": "显示 Cloud 托管和共享按钮，让其他 Agent 连接到这个项目。",
+  "experimental.cloudWorkspace.detail": "查看并管理当前项目在 PuppyOne Cloud 中的发布状态。",
   "experimental.workbenchTabsInHeader.title": "在顶部显示会话标签",
   "experimental.workbenchTabsInHeader.detail": "在窗口顶部显示已打开的 Agent 对话和终端。",
   "experimental.cloudAutomation.title": "Automation",
