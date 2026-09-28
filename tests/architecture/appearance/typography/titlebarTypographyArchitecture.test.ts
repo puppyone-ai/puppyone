@@ -328,9 +328,9 @@ describe("titlebar typography architecture", () => {
 
     expect(sectionLabel).toContain("font-size: var(--po-menu-meta-font-size);");
     expect(sectionLabel).toContain("line-height: var(--po-menu-meta-line-height);");
-    expect(sectionLabel).toContain("font-weight: 600;");
+    expect(sectionLabel).toContain("font-weight: var(--po-text-weight-medium, 500);");
     expect(sectionLabel).toContain("text-transform: none;");
-    expect(currentLabel).toContain("font-weight: 500;");
+    expect(currentLabel).toContain("font-weight: var(--po-text-weight-regular, 400);");
     expect(currentLabel).toContain("text-transform: none;");
     expect(currentLabel).not.toContain("font-size:");
     expect(titlebarCss).not.toContain(".desktop-branch-menu-label {");

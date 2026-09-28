@@ -39,6 +39,10 @@ const dataSidebarCss = fs.readFileSync(path.join(root, "src/features/data-worksp
 const tokensCss = fs.readFileSync(path.join(root, "src/styles/tokens.css"), "utf8");
 const menuCss = fs.readFileSync(path.join(root, "src/styles/menus.css"), "utf8");
 const layoutCss = fs.readFileSync(path.join(root, "src/styles/layout.css"), "utf8");
+const collapsiblePaneCss = fs.readFileSync(
+  path.join(root, "packages/shared-ui/src/sidebar/collapsible-pane.css"),
+  "utf8",
+);
 const responsiveCss = fs.readFileSync(path.join(styleRoot, "responsive.css"), "utf8");
 
 describe("Desktop Agent sidebar visual contract", () => {
@@ -262,8 +266,8 @@ describe("Desktop Agent sidebar visual contract", () => {
     expect(picker).toContain("DesktopMenuSection");
     expect(picker).toContain('typographySurface={placement === "header" ? "header" : "right-sidebar"}');
     expect(menuCss).toMatch(/data-menu-typography-surface="right-sidebar"[^}]*--po-menu-item-font-size:\s*var\(--po-type-right-sidebar-content, 14px\)[^}]*--po-menu-meta-font-size:\s*var\(--po-type-right-sidebar-meta, 13px\)/s);
-    expect(menuCss).toMatch(/\.desktop-menu-surface\[data-menu-tone="quiet"\] \.desktop-menu-section-label\s*\{[^}]*font-weight:\s*500[^}]*text-transform:\s*none/s);
-    expect(menuCss).toMatch(/\.desktop-menu-surface\[data-menu-tone="quiet"\] \.desktop-menu-item,[^{]*\.desktop-menu-item-label,[^{]*\.desktop-menu-item-detail\s*\{[^}]*font-weight:\s*400/s);
+    expect(menuCss).toMatch(/\.desktop-menu-surface\[data-menu-tone="quiet"\] \.desktop-menu-section-label\s*\{[^}]*font-weight:\s*var\(--po-text-weight-medium, 500\)[^}]*text-transform:\s*none/s);
+    expect(menuCss).toMatch(/\.desktop-menu-surface\[data-menu-tone="quiet"\] \.desktop-menu-item,[^{]*\.desktop-menu-item-label,[^{]*\.desktop-menu-item-detail\s*\{[^}]*font-weight:\s*var\(--po-text-weight-regular, 400\)/s);
     expect(tokensCss).toMatch(/--po-menu-item-height:\s*var\(--desktop-sidebar-row-height\)/);
     expect(tokensCss).toMatch(/--po-menu-item-radius:\s*var\(--desktop-control-radius\)/);
     expect(css).toMatch(/\.desktop-agent-session-header-actions\s*\{[^}]*border:\s*0[^}]*background:\s*transparent/s);
@@ -289,7 +293,8 @@ describe("Desktop Agent sidebar visual contract", () => {
     expect(layoutCss).toMatch(/\.desktop-right-sidebar-surface\s*\{[^}]*background:\s*var\(--desktop-right-sidebar-background\)/s);
     expect(css).toContain("--agent-canvas: var(--po-surface-agent)");
     expect(css).not.toContain("--po-terminal-bg");
-    expect(layoutCss).toMatch(/\.desktop-right-sidebar:not\(\[data-pane-presentation="collapsed"\]\)\s*\{[^}]*border-inline-start-color:\s*var\(--po-sidebar-divider, var\(--po-divider\)\)/s);
+    expect(layoutCss).not.toMatch(/\.desktop-right-sidebar[^}]*border-inline-start/s);
+    expect(collapsiblePaneCss).toMatch(/\.po-collapsible-pane-frame\[data-pane-edge="static"\]:not\(\[data-pane-presentation="collapsed"\]\)::after\s*\{[^}]*background:\s*var\(--po-sidebar-divider, var\(--po-divider\)\)/s);
     expect(layoutCss).not.toContain(".desktop-right-sidebar::before");
   });
 

@@ -230,8 +230,11 @@
   --po-project-card-bg: var(--po-panel);
   --po-project-card-hover-bg: var(--po-overlay);
   --po-tree-guide: color-mix(in srgb, var(--po-sidebar) 94%, var(--po-text));
-  --po-menu-bg: color-mix(in srgb, var(--po-overlay) 92%, var(--po-panel) 8%);
-  --po-menu-border: color-mix(in srgb, var(--po-border) 82%, transparent);
+  /* Menus are transient application controls, so their material follows the
+   * editor canvas in every theme. Border and elevation provide separation
+   * without introducing a second tinted popup palette. */
+  --po-menu-bg: var(--po-canvas);
+  --po-menu-border: var(--po-border-subtle);
   --po-elevation-low: 0 2px 4px -2px
     color-mix(in srgb, var(--po-shadow) 32%, transparent);
   --po-elevation-popover: 0 3px 8px -4px
@@ -254,8 +257,6 @@
   color-scheme: dark;
   --po-project-card-tab: color-mix(in srgb, var(--po-panel-raised) 84%, var(--po-canvas) 16%);
   --po-project-card-hover-bg: color-mix(in srgb, var(--po-panel) 94%, var(--po-text) 6%);
-  --po-menu-bg: color-mix(in srgb, var(--po-overlay) 92%, var(--po-panel-raised) 8%);
-  --po-menu-border: color-mix(in srgb, var(--po-border) 88%, transparent);
   --po-elevation-low: 0 2px 4px -2px
     color-mix(in srgb, var(--po-shadow) 28%, transparent);
   --po-elevation-popover: 0 3px 8px -4px

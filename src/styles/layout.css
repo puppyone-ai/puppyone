@@ -464,21 +464,6 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   max-height: min(520px, calc(100vh - 58px));
 }
 
-.desktop-project-menu .desktop-menu-item {
-  font-size: var(--po-text-size-interface, 13px);
-  font-weight: 500;
-}
-
-.desktop-project-menu .desktop-menu-item-label {
-  font-size: var(--po-text-size-interface, 13px);
-  font-weight: 500;
-}
-
-.desktop-project-menu .desktop-menu-item-detail {
-  font-size: var(--po-text-size-meta, 12px);
-  font-weight: 500;
-}
-
 .desktop-project-list {
   display: grid;
   gap: 2px;

@@ -321,26 +321,27 @@
   top: 32px;
   inset-inline-end: 0;
   min-width: 112px;
-  padding: 4px;
-  border: 1px solid var(--po-border);
-  border-radius: 7px;
-  background: var(--po-overlay);
+  padding: var(--po-menu-padding);
+  border: 1px solid var(--po-menu-border);
+  border-radius: var(--po-menu-radius);
+  background: var(--po-menu-bg);
   box-shadow: var(--po-menu-shadow-compact);
 }
 
 .desktop-plugin-menu button {
   display: flex;
   width: 100%;
-  height: var(--po-control-size-compact);
+  height: var(--po-menu-item-height);
   align-items: center;
   gap: 7px;
-  padding: 0 8px;
+  padding: 0 var(--po-menu-item-padding-inline);
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--po-menu-item-radius);
   background: transparent;
   color: var(--po-danger);
   font: inherit;
-  font-size: var(--po-type-ui-meta, 13px);
+  font-size: var(--po-type-ui-control, 14px);
+  font-weight: var(--po-text-weight-regular, 400);
   text-align: start;
 }
 

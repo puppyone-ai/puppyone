@@ -313,7 +313,10 @@ export function DesktopCreateEntryMenu({
       id={sidebarLauncher ? "desktop-sidebar-create-menu" : undefined}
       ariaLabel={t("workspace.node.createNew")}
       data-sidebar-launcher={sidebarLauncher ? "true" : undefined}
+      elevation={sidebarLauncher ? "compact" : "default"}
       style={menuStyle}
+      tone={sidebarLauncher ? "quiet" : "default"}
+      typographySurface={sidebarLauncher ? "left-sidebar" : "ui"}
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
     >
@@ -380,6 +383,9 @@ export function DesktopCreateEntryMenu({
               id="desktop-create-entry-custom-submenu"
               className="desktop-create-entry-submenu"
               ariaLabel={t("workspace.node.createCustomFile")}
+              elevation={sidebarLauncher ? "compact" : "default"}
+              tone={sidebarLauncher ? "quiet" : "default"}
+              typographySurface={sidebarLauncher ? "left-sidebar" : "ui"}
               onKeyDown={(event) => {
                 if (event.key !== "ArrowLeft") return;
                 event.preventDefault();

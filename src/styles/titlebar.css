@@ -861,13 +861,13 @@
   color: var(--po-text-disabled);
   font-size: var(--po-menu-meta-font-size);
   line-height: var(--po-menu-meta-line-height);
-  font-weight: 600;
+  font-weight: var(--po-text-weight-medium, 500);
   letter-spacing: 0;
   text-transform: none;
 }
 
 .desktop-branch-menu-row .desktop-menu-item-trailing {
-  font-weight: 500;
+  font-weight: var(--po-text-weight-regular, 400);
   letter-spacing: 0;
   text-transform: none;
 }

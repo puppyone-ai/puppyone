@@ -74,10 +74,10 @@
   padding: 0 var(--po-menu-item-padding-inline) 4px;
   color: var(--po-text-disabled);
   font-size: var(--po-menu-meta-font-size, var(--po-type-ui-meta, 13px));
-  font-weight: 650;
+  font-weight: var(--po-text-weight-medium, 500);
   letter-spacing: 0;
   line-height: var(--po-menu-meta-line-height, 15px);
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .desktop-menu-section-list {
@@ -104,7 +104,7 @@
   cursor: var(--po-clickable-cursor, default);
   font: inherit;
   font-size: var(--po-menu-item-font-size, var(--po-type-ui-control, 14px));
-  font-weight: 500;
+  font-weight: var(--po-text-weight-regular, 400);
   line-height: var(--po-menu-item-line-height, 18px);
   text-align: start;
   transition: background 0.1s ease, color 0.1s ease;
@@ -169,35 +169,35 @@
 .desktop-menu-item-label {
   flex: 0 1 auto;
   font-size: var(--po-menu-item-font-size, var(--po-type-ui-control, 14px));
-  font-weight: 500;
+  font-weight: var(--po-text-weight-regular, 400);
 }
 
 .desktop-menu-item-detail {
   flex: 1 1 auto;
   color: var(--po-text-subtle);
   font-size: var(--po-menu-meta-font-size, var(--po-type-ui-meta, 13px));
-  font-weight: 500;
+  font-weight: var(--po-text-weight-regular, 400);
 }
 
 .desktop-menu-item-trailing {
   flex: 0 0 auto;
   color: var(--po-text-disabled);
   font-size: var(--po-menu-meta-font-size, var(--po-type-ui-meta, 13px));
-  font-weight: 650;
-  text-transform: uppercase;
+  font-weight: var(--po-text-weight-regular, 400);
+  text-transform: none;
 }
 
 /* Quiet selectors share the menu geometry and interaction states while keeping
  * configuration values visually secondary to the document being edited. */
 .desktop-menu-surface[data-menu-tone="quiet"] .desktop-menu-section-label {
-  font-weight: 500;
+  font-weight: var(--po-text-weight-medium, 500);
   text-transform: none;
 }
 
 .desktop-menu-surface[data-menu-tone="quiet"] .desktop-menu-item,
 .desktop-menu-surface[data-menu-tone="quiet"] .desktop-menu-item-label,
 .desktop-menu-surface[data-menu-tone="quiet"] .desktop-menu-item-detail {
-  font-weight: 400;
+  font-weight: var(--po-text-weight-regular, 400);
 }
 
 .desktop-menu-item.danger {
