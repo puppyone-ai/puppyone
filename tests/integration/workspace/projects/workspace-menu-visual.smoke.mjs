@@ -54,25 +54,43 @@ async function runSmoke() {
     const menu = document.querySelector('[data-titlebar-context-menu="true"]');
     const rows = [...menu.querySelectorAll('.desktop-project-option')];
     const currentLocation = menu.querySelector('.desktop-project-current-location');
+    const currentProjectName = currentLocation?.querySelector('.desktop-project-current-location-name');
+    const titlebarProjectName = document.querySelector('.desktop-titlebar-workspace-name');
     const locationAction = menu.querySelector('[data-location-action="setup"]');
     const homeGroup = menu.querySelector('.desktop-project-home-group');
     const addProject = menu.querySelector('.desktop-project-add-folder');
     return {
       addProjectEnabled: addProject instanceof HTMLButtonElement && !addProject.disabled,
       currentLocationHeight: currentLocation?.getBoundingClientRect().height ?? 0,
+      currentProjectTypography: currentProjectName ? {
+        fontSize: Number.parseFloat(getComputedStyle(currentProjectName).fontSize),
+        fontWeight: Number.parseInt(getComputedStyle(currentProjectName).fontWeight, 10),
+      } : null,
       hasHomeDivider: getComputedStyle(homeGroup).borderTopWidth === '1px',
       locationActionHeight: locationAction?.getBoundingClientRect().height ?? 0,
       menuWidth: menu.getBoundingClientRect().width,
       projectCount: rows.length,
       projectHeights: rows.map((row) => row.getBoundingClientRect().height),
       text: menu.textContent,
+      titlebarProjectTypography: titlebarProjectName ? {
+        fontSize: Number.parseFloat(getComputedStyle(titlebarProjectName).fontSize),
+        fontWeight: Number.parseInt(getComputedStyle(titlebarProjectName).fontWeight, 10),
+      } : null,
     };
   })()`, true);
 
   assert(snapshot.projectCount === 2, `Expected two additional attached Projects: ${JSON.stringify(snapshot)}`);
   assert(snapshot.projectHeights.every((height) => height === 32), `Project rows must remain 32px: ${JSON.stringify(snapshot)}`);
   assert(snapshot.currentLocationHeight >= 56, `Current Project location is too short: ${JSON.stringify(snapshot)}`);
-  assert(snapshot.locationActionHeight >= 50, `Cloud setup action is too short: ${JSON.stringify(snapshot)}`);
+  assert(
+    snapshot.currentProjectTypography?.fontSize <= snapshot.titlebarProjectTypography?.fontSize,
+    `Menu Project name must not be larger than the Header Project name: ${JSON.stringify(snapshot)}`,
+  );
+  assert(
+    snapshot.currentProjectTypography?.fontWeight <= snapshot.titlebarProjectTypography?.fontWeight,
+    `Menu Project name must not be heavier than the Header Project name: ${JSON.stringify(snapshot)}`,
+  );
+  assert(snapshot.locationActionHeight === 28, `Cloud setup action must stay compact: ${JSON.stringify(snapshot)}`);
   assert(snapshot.menuWidth === 320, `Workspace menu must remain 320px wide: ${JSON.stringify(snapshot)}`);
   assert(snapshot.addProjectEnabled, `Add Project must be enabled: ${JSON.stringify(snapshot)}`);
   assert(snapshot.hasHomeDivider, `Home divider is missing: ${JSON.stringify(snapshot)}`);

@@ -62,8 +62,10 @@ describe("titlebar Portal menu interactions", () => {
     expect(currentProject?.querySelector(".desktop-project-location-dot")).not.toBeNull();
     const setup = requireMenu().querySelector<HTMLButtonElement>("[data-location-action='setup']");
     expect(setup?.textContent).toContain("Keep available to Agents");
-    expect(setup?.textContent).toContain("Even when this Mac is offline.");
-    expect(setup?.textContent).toContain("Set up");
+    expect(setup?.textContent).not.toContain("Even when this Mac is offline.");
+    expect(setup?.textContent).not.toContain("Set up");
+    expect(setup?.querySelector(".lucide-cloud")).not.toBeNull();
+    expect(setup?.querySelector(".lucide-chevron-right")).not.toBeNull();
     act(() => setup?.click());
     expect(onSetupCloud).toHaveBeenCalledOnce();
 

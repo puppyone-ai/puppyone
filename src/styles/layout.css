@@ -502,7 +502,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   overflow: hidden;
   color: var(--po-text);
   font-size: var(--po-menu-item-font-size);
-  font-weight: var(--po-text-weight-medium, 500);
+  font-weight: var(--po-text-weight-regular, 400);
   line-height: var(--po-menu-item-line-height);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -535,12 +535,39 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-location-action[data-location-action="setup"] {
-  background: color-mix(in srgb, var(--po-accent) 4%, transparent);
+  --po-menu-icon-slot-size: 14px;
+  --po-menu-item-gap: 6px;
+
+  width: auto;
+  min-height: 28px;
+  height: 28px;
+  align-self: start;
+  margin-block: -4px 8px;
+  margin-inline-start: 36px;
+  padding: 0 6px;
+  border-top: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--po-text-subtle);
+  font-size: var(--po-menu-meta-font-size);
 }
 
 .desktop-project-location-action[data-location-action="setup"]:hover:not(:disabled),
 .desktop-project-location-action[data-location-action="setup"]:focus-visible:not(:disabled) {
-  background: color-mix(in srgb, var(--po-accent) 8%, var(--po-hover));
+  background: var(--po-hover);
+  color: var(--po-text-muted);
+}
+
+.desktop-project-location-action[data-location-action="setup"] .desktop-menu-item-label {
+  color: inherit;
+  font-size: var(--po-menu-meta-font-size);
+  font-weight: var(--po-text-weight-regular, 400);
+}
+
+.desktop-project-location-action[data-location-action="setup"] .desktop-menu-item-trailing {
+  display: grid;
+  place-items: center;
+  color: currentColor;
 }
 
 .desktop-project-location-action[data-location-action="attention"] {

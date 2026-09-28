@@ -342,13 +342,12 @@ function DesktopAlternateLocationAction({
   if (location.cloudState === "unavailable") {
     return (
       <DesktopMenuItem
-        className="desktop-project-location-action"
+        className="desktop-project-location-action desktop-project-cloud-setup"
         data-location-action="setup"
         disabled={!onSetupCloud}
-        icon={<Cloud size={16} strokeWidth={1.75} />}
+        icon={<Cloud size={13} strokeWidth={1.75} />}
         label={t("shell.workspaceSwitcher.location.keepAvailable")}
-        detail={t("shell.workspaceSwitcher.location.keepAvailableHint")}
-        trailing={<LocationActionVerb label={t("shell.workspaceSwitcher.location.setup")} />}
+        trailing={<ChevronRight className="po-directional-icon" size={12} strokeWidth={1.8} aria-hidden="true" />}
         onClick={run(onSetupCloud)}
       />
     );
