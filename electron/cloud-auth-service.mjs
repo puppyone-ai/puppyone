@@ -137,7 +137,11 @@ export function createCloudAuthService({
           start?.login_url,
           "Cloud sign-in start did not return a secure browser URL.",
         );
-        await assertLocalLoginPageReachable(loginUrl, fetchImpl, localCloudWebUrl);
+        const trustedLoginUrl = await resolveTrustedBrowserLoginUrl(
+          loginUrl,
+          fetchImpl,
+          localCloudWebUrl,
+        );
         const timeout = setTimeout(() => {
           clearPendingOAuthState(state);
           restoreStatusAfterOAuth(previousStatus);
@@ -160,7 +164,7 @@ export function createCloudAuthService({
         });
         callbackServer = null;
 
-        await externalNavigation.open(loginUrl);
+        await externalNavigation.open(trustedLoginUrl);
         return { ok: true };
       } catch (error) {
         await callbackServer?.close?.().catch(() => undefined);
@@ -876,10 +880,10 @@ function requireSecureBrowserUrl(value, message) {
   return url.toString();
 }
 
-async function assertLocalLoginPageReachable(loginUrl, fetchImpl, localCloudWebUrl) {
+async function resolveTrustedBrowserLoginUrl(loginUrl, fetchImpl, localCloudWebUrl) {
   const url = new URL(loginUrl);
   const loopback = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(url.hostname);
-  if (!loopback) return;
+  if (!loopback) return url.toString();
 
   let configuredUrl;
   try {
@@ -892,13 +896,23 @@ async function assertLocalLoginPageReachable(loginUrl, fetchImpl, localCloudWebU
     || !["localhost", "127.0.0.1", "::1", "[::1]"].includes(configuredUrl.hostname)
     || configuredUrl.username
     || configuredUrl.password
-    || configuredUrl.origin !== url.origin
+    || url.protocol !== "http:"
+    || configuredUrl.port !== url.port
   ) {
     throw new Error("Local Cloud login URL does not match VITE_DESKTOP_CLOUD_WEB_URL.");
   }
 
+  // localhost, 127.0.0.1, and ::1 are equivalent loopback spellings, but they
+  // are different browser origins. Always navigate through the configured
+  // origin so cookies and OAuth state stay attached to the Desktop's declared
+  // Cloud web endpoint. The API controls only the login path and query.
+  const trustedUrl = new URL(configuredUrl.origin);
+  trustedUrl.pathname = url.pathname;
+  trustedUrl.search = url.search;
+  trustedUrl.hash = url.hash;
+
   try {
-    const response = await fetchImpl(url, {
+    const response = await fetchImpl(trustedUrl, {
       cache: "no-store",
       redirect: "follow",
       signal: AbortSignal.timeout(5_000),
@@ -908,10 +922,10 @@ async function assertLocalLoginPageReachable(loginUrl, fetchImpl, localCloudWebU
     if (!body.includes("Puppyone") || !body.includes("Sign in")) {
       throw new Error("Puppyone login page marker is missing");
     }
-    return;
+    return trustedUrl.toString();
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    throw new Error(`Local Cloud login page is unavailable at ${url.origin}. ${detail}`);
+    throw new Error(`Local Cloud login page is unavailable at ${trustedUrl.origin}. ${detail}`);
   }
 }
 

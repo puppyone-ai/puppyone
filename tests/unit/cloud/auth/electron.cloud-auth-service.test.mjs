@@ -330,6 +330,72 @@ describe("main-owned Cloud Auth Broker", () => {
     expect(fixture.openExternal).toHaveBeenCalledWith(loginUrl);
   });
 
+  it("opens an equivalent loopback login through the configured browser origin", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      text: vi.fn().mockResolvedValue("<h1>Sign in to Puppyone</h1>"),
+    });
+    const fixture = createFixture({ credential: null, fetchImpl });
+    fixture.startCallbackServer.mockResolvedValue({
+      redirectUri: "http://127.0.0.1:43123/auth/callback",
+      close: vi.fn(async () => {}),
+    });
+    fixture.requestCloudApi.mockResolvedValue({
+      state: "oauth-state-loopback-alias",
+      login_url: "http://127.0.0.1:3000/login?client=desktop&desktop_state=oauth-state-loopback-alias",
+    });
+    const trustedLoginUrl = "http://localhost:3000/login?client=desktop&desktop_state=oauth-state-loopback-alias";
+
+    await expect(fixture.service.startOAuth({ apiBase: API })).resolves.toEqual({ ok: true });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      new URL(trustedLoginUrl),
+      expect.objectContaining({ cache: "no-store" }),
+    );
+    expect(fixture.openExternal).toHaveBeenCalledWith(trustedLoginUrl);
+  });
+
+  it("rejects a local login URL on a different port", async () => {
+    const fetchImpl = vi.fn();
+    const fixture = createFixture({ credential: null, fetchImpl });
+    fixture.startCallbackServer.mockResolvedValue({
+      redirectUri: "http://127.0.0.1:43123/auth/callback",
+      close: vi.fn(async () => {}),
+    });
+    fixture.requestCloudApi.mockResolvedValue({
+      state: "oauth-state-wrong-port",
+      login_url: "http://127.0.0.1:3001/login?client=desktop",
+    });
+
+    await expect(fixture.service.startOAuth({ apiBase: API }))
+      .rejects.toThrow("Local Cloud login URL does not match VITE_DESKTOP_CLOUD_WEB_URL.");
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(fixture.openExternal).not.toHaveBeenCalled();
+  });
+
+  it("keeps a loopback login path under the configured browser origin", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      text: vi.fn().mockResolvedValue("<h1>Sign in to Puppyone</h1>"),
+    });
+    const fixture = createFixture({ credential: null, fetchImpl });
+    fixture.startCallbackServer.mockResolvedValue({
+      redirectUri: "http://127.0.0.1:43123/auth/callback",
+      close: vi.fn(async () => {}),
+    });
+    fixture.requestCloudApi.mockResolvedValue({
+      state: "oauth-state-path",
+      login_url: "http://127.0.0.1:3000//other.example/login?client=desktop",
+    });
+    const trustedLoginUrl = "http://localhost:3000//other.example/login?client=desktop";
+
+    await expect(fixture.service.startOAuth({ apiBase: API })).resolves.toEqual({ ok: true });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      new URL(trustedLoginUrl),
+      expect.objectContaining({ cache: "no-store" }),
+    );
+    expect(fixture.openExternal).toHaveBeenCalledWith(trustedLoginUrl);
+  });
+
   it("always completes local logout and rejects an old-generation late result when remote revoke is unavailable", async () => {
     const fixture = createFixture({ windowCount: 2 });
     let resolveRequest;
