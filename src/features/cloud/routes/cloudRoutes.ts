@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { Clock3, Cloud, CreditCard, FolderOpen, GitBranch, Grid2X2, House, Settings, ShieldCheck, SquareTerminal, Users } from "lucide-react";
+import { Clock3, Cloud, CreditCard, FolderOpen, GitBranch, Grid2X2, House, Settings, Share2, ShieldCheck, SquareTerminal, Users } from "lucide-react";
 import type { MessageFormatter } from "@puppyone/localization/core";
 import { getCloudAutomationWebPath } from "../../automation/automationDomain";
 import { McpLogoIcon } from "../components/McpLogoIcon";
@@ -49,6 +49,19 @@ const ACCESS_PROJECT_RESOURCES = [
   "identity",
 ] as const satisfies readonly CloudProjectDetailResource[];
 export const CLOUD_ROUTES = [
+  {
+    id: "share",
+    labelId: "cloud.share.location.shareAction",
+    titleId: "cloud.share.location.shareAction",
+    descriptionId: "cloud.share.target.question",
+    icon: Share2,
+    context: "project",
+    surface: "landing",
+    resources: NO_PROJECT_RESOURCES,
+    showInSidebar: false,
+    navigationGroup: "project",
+    webPath: (projectId?: string) => `/projects/${requireProjectId(projectId)}/access`,
+  },
   {
     id: "initialize",
     labelId: "cloud.route.initialize.label",
@@ -241,6 +254,7 @@ export const CLOUD_ORGANIZATION_ROUTES = CLOUD_ROUTES.filter((route) => route.co
 export const CLOUD_PROJECT_ROUTES = CLOUD_ROUTES.filter((route) => route.context === "project");
 const CLOUD_PROJECT_SIDEBAR_ORDER: readonly CloudWorkspaceSection[] = [
   "contents",
+  "share",
   "mcp",
   "cli",
   "git-sync",
@@ -259,23 +273,18 @@ export const CLOUD_BOUND_PROJECT_SIDEBAR_ROUTES = [
 ];
 
 /**
- * Share experiment: Homepage answers "who should read this?", so Project
- * identity and files get their own second entry right below it.
+ * Share experiment: keep Homepage stable and add Share as the second Project
+ * destination. The route itself remains hidden when the experiment is off.
  */
-export function withShareHomeSidebarRoutes(
+export function withSharePageSidebarRoutes(
   routes: readonly CloudRouteDescriptor[],
 ): CloudRouteDescriptor[] {
-  const projectRoute = getCloudRoute("project");
+  const shareRoute = getCloudRoute("share");
   const homeIndex = routes.findIndex((route) => route.id === CLOUD_HUB_ENTRY_SECTION);
-  if (homeIndex === -1 || routes.includes(projectRoute)) return [...routes];
-  const shareRoute = {
-    ...routes[homeIndex],
-    labelId: "cloud.share.location.shareAction",
-  };
+  if (homeIndex === -1 || routes.includes(shareRoute)) return [...routes];
   return [
-    ...routes.slice(0, homeIndex),
+    ...routes.slice(0, homeIndex + 1),
     shareRoute,
-    projectRoute,
     ...routes.slice(homeIndex + 1),
   ];
 }

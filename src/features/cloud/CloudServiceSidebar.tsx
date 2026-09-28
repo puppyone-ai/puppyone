@@ -8,7 +8,7 @@ import {
   getCloudSidebarActiveSection,
   getCloudSignedOutSection,
   getAvailableCloudSection,
-  withShareHomeSidebarRoutes,
+  withSharePageSidebarRoutes,
   type CloudRouteNavigationGroup,
   type CloudRouteDescriptor,
 } from "./routes/cloudRoutes";
@@ -45,7 +45,7 @@ export function CloudServiceSidebar({
 }: CloudServiceSidebarProps) {
   const { t } = useLocalization();
   const billingEnabled = useFeatureFlag("cloudBilling");
-  const shareHome = useCloudShare() !== null;
+  const shareEnabled = useCloudShare() !== null;
   const normalizedActiveSection = getAvailableCloudSection(activeSection, { automationEnabled });
   const signedIn = Boolean(getCloudAuthSession(cloudAuthState));
   const visibleActiveSection = getCloudSidebarActiveSection(
@@ -53,8 +53,8 @@ export function CloudServiceSidebar({
       ? normalizedActiveSection
       : getCloudSignedOutSection(normalizedActiveSection),
   );
-  const sidebarRoutes = shareHome
-    ? withShareHomeSidebarRoutes(CLOUD_BOUND_PROJECT_SIDEBAR_ROUTES)
+  const sidebarRoutes = shareEnabled
+    ? withSharePageSidebarRoutes(CLOUD_BOUND_PROJECT_SIDEBAR_ROUTES)
     : CLOUD_BOUND_PROJECT_SIDEBAR_ROUTES;
   const navItems: CloudSidebarNavEntry[] = sidebarRoutes.map((route: CloudRouteDescriptor) => ({
     ...route,

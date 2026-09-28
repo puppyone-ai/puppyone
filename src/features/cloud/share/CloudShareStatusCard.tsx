@@ -18,7 +18,7 @@ export function CloudShareStatusCard({
 }: {
   status: CloudShareStatus;
   surface: "popover" | "page";
-  onPrimary: () => void;
+  onPrimary?: () => void;
 }) {
   const localization = useLocalization();
   const { t } = localization;
@@ -66,10 +66,12 @@ export function CloudShareStatusCard({
         </ul>
       )}
 
-      <button type="button" className="desktop-share-status-primary" onClick={onPrimary}>
-        <span>{primaryLabel}</span>
-        <ArrowRight size={14} aria-hidden="true" />
-      </button>
+      {onPrimary && (
+        <button type="button" className="desktop-share-status-primary" onClick={onPrimary}>
+          <span>{primaryLabel}</span>
+          <ArrowRight size={14} aria-hidden="true" />
+        </button>
+      )}
     </div>
   );
 }

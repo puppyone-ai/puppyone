@@ -87,6 +87,11 @@ describe("current repository Cloud context", () => {
       workspaceChanged: false,
     })).toBe("initialize");
     expect(resolveCloudHubSectionAfterContextChange({
+      currentSection: "share",
+      hasProjectContext: false,
+      workspaceChanged: false,
+    })).toBe("share");
+    expect(resolveCloudHubSectionAfterContextChange({
       currentSection: "history",
       hasProjectContext: true,
       workspaceChanged: false,

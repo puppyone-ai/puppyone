@@ -559,10 +559,10 @@ function AppContent() {
     setBranchSwitcherOpen(false);
   }, [experimentalSettings.enableViewerPlugins, setBranchSwitcherOpen]);
   const closePluginsDialog = useCallback(() => setPluginsDialogOpen(false), []);
-  const openCloudDialog = useCallback(() => {
+  const openCloudDialogAt = useCallback((section: CloudWorkspaceSection) => {
     if (!cloudEnabled) return;
     setActiveView("data");
-    setActiveCloudSection(CLOUD_HUB_ENTRY_SECTION);
+    setActiveCloudSection(section);
     setCloudDialogOpen(true);
     setSettingsDialogOpen(false);
     setPluginsDialogOpen(false);
@@ -570,6 +570,14 @@ function AppContent() {
     setSwitcherOpen(false);
     setBranchSwitcherOpen(false);
   }, [cloudEnabled, setBranchSwitcherOpen, setSidebarCollapsed]);
+  const openCloudDialog = useCallback(
+    () => openCloudDialogAt(CLOUD_HUB_ENTRY_SECTION),
+    [openCloudDialogAt],
+  );
+  const openCloudShare = useCallback(
+    () => openCloudDialogAt("share"),
+    [openCloudDialogAt],
+  );
   const closeCloudDialog = useCallback(() => setCloudDialogOpen(false), []);
 
   useEffect(() => {
@@ -738,8 +746,10 @@ function AppContent() {
   }, [setBranchSwitcherOpen, shareOnboardingEnabled]);
   const closeShareWizard = useCallback(() => setShareWizard(null), []);
   useEffect(() => {
-    if (!shareOnboardingEnabled) setShareWizard(null);
-  }, [shareOnboardingEnabled]);
+    if (shareOnboardingEnabled) return;
+    setShareWizard(null);
+    if (activeCloudSection === "share") setActiveCloudSection(CLOUD_HUB_ENTRY_SECTION);
+  }, [activeCloudSection, shareOnboardingEnabled]);
   const cloudShareActions = useMemo<CloudShareActions | null>(() => (
     shareOnboardingEnabled
       ? { shares: projectShares, signedIn: cloudSignedIn, pending: pendingShare, openShare: openShareWizard }
@@ -1409,7 +1419,7 @@ function AppContent() {
       onAddProject={() => void addProject()}
       onAddExistingProject={(folderPath) => void addExistingProject(folderPath)}
       onGoHome={() => void goToHomepage()}
-      onSetupCloud={() => openShareWizard(null)}
+      onSetupCloud={openCloudShare}
       onSwitchToCloud={openCloudDialog}
       onCloseWorkspaceSwitcher={closeWorkspaceSwitcher}
       onCloseBranchSwitcher={closeBranchSwitcher}
@@ -1441,7 +1451,7 @@ function AppContent() {
     cloudEnabled,
     onOpenCloud: openCloudDialog,
     shareEnabled: shareOnboardingEnabled,
-    onShare: () => openShareWizard(null),
+    onShare: openCloudShare,
   };
   const titlebarActions = (
     <DesktopTitlebarActions

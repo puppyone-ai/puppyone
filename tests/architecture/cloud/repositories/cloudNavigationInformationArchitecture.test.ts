@@ -22,6 +22,8 @@ describe("Cloud navigation information architecture", () => {
       "automation",
     ]);
     expect(getCloudRoute("contents").icon).toBe(House);
+    expect(getCloudRoute("share").navigationGroup).toBe("project");
+    expect(getCloudRoute("share").showInSidebar).toBe(false);
     expect(getCloudRoute("mcp").icon).toBe(McpLogoIcon);
     expect(getCloudRoute("mcp").navigationGroup).toBe("connections");
     expect(getCloudRoute("cli").navigationGroup).toBe("connections");

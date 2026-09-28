@@ -22,7 +22,7 @@ import {
   CLOUD_BOUND_PROJECT_SIDEBAR_ROUTES,
   CLOUD_PROJECT_SIDEBAR_ROUTES,
   getCloudRoute,
-  withShareHomeSidebarRoutes,
+  withSharePageSidebarRoutes,
 } from "../../../../src/features/cloud/routes/cloudRoutes";
 import englishCloud from "../../../../locales/renderer/en/cloud.json";
 
@@ -141,18 +141,19 @@ describe("project shares", () => {
   });
 });
 
-describe("share-first sidebar routes", () => {
-  it("turns Homepage into Share and slots Project after it without touching the stable contract", () => {
+describe("Share sidebar route", () => {
+  it("keeps Homepage first and slots Share after it without touching the stable contract", () => {
     expect(CLOUD_PROJECT_SIDEBAR_ROUTES.map((route) => route.id)).toEqual(["contents", "mcp", "cli", "automation"]);
-    expect(getCloudRoute("project").showInSidebar).toBe(false);
-    expect(getCloudRoute("project").navigationGroup).toBe("project");
-    const shareRoutes = withShareHomeSidebarRoutes(CLOUD_BOUND_PROJECT_SIDEBAR_ROUTES);
+    expect(getCloudRoute("share").showInSidebar).toBe(false);
+    expect(getCloudRoute("share").navigationGroup).toBe("project");
+    const shareRoutes = withSharePageSidebarRoutes(CLOUD_BOUND_PROJECT_SIDEBAR_ROUTES);
     const ids = shareRoutes.map((route) => route.id);
-    expect(ids.slice(0, 3)).toEqual(["contents", "project", "mcp"]);
-    expect(shareRoutes[0]?.labelId).toBe("cloud.share.location.shareAction");
+    expect(ids.slice(0, 3)).toEqual(["contents", "share", "mcp"]);
+    expect(shareRoutes[0]?.labelId).toBe("cloud.route.contents.label");
+    expect(shareRoutes[1]?.labelId).toBe("cloud.share.location.shareAction");
     expect(CLOUD_BOUND_PROJECT_SIDEBAR_ROUTES[0]?.labelId).toBe("cloud.route.contents.label");
-    expect(ids.filter((id) => id === "project")).toHaveLength(1);
-    expect(withShareHomeSidebarRoutes(withShareHomeSidebarRoutes(CLOUD_BOUND_PROJECT_SIDEBAR_ROUTES)).map((route) => route.id))
+    expect(ids.filter((id) => id === "share")).toHaveLength(1);
+    expect(withSharePageSidebarRoutes(withSharePageSidebarRoutes(CLOUD_BOUND_PROJECT_SIDEBAR_ROUTES)).map((route) => route.id))
       .toEqual(ids);
   });
 });

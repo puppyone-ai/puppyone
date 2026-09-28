@@ -1,38 +1,42 @@
-import { ChevronRight, Clock3, FolderOpen } from "lucide-react";
 import { bidiIsolate } from "@puppyone/localization";
 import { useLocalization } from "@puppyone/localization/react";
+import { AgentBrandImage, type AgentBrandId } from "@puppyone/shared-ui";
+import { ArrowRight, MessageCircle, Share2, Sparkles, UserRound } from "lucide-react";
+import { McpLogoIcon } from "../components/McpLogoIcon";
 import type { ProjectCloudContext } from "../project/context/projectCloudContext";
-import type { CloudWorkspaceSection } from "../routes/cloudRouteIds";
-import { formatRelativeTime } from "../utils";
 import type { CloudShareActions } from "./CloudShareContext";
 import { CloudShareStatusCard } from "./CloudShareStatusCard";
 import { resolveCloudShareStatus } from "./shareStatus";
+import {
+  SHARE_TARGETS,
+  shareTargetLabelKey,
+  shareTargetPreviewKey,
+  type ShareTarget,
+  type ShareTargetId,
+} from "./shareTargets";
 import "./share.css";
 
+const SHARE_TARGET_BRANDS: Partial<Record<ShareTargetId, AgentBrandId>> = {
+  viktor: "viktor",
+  claude: "claude",
+  chatgpt: "chatgpt",
+};
+
 /**
- * Act 1 of the Cloud Homepage: the same read-only status card as the Header
- * (which Agents can read this folder, and one button into the Share dialog).
- * Project identity and files are Act 2, one click away.
+ * The Cloud shell's Share destination. It answers the two questions in order:
+ * who can read this project now, then who the user wants to share it with.
  */
 export function CloudShareHome({
   projectName,
-  projectSummary,
-  latestUpdateAt,
   projectContext,
   share,
-  onSelectSection,
 }: {
   projectName: string;
-  /** e.g. "12 files · 3.4 MB"; null while unknown. */
-  projectSummary: string | null;
-  latestUpdateAt: string | null;
   projectContext: ProjectCloudContext;
   share: CloudShareActions;
-  onSelectSection: (section: CloudWorkspaceSection) => void;
 }) {
-  const localization = useLocalization();
-  const { t } = localization;
-  const title = t("cloud.share.readers.title", { project: bidiIsolate(projectName) });
+  const { t } = useLocalization();
+  const title = t("cloud.share.location.shareAction");
   const status = resolveCloudShareStatus({
     context: projectContext,
     shares: share.shares.shares,
@@ -42,33 +46,68 @@ export function CloudShareHome({
   });
 
   return (
-    <section className="desktop-share-home" aria-label={title}>
-      <h2 className="desktop-share-home-title" dir="auto">{title}</h2>
+    <section className="desktop-cloud-overview-page desktop-share-page" aria-label={title}>
+      <main className="desktop-cloud-overview-canvas" data-po-scrollbar="content">
+        <div className="desktop-cloud-overview-catalog desktop-share-page-catalog">
+          <header className="desktop-share-page-header">
+            <h1>{title}</h1>
+            <p dir="auto">{t("cloud.share.readers.title", { project: bidiIsolate(projectName) })}</p>
+          </header>
 
-      <CloudShareStatusCard status={status} surface="page" onPrimary={() => share.openShare(null)} />
+          <CloudShareStatusCard
+            status={status}
+            surface="page"
+            onPrimary={status.kind === "shared" || status.kind === "waiting" || status.kind === "attention"
+              ? () => share.openShare(null)
+              : undefined}
+          />
 
-      <nav className="desktop-share-home-secondary" aria-label={t("cloud.share.home.projectDetails")}>
-        <button type="button" className="desktop-share-home-secondary-cta" onClick={() => onSelectSection("project")}>
-          <FolderOpen size={15} aria-hidden="true" />
-          <span>
-            <strong>{t("cloud.route.project.label")}</strong>
-            <small>{projectSummary ?? t("cloud.share.home.openProject")}</small>
-          </span>
-          <ChevronRight size={14} aria-hidden="true" />
-        </button>
-        <button type="button" className="desktop-share-home-secondary-cta" onClick={() => onSelectSection("history")}>
-          <Clock3 size={15} aria-hidden="true" />
-          <span>
-            <strong>{t("cloud.route.history.label")}</strong>
-            <small>
-              {latestUpdateAt
-                ? `${t("cloud.overview.lastUpdated")} · ${formatRelativeTime(latestUpdateAt, localization)}`
-                : t("cloud.overview.viewHistory")}
-            </small>
-          </span>
-          <ChevronRight size={14} aria-hidden="true" />
-        </button>
-      </nav>
+          <section className="desktop-share-page-targets" aria-labelledby="desktop-share-page-target-heading">
+            <header className="desktop-share-page-section-header">
+              <h2 id="desktop-share-page-target-heading">{t("cloud.share.target.question")}</h2>
+            </header>
+            <div className="desktop-share-page-target-grid">
+              {SHARE_TARGETS.map((target) => (
+                <button
+                  key={target.id}
+                  type="button"
+                  className="desktop-share-page-target"
+                  data-share-target={target.id}
+                  onClick={() => share.openShare(target.id)}
+                >
+                  <ShareTargetMark target={target} />
+                  <span className="desktop-share-page-target-copy">
+                    <strong>{t(shareTargetLabelKey(target.id))}</strong>
+                    <small>{t(shareTargetPreviewKey(target.id))}</small>
+                  </span>
+                  <ArrowRight size={14} aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+          </section>
+        </div>
+      </main>
     </section>
+  );
+}
+
+export function ShareTargetMark({ target }: { target: ShareTarget }) {
+  const brand = SHARE_TARGET_BRANDS[target.id];
+  const mark = brand
+    ? <AgentBrandImage brandId={brand} />
+    : target.id === "mcp"
+      ? <McpLogoIcon size={16} />
+      : target.id === "person"
+        ? <UserRound size={16} />
+        : target.id === "slack-bot"
+          ? <MessageCircle size={16} />
+          : target.id === "grok"
+            ? <Sparkles size={16} />
+            : <Share2 size={16} />;
+
+  return (
+    <span className="desktop-share-target-mark" data-channel={target.channel} aria-hidden="true">
+      {mark}
+    </span>
   );
 }

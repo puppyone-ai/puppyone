@@ -44,6 +44,7 @@ import {
 } from "../project/context/projectCloudContext";
 import { copyText, formatRelativeTime } from "../utils";
 import { buildMcpServerUrl, buildShareHandoff, maskApiKey, type ShareHandoff } from "./shareHandoff";
+import { ShareTargetMark } from "./CloudShareHome";
 import { isActiveShare, type PendingShare } from "./shareStatus";
 import {
   SHARE_TARGETS,
@@ -260,9 +261,7 @@ function ShareTargetStep({
                 onNext();
               }}
             >
-              <span className="desktop-share-target-mark" data-channel={candidate.channel} aria-hidden="true">
-                {candidate.brand ? candidate.brand.slice(0, 1) : <Share2 size={14} />}
-              </span>
+              <ShareTargetMark target={candidate} />
               <span className="desktop-share-target-label">{t(shareTargetLabelKey(candidate.id))}</span>
             </button>
           ))}

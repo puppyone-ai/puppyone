@@ -149,7 +149,9 @@ export function resolveCloudHubSectionAfterContextChange({
 }): CloudWorkspaceSection {
   if (workspaceChanged) return hasProjectContext ? "contents" : "initialize";
   if (!hasProjectContext) {
-    return isCloudOrganizationSection(currentSection) ? currentSection : "initialize";
+    return isCloudOrganizationSection(currentSection) || currentSection === "share"
+      ? currentSection
+      : "initialize";
   }
   // Initialization owns its transition to `contents` after the push succeeds.
   // A newly resolvable remote can be an interrupted, retryable attempt and must

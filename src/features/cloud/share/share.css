@@ -731,80 +731,116 @@
     gap: 8px;
   }
 
-  /* ── Cloud Homepage, Act 1 ──────────────────────────────────────── */
-  .desktop-share-home-catalog {
-    gap: 0;
+  /* ── Cloud Share destination ────────────────────────────────────── */
+  .desktop-share-page-catalog {
+    gap: 20px;
   }
 
-  .desktop-share-home-toolbar {
-    display: flex;
-    justify-content: flex-end;
-    min-height: 28px;
-  }
-
-  .desktop-share-home {
+  .desktop-share-page-header {
     display: grid;
-    gap: 16px;
-    padding: 0 8px;
+    gap: 4px;
   }
 
-  .desktop-share-home-title {
+  .desktop-share-page-header h1 {
     margin: 0;
     color: var(--po-text);
-    font-size: var(--po-type-ui-title, 17px);
-    font-weight: 600;
-    letter-spacing: -0.015em;
-    line-height: 24px;
+    font-size: var(--po-type-ui-page-title, 24px);
+    font-weight: 620;
+    letter-spacing: -0.025em;
+    line-height: 30px;
   }
 
-  /* Act 2 pointers: identity and history live one click away. */
-  .desktop-share-home-secondary {
+  .desktop-share-page-header p {
+    margin: 0;
+    color: var(--po-text-muted);
+    font-size: var(--po-type-ui-body, 13px);
+    line-height: 19px;
+  }
+
+  .desktop-share-page-targets {
+    display: grid;
+    gap: 10px;
+    padding-top: 2px;
+  }
+
+  .desktop-share-page-section-header h2 {
+    margin: 0;
+    color: var(--po-text);
+    font-size: var(--po-type-ui-body, 13px);
+    font-weight: 580;
+    line-height: 19px;
+  }
+
+  .desktop-share-page-target-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-    padding-top: 6px;
-    border-top: 1px solid var(--po-border);
+    gap: 8px;
   }
 
-  .desktop-share-home-secondary-cta {
+  .desktop-share-page-target {
     display: grid;
-    grid-template-columns: 16px minmax(0, 1fr) 14px;
+    grid-template-columns: 32px minmax(0, 1fr) 14px;
     align-items: center;
     gap: 10px;
     min-width: 0;
-    padding: 10px 12px;
-    border: 1px solid transparent;
-    border-radius: 8px;
-    background: transparent;
+    min-height: 62px;
+    padding: 9px 11px;
+    border: 1px solid var(--po-border);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--po-surface) 72%, var(--po-canvas));
     color: var(--po-text-muted);
     font: inherit;
     text-align: start;
     cursor: var(--po-clickable-cursor, default);
   }
 
-  .desktop-share-home-secondary-cta:hover {
-    border-color: var(--po-border);
+  .desktop-share-page-target:hover {
+    background: var(--po-hover);
+    color: var(--po-text);
+  }
+
+  .desktop-share-page-target:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--po-accent) 68%, transparent);
+    outline-offset: 2px;
+  }
+
+  .desktop-share-page-target .desktop-share-target-mark {
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: 8px;
     background: var(--po-hover);
   }
 
-  .desktop-share-home-secondary-cta > span {
+  .desktop-share-target-mark > :is(svg, img) {
+    width: 16px;
+    height: 16px;
+  }
+
+  .desktop-share-page-target-copy {
     display: grid;
     gap: 1px;
     min-width: 0;
   }
 
-  .desktop-share-home-secondary-cta strong {
+  .desktop-share-page-target-copy strong,
+  .desktop-share-page-target-copy small {
     overflow: hidden;
-    color: var(--po-text);
-    font-size: var(--po-type-ui-body, 13px);
-    font-weight: 560;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .desktop-share-home-secondary-cta small {
+  .desktop-share-page-target-copy strong {
+    color: var(--po-text);
+    font-size: var(--po-type-ui-body, 13px);
+    font-weight: 560;
+    line-height: 18px;
+  }
+
+  .desktop-share-page-target-copy small {
     color: var(--po-text-muted);
     font-size: var(--po-type-ui-meta, 12px);
+    line-height: 17px;
   }
 
   @media (max-width: 640px) {
@@ -813,7 +849,7 @@
     }
 
     .desktop-share-scope-columns,
-    .desktop-share-home-secondary {
+    .desktop-share-page-target-grid {
       grid-template-columns: minmax(0, 1fr);
     }
   }

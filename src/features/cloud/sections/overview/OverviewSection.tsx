@@ -14,9 +14,6 @@ import type {
 } from "../../../../lib/cloudApi";
 import type { DesktopCloudHistory } from "../../../../lib/cloudHistoryApi";
 import { getCloudRoute } from "../../routes/cloudRoutes";
-import type { ProjectCloudContext } from "../../project/context/projectCloudContext";
-import { projectRootTarget } from "../../repositoryTarget";
-import { CloudShareHome, useCloudShare } from "../../share";
 import type { CloudWorkspaceSection } from "../../types";
 import {
   formatBytes,
@@ -33,15 +30,13 @@ import {
 } from "./overviewMetrics";
 
 /**
- * `home` is the Cloud Homepage; `project` is the identity/data view the Share
- * experiment demotes to a second sidebar entry. Without the experiment both
- * render the classic overview.
+ * `home` is the Cloud Homepage; `project` is the same identity/data view
+ * without the Homepage action cards.
  */
 export type CloudRepositoryOverviewVariant = "home" | "project";
 
 export function CloudRepositoryOverview({
   variant = "home",
-  projectContext,
   workspace,
   project,
   dashboard,
@@ -56,8 +51,6 @@ export function CloudRepositoryOverview({
   onRefresh,
 }: {
   variant?: CloudRepositoryOverviewVariant;
-  /** Needed for the Share-first Homepage status; the classic layout ignores it. */
-  projectContext?: ProjectCloudContext;
   workspace: Workspace;
   project: DesktopCloudProject | null;
   dashboard: DesktopCloudDashboard | null;
@@ -73,10 +66,6 @@ export function CloudRepositoryOverview({
 }) {
   const localization = useLocalization();
   const { formatNumber, t } = localization;
-  const share = useCloudShare();
-  const shareHomeContext = share !== null && variant === "home"
-    ? projectContext ?? resolvedContextFor(project?.id ?? null)
-    : null;
   const projectName = project?.name ?? workspace.name;
   const overviewMetrics = getCloudOverviewMetrics({
     scopes,
@@ -122,34 +111,6 @@ export function CloudRepositoryOverview({
       </button></Tooltip>
     </div>
   );
-
-  if (share && shareHomeContext) {
-    const fileCount = dashboard?.nodes.files ?? null;
-    const storage = storageUsage.bytes === null
-      ? null
-      : `${formatBytes(storageUsage.bytes, localization)}${storageUsage.isLowerBound ? "+" : ""}`;
-    const summaryParts = [
-      fileCount === null ? null : t("cloud.history.fileCount", { count: fileCount }),
-      storage,
-    ].filter((part): part is string => Boolean(part));
-    return (
-      <section className="desktop-cloud-overview-page" aria-label={t("cloud.overview.ariaLabel")}>
-        <main className="desktop-cloud-overview-canvas" data-po-scrollbar="content">
-          <div className="desktop-cloud-overview-catalog desktop-share-home-catalog">
-            <div className="desktop-share-home-toolbar">{headerActions}</div>
-            <CloudShareHome
-              projectName={projectName}
-              projectSummary={summaryParts.length > 0 ? summaryParts.join(" · ") : null}
-              latestUpdateAt={latestUpdateAt}
-              projectContext={shareHomeContext}
-              share={share}
-              onSelectSection={onSelectSection}
-            />
-          </div>
-        </main>
-      </section>
-    );
-  }
 
   return (
     <section className="desktop-cloud-overview-page" aria-label={t("cloud.overview.ariaLabel")}>
@@ -276,11 +237,4 @@ function CloudOverviewStorageMeter({
       </span>
     </div></Tooltip>
   );
-}
-
-/** The Homepage only renders once the Project resolved; synthesize that context when the caller has none. */
-function resolvedContextFor(projectId: string | null): ProjectCloudContext {
-  return projectId
-    ? { status: "resolved", projectId, target: projectRootTarget(projectId) }
-    : { status: "resolving", projectId: null };
 }

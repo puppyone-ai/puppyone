@@ -60,7 +60,6 @@ export function CloudProjectRouteOutlet({
     return (
       <CloudRepositoryOverview
         variant={activeSection === "project" ? "project" : "home"}
-        projectContext={projectContext}
         workspace={workspace}
         project={project}
         dashboard={cloudData.dashboard}
