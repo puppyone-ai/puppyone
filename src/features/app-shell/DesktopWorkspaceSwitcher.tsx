@@ -78,6 +78,11 @@ export function DesktopWorkspaceSwitcher({
     : t(workspaceContextAssetKind === "cloud"
       ? "shell.workspaceSwitcher.contextAssetCloud"
       : "shell.workspaceSwitcher.contextAssetLocal");
+  const workspaceMenuLocationLabel = projectLocation
+    ? workspaceContextAssetLabel
+    : t(workspaceContextAssetKind === "cloud"
+      ? "shell.workspaceSwitcher.location.cloud"
+      : "shell.workspaceSwitcher.location.thisMac");
   const attachedFolders = useMemo(
     () => workspaceFolders.length > 0
       ? workspaceFolders
@@ -138,7 +143,7 @@ export function DesktopWorkspaceSwitcher({
             >
               <DesktopCurrentProjectLocation
                 fallbackKind={workspaceContextAssetKind}
-                fallbackLabel={workspaceContextAssetLabel}
+                fallbackLabel={workspaceMenuLocationLabel}
                 location={projectLocation}
               />
               {projectLocation && (
@@ -282,7 +287,7 @@ function DesktopCurrentProjectLocation({
         size={16}
       />
       <span className="desktop-project-current-location-meta">
-        {location && <span className="desktop-project-location-dot" aria-hidden="true" />}
+        <span className="desktop-project-location-dot" aria-hidden="true" />
         <span>{fallbackLabel}</span>
       </span>
     </div>

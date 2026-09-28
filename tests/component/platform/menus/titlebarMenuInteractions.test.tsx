@@ -391,6 +391,9 @@ describe("titlebar Portal menu interactions", () => {
     expect(container.querySelector(".desktop-titlebar-cloud-button")).toBeNull();
     expect(requireMenu().querySelector(".desktop-project-cloud")).toBeNull();
     expect(requireMenu().textContent).not.toContain("Cloud");
+    const currentLocation = requireMenu().querySelector(".desktop-project-current-location");
+    expect(currentLocation?.textContent).toContain("This Mac");
+    expect(currentLocation?.querySelector(".desktop-project-location-dot")).not.toBeNull();
   });
 });
 
