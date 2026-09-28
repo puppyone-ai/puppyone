@@ -71,14 +71,15 @@ describe("titlebar drag-region architecture", () => {
     expect(titlebarCss).not.toContain('.desktop-shell[data-leading-rail="true"] .desktop-titlebar');
   });
 
-  it("aligns the Cloud boundary with an expanded right sidebar", () => {
+  it("keeps right alignment stable while retaining hidden sidebar-edge rollout code", () => {
+    expect(desktopShell).toContain("const FOLLOW_RIGHT_SIDEBAR_EDGE_IN_HEADER = false;");
     expect(desktopShell).toContain('"--desktop-shell-right-sidebar-width": `${renderedRightSidebarWidth}px`');
-    expect(desktopShell).toContain('data-right-sidebar-open={trackRightSidebarHeader ? "true" : undefined}');
-    expect(desktopShell).toContain("onRenderedWidthChange={handleRenderedRightSidebarWidthChange}");
+    expect(desktopShell).toContain('data-header-follows-right-sidebar={trackRightSidebarHeader ? "true" : undefined}');
+    expect(desktopShell).toContain("? handleRenderedRightSidebarWidthChange");
     expect(auxiliaryPanelHost).toContain("new ResizeObserver(publishWidth)");
     expect(auxiliaryPanelHost).toContain("panelElement.getBoundingClientRect().width");
     expect(titlebarCss).toContain(
-      '.desktop-shell[data-right-sidebar-open="true"] .desktop-titlebar-trailing',
+      '.desktop-shell[data-header-follows-right-sidebar="true"] .desktop-titlebar-trailing',
     );
     expect(titlebarCss).toContain("width: var(--desktop-shell-right-sidebar-width);");
     expect(titlebarCss).toContain(

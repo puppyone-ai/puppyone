@@ -44,6 +44,10 @@ import type { WorkspaceSurfaceId } from "../features/app-shell/workspace-surface
 export type DesktopView = WorkspaceSurfaceId;
 export type DesktopLeadingRailRenderState = Readonly<{ expanded: boolean }>;
 
+// Internal rollout switch. This deliberately stays out of Experimental
+// Settings: the stable composition keeps Cloud, Git, and Chat right-aligned.
+const FOLLOW_RIGHT_SIDEBAR_EDGE_IN_HEADER = false;
+
 type DesktopCloudShellProps = {
   children: ReactNode;
   leadingRail?: ReactNode;
@@ -236,7 +240,7 @@ export function DesktopCloudShell({
       ? "collapsed"
       : "expanded";
   const rightSidebarPresent = Boolean(rightSidebar);
-  const trackRightSidebarHeader = rightSidebarPresent && (
+  const trackRightSidebarHeader = FOLLOW_RIGHT_SIDEBAR_EDGE_IN_HEADER && rightSidebarPresent && (
     paneLayout.rightSidebar.open || renderedRightSidebarWidth > 0.5
   );
   const handleRenderedRightSidebarWidthChange = useCallback((width: number) => {
@@ -311,7 +315,7 @@ export function DesktopCloudShell({
     <div
       className="desktop-shell"
       data-leading-rail={leadingRailPresent ? "true" : undefined}
-      data-right-sidebar-open={trackRightSidebarHeader ? "true" : undefined}
+      data-header-follows-right-sidebar={trackRightSidebarHeader ? "true" : undefined}
       data-titlebar-sidebar-state={sidebarState}
       style={shellStyle}
     >
@@ -419,7 +423,9 @@ export function DesktopCloudShell({
                         maxWidth={paneLayout.rightSidebar.maxWidth}
                         resizable={resizableRightSidebar}
                         onOpenChange={onRightSidebarOpenChange}
-                        onRenderedWidthChange={handleRenderedRightSidebarWidthChange}
+                        onRenderedWidthChange={FOLLOW_RIGHT_SIDEBAR_EDGE_IN_HEADER
+                          ? handleRenderedRightSidebarWidthChange
+                          : undefined}
                         onWidthChange={onRightSidebarWidthChange}
                       >
                         {rightSidebar}

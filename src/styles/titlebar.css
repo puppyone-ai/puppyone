@@ -346,28 +346,28 @@
 /* When the auxiliary pane is visible, its Header controls occupy the same
  * horizontal plane as the pane below. Keep the Cloud project location on the
  * editor side and place its following divider exactly on the pane boundary. */
-.desktop-shell[data-right-sidebar-open="true"] .desktop-titlebar-layout {
+.desktop-shell[data-header-follows-right-sidebar="true"] .desktop-titlebar-layout {
   padding-inline-end: 0;
 }
 
-.desktop-shell[data-right-sidebar-open="true"] .desktop-titlebar-trailing,
-.desktop-shell[data-right-sidebar-open="true"] .desktop-titlebar-actions {
+.desktop-shell[data-header-follows-right-sidebar="true"] .desktop-titlebar-trailing,
+.desktop-shell[data-header-follows-right-sidebar="true"] .desktop-titlebar-actions {
   width: var(--desktop-shell-right-sidebar-width);
 }
 
-.desktop-shell[data-right-sidebar-open="true"] .desktop-titlebar-actions {
+.desktop-shell[data-header-follows-right-sidebar="true"] .desktop-titlebar-actions {
   position: relative;
   box-sizing: border-box;
   justify-content: flex-end;
   padding-inline-end: 6px;
 }
 
-.desktop-shell[data-right-sidebar-open="true"] .desktop-titlebar-share-wrap {
+.desktop-shell[data-header-follows-right-sidebar="true"] .desktop-titlebar-share-wrap {
   position: absolute;
   inset-inline-end: calc(100% + var(--desktop-titlebar-button-gap) + 4px);
 }
 
-.desktop-shell[data-right-sidebar-open="true"]
+.desktop-shell[data-header-follows-right-sidebar="true"]
   .desktop-titlebar-share-wrap + .desktop-titlebar-action-divider {
   position: absolute;
   inset-inline-start: 0;

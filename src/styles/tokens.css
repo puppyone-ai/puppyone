@@ -198,6 +198,9 @@
   --po-surface-auxiliary: var(--po-sidebar);
   --po-surface-agent: var(--po-surface-editor);
   --po-surface-terminal: var(--po-surface-editor);
+  /* Popup controls belong to application chrome. A small foreground mix gives
+   * them more separation than the Header in both light and dark appearances. */
+  --po-surface-menu: color-mix(in srgb, var(--po-header) 94%, var(--po-text) 6%);
 
   --po-canvas: var(--po-surface-editor);
   --po-header: color-mix(in srgb, var(--po-surface-chrome) 40%, var(--po-surface-editor));
@@ -230,11 +233,9 @@
   --po-project-card-bg: var(--po-panel);
   --po-project-card-hover-bg: var(--po-overlay);
   --po-tree-guide: color-mix(in srgb, var(--po-sidebar) 94%, var(--po-text));
-  /* Menus are transient application controls, so their material follows the
-   * editor canvas in every theme. Border and elevation provide separation
-   * without introducing a second tinted popup palette. */
-  --po-menu-bg: var(--po-canvas);
-  --po-menu-border: var(--po-border-subtle);
+  /* Every menu and popover consumes one chrome-derived Appearance surface. */
+  --po-menu-bg: var(--po-surface-menu);
+  --po-menu-border: var(--po-border);
   /* Menu launchers keep their context visible while a portaled popup owns
    * focus. Rows and the compact action button use separate strengths. */
   --po-menu-trigger-row-open-background: var(--po-hover);

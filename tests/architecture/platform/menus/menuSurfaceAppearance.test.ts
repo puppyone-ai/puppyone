@@ -16,11 +16,15 @@ const plugins = source("src/features/plugins/plugins.css");
 const agentComposer = source("src/features/desktop-agent/ui/styles/composer.css");
 
 describe("desktop menu appearance architecture", () => {
-  it("derives popup material from the editor canvas in every theme", () => {
+  it("derives every popup from a chrome-emphasized Appearance surface", () => {
     const surface = readCssBlock(menus, ".desktop-titlebar-menu");
 
-    expect(tokens).toContain("--po-menu-bg: var(--po-canvas);");
-    expect(tokens).toContain("--po-menu-border: var(--po-border-subtle);");
+    expect(tokens).toContain(
+      "--po-surface-menu: color-mix(in srgb, var(--po-header) 94%, var(--po-text) 6%);",
+    );
+    expect(tokens).toContain("--po-menu-bg: var(--po-surface-menu);");
+    expect(tokens).toContain("--po-menu-border: var(--po-border);");
+    expect(tokens.match(/--po-surface-menu:/g)).toHaveLength(1);
     expect(tokens.match(/--po-menu-bg:/g)).toHaveLength(1);
     expect(tokens.match(/--po-menu-border:/g)).toHaveLength(1);
     expect(surface).toContain("background: var(--po-menu-bg);");
