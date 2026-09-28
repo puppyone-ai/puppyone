@@ -7,6 +7,7 @@ import type { MessageFormatter } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
 import { ChevronRight, Cloud, Laptop, LoaderCircle, TriangleAlert, UsersRound } from "lucide-react";
 import type { CSSProperties } from "react";
+import { DesktopMenuItem, DesktopMenuSeparator } from "../../../components/DesktopMenu";
 import type { ProjectLocationStatus } from "./projectLocationStatus";
 
 type MaskImageStyle = CSSProperties & { WebkitMaskImage: string };
@@ -26,48 +27,53 @@ export function CloudProjectLocationCard({
 
   return (
     <div className="desktop-project-location" data-project-location={status.kind}>
-      <div className="desktop-project-location-hero">
-        <ProjectLocationGlyph status={status} />
-        <strong className="desktop-project-location-headline">
-          {projectLocationBadge(status, t)}
-        </strong>
+      <div className="desktop-menu-item desktop-project-location-status" role="status">
+        <ProjectLocationGlyph
+          status={status}
+          className="desktop-menu-item-icon desktop-project-location-status-icon"
+        />
+        <span className="desktop-menu-item-body">
+          <span className="desktop-menu-item-label">{projectLocationBadge(status, t)}</span>
+        </span>
       </div>
 
-      <button
-        type="button"
+      <DesktopMenuSeparator />
+
+      <DesktopMenuItem
         className="desktop-project-location-share"
         disabled={sharingDisabled}
+        label={t("cloud.share.location.shareAction")}
         onClick={onShare}
-      >
-        <span className="desktop-project-location-share-label">
-          {t("cloud.share.location.shareAction")}
-        </span>
-        <span className="desktop-project-location-share-brands" aria-hidden="true">
-          <span className="desktop-project-location-share-brand" data-share-mark="mcp">
-            <span
-              className="desktop-project-location-mcp-mark"
-              style={{
-                maskImage: `url("${MCP_MARK_URL}")`,
-                WebkitMaskImage: `url("${MCP_MARK_URL}")`,
-              } satisfies MaskImageStyle}
-            />
+        trailing={(
+          <span className="desktop-project-location-share-trailing" aria-hidden="true">
+            <span className="desktop-project-location-share-brands">
+              <span className="desktop-project-location-share-brand" data-share-mark="mcp">
+                <span
+                  className="desktop-project-location-mcp-mark"
+                  style={{
+                    maskImage: `url("${MCP_MARK_URL}")`,
+                    WebkitMaskImage: `url("${MCP_MARK_URL}")`,
+                  } satisfies MaskImageStyle}
+                />
+              </span>
+              <span className="desktop-project-location-share-brand" data-share-mark="viktor">
+                <AgentBrandImage brandId="viktor" />
+              </span>
+              <span className="desktop-project-location-share-brand" data-share-mark="person">
+                <UsersRound size={15} strokeWidth={1.8} />
+              </span>
+            </span>
+            <ChevronRight className="po-directional-icon" size={15} strokeWidth={1.8} />
           </span>
-          <span className="desktop-project-location-share-brand" data-share-mark="viktor">
-            <AgentBrandImage brandId="viktor" />
-          </span>
-          <span className="desktop-project-location-share-brand" data-share-mark="person">
-            <UsersRound size={15} strokeWidth={1.8} />
-          </span>
-        </span>
-        <ChevronRight className="po-directional-icon" size={17} strokeWidth={1.8} aria-hidden="true" />
-      </button>
+        )}
+      />
     </div>
   );
 }
 
 export function ProjectLocationGlyph({
   status,
-  className = "desktop-project-location-hero-icon",
+  className = "desktop-menu-item-icon desktop-project-location-status-icon",
 }: {
   status: ProjectLocationStatus;
   className?: string;
