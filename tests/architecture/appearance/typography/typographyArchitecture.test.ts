@@ -23,7 +23,7 @@ describe("typography architecture", () => {
     const sharedRule = launcher.match(/\.desktop-terminal-launcher-discovery,\s*\.desktop-terminal-launcher-tool > span:last-child,[^{]+\{([^}]+)\}/)?.[1];
     expect(sharedRule).toContain("font-size: var(--po-type-right-sidebar-content, 14px);");
     expect(sharedRule).toContain("font-weight: var(--po-text-weight-regular, 400);");
-    expect(sharedRule).toContain("line-height: var(--po-type-right-sidebar-control-line-height, 19px);");
+    expect(sharedRule).toContain("line-height: var(--po-type-right-sidebar-control-line-height, 20px);");
     expect(source("src/styles/tokens.css")).toContain("--desktop-sidebar-font-weight: var(--po-text-weight-regular);");
   });
 
@@ -126,7 +126,7 @@ describe("typography architecture", () => {
       "--po-user-editor-heading-5-font-size": "17px",
       "--po-user-editor-heading-6-font-size": "16px",
       "--po-user-text-size-conversation": "16px",
-      "--po-user-right-sidebar-control-line-height": "21px",
+      "--po-user-right-sidebar-control-line-height": "22px",
       "--po-user-right-sidebar-meta-font-size": "14px",
       "--po-user-right-sidebar-meta-line-height": "20px",
       "--po-user-right-sidebar-caption-font-size": "13px",
@@ -185,7 +185,7 @@ describe("typography architecture", () => {
       },
       rightSidebar: {
         content: 14,
-        controlLineHeight: 19,
+        controlLineHeight: 20,
         meta: 13,
         metaLineHeight: 19,
         caption: 12,
@@ -264,10 +264,10 @@ describe("typography architecture", () => {
     })).scale).toBe("medium");
   });
 
-  it("keeps Header and Right Sidebar text aligned across all application presets", () => {
+  it("keeps Header and Right Sidebar text aligned with roomier sidebar controls", () => {
     for (const metrics of Object.values(TYPOGRAPHY_SCALE_METRICS)) {
       expect(metrics.header.content).toBe(metrics.rightSidebar.content);
-      expect(metrics.header.lineHeight).toBe(metrics.rightSidebar.controlLineHeight);
+      expect(metrics.rightSidebar.controlLineHeight).toBe(metrics.header.lineHeight + 1);
       expect(metrics.ui.meta).toBeLessThan(metrics.ui.body);
     }
   });

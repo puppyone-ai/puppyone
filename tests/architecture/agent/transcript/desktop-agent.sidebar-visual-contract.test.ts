@@ -280,6 +280,7 @@ describe("Desktop Agent sidebar visual contract", () => {
     expect(layoutCss).toContain("--desktop-right-sidebar-background: var(--po-surface-auxiliary)");
     expect(layoutCss).toContain("--po-surface-agent: var(--po-surface-auxiliary)");
     expect(layoutCss).toContain("--po-surface-terminal: var(--po-surface-auxiliary)");
+    expect(tokensCss).toContain("--po-surface-auxiliary: var(--po-sidebar)");
     expect(layoutCss).toMatch(/\.desktop-right-sidebar:not\(\.is-open\)\s*\{[^}]*overflow:\s*visible/s);
     expect(layoutCss).toMatch(/\.desktop-right-sidebar-stack\s*\{[^}]*background:\s*var\(--desktop-right-sidebar-background\)/s);
     expect(layoutCss).toMatch(/\.desktop-right-sidebar-surface\s*\{[^}]*background:\s*var\(--desktop-right-sidebar-background\)/s);

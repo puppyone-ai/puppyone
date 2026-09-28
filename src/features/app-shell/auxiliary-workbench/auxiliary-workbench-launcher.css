@@ -142,7 +142,7 @@
   display: grid;
   min-width: 0;
   grid-template-columns: minmax(0, 1fr);
-  gap: 1px;
+  gap: 3px;
 }
 
 .desktop-terminal-launcher-tools > [role="listitem"] {
@@ -178,7 +178,7 @@
 .desktop-terminal-launcher-discovery-icon {
   display: grid;
   width: 18px;
-  height: var(--po-type-right-sidebar-control-line-height, 19px);
+  height: var(--po-type-right-sidebar-control-line-height, 20px);
   place-items: center;
 }
 
@@ -240,9 +240,9 @@
 .desktop-terminal-launcher-shell {
   box-sizing: border-box;
   min-width: 0;
-  min-height: var(--po-control-size-large);
+  min-height: var(--po-control-size-roomy);
   gap: 9px;
-  padding: 5px 8px;
+  padding: 6px 8px;
   border: 1px solid transparent;
 }
 
@@ -286,7 +286,7 @@
 .desktop-terminal-launcher-shell > span:last-child {
   font-size: var(--po-type-right-sidebar-content, 14px);
   font-weight: var(--po-text-weight-regular, 400);
-  line-height: var(--po-type-right-sidebar-control-line-height, 19px);
+  line-height: var(--po-type-right-sidebar-control-line-height, 20px);
 }
 
 .desktop-terminal-launcher-tool > span:last-child,
