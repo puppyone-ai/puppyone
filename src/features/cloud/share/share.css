@@ -48,6 +48,22 @@
     text-overflow: ellipsis;
   }
 
+  /* This is a hover preview, so keep it quieter and denser than a menu. */
+  .desktop-menu-surface.desktop-share-popover {
+    --po-menu-item-height: var(--po-control-size-compact);
+    --po-menu-item-padding-inline: 7px;
+    --po-menu-item-gap: 6px;
+    --po-menu-icon-slot-size: 16px;
+    --po-menu-item-font-size: var(--po-type-ui-caption, 12px);
+    --po-menu-item-line-height: 16px;
+
+    padding: 3px;
+    border-color: var(--po-border-subtle);
+    background: var(--po-editor-bg);
+    box-shadow: var(--po-menu-shadow-compact);
+    backdrop-filter: none;
+  }
+
   /* Header location state. Authentication never changes this label or color. */
   .desktop-share-status-dot {
     flex: 0 0 auto;
@@ -144,14 +160,14 @@
   }
 
   .desktop-project-location-share-brand .po-agent-brand-image {
-    width: 14px;
-    height: 14px;
+    width: 13px;
+    height: 13px;
     object-fit: contain;
   }
 
   .desktop-project-location-mcp-mark {
-    width: 15px;
-    height: 15px;
+    width: 13px;
+    height: 13px;
     background: currentColor;
     mask-position: center;
     mask-repeat: no-repeat;
@@ -159,6 +175,12 @@
     -webkit-mask-position: center;
     -webkit-mask-repeat: no-repeat;
     -webkit-mask-size: contain;
+  }
+
+  .desktop-share-popover .desktop-project-location-share-brand > svg,
+  .desktop-share-popover .desktop-project-location-share-trailing > svg {
+    width: 13px;
+    height: 13px;
   }
 
   .desktop-share-status {

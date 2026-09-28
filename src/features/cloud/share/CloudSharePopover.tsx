@@ -3,7 +3,7 @@ import { DesktopMenuSurface } from "../../../components/DesktopMenu";
 import { DesktopOverlayLayer } from "../../app-shell/DesktopOverlayPortal";
 import { useAnchoredOverlayPosition } from "../../app-shell/useAnchoredOverlayPosition";
 
-const SHARE_POPOVER_WIDTH = 240;
+const SHARE_POPOVER_WIDTH = 208;
 const SHARE_POPOVER_MAX_HEIGHT = 480;
 
 /**
@@ -84,7 +84,9 @@ export function CloudSharePopover({
         role="dialog"
         ariaLabel={ariaLabel}
         className="desktop-titlebar-menu desktop-titlebar-menu-overlay desktop-share-popover"
-        typographySurface="header"
+        elevation="compact"
+        tone="quiet"
+        typographySurface="ui"
         style={style}
         onPointerEnter={onPointerEnter}
         onPointerLeave={onPointerLeave}
