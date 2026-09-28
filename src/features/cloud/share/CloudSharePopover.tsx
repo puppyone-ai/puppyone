@@ -84,6 +84,7 @@ export function CloudSharePopover({
         role="dialog"
         ariaLabel={ariaLabel}
         className="desktop-titlebar-menu desktop-titlebar-menu-overlay desktop-share-popover"
+        data-positioned={overlayPosition ? "true" : undefined}
         elevation="compact"
         tone="quiet"
         typographySurface="ui"
