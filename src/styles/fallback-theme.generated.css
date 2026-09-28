@@ -10,7 +10,7 @@
     --po-surface-editor: #fafafa;
     /* Must stay an opaque literal: the compiler derives synchronous first paint from it. */
     --po-canvas: #fafafa;
-    --po-header: #e4e4e4;
+    --po-header: #d8d8d8;
     --po-sidebar: #ebebeb;
     --po-project-card-tab: color-mix(in srgb, var(--po-inset) 52%, var(--po-panel) 48%);
     --po-text: #292723;
@@ -122,7 +122,7 @@
     --po-surface-editor: #161616;
     /* Must stay an opaque literal: the compiler derives synchronous first paint from it. */
     --po-canvas: #161616;
-    --po-header: #282828;
+    --po-header: #303030;
     --po-sidebar: var(--po-surface-chrome);
     --po-panel: var(--po-surface-panel);
     --po-panel-raised: var(--po-surface-panel-raised);
