@@ -7,7 +7,7 @@
   --desktop-chrome-height: 38px;
   /* Standard control geometry is owned by shared-ui/control-geometry.css. */
   --desktop-chrome-control-size: var(--po-control-size);
-  --desktop-titlebar-control-height: 24px;
+  --desktop-titlebar-control-height: var(--po-control-size-compact);
   --desktop-titlebar-tool-action-width: 34px;
   --desktop-titlebar-button-gap: 3px;
   --desktop-sidebar-control-size: var(--desktop-chrome-control-size);

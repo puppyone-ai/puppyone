@@ -116,7 +116,7 @@ describe("titlebar typography architecture", () => {
     expect(controlGeometry).toContain("--po-control-size: 32px;");
     expect(layoutRoot).toContain("--desktop-chrome-control-size: var(--po-control-size);");
     expect(layoutRoot).toContain("--desktop-toolbar-action-radius: 5px;");
-    expect(layoutRoot).toContain("--desktop-titlebar-control-height: 24px;");
+    expect(layoutRoot).toContain("--desktop-titlebar-control-height: var(--po-control-size-compact);");
     expect(layoutRoot).toContain("--desktop-titlebar-tool-action-width: 34px;");
     expect(layoutRoot).toContain("--desktop-titlebar-button-gap: 3px;");
     expect(titlebarRoot).toContain(
