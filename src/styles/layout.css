@@ -534,7 +534,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   border-radius: 0;
 }
 
-.desktop-project-location-action[data-location-action="setup"] {
+.desktop-project-location-action.desktop-project-cloud-setup {
   --po-menu-icon-slot-size: 14px;
   --po-menu-item-gap: 6px;
 
@@ -552,19 +552,19 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   font-size: var(--po-menu-meta-font-size);
 }
 
-.desktop-project-location-action[data-location-action="setup"]:hover:not(:disabled),
-.desktop-project-location-action[data-location-action="setup"]:focus-visible:not(:disabled) {
+.desktop-project-location-action.desktop-project-cloud-setup:hover:not(:disabled),
+.desktop-project-location-action.desktop-project-cloud-setup:focus-visible:not(:disabled) {
   background: var(--po-hover);
   color: var(--po-text-muted);
 }
 
-.desktop-project-location-action[data-location-action="setup"] .desktop-menu-item-label {
+.desktop-project-location-action.desktop-project-cloud-setup .desktop-menu-item-label {
   color: inherit;
   font-size: var(--po-menu-meta-font-size);
   font-weight: var(--po-text-weight-regular, 400);
 }
 
-.desktop-project-location-action[data-location-action="setup"] .desktop-menu-item-trailing {
+.desktop-project-location-action.desktop-project-cloud-setup .desktop-menu-item-trailing {
   display: grid;
   place-items: center;
   color: currentColor;

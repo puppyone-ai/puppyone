@@ -31,12 +31,12 @@ export function WorkspaceMenuVisualSmokeHarness() {
             projectLocation={{
               current: "local",
               localAvailable: true,
-              cloudState: "unavailable",
+              cloudState: "signed-out",
             }}
             onOpenFolder={() => undefined}
             onClose={() => undefined}
             onGoHome={() => undefined}
-            onSetupCloud={() => undefined}
+            onSwitchToCloud={() => undefined}
             onToggle={() => undefined}
           />
           <div className="workspace-menu-visual-branch">

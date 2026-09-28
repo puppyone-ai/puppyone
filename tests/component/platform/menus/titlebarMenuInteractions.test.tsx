@@ -118,9 +118,11 @@ describe("titlebar Portal menu interactions", () => {
 
     const signedOutCloudAction = requireMenu()
       .querySelector<HTMLButtonElement>("[data-location-action='signed-out']");
-    expect(signedOutCloudAction?.textContent).toContain("Cloud");
-    expect(signedOutCloudAction?.textContent).toContain("Sign in to access");
-    expect(signedOutCloudAction?.textContent).toContain("Switch");
+    expect(signedOutCloudAction?.textContent).toContain("Keep available to Agents");
+    expect(signedOutCloudAction?.textContent).not.toContain("Sign in to access");
+    expect(signedOutCloudAction?.textContent).not.toContain("Switch");
+    expect(signedOutCloudAction?.querySelector(".lucide-cloud")).not.toBeNull();
+    expect(signedOutCloudAction?.querySelector(".lucide-chevron-right")).not.toBeNull();
     expect(signedOutCloudAction?.querySelector(".desktop-project-location-dot")).toBeNull();
     act(() => signedOutCloudAction?.click());
     expect(onSwitchToCloud).toHaveBeenCalledTimes(2);

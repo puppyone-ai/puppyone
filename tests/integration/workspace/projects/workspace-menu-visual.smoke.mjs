@@ -56,7 +56,7 @@ async function runSmoke() {
     const currentLocation = menu.querySelector('.desktop-project-current-location');
     const currentProjectName = currentLocation?.querySelector('.desktop-project-current-location-name');
     const titlebarProjectName = document.querySelector('.desktop-titlebar-workspace-name');
-    const locationAction = menu.querySelector('[data-location-action="setup"]');
+    const locationAction = menu.querySelector('.desktop-project-cloud-setup');
     const homeGroup = menu.querySelector('.desktop-project-home-group');
     const addProject = menu.querySelector('.desktop-project-add-folder');
     return {

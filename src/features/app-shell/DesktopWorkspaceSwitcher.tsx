@@ -339,16 +339,22 @@ function DesktopAlternateLocationAction({
     );
   }
 
-  if (location.cloudState === "unavailable") {
+  const restrainedCloudState = location.cloudState === "unavailable" || location.cloudState === "signed-out";
+  const cloudSetupAction = location.cloudState === "unavailable"
+    ? onSetupCloud
+    : location.cloudState === "signed-out"
+      ? onSwitchToCloud
+      : undefined;
+  if (restrainedCloudState) {
     return (
       <DesktopMenuItem
         className="desktop-project-location-action desktop-project-cloud-setup"
-        data-location-action="setup"
-        disabled={!onSetupCloud}
+        data-location-action={location.cloudState === "unavailable" ? "setup" : "signed-out"}
+        disabled={!cloudSetupAction}
         icon={<Cloud size={13} strokeWidth={1.75} />}
         label={t("shell.workspaceSwitcher.location.keepAvailable")}
         trailing={<ChevronRight className="po-directional-icon" size={12} strokeWidth={1.8} aria-hidden="true" />}
-        onClick={run(onSetupCloud)}
+        onClick={run(cloudSetupAction)}
       />
     );
   }
@@ -367,11 +373,10 @@ function DesktopAlternateLocationAction({
   }
 
   const attention = location.cloudState === "attention";
-  const signedOut = location.cloudState === "signed-out";
   return (
     <DesktopMenuItem
       className="desktop-project-location-action"
-      data-location-action={attention ? "attention" : signedOut ? "signed-out" : "switch"}
+      data-location-action={attention ? "attention" : "switch"}
       disabled={!onSwitchToCloud}
       icon={attention
         ? <TriangleAlert size={16} strokeWidth={1.75} />
@@ -379,9 +384,7 @@ function DesktopAlternateLocationAction({
       label={t("shell.workspaceSwitcher.location.cloud")}
       detail={attention
         ? t("shell.workspaceSwitcher.location.needsAttention")
-        : signedOut
-          ? t("shell.workspaceSwitcher.location.signInToAccess")
-          : <LocationAvailability label={t("shell.workspaceSwitcher.location.available")} />}
+        : <LocationAvailability label={t("shell.workspaceSwitcher.location.available")} />}
       trailing={<LocationActionVerb label={t(attention
         ? "shell.workspaceSwitcher.location.open"
         : "shell.workspaceSwitcher.location.switch")} />}
