@@ -10,13 +10,15 @@ import { SHARE_TARGETS, shareTargetLabelKey, shareTargetPreviewKey, type ShareTa
 import type { ProjectSharesState } from "./useProjectShares";
 import "./share.css";
 
-export type CloudShareHeaderState = "local" | "resolving" | "published" | "shared" | "attention";
+export type CloudShareHeaderState = "local" | "signed-out" | "resolving" | "published" | "shared" | "attention";
 
 export function resolveCloudShareHeaderState(
   context: ProjectCloudContext,
   shareCount: number,
+  signedIn = true,
 ): CloudShareHeaderState {
   if (context.status === "local-only") return "local";
+  if (!signedIn) return "signed-out";
   if (context.status === "resolving") return "resolving";
   if (context.status === "resolved") return shareCount > 0 ? "shared" : "published";
   return "attention";
@@ -30,11 +32,13 @@ export function resolveCloudShareHeaderState(
 export function CloudShareHeaderControl({
   projectContext,
   shares,
+  signedIn = true,
   onShare,
   onOpenCloud,
 }: {
   projectContext: ProjectCloudContext;
   shares: ProjectSharesState;
+  signedIn?: boolean;
   onShare: (targetId: ShareTargetId | null) => void;
   onOpenCloud: () => void;
 }) {
@@ -43,9 +47,11 @@ export function CloudShareHeaderControl({
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const close = useCallback(() => setOpen(false), []);
-  const state = resolveCloudShareHeaderState(projectContext, shares.shares.length);
+  const state = resolveCloudShareHeaderState(projectContext, shares.shares.length, signedIn);
   const statusLabel = state === "local"
     ? t("cloud.share.header.local")
+    : state === "signed-out"
+      ? t("cloud.share.header.signedOut")
     : state === "resolving"
       ? t("cloud.share.header.resolving")
       : state === "published"
@@ -55,6 +61,8 @@ export function CloudShareHeaderControl({
           : t("cloud.share.header.attention");
   const statusHint = state === "local"
     ? t("cloud.share.header.localHint")
+    : state === "signed-out"
+      ? t("cloud.share.header.signedOutHint")
     : state === "shared"
       ? t("cloud.share.header.sharedHint")
       : state === "published"
@@ -131,7 +139,7 @@ export function CloudShareHeaderControl({
                 </span>
               )}
               label={t(shareTargetLabelKey(target.id))}
-              detail={t(shareTargetPreviewKey(target.id))}
+              tooltip={t(shareTargetPreviewKey(target.id))}
               onClick={() => {
                 close();
                 onShare(target.id);

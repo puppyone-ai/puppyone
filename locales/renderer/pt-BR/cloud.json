@@ -861,5 +861,7 @@
   "share.home.openProject": "Arquivos e armazenamento",
   "route.project.label": "Projeto",
   "route.project.title": "Projeto",
-  "route.project.description": "Nome, arquivos e armazenamento deste projeto na nuvem."
+  "route.project.description": "Nome, arquivos e armazenamento deste projeto na nuvem.",
+  "share.header.signedOut": "Desconectado",
+  "share.header.signedOutHint": "Entre no PuppyOne Cloud para ver quem pode ler isto e compartilhar."
 }

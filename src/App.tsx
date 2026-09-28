@@ -1430,6 +1430,7 @@ function AppContent() {
         <CloudShareHeaderControl
           projectContext={projectCloudContext}
           shares={projectShares}
+          signedIn={activeCloudSession !== null}
           onShare={openShareWizard}
           onOpenCloud={openCloudDialog}
         />

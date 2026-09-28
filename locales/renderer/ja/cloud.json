@@ -861,5 +861,7 @@
   "share.home.openProject": "ファイルとストレージ",
   "route.project.label": "プロジェクト",
   "route.project.title": "プロジェクト",
-  "route.project.description": "このクラウドプロジェクトの名前、ファイル、ストレージ。"
+  "route.project.description": "このクラウドプロジェクトの名前、ファイル、ストレージ。",
+  "share.header.signedOut": "サインアウト中",
+  "share.header.signedOutHint": "PuppyOne Cloud にサインインすると、誰が読めるかを確認して共有できます。"
 }

@@ -861,5 +861,7 @@
   "share.home.openProject": "文件与存储",
   "route.project.label": "项目",
   "route.project.title": "项目",
-  "route.project.description": "这个云端项目的名称、文件与存储。"
+  "route.project.description": "这个云端项目的名称、文件与存储。",
+  "share.header.signedOut": "未登录",
+  "share.header.signedOutHint": "登录 PuppyOne Cloud 后可查看谁能读到它并进行分享。"
 }

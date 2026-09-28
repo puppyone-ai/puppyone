@@ -21,6 +21,11 @@
     background: var(--po-text-disabled);
   }
 
+  .desktop-titlebar-share[data-share-state="signed-out"] .desktop-titlebar-share-badge,
+  .desktop-share-menu-status[data-share-state="signed-out"] .desktop-share-menu-status-dot {
+    background: var(--po-warning, #d97706);
+  }
+
   .desktop-titlebar-share[data-share-state="resolving"] .desktop-titlebar-share-badge {
     background: var(--po-text-muted);
     animation: desktop-share-pulse 1.4s ease-in-out infinite;
@@ -101,10 +106,6 @@
 
   .desktop-share-menu-row-dot[data-live="true"] {
     background: var(--po-success, #16a34a);
-  }
-
-  .desktop-share-menu-target .desktop-menu-item-detail {
-    white-space: normal;
   }
 
   /* ── Target mark (shared by menu + wizard) ──────────────────────── */

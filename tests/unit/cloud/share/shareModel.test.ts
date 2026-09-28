@@ -162,6 +162,12 @@ describe("header share state", () => {
       target: projectRootTarget("proj-1"),
     };
     expect(resolveCloudShareHeaderState(resolved, 0)).toBe("published");
+    expect(resolveCloudShareHeaderState(
+      { status: "wrong-account", projectId: "proj-1", message: { code: "remote-sign-in" } },
+      0,
+      false,
+    )).toBe("signed-out");
+    expect(resolveCloudShareHeaderState({ status: "local-only", projectId: null }, 0, false)).toBe("local");
     expect(resolveCloudShareHeaderState(resolved, 2)).toBe("shared");
     expect(resolveCloudShareHeaderState(
       { status: "not-authorized", projectId: "proj-1", message: { code: "workspace-unavailable" } },

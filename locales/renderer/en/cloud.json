@@ -861,5 +861,7 @@
   "share.home.openProject": "Files and storage",
   "route.project.label": "Project",
   "route.project.title": "Project",
-  "route.project.description": "Name, files, and storage of this Cloud project."
+  "route.project.description": "Name, files, and storage of this Cloud project.",
+  "share.header.signedOut": "Signed out",
+  "share.header.signedOutHint": "Sign in to PuppyOne Cloud to see who can read this and to share."
 }

@@ -861,5 +861,7 @@
   "share.home.openProject": "파일 및 저장 공간",
   "route.project.label": "프로젝트",
   "route.project.title": "프로젝트",
-  "route.project.description": "이 클라우드 프로젝트의 이름, 파일, 저장 공간."
+  "route.project.description": "이 클라우드 프로젝트의 이름, 파일, 저장 공간.",
+  "share.header.signedOut": "로그아웃됨",
+  "share.header.signedOutHint": "PuppyOne Cloud에 로그인하면 누가 읽을 수 있는지 확인하고 공유할 수 있습니다."
 }
