@@ -136,6 +136,22 @@ describe("Header project location", () => {
 
   const popover = () => document.querySelector<HTMLElement>(".desktop-share-popover");
 
+  it("opens only after a click and toggles closed on a second click", () => {
+    const button = renderHeader({
+      context: { status: "local-only", projectId: null },
+      signedIn: false,
+    });
+
+    act(() => button?.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
+    expect(popover()).toBeNull();
+
+    act(() => button?.click());
+    expect(popover()).not.toBeNull();
+
+    act(() => button?.click());
+    expect(popover()).toBeNull();
+  });
+
   it("explains the local-only location and offers a visual sharing action", () => {
     const onShare = vi.fn();
     const button = renderHeader({

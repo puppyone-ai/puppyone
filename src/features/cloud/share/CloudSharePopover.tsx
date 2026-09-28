@@ -7,28 +7,21 @@ const SHARE_POPOVER_WIDTH = 304;
 const SHARE_POPOVER_MAX_HEIGHT = 480;
 
 /**
- * Anchored project-location card under the Header cloud control. Opens on
- * hover and stays while the pointer is inside; a click pins it until the user
- * clicks elsewhere or presses Escape.
+ * Click-triggered project-location menu anchored under the Header control.
+ * Clicking elsewhere or pressing Escape closes it.
  */
 export function CloudSharePopover({
   anchorRef,
   ariaLabel,
   children,
   open,
-  pinned,
   onDismiss,
-  onPointerEnter,
-  onPointerLeave,
 }: {
   anchorRef: RefObject<HTMLElement | null>;
   ariaLabel: string;
   children: ReactNode;
   open: boolean;
-  pinned: boolean;
   onDismiss: () => void;
-  onPointerEnter: () => void;
-  onPointerLeave: () => void;
 }) {
   const { overlayRef, setOverlayRef, overlayPosition } = useAnchoredOverlayPosition({
     open,
@@ -87,11 +80,8 @@ export function CloudSharePopover({
         role="dialog"
         ariaLabel={ariaLabel}
         className="desktop-titlebar-menu desktop-titlebar-menu-overlay desktop-share-popover"
-        data-pinned={pinned || undefined}
         typographySurface="header"
         style={style}
-        onPointerEnter={onPointerEnter}
-        onPointerLeave={onPointerLeave}
       >
         {children}
       </DesktopMenuSurface>
