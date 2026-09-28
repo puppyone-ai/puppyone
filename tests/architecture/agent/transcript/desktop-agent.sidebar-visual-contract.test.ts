@@ -87,10 +87,13 @@ describe("Desktop Agent sidebar visual contract", () => {
     expect(messagePart).not.toContain("clipboard");
     expect(css).toMatch(/\.desktop-agent-message-text\s*\{[^}]*color:\s*var\(--agent-text-muted\)[^}]*font-size:\s*var\(--agent-conversation-font-size\)[^}]*line-height:\s*var\(--agent-conversation-line-height\)/s);
     expect(css).toMatch(/\.desktop-agent-markdown\s*\{[^}]*color:\s*var\(--agent-text-muted\)[^}]*font-family:\s*var\(--agent-font-family\)[^}]*font-size:\s*var\(--agent-conversation-font-size\)[^}]*font-weight:\s*var\(--agent-font-weight\)[^}]*line-height:\s*var\(--agent-response-line-height\)/s);
-    expect(css).toMatch(/\.desktop-agent-markdown h1,[^{]*\.desktop-agent-markdown h6\s*\{[^}]*font-size:\s*var\(--agent-conversation-font-size\)[^}]*font-weight:\s*var\(--po-text-weight-semibold, 600\)[^}]*line-height:\s*var\(--agent-response-line-height\)/s);
+    expect(css).toMatch(/\.desktop-agent-markdown h1,[^{]*\.desktop-agent-markdown h6\s*\{[^}]*color:\s*var\(--agent-text-muted\)[^}]*font-size:\s*var\(--agent-conversation-font-size\)[^}]*font-weight:\s*var\(--po-text-weight-semibold, 600\)[^}]*line-height:\s*var\(--agent-response-line-height\)/s);
+    expect(css).toMatch(/\.desktop-agent-markdown :is\(strong, b\)\s*\{[^}]*color:\s*var\(--agent-text-muted\)[^}]*font-weight:\s*var\(--po-text-weight-semibold, 600\)/s);
+    expect(css).toMatch(/\.desktop-agent-markdown a\s*\{[^}]*color:\s*var\(--agent-text-muted\)/s);
     expect(css).not.toContain("font-size: var(--po-type-right-sidebar-heading-1");
     expect(css).not.toContain("font-size: var(--po-type-right-sidebar-heading-2");
-    expect(css).toMatch(/\.desktop-agent-markdown :not\(pre\) > code\s*\{[^}]*border:\s*1px solid var\(--agent-inline-code-border\)[^}]*background:\s*var\(--agent-inline-code-surface\)[^}]*font-weight:\s*var\(--po-text-weight-medium, 500\)/s);
+    expect(css).toMatch(/\.desktop-agent-markdown :not\(pre\) > code\s*\{[^}]*border:\s*1px solid var\(--agent-inline-code-border\)[^}]*background:\s*var\(--agent-inline-code-surface\)[^}]*color:\s*var\(--agent-text-muted\)[^}]*font-weight:\s*var\(--po-text-weight-medium, 500\)/s);
+    expect(css).toMatch(/\.desktop-agent-markdown th\s*\{[^}]*color:\s*var\(--agent-text-muted\)/s);
     expect(themeCss).toMatch(/--agent-inline-code-surface:\s*color-mix\(in srgb, var\(--agent-text\) 8%, var\(--agent-canvas\)\)/);
     expect(themeCss).toMatch(/--agent-inline-code-border:\s*color-mix\(in srgb, var\(--agent-text\) 14%, var\(--agent-canvas\)\)/);
     expect(messagePart).toContain('data-message-surface={isAssistant ? "document" : "row"}');

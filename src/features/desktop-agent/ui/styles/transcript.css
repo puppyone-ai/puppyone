@@ -345,13 +345,16 @@
 .desktop-agent-markdown h5,
 .desktop-agent-markdown h6 {
   margin: 8px 0 4px;
-  color: var(--agent-text);
+  color: var(--agent-text-muted);
   font-size: var(--agent-conversation-font-size);
   font-weight: var(--po-text-weight-semibold, 600);
   letter-spacing: normal;
   line-height: var(--agent-response-line-height);
 }
-.desktop-agent-markdown :is(strong, b) { font-weight: var(--po-text-weight-semibold, 600); }
+.desktop-agent-markdown :is(strong, b) {
+  color: var(--agent-text-muted);
+  font-weight: var(--po-text-weight-semibold, 600);
+}
 .desktop-agent-markdown ul,
 .desktop-agent-markdown ol { margin: 0.5em 0; padding-inline-start: 1.55em; }
 .desktop-agent-markdown li { margin: 0.18em 0; }
@@ -372,7 +375,7 @@
   color: var(--agent-text-muted);
   white-space: pre-wrap;
 }
-.desktop-agent-markdown a { color: var(--agent-accent); text-underline-offset: 2px; }
+.desktop-agent-markdown a { color: var(--agent-text-muted); text-underline-offset: 2px; }
 .desktop-agent-markdown del { color: var(--agent-text-muted); text-decoration-thickness: 1px; }
 .desktop-agent-markdown hr { margin: 16px 0; border: 0; border-top: 1px solid var(--agent-border-subtle); }
 .desktop-agent-markdown :not(pre) > code {
@@ -380,6 +383,7 @@
   border: 1px solid var(--agent-inline-code-border);
   border-radius: 6px;
   background: var(--agent-inline-code-surface);
+  color: var(--agent-text-muted);
   font-family: var(--po-font-mono);
   font-size: var(--agent-code-font-size);
   font-weight: var(--po-text-weight-medium, 500);
@@ -416,7 +420,7 @@
 .desktop-agent-markdown tbody tr:last-child td { border-block-end: 0; }
 .desktop-agent-markdown th {
   background: var(--agent-table-header-surface);
-  color: var(--agent-text);
+  color: var(--agent-text-muted);
   font-weight: var(--po-font-weight-semibold, 600);
 }
 .desktop-agent-markdown tbody tr:nth-child(even) td { background: var(--agent-table-alternate-surface); }
