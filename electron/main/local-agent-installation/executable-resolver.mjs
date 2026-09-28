@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { createExecutableDiscoveryPort } from "../platform/common/executable-discovery-port.mjs";
 import { runDiscoveryIo } from "../platform/common/discovery-io-budget.mjs";
 import { verifyLocalAgentCandidateIdentity } from "./candidate-identity.mjs";
@@ -14,6 +15,7 @@ const MAX_NAMES = 8;
 const MAX_EXECUTABLE_VARIANTS = 4;
 const MAX_SEARCH_DIRECTORIES = MAX_PATH_DIRECTORIES;
 const MAX_CONFIGURED_CANDIDATES = 16;
+const MAX_IDENTITY_FILE_BYTES = 1024 * 1_024;
 const MAX_CANDIDATES = (MAX_SEARCH_DIRECTORIES * MAX_NAMES * MAX_EXECUTABLE_VARIANTS)
   + MAX_CONFIGURED_CANDIDATES;
 
@@ -49,10 +51,26 @@ export function createLocalAgentExecutableResolver({
     }
     resolutionContext.signal?.throwIfAborted();
     const environment = resolutionContext.environment ?? env;
+    let registeredApplications = [];
+    if (platform === "win32" && definition.registeredApplicationNames?.length > 0) {
+      try {
+        registeredApplications = await discoveryPort.findRegisteredApplications(
+          definition.registeredApplicationNames,
+          { signal: resolutionContext.signal },
+        );
+      } catch {
+        resolutionContext.signal?.throwIfAborted();
+      }
+    }
     let productCandidates;
     try {
       productCandidates = typeof definition.candidatePaths === "function"
-        ? await definition.candidatePaths({ env: environment, homedir, platform }) : [];
+        ? await definition.candidatePaths({
+          env: environment,
+          homedir,
+          platform,
+          registeredApplications,
+        }) : [];
     } catch {
       return failed("candidate-provider-error");
     }
@@ -71,7 +89,10 @@ export function createLocalAgentExecutableResolver({
     if (observation.status === "found") return Object.freeze({
       ...observation,
       ...(resolutionContext.environmentComplete === false ? { reasonCode: "environment-unavailable" } : {}),
-      candidate: Object.freeze({ ...observation.candidate, environment,
+      candidate: Object.freeze({ ...observation.candidate, environment: {
+        ...environment,
+        ...observation.candidate.environmentOverrides,
+      },
         environmentSource: resolutionContext.environmentSource }),
     });
     if (resolutionContext.environmentComplete === false && observation.status === "not-found") {
@@ -172,6 +193,7 @@ export async function resolveExecutableObservation({
       try {
         if (!await runDiscoveryIo(() => acceptCandidate(validation.candidate), { signal })) {
           if (isExplicitSource(candidate.source)) return failed("configured-identity-mismatch");
+          if (validation.candidate.identityMismatchAsNotFound) continue;
           failureReason ??= "identity-mismatch";
           continue;
         }
@@ -202,16 +224,55 @@ async function verifyExecutableIdentity(candidate, fsModule) {
   if (!candidate || !safeAbsolutePath(candidate.executablePath)) {
     throw new Error("Local executable is not a safe absolute path.");
   }
-  const expected = candidate.canonicalIdentity || candidate.executablePath;
-  const resolved = await fsModule.promises.realpath(candidate.executablePath);
-  if (resolved !== expected) throw new Error("Local executable changed identity before launch.");
-  const metadata = await fsModule.promises.stat(resolved);
-  if (!metadata.isFile()) throw new Error("Local executable is not a regular file.");
-  await fsModule.promises.access(resolved, fsModule.constants.X_OK);
-  if (candidate.identityFingerprint && fingerprint(metadata) !== candidate.identityFingerprint) {
-    throw new Error("Local executable changed identity before launch.");
+  await verifyCandidateFile({
+    file: candidate.executablePath,
+    expected: candidate.canonicalIdentity,
+    expectedFingerprint: candidate.identityFingerprint,
+    label: "executable",
+  }, fsModule);
+  if (candidate.entrypointPath) {
+    await verifyCandidateFile({
+      file: candidate.entrypointPath,
+      expected: candidate.entrypointCanonicalIdentity,
+      expectedFingerprint: candidate.entrypointIdentityFingerprint,
+      label: "entrypoint",
+    }, fsModule);
+  }
+  if (candidate.identityFilePath) {
+    await verifyCandidateFile({
+      file: candidate.identityFilePath,
+      expected: candidate.identityFileCanonicalIdentity,
+      expectedFingerprint: candidate.identityFileFingerprint,
+      expectedContentFingerprint: candidate.identityFileContentFingerprint,
+      label: "identity manifest",
+      accessMode: fsModule.constants.R_OK,
+      contentLimit: MAX_IDENTITY_FILE_BYTES,
+    }, fsModule);
   }
   return candidate.executablePath;
+}
+
+async function verifyCandidateFile({
+  file,
+  expected,
+  expectedFingerprint,
+  expectedContentFingerprint,
+  label,
+  accessMode,
+  contentLimit,
+}, fsModule) {
+  if (!safeAbsolutePath(file)) throw new Error(`Local ${label} is not a safe absolute path.`);
+  const resolved = await fsModule.promises.realpath(file);
+  if (resolved !== (expected || file)) throw new Error(`Local ${label} changed identity before launch.`);
+  const metadata = await fsModule.promises.stat(resolved);
+  if (!metadata.isFile()) throw new Error(`Local ${label} is not a regular file.`);
+  await fsModule.promises.access(resolved, accessMode ?? fsModule.constants.X_OK);
+  if (expectedFingerprint && fingerprint(metadata) !== expectedFingerprint) {
+    throw new Error(`Local ${label} changed identity before launch.`);
+  }
+  if (expectedContentFingerprint && (
+    await fingerprintContent(resolved, contentLimit, fsModule) !== expectedContentFingerprint
+  )) throw new Error(`Local ${label} changed identity before launch.`);
 }
 
 function buildCandidates({ descriptors, configuredCandidates, searchContext }) {
@@ -232,16 +293,26 @@ function buildCandidates({ descriptors, configuredCandidates, searchContext }) {
   }
   const ordered = [];
   const seen = new Set();
-  const push = (filename, descriptor, source) => {
+  const push = (filename, descriptor, source, recipe = null) => {
     if (ordered.length >= MAX_CANDIDATES || !safeAbsolutePath(filename)) return;
     const key = `${filename}\0${descriptor.invokedAs}`;
     if (seen.has(key)) return;
     seen.add(key);
-    ordered.push({ filename, descriptor, source });
+    ordered.push({
+      filename,
+      descriptor,
+      source,
+      launcherPath: recipe?.launcherPath,
+      argsPrefix: recipe?.argsPrefix,
+      environmentOverrides: recipe?.environmentOverrides,
+      identityFilePath: recipe?.identityFilePath,
+      requiresManifestIdentity: recipe?.requiresManifestIdentity === true,
+      identityMismatchAsNotFound: recipe?.identityMismatchAsNotFound === true,
+    });
   };
   const pushConfigured = (entry) => {
     const descriptor = descriptors.find(({ fileName }) => path.basename(entry.path) === fileName) ?? descriptors[0];
-    push(entry.path, descriptor, safeSource(entry.source));
+    push(entry.path, descriptor, safeSource(entry.source), entry);
   };
   explicit.forEach(pushConfigured);
   pushSearchDirectories(searchContext, descriptors, push, (source) => source === "path-installation");
@@ -261,20 +332,49 @@ function pushSearchDirectories(searchContext, descriptors, push, matchesSource) 
 
 async function validateCandidate(candidate, fsModule) {
   try {
-    const resolved = await fsModule.promises.realpath(candidate.filename);
-    const launchPathEntry = await fsModule.promises.realpath(path.dirname(candidate.filename));
-    if (!safeAbsolutePath(resolved)) return failed("unsafe-canonical-path");
-    const metadata = await fsModule.promises.stat(resolved);
-    if (!metadata.isFile()) return failed("not-a-file");
-    await fsModule.promises.access(resolved, fsModule.constants.X_OK);
+    const entrypoint = await inspectCandidateFile(candidate.filename, fsModule);
+    if (entrypoint.status !== "found") return entrypoint;
+    const launcherPath = candidate.launcherPath ?? candidate.filename;
+    const launcher = launcherPath === candidate.filename
+      ? entrypoint
+      : await inspectCandidateFile(launcherPath, fsModule);
+    if (launcher.status !== "found") return launcher;
+    const identityFile = candidate.identityFilePath
+      ? await inspectCandidateFile(candidate.identityFilePath, fsModule, {
+        accessMode: fsModule.constants.R_OK,
+        contentLimit: MAX_IDENTITY_FILE_BYTES,
+      })
+      : null;
+    if (identityFile && identityFile.status !== "found") return identityFile;
+    const launchPathEntry = await fsModule.promises.realpath(path.dirname(launcherPath));
+    const recipeArgs = candidate.argsPrefix == null
+      ? candidate.descriptor.argsPrefix
+      : normalizeArgs(candidate.argsPrefix);
+    if (candidate.argsPrefix != null && recipeArgs.length !== candidate.argsPrefix.length) {
+      return failed("invalid-launch-recipe");
+    }
     return Object.freeze({
       status: "found",
       candidate: Object.freeze({
-        executablePath: candidate.filename,
-        canonicalIdentity: resolved,
-        identityFingerprint: fingerprint(metadata),
+        executablePath: launcherPath,
+        canonicalIdentity: launcher.resolved,
+        identityFingerprint: fingerprint(launcher.metadata),
+        ...(launcherPath !== candidate.filename ? {
+          entrypointPath: candidate.filename,
+          entrypointCanonicalIdentity: entrypoint.resolved,
+          entrypointIdentityFingerprint: fingerprint(entrypoint.metadata),
+        } : {}),
         invokedAs: candidate.descriptor.invokedAs,
-        argsPrefix: Object.freeze([...candidate.descriptor.argsPrefix]),
+        argsPrefix: Object.freeze([...recipeArgs]),
+        ...(identityFile ? {
+          identityFilePath: candidate.identityFilePath,
+          identityFileCanonicalIdentity: identityFile.resolved,
+          identityFileFingerprint: fingerprint(identityFile.metadata),
+          identityFileContentFingerprint: identityFile.contentFingerprint,
+        } : {}),
+        ...(candidate.requiresManifestIdentity ? { requiresManifestIdentity: true } : {}),
+        ...environmentOverrides(candidate.environmentOverrides),
+        ...(candidate.identityMismatchAsNotFound ? { identityMismatchAsNotFound: true } : {}),
         launchPathEntry,
         source: candidate.source,
       }),
@@ -285,6 +385,40 @@ async function validateCandidate(candidate, fsModule) {
     }
     if (error?.code === "EACCES" || error?.code === "EPERM") return failed("permission-denied");
     return failed("filesystem-error");
+  }
+}
+
+async function inspectCandidateFile(filename, fsModule, {
+  accessMode = fsModule.constants.X_OK,
+  contentLimit,
+} = {}) {
+  if (!safeAbsolutePath(filename)) return failed("unsafe-path");
+  try {
+    const resolved = await fsModule.promises.realpath(filename);
+    if (!safeAbsolutePath(resolved)) return failed("unsafe-canonical-path");
+    const metadata = await fsModule.promises.stat(resolved);
+    if (!metadata.isFile()) return failed("not-a-file");
+    await fsModule.promises.access(resolved, accessMode);
+    const contentFingerprint = contentLimit
+      ? await fingerprintContent(resolved, contentLimit, fsModule)
+      : null;
+    return { status: "found", resolved, metadata, contentFingerprint };
+  } catch (error) {
+    if (error?.code === "ENOENT" || error?.code === "ENOTDIR") return failed("not-found");
+    if (error?.code === "EACCES" || error?.code === "EPERM") return failed("permission-denied");
+    return failed("filesystem-error");
+  }
+}
+
+async function fingerprintContent(filename, maxBytes, fsModule) {
+  const handle = await fsModule.promises.open(filename, "r");
+  try {
+    const buffer = Buffer.allocUnsafe(maxBytes + 1);
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+    if (bytesRead > maxBytes) throw new Error("Local identity file exceeds the size limit.");
+    return createHash("sha256").update(buffer.subarray(0, bytesRead)).digest("hex");
+  } finally {
+    await handle.close();
   }
 }
 
@@ -325,7 +459,24 @@ function normalizeExtraCandidates(values) {
 
 function normalizeArgs(value) {
   if (!Array.isArray(value)) return [];
-  return value.slice(0, 4).map(String).filter((entry) => entry.length <= 160 && !/[\r\n\0]/u.test(entry));
+  return value.slice(0, 4).map(String).filter((entry) => entry.length <= 4_096 && !/[\r\n\0]/u.test(entry));
+}
+
+function normalizeEnvironmentOverrides(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value).slice(0, 8).filter(([key, entry]) => (
+    /^[A-Za-z_][A-Za-z0-9_]{0,79}$/u.test(key)
+    && typeof entry === "string"
+    && entry.length <= 4_096
+    && !/[\r\n\0]/u.test(entry)
+  )));
+}
+
+function environmentOverrides(value) {
+  const overrides = normalizeEnvironmentOverrides(value);
+  return Object.keys(overrides).length > 0
+    ? { environmentOverrides: Object.freeze(overrides) }
+    : {};
 }
 
 function safeAbsolutePath(value) {

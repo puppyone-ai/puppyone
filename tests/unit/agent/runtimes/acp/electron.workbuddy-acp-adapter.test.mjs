@@ -241,6 +241,41 @@ describe("WorkBuddy ACP runtime", () => {
       selectable: false,
     });
   });
+
+  it("probes a Windows desktop bundle through its Electron host and CLI entrypoint", async () => {
+    const cliEntrypoint = "D:\\WorkBuddy\\resources\\app.asar.unpacked\\cli\\bin\\codebuddy";
+    const probe = vi.fn(async (_spawn, executablePath, args, options) => {
+      expect(executablePath).toBe("D:\\WorkBuddy\\WorkBuddy.exe");
+      expect(args).toEqual([cliEntrypoint, "--help"]);
+      expect(options.env).toMatchObject({
+        ELECTRON_RUN_AS_NODE: "1",
+        CODEBUDDY_DISABLE_COMPILE_CACHE: "1",
+      });
+      return { code: 0, stdout: "  --acp  Start in ACP mode\n", stderr: "" };
+    });
+
+    await expect(discoverWorkBuddyExecutable({
+      channel: WORKBUDDY_CHINA_CHANNEL,
+      platform: "win32",
+      discover: async () => ({
+        status: "ready",
+        code: "READY",
+        version: "2.147.0",
+        minimumVersion: null,
+        executablePath: "D:\\WorkBuddy\\WorkBuddy.exe",
+        argsPrefix: [cliEntrypoint],
+        environment: { ELECTRON_RUN_AS_NODE: "1" },
+        message: "ready",
+      }),
+      probe,
+    })).resolves.toMatchObject({
+      status: "ready",
+      executablePath: "D:\\WorkBuddy\\WorkBuddy.exe",
+      argsPrefix: [cliEntrypoint],
+      selectable: true,
+    });
+    expect(probe).toHaveBeenCalledOnce();
+  });
 });
 
 class FakeWorkBuddyConnection extends EventEmitter {

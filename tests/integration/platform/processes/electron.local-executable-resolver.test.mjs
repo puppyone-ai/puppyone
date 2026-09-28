@@ -161,6 +161,73 @@ describe("ordered installation discovery", () => {
     expect(internationalCandidates.some(({ path: candidatePath }) => candidatePath.includes("WorkBuddy.app"))).toBe(false);
   });
 
+  it("resolves a registered Windows WorkBuddy app as an atomic Electron-hosted CLI recipe", async () => {
+    const home = await mkdtemp(path.join(os.tmpdir(), "puppyone-workbuddy-windows-"));
+    roots.push(home);
+    const environment = { PATH: "", PATHEXT: ".EXE;.CMD" };
+    const desktopExecutable = await executable(path.join(home, "custom install", "WorkBuddy.exe"), "MZ fixture\n");
+    const cliEntrypoint = await executable(
+      path.join(home, "custom install", "resources", "app.asar.unpacked", "cli", "bin", "codebuddy"),
+      "#!/usr/bin/env node\nglobal.__CODEBUDDY_PROCESS_START_TIME__ = Date.now();\n",
+    );
+    const productManifest = path.join(path.dirname(path.dirname(cliEntrypoint)), "product.json");
+    await writeFile(
+      productManifest,
+      JSON.stringify({ productName: "WorkBuddy", endpoint: "https://www.workbuddy.cn" }),
+    );
+    const findRegisteredApplications = vi.fn(async (names) => names.includes("WorkBuddy.exe")
+      ? [{
+        applicationName: "WorkBuddy.exe",
+        executablePath: desktopExecutable,
+        source: "windows-application-registration",
+      }]
+      : []);
+    const port = createExecutableDiscoveryPort({
+      env: environment,
+      homedir: home,
+      nodePlatform: "win32",
+      readEnvironment: providedEnvironment,
+      findRegisteredApplications,
+    });
+    const resolver = createLocalAgentExecutableResolver({ discoveryPort: port });
+    const context = await resolver.createContext();
+
+    const result = await resolver.resolve("workbuddy-china", { context });
+
+    expect(result).toMatchObject({
+      status: "found",
+      candidate: {
+        executablePath: desktopExecutable,
+        entrypointPath: cliEntrypoint,
+        argsPrefix: [cliEntrypoint],
+        source: "windows-application-registration",
+        environment: { ELECTRON_RUN_AS_NODE: "1" },
+      },
+    });
+    await expect(assertExecutableIdentity(result.candidate)).resolves.toBe(desktopExecutable);
+    await expect(resolver.resolve("workbuddy-international", { context }))
+      .resolves.toMatchObject({ status: "not-found" });
+    expect(findRegisteredApplications).toHaveBeenCalledWith(["WorkBuddy.exe"], { signal: undefined });
+
+    await writeFile(productManifest, JSON.stringify({
+      productName: "WorkBuddy",
+      endpoint: "https://www.workbuddy.ai",
+    }));
+    await expect(assertExecutableIdentity(result.candidate)).rejects.toThrow("identity manifest changed identity");
+    await expect(resolver.resolve("workbuddy-international", { context })).resolves.toMatchObject({
+      status: "found",
+      candidate: {
+        executablePath: desktopExecutable,
+        entrypointPath: cliEntrypoint,
+        argsPrefix: [cliEntrypoint],
+        source: "windows-application-registration",
+      },
+    });
+
+    await writeFile(cliEntrypoint, "#!/usr/bin/env node\n// replaced after discovery\n");
+    await expect(assertExecutableIdentity(result.candidate)).rejects.toThrow("entrypoint changed identity");
+  });
+
   it("accepts an explicit WorkBuddy channel override without enabling the other channel", async () => {
     const env = {};
     const { home, resolver } = await fixture(env);
