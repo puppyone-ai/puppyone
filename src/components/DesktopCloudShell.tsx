@@ -236,6 +236,7 @@ export function DesktopCloudShell({
   const shellStyle = {
     "--desktop-shell-explorer-width": `${paneLayout.explorer.width}px`,
     "--desktop-shell-leading-rail-width": `${resolvedLeadingRailWidth}px`,
+    "--desktop-shell-right-sidebar-width": `${paneLayout.rightSidebar.width}px`,
   } as CSSProperties;
 
   useEffect(() => {
@@ -294,6 +295,7 @@ export function DesktopCloudShell({
     <div
       className="desktop-shell"
       data-leading-rail={leadingRailPresent ? "true" : undefined}
+      data-right-sidebar-open={paneLayout.rightSidebar.open ? "true" : undefined}
       data-titlebar-sidebar-state={sidebarState}
       style={shellStyle}
     >

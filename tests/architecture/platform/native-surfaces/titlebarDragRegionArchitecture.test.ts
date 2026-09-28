@@ -67,6 +67,19 @@ describe("titlebar drag-region architecture", () => {
     expect(titlebarCss).not.toContain('.desktop-shell[data-leading-rail="true"] .desktop-titlebar');
   });
 
+  it("aligns the Cloud boundary with an expanded right sidebar", () => {
+    expect(desktopShell).toContain('"--desktop-shell-right-sidebar-width": `${paneLayout.rightSidebar.width}px`');
+    expect(desktopShell).toContain('data-right-sidebar-open={paneLayout.rightSidebar.open ? "true" : undefined}');
+    expect(titlebarCss).toContain(
+      '.desktop-shell[data-right-sidebar-open="true"] .desktop-titlebar-trailing',
+    );
+    expect(titlebarCss).toContain("width: var(--desktop-shell-right-sidebar-width);");
+    expect(titlebarCss).toContain(
+      '.desktop-titlebar-share-wrap + .desktop-titlebar-action-divider',
+    );
+    expect(titlebarCss).toContain("inset-inline-start: 0;");
+  });
+
   it("keeps the native fullscreen reveal bar free of application titles", () => {
     expect(electronMain).toContain('window.on("enter-full-screen"');
     expect(electronMain).toContain('window.setTitle("");');
