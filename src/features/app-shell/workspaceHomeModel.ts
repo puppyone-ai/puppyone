@@ -44,8 +44,11 @@ export function getWorkspaceParentPathForDisplay(workspacePath: string): string 
   const parentPath = separatorIndex === 0
     ? "/"
     : normalizedPath.slice(0, separatorIndex);
-  if (/^\/Users\/[^/]+$/.test(parentPath)) return "~";
-  return parentPath.replace(/^\/Users\/[^/]+(?=\/)/, "~");
+  return getWorkspacePathForDisplay(parentPath);
+}
+
+export function getWorkspacePathForDisplay(workspacePath: string): string {
+  return workspacePath.replace(/^\/Users\/[^/]+(?=\/|$)/, "~");
 }
 
 export function getProjectName(item: ProjectHomeItem, fallback: string): string {

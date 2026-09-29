@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useMemo, useState, type ReactNode, type RefObject } from "react";
 import {
   Tooltip,
   createWorkspaceFolder,
@@ -23,7 +23,7 @@ import {
   ProjectContextAssetMark,
   resolveProjectContextAssetKind,
 } from "./ProjectContextAssetMark";
-import { getWorkspaceParentPathForDisplay } from "./workspaceHomeModel";
+import { getWorkspaceParentPathForDisplay, getWorkspacePathForDisplay } from "./workspaceHomeModel";
 
 type DesktopWorkspaceSwitcherProps = {
   open: boolean;
@@ -128,14 +128,6 @@ export function DesktopWorkspaceSwitcher({
       >
         {view === "projects" ? (
           <>
-            <div className="desktop-project-home-group">
-              <DesktopMenuIconButton
-                className="desktop-project-home"
-                icon={<ArrowLeft className="po-directional-icon" size={16} strokeWidth={1.75} />}
-                label={t("shell.workspaceSwitcher.goHome")}
-                onClick={onGoHome}
-              />
-            </div>
             <div
               className="desktop-project-overview"
               data-workspace-menu-layout="workspace-composition-v1"
@@ -144,14 +136,22 @@ export function DesktopWorkspaceSwitcher({
                 fallbackKind={workspaceContextAssetKind}
                 location={projectLocation}
                 path={workspace.path}
+                navigation={(
+                  <DesktopMenuIconButton
+                    className="desktop-project-home"
+                    icon={<ArrowLeft className="po-directional-icon" size={16} strokeWidth={1.75} />}
+                    label={t("shell.workspaceSwitcher.goHome")}
+                    onClick={onGoHome}
+                  />
+                )}
               />
               {branchMenu && (
                 <DesktopMenuItem
                   className="desktop-project-branch"
-                  icon={<GitBranch size={16} strokeWidth={1.75} />}
+                  icon={<GitBranch size={13} strokeWidth={1.75} />}
                   aria-label={t("shell.branch.title", { branch: bidiIsolate(branchMenu.label) })}
                   label={<bdi>{branchMenu.label}</bdi>}
-                  trailing={<ChevronDown size={12} aria-hidden="true" />}
+                  trailing={<ChevronDown size={10} aria-hidden="true" />}
                   disabled={branchMenu.disabled}
                   onClick={() => setView("branches")}
                 />
@@ -284,10 +284,12 @@ function DesktopCurrentProjectLocation({
   fallbackKind,
   location,
   path,
+  navigation,
 }: {
   fallbackKind: "local" | "cloud";
   location?: DesktopProjectLocation;
   path: string;
+  navigation: ReactNode;
 }) {
   const { t } = useLocalization();
   const kind = location?.current ?? fallbackKind;
@@ -297,22 +299,23 @@ function DesktopCurrentProjectLocation({
       data-project-location={kind}
       role="status"
     >
-      <span className="desktop-project-current-location-icon">
-        <ProjectLocationMark
-          className="desktop-project-current-location-mark"
-          kind={kind}
-          size={20}
-        />
-        <span className="desktop-project-location-dot" aria-hidden="true" />
-      </span>
+      <div className="desktop-project-location-header">
+        <div className="desktop-project-home-group">{navigation}</div>
+        <span className="desktop-project-current-location-icon">
+          <ProjectLocationMark
+            className="desktop-project-current-location-mark"
+            kind={kind}
+            size={20}
+          />
+          <span className="desktop-project-location-dot" aria-hidden="true" />
+        </span>
+      </div>
       {kind === "local" ? (
-        <bdi className="desktop-project-current-location-path" dir="ltr" aria-label={path}>
-          {path.split(/([/\\])/).map((part, index) => (
-            <Fragment key={index}>
-              {part}{(part === "/" || part === "\\") && <wbr />}
-            </Fragment>
-          ))}
-        </bdi>
+        <Tooltip content={path}>
+          <bdi className="desktop-project-current-location-path" dir="ltr" aria-label={path}>
+            {getWorkspacePathForDisplay(path)}
+          </bdi>
+        </Tooltip>
       ) : (
         <span className="desktop-project-current-location-label">{t("shell.workspaceSwitcher.location.inCloud")}</span>
       )}
@@ -372,7 +375,8 @@ function DesktopAlternateLocationAction({
       icon={<Icon className={state === "resolving" ? "animate-spin" : undefined} size={16} strokeWidth={1.75} />}
       label={label}
       trailing={<ChevronRight className="po-directional-icon" size={12} aria-hidden="true" />}
-      tooltip={state === "attention" ? t("shell.workspaceSwitcher.location.needsAttention") : label}
+      tooltip={state === "attention" ? t("shell.workspaceSwitcher.location.needsAttention")
+        : state === "setup" ? t("shell.workspaceSwitcher.location.keepAvailable") : label}
       onClick={run(action)}
     />
   );

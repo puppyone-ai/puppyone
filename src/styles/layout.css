@@ -470,13 +470,21 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   display: grid;
   min-width: 0;
   justify-items: center;
-  gap: var(--po-menu-item-gap);
-  padding: 8px var(--po-menu-item-padding-inline) 0;
+  gap: var(--po-menu-padding);
   color: var(--po-text-muted);
+}
+
+.desktop-project-location-header {
+  display: grid;
+  grid-template-columns: var(--po-menu-item-height) 1fr var(--po-menu-item-height);
+  width: 100%;
+  min-height: var(--po-menu-item-height);
+  align-items: center;
 }
 
 .desktop-project-current-location-icon {
   display: inline-flex;
+  justify-self: center;
   align-items: flex-end;
   gap: 2px;
 }
@@ -510,16 +518,21 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-current-location-path {
-  max-width: 100%;
-  overflow-wrap: anywhere;
+  max-width: calc(100% - 2 * var(--po-menu-item-padding-inline));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   text-align: center;
-  text-wrap: balance;
 }
 
 .desktop-project-overview .desktop-project-branch {
+  --po-menu-item-font-size: var(--po-menu-meta-font-size);
+  --po-menu-icon-slot-size: 14px;
+
   width: auto;
   max-width: 100%;
   justify-self: center;
+  gap: var(--po-menu-padding);
 }
 
 .desktop-project-menu .desktop-menu-item-icon {
@@ -539,6 +552,8 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-home-group .desktop-project-home {
+  width: var(--po-menu-item-height);
+  height: var(--po-menu-item-height);
   color: var(--po-text-muted);
 }
 
@@ -602,10 +617,6 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-home-group {
-  position: absolute;
-  z-index: 1;
-  inset-block-start: var(--po-menu-padding);
-  inset-inline-start: var(--po-menu-padding);
   display: flex;
   align-items: center;
 }
