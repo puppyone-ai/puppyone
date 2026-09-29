@@ -16,7 +16,7 @@ import {
   LoaderCircle,
   TriangleAlert,
 } from "lucide-react";
-import { DesktopMenuItem } from "../../components/DesktopMenu";
+import { DesktopMenuIconButton, DesktopMenuItem } from "../../components/DesktopMenu";
 import { DesktopTitlebarMenuLayer } from "./DesktopTitlebarMenuLayer";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import {
@@ -129,8 +129,8 @@ export function DesktopWorkspaceSwitcher({
         {view === "projects" ? (
           <>
             <div className="desktop-project-home-group">
-              <DesktopMenuItem
-                className="desktop-project-add desktop-project-home"
+              <DesktopMenuIconButton
+                className="desktop-project-home"
                 icon={<ArrowLeft className="po-directional-icon" size={15} strokeWidth={1.9} />}
                 label={t("shell.workspaceSwitcher.goHome")}
                 onClick={onGoHome}
@@ -304,7 +304,7 @@ function DesktopCurrentProjectLocation({
         <ProjectLocationMark
           className="desktop-project-current-location-mark"
           kind={kind}
-          size={24}
+          size={20}
         />
         <span className="desktop-project-location-dot" aria-hidden="true" />
       </span>

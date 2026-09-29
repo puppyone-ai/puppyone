@@ -110,7 +110,8 @@ describe("titlebar Portal menu interactions", () => {
     expect(setup?.textContent).toBe("Deploy to Cloud");
     expect(setup?.closest(".desktop-project-location-actions")).not.toBeNull();
     expect(setup?.closest(".desktop-project-home-group")).toBeNull();
-    expect(requireMenu().querySelector(".desktop-project-home")?.textContent).toBe("Homepage");
+    expect(requireMenu().querySelector(".desktop-project-home")?.textContent).toBe("");
+    expect(requireMenu().querySelector(".desktop-project-home")?.getAttribute("aria-label")).toBe("Homepage");
     expect(setup?.querySelector(".lucide-cloud")).not.toBeNull();
     act(() => setup?.click());
     expect(onSetupCloud).toHaveBeenCalledOnce();
@@ -213,7 +214,6 @@ describe("titlebar Portal menu interactions", () => {
     expect(menu.style.width).toBe("240px");
     expect(menu.querySelector("[data-workspace-menu-layout='workspace-composition-v1']"))
       .not.toBeNull();
-    expect(menu.textContent).toContain("Home");
     expect(menu.textContent).toContain("Add Project…");
     expect(menu.textContent).not.toContain("Open Folder in New Window…");
     expect(menu.textContent).not.toContain("Workspace one");

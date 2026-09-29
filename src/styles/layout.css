@@ -465,8 +465,6 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   min-width: 0;
   gap: var(--po-menu-padding);
   padding-bottom: var(--po-menu-padding);
-  border-radius: var(--po-menu-item-radius);
-  background: var(--po-selected);
 }
 
 .desktop-project-current-location {
@@ -474,7 +472,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   min-width: 0;
   justify-items: center;
   gap: var(--po-menu-item-gap);
-  padding: 12px var(--po-menu-item-padding-inline) 0;
+  padding: 8px var(--po-menu-item-padding-inline) 0;
   color: var(--po-text);
 }
 
@@ -484,15 +482,17 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 
 .desktop-project-current-location-icon > .desktop-project-location-dot {
   position: absolute;
-  inset-inline-end: -4px;
+  inset-inline-end: -3px;
   bottom: 0;
-  box-shadow: 0 0 0 2px var(--po-selected);
+  width: 6px;
+  height: 6px;
+  box-shadow: 0 0 0 2px var(--po-menu-bg);
 }
 
 .desktop-project-current-location-mark {
   display: grid;
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   place-items: center;
   color: var(--po-text-muted);
 }
@@ -507,7 +507,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   align-items: center;
   gap: 6px;
   min-width: 0;
-  color: var(--po-text);
+  color: var(--po-text-muted);
   font-size: var(--po-menu-meta-font-size);
   font-weight: var(--po-text-weight-regular, 400);
   line-height: var(--po-menu-meta-line-height);
@@ -616,9 +616,12 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-home-group {
+  position: absolute;
+  z-index: 1;
+  inset-block-start: var(--po-menu-padding);
+  inset-inline-start: var(--po-menu-padding);
   display: flex;
   align-items: center;
-  margin-bottom: var(--po-menu-padding);
 }
 
 .desktop-project-location-actions {
@@ -627,7 +630,6 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   border-top: 1px solid var(--po-divider);
 }
 
-.desktop-project-home-group .desktop-menu-item,
 .desktop-project-location-actions .desktop-menu-item {
   --po-menu-item-font-size: var(--po-menu-meta-font-size);
 
@@ -635,7 +637,6 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   height: auto;
 }
 
-.desktop-project-home-group .desktop-menu-item-label,
 .desktop-project-location-actions .desktop-menu-item-label {
   white-space: normal;
 }
