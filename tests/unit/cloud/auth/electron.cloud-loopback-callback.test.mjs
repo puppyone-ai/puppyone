@@ -53,6 +53,7 @@ describe("desktop OAuth loopback callback", () => {
     expect(server.redirectUri).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/auth\/callback$/);
     const wrong = await fetch(new URL("/wrong", server.redirectUri));
     expect(wrong.status).toBe(404);
+    await wrong.text();
     expect(onCallback).not.toHaveBeenCalled();
 
     const wrongState = await fetch(`${server.redirectUri}?state=wrong&code=code-1`);
@@ -86,11 +87,14 @@ describe("desktop OAuth loopback callback", () => {
     expect(returnPath).toBeTruthy();
     const replay = await fetch(callback);
     expect(replay.status).toBe(409);
+    await replay.text();
     const guessedReturn = await fetch(new URL("/auth/return/invalid", server.redirectUri));
     expect(guessedReturn.status).toBe(409);
+    await guessedReturn.text();
     expect(onReturnToApp).not.toHaveBeenCalled();
     const directNavigation = await fetch(new URL(returnPath, server.redirectUri));
     expect(directNavigation.status).toBe(409);
+    await directNavigation.text();
     expect(onReturnToApp).not.toHaveBeenCalled();
     const open = await fetch(new URL(returnPath, server.redirectUri), { method: "POST" });
     expect(open.status).toBe(204);
