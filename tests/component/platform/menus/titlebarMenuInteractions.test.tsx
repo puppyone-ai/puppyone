@@ -24,6 +24,50 @@ afterEach(() => {
 });
 
 describe("titlebar Portal menu interactions", () => {
+  it("shows and switches branches inside the centered project menu", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    const onCheckoutBranch = vi.fn(async () => true);
+    const onClose = vi.fn();
+    const onGoHome = vi.fn();
+    await act(async () => {
+      root?.render(withTestLocalization(
+        <DesktopTitlebarContext
+          compactProjectMenu availableProjects={[]}
+          activeGitStatus={createGitStatus()}
+          branchSwitcherOpen={false}
+          branchSwitcherRef={createRef<HTMLDivElement>()}
+          gitStatusLoading={false} gitOperationLoading={null}
+          localBranches={[createBranch("feature/menu")]} remoteBranches={[]}
+          workspace={createWorkspace("one", "Workspace one")}
+          workspaceFolders={[]} multiRootWorkspacesEnabled={false}
+          workspaceSwitcherOpen workspaceSwitcherRef={createRef<HTMLDivElement>()}
+          onCheckoutBranch={onCheckoutBranch}
+          onCloseBranchSwitcher={vi.fn()} onCloseWorkspaceSwitcher={onClose}
+          onGoHome={onGoHome} onAddProject={vi.fn()} onAddExistingProject={vi.fn()}
+          onToggleBranchSwitcher={vi.fn()} onToggleWorkspaceSwitcher={vi.fn()}
+        />,
+      ));
+    });
+    expect(container.querySelector(".desktop-titlebar-branch-button")).toBeNull();
+    const branchEntry = () => requireMenu().querySelector<HTMLButtonElement>(".desktop-project-branch");
+    expect(branchEntry()?.textContent).toContain("main");
+    act(() => branchEntry()?.click());
+    expect(document.querySelectorAll('[data-titlebar-context-menu="true"]')).toHaveLength(1);
+    expect(requireMenu().classList.contains("desktop-branch-menu")).toBe(true);
+    expect(requireMenu().textContent).toContain("feature/menu");
+    act(() => requireMenu().querySelector<HTMLButtonElement>(".desktop-project-back-group button")?.click());
+    act(() => requireMenu().querySelector<HTMLButtonElement>(".desktop-project-home")?.click());
+    expect(onGoHome).toHaveBeenCalledOnce();
+    act(() => branchEntry()?.click());
+    await act(async () => {
+      requireMenu().querySelector<HTMLButtonElement>(".desktop-branch-menu-row")?.click();
+    });
+    expect(onCheckoutBranch).toHaveBeenCalledWith("feature/menu", false);
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
   it("keeps the current location stable while the alternate Cloud row changes from setup to switch", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

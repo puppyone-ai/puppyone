@@ -5,6 +5,7 @@ import {
   closeEditor,
   closeEditorsUnderResource,
   createEditorInput,
+  moveEditor,
   openEditor,
   parseEditorGroupState,
   rebaseEditorResources,
@@ -103,6 +104,18 @@ describe("EditorGroupModel", () => {
     state = activateEditor(state, "c.md");
 
     expect(closeEditor(state, "c.md").activeEditorId).toBe("a.md");
+  });
+
+  it("moves an editor before a target without changing focus history", () => {
+    let state = openEditor(EMPTY_EDITOR_GROUP, createEditorInput("a.md"));
+    state = openEditor(state, createEditorInput("b.md"));
+    state = openEditor(state, createEditorInput("c.md"));
+    const moved = moveEditor(state, "c.md", "a.md");
+
+    expect(moved.editors.map(({ id }) => id)).toEqual(["c.md", "a.md", "b.md"]);
+    expect(moved.activeEditorId).toBe(state.activeEditorId);
+    expect(moved.mostRecentlyUsed).toEqual(state.mostRecentlyUsed);
+    expect(moveEditor(moved, "missing.md", "a.md")).toBe(moved);
   });
 
   it("rebases and closes a folder's complete editor subtree", () => {

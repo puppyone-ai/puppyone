@@ -12,6 +12,7 @@ type DesktopTitlebarMenuLayerProps = {
   open: boolean;
   preferredMaxHeight: number;
   preferredWidth?: number;
+  alignment?: "start" | "center" | "end";
 };
 
 const TITLEBAR_CONTEXT_MENU_WIDTH = 300;
@@ -30,6 +31,7 @@ export function DesktopTitlebarMenuLayer({
   open,
   preferredMaxHeight,
   preferredWidth = TITLEBAR_CONTEXT_MENU_WIDTH,
+  alignment = "start",
 }: DesktopTitlebarMenuLayerProps) {
   const { overlayRef, setOverlayRef, overlayPosition } = useAnchoredOverlayPosition({
     open,
@@ -38,6 +40,8 @@ export function DesktopTitlebarMenuLayer({
     preferredMaxHeight,
     gap,
     margin: 8,
+    alignment,
+    placementPreference: "below",
   });
 
   useEffect(() => {

@@ -20,6 +20,22 @@ afterEach(() => {
 });
 
 describe("desktop explorer Header expansion", () => {
+  it("keeps a centered project menu interactive beside file tabs in the same Header", () => {
+    const onProject = vi.fn();
+    const container = renderShell({
+      leftSidebarCollapsed: false,
+      titlebarCenteredSlot: <button onClick={onProject}>Project menu</button>,
+      titlebarTabs: <div role="tablist">Files</div>,
+    });
+    const header = container.querySelector("header");
+    expect(header?.getAttribute("data-centered-project")).toBe("true");
+    expect(header?.querySelector('[role="tablist"]')?.textContent).toBe("Files");
+    const project = header?.querySelector<HTMLButtonElement>(".desktop-titlebar-centered-context button");
+    act(() => project?.click());
+    expect(onProject).toHaveBeenCalledOnce();
+    expect(container.querySelectorAll("header")).toHaveLength(1);
+  });
+
   it("shows the expansion action without hiding workspace or Git context", () => {
     const collapsed = renderShell({ leftSidebarCollapsed: true });
     expect(collapsed.querySelector(".desktop-titlebar-sidebar-expand")).not.toBeNull();
@@ -118,6 +134,8 @@ function renderShell({
   rightSidebar,
   rightSidebarOpen = false,
   titlebarEditorSlot = <div>Editors</div>,
+  titlebarCenteredSlot,
+  titlebarTabs,
 }: {
   leftSidebarCollapsed: boolean;
   leadingRail?: React.ReactNode;
@@ -126,6 +144,8 @@ function renderShell({
   rightSidebar?: React.ReactNode;
   rightSidebarOpen?: boolean;
   titlebarEditorSlot?: React.ReactNode;
+  titlebarCenteredSlot?: React.ReactNode;
+  titlebarTabs?: React.ReactNode;
 }) {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -141,6 +161,8 @@ function renderShell({
         rightSidebarOpen={rightSidebarOpen}
         titlebarSidebarSlot={<div>Workspace · main</div>}
         titlebarEditorSlot={titlebarEditorSlot}
+        titlebarCenteredSlot={titlebarCenteredSlot}
+        titlebarTabs={titlebarTabs}
       >
         <div>Editor</div>
       </DesktopCloudShell>,

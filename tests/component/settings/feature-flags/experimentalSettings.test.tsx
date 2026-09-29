@@ -17,6 +17,29 @@ afterEach(() => {
 });
 
 describe("Experimental settings", () => {
+  it("groups experiments and enables centered project names without changing other flags", () => {
+    const onChange = vi.fn();
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    act(() => root?.render(withTestLocalization(
+      <ExperimentalSettingsView settings={DEFAULT_EXPERIMENTAL_SETTINGS}
+        assetLibraryHomeAvailable={false} onChange={onChange} />,
+    )));
+
+    const groups = [...host.querySelectorAll(".desktop-settings-subsection")];
+    expect(groups.map((group) => group.querySelector("h3")?.textContent)).toEqual([
+      "Header & layout", "Markdown", "Imports & plugins", "Cloud & automation",
+    ]);
+    const toggle = groups[0]?.querySelector<HTMLInputElement>('input[aria-label="Center project in Header"]');
+    expect(toggle?.checked).toBe(false);
+    act(() => toggle?.click());
+    expect(onChange).toHaveBeenCalledWith({
+      ...DEFAULT_EXPERIMENTAL_SETTINGS,
+      enableCenteredProjectInHeader: true,
+    });
+  });
+
   it("offers one default-off import experiment", () => {
     const onChange = vi.fn();
     const host = document.createElement("div");

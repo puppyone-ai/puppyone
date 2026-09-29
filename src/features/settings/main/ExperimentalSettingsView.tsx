@@ -1,6 +1,6 @@
 import { useLocalization } from "@puppyone/localization";
 import type { ExperimentalSettings } from "../../../preferences";
-import { SettingsSectionHeader, SettingsToggle } from "../components";
+import { SettingsSectionHeader, SettingsSubsection, SettingsToggle } from "../components";
 
 export function ExperimentalSettingsView({
   settings,
@@ -12,31 +12,50 @@ export function ExperimentalSettingsView({
   onChange: (settings: ExperimentalSettings) => void;
 }) {
   const { t } = useLocalization();
-  const rows: Array<{
-    messageKey: string;
-    settingKey: keyof ExperimentalSettings;
+  const groups: Array<{
+    id: string;
+    rows: Array<{ messageKey: string; settingKey: keyof ExperimentalSettings }>;
   }> = [
-    { messageKey: "projectSwitcherRail", settingKey: "enableProjectSwitcherRail" },
-    { messageKey: "multiRootWorkspaces", settingKey: "enableMultiRootWorkspaces" },
     {
-      messageKey: "alwaysShowOnboardingCoachmarks",
-      settingKey: "enableAlwaysShowOnboardingCoachmarks",
+      id: "header",
+      rows: [
+        { messageKey: "editorTabsInHeader", settingKey: "enableEditorTabsInHeader" },
+        { messageKey: "centerProjectInHeader", settingKey: "enableCenteredProjectInHeader" },
+        { messageKey: "workbenchTabsInHeader", settingKey: "enableWorkbenchTabsInHeader" },
+        { messageKey: "shareOnboarding", settingKey: "enableShareOnboarding" },
+        { messageKey: "projectSwitcherRail", settingKey: "enableProjectSwitcherRail" },
+        { messageKey: "multiRootWorkspaces", settingKey: "enableMultiRootWorkspaces" },
+        { messageKey: "alwaysShowOnboardingCoachmarks", settingKey: "enableAlwaysShowOnboardingCoachmarks" },
+        ...(assetLibraryHomeAvailable
+          ? [{ messageKey: "projectsHome", settingKey: "enableAssetLibraryHome" as const }]
+          : []),
+      ],
     },
-    { messageKey: "otherAppImports", settingKey: "enableOtherAppImports" },
-    { messageKey: "viewerPlugins", settingKey: "enableViewerPlugins" },
-    ...(window.puppyoneDesktop?.getGitAutoCommitSettings
-      ? [{ messageKey: "gitAutoCommit", settingKey: "enableGitAutoCommit" as const }]
-      : []),
-    { messageKey: "markdownBlockDrag", settingKey: "enableMarkdownBlockDrag" },
-    { messageKey: "markdownHeadingOutline", settingKey: "enableMarkdownHeadingOutline" },
-    ...(assetLibraryHomeAvailable
-      ? [{ messageKey: "projectsHome", settingKey: "enableAssetLibraryHome" as const }]
-      : []),
-    { messageKey: "cloudWorkspace", settingKey: "enableCloudWorkspace" },
-    { messageKey: "shareOnboarding", settingKey: "enableShareOnboarding" },
-    { messageKey: "workbenchTabsInHeader", settingKey: "enableWorkbenchTabsInHeader" },
-    { messageKey: "cloudAutomation", settingKey: "enableCloudAutomation" },
-    { messageKey: "flowFiles", settingKey: "enablePuppyFlowFiles" },
+    {
+      id: "markdown",
+      rows: [
+        { messageKey: "markdownBlockDrag", settingKey: "enableMarkdownBlockDrag" },
+        { messageKey: "markdownHeadingOutline", settingKey: "enableMarkdownHeadingOutline" },
+      ],
+    },
+    {
+      id: "imports",
+      rows: [
+        { messageKey: "otherAppImports", settingKey: "enableOtherAppImports" },
+        { messageKey: "viewerPlugins", settingKey: "enableViewerPlugins" },
+      ],
+    },
+    {
+      id: "cloud",
+      rows: [
+        { messageKey: "cloudWorkspace", settingKey: "enableCloudWorkspace" },
+        { messageKey: "cloudAutomation", settingKey: "enableCloudAutomation" },
+        { messageKey: "flowFiles", settingKey: "enablePuppyFlowFiles" },
+        ...(window.puppyoneDesktop?.getGitAutoCommitSettings
+          ? [{ messageKey: "gitAutoCommit", settingKey: "enableGitAutoCommit" as const }]
+          : []),
+      ],
+    },
   ];
 
   return (
@@ -46,21 +65,23 @@ export function ExperimentalSettingsView({
           <SettingsSectionHeader
             title={t("settings.experimental.title")}
           />
-          <div className="desktop-settings-list desktop-settings-lead-list">
-            {rows.map(({ messageKey, settingKey }) => (
-              <div className="desktop-settings-row desktop-settings-row-control" key={settingKey}>
-                <span>
-                  {t(`settings.experimental.${messageKey}.title`)}
-                </span>
-                <SettingsToggle
-                  label={t(`settings.experimental.${messageKey}.title`)}
-                  description={t(`settings.experimental.${messageKey}.detail`)}
-                  checked={settings[settingKey]}
-                  onChange={(checked) => onChange({ ...settings, [settingKey]: checked })}
-                />
+          {groups.map(({ id, rows }, index) => (
+            <SettingsSubsection key={id} title={t(`settings.experimental.groups.${id}`)} leading={index === 0}>
+              <div className="desktop-settings-list">
+                {rows.map(({ messageKey, settingKey }) => (
+                  <div className="desktop-settings-row desktop-settings-row-control" key={settingKey}>
+                    <span>{t(`settings.experimental.${messageKey}.title`)}</span>
+                    <SettingsToggle
+                      label={t(`settings.experimental.${messageKey}.title`)}
+                      description={t(`settings.experimental.${messageKey}.detail`)}
+                      checked={settings[settingKey]}
+                      onChange={(checked) => onChange({ ...settings, [settingKey]: checked })}
+                    />
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </SettingsSubsection>
+          ))}
         </div>
       </div>
     </section>

@@ -104,6 +104,7 @@ import { createExplorerDataPort } from "./features/data-workspace/explorer";
 import { createWorkbenchDataService } from "./features/data-workspace/workbenchDataPort";
 import { useProjectExplorerSelection } from "./features/data-workspace/useProjectExplorerSession";
 import { useDataNodeActions } from "./features/data-workspace/useDataNodeActions";
+import { EditorHeaderTabs } from "./features/editor-workbench/header/EditorHeaderTabs";
 import { useAiEditReviewRequest } from "./features/data-workspace/useAiEditReviewRequest";
 import { useWorkbenchWorkspaceContentWatch } from "./features/data-workspace/useWorkbenchWorkspaceContentWatch";
 import { appendWorkbenchWorkspaceContentChange } from "./features/data-workspace/workbenchWorkspaceContentChange";
@@ -910,6 +911,11 @@ function AppContent() {
       setDocumentNavigationError(error instanceof Error ? error.message : String(error));
     }
   }, [documentStorageIdentity, editorWorkbench]);
+  const handleEditorTabActivate = useCallback((editorId: string) => {
+    editorWorkbench.activate(editorId);
+    setActiveView("data");
+    setDocumentNavigationError(null);
+  }, [editorWorkbench]);
   useEffect(() => {
     const handleEditorShortcut = (event: KeyboardEvent) => {
       if (event.isComposing || activeView !== "data" || editorWorkbench.state.editors.length === 0) return;
@@ -1403,8 +1409,9 @@ function AppContent() {
     );
   }
 
-  const titlebarSidebarSlot = (
+  const titlebarContext = (
     <DesktopTitlebarContext
+      compactProjectMenu={experimentalSettings.enableCenteredProjectInHeader}
       activeGitStatus={activeGitStatus}
       branchSwitcherOpen={branchSwitcherOpen}
       branchSwitcherRef={branchSwitcherRef}
@@ -1431,6 +1438,9 @@ function AppContent() {
       onToggleWorkspaceSwitcher={toggleWorkspaceSwitcher}
     />
   );
+
+  const centerProjectInHeader = experimentalSettings.enableCenteredProjectInHeader;
+  const titlebarSidebarSlot = centerProjectInHeader ? undefined : titlebarContext;
 
   const locationBarVisible = resolvedAppearance.composition.locationBar === "workspace-path-v1";
   const locationResource = resolveWorkspaceResource(activeDocumentPath ?? activeExplorerNode?.path ?? null);
@@ -1464,6 +1474,19 @@ function AppContent() {
       {...chromeActionProps}
     />
   );
+  const editorTabsInHeaderEnabled = experimentalSettings.enableEditorTabsInHeader;
+  const titlebarEditorTabs = editorTabsInHeaderEnabled ? (
+    <EditorHeaderTabs
+      activeEditorId={editorWorkbench.activeEditorId}
+      editors={editorWorkbench.state.editors}
+      fileIconTheme={fileIconTheme}
+      storageIdentity={documentStorageIdentity}
+      onActivate={handleEditorTabActivate}
+      onClose={handleEditorClose}
+      onCreate={(anchor) => openCreateEntryMenu(null, anchor)}
+      onMove={editorWorkbench.moveTab}
+    />
+  ) : undefined;
   const feedbackLauncher = (
     <DesktopHelpLauncher
       appearance={surfaceAppearance}
@@ -1519,7 +1542,12 @@ function AppContent() {
             ? undefined
             : titlebarSidebarSlot}
           titlebarActions={titlebarActions}
-          titlebarTabsHostRef={experimentalSettings.enableWorkbenchTabsInHeader ? setTitlebarTabHost : undefined}
+          titlebarCenteredSlot={centerProjectInHeader ? titlebarContext : undefined}
+          titlebarTabs={titlebarEditorTabs}
+          alignTitlebarTabsToExplorer={editorTabsInHeaderEnabled}
+          titlebarTabsHostRef={experimentalSettings.enableWorkbenchTabsInHeader && !editorTabsInHeaderEnabled
+            ? setTitlebarTabHost
+            : undefined}
           locationBar={locationBarVisible ? (
             <DesktopShellLocationBar
               path={locationBarPath}
@@ -1542,7 +1570,9 @@ function AppContent() {
                   key={projectWorkbench.context.generation}
                   store={projectWorkbench}
                   active={presentation.contentVisible && rightSidebarSurface === "chat"}
-                  titlebarTabHost={experimentalSettings.enableWorkbenchTabsInHeader ? titlebarTabHost : null}
+                  titlebarTabHost={experimentalSettings.enableWorkbenchTabsInHeader && !editorTabsInHeaderEnabled
+                    ? titlebarTabHost
+                    : null}
                   onReveal={() => {
                     setRightSidebarSurface("chat");
                     setRightSidebarOpen(true);

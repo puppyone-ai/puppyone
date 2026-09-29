@@ -85,6 +85,8 @@ export type ExperimentalSettings = {
   enableAlwaysShowOnboardingCoachmarks: boolean;
   enableCloudAutomation: boolean;
   enableCloudWorkspace: boolean;
+  enableEditorTabsInHeader: boolean;
+  enableCenteredProjectInHeader: boolean;
   enableShareOnboarding: boolean;
   enableWorkbenchTabsInHeader: boolean;
   enableGitAutoCommit: boolean;
@@ -171,6 +173,8 @@ export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
   enableAlwaysShowOnboardingCoachmarks: false,
   enableCloudAutomation: false,
   enableCloudWorkspace: false,
+  enableEditorTabsInHeader: false,
+  enableCenteredProjectInHeader: false,
   /** Share-first Cloud Homepage and Header entry. On by default; switch off for the classic layout. */
   enableShareOnboarding: true,
   enableWorkbenchTabsInHeader: false,
@@ -422,6 +426,8 @@ export function parseExperimentalSettings(value: string | null | undefined): Exp
       enableAlwaysShowOnboardingCoachmarks: parsed.enableAlwaysShowOnboardingCoachmarks === true,
       enableCloudAutomation: parsed.enableCloudAutomation === true,
       enableCloudWorkspace: parsed.enableCloudWorkspace === true,
+      enableEditorTabsInHeader: parsed.enableEditorTabsInHeader === true,
+      enableCenteredProjectInHeader: parsed.enableCenteredProjectInHeader === true,
       enableShareOnboarding: parsed.enableShareOnboarding !== false,
       enableWorkbenchTabsInHeader: parsed.enableWorkbenchTabsInHeader === true,
       // Main-owned Git Auto Commit consent is intentionally never restored

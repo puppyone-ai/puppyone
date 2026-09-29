@@ -287,6 +287,7 @@ export {
   closeEditor,
   closeEditorsUnderResource,
   createEditorInput,
+  moveEditor,
   openEditor,
   parseEditorGroupState,
   rebaseEditorResources,
@@ -344,6 +345,7 @@ export {
   closeDocumentWorkingCopiesUnderResource,
   createDocumentIdentity,
   flushActiveDocumentSessions,
+  getDocumentIdentityKey,
   getDocumentWorkingCopyStatuses,
   subscribeDocumentWorkingCopyStatuses,
 } from "./editor/document-session";

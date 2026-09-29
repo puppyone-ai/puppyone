@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type RefObject } from "react";
+import { useEffect, useMemo, useState, type ReactNode, type RefObject } from "react";
 import {
   Tooltip,
   createWorkspaceFolder,
@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Cloud,
   FolderPlus,
+  GitBranch,
   Laptop,
   LoaderCircle,
   TriangleAlert,
@@ -27,6 +28,8 @@ type DesktopWorkspaceSwitcherProps = {
   open: boolean;
   refObject: RefObject<HTMLDivElement>;
   titlebarLabel: string;
+  menuAlignment?: "start" | "center";
+  branchMenu?: { label: string; disabled: boolean; content: ReactNode };
   workspace: Workspace;
   workspaceFolders: readonly WorkspaceFolder[];
   multiRootWorkspacesEnabled: boolean;
@@ -53,6 +56,8 @@ export function DesktopWorkspaceSwitcher({
   open,
   refObject,
   titlebarLabel,
+  menuAlignment = "start",
+  branchMenu,
   workspace,
   workspaceFolders,
   multiRootWorkspacesEnabled,
@@ -69,7 +74,7 @@ export function DesktopWorkspaceSwitcher({
   onToggle,
 }: DesktopWorkspaceSwitcherProps) {
   const { t } = useLocalization();
-  const [view, setView] = useState<"projects" | "add">("projects");
+  const [view, setView] = useState<"projects" | "add" | "branches">("projects");
   const workspaceContextAssetKind = resolveProjectContextAssetKind(workspace);
   const currentProjectLocationKind = projectLocation?.current ?? workspaceContextAssetKind;
   const workspaceContextAssetLabel = t(currentProjectLocationKind === "cloud"
@@ -86,8 +91,8 @@ export function DesktopWorkspaceSwitcher({
     return availableProjects.filter((project) => !attachedPaths.has(project.path));
   }, [attachedFolders, availableProjects]);
   useEffect(() => {
-    if (!open || !multiRootWorkspacesEnabled) setView("projects");
-  }, [multiRootWorkspacesEnabled, open]);
+    if (!open || (view === "add" && !multiRootWorkspacesEnabled)) setView("projects");
+  }, [multiRootWorkspacesEnabled, open, view]);
   return (
     <div className="desktop-titlebar-workspace-wrap" ref={refObject}>
       <Tooltip content={t("shell.workspaceSwitcher.projectTitle", {
@@ -112,12 +117,13 @@ export function DesktopWorkspaceSwitcher({
 
       <DesktopTitlebarMenuLayer
         anchorRef={refObject}
-        className="desktop-project-menu"
+        className={`desktop-project-menu${view === "branches" ? " desktop-branch-menu" : ""}`}
         gap={4}
         onDismiss={onClose}
         open={open}
-        preferredMaxHeight={520}
+        preferredMaxHeight={view === "branches" ? 440 : 520}
         preferredWidth={280}
+        alignment={menuAlignment}
       >
         {view === "projects" ? (
           <>
@@ -133,6 +139,16 @@ export function DesktopWorkspaceSwitcher({
                   ? "shell.workspaceSwitcher.location.online"
                   : "shell.workspaceSwitcher.location.available")}
               />
+              {branchMenu && (
+                <DesktopMenuItem
+                  className="desktop-project-branch"
+                  icon={<GitBranch size={15} strokeWidth={1.8} />}
+                  label={t("shell.branch.title", { branch: bidiIsolate(branchMenu.label) })}
+                  trailing={<ChevronRight className="po-directional-icon" size={12} aria-hidden="true" />}
+                  disabled={branchMenu.disabled}
+                  onClick={() => setView("branches")}
+                />
+              )}
               {projectLocation && (
                 <DesktopAlternateLocationAction
                   location={projectLocation}
@@ -171,6 +187,17 @@ export function DesktopWorkspaceSwitcher({
                 onClick={onGoHome}
               />
             </div>
+          </>
+        ) : view === "branches" ? (
+          <>
+            <div className="desktop-project-back-group">
+              <DesktopMenuItem
+                icon={<ArrowLeft className="po-directional-icon" size={15} strokeWidth={1.9} />}
+                label={<bdi>{titlebarLabel}</bdi>}
+                onClick={() => setView("projects")}
+              />
+            </div>
+            {branchMenu?.content}
           </>
         ) : (
           <>

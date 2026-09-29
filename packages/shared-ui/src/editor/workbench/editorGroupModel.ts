@@ -100,6 +100,24 @@ export function closeEditor(state: EditorGroupState, editorId: string): EditorGr
   );
 }
 
+export function moveEditor(
+  state: EditorGroupState,
+  editorId: string,
+  targetEditorId: string,
+): EditorGroupState {
+  if (editorId === targetEditorId) return state;
+  const sourceIndex = state.editors.findIndex((editor) => editor.id === editorId);
+  const targetIndex = state.editors.findIndex((editor) => editor.id === targetEditorId);
+  if (sourceIndex < 0 || targetIndex < 0) return state;
+
+  const editors = [...state.editors];
+  const [moving] = editors.splice(sourceIndex, 1);
+  if (!moving) return state;
+  const insertionIndex = editors.findIndex((editor) => editor.id === targetEditorId);
+  editors.splice(insertionIndex < 0 ? editors.length : insertionIndex, 0, moving);
+  return freezeState(editors, state.activeEditorId, state.mostRecentlyUsed);
+}
+
 export function closeEditorsUnderResource(
   state: EditorGroupState,
   resource: EditorResourceReference,

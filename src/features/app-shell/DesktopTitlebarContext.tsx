@@ -39,6 +39,7 @@ export function DesktopTitlebarContext({
   availableProjects,
   onToggleBranchSwitcher,
   onToggleWorkspaceSwitcher,
+  compactProjectMenu = false,
 }: DesktopTitlebarContextProps) {
   const { t } = useLocalization();
   const workspaceTitlebarLabel = workspace.name.trim() || workspace.name;
@@ -57,6 +58,19 @@ export function DesktopTitlebarContext({
         open={workspaceSwitcherOpen}
         refObject={workspaceSwitcherRef}
         titlebarLabel={workspaceTitlebarLabel}
+        menuAlignment={compactProjectMenu ? "center" : "start"}
+        branchMenu={compactProjectMenu ? {
+          label: branchLabel,
+          disabled: !branchReady,
+          content: <DesktopBranchMenuContent
+            localBranches={localBranches}
+            remoteBranches={remoteBranches}
+            loading={gitStatusLoading}
+            operationLoading={gitOperationLoading}
+            onCheckout={onCheckoutBranch}
+            onDone={onCloseWorkspaceSwitcher}
+          />,
+        } : undefined}
         workspace={workspace}
         workspaceFolders={workspaceFolders}
         multiRootWorkspacesEnabled={multiRootWorkspacesEnabled}
@@ -72,7 +86,7 @@ export function DesktopTitlebarContext({
         onSwitchToLocal={onSwitchToLocal}
         onToggle={onToggleWorkspaceSwitcher}
       />
-      <DesktopBranchSwitcher
+      {!compactProjectMenu && <DesktopBranchSwitcher
         open={branchSwitcherOpen}
         refObject={branchSwitcherRef}
         titlebarLabel={branchTitlebarLabel}
@@ -85,12 +99,13 @@ export function DesktopTitlebarContext({
         onCheckout={onCheckoutBranch}
         onDone={onCloseBranchSwitcher}
         onToggle={onToggleBranchSwitcher}
-      />
+      />}
     </div>
   );
 }
 
 type DesktopTitlebarContextProps = {
+  compactProjectMenu?: boolean;
   activeGitStatus: GitStatusSnapshot | null;
   branchSwitcherOpen: boolean;
   branchSwitcherRef: RefObject<HTMLDivElement>;
@@ -147,7 +162,6 @@ function DesktopBranchSwitcher({
   onToggle: () => void;
 }) {
   const { t } = useLocalization();
-  const hasBranches = localBranches.length > 0 || remoteBranches.length > 0;
 
   return (
     <div className="desktop-titlebar-branch-wrap" ref={refObject}>
@@ -181,32 +195,54 @@ function DesktopBranchSwitcher({
         open={open && !disabled}
         preferredMaxHeight={440}
       >
-        {hasBranches ? (
-          <>
-            <BranchMenuGroup
-              title={t("shell.branch.localBranches")}
-              branches={localBranches}
-              operationLoading={operationLoading}
-              onCheckout={onCheckout}
-              onDone={onDone}
-            />
-            <BranchMenuGroup
-              title={t("shell.branch.remoteBranches")}
-              branches={remoteBranches}
-              operationLoading={operationLoading}
-              onCheckout={onCheckout}
-              onDone={onDone}
-            />
-          </>
-        ) : loading ? null : (
-          <DesktopMenuItem
-            className="desktop-branch-menu-row"
-            disabled
-            icon={<GitBranch size={13} strokeWidth={1.8} />}
-            label={t("shell.branch.noBranches")}
-          />
-        )}
+        <DesktopBranchMenuContent
+          localBranches={localBranches}
+          remoteBranches={remoteBranches}
+          loading={loading}
+          operationLoading={operationLoading}
+          onCheckout={onCheckout}
+          onDone={onDone}
+        />
       </DesktopTitlebarMenuLayer>
     </div>
+  );
+}
+
+function DesktopBranchMenuContent({
+  localBranches, remoteBranches, loading, operationLoading, onCheckout, onDone,
+}: {
+  localBranches: GitBranchSummary[];
+  remoteBranches: GitBranchSummary[];
+  loading: boolean;
+  operationLoading: string | null;
+  onCheckout: (branchName: string, remote: boolean) => Promise<boolean>;
+  onDone: () => void;
+}) {
+  const { t } = useLocalization();
+  const hasBranches = localBranches.length > 0 || remoteBranches.length > 0;
+  return hasBranches ? (
+    <>
+      <BranchMenuGroup
+        title={t("shell.branch.localBranches")}
+        branches={localBranches}
+        operationLoading={operationLoading}
+        onCheckout={onCheckout}
+        onDone={onDone}
+      />
+      <BranchMenuGroup
+        title={t("shell.branch.remoteBranches")}
+        branches={remoteBranches}
+        operationLoading={operationLoading}
+        onCheckout={onCheckout}
+        onDone={onDone}
+      />
+    </>
+  ) : loading ? null : (
+    <DesktopMenuItem
+      className="desktop-branch-menu-row"
+      disabled
+      icon={<GitBranch size={13} strokeWidth={1.8} />}
+      label={t("shell.branch.noBranches")}
+    />
   );
 }
