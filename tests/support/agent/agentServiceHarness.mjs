@@ -13,6 +13,7 @@ export function createServiceHarness({
   historicalEvents = [],
 } = {}) {
   const adapters = [];
+  const logger = { warn: vi.fn() };
   const persisted = new Map();
   const runtimeRegistry = new AgentRuntimeRegistry([createCodexRuntimeDefinition({
     appVersion: "test",
@@ -106,10 +107,10 @@ export function createServiceHarness({
         return { indexed: entries.length, truncated: false };
       },
     },
-    logger: { warn: vi.fn() },
+    logger,
     attachmentStore,
   });
-  return { service, adapters, persistence, runtimeRegistry };
+  return { service, adapters, persistence, runtimeRegistry, logger };
 }
 
 export function createSender(id) {

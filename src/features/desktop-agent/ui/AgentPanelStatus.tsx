@@ -35,7 +35,12 @@ export function AgentPanelStatus({
   const errorPresentation = presentAgentError(error, t);
   const readinessPresentation = presentRuntimeReadiness(readiness, runtimeLabel, t);
   const detail = failed ? errorPresentation?.detail : readinessPresentation.detail;
-  const displayFailure = error?.code === "event-gap" || recovery?.policy === "paused" || recovery?.policy === "exhausted";
+  const reconnecting = recovery?.policy === "automatic" && recovery.stage === "reconnecting";
+  const displayFailure = (!recovery && error?.code === "event-gap")
+    || recovery?.policy === "paused"
+    || recovery?.policy === "exhausted"
+    || recovery?.stage === "degraded"
+    || recovery?.stage === "action-required";
   return (
     <>
       {(unavailable || (failed && !displayFailure)) && (
@@ -62,11 +67,17 @@ export function AgentPanelStatus({
           ><RefreshCw size={12} /> {t(failed ? "agent.readiness.reconnect" : "common.action.retry")}</button>}
         />
       )}
-      {errorPresentation && !unavailable && !failed && !displayFailure && (
+      {errorPresentation && !unavailable && !failed && !displayFailure && !recovery && (
         <div className="desktop-agent-inline-error" role="alert">
           <CircleAlert size={14} />
           <span>{errorPresentation.summary}</span>
           {errorPresentation.detail && <small dir="auto">{errorPresentation.detail}</small>}
+        </div>
+      )}
+      {reconnecting && !stopRequest && (
+        <div className="desktop-agent-syncing" role="status">
+          <RefreshCw className="desktop-agent-spin" size={13} aria-hidden="true" />
+          <span>{t("agent.lifecycle.reconnecting")}</span>
         </div>
       )}
       {(displayFailure || stopRequest) && <AgentStatusCard
@@ -77,10 +88,10 @@ export function AgentPanelStatus({
             { attempt: recovery?.attempt ?? 0, maximum: recovery?.maxAttempts ?? 5 })}
         actions={<>
           {displayFailure && <>
-            <button type="button" className="desktop-agent-button is-secondary desktop-agent-readiness-action" onClick={onRetryRecovery}>{t("agent.lifecycle.retryDisplay")}</button>
-            {(!recovery || recovery.policy === "automatic") && <button type="button" className="desktop-agent-button is-secondary desktop-agent-readiness-action" onClick={onPauseRecovery}>{t("agent.lifecycle.pauseDisplay")}</button>}
+            <button type="button" className="desktop-agent-button is-primary desktop-agent-readiness-action" onClick={onRetryRecovery}>{t("agent.lifecycle.retryDisplay")}</button>
+            {(!recovery || recovery.policy === "automatic") && <button type="button" className="desktop-agent-button is-quiet desktop-agent-readiness-action" onClick={onPauseRecovery}>{t("agent.lifecycle.pauseDisplay")}</button>}
           </>}
-          <button type="button" className="desktop-agent-button is-secondary desktop-agent-readiness-action" onClick={onManageExecutions}>{t("agent.lifecycle.manageExecutions")}</button>
+          <button type="button" className="desktop-agent-button is-secondary desktop-agent-readiness-action desktop-agent-readiness-management" onClick={onManageExecutions}>{t("agent.lifecycle.manageExecutions")}</button>
         </>}
       />}
     </>

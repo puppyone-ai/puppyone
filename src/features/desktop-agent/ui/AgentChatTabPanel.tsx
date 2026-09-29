@@ -157,7 +157,9 @@ export function AgentChatTabPanel({
     ? "needs-attention"
     : state.session ? sessionStatusCode(sessionStatus) : readinessStatusCode(readiness);
   const title = state.session?.title || (agentRuntimeSelected ? runtimeLabel : t("agent.header.newChat"));
-  const hasStatus = (unavailable && !computeOnboarding) || failed || Boolean(state.error);
+  const recoveryVisible = Boolean(state.displayRecovery && state.displayRecovery.stage !== "silent");
+  const nonRecoveryError = Boolean(state.error && !(state.error.code === "event-gap" && state.displayRecovery));
+  const hasStatus = (unavailable && !computeOnboarding) || failed || nonRecoveryError || recoveryVisible;
   const hasSubmittedConversation = hasCommittedTranscript
     || Boolean(state.pendingPrompt)
     || Boolean(state.pendingIntent)
@@ -221,7 +223,7 @@ export function AgentChatTabPanel({
     ariaLabel={t("agent.panel.chat", { agent: bidiIsolate(runtimeLabel) })}
     phase={state.phase} announcement={referenceIngestion.announcement}
     onDragOver={referenceIngestion.onDragOver} onDrop={referenceIngestion.onDrop}
-    status={hasStatus || state.stopRequest || state.displayRecovery?.policy === "paused" || state.displayRecovery?.policy === "exhausted" ? <AgentPanelStatus
+    status={hasStatus || state.stopRequest ? <AgentPanelStatus
       unavailable={unavailable} failed={failed} error={state.error ?? (state.phase === "runtime-exited" ? { code: "runtime-exited", params: { runtime: runtimeLabel } } : null)}
       runtimeLabel={runtimeLabel} readiness={readiness ?? undefined}
       onRetry={() => void controller.initialize(true)}

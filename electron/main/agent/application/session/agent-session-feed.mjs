@@ -7,11 +7,9 @@ import { assertAgentSessionFrame } from "../../../../../shared/agent-contract/sc
 const MAX_PENDING_FRAMES = 512;
 const MAX_PENDING_BYTES = 8 * 1024 * 1024;
 const frameSizes = new WeakMap();
-function pendingBytes(frames) {
-  return frames.reduce((sum, frame) => {
-    if (!frameSizes.has(frame)) frameSizes.set(frame, Buffer.byteLength(JSON.stringify(frame)));
-    return sum + frameSizes.get(frame);
-  }, 0);
+function frameBytes(frame) {
+  if (!frameSizes.has(frame)) frameSizes.set(frame, Buffer.byteLength(JSON.stringify(frame)));
+  return frameSizes.get(frame);
 }
 
 /** Versioned snapshot + change feed for disposable Renderer replicas. */
@@ -38,7 +36,9 @@ export class AgentSessionFeed {
       acknowledgedRevision: session.actor.control.revision,
       initialRevision: session.actor.control.revision,
       bufferedFrames: [],
+      bufferedBytes: 0,
       unacknowledgedFrames: [],
+      unacknowledgedBytes: 0,
       needsResync: false,
     };
     this.subscriptions.set(subscriptionId, subscription);
@@ -65,6 +65,8 @@ export class AgentSessionFeed {
     subscription.acknowledgedRevision = Math.max(subscription.acknowledgedRevision, revision);
     subscription.unacknowledgedFrames = subscription.unacknowledgedFrames
       .filter((frame) => frame.revision > subscription.acknowledgedRevision);
+    subscription.unacknowledgedBytes = subscription.unacknowledgedFrames
+      .reduce((sum, frame) => sum + frameBytes(frame), 0);
     const firstAcknowledgement = !subscription.ready;
     subscription.ready = true;
     if (subscription.needsResync) {
@@ -75,9 +77,12 @@ export class AgentSessionFeed {
         revision: session.actor.control.revision,
       });
       subscription.bufferedFrames = [];
+      subscription.bufferedBytes = 0;
     } else if (firstAcknowledgement) {
-      for (const frame of subscription.bufferedFrames) this.#deliverDelta(subscription, frame);
+      const bufferedFrames = subscription.bufferedFrames;
       subscription.bufferedFrames = [];
+      subscription.bufferedBytes = 0;
+      for (const frame of bufferedFrames) this.#deliverDelta(subscription, frame);
     }
     return {
       subscriptionId: subscription.id,
@@ -153,8 +158,11 @@ export class AgentSessionFeed {
       if (subscription.ready) this.#deliverDelta(subscription, frame);
       else if (!subscription.needsResync) {
         subscription.bufferedFrames.push(frame);
-        if (subscription.bufferedFrames.length > MAX_PENDING_FRAMES || pendingBytes(subscription.bufferedFrames) > MAX_PENDING_BYTES) {
+        subscription.bufferedBytes += frameBytes(frame);
+        if (subscription.bufferedFrames.length > MAX_PENDING_FRAMES || subscription.bufferedBytes > MAX_PENDING_BYTES) {
+          this.#logResync(subscription, "pre-ack-buffer-overflow", subscription.bufferedFrames.length, subscription.bufferedBytes, frame.revision);
           subscription.bufferedFrames = [];
+          subscription.bufferedBytes = 0;
           subscription.needsResync = true;
         }
       }
@@ -177,8 +185,12 @@ export class AgentSessionFeed {
   #deliverDelta(subscription, frame) {
     if (subscription.needsResync) return;
     subscription.unacknowledgedFrames.push(frame);
-    if (subscription.unacknowledgedFrames.length > MAX_PENDING_FRAMES || pendingBytes(subscription.unacknowledgedFrames) > MAX_PENDING_BYTES) {
+    subscription.unacknowledgedBytes += frameBytes(frame);
+    if (subscription.unacknowledgedFrames.length > MAX_PENDING_FRAMES || subscription.unacknowledgedBytes > MAX_PENDING_BYTES) {
+      this.#logResync(subscription, "unacknowledged-buffer-overflow", subscription.unacknowledgedFrames.length,
+        subscription.unacknowledgedBytes, frame.revision);
       subscription.unacknowledgedFrames = [];
+      subscription.unacknowledgedBytes = 0;
       subscription.needsResync = true;
       this.#send(subscription, {
         type: "resync-required",
@@ -189,6 +201,17 @@ export class AgentSessionFeed {
       return;
     }
     this.#send(subscription, frame);
+  }
+
+  #logResync(subscription, cause, frameCount, byteCount, revision) {
+    this.logger.warn?.("Agent display feed requires resync", {
+      cause,
+      frameCount,
+      byteCount,
+      revision,
+      acknowledgedRevision: subscription.acknowledgedRevision,
+      streamId: subscription.streamId,
+    });
   }
 
   #requireSubscription(session, subscriptionId) {

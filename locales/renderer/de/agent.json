@@ -2,6 +2,7 @@
   "compute.connecting": "Verbindung zur Rechenleistung wird hergestellt…",
   "compute.connectionUnavailable": "Der Rechendienst ist vorübergehend nicht verfügbar.",
   "lifecycle.displayStale": "Nachrichtenanzeige nicht synchron",
+  "lifecycle.reconnecting": "Nachrichtenanzeige wird neu verbunden…",
   "lifecycle.stopPending": "Status der Stoppanforderung",
   "lifecycle.paused": "Die automatische Wiederherstellung ist pausiert. Die Aufgabe läuft möglicherweise weiter.",
   "lifecycle.exhausted": "Die automatische Wiederherstellung wurde nach wiederholten Fehlern angehalten. Du kannst es erneut versuchen oder die Instanz beenden.",

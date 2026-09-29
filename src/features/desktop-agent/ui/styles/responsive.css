@@ -14,6 +14,9 @@
 @container desktop-agent (max-width: 359px) {
   .desktop-agent-approval-actions { display: grid; grid-template-columns: minmax(0, 1fr); }
   .desktop-agent-approval-actions .desktop-agent-button { width: 100%; }
+  .desktop-agent-readiness.is-recovery .desktop-agent-readiness-actions { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .desktop-agent-readiness.is-recovery .desktop-agent-button { width: 100%; }
+  .desktop-agent-readiness-management { margin-inline-start: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -63,6 +66,10 @@
 
 /* Isolated real-renderer regression fixture, behind the visual-smoke entry. */
 .desktop-agent-render-smoke { height: 640px; }
+.desktop-agent-render-smoke[data-width="320"] { width: 320px; }
 .desktop-agent-render-smoke[data-width="420"] { width: 420px; }
+.desktop-agent-render-smoke[data-width="480"] { width: 480px; }
 .desktop-agent-render-smoke[data-width="560"] { width: 560px; }
+.desktop-agent-render-smoke[data-width="640"] { width: 640px; }
 .desktop-agent-render-smoke[data-width="760"] { width: 760px; }
+.desktop-agent-render-smoke[data-width="1000"] { width: 1000px; }

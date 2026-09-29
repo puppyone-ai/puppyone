@@ -17,7 +17,8 @@ describe("Desktop Agent renderer surfaces", () => {
     const onManageExecutions = vi.fn();
     const container = render(React.createElement(AgentPanelStatus, {
       unavailable: false, failed: true, error: { code: 'event-gap' }, runtimeLabel: 'Agent', onRetry: vi.fn(),
-      recovery: { policy, attempt: 2, maxAttempts: 5 }, onPauseRecovery, onRetryRecovery, onManageExecutions,
+      recovery: { policy, stage: policy === 'automatic' ? 'degraded' : 'action-required', cause: 'revision-gap', attempt: 2, maxAttempts: 5 },
+      onPauseRecovery, onRetryRecovery, onManageExecutions,
     }));
     expect(container.querySelectorAll('[role="status"]')).toHaveLength(1);
     const buttons = Array.from(container.querySelectorAll('button'));
@@ -30,6 +31,25 @@ describe("Desktop Agent renderer surfaces", () => {
     pause?.click();
     expect(onPauseRecovery).toHaveBeenCalledTimes(policy === 'automatic' ? 1 : 0);
     if (policy === 'automatic') expect(container.textContent).toContain('attempt 2 of 5');
+  });
+
+  it('keeps silent recovery invisible and uses a compact reconnecting status before escalation', () => {
+    const base = {
+      unavailable: false, failed: false, error: null, runtimeLabel: 'Agent', onRetry: vi.fn(),
+      onPauseRecovery: vi.fn(), onRetryRecovery: vi.fn(), onManageExecutions: vi.fn(),
+    };
+    const silent = render(React.createElement(AgentPanelStatus, {
+      ...base,
+      recovery: { policy: 'automatic', stage: 'silent', cause: 'ack-timeout', attempt: 1, maxAttempts: 5 },
+    }));
+    expect(silent.querySelector('[role="status"]')).toBeNull();
+
+    const reconnecting = render(React.createElement(AgentPanelStatus, {
+      ...base,
+      recovery: { policy: 'automatic', stage: 'reconnecting', cause: 'ack-timeout', attempt: 1, maxAttempts: 5 },
+    }));
+    expect(reconnecting.querySelector('.desktop-agent-syncing')?.textContent).toBe('Reconnecting message display…');
+    expect(reconnecting.querySelector('button')).toBeNull();
   });
   it.each([
     [

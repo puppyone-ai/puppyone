@@ -2,6 +2,7 @@
   "compute.connecting": "計算サービスに接続中…",
   "compute.connectionUnavailable": "計算サービスに一時的に接続できません。",
   "lifecycle.displayStale": "メッセージ表示が同期されていません",
+  "lifecycle.reconnecting": "メッセージ表示を再接続しています…",
   "lifecycle.stopPending": "停止リクエストの状態",
   "lifecycle.paused": "自動復旧を一時停止しています。タスクはまだ実行中の可能性があります。",
   "lifecycle.exhausted": "失敗が続いたため自動復旧を停止しました。再試行するか、インスタンスを終了できます。",

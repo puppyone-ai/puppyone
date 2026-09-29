@@ -79,6 +79,9 @@
   --agent-action-disabled-surface: color-mix(in srgb, var(--agent-text) 14%, transparent);
   --agent-reference-error-border: color-mix(in srgb, var(--po-danger) 46%, var(--agent-border-subtle));
   --agent-primary-hover-surface: color-mix(in srgb, var(--agent-text) 88%, var(--agent-canvas));
+  --agent-primary-accent-surface: var(--po-accent);
+  --agent-primary-accent-foreground: var(--po-accent-contrast, var(--po-text-inverse));
+  --agent-primary-accent-hover-surface: color-mix(in srgb, var(--po-accent) 86%, var(--agent-text) 14%);
 }
 
 

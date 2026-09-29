@@ -715,7 +715,15 @@ export class AgentSessionController {
 
   private async applySnapshot(snapshot: AgentSessionSnapshot) {
     this.applySnapshotState(snapshot);
-    const feedSnapshot = await this.sessionReplica.attachSession(snapshot.session.id);
+    let feedSnapshot: AgentSessionSnapshot | null;
+    try {
+      feedSnapshot = await this.sessionReplica.attachSession(snapshot.session.id);
+    } catch (error) {
+      // A transient display-feed failure must not turn a healthy native task
+      // into a failed session. The replica owns bounded background recovery.
+      if (error instanceof AgentKnownError && error.code === "event-gap") return;
+      throw error;
+    }
     if (!feedSnapshot || this.disposed || this.state.session?.id !== snapshot.session.id) return;
     this.applySnapshotState(feedSnapshot);
     await this.sessionReplica.activateSessionFeed(snapshot.session.id);

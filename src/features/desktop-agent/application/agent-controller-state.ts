@@ -23,6 +23,25 @@ export type AgentControllerPhase =
 
 export type AgentSessionPreparation = "idle" | "preparing" | "ready" | "failed";
 export type AgentSubmissionStage = "preparing-session" | "starting-turn" | null;
+export type AgentDisplayRecoveryCause =
+  | "attach-timeout"
+  | "attach-failed"
+  | "ack-timeout"
+  | "ack-failed"
+  | "watermark-timeout"
+  | "watermark-failed"
+  | "revision-gap"
+  | "stream-reset"
+  | "schema-invalid"
+  | "backpressure-overflow";
+export type AgentDisplayRecoveryStage = "silent" | "reconnecting" | "degraded" | "action-required";
+export type AgentDisplayRecovery = {
+  policy: "automatic" | "paused" | "exhausted";
+  stage: AgentDisplayRecoveryStage;
+  cause: AgentDisplayRecoveryCause;
+  attempt: number;
+  maxAttempts: number;
+};
 
 export type AgentControllerState = {
   phase: AgentControllerPhase;
@@ -55,7 +74,7 @@ export type AgentControllerState = {
   submitting: boolean;
   stopping: boolean;
   stopRequest?: { commandId: string; sessionId: string; instanceId?: string; turnId: string; status: "sending" | "accepted" | "unconfirmed" } | null;
-  displayRecovery?: { policy: "automatic" | "paused" | "exhausted"; attempt: number; maxAttempts: number };
+  displayRecovery?: AgentDisplayRecovery;
   initialized: boolean;
 };
 

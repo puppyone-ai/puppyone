@@ -2,6 +2,7 @@
   "compute.connecting": "Conectando ao serviço de computação…",
   "compute.connectionUnavailable": "O serviço de computação está temporariamente indisponível.",
   "lifecycle.displayStale": "A exibição de mensagens não está sincronizada",
+  "lifecycle.reconnecting": "Reconectando a exibição de mensagens…",
   "lifecycle.stopPending": "Status da solicitação de parada",
   "lifecycle.paused": "A recuperação automática está pausada. A tarefa pode continuar em execução.",
   "lifecycle.exhausted": "A recuperação automática parou após falhas repetidas. Tente novamente ou encerre a instância.",

@@ -1,10 +1,12 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AgentSessionController } from '../../../../src/features/desktop-agent/application/AgentSessionController';
+import { agentSessionReplicaLimits } from '../../../../src/features/desktop-agent/application/AgentSessionReplica';
 import { AgentOperationError } from '../../../../src/features/desktop-agent/application/agent-error';
 import { createServiceHarness, createSender } from '../../../support/agent/agentServiceHarness.mjs';
 
 const cleanup: Array<() => void | Promise<void>> = [];
-afterEach(async () => { for (const dispose of cleanup.splice(0)) await dispose(); vi.useRealTimers(); });
+beforeEach(() => { vi.spyOn(console, 'warn').mockImplementation(() => {}); });
+afterEach(async () => { for (const dispose of cleanup.splice(0)) await dispose(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
 async function harness() {
   const main = createServiceHarness();
@@ -81,7 +83,7 @@ describe('Renderer display replica against the Main SessionActor and feed', () =
     h.bridge.readAgentSessionWatermark.mockRejectedValue(new AgentOperationError({
       schemaVersion: 1, code: 'SESSION_NOT_FOUND', message: 'The runtime instance has ended.', retryable: false, actions: [],
     }));
-    await vi.advanceTimersByTimeAsync(5_000);
+    await vi.advanceTimersByTimeAsync(agentSessionReplicaLimits.watermarkIdleMs);
     expect(h.controller.getSnapshot()).toMatchObject({ replicaStatus: 'detached', error: { code: 'session-ended' } });
     const calls = h.bridge.attachAgentSession.mock.calls.length;
     await vi.advanceTimersByTimeAsync(60_000);
@@ -98,7 +100,7 @@ describe('Renderer display replica against the Main SessionActor and feed', () =
     h.emit('turn.started');
     h.emit('assistant.completed', {text: 'Output while disconnected'}, 'answer');
     h.emit('turn.completed');
-    await vi.advanceTimersByTimeAsync(5_000);
+    await vi.advanceTimersByTimeAsync(agentSessionReplicaLimits.watermarkIdleMs);
     expect(h.controller.getSnapshot().replicaStatus).toBe('live');
     expect(h.controller.getSnapshot().error).toBeNull();
     expect(h.controller.getSnapshot().projection).toEqual(h.read().display);
@@ -111,13 +113,71 @@ describe('Renderer display replica against the Main SessionActor and feed', () =
     const receipt = await attach({rootPath:'/workspace',sessionId:h.snapshot.session.id});
     h.bridge.attachAgentSession.mockImplementationOnce(() => new Promise(resolve => {late=resolve;}));
     const initialized = h.controller.initialize();
-    await vi.advanceTimersByTimeAsync(8_000); await initialized;
+    await vi.advanceTimersByTimeAsync(agentSessionReplicaLimits.attachTimeoutMs); await initialized;
     expect(h.controller.getSnapshot().replicaStatus).toBe('stale');
-    await vi.advanceTimersByTimeAsync(5_000);
+    await vi.advanceTimersByTimeAsync(agentSessionReplicaLimits.watermarkIdleMs);
     expect(h.controller.getSnapshot().replicaStatus).toBe('live');
     late?.(receipt); await vi.advanceTimersByTimeAsync(0);
     expect(h.bridge.detachAgentSession).toHaveBeenCalledWith(expect.objectContaining({subscriptionId:receipt.subscriptionId}));
     expect(mainStartCount(h.main)).toBe(0);
+  });
+
+  it('allows a slow snapshot to finish within the dedicated attach budget', async () => {
+    vi.useFakeTimers();
+    const h = await harness();
+    const attach = h.bridge.attachAgentSession.getMockImplementation()!;
+    h.bridge.attachAgentSession.mockImplementationOnce(request => new Promise(resolve => {
+      setTimeout(() => resolve(attach(request)), 20_000);
+    }));
+    const initialized = h.controller.initialize();
+    await vi.advanceTimersByTimeAsync(20_000);
+    await initialized;
+    expect(h.controller.getSnapshot().replicaStatus).toBe('live');
+    expect(h.controller.getSnapshot().displayRecovery).toBeUndefined();
+  });
+
+  it('escalates recovery UI only after silent and compact reconnecting stages', async () => {
+    vi.useFakeTimers();
+    const h = await harness();
+    h.bridge.attachAgentSession.mockRejectedValue(new Error('Temporary IPC failure'));
+    await h.controller.initialize();
+    expect(h.controller.getSnapshot()).toMatchObject({
+      replicaStatus: 'stale',
+      displayRecovery: { stage: 'silent', cause: 'attach-failed' },
+    });
+    await vi.advanceTimersByTimeAsync(agentSessionReplicaLimits.recoveryReconnectingDelayMs);
+    expect(h.controller.getSnapshot().displayRecovery?.stage).toBe('reconnecting');
+    await vi.advanceTimersByTimeAsync(agentSessionReplicaLimits.recoveryDegradedDelayMs
+      - agentSessionReplicaLimits.recoveryReconnectingDelayMs);
+    expect(h.controller.getSnapshot()).toMatchObject({
+      error: null,
+      displayRecovery: { stage: 'degraded', cause: 'attach-failed' },
+    });
+  });
+
+  it('keeps recovery status visible while a replacement snapshot is still attaching', async () => {
+    vi.useFakeTimers();
+    const h = await harness();
+    await h.controller.initialize();
+    const attach = h.bridge.attachAgentSession.getMockImplementation()!;
+    h.bridge.attachAgentSession.mockImplementationOnce(request => new Promise(resolve => {
+      setTimeout(() => resolve(attach(request)), 20_000);
+    }));
+    h.setTransform(frame => ({ ...frame, displayPatch: { schemaVersion: 2 } }));
+    h.emit('turn.started');
+    h.setTransform(value => value);
+
+    await vi.advanceTimersByTimeAsync(agentSessionReplicaLimits.recoveryReconnectingDelayMs);
+    expect(h.controller.getSnapshot()).toMatchObject({
+      replicaStatus: 'stale',
+      displayRecovery: { stage: 'reconnecting', cause: 'schema-invalid' },
+    });
+    await vi.advanceTimersByTimeAsync(agentSessionReplicaLimits.recoveryDegradedDelayMs
+      - agentSessionReplicaLimits.recoveryReconnectingDelayMs);
+    expect(h.controller.getSnapshot().displayRecovery?.stage).toBe('degraded');
+    await vi.advanceTimersByTimeAsync(20_000 - agentSessionReplicaLimits.recoveryDegradedDelayMs);
+    expect(h.controller.getSnapshot().replicaStatus).toBe('live');
+    expect(h.controller.getSnapshot().displayRecovery).toBeUndefined();
   });
 
   it('stops first-attach recovery after disposal', async () => {
@@ -169,10 +229,49 @@ describe('Renderer display replica against the Main SessionActor and feed', () =
     h.emit('turn.started');
     h.setTransform(() => null); h.emit('turn.completed'); h.setTransform(value => value);
     expect(h.controller.getSnapshot().projection.runningTurnId).toBe('turn-A');
-    await vi.advanceTimersByTimeAsync(5_000);
+    await vi.advanceTimersByTimeAsync(agentSessionReplicaLimits.watermarkIdleMs);
     expect(h.bridge.attachAgentSession).toHaveBeenCalledTimes(2);
     expect(h.controller.getSnapshot().projection).toEqual(h.read().display);
     expect(h.controller.getSnapshot().phase).toBe('ready');
+  });
+
+  it('checks the watermark only after a full interval without frames', async () => {
+    vi.useFakeTimers();
+    const h = await harness();
+    await h.controller.initialize();
+    await vi.advanceTimersByTimeAsync(agentSessionReplicaLimits.watermarkIdleMs - 1_000);
+    expect(h.bridge.readAgentSessionWatermark).not.toHaveBeenCalled();
+    h.emit('turn.started');
+    await vi.advanceTimersByTimeAsync(agentSessionReplicaLimits.watermarkIdleMs - 1);
+    expect(h.bridge.readAgentSessionWatermark).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(h.bridge.readAgentSessionWatermark).toHaveBeenCalledOnce();
+  });
+
+  it('coalesces a high-frequency frame burst into bounded acknowledgements', async () => {
+    const h = await harness();
+    await h.controller.initialize();
+    const initialAcknowledgements = h.bridge.acknowledgeAgentSession.mock.calls.length;
+    h.emit('turn.started');
+    for (let index = 0; index < 400; index += 1) h.emit('assistant.delta', { delta: 'x' }, 'assistant-A');
+    await vi.waitFor(() => {
+      const request = h.bridge.acknowledgeAgentSession.mock.calls.at(-1)?.[0];
+      expect(request?.revision).toBe(h.controller.getSnapshot().control?.revision);
+    });
+    expect(h.bridge.acknowledgeAgentSession.mock.calls.length).toBeLessThanOrEqual(initialAcknowledgements + 2);
+    expect(h.controller.getSnapshot().projection).toEqual(h.read().display);
+  });
+
+  it('repairs one snapshot after a burst exceeds feed backpressure limits', async () => {
+    const h = await harness();
+    await h.controller.initialize();
+    h.emit('turn.started');
+    for (let index = 0; index < 1_200; index += 1) h.emit('assistant.delta', { delta: 'x' }, 'assistant-A');
+    await vi.waitFor(() => {
+      expect(h.controller.getSnapshot().replicaStatus).toBe('live');
+      expect(h.controller.getSnapshot().projection).toEqual(h.read().display);
+    });
+    expect(h.bridge.attachAgentSession).toHaveBeenCalledTimes(2);
   });
 
   it('does not ACK a malformed patch and repairs from a fresh snapshot', async () => {
@@ -184,6 +283,33 @@ describe('Renderer display replica against the Main SessionActor and feed', () =
     expect(h.bridge.attachAgentSession).toHaveBeenCalledTimes(2);
     expect(h.bridge.acknowledgeAgentSession.mock.calls.length).toBe(initialCalls + 1);
     expect(h.controller.getSnapshot().projection).toEqual(h.read().display);
+  });
+
+  it('resets the retry budget only after a sustained stable window', async () => {
+    vi.useFakeTimers();
+    const h = await harness();
+    await h.controller.initialize();
+    h.bridge.attachAgentSession.mockRejectedValueOnce(new Error('Temporary IPC failure'));
+    h.setTransform(frame => ({ ...frame, displayPatch: { schemaVersion: 2 } }));
+    h.emit('turn.started');
+    h.setTransform(value => value);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.controller.getSnapshot().displayRecovery?.attempt).toBe(1);
+    await vi.advanceTimersByTimeAsync(agentSessionReplicaLimits.recoveryRetryBaseMs * 2);
+    expect(h.controller.getSnapshot().replicaStatus).toBe('live');
+
+    h.setTransform(frame => ({ ...frame, displayPatch: { schemaVersion: 2 } }));
+    h.emit('assistant.delta', { delta: 'first recurrence' }, 'assistant-A');
+    h.setTransform(value => value);
+    expect(h.controller.getSnapshot().displayRecovery?.attempt).toBe(3);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.controller.getSnapshot().replicaStatus).toBe('live');
+
+    await vi.advanceTimersByTimeAsync(agentSessionReplicaLimits.recoveryStabilityWindowMs);
+    h.setTransform(frame => ({ ...frame, displayPatch: { schemaVersion: 2 } }));
+    h.emit('assistant.delta', { delta: 'after stable window' }, 'assistant-A');
+    h.setTransform(value => value);
+    expect(h.controller.getSnapshot().displayRecovery?.attempt).toBe(1);
   });
 
   it('ignores duplicate frames without appending their text again', async () => {
@@ -219,7 +345,8 @@ describe('Renderer display replica against the Main SessionActor and feed', () =
   it('bounds a stalled watermark read and retries attachment without native side effects', async () => {
     vi.useFakeTimers(); const h = await harness(); await h.controller.initialize();
     h.bridge.readAgentSessionWatermark.mockImplementationOnce(() => new Promise(() => {}));
-    await vi.advanceTimersByTimeAsync(13_000);
+    await vi.advanceTimersByTimeAsync(agentSessionReplicaLimits.watermarkIdleMs + agentSessionReplicaLimits.controlRequestTimeoutMs
+      + agentSessionReplicaLimits.recoveryRetryBaseMs + 1);
     expect(h.bridge.attachAgentSession).toHaveBeenCalledTimes(2);
     expect(mainStartCount(h.main)).toBe(0);
   });

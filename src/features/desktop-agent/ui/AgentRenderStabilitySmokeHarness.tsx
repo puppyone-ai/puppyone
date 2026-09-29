@@ -11,7 +11,7 @@ import type { AgentSessionController, AgentControllerState } from "../applicatio
 import "./desktop-agent.css";
 
 type Stage = "ready" | "preview" | "dispatching" | "accepted" | "completed";
-type Fixture = { theme: "light" | "dark" | "windows-xp"; history: number; stage: Stage; width: number; generation: number; draft: string; activity?: boolean; message?: string };
+type Fixture = { theme: "light" | "dark" | "windows-xp"; history: number; stage: Stage; width: number; generation: number; draft: string; activity?: boolean; message?: string; recovery?: boolean };
 const prompt = "检查消息提交之后的位置，以及较长的中文和 English 内容换行时是否稳定。";
 const frame = () => new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 async function frames(count = 3) { for (let i = 0; i < count; i++) await frame(); }
@@ -75,7 +75,7 @@ function RenderFixture({ fixture, update }: { fixture: Fixture; update: (fixture
       session: { id: "session:smoke", runtimeId: "codex", runtime, provider: "codex", providerSessionId: null,
         workspaceRoot: "/smoke", title: "Smoke", createdAt: "2026-01-01", updatedAt: "2026-01-01",
         terminalState: "idle", selectedModel: null, activeTurnId: display.runningTurnId, lastSequence: 0 },
-      control: null, replicaStatus: "live", projection: display,
+      control: null, replicaStatus: fixture.recovery ? "stale" : "live", projection: display,
       selectedRuntimeId: "codex", selectedProviderId: null, selectedModel: null, selectedEffort: null, selectedMode: null,
       localConnections: [], localConnectionsPhase: "idle", localConnectionsScannedAt: null, localConnectionsError: null,
       draft: fixture.draft, draftMentions: [], references: [], error: null, stopping: false,
@@ -84,6 +84,10 @@ function RenderFixture({ fixture, update }: { fixture: Fixture; update: (fixture
       pendingIntent: fixture.stage === "preview" ? { id: "submission:smoke", referenceEpoch: "smoke", prompt: message,
         model: null, effort: null, mode: null, references: [], promptMentions: [] } : null,
       sessionPreparation: "ready",
+      ...(fixture.recovery ? {
+        displayRecovery: { policy: "automatic" as const, stage: "degraded" as const,
+          cause: "revision-gap" as const, attempt: 2, maxAttempts: 5 },
+      } : {}),
     };
   }, [fixture]);
   const latest = useRef({ snapshot, fixture, update });
@@ -137,6 +141,41 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
   let editDetailCases = 0;
   const cases: object[] = [];
   const html = document.documentElement;
+  let recoveryLayoutCases = 0;
+  for (const width of [320, 480, 560, 640, 760, 1000]) {
+    const recoveryFixture: Fixture = { theme: "light", history: 1, width, generation: ++generation,
+      stage: "ready", draft: "", recovery: true };
+    smokePhase = `recovery-layout/${width}`;
+    update(recoveryFixture);
+    await frames();
+    const card = document.querySelector<HTMLElement>(".desktop-agent-readiness.is-recovery")!;
+    const copy = card?.querySelector<HTMLElement>(".desktop-agent-readiness-copy")!;
+    const actions = card?.querySelector<HTMLElement>(".desktop-agent-readiness-actions")!;
+    const buttons = Array.from(card?.querySelectorAll<HTMLElement>(".desktop-agent-readiness-action") ?? []);
+    assert(card && copy && actions && buttons.length === 3, `${width}: recovery card is incomplete`);
+    const cardRect = card.getBoundingClientRect();
+    const copyRect = copy.getBoundingClientRect();
+    const actionsRect = actions.getBoundingClientRect();
+    assert(copyRect.width >= Math.min(220, cardRect.width - 48), `${width}: recovery copy collapsed to ${copyRect.width}px`);
+    assert(actionsRect.top >= copyRect.bottom - 1, `${width}: recovery actions share the copy row`);
+    assert(cardRect.height < 260, `${width}: recovery card grew to ${cardRect.height}px`);
+    assert(buttons.every(button => {
+      const rect = button.getBoundingClientRect();
+      return rect.left >= cardRect.left - 1 && rect.right <= cardRect.right + 1;
+    }), `${width}: recovery action overflowed the card`);
+    const titleStyle = getComputedStyle(copy.querySelector(".desktop-agent-readiness-title")!);
+    const buttonStyle = getComputedStyle(buttons[0]);
+    assert(titleStyle.fontFamily === buttonStyle.fontFamily && titleStyle.fontSize === buttonStyle.fontSize,
+      `${width}: recovery CTA typography diverged from the product type scale`);
+    const accentProbe = document.createElement("span");
+    accentProbe.style.background = "var(--po-accent)";
+    card.append(accentProbe);
+    const accent = getComputedStyle(accentProbe).backgroundColor;
+    accentProbe.remove();
+    assert(buttonStyle.backgroundColor === accent, `${width}: primary recovery CTA did not use the theme accent`);
+    assert(document.documentElement.scrollWidth <= window.innerWidth + 1, `${width}: recovery layout overflowed the document`);
+    recoveryLayoutCases++;
+  }
   update({ theme: "light", history: 0, width: 560, generation: ++generation, stage: "ready", draft: prompt });
   await frames();
   const inputView = EditorView.findFromDOM(document.querySelector<HTMLElement>(".cm-editor")!)!;
@@ -381,7 +420,10 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
   await frames();
   const pinned = document.querySelector<HTMLElement>(".desktop-agent-transcript")!;
   assert(Math.abs(pinned.scrollHeight - pinned.clientHeight - pinned.scrollTop) <= 1, "Composer growth lost bottom pinning");
+  update({ theme: "dark", history: 1, width: 640, generation: ++generation, stage: "ready", draft: "", recovery: true });
+  await frames();
   return { cases, samples, maxDrift, sendSamples, maxSendDrift, feedbackSamples, maxFeedbackDrift, editDetailCases,
+    recoveryLayoutCases,
     nativeWheel: true, keyboardScrolling: true, smallScrolls: true, readingAnchor: anchorId,
     composerReadingAnchor: true, composerPinning: true, semanticColor: afterColor };
 }
