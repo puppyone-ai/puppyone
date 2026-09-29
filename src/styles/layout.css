@@ -463,8 +463,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 .desktop-project-overview {
   display: grid;
   min-width: 0;
-  gap: var(--po-menu-padding);
-  padding-bottom: var(--po-menu-padding);
+  gap: 0;
 }
 
 .desktop-project-current-location {
@@ -473,20 +472,19 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   justify-items: center;
   gap: var(--po-menu-item-gap);
   padding: 8px var(--po-menu-item-padding-inline) 0;
-  color: var(--po-text);
+  color: var(--po-text-muted);
 }
 
 .desktop-project-current-location-icon {
-  position: relative;
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
 }
 
 .desktop-project-current-location-icon > .desktop-project-location-dot {
-  position: absolute;
-  inset-inline-end: -3px;
-  bottom: 0;
   width: 6px;
   height: 6px;
-  box-shadow: 0 0 0 2px var(--po-menu-bg);
+  flex: 0 0 6px;
 }
 
 .desktop-project-current-location-mark {
@@ -503,45 +501,33 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 
 .desktop-project-current-location-label,
 .desktop-project-current-location-path {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  display: block;
   min-width: 0;
   color: var(--po-text-muted);
-  font-size: var(--po-menu-meta-font-size);
+  font-size: var(--po-menu-item-font-size);
   font-weight: var(--po-text-weight-regular, 400);
-  line-height: var(--po-menu-meta-line-height);
+  line-height: var(--po-menu-item-line-height);
 }
 
 .desktop-project-current-location-path {
   max-width: 100%;
-  gap: 0;
-}
-
-.desktop-project-path-parent,
-.desktop-project-path-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.desktop-project-path-parent {
-  flex: 0 1 auto;
-}
-
-.desktop-project-path-name {
-  flex: 0 0 auto;
-  max-width: 75%;
+  overflow-wrap: anywhere;
+  text-align: center;
+  text-wrap: balance;
 }
 
 .desktop-project-overview .desktop-project-branch {
-  --po-menu-item-font-size: var(--po-menu-meta-font-size);
-
   width: auto;
   max-width: 100%;
   justify-self: center;
-  color: var(--po-text-subtle);
+}
+
+.desktop-project-menu .desktop-menu-item-icon {
+  opacity: 1;
+}
+
+.desktop-project-menu .desktop-menu-item-trailing {
+  color: inherit;
 }
 
 .desktop-project-location-dot {
@@ -552,8 +538,8 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   background: var(--po-success);
 }
 
-.desktop-project-location-action {
-  color: var(--po-text-subtle);
+.desktop-project-home-group .desktop-project-home {
+  color: var(--po-text-muted);
 }
 
 .desktop-project-location-action[data-location-action="attention"] {
@@ -631,8 +617,6 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-location-actions .desktop-menu-item {
-  --po-menu-item-font-size: var(--po-menu-meta-font-size);
-
   min-height: var(--po-menu-item-height);
   height: auto;
 }

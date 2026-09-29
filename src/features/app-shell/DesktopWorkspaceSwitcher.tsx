@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode, type RefObject } from "react";
+import { Fragment, useEffect, useMemo, useState, type ReactNode, type RefObject } from "react";
 import {
   Tooltip,
   createWorkspaceFolder,
@@ -131,7 +131,7 @@ export function DesktopWorkspaceSwitcher({
             <div className="desktop-project-home-group">
               <DesktopMenuIconButton
                 className="desktop-project-home"
-                icon={<ArrowLeft className="po-directional-icon" size={15} strokeWidth={1.9} />}
+                icon={<ArrowLeft className="po-directional-icon" size={16} strokeWidth={1.75} />}
                 label={t("shell.workspaceSwitcher.goHome")}
                 onClick={onGoHome}
               />
@@ -148,7 +148,7 @@ export function DesktopWorkspaceSwitcher({
               {branchMenu && (
                 <DesktopMenuItem
                   className="desktop-project-branch"
-                  icon={<GitBranch size={15} strokeWidth={1.8} />}
+                  icon={<GitBranch size={16} strokeWidth={1.75} />}
                   aria-label={t("shell.branch.title", { branch: bidiIsolate(branchMenu.label) })}
                   label={<bdi>{branchMenu.label}</bdi>}
                   trailing={<ChevronDown size={12} aria-hidden="true" />}
@@ -291,9 +291,6 @@ function DesktopCurrentProjectLocation({
 }) {
   const { t } = useLocalization();
   const kind = location?.current ?? fallbackKind;
-  const separatorIndex = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
-  const parentPath = separatorIndex > 0 ? path.slice(0, separatorIndex) : "";
-  const folderName = separatorIndex > 0 ? path.slice(separatorIndex) : path;
   return (
     <div
       className="desktop-project-current-location"
@@ -309,12 +306,13 @@ function DesktopCurrentProjectLocation({
         <span className="desktop-project-location-dot" aria-hidden="true" />
       </span>
       {kind === "local" ? (
-        <Tooltip content={path}>
-          <bdi className="desktop-project-current-location-path" dir="ltr" aria-label={path}>
-            <span className="desktop-project-path-parent" aria-hidden="true">{parentPath}</span>
-            <span className="desktop-project-path-name" aria-hidden="true">{folderName}</span>
-          </bdi>
-        </Tooltip>
+        <bdi className="desktop-project-current-location-path" dir="ltr" aria-label={path}>
+          {path.split(/([/\\])/).map((part, index) => (
+            <Fragment key={index}>
+              {part}{(part === "/" || part === "\\") && <wbr />}
+            </Fragment>
+          ))}
+        </bdi>
       ) : (
         <span className="desktop-project-current-location-label">{t("shell.workspaceSwitcher.location.inCloud")}</span>
       )}
@@ -371,7 +369,7 @@ function DesktopAlternateLocationAction({
       className="desktop-project-location-action"
       data-location-action={state}
       disabled={!action}
-      icon={<Icon className={state === "resolving" ? "animate-spin" : undefined} size={14} strokeWidth={1.75} />}
+      icon={<Icon className={state === "resolving" ? "animate-spin" : undefined} size={16} strokeWidth={1.75} />}
       label={label}
       trailing={<ChevronRight className="po-directional-icon" size={12} aria-hidden="true" />}
       tooltip={state === "attention" ? t("shell.workspaceSwitcher.location.needsAttention") : label}
