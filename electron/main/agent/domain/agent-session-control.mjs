@@ -1,10 +1,32 @@
 import { reduceAgentRecoveries } from "./agent-recovery.mjs";
-import { agentContractLimits } from "../../../../shared/agent-contract/constants.mjs";
+import { AGENT_IDLE_DISCONNECT_REASON, agentContractLimits } from "../../../../shared/agent-contract/constants.mjs";
 
 const MAX_COMMAND_RECORDS = 128;
 const MAX_TERMINAL_TURNS = 128;
 const MAX_CONTROL_REASON = agentContractLimits.maxControlReasonLength;
 const MAX_COMMAND_ERROR = agentContractLimits.maxCommandErrorLength;
+
+/** A settled session can reconnect before its next command without asking the user to recover a turn. */
+export function isAgentExecutionSettled(control) {
+  const execution = control?.execution;
+  return Boolean(
+    execution
+    && ["idle", "ended"].includes(execution.status)
+    && execution.certainty === "confirmed"
+    && !execution.activeTurnId
+    && !execution.uncertainTurnId
+    && !control.pendingSubmission
+    && control.queue.length === 0
+    && control.interaction.approvals.length === 0
+    && control.interaction.questions.length === 0
+  );
+}
+
+export function isAgentIdleDisconnect(control) {
+  return control?.connection.status === "exited"
+    && control.connection.reason === AGENT_IDLE_DISCONNECT_REASON
+    && isAgentExecutionSettled(control);
+}
 
 /** @param {{ streamId?: string, sessionEpoch?: string, terminalState?: string, revision?: number }} [options] */
 export function createAgentSessionControl({

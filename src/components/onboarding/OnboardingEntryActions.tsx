@@ -11,12 +11,12 @@ type OnboardingEntryActionsProps = {
   openingFolder: boolean;
   draggingFolder: boolean;
   canCreateProject: boolean;
-  canCloneRepository: boolean;
+  canImport: boolean;
   importPreviewBrands: readonly ImportSourceBrand[];
   onOpenFolder: () => void;
   onCreateProject: () => void;
   /** Opens the source picker. */
-  onCloneRepository: () => void;
+  onImport: () => void;
 };
 
 /**
@@ -31,11 +31,11 @@ export function OnboardingEntryActions({
   openingFolder,
   draggingFolder,
   canCreateProject,
-  canCloneRepository,
+  canImport,
   importPreviewBrands,
   onOpenFolder,
   onCreateProject,
-  onCloneRepository,
+  onImport,
 }: OnboardingEntryActionsProps) {
   const { t } = useLocalization();
 
@@ -58,9 +58,9 @@ export function OnboardingEntryActions({
 
       <ImportAction
         busy={busy}
-        canCloneRepository={canCloneRepository}
+        canImport={canImport}
         importPreviewBrands={importPreviewBrands}
-        onCloneRepository={onCloneRepository}
+        onImport={onImport}
       />
     </div>
   );
@@ -117,22 +117,22 @@ function OpenFolderAction({
 
 function ImportAction({
   busy,
-  canCloneRepository,
+  canImport,
   importPreviewBrands,
-  onCloneRepository,
-}: Pick<OnboardingEntryActionsProps, "busy" | "canCloneRepository" | "importPreviewBrands" | "onCloneRepository">) {
+  onImport,
+}: Pick<OnboardingEntryActionsProps, "busy" | "canImport" | "importPreviewBrands" | "onImport">) {
   const { t } = useLocalization();
 
   return (
     <div className="onboarding-entry-import-area">
       <Button
         className="onboarding-entry-action onboarding-entry-import"
-        data-onboarding-action="clone"
+        data-onboarding-action="import"
         tone="neutral"
-        disabled={busy || !canCloneRepository}
+        disabled={busy || !canImport}
         aria-haspopup="dialog"
         leadingIcon={<Download aria-hidden="true" />}
-        onClick={onCloneRepository}
+        onClick={onImport}
       >
         <span className="onboarding-entry-import-label">{t("onboarding.action.importFromApps")}</span>
         <ImportSourcePreview brands={importPreviewBrands} />

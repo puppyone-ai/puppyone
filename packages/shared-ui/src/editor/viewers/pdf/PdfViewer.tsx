@@ -108,7 +108,7 @@ function PdfPreviewSurface({ url, name, maxBytes, onRetry }: {
     data-pdf-parse-state="unknown" data-document-surface-ready={ready ? "true" : undefined} aria-busy={!ready}>
     {!ready && <DocumentSurfacePending label={t("editor.preview.loading")} />}
     {phase !== "checking" && <iframe className="pdf-preview-frame" name="puppyone-pdf-preview"
-      src={configureChromiumPdfViewerUrl(url)} title={name} referrerPolicy="no-referrer"
+      src={configureChromiumPdfViewerUrl(url)} aria-label={name} referrerPolicy="no-referrer"
       allow="camera 'none'; microphone 'none'; geolocation 'none'; clipboard-read 'none'; clipboard-write 'none'; fullscreen 'none'"
       onLoad={() => loadRef.current()} />}
   </div>;

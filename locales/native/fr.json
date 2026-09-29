@@ -43,6 +43,7 @@
   "native.update.manual.failed.message": "{appName} n’a pas pu rechercher les mises à jour.",
   "native.update.manual.failed.detail": "Réessayez plus tard.",
   "native.workspace.open.title": "Ouvrir l’espace de travail local PuppyOne",
+  "native.workspace.import.chooseSource": "Choisir le dossier à importer",
   "native.workspace.create.chooseParent": "Choisir où créer le projet",
   "native.workspace.create.chooseParentButton": "Créer ici",
   "native.workspace.clone.chooseParent": "Choisir où cloner le dépôt",

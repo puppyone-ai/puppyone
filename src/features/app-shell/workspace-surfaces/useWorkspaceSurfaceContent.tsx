@@ -75,6 +75,7 @@ export function useWorkspaceSurfaceContent({
   git,
   onFilesVisibilitySettingsChange,
   onOpenGitChanges,
+  onOpenImport,
   onPuppyoneConfigChange,
   onSelectSettingsSection,
   onUnlinkWorkspace,
@@ -93,6 +94,7 @@ export function useWorkspaceSurfaceContent({
   git: DesktopGitController;
   onFilesVisibilitySettingsChange: (settings: FilesVisibilitySettings) => void;
   onOpenGitChanges: () => void;
+  onOpenImport: () => void;
   onPuppyoneConfigChange: (config: PuppyoneWorkspaceConfig) => Promise<PuppyoneWorkspaceConfig | null>;
   onSelectSettingsSection: (section: SettingsSection) => void;
   onUnlinkWorkspace: () => Promise<void>;
@@ -146,6 +148,7 @@ export function useWorkspaceSurfaceContent({
     workspace,
     activeSection: settingsSection,
     onSelectSection: onSelectSettingsSection,
+    onOpenImport,
     preferences,
     subThemeCatalog,
     onFilesVisibilitySettingsChange,

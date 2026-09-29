@@ -12,12 +12,12 @@ describe("project initialization ownership", () => {
     expect(entryPolicy).toContain("qualifyDataResourcePath");
   });
 
-  it("routes create, open, clone, and restore through one entry bootstrap intent", () => {
+  it("routes create, open, import, and restore through one entry bootstrap intent", () => {
     const lifecycle = source("src/features/app-shell/useWorkspaceLifecycle.ts");
     const app = source("src/App.tsx");
     expect(lifecycle).toContain("WorkspaceEntryIntent");
     expect(lifecycle).toContain('"created"');
-    expect(lifecycle).toContain('"cloned"');
+    expect(lifecycle).toContain('"imported"');
     expect(lifecycle).toContain('"restored"');
     expect(app).toContain("useWorkspaceEntryBootstrap");
     expect(app).not.toContain("useInitialProjectDocument");
@@ -55,14 +55,8 @@ describe("project initialization ownership", () => {
     expect(flow).toContain("resolveVisibleImportSources");
     expect(flow).toContain("resolveImportPreviewBrands");
     expect(importDialog).toContain("visibleSources.map");
-    expect(importRegistry).toContain('settingKey: "enableNotionImport"');
-    expect(importRegistry).toContain('settingKey: "enableGoogleDriveImport"');
-    expect(importRegistry).toContain('settingKey: "enableAirtableImport"');
-    expect(importRegistry).toContain('settingKey: "enableObsidianImport"');
-    expect(experimentalSettings).toContain('settingKey: "enableNotionImport"');
-    expect(experimentalSettings).toContain('settingKey: "enableGoogleDriveImport"');
-    expect(experimentalSettings).toContain('settingKey: "enableAirtableImport"');
-    expect(experimentalSettings).toContain('settingKey: "enableObsidianImport"');
+    expect(importRegistry).toContain("settings.enableOtherAppImports");
+    expect(experimentalSettings).toContain('settingKey: "enableOtherAppImports"');
     expect(launcherStyles).toMatch(
       /\.desktop-project-entry-launcher \.desktop-dialog-title-row\s*\{[^}]*align-items:\s*center;/s,
     );

@@ -18,7 +18,7 @@ const interfaceSkinContractCss = readCss("src/styles/interface-skin-contract.css
 const dataWorkspaceCss = readCss("packages/shared-ui/src/styles/data-workspace.css");
 const dataWorkspaceSource = readCss("packages/shared-ui/src/data/DataWorkspace.tsx");
 const desktopDataShellCss = readCss("src/features/data-workspace/data-shell.css");
-const sidebarPrimitivesCss = readCss("packages/shared-ui/src/styles/sidebar-primitives.css");
+const paneCss = readCss("packages/shared-ui/src/sidebar/collapsible-pane.css");
 const sidebarResizeHandleSource = readCss(
   "packages/shared-ui/src/sidebar/SidebarResizeHandle.tsx",
 );
@@ -189,7 +189,7 @@ describe("scrollbar architecture", () => {
     );
 
     const sharedResizerRule = readRule(
-      sidebarPrimitivesCss,
+      paneCss,
       ".po-pane-edge-resize-handle",
     );
     expect(sharedResizerRule).toContain("inset-block: 0;");
@@ -217,25 +217,20 @@ describe("scrollbar architecture", () => {
 
   it("overlays the Data sash on one shared Sidebar and Editor boundary", () => {
     for (const css of [dataWorkspaceCss]) {
-      const resizerRule = readRule(css, ".data-explorer-resizer");
-
       const explorerColumnRule = readRule(css, ".explorer-column");
       expect(readRule(css, ".data-content")).toContain("display: flex;");
       expect(readRule(css, ".browser-column")).toContain("flex: 1 1 auto;");
       expect(css).not.toMatch(
         /\.data-content\[data-resizable-explorer="true"\]\s*>\s*\.browser-column/,
       );
-      expect(resizerRule).toContain(
-        "inset-inline-end: calc(1px - var(--po-pane-resizer-hit-size, 8px));",
-      );
-      expect(resizerRule).toContain("inset-inline-start: auto;");
-      expect(resizerRule).toContain("background: transparent;");
-      expect(resizerRule).not.toContain("transform:");
+      expect(css).not.toMatch(/\.data-explorer-resizer\s*\{/);
       expect(css).not.toContain(".data-explorer-resizer::after");
-      expect(explorerColumnRule).toContain(
-        "border-inline-end: 1px solid var(--po-sidebar-divider, var(--po-divider));",
-      );
+      expect(explorerColumnRule).not.toContain("border-inline-end:");
     }
+
+    expect(readRule(paneCss,
+      '.po-collapsible-pane-frame[data-pane-side="inline-start"]\n  > .po-pane-edge-resize-handle:not(.po-collapsed-pane-edge-handle)'))
+      .toContain("inset-inline-end: calc(var(--po-pane-resizer-line-size, 1px) - var(--po-pane-resizer-hit-size, 8px));");
 
     expect(dataWorkspaceSource).toContain('className: "data-explorer-resizer"');
     expect(dataWorkspaceSource).toContain("resizeHandleRef={explorerResizeHandleRef}");
@@ -263,10 +258,10 @@ describe("scrollbar architecture", () => {
     expect(auxiliaryPanelSource).toContain("<CollapsiblePaneFrame");
     expect(collapsiblePaneFrameSource).toContain("paneEdge");
 
-    const rightResizerRule = readRule(layoutCss, ".desktop-right-sidebar-resizer:not(.po-collapsed-pane-edge-handle)");
-    expect(rightResizerRule).toContain("inset-inline-start: calc(-1 * var(--desktop-right-sidebar-border-start));");
-    expect(rightResizerRule).not.toContain("transform:");
-    expect(rightResizerRule).not.toContain("inset-inline-end:");
+    const rightResizerRule = readRule(paneCss,
+      '.po-collapsible-pane-frame[data-pane-side="inline-end"]\n  > .po-pane-edge-resize-handle:not(.po-collapsed-pane-edge-handle)');
+    expect(rightResizerRule).toContain("inset-inline-start: 0;");
+    expect(layoutCss).not.toContain(".desktop-right-sidebar-resizer:not(");
     expect(baseCss).not.toContain('[dir="rtl"] .desktop-right-sidebar-resizer');
   });
 

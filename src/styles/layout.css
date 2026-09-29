@@ -282,9 +282,9 @@
 .desktop-view-surface-sidebar {
   background: var(--po-sidebar);
   /*
-   * Divider ownership belongs to DataWorkspace's .explorer-column host.
-   * This surface is injected inside that column; drawing another edge here
-   * would turn the shared 1px separator into a feature-dependent 2px line.
+   * DataWorkspace owns the outer boundary: the shared resize chrome when
+   * resizable, or the Explorer frame border otherwise. This injected surface
+   * must not draw an additional edge when the active view changes.
    */
 }
 
@@ -307,9 +307,8 @@
 
 .desktop-right-sidebar {
   --desktop-right-sidebar-width: 560px;
-  --desktop-right-sidebar-border-start: 1px;
   --desktop-right-sidebar-border-end: 0px;
-  --desktop-right-sidebar-content-width: calc(var(--desktop-right-sidebar-width) - var(--desktop-right-sidebar-border-start) - var(--desktop-right-sidebar-border-end));
+  --desktop-right-sidebar-content-width: calc(var(--desktop-right-sidebar-width) - var(--desktop-right-sidebar-border-end));
   --desktop-right-sidebar-background: var(--po-surface-auxiliary);
   --po-surface-terminal: var(--po-surface-auxiliary);
   --po-terminal-bg: var(--po-surface-terminal);
@@ -318,30 +317,18 @@
   position: relative;
   z-index: 25;
   min-height: 0;
-  /* The viewport clips content; the frame must expose its border hit area. */
+  /* The viewport clips content; the frame exposes the shared edge hit area. */
   overflow: visible;
-  border-inline-start: 0 solid transparent;
   background: var(--desktop-right-sidebar-background);
-  transition-property: width, min-width, flex-basis, border-color;
+  transition-property: width, min-width, flex-basis;
 }
 
 .desktop-right-sidebar:not([data-pane-presentation="collapsed"]) {
   flex-shrink: 0;
-  border-inline-start-width: var(--desktop-right-sidebar-border-start);
-  border-inline-start-color: var(--po-sidebar-divider, var(--po-divider));
 }
 
 .desktop-right-sidebar:not(.is-open) {
   overflow: visible;
-}
-
-.desktop-right-sidebar-resizer:not(.po-collapsed-pane-edge-handle) {
-  /* Include the frame's border, without crossing into the Editor scrollbar. */
-  inset-inline-start: calc(-1 * var(--desktop-right-sidebar-border-start));
-}
-
-.desktop-right-sidebar:has(> .po-pane-edge-resize-handle) {
-  border-inline-start-color: transparent;
 }
 
 body.desktop-right-sidebar-resizing,
@@ -472,30 +459,159 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   --po-menu-item-gap: 9px;
   --po-menu-item-radius: 8px;
 
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  display: flex;
   max-height: min(520px, calc(100vh - 58px));
+  flex-direction: column;
 }
 
-.desktop-project-menu .desktop-menu-item {
-  font-size: var(--po-text-size-interface, 13px);
-  font-weight: 500;
+.desktop-project-overview {
+  display: grid;
+  min-width: 0;
 }
 
-.desktop-project-menu .desktop-menu-item-label {
-  font-size: var(--po-text-size-interface, 13px);
-  font-weight: 500;
+.desktop-project-current-location {
+  display: flex;
+  min-width: 0;
+  min-height: 32px;
+  height: 32px;
+  align-items: center;
+  gap: 9px;
+  padding: 0 10px;
+  border-radius: var(--po-menu-item-radius);
+  background: var(--po-selected);
+  color: var(--po-text);
 }
 
-.desktop-project-menu .desktop-menu-item-detail {
-  font-size: var(--po-text-size-meta, 12px);
-  font-weight: 500;
+.desktop-project-current-location-mark {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  place-items: center;
+  color: var(--po-text-muted);
+}
+
+.desktop-project-current-location-mark > svg {
+  display: block;
+}
+
+.desktop-project-current-location-label {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: var(--po-menu-item-font-size);
+  font-weight: var(--po-text-weight-regular, 400);
+  line-height: var(--po-menu-item-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-project-current-location-status,
+.desktop-project-location-availability {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  color: var(--po-text-subtle);
+  font-size: var(--po-menu-meta-font-size);
+  font-weight: var(--po-text-weight-regular, 400);
+  line-height: var(--po-menu-meta-line-height);
+}
+
+.desktop-project-current-location-status {
+  flex: 0 0 auto;
+  margin-inline-start: auto;
+}
+
+.desktop-project-location-availability {
+  color: var(--po-text-subtle);
+  font-size: var(--po-menu-meta-font-size);
+  line-height: var(--po-menu-meta-line-height);
+}
+
+.desktop-project-location-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: var(--po-success);
+}
+
+.desktop-project-location-action {
+  min-height: 50px;
+  height: auto;
+  border-top: 1px solid var(--po-divider);
+  border-radius: 0;
+}
+
+.desktop-project-location-action.desktop-project-cloud-setup {
+  --po-menu-icon-slot-size: 16px;
+  --po-menu-item-gap: 4px;
+
+  width: 100%;
+  min-height: 28px;
+  height: 28px;
+  margin-block: 2px 8px;
+  border-top: 0;
+  border-radius: var(--po-menu-item-radius);
+  background: transparent;
+  color: var(--po-text-subtle);
+  font-size: var(--po-type-ui-meta, 12px);
+}
+
+.desktop-project-location-action.desktop-project-cloud-setup:hover:not(:disabled),
+.desktop-project-location-action.desktop-project-cloud-setup:focus-visible:not(:disabled) {
+  background: var(--po-hover);
+  color: var(--po-text-muted);
+}
+
+.desktop-project-location-action.desktop-project-cloud-setup .desktop-menu-item-label {
+  color: inherit;
+  font-size: var(--po-type-ui-meta, 12px);
+  font-weight: var(--po-text-weight-regular, 400);
+}
+
+.desktop-project-location-action.desktop-project-cloud-setup .desktop-menu-item-trailing {
+  display: grid;
+  place-items: center;
+  color: currentColor;
+}
+
+.desktop-project-location-action[data-location-action="attention"] {
+  color: var(--po-warning);
+}
+
+.desktop-project-location-action .desktop-menu-item-body {
+  display: grid;
+  align-items: center;
+  gap: 1px;
+}
+
+.desktop-project-location-action .desktop-menu-item-label,
+.desktop-project-location-action .desktop-menu-item-detail {
+  max-width: 100%;
+  flex: none;
+}
+
+.desktop-project-location-action .desktop-menu-item-detail {
+  line-height: var(--po-menu-meta-line-height);
+}
+
+.desktop-project-location-action-verb {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--po-text-muted);
+  white-space: nowrap;
 }
 
 .desktop-project-list {
   display: grid;
   gap: 2px;
   min-height: 0;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--po-divider);
   overflow: auto;
 }
 
@@ -521,6 +637,11 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   pointer-events: none;
 }
 
+.desktop-project-option[data-project-location] {
+  color: var(--po-text-muted);
+  opacity: 1;
+}
+
 /* Keep every attached Project and its parent path on one quiet membership row. */
 .desktop-project-option .desktop-menu-item-label {
   max-width: 65%;
@@ -534,7 +655,19 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   text-align: start;
 }
 
+.desktop-project-option .desktop-project-location-label {
+  direction: inherit;
+  text-align: end;
+}
+
 .desktop-project-home-group {
+  display: grid;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--po-divider);
+}
+
+.desktop-project-back-group {
   display: grid;
   margin-bottom: 8px;
   padding-bottom: 8px;

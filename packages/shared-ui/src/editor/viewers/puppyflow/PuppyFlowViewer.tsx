@@ -1,3 +1,4 @@
+import { Tooltip } from "../../../primitives/Tooltip";
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { DragEvent as ReactDragEvent, KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useLocalization } from "@puppyone/localization/react";
@@ -251,18 +252,17 @@ export function PuppyFlowViewer({
           ))}
           <div className="puppyflow-add-row">
             <span className="puppyflow-add-connector" aria-hidden="true" />
-            <button
+            <Tooltip content={t("editor.puppyflow.addStep")}><button
               className="puppyflow-add-button"
               type="button"
               aria-label={t("editor.puppyflow.addStep")}
-              title={t("editor.puppyflow.addStep")}
               disabled={!canEdit}
               onClick={addStep}
             >
               <span className="puppyflow-add-icon" aria-hidden="true">
                 <Plus size={15} />
               </span>
-            </button>
+            </button></Tooltip>
           </div>
         </div>
       </div>
@@ -329,13 +329,12 @@ function PuppyFlowStepRow({
         onDrop(event, getStepDropPosition(event));
       }}
     >
-      <button
+      <Tooltip content={t("editor.puppyflow.reorderHint")}><button
         className="puppyflow-step-grip"
         type="button"
         draggable={!readOnly}
         disabled={readOnly}
         aria-label={t("editor.puppyflow.reorderStep", { number: index + 1 })}
-        title={t("editor.puppyflow.reorderHint")}
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
         onKeyDown={(event) => {
@@ -343,7 +342,7 @@ function PuppyFlowStepRow({
         }}
       >
         <GripVertical size={16} />
-      </button>
+      </button></Tooltip>
       <span className="puppyflow-step-index">{stepNumber}</span>
       <div className="puppyflow-step-card">
         <div className="puppyflow-prompt-cell">
@@ -374,10 +373,10 @@ function PuppyFlowStepRow({
             </select>
           </label>
           <span className="puppyflow-step-meta">{agent.provider} · {getAgentModelLabel(agent.id, t)}</span>
-          <span className="puppyflow-step-meta workdir" title={workdirTitle}>
+          <Tooltip content={workdirTitle}><span className="puppyflow-step-meta workdir">
             <Folder size={13} />
             <span dir={workdirIsPath ? "ltr" : "auto"}>{workdirLabel}</span>
-          </span>
+          </span></Tooltip>
         </div>
         <div className="puppyflow-step-actions">
           <button type="button" disabled={readOnly} aria-label={t("editor.puppyflow.duplicateStep", { number: index + 1 })} onClick={onDuplicate}>

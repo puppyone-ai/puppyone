@@ -61,6 +61,10 @@
 
 .desktop-settings-section {
   --desktop-settings-content-max-width: var(--po-reading-content-width, 724px);
+  --desktop-settings-lead-row-height: 54px;
+  --desktop-settings-lead-group-top: 18px;
+  --desktop-settings-category-header-height: 40px;
+  --desktop-settings-title-gap: 12px;
 
   display: grid;
   width: 100%;
@@ -71,6 +75,20 @@
 
 .desktop-settings-section + .desktop-settings-section {
   margin-top: 20px;
+}
+
+[data-typography-scale="small"] .desktop-settings-section {
+  --desktop-settings-lead-row-height: 50px;
+  --desktop-settings-lead-group-top: 16px;
+  --desktop-settings-category-header-height: 36px;
+  --desktop-settings-title-gap: 10px;
+}
+
+[data-typography-scale="large"] .desktop-settings-section {
+  --desktop-settings-lead-row-height: 58px;
+  --desktop-settings-lead-group-top: 20px;
+  --desktop-settings-category-header-height: 44px;
+  --desktop-settings-title-gap: 14px;
 }
 
 .desktop-settings-heading-row {
@@ -86,7 +104,6 @@
 .desktop-settings-section-header {
   display: grid;
   min-width: 0;
-  gap: 3px;
   padding-inline: 10px;
 }
 
@@ -94,18 +111,65 @@
   padding-inline: 0;
 }
 
+.desktop-settings-section > :is(.desktop-settings-section-header, .desktop-settings-heading-row) {
+  margin-block-end: var(--desktop-settings-title-gap);
+}
+
+/* Only the first visible line of a page uses the shared lead rhythm. */
+.desktop-settings-lead-list > :first-child,
+.desktop-settings-lead-rows > .desktop-settings-subsection-body > :first-child,
+.desktop-settings-lead-state {
+  min-height: var(--desktop-settings-lead-row-height);
+}
+
+.desktop-settings-lead-group {
+  padding-block-start: var(--desktop-settings-lead-group-top);
+}
+
+.desktop-settings-lead-categories {
+  padding-block-start: 7px;
+}
+
 .desktop-settings-section-header h2 {
   margin: 0;
   color: var(--po-text);
-  font-size: var(--po-text-size-section-title, 15px);
+  font-size: var(--po-type-ui-page-title, 21px);
   font-weight: var(--po-text-weight-medium, 500);
-  line-height: 20px;
+  line-height: 1.25;
 }
 
-.desktop-settings-section-header span {
-  color: var(--po-text-subtle);
-  font-size: var(--po-text-size-meta, 12px);
-  line-height: 1.35;
+.desktop-settings-category-list {
+  display: grid;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 720px;
+  min-width: 0;
+  gap: 20px;
+  padding-inline: 10px;
+}
+
+.desktop-settings-category {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+}
+
+.desktop-settings-category-header {
+  display: flex;
+  min-width: 0;
+  min-height: var(--desktop-settings-category-header-height);
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.desktop-settings-category-title {
+  display: block;
+  margin: 0;
+  color: var(--po-text-muted);
+  font-size: var(--po-text-size-label, 13px);
+  font-weight: var(--po-text-weight-regular, 400);
+  line-height: 18px;
 }
 
 .desktop-settings-row {
@@ -228,39 +292,6 @@
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.desktop-local-agent-settings-layout {
-  display: grid;
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 720px;
-  min-width: 0;
-  gap: 20px;
-  padding-inline: 10px;
-}
-
-.desktop-local-agent-settings-group {
-  display: grid;
-  min-width: 0;
-  gap: 7px;
-}
-
-.desktop-local-agent-group-header {
-  display: flex;
-  min-width: 0;
-  min-height: 20px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.desktop-local-agent-group-title {
-  display: block;
-  color: var(--po-text-muted);
-  font-size: var(--po-text-size-label, 13px);
-  font-weight: var(--po-text-weight-regular, 400);
-  line-height: 18px;
 }
 
 .desktop-settings-row-action.desktop-local-agent-group-action {

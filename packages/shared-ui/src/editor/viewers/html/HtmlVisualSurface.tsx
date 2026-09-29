@@ -284,7 +284,7 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, regist
     <div className="html-visual-editor__body">
       <div className="html-visual-editor__viewport" ref={viewport} onPointerMove={presence.pointerMove} onPointerLeave={presence.away}>
         {projection && <iframe key={projection.session.id} ref={frame} className="native-preview-frame"
-          title={title} sandbox="allow-scripts" referrerPolicy="no-referrer" src={projection.url}
+          aria-label={title} sandbox="allow-scripts" referrerPolicy="no-referrer" src={projection.url}
           srcDoc={projection.url ? undefined : projection.source} onLoad={connect} aria-busy={!ready} />}
         {rect && <div className="html-editor-selection" data-editing={!!editing} style={overlayStyle} />}
         {selection && ready && canEdit && <HtmlBlockActionRail selection={selection} viewport={viewport}

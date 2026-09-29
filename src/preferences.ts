@@ -81,22 +81,17 @@ export type LocalAgentsSettings = {
   setupSuggestions?: import("../shared/local-agent-installation/setup-types").LocalAgentSetupPreferences;
 };
 export type ExperimentalSettings = {
-  enableAirtableImport: boolean;
   enableAssetLibraryHome: boolean;
-  /** Compatibility field: Built-in Agent has graduated from Experimental. */
-  enableBuiltInAgent: boolean;
+  enableAlwaysShowOnboardingCoachmarks: boolean;
   enableCloudAutomation: boolean;
   enableCloudWorkspace: boolean;
-  enableEditorSaveStatus: boolean;
-  /** Legacy preference retained for decoding only; project creation owns templates. */
-  enableFirstProjectStarter: boolean;
+  enableShareOnboarding: boolean;
+  enableWorkbenchTabsInHeader: boolean;
   enableGitAutoCommit: boolean;
-  enableGoogleDriveImport: boolean;
   enableMarkdownBlockDrag: boolean;
   enableMarkdownHeadingOutline: boolean;
   enableMultiRootWorkspaces: boolean;
-  enableNotionImport: boolean;
-  enableObsidianImport: boolean;
+  enableOtherAppImports: boolean;
   enablePuppyFlowFiles: boolean;
   enableProjectSwitcherRail: boolean;
   enableViewerPlugins: boolean;
@@ -172,20 +167,18 @@ export const DEFAULT_LOCAL_AGENTS_SETTINGS: LocalAgentsSettings = {
 export const DEFAULT_AGENT_FILE_ACTIVITY_INDICATORS_ENABLED = false;
 export const DEFAULT_AI_EDIT_ASSIST_ENABLED = false;
 export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
-  enableAirtableImport: false,
   enableAssetLibraryHome: false,
-  enableBuiltInAgent: true,
+  enableAlwaysShowOnboardingCoachmarks: false,
   enableCloudAutomation: false,
   enableCloudWorkspace: false,
-  enableEditorSaveStatus: false,
-  enableFirstProjectStarter: false,
+  /** Share-first Cloud Homepage and Header entry. On by default; switch off for the classic layout. */
+  enableShareOnboarding: true,
+  enableWorkbenchTabsInHeader: false,
   enableGitAutoCommit: false,
-  enableGoogleDriveImport: false,
   enableMarkdownBlockDrag: false,
   enableMarkdownHeadingOutline: false,
   enableMultiRootWorkspaces: false,
-  enableNotionImport: false,
-  enableObsidianImport: false,
+  enableOtherAppImports: false,
   enablePuppyFlowFiles: false,
   enableProjectSwitcherRail: false,
   enableViewerPlugins: false,
@@ -418,26 +411,30 @@ export function parseExperimentalSettings(value: string | null | undefined): Exp
   if (!value) return DEFAULT_EXPERIMENTAL_SETTINGS;
 
   try {
-    const parsed = JSON.parse(value) as Partial<ExperimentalSettings> | null;
+    const parsed = JSON.parse(value) as (Partial<ExperimentalSettings> & Partial<Record<
+      "enableNotionImport" | "enableGoogleDriveImport" | "enableAirtableImport" | "enableObsidianImport",
+      boolean
+    >>) | null;
     if (!parsed || typeof parsed !== "object") return DEFAULT_EXPERIMENTAL_SETTINGS;
 
     return {
-      enableAirtableImport: parsed.enableAirtableImport === true,
       enableAssetLibraryHome: parsed.enableAssetLibraryHome === true,
-      enableBuiltInAgent: true,
+      enableAlwaysShowOnboardingCoachmarks: parsed.enableAlwaysShowOnboardingCoachmarks === true,
       enableCloudAutomation: parsed.enableCloudAutomation === true,
       enableCloudWorkspace: parsed.enableCloudWorkspace === true,
-      enableEditorSaveStatus: parsed.enableEditorSaveStatus === true,
-      enableFirstProjectStarter: parsed.enableFirstProjectStarter === true,
+      enableShareOnboarding: parsed.enableShareOnboarding !== false,
+      enableWorkbenchTabsInHeader: parsed.enableWorkbenchTabsInHeader === true,
       // Main-owned Git Auto Commit consent is intentionally never restored
       // from renderer localStorage. The Electron capability bridge hydrates it.
       enableGitAutoCommit: false,
-      enableGoogleDriveImport: parsed.enableGoogleDriveImport === true,
       enableMarkdownBlockDrag: parsed.enableMarkdownBlockDrag === true,
       enableMarkdownHeadingOutline: parsed.enableMarkdownHeadingOutline === true,
       enableMultiRootWorkspaces: parsed.enableMultiRootWorkspaces === true,
-      enableNotionImport: parsed.enableNotionImport === true,
-      enableObsidianImport: parsed.enableObsidianImport === true,
+      enableOtherAppImports: parsed.enableOtherAppImports === true
+        || parsed.enableNotionImport === true
+        || parsed.enableGoogleDriveImport === true
+        || parsed.enableAirtableImport === true
+        || parsed.enableObsidianImport === true,
       enablePuppyFlowFiles: parsed.enablePuppyFlowFiles === true,
       enableProjectSwitcherRail: parsed.enableProjectSwitcherRail === true,
       enableViewerPlugins: parsed.enableViewerPlugins === true,

@@ -87,7 +87,9 @@ describe("Cloud project history", () => {
     expect(container.querySelector(".desktop-commit-detail.desktop-cloud-commit-detail")).not.toBeNull();
     expect(container.querySelector(".desktop-commit-summary > p")?.textContent).toBe("Commit 1");
     expect(container.textContent).toContain("Author 1");
-    expect(container.querySelector(".desktop-file-diff-identity")?.getAttribute("title")).toBe("src/file-1.ts");
+    expect(container.querySelector(".desktop-file-diff-identity")?.hasAttribute("data-tooltip")).toBe(false);
+    expect(container.querySelector<HTMLElement>(".desktop-file-diff-name")?.dataset.tooltip).toBe("src/file-1.ts");
+    expect(container.querySelector<HTMLElement>(".desktop-file-diff-name")?.dataset.tooltipWhen).toBe("overflow");
     expect(container.querySelector('.desktop-file-diff[data-change-kind="modified"]')).not.toBeNull();
     expect(container.querySelector('.desktop-file-diff[data-content-mode="metadata"]')).not.toBeNull();
     expect(container.querySelector(".desktop-format-diff")).toBeNull();
@@ -108,7 +110,8 @@ describe("Cloud project history", () => {
 
     expect(container.querySelector(".desktop-commit-summary > p")?.textContent).toBe("Commit 2");
     expect(container.textContent).toContain("Author 2");
-    expect(container.querySelector(".desktop-file-diff-identity")?.getAttribute("title")).toBe("src/file-2.ts");
+    expect(container.querySelector(".desktop-file-diff-identity")?.hasAttribute("data-tooltip")).toBe(false);
+    expect(container.querySelector<HTMLElement>(".desktop-file-diff-name")?.dataset.tooltip).toBe("src/file-2.ts");
     expect(container.querySelector('.desktop-file-diff[data-change-kind="deleted"]')).not.toBeNull();
   });
 

@@ -153,7 +153,7 @@ async function harness(route: "native" | "pathless", failure?: "missing" | "stal
   const patch = (value: Partial<AgentControllerState>) => { state = { ...state, ...value }; };
   const manager = new AgentReferenceDraftManager({ workspaceRoot: workspace, bridgeProvider: provider, readState: () => state, patch, appendText() {} });
   disposals.push(async () => { manager.disposeRendererResources(); });
-  const submission = new AgentTurnSubmissionCoordinator({ workspaceRoot: workspace, bridgeProvider: provider, references: manager, readState: () => state, patch, writeDraft() {}, prepareSession: async () => false });
+  const submission = new AgentTurnSubmissionCoordinator({ workspaceRoot: workspace, bridgeProvider: provider, references: manager, readState: () => state, patch, writeDraft() {}, prepareSession: async () => false, reconnectSession: async () => false });
   const file = new NodeFile([png], "image.png", { type: "image/png" }) as unknown as File;
   return { context, manager, submission, file, stage, store, startTurn, projects, ownerId, folder, state: () => state, stageRequest: () => stageRequest, deliveredBytes: () => delivered };
 }

@@ -1,3 +1,4 @@
+import { activateTooltip } from "../../../../primitives/Tooltip";
 import { EditorSelection } from "@codemirror/state";
 import { EditorView, WidgetType } from "@codemirror/view";
 import { render as renderKatex } from "katex";
@@ -47,7 +48,7 @@ abstract class MathWidget extends WidgetType {
       rendered.textContent = this.presentation === "block"
         ? `$$\n${this.source}\n$$`
         : `$${this.source}$`;
-      if (error instanceof Error) wrapper.title = error.message;
+      if (error instanceof Error) activateTooltip(wrapper, error.message);
     }
     wrapper.appendChild(rendered);
     installMathInteractions(wrapper, view, this.sourceLength, this.presentation);

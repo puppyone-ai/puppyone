@@ -1,3 +1,4 @@
+import { activateTooltip } from "../../../../primitives/Tooltip";
 import { EditorView, WidgetType } from "@codemirror/view";
 import type { MarkdownAssetUrlResolver, MarkdownLinkGraph } from "../../../registry/viewerTypes";
 import { getMarkdownEmbedHost } from "../../platform/codemirror/embedHost";
@@ -399,7 +400,7 @@ function createTableStructureButton({
     ? "po-editable-table-add-row"
     : "po-editable-table-add-column");
   button.setAttribute("aria-label", label);
-  button.title = label;
+  activateTooltip(button, label);
   const visual = document.createElement("span");
   visual.className = "cm-md-table-structure-button-visual po-editable-table-structure-button-visual";
   visual.setAttribute("aria-hidden", "true");

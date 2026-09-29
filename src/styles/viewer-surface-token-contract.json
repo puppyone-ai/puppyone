@@ -10,6 +10,7 @@
     "--po-surface-editor": { "type": "paint" },
     "--po-surface-auxiliary": { "type": "paint" },
     "--po-surface-agent": { "type": "paint" },
+    "--po-surface-menu": { "type": "paint" },
     "--po-canvas": { "type": "paint" },
     "--po-panel": { "type": "paint" },
     "--po-panel-raised": { "type": "paint" },

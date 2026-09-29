@@ -7,6 +7,7 @@ import type {
 } from "../../../lib/cloudApi";
 import type { GitStatusSnapshot } from "../../../types/electron";
 import type { DesktopCloudDataState } from "../data";
+import type { ProjectCloudContext } from "../project/context/projectCloudContext";
 import type { CloudWorkspaceSection } from "../types";
 import {
   AccessPointRoutePage,
@@ -27,6 +28,7 @@ export function CloudProjectRouteOutlet({
   cloudSession,
   cloudApiBaseUrl,
   cloudData,
+  projectContext,
   projectId,
   project,
   loading,
@@ -42,6 +44,7 @@ export function CloudProjectRouteOutlet({
   cloudSession: DesktopCloudSession;
   cloudApiBaseUrl: string | null;
   cloudData: DesktopCloudDataState;
+  projectContext?: ProjectCloudContext;
   projectId: string;
   project: DesktopCloudProject;
   loading: boolean;
@@ -53,9 +56,10 @@ export function CloudProjectRouteOutlet({
 }) {
   const { t } = useLocalization();
 
-  if (activeSection === "contents") {
+  if (activeSection === "contents" || activeSection === "project") {
     return (
       <CloudRepositoryOverview
+        variant={activeSection === "project" ? "project" : "home"}
         workspace={workspace}
         project={project}
         dashboard={cloudData.dashboard}
@@ -126,7 +130,6 @@ export function CloudProjectRouteOutlet({
         loading={cloudData.loading}
         onCloudSessionChange={onSessionChange}
         onRefresh={onRefresh}
-        onOpenProject={onOpenProject}
         canManage={project.capabilities?.includes("access_surface.manage") === true}
       />
     );

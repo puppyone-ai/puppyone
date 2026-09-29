@@ -1,9 +1,5 @@
-import {
-  Check,
-  Copy,
-  RefreshCw,
-} from "lucide-react";
-import { useState } from "react";
+import { Tooltip } from "@puppyone/shared-ui";
+import { RefreshCw } from "lucide-react";
 import type { Workspace } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import "./overview.css";
@@ -20,11 +16,11 @@ import type { DesktopCloudHistory } from "../../../../lib/cloudHistoryApi";
 import { getCloudRoute } from "../../routes/cloudRoutes";
 import type { CloudWorkspaceSection } from "../../types";
 import {
-  copyText,
   formatBytes,
   formatFullTime,
   formatRelativeTime,
 } from "../../utils";
+import { CloudOverviewActions } from "./OverviewActions";
 import { CloudOverviewDashboard } from "./OverviewDashboard";
 import {
   getCloudOverviewMetrics,
@@ -33,7 +29,14 @@ import {
   type CloudOverviewStorageUsage,
 } from "./overviewMetrics";
 
+/**
+ * `home` is the Cloud Homepage; `project` is the same identity/data view
+ * without the Homepage action cards.
+ */
+export type CloudRepositoryOverviewVariant = "home" | "project";
+
 export function CloudRepositoryOverview({
+  variant = "home",
   workspace,
   project,
   dashboard,
@@ -47,6 +50,7 @@ export function CloudRepositoryOverview({
   onSelectSection,
   onRefresh,
 }: {
+  variant?: CloudRepositoryOverviewVariant;
   workspace: Workspace;
   project: DesktopCloudProject | null;
   dashboard: DesktopCloudDashboard | null;
@@ -63,7 +67,6 @@ export function CloudRepositoryOverview({
   const localization = useLocalization();
   const { formatNumber, t } = localization;
   const projectName = project?.name ?? workspace.name;
-  const gitRemoteUrl = identity?.url?.trim() || null;
   const overviewMetrics = getCloudOverviewMetrics({
     scopes,
     connectors,
@@ -86,6 +89,28 @@ export function CloudRepositoryOverview({
     || mcpEndpoints.length > 0,
   );
   const initialLoading = loading && !hasOverviewData;
+  const headerActions = (
+    <div className="desktop-cloud-overview-header-actions">
+      {project?.capabilities?.includes("project.settings.manage") === true && (
+        <Tooltip content={t("cloud.route.settings.title")}><button
+          className="desktop-cloud-overview-settings-button"
+          type="button"
+          aria-label={t("cloud.route.settings.title")}
+          onClick={() => onSelectSection("settings")}
+        >
+          <SettingsIcon size={13} />
+        </button></Tooltip>
+      )}
+      <Tooltip content={t("cloud.common.refresh")}><button
+        className="desktop-cloud-overview-refresh-button"
+        type="button"
+        aria-label={t("cloud.common.refresh")}
+        onClick={() => void onRefresh()}
+      >
+        <RefreshCw size={13} className={loading ? "animate-spin" : undefined} />
+      </button></Tooltip>
+    </div>
+  );
 
   return (
     <section className="desktop-cloud-overview-page" aria-label={t("cloud.overview.ariaLabel")}>
@@ -95,28 +120,7 @@ export function CloudRepositoryOverview({
             <div className="desktop-cloud-overview-landing-copy">
               <div className="desktop-cloud-overview-title-row">
                 <h1 dir="auto">{projectName}</h1>
-                <div className="desktop-cloud-overview-header-actions">
-                  {project?.capabilities?.includes("project.settings.manage") === true && (
-                    <button
-                      className="desktop-cloud-overview-settings-button"
-                      type="button"
-                      aria-label={t("cloud.route.settings.title")}
-                      title={t("cloud.route.settings.title")}
-                      onClick={() => onSelectSection("settings")}
-                    >
-                      <SettingsIcon size={13} />
-                    </button>
-                  )}
-                  <button
-                    className="desktop-cloud-overview-refresh-button"
-                    type="button"
-                    aria-label={t("cloud.common.refresh")}
-                    title={t("cloud.common.refresh")}
-                    onClick={() => void onRefresh()}
-                  >
-                    <RefreshCw size={13} className={loading ? "spin" : undefined} />
-                  </button>
-                </div>
+                {headerActions}
               </div>
             </div>
 
@@ -141,10 +145,11 @@ export function CloudRepositoryOverview({
                   loading={initialLoading}
                   onClick={() => onSelectSection("access")}
                 />
-                <CloudOverviewPathFact value={gitRemoteUrl} loading={initialLoading} />
               </div>
             </div>
           </header>
+
+          {variant === "home" && <CloudOverviewActions onSelectSection={onSelectSection} />}
 
           <CloudOverviewDashboard
             history={history}
@@ -155,55 +160,6 @@ export function CloudRepositoryOverview({
         </div>
       </main>
     </section>
-  );
-}
-
-function CloudOverviewPathFact({
-  value,
-  loading,
-}: {
-  value: string | null;
-  loading: boolean;
-}) {
-  const { t } = useLocalization();
-  const [copied, setCopied] = useState(false);
-  const label = copied
-    ? t("cloud.common.copied")
-    : `${t("cloud.common.copyValue")}: ${t("cloud.overview.repositoryRemote")}`;
-
-  const handleCopy = async () => {
-    if (!value) return;
-    await copyText(value);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1400);
-  };
-
-  return (
-    <button
-      className="desktop-cloud-overview-header-fact desktop-cloud-overview-header-fact--interactive desktop-cloud-overview-path-fact"
-      type="button"
-      aria-label={loading ? t("cloud.common.loading") : value ? label : t("cloud.common.path")}
-      aria-busy={loading}
-      title={value ?? undefined}
-      disabled={!value}
-      onClick={() => void handleCopy()}
-    >
-      <span className="desktop-cloud-overview-header-fact-label">{t("cloud.common.path")}</span>
-      <strong>
-        {loading ? (
-          <span className="desktop-cloud-overview-value-skeleton" aria-hidden="true" />
-        ) : (
-          <>
-            <code dir="ltr">{value ?? "—"}</code>
-            {value ? (
-              <span className="desktop-cloud-overview-path-copy" aria-hidden="true">
-                {copied ? <Check size={12} /> : <Copy size={12} />}
-              </span>
-            ) : null}
-          </>
-        )}
-      </strong>
-    </button>
   );
 }
 
@@ -231,11 +187,11 @@ function CloudOverviewHeaderFact({
       onClick={onClick}
     >
       <span className="desktop-cloud-overview-header-fact-label">{label}</span>
-      <strong title={valueTitle}>
+      <Tooltip content={valueTitle}><strong>
         {loading
           ? <span className="desktop-cloud-overview-value-skeleton" aria-hidden="true" />
           : value}
-      </strong>
+      </strong></Tooltip>
     </button>
   );
 }
@@ -270,9 +226,8 @@ function CloudOverviewStorageMeter({
       };
 
   return (
-    <div
+    <Tooltip content={pending ? t("cloud.common.loading") : detail}><div
       className={`desktop-cloud-overview-project-storage${pending ? " is-loading" : ""}`}
-      title={pending ? t("cloud.common.loading") : detail}
       aria-busy={pending}
     >
       <span className="desktop-cloud-overview-project-storage-track" {...progressProps}>
@@ -280,6 +235,6 @@ function CloudOverviewStorageMeter({
           <span style={{ width: `${usage.percent}%` }} />
         ) : null}
       </span>
-    </div>
+    </div></Tooltip>
   );
 }

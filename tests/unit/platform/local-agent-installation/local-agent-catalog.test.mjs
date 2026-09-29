@@ -30,6 +30,9 @@ describe("trusted Local Agent capability catalog", () => {
     for (const agent of catalog) {
       expect(Object.isFrozen(agent.setup.platforms)).toBe(true);
       expect(Object.isFrozen(agent.installation.executableNames)).toBe(true);
+      if (agent.installation.registeredApplicationNames) {
+        expect(Object.isFrozen(agent.installation.registeredApplicationNames)).toBe(true);
+      }
     }
     expect(() => { catalog[0].setup.platforms.push("freebsd"); }).toThrow();
     expect(catalog.some(agent => agent.installation.id === "puppyone-agent")).toBe(false);
@@ -40,7 +43,7 @@ describe("trusted Local Agent capability catalog", () => {
     const expected = {
       darwin: ["codex", "claude", "cursor", "opencode", "pi", "workbuddy-china", "workbuddy-international", "hermes"],
       linux: ["codex", "claude", "cursor", "opencode", "pi", "hermes"],
-      win32: ["codex", "claude", "opencode", "pi"], freebsd: [],
+      win32: ["codex", "claude", "opencode", "pi", "workbuddy-china", "workbuddy-international"], freebsd: [],
     }[environment.platform];
     const routes = createActivationRegistry(environment);
     expect([...routes.keys()].sort()).toEqual([...expected].sort());

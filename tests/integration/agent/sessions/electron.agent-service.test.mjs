@@ -255,6 +255,30 @@ describe("Electron AgentService ownership and lifecycle", () => {
     expect(harness.service.getSessionCount()).toBe(1);
   });
 
+  it("keeps a completed turn ready when its idle provider process exits", async () => {
+    const harness = createServiceHarness();
+    const owner = createSender(42);
+    const created = await harness.service.createSession(owner, { runtimeId: "codex" }, "/workspace");
+    const adapter = harness.adapters[0];
+    adapter.startTurn.mockImplementationOnce(async () => {
+      adapter.emit({ type: "turn.started", providerSessionId: "thread-1", turnId: "turn-settled", payload: { status: "running" } });
+      adapter.emit({ type: "turn.completed", providerSessionId: "thread-1", turnId: "turn-settled", payload: { status: "completed" } });
+      return { turnId: "turn-settled" };
+    });
+    await harness.service.startTurn(owner, { sessionId: created.session.id, prompt: "Finish first" });
+
+    adapter.exit({ expected: false, diagnostics: "idle transport closed" });
+
+    const replay = harness.service.replay(owner, { sessionId: created.session.id, afterSequence: 0 }, "/workspace");
+    expect(replay.events.some((event) => event.type === "provider.error")).toBe(false);
+    expect(replay.control.connection).toMatchObject({ status: "exited", reason: "provider-idle-exit" });
+    expect(replay.control.execution).toMatchObject({ status: "ended", certainty: "confirmed" });
+    expect(replay.display.presentation).toMatchObject({ phase: "ready", terminalState: "completed" });
+    expect(replay.session.terminalState).toBe("completed");
+    expect(harness.service.getSessionCount()).toBe(0);
+    expect(harness.service.getRetainedSessionCount()).toBe(1);
+  });
+
   it("discards stale native-session metadata and falls back to a clean session", async () => {
     const harness = createServiceHarness({
       resumeSessionError: new AgentProviderSessionUnavailableError("The saved Codex thread is gone."),

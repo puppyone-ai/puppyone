@@ -25,7 +25,9 @@ import {
 } from "../preferences";
 import { resolveImportPreviewBrands } from "../features/project-import/importSourceRegistry";
 import type {
-  WorkspaceCloneRepositoryRequest,
+  WorkspaceImportSourceRequest,
+  WorkspaceImportResourcePage,
+  WorkspaceImportProgress,
   WorkspaceCreateProjectRequest,
   WorkspaceCreateProjectResult,
   WorkspaceProjectLocationGrant,
@@ -54,7 +56,11 @@ export type MinimalOnboardingProps = {
   onChooseProjectLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
   onDefaultProjectLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
   onCreateProject?: (request: WorkspaceCreateProjectRequest) => Promise<WorkspaceCreateProjectResult>;
-  onCloneRepository?: (request: WorkspaceCloneRepositoryRequest) => Promise<boolean>;
+  onImportSource?: (request: WorkspaceImportSourceRequest) => Promise<boolean>;
+  onConnectImportSource?: (provider: string) => Promise<{ connectionId: string }>;
+  onListImportResources?: (request: { provider: string; connectionId: string; parentId?: string | null; cursor?: string | null }) => Promise<WorkspaceImportResourcePage>;
+  onCancelImportSource?: (taskId: string) => Promise<{ cancelled: boolean }>;
+  onImportSourceProgress?: (listener: (progress: WorkspaceImportProgress) => void) => () => void;
   onOpenWorkspacePath: (path: string) => Promise<void>;
   onOpenDroppedWorkspace: (folder: File) => Promise<void>;
   onRemoveProject?: (path: string) => Promise<void>;
@@ -72,7 +78,11 @@ export function MinimalOnboarding({
   onChooseProjectLocation,
   onDefaultProjectLocation,
   onCreateProject,
-  onCloneRepository,
+  onImportSource,
+  onConnectImportSource,
+  onListImportResources,
+  onCancelImportSource,
+  onImportSourceProgress,
   onOpenWorkspacePath,
   onOpenDroppedWorkspace,
   onRemoveProject,
@@ -261,11 +271,11 @@ export function MinimalOnboarding({
             openingFolder={openingPath === "__new__"}
             draggingFolder={folderDrop.dragging}
             canCreateProject={Boolean(onCreateProject && onChooseProjectLocation)}
-            canCloneRepository={Boolean(onCloneRepository)}
+            canImport={Boolean(onImportSource)}
             importPreviewBrands={importPreviewBrands}
             onOpenFolder={() => void chooseFolder()}
             onCreateProject={projectEntryFlow.openCreate}
-            onCloneRepository={projectEntryFlow.openImport}
+            onImport={projectEntryFlow.openImport}
           />}
         />
 
@@ -279,7 +289,11 @@ export function MinimalOnboarding({
         onDefaultLocation={onDefaultProjectLocation}
         onChooseLocation={onChooseProjectLocation}
         onCreateProject={onCreateProject}
-        onImportRepository={onCloneRepository}
+        onImportSource={onImportSource}
+        onConnectSource={onConnectImportSource}
+        onListResources={onListImportResources}
+        onCancelImport={onCancelImportSource}
+        onImportProgress={onImportSourceProgress}
         onOpenFolder={() => void chooseFolder()}
         experimentalSettings={experimentalSettings}
       />

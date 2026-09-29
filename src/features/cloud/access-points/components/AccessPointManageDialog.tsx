@@ -58,7 +58,7 @@ export function AccessPointManageDialog({
               <p>{bidiIsolate(`${getScopeDisplayName(row.scope, t)} · ${getScopePathLabel(row.scope)}`)}</p>
             </div>
           </div>
-          <DesktopDialogCloseButton title={t("cloud.common.close")} onClick={onClose} />
+          <DesktopDialogCloseButton label={t("cloud.common.close")} onClick={onClose} />
         </header>
         <div className="desktop-dialog-body desktop-cloud-access-manage-body" data-po-scrollbar="content">
           <DesktopCloudScopeAccessDetail

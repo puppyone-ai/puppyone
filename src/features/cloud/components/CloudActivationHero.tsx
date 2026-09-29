@@ -113,7 +113,7 @@ function getCloudActivationKind(section: CloudWorkspaceSection): CloudActivation
   if (section === "access") return "access";
   if (section === "cli") return "cli";
   if (section === "git-sync") return "git";
-  if (["contents", "history", "settings"].includes(section)) return "overview";
+  if (["contents", "share", "project", "history", "settings"].includes(section)) return "overview";
   return "mcp";
 }
 

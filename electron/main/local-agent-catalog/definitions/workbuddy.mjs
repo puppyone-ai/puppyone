@@ -5,7 +5,7 @@ function workBuddyAgent(installation, guideUrl) {
   return defineLocalAgent({
     installation, runtimeId: installation.id, terminalRecipeId: null,
     setup: { strategy: "app-bundled-runtime", publisher: installation.displayName,
-      guideUrl, platforms: ["darwin"], reviewedAt: "2026-09-19" },
+      guideUrl, platforms: ["darwin", "win32"], reviewedAt: "2026-09-29" },
     companion: null, provision: { kind: "guided" },
   });
 }

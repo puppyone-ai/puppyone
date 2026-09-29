@@ -3,7 +3,6 @@ import {
   SidebarRoot,
   SidebarScrollArea,
 } from "@puppyone/shared-ui";
-import { MoreHorizontal } from "lucide-react";
 import { Fragment, useMemo, useState } from "react";
 import { useLocalization } from "@puppyone/localization";
 import {
@@ -94,15 +93,7 @@ export function GitSidebar({ repository, view, actions, cloudBackup }: GitSideba
     t,
     onToggle: toggle,
   });
-  const hasStashableChanges = sidebarModel.stagedResources.length > 0
-    || sidebarModel.workingResources.length > 0;
-  const hasDiscardableChanges = sidebarModel.mergeResources.length > 0
-    || sidebarModel.workingResources.length > 0;
-  const showSecondaryActions = hasStashableChanges || hasDiscardableChanges;
   const repositorySetupVisible = Boolean(status && !status.isRepo);
-  const closeSecondaryActions = (target: HTMLElement) => {
-    target.closest("details")?.removeAttribute("open");
-  };
 
   return (
     <SidebarRoot className="desktop-git-sidebar">
@@ -166,49 +157,6 @@ export function GitSidebar({ repository, view, actions, cloudBackup }: GitSideba
               </div>
 
               <div className="desktop-git-fixed-region">
-                {showSecondaryActions && (
-                  <div className="desktop-git-secondary-actions">
-                    {(hasStashableChanges || hasDiscardableChanges) && (
-                      <details className="desktop-git-more-actions">
-                        <summary
-                          title={t("source-control.action.more")}
-                          aria-label={t("source-control.action.more")}
-                        >
-                          <MoreHorizontal size={15} aria-hidden="true" />
-                        </summary>
-                        <div className="desktop-git-more-actions-menu">
-                          {hasStashableChanges && (
-                            <button
-                              type="button"
-                              disabled={disabled || sidebarModel.hasConflicts || Boolean(sidebarModel.repositoryOperation)}
-                              onClick={(event) => {
-                                closeSecondaryActions(event.currentTarget);
-                                void actions.stash();
-                              }}
-                            >
-                              {operationLoading === "stash"
-                                ? t("source-control.action.stashing")
-                                : t("source-control.action.stash")}
-                            </button>
-                          )}
-                          {hasDiscardableChanges && (
-                            <button
-                              className="danger"
-                              type="button"
-                              disabled={disabled}
-                              onClick={(event) => {
-                                closeSecondaryActions(event.currentTarget);
-                                void actions.discardAll();
-                              }}
-                            >
-                              {t("source-control.action.discardAll")}
-                            </button>
-                          )}
-                        </div>
-                      </details>
-                    )}
-                  </div>
-                )}
                 {status && (
                   <GitRemotePrompt
                     state={syncState}

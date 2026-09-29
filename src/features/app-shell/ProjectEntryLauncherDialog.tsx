@@ -54,7 +54,7 @@ export function ProjectEntryLauncherDialog({
             <h2>{title}</h2>
           </div>
           <DesktopDialogCloseButton
-            title={t("common.action.close")}
+            label={t("common.action.close")}
             onClick={onClose}
           />
         </header>
@@ -80,7 +80,7 @@ export function ProjectEntryLauncherDialog({
             />
             <ProjectEntryOption
               icon={<Download />}
-              label={t("onboarding.action.cloneRepository")}
+              label={t("onboarding.action.importFromApps")}
               accessory={<ImportSourcePreview brands={importPreviewBrands} />}
               disabled={!canImport}
               onClick={onImport}

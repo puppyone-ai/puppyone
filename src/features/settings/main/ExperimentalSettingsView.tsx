@@ -18,12 +18,12 @@ export function ExperimentalSettingsView({
   }> = [
     { messageKey: "projectSwitcherRail", settingKey: "enableProjectSwitcherRail" },
     { messageKey: "multiRootWorkspaces", settingKey: "enableMultiRootWorkspaces" },
-    { messageKey: "notionImport", settingKey: "enableNotionImport" },
-    { messageKey: "googleDriveImport", settingKey: "enableGoogleDriveImport" },
-    { messageKey: "obsidianImport", settingKey: "enableObsidianImport" },
-    { messageKey: "airtableImport", settingKey: "enableAirtableImport" },
+    {
+      messageKey: "alwaysShowOnboardingCoachmarks",
+      settingKey: "enableAlwaysShowOnboardingCoachmarks",
+    },
+    { messageKey: "otherAppImports", settingKey: "enableOtherAppImports" },
     { messageKey: "viewerPlugins", settingKey: "enableViewerPlugins" },
-    { messageKey: "editorSaveStatus", settingKey: "enableEditorSaveStatus" },
     ...(window.puppyoneDesktop?.getGitAutoCommitSettings
       ? [{ messageKey: "gitAutoCommit", settingKey: "enableGitAutoCommit" as const }]
       : []),
@@ -33,6 +33,8 @@ export function ExperimentalSettingsView({
       ? [{ messageKey: "projectsHome", settingKey: "enableAssetLibraryHome" as const }]
       : []),
     { messageKey: "cloudWorkspace", settingKey: "enableCloudWorkspace" },
+    { messageKey: "shareOnboarding", settingKey: "enableShareOnboarding" },
+    { messageKey: "workbenchTabsInHeader", settingKey: "enableWorkbenchTabsInHeader" },
     { messageKey: "cloudAutomation", settingKey: "enableCloudAutomation" },
     { messageKey: "flowFiles", settingKey: "enablePuppyFlowFiles" },
   ];
@@ -43,12 +45,11 @@ export function ExperimentalSettingsView({
         <div className="desktop-settings-section">
           <SettingsSectionHeader
             title={t("settings.experimental.title")}
-            detail={t("settings.experimental.detail")}
           />
-          <div className="desktop-settings-list">
+          <div className="desktop-settings-list desktop-settings-lead-list">
             {rows.map(({ messageKey, settingKey }) => (
               <div className="desktop-settings-row desktop-settings-row-control" key={settingKey}>
-                <span title={t(`settings.experimental.${messageKey}.detail`)}>
+                <span>
                   {t(`settings.experimental.${messageKey}.title`)}
                 </span>
                 <SettingsToggle

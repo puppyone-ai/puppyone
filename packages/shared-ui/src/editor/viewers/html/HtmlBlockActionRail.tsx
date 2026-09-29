@@ -1,3 +1,4 @@
+import { Tooltip } from "../../../primitives/Tooltip";
 import { useLayoutEffect, useRef, useState, type MutableRefObject, type ReactNode, type RefObject } from "react";
 import { Pencil } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
@@ -126,9 +127,9 @@ export function HtmlBlockActionRail({ selection, viewport, handle, bounds, activ
     {children && <div ref={menu} className="html-block-action-rail__menu" data-html-control
       style={layout.menu ? { left: layout.menu.x, top: layout.menu.y } : { visibility: "hidden" }}
       onPointerEnter={keep} onFocus={keep}>{children}</div>}
-    {!active && <button ref={handle} type="button" className="html-editor-pencil" data-html-control data-placement={layout.dock}
-      title={t("editor.html.editBlock")} aria-label={t("editor.html.editBlock")} aria-pressed={active}
+    {!active && <Tooltip content={t("editor.html.editBlock")}><button ref={handle} type="button" className="html-editor-pencil" data-html-control data-placement={layout.dock}
+       aria-label={t("editor.html.editBlock")} aria-pressed={active}
       style={{ left: layout.handle.x, top: layout.handle.y - layout.y, width: layout.handle.width, height: layout.handle.height }}
-      onPointerEnter={keep} onFocus={keep} onClick={activate}><Pencil size={14} strokeWidth={2.2} /></button>}
+      onPointerEnter={keep} onFocus={keep} onClick={activate}><Pencil size={14} strokeWidth={2.2} /></button></Tooltip>}
   </div>;
 }

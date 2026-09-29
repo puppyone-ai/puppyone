@@ -1,3 +1,4 @@
+import { activateTooltip } from "../../../../primitives/Tooltip";
 import { showEditableTableHandle } from "../../../table/editableTableHandle";
 import { createEditableTableSelection } from "../../../table/editableTableSelection";
 import type { EditorView } from "@codemirror/view";
@@ -501,7 +502,7 @@ function createMarkdownTableHandleElement(
   handle.tabIndex = -1;
   handle.setAttribute("aria-expanded", "false");
   handle.setAttribute("aria-haspopup", "menu");
-  handle.title = title;
+  activateTooltip(handle, title);
   const visual = doc.createElement("span");
   visual.className = "cm-md-table-drag-handle-visual po-editable-table-drag-handle-visual";
   visual.setAttribute("aria-hidden", "true");

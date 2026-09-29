@@ -309,12 +309,27 @@
   display: grid;
   max-height: 270px;
   overflow: auto;
-  padding: 7px;
-  border: 1px solid var(--agent-border);
-  border-radius: 14px;
-  background: var(--agent-report-surface);
+  padding: var(--po-menu-padding);
+  border: 1px solid var(--po-menu-border);
+  border-radius: var(--po-menu-radius);
+  background: var(--po-menu-bg);
   box-shadow: var(--po-menu-shadow);
 }
-.desktop-agent-command-menu button { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; padding: 9px 10px; border: 0; border-radius: 9px; background: transparent; color: var(--agent-text); font: inherit; font-size: var(--agent-font-size); text-align: start; }
+.desktop-agent-command-menu button {
+  display: grid;
+  min-height: var(--po-menu-item-height);
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--po-menu-item-gap);
+  padding: 0 var(--po-menu-item-padding-inline);
+  border: 0;
+  border-radius: var(--po-menu-item-radius);
+  background: transparent;
+  color: var(--agent-text);
+  font: inherit;
+  font-size: var(--po-type-ui-control, 14px);
+  font-weight: var(--po-text-weight-regular, 400);
+  text-align: start;
+}
 .desktop-agent-command-menu button:hover { background: var(--po-hover); }
 .desktop-agent-command-menu button span { overflow: hidden; color: var(--po-text-muted); text-overflow: ellipsis; white-space: nowrap; }

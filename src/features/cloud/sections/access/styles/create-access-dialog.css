@@ -253,8 +253,23 @@
 }
 
 .desktop-cloud-create-access-tree-row.folder {
-  cursor: var(--po-clickable-cursor, default);
   transition: background 0.12s ease, color 0.12s ease;
+}
+
+.desktop-cloud-create-access-tree-toggle {
+  display: flex;
+  min-width: 0;
+  height: 100%;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: var(--po-clickable-cursor, default);
+  font: inherit;
+  text-align: start;
 }
 
 .desktop-cloud-create-access-tree-row.folder:hover,

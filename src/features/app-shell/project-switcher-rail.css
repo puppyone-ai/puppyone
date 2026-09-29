@@ -19,21 +19,6 @@
   --po-sidebar: var(--po-canvas);
 }
 
-.desktop-project-switcher-resizer {
-  inset-inline-start: auto;
-  inset-inline-end: calc(1px - var(--po-pane-resizer-hit-size, 8px));
-  background: transparent;
-}
-
-.desktop-project-switcher-resizer.po-collapsed-pane-edge-handle--inline-start {
-  inset-inline-start: auto;
-  inset-inline-end: calc(1px - var(--po-collapsed-pane-edge-hit-size, 12px));
-}
-
-.desktop-shell-leading-rail:has(> .po-pane-edge-resize-handle) .desktop-project-switcher-rail {
-  border-inline-end-color: transparent;
-}
-
 body.desktop-project-switcher-resizing,
 body.desktop-project-switcher-resizing * {
   cursor: col-resize !important;
@@ -70,80 +55,9 @@ body.desktop-project-switcher-resizing * {
   flex-direction: column;
   align-items: stretch;
   padding: 0;
-  border-inline-end: 1px solid var(--po-sidebar-divider, var(--po-divider));
   background: var(--po-sidebar);
   color: var(--po-text-muted);
   user-select: none;
-}
-
-.desktop-project-switcher-rail-tooltip {
-  position: absolute;
-  z-index: 90;
-  inset-inline-start: calc(100% + 8px);
-  display: inline-flex;
-  box-sizing: border-box;
-  width: max-content;
-  max-width: min(240px, calc(100vw - 80px));
-  min-height: 26px;
-  align-items: center;
-  padding: 4px 8px;
-  border: 1px solid var(--po-menu-border);
-  border-radius: var(--po-menu-item-radius, var(--desktop-control-radius));
-  background: var(--po-menu-bg);
-  background-clip: padding-box;
-  box-shadow: var(--po-menu-shadow-compact);
-  color: var(--po-text);
-  font-family: var(--po-font-ui);
-  font-size: var(--po-type-ui-meta, 12px);
-  font-weight: var(--po-text-weight-regular, 400);
-  line-height: 16px;
-  opacity: 0;
-  overflow: visible;
-  pointer-events: none;
-  transform: translateY(-50%);
-  white-space: nowrap;
-  animation: desktop-project-switcher-tooltip-in 100ms ease-out 180ms both;
-}
-
-.desktop-project-switcher-rail-tooltip::before {
-  position: absolute;
-  inset-inline-start: -4px;
-  inset-block-start: 50%;
-  width: 7px;
-  height: 7px;
-  border-inline-start: 1px solid var(--po-menu-border);
-  border-block-end: 1px solid var(--po-menu-border);
-  background: var(--po-menu-bg);
-  content: "";
-  transform: translateY(-50%) rotate(45deg);
-}
-
-.desktop-project-switcher-rail-tooltip > bdi {
-  display: block;
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-@keyframes desktop-project-switcher-tooltip-in {
-  from {
-    opacity: 0;
-    transform: translate(-2px, -50%);
-  }
-
-  to {
-    opacity: 1;
-    transform: translate(0, -50%);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .desktop-project-switcher-rail-tooltip {
-    opacity: 1;
-    transform: translateY(-50%);
-    animation: none;
-  }
 }
 
 .desktop-project-switcher-rail-list {
@@ -355,7 +269,13 @@ body.desktop-project-switcher-resizing * {
 .desktop-project-switcher-row-action:hover,
 .desktop-project-switcher-row-action:focus-visible,
 .desktop-project-switcher-row-action[aria-expanded="true"] {
-  background: var(--po-control-hover);
+  background: var(--po-menu-trigger-open-background, var(--po-control-hover));
+  color: var(--po-text);
+}
+
+.desktop-project-switcher-rail-project-row[data-menu-open="true"]
+  .desktop-project-switcher-rail-project {
+  background: var(--po-menu-trigger-row-open-background, var(--desktop-project-switcher-row-hover));
   color: var(--po-text);
 }
 

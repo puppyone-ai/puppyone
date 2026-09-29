@@ -189,6 +189,41 @@ export function inspectAtomicStableReleasePublisherWorkflow(workflowSource) {
   workflowSource = normalizeNewlines(workflowSource);
   const errors = inspectSource(workflowSource, "atomic Stable release publisher workflow");
   if (errors.length > 0) return errors;
+  for (const [stage, task] of [
+    ["Upload both immutable R2 releases", "upload_bundle"],
+    ["Upload both target asset sets to the draft", "upload_asset_set"],
+    ["Stage non-pointer latest payloads for both platforms", "stage_bundle"],
+  ]) {
+    requireStageSnippet(workflowSource, errors, stage,
+      "source scripts/release-support/parallel-release-targets.sh",
+      `${stage} must load the shared writer-draining transfer helper`);
+    requireStageSnippet(workflowSource, errors, stage, `run_release_targets ${task}`,
+      `${stage} must upload both targets concurrently and wait for both writers`);
+  }
+  for (const [stage, targets, extra] of [
+    ["Verify both immutable releases and commit the Release Set", [
+      '--target "${MACOS_BUNDLE_DIRECTORY}" "${PUBLIC_DOWNLOAD_ORIGIN}/${MACOS_R2_PREFIX}"',
+      '--target "${WINDOWS_BUNDLE_DIRECTORY}" "${PUBLIC_DOWNLOAD_ORIGIN}/${WINDOWS_R2_PREFIX}"',
+    ], "--include-metadata true"],
+    ["Verify complete public Stable transaction", [
+      '--target "${MACOS_BUNDLE_DIRECTORY}" "${PUBLIC_DOWNLOAD_ORIGIN}/${MACOS_LATEST_PREFIX}"',
+      '--target "${WINDOWS_BUNDLE_DIRECTORY}" "${PUBLIC_DOWNLOAD_ORIGIN}/${WINDOWS_LATEST_PREFIX}"',
+      '--target "${MACOS_BUNDLE_DIRECTORY}" "${PUBLIC_UPDATE_ORIGIN}/${MACOS_LATEST_PREFIX}"',
+      '--target "${WINDOWS_BUNDLE_DIRECTORY}" "${PUBLIC_UPDATE_ORIGIN}/${WINDOWS_LATEST_PREFIX}"',
+    ], "--include-aliases true"],
+  ]) {
+    for (const snippet of [...targets, "--concurrency 3", extra]) {
+      requireStageSnippet(workflowSource, errors, stage, snippet,
+        `${stage} must verify every target in one bounded pool: ${snippet}`);
+    }
+    const start = workflowSource.indexOf(`- name: ${stage}`);
+    const end = workflowSource.indexOf("\n      - name:", start + 1);
+    const body = workflowSource.slice(start, end < 0 ? undefined : end);
+    if ((body.match(/node scripts\/verify-desktop-release-remote\.mjs/g) ?? []).length !== 1
+        || /for origin in/.test(body)) {
+      errors.push(`${stage} must share one verifier invocation across all platforms and origins`);
+    }
+  }
   requireSnippets(workflowSource, errors, [
     ["workflow_call:", "the atomic Stable publisher must only be callable by the build workflow"],
     ["group: desktop-release-publish", "all release channels must share one publication lock"],

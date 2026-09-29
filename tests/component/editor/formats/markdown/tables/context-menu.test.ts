@@ -90,7 +90,7 @@ describe("Markdown table EditorView interactions", () => {
     const iconButtons = Array.from(menu.querySelectorAll<HTMLButtonElement>(".desktop-menu-item.is-icon"));
     expect(iconButtons.length).toBeGreaterThan(0);
     expect(iconButtons.every((button) => button.querySelector(".po-editable-table-menu-icon"))).toBe(true);
-    expect(iconButtons.every((button) => button.title === button.getAttribute("aria-label"))).toBe(true);
+    expect(iconButtons.every((button) => button.dataset.tooltip === button.getAttribute("aria-label"))).toBe(true);
     expect(menu.querySelectorAll(".desktop-menu-section-list.is-icon-toolbar").length).toBeGreaterThan(0);
     expect((document.activeElement as HTMLElement | null)?.textContent).toContain("Insert row above");
     expect(firstBodyCell.dataset.mdTableEditing).toBe("true");

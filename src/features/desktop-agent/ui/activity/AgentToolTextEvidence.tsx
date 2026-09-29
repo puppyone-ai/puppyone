@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { Copy } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useLocalization } from "@puppyone/localization/react";
@@ -32,11 +33,10 @@ export function AgentToolTextEvidence({ text, className = "desktop-agent-tool-ou
     >
       <pre className={className} data-po-scrollbar="content" dir={dir}>{visibleText}</pre>
       {preview.truncated && (
-        <button
+        <Tooltip content={copied ? t("agent.activity.outputCopied") : t("agent.activity.copyFullOutput")}><button
           type="button"
           className="desktop-agent-tool-copy"
           aria-label={copied ? t("agent.activity.outputCopied") : t("agent.activity.copyFullOutput")}
-          title={copied ? t("agent.activity.outputCopied") : t("agent.activity.copyFullOutput")}
           onClick={async () => {
             if (!navigator.clipboard) return;
             try {
@@ -48,7 +48,7 @@ export function AgentToolTextEvidence({ text, className = "desktop-agent-tool-ou
           }}
         >
           <Copy size={12} aria-hidden="true" />
-        </button>
+        </button></Tooltip>
       )}
     </div>
   );

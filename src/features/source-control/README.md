@@ -66,7 +66,7 @@ contracts here.
 
 The left explorer and main editor remain unchanged while Changes is open or a
 Changes diff is focused. Git is not a first-class explorer navigation mode;
-the header Changes action is the entry point for working-tree, commit, stash,
-pull, and push workflows.
+the header Changes action is the entry point for working-tree, commit, pull,
+and push workflows.
 
 Keep Git command execution in the local API layer. Keep feature state derivation in `viewModel.ts`. Keep components mostly presentational so simple/professional mode, GitHub/Puppyone remote behavior, and future sync actions can evolve without rewriting the whole sidebar.

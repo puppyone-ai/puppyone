@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import type { GitFileDiff } from "../../../types/electron";
 import type { MessageFormatter } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
@@ -33,8 +34,8 @@ export function GitFileDiffSurface({
       data-content-mode={contentMode}
     >
       <div className="desktop-file-diff-header" data-file-format={format.id}>
-        <div className="desktop-file-diff-identity" title={displayPath} aria-label={displayPath} dir="ltr">
-          <span className="desktop-file-diff-name">{displayName}</span>
+        <div className="desktop-file-diff-identity" aria-label={displayPath} dir="ltr">
+          <Tooltip content={displayPath} overflowOnly><span className="desktop-file-diff-name">{displayName}</span></Tooltip>
           <span className={`desktop-change-badge ${file.status}`}>{getGitChangeLabel(file.status, t)}</span>
         </div>
         {file.additions != null && file.deletions != null && (

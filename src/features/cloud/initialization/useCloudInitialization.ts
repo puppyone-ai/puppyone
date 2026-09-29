@@ -32,6 +32,11 @@ export type CloudInitializationFailure = {
 
 export type CloudInitializationNotice = "cleanup-completed" | null;
 
+export type CloudInitializationStartOptions = {
+  /** Set to false to stay on the current surface after a successful publish. */
+  navigateToCloud?: boolean;
+};
+
 export function useCloudInitialization({
   activeCloudSession,
   applyGitStatus,
@@ -106,6 +111,7 @@ export function useCloudInitialization({
   const finishPublished = useCallback((
     result: Extract<CloudInitializationResult, { ok: true }>,
     context: GitRepositoryContext,
+    options: CloudInitializationStartOptions,
   ) => {
     if (result.gitStatus && !reconcileGitStatus(result.gitStatus, context)) return false;
     const published = isPublished(result.state);
@@ -115,6 +121,9 @@ export function useCloudInitialization({
     setNotice(null);
     if (!published) return true;
     clearGitSelection();
+    // Inline callers (for example the Share wizard) own their own follow-up
+    // surface; only the Cloud hub entry navigates into the Cloud panel.
+    if (options.navigateToCloud === false) return true;
     setActiveCloudSection("contents");
     setActiveView("cloud");
     setSidebarCollapsed(false);
@@ -184,7 +193,10 @@ export function useCloudInitialization({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [identityKey]);
 
-  const start = useCallback(async (organizationId?: string) => {
+  const start = useCallback(async (
+    organizationId?: string,
+    options: CloudInitializationStartOptions = {},
+  ) => {
     if (!cloudEnabled || !workspace || actionRef.current) return;
     if (!activeCloudSession) {
       setError({ code: "SESSION_REQUIRED", retryable: true });
@@ -298,7 +310,7 @@ export function useCloudInitialization({
         setError(toPublicFailure(result));
         return;
       }
-      finishPublished(result, context);
+      finishPublished(result, context, options);
     } catch {
       if (actionRef.current === request) setError({ code: "UNKNOWN", retryable: true });
     } finally {

@@ -52,6 +52,7 @@ describe("Sidebar primitives", () => {
     const handle = frame?.querySelector<HTMLElement>(":scope > .po-pane-edge-resize-handle");
 
     expect(frame?.getAttribute("data-pane-side")).toBe("inline-start");
+    expect(frame?.getAttribute("data-pane-edge")).toBe("resizable");
     expect(frame?.getAttribute("data-pane-collapsed")).toBe("true");
     expect(frame?.getAttribute("data-pane-content-visible")).toBe("false");
     expect(frame?.style.getPropertyValue("--po-collapsible-pane-content-width")).toBe("320px");
@@ -90,6 +91,7 @@ describe("Sidebar primitives", () => {
 
     const container = render(<Harness />);
     const frame = requireElement(container, ".po-collapsible-pane-frame");
+    expect(frame.dataset.paneEdge).toBe("static");
     const content = requireElement(container, ".po-collapsible-pane-content");
     const contentPlane = content.firstElementChild as HTMLElement;
     expect(frame.style.getPropertyValue("--po-collapsible-pane-frame-width")).toBe("320px");
@@ -135,9 +137,12 @@ describe("Sidebar primitives", () => {
     );
 
     const activeRow = container.querySelector<HTMLButtonElement>(".po-sidebar-row");
+    const iconButton = container.querySelector<HTMLButtonElement>('[aria-label="Refresh files"]');
     expect(activeRow?.getAttribute("aria-current")).toBe("page");
     expect(activeRow?.textContent).toContain("Files");
-    expect(container.querySelector('[aria-label="Refresh files"]')).not.toBeNull();
+    expect(activeRow?.hasAttribute("data-tooltip")).toBe(false);
+    expect(iconButton).not.toBeNull();
+    expect(iconButton?.hasAttribute("data-tooltip")).toBe(false);
     expect(container.querySelector(".desktop-tool-sidebar")).toBeNull();
   });
 

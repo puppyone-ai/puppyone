@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import {
   memo,
   type CSSProperties,
@@ -65,7 +66,7 @@ export const TerminalSessionTab = memo(function TerminalSessionTab({
         "--desktop-terminal-tab-resolved-width": `${width}px`,
       } as CSSProperties}
     >
-      <button
+      <Tooltip content={compact ? presentation.accessibleLabel : undefined}><button
         id={tabId(session.id)}
         type="button"
         className="desktop-terminal-tab-select"
@@ -75,7 +76,6 @@ export const TerminalSessionTab = memo(function TerminalSessionTab({
         aria-selected={active}
         aria-keyshortcuts="Alt+Shift+ArrowLeft Alt+Shift+ArrowRight Alt+Shift+ArrowUp Alt+Shift+ArrowDown"
         tabIndex={active ? 0 : -1}
-        title={presentation.accessibleLabel}
         onClick={(event) => {
           if (consumeSuppressedClick()) {
             event.preventDefault();
@@ -112,8 +112,13 @@ export const TerminalSessionTab = memo(function TerminalSessionTab({
           runtime={runtime}
           session={session}
         />
-        <span className="desktop-terminal-tab-title">{presentation.pathLabel}</span>
-      </button>
+        <Tooltip
+          content={compact ? undefined : presentation.accessibleLabel}
+          overflowOnly
+        >
+          <span className="desktop-terminal-tab-title">{presentation.pathLabel}</span>
+        </Tooltip>
+      </button></Tooltip>
       <DesktopMenuIconButton
         className="desktop-terminal-tab-close"
         label={t("terminal.closeSession", { title: presentation.sessionTitle })}

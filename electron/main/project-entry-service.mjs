@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { cloneGitRepository } from "../../local-api/git/runner.mjs";
 import { createProjectInitializationService } from "./project-initialization-service.mjs";
+import { createLocalProjectImportService } from "./project-import/service.mjs";
 
 const PROJECT_NAME_MAX_LENGTH = 120;
 const WINDOWS_RESERVED_NAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
@@ -13,6 +14,25 @@ export function createProjectEntryService({
   journalDirectory = null,
 } = {}) {
   const initialization = createProjectInitializationService({ journalDirectory });
+  const imports = createLocalProjectImportService({
+    io: fsPromises,
+    validateName: requireProjectName,
+    loadAdapter: async (id) => {
+      const module = await import(`./project-import/sources/${id}.mjs`);
+      return module.createImportSource({ cloneGit, requireGitRepository, io: fsPromises, requireProjectName });
+    },
+  });
+  async function importProject({ parentPath, source, ownerId, signal, onProgress }) {
+    const canonicalParent = await requireDirectory(parentPath, fsPromises, pathModule);
+    try {
+      return await imports.importProject({ parentPath: canonicalParent, source, ownerId, signal, onProgress });
+    } catch (error) {
+      if (source?.provider === "github" || source?.provider === "gitlab") {
+        throw normalizeCloneError(error, source.provider);
+      }
+      throw error;
+    }
+  }
   return Object.freeze({
     async createProject({ parentPath, name, source = { kind: "blank" }, locale = "en", operationId }) {
       const projectName = requireProjectName(name);
@@ -32,55 +52,12 @@ export function createProjectEntryService({
       }
     },
 
-    async cloneRepository({ parentPath, provider = null, repositoryUrl, signal }) {
-      const repository = requireGitRepository(repositoryUrl, provider);
-      const canonicalParent = await requireDirectory(parentPath, fsPromises, pathModule);
-      const projectPath = resolveChildPath(canonicalParent, repository.name, pathModule);
-      await requireMissingPath(projectPath, repository.name, fsPromises);
+    importProject,
 
-      const temporaryPath = await fsPromises.mkdtemp(
-        pathModule.join(canonicalParent, `.puppyone-clone-${repository.name}-`),
-      );
-      let ownsProjectPath = false;
-      try {
-        await cloneGit(temporaryPath, repository.url, { signal });
-        try {
-          // Claim the final path exclusively after the network operation. This
-          // prevents rename() from replacing a directory created by another
-          // process while the clone was running.
-          await fsPromises.mkdir(projectPath, { recursive: false });
-          ownsProjectPath = true;
-        } catch (error) {
-          if (error?.code === "EEXIST") {
-            throw projectEntryError(
-              "PROJECT_ALREADY_EXISTS",
-              `A file or folder named “${repository.name}” already exists in that location.`,
-            );
-          }
-          throw error;
-        }
-        const entries = await fsPromises.readdir(temporaryPath);
-        for (const entry of entries) {
-          await fsPromises.rename(
-            pathModule.join(temporaryPath, entry),
-            pathModule.join(projectPath, entry),
-          );
-        }
-        await fsPromises.rmdir(temporaryPath);
-      } catch (error) {
-        await fsPromises.rm(temporaryPath, { recursive: true, force: true }).catch(() => undefined);
-        if (ownsProjectPath) {
-          await fsPromises.rm(projectPath, { recursive: true, force: true }).catch(() => undefined);
-        }
-        throw normalizeCloneError(error, repository.provider);
-      }
+    connectImportSource: imports.connectSource,
+    listImportResources: imports.listResources,
+    getImportSource: imports.registry.get,
 
-      return {
-        path: projectPath,
-        name: repository.name,
-        repositoryUrl: repository.url,
-      };
-    },
   });
 }
 
@@ -253,24 +230,11 @@ function resolveChildPath(parentPath, name, pathModule) {
   return childPath;
 }
 
-async function requireMissingPath(targetPath, projectName, fsPromises) {
-  try {
-    await fsPromises.lstat(targetPath);
-  } catch (error) {
-    if (error?.code === "ENOENT") return;
-    throw error;
-  }
-  throw projectEntryError(
-    "PROJECT_ALREADY_EXISTS",
-    `A file or folder named “${projectName}” already exists in that location.`,
-  );
-}
-
 function normalizeCloneError(error, provider) {
   if (error?.name === "AbortError" || error?.code === "ABORT_ERR") {
     return projectEntryError("CLONE_CANCELLED", "Repository cloning was cancelled.");
   }
-  if (typeof error?.code === "string" && error.code.startsWith("PROJECT_")) return error;
+  if (typeof error?.code === "string" && /^(PROJECT_|INVALID_|IMPORT_)/.test(error.code)) return error;
   const diagnostic = typeof error?.stderr === "string" ? error.stderr.trim() : "";
   if (/authentication failed|could not read username|permission denied \(publickey\)|terminal prompts disabled/i.test(diagnostic)) {
     const providerLabel = getProviderLabel(provider) ?? "Git provider";

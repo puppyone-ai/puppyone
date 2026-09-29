@@ -80,7 +80,6 @@ export type ExplorerTreeProps = {
   dragWorkspaceId?: string;
   /** Host-owned projection for native/text export; internal identity remains intact. */
   onExportNodes?: (nodes: readonly DataNode[], event: ReactDragEvent<HTMLElement>) => void;
-  dragExportHint?: string;
   /** Host-authenticated native source preview; never used as drop authority. */
   resourceDragEntries?: readonly ExplorerReferenceDragEntry[] | null;
   onResolveFileDrop?: (files: File[], targetFolderPath: string | null) => Promise<readonly ExplorerReferenceDragEntry[] | null>;
@@ -119,7 +118,6 @@ type TreeDropTarget = {
 
 type TreeDragController = {
   enabled: boolean;
-  exportHint?: string;
   onNodeDragStart: (event: ReactDragEvent<HTMLDivElement>, node: DataNode) => void;
   onNodeDragEnd: () => void;
   onRowDragOver: (
@@ -156,7 +154,6 @@ export function ExplorerTree({
   onExportNodes,
   resourceDragEntries,
   onResolveFileDrop,
-  dragExportHint,
   canMoveNodes = false,
   onSelectNode,
   onToggleFolder,
@@ -504,14 +501,12 @@ export function ExplorerTree({
   const dragController = useMemo<TreeDragController>(() => ({
     // Outbound copy/context drag is independent from in-tree move support.
     enabled: true,
-    exportHint: dragExportHint,
     onNodeDragStart: beginNodeDrag,
     onNodeDragEnd: clearDragState,
     onRowDragOver: dragOverRow,
     onRowDrop: dropOnRow,
   }), [
     beginNodeDrag,
-    dragExportHint,
     clearDragState,
     dragOverRow,
     dropOnRow,
@@ -890,9 +885,6 @@ const TreeNodeRow = memo(function TreeNodeRow({
       aria-label={interaction.cut
         ? t("shared-ui.explorer.cutLabel", { name: bidiIsolate(node.name) })
         : node.name}
-      title={dragController.exportHint && !node.workspaceFolderRoot
-        ? `${node.name}\n${dragController.exportHint}`
-        : displayName.hidden || showExtensionDisambiguator ? node.name : undefined}
       onDragStart={(event) => dragController.onNodeDragStart(event, node)}
       onDragEnd={dragController.onNodeDragEnd}
       onDragEnter={(event) => {

@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import {
   FilePenLine,
   GitBranch,
@@ -200,9 +201,9 @@ export function CloudLocalOnlyWorkspace({
               <CloudPublishFolderMark className="desktop-cloud-publish-symbol-icon" />
             </div>
             <div className="desktop-cloud-publish-details local">
-              <p className="desktop-cloud-publish-project" title={workspace.path} dir="auto">
+              <Tooltip content={workspace.path} overflowOnly><p className="desktop-cloud-publish-project" dir="auto">
                 {workspace.name}
-              </p>
+              </p></Tooltip>
               <ul className="desktop-cloud-publish-meta">
                 <li>
                   <GitBranch size={13} aria-hidden="true" />
@@ -355,7 +356,7 @@ export function CloudLocalOnlyWorkspace({
               disabled={publishBusy || !publishEnabled}
               onClick={() => onPublishWorkspace(selectedOrganizationId ?? undefined)}
             >
-              {publishing && <RefreshCw size={13} className="spin" aria-hidden="true" />}
+              {publishing && <RefreshCw size={13} className="animate-spin" aria-hidden="true" />}
               <span>
                 {activeProgressStage
                   ? getCloudPublishProgressLabel(activeProgressStage, t)

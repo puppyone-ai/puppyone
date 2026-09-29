@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { Check, Circle, CircleAlert, CircleSlash2 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -50,12 +51,11 @@ export function AgentActivityShell({
   return (
     <div className={`desktop-agent-tool-call is-${status}${hasDetail ? " has-detail" : ""}${expanded ? " is-expanded" : ""} ${className}`.trim()}>
       <div className="desktop-agent-tool-header">
-        <button
+        <Tooltip content={compactLabel}><button
           type="button"
           className={`desktop-agent-tool-row${metadata ? " has-metadata" : ""}`}
           disabled={!hasDetail}
           aria-label={compactLabel}
-          title={compactLabel}
           aria-expanded={hasDetail ? expanded : undefined}
           onClick={toggleExpanded}
         >
@@ -64,7 +64,7 @@ export function AgentActivityShell({
           {metadata && <span className="desktop-agent-tool-metadata">{metadata}</span>}
           {visibleSummary && <span className="desktop-agent-tool-summary">{visibleSummary}</span>}
           <StatusIcon status={status} />
-        </button>
+        </button></Tooltip>
       </div>
       {detail && groupDisclosure?.detailHost
         ? createPortal(detail, groupDisclosure.detailHost)

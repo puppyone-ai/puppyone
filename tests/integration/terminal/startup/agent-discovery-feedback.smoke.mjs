@@ -29,7 +29,7 @@ async function capture(name) {
   const bounds = await evaluate(`(() => {
     const panel = document.querySelector('.desktop-terminal-launcher');
     const rows = [...document.querySelectorAll('.desktop-terminal-launcher-tools > *')];
-    const labels = [...panel.querySelectorAll('.desktop-terminal-launcher-tool > span:last-child, .desktop-terminal-launcher-shell > span:last-child, .desktop-terminal-launcher-history > span:last-child')];
+    const labels = [...panel.querySelectorAll('.desktop-terminal-launcher-tool > span:last-child, .desktop-terminal-launcher-shell > span:last-child')];
     const feedback = panel.querySelector('.desktop-terminal-launcher-discovery');
     const metrics = element => {
       const style = getComputedStyle(element);

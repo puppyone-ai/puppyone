@@ -5,9 +5,14 @@ const tokensCss = readCss("../../../../src/styles/tokens.css");
 const layoutCss = readCss("../../../../src/styles/layout.css");
 const titlebarCss = readCss("../../../../src/styles/titlebar.css");
 const sidebarPrimitivesCss = readCss("../../../../packages/shared-ui/src/styles/sidebar-primitives.css");
+const paneCss = readCss("../../../../packages/shared-ui/src/sidebar/collapsible-pane.css");
 const sidebarPatternsCss = readCss("../../../../src/styles/sidebar/patterns.css");
 const dataAdapterCss = readCss("../../../../src/features/data-workspace/browser.css");
 const projectSwitcherCss = readCss("../../../../src/features/app-shell/project-switcher-rail.css");
+const projectSwitcherSource = readFileSync(
+  new URL("../../../../src/features/app-shell/ProjectSwitcherRail.tsx", import.meta.url),
+  "utf8",
+);
 const projectContextAssetMarkCss = readCss(
   "../../../../src/features/app-shell/project-context-asset-mark.css",
 );
@@ -68,7 +73,10 @@ describe("sidebar spacing architecture", () => {
 
   it("shares one visible boundary between the Explorer scrollbar and Editor", () => {
     const explorerColumn = compact(readCssBlock(dataTreeCss, ".explorer-column"));
-    const explorerResizer = compact(readCssBlock(dataTreeCss, ".data-explorer-resizer"));
+    const sharedResizer = compact(readCssBlock(
+      paneCss,
+      '.po-collapsible-pane-frame[data-pane-side="inline-start"]\n  > .po-pane-edge-resize-handle:not(.po-collapsed-pane-edge-handle)',
+    ));
 
     const injectedSurface = compact(readCssBlock(layoutCss, ".desktop-view-surface-sidebar"));
     expect(dataWorkspaceSource).toContain("<CollapsiblePaneFrame");
@@ -77,17 +85,25 @@ describe("sidebar spacing architecture", () => {
     expect(workspaceSurfaceOutletSource).toContain(
       'className={`desktop-view-surface desktop-view-surface-${region}`}',
     );
-    expect(explorerColumn).toContain(
-      "border-inline-end: 1px solid var(--po-sidebar-divider, var(--po-divider));",
-    );
-    expect(explorerResizer).toContain("background: transparent;");
+    expect(explorerColumn).not.toContain("border-inline-end:");
     expect(dataTreeCss).not.toContain(".data-explorer-resizer::after");
-    expect(explorerResizer).toContain("inset-inline-start: auto;");
-    expect(explorerResizer).toContain(
-      "inset-inline-end: calc(1px - var(--po-pane-resizer-hit-size, 8px));",
-    );
+    expect(dataTreeCss).not.toMatch(/\.data-explorer-resizer\s*\{/);
+    expect(sharedResizer).toContain("inset-inline-start: auto;");
+    expect(sharedResizer).toContain("inset-inline-end: calc(var(--po-pane-resizer-line-size, 1px) - var(--po-pane-resizer-hit-size, 8px));");
     expect(injectedSurface).not.toContain("border-inline-end:");
     expect(cloudSidebarCss).not.toContain("border-inline-end:");
+  });
+
+  it("gives resizable panes one boundary painter without hidden border width", () => {
+    const staticEdge = compact(readCssBlock(paneCss,
+      '.po-collapsible-pane-frame[data-pane-edge="static"]:not([data-pane-presentation="collapsed"])::after'));
+    expect(staticEdge).toContain("width: var(--po-pane-resizer-line-size, 1px);");
+    expect(staticEdge).toContain("pointer-events: none;");
+    expect(projectSwitcherCss).not.toContain(":has(> .po-pane-edge-resize-handle)");
+    expect(compact(readCssBlock(projectSwitcherCss, ".desktop-project-switcher-rail")))
+      .not.toContain("border-inline-end:");
+    expect(layoutCss).not.toContain("--desktop-right-sidebar-border-start");
+    expect(dataTreeCss).not.toContain("data-resizable-explorer");
   });
 
   it("defines one visual edge contract", () => {
@@ -116,6 +132,9 @@ describe("sidebar spacing architecture", () => {
     );
     expect(semanticThemeScope).toContain(
       "--desktop-sidebar-section-title-disabled-color: var(--po-text-disabled);",
+    );
+    expect(semanticThemeScope).toContain(
+      "var(--po-text-muted) 84%,",
     );
     expect(semanticThemeScope).toContain(
       "--po-sidebar: color-mix(in srgb, var(--po-surface-chrome) 40%, var(--po-surface-editor));",
@@ -148,9 +167,9 @@ describe("sidebar spacing architecture", () => {
       ":root,\n:where(.app-shell, .onboarding-shell, .desktop-overlay-root, .desktop-theme-preview-surface, .dark)",
     );
     const titlebar = compact(readCssBlock(titlebarCss, ".desktop-titlebar"));
-    const rightSidebar = compact(readCssBlock(
-      layoutCss,
-      '.desktop-right-sidebar:not([data-pane-presentation="collapsed"])',
+    const paneEdge = compact(readCssBlock(
+      paneCss,
+      '.po-collapsible-pane-frame[data-pane-edge="static"]:not([data-pane-presentation="collapsed"])::after',
     ));
     const sharedGroupDivider = compact(readCssBlock(
       sidebarPatternsCss,
@@ -178,9 +197,7 @@ describe("sidebar spacing architecture", () => {
     expect(tokensCss.match(/--po-sidebar-divider:/g)).toHaveLength(1);
     expect(tokensCss).not.toMatch(/--po-header-divider:\s*rgba/);
     expect(titlebar).toContain("--desktop-titlebar-divider: var(--po-header-divider);");
-    expect(rightSidebar).toContain(
-      "border-inline-start-color: var(--po-sidebar-divider, var(--po-divider));",
-    );
+    expect(paneEdge).toContain("background: var(--po-sidebar-divider, var(--po-divider));");
     expect(sharedGroupDivider).toContain(
       "background: var(--po-sidebar-divider, var(--po-divider));",
     );
@@ -325,9 +342,10 @@ describe("sidebar spacing architecture", () => {
     expect(projectSwitcherCss).toMatch(
       /\.desktop-project-switcher-rail-identity-badge\s*\{[^}]*position:\s*absolute;[^}]*width:\s*14px;[^}]*height:\s*14px;[^}]*font-size:\s*var\(--po-type-ui-micro, 11px\);/s,
     );
-    expect(projectSwitcherCss).toMatch(
-      /\.desktop-project-switcher-rail-tooltip\s*\{[^}]*inset-inline-start:\s*calc\(100% \+ 8px\);[^}]*border:\s*1px solid var\(--po-menu-border\);[^}]*background:\s*var\(--po-menu-bg\);[^}]*box-shadow:\s*var\(--po-menu-shadow-compact\);[^}]*font-weight:\s*var\(--po-text-weight-regular, 400\);/s,
+    expect(projectSwitcherSource).toContain(
+      "Tooltip content={expanded ? undefined : workspace.name}",
     );
+    expect(projectSwitcherCss).not.toContain(".desktop-project-switcher-rail-tooltip");
     expect(projectSwitcherCss).toMatch(
       /\.desktop-project-switcher-rail-context-avatar,[^{]+\{[^}]*border-radius:\s*0;[^}]*overflow:\s*visible;[^}]*background:\s*transparent;/s,
     );
@@ -378,6 +396,9 @@ describe("sidebar spacing architecture", () => {
     expect(treeRow).toContain("font-size: var(--tree-row-font-size);");
     expect(treeRow).toContain("font-weight: var(--tree-row-font-weight);");
     expect(treeRow).toContain("line-height: var(--tree-row-line-height);");
+    expect(treeRow).toContain(
+      "color: var(--desktop-sidebar-text-color, var(--po-text-muted));",
+    );
     expect(treeShell).toContain("--tree-row-action-size: var(--po-tree-row-action-size, 24px);");
     expect(treeShell).toContain("--tree-row-action-icon-size: var(--po-tree-row-action-icon-size, 15px);");
     expect(treeRowAction).toContain("width: var(--tree-row-action-size);");
@@ -391,12 +412,15 @@ describe("sidebar spacing architecture", () => {
     `));
   });
 
-  it("reveals low-frequency tree actions only on hover or keyboard focus", () => {
+  it("reveals low-frequency tree actions on hover, keyboard focus, or an open menu", () => {
     expect(dataTreeCss).toContain(
-      ".tree-row:hover .tree-row-actions,\n.tree-row:focus-visible .tree-row-actions,\n.tree-row:has(.tree-row-action-button:focus-visible) .tree-row-actions",
+      ".tree-row:hover .tree-row-actions,\n.tree-row:focus-visible .tree-row-actions,\n.tree-row:has(.tree-row-action-button:focus-visible) .tree-row-actions,\n.tree-row:has(.tree-row-action-button[aria-expanded=\"true\"]) .tree-row-actions",
     );
     expect(dataTreeCss).toContain(
       ".tree-row:has(.tree-row-action-button:focus-visible) .tree-row-content",
+    );
+    expect(dataTreeCss).toContain(
+      '.tree-row:has(.tree-row-action-button[aria-expanded="true"])',
     );
     expect(dataTreeCss).not.toContain(".tree-row.active .tree-row-actions");
     expect(dataTreeCss).not.toContain(".tree-row:focus-within .tree-row-actions");
@@ -423,6 +447,9 @@ describe("sidebar spacing architecture", () => {
     expect(dataAdapterCss).not.toContain("--po-tree-row-selected-bg:");
     expect(agentBoundary).toContain(
       "--agent-row-hover-surface: color-mix(in srgb, var(--po-hover) 86%, transparent);",
+    );
+    expect(agentBoundary).toContain(
+      "--agent-text-muted: var(--desktop-sidebar-text-color, var(--po-text-muted));",
     );
     expect(agentBoundary).not.toContain("--po-tree-row-hover-bg:");
     expect(agentBoundary).not.toContain("--po-tree-row-selected-bg:");

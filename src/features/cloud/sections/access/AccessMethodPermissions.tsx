@@ -278,7 +278,6 @@ function DesktopCloudPermissionGroupRow({
               className={`desktop-cloud-access-permission-pill ${enabled ? "enabled" : ""} ${group.danger ? "danger" : ""}`}
               key={command.key}
               type="button"
-              title={command.key}
               aria-pressed={enabled}
               disabled={disabled || group.muted}
               onClick={() => onToggleCommand(command, !enabled, group)}

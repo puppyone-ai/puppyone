@@ -102,7 +102,7 @@ describe("titlebar typography architecture", () => {
     expect(dividerRule).toContain("background: var(--desktop-titlebar-divider);");
   });
 
-  it("keeps chrome text at the shared medium-weight contract", () => {
+  it("matches titlebar context weight to ordinary sidebar elements", () => {
     const typographyRoot = readCssBlock(typographyFoundationsCss, ":root");
     const layoutRoot = readCssBlock(`\n${tokensCss}`, ":root");
     const titlebarRoot = readCssBlock(`\n${titlebarCss}`, ".desktop-titlebar");
@@ -114,16 +114,17 @@ describe("titlebar typography architecture", () => {
     expect(typographyRoot).toContain("--po-text-weight-medium: 500;");
     expect(typographyRoot).toContain("--po-font-weight-chrome: var(--po-text-weight-medium);");
     expect(controlGeometry).toContain("--po-control-size: 32px;");
+    expect(layoutRoot).toContain("--desktop-chrome-height: 40px;");
     expect(layoutRoot).toContain("--desktop-chrome-control-size: var(--po-control-size);");
     expect(layoutRoot).toContain("--desktop-toolbar-action-radius: 5px;");
-    expect(layoutRoot).toContain("--desktop-titlebar-control-height: 24px;");
+    expect(layoutRoot).toContain("--desktop-titlebar-control-height: var(--po-control-size-compact);");
     expect(layoutRoot).toContain("--desktop-titlebar-tool-action-width: 34px;");
-    expect(layoutRoot).toContain("--desktop-titlebar-button-gap: 3px;");
+    expect(layoutRoot).toContain("--desktop-titlebar-button-gap: 2px;");
     expect(titlebarRoot).toContain(
       "--desktop-titlebar-context-font-size: var(--po-font-size-chrome, 13px);",
     );
     expect(titlebarRoot).toContain(
-      "--desktop-titlebar-context-font-weight: var(--po-font-weight-chrome, 500);",
+      "var(--desktop-sidebar-font-weight, var(--po-text-weight-regular, 400));",
     );
     expect(titlebarRoot).toContain(
       "--desktop-titlebar-context-line-height: var(--po-type-header-line-height, 20px);",
@@ -190,10 +191,11 @@ describe("titlebar typography architecture", () => {
     expect(windowsTitlebar).toContain(
       "--desktop-titlebar-content-start: var(--desktop-sidebar-row-left-gap, 12px);",
     );
-    expect(windowsTitlebar).toContain("height: 38px;");
-    expect(windowsTitlebar).toContain("min-height: 38px;");
+    expect(windowsTitlebar).toContain("height: 40px;");
+    expect(windowsTitlebar).toContain("min-height: 40px;");
     expect(windowsLayout).toContain("position: relative;");
     expect(windowsLayout).toContain("padding-right: 0;");
+    expect(windowsBoundaryDivider).toContain("inset-block-start: 11px;");
     expect(windowsBoundaryDivider).toContain("inset-inline-end: 0;");
     expect(windowsBoundaryDivider).toContain("width: 1px;");
     expect(windowsBoundaryDivider).toContain("height: 18px;");
@@ -328,9 +330,9 @@ describe("titlebar typography architecture", () => {
 
     expect(sectionLabel).toContain("font-size: var(--po-menu-meta-font-size);");
     expect(sectionLabel).toContain("line-height: var(--po-menu-meta-line-height);");
-    expect(sectionLabel).toContain("font-weight: 600;");
+    expect(sectionLabel).toContain("font-weight: var(--po-text-weight-medium, 500);");
     expect(sectionLabel).toContain("text-transform: none;");
-    expect(currentLabel).toContain("font-weight: 500;");
+    expect(currentLabel).toContain("font-weight: var(--po-text-weight-regular, 400);");
     expect(currentLabel).toContain("text-transform: none;");
     expect(currentLabel).not.toContain("font-size:");
     expect(titlebarCss).not.toContain(".desktop-branch-menu-label {");

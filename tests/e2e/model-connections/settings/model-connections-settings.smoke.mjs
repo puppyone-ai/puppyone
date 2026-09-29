@@ -1,5 +1,6 @@
 #!/usr/bin/env electron
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs/promises";
 import http from "node:http";
 import os from "node:os";
@@ -12,6 +13,7 @@ import { createWorkspaceStateStore } from "../../../../electron/main/workspace-s
 const repo = path.resolve(import.meta.dirname, "../../../..");
 const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "puppyone-model-settings-"));
 const workspace = path.join(temporary, "workspace"); await fs.mkdir(workspace);
+execFileSync("git", ["init", "--quiet", workspace]);
 const output = path.join(repo, "artifacts/tests/model-connections/settings"); await fs.mkdir(output, { recursive: true });
 const computeSmoke = process.argv.includes("--compute");
 app.setAppPath(repo);
@@ -79,7 +81,7 @@ async function checkDefaultCompute() {
   await evaluate("document.querySelector('input[aria-label=\"Built-in Agent\"]').click()");
   await clickText("Close");
   await evaluate("document.querySelector('.desktop-titlebar-terminal, .desktop-shell-toolbar-terminal').click()");
-  await until(() => evaluate("Boolean(document.querySelector('.desktop-terminal-launcher-tool[title=\"Built-in Agent\"]'))"), "built-in Harness choice");
+  await until(() => evaluate("Boolean(document.querySelector('.desktop-terminal-launcher-tool[data-tooltip=\"Built-in Agent\"]'))"), "built-in Harness choice");
   await clickText("Built-in Agent");
   await until(() => evaluate(`document.querySelector('.desktop-agent-compute-summary')?.textContent.includes("Puppyone's token")`), "default managed compute");
   await ensureAgentSidebarOpen();
@@ -150,6 +152,34 @@ app.whenReady().then(async () => {
     await clickText("Light");
     await until(() => evaluate("Boolean(document.querySelector('[data-theme-mode=light]'))"), "light appearance");
     const referenceHeading = await evaluate("(() => { const h = document.querySelector('.desktop-settings-section-header h2'); return { left: h.getBoundingClientRect().left, size: getComputedStyle(h).fontSize }; })()");
+    const leadOffsets = [];
+    for (const [name, selector] of [
+      ["General", ".desktop-language-setting-row > span:first-child"],
+      ["Create New Menu", ".desktop-settings-lead-categories .desktop-settings-category-title"],
+      ["Local Agents", ".desktop-settings-lead-categories .desktop-settings-category-title"],
+      ["Project Info", ".desktop-settings-lead-list > .desktop-settings-row:first-child > span:first-child"],
+      ["Git", ".desktop-settings-lead-group > .desktop-settings-subsection-title"],
+      ["Git Ignore", ".desktop-settings-lead-rows .desktop-settings-row:first-child > span:first-child"],
+      ["Model connections", ".desktop-settings-lead-categories .desktop-settings-category-title"],
+    ]) {
+      await clickText(name);
+      if (name === "Model connections") await until(() => evaluate("Boolean(document.querySelector('.model-connections-list'))"), "model list layout");
+      if (name === "Git") await until(() => evaluate("Boolean(document.querySelector('.desktop-settings-lead-group'))"), "Git layout");
+      const offset = await evaluate(`(() => {
+        const title = document.querySelector('.desktop-settings-section-header h2');
+        const first = document.querySelector(${JSON.stringify(selector)});
+        if (!title || !first) return null;
+        const line = first.getBoundingClientRect();
+        return (line.top + line.bottom) / 2 - title.getBoundingClientRect().bottom;
+      })()`);
+      assert.ok(Number.isFinite(offset), `${name} has a visible first line`);
+      leadOffsets.push([name, offset]);
+    }
+    const referenceOffset = leadOffsets[0][1];
+    for (const [name, offset] of leadOffsets) {
+      assert.ok(Math.abs(offset - referenceOffset) <= 3,
+        `${name} first line aligns with General (${offset} / ${referenceOffset})`);
+    }
     await clickText("Model connections");
     await until(() => evaluate("Boolean(document.querySelector('.model-connections'))"), "model settings ready");
     const connectionHeading = await evaluate("(() => { const h = document.querySelector('.model-connections .desktop-settings-section-header h2'); return { left: h.getBoundingClientRect().left, size: getComputedStyle(h).fontSize }; })()");

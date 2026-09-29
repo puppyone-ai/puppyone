@@ -1,3 +1,4 @@
+import { Tooltip } from "../../../primitives/Tooltip";
 import {
   ChevronLeft,
   ChevronRight,
@@ -147,15 +148,15 @@ export function DatabaseViewer({ document, openExternalFile }: PresetViewerRende
       </div>
     </div> : info ? <>
       <header className="database-preview__toolbar">
-        <span className="database-preview__engine" title={`${info.engine === "sqlite" ? "SQLite" : "DuckDB"} ${info.engineVersion} · ${t("editor.database.readonly")}`}>
+        <Tooltip content={`${info.engine === "sqlite" ? "SQLite" : "DuckDB"} ${info.engineVersion} · ${t("editor.database.readonly")}`}><span className="database-preview__engine">
           <Database size={15} strokeWidth={1.8} aria-hidden="true" />
-        </span>
+        </span></Tooltip>
         <div className="database-preview__object-tabs" role="tablist" aria-label={t("editor.database.objects")} data-po-scrollbar="hidden">
           {info.objects.map((object, index) => {
             const unavailable = object.readable ? null : t(databaseObjectUnavailableMessage(object.unavailableReason));
             const inaccessible = busy || !object.readable;
             const label = unavailable ? `${object.name} · ${unavailable}` : object.name;
-            return <button
+            return <Tooltip content={unavailable ? label : object.name} overflowOnly={(unavailable ? undefined : "overflow") === "overflow"} key={object.id}><button
               className="database-preview__object-tab"
               type="button"
               role="tab"
@@ -164,13 +165,11 @@ export function DatabaseViewer({ document, openExternalFile }: PresetViewerRende
               aria-disabled={inaccessible || undefined}
               aria-label={label}
               aria-selected={selected === object.id}
-              key={object.id}
               ref={(node) => { objectTabRefs.current[index] = node; }}
               tabIndex={selected === object.id ? 0 : -1}
-              title={label}
               onClick={() => { if (!inaccessible) void read(object.id, 0); }}
               onKeyDown={(event) => moveObjectTabFocus(event, index, info.objects.length)}
-            ><Table2 size={13} strokeWidth={1.8} aria-hidden="true" /><span dir="auto">{object.name}</span></button>;
+><Table2 size={13} strokeWidth={1.8} aria-hidden="true" /><span dir="auto">{object.name}</span></button></Tooltip>;
           })}
         </div>
         <nav className="database-preview__actions" aria-label={t("editor.database.title")}>
@@ -190,16 +189,16 @@ export function DatabaseViewer({ document, openExternalFile }: PresetViewerRende
           <div className="database-preview__frame">
             {tab === "schema" ? <table className="database-preview__table database-preview__table--schema"><thead><tr><th>{t("editor.database.field")}</th><th>{t("editor.database.type")}</th></tr></thead>
               <tbody>{page.visibleColumns.map((column) => <tr key={column.id}><td dir="auto">{column.name}</td><td><span className="database-preview__type">{column.type}</span>{column.primaryKey && <span className="database-preview__key">{"PK" /* Stable database schema token. */}</span>}</td></tr>)}</tbody></table>
-              : <table className="database-preview__table" aria-label={t("editor.database.page")}><thead><tr><th className="database-preview__record-index" aria-hidden="true" />{page.visibleColumns.map((column) => <th key={column.id} dir="auto" title={column.type} scope="col">{column.name}</th>)}</tr></thead>
+              : <table className="database-preview__table" aria-label={t("editor.database.page")}><thead><tr><th className="database-preview__record-index" aria-hidden="true" />{page.visibleColumns.map((column) => <Tooltip content={column.type} key={column.id}><th dir="auto" scope="col">{column.name}</th></Tooltip>)}</tr></thead>
                 <tbody>{page.rows.map((row, index) => <tr key={`${page.snapshotEpoch}:${page.offset + index}`}><th className="database-preview__record-index" scope="row">{page.offset + index + 1}</th>{row.map((cell, col) =>
                   <td key={page.visibleColumns[col]?.id ?? col} tabIndex={0} dir="auto" data-cell-kind={cell.kind}>
                     {cell.kind === "null" ? <em>{"NULL" /* SQL token; distinct from an empty string. */}</em> : cell.kind === "blob" ? `BLOB · ${cell.bytes ?? 0} B` : cell.kind === "complex" ? t("editor.database.complex") : cell.text}
-                    {cell.truncated && <span title={t("editor.database.truncated")}>…</span>}
+                    {cell.truncated && <Tooltip content={t("editor.database.truncated")}><span>…</span></Tooltip>}
                   </td>)}</tr>)}</tbody></table>}
           </div>
         </div>
         <footer className="database-preview__pager">
-          {restarted && <span className="database-preview__restart" role="status" title={t("editor.database.restarted")}>{t("editor.database.restarted")}</span>}
+          {restarted && <span className="database-preview__restart" role="status">{t("editor.database.restarted")}</span>}
           <span className="database-preview__range">{page.rows.length ? `${page.offset + 1}–${page.offset + page.rows.length}` : "0"}</span>
           <DatabaseIconButton label={t("editor.database.first")} disabled={busy || page.offset === 0} onClick={() => { void read(selected, columnOffset); }}><ChevronsLeft /></DatabaseIconButton>
           <DatabaseIconButton label={t("editor.database.next")} disabled={busy || !page.hasMore} onClick={() => { void read(selected, columnOffset, true); }}><ChevronRight /></DatabaseIconButton>
@@ -225,13 +224,12 @@ function DatabaseIconButton({ active = false, children, disabled = false, label,
   label: string;
   onClick: () => void;
 }) {
-  return <button
+  return <Tooltip content={label}><button
     className="database-preview__icon-button"
     type="button"
     aria-label={label}
     aria-pressed={active || undefined}
-    title={label}
     disabled={disabled}
     onClick={onClick}
-  >{children}</button>;
+>{children}</button></Tooltip>;
 }

@@ -1,5 +1,6 @@
 import { ChevronRight, Minus, Plus, Undo2 } from "lucide-react";
 import {
+  Tooltip,
   FileGlyphIcon,
   STANDARD_CONTROL_SIZE,
   VirtualSidebarList,
@@ -82,11 +83,7 @@ export function SourceControlResourceSummary({
   const { t } = useLocalization();
   const label = t("source-control.commit.filesChanged", { count: resources.length });
 
-  return (
-    <small className="desktop-git-resource-summary" title={label}>
-      {label}
-    </small>
-  );
+  return <small className="desktop-git-resource-summary">{label}</small>;
 }
 
 export function SourceControlPreviewResourceList({
@@ -163,7 +160,7 @@ function SourceControlPreviewResourceRow({
   const displayPath = getGitDisplayPath(resource);
   const displayName = getGitDisplayName(displayPath);
   return (
-    <div className={`desktop-working-tree-row desktop-git-remote-preview-row ${selected ? "active" : ""}`} title={displayPath}>
+    <div className={`desktop-working-tree-row desktop-git-remote-preview-row ${selected ? "active" : ""}`}>
       <button
         className="desktop-working-tree-main"
         type="button"
@@ -178,7 +175,7 @@ function SourceControlPreviewResourceRow({
           <FileGlyphIcon name={getGitResourceIconName(resource)} size={18} theme={fileIconTheme} />
         </span>
         <span className="desktop-working-tree-copy">
-          <span className="desktop-working-tree-name">{displayName}</span>
+          <Tooltip content={displayPath} overflowOnly><span className="desktop-working-tree-name">{displayName}</span></Tooltip>
           <GitResourceStatusMarker resource={resource} />
         </span>
       </button>
@@ -215,7 +212,6 @@ export function SourceControlWorkingTreeRow({
   return (
     <div
       className={`desktop-working-tree-row ${staged ? "is-staged" : "is-unstaged"} ${selected ? "active" : ""}`}
-      title={displayPath}
     >
       <button
         className="desktop-working-tree-main"
@@ -226,45 +222,42 @@ export function SourceControlWorkingTreeRow({
           <FileGlyphIcon name={getGitResourceIconName(resource)} size={18} theme={fileIconTheme} />
         </span>
         <span className="desktop-working-tree-copy">
-          <span className="desktop-working-tree-name">{displayName}</span>
+          <Tooltip content={displayPath} overflowOnly><span className="desktop-working-tree-name">{displayName}</span></Tooltip>
           <GitResourceStatusMarker resource={resource} />
         </span>
       </button>
       {!staged && (
-        <button
+        <Tooltip content={t("source-control.action.discard")}><button
           className="po-sidebar-icon-button danger desktop-working-tree-revert-action"
           type="button"
-          title={t("source-control.action.discard")}
           aria-label={t("source-control.action.discardPath", { path: bidiIsolate(resource.path) })}
           disabled={disabled}
           onClick={() => void onDiscardPaths(commandPaths)}
         >
           <Undo2 size={13} />
-        </button>
+        </button></Tooltip>
       )}
       <div className="desktop-working-tree-action-slot">
         {staged ? (
-          <button
+          <Tooltip content={t("source-control.action.unstage")}><button
             className="po-sidebar-icon-button desktop-working-tree-state-action"
             type="button"
-            title={t("source-control.action.unstage")}
             aria-label={t("source-control.action.unstagePath", { path: bidiIsolate(resource.path) })}
             disabled={disabled}
             onClick={() => void onUnstagePaths(commandPaths)}
           >
             <Minus size={13} />
-          </button>
+          </button></Tooltip>
         ) : (
-          <button
+          <Tooltip content={t("source-control.action.stage")}><button
             className="po-sidebar-icon-button desktop-working-tree-state-action"
             type="button"
-            title={t("source-control.action.stage")}
             aria-label={t("source-control.action.stagePath", { path: bidiIsolate(resource.path) })}
             disabled={disabled}
             onClick={() => void onStagePaths(commandPaths)}
           >
             <Plus size={13} />
-          </button>
+          </button></Tooltip>
         )}
       </div>
     </div>

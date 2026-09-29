@@ -105,7 +105,7 @@ export function CloudGitPrerequisite({
               disabled={publishBusy || !publishEnabled}
               onClick={() => setConfirmationOpen(true)}
             >
-              {publishBusy && <RefreshCw size={14} className="spin" aria-hidden="true" />}
+              {publishBusy && <RefreshCw size={14} className="animate-spin" aria-hidden="true" />}
               <span>
                 {progressStage
                   ? getCloudPublishProgressLabel(progressStage, t)

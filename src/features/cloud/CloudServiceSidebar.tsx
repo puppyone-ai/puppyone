@@ -1,5 +1,5 @@
 import { useLocalization } from "@puppyone/localization/react";
-import { SidebarRoot, SidebarRow, SidebarScrollArea } from "@puppyone/shared-ui";
+import { SidebarRoot, SidebarRow, SidebarScrollArea, Tooltip } from "@puppyone/shared-ui";
 import { SidebarGroup } from "../../components/sidebar";
 import type { CloudServiceSidebarProps, CloudWorkspaceSection } from "./types";
 import { getCloudAuthSession } from "./auth";
@@ -8,9 +8,11 @@ import {
   getCloudSidebarActiveSection,
   getCloudSignedOutSection,
   getAvailableCloudSection,
+  withSharePageSidebarRoutes,
   type CloudRouteNavigationGroup,
   type CloudRouteDescriptor,
 } from "./routes/cloudRoutes";
+import { useCloudShare } from "./share/CloudShareContext";
 import { useFeatureFlag } from "../flags";
 
 type CloudSidebarNavEntry = {
@@ -43,6 +45,7 @@ export function CloudServiceSidebar({
 }: CloudServiceSidebarProps) {
   const { t } = useLocalization();
   const billingEnabled = useFeatureFlag("cloudBilling");
+  const shareEnabled = useCloudShare() !== null;
   const normalizedActiveSection = getAvailableCloudSection(activeSection, { automationEnabled });
   const signedIn = Boolean(getCloudAuthSession(cloudAuthState));
   const visibleActiveSection = getCloudSidebarActiveSection(
@@ -50,7 +53,10 @@ export function CloudServiceSidebar({
       ? normalizedActiveSection
       : getCloudSignedOutSection(normalizedActiveSection),
   );
-  const navItems: CloudSidebarNavEntry[] = CLOUD_BOUND_PROJECT_SIDEBAR_ROUTES.map((route: CloudRouteDescriptor) => ({
+  const sidebarRoutes = shareEnabled
+    ? withSharePageSidebarRoutes(CLOUD_BOUND_PROJECT_SIDEBAR_ROUTES)
+    : CLOUD_BOUND_PROJECT_SIDEBAR_ROUTES;
+  const navItems: CloudSidebarNavEntry[] = sidebarRoutes.map((route: CloudRouteDescriptor) => ({
     ...route,
     locked: route.context === "project"
       ? projectAvailable
@@ -115,17 +121,18 @@ export function CloudSidebarNavItem({
     : undefined;
 
   return (
-    <SidebarRow
-      active={active}
-      disabled={item.locked}
-      aria-disabled={item.locked || undefined}
-      title={lockedTitle}
-      onClick={() => {
-        if (!item.locked) onSelect(item.id);
-      }}
-      icon={<Icon size={15} />}
-      label={label}
-    />
+    <Tooltip content={lockedTitle}>
+      <SidebarRow
+        active={active}
+        disabled={item.locked}
+        aria-disabled={item.locked || undefined}
+        onClick={() => {
+          if (!item.locked) onSelect(item.id);
+        }}
+        icon={<Icon size={15} />}
+        label={label}
+      />
+    </Tooltip>
   );
 }
 

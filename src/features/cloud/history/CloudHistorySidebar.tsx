@@ -6,6 +6,7 @@ import {
 import { useRef, type CSSProperties } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import {
+  Tooltip,
   SidebarRoot,
   STANDARD_CONTROL_SIZE,
   VirtualSidebarList,
@@ -104,7 +105,7 @@ export function CloudProjectHistorySidebar({
             onClick={() => void onLoadMore()}
           >
             {loadingMore
-              ? <RefreshCw size={11} className="spin" aria-hidden="true" />
+              ? <RefreshCw size={11} className="animate-spin" aria-hidden="true" />
               : <ChevronDown size={11} aria-hidden="true" />}
             {t("cloud.common.loadMore")}
           </button>
@@ -162,7 +163,9 @@ function CloudHistorySidebarRow({
       <span className="desktop-cloud-history-sidebar-row-main">
         <span className="desktop-cloud-history-sidebar-row-title">
           {isCurrentHead && <span className="desktop-cloud-history-inline-ref head">HEAD</span>}
-          <bdi className="desktop-cloud-history-sidebar-row-message">{message}</bdi>
+          <Tooltip content={message} overflowOnly>
+            <bdi className="desktop-cloud-history-sidebar-row-message">{message}</bdi>
+          </Tooltip>
           {row.labels.filter((label) => (
             !(isCurrentHead && formatCloudGraphLabel(label, t) === "HEAD")
           )).map((label) => (
@@ -201,13 +204,12 @@ function CloudHistorySidebarRow({
           type="button"
           aria-current={selected ? "true" : undefined}
           data-commit-id={row.id}
-          title={`${message} (${shortCommit(row.id)})`}
           onClick={() => onSelect(row.id)}
         >
           {contents}
         </button>
       ) : (
-        <div className={className} title={message}>
+        <div className={className}>
           {contents}
         </div>
       )}

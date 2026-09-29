@@ -1,5 +1,5 @@
 import { useLocalization } from "@puppyone/localization/react";
-import { FileGlyphIcon } from "@puppyone/shared-ui";
+import { Tooltip, FileGlyphIcon } from "@puppyone/shared-ui";
 import type {
   DesktopCloudDashboard,
   DesktopCloudTree,
@@ -38,6 +38,7 @@ export function CloudOverviewDashboard({
       aria-label={t("cloud.overview.fileListAria")}
       aria-busy={loading}
     >
+      <h2 className="desktop-cloud-overview-dashboard-title">{t("cloud.overview.filesLabel")}</h2>
       <section className="desktop-cloud-overview-files">
         <div
           className="desktop-cloud-overview-file-table"
@@ -65,24 +66,24 @@ export function CloudOverviewDashboard({
             return (
               <div
                 className="desktop-cloud-overview-file-row"
-                role="listitem"
-                title={entry.path}
                 key={`${entry.type}:${entry.path}`}
+                role="listitem"
               >
                 <span className="desktop-cloud-overview-file-primary">
                   <span className="desktop-cloud-overview-file-icon" aria-hidden="true">
                     <FileGlyphIcon name={entry.name} type={entry.type} size={15} />
                   </span>
-                  <strong className="desktop-cloud-overview-file-name" dir="auto">{entry.name}</strong>
+                  <Tooltip content={entry.path} overflowOnly>
+                    <strong className="desktop-cloud-overview-file-name" dir="auto">{entry.name}</strong>
+                  </Tooltip>
                 </span>
                 <span className="desktop-cloud-overview-file-modified">
                   {updatedAt ? (
-                    <time
+                    <Tooltip content={formatFullTime(updatedAt, localization.formatDate)}><time
                       dateTime={updatedAt}
-                      title={formatFullTime(updatedAt, localization.formatDate)}
                     >
                       {formatRelativeTime(updatedAt, localization)}
-                    </time>
+                    </time></Tooltip>
                   ) : "—"}
                 </span>
               </div>

@@ -2,6 +2,7 @@ import { Undo2 } from "lucide-react";
 import {
   SidebarEmptyState,
   SidebarIconButton,
+  Tooltip,
   type FileIconThemeId,
 } from "@puppyone/shared-ui";
 import type { MessageFormatter } from "@puppyone/localization";
@@ -29,7 +30,6 @@ type LocalPanelActions = Pick<
   | "stageAll"
   | "unstagePaths"
   | "discardPaths"
-  | "discardAll"
   | "stageAndCommit"
   | "commit"
   | "commitAndPush"
@@ -91,23 +91,25 @@ export function createGitLocalStatusPanels({
           action={model.repositoryOperation ? (
             <div className="desktop-git-section-actions">
               {model.repositoryOperation.canAbort && (
-                <SidebarIconButton
-                  className="desktop-git-abort-operation-action"
-                  tone="danger"
-                  label={t("source-control.sync.abort")}
-                  disabled={disabled}
-                  onClick={() => {
-                    if (window.confirm(t("source-control.dialog.abortOperation"))) {
-                      void actions.abortOperation();
-                    }
-                  }}
-                  icon={<Undo2 size={13} />}
-                />
+                <Tooltip content={t("source-control.sync.abort")}>
+                  <SidebarIconButton
+                    className="desktop-git-abort-operation-action"
+                    tone="danger"
+                    label={t("source-control.sync.abort")}
+                    disabled={disabled}
+                    onClick={() => {
+                      if (window.confirm(t("source-control.dialog.abortOperation"))) {
+                        void actions.abortOperation();
+                      }
+                    }}
+                    icon={<Undo2 size={13} />}
+                  />
+                </Tooltip>
               )}
               {operationAction && (
                 <GitOperationButton
                   className="desktop-git-continue-operation-action"
-                  title={operationAction.title}
+                  tooltip={operationAction.title}
                   disabled={disabled || operationAction.disabled}
                   icon={operationAction.icon}
                   label={operationAction.label}
@@ -155,7 +157,7 @@ export function createGitLocalStatusPanels({
           action={action ? (
             <GitOperationButton
               className="desktop-git-commit-push-action"
-              title={action.title}
+              tooltip={action.title}
               disabled={disabled || action.disabled}
               icon={action.icon}
               label={action.label}
@@ -208,7 +210,7 @@ export function createGitLocalStatusPanels({
             <div className="desktop-git-section-actions">
               <GitOperationButton
                 className="desktop-git-commit-staged-action"
-                title={action?.title ?? t("source-control.sync.commitStaged")}
+                tooltip={action?.title ?? t("source-control.sync.commitStaged")}
                 disabled={disabled || !action || action.disabled}
                 icon={action?.icon ?? "plus"}
                 label={action?.label ?? t("source-control.sync.commit")}
@@ -314,7 +316,7 @@ function createUnstagedActions({
     <div className="desktop-git-section-actions">
       <GitOperationButton
         className="desktop-git-stage-commit-action"
-        title={model.showStageAndCommitAction
+        tooltip={model.showStageAndCommitAction
           ? t("source-control.action.stageCommitTitle")
           : t("source-control.sync.resolveBeforeSync")}
         disabled={disabled || !model.showStageAndCommitAction}

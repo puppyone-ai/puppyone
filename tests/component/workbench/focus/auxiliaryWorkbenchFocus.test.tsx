@@ -1,7 +1,7 @@
 /** @vitest-environment happy-dom */
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { AuxiliaryWorkbenchPanel } from "../../../../src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel";
 import { ProjectWorkbenchStore } from "../../../../src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore";
 import type { AuxiliaryWorkbenchContribution, AuxiliaryWorkbenchItemRenderContext } from "../../../../src/features/app-shell/auxiliary-workbench/types";
@@ -48,5 +48,46 @@ it("uses one Store for DOM focus activation, while only explicit tab actions req
   expect(store.getSnapshot().topology.activeGroupId).toBe(first);
   expect(container.querySelectorAll(".desktop-terminal-pane-handle")).toHaveLength(0);
   expect(container.querySelectorAll(".desktop-terminal-tab-group > .desktop-terminal-subheader")).toHaveLength(2);
+  act(() => root!.unmount()); root = null; store.dispose();
+});
+
+it("moves a single group's tab bar into Header and lists every split session there", async () => {
+  const store = new ProjectWorkbenchStore({ projectId: "fixture", generation: "header", rootPath: "/fixture" });
+  const contribution: AuxiliaryWorkbenchContribution = {
+    kind: "fixture", label: "Fixture", createLabel: "Fixture",
+    minimumSize: { width: 100, height: 100 },
+    initialSnapshot: { title: "Fixture", accessibleLabel: "Fixture", detail: null, iconKey: null, status: "idle", running: false, resourceId: null },
+    renderItem: () => <div />,
+    close: { decide: () => ({ kind: "close" }), commit: () => true },
+  };
+  store.configure([contribution]);
+  const firstId = (await store.create("fixture", null))!;
+  const host = document.createElement("div");
+  const container = document.createElement("div");
+  document.body.append(host, container);
+  root = createRoot(container);
+  const onReveal = vi.fn();
+  const render = () => act(() => root!.render(withTestLocalization(
+    <AuxiliaryWorkbenchPanel store={store} contributions={[contribution]} active
+      titlebarTabHost={host} onReveal={onReveal} renderLauncher={() => null} />,
+  )));
+  render();
+  expect(host.querySelectorAll('[role="tab"]')).toHaveLength(1);
+  expect(host.querySelector('[role="tab"]')?.hasAttribute("data-tooltip")).toBe(false);
+  expect(host.querySelector<HTMLElement>(".desktop-terminal-tab-title")?.dataset.tooltipWhen).toBe("overflow");
+  expect(container.querySelector(".desktop-terminal-tab-group > .desktop-terminal-subheader")).toBeNull();
+
+  const secondId = (await store.create("fixture", null))!;
+  const firstGroup = store.getSnapshot().topology.groups[0].id;
+  act(() => store.dispatch({ type: "split-item", sourceItemId: secondId, targetGroupId: firstGroup,
+    edge: "right", groupId: "second", splitId: "split" }));
+  render();
+  expect(host.querySelectorAll(".desktop-titlebar-workbench-tab-select")).toHaveLength(2);
+  expect(host.querySelector(".desktop-titlebar-workbench-tab-select")?.hasAttribute("data-tooltip")).toBe(false);
+  expect(host.querySelector<HTMLElement>(".desktop-titlebar-workbench-tab-title")?.dataset.tooltipWhen).toBe("overflow");
+  expect(container.querySelectorAll(".desktop-terminal-tab-group > .desktop-terminal-subheader")).toHaveLength(2);
+  act(() => host.querySelector<HTMLButtonElement>(`[aria-label="Fixture"]`)?.click());
+  expect(onReveal).toHaveBeenCalled();
+  expect(store.getSnapshot().topology.items.map((item) => item.id)).toContain(firstId);
   act(() => root!.unmount()); root = null; store.dispose();
 });

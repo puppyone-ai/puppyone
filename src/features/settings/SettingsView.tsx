@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState } from "react";
 import {
+  Tooltip,
   FILE_ICON_THEMES,
   PULSE_GRID_PRESET_FRAMES,
   PULSE_GRID_PRESET_IDS,
@@ -26,6 +27,7 @@ import { InterfacePaletteSettings } from "./main/InterfacePaletteSettings";
 import { InterfaceStyleSetting } from "./main/InterfaceStyleSetting";
 import { SubThemeSettingsSection } from "./main/SubThemeSettingsSection";
 import { CreateNewSettingsView } from "./main/CreateNewSettingsView";
+import { OtherAppImportsSettingsView } from "./main/OtherAppImportsSettingsView";
 import { PulseGrid } from "../../components/loading";
 import { CloudHostingSettingsView, GitSettingsView } from "./main/RepositorySettingsViews";
 import { isSettingsSectionAvailable } from "./sidebar/settingsSidebarModel";
@@ -80,6 +82,7 @@ export function SettingsView({
   onFileIconThemeChange,
   onFilesVisibilitySettingsChange,
   onCreateNewMenuSettingsChange,
+  onOpenImport,
   onExperimentalSettingsChange,
   onRightSidebarToolsSettingsChange,
   onTitlebarActionsSettingsChange,
@@ -101,7 +104,10 @@ export function SettingsView({
   const [copyError, setCopyError] = useState<string | null>(null);
   const orderedHeaderElements = getOrderedHeaderElementDefinitions(titlebarActionsSettings.order);
 
-  if (!isSettingsSectionAvailable(activeSection, { cloudEnabled })) {
+  if (!isSettingsSectionAvailable(activeSection, {
+    cloudEnabled,
+    otherAppImportsEnabled: experimentalSettings.enableOtherAppImports,
+  })) {
     return (
       <GeneralSettingsView
         updateState={updateState}
@@ -241,6 +247,10 @@ export function SettingsView({
     );
   }
 
+  if (activeSection === "other-app-imports") {
+    return <OtherAppImportsSettingsView onOpenImport={onOpenImport} />;
+  }
+
   if (activeSection === "typography") {
     return (
       <Suspense fallback={null}>
@@ -262,9 +272,8 @@ export function SettingsView({
           <div className="desktop-settings-section">
             <SettingsSectionHeader
               title={t("settings.appearance.title")}
-              detail={t("settings.appearance.detail")}
             />
-            <div className="desktop-settings-list">
+            <div className="desktop-settings-list desktop-settings-lead-list">
               <InterfacePaletteSettings
                 interfaceStyle={interfaceStyle}
                 subThemeId={resolvedAppearance.subThemeId}
@@ -289,13 +298,9 @@ export function SettingsView({
                 <span>{t("settings.appearance.fileIcons.title")}</span>
                 <div className="desktop-theme-segment desktop-appearance-option-segment" aria-label={t("settings.appearance.fileIcons.ariaLabel")}>
                   {FILE_ICON_THEMES.map((theme) => (
-                    <button
-                      key={theme.id}
+                    <Tooltip content={fileIconDecision.reasonKey ? t(fileIconDecision.reasonKey) : undefined} key={theme.id}><button
                       className={`${fileIconDecision.effectiveValue === theme.id ? "active" : ""}${fileIconLocked || !isAppearanceValueAllowed(fileIconDecision, theme.id) ? " is-policy-controlled" : ""}`}
                       type="button"
-                      title={fileIconDecision.reasonKey
-                        ? t(fileIconDecision.reasonKey)
-                        : t(`settings.appearance.fileIcons.${theme.id}.description`)}
                       aria-disabled={fileIconLocked || !isAppearanceValueAllowed(fileIconDecision, theme.id)}
                       aria-pressed={fileIconDecision.effectiveValue === theme.id}
                       onClick={() => {
@@ -306,7 +311,7 @@ export function SettingsView({
                     >
                       <FileGlyphIcon name="document.md" size={14} theme={theme.id} />
                       <span>{t(`settings.appearance.fileIcons.${theme.id}.label`)}</span>
-                    </button>
+                    </button></Tooltip>
                   ))}
                 </div>
                 {fileIconDecision.reasonKey && (
@@ -324,7 +329,6 @@ export function SettingsView({
                       key={layout}
                       className={gitSidebarLayout === layout ? "active" : ""}
                       type="button"
-                      title={t(`settings.appearance.gitSidebarLayout.${layout}.description`)}
                       aria-pressed={gitSidebarLayout === layout}
                       onClick={() => onGitSidebarLayoutChange(layout)}
                     >
@@ -344,7 +348,6 @@ export function SettingsView({
                       key={presetId}
                       className={loadingAnimationPreset === presetId ? "active" : ""}
                       type="button"
-                      title={t(`settings.appearance.loadingAnimation.${presetId}.description`)}
                       aria-pressed={loadingAnimationPreset === presetId}
                       onClick={() => onLoadingAnimationPresetChange(presetId)}
                     >
@@ -413,10 +416,7 @@ export function SettingsView({
               </div>
               <div className="desktop-settings-row desktop-settings-row-control">
                 <span id="desktop-pointer-cursors-label">{t("settings.appearance.pointerCursors.title")}</span>
-                <label
-                  className="desktop-settings-switch"
-                  title={t("settings.appearance.pointerCursors.detail")}
-                >
+                <label className="desktop-settings-switch">
                   <input
                     type="checkbox"
                     checked={pointerCursors}

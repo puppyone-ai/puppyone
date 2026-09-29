@@ -21,9 +21,12 @@ async function verifyBoundaries({ window, temp, label, until }) {
     if(!handle)return {missing:'handle'};
     const chrome=handle.querySelector('[data-pane-edge-chrome]');
     if(!chrome)return {missing:'chrome'};
+    const frame=handle.closest('.po-collapsible-pane-frame');
+    if(!frame)return {missing:'frame'};
     const rect=el=>{const r=el.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};};
     const base=getComputedStyle(chrome,'::before'), line=getComputedStyle(chrome,'::after');
-    return {handle:rect(handle),paint:rect(chrome),rtl:getComputedStyle(handle).direction==='rtl',
+    return {handle:rect(handle),paint:rect(chrome),frame:rect(frame),side:frame.dataset.paneSide,
+      edge:frame.dataset.paneEdge,rtl:getComputedStyle(handle).direction==='rtl',
       hover:handle.matches(':hover,[data-native-hover]'),dragging:handle.dataset.resizing==='true',
       base:{width:base.width,color:base.backgroundColor},
       line:{width:line.width,color:line.backgroundColor,shadow:line.boxShadow}};
@@ -55,7 +58,25 @@ async function verifyBoundaries({ window, temp, label, until }) {
     const idle=await inspect(selector);
     assert(!idle.missing,`${selector} missing ${idle.missing}`);
     assert(idle.handle.width===8 && idle.paint.width===3,`${selector} hit/paint sizes`);
+    assert(idle.edge==='resizable',`${selector} is not using the shared resizable edge`);
     assert(idle.line.color==='rgba(0, 0, 0, 0)',`${selector} idle highlight leaked`);
+    const lineX=idle.rtl?idle.paint.x+idle.paint.width-1:idle.paint.x;
+    const frameEdge=idle.side==='inline-start'
+      ? idle.rtl?idle.frame.x:idle.frame.x+idle.frame.width-1
+      : idle.rtl?idle.frame.x+idle.frame.width-1:idle.frame.x;
+    assert(Math.abs(lineX-frameEdge)<=0.5,`${selector} paint left frame edge: ${JSON.stringify({idle,lineX,frameEdge})}`);
+    if(selector==='.data-explorer-resizer') {
+      const frameBorder=await evaluate("getComputedStyle(document.querySelector('.explorer-column')).borderInlineEndWidth");
+      assert(frameBorder==='0px',`Explorer frame still reserves a second divider pixel: ${frameBorder}`);
+    }
+    if(selector==='.desktop-project-switcher-resizer') {
+      const railBorder=await evaluate("getComputedStyle(document.querySelector('.desktop-project-switcher-rail')).borderInlineEndWidth");
+      assert(railBorder==='0px',`Project rail still reserves a second divider pixel: ${railBorder}`);
+    }
+    if(selector==='.desktop-right-sidebar-resizer') {
+      const frameBorder=await evaluate("getComputedStyle(document.querySelector('.desktop-right-sidebar')).borderInlineStartWidth");
+      assert(frameBorder==='0px',`Auxiliary frame still reserves a second divider pixel: ${frameBorder}`);
+    }
     const edgeX=idle.rtl?idle.paint.x+idle.paint.width-1:idle.paint.x;
     const inward=idle.rtl?-1:1;
     const y=idle.handle.y+90;
@@ -181,7 +202,7 @@ async function verifyBoundaries({ window, temp, label, until }) {
   assert(explorerMotion.collapsedStartWidth<explorerMotion.lastWidth,'Explorer frame did not expand from its collapsed edge');
   assert(Math.abs(explorerMotion.lastWidth-220)<=1,
     `Explorer reopened at a stale pre-collapse width: ${JSON.stringify(explorerMotion)}`);
-  assert(explorerMotion.maxDividerDelta<=2,`Explorer divider left its animated frame: ${JSON.stringify(explorerMotion)}`);
+  assert(explorerMotion.maxDividerDelta<=1,`Explorer divider left its animated frame: ${JSON.stringify(explorerMotion)}`);
   assert(explorerMotion.contentWidths.length===1,`Explorer content reflowed during open motion: ${JSON.stringify(explorerMotion)}`);
   const right=await inspect(".desktop-right-sidebar-resizer");
   assert(!right.missing, 'Auxiliary divider missing');
@@ -253,7 +274,19 @@ async function verifyBoundaries({ window, temp, label, until }) {
   await until(async()=>evaluate("Boolean(document.querySelector('.desktop-right-sidebar.is-open [data-pane-edge-chrome]'))"),'reopen from collapsed edge');
   await until(async()=>evaluate("document.querySelector('.desktop-right-sidebar').dataset.panePresentation === 'expanded'"),'content restored after reopen');
   await pause();
-  const report={label,observations,explorerMotion,headerPixels,bodyPixels,collapsedReopen:true};
+  const staticFallback=await evaluate(`(() => {
+    const frame=document.querySelector('.explorer-column');
+    if(!frame)return null;
+    const previous=frame.dataset.paneEdge;
+    frame.dataset.paneEdge='static';
+    const style=getComputedStyle(frame,'::after');
+    const result={width:style.width,color:style.backgroundColor,content:style.content};
+    frame.dataset.paneEdge=previous;
+    return result;
+  })()`);
+  assert(staticFallback?.width==='1px' && staticFallback.color===observations[1].idle.base.color,
+    `static pane lost the shared boundary: ${JSON.stringify(staticFallback)}`);
+  const report={label,observations,explorerMotion,headerPixels,bodyPixels,collapsedReopen:true,staticFallback};
   await fs.writeFile(path.join(temp,`${label}-boundaries.json`),JSON.stringify(report,null,2));
   return report;
 }

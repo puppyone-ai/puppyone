@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { CircleAlert, RefreshCw } from "lucide-react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
@@ -31,15 +32,14 @@ export function AgentRuntimeLauncher({
               <h2 id="desktop-agent-runtime-launcher-title">
                 <span>{t("agent.launcher.title")}</span>
               </h2>
-              <button
+              <Tooltip content={t("agent.launcher.scanAgain")}><button
                 type="button"
                 className="desktop-agent-runtime-launcher-refresh"
                 aria-label={t("agent.launcher.scanAgain")}
-                title={t("agent.launcher.scanAgain")}
                 onClick={onRefresh}
               >
                 <RefreshCw size={12} strokeWidth={1.7} aria-hidden="true" />
-              </button>
+              </button></Tooltip>
             </header>
 
             <p
@@ -61,7 +61,6 @@ export function AgentRuntimeLauncher({
                       className="desktop-agent-runtime-launcher-option"
                       data-po-interaction="navigation"
                       aria-label={entry.descriptor.displayName}
-                      title={detail || entry.descriptor.displayName}
                       onClick={() => onLaunch(entry.descriptor.id)}
                     >
                       <AgentBrandMark
@@ -70,14 +69,16 @@ export function AgentRuntimeLauncher({
                       />
                       <span>{entry.descriptor.displayName}</span>
                       {!ready && (
-                        <CircleAlert
-                          className="desktop-agent-runtime-launcher-warning"
-                          size={13}
-                          strokeWidth={1.7}
-                          aria-label={detail
-                            ? t("agent.launcher.needsAttention", { agent: bidiIsolate(entry.descriptor.displayName) })
-                            : undefined}
-                        />
+                        <Tooltip content={detail || undefined}>
+                          <span
+                            className="desktop-agent-runtime-launcher-warning"
+                            aria-label={detail
+                              ? t("agent.launcher.needsAttention", { agent: bidiIsolate(entry.descriptor.displayName) })
+                              : undefined}
+                          >
+                            <CircleAlert size={13} strokeWidth={1.7} aria-hidden="true" />
+                          </span>
+                        </Tooltip>
                       )}
                     </button>
                   );

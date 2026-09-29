@@ -48,10 +48,10 @@ describe("CloudRepositoryOverview landing page", () => {
     expect(title?.textContent).toBe("Atlas");
     expect(container.querySelector(".desktop-cloud-loading-state")).toBeNull();
     expect(container.querySelector(".desktop-cloud-overview-project-storage.is-loading")).not.toBeNull();
-    expect(container.querySelectorAll(".desktop-cloud-overview-value-skeleton")).toHaveLength(3);
+    expect(container.querySelectorAll(".desktop-cloud-overview-value-skeleton")).toHaveLength(2);
     expect(container.querySelectorAll(".desktop-cloud-overview-file-row.skeleton")).toHaveLength(4);
     expect(container.querySelector(".desktop-cloud-overview-dashboard")?.getAttribute("aria-busy")).toBe("true");
-    expect(container.querySelector(".desktop-cloud-overview-refresh-button .spin")).not.toBeNull();
+    expect(container.querySelector(".desktop-cloud-overview-refresh-button .animate-spin")).not.toBeNull();
 
     act(() => root?.render(renderOverview(false, { path: "", entries: [] })));
 
@@ -226,13 +226,16 @@ describe("CloudRepositoryOverview landing page", () => {
     const headerFacts = container.querySelectorAll(".desktop-cloud-overview-header-fact");
     const fileRows = dashboard?.querySelectorAll(".desktop-cloud-overview-file-row");
     expect(dashboard).not.toBeNull();
-    expect(headerFacts).toHaveLength(3);
+    expect(headerFacts).toHaveLength(2);
     expect(headerFacts[0]?.textContent).toContain("Last updated");
     expect(headerFacts[0]?.textContent).toContain("1 hour ago");
     expect(headerFacts[1]?.textContent).toContain("Active connections");
     expect(headerFacts[1]?.textContent).toContain("3");
-    expect(headerFacts[2]?.textContent).toContain("Path");
-    expect(headerFacts[2]?.textContent).toContain("https://cloud.example/git/project-1.git");
+    const actions = container.querySelector(".desktop-cloud-overview-actions");
+    expect(actions?.textContent).toContain("Connect an AI agent");
+    expect(actions?.textContent).toContain("Manus");
+    expect(actions?.textContent).toContain("Use scripts or the CLI");
+    expect(actions?.textContent).toContain("Use a Git workflow");
     expect(dashboard?.textContent).not.toContain("Automation");
     expect(dashboard?.querySelector(".desktop-cloud-overview-files-header")).toBeNull();
     expect(dashboard?.querySelector(".desktop-cloud-overview-file-column-labels")).toBeNull();
@@ -240,6 +243,9 @@ describe("CloudRepositoryOverview landing page", () => {
     expect(dashboard?.querySelector("[role='list']")).not.toBeNull();
     expect(dashboard?.querySelector(".desktop-cloud-overview-file-activity-header")).toBeNull();
     expect(fileRows).toHaveLength(5);
+    expect(Array.from(fileRows ?? []).every((row) => !row.hasAttribute("data-tooltip"))).toBe(true);
+    expect(Array.from(dashboard?.querySelectorAll<HTMLElement>(".desktop-cloud-overview-file-name") ?? [])
+      .every((name) => name.dataset.tooltipWhen === "overflow")).toBe(true);
     expect(fileRows?.[0]?.textContent).toContain("assets");
     expect(fileRows?.[1]?.textContent).toContain("docs");
     const usersRow = Array.from(fileRows ?? []).find((row) => row.textContent?.includes("users.csv"));
@@ -249,16 +255,14 @@ describe("CloudRepositoryOverview landing page", () => {
     expect(container.querySelector(".desktop-cloud-source-pill")).toBeNull();
     expect(container.querySelector(".desktop-cloud-overview-landing-mark")).toBeNull();
     expect(container.querySelector(".desktop-cloud-overview-deployment-board")).toBeNull();
-    const pathFact = container.querySelector<HTMLElement>(".desktop-cloud-overview-path-fact");
-    expect(pathFact?.querySelector("code")?.textContent).toBe("https://cloud.example/git/project-1.git");
-    expect(pathFact?.title).toBe("https://cloud.example/git/project-1.git");
+    expect(container.querySelector(".desktop-cloud-overview-path-fact")).toBeNull();
     expect(dashboard?.textContent).not.toContain("https://cloud.example/git/project-1.git");
     expect(dashboard?.textContent).not.toContain("release");
     expect(dashboard?.textContent).not.toContain("Private");
     expect(container.textContent).not.toContain("Shared product research");
     const storage = container.querySelector<HTMLElement>(".desktop-cloud-overview-project-storage");
     expect(storage?.textContent).toBe("");
-    expect(storage?.title).toBe("100 MB of 500 MB");
+    expect(storage?.dataset.tooltip).toBe("100 MB of 500 MB");
     expect(storage?.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("20");
     expect(storage?.querySelector('[role="progressbar"]')?.getAttribute("aria-valuetext")).toBe("100 MB of 500 MB");
     expect(storage?.parentElement?.classList.contains("desktop-cloud-overview-landing-header")).toBe(true);
@@ -273,7 +277,16 @@ describe("CloudRepositoryOverview landing page", () => {
 
     act(() => findButton(container, "View history")?.click());
     act(() => findButton(container, "Manage access points")?.click());
-    expect(onSelectSection.mock.calls).toEqual([["history"], ["access"]]);
+    act(() => findButton(container, "Connect an AI agent")?.click());
+    act(() => findButton(container, "Use scripts or the CLI")?.click());
+    act(() => findButton(container, "Use a Git workflow")?.click());
+    expect(onSelectSection.mock.calls).toEqual([
+      ["history"],
+      ["access"],
+      ["mcp"],
+      ["cli"],
+      ["git-sync"],
+    ]);
   });
 });
 

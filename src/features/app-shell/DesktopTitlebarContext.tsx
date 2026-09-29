@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import type { RefObject } from "react";
 import type { Workspace, WorkspaceFolder } from "@puppyone/shared-ui";
 import { GitBranch } from "lucide-react";
@@ -6,30 +7,35 @@ import { DesktopMenuItem } from "../../components/DesktopMenu";
 import type { GitBranchSummary, GitStatusSnapshot } from "../../types/electron";
 import { BranchMenuGroup } from "../source-control/operationDialogs";
 import { DesktopTitlebarMenuLayer } from "./DesktopTitlebarMenuLayer";
-import { DesktopWorkspaceSwitcher } from "./DesktopWorkspaceSwitcher";
+import {
+  DesktopWorkspaceSwitcher,
+  type DesktopProjectLocation,
+} from "./DesktopWorkspaceSwitcher";
 
 export function DesktopTitlebarContext({
   activeGitStatus,
   branchSwitcherOpen,
   branchSwitcherRef,
-  cloudEnabled = false,
-  cloudOpen = false,
   gitStatusLoading,
   gitOperationLoading,
   localBranches,
   remoteBranches,
+  projectLocation,
   workspace,
   workspaceFolders,
   multiRootWorkspacesEnabled,
   workspaceSwitcherOpen,
   workspaceSwitcherRef,
   onCheckoutBranch,
-  onOpenCloud = () => {},
   onCloseBranchSwitcher,
   onCloseWorkspaceSwitcher,
   onGoHome,
   onAddProject,
   onAddExistingProject,
+  onSaveToLocal,
+  onSetupCloud,
+  onSwitchToCloud,
+  onSwitchToLocal,
   availableProjects,
   onToggleBranchSwitcher,
   onToggleWorkspaceSwitcher,
@@ -54,14 +60,16 @@ export function DesktopTitlebarContext({
         workspace={workspace}
         workspaceFolders={workspaceFolders}
         multiRootWorkspacesEnabled={multiRootWorkspacesEnabled}
+        projectLocation={projectLocation}
         availableProjects={availableProjects}
-        cloudEnabled={cloudEnabled}
-        cloudOpen={cloudOpen}
         onAddExistingProject={multiRootWorkspacesEnabled ? onAddExistingProject : undefined}
-        onOpenCloud={onOpenCloud}
         onOpenFolder={multiRootWorkspacesEnabled ? onAddProject : undefined}
         onClose={onCloseWorkspaceSwitcher}
         onGoHome={onGoHome}
+        onSaveToLocal={onSaveToLocal}
+        onSetupCloud={onSetupCloud}
+        onSwitchToCloud={onSwitchToCloud}
+        onSwitchToLocal={onSwitchToLocal}
         onToggle={onToggleWorkspaceSwitcher}
       />
       <DesktopBranchSwitcher
@@ -86,12 +94,11 @@ type DesktopTitlebarContextProps = {
   activeGitStatus: GitStatusSnapshot | null;
   branchSwitcherOpen: boolean;
   branchSwitcherRef: RefObject<HTMLDivElement>;
-  cloudEnabled?: boolean;
-  cloudOpen?: boolean;
   gitStatusLoading: boolean;
   gitOperationLoading: string | null;
   localBranches: GitBranchSummary[];
   remoteBranches: GitBranchSummary[];
+  projectLocation?: DesktopProjectLocation;
   workspace: Workspace;
   workspaceFolders: readonly WorkspaceFolder[];
   multiRootWorkspacesEnabled: boolean;
@@ -99,12 +106,15 @@ type DesktopTitlebarContextProps = {
   workspaceSwitcherOpen: boolean;
   workspaceSwitcherRef: RefObject<HTMLDivElement>;
   onCheckoutBranch: (branchName: string, remote: boolean) => Promise<boolean>;
-  onOpenCloud?: () => void;
   onCloseBranchSwitcher: () => void;
   onCloseWorkspaceSwitcher: () => void;
   onGoHome: () => void;
   onAddProject: () => void;
   onAddExistingProject: (folderPath: string) => void;
+  onSaveToLocal?: () => void;
+  onSetupCloud?: () => void;
+  onSwitchToCloud?: () => void;
+  onSwitchToLocal?: () => void;
   onToggleBranchSwitcher: () => void;
   onToggleWorkspaceSwitcher: () => void;
 };
@@ -141,16 +151,15 @@ function DesktopBranchSwitcher({
 
   return (
     <div className="desktop-titlebar-branch-wrap" ref={refObject}>
-      <button
+      <Tooltip content={disabled
+          ? loading ? undefined : branchLabel
+          : t("shell.branch.title", { branch: bidiIsolate(branchLabel) })}><button
         className="desktop-titlebar-branch-button"
         type="button"
         aria-label={t("shell.branch.switch", { branch: bidiIsolate(branchLabel) })}
         aria-expanded={open}
         aria-haspopup="menu"
         disabled={disabled}
-        title={disabled
-          ? loading ? undefined : branchLabel
-          : t("shell.branch.title", { branch: bidiIsolate(branchLabel) })}
         onClick={onToggle}
       >
         <GitBranch size={13} strokeWidth={1.8} aria-hidden="true" />
@@ -162,7 +171,7 @@ function DesktopBranchSwitcher({
             <span className="desktop-titlebar-branch-placeholder" aria-hidden="true" />
           ) : null)}
         </span>
-      </button>
+      </button></Tooltip>
 
       <DesktopTitlebarMenuLayer
         anchorRef={refObject}

@@ -38,7 +38,7 @@ export function CloudPublishProgressIndicator({
                 <strong>{t(`cloud.initialize.progress.step.${step}`)}</strong>
                 {isCurrent && (
                   <small role="status" aria-live="polite" aria-atomic="true">
-                    <LoaderCircle size={12} strokeWidth={2} className="spin" aria-hidden="true" />
+                    <LoaderCircle size={12} strokeWidth={2} className="animate-spin" aria-hidden="true" />
                     <span>{getCloudPublishProgressLabel(stage, t)}</span>
                   </small>
                 )}

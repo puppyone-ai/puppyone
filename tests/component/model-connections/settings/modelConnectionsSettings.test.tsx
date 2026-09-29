@@ -90,6 +90,9 @@ it("opens one connection at a time, preserves the saved Key on edit, and confirm
   act(() => button("Work API").click());
   expect(document.body.textContent).toContain("Work model");
   expect(document.body.textContent).not.toContain("Personal API");
+  const urlRow = [...document.querySelectorAll(".desktop-settings-value-row")]
+    .find((row) => row.textContent?.includes("API base URL"));
+  expect(urlRow?.textContent).toContain("https://example.test/v1");
   act(() => button("Edit connection").click());
   expect((document.querySelector('input[type="password"]') as HTMLInputElement).value).toBe("");
   await act(async () => document.querySelector("form")?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));

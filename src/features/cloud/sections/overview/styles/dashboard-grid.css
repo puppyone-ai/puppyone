@@ -1,4 +1,4 @@
-/* The file table is the primary Overview surface. */
+/* The file table is a secondary inventory below the project actions. */
 .desktop-cloud-overview-dashboard {
   display: block;
   width: 100%;
@@ -6,4 +6,13 @@
   box-sizing: border-box;
   margin-top: 30px;
   padding: 0 8px;
+}
+
+.desktop-cloud-overview-dashboard-title {
+  margin: 0 0 10px;
+  color: var(--po-text);
+  font-size: var(--po-type-ui-body, 14px);
+  font-weight: 560;
+  letter-spacing: -0.01em;
+  line-height: 20px;
 }

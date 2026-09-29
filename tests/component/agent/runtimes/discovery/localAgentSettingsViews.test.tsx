@@ -61,7 +61,6 @@ describe("Local Agent settings views", () => {
     />);
 
     await vi.waitFor(() => expect(document.body.textContent).toContain("Codex"));
-    expect(document.body.textContent).toContain("Configure local Agents, chat history discovery, and Hooks.");
     expect(document.body.textContent).toContain("Pi Agent");
     expect(document.body.textContent).toContain("WorkBuddy (China)");
     expect(document.body.textContent).toContain("WorkBuddy (International)");
@@ -69,9 +68,9 @@ describe("Local Agent settings views", () => {
     expect(document.body.textContent).not.toContain("Built-in Agent");
     expect(Array.from(document.querySelectorAll(".desktop-settings-section-header h2")).map((heading) => heading.textContent))
       .toEqual(["Local Agents"]);
-    expect(Array.from(document.querySelectorAll(".desktop-local-agent-group-title")).map((heading) => heading.textContent))
+    expect(Array.from(document.querySelectorAll(".desktop-settings-category-title")).map((heading) => heading.textContent))
       .toEqual(["Active Chat", "Chat History", "Hooks"]);
-    expect(document.querySelectorAll(".desktop-local-agent-settings-group")).toHaveLength(3);
+    expect(document.querySelectorAll(".desktop-settings-category")).toHaveLength(3);
     expect(document.querySelectorAll(".desktop-local-agent-settings-table")).toHaveLength(3);
     expect(document.querySelectorAll(".desktop-local-agent-identity > .desktop-terminal-launcher-icon").length)
       .toBeGreaterThanOrEqual(5);

@@ -40,7 +40,7 @@ describe("settings visual architecture", () => {
     expect(general).not.toContain("AgentActivity");
     expect(general).not.toContain("localAgents");
     expect(localAgents).toContain('settings.localAgents.title');
-    expect(localAgents).toContain('detail={t("settings.localAgents.detail")}');
+    expect(localAgents).not.toContain('detail={t("settings.localAgents.detail")}');
     expect(localAgents).toContain("useLocalAgentInstallations");
     expect(localAgents).toContain("DESKTOP_TERMINAL_LAUNCHERS");
     expect(localAgents).toContain("<AgentLauncherIcon");
@@ -53,10 +53,10 @@ describe("settings visual architecture", () => {
     expect(localAgentHooks).toContain("provider.configurable");
     expect(localAgentHooks).toContain("<AgentLauncherIcon");
     expect(localAgents).toContain("settings.localAgents.activeChat.title");
-    expect(localAgents).toContain("desktop-local-agent-settings-layout");
-    expect(localAgents).toContain("desktop-local-agent-group-title");
+    expect(localAgents).toContain("desktop-settings-category-list");
+    expect(localAgents).toContain("desktop-settings-category-title");
     expect(localAgents).toContain("desktop-local-agent-settings-table");
-    expect(localAgentHooks).toContain("desktop-local-agent-group-title");
+    expect(localAgentHooks).toContain("desktop-settings-category-title");
     expect(localAgentHooks).toContain("desktop-local-agent-settings-table");
     expect(localAgentHooks).not.toContain("<details");
     expect(localAgentHooks).not.toContain("<SettingsSectionHeader");
@@ -103,6 +103,22 @@ describe("settings visual architecture", () => {
     expect(language).toContain("void changeLanguage(nextPreference)");
     expect(language).not.toContain("<SettingsSectionHeader");
     expect(language).not.toContain("<button");
+  });
+
+  it("shares grouped settings layout between New Menu and Local Agents", () => {
+    const settings = source("src/styles/settings.css");
+    const newMenu = source("src/features/settings/main/CreateNewSettingsView.tsx");
+    const localAgents = source("src/features/local-agents/ui/LocalAgentsSettingsView.tsx");
+    const newMenuStyles = source("src/styles/settings-new-menu.css");
+
+    for (const view of [newMenu, localAgents]) {
+      expect(view).toContain("desktop-settings-category-list");
+      expect(view).toContain("desktop-settings-category-header");
+      expect(view).toContain("desktop-settings-category-title");
+    }
+    expect(settings).toContain(".desktop-settings-category-list {");
+    expect(settings).toContain(".desktop-settings-category-header {");
+    expect(newMenuStyles).not.toContain(".desktop-create-new-group-title");
   });
 
   it("owns cross-surface text controls in Typography rather than Appearance or Editor", () => {
@@ -338,7 +354,7 @@ describe("settings visual architecture", () => {
       "settings.cloud.detail",
       "settings.git.detail",
     ]) {
-      expect(settingsImplementation, detailId).toContain(detailId);
+      expect(settingsImplementation, detailId).not.toContain(detailId);
     }
   });
 
@@ -359,7 +375,7 @@ describe("settings visual architecture", () => {
     expect(settings).toMatch(/\.desktop-settings-heading-row\s*{[^}]*padding-inline:\s*10px;/s);
     expect(settings).toMatch(/\.desktop-settings-section-header\s*{[^}]*padding-inline:\s*10px;/s);
     expect(settings).toMatch(/\.desktop-settings-heading-row \.desktop-settings-section-header\s*{[^}]*padding-inline:\s*0;/s);
-    expect(settings).toMatch(/\.desktop-settings-section-header h2\s*{[^}]*font-size:\s*var\(--po-text-size-section-title, 15px\);[^}]*font-weight:\s*var\(--po-text-weight-medium, 500\);[^}]*line-height:\s*20px;/s);
+    expect(settings).toMatch(/\.desktop-settings-section-header h2\s*{[^}]*font-size:\s*var\(--po-type-ui-page-title, 21px\);[^}]*font-weight:\s*var\(--po-text-weight-medium, 500\);[^}]*line-height:\s*1\.25;/s);
     expect(settings).toMatch(/\.desktop-settings-row\s*{[^}]*gap:\s*18px;[^}]*padding:\s*0 10px;/s);
     expect(settings).toMatch(/\.desktop-settings-row > \.desktop-settings-row-value\s*{[^}]*font-weight:\s*var\(--po-text-weight-regular, 400\);/s);
     expect(settings).toMatch(/\.desktop-settings-value-text\s*{[^}]*font-weight:\s*var\(--po-text-weight-regular, 400\);/s);

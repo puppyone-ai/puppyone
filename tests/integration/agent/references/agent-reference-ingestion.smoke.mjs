@@ -242,7 +242,7 @@ async function runProductionLayoutSmoke() {
             && Math.abs(removeRect.top - cardRect.top) <= 8),
           transcriptMediaChips: document.querySelectorAll('.desktop-agent-message-references > span').length,
           addLabel: trigger?.getAttribute('aria-label') || '',
-          inlineError: error?.getAttribute('title') || '',
+          inlineError: error?.getAttribute('data-tooltip') || '',
           composerTextStarts: {
             prompt: textStart(promptContent, promptStyle),
             model: textStart(modelTrigger, modelStyle),

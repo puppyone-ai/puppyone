@@ -61,19 +61,17 @@ export function LocalAgentsSettingsView({
         <div className="desktop-settings-section desktop-local-agent-settings">
           <SettingsSectionHeader
             title={t("settings.localAgents.title")}
-            detail={t("settings.localAgents.detail")}
           />
-          <div className="desktop-local-agent-settings-layout">
-            <section className="desktop-local-agent-settings-group">
-              <header className="desktop-local-agent-group-header">
-                <span className="desktop-local-agent-group-title">
+          <div className="desktop-settings-category-list desktop-settings-lead-categories">
+            <section className="desktop-settings-category">
+              <header className="desktop-settings-category-header">
+                <span className="desktop-settings-category-title">
                   {t("settings.localAgents.activeChat.title")}
                 </span>
                 <button
                   className="desktop-settings-row-action desktop-local-agent-group-action"
                   type="button"
                   aria-label={t("settings.localAgents.scan")}
-                  title={t("settings.localAgents.scan")}
                   onClick={() => void refresh()}
                 >
                   <RefreshCw size={12} className={scanning ? "spin" : undefined} aria-hidden="true" />
@@ -97,10 +95,7 @@ export function LocalAgentsSettingsView({
                           <span className="desktop-local-agent-name">{displayName}</span>
                         </span>
                       </span>
-                      <label
-                        className="desktop-settings-switch"
-                        title={t("settings.localAgents.toggle", { agent: displayName })}
-                      >
+                      <label className="desktop-settings-switch">
                         <input
                           type="checkbox"
                           checked={visible}
@@ -136,19 +131,16 @@ export function LocalAgentsSettingsView({
                 )}
               </div>
             </section>
-            <section className="desktop-local-agent-settings-group desktop-local-agent-history-section">
-              <header className="desktop-local-agent-group-header">
-                <span className="desktop-local-agent-group-title">
+            <section className="desktop-settings-category desktop-local-agent-history-section">
+              <header className="desktop-settings-category-header">
+                <span className="desktop-settings-category-title">
                   {t("settings.localAgents.history.title")}
                 </span>
               </header>
               <div className="desktop-settings-list desktop-local-agent-settings-table">
                 <div className="desktop-settings-row desktop-settings-row-control">
                   <span>{t("settings.localAgents.history.toggle")}</span>
-                  <label
-                    className="desktop-settings-switch"
-                    title={t("settings.localAgents.history.toggle")}
-                  >
+                  <label className="desktop-settings-switch">
                     <input
                       type="checkbox"
                       checked={settings.chatHistoryDiscoveryEnabled}

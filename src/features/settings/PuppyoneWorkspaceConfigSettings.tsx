@@ -50,19 +50,16 @@ export function PuppyoneWorkspaceConfigSettings({
   const sourceServiceOptions: Array<{
     value: PuppyoneBackendService;
     label: string;
-    detail: string;
     available: boolean;
   }> = [
     {
       value: "puppyone",
       label: "Puppyone Cloud",
-      detail: t("settings.workspaceConfig.service.puppyone.detail"),
       available: cloudEnabled,
     },
     {
       value: "github",
       label: "GitHub",
-      detail: t("settings.workspaceConfig.service.github.detail"),
       available: true,
     },
   ];
@@ -128,13 +125,13 @@ export function PuppyoneWorkspaceConfigSettings({
   };
 
   return (
-    <SettingsSubsection>
+    <SettingsSubsection leading>
       {loading && !config ? (
         <div className="desktop-settings-muted-row">{t("settings.workspaceConfig.reading")}</div>
       ) : (
         <>
           <div className="desktop-settings-row desktop-settings-row-control desktop-puppyone-config-row desktop-hosting-service-panel">
-            <span title={t("settings.workspaceConfig.sourceService.detail")}>
+            <span>
               {t("settings.workspaceConfig.sourceService.title")}
             </span>
             <div
@@ -148,7 +145,6 @@ export function PuppyoneWorkspaceConfigSettings({
                   type="button"
                   disabled={saving}
                   key={option.value}
-                  title={option.detail}
                   onClick={() => selectSourceService(option.value)}
                 >
                   <span>{option.label}</span>
@@ -160,7 +156,7 @@ export function PuppyoneWorkspaceConfigSettings({
           {showSourceGitHints && (
             <>
               <label className="desktop-settings-row desktop-settings-row-control desktop-puppyone-config-row">
-                <span title={t("settings.workspaceConfig.gitRemote.detail")}>
+                <span>
                   {t("settings.workspaceConfig.gitRemote.title")}
                 </span>
                 <select
@@ -178,7 +174,7 @@ export function PuppyoneWorkspaceConfigSettings({
               </label>
 
               <label className="desktop-settings-row desktop-settings-row-control desktop-puppyone-config-row">
-                <span title={t("settings.workspaceConfig.gitBranch.detail")}>
+                <span>
                   {t("settings.workspaceConfig.gitBranch.title")}
                 </span>
                 <input
@@ -200,10 +196,10 @@ export function PuppyoneWorkspaceConfigSettings({
           )}
 
           <div className="desktop-settings-row desktop-settings-row-control desktop-puppyone-config-row">
-            <span title={t("settings.workspaceConfig.backupEnabled.detail")}>
+            <span>
               {t("settings.workspaceConfig.backupEnabled.title")}
             </span>
-            <label className="desktop-settings-switch" title={t("settings.workspaceConfig.backupEnabled.detail")}>
+            <label className="desktop-settings-switch">
               <input
                 type="checkbox"
                 aria-label={t("settings.workspaceConfig.backupEnabled.title")}
@@ -219,7 +215,7 @@ export function PuppyoneWorkspaceConfigSettings({
           {showBackupDetails && (
             <>
               <label className="desktop-settings-row desktop-settings-row-control desktop-puppyone-config-row">
-                <span title={t("settings.workspaceConfig.backupTarget.detail")}>
+                <span>
                   {t("settings.workspaceConfig.backupTarget.title")}
                 </span>
                 <select
@@ -243,7 +239,7 @@ export function PuppyoneWorkspaceConfigSettings({
               {draft.backup.service !== "puppyone" && (
                 <>
                   <label className="desktop-settings-row desktop-settings-row-control desktop-puppyone-config-row">
-                    <span title={t("settings.workspaceConfig.backupRemote.detail")}>
+                    <span>
                       {t("settings.workspaceConfig.backupRemote.title")}
                     </span>
                     <select
@@ -261,7 +257,7 @@ export function PuppyoneWorkspaceConfigSettings({
                   </label>
 
                   <label className="desktop-settings-row desktop-settings-row-control desktop-puppyone-config-row">
-                    <span title={t("settings.workspaceConfig.backupBranch.detail")}>
+                    <span>
                       {t("settings.workspaceConfig.backupBranch.title")}
                     </span>
                     <input

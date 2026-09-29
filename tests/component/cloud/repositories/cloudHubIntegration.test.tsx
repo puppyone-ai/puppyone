@@ -41,7 +41,7 @@ describe("current-repository Cloud navigation", () => {
       onSelectSection,
     });
     expect(labels(container)).toEqual([
-      "Homepage", "Serve via MCP", "Access via CLI", "Team", "Billing",
+      "Homepage", "Other Agents", "Access via CLI", "Team", "Billing",
     ]);
     expect(groupLabels(container)).toEqual(["Cloud Project", "External access", "Organization"]);
     expect(labels(container)).not.toContain("Settings");
@@ -58,7 +58,7 @@ describe("current-repository Cloud navigation", () => {
       onSelectSection,
     });
     expect(labels(container)).toEqual([
-      "Homepage", "Serve via MCP", "Access via CLI", "Team", "Billing",
+      "Homepage", "Other Agents", "Access via CLI", "Team", "Billing",
     ]);
     expect(labels(container)).not.toContain("Settings");
     expect(rows(container).every((row) => row.getAttribute("aria-disabled") !== "true")).toBe(true);
@@ -128,16 +128,15 @@ describe("current-repository Cloud navigation", () => {
         authState={{ status: "signed-out", apiBaseUrl: session.api_base_url }}
         apiBaseUrl={session.api_base_url}
         loadingLabel="Restoring Cloud session…"
-        onSessionChange={vi.fn()}
-        onRefresh={vi.fn()}
       />,
     ));
 
-    expect(container.querySelector("h1")?.textContent).toBe("Serve this project via MCP");
+    expect(container.querySelector("h1")?.textContent).toBe("Connect another Agent");
     expect(container.querySelector(".desktop-entry-state-description")?.textContent)
-      .toBe("Let ChatGPT, Claude, and other external agents access this Cloud Project through its hosted MCP server.");
+      .toBe("Share this Cloud project with ChatGPT, Claude, and other Agents.");
     expect(container.querySelector(".desktop-cloud-auth-submit")?.textContent)
-      .toBe("Get Started");
+      .toBe("Sign in to PuppyOne Cloud");
+    expect(container.textContent).not.toContain("browser");
     expect(container.textContent).not.toContain("May upload");
     expect(container.querySelector(".desktop-cloud-mcp-illustration")).not.toBeNull();
 
@@ -147,8 +146,6 @@ describe("current-repository Cloud navigation", () => {
         authState={{ status: "signed-out", apiBaseUrl: session.api_base_url }}
         apiBaseUrl={session.api_base_url}
         loadingLabel="Restoring Cloud session…"
-        onSessionChange={vi.fn()}
-        onRefresh={vi.fn()}
       />,
     ));
     expect(container.querySelector("h1")?.textContent).toBe("Access this project from the CLI");
@@ -160,8 +157,6 @@ describe("current-repository Cloud navigation", () => {
         authState={{ status: "signed-out", apiBaseUrl: session.api_base_url }}
         apiBaseUrl={session.api_base_url}
         loadingLabel="Restoring Cloud session…"
-        onSessionChange={vi.fn()}
-        onRefresh={vi.fn()}
       />,
     ));
     expect(container.querySelector("h1")?.textContent).toBe("Git");
@@ -173,8 +168,6 @@ describe("current-repository Cloud navigation", () => {
         authState={{ status: "signed-out", apiBaseUrl: session.api_base_url }}
         apiBaseUrl={session.api_base_url}
         loadingLabel="Restoring Cloud session…"
-        onSessionChange={vi.fn()}
-        onRefresh={vi.fn()}
       />,
     ));
     expect(container.querySelector("h1")?.textContent).toBe("Automation");
@@ -186,8 +179,6 @@ describe("current-repository Cloud navigation", () => {
         authState={{ status: "signed-out", apiBaseUrl: session.api_base_url }}
         apiBaseUrl={session.api_base_url}
         loadingLabel="Restoring Cloud session…"
-        onSessionChange={vi.fn()}
-        onRefresh={vi.fn()}
       />,
     ));
     expect(container.querySelector("h1")?.textContent).toBe("PuppyOne Cloud");
@@ -204,8 +195,6 @@ describe("current-repository Cloud navigation", () => {
         authState={{ status: "signed-out", apiBaseUrl: session.api_base_url }}
         apiBaseUrl={session.api_base_url}
         loadingLabel="Restoring Cloud session…"
-        onSessionChange={vi.fn()}
-        onRefresh={vi.fn()}
       />,
     ));
     expect(container.querySelector("h1")?.textContent).toBe("Permissions");

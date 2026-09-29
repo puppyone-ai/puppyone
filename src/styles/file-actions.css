@@ -288,7 +288,6 @@
   overflow-x: hidden;
   overflow-y: auto;
   padding: var(--po-menu-padding);
-  font-size: var(--po-type-left-sidebar-content, 14px);
 }
 
 .desktop-create-entry-submenu-wrap[data-submenu-side="start"] > .desktop-create-entry-submenu {
@@ -305,39 +304,10 @@
   --po-menu-item-padding-inline: var(--desktop-sidebar-row-content-left);
   --po-menu-item-gap: var(--desktop-sidebar-icon-label-gap);
   --po-menu-item-radius: var(--desktop-sidebar-row-radius);
-
-  padding: 4px;
-  border-color: var(--po-sidebar-divider, var(--po-divider));
-  border-radius: var(--desktop-sidebar-row-radius);
-  background: color-mix(in srgb, var(--po-sidebar) 94%, var(--po-text) 6%);
-  backdrop-filter: none;
-  box-shadow: var(--po-menu-shadow-compact);
 }
 
 .desktop-create-entry-menu[data-sidebar-launcher="true"] .desktop-menu-separator {
   display: none;
-}
-
-.desktop-create-entry-menu[data-sidebar-launcher="true"] .desktop-menu-item {
-  color: var(--po-text-muted);
-  font-size: var(--desktop-sidebar-font-size);
-  font-weight: var(--desktop-sidebar-font-weight);
-  line-height: var(--desktop-sidebar-line-height);
-}
-
-.app-shell.dark .desktop-create-entry-menu,
-.desktop-overlay-root.dark .desktop-create-entry-menu {
-  --po-text: #d2cec5;
-  --po-text-muted: #b9b6ae;
-  --po-text-subtle: #87837c;
-  --po-text-disabled: #67635d;
-  --po-hover: rgba(211, 208, 197, 0.075);
-  --po-selected: rgba(211, 208, 197, 0.14);
-  --po-file-icon-body: #24231f;
-  --po-file-icon-fold: #2d2a25;
-  --po-file-icon-stroke: rgba(185, 182, 174, 0.62);
-  --po-file-accent-default: #b9b6ae;
-  --po-file-accent-markdown: #b9b6ae;
 }
 
 .desktop-node-action-error {

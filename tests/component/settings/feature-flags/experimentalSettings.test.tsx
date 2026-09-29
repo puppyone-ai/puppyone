@@ -17,12 +17,7 @@ afterEach(() => {
 });
 
 describe("Experimental settings", () => {
-  it.each([
-    ["Notion import", "enableNotionImport"],
-    ["Google Drive import", "enableGoogleDriveImport"],
-    ["Airtable import", "enableAirtableImport"],
-    ["Obsidian import", "enableObsidianImport"],
-  ] as const)("offers an off-by-default %s source", (label, settingKey) => {
+  it("offers one default-off import experiment", () => {
     const onChange = vi.fn();
     const host = document.createElement("div");
     document.body.append(host);
@@ -36,12 +31,12 @@ describe("Experimental settings", () => {
       />,
     )));
 
-    const toggle = host.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`);
+    const toggle = host.querySelector<HTMLInputElement>('input[aria-label="Import from other apps"]');
     expect(toggle?.checked).toBe(false);
     act(() => toggle?.click());
     expect(onChange).toHaveBeenCalledWith({
       ...DEFAULT_EXPERIMENTAL_SETTINGS,
-      [settingKey]: true,
+      enableOtherAppImports: true,
     });
   });
 
@@ -54,8 +49,65 @@ describe("Experimental settings", () => {
         assetLibraryHomeAvailable={false} onChange={vi.fn()} />,
     )));
     expect(host.querySelector('input[aria-label="Built-in Agent"]')).toBeNull();
-    expect(DEFAULT_EXPERIMENTAL_SETTINGS.enableBuiltInAgent).toBe(true);
     expect(DEFAULT_EXPERIMENTAL_SETTINGS.enableCloudWorkspace).toBe(false);
+  });
+
+  it("uses the Cloud switch for hosting and sharing", () => {
+    const onChange = vi.fn();
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    act(() => root?.render(withTestLocalization(
+      <ExperimentalSettingsView settings={DEFAULT_EXPERIMENTAL_SETTINGS}
+        assetLibraryHomeAvailable={false} onChange={onChange} />,
+    )));
+
+    const toggle = host.querySelector<HTMLInputElement>('input[aria-label="PuppyOne Cloud"]');
+    expect(toggle?.checked).toBe(false);
+    act(() => toggle?.click());
+    expect(onChange).toHaveBeenCalledWith({
+      ...DEFAULT_EXPERIMENTAL_SETTINGS,
+      enableCloudWorkspace: true,
+    });
+    expect(host.querySelector('input[aria-label="Cloud agents in sidebar"]')).toBeNull();
+    expect(host.querySelector('input[aria-label="Editor save status"]')).toBeNull();
+  });
+
+  it("ships Share from the Header on, with its own switch to return to the classic layout", () => {
+    const onChange = vi.fn();
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    act(() => root?.render(withTestLocalization(
+      <ExperimentalSettingsView settings={DEFAULT_EXPERIMENTAL_SETTINGS}
+        assetLibraryHomeAvailable={false} onChange={onChange} />,
+    )));
+
+    const toggle = host.querySelector<HTMLInputElement>('input[aria-label="Share from the Header"]');
+    expect(toggle?.checked).toBe(true);
+    act(() => toggle?.click());
+    expect(onChange).toHaveBeenCalledWith({
+      ...DEFAULT_EXPERIMENTAL_SETTINGS,
+      enableShareOnboarding: false,
+    });
+  });
+
+  it("keeps Header chat tabs behind a separate default-off switch", () => {
+    const onChange = vi.fn();
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    act(() => root?.render(withTestLocalization(
+      <ExperimentalSettingsView settings={DEFAULT_EXPERIMENTAL_SETTINGS}
+        assetLibraryHomeAvailable={false} onChange={onChange} />,
+    )));
+    const toggle = host.querySelector<HTMLInputElement>('input[aria-label="Chat tabs in Header"]');
+    expect(toggle?.checked).toBe(false);
+    act(() => toggle?.click());
+    expect(onChange).toHaveBeenCalledWith({
+      ...DEFAULT_EXPERIMENTAL_SETTINGS,
+      enableWorkbenchTabsInHeader: true,
+    });
   });
 
   it("offers an off-by-default cross-Project switcher rail", () => {
@@ -110,6 +162,31 @@ describe("Experimental settings", () => {
     expect(onChange).toHaveBeenCalledWith({
       ...DEFAULT_EXPERIMENTAL_SETTINGS,
       enableMultiRootWorkspaces: true,
+    });
+  });
+
+  it("offers an off-by-default onboarding replay switch", () => {
+    const onChange = vi.fn();
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+
+    act(() => root?.render(withTestLocalization(
+      <ExperimentalSettingsView
+        settings={DEFAULT_EXPERIMENTAL_SETTINGS}
+        assetLibraryHomeAvailable={false}
+        onChange={onChange}
+      />,
+    )));
+
+    const toggle = host.querySelector<HTMLInputElement>(
+      'input[aria-label="Always show onboarding hints"]',
+    );
+    expect(toggle?.checked).toBe(false);
+    act(() => toggle?.click());
+    expect(onChange).toHaveBeenCalledWith({
+      ...DEFAULT_EXPERIMENTAL_SETTINGS,
+      enableAlwaysShowOnboardingCoachmarks: true,
     });
   });
 

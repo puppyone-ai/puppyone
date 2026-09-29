@@ -72,6 +72,25 @@ describe("AccessPointRoutePage catalog", () => {
     act(() => mcpRow?.click());
     expect(document.body.querySelector('[role="dialog"]')?.getAttribute("aria-label")).toBe("Docs MCP");
   });
+
+  it("starts new access as an Agent connection with MCP selected", async () => {
+    const container = renderCatalog();
+
+    act(() => findButton(container, "New access")?.click());
+
+    const dialog = document.body.querySelector<HTMLElement>(".desktop-cloud-create-access-dialog");
+    expect(dialog).not.toBeNull();
+    expect(dialog?.querySelector(".desktop-cloud-create-access-intent-option.active")?.textContent)
+      .toContain("Connect an AI agent");
+    const mcpMethod = Array.from(
+      dialog?.querySelectorAll<HTMLElement>(".desktop-cloud-create-access-method-row") ?? [],
+    ).find((row) => row.textContent?.includes("MCP"));
+    expect(mcpMethod?.querySelector('[role="switch"]')?.getAttribute("aria-checked")).toBe("true");
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+  });
 });
 
 function renderCatalog() {
@@ -92,7 +111,6 @@ function renderCatalog() {
       canManage
       onCloudSessionChange={vi.fn()}
       onRefresh={vi.fn(async () => undefined)}
-      onOpenProject={vi.fn()}
     />,
   )));
   return container;

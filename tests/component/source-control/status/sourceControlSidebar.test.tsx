@@ -159,22 +159,11 @@ describe("Git sidebar status groups", () => {
     expect(surface.querySelector(".desktop-history-row")).toBeNull();
   });
 
-  it("keeps stash and destructive cleanup in a restrained secondary menu", async () => {
-    const onStash = vi.fn(async () => true);
-    const onDiscardAll = vi.fn(async () => true);
-    const surface = renderSidebar({ onDiscardAll, onStash });
-    const menu = surface.querySelector<HTMLDetailsElement>(".desktop-git-more-actions");
-    const stash = Array.from(menu?.querySelectorAll<HTMLButtonElement>("button") ?? [])
-      .find((button) => button.textContent === "Stash changes");
-    const discard = Array.from(menu?.querySelectorAll<HTMLButtonElement>("button") ?? [])
-      .find((button) => button.textContent === "Discard all");
+  it("does not render a floating overflow action at the bottom of Changes", () => {
+    const surface = renderSidebar();
 
-    expect(menu?.querySelector("summary")?.getAttribute("aria-label")).toBe("More Git actions");
-    expect(stash).not.toBeNull();
-    expect(discard?.classList.contains("danger")).toBe(true);
-
-    await act(async () => stash?.click());
-    expect(onStash).toHaveBeenCalledOnce();
+    expect(surface.querySelector(".desktop-git-secondary-actions")).toBeNull();
+    expect(surface.querySelector(".desktop-git-more-actions")).toBeNull();
   });
 
   it("presents incoming commits with the established compact sidebar notice", async () => {
@@ -381,13 +370,11 @@ function renderSidebar(options: Partial<{
   gitSidebarLayout: "cards" | "dividers";
   onCommit: (message?: string) => Promise<boolean>;
   onContinue: () => Promise<boolean>;
-  onDiscardAll: () => Promise<boolean>;
   onInitialize: () => Promise<boolean>;
   onPull: () => Promise<boolean>;
   onPush: () => Promise<boolean>;
   onStageAll: () => Promise<boolean>;
   onStageAndCommit: (message?: string) => Promise<boolean>;
-  onStash: () => Promise<boolean>;
   status: GitStatusSnapshot;
 }> = {}) {
   const container = document.createElement("div");
@@ -419,9 +406,7 @@ function renderSidebar(options: Partial<{
         stageAll: options.onStageAll ?? succeed,
         unstagePaths: succeed,
         discardPaths: succeed,
-        discardAll: options.onDiscardAll ?? succeed,
         stageAndCommit: options.onStageAndCommit ?? succeed,
-        stash: options.onStash ?? succeed,
         commit: options.onCommit ?? succeed,
         commitAndPush: succeed,
         continueOperation: options.onContinue ?? succeed,

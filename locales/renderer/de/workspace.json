@@ -4,7 +4,6 @@
   "projectSessions.closing": "Projekt wird geschlossen…",
   "projectSessions.closeFailed": "Einige Projektaufgaben konnten nicht beendet werden.",
   "projectSessions.retryClose": "Schließen erneut versuchen",
-  "drag.exportHint": "In einen Ordner, ins Terminal, zum Agent oder in eine andere App ziehen.",
   "drag.exportFailed": "Der Vorgang konnte nicht abgeschlossen werden. Prüfe, ob Quelle und Ziel verfügbar sind und das Ziel diesen Vorgang unterstützt.",
   "restoring.ariaLabel": "Letztes Projekt wird geöffnet",
   "restoring.message": "Letztes Projekt wird geöffnet…",
@@ -209,5 +208,6 @@
   "relationships.collapseFolder": "{name} reduzieren",
   "relationships.openFile": "{name} öffnen",
   "relationships.linkCount": "{count, plural, =0 {Keine Links} one {# Link} other {# Links}}",
-  "relationships.noLinks": "Auf dieser Ebene sind keine Elemente verknüpft"
+  "relationships.noLinks": "Auf dieser Ebene sind keine Elemente verknüpft",
+  "node.shareWith": "Teilen mit…"
 }

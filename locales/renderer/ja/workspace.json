@@ -4,7 +4,6 @@
   "projectSessions.closing": "プロジェクトを閉じています…",
   "projectSessions.closeFailed": "一部のプロジェクトのタスクを停止できませんでした。",
   "projectSessions.retryClose": "もう一度閉じる",
-  "drag.exportHint": "フォルダ、ターミナル、Agent、または他のアプリへドラッグします。",
   "drag.exportFailed": "ドロップを完了できません。元の項目と移動先が利用可能で、この操作に対応しているか確認してください。",
   "restoring.ariaLabel": "前回のプロジェクトを開いています",
   "restoring.message": "前回のプロジェクトを開いています…",
@@ -209,5 +208,6 @@
   "relationships.collapseFolder": "{name}を折りたたむ",
   "relationships.openFile": "{name}を開く",
   "relationships.linkCount": "{count}リンク",
-  "relationships.noLinks": "この階層の項目間にリンクはありません"
+  "relationships.noLinks": "この階層の項目間にリンクはありません",
+  "node.shareWith": "共有先…"
 }

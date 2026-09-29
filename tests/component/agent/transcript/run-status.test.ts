@@ -58,7 +58,7 @@ describe("Desktop Agent renderer surfaces", () => {
     expect(userReferences.textContent).not.toContain("README.md");
     const historyMention = userText.querySelector(".desktop-agent-history-mention");
     expect(historyMention?.textContent).toBe("@docs/README.md");
-    expect(historyMention?.getAttribute("title")).toBe("docs/README.md");
+    expect(historyMention?.getAttribute("data-tooltip")).toBe("docs/README.md");
     expect(historyMention?.getAttribute("data-reference-kind")).toBe("workspace-file");
     expect(userReferences.compareDocumentPosition(userText) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
     expect(container.querySelector(".desktop-agent-message.is-assistant")?.getAttribute("aria-label")).toBe("OpenCode");

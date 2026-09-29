@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { AlertCircle, History, RefreshCw } from "lucide-react";
 import { useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { WorkbenchLauncherState } from "../../app-shell/auxiliary-workbench/WorkbenchLauncherState";
@@ -170,20 +171,31 @@ export function TerminalLauncher({
                 <TerminalActivityGrid className="desktop-terminal-launcher-spinner" />
               )}
               <span>
-                {t(launching ? "terminal.launcher.launching" : "terminal.launcher.title")}
+                {t(launching ? "terminal.launcher.launching" : "terminal.launcher.localTitle")}
               </span>
             </h2>
-            <button
+            <Tooltip content={t("terminal.launcher.scanAgain")}><button
               type="button"
               className="desktop-terminal-launcher-scan"
               onClick={onRefresh}
               disabled={busy || scanning}
               aria-label={t("terminal.launcher.scanAgain")}
-              title={t("terminal.launcher.scanAgain")}
             >
               <RefreshCw size={12} strokeWidth={1.7} aria-hidden="true" />
-            </button>
+            </button></Tooltip>
           </header>
+          {history && onRestoreHistoryTarget && (
+            <Tooltip content={history.label}><button
+              type="button"
+              className="desktop-terminal-launcher-history"
+              data-po-interaction="navigation"
+              onClick={onOpenHistory ?? (() => state.patch({ historyOpen: true }))}
+              disabled={busy}
+              aria-label={history.label}
+            >
+              <History size={13} strokeWidth={1.7} aria-hidden="true" />
+            </button></Tooltip>
+          )}
 
           {launchError && (
             <div className="desktop-terminal-launcher-error" role="alert">
@@ -210,55 +222,27 @@ export function TerminalLauncher({
             <div ref={bundledToolsRef} className="desktop-terminal-launcher-tools desktop-terminal-launcher-bundled" role="list">
               {bundledRows}
             </div>
-          </div>
 
-          {terminalEnabled && (
-            <>
-              <div className="desktop-terminal-launcher-divider" role="separator" />
-              <button
+            {terminalEnabled && (
+              <Tooltip content={t(shell.descriptionMessage)}><button
                 type="button"
                 className="desktop-terminal-launcher-shell"
                 data-po-interaction="navigation"
                 onClick={() => onLaunch(shell.id)}
                 disabled={busy}
                 aria-label={`${t("terminal.title")}. ${t(shell.descriptionMessage)}`}
-                title={t(shell.descriptionMessage)}
               >
                 <WorkbenchLauncherIcon launcherId="shell" />
                 <span>{t("terminal.title")}</span>
-              </button>
-            </>
-          )}
+              </button></Tooltip>
+            )}
+          </div>
 
           <div className="desktop-terminal-launcher-availability" role="status" aria-live="polite" aria-atomic="true">
             {availabilityMessage ? t(availabilityMessage) : ""}
           </div>
         </div>
 
-        {history && onRestoreHistoryTarget && (
-          <div className="desktop-terminal-launcher-group is-history-entry">
-            <header className="desktop-terminal-launcher-heading">
-              <h2>
-                <span>
-                  {t("agent.history.continueTitle")}
-                </span>
-              </h2>
-            </header>
-            <button
-              type="button"
-              className="desktop-terminal-launcher-history"
-              data-po-interaction="navigation"
-              onClick={onOpenHistory ?? (() => state.patch({ historyOpen: true }))}
-              disabled={busy}
-              aria-label={history.label}
-            >
-              {history.iconKey
-                ? <WorkbenchLauncherIcon iconKey={history.iconKey} />
-                : <History size={18} strokeWidth={1.45} aria-hidden="true" />}
-              <span>{history.label}</span>
-            </button>
-          </div>
-        )}
       </div>
     </section>
   );
@@ -278,18 +262,17 @@ function TerminalAgentButton({
   const description = t(launcher.descriptionMessage);
 
   return (
-    <button
+    <Tooltip content={description}><button
       type="button"
       className="desktop-terminal-launcher-tool"
       data-po-interaction="navigation"
       disabled={!launchAvailable}
       aria-label={`${t("terminal.launcher.title")}: ${label}. ${description}`}
-      title={description}
       onClick={() => onLaunch(launcher.id)}
     >
       <WorkbenchLauncherIcon launcherId={launcher.id} />
       <span>{label}</span>
-    </button>
+    </button></Tooltip>
   );
 }
 
@@ -312,18 +295,17 @@ function ChatRecipeButton({
   const title = statusLabel ? `${recipe.label} — ${statusLabel}` : recipe.label;
 
   return (
-    <button
+    <Tooltip content={available ? undefined : title}><button
       type="button"
       className="desktop-terminal-launcher-tool"
       data-po-interaction="navigation"
       data-status={recipe.status}
       disabled={!available}
       aria-label={`${t("terminal.launcher.title")}: ${title}`}
-      title={title}
       onClick={() => onCreate?.(recipe)}
     >
       <WorkbenchLauncherIcon iconKey={recipe.iconKey} />
       <span>{recipe.label}</span>
-    </button>
+    </button></Tooltip>
   );
 }

@@ -1,5 +1,6 @@
 import { Check, ChevronRight, Cloud, Copy, ExternalLink, FileText, FolderOpen, GitBranch, RefreshCw } from "lucide-react";
 import {
+  Tooltip,
   FilePreviewIcon,
   RENDERER_ASSET_PATHS,
   resolveRendererPublicAssetUrl,
@@ -85,7 +86,7 @@ export function CloudMainMetric({
   return (
     <div className={`desktop-cloud-main-metric ${tone ?? ""} ${mono ? "mono" : ""}`}>
       <span>{label}</span>
-      <strong title={value}>{value}</strong>
+      <strong>{value}</strong>
     </div>
   );
 }
@@ -93,20 +94,18 @@ export function CloudMainMetric({
 export function CloudAuthorityCell({
   label,
   value,
-  title,
   tone,
   mono,
 }: {
   label: string;
   value: string;
-  title?: string;
   tone?: "ready" | "warning";
   mono?: boolean;
 }) {
   return (
     <div className={`desktop-cloud-authority-cell ${tone ?? ""} ${mono ? "mono" : ""}`}>
       <span>{label}</span>
-      <strong title={title ?? value}>{value}</strong>
+      <strong>{value}</strong>
     </div>
   );
 }
@@ -140,7 +139,6 @@ export function CloudAssetGrid({
           className="desktop-cloud-asset-tile"
           key={entry.path || entry.name}
           type="button"
-          title={entry.path || entry.name}
           onClick={() => onEntryClick(entry)}
         >
           <span className="desktop-cloud-asset-icon">
@@ -151,7 +149,9 @@ export function CloudAssetGrid({
               childrenCount={entry.children_count ?? undefined}
             />
           </span>
-          <strong>{entry.name || entry.path}</strong>
+          <Tooltip content={entry.path || entry.name} overflowOnly>
+            <strong>{entry.name || entry.path}</strong>
+          </Tooltip>
           <small>{formatCloudTreeEntryDetail(entry, localization)}</small>
         </button>
       ))}
@@ -295,20 +295,20 @@ export function CloudWebEmpty({
 export function CloudSourceDock({
   remote,
   branch,
-  title,
+  tooltip,
 }: {
   remote: string;
   branch: string;
-  title?: string;
+  tooltip?: string;
 }) {
   const { t } = useLocalization();
   return (
-    <div className="desktop-cloud-source-dock" title={title}>
+    <Tooltip content={tooltip}><div className="desktop-cloud-source-dock">
       <span className="desktop-cloud-web-status-dot ready" aria-hidden="true" />
       <strong>{t("cloud.common.cloudSource")}</strong>
       <em dir="auto">{remote}</em>
       <em dir="auto">{branch}</em>
-    </div>
+    </div></Tooltip>
   );
 }
 
@@ -383,7 +383,7 @@ export function CloudProjectRow({
     <div className="desktop-cloud-project-row">
       <span><Cloud size={15} /></span>
       <div>
-        <strong title={project.name} dir="auto">{project.name}</strong>
+        <Tooltip content={project.name} overflowOnly><strong dir="auto">{project.name}</strong></Tooltip>
         <small dir={project.description ? "auto" : undefined}>{project.description || t("cloud.project.updated", {
           time: bidiIsolate(project.updated_at ? formatRelativeTime(project.updated_at, localization) : t("cloud.time.recently")),
         })}</small>

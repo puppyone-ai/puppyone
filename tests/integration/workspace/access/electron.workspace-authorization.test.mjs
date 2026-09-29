@@ -372,7 +372,10 @@ describe("recent workspace authorization", () => {
     const openWorkspaceInCurrentWindow = vi.fn(async () => ({ status: "opened-current" }));
     const openWorkspaceInNewWindow = vi.fn(async () => ({ status: "opened-new" }));
     const createProjectForCurrentWindow = vi.fn(async () => ({ status: "created-current" }));
-    const cloneRepositoryForCurrentWindow = vi.fn(async () => ({ status: "cloned-current" }));
+    const connectImportSourceForCurrentWindow = vi.fn(async () => ({ connectionId: "connection-1" }));
+    const listImportResourcesForCurrentWindow = vi.fn(async () => ({ items: [], nextCursor: null }));
+    const importSourceForCurrentWindow = vi.fn(async () => ({ status: "imported-current" }));
+    const cancelImportSourceForCurrentWindow = vi.fn(() => ({ cancelled: true }));
     const selectProjectLocationForCurrentWindow = vi.fn(async () => ({
       grantId: "location-1",
       path: root,
@@ -394,7 +397,10 @@ describe("recent workspace authorization", () => {
       openWorkspaceInCurrentWindow,
       openWorkspaceInNewWindow,
       createProjectForCurrentWindow,
-      cloneRepositoryForCurrentWindow,
+      connectImportSourceForCurrentWindow,
+      listImportResourcesForCurrentWindow,
+      importSourceForCurrentWindow,
+      cancelImportSourceForCurrentWindow,
       selectProjectLocationForCurrentWindow,
       getDefaultProjectLocationForCurrentWindow,
       createCloudWorkspaceFromRequest: vi.fn(),
@@ -459,14 +465,32 @@ describe("recent workspace authorization", () => {
       name: "Notes",
       locationGrantId: "location-1",
     });
-    await expect(handlers.get("workspace:clone-repository-current")(event, {
+    await expect(handlers.get("workspace:import-source-current")(event, {
       provider: "github",
-      repositoryUrl: "https://github.com/owner/repository.git",
-    })).resolves.toEqual({ status: "cloned-current" });
-    expect(cloneRepositoryForCurrentWindow).toHaveBeenCalledWith(event.sender, {
+      taskId: "task-1",
+      selection: { repositoryUrl: "https://github.com/owner/repository.git" },
+    })).resolves.toEqual({ status: "imported-current" });
+    expect(importSourceForCurrentWindow).toHaveBeenCalledWith(event.sender, {
       provider: "github",
-      repositoryUrl: "https://github.com/owner/repository.git",
+      taskId: "task-1",
+      selection: { repositoryUrl: "https://github.com/owner/repository.git" },
     });
+    await expect(handlers.get("workspace:import-source-current")(event, {
+      provider: "obsidian",
+      taskId: "task-2",
+      locationGrantId: "location-1",
+    })).resolves.toEqual({ status: "imported-current" });
+    expect(importSourceForCurrentWindow).toHaveBeenCalledWith(event.sender, {
+      provider: "obsidian",
+      taskId: "task-2",
+      locationGrantId: "location-1",
+    });
+    await expect(handlers.get("workspace:import-source-connect")(event, { provider: "notion" }))
+      .resolves.toEqual({ connectionId: "connection-1" });
+    await expect(handlers.get("workspace:import-source-list")(event, { provider: "notion", connectionId: "connection-1" }))
+      .resolves.toEqual({ items: [], nextCursor: null });
+    await expect(handlers.get("workspace:import-source-cancel")(event, { taskId: "task-2" }))
+      .resolves.toEqual({ cancelled: true });
     expect(handlers.has("workspace:remember-last")).toBe(false);
     expect(handlers.has("workspace:from-path")).toBe(false);
   });

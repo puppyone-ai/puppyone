@@ -1,12 +1,12 @@
 @container desktop-agent (max-width: 559px) {
   .desktop-agent-readiness { grid-template-columns: auto minmax(0, 1fr); }
-  .desktop-agent-readiness > button { grid-column: 2; justify-self: start; }
+  .desktop-agent-readiness-actions { grid-column: 2; justify-content: flex-start; }
 }
 
 @container desktop-agent (max-width: 419px) {
   .desktop-agent-composer-trailing { gap: 6px; }
   .desktop-agent-readiness { grid-template-columns: auto minmax(0, 1fr); }
-  .desktop-agent-readiness > button { grid-column: 2; justify-self: start; }
+  .desktop-agent-readiness-actions { grid-column: 2; justify-content: flex-start; }
   .desktop-agent-approval-heading { grid-template-columns: 24px minmax(0, 1fr); align-items: start; }
   .desktop-agent-approval-status { grid-column: 2; }
 }

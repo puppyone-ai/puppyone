@@ -9,19 +9,21 @@ import {
   FileText,
   FolderOpen,
   FolderPlus,
-  MoreVertical,
   Pencil,
   Plus,
   Scissors,
+  Share2,
   Trash2,
   Workflow,
   X,
 } from "lucide-react";
 import {
+  Tooltip,
   createDefaultContextMapDocumentContent,
   createDefaultPuppyFlowDocument,
   FileGlyphIcon,
   getMatchedExtension,
+  OverflowDots,
   serializePuppyFlowDocument,
   STANDARD_CONTROL_SIZE,
   type DataNode,
@@ -101,14 +103,18 @@ const MENU_ERROR_BLOCK_SIZE = 21;
 const DEFAULT_MENU_PADDING = 4;
 
 export function DesktopExplorerRowActions({
+  createMenuOpen = false,
   node,
+  nodeMenuOpen = false,
   parentPath,
   onCreate,
   onOpenNodeMenu,
   onRemoveWorkspaceRoot,
   showMoreActions = true,
 }: {
+  createMenuOpen?: boolean;
   node?: DataNode;
+  nodeMenuOpen?: boolean;
   parentPath: string | null;
   onCreate: (parentPath: string | null, anchorRect: DOMRect) => void;
   onOpenNodeMenu: (node: DataNode, anchorRect: DOMRect) => void;
@@ -121,32 +127,33 @@ export function DesktopExplorerRowActions({
   return (
     <>
       {canCreate && (
-        <button
+        <Tooltip content={t("workspace.node.createNew")}><button
           className="tree-row-action-button"
           type="button"
-          title={t("workspace.node.createNew")}
           aria-label={t("workspace.node.createNew")}
+          aria-haspopup="menu"
+          aria-expanded={createMenuOpen}
           onClick={(event) => onCreate(parentPath, event.currentTarget.getBoundingClientRect())}
         >
           <Plus aria-hidden="true" />
-        </button>
+        </button></Tooltip>
       )}
       {node && showMoreActions && (
-        <button
+        <Tooltip content={t("workspace.node.moreActions")}><button
           className="tree-row-action-button"
           type="button"
-          title={t("workspace.node.moreActions")}
           aria-label={t("workspace.node.moreActionsFor", { name: bidiIsolate(node.name) })}
+          aria-haspopup="menu"
+          aria-expanded={nodeMenuOpen}
           onClick={(event) => onOpenNodeMenu(node, event.currentTarget.getBoundingClientRect())}
         >
-          <MoreVertical aria-hidden="true" />
-        </button>
+          <OverflowDots orientation="vertical" />
+        </button></Tooltip>
       )}
       {node?.workspaceFolderRoot && onRemoveWorkspaceRoot && (
-        <button
+        <Tooltip content={t("shell.workspaceSwitcher.removeProject")}><button
           className="tree-row-action-button"
           type="button"
-          title={t("shell.workspaceSwitcher.removeProject")}
           aria-label={t("shell.workspaceSwitcher.removeProjectNamed", { name: bidiIsolate(node.name) })}
           onClick={(event) => {
             event.stopPropagation();
@@ -154,7 +161,7 @@ export function DesktopExplorerRowActions({
           }}
         >
           <X aria-hidden="true" />
-        </button>
+        </button></Tooltip>
       )}
     </>
   );
@@ -315,7 +322,10 @@ export function DesktopCreateEntryMenu({
       id={sidebarLauncher ? "desktop-sidebar-create-menu" : undefined}
       ariaLabel={t("workspace.node.createNew")}
       data-sidebar-launcher={sidebarLauncher ? "true" : undefined}
+      elevation={sidebarLauncher ? "compact" : "default"}
       style={menuStyle}
+      tone={sidebarLauncher ? "quiet" : "default"}
+      typographySurface={sidebarLauncher ? "left-sidebar" : "ui"}
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
     >
@@ -382,6 +392,9 @@ export function DesktopCreateEntryMenu({
               id="desktop-create-entry-custom-submenu"
               className="desktop-create-entry-submenu"
               ariaLabel={t("workspace.node.createCustomFile")}
+              elevation={sidebarLauncher ? "compact" : "default"}
+              tone={sidebarLauncher ? "quiet" : "default"}
+              typographySurface={sidebarLauncher ? "left-sidebar" : "ui"}
               onKeyDown={(event) => {
                 if (event.key !== "ArrowLeft") return;
                 event.preventDefault();
@@ -550,6 +563,7 @@ export function DesktopNodeActionMenu({
   onDelete,
   onOpenInDefaultApp,
   onRevealInFinder,
+  onShare,
 }: {
   draft: DesktopNodeActionMenuDraft;
   experimentalSettings?: ExperimentalSettings | null;
@@ -570,6 +584,8 @@ export function DesktopNodeActionMenu({
   onDelete: () => void;
   onOpenInDefaultApp: () => void;
   onRevealInFinder: () => void;
+  /** Experimental Share onboarding: offered for a single folder only. */
+  onShare?: () => void;
 }) {
   if (draft.mode === "rename") {
     return (
@@ -602,6 +618,7 @@ export function DesktopNodeActionMenu({
         onDelete={onDelete}
         onOpenInDefaultApp={onOpenInDefaultApp}
         onRevealInFinder={onRevealInFinder}
+        onShare={onShare}
       />
   );
 }
@@ -624,6 +641,7 @@ function DesktopNodeActionPopover({
   onDelete,
   onOpenInDefaultApp,
   onRevealInFinder,
+  onShare,
 }: {
   draft: DesktopNodeActionMenuDraft;
   showRevealInFinder: boolean;
@@ -642,6 +660,8 @@ function DesktopNodeActionPopover({
   onDelete: () => void;
   onOpenInDefaultApp: () => void;
   onRevealInFinder: () => void;
+  /** Experimental Share onboarding: offered for a single folder only. */
+  onShare?: () => void;
 }) {
   const { t } = useLocalization();
   const platformCapabilities = useDesktopPlatformCapabilities();
@@ -660,8 +680,10 @@ function DesktopNodeActionPopover({
   const actionCount = Math.max(1, draft.nodes.length);
   const singleNodeAction = actionCount === 1;
   const errorMessage = formatDesktopNodeActionError(draft.error, t);
+  const showShare = Boolean(onShare) && singleNodeAction && draft.node.type === "folder";
   const menuRowCount = 4
     + (draft.node.type === "folder" ? 2 : 0)
+    + Number(showShare)
     + Number(singleNodeAction && showOpenInDefaultApp && draft.node.type !== "folder")
     + Number(singleNodeAction && showRevealInFinder)
     + Number(singleNodeAction)
@@ -771,6 +793,14 @@ function DesktopNodeActionPopover({
           label={draft.operation === "open" ? t("workspace.node.opening") : t("workspace.node.openDefaultApp")}
           disabled={draft.operation !== null}
           onClick={onOpenInDefaultApp}
+        />
+      )}
+      {showShare && (
+        <DesktopNodeActionMenuItem
+          icon={<Share2 size={14} />}
+          label={t("workspace.node.shareWith")}
+          disabled={draft.operation !== null}
+          onClick={() => onShare?.()}
         />
       )}
       {singleNodeAction && showRevealInFinder && (

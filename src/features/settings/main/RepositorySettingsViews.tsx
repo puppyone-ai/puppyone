@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { Copy, RefreshCw } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import type { GitStatusSnapshot, PuppyoneWorkspaceConfig } from "../../../types/electron";
@@ -56,16 +57,15 @@ export function CloudHostingSettingsView({
         <div className="desktop-settings-section">
           <SettingsHeading
             title={t("settings.cloud.title")}
-            detail={t("settings.cloud.detail")}
             loading={loading}
             onRefresh={onRefresh}
           />
           {error ? (
-            <div className="desktop-utility-empty danger">{error}</div>
+            <div className="desktop-utility-empty desktop-settings-lead-state danger">{error}</div>
           ) : loading && !status ? (
-            <div className="desktop-utility-empty">{t("settings.git.reading")}</div>
+            <div className="desktop-utility-empty desktop-settings-lead-state">{t("settings.git.reading")}</div>
           ) : status && !status.isRepo ? (
-            <div className="desktop-utility-empty">{t("settings.git.notRepository")}</div>
+            <div className="desktop-utility-empty desktop-settings-lead-state">{t("settings.git.notRepository")}</div>
           ) : (
             <>
               <PuppyoneWorkspaceConfigSettings
@@ -102,7 +102,8 @@ export function CloudHostingSettingsView({
                       <SettingsValueRow
                         label={t("settings.cloud.connectionUrl")}
                         value={cloudRemoteUrl ? maskRemoteUrl(cloudRemoteUrl) : t("settings.shared.notConfigured")}
-                        title={cloudRemoteUrl ?? undefined}
+                        tooltip={cloudRemoteUrl ? maskRemoteUrl(cloudRemoteUrl) : undefined}
+                        tooltipOverflowOnly
                         monospace
                         action={cloudRemoteUrl ? (
                           <CopyAction
@@ -155,19 +156,18 @@ export function GitSettingsView({
         <div className="desktop-settings-section">
           <SettingsHeading
             title={t("settings.git.title")}
-            detail={t("settings.git.detail")}
             loading={loading}
             onRefresh={onRefresh}
           />
           {error ? (
-            <div className="desktop-utility-empty danger">{error}</div>
+            <div className="desktop-utility-empty desktop-settings-lead-state danger">{error}</div>
           ) : loading && !status ? (
-            <div className="desktop-utility-empty">{t("settings.git.reading")}</div>
+            <div className="desktop-utility-empty desktop-settings-lead-state">{t("settings.git.reading")}</div>
           ) : status && !status.isRepo ? (
-            <div className="desktop-utility-empty">{t("settings.git.notRepository")}</div>
+            <div className="desktop-utility-empty desktop-settings-lead-state">{t("settings.git.notRepository")}</div>
           ) : (
             <>
-              <SettingsSubsection title={t("settings.git.repository")}>
+              <SettingsSubsection title={t("settings.git.repository")} leading>
                 <SettingsValueRow label={t("settings.git.branch")} value={status?.branch ?? t("settings.git.detached")} />
                 <SettingsValueRow
                   label={t("settings.git.branches")}
@@ -188,7 +188,7 @@ export function GitSettingsView({
                     {t("settings.git.autoCommit.localOnly")}
                   </div>
                   <div className="desktop-settings-row desktop-settings-row-control">
-                    <span title={t("settings.git.autoCommit.enabled.detail")}>
+                    <span>
                       {t("settings.git.autoCommit.enabled.title")}
                     </span>
                     <SettingsToggle
@@ -272,8 +272,14 @@ export function GitSettingsView({
                         <span>{t("settings.git.remoteBranchCount", { count: remote.branches.length })}</span>
                       </div>
                       <div className="desktop-settings-remote-setting-url">
-                        <code dir="ltr" title={copyUrl ?? ""}>{copyUrl ? maskRemoteUrl(copyUrl) : t("settings.shared.notConfigured")}</code>
-                        {pushUrlDiffers && remote.pushUrl && <small title={remote.pushUrl}>{t("settings.git.pushUrlDiffers")}</small>}
+                        <Tooltip content={copyUrl ? maskRemoteUrl(copyUrl) : undefined} overflowOnly><code
+                          dir="ltr"
+                        >
+                          {copyUrl ? maskRemoteUrl(copyUrl) : t("settings.shared.notConfigured")}
+                        </code></Tooltip>
+                        {pushUrlDiffers && remote.pushUrl && (
+                          <Tooltip content={maskRemoteUrl(remote.pushUrl)}><small>{t("settings.git.pushUrlDiffers")}</small></Tooltip>
+                        )}
                       </div>
                       <CopyAction
                         copied={copiedRemoteKey === copyKey}
@@ -295,19 +301,17 @@ export function GitSettingsView({
 
 function SettingsHeading({
   title,
-  detail,
   loading,
   onRefresh,
 }: {
   title: string;
-  detail?: string;
   loading: boolean;
   onRefresh: () => void;
 }) {
   const { t } = useLocalization();
   return (
     <div className="desktop-settings-heading-row">
-      <SettingsSectionHeader title={title} detail={detail} />
+      <SettingsSectionHeader title={title} />
       <button className="desktop-settings-action" type="button" onClick={onRefresh} disabled={loading}>
         <RefreshCw size={14} className={loading ? "spin" : undefined} />
         <span>{t("common.action.refresh")}</span>

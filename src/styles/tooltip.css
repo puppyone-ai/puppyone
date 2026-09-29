@@ -1,0 +1,49 @@
+.desktop-tooltip {
+  position: fixed;
+  z-index: 2000;
+  display: inline-flex;
+  box-sizing: border-box;
+  max-width: min(320px, calc(100vw - 16px));
+  min-height: var(--po-control-size);
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: 9px;
+  background: var(--po-editor-bg);
+  background-clip: padding-box;
+  box-shadow: var(--po-menu-shadow);
+  color: var(--po-text);
+  font-family: var(--po-font-ui, system-ui, sans-serif);
+  font-size: var(--po-type-ui-caption, 12px);
+  font-weight: 400;
+  line-height: calc(var(--po-type-ui-caption, 12px) + 4px);
+  pointer-events: none;
+  animation: desktop-tooltip-appear 100ms ease-out;
+}
+
+.desktop-tooltip-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.desktop-tooltip-shortcut {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--po-editor-bg) 88%, var(--po-text) 12%);
+  color: color-mix(in srgb, var(--po-text) 82%, var(--po-text-muted) 18%);
+  font-family: inherit;
+  font-size: var(--po-type-ui-micro, 11px);
+  line-height: calc(var(--po-type-ui-micro, 11px) + 5px);
+  white-space: nowrap;
+}
+
+@keyframes desktop-tooltip-appear {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desktop-tooltip { animation: none; }
+}

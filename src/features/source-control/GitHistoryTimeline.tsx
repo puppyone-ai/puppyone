@@ -1,5 +1,6 @@
 import { ChevronDown, GitBranch } from "lucide-react";
 import {
+  Tooltip,
   FileGlyphIcon,
   VirtualSidebarList,
   useCssPixelCustomProperty,
@@ -153,18 +154,19 @@ function GitHistoryRow({
       className={`desktop-history-row ${isSelected ? "active" : ""}`}
       type="button"
       onClick={onClick}
-      title={commit.message}
     >
       <span className="desktop-history-row-main">
         <span className="desktop-history-row-title">
-          <bdi className="desktop-history-row-message">
-            {commit.message || t("source-control.commit.noMessage")}
-          </bdi>
+          <Tooltip content={commit.message} overflowOnly>
+            <bdi className="desktop-history-row-message">
+              {commit.message || t("source-control.commit.noMessage")}
+            </bdi>
+          </Tooltip>
           {(hasAdditions || hasDeletions) && (
-            <span className="desktop-history-row-stat" title={exactStats} aria-label={exactStats}>
+            <Tooltip content={exactStats}><span className="desktop-history-row-stat" aria-label={exactStats}>
               {hasAdditions && <span className="added">+{compactNumber(totals.additions)}</span>}
               {hasDeletions && <span className="deleted">-{compactNumber(totals.deletions)}</span>}
-            </span>
+            </span></Tooltip>
           )}
         </span>
         {visibleChanges.length > 0 && (
@@ -210,13 +212,12 @@ function GitHistoryFilePreview({
     <span
       className="desktop-history-row-file"
       data-status={change.status}
-      title={`${statusLabel}: ${displayPath}`}
     >
       <span className="desktop-history-row-file-icon" aria-hidden="true">
         <FileGlyphIcon name={change.path} size={14} theme={fileIconTheme} />
       </span>
       {marker && <span className="desktop-history-row-file-marker" aria-hidden="true">{marker}</span>}
-      <bdi>{displayPath}</bdi>
+      <Tooltip content={`${statusLabel}: ${displayPath}`} overflowOnly><bdi>{displayPath}</bdi></Tooltip>
     </span>
   );
 }

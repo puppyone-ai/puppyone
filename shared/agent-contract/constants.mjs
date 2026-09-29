@@ -20,6 +20,9 @@ export const REQUIRED_AGENT_RUNTIME_METHODS = Object.freeze([
   "inspect", "createSession", "resumeSession", "startTurn", "interruptTurn", "dispose",
 ]);
 
+/** The provider process ended after the native turn had a confirmed terminal outcome. */
+export const AGENT_IDLE_DISCONNECT_REASON = "provider-idle-exit";
+
 /**
  * Stable, renderer-safe reasons for an Agent runtime readiness result.
  *

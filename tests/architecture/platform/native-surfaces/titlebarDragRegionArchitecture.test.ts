@@ -10,6 +10,10 @@ const windowChromeComponent = readFileSync(
 );
 const electronMain = readFileSync(new URL("../../../../electron/main.mjs", import.meta.url), "utf8");
 const desktopShell = readFileSync(new URL("../../../../src/components/DesktopCloudShell.tsx", import.meta.url), "utf8");
+const auxiliaryPanelHost = readFileSync(
+  new URL("../../../../src/features/app-shell/auxiliary/AuxiliaryPanelHost.tsx", import.meta.url),
+  "utf8",
+);
 const shellCss = readFileSync(new URL("../../../../src/styles/shell.css", import.meta.url), "utf8");
 const desktopMenu = readFileSync(new URL("../../../../src/components/DesktopMenu.tsx", import.meta.url), "utf8");
 const sharedWorkspaceCss = readFileSync(
@@ -65,6 +69,23 @@ describe("titlebar drag-region architecture", () => {
     expect(shellCss).toMatch(/\.desktop-shell-workbench\s*\{[^}]*flex-direction:\s*column;/s);
     expect(shellCss).toMatch(/\.desktop-shell-below-header\s*\{[^}]*flex-direction:\s*row;/s);
     expect(titlebarCss).not.toContain('.desktop-shell[data-leading-rail="true"] .desktop-titlebar');
+  });
+
+  it("keeps right alignment stable while retaining hidden sidebar-edge rollout code", () => {
+    expect(desktopShell).toContain("const FOLLOW_RIGHT_SIDEBAR_EDGE_IN_HEADER = false;");
+    expect(desktopShell).toContain('"--desktop-shell-right-sidebar-width": `${renderedRightSidebarWidth}px`');
+    expect(desktopShell).toContain('data-header-follows-right-sidebar={trackRightSidebarHeader ? "true" : undefined}');
+    expect(desktopShell).toContain("? handleRenderedRightSidebarWidthChange");
+    expect(auxiliaryPanelHost).toContain("new ResizeObserver(publishWidth)");
+    expect(auxiliaryPanelHost).toContain("panelElement.getBoundingClientRect().width");
+    expect(titlebarCss).toContain(
+      '.desktop-shell[data-header-follows-right-sidebar="true"] .desktop-titlebar-trailing',
+    );
+    expect(titlebarCss).toContain("width: var(--desktop-shell-right-sidebar-width);");
+    expect(titlebarCss).toContain(
+      '.desktop-titlebar-share + .desktop-titlebar-action-divider',
+    );
+    expect(titlebarCss).toContain("inset-inline-start: 0;");
   });
 
   it("keeps the native fullscreen reveal bar free of application titles", () => {

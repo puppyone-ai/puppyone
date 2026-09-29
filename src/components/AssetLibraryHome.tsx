@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { AlertTriangle, FolderOpen, Monitor, Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
@@ -145,7 +146,6 @@ function LocalAssetCard({
       <button
         className="asset-library-card-main"
         type="button"
-        title={item.localPath}
         disabled={busy}
         aria-busy={opening || undefined}
         aria-label={t("onboarding.projects.open", { project: bidiIsolate(name) })}
@@ -153,7 +153,7 @@ function LocalAssetCard({
       >
         <span className="asset-library-card-cover" data-signature="0" aria-hidden="true"><span className="asset-library-card-monogram">{name.slice(0, 2).toUpperCase()}</span></span>
         <span className="asset-library-card-body">
-          <bdi className="asset-library-card-title">{name}</bdi>
+          <Tooltip content={item.localPath} overflowOnly><bdi className="asset-library-card-title">{name}</bdi></Tooltip>
           <span className="asset-library-card-footer">
             <span className="asset-library-card-location local">
               {opening ? <InlineLoading label={t("onboarding.status.opening")} size="xs" tone="neutral" /> : <><Monitor size={13} strokeWidth={1.9} /><span>{t("onboarding.library.location.local")}</span></>}

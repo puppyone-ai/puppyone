@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const sharedSidebarCss = read("../../../../packages/shared-ui/src/styles/sidebar-primitives.css");
+const paneCss = read("../../../../packages/shared-ui/src/sidebar/collapsible-pane.css");
 const controlGeometryCss = read("../../../../packages/shared-ui/src/styles/control-geometry.css");
 const sharedDataWorkspaceCss = read("../../../../packages/shared-ui/src/styles/data-workspace.css");
 const dataShellCss = read("../../../../src/features/data-workspace/data-shell.css");
@@ -32,6 +33,7 @@ const tokens = read("../../../../src/styles/tokens.css");
 describe("Sidebar architecture", () => {
   it("keeps the dependency direction and CSS ownership explicit", () => {
     expect(sharedSidebarCss).toContain("@layer primitives");
+    expect(paneCss).toContain("@layer primitives");
     expect(patternCss).toContain("@layer patterns");
     expect(sharedSidebarCss).not.toContain("desktop-tool-sidebar");
     expect(patternCss).not.toContain("desktop-tool-sidebar");
@@ -81,22 +83,24 @@ describe("Sidebar architecture", () => {
     expect(auxiliaryHostSource).toContain("CollapsiblePaneFrame");
     expect(auxiliaryHostSource).toContain("useCollapsiblePaneResize");
     expect(auxiliaryHostSource).toContain('orientation: "vertical"');
-    expect(settingsSidebarSource).toContain("resolveSettingsSidebarGroups({ cloudEnabled })");
+    expect(settingsSidebarSource).toContain(
+      "resolveSettingsSidebarGroups({ cloudEnabled, otherAppImportsEnabled })",
+    );
     expect(settingsModelSource).toContain("SETTINGS_SIDEBAR_GROUPS");
     expect(settingsModelSource).toContain("requiresCloud: true");
   });
 
   it("collapses panes through animated resize tracks without expanded-state toggle buttons", () => {
-    expect(sharedSidebarCss).not.toContain(".po-pane-edge-toggle");
+    expect(paneCss).not.toContain(".po-pane-edge-toggle");
     expect(dataShellCss).not.toContain(".data-explorer-toggle");
     expect(layoutCss).not.toContain(".desktop-right-sidebar-toggle");
-    expect(sharedSidebarCss).toContain("width var(--po-pane-motion-duration, 360ms)");
-    expect(sharedSidebarCss).toMatch(
+    expect(paneCss).toContain("width var(--po-pane-motion-duration, 360ms)");
+    expect(paneCss).toMatch(
       /\.po-collapsible-pane-frame\[data-pane-gesture="resizing"\]\s*\{[^}]*transition:\s*none;/s,
     );
     expect(dataShellCss).not.toContain("transition: grid-template-columns 360ms");
     expect(dataShellCss).not.toContain("transition: inset-inline-start 360ms");
-    expect(sharedSidebarCss).toContain("flex-basis var(--po-pane-motion-duration, 360ms)");
+    expect(paneCss).toContain("flex-basis var(--po-pane-motion-duration, 360ms)");
     expect(projectSwitcherRailCss).not.toContain("width var(--po-pane-motion-duration, 360ms)");
     expect(controlGeometryCss).toContain("--po-pane-motion-duration: 360ms");
     expect(controlGeometryCss).toContain("--po-pane-motion-easing: cubic-bezier(0.42, 0, 0.58, 1)");
@@ -131,8 +135,8 @@ describe("Sidebar architecture", () => {
   });
 
   it("keeps collapsed pane edges resize-only without midpoint expansion buttons", () => {
-    expect(sharedSidebarCss).toContain(".po-collapsed-pane-edge-handle::after");
-    expect(sharedSidebarCss).not.toContain(".po-collapsed-pane-edge-glyph");
+    expect(paneCss).toContain(".po-collapsed-pane-edge-handle::after");
+    expect(paneCss).not.toContain(".po-collapsed-pane-edge-glyph");
     expect(auxiliaryHostSource).not.toContain("onCollapsedActivate");
     expect(desktopShellSource).not.toContain("onCollapsedActivate");
     expect(auxiliaryHostSource).not.toContain("collapsedEdgeSettled");
@@ -154,9 +158,9 @@ describe("Sidebar architecture", () => {
 
   it("keeps direct resize canonical while visibility transitions preserve content width", () => {
     expect(sharedDataWorkspaceCss).toMatch(/\.data-content\s*\{[^}]*display:\s*flex/s);
-    expect(sharedDataWorkspaceCss).toMatch(
-      /\.data-explorer-resizer\s*\{[^}]*inset-inline-start:\s*auto;[^}]*inset-inline-end:\s*calc\(1px - var\(--po-pane-resizer-hit-size, 8px\)\);[^}]*background:\s*transparent;/s,
-    );
+    expect(sharedDataWorkspaceCss).not.toMatch(/\.data-explorer-resizer\s*\{/);
+    expect(collapsiblePaneFrameSource).toContain('"data-pane-edge": resolvedResizeHandleProps ? "resizable" : "static"');
+    expect(paneCss).toContain('.po-collapsible-pane-frame[data-pane-edge="static"]:not([data-pane-presentation="collapsed"])::after');
     for (const source of [dataWorkspaceSource, auxiliaryHostSource, desktopShellSource]) {
       expect(source).toContain("<CollapsiblePaneFrame");
       expect(source).not.toContain("<SidebarResizeHandle");
@@ -164,10 +168,10 @@ describe("Sidebar architecture", () => {
     expect(collapsiblePaneFrameSource).toMatch(
       /po-collapsible-pane-viewport[\s\S]*po-collapsible-pane-content[\s\S]*<SidebarResizeHandle/,
     );
-    expect(sharedSidebarCss).toMatch(
+    expect(paneCss).toMatch(
       /\.po-collapsible-pane-viewport\s*\{[^}]*position:\s*absolute[^}]*inset:\s*0[^}]*overflow:\s*clip/s,
     );
-    expect(sharedSidebarCss).toMatch(
+    expect(paneCss).toMatch(
       /\.po-collapsible-pane-content\s*\{[^}]*width:\s*var\(--po-collapsible-pane-content-width, 100%\)[^}]*min-width:\s*var\(--po-collapsible-pane-content-width, 100%\)/s,
     );
     expect(dataWorkspaceSource).toContain("contentWidth={renderedExplorerContentWidth}");
@@ -183,7 +187,7 @@ describe("Sidebar architecture", () => {
     expect(dataWorkspaceSource).toContain("explorerResize.width,");
     expect(dataSurfaceSource).toContain("paneLayout?.explorer.collapsed");
     expect(dataSurfaceSource).toContain("? preferences.explorerWidth");
-    expect(sidebarBoundarySmoke).toContain("explorerMotion.maxDividerDelta<=2");
+    expect(sidebarBoundarySmoke).toContain("explorerMotion.maxDividerDelta<=1");
     expect(sidebarBoundarySmoke).toContain("explorerMotion.contentWidths.length===1");
     expect(sidebarBoundarySmoke).toContain("collapsePreview.contentWidth");
     expect(sidebarBoundarySmoke).toContain("collapsePreview.temporarilyCollapsed");
@@ -194,9 +198,9 @@ describe("Sidebar architecture", () => {
     expect(dataShellCss).not.toContain('.data-content[data-resizable-explorer="true"]');
     expect(dataShellCss).not.toContain(".explorer-column");
     expect(dataShellCss).not.toContain("grid-column: 3;");
-    expect(sharedSidebarCss).toContain("width: var(--po-collapsible-pane-frame-width, auto)");
-    expect(sharedSidebarCss).not.toContain("translateX");
-    expect(sharedSidebarCss).not.toContain("data-pane-content-motion");
+    expect(paneCss).toContain("width: var(--po-collapsible-pane-frame-width, auto)");
+    expect(paneCss).not.toContain("translateX");
+    expect(paneCss).not.toContain("data-pane-content-motion");
     for (const source of [dataWorkspaceSource, auxiliaryHostSource, desktopShellSource]) {
       expect(source).not.toContain("contentMotion");
       expect(source).not.toContain("contentHidden");

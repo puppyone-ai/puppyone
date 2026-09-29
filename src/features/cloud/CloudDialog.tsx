@@ -21,7 +21,7 @@ export type CloudDialogProps = {
  */
 export function CloudDialog({ sidebar, main, onClose }: CloudDialogProps) {
   const { t } = useLocalization();
-  const title = t("shell.navigation.cloud");
+  const title = t("cloud.productName");
 
   return (
     <DesktopOverlayLayer>
@@ -38,7 +38,7 @@ export function CloudDialog({ sidebar, main, onClose }: CloudDialogProps) {
               </span>
               <h2>{title}</h2>
             </div>
-            <DesktopDialogCloseButton title={t("common.action.close")} onClick={onClose} />
+            <DesktopDialogCloseButton label={t("common.action.close")} onClick={onClose} />
           </header>
 
           <div className="desktop-cloud-dialog-layout">

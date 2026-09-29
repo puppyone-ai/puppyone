@@ -58,7 +58,7 @@ describe("native window layout IPC", () => {
       titlebar: "default-titlebar-v1",
     })).toEqual({ applied: true, customControls: false });
     expect(ownerWindow.setWindowButtonVisibility).toHaveBeenLastCalledWith(true);
-    expect(ownerWindow.setWindowButtonPosition).toHaveBeenLastCalledWith({ x: 13, y: 12 });
+    expect(ownerWindow.setWindowButtonPosition).toHaveBeenLastCalledWith({ x: 15, y: 13 });
     expect(ownerWindow.setWindowButtonPosition.mock.invocationCallOrder.at(-1)).toBeGreaterThan(
       ownerWindow.setWindowButtonVisibility.mock.invocationCallOrder.at(-1),
     );
@@ -72,7 +72,7 @@ describe("native window layout IPC", () => {
     expect(applyProfile(createEvent(), {
       titlebar: "unknown-titlebar-v1",
     })).toEqual({ applied: true, customControls: false });
-    expect(ownerWindow.setWindowButtonPosition).toHaveBeenLastCalledWith({ x: 13, y: 12 });
+    expect(ownerWindow.setWindowButtonPosition).toHaveBeenLastCalledWith({ x: 15, y: 13 });
   });
 
   it("keeps native traffic lights hidden when macOS recreates window chrome", () => {
@@ -102,12 +102,12 @@ describe("native window layout IPC", () => {
       customControls: false,
     });
     expect(ownerWindow.setWindowButtonVisibility).toHaveBeenLastCalledWith(true);
-    expect(ownerWindow.setWindowButtonPosition).toHaveBeenLastCalledWith({ x: 13, y: 12 });
+    expect(ownerWindow.setWindowButtonPosition).toHaveBeenLastCalledWith({ x: 15, y: 13 });
     ownerWindow.setWindowButtonVisibility.mockClear();
     ownerWindow.setWindowButtonPosition.mockClear();
     expect(reapplyWindowChromeProfile(ownerWindow)).toMatchObject({ customControls: false });
     expect(ownerWindow.setWindowButtonVisibility).not.toHaveBeenCalled();
-    expect(ownerWindow.setWindowButtonPosition).toHaveBeenCalledExactlyOnceWith({ x: 13, y: 12 });
+    expect(ownerWindow.setWindowButtonPosition).toHaveBeenCalledExactlyOnceWith({ x: 15, y: 13 });
 
     expect(applyProfile(createEvent(), {
       titlebar: "default-titlebar-v1",
@@ -117,7 +117,7 @@ describe("native window layout IPC", () => {
       customControls: false,
     });
     expect(ownerWindow.setWindowButtonVisibility).toHaveBeenLastCalledWith(true);
-    expect(ownerWindow.setWindowButtonPosition).toHaveBeenLastCalledWith({ x: 13, y: 12 });
+    expect(ownerWindow.setWindowButtonPosition).toHaveBeenLastCalledWith({ x: 15, y: 13 });
   });
 
   it("keeps the platform-native controls outside macOS", () => {
@@ -132,7 +132,7 @@ describe("native window layout IPC", () => {
       customControls: false,
     });
     expect(ownerWindow.setWindowButtonVisibility).toHaveBeenLastCalledWith(true);
-    expect(ownerWindow.setWindowButtonPosition).toHaveBeenLastCalledWith({ x: 13, y: 12 });
+    expect(ownerWindow.setWindowButtonPosition).toHaveBeenLastCalledWith({ x: 15, y: 13 });
   });
 
   it("repositions default traffic lights on focus without rebuilding their safe area", () => {
@@ -147,7 +147,7 @@ describe("native window layout IPC", () => {
 
     expect(reapplyWindowChromeProfile(ownerWindow)).toMatchObject({ customControls: false });
     expect(ownerWindow.setWindowButtonVisibility).not.toHaveBeenCalled();
-    expect(ownerWindow.setWindowButtonPosition).toHaveBeenCalledExactlyOnceWith({ x: 13, y: 12 });
+    expect(ownerWindow.setWindowButtonPosition).toHaveBeenCalledExactlyOnceWith({ x: 15, y: 13 });
   });
 
   it("executes only allowlisted renderer window actions", () => {

@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -7,9 +8,11 @@ import {
   type CSSProperties,
   type ReactNode,
   type RefObject,
+  type Ref,
 } from "react";
 import { PanelLeft } from "lucide-react";
 import {
+  Tooltip,
   CollapsiblePaneFrame,
   useCollapsiblePaneResize,
   type CollapsiblePanePresentation,
@@ -41,6 +44,10 @@ import type { WorkspaceSurfaceId } from "../features/app-shell/workspace-surface
 export type DesktopView = WorkspaceSurfaceId;
 export type DesktopLeadingRailRenderState = Readonly<{ expanded: boolean }>;
 
+// Internal rollout switch. This deliberately stays out of Experimental
+// Settings: the stable composition keeps Cloud, Git, and Chat right-aligned.
+const FOLLOW_RIGHT_SIDEBAR_EDGE_IN_HEADER = false;
+
 type DesktopCloudShellProps = {
   children: ReactNode;
   leadingRail?: ReactNode;
@@ -55,6 +62,7 @@ type DesktopCloudShellProps = {
   titlebarSidebarSlot?: ReactNode;
   titlebarEditorSlot?: ReactNode;
   titlebarActions?: ReactNode;
+  titlebarTabsHostRef?: Ref<HTMLDivElement>;
   navigationToolbarActions?: ReactNode;
   locationBar?: ReactNode;
   leftSidebarCollapsed?: boolean;
@@ -90,6 +98,7 @@ export function DesktopCloudShell({
   titlebarSidebarSlot,
   titlebarEditorSlot,
   titlebarActions,
+  titlebarTabsHostRef,
   navigationToolbarActions,
   locationBar,
   leftSidebarCollapsed = false,
@@ -114,6 +123,7 @@ export function DesktopCloudShell({
   const bodyRef = useRef<HTMLDivElement>(null);
   const [navigationToolbarHost, setNavigationToolbarHost] = useState<HTMLDivElement | null>(null);
   const [leadingRailResizerElement, setLeadingRailResizerElement] = useState<HTMLDivElement | null>(null);
+  const [renderedRightSidebarWidth, setRenderedRightSidebarWidth] = useState(0);
   const bodyWidth = useObservedElementWidth(bodyRef);
   const resolvedLeadingRailMinWidth = Math.max(0, Math.round(leadingRailMinWidth));
   const resolvedLeadingRailMaxWidth = Math.max(
@@ -229,10 +239,25 @@ export function DesktopCloudShell({
     : paneLayout.explorer.collapsed
       ? "collapsed"
       : "expanded";
+  const rightSidebarPresent = Boolean(rightSidebar);
+  const trackRightSidebarHeader = FOLLOW_RIGHT_SIDEBAR_EDGE_IN_HEADER && rightSidebarPresent && (
+    paneLayout.rightSidebar.open || renderedRightSidebarWidth > 0.5
+  );
+  const handleRenderedRightSidebarWidthChange = useCallback((width: number) => {
+    const normalizedWidth = Math.max(0, width);
+    setRenderedRightSidebarWidth((current) => (
+      Math.abs(current - normalizedWidth) < 0.25 ? current : normalizedWidth
+    ));
+  }, []);
   const shellStyle = {
     "--desktop-shell-explorer-width": `${paneLayout.explorer.width}px`,
     "--desktop-shell-leading-rail-width": `${resolvedLeadingRailWidth}px`,
+    "--desktop-shell-right-sidebar-width": `${renderedRightSidebarWidth}px`,
   } as CSSProperties;
+
+  useEffect(() => {
+    if (!rightSidebarPresent) setRenderedRightSidebarWidth(0);
+  }, [rightSidebarPresent]);
 
   useEffect(() => {
     publishWindowMinimumWidth(paneLayout.minimumWidth + resolvedLeadingRailWidth);
@@ -290,6 +315,7 @@ export function DesktopCloudShell({
     <div
       className="desktop-shell"
       data-leading-rail={leadingRailPresent ? "true" : undefined}
+      data-header-follows-right-sidebar={trackRightSidebarHeader ? "true" : undefined}
       data-titlebar-sidebar-state={sidebarState}
       style={shellStyle}
     >
@@ -302,15 +328,14 @@ export function DesktopCloudShell({
                 data-sidebar-state={sidebarState}
               >
                 {paneLayout.explorer.collapsed && leftSidebarPresent && onLeftSidebarExpand && (
-                  <button
+                  <Tooltip content={t("shared-ui.explorer.expandSidebar")}><button
                     className="desktop-titlebar-context-icon-button desktop-titlebar-sidebar-expand"
                     type="button"
                     aria-label={t("shared-ui.explorer.expandSidebar")}
-                    title={t("shared-ui.explorer.expandSidebar")}
                     onClick={() => onLeftSidebarExpand()}
                   >
                     <PanelLeft size={15} strokeWidth={1.8} aria-hidden="true" />
-                  </button>
+                  </button></Tooltip>
                 )}
                 {titlebarSidebarSlot}
               </div>
@@ -322,6 +347,7 @@ export function DesktopCloudShell({
             </>
           )}
           actions={titlebarActions}
+          sessionTabsHostRef={titlebarTabsHostRef}
         />
 
         <div className="desktop-shell-below-header">
@@ -397,6 +423,9 @@ export function DesktopCloudShell({
                         maxWidth={paneLayout.rightSidebar.maxWidth}
                         resizable={resizableRightSidebar}
                         onOpenChange={onRightSidebarOpenChange}
+                        onRenderedWidthChange={FOLLOW_RIGHT_SIDEBAR_EDGE_IN_HEADER
+                          ? handleRenderedRightSidebarWidthChange
+                          : undefined}
                         onWidthChange={onRightSidebarWidthChange}
                       >
                         {rightSidebar}

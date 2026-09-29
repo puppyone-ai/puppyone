@@ -179,6 +179,7 @@ export const CollapsiblePaneFrame = forwardRef<HTMLElement, CollapsiblePaneFrame
       className: joinSidebarClassNames("po-collapsible-pane-frame", className),
       "data-pane-collapsed": collapsed ? "true" : "false",
       "data-pane-content-visible": contentVisible ? "true" : "false",
+      "data-pane-edge": resolvedResizeHandleProps ? "resizable" : "static",
       "data-pane-gesture": gesturePhase === "idle" ? undefined : gesturePhase,
       "data-pane-presentation": phase,
       "data-pane-side": side,

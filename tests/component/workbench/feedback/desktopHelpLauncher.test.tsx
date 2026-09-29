@@ -44,7 +44,7 @@ describe("DesktopHelpLauncher", () => {
 
     expect(launcher).not.toBeNull();
     expect(launcher?.type).toBe("button");
-    expect(launcher?.getAttribute("title")).toBe("Feedback");
+    expect(launcher?.getAttribute("data-tooltip")).toBe("Feedback");
     expect(launcher?.getAttribute("aria-haspopup")).toBe("dialog");
     expect(launcher?.getAttribute("aria-expanded")).toBe("false");
     const iconSlot = launcher?.querySelector(".desktop-help-launcher-icon-slot");

@@ -30,7 +30,7 @@ export function SandboxedAppFrame({
       className="app-preview-frame"
       data-puppyone-app-frame="true"
       src={url}
-      title={title}
+      aria-label={title}
       sandbox={APP_FRAME_SANDBOX}
       allow={APP_FRAME_PERMISSIONS}
       referrerPolicy="no-referrer"

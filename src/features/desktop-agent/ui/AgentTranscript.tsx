@@ -1,6 +1,7 @@
 import type { AgentViewportGeometry } from "../domain/agent-ui-state";
 import { memo, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import {
+  Tooltip,
   STANDARD_CONTROL_SIZE,
   useCssPixelCustomProperty,
 } from "@puppyone/shared-ui";
@@ -242,9 +243,9 @@ function AgentTranscriptView({
         </div>
       </div>
       {!pinned && timeline.rows.length > 0 && (
-        <button className="desktop-agent-jump-latest" type="button" onClick={() => { jumpToLatest(); setUnreadCount(0); }} aria-label={unreadCount
+        <Tooltip content={t("agent.transcript.jumpLatest")}><button className="desktop-agent-jump-latest" type="button" onClick={() => { jumpToLatest(); setUnreadCount(0); }} aria-label={unreadCount
           ? t("agent.transcript.jumpLatestUnread", { count: unreadCount })
-          : t("agent.transcript.jumpLatest")} title={t("agent.transcript.jumpLatest")}><ArrowDown size={15} /></button>
+          : t("agent.transcript.jumpLatest")}><ArrowDown size={15} /></button></Tooltip>
       )}
     </div>
   );

@@ -91,6 +91,8 @@ export type DesktopDataWorkspaceSurfaceProps = {
   onActiveDataNodeChange: (node: DataNode | null) => void;
   onResourceMove: (previousPath: string, nextPath: string) => void | Promise<void>;
   onRemoveProject: (folder: WorkspaceFolder) => void | Promise<void>;
+  openCreateEntryParentPath: string | null | undefined;
+  openNodeActionPath: string | null;
   onCreateEntryMenu: (parentPath: string | null, anchorRect: DesktopCreateEntryAnchorInput) => void;
   onDismissCreateEntryMenu: () => void;
   onNodeActionMenu: (node: DataNode, anchorRect: DOMRect, selectedNodes?: readonly DataNode[]) => void;
@@ -122,6 +124,8 @@ export function DesktopDataWorkspaceSurface({
   onActiveDataNodeChange,
   onResourceMove,
   onRemoveProject,
+  openCreateEntryParentPath,
+  openNodeActionPath,
   onActiveDataPathChange,
   onCreateEntryMenu,
   onDismissCreateEntryMenu,
@@ -230,7 +234,6 @@ export function DesktopDataWorkspaceSurface({
         onExportNodes={exportNodes}
         resourceDragEntries={resourceDragPreview?.entries}
         onResolveFileDrop={resolveFileDrop}
-        dragExportHint={t("workspace.drag.exportHint")}
         key={explorerSession.key}
         workspace={workspace}
         labels={{ root: workspace.name }}
@@ -334,7 +337,10 @@ export function DesktopDataWorkspaceSurface({
                 />
               )}
               <DesktopExplorerRowActions
+                createMenuOpen={openCreateEntryParentPath !== undefined
+                  && openCreateEntryParentPath === (node.type === "folder" ? node.path : null)}
                 node={node}
+                nodeMenuOpen={openNodeActionPath === node.path}
                 parentPath={node.type === "folder" ? node.path : null}
                 showMoreActions={!node.workspaceFolderRoot}
                 onRemoveWorkspaceRoot={workspaceFolders.length > 0

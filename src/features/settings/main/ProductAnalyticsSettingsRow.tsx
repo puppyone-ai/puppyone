@@ -67,7 +67,7 @@ export function ProductAnalyticsSettingsRow() {
   return (
     <div className="desktop-settings-row desktop-settings-row-control" aria-busy={loading || saving}>
       <div className="desktop-product-analyze-label">
-        <span title={detail}>{title}</span>
+        <span>{title}</span>
         <a
           className="desktop-product-analyze-learn-more"
           href={DESKTOP_TELEMETRY_DISCLOSURE_URL}

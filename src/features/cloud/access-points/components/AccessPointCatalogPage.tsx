@@ -27,7 +27,6 @@ export function AccessPointCatalogPage({
   onStatusFilterChange,
   onOpenRow,
   onCreate,
-  onManageAll,
 }: {
   routeKind: AccessPointCatalogKind;
   selectedKind: AccessPointCatalogKind;
@@ -43,7 +42,6 @@ export function AccessPointCatalogPage({
   onStatusFilterChange: (status: AccessPointStatusFilter) => void;
   onOpenRow: (row: AccessPointRow) => void;
   onCreate: () => void;
-  onManageAll: () => void;
 }) {
   const { t } = useLocalization();
   const presentation = getAccessPointCatalogPresentation(routeKind, t);
@@ -61,16 +59,10 @@ export function AccessPointCatalogPage({
               <h1>{presentation.title}</h1>
               <p>{presentation.description}</p>
             </div>
-            {routeKind === "all" ? (
-              canManage && (
-                <button className="desktop-cloud-access-new-button" type="button" onClick={onCreate}>
-                  <Plus size={14} />
-                  <span>{t("cloud.access.new")}</span>
-                </button>
-              )
-            ) : (
-              <button className="desktop-cloud-access-new-button" type="button" onClick={onManageAll}>
-                {t("cloud.access.open")}
+            {canManage && (
+              <button className="desktop-cloud-access-new-button" type="button" onClick={onCreate}>
+                <Plus size={14} />
+                <span>{t(routeKind === "mcp" ? "cloud.access.create.intent.agent.label" : "cloud.access.new")}</span>
               </button>
             )}
           </header>

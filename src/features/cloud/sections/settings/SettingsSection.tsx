@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { Check, Cloud, Copy, LockKeyhole, Unlink } from "lucide-react";
 import { useEffect, useState } from "react";
 import { bidiIsolate } from "@puppyone/localization/core";
@@ -228,7 +229,7 @@ export function CloudProjectSettingsSection({
                     <small>{t("cloud.settings.projectIdHelp")}</small>
                   </div>
                   <div>
-                    <code title={currentProject.id}>{currentProject.id}</code>
+                    <Tooltip content={currentProject.id} overflowOnly><code>{currentProject.id}</code></Tooltip>
                     <button type="button" onClick={() => void handleCopyProjectId()}>
                       {copiedProjectId ? <Check size={13} /> : <Copy size={13} />}
                       <span>{t(copiedProjectId ? "cloud.common.copied" : "cloud.common.copyValue")}</span>

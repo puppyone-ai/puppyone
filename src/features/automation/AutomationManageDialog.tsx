@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { bidiIsolate, type MessageFormatter } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
 import {
+  Tooltip,
   RENDERER_ASSET_PATHS,
   resolveRendererPublicAssetUrl,
 } from "@puppyone/shared-ui";
@@ -255,25 +256,23 @@ export function CloudManageAutomationDialog({
                 ? t("automation.manage.saving")
                 : paused ? t("automation.manage.resume") : t("automation.manage.pause")}
             </button>
-            <button
+            <Tooltip content={t("automation.manage.openInCloud")}><button
               className="desktop-dialog-button desktop-cloud-automation-icon-action"
               type="button"
               aria-label={t("automation.manage.openInCloud")}
-              title={t("automation.manage.openInCloud")}
               onClick={onOpenAutomation}
             >
               <ExternalLink size={14} />
-            </button>
-            <button
+            </button></Tooltip>
+            <Tooltip content={t("automation.manage.delete")}><button
               className="desktop-dialog-button desktop-cloud-automation-icon-action"
               type="button"
               disabled={busy !== null}
               aria-label={t("automation.manage.delete")}
-              title={t("automation.manage.delete")}
               onClick={() => setDeleteConfirm(true)}
             >
               <Trash2 size={14} />
-            </button>
+            </button></Tooltip>
             <DesktopDialogCloseButton disabled={busy !== null} onClick={onClose} />
           </div>
         </header>

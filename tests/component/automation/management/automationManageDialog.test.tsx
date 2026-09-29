@@ -120,8 +120,8 @@ describe("CloudManageAutomationDialog", () => {
 
     const openCloud = container.querySelector<HTMLButtonElement>('[aria-label="Open Automation in Cloud"]');
     const remove = container.querySelector<HTMLButtonElement>('[aria-label="Delete Automation"]');
-    expect(openCloud?.title).toBe("Open Automation in Cloud");
-    expect(remove?.title).toBe("Delete Automation");
+    expect(openCloud?.dataset.tooltip).toBe("Open Automation in Cloud");
+    expect(remove?.dataset.tooltip).toBe("Delete Automation");
     act(() => remove?.click());
     expect(container.textContent).toContain("Files already imported into the project will stay in place");
     expect(confirmSpy).not.toHaveBeenCalled();

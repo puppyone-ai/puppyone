@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import type { CsvTableStructureOperation } from "./csvTableOperations";
 import { EditableTableMenuIcon } from "../../table/EditableTableMenuIcon";
 import type { EditableTableMenuIconName } from "../../table/editableTableMenuIcons";
+import { Tooltip } from "../../../primitives/Tooltip";
 
 export type CsvTableMenuTarget = Readonly<{
   clientX: number;
@@ -236,29 +237,29 @@ export function CsvTableMenu({
           {section.label ? <div className="desktop-menu-section-label">{section.label}</div> : null}
           <div className="desktop-menu-section-list is-icon-toolbar">
             {section.items.map((item) => (
-              <button
-                key={item.id ?? item.operation?.type}
-                type="button"
-                role="menuitem"
-                className={`desktop-menu-item is-icon${item.destructive ? " danger" : ""}`}
-                disabled={item.disabled}
-                tabIndex={-1}
-                aria-label={item.label}
-                title={item.label}
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  if (item.disabled) return;
-                  onClose(false);
-                  if (item.operation) onOperation(item.operation);
-                  else item.run?.();
-                }}
-              >
-                <span className="desktop-menu-item-body">
-                  <EditableTableMenuIcon name={item.icon} />
-                  <span className="desktop-menu-item-label po-editable-table-menu-visually-hidden">{item.label}</span>
-                </span>
-              </button>
+              <Tooltip content={item.label} key={item.id ?? item.operation?.type}>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={`desktop-menu-item is-icon${item.destructive ? " danger" : ""}`}
+                  disabled={item.disabled}
+                  tabIndex={-1}
+                  aria-label={item.label}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (item.disabled) return;
+                    onClose(false);
+                    if (item.operation) onOperation(item.operation);
+                    else item.run?.();
+                  }}
+                >
+                  <span className="desktop-menu-item-body">
+                    <EditableTableMenuIcon name={item.icon} />
+                    <span className="desktop-menu-item-label po-editable-table-menu-visually-hidden">{item.label}</span>
+                  </span>
+                </button>
+              </Tooltip>
             ))}
           </div>
         </section>

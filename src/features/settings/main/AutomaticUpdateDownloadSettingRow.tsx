@@ -23,7 +23,7 @@ export function AutomaticUpdateDownloadSettingRow({
   return (
     <div className="desktop-settings-row desktop-settings-row-control" aria-busy={saving || undefined}>
       <div className="desktop-update-preference-label">
-        <span title={detail}>{title}</span>
+        <span>{title}</span>
         {error && (
           <small className="desktop-update-preference-error" role="alert">
             {t("updates.settings.autoDownload.error")}

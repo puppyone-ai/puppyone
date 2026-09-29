@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
 import {
+  Tooltip,
   RENDERER_ASSET_PATHS,
   resolveRendererPublicAssetUrl,
 } from "@puppyone/shared-ui";
@@ -239,18 +240,17 @@ export function CloudAutomationPage({
                 </span>
               </div>
               <div className="desktop-cloud-automation-creation-echo-actions">
-                <button type="button" title={t("automation.creation.refreshStatus")} onClick={() => void refreshCreationStatus()}>
+                <button type="button" onClick={() => void refreshCreationStatus()}>
                   <RefreshCw size={14} />
                   {t("common.action.refresh")}
                 </button>
-                <button
+                <Tooltip content={t("automation.creation.dismissStatus")}><button
                   type="button"
                   aria-label={t("automation.creation.dismissStatus")}
-                  title={t("automation.creation.dismissStatus")}
                   onClick={() => setCreationEcho(null)}
                 >
                   <X size={14} />
-                </button>
+                </button></Tooltip>
               </div>
             </section>
           )}
@@ -373,19 +373,11 @@ function CloudAutomationAccessList({
                       className={`desktop-cloud-automation-connection-card ${selectedRowId === row.id ? "selected" : ""} ${highlighted ? "created" : ""}`.trim()}
                       key={row.id}
                       type="button"
-                      title={t("automation.connection.title", {
-                        name: bidiIsolate(connectionTitle),
-                        path: bidiIsolate(getScopePathLabel(row.scope)),
-                      })}
                       onClick={() => onOpenRow(row.id)}
                     >
                       <span className="desktop-cloud-automation-route">
                         <span
                           className="desktop-cloud-automation-source-config"
-                          title={t("automation.connection.source", {
-                            provider: bidiIsolate(group.label),
-                            name: bidiIsolate(connectionTitle),
-                          })}
                         >
                           {iconUrl ? <img src={iconUrl} alt="" /> : <ProviderIcon size={16} />}
                           <span>{group.label}</span>

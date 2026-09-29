@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { useMemo, useState } from "react";
 import {
   Box,
@@ -309,12 +310,11 @@ function InstalledPluginRow({
         )}
       </div>
       <details className="desktop-plugin-menu">
-        <summary
+        <Tooltip content={t("plugins.manage", { name: bidiIsolate(plugin.label) })}><summary
           aria-label={t("plugins.manage", { name: bidiIsolate(plugin.label) })}
-          title={t("plugins.manage", { name: bidiIsolate(plugin.label) })}
         >
           <MoreHorizontal size={16} aria-hidden="true" />
-        </summary>
+        </summary></Tooltip>
         <div>
           <button type="button" disabled={busy} onClick={() => void onUninstall(plugin)}>
             <Trash2 size={13} aria-hidden="true" />

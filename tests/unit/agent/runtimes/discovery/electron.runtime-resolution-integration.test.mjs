@@ -161,12 +161,14 @@ describe("Authoritative runtime resolution", () => {
     const harness = createHarness(cursorProbeFailure());
     const owner = sender();
     await harness.service.discoverProviders(owner, { runtimeId: "cursor" }, "/workspace");
-    await harness.service.createSession(
+    const session = await harness.service.createSession(
       owner,
       { runtimeId: "cursor", model: "cursor/auto" },
       "/workspace",
     );
     expect(harness.adapters).toHaveLength(2);
+
+    await harness.service.startTurn(owner, { sessionId: session.session.id, prompt: "Keep running" }, "/workspace");
 
     harness.adapters[1].emitExit({ expected: false, diagnostics: "process exited" });
     await harness.service.discoverProviders(owner, { runtimeId: "cursor" }, "/workspace");
@@ -264,7 +266,7 @@ function fakeAcpAdapter({ onExit = () => {} } = {}) {
       nextCursor: null,
     })),
     forkSession: vi.fn(async () => ({ providerSessionId: "cursor-fork" })),
-    startTurn: vi.fn(),
+    startTurn: vi.fn(async () => ({ turnId: "turn-active" })),
     interruptTurn: vi.fn(),
     dispose: vi.fn(async () => undefined),
     emitExit: onExit,

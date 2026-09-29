@@ -11,6 +11,13 @@ export const AGENT_BRAND_IDS = Object.freeze([
   "pi",
   "workbuddy",
   "built-in-agent",
+  "viktor",
+  "replit",
+  "gemini",
+  "github-copilot",
+  "devin",
+  "copilot-studio",
+  "jules",
 ] as const);
 
 export type AgentBrandId = (typeof AGENT_BRAND_IDS)[number];
@@ -53,6 +60,13 @@ export const AGENT_BRAND_CATALOG: Readonly<Record<AgentBrandId, AgentBrandDefini
     ["built-in-agent", "built-in"],
     agentAssets.builtInAgent,
   ),
+  viktor: defineBrand("viktor", "Viktor", ["viktor"], agentAssets.viktor),
+  replit: defineBrand("replit", "Replit Agent", ["replit"], agentAssets.replit),
+  gemini: defineBrand("gemini", "Gemini", ["gemini"], agentAssets.gemini),
+  "github-copilot": defineBrand("github-copilot", "GitHub Copilot", ["github-copilot"], agentAssets.githubCopilot),
+  devin: defineBrand("devin", "Devin", ["devin"], agentAssets.devin),
+  "copilot-studio": defineBrand("copilot-studio", "Microsoft Copilot Studio", ["copilot-studio"], agentAssets.copilotStudio),
+  jules: defineBrand("jules", "Jules", ["jules"], agentAssets.jules),
 });
 
 const LEGACY_AGENT_BRAND_IDS: Readonly<Record<string, AgentBrandId>> = Object.freeze({

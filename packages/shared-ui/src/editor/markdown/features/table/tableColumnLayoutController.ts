@@ -1,3 +1,4 @@
+import { activateTooltip } from "../../../../primitives/Tooltip";
 import {
   EDITABLE_TABLE_COLUMN_RESIZE_MAX_WIDTH,
   clampEditableTableColumnWidth,
@@ -51,7 +52,7 @@ export function createMarkdownTableColumnLayoutController(
   handle.type = "button";
   handle.className = "cm-md-table-column-resize-handle";
   handle.tabIndex = -1;
-  handle.title = context.resizeHint;
+  activateTooltip(handle, context.resizeHint);
   resizeLayer.appendChild(handle);
   context.surface.appendChild(resizeLayer);
 

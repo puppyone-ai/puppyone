@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "../primitives/Tooltip";
 
 import { useEffect, useState, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization/react";
@@ -49,7 +50,7 @@ export function EditorSaveButton({
   if (status === "error") {
     if (!retryable) return null;
     return (
-      <ChipButton tone="error" onClick={onSave} title={t("editor.save.retryHint", { shortcut: shortcutHint })}>
+      <ChipButton tone="error" onClick={onSave} tooltip={t("editor.save.retryHint", { shortcut: shortcutHint })}>
         <AlertIcon />
         <span>{t("editor.save.failed")}</span>
       </ChipButton>
@@ -57,7 +58,7 @@ export function EditorSaveButton({
   }
 
   return (
-    <ChipButton tone="action" onClick={onSave} title={t("editor.save.hint", { shortcut: shortcutHint })}>
+    <ChipButton tone="action" onClick={onSave} tooltip={t("editor.save.hint", { shortcut: shortcutHint })}>
       <SaveDiskIcon />
       <span>{t("editor.save.action")}</span>
     </ChipButton>
@@ -77,23 +78,22 @@ function ChipPill({
 function ChipButton({
   tone,
   onClick,
-  title,
+  tooltip,
   children,
 }: {
   tone: "action" | "error";
   onClick: () => void;
-  title: string;
+  tooltip: string;
   children: ReactNode;
 }) {
   return (
-    <button
+    <Tooltip content={tooltip}><button
       className={`editor-save-chip ${tone}`}
       type="button"
-      title={title}
       onClick={onClick}
     >
       {children}
-    </button>
+    </button></Tooltip>
   );
 }
 

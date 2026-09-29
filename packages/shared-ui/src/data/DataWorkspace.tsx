@@ -1,3 +1,4 @@
+import { Tooltip } from "../primitives/Tooltip";
 import { Link2, MoreVertical, Plus } from "lucide-react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
@@ -208,7 +209,6 @@ export type DataWorkspaceProps = {
   resourceDragEntries?: import("./ExplorerTree").ExplorerTreeProps["resourceDragEntries"];
   onResolveFileDrop?: import("./ExplorerTree").ExplorerTreeProps["onResolveFileDrop"];
   onExportNodes?: import("./ExplorerTree").ExplorerTreeProps["onExportNodes"];
-  dragExportHint?: string;
   onCutNodes?: (nodes: DataNode[]) => void | Promise<void>;
   onPasteNodes?: (targetFolderPath: string | null) => void | Promise<void>;
   onDuplicateNodes?: (nodes: DataNode[]) => void | Promise<void>;
@@ -299,7 +299,6 @@ export function DataWorkspace({
   onExportNodes,
   resourceDragEntries,
   onResolveFileDrop,
-  dragExportHint,
   onCutNodes,
   onPasteNodes,
   onDuplicateNodes,
@@ -1284,7 +1283,6 @@ export function DataWorkspace({
         data-explorer-collapsed={explorerResize.collapsed ? "true" : undefined}
         data-explorer-gesture={explorerResize.phase === "idle" ? undefined : explorerResize.phase}
         data-explorer-dragging={explorerResize.dragging ? "true" : undefined}
-        data-resizable-explorer={resizableExplorer ? "true" : undefined}
         style={dataContentStyle}
       >
         <CollapsiblePaneFrame
@@ -1332,14 +1330,14 @@ export function DataWorkspace({
                       <span>{labels?.root ?? t("shared-ui.explorer.root")}</span>
                       <div className="desktop-explorer-actions">
                         {resolvedCapabilities.create && onCreate && (
-                          <button type="button" aria-label={t("shared-ui.explorer.create")} onClick={() => onCreate(currentFolderPath)}>
+                          <Tooltip content={t("shared-ui.explorer.create")}><button type="button" aria-label={t("shared-ui.explorer.create")} onClick={() => onCreate(currentFolderPath)}>
                             <Plus size={15} />
-                          </button>
+                          </button></Tooltip>
                         )}
                         {onMore && (
-                          <button type="button" aria-label={t("shared-ui.explorer.more")} onClick={() => onMore(workspaceState)}>
+                          <Tooltip content={t("shared-ui.explorer.more")}><button type="button" aria-label={t("shared-ui.explorer.more")} onClick={() => onMore(workspaceState)}>
                             <MoreVertical size={15} />
-                          </button>
+                          </button></Tooltip>
                         )}
                         {resolvedCapabilities.accessPoints && onAccess && (
                           <button type="button" aria-label={t("shared-ui.explorer.access")} onClick={() => onAccess(currentFolderPath)}>
@@ -1363,7 +1361,6 @@ export function DataWorkspace({
                       onExportNodes={onExportNodes}
                       resourceDragEntries={resourceDragEntries}
                       onResolveFileDrop={onResolveFileDrop}
-                      dragExportHint={dragExportHint}
                       activePath={resolvedActivePath}
                       selectedPaths={selectedNodePaths}
                       cutPaths={explorerCutPaths}

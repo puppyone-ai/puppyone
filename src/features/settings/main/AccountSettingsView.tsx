@@ -101,8 +101,8 @@ export function AccountSettingsView({
     <section className="desktop-utility-view desktop-settings-view">
       <div className="desktop-utility-body desktop-settings-body" data-po-scrollbar="content">
         <div className="desktop-settings-section desktop-account-settings-section">
-          <SettingsSectionHeader title={t("settings.account.title")} detail={t("settings.account.detail")} />
-          <SettingsSubsection>
+          <SettingsSectionHeader title={t("settings.account.title")} />
+          <SettingsSubsection leading>
             <SettingsValueRow
               label={t("settings.account.statusLabel")}
               value={accountStatus}
@@ -118,13 +118,15 @@ export function AccountSettingsView({
             {!sessionMatchesService && <><SettingsValueRow
               label={t("settings.account.desktopService")}
               value={resolvedApiBaseUrl}
-              title={resolvedApiBaseUrl}
+              tooltip={resolvedApiBaseUrl}
+              tooltipOverflowOnly
               monospace
             />
             <SettingsValueRow
               label={t("settings.account.sessionService")}
               value={cloudSession?.api_base_url ?? t("settings.account.none")}
-              title={cloudSession?.api_base_url}
+              tooltip={cloudSession?.api_base_url}
+              tooltipOverflowOnly
               monospace={Boolean(cloudSession?.api_base_url)}
             /></>}
             {signedIn && <div className="desktop-settings-row desktop-settings-row-control desktop-settings-account-actions-row">

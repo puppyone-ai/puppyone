@@ -33,6 +33,7 @@ import { AgentReferenceDraftManager } from "./AgentReferenceDraftManager";
 import {
   AgentTurnSubmissionCoordinator,
 } from "./AgentTurnSubmissionCoordinator";
+import { AGENT_IDLE_DISCONNECT_REASON } from "../../../../shared/agent-contract/constants.mjs";
 
 export type { AgentControllerPhase, AgentControllerState } from "./agent-controller-state";
 export { agentControllerTransitions } from "./agent-controller-state";
@@ -111,6 +112,7 @@ export class AgentSessionController {
       patch: (patch) => this.patch(patch),
       writeDraft: (draft, draftMentions) => this.writeCurrentSessionUi({ draft, draftMentions }),
       prepareSession: () => this.prepareSession(),
+      reconnectSession: () => this.reconnectIdleSession(),
     });
     this.sessionReplica = new AgentSessionReplica(
       workspaceRoot,
@@ -683,6 +685,32 @@ export class AgentSessionController {
       effort: this.state.selectedEffort,
       mode: this.state.selectedMode,
     });
+  }
+
+  /** Restores a settled native connection only when the user sends the next command. */
+  private async reconnectIdleSession() {
+    const current = this.state;
+    const sessionId = current.session?.id;
+    const runtimeId = current.session?.runtimeId || current.selectedRuntimeId;
+    if (!sessionId || !runtimeId) return false;
+    if (current.control?.connection.status !== "exited") return true;
+    if (current.control.connection.reason !== AGENT_IDLE_DISCONNECT_REASON
+      || current.control.execution.certainty !== "confirmed"
+      || current.control.execution.activeTurnId
+      || current.control.execution.uncertainTurnId) return false;
+
+    const bridge = this.requireBridge("resumeAgentSession");
+    this.patch({ phase: "restoring", error: null, sessionPreparation: "preparing" });
+    try {
+      const restored = await bridge.resumeAgentSession({ rootPath: this.workspaceRoot, runtimeId, sessionId });
+      if (!restored) throw new Error("This Agent conversation is no longer available. Start a new conversation to continue.");
+      await this.applySnapshot(restored);
+      this.patch({ phase: restored.session.activeTurnId ? "running" : "ready", sessionPreparation: "ready" });
+      return true;
+    } catch (error) {
+      this.patch({ phase: "failed", error: formatAgentError(error), sessionPreparation: "failed" });
+      throw error;
+    }
   }
 
   private async applySnapshot(snapshot: AgentSessionSnapshot) {

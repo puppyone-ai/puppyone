@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import type { AiEditFile, AiEditHunk, AiEditRequest } from "@puppyone/shared-ui";
@@ -52,9 +53,8 @@ export function AiResponseChangesCard({
               setReviewOpen(true);
               onOpenFile?.(file.path);
             }}
-            title={file.path}
           >
-            <span className="ai-response-changes-card__path" dir="ltr">{file.path}</span>
+            <Tooltip content={file.path} overflowOnly><span className="ai-response-changes-card__path" dir="ltr">{file.path}</span></Tooltip>
             <span className="ai-response-changes-card__stat" dir="ltr">
               <span className="ai-response-changes-card__stat-add">+{file.additions}</span>
               <span className="ai-response-changes-card__stat-delete">-{file.deletions}</span>
@@ -79,7 +79,7 @@ export function AiResponseChangesCard({
         >
           <header className="ai-edit-review-popover__header">
             <div>
-              <strong title={selectedFile.path} dir="ltr">{selectedFile.path}</strong>
+              <Tooltip content={selectedFile.path} overflowOnly><strong dir="ltr">{selectedFile.path}</strong></Tooltip>
               <span dir="ltr">+{selectedFile.additions} -{selectedFile.deletions}</span>
             </div>
             <button

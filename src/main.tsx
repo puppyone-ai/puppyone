@@ -14,14 +14,17 @@ import { LocalizationProvider } from "@puppyone/localization/react";
 import { App } from "./App";
 import { ScrollbarActivity } from "./components/ScrollbarActivity";
 import { ApplicationRenderBoundary } from "./components/ApplicationRenderBoundary";
+import { DesktopTooltipLayer } from "./components/DesktopTooltipLayer";
 import { FeatureFlagsProvider } from "./features/flags";
 import { TypographyCatalogProvider } from "./features/typography";
 import { bootstrapRendererLocalization } from "./localization";
 import { startMarkdownFormatShortcutBridge } from "./lib/markdownFormatShortcutBridge";
+import { installNativeTitleSuppression } from "./lib/nativeTitleSuppression";
 import { startDesktopMermaidClient } from "./platform/mermaid/desktopMermaidClient";
 import { readDesktopPlatformCapabilities } from "./platform/desktopPlatformClient";
 
 const rootElement = document.getElementById("root");
+const stopNativeTitleSuppression = installNativeTitleSuppression();
 startDesktopMermaidClient();
 if (!rootElement) throw new Error("PuppyOne renderer root is unavailable.");
 
@@ -77,6 +80,7 @@ window.addEventListener("pagehide", () => {
   stopDocumentSessionFlushListener?.();
   stopDocumentSessionCloseCancelledListener?.();
   stopMarkdownFormatShortcutBridge();
+  stopNativeTitleSuppression();
 }, { once: true });
 
 const root = ReactDOM.createRoot(rootElement);
@@ -139,6 +143,11 @@ async function renderApplication() {
       "./features/app-shell/WorkspaceMenuVisualSmokeHarness"
     );
     surface = <WorkspaceMenuVisualSmokeHarness />;
+  } else if (window.location.hash === "#header-coachmark-visual-smoke") {
+    const { HeaderCoachmarkVisualSmokeHarness } = await import(
+      "./features/app-shell/HeaderCoachmarkVisualSmokeHarness"
+    );
+    surface = <HeaderCoachmarkVisualSmokeHarness />;
   } else {
     surface = (
       <TypographyCatalogProvider>
@@ -161,6 +170,7 @@ async function renderApplication() {
         <ApplicationRenderBoundary>
           <ScrollbarActivity />
           {surface}
+          <DesktopTooltipLayer />
         </ApplicationRenderBoundary>
       </LocalizationProvider>
     </React.StrictMode>,

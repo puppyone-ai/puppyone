@@ -1,4 +1,5 @@
 import { activeAgentRecovery } from '../agent-recovery.mjs';
+import { isAgentIdleDisconnect } from '../agent-session-control.mjs';
 
 /** Control and transcript are committed together; no content event votes on current control state. */
 export function projectAgentDisplayControl(display, control) {
@@ -10,13 +11,14 @@ export function projectAgentDisplayControl(display, control) {
   display = withTurnSummaries(display);
   const recovery = activeAgentRecovery(control);
   const activeTurnId = control.execution.activeTurnId;
+  const idleDisconnect = isAgentIdleDisconnect(control);
   return {
     ...display,
     presentation: {
-      phase: control.connection.status === "exited" ? "runtime-exited"
+      phase: control.connection.status === "exited" && !idleDisconnect ? "runtime-exited"
         : activeTurnId ? (control.interaction.approvals.length || control.interaction.questions.length ? "waiting" : "running")
           : control.execution.status === "starting" ? "creating" : "ready",
-      terminalState: control.connection.status === "exited" ? "provider-exited"
+      terminalState: control.connection.status === "exited" && !idleDisconnect ? "provider-exited"
         : activeTurnId ? "running" : control.execution.status === "outcome-unknown" ? "outcome-unknown" : control.execution.nativeOutcome ?? "idle",
       pendingPrompt: null,
       submitting: control.execution.status === "starting",

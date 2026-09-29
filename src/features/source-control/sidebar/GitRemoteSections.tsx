@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { Cloud, X } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import type { GitSyncState } from "../types";
@@ -31,16 +32,15 @@ export function GitRemotePrompt({
       role={cloudBackupError ? "alert" : undefined}
     >
       <div className="desktop-git-backup-copy"><span>{message}</span></div>
-      <button
+      <Tooltip content={t("source-control.action.dismiss")}><button
         className="desktop-git-backup-dismiss"
         type="button"
         aria-label={t("source-control.backup.dismissAriaLabel")}
-        title={t("source-control.action.dismiss")}
         disabled={cloudBackupLoading}
         onClick={onDismiss}
       >
         <X size={13} />
-      </button>
+      </button></Tooltip>
       <button
         className="desktop-git-backup-action"
         type="button"

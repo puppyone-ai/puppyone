@@ -1,3 +1,4 @@
+import { Tooltip } from "../../../primitives/Tooltip";
 import { useEditorDependencies } from "../../runtime/EditorTaskContext";
 import {
   useCallback,
@@ -857,7 +858,7 @@ function RadialRelationshipNode({
         />
       </span>
       <span className="folder-relationship-card-copy">
-        <strong>{entry.node.name}</strong>
+        <Tooltip content={entry.node.name} overflowOnly><strong>{entry.node.name}</strong></Tooltip>
       </span>
     </span>
   );
@@ -880,9 +881,6 @@ function RadialRelationshipNode({
       <button
         className="folder-relationship-card folder-relationship-radial-node"
         {...interactionProps}
-        title={t(expanded
-          ? "workspace.relationships.collapseFolder"
-          : "workspace.relationships.expandFolder", { name: entry.node.name })}
         type="button"
         onClick={() => onToggleFolder(entry.node)}
       >
@@ -895,7 +893,6 @@ function RadialRelationshipNode({
     <div
       className="folder-relationship-card folder-relationship-radial-node"
       {...interactionProps}
-      title={entry.node.name}
     >
       {content}
     </div>
@@ -1240,7 +1237,7 @@ function LayeredRelationshipNode({
         />
       </span>
       <span className="folder-relationship-card-copy">
-        <strong>{entry.node.name}</strong>
+        <Tooltip content={entry.node.name} overflowOnly><strong>{entry.node.name}</strong></Tooltip>
       </span>
     </span>
   );
@@ -1263,9 +1260,6 @@ function LayeredRelationshipNode({
       <button
         className="folder-relationship-card folder-relationship-layered-node"
         {...interactionProps}
-        title={t(expanded
-          ? "workspace.relationships.collapseFolder"
-          : "workspace.relationships.expandFolder", { name: entry.node.name })}
         type="button"
         onClick={() => onToggleFolder(entry.node)}
       >
@@ -1278,7 +1272,6 @@ function LayeredRelationshipNode({
     <div
       className="folder-relationship-card folder-relationship-layered-node"
       {...interactionProps}
-      title={entry.node.name}
     >
       {content}
     </div>
@@ -1943,15 +1936,14 @@ function RelationshipNode({
           onPointerMove={dragController.move}
           onPointerUp={dragController.finish}
         />
-        <button
+        <Tooltip content={t("workspace.relationships.collapseFolder", { name: node.name })}><button
           aria-label={t("workspace.relationships.collapseFolder", { name: node.name })}
           className="folder-relationship-collapse"
           type="button"
-          title={t("workspace.relationships.collapseFolder", { name: node.name })}
           onClick={() => onToggleFolder(node)}
         >
           <ChevronUp size={14} aria-hidden="true" />
-        </button>
+        </button></Tooltip>
         {children.length > 0 ? (
           <RelationshipNodeLayout
             className="folder-relationship-group-children"
@@ -1985,7 +1977,7 @@ function RelationshipNode({
         <FileGlyphIcon name={node.name} type={node.type} size={24} theme={fileIconTheme} />
       </span>
       <span className="folder-relationship-card-copy">
-        <strong>{node.name}</strong>
+        <Tooltip content={node.name} overflowOnly><strong>{node.name}</strong></Tooltip>
       </span>
     </span>
   );
@@ -2011,7 +2003,6 @@ function RelationshipNode({
       {...interactionProps}
       ref={registerCard(node.path)}
       type="button"
-      title={t("workspace.relationships.expandFolder", { name: node.name })}
       onClick={() => {
         if (!dragController.consumeClick(node.path)) onToggleFolder(node);
       }}
@@ -2025,7 +2016,6 @@ function RelationshipNode({
       className="folder-relationship-card"
       {...interactionProps}
       ref={registerCard(node.path)}
-      title={node.name}
     >
       {content}
     </div>

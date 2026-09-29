@@ -1786,6 +1786,21 @@ export function updateCloudMcpEndpoint(
   );
 }
 
+export function deleteCloudMcpEndpoint(
+  session: DesktopCloudSession,
+  endpointId: string,
+  onSessionChange?: MutableSessionHandler,
+  apiBaseUrl?: string | null,
+): Promise<void> {
+  return cloudApiRequest<void>(
+    `/mcp-endpoints/${encodeURIComponent(endpointId)}`,
+    session,
+    onSessionChange,
+    { method: "DELETE" },
+    apiBaseUrl,
+  );
+}
+
 export function getCloudRepoIdentity(
   session: DesktopCloudSession,
   projectId: string,

@@ -21,10 +21,14 @@ export const mdiLayoutProbe = {
     }
     const before = getEditorLayoutSnapshot(document);
     fixture().probe.start();
-    for (let step = 0; step < 32; step++) {
+    // Keep enough samples for p95 to describe sustained layout cost instead of
+    // one or two noisy frames on shared CI runners. The acceptance budget in
+    // markdown-layout.smoke.mjs remains the production 60 Hz frame target.
+    const sampleFrames = 64;
+    for (let step = 0; step < sampleFrames; step++) {
       await frame();
       for (const split of document.querySelectorAll<HTMLElement>(".desktop-editor-split")) {
-        const ratio = 0.5 + Math.sin(step / 31 * Math.PI * 2) * 0.08;
+        const ratio = 0.5 + Math.sin(step / (sampleFrames - 1) * Math.PI * 2) * 0.08;
         split.style.setProperty("--desktop-editor-first-track", `${ratio}fr`);
         split.style.setProperty("--desktop-editor-second-track", `${1 - ratio}fr`);
       }

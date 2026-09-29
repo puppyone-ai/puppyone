@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { ExternalLink, RefreshCw } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
 import { openCloudApp } from "../../../lib/cloudApi";
@@ -40,7 +41,7 @@ export function CloudCommitDetail({
     <article className="desktop-commit-detail desktop-cloud-commit-detail">
       <div className="desktop-commit-summary desktop-cloud-commit-summary">
         <div className="desktop-commit-id-row desktop-cloud-commit-id-row">
-          <strong title={commit.commit_id} dir="ltr">{shortCommit(commit.commit_id)}</strong>
+          <Tooltip content={commit.commit_id}><strong dir="ltr">{shortCommit(commit.commit_id)}</strong></Tooltip>
           {isHead && <span className="desktop-head-badge">HEAD</span>}
           {row.labels.filter((label) => (
             !(isHead && formatCloudGraphLabel(label, t) === "HEAD")
@@ -53,35 +54,33 @@ export function CloudCommitDetail({
             </span>
           ))}
           <div className="desktop-cloud-commit-actions">
-            <button
+            <Tooltip content={t("cloud.history.refresh")}><button
               type="button"
-              title={t("cloud.history.refresh")}
               aria-label={t("cloud.history.refresh")}
               disabled={loading}
               onClick={() => void onRefresh()}
             >
-              <RefreshCw size={13} className={loading ? "spin" : undefined} aria-hidden="true" />
-            </button>
+              <RefreshCw size={13} className={loading ? "animate-spin" : undefined} aria-hidden="true" />
+            </button></Tooltip>
             {projectId && (
-              <button
+              <Tooltip content={t("cloud.history.viewCodeChanges")}><button
                 type="button"
-                title={t("cloud.history.viewCodeChanges")}
                 aria-label={t("cloud.history.viewCodeChanges")}
                 onClick={() => openCloudApp(`/projects/${projectId}/changes?commit=${encodeURIComponent(commit.commit_id)}`)}
               >
                 <ExternalLink size={13} aria-hidden="true" />
-              </button>
+              </button></Tooltip>
             )}
           </div>
         </div>
         <p><bdi>{commit.message || t("cloud.history.updateWorkspace")}</bdi></p>
         <div className="desktop-commit-meta">
           <bdi>{author}</bdi>
-          <span title={exactTime || undefined}>
+          <Tooltip content={exactTime || undefined}><span>
             {commit.created_at
               ? formatRelativeTime(commit.created_at, localization)
               : t("cloud.history.timeUnavailable")}
-          </span>
+          </span></Tooltip>
           <span>{t("source-control.commit.parentCount", { count: commit.parent_ids.length })}</span>
         </div>
       </div>

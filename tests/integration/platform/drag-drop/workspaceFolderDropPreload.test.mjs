@@ -23,7 +23,7 @@ describe("workspace folder drop preload boundary", () => {
     expect(invoke).not.toHaveBeenCalled();
   });
 
-  it("exposes a location grant and narrow create/clone requests without accepting a renderer path", async () => {
+  it("exposes location grants and narrow create/import requests without accepting a renderer path", async () => {
     const invoke = vi.fn(async () => ({ status: "opened-current" }));
     const bridge = await loadPreloadBridge({ invoke, getPathForFile: () => "" });
 
@@ -36,13 +36,21 @@ describe("workspace folder drop preload boundary", () => {
       name: "Notes",
       locationGrantId: "location-1",
     });
-    await bridge.cloneRepository({
+    await bridge.importSource({
       provider: "github",
-      repositoryUrl: "https://github.com/owner/repository.git",
+      taskId: "task-1",
+      selection: { repositoryUrl: "https://github.com/owner/repository.git" },
     });
-    expect(invoke).toHaveBeenCalledWith("workspace:clone-repository-current", {
+    expect(invoke).toHaveBeenCalledWith("workspace:import-source-current", {
       provider: "github",
-      repositoryUrl: "https://github.com/owner/repository.git",
+      taskId: "task-1",
+      selection: { repositoryUrl: "https://github.com/owner/repository.git" },
+    });
+    await bridge.importSource({ provider: "obsidian", taskId: "task-2", locationGrantId: "location-1" });
+    expect(invoke).toHaveBeenCalledWith("workspace:import-source-current", {
+      provider: "obsidian",
+      taskId: "task-2",
+      locationGrantId: "location-1",
     });
   });
 

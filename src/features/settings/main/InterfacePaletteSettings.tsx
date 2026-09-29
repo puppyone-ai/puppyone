@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import {
@@ -50,11 +51,9 @@ export function InterfacePaletteSettings({
             const option = THEME_MODE_OPTIONS[mode];
             const Icon = option.icon;
             return (
-              <button
+              <Tooltip content={decision.reasonKey ? t(decision.reasonKey) : undefined} key={mode}><button
                 className={`desktop-theme-choice ${decision.effectiveValue === mode ? "active" : ""}${locked || !isAppearanceValueAllowed(decision, mode) ? " is-policy-controlled" : ""}`}
                 type="button"
-                key={mode}
-                title={decision.reasonKey ? t(decision.reasonKey) : undefined}
                 aria-disabled={locked || !isAppearanceValueAllowed(decision, mode)}
                 aria-pressed={decision.effectiveValue === mode}
                 onClick={() => {
@@ -71,7 +70,7 @@ export function InterfacePaletteSettings({
                   <Icon size={13} />
                   <span>{t(option.labelId)}</span>
                 </span>
-              </button>
+              </button></Tooltip>
             );
           })}
         </div>

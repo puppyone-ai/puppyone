@@ -124,7 +124,9 @@ describe("Unified Workbench blank launcher flow", () => {
     expect(document.querySelector('[role="menu"]')).toBeNull();
     expect(document.querySelectorAll('[role="tab"]')).toHaveLength(2);
     expect(document.querySelector(".desktop-terminal-launcher-group.is-agents")).not.toBeNull();
-    expect(document.querySelector(".desktop-terminal-launcher-divider")).not.toBeNull();
+    expect(document.querySelector(".desktop-terminal-launcher-shell")?.closest(
+      ".desktop-terminal-launcher-entries",
+    )).not.toBeNull();
 
     await clickButton("Claude Code");
     await vi.waitFor(() => {
@@ -227,7 +229,8 @@ describe("Unified Workbench blank launcher flow", () => {
       ));
     });
 
-    expect(document.querySelector(".desktop-terminal-launcher-group.is-history-entry")).not.toBeNull();
+    expect(document.querySelector(".desktop-terminal-launcher-group.is-agents > .desktop-terminal-launcher-history")).not.toBeNull();
+    expect(document.querySelector(".desktop-terminal-launcher-group.is-history-entry")).toBeNull();
     await clickButton("Chat history");
     expect(document.querySelector('[data-fake-history="true"]')).not.toBeNull();
     expect(document.querySelectorAll('[role="tab"]')).toHaveLength(1);
@@ -313,7 +316,7 @@ async function clickButton(label: string) {
     await Promise.resolve();
   });
   const button = Array.from(document.querySelectorAll<HTMLButtonElement>("button"))
-    .find((candidate) => candidate.textContent?.trim() === label);
+    .find((candidate) => candidate.textContent?.trim() === label || candidate.getAttribute("aria-label") === label);
   expect(button).not.toBeUndefined();
   await act(async () => {
     button?.click();

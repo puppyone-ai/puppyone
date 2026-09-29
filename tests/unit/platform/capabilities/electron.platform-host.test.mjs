@@ -72,7 +72,7 @@ describe("Desktop platform host", () => {
       titleBarOverlay: {
         color: "#00000000",
         symbolColor: "#1f1f1f",
-        height: 38,
+        height: 40,
       },
     });
     expect(handlers.get("platform:get-capabilities")()).toBe(host.getCapabilities());
@@ -92,7 +92,7 @@ describe("Desktop platform host", () => {
     expect(ownerWindow.setTitleBarOverlay).toHaveBeenCalledWith({
       color: "#00000000",
       symbolColor: "#f5f5f5",
-      height: 38,
+      height: 40,
     });
 
     host.windowChrome.synchronizeAppearance(ownerWindow, {
@@ -103,7 +103,7 @@ describe("Desktop platform host", () => {
     expect(ownerWindow.setTitleBarOverlay).toHaveBeenLastCalledWith({
       color: "#00000000",
       symbolColor: "#f5f5f5",
-      height: 38,
+      height: 40,
     });
 
     host.windowChrome.synchronizeAppearance(ownerWindow, {
@@ -114,7 +114,7 @@ describe("Desktop platform host", () => {
     expect(ownerWindow.setTitleBarOverlay).toHaveBeenLastCalledWith({
       color: "#00000000",
       symbolColor: "#f5f5f5",
-      height: 38,
+      height: 40,
     });
   });
 });

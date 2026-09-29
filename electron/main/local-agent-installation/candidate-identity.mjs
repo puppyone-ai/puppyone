@@ -5,6 +5,7 @@ const MAX_IDENTITY_VALUES = 8;
 const MAX_PARENT_DEPTH = 6;
 const MAX_PACKAGE_BYTES = 128 * 1_024;
 const MAX_EXECUTABLE_PREFIX_BYTES = 16 * 1_024;
+const MAX_MANIFEST_BYTES = 1024 * 1_024;
 
 /** Verify ambiguous executable names with bounded, read-only evidence. */
 export async function verifyLocalAgentCandidateIdentity(definition, candidate, { fsModule = fs } = {}) {
@@ -16,13 +17,39 @@ export async function verifyLocalAgentCandidateIdentity(definition, candidate, {
   const required = new Set(policy.requiredForInvocations ?? []);
   if (!required.has(candidate?.invokedAs)) return true;
 
-  const identityPath = candidate?.canonicalIdentity ?? candidate?.executablePath;
+  const identityPath = candidate?.entrypointCanonicalIdentity
+    ?? candidate?.entrypointPath
+    ?? candidate?.canonicalIdentity
+    ?? candidate?.executablePath;
+  if (candidate?.requiresManifestIdentity && (
+    !policy.manifest
+    || !await hasManifestIdentity(candidate, identityPath, policy.manifest, fsModule)
+  )) return false;
   const normalizedPath = normalizePath(identityPath);
   if ((policy.pathFragments ?? []).some((fragment) => normalizedPath.includes(normalizePath(fragment)))) {
     return true;
   }
   if (await hasPackageIdentity(identityPath, policy.packageNames, fsModule)) return true;
   return hasExecutableMarker(identityPath, policy.fileMarkers, fsModule);
+}
+
+async function hasManifestIdentity(candidate, executablePath, policy, fsModule) {
+  if (!safeAbsolutePath(executablePath)) return false;
+  let manifestPath = candidate?.identityFileCanonicalIdentity ?? candidate?.identityFilePath;
+  if (!manifestPath) {
+    let directory = path.dirname(executablePath);
+    for (let depth = 0; depth < policy.parentDepth; depth += 1) directory = path.dirname(directory);
+    manifestPath = path.join(directory, policy.fileName);
+  }
+  if (!safeAbsolutePath(manifestPath)) return false;
+  try {
+    const metadata = await fsModule.promises.stat(manifestPath);
+    if (!metadata.isFile() || metadata.size > MAX_MANIFEST_BYTES) return false;
+    const manifest = JSON.parse(await fsModule.promises.readFile(manifestPath, "utf8"));
+    return policy.values.includes(manifest?.[policy.property]);
+  } catch {
+    return false;
+  }
 }
 
 async function hasPackageIdentity(executablePath, packageNames, fsModule) {
@@ -84,4 +111,5 @@ export const localAgentCandidateIdentityPolicy = Object.freeze({
   maxExecutablePrefixBytes: MAX_EXECUTABLE_PREFIX_BYTES,
   maxPackageBytes: MAX_PACKAGE_BYTES,
   maxParentDepth: MAX_PARENT_DEPTH,
+  maxManifestBytes: MAX_MANIFEST_BYTES,
 });

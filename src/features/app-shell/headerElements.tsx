@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import type { ReactNode } from "react";
 import {
   ArrowDown,
@@ -15,6 +16,8 @@ import type { MessageFormatter } from "@puppyone/localization";
 import { AgentEntryIcon } from "./AgentEntryIcon";
 import { VersionControlIcon } from "../source-control/VersionControlIcon";
 import type { GitTitlebarStatus } from "../source-control/gitTitlebarStatus";
+import { HeaderFeatureCoachmark } from "./HeaderFeatureCoachmark";
+import type { HeaderCoachmarkId } from "./headerCoachmarks";
 
 const AGENT_ENTRY_LABEL = "Agent";
 
@@ -30,6 +33,10 @@ export type HeaderElementDefinition = {
 export type HeaderElementRenderContext = {
   t: MessageFormatter;
   placement?: "titlebar" | "toolbar";
+  coachmark: {
+    active: HeaderCoachmarkId | null;
+    acknowledge: (id: HeaderCoachmarkId) => void;
+  };
   terminal: {
     enabled: boolean;
     onToggle: () => void;
@@ -55,18 +62,28 @@ export const HEADER_ELEMENT_DEFINITIONS: readonly HeaderElementDefinition[] = [
       const label = context.t("source-control.label.changes");
       const statusLabel = getGitStatusLabel(context.t, label, changes.status);
       const hasStatus = Object.values(changes.status).some((count) => count > 0);
+      const open = !toolbarPlacement && context.coachmark.active === "changes";
+      const activate = () => {
+        context.coachmark.acknowledge("changes");
+        changes.onToggle();
+      };
       return (
-        <button
+        <HeaderFeatureCoachmark
+          feature="changes"
+          open={open}
+          onDismiss={() => context.coachmark.acknowledge("changes")}
+          onPrimary={activate}
+        >
+        <Tooltip content={open ? null : statusLabel}><button
           className={toolbarPlacement
             ? "desktop-shell-toolbar-button desktop-shell-toolbar-changes"
             : "desktop-titlebar-action desktop-titlebar-changes"}
           type="button"
-          title={statusLabel}
           aria-label={statusLabel}
           aria-pressed={changes.sidebarOpen}
           data-has-git-status={hasStatus ? "true" : undefined}
           data-toolbar-action={toolbarPlacement ? "changes" : undefined}
-          onClick={changes.onToggle}
+          onClick={activate}
         >
           {toolbarPlacement && (
             <i className="desktop-shell-toolbar-button-icon" aria-hidden="true">
@@ -80,7 +97,8 @@ export const HEADER_ELEMENT_DEFINITIONS: readonly HeaderElementDefinition[] = [
             status={changes.status}
             showIdleEntry={!toolbarPlacement}
           />
-        </button>
+        </button></Tooltip>
+        </HeaderFeatureCoachmark>
       );
     },
   },
@@ -96,17 +114,27 @@ export const HEADER_ELEMENT_DEFINITIONS: readonly HeaderElementDefinition[] = [
       const toggleLabel = toolbarPlacement
         ? AGENT_ENTRY_LABEL
         : context.t(terminal.sidebarOpen ? "shell.titlebar.hideAgent" : "shell.titlebar.showAgent");
+      const open = !toolbarPlacement && context.coachmark.active === "agent";
+      const activate = () => {
+        context.coachmark.acknowledge("agent");
+        terminal.onToggle();
+      };
       return (
-        <button
+        <HeaderFeatureCoachmark
+          feature="agent"
+          open={open}
+          onDismiss={() => context.coachmark.acknowledge("agent")}
+          onPrimary={activate}
+        >
+        <Tooltip content={open ? null : toggleLabel}><button
           className={toolbarPlacement
             ? "desktop-shell-toolbar-button desktop-shell-toolbar-terminal"
             : "desktop-titlebar-action desktop-titlebar-terminal"}
           type="button"
-          title={toggleLabel}
           aria-label={toggleLabel}
           aria-pressed={terminal.sidebarOpen}
           data-toolbar-action={toolbarPlacement ? "terminal" : undefined}
-          onClick={terminal.onToggle}
+          onClick={activate}
         >
           {toolbarPlacement ? (
             <i
@@ -123,7 +151,8 @@ export const HEADER_ELEMENT_DEFINITIONS: readonly HeaderElementDefinition[] = [
               {AGENT_ENTRY_LABEL}
             </span>
           )}
-        </button>
+        </button></Tooltip>
+        </HeaderFeatureCoachmark>
       );
     },
   },

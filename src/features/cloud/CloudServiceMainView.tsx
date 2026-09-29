@@ -11,6 +11,7 @@ import { useDesktopCloudData } from "./data";
 import { CloudInitializationRoute } from "./initialization/CloudInitializationRoute";
 import { CloudRouter } from "./routes/CloudRouter";
 import { CloudSurfaceFrame } from "./shell/CloudSurfaceFrame";
+import { CloudShareHome, useCloudShare } from "./share";
 import {
   getCloudProjectDetailResources,
   getAvailableCloudSection,
@@ -56,6 +57,7 @@ export function CloudServiceMainView({
   onOpenGitSettings,
 }: CloudServiceMainViewProps) {
   const { t } = useLocalization();
+  const share = useCloudShare();
   const cloudRemote = cloudEnvironment.cloudRemote;
   const cloudApiBaseUrl = cloudEnvironment.apiBaseUrl;
   const routedSection = getAvailableCloudSection(activeSection, { automationEnabled });
@@ -127,9 +129,19 @@ export function CloudServiceMainView({
         authState={cloudAuthState}
         apiBaseUrl={cloudApiBaseUrl}
         loadingLabel={t("cloud.loading.session")}
-        onSessionChange={onCloudSessionChange}
-        onRefresh={onRefresh}
       />
+    );
+  }
+
+  if (routedSection === "share" && share) {
+    return (
+      <CloudSurfaceFrame surface="landing">
+        <CloudShareHome
+          projectName={workspace.name}
+          projectContext={projectContext ?? { status: "local-only", projectId: null }}
+          share={share}
+        />
+      </CloudSurfaceFrame>
     );
   }
 

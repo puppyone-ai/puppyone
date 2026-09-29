@@ -50,7 +50,6 @@ describe("workspace entry bootstrap", () => {
       hasOpenEditors: false,
       openDocument: vi.fn(),
       consume: vi.fn(),
-      revealAgentWorkbench: vi.fn(),
       onError: vi.fn(),
     };
     await act(async () => { root!.render(<StrictMode><Harness {...props} /></StrictMode>); await flush(); });
@@ -60,7 +59,6 @@ describe("workspace entry bootstrap", () => {
       preferredPath,
       expect.objectContaining({ workspaceFolderId: folder.id }),
     );
-    expect(props.revealAgentWorkbench).toHaveBeenCalledExactlyOnceWith();
   });
 
   it("opens README for an existing folder when there is no restored editor session", async () => {
@@ -79,13 +77,11 @@ describe("workspace entry bootstrap", () => {
       hasOpenEditors: false,
       openDocument: vi.fn(),
       consume: vi.fn(),
-      revealAgentWorkbench: vi.fn(),
       onError: vi.fn(),
     };
     await act(async () => { root!.render(<Harness {...props} />); await flush(); });
     expect(props.openDocument).toHaveBeenCalledWith(readmePath, expect.objectContaining({ name: "README.md" }));
     expect(props.consume).toHaveBeenCalledOnce();
-    expect(props.revealAgentWorkbench).toHaveBeenCalledOnce();
   });
 
   it.each(["restored", "switched"] as const)("preserves an existing editor session on %s entry", async (kind) => {
@@ -98,13 +94,11 @@ describe("workspace entry bootstrap", () => {
       hasOpenEditors: true,
       openDocument: vi.fn(),
       consume: vi.fn(),
-      revealAgentWorkbench: vi.fn(),
       onError: vi.fn(),
     };
     await act(async () => { root!.render(<Harness {...props} />); await flush(); });
     expect(props.dataPort.listChildren).not.toHaveBeenCalled();
     expect(props.openDocument).not.toHaveBeenCalled();
-    expect(props.revealAgentWorkbench).toHaveBeenCalledTimes(kind === "switched" ? 0 : 1);
     expect(props.consume).toHaveBeenCalledWith(intent.id);
   });
 });

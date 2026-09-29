@@ -23,7 +23,7 @@
   --agent-config-surface: var(--po-control);
   --agent-config-surface-hover: var(--po-control-hover);
   --agent-text: var(--po-text);
-  --agent-text-muted: var(--po-text-muted);
+  --agent-text-muted: var(--desktop-sidebar-text-color, var(--po-text-muted));
   --agent-text-subtle: var(--po-text-subtle);
   --agent-empty-brand-foreground: color-mix(in srgb, var(--agent-text-subtle) 64%, var(--agent-canvas));
   --agent-empty-brand-foreground-hover: color-mix(in srgb, var(--agent-text-muted) 76%, var(--agent-canvas));
@@ -71,8 +71,6 @@
   --agent-inline-code-border: color-mix(in srgb, var(--agent-text) 14%, var(--agent-canvas));
   --agent-code-surface: color-mix(in srgb, var(--agent-control-surface) 88%, var(--agent-canvas));
   --agent-code-header-surface: color-mix(in srgb, var(--agent-control-surface) 30%, transparent);
-  --agent-readiness-border: color-mix(in srgb, var(--po-warning) 35%, var(--po-divider));
-  --agent-readiness-surface: color-mix(in srgb, var(--po-warning) 7%, var(--po-panel));
   --agent-picker-warning-text: color-mix(in srgb, var(--po-warning) 76%, var(--po-text-muted));
   --agent-mention-border: color-mix(in srgb, var(--agent-accent) 36%, var(--agent-border-subtle));
   --agent-mention-surface: color-mix(in srgb, var(--agent-accent-soft) 58%, transparent);
@@ -86,7 +84,7 @@
 
 .desktop-agent-workspace {
   --agent-text: var(--po-text);
-  --agent-text-muted: var(--po-text-muted);
+  --agent-text-muted: var(--desktop-sidebar-text-color, var(--po-text-muted));
   --agent-border-subtle: var(--po-divider);
   --agent-control-surface: var(--po-control);
 }

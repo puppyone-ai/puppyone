@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "../../../primitives/Tooltip";
 
 import {
   useCallback,
@@ -379,24 +380,22 @@ export function TextEditorFrame({
         modeControlPlacement === "inline" || !publishPaneMenuContribution
       ) && (
         <div className="editor-mode-toggle" aria-label={t("editor.mode.label")}>
-          <button
+          <Tooltip content={liveModeLabel ?? t("editor.mode.live")}><button
             className={mode === "live" ? "active" : ""}
             type="button"
             onClick={() => switchMode("live")}
-            title={liveModeLabel ?? t("editor.mode.live")}
             aria-label={liveModeLabel ?? t("editor.mode.live")}
           >
             {liveModeIcon === "preview" ? <PreviewIcon /> : <PencilIcon />}
-          </button>
-          <button
+          </button></Tooltip>
+          <Tooltip content={sourceModeLabel ?? t("editor.mode.source")}><button
             className={mode === "source" ? "active" : ""}
             type="button"
             onClick={() => switchMode("source")}
-            title={sourceModeLabel ?? t("editor.mode.source")}
             aria-label={sourceModeLabel ?? t("editor.mode.source")}
           >
             <CodeIcon />
-          </button>
+          </button></Tooltip>
         </div>
       )}
     </section>

@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { CircleAlert, Image, LoaderCircle, X } from "lucide-react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
@@ -50,11 +51,10 @@ function VisualAttachmentCard({ reference, previewUrl, onRemove }: {
   const details = [statusLabel, rawError !== statusLabel ? rawError : ""].filter(Boolean);
 
   return (
-    <div
+    <Tooltip content={details.join("\n") || undefined}><div
       className={`desktop-agent-visual-attachment is-${reference.status}`}
       dir="auto"
       role="listitem"
-      title={details.join("\n") || undefined}
       aria-label={[reference.displayName, ...details].join(": ")}
     >
       <span className="desktop-agent-visual-attachment-preview">
@@ -73,15 +73,14 @@ function VisualAttachmentCard({ reference, previewUrl, onRemove }: {
         </span>
       )}
       <span className="desktop-agent-visual-attachment-actions">
-        <button
+        <Tooltip content={t("agent.reference.remove", { name: bidiIsolate(reference.displayName) })}><button
           type="button"
           aria-label={t("agent.reference.remove", { name: bidiIsolate(reference.displayName) })}
-          title={t("agent.reference.remove", { name: bidiIsolate(reference.displayName) })}
           onClick={onRemove}
         >
           <X size={12} aria-hidden="true" />
-        </button>
+        </button></Tooltip>
       </span>
-    </div>
+    </div></Tooltip>
   );
 }

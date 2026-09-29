@@ -34,8 +34,6 @@ export type CloudMessageCode =
   | "history-degraded"
   | "git-topology-load-failed"
   | "auth-start-failed"
-  | "auth-signout-failed"
-  | "auth-signed-out"
   | "remote-sign-in"
   | "remote-wrong-host"
   | "remote-response-mismatch"

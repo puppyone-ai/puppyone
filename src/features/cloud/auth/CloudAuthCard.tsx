@@ -1,84 +1,36 @@
-import { Check, LogIn, LogOut, RefreshCw } from "lucide-react";
+import { LogIn } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
-import type { CloudAuthView, CloudLoginMethod } from "../model";
 import "./cloud-auth-card.css";
 
 export function CloudAuthCard({
-  view,
-  signedInEmail,
-  signInLabel,
-  loading,
-  signingOut,
+  signingIn,
   error,
-  message,
-  onProviderLogin,
-  onOpenCloud,
-  onRefresh,
-  onSignOut,
+  onSignIn,
 }: {
-  view: CloudAuthView;
-  signedInEmail: string | null;
-  signInLabel?: string;
-  loading: CloudLoginMethod | null;
-  signingOut: boolean;
+  signingIn: boolean;
   error: string | null;
-  message: string | null;
-  onProviderLogin: (method?: Exclude<CloudLoginMethod, "email" | "password" | "browser">) => void;
-  onOpenCloud: () => void;
-  onRefresh: () => void;
-  onSignOut: () => void;
+  onSignIn: () => void;
 }) {
   const { t } = useLocalization();
-  const disabled = Boolean(loading) || signingOut;
 
   return (
     <div className="desktop-cloud-auth-card">
-      {view !== "signedIn" ? (
-        <button
-          className="desktop-cloud-auth-submit"
-          type="button"
-          disabled={disabled}
-          onClick={() => onProviderLogin()}
-        >
-          <LogIn size={15} />
-          <span>{loading === "browser"
-            ? t("cloud.auth.finishInBrowser")
-            : signInLabel ?? t("cloud.auth.signInWithBrowser")}</span>
-        </button>
-      ) : (
-        <>
-          <div className="desktop-cloud-auth-heading">
-            <h3>{t("cloud.account.signedIn")}</h3>
-            <p dir="auto">{signedInEmail ?? t("cloud.productName")}</p>
-          </div>
-          <div className="desktop-cloud-auth-state">
-            <span><Check size={14} /></span>
-            <div>
-              <strong>{t("cloud.auth.accountConnected")}</strong>
-              <p>{t("cloud.auth.backupToEnable")}</p>
-            </div>
-          </div>
-          <button className="desktop-cloud-auth-submit" type="button" onClick={onOpenCloud}>
-            {t("cloud.auth.enterCloud")}
-          </button>
-          <button className="desktop-cloud-auth-secondary" type="button" onClick={onRefresh}>
-            <RefreshCw size={14} />
-            <span>{t("cloud.auth.checkWorkspaceStatus")}</span>
-          </button>
-          <button className="desktop-cloud-auth-secondary" type="button" disabled={signingOut} onClick={onSignOut}>
-            <LogOut size={14} />
-            <span>{t(signingOut ? "cloud.auth.signingOut" : "cloud.auth.signOut")}</span>
-          </button>
-        </>
-      )}
+      <button
+        className="desktop-cloud-auth-submit"
+        type="button"
+        disabled={signingIn}
+        onClick={onSignIn}
+      >
+        <LogIn size={15} />
+        <span>{t(signingIn ? "cloud.auth.signingIn" : "cloud.auth.signInToCloud")}</span>
+      </button>
 
-      {(error || message) && (
+      {error && (
         <div className="desktop-cloud-auth-feedback">
-          {error && <div className="error">{error}</div>}
-          {message && loading !== "browser" && <div className="success">{message}</div>}
+          <div className="error">{error}</div>
         </div>
       )}
-      {view !== "signedIn" && <p className="desktop-cloud-auth-terms">{t("cloud.auth.terms")}</p>}
+      <p className="desktop-cloud-auth-terms">{t("cloud.auth.terms")}</p>
     </div>
   );
 }

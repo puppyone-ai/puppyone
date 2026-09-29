@@ -181,6 +181,9 @@ describe("Project switcher rail", () => {
     const actionButtons = host.querySelectorAll<HTMLButtonElement>(
       ".desktop-project-switcher-row-action",
     );
+    const projectRows = host.querySelectorAll<HTMLElement>(
+      ".desktop-project-switcher-rail-project-row",
+    );
     expect(actionButtons).toHaveLength(2);
     expect(actionButtons[1]?.getAttribute("aria-label")).toContain("Beta");
     expect(actionButtons[1]?.getAttribute("aria-haspopup")).toBe("menu");
@@ -193,11 +196,14 @@ describe("Project switcher rail", () => {
     await act(async () => actionButtons[0]?.click());
     expect(document.body.querySelectorAll(".desktop-project-row-actions-menu")).toHaveLength(1);
     expect(actionButtons[0]?.getAttribute("aria-expanded")).toBe("true");
+    expect(projectRows[0]?.dataset.menuOpen).toBe("true");
 
     await act(async () => actionButtons[1]?.click());
     expect(document.body.querySelectorAll(".desktop-project-row-actions-menu")).toHaveLength(1);
     expect(actionButtons[0]?.getAttribute("aria-expanded")).toBe("false");
     expect(actionButtons[1]?.getAttribute("aria-expanded")).toBe("true");
+    expect(projectRows[0]?.dataset.menuOpen).toBeUndefined();
+    expect(projectRows[1]?.dataset.menuOpen).toBe("true");
     let menu = document.body.querySelector<HTMLElement>(".desktop-project-row-actions-menu");
     expect(menu?.getAttribute("aria-label")).toContain("Beta");
     expect(menu?.style.left).toBe("248px");
@@ -206,6 +212,7 @@ describe("Project switcher rail", () => {
     await act(async () => actionButtons[1]?.click());
     expect(document.body.querySelector(".desktop-project-row-actions-menu")).toBeNull();
     expect(actionButtons[1]?.getAttribute("aria-expanded")).toBe("false");
+    expect(projectRows[1]?.dataset.menuOpen).toBeUndefined();
 
     await act(async () => actionButtons[1]?.click());
     menu = document.body.querySelector<HTMLElement>(".desktop-project-row-actions-menu");
@@ -481,7 +488,7 @@ describe("Project switcher rail", () => {
     expect(compactCloudMark?.getAttribute("width")).toBe("15");
   });
 
-  it("reveals a themed Project-name tooltip only for compact rows", async () => {
+  it("uses the shared tooltip for compact Project names and the create action", async () => {
     const active = workspace("active", "Alpha Project", "/projects/alpha");
     const host = document.createElement("div");
     document.body.append(host);
@@ -499,19 +506,13 @@ describe("Project switcher rail", () => {
     const compactRow = host.querySelector<HTMLButtonElement>(
       ".desktop-project-switcher-rail-project",
     );
-    await act(async () => compactRow?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })));
-
-    const tooltip = host.querySelector<HTMLElement>("[role='tooltip']");
-    expect(tooltip?.textContent).toBe("Alpha Project");
-    expect(tooltip?.classList.contains("desktop-project-switcher-rail-tooltip")).toBe(true);
-    expect(compactRow?.getAttribute("aria-describedby")).toBe(tooltip?.id);
+    expect(compactRow?.dataset.tooltip).toBe("Alpha Project");
+    expect(compactRow?.dataset.tooltipPlacement).toBe("right");
     expect(compactRow?.hasAttribute("title")).toBe(false);
-
-    await act(async () => compactRow?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true })));
-    expect(host.querySelector("[role='tooltip']")).toBeNull();
-
-    await act(async () => compactRow?.focus());
-    expect(host.querySelector("[role='tooltip']")?.textContent).toBe("Alpha Project");
+    const create = host.querySelector<HTMLButtonElement>(".desktop-project-switcher-rail-create");
+    expect(create?.dataset.tooltip).toBe("Create new");
+    expect(create?.dataset.tooltipPlacement).toBe("right");
+    expect(create?.hasAttribute("title")).toBe(false);
 
     await act(async () => root?.render(withTestLocalization(
       <ProjectSwitcherRail
@@ -522,7 +523,7 @@ describe("Project switcher rail", () => {
         onSelectProject={() => undefined}
       />,
     )));
-    expect(host.querySelector("[role='tooltip']")).toBeNull();
+    expect(host.querySelector<HTMLButtonElement>(".desktop-project-switcher-rail-project")?.dataset.tooltip).toBeUndefined();
   });
 
   it("derives a stable Unicode grapheme from the Project identity", () => {
@@ -760,13 +761,13 @@ describe("Project switcher rail", () => {
   });
 
   it("hands the in-project launcher off to the shared Import flow", async () => {
-    const onImportRepository = vi.fn(async () => true);
+    const onImportSource = vi.fn(async () => true);
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
 
     await act(async () => root?.render(withTestLocalization(
-      <ProjectEntryFlowHarness onImportRepository={onImportRepository} />,
+      <ProjectEntryFlowHarness onImportSource={onImportSource} />,
     )));
     await act(async () => host.querySelector<HTMLButtonElement>("[data-open-project-entry]")?.click());
 
@@ -779,14 +780,14 @@ describe("Project switcher rail", () => {
     expect(host.querySelector(".desktop-project-entry-launcher")).toBeNull();
     expect(host.querySelector("[role='dialog']")?.getAttribute("aria-label")).toBe("Import");
     expect(host.querySelectorAll(".onboarding-import-source")).toHaveLength(2);
-    expect(onImportRepository).not.toHaveBeenCalled();
+    expect(onImportSource).not.toHaveBeenCalled();
   });
 });
 
 function ProjectEntryFlowHarness({
-  onImportRepository,
+  onImportSource,
 }: {
-  onImportRepository: () => Promise<boolean>;
+  onImportSource: () => Promise<boolean>;
 }) {
   const controller = useProjectEntryFlow();
   return (
@@ -801,7 +802,11 @@ function ProjectEntryFlowHarness({
         onCreateProject={async () => {
           throw new Error("not used");
         }}
-        onImportRepository={onImportRepository}
+        onImportSource={onImportSource}
+        onConnectSource={async () => ({ connectionId: "test" })}
+        onListResources={async () => ({ items: [], nextCursor: null })}
+        onCancelImport={async () => ({ cancelled: true })}
+        onImportProgress={() => () => undefined}
       />
     </>
   );

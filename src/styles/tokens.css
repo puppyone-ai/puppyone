@@ -4,12 +4,12 @@
   /* Mirrored from electron/main/window-layout-contract.mjs and guarded by the architecture check. */
   --desktop-window-min-width: 640px;
   --desktop-toolbar-action-radius: 5px;
-  --desktop-chrome-height: 38px;
+  --desktop-chrome-height: 40px;
   /* Standard control geometry is owned by shared-ui/control-geometry.css. */
   --desktop-chrome-control-size: var(--po-control-size);
-  --desktop-titlebar-control-height: 24px;
+  --desktop-titlebar-control-height: var(--po-control-size-compact);
   --desktop-titlebar-tool-action-width: 34px;
-  --desktop-titlebar-button-gap: 3px;
+  --desktop-titlebar-button-gap: 2px;
   --desktop-sidebar-control-size: var(--desktop-chrome-control-size);
   --desktop-sidebar-nav-height: calc(var(--desktop-sidebar-control-size) + 8px);
   --desktop-sidebar-nav-padding: 4px;
@@ -167,6 +167,14 @@
   --desktop-sidebar-section-title-line-height: var(--po-type-left-sidebar-line-height);
   --desktop-sidebar-section-title-color: var(--po-text-subtle);
   --desktop-sidebar-section-title-disabled-color: var(--po-text-disabled);
+  /* Left navigation and right Agent text share one restrained foreground.
+   * Pull it slightly toward primary text so both rails stay readable while
+   * remaining quieter than selected rows and authored document content. */
+  --desktop-sidebar-text-color: color-mix(
+    in srgb,
+    var(--po-text-muted) 84%,
+    var(--po-text) 16%
+  );
   /*
    * Modern overlay scrollbars share one presented color across chrome,
    * editor, and terminal surfaces. The raw theme color remains available to
@@ -184,9 +192,15 @@
     transparent
   );
   --po-surface-editor: var(--po-surface-panel);
-  --po-surface-auxiliary: var(--po-header);
+  /* The auxiliary workbench is the right-hand peer of the Explorer. Keep its
+   * material aligned with sidebar content while the Header carries its own
+   * stronger frame contrast. */
+  --po-surface-auxiliary: var(--po-sidebar);
   --po-surface-agent: var(--po-surface-editor);
   --po-surface-terminal: var(--po-surface-editor);
+  /* Popup controls belong to application chrome. A small foreground mix gives
+   * them more separation than the Header in both light and dark appearances. */
+  --po-surface-menu: color-mix(in srgb, var(--po-header) 94%, var(--po-text) 6%);
 
   --po-canvas: var(--po-surface-editor);
   --po-header: color-mix(in srgb, var(--po-surface-chrome) 40%, var(--po-surface-editor));
@@ -219,8 +233,13 @@
   --po-project-card-bg: var(--po-panel);
   --po-project-card-hover-bg: var(--po-overlay);
   --po-tree-guide: color-mix(in srgb, var(--po-sidebar) 94%, var(--po-text));
-  --po-menu-bg: color-mix(in srgb, var(--po-overlay) 92%, var(--po-panel) 8%);
-  --po-menu-border: color-mix(in srgb, var(--po-border) 82%, transparent);
+  /* Every menu and popover consumes one chrome-derived Appearance surface. */
+  --po-menu-bg: var(--po-surface-menu);
+  --po-menu-border: var(--po-border);
+  /* Menu launchers keep their context visible while a portaled popup owns
+   * focus. Rows and the compact action button use separate strengths. */
+  --po-menu-trigger-row-open-background: var(--po-hover);
+  --po-menu-trigger-open-background: var(--po-control-hover);
   --po-elevation-low: 0 2px 4px -2px
     color-mix(in srgb, var(--po-shadow) 32%, transparent);
   --po-elevation-popover: 0 3px 8px -4px
@@ -243,8 +262,6 @@
   color-scheme: dark;
   --po-project-card-tab: color-mix(in srgb, var(--po-panel-raised) 84%, var(--po-canvas) 16%);
   --po-project-card-hover-bg: color-mix(in srgb, var(--po-panel) 94%, var(--po-text) 6%);
-  --po-menu-bg: color-mix(in srgb, var(--po-overlay) 92%, var(--po-panel-raised) 8%);
-  --po-menu-border: color-mix(in srgb, var(--po-border) 88%, transparent);
   --po-elevation-low: 0 2px 4px -2px
     color-mix(in srgb, var(--po-shadow) 28%, transparent);
   --po-elevation-popover: 0 3px 8px -4px

@@ -211,6 +211,8 @@ describe("Project-owned Agent Chat Workbench lifecycle", () => {
     expect(launcher.textContent).toContain("Start with an Agent");
     expect(launcher.textContent).toContain("Codex");
     expect(launcher.textContent).toContain("Claude Agent");
+    expect(Array.from(launcher.querySelectorAll(".desktop-agent-runtime-launcher-option"))
+      .every((option) => !option.hasAttribute("data-tooltip"))).toBe(true);
     expect(container.querySelector('.desktop-agent-header-region')).toBeNull();
     expect(container.querySelector('button[aria-label="Coding Agent"]')).toBeNull();
     expect(container.querySelector(".cm-content")).toBeNull();
@@ -292,7 +294,7 @@ describe("Project-owned Agent Chat Workbench lifecycle", () => {
 
     act(() => harness.exitListener?.({ sessionId: "session-1", reason: "provider-exited" }));
 
-    expect(stripBidiIsolation(container.textContent)).toContain("OpenCode stopped unexpectedly");
+    expect(stripBidiIsolation(container.textContent)).toContain("OpenCode disconnected while a task was running");
     expect(container.querySelector(".cm-content")?.getAttribute("aria-disabled")).toBe("false");
     expect((container.querySelector('button[aria-label="Send message"]') as HTMLButtonElement).disabled).toBe(true);
     await createChat();

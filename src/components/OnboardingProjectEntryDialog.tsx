@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { FolderOpen, FolderPlus } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useLocalization } from "@puppyone/localization";
@@ -124,7 +125,7 @@ export function OnboardingProjectEntryDialog({
             <h2>{title}</h2>
           </div>
           <DesktopDialogCloseButton
-            title={t("common.action.close")}
+            label={t("common.action.close")}
             disabled={busy}
             onClick={onClose}
           />
@@ -168,14 +169,13 @@ export function OnboardingProjectEntryDialog({
                 onClick={() => void chooseLocation()}
               >
                 <FolderOpen aria-hidden="true" />
-                <bdi
+                <Tooltip content={location?.path} overflowOnly><bdi
                   className={`onboarding-entry-location-path ${location ? "is-selected" : ""}`}
                   dir="ltr"
-                  title={location?.path}
                   aria-live="polite"
                 >
                   {location?.path ?? t("onboarding.entry.create.locationPlaceholder")}
-                </bdi>
+                </bdi></Tooltip>
                 <span className="onboarding-entry-location-action">
                   {t(choosingLocation
                     ? "onboarding.entry.create.browsing"

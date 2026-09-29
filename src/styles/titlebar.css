@@ -10,10 +10,11 @@
   --desktop-titlebar-divider: var(--po-header-divider);
   --desktop-titlebar-context-font-family: var(--po-font-ui);
   --desktop-titlebar-context-font-size: var(--po-font-size-chrome, 13px);
-  --desktop-titlebar-context-font-weight: var(--po-font-weight-chrome, 500);
+  --desktop-titlebar-context-font-weight:
+    var(--desktop-sidebar-font-weight, var(--po-text-weight-regular, 400));
   --desktop-titlebar-context-line-height: var(--po-type-header-line-height, 20px);
   --desktop-titlebar-workspace-inline-padding: 6px;
-  --desktop-titlebar-workspace-icon-slot-size: 14px;
+  --desktop-titlebar-workspace-icon-slot-size: 16px;
   --desktop-titlebar-workspace-icon-label-gap: 6px;
   /* The native traffic lights use a fixed, profile-owned position. Derive
    * both layout edges from the same stable inset instead of two independently
@@ -31,6 +32,7 @@
   min-height: var(--desktop-chrome-height);
   border-bottom: 0;
   background: var(--desktop-titlebar-bg);
+  box-shadow: none;
   color: var(--desktop-titlebar-text);
 }
 
@@ -82,8 +84,8 @@
   --desktop-titlebar-safe-area-x: env(titlebar-area-x, 0px);
   --desktop-titlebar-safe-area-width: env(titlebar-area-width, calc(100% - 138px));
   --desktop-titlebar-content-start: var(--desktop-sidebar-row-left-gap, 12px);
-  height: 38px;
-  min-height: 38px;
+  height: 40px;
+  min-height: 40px;
 }
 
 .desktop-titlebar[data-window-full-screen="true"] {
@@ -108,7 +110,7 @@
   margin-left: var(--desktop-titlebar-safe-area-x);
   /* The divider is absolutely positioned and consumes no layout space. Keep
    * block insets symmetric so controls land on whole pixels at the default
-   * 38px/24px chrome geometry instead of being shifted by half a pixel. */
+   * 40px/28px chrome geometry instead of being shifted by half a pixel. */
   padding: 0 6px 0 var(--desktop-titlebar-content-start);
 }
 
@@ -119,7 +121,7 @@
 
 .desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-layout:has(.desktop-titlebar-actions)::after {
   position: absolute;
-  inset-block-start: 10px;
+  inset-block-start: 11px;
   inset-inline-end: 0;
   width: 1px;
   height: 18px;
@@ -218,9 +220,106 @@
 }
 
 .desktop-titlebar-drag-fill {
+  display: flex;
   width: 100%;
   min-width: 0;
   align-self: stretch;
+}
+
+.desktop-titlebar-session-tabs-host {
+  display: flex;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  overflow: hidden;
+}
+
+.desktop-titlebar-session-tabs-host > .desktop-terminal-subheader,
+.desktop-titlebar-session-tabs-host > .desktop-titlebar-workbench-tabs {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+}
+
+.desktop-titlebar-session-tabs-host > .desktop-terminal-subheader {
+  --desktop-terminal-tab-bar-background: transparent;
+  --desktop-terminal-tab-bar-divider: 0;
+  --desktop-terminal-tab-idle-color: var(--desktop-titlebar-text-muted);
+  --desktop-terminal-tab-active-color: var(--desktop-titlebar-text);
+  --desktop-terminal-tab-active-background: var(--desktop-titlebar-active);
+  border: 0;
+  background: transparent;
+  color: var(--desktop-titlebar-text);
+}
+
+.desktop-titlebar-workbench-tabs {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  overflow-x: auto;
+}
+
+.desktop-titlebar-workbench-tab {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  max-width: 170px;
+  border-radius: var(--desktop-toolbar-action-radius);
+  background: var(--desktop-titlebar-hover);
+}
+
+.desktop-titlebar-workbench-tab:has([aria-pressed="true"]) {
+  background: var(--desktop-titlebar-active);
+}
+
+.desktop-titlebar-workbench-tab-select,
+.desktop-titlebar-workbench-tab-close,
+.desktop-titlebar-workbench-new {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--desktop-titlebar-text);
+}
+
+.desktop-titlebar-workbench-tab-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 5px 3px 5px 8px;
+  white-space: nowrap;
+}
+
+.desktop-titlebar-workbench-tab-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.desktop-titlebar-workbench-tab-status {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  align-items: center;
+  justify-content: center;
+}
+
+.desktop-titlebar-workbench-tab-close,
+.desktop-titlebar-workbench-new {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 23px;
+  height: 24px;
+  flex: 0 0 auto;
+  border-radius: var(--desktop-toolbar-action-radius);
+}
+
+.desktop-titlebar-workbench-tab-close:hover,
+.desktop-titlebar-workbench-new:hover {
+  background: var(--desktop-titlebar-active);
 }
 
 .desktop-titlebar-trailing {
@@ -238,6 +337,37 @@
   gap: var(--desktop-titlebar-button-gap);
   height: var(--desktop-titlebar-control-height);
   overflow: visible;
+}
+
+/* When the auxiliary pane is visible, its Header controls occupy the same
+ * horizontal plane as the pane below. Keep Share on the editor side and place
+ * its following divider exactly on the pane boundary. */
+.desktop-shell[data-header-follows-right-sidebar="true"] .desktop-titlebar-layout {
+  padding-inline-end: 0;
+}
+
+.desktop-shell[data-header-follows-right-sidebar="true"] .desktop-titlebar-trailing,
+.desktop-shell[data-header-follows-right-sidebar="true"] .desktop-titlebar-actions {
+  width: var(--desktop-shell-right-sidebar-width);
+}
+
+.desktop-shell[data-header-follows-right-sidebar="true"] .desktop-titlebar-actions {
+  position: relative;
+  box-sizing: border-box;
+  justify-content: flex-end;
+  padding-inline-end: 6px;
+}
+
+.desktop-shell[data-header-follows-right-sidebar="true"] .desktop-titlebar-share {
+  position: absolute;
+  inset-inline-end: calc(100% + var(--desktop-titlebar-button-gap) + 4px);
+}
+
+.desktop-shell[data-header-follows-right-sidebar="true"]
+  .desktop-titlebar-share + .desktop-titlebar-action-divider {
+  position: absolute;
+  inset-inline-start: 0;
+  margin-inline: 0;
 }
 
 /* Interface Style profiles can opt into renderer-owned window controls. The
@@ -270,6 +400,110 @@
   outline: 0;
   box-shadow: none;
   transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.desktop-titlebar-share {
+  width: auto;
+  min-width: var(--desktop-chrome-control-size);
+  gap: 6px;
+  padding-inline: 7px 8px;
+  font-family: var(--desktop-titlebar-context-font-family);
+  font-size: var(--desktop-titlebar-context-font-size);
+  font-weight: var(--desktop-titlebar-context-font-weight);
+  line-height: var(--desktop-titlebar-context-line-height);
+  white-space: nowrap;
+}
+
+.desktop-titlebar-share > svg {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.desktop-titlebar-share-label {
+  display: block;
+}
+
+.desktop-header-coachmark-anchor {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+.desktop-header-coachmark-anchor[data-coachmark-active="true"] > .desktop-titlebar-action {
+  background: var(--po-accent);
+  color: var(--po-text-inverse);
+}
+
+.desktop-titlebar-menu.desktop-header-coachmark {
+  display: grid;
+  gap: calc(var(--po-menu-item-gap) + var(--po-menu-padding));
+  padding: calc(var(--po-menu-item-padding-inline) * 2);
+  overflow: visible;
+}
+
+.desktop-header-coachmark-intro {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--po-menu-item-gap);
+}
+
+.desktop-header-coachmark-glyph {
+  display: inline-flex;
+  width: var(--po-control-size);
+  height: var(--po-control-size);
+  flex: 0 0 var(--po-control-size);
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--po-menu-border);
+  border-radius: var(--po-menu-item-radius);
+  background: var(--po-control);
+  color: var(--po-accent);
+}
+
+.desktop-header-coachmark-glyph svg {
+  width: var(--po-menu-icon-slot-size);
+  height: var(--po-menu-icon-slot-size);
+}
+
+.desktop-header-coachmark-copy {
+  display: grid;
+  min-width: 0;
+  gap: var(--po-menu-padding);
+}
+
+.desktop-header-coachmark-copy strong {
+  color: var(--po-text);
+  font-size: var(--po-menu-item-font-size);
+  font-weight: var(--po-text-weight-semibold);
+  line-height: var(--po-menu-item-line-height);
+}
+
+.desktop-header-coachmark-copy p {
+  margin: 0;
+  color: var(--po-text-muted);
+  font-size: var(--po-menu-meta-font-size);
+  line-height: var(--po-menu-meta-line-height);
+}
+
+.desktop-header-coachmark-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--po-menu-item-gap);
+}
+
+.desktop-header-coachmark-button {
+  flex: 0 0 auto;
+}
+
+.desktop-header-coachmark-button.po-button--primary:hover:not(:disabled),
+.desktop-header-coachmark-button.po-button--primary:focus-visible:not(:disabled) {
+  background: color-mix(
+    in srgb,
+    var(--po-accent) 88%,
+    var(--po-canvas)
+  );
+  color: var(--po-text-inverse);
 }
 
 .desktop-titlebar-update {
@@ -363,6 +597,13 @@
   color: color-mix(in srgb, var(--po-warning) 76%, white);
 }
 
+.desktop-header-coachmark-anchor[data-coachmark-active="true"]
+  .desktop-titlebar-git-indicator.local:not(.idle),
+.desktop-header-coachmark-anchor[data-coachmark-active="true"]
+  .desktop-titlebar-git-indicator.local:not(.idle) svg {
+  color: inherit;
+}
+
 .desktop-titlebar-git-indicator svg {
   display: block;
   width: 15px;
@@ -448,6 +689,15 @@
   line-height: 1;
   box-shadow: none;
   transition: none;
+}
+
+.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"]
+  .desktop-titlebar-action.desktop-titlebar-share {
+  width: auto;
+  min-width: var(--desktop-titlebar-windows-control-width);
+  flex-basis: auto;
+  gap: 6px;
+  padding-inline: 10px;
 }
 
 .desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-actions .desktop-titlebar-terminal {
@@ -576,10 +826,17 @@
 }
 
 .desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark {
+  display: inline-flex;
   width: var(--desktop-titlebar-workspace-icon-slot-size);
   height: var(--desktop-titlebar-workspace-icon-slot-size);
   flex: 0 0 var(--desktop-titlebar-workspace-icon-slot-size);
+  align-items: center;
+  justify-content: center;
   color: var(--desktop-titlebar-text-subtle, var(--desktop-titlebar-text-muted));
+}
+
+.desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark > svg {
+  display: block;
 }
 
 .desktop-titlebar-context-icon-button {
@@ -758,13 +1015,13 @@
   color: var(--po-text-disabled);
   font-size: var(--po-menu-meta-font-size);
   line-height: var(--po-menu-meta-line-height);
-  font-weight: 600;
+  font-weight: var(--po-text-weight-medium, 500);
   letter-spacing: 0;
   text-transform: none;
 }
 
 .desktop-branch-menu-row .desktop-menu-item-trailing {
-  font-weight: 500;
+  font-weight: var(--po-text-weight-regular, 400);
   letter-spacing: 0;
   text-transform: none;
 }

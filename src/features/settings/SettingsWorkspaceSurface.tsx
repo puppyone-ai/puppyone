@@ -70,6 +70,7 @@ export type SettingsWorkspaceSurfaceProps = {
   preferences: SettingsPreferencesPort;
   subThemeCatalog: SubThemeCatalogController;
   onFilesVisibilitySettingsChange: (settings: FilesVisibilitySettings) => void;
+  onOpenImport: () => void;
   git: {
     status: GitStatusSnapshot | null;
     loading: boolean;
@@ -107,6 +108,7 @@ export function createSettingsWorkspaceSurface({
   cloud,
   git,
   onFilesVisibilitySettingsChange,
+  onOpenImport,
   onSelectSection,
   preferences,
   subThemeCatalog,
@@ -119,6 +121,7 @@ export function createSettingsWorkspaceSurface({
       <SettingsSidebar
         activeSection={activeSection}
         cloudEnabled={cloud.enabled}
+        otherAppImportsEnabled={preferences.experimentalSettings.enableOtherAppImports}
         onSelectSection={onSelectSection}
       />
     ),
@@ -167,6 +170,7 @@ export function createSettingsWorkspaceSurface({
         onFileIconThemeChange={preferences.setFileIconTheme}
         onFilesVisibilitySettingsChange={onFilesVisibilitySettingsChange}
         onCreateNewMenuSettingsChange={preferences.setCreateNewMenuSettings}
+        onOpenImport={onOpenImport}
         onExperimentalSettingsChange={preferences.setExperimentalSettings}
         onRightSidebarToolsSettingsChange={preferences.setRightSidebarToolsSettings}
         onTitlebarActionsSettingsChange={preferences.setTitlebarActionsSettings}

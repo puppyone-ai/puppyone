@@ -43,6 +43,7 @@
   "native.update.manual.failed.message": "{appName} could not check for updates.",
   "native.update.manual.failed.detail": "Try again later.",
   "native.workspace.open.title": "Open local PuppyOne workspace",
+  "native.workspace.import.chooseSource": "Choose the folder to import",
   "native.workspace.create.chooseParent": "Choose where to create the project",
   "native.workspace.create.chooseParentButton": "Create here",
   "native.workspace.clone.chooseParent": "Choose where to clone the repository",

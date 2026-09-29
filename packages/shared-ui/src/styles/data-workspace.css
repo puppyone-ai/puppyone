@@ -29,13 +29,10 @@
   flex-direction: column;
   overflow: visible;
   background: var(--po-sidebar);
-  border-inline-end: 1px solid var(--po-sidebar-divider, var(--po-divider));
-  transition-property: width, min-width, flex-basis, background-color, border-color;
+  transition-property: width, min-width, flex-basis, background-color;
 }
 
 .explorer-column[data-pane-presentation="collapsed"] {
-  border-inline-end-width: 0;
-  border-inline-end-color: transparent;
   background: transparent;
   pointer-events: none;
 }
@@ -118,20 +115,6 @@
   pointer-events: auto;
 }
 
-.data-explorer-resizer {
-  /*
-   * Anchor the overlay sash to the animated Explorer frame. The negative
-   * inset preserves the full hit lane without consuming a Grid track.
-   */
-  inset-inline-start: auto;
-  inset-inline-end: calc(1px - var(--po-pane-resizer-hit-size, 8px));
-  background: transparent;
-}
-
-.data-content[data-resizable-explorer="true"] > .explorer-column {
-  border-inline-end-color: transparent;
-}
-
 body.data-sidebar-resizing,
 body.data-sidebar-resizing * {
   cursor: col-resize !important;
@@ -149,11 +132,7 @@ body.data-sidebar-resizing .data-preview-accessory {
 
 @media (prefers-reduced-motion: reduce) {
   .explorer-column {
-    transition-property: background-color, border-color;
-  }
-
-  .data-explorer-resizer {
-    transition: none;
+    transition-property: background-color;
   }
 }
 
@@ -169,7 +148,7 @@ body.data-sidebar-resizing .data-preview-accessory {
 }
 
 .desktop-explorer-toolbar > span {
-  color: var(--po-text-muted);
+  color: var(--desktop-sidebar-text-color, var(--po-text-muted));
   font-size: var(--po-type-left-sidebar-content, 14px);
   font-weight: 650;
 }
@@ -388,7 +367,7 @@ body.data-sidebar-resizing .data-preview-accessory {
   border: 0;
   border-radius: var(--tree-row-radius);
   background: transparent;
-  color: var(--po-text-muted);
+  color: var(--desktop-sidebar-text-color, var(--po-text-muted));
   font-size: var(--tree-row-font-size);
   font-weight: var(--tree-row-font-weight);
   line-height: var(--tree-row-line-height);
@@ -404,7 +383,7 @@ body.data-sidebar-resizing .data-preview-accessory {
 
 .tree-row.root:hover {
   background: transparent;
-  color: var(--po-text-muted);
+  color: var(--desktop-sidebar-text-color, var(--po-text-muted));
 }
 
 .tree-row.root.root-command {
@@ -581,10 +560,20 @@ body.data-sidebar-resizing .data-preview-accessory {
   --tree-row-action-reserve: 56px;
 }
 
+.tree-row:has(.tree-row-action-button[aria-expanded="true"]) {
+  background: var(--po-menu-trigger-row-open-background, var(--tree-row-hover-bg));
+  color: var(--po-text);
+}
+
+.tree-row:is(.selected, .active):has(.tree-row-action-button[aria-expanded="true"]) {
+  background: var(--tree-row-selected-bg);
+}
+
 .tree-row.root:has(.tree-row-actions) .tree-row-content,
 .tree-row:hover:has(.tree-row-actions) .tree-row-content,
 .tree-row:focus-visible:has(.tree-row-actions) .tree-row-content,
-.tree-row:has(.tree-row-action-button:focus-visible) .tree-row-content {
+.tree-row:has(.tree-row-action-button:focus-visible) .tree-row-content,
+.tree-row:has(.tree-row-action-button[aria-expanded="true"]) .tree-row-content {
   padding-right: var(--tree-row-action-reserve);
 }
 
@@ -607,7 +596,8 @@ body.data-sidebar-resizing .data-preview-accessory {
 .tree-row.root .tree-row-actions.root-actions,
 .tree-row:hover .tree-row-actions,
 .tree-row:focus-visible .tree-row-actions,
-.tree-row:has(.tree-row-action-button:focus-visible) .tree-row-actions {
+.tree-row:has(.tree-row-action-button:focus-visible) .tree-row-actions,
+.tree-row:has(.tree-row-action-button[aria-expanded="true"]) .tree-row-actions {
   opacity: 1;
   pointer-events: auto;
 }
@@ -631,8 +621,9 @@ body.data-sidebar-resizing .data-preview-accessory {
 }
 
 .tree-row-action-button:hover,
-.tree-row-action-button:focus-visible {
-  background: var(--po-control-hover);
+.tree-row-action-button:focus-visible,
+.tree-row-action-button[aria-expanded="true"] {
+  background: var(--po-menu-trigger-open-background, var(--po-control-hover));
   color: var(--po-text);
   outline: 0;
 }

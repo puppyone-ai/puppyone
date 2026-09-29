@@ -138,7 +138,7 @@
   min-width: 0;
   box-sizing: border-box;
   min-height: 36px;
-  grid-template-columns: 36px minmax(0, 1fr);
+  grid-template-columns: 36px minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   padding: 8px;
@@ -152,8 +152,18 @@
   transition: background 120ms ease;
 }
 
-.onboarding-import-source:hover {
+.onboarding-import-source:not(:disabled):hover {
   background: var(--po-hover);
+}
+
+.onboarding-import-source:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.onboarding-import-source-status {
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-caption, 12px);
 }
 
 .onboarding-import-source:focus-visible {

@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { ChevronDown, ChevronRight, Folder, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { bidiIsolate } from "@puppyone/localization/core";
@@ -253,15 +254,13 @@ function CloudAutomationResourcePicker({
           {resources.map((resource) => {
             const selected = value?.resourceId === resource.id;
             return (
-              <button
+              <Tooltip content={resource.authorized
+                  ? undefined
+                  : t("automation.resource.notAuthorized", { name: bidiIsolate(resource.name) })} key={`${resource.type}:${resource.id}`}><button
                 className={selected ? "selected" : undefined}
                 type="button"
-                key={`${resource.type}:${resource.id}`}
                 disabled={!resource.authorized}
                 aria-pressed={selected}
-                title={resource.authorized
-                  ? resource.name
-                  : t("automation.resource.notAuthorized", { name: bidiIsolate(resource.name) })}
                 onClick={() => onChange(automationSourceFromProviderResource(resource))}
               >
                 <span>
@@ -271,7 +270,7 @@ function CloudAutomationResourcePicker({
                 <span>{resource.authorized
                   ? selected ? t("automation.resource.selected") : t("automation.resource.select")
                   : t("automation.resource.noAccess")}</span>
-              </button>
+              </button></Tooltip>
             );
           })}
         </div>
@@ -543,11 +542,10 @@ function CloudAutomationFolderBranch({
         return (
           <div key={folder.path}>
             <div className={`desktop-cloud-automation-folder-row ${selected ? "selected" : ""}`}>
-              <button
-                type="button"
-                title={t(isExpanded ? "automation.destination.collapseFolder" : "automation.destination.expandFolder", {
+              <Tooltip content={t(isExpanded ? "automation.destination.collapseFolder" : "automation.destination.expandFolder", {
                   name: bidiIsolate(folder.name),
-                })}
+                })}><button
+                type="button"
                 aria-label={t(isExpanded ? "automation.destination.collapseFolder" : "automation.destination.expandFolder", {
                   name: bidiIsolate(folder.name),
                 })}
@@ -558,9 +556,9 @@ function CloudAutomationFolderBranch({
                   else next.add(folder.path);
                   return next;
                 })}
-              >
+                    >
                 {isExpanded ? <ChevronDown size={13} /> : <ChevronRight className="po-directional-icon" size={13} />}
-              </button>
+              </button></Tooltip>
               <button type="button" aria-pressed={selected} onClick={() => onSelect(folder.path)}>
                 <Folder size={14} />
                 <span dir="auto">{folder.name}</span>

@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { Plus } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization/react";
@@ -39,6 +40,7 @@ export function DesktopCloudCreateAccessDialog({
   connectorsByTarget,
   mcpEndpointsByTarget,
   initialPath,
+  initialIntent = "ai_agent",
   onCloudSessionChange,
   onClose,
   onCreated,
@@ -50,6 +52,7 @@ export function DesktopCloudCreateAccessDialog({
   connectorsByTarget: Map<string, DesktopCloudConnector[]>;
   mcpEndpointsByTarget: Map<string, DesktopCloudMcpEndpoint[]>;
   initialPath?: string | null;
+  initialIntent?: CreateAccessIntent;
   onCloudSessionChange: (session: DesktopCloudSession | null) => void;
   onClose: () => void;
   onCreated: (created: DesktopCloudCreateAccessCreated) => Promise<void> | void;
@@ -60,8 +63,10 @@ export function DesktopCloudCreateAccessDialog({
   const [selectedPath, setSelectedPath] = useState<string | null>(initialSelectedPath);
   const [name, setName] = useState(initialSelectedPath ? defaultScopeName(initialSelectedPath) : "");
   const [nameTouched, setNameTouched] = useState(Boolean(initialSelectedPath));
-  const [optionalProviders, setOptionalProviders] = useState<ReadonlySet<OptionalAccessProvider>>(() => new Set());
-  const [intent, setIntent] = useState<CreateAccessIntent>("remote_workspace");
+  const [optionalProviders, setOptionalProviders] = useState<ReadonlySet<OptionalAccessProvider>>(
+    () => new Set(initialIntent === "ai_agent" ? ["mcp"] : []),
+  );
+  const [intent, setIntent] = useState<CreateAccessIntent>(initialIntent);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<CloudMessageDescriptor | null>(null);
 
@@ -130,6 +135,13 @@ export function DesktopCloudCreateAccessDialog({
     });
   };
 
+  const selectIntent = (nextIntent: CreateAccessIntent) => {
+    setIntent(nextIntent);
+    if (nextIntent === "ai_agent") {
+      setOptionalProviders((current) => new Set([...current, "mcp"]));
+    }
+  };
+
   const handleCreate = async () => {
     if (!canCreate || normalizedSelected === null) return;
     setSaving(true);
@@ -179,7 +191,7 @@ export function DesktopCloudCreateAccessDialog({
           className="desktop-dialog-body desktop-cloud-create-access-body"
           data-po-scrollbar="content"
         >
-          <CreateAccessIntentPicker value={intent} onChange={setIntent} />
+          <CreateAccessIntentPicker value={intent} onChange={selectIntent} />
           <div className="desktop-cloud-create-access-grid">
             <CreateAccessFolderTree
               projectId={projectId}
@@ -207,13 +219,12 @@ export function DesktopCloudCreateAccessDialog({
               </FieldLabel>
 
               <FieldLabel label={t("cloud.common.path")} required>
-                <div
+                <Tooltip content={selectedLabel} overflowOnly><div
                   className={`desktop-cloud-create-access-path-box ${selectedExistingScope ? "existing" : ""} ${normalizedSelected === null ? "empty" : ""}`}
-                  title={selectedLabel}
                 >
                   <TreeDisclosureMarker expanded={normalizedSelected !== null} />
                   <span>{selectedLabel}</span>
-                </div>
+                </div></Tooltip>
                 {selectedExistingScope ? (
                   <div className="desktop-cloud-create-access-field-note">
                     {t("cloud.access.create.pathAlreadyHasAccess")}

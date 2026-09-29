@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { Check, ChevronDown, CircleAlert, Search } from "lucide-react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
@@ -223,7 +224,7 @@ export function AgentPickerPopover({
       label={<bdi dir="auto">{option.label}</bdi>}
       detail={option.meta ? <bdi dir="auto">{option.meta}</bdi> : undefined}
       trailing={option.warning
-        ? <span className="desktop-agent-picker-warning" title={option.warning} aria-label={option.warning}><CircleAlert size={14} strokeWidth={1.8} aria-hidden="true" /></span>
+        ? <Tooltip content={option.warning}><span className="desktop-agent-picker-warning" aria-label={option.warning}><CircleAlert size={14} strokeWidth={1.8} aria-hidden="true" /></span></Tooltip>
         : option.selected
           ? <Check className="desktop-agent-picker-check" size={14} aria-hidden="true" />
           : undefined}
@@ -235,7 +236,7 @@ export function AgentPickerPopover({
 
   return (
     <div ref={rootRef} className={`desktop-agent-picker${placement === "header" ? " is-header" : ""}`}>
-      <button
+      <Tooltip content={compact ? title : undefined}><button
         ref={triggerRef}
         type="button"
         className={`desktop-agent-picker-trigger${compact ? " is-compact" : ""}`}
@@ -246,7 +247,6 @@ export function AgentPickerPopover({
         aria-description={triggerDescription || (compact && valueLabel
           ? t("agent.picker.selected", { value: bidiIsolate(valueLabel) })
           : undefined)}
-        title={title}
         disabled={disabled}
         onClick={() => open ? close(false) : show()}
         onKeyDown={handleTriggerKeyDown}
@@ -254,7 +254,7 @@ export function AgentPickerPopover({
         {triggerIcon && <span className="desktop-agent-picker-trigger-mark">{triggerIcon}</span>}
         {!compact && <span className="desktop-agent-picker-trigger-value" dir="auto">{valueLabel || placeholder}</span>}
         {!compact && indicator === "chevron" && <ChevronDown size={12} aria-hidden="true" />}
-      </button>
+      </button></Tooltip>
       {open && (
         <DesktopOverlayLayer>
           <DesktopMenuSurface

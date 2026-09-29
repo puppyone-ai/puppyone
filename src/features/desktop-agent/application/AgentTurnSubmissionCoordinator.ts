@@ -16,6 +16,7 @@ type AgentTurnSubmissionCoordinatorOptions = {
   patch: (patch: Partial<AgentControllerState>) => void;
   writeDraft: (draft: string, mentions: AgentPromptReferenceMention[]) => void;
   prepareSession: () => Promise<boolean>;
+  reconnectSession: () => Promise<boolean>;
 };
 
 /** Captures and advances immutable prompt/configuration/reference intents. */
@@ -164,6 +165,15 @@ export class AgentTurnSubmissionCoordinator {
     });
     if (!preserveDraft) this.options.writeDraft("", []);
     try {
+      if (sessionId && this.options.readState().control?.connection.status === "exited") {
+        const reconnected = await this.options.reconnectSession();
+        if (!isCurrent()) return false;
+        sessionId = this.options.readState().session?.id ?? null;
+        if (!reconnected || !sessionId) {
+          this.restoreDraft(intent, this.options.readState().error ?? createAgentError("session-prepare-failed"));
+          return false;
+        }
+      }
       if (!sessionId) {
         const prepared = await this.options.prepareSession();
         if (!isCurrent()) return false;

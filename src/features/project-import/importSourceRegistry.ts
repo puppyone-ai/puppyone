@@ -1,31 +1,21 @@
 import type { ExperimentalSettings } from "../../preferences";
+import { LOCAL_IMPORT_SOURCES } from "../../../shared/project-import/sources.mjs";
 
 export type RepositoryImportSource = "github" | "gitlab";
 export type ExperimentalImportSource = "notion" | "google-drive" | "obsidian" | "airtable";
-export type ImportSourceBrand = RepositoryImportSource | ExperimentalImportSource;
-export type ImportExperimentSettingKey =
-  | "enableNotionImport"
-  | "enableGoogleDriveImport"
-  | "enableObsidianImport"
-  | "enableAirtableImport";
-
+export type LocalFolderImportSource = "obsidian";
+export type ImportSourceBrand = string;
 export type ImportSourceDescriptor = Readonly<{
   id: ImportSourceBrand;
-  mode: "repository" | "guided";
+  label: string;
+  mode: "repository" | "remote" | "folder";
   availability: "ready" | "experimental";
+  operational: boolean;
   preview: boolean;
-  settingKey?: ImportExperimentSettingKey;
   stepCount?: number;
 }>;
 
-export const IMPORT_SOURCE_REGISTRY: readonly ImportSourceDescriptor[] = [
-  { id: "github", mode: "repository", availability: "ready", preview: true },
-  { id: "gitlab", mode: "repository", availability: "ready", preview: true },
-  { id: "notion", mode: "guided", availability: "experimental", preview: true, settingKey: "enableNotionImport", stepCount: 3 },
-  { id: "google-drive", mode: "guided", availability: "experimental", preview: true, settingKey: "enableGoogleDriveImport", stepCount: 3 },
-  { id: "obsidian", mode: "guided", availability: "experimental", preview: true, settingKey: "enableObsidianImport", stepCount: 2 },
-  { id: "airtable", mode: "guided", availability: "experimental", preview: true, settingKey: "enableAirtableImport", stepCount: 3 },
-];
+export const IMPORT_SOURCE_REGISTRY: readonly ImportSourceDescriptor[] = LOCAL_IMPORT_SOURCES;
 export const DEFAULT_VISIBLE_IMPORT_SOURCES = IMPORT_SOURCE_REGISTRY.filter(
   ({ availability }) => availability === "ready",
 );
@@ -35,7 +25,7 @@ export function resolveVisibleImportSources(
 ): ImportSourceDescriptor[] {
   return IMPORT_SOURCE_REGISTRY.filter((source) => (
     source.availability === "ready"
-    || (source.settingKey !== undefined && settings[source.settingKey])
+    || settings.enableOtherAppImports
   ));
 }
 
@@ -44,7 +34,7 @@ export function resolveImportPreviewBrands(
   settings: ExperimentalSettings,
 ): ImportSourceBrand[] {
   return resolveVisibleImportSources(settings)
-    .filter(({ preview }) => preview)
+    .filter(({ preview, operational }) => preview && operational)
     .map(({ id }) => id)
     .slice(0, 3);
 }

@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "../../../primitives/Tooltip";
 
 import { useEditorTaskController } from "../../runtime/EditorTaskContext";
 import { acquireEditorHostLease } from "../../runtime/EditorHostLeases";
@@ -358,40 +359,37 @@ function OfficePreviewControls({
             role="group"
             aria-label={t("editor.office.wordZoom")}
           >
-            <button
+            <Tooltip content={t("editor.office.zoomOut")}><button
               type="button"
               className="office-preview__toolbar-button"
               aria-label={t("editor.office.zoomOut")}
-              title={t("editor.office.zoomOut")}
               disabled={wordZoomControls.scale <= 0.5}
               onClick={wordZoomControls.onDecrease}
             >
               <Minus size={14} strokeWidth={2} />
-            </button>
+            </button></Tooltip>
             <output className="office-preview__zoom-value" aria-live="polite">
               {Math.round(wordZoomControls.scale * 100)}%
             </output>
-            <button
+            <Tooltip content={t("editor.office.zoomIn")}><button
               type="button"
               className="office-preview__toolbar-button"
               aria-label={t("editor.office.zoomIn")}
-              title={t("editor.office.zoomIn")}
               disabled={wordZoomControls.scale >= 2}
               onClick={wordZoomControls.onIncrease}
             >
               <Plus size={14} strokeWidth={2} />
-            </button>
-            <button
+            </button></Tooltip>
+            <Tooltip content={t("editor.office.fitWidth")}><button
               type="button"
               className="office-preview__toolbar-button"
               aria-label={t("editor.office.fitWidth")}
-              title={t("editor.office.fitWidth")}
               aria-pressed={wordZoomControls.isFit}
               data-active={wordZoomControls.isFit ? "true" : undefined}
               onClick={wordZoomControls.onFit}
             >
               <Maximize2 size={13} strokeWidth={2} />
-            </button>
+            </button></Tooltip>
           </div>
         )}
         {officeEditorActions.map((action) => (
@@ -1251,8 +1249,7 @@ function SpreadsheetPreview({
         const frozenColumn = cell.columnPosition < selectedSheet.frozenColumns;
         const workbookStyle = result.styles[cell.styleId];
         return (
-          <td
-            key={`${row.rowIndex}-${cell.columnIndex}`}
+          <Tooltip content={cell.value || undefined} overflowOnly key={`${row.rowIndex}-${cell.columnIndex}`}><td
             data-cell-kind={cell.kind}
             data-column-position={cell.columnPosition}
             data-frozen-column={frozenColumn ? "true" : undefined}
@@ -1268,14 +1265,13 @@ function SpreadsheetPreview({
                 ? SPREADSHEET_ROW_HEADER_WIDTH + columnOffsets[cell.columnPosition]
                 : null,
             )}
-            title={cell.value || undefined}
             onClick={() => {
               selectCell({ rowPosition: row.rowPosition, columnPosition: cell.columnPosition }, false);
               gridWrapRef.current?.focus({ preventScroll: true });
             }}
           >
             <span dir="auto">{cell.value}</span>
-          </td>
+          </td></Tooltip>
         );
       })}
     </tr>
@@ -1378,16 +1374,14 @@ function SpreadsheetPreview({
         aria-label={t("editor.office.sheets")}
       >
         {result.sheets.map((sheet, index) => (
-          <button
-            key={sheet.name}
+          <Tooltip content={sheet.name} overflowOnly key={sheet.name}><button
             type="button"
             role="tab"
             aria-selected={index === activeSheet}
-            title={sheet.name}
             onClick={() => onActiveSheetChange(index)}
           >
             <span dir="auto">{sheet.name}</span>
-          </button>
+          </button></Tooltip>
         ))}
       </div>
     </div>

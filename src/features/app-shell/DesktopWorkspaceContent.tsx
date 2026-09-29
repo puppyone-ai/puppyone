@@ -60,6 +60,8 @@ type DesktopWorkspaceContentProps = {
   onActiveDataNodeChange: (node: DataNode | null) => void;
   onResourceMove: (previousPath: string, nextPath: string) => void | Promise<void>;
   onRemoveProject: (folder: WorkspaceFolder) => void | Promise<void>;
+  openCreateEntryParentPath: string | null | undefined;
+  openNodeActionPath: string | null;
   onCreateEntryMenu: (parentPath: string | null, anchorRect: DesktopCreateEntryAnchorInput) => void;
   onDismissCreateEntryMenu: () => void;
   onFilesVisibilitySettingsChange: (settings: FilesVisibilitySettings) => void;
@@ -67,6 +69,7 @@ type DesktopWorkspaceContentProps = {
   onCloseCloud: () => void;
   onClosePlugins: () => void;
   onOpenGitChanges: () => void;
+  onOpenImport: () => void;
   onOpenPlugins: () => void;
   onNodeActionMenu: (node: DataNode, anchorRect: DOMRect, selectedNodes?: readonly DataNode[]) => void;
   onOpenSettings: () => void;
@@ -113,6 +116,8 @@ export function DesktopWorkspaceContent({
   onActiveDataNodeChange,
   onResourceMove,
   onRemoveProject,
+  openCreateEntryParentPath,
+  openNodeActionPath,
   onCreateEntryMenu,
   onDismissCreateEntryMenu,
   onFilesVisibilitySettingsChange,
@@ -120,6 +125,7 @@ export function DesktopWorkspaceContent({
   onCloseCloud,
   onClosePlugins,
   onOpenGitChanges,
+  onOpenImport,
   onOpenPlugins,
   onNodeActionMenu,
   onOpenSettings,
@@ -164,11 +170,10 @@ export function DesktopWorkspaceContent({
     workspacePath: workspace.path,
   });
   const editorInteractionPreferences = useMemo<EditorInteractionPreferences>(() => ({
-    showSaveStatus: preferences.experimentalSettings.enableEditorSaveStatus,
+    showSaveStatus: false,
     markdownBlockDragEnabled: preferences.experimentalSettings.enableMarkdownBlockDrag,
     markdownHeadingOutlineEnabled: preferences.experimentalSettings.enableMarkdownHeadingOutline,
   }), [
-    preferences.experimentalSettings.enableEditorSaveStatus,
     preferences.experimentalSettings.enableMarkdownBlockDrag,
     preferences.experimentalSettings.enableMarkdownHeadingOutline,
   ]);
@@ -186,6 +191,7 @@ export function DesktopWorkspaceContent({
     git,
     onFilesVisibilitySettingsChange,
     onOpenGitChanges,
+    onOpenImport,
     onPuppyoneConfigChange,
     onSelectSettingsSection,
     onUnlinkWorkspace,
@@ -233,6 +239,8 @@ export function DesktopWorkspaceContent({
         onActiveDataPathChange={onActiveDataPathChange}
         onResourceMove={onResourceMove}
         onRemoveProject={onRemoveProject}
+        openCreateEntryParentPath={openCreateEntryParentPath}
+        openNodeActionPath={openNodeActionPath}
         onCreateEntryMenu={onCreateEntryMenu}
         onDismissCreateEntryMenu={onDismissCreateEntryMenu}
         onNodeActionMenu={onNodeActionMenu}

@@ -71,17 +71,17 @@ describe("Desktop Agent and Terminal chrome visual contract", () => {
     expect(launcherCss).not.toMatch(/\.desktop-agent-history-time\s*\{[^}]*font-variant-numeric:/s);
   });
 
-  it("uses separate start and continue groups with Terminal inside the start group", () => {
+  it("keeps Terminal in the local group and history in its heading", () => {
     expect(terminalLauncherCss).toMatch(/place-items:\s*safe center/);
     expect(terminalLauncherCss).toMatch(/padding:\s*32px 0/);
     expect(terminalLauncherCss).toMatch(/width:\s*min\(100%, 252px\)/);
     expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-content\s*\{[^}]*gap:\s*28px/s);
     expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-group\s*\{[^}]*padding:\s*18px[^}]*border:\s*1px solid var\(--po-border\)[^}]*border-radius:\s*0/s);
     expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-tools\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)[^}]*gap:\s*1px/s);
-    expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-tool,\s*\.desktop-terminal-launcher-shell,\s*\.desktop-terminal-launcher-history\s*\{[^}]*min-height:\s*var\(--po-control-size-large\)[^}]*gap:\s*9px[^}]*padding:\s*5px 8px/s);
+    expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-tool,\s*\.desktop-terminal-launcher-shell\s*\{[^}]*min-height:\s*var\(--po-control-size-large\)[^}]*gap:\s*9px[^}]*padding:\s*5px 8px/s);
+    expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-scan,\s*\.desktop-terminal-launcher-history\s*\{[^}]*width:\s*18px;[^}]*height:\s*18px;/s);
     expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-heading h2\s*\{[^}]*font-size:\s*var\(--po-type-right-sidebar-meta, 13px\)[^}]*line-height:\s*var\(--po-type-right-sidebar-meta-line-height, 19px\)/s);
     expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-tool > span:last-child,[^}]*\{[^}]*font-size:\s*var\(--po-type-right-sidebar-content, 14px\)[^}]*line-height:\s*var\(--po-type-right-sidebar-control-line-height, 19px\)/s);
-    expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-divider\s*\{[^}]*height:\s*1px/s);
     expect(terminalLauncherCss).not.toContain(".desktop-terminal-launcher-rail");
     expect(terminalLauncherCss).not.toContain("::-webkit-scrollbar");
     expect(terminalLauncherCss).not.toMatch(/scrollbar-(?:width|color)\s*:/);
@@ -100,7 +100,7 @@ describe("Desktop Agent and Terminal chrome visual contract", () => {
   it("shares row spacing and geometry without merging discovery and bundled busy semantics", () => {
     expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-entries,\s*\.desktop-terminal-launcher-tools\s*\{[^}]*gap:\s*1px/s);
     expect(terminalLauncherCss).toContain(".desktop-terminal-launcher-entries:not(:has(> :not(:empty)))");
-    expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-discovery,\s*\.desktop-terminal-launcher-tool,\s*\.desktop-terminal-launcher-shell,\s*\.desktop-terminal-launcher-history\s*\{[^}]*min-height:\s*var\(--po-control-size-large\)[^}]*gap:\s*9px[^}]*padding:\s*5px 8px/s);
+    expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-discovery,\s*\.desktop-terminal-launcher-tool,\s*\.desktop-terminal-launcher-shell\s*\{[^}]*min-height:\s*var\(--po-control-size-large\)[^}]*gap:\s*9px[^}]*padding:\s*5px 8px/s);
     expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-discovery\s*\{[^}]*grid-template-columns:\s*18px minmax\(0, 1fr\)[^}]*align-content:\s*center/s);
     expect(terminalLauncherCss).toMatch(/\.desktop-terminal-launcher-discovery-icon\s*\{[^}]*height:\s*var\(--po-type-right-sidebar-control-line-height, 19px\)/s);
     expect(terminalLauncherCss).not.toMatch(/\.desktop-terminal-launcher-discovery:(?:hover|focus)/);

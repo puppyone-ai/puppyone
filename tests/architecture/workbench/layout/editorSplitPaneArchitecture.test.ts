@@ -82,6 +82,10 @@ const splitStyles = readFileSync(
   new URL("../../../../src/features/editor-workbench/layout/desktop-editor-split-view.css", import.meta.url),
   "utf8",
 );
+const overflowDotsStyles = readFileSync(
+  new URL("../../../../packages/shared-ui/src/styles/overflow-dots.css", import.meta.url),
+  "utf8",
+);
 const menuStyles = readFileSync(
   new URL("../../../../src/styles/menus.css", import.meta.url),
   "utf8",
@@ -183,10 +187,12 @@ describe("editor split-pane architecture", () => {
     expect(handleRule).toContain("border: 0;");
     expect(handleRule).toContain("background: transparent;");
     expect(handleRule).toContain("var(--po-text-muted) 68%");
-    expect(handleRule).toContain("gap: 2px;");
+    expect(handleRule).not.toContain("gap:");
     expect(handleRule).not.toContain("box-shadow:");
     expect(handleRule).not.toContain("border-radius:");
-    const handleDotRule = readCssBlock(splitStyles, ".desktop-editor-pane-handle > i");
+    expect(paneChromeSource).toContain("<OverflowDots />");
+    expect(readCssBlock(overflowDotsStyles, ".po-overflow-dots")).toContain("gap: 2px;");
+    const handleDotRule = readCssBlock(overflowDotsStyles, ".po-overflow-dots > i");
     expect(handleDotRule).toContain("width: 2px;");
     expect(handleDotRule).toContain("height: 2px;");
     expect(handleDotRule).toContain("border-radius: 0;");
@@ -414,17 +420,8 @@ describe("editor split-pane architecture", () => {
 
   it("keeps one Sidebar and Editor layout boundary under an overlay sash", () => {
     const explorerRule = readCssBlock(sharedDataWorkspaceStyles, ".explorer-column");
-    const resizerRule = readCssBlock(sharedDataWorkspaceStyles, ".data-explorer-resizer");
-
-
-    expect(explorerRule).toContain(
-      "border-inline-end: 1px solid var(--po-sidebar-divider, var(--po-divider));",
-    );
-    expect(resizerRule).toContain("background: transparent;");
-    expect(resizerRule).toContain("inset-inline-start: auto;");
-    expect(resizerRule).toContain(
-      "inset-inline-end: calc(1px - var(--po-pane-resizer-hit-size, 8px));",
-    );
+    expect(explorerRule).not.toContain("border-inline-end:");
+    expect(sharedDataWorkspaceStyles).not.toMatch(/\.data-explorer-resizer\s*\{/);
     expect(sharedDataWorkspaceStyles).not.toContain(".data-explorer-resizer::after");
     expect(sharedDataWorkspaceStyles).not.toContain("grid-column: 3;");
     expect(sharedDataWorkspaceStyles).not.toMatch(
@@ -478,7 +475,7 @@ describe("editor split-pane architecture", () => {
     expect(tokens).toContain("--po-pane-resizer-active-color:");
     expect(tokens).toContain("--po-pane-resizer-active-ring:");
     expect(tokens).not.toMatch(/--po-pane-resizer-(?:hover-color|active-color|active-ring):[^;]*--po-accent/);
-    for (const styles of [readFileSync(new URL("../../../../packages/shared-ui/src/styles/sidebar-primitives.css", import.meta.url), "utf8"), splitStyles]) {
+    for (const styles of [readFileSync(new URL("../../../../packages/shared-ui/src/sidebar/collapsible-pane.css", import.meta.url), "utf8"), splitStyles]) {
       expect(styles).toContain("var(--po-pane-resizer-hover-color)");
       expect(styles).toContain("var(--po-pane-resizer-active-color)");
       expect(styles).toContain("var(--po-pane-resizer-active-ring)");

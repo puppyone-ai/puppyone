@@ -11,6 +11,7 @@ import { applyLinuxBuilderConfig } from "./platforms/linux.mjs";
 import { applyMacosBuilderConfig } from "./platforms/macos.mjs";
 import { applyWindowsBuilderConfig } from "./platforms/windows.mjs";
 import { resolveDesktopAppIcon } from "../../../shared/desktop/app-icon-contract.mjs";
+import { getDesktopReturnScheme } from "../../../shared/desktop/return-to-app-link.mjs";
 
 const DEFAULT_MAC_TARGET = createDesktopTarget({ platform: "macos", arch: "arm64" });
 const PLATFORM_CONFIG_KEYS = Object.freeze([
@@ -53,6 +54,11 @@ export function createDesktopElectronBuilderConfig({
     executableName: application.applicationName,
     artifactName: "puppyone-${version}-${arch}.${ext}",
     buildVersion: application.platformBuildNumber ?? release.baseVersion,
+    protocols: [{
+      name: `Open ${application.applicationName}`,
+      schemes: [getDesktopReturnScheme(release.channel)],
+      role: "Viewer",
+    }],
     extraMetadata: {
       ...(baseBuild.extraMetadata ?? {}),
       version: release.version,

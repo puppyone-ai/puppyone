@@ -46,7 +46,7 @@ export function RemoteUpdateNotice({
       </div>
       <GitOperationButton
         className="desktop-remote-update-notice-pull"
-        title={t("source-control.notice.getChangesTitle")}
+        tooltip={t("source-control.notice.getChangesTitle")}
         disabled={operationLoading !== null || !model.canPull}
         icon="download"
         label={t("source-control.notice.get")}

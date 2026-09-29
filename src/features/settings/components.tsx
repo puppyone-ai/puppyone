@@ -1,15 +1,15 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { useId, type ReactNode } from "react";
 
-export function SettingsSectionHeader({ title, detail }: { title: string; detail?: string }) {
+export function SettingsSectionHeader({ title }: { title: string }) {
   return (
     <div className="desktop-settings-section-header">
       <h2>{title}</h2>
-      {detail && <span>{detail}</span>}
     </div>
   );
 }
 
-export function SettingsSubsection({ title, detail, children }: { title?: string; detail?: string; children: ReactNode }) {
+export function SettingsSubsection({ title, detail, children, leading = false }: { title?: string; detail?: string; children: ReactNode; leading?: boolean }) {
   const titleId = useId();
   const content = (
     <>
@@ -20,23 +20,25 @@ export function SettingsSubsection({ title, detail, children }: { title?: string
   );
 
   return title ? (
-    <section className="desktop-settings-subsection" aria-labelledby={titleId}>{content}</section>
+    <section className={`desktop-settings-subsection${leading ? " desktop-settings-lead-group" : ""}`} aria-labelledby={titleId}>{content}</section>
   ) : (
-    <div className="desktop-settings-subsection">{content}</div>
+    <div className={`desktop-settings-subsection${leading ? " desktop-settings-lead-rows" : ""}`}>{content}</div>
   );
 }
 
 export function SettingsValueRow({
   label,
   value,
-  title,
+  tooltip,
+  tooltipOverflowOnly = false,
   action,
   monospace = false,
   tone,
 }: {
   label: string;
   value: ReactNode;
-  title?: string;
+  tooltip?: string;
+  tooltipOverflowOnly?: boolean;
   action?: ReactNode;
   monospace?: boolean;
   tone?: "success";
@@ -45,13 +47,12 @@ export function SettingsValueRow({
     <div className={`desktop-settings-row desktop-settings-value-row ${action ? "desktop-settings-row-control" : ""}`}>
       <span>{label}</span>
       <div className="desktop-settings-value">
-        <span
+        <Tooltip content={tooltip} overflowOnly={tooltipOverflowOnly}><span
           className={`desktop-settings-value-text ${monospace ? "desktop-settings-code" : ""} ${tone === "success" ? "success" : ""}`}
           dir={monospace ? "ltr" : "auto"}
-          title={title}
         >
           {value}
-        </span>
+        </span></Tooltip>
         {action}
       </div>
     </div>
@@ -72,7 +73,7 @@ export function SettingsToggle({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="desktop-settings-switch" title={description}>
+    <label className="desktop-settings-switch">
       <input
         type="checkbox"
         aria-label={label}

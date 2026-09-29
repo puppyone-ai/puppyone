@@ -5,7 +5,7 @@ import type { CreateNewMenuSettings, DarkThemePreset, ExperimentalSettings, File
 import type { ResolvedAppearance } from "../appearance/resolveAppearance";
 import type { SubThemeCatalogController } from "../themes/useSubThemeCatalog";
 
-export type SettingsSection = "general" | "privacy" | "local-project" | "appearance" | "typography" | "local-agents" | "model-connections" | "new-menu" | "experimental" | "git" | "files" | "account" | "cloud";
+export type SettingsSection = "general" | "privacy" | "local-project" | "appearance" | "typography" | "local-agents" | "model-connections" | "new-menu" | "other-app-imports" | "experimental" | "git" | "files" | "account" | "cloud";
 
 export type SettingsViewProps = {
   workspace: Workspace;
@@ -51,6 +51,7 @@ export type SettingsViewProps = {
   onFileIconThemeChange: (theme: FileIconThemeId) => void;
   onFilesVisibilitySettingsChange: (settings: FilesVisibilitySettings) => void;
   onCreateNewMenuSettingsChange: (settings: CreateNewMenuSettings) => void;
+  onOpenImport: () => void;
   onExperimentalSettingsChange: (settings: ExperimentalSettings) => void;
   onRightSidebarToolsSettingsChange: (settings: RightSidebarToolsSettings) => void;
   onTitlebarActionsSettingsChange: (settings: TitlebarActionsSettings) => void;
@@ -70,5 +71,6 @@ export type SettingsViewProps = {
 export type SettingsSidebarProps = {
   activeSection: SettingsSection;
   cloudEnabled: boolean;
+  otherAppImportsEnabled: boolean;
   onSelectSection: (section: SettingsSection) => void;
 };

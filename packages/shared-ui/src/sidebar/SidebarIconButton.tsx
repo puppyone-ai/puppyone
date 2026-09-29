@@ -1,14 +1,14 @@
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { joinSidebarClassNames } from "./classNames";
 
-export type SidebarIconButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "aria-label" | "children"> & {
+export type SidebarIconButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "aria-label" | "children" | "title"> & {
   label: string;
   icon: ReactNode;
   tone?: "neutral" | "primary" | "danger";
 };
 
 export const SidebarIconButton = forwardRef<HTMLButtonElement, SidebarIconButtonProps>(function SidebarIconButton(
-  { className, icon, label, title = label, tone = "neutral", type = "button", ...props },
+  { className, icon, label, tone = "neutral", type = "button", ...props },
   ref,
 ) {
   return (
@@ -21,7 +21,6 @@ export const SidebarIconButton = forwardRef<HTMLButtonElement, SidebarIconButton
       )}
       type={type}
       aria-label={label}
-      title={title}
       {...props}
     >
       {icon}

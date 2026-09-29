@@ -40,7 +40,7 @@ export function CloudProjectRecoveryState({
             </button>
           )}
           <button className="desktop-cloud-row-action" type="button" disabled={loading} onClick={onRetry}>
-            <RefreshCw size={13} className={loading ? "spin" : undefined} />
+            <RefreshCw size={13} className={loading ? "animate-spin" : undefined} />
             <span>{t("cloud.common.retry")}</span>
           </button>
           {showUseAnotherAccount && (

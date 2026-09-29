@@ -1,4 +1,5 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { Tooltip } from "@puppyone/shared-ui";
+import { useEffect, useState, type ReactNode, type Ref } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import { useDesktopPlatformCapabilities } from "../platform/useDesktopPlatformCapabilities";
 import { PuppyBrandMark } from "./brand/PuppyBrandMark";
@@ -6,6 +7,7 @@ import { PuppyBrandMark } from "./brand/PuppyBrandMark";
 type DesktopWindowChromeProps = {
   context?: ReactNode;
   actions?: ReactNode;
+  sessionTabsHostRef?: Ref<HTMLDivElement>;
 };
 
 /**
@@ -18,6 +20,7 @@ type DesktopWindowChromeProps = {
 export function DesktopWindowChrome({
   context,
   actions,
+  sessionTabsHostRef,
 }: DesktopWindowChromeProps) {
   const { t } = useLocalization();
   const fullScreen = useWindowFullScreenState();
@@ -48,8 +51,10 @@ export function DesktopWindowChrome({
         <div
           className="desktop-titlebar-drag-fill"
           data-window-drag-region="true"
-          aria-hidden="true"
-        />
+          aria-hidden={sessionTabsHostRef ? undefined : true}
+        >
+          {sessionTabsHostRef && <div ref={sessionTabsHostRef} className="desktop-titlebar-session-tabs-host" data-window-no-drag="true" />}
+        </div>
         <div className="desktop-titlebar-trailing">
           {actions && (
             <div className="desktop-titlebar-actions">
@@ -57,33 +62,30 @@ export function DesktopWindowChrome({
             </div>
           )}
           <div className="desktop-window-controls" data-window-no-drag="true">
-            <button
+            <Tooltip content={t("shell.windowControls.minimize")}><button
               className="desktop-window-control is-minimize"
               type="button"
               aria-label={t("shell.windowControls.minimize")}
-              title={t("shell.windowControls.minimize")}
               onClick={() => performWindowAction("minimize")}
             >
               <span aria-hidden="true" />
-            </button>
-            <button
+            </button></Tooltip>
+            <Tooltip content={t("shell.windowControls.maximize")}><button
               className="desktop-window-control is-maximize"
               type="button"
               aria-label={t("shell.windowControls.maximize")}
-              title={t("shell.windowControls.maximize")}
               onClick={() => performWindowAction("toggle-maximize")}
             >
               <span aria-hidden="true" />
-            </button>
-            <button
+            </button></Tooltip>
+            <Tooltip content={t("shell.windowControls.close")}><button
               className="desktop-window-control is-close"
               type="button"
               aria-label={t("shell.windowControls.close")}
-              title={t("shell.windowControls.close")}
               onClick={() => performWindowAction("close")}
             >
               <span aria-hidden="true" />
-            </button>
+            </button></Tooltip>
           </div>
         </div>
       </div>

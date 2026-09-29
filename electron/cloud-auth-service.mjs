@@ -19,6 +19,8 @@ export function createCloudAuthService({
   revealWindow,
   secureStorage,
   externalNavigation,
+  getLocale = null,
+  returnAppUrl = null,
   startCallbackServer = startLoopbackCallbackServer,
   fetchImpl = globalThis.fetch,
   localCloudWebUrl = null,
@@ -112,6 +114,10 @@ export function createCloudAuthService({
       try {
         callbackServer = await startCallbackServer({
           logger,
+          appPath: app.getAppPath?.(),
+          getLocale,
+          returnAppUrl,
+          onReturnToApp: revealWindow,
           onCallback: (callbackUrl) => handleCallback(callbackUrl),
           isExpectedCallback: (callbackUrl) => isExpectedPendingCallback(callbackUrl),
         });
@@ -131,7 +137,11 @@ export function createCloudAuthService({
           start?.login_url,
           "Cloud sign-in start did not return a secure browser URL.",
         );
-        await assertLocalLoginPageReachable(loginUrl, fetchImpl, localCloudWebUrl);
+        const trustedLoginUrl = await resolveTrustedBrowserLoginUrl(
+          loginUrl,
+          fetchImpl,
+          localCloudWebUrl,
+        );
         const timeout = setTimeout(() => {
           clearPendingOAuthState(state);
           restoreStatusAfterOAuth(previousStatus);
@@ -154,7 +164,7 @@ export function createCloudAuthService({
         });
         callbackServer = null;
 
-        await externalNavigation.open(loginUrl);
+        await externalNavigation.open(trustedLoginUrl);
         return { ok: true };
       } catch (error) {
         await callbackServer?.close?.().catch(() => undefined);
@@ -195,7 +205,7 @@ export function createCloudAuthService({
 
       // Consume the local flow before exchange. Replayed callbacks can no longer
       // obtain the verifier, even if the backend code has not yet been consumed.
-      clearPendingOAuthState(state);
+      clearPendingOAuthState(state, { keepCallbackServer: true });
       const data = await requestCloudApi(pending.apiBase, "/auth/desktop/exchange", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -568,12 +578,12 @@ export function createCloudAuthService({
     else authStatus = "signed-out";
   }
 
-  function clearPendingOAuthState(state) {
+  function clearPendingOAuthState(state, { keepCallbackServer = false } = {}) {
     const pending = pendingOAuthStates.get(state);
     if (!pending) return;
     clearTimeout(pending.timeout);
     pendingOAuthStates.delete(state);
-    void pending.callbackServer?.close?.().catch(() => undefined);
+    if (!keepCallbackServer) void pending.callbackServer?.close?.().catch(() => undefined);
   }
 
   function findPendingOAuthState(startKey) {
@@ -870,10 +880,10 @@ function requireSecureBrowserUrl(value, message) {
   return url.toString();
 }
 
-async function assertLocalLoginPageReachable(loginUrl, fetchImpl, localCloudWebUrl) {
+async function resolveTrustedBrowserLoginUrl(loginUrl, fetchImpl, localCloudWebUrl) {
   const url = new URL(loginUrl);
   const loopback = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(url.hostname);
-  if (!loopback) return;
+  if (!loopback) return url.toString();
 
   let configuredUrl;
   try {
@@ -886,13 +896,23 @@ async function assertLocalLoginPageReachable(loginUrl, fetchImpl, localCloudWebU
     || !["localhost", "127.0.0.1", "::1", "[::1]"].includes(configuredUrl.hostname)
     || configuredUrl.username
     || configuredUrl.password
-    || configuredUrl.origin !== url.origin
+    || url.protocol !== "http:"
+    || configuredUrl.port !== url.port
   ) {
     throw new Error("Local Cloud login URL does not match VITE_DESKTOP_CLOUD_WEB_URL.");
   }
 
+  // localhost, 127.0.0.1, and ::1 are equivalent loopback spellings, but they
+  // are different browser origins. Always navigate through the configured
+  // origin so cookies and OAuth state stay attached to the Desktop's declared
+  // Cloud web endpoint. The API controls only the login path and query.
+  const trustedUrl = new URL(configuredUrl.origin);
+  trustedUrl.pathname = url.pathname;
+  trustedUrl.search = url.search;
+  trustedUrl.hash = url.hash;
+
   try {
-    const response = await fetchImpl(url, {
+    const response = await fetchImpl(trustedUrl, {
       cache: "no-store",
       redirect: "follow",
       signal: AbortSignal.timeout(5_000),
@@ -902,10 +922,10 @@ async function assertLocalLoginPageReachable(loginUrl, fetchImpl, localCloudWebU
     if (!body.includes("Puppyone") || !body.includes("Sign in")) {
       throw new Error("Puppyone login page marker is missing");
     }
-    return;
+    return trustedUrl.toString();
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    throw new Error(`Local Cloud login page is unavailable at ${url.origin}. ${detail}`);
+    throw new Error(`Local Cloud login page is unavailable at ${trustedUrl.origin}. ${detail}`);
   }
 }
 

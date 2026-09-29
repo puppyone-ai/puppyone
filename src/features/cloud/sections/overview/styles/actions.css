@@ -1,0 +1,162 @@
+/* Task-first entry points for using a Cloud Project outside PuppyOne. */
+
+.desktop-cloud-overview-actions {
+  display: grid;
+  min-width: 0;
+  gap: 15px;
+  margin-top: 32px;
+  padding: 0 8px;
+}
+
+.desktop-cloud-overview-actions-header {
+  display: grid;
+  max-width: 620px;
+  gap: 5px;
+}
+
+.desktop-cloud-overview-actions-header > span {
+  color: var(--po-text-subtle);
+  font-size: var(--po-type-ui-caption, 12px);
+  font-weight: 560;
+  letter-spacing: 0.035em;
+  line-height: 16px;
+  text-transform: uppercase;
+}
+
+.desktop-cloud-overview-actions-header h2,
+.desktop-cloud-overview-actions-header p {
+  margin: 0;
+}
+
+.desktop-cloud-overview-actions-header h2 {
+  color: var(--po-text);
+  font-size: var(--po-type-ui-section-title, 16px);
+  font-weight: 580;
+  letter-spacing: -0.018em;
+  line-height: 22px;
+}
+
+.desktop-cloud-overview-actions-header p {
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-body, 14px);
+  font-weight: 400;
+  line-height: 20px;
+}
+
+.desktop-cloud-overview-action-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.desktop-cloud-overview-action-card {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 104px;
+  grid-template-columns: 34px minmax(0, 1fr) 16px;
+  align-items: start;
+  gap: 11px;
+  padding: 16px;
+  border: 1px solid var(--po-border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--po-surface) 72%, var(--po-canvas));
+  color: var(--po-text);
+  font: inherit;
+  text-align: start;
+  cursor: var(--po-clickable-cursor, default);
+  transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.desktop-cloud-overview-action-card.primary {
+  grid-column: 1 / -1;
+  min-height: 118px;
+  background: color-mix(in srgb, var(--po-accent) 4%, var(--po-surface));
+}
+
+.desktop-cloud-overview-action-card:hover {
+  border-color: var(--po-border-strong);
+  background: var(--po-hover);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--po-shadow, #000) 7%, transparent);
+}
+
+.desktop-cloud-overview-action-card:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--po-accent) 68%, transparent);
+  outline-offset: 2px;
+}
+
+.desktop-cloud-overview-action-icon {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--po-border);
+  border-radius: 8px;
+  background: var(--po-canvas);
+  color: var(--po-text-muted);
+}
+
+.desktop-cloud-overview-action-icon.mcp {
+  color: color-mix(in srgb, var(--po-accent) 78%, var(--po-text));
+}
+
+.desktop-cloud-overview-action-copy {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.desktop-cloud-overview-action-copy > strong {
+  color: var(--po-text);
+  font-size: var(--po-type-ui-body, 14px);
+  font-weight: 580;
+  letter-spacing: -0.01em;
+  line-height: 19px;
+}
+
+.desktop-cloud-overview-action-copy > span:not(.desktop-cloud-overview-agent-providers) {
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-caption, 12px);
+  font-weight: 400;
+  line-height: 17px;
+}
+
+.desktop-cloud-overview-agent-providers {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 3px;
+}
+
+.desktop-cloud-overview-agent-providers i {
+  display: inline-flex;
+  height: 20px;
+  align-items: center;
+  padding: 0 7px;
+  border: 1px solid color-mix(in srgb, var(--po-border) 80%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--po-canvas) 82%, transparent);
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-micro, 11px);
+  font-style: normal;
+  font-weight: 450;
+  line-height: 1;
+}
+
+.desktop-cloud-overview-action-chevron {
+  align-self: center;
+  color: var(--po-text-subtle);
+}
+
+@media (max-width: 760px) {
+  .desktop-cloud-overview-action-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .desktop-cloud-overview-action-card.primary {
+    grid-column: auto;
+  }
+}

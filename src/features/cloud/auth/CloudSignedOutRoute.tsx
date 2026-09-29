@@ -1,4 +1,3 @@
-import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import type { CloudAuthState } from "./cloudAuthTypes";
 import type { CloudWorkspaceSection } from "../types";
 import { CloudWorkspaceLoadingState } from "../components/shared";
@@ -9,15 +8,11 @@ export function CloudSignedOutRoute({
   authState,
   apiBaseUrl,
   loadingLabel,
-  onSessionChange,
-  onRefresh,
 }: {
   activeSection: CloudWorkspaceSection;
   authState: CloudAuthState;
   apiBaseUrl: string | null;
   loadingLabel: string;
-  onSessionChange: (session: DesktopCloudSession | null) => void;
-  onRefresh: () => void;
 }) {
   const sessionTransitioning = authState.status === "restoring" || authState.status === "signing-out";
   if (sessionTransitioning) {
@@ -39,8 +34,6 @@ export function CloudSignedOutRoute({
         <CloudSignInView
           activeSection={activeSection}
           apiBaseUrl={apiBaseUrl}
-          onSessionChange={onSessionChange}
-          onRefresh={onRefresh}
         />
       </div>
     </main>

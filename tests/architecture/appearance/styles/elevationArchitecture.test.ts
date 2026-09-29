@@ -7,6 +7,7 @@ const tokens = readSource("../../../../src/styles/tokens.css");
 const menus = readSource("../../../../src/styles/menus.css");
 const helpLauncher = readSource("../../../../src/features/app-shell/desktop-help-launcher.css");
 const fileActions = readSource("../../../../src/styles/file-actions.css");
+const nodeActions = readSource("../../../../src/features/data-workspace/nodeActions.tsx");
 const plugins = readSource("../../../../src/features/plugins/plugins.css");
 const dataShell = readSource("../../../../src/features/data-workspace/data-shell.css");
 const assetLibrary = readSource("../../../../src/styles/asset-library-home.css");
@@ -59,7 +60,8 @@ describe("desktop elevation architecture", () => {
       .toContain("box-shadow: var(--po-surface-editor-mode-shadow, var(--po-elevation-low));");
     expect(readCssBlock(plugins, ".desktop-plugin-menu > div"))
       .toContain("box-shadow: var(--po-menu-shadow-compact);");
-    expect(fileActions).toContain("box-shadow: var(--po-menu-shadow-compact);");
+    expect(fileActions).not.toContain("box-shadow: var(--po-menu-shadow-compact);");
+    expect(nodeActions).toContain('elevation={sidebarLauncher ? "compact" : "default"}');
     expect(dataShell).toContain("box-shadow: var(--po-elevation-low);");
     expect(assetLibrary).toContain("box-shadow: var(--po-menu-shadow);");
     expect(aiEdits).toContain("box-shadow: var(--po-menu-shadow);");

@@ -1,7 +1,7 @@
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { joinSidebarClassNames } from "./classNames";
 
-export type SidebarRowProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> & {
+export type SidebarRowProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children" | "title"> & {
   active?: boolean;
   icon?: ReactNode;
   label: ReactNode;

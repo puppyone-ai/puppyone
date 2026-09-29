@@ -92,16 +92,15 @@ export function LocalAgentHooksSettingsSection({
       )
   )), [detected, providers]);
   return (
-    <section className="desktop-local-agent-settings-group desktop-local-agent-hooks-section">
-      <header className="desktop-local-agent-group-header">
-        <span className="desktop-local-agent-group-title">
+    <section className="desktop-settings-category desktop-local-agent-hooks-section">
+      <header className="desktop-settings-category-header">
+        <span className="desktop-settings-category-title">
           {t("settings.localAgentHooks.title")}
         </span>
         <button
           className="desktop-settings-row-action desktop-local-agent-group-action"
           type="button"
           aria-label={t("settings.localAgentHooks.refresh")}
-          title={t("settings.localAgentHooks.refresh")}
           disabled={loading || pendingProviderId !== null}
           onClick={() => void refresh()}
         >

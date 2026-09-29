@@ -63,15 +63,13 @@ export function resolveAgentChatRuntimeVisibility(
   recipes: readonly AuxiliaryWorkbenchCreationRecipe[],
   {
     hiddenLocalAgentIds,
-    builtInAgentEnabled,
   }: {
     hiddenLocalAgentIds: readonly string[];
-    builtInAgentEnabled: boolean;
   },
 ) {
   const hiddenLocalAgents = new Set(hiddenLocalAgentIds);
   const isHidden = (recipe: AuxiliaryWorkbenchCreationRecipe) => {
-    if (recipe.id === BUILT_IN_AGENT_RUNTIME_ID) return !builtInAgentEnabled;
+    if (recipe.id === BUILT_IN_AGENT_RUNTIME_ID) return false;
     return recipe.availability !== "bundled"
       && hiddenLocalAgents.has(localAgentIdForAgentChatRuntime(recipe.id));
   };

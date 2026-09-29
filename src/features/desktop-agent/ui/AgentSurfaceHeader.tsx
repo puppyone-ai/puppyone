@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CircleAlert, MoreHorizontal, Plus, RotateCcw } from "lucide-react";
 import { bidiIsolate } from "@puppyone/localization/core";
@@ -73,12 +74,12 @@ export function AgentSurfaceHeader({
         {agentSelector && <div className="desktop-agent-session-agent-selector">{agentSelector}</div>}
       </div>
       <div className="desktop-agent-session-heading">
-        <strong title={title}>{title}</strong>
+        <Tooltip content={title} overflowOnly><strong>{title}</strong></Tooltip>
         <span><i className={`is-${statusCode}`} />{statusLabel}</span>
       </div>
       <div className="desktop-agent-session-header-actions" ref={menuRef}>
-        {showNewSessionAction && <button type="button" className="desktop-agent-icon-button" aria-label={t("agent.header.newSession", { agent: bidiIsolate(runtimeLabel) })} title={t("agent.header.newSession", { agent: bidiIsolate(runtimeLabel) })} disabled={loading || newSessionDisabled} onClick={onNewSession}><Plus size={16} /></button>}
-        <button type="button" className="desktop-agent-icon-button" aria-label={t("agent.header.sessionActionsFor", { agent: bidiIsolate(runtimeLabel) })} title={t("agent.header.sessionActions")} aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((value) => !value)}><MoreHorizontal size={16} /></button>
+        {showNewSessionAction && <Tooltip content={t("agent.header.newSession", { agent: bidiIsolate(runtimeLabel) })}><button type="button" className="desktop-agent-icon-button" aria-label={t("agent.header.newSession", { agent: bidiIsolate(runtimeLabel) })} disabled={loading || newSessionDisabled} onClick={onNewSession}><Plus size={16} /></button></Tooltip>}
+        <Tooltip content={t("agent.header.sessionActions")}><button type="button" className="desktop-agent-icon-button" aria-label={t("agent.header.sessionActionsFor", { agent: bidiIsolate(runtimeLabel) })} aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((value) => !value)}><MoreHorizontal size={16} /></button></Tooltip>
         {menuOpen && (
           <DesktopMenuSurface ariaLabel={t("agent.header.sessionActionsFor", { agent: bidiIsolate(runtimeLabel) })} className="desktop-menu-surface desktop-agent-session-menu">
             <DesktopMenuItem icon={<CircleAlert size={15} />} label={t("agent.header.diagnostics")} detail={diagnostic || t("agent.header.noDiagnostics")} disabled />

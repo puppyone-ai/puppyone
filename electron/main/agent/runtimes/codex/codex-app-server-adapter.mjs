@@ -121,6 +121,7 @@ export class CodexAppServerAdapter {
     this.threadId = null;
     this.activeTurnId = null;
     this.terminalTurnIds = new Set();
+    this.pendingTurnStart = null;
     this.pendingApprovals = new Map();
     this.pendingQuestions = new Map();
     this.modelProfiles = new Map();
@@ -278,15 +279,22 @@ export class CodexAppServerAdapter {
 
   async startTurn({ prompt, clientUserMessageId = randomUUID(), model = null, effort: requestedEffort = null, references = [], attachments = [], contextReferences = [] }) {
     if (!this.threadId) throw new Error("No Codex thread is active.");
+    if (this.pendingTurnStart) throw new Error("A Codex turn is already starting.");
     const effort = compatibleReasoningEffort(this.modelProfiles.get(model), requestedEffort);
     const input = buildCodexTurnInput(
       prompt,
       references.length > 0 ? references : [...contextReferences, ...attachments],
       this.workspaceRoot,
     );
+    let resolveNativeStart;
+    const nativeStart = new Promise((resolve) => { resolveNativeStart = resolve; });
+    // Codex does not support a local prompt queue, so one pending start can be
+    // correlated safely with the next native turn/started notification.
+    const pendingTurnStart = { resolve: resolveNativeStart };
+    this.pendingTurnStart = pendingTurnStart;
     let result;
     try {
-      result = await this.connection.request("turn/start", {
+      const request = this.connection.request("turn/start", {
         threadId: this.threadId,
         clientUserMessageId,
         input,
@@ -294,14 +302,28 @@ export class CodexAppServerAdapter {
         approvalPolicy: "on-request",
         ...(model ? { model } : {}),
         ...(effort ? { effort } : {}),
-      });
+      }, { closeOnTimeout: false });
+      const accepted = await Promise.race([
+        request.then((value) => ({ source: "rpc", value })),
+        nativeStart.then((turnId) => ({ source: "native", value: { turn: { id: turnId } } })),
+      ]);
+      result = accepted.value;
+      // A correlated native start is authoritative delivery evidence. The RPC
+      // response may still arrive later; a late timeout must not retire a live
+      // connection after the turn has already started or completed.
+      if (accepted.source === "native") void request.catch(() => {});
     } catch (error) {
+      if (error?.deliveryOutcome === "unknown") {
+        this.connection.dispose?.(error.message, { expected: false });
+      }
       // The request identity remains useful even when delivery is ambiguous:
       // a native user item may still arrive and confirm that exact command.
       if (error && typeof error === "object") {
         try { error.clientUserMessageId = clientUserMessageId; } catch { /* preserve the original failure */ }
       }
       throw error;
+    } finally {
+      if (this.pendingTurnStart === pendingTurnStart) this.pendingTurnStart = null;
     }
     const turnId = requireString(result?.turn?.id, "Codex turn/start did not return a turn id.");
     // A receipt confirms delivery. Notifications received while awaiting it
@@ -374,7 +396,10 @@ export class CodexAppServerAdapter {
         event.type = "session.resumed";
       }
       if (event.type.startsWith("turn.") && event.turnId) {
-        if (event.type === "turn.started" && !this.terminalTurnIds.has(event.turnId)) this.activeTurnId = event.turnId;
+        if (event.type === "turn.started" && !this.terminalTurnIds.has(event.turnId)) {
+          this.activeTurnId = event.turnId;
+          this.pendingTurnStart?.resolve(event.turnId);
+        }
         if (["turn.completed", "turn.failed", "turn.interrupted"].includes(event.type)) {
           void this.persistenceReporter.confirm();
           this.terminalTurnIds.add(event.turnId);

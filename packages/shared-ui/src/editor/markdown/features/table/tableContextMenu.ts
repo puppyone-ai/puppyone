@@ -1,3 +1,4 @@
+import { activateTooltip } from "../../../../primitives/Tooltip";
 import type { MarkdownTableAlignment, MarkdownTableStructureOperation } from "./tableModel";
 import {
   dispatchMarkdownTableStructureOperation,
@@ -461,7 +462,7 @@ function createMarkdownTableMenuItem(
   button.disabled = item.disabled === true;
   button.tabIndex = -1;
   button.setAttribute("aria-label", item.label);
-  button.title = item.label;
+  activateTooltip(button, item.label);
 
   const body = document.createElement("span");
   body.className = "desktop-menu-item-body";

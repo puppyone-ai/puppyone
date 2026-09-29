@@ -8,6 +8,7 @@ import type {
 import type { AppLanguagePreference, LocaleState } from "@puppyone/localization/core";
 import type { LocalAgentSetupRequest, LocalAgentSetupSnapshot, LocalAgentSetupAction, LocalAgentSetupActionResult } from "../../shared/local-agent-installation/setup-types";
 import type { ModelConnectionSnapshot, ModelConnectionCandidate, ModelConnectionResult, SaveModelConnectionRequest } from "../../shared/model-connections/types";
+import type { ImportResource, ImportResourcePage, ImportProgress } from "../../shared/project-import/contract.mjs";
 import type { DesktopTerminalLauncherId } from "../features/desktop-terminal/model/terminalLaunchers";
 import type {
   AgentAccountReadRequest,
@@ -739,13 +740,16 @@ export type WorkspaceProjectLocationGrant = {
   path: string;
 };
 
-export type WorkspaceCloneRepositoryRequest = {
-  /** Locks the request to the source explicitly chosen in the import picker. */
-  provider?: "github" | "gitlab";
-  repositoryUrl: string;
-  /** Optional location grant; when omitted the main process asks with a folder picker. */
+export type WorkspaceImportSourceRequest = {
+  provider: string;
+  taskId: string;
+  selection?: { repositoryUrl?: string; connectionId?: string; resourceId?: string };
   locationGrantId?: string | null;
 };
+
+export type WorkspaceImportResource = ImportResource;
+export type WorkspaceImportResourcePage = ImportResourcePage;
+export type WorkspaceImportProgress = ImportProgress & { taskId: string };
 
 export type WorkspaceCreateEntryKind = "file" | "folder";
 
@@ -1198,9 +1202,11 @@ declare global {
       createLocalProject: (
         request: WorkspaceCreateProjectRequest,
       ) => Promise<WorkspaceCreateProjectResult>;
-      cloneRepository: (
-        request: WorkspaceCloneRepositoryRequest,
-      ) => Promise<WorkspaceOpenResult | null>;
+      connectImportSource: (request: { provider: string }) => Promise<{ connectionId: string }>;
+      listImportResources: (request: { provider: string; connectionId: string; parentId?: string | null; cursor?: string | null }) => Promise<WorkspaceImportResourcePage>;
+      importSource: (request: WorkspaceImportSourceRequest) => Promise<WorkspaceOpenResult | null>;
+      cancelImportSource: (request: { taskId: string }) => Promise<{ cancelled: boolean }>;
+      onImportSourceProgress: (listener: (progress: WorkspaceImportProgress) => void) => () => void;
       getPathForFile: (file: File) => string;
       resourceDragSessionSupported: boolean;
       previewResourceDrag: () => Promise<import("../platform/resourceDragSession").ResourceDragPreview | null>;

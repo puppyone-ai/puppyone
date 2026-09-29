@@ -8,7 +8,8 @@ import {
 /**
  * Runs the one-shot experience shared by create, open, clone, and restore.
  * It never creates or repairs user files: it only selects an existing document
- * after editor-session hydration and reveals the local Agent launcher.
+ * after editor-session hydration. Feature discovery remains user-controlled
+ * through the contextual Header coachmarks.
  */
 export function useWorkspaceEntryBootstrap({
   consume,
@@ -19,7 +20,6 @@ export function useWorkspaceEntryBootstrap({
   intent,
   onError,
   openDocument,
-  revealAgentWorkbench,
 }: {
   consume: (intentId: string) => void;
   dataPort: Pick<DataPort, "listChildren" | "resolveNode"> | null;
@@ -29,20 +29,12 @@ export function useWorkspaceEntryBootstrap({
   intent: WorkspaceEntryIntent | null;
   onError: (message: string) => void;
   openDocument: (path: string, node: DataNode) => void | Promise<void>;
-  revealAgentWorkbench: () => void;
 }) {
   const completedIntentRef = useRef<string | null>(null);
-  const revealedIntentRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!intent || !dataPort || !editorHydrated || folders.length === 0) return;
     if (completedIntentRef.current === intent.id) return;
-
-    if (revealedIntentRef.current !== intent.id) {
-      revealedIntentRef.current = intent.id;
-      // Switching projects preserves the user's current sidebar presentation.
-      if (intent.kind !== "switched") revealAgentWorkbench();
-    }
 
     let cancelled = false;
     const complete = () => {
@@ -80,6 +72,5 @@ export function useWorkspaceEntryBootstrap({
     intent,
     onError,
     openDocument,
-    revealAgentWorkbench,
   ]);
 }
