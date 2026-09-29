@@ -468,36 +468,19 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 
 .desktop-project-current-location {
   display: grid;
+  grid-template-columns: var(--po-menu-icon-slot-size) minmax(0, 1fr) auto;
   min-width: 0;
-  justify-items: center;
-  gap: var(--po-menu-padding);
-  color: var(--po-text-muted);
-}
-
-.desktop-project-location-header {
-  display: grid;
-  width: 100%;
-  min-height: var(--po-menu-item-height);
   align-items: center;
-}
-
-.desktop-project-current-location-icon {
-  display: inline-flex;
-  justify-self: center;
-  align-items: flex-end;
-  gap: 2px;
-}
-
-.desktop-project-current-location-icon > .desktop-project-location-dot {
-  width: 6px;
-  height: 6px;
-  flex: 0 0 6px;
+  column-gap: var(--po-menu-item-gap);
+  row-gap: 2px;
+  padding: var(--po-menu-item-padding-inline);
+  color: var(--po-text-muted);
 }
 
 .desktop-project-current-location-mark {
   display: grid;
-  width: 20px;
-  height: 20px;
+  width: var(--po-menu-icon-slot-size);
+  height: var(--po-menu-icon-slot-size);
   place-items: center;
   color: var(--po-text-muted);
 }
@@ -517,21 +500,41 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-current-location-path {
-  max-width: calc(100% - 2 * var(--po-menu-item-padding-inline));
+  grid-column: 2 / -1;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  text-align: center;
+  font-size: var(--po-menu-meta-font-size);
+  line-height: var(--po-menu-meta-line-height);
+  color: var(--po-text-subtle);
 }
 
 .desktop-project-overview .desktop-project-branch {
   --po-menu-item-font-size: var(--po-menu-meta-font-size);
-  --po-menu-icon-slot-size: 14px;
+}
 
-  width: auto;
-  max-width: 100%;
-  justify-self: center;
-  gap: var(--po-menu-padding);
+.desktop-project-branch .desktop-menu-item-trailing {
+  min-width: 0;
+  max-width: 60%;
+}
+
+.desktop-project-branch-value {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--po-menu-item-gap);
+}
+
+.desktop-project-branch-value bdi {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-project-branch-value svg {
+  flex: 0 0 auto;
 }
 
 .desktop-project-menu .desktop-menu-item-icon {

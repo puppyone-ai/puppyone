@@ -122,6 +122,7 @@
   "workspaceSwitcher.createCloudProject": "创建云端项目",
   "sidebar.resizeAuxiliary": "调整侧边面板宽度",
   "sidebar.expandAuxiliary": "展开侧边面板",
+  "branch.label": "分支",
   "branch.detached": "游离状态",
   "branch.loading": "正在加载",
   "branch.noGit": "无 Git",

@@ -7,7 +7,6 @@ import {
 } from "@puppyone/shared-ui";
 import {
   ArrowLeft,
-  ChevronDown,
   ChevronRight,
   Cloud,
   FolderPlus,
@@ -138,10 +137,16 @@ export function DesktopWorkspaceSwitcher({
               {branchMenu && (
                 <DesktopMenuItem
                   className="desktop-project-branch"
-                  icon={<GitBranch size={13} strokeWidth={1.75} />}
+                  icon={<GitBranch size={14} strokeWidth={1.75} />}
                   aria-label={t("shell.branch.title", { branch: bidiIsolate(branchMenu.label) })}
-                  label={<bdi>{branchMenu.label}</bdi>}
-                  trailing={<ChevronDown size={10} aria-hidden="true" />}
+                  label={t("shell.branch.label")}
+                  trailing={(
+                    <span className="desktop-project-branch-value">
+                      <bdi>{branchMenu.label}</bdi>
+                      <ChevronRight className="po-directional-icon" size={12} aria-hidden="true" />
+                    </span>
+                  )}
+                  tooltip={t("shell.branch.switch", { branch: bidiIsolate(branchMenu.label) })}
                   disabled={branchMenu.disabled}
                   onClick={() => setView("branches")}
                 />
@@ -287,24 +292,21 @@ function DesktopCurrentProjectLocation({
       data-project-location={kind}
       role="status"
     >
-      <div className="desktop-project-location-header">
-        <span className="desktop-project-current-location-icon">
-          <ProjectLocationMark
-            className="desktop-project-current-location-mark"
-            kind={kind}
-            size={20}
-          />
-          <span className="desktop-project-location-dot" aria-hidden="true" />
-        </span>
-      </div>
-      {kind === "local" ? (
+      <ProjectLocationMark
+        className="desktop-project-current-location-mark"
+        kind={kind}
+        size={16}
+      />
+      <span className="desktop-project-current-location-label">
+        {t(kind === "local" ? "shell.workspaceSwitcher.location.thisMac" : "shell.workspaceSwitcher.location.cloud")}
+      </span>
+      <span className="desktop-project-location-dot" aria-hidden="true" />
+      {kind === "local" && (
         <Tooltip content={path}>
           <bdi className="desktop-project-current-location-path" dir="ltr" aria-label={path}>
             {getWorkspacePathForDisplay(path)}
           </bdi>
         </Tooltip>
-      ) : (
-        <span className="desktop-project-current-location-label">{t("shell.workspaceSwitcher.location.inCloud")}</span>
       )}
     </div>
   );

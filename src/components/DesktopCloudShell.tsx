@@ -343,7 +343,7 @@ export function DesktopCloudShell({
                     aria-label={t("shell.workspaceSwitcher.home")}
                     onClick={onGoHome}
                   >
-                    <House size={16} strokeWidth={1.75} aria-hidden="true" />
+                    <House size={14} strokeWidth={1.65} aria-hidden="true" />
                   </button></Tooltip>
                 )}
                 {paneLayout.explorer.collapsed && leftSidebarPresent && onLeftSidebarExpand && (

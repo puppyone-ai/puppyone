@@ -99,7 +99,8 @@ describe("titlebar Portal menu interactions", () => {
     const currentProject = requireMenu().querySelector<HTMLElement>(".desktop-project-current-location[data-project-location='local']");
     expect(currentProject?.querySelector(".lucide-laptop")).not.toBeNull();
     expect(currentProject?.textContent).not.toContain("Workspace one");
-    expect(currentProject?.textContent).toBe("~/project/demo");
+    expect(currentProject?.querySelector(".desktop-project-current-location-label")?.textContent).toBe("This Mac");
+    expect(currentProject?.querySelector(".desktop-project-current-location-path")?.textContent).toBe("~/project/demo");
     expect(currentProject?.querySelector(".desktop-project-current-location-path")?.getAttribute("aria-label"))
       .toBe(workspace.path);
     expect(currentProject?.querySelector(".desktop-project-location-dot")).not.toBeNull();
@@ -421,7 +422,8 @@ describe("titlebar Portal menu interactions", () => {
     expect(requireMenu().querySelector(".desktop-project-cloud")).toBeNull();
     expect(requireMenu().textContent).not.toContain("Cloud");
     const currentLocation = requireMenu().querySelector(".desktop-project-current-location");
-    expect(currentLocation?.textContent).toBe("/tmp/one");
+    expect(currentLocation?.querySelector(".desktop-project-current-location-label")?.textContent).toBe("This Mac");
+    expect(currentLocation?.querySelector(".desktop-project-current-location-path")?.textContent).toBe("/tmp/one");
     expect(currentLocation?.querySelector(".desktop-project-location-dot")).not.toBeNull();
   });
 });

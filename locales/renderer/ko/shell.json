@@ -122,6 +122,7 @@
   "workspaceSwitcher.createCloudProject": "Cloud 프로젝트 만들기",
   "sidebar.resizeAuxiliary": "사이드 패널 크기 조절",
   "sidebar.expandAuxiliary": "사이드 패널 펼치기",
+  "branch.label": "브랜치",
   "branch.detached": "분리됨",
   "branch.loading": "불러오는 중",
   "branch.noGit": "Git 없음",

@@ -122,6 +122,7 @@
   "workspaceSwitcher.createCloudProject": "Créer un projet Cloud",
   "sidebar.resizeAuxiliary": "Redimensionner le panneau latéral",
   "sidebar.expandAuxiliary": "Afficher le panneau latéral",
+  "branch.label": "Branche",
   "branch.detached": "détaché",
   "branch.loading": "Chargement",
   "branch.noGit": "Non Git",
