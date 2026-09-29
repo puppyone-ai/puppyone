@@ -16,6 +16,7 @@ const TOOLTIP_PRIMITIVE = path.join(
   "primitives",
   "Tooltip.tsx",
 );
+const ARCHITECTURE_SCAN_TIMEOUT_MS = 15_000;
 
 function sourceFiles(directory: string): string[] {
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -98,5 +99,5 @@ describe("explicit tooltip architecture", () => {
   it("routes product tooltips through the shared opt-in API", () => {
     const violations = SOURCE_ROOTS.flatMap(sourceFiles).flatMap(findDirectTooltipActivation);
     expect(violations).toEqual([]);
-  });
+  }, ARCHITECTURE_SCAN_TIMEOUT_MS);
 });

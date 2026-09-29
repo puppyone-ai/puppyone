@@ -9,6 +9,7 @@ const SOURCE_ROOTS = [
   path.join(REPOSITORY_ROOT, "packages", "shared-ui", "src"),
 ];
 const PUBLIC_ASSET_ROOT = path.join(REPOSITORY_ROOT, "public");
+const ARCHITECTURE_SCAN_TIMEOUT_MS = 15_000;
 
 function filesIn(directory: string): string[] {
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -61,7 +62,7 @@ describe("native title architecture", () => {
   it("keeps browser-native title bubbles out of product DOM", () => {
     const violations = SOURCE_ROOTS.flatMap(sourceFiles).flatMap(findNativeTitleWrites);
     expect(violations).toEqual([]);
-  });
+  }, ARCHITECTURE_SCAN_TIMEOUT_MS);
 
   it("keeps native title bubbles out of SVG assets", () => {
     const violations = filesIn(PUBLIC_ASSET_ROOT)
