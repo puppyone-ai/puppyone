@@ -464,6 +464,9 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   display: grid;
   min-width: 0;
   gap: var(--po-menu-padding);
+  padding-bottom: var(--po-menu-padding);
+  border-radius: var(--po-menu-item-radius);
+  background: var(--po-selected);
 }
 
 .desktop-project-current-location {
@@ -471,10 +474,19 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   min-width: 0;
   justify-items: center;
   gap: var(--po-menu-item-gap);
-  padding: 14px var(--po-menu-item-padding-inline);
-  border-radius: var(--po-menu-item-radius);
-  background: var(--po-selected);
+  padding: 12px var(--po-menu-item-padding-inline) 0;
   color: var(--po-text);
+}
+
+.desktop-project-current-location-icon {
+  position: relative;
+}
+
+.desktop-project-current-location-icon > .desktop-project-location-dot {
+  position: absolute;
+  inset-inline-end: -4px;
+  bottom: 0;
+  box-shadow: 0 0 0 2px var(--po-selected);
 }
 
 .desktop-project-current-location-mark {
@@ -489,7 +501,8 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   display: block;
 }
 
-.desktop-project-current-location-label {
+.desktop-project-current-location-label,
+.desktop-project-current-location-path {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -500,8 +513,35 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   line-height: var(--po-menu-meta-line-height);
 }
 
-.desktop-project-branch {
+.desktop-project-current-location-path {
+  max-width: 100%;
+  gap: 0;
+}
+
+.desktop-project-path-parent,
+.desktop-project-path-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-project-path-parent {
+  flex: 0 1 auto;
+}
+
+.desktop-project-path-name {
+  flex: 0 0 auto;
+  max-width: 75%;
+}
+
+.desktop-project-overview .desktop-project-branch {
   --po-menu-item-font-size: var(--po-menu-meta-font-size);
+
+  width: auto;
+  max-width: 100%;
+  justify-self: center;
+  color: var(--po-text-subtle);
 }
 
 .desktop-project-location-dot {
@@ -513,7 +553,6 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-location-action {
-  background: color-mix(in srgb, var(--po-accent) 5%, transparent);
   color: var(--po-text-subtle);
 }
 
@@ -578,24 +617,26 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 
 .desktop-project-home-group {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: var(--po-menu-padding);
+  margin-bottom: var(--po-menu-padding);
+}
+
+.desktop-project-location-actions {
   margin-top: var(--po-menu-padding);
   padding-top: var(--po-menu-padding);
   border-top: 1px solid var(--po-divider);
 }
 
-.desktop-project-home-group .desktop-menu-item {
+.desktop-project-home-group .desktop-menu-item,
+.desktop-project-location-actions .desktop-menu-item {
   --po-menu-item-font-size: var(--po-menu-meta-font-size);
-  --po-menu-item-gap: var(--po-menu-padding);
 
-  width: auto;
   min-height: var(--po-menu-item-height);
   height: auto;
 }
 
-.desktop-project-home-group .desktop-menu-item-label {
+.desktop-project-home-group .desktop-menu-item-label,
+.desktop-project-location-actions .desktop-menu-item-label {
   white-space: normal;
 }
 

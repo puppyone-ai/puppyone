@@ -7,6 +7,7 @@ import {
 } from "@puppyone/shared-ui";
 import {
   ArrowLeft,
+  ChevronDown,
   ChevronRight,
   Cloud,
   FolderPlus,
@@ -122,11 +123,19 @@ export function DesktopWorkspaceSwitcher({
         onDismiss={onClose}
         open={open}
         preferredMaxHeight={view === "branches" ? 440 : 520}
-        preferredWidth={260}
+        preferredWidth={240}
         alignment={menuAlignment}
       >
         {view === "projects" ? (
           <>
+            <div className="desktop-project-home-group">
+              <DesktopMenuItem
+                className="desktop-project-add desktop-project-home"
+                icon={<ArrowLeft className="po-directional-icon" size={15} strokeWidth={1.9} />}
+                label={t("shell.workspaceSwitcher.goHome")}
+                onClick={onGoHome}
+              />
+            </div>
             <div
               className="desktop-project-overview"
               data-workspace-menu-layout="workspace-composition-v1"
@@ -134,13 +143,15 @@ export function DesktopWorkspaceSwitcher({
               <DesktopCurrentProjectLocation
                 fallbackKind={workspaceContextAssetKind}
                 location={projectLocation}
+                path={workspace.path}
               />
               {branchMenu && (
                 <DesktopMenuItem
                   className="desktop-project-branch"
                   icon={<GitBranch size={15} strokeWidth={1.8} />}
-                  label={t("shell.branch.title", { branch: bidiIsolate(branchMenu.label) })}
-                  trailing={<ChevronRight className="po-directional-icon" size={12} aria-hidden="true" />}
+                  aria-label={t("shell.branch.title", { branch: bidiIsolate(branchMenu.label) })}
+                  label={<bdi>{branchMenu.label}</bdi>}
+                  trailing={<ChevronDown size={12} aria-hidden="true" />}
                   disabled={branchMenu.disabled}
                   onClick={() => setView("branches")}
                 />
@@ -165,14 +176,8 @@ export function DesktopWorkspaceSwitcher({
                 )}
               </div>
             )}
-            <div className="desktop-project-home-group">
-              <DesktopMenuItem
-                className="desktop-project-add desktop-project-home"
-                icon={<ArrowLeft className="po-directional-icon" size={15} strokeWidth={1.9} />}
-                label={t("shell.workspaceSwitcher.goHome")}
-                onClick={onGoHome}
-              />
-              {projectLocation && (
+            {projectLocation && (
+              <div className="desktop-project-location-actions">
                 <DesktopAlternateLocationAction
                   location={projectLocation}
                   onClose={onClose}
@@ -181,8 +186,8 @@ export function DesktopWorkspaceSwitcher({
                   onSwitchToCloud={onSwitchToCloud}
                   onSwitchToLocal={onSwitchToLocal}
                 />
-              )}
-            </div>
+              </div>
+            )}
           </>
         ) : view === "branches" ? (
           <>
@@ -278,29 +283,41 @@ function DesktopProjectRow({
 function DesktopCurrentProjectLocation({
   fallbackKind,
   location,
+  path,
 }: {
   fallbackKind: "local" | "cloud";
   location?: DesktopProjectLocation;
+  path: string;
 }) {
   const { t } = useLocalization();
   const kind = location?.current ?? fallbackKind;
+  const separatorIndex = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+  const parentPath = separatorIndex > 0 ? path.slice(0, separatorIndex) : "";
+  const folderName = separatorIndex > 0 ? path.slice(separatorIndex) : path;
   return (
     <div
       className="desktop-project-current-location"
       data-project-location={kind}
       role="status"
     >
-      <ProjectLocationMark
-        className="desktop-project-current-location-mark"
-        kind={kind}
-        size={24}
-      />
-      <span className="desktop-project-current-location-label">
+      <span className="desktop-project-current-location-icon">
+        <ProjectLocationMark
+          className="desktop-project-current-location-mark"
+          kind={kind}
+          size={24}
+        />
         <span className="desktop-project-location-dot" aria-hidden="true" />
-        <span>{t(kind === "local"
-          ? "shell.workspaceSwitcher.location.onThisMac"
-          : "shell.workspaceSwitcher.location.inCloud")}</span>
       </span>
+      {kind === "local" ? (
+        <Tooltip content={path}>
+          <bdi className="desktop-project-current-location-path" dir="ltr" aria-label={path}>
+            <span className="desktop-project-path-parent" aria-hidden="true">{parentPath}</span>
+            <span className="desktop-project-path-name" aria-hidden="true">{folderName}</span>
+          </bdi>
+        </Tooltip>
+      ) : (
+        <span className="desktop-project-current-location-label">{t("shell.workspaceSwitcher.location.inCloud")}</span>
+      )}
     </div>
   );
 }
@@ -356,6 +373,7 @@ function DesktopAlternateLocationAction({
       disabled={!action}
       icon={<Icon className={state === "resolving" ? "animate-spin" : undefined} size={14} strokeWidth={1.75} />}
       label={label}
+      trailing={<ChevronRight className="po-directional-icon" size={12} aria-hidden="true" />}
       tooltip={state === "attention" ? t("shell.workspaceSwitcher.location.needsAttention") : label}
       onClick={run(action)}
     />

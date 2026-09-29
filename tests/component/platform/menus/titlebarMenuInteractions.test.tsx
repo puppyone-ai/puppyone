@@ -102,11 +102,14 @@ describe("titlebar Portal menu interactions", () => {
     const currentProject = requireMenu().querySelector<HTMLElement>(".desktop-project-current-location[data-project-location='local']");
     expect(currentProject?.querySelector(".lucide-laptop")).not.toBeNull();
     expect(currentProject?.textContent).not.toContain("Workspace one");
-    expect(currentProject?.textContent).toBe("On this Mac");
+    expect(currentProject?.textContent).toBe(workspace.path);
+    expect(currentProject?.querySelector(".desktop-project-current-location-path")?.getAttribute("aria-label"))
+      .toBe(workspace.path);
     expect(currentProject?.querySelector(".desktop-project-location-dot")).not.toBeNull();
     const setup = requireMenu().querySelector<HTMLButtonElement>("[data-location-action='setup']");
     expect(setup?.textContent).toBe("Deploy to Cloud");
-    expect(setup?.closest(".desktop-project-home-group")).not.toBeNull();
+    expect(setup?.closest(".desktop-project-location-actions")).not.toBeNull();
+    expect(setup?.closest(".desktop-project-home-group")).toBeNull();
     expect(requireMenu().querySelector(".desktop-project-home")?.textContent).toBe("Homepage");
     expect(setup?.querySelector(".lucide-cloud")).not.toBeNull();
     act(() => setup?.click());
@@ -207,7 +210,7 @@ describe("titlebar Portal menu interactions", () => {
     const menu = requireMenu();
     expect(container.contains(menu)).toBe(false);
     expect(menu.dataset.windowNoDrag).toBe("true");
-    expect(menu.style.width).toBe("260px");
+    expect(menu.style.width).toBe("240px");
     expect(menu.querySelector("[data-workspace-menu-layout='workspace-composition-v1']"))
       .not.toBeNull();
     expect(menu.textContent).toContain("Home");
@@ -218,6 +221,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(menu.textContent).not.toContain("Current workspace");
     expect(menu.textContent).not.toContain("Recent projects");
     expect(menu.querySelector(".desktop-project-home-group")).not.toBeNull();
+    expect(menu.firstElementChild?.classList.contains("desktop-project-home-group")).toBe(true);
     expect(menu.querySelector(".desktop-project-current-indicator")).toBeNull();
     expect(menu.querySelector(".desktop-project-option.selected")).toBeNull();
     expect(menu.querySelector("[aria-current='true']")).toBeNull();
@@ -439,7 +443,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(requireMenu().querySelector(".desktop-project-cloud")).toBeNull();
     expect(requireMenu().textContent).not.toContain("Cloud");
     const currentLocation = requireMenu().querySelector(".desktop-project-current-location");
-    expect(currentLocation?.textContent).toBe("On this Mac");
+    expect(currentLocation?.textContent).toBe("/tmp/one");
     expect(currentLocation?.querySelector(".desktop-project-location-dot")).not.toBeNull();
   });
 });
