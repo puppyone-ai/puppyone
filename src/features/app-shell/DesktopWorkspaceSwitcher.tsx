@@ -7,6 +7,7 @@ import {
 } from "@puppyone/shared-ui";
 import {
   ArrowLeft,
+  ChevronDown,
   ChevronRight,
   Cloud,
   FolderPlus,
@@ -120,7 +121,7 @@ export function DesktopWorkspaceSwitcher({
         onDismiss={onClose}
         open={open}
         preferredMaxHeight={view === "branches" ? 440 : 520}
-        preferredWidth={240}
+        preferredWidth={view === "projects" ? 200 : 240}
         alignment={menuAlignment}
       >
         {view === "projects" ? (
@@ -139,13 +140,8 @@ export function DesktopWorkspaceSwitcher({
                   className="desktop-project-branch"
                   icon={<GitBranch size={14} strokeWidth={1.75} />}
                   aria-label={t("shell.branch.title", { branch: bidiIsolate(branchMenu.label) })}
-                  label={t("shell.branch.label")}
-                  trailing={(
-                    <span className="desktop-project-branch-value">
-                      <bdi>{branchMenu.label}</bdi>
-                      <ChevronRight className="po-directional-icon" size={12} aria-hidden="true" />
-                    </span>
-                  )}
+                  label={<bdi>{branchMenu.label}</bdi>}
+                  trailing={<ChevronDown size={12} aria-hidden="true" />}
                   tooltip={t("shell.branch.switch", { branch: bidiIsolate(branchMenu.label) })}
                   disabled={branchMenu.disabled}
                   onClick={() => setView("branches")}
@@ -292,15 +288,18 @@ function DesktopCurrentProjectLocation({
       data-project-location={kind}
       role="status"
     >
-      <ProjectLocationMark
-        className="desktop-project-current-location-mark"
-        kind={kind}
-        size={16}
-      />
+      <div className="desktop-project-location-visual" aria-hidden="true">
+        <ProjectLocationMark
+          className="desktop-project-current-location-mark"
+          kind={kind}
+          size={80}
+          strokeWidth={0.8}
+        />
+        <span className="desktop-project-location-dot" />
+      </div>
       <span className="desktop-project-current-location-label">
         {t(kind === "local" ? "shell.workspaceSwitcher.location.thisMac" : "shell.workspaceSwitcher.location.cloud")}
       </span>
-      <span className="desktop-project-location-dot" aria-hidden="true" />
       {kind === "local" && (
         <Tooltip content={path}>
           <bdi className="desktop-project-current-location-path" dir="ltr" aria-label={path}>
@@ -375,10 +374,12 @@ function ProjectLocationMark({
   className,
   kind,
   size = 15,
+  strokeWidth = 1.75,
 }: {
   className: string;
   kind: DesktopProjectLocation["current"];
   size?: number;
+  strokeWidth?: number;
 }) {
   const Icon = kind === "cloud" ? Cloud : Laptop;
   return (
@@ -387,7 +388,7 @@ function ProjectLocationMark({
       data-project-location={kind}
       aria-hidden="true"
     >
-      <Icon size={size} strokeWidth={1.75} />
+      <Icon size={size} strokeWidth={strokeWidth} />
     </span>
   );
 }

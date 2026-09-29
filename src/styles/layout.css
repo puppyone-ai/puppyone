@@ -468,25 +468,38 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 
 .desktop-project-current-location {
   display: grid;
-  grid-template-columns: var(--po-menu-icon-slot-size) minmax(0, 1fr) auto;
   min-width: 0;
-  align-items: center;
-  column-gap: var(--po-menu-item-gap);
-  row-gap: 2px;
-  padding: var(--po-menu-item-padding-inline);
+  justify-items: center;
+  gap: 4px;
+  padding: 16px 16px 4px;
   color: var(--po-text-muted);
+  text-align: center;
+}
+
+.desktop-project-location-visual {
+  position: relative;
+  display: grid;
+  width: 100%;
+  aspect-ratio: 1;
+  place-items: center;
+  padding: 40px;
+  margin-bottom: 8px;
+  border: 1px solid var(--po-divider);
+  border-radius: 12px;
 }
 
 .desktop-project-current-location-mark {
   display: grid;
-  width: var(--po-menu-icon-slot-size);
-  height: var(--po-menu-icon-slot-size);
+  width: 100%;
+  aspect-ratio: 1;
   place-items: center;
   color: var(--po-text-muted);
 }
 
 .desktop-project-current-location-mark > svg {
   display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .desktop-project-current-location-label,
@@ -500,7 +513,6 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-current-location-path {
-  grid-column: 2 / -1;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -512,28 +524,23 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 
 .desktop-project-overview .desktop-project-branch {
   --po-menu-item-font-size: var(--po-menu-meta-font-size);
+  justify-self: center;
+  width: auto;
+  max-width: calc(100% - 32px);
+  margin-bottom: 4px;
 }
 
-.desktop-project-branch .desktop-menu-item-trailing {
+.desktop-project-branch .desktop-menu-item-body {
   min-width: 0;
-  max-width: 60%;
 }
 
-.desktop-project-branch-value {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: var(--po-menu-item-gap);
-}
-
-.desktop-project-branch-value bdi {
-  min-width: 0;
+.desktop-project-branch .desktop-menu-item-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.desktop-project-branch-value svg {
+.desktop-project-branch .desktop-menu-item-trailing {
   flex: 0 0 auto;
 }
 
@@ -546,9 +553,11 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-location-dot {
+  position: absolute;
+  right: 36px;
+  bottom: 44px;
   width: 7px;
   height: 7px;
-  flex: 0 0 7px;
   border-radius: 50%;
   background: var(--po-success);
 }
