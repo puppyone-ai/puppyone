@@ -1429,7 +1429,6 @@ function AppContent() {
       onCheckoutBranch={handleCheckoutGitBranch}
       onAddProject={() => void addProject()}
       onAddExistingProject={(folderPath) => void addExistingProject(folderPath)}
-      onGoHome={() => void goToHomepage()}
       onSetupCloud={openCloudShare}
       onSwitchToCloud={openCloudDialog}
       onCloseWorkspaceSwitcher={closeWorkspaceSwitcher}
@@ -1503,6 +1502,7 @@ function AppContent() {
         {...surfaceAppearance.rootProps}
       >
         <DesktopCloudShell
+          onGoHome={() => void goToHomepage()}
           renderLeadingRail={projectSwitcherRailVisible ? ({ expanded }) => (
             <ProjectSwitcherRail
               activeView={activeView}

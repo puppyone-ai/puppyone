@@ -1130,6 +1130,11 @@
   flex: 0 0 var(--desktop-titlebar-tool-action-width);
 }
 
+.desktop-titlebar-home {
+  flex: 0 0 var(--desktop-chrome-control-size);
+  margin-inline-end: var(--desktop-titlebar-button-gap);
+}
+
 .desktop-titlebar-workspace-name {
   max-width: none;
   min-width: 0;

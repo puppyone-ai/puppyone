@@ -10,7 +10,7 @@ import {
   type RefObject,
   type Ref,
 } from "react";
-import { PanelLeft } from "lucide-react";
+import { House, PanelLeft } from "lucide-react";
 import {
   Tooltip,
   CollapsiblePaneFrame,
@@ -80,6 +80,7 @@ type DesktopCloudShellProps = {
   minRightSidebarWidth?: number;
   maxRightSidebarWidth?: number;
   resizableRightSidebar?: boolean;
+  onGoHome?: () => void;
   onLeftSidebarExpand?: () => void;
   onLeadingRailCollapsedChange?: (collapsed: boolean) => void;
   onLeadingRailWidthChange?: (width: number) => void;
@@ -119,6 +120,7 @@ export function DesktopCloudShell({
   minRightSidebarWidth = MIN_RIGHT_SIDEBAR_WIDTH,
   maxRightSidebarWidth,
   resizableRightSidebar = false,
+  onGoHome,
   onLeftSidebarExpand,
   onLeadingRailCollapsedChange,
   onLeadingRailWidthChange,
@@ -334,6 +336,16 @@ export function DesktopCloudShell({
                 className="desktop-titlebar-sidebar-context"
                 data-sidebar-state={sidebarState}
               >
+                {onGoHome && (
+                  <Tooltip content={t("shell.workspaceSwitcher.home")}><button
+                    className="desktop-titlebar-context-icon-button desktop-titlebar-home"
+                    type="button"
+                    aria-label={t("shell.workspaceSwitcher.home")}
+                    onClick={onGoHome}
+                  >
+                    <House size={16} strokeWidth={1.75} aria-hidden="true" />
+                  </button></Tooltip>
+                )}
                 {paneLayout.explorer.collapsed && leftSidebarPresent && onLeftSidebarExpand && (
                   <Tooltip content={t("shared-ui.explorer.expandSidebar")}><button
                     className="desktop-titlebar-context-icon-button desktop-titlebar-sidebar-expand"

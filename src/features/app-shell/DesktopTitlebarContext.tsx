@@ -29,7 +29,6 @@ export function DesktopTitlebarContext({
   onCheckoutBranch,
   onCloseBranchSwitcher,
   onCloseWorkspaceSwitcher,
-  onGoHome,
   onAddProject,
   onAddExistingProject,
   onSaveToLocal,
@@ -79,7 +78,6 @@ export function DesktopTitlebarContext({
         onAddExistingProject={multiRootWorkspacesEnabled ? onAddExistingProject : undefined}
         onOpenFolder={multiRootWorkspacesEnabled ? onAddProject : undefined}
         onClose={onCloseWorkspaceSwitcher}
-        onGoHome={onGoHome}
         onSaveToLocal={onSaveToLocal}
         onSetupCloud={onSetupCloud}
         onSwitchToCloud={onSwitchToCloud}
@@ -123,7 +121,6 @@ type DesktopTitlebarContextProps = {
   onCheckoutBranch: (branchName: string, remote: boolean) => Promise<boolean>;
   onCloseBranchSwitcher: () => void;
   onCloseWorkspaceSwitcher: () => void;
-  onGoHome: () => void;
   onAddProject: () => void;
   onAddExistingProject: (folderPath: string) => void;
   onSaveToLocal?: () => void;

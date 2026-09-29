@@ -16,7 +16,7 @@ import {
   LoaderCircle,
   TriangleAlert,
 } from "lucide-react";
-import { DesktopMenuIconButton, DesktopMenuItem } from "../../components/DesktopMenu";
+import { DesktopMenuItem } from "../../components/DesktopMenu";
 import { DesktopTitlebarMenuLayer } from "./DesktopTitlebarMenuLayer";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import {
@@ -39,7 +39,6 @@ type DesktopWorkspaceSwitcherProps = {
   onAddExistingProject?: (folderPath: string) => void;
   onOpenFolder?: () => void;
   onClose: () => void;
-  onGoHome: () => void;
   onSaveToLocal?: () => void;
   onSetupCloud?: () => void;
   onSwitchToCloud?: () => void;
@@ -67,7 +66,6 @@ export function DesktopWorkspaceSwitcher({
   onAddExistingProject,
   onOpenFolder,
   onClose,
-  onGoHome,
   onSaveToLocal,
   onSetupCloud,
   onSwitchToCloud,
@@ -136,14 +134,6 @@ export function DesktopWorkspaceSwitcher({
                 fallbackKind={workspaceContextAssetKind}
                 location={projectLocation}
                 path={workspace.path}
-                navigation={(
-                  <DesktopMenuIconButton
-                    className="desktop-project-home"
-                    icon={<ArrowLeft className="po-directional-icon" size={16} strokeWidth={1.75} />}
-                    label={t("shell.workspaceSwitcher.goHome")}
-                    onClick={onGoHome}
-                  />
-                )}
               />
               {branchMenu && (
                 <DesktopMenuItem
@@ -204,7 +194,7 @@ export function DesktopWorkspaceSwitcher({
           <>
             <div className="desktop-project-back-group">
               <DesktopMenuItem
-                className="desktop-project-add desktop-project-home"
+                className="desktop-project-add"
                 icon={<ArrowLeft className="po-directional-icon" size={15} strokeWidth={1.9} />}
                 label={t("shell.workspaceSwitcher.projects")}
                 onClick={() => setView("projects")}
@@ -284,12 +274,10 @@ function DesktopCurrentProjectLocation({
   fallbackKind,
   location,
   path,
-  navigation,
 }: {
   fallbackKind: "local" | "cloud";
   location?: DesktopProjectLocation;
   path: string;
-  navigation: ReactNode;
 }) {
   const { t } = useLocalization();
   const kind = location?.current ?? fallbackKind;
@@ -300,7 +288,6 @@ function DesktopCurrentProjectLocation({
       role="status"
     >
       <div className="desktop-project-location-header">
-        <div className="desktop-project-home-group">{navigation}</div>
         <span className="desktop-project-current-location-icon">
           <ProjectLocationMark
             className="desktop-project-current-location-mark"

@@ -30,7 +30,6 @@ describe("titlebar Portal menu interactions", () => {
     root = createRoot(container);
     const onCheckoutBranch = vi.fn(async () => true);
     const onClose = vi.fn();
-    const onGoHome = vi.fn();
     await act(async () => {
       root?.render(withTestLocalization(
         <DesktopTitlebarContext
@@ -45,7 +44,7 @@ describe("titlebar Portal menu interactions", () => {
           workspaceSwitcherOpen workspaceSwitcherRef={createRef<HTMLDivElement>()}
           onCheckoutBranch={onCheckoutBranch}
           onCloseBranchSwitcher={vi.fn()} onCloseWorkspaceSwitcher={onClose}
-          onGoHome={onGoHome} onAddProject={vi.fn()} onAddExistingProject={vi.fn()}
+          onAddProject={vi.fn()} onAddExistingProject={vi.fn()}
           onToggleBranchSwitcher={vi.fn()} onToggleWorkspaceSwitcher={vi.fn()}
         />,
       ));
@@ -58,8 +57,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(requireMenu().classList.contains("desktop-branch-menu")).toBe(true);
     expect(requireMenu().textContent).toContain("feature/menu");
     act(() => requireMenu().querySelector<HTMLButtonElement>(".desktop-project-back-group button")?.click());
-    act(() => requireMenu().querySelector<HTMLButtonElement>(".desktop-project-home")?.click());
-    expect(onGoHome).toHaveBeenCalledOnce();
+    expect(requireMenu().querySelector(".desktop-project-home")).toBeNull();
     act(() => branchEntry()?.click());
     await act(async () => {
       requireMenu().querySelector<HTMLButtonElement>(".desktop-branch-menu-row")?.click();
@@ -87,7 +85,6 @@ describe("titlebar Portal menu interactions", () => {
           multiRootWorkspacesEnabled={false}
           projectLocation={{ current: "local", localAvailable: true, cloudState: "unavailable" }}
           onClose={vi.fn()}
-          onGoHome={vi.fn()}
           onSetupCloud={onSetupCloud}
           onToggle={vi.fn()}
         />,
@@ -109,9 +106,7 @@ describe("titlebar Portal menu interactions", () => {
     const setup = requireMenu().querySelector<HTMLButtonElement>("[data-location-action='setup']");
     expect(setup?.textContent).toBe("Host files in Cloud");
     expect(setup?.closest(".desktop-project-location-actions")).not.toBeNull();
-    expect(setup?.closest(".desktop-project-home-group")).toBeNull();
-    expect(requireMenu().querySelector(".desktop-project-home")?.textContent).toBe("");
-    expect(requireMenu().querySelector(".desktop-project-home")?.getAttribute("aria-label")).toBe("Homepage");
+    expect(requireMenu().querySelector(".desktop-project-home")).toBeNull();
     expect(setup?.querySelector(".lucide-cloud")).not.toBeNull();
     act(() => setup?.click());
     expect(onSetupCloud).toHaveBeenCalledOnce();
@@ -127,7 +122,6 @@ describe("titlebar Portal menu interactions", () => {
           multiRootWorkspacesEnabled={false}
           projectLocation={{ current: "local", localAvailable: true, cloudState: "available" }}
           onClose={vi.fn()}
-          onGoHome={vi.fn()}
           onSwitchToCloud={onSwitchToCloud}
           onToggle={vi.fn()}
         />,
@@ -153,7 +147,6 @@ describe("titlebar Portal menu interactions", () => {
           multiRootWorkspacesEnabled={false}
           projectLocation={{ current: "local", localAvailable: true, cloudState: "signed-out" }}
           onClose={vi.fn()}
-          onGoHome={vi.fn()}
           onSwitchToCloud={onSwitchToCloud}
           onToggle={vi.fn()}
         />,
@@ -177,7 +170,6 @@ describe("titlebar Portal menu interactions", () => {
     document.body.appendChild(container);
     root = createRoot(container);
     const anchorRef = createRef<HTMLDivElement>();
-    const onGoHome = vi.fn();
     const onClose = vi.fn();
     const onAddProject = vi.fn();
     const onAddExistingProject = vi.fn();
@@ -201,7 +193,6 @@ describe("titlebar Portal menu interactions", () => {
           onAddExistingProject={onAddExistingProject}
           onOpenFolder={onAddProject}
           onClose={onClose}
-          onGoHome={onGoHome}
           onToggle={vi.fn()}
         />,
       ));
@@ -220,19 +211,13 @@ describe("titlebar Portal menu interactions", () => {
     expect(menu.textContent).toContain("Workspace two");
     expect(menu.textContent).not.toContain("Current workspace");
     expect(menu.textContent).not.toContain("Recent projects");
-    expect(menu.querySelector(".desktop-project-home-group")).not.toBeNull();
+    expect(menu.querySelector(".desktop-project-home-group")).toBeNull();
     expect(menu.querySelector(".desktop-project-current-indicator")).toBeNull();
     expect(menu.querySelector(".desktop-project-option.selected")).toBeNull();
     expect(menu.querySelector("[aria-current='true']")).toBeNull();
     expect(menu.querySelector(".desktop-project-copy-path")).toBeNull();
     expect(menu.querySelector(".desktop-project-option")?.getAttribute("aria-disabled"))
       .toBe("true");
-    const homeButton = menu.querySelector<HTMLButtonElement>(".desktop-project-home");
-    act(() => {
-      homeButton?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
-      homeButton?.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
-      homeButton?.click();
-    });
     expect(onClose).not.toHaveBeenCalled();
     act(() => menu.querySelector<HTMLButtonElement>(".desktop-project-add-folder")?.click());
     expect(menu.textContent).toContain("Projects");
@@ -242,7 +227,6 @@ describe("titlebar Portal menu interactions", () => {
       .find((button) => button.textContent?.includes("Workspace three"))?.click());
     act(() => menu.querySelector<HTMLButtonElement>(".desktop-project-add-folder")?.click());
 
-    expect(onGoHome).toHaveBeenCalledOnce();
     expect(onAddProject).toHaveBeenCalledOnce();
     expect(onAddExistingProject).toHaveBeenCalledWith(thirdWorkspace.path);
   });
@@ -265,7 +249,6 @@ describe("titlebar Portal menu interactions", () => {
           workspaceFolders={[]}
           multiRootWorkspacesEnabled
           onClose={onClose}
-          onGoHome={vi.fn()}
           onToggle={vi.fn()}
         />,
       ));
@@ -303,7 +286,6 @@ describe("titlebar Portal menu interactions", () => {
           onAddExistingProject={vi.fn()}
           onOpenFolder={vi.fn()}
           onClose={vi.fn()}
-          onGoHome={vi.fn()}
           onToggle={vi.fn()}
         />,
       ));
@@ -342,7 +324,6 @@ describe("titlebar Portal menu interactions", () => {
           onCheckoutBranch={onCheckoutBranch}
           onCloseBranchSwitcher={onCloseBranchSwitcher}
           onCloseWorkspaceSwitcher={vi.fn()}
-          onGoHome={vi.fn()}
           onAddProject={vi.fn()}
           onAddExistingProject={vi.fn()}
           onToggleBranchSwitcher={vi.fn()}
@@ -386,7 +367,6 @@ describe("titlebar Portal menu interactions", () => {
           onCheckoutBranch={vi.fn(async () => false)}
           onCloseBranchSwitcher={vi.fn()}
           onCloseWorkspaceSwitcher={vi.fn()}
-          onGoHome={vi.fn()}
           onAddProject={vi.fn()}
           onAddExistingProject={vi.fn()}
           onToggleBranchSwitcher={vi.fn()}
@@ -424,7 +404,6 @@ describe("titlebar Portal menu interactions", () => {
           onCheckoutBranch={vi.fn(async () => false)}
           onCloseBranchSwitcher={vi.fn()}
           onCloseWorkspaceSwitcher={vi.fn()}
-          onGoHome={vi.fn()}
           onAddProject={vi.fn()}
           onAddExistingProject={vi.fn()}
           onToggleBranchSwitcher={vi.fn()}

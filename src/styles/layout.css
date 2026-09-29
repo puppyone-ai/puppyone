@@ -476,7 +476,6 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 
 .desktop-project-location-header {
   display: grid;
-  grid-template-columns: var(--po-menu-item-height) 1fr var(--po-menu-item-height);
   width: 100%;
   min-height: var(--po-menu-item-height);
   align-items: center;
@@ -551,12 +550,6 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   background: var(--po-success);
 }
 
-.desktop-project-home-group .desktop-project-home {
-  width: var(--po-menu-item-height);
-  height: var(--po-menu-item-height);
-  color: var(--po-text-muted);
-}
-
 .desktop-project-location-action[data-location-action="attention"] {
   color: var(--po-warning);
 }
@@ -614,11 +607,6 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 .desktop-project-option .desktop-project-location-label {
   direction: inherit;
   text-align: end;
-}
-
-.desktop-project-home-group {
-  display: flex;
-  align-items: center;
 }
 
 .desktop-project-location-actions {
