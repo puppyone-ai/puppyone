@@ -122,7 +122,7 @@ export function DesktopWorkspaceSwitcher({
         onDismiss={onClose}
         open={open}
         preferredMaxHeight={view === "branches" ? 440 : 520}
-        preferredWidth={280}
+        preferredWidth={260}
         alignment={menuAlignment}
       >
         {view === "projects" ? (
@@ -133,11 +133,7 @@ export function DesktopWorkspaceSwitcher({
             >
               <DesktopCurrentProjectLocation
                 fallbackKind={workspaceContextAssetKind}
-                fallbackLabel={workspaceContextAssetLabel}
                 location={projectLocation}
-                statusLabel={t(currentProjectLocationKind === "local"
-                  ? "shell.workspaceSwitcher.location.online"
-                  : "shell.workspaceSwitcher.location.available")}
               />
               {branchMenu && (
                 <DesktopMenuItem
@@ -147,16 +143,6 @@ export function DesktopWorkspaceSwitcher({
                   trailing={<ChevronRight className="po-directional-icon" size={12} aria-hidden="true" />}
                   disabled={branchMenu.disabled}
                   onClick={() => setView("branches")}
-                />
-              )}
-              {projectLocation && (
-                <DesktopAlternateLocationAction
-                  location={projectLocation}
-                  onClose={onClose}
-                  onSaveToLocal={onSaveToLocal}
-                  onSetupCloud={onSetupCloud}
-                  onSwitchToCloud={onSwitchToCloud}
-                  onSwitchToLocal={onSwitchToLocal}
                 />
               )}
             </div>
@@ -186,6 +172,16 @@ export function DesktopWorkspaceSwitcher({
                 label={t("shell.workspaceSwitcher.goHome")}
                 onClick={onGoHome}
               />
+              {projectLocation && (
+                <DesktopAlternateLocationAction
+                  location={projectLocation}
+                  onClose={onClose}
+                  onSaveToLocal={onSaveToLocal}
+                  onSetupCloud={onSetupCloud}
+                  onSwitchToCloud={onSwitchToCloud}
+                  onSwitchToLocal={onSwitchToLocal}
+                />
+              )}
             </div>
           </>
         ) : view === "branches" ? (
@@ -281,15 +277,12 @@ function DesktopProjectRow({
 
 function DesktopCurrentProjectLocation({
   fallbackKind,
-  fallbackLabel,
   location,
-  statusLabel,
 }: {
   fallbackKind: "local" | "cloud";
-  fallbackLabel: string;
   location?: DesktopProjectLocation;
-  statusLabel: string;
 }) {
+  const { t } = useLocalization();
   const kind = location?.current ?? fallbackKind;
   return (
     <div
@@ -300,12 +293,13 @@ function DesktopCurrentProjectLocation({
       <ProjectLocationMark
         className="desktop-project-current-location-mark"
         kind={kind}
-        size={16}
+        size={24}
       />
-      <span className="desktop-project-current-location-label">{fallbackLabel}</span>
-      <span className="desktop-project-current-location-status">
+      <span className="desktop-project-current-location-label">
         <span className="desktop-project-location-dot" aria-hidden="true" />
-        <span>{statusLabel}</span>
+        <span>{t(kind === "local"
+          ? "shell.workspaceSwitcher.location.onThisMac"
+          : "shell.workspaceSwitcher.location.inCloud")}</span>
       </span>
     </div>
   );
@@ -333,97 +327,38 @@ function DesktopAlternateLocationAction({
     action();
   };
 
-  if (location.current === "cloud") {
-    const action = location.localAvailable ? onSwitchToLocal : onSaveToLocal;
-    return (
-      <DesktopMenuItem
-        className="desktop-project-location-action"
-        data-location-action={location.localAvailable ? "switch" : "save"}
-        disabled={!action}
-        icon={<Laptop size={16} strokeWidth={1.75} />}
-        label={t(location.localAvailable
-          ? "shell.workspaceSwitcher.location.thisMac"
-          : "shell.workspaceSwitcher.location.saveToMac")}
-        detail={location.localAvailable ? (
-          <LocationAvailability label={t("shell.workspaceSwitcher.location.available")} />
-        ) : undefined}
-        trailing={<LocationActionVerb label={t(location.localAvailable
-          ? "shell.workspaceSwitcher.location.switch"
-          : "shell.workspaceSwitcher.location.save")} />}
-        onClick={run(action)}
-      />
-    );
-  }
-
-  const restrainedCloudState = location.cloudState === "unavailable" || location.cloudState === "signed-out";
-  const cloudSetupAction = location.cloudState === "unavailable"
-    ? onSetupCloud
-    : location.cloudState === "signed-out"
-      ? onSwitchToCloud
-      : undefined;
-  if (restrainedCloudState) {
-    return (
-      <DesktopMenuItem
-        className="desktop-project-location-action desktop-project-cloud-setup"
-        data-location-action={location.cloudState === "unavailable" ? "setup" : "signed-out"}
-        disabled={!cloudSetupAction}
-        icon={<Cloud size={14} strokeWidth={1.75} />}
-        label={t("shell.workspaceSwitcher.location.keepAvailable")}
-        trailing={<ChevronRight className="po-directional-icon" size={12} strokeWidth={1.8} aria-hidden="true" />}
-        onClick={run(cloudSetupAction)}
-      />
-    );
-  }
-
-  if (location.cloudState === "resolving") {
-    return (
-      <DesktopMenuItem
-        className="desktop-project-location-action"
-        data-location-action="resolving"
-        disabled
-        icon={<LoaderCircle className="animate-spin" size={16} strokeWidth={1.75} />}
-        label={t("shell.workspaceSwitcher.location.cloud")}
-        detail={t("shell.workspaceSwitcher.location.checking")}
-      />
-    );
-  }
-
-  const attention = location.cloudState === "attention";
+  const isCloud = location.current === "cloud";
+  const state = isCloud
+    ? location.localAvailable ? "switch-local" : "save"
+    : location.cloudState === "unavailable" ? "setup"
+      : location.cloudState === "available" ? "switch"
+        : location.cloudState;
+  const action = isCloud
+    ? location.localAvailable ? onSwitchToLocal : onSaveToLocal
+    : state === "setup" ? onSetupCloud
+      : state === "resolving" ? undefined : onSwitchToCloud;
+  const label = t(`shell.workspaceSwitcher.location.${{
+    "switch-local": "switchToMac",
+    save: "saveToMac",
+    setup: "deployToCloud",
+    switch: "switchToCloud",
+    "signed-out": "openCloud",
+    attention: "openCloud",
+    resolving: "checking",
+  }[state]}`);
+  const Icon = isCloud ? Laptop
+    : state === "resolving" ? LoaderCircle
+      : state === "attention" ? TriangleAlert : Cloud;
   return (
     <DesktopMenuItem
       className="desktop-project-location-action"
-      data-location-action={attention ? "attention" : "switch"}
-      disabled={!onSwitchToCloud}
-      icon={attention
-        ? <TriangleAlert size={16} strokeWidth={1.75} />
-        : <Cloud size={16} strokeWidth={1.75} />}
-      label={t("shell.workspaceSwitcher.location.cloud")}
-      detail={attention
-        ? t("shell.workspaceSwitcher.location.needsAttention")
-        : <LocationAvailability label={t("shell.workspaceSwitcher.location.available")} />}
-      trailing={<LocationActionVerb label={t(attention
-        ? "shell.workspaceSwitcher.location.open"
-        : "shell.workspaceSwitcher.location.switch")} />}
-      onClick={run(onSwitchToCloud)}
+      data-location-action={state}
+      disabled={!action}
+      icon={<Icon className={state === "resolving" ? "animate-spin" : undefined} size={14} strokeWidth={1.75} />}
+      label={label}
+      tooltip={state === "attention" ? t("shell.workspaceSwitcher.location.needsAttention") : label}
+      onClick={run(action)}
     />
-  );
-}
-
-function LocationAvailability({ label }: { label: string }) {
-  return (
-    <span className="desktop-project-location-availability">
-      <span className="desktop-project-location-dot" aria-hidden="true" />
-      <span>{label}</span>
-    </span>
-  );
-}
-
-function LocationActionVerb({ label }: { label: string }) {
-  return (
-    <span className="desktop-project-location-action-verb">
-      <span>{label}</span>
-      <ChevronRight className="po-directional-icon" size={14} strokeWidth={1.8} aria-hidden="true" />
-    </span>
   );
 }
 

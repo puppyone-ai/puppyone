@@ -102,18 +102,13 @@ describe("titlebar Portal menu interactions", () => {
     const currentProject = requireMenu().querySelector<HTMLElement>(".desktop-project-current-location[data-project-location='local']");
     expect(currentProject?.querySelector(".lucide-laptop")).not.toBeNull();
     expect(currentProject?.textContent).not.toContain("Workspace one");
-    expect(currentProject?.textContent).toContain("This Mac");
-    expect(currentProject?.textContent).toContain("Online");
+    expect(currentProject?.textContent).toBe("On this Mac");
     expect(currentProject?.querySelector(".desktop-project-location-dot")).not.toBeNull();
-    expect(currentProject?.querySelector(".desktop-project-current-location-status"))
-      .not.toBeNull();
     const setup = requireMenu().querySelector<HTMLButtonElement>("[data-location-action='setup']");
-    expect(setup?.textContent).toContain("Make it always available to Agents");
-    expect(setup?.textContent).not.toContain("24/7");
-    expect(setup?.textContent).not.toContain("Even when this Mac is offline.");
-    expect(setup?.textContent).not.toContain("Set up");
+    expect(setup?.textContent).toBe("Deploy to Cloud");
+    expect(setup?.closest(".desktop-project-home-group")).not.toBeNull();
+    expect(requireMenu().querySelector(".desktop-project-home")?.textContent).toBe("Homepage");
     expect(setup?.querySelector(".lucide-cloud")).not.toBeNull();
-    expect(setup?.querySelector(".lucide-chevron-right")).not.toBeNull();
     act(() => setup?.click());
     expect(onSetupCloud).toHaveBeenCalledOnce();
 
@@ -139,9 +134,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(container.querySelector(".desktop-titlebar-workspace-button .lucide-laptop")).not.toBeNull();
     const cloudAction = requireMenu().querySelector<HTMLButtonElement>("[data-location-action='switch']");
     expect(cloudAction?.querySelector(".lucide-cloud")).not.toBeNull();
-    expect(cloudAction?.textContent).toContain("Cloud");
-    expect(cloudAction?.textContent).toContain("Available");
-    expect(cloudAction?.textContent).toContain("Switch");
+    expect(cloudAction?.textContent).toBe("Switch to Cloud");
     act(() => cloudAction?.click());
     expect(onSwitchToCloud).toHaveBeenCalledOnce();
 
@@ -166,11 +159,10 @@ describe("titlebar Portal menu interactions", () => {
 
     const signedOutCloudAction = requireMenu()
       .querySelector<HTMLButtonElement>("[data-location-action='signed-out']");
-    expect(signedOutCloudAction?.textContent).toContain("Make it always available to Agents");
+    expect(signedOutCloudAction?.textContent).toBe("Open Cloud");
     expect(signedOutCloudAction?.textContent).not.toContain("Sign in to access");
     expect(signedOutCloudAction?.textContent).not.toContain("Switch");
     expect(signedOutCloudAction?.querySelector(".lucide-cloud")).not.toBeNull();
-    expect(signedOutCloudAction?.querySelector(".lucide-chevron-right")).not.toBeNull();
     expect(signedOutCloudAction?.querySelector(".desktop-project-location-dot")).toBeNull();
     act(() => signedOutCloudAction?.click());
     expect(onSwitchToCloud).toHaveBeenCalledTimes(2);
@@ -215,7 +207,7 @@ describe("titlebar Portal menu interactions", () => {
     const menu = requireMenu();
     expect(container.contains(menu)).toBe(false);
     expect(menu.dataset.windowNoDrag).toBe("true");
-    expect(menu.style.width).toBe("280px");
+    expect(menu.style.width).toBe("260px");
     expect(menu.querySelector("[data-workspace-menu-layout='workspace-composition-v1']"))
       .not.toBeNull();
     expect(menu.textContent).toContain("Home");
@@ -447,8 +439,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(requireMenu().querySelector(".desktop-project-cloud")).toBeNull();
     expect(requireMenu().textContent).not.toContain("Cloud");
     const currentLocation = requireMenu().querySelector(".desktop-project-current-location");
-    expect(currentLocation?.textContent).toContain("This Mac");
-    expect(currentLocation?.textContent).toContain("Online");
+    expect(currentLocation?.textContent).toBe("On this Mac");
     expect(currentLocation?.querySelector(".desktop-project-location-dot")).not.toBeNull();
   });
 });

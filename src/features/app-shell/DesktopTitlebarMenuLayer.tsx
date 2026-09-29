@@ -96,7 +96,9 @@ export function DesktopTitlebarMenuLayer({
         ref={setOverlayRef}
         className={`desktop-titlebar-menu desktop-titlebar-menu-overlay ${className}`}
         data-titlebar-context-menu="true"
-        typographySurface="header"
+        elevation="compact"
+        tone="quiet"
+        typographySurface="left-sidebar"
         style={style}
       >
         {children}

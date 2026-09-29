@@ -1180,7 +1180,7 @@
   top: calc(100% + 4px);
   inset-inline-start: 0;
   width: min(300px, calc(100vw - 16px));
-  padding: 8px;
+  padding: var(--po-menu-padding);
   border: 1px solid var(--po-menu-border);
   border-radius: var(--po-menu-radius);
   background: var(--po-menu-bg);
