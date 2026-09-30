@@ -471,7 +471,6 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   flex-direction: column;
   align-items: stretch;
   justify-content: center;
-  padding: var(--po-menu-padding) 0;
 }
 
 .desktop-project-current-location {
