@@ -455,6 +455,9 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-menu {
+  --po-menu-shadow-compact:
+    0 2px 6px color-mix(in srgb, var(--po-shadow) 65%, transparent),
+    0 12px 28px -4px var(--po-shadow);
   display: flex;
   max-height: min(520px, calc(100vh - 58px));
   flex-direction: column;
