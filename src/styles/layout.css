@@ -484,7 +484,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 .desktop-project-location-visual {
   display: grid;
   min-width: 0;
-  min-height: 132px;
+  min-height: 108px;
   grid-template-rows: auto auto;
   align-content: center;
   gap: 12px;
@@ -495,13 +495,15 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-location-device {
-  display: grid;
-  justify-items: center;
-  gap: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
 }
 
 .desktop-project-current-location-mark {
   display: grid;
+  flex: 0 0 auto;
   place-items: center;
 }
 
