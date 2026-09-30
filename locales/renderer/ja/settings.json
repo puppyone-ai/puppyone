@@ -285,7 +285,7 @@
   "experimental.cloudWorkspace.title": "PuppyOne Cloud",
   "experimental.cloudWorkspace.detail": "このプロジェクトの PuppyOne Cloud での公開状態を確認・管理します。",
   "experimental.shareOnboarding.title": "ヘッダーから共有",
-  "experimental.shareOnboarding.detail": "共有を第一幕にしたクラウドホームと Header の雲アイコン:Agent を選び、その場で公開し、貼り付けるだけのリンクを取得。オフにすると従来のクラウドレイアウトに戻ります。PuppyOne Cloud が必要です。",
+  "experimental.shareOnboarding.detail": "ヘッダーに共有ボタンを表示します。オフにするとボタンを非表示にし、従来の Cloud レイアウトに戻します。PuppyOne Cloud が必要です。",
   "experimental.editorTabsInHeader.title": "ヘッダーにファイルタブを表示",
   "experimental.editorTabsInHeader.detail": "開いているファイルをエディターに揃えた切り替え可能なタブとしてウィンドウヘッダーに表示します。",
   "experimental.workbenchTabsInHeader.title": "ヘッダーにチャットタブを表示",

@@ -322,7 +322,7 @@
   "experimental.cloudWorkspace.title": "PuppyOne Cloud",
   "experimental.cloudWorkspace.detail": "View and manage this project's publishing status in PuppyOne Cloud.",
   "experimental.shareOnboarding.title": "Share from the Header",
-  "experimental.shareOnboarding.detail": "Share-first Cloud Homepage and Header cloud icon: pick an Agent, publish inline, get a paste-ready link. Switch off to return to the classic Cloud layout. Requires PuppyOne Cloud.",
+  "experimental.shareOnboarding.detail": "Show Share in the Header. Turning this off hides the button and restores the classic Cloud layout. Requires PuppyOne Cloud.",
   "experimental.editorTabsInHeader.title": "File tabs in Header",
   "experimental.editorTabsInHeader.detail": "Show open files as switchable tabs aligned with the editor in the window Header.",
   "experimental.workbenchTabsInHeader.title": "Chat tabs in Header",

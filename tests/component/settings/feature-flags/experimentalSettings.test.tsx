@@ -111,7 +111,7 @@ describe("Experimental settings", () => {
     expect(host.querySelector('input[aria-label="Editor save status"]')).toBeNull();
   });
 
-  it("ships Share from the Header on, with its own switch to return to the classic layout", () => {
+  it("ships Share from the Header on, with its own switch to hide the Header entry", () => {
     const onChange = vi.fn();
     const host = document.createElement("div");
     document.body.append(host);

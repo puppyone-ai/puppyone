@@ -1477,7 +1477,6 @@ function AppContent() {
     onToggleTerminal: handleToggleAgentWorkbench,
     onToggleGitChanges: handleToggleGitChanges,
     cloudEnabled,
-    onOpenCloud: openCloudDialog,
     shareEnabled: shareOnboardingEnabled,
     onShare: openCloudShare,
   };

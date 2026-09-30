@@ -285,7 +285,7 @@
   "experimental.cloudWorkspace.title": "PuppyOne Cloud",
   "experimental.cloudWorkspace.detail": "Afficher et gérer l’état de publication de ce projet dans PuppyOne Cloud.",
   "experimental.shareOnboarding.title": "Partager depuis l’en-tête",
-  "experimental.shareOnboarding.detail": "Page d'accueil Cloud axée sur le partage et icône nuage du Header : choisissez un Agent, publiez en ligne, obtenez un lien prêt à coller. Désactivez pour revenir à la mise en page Cloud classique. Nécessite PuppyOne Cloud.",
+  "experimental.shareOnboarding.detail": "Affiche Partager dans l’en-tête. La désactivation masque le bouton et rétablit la présentation classique de Cloud. Nécessite PuppyOne Cloud.",
   "experimental.editorTabsInHeader.title": "Onglets de fichiers dans l’en-tête",
   "experimental.editorTabsInHeader.detail": "Affiche les fichiers ouverts sous forme d’onglets alignés sur l’éditeur dans l’en-tête de la fenêtre.",
   "experimental.workbenchTabsInHeader.title": "Onglets de chat dans l’en-tête",

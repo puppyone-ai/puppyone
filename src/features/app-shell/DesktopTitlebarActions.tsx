@@ -1,6 +1,6 @@
 import { Tooltip } from "@puppyone/shared-ui";
 import { Fragment, type ReactNode, type RefObject } from "react";
-import { Cloud, Forward } from "lucide-react";
+import { Forward } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import { getOrderedHeaderElementDefinitions, type HeaderElementRenderContext } from "./headerElements";
 import type { TitlebarActionsSettings } from "../../preferences";
@@ -31,7 +31,6 @@ type DesktopTitlebarActionsProps = {
   onToggleTerminal: () => void;
   onToggleGitChanges?: () => void;
   cloudEnabled?: boolean;
-  onOpenCloud?: () => void;
   shareEnabled?: boolean;
   onShare?: () => void;
   activeCoachmark?: HeaderCoachmarkId | null;
@@ -57,7 +56,6 @@ export function DesktopTitlebarActions({
   onToggleTerminal,
   onToggleGitChanges = () => {},
   cloudEnabled = false,
-  onOpenCloud = () => {},
   shareEnabled = false,
   onShare = () => {},
   activeCoachmark = null,
@@ -109,13 +107,12 @@ export function DesktopTitlebarActions({
     });
   }
 
-  if (cloudEnabled && placement === "titlebar") {
-    const cloudLabel = t("cloud.productName");
+  if (cloudEnabled && shareEnabled && placement === "titlebar") {
     const shareLabel = t("shell.titlebar.share");
     titlebarActionItems.push({
       group: "header",
-      id: shareEnabled ? "share" : "cloud",
-      node: shareEnabled ? (
+      id: "share",
+      node: (
         <Tooltip content={shareLabel}><button
           type="button"
           className="desktop-titlebar-action desktop-titlebar-share"
@@ -124,15 +121,6 @@ export function DesktopTitlebarActions({
         >
           <Forward size={16} strokeWidth={1.8} aria-hidden="true" />
           <span className="desktop-titlebar-share-label">{shareLabel}</span>
-        </button></Tooltip>
-      ) : (
-        <Tooltip content={cloudLabel}><button
-          type="button"
-          className="desktop-titlebar-action desktop-titlebar-cloud"
-          aria-label={cloudLabel}
-          onClick={onOpenCloud}
-        >
-          <Cloud size={16} strokeWidth={1.8} aria-hidden="true" />
         </button></Tooltip>
       ),
     });
@@ -175,7 +163,7 @@ export function DesktopTitlebarActions({
       {visibleTitlebarActionItems.map((item, index) => {
         const previousItem = visibleTitlebarActionItems[index - 1];
         const separatesActionGroups = previousItem
-          ? previousItem.group !== item.group || previousItem.id === "cloud" || previousItem.id === "share"
+          ? previousItem.group !== item.group || previousItem.id === "share"
           : item.group === "project";
         return (
           <Fragment key={item.id}>

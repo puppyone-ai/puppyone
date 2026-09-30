@@ -285,7 +285,7 @@
   "experimental.cloudWorkspace.title": "PuppyOne Cloud",
   "experimental.cloudWorkspace.detail": "이 프로젝트의 PuppyOne Cloud 게시 상태를 확인하고 관리합니다.",
   "experimental.shareOnboarding.title": "헤더에서 공유",
-  "experimental.shareOnboarding.detail": "공유 우선 클라우드 홈과 Header 구름 아이콘: Agent를 선택하고 바로 게시하여 붙여 넣기용 링크를 받습니다. 끄면 기존 클라우드 레이아웃으로 돌아갑니다. PuppyOne Cloud가 필요합니다.",
+  "experimental.shareOnboarding.detail": "헤더에 공유 버튼을 표시합니다. 끄면 버튼이 숨겨지고 기존 Cloud 레이아웃으로 돌아갑니다. PuppyOne Cloud가 필요합니다.",
   "experimental.editorTabsInHeader.title": "헤더에 파일 탭 표시",
   "experimental.editorTabsInHeader.detail": "열린 파일을 편집기와 정렬된 전환 가능한 탭으로 창 헤더에 표시합니다.",
   "experimental.workbenchTabsInHeader.title": "헤더에 채팅 탭 표시",

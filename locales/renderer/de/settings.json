@@ -285,7 +285,7 @@
   "experimental.cloudWorkspace.title": "PuppyOne Cloud",
   "experimental.cloudWorkspace.detail": "Veröffentlichungsstatus dieses Projekts in PuppyOne Cloud anzeigen und verwalten.",
   "experimental.shareOnboarding.title": "Aus der Kopfzeile teilen",
-  "experimental.shareOnboarding.detail": "Share-first Cloud-Startseite und Cloud-Symbol im Header: Agent wählen, direkt veröffentlichen, einfügbaren Link erhalten. Ausschalten stellt das klassische Cloud-Layout wieder her. Erfordert PuppyOne Cloud.",
+  "experimental.shareOnboarding.detail": "Zeigt Teilen in der Kopfzeile. Beim Ausschalten wird die Schaltfläche ausgeblendet und das klassische Cloud-Layout wiederhergestellt. Erfordert PuppyOne Cloud.",
   "experimental.editorTabsInHeader.title": "Datei-Tabs in der Kopfzeile",
   "experimental.editorTabsInHeader.detail": "Zeigt geöffnete Dateien als umschaltbare, am Editor ausgerichtete Tabs in der Fensterkopfzeile.",
   "experimental.workbenchTabsInHeader.title": "Chat-Tabs in der Kopfzeile",
