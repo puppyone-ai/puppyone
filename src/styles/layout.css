@@ -463,45 +463,41 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 .desktop-project-overview {
   display: grid;
   min-width: 0;
-  padding: 12px;
 }
 
 .desktop-project-location-card {
   display: flex;
   min-width: 0;
-  aspect-ratio: 1;
+  min-height: 140px;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
-  gap: 4px;
-  padding: 12px;
-  border: 1px solid var(--po-divider);
-  border-radius: 12px;
+  gap: 8px;
+  padding: 12px var(--po-menu-padding);
 }
 
 .desktop-project-current-location {
   display: grid;
   width: 100%;
   min-width: 0;
-  justify-items: center;
-  gap: 4px;
+  gap: 6px;
+  padding-inline: var(--po-menu-item-padding-inline);
   color: var(--po-text-muted);
-  text-align: center;
+  text-align: start;
 }
 
-.desktop-project-location-visual {
-  position: relative;
-  display: grid;
-  width: 48px;
-  aspect-ratio: 1;
-  place-items: center;
-  margin-bottom: 4px;
+.desktop-project-location-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--po-menu-item-gap);
 }
 
 .desktop-project-current-location-mark {
   display: grid;
-  width: 100%;
-  aspect-ratio: 1;
+  width: var(--po-menu-icon-slot-size);
+  height: var(--po-menu-icon-slot-size);
+  flex: 0 0 var(--po-menu-icon-slot-size);
   place-items: center;
   color: var(--po-text-muted);
 }
@@ -527,13 +523,11 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--po-menu-meta-font-size);
-  line-height: var(--po-menu-meta-line-height);
   color: var(--po-text-subtle);
 }
 
 .desktop-project-overview .desktop-project-branch {
-  --po-menu-item-font-size: var(--po-menu-meta-font-size);
+  align-self: flex-start;
   width: auto;
   max-width: 100%;
   flex-shrink: 0;
@@ -562,11 +556,9 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-location-dot {
-  position: absolute;
-  right: -2px;
-  bottom: 6px;
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
   border-radius: 50%;
   background: var(--po-success);
 }

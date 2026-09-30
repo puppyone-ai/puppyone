@@ -121,7 +121,7 @@ export function DesktopWorkspaceSwitcher({
         onDismiss={onClose}
         open={open}
         preferredMaxHeight={view === "branches" ? 440 : 520}
-        preferredWidth={view === "projects" ? 200 : 240}
+        preferredWidth={view === "projects" ? 184 : 240}
         alignment={menuAlignment}
       >
         {view === "projects" ? (
@@ -290,18 +290,17 @@ function DesktopCurrentProjectLocation({
       data-project-location={kind}
       role="status"
     >
-      <div className="desktop-project-location-visual" aria-hidden="true">
+      <div className="desktop-project-location-heading">
         <ProjectLocationMark
           className="desktop-project-current-location-mark"
           kind={kind}
-          size={48}
-          strokeWidth={1.25}
+          size={18}
         />
-        <span className="desktop-project-location-dot" />
+        <span className="desktop-project-current-location-label">
+          {t(kind === "local" ? "shell.workspaceSwitcher.location.thisMac" : "shell.workspaceSwitcher.location.cloud")}
+        </span>
+        <span className="desktop-project-location-dot" aria-hidden="true" />
       </div>
-      <span className="desktop-project-current-location-label">
-        {t(kind === "local" ? "shell.workspaceSwitcher.location.thisMac" : "shell.workspaceSwitcher.location.cloud")}
-      </span>
       {kind === "local" && (
         <Tooltip content={path}>
           <bdi className="desktop-project-current-location-path" dir="ltr" aria-label={path}>

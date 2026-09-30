@@ -105,7 +105,7 @@ describe("titlebar Portal menu interactions", () => {
       .toBe(workspace.path);
     expect(currentProject?.querySelector(".desktop-project-location-dot")).not.toBeNull();
     const setup = requireMenu().querySelector<HTMLButtonElement>("[data-location-action='setup']");
-    expect(setup?.textContent).toBe("Host files in Cloud");
+    expect(setup?.textContent).toBe("Host in Cloud");
     expect(setup?.closest(".desktop-project-location-actions")).not.toBeNull();
     expect(requireMenu().querySelector(".desktop-project-home")).toBeNull();
     expect(setup?.querySelector(".lucide-cloud")).not.toBeNull();
@@ -203,7 +203,7 @@ describe("titlebar Portal menu interactions", () => {
     const menu = requireMenu();
     expect(container.contains(menu)).toBe(false);
     expect(menu.dataset.windowNoDrag).toBe("true");
-    expect(menu.style.width).toBe("200px");
+    expect(menu.style.width).toBe("184px");
     expect(menu.querySelector("[data-workspace-menu-layout='workspace-composition-v1']"))
       .not.toBeNull();
     expect(menu.textContent).toContain("Add Project…");
