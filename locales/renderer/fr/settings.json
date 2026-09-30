@@ -260,7 +260,7 @@
   "experimental.groups.imports": "Importations et plugins",
   "experimental.groups.cloud": "Cloud et automatisation",
   "experimental.centerProjectInHeader.title": "Centrer le projet dans le Header",
-  "experimental.centerProjectInHeader.detail": "Centrer le titre du projet et l’état de Git ; garder Partager et Chat à droite.",
+  "experimental.centerProjectInHeader.detail": "Centrer le titre du projet ; garder Partager, Git et Chat à droite.",
   "experimental.gitCardInHeader.title": "Carte Git dans l’en-tête",
   "experimental.gitCardInHeader.detail": "Lorsque le projet est centré, ouvre Git sous son bouton dans l’en-tête.",
   "experimental.otherAppImports.title": "Importer depuis d’autres applications",

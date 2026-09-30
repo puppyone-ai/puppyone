@@ -268,14 +268,6 @@
   gap: var(--desktop-titlebar-button-gap);
 }
 
-.desktop-titlebar-project-actions {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: var(--desktop-titlebar-button-gap);
-  height: var(--desktop-titlebar-control-height);
-}
-
 .desktop-titlebar-context-item {
   display: inline-flex;
   align-items: center;

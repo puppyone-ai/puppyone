@@ -260,7 +260,7 @@
   "experimental.groups.imports": "가져오기 및 플러그인",
   "experimental.groups.cloud": "클라우드 및 자동화",
   "experimental.centerProjectInHeader.title": "Header 중앙에 프로젝트 표시",
-  "experimental.centerProjectInHeader.detail": "프로젝트 이름과 Git 상태를 중앙에, 공유와 채팅을 오른쪽에 표시합니다.",
+  "experimental.centerProjectInHeader.detail": "프로젝트 이름을 중앙에, 공유, Git, 채팅을 오른쪽에 표시합니다.",
   "experimental.gitCardInHeader.title": "헤더의 Git 카드",
   "experimental.gitCardInHeader.detail": "프로젝트가 가운데에 있는 레이아웃에서 Git 버튼 아래에 카드를 엽니다.",
   "experimental.otherAppImports.title": "다른 앱에서 가져오기",

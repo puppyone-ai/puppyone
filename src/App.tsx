@@ -1470,7 +1470,6 @@ function AppContent() {
     gitCardEnabled: gitPresentation.cardEnabled,
     gitAnchorRef,
     gitChangesStatus: gitTitlebarStatus,
-    changesInProjectContext: centerProjectInHeader,
     activeCoachmark: headerCoachmarks.active,
     onAcknowledgeCoachmark: headerCoachmarks.acknowledge,
     onUpdateNow: () => void desktopUpdates.updateNow(),
@@ -1483,9 +1482,6 @@ function AppContent() {
   const titlebarContext = (
     <DesktopTitlebarContext
       compactProjectMenu={centerProjectInHeader}
-      projectActions={centerProjectInHeader ? (
-        <DesktopTitlebarActions {...chromeActionProps} visibleGroups={["project"]} />
-      ) : undefined}
       activeGitStatus={activeGitStatus}
       backupProviders={focusedWorkspace?.path === workspace.path && gitStatusPath === workspace.path
         ? getProjectBackupProviders(activeGitStatus) : []}
@@ -1527,7 +1523,6 @@ function AppContent() {
   const titlebarActions = (
     <DesktopTitlebarActions
       {...chromeActionProps}
-      visibleGroups={centerProjectInHeader ? ["app-status", "header", "right-sidebar"] : undefined}
     />
   );
   const editorTabsInHeaderEnabled = experimentalSettings.enableEditorTabsInHeader;

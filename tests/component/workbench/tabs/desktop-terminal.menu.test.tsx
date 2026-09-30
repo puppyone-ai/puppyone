@@ -56,7 +56,7 @@ describe("Desktop Terminal tab session manager", () => {
     const render = (shareEnabled: boolean) => act(() => root?.render(withTestLocalization(
       <DesktopTitlebarActions titlebarActionsSettings={DEFAULT_TITLEBAR_ACTIONS_SETTINGS}
         terminalSidebarOpen={false} terminalToolEnabled cloudEnabled
-        changesInProjectContext visibleGroups={["app-status", "header", "right-sidebar"]}
+        visibleGroups={["app-status", "header", "right-sidebar"]}
         shareEnabled={shareEnabled} onShare={onShare} onToggleTerminal={vi.fn()} />,
     )));
     render(true);

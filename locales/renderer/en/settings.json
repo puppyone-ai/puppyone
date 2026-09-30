@@ -297,7 +297,7 @@
   "experimental.groups.imports": "Imports & plugins",
   "experimental.groups.cloud": "Cloud & automation",
   "experimental.centerProjectInHeader.title": "Center project in Header",
-  "experimental.centerProjectInHeader.detail": "Center the project title and Git status; keep Share and Chat on the right.",
+  "experimental.centerProjectInHeader.detail": "Center the project title; keep Share, Git and Chat on the right.",
   "experimental.gitCardInHeader.title": "Git card in Header",
   "experimental.gitCardInHeader.detail": "In the centered project layout, open Git below its Header button.",
   "experimental.otherAppImports.title": "Import from other apps",

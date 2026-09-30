@@ -20,7 +20,7 @@ afterEach(() => {
 });
 
 describe("Git right-sidebar titlebar entries", () => {
-  it.each([false, true])("keeps one working Git entry in the expected Header group with centered project %s", (centered) => {
+  it.each([false, true])("keeps one working Git entry on the right with centered project %s", (centered) => {
     const container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -45,17 +45,6 @@ describe("Git right-sidebar titlebar entries", () => {
       <>
         <DesktopTitlebarContext
           compactProjectMenu={centered}
-          projectActions={centered ? (
-            <DesktopTitlebarActions
-              {...actionProps}
-              titlebarActionsSettings={{
-                ...DEFAULT_TITLEBAR_ACTIONS_SETTINGS,
-                enabled: { ...DEFAULT_TITLEBAR_ACTIONS_SETTINGS.enabled, changes: changesEnabled },
-              }}
-              changesInProjectContext
-              visibleGroups={["project"]}
-            />
-          ) : undefined}
           activeGitStatus={null}
           branchSwitcherOpen={false} branchSwitcherRef={createRef<HTMLDivElement>()}
           gitStatusLoading={false} gitOperationLoading={null}
@@ -75,8 +64,6 @@ describe("Git right-sidebar titlebar entries", () => {
               ...DEFAULT_TITLEBAR_ACTIONS_SETTINGS,
               enabled: { ...DEFAULT_TITLEBAR_ACTIONS_SETTINGS.enabled, changes: changesEnabled },
             }}
-            changesInProjectContext={centered}
-            visibleGroups={centered ? ["app-status", "header", "right-sidebar"] : undefined}
           />
         </div>
       </>,
@@ -87,22 +74,22 @@ describe("Git right-sidebar titlebar entries", () => {
     const trailing = container.querySelector("[data-header-trailing]");
     const changes = container.querySelector<HTMLButtonElement>(".desktop-titlebar-changes");
     expect(container.querySelectorAll(".desktop-titlebar-changes")).toHaveLength(1);
-    expect(context?.contains(changes)).toBe(centered);
-    expect(trailing?.contains(changes)).toBe(!centered);
+    expect(context?.contains(changes)).toBe(false);
+    expect(trailing?.contains(changes)).toBe(true);
     expect(changes?.getAttribute("aria-pressed")).toBe("true");
     expect(changes?.getAttribute("aria-label")).toContain("Pull 4 commits");
     expect(context?.querySelector(".desktop-titlebar-share")).toBeNull();
     expect(context?.querySelector(".desktop-titlebar-terminal")).toBeNull();
     expect(trailing?.querySelector(".desktop-titlebar-share")).not.toBeNull();
     expect(trailing?.querySelector(".desktop-titlebar-terminal")).not.toBeNull();
-    if (centered) {
-      expect(context?.querySelector(".desktop-titlebar-workspace-wrap")?.nextElementSibling?.className)
-        .toBe("desktop-titlebar-project-actions");
-      const projectActions = context?.querySelector(".desktop-titlebar-project-actions");
-      expect(projectActions?.querySelectorAll(".desktop-titlebar-action-divider")).toHaveLength(1);
-      expect(projectActions?.firstElementChild?.className).toBe("desktop-titlebar-action-divider");
-      expect(projectActions?.firstElementChild?.getAttribute("aria-hidden")).toBe("true");
-    }
+    expect(context?.querySelector(".desktop-titlebar-action-divider")).toBeNull();
+    expect(Array.from(trailing?.querySelectorAll(".desktop-titlebar-action") ?? []).map((button) =>
+      button.className,
+    )).toEqual([
+      "desktop-titlebar-action desktop-titlebar-share",
+      "desktop-titlebar-action desktop-titlebar-changes",
+      "desktop-titlebar-action desktop-titlebar-terminal",
+    ]);
 
     act(() => {
       changes?.click();
@@ -119,15 +106,17 @@ describe("Git right-sidebar titlebar entries", () => {
     expect(container.querySelectorAll(".desktop-titlebar-changes")).toHaveLength(1);
     expect(container.querySelector(".desktop-titlebar-context")?.contains(
       container.querySelector(".desktop-titlebar-changes"),
-    )).toBe(!centered);
+    )).toBe(false);
+    expect(container.querySelector("[data-header-trailing]")?.contains(
+      container.querySelector(".desktop-titlebar-changes"),
+    )).toBe(true);
     render(centered, false);
     expect(container.querySelector(".desktop-titlebar-changes")).toBeNull();
-    expect(container.querySelector(".desktop-titlebar-project-actions .desktop-titlebar-action-divider"))
-      .toBeNull();
+    expect(container.querySelector(".desktop-titlebar-context .desktop-titlebar-action-divider")).toBeNull();
     expect(container.querySelector(".desktop-titlebar-terminal")).not.toBeNull();
   });
 
-  it("retains Git in the workspace toolbar when project grouping is enabled", () => {
+  it("retains Git in the workspace toolbar", () => {
     const container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -135,7 +124,7 @@ describe("Git right-sidebar titlebar entries", () => {
       <DesktopTitlebarActions
         titlebarActionsSettings={DEFAULT_TITLEBAR_ACTIONS_SETTINGS}
         terminalSidebarOpen={false} terminalToolEnabled gitChangesAvailable
-        placement="toolbar" changesInProjectContext visibleGroups={["header", "right-sidebar"]}
+        placement="toolbar" visibleGroups={["header", "right-sidebar"]}
         onToggleTerminal={vi.fn()}
       />,
     )));

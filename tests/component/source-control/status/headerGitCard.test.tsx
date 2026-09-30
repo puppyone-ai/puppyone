@@ -51,7 +51,7 @@ function Harness({ centeredProject = true, cardExperiment = true, workspaceScope
       terminalSidebarOpen={false} terminalToolEnabled={false} onToggleTerminal={() => {}}
       gitChangesAvailable gitChangesOpen={presentation.open}
       gitCardEnabled={presentation.cardEnabled} gitAnchorRef={anchorRef}
-      changesInProjectContext={centeredProject} onToggleGitChanges={presentation.toggle}
+      onToggleGitChanges={presentation.toggle}
     />
     <output data-sidebar-open={String(presentation.effectiveSidebarOpen)} data-sidebar-surface={sidebarSurface}
       data-editor-clicks={editorClicks}
