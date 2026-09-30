@@ -468,7 +468,6 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 .desktop-project-location-card {
   display: flex;
   min-width: 0;
-  min-height: 76px;
   flex-direction: column;
   align-items: stretch;
   justify-content: center;
@@ -476,22 +475,27 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-current-location {
+  --po-menu-icon-slot-size: 24px;
   display: grid;
   width: 100%;
   min-width: 0;
-  gap: 4px;
+  gap: 8px;
   padding-inline: var(--po-menu-item-padding-inline);
   color: var(--po-text-muted);
   text-align: start;
 }
 
-.desktop-project-location-heading {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: var(--po-menu-item-gap);
-  min-height: 24px;
-  padding-inline-start: calc(var(--po-menu-icon-slot-size) + var(--po-menu-item-gap));
+.desktop-project-location-visual {
+  display: grid;
+  min-height: 72px;
+  place-items: center;
+  border: 1px solid var(--po-divider);
+  border-radius: 8px;
+}
+
+.desktop-project-current-location-mark {
+  display: grid;
+  place-items: center;
 }
 
 .desktop-project-path-row {
@@ -511,7 +515,6 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   flex: 0 0 auto;
 }
 
-.desktop-project-current-location-label,
 .desktop-project-current-location-path {
   display: block;
   min-width: 0;
@@ -546,29 +549,12 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   border-radius: 2px;
 }
 
-.desktop-project-overview .desktop-project-branch {
-  margin-inline-start: auto;
-  flex: 0 0 auto;
-}
-
 .desktop-project-menu .desktop-menu-item-icon {
   opacity: 1;
 }
 
 .desktop-project-menu .desktop-menu-item-trailing {
   color: inherit;
-}
-
-.desktop-project-location-dot {
-  width: 6px;
-  height: 6px;
-  flex: 0 0 6px;
-  border-radius: 50%;
-  background: var(--po-success);
-}
-
-.desktop-project-location-action[data-location-action="attention"] {
-  color: var(--po-warning);
 }
 
 .desktop-project-list {
@@ -627,6 +613,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-location-actions {
+  --po-menu-icon-slot-size: 24px;
   position: relative;
   margin-top: var(--po-menu-padding);
   padding-top: var(--po-menu-padding);

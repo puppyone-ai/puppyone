@@ -1429,8 +1429,7 @@ function AppContent() {
       onCheckoutBranch={handleCheckoutGitBranch}
       onAddProject={() => void addProject()}
       onAddExistingProject={(folderPath) => void addExistingProject(folderPath)}
-      onSetupCloud={openCloudShare}
-      onSwitchToCloud={openCloudDialog}
+      onShare={openCloudShare}
       onCloseWorkspaceSwitcher={closeWorkspaceSwitcher}
       onCloseBranchSwitcher={closeBranchSwitcher}
       onToggleBranchSwitcher={toggleBranchSwitcher}

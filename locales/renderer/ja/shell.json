@@ -63,6 +63,7 @@
   "workspaceSwitcher.openMenu": "ワークスペースメニューを開く: {workspace}",
   "workspaceSwitcher.copyPath": "パスをコピー",
   "workspaceSwitcher.copyPathFailed": "コピーできませんでした。もう一度お試しください。",
+  "workspaceSwitcher.shareToAgents": "他のエージェントに共有",
   "workspaceSwitcher.projectTitle": "プロジェクト：{project}",
   "workspaceSwitcher.projectActions": "プロジェクト操作",
   "workspaceSwitcher.projectActionsFor": "{project} のプロジェクト操作",

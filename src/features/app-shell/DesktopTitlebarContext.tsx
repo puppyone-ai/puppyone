@@ -31,10 +31,7 @@ export function DesktopTitlebarContext({
   onCloseWorkspaceSwitcher,
   onAddProject,
   onAddExistingProject,
-  onSaveToLocal,
-  onSetupCloud,
-  onSwitchToCloud,
-  onSwitchToLocal,
+  onShare,
   availableProjects,
   onToggleBranchSwitcher,
   onToggleWorkspaceSwitcher,
@@ -58,18 +55,6 @@ export function DesktopTitlebarContext({
         refObject={workspaceSwitcherRef}
         titlebarLabel={workspaceTitlebarLabel}
         menuAlignment={compactProjectMenu ? "center" : "start"}
-        branchMenu={compactProjectMenu ? {
-          label: branchLabel,
-          disabled: !branchReady,
-          content: <DesktopBranchMenuContent
-            localBranches={localBranches}
-            remoteBranches={remoteBranches}
-            loading={gitStatusLoading}
-            operationLoading={gitOperationLoading}
-            onCheckout={onCheckoutBranch}
-            onDone={onCloseWorkspaceSwitcher}
-          />,
-        } : undefined}
         workspace={workspace}
         workspaceFolders={workspaceFolders}
         multiRootWorkspacesEnabled={multiRootWorkspacesEnabled}
@@ -78,10 +63,7 @@ export function DesktopTitlebarContext({
         onAddExistingProject={multiRootWorkspacesEnabled ? onAddExistingProject : undefined}
         onOpenFolder={multiRootWorkspacesEnabled ? onAddProject : undefined}
         onClose={onCloseWorkspaceSwitcher}
-        onSaveToLocal={onSaveToLocal}
-        onSetupCloud={onSetupCloud}
-        onSwitchToCloud={onSwitchToCloud}
-        onSwitchToLocal={onSwitchToLocal}
+        onShare={onShare}
         onToggle={onToggleWorkspaceSwitcher}
       />
       {!compactProjectMenu && <DesktopBranchSwitcher
@@ -123,10 +105,7 @@ type DesktopTitlebarContextProps = {
   onCloseWorkspaceSwitcher: () => void;
   onAddProject: () => void;
   onAddExistingProject: (folderPath: string) => void;
-  onSaveToLocal?: () => void;
-  onSetupCloud?: () => void;
-  onSwitchToCloud?: () => void;
-  onSwitchToLocal?: () => void;
+  onShare?: () => void;
   onToggleBranchSwitcher: () => void;
   onToggleWorkspaceSwitcher: () => void;
 };

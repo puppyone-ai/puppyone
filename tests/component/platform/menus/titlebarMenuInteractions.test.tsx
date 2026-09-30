@@ -27,7 +27,7 @@ afterEach(() => {
 });
 
 describe("titlebar Portal menu interactions", () => {
-  it("shows and switches branches inside the centered project menu", async () => {
+  it("keeps the centered project card free of branch controls and location text", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -53,121 +53,58 @@ describe("titlebar Portal menu interactions", () => {
       ));
     });
     expect(container.querySelector(".desktop-titlebar-branch-button")).toBeNull();
-    const branchEntry = () => requireMenu().querySelector<HTMLButtonElement>(".desktop-project-branch");
-    expect(branchEntry()?.getAttribute("aria-label")).toContain("main");
-    expect(branchEntry()?.textContent).toBe("");
-    act(() => branchEntry()?.click());
-    expect(document.querySelectorAll('[data-titlebar-context-menu="true"]')).toHaveLength(1);
-    expect(requireMenu().classList.contains("desktop-branch-menu")).toBe(true);
-    expect(requireMenu().textContent).toContain("feature/menu");
-    act(() => requireMenu().querySelector<HTMLButtonElement>(".desktop-project-back-group button")?.click());
-    expect(requireMenu().querySelector(".desktop-project-home")).toBeNull();
-    act(() => branchEntry()?.click());
-    await act(async () => {
-      requireMenu().querySelector<HTMLButtonElement>(".desktop-branch-menu-row")?.click();
-    });
-    expect(onCheckoutBranch).toHaveBeenCalledWith("feature/menu", false);
-    expect(onClose).toHaveBeenCalledOnce();
+    const menu = requireMenu();
+    expect(menu.querySelector(".desktop-project-branch")).toBeNull();
+    expect(menu.querySelector(".desktop-project-location-dot")).toBeNull();
+    expect(menu.querySelector(".desktop-project-location-visual .lucide-laptop")).not.toBeNull();
+    expect(menu.textContent).not.toContain("This Mac");
+    expect(menu.textContent).not.toContain("main");
+    expect(onCheckoutBranch).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("keeps the current location stable while the alternate Cloud row changes from setup to switch", async () => {
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    root = createRoot(container);
-    const workspace = { ...createWorkspace("one", "Workspace one"), path: "/Users/example/project/demo" };
-    const onSetupCloud = vi.fn();
-    const onSwitchToCloud = vi.fn();
-
-    await act(async () => {
-      root?.render(withTestLocalization(
-        <DesktopWorkspaceSwitcher
-          open
-          refObject={createRef<HTMLDivElement>()}
-          titlebarLabel={workspace.name}
-          workspace={workspace}
-          workspaceFolders={[createWorkspaceFolder(workspace)]}
-          multiRootWorkspacesEnabled={false}
-          projectLocation={{ current: "local", localAvailable: true, cloudState: "unavailable" }}
-          onClose={vi.fn()}
-          onSetupCloud={onSetupCloud}
-          onToggle={vi.fn()}
-        />,
-      ));
-      await Promise.resolve();
-    });
-
-    const projectButton = container.querySelector<HTMLButtonElement>(".desktop-titlebar-workspace-button");
-    expect(projectButton?.querySelector(".lucide-laptop")).not.toBeNull();
-    expect(projectButton?.getAttribute("aria-label")).toContain("This Mac");
-    expect(container.querySelector(".desktop-titlebar-project-location")).toBeNull();
-    const currentProject = requireMenu().querySelector<HTMLElement>(".desktop-project-current-location[data-project-location='local']");
-    expect(currentProject?.querySelector(".lucide-folder")).not.toBeNull();
-    expect(currentProject?.textContent).not.toContain("Workspace one");
-    expect(currentProject?.querySelector(".desktop-project-current-location-label")?.textContent).toBe("This Mac");
-    expect(currentProject?.querySelector(".desktop-project-current-location-path")?.textContent).toBe("~/project/demo");
-    expect(currentProject?.querySelector(".desktop-project-current-location-path")?.getAttribute("aria-label"))
-      .toBe(workspace.path);
-    expect(currentProject?.querySelector(".desktop-project-location-dot")).not.toBeNull();
-    const setup = requireMenu().querySelector<HTMLButtonElement>("[data-location-action='setup']");
-    expect(setup?.textContent).toBe("Share");
-    expect(setup?.closest(".desktop-project-location-actions")).not.toBeNull();
-    expect(requireMenu().querySelector(".desktop-project-home")).toBeNull();
-    expect(setup?.querySelector(".lucide-cloud")).not.toBeNull();
-    act(() => setup?.click());
-    expect(onSetupCloud).toHaveBeenCalledOnce();
-
-    await act(async () => {
-      root?.render(withTestLocalization(
-        <DesktopWorkspaceSwitcher
-          open
-          refObject={createRef<HTMLDivElement>()}
-          titlebarLabel={workspace.name}
-          workspace={workspace}
-          workspaceFolders={[createWorkspaceFolder(workspace)]}
-          multiRootWorkspacesEnabled={false}
-          projectLocation={{ current: "local", localAvailable: true, cloudState: "available" }}
-          onClose={vi.fn()}
-          onSwitchToCloud={onSwitchToCloud}
-          onToggle={vi.fn()}
-        />,
-      ));
-      await Promise.resolve();
-    });
-
-    expect(container.querySelector(".desktop-titlebar-workspace-button .lucide-laptop")).not.toBeNull();
-    const cloudAction = requireMenu().querySelector<HTMLButtonElement>("[data-location-action='switch']");
-    expect(cloudAction?.querySelector(".lucide-cloud")).not.toBeNull();
-    expect(cloudAction?.textContent).toBe("Switch to Cloud");
-    act(() => cloudAction?.click());
-    expect(onSwitchToCloud).toHaveBeenCalledOnce();
-
-    await act(async () => {
-      root?.render(withTestLocalization(
-        <DesktopWorkspaceSwitcher
-          open
-          refObject={createRef<HTMLDivElement>()}
-          titlebarLabel={workspace.name}
-          workspace={workspace}
-          workspaceFolders={[createWorkspaceFolder(workspace)]}
-          multiRootWorkspacesEnabled={false}
-          projectLocation={{ current: "local", localAvailable: true, cloudState: "signed-out" }}
-          onClose={vi.fn()}
-          onSwitchToCloud={onSwitchToCloud}
-          onToggle={vi.fn()}
-        />,
-      ));
-      await Promise.resolve();
-    });
-
-    const signedOutCloudAction = requireMenu()
-      .querySelector<HTMLButtonElement>("[data-location-action='signed-out']");
-    expect(signedOutCloudAction?.textContent).toBe("Switch to Cloud");
-    expect(signedOutCloudAction?.textContent).not.toContain("Sign in to access");
-    expect(signedOutCloudAction?.querySelector(".lucide-cloud")).not.toBeNull();
-    expect(signedOutCloudAction?.querySelector(".desktop-project-location-dot")).toBeNull();
-    act(() => signedOutCloudAction?.click());
-    expect(onSwitchToCloud).toHaveBeenCalledTimes(2);
-  });
+  it.each(["unavailable", "available", "signed-out", "resolving", "attention"] as const)(
+    "opens the Share page from a local project with cloud state %s",
+    async (cloudState) => {
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+      root = createRoot(container);
+      const workspace = { ...createWorkspace("one", "Workspace one"), path: "/Users/example/project/demo" };
+      const onShare = vi.fn();
+      const onClose = vi.fn();
+      await act(async () => {
+        root?.render(withTestLocalization(
+          <DesktopWorkspaceSwitcher
+            open refObject={createRef<HTMLDivElement>()} titlebarLabel={workspace.name}
+            workspace={workspace} workspaceFolders={[createWorkspaceFolder(workspace)]}
+            multiRootWorkspacesEnabled={false}
+            projectLocation={{ current: "local", localAvailable: true, cloudState }}
+            onClose={onClose} onShare={onShare} onToggle={vi.fn()}
+          />,
+        ));
+      });
+      const menu = requireMenu();
+      expect(container.querySelector(".desktop-titlebar-workspace-button .lucide-laptop")).not.toBeNull();
+      const location = menu.querySelector(".desktop-project-current-location");
+      expect(location?.querySelector(".desktop-project-location-visual")?.getAttribute("aria-label"))
+        .toBe("This Mac");
+      expect(location?.querySelector(".lucide-folder")).not.toBeNull();
+      expect(location?.querySelector(".desktop-project-current-location-path")?.textContent).toBe("~/project/demo");
+      expect(location?.querySelector(".desktop-project-current-location-path")?.getAttribute("aria-label"))
+        .toBe(workspace.path);
+      expect(menu.textContent).not.toContain("This Mac");
+      expect(menu.querySelector(".desktop-project-location-dot")).toBeNull();
+      const share = menu.querySelector<HTMLButtonElement>("[data-location-action='share']");
+      expect(share?.textContent).toBe("Share to other agents");
+      expect(share?.querySelector(".lucide-cloud")).not.toBeNull();
+      expect(share?.disabled).toBe(false);
+      expect(onShare).not.toHaveBeenCalled();
+      act(() => share?.click());
+      expect(onClose).toHaveBeenCalledOnce();
+      expect(onShare).toHaveBeenCalledOnce();
+      expect(onClose.mock.invocationCallOrder[0]).toBeLessThan(onShare.mock.invocationCallOrder[0]);
+    },
+  );
 
   it("keeps workspace menu actions clickable outside the native Header tree", async () => {
     const container = document.createElement("div");
@@ -481,9 +418,10 @@ describe("titlebar Portal menu interactions", () => {
     expect(requireMenu().querySelector(".desktop-project-cloud")).toBeNull();
     expect(requireMenu().textContent).not.toContain("Cloud");
     const currentLocation = requireMenu().querySelector(".desktop-project-current-location");
-    expect(currentLocation?.querySelector(".desktop-project-current-location-label")?.textContent).toBe("This Mac");
+    expect(currentLocation?.querySelector(".desktop-project-location-visual")?.getAttribute("aria-label")).toBe("This Mac");
     expect(currentLocation?.querySelector(".desktop-project-current-location-path")?.textContent).toBe("/tmp/one");
-    expect(currentLocation?.querySelector(".desktop-project-location-dot")).not.toBeNull();
+    expect(currentLocation?.querySelector(".desktop-project-location-dot")).toBeNull();
+    expect(currentLocation?.textContent).not.toContain("This Mac");
   });
 });
 

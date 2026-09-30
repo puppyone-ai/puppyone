@@ -63,6 +63,7 @@
   "workspaceSwitcher.openMenu": "Ouvrir le menu de l’espace de travail : {workspace}",
   "workspaceSwitcher.copyPath": "Copier le chemin",
   "workspaceSwitcher.copyPathFailed": "Échec de la copie. Réessayez.",
+  "workspaceSwitcher.shareToAgents": "Partager avec d’autres agents",
   "workspaceSwitcher.projectTitle": "Projet : {project}",
   "workspaceSwitcher.projectActions": "Actions du projet",
   "workspaceSwitcher.projectActionsFor": "Actions du projet {project}",

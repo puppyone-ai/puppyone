@@ -35,7 +35,7 @@ export function WorkspaceMenuVisualSmokeHarness() {
             }}
             onOpenFolder={() => undefined}
             onClose={() => undefined}
-            onSwitchToCloud={() => undefined}
+            onShare={() => undefined}
             onToggle={() => undefined}
           />
           <div className="workspace-menu-visual-branch">
