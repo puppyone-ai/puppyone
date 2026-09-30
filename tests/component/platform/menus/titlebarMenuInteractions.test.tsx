@@ -64,11 +64,10 @@ describe("titlebar Portal menu interactions", () => {
     expect(onClose).not.toHaveBeenCalled();
     const backup = menu.querySelector<HTMLElement>(".desktop-project-backup-services");
     expect(Array.from(backup?.querySelectorAll("li") ?? []).map((service) => service.textContent))
-      .toEqual(["GitHub", "GitLab"]);
+      .toEqual(["Backup to GitHub", "Backup to GitLab"]);
     expect(backup?.querySelectorAll("img").length).toBe(2);
     expect(backup?.querySelector("img[src*='git-inverse']")).toBeNull();
     expect(backup?.querySelector("button, a, [role='menuitem'], .lucide-chevron-right")).toBeNull();
-    expect(menu.textContent).not.toContain("Backup");
     expect(menu.querySelector(".desktop-project-overview")?.nextElementSibling?.contains(backup ?? null))
       .toBe(true);
     act(() => backup?.click());
@@ -126,7 +125,7 @@ describe("titlebar Portal menu interactions", () => {
       const location = menu.querySelector(".desktop-project-current-location");
       expect(location?.querySelector(".desktop-project-location-visual")?.getAttribute("aria-label"))
         .toBe("This Mac");
-      expect(location?.querySelector(".lucide-folder")).not.toBeNull();
+      expect(location?.querySelector(".lucide-folder")).toBeNull();
       expect(location?.querySelector(".desktop-project-current-location-path")?.textContent).toBe("~/project/demo");
       expect(location?.querySelector(".desktop-project-current-location-path")?.getAttribute("aria-label"))
         .toBe(workspace.path);
@@ -134,7 +133,7 @@ describe("titlebar Portal menu interactions", () => {
       expect(menu.querySelector(".desktop-project-location-label .desktop-project-location-dot")).not.toBeNull();
       expect(menu.querySelector(".desktop-project-backup-services")).toBeNull();
       const share = menu.querySelector<HTMLButtonElement>("[data-location-action='share']");
-      expect(share?.textContent).toBe("Share to other agents");
+      expect(share?.textContent?.replace(/\u00a0/g, " ")).toBe("Share via PuppyOne Cloud");
       expect(share?.querySelector(".lucide-cloud")).not.toBeNull();
       expect(share?.disabled).toBe(false);
       expect(onShare).not.toHaveBeenCalled();

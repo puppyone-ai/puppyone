@@ -485,10 +485,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   display: grid;
   min-width: 0;
   min-height: 108px;
-  grid-template-rows: auto auto;
-  align-content: center;
-  gap: 12px;
-  padding: 12px;
+  grid-template-rows: minmax(0, 1fr) auto auto;
   border: 1px solid var(--po-divider);
   border-radius: 8px;
   background: var(--po-editor-bg);
@@ -499,6 +496,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   align-items: center;
   justify-content: center;
   gap: 10px;
+  padding: calc(var(--po-menu-item-padding-inline) + var(--po-menu-padding));
 }
 
 .desktop-project-current-location-mark {
@@ -532,14 +530,14 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 .desktop-project-path-row {
   display: flex;
   min-width: 0;
-  min-height: var(--po-menu-item-height);
+  height: var(--po-menu-item-height);
   align-items: center;
   gap: var(--po-menu-item-gap);
+  padding: 0 var(--po-menu-item-padding-inline);
 }
 
-.desktop-project-path-mark {
-  flex: 0 0 var(--po-menu-icon-slot-size);
-  color: var(--po-text-muted);
+.desktop-project-location-visual .desktop-project-path-divider {
+  margin: 0 var(--po-menu-item-padding-inline);
 }
 
 .desktop-project-menu .desktop-project-copy-path {
@@ -658,10 +656,14 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   align-items: center;
   gap: var(--po-menu-item-gap);
   min-width: 0;
-  height: var(--po-menu-item-height);
+  min-height: var(--po-menu-item-height);
   padding: 0 var(--po-menu-item-padding-inline);
   color: var(--po-text-muted);
   line-height: var(--po-menu-item-line-height, 18px);
+}
+
+.desktop-project-backup-service .desktop-menu-item-label {
+  white-space: normal;
 }
 
 .desktop-project-location-actions .desktop-menu-item {

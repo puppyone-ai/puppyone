@@ -11,11 +11,10 @@ import {
   ChevronRight,
   Cloud,
   Copy,
-  Folder,
   FolderPlus,
   Laptop,
 } from "lucide-react";
-import { DesktopMenuIconButton, DesktopMenuItem } from "../../components/DesktopMenu";
+import { DesktopMenuIconButton, DesktopMenuItem, DesktopMenuSeparator } from "../../components/DesktopMenu";
 import { ImportSourceMark } from "../../components/onboarding/ImportSourceMark";
 import { PROJECT_BACKUP_PROVIDER_LABELS, type ProjectBackupProvider } from "./projectBackupProviders";
 import { writeClipboardText } from "../../lib/clipboard";
@@ -141,7 +140,11 @@ export function DesktopWorkspaceSwitcher({
                     <span className="desktop-menu-item-icon" aria-hidden="true">
                       <ImportSourceMark brand={provider} decorative />
                     </span>
-                    <span className="desktop-menu-item-label">{PROJECT_BACKUP_PROVIDER_LABELS[provider]}</span>
+                    <span className="desktop-menu-item-label">
+                      {t("shell.workspaceSwitcher.backupDestination", {
+                        provider: PROJECT_BACKUP_PROVIDER_LABELS[provider],
+                      })}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -172,7 +175,7 @@ export function DesktopWorkspaceSwitcher({
                   data-location-action="share"
                   disabled={!onShare}
                   icon={<Cloud size={14} strokeWidth={1.65} />}
-                  label={t("shell.workspaceSwitcher.shareToAgents")}
+                  label={t("shell.workspaceSwitcher.shareViaCloud")}
                   trailing={<ChevronRight className="po-directional-icon" size={12} aria-hidden="true" />}
                   onClick={() => {
                     if (!onShare) return;
@@ -308,7 +311,7 @@ function DesktopCurrentProjectLocation({
           <ProjectLocationMark
             className="desktop-project-current-location-mark"
             kind={kind}
-            size={40}
+            size={32}
             absoluteStrokeWidth
           />
           <span className="desktop-project-location-label">
@@ -317,18 +320,18 @@ function DesktopCurrentProjectLocation({
           </span>
         </div>
         {kind === "local" && (
-          <div className="desktop-project-path-row">
-            <span className="desktop-menu-item-icon desktop-project-path-mark" aria-hidden="true">
-              <Folder size={14} strokeWidth={1.65} />
-            </span>
-            <DesktopProjectPath path={path} />
-            <DesktopMenuIconButton
-              className="desktop-project-copy-path"
-              icon={copyState === "copied" ? <Check size={14} /> : <Copy size={14} />}
-              label={copyLabel}
-              onClick={() => void copyPath()}
-            />
-          </div>
+          <>
+            <DesktopMenuSeparator className="desktop-project-path-divider" />
+            <div className="desktop-project-path-row">
+              <DesktopProjectPath path={path} />
+              <DesktopMenuIconButton
+                className="desktop-project-copy-path"
+                icon={copyState === "copied" ? <Check size={14} /> : <Copy size={14} />}
+                label={copyLabel}
+                onClick={() => void copyPath()}
+              />
+            </div>
+          </>
         )}
       </div>
     </div>
