@@ -14,7 +14,7 @@ import {
   FolderPlus,
   Laptop,
 } from "lucide-react";
-import { DesktopMenuIconButton, DesktopMenuItem, DesktopMenuSeparator } from "../../components/DesktopMenu";
+import { DesktopMenuIconButton, DesktopMenuItem } from "../../components/DesktopMenu";
 import { ImportSourceMark } from "../../components/onboarding/ImportSourceMark";
 import { PROJECT_BACKUP_PROVIDER_LABELS, type ProjectBackupProvider } from "./projectBackupProviders";
 import { writeClipboardText } from "../../lib/clipboard";
@@ -314,25 +314,25 @@ function DesktopCurrentProjectLocation({
             size={32}
             absoluteStrokeWidth
           />
-          <span className="desktop-project-location-label">
-            {kind === "local" && <span className="desktop-project-location-dot" aria-hidden="true" />}
-            {t(kind === "local" ? "shell.workspaceSwitcher.location.onThisMac" : "shell.workspaceSwitcher.location.cloud")}
-          </span>
-        </div>
-        {kind === "local" && (
-          <>
-            <DesktopMenuSeparator className="desktop-project-path-divider" />
-            <div className="desktop-project-path-row">
-              <DesktopProjectPath path={path} />
+          {kind === "local" ? (
+            <>
+              <div className="desktop-project-location-label">
+                <span className="desktop-project-location-dot" aria-hidden="true" />
+                <DesktopProjectPath path={path} />
+              </div>
               <DesktopMenuIconButton
                 className="desktop-project-copy-path"
                 icon={copyState === "copied" ? <Check size={14} /> : <Copy size={14} />}
                 label={copyLabel}
                 onClick={() => void copyPath()}
               />
-            </div>
-          </>
-        )}
+            </>
+          ) : (
+            <span className="desktop-project-location-label">
+              {t("shell.workspaceSwitcher.location.cloud")}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
