@@ -1053,6 +1053,7 @@
   flex: 0 0 auto;
   height: 100%;
   align-items: center;
+  gap: var(--desktop-titlebar-button-gap);
 }
 
 .desktop-titlebar-workspace-button {
@@ -1064,6 +1065,7 @@
   max-width: 100%;
   height: var(--desktop-titlebar-control-height);
   min-width: 0;
+  flex: 0 1 auto;
   padding: 0 var(--desktop-titlebar-workspace-inline-padding);
   border: 0;
   border-radius: var(--desktop-toolbar-action-radius);
@@ -1085,19 +1087,50 @@
   box-shadow: inset 0 0 0 1px var(--desktop-titlebar-focus);
 }
 
-.desktop-titlebar-workspace-location {
+.desktop-titlebar-project-backups {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 4px;
+  height: var(--desktop-titlebar-control-height);
   color: var(--desktop-titlebar-text-subtle, var(--desktop-titlebar-text-muted));
 }
 
-.desktop-titlebar-workspace-location-link {
-  width: 6px;
-  height: 1px;
-  background: currentColor;
-  opacity: 0.5;
+.desktop-titlebar-backup-bracket {
+  font-size: var(--desktop-titlebar-context-font-size);
+  font-weight: var(--desktop-titlebar-context-font-weight);
+  line-height: var(--desktop-titlebar-context-line-height);
+  opacity: 0.6;
+}
+
+.desktop-titlebar-backup-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: var(--desktop-titlebar-control-height);
+  height: var(--desktop-titlebar-control-height);
+  padding: 0;
+  border: 0;
+  border-radius: var(--desktop-toolbar-action-radius);
+  background: transparent;
+  color: inherit;
+  outline: 0;
+}
+
+.desktop-titlebar-backup-button:hover,
+.desktop-titlebar-backup-button[aria-expanded="true"] {
+  background: var(--desktop-titlebar-hover);
+  color: var(--desktop-titlebar-text);
+}
+
+.desktop-titlebar-backup-button:focus-visible {
+  background: var(--desktop-titlebar-hover);
+  box-shadow: inset 0 0 0 1px var(--desktop-titlebar-focus);
+}
+
+.desktop-titlebar-backup-button .onboarding-import-mark {
+  width: 16px;
+  height: 16px;
 }
 
 .desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark {

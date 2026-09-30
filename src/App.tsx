@@ -1486,6 +1486,8 @@ function AppContent() {
       activeGitStatus={activeGitStatus}
       backupProviders={focusedWorkspace?.path === workspace.path && gitStatusPath === workspace.path
         ? getProjectBackupProviders(activeGitStatus) : []}
+      backupStatus={focusedWorkspace?.path === workspace.path && gitStatusPath === workspace.path
+        ? activeGitStatus : null}
       branchSwitcherOpen={branchSwitcherOpen}
       branchSwitcherRef={branchSwitcherRef}
       gitStatusLoading={gitStatusLoading}

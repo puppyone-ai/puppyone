@@ -81,7 +81,11 @@ export function DesktopTitlebarMenuLayer({
       if (event.key !== "Escape" || event.isComposing || event.defaultPrevented) return;
       if (role === "dialog" && !isInsideMenu(event.target)) return;
       onDismiss();
-      anchorRef.current?.querySelector<HTMLElement>("[aria-haspopup]")?.focus();
+      const anchor = anchorRef.current;
+      const trigger = anchor?.matches("[aria-haspopup]") ? anchor
+        : anchor?.querySelector<HTMLElement>('[aria-haspopup][aria-expanded="true"]')
+          ?? anchor?.querySelector<HTMLElement>("[aria-haspopup]");
+      trigger?.focus();
     };
 
     document.addEventListener("pointerdown", closeOnPointerDown, true);

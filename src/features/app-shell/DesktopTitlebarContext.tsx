@@ -40,6 +40,7 @@ export function DesktopTitlebarContext({
   onToggleWorkspaceSwitcher,
   compactProjectMenu = false,
   backupProviders,
+  backupStatus,
 }: DesktopTitlebarContextProps) {
   const { t } = useLocalization();
   const workspaceTitlebarLabel = workspace.name.trim() || workspace.name;
@@ -64,7 +65,8 @@ export function DesktopTitlebarContext({
         multiRootWorkspacesEnabled={multiRootWorkspacesEnabled}
         projectLocation={projectLocation}
         cloudProject={cloudProject}
-        backupProviders={compactProjectMenu ? backupProviders : undefined}
+        backupProviders={backupProviders}
+        backupStatus={backupStatus}
         availableProjects={availableProjects}
         onAddExistingProject={multiRootWorkspacesEnabled ? onAddExistingProject : undefined}
         onOpenFolder={multiRootWorkspacesEnabled ? onAddProject : undefined}
@@ -93,6 +95,7 @@ export function DesktopTitlebarContext({
 type DesktopTitlebarContextProps = {
   compactProjectMenu?: boolean;
   backupProviders?: readonly ProjectBackupProvider[];
+  backupStatus?: GitStatusSnapshot | null;
   activeGitStatus: GitStatusSnapshot | null;
   branchSwitcherOpen: boolean;
   branchSwitcherRef: RefObject<HTMLDivElement>;

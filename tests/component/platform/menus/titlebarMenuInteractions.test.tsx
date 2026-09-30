@@ -2,7 +2,7 @@ import { gitStatus } from "../../../support/source-control/gitFixtures";
 /**
  * @vitest-environment happy-dom
  */
-import { act, createRef } from "react";
+import { act, createRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createWorkspaceFolder } from "../../../../packages/shared-ui/src/core/workbenchWorkspace";
@@ -39,6 +39,12 @@ describe("titlebar Portal menu interactions", () => {
         <DesktopTitlebarContext
           compactProjectMenu availableProjects={[]}
           backupProviders={["github", "gitlab"]}
+          backupStatus={gitStatus({
+            remotes: [{ name: "origin", fetchUrl: "https://github.com/team/project.git", pushUrl: null, branches: ["main"] }],
+            branches: [{ ...createBranch("origin/main"), remote: true, lastCommitId: "remote-commit", lastCommitDate: "2026-09-30T01:00:00Z" }],
+            syncTarget: { remote: "origin", branch: "main", ref: "origin/main", exists: true,
+              ahead: 2, behind: 0, incomingPreview: [], outgoingPreview: [] },
+          })}
           activeGitStatus={createGitStatus()}
           branchSwitcherOpen={false}
           branchSwitcherRef={createRef<HTMLDivElement>()}
@@ -65,15 +71,18 @@ describe("titlebar Portal menu interactions", () => {
     expect(menu.textContent).not.toContain("main");
     expect(onCheckoutBranch).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
-    const backup = menu.querySelector<HTMLElement>(".desktop-project-backup-services");
-    expect(Array.from(backup?.querySelectorAll("li") ?? []).map((service) => service.textContent))
-      .toEqual(["Linked to GitHub", "Linked to GitLab"]);
-    expect(backup?.querySelectorAll("img").length).toBe(2);
-    expect(backup?.querySelector("img[src*='git-inverse']")).toBeNull();
-    expect(backup?.querySelector("button, a, [role='menuitem'], .lucide-chevron-right")).toBeNull();
-    expect(menu.querySelector(".desktop-project-overview")?.nextElementSibling?.contains(backup ?? null))
-      .toBe(true);
-    act(() => backup?.click());
+    expect(menu.querySelector(".desktop-project-backup-services")).toBeNull();
+    const backups = container.querySelector(".desktop-titlebar-project-backups");
+    expect(Array.from(backups?.querySelectorAll("button") ?? []).map((button) => button.dataset.backupProvider))
+      .toEqual(["github", "gitlab"]);
+    expect(backups?.querySelectorAll("img").length).toBe(2);
+    expect(backups?.textContent).toBe("[]");
+    expect(container.querySelector(".desktop-titlebar-workspace-button")?.nextElementSibling).toBe(backups);
+    act(() => container.querySelector<HTMLButtonElement>("[data-backup-provider='github']")?.click());
+    expect(requireMenu().textContent).toContain("2 commits to back up");
+    expect(requireMenu().textContent).toContain("main · remote-");
+    expect(requireMenu().textContent).toContain("Backup time not recorded");
+    expect(requireMenu().textContent).not.toContain("2026-09-30");
     expect(onClose).not.toHaveBeenCalled();
   });
 
@@ -102,8 +111,9 @@ describe("titlebar Portal menu interactions", () => {
       });
       const header = container.querySelector(".desktop-titlebar-workspace-button");
       expect(header?.querySelector(".lucide-laptop")).not.toBeNull();
-      expect(header?.querySelector(".lucide-cloud")).not.toBeNull();
-      expect(header?.querySelector(".desktop-titlebar-workspace-location-link")).not.toBeNull();
+      expect(header?.querySelector(".lucide-cloud")).toBeNull();
+      expect(container.querySelector("[data-backup-provider='puppyone-cloud'] .lucide-cloud")).not.toBeNull();
+      expect(container.querySelector(".desktop-titlebar-workspace-location-link")).toBeNull();
       expect(header?.getAttribute("aria-label")).toContain("This Mac");
       const menu = requireMenu();
       const location = menu.querySelector(".desktop-project-current-location");
@@ -111,10 +121,8 @@ describe("titlebar Portal menu interactions", () => {
       expect(location?.querySelector(".desktop-project-current-location-mark .lucide-laptop")).not.toBeNull();
       expect(location?.querySelector(".lucide-cloud")).toBeNull();
       expect(location?.querySelector(".desktop-project-location-link")).toBeNull();
-      const cloudCopy = menu.querySelector(".desktop-project-cloud-copy");
-      expect(cloudCopy?.textContent).toBe("Cloud copy");
-      expect(location?.contains(cloudCopy)).toBe(false);
-      expect(menu.querySelector(".desktop-project-overview")?.nextElementSibling).toBe(cloudCopy);
+      expect(menu.querySelector(".desktop-project-cloud-copy")).toBeNull();
+      expect(menu.textContent).not.toContain("Cloud copy");
       const path = location?.querySelector<HTMLButtonElement>(".desktop-project-current-location-path");
       expect(path?.textContent).toBe("~/project/demo");
       expect(path?.getAttribute("aria-label")).toBe(workspace.path);
@@ -125,7 +133,7 @@ describe("titlebar Portal menu interactions", () => {
     },
   );
 
-  it("shows the resolved Cloud name below the local card with Share disabled and clears it on project change", async () => {
+  it("opens Cloud details from the trailing mark with Share disabled and clears them on project change", async () => {
     const container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -144,27 +152,30 @@ describe("titlebar Portal menu interactions", () => {
       });
     };
     await renderProject(linkedWorkspace, { id: "cloud-notes", name: "Remote Notes" });
-    expect(container.querySelector(".desktop-titlebar-workspace-location .lucide-cloud")).not.toBeNull();
+    expect(container.querySelector("[data-backup-provider='puppyone-cloud'] .lucide-cloud")).not.toBeNull();
     const menu = requireMenu();
     const localCard = menu.querySelector(".desktop-project-current-location");
     expect(localCard?.querySelector(".lucide-laptop")).not.toBeNull();
     expect(localCard?.querySelector(".lucide-cloud")).toBeNull();
     expect(localCard?.textContent).toBe("~/project/local-notes");
-    const cloudCopy = menu.querySelector(".desktop-project-cloud-copy");
-    expect(cloudCopy?.textContent).toBe("Cloud · Remote Notes");
-    expect(menu.querySelector(".desktop-project-overview")?.nextElementSibling).toBe(cloudCopy);
-    expect(cloudCopy?.querySelector("button, a, [role='menuitem']")).toBeNull();
     expect(menu.querySelector("[data-location-action='share']")).toBeNull();
+    act(() => container.querySelector<HTMLButtonElement>("[data-backup-provider='puppyone-cloud']")?.click());
+    expect(requireMenu().getAttribute("role")).toBe("dialog");
+    expect(requireMenu().textContent).toContain("Remote Notes");
+    expect(requireMenu().textContent).toContain("Backup time not recorded");
+    expect(requireMenu().querySelector(".desktop-project-current-location")).toBeNull();
+    act(() => container.querySelector<HTMLButtonElement>(".desktop-titlebar-workspace-button")?.click());
+    expect(requireMenu().querySelector(".desktop-project-current-location")).not.toBeNull();
 
     await renderProject(nextWorkspace);
-    expect(container.querySelector(".desktop-titlebar-workspace-location .lucide-cloud")).toBeNull();
+    expect(container.querySelector("[data-backup-provider='puppyone-cloud'] .lucide-cloud")).toBeNull();
     expect(requireMenu().querySelector(".desktop-project-cloud-copy")).toBeNull();
     expect(requireMenu().textContent).not.toContain("Remote Notes");
     expect(requireMenu().querySelector(".desktop-project-current-location-path")?.textContent)
       .toBe("~/project/other");
   });
 
-  it.each([false, undefined])("keeps backup services out of the classic Header: compact %s", async (compactProjectMenu) => {
+  it.each([false, undefined])("keeps trailing service marks available in the classic Header: compact %s", async (compactProjectMenu) => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -188,6 +199,7 @@ describe("titlebar Portal menu interactions", () => {
       ));
     });
     expect(requireMenu().querySelector(".desktop-project-backup-services")).toBeNull();
+    expect(container.querySelectorAll(".desktop-titlebar-project-backups button").length).toBe(2);
   });
 
   it.each(["unavailable", "available", "signed-out", "resolving", "attention"] as const)(
@@ -217,10 +229,9 @@ describe("titlebar Portal menu interactions", () => {
         .toBe("This Mac");
       expect(location?.querySelector(".lucide-folder")).toBeNull();
       expect(location?.querySelector(".lucide-cloud")).toBeNull();
-      expect(Boolean(container.querySelector(".desktop-titlebar-workspace-location .lucide-cloud")))
+      expect(Boolean(container.querySelector("[data-backup-provider='puppyone-cloud'] .lucide-cloud")))
         .toBe(cloudState === "available" || cloudState === "signed-out");
-      expect(Boolean(menu.querySelector(".desktop-project-cloud-copy")))
-        .toBe(cloudState === "available" || cloudState === "signed-out");
+      expect(menu.querySelector(".desktop-project-cloud-copy")).toBeNull();
       expect(location?.querySelector(".desktop-project-current-location-path")?.textContent).toBe("~/project/demo");
       expect(location?.querySelector(".desktop-project-current-location-path")?.getAttribute("aria-label"))
         .toBe(workspace.path);
@@ -238,6 +249,55 @@ describe("titlebar Portal menu interactions", () => {
       expect(onClose.mock.invocationCallOrder[0]).toBeLessThan(onShare.mock.invocationCallOrder[0]);
     },
   );
+
+  it("opens and switches trailing backup details independently and restores keyboard focus", async () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    const workspace = { ...createWorkspace("one", "Workspace one"), puppyoneGitRemote: {
+      origin: "https://cloud.example", projectId: "cloud-notes",
+    } };
+    const onToggle = vi.fn();
+    const onClose = vi.fn();
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      return <DesktopWorkspaceSwitcher
+        open={open} refObject={createRef<HTMLDivElement>()} titlebarLabel={workspace.name}
+        workspace={workspace} workspaceFolders={[]} multiRootWorkspacesEnabled={false}
+        backupProviders={["github", "gitlab"]}
+        cloudProject={{ id: "cloud-notes", name: "Notes on Cloud" }}
+        onToggle={() => { onToggle(); setOpen((value) => !value); }}
+        onClose={() => { onClose(); setOpen(false); }}
+      />;
+    }
+    await act(async () => root?.render(withTestLocalization(<Harness />)));
+    const github = container.querySelector<HTMLButtonElement>("[data-backup-provider='github']")!;
+    const cloud = container.querySelector<HTMLButtonElement>("[data-backup-provider='puppyone-cloud']")!;
+    expect(document.querySelector("[data-titlebar-context-menu]")).toBeNull();
+    await act(async () => github.click());
+    expect(onToggle).toHaveBeenCalledOnce();
+    expect(requireMenu().querySelector("[data-backup-details='github']")).not.toBeNull();
+    expect(requireMenu().textContent).toContain("Backup not verified");
+    expect(github.getAttribute("aria-expanded")).toBe("true");
+    await act(async () => {
+      cloud.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+      cloud.focus();
+      cloud.click();
+    });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(requireMenu().textContent).toContain("Notes on Cloud");
+    expect(github.getAttribute("aria-expanded")).toBe("false");
+    act(() => requireMenu().dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(document.querySelector("[data-titlebar-context-menu]")).toBeNull();
+    expect(document.activeElement).toBe(cloud);
+    await act(async () => github.click());
+    await act(async () => github.click());
+    expect(document.querySelector("[data-titlebar-context-menu]")).toBeNull();
+    await act(async () => github.click());
+    act(() => document.body.dispatchEvent(new Event("pointerdown", { bubbles: true })));
+    expect(document.querySelector("[data-titlebar-context-menu]")).toBeNull();
+  });
 
   it("keeps workspace menu actions clickable outside the native Header tree", async () => {
     const container = document.createElement("div");

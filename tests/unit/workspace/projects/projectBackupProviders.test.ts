@@ -1,10 +1,46 @@
 import { describe, expect, it } from "vitest";
-import { getProjectBackupProviders } from "../../../../src/features/app-shell/projectBackupProviders";
+import { getProjectBackupProviders, getProjectBackupSnapshot } from "../../../../src/features/app-shell/projectBackupProviders";
 import { gitStatus } from "../../../support/source-control/gitFixtures";
 import type { GitRemoteSummary } from "../../../../src/types/electron";
 
 const remote = (fetchUrl: string | null, pushUrl: string | null = null): GitRemoteSummary => ({
   name: "origin", fetchUrl, pushUrl, branches: [],
+});
+
+describe("remote backup observations", () => {
+  const savedBranch = { name: "origin/main", current: false, remote: true, upstream: null,
+    ahead: 0, behind: 0, lastCommitId: "saved-commit", lastCommitMessage: "Saved",
+    lastCommitDate: "2026-09-30T01:00:00Z" };
+  it("keeps an unverified destination unknown and never treats a commit date as backup time", () => {
+    expect(getProjectBackupSnapshot(null, "github")).toMatchObject({ state: "unverified", commitId: null });
+    const snapshot = getProjectBackupSnapshot(gitStatus({
+      remotes: [remote("https://github.com/team/project.git")], branches: [savedBranch], headCommitId: "saved-commit",
+    }), "github");
+    expect(snapshot).toMatchObject({ state: "matching", branch: "main", commitId: "saved-commit" });
+    expect(snapshot).not.toHaveProperty("lastBackupAt");
+    expect(snapshot).not.toHaveProperty("lastCommitDate");
+  });
+  it.each([[0, 0, "matching"], [2, 0, "outgoing"], [0, 3, "incoming"], [2, 3, "diverged"]] as const)(
+    "uses observed sync counts %s/%s for %s", (ahead, behind, state) => {
+      const status = gitStatus({ remotes: [remote("https://github.com/team/project.git")], branches: [savedBranch],
+        syncTarget: { remote: "origin", branch: "main", ref: "origin/main", exists: true,
+          ahead, behind, incomingPreview: [], outgoingPreview: [] },
+      });
+      expect(getProjectBackupSnapshot(status, "github")).toMatchObject({ state, ahead, behind });
+    },
+  );
+  it("does not use fetch-host refs to claim a backup at a different push destination", () => {
+    expect(getProjectBackupSnapshot(gitStatus({
+      remotes: [remote("https://github.com/team/project.git", "https://gitlab.com/team/project.git")],
+      branches: [savedBranch], headCommitId: "saved-commit",
+    }), "gitlab")).toMatchObject({ state: "unverified", commitId: null });
+  });
+  it("does not borrow another Cloud project's remote version", () => {
+    const url = "https://cloud.example/git/project-1.git";
+    expect(getProjectBackupSnapshot(gitStatus({ remotes: [remote(url, url)],
+      branches: [savedBranch], headCommitId: "saved-commit",
+    }), "puppyone-cloud", "project-2")).toMatchObject({ state: "unverified", commitId: null });
+  });
 });
 
 describe("project hosting services", () => {
