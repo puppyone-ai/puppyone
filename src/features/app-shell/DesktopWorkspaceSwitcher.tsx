@@ -7,14 +7,12 @@ import {
 } from "@puppyone/shared-ui";
 import {
   ArrowLeft,
-  Check,
   ChevronRight,
   Cloud,
-  Copy,
   FolderPlus,
   Laptop,
 } from "lucide-react";
-import { DesktopMenuIconButton, DesktopMenuItem } from "../../components/DesktopMenu";
+import { DesktopMenuItem } from "../../components/DesktopMenu";
 import { ImportSourceMark } from "../../components/onboarding/ImportSourceMark";
 import { PROJECT_BACKUP_PROVIDER_LABELS, type ProjectBackupProvider } from "./projectBackupProviders";
 import { writeClipboardText } from "../../lib/clipboard";
@@ -313,20 +311,17 @@ function DesktopCurrentProjectLocation({
             kind={kind}
             size={32}
             absoluteStrokeWidth
+            showLocalIndicator
           />
           {kind === "local" ? (
-            <>
-              <div className="desktop-project-location-label">
-                <span className="desktop-project-location-dot" aria-hidden="true" />
-                <DesktopProjectPath path={path} />
-              </div>
-              <DesktopMenuIconButton
-                className="desktop-project-copy-path"
-                icon={copyState === "copied" ? <Check size={14} /> : <Copy size={14} />}
-                label={copyLabel}
-                onClick={() => void copyPath()}
+            <div className="desktop-project-location-label">
+              <DesktopProjectPath
+                path={path}
+                copyLabel={copyLabel}
+                feedback={copyState === "idle" ? null : copyLabel}
+                onCopy={() => void copyPath()}
               />
-            </>
+            </div>
           ) : (
             <span className="desktop-project-location-label">
               {t("shell.workspaceSwitcher.location.cloud")}
@@ -338,8 +333,13 @@ function DesktopCurrentProjectLocation({
   );
 }
 
-function DesktopProjectPath({ path }: { path: string }) {
-  const viewport = useRef<HTMLDivElement>(null);
+function DesktopProjectPath({ path, copyLabel, feedback, onCopy }: {
+  path: string;
+  copyLabel: string;
+  feedback: string | null;
+  onCopy: () => void;
+}) {
+  const viewport = useRef<HTMLButtonElement>(null);
   const frame = useRef<number | null>(null);
   const stop = () => {
     if (frame.current !== null) window.cancelAnimationFrame(frame.current);
@@ -368,22 +368,27 @@ function DesktopProjectPath({ path }: { path: string }) {
     if (frame.current !== null) window.cancelAnimationFrame(frame.current);
   }, [path]);
   return (
-    <div
-      ref={viewport}
-      className="desktop-project-current-location-path"
-      dir="ltr"
-      role="region"
-      tabIndex={0}
-      aria-label={path}
-      onMouseEnter={reveal}
-      onMouseLeave={reset}
-      onFocus={reveal}
-      onBlur={reset}
-      onWheel={stop}
-      onKeyDown={stop}
-    >
-      <bdi>{getWorkspacePathForDisplay(path)}</bdi>
-    </div>
+    <>
+      <Tooltip content={copyLabel}><button
+        ref={viewport}
+        className="desktop-project-current-location-path"
+        type="button"
+        dir="ltr"
+        aria-label={path}
+        aria-description={copyLabel}
+        data-copy-feedback={feedback ? "true" : undefined}
+        onClick={() => { reset(); onCopy(); }}
+        onMouseEnter={reveal}
+        onMouseLeave={reset}
+        onFocus={reveal}
+        onBlur={reset}
+        onWheel={stop}
+        onKeyDown={stop}
+      >
+        <bdi>{feedback ?? getWorkspacePathForDisplay(path)}</bdi>
+      </button></Tooltip>
+      <span className="sr-only" role="status">{feedback}</span>
+    </>
   );
 }
 
@@ -393,12 +398,14 @@ function ProjectLocationMark({
   size = 15,
   strokeWidth = 1.75,
   absoluteStrokeWidth = false,
+  showLocalIndicator = false,
 }: {
   className: string;
   kind: DesktopProjectLocation["current"];
   size?: number;
   strokeWidth?: number;
   absoluteStrokeWidth?: boolean;
+  showLocalIndicator?: boolean;
 }) {
   const Icon = kind === "cloud" ? Cloud : Laptop;
   return (
@@ -408,6 +415,7 @@ function ProjectLocationMark({
       aria-hidden="true"
     >
       <Icon size={size} strokeWidth={strokeWidth} absoluteStrokeWidth={absoluteStrokeWidth} />
+      {showLocalIndicator && kind === "local" && <span className="desktop-project-location-dot" />}
     </span>
   );
 }

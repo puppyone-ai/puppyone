@@ -23,6 +23,7 @@ afterEach(() => {
   act(() => root?.unmount());
   root = null;
   document.body.innerHTML = "";
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -56,7 +57,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(container.querySelector(".desktop-titlebar-branch-button")).toBeNull();
     const menu = requireMenu();
     expect(menu.querySelector(".desktop-project-branch")).toBeNull();
-    expect(menu.querySelector(".desktop-project-location-label .desktop-project-location-dot")).not.toBeNull();
+    expect(menu.querySelector(".desktop-project-current-location-mark .desktop-project-location-dot")).not.toBeNull();
     expect(menu.querySelector(".desktop-project-location-visual .lucide-laptop")).not.toBeNull();
     expect(menu.querySelector("[role='group'][aria-label='This Mac']")).not.toBeNull();
     expect(menu.textContent).not.toContain("main");
@@ -130,7 +131,7 @@ describe("titlebar Portal menu interactions", () => {
       expect(location?.querySelector(".desktop-project-current-location-path")?.getAttribute("aria-label"))
         .toBe(workspace.path);
       expect(menu.textContent).not.toContain("On this Mac");
-      expect(menu.querySelector(".desktop-project-location-label .desktop-project-location-dot")).not.toBeNull();
+      expect(menu.querySelector(".desktop-project-current-location-mark .desktop-project-location-dot")).not.toBeNull();
       expect(menu.querySelector(".desktop-project-backup-services")).toBeNull();
       const share = menu.querySelector<HTMLButtonElement>("[data-location-action='share']");
       expect(share?.textContent?.replace(/\u00a0/g, " ")).toBe("Share via PuppyOne Cloud");
@@ -194,7 +195,8 @@ describe("titlebar Portal menu interactions", () => {
     expect(menu.querySelector(".desktop-project-current-indicator")).toBeNull();
     expect(menu.querySelector(".desktop-project-option.selected")).toBeNull();
     expect(menu.querySelector("[aria-current='true']")).toBeNull();
-    expect(menu.querySelector(".desktop-project-copy-path")).not.toBeNull();
+    expect(menu.querySelector("button.desktop-project-current-location-path")).not.toBeNull();
+    expect(menu.querySelector(".desktop-project-copy-path")).toBeNull();
     expect(menu.querySelector(".desktop-project-option")?.getAttribute("aria-disabled"))
       .toBe("true");
     expect(onClose).not.toHaveBeenCalled();
@@ -228,13 +230,21 @@ describe("titlebar Portal menu interactions", () => {
         />,
       ));
     });
-    const copyButton = requireMenu().querySelector<HTMLButtonElement>(".desktop-project-copy-path");
-    expect(copyButton?.getAttribute("aria-label")).toBe("Copy path");
+    const copyButton = requireMenu().querySelector<HTMLButtonElement>(".desktop-project-current-location-path");
+    expect(copyButton?.getAttribute("aria-label")).toBe(workspace.path);
+    expect(copyButton?.getAttribute("data-tooltip")).toBe("Copy path");
+    vi.useFakeTimers();
     await act(async () => { copyButton?.click(); });
     expect(clipboard).toHaveBeenLastCalledWith(workspace.path);
-    expect(copyButton?.getAttribute("aria-label")).toBe(fails ? "Couldn’t copy. Try again." : "Copied");
-    expect(Boolean(copyButton?.querySelector(".lucide-check"))).toBe(!fails);
+    const feedback = fails ? "Couldn’t copy. Try again." : "Copied";
+    expect(copyButton?.textContent).toBe(feedback);
+    expect(copyButton?.getAttribute("data-tooltip")).toBe(feedback);
+    expect(requireMenu().querySelector("[role='status']")?.textContent).toBe(feedback);
     expect(onClose).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(1_500));
+    expect(copyButton?.textContent).toBe("~/project/demo");
+    expect(copyButton?.getAttribute("data-tooltip")).toBe("Copy path");
+    expect(requireMenu().querySelector("[role='status']")?.textContent).toBe("");
   });
 
   it("reveals an overflowing path on hover and stops when the pointer leaves", async () => {
@@ -458,7 +468,7 @@ describe("titlebar Portal menu interactions", () => {
     const currentLocation = requireMenu().querySelector(".desktop-project-current-location");
     expect(currentLocation?.querySelector(".desktop-project-location-visual")?.getAttribute("aria-label")).toBe("This Mac");
     expect(currentLocation?.querySelector(".desktop-project-current-location-path")?.textContent).toBe("/tmp/one");
-    expect(currentLocation?.querySelector(".desktop-project-location-label .desktop-project-location-dot")).not.toBeNull();
+    expect(currentLocation?.querySelector(".desktop-project-current-location-mark .desktop-project-location-dot")).not.toBeNull();
     expect(currentLocation?.textContent).not.toContain("On this Mac");
   });
 });

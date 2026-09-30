@@ -501,6 +501,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-current-location-mark {
+  position: relative;
   display: grid;
   flex: 0 0 auto;
   place-items: center;
@@ -526,24 +527,30 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-location-dot {
+  position: absolute;
+  right: 0;
+  bottom: 2px;
   width: 6px;
   height: 6px;
-  flex: 0 0 6px;
   border-radius: 50%;
   background: var(--po-success);
-}
-
-.desktop-project-menu .desktop-project-copy-path {
-  flex: 0 0 auto;
-  color: var(--po-text);
+  box-shadow: 0 0 0 2px var(--po-editor-bg);
 }
 
 .desktop-project-current-location-path {
   display: block;
   min-width: 0;
+  height: var(--po-menu-item-height);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
   font-size: var(--po-menu-item-font-size);
   font-weight: var(--po-text-weight-regular, 400);
   line-height: var(--po-menu-item-line-height);
+  text-align: start;
+  cursor: var(--po-clickable-cursor, default);
+  transition: color 0.1s ease;
 }
 
 .desktop-project-current-location-path {
@@ -563,6 +570,12 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 .desktop-project-current-location-path > bdi {
   display: inline-block;
   padding-inline-end: 8px;
+}
+
+.desktop-project-current-location-path:hover,
+.desktop-project-current-location-path:focus-visible,
+.desktop-project-current-location-path[data-copy-feedback="true"] {
+  color: var(--po-text);
 }
 
 .desktop-project-current-location-path:focus-visible {
