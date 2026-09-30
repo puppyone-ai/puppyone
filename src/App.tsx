@@ -1398,6 +1398,7 @@ function AppContent() {
 
   const gitChangesView = (
     <GitChangesSidebar
+      focusNavigation={gitPresentation.cardEnabled}
       repository={{
         status: activeGitStatus,
         puppyoneConfig,
@@ -1443,6 +1444,7 @@ function AppContent() {
   );
   const gitHistoryView = (
     <GitHistorySidebar
+      focusNavigation={gitPresentation.cardEnabled}
       status={activeGitStatus}
       statusLoading={gitStatusLoading}
       statusError={gitStatusError}

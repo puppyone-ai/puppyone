@@ -60,6 +60,7 @@ function Harness({ centeredProject = true, cardExperiment = true, workspaceScope
     <DesktopGitHeaderCard anchorRef={anchorRef} open={presentation.cardOpen}
       surface={presentation.cardSurface} onDismiss={presentation.closeCard}
       changes={<GitChangesSidebar
+        focusNavigation
         repository={{ status, puppyoneConfig: null, gitDisplayMode: "professional", gitSidebarLayout: "cards", fileIconTheme: "default" }}
         view={{ selectedWorkingFile: selection, operationLoading: null, operationError: null, loading: false, error: null }}
         actions={{ initialize: succeed, selectWorkingFile: setSelection, stagePaths: succeed, stageAll: succeed,
@@ -69,7 +70,7 @@ function Harness({ centeredProject = true, cardExperiment = true, workspaceScope
         onOpenFile={() => {}} onOpenHistory={presentation.openHistory}
         cloudBackup={{ loading: false, error: null, enabled: false, start: () => {} }}
       />}
-      history={<GitHistorySidebar status={status} statusLoading={false} statusError={null}
+      history={<GitHistorySidebar focusNavigation status={status} statusLoading={false} statusError={null}
         selectedCommitId={null} commitDetail={null} commitDetailLoading={false} commitDetailError={null}
         historyLoading={false} fileIconTheme="default" initializing={false}
         onInitialize={succeed} onSelectCommit={() => {}} onBack={presentation.backToChanges} />}
@@ -136,6 +137,7 @@ describe("Git Header card", () => {
     mount();
     act(() => button().click());
     act(() => button('.desktop-git-header-card button[aria-label="History"]').click());
+    expect(document.activeElement).toBe(button(".desktop-git-history-sidebar .desktop-git-view-back"));
     assertActive("changes", false);
     assertActive("history", true);
     const history = card()?.querySelector(".desktop-git-history-sidebar");
@@ -145,6 +147,7 @@ describe("Git Header card", () => {
     assertActive("changes", true);
 
     act(() => button(".desktop-git-header-card .desktop-working-tree-main").click());
+    expect(document.activeElement).toBe(button(".desktop-git-changes-detail-header .desktop-git-view-back"));
     expect(card()?.querySelector(".desktop-git-changes-detail")).not.toBeNull();
     const changes = card()?.querySelector(".desktop-git-changes-sidebar");
     act(() => changes?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));

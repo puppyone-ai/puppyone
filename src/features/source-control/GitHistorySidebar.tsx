@@ -10,6 +10,7 @@ import type {
 import { GitCommitDetail } from "./GitCommitDetail";
 import { GitHistoryTimeline } from "./GitHistoryTimeline";
 import { GitRepositorySetupAction } from "./GitRepositorySetupAction";
+import { useGitViewNavigationFocus } from "./useGitViewNavigationFocus";
 
 export type GitHistorySidebarProps = Readonly<{
   status: GitStatusSnapshot | null;
@@ -25,6 +26,7 @@ export type GitHistorySidebarProps = Readonly<{
   onInitialize: () => Promise<boolean>;
   onSelectCommit: (commitId: string) => void;
   onBack: () => void;
+  focusNavigation?: boolean;
 }>;
 
 export function GitHistorySidebar({
@@ -41,9 +43,11 @@ export function GitHistorySidebar({
   onInitialize,
   onSelectCommit,
   onBack,
+  focusNavigation = false,
 }: GitHistorySidebarProps) {
   const { t } = useLocalization();
   const [detailVisible, setDetailVisible] = useState(false);
+  const rootRef = useGitViewNavigationFocus(focusNavigation, detailVisible);
   const commits = status?.allCommits ?? status?.commits ?? [];
   const selectedCommit = commits.find(
     (commit) => commit.commit_id === selectedCommitId,
@@ -61,6 +65,7 @@ export function GitHistorySidebar({
 
   return (
     <section
+      ref={rootRef}
       className="desktop-git-history-sidebar"
       aria-label={t("source-control.history.ariaLabel")}
       onKeyDown={(event) => {

@@ -5,6 +5,7 @@ import { useLocalization } from "@puppyone/localization";
 import type { GitCommitDetail } from "../../types/electron";
 import { GitSidebar, type GitSidebarProps } from "./SourceControlSidebar";
 import { WorkingFileActions, WorkingFileDetail } from "./WorkingFileDetail";
+import { useGitViewNavigationFocus } from "./useGitViewNavigationFocus";
 
 export type GitChangesSidebarProps = GitSidebarProps & Readonly<{
   workingFileDiff: GitCommitDetail | null;
@@ -12,6 +13,7 @@ export type GitChangesSidebarProps = GitSidebarProps & Readonly<{
   workingFileDiffError: string | null;
   onOpenFile: (path: string) => void;
   onOpenHistory: () => void;
+  focusNavigation?: boolean;
 }>;
 
 /**
@@ -29,9 +31,11 @@ export function GitChangesSidebar({
   workingFileDiffError,
   onOpenFile,
   onOpenHistory,
+  focusNavigation = false,
 }: GitChangesSidebarProps) {
   const { t } = useLocalization();
   const [detailVisible, setDetailVisible] = useState(false);
+  const rootRef = useGitViewNavigationFocus(focusNavigation, detailVisible);
 
   useEffect(() => {
     if (!view.selectedWorkingFile) setDetailVisible(false);
@@ -42,6 +46,7 @@ export function GitChangesSidebar({
 
   return (
     <section
+      ref={rootRef}
       className="desktop-git-changes-sidebar"
       aria-label={t("source-control.label.changes")}
       onKeyDown={(event) => {
