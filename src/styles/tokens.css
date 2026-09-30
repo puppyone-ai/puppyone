@@ -4,6 +4,7 @@
   /* Mirrored from electron/main/window-layout-contract.mjs and guarded by the architecture check. */
   --desktop-window-min-width: 640px;
   --desktop-toolbar-action-radius: 5px;
+  /* Default native Header height is mirrored from window-layout-contract.mjs. */
   --desktop-chrome-height: 40px;
   /* Standard control geometry is owned by shared-ui/control-geometry.css. */
   --desktop-chrome-control-size: var(--po-control-size);

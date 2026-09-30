@@ -507,9 +507,20 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-location-device .desktop-project-location-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: var(--po-menu-item-font-size);
   font-weight: var(--po-text-weight-regular, 400);
   line-height: var(--po-menu-item-line-height);
+}
+
+.desktop-project-location-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: var(--po-success);
 }
 
 .desktop-project-path-row {

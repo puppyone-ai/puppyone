@@ -55,7 +55,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(container.querySelector(".desktop-titlebar-branch-button")).toBeNull();
     const menu = requireMenu();
     expect(menu.querySelector(".desktop-project-branch")).toBeNull();
-    expect(menu.querySelector(".desktop-project-location-dot")).toBeNull();
+    expect(menu.querySelector(".desktop-project-location-label .desktop-project-location-dot")).not.toBeNull();
     expect(menu.querySelector(".desktop-project-location-visual .lucide-laptop")).not.toBeNull();
     expect(menu.textContent).toContain("On this Mac");
     expect(menu.textContent).not.toContain("main");
@@ -93,7 +93,7 @@ describe("titlebar Portal menu interactions", () => {
       expect(location?.querySelector(".desktop-project-current-location-path")?.getAttribute("aria-label"))
         .toBe(workspace.path);
       expect(menu.textContent).toContain("On this Mac");
-      expect(menu.querySelector(".desktop-project-location-dot")).toBeNull();
+      expect(menu.querySelector(".desktop-project-location-label .desktop-project-location-dot")).not.toBeNull();
       const share = menu.querySelector<HTMLButtonElement>("[data-location-action='share']");
       expect(share?.textContent).toBe("Share to other agents");
       expect(share?.querySelector(".lucide-cloud")).not.toBeNull();
@@ -420,8 +420,8 @@ describe("titlebar Portal menu interactions", () => {
     const currentLocation = requireMenu().querySelector(".desktop-project-current-location");
     expect(currentLocation?.querySelector(".desktop-project-location-visual")?.getAttribute("aria-label")).toBe("This Mac");
     expect(currentLocation?.querySelector(".desktop-project-current-location-path")?.textContent).toBe("/tmp/one");
-    expect(currentLocation?.querySelector(".desktop-project-location-dot")).toBeNull();
-    expect(currentLocation?.textContent).not.toContain("This Mac");
+    expect(currentLocation?.querySelector(".desktop-project-location-label .desktop-project-location-dot")).not.toBeNull();
+    expect(currentLocation?.textContent).toContain("On this Mac");
   });
 });
 

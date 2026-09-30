@@ -296,6 +296,7 @@ function DesktopCurrentProjectLocation({
             absoluteStrokeWidth
           />
           <span className="desktop-project-location-label">
+            {kind === "local" && <span className="desktop-project-location-dot" aria-hidden="true" />}
             {t(kind === "local" ? "shell.workspaceSwitcher.location.onThisMac" : "shell.workspaceSwitcher.location.cloud")}
           </span>
         </div>
