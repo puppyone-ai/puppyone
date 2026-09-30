@@ -475,26 +475,27 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-current-location {
-  --po-menu-icon-slot-size: 24px;
   display: grid;
   width: 100%;
   min-width: 0;
-  gap: 8px;
-  padding-inline: var(--po-menu-item-padding-inline);
   color: var(--po-text-muted);
   text-align: start;
 }
 
 .desktop-project-location-visual {
   display: grid;
-  min-height: 72px;
-  place-items: center;
+  min-width: 0;
+  min-height: 96px;
+  grid-template-rows: 1fr auto;
+  gap: 8px;
+  padding: 8px calc(var(--po-menu-item-padding-inline) - 1px);
   border: 1px solid var(--po-divider);
   border-radius: 8px;
 }
 
 .desktop-project-current-location-mark {
   display: grid;
+  min-height: 32px;
   place-items: center;
 }
 
@@ -613,7 +614,6 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-location-actions {
-  --po-menu-icon-slot-size: 24px;
   position: relative;
   margin-top: var(--po-menu-padding);
   padding-top: var(--po-menu-padding);

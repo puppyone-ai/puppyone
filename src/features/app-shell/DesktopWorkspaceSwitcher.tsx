@@ -155,7 +155,7 @@ export function DesktopWorkspaceSwitcher({
                   className="desktop-project-location-action"
                   data-location-action="share"
                   disabled={!onShare}
-                  icon={<Cloud size={24} strokeWidth={1.5} absoluteStrokeWidth />}
+                  icon={<Cloud size={14} strokeWidth={1.65} />}
                   label={t("shell.workspaceSwitcher.shareToAgents")}
                   trailing={<ChevronRight className="po-directional-icon" size={12} aria-hidden="true" />}
                   onClick={() => {
@@ -285,29 +285,29 @@ function DesktopCurrentProjectLocation({
     >
       <div
         className="desktop-project-location-visual"
-        role="img"
+        role="group"
         aria-label={t(kind === "local" ? "shell.workspaceSwitcher.location.thisMac" : "shell.workspaceSwitcher.location.cloud")}
       >
         <ProjectLocationMark
           className="desktop-project-current-location-mark"
           kind={kind}
-          size={24}
-          strokeWidth={1.5}
-          absoluteStrokeWidth
+          size={16}
         />
+        {kind === "local" && (
+          <div className="desktop-project-path-row">
+            <span className="desktop-menu-item-icon desktop-project-path-mark" aria-hidden="true">
+              <Folder size={14} strokeWidth={1.65} />
+            </span>
+            <DesktopProjectPath path={path} />
+            <DesktopMenuIconButton
+              className="desktop-project-copy-path"
+              icon={copyState === "copied" ? <Check size={14} /> : <Copy size={14} />}
+              label={copyLabel}
+              onClick={() => void copyPath()}
+            />
+          </div>
+        )}
       </div>
-      {kind === "local" && (
-        <div className="desktop-project-path-row">
-          <Folder className="desktop-project-path-mark" size={24} strokeWidth={1.5} absoluteStrokeWidth aria-hidden="true" />
-          <DesktopProjectPath path={path} />
-          <DesktopMenuIconButton
-            className="desktop-project-copy-path"
-            icon={copyState === "copied" ? <Check size={14} /> : <Copy size={14} />}
-            label={copyLabel}
-            onClick={() => void copyPath()}
-          />
-        </div>
-      )}
     </div>
   );
 }
@@ -366,13 +366,11 @@ function ProjectLocationMark({
   kind,
   size = 15,
   strokeWidth = 1.75,
-  absoluteStrokeWidth = false,
 }: {
   className: string;
   kind: DesktopProjectLocation["current"];
   size?: number;
   strokeWidth?: number;
-  absoluteStrokeWidth?: boolean;
 }) {
   const Icon = kind === "cloud" ? Cloud : Laptop;
   return (
@@ -381,7 +379,7 @@ function ProjectLocationMark({
       data-project-location={kind}
       aria-hidden="true"
     >
-      <Icon size={size} strokeWidth={strokeWidth} absoluteStrokeWidth={absoluteStrokeWidth} />
+      <Icon size={size} strokeWidth={strokeWidth} />
     </span>
   );
 }
