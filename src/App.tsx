@@ -1493,6 +1493,8 @@ function AppContent() {
       localBranches={localBranches}
       remoteBranches={remoteBranches}
       projectLocation={projectLocation}
+      cloudProject={focusedWorkspace?.path === workspace.path && projectCloudContext.status === "resolved"
+        ? { id: projectCloudContext.projectId, name: projectCloudContext.projectName } : undefined}
       workspace={workspace}
       workspaceFolders={workbenchWorkspace?.folders ?? []}
       multiRootWorkspacesEnabled={multiRootWorkspacesEnabled}

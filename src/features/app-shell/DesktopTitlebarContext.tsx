@@ -10,6 +10,7 @@ import { DesktopTitlebarMenuLayer } from "./DesktopTitlebarMenuLayer";
 import {
   DesktopWorkspaceSwitcher,
   type DesktopProjectLocation,
+  type DesktopProjectCloudCopy,
 } from "./DesktopWorkspaceSwitcher";
 import type { ProjectBackupProvider } from "./projectBackupProviders";
 
@@ -22,6 +23,7 @@ export function DesktopTitlebarContext({
   localBranches,
   remoteBranches,
   projectLocation,
+  cloudProject,
   workspace,
   workspaceFolders,
   multiRootWorkspacesEnabled,
@@ -61,6 +63,7 @@ export function DesktopTitlebarContext({
         workspaceFolders={workspaceFolders}
         multiRootWorkspacesEnabled={multiRootWorkspacesEnabled}
         projectLocation={projectLocation}
+        cloudProject={cloudProject}
         backupProviders={compactProjectMenu ? backupProviders : undefined}
         availableProjects={availableProjects}
         onAddExistingProject={multiRootWorkspacesEnabled ? onAddExistingProject : undefined}
@@ -98,6 +101,7 @@ type DesktopTitlebarContextProps = {
   localBranches: GitBranchSummary[];
   remoteBranches: GitBranchSummary[];
   projectLocation?: DesktopProjectLocation;
+  cloudProject?: DesktopProjectCloudCopy;
   workspace: Workspace;
   workspaceFolders: readonly WorkspaceFolder[];
   multiRootWorkspacesEnabled: boolean;

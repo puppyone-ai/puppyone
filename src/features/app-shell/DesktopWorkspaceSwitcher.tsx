@@ -34,6 +34,7 @@ type DesktopWorkspaceSwitcherProps = {
   workspaceFolders: readonly WorkspaceFolder[];
   multiRootWorkspacesEnabled: boolean;
   projectLocation?: DesktopProjectLocation;
+  cloudProject?: DesktopProjectCloudCopy;
   backupProviders?: readonly ProjectBackupProvider[];
   availableProjects?: readonly Workspace[];
   onAddExistingProject?: (folderPath: string) => void;
@@ -49,6 +50,8 @@ export type DesktopProjectLocation = Readonly<{
   cloudState: "unavailable" | "available" | "signed-out" | "resolving" | "attention";
 }>;
 
+export type DesktopProjectCloudCopy = Readonly<{ id: string; name?: string | null }>;
+
 export function DesktopWorkspaceSwitcher({
   open,
   refObject,
@@ -58,6 +61,7 @@ export function DesktopWorkspaceSwitcher({
   workspaceFolders,
   multiRootWorkspacesEnabled,
   projectLocation,
+  cloudProject,
   backupProviders = [],
   availableProjects = [],
   onAddExistingProject,
@@ -72,8 +76,12 @@ export function DesktopWorkspaceSwitcher({
   // working copy lives. Desktop workspaces are local unless explicitly remote.
   const currentProjectLocationKind = projectLocation?.current ?? "local";
   const cloudLinked = resolveProjectContextAssetKind(workspace) === "cloud"
+    || Boolean(cloudProject?.id)
     || projectLocation?.cloudState === "available"
     || projectLocation?.cloudState === "signed-out";
+  const cloudCopyLabel = cloudProject?.name?.trim()
+    ? t("shell.workspaceSwitcher.cloudCopyNamed", { project: cloudProject.name.trim() })
+    : t("shell.workspaceSwitcher.cloudCopy");
   const workspaceContextAssetLabel = t(currentProjectLocationKind === "cloud"
     ? "shell.workspaceSwitcher.location.cloud"
     : "shell.workspaceSwitcher.location.thisMac");
@@ -102,13 +110,20 @@ export function DesktopWorkspaceSwitcher({
         }) + ` · ${workspaceContextAssetLabel}`}
         aria-expanded={open}
         aria-haspopup="menu"
+        aria-description={currentProjectLocationKind === "local" && cloudLinked ? t("cloud.share.location.localCloud") : undefined}
         onClick={onToggle}
       >
-        <ProjectLocationMark
-          className="desktop-titlebar-workspace-mark"
-          kind={currentProjectLocationKind}
-          size={16}
-        />
+        <span className="desktop-titlebar-workspace-location" data-cloud-linked={currentProjectLocationKind === "local" && cloudLinked ? "true" : undefined}>
+          <ProjectLocationMark
+            className="desktop-titlebar-workspace-mark"
+            kind={currentProjectLocationKind}
+            size={16}
+          />
+          {currentProjectLocationKind === "local" && cloudLinked && <>
+            <span className="desktop-titlebar-workspace-location-link" aria-hidden="true" />
+            <ProjectLocationMark className="desktop-titlebar-workspace-mark" kind="cloud" size={16} />
+          </>}
+        </span>
         <bdi className="desktop-titlebar-workspace-name">{titlebarLabel}</bdi>
       </button></Tooltip>
 
@@ -131,11 +146,20 @@ export function DesktopWorkspaceSwitcher({
               <div className="desktop-project-location-card">
                 <DesktopCurrentProjectLocation
                   kind={currentProjectLocationKind}
-                  cloudLinked={cloudLinked}
                   path={workspace.path}
                 />
               </div>
             </div>
+            {currentProjectLocationKind === "local" && cloudLinked && (
+              <div className="desktop-project-cloud-copy" role="group" aria-label={cloudCopyLabel}>
+                <span className="desktop-menu-item-icon" aria-hidden="true">
+                  <Cloud size={14} strokeWidth={1.65} />
+                </span>
+                <Tooltip content={cloudCopyLabel} overflowOnly>
+                  <bdi className="desktop-menu-item-label">{cloudCopyLabel}</bdi>
+                </Tooltip>
+              </div>
+            )}
             {backupProviders.length > 0 && (
               <ul className="desktop-project-backup-services" aria-label={t("shell.workspaceSwitcher.hostingServices")}>
                 {backupProviders.map((provider) => (
@@ -271,11 +295,9 @@ function DesktopProjectRow({
 
 function DesktopCurrentProjectLocation({
   kind,
-  cloudLinked,
   path,
 }: {
   kind: DesktopProjectLocation["current"];
-  cloudLinked: boolean;
   path: string;
 }) {
   const { t } = useLocalization();
@@ -308,27 +330,15 @@ function DesktopCurrentProjectLocation({
         className="desktop-project-location-visual"
         role="group"
         aria-label={t(kind === "local" ? "shell.workspaceSwitcher.location.thisMac" : "shell.workspaceSwitcher.location.cloud")}
-        aria-description={kind === "local" && cloudLinked ? t("cloud.share.location.localCloud") : undefined}
       >
         <div className="desktop-project-location-device">
-          <div className="desktop-project-location-marks" data-cloud-linked={kind === "local" && cloudLinked ? "true" : undefined}>
-            <ProjectLocationMark
-              className="desktop-project-current-location-mark"
-              kind={kind}
-              size={24}
-              absoluteStrokeWidth
-              showLocalIndicator
-            />
-            {kind === "local" && cloudLinked && <>
-              <span className="desktop-project-location-link" aria-hidden="true" />
-              <ProjectLocationMark
-                className="desktop-project-cloud-copy-mark"
-                kind="cloud"
-                size={20}
-                absoluteStrokeWidth
-              />
-            </>}
-          </div>
+          <ProjectLocationMark
+            className="desktop-project-current-location-mark"
+            kind={kind}
+            size={24}
+            absoluteStrokeWidth
+            showLocalIndicator
+          />
           {kind === "local" ? (
             <div className="desktop-project-location-label">
               <DesktopProjectPath

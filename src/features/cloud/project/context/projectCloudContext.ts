@@ -10,6 +10,7 @@ export type ProjectCloudContext =
   | {
       status: "resolved";
       projectId: string;
+      projectName?: string;
       target: RepositoryTarget;
       scopePath?: string | null;
       capabilities?: string[];

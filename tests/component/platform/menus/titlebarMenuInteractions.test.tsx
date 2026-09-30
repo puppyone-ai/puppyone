@@ -59,7 +59,8 @@ describe("titlebar Portal menu interactions", () => {
     expect(menu.querySelector(".desktop-project-branch")).toBeNull();
     expect(menu.querySelector(".desktop-project-current-location-mark .desktop-project-location-dot")).not.toBeNull();
     expect(menu.querySelector(".desktop-project-location-visual .lucide-laptop")).not.toBeNull();
-    expect(menu.querySelector(".desktop-project-location-marks .lucide-cloud")).toBeNull();
+    expect(menu.querySelector(".desktop-project-location-visual .lucide-cloud")).toBeNull();
+    expect(menu.querySelector(".desktop-project-cloud-copy")).toBeNull();
     expect(menu.querySelector("[role='group'][aria-label='This Mac']")).not.toBeNull();
     expect(menu.textContent).not.toContain("main");
     expect(onCheckoutBranch).not.toHaveBeenCalled();
@@ -101,14 +102,19 @@ describe("titlebar Portal menu interactions", () => {
       });
       const header = container.querySelector(".desktop-titlebar-workspace-button");
       expect(header?.querySelector(".lucide-laptop")).not.toBeNull();
-      expect(header?.querySelector(".lucide-cloud")).toBeNull();
+      expect(header?.querySelector(".lucide-cloud")).not.toBeNull();
+      expect(header?.querySelector(".desktop-titlebar-workspace-location-link")).not.toBeNull();
       expect(header?.getAttribute("aria-label")).toContain("This Mac");
       const menu = requireMenu();
       const location = menu.querySelector(".desktop-project-current-location");
       expect(location?.getAttribute("data-project-location")).toBe("local");
       expect(location?.querySelector(".desktop-project-current-location-mark .lucide-laptop")).not.toBeNull();
-      expect(location?.querySelector(".desktop-project-location-link")).not.toBeNull();
-      expect(location?.querySelector(".desktop-project-cloud-copy-mark .lucide-cloud")).not.toBeNull();
+      expect(location?.querySelector(".lucide-cloud")).toBeNull();
+      expect(location?.querySelector(".desktop-project-location-link")).toBeNull();
+      const cloudCopy = menu.querySelector(".desktop-project-cloud-copy");
+      expect(cloudCopy?.textContent).toBe("Cloud copy");
+      expect(location?.contains(cloudCopy)).toBe(false);
+      expect(menu.querySelector(".desktop-project-overview")?.nextElementSibling).toBe(cloudCopy);
       const path = location?.querySelector<HTMLButtonElement>(".desktop-project-current-location-path");
       expect(path?.textContent).toBe("~/project/demo");
       expect(path?.getAttribute("aria-label")).toBe(workspace.path);
@@ -118,6 +124,45 @@ describe("titlebar Portal menu interactions", () => {
       expect(Boolean(menu.querySelector("[data-location-action='share']"))).toBe(cloudState !== undefined);
     },
   );
+
+  it("shows the resolved Cloud name below the local card with Share disabled and clears it on project change", async () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    const linkedWorkspace = { ...createWorkspace("one", "Workspace one"), path: "/Users/example/project/local-notes" };
+    const nextWorkspace = { ...createWorkspace("two", "Workspace two"), path: "/Users/example/project/other" };
+    const renderProject = async (workspace: typeof linkedWorkspace, cloudProject?: { id: string; name: string }) => {
+      await act(async () => {
+        root?.render(withTestLocalization(
+          <DesktopWorkspaceSwitcher
+            open refObject={createRef<HTMLDivElement>()} titlebarLabel={workspace.name}
+            workspace={workspace} workspaceFolders={[createWorkspaceFolder(workspace)]}
+            multiRootWorkspacesEnabled={false} cloudProject={cloudProject}
+            onClose={vi.fn()} onToggle={vi.fn()}
+          />,
+        ));
+      });
+    };
+    await renderProject(linkedWorkspace, { id: "cloud-notes", name: "Remote Notes" });
+    expect(container.querySelector(".desktop-titlebar-workspace-location .lucide-cloud")).not.toBeNull();
+    const menu = requireMenu();
+    const localCard = menu.querySelector(".desktop-project-current-location");
+    expect(localCard?.querySelector(".lucide-laptop")).not.toBeNull();
+    expect(localCard?.querySelector(".lucide-cloud")).toBeNull();
+    expect(localCard?.textContent).toBe("~/project/local-notes");
+    const cloudCopy = menu.querySelector(".desktop-project-cloud-copy");
+    expect(cloudCopy?.textContent).toBe("Cloud · Remote Notes");
+    expect(menu.querySelector(".desktop-project-overview")?.nextElementSibling).toBe(cloudCopy);
+    expect(cloudCopy?.querySelector("button, a, [role='menuitem']")).toBeNull();
+    expect(menu.querySelector("[data-location-action='share']")).toBeNull();
+
+    await renderProject(nextWorkspace);
+    expect(container.querySelector(".desktop-titlebar-workspace-location .lucide-cloud")).toBeNull();
+    expect(requireMenu().querySelector(".desktop-project-cloud-copy")).toBeNull();
+    expect(requireMenu().textContent).not.toContain("Remote Notes");
+    expect(requireMenu().querySelector(".desktop-project-current-location-path")?.textContent)
+      .toBe("~/project/other");
+  });
 
   it.each([false, undefined])("keeps backup services out of the classic Header: compact %s", async (compactProjectMenu) => {
     const container = document.createElement("div");
@@ -171,7 +216,10 @@ describe("titlebar Portal menu interactions", () => {
       expect(location?.querySelector(".desktop-project-location-visual")?.getAttribute("aria-label"))
         .toBe("This Mac");
       expect(location?.querySelector(".lucide-folder")).toBeNull();
-      expect(Boolean(location?.querySelector(".desktop-project-cloud-copy-mark")))
+      expect(location?.querySelector(".lucide-cloud")).toBeNull();
+      expect(Boolean(container.querySelector(".desktop-titlebar-workspace-location .lucide-cloud")))
+        .toBe(cloudState === "available" || cloudState === "signed-out");
+      expect(Boolean(menu.querySelector(".desktop-project-cloud-copy")))
         .toBe(cloudState === "available" || cloudState === "signed-out");
       expect(location?.querySelector(".desktop-project-current-location-path")?.textContent).toBe("~/project/demo");
       expect(location?.querySelector(".desktop-project-current-location-path")?.getAttribute("aria-label"))

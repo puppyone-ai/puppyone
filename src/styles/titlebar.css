@@ -1085,6 +1085,21 @@
   box-shadow: inset 0 0 0 1px var(--desktop-titlebar-focus);
 }
 
+.desktop-titlebar-workspace-location {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  color: var(--desktop-titlebar-text-subtle, var(--desktop-titlebar-text-muted));
+}
+
+.desktop-titlebar-workspace-location-link {
+  width: 6px;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.5;
+}
+
 .desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark {
   display: inline-flex;
   width: var(--desktop-titlebar-workspace-icon-slot-size);

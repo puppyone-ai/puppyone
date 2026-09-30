@@ -66,6 +66,8 @@
   "workspaceSwitcher.hostingServices": "ホスティングサービス",
   "workspaceSwitcher.linkedHostingService": "{provider} に関連付け済み",
   "workspaceSwitcher.shareViaCloud": "クラウドで共有",
+  "workspaceSwitcher.cloudCopy": "クラウドのコピー",
+  "workspaceSwitcher.cloudCopyNamed": "クラウド · {project}",
   "workspaceSwitcher.projectTitle": "プロジェクト：{project}",
   "workspaceSwitcher.projectActions": "プロジェクト操作",
   "workspaceSwitcher.projectActionsFor": "{project} のプロジェクト操作",

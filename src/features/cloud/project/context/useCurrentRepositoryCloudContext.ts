@@ -244,6 +244,7 @@ export function useCurrentRepositoryCloudContext({
       apply({
         status: "resolved",
         projectId: context.project.id,
+        ...(context.project.name?.trim() ? { projectName: context.project.name.trim() } : {}),
         target: context.target,
         ...(context.scope_path ? { scopePath: context.scope_path } : {}),
         ...(context.project.capabilities?.length

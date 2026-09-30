@@ -66,6 +66,8 @@
   "workspaceSwitcher.hostingServices": "Hosting services",
   "workspaceSwitcher.linkedHostingService": "Linked to {provider}",
   "workspaceSwitcher.shareViaCloud": "Share via Cloud",
+  "workspaceSwitcher.cloudCopy": "Cloud copy",
+  "workspaceSwitcher.cloudCopyNamed": "Cloud · {project}",
   "workspaceSwitcher.projectTitle": "Project: {project}",
   "workspaceSwitcher.projectActions": "Project actions",
   "workspaceSwitcher.projectActionsFor": "Project actions for {project}",

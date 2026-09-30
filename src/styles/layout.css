@@ -505,22 +505,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   padding: calc(var(--po-menu-item-padding-inline) + var(--po-menu-padding));
 }
 
-.desktop-project-location-marks {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 6px;
-}
-
-.desktop-project-location-link {
-  width: 8px;
-  height: 1px;
-  background: currentColor;
-  opacity: 0.5;
-}
-
-.desktop-project-current-location-mark,
-.desktop-project-cloud-copy-mark {
+.desktop-project-current-location-mark {
   position: relative;
   display: grid;
   flex: 0 0 auto;
@@ -699,6 +684,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   list-style: none;
 }
 
+.desktop-project-cloud-copy,
 .desktop-project-backup-service {
   display: flex;
   align-items: center;
@@ -708,6 +694,10 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   padding: 0 var(--po-menu-item-padding-inline);
   color: var(--po-text-muted);
   line-height: var(--po-menu-item-line-height, 18px);
+}
+
+.desktop-project-cloud-copy {
+  margin-top: var(--po-menu-padding);
 }
 
 .desktop-project-backup-service .desktop-menu-item-label {

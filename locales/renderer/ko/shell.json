@@ -66,6 +66,8 @@
   "workspaceSwitcher.hostingServices": "호스팅 서비스",
   "workspaceSwitcher.linkedHostingService": "{provider}에 연결됨",
   "workspaceSwitcher.shareViaCloud": "클라우드로 공유",
+  "workspaceSwitcher.cloudCopy": "클라우드 사본",
+  "workspaceSwitcher.cloudCopyNamed": "클라우드 · {project}",
   "workspaceSwitcher.projectTitle": "프로젝트: {project}",
   "workspaceSwitcher.projectActions": "프로젝트 작업",
   "workspaceSwitcher.projectActionsFor": "{project} 프로젝트 작업",

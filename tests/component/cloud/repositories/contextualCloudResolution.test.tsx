@@ -135,6 +135,7 @@ describe("current-repository Cloud context", () => {
     expect(context).toEqual({
       status: "resolved",
       projectId: "project-1",
+      projectName: "Notes",
       target: { kind: "project_root", project_id: "project-1" },
       capabilities: ["content.read"],
     });
