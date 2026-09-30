@@ -7,6 +7,7 @@ import {
 } from "@puppyone/shared-ui";
 import {
   ArrowLeft,
+  Check,
   ChevronRight,
   Cloud,
   FolderPlus,
@@ -139,7 +140,7 @@ export function DesktopWorkspaceSwitcher({
                       <ImportSourceMark brand={provider} decorative />
                     </span>
                     <span className="desktop-menu-item-label">
-                      {t("shell.workspaceSwitcher.backupDestination", {
+                      {t("shell.workspaceSwitcher.linkedHostingService", {
                         provider: PROJECT_BACKUP_PROVIDER_LABELS[provider],
                       })}
                     </span>
@@ -309,7 +310,7 @@ function DesktopCurrentProjectLocation({
           <ProjectLocationMark
             className="desktop-project-current-location-mark"
             kind={kind}
-            size={32}
+            size={24}
             absoluteStrokeWidth
             showLocalIndicator
           />
@@ -318,7 +319,7 @@ function DesktopCurrentProjectLocation({
               <DesktopProjectPath
                 path={path}
                 copyLabel={copyLabel}
-                feedback={copyState === "idle" ? null : copyLabel}
+                feedbackState={copyState}
                 onCopy={() => void copyPath()}
               />
             </div>
@@ -333,13 +334,14 @@ function DesktopCurrentProjectLocation({
   );
 }
 
-function DesktopProjectPath({ path, copyLabel, feedback, onCopy }: {
+function DesktopProjectPath({ path, copyLabel, feedbackState, onCopy }: {
   path: string;
   copyLabel: string;
-  feedback: string | null;
+  feedbackState: "idle" | "copied" | "failed";
   onCopy: () => void;
 }) {
-  const viewport = useRef<HTMLButtonElement>(null);
+  const feedback = feedbackState === "idle" ? null : copyLabel;
+  const viewport = useRef<HTMLElement>(null);
   const frame = useRef<number | null>(null);
   const stop = () => {
     if (frame.current !== null) window.cancelAnimationFrame(frame.current);
@@ -370,13 +372,12 @@ function DesktopProjectPath({ path, copyLabel, feedback, onCopy }: {
   return (
     <>
       <Tooltip content={copyLabel}><button
-        ref={viewport}
         className="desktop-project-current-location-path"
         type="button"
         dir="ltr"
         aria-label={path}
         aria-description={copyLabel}
-        data-copy-feedback={feedback ? "true" : undefined}
+        data-copy-feedback={feedbackState === "idle" ? undefined : feedbackState}
         onClick={() => { reset(); onCopy(); }}
         onMouseEnter={reveal}
         onMouseLeave={reset}
@@ -385,7 +386,14 @@ function DesktopProjectPath({ path, copyLabel, feedback, onCopy }: {
         onWheel={stop}
         onKeyDown={stop}
       >
-        <bdi>{feedback ?? getWorkspacePathForDisplay(path)}</bdi>
+        {feedback ? (
+          <span className="desktop-project-path-feedback">
+            {feedbackState === "copied" && <Check size={14} aria-hidden="true" />}
+            {feedback}
+          </span>
+        ) : (
+          <bdi className="desktop-project-path-text" ref={viewport}>{getWorkspacePathForDisplay(path)}</bdi>
+        )}
       </button></Tooltip>
       <span className="sr-only" role="status">{feedback}</span>
     </>

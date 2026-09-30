@@ -65,7 +65,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(onClose).not.toHaveBeenCalled();
     const backup = menu.querySelector<HTMLElement>(".desktop-project-backup-services");
     expect(Array.from(backup?.querySelectorAll("li") ?? []).map((service) => service.textContent))
-      .toEqual(["Backup to GitHub", "Backup to GitLab"]);
+      .toEqual(["Linked to GitHub", "Linked to GitLab"]);
     expect(backup?.querySelectorAll("img").length).toBe(2);
     expect(backup?.querySelector("img[src*='git-inverse']")).toBeNull();
     expect(backup?.querySelector("button, a, [role='menuitem'], .lucide-chevron-right")).toBeNull();
@@ -134,7 +134,7 @@ describe("titlebar Portal menu interactions", () => {
       expect(menu.querySelector(".desktop-project-current-location-mark .desktop-project-location-dot")).not.toBeNull();
       expect(menu.querySelector(".desktop-project-backup-services")).toBeNull();
       const share = menu.querySelector<HTMLButtonElement>("[data-location-action='share']");
-      expect(share?.textContent?.replace(/\u00a0/g, " ")).toBe("Share via PuppyOne Cloud");
+      expect(share?.textContent).toBe("Share via Cloud");
       expect(share?.querySelector(".lucide-cloud")).not.toBeNull();
       expect(share?.disabled).toBe(false);
       expect(onShare).not.toHaveBeenCalled();
@@ -239,11 +239,14 @@ describe("titlebar Portal menu interactions", () => {
     const feedback = fails ? "Couldn’t copy. Try again." : "Copied";
     expect(copyButton?.textContent).toBe(feedback);
     expect(copyButton?.getAttribute("data-tooltip")).toBe(feedback);
+    expect(copyButton?.getAttribute("data-copy-feedback")).toBe(fails ? "failed" : "copied");
+    expect(Boolean(copyButton?.querySelector(".lucide-check"))).toBe(!fails);
     expect(requireMenu().querySelector("[role='status']")?.textContent).toBe(feedback);
     expect(onClose).not.toHaveBeenCalled();
     act(() => vi.advanceTimersByTime(1_500));
     expect(copyButton?.textContent).toBe("~/project/demo");
     expect(copyButton?.getAttribute("data-tooltip")).toBe("Copy path");
+    expect(copyButton?.hasAttribute("data-copy-feedback")).toBe(false);
     expect(requireMenu().querySelector("[role='status']")?.textContent).toBe("");
   });
 
@@ -260,18 +263,19 @@ describe("titlebar Portal menu interactions", () => {
         />,
       ));
     });
-    const path = requireMenu().querySelector<HTMLElement>(".desktop-project-current-location-path");
-    if (!path) throw new Error("Missing path scroll region");
+    const pathButton = requireMenu().querySelector<HTMLButtonElement>(".desktop-project-current-location-path");
+    const path = pathButton?.querySelector<HTMLElement>(".desktop-project-path-text");
+    if (!path || !pathButton) throw new Error("Missing path copy button and scroll region");
     Object.defineProperties(path, { scrollWidth: { value: 400 }, clientWidth: { value: 120 } });
     let nextFrame: FrameRequestCallback | undefined;
     vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => { nextFrame = callback; return 1; });
     const cancel = vi.spyOn(window, "cancelAnimationFrame");
     vi.spyOn(performance, "now").mockReturnValue(0);
-    act(() => path.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })));
+    act(() => pathButton.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })));
     expect(nextFrame).toBeDefined();
     act(() => nextFrame?.(1500));
     expect(path.scrollLeft).toBe(35);
-    act(() => path.dispatchEvent(new MouseEvent("mouseout", { bubbles: true })));
+    act(() => pathButton.dispatchEvent(new MouseEvent("mouseout", { bubbles: true })));
     expect(path.scrollLeft).toBe(0);
     expect(cancel).toHaveBeenCalledWith(1);
   });

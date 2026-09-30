@@ -538,11 +538,15 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-current-location-path {
-  display: block;
+  display: flex;
+  flex: 1 1 auto;
   min-width: 0;
+  max-width: 100%;
   height: var(--po-menu-item-height);
-  padding: 0;
+  align-items: center;
+  padding: 0 var(--po-menu-item-padding-inline);
   border: 0;
+  border-radius: var(--po-menu-item-radius);
   background: transparent;
   font-family: inherit;
   font-size: var(--po-menu-item-font-size);
@@ -550,12 +554,14 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   line-height: var(--po-menu-item-line-height);
   text-align: start;
   cursor: var(--po-clickable-cursor, default);
-  transition: color 0.1s ease;
+  transition: background 0.1s ease, color 0.1s ease;
 }
 
-.desktop-project-current-location-path {
-  flex: 1 1 auto;
+.desktop-project-path-text {
+  display: block;
+  min-width: 0;
   max-width: 100%;
+  padding-inline-end: 8px;
   overflow-x: auto;
   overflow-y: hidden;
   white-space: nowrap;
@@ -563,25 +569,41 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   mask-image: linear-gradient(to right, #000 calc(100% - 8px), transparent);
 }
 
-.desktop-project-current-location-path::-webkit-scrollbar {
+.desktop-project-path-text::-webkit-scrollbar {
   display: none;
 }
 
-.desktop-project-current-location-path > bdi {
-  display: inline-block;
-  padding-inline-end: 8px;
+.desktop-project-current-location-path:hover,
+.desktop-project-current-location-path:focus-visible {
+  background: var(--po-hover);
+  color: var(--po-text);
 }
 
-.desktop-project-current-location-path:hover,
-.desktop-project-current-location-path:focus-visible,
-.desktop-project-current-location-path[data-copy-feedback="true"] {
-  color: var(--po-text);
+.desktop-project-current-location-path[data-copy-feedback="copied"] {
+  background: color-mix(in srgb, var(--po-success) 12%, transparent);
+  color: var(--po-success);
+}
+
+.desktop-project-current-location-path[data-copy-feedback="failed"] {
+  height: auto;
+  min-height: var(--po-menu-item-height);
+  background: color-mix(in srgb, var(--po-danger) 10%, transparent);
+  color: var(--po-danger);
+}
+
+.desktop-project-path-feedback {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: var(--po-menu-padding);
+  text-align: center;
 }
 
 .desktop-project-current-location-path:focus-visible {
   outline: 1px solid var(--po-focus-ring);
   outline-offset: 2px;
-  border-radius: 2px;
 }
 
 .desktop-project-menu .desktop-menu-item-icon {
