@@ -149,6 +149,10 @@
 }
 
 .desktop-sidebar-footer-actions {
+  --desktop-sidebar-utility-icon-size: 14px;
+  --desktop-sidebar-utility-icon-stroke-width: 1.65;
+  --desktop-sidebar-utility-icon-color:
+    color-mix(in srgb, var(--po-text-muted) 80%, var(--po-sidebar));
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
@@ -174,6 +178,16 @@
   border-radius: var(--desktop-control-radius);
   background: transparent;
   color: var(--po-text-muted);
+}
+
+.desktop-sidebar-footer-button[data-navigation-item="settings"] {
+  color: var(--desktop-sidebar-utility-icon-color, var(--po-text-muted));
+}
+
+.desktop-sidebar-footer-button[data-navigation-item="settings"] .desktop-sidebar-nav-icon-wrap > svg {
+  width: var(--desktop-sidebar-utility-icon-size, 16px);
+  height: var(--desktop-sidebar-utility-icon-size, 16px);
+  stroke-width: var(--desktop-sidebar-utility-icon-stroke-width, 2);
 }
 
 .desktop-sidebar-footer-button:hover {

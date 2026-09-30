@@ -353,7 +353,7 @@ describe("DesktopHelpLauncher", () => {
     expect(launcherRule).toContain("height: var(--desktop-sidebar-control-size)");
     expect(launcherRule).toContain("border: 0");
     expect(launcherRule).toContain("background: transparent");
-    expect(launcherRule).toContain("color: var(--po-text-muted)");
+    expect(launcherRule).toContain("color: var(--desktop-sidebar-utility-icon-color, var(--po-text-muted))");
     expect(launcherRule).toContain("padding: 0");
     expect(launcherRule).not.toContain("backdrop-filter");
     expect(launcherCss).toMatch(

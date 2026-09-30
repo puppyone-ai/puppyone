@@ -17,7 +17,7 @@
   border: 0;
   border-radius: var(--desktop-control-radius);
   background: transparent;
-  color: var(--po-text-muted);
+  color: var(--desktop-sidebar-utility-icon-color, var(--po-text-muted));
   box-shadow: none;
   cursor: var(--po-clickable-cursor, default);
   transition:
@@ -34,6 +34,9 @@
 
 .desktop-help-launcher-icon-slot > svg {
   display: block;
+  width: var(--desktop-sidebar-utility-icon-size, 17px);
+  height: var(--desktop-sidebar-utility-icon-size, 17px);
+  stroke-width: var(--desktop-sidebar-utility-icon-stroke-width, 1.65);
 }
 
 .desktop-help-launcher:hover {
