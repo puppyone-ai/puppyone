@@ -27,7 +27,7 @@ afterEach(() => {
 });
 
 describe("titlebar Portal menu interactions", () => {
-  it("keeps the centered project card free of branch controls and location text", async () => {
+  it("identifies the local device while keeping the centered project card free of branch controls", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -57,7 +57,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(menu.querySelector(".desktop-project-branch")).toBeNull();
     expect(menu.querySelector(".desktop-project-location-dot")).toBeNull();
     expect(menu.querySelector(".desktop-project-location-visual .lucide-laptop")).not.toBeNull();
-    expect(menu.textContent).not.toContain("This Mac");
+    expect(menu.textContent).toContain("On this Mac");
     expect(menu.textContent).not.toContain("main");
     expect(onCheckoutBranch).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
@@ -92,7 +92,7 @@ describe("titlebar Portal menu interactions", () => {
       expect(location?.querySelector(".desktop-project-current-location-path")?.textContent).toBe("~/project/demo");
       expect(location?.querySelector(".desktop-project-current-location-path")?.getAttribute("aria-label"))
         .toBe(workspace.path);
-      expect(menu.textContent).not.toContain("This Mac");
+      expect(menu.textContent).toContain("On this Mac");
       expect(menu.querySelector(".desktop-project-location-dot")).toBeNull();
       const share = menu.querySelector<HTMLButtonElement>("[data-location-action='share']");
       expect(share?.textContent).toBe("Share to other agents");

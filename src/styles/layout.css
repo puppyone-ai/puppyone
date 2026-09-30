@@ -485,18 +485,31 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 .desktop-project-location-visual {
   display: grid;
   min-width: 0;
-  min-height: 96px;
-  grid-template-rows: 1fr auto;
-  gap: 8px;
-  padding: 8px calc(var(--po-menu-item-padding-inline) - 1px);
+  min-height: 132px;
+  grid-template-rows: auto auto;
+  align-content: center;
+  gap: 12px;
+  padding: 12px;
   border: 1px solid var(--po-divider);
   border-radius: 8px;
+  background: var(--po-editor-bg);
+}
+
+.desktop-project-location-device {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
 }
 
 .desktop-project-current-location-mark {
   display: grid;
-  min-height: 32px;
   place-items: center;
+}
+
+.desktop-project-location-device .desktop-project-location-label {
+  font-size: var(--po-menu-item-font-size);
+  font-weight: var(--po-text-weight-regular, 400);
+  line-height: var(--po-menu-item-line-height);
 }
 
 .desktop-project-path-row {
@@ -614,18 +627,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-location-actions {
-  position: relative;
   margin-top: var(--po-menu-padding);
-  padding-top: var(--po-menu-padding);
-}
-
-.desktop-project-location-actions::before {
-  position: absolute;
-  top: 0;
-  inset-inline: var(--po-menu-item-padding-inline);
-  height: 1px;
-  background: var(--po-divider);
-  content: "";
 }
 
 .desktop-project-location-actions .desktop-menu-item {
