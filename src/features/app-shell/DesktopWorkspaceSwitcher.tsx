@@ -175,6 +175,7 @@ export function DesktopWorkspaceSwitcher({
           <DesktopProjectBackupDetails
             provider={activeBackup} status={backupStatus} cloudProject={cloudProject}
             cloudProjectId={cloudProject?.id ?? workspace.puppyoneGitRemote?.projectId}
+            cloudOrigin={workspace.puppyoneGitRemote?.origin}
           />
         ) : view !== "add" ? (
           <>
@@ -280,14 +281,15 @@ function BackupMark({ provider }: { provider: ProjectBackupDestination }) {
     : <ImportSourceMark brand={provider} decorative />;
 }
 
-function DesktopProjectBackupDetails({ provider, status, cloudProject, cloudProjectId }: {
+function DesktopProjectBackupDetails({ provider, status, cloudProject, cloudProjectId, cloudOrigin }: {
   provider: ProjectBackupDestination;
   status: GitStatusSnapshot | null;
   cloudProject?: DesktopProjectCloudCopy;
   cloudProjectId?: string;
+  cloudOrigin?: string;
 }) {
   const { t } = useLocalization();
-  const snapshot = getProjectBackupSnapshot(status, provider, cloudProjectId);
+  const snapshot = getProjectBackupSnapshot(status, provider, cloudProjectId, cloudOrigin);
   const statusLabel = snapshot.state === "matching"
     ? t("shell.workspaceSwitcher.backupCommitsSaved")
     : snapshot.state === "outgoing" ? t("shell.workspaceSwitcher.backupPendingCommits", { count: snapshot.ahead })

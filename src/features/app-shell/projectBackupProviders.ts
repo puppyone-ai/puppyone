@@ -15,11 +15,14 @@ export function getProjectBackupSnapshot(
   status: GitStatusSnapshot | null,
   provider: ProjectBackupDestination,
   cloudProjectId?: string,
+  cloudOrigin?: string,
 ) {
   const canonical = provider === "puppyone-cloud" ? getCanonicalPuppyoneRemote(status) : null;
   const candidates = status?.remotes.filter((remote) => {
     if (provider === "puppyone-cloud") {
-      return remote === canonical?.remote && (!cloudProjectId || canonical.info.projectId === cloudProjectId);
+      return remote === canonical?.remote
+        && (!cloudProjectId || canonical.info.projectId === cloudProjectId)
+        && (!cloudOrigin || canonical.info.origin === cloudOrigin.toLowerCase().replace(/\/$/, ""));
     }
     const host = getRemoteHostname(remote.pushUrl?.trim() || remote.fetchUrl?.trim() || "");
     return provider === "github" ? host === "github.com" || host === "ssh.github.com" : host === "gitlab.com";

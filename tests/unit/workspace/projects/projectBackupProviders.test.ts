@@ -41,6 +41,13 @@ describe("remote backup observations", () => {
       branches: [savedBranch], headCommitId: "saved-commit",
     }), "puppyone-cloud", "project-2")).toMatchObject({ state: "unverified", commitId: null });
   });
+  it("does not borrow a matching project ID from another Cloud server", () => {
+    const url = "https://other.example/git/project-1.git";
+    expect(getProjectBackupSnapshot(gitStatus({ remotes: [remote(url, url)],
+      branches: [savedBranch], headCommitId: "saved-commit",
+    }), "puppyone-cloud", "project-1", "https://cloud.example"))
+      .toMatchObject({ state: "unverified", commitId: null });
+  });
 });
 
 describe("project hosting services", () => {
