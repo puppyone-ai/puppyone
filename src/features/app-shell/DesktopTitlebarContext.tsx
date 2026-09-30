@@ -11,6 +11,7 @@ import {
   DesktopWorkspaceSwitcher,
   type DesktopProjectLocation,
 } from "./DesktopWorkspaceSwitcher";
+import type { ProjectBackupProvider } from "./projectBackupProviders";
 
 export function DesktopTitlebarContext({
   activeGitStatus,
@@ -37,6 +38,8 @@ export function DesktopTitlebarContext({
   onToggleWorkspaceSwitcher,
   compactProjectMenu = false,
   projectActions,
+  backupProviders,
+  onOpenGitChanges,
 }: DesktopTitlebarContextProps) {
   const { t } = useLocalization();
   const workspaceTitlebarLabel = workspace.name.trim() || workspace.name;
@@ -60,6 +63,8 @@ export function DesktopTitlebarContext({
         workspaceFolders={workspaceFolders}
         multiRootWorkspacesEnabled={multiRootWorkspacesEnabled}
         projectLocation={projectLocation}
+        backupProviders={compactProjectMenu ? backupProviders : undefined}
+        onOpenGitChanges={onOpenGitChanges}
         availableProjects={availableProjects}
         onAddExistingProject={multiRootWorkspacesEnabled ? onAddExistingProject : undefined}
         onOpenFolder={multiRootWorkspacesEnabled ? onAddProject : undefined}
@@ -91,6 +96,8 @@ export function DesktopTitlebarContext({
 type DesktopTitlebarContextProps = {
   compactProjectMenu?: boolean;
   projectActions?: ReactNode;
+  backupProviders?: readonly ProjectBackupProvider[];
+  onOpenGitChanges?: () => void;
   activeGitStatus: GitStatusSnapshot | null;
   branchSwitcherOpen: boolean;
   branchSwitcherRef: RefObject<HTMLDivElement>;

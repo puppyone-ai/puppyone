@@ -63,6 +63,7 @@
   "workspaceSwitcher.openMenu": "打开工作区菜单：{workspace}",
   "workspaceSwitcher.copyPath": "复制路径",
   "workspaceSwitcher.copyPathFailed": "复制失败，请重试。",
+  "workspaceSwitcher.backup": "备份",
   "workspaceSwitcher.shareToAgents": "分享给其他 Agent",
   "workspaceSwitcher.projectTitle": "项目：{project}",
   "workspaceSwitcher.projectActions": "项目操作",

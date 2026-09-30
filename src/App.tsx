@@ -73,6 +73,7 @@ import {
   mergePuppyoneWorkspaceConfig,
 } from "./features/app-shell/preferences";
 import { DesktopTitlebarContext } from "./features/app-shell/DesktopTitlebarContext";
+import { getProjectBackupProviders } from "./features/app-shell/projectBackupProviders";
 import { DesktopWorkspaceContent } from "./features/app-shell/DesktopWorkspaceContent";
 import { DesktopTitlebarActions } from "./features/app-shell/DesktopTitlebarActions";
 import {
@@ -1436,6 +1437,9 @@ function AppContent() {
         <DesktopTitlebarActions {...chromeActionProps} visibleGroups={["project"]} />
       ) : undefined}
       activeGitStatus={activeGitStatus}
+      backupProviders={focusedWorkspace?.path === workspace.path && gitStatusPath === workspace.path
+        ? getProjectBackupProviders(activeGitStatus) : []}
+      onOpenGitChanges={handleBackToGitChanges}
       branchSwitcherOpen={branchSwitcherOpen}
       branchSwitcherRef={branchSwitcherRef}
       gitStatusLoading={gitStatusLoading}

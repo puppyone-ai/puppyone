@@ -640,6 +640,19 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   margin-top: var(--po-menu-padding);
 }
 
+.desktop-project-backup-providers {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.desktop-project-backup-mark {
+  display: block;
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+}
+
 .desktop-project-location-actions .desktop-menu-item {
   min-height: var(--po-menu-item-height);
   height: auto;
