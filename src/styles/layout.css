@@ -657,13 +657,6 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   line-height: var(--po-menu-item-line-height, 18px);
 }
 
-.desktop-project-backup-mark {
-  display: block;
-  width: 14px;
-  height: 14px;
-  object-fit: contain;
-}
-
 .desktop-project-location-actions .desktop-menu-item {
   min-height: var(--po-menu-item-height);
   height: auto;

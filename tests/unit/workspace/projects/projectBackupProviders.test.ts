@@ -7,15 +7,15 @@ const remote = (fetchUrl: string | null, pushUrl: string | null = null): GitRemo
   name: "origin", fetchUrl, pushUrl, branches: [],
 });
 
-describe("project backup providers", () => {
+describe("project hosting services", () => {
   it("does not invent a backup for a missing or uninitialized repository", () => {
     expect(getProjectBackupProviders(null)).toEqual([]);
     expect(getProjectBackupProviders(gitStatus({ isRepo: false }))).toEqual([]);
     expect(getProjectBackupProviders(gitStatus({ headCommitId: null, totalCommits: 0 }))).toEqual([]);
   });
 
-  it("shows Git for local committed history", () => {
-    expect(getProjectBackupProviders(gitStatus())).toEqual(["git"]);
+  it("does not present local Git history as a hosting service", () => {
+    expect(getProjectBackupProviders(gitStatus())).toEqual([]);
   });
 
   it.each([
@@ -26,20 +26,20 @@ describe("project backup providers", () => {
     ["https://GITHUB.COM/team/project.git", "github"],
     ["https://gitlab.com/team/project.git", "gitlab"],
     ["git@gitlab.com:team/project.git", "gitlab"],
-    ["https://git.example.test/team/project.git", "git"],
-    ["/srv/backups/project.git", "git"],
-    ["https://github.com.example.test/team/project.git", "git"],
-    ["https://example.test/github.com/project.git", "git"],
+    ["https://git.example.test/team/project.git", null],
+    ["/srv/backups/project.git", null],
+    ["https://github.com.example.test/team/project.git", null],
+    ["https://example.test/github.com/project.git", null],
   ])("classifies the actual remote host: %s", (url, provider) => {
     expect(getProjectBackupProviders(gitStatus({
       headCommitId: null, totalCommits: 0, remotes: [remote(url)],
-    }))).toEqual([provider]);
+    }))).toEqual(provider ? [provider] : []);
   });
 
   it("uses the push destination when it differs from the fetch host", () => {
     expect(getProjectBackupProviders(gitStatus({
       remotes: [remote("https://github.com/team/project.git", "git@gitlab.com:team/project.git")],
-    }))).toEqual(["git", "gitlab"]);
+    }))).toEqual(["gitlab"]);
   });
 
   it("deduplicates brands across multiple remotes and ignores empty URLs", () => {
@@ -49,6 +49,6 @@ describe("project backup providers", () => {
       remote("git@github.com:team/project.git"),
       remote("https://git.example.test/team/project.git"),
       remote(null), remote(" ", " "),
-    ] }))).toEqual(["git", "github", "gitlab"]);
+    ] }))).toEqual(["github", "gitlab"]);
   });
 });

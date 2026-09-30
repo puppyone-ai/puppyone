@@ -63,7 +63,7 @@
   "workspaceSwitcher.openMenu": "워크스페이스 메뉴 열기: {workspace}",
   "workspaceSwitcher.copyPath": "경로 복사",
   "workspaceSwitcher.copyPathFailed": "복사하지 못했습니다. 다시 시도하세요.",
-  "workspaceSwitcher.backup": "백업",
+  "workspaceSwitcher.hostingServices": "호스팅 서비스",
   "workspaceSwitcher.shareToAgents": "다른 에이전트와 공유",
   "workspaceSwitcher.projectTitle": "프로젝트: {project}",
   "workspaceSwitcher.projectActions": "프로젝트 작업",

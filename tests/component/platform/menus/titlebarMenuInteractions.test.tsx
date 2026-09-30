@@ -37,7 +37,7 @@ describe("titlebar Portal menu interactions", () => {
       root?.render(withTestLocalization(
         <DesktopTitlebarContext
           compactProjectMenu availableProjects={[]}
-          backupProviders={["git", "github", "gitlab"]}
+          backupProviders={["github", "gitlab"]}
           activeGitStatus={createGitStatus()}
           branchSwitcherOpen={false}
           branchSwitcherRef={createRef<HTMLDivElement>()}
@@ -64,8 +64,9 @@ describe("titlebar Portal menu interactions", () => {
     expect(onClose).not.toHaveBeenCalled();
     const backup = menu.querySelector<HTMLElement>(".desktop-project-backup-services");
     expect(Array.from(backup?.querySelectorAll("li") ?? []).map((service) => service.textContent))
-      .toEqual(["Git", "GitHub", "GitLab"]);
-    expect(backup?.querySelectorAll("img").length).toBe(3);
+      .toEqual(["GitHub", "GitLab"]);
+    expect(backup?.querySelectorAll("img").length).toBe(2);
+    expect(backup?.querySelector("img[src*='git-inverse']")).toBeNull();
     expect(backup?.querySelector("button, a, [role='menuitem'], .lucide-chevron-right")).toBeNull();
     expect(menu.textContent).not.toContain("Backup");
     expect(menu.querySelector(".desktop-project-overview")?.nextElementSibling?.contains(backup ?? null))

@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
   Tooltip,
-  RENDERER_ASSET_PATHS,
-  resolveRendererPublicAssetUrl,
   createWorkspaceFolder,
   type Workspace,
   type WorkspaceFolder,
@@ -137,20 +135,11 @@ export function DesktopWorkspaceSwitcher({
               </div>
             </div>
             {backupProviders.length > 0 && (
-              <ul className="desktop-project-backup-services" aria-label={t("shell.workspaceSwitcher.backup")}>
+              <ul className="desktop-project-backup-services" aria-label={t("shell.workspaceSwitcher.hostingServices")}>
                 {backupProviders.map((provider) => (
                   <li key={provider} className="desktop-project-backup-service">
                     <span className="desktop-menu-item-icon" aria-hidden="true">
-                      {provider === "git" ? (
-                        <img
-                          className="desktop-project-backup-mark"
-                          src={resolveRendererPublicAssetUrl(RENDERER_ASSET_PATHS.icons.integrations.gitInverse)}
-                          alt=""
-                          draggable={false}
-                        />
-                      ) : (
-                        <ImportSourceMark brand={provider} decorative />
-                      )}
+                      <ImportSourceMark brand={provider} decorative />
                     </span>
                     <span className="desktop-menu-item-label">{PROJECT_BACKUP_PROVIDER_LABELS[provider]}</span>
                   </li>

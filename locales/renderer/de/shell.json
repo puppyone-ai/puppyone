@@ -63,7 +63,7 @@
   "workspaceSwitcher.openMenu": "Arbeitsbereichsmenü öffnen: {workspace}",
   "workspaceSwitcher.copyPath": "Pfad kopieren",
   "workspaceSwitcher.copyPathFailed": "Kopieren fehlgeschlagen. Erneut versuchen.",
-  "workspaceSwitcher.backup": "Sicherung",
+  "workspaceSwitcher.hostingServices": "Hosting-Dienste",
   "workspaceSwitcher.shareToAgents": "Mit anderen Agents teilen",
   "workspaceSwitcher.projectTitle": "Projekt: {project}",
   "workspaceSwitcher.projectActions": "Projektaktionen",
