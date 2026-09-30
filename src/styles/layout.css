@@ -514,6 +514,11 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   line-height: var(--po-menu-item-line-height);
 }
 
+.desktop-project-location-device .desktop-project-location-label,
+.desktop-project-current-location-path {
+  color: color-mix(in srgb, var(--po-text-muted) 70%, var(--po-text-subtle));
+}
+
 .desktop-project-location-dot {
   width: 6px;
   height: 6px;
@@ -535,14 +540,14 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   color: var(--po-text-muted);
 }
 
-.desktop-project-copy-path {
+.desktop-project-menu .desktop-project-copy-path {
   flex: 0 0 auto;
+  color: var(--po-text);
 }
 
 .desktop-project-current-location-path {
   display: block;
   min-width: 0;
-  color: var(--po-text-muted);
   font-size: var(--po-menu-item-font-size);
   font-weight: var(--po-text-weight-regular, 400);
   line-height: var(--po-menu-item-line-height);
