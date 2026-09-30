@@ -455,6 +455,8 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-menu {
+  --po-menu-bg: var(--po-header);
+  --interface-menu-background: var(--po-header);
   --po-menu-shadow-compact:
     0 2px 6px color-mix(in srgb, var(--po-shadow) 65%, transparent),
     0 12px 28px -4px var(--po-shadow);

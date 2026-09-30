@@ -261,6 +261,8 @@
   "experimental.groups.cloud": "Nuvem e automação",
   "experimental.centerProjectInHeader.title": "Centralizar projeto no Header",
   "experimental.centerProjectInHeader.detail": "Centralizar o título do projeto e o status do Git; manter Compartilhar e Chat à direita.",
+  "experimental.gitCardInHeader.title": "Cartão do Git no cabeçalho",
+  "experimental.gitCardInHeader.detail": "Com o projeto centralizado, abre o Git abaixo do botão no cabeçalho.",
   "experimental.otherAppImports.title": "Importar de outros aplicativos",
   "experimental.otherAppImports.detail": "Mostrar Notion, Google Drive, Airtable e Obsidian em Importar e adicionar a página de configurações.",
   "experimental.detail": "Ative antecipadamente experiências do desktop. Todos os experimentos ficam desativados por padrão.",

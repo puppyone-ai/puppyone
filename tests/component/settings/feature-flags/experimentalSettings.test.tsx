@@ -17,6 +17,21 @@ afterEach(() => {
 });
 
 describe("Experimental settings", () => {
+  it("offers a separate default-off Git card in the Header group", () => {
+    const onChange = vi.fn();
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    act(() => root?.render(withTestLocalization(
+      <ExperimentalSettingsView settings={DEFAULT_EXPERIMENTAL_SETTINGS}
+        assetLibraryHomeAvailable={false} onChange={onChange} />,
+    )));
+    const toggle = host.querySelector<HTMLInputElement>('input[aria-label="Git card in Header"]');
+    expect(toggle?.closest(".desktop-settings-subsection")?.querySelector("h3")?.textContent).toBe("Header & layout");
+    expect(toggle?.checked).toBe(false);
+    act(() => toggle?.click());
+    expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_EXPERIMENTAL_SETTINGS, enableGitCardInHeader: true });
+  });
   it("groups experiments and enables centered project names without changing other flags", () => {
     const onChange = vi.fn();
     const host = document.createElement("div");

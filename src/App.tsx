@@ -1,5 +1,7 @@
 import { useWorkspaceEntryBootstrap } from "./features/app-shell/useWorkspaceEntryBootstrap";
 import { useHeaderCoachmarks } from "./features/app-shell/headerCoachmarks";
+import { useGitPresentation } from "./features/app-shell/useGitPresentation";
+import { DesktopGitHeaderCard } from "./features/app-shell/DesktopGitHeaderCard";
 import {
   lazy,
   Suspense,
@@ -422,12 +424,31 @@ function AppContent() {
     ?? workbenchWorkspace?.folders[0]
     ?? null;
   const focusedWorkspace = focusedWorkspaceFolder?.workspace ?? workspace;
-  const rightSidebarContentVisible = rightSidebarOpen;
-  const gitHistorySidebarOpen = rightSidebarContentVisible
-    && rightSidebarSurface === "history";
-  const gitChangesSidebarOpen = rightSidebarContentVisible
-    && rightSidebarSurface === "changes";
-  const gitSidebarOpen = gitChangesSidebarOpen || gitHistorySidebarOpen;
+  const auxiliarySurfaceRef = useRef<HTMLDivElement>(null);
+  const blurAuxiliarySurfaceFocus = useCallback(() => {
+    const activeElement = document.activeElement;
+    if (
+      activeElement instanceof HTMLElement
+      && auxiliarySurfaceRef.current?.contains(activeElement)
+    ) {
+      activeElement.blur();
+    }
+  }, []);
+  const centerProjectInHeader = experimentalSettings.enableCenteredProjectInHeader;
+  const gitAnchorRef = useRef<HTMLDivElement>(null);
+  const closeProjectMenu = useCallback(() => setSwitcherOpen(false), []);
+  const gitPresentation = useGitPresentation({
+    centeredProject: centerProjectInHeader,
+    cardExperiment: experimentalSettings.enableGitCardInHeader,
+    workspaceScope: focusedWorkspace?.path ?? null,
+    sidebarOpen: rightSidebarOpen,
+    sidebarSurface: rightSidebarSurface,
+    setSidebarOpen: setRightSidebarOpen,
+    setSidebarSurface: setRightSidebarSurface,
+    onReveal: closeProjectMenu,
+    beforeOpenSidebar: blurAuxiliarySurfaceFocus,
+  });
+  const rightSidebarContentVisible = gitPresentation.effectiveSidebarOpen;
   const agentSidebarOpen = rightSidebarContentVisible
     && rightSidebarSurface === "chat";
   const handleRemoveProject = useCallback(async (folder: WorkspaceFolder) => {
@@ -475,8 +496,8 @@ function AppContent() {
   }, [refreshWorkspaceContent]);
   const git = useDesktopGitController({
     workspace: focusedWorkspace,
-    gitChangesActive: gitChangesSidebarOpen,
-    gitHistoryActive: gitHistorySidebarOpen,
+    gitChangesActive: gitPresentation.changesActive,
+    gitHistoryActive: gitPresentation.historyActive,
     onWorkspaceContentChanged: refreshWorkspaceContentFromGit,
   });
   const invalidateGitStatus = git.invalidateGitStatus;
@@ -1275,16 +1296,6 @@ function AppContent() {
     setLocalAgentsSettings,
     t,
   ]);
-  const auxiliarySurfaceRef = useRef<HTMLDivElement>(null);
-  const blurAuxiliarySurfaceFocus = useCallback(() => {
-    const activeElement = document.activeElement;
-    if (
-      activeElement instanceof HTMLElement
-      && auxiliarySurfaceRef.current?.contains(activeElement)
-    ) {
-      activeElement.blur();
-    }
-  }, []);
   const readAuxiliaryTerminalAppearance = useCallback(() => {
     const surface = auxiliarySurfaceRef.current;
     if (!surface) throw new Error("The auxiliary appearance surface is not mounted.");
@@ -1313,43 +1324,18 @@ function AppContent() {
     projectSessions,
     (focusedWorkspace ?? workspace)?.path ?? null,
   );
-  const handleOpenGitHistory = useCallback(() => {
-    blurAuxiliarySurfaceFocus();
-    setRightSidebarSurface("history");
-    setRightSidebarOpen(true);
-    setSwitcherOpen(false);
-  }, [
-    blurAuxiliarySurfaceFocus,
-    setRightSidebarOpen,
-    setRightSidebarSurface,
-  ]);
-  const handleBackToGitChanges = useCallback(() => {
-    blurAuxiliarySurfaceFocus();
-    setRightSidebarSurface("changes");
-    setRightSidebarOpen(true);
-  }, [blurAuxiliarySurfaceFocus, setRightSidebarOpen, setRightSidebarSurface]);
+  const handleOpenGitHistory = gitPresentation.openHistory;
+  const handleBackToGitChanges = gitPresentation.backToChanges;
   const gitTitlebarStatus = getGitTitlebarStatus(activeGitStatus);
   const headerCoachmarks = useHeaderCoachmarks({
     agentOpen: agentSidebarOpen,
     alwaysShow: experimentalSettings.enableAlwaysShowOnboardingCoachmarks,
-    changesOpen: gitSidebarOpen,
+    changesOpen: gitPresentation.open,
     localChangeCount: activeGitStatus?.isRepo ? gitTitlebarStatus.localChanges : null,
     workspaceEntryId: workspaceEntryIntent?.id ?? null,
     workspaceScopeId: focusedWorkspace?.id ?? null,
   });
-  const handleToggleGitChanges = useCallback(() => {
-    if (gitSidebarOpen) {
-      setRightSidebarOpen(false);
-      return;
-    }
-    setRightSidebarSurface("changes");
-    setRightSidebarOpen(true);
-    setSwitcherOpen(false);
-  }, [
-    gitSidebarOpen,
-    setRightSidebarOpen,
-    setRightSidebarSurface,
-  ]);
+  const handleToggleGitChanges = gitPresentation.toggle;
   const handleOpenGitWorkingFile = useCallback((path: string) => {
     const rootUri = focusedWorkspaceFolder?.uri;
     if (!rootUri) return;
@@ -1410,14 +1396,77 @@ function AppContent() {
     );
   }
 
-  const centerProjectInHeader = experimentalSettings.enableCenteredProjectInHeader;
+  const gitChangesView = (
+    <GitChangesSidebar
+      repository={{
+        status: activeGitStatus,
+        puppyoneConfig,
+        gitDisplayMode: preferences.gitDisplayMode,
+        gitSidebarLayout: preferences.gitSidebarLayout,
+        fileIconTheme,
+      }}
+      view={{
+        selectedWorkingFile: selectedGitWorkingFile,
+        operationLoading: gitOperationLoading,
+        operationError: null,
+        loading: gitStatusLoading,
+        error: gitStatusError,
+      }}
+      actions={{
+        initialize: handleInitializeGitRepository,
+        selectWorkingFile: selectGitWorkingFile,
+        stagePaths: handleStageGitPaths,
+        stageAll: handleStageAllGitChanges,
+        unstagePaths: handleUnstageGitPaths,
+        discardPaths: handleDiscardGitPaths,
+        stageAndCommit: handleStageAndCommitGit,
+        commit: handleCommitGit,
+        commitAndPush: handleCommitAndPushGit,
+        continueOperation: handleContinueGitOperation,
+        abortOperation: handleAbortGitOperation,
+        pull: handlePullGit,
+        push: handlePushGit,
+        publish: handlePublishGitBranch,
+      }}
+      workingFileDiff={gitWorkingFileDiff}
+      workingFileDiffLoading={gitWorkingFileDiffLoading}
+      workingFileDiffError={gitWorkingFileDiffError}
+      onOpenFile={handleOpenGitWorkingFile}
+      onOpenHistory={handleOpenGitHistory}
+      cloudBackup={{
+        loading: cloudBackupLoading || pendingCloudBackupSetup,
+        error: null,
+        enabled: cloudEnabled,
+        start: handleStartPuppyoneBackup,
+      }}
+    />
+  );
+  const gitHistoryView = (
+    <GitHistorySidebar
+      status={activeGitStatus}
+      statusLoading={gitStatusLoading}
+      statusError={gitStatusError}
+      selectedCommitId={selectedGitCommitId}
+      commitDetail={gitCommitDetail}
+      commitDetailLoading={gitCommitDetailLoading}
+      commitDetailError={gitCommitDetailError}
+      historyLoading={gitHistoryLoading}
+      fileIconTheme={fileIconTheme}
+      initializing={gitOperationLoading === "init"}
+      onInitialize={handleInitializeGitRepository}
+      onSelectCommit={selectGitCommit}
+      onBack={handleBackToGitChanges}
+    />
+  );
   const chromeActionProps = {
     desktopUpdateState: desktopUpdates.state,
     titlebarActionsSettings,
     terminalSidebarOpen: agentSidebarOpen,
     terminalToolEnabled: true,
     gitChangesAvailable: Boolean(focusedWorkspace),
-    gitChangesOpen: gitSidebarOpen,
+    gitChangesOpen: gitPresentation.open,
+    gitCardEnabled: gitPresentation.cardEnabled,
+    gitAnchorRef,
     gitChangesStatus: gitTitlebarStatus,
     changesInProjectContext: centerProjectInHeader,
     activeCoachmark: headerCoachmarks.active,
@@ -1561,7 +1610,7 @@ function AppContent() {
               onNavigate={handleLocationBarNavigate}
             />
           ) : undefined}
-          rightSidebarOpen={rightSidebarOpen}
+          rightSidebarOpen={gitPresentation.effectiveSidebarOpen}
           resizableRightSidebar
           rightSidebarWidth={rightSidebarWidth}
           onLeftSidebarExpand={() => setSidebarCollapsed(false)}
@@ -1594,77 +1643,33 @@ function AppContent() {
                     onSetupPreferencesChange={(setupSuggestions) => setLocalAgentsSettings({ ...localAgentsSettings, setupSuggestions })} />}
                 />}
               </div>
-              <div
-                className={`desktop-right-sidebar-surface ${rightSidebarSurface === "changes" ? "is-active" : ""}`}
-                aria-hidden={rightSidebarSurface !== "changes"}
-              >
-                <GitChangesSidebar
-                  repository={{
-                    status: activeGitStatus,
-                    puppyoneConfig,
-                    gitDisplayMode: preferences.gitDisplayMode,
-                    gitSidebarLayout: preferences.gitSidebarLayout,
-                    fileIconTheme,
-                  }}
-                  view={{
-                    selectedWorkingFile: selectedGitWorkingFile,
-                    operationLoading: gitOperationLoading,
-                    operationError: null,
-                    loading: gitStatusLoading,
-                    error: gitStatusError,
-                  }}
-                  actions={{
-                    initialize: handleInitializeGitRepository,
-                    selectWorkingFile: selectGitWorkingFile,
-                    stagePaths: handleStageGitPaths,
-                    stageAll: handleStageAllGitChanges,
-                    unstagePaths: handleUnstageGitPaths,
-                    discardPaths: handleDiscardGitPaths,
-                    stageAndCommit: handleStageAndCommitGit,
-                    commit: handleCommitGit,
-                    commitAndPush: handleCommitAndPushGit,
-                    continueOperation: handleContinueGitOperation,
-                    abortOperation: handleAbortGitOperation,
-                    pull: handlePullGit,
-                    push: handlePushGit,
-                    publish: handlePublishGitBranch,
-                  }}
-                  workingFileDiff={gitWorkingFileDiff}
-                  workingFileDiffLoading={gitWorkingFileDiffLoading}
-                  workingFileDiffError={gitWorkingFileDiffError}
-                  onOpenFile={handleOpenGitWorkingFile}
-                  onOpenHistory={handleOpenGitHistory}
-                  cloudBackup={{
-                    loading: cloudBackupLoading || pendingCloudBackupSetup,
-                    error: null,
-                    enabled: cloudEnabled,
-                    start: handleStartPuppyoneBackup,
-                  }}
-                />
-              </div>
-              <div
-                className={`desktop-right-sidebar-surface ${rightSidebarSurface === "history" ? "is-active" : ""}`}
-                aria-hidden={rightSidebarSurface !== "history"}
-              >
-                <GitHistorySidebar
-                  status={activeGitStatus}
-                  statusLoading={gitStatusLoading}
-                  statusError={gitStatusError}
-                  selectedCommitId={selectedGitCommitId}
-                  commitDetail={gitCommitDetail}
-                  commitDetailLoading={gitCommitDetailLoading}
-                  commitDetailError={gitCommitDetailError}
-                  historyLoading={gitHistoryLoading}
-                  fileIconTheme={fileIconTheme}
-                  initializing={gitOperationLoading === "init"}
-                  onInitialize={handleInitializeGitRepository}
-                  onSelectCommit={selectGitCommit}
-                  onBack={handleBackToGitChanges}
-                />
-              </div>
+              {!gitPresentation.cardEnabled && (
+                <>
+                  <div
+                    className={`desktop-right-sidebar-surface ${rightSidebarSurface === "changes" ? "is-active" : ""}`}
+                    aria-hidden={rightSidebarSurface !== "changes"}
+                  >
+                    {gitChangesView}
+                  </div>
+                  <div
+                    className={`desktop-right-sidebar-surface ${rightSidebarSurface === "history" ? "is-active" : ""}`}
+                    aria-hidden={rightSidebarSurface !== "history"}
+                  >
+                    {gitHistoryView}
+                  </div>
+                </>
+              )}
             </div>
           )}
         >
+          {gitPresentation.cardEnabled && <DesktopGitHeaderCard
+            anchorRef={gitAnchorRef}
+            open={gitPresentation.cardOpen}
+            surface={gitPresentation.cardSurface}
+            onDismiss={gitPresentation.closeCard}
+            changes={gitChangesView}
+            history={gitHistoryView}
+          />}
           <DesktopWorkspaceContent
             activeAiEditRequest={activeAiEditRequest}
             activeDocumentPath={activeDocumentPath}

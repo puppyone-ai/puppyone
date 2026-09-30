@@ -47,6 +47,7 @@ export type HeaderElementRenderContext = {
     onToggle: () => void;
     sidebarOpen: boolean;
     status: GitTitlebarStatus;
+    cardId?: string;
   };
 };
 
@@ -80,7 +81,10 @@ export const HEADER_ELEMENT_DEFINITIONS: readonly HeaderElementDefinition[] = [
             : "desktop-titlebar-action desktop-titlebar-changes"}
           type="button"
           aria-label={statusLabel}
-          aria-pressed={changes.sidebarOpen}
+          aria-pressed={changes.cardId ? undefined : changes.sidebarOpen}
+          aria-haspopup={changes.cardId ? "dialog" : undefined}
+          aria-expanded={changes.cardId ? changes.sidebarOpen : undefined}
+          aria-controls={changes.cardId && changes.sidebarOpen ? changes.cardId : undefined}
           data-has-git-status={hasStatus ? "true" : undefined}
           data-toolbar-action={toolbarPlacement ? "changes" : undefined}
           onClick={activate}

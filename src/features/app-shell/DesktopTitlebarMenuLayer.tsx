@@ -1,4 +1,4 @@
-import { useEffect, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { useEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { DesktopMenuSurface } from "../../components/DesktopMenu";
 import { DesktopOverlayLayer } from "./DesktopOverlayPortal";
 import { useAnchoredOverlayPosition } from "./useAnchoredOverlayPosition";
@@ -13,6 +13,9 @@ type DesktopTitlebarMenuLayerProps = {
   preferredMaxHeight: number;
   preferredWidth?: number;
   alignment?: "start" | "center" | "end";
+  role?: "menu" | "dialog";
+  id?: string;
+  ariaLabel?: string;
 };
 
 const TITLEBAR_CONTEXT_MENU_WIDTH = 300;
@@ -32,6 +35,9 @@ export function DesktopTitlebarMenuLayer({
   preferredMaxHeight,
   preferredWidth = TITLEBAR_CONTEXT_MENU_WIDTH,
   alignment = "start",
+  role = "menu",
+  id,
+  ariaLabel,
 }: DesktopTitlebarMenuLayerProps) {
   const { overlayRef, setOverlayRef, overlayPosition } = useAnchoredOverlayPosition({
     open,
@@ -43,6 +49,18 @@ export function DesktopTitlebarMenuLayer({
     alignment,
     placementPreference: "below",
   });
+  const focusedOnOpen = useRef(false);
+  useEffect(() => {
+    if (!open) {
+      focusedOnOpen.current = false;
+      return;
+    }
+    // The Portal first mounts hidden for measurement; focus after positioning.
+    if (role === "dialog" && overlayPosition && !focusedOnOpen.current) {
+      overlayRef.current?.focus({ preventScroll: true });
+      focusedOnOpen.current = true;
+    }
+  }, [open, overlayPosition, overlayRef, role]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -50,27 +68,33 @@ export function DesktopTitlebarMenuLayer({
     const isInsideMenu = (target: EventTarget | null) => target instanceof Node && Boolean(
       anchorRef.current?.contains(target) || overlayRef.current?.contains(target),
     );
+    const isInsideModal = (target: EventTarget | null) => role === "dialog"
+      && target instanceof Element
+      && Boolean(target.closest('[aria-modal="true"], [data-desktop-dialog-root="true"]'));
     const closeOnPointerDown = (event: PointerEvent) => {
-      if (!isInsideMenu(event.target)) onDismiss();
+      if (!isInsideMenu(event.target) && !isInsideModal(event.target)) onDismiss();
     };
     const closeOnFocusExit = (event: FocusEvent) => {
-      if (!isInsideMenu(event.target)) onDismiss();
+      if (!isInsideMenu(event.target) && !isInsideModal(event.target)) onDismiss();
     };
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || event.isComposing || event.defaultPrevented) return;
+      if (role === "dialog" && !isInsideMenu(event.target)) return;
       onDismiss();
-      anchorRef.current?.querySelector<HTMLElement>('[aria-haspopup="menu"]')?.focus();
+      anchorRef.current?.querySelector<HTMLElement>("[aria-haspopup]")?.focus();
     };
 
     document.addEventListener("pointerdown", closeOnPointerDown, true);
     document.addEventListener("focusin", closeOnFocusExit, true);
-    document.addEventListener("keydown", closeOnEscape, true);
+    // Git details consume Escape to go Back; the card closes after that handler.
+    const captureEscape = role === "menu";
+    document.addEventListener("keydown", closeOnEscape, captureEscape);
     return () => {
       document.removeEventListener("pointerdown", closeOnPointerDown, true);
       document.removeEventListener("focusin", closeOnFocusExit, true);
-      document.removeEventListener("keydown", closeOnEscape, true);
+      document.removeEventListener("keydown", closeOnEscape, captureEscape);
     };
-  }, [anchorRef, onDismiss, open, overlayRef]);
+  }, [anchorRef, onDismiss, open, overlayRef, role]);
 
   if (!open) return null;
 
@@ -94,6 +118,10 @@ export function DesktopTitlebarMenuLayer({
     <DesktopOverlayLayer>
       <DesktopMenuSurface
         ref={setOverlayRef}
+        role={role}
+        id={id}
+        ariaLabel={ariaLabel}
+        tabIndex={role === "dialog" ? -1 : undefined}
         className={`desktop-titlebar-menu desktop-titlebar-menu-overlay ${className}`}
         data-titlebar-context-menu="true"
         elevation="compact"

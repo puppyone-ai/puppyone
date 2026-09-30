@@ -248,6 +248,15 @@ describe("experimental preferences", () => {
     expect(parseExperimentalSettings(JSON.stringify({ enableShareOnboarding: true })).enableShareOnboarding).toBe(true);
   });
 
+  it("only restores the Git Header card after an explicit opt-in", () => {
+    for (const stored of [null, "not-json", "{}", '{"enableGitCardInHeader":"true"}']) {
+      expect(parseExperimentalSettings(stored).enableGitCardInHeader).toBe(false);
+    }
+    const stored = JSON.stringify({ enableGitCardInHeader: true, enableCenteredProjectInHeader: false });
+    expect(parseExperimentalSettings(stored).enableGitCardInHeader).toBe(true);
+    expect(parseExperimentalSettings(stored).enableCenteredProjectInHeader).toBe(false);
+  });
+
   it("keeps onboarding coachmark replay off unless the user explicitly opts in", () => {
     expect(parseExperimentalSettings(null).enableAlwaysShowOnboardingCoachmarks).toBe(false);
     expect(parseExperimentalSettings("not-json").enableAlwaysShowOnboardingCoachmarks).toBe(false);
