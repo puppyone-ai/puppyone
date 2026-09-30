@@ -61,6 +61,8 @@
   "windowControls.maximize": "Agrandir ou restaurer la fenêtre",
   "windowControls.close": "Fermer la fenêtre",
   "workspaceSwitcher.openMenu": "Ouvrir le menu de l’espace de travail : {workspace}",
+  "workspaceSwitcher.copyPath": "Copier le chemin",
+  "workspaceSwitcher.copyPathFailed": "Échec de la copie. Réessayez.",
   "workspaceSwitcher.projectTitle": "Projet : {project}",
   "workspaceSwitcher.projectActions": "Actions du projet",
   "workspaceSwitcher.projectActionsFor": "Actions du projet {project}",

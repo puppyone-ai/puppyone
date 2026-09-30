@@ -61,6 +61,8 @@
   "windowControls.maximize": "창 최대화 또는 복원",
   "windowControls.close": "창 닫기",
   "workspaceSwitcher.openMenu": "워크스페이스 메뉴 열기: {workspace}",
+  "workspaceSwitcher.copyPath": "경로 복사",
+  "workspaceSwitcher.copyPathFailed": "복사하지 못했습니다. 다시 시도하세요.",
   "workspaceSwitcher.projectTitle": "프로젝트: {project}",
   "workspaceSwitcher.projectActions": "프로젝트 작업",
   "workspaceSwitcher.projectActionsFor": "{project} 프로젝트 작업",

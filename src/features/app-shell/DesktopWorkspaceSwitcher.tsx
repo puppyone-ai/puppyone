@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import {
   Tooltip,
   createWorkspaceFolder,
@@ -7,16 +7,19 @@ import {
 } from "@puppyone/shared-ui";
 import {
   ArrowLeft,
-  ChevronDown,
+  Check,
   ChevronRight,
   Cloud,
+  Copy,
+  Folder,
   FolderPlus,
   GitBranch,
   Laptop,
   LoaderCircle,
   TriangleAlert,
 } from "lucide-react";
-import { DesktopMenuItem } from "../../components/DesktopMenu";
+import { DesktopMenuIconButton, DesktopMenuItem } from "../../components/DesktopMenu";
+import { writeClipboardText } from "../../lib/clipboard";
 import { DesktopTitlebarMenuLayer } from "./DesktopTitlebarMenuLayer";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import {
@@ -121,7 +124,7 @@ export function DesktopWorkspaceSwitcher({
         onDismiss={onClose}
         open={open}
         preferredMaxHeight={view === "branches" ? 440 : 520}
-        preferredWidth={view === "projects" ? 184 : 240}
+        preferredWidth={view === "projects" ? 224 : 240}
         alignment={menuAlignment}
       >
         {view === "projects" ? (
@@ -135,19 +138,17 @@ export function DesktopWorkspaceSwitcher({
                   fallbackKind={workspaceContextAssetKind}
                   location={projectLocation}
                   path={workspace.path}
+                  branchControl={branchMenu ? (
+                    <DesktopMenuIconButton
+                      className="desktop-project-branch"
+                      icon={<GitBranch size={14} strokeWidth={1.75} />}
+                      label={t("shell.branch.title", { branch: bidiIsolate(branchMenu.label) })}
+                      tooltip={t("shell.branch.switch", { branch: bidiIsolate(branchMenu.label) })}
+                      disabled={branchMenu.disabled}
+                      onClick={() => setView("branches")}
+                    />
+                  ) : undefined}
                 />
-                {branchMenu && (
-                  <DesktopMenuItem
-                    className="desktop-project-branch"
-                    icon={<GitBranch size={14} strokeWidth={1.75} />}
-                    aria-label={t("shell.branch.title", { branch: bidiIsolate(branchMenu.label) })}
-                    label={<bdi>{branchMenu.label}</bdi>}
-                    trailing={<ChevronDown size={12} aria-hidden="true" />}
-                    tooltip={t("shell.branch.switch", { branch: bidiIsolate(branchMenu.label) })}
-                    disabled={branchMenu.disabled}
-                    onClick={() => setView("branches")}
-                  />
-                )}
               </div>
             </div>
             {(attachedFolders.length > 1 || multiRootWorkspacesEnabled) && (
@@ -277,37 +278,108 @@ function DesktopCurrentProjectLocation({
   fallbackKind,
   location,
   path,
+  branchControl,
 }: {
   fallbackKind: "local" | "cloud";
   location?: DesktopProjectLocation;
   path: string;
+  branchControl?: ReactNode;
 }) {
   const { t } = useLocalization();
   const kind = location?.current ?? fallbackKind;
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+  useEffect(() => {
+    setCopyState("idle");
+  }, [path]);
+  useEffect(() => {
+    if (copyState === "idle") return;
+    const timer = window.setTimeout(() => setCopyState("idle"), 1_500);
+    return () => window.clearTimeout(timer);
+  }, [copyState]);
+  const copyLabel = t(copyState === "copied" ? "common.action.copied"
+    : copyState === "failed" ? "shell.workspaceSwitcher.copyPathFailed"
+      : "shell.workspaceSwitcher.copyPath");
+  const copyPath = async () => {
+    try {
+      await writeClipboardText(path);
+      setCopyState("copied");
+    } catch {
+      setCopyState("failed");
+    }
+  };
   return (
     <div
       className="desktop-project-current-location"
       data-project-location={kind}
-      role="status"
     >
-      <div className="desktop-project-location-heading">
-        <ProjectLocationMark
-          className="desktop-project-current-location-mark"
-          kind={kind}
-          size={18}
-        />
+      {kind === "local" && (
+        <div className="desktop-project-path-row">
+          <Folder className="desktop-project-path-mark" size={18} strokeWidth={1.75} aria-hidden="true" />
+          <DesktopProjectPath path={path} />
+          <DesktopMenuIconButton
+            className="desktop-project-copy-path"
+            icon={copyState === "copied" ? <Check size={14} /> : <Copy size={14} />}
+            label={copyLabel}
+            onClick={() => void copyPath()}
+          />
+        </div>
+      )}
+      <div className="desktop-project-location-heading" role="status">
+        <span className="desktop-project-location-dot" aria-hidden="true" />
         <span className="desktop-project-current-location-label">
           {t(kind === "local" ? "shell.workspaceSwitcher.location.thisMac" : "shell.workspaceSwitcher.location.cloud")}
         </span>
-        <span className="desktop-project-location-dot" aria-hidden="true" />
+        {branchControl}
       </div>
-      {kind === "local" && (
-        <Tooltip content={path}>
-          <bdi className="desktop-project-current-location-path" dir="ltr" aria-label={path}>
-            {getWorkspacePathForDisplay(path)}
-          </bdi>
-        </Tooltip>
-      )}
+    </div>
+  );
+}
+
+function DesktopProjectPath({ path }: { path: string }) {
+  const viewport = useRef<HTMLDivElement>(null);
+  const frame = useRef<number | null>(null);
+  const stop = () => {
+    if (frame.current !== null) window.cancelAnimationFrame(frame.current);
+    frame.current = null;
+  };
+  const reset = () => {
+    stop();
+    if (viewport.current) viewport.current.scrollLeft = 0;
+  };
+  const reveal = () => {
+    stop();
+    const element = viewport.current;
+    if (!element || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const distance = element.scrollWidth - element.clientWidth;
+    if (distance <= 0) return;
+    const startedAt = performance.now();
+    const from = element.scrollLeft;
+    const scroll = (time: number) => {
+      element.scrollLeft = Math.min(distance, from + Math.max(0, time - startedAt - 500) * 0.035);
+      if (element.scrollLeft < distance) frame.current = window.requestAnimationFrame(scroll);
+      else frame.current = null;
+    };
+    frame.current = window.requestAnimationFrame(scroll);
+  };
+  useEffect(() => () => {
+    if (frame.current !== null) window.cancelAnimationFrame(frame.current);
+  }, [path]);
+  return (
+    <div
+      ref={viewport}
+      className="desktop-project-current-location-path"
+      dir="ltr"
+      role="region"
+      tabIndex={0}
+      aria-label={path}
+      onMouseEnter={reveal}
+      onMouseLeave={reset}
+      onFocus={reveal}
+      onBlur={reset}
+      onWheel={stop}
+      onKeyDown={stop}
+    >
+      <bdi>{getWorkspacePathForDisplay(path)}</bdi>
     </div>
   );
 }
@@ -344,13 +416,13 @@ function DesktopAlternateLocationAction({
     ? location.localAvailable ? onSwitchToLocal : onSaveToLocal
     : state === "setup" ? onSetupCloud
       : state === "resolving" ? undefined : onSwitchToCloud;
-  const label = t(`shell.workspaceSwitcher.location.${{
+  const label = state === "setup" ? t("shell.titlebar.share") : t(`shell.workspaceSwitcher.location.${{
     "switch-local": "switchToMac",
     save: "saveToMac",
     setup: "deployToCloud",
     switch: "switchToCloud",
-    "signed-out": "openCloud",
-    attention: "openCloud",
+    "signed-out": "switchToCloud",
+    attention: "switchToCloud",
     resolving: "checking",
   }[state]}`);
   const Icon = isCloud ? Laptop

@@ -61,6 +61,8 @@
   "windowControls.maximize": "最大化或还原窗口",
   "windowControls.close": "关闭窗口",
   "workspaceSwitcher.openMenu": "打开工作区菜单：{workspace}",
+  "workspaceSwitcher.copyPath": "复制路径",
+  "workspaceSwitcher.copyPathFailed": "复制失败，请重试。",
   "workspaceSwitcher.projectTitle": "项目：{project}",
   "workspaceSwitcher.projectActions": "项目操作",
   "workspaceSwitcher.projectActionsFor": "{project} 的项目操作",

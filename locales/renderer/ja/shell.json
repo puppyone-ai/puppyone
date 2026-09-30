@@ -61,6 +61,8 @@
   "windowControls.maximize": "ウインドウを最大化または復元",
   "windowControls.close": "ウインドウを閉じる",
   "workspaceSwitcher.openMenu": "ワークスペースメニューを開く: {workspace}",
+  "workspaceSwitcher.copyPath": "パスをコピー",
+  "workspaceSwitcher.copyPathFailed": "コピーできませんでした。もう一度お試しください。",
   "workspaceSwitcher.projectTitle": "プロジェクト：{project}",
   "workspaceSwitcher.projectActions": "プロジェクト操作",
   "workspaceSwitcher.projectActionsFor": "{project} のプロジェクト操作",

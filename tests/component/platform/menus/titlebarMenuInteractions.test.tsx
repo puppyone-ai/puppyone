@@ -10,6 +10,9 @@ import { DesktopTitlebarContext } from "../../../../src/features/app-shell/Deskt
 import { DesktopWorkspaceSwitcher } from "../../../../src/features/app-shell/DesktopWorkspaceSwitcher";
 import type { GitBranchSummary } from "../../../../src/types/electron";
 import { withTestLocalization } from "../../../support/react/localization";
+import { writeClipboardText } from "../../../../src/lib/clipboard";
+
+vi.mock("../../../../src/lib/clipboard", () => ({ writeClipboardText: vi.fn() }));
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -51,7 +54,8 @@ describe("titlebar Portal menu interactions", () => {
     });
     expect(container.querySelector(".desktop-titlebar-branch-button")).toBeNull();
     const branchEntry = () => requireMenu().querySelector<HTMLButtonElement>(".desktop-project-branch");
-    expect(branchEntry()?.textContent).toContain("main");
+    expect(branchEntry()?.getAttribute("aria-label")).toContain("main");
+    expect(branchEntry()?.textContent).toBe("");
     act(() => branchEntry()?.click());
     expect(document.querySelectorAll('[data-titlebar-context-menu="true"]')).toHaveLength(1);
     expect(requireMenu().classList.contains("desktop-branch-menu")).toBe(true);
@@ -97,7 +101,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(projectButton?.getAttribute("aria-label")).toContain("This Mac");
     expect(container.querySelector(".desktop-titlebar-project-location")).toBeNull();
     const currentProject = requireMenu().querySelector<HTMLElement>(".desktop-project-current-location[data-project-location='local']");
-    expect(currentProject?.querySelector(".lucide-laptop")).not.toBeNull();
+    expect(currentProject?.querySelector(".lucide-folder")).not.toBeNull();
     expect(currentProject?.textContent).not.toContain("Workspace one");
     expect(currentProject?.querySelector(".desktop-project-current-location-label")?.textContent).toBe("This Mac");
     expect(currentProject?.querySelector(".desktop-project-current-location-path")?.textContent).toBe("~/project/demo");
@@ -105,7 +109,7 @@ describe("titlebar Portal menu interactions", () => {
       .toBe(workspace.path);
     expect(currentProject?.querySelector(".desktop-project-location-dot")).not.toBeNull();
     const setup = requireMenu().querySelector<HTMLButtonElement>("[data-location-action='setup']");
-    expect(setup?.textContent).toBe("Host in Cloud");
+    expect(setup?.textContent).toBe("Share");
     expect(setup?.closest(".desktop-project-location-actions")).not.toBeNull();
     expect(requireMenu().querySelector(".desktop-project-home")).toBeNull();
     expect(setup?.querySelector(".lucide-cloud")).not.toBeNull();
@@ -157,9 +161,8 @@ describe("titlebar Portal menu interactions", () => {
 
     const signedOutCloudAction = requireMenu()
       .querySelector<HTMLButtonElement>("[data-location-action='signed-out']");
-    expect(signedOutCloudAction?.textContent).toBe("View cloud files");
+    expect(signedOutCloudAction?.textContent).toBe("Switch to Cloud");
     expect(signedOutCloudAction?.textContent).not.toContain("Sign in to access");
-    expect(signedOutCloudAction?.textContent).not.toContain("Switch");
     expect(signedOutCloudAction?.querySelector(".lucide-cloud")).not.toBeNull();
     expect(signedOutCloudAction?.querySelector(".desktop-project-location-dot")).toBeNull();
     act(() => signedOutCloudAction?.click());
@@ -203,7 +206,7 @@ describe("titlebar Portal menu interactions", () => {
     const menu = requireMenu();
     expect(container.contains(menu)).toBe(false);
     expect(menu.dataset.windowNoDrag).toBe("true");
-    expect(menu.style.width).toBe("184px");
+    expect(menu.style.width).toBe("224px");
     expect(menu.querySelector("[data-workspace-menu-layout='workspace-composition-v1']"))
       .not.toBeNull();
     expect(menu.textContent).toContain("Add Project…");
@@ -216,7 +219,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(menu.querySelector(".desktop-project-current-indicator")).toBeNull();
     expect(menu.querySelector(".desktop-project-option.selected")).toBeNull();
     expect(menu.querySelector("[aria-current='true']")).toBeNull();
-    expect(menu.querySelector(".desktop-project-copy-path")).toBeNull();
+    expect(menu.querySelector(".desktop-project-copy-path")).not.toBeNull();
     expect(menu.querySelector(".desktop-project-option")?.getAttribute("aria-disabled"))
       .toBe("true");
     expect(onClose).not.toHaveBeenCalled();
@@ -230,6 +233,62 @@ describe("titlebar Portal menu interactions", () => {
 
     expect(onAddProject).toHaveBeenCalledOnce();
     expect(onAddExistingProject).toHaveBeenCalledWith(thirdWorkspace.path);
+  });
+
+  it.each([false, true])("copies the absolute project path and reports clipboard failure: %s", async (fails) => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    const workspace = { ...createWorkspace("one", "Workspace one"), path: "/Users/example/project/demo" };
+    const clipboard = vi.mocked(writeClipboardText);
+    if (fails) clipboard.mockRejectedValueOnce(new Error("Clipboard unavailable"));
+    else clipboard.mockResolvedValueOnce(undefined);
+    const onClose = vi.fn();
+    await act(async () => {
+      root?.render(withTestLocalization(
+        <DesktopWorkspaceSwitcher
+          open refObject={createRef<HTMLDivElement>()} titlebarLabel={workspace.name}
+          workspace={workspace} workspaceFolders={[]} multiRootWorkspacesEnabled={false}
+          onClose={onClose} onToggle={vi.fn()}
+        />,
+      ));
+    });
+    const copyButton = requireMenu().querySelector<HTMLButtonElement>(".desktop-project-copy-path");
+    expect(copyButton?.getAttribute("aria-label")).toBe("Copy path");
+    await act(async () => { copyButton?.click(); });
+    expect(clipboard).toHaveBeenLastCalledWith(workspace.path);
+    expect(copyButton?.getAttribute("aria-label")).toBe(fails ? "Couldn’t copy. Try again." : "Copied");
+    expect(Boolean(copyButton?.querySelector(".lucide-check"))).toBe(!fails);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("reveals an overflowing path on hover and stops when the pointer leaves", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(withTestLocalization(
+        <DesktopWorkspaceSwitcher
+          open refObject={createRef<HTMLDivElement>()} titlebarLabel="Workspace one"
+          workspace={createWorkspace("one", "Workspace one")} workspaceFolders={[]}
+          multiRootWorkspacesEnabled={false} onClose={vi.fn()} onToggle={vi.fn()}
+        />,
+      ));
+    });
+    const path = requireMenu().querySelector<HTMLElement>(".desktop-project-current-location-path");
+    if (!path) throw new Error("Missing path scroll region");
+    Object.defineProperties(path, { scrollWidth: { value: 400 }, clientWidth: { value: 120 } });
+    let nextFrame: FrameRequestCallback | undefined;
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => { nextFrame = callback; return 1; });
+    const cancel = vi.spyOn(window, "cancelAnimationFrame");
+    vi.spyOn(performance, "now").mockReturnValue(0);
+    act(() => path.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })));
+    expect(nextFrame).toBeDefined();
+    act(() => nextFrame?.(1500));
+    expect(path.scrollLeft).toBe(35);
+    act(() => path.dispatchEvent(new MouseEvent("mouseout", { bubbles: true })));
+    expect(path.scrollLeft).toBe(0);
+    expect(cancel).toHaveBeenCalledWith(1);
   });
 
   it("dismisses a titlebar menu when the user points outside it", async () => {
