@@ -130,23 +130,25 @@ export function DesktopWorkspaceSwitcher({
               className="desktop-project-overview"
               data-workspace-menu-layout="workspace-composition-v1"
             >
-              <DesktopCurrentProjectLocation
-                fallbackKind={workspaceContextAssetKind}
-                location={projectLocation}
-                path={workspace.path}
-              />
-              {branchMenu && (
-                <DesktopMenuItem
-                  className="desktop-project-branch"
-                  icon={<GitBranch size={14} strokeWidth={1.75} />}
-                  aria-label={t("shell.branch.title", { branch: bidiIsolate(branchMenu.label) })}
-                  label={<bdi>{branchMenu.label}</bdi>}
-                  trailing={<ChevronDown size={12} aria-hidden="true" />}
-                  tooltip={t("shell.branch.switch", { branch: bidiIsolate(branchMenu.label) })}
-                  disabled={branchMenu.disabled}
-                  onClick={() => setView("branches")}
+              <div className="desktop-project-location-card">
+                <DesktopCurrentProjectLocation
+                  fallbackKind={workspaceContextAssetKind}
+                  location={projectLocation}
+                  path={workspace.path}
                 />
-              )}
+                {branchMenu && (
+                  <DesktopMenuItem
+                    className="desktop-project-branch"
+                    icon={<GitBranch size={14} strokeWidth={1.75} />}
+                    aria-label={t("shell.branch.title", { branch: bidiIsolate(branchMenu.label) })}
+                    label={<bdi>{branchMenu.label}</bdi>}
+                    trailing={<ChevronDown size={12} aria-hidden="true" />}
+                    tooltip={t("shell.branch.switch", { branch: bidiIsolate(branchMenu.label) })}
+                    disabled={branchMenu.disabled}
+                    onClick={() => setView("branches")}
+                  />
+                )}
+              </div>
             </div>
             {(attachedFolders.length > 1 || multiRootWorkspacesEnabled) && (
               <div className="desktop-project-list" data-po-scrollbar="menu">
@@ -292,8 +294,8 @@ function DesktopCurrentProjectLocation({
         <ProjectLocationMark
           className="desktop-project-current-location-mark"
           kind={kind}
-          size={80}
-          strokeWidth={0.8}
+          size={48}
+          strokeWidth={1.25}
         />
         <span className="desktop-project-location-dot" />
       </div>

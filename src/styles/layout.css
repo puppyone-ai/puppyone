@@ -463,15 +463,28 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 .desktop-project-overview {
   display: grid;
   min-width: 0;
-  gap: 0;
+  padding: 12px;
+}
+
+.desktop-project-location-card {
+  display: flex;
+  min-width: 0;
+  aspect-ratio: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--po-divider);
+  border-radius: 12px;
 }
 
 .desktop-project-current-location {
   display: grid;
+  width: 100%;
   min-width: 0;
   justify-items: center;
   gap: 4px;
-  padding: 16px 16px 4px;
   color: var(--po-text-muted);
   text-align: center;
 }
@@ -479,13 +492,10 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 .desktop-project-location-visual {
   position: relative;
   display: grid;
-  width: 100%;
+  width: 48px;
   aspect-ratio: 1;
   place-items: center;
-  padding: 40px;
-  margin-bottom: 8px;
-  border: 1px solid var(--po-divider);
-  border-radius: 12px;
+  margin-bottom: 4px;
 }
 
 .desktop-project-current-location-mark {
@@ -524,10 +534,9 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 
 .desktop-project-overview .desktop-project-branch {
   --po-menu-item-font-size: var(--po-menu-meta-font-size);
-  justify-self: center;
   width: auto;
-  max-width: calc(100% - 32px);
-  margin-bottom: 4px;
+  max-width: 100%;
+  flex-shrink: 0;
 }
 
 .desktop-project-branch .desktop-menu-item-body {
@@ -554,8 +563,8 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 
 .desktop-project-location-dot {
   position: absolute;
-  right: 36px;
-  bottom: 44px;
+  right: -2px;
+  bottom: 6px;
   width: 7px;
   height: 7px;
   border-radius: 50%;
