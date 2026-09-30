@@ -33,13 +33,11 @@ describe("titlebar Portal menu interactions", () => {
     root = createRoot(container);
     const onCheckoutBranch = vi.fn(async () => true);
     const onClose = vi.fn();
-    const onOpenGitChanges = vi.fn();
     await act(async () => {
       root?.render(withTestLocalization(
         <DesktopTitlebarContext
           compactProjectMenu availableProjects={[]}
           backupProviders={["git", "github", "gitlab"]}
-          onOpenGitChanges={onOpenGitChanges}
           activeGitStatus={createGitStatus()}
           branchSwitcherOpen={false}
           branchSwitcherRef={createRef<HTMLDivElement>()}
@@ -64,16 +62,16 @@ describe("titlebar Portal menu interactions", () => {
     expect(menu.textContent).not.toContain("main");
     expect(onCheckoutBranch).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
-    const backup = menu.querySelector<HTMLButtonElement>("[data-location-action='backup']");
-    expect(backup?.getAttribute("aria-label")).toBe("Backup: Git, GitHub, GitLab");
-    expect(Array.from(backup?.querySelectorAll("img") ?? []).map((mark) => mark.alt))
+    const backup = menu.querySelector<HTMLElement>(".desktop-project-backup-services");
+    expect(Array.from(backup?.querySelectorAll("li") ?? []).map((service) => service.textContent))
       .toEqual(["Git", "GitHub", "GitLab"]);
+    expect(backup?.querySelectorAll("img").length).toBe(3);
+    expect(backup?.querySelector("button, a, [role='menuitem'], .lucide-chevron-right")).toBeNull();
+    expect(menu.textContent).not.toContain("Backup");
     expect(menu.querySelector(".desktop-project-overview")?.nextElementSibling?.contains(backup ?? null))
       .toBe(true);
     act(() => backup?.click());
-    expect(onClose).toHaveBeenCalledOnce();
-    expect(onOpenGitChanges).toHaveBeenCalledOnce();
-    expect(onClose.mock.invocationCallOrder[0]).toBeLessThan(onOpenGitChanges.mock.invocationCallOrder[0]);
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it.each([false, undefined])("keeps backup services out of the classic Header: compact %s", async (compactProjectMenu) => {
@@ -84,7 +82,7 @@ describe("titlebar Portal menu interactions", () => {
       root?.render(withTestLocalization(
         <DesktopTitlebarContext
           compactProjectMenu={compactProjectMenu} availableProjects={[]}
-          backupProviders={["github", "gitlab"]} onOpenGitChanges={vi.fn()}
+          backupProviders={["github", "gitlab"]}
           activeGitStatus={createGitStatus()} branchSwitcherOpen={false}
           branchSwitcherRef={createRef<HTMLDivElement>()}
           gitStatusLoading={false} gitOperationLoading={null}
@@ -99,7 +97,7 @@ describe("titlebar Portal menu interactions", () => {
         />,
       ));
     });
-    expect(requireMenu().querySelector("[data-location-action='backup']")).toBeNull();
+    expect(requireMenu().querySelector(".desktop-project-backup-services")).toBeNull();
   });
 
   it.each(["unavailable", "available", "signed-out", "resolving", "attention"] as const)(
@@ -133,7 +131,7 @@ describe("titlebar Portal menu interactions", () => {
         .toBe(workspace.path);
       expect(menu.textContent).toContain("On this Mac");
       expect(menu.querySelector(".desktop-project-location-label .desktop-project-location-dot")).not.toBeNull();
-      expect(menu.querySelector("[data-location-action='backup']")).toBeNull();
+      expect(menu.querySelector(".desktop-project-backup-services")).toBeNull();
       const share = menu.querySelector<HTMLButtonElement>("[data-location-action='share']");
       expect(share?.textContent).toBe("Share to other agents");
       expect(share?.querySelector(".lucide-cloud")).not.toBeNull();

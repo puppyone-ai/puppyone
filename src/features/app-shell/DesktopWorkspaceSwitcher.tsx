@@ -19,7 +19,6 @@ import {
 } from "lucide-react";
 import { DesktopMenuIconButton, DesktopMenuItem } from "../../components/DesktopMenu";
 import { ImportSourceMark } from "../../components/onboarding/ImportSourceMark";
-import { VersionControlIcon } from "../source-control/VersionControlIcon";
 import { PROJECT_BACKUP_PROVIDER_LABELS, type ProjectBackupProvider } from "./projectBackupProviders";
 import { writeClipboardText } from "../../lib/clipboard";
 import { DesktopTitlebarMenuLayer } from "./DesktopTitlebarMenuLayer";
@@ -40,7 +39,6 @@ type DesktopWorkspaceSwitcherProps = {
   multiRootWorkspacesEnabled: boolean;
   projectLocation?: DesktopProjectLocation;
   backupProviders?: readonly ProjectBackupProvider[];
-  onOpenGitChanges?: () => void;
   availableProjects?: readonly Workspace[];
   onAddExistingProject?: (folderPath: string) => void;
   onOpenFolder?: () => void;
@@ -65,7 +63,6 @@ export function DesktopWorkspaceSwitcher({
   multiRootWorkspacesEnabled,
   projectLocation,
   backupProviders = [],
-  onOpenGitChanges,
   availableProjects = [],
   onAddExistingProject,
   onOpenFolder,
@@ -140,36 +137,25 @@ export function DesktopWorkspaceSwitcher({
               </div>
             </div>
             {backupProviders.length > 0 && (
-              <div className="desktop-project-location-actions">
-                <DesktopMenuItem
-                  data-location-action="backup"
-                  aria-label={`${t("shell.workspaceSwitcher.backup")}: ${backupProviders.map((provider) => PROJECT_BACKUP_PROVIDER_LABELS[provider]).join(", ")}`}
-                  disabled={!onOpenGitChanges}
-                  icon={<VersionControlIcon size={14} />}
-                  label={t("shell.workspaceSwitcher.backup")}
-                  trailing={(
-                    <span className="desktop-project-backup-providers">
-                      {backupProviders.map((provider) => provider === "git" ? (
+              <ul className="desktop-project-backup-services" aria-label={t("shell.workspaceSwitcher.backup")}>
+                {backupProviders.map((provider) => (
+                  <li key={provider} className="desktop-project-backup-service">
+                    <span className="desktop-menu-item-icon" aria-hidden="true">
+                      {provider === "git" ? (
                         <img
-                          key={provider}
                           className="desktop-project-backup-mark"
                           src={resolveRendererPublicAssetUrl(RENDERER_ASSET_PATHS.icons.integrations.gitInverse)}
-                          alt={PROJECT_BACKUP_PROVIDER_LABELS[provider]}
+                          alt=""
                           draggable={false}
                         />
                       ) : (
-                        <ImportSourceMark key={provider} brand={provider} />
-                      ))}
-                      <ChevronRight className="po-directional-icon" size={12} aria-hidden="true" />
+                        <ImportSourceMark brand={provider} decorative />
+                      )}
                     </span>
-                  )}
-                  onClick={() => {
-                    if (!onOpenGitChanges) return;
-                    onClose();
-                    onOpenGitChanges();
-                  }}
-                />
-              </div>
+                    <span className="desktop-menu-item-label">{PROJECT_BACKUP_PROVIDER_LABELS[provider]}</span>
+                  </li>
+                ))}
+              </ul>
             )}
             {(attachedFolders.length > 1 || multiRootWorkspacesEnabled) && (
               <div className="desktop-project-list" data-po-scrollbar="menu">

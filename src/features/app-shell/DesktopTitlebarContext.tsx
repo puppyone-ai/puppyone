@@ -39,7 +39,6 @@ export function DesktopTitlebarContext({
   compactProjectMenu = false,
   projectActions,
   backupProviders,
-  onOpenGitChanges,
 }: DesktopTitlebarContextProps) {
   const { t } = useLocalization();
   const workspaceTitlebarLabel = workspace.name.trim() || workspace.name;
@@ -64,7 +63,6 @@ export function DesktopTitlebarContext({
         multiRootWorkspacesEnabled={multiRootWorkspacesEnabled}
         projectLocation={projectLocation}
         backupProviders={compactProjectMenu ? backupProviders : undefined}
-        onOpenGitChanges={onOpenGitChanges}
         availableProjects={availableProjects}
         onAddExistingProject={multiRootWorkspacesEnabled ? onAddExistingProject : undefined}
         onOpenFolder={multiRootWorkspacesEnabled ? onAddProject : undefined}
@@ -97,7 +95,6 @@ type DesktopTitlebarContextProps = {
   compactProjectMenu?: boolean;
   projectActions?: ReactNode;
   backupProviders?: readonly ProjectBackupProvider[];
-  onOpenGitChanges?: () => void;
   activeGitStatus: GitStatusSnapshot | null;
   branchSwitcherOpen: boolean;
   branchSwitcherRef: RefObject<HTMLDivElement>;

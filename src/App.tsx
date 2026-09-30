@@ -1439,7 +1439,6 @@ function AppContent() {
       activeGitStatus={activeGitStatus}
       backupProviders={focusedWorkspace?.path === workspace.path && gitStatusPath === workspace.path
         ? getProjectBackupProviders(activeGitStatus) : []}
-      onOpenGitChanges={handleBackToGitChanges}
       branchSwitcherOpen={branchSwitcherOpen}
       branchSwitcherRef={branchSwitcherRef}
       gitStatusLoading={gitStatusLoading}

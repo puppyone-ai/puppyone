@@ -640,10 +640,21 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   margin-top: var(--po-menu-padding);
 }
 
-.desktop-project-backup-providers {
-  display: inline-flex;
+.desktop-project-backup-services {
+  margin: var(--po-menu-padding) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.desktop-project-backup-service {
+  display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--po-menu-item-gap);
+  min-width: 0;
+  height: var(--po-menu-item-height);
+  padding: 0 var(--po-menu-item-padding-inline);
+  color: var(--po-text-muted);
+  line-height: var(--po-menu-item-line-height, 18px);
 }
 
 .desktop-project-backup-mark {
