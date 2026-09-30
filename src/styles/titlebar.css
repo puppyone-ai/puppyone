@@ -1133,6 +1133,20 @@
   height: 16px;
 }
 
+.desktop-project-github-mark {
+  display: block;
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  background: currentColor;
+  mask-size: contain;
+  mask-position: center;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  -webkit-mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+}
+
 .desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark {
   display: inline-flex;
   width: var(--desktop-titlebar-workspace-icon-slot-size);

@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
   Tooltip,
+  RENDERER_ASSET_PATHS,
   createWorkspaceFolder,
+  resolveRendererPublicAssetUrl,
   type Workspace,
   type WorkspaceFolder,
 } from "@puppyone/shared-ui";
@@ -277,6 +279,12 @@ function backupLabel(provider: ProjectBackupDestination) {
 }
 
 function BackupMark({ provider }: { provider: ProjectBackupDestination }) {
+  if (provider === "github") {
+    // Mask the canonical SVG so its silhouette follows the surrounding text,
+    // including hover states, without inverting the mark to pure white.
+    const maskImage = `url("${resolveRendererPublicAssetUrl(RENDERER_ASSET_PATHS.icons.integrations.github)}")`;
+    return <span className="desktop-project-github-mark" aria-hidden="true" style={{ maskImage, WebkitMaskImage: maskImage }} />;
+  }
   return provider === "puppyone-cloud" ? <Cloud size={16} strokeWidth={1.75} aria-hidden="true" />
     : <ImportSourceMark brand={provider} decorative />;
 }

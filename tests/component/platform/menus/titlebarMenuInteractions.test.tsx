@@ -75,7 +75,8 @@ describe("titlebar Portal menu interactions", () => {
     const backups = container.querySelector(".desktop-titlebar-project-backups");
     expect(Array.from(backups?.querySelectorAll("button") ?? []).map((button) => button.dataset.backupProvider))
       .toEqual(["github", "gitlab"]);
-    expect(backups?.querySelectorAll("img").length).toBe(2);
+    expect(backups?.querySelector("[data-backup-provider='github'] .desktop-project-github-mark")).not.toBeNull();
+    expect(backups?.querySelector("[data-backup-provider='gitlab'] img")).not.toBeNull();
     expect(backups?.textContent).toBe("[]");
     expect(container.querySelector(".desktop-titlebar-workspace-button")?.nextElementSibling).toBe(backups);
     act(() => container.querySelector<HTMLButtonElement>("[data-backup-provider='github']")?.click());
