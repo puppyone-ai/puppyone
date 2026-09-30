@@ -68,8 +68,12 @@ export function DesktopWorkspaceSwitcher({
 }: DesktopWorkspaceSwitcherProps) {
   const { t } = useLocalization();
   const [view, setView] = useState<"projects" | "add">("projects");
-  const workspaceContextAssetKind = resolveProjectContextAssetKind(workspace);
-  const currentProjectLocationKind = projectLocation?.current ?? workspaceContextAssetKind;
+  // A canonical Cloud remote describes another copy, not where this open
+  // working copy lives. Desktop workspaces are local unless explicitly remote.
+  const currentProjectLocationKind = projectLocation?.current ?? "local";
+  const cloudLinked = resolveProjectContextAssetKind(workspace) === "cloud"
+    || projectLocation?.cloudState === "available"
+    || projectLocation?.cloudState === "signed-out";
   const workspaceContextAssetLabel = t(currentProjectLocationKind === "cloud"
     ? "shell.workspaceSwitcher.location.cloud"
     : "shell.workspaceSwitcher.location.thisMac");
@@ -126,8 +130,8 @@ export function DesktopWorkspaceSwitcher({
             >
               <div className="desktop-project-location-card">
                 <DesktopCurrentProjectLocation
-                  fallbackKind={workspaceContextAssetKind}
-                  location={projectLocation}
+                  kind={currentProjectLocationKind}
+                  cloudLinked={cloudLinked}
                   path={workspace.path}
                 />
               </div>
@@ -266,16 +270,15 @@ function DesktopProjectRow({
 }
 
 function DesktopCurrentProjectLocation({
-  fallbackKind,
-  location,
+  kind,
+  cloudLinked,
   path,
 }: {
-  fallbackKind: "local" | "cloud";
-  location?: DesktopProjectLocation;
+  kind: DesktopProjectLocation["current"];
+  cloudLinked: boolean;
   path: string;
 }) {
   const { t } = useLocalization();
-  const kind = location?.current ?? fallbackKind;
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   useEffect(() => {
     setCopyState("idle");
@@ -305,15 +308,27 @@ function DesktopCurrentProjectLocation({
         className="desktop-project-location-visual"
         role="group"
         aria-label={t(kind === "local" ? "shell.workspaceSwitcher.location.thisMac" : "shell.workspaceSwitcher.location.cloud")}
+        aria-description={kind === "local" && cloudLinked ? t("cloud.share.location.localCloud") : undefined}
       >
         <div className="desktop-project-location-device">
-          <ProjectLocationMark
-            className="desktop-project-current-location-mark"
-            kind={kind}
-            size={24}
-            absoluteStrokeWidth
-            showLocalIndicator
-          />
+          <div className="desktop-project-location-marks" data-cloud-linked={kind === "local" && cloudLinked ? "true" : undefined}>
+            <ProjectLocationMark
+              className="desktop-project-current-location-mark"
+              kind={kind}
+              size={24}
+              absoluteStrokeWidth
+              showLocalIndicator
+            />
+            {kind === "local" && cloudLinked && <>
+              <span className="desktop-project-location-link" aria-hidden="true" />
+              <ProjectLocationMark
+                className="desktop-project-cloud-copy-mark"
+                kind="cloud"
+                size={20}
+                absoluteStrokeWidth
+              />
+            </>}
+          </div>
           {kind === "local" ? (
             <div className="desktop-project-location-label">
               <DesktopProjectPath

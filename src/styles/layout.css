@@ -505,7 +505,22 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   padding: calc(var(--po-menu-item-padding-inline) + var(--po-menu-padding));
 }
 
-.desktop-project-current-location-mark {
+.desktop-project-location-marks {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.desktop-project-location-link {
+  width: 8px;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.5;
+}
+
+.desktop-project-current-location-mark,
+.desktop-project-cloud-copy-mark {
   position: relative;
   display: grid;
   flex: 0 0 auto;

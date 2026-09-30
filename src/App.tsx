@@ -751,7 +751,8 @@ function AppContent() {
     ? {
         current: "local" as const,
         localAvailable: true,
-        cloudState: projectLocationStatus.kind === "local"
+        cloudState: focusedWorkspace?.path !== workspace?.path
+          || projectLocationStatus.kind === "local"
           || (projectLocationStatus.kind === "resolving" && !focusedWorkspace?.puppyoneGitRemote?.projectId)
           ? "unavailable" as const
           : projectLocationStatus.kind === "local-cloud"
