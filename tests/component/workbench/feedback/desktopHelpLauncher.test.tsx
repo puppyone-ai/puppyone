@@ -349,8 +349,8 @@ describe("DesktopHelpLauncher", () => {
     );
     expect(launcherCss).not.toContain("desktop-feedback-popover");
     const launcherRule = launcherCss.match(/\.desktop-help-launcher\s*\{[^}]*\}/s)?.[0] ?? "";
-    expect(launcherRule).toContain("width: var(--desktop-sidebar-control-size)");
-    expect(launcherRule).toContain("height: var(--desktop-sidebar-control-size)");
+    expect(launcherRule).toContain("width: var(--desktop-sidebar-utility-control-size, var(--desktop-sidebar-control-size))");
+    expect(launcherRule).toContain("height: var(--desktop-sidebar-utility-control-size, var(--desktop-sidebar-control-size))");
     expect(launcherRule).toContain("border: 0");
     expect(launcherRule).toContain("background: transparent");
     expect(launcherRule).toContain("color: var(--desktop-sidebar-utility-icon-color, var(--po-text-muted))");

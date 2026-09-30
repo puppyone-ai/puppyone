@@ -10,8 +10,8 @@
   appearance: none;
   display: grid;
   box-sizing: border-box;
-  width: var(--desktop-sidebar-control-size);
-  height: var(--desktop-sidebar-control-size);
+  width: var(--desktop-sidebar-utility-control-size, var(--desktop-sidebar-control-size));
+  height: var(--desktop-sidebar-utility-control-size, var(--desktop-sidebar-control-size));
   place-items: center;
   padding: 0;
   border: 0;

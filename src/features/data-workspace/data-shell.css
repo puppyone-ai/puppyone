@@ -149,6 +149,7 @@
 }
 
 .desktop-sidebar-footer-actions {
+  --desktop-sidebar-utility-control-size: var(--desktop-titlebar-control-height);
   --desktop-sidebar-utility-icon-size: 14px;
   --desktop-sidebar-utility-icon-stroke-width: 1.65;
   --desktop-sidebar-utility-icon-color:
@@ -181,6 +182,9 @@
 }
 
 .desktop-sidebar-footer-button[data-navigation-item="settings"] {
+  width: var(--desktop-sidebar-utility-control-size, var(--desktop-sidebar-control-size));
+  height: var(--desktop-sidebar-utility-control-size, var(--desktop-sidebar-control-size));
+  padding: 0;
   color: var(--desktop-sidebar-utility-icon-color, var(--po-text-muted));
 }
 
