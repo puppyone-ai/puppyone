@@ -1409,9 +1409,32 @@ function AppContent() {
     );
   }
 
+  const centerProjectInHeader = experimentalSettings.enableCenteredProjectInHeader;
+  const chromeActionProps = {
+    desktopUpdateState: desktopUpdates.state,
+    titlebarActionsSettings,
+    terminalSidebarOpen: agentSidebarOpen,
+    terminalToolEnabled: true,
+    gitChangesAvailable: Boolean(focusedWorkspace),
+    gitChangesOpen: gitSidebarOpen,
+    gitChangesStatus: gitTitlebarStatus,
+    changesInProjectContext: centerProjectInHeader,
+    activeCoachmark: headerCoachmarks.active,
+    onAcknowledgeCoachmark: headerCoachmarks.acknowledge,
+    onUpdateNow: () => void desktopUpdates.updateNow(),
+    onToggleTerminal: handleToggleAgentWorkbench,
+    onToggleGitChanges: handleToggleGitChanges,
+    cloudEnabled,
+    onOpenCloud: openCloudDialog,
+    shareEnabled: shareOnboardingEnabled,
+    onShare: openCloudShare,
+  };
   const titlebarContext = (
     <DesktopTitlebarContext
-      compactProjectMenu={experimentalSettings.enableCenteredProjectInHeader}
+      compactProjectMenu={centerProjectInHeader}
+      projectActions={centerProjectInHeader ? (
+        <DesktopTitlebarActions {...chromeActionProps} visibleGroups={["project"]} />
+      ) : undefined}
       activeGitStatus={activeGitStatus}
       branchSwitcherOpen={branchSwitcherOpen}
       branchSwitcherRef={branchSwitcherRef}
@@ -1437,7 +1460,6 @@ function AppContent() {
     />
   );
 
-  const centerProjectInHeader = experimentalSettings.enableCenteredProjectInHeader;
   const titlebarSidebarSlot = centerProjectInHeader ? undefined : titlebarContext;
 
   const locationBarVisible = resolvedAppearance.composition.locationBar === "workspace-path-v1";
@@ -1449,27 +1471,10 @@ function AppContent() {
     dataViewActive: activeView === "data",
     workspacePath: locationResource?.folder.workspace.path ?? workspace.path,
   });
-  const chromeActionProps = {
-    desktopUpdateState: desktopUpdates.state,
-    titlebarActionsSettings,
-    terminalSidebarOpen: agentSidebarOpen,
-    terminalToolEnabled: true,
-    gitChangesAvailable: Boolean(focusedWorkspace),
-    gitChangesOpen: gitSidebarOpen,
-    gitChangesStatus: gitTitlebarStatus,
-    activeCoachmark: headerCoachmarks.active,
-    onAcknowledgeCoachmark: headerCoachmarks.acknowledge,
-    onUpdateNow: () => void desktopUpdates.updateNow(),
-    onToggleTerminal: handleToggleAgentWorkbench,
-    onToggleGitChanges: handleToggleGitChanges,
-    cloudEnabled,
-    onOpenCloud: openCloudDialog,
-    shareEnabled: shareOnboardingEnabled,
-    onShare: openCloudShare,
-  };
   const titlebarActions = (
     <DesktopTitlebarActions
       {...chromeActionProps}
+      visibleGroups={centerProjectInHeader ? ["app-status", "header", "right-sidebar"] : undefined}
     />
   );
   const editorTabsInHeaderEnabled = experimentalSettings.enableEditorTabsInHeader;

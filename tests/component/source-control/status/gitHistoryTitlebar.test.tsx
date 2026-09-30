@@ -1,10 +1,11 @@
 /**
  * @vitest-environment happy-dom
  */
-import { act } from "react";
+import { act, createRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DesktopTitlebarActions } from "../../../../src/features/app-shell/DesktopTitlebarActions";
+import { DesktopTitlebarContext } from "../../../../src/features/app-shell/DesktopTitlebarContext";
 import { DEFAULT_TITLEBAR_ACTIONS_SETTINGS } from "../../../../src/preferences";
 import { withTestLocalization } from "../../../support/react/localization";
 
@@ -19,6 +20,129 @@ afterEach(() => {
 });
 
 describe("Git right-sidebar titlebar entries", () => {
+  it.each([false, true])("keeps one working Git entry in the expected Header group with centered project %s", (centered) => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    const onToggleGitChanges = vi.fn();
+    const onToggleTerminal = vi.fn();
+    const onShare = vi.fn();
+    const onToggleWorkspaceSwitcher = vi.fn();
+    const actionProps = {
+      titlebarActionsSettings: DEFAULT_TITLEBAR_ACTIONS_SETTINGS,
+      terminalSidebarOpen: false,
+      terminalToolEnabled: true,
+      gitChangesAvailable: true,
+      gitChangesOpen: true,
+      gitChangesStatus: { conflicts: 0, incoming: 4, localChanges: 12, outgoing: 2 },
+      onToggleGitChanges,
+      onToggleTerminal,
+      cloudEnabled: true,
+      shareEnabled: true,
+      onShare,
+    };
+    const render = (centered: boolean, changesEnabled = true) => act(() => root?.render(withTestLocalization(
+      <>
+        <DesktopTitlebarContext
+          compactProjectMenu={centered}
+          projectActions={centered ? (
+            <DesktopTitlebarActions
+              {...actionProps}
+              titlebarActionsSettings={{
+                ...DEFAULT_TITLEBAR_ACTIONS_SETTINGS,
+                enabled: { ...DEFAULT_TITLEBAR_ACTIONS_SETTINGS.enabled, changes: changesEnabled },
+              }}
+              changesInProjectContext
+              visibleGroups={["project"]}
+            />
+          ) : undefined}
+          activeGitStatus={null}
+          branchSwitcherOpen={false} branchSwitcherRef={createRef<HTMLDivElement>()}
+          gitStatusLoading={false} gitOperationLoading={null}
+          localBranches={[]} remoteBranches={[]}
+          workspace={{ id: "demo", name: "Demo", path: "/tmp/demo", status: "recording" }}
+          workspaceFolders={[]} multiRootWorkspacesEnabled={false} availableProjects={[]}
+          workspaceSwitcherOpen={false} workspaceSwitcherRef={createRef<HTMLDivElement>()}
+          onCheckoutBranch={vi.fn(async () => true)}
+          onCloseBranchSwitcher={vi.fn()} onCloseWorkspaceSwitcher={vi.fn()}
+          onAddProject={vi.fn()} onAddExistingProject={vi.fn()}
+          onToggleBranchSwitcher={vi.fn()} onToggleWorkspaceSwitcher={onToggleWorkspaceSwitcher}
+        />
+        <div data-header-trailing>
+          <DesktopTitlebarActions
+            {...actionProps}
+            titlebarActionsSettings={{
+              ...DEFAULT_TITLEBAR_ACTIONS_SETTINGS,
+              enabled: { ...DEFAULT_TITLEBAR_ACTIONS_SETTINGS.enabled, changes: changesEnabled },
+            }}
+            changesInProjectContext={centered}
+            visibleGroups={centered ? ["app-status", "header", "right-sidebar"] : undefined}
+          />
+        </div>
+      </>,
+    )));
+
+    render(centered);
+    const context = container.querySelector(".desktop-titlebar-context");
+    const trailing = container.querySelector("[data-header-trailing]");
+    const changes = container.querySelector<HTMLButtonElement>(".desktop-titlebar-changes");
+    expect(container.querySelectorAll(".desktop-titlebar-changes")).toHaveLength(1);
+    expect(context?.contains(changes)).toBe(centered);
+    expect(trailing?.contains(changes)).toBe(!centered);
+    expect(changes?.getAttribute("aria-pressed")).toBe("true");
+    expect(changes?.getAttribute("aria-label")).toContain("Pull 4 commits");
+    expect(context?.querySelector(".desktop-titlebar-share")).toBeNull();
+    expect(context?.querySelector(".desktop-titlebar-terminal")).toBeNull();
+    expect(trailing?.querySelector(".desktop-titlebar-share")).not.toBeNull();
+    expect(trailing?.querySelector(".desktop-titlebar-terminal")).not.toBeNull();
+    if (centered) {
+      expect(context?.querySelector(".desktop-titlebar-workspace-wrap")?.nextElementSibling?.className)
+        .toBe("desktop-titlebar-project-actions");
+      const projectActions = context?.querySelector(".desktop-titlebar-project-actions");
+      expect(projectActions?.querySelectorAll(".desktop-titlebar-action-divider")).toHaveLength(1);
+      expect(projectActions?.firstElementChild?.className).toBe("desktop-titlebar-action-divider");
+      expect(projectActions?.firstElementChild?.getAttribute("aria-hidden")).toBe("true");
+    }
+
+    act(() => {
+      changes?.click();
+      trailing?.querySelector<HTMLButtonElement>(".desktop-titlebar-share")?.click();
+      trailing?.querySelector<HTMLButtonElement>(".desktop-titlebar-terminal")?.click();
+      context?.querySelector<HTMLButtonElement>(".desktop-titlebar-workspace-button")?.click();
+    });
+    expect(onToggleGitChanges).toHaveBeenCalledOnce();
+    expect(onToggleTerminal).toHaveBeenCalledOnce();
+    expect(onShare).toHaveBeenCalledOnce();
+    expect(onToggleWorkspaceSwitcher).toHaveBeenCalledOnce();
+
+    render(!centered);
+    expect(container.querySelectorAll(".desktop-titlebar-changes")).toHaveLength(1);
+    expect(container.querySelector(".desktop-titlebar-context")?.contains(
+      container.querySelector(".desktop-titlebar-changes"),
+    )).toBe(!centered);
+    render(centered, false);
+    expect(container.querySelector(".desktop-titlebar-changes")).toBeNull();
+    expect(container.querySelector(".desktop-titlebar-project-actions .desktop-titlebar-action-divider"))
+      .toBeNull();
+    expect(container.querySelector(".desktop-titlebar-terminal")).not.toBeNull();
+  });
+
+  it("retains Git in the workspace toolbar when project grouping is enabled", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    act(() => root?.render(withTestLocalization(
+      <DesktopTitlebarActions
+        titlebarActionsSettings={DEFAULT_TITLEBAR_ACTIONS_SETTINGS}
+        terminalSidebarOpen={false} terminalToolEnabled gitChangesAvailable
+        placement="toolbar" changesInProjectContext visibleGroups={["header", "right-sidebar"]}
+        onToggleTerminal={vi.fn()}
+      />,
+    )));
+    expect(container.querySelector('[data-toolbar-action="changes"]')).not.toBeNull();
+    expect(container.querySelector('[data-toolbar-action="terminal"]')).not.toBeNull();
+  });
+
   it("keeps the high-frequency Changes entry and removes standalone History", () => {
     const container = document.createElement("div");
     document.body.append(container);

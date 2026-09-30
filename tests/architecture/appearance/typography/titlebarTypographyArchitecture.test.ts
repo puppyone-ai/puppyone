@@ -157,7 +157,7 @@ describe("titlebar typography architecture", () => {
     );
     const windowsChanges = readCssBlock(
       titlebarCss,
-      `${windowsTitlebarSelector} .desktop-titlebar-actions .desktop-titlebar-changes`,
+      `${windowsTitlebarSelector} .desktop-titlebar-action.desktop-titlebar-changes`,
     );
     const windowsDivider = readCssBlock(
       titlebarCss,

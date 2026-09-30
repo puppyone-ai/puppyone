@@ -268,6 +268,14 @@
   gap: var(--desktop-titlebar-button-gap);
 }
 
+.desktop-titlebar-project-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--desktop-titlebar-button-gap);
+  height: var(--desktop-titlebar-control-height);
+}
+
 .desktop-titlebar-context-item {
   display: inline-flex;
   align-items: center;
@@ -815,11 +823,11 @@
   width: var(--desktop-titlebar-tool-action-width);
 }
 
-.desktop-titlebar-actions .desktop-titlebar-changes {
+.desktop-titlebar-action.desktop-titlebar-changes {
   width: auto;
   min-width: var(--desktop-chrome-control-size);
   gap: 4px;
-  padding-inline: 7px 6px;
+  padding-inline: 7px;
 }
 
 .desktop-titlebar-git-status {
@@ -965,7 +973,7 @@
   padding: 0;
 }
 
-.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-actions .desktop-titlebar-changes {
+.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-action.desktop-titlebar-changes {
   width: auto;
   min-width: var(--desktop-titlebar-windows-control-width);
   height: 100%;

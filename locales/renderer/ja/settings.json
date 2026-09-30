@@ -260,7 +260,7 @@
   "experimental.groups.imports": "インポートとプラグイン",
   "experimental.groups.cloud": "クラウドと自動化",
   "experimental.centerProjectInHeader.title": "プロジェクト名を Header の中央に配置",
-  "experimental.centerProjectInHeader.detail": "プロジェクト名を中央に表示し、メニューからブランチを確認・切り替えできます。",
+  "experimental.centerProjectInHeader.detail": "プロジェクト名と Git の状態を中央に、共有とチャットを右側に表示します。",
   "experimental.otherAppImports.title": "他のアプリからインポート",
   "experimental.otherAppImports.detail": "Notion、Google Drive、Airtable、Obsidian をインポートに表示し、設定ページを追加します。",
   "experimental.detail": "開発初期のデスクトップ機能を有効にします。すべてデフォルトではオフです。",

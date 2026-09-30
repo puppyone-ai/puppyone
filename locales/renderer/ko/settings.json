@@ -260,7 +260,7 @@
   "experimental.groups.imports": "가져오기 및 플러그인",
   "experimental.groups.cloud": "클라우드 및 자동화",
   "experimental.centerProjectInHeader.title": "Header 중앙에 프로젝트 표시",
-  "experimental.centerProjectInHeader.detail": "프로젝트 이름을 중앙에 표시하고 메뉴에서 브랜치를 확인하거나 전환합니다.",
+  "experimental.centerProjectInHeader.detail": "프로젝트 이름과 Git 상태를 중앙에, 공유와 채팅을 오른쪽에 표시합니다.",
   "experimental.otherAppImports.title": "다른 앱에서 가져오기",
   "experimental.otherAppImports.detail": "가져오기에 Notion, Google Drive, Airtable, Obsidian을 표시하고 설정 페이지를 추가합니다.",
   "experimental.detail": "초기 데스크톱 기능을 사용합니다. 모든 실험은 기본적으로 꺼져 있습니다.",

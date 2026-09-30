@@ -1,5 +1,5 @@
 import { Tooltip } from "@puppyone/shared-ui";
-import type { RefObject } from "react";
+import type { ReactNode, RefObject } from "react";
 import type { Workspace, WorkspaceFolder } from "@puppyone/shared-ui";
 import { GitBranch } from "lucide-react";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
@@ -36,6 +36,7 @@ export function DesktopTitlebarContext({
   onToggleBranchSwitcher,
   onToggleWorkspaceSwitcher,
   compactProjectMenu = false,
+  projectActions,
 }: DesktopTitlebarContextProps) {
   const { t } = useLocalization();
   const workspaceTitlebarLabel = workspace.name.trim() || workspace.name;
@@ -80,12 +81,16 @@ export function DesktopTitlebarContext({
         onDone={onCloseBranchSwitcher}
         onToggle={onToggleBranchSwitcher}
       />}
+      {projectActions && (
+        <div className="desktop-titlebar-project-actions">{projectActions}</div>
+      )}
     </div>
   );
 }
 
 type DesktopTitlebarContextProps = {
   compactProjectMenu?: boolean;
+  projectActions?: ReactNode;
   activeGitStatus: GitStatusSnapshot | null;
   branchSwitcherOpen: boolean;
   branchSwitcherRef: RefObject<HTMLDivElement>;

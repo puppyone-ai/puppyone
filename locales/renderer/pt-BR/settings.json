@@ -260,7 +260,7 @@
   "experimental.groups.imports": "Importações e plugins",
   "experimental.groups.cloud": "Nuvem e automação",
   "experimental.centerProjectInHeader.title": "Centralizar projeto no Header",
-  "experimental.centerProjectInHeader.detail": "Centralizar o título do projeto e exibir a branch no menu dele.",
+  "experimental.centerProjectInHeader.detail": "Centralizar o título do projeto e o status do Git; manter Compartilhar e Chat à direita.",
   "experimental.otherAppImports.title": "Importar de outros aplicativos",
   "experimental.otherAppImports.detail": "Mostrar Notion, Google Drive, Airtable e Obsidian em Importar e adicionar a página de configurações.",
   "experimental.detail": "Ative antecipadamente experiências do desktop. Todos os experimentos ficam desativados por padrão.",

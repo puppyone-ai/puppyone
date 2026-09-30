@@ -297,7 +297,7 @@
   "experimental.groups.imports": "导入与插件",
   "experimental.groups.cloud": "云端与自动化",
   "experimental.centerProjectInHeader.title": "项目名称居中",
-  "experimental.centerProjectInHeader.detail": "在 Header 中间显示项目名称，点击菜单查看和切换分支。",
+  "experimental.centerProjectInHeader.detail": "将项目名称和 Git 状态放在 Header 中间，分享和聊天保留在右侧。",
   "experimental.otherAppImports.title": "从其他应用导入",
   "experimental.otherAppImports.detail": "在导入中显示 Notion、Google Drive、Airtable 和 Obsidian，并添加对应的设置页。",
   "experimental.detail": "选择体验早期桌面功能。所有实验默认关闭。",

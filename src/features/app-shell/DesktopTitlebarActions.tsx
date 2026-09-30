@@ -34,10 +34,11 @@ type DesktopTitlebarActionsProps = {
   activeCoachmark?: HeaderCoachmarkId | null;
   onAcknowledgeCoachmark?: (id: HeaderCoachmarkId) => void;
   placement?: "titlebar" | "toolbar";
+  changesInProjectContext?: boolean;
   visibleGroups?: readonly DesktopTitlebarActionGroup[];
 };
 
-export type DesktopTitlebarActionGroup = "app-status" | "header" | "right-sidebar";
+export type DesktopTitlebarActionGroup = "app-status" | "project" | "header" | "right-sidebar";
 
 export function DesktopTitlebarActions({
   desktopUpdateState = null,
@@ -57,6 +58,7 @@ export function DesktopTitlebarActions({
   activeCoachmark = null,
   onAcknowledgeCoachmark = () => {},
   placement = "titlebar",
+  changesInProjectContext = false,
   visibleGroups,
 }: DesktopTitlebarActionsProps) {
   const { t } = useLocalization();
@@ -138,7 +140,11 @@ export function DesktopTitlebarActions({
       continue;
     }
 
-    const group = definition.linkedRightSidebarToolId ? "right-sidebar" as const : "header" as const;
+    const group: DesktopTitlebarActionGroup = changesInProjectContext
+      && placement === "titlebar"
+      && definition.id === "changes"
+      ? "project"
+      : definition.linkedRightSidebarToolId ? "right-sidebar" : "header";
     const element = definition.render(headerElementContext);
 
     titlebarActionItems.push({
@@ -163,7 +169,8 @@ export function DesktopTitlebarActions({
       {visibleTitlebarActionItems.map((item, index) => {
         const previousItem = visibleTitlebarActionItems[index - 1];
         const separatesActionGroups = previousItem
-          && (previousItem.group !== item.group || previousItem.id === "cloud" || previousItem.id === "share");
+          ? previousItem.group !== item.group || previousItem.id === "cloud" || previousItem.id === "share"
+          : item.group === "project";
         return (
           <Fragment key={item.id}>
             {separatesActionGroups && (

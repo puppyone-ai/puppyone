@@ -297,7 +297,7 @@
   "experimental.groups.imports": "Imports & plugins",
   "experimental.groups.cloud": "Cloud & automation",
   "experimental.centerProjectInHeader.title": "Center project in Header",
-  "experimental.centerProjectInHeader.detail": "Center the project title and show the branch in its menu.",
+  "experimental.centerProjectInHeader.detail": "Center the project title and Git status; keep Share and Chat on the right.",
   "experimental.otherAppImports.title": "Import from other apps",
   "experimental.otherAppImports.detail": "Show Notion, Google Drive, Airtable, and Obsidian in Import and add their Settings page.",
   "experimental.detail": "Opt in to early desktop experiences. Every experiment is off by default.",
