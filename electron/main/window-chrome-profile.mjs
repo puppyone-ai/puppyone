@@ -1,4 +1,4 @@
-export const DEFAULT_MACOS_WINDOW_BUTTON_POSITION = Object.freeze({ x: 15, y: 13 });
+export const DEFAULT_MACOS_WINDOW_BUTTON_POSITION = Object.freeze({ x: 17, y: 15 });
 
 const DEFAULT_WINDOW_CHROME_PROFILE = Object.freeze({
   customControls: false,
