@@ -6,6 +6,31 @@ import { describe, expect, it, vi } from "vitest";
 import { PiRpcAdapter } from "../../../../../electron/main/agent/runtimes/pi/pi-rpc-adapter.mjs";
 
 describe("Pi native RuntimePort adapter", () => {
+  it("completes a turn after native model retries recover instead of retaining an earlier fetch failure", async () => {
+    const clients = [], events = [];
+    const adapter = createAdapter({ clients, events });
+    try {
+      await adapter.createSession();
+      const turn = await adapter.startTurn({ prompt: "Hello" });
+      const failed = { role: "assistant", content: [], stopReason: "error", errorMessage: "fetch failed" };
+      const answer = { role: "assistant", content: [{ type: "text", text: "Hello!" }], stopReason: "stop" };
+      for (const attempt of [1, 2]) {
+        clients[0].emit("event", { type: "message_end", message: failed });
+        clients[0].emit("event", { type: "agent_end", messages: [failed], willRetry: true });
+        clients[0].emit("event", { type: "auto_retry_start", attempt, maxAttempts: 3, errorMessage: "fetch failed" });
+      }
+      clients[0].emit("event", { type: "message_end", message: answer });
+      clients[0].emit("event", { type: "auto_retry_end", success: true, attempt: 2 });
+      clients[0].emit("event", { type: "agent_end", messages: [answer], willRetry: false });
+      expect(events.some(event => event.type.startsWith("turn.") && event.type !== "turn.started")).toBe(false);
+      clients[0].emit("event", { type: "agent_settled" });
+      expect(events.filter(event => ["turn.completed", "turn.failed", "turn.interrupted"].includes(event.type)))
+        .toEqual([expect.objectContaining({ type: "turn.completed", turnId: turn.turnId })]);
+      expect(events.some(event => event.type === "provider.error")).toBe(false);
+      await expect(adapter.startTurn({ prompt: "Next" })).resolves.toHaveProperty("turnId");
+    } finally { await adapter.dispose(); }
+  });
+
   it("does not invent a failed turn when native prompt delivery is unknown", async () => {
     const clients = [], events = [];
     const onExit = vi.fn();

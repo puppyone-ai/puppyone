@@ -567,7 +567,7 @@ export class AgentSessionController {
     this.stopScope.cancel();
     this.submission.invalidate();
     this.sessionPreparer.dispose();
-    this.sessionReplica.pauseRecovery();
+    this.sessionReplica.stopForTermination();
     const closed = await this.sessionLifecycle.closeSession();
     if (!closed) return false;
     const pendingReferences = this.state.pendingIntent?.references ?? [];

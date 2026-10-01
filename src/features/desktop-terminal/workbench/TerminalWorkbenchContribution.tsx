@@ -37,6 +37,7 @@ export function createTerminalWorkbenchContribution(t: MessageFormatter, readApp
       return entry ? <TerminalStatus entry={entry} /> : null;
     },
     close: {
+      executionKind: "terminal",
       decide: ({ snapshot }) => getTerminalClosePolicy(snapshot.status === "idle" ? "exited" : snapshot.status) === "close"
         ? { kind: "close" }
         : { kind: "confirm", tone: "danger", dialog: { title: t("terminal.closeDialog.title", { title: snapshot.title }),

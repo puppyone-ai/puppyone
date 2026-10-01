@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { ProjectSessionContext } from "../../../../shared/project-session-contract/types";
+import type { ItemCloseResult, ItemExecutionTarget } from "../../../../shared/item-host-contract/lifecycle";
 
 export interface AuxiliaryWorkbenchProject {
   readonly context: ProjectSessionContext;
@@ -123,11 +124,16 @@ export type AuxiliaryWorkbenchCloseAdapter = Readonly<{
   decide: (
     context: AuxiliaryWorkbenchCloseContext,
   ) => AuxiliaryWorkbenchCloseDecision | Promise<AuxiliaryWorkbenchCloseDecision>;
+}> & (Readonly<{
+  /** Execution authority kind for Main handoff receipts; distinct from the content kind. */
+  executionKind: ItemExecutionTarget["kind"];
   /** Native contributions return a confirmed release or explicit Main handoff.
    * Boolean remains supported for resource-free/legacy contributions only. */
-  commit: (context: AuxiliaryWorkbenchCloseContext) => boolean | import("../../../../shared/item-host-contract/lifecycle").ItemCloseResult
-    | Promise<boolean | import("../../../../shared/item-host-contract/lifecycle").ItemCloseResult>;
-}>;
+  commit: (context: AuxiliaryWorkbenchCloseContext) => boolean | ItemCloseResult | Promise<boolean | ItemCloseResult>;
+}> | Readonly<{
+  executionKind?: never;
+  commit: (context: AuxiliaryWorkbenchCloseContext) => boolean | Promise<boolean>;
+}>);
 
 export type AuxiliaryWorkbenchContribution = Readonly<{
   kind: string;

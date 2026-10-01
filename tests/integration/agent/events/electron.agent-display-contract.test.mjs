@@ -70,6 +70,29 @@ describe('Main-owned Agent display contract across native adapters',()=>{
     expect(calls).toEqual(['next']);expect(actor.control.queue).toEqual([]);
     expect(actor.display.connectionStatus).toBeNull();
   });
+  it('projects a recovered Pi model request as completed without a stale failure card',()=>{
+    const actor=new AgentSessionActor();actor.dispatch({type:'adapter.attached'});
+    event(actor,{type:'turn.started',turnId:'turn-1',payload:{prompt:'Hello'}},'pi');
+    const state=createPiEventState({turnId:'turn-1',providerSessionId:'native-session'});
+    const answer={role:'assistant',content:[{type:'text',text:'Recovered answer'}],stopReason:'stop'};
+    for(const raw of [
+      {type:'message_end',message:{role:'assistant',content:[],stopReason:'error',errorMessage:'fetch failed'}},
+      {type:'auto_retry_start',attempt:1,maxAttempts:3},
+      {type:'message_end',message:answer},
+      {type:'auto_retry_end',success:true},
+      {type:'agent_end',messages:[answer]},
+      {type:'agent_settled'},
+    ])for(const value of normalizePiRpcEvent(raw,state))event(actor,value,'pi');
+    expect(actor.control.execution.nativeOutcome).toBe('completed');
+    expect(actor.control.connection.status).toBe('connected');
+    expect(actor.control.recoveries).toEqual([]);
+    expect(actor.display.connectionStatus).toBeNull();
+    expect(actor.display.terminalState).toBe('completed');
+    expect(actor.display.runningTurnId).toBeNull();
+    expect(actor.display.messages.at(-1).text).toBe('Recovered answer');
+    expect(actor.display.parts.some(part=>part.kind==='error')).toBe(false);
+    expect(assertAgentDisplay(actor.display)).toBe(actor.display);
+  });
   it('does not reopen recovery presentation for an uncorrelated retry after completion',()=>{
     const actor=new AgentSessionActor(); actor.dispatch({type:'adapter.attached'});
     event(actor,{type:'turn.started',turnId:'turn-1',payload:{}});

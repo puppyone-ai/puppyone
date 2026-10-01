@@ -34,6 +34,21 @@ async function harness() {
 }
 
 describe('Renderer display replica against the Main SessionActor and feed', () => {
+  it('does not create a message recovery incident when termination closes a healthy display', async () => {
+    vi.useFakeTimers(); const h = await harness(); await h.controller.initialize();
+    const receipt = Promise.withResolvers<{ kind: 'released' }>();
+    const terminate = vi.fn(() => receipt.promise);
+    Object.assign(h.bridge, { terminateAgentExecution: terminate });
+    const attachments = h.bridge.attachAgentSession.mock.calls.length;
+    const closing = h.controller.closeTabSession();
+    expect(h.controller.getSnapshot().displayRecovery).toBeUndefined();
+    await h.controller.retryDisplayRecovery();
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(h.bridge.attachAgentSession).toHaveBeenCalledTimes(attachments);
+    expect(terminate).toHaveBeenCalledOnce();
+    receipt.resolve({ kind: 'released' });
+    await expect(closing).resolves.toEqual({ kind: 'released' });
+  });
   it('does not dispatch an attach cancelled before its microtask starts', async () => {
     vi.useFakeTimers(); const h = await harness(); await h.controller.initialize();
     const before = h.bridge.attachAgentSession.mock.calls.length;

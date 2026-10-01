@@ -1268,6 +1268,7 @@ function AppContent() {
         </Suspense>
       ),
       close: Object.freeze<AuxiliaryWorkbenchCloseAdapter>({
+        executionKind: "agent",
         decide: ({ snapshot }) => snapshot.running
           ? Object.freeze({
               kind: "confirm" as const,

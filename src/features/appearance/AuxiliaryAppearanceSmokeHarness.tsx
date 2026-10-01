@@ -134,7 +134,7 @@ export function AuxiliaryAppearanceSmokeHarness() {
       discardPreparedItem: async ({ project, item }) => { if (!headerMotion) await terminalPool(project).close(item.id); },
       renderItem: context => headerMotion ? <div className="desktop-terminal-session">{t("terminal.title")}</div>
         : <TerminalFixture {...context} readAppearance={readAppearance} />,
-      close: { decide: () => ({ kind: "close" }), commit: async ({ project, item }) => headerMotion || terminalPool(project).close(item.id) },
+      close: { executionKind: "terminal", decide: () => ({ kind: "close" }), commit: async ({ project, item }) => headerMotion || terminalPool(project).close(item.id) },
     };
     return [terminal, chat];
   }, [t, readAppearance]);

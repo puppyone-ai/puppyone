@@ -92,6 +92,12 @@ export class AgentSessionReplica {
     this.connectedBridge = null;
   }
 
+  /** User termination permanently seals display work; it is not a sync incident. */
+  stopForTermination() {
+    this.dispose();
+    this.patch({ replicaStatus: 'stale', displayRecovery: undefined });
+  }
+
   private invalidate() {
     this.scope.cancel();
     this.scope = new ManagedOperationScope();

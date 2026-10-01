@@ -16,7 +16,9 @@ export function createPiEventState({
     reasoningBlocks: new Set(),
     tools: new Map(),
     terminal: false,
-    failure: null,
+    compactionFailure: null,
+    assistantFailure: null,
+    retryFailure: null,
     interruptRequested: false,
   };
 }
@@ -46,11 +48,12 @@ export function normalizePiRpcEvent(message, state = createPiEventState()) {
       })];
     case "auto_retry_end":
       if (message.success === true) {
+        state.retryFailure = null;
         return [event("provider.connection.updated", state, null, { state: "connected" })];
       }
-      state.failure = text(message.finalError) || `${state.runtimeLabel} exhausted its automatic retries.`;
+      state.retryFailure = text(message.finalError) || `${state.runtimeLabel} exhausted its automatic retries.`;
       return [event("provider.error", state, null, {
-        message: redactSecretText(state.failure),
+        message: redactSecretText(state.retryFailure),
         recoverable: true,
       })];
     case "compaction_start":
@@ -60,7 +63,7 @@ export function normalizePiRpcEvent(message, state = createPiEventState()) {
         reason: text(message.reason),
       })];
     case "compaction_end":
-      if (message.errorMessage) state.failure = text(message.errorMessage);
+      if (message.errorMessage) state.compactionFailure = text(message.errorMessage);
       return [event("provider.activity", state, `${state.namespace}:compaction`, {
         label: "Compacting context",
         status: message.aborted ? "cancelled" : message.errorMessage ? "failed" : "completed",
@@ -73,7 +76,7 @@ export function normalizePiRpcEvent(message, state = createPiEventState()) {
         recoverable: true,
       })];
     case "agent_end":
-      rememberAssistantFailure(message.messages, state);
+      rememberAssistantOutcome(asArray(message.messages).filter(message => message?.role === "assistant").at(-1), state);
       return [];
     case "agent_settled":
       return settleTurn(state);
@@ -179,10 +182,7 @@ function normalizeMessageEnd(message, state) {
     }
   });
   if (message.usage) result.push(event("usage.updated", state, null, normalizeUsage(message.usage)));
-  const stopReason = text(message.stopReason).toLowerCase();
-  if (message.errorMessage || ["error", "aborted"].includes(stopReason)) {
-    state.failure = text(message.errorMessage) || `${state.runtimeLabel} stopped with ${stopReason}.`;
-  }
+  rememberAssistantOutcome(message, state);
   return result;
 }
 
@@ -254,22 +254,24 @@ function settleTurn(state) {
   if (state.interruptRequested) {
     return [event("turn.interrupted", state, null, { status: "interrupted" })];
   }
-  if (state.failure) {
+  const failure = state.compactionFailure || state.retryFailure || state.assistantFailure;
+  if (failure) {
     return [
-      event("provider.error", state, null, { message: redactSecretText(state.failure), recoverable: true }),
-      event("turn.failed", state, null, { status: "failed", message: redactSecretText(state.failure) }),
+      event("provider.error", state, null, { message: redactSecretText(failure), recoverable: true }),
+      event("turn.failed", state, null, { status: "failed", message: redactSecretText(failure) }),
     ];
   }
   return [event("turn.completed", state, null, { status: "completed" })];
 }
 
-function rememberAssistantFailure(messages, state) {
-  const assistant = asArray(messages).filter((message) => message?.role === "assistant").at(-1);
+function rememberAssistantOutcome(assistant, state) {
   if (!assistant) return;
   const stopReason = text(assistant.stopReason).toLowerCase();
-  if (assistant.errorMessage || ["error", "aborted"].includes(stopReason)) {
-    state.failure = text(assistant.errorMessage) || `${state.runtimeLabel} stopped with ${stopReason}.`;
-  }
+  // A retry replaces the model result. It cannot erase an unrelated compaction
+  // failure, and auto_retry_end alone cannot prove the latest assistant succeeded.
+  state.assistantFailure = assistant.errorMessage || ["error", "aborted"].includes(stopReason)
+    ? text(assistant.errorMessage) || `${state.runtimeLabel} stopped with ${stopReason}.`
+    : null;
 }
 
 function toolPayload(name, args, status) {
