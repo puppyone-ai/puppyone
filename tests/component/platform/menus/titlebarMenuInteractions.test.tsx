@@ -41,7 +41,8 @@ describe("titlebar Portal menu interactions", () => {
           backupProviders={["github", "gitlab"]}
           backupStatus={gitStatus({
             remotes: [{ name: "origin", fetchUrl: "https://github.com/team/project.git", pushUrl: null, branches: ["main"] }],
-            branches: [{ ...createBranch("origin/main"), remote: true, lastCommitId: "remote-commit", lastCommitDate: "2026-09-30T01:00:00Z" }],
+            branches: [{ ...createBranch("origin/main"), remote: true, lastCommitId: "remote-commit",
+              lastCommitDate: "2026-09-30T01:00:00Z", lastCommitMessage: "Update project notes" }],
             syncTarget: { remote: "origin", branch: "main", ref: "origin/main", exists: true,
               ahead: 2, behind: 0, incomingPreview: [], outgoingPreview: [] },
           })}
@@ -82,10 +83,14 @@ describe("titlebar Portal menu interactions", () => {
     act(() => cloud?.click());
     expect(Array.from(requireMenu().querySelectorAll<HTMLElement>("[data-backup-details]"))
       .map((details) => details.dataset.backupDetails)).toEqual(["github", "gitlab"]);
-    expect(requireMenu().textContent).toContain("2 commits to back up");
-    expect(requireMenu().textContent).toContain("main · remote-");
-    expect(requireMenu().textContent).toContain("Backup time not recorded");
-    expect(requireMenu().textContent).not.toContain("2026-09-30");
+    expect(requireMenu().querySelector("[data-backup-details='github'] time")?.getAttribute("dateTime"))
+      .toBe("2026-09-30T01:00:00Z");
+    expect(requireMenu().textContent).toContain("Last change:");
+    expect(requireMenu().textContent).toContain("Update project notes");
+    expect(requireMenu().textContent).not.toContain("2 commits to back up");
+    expect(requireMenu().textContent).not.toContain("Remote version");
+    expect(requireMenu().textContent).not.toContain("remote-commit");
+    expect(requireMenu().textContent).not.toContain("Backup time not recorded");
     expect(onClose).not.toHaveBeenCalled();
   });
 
@@ -164,8 +169,8 @@ describe("titlebar Portal menu interactions", () => {
     expect(menu.querySelector("[data-location-action='share']")).toBeNull();
     act(() => container.querySelector<HTMLButtonElement>(".desktop-titlebar-cloud-button")?.click());
     expect(requireMenu().getAttribute("role")).toBe("dialog");
-    expect(requireMenu().textContent).toContain("Remote Notes");
-    expect(requireMenu().textContent).toContain("Backup time not recorded");
+    expect(requireMenu().textContent).toBe("PuppyOne Cloud");
+    expect(requireMenu().querySelector("time")).toBeNull();
     expect(requireMenu().querySelector(".desktop-project-current-location")).toBeNull();
     act(() => container.querySelector<HTMLButtonElement>(".desktop-titlebar-workspace-button")?.click());
     expect(requireMenu().querySelector(".desktop-project-current-location")).not.toBeNull();
@@ -281,8 +286,8 @@ describe("titlebar Portal menu interactions", () => {
     expect(onToggle).toHaveBeenCalledOnce();
     expect(Array.from(requireMenu().querySelectorAll<HTMLElement>("[data-backup-details]"))
       .map((details) => details.dataset.backupDetails)).toEqual(["puppyone-cloud", "github", "gitlab"]);
-    expect(requireMenu().textContent).toContain("Backup not verified");
-    expect(requireMenu().textContent).toContain("Notes on Cloud");
+    expect(requireMenu().textContent).toBe("PuppyOne CloudGitHubGitLab");
+    expect(requireMenu().querySelector("time")).toBeNull();
     expect(cloud.getAttribute("aria-expanded")).toBe("true");
     act(() => requireMenu().dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     expect(onClose).toHaveBeenCalledOnce();

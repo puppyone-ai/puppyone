@@ -10,7 +10,7 @@ export const PROJECT_BACKUP_PROVIDER_LABELS: Record<ProjectBackupProvider, strin
 
 export type ProjectBackupDestination = ProjectBackupProvider | "puppyone-cloud";
 
-/** A local observation of remote refs; Git does not record backup completion time. */
+/** A local observation of remote changes; commit time is not backup completion time. */
 export function getProjectBackupSnapshot(
   status: GitStatusSnapshot | null,
   provider: ProjectBackupDestination,
@@ -53,6 +53,9 @@ export function getProjectBackupSnapshot(
     localChanges: status?.entries.length ?? 0,
     branch: branch?.name.slice((remote?.name.length ?? 0) + 1) ?? null,
     commitId: branch?.lastCommitId ?? null,
+    lastChangeAt: branch?.lastCommitId && branch.lastCommitDate && Number.isFinite(Date.parse(branch.lastCommitDate))
+      ? branch.lastCommitDate : null,
+    lastChangeSummary: branch?.lastCommitId ? branch.lastCommitMessage?.trim() || null : null,
   };
 }
 

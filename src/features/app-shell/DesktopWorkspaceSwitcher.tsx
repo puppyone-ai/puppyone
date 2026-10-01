@@ -165,7 +165,7 @@ export function DesktopWorkspaceSwitcher({
         {showingBackups ? (
           <div className="desktop-project-remote-copies">
             {destinations.map((provider) => <DesktopProjectBackupDetails
-              key={provider} provider={provider} status={backupStatus} cloudProject={cloudProject}
+              key={provider} provider={provider} status={backupStatus}
               cloudProjectId={cloudProject?.id ?? workspace.puppyoneGitRemote?.projectId}
               cloudOrigin={workspace.puppyoneGitRemote?.origin}
             />)}
@@ -280,33 +280,27 @@ function BackupMark({ provider }: { provider: ProjectBackupDestination }) {
     : <ImportSourceMark brand={provider} decorative />;
 }
 
-function DesktopProjectBackupDetails({ provider, status, cloudProject, cloudProjectId, cloudOrigin }: {
+function DesktopProjectBackupDetails({ provider, status, cloudProjectId, cloudOrigin }: {
   provider: ProjectBackupDestination;
   status: GitStatusSnapshot | null;
-  cloudProject?: DesktopProjectCloudCopy;
   cloudProjectId?: string;
   cloudOrigin?: string;
 }) {
-  const { t } = useLocalization();
+  const { t, formatDate } = useLocalization();
   const snapshot = getProjectBackupSnapshot(status, provider, cloudProjectId, cloudOrigin);
-  const statusLabel = snapshot.state === "matching"
-    ? t("shell.workspaceSwitcher.backupCommitsSaved")
-    : snapshot.state === "outgoing" ? t("shell.workspaceSwitcher.backupPendingCommits", { count: snapshot.ahead })
-      : snapshot.state === "incoming" ? t("shell.workspaceSwitcher.backupRemoteAhead", { count: snapshot.behind })
-        : snapshot.state === "diverged" ? t("shell.workspaceSwitcher.backupVersionsDiffer")
-          : t(snapshot.commitId ? "shell.workspaceSwitcher.backupRemoteFound" : "shell.workspaceSwitcher.backupUnverified");
+  const lastChangeDate = snapshot.lastChangeAt ? new Date(snapshot.lastChangeAt) : null;
   return <div className="desktop-project-backup-details" data-backup-details={provider}>
     <div className="desktop-project-backup-heading">
       <span className="desktop-menu-item-icon" aria-hidden="true"><BackupMark provider={provider} /></span>
       <span className="desktop-menu-item-label">{backupLabel(provider)}</span>
     </div>
-    {provider === "puppyone-cloud" && cloudProject?.name?.trim() && <bdi className="desktop-project-backup-name">{cloudProject.name.trim()}</bdi>}
-    <p className="desktop-project-backup-status">{statusLabel}</p>
-    {snapshot.localChanges > 0 && <p className="desktop-project-backup-meta">{t("shell.workspaceSwitcher.backupLocalChanges", { count: snapshot.localChanges })}</p>}
-    {snapshot.commitId && <p className="desktop-project-backup-meta">{t("shell.workspaceSwitcher.backupRemoteVersion", {
-      version: bidiIsolate(`${snapshot.branch} · ${snapshot.commitId.slice(0, 7)}`),
-    })}</p>}
-    <p className="desktop-project-backup-meta">{t("shell.workspaceSwitcher.backupTimeUnavailable")}</p>
+    {lastChangeDate && <p className="desktop-project-backup-meta"><time dateTime={snapshot.lastChangeAt ?? undefined}>
+      {t("shell.workspaceSwitcher.lastChange", { time: bidiIsolate(formatDate(lastChangeDate, {
+        year: lastChangeDate.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined,
+        month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+      })) })}
+    </time></p>}
+    {snapshot.lastChangeSummary && <p className="desktop-project-backup-summary">{snapshot.lastChangeSummary}</p>}
   </div>;
 }
 

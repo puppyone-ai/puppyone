@@ -696,25 +696,21 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   line-height: var(--po-menu-item-line-height, 18px);
 }
 
-.desktop-project-backup-name {
-  display: block;
-  overflow-wrap: anywhere;
-  color: var(--po-text-muted);
-}
-
-.desktop-project-backup-status,
+.desktop-project-backup-summary,
 .desktop-project-backup-meta {
   margin: var(--po-menu-padding) 0 0;
-  font-size: var(--po-menu-item-font-size);
-  line-height: var(--po-menu-item-line-height);
-  overflow-wrap: anywhere;
-  color: var(--po-text-muted);
-}
-
-.desktop-project-backup-meta {
   font-size: var(--po-menu-meta-font-size);
   line-height: var(--po-menu-meta-line-height);
+  overflow-wrap: anywhere;
   color: var(--po-text-subtle);
+}
+
+.desktop-project-backup-summary {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  color: var(--po-text-muted);
 }
 
 .desktop-project-location-actions .desktop-menu-item {

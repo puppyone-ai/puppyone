@@ -11,14 +11,38 @@ describe("remote backup observations", () => {
   const savedBranch = { name: "origin/main", current: false, remote: true, upstream: null,
     ahead: 0, behind: 0, lastCommitId: "saved-commit", lastCommitMessage: "Saved",
     lastCommitDate: "2026-09-30T01:00:00Z" };
-  it("keeps an unverified destination unknown and never treats a commit date as backup time", () => {
-    expect(getProjectBackupSnapshot(null, "github")).toMatchObject({ state: "unverified", commitId: null });
+  it("reports the remote's last change without treating commit time as backup time", () => {
+    expect(getProjectBackupSnapshot(null, "github")).toMatchObject({
+      state: "unverified", commitId: null, lastChangeAt: null, lastChangeSummary: null,
+    });
     const snapshot = getProjectBackupSnapshot(gitStatus({
       remotes: [remote("https://github.com/team/project.git")], branches: [savedBranch], headCommitId: "saved-commit",
     }), "github");
-    expect(snapshot).toMatchObject({ state: "matching", branch: "main", commitId: "saved-commit" });
+    expect(snapshot).toMatchObject({ state: "matching", branch: "main", commitId: "saved-commit",
+      lastChangeAt: savedBranch.lastCommitDate, lastChangeSummary: "Saved" });
     expect(snapshot).not.toHaveProperty("lastBackupAt");
     expect(snapshot).not.toHaveProperty("lastCommitDate");
+  });
+  it.each([null, "not-a-date"])("does not invent a time for an invalid remote date: %s", (lastCommitDate) => {
+    expect(getProjectBackupSnapshot(gitStatus({
+      remotes: [remote("https://github.com/team/project.git")],
+      branches: [{ ...savedBranch, lastCommitDate }],
+    }), "github")).toMatchObject({ lastChangeAt: null, lastChangeSummary: "Saved" });
+  });
+  it("keeps each service's time and summary separate from local changes and other services", () => {
+    const status = gitStatus({
+      remotes: [remote("https://github.com/team/project.git"),
+        { ...remote("https://cloud.example/git/project-1.git", "https://cloud.example/git/project-1.git"), name: "puppyone" }],
+      branches: [savedBranch,
+        { ...savedBranch, name: "puppyone/main", lastCommitDate: "2026-09-29T02:00:00Z", lastCommitMessage: "Cloud edit" },
+        { ...savedBranch, name: "main", current: true, remote: false,
+          lastCommitDate: "2026-10-01T03:00:00Z", lastCommitMessage: "Local edit" }],
+    });
+    expect(getProjectBackupSnapshot(status, "github")).toMatchObject({
+      lastChangeAt: savedBranch.lastCommitDate, lastChangeSummary: "Saved",
+    });
+    expect(getProjectBackupSnapshot(status, "puppyone-cloud", "project-1", "https://cloud.example"))
+      .toMatchObject({ lastChangeAt: "2026-09-29T02:00:00Z", lastChangeSummary: "Cloud edit" });
   });
   it.each([[0, 0, "matching"], [2, 0, "outgoing"], [0, 3, "incoming"], [2, 3, "diverged"]] as const)(
     "uses observed sync counts %s/%s for %s", (ahead, behind, state) => {
@@ -33,20 +57,20 @@ describe("remote backup observations", () => {
     expect(getProjectBackupSnapshot(gitStatus({
       remotes: [remote("https://github.com/team/project.git", "https://gitlab.com/team/project.git")],
       branches: [savedBranch], headCommitId: "saved-commit",
-    }), "gitlab")).toMatchObject({ state: "unverified", commitId: null });
+    }), "gitlab")).toMatchObject({ state: "unverified", commitId: null, lastChangeAt: null, lastChangeSummary: null });
   });
   it("does not borrow another Cloud project's remote version", () => {
     const url = "https://cloud.example/git/project-1.git";
     expect(getProjectBackupSnapshot(gitStatus({ remotes: [remote(url, url)],
       branches: [savedBranch], headCommitId: "saved-commit",
-    }), "puppyone-cloud", "project-2")).toMatchObject({ state: "unverified", commitId: null });
+    }), "puppyone-cloud", "project-2")).toMatchObject({ state: "unverified", commitId: null, lastChangeAt: null, lastChangeSummary: null });
   });
   it("does not borrow a matching project ID from another Cloud server", () => {
     const url = "https://other.example/git/project-1.git";
     expect(getProjectBackupSnapshot(gitStatus({ remotes: [remote(url, url)],
       branches: [savedBranch], headCommitId: "saved-commit",
     }), "puppyone-cloud", "project-1", "https://cloud.example"))
-      .toMatchObject({ state: "unverified", commitId: null });
+      .toMatchObject({ state: "unverified", commitId: null, lastChangeAt: null, lastChangeSummary: null });
   });
 });
 
