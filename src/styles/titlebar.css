@@ -1087,31 +1087,6 @@
   box-shadow: inset 0 0 0 1px var(--desktop-titlebar-focus);
 }
 
-.desktop-titlebar-cloud-button {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  width: var(--desktop-titlebar-control-height);
-  height: var(--desktop-titlebar-control-height);
-  padding: 0;
-  border: 0;
-  border-radius: var(--desktop-toolbar-action-radius);
-  background: transparent;
-  color: var(--po-accent);
-  outline: 0;
-}
-
-.desktop-titlebar-cloud-button:hover,
-.desktop-titlebar-cloud-button[aria-expanded="true"] {
-  background: var(--desktop-titlebar-hover);
-}
-
-.desktop-titlebar-cloud-button:focus-visible {
-  background: var(--desktop-titlebar-hover);
-  box-shadow: inset 0 0 0 1px var(--desktop-titlebar-focus);
-}
-
 .desktop-project-github-mark {
   display: block;
   flex: 0 0 auto;

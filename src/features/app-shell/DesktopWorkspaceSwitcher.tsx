@@ -81,7 +81,7 @@ export function DesktopWorkspaceSwitcher({
   onToggle,
 }: DesktopWorkspaceSwitcherProps) {
   const { t } = useLocalization();
-  const [view, setView] = useState<"projects" | "add" | "backup">("projects");
+  const [view, setView] = useState<"projects" | "add">("projects");
   // A canonical Cloud remote describes another copy, not where this open
   // working copy lives. Desktop workspaces are local unless explicitly remote.
   const currentProjectLocationKind = projectLocation?.current ?? "local";
@@ -92,7 +92,6 @@ export function DesktopWorkspaceSwitcher({
   const destinations: ProjectBackupDestination[] = [
     ...(cloudLinked ? ["puppyone-cloud" as const] : []), ...backupProviders,
   ];
-  const showingBackups = view === "backup" && destinations.length > 0;
   const workspaceContextAssetLabel = t(currentProjectLocationKind === "cloud"
     ? "shell.workspaceSwitcher.location.cloud"
     : "shell.workspaceSwitcher.location.thisMac");
@@ -107,9 +106,8 @@ export function DesktopWorkspaceSwitcher({
     return availableProjects.filter((project) => !attachedPaths.has(project.path));
   }, [attachedFolders, availableProjects]);
   useEffect(() => {
-    if (!open || (view === "add" && !multiRootWorkspacesEnabled)
-      || (view === "backup" && destinations.length === 0)) setView("projects");
-  }, [destinations.length, multiRootWorkspacesEnabled, open, view]);
+    if (!open || (view === "add" && !multiRootWorkspacesEnabled)) setView("projects");
+  }, [multiRootWorkspacesEnabled, open, view]);
   useEffect(() => {
     setView("projects");
   }, [workspace.path]);
@@ -123,11 +121,11 @@ export function DesktopWorkspaceSwitcher({
         aria-label={t("shell.workspaceSwitcher.openMenu", {
           workspace: bidiIsolate(workspace.name),
         }) + ` · ${workspaceContextAssetLabel}`}
-        aria-expanded={open && !showingBackups}
+        aria-expanded={open}
         aria-haspopup="menu"
         onClick={() => {
           setView("projects");
-          if (!(open && showingBackups)) onToggle();
+          onToggle();
         }}
       >
         <ProjectLocationMark
@@ -137,19 +135,6 @@ export function DesktopWorkspaceSwitcher({
         />
         <bdi className="desktop-titlebar-workspace-name">{titlebarLabel}</bdi>
       </button></Tooltip>
-      {destinations.length > 0 && (
-        <Tooltip content={t("shell.workspaceSwitcher.remoteCopies")}><button
-          className="desktop-titlebar-cloud-button" type="button"
-          aria-label={t("shell.workspaceSwitcher.remoteCopies")} aria-haspopup="dialog"
-          aria-expanded={open && showingBackups}
-          onClick={() => {
-            if (open && showingBackups) { onClose(); return; }
-            setView("backup");
-            if (!open) onToggle();
-          }}
-        ><Cloud size={16} strokeWidth={1.75} aria-hidden="true" /></button></Tooltip>
-      )}
-
       <DesktopTitlebarMenuLayer
         anchorRef={refObject}
         className="desktop-project-menu"
@@ -158,19 +143,9 @@ export function DesktopWorkspaceSwitcher({
         open={open}
         preferredMaxHeight={520}
         preferredWidth={view === "add" ? 240 : 224}
-        alignment={showingBackups ? "center" : menuAlignment}
-        role={showingBackups ? "dialog" : "menu"}
-        ariaLabel={showingBackups ? t("shell.workspaceSwitcher.remoteCopies") : undefined}
+        alignment={menuAlignment}
       >
-        {showingBackups ? (
-          <div className="desktop-project-remote-copies">
-            {destinations.map((provider) => <DesktopProjectBackupDetails
-              key={provider} provider={provider} status={backupStatus}
-              cloudProjectId={cloudProject?.id ?? workspace.puppyoneGitRemote?.projectId}
-              cloudOrigin={workspace.puppyoneGitRemote?.origin}
-            />)}
-          </div>
-        ) : view !== "add" ? (
+        {view !== "add" ? (
           <>
             <div
               className="desktop-project-overview"
@@ -183,6 +158,16 @@ export function DesktopWorkspaceSwitcher({
                 />
               </div>
             </div>
+            {destinations.length > 0 && (
+              <div className="desktop-project-remote-copies" role="group"
+                aria-label={t("shell.workspaceSwitcher.remoteCopies")}>
+                {destinations.map((provider) => <DesktopProjectBackupDetails
+                  key={provider} provider={provider} status={backupStatus}
+                  cloudProjectId={cloudProject?.id ?? workspace.puppyoneGitRemote?.projectId}
+                  cloudOrigin={workspace.puppyoneGitRemote?.origin}
+                />)}
+              </div>
+            )}
             {(attachedFolders.length > 1 || multiRootWorkspacesEnabled) && (
               <div className="desktop-project-list" data-po-scrollbar="menu">
                 {attachedFolders.slice(1).map((folder) => (
