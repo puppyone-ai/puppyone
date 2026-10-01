@@ -708,6 +708,17 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   color: var(--po-text-subtle);
 }
 
+.desktop-project-backup-link {
+  padding: 0;
+  text-decoration: none;
+}
+
+.desktop-project-backup-link .desktop-menu-item-trailing {
+  display: grid;
+  place-items: center;
+  margin-inline-start: auto;
+}
+
 .desktop-project-location-actions .desktop-menu-item {
   min-height: var(--po-menu-item-height);
   height: auto;

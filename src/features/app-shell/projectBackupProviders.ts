@@ -56,6 +56,8 @@ export function getProjectBackupSnapshot(
     lastChangeAt: branch?.lastCommitId && branch.lastCommitDate && Number.isFinite(Date.parse(branch.lastCommitDate))
       ? branch.lastCommitDate : null,
     lastChangeSummary: branch?.lastCommitId ? branch.lastCommitMessage?.trim() || null : null,
+    repositoryUrl: provider === "github" && remote
+      ? getGitHubRepositoryUrl(remote.pushUrl?.trim() || remote.fetchUrl?.trim() || "") : null,
   };
 }
 
@@ -72,6 +74,31 @@ export function getProjectBackupProviders(status: GitStatusSnapshot | null): Pro
     else if (host === "gitlab.com") providers.add("gitlab");
   }
   return (["github", "gitlab"] as const).filter((provider) => providers.has(provider));
+}
+
+function getGitHubRepositoryUrl(destination: string): string | null {
+  let host: string | undefined;
+  let pathname: string | undefined;
+  // SCP remotes have a host:path pair rather than a URL pathname.
+  const scp = /^(?:[^/@:]+@)?(github\.com|ssh\.github\.com):(.+)$/i.exec(destination);
+  if (scp) {
+    host = scp[1].toLowerCase();
+    pathname = scp[2];
+  } else {
+    try {
+      const url = new URL(destination);
+      if (!["https:", "http:", "ssh:", "git:"].includes(url.protocol)) return null;
+      host = url.hostname.toLowerCase();
+      pathname = url.pathname;
+    } catch {
+      return null;
+    }
+  }
+  if ((host !== "github.com" && host !== "ssh.github.com") || !pathname) return null;
+  const parts = pathname.replace(/^\/+|\/+$/g, "").replace(/\.git$/, "").split("/");
+  if (parts.length !== 2 || parts.some((part) => !/^[a-zA-Z0-9_.-]+$/.test(part) || part === "." || part === "..")) return null;
+  // Build a clean web URL; never forward SSH credentials, query strings or ports.
+  return `https://github.com/${parts.join("/")}`;
 }
 
 function getRemoteHostname(destination: string): string | null {

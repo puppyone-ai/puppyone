@@ -137,6 +137,38 @@ describe("titlebar Portal menu interactions", () => {
     },
   );
 
+  it("opens only the actual GitHub repository from the service heading and closes the card", async () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    const workspace = createWorkspace("one", "Workspace one");
+    const onClose = vi.fn();
+    const onShare = vi.fn();
+    await act(async () => root?.render(withTestLocalization(
+      <DesktopWorkspaceSwitcher open refObject={createRef<HTMLDivElement>()}
+        titlebarLabel={workspace.name} workspace={workspace} workspaceFolders={[]}
+        multiRootWorkspacesEnabled={false} cloudProject={{ id: "cloud-notes" }}
+        backupProviders={["github", "gitlab"]}
+        backupStatus={gitStatus({ remotes: [{ name: "origin", fetchUrl: "https://github.com/team/source.git",
+          pushUrl: "git@github.com:team/project.git", branches: [] }] })}
+        onClose={onClose} onToggle={vi.fn()} onShare={onShare}
+      />,
+    )));
+    const menu = requireMenu();
+    const link = menu.querySelector<HTMLAnchorElement>("[data-backup-details='github'] a")!;
+    expect(link.getAttribute("href")).toBe("https://github.com/team/project");
+    expect(link.getAttribute("target")).toBe("_blank");
+    expect(link.getAttribute("rel")).toBe("noopener noreferrer");
+    expect(link.getAttribute("aria-label")).toBe("Open GitHub repository");
+    expect(link.querySelector(".lucide-external-link")).not.toBeNull();
+    expect(menu.querySelector("[data-backup-details='puppyone-cloud'] a")).toBeNull();
+    expect(menu.querySelector("[data-backup-details='gitlab'] a")).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+    act(() => link.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true })));
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(onShare).not.toHaveBeenCalled();
+  });
+
   it("shows Cloud details below the local card with Share disabled and clears them on project change", async () => {
     const container = document.createElement("div");
     document.body.append(container);

@@ -66,6 +66,7 @@
   "workspaceSwitcher.shareViaCloud": "通过云端分享",
   "workspaceSwitcher.remoteCopies": "远端副本",
   "workspaceSwitcher.lastChange": "上次改动：{time}",
+  "workspaceSwitcher.openGitHubRepository": "打开 GitHub 仓库",
   "workspaceSwitcher.projectTitle": "项目：{project}",
   "workspaceSwitcher.projectActions": "项目操作",
   "workspaceSwitcher.projectActionsFor": "{project} 的项目操作",

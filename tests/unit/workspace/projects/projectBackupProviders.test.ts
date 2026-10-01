@@ -74,6 +74,51 @@ describe("remote backup observations", () => {
   });
 });
 
+describe("GitHub repository links", () => {
+  it.each([
+    "https://github.com/team/project.git",
+    "https://GITHUB.COM/team/project/",
+    "git@github.com:team/project.git",
+    "github.com:team/project.git",
+    "ssh://git@github.com/team/project.git",
+    "ssh://git@ssh.github.com:443/team/project.git",
+    "git://github.com/team/project.git",
+    "https://example-token@github.com/team/project.git?source=desktop#main",
+  ])("opens a clean repository page for %s", (url) => {
+    expect(getProjectBackupSnapshot(gitStatus({ remotes: [remote(url)] }), "github").repositoryUrl)
+      .toBe("https://github.com/team/project");
+  });
+
+  it.each([
+    "https://github.com/team",
+    "https://github.com/team/project/tree/main",
+    "https://github.com/team/project%2Fother.git",
+    "https://github.com.example.test/team/project.git",
+    "https://gitlab.com/team/project.git",
+  ])("does not create a GitHub link for an unrecognized repository: %s", (url) => {
+    expect(getProjectBackupSnapshot(gitStatus({ remotes: [remote(url)] }), "github").repositoryUrl).toBeNull();
+  });
+
+  it("uses the push repository instead of a different fetch repository", () => {
+    expect(getProjectBackupSnapshot(gitStatus({ remotes: [
+      remote("https://github.com/team/source.git", "git@github.com:team/destination.git"),
+    ] }), "github").repositoryUrl).toBe("https://github.com/team/destination");
+    expect(getProjectBackupSnapshot(gitStatus({ remotes: [
+      remote("https://github.com/team/source.git", "https://gitlab.com/team/destination.git"),
+    ] }), "github").repositoryUrl).toBeNull();
+  });
+
+  it("links the same selected remote as the service's change observation", () => {
+    const status = gitStatus({ remotes: [remote("https://github.com/team/first.git"),
+      { ...remote("https://github.com/team/selected.git"), name: "backup" }],
+    syncTarget: { remote: "backup", branch: "main", ref: "backup/main", exists: true,
+      ahead: 0, behind: 0, incomingPreview: [], outgoingPreview: [] } });
+    expect(getProjectBackupSnapshot(status, "github").repositoryUrl).toBe("https://github.com/team/selected");
+    expect(getProjectBackupSnapshot(null, "github").repositoryUrl).toBeNull();
+    expect(getProjectBackupSnapshot(status, "puppyone-cloud").repositoryUrl).toBeNull();
+  });
+});
+
 describe("project hosting services", () => {
   it("does not invent a backup for a missing or uninitialized repository", () => {
     expect(getProjectBackupProviders(null)).toEqual([]);

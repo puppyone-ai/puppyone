@@ -66,6 +66,7 @@
   "workspaceSwitcher.shareViaCloud": "Compartir por la nube",
   "workspaceSwitcher.remoteCopies": "Copias remotas",
   "workspaceSwitcher.lastChange": "Último cambio: {time}",
+  "workspaceSwitcher.openGitHubRepository": "Abrir repositorio de GitHub",
   "workspaceSwitcher.projectTitle": "Proyecto: {project}",
   "workspaceSwitcher.projectActions": "Acciones del proyecto",
   "workspaceSwitcher.projectActionsFor": "Acciones del proyecto {project}",

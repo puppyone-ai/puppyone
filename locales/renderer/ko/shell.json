@@ -66,6 +66,7 @@
   "workspaceSwitcher.shareViaCloud": "클라우드로 공유",
   "workspaceSwitcher.remoteCopies": "원격 사본",
   "workspaceSwitcher.lastChange": "최근 변경: {time}",
+  "workspaceSwitcher.openGitHubRepository": "GitHub 저장소 열기",
   "workspaceSwitcher.projectTitle": "프로젝트: {project}",
   "workspaceSwitcher.projectActions": "프로젝트 작업",
   "workspaceSwitcher.projectActionsFor": "{project} 프로젝트 작업",

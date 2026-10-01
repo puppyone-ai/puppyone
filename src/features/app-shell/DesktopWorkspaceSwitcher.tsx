@@ -12,6 +12,7 @@ import {
   Check,
   ChevronRight,
   Cloud,
+  ExternalLink,
   FolderPlus,
   Laptop,
 } from "lucide-react";
@@ -165,6 +166,7 @@ export function DesktopWorkspaceSwitcher({
                   key={provider} provider={provider} status={backupStatus}
                   cloudProjectId={cloudProject?.id ?? workspace.puppyoneGitRemote?.projectId}
                   cloudOrigin={workspace.puppyoneGitRemote?.origin}
+                  onOpenRepository={onClose}
                 />)}
               </div>
             )}
@@ -265,20 +267,32 @@ function BackupMark({ provider }: { provider: ProjectBackupDestination }) {
     : <ImportSourceMark brand={provider} decorative />;
 }
 
-function DesktopProjectBackupDetails({ provider, status, cloudProjectId, cloudOrigin }: {
+function DesktopProjectBackupDetails({ provider, status, cloudProjectId, cloudOrigin, onOpenRepository }: {
   provider: ProjectBackupDestination;
   status: GitStatusSnapshot | null;
   cloudProjectId?: string;
   cloudOrigin?: string;
+  onOpenRepository: () => void;
 }) {
   const { t, formatDate } = useLocalization();
   const snapshot = getProjectBackupSnapshot(status, provider, cloudProjectId, cloudOrigin);
   const lastChangeDate = snapshot.lastChangeAt ? new Date(snapshot.lastChangeAt) : null;
   return <div className="desktop-project-backup-details" data-backup-details={provider}>
-    <div className="desktop-project-backup-heading">
-      <span className="desktop-menu-item-icon" aria-hidden="true"><BackupMark provider={provider} /></span>
-      <span className="desktop-menu-item-label">{backupLabel(provider)}</span>
-    </div>
+    {snapshot.repositoryUrl ? (
+      <a className="desktop-menu-item desktop-project-backup-heading desktop-project-backup-link"
+        href={snapshot.repositoryUrl} target="_blank" rel="noopener noreferrer"
+        aria-label={t("shell.workspaceSwitcher.openGitHubRepository")}
+        onClick={onOpenRepository}>
+        <span className="desktop-menu-item-icon" aria-hidden="true"><BackupMark provider={provider} /></span>
+        <span className="desktop-menu-item-label">{backupLabel(provider)}</span>
+        <span className="desktop-menu-item-trailing" aria-hidden="true"><ExternalLink size={12} /></span>
+      </a>
+    ) : (
+      <div className="desktop-project-backup-heading">
+        <span className="desktop-menu-item-icon" aria-hidden="true"><BackupMark provider={provider} /></span>
+        <span className="desktop-menu-item-label">{backupLabel(provider)}</span>
+      </div>
+    )}
     {lastChangeDate && <p className="desktop-project-backup-meta"><time dateTime={snapshot.lastChangeAt ?? undefined}>
       {t("shell.workspaceSwitcher.lastChange", { time: bidiIsolate(formatDate(lastChangeDate, {
         year: lastChangeDate.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined,
