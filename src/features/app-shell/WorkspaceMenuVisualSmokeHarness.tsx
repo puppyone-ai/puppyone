@@ -11,7 +11,8 @@ const currentWorkspace = workspace("todo", "To-Do-List", "/Users/demo/Desktop/To
 export function WorkspaceMenuVisualSmokeHarness() {
   const anchorRef = useRef<HTMLDivElement>(null);
   const state = new URLSearchParams(window.location.search).get("project-state") ?? "local-only";
-  const linked = state !== "local-only";
+  const linked = state === "local-cloud" || state === "cloud-only";
+  const githubLinked = linked || state === "local-github";
   const current = state === "cloud-only" ? "cloud" : "local";
 
   return (
@@ -34,8 +35,8 @@ export function WorkspaceMenuVisualSmokeHarness() {
               cloudState: linked ? "available" : "unavailable",
             }}
             cloudProject={linked ? { id: "project-1" } : undefined}
-            backupProviders={linked ? ["github"] : []}
-            backupStatus={linked ? versionStatus : null}
+            backupProviders={githubLinked ? ["github"] : []}
+            backupStatus={githubLinked ? versionStatus : null}
             onOpenFolder={() => undefined}
             onClose={() => undefined}
             onViewCloud={() => undefined}

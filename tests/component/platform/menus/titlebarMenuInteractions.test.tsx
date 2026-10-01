@@ -49,6 +49,11 @@ describe("titlebar Portal menu interactions", () => {
     expect(menu.textContent).not.toContain("Files are only on this Mac");
     expect(menu.querySelector("time")).toBeNull();
     const setup = menu.querySelector<HTMLButtonElement>("[data-location-action='enable-cloud-versions']")!;
+    expect(setup.querySelector(".desktop-menu-item-label")?.textContent).toBe("Create cloud backup");
+    const github = menu.querySelector("[data-backup-details='github']")!;
+    expect(setup.compareDocumentPosition(github) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(github.closest(".desktop-project-secondary-copies")).not.toBeNull();
+    expect(menu.querySelector(".desktop-project-versions-label")).toBeNull();
     act(() => setup.click());
     expect(onClose).toHaveBeenCalledOnce();
     expect(onViewCloud).toHaveBeenCalledOnce();
@@ -76,9 +81,12 @@ describe("titlebar Portal menu interactions", () => {
     expect(location.querySelector(".desktop-project-current-location-path")).toBeNull();
     expect(container.querySelector(".desktop-titlebar-workspace-button .lucide-cloud")).not.toBeNull();
     const versions = menu.querySelector(".desktop-project-remote-copies")!;
-    expect(versions.querySelector(".lucide-cloud")).toBeNull();
-    expect(versions.querySelector(".lucide-files")).not.toBeNull();
+    expect(versions.querySelector(".lucide-cloud")).not.toBeNull();
+    expect(versions.querySelector(".lucide-files")).toBeNull();
     expect(versions.querySelector("[data-backup-details='github']")).not.toBeNull();
+    const cloudEdition = versions.querySelector("[data-backup-details='puppyone-cloud']")!;
+    expect(cloudEdition.querySelector("button")).toBeNull();
+    expect(cloudEdition.querySelector(".desktop-project-edition-current")?.textContent).toBe("Current");
     expect(menu.querySelector("[data-location-action='enable-cloud-versions']")).toBeNull();
   });
 
@@ -130,7 +138,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(container.querySelector(".desktop-titlebar-cloud-button")).toBeNull();
     expect(container.querySelector(".desktop-titlebar-workspace-wrap img")).toBeNull();
     expect(container.querySelector(".desktop-titlebar-workspace-wrap .desktop-project-github-mark")).toBeNull();
-    expect(menu.querySelector("[role='group'][aria-label='Cloud project versions']")).not.toBeNull();
+    expect(menu.querySelector("[role='group'][aria-label='Project versions']")).not.toBeNull();
     expect(Array.from(requireMenu().querySelectorAll<HTMLElement>("[data-backup-details]"))
       .map((details) => details.dataset.backupDetails)).toEqual(["github", "gitlab"]);
     expect(requireMenu().querySelector("[data-backup-details='github'] time")?.getAttribute("dateTime"))
@@ -249,11 +257,11 @@ describe("titlebar Portal menu interactions", () => {
     )));
     const menu = requireMenu();
     const view = menu.querySelector<HTMLButtonElement>("[data-backup-details='puppyone-cloud'] button")!;
-    expect(view.getAttribute("aria-label")).toBe("View cloud project versions");
-    expect(view.querySelector(".desktop-project-backup-view")?.textContent).toBe("View");
-    expect(view.textContent).toBe("PuppyOneView");
-    expect(view.querySelector(".lucide-files")).not.toBeNull();
-    expect(view.querySelector(".lucide-cloud")).toBeNull();
+    expect(view.getAttribute("aria-label")).toBe("Switch to cloud edition");
+    expect(view.querySelector(".desktop-project-backup-view")?.textContent).toBe("Switch");
+    expect(view.textContent).toBe("Cloud editionSwitch");
+    expect(view.querySelector(".lucide-files")).toBeNull();
+    expect(view.querySelector(".lucide-cloud")).not.toBeNull();
     expect(menu.querySelector("[data-location-action='enable-cloud-versions']")).toBeNull();
     expect(menu.querySelector(".desktop-project-current-location")?.getAttribute("data-project-location")).toBe("local");
     expect(menu.querySelector(".desktop-project-current-location-path")?.textContent).toBe("~/project/local-notes");
@@ -293,7 +301,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(localCard?.textContent).toBe("~/project/local-notes");
     expect(menu.querySelector("[data-location-action='share']")).toBeNull();
     expect(requireMenu().getAttribute("role")).toBe("menu");
-    expect(requireMenu().querySelector("[data-backup-details='puppyone-cloud']")?.textContent).toBe("PuppyOne");
+    expect(requireMenu().querySelector("[data-backup-details='puppyone-cloud']")?.textContent).toBe("Cloud edition");
     expect(requireMenu().querySelector("time")).toBeNull();
     expect(requireMenu().querySelector(".desktop-project-current-location")).not.toBeNull();
 
@@ -379,8 +387,8 @@ describe("titlebar Portal menu interactions", () => {
       const linked = cloudState === "available" || cloudState === "signed-out";
       expect(Boolean(setup)).toBe(!linked);
       if (setup) {
-        expect(setup.querySelector(".desktop-menu-item-label")?.textContent).toBe("Enable cloud versions");
-        expect(setup.querySelector(".desktop-menu-item-detail")?.textContent).toBe("Files are only on this Mac");
+        expect(setup.querySelector(".desktop-menu-item-label")?.textContent).toBe("Create cloud backup");
+        expect(setup.querySelector(".desktop-menu-item-detail")).toBeNull();
         expect(setup.querySelector(".lucide-circle-plus")).not.toBeNull();
         expect(setup.querySelector(".lucide-cloud")).toBeNull();
         expect(setup.disabled).toBe(cloudState === "resolving");
@@ -427,7 +435,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(onToggle).toHaveBeenCalledOnce();
     expect(Array.from(requireMenu().querySelectorAll<HTMLElement>("[data-backup-details]"))
       .map((details) => details.dataset.backupDetails)).toEqual(["puppyone-cloud", "github", "gitlab"]);
-    expect(requireMenu().querySelector(".desktop-project-remote-copies")?.textContent).toBe("Cloud project versionsPuppyOneGitHubGitLab");
+    expect(requireMenu().querySelector(".desktop-project-remote-copies")?.textContent).toBe("Cloud editionGitHub version copyGitLab version copy");
     expect(requireMenu().querySelector(".desktop-project-current-location")).not.toBeNull();
     expect(requireMenu().querySelector("time")).toBeNull();
     expect(project.getAttribute("aria-expanded")).toBe("true");

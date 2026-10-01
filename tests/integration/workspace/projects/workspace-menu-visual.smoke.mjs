@@ -38,7 +38,7 @@ async function runSmoke() {
   });
 
   try {
-  for (const state of ["local-only", "local-cloud", "cloud-only"]) {
+  for (const state of ["local-only", "local-github", "local-cloud", "cloud-only"]) {
   const url = pathToFileURL(rendererPath);
   url.searchParams.set("project-state", state);
   url.hash = "workspace-menu-visual-smoke";
@@ -84,7 +84,16 @@ async function runSmoke() {
       providerDetailsFit: details.every(detail => detail && detail.scrollWidth <= detail.clientWidth),
       providerTimes: versions.map(row => row.querySelector('time')?.dateTime),
       versionCloudIcon: Boolean(menu.querySelector('.desktop-project-remote-copies .lucide-cloud')),
-      versionFilesIcon: Boolean(menu.querySelector('.desktop-project-remote-copies .lucide-files')),
+      cloudEditionLabel: menu.querySelector('.desktop-project-cloud-edition .desktop-menu-item-label')?.textContent,
+      cloudEditionAction: menu.querySelector('.desktop-project-cloud-edition .desktop-project-backup-view')?.textContent,
+      cloudEditionCurrent: menu.querySelector('.desktop-project-cloud-edition .desktop-project-edition-current')?.textContent,
+      cloudEditionFontSize: menu.querySelector('.desktop-project-cloud-edition .desktop-project-backup-heading')
+        ? parseFloat(getComputedStyle(menu.querySelector('.desktop-project-cloud-edition .desktop-project-backup-heading')).fontSize) : null,
+      githubFontSize: menu.querySelector('[data-backup-details="github"] .desktop-project-backup-heading')
+        ? parseFloat(getComputedStyle(menu.querySelector('[data-backup-details="github"] .desktop-project-backup-heading')).fontSize) : null,
+      githubIsSecondary: Boolean(menu.querySelector('.desktop-project-secondary-copies [data-backup-details="github"]')),
+      setupBeforeGithub: locationAction ? Boolean(locationAction.compareDocumentPosition(menu.querySelector('[data-backup-details="github"]') ?? locationAction) & Node.DOCUMENT_POSITION_FOLLOWING) : false,
+      hasFeatureCopy: /Version recovery|Members and Agents|Access control/.test(menu.textContent),
       currentPath: currentLocation.querySelector('.desktop-project-current-location-path')?.textContent,
       hasShareAction: Boolean(menu.querySelector('[data-location-action="share"]')),
       text: menu.textContent,
@@ -99,20 +108,28 @@ async function runSmoke() {
   assert(snapshot.currentLocationBackground !== snapshot.menuBackground, `Device card needs a distinct background: ${evidence}`);
   assert(snapshot.menuShadow !== "none", `Floating card needs its scoped shadow: ${evidence}`);
   assert(!snapshot.hasShareAction, `Project-version setup must not route to Share: ${evidence}`);
+  assert(!snapshot.hasFeatureCopy, `Feature promotion must stay out of the first-level card: ${evidence}`);
   assert(snapshot.location === (state === "cloud-only" ? "cloud" : "local"), `Working-copy identity drifted: ${evidence}`);
   if (state === "local-only") {
     assert(snapshot.providerNames.length === 0, `Unactivated versions cannot claim a remote service: ${evidence}`);
     assert(snapshot.hasLocationAction && snapshot.locationActionLabelFits, `Activation CTA is missing or clipped: ${evidence}`);
     assert(snapshot.locationActionBackground === "rgba(0, 0, 0, 0)", `Activation must stay quiet: ${evidence}`);
+  } else if (state === "local-github") {
+    assert(snapshot.providerNames.join(",") === "github", `GitHub does not activate the Cloud edition: ${evidence}`);
+    assert(snapshot.hasLocationAction && snapshot.locationActionLabelFits && snapshot.setupBeforeGithub, `Cloud setup must precede third-priority GitHub: ${evidence}`);
+    assert(snapshot.githubIsSecondary, `GitHub must be a secondary service row: ${evidence}`);
+    assert(!snapshot.text.includes("Files are only on this Mac"), `GitHub must not get a local-only claim: ${evidence}`);
   } else {
     assert(!snapshot.hasLocationAction, `Linked project must not offer activation again: ${evidence}`);
     assert(snapshot.providerNames.join(",") === "puppyone-cloud,github", `Both version services must be listed: ${evidence}`);
     assert(snapshot.providerLabelsFit && snapshot.providerDetailsFit, `Version text is clipped: ${evidence}`);
-    assert(snapshot.providerHeights[0] === snapshot.providerHeights[1], `Provider row heights differ: ${evidence}`);
-    assert(snapshot.providerLabelLefts[0] === snapshot.providerLabelLefts[1], `Provider labels are misaligned: ${evidence}`);
+    assert(snapshot.githubIsSecondary && snapshot.githubFontSize < snapshot.cloudEditionFontSize, `GitHub must be below the Cloud edition in visual priority: ${evidence}`);
+    assert(snapshot.providerLabelLefts[0] === snapshot.providerLabelLefts[1], `Cloud and service labels must align: ${evidence}`);
     assert(snapshot.providerDetailLefts.every((left, index) => left === snapshot.providerLabelLefts[index]), `Metadata must align with provider names: ${evidence}`);
     assert(snapshot.providerTimes.every(time => time === "2026-10-01T14:32:00Z"), `Remote version dates must stay factual: ${evidence}`);
-    assert(snapshot.versionFilesIcon && !snapshot.versionCloudIcon, `Runtime and versions need distinct icons: ${evidence}`);
+    assert(snapshot.versionCloudIcon && snapshot.cloudEditionLabel === "Cloud edition", `Cloud edition identity is missing: ${evidence}`);
+    assert(state === "cloud-only" ? snapshot.cloudEditionCurrent === "Current" && !snapshot.cloudEditionAction
+      : snapshot.cloudEditionAction === "Switch", `Use Switch for another edition and Current for this one: ${evidence}`);
   }
   assert(state === "cloud-only" ? !snapshot.currentPath : snapshot.currentPath === "~/Desktop/To-Do-List", `Local path identity drifted: ${evidence}`);
 

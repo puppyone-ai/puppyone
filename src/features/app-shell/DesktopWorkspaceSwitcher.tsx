@@ -14,7 +14,6 @@ import {
   CirclePlus,
   Cloud,
   ExternalLink,
-  Files,
   FolderPlus,
   Laptop,
 } from "lucide-react";
@@ -93,9 +92,6 @@ export function DesktopWorkspaceSwitcher({
     || Boolean(cloudProject?.id)
     || projectLocation?.cloudState === "available"
     || projectLocation?.cloudState === "signed-out";
-  const destinations: ProjectBackupDestination[] = [
-    ...(cloudLinked ? ["puppyone-cloud" as const] : []), ...backupProviders,
-  ];
   const canSetUpCloudVersions = !cloudLinked && currentProjectLocationKind === "local"
     && Boolean(projectLocation || onViewCloud);
   const workspaceContextAssetLabel = t(currentProjectLocationKind === "cloud"
@@ -164,17 +160,43 @@ export function DesktopWorkspaceSwitcher({
                 />
               </div>
             </div>
-            {destinations.length > 0 && (
+            {(cloudLinked || canSetUpCloudVersions || backupProviders.length > 0) && (
               <div className="desktop-project-remote-copies" role="group"
                 aria-label={t("shell.workspaceSwitcher.remoteCopies")}>
-                <p className="desktop-project-versions-label">{t("shell.workspaceSwitcher.remoteCopies")}</p>
-                {destinations.map((provider) => <DesktopProjectBackupDetails
-                  key={provider} provider={provider} status={backupStatus}
+                {cloudLinked && <DesktopProjectBackupDetails
+                  provider="puppyone-cloud" status={backupStatus}
                   cloudProjectId={cloudProject?.id ?? workspace.puppyoneGitRemote?.projectId}
                   cloudOrigin={workspace.puppyoneGitRemote?.origin}
+                  current={currentProjectLocationKind === "cloud"}
+                  navigationPending={projectLocation?.cloudState === "resolving"}
                   onClose={onClose}
                   onViewCloud={onViewCloud}
-                />)}
+                />}
+                {canSetUpCloudVersions && (
+                  <div className="desktop-project-location-actions">
+                    <DesktopMenuItem
+                      className="desktop-project-location-action desktop-project-backup-heading"
+                      data-location-action="enable-cloud-versions"
+                      disabled={!onViewCloud || projectLocation?.cloudState === "resolving"}
+                      icon={<CirclePlus size={14} strokeWidth={1.65} />}
+                      label={t("shell.workspaceSwitcher.enableCloudVersions")}
+                      trailing={<ChevronRight className="po-directional-icon" size={12} aria-hidden="true" />}
+                      onClick={() => {
+                        if (!onViewCloud) return;
+                        onClose();
+                        onViewCloud();
+                      }}
+                    />
+                  </div>
+                )}
+                {backupProviders.length > 0 && (
+                  <div className="desktop-project-secondary-copies">
+                    {backupProviders.map((provider) => <DesktopProjectBackupDetails
+                      key={provider} provider={provider} status={backupStatus}
+                      onClose={onClose}
+                    />)}
+                  </div>
+                )}
               </div>
             )}
             {(attachedFolders.length > 1 || multiRootWorkspacesEnabled) && (
@@ -194,24 +216,6 @@ export function DesktopWorkspaceSwitcher({
                     onClick={() => setView("add")}
                   />
                 )}
-              </div>
-            )}
-            {canSetUpCloudVersions && (
-              <div className="desktop-project-location-actions">
-                <DesktopMenuItem
-                  className="desktop-project-location-action desktop-project-backup-heading"
-                  data-location-action="enable-cloud-versions"
-                  disabled={!onViewCloud || projectLocation?.cloudState === "resolving"}
-                  icon={<CirclePlus size={14} strokeWidth={1.65} />}
-                  label={t("shell.workspaceSwitcher.enableCloudVersions")}
-                  detail={destinations.length === 0 ? t("shell.workspaceSwitcher.localOnly") : undefined}
-                  trailing={<ChevronRight className="po-directional-icon" size={12} aria-hidden="true" />}
-                  onClick={() => {
-                    if (!onViewCloud) return;
-                    onClose();
-                    onViewCloud();
-                  }}
-                />
               </div>
             )}
           </>
@@ -260,10 +264,6 @@ export function DesktopWorkspaceSwitcher({
   );
 }
 
-function backupLabel(provider: ProjectBackupDestination) {
-  return provider === "puppyone-cloud" ? "PuppyOne" : PROJECT_BACKUP_PROVIDER_LABELS[provider];
-}
-
 function BackupMark({ provider }: { provider: ProjectBackupDestination }) {
   if (provider === "github") {
     // Mask the canonical SVG so its silhouette follows the surrounding text,
@@ -271,19 +271,23 @@ function BackupMark({ provider }: { provider: ProjectBackupDestination }) {
     const maskImage = `url("${resolveRendererPublicAssetUrl(RENDERER_ASSET_PATHS.icons.integrations.github)}")`;
     return <span className="desktop-project-github-mark" aria-hidden="true" style={{ maskImage, WebkitMaskImage: maskImage }} />;
   }
-  return provider === "puppyone-cloud" ? <Files size={14} strokeWidth={1.65} aria-hidden="true" />
+  return provider === "puppyone-cloud" ? <Cloud size={14} strokeWidth={1.65} aria-hidden="true" />
     : <ImportSourceMark brand={provider} decorative />;
 }
 
-function DesktopProjectBackupDetails({ provider, status, cloudProjectId, cloudOrigin, onClose, onViewCloud }: {
+function DesktopProjectBackupDetails({ provider, status, cloudProjectId, cloudOrigin, current = false, navigationPending = false, onClose, onViewCloud }: {
   provider: ProjectBackupDestination;
   status: GitStatusSnapshot | null;
   cloudProjectId?: string;
   cloudOrigin?: string;
+  current?: boolean;
+  navigationPending?: boolean;
   onClose: () => void;
   onViewCloud?: () => void;
 }) {
   const { t, formatDate } = useLocalization();
+  const label = provider === "puppyone-cloud" ? t("shell.workspaceSwitcher.cloudEdition")
+    : t("shell.workspaceSwitcher.providerVersionCopy", { provider: PROJECT_BACKUP_PROVIDER_LABELS[provider] });
   const snapshot = getProjectBackupSnapshot(status, provider, cloudProjectId, cloudOrigin);
   const lastChangeDate = snapshot.lastChangeAt ? new Date(snapshot.lastChangeAt) : null;
   const detail = lastChangeDate ? <time dateTime={snapshot.lastChangeAt ?? undefined}>
@@ -292,7 +296,7 @@ function DesktopProjectBackupDetails({ provider, status, cloudProjectId, cloudOr
       month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
     })) })}
   </time> : undefined;
-  return <div className="desktop-project-backup-details" data-backup-details={provider}>
+  return <div className={`desktop-project-backup-details${provider === "puppyone-cloud" ? " desktop-project-cloud-edition" : ""}`} data-backup-details={provider}>
     {snapshot.repositoryUrl ? (
       <a className="desktop-menu-item desktop-project-backup-heading desktop-project-backup-link"
         href={snapshot.repositoryUrl} target="_blank" rel="noopener noreferrer"
@@ -300,19 +304,20 @@ function DesktopProjectBackupDetails({ provider, status, cloudProjectId, cloudOr
         onClick={onClose}>
         <span className="desktop-menu-item-icon" aria-hidden="true"><BackupMark provider={provider} /></span>
         <span className="desktop-menu-item-body">
-          <span className="desktop-menu-item-label">{backupLabel(provider)}</span>
+          <span className="desktop-menu-item-label">{label}</span>
           {detail && <span className="desktop-menu-item-detail">{detail}</span>}
         </span>
         <span className="desktop-menu-item-trailing" aria-hidden="true"><ExternalLink size={12} /></span>
       </a>
-    ) : provider === "puppyone-cloud" && onViewCloud ? (
+    ) : provider === "puppyone-cloud" && onViewCloud && !current ? (
       <DesktopMenuItem
         className="desktop-project-backup-heading desktop-project-backup-link"
         aria-label={t("shell.workspaceSwitcher.viewCloudCopy")}
+        disabled={navigationPending}
         icon={<BackupMark provider={provider} />}
-        label={backupLabel(provider)}
+        label={label}
         detail={detail}
-        trailing={<span className="desktop-project-backup-view">{t("shell.workspaceSwitcher.view")}</span>}
+        trailing={<span className="desktop-project-backup-view">{t("shell.workspaceSwitcher.switch")}</span>}
         onClick={() => {
           onClose();
           onViewCloud();
@@ -322,9 +327,10 @@ function DesktopProjectBackupDetails({ provider, status, cloudProjectId, cloudOr
       <div className="desktop-project-backup-heading">
         <span className="desktop-menu-item-icon" aria-hidden="true"><BackupMark provider={provider} /></span>
         <span className="desktop-menu-item-body">
-          <span className="desktop-menu-item-label">{backupLabel(provider)}</span>
+          <span className="desktop-menu-item-label">{label}</span>
           {detail && <span className="desktop-menu-item-detail">{detail}</span>}
         </span>
+        {current && <span className="desktop-menu-item-trailing desktop-project-edition-current">{t("shell.workspaceSwitcher.current")}</span>}
       </div>
     )}
   </div>;

@@ -675,7 +675,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-location-actions {
-  margin-top: var(--po-menu-padding);
+  min-width: 0;
 }
 
 .desktop-project-backup-details {
@@ -685,17 +685,31 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 .desktop-project-remote-copies {
   display: grid;
   min-width: 0;
-  gap: 2px;
-  margin-top: var(--po-menu-item-padding-inline);
+  gap: var(--po-menu-padding);
+  margin-top: var(--po-menu-padding);
 }
 
-.desktop-project-versions-label {
-  margin: 0;
-  padding: 0 var(--po-menu-item-padding-inline) var(--po-menu-padding);
+.desktop-project-cloud-edition {
+  overflow: hidden;
+  border-radius: 8px;
+  outline: 1px solid var(--po-divider);
+  outline-offset: -1px;
+}
+
+.desktop-project-secondary-copies {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.desktop-project-menu .desktop-project-secondary-copies .desktop-project-backup-heading {
   color: var(--po-text-subtle);
   font-size: var(--po-menu-meta-font-size);
-  font-weight: var(--po-text-weight-regular, 400);
-  line-height: var(--po-menu-meta-line-height);
+}
+
+.desktop-project-edition-current {
+  color: var(--po-text-subtle);
+  font-size: var(--po-menu-meta-font-size);
 }
 
 .desktop-project-menu .desktop-project-backup-heading {
