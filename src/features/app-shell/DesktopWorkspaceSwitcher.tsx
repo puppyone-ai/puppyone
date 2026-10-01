@@ -144,7 +144,7 @@ export function DesktopWorkspaceSwitcher({
         onDismiss={onClose}
         open={open}
         preferredMaxHeight={520}
-        preferredWidth={view === "add" ? 240 : 224}
+        preferredWidth={view === "add" ? 240 : 216}
         alignment={menuAlignment}
       >
         {view !== "add" ? (
@@ -271,7 +271,7 @@ function BackupMark({ provider }: { provider: ProjectBackupDestination }) {
     const maskImage = `url("${resolveRendererPublicAssetUrl(RENDERER_ASSET_PATHS.icons.integrations.github)}")`;
     return <span className="desktop-project-github-mark" aria-hidden="true" style={{ maskImage, WebkitMaskImage: maskImage }} />;
   }
-  return provider === "puppyone-cloud" ? <Cloud size={24} strokeWidth={1.75} absoluteStrokeWidth aria-hidden="true" />
+  return provider === "puppyone-cloud" ? <Cloud size={20} strokeWidth={1.75} absoluteStrokeWidth aria-hidden="true" />
     : <ImportSourceMark brand={provider} decorative />;
 }
 
@@ -417,7 +417,7 @@ function DesktopCurrentProjectLocation({
           <ProjectLocationMark
             className="desktop-project-current-location-mark"
             kind={kind}
-            size={24}
+            size={20}
             absoluteStrokeWidth
             showLocalIndicator
           />
@@ -432,7 +432,7 @@ function DesktopCurrentProjectLocation({
               />
             </div>
           ) : (
-            <span className="desktop-project-location-label">
+            <span className="desktop-project-location-title">
               {t("shell.workspaceSwitcher.location.cloud")}
             </span>
           )}

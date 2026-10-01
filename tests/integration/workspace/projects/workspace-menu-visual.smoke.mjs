@@ -61,6 +61,10 @@ async function runSmoke() {
     const versions = [...menu.querySelectorAll('[data-backup-details]')];
     const labels = versions.map(row => row.querySelector('.desktop-menu-item-label'));
     const details = versions.map(row => row.querySelector('.desktop-menu-item-detail'));
+    const centerY = element => {
+      const rect = element?.getBoundingClientRect();
+      return rect ? rect.top + rect.height / 2 : null;
+    };
     const header = document.querySelector('.workspace-menu-visual-titlebar');
     return {
       state: document.querySelector('[data-project-state]')?.dataset.projectState,
@@ -97,6 +101,13 @@ async function runSmoke() {
       currentPath: currentLocation.querySelector('.desktop-project-current-location-path')?.textContent,
       localTitleLeft: currentLocation.querySelector('.desktop-project-location-title')?.getBoundingClientRect().left,
       localPathLeft: currentLocation.querySelector('.desktop-project-path-text')?.getBoundingClientRect().left,
+      localMarkCenterY: centerY(currentLocation.querySelector('.desktop-project-current-location-mark')),
+      localTitleCenterY: centerY(currentLocation.querySelector('.desktop-project-location-title')),
+      localPathFontSize: currentLocation.querySelector('.desktop-project-current-location-path')
+        ? getComputedStyle(currentLocation.querySelector('.desktop-project-current-location-path')).fontSize : null,
+      providerMarkCenterYs: versions.map(row => centerY(row.querySelector('.desktop-menu-item-icon'))),
+      providerTitleCenterYs: labels.map(label => centerY(label)),
+      providerDetailFontSizes: details.map(detail => detail ? getComputedStyle(detail).fontSize : null),
       cloudBackground: menu.querySelector('.desktop-project-cloud-edition') ? getComputedStyle(menu.querySelector('.desktop-project-cloud-edition')).backgroundColor : null,
       cloudMarkWidth: menu.querySelector('.desktop-project-cloud-edition svg')?.getBoundingClientRect().width,
       localMarkWidth: currentLocation.querySelector('.desktop-project-current-location-mark svg')?.getBoundingClientRect().width,
@@ -107,8 +118,10 @@ async function runSmoke() {
 
   const evidence = JSON.stringify(snapshot);
   assert(snapshot.state === state, `Wrong fixture state: ${evidence}`);
-  assert(snapshot.menuWidth === 224, `Project card must stay compact: ${evidence}`);
-  assert(snapshot.currentLocationHeight === 108, `Device card height drifted: ${evidence}`);
+  assert(snapshot.menuWidth === 216, `Project card must stay compact: ${evidence}`);
+  assert(snapshot.currentLocationHeight === 84, `Device card height drifted: ${evidence}`);
+  assert(snapshot.localMarkCenterY === snapshot.localTitleCenterY, `Device mark must align with the first line: ${evidence}`);
+  assert(snapshot.providerMarkCenterYs.every((center, index) => center === snapshot.providerTitleCenterYs[index]), `Service marks must align with the first line: ${evidence}`);
   assert(snapshot.menuBackground === snapshot.headerBackground, `Popup must share the Header background: ${evidence}`);
   assert(snapshot.currentLocationBackground !== snapshot.menuBackground, `Device card needs a distinct background: ${evidence}`);
   assert(snapshot.menuShadow !== "none", `Floating card needs its scoped shadow: ${evidence}`);
@@ -140,6 +153,7 @@ async function runSmoke() {
   }
   if (state !== "cloud-only") {
     assert(snapshot.localTitleLeft === snapshot.localPathLeft, `Local title and path must align: ${evidence}`);
+    assert(snapshot.providerDetailFontSizes.every(size => size === snapshot.localPathFontSize), `Path and update metadata must share typography: ${evidence}`);
     if (snapshot.providerLabelLefts.length) assert(snapshot.localTitleLeft === snapshot.providerLabelLefts[0], `All carrier text must align: ${evidence}`);
   }
   assert(state === "cloud-only" ? !snapshot.currentPath : snapshot.currentPath === "~/Desktop/To-Do-List", `Local path identity drifted: ${evidence}`);
