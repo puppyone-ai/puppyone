@@ -72,14 +72,16 @@ describe("titlebar Portal menu interactions", () => {
     expect(onCheckoutBranch).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
     expect(menu.querySelector(".desktop-project-backup-services")).toBeNull();
-    const backups = container.querySelector(".desktop-titlebar-project-backups");
-    expect(Array.from(backups?.querySelectorAll("button") ?? []).map((button) => button.dataset.backupProvider))
-      .toEqual(["github", "gitlab"]);
-    expect(backups?.querySelector("[data-backup-provider='github'] .desktop-project-github-mark")).not.toBeNull();
-    expect(backups?.querySelector("[data-backup-provider='gitlab'] img")).not.toBeNull();
-    expect(backups?.textContent).toBe("[]");
-    expect(container.querySelector(".desktop-titlebar-workspace-button")?.nextElementSibling).toBe(backups);
-    act(() => container.querySelector<HTMLButtonElement>("[data-backup-provider='github']")?.click());
+    const cloud = container.querySelector<HTMLButtonElement>(".desktop-titlebar-cloud-button");
+    expect(container.querySelectorAll(".desktop-titlebar-cloud-button").length).toBe(1);
+    expect(cloud?.querySelector(".lucide-cloud")).not.toBeNull();
+    expect(cloud?.getAttribute("aria-label")).toBe("Remote copies");
+    expect(container.querySelector(".desktop-titlebar-workspace-wrap img")).toBeNull();
+    expect(container.querySelector(".desktop-titlebar-workspace-wrap .desktop-project-github-mark")).toBeNull();
+    expect(container.querySelector(".desktop-titlebar-workspace-button")?.nextElementSibling).toBe(cloud);
+    act(() => cloud?.click());
+    expect(Array.from(requireMenu().querySelectorAll<HTMLElement>("[data-backup-details]"))
+      .map((details) => details.dataset.backupDetails)).toEqual(["github", "gitlab"]);
     expect(requireMenu().textContent).toContain("2 commits to back up");
     expect(requireMenu().textContent).toContain("main · remote-");
     expect(requireMenu().textContent).toContain("Backup time not recorded");
@@ -113,7 +115,7 @@ describe("titlebar Portal menu interactions", () => {
       const header = container.querySelector(".desktop-titlebar-workspace-button");
       expect(header?.querySelector(".lucide-laptop")).not.toBeNull();
       expect(header?.querySelector(".lucide-cloud")).toBeNull();
-      expect(container.querySelector("[data-backup-provider='puppyone-cloud'] .lucide-cloud")).not.toBeNull();
+      expect(container.querySelector(".desktop-titlebar-cloud-button .lucide-cloud")).not.toBeNull();
       expect(container.querySelector(".desktop-titlebar-workspace-location-link")).toBeNull();
       expect(header?.getAttribute("aria-label")).toContain("This Mac");
       const menu = requireMenu();
@@ -153,14 +155,14 @@ describe("titlebar Portal menu interactions", () => {
       });
     };
     await renderProject(linkedWorkspace, { id: "cloud-notes", name: "Remote Notes" });
-    expect(container.querySelector("[data-backup-provider='puppyone-cloud'] .lucide-cloud")).not.toBeNull();
+    expect(container.querySelector(".desktop-titlebar-cloud-button .lucide-cloud")).not.toBeNull();
     const menu = requireMenu();
     const localCard = menu.querySelector(".desktop-project-current-location");
     expect(localCard?.querySelector(".lucide-laptop")).not.toBeNull();
     expect(localCard?.querySelector(".lucide-cloud")).toBeNull();
     expect(localCard?.textContent).toBe("~/project/local-notes");
     expect(menu.querySelector("[data-location-action='share']")).toBeNull();
-    act(() => container.querySelector<HTMLButtonElement>("[data-backup-provider='puppyone-cloud']")?.click());
+    act(() => container.querySelector<HTMLButtonElement>(".desktop-titlebar-cloud-button")?.click());
     expect(requireMenu().getAttribute("role")).toBe("dialog");
     expect(requireMenu().textContent).toContain("Remote Notes");
     expect(requireMenu().textContent).toContain("Backup time not recorded");
@@ -169,14 +171,14 @@ describe("titlebar Portal menu interactions", () => {
     expect(requireMenu().querySelector(".desktop-project-current-location")).not.toBeNull();
 
     await renderProject(nextWorkspace);
-    expect(container.querySelector("[data-backup-provider='puppyone-cloud'] .lucide-cloud")).toBeNull();
+    expect(container.querySelector(".desktop-titlebar-cloud-button")).toBeNull();
     expect(requireMenu().querySelector(".desktop-project-cloud-copy")).toBeNull();
     expect(requireMenu().textContent).not.toContain("Remote Notes");
     expect(requireMenu().querySelector(".desktop-project-current-location-path")?.textContent)
       .toBe("~/project/other");
   });
 
-  it.each([false, undefined])("keeps trailing service marks available in the classic Header: compact %s", async (compactProjectMenu) => {
+  it.each([false, undefined])("summarizes remote services with one cloud in the classic Header: compact %s", async (compactProjectMenu) => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -200,7 +202,8 @@ describe("titlebar Portal menu interactions", () => {
       ));
     });
     expect(requireMenu().querySelector(".desktop-project-backup-services")).toBeNull();
-    expect(container.querySelectorAll(".desktop-titlebar-project-backups button").length).toBe(2);
+    expect(container.querySelectorAll(".desktop-titlebar-cloud-button").length).toBe(1);
+    expect(container.querySelector(".desktop-titlebar-workspace-wrap img")).toBeNull();
   });
 
   it.each(["unavailable", "available", "signed-out", "resolving", "attention"] as const)(
@@ -230,7 +233,7 @@ describe("titlebar Portal menu interactions", () => {
         .toBe("This Mac");
       expect(location?.querySelector(".lucide-folder")).toBeNull();
       expect(location?.querySelector(".lucide-cloud")).toBeNull();
-      expect(Boolean(container.querySelector("[data-backup-provider='puppyone-cloud'] .lucide-cloud")))
+      expect(Boolean(container.querySelector(".desktop-titlebar-cloud-button .lucide-cloud")))
         .toBe(cloudState === "available" || cloudState === "signed-out");
       expect(menu.querySelector(".desktop-project-cloud-copy")).toBeNull();
       expect(location?.querySelector(".desktop-project-current-location-path")?.textContent).toBe("~/project/demo");
@@ -251,7 +254,7 @@ describe("titlebar Portal menu interactions", () => {
     },
   );
 
-  it("opens and switches trailing backup details independently and restores keyboard focus", async () => {
+  it("opens remote copies from one cloud and preserves dismissal and keyboard focus", async () => {
     const container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -272,30 +275,23 @@ describe("titlebar Portal menu interactions", () => {
       />;
     }
     await act(async () => root?.render(withTestLocalization(<Harness />)));
-    const github = container.querySelector<HTMLButtonElement>("[data-backup-provider='github']")!;
-    const cloud = container.querySelector<HTMLButtonElement>("[data-backup-provider='puppyone-cloud']")!;
+    const cloud = container.querySelector<HTMLButtonElement>(".desktop-titlebar-cloud-button")!;
     expect(document.querySelector("[data-titlebar-context-menu]")).toBeNull();
-    await act(async () => github.click());
+    await act(async () => cloud.click());
     expect(onToggle).toHaveBeenCalledOnce();
-    expect(requireMenu().querySelector("[data-backup-details='github']")).not.toBeNull();
+    expect(Array.from(requireMenu().querySelectorAll<HTMLElement>("[data-backup-details]"))
+      .map((details) => details.dataset.backupDetails)).toEqual(["puppyone-cloud", "github", "gitlab"]);
     expect(requireMenu().textContent).toContain("Backup not verified");
-    expect(github.getAttribute("aria-expanded")).toBe("true");
-    await act(async () => {
-      cloud.dispatchEvent(new Event("pointerdown", { bubbles: true }));
-      cloud.focus();
-      cloud.click();
-    });
-    expect(onClose).not.toHaveBeenCalled();
     expect(requireMenu().textContent).toContain("Notes on Cloud");
-    expect(github.getAttribute("aria-expanded")).toBe("false");
+    expect(cloud.getAttribute("aria-expanded")).toBe("true");
     act(() => requireMenu().dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     expect(onClose).toHaveBeenCalledOnce();
     expect(document.querySelector("[data-titlebar-context-menu]")).toBeNull();
     expect(document.activeElement).toBe(cloud);
-    await act(async () => github.click());
-    await act(async () => github.click());
+    await act(async () => cloud.click());
+    await act(async () => cloud.click());
     expect(document.querySelector("[data-titlebar-context-menu]")).toBeNull();
-    await act(async () => github.click());
+    await act(async () => cloud.click());
     act(() => document.body.dispatchEvent(new Event("pointerdown", { bubbles: true })));
     expect(document.querySelector("[data-titlebar-context-menu]")).toBeNull();
   });

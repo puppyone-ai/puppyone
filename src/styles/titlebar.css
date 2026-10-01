@@ -1087,22 +1087,7 @@
   box-shadow: inset 0 0 0 1px var(--desktop-titlebar-focus);
 }
 
-.desktop-titlebar-project-backups {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  height: var(--desktop-titlebar-control-height);
-  color: var(--desktop-titlebar-text-subtle, var(--desktop-titlebar-text-muted));
-}
-
-.desktop-titlebar-backup-bracket {
-  font-size: var(--desktop-titlebar-context-font-size);
-  font-weight: var(--desktop-titlebar-context-font-weight);
-  line-height: var(--desktop-titlebar-context-line-height);
-  opacity: 0.6;
-}
-
-.desktop-titlebar-backup-button {
+.desktop-titlebar-cloud-button {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
@@ -1113,24 +1098,18 @@
   border: 0;
   border-radius: var(--desktop-toolbar-action-radius);
   background: transparent;
-  color: inherit;
+  color: var(--po-accent);
   outline: 0;
 }
 
-.desktop-titlebar-backup-button:hover,
-.desktop-titlebar-backup-button[aria-expanded="true"] {
+.desktop-titlebar-cloud-button:hover,
+.desktop-titlebar-cloud-button[aria-expanded="true"] {
   background: var(--desktop-titlebar-hover);
-  color: var(--desktop-titlebar-text);
 }
 
-.desktop-titlebar-backup-button:focus-visible {
+.desktop-titlebar-cloud-button:focus-visible {
   background: var(--desktop-titlebar-hover);
   box-shadow: inset 0 0 0 1px var(--desktop-titlebar-focus);
-}
-
-.desktop-titlebar-backup-button .onboarding-import-mark {
-  width: 16px;
-  height: 16px;
 }
 
 .desktop-project-github-mark {

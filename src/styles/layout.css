@@ -682,6 +682,10 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   padding: var(--po-menu-item-padding-inline);
 }
 
+.desktop-project-remote-copies > .desktop-project-backup-details + .desktop-project-backup-details {
+  border-top: 1px solid var(--po-divider);
+}
+
 .desktop-project-backup-heading {
   display: flex;
   align-items: center;
