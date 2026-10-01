@@ -257,9 +257,9 @@ describe("titlebar Portal menu interactions", () => {
     )));
     const menu = requireMenu();
     const view = menu.querySelector<HTMLButtonElement>("[data-backup-details='puppyone-cloud'] button")!;
-    expect(view.getAttribute("aria-label")).toBe("Switch to cloud edition");
+    expect(view.getAttribute("aria-label")).toBe("Switch to cloud version");
     expect(view.querySelector(".desktop-project-backup-view")?.textContent).toBe("Switch");
-    expect(view.textContent).toBe("Cloud editionSwitch");
+    expect(view.textContent).toBe("Cloud VersionSwitch");
     expect(view.querySelector(".lucide-files")).toBeNull();
     expect(view.querySelector(".lucide-cloud")).not.toBeNull();
     expect(menu.querySelector("[data-location-action='enable-cloud-versions']")).toBeNull();
@@ -298,10 +298,10 @@ describe("titlebar Portal menu interactions", () => {
     const localCard = menu.querySelector(".desktop-project-current-location");
     expect(localCard?.querySelector(".lucide-laptop")).not.toBeNull();
     expect(localCard?.querySelector(".lucide-cloud")).toBeNull();
-    expect(localCard?.textContent).toBe("~/project/local-notes");
+    expect(localCard?.textContent).toBe("On This Mac~/project/local-notes");
     expect(menu.querySelector("[data-location-action='share']")).toBeNull();
     expect(requireMenu().getAttribute("role")).toBe("menu");
-    expect(requireMenu().querySelector("[data-backup-details='puppyone-cloud']")?.textContent).toBe("Cloud edition");
+    expect(requireMenu().querySelector("[data-backup-details='puppyone-cloud']")?.textContent).toBe("Cloud Version");
     expect(requireMenu().querySelector("time")).toBeNull();
     expect(requireMenu().querySelector(".desktop-project-current-location")).not.toBeNull();
 
@@ -379,7 +379,7 @@ describe("titlebar Portal menu interactions", () => {
       expect(location?.querySelector(".desktop-project-current-location-path")?.textContent).toBe("~/project/demo");
       expect(location?.querySelector(".desktop-project-current-location-path")?.getAttribute("aria-label"))
         .toBe(workspace.path);
-      expect(menu.textContent).not.toContain("On this Mac");
+      expect(menu.textContent).toContain("On This Mac");
       expect(menu.querySelector(".desktop-project-current-location-mark .desktop-project-location-dot")).not.toBeNull();
       expect(menu.querySelector(".desktop-project-backup-services")).toBeNull();
       expect(menu.querySelector("[data-location-action='share']")).toBeNull();
@@ -435,7 +435,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(onToggle).toHaveBeenCalledOnce();
     expect(Array.from(requireMenu().querySelectorAll<HTMLElement>("[data-backup-details]"))
       .map((details) => details.dataset.backupDetails)).toEqual(["puppyone-cloud", "github", "gitlab"]);
-    expect(requireMenu().querySelector(".desktop-project-remote-copies")?.textContent).toBe("Cloud editionGitHub version copyGitLab version copy");
+    expect(requireMenu().querySelector(".desktop-project-remote-copies")?.textContent).toBe("Cloud VersionGitHub version copyGitLab version copy");
     expect(requireMenu().querySelector(".desktop-project-current-location")).not.toBeNull();
     expect(requireMenu().querySelector("time")).toBeNull();
     expect(project.getAttribute("aria-expanded")).toBe("true");
@@ -779,7 +779,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(currentLocation?.querySelector(".desktop-project-location-visual")?.getAttribute("aria-label")).toBe("This Mac");
     expect(currentLocation?.querySelector(".desktop-project-current-location-path")?.textContent).toBe("/tmp/one");
     expect(currentLocation?.querySelector(".desktop-project-current-location-mark .desktop-project-location-dot")).not.toBeNull();
-    expect(currentLocation?.textContent).not.toContain("On this Mac");
+    expect(currentLocation?.textContent).toContain("On This Mac");
   });
 });
 

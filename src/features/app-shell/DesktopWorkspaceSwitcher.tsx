@@ -271,7 +271,7 @@ function BackupMark({ provider }: { provider: ProjectBackupDestination }) {
     const maskImage = `url("${resolveRendererPublicAssetUrl(RENDERER_ASSET_PATHS.icons.integrations.github)}")`;
     return <span className="desktop-project-github-mark" aria-hidden="true" style={{ maskImage, WebkitMaskImage: maskImage }} />;
   }
-  return provider === "puppyone-cloud" ? <Cloud size={14} strokeWidth={1.65} aria-hidden="true" />
+  return provider === "puppyone-cloud" ? <Cloud size={24} strokeWidth={1.75} absoluteStrokeWidth aria-hidden="true" />
     : <ImportSourceMark brand={provider} decorative />;
 }
 
@@ -286,16 +286,20 @@ function DesktopProjectBackupDetails({ provider, status, cloudProjectId, cloudOr
   onViewCloud?: () => void;
 }) {
   const { t, formatDate } = useLocalization();
-  const label = provider === "puppyone-cloud" ? t("shell.workspaceSwitcher.cloudEdition")
+  const label = provider === "puppyone-cloud" ? t("shell.workspaceSwitcher.cloudVersion")
     : t("shell.workspaceSwitcher.providerVersionCopy", { provider: PROJECT_BACKUP_PROVIDER_LABELS[provider] });
   const snapshot = getProjectBackupSnapshot(status, provider, cloudProjectId, cloudOrigin);
   const lastChangeDate = snapshot.lastChangeAt ? new Date(snapshot.lastChangeAt) : null;
-  const detail = lastChangeDate ? <time dateTime={snapshot.lastChangeAt ?? undefined}>
-    {t("shell.workspaceSwitcher.lastChange", { time: bidiIsolate(formatDate(lastChangeDate, {
+  const fullChangeLabel = lastChangeDate ? t("shell.workspaceSwitcher.lastChange", { time: bidiIsolate(formatDate(lastChangeDate, {
       year: lastChangeDate.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined,
       month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+    })) }) : undefined;
+  const detail = lastChangeDate ? <Tooltip content={fullChangeLabel!}><time dateTime={snapshot.lastChangeAt ?? undefined} aria-label={fullChangeLabel}>
+    {t("shell.workspaceSwitcher.lastChange", { time: bidiIsolate(formatDate(lastChangeDate, {
+      year: lastChangeDate.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined,
+      month: "short", day: "numeric",
     })) })}
-  </time> : undefined;
+  </time></Tooltip> : undefined;
   return <div className={`desktop-project-backup-details${provider === "puppyone-cloud" ? " desktop-project-cloud-edition" : ""}`} data-backup-details={provider}>
     {snapshot.repositoryUrl ? (
       <a className="desktop-menu-item desktop-project-backup-heading desktop-project-backup-link"
@@ -314,7 +318,7 @@ function DesktopProjectBackupDetails({ provider, status, cloudProjectId, cloudOr
         className="desktop-project-backup-heading desktop-project-backup-link"
         aria-label={t("shell.workspaceSwitcher.viewCloudCopy")}
         disabled={navigationPending}
-        icon={<BackupMark provider={provider} />}
+        icon={<Tooltip content={t("shell.workspaceSwitcher.location.onCloud")}><span className="desktop-project-version-mark"><BackupMark provider={provider} /></span></Tooltip>}
         label={label}
         detail={detail}
         trailing={<span className="desktop-project-backup-view">{t("shell.workspaceSwitcher.switch")}</span>}
@@ -419,6 +423,7 @@ function DesktopCurrentProjectLocation({
           />
           {kind === "local" ? (
             <div className="desktop-project-location-label">
+              <span className="desktop-project-location-title">{t("shell.workspaceSwitcher.location.onThisMac")}</span>
               <DesktopProjectPath
                 path={path}
                 copyLabel={copyLabel}
