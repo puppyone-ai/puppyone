@@ -82,7 +82,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(requireMenu().querySelector("[data-backup-details='github'] time")?.getAttribute("dateTime"))
       .toBe("2026-09-30T01:00:00Z");
     expect(requireMenu().textContent).toContain("Last change:");
-    expect(requireMenu().textContent).toContain("Update project notes");
+    expect(requireMenu().textContent).not.toContain("Update project notes");
     expect(requireMenu().textContent).not.toContain("2 commits to back up");
     expect(requireMenu().textContent).not.toContain("Remote version");
     expect(requireMenu().textContent).not.toContain("remote-commit");

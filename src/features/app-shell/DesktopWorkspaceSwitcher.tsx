@@ -285,7 +285,6 @@ function DesktopProjectBackupDetails({ provider, status, cloudProjectId, cloudOr
         month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
       })) })}
     </time></p>}
-    {snapshot.lastChangeSummary && <p className="desktop-project-backup-summary">{snapshot.lastChangeSummary}</p>}
   </div>;
 }
 
