@@ -28,6 +28,60 @@ afterEach(() => {
 });
 
 describe("titlebar Portal menu interactions", () => {
+  it("keeps GitHub versions visible while offering PuppyOne setup without a local-only claim", async () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    const workspace = createWorkspace("one", "Workspace one");
+    const onViewCloud = vi.fn();
+    const onShare = vi.fn();
+    const onClose = vi.fn();
+    await act(async () => root?.render(withTestLocalization(
+      <DesktopWorkspaceSwitcher open refObject={createRef<HTMLDivElement>()}
+        titlebarLabel={workspace.name} workspace={workspace} workspaceFolders={[]}
+        multiRootWorkspacesEnabled={false} backupProviders={["github"]}
+        onClose={onClose} onViewCloud={onViewCloud} onShare={onShare} onToggle={vi.fn()}
+      />,
+    )));
+    const menu = requireMenu();
+    expect(menu.querySelector("[data-backup-details='github']")).not.toBeNull();
+    expect(menu.querySelector("[data-backup-details='puppyone-cloud']")).toBeNull();
+    expect(menu.textContent).not.toContain("Files are only on this Mac");
+    expect(menu.querySelector("time")).toBeNull();
+    const setup = menu.querySelector<HTMLButtonElement>("[data-location-action='enable-cloud-versions']")!;
+    act(() => setup.click());
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(onViewCloud).toHaveBeenCalledOnce();
+    expect(onShare).not.toHaveBeenCalled();
+  });
+
+  it("uses the cloud workspace icon only for an explicit remote working copy, separately from project versions", async () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    const workspace = createWorkspace("one", "Workspace one");
+    await act(async () => root?.render(withTestLocalization(
+      <DesktopWorkspaceSwitcher open refObject={createRef<HTMLDivElement>()}
+        titlebarLabel={workspace.name} workspace={workspace} workspaceFolders={[]}
+        multiRootWorkspacesEnabled={false} cloudProject={{ id: "remote-one" }}
+        projectLocation={{ current: "cloud", localAvailable: false, cloudState: "available" }}
+        backupProviders={["github"]} onClose={vi.fn()} onViewCloud={vi.fn()} onToggle={vi.fn()}
+      />,
+    )));
+    const menu = requireMenu();
+    const location = menu.querySelector(".desktop-project-current-location")!;
+    expect(location.getAttribute("data-project-location")).toBe("cloud");
+    expect(location.textContent).toBe("Cloud workspace");
+    expect(location.querySelector(".lucide-cloud")).not.toBeNull();
+    expect(location.querySelector(".desktop-project-current-location-path")).toBeNull();
+    expect(container.querySelector(".desktop-titlebar-workspace-button .lucide-cloud")).not.toBeNull();
+    const versions = menu.querySelector(".desktop-project-remote-copies")!;
+    expect(versions.querySelector(".lucide-cloud")).toBeNull();
+    expect(versions.querySelector(".lucide-files")).not.toBeNull();
+    expect(versions.querySelector("[data-backup-details='github']")).not.toBeNull();
+    expect(menu.querySelector("[data-location-action='enable-cloud-versions']")).toBeNull();
+  });
+
   it("identifies the local device while keeping the centered project card free of branch controls", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -76,12 +130,12 @@ describe("titlebar Portal menu interactions", () => {
     expect(container.querySelector(".desktop-titlebar-cloud-button")).toBeNull();
     expect(container.querySelector(".desktop-titlebar-workspace-wrap img")).toBeNull();
     expect(container.querySelector(".desktop-titlebar-workspace-wrap .desktop-project-github-mark")).toBeNull();
-    expect(menu.querySelector("[role='group'][aria-label='Remote copies']")).not.toBeNull();
+    expect(menu.querySelector("[role='group'][aria-label='Cloud project versions']")).not.toBeNull();
     expect(Array.from(requireMenu().querySelectorAll<HTMLElement>("[data-backup-details]"))
       .map((details) => details.dataset.backupDetails)).toEqual(["github", "gitlab"]);
     expect(requireMenu().querySelector("[data-backup-details='github'] time")?.getAttribute("dateTime"))
       .toBe("2026-09-30T01:00:00Z");
-    expect(requireMenu().textContent).toContain("Last change:");
+    expect(requireMenu().textContent).toContain("Updated ·");
     expect(requireMenu().textContent).not.toContain("Update project notes");
     expect(requireMenu().textContent).not.toContain("2 commits to back up");
     expect(requireMenu().textContent).not.toContain("Remote version");
@@ -133,7 +187,7 @@ describe("titlebar Portal menu interactions", () => {
       await act(async () => path?.click());
       expect(writeClipboardText).toHaveBeenLastCalledWith(workspace.path);
       expect(path?.getAttribute("data-copy-feedback")).toBe("copied");
-      expect(Boolean(menu.querySelector("[data-location-action='share']"))).toBe(cloudState !== undefined);
+      expect(menu.querySelector("[data-location-action='enable-cloud-versions']")).toBeNull();
     },
   );
 
@@ -195,9 +249,12 @@ describe("titlebar Portal menu interactions", () => {
     )));
     const menu = requireMenu();
     const view = menu.querySelector<HTMLButtonElement>("[data-backup-details='puppyone-cloud'] button")!;
-    expect(view.getAttribute("aria-label")).toBe("View cloud copy");
+    expect(view.getAttribute("aria-label")).toBe("View cloud project versions");
     expect(view.querySelector(".desktop-project-backup-view")?.textContent).toBe("View");
-    expect(view.textContent).toBe("PuppyOne CloudView");
+    expect(view.textContent).toBe("PuppyOneView");
+    expect(view.querySelector(".lucide-files")).not.toBeNull();
+    expect(view.querySelector(".lucide-cloud")).toBeNull();
+    expect(menu.querySelector("[data-location-action='enable-cloud-versions']")).toBeNull();
     expect(menu.querySelector(".desktop-project-current-location")?.getAttribute("data-project-location")).toBe("local");
     expect(menu.querySelector(".desktop-project-current-location-path")?.textContent).toBe("~/project/local-notes");
     expect(container.querySelector(".desktop-titlebar-cloud-button")).toBeNull();
@@ -236,7 +293,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(localCard?.textContent).toBe("~/project/local-notes");
     expect(menu.querySelector("[data-location-action='share']")).toBeNull();
     expect(requireMenu().getAttribute("role")).toBe("menu");
-    expect(requireMenu().querySelector("[data-backup-details='puppyone-cloud']")?.textContent).toBe("PuppyOne Cloud");
+    expect(requireMenu().querySelector("[data-backup-details='puppyone-cloud']")?.textContent).toBe("PuppyOne");
     expect(requireMenu().querySelector("time")).toBeNull();
     expect(requireMenu().querySelector(".desktop-project-current-location")).not.toBeNull();
 
@@ -280,13 +337,14 @@ describe("titlebar Portal menu interactions", () => {
   });
 
   it.each(["unavailable", "available", "signed-out", "resolving", "attention"] as const)(
-    "opens the Share page from a local project with cloud state %s",
+    "routes version setup or viewing to the Cloud Homepage with cloud state %s",
     async (cloudState) => {
       const container = document.createElement("div");
       document.body.appendChild(container);
       root = createRoot(container);
       const workspace = { ...createWorkspace("one", "Workspace one"), path: "/Users/example/project/demo" };
       const onShare = vi.fn();
+      const onViewCloud = vi.fn();
       const onClose = vi.fn();
       await act(async () => {
         root?.render(withTestLocalization(
@@ -295,7 +353,7 @@ describe("titlebar Portal menu interactions", () => {
             workspace={workspace} workspaceFolders={[createWorkspaceFolder(workspace)]}
             multiRootWorkspacesEnabled={false}
             projectLocation={{ current: "local", localAvailable: true, cloudState }}
-            onClose={onClose} onShare={onShare} onToggle={vi.fn()}
+            onClose={onClose} onShare={onShare} onViewCloud={onViewCloud} onToggle={vi.fn()}
           />,
         ));
       });
@@ -316,15 +374,29 @@ describe("titlebar Portal menu interactions", () => {
       expect(menu.textContent).not.toContain("On this Mac");
       expect(menu.querySelector(".desktop-project-current-location-mark .desktop-project-location-dot")).not.toBeNull();
       expect(menu.querySelector(".desktop-project-backup-services")).toBeNull();
-      const share = menu.querySelector<HTMLButtonElement>("[data-location-action='share']");
-      expect(share?.textContent).toBe("Share via Cloud");
-      expect(share?.querySelector(".lucide-cloud")).not.toBeNull();
-      expect(share?.disabled).toBe(false);
+      expect(menu.querySelector("[data-location-action='share']")).toBeNull();
+      const setup = menu.querySelector<HTMLButtonElement>("[data-location-action='enable-cloud-versions']");
+      const linked = cloudState === "available" || cloudState === "signed-out";
+      expect(Boolean(setup)).toBe(!linked);
+      if (setup) {
+        expect(setup.querySelector(".desktop-menu-item-label")?.textContent).toBe("Enable cloud versions");
+        expect(setup.querySelector(".desktop-menu-item-detail")?.textContent).toBe("Files are only on this Mac");
+        expect(setup.querySelector(".lucide-circle-plus")).not.toBeNull();
+        expect(setup.querySelector(".lucide-cloud")).toBeNull();
+        expect(setup.disabled).toBe(cloudState === "resolving");
+      }
       expect(onShare).not.toHaveBeenCalled();
-      act(() => share?.click());
-      expect(onClose).toHaveBeenCalledOnce();
-      expect(onShare).toHaveBeenCalledOnce();
-      expect(onClose.mock.invocationCallOrder[0]).toBeLessThan(onShare.mock.invocationCallOrder[0]);
+      const action = setup ?? menu.querySelector<HTMLButtonElement>("[data-backup-details='puppyone-cloud'] button");
+      act(() => action?.click());
+      if (cloudState === "resolving") {
+        expect(onClose).not.toHaveBeenCalled();
+        expect(onViewCloud).not.toHaveBeenCalled();
+      } else {
+        expect(onClose).toHaveBeenCalledOnce();
+        expect(onViewCloud).toHaveBeenCalledOnce();
+        expect(onClose.mock.invocationCallOrder[0]).toBeLessThan(onViewCloud.mock.invocationCallOrder[0]);
+      }
+      expect(onShare).not.toHaveBeenCalled();
     },
   );
 
@@ -355,7 +427,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(onToggle).toHaveBeenCalledOnce();
     expect(Array.from(requireMenu().querySelectorAll<HTMLElement>("[data-backup-details]"))
       .map((details) => details.dataset.backupDetails)).toEqual(["puppyone-cloud", "github", "gitlab"]);
-    expect(requireMenu().querySelector(".desktop-project-remote-copies")?.textContent).toBe("PuppyOne CloudGitHubGitLab");
+    expect(requireMenu().querySelector(".desktop-project-remote-copies")?.textContent).toBe("Cloud project versionsPuppyOneGitHubGitLab");
     expect(requireMenu().querySelector(".desktop-project-current-location")).not.toBeNull();
     expect(requireMenu().querySelector("time")).toBeNull();
     expect(project.getAttribute("aria-expanded")).toBe("true");

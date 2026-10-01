@@ -38,7 +38,9 @@ async function runSmoke() {
   });
 
   try {
+  for (const state of ["local-only", "local-cloud", "cloud-only"]) {
   const url = pathToFileURL(rendererPath);
+  url.searchParams.set("project-state", state);
   url.hash = "workspace-menu-visual-smoke";
   await window.loadURL(url.href);
   await waitForRenderer(window, `Boolean(
@@ -52,62 +54,78 @@ async function runSmoke() {
 
   const snapshot = await window.webContents.executeJavaScript(`(() => {
     const menu = document.querySelector('[data-titlebar-context-menu="true"]');
-    const rows = [...menu.querySelectorAll('.desktop-project-option')];
     const currentLocation = menu.querySelector('.desktop-project-current-location');
-    const locationAction = menu.querySelector('.desktop-project-cloud-setup');
+    const visual = menu.querySelector('.desktop-project-location-visual');
+    const locationAction = menu.querySelector('[data-location-action="enable-cloud-versions"]');
     const locationActionLabel = locationAction?.querySelector('.desktop-menu-item-label');
-    const homeGroup = menu.querySelector('.desktop-project-home-group');
-    const addProject = menu.querySelector('.desktop-project-add-folder');
+    const versions = [...menu.querySelectorAll('[data-backup-details]')];
+    const labels = versions.map(row => row.querySelector('.desktop-menu-item-label'));
+    const details = versions.map(row => row.querySelector('.desktop-menu-item-detail'));
+    const header = document.querySelector('.workspace-menu-visual-titlebar');
     return {
-      addProjectEnabled: addProject instanceof HTMLButtonElement && !addProject.disabled,
+      state: document.querySelector('[data-project-state]')?.dataset.projectState,
+      location: currentLocation?.dataset.projectLocation,
       currentLocationHeight: currentLocation?.getBoundingClientRect().height ?? 0,
-      currentLocationWidth: currentLocation?.getBoundingClientRect().width ?? 0,
-      currentLocationBackground: currentLocation ? getComputedStyle(currentLocation).backgroundColor : "",
-      hasRepeatedProjectName: currentLocation?.textContent.includes('To-Do-List') ?? false,
-      hasHomeDivider: getComputedStyle(homeGroup).borderTopWidth === '1px',
-      locationActionHeight: locationAction?.getBoundingClientRect().height ?? 0,
-      locationActionWidth: locationAction?.getBoundingClientRect().width ?? 0,
+      currentLocationBackground: getComputedStyle(visual).backgroundColor,
+      menuBackground: getComputedStyle(menu).backgroundColor,
+      headerBackground: getComputedStyle(header).backgroundColor,
+      menuShadow: getComputedStyle(menu).boxShadow,
+      hasLocationAction: Boolean(locationAction),
       locationActionBackground: locationAction ? getComputedStyle(locationAction).backgroundColor : "",
       locationActionLabelFits: locationActionLabel
         ? locationActionLabel.scrollWidth <= locationActionLabel.clientWidth
         : false,
-      locationActionLabelClientWidth: locationActionLabel?.clientWidth ?? 0,
-      locationActionLabelScrollWidth: locationActionLabel?.scrollWidth ?? 0,
       menuWidth: menu.getBoundingClientRect().width,
-      projectCount: rows.length,
-      projectHeights: rows.map((row) => row.getBoundingClientRect().height),
+      providerNames: versions.map(row => row.dataset.backupDetails),
+      providerHeights: versions.map(row => row.getBoundingClientRect().height),
+      providerLabelLefts: labels.map(label => label.getBoundingClientRect().left),
+      providerDetailLefts: details.map(detail => detail?.getBoundingClientRect().left),
+      providerLabelsFit: labels.every(label => label.scrollWidth <= label.clientWidth),
+      providerDetailsFit: details.every(detail => detail && detail.scrollWidth <= detail.clientWidth),
+      providerTimes: versions.map(row => row.querySelector('time')?.dateTime),
+      versionCloudIcon: Boolean(menu.querySelector('.desktop-project-remote-copies .lucide-cloud')),
+      versionFilesIcon: Boolean(menu.querySelector('.desktop-project-remote-copies .lucide-files')),
+      currentPath: currentLocation.querySelector('.desktop-project-current-location-path')?.textContent,
+      hasShareAction: Boolean(menu.querySelector('[data-location-action="share"]')),
       text: menu.textContent,
     };
   })()`, true);
 
-  assert(snapshot.projectCount === 2, `Expected two additional attached Projects: ${JSON.stringify(snapshot)}`);
-  assert(snapshot.projectHeights.every((height) => height === 32), `Project rows must remain 32px: ${JSON.stringify(snapshot)}`);
-  assert(snapshot.currentLocationHeight === 32, `Current location must stay one compact row: ${JSON.stringify(snapshot)}`);
-  assert(!snapshot.hasRepeatedProjectName, `Header Project name must not repeat inside the menu: ${JSON.stringify(snapshot)}`);
-  assert(snapshot.locationActionHeight === 28, `Cloud setup action must stay compact: ${JSON.stringify(snapshot)}`);
-  assert(snapshot.locationActionWidth === snapshot.currentLocationWidth, `Cloud setup action must align with the selected location row: ${JSON.stringify(snapshot)}`);
-  assert(snapshot.currentLocationBackground !== "rgba(0, 0, 0, 0)", `Current location must have a selected background: ${JSON.stringify(snapshot)}`);
-  assert(snapshot.locationActionBackground === "rgba(0, 0, 0, 0)", `Cloud setup action must remain visually quiet at rest: ${JSON.stringify(snapshot)}`);
-  assert(snapshot.locationActionLabelFits, `Cloud setup label must remain fully visible: ${JSON.stringify(snapshot)}`);
-  assert(snapshot.menuWidth === 280, `Workspace menu must remain 280px wide: ${JSON.stringify(snapshot)}`);
-  assert(snapshot.addProjectEnabled, `Add Project must be enabled: ${JSON.stringify(snapshot)}`);
-  assert(snapshot.hasHomeDivider, `Home divider is missing: ${JSON.stringify(snapshot)}`);
-  assert(
-    snapshot.text.includes("Go to Home")
-      && snapshot.text.includes("Online")
-      && snapshot.text.includes("Make it always available to Agents")
-      && snapshot.text.includes("Add Project"),
-    `Required actions are missing: ${JSON.stringify(snapshot)}`,
-  );
-  assert(!snapshot.text.includes("Open Folder in New Window"), `New-window action leaked into the composition menu: ${JSON.stringify(snapshot)}`);
+  const evidence = JSON.stringify(snapshot);
+  assert(snapshot.state === state, `Wrong fixture state: ${evidence}`);
+  assert(snapshot.menuWidth === 224, `Project card must stay compact: ${evidence}`);
+  assert(snapshot.currentLocationHeight === 108, `Device card height drifted: ${evidence}`);
+  assert(snapshot.menuBackground === snapshot.headerBackground, `Popup must share the Header background: ${evidence}`);
+  assert(snapshot.currentLocationBackground !== snapshot.menuBackground, `Device card needs a distinct background: ${evidence}`);
+  assert(snapshot.menuShadow !== "none", `Floating card needs its scoped shadow: ${evidence}`);
+  assert(!snapshot.hasShareAction, `Project-version setup must not route to Share: ${evidence}`);
+  assert(snapshot.location === (state === "cloud-only" ? "cloud" : "local"), `Working-copy identity drifted: ${evidence}`);
+  if (state === "local-only") {
+    assert(snapshot.providerNames.length === 0, `Unactivated versions cannot claim a remote service: ${evidence}`);
+    assert(snapshot.hasLocationAction && snapshot.locationActionLabelFits, `Activation CTA is missing or clipped: ${evidence}`);
+    assert(snapshot.locationActionBackground === "rgba(0, 0, 0, 0)", `Activation must stay quiet: ${evidence}`);
+  } else {
+    assert(!snapshot.hasLocationAction, `Linked project must not offer activation again: ${evidence}`);
+    assert(snapshot.providerNames.join(",") === "puppyone-cloud,github", `Both version services must be listed: ${evidence}`);
+    assert(snapshot.providerLabelsFit && snapshot.providerDetailsFit, `Version text is clipped: ${evidence}`);
+    assert(snapshot.providerHeights[0] === snapshot.providerHeights[1], `Provider row heights differ: ${evidence}`);
+    assert(snapshot.providerLabelLefts[0] === snapshot.providerLabelLefts[1], `Provider labels are misaligned: ${evidence}`);
+    assert(snapshot.providerDetailLefts.every((left, index) => left === snapshot.providerLabelLefts[index]), `Metadata must align with provider names: ${evidence}`);
+    assert(snapshot.providerTimes.every(time => time === "2026-10-01T14:32:00Z"), `Remote version dates must stay factual: ${evidence}`);
+    assert(snapshot.versionFilesIcon && !snapshot.versionCloudIcon, `Runtime and versions need distinct icons: ${evidence}`);
+  }
+  assert(state === "cloud-only" ? !snapshot.currentPath : snapshot.currentPath === "~/Desktop/To-Do-List", `Local path identity drifted: ${evidence}`);
 
   const capture = await window.capturePage();
   assert(!capture.isEmpty(), "Workspace menu screenshot capture was empty.");
   if (screenshotPath) {
     await mkdir(path.dirname(screenshotPath), { recursive: true });
-    await writeFile(screenshotPath, capture.toPNG());
+    const extension = path.extname(screenshotPath);
+    const statePath = screenshotPath.slice(0, extension ? -extension.length : undefined) + "-" + state + (extension || ".png");
+    await writeFile(statePath, capture.toPNG());
   }
   console.log(`workspace menu visual smoke passed: ${JSON.stringify(snapshot)}`);
+  }
   } finally {
     if (!window.isDestroyed()) window.destroy();
     app.quit();
