@@ -67,6 +67,8 @@
   "workspaceSwitcher.remoteCopies": "リモートのコピー",
   "workspaceSwitcher.lastChange": "最終変更：{time}",
   "workspaceSwitcher.openGitHubRepository": "GitHub リポジトリを開く",
+  "workspaceSwitcher.viewCloudCopy": "クラウドのコピーを表示",
+  "workspaceSwitcher.view": "表示",
   "workspaceSwitcher.projectTitle": "プロジェクト：{project}",
   "workspaceSwitcher.projectActions": "プロジェクト操作",
   "workspaceSwitcher.projectActionsFor": "{project} のプロジェクト操作",

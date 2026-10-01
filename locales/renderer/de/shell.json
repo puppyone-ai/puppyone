@@ -67,6 +67,8 @@
   "workspaceSwitcher.remoteCopies": "Remote-Kopien",
   "workspaceSwitcher.lastChange": "Zuletzt geändert: {time}",
   "workspaceSwitcher.openGitHubRepository": "GitHub-Repository öffnen",
+  "workspaceSwitcher.viewCloudCopy": "Cloud-Kopie ansehen",
+  "workspaceSwitcher.view": "Ansehen",
   "workspaceSwitcher.projectTitle": "Projekt: {project}",
   "workspaceSwitcher.projectActions": "Projektaktionen",
   "workspaceSwitcher.projectActionsFor": "Projektaktionen für {project}",

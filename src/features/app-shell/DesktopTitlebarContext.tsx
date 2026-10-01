@@ -35,6 +35,7 @@ export function DesktopTitlebarContext({
   onAddProject,
   onAddExistingProject,
   onShare,
+  onViewCloud,
   availableProjects,
   onToggleBranchSwitcher,
   onToggleWorkspaceSwitcher,
@@ -72,6 +73,7 @@ export function DesktopTitlebarContext({
         onOpenFolder={multiRootWorkspacesEnabled ? onAddProject : undefined}
         onClose={onCloseWorkspaceSwitcher}
         onShare={onShare}
+        onViewCloud={onViewCloud}
         onToggle={onToggleWorkspaceSwitcher}
       />
       {!compactProjectMenu && <DesktopBranchSwitcher
@@ -117,6 +119,7 @@ type DesktopTitlebarContextProps = {
   onAddProject: () => void;
   onAddExistingProject: (folderPath: string) => void;
   onShare?: () => void;
+  onViewCloud?: () => void;
   onToggleBranchSwitcher: () => void;
   onToggleWorkspaceSwitcher: () => void;
 };

@@ -51,6 +51,7 @@ type DesktopWorkspaceSwitcherProps = {
   onOpenFolder?: () => void;
   onClose: () => void;
   onShare?: () => void;
+  onViewCloud?: () => void;
   onToggle: () => void;
 };
 
@@ -79,6 +80,7 @@ export function DesktopWorkspaceSwitcher({
   onOpenFolder,
   onClose,
   onShare,
+  onViewCloud,
   onToggle,
 }: DesktopWorkspaceSwitcherProps) {
   const { t } = useLocalization();
@@ -166,7 +168,8 @@ export function DesktopWorkspaceSwitcher({
                   key={provider} provider={provider} status={backupStatus}
                   cloudProjectId={cloudProject?.id ?? workspace.puppyoneGitRemote?.projectId}
                   cloudOrigin={workspace.puppyoneGitRemote?.origin}
-                  onOpenRepository={onClose}
+                  onClose={onClose}
+                  onViewCloud={onViewCloud}
                 />)}
               </div>
             )}
@@ -267,12 +270,13 @@ function BackupMark({ provider }: { provider: ProjectBackupDestination }) {
     : <ImportSourceMark brand={provider} decorative />;
 }
 
-function DesktopProjectBackupDetails({ provider, status, cloudProjectId, cloudOrigin, onOpenRepository }: {
+function DesktopProjectBackupDetails({ provider, status, cloudProjectId, cloudOrigin, onClose, onViewCloud }: {
   provider: ProjectBackupDestination;
   status: GitStatusSnapshot | null;
   cloudProjectId?: string;
   cloudOrigin?: string;
-  onOpenRepository: () => void;
+  onClose: () => void;
+  onViewCloud?: () => void;
 }) {
   const { t, formatDate } = useLocalization();
   const snapshot = getProjectBackupSnapshot(status, provider, cloudProjectId, cloudOrigin);
@@ -282,11 +286,23 @@ function DesktopProjectBackupDetails({ provider, status, cloudProjectId, cloudOr
       <a className="desktop-menu-item desktop-project-backup-heading desktop-project-backup-link"
         href={snapshot.repositoryUrl} target="_blank" rel="noopener noreferrer"
         aria-label={t("shell.workspaceSwitcher.openGitHubRepository")}
-        onClick={onOpenRepository}>
+        onClick={onClose}>
         <span className="desktop-menu-item-icon" aria-hidden="true"><BackupMark provider={provider} /></span>
         <span className="desktop-menu-item-label">{backupLabel(provider)}</span>
         <span className="desktop-menu-item-trailing" aria-hidden="true"><ExternalLink size={12} /></span>
       </a>
+    ) : provider === "puppyone-cloud" && onViewCloud ? (
+      <DesktopMenuItem
+        className="desktop-project-backup-heading desktop-project-backup-link"
+        aria-label={t("shell.workspaceSwitcher.viewCloudCopy")}
+        icon={<BackupMark provider={provider} />}
+        label={backupLabel(provider)}
+        trailing={<span className="desktop-project-backup-view">{t("shell.workspaceSwitcher.view")}</span>}
+        onClick={() => {
+          onClose();
+          onViewCloud();
+        }}
+      />
     ) : (
       <div className="desktop-project-backup-heading">
         <span className="desktop-menu-item-icon" aria-hidden="true"><BackupMark provider={provider} /></span>
