@@ -162,10 +162,50 @@ describe("titlebar Portal menu interactions", () => {
     expect(link.getAttribute("aria-label")).toBe("Open GitHub repository");
     expect(link.querySelector(".lucide-external-link")).not.toBeNull();
     expect(menu.querySelector("[data-backup-details='puppyone-cloud'] a")).toBeNull();
+    expect(menu.querySelector("[data-backup-details='puppyone-cloud'] button")).toBeNull();
     expect(menu.querySelector("[data-backup-details='gitlab'] a")).toBeNull();
     expect(onClose).not.toHaveBeenCalled();
     act(() => link.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true })));
     expect(onClose).toHaveBeenCalledOnce();
+    expect(onShare).not.toHaveBeenCalled();
+  });
+
+  it.each(["available", "signed-out"] as const)("views the Cloud copy through existing navigation with state %s", async (cloudState) => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    const workspace = { ...createWorkspace("one", "Workspace one"), path: "/Users/example/project/local-notes" };
+    const onClose = vi.fn();
+    const onViewCloud = vi.fn();
+    const onShare = vi.fn();
+    await act(async () => root?.render(withTestLocalization(
+      <DesktopTitlebarContext compactProjectMenu availableProjects={[]}
+        activeGitStatus={createGitStatus()} branchSwitcherOpen={false}
+        branchSwitcherRef={createRef<HTMLDivElement>()} gitStatusLoading={false}
+        gitOperationLoading={null} localBranches={[]} remoteBranches={[]}
+        projectLocation={{ current: "local", localAvailable: true, cloudState }}
+        cloudProject={{ id: "cloud-notes" }} workspace={workspace} workspaceFolders={[]}
+        multiRootWorkspacesEnabled={false} workspaceSwitcherOpen
+        workspaceSwitcherRef={createRef<HTMLDivElement>()}
+        onCheckoutBranch={vi.fn(async () => true)} onCloseBranchSwitcher={vi.fn()}
+        onCloseWorkspaceSwitcher={onClose} onAddProject={vi.fn()} onAddExistingProject={vi.fn()}
+        onShare={onShare} onViewCloud={onViewCloud}
+        onToggleBranchSwitcher={vi.fn()} onToggleWorkspaceSwitcher={vi.fn()}
+      />,
+    )));
+    const menu = requireMenu();
+    const view = menu.querySelector<HTMLButtonElement>("[data-backup-details='puppyone-cloud'] button")!;
+    expect(view.getAttribute("aria-label")).toBe("View cloud copy");
+    expect(view.querySelector(".desktop-project-backup-view")?.textContent).toBe("View");
+    expect(view.textContent).toBe("PuppyOne CloudView");
+    expect(menu.querySelector(".desktop-project-current-location")?.getAttribute("data-project-location")).toBe("local");
+    expect(menu.querySelector(".desktop-project-current-location-path")?.textContent).toBe("~/project/local-notes");
+    expect(container.querySelector(".desktop-titlebar-cloud-button")).toBeNull();
+    expect(onViewCloud).not.toHaveBeenCalled();
+    act(() => view.click());
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(onViewCloud).toHaveBeenCalledOnce();
+    expect(onClose.mock.invocationCallOrder[0]).toBeLessThan(onViewCloud.mock.invocationCallOrder[0]);
     expect(onShare).not.toHaveBeenCalled();
   });
 

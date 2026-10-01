@@ -719,6 +719,15 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   margin-inline-start: auto;
 }
 
+.desktop-project-backup-view {
+  padding: 1px var(--po-menu-padding);
+  border-radius: var(--po-menu-item-radius);
+  background: var(--po-hover);
+  color: var(--po-text-muted);
+  font-size: var(--po-menu-meta-font-size);
+  line-height: var(--po-menu-meta-line-height);
+}
+
 .desktop-project-location-actions .desktop-menu-item {
   min-height: var(--po-menu-item-height);
   height: auto;

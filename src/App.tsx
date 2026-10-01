@@ -1507,6 +1507,7 @@ function AppContent() {
       onAddProject={() => void addProject()}
       onAddExistingProject={(folderPath) => void addExistingProject(folderPath)}
       onShare={openCloudShare}
+      onViewCloud={cloudEnabled && focusedWorkspace?.path === workspace.path ? openCloudDialog : undefined}
       onCloseWorkspaceSwitcher={closeWorkspaceSwitcher}
       onCloseBranchSwitcher={closeBranchSwitcher}
       onToggleBranchSwitcher={toggleBranchSwitcher}
