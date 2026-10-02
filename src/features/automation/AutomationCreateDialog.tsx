@@ -19,7 +19,7 @@ import type {
   DesktopCloudSession,
 } from "../../lib/cloudApi";
 import {
-  createCloudAutomation,
+  createSynchronizeBinding,
   getCloudAutomationOauthAuthorizeUrl,
   getCloudAutomationOauthStatus,
   openCloudAutomationAuthorizationUrl,
@@ -269,7 +269,7 @@ export function CloudNewAutomationDialog({
     setSaving(true);
     setFeedback(null);
     try {
-      const result = await createCloudAutomation(
+      const result = await createSynchronizeBinding(
         cloudSession,
         buildDesktopCreateAutomationRequest({
           projectId,

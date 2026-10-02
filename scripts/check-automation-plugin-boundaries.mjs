@@ -73,6 +73,15 @@ if (!/lazy\(\(\) => import\("\.\.\/\.\.\/automation\/CloudProjectAutomationView"
   errors.push("The Cloud Project router must preserve a lazy Automation route boundary.");
 }
 
+const automationDomain = read("src/features/automation/automationDomain.ts");
+if (/DesktopCloudConnector|DesktopCloudRepositoryView|scopeByTarget/.test(automationDomain)) {
+  errors.push("Automation source rows must use SynchronizeBinding, not Access IDs or a Scope join.");
+}
+const automationView = read("src/features/automation/CloudProjectAutomationView.tsx");
+if (/accessData|\.connectors/.test(automationView) || !automationView.includes("useSynchronizeBindings")) {
+  errors.push("Automation must load its own Synchronize resource list.");
+}
+
 const cloudAutomationApi = read("src/lib/cloud/automationApi.ts");
 if (!/CLOUD_AUTOMATION_LEGACY_WIRE_BASE\s*=\s*"\/integrations"/.test(cloudAutomationApi)) {
   errors.push("The legacy /integrations server route must stay isolated behind the Automation transport adapter.");
@@ -81,6 +90,7 @@ if (!/CLOUD_AUTOMATION_LEGACY_WIRE_BASE\s*=\s*"\/integrations"/.test(cloudAutoma
 for (const filePath of walkSourceFiles(path.join(repoRoot, "src"))) {
   if (filePath.endsWith(path.join("src", "lib", "cloudApi.ts"))) continue;
   if (filePath.endsWith(path.join("src", "lib", "cloud", "automationApi.ts"))) continue;
+  if (filePath.endsWith(path.join("src", "lib", "cloud", "synchronizeApi.ts"))) continue;
   if (filePath.endsWith(path.join("src", "features", "cloud", "routes", "cloudRoutes.ts"))) continue;
   const source = readFileSync(filePath, "utf8");
   if (/\bIntegrations\b|["']integrations["']|\/integrations(?:\/|["'`])/.test(source)) {

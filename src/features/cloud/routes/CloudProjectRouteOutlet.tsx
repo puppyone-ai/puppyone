@@ -108,8 +108,6 @@ export function CloudProjectRouteOutlet({
       <CloudAutomationRouteSection
         projectId={projectId}
         cloudSession={cloudSession}
-        apiBaseUrl={cloudApiBaseUrl}
-        cloudData={cloudData}
         onSessionChange={onSessionChange}
       />
     );

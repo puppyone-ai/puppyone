@@ -1,63 +1,28 @@
-import type {
-  DesktopCloudConnector,
-  DesktopCloudRepositoryView,
-} from "../../lib/cloudApi";
-import { repositoryTargetKey } from "../cloud/repositoryTarget";
+import type { DesktopCloudSynchronizeBinding } from "../../lib/cloudApi";
 
+/** A source step carries its real resource identity, never an Access ID. */
 export type CloudAutomationRow = {
   id: string;
-  scope: DesktopCloudRepositoryView;
-  connector: DesktopCloudConnector;
+  resourceKind: "synchronize";
+  binding: DesktopCloudSynchronizeBinding;
 };
-
-/**
- * Cloud Automation owns third-party information-source connectors.
- * Built-in access transports are deliberately excluded from this domain.
- */
-const NON_AUTOMATION_CONNECTOR_PROVIDERS = new Set([
-  "",
-  "agent",
-  "cli",
-  "filesystem",
-  "git",
-  "git_remote",
-  "mcp",
-  "mcp_endpoint",
-  "sandbox",
-  "sandbox_endpoint",
-  "sync",
-]);
 
 export function normalizeAutomationProviderKey(provider: string) {
   return provider.trim().toLowerCase().replace(/-/g, "_");
 }
 
-export function isCloudAutomationConnector(connector: DesktopCloudConnector) {
-  return !NON_AUTOMATION_CONNECTOR_PROVIDERS.has(
-    normalizeAutomationProviderKey(connector.provider),
-  );
-}
-
 export function buildCloudAutomationRows({
-  scopes,
-  connectors,
+  projectId,
+  bindings,
 }: {
-  scopes: DesktopCloudRepositoryView[];
-  connectors: DesktopCloudConnector[];
+  projectId: string;
+  bindings: readonly DesktopCloudSynchronizeBinding[];
 }): CloudAutomationRow[] {
-  const scopeByTarget = new Map(
-    scopes.map((scope) => [repositoryTargetKey(scope.target), scope]),
-  );
-  return connectors.flatMap((connector) => {
-    if (!isCloudAutomationConnector(connector)) return [];
-    const scope = scopeByTarget.get(repositoryTargetKey(connector.target));
-    if (!scope) return [];
-    return [{
-      id: `automation:${scope.id}:${connector.id}`,
-      scope,
-      connector,
-    }];
-  });
+  return bindings.filter((binding) => binding.project_id === projectId).map((binding) => ({
+    id: `synchronize:${projectId}:${binding.id}`,
+    resourceKind: "synchronize",
+    binding,
+  }));
 }
 
 export function cloudAutomationRowMatchesProvider(
@@ -65,8 +30,19 @@ export function cloudAutomationRowMatchesProvider(
   providerFilter: string | null,
 ) {
   if (!providerFilter) return true;
-  const rowProvider = normalizeAutomationProviderKey(row.connector.provider);
-  return rowProvider === normalizeAutomationProviderKey(providerFilter);
+  return normalizeAutomationProviderKey(row.binding.provider) === normalizeAutomationProviderKey(providerFilter);
+}
+
+export function getAutomationBindingName(binding: DesktopCloudSynchronizeBinding) {
+  const source = binding.config.source;
+  return source && typeof source === "object" && "resource_name" in source && typeof source.resource_name === "string"
+    ? source.resource_name
+    : "";
+}
+
+export function getAutomationBindingPath(binding: DesktopCloudSynchronizeBinding) {
+  // path is the persisted destination; do not infer it from an unrelated Scope.
+  return binding.path?.replace(/^\/+|\/+$/g, "") || "";
 }
 
 /** The Cloud web app still exposes its established workflow route. */

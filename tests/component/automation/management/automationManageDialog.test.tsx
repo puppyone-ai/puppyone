@@ -18,15 +18,21 @@ const apiMocks = vi.hoisted(() => ({
   updateConnection: vi.fn(),
   updateTrigger: vi.fn(),
   remove: vi.fn(),
+  pause: vi.fn(),
+  resume: vi.fn(),
+  refresh: vi.fn(),
 }));
 
 vi.mock("../../../../src/lib/cloudApi", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../../src/lib/cloudApi")>()),
-  listCloudAutomationConnectionRuns: apiMocks.runs,
+  listSynchronizeRuns: apiMocks.runs,
   listCloudAutomationProviderResources: apiMocks.resources,
-  updateCloudAutomationConnection: apiMocks.updateConnection,
-  updateCloudAutomationTrigger: apiMocks.updateTrigger,
-  deleteCloudAutomationConnection: apiMocks.remove,
+  updateSynchronizeBinding: apiMocks.updateConnection,
+  updateSynchronizeTrigger: apiMocks.updateTrigger,
+  deleteSynchronizeBinding: apiMocks.remove,
+  pauseSynchronizeBinding: apiMocks.pause,
+  resumeSynchronizeBinding: apiMocks.resume,
+  refreshSynchronizeBinding: apiMocks.refresh,
 }));
 
 import { CloudManageAutomationDialog } from "../../../../src/features/automation/AutomationDialogs";
@@ -46,7 +52,7 @@ describe("CloudManageAutomationDialog", () => {
   it("lazily shows run history and saves source, destination, and trigger edits", async () => {
     apiMocks.runs.mockResolvedValue([{
       id: "run-1",
-      access_point_id: "connection-1",
+      synchronize_binding_id: "connection-1",
       status: "failed",
       started_at: "2026-07-12T01:00:00Z",
       error: "Provider quota exceeded",
@@ -109,6 +115,24 @@ describe("CloudManageAutomationDialog", () => {
     expect(onRefresh).toHaveBeenCalled();
   });
 
+  it.each([
+    { label: "Run now", status: "active", method: "refresh" as const },
+    { label: "Pause", status: "active", method: "pause" as const },
+    { label: "Resume", status: "paused", method: "resume" as const },
+  ])("$label manages the binding, not an Access surface", async ({ label, status, method }) => {
+    apiMocks.runs.mockResolvedValue([]);
+    apiMocks[method].mockResolvedValue(undefined);
+    const onRefresh = vi.fn(async () => undefined);
+    const container = renderManage({ onRefresh, row: { ...ROW, binding: { ...ROW.binding, status } } });
+    await flushEffects();
+    const button = findButton(container, label);
+    expect(button).toBeDefined();
+    act(() => button?.click());
+    await flushEffects();
+    expect(apiMocks[method]).toHaveBeenCalledWith(SESSION, ROW.binding.id, expect.any(Function), SESSION.api_base_url);
+    expect(onRefresh).toHaveBeenCalled();
+  });
+
   it("uses an in-app destructive confirmation and labels icon-only actions", async () => {
     apiMocks.runs.mockResolvedValue([]);
     apiMocks.remove.mockResolvedValue(undefined);
@@ -144,9 +168,11 @@ describe("CloudManageAutomationDialog", () => {
 function renderManage({
   onRefresh = vi.fn(async () => undefined),
   onClose = vi.fn(),
+  row = ROW,
 }: {
   onRefresh?: () => Promise<void>;
   onClose?: () => void;
+  row?: CloudAutomationRow;
 } = {}) {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -154,7 +180,7 @@ function renderManage({
   act(() => root?.render(withTestLocalization(
     <CloudManageAutomationDialog
       projectId="project-1"
-      row={ROW}
+      row={row}
       providerSpec={PROVIDER}
       cloudSession={SESSION}
       apiBaseUrl={SESSION.api_base_url}
@@ -208,21 +234,13 @@ const PROVIDER: DesktopCloudAutomationProviderSpec = {
 };
 
 const ROW: CloudAutomationRow = {
-  id: "automation:scope-1:connection-1",
-  scope: {
-    id: "scope-1",
-    target: { kind: "scope", project_id: "project-1", scope_id: "scope-1" },
-    project_id: "project-1",
-    name: "Research Docs",
-    path: "Research/Docs",
-    exclude: [],
-    max_mode: "rw",
-  },
-  connector: {
+  id: "synchronize:project-1:connection-1",
+  resourceKind: "synchronize",
+  binding: {
     id: "connection-1",
-    target: { kind: "scope", project_id: "project-1", scope_id: "scope-1" },
+    project_id: "project-1",
+    path: "Research/Docs",
     provider: "google_docs",
-    name: "Product brief",
     direction: "inbound",
     status: "active",
     trigger: { type: "manual" },

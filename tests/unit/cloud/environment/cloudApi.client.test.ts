@@ -366,6 +366,7 @@ describe("cloud API client delegation", () => {
       undefined,
       API,
     );
+    bridge.mockResolvedValueOnce([]);
     await listCloudAutomationConnectionRuns(session, "connection/1", 10, undefined, API);
 
     expect(bridge).toHaveBeenNthCalledWith(1, expect.objectContaining({
