@@ -18,7 +18,7 @@ describe("pane-scoped external-open architecture", () => {
     expect(pane).toContain("onOpenExternal");
     expect(paneMenu).toContain("findCommand.open");
     expect(paneMenu).toContain("menuContribution?.viewItems");
-    expect(actions).toContain('definition.linkedRightSidebarToolId ? "right-sidebar"');
+    expect(actions).toMatch(/definition\.linkedRightSidebarToolId\s*\?\s*"right-sidebar"\s*:\s*"header"/);
     expect(actions).toContain('className="desktop-titlebar-action-divider"');
     expect(titlebarCss).toMatch(
       /\.desktop-titlebar-action-divider\s*\{[^}]*height:\s*18px;[^}]*margin-inline:\s*3px;[^}]*background:\s*var\(--desktop-titlebar-divider\);[^}]*\}/s,
