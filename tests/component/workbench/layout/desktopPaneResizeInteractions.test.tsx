@@ -24,6 +24,26 @@ afterEach(() => {
 });
 
 describe("desktop side-pane resize interactions", () => {
+  it("lets only the visible retained workspace publish native window constraints", () => {
+    const setWindowMinimumWidth = vi.fn(async ({ width }: { width: number }) => ({ applied: true, width }));
+    const previous = window.puppyoneDesktop;
+    window.puppyoneDesktop = { ...previous, setWindowMinimumWidth } as NonNullable<typeof window.puppyoneDesktop>;
+    const shells = (cloudActive: boolean) => withTestLocalization(<>
+      <DesktopCloudShell active={!cloudActive} mainPaneMinWidth={300}><div>Local</div></DesktopCloudShell>
+      <DesktopCloudShell active={cloudActive} mainPaneMinWidth={600}><div>Cloud</div></DesktopCloudShell>
+    </>);
+    render(shells(false));
+    expect(setWindowMinimumWidth).toHaveBeenCalledTimes(1);
+    const localWidth = setWindowMinimumWidth.mock.calls[0];
+    act(() => root!.render(shells(true)));
+    expect(setWindowMinimumWidth.mock.calls.at(-1)).not.toEqual(localWidth);
+    setWindowMinimumWidth.mockClear();
+    act(() => root!.render(shells(false)));
+    expect(setWindowMinimumWidth.mock.calls.at(-1)).toEqual(localWidth);
+    act(() => root!.unmount()); root = null;
+    window.puppyoneDesktop = previous;
+  });
+
   it.each(["pointercancel", "blur", "pagehide", "lostpointercapture", "Escape", "unmount"])(
     "cancels a live width preview on %s without persisting it", async (reason) => {
       const flushFrames = mockAnimationFrames();

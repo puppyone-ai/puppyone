@@ -4,7 +4,6 @@ import {
   isDocumentDataNode,
   withEditorDocumentOperations,
   type DataNode,
-  type Workspace,
   type WorkspaceContentChange,
 } from "@puppyone/shared-ui";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
@@ -19,27 +18,30 @@ import { createPendingCloudDataService } from "./pendingCloudDataService";
 
 const noop = () => undefined;
 
-export function useNativeCloudWorkbench({ context, session, apiBaseUrl, localWorkspaceIdentity, localWorkspace, active, filesVisibilitySettings }: {
+export function useNativeCloudWorkbench({ context, session, apiBaseUrl, active, filesVisibilitySettings }: {
   context: ProjectCloudContext;
   session: DesktopCloudSession | null;
   apiBaseUrl: string | null;
-  localWorkspaceIdentity: string | null;
-  localWorkspace?: Workspace | null;
   active: boolean;
   filesVisibilitySettings: FilesVisibilitySettings;
 }) {
   const resolved = context.status === "resolved" ? context : null;
   const serviceKey = resolved && session && apiBaseUrl
-    ? JSON.stringify([localWorkspaceIdentity, apiBaseUrl, session.user_id, session.session_generation,
+    ? JSON.stringify([apiBaseUrl, session.user_id, session.session_generation,
       resolved.projectId, resolved.target, resolved.scopePath, resolved.projectName, resolved.capabilities])
     : null;
-  const currentKeyRef = useRef(serviceKey);
-  currentKeyRef.current = serviceKey;
+  const lease = useMemo(() => ({ key: serviceKey }), [serviceKey]);
+  const currentLeaseRef = useRef<typeof lease | null>(lease);
+  currentLeaseRef.current = lease;
+  useEffect(() => {
+    currentLeaseRef.current = lease;
+    return () => { if (currentLeaseRef.current === lease) currentLeaseRef.current = null; };
+  }, [lease]);
   const { service, error } = useMemo(() => {
     if (!resolved || !session || !apiBaseUrl) return { service: null, error: null };
     try {
       return { service: createCloudDataService({ context: resolved, session, apiBaseUrl,
-        isCurrent: () => currentKeyRef.current === serviceKey }), error: null };
+        isCurrent: () => currentLeaseRef.current === lease }), error: null };
     } catch (cause) {
       return { service: null, error: cause instanceof Error ? cause.message : String(cause) };
     }
@@ -50,9 +52,7 @@ export function useNativeCloudWorkbench({ context, session, apiBaseUrl, localWor
   const dataPort = useMemo(() => service
     ? withEditorDocumentOperations(createExplorerDataPort(service.dataPort, filesVisibilitySettings))
     : null, [service, filesVisibilitySettings]);
-  const localWorkspaceName = localWorkspace?.name;
-  const pendingService = useMemo(() => createPendingCloudDataService(localWorkspaceIdentity, localWorkspaceName),
-    [localWorkspaceIdentity, localWorkspaceName]);
+  const pendingService = useMemo(() => createPendingCloudDataService(apiBaseUrl, "PuppyOne Cloud"), [apiBaseUrl]);
   const surfaceService = service ?? pendingService;
   const [surfaceVisitedKey, setSurfaceVisitedKey] = useState<string | null>(null);
   useEffect(() => { if (active) setSurfaceVisitedKey(pendingService.workspace.id); }, [active, pendingService]);

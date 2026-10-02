@@ -36,7 +36,7 @@ function Harness({ linked = true, currentSession = session, localIdentity = "loc
   const location = active ? "cloud" : "local";
   useEffect(() => { if (selection && !active) setSelection(null); }, [active, selection]);
   cloud = useNativeCloudWorkbench({ context: linked ? context : { status: "local-only", projectId: null },
-    session: currentSession, apiBaseUrl: API, localWorkspaceIdentity: localIdentity, active,
+    session: currentSession, apiBaseUrl: API, active,
     filesVisibilitySettings: { showHiddenFiles: true, excludePatterns: [] } });
   const onCommit = useCallback(() => {
     if (currentSession) setSelection({ scope: localIdentity, account: currentSession.user_id });

@@ -674,6 +674,7 @@ export async function cloudApiRequest<T>(
     try {
       const transported = await window.puppyoneDesktop.requestCloudSessionApi({
         apiBaseUrl: requestedApiBase,
+        expectedSession: { userId: session.user_id, generation: session.session_generation },
         path: path.startsWith("/") ? path : `/${path}`,
         method: init.method ?? "GET",
         headers: {
@@ -700,6 +701,25 @@ export async function cloudApiRequest<T>(
 function isMutationMethod(method: string | undefined) {
   const normalized = (method ?? "GET").toUpperCase();
   return normalized !== "GET" && normalized !== "HEAD" && normalized !== "OPTIONS";
+}
+
+/** Account catalog: the server filters by the current human ProjectGrant. */
+export function listCloudProjects(session: DesktopCloudSession, apiBaseUrl: string): Promise<DesktopCloudProject[]> {
+  return cloudApiRequest<DesktopCloudProject[]>("/projects/?include_access_counts=false", session, undefined, {}, apiBaseUrl);
+}
+
+/** Empty project creation is separate from publishing any local repository. */
+export function createCloudProject(
+  session: DesktopCloudSession,
+  input: { name: string; org_id: string },
+  operationId: string,
+  apiBaseUrl: string,
+): Promise<DesktopCloudProject> {
+  return cloudApiRequest<DesktopCloudProject>("/projects/", session, undefined, {
+    method: "POST",
+    headers: { "Idempotency-Key": operationId },
+    body: JSON.stringify(input),
+  }, apiBaseUrl);
 }
 
 export function getCloudProject(

@@ -167,7 +167,9 @@ export function createCloudDataService({
   };
   const head = async () => {
     const result = await list(null);
-    if (typeof result.head_commit_id !== "string" || !result.head_commit_id) throw new Error("Cloud response has no storage revision.");
+    // The existing Cloud contract uses an explicit empty HEAD for a new,
+    // empty repository. Missing/null is invalid; "" is a valid CAS baseline.
+    if (typeof result.head_commit_id !== "string") throw new Error("Cloud response has no storage revision.");
     return result.head_commit_id;
   };
   const coherentDirectory = async (path: string | null) => {
@@ -273,7 +275,7 @@ export function createCloudDataService({
         if (directory.entries.some((entry) => normalizeProviderPath(entry.path) === remotePath(path))) {
           throw new Error("A Cloud file already exists at this path.");
         }
-        if (typeof directory.head_commit_id !== "string" || !directory.head_commit_id) throw new Error("Cloud response has no storage revision.");
+        if (typeof directory.head_commit_id !== "string") throw new Error("Cloud response has no storage revision.");
         await request("write", { path: remotePath(path), content,
           node_type: nodeType(path), base_commit_id: directory.head_commit_id });
       }),

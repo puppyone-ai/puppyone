@@ -269,7 +269,7 @@ export function createCloudAuthService({
     } catch (error) { close(); throw error; }
   }
 
-  async function requestSessionApi(apiBase, apiPath, init = {}) {
+  async function requestSessionApi(apiBase, apiPath, init = {}, expectedSession = null) {
     assertNotDisposed();
     init.signal?.throwIfAborted();
     if (authStatus === "signing-out") {
@@ -284,15 +284,20 @@ export function createCloudAuthService({
       throw createSignedOutError(normalizedApiBase);
     }
 
+    const assertExpectedSession = () => {
+      if (expectedSession && (expectedSession.userId !== credential?.user_id
+        || expectedSession.generation !== sessionGeneration)) throw createSessionChangedError();
+    };
+    assertExpectedSession();
     let session = runtimeSession;
     if (!session || !isFreshSession(session, now())) {
       session = await refreshSessionSingleflight(normalizedApiBase);
     }
+    assertExpectedSession();
     const requestActorId = session.user_id;
-
-    await initializeCurrentSessionBestEffort(normalizedApiBase, session);
-
     const requestGeneration = sessionGeneration;
+    await initializeCurrentSessionBestEffort(normalizedApiBase, session);
+    assertExpectedSession();
     try {
       const result = await performAuthenticatedRequest(
         normalizedApiBase,
@@ -304,7 +309,7 @@ export function createCloudAuthService({
       setAuthStatus("authenticated");
       return result;
     } catch (error) {
-      if (error?.code === "SESSION_CHANGED" && isSafeSessionRetry(apiPath, init)) {
+      if (!expectedSession && error?.code === "SESSION_CHANGED" && isSafeSessionRetry(apiPath, init)) {
         return retrySessionApiWithCurrentGeneration(
           normalizedApiBase,
           apiPath,
@@ -317,6 +322,7 @@ export function createCloudAuthService({
         throw error;
       }
 
+      assertExpectedSession();
       // Another request may already have rotated the access token while this
       // request's 401 was in flight. Reuse that newer runtime session instead
       // of starting a second refresh after the first singleflight completed.
@@ -334,7 +340,7 @@ export function createCloudAuthService({
           requestGeneration,
         );
       } catch (retryError) {
-        if (retryError?.code === "SESSION_CHANGED" && isSafeSessionRetry(apiPath, init)) {
+        if (!expectedSession && retryError?.code === "SESSION_CHANGED" && isSafeSessionRetry(apiPath, init)) {
           return retrySessionApiWithCurrentGeneration(
             normalizedApiBase,
             apiPath,
