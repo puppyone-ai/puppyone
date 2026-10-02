@@ -1,10 +1,23 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import {
-  resolveNpmInvocation,
   spawnManagedChild,
-  terminateManagedChild,
 } from "./managed-child-process.mjs";
+import { stopOwnedChild } from "./managed-child-lifecycle.mjs";
+
+const LOCAL_CLOUD_MODES = new Set(["external", "preview", "dev"]);
+
+export function resolveLocalCloudDevMode({ args = [], environment = process.env } = {}) {
+  if (args.includes("--local-cloud")) throw new Error("Use --local-cloud=external, preview, or dev.");
+  const overrides = args.filter((arg) => arg.startsWith("--local-cloud="));
+  if (overrides.length > 1) throw new Error("Specify --local-cloud only once.");
+  const mode = overrides[0]?.slice("--local-cloud=".length)
+    ?? environment.PUPPYONE_LOCAL_CLOUD_MODE ?? "external";
+  if (!LOCAL_CLOUD_MODES.has(mode)) {
+    throw new Error("Local Cloud mode must be external, preview, or dev.");
+  }
+  return mode;
+}
 
 const VITE_DEVELOPMENT_ENV_FILES = [
   ".env",
@@ -63,21 +76,25 @@ export function resolveLocalCloudDevConfig({
   desktopRoot,
   environment = process.env,
   readFile = readFileSync,
+  args = [],
 } = {}) {
   const effectiveEnvironment = loadDesktopDevelopmentEnvironment({
     desktopRoot,
     environment,
     readFile,
   });
+  const mode = resolveLocalCloudDevMode({ args, environment: effectiveEnvironment });
+  // Configuring localhost is not consent to start a sibling development stack.
+  if (mode === "external") return null;
   const apiBaseValue = firstNonEmpty(
     effectiveEnvironment.VITE_DESKTOP_CLOUD_API_URL,
     effectiveEnvironment.VITE_CLOUD_API_URL,
     effectiveEnvironment.VITE_API_URL,
   );
-  if (!apiBaseValue) return null;
-
   const apiBaseUrl = parseConfiguredHttpUrl(apiBaseValue, "Desktop Cloud API URL");
-  if (!isLoopbackHostname(apiBaseUrl.hostname)) return null;
+  if (!isLoopbackHostname(apiBaseUrl.hostname)) {
+    throw new Error("Managed local Cloud requires a loopback API; use external mode for hosted services.");
+  }
 
   const webUrl = parseConfiguredHttpUrl(
     effectiveEnvironment.VITE_DESKTOP_CLOUD_WEB_URL,
@@ -101,16 +118,16 @@ export function resolveLocalCloudDevConfig({
   const webOrigin = webUrl.origin;
 
   return {
+    mode,
     apiBaseUrl: apiBaseUrl.toString().replace(/\/$/, ""),
     apiHealthUrl: new URL("/health", apiOrigin).toString(),
-    apiHost: apiBaseUrl.hostname === "localhost" ? "127.0.0.1" : apiBaseUrl.hostname,
+    apiHost: apiBaseUrl.hostname === "localhost" ? "127.0.0.1" : apiBaseUrl.hostname.replace(/^\[|\]$/g, ""),
     apiPort: getUrlPort(apiBaseUrl),
     cloudRoot,
-    webHealthUrl: new URL(
-      "/login?client=desktop&state=desktop-dev-health&desktop_state=desktop-dev-health",
-      webOrigin,
-    ).toString(),
-    webHost: webUrl.hostname === "localhost" ? "127.0.0.1" : webUrl.hostname,
+    webHealthUrl: new URL("/api/health", webOrigin).toString(),
+    // Render once at startup, not once per periodic liveness check.
+    webLoginUrl: new URL("/login?client=desktop&desktop_state=" + "a".repeat(43), webOrigin).toString(),
+    webHost: webUrl.hostname === "localhost" ? "127.0.0.1" : webUrl.hostname.replace(/^\[|\]$/g, ""),
     webOrigin,
     webPort: getUrlPort(webUrl),
   };
@@ -118,12 +135,12 @@ export function resolveLocalCloudDevConfig({
 
 export async function probeLocalCloudService(
   service,
-  { fetchImpl = globalThis.fetch, timeoutMs = 3_000 } = {},
+  { fetchImpl = globalThis.fetch, timeoutMs = 3_000, signal } = {},
 ) {
   try {
     const response = await fetchImpl(service.healthUrl, {
       cache: "no-store",
-      signal: AbortSignal.timeout(timeoutMs),
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs),
     });
     if (!response.ok) {
       return { ready: false, detail: `HTTP ${response.status}` };
@@ -134,9 +151,13 @@ export async function probeLocalCloudService(
         return { ready: false, detail: `API status is ${String(payload?.status ?? "unknown")}` };
       }
     } else {
-      const body = await response.text();
-      if (!body.includes("Puppyone") || !body.includes("Sign in")) {
-        return { ready: false, detail: "login page marker is missing" };
+      const payload = await response.json();
+      if (payload?.service !== "puppyone-cloud-web" || payload?.status !== "ok"
+        || payload?.schemaVersion !== 1 || typeof payload?.version !== "string") {
+        return { ready: false, detail: "Cloud web health identity is missing or incompatible" };
+      }
+      if (service.expectedMode && payload.mode !== service.expectedMode) {
+        return { ready: false, detail: "Cloud web runtime mode mismatch", modeMismatch: true };
       }
     }
     return { ready: true };
@@ -156,17 +177,28 @@ export async function prepareLocalCloudDevServices(
     logger = console,
     spawn = spawnManagedChild,
     startupTimeoutMs = 60_000,
+    signal,
   } = {},
 ) {
   const services = createServiceDefinitions(config, environment);
   const ownedProcesses = [];
+  let stopPromise;
+  const stop = () => stopPromise ??= Promise.all(ownedProcesses.map(({ child }) => stopOwnedChild(child)));
 
   try {
-    await Promise.all(services.map(async (service) => {
-      const current = await probeLocalCloudService(service, { fetchImpl });
+    // Sequential startup avoids a rejected parallel task spawning a child after
+    // cleanup has already begun. The API is ready before validating login.
+    for (const service of services) {
+      signal?.throwIfAborted();
+      const current = await probeLocalCloudService(service, { fetchImpl, signal });
+      signal?.throwIfAborted();
+      if (current.modeMismatch) {
+        throw new Error(`Existing ${service.origin} is not running ${service.expectedMode}; stop it explicitly or choose external mode.`);
+      }
       if (current.ready) {
         logger.info(`[desktop-dev] Reusing healthy local Cloud ${service.name} at ${service.origin}.`);
-        return;
+        if (service.kind === "web") await verifyLoginPage(service, { fetchImpl, signal });
+        continue;
       }
 
       assertServiceCanStart(service);
@@ -181,13 +213,13 @@ export async function prepareLocalCloudDevServices(
       await waitForServiceReady(service, child, {
         fetchImpl,
         startupTimeoutMs,
+        signal,
       });
+      if (service.kind === "web") await verifyLoginPage(service, { fetchImpl, signal });
       logger.info(`[desktop-dev] Local Cloud ${service.name} is ready.`);
-    }));
-  } catch (error) {
-    for (const { child } of ownedProcesses) {
-      terminateManagedChild(child);
     }
+  } catch (error) {
+    await stop();
     throw error;
   }
 
@@ -199,11 +231,7 @@ export async function prepareLocalCloudDevServices(
         ...(await probeLocalCloudService(service, { fetchImpl })),
       })));
     },
-    stop() {
-      for (const { child } of ownedProcesses) {
-        terminateManagedChild(child);
-      }
-    },
+    stop,
   };
 }
 
@@ -214,7 +242,9 @@ export function createServiceDefinitions(config, environment) {
     ? path.join(backendRoot, ".venv", "Scripts", "python.exe")
     : path.join(backendRoot, ".venv", "bin", "python");
   const python = environment.PUPPYONE_CLOUD_BACKEND_PYTHON ?? defaultPython;
-  const npm = resolveNpmInvocation();
+  const nextCli = path.join(frontendRoot, "node_modules", "next", "dist", "bin", "next");
+  const mode = config.mode ?? "preview";
+  const standalone = path.join(frontendRoot, ".next-desktop-login", "standalone", "server.js");
 
   return [
     {
@@ -249,35 +279,51 @@ export function createServiceDefinitions(config, environment) {
       requiredPath: python,
     },
     {
-      args: [
-        ...npm.argsPrefix,
-        "run",
-        "dev",
-        "--",
-        "-H",
-        config.webHost,
-        "-p",
-        String(config.webPort),
+      // Match Cloud's standalone deployment contract rather than invoking
+      // next start against output:standalone. Heap limits are not RSS limits.
+      args: mode === "preview" ? ["--max-old-space-size=768", standalone] : [
+        "--max-old-space-size=1536", nextCli, "dev", "-H", config.webHost, "-p", String(config.webPort),
       ],
-      command: npm.command,
+      command: process.execPath,
       cwd: frontendRoot,
       environment: {
         ...environment,
         NEXT_PUBLIC_API_URL: new URL(config.apiHealthUrl).origin,
+        NODE_ENV: mode === "preview" ? "production" : "development",
+        HOSTNAME: config.webHost,
+        PORT: String(config.webPort),
+        // Isolate the preview build from Web HMR's .next cache.
+        PUPPYONE_NEXT_DIST_DIR: mode === "preview" ? ".next-desktop-login" : ".next",
       },
+      loginUrl: config.webLoginUrl,
+      expectedMode: mode === "preview" ? "production" : "development",
       healthUrl: config.webHealthUrl,
       kind: "web",
       name: "login web app",
       origin: config.webOrigin,
-      requiredPath: path.join(frontendRoot, "package.json"),
+      requiredPath: mode === "preview" ? standalone : nextCli,
+      missingRuntimeHint: mode === "preview"
+        ? "Run npm run build:local-login in the Cloud frontend first; it never builds implicitly." : undefined,
     },
   ];
+}
+
+async function verifyLoginPage(service, { fetchImpl, signal }) {
+  if (!service.loginUrl) throw new Error("Managed Cloud web startup requires a login validation URL.");
+  const response = await fetchImpl(service.loginUrl, {
+    cache: "no-store",
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(10_000)]) : AbortSignal.timeout(10_000),
+  });
+  const body = await response.text();
+  if (!response.ok || !body.includes("Puppyone") || !body.includes("Sign in")) {
+    throw new Error("Local Cloud login page failed startup validation.");
+  }
 }
 
 async function waitForServiceReady(
   service,
   child,
-  { fetchImpl, startupTimeoutMs },
+  { fetchImpl, startupTimeoutMs, signal },
 ) {
   const deadline = Date.now() + startupTimeoutMs;
   let childFailure = null;
@@ -292,10 +338,11 @@ async function waitForServiceReady(
 
   try {
     while (Date.now() < deadline) {
-      if (childFailure) {
+      signal?.throwIfAborted();
+      if (childFailure || child.exitCode !== null || child.signalCode !== null) {
         throw new Error(`Local Cloud ${service.name} ${childFailure}. Check whether ${service.origin} is already occupied.`);
       }
-      const result = await probeLocalCloudService(service, { fetchImpl });
+      const result = await probeLocalCloudService(service, { fetchImpl, signal });
       if (result.ready) return;
       await delay(500);
     }
@@ -312,7 +359,7 @@ function assertServiceCanStart(service) {
     throw new Error(`Local Cloud ${service.name} directory is missing: ${service.cwd}`);
   }
   if (!existsSync(service.requiredPath)) {
-    throw new Error(`Local Cloud ${service.name} runtime is missing: ${service.requiredPath}`);
+    throw new Error(`Local Cloud ${service.name} runtime is missing: ${service.requiredPath}. ${service.missingRuntimeHint ?? ""}`);
   }
 }
 
