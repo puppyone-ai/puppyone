@@ -89,7 +89,7 @@ app.whenReady().then(async () => {
   await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
   await waitFor("Boolean(document.querySelector('button[data-project-location=cloud]'))");
   await evaluate("document.querySelector('button[data-project-location=cloud]').click()");
-  await waitFor("Boolean(document.querySelector('.desktop-cloud-workspace-switch-dialog .desktop-cloud-auth-submit'))");
+  await waitFor("Boolean(document.querySelector('.desktop-cloud-workspace-switch-dialog [data-cloud-sign-in-action]'))");
   assert(await evaluate("window.__nativeCloudWorkbenchSmoke.state().location === 'local' && !document.querySelector('[data-workspace-location=local]').hidden && document.querySelector('[data-workspace-location=cloud]').hidden"), "Sign-in must precede Cloud selection");
   assert(await evaluate("!document.querySelector('.desktop-cloud-workspace-switch-dialog aside, .desktop-cloud-workspace-switch-dialog nav')"), "The sign-in dialog must not introduce service navigation");
   const authGeometry = await presentation("local");
@@ -99,6 +99,63 @@ app.whenReady().then(async () => {
   await waitFor("getComputedStyle(document.querySelector('.desktop-cloud-workspace-switch-dialog')).opacity === '1' && document.querySelector('.desktop-cloud-workspace-switch-dialog').getBoundingClientRect().height > 200");
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await writeFile(path.join(artifacts, "login-before-switch.png"), (await window.webContents.capturePage()).toPNG());
+  const loginPresentations = [];
+  const verifyLogin = async (scene) => {
+    await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+    const sample = await evaluate(`(() => {
+      const dialog = document.querySelector('[role=dialog]');
+      const cta = dialog.querySelector('.desktop-cloud-sign-in-cta');
+      const button = cta.querySelector('[data-cloud-sign-in-action]');
+      const box = (node) => { const r = node.getBoundingClientRect(); return { x:r.x, y:r.y, width:r.width, height:r.height }; };
+      return { dialog:box(dialog), cta:box(cta), button:box(button),
+        centered:[cta, ...cta.querySelectorAll('.desktop-cloud-sign-in-mark, h2, [data-cloud-sign-in-action]')].map(node => box(node).x + box(node).width / 2),
+        overflow:button.scrollWidth > button.clientWidth || cta.scrollWidth > cta.clientWidth,
+        text:cta.textContent, background:getComputedStyle(dialog).backgroundColor,
+        color:getComputedStyle(button).color, locale:document.documentElement.lang,
+        busy:cta.getAttribute('aria-busy'), disabled:button.disabled,
+        alert:cta.querySelector('[role=alert]')?.textContent ?? null,
+        oldPageLayout:Boolean(dialog.querySelector('.desktop-cloud-main-view, .desktop-cloud-auth-page-shell')) };
+    })()`);
+    const middle = sample.dialog.x + sample.dialog.width / 2;
+    assert(sample.centered.every(x => Math.abs(x-middle) < 1), `Sign-in content is off-center: ${scene}`);
+    assert(Math.abs(sample.dialog.x*2 + sample.dialog.width - window.getContentSize()[0]) < 2, `Dialog is off-center: ${scene}`);
+    assert(Math.abs(sample.dialog.y*2 + sample.dialog.height - window.getContentSize()[1]) < 2, `Dialog is not vertically centered: ${scene}`);
+    assert(!sample.overflow && !sample.oldPageLayout, `Sign-in content is clipped or uses full-page layout: ${scene}`);
+    assert(sample.dialog.width <= 442 && sample.dialog.height < window.getContentSize()[1]-32, `Sign-in is oversized: ${scene}`);
+    loginPresentations.push({ scene, ...sample });
+    return sample;
+  };
+  const initialLogin = await verifyLogin("dark-en");
+  const preview = { x: Math.floor(initialLogin.dialog.x - 24), y: Math.floor(initialLogin.dialog.y - 24),
+    width: Math.ceil(initialLogin.dialog.width + 48), height: Math.ceil(initialLogin.dialog.height + 48) };
+  await writeFile(path.join(artifacts, "login-preview.png"), (await window.webContents.capturePage(preview)).toPNG());
+  await evaluate("document.querySelector('[data-cloud-sign-in-action]').click()");
+  await waitFor("document.querySelector('.desktop-cloud-sign-in-cta')?.getAttribute('aria-busy') === 'true'");
+  let login = await verifyLogin("waiting-en");
+  assert(login.disabled && login.text.includes("Finish signing in in your browser"), "Pending login needs clear browser guidance");
+  await writeFile(path.join(artifacts, "login-waiting.png"), (await window.webContents.capturePage()).toPNG());
+  await evaluate("window.__nativeCloudWorkbenchSmoke.failLogin()");
+  await waitFor("Boolean(document.querySelector('.desktop-cloud-sign-in-cta [role=alert]'))");
+  login = await verifyLogin("error-en");
+  assert(!login.disabled && login.alert.includes("Try again"), "Failed login must offer another attempt");
+  await writeFile(path.join(artifacts, "login-error.png"), (await window.webContents.capturePage()).toPNG());
+  await evaluate("document.querySelector('[data-cloud-sign-in-action]').click(); window.__nativeCloudWorkbenchSmoke.resetLogin()");
+  for (const theme of ["light", "dark"]) {
+    await evaluate(`window.__nativeCloudWorkbenchSmoke.setLoginAppearance('${theme}', 'en')`);
+    await verifyLogin(`${theme}-en`);
+    if (theme === "light") await writeFile(path.join(artifacts, "login-light.png"), (await window.webContents.capturePage()).toPNG());
+  }
+  await evaluate("window.__nativeCloudWorkbenchSmoke.setLoginAppearance('dark', 'zh-Hans')");
+  await verifyLogin("dark-zh-Hans");
+  await writeFile(path.join(artifacts, "login-zh.png"), (await window.webContents.capturePage()).toPNG());
+  window.setContentSize(480, 640);
+  for (const locale of ["en", "zh-Hans", "de", "fr", "ja", "ko", "pt-BR", "es"]) {
+    await evaluate(`window.__nativeCloudWorkbenchSmoke.setLoginAppearance('dark', '${locale}')`);
+    await verifyLogin(`narrow-${locale}`);
+  }
+  await writeFile(path.join(artifacts, "login-narrow.png"), (await window.webContents.capturePage()).toPNG());
+  window.setContentSize(1100, 760);
+  await evaluate("window.__nativeCloudWorkbenchSmoke.setLoginAppearance('dark', 'en')");
   await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
   await waitFor("!document.querySelector('[role=dialog]')");
   await evaluate("window.__nativeCloudWorkbenchSmoke.setCloudSessionAvailable(true)");
@@ -116,9 +173,9 @@ app.whenReady().then(async () => {
   assert(await evaluate("document.querySelector('[data-workspace-location=local] .cm-editor')?.dataset.fixtureIdentity === 'retained-local-host' && document.querySelector('[data-workspace-location=local] .cm-content').textContent.includes('LOCAL_UNSAVED_DRAFT')"), "Authentication must preserve local drafts");
   await evaluate("window.__nativeCloudWorkbenchSmoke.finishLocalSaves()");
   snapshot = await state();
-  await writeFile(path.join(artifacts, "report.json"), JSON.stringify({ passed: true, localHost, localPresentation, cloudPresentation, authGeometry, snapshot, errors }, null, 2));
+  await writeFile(path.join(artifacts, "report.json"), JSON.stringify({ passed: true, localHost, localPresentation, cloudPresentation, authGeometry, loginPresentations, snapshot, errors }, null, 2));
   assert(!errors.length, `Renderer errors: ${errors.join("; ")}`);
-  console.log("Native Cloud workbench smoke passed: identical native layout/styles, Cloud tree/data/edit/save, login before switching, cancellation, isolated drafts and retained hosts.");
+  console.log("Native Cloud workbench smoke passed: identical native layout/styles, Cloud tree/data/edit/save, centered sign-in across themes and eight locales, browser waiting/error states, login before switching, cancellation, isolated drafts and retained hosts.");
   window.destroy(); app.exit(0);
 }).catch(async (error) => {
   console.error(error);

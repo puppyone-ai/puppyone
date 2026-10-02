@@ -195,6 +195,7 @@ export function DesktopWorkspaceContent({
     cloudSurface,
     cloudFileState,
     cloudSwitchGate,
+    cloudSwitchAuthenticationRequired,
     gitEnabled,
     resolvedActiveView,
     resolvedSurface,
@@ -284,7 +285,8 @@ export function DesktopWorkspaceContent({
               providerStateContent={cloudFileState} />
           : null}
       />
-      {cloudWorkspaceSwitch && <CloudWorkspaceSwitchDialog controller={cloudWorkspaceSwitch} gate={cloudSwitchGate} />}
+      {cloudWorkspaceSwitch && <CloudWorkspaceSwitchDialog controller={cloudWorkspaceSwitch} gate={cloudSwitchGate}
+        authenticationRequired={cloudSwitchAuthenticationRequired} />}
       {cloudOpen && (
         <CloudDialog
           sidebar={cloudSurface.sidebar}

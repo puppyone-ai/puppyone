@@ -30,7 +30,7 @@ function Harness({ restoring = false }: { restoring?: boolean }) {
     <button onClick={controller.request}>Cloud</button>
     <input aria-label="Local unsaved draft" defaultValue="Keep this draft" />
     <div data-current-provider={cloudActive ? "cloud" : "local"} />
-    <CloudWorkspaceSwitchDialog controller={controller} gate={<CloudSignedOutRoute compact activeSection="contents"
+    <CloudWorkspaceSwitchDialog controller={controller} authenticationRequired gate={<CloudSignedOutRoute compact activeSection="contents"
       authState={{ status: restoring ? "restoring" : "signed-out", apiBaseUrl: API }} apiBaseUrl={API} loadingLabel="Restoring Cloud session…" />} />
   </>;
 }
@@ -51,21 +51,39 @@ describe("login before Cloud selection", () => {
     expect(dialog.getAttribute("aria-modal")).toBe("true");
     expect(dialog.querySelector("aside, nav")).toBeNull();
     expect(local.value).toBe("Keep this draft");
-    const signIn = [...dialog.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Sign in to PuppyOne Cloud")!;
+    const signIn = dialog.querySelector<HTMLButtonElement>("[data-cloud-sign-in-action]")!;
+    expect(signIn.textContent).toBe("Continue in browser");
+    expect(document.activeElement).toBe(signIn);
     await act(async () => signIn.click());
     expect(native ? auth.start : auth.browser).toHaveBeenCalledWith(native ? API : "/login");
     expect(native ? auth.browser : auth.start).not.toHaveBeenCalled();
+    expect(signIn.disabled).toBe(native);
+    if (native) expect(dialog.textContent).toContain("Finish signing in in your browser.");
     expect(document.querySelector('[data-current-provider]')?.getAttribute("data-current-provider")).toBe("local");
     await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(document.activeElement).toBe(local);
     expect(local.value).toBe("Keep this draft");
   });
+  it("allows another attempt after sign-in fails while keeping the local draft", async () => {
+    auth.start.mockRejectedValueOnce(new Error("Fixture browser could not open"));
+    const local = await render();
+    const signIn = document.querySelector<HTMLButtonElement>("[data-cloud-sign-in-action]")!;
+    await act(async () => signIn.click());
+    expect(signIn.disabled).toBe(false);
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain("Fixture browser could not open");
+    expect(document.querySelector('[data-current-provider]')?.getAttribute("data-current-provider")).toBe("local");
+    expect(local.value).toBe("Keep this draft");
+    await act(async () => signIn.click());
+    expect(auth.start).toHaveBeenCalledTimes(2);
+    expect(signIn.disabled).toBe(true);
+    expect(document.querySelector('[role="alert"]')).toBeNull();
+  });
   it("waits for authoritative restoration before offering sign-in", async () => {
     await render(true);
     const dialog = document.querySelector('[role="dialog"]')!;
     expect(dialog.querySelector('[role="status"]')).not.toBeNull();
-    expect(dialog.textContent).not.toContain("Sign in to PuppyOne Cloud");
+    expect(dialog.querySelector("[data-cloud-sign-in-action]")).toBeNull();
     expect(auth.start).not.toHaveBeenCalled();
     expect(document.querySelector('[data-current-provider]')?.getAttribute("data-current-provider")).toBe("local");
   });

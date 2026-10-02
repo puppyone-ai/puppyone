@@ -17,6 +17,13 @@ export function CloudSignedOutRoute({
   compact?: boolean;
 }) {
   const sessionTransitioning = authState.status === "restoring" || authState.status === "signing-out";
+  if (compact) return (
+    <div className="desktop-cloud-sign-in-gate">
+      {sessionTransitioning
+        ? <CloudWorkspaceLoadingState label={loadingLabel} />
+        : <CloudSignInView compact activeSection={activeSection} apiBaseUrl={apiBaseUrl} />}
+    </div>
+  );
   if (sessionTransitioning) {
     return (
       <main className="desktop-cloud-main-view" data-po-scrollbar="content">

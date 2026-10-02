@@ -1,7 +1,8 @@
 import { useLocalization } from "@puppyone/localization/react";
 import type { CloudWorkspaceSection } from "../types";
 import { CloudActivationHero } from "../components/CloudActivationHero";
-import { CloudAuthCard, CloudProductMark } from "./CloudAuthCard";
+import { CloudAuthCard } from "./CloudAuthCard";
+import { DesktopCloudSignInCta } from "./DesktopCloudSignInCta";
 import { useCloudAuthController } from "../hooks/useCloudAuthController";
 import "./cloud-sign-in.css";
 
@@ -19,12 +20,8 @@ export function CloudSignInView({
     cloudApiBaseUrl: apiBaseUrl,
   });
 
-  if (compact) return <section className="desktop-cloud-workspace-sign-in">
-    <CloudProductMark />
-    <h3>{t("cloud.auth.signInRequired")}</h3>
-    <p>{t("cloud.recovery.localStatePreserved")}</p>
-    <CloudAuthCard signingIn={auth.signingIn} error={auth.error} onSignIn={auth.startSignIn} />
-  </section>;
+  if (compact) return <DesktopCloudSignInCta
+    signingIn={auth.signingIn} error={auth.error} onSignIn={auth.startSignIn} />;
 
   return (
     <CloudActivationHero

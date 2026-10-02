@@ -1,0 +1,83 @@
+@layer features {
+  .desktop-cloud-sign-in-gate {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .desktop-cloud-sign-in-cta {
+    display: flex;
+    width: 100%;
+    box-sizing: border-box;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    padding: 36px 28px 32px;
+    color: var(--po-text);
+    text-align: center;
+  }
+
+  .desktop-cloud-sign-in-mark {
+    display: flex;
+    width: 44px;
+    height: 44px;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--po-border);
+    border-radius: 12px;
+    background: var(--po-control);
+    color: var(--po-text);
+  }
+
+  .desktop-cloud-sign-in-copy,
+  .desktop-cloud-sign-in-actions {
+    display: flex;
+    width: 100%;
+    max-width: 300px;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .desktop-cloud-sign-in-copy h2,
+  .desktop-cloud-sign-in-cta p {
+    margin: 0;
+  }
+
+  .desktop-cloud-sign-in-copy h2 {
+    color: var(--po-text);
+    font-size: var(--po-text-size-page-title);
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  .desktop-cloud-sign-in-copy p {
+    color: var(--po-text-muted);
+    font-size: var(--po-text-size-body);
+    line-height: 1.5;
+  }
+
+  .desktop-cloud-sign-in-button {
+    width: 100%;
+    max-width: 260px;
+    gap: 8px;
+  }
+
+  .desktop-cloud-sign-in-button svg {
+    flex: 0 0 auto;
+  }
+
+  .desktop-cloud-sign-in-hint {
+    color: var(--po-text-subtle);
+    font-size: var(--po-text-size-caption);
+    line-height: 1.5;
+  }
+
+  .desktop-cloud-sign-in-error {
+    max-width: 300px;
+    color: var(--po-danger);
+    font-size: var(--po-text-size-body);
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+}

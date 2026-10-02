@@ -9,7 +9,10 @@ import { useDesktopPreferences } from "../../app-shell/useDesktopPreferences";
 import { EditorHeaderTabs } from "../../editor-workbench/header/EditorHeaderTabs";
 import { useCloudWorkspaceSwitch } from "./useCloudWorkspaceSwitch";
 import { CloudWorkspaceSwitchDialog } from "./CloudWorkspaceSwitchDialog";
-import { CloudSignInView } from "../auth/CloudSignInView";
+import { CloudSignedOutRoute } from "../auth/CloudSignedOutRoute";
+import { useLocalization } from "@puppyone/localization/react";
+import type { AppLanguagePreference } from "@puppyone/localization/core";
+import type { DesktopCloudAuthState } from "../../../lib/cloudSession";
 import { useNativeCloudWorkbench } from "./useNativeCloudWorkbench";
 import { DesktopCloudFileWorkspace } from "./DesktopCloudFileWorkspace";
 import { DesktopDataWorkspaceSurface, type DesktopDataWorkspaceSurfaceProps } from "../../app-shell/DesktopDataWorkspaceSurface";
@@ -44,8 +47,16 @@ const cloudWrites: Array<{ path: string; content: string }> = [];
 const localWrites: Array<{ path: string; content: string }> = [];
 const localSaveCompletions: Array<() => void> = [];
 const requests: string[] = [];
+const authStateListeners = new Set<(state: DesktopCloudAuthState) => void>();
+const authErrorListeners = new Set<(payload: { message?: string }) => void>();
 window.puppyoneDesktop = {
   ...window.puppyoneDesktop,
+  startCloudOAuth: async () => {
+    for (const listener of authStateListeners) listener({ status: "signing-in", session: null });
+    return { ok: true };
+  },
+  onCloudAuthStateChanged: (listener) => { authStateListeners.add(listener); return () => { authStateListeners.delete(listener); }; },
+  onCloudAuthError: (listener) => { authErrorListeners.add(listener); return () => { authErrorListeners.delete(listener); }; },
   requestCloudSessionApi: async (request) => {
     requests.push(request.path);
     const url = new URL(request.path, API);
@@ -75,11 +86,16 @@ declare global {
     edit: (location: "local" | "cloud", text: string) => void;
     finishLocalSaves: () => void;
     setCloudSessionAvailable: (available: boolean) => void;
+    setLoginAppearance: (theme: "light" | "dark", locale: AppLanguagePreference) => Promise<void>;
+    resetLogin: () => void;
+    failLogin: () => void;
   }; }
 }
 
 /** No network or real workspace bytes: exercises production file and editor hosts. */
 export function NativeCloudWorkbenchSmokeHarness() {
+  const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const { setLanguagePreference } = useLocalization();
   const [cloudSelected, setCloudSelected] = useState(false);
   const [cloudSessionAvailable, setCloudSessionAvailable] = useState(true);
   const location = cloudSelected && cloudSessionAvailable ? "cloud" : "local";
@@ -141,12 +157,15 @@ export function NativeCloudWorkbenchSmokeHarness() {
         view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } });
       },
       setCloudSessionAvailable,
+      setLoginAppearance: async (nextTheme, locale) => { setTheme(nextTheme); await setLanguagePreference(locale); },
+      resetLogin: () => { for (const listener of authStateListeners) listener({ status: "signed-out", session: null }); },
+      failLogin: () => { for (const listener of authErrorListeners) listener({ message: "Fixture browser sign-in failed. Try again." }); },
       finishLocalSaves: () => { localSaveCompletions.splice(0).forEach((finish) => finish()); },
     };
     return () => { delete window.__nativeCloudWorkbenchSmoke; };
-  }, [location]);
-  return <div className="app-shell dark" data-po-appearance-root="true" data-native-cloud-smoke-ready="true">
-    <DesktopOverlayPortal theme="dark">{null}</DesktopOverlayPortal>
+  }, [location, setLanguagePreference]);
+  return <div className={`app-shell${theme === "dark" ? " dark" : ""}`} data-po-appearance-root="true" data-native-cloud-smoke-ready="true">
+    <DesktopOverlayPortal theme={theme}>{null}</DesktopOverlayPortal>
     <DesktopCloudShell leftSidebarCollapsed={preferences.sidebarCollapsed} leftSidebarWidth={preferences.explorerWidth}
       onLeftSidebarExpand={() => preferences.setSidebarCollapsed(false)}
       titlebarCenteredSlot={<DesktopWorkspaceSwitcher open={menuOpen} refObject={menuRef} titlebarLabel={localWorkspace.name}
@@ -164,6 +183,8 @@ export function NativeCloudWorkbenchSmokeHarness() {
         cloud={<DesktopCloudFileWorkspace workbench={workbench} surfaceProps={commonSurfaceProps}
           providerStateContent={null} />} />
     </DesktopCloudShell>
-    <CloudWorkspaceSwitchDialog controller={controller} gate={<CloudSignInView compact activeSection="contents" apiBaseUrl={API} />} />
+    <CloudWorkspaceSwitchDialog controller={controller} authenticationRequired={!cloudSessionAvailable}
+      gate={<CloudSignedOutRoute compact activeSection="contents" apiBaseUrl={API}
+        authState={{ status: "signed-out", apiBaseUrl: API }} loadingLabel="Restoring Cloud session…" />} />
   </div>;
 }

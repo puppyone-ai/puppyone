@@ -9,20 +9,25 @@ import type { CloudWorkspaceSwitch } from "./useCloudWorkspaceSwitch";
 import "./cloud-workspace-switch.css";
 
 /** Authentication and preparation overlay the retained current-device workbench. */
-export function CloudWorkspaceSwitchDialog({ controller, gate }: {
+export function CloudWorkspaceSwitchDialog({ controller, gate, authenticationRequired = false }: {
   controller: CloudWorkspaceSwitch;
   gate: ReactNode;
+  authenticationRequired?: boolean;
 }) {
   const { t } = useLocalization();
   if (!controller.pending) return null;
   return <DesktopOverlayLayer>
     <DesktopDialogRoot onClose={controller.cancel}>
-      <DesktopDialogSurface className="desktop-cloud-workspace-switch-dialog"
-        width="min(720px, calc(100vw - 48px))" ariaLabel={t("cloud.productName")}>
-        <header className="desktop-dialog-header">
+      <DesktopDialogSurface className={`desktop-cloud-workspace-switch-dialog${authenticationRequired ? " is-authentication" : ""}`}
+        width={authenticationRequired ? 440 : "min(720px, calc(100vw - 48px))"}
+        ariaLabel={t(authenticationRequired ? "cloud.auth.desktopTitle" : "cloud.productName")}>
+        {authenticationRequired
+          ? <DesktopDialogCloseButton className="desktop-cloud-workspace-sign-in-close"
+            label={t("common.action.close")} onClick={controller.cancel} />
+          : <header className="desktop-dialog-header">
           <div className="desktop-dialog-title-row"><Cloud size={15} /><h2>{t("cloud.productName")}</h2></div>
           <DesktopDialogCloseButton label={t("common.action.close")} onClick={controller.cancel} />
-        </header>
+        </header>}
         <div className="desktop-cloud-workspace-switch-content" data-po-scrollbar="content">
           {controller.error ? <div className="desktop-cloud-workspace-switch-recovery">
             <p role="alert">{formatCloudMessage(controller.error, t)}</p>
