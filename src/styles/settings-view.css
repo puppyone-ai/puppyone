@@ -106,7 +106,8 @@
 }
 
 .desktop-cloud-dialog-location-controls {
-  width: 232px;
+  width: max-content;
+  min-width: 232px;
   max-width: 55%;
   margin-inline-start: auto;
   margin-inline-end: 8px;

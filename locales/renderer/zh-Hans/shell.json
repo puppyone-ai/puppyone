@@ -107,6 +107,7 @@
   "workspaceSwitcher.location.openCloud": "查看云端文件",
   "workspaceSwitcher.location.switchToMac": "切换到这台 Mac",
   "workspaceSwitcher.location.thisMac": "这台 Mac",
+  "workspaceSwitcher.location.thisComputer": "这台电脑",
   "workspaceSwitcher.location.cloud": "云端工作区",
   "workspaceSwitcher.location.available": "可用",
   "workspaceSwitcher.location.online": "在线",

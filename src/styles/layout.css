@@ -499,7 +499,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-location-tab {
-  min-width: 0;
+  min-width: max-content;
   flex: 1;
   gap: 4px;
   padding: 0 6px;
@@ -524,6 +524,20 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 .desktop-project-repository-link:hover {
   color: var(--po-text);
   background: var(--po-hover);
+}
+
+/* A missing Cloud version is an invitation to create, not an inactive tab. */
+.desktop-project-location-tab[data-cloud-action="create"] {
+  background: color-mix(in srgb, var(--po-accent) 9%, transparent);
+  color: var(--po-accent-text);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--po-accent) 30%, transparent);
+  font-weight: var(--po-text-weight-medium, 500);
+}
+
+.desktop-project-location-tab[data-cloud-action="create"]:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--po-accent) 15%, transparent);
+  color: var(--po-accent-text);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--po-accent) 45%, transparent);
 }
 
 .desktop-project-location-tab:disabled {

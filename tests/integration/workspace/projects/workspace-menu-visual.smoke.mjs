@@ -45,11 +45,13 @@ async function runSmoke() {
   for (const locale of locales) {
   const catalog = JSON.parse(await readFile(path.join(repoRoot, "locales", "renderer", locale, "shell.json"), "utf8"));
   await window.webContents.executeJavaScript(`localStorage.setItem('puppyone.desktop.developmentLanguage', ${JSON.stringify(locale)})`);
+  for (const platform of ["macos", "windows", "linux"]) {
   for (const theme of ["light", "dark"]) {
   for (const state of ["local-only", "local-github", "local-cloud-no-github", "local-cloud", "cloud-only", "resolving"]) {
   const url = pathToFileURL(rendererPath);
   url.searchParams.set("project-state", state);
   url.searchParams.set("theme", theme);
+  url.searchParams.set("platform", platform);
   url.hash = "workspace-menu-visual-smoke";
   await window.loadURL(url.href);
   await waitForRenderer(window, `Boolean(
@@ -67,6 +69,7 @@ async function runSmoke() {
     const track = menu.querySelector('.desktop-project-location-tabs');
     const buttons = [...menu.querySelectorAll('button[data-project-location]')];
     const selected = menu.querySelector('button[aria-pressed="true"]');
+    const create = menu.querySelector('button[data-cloud-action="create"]');
     const github = menu.querySelector('.desktop-project-repository-link');
     const header = document.querySelector('.workspace-menu-visual-titlebar');
     const canvas = document.createElement('canvas');
@@ -88,6 +91,12 @@ async function runSmoke() {
     return {
       locale: document.documentElement.lang,
       cloudEntry: row.dataset.cloudEntry,
+      devicePlatform: document.querySelector('[data-device-platform]')?.dataset.devicePlatform,
+      controlsFit: buttons.every(button => button.getBoundingClientRect().right <= track.getBoundingClientRect().right + 1)
+        && (!github || github.getBoundingClientRect().right <= menu.getBoundingClientRect().right - 6),
+      createIcon: !!create?.querySelector('.lucide-plus'),
+      createContrast: create ? contrast(luminance(getComputedStyle(create).color), luminance(getComputedStyle(create).backgroundColor)) : null,
+      createEmphasis: create ? getComputedStyle(create).boxShadow : null,
       state: document.querySelector('[data-project-state]')?.dataset.projectState,
       location: selected.dataset.projectLocation,
       currentCount: menu.querySelectorAll('[aria-current="true"]').length,
@@ -124,14 +133,15 @@ async function runSmoke() {
 
   const evidence = JSON.stringify(snapshot);
   assert(snapshot.state === state, `Wrong fixture state: ${evidence}`);
-  assert(snapshot.menuWidth === 248 && snapshot.menuHeight === 46, `Project menu must stay compact: ${evidence}`);
+  assert(snapshot.menuWidth >= 248 && snapshot.menuWidth <= 360 && snapshot.menuHeight === 46 && snapshot.controlsFit, `Project menu must stay compact and fit translated device labels: ${evidence}`);
   assert(snapshot.menuPadding === 6 && snapshot.rowGap === snapshot.menuPadding, `Control spacing must match menu padding: ${evidence}`);
   assert(snapshot.buttonHeights.every(height => height === 28) && snapshot.buttonYs[0] === snapshot.buttonYs[1], `Local and Cloud must share one horizontal control: ${evidence}`);
   assert(snapshot.currentCount === 1 && snapshot.pressedCount === 1, `Exactly one surface must be selected: ${evidence}`);
   const creating = state === "local-only" || state === "local-github";
-  assert(snapshot.locale === locale, `Wrong locale: ${evidence}`);
+  assert(snapshot.locale === locale && snapshot.devicePlatform === platform, `Wrong locale or device platform: ${evidence}`);
   assert(snapshot.cloudEntry === (creating ? "create" : "switch"), `Use creation only for a confirmed unhosted project: ${evidence}`);
-  assert(snapshot.labelsFit && snapshot.labels.join("|") === [catalog["navigation.local"], catalog[creating ? "workspaceSwitcher.createCloudVersion" : "navigation.cloud"]].join("|"), `Only the two unclipped localized actions belong in this menu: ${evidence}`);
+  assert(snapshot.labelsFit && snapshot.labels.join("|") === [catalog[platform === "macos" ? "workspaceSwitcher.location.thisMac" : "workspaceSwitcher.location.thisComputer"], catalog[creating ? "workspaceSwitcher.createCloudVersion" : "navigation.cloud"]].join("|"), `Only the two unclipped localized actions belong in this menu: ${evidence}`);
+  assert(creating ? snapshot.createIcon && snapshot.createContrast >= 4.5 && snapshot.createEmphasis !== "none" : !snapshot.createIcon && snapshot.createContrast === null, `Creation must be a readable accented action with a plus mark, separate from selection: ${evidence}`);
   assert(snapshot.iconWidths.every(width => width === 14) && snapshot.iconColorsMatch && snapshot.headerColorsMatch, `Small icons must match their labels: ${evidence}`);
   assert(snapshot.selectedTextColor === snapshot.normalTextColor && snapshot.selectedContrast >= 7
     && snapshot.selectedEmphasis > 1.03 && snapshot.selectedEmphasis < 1.7,
@@ -154,13 +164,14 @@ async function runSmoke() {
   if (screenshotPath) {
     await mkdir(path.dirname(screenshotPath), { recursive: true });
     const extension = path.extname(screenshotPath);
-    const statePath = screenshotPath.slice(0, extension ? -extension.length : undefined) + "-" + locale + "-" + theme + "-" + state + (extension || ".png");
+    const statePath = screenshotPath.slice(0, extension ? -extension.length : undefined) + "-" + locale + "-" + platform + "-" + theme + "-" + state + (extension || ".png");
     await writeFile(statePath, capture.toPNG());
   }
-  observations.push({ locale, theme, ...snapshot });
+  observations.push({ locale, platform, theme, ...snapshot });
   }
   }
-  console.log(`workspace menu visual smoke passed: ${locale}, 12 scenarios`);
+  }
+  console.log(`workspace menu visual smoke passed: ${locale}, 36 scenarios`);
   }
   if (screenshotPath) {
     await writeFile(path.join(path.dirname(screenshotPath), "visual-results.json"), JSON.stringify(observations, null, 2) + "\n");

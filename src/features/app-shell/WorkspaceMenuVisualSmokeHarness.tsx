@@ -1,11 +1,28 @@
 import { useRef } from "react";
 import { type Workspace } from "@puppyone/shared-ui";
-import type { GitStatusSnapshot } from "../../types/electron";
+import type { DesktopPlatform, GitStatusSnapshot } from "../../types/electron";
 import { DesktopOverlayPortal } from "./DesktopOverlayPortal";
 import { DesktopWorkspaceSwitcher } from "./DesktopWorkspaceSwitcher";
+import { resetDesktopPlatformCapabilitiesForTests } from "../../platform/desktopPlatformClient";
 import "./workspace-menu-visual-smoke.css";
 
 const currentWorkspace = workspace("todo", "To-Do-List", "/Users/demo/Desktop/To-Do-List");
+
+const requestedPlatform = new URLSearchParams(window.location.search).get("platform");
+const platform: DesktopPlatform = requestedPlatform === "windows" || requestedPlatform === "linux"
+  ? requestedPlatform : "macos";
+window.puppyoneDesktop = {
+  ...window.puppyoneDesktop,
+  getPlatformCapabilities: async () => ({
+    schemaVersion: 1, platform, arch: "x64", primaryModifier: platform === "macos" ? "meta" : "control",
+    windowChrome: { mode: "custom" },
+    credentialStorage: { available: false, locked: false, strength: "unavailable", backend: null },
+    documentConversion: { supportedInputs: [] },
+    updater: { supported: false, installMode: "manual" },
+  }),
+} as NonNullable<typeof window.puppyoneDesktop>;
+// Bootstrap reads capabilities before loading this isolated visual fixture.
+resetDesktopPlatformCapabilitiesForTests();
 
 /** Deterministic browser fixture for reviewing the Workspace menu hierarchy. */
 export function WorkspaceMenuVisualSmokeHarness() {
@@ -19,7 +36,7 @@ export function WorkspaceMenuVisualSmokeHarness() {
   return (
     <main className={`app-shell ${theme} workspace-menu-visual-smoke`}
       data-po-appearance-root="true"
-      data-workspace-menu-visual-ready="true" data-project-state={state}>
+      data-workspace-menu-visual-ready="true" data-project-state={state} data-device-platform={platform}>
       <DesktopOverlayPortal theme={theme}>{null}</DesktopOverlayPortal>
       <header className="desktop-titlebar workspace-menu-visual-titlebar">
         <div className="desktop-titlebar-context">

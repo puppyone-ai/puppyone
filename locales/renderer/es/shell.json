@@ -107,6 +107,7 @@
   "workspaceSwitcher.location.openCloud": "Ver archivos en la nube",
   "workspaceSwitcher.location.switchToMac": "Cambiar a este Mac",
   "workspaceSwitcher.location.thisMac": "Este Mac",
+  "workspaceSwitcher.location.thisComputer": "Este equipo",
   "workspaceSwitcher.location.cloud": "Espacio de trabajo en la nube",
   "workspaceSwitcher.location.available": "Disponible",
   "workspaceSwitcher.location.online": "En línea",

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
   Tooltip,
   RENDERER_ASSET_PATHS,
@@ -10,6 +10,7 @@ import {
 import {
   ArrowLeft,
   Cloud,
+  Plus,
   FolderPlus,
   Laptop,
 } from "lucide-react";
@@ -26,6 +27,7 @@ import {
   resolveProjectContextAssetKind,
 } from "./ProjectContextAssetMark";
 import { getWorkspaceParentPathForDisplay } from "./workspaceHomeModel";
+import { useDesktopPlatformCapabilities } from "../../platform/useDesktopPlatformCapabilities";
 
 type DesktopWorkspaceSwitcherProps = {
   open: boolean;
@@ -80,10 +82,11 @@ export function DesktopWorkspaceSwitcher({
 }: DesktopWorkspaceSwitcherProps) {
   const { t } = useLocalization();
   const [view, setView] = useState<"projects" | "add">("projects");
+  const [projectMenuWidth, setProjectMenuWidth] = useState(248);
+  const localDeviceLabel = useProjectDeviceLabel();
   const currentProjectLocationKind = projectLocation?.current ?? "local";
-  const workspaceContextAssetLabel = t(currentProjectLocationKind === "cloud"
-    ? "shell.workspaceSwitcher.location.cloud"
-    : "shell.workspaceSwitcher.location.thisMac");
+  const workspaceContextAssetLabel = currentProjectLocationKind === "cloud"
+    ? t("shell.workspaceSwitcher.location.cloud") : localDeviceLabel;
   const attachedFolders = useMemo(
     () => workspaceFolders.length > 0
       ? workspaceFolders
@@ -131,7 +134,7 @@ export function DesktopWorkspaceSwitcher({
         onDismiss={onClose}
         open={open}
         preferredMaxHeight={520}
-        preferredWidth={view === "add" ? 240 : 248}
+        preferredWidth={view === "add" ? 240 : projectMenuWidth}
         alignment={menuAlignment}
         role="dialog"
         ariaLabel={t("shell.workspaceSwitcher.projectDetails")}
@@ -147,6 +150,7 @@ export function DesktopWorkspaceSwitcher({
               onViewLocal={onViewLocal}
               onViewCloud={onViewCloud}
               onDone={onClose}
+              onPreferredWidthChange={setProjectMenuWidth}
             />
             {(attachedFolders.length > 1 || multiRootWorkspacesEnabled) && (
               <div className="desktop-project-list" data-po-scrollbar="menu"
@@ -225,6 +229,7 @@ export function DesktopProjectLocationControls({
   onViewLocal,
   onViewCloud,
   onDone,
+  onPreferredWidthChange,
 }: {
   projectLocation?: DesktopProjectLocation;
   cloudProject?: DesktopProjectCloudCopy;
@@ -233,8 +238,11 @@ export function DesktopProjectLocationControls({
   onViewLocal?: () => void;
   onViewCloud?: () => void;
   onDone?: () => void;
+  onPreferredWidthChange?: (width: number) => void;
 }) {
   const { t } = useLocalization();
+  const localDeviceLabel = useProjectDeviceLabel();
+  const controlsRef = useRef<HTMLDivElement>(null);
   const current = projectLocation?.current ?? "local";
   const cloudLinked = current === "cloud" || Boolean(cloudProject?.id)
     || projectLocation?.cloudState === "available" || projectLocation?.cloudState === "signed-out";
@@ -242,9 +250,42 @@ export function DesktopProjectLocationControls({
     && (!projectLocation || projectLocation.cloudState === "unavailable");
   const repositoryUrl = backupProviders.includes("github")
     ? getProjectBackupSnapshot(backupStatus, "github").repositoryUrl : null;
+  // Measure translated labels with their actual themed font, preserving the
+  // compact height while allowing longer device names to fit beside GitHub.
+  useLayoutEffect(() => {
+    const controls = controlsRef.current;
+    if (!controls || !onPreferredWidthChange) return undefined;
+    const track = controls.querySelector<HTMLElement>(".desktop-project-location-tabs");
+    const menu = controls.closest<HTMLElement>(".desktop-project-menu");
+    if (!track || !menu) return undefined;
+    const buttons = [...track.querySelectorAll<HTMLButtonElement>("button")];
+    const labels = buttons.map(button => button.querySelector<HTMLElement>("span:last-child")!);
+    const measure = () => {
+      const pixels = (value: string) => parseFloat(value) || 0;
+      const horizontalInsets = (element: HTMLElement) => {
+        const style = getComputedStyle(element);
+        return pixels(style.paddingLeft) + pixels(style.paddingRight)
+          + pixels(style.borderLeftWidth) + pixels(style.borderRightWidth);
+      };
+      const buttonsWidth = buttons.reduce((width, button, index) => width
+        + labels[index].scrollWidth + horizontalInsets(button)
+        + (button.querySelector<HTMLElement>(".desktop-project-location-tab-mark")?.getBoundingClientRect().width ?? 0)
+        + pixels(getComputedStyle(button).gap), 0);
+      const repository = controls.querySelector<HTMLElement>(".desktop-project-repository-link");
+      const width = buttonsWidth + horizontalInsets(track)
+        + pixels(getComputedStyle(track).gap) * (buttons.length - 1)
+        + (repository ? repository.getBoundingClientRect().width + pixels(getComputedStyle(controls).gap) : 0)
+        + horizontalInsets(menu);
+      onPreferredWidthChange(Math.max(248, Math.ceil(width)));
+    };
+    measure();
+    const observer = typeof ResizeObserver === "function" ? new ResizeObserver(measure) : null;
+    labels.forEach(label => observer?.observe(label));
+    return () => observer?.disconnect();
+  }, [createCloud, localDeviceLabel, onPreferredWidthChange, repositoryUrl, t]);
   const maskImage = `url("${resolveRendererPublicAssetUrl(RENDERER_ASSET_PATHS.icons.integrations.github)}")`;
   return (
-    <div className="desktop-project-location-controls" data-cloud-entry={createCloud ? "create" : "switch"}>
+    <div ref={controlsRef} className="desktop-project-location-controls" data-cloud-entry={createCloud ? "create" : "switch"}>
       <div className="desktop-project-location-tabs" role="group"
         aria-label={t("shell.workspaceSwitcher.projectDetails")}>
         {(["local", "cloud"] as const).map((location) => {
@@ -272,9 +313,9 @@ export function DesktopProjectLocationControls({
               if (!selected) navigate?.();
             }}
           >
-            <ProjectLocationMark className="desktop-project-location-tab-mark" kind={location} size={14} />
-            <span>{t(creating ? "shell.workspaceSwitcher.createCloudVersion"
-              : location === "local" ? "shell.navigation.local" : "shell.navigation.cloud")}</span>
+            <ProjectLocationMark className="desktop-project-location-tab-mark" kind={location} creating={creating} size={14} />
+            <span>{location === "local" ? localDeviceLabel
+              : t(creating ? "shell.workspaceSwitcher.createCloudVersion" : "shell.navigation.cloud")}</span>
           </button></Tooltip>;
         })}
       </div>
@@ -328,18 +369,28 @@ function DesktopProjectRow({
   );
 }
 
+function useProjectDeviceLabel() {
+  const { t } = useLocalization();
+  const capabilities = useDesktopPlatformCapabilities();
+  return t(capabilities?.platform === "macos"
+    ? "shell.workspaceSwitcher.location.thisMac"
+    : "shell.workspaceSwitcher.location.thisComputer");
+}
+
 function ProjectLocationMark({
   className,
   kind,
+  creating = false,
   size = 15,
   strokeWidth = 1.75,
 }: {
   className: string;
   kind: DesktopProjectLocation["current"];
+  creating?: boolean;
   size?: number;
   strokeWidth?: number;
 }) {
-  const Icon = kind === "cloud" ? Cloud : Laptop;
+  const Icon = kind === "cloud" ? (creating ? Plus : Cloud) : Laptop;
   return (
     <span
       className={`desktop-project-location-mark ${className}`}

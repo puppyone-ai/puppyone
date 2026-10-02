@@ -107,6 +107,7 @@
   "workspaceSwitcher.location.openCloud": "クラウドのファイルを表示",
   "workspaceSwitcher.location.switchToMac": "この Mac に切り替え",
   "workspaceSwitcher.location.thisMac": "このMac",
+  "workspaceSwitcher.location.thisComputer": "このコンピュータ",
   "workspaceSwitcher.location.cloud": "クラウドワークスペース",
   "workspaceSwitcher.location.available": "利用可能",
   "workspaceSwitcher.location.online": "オンライン",

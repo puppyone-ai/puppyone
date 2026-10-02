@@ -17,6 +17,11 @@ import { DesktopProjectLocationControls } from "../../../../src/features/app-she
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
 
+const devicePlatform = vi.hoisted(() => ({ value: "macos" as "macos" | "windows" | "linux" | null }));
+vi.mock("../../../../src/platform/useDesktopPlatformCapabilities", () => ({
+  useDesktopPlatformCapabilities: () => devicePlatform.value ? { platform: devicePlatform.value } : null,
+}));
+
 let root: Root | null = null;
 
 afterEach(() => {
@@ -25,10 +30,14 @@ afterEach(() => {
   document.body.innerHTML = "";
   vi.useRealTimers();
   vi.restoreAllMocks();
+  devicePlatform.value = "macos";
 });
 
 describe("titlebar Portal menu interactions", () => {
-  it("shows only Local, Cloud and a quiet safe GitHub link, with one selected surface", async () => {
+  it.each([
+    ["macos", "This Mac"], ["windows", "This computer"], ["linux", "This computer"], [null, "This computer"],
+  ] as const)("names the current device on %s beside Cloud and a safe GitHub link", async (platform, label) => {
+    devicePlatform.value = platform;
     const workspace = createWorkspace("one", "Workspace one");
     await renderSwitcher({
       workspace,
@@ -40,7 +49,9 @@ describe("titlebar Portal menu interactions", () => {
     });
     const menu = requireMenu();
     expect(menu.getAttribute("role")).toBe("dialog");
-    expect(menu.textContent).toBe("LocalCloud");
+    expect(menu.textContent).toBe(`${label}Cloud`);
+    expect(document.querySelector(".desktop-titlebar-workspace-button")?.getAttribute("aria-label")).toContain(label);
+    expect(locationButton("cloud").querySelector(".lucide-plus")).toBeNull();
     expect(menu.querySelectorAll("button")).toHaveLength(2);
     expect(menu.querySelectorAll("[aria-current='true']")).toHaveLength(1);
     expect(locationButton("local").getAttribute("aria-pressed")).toBe("true");
@@ -68,6 +79,7 @@ describe("titlebar Portal menu interactions", () => {
     });
     const create = locationButton("cloud");
     expect(create.textContent).toBe("Create Cloud");
+    expect(create.querySelector(".lucide-plus")).not.toBeNull();
     expect(create.getAttribute("data-cloud-action")).toBe("create");
     expect(create.hasAttribute("aria-pressed")).toBe(false);
     expect(locationButton("local").getAttribute("aria-pressed")).toBe("true");
@@ -261,7 +273,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(document.querySelector("[data-titlebar-context-menu]")).toBeNull();
     await act(async () => project.click());
     expect(onToggle).toHaveBeenCalledOnce();
-    expect(requireMenu().textContent).toBe("LocalCloud");
+    expect(requireMenu().textContent).toBe("This MacCloud");
     expect(project.getAttribute("aria-expanded")).toBe("true");
     act(() => requireMenu().dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     expect(onClose).toHaveBeenCalledOnce();
@@ -529,7 +541,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(workspaceButton?.querySelector('.lucide-folder-closed')).toBeNull();
     expect(workspaceButton?.getAttribute("aria-label")).toContain("This Mac");
     expect(container.querySelector(".desktop-titlebar-cloud-button")).toBeNull();
-    expect(requireMenu().textContent).toBe("LocalCloud");
+    expect(requireMenu().textContent).toBe("This MacCloud");
     expect(locationButton("local").getAttribute("aria-pressed")).toBe("true");
     expect(locationButton("cloud").disabled).toBe(true);
   });
