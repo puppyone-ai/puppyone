@@ -16,17 +16,17 @@ import {
 } from "@puppyone/shared-ui";
 import type {
   DesktopCloudAutomationProviderSpec,
-  DesktopCloudAutomationRun,
+  DesktopCloudSynchronizeRun,
   DesktopCloudSession,
 } from "../../lib/cloudApi";
 import {
-  deleteCloudAutomationConnection,
-  listCloudAutomationConnectionRuns,
-  pauseCloudAutomationConnection,
-  refreshCloudAutomationConnection,
-  resumeCloudAutomationConnection,
-  updateCloudAutomationConnection,
-  updateCloudAutomationTrigger,
+  deleteSynchronizeBinding,
+  listSynchronizeRuns,
+  pauseSynchronizeBinding,
+  refreshSynchronizeBinding,
+  resumeSynchronizeBinding,
+  updateSynchronizeBinding,
+  updateSynchronizeTrigger,
 } from "../../lib/cloudApi";
 import {
   DesktopDialogCloseButton,
@@ -37,11 +37,10 @@ import { DesktopOverlayLayer } from "../app-shell/DesktopOverlayPortal";
 import {
   formatProviderLabel,
   getCloudProviderIconUrl,
-  getScopePathLabel,
   isConnectorActiveStatus,
   providerIcon,
 } from "../cloud/utils";
-import type { CloudAutomationRow } from "./automationDomain";
+import { getAutomationBindingName, getAutomationBindingPath, type CloudAutomationRow } from "./automationDomain";
 import {
   CloudAutomationDestinationEditor,
   CloudAutomationSourceEditor,
@@ -95,7 +94,8 @@ export function CloudManageAutomationDialog({
 }) {
   const localization = useLocalization();
   const { t } = localization;
-  const connector = row.connector;
+  const connector = row.binding;
+  const sourceName = getAutomationBindingName(connector);
   const provider = useMemo(
     () => providerSpec ?? fallbackProviderSpec(connector.provider, t),
     [connector.provider, providerSpec, t],
@@ -109,17 +109,16 @@ export function CloudManageAutomationDialog({
   const [source, setSource] = useState<AutomationSourceSelection | null>(() => automationSourceFromConfig(connector.config));
   const [targetPath, setTargetPath] = useState(() => getConnectionTargetPath(row));
   const [trigger, setTrigger] = useState(() => automationTriggerDraftFromConnection(provider, connector.trigger));
-  const [runs, setRuns] = useState<DesktopCloudAutomationRun[]>([]);
+  const [runs, setRuns] = useState<DesktopCloudSynchronizeRun[]>([]);
   const [runsLoading, setRunsLoading] = useState(true);
   const [runsError, setRunsError] = useState<string | null>(null);
   const runsRequestRef = useRef(0);
   const providerLabel = formatProviderLabel(connector.provider, t);
-  const targetTitle = getScopePathLabel(row.scope) === "/"
-    ? t("automation.destination.projectRoot")
-    : getScopePathLabel(row.scope);
+  const bindingPath = getAutomationBindingPath(connector);
+  const targetTitle = bindingPath ? `/${bindingPath}` : t("automation.destination.projectRoot");
   const paused = connector.status === "paused";
   const title = t("automation.manage.title", {
-    source: bidiIsolate(connector.name || providerLabel),
+    source: bidiIsolate(sourceName || providerLabel),
     target: bidiIsolate(targetTitle),
   });
   const nextRunDate = useMemo(() => getNextAutomationRun(trigger), [trigger]);
@@ -132,7 +131,7 @@ export function CloudManageAutomationDialog({
     setRunsLoading(true);
     setRunsError(null);
     try {
-      const result = await listCloudAutomationConnectionRuns(
+      const result = await listSynchronizeRuns(
         cloudSession,
         connector.id,
         10,
@@ -163,13 +162,13 @@ export function CloudManageAutomationDialog({
     setNotice(null);
     try {
       if (action === "refresh") {
-        await refreshCloudAutomationConnection(cloudSession, connector.id, onCloudSessionChange, apiBaseUrl);
+        await refreshSynchronizeBinding(cloudSession, connector.id, onCloudSessionChange, apiBaseUrl);
       } else if (action === "pause") {
-        await pauseCloudAutomationConnection(cloudSession, connector.id, onCloudSessionChange, apiBaseUrl);
+        await pauseSynchronizeBinding(cloudSession, connector.id, onCloudSessionChange, apiBaseUrl);
       } else if (action === "resume") {
-        await resumeCloudAutomationConnection(cloudSession, connector.id, onCloudSessionChange, apiBaseUrl);
+        await resumeSynchronizeBinding(cloudSession, connector.id, onCloudSessionChange, apiBaseUrl);
       } else {
-        await deleteCloudAutomationConnection(cloudSession, connector.id, onCloudSessionChange, apiBaseUrl);
+        await deleteSynchronizeBinding(cloudSession, connector.id, onCloudSessionChange, apiBaseUrl);
         await onRefresh();
         onClose();
         return;
@@ -200,7 +199,7 @@ export function CloudManageAutomationDialog({
     setError(null);
     setNotice(null);
     try {
-      await updateCloudAutomationConnection(
+      await updateSynchronizeBinding(
         cloudSession,
         connector.id,
         {
@@ -211,7 +210,7 @@ export function CloudManageAutomationDialog({
         onCloudSessionChange,
         apiBaseUrl,
       );
-      await updateCloudAutomationTrigger(
+      await updateSynchronizeTrigger(
         cloudSession,
         connector.id,
         buildAutomationTriggerUpdateRequest(trigger),
@@ -306,7 +305,7 @@ export function CloudManageAutomationDialog({
             <section className="desktop-cloud-automation-node">
               <div className="desktop-cloud-automation-node-header">
                 <span className="desktop-cloud-automation-node-icon"><CloudAutomationProviderMark provider={connector.provider} /></span>
-                <span>{connector.name || providerLabel}</span>
+                <span>{sourceName || providerLabel}</span>
               </div>
               <div className="desktop-cloud-automation-node-body">
                 <DetailValue label={t("automation.manage.provider")} value={providerLabel} />
@@ -327,7 +326,7 @@ export function CloudManageAutomationDialog({
                 <span>{targetTitle}</span>
               </div>
               <div className="desktop-cloud-automation-node-body">
-                <DetailValue label={t("automation.manage.cloudPath")} value={getScopePathLabel(row.scope)} mono />
+                <DetailValue label={t("automation.manage.cloudPath")} value={`/${bindingPath}`} mono />
                 <DetailValue
                   label={t("automation.manage.status")}
                   value={formatAutomationStatus(connector.status, t)}
@@ -410,7 +409,7 @@ function RunHistory({
   error,
   onRetry,
 }: {
-  runs: DesktopCloudAutomationRun[];
+  runs: DesktopCloudSynchronizeRun[];
   loading: boolean;
   error: string | null;
   onRetry: () => Promise<void>;
@@ -503,8 +502,7 @@ function fallbackProviderSpec(provider: string, t: MessageFormatter): DesktopClo
 }
 
 function getConnectionTargetPath(row: CloudAutomationRow) {
-  const configPath = typeof row.connector.config?.target_path === "string" ? row.connector.config.target_path : "";
-  return normalizeAutomationTargetPath(configPath || row.scope.path || "");
+  return normalizeAutomationTargetPath(getAutomationBindingPath(row.binding));
 }
 
 function formatRunTimestamp(

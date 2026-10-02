@@ -22,7 +22,7 @@ const apiMocks = vi.hoisted(() => ({
 
 vi.mock("../../../../src/lib/cloudApi", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../../src/lib/cloudApi")>()),
-  createCloudAutomation: apiMocks.create,
+  createSynchronizeBinding: apiMocks.create,
   getCloudAutomationOauthAuthorizeUrl: apiMocks.authorize,
   getCloudAutomationOauthStatus: apiMocks.status,
   openCloudAutomationAuthorizationUrl: apiMocks.openAuthorization,

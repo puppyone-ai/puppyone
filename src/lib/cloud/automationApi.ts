@@ -1,14 +1,8 @@
 import type {
-  DesktopCloudAutomationConnection,
   DesktopCloudAutomationOauthStatus,
   DesktopCloudAutomationProviderResources,
   DesktopCloudAutomationProviderSpec,
-  DesktopCloudAutomationRun,
-  DesktopCloudCreateAutomationRequest,
-  DesktopCloudCreateAutomationResult,
   DesktopCloudSession,
-  DesktopCloudUpdateAutomationConnectionRequest,
-  DesktopCloudUpdateAutomationTriggerRequest,
 } from "../cloudApi";
 
 type MutableSessionHandler = (session: DesktopCloudSession | null) => void | Promise<void>;
@@ -143,148 +137,6 @@ export function createCloudAutomationApi(cloudApiRequest: CloudAutomationTranspo
     );
   }
 
-  function createCloudAutomation(
-    session: DesktopCloudSession,
-    body: DesktopCloudCreateAutomationRequest,
-    onSessionChange?: MutableSessionHandler,
-    apiBaseUrl?: string | null,
-  ): Promise<DesktopCloudCreateAutomationResult> {
-    return cloudApiRequest<DesktopCloudCreateAutomationResult>(
-      cloudAutomationWirePath("/connections"),
-      session,
-      onSessionChange,
-      {
-        method: "POST",
-        body: JSON.stringify(body),
-      },
-      apiBaseUrl,
-    );
-  }
-
-  function updateCloudAutomationConnection(
-    session: DesktopCloudSession,
-    connectionId: string,
-    body: DesktopCloudUpdateAutomationConnectionRequest,
-    onSessionChange?: MutableSessionHandler,
-    apiBaseUrl?: string | null,
-  ): Promise<DesktopCloudAutomationConnection> {
-    return cloudApiRequest<DesktopCloudAutomationConnection>(
-      cloudAutomationWirePath(`/connections/${encodeURIComponent(connectionId)}`),
-      session,
-      onSessionChange,
-      { method: "PATCH", body: JSON.stringify(body) },
-      apiBaseUrl,
-    );
-  }
-
-  function updateCloudAutomationTrigger(
-    session: DesktopCloudSession,
-    connectionId: string,
-    body: DesktopCloudUpdateAutomationTriggerRequest,
-    onSessionChange?: MutableSessionHandler,
-    apiBaseUrl?: string | null,
-  ): Promise<unknown> {
-    return cloudApiRequest<unknown>(
-      cloudAutomationWirePath(`/connections/${encodeURIComponent(connectionId)}/trigger`),
-      session,
-      onSessionChange,
-      { method: "PATCH", body: JSON.stringify(body) },
-      apiBaseUrl,
-    );
-  }
-
-  function listCloudAutomationConnectionRuns(
-    session: DesktopCloudSession,
-    connectionId: string,
-    limit = 10,
-    onSessionChange?: MutableSessionHandler,
-    apiBaseUrl?: string | null,
-  ): Promise<DesktopCloudAutomationRun[]> {
-    const normalizedLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
-    return cloudApiRequest<DesktopCloudAutomationRun[]>(
-      cloudAutomationWirePath(`/connections/${encodeURIComponent(connectionId)}/runs?limit=${normalizedLimit}`),
-      session,
-      onSessionChange,
-      {},
-      apiBaseUrl,
-    );
-  }
-
-  function getCloudAutomationRun(
-    session: DesktopCloudSession,
-    runId: string,
-    onSessionChange?: MutableSessionHandler,
-    apiBaseUrl?: string | null,
-  ): Promise<DesktopCloudAutomationRun> {
-    return cloudApiRequest<DesktopCloudAutomationRun>(
-      cloudAutomationWirePath(`/runs/${encodeURIComponent(runId)}`),
-      session,
-      onSessionChange,
-      {},
-      apiBaseUrl,
-    );
-  }
-
-  function refreshCloudAutomationConnection(
-    session: DesktopCloudSession,
-    connectionId: string,
-    onSessionChange?: MutableSessionHandler,
-    apiBaseUrl?: string | null,
-  ): Promise<unknown> {
-    return cloudApiRequest<unknown>(
-      cloudAutomationWirePath(`/connections/${encodeURIComponent(connectionId)}/refresh`),
-      session,
-      onSessionChange,
-      { method: "POST", body: JSON.stringify({}) },
-      apiBaseUrl,
-    );
-  }
-
-  function pauseCloudAutomationConnection(
-    session: DesktopCloudSession,
-    connectionId: string,
-    onSessionChange?: MutableSessionHandler,
-    apiBaseUrl?: string | null,
-  ): Promise<unknown> {
-    return cloudApiRequest<unknown>(
-      cloudAutomationWirePath(`/connections/${encodeURIComponent(connectionId)}/pause`),
-      session,
-      onSessionChange,
-      { method: "POST", body: JSON.stringify({}) },
-      apiBaseUrl,
-    );
-  }
-
-  function resumeCloudAutomationConnection(
-    session: DesktopCloudSession,
-    connectionId: string,
-    onSessionChange?: MutableSessionHandler,
-    apiBaseUrl?: string | null,
-  ): Promise<unknown> {
-    return cloudApiRequest<unknown>(
-      cloudAutomationWirePath(`/connections/${encodeURIComponent(connectionId)}/resume`),
-      session,
-      onSessionChange,
-      { method: "POST", body: JSON.stringify({}) },
-      apiBaseUrl,
-    );
-  }
-
-  function deleteCloudAutomationConnection(
-    session: DesktopCloudSession,
-    connectionId: string,
-    onSessionChange?: MutableSessionHandler,
-    apiBaseUrl?: string | null,
-  ): Promise<unknown> {
-    return cloudApiRequest<unknown>(
-      cloudAutomationWirePath(`/connections/${encodeURIComponent(connectionId)}`),
-      session,
-      onSessionChange,
-      { method: "DELETE" },
-      apiBaseUrl,
-    );
-  }
-
   return Object.freeze({
     supportsCloudAutomationOauth,
     getCloudAutomationOauthStatus,
@@ -292,14 +144,5 @@ export function createCloudAutomationApi(cloudApiRequest: CloudAutomationTranspo
     openCloudAutomationAuthorizationUrl,
     listCloudAutomationProviderResources,
     listCloudAutomationProviderSpecs,
-    createCloudAutomation,
-    updateCloudAutomationConnection,
-    updateCloudAutomationTrigger,
-    listCloudAutomationConnectionRuns,
-    getCloudAutomationRun,
-    refreshCloudAutomationConnection,
-    pauseCloudAutomationConnection,
-    resumeCloudAutomationConnection,
-    deleteCloudAutomationConnection,
   });
 }

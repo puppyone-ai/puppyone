@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
+import { useLocalization } from "@puppyone/localization/react";
 import {
   listCloudAutomationProviderSpecs,
   openCloudApp,
   type DesktopCloudAutomationProviderSpec,
   type DesktopCloudSession,
 } from "../../lib/cloudApi";
-import type { CloudProjectAccessData } from "../cloud/project/cloudProjectAccessData";
+import { useSynchronizeBindings } from "./useSynchronizeBindings";
 import { CloudAutomationPage } from "./AutomationPage";
 import {
   buildCloudAutomationRows,
@@ -18,26 +19,26 @@ import "./automation.css";
 export function CloudProjectAutomationView({
   projectId,
   cloudSession,
-  accessData,
   activeProvider = null,
   onCloudSessionChange,
 }: {
   projectId: string;
   cloudSession: DesktopCloudSession;
-  accessData: CloudProjectAccessData;
   activeProvider?: string | null;
   onCloudSessionChange: (session: DesktopCloudSession | null) => void;
 }) {
+  const { t } = useLocalization();
+  const data = useSynchronizeBindings(projectId, cloudSession, onCloudSessionChange);
   const [detailRowId, setDetailRowId] = useState<string | null>(null);
   const [providerSpecs, setProviderSpecs] = useState<DesktopCloudAutomationProviderSpec[]>([]);
   const [providerSpecsLoading, setProviderSpecsLoading] = useState(true);
   const [providerSpecsError, setProviderSpecsError] = useState<string | null>(null);
   const automationRows = useMemo(
     () => buildCloudAutomationRows({
-      scopes: accessData.scopeRows,
-      connectors: accessData.connectors,
+      projectId,
+      bindings: data.bindings,
     }),
-    [accessData.connectors, accessData.scopeRows],
+    [projectId, data.bindings],
   );
   const visibleRows = useMemo(
     () => automationRows.filter((row) => cloudAutomationRowMatchesProvider(row, activeProvider)),
@@ -77,24 +78,35 @@ export function CloudProjectAutomationView({
   }, [detailRowId, visibleRows]);
 
   return (
-    <CloudAutomationPage
-      projectId={projectId}
-      cloudSession={cloudSession}
-      apiBaseUrl={cloudSession.api_base_url ?? null}
-      rows={visibleRows}
-      totalCount={automationRows.length}
-      hasAnyAutomation={automationRows.length > 0}
-      loading={accessData.loading}
-      providerSpecs={providerSpecs}
-      providerSpecsLoading={providerSpecsLoading}
-      providerSpecsError={providerSpecsError}
-      detailRow={detailRow}
-      onOpenRow={setDetailRowId}
-      onCloseDetail={() => setDetailRowId(null)}
-      onCloudSessionChange={onCloudSessionChange}
-      onRefresh={accessData.reload}
-      onOpenAutomation={() => openCloudApp(getCloudAutomationWebPath(projectId))}
-    />
+    <>
+      {data.error && (
+        <div role="alert" className="desktop-dialog-error">
+          {t("automation.error.detail", { detail: data.error })}
+          <button type="button" onClick={() => void data.reload().catch(() => undefined)}>
+            {t("common.action.retry")}
+          </button>
+        </div>
+      )}
+      <CloudAutomationPage
+        key={JSON.stringify([cloudSession.api_base_url, cloudSession.user_id, cloudSession.session_generation, projectId])}
+        projectId={projectId}
+        cloudSession={cloudSession}
+        apiBaseUrl={cloudSession.api_base_url ?? null}
+        rows={visibleRows}
+        totalCount={automationRows.length}
+        hasAnyAutomation={automationRows.length > 0}
+        loading={data.loading}
+        providerSpecs={providerSpecs}
+        providerSpecsLoading={providerSpecsLoading}
+        providerSpecsError={providerSpecsError}
+        detailRow={detailRow}
+        onOpenRow={setDetailRowId}
+        onCloseDetail={() => setDetailRowId(null)}
+        onCloudSessionChange={onCloudSessionChange}
+        onRefresh={data.reload}
+        onOpenAutomation={() => openCloudApp(getCloudAutomationWebPath(projectId))}
+      />
+    </>
   );
 }
 
