@@ -165,5 +165,6 @@
   "telemetry.notice.details": "Se envía un registro del primer inicio y después, como máximo, uno de actividad por día UTC. El ID de actividad cambia cada mes; un ID de retención separado se conserva hasta 100 días.",
   "telemetry.notice.notNow": "Luego",
   "telemetry.notice.understand": "Entendido",
-  "telemetry.notice.error": "No se pudo actualizar la preferencia de analíticas. Inténtalo de nuevo."
+  "telemetry.notice.error": "No se pudo actualizar la preferencia de analíticas. Inténtalo de nuevo.",
+  "cloud.executionUnavailable": "Las herramientas de Agent, Terminal y Git actualmente solo están disponibles en este equipo."
 }

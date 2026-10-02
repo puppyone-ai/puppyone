@@ -165,5 +165,6 @@
   "telemetry.notice.details": "Beim ersten Start wird ein Eintrag gesendet, danach höchstens ein Aktivitätseintrag pro UTC-Tag. Die Aktivitäts-ID wechselt monatlich; eine separate Bindungs-ID wird bis zu 100 Tage aufbewahrt.",
   "telemetry.notice.notNow": "Später",
   "telemetry.notice.understand": "Verstanden",
-  "telemetry.notice.error": "Die Analyse-Einstellung konnte nicht aktualisiert werden. Bitte versuche es erneut."
+  "telemetry.notice.error": "Die Analyse-Einstellung konnte nicht aktualisiert werden. Bitte versuche es erneut.",
+  "cloud.executionUnavailable": "Agent-, Terminal- und Git-Werkzeuge sind derzeit nur auf diesem Computer verfügbar."
 }

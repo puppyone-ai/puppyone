@@ -15,6 +15,17 @@ const errors = [];
 let window;
 const assert = (value, message) => { if (!value) throw new Error(message); };
 const evaluate = async (code) => { try { return await window.webContents.executeJavaScript(code, true); } catch (error) { throw new Error(`Renderer step failed: ${code}: ${error.message}; ${errors.join("; ")}`); } };
+const presentation = (location) => evaluate(`(() => {
+  const surface = document.querySelector('[data-workspace-location="${location}"]');
+  const sample = (selector) => {
+    const node = surface.querySelector(selector); if (!node) throw new Error("Missing native surface " + selector);
+    const rect = node.getBoundingClientRect(), css = getComputedStyle(node);
+    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height,
+      color: css.color, background: css.backgroundColor, font: css.fontSize, padding: css.padding };
+  };
+  return { explorer: sample(".explorer-column"), editor: sample(".browser-column"),
+    footer: sample(".desktop-sidebar-footer-bar"), row: sample(".tree-row-content"), code: sample(".cm-editor") };
+})()`);
 const state = () => evaluate("window.__nativeCloudWorkbenchSmoke.state()");
 const waitFor = async (expression) => {
   const deadline = Date.now() + 15_000;
@@ -35,6 +46,8 @@ app.whenReady().then(async () => {
   await waitFor("Boolean(window.__nativeCloudWorkbenchSmoke && document.querySelector('[data-workspace-location=local] .cm-content')?.textContent.includes('LOCAL_FILE_BODY'))");
   await evaluate("window.__nativeCloudWorkbenchSmoke.edit('local', 'LOCAL_UNSAVED_DRAFT')");
   await waitFor("window.__nativeCloudWorkbenchSmoke.state().localWrites.some(item => item.content === 'LOCAL_UNSAVED_DRAFT')");
+  const localPresentation = await presentation("local");
+  await writeFile(path.join(artifacts, "local.png"), (await window.webContents.capturePage()).toPNG());
   const localHost = await evaluate("document.querySelector('[data-workspace-location=local] .cm-editor').dataset.fixtureIdentity = 'retained-local-host'");
   await selectLocation("cloud");
   await waitFor("Boolean(document.querySelector('[data-cloud-native=true]')?.textContent.includes('cloud-only'))");
@@ -42,6 +55,15 @@ app.whenReady().then(async () => {
   assert(await evaluate("!document.querySelector('[data-cloud-native=true]').textContent.includes('local-only') && document.querySelector('[data-cloud-native=true]').textContent.includes('cloud-only')"), "Cloud tree must contain Cloud files only");
   await evaluate("[...document.querySelectorAll('[data-cloud-native=true] .tree-row')].find(row => row.textContent.includes('readme')).click()");
   await waitFor("Boolean(document.querySelector('[data-workspace-location=cloud] .cm-content')?.textContent.includes('CLOUD_FILE_BODY'))");
+  const cloudPresentation = await presentation("cloud");
+  for (const region of ["explorer", "editor", "footer", "row", "code"]) {
+    const before = localPresentation[region], after = cloudPresentation[region];
+    for (const property of region === "row" ? ["color", "font", "padding"] : ["x", "y", "width", "height", "background", "font", "padding"]) {
+      assert(typeof before[property] === "number" ? Math.abs(before[property] - after[property]) < 1 : before[property] === after[property],
+        `Native ${region} ${property} changed on Cloud switch: ${before[property]} -> ${after[property]}`);
+    }
+  }
+  assert(await evaluate("!document.querySelector('[data-workspace-location=cloud] .desktop-explorer-toolbar, [data-workspace-location=cloud] .desktop-cloud-service-sidebar, [data-workspace-location=cloud] .desktop-cloud-inline-navigation')"), "Cloud must use the native file UI without a separate toolbar or service menu");
   await evaluate("window.__nativeCloudWorkbenchSmoke.edit('cloud', 'CLOUD_EDIT_ONLY')");
   await waitFor("window.__nativeCloudWorkbenchSmoke.state().cloudWrites.some(item => item.content === 'CLOUD_EDIT_ONLY' && item.path === 'readme.txt')");
   let snapshot = await state();
@@ -61,11 +83,21 @@ app.whenReady().then(async () => {
   assert(await evaluate("[...document.querySelectorAll('[data-cloud-native=true] .csv-table-editor__table input, [data-cloud-native=true] .csv-table-editor__table textarea')].some(input => input.value === '42')"), "Cloud data files must use the native data viewer");
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await writeFile(path.join(artifacts, "cloud-data.png"), (await window.webContents.capturePage()).toPNG());
+  await evaluate("window.__nativeCloudWorkbenchSmoke.setCloudSessionAvailable(false)");
+  await waitFor("Boolean(document.querySelector('[data-workspace-location=cloud] [data-cloud-file-provider-state=signed-out]'))");
+  assert(await evaluate("Boolean(document.querySelector('[data-workspace-location=cloud] .explorer-column') && document.querySelector('[data-workspace-location=cloud] .desktop-sidebar-footer-bar')) && !document.querySelector('[role=dialog]')"), "Unavailable Cloud must retain the file Sidebar and footer");
+  const pendingGeometry = await evaluate("(() => { const r = document.querySelector('[data-workspace-location=cloud] .explorer-column').getBoundingClientRect(); return {x:r.x,y:r.y,width:r.width,height:r.height}; })()");
+  for (const property of ["x", "y", "width", "height"]) assert(Math.abs(pendingGeometry[property] - cloudPresentation.explorer[property]) < 1, "Unavailable Cloud changed Explorer geometry");
+  assert(await evaluate("!document.querySelector('[data-workspace-location=cloud]').textContent.includes('LOCAL_FILE_BODY')"), "Unavailable Cloud must not fall back to local files");
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  await writeFile(path.join(artifacts, "cloud-unavailable.png"), (await window.webContents.capturePage()).toPNG());
+  await selectLocation("local");
+  assert(await evaluate("document.querySelector('[data-workspace-location=local] .cm-editor')?.dataset.fixtureIdentity === 'retained-local-host'"), "Provider unavailability must preserve the local editor host");
   await evaluate("window.__nativeCloudWorkbenchSmoke.finishLocalSaves()");
   snapshot = await state();
-  await writeFile(path.join(artifacts, "report.json"), JSON.stringify({ passed: true, localHost, snapshot, errors }, null, 2));
+  await writeFile(path.join(artifacts, "report.json"), JSON.stringify({ passed: true, localHost, localPresentation, cloudPresentation, pendingGeometry, snapshot, errors }, null, 2));
   assert(!errors.length, `Renderer errors: ${errors.join("; ")}`);
-  console.log("Native Cloud workbench smoke passed: inline switch, Cloud tree/data/edit/save, isolated local draft and retained tabs.");
+  console.log("Native Cloud workbench smoke passed: identical native layout/styles, Cloud tree/data/edit/save, inline provider gate, isolated drafts and retained hosts.");
   window.destroy(); app.exit(0);
 }).catch(async (error) => {
   console.error(error);

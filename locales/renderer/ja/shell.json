@@ -165,5 +165,6 @@
   "telemetry.notice.details": "初回起動時に1件、その後は UTC の1日につき最大1件のアクティビティ記録を送信します。アクティビティ ID は毎月変わり、別のリテンション ID は最大100日間保持されます。",
   "telemetry.notice.notNow": "後で",
   "telemetry.notice.understand": "理解しました",
-  "telemetry.notice.error": "分析設定を更新できませんでした。もう一度お試しください。"
+  "telemetry.notice.error": "分析設定を更新できませんでした。もう一度お試しください。",
+  "cloud.executionUnavailable": "Agent、ターミナル、Git ツールは現在、このコンピューターでのみ利用できます。"
 }

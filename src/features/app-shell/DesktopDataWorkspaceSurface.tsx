@@ -12,6 +12,7 @@ import {
   DataWorkspace,
   type AiEditRequest,
   type DataNode,
+  type DocumentSourceKind,
   type Workspace,
   type WorkspaceContentChange,
   type WorkspaceFolder,
@@ -60,6 +61,8 @@ export type DesktopDataWorkspaceSurfaceProps = {
   activeDocumentPath: string | null;
   activeExplorerPath: string | null;
   dataPort: NonNullable<DataWorkspaceProps["dataPort"]>;
+  documentSourceKind?: DocumentSourceKind;
+  providerStateContent?: ReactNode;
   editorWorkbench: DesktopEditorWorkbenchController;
   externalOpen: Readonly<{
     open: (path: string) => void | Promise<void>;
@@ -115,6 +118,8 @@ export function DesktopDataWorkspaceSurface({
   activeDocumentPath,
   activeExplorerPath,
   dataPort,
+  documentSourceKind = "local",
+  providerStateContent,
   editorWorkbench,
   externalOpen,
   editorInteractionPreferences,
@@ -143,6 +148,9 @@ export function DesktopDataWorkspaceSurface({
   workspaceSurfaceError,
   sidebarCreateMenuOpen,
 }: DesktopDataWorkspaceSurfaceProps) {
+  const localResources = documentSourceKind === "local";
+  const canCreate = Boolean(dataPort.createFile || dataPort.createFolder);
+  const canChangeNodes = Boolean(dataPort.renameNode || dataPort.moveNode || dataPort.deleteNode);
   const [dragExportFailed, setDragExportFailed] = useState(false);
   const exportNodes = useResourceDragExport(resolveWorkspaceResource, setDragExportFailed);
   const resourceDragPreview = useResourceDragPreview();
@@ -209,6 +217,8 @@ export function DesktopDataWorkspaceSurface({
   return (
     <div
       className="desktop-data-workspace-wrap"
+      data-cloud-native={documentSourceKind === "cloud" ? "true" : undefined}
+      data-file-workbench="true"
       data-sidebar-navigation-placement={navigation.showWorkspaceNavigation
         ? "bottom"
         : undefined}
@@ -231,9 +241,9 @@ export function DesktopDataWorkspaceSurface({
         </div>
       )}
       <DataWorkspace
-        onExportNodes={exportNodes}
-        resourceDragEntries={resourceDragPreview?.entries}
-        onResolveFileDrop={resolveFileDrop}
+        onExportNodes={localResources ? exportNodes : undefined}
+        resourceDragEntries={localResources ? resourceDragPreview?.entries : undefined}
+        onResolveFileDrop={localResources ? resolveFileDrop : undefined}
         key={explorerSession.key}
         workspace={workspace}
         labels={{ root: workspace.name }}
@@ -247,7 +257,7 @@ export function DesktopDataWorkspaceSurface({
         onActiveNodeChange={onActiveDataNodeChange}
         onOpenExternalUrl={openExternalUrl}
         viewerExtensionAdapter={viewerExtensionAdapter}
-        documentSourceKind="local"
+        documentSourceKind={documentSourceKind}
         resizableExplorer
         explorerCollapsed={resolvedExplorerCollapsed}
         explorerWidth={resolvedExplorerWidth}
@@ -261,24 +271,24 @@ export function DesktopDataWorkspaceSurface({
         explorerResizeHandleRef={setExplorerResizeHandle}
         showHeader={false}
         showExplorerRoot={false}
-        onExplorerRootContextMenu={(_state, event) => {
+        onExplorerRootContextMenu={canCreate ? (_state, event) => {
           event.preventDefault();
           event.stopPropagation();
           onCreateEntryMenu(activeWorkspaceRootPath, getContextMenuAnchorRect(event));
-        }}
-        onExplorerNodeContextMenu={(state, node, event) => {
+        } : undefined}
+        onExplorerNodeContextMenu={canChangeNodes ? (state, node, event) => {
           event.preventDefault();
           event.stopPropagation();
           const selectedNodes = state.selectedNodes.some(({ path }) => path === node.path)
             ? state.selectedNodes
             : [node];
           onNodeActionMenu(node, getContextMenuAnchorRect(event), selectedNodes);
-        }}
+        } : undefined}
         explorerCutPaths={fileClipboardController.cutPaths}
-        onCopyNodes={fileClipboardController.copyNodes}
-        onCutNodes={fileClipboardController.cutNodes}
-        onPasteNodes={fileClipboardController.pasteNodes}
-        onDuplicateNodes={fileClipboardController.duplicateNodes}
+        onCopyNodes={fileClipboardController.canCopy ? fileClipboardController.copyNodes : undefined}
+        onCutNodes={fileClipboardController.canCut ? fileClipboardController.cutNodes : undefined}
+        onPasteNodes={dataPort.moveNode || dataPort.copyNode ? fileClipboardController.pasteNodes : undefined}
+        onDuplicateNodes={fileClipboardController.canDuplicate ? fileClipboardController.duplicateNodes : undefined}
         explorerLoadingPresentation="skeleton"
         explorerListEndSlot={(
           <div
@@ -289,6 +299,7 @@ export function DesktopDataWorkspaceSurface({
               className="tree-row desktop-explorer-list-end-create-row"
               type="button"
               aria-expanded={sidebarCreateMenuOpen}
+              disabled={!canCreate}
               aria-controls="desktop-sidebar-create-menu"
               onClick={(event) => {
                 if (sidebarCreateMenuOpen) {
@@ -322,7 +333,7 @@ export function DesktopDataWorkspaceSurface({
         refreshKey={workspaceRefreshToken}
         atomicRefreshKey={workspaceAtomicRefreshToken}
         explorerNodeActionSlot={(state, node) => {
-          const agentPresencePath = node.type === "file"
+          const agentPresencePath = localResources && node.type === "file"
             ? node.workspaceFolderId
               ? resolveWorkspaceResource(node.path)?.providerPath ?? null
               : toWorkspaceRelativePath(workspace.path, node.path)
@@ -336,14 +347,14 @@ export function DesktopDataWorkspaceSurface({
                   variant="explorer"
                 />
               )}
-              <DesktopExplorerRowActions
+              {canChangeNodes && <DesktopExplorerRowActions
                 createMenuOpen={openCreateEntryParentPath !== undefined
                   && openCreateEntryParentPath === (node.type === "folder" ? node.path : null)}
                 node={node}
                 nodeMenuOpen={openNodeActionPath === node.path}
                 parentPath={node.type === "folder" ? node.path : null}
                 showMoreActions={!node.workspaceFolderRoot}
-                onRemoveWorkspaceRoot={workspaceFolders.length > 0
+                onRemoveWorkspaceRoot={localResources && workspaceFolders.length > 0
                   ? () => {
                       const folder = workspaceFolders.find((item) => item.id === node.workspaceFolderId);
                       if (folder) void onRemoveProject(folder);
@@ -356,7 +367,7 @@ export function DesktopDataWorkspaceSurface({
                     : [targetNode];
                   onNodeActionMenu(targetNode, anchorRect, selectedNodes);
                 }}
-              />
+              />}
             </>
           );
         }}
@@ -374,11 +385,12 @@ export function DesktopDataWorkspaceSurface({
             )
           : undefined}
         mainSlot={resolvedSurface.id === "data"
-          ? (state) => (
+          ? (state) => providerStateContent ?? (
               <>
                 <DesktopEditorSplitView
                   aiEditRequest={activeAiEditRequest}
                   dataPort={dataPort}
+                  documentSourceKind={documentSourceKind}
                   editorGroup={editorWorkbench.state}
                   externalOpen={externalOpen}
                   editorInteractionPreferences={editorInteractionPreferences}
@@ -404,13 +416,13 @@ export function DesktopDataWorkspaceSurface({
             ? undefined
             : <WorkspaceSurfaceOutlet region="main" surface={resolvedSurface} />}
         capabilities={{
-          create: true,
-          rename: true,
-          delete: true,
-          move: true,
+          create: canCreate,
+          rename: Boolean(dataPort.renameNode),
+          delete: Boolean(dataPort.deleteNode),
+          move: Boolean(dataPort.moveNode),
           copy: Boolean(dataPort.copyNode),
           write: Boolean(dataPort.documentPersistence),
-          history: true,
+          history: localResources,
           accessPoints: false,
           cloudSync: false,
           localGit: navigation.gitEnabled,

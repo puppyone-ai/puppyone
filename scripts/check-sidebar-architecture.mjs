@@ -211,10 +211,10 @@ for (const token of [
 }
 if (
   !auxiliarySource.includes('typeof children === "function"')
-  || !appSource.includes('active={presentation.contentVisible && rightSidebarSurface === "chat"}')
+  || !appSource.includes('active={presentation.contentVisible && !cloudWorkspaceActive && rightSidebarSurface === "chat"}')
   || appSource.includes("active={rightSidebarOpen}")
 ) {
-  errors.push("Auxiliary native content must follow the shared frame lifecycle through its render presentation.");
+  errors.push("Auxiliary native content must follow the shared frame lifecycle and remain inactive while the Cloud provider is selected.");
 }
 if (
   !collapsiblePaneGestureSource.includes("finishCollapsiblePaneGesture")

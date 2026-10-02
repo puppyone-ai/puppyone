@@ -36,8 +36,7 @@ function Harness({ linked = true, currentSession = session, localIdentity = "loc
     <DesktopProjectLocationControls projectLocation={{ current: location, localAvailable: true, cloudState: linked ? "available" : "unavailable" }}
       onViewLocal={() => setLocation("local")} onViewCloud={() => setLocation("cloud")} />
     <DesktopWorkspaceLocationSurface location={location} local={<LocalEditor />}
-      nativeCloud={cloud.dataPort && cloud.visited ? <div data-cloud-storage={cloud.dataPort.documentPersistence?.storageIdentity}>{cloud.editorWorkbench.state.editors.map((editor) => <span key={editor.id}>{editor.label}</span>)}</div> : null}
-      cloudServices={{ sidebar: <nav>Cloud setup</nav>, main: <button>Create Cloud version</button> }} />
+      cloud={cloud.dataPort && cloud.visited ? <div data-cloud-storage={cloud.dataPort.documentPersistence?.storageIdentity}>{cloud.editorWorkbench.state.editors.map((editor) => <span key={editor.id}>{editor.label}</span>)}</div> : cloud.surfaceVisited ? <div data-file-workbench="true"><aside data-file-sidebar="true" /><main><button>Create Cloud version</button></main></div> : null} />
   </>;
 }
 const render = async (content: ReactNode) => {
@@ -91,7 +90,13 @@ describe("native Cloud workbench switching", () => {
     installBridge(); await render(<Harness linked={false} />); await click("Create Cloud");
     expect(surface("cloud").querySelector("main")?.textContent).toBe("Create Cloud version");
     expect(surface("local").hidden).toBe(true);
+    expect(surface("cloud").querySelector("[data-file-sidebar]")).not.toBeNull();
+    expect(surface("cloud").querySelector("nav")).toBeNull();
     expect(document.querySelector('[role="dialog"]')).toBeNull(); expect(bridge).not.toHaveBeenCalled();
+    expect(cloud.surfaceService.folder.capabilities.read).toBe(false);
+    expect(await cloud.surfaceService.dataPort.listChildren(null)).toEqual([]);
+    await expect(cloud.surfaceService.dataPort.readFile!(cloud.surfaceService.folder.uri)).rejects.toThrow(/unavailable/);
+    expect(cloud.surfaceService.dataPort.documentPersistence).toBeUndefined();
   });
 
   it("changes the storage namespace on account change and revokes the previous provider", async () => {
@@ -110,5 +115,8 @@ describe("native Cloud workbench switching", () => {
     await render(<Harness currentSession={null} />);
     expect(cloud.dataPort).toBeNull(); expect(cloud.editorWorkbench.state.editors).toHaveLength(0);
     expect(surface("cloud").querySelector('[data-cloud-storage]')).toBeNull();
+    expect(surface("cloud").querySelector('[data-file-sidebar]')).not.toBeNull();
+    expect(cloud.surfaceService.workspace.id).not.toBe(cloud.service?.workspace.id);
+    expect(cloud.surfaceService.folder.capabilities.execute).toBe(false);
   });
 });

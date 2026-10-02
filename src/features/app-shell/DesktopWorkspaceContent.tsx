@@ -31,12 +31,14 @@ import {
   type DesktopWorkspaceCloudSurfaceController,
 } from "./workspace-surfaces";
 import { useDesktopViewerPacks } from "../viewer-packs/host";
-import { DesktopDataWorkspaceSurface } from "./DesktopDataWorkspaceSurface";
+import { DesktopDataWorkspaceSurface, type DesktopDataWorkspaceSurfaceProps } from "./DesktopDataWorkspaceSurface";
 import type { DesktopEditorWorkbenchController } from "../editor-workbench/controller/useDesktopEditorWorkbench";
 import type { ResolvedWorkbenchDataResource } from "../data-workspace/workbenchDataPort";
 import type { SubThemeCatalogController } from "../themes/useSubThemeCatalog";
 import { CloudDialog } from "../cloud/CloudDialog";
 import { DesktopWorkspaceLocationSurface } from "./DesktopWorkspaceLocationSurface";
+import { DesktopCloudFileWorkspace } from "../cloud/workbench/DesktopCloudFileWorkspace";
+import type { NativeCloudWorkbench } from "../cloud/workbench/useNativeCloudWorkbench";
 
 type DataWorkspacePort = ComponentProps<typeof DataWorkspace>["dataPort"];
 type DesktopWorkspaceContentProps = {
@@ -47,8 +49,7 @@ type DesktopWorkspaceContentProps = {
   cloud: DesktopWorkspaceCloudSurfaceController;
   cloudOpen?: boolean;
   cloudWorkspaceActive?: boolean;
-  nativeCloudWorkspace?: ReactNode;
-  cloudWorkspaceError?: string | null;
+  cloudWorkbench?: NativeCloudWorkbench;
   cloudLocationControls?: ReactNode;
   dataPort: DataWorkspacePort | null;
   editorWorkbench: DesktopEditorWorkbenchController;
@@ -112,8 +113,7 @@ export function DesktopWorkspaceContent({
   cloud,
   cloudOpen = false,
   cloudWorkspaceActive = false,
-  nativeCloudWorkspace,
-  cloudWorkspaceError,
+  cloudWorkbench,
   cloudLocationControls,
   dataPort,
   editorWorkbench,
@@ -189,6 +189,7 @@ export function DesktopWorkspaceContent({
   const {
     availableSurfaceIds,
     cloudSurface,
+    cloudFileState,
     gitEnabled,
     resolvedActiveView,
     resolvedSurface,
@@ -214,68 +215,69 @@ export function DesktopWorkspaceContent({
     workspace,
   });
 
-  const workspaceSurface = !dataPort
-    ? resolvedSurface.content.main
-    : (
-      <DesktopDataWorkspaceSurface
-        activeAiEditRequest={activeAiEditRequest}
-        activeDocumentPath={activeDocumentPath}
-        activeExplorerPath={activeExplorerPath}
-        dataPort={dataPort}
-        editorWorkbench={editorWorkbench}
-        externalOpen={externalOpen}
-        editorInteractionPreferences={editorInteractionPreferences}
-        fileClipboardController={fileClipboardController}
-        fileOperationNotice={fileOperationNotice}
-        navigation={{
-          activeView: resolvedActiveView,
-          availableSurfaceIds,
-          gitEnabled,
-          gitIncomingCount: git.gitIncomingCount,
-          gitOperationLoading: git.gitOperationLoading,
-          gitStatus: git.activeGitStatus,
-          workspaceChangeCount,
-          onNavigate,
-          onOpenPlugins,
-          onOpenSettings,
-          pluginsOpen,
-          settingsOpen,
-          showPlugins: viewerPluginsEnabled,
-          showSettings: settingsNavigationVisible,
-          showWorkspaceNavigation: workspaceNavigationVisible,
-        }}
-        onActiveDataNodeChange={onActiveDataNodeChange}
-        onActiveDataPathChange={onActiveDataPathChange}
-        onResourceMove={onResourceMove}
-        onRemoveProject={onRemoveProject}
-        openCreateEntryParentPath={openCreateEntryParentPath}
-        openNodeActionPath={openNodeActionPath}
-        onCreateEntryMenu={onCreateEntryMenu}
-        onDismissCreateEntryMenu={onDismissCreateEntryMenu}
-        onNodeActionMenu={onNodeActionMenu}
-        preferences={preferences}
-        resolvedSurface={resolvedSurface}
-        sidebarCompanion={sidebarCompanion}
-        sidebarUtility={sidebarUtility}
-        viewerExtensionAdapter={viewerExtensionAdapter}
-        workspace={workspace}
-        workspaceFolders={workspaceFolders}
-        resolveWorkspaceResource={resolveWorkspaceResource}
-        workspaceRefreshToken={workspaceRefreshToken}
-        workspaceAtomicRefreshToken={workspaceAtomicRefreshToken}
-        workspaceSurfaceError={workspaceSurfaceError}
-        sidebarCreateMenuOpen={sidebarCreateMenuOpen}
-      />
-    );
+  const fileSurfacePort = dataPort ?? cloudWorkbench?.surfaceService.dataPort;
+  const fileSurfaceProps: DesktopDataWorkspaceSurfaceProps | null = fileSurfacePort ? {
+    activeAiEditRequest,
+    activeDocumentPath,
+    activeExplorerPath,
+    dataPort: fileSurfacePort,
+    editorWorkbench,
+    externalOpen,
+    editorInteractionPreferences,
+    fileClipboardController,
+    fileOperationNotice,
+    onActiveDataNodeChange,
+    onActiveDataPathChange,
+    onResourceMove,
+    onRemoveProject,
+    openCreateEntryParentPath,
+    openNodeActionPath,
+    onCreateEntryMenu,
+    onDismissCreateEntryMenu,
+    onNodeActionMenu,
+    preferences,
+    resolvedSurface,
+    sidebarCompanion,
+    sidebarUtility,
+    viewerExtensionAdapter,
+    workspace,
+    workspaceFolders,
+    resolveWorkspaceResource,
+    workspaceRefreshToken,
+    workspaceAtomicRefreshToken,
+    workspaceSurfaceError,
+    sidebarCreateMenuOpen,
+    navigation: {
+      activeView: resolvedActiveView,
+      availableSurfaceIds,
+      gitEnabled,
+      gitIncomingCount: git.gitIncomingCount,
+      gitOperationLoading: git.gitOperationLoading,
+      gitStatus: git.activeGitStatus,
+      workspaceChangeCount,
+      onNavigate,
+      onOpenPlugins,
+      onOpenSettings,
+      pluginsOpen,
+      settingsOpen,
+      showPlugins: viewerPluginsEnabled,
+      showSettings: settingsNavigationVisible,
+      showWorkspaceNavigation: workspaceNavigationVisible,
+    },
+  } : null;
+  const workspaceSurface = dataPort && fileSurfaceProps
+    ? <DesktopDataWorkspaceSurface {...fileSurfaceProps} />
+    : resolvedSurface.content.main;
 
   return (
     <>
       <DesktopWorkspaceLocationSurface
         location={cloudWorkspaceActive ? "cloud" : "local"}
         local={workspaceSurface}
-        nativeCloud={nativeCloudWorkspace}
-        cloudServices={cloudSurface}
-        cloudError={cloudWorkspaceError}
+        cloud={cloudWorkbench && fileSurfaceProps
+          ? <DesktopCloudFileWorkspace workbench={cloudWorkbench} surfaceProps={fileSurfaceProps}
+              providerStateContent={cloudFileState} />
+          : null}
       />
       {cloudOpen && (
         <CloudDialog

@@ -165,5 +165,6 @@
   "telemetry.notice.details": "최초 실행 기록 한 건을 전송한 뒤 UTC 기준 하루에 최대 한 건의 활동 기록을 전송합니다. 활동 ID는 매월 변경되며 별도의 리텐션 ID는 최대 100일 동안 보관됩니다.",
   "telemetry.notice.notNow": "나중에",
   "telemetry.notice.understand": "이해했습니다",
-  "telemetry.notice.error": "분석 환경설정을 업데이트하지 못했습니다. 다시 시도해 주세요."
+  "telemetry.notice.error": "분석 환경설정을 업데이트하지 못했습니다. 다시 시도해 주세요.",
+  "cloud.executionUnavailable": "Agent, 터미널 및 Git 도구는 현재 이 컴퓨터에서만 사용할 수 있습니다."
 }

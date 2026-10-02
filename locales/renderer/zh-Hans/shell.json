@@ -165,5 +165,6 @@
   "telemetry.notice.details": "首次运行时发送一条记录；之后每个 UTC 日最多发送一条活跃记录。活跃标识每月轮换，单独的留存标识最多保留 100 天。",
   "telemetry.notice.notNow": "稍后",
   "telemetry.notice.understand": "我已了解",
-  "telemetry.notice.error": "无法更新匿名分析偏好，请重试。"
+  "telemetry.notice.error": "无法更新匿名分析偏好，请重试。",
+  "cloud.executionUnavailable": "Agent、终端和 Git 工具目前仅在此电脑上可用。"
 }

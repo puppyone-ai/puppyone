@@ -165,5 +165,6 @@
   "telemetry.notice.details": "One first-run record is sent, then at most one activity record per UTC day. The activity ID changes monthly; a separate retention ID is kept for up to 100 days.",
   "telemetry.notice.notNow": "Later",
   "telemetry.notice.understand": "I understand",
-  "telemetry.notice.error": "Couldn’t update your analytics preference. Please try again."
+  "telemetry.notice.error": "Couldn’t update your analytics preference. Please try again.",
+  "cloud.executionUnavailable": "Agent, Terminal, and Git tools are currently available only on this computer."
 }

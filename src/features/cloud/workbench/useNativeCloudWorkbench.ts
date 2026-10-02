@@ -4,6 +4,7 @@ import {
   isDocumentDataNode,
   withEditorDocumentOperations,
   type DataNode,
+  type Workspace,
   type WorkspaceContentChange,
 } from "@puppyone/shared-ui";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
@@ -14,14 +15,16 @@ import { useProjectExplorerSelection } from "../../data-workspace/useProjectExpl
 import { useDesktopEditorWorkbench } from "../../editor-workbench/controller/useDesktopEditorWorkbench";
 import { useDataNodeActions } from "../../data-workspace/useDataNodeActions";
 import { createCloudDataService } from "./cloudDataPort";
+import { createPendingCloudDataService } from "./pendingCloudDataService";
 
 const noop = () => undefined;
 
-export function useNativeCloudWorkbench({ context, session, apiBaseUrl, localWorkspaceIdentity, active, filesVisibilitySettings }: {
+export function useNativeCloudWorkbench({ context, session, apiBaseUrl, localWorkspaceIdentity, localWorkspace, active, filesVisibilitySettings }: {
   context: ProjectCloudContext;
   session: DesktopCloudSession | null;
   apiBaseUrl: string | null;
   localWorkspaceIdentity: string | null;
+  localWorkspace?: Workspace | null;
   active: boolean;
   filesVisibilitySettings: FilesVisibilitySettings;
 }) {
@@ -47,6 +50,13 @@ export function useNativeCloudWorkbench({ context, session, apiBaseUrl, localWor
   const dataPort = useMemo(() => service
     ? withEditorDocumentOperations(createExplorerDataPort(service.dataPort, filesVisibilitySettings))
     : null, [service, filesVisibilitySettings]);
+  const localWorkspaceName = localWorkspace?.name;
+  const pendingService = useMemo(() => createPendingCloudDataService(localWorkspaceIdentity, localWorkspaceName),
+    [localWorkspaceIdentity, localWorkspaceName]);
+  const surfaceService = service ?? pendingService;
+  const [surfaceVisitedKey, setSurfaceVisitedKey] = useState<string | null>(null);
+  useEffect(() => { if (active) setSurfaceVisitedKey(pendingService.workspace.id); }, [active, pendingService]);
+  const surfaceVisited = active || surfaceVisitedKey === pendingService.workspace.id;
   const [visitedKey, setVisitedKey] = useState<string | null>(null);
   useEffect(() => { if (active && service) setVisitedKey(service.workspace.id); }, [active, service]);
   const visited = Boolean(service && (active || visitedKey === service.workspace.id));
@@ -122,7 +132,7 @@ export function useNativeCloudWorkbench({ context, session, apiBaseUrl, localWor
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [active, closeEditor, editorWorkbench]);
-  return { service, dataPort, visited, editorWorkbench, activeNode, actions, refreshToken, refresh,
+  return { service, surfaceService, surfaceVisited, dataPort, visited, editorWorkbench, activeNode, actions, refreshToken, refresh,
     onActivePathChange, setActiveNode, closeEditor, error: navigationError ?? error };
 }
 

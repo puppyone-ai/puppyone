@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocalization } from "@puppyone/localization";
 import { EditorView } from "@codemirror/view";
-import { DataWorkspace, createWorkspaceRootUri, createWorkspaceResourceUri, type DataPort, type Workspace } from "@puppyone/shared-ui";
+import { createWorkspaceRootUri, createWorkspaceResourceUri, getWorkspaceResourcePath, canonicalizeResourceUri, isDocumentDataNode, withEditorDocumentOperations, type DataPort, type Workspace, type WorkspaceFolder } from "@puppyone/shared-ui";
 import { DesktopCloudShell } from "../../../components/DesktopCloudShell";
 import { DesktopOverlayPortal } from "../../app-shell/DesktopOverlayPortal";
 import { DesktopWorkspaceSwitcher } from "../../app-shell/DesktopWorkspaceSwitcher";
@@ -8,13 +9,27 @@ import { DesktopWorkspaceLocationSurface } from "../../app-shell/DesktopWorkspac
 import { useDesktopPreferences } from "../../app-shell/useDesktopPreferences";
 import { EditorHeaderTabs } from "../../editor-workbench/header/EditorHeaderTabs";
 import { useNativeCloudWorkbench } from "./useNativeCloudWorkbench";
-import { DesktopNativeCloudWorkspace } from "./DesktopNativeCloudWorkspace";
+import { DesktopCloudFileWorkspace } from "./DesktopCloudFileWorkspace";
+import { DesktopDataWorkspaceSurface, type DesktopDataWorkspaceSurfaceProps } from "../../app-shell/DesktopDataWorkspaceSurface";
+import { resolveWorkspaceSurface } from "../../app-shell/workspace-surfaces/workspaceSurfaceRegistry";
+import { useDesktopEditorWorkbench } from "../../editor-workbench/controller/useDesktopEditorWorkbench";
+import { useDataNodeActions } from "../../data-workspace/useDataNodeActions";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 
 const API = "http://127.0.0.1:9090/api/v1";
 const localRoot = createWorkspaceRootUri("cloud-switch-fixture-local");
 const localPath = createWorkspaceResourceUri(localRoot, "readme.txt");
 const localWorkspace: Workspace = { id: "cloud-switch-fixture", name: "Native workspace", path: "/Users/demo/native-workspace", status: "recording" };
+const localFolder: WorkspaceFolder = { id: localWorkspace.id, name: localWorkspace.name, uri: localRoot,
+  index: 0, capabilities: { read: true, write: true, watch: false, execute: true }, trustState: "trusted", workspace: localWorkspace };
+const localNodes = [{ id: localPath, name: "readme.txt", path: localPath, type: "text" as const, source: "local" as const },
+  { id: "local-only", name: "local-only.md", path: createWorkspaceResourceUri(localRoot, "local-only.md"), type: "markdown" as const, source: "local" as const }];
+const resolveLocal = (path: string | null) => ({ folder: localFolder,
+  providerPath: path ? getWorkspaceResourcePath(localRoot, canonicalizeResourceUri(path)) : "", resourceUri: path ? canonicalizeResourceUri(path) : localRoot });
+const noop = () => undefined;
+const fileSurface = resolveWorkspaceSurface({ capabilities: { cloudEnabled: true }, requestedId: "data",
+  adapters: { data: () => ({ sidebar: null, main: null }), git: () => ({ sidebar: null, main: null }),
+    cloud: () => ({ sidebar: null, main: null }), settings: () => ({ sidebar: null, main: null }) } });
 const session: DesktopCloudSession = { api_base_url: API, user_id: "fixture-user", user_email: "user@example.com",
   session_generation: "fixture-session", status: "authenticated", expires_at: Date.now() + 3_600_000, expires_in: 3600 };
 const context = { status: "resolved" as const, projectId: "fixture-project", projectName: "Native workspace",
@@ -57,26 +72,58 @@ declare global {
     state: () => { location: string; cloudWrites: typeof cloudWrites; localWrites: typeof localWrites; requests: string[] };
     edit: (location: "local" | "cloud", text: string) => void;
     finishLocalSaves: () => void;
+    setCloudSessionAvailable: (available: boolean) => void;
   }; }
 }
 
 /** No network or real workspace bytes: exercises production file and editor hosts. */
 export function NativeCloudWorkbenchSmokeHarness() {
+  const { t } = useLocalization();
   const [location, setLocation] = useState<"local" | "cloud">("local");
+  const [cloudSessionAvailable, setCloudSessionAvailable] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const preferences = useDesktopPreferences();
-  const workbench = useNativeCloudWorkbench({ context, session, apiBaseUrl: API, localWorkspaceIdentity: localWorkspace.id,
+  const workbench = useNativeCloudWorkbench({ context, session: cloudSessionAvailable ? session : null, apiBaseUrl: API, localWorkspaceIdentity: localWorkspace.id, localWorkspace,
     active: location === "cloud", filesVisibilitySettings: preferences.filesVisibilitySettings });
-  const localPort = useMemo<DataPort>(() => ({
-    listChildren: async () => [{ id: localPath, name: "readme.txt", path: localPath, type: "text", source: "local" },
-      { id: "local-only", name: "local-only.md", path: createWorkspaceResourceUri(localRoot, "local-only.md"), type: "markdown", source: "local" }],
+  const localPort = useMemo<DataPort>(() => withEditorDocumentOperations({
+    listChildren: async () => localNodes,
+    resolveNode: async (path) => localNodes.find((node) => node.path === path) ?? null,
     readFile: async (path) => ({ path, name: "readme.txt", type: "text", content: "LOCAL_FILE_BODY", version: "local-1" }),
     documentPersistence: { kind: "local-fs", storageIdentity: "fixture-local-files", persist: (request) => {
       localWrites.push({ path: request.path, content: request.content });
       return new Promise((resolve) => localSaveCompletions.push(() => resolve({ ok: true, version: "local-2" })));
     } },
   }), []);
+  const localWorkbench = useDesktopEditorWorkbench(localWorkspace, localPort.resolveNode!, localRoot,
+    (path) => ({ rootUri: localRoot, resourcePath: getWorkspaceResourcePath(localRoot, canonicalizeResourceUri(path)), hostPath: path }), localWorkspace.id);
+  const localActions = useDataNodeActions({ dataPort: localPort, workspace: localWorkspace,
+    setActiveExplorerNode: noop, onEnterDataView: noop, onLocalWorkspaceContentChanged: noop, onWorkspaceContentChanged: noop,
+    onActivateNode: (node) => { if (isDocumentDataNode(node)) localWorkbench.openDocument(node); }, onResourceMoved: localWorkbench.rebaseResource, onResourceDeleted: localWorkbench.closeUnderResource });
+  const openedLocal = useRef(false);
+  useEffect(() => { if (!openedLocal.current) { openedLocal.current = true; localWorkbench.openDocument(localNodes[0]!); } }, [localWorkbench]);
+  const commonSurfaceProps: DesktopDataWorkspaceSurfaceProps = {
+    activeAiEditRequest: null, activeDocumentPath: localWorkbench.activePath, activeExplorerPath: localWorkbench.activePath,
+    dataPort: localPort, editorWorkbench: localWorkbench, externalOpen: { open: noop },
+    editorInteractionPreferences: { showSaveStatus: false,
+      markdownBlockDragEnabled: preferences.experimentalSettings.enableMarkdownBlockDrag,
+      markdownHeadingOutlineEnabled: preferences.experimentalSettings.enableMarkdownHeadingOutline },
+    fileClipboardController: localActions.fileClipboardController, fileOperationNotice: null,
+    navigation: { activeView: "data", availableSurfaceIds: ["data", "settings"], gitEnabled: true,
+      gitIncomingCount: 0, gitOperationLoading: null, gitStatus: null, workspaceChangeCount: 0,
+      onNavigate: noop, onOpenPlugins: noop, onOpenSettings: noop, pluginsOpen: false, settingsOpen: false,
+      showPlugins: false, showSettings: true, showWorkspaceNavigation: true },
+    onActiveDataPathChange: async (path, node) => {
+      const target = node ?? (path ? await localPort.resolveNode!(path) : null);
+      if (target && isDocumentDataNode(target)) localWorkbench.openDocument(target);
+    }, onActiveDataNodeChange: noop, onResourceMove: localWorkbench.rebaseResource, onRemoveProject: noop,
+    onCreateEntryMenu: noop, onDismissCreateEntryMenu: noop, onNodeActionMenu: noop,
+    openCreateEntryParentPath: undefined, openNodeActionPath: null, preferences, resolvedSurface: fileSurface,
+    viewerExtensionAdapter: undefined, workspace: localWorkspace, workspaceFolders: [localFolder],
+    resolveWorkspaceResource: resolveLocal, workspaceRefreshToken: { sequence: 0, entries: [] },
+    workspaceAtomicRefreshToken: 0, workspaceSurfaceError: null, sidebarCreateMenuOpen: false,
+  };
+  const visibleWorkbench = location === "cloud" ? workbench.editorWorkbench : localWorkbench;
   useEffect(() => {
     window.__nativeCloudWorkbenchSmoke = {
       state: () => ({ location, cloudWrites, localWrites, requests }),
@@ -86,6 +133,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
         if (!view) throw new Error(`No ${target} CodeMirror view`);
         view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } });
       },
+      setCloudSessionAvailable,
       finishLocalSaves: () => { localSaveCompletions.splice(0).forEach((finish) => finish()); },
     };
     return () => { delete window.__nativeCloudWorkbenchSmoke; };
@@ -99,15 +147,15 @@ export function NativeCloudWorkbenchSmokeHarness() {
         projectLocation={{ current: location, localAvailable: true, cloudState: "available" }} cloudProject={{ id: context.projectId }}
         onClose={() => setMenuOpen(false)} onToggle={() => setMenuOpen((current) => !current)}
         onViewLocal={() => { setLocation("local"); setMenuOpen(false); }} onViewCloud={() => { setLocation("cloud"); setMenuOpen(false); }} />}
-      titlebarTabs={location === "cloud" ? <EditorHeaderTabs activeEditorId={workbench.editorWorkbench.activeEditorId}
-        editors={workbench.editorWorkbench.state.editors} fileIconTheme={preferences.fileIconTheme}
-        storageIdentity={workbench.dataPort?.documentPersistence?.storageIdentity ?? null}
-        onActivate={workbench.editorWorkbench.activate} onClose={workbench.closeEditor} onMove={workbench.editorWorkbench.moveTab} /> : undefined}>
+      titlebarTabs={<EditorHeaderTabs activeEditorId={visibleWorkbench.activeEditorId}
+        editors={visibleWorkbench.state.editors} fileIconTheme={preferences.fileIconTheme}
+        storageIdentity={location === "cloud" ? workbench.dataPort?.documentPersistence?.storageIdentity ?? null : localPort.documentPersistence!.storageIdentity}
+        onActivate={visibleWorkbench.activate} onClose={location === "cloud" ? workbench.closeEditor : visibleWorkbench.close}
+        onMove={visibleWorkbench.moveTab} />}>
       <DesktopWorkspaceLocationSurface location={location}
-        local={<DataWorkspace workspace={localWorkspace} dataPort={localPort} defaultActivePath={localPath}
-          showHeader={false} showExplorerRoot={false} documentSourceKind="local" editorSaveMode="auto" fileIconTheme={preferences.fileIconTheme} />}
-        nativeCloud={<DesktopNativeCloudWorkspace workbench={workbench} preferences={preferences} onOpenCloudServices={() => undefined} />}
-        cloudServices={{ sidebar: null, main: null }} />
+        local={<DesktopDataWorkspaceSurface {...commonSurfaceProps} />}
+        cloud={<DesktopCloudFileWorkspace workbench={workbench} surfaceProps={commonSurfaceProps}
+          providerStateContent={<div data-cloud-file-provider-state="signed-out">{t("cloud.auth.signInToCloud")}</div>} />} />
     </DesktopCloudShell>
   </div>;
 }

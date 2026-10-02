@@ -33,7 +33,6 @@ import {
 } from "./features/settings";
 import { CLOUD_HUB_ENTRY_SECTION, type CloudWorkspaceSection } from "./features/cloud";
 import { useNativeCloudWorkbench } from "./features/cloud/workbench/useNativeCloudWorkbench";
-import { DesktopNativeCloudWorkspace } from "./features/cloud/workbench/DesktopNativeCloudWorkspace";
 import {
   MinimalOnboarding,
 } from "./components/MinimalOnboarding";
@@ -762,6 +761,7 @@ function AppContent() {
     session: activeCloudSession,
     apiBaseUrl: desktopCloudApiBaseUrl,
     localWorkspaceIdentity: localCloudLocationKey,
+    localWorkspace: focusedWorkspace ?? workspace,
     active: cloudWorkspaceActive,
     filesVisibilitySettings,
   });
@@ -1625,7 +1625,7 @@ function AppContent() {
           onLeadingRailCollapsedChange={setProjectSwitcherCollapsed}
           onLeadingRailWidthChange={preferences.setProjectSwitcherWidth}
           leftSidebarCollapsed={sidebarCollapsed}
-          leftSidebarPresent={cloudWorkspaceActive ? Boolean(nativeCloudWorkbench.dataPort) : Boolean(dataPort)}
+          leftSidebarPresent={cloudWorkspaceActive || Boolean(dataPort)}
           leftSidebarWidth={explorerWidth}
           titlebarSidebarSlot={projectSwitcherRailEnabled
             ? undefined
@@ -1651,7 +1651,7 @@ function AppContent() {
               } : handleLocationBarNavigate}
             />
           ) : undefined}
-          rightSidebarOpen={gitPresentation.effectiveSidebarOpen && !cloudWorkspaceActive}
+          rightSidebarOpen={gitPresentation.effectiveSidebarOpen}
           resizableRightSidebar
           rightSidebarWidth={rightSidebarWidth}
           onLeftSidebarExpand={() => setSidebarCollapsed(false)}
@@ -1659,14 +1659,21 @@ function AppContent() {
           onRightSidebarWidthChange={setRightSidebarWidth}
           rightSidebar={(presentation) => (
             <div ref={auxiliarySurfaceRef} className="desktop-right-sidebar-stack">
+              {cloudWorkspaceActive && (
+                <div className="desktop-right-sidebar-surface is-active" data-cloud-execution-unavailable="true">
+                  <div className="desktop-view-placeholder" role="status">
+                    <span>{t("shell.cloud.executionUnavailable")}</span>
+                  </div>
+                </div>
+              )}
               <div
-                className={`desktop-right-sidebar-surface ${rightSidebarSurface === "chat" ? "is-active" : ""}`}
-                aria-hidden={rightSidebarSurface !== "chat"}
+                className={`desktop-right-sidebar-surface ${!cloudWorkspaceActive && rightSidebarSurface === "chat" ? "is-active" : ""}`}
+                aria-hidden={cloudWorkspaceActive || rightSidebarSurface !== "chat"}
               >
                 {projectWorkbench && <AuxiliaryWorkbenchPanel
                   key={projectWorkbench.context.generation}
                   store={projectWorkbench}
-                  active={presentation.contentVisible && rightSidebarSurface === "chat"}
+                  active={presentation.contentVisible && !cloudWorkspaceActive && rightSidebarSurface === "chat"}
                   titlebarTabHost={experimentalSettings.enableWorkbenchTabsInHeader && !editorTabsInHeaderEnabled
                     ? titlebarTabHost
                     : null}
@@ -1687,14 +1694,14 @@ function AppContent() {
               {!gitPresentation.cardEnabled && (
                 <>
                   <div
-                    className={`desktop-right-sidebar-surface ${rightSidebarSurface === "changes" ? "is-active" : ""}`}
-                    aria-hidden={rightSidebarSurface !== "changes"}
+                    className={`desktop-right-sidebar-surface ${!cloudWorkspaceActive && rightSidebarSurface === "changes" ? "is-active" : ""}`}
+                    aria-hidden={cloudWorkspaceActive || rightSidebarSurface !== "changes"}
                   >
                     {gitChangesView}
                   </div>
                   <div
-                    className={`desktop-right-sidebar-surface ${rightSidebarSurface === "history" ? "is-active" : ""}`}
-                    aria-hidden={rightSidebarSurface !== "history"}
+                    className={`desktop-right-sidebar-surface ${!cloudWorkspaceActive && rightSidebarSurface === "history" ? "is-active" : ""}`}
+                    aria-hidden={cloudWorkspaceActive || rightSidebarSurface !== "history"}
                   >
                     {gitHistoryView}
                   </div>
@@ -1740,11 +1747,7 @@ function AppContent() {
               onStartPuppyoneBackup: handleStartPuppyoneBackup,
             }}
             cloudWorkspaceActive={cloudWorkspaceActive}
-            nativeCloudWorkspace={nativeCloudWorkbench.dataPort ? (
-              <DesktopNativeCloudWorkspace workbench={nativeCloudWorkbench} preferences={preferences}
-                onOpenCloudServices={openCloudDialog} />
-            ) : null}
-            cloudWorkspaceError={nativeCloudWorkbench.error}
+            cloudWorkbench={nativeCloudWorkbench}
             cloudOpen={cloudDialogOpen}
             cloudLocationControls={focusedWorkspace?.path === workspace.path ? (
               <DesktopProjectLocationControls
