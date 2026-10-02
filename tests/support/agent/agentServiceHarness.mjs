@@ -5,12 +5,13 @@ import { createCodexRuntimeDefinition } from "../../../electron/main/agent/runti
 import { AgentRuntimeRegistry } from "../../../electron/main/agent/runtime/agent-runtime-registry.mjs";
 
 export function createServiceHarness({
-  capabilities = { manualApprovals: true },
+  capabilities = /** @type {Record<string, unknown>} */ ({ manualApprovals: true }),
   attachmentStore = null,
   resumeSessionError = null,
   nativeSessions = [],
   resumeEvents = [],
   historicalEvents = [],
+  configureAdapter = (_adapter) => {},
 } = {}) {
   const adapters = [];
   const logger = { warn: vi.fn() };
@@ -39,6 +40,7 @@ export function createServiceHarness({
         resumeEvents,
         historicalEvents,
       );
+      configureAdapter(adapter);
       adapters.push(adapter);
       return adapter;
     },

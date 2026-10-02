@@ -5,7 +5,7 @@ import type { AgentClientProvider } from "../application/AgentClientPort";
 
 /** Controllers belong to the project, so hiding or moving their UI does not end a session. */
 export function projectAgentControllers(project: AuxiliaryWorkbenchProject, options: {
-  createClient?: () => AgentClientProvider; preserveDraftOnDispose?: boolean;
+  createClient?: (itemId: string) => AgentClientProvider; preserveDraftOnDispose?: boolean;
 } = {}) {
   return project.getResource("agent", () => new AgentControllerRegistry(
     project.context.rootPath,

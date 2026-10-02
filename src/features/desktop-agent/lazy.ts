@@ -1,6 +1,7 @@
 import type { AuxiliaryWorkbenchPreparationContext, AuxiliaryWorkbenchProject } from "../app-shell/auxiliary-workbench/types";
 import { parseAgentChatHistoryTarget } from "./domain/agent-chat-history-target";
 export { resolveAgentWorkspaceProviderPath } from "./domain/agent-workspace-path";
+export { createAgentChatCloseAdapter } from "./workbench/agentChatCloseAdapter";
 
 let workbenchItemModule: ReturnType<typeof importAgentChatWorkbenchItem> | null = null;
 let resolvedWorkbenchItemModule: Awaited<ReturnType<typeof importAgentChatWorkbenchItem>> | null = null;

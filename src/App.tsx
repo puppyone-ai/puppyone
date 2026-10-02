@@ -38,6 +38,7 @@ import {
 import { AssetLibraryHome } from "./components/AssetLibraryHome";
 import {
   closeAgentChatWorkbenchItem,
+  createAgentChatCloseAdapter,
   discardPreparedAgentChatWorkbenchItem,
   loadAgentChatHistoryBrowser,
   loadAgentChatWorkbenchItem,
@@ -142,7 +143,6 @@ import {
 } from "./features/appearance/AppearanceRuntime";
 import { useDesktopEditorWorkbench } from "./features/editor-workbench/controller/useDesktopEditorWorkbench";
 import type {
-  AuxiliaryWorkbenchCloseAdapter,
   AuxiliaryWorkbenchContribution,
   AuxiliaryWorkbenchHistoryBrowserContext,
 } from "./features/app-shell/auxiliary-workbench/types";
@@ -1267,21 +1267,7 @@ function AppContent() {
           />
         </Suspense>
       ),
-      close: Object.freeze<AuxiliaryWorkbenchCloseAdapter>({
-        executionKind: "agent",
-        decide: ({ snapshot }) => snapshot.running
-          ? Object.freeze({
-              kind: "confirm" as const,
-              tone: "danger" as const,
-              dialog: Object.freeze({
-                title: t("agent.closeDialog.activeTitle", { title: snapshot.title }),
-                detail: t("agent.closeDialog.activeDetail"),
-                actionLabel: t("common.action.close"),
-              }),
-            })
-          : Object.freeze({ kind: "close" as const }),
-        commit: ({ item, project }) => closeAgentChatWorkbenchItem(project, item.id),
-      }),
+      close: createAgentChatCloseAdapter(t, ({ item, project }) => closeAgentChatWorkbenchItem(project, item.id)),
     });
   }, [
     agentPreferredModel,
