@@ -72,6 +72,8 @@ async function runSmoke() {
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
     const luminance = color => {
+      context.fillStyle = getComputedStyle(track).backgroundColor;
+      context.fillRect(0, 0, 1, 1);
       context.fillStyle = color;
       context.fillRect(0, 0, 1, 1);
       const rgb = [...context.getImageData(0, 0, 1, 1).data].slice(0, 3).map(value => {
@@ -98,6 +100,8 @@ async function runSmoke() {
       buttonYs: buttons.map(button => button.getBoundingClientRect().y),
       labels: buttons.map(button => button.textContent),
       labelsFit: buttons.every(button => button.scrollWidth <= button.clientWidth),
+      selectedTextColor: getComputedStyle(selected).color,
+      normalTextColor: getComputedStyle(menu).color,
       selectedContrast: contrast(selectedLuminance, luminance(getComputedStyle(selected).color)),
       selectedEmphasis: contrast(selectedLuminance, trackLuminance),
       iconWidths: buttons.map(button => button.querySelector('svg').getBoundingClientRect().width),
@@ -129,7 +133,9 @@ async function runSmoke() {
   assert(snapshot.cloudEntry === (creating ? "create" : "switch"), `Use creation only for a confirmed unhosted project: ${evidence}`);
   assert(snapshot.labelsFit && snapshot.labels.join("|") === [catalog["navigation.local"], catalog[creating ? "workspaceSwitcher.createCloudVersion" : "navigation.cloud"]].join("|"), `Only the two unclipped localized actions belong in this menu: ${evidence}`);
   assert(snapshot.iconWidths.every(width => width === 14) && snapshot.iconColorsMatch && snapshot.headerColorsMatch, `Small icons must match their labels: ${evidence}`);
-  assert(snapshot.selectedContrast >= 7 && snapshot.selectedEmphasis >= 7, `Selected segment must use a strong fill with readable contrasting text: ${evidence}`);
+  assert(snapshot.selectedTextColor === snapshot.normalTextColor && snapshot.selectedContrast >= 7
+    && snapshot.selectedEmphasis > 1.03 && snapshot.selectedEmphasis < 1.7,
+    `Selection needs a subtle themed background and normal text without inversion: ${evidence}`);
   assert(snapshot.menuBackground === snapshot.headerBackground && snapshot.menuShadow !== "none", `Popup must use themed Header color and a floating shadow: ${evidence}`);
   assert(snapshot.location === (state === "cloud-only" ? "cloud" : "local"), `Current surface drifted: ${evidence}`);
   assert(snapshot.localDisabled === (state === "cloud-only") && snapshot.cloudDisabled === (state === "resolving"), `Destination availability drifted: ${evidence}`);

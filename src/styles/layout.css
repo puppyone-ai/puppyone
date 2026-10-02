@@ -516,8 +516,8 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-location-tab[aria-pressed="true"] {
-  background: var(--po-text);
-  color: var(--po-text-inverse);
+  background: var(--po-selected);
+  color: var(--po-text);
 }
 
 .desktop-project-location-tab:hover:not(:disabled):not([aria-pressed="true"]),
