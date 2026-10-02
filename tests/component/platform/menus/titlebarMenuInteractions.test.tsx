@@ -32,6 +32,7 @@ describe("titlebar Portal menu interactions", () => {
     const workspace = createWorkspace("one", "Workspace one");
     await renderSwitcher({
       workspace,
+      projectLocation: { current: "local", localAvailable: true, cloudState: "available" },
       backupProviders: ["github", "gitlab"],
       backupStatus: gitStatus({ remotes: [{ name: "origin",
         fetchUrl: "https://github.com/team/project.git", pushUrl: null, branches: [] }] }),
@@ -53,6 +54,54 @@ describe("titlebar Portal menu interactions", () => {
     expect(link.textContent).toBe("");
     expect(link.querySelector(".desktop-project-github-mark")).not.toBeNull();
     expect(locationButton("cloud").compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it.each([false, true])("offers Create Cloud for an unhosted project, with existing GitHub: %s", async (github) => {
+    const actions: string[] = [];
+    const onShare = vi.fn();
+    await renderSwitcher({
+      projectLocation: { current: "local", localAvailable: true, cloudState: "unavailable" },
+      backupProviders: github ? ["github"] : [],
+      backupStatus: github ? gitStatus({ remotes: [{ name: "origin",
+        fetchUrl: "https://github.com/team/project.git", pushUrl: null, branches: [] }] }) : null,
+      onClose: () => actions.push("close"), onViewCloud: () => actions.push("initialize"), onShare,
+    });
+    const create = locationButton("cloud");
+    expect(create.textContent).toBe("Create Cloud");
+    expect(create.getAttribute("data-cloud-action")).toBe("create");
+    expect(create.hasAttribute("aria-pressed")).toBe(false);
+    expect(locationButton("local").getAttribute("aria-pressed")).toBe("true");
+    expect(Boolean(requireMenu().querySelector("a"))).toBe(github);
+    expect(requireMenu().textContent).not.toContain("GitHub");
+    act(() => create.click());
+    expect(actions).toEqual(["close", "initialize"]);
+    expect(onShare).not.toHaveBeenCalled();
+    expect(locationButton("local").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("changes creation into a switch when a Cloud version becomes available", async () => {
+    const container = await renderSwitcher({ onViewCloud: vi.fn(),
+      projectLocation: { current: "local", localAvailable: true, cloudState: "unavailable" } });
+    expect(locationButton("cloud").textContent).toBe("Create Cloud");
+    await act(async () => root?.render(withTestLocalization(
+      <DesktopWorkspaceSwitcher open refObject={createRef<HTMLDivElement>()}
+        titlebarLabel="Workspace one" workspace={createWorkspace("one", "Workspace one")}
+        workspaceFolders={[]} multiRootWorkspacesEnabled={false}
+        projectLocation={{ current: "local", localAvailable: true, cloudState: "available" }}
+        onViewCloud={vi.fn()} onClose={vi.fn()} onToggle={vi.fn()} />,
+    )));
+    expect(locationButton("cloud").textContent).toBe("Cloud");
+    expect(locationButton("cloud").hasAttribute("data-cloud-action")).toBe(false);
+    expect(locationButton("cloud").getAttribute("aria-pressed")).toBe("false");
+    expect(container.querySelector(".desktop-titlebar-workspace-button .lucide-laptop")).not.toBeNull();
+  });
+
+  it.each(["resolving", "attention"] as const)("does not offer a new deployment while Cloud association is %s", async (cloudState) => {
+    await renderSwitcher({ onViewCloud: vi.fn(),
+      projectLocation: { current: "local", localAvailable: true, cloudState } });
+    expect(locationButton("cloud").textContent).toBe("Cloud");
+    expect(locationButton("cloud").hasAttribute("data-cloud-action")).toBe(false);
+    expect(locationButton("cloud").disabled).toBe(cloudState === "resolving");
   });
 
   it.each([undefined, "unavailable", "available", "signed-out", "resolving", "attention"] as const)(
@@ -535,4 +584,5 @@ async function renderSwitcher(props: Partial<Parameters<typeof DesktopWorkspaceS
       titlebarLabel={workspace.name} workspace={workspace} workspaceFolders={[]}
       multiRootWorkspacesEnabled={false} onClose={vi.fn()} onToggle={vi.fn()} {...props} />,
   )));
+  return container;
 }

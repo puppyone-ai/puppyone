@@ -455,8 +455,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-menu {
-  --desktop-project-menu-spacing: 8px;
-  --desktop-project-mark-size: 16px;
+  --desktop-project-menu-spacing: 6px;
   --po-menu-padding: var(--desktop-project-menu-spacing);
   --po-menu-bg: var(--po-header);
   --po-menu-border: var(--po-divider);
@@ -473,7 +472,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .desktop-project-location-tabs {
@@ -482,18 +481,18 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   flex: 1;
   gap: 2px;
   padding: 2px;
-  border-radius: 9px;
-  background: var(--po-hover);
+  border-radius: 7px;
+  background: var(--po-editor-bg);
 }
 
 .desktop-project-location-tab,
 .desktop-project-repository-link {
   display: inline-flex;
-  height: 32px;
+  height: 28px;
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 7px;
+  border-radius: 5px;
   background: transparent;
   color: var(--po-text-muted);
   cursor: var(--po-clickable-cursor, default);
@@ -502,25 +501,29 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 .desktop-project-location-tab {
   min-width: 0;
   flex: 1;
-  gap: 6px;
-  padding: 0 8px;
+  gap: 4px;
+  padding: 0 6px;
   font-family: inherit;
-  font-size: var(--po-menu-item-font-size, var(--po-text-size-body, 13px));
+  font-size: var(--po-type-ui-control, 13px);
   font-weight: var(--po-text-weight-regular, 400);
   line-height: var(--po-menu-item-line-height, 18px);
   white-space: nowrap;
 }
 
-.desktop-project-location-tab[aria-pressed="true"] {
-  background: var(--po-editor-bg);
-  color: var(--po-text);
-  box-shadow: 0 1px 3px var(--po-shadow);
+/* Creation is an action, rather than a switch to a version that does not exist. */
+.desktop-project-location-controls[data-cloud-entry="create"] .desktop-project-location-tab[data-project-location="local"] {
+  flex: 0 0 auto;
 }
 
-.desktop-project-location-tab:hover:not(:disabled),
+.desktop-project-location-tab[aria-pressed="true"] {
+  background: var(--po-text);
+  color: var(--po-text-inverse);
+}
+
+.desktop-project-location-tab:hover:not(:disabled):not([aria-pressed="true"]),
 .desktop-project-repository-link:hover {
   color: var(--po-text);
-  background: var(--po-editor-bg);
+  background: var(--po-hover);
 }
 
 .desktop-project-location-tab:disabled {
@@ -535,22 +538,22 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 
 .desktop-project-location-tab-mark {
   display: grid;
-  width: 16px;
-  height: 16px;
-  flex: 0 0 16px;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
   place-items: center;
   color: inherit;
 }
 
 .desktop-project-repository-link {
-  width: 32px;
-  flex: 0 0 32px;
+  width: 28px;
+  flex: 0 0 28px;
   text-decoration: none;
 }
 
 .desktop-project-repository-link .desktop-project-github-mark {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
 }
 
 .desktop-project-menu .desktop-menu-item-icon {
