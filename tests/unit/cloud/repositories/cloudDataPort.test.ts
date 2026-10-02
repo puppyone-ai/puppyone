@@ -43,6 +43,18 @@ const service = (extra: Partial<Parameters<typeof createCloudDataService>[0]> = 
 const save = (port: ReturnType<typeof service>["dataPort"], path: string, content: string, baseVersion: string | null) => port.documentPersistence!.persist({ path, content, baseVersion, revision: "edit-1", reason: "edit" });
 
 describe("native Cloud provider", () => {
+  it("creates the first file and folder with the existing empty-repository CAS contract", async () => {
+    bridge.mockImplementation(async (request) => {
+      if (request.method === "GET") return { entries: [], head_commit_id: "" };
+      expect(JSON.parse(request.body).base_commit_id).toBe("");
+      return { path: JSON.parse(request.body).path, commit_id: "first-head" };
+    });
+    const cloud = service();
+    await cloud.dataPort.createFile!("first.md", "First file");
+    await cloud.dataPort.createFolder!("empty-folder");
+    expect(bridge.mock.calls.filter(([request]) => request.method === "POST")).toHaveLength(2);
+  });
+
   it("uses Cloud URIs and secure host transport for the tree, source and save target", async () => {
     const cloud = service();
     const nodes = await cloud.dataPort.listChildren(null);
@@ -127,12 +139,12 @@ describe("native Cloud provider", () => {
     expect(bridge).not.toHaveBeenCalled();
   });
 
-  it("rejects an empty server revision before reading or creating a writable document", async () => {
+  it("rejects a missing server revision before reading or creating a writable document", async () => {
     const actual = bridge.getMockImplementation()! as (request: unknown) => Promise<unknown>;
     bridge.mockImplementation(async (request) => {
       const response = await actual(request);
       return new URL(request.path, API).pathname.endsWith("/ls")
-        ? { ...(response as object), head_commit_id: "" } : response;
+        ? { ...(response as object), head_commit_id: null } : response;
     });
     const cloud = service();
     await expect(cloud.dataPort.readFile!("readme.md")).rejects.toThrow(/storage revision/);

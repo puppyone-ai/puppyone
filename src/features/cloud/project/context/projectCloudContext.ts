@@ -3,7 +3,10 @@ import { normalizeCloudSection } from "../../routes/cloudRoutes";
 import { cloudMessage, type CloudMessageDescriptor } from "../../cloudPresentation";
 import type { RepositoryTarget } from "../../repositoryTarget";
 
-/** Ephemeral UI context resolved from the open repository's canonical remote. */
+/**
+ * Ephemeral local-association resolution or an explicitly selected, authorized
+ * hosted target. A resolved context is never a persisted local-folder binding.
+ */
 export type ProjectCloudContext =
   | { status: "local-only"; projectId: null }
   | { status: "resolving"; projectId: null }

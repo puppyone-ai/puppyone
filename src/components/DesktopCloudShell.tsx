@@ -50,6 +50,8 @@ const FOLLOW_RIGHT_SIDEBAR_EDGE_IN_HEADER = false;
 
 type DesktopCloudShellProps = {
   children: ReactNode;
+  /** Retained hidden workspaces must not publish native window constraints. */
+  active?: boolean;
   leadingRail?: ReactNode;
   renderLeadingRail?: (state: DesktopLeadingRailRenderState) => ReactNode;
   leadingRailWidth?: number;
@@ -90,6 +92,7 @@ type DesktopCloudShellProps = {
 
 export function DesktopCloudShell({
   children,
+  active = true,
   leadingRail,
   renderLeadingRail,
   leadingRailWidth = 0,
@@ -268,12 +271,10 @@ export function DesktopCloudShell({
   }, [rightSidebarPresent]);
 
   useEffect(() => {
+    if (!active) return;
     publishWindowMinimumWidth(paneLayout.minimumWidth + resolvedLeadingRailWidth);
-  }, [paneLayout.minimumWidth, resolvedLeadingRailWidth]);
-
-  useEffect(() => () => {
-    publishWindowMinimumWidth(0);
-  }, []);
+    return () => publishWindowMinimumWidth(0);
+  }, [active, paneLayout.minimumWidth, resolvedLeadingRailWidth]);
 
   const resizeLeadingRailByKeyboard = (
     intent: SidebarResizeIntent,

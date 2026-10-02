@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("repository-context architecture", () => {
-  it("resolves one current repository Project and keeps catalogs archive-only", () => {
+  it("keeps local association discovery separate from account project navigation", () => {
     const dataSource = readFileSync(
       new URL("../../../../src/features/cloud/data/useDesktopCloudData.ts", import.meta.url),
       "utf8",
@@ -27,7 +27,12 @@ describe("repository-context architecture", () => {
     expect(dataSource).toContain("getCloudProject");
     expect(resolverSource).not.toContain("listCloudProjects");
     expect(appSource).not.toContain("listCloudProjects");
-    expect(cloudApiSource).not.toContain("listCloudProjects");
+    expect(cloudApiSource).toContain("listCloudProjects");
+    const accountSource = readFileSync(new URL("../../../../src/features/cloud/workbench/useAccountCloudWorkspace.ts", import.meta.url), "utf8");
+    expect(accountSource).toContain("listCloudProjects");
+    expect(accountSource).toContain("getCloudRepositoryContext");
+    expect(accountSource).not.toMatch(/localWorkspaceIdentity|rootPath|configureRemote|workspaceBinding/);
+    expect(appSource).toContain("AccountCloudProjectPicker");
     expect(cloudApiSource).not.toContain("listCloudTemplates");
     expect(cloudApiSource).not.toContain("instantiateCloudTemplate");
     expect(resolverSource).toContain("resolveCanonicalPuppyoneRemotes");

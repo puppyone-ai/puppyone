@@ -59,7 +59,7 @@ const REASON_PRIORITY: Record<DocumentPersistenceReason, number> = {
 export class DocumentEditingSession implements DocumentEditingSessionHandle {
   documentId: string;
 
-  private readonly persistence: DocumentEditingSessionOptions["persistence"];
+  private persistence: DocumentEditingSessionOptions["persistence"];
   private readonly onPersisted?: (commit: DocumentPersistedCommit) => void;
   private saveMode: EditorSaveMode;
   private source: EditorSourceSnapshotPort | null = null;
@@ -332,6 +332,15 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   };
+
+  rebindPersistence(persistence: DocumentEditingSessionOptions["persistence"]): void {
+    if (persistence.storageIdentity !== this.persistence.storageIdentity || persistence.kind !== this.persistence.kind) {
+      throw new Error("Cannot move a working copy to another storage authority.");
+    }
+    // Keep its draft, baseline and queue. Only replace the provider lease;
+    // reopening must not silently enqueue a previously failed write.
+    this.persistence = persistence;
+  }
 
   setSaveMode(saveMode: EditorSaveMode): void {
     if (this.saveMode === saveMode) return;

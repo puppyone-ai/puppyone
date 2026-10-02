@@ -1,0 +1,45 @@
+.desktop-cloud-account-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  max-height: min(640px, calc(100vh - 160px));
+  overflow: auto;
+  color: var(--po-text-primary);
+}
+.desktop-cloud-account-content p { margin: 0; color: var(--po-text-muted); }
+.desktop-cloud-account-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.desktop-cloud-account-toolbar > span { min-width: 0; overflow-wrap: anywhere; }
+.desktop-cloud-account-content small { display: block; color: var(--po-text-muted); font-size: var(--po-text-size-caption, 12px); }
+.desktop-cloud-account-content input,
+.desktop-cloud-account-content select {
+  min-width: 0;
+  padding: 8px 10px;
+  background: var(--po-inset);
+  color: var(--po-text-primary);
+  border: 1px solid var(--po-border);
+  border-radius: 6px;
+  font: inherit;
+}
+.desktop-cloud-account-search { display: flex; align-items: center; gap: 8px; }
+.desktop-cloud-account-search input { flex: 1; }
+.desktop-cloud-account-projects { display: flex; flex-direction: column; gap: 4px; }
+.desktop-cloud-account-project {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--po-border);
+  border-radius: 8px;
+  color: var(--po-text-primary);
+  background: var(--po-surface);
+  text-align: start;
+  font: inherit;
+}
+.desktop-cloud-account-project span { min-width: 0; overflow-wrap: anywhere; }
+.desktop-cloud-account-project:hover { background: var(--po-inset); }
+.desktop-cloud-account-project:disabled { cursor: wait; opacity: .6; }
+.desktop-cloud-account-create { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--po-border); padding-top: 16px; }
+.desktop-cloud-account-create h3 { margin: 0; font: inherit; font-weight: 600; }
+.desktop-cloud-account-error { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.desktop-cloud-home-entry { position: fixed; inset-block-start: 48px; inset-inline-end: 24px; z-index: 10; }

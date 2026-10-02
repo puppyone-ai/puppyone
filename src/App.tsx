@@ -32,7 +32,9 @@ import {
   type SettingsSection,
 } from "./features/settings";
 import { CLOUD_HUB_ENTRY_SECTION, type CloudWorkspaceSection } from "./features/cloud";
-import { useCloudWorkspaceSwitch } from "./features/cloud/workbench/useCloudWorkspaceSwitch";
+import { useAccountCloudWorkspace } from "./features/cloud/workbench/useAccountCloudWorkspace";
+import { AccountCloudProjectPicker } from "./features/cloud/workbench/AccountCloudProjectPicker";
+import { AccountCloudWorkspaceSurface } from "./features/cloud/workbench/AccountCloudWorkspaceSurface";
 import { getCloudAuthSession, resolveCloudAuthState } from "./features/cloud/auth";
 import { useNativeCloudWorkbench } from "./features/cloud/workbench/useNativeCloudWorkbench";
 import {
@@ -128,7 +130,6 @@ import { shouldBlockWorkspaceCloudResolution } from "./features/cloud/workspace/
 import { useCloudInitialization } from "./features/cloud/initialization/useCloudInitialization";
 import {
   CloudShareProvider,
-  resolveProjectLocationStatus,
   ShareWizardDialog,
   useProjectShareActivity,
   type CloudShareActions,
@@ -229,6 +230,9 @@ function AppContent() {
     sessionRestoring: cloudSessionRestoring,
     environment: { apiBaseUrl: desktopCloudApiBaseUrl, source: "default", cloudRemote: null },
   })), [cloudAuthStatus, cloudSession, cloudSessionRestoring, desktopCloudApiBaseUrl]);
+  const accountCloud = useAccountCloudWorkspace({ enabled: cloudEnabled, session: activeCloudSession, apiBaseUrl: desktopCloudApiBaseUrl });
+  const cloudWorkspaceActive = accountCloud.active;
+  const { useLocal: returnToLocalWorkspace } = accountCloud;
   const [activeCloudSection, setActiveCloudSection] = useState<CloudWorkspaceSection>("initialize");
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const projectEntryFlow = useProjectEntryFlow();
@@ -266,8 +270,9 @@ function AppContent() {
   } = useWorkspaceLifecycle({
     multiRootWorkspacesEnabled,
     onWorkspaceActivated: useCallback(() => {
+      returnToLocalWorkspace();
       setSwitcherOpen(false);
-    }, []),
+    }, [returnToLocalWorkspace]),
     onWorkspaceCleared: useCallback(() => {
       setActiveView("data");
       setSwitcherOpen(false);
@@ -353,7 +358,6 @@ function AppContent() {
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [pluginsDialogOpen, setPluginsDialogOpen] = useState(false);
   const [cloudDialogOpen, setCloudDialogOpen] = useState(false);
-  const [selectedCloudWorkspace, setSelectedCloudWorkspace] = useState<{ scope: string; account: string } | null>(null);
   const [titlebarTabHost, setTitlebarTabHost] = useState<HTMLDivElement | null>(null);
   const [workspaceRefreshToken, setWorkspaceRefreshToken] = useState<WorkspaceContentChange>({
     sequence: 0,
@@ -436,14 +440,6 @@ function AppContent() {
     ?? workbenchWorkspace?.folders[0]
     ?? null;
   const focusedWorkspace = focusedWorkspaceFolder?.workspace ?? workspace;
-  const localCloudLocationKey = `${workbenchWorkspace?.id ?? ""}:${focusedWorkspaceFolder?.id ?? workspace?.path ?? ""}`;
-  const cloudSwitchScope = `${localCloudLocationKey}:${desktopCloudApiBaseUrl ?? ""}`;
-  const cloudWorkspaceActive = cloudEnabled && selectedCloudWorkspace?.scope === cloudSwitchScope
-    && activeCloudSession !== null && selectedCloudWorkspace.account === activeCloudSession.user_id;
-  useEffect(() => {
-    if (selectedCloudWorkspace && !cloudWorkspaceActive) setSelectedCloudWorkspace(null);
-  }, [cloudWorkspaceActive, selectedCloudWorkspace]);
-  useEffect(() => { setSelectedCloudWorkspace(null); }, [workbenchWorkspace?.id]);
   const auxiliarySurfaceRef = useRef<HTMLDivElement>(null);
   const blurAuxiliarySurfaceFocus = useCallback(() => {
     const activeElement = document.activeElement;
@@ -762,47 +758,30 @@ function AppContent() {
   });
   const resolvedCloudProjectId = getResolvedCloudProjectId(projectCloudContext);
   const nativeCloudWorkbench = useNativeCloudWorkbench({
-    context: projectCloudContext,
+    context: accountCloud.context,
     session: activeCloudSession,
     apiBaseUrl: desktopCloudApiBaseUrl,
-    localWorkspaceIdentity: localCloudLocationKey,
-    localWorkspace: focusedWorkspace ?? workspace,
     active: cloudWorkspaceActive,
     filesVisibilitySettings,
   });
-  const commitCloudWorkspace = useCallback(() => {
-    if (!activeCloudSession) return;
-    setSelectedCloudWorkspace({ scope: cloudSwitchScope, account: activeCloudSession.user_id });
-    setActiveView("data");
-  }, [activeCloudSession, cloudSwitchScope]);
-  const cloudWorkspaceSwitch = useCloudWorkspaceSwitch({
-    enabled: cloudEnabled && focusedWorkspace?.path === workspace?.path,
-    scope: cloudSwitchScope,
-    session: activeCloudSession,
-    service: nativeCloudWorkbench.service,
-    providerError: nativeCloudWorkbench.error,
-    initializationPending: cloudBackupLoading || pendingCloudBackupSetup || cloudPublishStateLoading || cloudPublishState !== null,
-    onCommit: commitCloudWorkspace,
-  });
-  const requestCloudWorkspace = cloudWorkspaceSwitch.request;
-  const cancelCloudWorkspaceSwitch = cloudWorkspaceSwitch.cancel;
+  const requestCloudWorkspace = accountCloud.open;
+  const cancelCloudWorkspaceSwitch = accountCloud.cancel;
   const openCloudWorkspace = useCallback(() => {
-    if (!cloudEnabled || cloudWorkspaceActive) return;
-    requestCloudWorkspace();
+    if (!cloudEnabled) return;
+    requestCloudWorkspace(projectCloudContext);
     setActiveCloudSection(CLOUD_HUB_ENTRY_SECTION);
     setCloudDialogOpen(false);
     setSettingsDialogOpen(false);
     setPluginsDialogOpen(false);
     setSwitcherOpen(false);
     setBranchSwitcherOpen(false);
-  }, [cloudEnabled, cloudWorkspaceActive, requestCloudWorkspace, setBranchSwitcherOpen]);
+  }, [cloudEnabled, projectCloudContext, requestCloudWorkspace, setBranchSwitcherOpen]);
   const openLocalWorkspace = useCallback(() => {
-    cancelCloudWorkspaceSwitch();
-    setSelectedCloudWorkspace(null);
+    returnToLocalWorkspace();
     setCloudDialogOpen(false);
     setSwitcherOpen(false);
     setBranchSwitcherOpen(false);
-  }, [cancelCloudWorkspaceSwitch, setBranchSwitcherOpen]);
+  }, [returnToLocalWorkspace, setBranchSwitcherOpen]);
 
   useEffect(() => {
     if (cloudWorkspaceActive) resetDataNodeActions();
@@ -835,18 +814,9 @@ function AppContent() {
     onSessionChange: updateCloudSession,
   });
   const cloudSignedIn = activeCloudSession !== null;
-  const projectLocationStatus = resolveProjectLocationStatus(projectCloudContext, cloudSignedIn);
   const projectLocation = cloudEnabled
-    ? {
-        current: cloudWorkspaceActive ? "cloud" as const : "local" as const,
-        localAvailable: true,
-        cloudState: focusedWorkspace?.path !== workspace?.path
-          || projectLocationStatus.kind === "local"
-          ? "unavailable" as const
-          : projectLocationStatus.kind === "local-cloud"
-            ? cloudSignedIn ? "available" as const : "signed-out" as const
-            : projectLocationStatus.kind,
-      }
+    ? { current: "local" as const, localAvailable: true,
+        cloudState: cloudSignedIn ? "available" as const : "signed-out" as const }
     : undefined;
   // The wizard stacks above the Cloud dialog so the Homepage is still there when it closes.
   const openShareWizard = useCallback((targetId: ShareTargetId | null, path = "") => {
@@ -859,10 +829,10 @@ function AppContent() {
   }, [setBranchSwitcherOpen, shareOnboardingEnabled]);
   const closeShareWizard = useCallback(() => setShareWizard(null), []);
   useEffect(() => {
-    if (cloudWorkspaceSwitch.pending && (cloudDialogOpen || settingsDialogOpen || pluginsDialogOpen || shareWizard)) {
+    if (accountCloud.pickerOpen && (cloudDialogOpen || settingsDialogOpen || pluginsDialogOpen || shareWizard)) {
       cancelCloudWorkspaceSwitch();
     }
-  }, [cancelCloudWorkspaceSwitch, cloudDialogOpen, cloudWorkspaceSwitch.pending, pluginsDialogOpen, settingsDialogOpen, shareWizard]);
+  }, [cancelCloudWorkspaceSwitch, cloudDialogOpen, accountCloud.pickerOpen, pluginsDialogOpen, settingsDialogOpen, shareWizard]);
   useEffect(() => {
     if (shareOnboardingEnabled) return;
     setShareWizard(null);
@@ -1411,13 +1381,26 @@ function AppContent() {
     setRightSidebarOpen,
     setRightSidebarSurface,
   ]);
+  const accountCloudSurface = <AccountCloudWorkspaceSurface workbench={nativeCloudWorkbench} active={cloudWorkspaceActive}
+    preferences={preferences} appearance={surfaceAppearance} onLocal={openLocalWorkspace} onBrowse={accountCloud.browse} />;
+  const accountCloudPicker = <AccountCloudProjectPicker controller={accountCloud} apiBaseUrl={desktopCloudApiBaseUrl}
+    authState={resolveCloudAuthState({ cloudSession: activeCloudSession, sessionRestoring: cloudSessionRestoring,
+      environment: { apiBaseUrl: desktopCloudApiBaseUrl, source: "default", cloudRemote: null } })}
+    onSignOut={() => updateCloudSession(null)}
+    onPublishLocal={workspace ? () => openCloudDialogAt("initialize") : undefined} />;
   const themeRuntime = (content: ReactNode) => (
     <SurfaceAppearanceProvider value={surfaceAppearance}>
       <div
         className={`desktop-theme-bootstrap-surface ${resolvedTheme === "dark" ? "dark" : ""}`}
         {...surfaceAppearance.rootProps}
       >
-        {content}
+        <div hidden={cloudWorkspaceActive} style={{ display: cloudWorkspaceActive ? "none" : "contents" }}>
+          {content}
+          {cloudEnabled && <button type="button" className="desktop-cloud-row-action desktop-cloud-home-entry"
+            onClick={openCloudWorkspace}>{t("cloud.catalog.browse")}</button>}
+        </div>
+        {accountCloudSurface}
+        <DesktopOverlayPortal appearance={surfaceAppearance}>{accountCloudPicker}</DesktopOverlayPortal>
       </div>
     </SurfaceAppearanceProvider>
   );
@@ -1565,7 +1548,7 @@ function AppContent() {
       onAddExistingProject={(folderPath) => void addExistingProject(folderPath)}
       onShare={openCloudShare}
       onViewLocal={openLocalWorkspace}
-      onViewCloud={cloudEnabled && focusedWorkspace?.path === workspace.path ? openCloudWorkspace : undefined}
+      onViewCloud={cloudEnabled ? openCloudWorkspace : undefined}
       onCloseWorkspaceSwitcher={closeWorkspaceSwitcher}
       onCloseBranchSwitcher={closeBranchSwitcher}
       onToggleBranchSwitcher={toggleBranchSwitcher}
@@ -1590,24 +1573,16 @@ function AppContent() {
     />
   );
   const editorTabsInHeaderEnabled = experimentalSettings.enableEditorTabsInHeader;
-  const visibleEditorWorkbench = cloudWorkspaceActive ? nativeCloudWorkbench.editorWorkbench : editorWorkbench;
-  const visibleDocumentStorageIdentity = cloudWorkspaceActive
-    ? nativeCloudWorkbench.dataPort?.documentPersistence?.storageIdentity ?? null
-    : documentStorageIdentity;
   const titlebarEditorTabs = editorTabsInHeaderEnabled ? (
     <EditorHeaderTabs
-      activeEditorId={visibleEditorWorkbench.activeEditorId}
-      editors={visibleEditorWorkbench.state.editors}
+      activeEditorId={editorWorkbench.activeEditorId}
+      editors={editorWorkbench.state.editors}
       fileIconTheme={fileIconTheme}
-      storageIdentity={visibleDocumentStorageIdentity}
-      onActivate={cloudWorkspaceActive ? visibleEditorWorkbench.activate : handleEditorTabActivate}
-      onClose={cloudWorkspaceActive ? nativeCloudWorkbench.closeEditor : handleEditorClose}
-      onCreate={cloudWorkspaceActive
-        ? nativeCloudWorkbench.service?.writable
-          ? (anchor) => nativeCloudWorkbench.actions.openCreateEntryMenu(nativeCloudWorkbench.service!.folder.uri, anchor)
-          : undefined
-        : (anchor) => openCreateEntryMenu(null, anchor)}
-      onMove={visibleEditorWorkbench.moveTab}
+      storageIdentity={documentStorageIdentity}
+      onActivate={handleEditorTabActivate}
+      onClose={handleEditorClose}
+      onCreate={(anchor) => openCreateEntryMenu(null, anchor)}
+      onMove={editorWorkbench.moveTab}
     />
   ) : undefined;
   const feedbackLauncher = (
@@ -1623,9 +1598,12 @@ function AppContent() {
       <CloudShareProvider value={cloudShareActions}>
       <div
         className={`app-shell cloud-runtime ${resolvedTheme === "dark" ? "dark" : ""}`}
+        hidden={cloudWorkspaceActive}
         {...surfaceAppearance.rootProps}
+        style={{ ...surfaceAppearance.rootProps.style, ...(cloudWorkspaceActive ? { display: "none" } : {}) }}
       >
         <DesktopCloudShell
+          active={!cloudWorkspaceActive}
           onGoHome={() => void goToHomepage()}
           renderLeadingRail={projectSwitcherRailVisible ? ({ expanded }) => (
             <ProjectSwitcherRail
@@ -1660,7 +1638,7 @@ function AppContent() {
           onLeadingRailCollapsedChange={setProjectSwitcherCollapsed}
           onLeadingRailWidthChange={preferences.setProjectSwitcherWidth}
           leftSidebarCollapsed={sidebarCollapsed}
-          leftSidebarPresent={cloudWorkspaceActive || Boolean(dataPort)}
+          leftSidebarPresent={Boolean(dataPort)}
           leftSidebarWidth={explorerWidth}
           titlebarSidebarSlot={projectSwitcherRailEnabled
             ? undefined
@@ -1674,16 +1652,8 @@ function AppContent() {
             : undefined}
           locationBar={locationBarVisible ? (
             <DesktopShellLocationBar
-              path={cloudWorkspaceActive
-                ? `${nativeCloudWorkbench.service?.workspace.name ?? workspace.name} / ${nativeCloudWorkbench.service?.resolveResource(nativeCloudWorkbench.editorWorkbench.activePath ?? nativeCloudWorkbench.activeNode?.path ?? null)?.providerPath ?? ""}`
-                : locationBarPath}
-              onNavigate={cloudWorkspaceActive ? async (path) => {
-                const service = nativeCloudWorkbench.service;
-                if (!service) return;
-                const prefix = `${service.workspace.name} / `;
-                const relative = path.startsWith(prefix) ? path.slice(prefix.length) : path;
-                if (relative.trim()) await nativeCloudWorkbench.onActivePathChange(createWorkspaceResourceUri(service.folder.uri, relative.trim()));
-              } : handleLocationBarNavigate}
+              path={locationBarPath}
+              onNavigate={handleLocationBarNavigate}
             />
           ) : undefined}
           rightSidebarOpen={rightSidebarContentVisible}
@@ -1775,9 +1745,6 @@ function AppContent() {
               onStartPuppyoneBackup: handleStartPuppyoneBackup,
               onCreateCloudVersion: (organizationId) => handleStartPuppyoneBackup(organizationId, { navigateToCloud: false }),
             }}
-            cloudWorkspaceActive={cloudWorkspaceActive}
-            cloudWorkbench={nativeCloudWorkbench}
-            cloudWorkspaceSwitch={cloudWorkspaceSwitch}
             cloudOpen={cloudDialogOpen}
             cloudLocationControls={focusedWorkspace?.path === workspace.path ? (
               <DesktopProjectLocationControls
@@ -2024,6 +1991,8 @@ function AppContent() {
         </DesktopOverlayPortal>
       </div>
       </CloudShareProvider>
+      {accountCloudSurface}
+      <DesktopOverlayPortal appearance={surfaceAppearance}>{accountCloudPicker}</DesktopOverlayPortal>
     </SurfaceAppearanceProvider>
   );
 }

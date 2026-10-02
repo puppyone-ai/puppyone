@@ -64,11 +64,15 @@ export function registerCloudIpcHandlers({ ipcMain, cloudAuthService }) {
         : "GET";
       const headers = normalizeCloudRequestHeaders(request?.headers);
       const body = typeof request?.body === "string" ? request.body : undefined;
+      const expectedSession = {
+        userId: requireNonEmptyString(request?.expectedSession?.userId, "Cloud request account is required."),
+        generation: requireNonEmptyString(request?.expectedSession?.generation, "Cloud request session generation is required."),
+      };
       return cloudAuthService.requestSessionApi(apiBase, apiPath, {
         method,
         headers,
         ...(body === undefined ? {} : { body }),
-      });
+      }, expectedSession);
     });
   });
 
