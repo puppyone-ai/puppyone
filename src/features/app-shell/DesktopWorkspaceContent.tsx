@@ -45,6 +45,7 @@ type DesktopWorkspaceContentProps = {
   activeView: DesktopView;
   cloud: DesktopWorkspaceCloudSurfaceController;
   cloudOpen?: boolean;
+  cloudLocationControls?: ReactNode;
   dataPort: DataWorkspacePort | null;
   editorWorkbench: DesktopEditorWorkbenchController;
   externalOpen: Readonly<{
@@ -106,6 +107,7 @@ export function DesktopWorkspaceContent({
   activeView,
   cloud,
   cloudOpen = false,
+  cloudLocationControls,
   dataPort,
   editorWorkbench,
   externalOpen,
@@ -267,6 +269,7 @@ export function DesktopWorkspaceContent({
           sidebar={cloudSurface.sidebar}
           main={cloudSurface.main}
           onClose={onCloseCloud}
+          locationControls={cloudLocationControls}
         />
       )}
       {pluginsOpen && viewerPluginsEnabled && (

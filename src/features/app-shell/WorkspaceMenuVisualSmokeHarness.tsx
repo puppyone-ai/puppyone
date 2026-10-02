@@ -41,6 +41,7 @@ export function WorkspaceMenuVisualSmokeHarness() {
             backupStatus={githubLinked ? versionStatus : null}
             onOpenFolder={() => undefined}
             onClose={() => undefined}
+            onViewLocal={() => undefined}
             onViewCloud={() => undefined}
             onToggle={() => undefined}
           />

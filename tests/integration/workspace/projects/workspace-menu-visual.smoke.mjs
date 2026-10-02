@@ -47,7 +47,7 @@ async function runSmoke() {
   await window.loadURL(url.href);
   await waitForRenderer(window, `Boolean(
     document.querySelector('[data-workspace-menu-visual-ready="true"]')
-    && document.querySelector('[data-workspace-menu-layout="workspace-composition-v1"]')
+    && document.querySelector('.desktop-project-location-controls')
   )`);
   await window.webContents.executeJavaScript(
     "new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))",
@@ -56,138 +56,59 @@ async function runSmoke() {
 
   const snapshot = await window.webContents.executeJavaScript(`(() => {
     const menu = document.querySelector('[data-titlebar-context-menu="true"]');
-    const currentLocation = menu.querySelector('.desktop-project-current-location');
-    const visual = menu.querySelector('.desktop-project-location-visual');
-    const locationAction = menu.querySelector('[data-location-action="enable-cloud-versions"]');
-    const locationActionLabel = locationAction?.querySelector('.desktop-menu-item-label');
-    const versions = [...menu.querySelectorAll('[data-backup-details]')];
-    const cards = [...menu.querySelectorAll('.desktop-project-location-visual, .desktop-project-backup-details:not(.desktop-project-location-visual), .desktop-project-location-actions')];
-    const localMark = currentLocation.querySelector('.desktop-project-current-location-mark, .desktop-menu-item-icon');
-    const localTitle = currentLocation.querySelector('.desktop-project-location-title, .desktop-menu-item-label');
-    const labels = versions.map(row => row.querySelector('.desktop-menu-item-label'));
-    const details = versions.map(row => row.querySelector('.desktop-menu-item-detail'));
-    const centerY = element => {
-      const rect = element?.getBoundingClientRect();
-      return rect ? rect.top + rect.height / 2 : null;
-    };
+    const row = menu.querySelector('.desktop-project-location-controls');
+    const track = menu.querySelector('.desktop-project-location-tabs');
+    const buttons = [...menu.querySelectorAll('button[data-project-location]')];
+    const selected = menu.querySelector('button[aria-pressed="true"]');
+    const github = menu.querySelector('.desktop-project-repository-link');
     const header = document.querySelector('.workspace-menu-visual-titlebar');
     return {
       state: document.querySelector('[data-project-state]')?.dataset.projectState,
-      location: currentLocation?.dataset.projectLocation,
-      currentLocationHeight: currentLocation?.getBoundingClientRect().height ?? 0,
-      currentLocationBackground: getComputedStyle(visual).backgroundColor,
+      location: selected.dataset.projectLocation,
+      currentCount: menu.querySelectorAll('[aria-current="true"]').length,
+      pressedCount: menu.querySelectorAll('[aria-pressed="true"]').length,
+      menuWidth: menu.getBoundingClientRect().width,
+      menuHeight: menu.getBoundingClientRect().height,
+      menuPadding: parseFloat(getComputedStyle(menu).paddingLeft),
+      rowGap: parseFloat(getComputedStyle(row).gap),
+      buttonHeights: buttons.map(button => button.getBoundingClientRect().height),
+      buttonYs: buttons.map(button => button.getBoundingClientRect().y),
+      labelsFit: buttons.every(button => button.scrollWidth <= button.clientWidth),
+      iconWidths: buttons.map(button => button.querySelector('svg').getBoundingClientRect().width),
+      iconColorsMatch: buttons.every(button => getComputedStyle(button.querySelector('.desktop-project-location-tab-mark')).color === getComputedStyle(button.querySelector('span:last-child')).color),
+      selectedBackground: getComputedStyle(selected).backgroundColor,
+      trackBackground: getComputedStyle(track).backgroundColor,
+      headerColorsMatch: getComputedStyle(header.querySelector('.desktop-titlebar-workspace-mark')).color === getComputedStyle(header.querySelector('.desktop-titlebar-workspace-name')).color,
       menuBackground: getComputedStyle(menu).backgroundColor,
       headerBackground: getComputedStyle(header).backgroundColor,
       menuShadow: getComputedStyle(menu).boxShadow,
-      menuBorder: getComputedStyle(menu).borderTopColor,
-      cardBorder: getComputedStyle(visual).outlineColor,
-      hasLocationAction: Boolean(locationAction),
-      locationActionBackground: locationAction ? getComputedStyle(locationAction).backgroundColor : "",
-      locationActionLabelFits: locationActionLabel
-        ? locationActionLabel.scrollWidth <= locationActionLabel.clientWidth
-        : false,
-      menuWidth: menu.getBoundingClientRect().width,
-      menuPadding: parseFloat(getComputedStyle(menu).paddingLeft),
-      cardGaps: cards.slice(1).map((card, index) => card.getBoundingClientRect().top - cards[index].getBoundingClientRect().bottom),
-      currentBadgeCount: menu.querySelectorAll('.desktop-project-edition-current').length,
-      currentBadgeText: currentLocation.querySelector('.desktop-project-edition-current')?.textContent,
-      currentBadgeFits: (() => {
-        const badge = currentLocation.querySelector('.desktop-project-edition-current');
-        return badge && badge.getBoundingClientRect().right <= currentLocation.getBoundingClientRect().right;
-      })(),
-      currentLocationAriaCurrent: currentLocation.getAttribute('aria-current'),
-      currentTitleFits: localTitle.scrollWidth <= localTitle.clientWidth,
-      localIconColor: getComputedStyle(localMark).color,
-      localTitleColor: getComputedStyle(localTitle).color,
-      headerIconColor: getComputedStyle(header.querySelector('.desktop-titlebar-workspace-mark')).color,
-      headerTitleColor: getComputedStyle(header.querySelector('.desktop-titlebar-workspace-name')).color,
-      providerNames: versions.map(row => row.dataset.backupDetails),
-      providerHeights: versions.map(row => row.getBoundingClientRect().height),
-      providerLabelLefts: labels.map(label => label.getBoundingClientRect().left),
-      providerDetailLefts: details.map(detail => detail?.getBoundingClientRect().left),
-      providerLabelsFit: labels.every(label => label.scrollWidth <= label.clientWidth),
-      providerDetailsFit: details.every(detail => detail && detail.scrollWidth <= detail.clientWidth),
-      providerTimes: versions.map(row => row.querySelector('time')?.dateTime),
-      versionCloudIcon: Boolean(menu.querySelector('.desktop-project-cloud-edition .lucide-cloud')),
-      cloudEditionLabel: menu.querySelector('.desktop-project-cloud-edition .desktop-menu-item-label')?.textContent,
-      cloudEditionAction: menu.querySelector('.desktop-project-cloud-edition .desktop-project-backup-view')?.textContent,
-      cloudEditionCurrent: menu.querySelector('.desktop-project-cloud-edition .desktop-project-edition-current')?.textContent,
-      cloudEditionFontSize: menu.querySelector('.desktop-project-cloud-edition .desktop-project-backup-heading')
-        ? parseFloat(getComputedStyle(menu.querySelector('.desktop-project-cloud-edition .desktop-project-backup-heading')).fontSize) : null,
-      githubFontSize: menu.querySelector('[data-backup-details="github"] .desktop-project-backup-heading')
-        ? parseFloat(getComputedStyle(menu.querySelector('[data-backup-details="github"] .desktop-project-backup-heading')).fontSize) : null,
-      githubIsSecondary: Boolean(menu.querySelector('.desktop-project-secondary-copies [data-backup-details="github"]')),
-      setupBeforeGithub: locationAction ? Boolean(locationAction.compareDocumentPosition(menu.querySelector('[data-backup-details="github"]') ?? locationAction) & Node.DOCUMENT_POSITION_FOLLOWING) : false,
-      hasFeatureCopy: /Version recovery|Members and Agents|Access control/.test(menu.textContent),
-      currentPath: currentLocation.querySelector('.desktop-project-current-location-path')?.textContent,
-      localTitleLeft: currentLocation.querySelector('.desktop-project-location-title')?.getBoundingClientRect().left,
-      localPathLeft: currentLocation.querySelector('.desktop-project-path-text')?.getBoundingClientRect().left,
-      localMarkCenterY: centerY(localMark),
-      localTitleCenterY: centerY(localTitle),
-      localPathFontSize: currentLocation.querySelector('.desktop-project-current-location-path')
-        ? getComputedStyle(currentLocation.querySelector('.desktop-project-current-location-path')).fontSize : null,
-      providerMarkCenterYs: versions.map(row => centerY(row.querySelector('.desktop-menu-item-icon'))),
-      providerTitleCenterYs: labels.map(label => centerY(label)),
-      providerDetailFontSizes: details.map(detail => detail ? getComputedStyle(detail).fontSize : null),
-      providerIconColors: versions.map(row => getComputedStyle(row.querySelector('.desktop-menu-item-icon')).color),
-      providerTitleColors: labels.map(label => getComputedStyle(label).color),
-      cloudBackground: menu.querySelector('.desktop-project-cloud-edition') ? getComputedStyle(menu.querySelector('.desktop-project-cloud-edition')).backgroundColor : null,
-      cloudMarkWidth: menu.querySelector('.desktop-project-cloud-edition svg')?.getBoundingClientRect().width,
-      localMarkWidth: localMark.querySelector('svg')?.getBoundingClientRect().width,
-      hasShareAction: Boolean(menu.querySelector('[data-location-action="share"]')),
+      localDisabled: buttons[0].disabled,
+      cloudDisabled: buttons[1].disabled,
+      githubUrl: github?.href,
+      githubWidth: github?.getBoundingClientRect().width,
+      githubIconWidth: github?.querySelector('.desktop-project-github-mark').getBoundingClientRect().width,
+      githubGap: github ? github.getBoundingClientRect().left - track.getBoundingClientRect().right : null,
       text: menu.textContent,
     };
   })()`, true);
 
   const evidence = JSON.stringify(snapshot);
   assert(snapshot.state === state, `Wrong fixture state: ${evidence}`);
-  assert(snapshot.menuWidth === 248, `Project card must fit the current-location label: ${evidence}`);
-  assert(snapshot.currentLocationHeight === 64 && snapshot.providerHeights.every(height => height === 64), `Project cards must stay compact and consistent: ${evidence}`);
-  assert(snapshot.menuPadding === 8 && snapshot.cardGaps.every(gap => gap === snapshot.menuPadding), `Card gaps must match the spacious menu padding: ${evidence}`);
-  assert(snapshot.currentBadgeCount === 1 && snapshot.currentBadgeText === "Current" && snapshot.currentBadgeFits
-    && snapshot.currentLocationAriaCurrent === "true", `Exactly one working copy must be clearly marked current: ${evidence}`);
-  assert(snapshot.currentTitleFits, `Current-location title is clipped: ${evidence}`);
-  assert(snapshot.localMarkWidth === 16, `Location icons must stay small: ${evidence}`);
-  assert(snapshot.localIconColor === snapshot.localTitleColor && snapshot.headerIconColor === snapshot.headerTitleColor
-    && snapshot.providerIconColors.every((color, index) => color === snapshot.providerTitleColors[index]), `Icons must follow their title colors: ${evidence}`);
-  assert(snapshot.localMarkCenterY === snapshot.localTitleCenterY, `Device mark must align with the first line: ${evidence}`);
-  assert(snapshot.providerMarkCenterYs.every((center, index) => center === snapshot.providerTitleCenterYs[index]), `Service marks must align with the first line: ${evidence}`);
-  assert(snapshot.menuBackground === snapshot.headerBackground, `Popup must share the Header background: ${evidence}`);
-  assert(snapshot.currentLocationBackground !== snapshot.menuBackground, `Device card needs a distinct background: ${evidence}`);
-  assert(snapshot.menuShadow !== "none", `Floating card needs its scoped shadow: ${evidence}`);
-  assert(snapshot.menuBorder === snapshot.cardBorder, `Popup border must follow the same themed divider as its cards: ${evidence}`);
-  assert(!snapshot.hasShareAction, `Project-version setup must not route to Share: ${evidence}`);
-  assert(!snapshot.hasFeatureCopy, `Feature promotion must stay out of the first-level card: ${evidence}`);
-  assert(snapshot.location === (state === "cloud-only" ? "cloud" : "local"), `Working-copy identity drifted: ${evidence}`);
+  assert(snapshot.menuWidth === 248 && snapshot.menuHeight <= 56, `Project menu must stay compact: ${evidence}`);
+  assert(snapshot.menuPadding === 8 && snapshot.rowGap === snapshot.menuPadding, `Control spacing must match menu padding: ${evidence}`);
+  assert(snapshot.buttonHeights.every(height => height === 32) && snapshot.buttonYs[0] === snapshot.buttonYs[1], `Local and Cloud must share one horizontal control: ${evidence}`);
+  assert(snapshot.currentCount === 1 && snapshot.pressedCount === 1, `Exactly one surface must be selected: ${evidence}`);
+  assert(snapshot.labelsFit && snapshot.text === "LocalCloud", `Only the two unclipped switch labels belong in this menu: ${evidence}`);
+  assert(snapshot.iconWidths.every(width => width === 16) && snapshot.iconColorsMatch && snapshot.headerColorsMatch, `Small icons must match their labels: ${evidence}`);
+  assert(snapshot.selectedBackground !== snapshot.trackBackground, `Current surface must have a distinct selected background: ${evidence}`);
+  assert(snapshot.menuBackground === snapshot.headerBackground && snapshot.menuShadow !== "none", `Popup must use themed Header color and a floating shadow: ${evidence}`);
+  assert(snapshot.location === (state === "cloud-only" ? "cloud" : "local"), `Current surface drifted: ${evidence}`);
+  assert(snapshot.localDisabled === (state === "cloud-only") && !snapshot.cloudDisabled, `Destination availability drifted: ${evidence}`);
   if (state === "local-only") {
-    assert(snapshot.providerNames.length === 0, `Unactivated versions cannot claim a remote service: ${evidence}`);
-    assert(snapshot.hasLocationAction && snapshot.locationActionLabelFits, `Activation CTA is missing or clipped: ${evidence}`);
-    assert(snapshot.locationActionBackground === "rgba(0, 0, 0, 0)", `Activation must stay quiet: ${evidence}`);
-  } else if (state === "local-github") {
-    assert(snapshot.providerNames.join(",") === "github", `GitHub does not activate the Cloud edition: ${evidence}`);
-    assert(snapshot.hasLocationAction && snapshot.locationActionLabelFits && snapshot.setupBeforeGithub, `Cloud setup must precede third-priority GitHub: ${evidence}`);
-    assert(snapshot.githubIsSecondary, `GitHub must be a secondary service row: ${evidence}`);
-    assert(!snapshot.text.includes("Files are only on this Mac"), `GitHub must not get a local-only claim: ${evidence}`);
+    assert(!snapshot.githubUrl, `No repository button without a recognized GitHub remote: ${evidence}`);
   } else {
-    assert(!snapshot.hasLocationAction, `Linked project must not offer activation again: ${evidence}`);
-    assert(snapshot.providerNames.join(",") === "puppyone-cloud,github", `Both version services must be listed exactly once: ${evidence}`);
-    assert(snapshot.providerLabelsFit && snapshot.providerDetailsFit, `Version text is clipped: ${evidence}`);
-    assert(snapshot.cloudBackground === snapshot.currentLocationBackground && snapshot.providerHeights[0] === snapshot.currentLocationHeight, `Local and Cloud must share the same carrier: ${evidence}`);
-    assert(snapshot.cloudMarkWidth === snapshot.localMarkWidth, `Local and Cloud icon sizes must match: ${evidence}`);
-    assert(snapshot.githubIsSecondary && snapshot.githubFontSize < snapshot.cloudEditionFontSize, `GitHub must be below the Cloud edition in visual priority: ${evidence}`);
-    assert(snapshot.providerLabelLefts[0] === snapshot.providerLabelLefts[1], `Cloud and service labels must align: ${evidence}`);
-    assert(snapshot.providerDetailLefts.every((left, index) => left === snapshot.providerLabelLefts[index]), `Metadata must align with provider names: ${evidence}`);
-    assert(snapshot.providerTimes.every(time => time === "2026-10-01T14:32:00Z"), `Remote version dates must stay factual: ${evidence}`);
-    assert(snapshot.versionCloudIcon && snapshot.cloudEditionLabel === "Cloud Version", `Cloud edition identity is missing: ${evidence}`);
-    assert(state === "cloud-only" ? snapshot.cloudEditionCurrent === "Current" && !snapshot.cloudEditionAction
-      : snapshot.cloudEditionAction === "Switch", `Use Switch for another edition and Current for this one: ${evidence}`);
+    assert(snapshot.githubUrl === "https://github.com/example/project" && snapshot.githubWidth === 32 && snapshot.githubIconWidth === 16 && snapshot.githubGap === snapshot.menuPadding, `GitHub must remain a small separate external link after Cloud: ${evidence}`);
   }
-  if (state !== "cloud-only") {
-    assert(snapshot.localTitleLeft === snapshot.localPathLeft, `Local title and path must align: ${evidence}`);
-    assert(snapshot.providerDetailFontSizes.every(size => size === snapshot.localPathFontSize), `Path and update metadata must share typography: ${evidence}`);
-    if (snapshot.providerLabelLefts.length) assert(snapshot.localTitleLeft === snapshot.providerLabelLefts[0], `All carrier text must align: ${evidence}`);
-  }
-  assert(state === "cloud-only" ? !snapshot.currentPath : snapshot.currentPath === "~/Desktop/To-Do-List", `Local path identity drifted: ${evidence}`);
 
   const captureBounds = await window.webContents.executeJavaScript(`(() => {
     const rect = document.querySelector('[data-titlebar-context-menu="true"]').getBoundingClientRect();

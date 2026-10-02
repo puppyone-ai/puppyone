@@ -10,9 +10,9 @@ import { DesktopTitlebarContext } from "../../../../src/features/app-shell/Deskt
 import { DesktopWorkspaceSwitcher } from "../../../../src/features/app-shell/DesktopWorkspaceSwitcher";
 import type { GitBranchSummary } from "../../../../src/types/electron";
 import { withTestLocalization } from "../../../support/react/localization";
-import { writeClipboardText } from "../../../../src/lib/clipboard";
+import { CloudDialog } from "../../../../src/features/cloud/CloudDialog";
+import { DesktopProjectLocationControls } from "../../../../src/features/app-shell/DesktopWorkspaceSwitcher";
 
-vi.mock("../../../../src/lib/clipboard", () => ({ writeClipboardText: vi.fn() }));
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -28,392 +28,166 @@ afterEach(() => {
 });
 
 describe("titlebar Portal menu interactions", () => {
-  it("keeps GitHub versions visible while offering PuppyOne setup without a local-only claim", async () => {
-    const container = document.createElement("div");
-    document.body.append(container);
-    root = createRoot(container);
+  it("shows only Local, Cloud and a quiet safe GitHub link, with one selected surface", async () => {
     const workspace = createWorkspace("one", "Workspace one");
-    const onViewCloud = vi.fn();
-    const onShare = vi.fn();
-    const onClose = vi.fn();
-    await act(async () => root?.render(withTestLocalization(
-      <DesktopWorkspaceSwitcher open refObject={createRef<HTMLDivElement>()}
-        titlebarLabel={workspace.name} workspace={workspace} workspaceFolders={[]}
-        multiRootWorkspacesEnabled={false} backupProviders={["github"]}
-        onClose={onClose} onViewCloud={onViewCloud} onShare={onShare} onToggle={vi.fn()}
-      />,
-    )));
-    const menu = requireMenu();
-    expect(menu.querySelector("[data-backup-details='github']")).not.toBeNull();
-    expect(menu.querySelector("[data-backup-details='puppyone-cloud']")).toBeNull();
-    expect(menu.textContent).not.toContain("Files are only on this Mac");
-    expect(menu.querySelector("time")).toBeNull();
-    const setup = menu.querySelector<HTMLButtonElement>("[data-location-action='enable-cloud-versions']")!;
-    expect(setup.querySelector(".desktop-menu-item-label")?.textContent).toBe("Create cloud backup");
-    const github = menu.querySelector("[data-backup-details='github']")!;
-    expect(setup.compareDocumentPosition(github) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(github.closest(".desktop-project-secondary-copies")).not.toBeNull();
-    expect(menu.querySelector(".desktop-project-versions-label")).toBeNull();
-    act(() => setup.click());
-    expect(onClose).toHaveBeenCalledOnce();
-    expect(onViewCloud).toHaveBeenCalledOnce();
-    expect(onShare).not.toHaveBeenCalled();
-  });
-
-  it("uses the cloud workspace icon only for an explicit remote working copy, separately from project versions", async () => {
-    const container = document.createElement("div");
-    document.body.append(container);
-    root = createRoot(container);
-    const workspace = createWorkspace("one", "Workspace one");
-    await act(async () => root?.render(withTestLocalization(
-      <DesktopWorkspaceSwitcher open refObject={createRef<HTMLDivElement>()}
-        titlebarLabel={workspace.name} workspace={workspace} workspaceFolders={[]}
-        multiRootWorkspacesEnabled={false} cloudProject={{ id: "remote-one" }}
-        projectLocation={{ current: "cloud", localAvailable: false, cloudState: "available" }}
-        backupProviders={["github"]} onClose={vi.fn()} onViewCloud={vi.fn()} onToggle={vi.fn()}
-      />,
-    )));
-    const menu = requireMenu();
-    const location = menu.querySelector(".desktop-project-current-location")!;
-    expect(location.getAttribute("data-project-location")).toBe("cloud");
-    expect(location.textContent).toBe("Cloud VersionCurrent");
-    expect(location.getAttribute("aria-current")).toBe("true");
-    expect(location.querySelector(".lucide-cloud")).not.toBeNull();
-    expect(location.querySelector(".desktop-project-current-location-path")).toBeNull();
-    expect(container.querySelector(".desktop-titlebar-workspace-button .lucide-cloud")).not.toBeNull();
-    const versions = menu.querySelector(".desktop-project-remote-copies")!;
-    expect(versions.querySelector(".lucide-cloud")).toBeNull();
-    expect(versions.querySelector(".lucide-files")).toBeNull();
-    expect(versions.querySelector("[data-backup-details='github']")).not.toBeNull();
-    const cloudEdition = location.querySelector("[data-backup-details='puppyone-cloud']")!;
-    expect(menu.querySelectorAll("[data-backup-details='puppyone-cloud']")).toHaveLength(1);
-    expect(menu.querySelectorAll(".desktop-project-edition-current")).toHaveLength(1);
-    expect(cloudEdition.querySelector("button")).toBeNull();
-    expect(cloudEdition.querySelector(".desktop-project-edition-current")?.textContent).toBe("Current");
-    expect(menu.querySelector("[data-location-action='enable-cloud-versions']")).toBeNull();
-  });
-
-  it("identifies the local device while keeping the centered project card free of branch controls", async () => {
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    root = createRoot(container);
-    const onCheckoutBranch = vi.fn(async () => true);
-    const onClose = vi.fn();
-    await act(async () => {
-      root?.render(withTestLocalization(
-        <DesktopTitlebarContext
-          compactProjectMenu availableProjects={[]}
-          backupProviders={["github", "gitlab"]}
-          backupStatus={gitStatus({
-            remotes: [{ name: "origin", fetchUrl: "https://github.com/team/project.git", pushUrl: null, branches: ["main"] }],
-            branches: [{ ...createBranch("origin/main"), remote: true, lastCommitId: "remote-commit",
-              lastCommitDate: "2026-09-30T01:00:00Z", lastCommitMessage: "Update project notes" }],
-            syncTarget: { remote: "origin", branch: "main", ref: "origin/main", exists: true,
-              ahead: 2, behind: 0, incomingPreview: [], outgoingPreview: [] },
-          })}
-          activeGitStatus={createGitStatus()}
-          branchSwitcherOpen={false}
-          branchSwitcherRef={createRef<HTMLDivElement>()}
-          gitStatusLoading={false} gitOperationLoading={null}
-          localBranches={[createBranch("feature/menu")]} remoteBranches={[]}
-          workspace={createWorkspace("one", "Workspace one")}
-          workspaceFolders={[]} multiRootWorkspacesEnabled={false}
-          workspaceSwitcherOpen workspaceSwitcherRef={createRef<HTMLDivElement>()}
-          onCheckoutBranch={onCheckoutBranch}
-          onCloseBranchSwitcher={vi.fn()} onCloseWorkspaceSwitcher={onClose}
-          onAddProject={vi.fn()} onAddExistingProject={vi.fn()}
-          onToggleBranchSwitcher={vi.fn()} onToggleWorkspaceSwitcher={vi.fn()}
-        />,
-      ));
+    await renderSwitcher({
+      workspace,
+      backupProviders: ["github", "gitlab"],
+      backupStatus: gitStatus({ remotes: [{ name: "origin",
+        fetchUrl: "https://github.com/team/project.git", pushUrl: null, branches: [] }] }),
+      onViewCloud: vi.fn(),
     });
-    expect(container.querySelector(".desktop-titlebar-branch-button")).toBeNull();
     const menu = requireMenu();
-    expect(menu.querySelector(".desktop-project-branch")).toBeNull();
-    expect(menu.querySelector(".desktop-project-current-location .desktop-project-edition-current")?.textContent).toBe("Current");
-    expect(menu.querySelector(".desktop-project-location-visual .lucide-laptop")).not.toBeNull();
-    expect(menu.querySelector(".desktop-project-location-visual .lucide-cloud")).toBeNull();
-    expect(menu.querySelector(".desktop-project-cloud-copy")).toBeNull();
-    expect(menu.querySelector("[role='group'][aria-label='This Mac']")).not.toBeNull();
-    expect(menu.textContent).not.toContain("main");
-    expect(onCheckoutBranch).not.toHaveBeenCalled();
-    expect(onClose).not.toHaveBeenCalled();
-    expect(menu.querySelector(".desktop-project-backup-services")).toBeNull();
-    expect(container.querySelector(".desktop-titlebar-cloud-button")).toBeNull();
-    expect(container.querySelector(".desktop-titlebar-workspace-wrap img")).toBeNull();
-    expect(container.querySelector(".desktop-titlebar-workspace-wrap .desktop-project-github-mark")).toBeNull();
-    expect(menu.querySelector("[role='group'][aria-label='Project versions']")).not.toBeNull();
-    expect(Array.from(requireMenu().querySelectorAll<HTMLElement>("[data-backup-details]"))
-      .map((details) => details.dataset.backupDetails)).toEqual(["github", "gitlab"]);
-    expect(requireMenu().querySelector("[data-backup-details='github'] time")?.getAttribute("dateTime"))
-      .toBe("2026-09-30T01:00:00Z");
-    expect(requireMenu().textContent).toContain("Updated ·");
-    expect(requireMenu().textContent).not.toContain("Update project notes");
-    expect(requireMenu().textContent).not.toContain("2 commits to back up");
-    expect(requireMenu().textContent).not.toContain("Remote version");
-    expect(requireMenu().textContent).not.toContain("remote-commit");
-    expect(requireMenu().textContent).not.toContain("Backup time not recorded");
-    expect(onClose).not.toHaveBeenCalled();
+    expect(menu.getAttribute("role")).toBe("dialog");
+    expect(menu.textContent).toBe("LocalCloud");
+    expect(menu.querySelectorAll("button")).toHaveLength(2);
+    expect(menu.querySelectorAll("[aria-current='true']")).toHaveLength(1);
+    expect(locationButton("local").getAttribute("aria-pressed")).toBe("true");
+    expect(locationButton("cloud").getAttribute("aria-pressed")).toBe("false");
+    expect(menu.querySelector("time")).toBeNull();
+    expect(menu.querySelector("[data-backup-details]")).toBeNull();
+    expect(menu.textContent).not.toContain(workspace.path);
+    const link = menu.querySelector<HTMLAnchorElement>("a")!;
+    expect(link.getAttribute("aria-label")).toBe("Open GitHub repository");
+    expect(link.href).toBe("https://github.com/team/project");
+    expect(link.textContent).toBe("");
+    expect(link.querySelector(".desktop-project-github-mark")).not.toBeNull();
+    expect(locationButton("cloud").compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it.each([undefined, "unavailable", "available", "signed-out", "resolving", "attention"] as const)(
-    "keeps a Cloud-linked local working copy on this Mac with Share state %s",
-    async (cloudState) => {
-      const container = document.createElement("div");
-      document.body.append(container);
-      root = createRoot(container);
-      const workspace = {
-        ...createWorkspace("one", "Workspace one"),
-        path: "/Users/example/project/demo",
-        puppyoneGitRemote: { origin: "https://cloud.example.com", projectId: "linked-project" },
-      };
-      vi.mocked(writeClipboardText).mockResolvedValue(undefined);
-      await act(async () => {
-        root?.render(withTestLocalization(
-          <DesktopWorkspaceSwitcher
-            open refObject={createRef<HTMLDivElement>()} titlebarLabel={workspace.name}
-            workspace={workspace} workspaceFolders={[createWorkspaceFolder(workspace)]}
-            multiRootWorkspacesEnabled={false}
-            projectLocation={cloudState ? { current: "local", localAvailable: true, cloudState } : undefined}
-            onClose={vi.fn()} onShare={vi.fn()} onToggle={vi.fn()}
-          />,
-        ));
+    "does not select Cloud just because the local project has a remote (%s)", async (cloudState) => {
+      await renderSwitcher({
+        workspace: { ...createWorkspace("one", "Workspace one"),
+          puppyoneGitRemote: { origin: "https://cloud.example.com", projectId: "linked-project" } },
+        projectLocation: cloudState ? { current: "local", localAvailable: true, cloudState } : undefined,
+        onViewCloud: vi.fn(),
       });
-      const header = container.querySelector(".desktop-titlebar-workspace-button");
-      expect(header?.querySelector(".lucide-laptop")).not.toBeNull();
-      expect(header?.querySelector(".lucide-cloud")).toBeNull();
-      expect(container.querySelector(".desktop-titlebar-cloud-button")).toBeNull();
-      expect(container.querySelector(".desktop-titlebar-workspace-location-link")).toBeNull();
-      expect(header?.getAttribute("aria-label")).toContain("This Mac");
-      const menu = requireMenu();
-      const location = menu.querySelector(".desktop-project-current-location");
-      expect(location?.getAttribute("data-project-location")).toBe("local");
-      expect(location?.querySelector(".desktop-project-current-location-mark .lucide-laptop")).not.toBeNull();
-      expect(location?.querySelector(".lucide-cloud")).toBeNull();
-      expect(location?.querySelector(".desktop-project-location-link")).toBeNull();
-      expect(menu.querySelector(".desktop-project-cloud-copy")).toBeNull();
-      expect(menu.textContent).not.toContain("Cloud copy");
-      const path = location?.querySelector<HTMLButtonElement>(".desktop-project-current-location-path");
-      expect(path?.textContent).toBe("~/project/demo");
-      expect(path?.getAttribute("aria-label")).toBe(workspace.path);
-      await act(async () => path?.click());
-      expect(writeClipboardText).toHaveBeenLastCalledWith(workspace.path);
-      expect(path?.getAttribute("data-copy-feedback")).toBe("copied");
-      expect(menu.querySelector("[data-location-action='enable-cloud-versions']")).toBeNull();
+      expect(document.querySelector(".desktop-titlebar-workspace-button .lucide-laptop")).not.toBeNull();
+      expect(locationButton("local").getAttribute("aria-pressed")).toBe("true");
+      expect(locationButton("cloud").disabled).toBe(cloudState === "resolving");
     },
   );
 
-  it("opens only the actual GitHub repository from the service heading and closes the card", async () => {
+  it.each(["unavailable", "available", "signed-out", "attention"] as const)(
+    "closes the menu before navigating to Cloud, independently of Share (%s)", async (cloudState) => {
+      const actions: string[] = [];
+      const onShare = vi.fn();
+      await renderSwitcher({
+        projectLocation: { current: "local", localAvailable: true, cloudState },
+        onClose: () => actions.push("close"),
+        onViewCloud: () => actions.push("cloud"),
+        onShare,
+      });
+      act(() => locationButton("cloud").click());
+      expect(actions).toEqual(["close", "cloud"]);
+      expect(onShare).not.toHaveBeenCalled();
+      // Selection changes only when the caller actually displays Cloud.
+      expect(locationButton("local").getAttribute("aria-pressed")).toBe("true");
+    },
+  );
+
+  it("does not offer a false switch when a destination is unavailable", async () => {
+    const onLocal = vi.fn();
+    const onCloud = vi.fn();
+    const onClose = vi.fn();
+    await renderSwitcher({
+      projectLocation: { current: "cloud", localAvailable: false, cloudState: "available" },
+      onViewLocal: onLocal, onViewCloud: onCloud, onClose,
+    });
+    expect(locationButton("local").disabled).toBe(true);
+    act(() => locationButton("local").click());
+    expect(onLocal).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    act(() => locationButton("cloud").click());
+    expect(onCloud).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(document.querySelector(".desktop-titlebar-workspace-button .lucide-cloud")).not.toBeNull();
+  });
+
+  it("opens the GitHub push repository without navigating either project surface", async () => {
+    const onLocal = vi.fn();
+    const onCloud = vi.fn();
+    const onClose = vi.fn();
+    await renderSwitcher({
+      backupProviders: ["github"],
+      backupStatus: gitStatus({ remotes: [{ name: "origin",
+        fetchUrl: "https://github.com/upstream/project.git",
+        pushUrl: "git@github.com:team/fork.git", branches: [] }] }),
+      onViewLocal: onLocal, onViewCloud: onCloud, onClose,
+    });
+    const link = requireMenu().querySelector<HTMLAnchorElement>("a")!;
+    expect(link.href).toBe("https://github.com/team/fork");
+    expect(link.target).toBe("_blank");
+    expect(link.rel).toBe("noopener noreferrer");
+    link.addEventListener("click", (event) => event.preventDefault());
+    act(() => link.click());
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(onLocal).not.toHaveBeenCalled();
+    expect(onCloud).not.toHaveBeenCalled();
+  });
+
+  it.each(["https://github.com.evil.example/team/project", "javascript:alert(1)", "https://gitlab.com/team/project"])(
+    "hides the GitHub button without a recognized GitHub repository (%s)", async (fetchUrl) => {
+      await renderSwitcher({ backupProviders: ["github"],
+        backupStatus: gitStatus({ remotes: [{ name: "origin", fetchUrl, pushUrl: null, branches: [] }] }) });
+      expect(requireMenu().querySelector("a")).toBeNull();
+      expect(locationButton("cloud").disabled).toBe(true);
+    },
+  );
+
+  it("switches Local → Cloud → Local through the Header and preserves the local editor", async () => {
     const container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
     const workspace = createWorkspace("one", "Workspace one");
-    const onClose = vi.fn();
-    const onShare = vi.fn();
-    await act(async () => root?.render(withTestLocalization(
-      <DesktopWorkspaceSwitcher open refObject={createRef<HTMLDivElement>()}
-        titlebarLabel={workspace.name} workspace={workspace} workspaceFolders={[]}
-        multiRootWorkspacesEnabled={false} cloudProject={{ id: "cloud-notes" }}
-        backupProviders={["github", "gitlab"]}
-        backupStatus={gitStatus({ remotes: [{ name: "origin", fetchUrl: "https://github.com/team/source.git",
-          pushUrl: "git@github.com:team/project.git", branches: [] }] })}
-        onClose={onClose} onToggle={vi.fn()} onShare={onShare}
-      />,
-    )));
-    const menu = requireMenu();
-    const link = menu.querySelector<HTMLAnchorElement>("[data-backup-details='github'] a")!;
-    expect(link.getAttribute("href")).toBe("https://github.com/team/project");
-    expect(link.getAttribute("target")).toBe("_blank");
-    expect(link.getAttribute("rel")).toBe("noopener noreferrer");
-    expect(link.getAttribute("aria-label")).toBe("Open GitHub repository");
-    expect(link.querySelector(".lucide-external-link")).not.toBeNull();
-    expect(menu.querySelector("[data-backup-details='puppyone-cloud'] a")).toBeNull();
-    expect(menu.querySelector("[data-backup-details='puppyone-cloud'] button")).toBeNull();
-    expect(menu.querySelector("[data-backup-details='gitlab'] a")).toBeNull();
-    expect(onClose).not.toHaveBeenCalled();
-    act(() => link.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true })));
-    expect(onClose).toHaveBeenCalledOnce();
-    expect(onShare).not.toHaveBeenCalled();
-  });
-
-  it.each(["available", "signed-out"] as const)("views the Cloud copy through existing navigation with state %s", async (cloudState) => {
-    const container = document.createElement("div");
-    document.body.append(container);
-    root = createRoot(container);
-    const workspace = { ...createWorkspace("one", "Workspace one"), path: "/Users/example/project/local-notes" };
-    const onClose = vi.fn();
-    const onViewCloud = vi.fn();
-    const onShare = vi.fn();
-    await act(async () => root?.render(withTestLocalization(
-      <DesktopTitlebarContext compactProjectMenu availableProjects={[]}
-        activeGitStatus={createGitStatus()} branchSwitcherOpen={false}
-        branchSwitcherRef={createRef<HTMLDivElement>()} gitStatusLoading={false}
-        gitOperationLoading={null} localBranches={[]} remoteBranches={[]}
-        projectLocation={{ current: "local", localAvailable: true, cloudState }}
-        cloudProject={{ id: "cloud-notes" }} workspace={workspace} workspaceFolders={[]}
-        multiRootWorkspacesEnabled={false} workspaceSwitcherOpen
-        workspaceSwitcherRef={createRef<HTMLDivElement>()}
-        onCheckoutBranch={vi.fn(async () => true)} onCloseBranchSwitcher={vi.fn()}
-        onCloseWorkspaceSwitcher={onClose} onAddProject={vi.fn()} onAddExistingProject={vi.fn()}
-        onShare={onShare} onViewCloud={onViewCloud}
-        onToggleBranchSwitcher={vi.fn()} onToggleWorkspaceSwitcher={vi.fn()}
-      />,
-    )));
-    const menu = requireMenu();
-    const view = menu.querySelector<HTMLButtonElement>("[data-backup-details='puppyone-cloud'] button")!;
-    expect(view.getAttribute("aria-label")).toBe("Switch to cloud version");
-    expect(view.querySelector(".desktop-project-backup-view")?.textContent).toBe("Switch");
-    expect(view.textContent).toBe("Cloud VersionSwitch");
-    expect(view.querySelector(".lucide-files")).toBeNull();
-    expect(view.querySelector(".lucide-cloud")).not.toBeNull();
-    expect(menu.querySelector("[data-location-action='enable-cloud-versions']")).toBeNull();
-    expect(menu.querySelector(".desktop-project-current-location")?.getAttribute("data-project-location")).toBe("local");
-    expect(menu.querySelector(".desktop-project-current-location-path")?.textContent).toBe("~/project/local-notes");
-    expect(container.querySelector(".desktop-titlebar-cloud-button")).toBeNull();
-    expect(onViewCloud).not.toHaveBeenCalled();
-    act(() => view.click());
-    expect(onClose).toHaveBeenCalledOnce();
-    expect(onViewCloud).toHaveBeenCalledOnce();
-    expect(onClose.mock.invocationCallOrder[0]).toBeLessThan(onViewCloud.mock.invocationCallOrder[0]);
-    expect(onShare).not.toHaveBeenCalled();
-  });
-
-  it("shows Cloud details below the local card with Share disabled and clears them on project change", async () => {
-    const container = document.createElement("div");
-    document.body.append(container);
-    root = createRoot(container);
-    const linkedWorkspace = { ...createWorkspace("one", "Workspace one"), path: "/Users/example/project/local-notes" };
-    const nextWorkspace = { ...createWorkspace("two", "Workspace two"), path: "/Users/example/project/other" };
-    const renderProject = async (workspace: typeof linkedWorkspace, cloudProject?: { id: string; name: string }) => {
-      await act(async () => {
-        root?.render(withTestLocalization(
-          <DesktopWorkspaceSwitcher
-            open refObject={createRef<HTMLDivElement>()} titlebarLabel={workspace.name}
-            workspace={workspace} workspaceFolders={[createWorkspaceFolder(workspace)]}
-            multiRootWorkspacesEnabled={false} cloudProject={cloudProject}
-            onClose={vi.fn()} onToggle={vi.fn()}
-          />,
-        ));
-      });
-    };
-    await renderProject(linkedWorkspace, { id: "cloud-notes", name: "Remote Notes" });
-    expect(container.querySelector(".desktop-titlebar-cloud-button")).toBeNull();
-    const menu = requireMenu();
-    const localCard = menu.querySelector(".desktop-project-current-location");
-    expect(localCard?.querySelector(".lucide-laptop")).not.toBeNull();
-    expect(localCard?.querySelector(".lucide-cloud")).toBeNull();
-    expect(localCard?.textContent).toBe("On This Mac~/project/local-notesCurrent");
-    expect(localCard?.getAttribute("aria-current")).toBe("true");
-    expect(menu.querySelectorAll(".desktop-project-edition-current")).toHaveLength(1);
-    expect(menu.querySelector("[data-location-action='share']")).toBeNull();
-    expect(requireMenu().getAttribute("role")).toBe("menu");
-    expect(requireMenu().querySelector("[data-backup-details='puppyone-cloud']")?.textContent).toBe("Cloud Version");
-    expect(requireMenu().querySelector("time")).toBeNull();
-    expect(requireMenu().querySelector(".desktop-project-current-location")).not.toBeNull();
-
-    await renderProject(nextWorkspace);
-    expect(container.querySelector(".desktop-titlebar-cloud-button")).toBeNull();
-    expect(requireMenu().querySelector(".desktop-project-remote-copies")).toBeNull();
-    expect(requireMenu().querySelector(".desktop-project-cloud-copy")).toBeNull();
-    expect(requireMenu().textContent).not.toContain("Remote Notes");
-    expect(requireMenu().querySelector(".desktop-project-current-location-path")?.textContent)
-      .toBe("~/project/other");
-  });
-
-  it.each([false, undefined])("keeps remote services inside the project card in the classic Header: compact %s", async (compactProjectMenu) => {
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    root = createRoot(container);
-    await act(async () => {
-      root?.render(withTestLocalization(
-        <DesktopTitlebarContext
-          compactProjectMenu={compactProjectMenu} availableProjects={[]}
-          backupProviders={["github", "gitlab"]}
+    function Harness() {
+      const [cloudOpen, setCloudOpen] = useState(false);
+      const [menuOpen, setMenuOpen] = useState(true);
+      const [draft, setDraft] = useState("Unsaved local draft");
+      const location = { current: cloudOpen ? "cloud" as const : "local" as const,
+        localAvailable: true, cloudState: "available" as const };
+      return <>
+        <input aria-label="Local draft" value={draft} onChange={(event) => setDraft(event.target.value)} />
+        <DesktopTitlebarContext availableProjects={[]} compactProjectMenu
           activeGitStatus={createGitStatus()} branchSwitcherOpen={false}
-          branchSwitcherRef={createRef<HTMLDivElement>()}
-          gitStatusLoading={false} gitOperationLoading={null}
-          localBranches={[]} remoteBranches={[]}
-          workspace={createWorkspace("one", "Workspace one")}
-          workspaceFolders={[]} multiRootWorkspacesEnabled={false}
-          workspaceSwitcherOpen workspaceSwitcherRef={createRef<HTMLDivElement>()}
-          onCheckoutBranch={vi.fn(async () => true)}
-          onCloseBranchSwitcher={vi.fn()} onCloseWorkspaceSwitcher={vi.fn()}
+          branchSwitcherRef={createRef<HTMLDivElement>()} gitStatusLoading={false}
+          gitOperationLoading={null} localBranches={[]} remoteBranches={[]}
+          workspace={workspace} workspaceFolders={[]} multiRootWorkspacesEnabled={false}
+          projectLocation={location} workspaceSwitcherOpen={menuOpen}
+          workspaceSwitcherRef={createRef<HTMLDivElement>()}
+          onCheckoutBranch={vi.fn(async () => true)} onCloseBranchSwitcher={vi.fn()}
+          onCloseWorkspaceSwitcher={() => setMenuOpen(false)}
           onAddProject={vi.fn()} onAddExistingProject={vi.fn()}
-          onToggleBranchSwitcher={vi.fn()} onToggleWorkspaceSwitcher={vi.fn()}
-        />,
-      ));
-    });
-    expect(requireMenu().querySelector(".desktop-project-backup-services")).toBeNull();
-    expect(container.querySelector(".desktop-titlebar-cloud-button")).toBeNull();
-    expect(Array.from(requireMenu().querySelectorAll<HTMLElement>("[data-backup-details]"))
-      .map((details) => details.dataset.backupDetails)).toEqual(["github", "gitlab"]);
-    expect(container.querySelector(".desktop-titlebar-workspace-wrap img")).toBeNull();
+          onViewLocal={() => setCloudOpen(false)} onViewCloud={() => setCloudOpen(true)}
+          onToggleBranchSwitcher={vi.fn()} onToggleWorkspaceSwitcher={() => setMenuOpen((open) => !open)}
+        />
+        {cloudOpen && <CloudDialog sidebar={<nav>Cloud navigation</nav>} main={<div>Cloud project</div>}
+          onClose={() => setCloudOpen(false)}
+          locationControls={<DesktopProjectLocationControls projectLocation={location}
+            onViewLocal={() => setCloudOpen(false)} onViewCloud={() => setCloudOpen(true)} />} />}
+      </>;
+    }
+    await act(async () => root?.render(withTestLocalization(<Harness />)));
+    const editor = container.querySelector<HTMLInputElement>("input")!;
+    const project = container.querySelector<HTMLButtonElement>(".desktop-titlebar-workspace-button")!;
+    expect(container.querySelector(".desktop-titlebar-branch-button")).toBeNull();
+    await act(async () => locationButton("cloud").click());
+    expect(document.querySelector("[data-titlebar-context-menu]")).toBeNull();
+    const cloud = document.querySelector(".desktop-cloud-dialog")!;
+    expect(cloud.querySelector("[data-project-location='cloud'][aria-pressed='true']")).not.toBeNull();
+    expect(cloud.textContent).toContain("Cloud project");
+    expect(project.querySelector(".lucide-cloud")).not.toBeNull();
+    await act(async () => cloud.querySelector<HTMLButtonElement>("button[data-project-location='local']")!.click());
+    expect(document.querySelector(".desktop-cloud-dialog")).toBeNull();
+    expect(container.querySelector("input")).toBe(editor);
+    expect(editor.value).toBe("Unsaved local draft");
+    expect(project.querySelector(".lucide-laptop")).not.toBeNull();
+    await act(async () => project.click());
+    expect(locationButton("local").getAttribute("aria-pressed")).toBe("true");
   });
 
-  it.each(["unavailable", "available", "signed-out", "resolving", "attention"] as const)(
-    "routes version setup or viewing to the Cloud Homepage with cloud state %s",
-    async (cloudState) => {
-      const container = document.createElement("div");
-      document.body.appendChild(container);
-      root = createRoot(container);
-      const workspace = { ...createWorkspace("one", "Workspace one"), path: "/Users/example/project/demo" };
-      const onShare = vi.fn();
-      const onViewCloud = vi.fn();
-      const onClose = vi.fn();
-      await act(async () => {
-        root?.render(withTestLocalization(
-          <DesktopWorkspaceSwitcher
-            open refObject={createRef<HTMLDivElement>()} titlebarLabel={workspace.name}
-            workspace={workspace} workspaceFolders={[createWorkspaceFolder(workspace)]}
-            multiRootWorkspacesEnabled={false}
-            projectLocation={{ current: "local", localAvailable: true, cloudState }}
-            onClose={onClose} onShare={onShare} onViewCloud={onViewCloud} onToggle={vi.fn()}
-          />,
-        ));
-      });
-      const menu = requireMenu();
-      expect(container.querySelector(".desktop-titlebar-workspace-button .lucide-laptop")).not.toBeNull();
-      const location = menu.querySelector(".desktop-project-current-location");
-      expect(location?.querySelector(".desktop-project-location-visual")?.getAttribute("aria-label"))
-        .toBe("This Mac");
-      expect(location?.querySelector(".lucide-folder")).toBeNull();
-      expect(location?.querySelector(".lucide-cloud")).toBeNull();
-      expect(container.querySelector(".desktop-titlebar-cloud-button")).toBeNull();
-      expect(Boolean(menu.querySelector("[data-backup-details='puppyone-cloud']")))
-        .toBe(cloudState === "available" || cloudState === "signed-out");
-      expect(menu.querySelector(".desktop-project-cloud-copy")).toBeNull();
-      expect(location?.querySelector(".desktop-project-current-location-path")?.textContent).toBe("~/project/demo");
-      expect(location?.querySelector(".desktop-project-current-location-path")?.getAttribute("aria-label"))
-        .toBe(workspace.path);
-      expect(menu.textContent).toContain("On This Mac");
-      expect(location?.querySelector(".desktop-project-edition-current")?.textContent).toBe("Current");
-      expect(menu.querySelector(".desktop-project-backup-services")).toBeNull();
-      expect(menu.querySelector("[data-location-action='share']")).toBeNull();
-      const setup = menu.querySelector<HTMLButtonElement>("[data-location-action='enable-cloud-versions']");
-      const linked = cloudState === "available" || cloudState === "signed-out";
-      expect(Boolean(setup)).toBe(!linked);
-      if (setup) {
-        expect(setup.querySelector(".desktop-menu-item-label")?.textContent).toBe("Create cloud backup");
-        expect(setup.querySelector(".desktop-menu-item-detail")).toBeNull();
-        expect(setup.querySelector(".lucide-circle-plus")).not.toBeNull();
-        expect(setup.querySelector(".lucide-cloud")).toBeNull();
-        expect(setup.disabled).toBe(cloudState === "resolving");
-      }
-      expect(onShare).not.toHaveBeenCalled();
-      const action = setup ?? menu.querySelector<HTMLButtonElement>("[data-backup-details='puppyone-cloud'] button");
-      act(() => action?.click());
-      if (cloudState === "resolving") {
-        expect(onClose).not.toHaveBeenCalled();
-        expect(onViewCloud).not.toHaveBeenCalled();
-      } else {
-        expect(onClose).toHaveBeenCalledOnce();
-        expect(onViewCloud).toHaveBeenCalledOnce();
-        expect(onClose.mock.invocationCallOrder[0]).toBeLessThan(onViewCloud.mock.invocationCallOrder[0]);
-      }
-      expect(onShare).not.toHaveBeenCalled();
-    },
-  );
-
-  it("opens the project card with remote copies and preserves dismissal and keyboard focus", async () => {
+  it("preserves dismissal and keyboard focus in the compact project menu", async () => {
     const container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -438,11 +212,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(document.querySelector("[data-titlebar-context-menu]")).toBeNull();
     await act(async () => project.click());
     expect(onToggle).toHaveBeenCalledOnce();
-    expect(Array.from(requireMenu().querySelectorAll<HTMLElement>("[data-backup-details]"))
-      .map((details) => details.dataset.backupDetails)).toEqual(["puppyone-cloud", "github", "gitlab"]);
-    expect(requireMenu().querySelector(".desktop-project-remote-copies")?.textContent).toBe("Cloud VersionGitHub version copyGitLab version copy");
-    expect(requireMenu().querySelector(".desktop-project-current-location")).not.toBeNull();
-    expect(requireMenu().querySelector("time")).toBeNull();
+    expect(requireMenu().textContent).toBe("LocalCloud");
     expect(project.getAttribute("aria-expanded")).toBe("true");
     act(() => requireMenu().dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     expect(onClose).toHaveBeenCalledOnce();
@@ -494,8 +264,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(container.contains(menu)).toBe(false);
     expect(menu.dataset.windowNoDrag).toBe("true");
     expect(menu.style.width).toBe("248px");
-    expect(menu.querySelector("[data-workspace-menu-layout='workspace-composition-v1']"))
-      .not.toBeNull();
+    expect(menu.querySelector(".desktop-project-location-controls")).not.toBeNull();
     expect(menu.textContent).toContain("Add Project…");
     expect(menu.textContent).not.toContain("Open Folder in New Window…");
     expect(menu.textContent).not.toContain("Workspace one");
@@ -507,7 +276,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(menu.querySelector(".desktop-project-option.selected")).toBeNull();
     expect(menu.querySelectorAll("[aria-current='true']")).toHaveLength(1);
     expect(menu.querySelector("[aria-current='true']")?.getAttribute("data-project-location")).toBe("local");
-    expect(menu.querySelector("button.desktop-project-current-location-path")).not.toBeNull();
+    expect(menu.querySelector("button.desktop-project-current-location-path")).toBeNull();
     expect(menu.querySelector(".desktop-project-copy-path")).toBeNull();
     expect(menu.querySelector(".desktop-project-option")?.getAttribute("aria-disabled"))
       .toBe("true");
@@ -522,74 +291,6 @@ describe("titlebar Portal menu interactions", () => {
 
     expect(onAddProject).toHaveBeenCalledOnce();
     expect(onAddExistingProject).toHaveBeenCalledWith(thirdWorkspace.path);
-  });
-
-  it.each([false, true])("copies the absolute project path and reports clipboard failure: %s", async (fails) => {
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    root = createRoot(container);
-    const workspace = { ...createWorkspace("one", "Workspace one"), path: "/Users/example/project/demo" };
-    const clipboard = vi.mocked(writeClipboardText);
-    if (fails) clipboard.mockRejectedValueOnce(new Error("Clipboard unavailable"));
-    else clipboard.mockResolvedValueOnce(undefined);
-    const onClose = vi.fn();
-    await act(async () => {
-      root?.render(withTestLocalization(
-        <DesktopWorkspaceSwitcher
-          open refObject={createRef<HTMLDivElement>()} titlebarLabel={workspace.name}
-          workspace={workspace} workspaceFolders={[]} multiRootWorkspacesEnabled={false}
-          onClose={onClose} onToggle={vi.fn()}
-        />,
-      ));
-    });
-    const copyButton = requireMenu().querySelector<HTMLButtonElement>(".desktop-project-current-location-path");
-    expect(copyButton?.getAttribute("aria-label")).toBe(workspace.path);
-    expect(copyButton?.getAttribute("data-tooltip")).toBe("Copy path");
-    vi.useFakeTimers();
-    await act(async () => { copyButton?.click(); });
-    expect(clipboard).toHaveBeenLastCalledWith(workspace.path);
-    const feedback = fails ? "Couldn’t copy. Try again." : "Copied";
-    expect(copyButton?.textContent).toBe(feedback);
-    expect(copyButton?.getAttribute("data-tooltip")).toBe(feedback);
-    expect(copyButton?.getAttribute("data-copy-feedback")).toBe(fails ? "failed" : "copied");
-    expect(Boolean(copyButton?.querySelector(".lucide-check"))).toBe(!fails);
-    expect(requireMenu().querySelector("[role='status']")?.textContent).toBe(feedback);
-    expect(onClose).not.toHaveBeenCalled();
-    act(() => vi.advanceTimersByTime(1_500));
-    expect(copyButton?.textContent).toBe("~/project/demo");
-    expect(copyButton?.getAttribute("data-tooltip")).toBe("Copy path");
-    expect(copyButton?.hasAttribute("data-copy-feedback")).toBe(false);
-    expect(requireMenu().querySelector("[role='status']")?.textContent).toBe("");
-  });
-
-  it("reveals an overflowing path on hover and stops when the pointer leaves", async () => {
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    root = createRoot(container);
-    await act(async () => {
-      root?.render(withTestLocalization(
-        <DesktopWorkspaceSwitcher
-          open refObject={createRef<HTMLDivElement>()} titlebarLabel="Workspace one"
-          workspace={createWorkspace("one", "Workspace one")} workspaceFolders={[]}
-          multiRootWorkspacesEnabled={false} onClose={vi.fn()} onToggle={vi.fn()}
-        />,
-      ));
-    });
-    const pathButton = requireMenu().querySelector<HTMLButtonElement>(".desktop-project-current-location-path");
-    const path = pathButton?.querySelector<HTMLElement>(".desktop-project-path-text");
-    if (!path || !pathButton) throw new Error("Missing path copy button and scroll region");
-    Object.defineProperties(path, { scrollWidth: { value: 400 }, clientWidth: { value: 120 } });
-    let nextFrame: FrameRequestCallback | undefined;
-    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => { nextFrame = callback; return 1; });
-    const cancel = vi.spyOn(window, "cancelAnimationFrame");
-    vi.spyOn(performance, "now").mockReturnValue(0);
-    act(() => pathButton.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })));
-    expect(nextFrame).toBeDefined();
-    act(() => nextFrame?.(1500));
-    expect(path.scrollLeft).toBe(35);
-    act(() => pathButton.dispatchEvent(new MouseEvent("mouseout", { bubbles: true })));
-    expect(path.scrollLeft).toBe(0);
-    expect(cancel).toHaveBeenCalledWith(1);
   });
 
   it("dismisses a titlebar menu when the user points outside it", async () => {
@@ -742,7 +443,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(branchButton?.querySelector(".desktop-titlebar-branch-placeholder")).not.toBeNull();
   });
 
-  it("shows the local location mark and omits the Header Cloud entry from the project menu", async () => {
+  it("keeps the local Header mark and disables Cloud when no navigation is provided", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -779,13 +480,9 @@ describe("titlebar Portal menu interactions", () => {
     expect(workspaceButton?.querySelector('.lucide-folder-closed')).toBeNull();
     expect(workspaceButton?.getAttribute("aria-label")).toContain("This Mac");
     expect(container.querySelector(".desktop-titlebar-cloud-button")).toBeNull();
-    expect(requireMenu().querySelector(".desktop-project-cloud")).toBeNull();
-    expect(requireMenu().textContent).not.toContain("Cloud");
-    const currentLocation = requireMenu().querySelector(".desktop-project-current-location");
-    expect(currentLocation?.querySelector(".desktop-project-location-visual")?.getAttribute("aria-label")).toBe("This Mac");
-    expect(currentLocation?.querySelector(".desktop-project-current-location-path")?.textContent).toBe("/tmp/one");
-    expect(currentLocation?.querySelector(".desktop-project-edition-current")?.textContent).toBe("Current");
-    expect(currentLocation?.textContent).toContain("On This Mac");
+    expect(requireMenu().textContent).toBe("LocalCloud");
+    expect(locationButton("local").getAttribute("aria-pressed")).toBe("true");
+    expect(locationButton("cloud").disabled).toBe(true);
   });
 });
 
@@ -820,4 +517,22 @@ function createBranch(name: string): GitBranchSummary {
 
 function createGitStatus() {
   return gitStatus({ branch: "main" });
+}
+
+function locationButton(location: "local" | "cloud"): HTMLButtonElement {
+  const button = requireMenu().querySelector<HTMLButtonElement>(`button[data-project-location="${location}"]`);
+  if (!button) throw new Error(`Missing ${location} switch`);
+  return button;
+}
+
+async function renderSwitcher(props: Partial<Parameters<typeof DesktopWorkspaceSwitcher>[0]> = {}) {
+  const container = document.createElement("div");
+  document.body.append(container);
+  root = createRoot(container);
+  const workspace = createWorkspace("one", "Workspace one");
+  await act(async () => root?.render(withTestLocalization(
+    <DesktopWorkspaceSwitcher open refObject={createRef<HTMLDivElement>()}
+      titlebarLabel={workspace.name} workspace={workspace} workspaceFolders={[]}
+      multiRootWorkspacesEnabled={false} onClose={vi.fn()} onToggle={vi.fn()} {...props} />,
+  )));
 }

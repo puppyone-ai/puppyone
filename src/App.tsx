@@ -75,6 +75,7 @@ import type { PuppyoneWorkspaceConfig } from "./types/electron";
 import {
   mergePuppyoneWorkspaceConfig,
 } from "./features/app-shell/preferences";
+import { DesktopProjectLocationControls } from "./features/app-shell/DesktopWorkspaceSwitcher";
 import { DesktopTitlebarContext } from "./features/app-shell/DesktopTitlebarContext";
 import { getProjectBackupProviders } from "./features/app-shell/projectBackupProviders";
 import { DesktopWorkspaceContent } from "./features/app-shell/DesktopWorkspaceContent";
@@ -747,9 +748,10 @@ function AppContent() {
   });
   const cloudSignedIn = activeCloudSession !== null;
   const projectLocationStatus = resolveProjectLocationStatus(projectCloudContext, cloudSignedIn);
-  const projectLocation = shareOnboardingEnabled
+  const projectLocation = cloudEnabled
     ? {
-        current: "local" as const,
+        current: cloudDialogOpen && focusedWorkspace?.path === workspace?.path
+          ? "cloud" as const : "local" as const,
         localAvailable: true,
         cloudState: focusedWorkspace?.path !== workspace?.path
           || projectLocationStatus.kind === "local"
@@ -1494,6 +1496,7 @@ function AppContent() {
       onAddProject={() => void addProject()}
       onAddExistingProject={(folderPath) => void addExistingProject(folderPath)}
       onShare={openCloudShare}
+      onViewLocal={closeCloudDialog}
       onViewCloud={cloudEnabled && focusedWorkspace?.path === workspace.path ? openCloudDialog : undefined}
       onCloseWorkspaceSwitcher={closeWorkspaceSwitcher}
       onCloseBranchSwitcher={closeBranchSwitcher}
@@ -1688,6 +1691,15 @@ function AppContent() {
               onStartPuppyoneBackup: handleStartPuppyoneBackup,
             }}
             cloudOpen={cloudDialogOpen}
+            cloudLocationControls={focusedWorkspace?.path === workspace.path ? (
+              <DesktopProjectLocationControls
+                projectLocation={projectLocation}
+                backupProviders={gitStatusPath === workspace.path ? getProjectBackupProviders(activeGitStatus) : []}
+                backupStatus={gitStatusPath === workspace.path ? activeGitStatus : null}
+                onViewLocal={closeCloudDialog}
+                onViewCloud={openCloudDialog}
+              />
+            ) : undefined}
             dataPort={dataPort}
             editorWorkbench={editorWorkbench}
             externalOpen={externalFileOpen}

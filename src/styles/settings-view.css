@@ -105,6 +105,13 @@
   color: var(--po-text);
 }
 
+.desktop-cloud-dialog-location-controls {
+  width: 232px;
+  max-width: 55%;
+  margin-inline-start: auto;
+  margin-inline-end: 8px;
+}
+
 .desktop-settings-dialog-layout,
 .desktop-plugins-dialog-layout,
 .desktop-cloud-dialog-layout {
