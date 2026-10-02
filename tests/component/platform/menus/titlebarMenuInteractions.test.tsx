@@ -76,15 +76,18 @@ describe("titlebar Portal menu interactions", () => {
     const menu = requireMenu();
     const location = menu.querySelector(".desktop-project-current-location")!;
     expect(location.getAttribute("data-project-location")).toBe("cloud");
-    expect(location.textContent).toBe("Cloud workspace");
+    expect(location.textContent).toBe("Cloud VersionCurrent");
+    expect(location.getAttribute("aria-current")).toBe("true");
     expect(location.querySelector(".lucide-cloud")).not.toBeNull();
     expect(location.querySelector(".desktop-project-current-location-path")).toBeNull();
     expect(container.querySelector(".desktop-titlebar-workspace-button .lucide-cloud")).not.toBeNull();
     const versions = menu.querySelector(".desktop-project-remote-copies")!;
-    expect(versions.querySelector(".lucide-cloud")).not.toBeNull();
+    expect(versions.querySelector(".lucide-cloud")).toBeNull();
     expect(versions.querySelector(".lucide-files")).toBeNull();
     expect(versions.querySelector("[data-backup-details='github']")).not.toBeNull();
-    const cloudEdition = versions.querySelector("[data-backup-details='puppyone-cloud']")!;
+    const cloudEdition = location.querySelector("[data-backup-details='puppyone-cloud']")!;
+    expect(menu.querySelectorAll("[data-backup-details='puppyone-cloud']")).toHaveLength(1);
+    expect(menu.querySelectorAll(".desktop-project-edition-current")).toHaveLength(1);
     expect(cloudEdition.querySelector("button")).toBeNull();
     expect(cloudEdition.querySelector(".desktop-project-edition-current")?.textContent).toBe("Current");
     expect(menu.querySelector("[data-location-action='enable-cloud-versions']")).toBeNull();
@@ -126,7 +129,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(container.querySelector(".desktop-titlebar-branch-button")).toBeNull();
     const menu = requireMenu();
     expect(menu.querySelector(".desktop-project-branch")).toBeNull();
-    expect(menu.querySelector(".desktop-project-current-location-mark .desktop-project-location-dot")).not.toBeNull();
+    expect(menu.querySelector(".desktop-project-current-location .desktop-project-edition-current")?.textContent).toBe("Current");
     expect(menu.querySelector(".desktop-project-location-visual .lucide-laptop")).not.toBeNull();
     expect(menu.querySelector(".desktop-project-location-visual .lucide-cloud")).toBeNull();
     expect(menu.querySelector(".desktop-project-cloud-copy")).toBeNull();
@@ -298,7 +301,9 @@ describe("titlebar Portal menu interactions", () => {
     const localCard = menu.querySelector(".desktop-project-current-location");
     expect(localCard?.querySelector(".lucide-laptop")).not.toBeNull();
     expect(localCard?.querySelector(".lucide-cloud")).toBeNull();
-    expect(localCard?.textContent).toBe("On This Mac~/project/local-notes");
+    expect(localCard?.textContent).toBe("On This Mac~/project/local-notesCurrent");
+    expect(localCard?.getAttribute("aria-current")).toBe("true");
+    expect(menu.querySelectorAll(".desktop-project-edition-current")).toHaveLength(1);
     expect(menu.querySelector("[data-location-action='share']")).toBeNull();
     expect(requireMenu().getAttribute("role")).toBe("menu");
     expect(requireMenu().querySelector("[data-backup-details='puppyone-cloud']")?.textContent).toBe("Cloud Version");
@@ -380,7 +385,7 @@ describe("titlebar Portal menu interactions", () => {
       expect(location?.querySelector(".desktop-project-current-location-path")?.getAttribute("aria-label"))
         .toBe(workspace.path);
       expect(menu.textContent).toContain("On This Mac");
-      expect(menu.querySelector(".desktop-project-current-location-mark .desktop-project-location-dot")).not.toBeNull();
+      expect(location?.querySelector(".desktop-project-edition-current")?.textContent).toBe("Current");
       expect(menu.querySelector(".desktop-project-backup-services")).toBeNull();
       expect(menu.querySelector("[data-location-action='share']")).toBeNull();
       const setup = menu.querySelector<HTMLButtonElement>("[data-location-action='enable-cloud-versions']");
@@ -488,7 +493,7 @@ describe("titlebar Portal menu interactions", () => {
     const menu = requireMenu();
     expect(container.contains(menu)).toBe(false);
     expect(menu.dataset.windowNoDrag).toBe("true");
-    expect(menu.style.width).toBe("216px");
+    expect(menu.style.width).toBe("248px");
     expect(menu.querySelector("[data-workspace-menu-layout='workspace-composition-v1']"))
       .not.toBeNull();
     expect(menu.textContent).toContain("Add Project…");
@@ -500,7 +505,8 @@ describe("titlebar Portal menu interactions", () => {
     expect(menu.querySelector(".desktop-project-home-group")).toBeNull();
     expect(menu.querySelector(".desktop-project-current-indicator")).toBeNull();
     expect(menu.querySelector(".desktop-project-option.selected")).toBeNull();
-    expect(menu.querySelector("[aria-current='true']")).toBeNull();
+    expect(menu.querySelectorAll("[aria-current='true']")).toHaveLength(1);
+    expect(menu.querySelector("[aria-current='true']")?.getAttribute("data-project-location")).toBe("local");
     expect(menu.querySelector("button.desktop-project-current-location-path")).not.toBeNull();
     expect(menu.querySelector(".desktop-project-copy-path")).toBeNull();
     expect(menu.querySelector(".desktop-project-option")?.getAttribute("aria-disabled"))
@@ -778,7 +784,7 @@ describe("titlebar Portal menu interactions", () => {
     const currentLocation = requireMenu().querySelector(".desktop-project-current-location");
     expect(currentLocation?.querySelector(".desktop-project-location-visual")?.getAttribute("aria-label")).toBe("This Mac");
     expect(currentLocation?.querySelector(".desktop-project-current-location-path")?.textContent).toBe("/tmp/one");
-    expect(currentLocation?.querySelector(".desktop-project-current-location-mark .desktop-project-location-dot")).not.toBeNull();
+    expect(currentLocation?.querySelector(".desktop-project-edition-current")?.textContent).toBe("Current");
     expect(currentLocation?.textContent).toContain("On This Mac");
   });
 });

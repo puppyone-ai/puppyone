@@ -113,6 +113,17 @@ export function DesktopWorkspaceSwitcher({
   useEffect(() => {
     setView("projects");
   }, [workspace.path]);
+  const cloudEdition = (cloudLinked || currentProjectLocationKind === "cloud") && (
+    <DesktopProjectBackupDetails
+      provider="puppyone-cloud" status={backupStatus}
+      cloudProjectId={cloudProject?.id ?? workspace.puppyoneGitRemote?.projectId}
+      cloudOrigin={workspace.puppyoneGitRemote?.origin}
+      current={currentProjectLocationKind === "cloud"}
+      navigationPending={projectLocation?.cloudState === "resolving"}
+      onClose={onClose}
+      onViewCloud={onViewCloud}
+    />
+  );
   return (
     <div className="desktop-titlebar-workspace-wrap" ref={refObject}>
       <Tooltip content={t("shell.workspaceSwitcher.projectTitle", {
@@ -144,7 +155,7 @@ export function DesktopWorkspaceSwitcher({
         onDismiss={onClose}
         open={open}
         preferredMaxHeight={520}
-        preferredWidth={view === "add" ? 240 : 216}
+        preferredWidth={view === "add" ? 240 : 248}
         alignment={menuAlignment}
       >
         {view !== "add" ? (
@@ -154,24 +165,17 @@ export function DesktopWorkspaceSwitcher({
               data-workspace-menu-layout="workspace-composition-v1"
             >
               <div className="desktop-project-location-card">
-                <DesktopCurrentProjectLocation
-                  kind={currentProjectLocationKind}
-                  path={workspace.path}
-                />
+                {currentProjectLocationKind === "cloud" ? (
+                  <div className="desktop-project-current-location" data-project-location="cloud" aria-current="true">
+                    {cloudEdition}
+                  </div>
+                ) : <DesktopCurrentProjectLocation path={workspace.path} />}
               </div>
             </div>
-            {(cloudLinked || canSetUpCloudVersions || backupProviders.length > 0) && (
+            {((cloudLinked && currentProjectLocationKind !== "cloud") || canSetUpCloudVersions || backupProviders.length > 0) && (
               <div className="desktop-project-remote-copies" role="group"
                 aria-label={t("shell.workspaceSwitcher.remoteCopies")}>
-                {cloudLinked && <DesktopProjectBackupDetails
-                  provider="puppyone-cloud" status={backupStatus}
-                  cloudProjectId={cloudProject?.id ?? workspace.puppyoneGitRemote?.projectId}
-                  cloudOrigin={workspace.puppyoneGitRemote?.origin}
-                  current={currentProjectLocationKind === "cloud"}
-                  navigationPending={projectLocation?.cloudState === "resolving"}
-                  onClose={onClose}
-                  onViewCloud={onViewCloud}
-                />}
+                {currentProjectLocationKind !== "cloud" && cloudEdition}
                 {canSetUpCloudVersions && (
                   <div className="desktop-project-location-actions">
                     <DesktopMenuItem
@@ -271,7 +275,7 @@ function BackupMark({ provider }: { provider: ProjectBackupDestination }) {
     const maskImage = `url("${resolveRendererPublicAssetUrl(RENDERER_ASSET_PATHS.icons.integrations.github)}")`;
     return <span className="desktop-project-github-mark" aria-hidden="true" style={{ maskImage, WebkitMaskImage: maskImage }} />;
   }
-  return provider === "puppyone-cloud" ? <Cloud size={20} strokeWidth={1.75} absoluteStrokeWidth aria-hidden="true" />
+  return provider === "puppyone-cloud" ? <Cloud size={16} strokeWidth={1.75} aria-hidden="true" />
     : <ImportSourceMark brand={provider} decorative />;
 }
 
@@ -300,7 +304,10 @@ function DesktopProjectBackupDetails({ provider, status, cloudProjectId, cloudOr
       month: "short", day: "numeric",
     })) })}
   </time></Tooltip> : undefined;
-  return <div className={`desktop-project-backup-details${provider === "puppyone-cloud" ? " desktop-project-cloud-edition" : ""}`} data-backup-details={provider}>
+  return <div className={`desktop-project-backup-details${provider === "puppyone-cloud" ? " desktop-project-cloud-edition" : ""}${current ? " desktop-project-location-visual" : ""}`}
+    data-backup-details={provider}
+    role={current ? "group" : undefined}
+    aria-label={current ? t("shell.workspaceSwitcher.location.cloud") : undefined}>
     {snapshot.repositoryUrl ? (
       <a className="desktop-menu-item desktop-project-backup-heading desktop-project-backup-link"
         href={snapshot.repositoryUrl} target="_blank" rel="noopener noreferrer"
@@ -334,7 +341,7 @@ function DesktopProjectBackupDetails({ provider, status, cloudProjectId, cloudOr
           <span className="desktop-menu-item-label">{label}</span>
           {detail && <span className="desktop-menu-item-detail">{detail}</span>}
         </span>
-        {current && <span className="desktop-menu-item-trailing desktop-project-edition-current">{t("shell.workspaceSwitcher.current")}</span>}
+        {current && <DesktopProjectCurrentBadge />}
       </div>
     )}
   </div>;
@@ -375,13 +382,15 @@ function DesktopProjectRow({
   );
 }
 
-function DesktopCurrentProjectLocation({
-  kind,
-  path,
-}: {
-  kind: DesktopProjectLocation["current"];
-  path: string;
-}) {
+function DesktopProjectCurrentBadge() {
+  const { t } = useLocalization();
+  return <span className="desktop-menu-item-trailing desktop-project-edition-current">
+    <Check size={11} strokeWidth={2} aria-hidden="true" />
+    {t("shell.workspaceSwitcher.current")}
+  </span>;
+}
+
+function DesktopCurrentProjectLocation({ path }: { path: string }) {
   const { t } = useLocalization();
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   useEffect(() => {
@@ -406,36 +415,30 @@ function DesktopCurrentProjectLocation({
   return (
     <div
       className="desktop-project-current-location"
-      data-project-location={kind}
+      data-project-location="local"
+      aria-current="true"
     >
       <div
         className="desktop-project-location-visual"
         role="group"
-        aria-label={t(kind === "local" ? "shell.workspaceSwitcher.location.thisMac" : "shell.workspaceSwitcher.location.cloud")}
+        aria-label={t("shell.workspaceSwitcher.location.thisMac")}
       >
         <div className="desktop-project-location-device">
           <ProjectLocationMark
             className="desktop-project-current-location-mark"
-            kind={kind}
-            size={20}
-            absoluteStrokeWidth
-            showLocalIndicator
+            kind="local"
+            size={16}
           />
-          {kind === "local" ? (
-            <div className="desktop-project-location-label">
-              <span className="desktop-project-location-title">{t("shell.workspaceSwitcher.location.onThisMac")}</span>
-              <DesktopProjectPath
-                path={path}
-                copyLabel={copyLabel}
-                feedbackState={copyState}
-                onCopy={() => void copyPath()}
-              />
-            </div>
-          ) : (
-            <span className="desktop-project-location-title">
-              {t("shell.workspaceSwitcher.location.cloud")}
-            </span>
-          )}
+          <div className="desktop-project-location-label">
+            <span className="desktop-project-location-title">{t("shell.workspaceSwitcher.location.onThisMac")}</span>
+            <DesktopProjectPath
+              path={path}
+              copyLabel={copyLabel}
+              feedbackState={copyState}
+              onCopy={() => void copyPath()}
+            />
+          </div>
+          <DesktopProjectCurrentBadge />
         </div>
       </div>
     </div>
@@ -513,15 +516,11 @@ function ProjectLocationMark({
   kind,
   size = 15,
   strokeWidth = 1.75,
-  absoluteStrokeWidth = false,
-  showLocalIndicator = false,
 }: {
   className: string;
   kind: DesktopProjectLocation["current"];
   size?: number;
   strokeWidth?: number;
-  absoluteStrokeWidth?: boolean;
-  showLocalIndicator?: boolean;
 }) {
   const Icon = kind === "cloud" ? Cloud : Laptop;
   return (
@@ -530,8 +529,7 @@ function ProjectLocationMark({
       data-project-location={kind}
       aria-hidden="true"
     >
-      <Icon size={size} strokeWidth={strokeWidth} absoluteStrokeWidth={absoluteStrokeWidth} />
-      {showLocalIndicator && kind === "local" && <span className="desktop-project-location-dot" />}
+      <Icon size={size} strokeWidth={strokeWidth} />
     </span>
   );
 }

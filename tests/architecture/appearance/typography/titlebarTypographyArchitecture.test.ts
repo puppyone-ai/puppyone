@@ -300,7 +300,8 @@ describe("titlebar typography architecture", () => {
     expect(projectButton).toContain(
       "padding: 0 var(--desktop-titlebar-workspace-inline-padding);",
     );
-    expect(projectName).toContain("color: var(--desktop-titlebar-text-muted);");
+    expect(projectName).toContain("color: inherit;");
+    expect(projectMark).toContain("color: inherit;");
     expect(projectMark).toContain("width: var(--desktop-titlebar-workspace-icon-slot-size);");
     expect(projectMark).toContain(
       "flex: 0 0 var(--desktop-titlebar-workspace-icon-slot-size);",

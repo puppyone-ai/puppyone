@@ -455,7 +455,12 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-menu {
+  --desktop-project-menu-spacing: 8px;
+  --desktop-project-card-padding: 10px;
+  --desktop-project-mark-size: 16px;
+  --po-menu-padding: var(--desktop-project-menu-spacing);
   --po-menu-bg: var(--po-header);
+  --po-menu-border: var(--po-divider);
   --interface-menu-background: var(--po-header);
   --po-menu-shadow-compact:
     0 2px 6px color-mix(in srgb, var(--po-shadow) 65%, transparent),
@@ -482,7 +487,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   display: grid;
   width: 100%;
   min-width: 0;
-  color: var(--po-text-muted);
+  color: var(--po-text);
   font-size: var(--po-menu-item-font-size);
   font-weight: var(--po-text-weight-regular, 400);
   line-height: var(--po-menu-item-line-height);
@@ -492,7 +497,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 .desktop-project-location-visual {
   display: grid;
   min-width: 0;
-  min-height: 84px;
+  min-height: 64px;
   grid-template-rows: minmax(0, 1fr);
   border-radius: 8px;
   background: var(--po-editor-bg);
@@ -503,13 +508,13 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 .desktop-project-location-device {
   display: grid;
   min-width: 0;
-  grid-template-columns: 20px minmax(0, 1fr);
-  grid-template-rows: 24px var(--po-menu-item-height);
+  grid-template-columns: var(--desktop-project-mark-size) minmax(0, 1fr) auto;
+  grid-template-rows: var(--po-menu-item-line-height) var(--po-menu-meta-line-height);
   align-content: center;
   align-items: center;
-  column-gap: var(--po-menu-item-gap);
-  row-gap: 2px;
-  padding: var(--po-menu-item-padding-inline);
+  column-gap: var(--desktop-project-menu-spacing);
+  row-gap: 4px;
+  padding: var(--desktop-project-card-padding);
 }
 
 .desktop-project-current-location-mark {
@@ -527,28 +532,17 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 .desktop-project-location-title {
   grid-column: 2;
   grid-row: 1;
-  color: var(--po-text-muted);
+  color: inherit;
   white-space: nowrap;
 }
 
 .desktop-project-location-label .desktop-project-current-location-path {
-  grid-column: 2;
+  grid-column: 2 / -1;
   grid-row: 2;
   padding-inline: 0;
   color: var(--po-text-subtle);
   font-size: var(--po-menu-meta-font-size);
   line-height: var(--po-menu-meta-line-height);
-}
-
-.desktop-project-location-dot {
-  position: absolute;
-  right: 0;
-  bottom: 2px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--po-success);
-  box-shadow: 0 0 0 2px var(--po-editor-bg);
 }
 
 .desktop-project-current-location-path {
@@ -704,35 +698,35 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-menu .desktop-project-backup-details .desktop-project-backup-heading {
-  grid-template-columns: 20px minmax(0, 1fr) auto;
-  grid-template-rows: 24px minmax(var(--po-menu-item-height), auto);
-  min-height: 84px;
+  grid-template-columns: var(--desktop-project-mark-size) minmax(0, 1fr) auto;
+  min-height: 64px;
   align-content: center;
-  padding: var(--po-menu-item-padding-inline);
+  padding: var(--desktop-project-card-padding);
+  row-gap: 4px;
 }
 
 .desktop-project-backup-details .desktop-menu-item-icon,
 .desktop-project-version-mark {
   display: grid;
-  width: 20px;
-  height: 20px;
+  width: var(--desktop-project-mark-size);
+  height: var(--desktop-project-mark-size);
   place-items: center;
 }
 
 .desktop-project-backup-details .desktop-project-github-mark {
-  width: 20px;
-  height: 20px;
+  width: var(--desktop-project-mark-size);
+  height: var(--desktop-project-mark-size);
 }
 
 .desktop-project-backup-details .desktop-menu-item-icon img {
-  width: 20px;
-  height: 20px;
+  width: var(--desktop-project-mark-size);
+  height: var(--desktop-project-mark-size);
 }
 
 .desktop-project-secondary-copies {
   display: grid;
   min-width: 0;
-  gap: 2px;
+  gap: var(--desktop-project-menu-spacing);
 }
 
 .desktop-project-menu .desktop-project-secondary-copies .desktop-project-backup-heading {
@@ -741,8 +735,15 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-edition-current {
-  color: var(--po-text-subtle);
+  display: inline-flex;
+  grid-column: 3;
+  grid-row: 1;
+  align-items: center;
+  gap: 3px;
+  color: var(--po-success);
   font-size: var(--po-menu-meta-font-size);
+  line-height: var(--po-menu-meta-line-height);
+  white-space: nowrap;
 }
 
 .desktop-project-menu .desktop-project-backup-heading {
@@ -756,7 +757,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   min-height: var(--po-menu-item-height);
   height: auto;
   padding: var(--po-menu-padding) var(--po-menu-item-padding-inline);
-  color: var(--po-text-muted);
+  color: var(--po-text);
   font-size: var(--po-menu-item-font-size);
   font-weight: var(--po-text-weight-regular, 400);
   line-height: var(--po-menu-item-line-height, 18px);
@@ -780,7 +781,6 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   display: flex;
   grid-column: 2 / -1;
   grid-row: 2;
-  min-height: var(--po-menu-item-height);
   align-items: center;
   line-height: var(--po-menu-meta-line-height);
 }
@@ -804,6 +804,10 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   color: var(--po-info);
   font-size: var(--po-menu-meta-font-size);
   line-height: var(--po-menu-meta-line-height);
+}
+
+.desktop-project-menu .desktop-project-edition-current {
+  color: var(--po-success);
 }
 
 .desktop-project-location-actions .desktop-menu-item {

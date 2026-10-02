@@ -3,7 +3,7 @@
   flex-direction: column;
   min-height: 100vh;
   overflow: hidden;
-  background: var(--po-bg);
+  background: var(--po-canvas);
   color: var(--po-text);
 }
 

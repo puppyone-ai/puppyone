@@ -1108,7 +1108,7 @@
   flex: 0 0 var(--desktop-titlebar-workspace-icon-slot-size);
   align-items: center;
   justify-content: center;
-  color: var(--desktop-titlebar-text-subtle, var(--desktop-titlebar-text-muted));
+  color: inherit;
 }
 
 .desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark > svg {
@@ -1157,7 +1157,7 @@
   max-width: none;
   min-width: 0;
   overflow: hidden;
-  color: var(--desktop-titlebar-text-muted);
+  color: inherit;
   font-family: var(--desktop-titlebar-context-font-family);
   font-size: var(--desktop-titlebar-context-font-size);
   font-weight: var(--desktop-titlebar-context-font-weight);

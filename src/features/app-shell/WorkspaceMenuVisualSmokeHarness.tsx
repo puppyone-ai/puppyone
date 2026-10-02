@@ -14,11 +14,13 @@ export function WorkspaceMenuVisualSmokeHarness() {
   const linked = state === "local-cloud" || state === "cloud-only";
   const githubLinked = linked || state === "local-github";
   const current = state === "cloud-only" ? "cloud" : "local";
+  const theme = new URLSearchParams(window.location.search).get("theme") === "light" ? "light" : "dark";
 
   return (
-    <main className="app-shell dark workspace-menu-visual-smoke"
+    <main className={`app-shell ${theme} workspace-menu-visual-smoke`}
+      data-po-appearance-root="true"
       data-workspace-menu-visual-ready="true" data-project-state={state}>
-      <DesktopOverlayPortal theme="dark">{null}</DesktopOverlayPortal>
+      <DesktopOverlayPortal theme={theme}>{null}</DesktopOverlayPortal>
       <header className="desktop-titlebar workspace-menu-visual-titlebar">
         <div className="desktop-titlebar-context">
           <DesktopWorkspaceSwitcher
