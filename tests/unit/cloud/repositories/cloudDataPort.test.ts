@@ -121,10 +121,24 @@ describe("native Cloud provider", () => {
     expect(files.get("readme.md")).toBe("One"); expect(files.get("data.json")).toBe("{}");
   });
 
-  it("never falls back to unconditional writes when the base snapshot is missing", async () => {
+  it.each([null, ""])("never writes without a usable base revision (%s)", async (baseVersion) => {
     const cloud = service();
-    expect(await save(cloud.dataPort, "readme.md", "Unknown edit", null)).toMatchObject({ ok: false, kind: "io" });
+    expect(await save(cloud.dataPort, "readme.md", "Unknown edit", baseVersion)).toMatchObject({ ok: false, kind: "io" });
     expect(bridge).not.toHaveBeenCalled();
+  });
+
+  it("rejects an empty server revision before reading or creating a writable document", async () => {
+    const actual = bridge.getMockImplementation()! as (request: unknown) => Promise<unknown>;
+    bridge.mockImplementation(async (request) => {
+      const response = await actual(request);
+      return new URL(request.path, API).pathname.endsWith("/ls")
+        ? { ...(response as object), head_commit_id: "" } : response;
+    });
+    const cloud = service();
+    await expect(cloud.dataPort.readFile!("readme.md")).rejects.toThrow(/storage revision/);
+    await expect(cloud.dataPort.createFile!("new.md", "New file")).rejects.toThrow(/storage revision/);
+    expect(bridge.mock.calls.filter(([request]) => request.method === "POST")).toHaveLength(0);
+    expect(files.get("readme.md")).toBe("Cloud original");
   });
 
   it("revokes old-account reads and queued writes before dispatch", async () => {

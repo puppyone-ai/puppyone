@@ -141,7 +141,7 @@ export function createCloudDataService({
     for (let attempt = 0; attempt < 3; attempt++) {
       const before = await head();
       const result = await request<CloudContent>(`cat?path=${encodeURIComponent(remotePath(path))}`);
-      if (typeof result.head_commit_id !== "string") throw new Error("Cloud response has no storage revision.");
+      if (typeof result.head_commit_id !== "string" || !result.head_commit_id) throw new Error("Cloud response has no storage revision.");
       if (before !== result.head_commit_id) continue;
       const content = typeof result.content_text === "string" ? result.content_text
         : typeof result.content === "string" ? result.content
@@ -167,7 +167,7 @@ export function createCloudDataService({
   };
   const head = async () => {
     const result = await list(null);
-    if (typeof result.head_commit_id !== "string") throw new Error("Cloud response has no storage revision.");
+    if (typeof result.head_commit_id !== "string" || !result.head_commit_id) throw new Error("Cloud response has no storage revision.");
     return result.head_commit_id;
   };
   const coherentDirectory = async (path: string | null) => {
@@ -195,7 +195,7 @@ export function createCloudDataService({
       if (!relativePath(input.path)) throw new Error("The Cloud repository root is not a document.");
       const original = input.baseVersion == null ? undefined
         : snapshots.get(remotePath(input.path))?.get(input.baseVersion);
-      if (input.baseVersion == null) {
+      if (!input.baseVersion) {
         return { ok: false, kind: "io", message: "Reload the Cloud file before saving: its base revision is unavailable." };
       }
       let version = input.baseVersion;
@@ -273,7 +273,7 @@ export function createCloudDataService({
         if (directory.entries.some((entry) => normalizeProviderPath(entry.path) === remotePath(path))) {
           throw new Error("A Cloud file already exists at this path.");
         }
-        if (typeof directory.head_commit_id !== "string") throw new Error("Cloud response has no storage revision.");
+        if (typeof directory.head_commit_id !== "string" || !directory.head_commit_id) throw new Error("Cloud response has no storage revision.");
         await request("write", { path: remotePath(path), content,
           node_type: nodeType(path), base_commit_id: directory.head_commit_id });
       }),
