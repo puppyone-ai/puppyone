@@ -1,5 +1,30 @@
 import { expect, it, vi } from "vitest";
-import { stopOwnedChild } from "../../../../scripts/managed-child-lifecycle.mjs";
+import { EventEmitter } from "node:events";
+import { stopOwnedChild, registerDevelopmentShutdown } from "../../../../scripts/managed-child-lifecycle.mjs";
+
+it.each([["SIGINT", 130], ["SIGTERM", 143], ["SIGHUP", 129]])("cleans up on %s, including terminal hangup", (signal, code) => {
+  const target = new EventEmitter(), shutdown = vi.fn();
+  registerDevelopmentShutdown({ target, shutdown });
+  target.emit(signal); target.emit(signal);
+  expect(target.listenerCount(signal)).toBe(1);
+  expect(shutdown).toHaveBeenCalledExactlyOnceWith(code);
+});
+it.each(["uncaughtException", "unhandledRejection"])("logs and shuts down after %s rather than leaving detached services", event => {
+  const target = new EventEmitter(), shutdown = vi.fn(), logger = { error: vi.fn() };
+  const error = new Error("fatal");
+  registerDevelopmentShutdown({ target, shutdown, logger });
+  target.emit(event, error); target.emit(event, error);
+  expect(target.listenerCount(event)).toBe(1);
+  expect(logger.error).toHaveBeenCalledWith(expect.stringContaining(event), error);
+  expect(shutdown).toHaveBeenCalledExactlyOnceWith(1);
+});
+
+it("still initiates cleanup when the fatal log sink is unavailable", () => {
+  const target = new EventEmitter(), shutdown = vi.fn();
+  registerDevelopmentShutdown({ target, shutdown, logger: { error: () => { throw new Error("closed terminal"); } } });
+  expect(() => target.emit("uncaughtException", new Error("fatal"))).not.toThrow();
+  expect(shutdown).toHaveBeenCalledExactlyOnceWith(1);
+});
 
 it("allows graceful exit and resolves only after the owned group disappears", async () => {
   let alive = true;

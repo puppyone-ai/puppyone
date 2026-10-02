@@ -16,6 +16,7 @@ import {
   terminateManagedChild,
 } from "./managed-child-process.mjs";
 import { probeViteDevServer } from "./vite-client-health.mjs";
+import { registerDevelopmentShutdown } from "./managed-child-lifecycle.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const desktopRoot = path.resolve(__dirname, "..");
@@ -397,7 +398,10 @@ function restartEnvironment(reason) {
 }
 
 function beginShutdown(code) {
-  if (shuttingDown) return;
+  if (shuttingDown) {
+    if (code !== 0) exitCode = code;
+    return;
+  }
   shuttingDown = true;
   exitCode = code;
   stopMainWatchers();
@@ -438,5 +442,4 @@ function maybeExit() {
   process.exit(exitCode);
 }
 
-process.once("SIGINT", () => beginShutdown(130));
-process.once("SIGTERM", () => beginShutdown(143));
+registerDevelopmentShutdown({ shutdown: beginShutdown });
