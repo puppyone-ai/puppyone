@@ -14,6 +14,13 @@ import {
 import { invalidateCloudCacheForMutation } from "../features/cloud/cache/cloudCache";
 import { createCloudAutomationApi } from "./cloud/automationApi";
 import { createSynchronizeApi } from "./cloud/synchronizeApi";
+import { createAccessSurfacesApi } from "./cloud/accessSurfacesApi";
+export type {
+  DesktopCloudAccessSurface, DesktopCloudAccessSurfacePatch, DesktopCloudAccessKind,
+  DesktopCloudAccessDirection, DesktopCloudAccessSurfaceCreate,
+  DesktopCloudAccessSurfaceConfigure, DesktopCloudAccessSurfaceCreated,
+  DesktopCloudAccessCredentialIssued,
+} from "./cloud/accessSurfacesApi";
 export type {
   DesktopCloudSynchronizeBinding, DesktopCloudSynchronizeRun,
   DesktopCloudCreateSynchronizeBindingRequest, DesktopCloudCreateSynchronizeBindingResult,
@@ -413,34 +420,6 @@ export type DesktopCloudCreateScopeRequest = {
   path: string;
   exclude?: string[];
   max_mode?: "r" | "rw";
-};
-
-export type DesktopCloudConnector = {
-  id: string;
-  target: RepositoryTarget;
-  provider: string;
-  name: string;
-  direction: string;
-  config?: Record<string, unknown>;
-  oauth_connection_id?: number | null;
-  trigger?: Record<string, unknown>;
-  status: string;
-  last_run_at?: string | null;
-  last_run_id?: string | null;
-  error_message?: string | null;
-  created_by?: string | null;
-  created_at?: string | null;
-  updated_at?: string | null;
-};
-
-export type DesktopCloudConnectorPatch = {
-  name?: string;
-  direction?: string;
-  config?: Record<string, unknown>;
-  policy?: unknown;
-  oauth_connection_id?: number | null;
-  trigger?: Record<string, unknown> | null;
-  status?: string;
 };
 
 export type DesktopCloudAutomationConfigField = {
@@ -1656,34 +1635,13 @@ export function createCloudScope(
   );
 }
 
-export function listCloudConnectors(
-  session: DesktopCloudSession,
-  projectId: string,
-  onSessionChange?: MutableSessionHandler,
-  apiBaseUrl?: string | null,
-): Promise<DesktopCloudConnector[]> {
-  return cloudApiRequest<DesktopCloudConnector[]>(`/projects/${projectId}/connectors`, session, onSessionChange, {}, apiBaseUrl);
-}
-
-export function updateCloudConnector(
-  session: DesktopCloudSession,
-  projectId: string,
-  connectorId: string,
-  body: DesktopCloudConnectorPatch,
-  onSessionChange?: MutableSessionHandler,
-  apiBaseUrl?: string | null,
-): Promise<DesktopCloudConnector> {
-  return cloudApiRequest<DesktopCloudConnector>(
-    `/projects/${encodeURIComponent(projectId)}/connectors/${encodeURIComponent(connectorId)}`,
-    session,
-    onSessionChange,
-    {
-      method: "PATCH",
-      body: JSON.stringify(body),
-    },
-    apiBaseUrl,
-  );
-}
+export const {
+  listAccessSurfaces, getAccessSurface, createAccessSurface, updateAccessSurface,
+  enableTargetAccess, activateAccessSurfaceAgent, pauseAccessSurface, resumeAccessSurface,
+  deleteAccessSurface, configureAccessSurface, listAccessibleSurfaces,
+  renameAccessSurface, updateAccessSurfaceMetadata, regenerateAccessSurfaceKey,
+  deleteConfiguredAccessSurface,
+} = createAccessSurfacesApi(cloudApiRequest);
 
 export const {
   supportsCloudAutomationOauth,

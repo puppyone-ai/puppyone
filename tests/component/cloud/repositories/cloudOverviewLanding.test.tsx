@@ -6,8 +6,10 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Workspace } from "@puppyone/shared-ui";
+import type { DesktopCloudAccessSurface } from "../../../../src/lib/cloudApi";
 import { CloudRepositoryOverview } from "../../../../src/features/cloud/sections/overview";
 import { withTestLocalization } from "../../../support/react/localization";
+import { accessSurfaceFixture } from "../../../support/cloud/accessSurfaceFixture";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -182,21 +184,26 @@ describe("CloudRepositoryOverview landing page", () => {
           exclude: [],
           max_mode: "rw",
         }]}
-        connectors={[{
+        connectors={[
+          accessSurfaceFixture({ id: "root-git", kind: "git_remote" }),
+          accessSurfaceFixture({ id: "docs-git", kind: "git_remote", target: { kind: "scope", project_id: "project-1", scope_id: "scope-docs" } }),
+          accessSurfaceFixture({ id: "mcp-docs", kind: "mcp", target: { kind: "scope", project_id: "project-1", scope_id: "scope-docs" } }),
+          {
           id: "notion-root",
           target: { kind: "project_root", project_id: "project-1" },
-          provider: "notion",
+          kind: "notion",
           name: "Notion knowledge",
           direction: "inbound",
           status: "active",
         }, {
           id: "orphan-automation",
           target: { kind: "scope", project_id: "project-1", scope_id: "missing-scope" },
-          provider: "google_docs",
+          kind: "google_docs",
           name: "Detached docs",
           direction: "inbound",
           status: "active",
-        }]}
+          // Deliberate pre-cutover/stale data: never count these as Automation.
+        }] as unknown as DesktopCloudAccessSurface[]}
         mcpEndpoints={[{
           id: "mcp-docs",
           project_id: "project-1",

@@ -74,7 +74,7 @@ if (!/lazy\(\(\) => import\("\.\.\/\.\.\/automation\/CloudProjectAutomationView"
 }
 
 const automationDomain = read("src/features/automation/automationDomain.ts");
-if (/DesktopCloudConnector|DesktopCloudRepositoryView|scopeByTarget/.test(automationDomain)) {
+if (/DesktopCloud(?:Connector|AccessSurface)|DesktopCloudRepositoryView|scopeByTarget/.test(automationDomain)) {
   errors.push("Automation source rows must use SynchronizeBinding, not Access IDs or a Scope join.");
 }
 const automationView = read("src/features/automation/CloudProjectAutomationView.tsx");
