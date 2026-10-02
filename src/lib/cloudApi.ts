@@ -13,8 +13,12 @@ import {
 } from "../../shared/repositoryContract.js";
 import { invalidateCloudCacheForMutation } from "../features/cloud/cache/cloudCache";
 import { createCloudAutomationApi } from "./cloud/automationApi";
-import { createSynchronizeApi, type DesktopCloudSynchronizeBinding, type DesktopCloudSynchronizeRun } from "./cloud/synchronizeApi";
-export type { DesktopCloudSynchronizeBinding, DesktopCloudSynchronizeRun } from "./cloud/synchronizeApi";
+import { createSynchronizeApi } from "./cloud/synchronizeApi";
+export type {
+  DesktopCloudSynchronizeBinding, DesktopCloudSynchronizeRun,
+  DesktopCloudCreateSynchronizeBindingRequest, DesktopCloudCreateSynchronizeBindingResult,
+  DesktopCloudUpdateSynchronizeBindingRequest, DesktopCloudUpdateSynchronizeTriggerRequest,
+} from "./cloud/synchronizeApi";
 import type { RepositoryTarget } from "../features/cloud/repositoryTarget";
 
 export type { RepositoryTarget } from "../features/cloud/repositoryTarget";
@@ -467,27 +471,6 @@ export type DesktopCloudAutomationProviderSpec = {
   icon_url?: string | null;
 };
 
-/** @deprecated ISSUE-058 transition; resource consumers use SynchronizeBinding. */
-export type DesktopCloudAutomationConnection = DesktopCloudSynchronizeBinding;
-
-export type DesktopCloudCreateAutomationRequest = {
-  project_id: string;
-  provider: string;
-  config: Record<string, unknown>;
-  target_folder_path?: string;
-  target_path?: string;
-  direction?: string;
-  conflict_strategy?: string;
-  sync_mode?: "manual" | "scheduled" | "realtime";
-  trigger?: { type: string; schedule?: string; timezone?: string };
-};
-
-export type DesktopCloudCreateAutomationResult = {
-  /** Legacy server response key. Product/domain code calls this Automation. */
-  sync: DesktopCloudAutomationConnection;
-  execution_result?: Record<string, unknown> | null;
-};
-
 export type DesktopCloudAutomationOauthStatus = {
   connected: boolean;
   workspace_name: string | null;
@@ -510,21 +493,6 @@ export type DesktopCloudAutomationProviderResources = {
   resources: DesktopCloudAutomationProviderResource[];
   next_cursor: string | null;
 };
-
-export type DesktopCloudUpdateAutomationConnectionRequest = {
-  config?: Record<string, unknown>;
-  target_path?: string;
-  direction?: string;
-  conflict_strategy?: string;
-};
-
-export type DesktopCloudUpdateAutomationTriggerRequest = {
-  sync_mode: "manual" | "scheduled" | "realtime";
-  trigger?: { type: string; schedule?: string; timezone?: string } | null;
-};
-
-/** @deprecated ISSUE-058 transition; resource consumers use SynchronizeRun. */
-export type DesktopCloudAutomationRun = DesktopCloudSynchronizeRun;
 
 export type DesktopCloudMcpEndpoint = {
   id: string;
@@ -1712,19 +1680,6 @@ export const {
   updateSynchronizeTrigger, listSynchronizeRuns, getSynchronizeRun,
   refreshSynchronizeBinding, pauseSynchronizeBinding, resumeSynchronizeBinding,
   deleteSynchronizeBinding,
-} = synchronizeApi;
-
-// Bounded ISSUE-058 compatibility exports; one resource implementation only.
-export const {
-  createSynchronizeBinding: createCloudAutomation,
-  updateSynchronizeBinding: updateCloudAutomationConnection,
-  updateSynchronizeTrigger: updateCloudAutomationTrigger,
-  listSynchronizeRuns: listCloudAutomationConnectionRuns,
-  getSynchronizeRun: getCloudAutomationRun,
-  refreshSynchronizeBinding: refreshCloudAutomationConnection,
-  pauseSynchronizeBinding: pauseCloudAutomationConnection,
-  resumeSynchronizeBinding: resumeCloudAutomationConnection,
-  deleteSynchronizeBinding: deleteCloudAutomationConnection,
 } = synchronizeApi;
 
 export function listCloudMcpEndpoints(

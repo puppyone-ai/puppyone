@@ -15,7 +15,7 @@ import {
 import type {
   DesktopCloudAutomationOauthStatus,
   DesktopCloudAutomationProviderSpec,
-  DesktopCloudCreateAutomationResult,
+  DesktopCloudCreateSynchronizeBindingResult,
   DesktopCloudSession,
 } from "../../lib/cloudApi";
 import {
@@ -76,8 +76,8 @@ type OauthConnectFailure = Readonly<{
 }>;
 
 export type CloudAutomationCreationEcho = {
-  connectionId: string;
-  runId: string | null;
+  synchronizeBindingId: string;
+  synchronizeRunId: string | null;
   provider: string;
   targetPath: string;
   status: string;
@@ -595,16 +595,16 @@ function getWizardDescription(
 }
 
 function createAutomationEcho(
-  result: DesktopCloudCreateAutomationResult,
+  result: DesktopCloudCreateSynchronizeBindingResult,
   provider: string,
   targetPath: string,
 ): CloudAutomationCreationEcho {
-  const execution = isRecord(result.execution_result) ? result.execution_result : {};
-  const status = readString(execution.status) || result.sync.status || "queued";
-  const error = readString(execution.error) || result.sync.error_message || null;
+  const execution: Record<string, unknown> = isRecord(result.execution_result) ? result.execution_result : {};
+  const status = readString(execution.status) || result.binding.status || "queued";
+  const error = readString(execution.error) || result.binding.error_message || null;
   return {
-    connectionId: result.sync.id,
-    runId: readString(execution.run_id) || null,
+    synchronizeBindingId: result.binding.id,
+    synchronizeRunId: readString(execution.synchronize_run_id) || null,
     provider,
     targetPath,
     status,

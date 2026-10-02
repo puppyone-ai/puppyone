@@ -1,10 +1,4 @@
-import type {
-  DesktopCloudCreateAutomationRequest,
-  DesktopCloudCreateAutomationResult,
-  DesktopCloudSession,
-  DesktopCloudUpdateAutomationConnectionRequest,
-  DesktopCloudUpdateAutomationTriggerRequest,
-} from "../cloudApi";
+import type { DesktopCloudSession } from "../cloudApi";
 import type { CloudAutomationTransport } from "./automationApi";
 
 /** Persistent source relationship. It is not an Access surface or Scope. */
@@ -17,7 +11,7 @@ export type DesktopCloudSynchronizeBinding = {
   config: Record<string, unknown>;
   trigger?: Record<string, unknown>;
   status: string;
-  last_sync_commit_id?: string | null;
+  last_synchronize_commit_id?: string | null;
   last_synced_at?: string | null;
   error_message?: string | null;
   created_at?: string | null;
@@ -39,24 +33,52 @@ export type DesktopCloudSynchronizeRun = {
   result_summary?: string | null;
 };
 
-type LegacyRun = Omit<DesktopCloudSynchronizeRun, "synchronize_binding_id"> & { access_point_id: string };
+export type DesktopCloudCreateSynchronizeBindingRequest = {
+  project_id: string;
+  provider: string;
+  config: Record<string, unknown>;
+  target_path?: string;
+  direction?: string;
+  conflict_strategy?: string;
+  sync_mode?: "manual" | "scheduled" | "realtime";
+  trigger?: { type: string; schedule?: string; timezone?: string };
+};
+
+export type DesktopCloudCreateSynchronizeBindingResult = {
+  binding: DesktopCloudSynchronizeBinding;
+  execution_result?: {
+    synchronize_binding_id: string;
+    synchronize_run_id?: string | null;
+    status: string;
+    summary?: string | null;
+  } | null;
+};
+
+export type DesktopCloudUpdateSynchronizeBindingRequest = {
+  config?: Record<string, unknown>;
+  target_path?: string;
+  direction?: string;
+  conflict_strategy?: string;
+};
+
+export type DesktopCloudUpdateSynchronizeTriggerRequest = {
+  sync_mode: "manual" | "scheduled" | "realtime";
+  trigger?: { type: string; schedule?: string; timezone?: string } | null;
+};
 type SessionHandler = (session: DesktopCloudSession | null) => void | Promise<void>;
 
-/** ISSUE-058 transition: legacy HTTP names are confined to this resource client.
- * The server's legacy access_point_id is a binding reference on these routes
- * only. Never use this conversion for an Access response.
- */
+/** Canonical resource client. No legacy URL or identity-field fallback. */
 export function createSynchronizeApi(request: CloudAutomationTransport) {
-  const base = "/integrations";
+  const base = "/synchronize";
   const bindingPath = (id: string) => {
     if (typeof id !== "string" || !id.trim()) throw new Error("A Synchronize binding ID is required.");
-    return `${base}/connections/${encodeURIComponent(id)}`;
+    return `${base}/bindings/${encodeURIComponent(id)}`;
   };
-  const runFromWire = ({ access_point_id, ...run }: LegacyRun): DesktopCloudSynchronizeRun => {
-    if (typeof access_point_id !== "string" || !access_point_id.trim()) {
+  const validateRun = (run: DesktopCloudSynchronizeRun): DesktopCloudSynchronizeRun => {
+    if (typeof run.synchronize_binding_id !== "string" || !run.synchronize_binding_id.trim()) {
       throw new Error("Synchronize run is missing its binding ID.");
     }
-    return { ...run, synchronize_binding_id: access_point_id };
+    return run;
   };
 
   async function listSynchronizeBindings(
@@ -64,7 +86,7 @@ export function createSynchronizeApi(request: CloudAutomationTransport) {
     onSessionChange?: SessionHandler, apiBaseUrl?: string | null,
   ): Promise<DesktopCloudSynchronizeBinding[]> {
     const bindings = await request<DesktopCloudSynchronizeBinding[]>(
-      `${base}/connections?${new URLSearchParams({ project_id: projectId })}`,
+      `${base}/bindings?${new URLSearchParams({ project_id: projectId })}`,
       session, onSessionChange, {}, apiBaseUrl,
     );
     if (!Array.isArray(bindings) || bindings.some((binding) => !binding || typeof binding.id !== "string" || !binding.id.trim())) {
@@ -76,17 +98,22 @@ export function createSynchronizeApi(request: CloudAutomationTransport) {
     return bindings;
   }
 
-  function createSynchronizeBinding(
-    session: DesktopCloudSession, body: DesktopCloudCreateAutomationRequest,
+  async function createSynchronizeBinding(
+    session: DesktopCloudSession, body: DesktopCloudCreateSynchronizeBindingRequest,
     onSessionChange?: SessionHandler, apiBaseUrl?: string | null,
-  ): Promise<DesktopCloudCreateAutomationResult> {
-    return request(`${base}/connections`, session, onSessionChange,
+  ): Promise<DesktopCloudCreateSynchronizeBindingResult> {
+    const result = await request<DesktopCloudCreateSynchronizeBindingResult>(`${base}/bindings`, session, onSessionChange,
       { method: "POST", body: JSON.stringify(body) }, apiBaseUrl);
+    if (!result.binding?.id || result.binding.project_id !== body.project_id
+      || (result.execution_result && result.execution_result.synchronize_binding_id !== result.binding.id)) {
+      throw new Error("Synchronize creation returned inconsistent resource identities.");
+    }
+    return result;
   }
 
   function updateSynchronizeBinding(
     session: DesktopCloudSession, synchronizeBindingId: string,
-    body: DesktopCloudUpdateAutomationConnectionRequest,
+    body: DesktopCloudUpdateSynchronizeBindingRequest,
     onSessionChange?: SessionHandler, apiBaseUrl?: string | null,
   ): Promise<DesktopCloudSynchronizeBinding> {
     return request(bindingPath(synchronizeBindingId), session, onSessionChange,
@@ -95,7 +122,7 @@ export function createSynchronizeApi(request: CloudAutomationTransport) {
 
   function updateSynchronizeTrigger(
     session: DesktopCloudSession, synchronizeBindingId: string,
-    body: DesktopCloudUpdateAutomationTriggerRequest,
+    body: DesktopCloudUpdateSynchronizeTriggerRequest,
     onSessionChange?: SessionHandler, apiBaseUrl?: string | null,
   ): Promise<unknown> {
     return request(`${bindingPath(synchronizeBindingId)}/trigger`, session, onSessionChange,
@@ -107,21 +134,21 @@ export function createSynchronizeApi(request: CloudAutomationTransport) {
     onSessionChange?: SessionHandler, apiBaseUrl?: string | null,
   ): Promise<DesktopCloudSynchronizeRun[]> {
     const normalizedLimit = Number.isFinite(limit) ? Math.max(1, Math.min(100, Math.trunc(limit))) : 10;
-    const runs = await request<LegacyRun[]>(
+    const runs = await request<DesktopCloudSynchronizeRun[]>(
       `${bindingPath(synchronizeBindingId)}/runs?limit=${normalizedLimit}`,
       session, onSessionChange, {}, apiBaseUrl,
     );
-    if (runs.some((run) => run.access_point_id !== synchronizeBindingId)) {
+    if (runs.some((run) => run.synchronize_binding_id !== synchronizeBindingId)) {
       throw new Error("Synchronize history returned a run from another binding.");
     }
-    return runs.map(runFromWire);
+    return runs.map(validateRun);
   }
 
   async function getSynchronizeRun(
     session: DesktopCloudSession, runId: string,
     onSessionChange?: SessionHandler, apiBaseUrl?: string | null,
   ): Promise<DesktopCloudSynchronizeRun> {
-    return runFromWire(await request<LegacyRun>(`${base}/runs/${encodeURIComponent(runId)}`,
+    return validateRun(await request<DesktopCloudSynchronizeRun>(`${base}/runs/${encodeURIComponent(runId)}`,
       session, onSessionChange, {}, apiBaseUrl));
   }
 
