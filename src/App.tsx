@@ -32,6 +32,8 @@ import {
   type SettingsSection,
 } from "./features/settings";
 import { CLOUD_HUB_ENTRY_SECTION, type CloudWorkspaceSection } from "./features/cloud";
+import { useCloudWorkspaceSwitch } from "./features/cloud/workbench/useCloudWorkspaceSwitch";
+import { getCloudAuthSession, resolveCloudAuthState } from "./features/cloud/auth";
 import { useNativeCloudWorkbench } from "./features/cloud/workbench/useNativeCloudWorkbench";
 import {
   MinimalOnboarding,
@@ -65,7 +67,6 @@ import {
 import { openWorkspaceTarget } from "./lib/workspaceOpening";
 import {
   getDesktopCloudApiBaseUrl,
-  isCloudSessionForApiBase,
   type DesktopCloudSession,
 } from "./lib/cloudApi";
 import {
@@ -217,9 +218,17 @@ function AppContent() {
   const assetLibraryHomeAvailable = useFeatureFlag("assetLibraryHome");
   const {
     cloudSession,
+    cloudAuthStatus,
     cloudSessionRestoring,
     handleCloudSessionChange: updateCloudSession,
   } = useDesktopCloudSession();
+  const desktopCloudApiBaseUrl = useMemo(() => getDesktopCloudApiBaseUrl(), []);
+  const activeCloudSession = useMemo(() => getCloudAuthSession(resolveCloudAuthState({
+    cloudSession: cloudAuthStatus === "authenticated" || cloudAuthStatus === "refreshing"
+      || cloudAuthStatus === "offline-authenticated" ? cloudSession : null,
+    sessionRestoring: cloudSessionRestoring,
+    environment: { apiBaseUrl: desktopCloudApiBaseUrl, source: "default", cloudRemote: null },
+  })), [cloudAuthStatus, cloudSession, cloudSessionRestoring, desktopCloudApiBaseUrl]);
   const [activeCloudSection, setActiveCloudSection] = useState<CloudWorkspaceSection>("initialize");
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const projectEntryFlow = useProjectEntryFlow();
@@ -344,7 +353,7 @@ function AppContent() {
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [pluginsDialogOpen, setPluginsDialogOpen] = useState(false);
   const [cloudDialogOpen, setCloudDialogOpen] = useState(false);
-  const [selectedCloudWorkspace, setSelectedCloudWorkspace] = useState<string | null>(null);
+  const [selectedCloudWorkspace, setSelectedCloudWorkspace] = useState<{ scope: string; account: string } | null>(null);
   const [titlebarTabHost, setTitlebarTabHost] = useState<HTMLDivElement | null>(null);
   const [workspaceRefreshToken, setWorkspaceRefreshToken] = useState<WorkspaceContentChange>({
     sequence: 0,
@@ -428,7 +437,12 @@ function AppContent() {
     ?? null;
   const focusedWorkspace = focusedWorkspaceFolder?.workspace ?? workspace;
   const localCloudLocationKey = `${workbenchWorkspace?.id ?? ""}:${focusedWorkspaceFolder?.id ?? workspace?.path ?? ""}`;
-  const cloudWorkspaceActive = cloudEnabled && selectedCloudWorkspace === localCloudLocationKey;
+  const cloudSwitchScope = `${localCloudLocationKey}:${desktopCloudApiBaseUrl ?? ""}`;
+  const cloudWorkspaceActive = cloudEnabled && selectedCloudWorkspace?.scope === cloudSwitchScope
+    && activeCloudSession !== null && selectedCloudWorkspace.account === activeCloudSession.user_id;
+  useEffect(() => {
+    if (selectedCloudWorkspace && !cloudWorkspaceActive) setSelectedCloudWorkspace(null);
+  }, [cloudWorkspaceActive, selectedCloudWorkspace]);
   useEffect(() => { setSelectedCloudWorkspace(null); }, [workbenchWorkspace?.id]);
   const auxiliarySurfaceRef = useRef<HTMLDivElement>(null);
   const blurAuxiliarySurfaceFocus = useCallback(() => {
@@ -609,23 +623,6 @@ function AppContent() {
     [openCloudDialogAt],
   );
   const closeCloudDialog = useCallback(() => setCloudDialogOpen(false), []);
-  const openCloudWorkspace = useCallback(() => {
-    if (!cloudEnabled) return;
-    setSelectedCloudWorkspace(localCloudLocationKey);
-    setActiveView("data");
-    setActiveCloudSection(CLOUD_HUB_ENTRY_SECTION);
-    setCloudDialogOpen(false);
-    setSettingsDialogOpen(false);
-    setPluginsDialogOpen(false);
-    setSwitcherOpen(false);
-    setBranchSwitcherOpen(false);
-  }, [cloudEnabled, localCloudLocationKey, setBranchSwitcherOpen]);
-  const openLocalWorkspace = useCallback(() => {
-    setSelectedCloudWorkspace(null);
-    setCloudDialogOpen(false);
-    setSwitcherOpen(false);
-    setBranchSwitcherOpen(false);
-  }, [setBranchSwitcherOpen]);
 
   useEffect(() => {
     const handleSettingsShortcut = (event: KeyboardEvent) => {
@@ -647,11 +644,6 @@ function AppContent() {
   const workspaceKey = useMemo(
     () => workbenchWorkspace?.id ?? "no-workspace",
     [workbenchWorkspace?.id],
-  );
-  const desktopCloudApiBaseUrl = useMemo(() => getDesktopCloudApiBaseUrl(), []);
-  const activeCloudSession = useMemo(
-    () => isCloudSessionForApiBase(cloudSession, desktopCloudApiBaseUrl) ? cloudSession : null,
-    [cloudSession, desktopCloudApiBaseUrl],
   );
   const latestAiEditRequest = useAiEditReviewRequest({
     aiEditAssistEnabled,
@@ -694,20 +686,6 @@ function AppContent() {
   });
 
   useEffect(() => {
-    if (activeView === "cloud") {
-      setActiveView("data");
-      if (cloudEnabled) setSelectedCloudWorkspace(localCloudLocationKey);
-      if (!cloudEnabled) setActiveCloudSection("initialize");
-      return;
-    }
-    if (!cloudEnabled) setCloudDialogOpen(false);
-    if (activeView === "git") {
-      setActiveView("data");
-      setActiveCloudSection("initialize");
-    }
-  }, [activeView, cloudEnabled, localCloudLocationKey]);
-
-  useEffect(() => {
     if (!experimentalSettings.enableViewerPlugins) setPluginsDialogOpen(false);
   }, [experimentalSettings.enableViewerPlugins]);
 
@@ -746,6 +724,33 @@ function AppContent() {
     workspacePath: focusedWorkspace?.path ?? null,
   });
 
+  const {
+    cloudInitializationLoading: cloudBackupLoading,
+    cloudInitializationError: cloudPublishError,
+    cloudInitializationNotice: cloudPublishNotice,
+    cloudInitializationProgress: cloudPublishProgress,
+    cloudInitializationState: cloudPublishState,
+    cloudInitializationStateLoading: cloudPublishStateLoading,
+    handleCleanupCloudInitialization: handleAbandonPuppyoneBackup,
+    handleStartCloudInitialization: handleStartPuppyoneBackup,
+    cloudInitializationPending: pendingCloudBackupSetup,
+  } = useCloudInitialization({
+    activeCloudSession,
+    applyGitStatus,
+    captureGitRepositoryContext,
+    clearGitSelection,
+    cloudEnabled,
+    desktopCloudApiBaseUrl,
+    isGitRepositoryContextCurrent,
+    refreshWorkspaceContent,
+    setActiveCloudSection,
+    setActiveView,
+    setSidebarCollapsed,
+    setSwitcherOpen,
+    workspace,
+  });
+
+
   const projectCloudContext = useCurrentRepositoryCloudContext({
     workspace: focusedWorkspace,
     activeGitStatus,
@@ -765,9 +770,58 @@ function AppContent() {
     active: cloudWorkspaceActive,
     filesVisibilitySettings,
   });
+  const commitCloudWorkspace = useCallback(() => {
+    if (!activeCloudSession) return;
+    setSelectedCloudWorkspace({ scope: cloudSwitchScope, account: activeCloudSession.user_id });
+    setActiveView("data");
+  }, [activeCloudSession, cloudSwitchScope]);
+  const cloudWorkspaceSwitch = useCloudWorkspaceSwitch({
+    enabled: cloudEnabled && focusedWorkspace?.path === workspace?.path,
+    scope: cloudSwitchScope,
+    session: activeCloudSession,
+    service: nativeCloudWorkbench.service,
+    providerError: nativeCloudWorkbench.error,
+    initializationPending: cloudBackupLoading || pendingCloudBackupSetup || cloudPublishStateLoading || cloudPublishState !== null,
+    onCommit: commitCloudWorkspace,
+  });
+  const requestCloudWorkspace = cloudWorkspaceSwitch.request;
+  const cancelCloudWorkspaceSwitch = cloudWorkspaceSwitch.cancel;
+  const openCloudWorkspace = useCallback(() => {
+    if (!cloudEnabled || cloudWorkspaceActive) return;
+    requestCloudWorkspace();
+    setActiveCloudSection(CLOUD_HUB_ENTRY_SECTION);
+    setCloudDialogOpen(false);
+    setSettingsDialogOpen(false);
+    setPluginsDialogOpen(false);
+    setSwitcherOpen(false);
+    setBranchSwitcherOpen(false);
+  }, [cloudEnabled, cloudWorkspaceActive, requestCloudWorkspace, setBranchSwitcherOpen]);
+  const openLocalWorkspace = useCallback(() => {
+    cancelCloudWorkspaceSwitch();
+    setSelectedCloudWorkspace(null);
+    setCloudDialogOpen(false);
+    setSwitcherOpen(false);
+    setBranchSwitcherOpen(false);
+  }, [cancelCloudWorkspaceSwitch, setBranchSwitcherOpen]);
+
   useEffect(() => {
     if (cloudWorkspaceActive) resetDataNodeActions();
   }, [cloudWorkspaceActive, resetDataNodeActions]);
+  useEffect(() => {
+    if (activeView === "cloud") {
+      setActiveView("data");
+      if (cloudEnabled) openCloudWorkspace();
+      if (!cloudEnabled) setActiveCloudSection("initialize");
+      return;
+    }
+    if (!cloudEnabled) setCloudDialogOpen(false);
+    if (activeView === "git") {
+      setActiveView("data");
+      setActiveCloudSection("initialize");
+    }
+  }, [activeView, cloudEnabled, openCloudWorkspace]);
+
+
   const [shareWizard, setShareWizard] = useState<{ targetId: ShareTargetId | null; path: string } | null>(null);
   const {
     shares: projectShares,
@@ -804,6 +858,11 @@ function AppContent() {
     setBranchSwitcherOpen(false);
   }, [setBranchSwitcherOpen, shareOnboardingEnabled]);
   const closeShareWizard = useCallback(() => setShareWizard(null), []);
+  useEffect(() => {
+    if (cloudWorkspaceSwitch.pending && (cloudDialogOpen || settingsDialogOpen || pluginsDialogOpen || shareWizard)) {
+      cancelCloudWorkspaceSwitch();
+    }
+  }, [cancelCloudWorkspaceSwitch, cloudDialogOpen, cloudWorkspaceSwitch.pending, pluginsDialogOpen, settingsDialogOpen, shareWizard]);
   useEffect(() => {
     if (shareOnboardingEnabled) return;
     setShareWizard(null);
@@ -1051,11 +1110,10 @@ function AppContent() {
       }
       setActiveCloudSection("initialize");
       setActiveView("data");
-      setCloudDialogOpen(!cloudWorkspaceActive);
       setSidebarCollapsed(false);
       setSwitcherOpen(false);
     }
-  }, [cloudEnabled, cloudWorkspaceActive, setSidebarCollapsed, settingsDialogOpen, updateCloudSession]);
+  }, [cloudEnabled, setSidebarCollapsed, settingsDialogOpen, updateCloudSession]);
 
   const handleRemoveCloudRemote = useCallback(async () => {
     if (!focusedWorkspace) return;
@@ -1109,31 +1167,6 @@ function AppContent() {
     focusedWorkspace,
   ]);
 
-  const {
-    cloudInitializationLoading: cloudBackupLoading,
-    cloudInitializationError: cloudPublishError,
-    cloudInitializationNotice: cloudPublishNotice,
-    cloudInitializationProgress: cloudPublishProgress,
-    cloudInitializationState: cloudPublishState,
-    cloudInitializationStateLoading: cloudPublishStateLoading,
-    handleCleanupCloudInitialization: handleAbandonPuppyoneBackup,
-    handleStartCloudInitialization: handleStartPuppyoneBackup,
-    cloudInitializationPending: pendingCloudBackupSetup,
-  } = useCloudInitialization({
-    activeCloudSession,
-    applyGitStatus,
-    captureGitRepositoryContext,
-    clearGitSelection,
-    cloudEnabled,
-    desktopCloudApiBaseUrl,
-    isGitRepositoryContextCurrent,
-    refreshWorkspaceContent,
-    setActiveCloudSection,
-    setActiveView,
-    setSidebarCollapsed,
-    setSwitcherOpen,
-    workspace,
-  });
 
   const unlinkCurrentWorkspace = useCallback(async () => {
     // Forgetting a project actually retires its authorization and editors.
@@ -1364,6 +1397,7 @@ function AppContent() {
     void handleActiveDataPathChange(qualifyDataResourcePath(rootUri, path));
   }, [focusedWorkspaceFolder?.uri, handleActiveDataPathChange]);
   const handleToggleAgentWorkbench = useCallback(() => {
+    if (cloudWorkspaceActive) return;
     if (agentSidebarOpen) {
       setRightSidebarOpen(false);
       return;
@@ -1373,6 +1407,7 @@ function AppContent() {
     setSwitcherOpen(false);
   }, [
     agentSidebarOpen,
+    cloudWorkspaceActive,
     setRightSidebarOpen,
     setRightSidebarSurface,
   ]);
@@ -1651,7 +1686,7 @@ function AppContent() {
               } : handleLocationBarNavigate}
             />
           ) : undefined}
-          rightSidebarOpen={gitPresentation.effectiveSidebarOpen}
+          rightSidebarOpen={rightSidebarContentVisible}
           resizableRightSidebar
           rightSidebarWidth={rightSidebarWidth}
           onLeftSidebarExpand={() => setSidebarCollapsed(false)}
@@ -1659,13 +1694,6 @@ function AppContent() {
           onRightSidebarWidthChange={setRightSidebarWidth}
           rightSidebar={(presentation) => (
             <div ref={auxiliarySurfaceRef} className="desktop-right-sidebar-stack">
-              {cloudWorkspaceActive && (
-                <div className="desktop-right-sidebar-surface is-active" data-cloud-execution-unavailable="true">
-                  <div className="desktop-view-placeholder" role="status">
-                    <span>{t("shell.cloud.executionUnavailable")}</span>
-                  </div>
-                </div>
-              )}
               <div
                 className={`desktop-right-sidebar-surface ${!cloudWorkspaceActive && rightSidebarSurface === "chat" ? "is-active" : ""}`}
                 aria-hidden={cloudWorkspaceActive || rightSidebarSurface !== "chat"}
@@ -1745,9 +1773,11 @@ function AppContent() {
               },
               onSelectSection: setActiveCloudSection,
               onStartPuppyoneBackup: handleStartPuppyoneBackup,
+              onCreateCloudVersion: (organizationId) => handleStartPuppyoneBackup(organizationId, { navigateToCloud: false }),
             }}
             cloudWorkspaceActive={cloudWorkspaceActive}
             cloudWorkbench={nativeCloudWorkbench}
+            cloudWorkspaceSwitch={cloudWorkspaceSwitch}
             cloudOpen={cloudDialogOpen}
             cloudLocationControls={focusedWorkspace?.path === workspace.path ? (
               <DesktopProjectLocationControls

@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocalization } from "@puppyone/localization";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EditorView } from "@codemirror/view";
 import { createWorkspaceRootUri, createWorkspaceResourceUri, getWorkspaceResourcePath, canonicalizeResourceUri, isDocumentDataNode, withEditorDocumentOperations, type DataPort, type Workspace, type WorkspaceFolder } from "@puppyone/shared-ui";
 import { DesktopCloudShell } from "../../../components/DesktopCloudShell";
@@ -8,6 +7,9 @@ import { DesktopWorkspaceSwitcher } from "../../app-shell/DesktopWorkspaceSwitch
 import { DesktopWorkspaceLocationSurface } from "../../app-shell/DesktopWorkspaceLocationSurface";
 import { useDesktopPreferences } from "../../app-shell/useDesktopPreferences";
 import { EditorHeaderTabs } from "../../editor-workbench/header/EditorHeaderTabs";
+import { useCloudWorkspaceSwitch } from "./useCloudWorkspaceSwitch";
+import { CloudWorkspaceSwitchDialog } from "./CloudWorkspaceSwitchDialog";
+import { CloudSignInView } from "../auth/CloudSignInView";
 import { useNativeCloudWorkbench } from "./useNativeCloudWorkbench";
 import { DesktopCloudFileWorkspace } from "./DesktopCloudFileWorkspace";
 import { DesktopDataWorkspaceSurface, type DesktopDataWorkspaceSurfaceProps } from "../../app-shell/DesktopDataWorkspaceSurface";
@@ -78,14 +80,19 @@ declare global {
 
 /** No network or real workspace bytes: exercises production file and editor hosts. */
 export function NativeCloudWorkbenchSmokeHarness() {
-  const { t } = useLocalization();
-  const [location, setLocation] = useState<"local" | "cloud">("local");
+  const [cloudSelected, setCloudSelected] = useState(false);
   const [cloudSessionAvailable, setCloudSessionAvailable] = useState(true);
+  const location = cloudSelected && cloudSessionAvailable ? "cloud" : "local";
+  useEffect(() => { if (!cloudSessionAvailable) setCloudSelected(false); }, [cloudSessionAvailable]);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const preferences = useDesktopPreferences();
   const workbench = useNativeCloudWorkbench({ context, session: cloudSessionAvailable ? session : null, apiBaseUrl: API, localWorkspaceIdentity: localWorkspace.id, localWorkspace,
     active: location === "cloud", filesVisibilitySettings: preferences.filesVisibilitySettings });
+  const commitCloud = useCallback(() => setCloudSelected(true), []);
+  const controller = useCloudWorkspaceSwitch({ enabled: true, scope: localWorkspace.id,
+    session: cloudSessionAvailable ? session : null, service: workbench.service,
+    providerError: workbench.error, initializationPending: false, onCommit: commitCloud });
   const localPort = useMemo<DataPort>(() => withEditorDocumentOperations({
     listChildren: async () => localNodes,
     resolveNode: async (path) => localNodes.find((node) => node.path === path) ?? null,
@@ -146,7 +153,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
         workspace={localWorkspace} workspaceFolders={[]} multiRootWorkspacesEnabled={false}
         projectLocation={{ current: location, localAvailable: true, cloudState: "available" }} cloudProject={{ id: context.projectId }}
         onClose={() => setMenuOpen(false)} onToggle={() => setMenuOpen((current) => !current)}
-        onViewLocal={() => { setLocation("local"); setMenuOpen(false); }} onViewCloud={() => { setLocation("cloud"); setMenuOpen(false); }} />}
+        onViewLocal={() => { controller.cancel(); setCloudSelected(false); setMenuOpen(false); }} onViewCloud={() => { controller.request(); setMenuOpen(false); }} />}
       titlebarTabs={<EditorHeaderTabs activeEditorId={visibleWorkbench.activeEditorId}
         editors={visibleWorkbench.state.editors} fileIconTheme={preferences.fileIconTheme}
         storageIdentity={location === "cloud" ? workbench.dataPort?.documentPersistence?.storageIdentity ?? null : localPort.documentPersistence!.storageIdentity}
@@ -155,7 +162,8 @@ export function NativeCloudWorkbenchSmokeHarness() {
       <DesktopWorkspaceLocationSurface location={location}
         local={<DesktopDataWorkspaceSurface {...commonSurfaceProps} />}
         cloud={<DesktopCloudFileWorkspace workbench={workbench} surfaceProps={commonSurfaceProps}
-          providerStateContent={<div data-cloud-file-provider-state="signed-out">{t("cloud.auth.signInToCloud")}</div>} />} />
+          providerStateContent={null} />} />
     </DesktopCloudShell>
+    <CloudWorkspaceSwitchDialog controller={controller} gate={<CloudSignInView compact activeSection="contents" apiBaseUrl={API} />} />
   </div>;
 }

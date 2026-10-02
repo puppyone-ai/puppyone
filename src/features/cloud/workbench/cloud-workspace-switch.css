@@ -1,0 +1,52 @@
+@layer features {
+  .desktop-cloud-workspace-switch-dialog {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 80px);
+    overflow: hidden;
+  }
+
+  .desktop-cloud-workspace-switch-content {
+    display: flex;
+    flex-direction: column;
+    min-height: 240px;
+    overflow: auto;
+  }
+
+  .desktop-cloud-workspace-switch-content > .desktop-cloud-main-view {
+    overflow: visible;
+  }
+
+  .desktop-cloud-workspace-sign-in,
+  .desktop-cloud-workspace-switch-recovery {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 32px;
+    color: var(--po-text);
+    text-align: center;
+  }
+
+  .desktop-cloud-workspace-sign-in h3,
+  .desktop-cloud-workspace-sign-in p,
+  .desktop-cloud-workspace-switch-recovery p {
+    margin: 0;
+  }
+
+  .desktop-cloud-workspace-sign-in p,
+  .desktop-cloud-workspace-switch-recovery p {
+    color: var(--po-text-muted);
+    font-size: var(--po-text-size-body);
+  }
+
+  .desktop-cloud-workspace-sign-in .desktop-cloud-product-mark {
+    width: 52px;
+    height: 36px;
+  }
+
+  .desktop-cloud-workspace-sign-in .desktop-cloud-auth-card {
+    max-width: 320px;
+    padding: 0;
+  }
+}

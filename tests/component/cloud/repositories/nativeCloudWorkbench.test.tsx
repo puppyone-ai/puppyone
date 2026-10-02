@@ -1,10 +1,12 @@
 /** @vitest-environment happy-dom */
-import { act, useEffect, useState, type ReactNode } from "react";
+import { act, useCallback, useEffect, useState, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DesktopWorkspaceLocationSurface } from "../../../../src/features/app-shell/DesktopWorkspaceLocationSurface";
 import { DesktopProjectLocationControls } from "../../../../src/features/app-shell/DesktopWorkspaceSwitcher";
 import { useNativeCloudWorkbench, type NativeCloudWorkbench } from "../../../../src/features/cloud/workbench/useNativeCloudWorkbench";
+import { useCloudWorkspaceSwitch } from "../../../../src/features/cloud/workbench/useCloudWorkspaceSwitch";
+import { CloudWorkspaceSwitchDialog } from "../../../../src/features/cloud/workbench/CloudWorkspaceSwitchDialog";
 import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
 import { withTestLocalization } from "../../../support/react/localization";
 
@@ -25,20 +27,31 @@ function LocalEditor() {
   useEffect(() => { mounted++; }, []);
   return <input aria-label="local readme.md" value={text} onInput={(event) => setText(event.currentTarget.value)} />;
 }
-function Harness({ linked = true, currentSession = session, localIdentity = "local-project" }: {
+function Harness({ linked = true, currentSession = session, localIdentity = "local-project", enabled = true, initializationPending = false }: {
   linked?: boolean; currentSession?: DesktopCloudSession | null; localIdentity?: string;
+  enabled?: boolean; initializationPending?: boolean;
 }) {
-  const [location, setLocation] = useState<"local" | "cloud">("local");
+  const [selection, setSelection] = useState<{ scope: string; account: string } | null>(null);
+  const active = enabled && selection?.scope === localIdentity && currentSession !== null && selection.account === currentSession.user_id;
+  const location = active ? "cloud" : "local";
+  useEffect(() => { if (selection && !active) setSelection(null); }, [active, selection]);
   cloud = useNativeCloudWorkbench({ context: linked ? context : { status: "local-only", projectId: null },
-    session: currentSession, apiBaseUrl: API, localWorkspaceIdentity: localIdentity, active: location === "cloud",
+    session: currentSession, apiBaseUrl: API, localWorkspaceIdentity: localIdentity, active,
     filesVisibilitySettings: { showHiddenFiles: true, excludePatterns: [] } });
+  const onCommit = useCallback(() => {
+    if (currentSession) setSelection({ scope: localIdentity, account: currentSession.user_id });
+  }, [currentSession, localIdentity]);
+  const controller = useCloudWorkspaceSwitch({ enabled, scope: localIdentity, session: currentSession,
+    service: cloud.service, providerError: cloud.error, initializationPending, onCommit });
   return <>
     <DesktopProjectLocationControls projectLocation={{ current: location, localAvailable: true, cloudState: linked ? "available" : "unavailable" }}
-      onViewLocal={() => setLocation("local")} onViewCloud={() => setLocation("cloud")} />
+      onViewLocal={() => { controller.cancel(); setSelection(null); }} onViewCloud={controller.request} />
     <DesktopWorkspaceLocationSurface location={location} local={<LocalEditor />}
-      cloud={cloud.dataPort && cloud.visited ? <div data-cloud-storage={cloud.dataPort.documentPersistence?.storageIdentity}>{cloud.editorWorkbench.state.editors.map((editor) => <span key={editor.id}>{editor.label}</span>)}</div> : cloud.surfaceVisited ? <div data-file-workbench="true"><aside data-file-sidebar="true" /><main><button>Create Cloud version</button></main></div> : null} />
+      cloud={cloud.dataPort && cloud.visited ? <div data-cloud-storage={cloud.dataPort.documentPersistence?.storageIdentity}>{cloud.editorWorkbench.state.editors.map((editor) => <span key={editor.id}>{editor.label}</span>)}</div> : null} />
+    <CloudWorkspaceSwitchDialog controller={controller} gate={currentSession ? <button>Create Cloud version</button> : <button>Sign in</button>} />
   </>;
 }
+
 const render = async (content: ReactNode) => {
   if (!root) { const container = document.createElement("div"); document.body.appendChild(container); root = createRoot(container); }
   await act(async () => { root!.render(withTestLocalization(content)); });
@@ -86,17 +99,83 @@ describe("native Cloud workbench switching", () => {
     expect(cloud.editorWorkbench.activePath).toBe(node!.path);
   });
 
-  it("offers creation inline for an unhosted project without starting a publication automatically", async () => {
+  it("keeps the local workbench while an unhosted project awaits explicit creation", async () => {
     installBridge(); await render(<Harness linked={false} />); await click("Create Cloud");
-    expect(surface("cloud").querySelector("main")?.textContent).toBe("Create Cloud version");
-    expect(surface("local").hidden).toBe(true);
-    expect(surface("cloud").querySelector("[data-file-sidebar]")).not.toBeNull();
-    expect(surface("cloud").querySelector("nav")).toBeNull();
-    expect(document.querySelector('[role="dialog"]')).toBeNull(); expect(bridge).not.toHaveBeenCalled();
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Create Cloud version");
+    expect(surface("local").hidden).toBe(false);
+    expect(surface("cloud").hidden).toBe(true);
+    expect(document.querySelector('[role="dialog"] aside, [role="dialog"] nav')).toBeNull();
+    expect(bridge).not.toHaveBeenCalled();
     expect(cloud.surfaceService.folder.capabilities.read).toBe(false);
     expect(await cloud.surfaceService.dataPort.listChildren(null)).toEqual([]);
-    await expect(cloud.surfaceService.dataPort.readFile!(cloud.surfaceService.folder.uri)).rejects.toThrow(/unavailable/);
     expect(cloud.surfaceService.dataPort.documentPersistence).toBeUndefined();
+    // Publishing completion prepares the same provider, rather than selecting early.
+    await render(<Harness initializationPending />);
+    expect(surface("local").hidden).toBe(false);
+    expect(bridge).not.toHaveBeenCalled();
+    await render(<Harness />);
+    expect(surface("cloud").hidden).toBe(false);
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("does not switch on a later publication completion after cancellation", async () => {
+    installBridge(); await render(<Harness linked={false} />); await click("Create Cloud");
+    await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    await render(<Harness />);
+    expect(surface("local").hidden).toBe(false);
+    expect(bridge).not.toHaveBeenCalled();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("waits for sign-in and actual file access before selecting Cloud", async () => {
+    installBridge(); await render(<Harness currentSession={null} />); await click("Cloud");
+    expect(surface("local").hidden).toBe(false);
+    expect(surface("cloud").hidden).toBe(true);
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Sign in");
+    expect(bridge).not.toHaveBeenCalled();
+    await render(<Harness />);
+    expect(bridge).toHaveBeenCalled();
+    expect(surface("cloud").hidden).toBe(false);
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("does not select Cloud when authentication returns after the dialog was dismissed", async () => {
+    installBridge(); await render(<Harness currentSession={null} />); await click("Cloud");
+    await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    await render(<Harness />);
+    expect(surface("local").hidden).toBe(false);
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(bridge).not.toHaveBeenCalled();
+  });
+
+  it("keeps local drafts on a failed file preflight and retries only on request", async () => {
+    installBridge(); bridge.mockRejectedValueOnce(Object.assign(new Error("Denied"), { status: 403 }));
+    await render(<Harness />); await click("Cloud");
+    expect(surface("local").hidden).toBe(false);
+    expect(document.querySelector('[role="alert"]')).not.toBeNull();
+    expect(bridge).toHaveBeenCalledOnce();
+    await click("Retry");
+    expect(surface("cloud").hidden).toBe(false);
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it.each(["cancel", "repository", "disabled", "account"])('revokes a pending file response on %s change', async (change) => {
+    installBridge();
+    let finish!: (value: unknown) => void;
+    bridge.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    await render(<Harness />); await click("Cloud");
+    expect(surface("local").hidden).toBe(false);
+    if (change === "cancel") await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    if (change === "repository") await render(<Harness localIdentity="another-project" />);
+    if (change === "disabled") await render(<Harness enabled={false} />);
+    if (change === "account") await render(<Harness currentSession={null} />);
+    await act(async () => finish({ entries: [], head_commit_id: "stale" }));
+    expect(surface("local").hidden).toBe(false);
+    if (change === "account") {
+      await render(<Harness currentSession={{ ...session, user_id: "another-account", session_generation: "second" }} />);
+      expect(cloud.service!.workspace.id).toContain("another-account");
+      expect(surface("cloud").hidden).toBe(false);
+    } else expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
 
   it("changes the storage namespace on account change and revokes the previous provider", async () => {
@@ -104,6 +183,7 @@ describe("native Cloud workbench switching", () => {
     const previousPort = cloud.dataPort!; const previousId = cloud.service!.workspace.id;
     await render(<Harness currentSession={{ ...session, user_id: "another-account", session_generation: "second" }} />);
     expect(cloud.service!.workspace.id).not.toBe(previousId);
+    expect(surface("local").hidden).toBe(false);
     await expect(previousPort.listChildren(null)).rejects.toThrow(/session changed/);
   });
 
@@ -115,8 +195,10 @@ describe("native Cloud workbench switching", () => {
     await render(<Harness currentSession={null} />);
     expect(cloud.dataPort).toBeNull(); expect(cloud.editorWorkbench.state.editors).toHaveLength(0);
     expect(surface("cloud").querySelector('[data-cloud-storage]')).toBeNull();
-    expect(surface("cloud").querySelector('[data-file-sidebar]')).not.toBeNull();
+    expect(surface("local").hidden).toBe(false);
     expect(cloud.surfaceService.workspace.id).not.toBe(cloud.service?.workspace.id);
+    await render(<Harness />);
+    expect(surface("local").hidden).toBe(false);
     expect(cloud.surfaceService.folder.capabilities.execute).toBe(false);
   });
 });

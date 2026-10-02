@@ -38,6 +38,8 @@ import type { SubThemeCatalogController } from "../themes/useSubThemeCatalog";
 import { CloudDialog } from "../cloud/CloudDialog";
 import { DesktopWorkspaceLocationSurface } from "./DesktopWorkspaceLocationSurface";
 import { DesktopCloudFileWorkspace } from "../cloud/workbench/DesktopCloudFileWorkspace";
+import { CloudWorkspaceSwitchDialog } from "../cloud/workbench/CloudWorkspaceSwitchDialog";
+import type { CloudWorkspaceSwitch } from "../cloud/workbench/useCloudWorkspaceSwitch";
 import type { NativeCloudWorkbench } from "../cloud/workbench/useNativeCloudWorkbench";
 
 type DataWorkspacePort = ComponentProps<typeof DataWorkspace>["dataPort"];
@@ -50,6 +52,7 @@ type DesktopWorkspaceContentProps = {
   cloudOpen?: boolean;
   cloudWorkspaceActive?: boolean;
   cloudWorkbench?: NativeCloudWorkbench;
+  cloudWorkspaceSwitch?: CloudWorkspaceSwitch;
   cloudLocationControls?: ReactNode;
   dataPort: DataWorkspacePort | null;
   editorWorkbench: DesktopEditorWorkbenchController;
@@ -114,6 +117,7 @@ export function DesktopWorkspaceContent({
   cloudOpen = false,
   cloudWorkspaceActive = false,
   cloudWorkbench,
+  cloudWorkspaceSwitch,
   cloudLocationControls,
   dataPort,
   editorWorkbench,
@@ -190,6 +194,7 @@ export function DesktopWorkspaceContent({
     availableSurfaceIds,
     cloudSurface,
     cloudFileState,
+    cloudSwitchGate,
     gitEnabled,
     resolvedActiveView,
     resolvedSurface,
@@ -279,6 +284,7 @@ export function DesktopWorkspaceContent({
               providerStateContent={cloudFileState} />
           : null}
       />
+      {cloudWorkspaceSwitch && <CloudWorkspaceSwitchDialog controller={cloudWorkspaceSwitch} gate={cloudSwitchGate} />}
       {cloudOpen && (
         <CloudDialog
           sidebar={cloudSurface.sidebar}

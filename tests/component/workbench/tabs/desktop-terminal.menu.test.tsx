@@ -107,6 +107,16 @@ describe("Desktop Terminal tab session manager", () => {
     expect(container.querySelector('[aria-label="Terminal actions"]')).toBeNull();
   });
 
+  it.each(["titlebar", "toolbar"] as const)("hides local execution controls in the Cloud %s", (placement) => {
+    const container = document.createElement("div"); document.body.appendChild(container); root = createRoot(container);
+    act(() => root?.render(withTestLocalization(
+      <DesktopTitlebarActions titlebarActionsSettings={DEFAULT_TITLEBAR_ACTIONS_SETTINGS}
+        terminalSidebarOpen={false} terminalToolEnabled={false} gitChangesAvailable={false}
+        placement={placement} cloudEnabled shareEnabled onShare={vi.fn()} onToggleTerminal={vi.fn()} />,
+    )));
+    expect(container.querySelector('[data-toolbar-action="terminal"], [aria-label="Show Agent"], [aria-label="Hide Agent"]')).toBeNull();
+  });
+
   it("manages sessions from the Terminal tab bar", () => {
     const onActivate = vi.fn();
     const onClose = vi.fn();

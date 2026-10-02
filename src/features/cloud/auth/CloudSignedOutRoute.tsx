@@ -8,11 +8,13 @@ export function CloudSignedOutRoute({
   authState,
   apiBaseUrl,
   loadingLabel,
+  compact = false,
 }: {
   activeSection: CloudWorkspaceSection;
   authState: CloudAuthState;
   apiBaseUrl: string | null;
   loadingLabel: string;
+  compact?: boolean;
 }) {
   const sessionTransitioning = authState.status === "restoring" || authState.status === "signing-out";
   if (sessionTransitioning) {
@@ -32,6 +34,7 @@ export function CloudSignedOutRoute({
     >
       <div className="desktop-cloud-auth-page-shell">
         <CloudSignInView
+          compact={compact}
           activeSection={activeSection}
           apiBaseUrl={apiBaseUrl}
         />

@@ -59,12 +59,14 @@ export type DesktopWorkspaceCloudSurfaceController = {
   onOpenGitSettings: () => void;
   onSelectSection: (section: CloudWorkspaceSection) => void;
   onStartPuppyoneBackup: (organizationId?: string) => void;
+  onCreateCloudVersion?: (organizationId?: string) => void;
 };
 
 export type WorkspaceSurfaceContentResult = {
   availableSurfaceIds: readonly WorkspaceSurfaceId[];
   cloudSurface: WorkspaceSurfaceContent;
   cloudFileState: ReactNode;
+  cloudSwitchGate: ReactNode;
   gitEnabled: boolean;
   resolvedActiveView: WorkspaceSurfaceId;
   resolvedSurface: ResolvedWorkspaceSurface;
@@ -241,6 +243,8 @@ export function useWorkspaceSurfaceContent({
     availableSurfaceIds,
     cloudSurface: cloudServiceSurface,
     cloudFileState: <CloudFileWorkspaceGate {...cloudViewProps} />,
+    cloudSwitchGate: <CloudFileWorkspaceGate {...cloudViewProps} compactSignIn
+      onStartPuppyoneBackup={cloud.onCreateCloudVersion ?? cloud.onStartPuppyoneBackup} />,
     gitEnabled,
     resolvedActiveView,
     resolvedSurface: resolveWorkspaceSurface({ capabilities: surfaceCapabilities, adapters, requestedId: requestedSurfaceId }),

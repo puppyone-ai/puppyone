@@ -298,7 +298,8 @@ describe("DesktopHelpLauncher", () => {
     expect(appSource).toContain("renderLeadingRail={projectSwitcherRailVisible ? ({ expanded }) => (");
     expect(appSource).toContain("expanded={expanded}");
     expect(appSource).toContain("leftSidebarCollapsed={sidebarCollapsed}");
-    expect(appSource).toContain("rightSidebarOpen={gitPresentation.effectiveSidebarOpen}");
+    expect(appSource).toContain("rightSidebarOpen={rightSidebarContentVisible}");
+    expect(appSource).toContain("const rightSidebarContentVisible = gitPresentation.effectiveSidebarOpen && !cloudWorkspaceActive;");
     expect(appSource).toContain("settingsOpen={settingsDialogOpen}");
     expect(appSource).toContain("{settingsDialogOpen && (");
     expect(appSource).toContain("<SettingsDialog");
