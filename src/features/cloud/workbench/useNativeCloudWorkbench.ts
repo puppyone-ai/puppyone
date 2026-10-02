@@ -1,0 +1,129 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  closeDocumentWorkingCopy,
+  isDocumentDataNode,
+  withEditorDocumentOperations,
+  type DataNode,
+  type WorkspaceContentChange,
+} from "@puppyone/shared-ui";
+import type { DesktopCloudSession } from "../../../lib/cloudApi";
+import type { FilesVisibilitySettings } from "../../../preferences";
+import type { ProjectCloudContext } from "../project/context/projectCloudContext";
+import { createExplorerDataPort } from "../../data-workspace/explorer";
+import { useProjectExplorerSelection } from "../../data-workspace/useProjectExplorerSession";
+import { useDesktopEditorWorkbench } from "../../editor-workbench/controller/useDesktopEditorWorkbench";
+import { useDataNodeActions } from "../../data-workspace/useDataNodeActions";
+import { createCloudDataService } from "./cloudDataPort";
+
+const noop = () => undefined;
+
+export function useNativeCloudWorkbench({ context, session, apiBaseUrl, localWorkspaceIdentity, active, filesVisibilitySettings }: {
+  context: ProjectCloudContext;
+  session: DesktopCloudSession | null;
+  apiBaseUrl: string | null;
+  localWorkspaceIdentity: string | null;
+  active: boolean;
+  filesVisibilitySettings: FilesVisibilitySettings;
+}) {
+  const resolved = context.status === "resolved" ? context : null;
+  const serviceKey = resolved && session && apiBaseUrl
+    ? JSON.stringify([localWorkspaceIdentity, apiBaseUrl, session.user_id, session.session_generation,
+      resolved.projectId, resolved.target, resolved.scopePath, resolved.projectName, resolved.capabilities])
+    : null;
+  const currentKeyRef = useRef(serviceKey);
+  currentKeyRef.current = serviceKey;
+  const { service, error } = useMemo(() => {
+    if (!resolved || !session || !apiBaseUrl) return { service: null, error: null };
+    try {
+      return { service: createCloudDataService({ context: resolved, session, apiBaseUrl,
+        isCurrent: () => currentKeyRef.current === serviceKey }), error: null };
+    } catch (cause) {
+      return { service: null, error: cause instanceof Error ? cause.message : String(cause) };
+    }
+    // The key is the complete authority/scope/session contract. Object identity
+    // from an auth snapshot or a context render must not rebuild the provider.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serviceKey]);
+  const dataPort = useMemo(() => service
+    ? withEditorDocumentOperations(createExplorerDataPort(service.dataPort, filesVisibilitySettings))
+    : null, [service, filesVisibilitySettings]);
+  const [visitedKey, setVisitedKey] = useState<string | null>(null);
+  useEffect(() => { if (active && service) setVisitedKey(service.workspace.id); }, [active, service]);
+  const visited = Boolean(service && (active || visitedKey === service.workspace.id));
+  const resolveEditorResource = useCallback((path: string) => {
+    const resource = service?.resolveResource(path);
+    return resource?.providerPath ? {
+      rootUri: resource.folder.uri, resourcePath: resource.providerPath, hostPath: resource.resourceUri,
+    } : null;
+  }, [service]);
+  const editorWorkbench = useDesktopEditorWorkbench(visited ? service?.workspace ?? null : null,
+    dataPort?.resolveNode ?? null, service?.folder.uri ?? null, resolveEditorResource, service?.workspace.id ?? null);
+  const [activeNode, setActiveNode] = useProjectExplorerSelection(service?.workspace ?? null);
+  const [refreshToken, setRefreshToken] = useState<WorkspaceContentChange>({ sequence: 0, entries: [] });
+  const [navigationError, setNavigationError] = useState<string | null>(null);
+  const refresh = useCallback(() => setRefreshToken((current) => ({ sequence: current.sequence + 1, entries: [] })), []);
+  const activateNode = useCallback((node: DataNode) => {
+    if (!service?.resolveResource(node.path)) return;
+    setActiveNode(node);
+    if (isDocumentDataNode(node)) editorWorkbench.openDocument(node);
+  }, [editorWorkbench, service, setActiveNode]);
+  const onActivePathChange = useCallback(async (path: string | null, node?: DataNode | null) => {
+    try {
+      if (!path) { setActiveNode(null); return; }
+      const target = node ?? await dataPort?.resolveNode?.(path);
+      if (target) activateNode(target);
+      setNavigationError(null);
+    } catch (cause) { setNavigationError(cause instanceof Error ? cause.message : String(cause)); }
+  }, [activateNode, dataPort, setActiveNode]);
+  const actions = useDataNodeActions({
+    dataPort, workspace: service?.workspace ?? null, setActiveExplorerNode: setActiveNode,
+    onEnterDataView: noop, onLocalWorkspaceContentChanged: noop,
+    onWorkspaceContentChanged: refresh, onActivateNode: activateNode,
+    onResourceMoved: editorWorkbench.rebaseResource, onResourceDeleted: editorWorkbench.closeUnderResource,
+  });
+  const closeEditor = useCallback(async (editorId: string) => {
+    try {
+      const resourcePath = editorWorkbench.state.editors.find((editor) => editor.id === editorId)?.resource;
+      if (!resourcePath) return;
+      const storageIdentity = dataPort?.documentPersistence?.storageIdentity;
+      if (storageIdentity) await closeDocumentWorkingCopy({ storageIdentity, resourcePath });
+      editorWorkbench.close(editorId);
+      setNavigationError(null);
+    } catch (cause) { setNavigationError(cause instanceof Error ? cause.message : String(cause)); }
+  }, [dataPort, editorWorkbench]);
+  const resetActions = actions.resetDataNodeActions;
+  useEffect(() => { if (!active) resetActions(); }, [active, resetActions]);
+  useEffect(() => {
+    resetActions();
+    setNavigationError(null);
+  }, [serviceKey, resetActions]);
+  useEffect(() => {
+    if (!active || !service) return;
+    const onFocus = () => { if (document.visibilityState !== "hidden") refresh(); };
+    window.addEventListener("focus", onFocus);
+    const timer = window.setInterval(onFocus, 30_000);
+    refresh();
+    return () => { window.clearInterval(timer); window.removeEventListener("focus", onFocus); };
+  }, [active, service, refresh]);
+  useEffect(() => {
+    if (!active) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.isComposing) return;
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "w" && editorWorkbench.activeEditorId) {
+        event.preventDefault(); void closeEditor(editorWorkbench.activeEditorId);
+      } else if (event.ctrlKey && !event.metaKey && !event.altKey && event.key === "Tab") {
+        const editors = editorWorkbench.state.editors;
+        if (!editors.length) return;
+        event.preventDefault();
+        const index = editors.findIndex(({ id }) => id === editorWorkbench.activeEditorId);
+        editorWorkbench.activate(editors[(index + (event.shiftKey ? -1 : 1) + editors.length) % editors.length]!.id);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [active, closeEditor, editorWorkbench]);
+  return { service, dataPort, visited, editorWorkbench, activeNode, actions, refreshToken, refresh,
+    onActivePathChange, setActiveNode, closeEditor, error: navigationError ?? error };
+}
+
+export type NativeCloudWorkbench = ReturnType<typeof useNativeCloudWorkbench>;

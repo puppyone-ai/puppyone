@@ -16,6 +16,7 @@ import type { ProjectBackupProvider } from "./projectBackupProviders";
 
 export function DesktopTitlebarContext({
   activeGitStatus,
+  showBranchSwitcher = true,
   branchSwitcherOpen,
   branchSwitcherRef,
   gitStatusLoading,
@@ -78,7 +79,7 @@ export function DesktopTitlebarContext({
         onViewCloud={onViewCloud}
         onToggle={onToggleWorkspaceSwitcher}
       />
-      {!compactProjectMenu && <DesktopBranchSwitcher
+      {showBranchSwitcher && !compactProjectMenu && <DesktopBranchSwitcher
         open={branchSwitcherOpen}
         refObject={branchSwitcherRef}
         titlebarLabel={branchTitlebarLabel}
@@ -98,6 +99,7 @@ export function DesktopTitlebarContext({
 
 type DesktopTitlebarContextProps = {
   compactProjectMenu?: boolean;
+  showBranchSwitcher?: boolean;
   backupProviders?: readonly ProjectBackupProvider[];
   backupStatus?: GitStatusSnapshot | null;
   activeGitStatus: GitStatusSnapshot | null;

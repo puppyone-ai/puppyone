@@ -36,6 +36,7 @@ import type { DesktopEditorWorkbenchController } from "../editor-workbench/contr
 import type { ResolvedWorkbenchDataResource } from "../data-workspace/workbenchDataPort";
 import type { SubThemeCatalogController } from "../themes/useSubThemeCatalog";
 import { CloudDialog } from "../cloud/CloudDialog";
+import { DesktopWorkspaceLocationSurface } from "./DesktopWorkspaceLocationSurface";
 
 type DataWorkspacePort = ComponentProps<typeof DataWorkspace>["dataPort"];
 type DesktopWorkspaceContentProps = {
@@ -45,6 +46,9 @@ type DesktopWorkspaceContentProps = {
   activeView: DesktopView;
   cloud: DesktopWorkspaceCloudSurfaceController;
   cloudOpen?: boolean;
+  cloudWorkspaceActive?: boolean;
+  nativeCloudWorkspace?: ReactNode;
+  cloudWorkspaceError?: string | null;
   cloudLocationControls?: ReactNode;
   dataPort: DataWorkspacePort | null;
   editorWorkbench: DesktopEditorWorkbenchController;
@@ -107,6 +111,9 @@ export function DesktopWorkspaceContent({
   activeView,
   cloud,
   cloudOpen = false,
+  cloudWorkspaceActive = false,
+  nativeCloudWorkspace,
+  cloudWorkspaceError,
   cloudLocationControls,
   dataPort,
   editorWorkbench,
@@ -263,7 +270,13 @@ export function DesktopWorkspaceContent({
 
   return (
     <>
-      {workspaceSurface}
+      <DesktopWorkspaceLocationSurface
+        location={cloudWorkspaceActive ? "cloud" : "local"}
+        local={workspaceSurface}
+        nativeCloud={nativeCloudWorkspace}
+        cloudServices={cloudSurface}
+        cloudError={cloudWorkspaceError}
+      />
       {cloudOpen && (
         <CloudDialog
           sidebar={cloudSurface.sidebar}

@@ -9,6 +9,7 @@ import {
   type DataNode,
   type DataPort,
   type DocumentDataNode,
+  type DocumentSourceKind,
   type DocumentNavigationPort,
   type ContextMapWorkspaceEnvironment,
   type EditorGroupState,
@@ -26,6 +27,7 @@ import { useEditorPaneSource } from "./useEditorPaneSource";
 export type EditorPaneDocumentRuntimeProps = Readonly<{
   aiEditFile: AiEditFile | null;
   dataPort: DataPort;
+  documentSourceKind?: DocumentSourceKind;
   editor: EditorGroupState["editors"][number] | null;
   editorInteractionPreferences: EditorInteractionPreferences;
   fileIconTheme: FileIconThemeId;
@@ -44,6 +46,7 @@ export type EditorPaneDocumentRuntimeProps = Readonly<{
 export const EditorPaneDocumentRuntime = memo(function EditorPaneDocumentRuntime({
   aiEditFile,
   dataPort,
+  documentSourceKind = "local",
   editor,
   editorInteractionPreferences,
   fileIconTheme,
@@ -60,6 +63,7 @@ export const EditorPaneDocumentRuntime = memo(function EditorPaneDocumentRuntime
     <RegularEditorPaneDocumentRuntime
       aiEditFile={aiEditFile}
       dataPort={dataPort}
+      documentSourceKind={documentSourceKind}
       editor={editor}
       editorInteractionPreferences={editorInteractionPreferences}
       fileIconTheme={fileIconTheme}
@@ -80,6 +84,7 @@ type RegularEditorPaneDocumentRuntimeProps = EditorPaneDocumentRuntimeProps;
 function RegularEditorPaneDocumentRuntime({
   aiEditFile,
   dataPort,
+  documentSourceKind = "local",
   editor,
   editorInteractionPreferences,
   fileIconTheme,
@@ -157,7 +162,7 @@ function RegularEditorPaneDocumentRuntime({
       openExternalFile={dataPort.openExternalFile}
       convertOfficeDocumentToDocx={dataPort.convertOfficeDocumentToDocx}
       viewerExtensionAdapter={viewerExtensionAdapter}
-      documentSourceKind="local"
+      documentSourceKind={documentSourceKind}
       documentPersistence={dataPort.documentPersistence ?? null}
       onDocumentPersisted={
         dataPort.documentPersistence && node ? source.applyPersistedCommit : undefined
@@ -172,6 +177,7 @@ export function areEditorPaneDocumentRuntimePropsEqual(
 ): boolean {
   return previous.aiEditFile === next.aiEditFile
     && previous.dataPort === next.dataPort
+    && previous.documentSourceKind === next.documentSourceKind
     && sameEditor(previous.editor, next.editor)
     && previous.editorInteractionPreferences.showSaveStatus
       === next.editorInteractionPreferences.showSaveStatus

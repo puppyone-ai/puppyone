@@ -31,7 +31,7 @@ type EditorHeaderTabsProps = Readonly<{
   storageIdentity: string | null;
   onActivate: (editorId: string) => void;
   onClose: (editorId: string) => Promise<void> | void;
-  onCreate: (anchor: DOMRect) => void;
+  onCreate?: (anchor: DOMRect) => void;
   onMove: (editorId: string, targetEditorId: string) => void;
 }>;
 
@@ -187,7 +187,7 @@ export function EditorHeaderTabs({
           </div>
         );
       })}
-      <Tooltip content={t("shell.editorTabs.new")}>
+      {onCreate && <Tooltip content={t("shell.editorTabs.new")}>
         <button
           type="button"
           className="desktop-titlebar-editor-tab-new"
@@ -196,7 +196,7 @@ export function EditorHeaderTabs({
         >
           <Plus size={15} strokeWidth={1.8} aria-hidden="true" />
         </button>
-      </Tooltip>
+      </Tooltip>}
     </div>
   );
 }

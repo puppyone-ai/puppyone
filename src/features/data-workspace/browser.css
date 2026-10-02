@@ -426,3 +426,28 @@
   font-weight: 600;
   line-height: var(--po-type-left-sidebar-line-height, 19px);
 }
+
+/* Both environments retain their document hosts, but only the selected
+   provider participates in layout and native preview bounds. */
+.desktop-workspace-location-surface { display: contents; }
+.desktop-workspace-location-surface[hidden] { display: none; }
+.desktop-cloud-inline-workspace {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.desktop-cloud-inline-navigation {
+  width: var(--desktop-explorer-width, 248px);
+  flex-shrink: 0;
+  min-height: 0;
+  overflow: auto;
+  border-right: 1px solid var(--po-border);
+}
+.desktop-cloud-inline-content {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}

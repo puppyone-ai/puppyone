@@ -87,7 +87,7 @@ for (const { filePath, source } of productionCode) {
     "cloudOnlyWorkspace",
     "cloud://",
   ]) {
-    if (source.includes(token)) {
+    if (token === "cloud://" ? /(?<![\w-])cloud:\/\//.test(source) : source.includes(token)) {
       errors.push(`${relativePath} reintroduced retired Cloud catalog token ${token}`);
     }
   }

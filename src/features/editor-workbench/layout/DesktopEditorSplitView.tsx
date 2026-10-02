@@ -16,6 +16,7 @@ import {
   type DataNode,
   type DataPort,
   type DocumentDataNode,
+  type DocumentSourceKind,
   type DocumentNavigationPort,
   type EditorGroupState,
   type EditorFindCommand,
@@ -56,6 +57,7 @@ import { toWorkspaceRelativePath } from "../../desktop-agent-presence";
 export type DesktopEditorSplitViewProps = Readonly<{
   aiEditRequest: AiEditRequest | null;
   dataPort: DataPort;
+  documentSourceKind?: DocumentSourceKind;
   editorGroup: EditorGroupState;
   editorInteractionPreferences: EditorInteractionPreferences;
   fileIconTheme: FileIconThemeId;
@@ -98,6 +100,7 @@ export type DesktopEditorSplitViewProps = Readonly<{
 export function DesktopEditorSplitView({
   aiEditRequest,
   dataPort,
+  documentSourceKind = "local",
   editorGroup,
   editorInteractionPreferences,
   fileIconTheme,
@@ -175,6 +178,7 @@ export function DesktopEditorSplitView({
           activePaneId={layout.activePaneId}
           aiEditRequest={aiEditRequest}
           dataPort={dataPort}
+          documentSourceKind={documentSourceKind}
           editorById={editorById}
           editorNodeIndex={editorNodeIndex}
           editorInteractionPreferences={editorInteractionPreferences}
@@ -270,6 +274,7 @@ type EditorPaneProps = Readonly<{
   activePaneId: string;
   aiEditRequest: AiEditRequest | null;
   dataPort: DataPort;
+  documentSourceKind: DocumentSourceKind;
   editorById: ReadonlyMap<string, EditorGroupState["editors"][number]>;
   editorNodeIndex: EditorNodeIndex;
   editorInteractionPreferences: EditorInteractionPreferences;
@@ -296,6 +301,7 @@ function EditorPane({
   activePaneId,
   aiEditRequest,
   dataPort,
+  documentSourceKind,
   editorById,
   editorNodeIndex,
   editorInteractionPreferences,
@@ -339,7 +345,7 @@ function EditorPane({
       : null);
   }, [editor?.resource]);
   const externalOpenPath = editor?.resource ?? null;
-  const agentPresencePath = editor
+  const agentPresencePath = editor && documentSourceKind === "local"
     ? editorWorkspaceResource?.providerPath
       ?? toWorkspaceRelativePath(editorWorkspace.path, editor.resource)
     : null;
@@ -379,6 +385,7 @@ function EditorPane({
         <EditorPaneRuntime
           aiEditFile={getAiEditFileForPath(aiEditRequest, editor?.resource) ?? null}
           dataPort={dataPort}
+          documentSourceKind={documentSourceKind}
           editor={editor}
           editorInteractionPreferences={editorInteractionPreferences}
           fileIconTheme={fileIconTheme}
