@@ -45,12 +45,22 @@ app.whenReady().then(async () => {
   assert(await evaluate("document.querySelector('.desktop-titlebar-workspace-name').textContent === 'Hosted alpha'"), "Header must identify the selected Cloud project");
   const geometry = await evaluate(`(() => {
     const shell = document.querySelector('.desktop-account-cloud-workspace');
-    const rect = (selector) => { const r = shell.querySelector(selector).getBoundingClientRect(); return { width:r.width, height:r.height }; };
-    return { explorer:rect('.explorer-column'), editor:rect('.browser-column') };
+    const rect = (selector) => { const r = shell.querySelector(selector).getBoundingClientRect(); return { x:r.x, width:r.width, height:r.height }; };
+    return { explorer:rect('.explorer-column'), editor:rect('.browser-column'),
+      header:rect('.desktop-titlebar'), project:rect('.desktop-titlebar-centered-context') };
   })()`);
+  assert(Math.abs((geometry.project.x + geometry.project.width / 2) - (geometry.header.x + geometry.header.width / 2)) < 0.01,
+    "Hosted project context must remain centered in the Header");
+  await evaluate("document.querySelector('.desktop-account-cloud-workspace .desktop-titlebar-workspace-button').click()");
+  await waitFor("Boolean(document.querySelector('button[data-project-location=cloud]'))");
+  assert(await evaluate("document.querySelector('button[data-project-location=cloud]').getAttribute('aria-pressed') === 'true' && !document.querySelector('.desktop-account-cloud-workspace .desktop-titlebar-actions [data-project-location]')"),
+    "Hosted location remains the centered project-menu slider, never a right-side Header replacement");
+  await evaluate("document.querySelector('button[data-project-location=cloud]').click()");
+  await waitFor("!document.querySelector('.desktop-project-menu')");
   assert(geometry.explorer.width > 100 && geometry.editor.width > 300 && geometry.editor.height > 400, "No-local hosted shell must have a usable native layout");
   await evaluate("window.__accountCloudSmoke.edit('ALPHA_EDIT_ONLY')");
   await waitFor("window.__accountCloudSmoke.state().writes.some(write => write.project === 'alpha' && write.content === 'ALPHA_EDIT_ONLY')");
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await writeFile(path.join(artifacts, "hosted-editor.png"), (await window.webContents.capturePage()).toPNG());
   await openProject("beta");
   await waitFor("document.querySelector('.cm-content').textContent.includes('BETA_CLOUD_BODY')");
@@ -85,6 +95,8 @@ app.whenReady().then(async () => {
   await waitFor("document.querySelector('.cm-content').textContent.includes('ALPHA_EDIT_ONLY')");
   await evaluate("window.__accountCloudSmoke.edit('ALPHA_AFTER_RELOGIN')");
   await waitFor("window.__accountCloudSmoke.state().writes.some(write => write.content === 'ALPHA_AFTER_RELOGIN')");
+  await evaluate("document.querySelector('.desktop-account-cloud-workspace .desktop-titlebar-workspace-button').click()");
+  await waitFor("Boolean(document.querySelector('button[data-project-location=local]'))");
   await evaluate("document.querySelector('button[data-project-location=local]').click()");
   await waitFor("!window.__accountCloudSmoke.state().active && Boolean(document.querySelector('.onboarding-project-list'))");
   await evaluate("window.__accountCloudSmoke.showLocalFixtures()");

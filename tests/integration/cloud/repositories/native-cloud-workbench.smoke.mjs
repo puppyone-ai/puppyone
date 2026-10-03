@@ -49,9 +49,31 @@ app.whenReady().then(async () => {
   const localPresentation = await presentation("local");
   await writeFile(path.join(artifacts, "local.png"), (await window.webContents.capturePage()).toPNG());
   const localHost = await evaluate("document.querySelector('[data-workspace-location=local] .cm-editor').dataset.fixtureIdentity = 'retained-local-host'");
+  const localHeader = await evaluate(`(() => {
+    const header = document.querySelector('.desktop-titlebar');
+    const context = document.querySelector('.desktop-titlebar-centered-context');
+    header.dataset.fixtureIdentity = 'retained-header';
+    const h = header.getBoundingClientRect(), c = context.getBoundingClientRect();
+    return { headerCenter:h.x + h.width / 2, contextCenter:c.x + c.width / 2,
+      projectName:context.querySelector('.desktop-titlebar-workspace-name')?.textContent };
+  })()`);
   await selectLocation("cloud");
   await waitFor("Boolean(document.querySelector('[data-cloud-native=true]')?.textContent.includes('cloud-only'))");
   assert(await evaluate("document.querySelector('[data-workspace-location=local]').hidden && !document.querySelector('[data-workspace-location=cloud]').hidden && !document.querySelector('[role=dialog]')"), "Cloud switch must replace the main surface without a dialog");
+  const cloudHeader = await evaluate(`(() => {
+    const header = document.querySelector('.desktop-titlebar');
+    const context = document.querySelector('.desktop-titlebar-centered-context');
+    const h = header.getBoundingClientRect(), c = context.getBoundingClientRect();
+    return { identity:header.dataset.fixtureIdentity, count:document.querySelectorAll('.desktop-titlebar').length,
+      headerCenter:h.x + h.width / 2, contextCenter:c.x + c.width / 2,
+      projectName:context.querySelector('.desktop-titlebar-workspace-name')?.textContent };
+  })()`);
+  assert(cloudHeader.identity === "retained-header" && cloudHeader.count === 1,
+    "Local/Cloud switching must retain one Header DOM host");
+  assert(Math.abs(localHeader.headerCenter - localHeader.contextCenter) < 0.01
+    && Math.abs(cloudHeader.headerCenter - cloudHeader.contextCenter) < 0.01
+    && cloudHeader.projectName === localHeader.projectName,
+    "Project name must remain centered and stable across Local/Cloud switching");
   assert(await evaluate("!document.querySelector('[data-cloud-native=true]').textContent.includes('local-only') && document.querySelector('[data-cloud-native=true]').textContent.includes('cloud-only')"), "Cloud tree must contain Cloud files only");
   await evaluate("[...document.querySelectorAll('[data-cloud-native=true] .tree-row')].find(row => row.textContent.includes('readme')).click()");
   await waitFor("Boolean(document.querySelector('[data-workspace-location=cloud] .cm-content')?.textContent.includes('CLOUD_FILE_BODY'))");

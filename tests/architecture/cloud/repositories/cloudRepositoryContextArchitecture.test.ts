@@ -78,6 +78,10 @@ describe("repository-context architecture", () => {
     expect(gate).not.toContain("AccountCloudProjectPicker");
     expect(surface).not.toMatch(/onBrowse|cloud\.catalog\.browse/);
     expect(app).not.toContain("accountCloud.open;");
+    expect(app).toContain("const accountCloudSurface = !workspace ?");
+    expect(app).toContain("<DesktopWorkspaceLocationSurface location={cloudWorkspaceActive ? \"cloud\" : \"local\"}");
+    expect(surface).toContain("titlebarCenteredSlot={<DesktopWorkspaceSwitcher");
+    expect(surface).not.toContain("titlebarActions={<DesktopProjectLocationControls");
   });
 
   it("keeps Initialize remote mutation inside the durable main-process transaction", () => {

@@ -1,6 +1,6 @@
 import { Cloud, RefreshCw } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { DesktopDialogCloseButton, DesktopDialogRoot, DesktopDialogSurface } from "../../../components/DesktopDialog";
 import { DesktopOverlayLayer } from "../../app-shell/DesktopOverlayPortal";
 import { CloudWorkspaceLoadingState } from "../components/shared";
@@ -15,7 +15,22 @@ export function CloudWorkspaceSwitchDialog({ controller, gate, authenticationReq
   authenticationRequired?: boolean;
 }) {
   const { t } = useLocalization();
-  if (!controller.pending) return null;
+  const inlinePreparation = controller.pending && controller.checking && !authenticationRequired;
+  const cancel = controller.cancel;
+  useEffect(() => {
+    if (!inlinePreparation) return undefined;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented || event.isComposing) return;
+      event.preventDefault();
+      cancel();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [cancel, inlinePreparation]);
+  // An already-authenticated, resolved repository switch prepares in place.
+  // Keep the retained Header visible and commit only after root preflight; a
+  // dialog is reserved for authentication or actionable recovery.
+  if (!controller.pending || inlinePreparation) return null;
   return <DesktopOverlayLayer>
     <DesktopDialogRoot onClose={controller.cancel}>
       <DesktopDialogSurface className={`desktop-cloud-workspace-switch-dialog${authenticationRequired ? " is-authentication" : ""}`}

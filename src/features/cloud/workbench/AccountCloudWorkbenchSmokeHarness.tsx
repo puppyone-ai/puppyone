@@ -10,7 +10,7 @@ import { HomepageCloudStatus } from "./HomepageCloudStatus";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import { useAccountCloudWorkspace } from "./useAccountCloudWorkspace";
 import { useNativeCloudWorkbench } from "./useNativeCloudWorkbench";
-import { AccountCloudWorkspaceSurface } from "./AccountCloudWorkspaceSurface";
+import { AccountCloudWorkspaceSurface, useAccountCloudWorkspacePresentation } from "./AccountCloudWorkspaceSurface";
 
 const API = "https://cloud-fixture.puppyone.ai/api/v1";
 const project = (id: string) => ({ id, name: `Hosted ${id}`, org_id: "team", updated_at: id === "beta" ? "2026-06-01T00:00:00Z" : "2026-04-01T00:00:00Z", capabilities: ["content.read", "content.write"] });
@@ -84,6 +84,7 @@ function AccountCloudFixture() {
     ] : [] });
   const workbench = useNativeCloudWorkbench({ context: account.context, session, apiBaseUrl: API,
     active: account.active, filesVisibilitySettings: preferences.filesVisibilitySettings });
+  const presentation = useAccountCloudWorkspacePresentation({ workbench, preferences });
   useEffect(() => {
     window.__accountCloudSmoke = { state: () => ({ active: account.active, project: account.context.projectId, writes }),
       home: account.useLocal, showLocalFixtures: () => setIncludeLocal(true),
@@ -104,7 +105,7 @@ function AccountCloudFixture() {
       onOpenCloudProject={(id) => void account.openTarget({ kind: "project_root", project_id: id })}
       cloudAccountStatus={<HomepageCloudStatus status={homepage.status} restoring={false} empty={homepage.items.length === 0} apiBaseUrl={API}
         controller={account} onRetry={homepage.refresh} />} />}
-    <AccountCloudWorkspaceSurface workbench={workbench} active={account.active} preferences={preferences}
-      appearance={appearance} onLocal={account.useLocal} onHome={account.useLocal} />
+    <AccountCloudWorkspaceSurface workbench={workbench} presentation={presentation} active={account.active}
+      preferences={preferences} appearance={appearance} onLocal={account.useLocal} onHome={account.useLocal} />
   </SurfaceAppearanceProvider>;
 }
