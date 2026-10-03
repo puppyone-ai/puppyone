@@ -7,7 +7,7 @@ import {
 } from "../../../../components/DesktopDialog";
 import { DesktopOverlayLayer } from "../../../app-shell/DesktopOverlayPortal";
 import type {
-  DesktopCloudConnector,
+  DesktopCloudAccessSurface,
   DesktopCloudMcpEndpoint,
   DesktopCloudRepoIdentity,
   DesktopCloudSession,
@@ -37,7 +37,7 @@ export function AccessPointManageDialog({
   cloudSession: DesktopCloudSession;
   apiBaseUrl: string | null;
   identity: DesktopCloudRepoIdentity | null;
-  connectorsByTarget: Map<string, DesktopCloudConnector[]>;
+  connectorsByTarget: Map<string, DesktopCloudAccessSurface[]>;
   mcpEndpointsByTarget: Map<string, DesktopCloudMcpEndpoint[]>;
   canManage: boolean;
   onCloudSessionChange: (session: DesktopCloudSession | null) => void;

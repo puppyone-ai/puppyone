@@ -12,10 +12,13 @@ const dataSurface = resolveWorkspaceSurface({ capabilities: { cloudEnabled: true
   adapters: { data: () => ({ sidebar: null, main: null }), git: () => ({ sidebar: null, main: null }),
     cloud: () => ({ sidebar: null, main: null }), settings: () => ({ sidebar: null, main: null }) } });
 
+export type CloudFileSurfaceProps = Pick<DesktopDataWorkspaceSurfaceProps,
+  "preferences" | "editorInteractionPreferences" | "viewerExtensionAdapter" | "sidebarCompanion" | "sidebarUtility" | "navigation">;
+
 /** Bind Cloud data/actions to the existing workbench; no alternate file UI. */
 export function DesktopCloudFileWorkspace({ workbench, surfaceProps, providerStateContent }: {
   workbench: NativeCloudWorkbench;
-  surfaceProps: DesktopDataWorkspaceSurfaceProps;
+  surfaceProps: CloudFileSurfaceProps;
   providerStateContent: ReactNode;
 }) {
   return workbench.surfaceVisited
@@ -26,7 +29,7 @@ export function DesktopCloudFileWorkspace({ workbench, surfaceProps, providerSta
 
 function CloudFileBinding({ workbench, surfaceProps, providerStateContent }: {
   workbench: NativeCloudWorkbench;
-  surfaceProps: DesktopDataWorkspaceSurfaceProps;
+  surfaceProps: CloudFileSurfaceProps;
   providerStateContent: ReactNode;
 }) {
   const { t } = useLocalization();

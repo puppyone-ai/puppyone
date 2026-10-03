@@ -344,7 +344,7 @@ function addWikiLinkElementDecoration(
         "data-wiki-target": token.target,
         ...getMarkdownLinkInteractionAttributes(interaction),
         "aria-label": linkTitle,
-        title: getMarkdownInteractionTitle(interaction, linkTitle, t),
+        "aria-description": getMarkdownInteractionDescription(interaction, linkTitle, t),
       },
     }).range(element.contentRange.from, element.contentRange.to),
   );
@@ -398,7 +398,7 @@ function addLinkElementDecoration(
         "data-md-href": href,
         ...getMarkdownLinkInteractionAttributes(interaction),
         "aria-label": linkTitle,
-        title: getMarkdownInteractionTitle(interaction, linkTitle, t),
+        "aria-description": getMarkdownInteractionDescription(interaction, linkTitle, t),
       },
     }).range(element.contentRange.from, element.contentRange.to),
   );
@@ -450,7 +450,7 @@ function getMarkdownOpenTitle(target: string, t: MessageFormatter): string {
   return t("editor.markdown.openLinkHint", { target: bidiIsolate(target) });
 }
 
-function getMarkdownInteractionTitle(
+function getMarkdownInteractionDescription(
   interaction: MarkdownLinkInteraction,
   target: string,
   t: MessageFormatter,

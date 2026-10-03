@@ -7,6 +7,34 @@ import {
 const API = "https://api.puppyone.ai/api/v1";
 
 describe("main-owned Cloud Auth Broker", () => {
+  it("rejects a renderer mutation for a different account before dispatch or refresh", async () => {
+    const fixture = createFixture();
+    const state = await fixture.service.readSession();
+    await expect(fixture.service.requestSessionApi(API, "/content/project/write", {
+      method: "POST", body: JSON.stringify({ path: "a.md", content: "stale" }),
+    }, { userId: "previous-account", generation: state.session_generation })).rejects.toMatchObject({ code: "SESSION_CHANGED" });
+    expect(fixture.requestCloudApi).not.toHaveBeenCalled();
+    fixture.service.dispose();
+  });
+
+  it("rejects an obsolete renderer generation even for the same account", async () => {
+    const fixture = createFixture();
+    await expect(fixture.service.requestSessionApi(API, "/projects/", { method: "GET" },
+      { userId: "user-123", generation: "expired-generation" })).rejects.toMatchObject({ code: "SESSION_CHANGED" });
+    expect(fixture.requestCloudApi).not.toHaveBeenCalled();
+    fixture.service.dispose();
+  });
+
+  it("permits a matching renderer lease across a same-account token refresh", async () => {
+    const fixture = createFixture();
+    fixture.requestCloudApi.mockImplementation(async (_base, path) => path === "/auth/refresh"
+      ? authResponse() : { ok: true });
+    const session = await fixture.service.readSession();
+    await expect(fixture.service.requestSessionApi(API, "/content/project/write", { method: "POST" },
+      { userId: session.user_id, generation: session.session_generation })).resolves.toEqual({ ok: true });
+    fixture.service.dispose();
+  });
+
   it("preserves the caller's cancellation signal on an authenticated wallet request", async () => {
     const fixture = createFixture();
     let receivedSignal;

@@ -138,6 +138,9 @@ async function renderApplication() {
       "./features/appearance/AppearanceVisualSmokeHarness"
     );
     surface = <AppearanceVisualSmokeHarness />;
+  } else if (window.location.hash === "#account-cloud-workbench-smoke") {
+    const { AccountCloudWorkbenchSmokeHarness } = await import("./features/cloud/workbench/AccountCloudWorkbenchSmokeHarness");
+    surface = <AccountCloudWorkbenchSmokeHarness />;
   } else if (window.location.hash === "#native-cloud-workbench-smoke") {
     const { NativeCloudWorkbenchSmokeHarness } = await import("./features/cloud/workbench/NativeCloudWorkbenchSmokeHarness");
     surface = <NativeCloudWorkbenchSmokeHarness />;

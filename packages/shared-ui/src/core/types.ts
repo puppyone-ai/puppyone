@@ -22,6 +22,8 @@ export type Workspace = {
   path: string;
   status: "protected" | "recording" | "paused";
   commitCount?: number;
+  /** Best available content/activity time; never the time this folder was opened. */
+  lastModifiedAt?: string | null;
   cloudState?: "local" | "syncing" | "synced";
   /** Secret-free canonical PuppyOne Git locator cached for recent-workspace UI. */
   puppyoneGitRemote?: {

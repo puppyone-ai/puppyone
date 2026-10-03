@@ -1,20 +1,24 @@
 import { Tooltip } from "@puppyone/shared-ui";
-import { AlertTriangle, FolderOpen, Monitor, Plus } from "lucide-react";
+import { AlertTriangle, Cloud, FolderOpen, Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import { useWorkspaceFolderDrop } from "../features/app-shell/useWorkspaceFolderDrop";
 import type { MinimalOnboardingProps } from "./MinimalOnboarding";
 import type { ProjectHomeItem } from "../features/app-shell/workspaceHomeModel";
+import { HomeProjectIcon } from "./onboarding/HomeProjectIcon";
 import { DesktopWindowDragRegion } from "./DesktopWindowChrome";
 import { InlineLoading } from "./loading";
 
-/** Optional visual home for local repositories; it never enumerates Cloud Projects. */
+/** Optional visual home consuming the same host-owned local/Cloud project model. */
 export function AssetLibraryHome({
   onChooseWorkspace,
   onOpenWorkspacePath,
   onOpenDroppedWorkspace,
   recentWorkspaces = [],
   projectItems,
+  cloudAccountStatus,
+  cloudOpening = false,
+  onOpenCloudProject,
   operationStatus = null,
   initialError = null,
   appearance,
@@ -22,13 +26,13 @@ export function AssetLibraryHome({
   const { t, formatDate, formatRelativeTime } = useLocalization();
   const [error, setError] = useState<string | null>(initialError);
   const [openingPath, setOpeningPath] = useState<string | null>(null);
-  const items = useMemo(
-    () => (projectItems ?? recentWorkspaces.map(({ workspace, lastOpenedAt }) => ({
+  const items = useMemo<ProjectHomeItem[]>(
+    () => (projectItems ?? recentWorkspaces.map(({ workspace }) => ({
       id: workspace.id,
       label: workspace.name,
       localPath: workspace.path,
-      lastOpenedAt: lastOpenedAt ?? null,
-    }))).slice(0, 40),
+      lastModifiedAt: workspace.lastModifiedAt ?? null,
+    }))),
     [projectItems, recentWorkspaces],
   );
 
@@ -73,7 +77,7 @@ export function AssetLibraryHome({
     }
   };
 
-  const busy = Boolean(openingPath) || Boolean(operationStatus);
+  const busy = Boolean(openingPath) || Boolean(operationStatus) || cloudOpening;
   const folderDrop = useWorkspaceFolderDrop({
     disabled: busy,
     onDropFolder: openDroppedFolder,
@@ -91,6 +95,7 @@ export function AssetLibraryHome({
       onDrop={folderDrop.onDrop}
     >
       <DesktopWindowDragRegion className="asset-library-home-titlebar" />
+      {cloudAccountStatus}
       <section className="asset-library-home" aria-label={t("onboarding.projects.title")}>
         <header className="asset-library-home-header"><div className="asset-library-home-heading"><h1>{t("onboarding.projects.title")}</h1></div></header>
 
@@ -104,13 +109,14 @@ export function AssetLibraryHome({
 
         <div className="asset-library-home-grid">
           {items.map((item) => (
-            <LocalAssetCard
+            <ProjectAssetCard
               key={item.id}
+              onOpenCloud={item.cloudProjectId && onOpenCloudProject ? () => onOpenCloudProject(item.cloudProjectId!) : undefined}
               item={item}
               busy={busy}
               opening={openingPath === item.localPath}
-              activity={formatActivity(item.lastOpenedAt, t("onboarding.time.previouslyOpened"), formatDate, formatRelativeTime)}
-              onOpen={() => void openPath(item.localPath)}
+              activity={formatActivity(item.lastModifiedAt, "", formatDate, formatRelativeTime)}
+              onOpen={() => item.localPath ? void openPath(item.localPath) : item.cloudProjectId && onOpenCloudProject?.(item.cloudProjectId)}
             />
           ))}
           <div className="asset-library-new-project-wrap">
@@ -126,14 +132,16 @@ export function AssetLibraryHome({
   );
 }
 
-function LocalAssetCard({
+function ProjectAssetCard({
   item,
+  onOpenCloud,
   busy,
   opening,
   activity,
   onOpen,
 }: {
   item: ProjectHomeItem;
+  onOpenCloud?: () => void;
   busy: boolean;
   opening: boolean;
   activity: string;
@@ -148,20 +156,23 @@ function LocalAssetCard({
         type="button"
         disabled={busy}
         aria-busy={opening || undefined}
-        aria-label={t("onboarding.projects.open", { project: bidiIsolate(name) })}
+        aria-label={t(item.cloudProjectId ? item.localPath ? "cloud.home.openLocal" : "cloud.home.openCloud" : "onboarding.projects.open", { project: bidiIsolate(name) })}
         onClick={onOpen}
       >
         <span className="asset-library-card-cover" data-signature="0" aria-hidden="true"><span className="asset-library-card-monogram">{name.slice(0, 2).toUpperCase()}</span></span>
         <span className="asset-library-card-body">
-          <Tooltip content={item.localPath} overflowOnly><bdi className="asset-library-card-title">{name}</bdi></Tooltip>
+          <Tooltip content={item.localPath || item.cloudProjectId} overflowOnly><bdi className="asset-library-card-title">{name}</bdi></Tooltip>
           <span className="asset-library-card-footer">
             <span className="asset-library-card-location local">
-              {opening ? <InlineLoading label={t("onboarding.status.opening")} size="xs" tone="neutral" /> : <><Monitor size={13} strokeWidth={1.9} /><span>{t("onboarding.library.location.local")}</span></>}
+              {opening ? <InlineLoading label={t("onboarding.status.opening")} size="xs" tone="neutral" /> : <><HomeProjectIcon item={item} /><span>{t(item.localPath ? "onboarding.library.location.local" : "cloud.home.cloud")}</span></>}
             </span>
             <span className="asset-library-card-meta">{activity}</span>
           </span>
         </span>
       </button>
+      {item.localPath && onOpenCloud && <button type="button" className="desktop-cloud-row-action"
+        disabled={busy} aria-label={t("cloud.home.openCloud", { project: bidiIsolate(name) })}
+        onClick={onOpenCloud}><Cloud size={12} />{t("cloud.home.cloud")}</button>}
     </article>
   );
 }

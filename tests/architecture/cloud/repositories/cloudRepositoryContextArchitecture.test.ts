@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("repository-context architecture", () => {
-  it("resolves one current repository Project and keeps catalogs archive-only", () => {
+  it("keeps local association discovery separate from account project navigation", () => {
     const dataSource = readFileSync(
       new URL("../../../../src/features/cloud/data/useDesktopCloudData.ts", import.meta.url),
       "utf8",
@@ -27,7 +27,15 @@ describe("repository-context architecture", () => {
     expect(dataSource).toContain("getCloudProject");
     expect(resolverSource).not.toContain("listCloudProjects");
     expect(appSource).not.toContain("listCloudProjects");
-    expect(cloudApiSource).not.toContain("listCloudProjects");
+    expect(cloudApiSource).toContain("listCloudProjects");
+    const accountSource = readFileSync(new URL("../../../../src/features/cloud/workbench/useAccountCloudWorkspace.ts", import.meta.url), "utf8");
+    const homepageSource = readFileSync(new URL("../../../../src/features/cloud/workbench/useHomepageCloudProjects.ts", import.meta.url), "utf8");
+    expect(homepageSource).toContain("listCloudProjects");
+    expect(accountSource).not.toContain("listCloudProjects");
+    expect(accountSource).toContain("getCloudRepositoryContext");
+    expect(accountSource).not.toMatch(/localWorkspaceIdentity|rootPath|configureRemote|workspaceBinding/);
+    expect(appSource).toContain("useHomepageCloudProjects");
+    expect(appSource).not.toContain("AccountCloudProjectPicker");
     expect(cloudApiSource).not.toContain("listCloudTemplates");
     expect(cloudApiSource).not.toContain("instantiateCloudTemplate");
     expect(resolverSource).toContain("resolveCanonicalPuppyoneRemotes");
@@ -51,6 +59,25 @@ describe("repository-context architecture", () => {
     expect(publishHookSource).not.toContain("issueWorkspaceGitRemote");
     expect(publishHookSource).not.toContain("configureWorkspaceCloudRemote");
     expect(appSource).not.toMatch(/revokeCloudWorkspace|workspaceInstanceId/);
+  });
+
+  it("separates direct Header switching from Homepage project selection", () => {
+    const source = (path: string) => readFileSync(new URL(`../../../../src/${path}`, import.meta.url), "utf8");
+    const app = source("App.tsx");
+    const header = source("features/cloud/workbench/useRepositoryCloudWorkspaceSwitch.ts");
+    const surface = source("features/cloud/workbench/AccountCloudWorkspaceSurface.tsx");
+    const gate = source("features/cloud/workbench/RepositoryCloudSwitchGate.tsx");
+    expect(app).toContain("const requestCloudWorkspace = repositoryCloudSwitch.request");
+    expect(app).toContain("projectItems={homepageCloud.items}");
+    expect(app).toContain("visible: !workspace && !restoringWorkspace && !cloudWorkspaceActive");
+    expect(app).not.toMatch(/browseAccountCloudProjects|cloud\.catalog\.browse/);
+    expect(app).toContain("onPrepared: accountCloud.activatePrepared");
+    expect(app).toContain("{repositoryCloudDialog}</DesktopOverlayPortal>");
+    expect(header).toContain("useCloudWorkspaceSwitch");
+    expect(header).not.toMatch(/listCloudProjects|browse|catalog|openTarget/);
+    expect(gate).not.toContain("AccountCloudProjectPicker");
+    expect(surface).not.toMatch(/onBrowse|cloud\.catalog\.browse/);
+    expect(app).not.toContain("accountCloud.open;");
   });
 
   it("keeps Initialize remote mutation inside the durable main-process transaction", () => {

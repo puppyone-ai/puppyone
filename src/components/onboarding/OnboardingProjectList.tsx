@@ -1,6 +1,6 @@
 import { Tooltip } from "@puppyone/shared-ui";
 import { bidiIsolate, useLocalization, type MessageFormatter } from "@puppyone/localization";
-import { Folder, Unlink } from "lucide-react";
+import { Cloud, Unlink } from "lucide-react";
 import type { DragEvent as ReactDragEvent } from "react";
 import {
   getProjectName,
@@ -9,9 +9,11 @@ import {
 } from "../../features/app-shell/workspaceHomeModel";
 import { DesktopMenuIconButton, DesktopMenuItem } from "../DesktopMenu";
 import { InlineLoading } from "../loading";
+import { HomeProjectIcon } from "./HomeProjectIcon";
 
 type OnboardingProjectListProps = {
   items: ProjectHomeItem[];
+  onOpenCloudProject?: (projectId: string) => void;
   busy: boolean;
   openingPath: string | null;
   removingPath: string | null;
@@ -24,6 +26,7 @@ type OnboardingProjectListProps = {
 
 export function OnboardingProjectList({
   items,
+  onOpenCloudProject,
   busy,
   openingPath,
   removingPath,
@@ -36,32 +39,46 @@ export function OnboardingProjectList({
   const { t, formatRelativeTime } = useLocalization();
 
   return (
-    <div className="onboarding-project-list" data-po-scrollbar="menu">
+    <div
+      className="onboarding-project-list"
+      data-po-scrollbar="menu"
+      data-po-scrollbar-visibility="always"
+      role="region"
+      aria-label={t("onboarding.projects.title")}
+      tabIndex={0}
+    >
       {items.map((item) => {
         const name = getProjectName(item, t("onboarding.projects.untitled"));
         const parentPath = getWorkspaceParentPathForDisplay(item.localPath);
         const removing = removingPath === item.localPath;
         const dragging = draggingPath === item.localPath;
         return (
-          <div className={`onboarding-project-row-wrap ${removing ? "is-removing" : ""} ${dragging ? "is-dragging" : ""}`} key={item.id}>
+          <div key={item.id} className={`onboarding-project-row-wrap ${item.cloudProjectId && item.localPath ? "has-cloud" : ""} ${removing ? "is-removing" : ""} ${dragging ? "is-dragging" : ""}`}
+            data-cloud-project-id={item.cloudProjectId}>
             <DesktopMenuItem
               className="onboarding-project-row"
               role="button"
-              icon={<Folder size={14} strokeWidth={1.85} />}
+              icon={<HomeProjectIcon item={item} />}
               label={<bdi>{name}</bdi>}
-              detail={parentPath ? <Tooltip content={item.localPath} overflowOnly><bdi dir="ltr">{parentPath}</bdi></Tooltip> : undefined}
+              detail={parentPath ? <Tooltip content={item.localPath} overflowOnly><bdi dir="ltr">{parentPath}</bdi></Tooltip>
+                : item.cloudProjectId ? <Tooltip content={item.cloudProjectId}><bdi>{item.cloudProjectId.slice(0, 8)}</bdi></Tooltip> : undefined}
               trailing={openingPath === item.localPath
                 ? <InlineLoading label={t("onboarding.status.opening")} size="xs" tone="neutral" />
-                : formatRecentWorkspaceTime(item.lastOpenedAt, t, formatRelativeTime)}
+                : formatModificationTime(item.lastModifiedAt, t, formatRelativeTime)}
               disabled={busy}
               aria-busy={openingPath === item.localPath || undefined}
-              aria-label={t("onboarding.projects.open", { project: bidiIsolate(name) })}
-              draggable={!busy}
-              onClick={() => onOpen(item.localPath)}
+              aria-label={t(item.cloudProjectId ? item.localPath ? "cloud.home.openLocal" : "cloud.home.openCloud" : "onboarding.projects.open", { project: bidiIsolate(name) })}
+              draggable={!busy && Boolean(item.localPath)}
+              onClick={() => item.localPath ? onOpen(item.localPath) : item.cloudProjectId && onOpenCloudProject?.(item.cloudProjectId)}
               onDragStart={(event) => onDragStart(event, item)}
               onDragEnd={onDragEnd}
             />
-            {onRemove && (
+            {item.localPath && item.cloudProjectId && onOpenCloudProject && <DesktopMenuIconButton
+              className="onboarding-project-cloud" disabled={busy}
+              label={t("cloud.home.openCloud", { project: bidiIsolate(name) })}
+              tooltip={t("cloud.home.openCloud", { project: bidiIsolate(name) })}
+              onClick={() => onOpenCloudProject(item.cloudProjectId!)} icon={<Cloud size={14} />} />}
+            {onRemove && item.localPath && (
               <DesktopMenuIconButton
                 className="onboarding-project-remove"
                 disabled={busy && !removing}
@@ -81,14 +98,14 @@ export function OnboardingProjectList({
   );
 }
 
-function formatRecentWorkspaceTime(
+function formatModificationTime(
   value: string | null | undefined,
   t: MessageFormatter,
   formatRelativeTime: (value: number, unit: Intl.RelativeTimeFormatUnit, options?: Intl.RelativeTimeFormatOptions) => string,
 ) {
-  if (!value) return t("onboarding.time.previouslyOpened");
+  if (!value) return null;
   const timestamp = new Date(value).getTime();
-  if (Number.isNaN(timestamp)) return t("onboarding.time.previouslyOpened");
+  if (Number.isNaN(timestamp)) return null;
   const elapsed = Math.max(0, Date.now() - timestamp);
   const minute = 60_000;
   const hour = 60 * minute;

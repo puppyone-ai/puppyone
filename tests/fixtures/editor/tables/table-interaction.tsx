@@ -14,6 +14,10 @@ import { BUILTIN_SUB_THEMES } from "../../../../src/features/themes/builtinSubTh
 import { DEFAULT_TYPOGRAPHY_PREFERENCES, resolveTypography } from "../../../../src/features/typography";
 import { DEFAULT_MARKDOWN_PRESENTATION_SETTINGS } from "../../../../src/features/markdown/markdownPresentation";
 import englishCatalog from "../../../../src/localization/catalog-loaders/en";
+import { DesktopTooltipLayer } from "../../../../src/components/DesktopTooltipLayer";
+import { installNativeTitleSuppression } from "../../../../src/lib/nativeTitleSuppression";
+
+installNativeTitleSuppression();
 
 const rows = [
   ["Order", "Area", "English copy", "中文释义"],
@@ -51,6 +55,7 @@ function Harness() {
         onSnapshotPortChange={onCsvSnapshot}
         onSourceRevisionChange={() => {}} /></section>
     </div>
+    <DesktopTooltipLayer />
   </SurfaceAppearanceProvider></TestLocalizationProvider>;
 }
 createRoot(document.getElementById("root")!).render(<Harness />);
@@ -60,6 +65,15 @@ const cell = (kind: string) => table(kind).querySelector<HTMLElement>(kind === "
 const input = (kind: string) => cell(kind).querySelector<HTMLElement>(kind === "markdown" ? "[contenteditable]" : "input")!;
 const boxes = (element: Element) => { const { x, y, width, height } = element.getBoundingClientRect(); return { x, y, width, height }; };
 const wait = () => new Promise(resolve => setTimeout(resolve, 150));
+const colorCanvas = document.createElement("canvas");
+colorCanvas.width = colorCanvas.height = 1;
+const colorContext = colorCanvas.getContext("2d", { willReadFrequently: true })!;
+const colorAlpha = (color: string) => {
+  colorContext.clearRect(0, 0, 1, 1);
+  colorContext.fillStyle = color;
+  colorContext.fillRect(0, 0, 1, 1);
+  return colorContext.getImageData(0, 0, 1, 1).data[3];
+};
 const api = {
   async ready() {
     for (let i = 0; i < 300 && (!table("markdown") || !table("csv")); i++) await new Promise(resolve => setTimeout(resolve, 20));
@@ -105,10 +119,54 @@ const api = {
       cell: boxes(c), cellBorder: focus.borderRightWidth, cellFocus: focus.boxShadow,
       dots: { width: getComputedStyle(grip, "::before").width, height: getComputedStyle(grip, "::before").height },
       grip: boxes(grip), gripShadow: getComputedStyle(grip).boxShadow, gripColor: getComputedStyle(grip).backgroundColor,
-      outline: outline.hidden ? null : boxes(outline), outlineBorder: getComputedStyle(outline).borderTopWidth, blockSelected: element.closest(".cm-md-table-widget-wrap")?.classList.contains("is-doc-selected") ?? false,
+      gripStyles: [...document.querySelectorAll(`#${kind} .po-editable-table-drag-handle-visual`)].map(handle => {
+        const css = getComputedStyle(handle);
+        return { radius: css.borderRadius, border: css.borderTopWidth, borderColor: css.borderTopColor,
+          backgroundColor: css.backgroundColor, backgroundImage: css.backgroundImage,
+          backgroundAlpha: colorAlpha(css.backgroundColor), backgroundClip: css.backgroundClip };
+      }),
+      handleStates: [...document.querySelectorAll<HTMLElement>(`#${kind} .po-editable-table-drag-handle`)].map(handle => {
+        const css = getComputedStyle(handle.querySelector(".po-editable-table-drag-handle-visual")!);
+        return { axis: handle.classList.contains("po-editable-table-column-handle") ? "column" : "row",
+          pressed: handle.classList.contains("is-pressed"), dragging: handle.classList.contains("is-dragging"),
+          menuActive: handle.classList.contains("is-menu-active"), background: css.backgroundColor,
+          border: css.borderTopColor, color: css.color, backgroundAlpha: colorAlpha(css.backgroundColor),
+          transitionDuration: css.transitionDuration };
+      }),
+      outline: outline.hidden ? null : boxes(outline), outlineBorder: getComputedStyle(outline).borderTopWidth,
+      outlineColor: getComputedStyle(outline).borderTopColor, blockSelected: element.closest(".cm-md-table-widget-wrap")?.classList.contains("is-doc-selected") ?? false,
       tableShadow: style.boxShadow,
       editorSelection: kind === "markdown" ? { focused: EditorView.findFromDOM(document.querySelector("#markdown .cm-editor")!)!.hasFocus, selection: EditorView.findFromDOM(document.querySelector("#markdown .cm-editor")!)!.state.selection.toJSON(), active: document.activeElement?.className } : null,
       target: target ? boxes(target) : null, axis: outline.dataset.axis, markdown, csvSource: csvPort?.readSnapshot().content };
+  },
+  menuPlacement(kind: string, axis: string) {
+    const menu = document.querySelector<HTMLElement>(kind === "markdown"
+      ? ".cm-md-table-context-menu"
+      : ".csv-table-editor__context-menu")!;
+    const grip = document.querySelector<HTMLElement>(`#${kind} .po-editable-table-${axis}-handle .po-editable-table-drag-handle-visual`)!;
+    return { menu: boxes(menu), grip: boxes(grip) };
+  },
+  menuMetrics() {
+    const menu = document.querySelector<HTMLElement>(".cm-md-table-context-menu")!;
+    const css = getComputedStyle(menu);
+    const rowWidths = [...menu.querySelectorAll(".desktop-menu-section-list")].map(row => {
+      const buttons = row.querySelectorAll("button");
+      return buttons[buttons.length - 1].getBoundingClientRect().right - buttons[0].getBoundingClientRect().left;
+    });
+    return { bounds: boxes(menu), viewport: { width: innerWidth, height: innerHeight },
+      requiredWidth: Math.max(...rowWidths) + parseFloat(css.paddingLeft) + parseFloat(css.paddingRight)
+        + parseFloat(css.borderLeftWidth) + parseFloat(css.borderRightWidth),
+      headings: menu.querySelectorAll(".desktop-menu-section-label").length,
+      buttons: menu.querySelectorAll("button").length,
+      groups: [...menu.querySelectorAll('[role="group"]')].map(group => group.getAttribute("aria-label")),
+      radios: [...menu.querySelectorAll('[role="menuitemradio"]')].map(button => ({
+        label: button.getAttribute("aria-label"), checked: button.getAttribute("aria-checked"),
+      })) };
+  },
+  openMenuAtEdge() {
+    input("markdown").dispatchEvent(new MouseEvent("contextmenu", {
+      bubbles: true, cancelable: true, clientX: innerWidth - 1, clientY: innerHeight - 1,
+    }));
   },
   selectText(kind: string) {
     const element = input(kind); element.focus();

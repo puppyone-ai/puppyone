@@ -2,7 +2,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Tooltip } from "../../../../packages/shared-ui/src/primitives/Tooltip";
+import { Tooltip, activateTooltip, disableTooltipHints } from "../../../../packages/shared-ui/src/primitives/Tooltip";
 import { DesktopTooltipLayer } from "../../../../src/components/DesktopTooltipLayer";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -60,6 +60,48 @@ describe("DesktopTooltipLayer", () => {
       button.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
       button.focus();
     });
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+  });
+
+  it("does not show hover or focus hints in a disabled editor scope", () => {
+    vi.useFakeTimers();
+    const button = mountTooltip("Editor command");
+    button.setAttribute("aria-describedby", "existing-help");
+    disableTooltipHints(button.parentElement!);
+
+    act(() => button.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
+    act(() => vi.advanceTimersByTime(900));
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    act(() => button.focus());
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    expect(button.getAttribute("aria-label")).toBe("Editor command");
+    expect(button.getAttribute("aria-describedby")).toBe("existing-help");
+
+    const outside = document.createElement("button");
+    activateTooltip(outside, "Shell command");
+    document.body.append(outside);
+    act(() => outside.focus());
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toBe("Shell command");
+  });
+
+  it("rechecks suppression before a delayed hover hint opens", () => {
+    vi.useFakeTimers();
+    const button = mountTooltip();
+    act(() => button.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
+    disableTooltipHints(button.parentElement!);
+    act(() => vi.advanceTimersByTime(450));
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+  });
+
+  it("suppresses hints in a document-level menu independently of its editor", () => {
+    vi.useFakeTimers();
+    const button = mountTooltip("Menu command");
+    const menu = button.parentElement!;
+    menu.setAttribute("role", "menu");
+    disableTooltipHints(menu);
+    act(() => button.focus());
+    act(() => button.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
+    act(() => vi.advanceTimersByTime(900));
     expect(document.querySelector('[role="tooltip"]')).toBeNull();
   });
 

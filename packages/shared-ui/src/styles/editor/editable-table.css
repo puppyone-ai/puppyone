@@ -35,11 +35,17 @@
   --po-editable-table-line-height: 1.45;
   --po-editable-table-row-min-height: 31px;
   --po-editable-table-header-font-weight: 650;
-  --po-editable-table-handle-background: var(--po-surface-editable-table-handle-background, color-mix(in srgb, var(--po-text) 8%, var(--po-editor-bg)));
-  --po-editable-table-handle-border: var(--po-surface-editable-table-handle-border, color-mix(in srgb, var(--po-text) 24%, var(--po-editor-bg)));
+  /* Composite the grid stroke over an opaque editor base: theme dividers
+     may have alpha, but grips must never reveal table lines underneath.
+     Keep the base under the rim too, so its lighter stroke stays opaque. */
+  --po-editable-table-handle-radius: 2px;
+  --po-editable-table-handle-background:
+    linear-gradient(var(--po-editable-table-border), var(--po-editable-table-border)) padding-box,
+    var(--po-editor-bg) border-box;
+  --po-editable-table-handle-border: color-mix(in srgb, var(--po-editable-table-border) 88%, #ffffff 12%);
   --po-editable-table-handle-color: var(--po-surface-editable-table-handle-color, var(--po-text-muted));
-  --po-editable-table-handle-hover-background: var(--po-surface-editable-table-handle-hover-background, color-mix(in srgb, var(--po-text) 12%, var(--po-editor-bg)));
-  --po-editable-table-handle-hover-border: var(--po-surface-editable-table-handle-hover-border, color-mix(in srgb, var(--po-text) 36%, var(--po-editor-bg)));
+  --po-editable-table-handle-hover-background: var(--po-editable-table-handle-background);
+  --po-editable-table-handle-hover-border: var(--po-editable-table-handle-border);
   --po-editable-table-handle-gutter: 14px;
   --po-editable-table-action-gutter: 18px;
   --po-editable-table-interaction-gutter: max(
@@ -78,13 +84,15 @@
   box-sizing: border-box;
   place-items: center;
   /* Revealed handles must read as complete controls before the pointer
-     reaches them. An opaque face also separates the dots from table lines. */
+     reaches them, even when only the table itself is hovered. */
   border: 1px solid var(--po-editable-table-handle-border);
-  border-radius: 4px;
+  border-radius: var(--po-editable-table-handle-radius);
   background: var(--po-editable-table-handle-background);
   color: var(--po-editable-table-handle-color);
   pointer-events: none;
-  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  /* Structural strokes and grip faces change in the same frame. Only idle
+     hover dots soften; never delay the pressed/selected color behind them. */
+  transition: color 120ms ease;
 }
 
 .po-editable-table-drag-handle:not(.is-visible) {
@@ -158,11 +166,13 @@
 }
 
 .po-editable-table-drag-handle:focus-visible .po-editable-table-drag-handle-visual,
+.po-editable-table-drag-handle.is-pressed .po-editable-table-drag-handle-visual,
 .po-editable-table-drag-handle.is-menu-active .po-editable-table-drag-handle-visual,
 .po-editable-table-drag-handle.is-dragging .po-editable-table-drag-handle-visual {
   border-color: var(--po-editable-table-selection-border);
   background: var(--po-editable-table-selection-border);
   color: #ffffff;
+  transition: none;
 }
 
 .po-editable-table-drag-handle:focus-visible {

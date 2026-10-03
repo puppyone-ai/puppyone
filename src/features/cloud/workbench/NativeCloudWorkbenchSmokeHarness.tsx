@@ -103,7 +103,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const preferences = useDesktopPreferences();
-  const workbench = useNativeCloudWorkbench({ context, session: cloudSessionAvailable ? session : null, apiBaseUrl: API, localWorkspaceIdentity: localWorkspace.id, localWorkspace,
+  const workbench = useNativeCloudWorkbench({ context, session: cloudSessionAvailable ? session : null, apiBaseUrl: API,
     active: location === "cloud", filesVisibilitySettings: preferences.filesVisibilitySettings });
   const commitCloud = useCallback(() => setCloudSelected(true), []);
   const controller = useCloudWorkspaceSwitch({ enabled: true, scope: localWorkspace.id,

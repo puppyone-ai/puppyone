@@ -108,6 +108,14 @@ describe("titlebar Portal menu interactions", () => {
     expect(container.querySelector(".desktop-titlebar-workspace-button .lucide-laptop")).not.toBeNull();
   });
 
+  it("labels a linked but signed-out destination as authentication-required, not available Cloud", async () => {
+    await renderSwitcher({ onViewCloud: vi.fn(),
+      projectLocation: { current: "local", localAvailable: true, cloudState: "signed-out" } });
+    expect(locationButton("cloud").textContent).toBe("Sign in to access");
+    expect(locationButton("cloud").getAttribute("data-cloud-action")).toBeNull();
+    expect(locationButton("cloud").disabled).toBe(false);
+  });
+
   it.each(["resolving", "attention"] as const)("does not offer a new deployment while Cloud association is %s", async (cloudState) => {
     await renderSwitcher({ onViewCloud: vi.fn(),
       projectLocation: { current: "local", localAvailable: true, cloudState } });

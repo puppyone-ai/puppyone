@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type DragEvent as ReactDragEvent,
+  type ReactNode,
 } from "react";
 import type { ResolvedSurfaceAppearance } from "../features/appearance/AppearanceRuntime";
 import { useWorkspaceFolderDrop } from "../features/app-shell/useWorkspaceFolderDrop";
@@ -66,13 +67,16 @@ export type MinimalOnboardingProps = {
   onRemoveProject?: (path: string) => Promise<void>;
   recentWorkspaces?: RecentWorkspaceHomeItem[];
   projectItems?: ProjectHomeItem[];
+  cloudAccountStatus?: ReactNode;
+  cloudOpening?: boolean;
+  onOpenCloudProject?: (projectId: string) => void;
   operationStatus?: OnboardingOperationStatus | null;
   initialError?: string | null;
   appearance: ResolvedSurfaceAppearance;
   experimentalSettings?: ExperimentalSettings;
 };
 
-/** Local repository entrypoint. Cloud is entered from an open repository only. */
+/** Homepage project list. Cloud catalog/auth is supplied by the host, not discovered by the view. */
 export function MinimalOnboarding({
   onChooseWorkspace,
   onChooseProjectLocation,
@@ -88,6 +92,9 @@ export function MinimalOnboarding({
   onRemoveProject,
   recentWorkspaces = [],
   projectItems,
+  cloudAccountStatus,
+  cloudOpening = false,
+  onOpenCloudProject,
   initialError = null,
   appearance,
   experimentalSettings = DEFAULT_EXPERIMENTAL_SETTINGS,
@@ -100,12 +107,12 @@ export function MinimalOnboarding({
   const projectEntryFlow = useProjectEntryFlow();
   const importPreviewBrands = resolveImportPreviewBrands(experimentalSettings);
   const items = useMemo(
-    () => (projectItems ?? recentWorkspaces.map(({ workspace, lastOpenedAt }) => ({
+    () => (projectItems ?? recentWorkspaces.map(({ workspace }) => ({
       id: workspace.id,
       label: workspace.name,
       localPath: workspace.path,
-      lastOpenedAt: lastOpenedAt ?? null,
-    }))).slice(0, 40),
+      lastModifiedAt: workspace.lastModifiedAt ?? null,
+    }))),
     [projectItems, recentWorkspaces],
   );
 
@@ -168,7 +175,7 @@ export function MinimalOnboarding({
     }
   };
 
-  const busy = Boolean(openingPath) || Boolean(removingPath);
+  const busy = Boolean(openingPath) || Boolean(removingPath) || cloudOpening;
   const startProjectDrag = (event: ReactDragEvent<HTMLButtonElement>, item: ProjectHomeItem) => {
     const absolutePath = item.localPath.trim();
     if (busy || !absolutePath) {
@@ -187,6 +194,7 @@ export function MinimalOnboarding({
     onInvalidDrop: () => setError(t("onboarding.error.dropLocalFolder")),
   });
 
+  // Account/auth controls are page chrome, never synthetic Project rows.
   const hasProjects = items.length > 0;
   const onboardingState: OnboardingHomeState = hasProjects ? "projects" : "empty";
   const [showEmptyStateIntro, setShowEmptyStateIntro] = useState(() => !hasProjects);
@@ -236,6 +244,7 @@ export function MinimalOnboarding({
       onDrop={folderDrop.onDrop}
     >
       <DesktopWindowDragRegion className="onboarding-titlebar" />
+      {cloudAccountStatus}
       <section
         ref={homepageRef}
         className="onboarding-homepage"
@@ -248,6 +257,7 @@ export function MinimalOnboarding({
           primary={hasProjects ? (
             <OnboardingProjectList
               items={items}
+              onOpenCloudProject={onOpenCloudProject}
               busy={busy}
               openingPath={openingPath}
               removingPath={removingPath}

@@ -58,7 +58,7 @@ function overview() {
       dashboard={{
         project: { id: "proj-1", name: "Atlas" },
         nodes: { total: 12, folders: 2, files: 10, storage_bytes: 2048 },
-        connections: [],
+        resources: [],
         tools: [],
       } as never}
       tree={{ path: "", entries: [] }}

@@ -9,7 +9,10 @@ export type RecentWorkspaceHomeItem = {
 export type ProjectHomeItem = {
   id: string;
   label: string;
+  /** Empty for a hosted-only entry; never a synthetic local path. */
   localPath: string;
+  cloudProjectId?: string;
+  lastModifiedAt?: string | null;
   lastOpenedAt?: string | null;
 };
 

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import "./access.css";
 import type {
-  DesktopCloudConnector,
+  DesktopCloudAccessSurface,
   DesktopCloudCreateMcpEndpointRequest,
   DesktopCloudMcpEndpoint,
   DesktopCloudRepoIdentity,
@@ -13,7 +13,7 @@ import type {
 } from "../../../../lib/cloudApi";
 import {
   createCloudMcpEndpoint,
-  updateCloudConnector,
+  updateAccessSurface,
   updateCloudMcpEndpoint,
 } from "../../../../lib/cloudApi";
 import {
@@ -61,7 +61,7 @@ export function DesktopCloudScopeAccessDetail({
   scope: DesktopCloudRepositoryView;
   activeAccessPointId?: string | null;
   identity: DesktopCloudRepoIdentity | null;
-  connectors: DesktopCloudConnector[];
+  connectors: DesktopCloudAccessSurface[];
   mcpEndpoints: DesktopCloudMcpEndpoint[];
   onRefresh: () => Promise<void>;
   canManage?: boolean;
@@ -138,7 +138,7 @@ export function DesktopCloudScopeAccessDetail({
           setAccessPointConfigError(cloudMessage("cli-unavailable"));
           return;
         }
-        await updateCloudConnector(
+        await updateAccessSurface(
           cloudSession,
           projectId,
           accessPoint.connector.id,

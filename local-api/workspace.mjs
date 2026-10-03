@@ -9,6 +9,7 @@ import {
   resolveCopyNameExtension,
 } from "./files/file-format-policy.mjs";
 import { parseSingleByteRange } from "./files/byte-range.mjs";
+import { readWorkspaceModifiedAt } from "./files/workspace-activity.mjs";
 import {
   isSameOrInsidePath,
   normalizeRelativePath,
@@ -158,6 +159,7 @@ export async function workspaceFromPath(folderPath, options = {}) {
     ? await Promise.all([
       getWorkspaceCommitCount(identity.canonicalPath),
       readWorkspacePuppyoneRemoteMetadata(identity.canonicalPath),
+      readWorkspaceModifiedAt(identity.canonicalPath),
     ])
     : null;
 
@@ -170,6 +172,7 @@ export async function workspaceFromPath(folderPath, options = {}) {
       ? {
         commitCount: gitMetadata[0],
         puppyoneGitRemote: gitMetadata[1].puppyoneGitRemote,
+        lastModifiedAt: gitMetadata[2],
         hydrationState: "ready",
       }
       : { hydrationState: "metadata" }),

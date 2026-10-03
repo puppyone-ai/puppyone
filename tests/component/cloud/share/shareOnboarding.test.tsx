@@ -64,14 +64,18 @@ function dashboardReads(reads: Record<string, string>): DesktopCloudDashboard {
   return {
     project: { id: "proj-1", name: "Notes" },
     nodes: { total: 0, folders: 0, files: 0 },
-    connections: Object.entries(reads).map(([id, lastSyncedAt]) => ({
-      id,
-      provider: "mcp",
+    resources: Object.entries(reads).map(([id, lastSeenAt]) => ({
+      resource_kind: "access",
+      resource_id: id,
+      project_id: "proj-1",
+      kind: "mcp",
+      target: { kind: "project_root", project_id: "proj-1" },
       status: "active",
-      last_synced_at: lastSyncedAt,
+      last_activity_at: lastSeenAt,
     })),
     tools: [],
-  } as unknown as DesktopCloudDashboard;
+    uploads: [],
+  };
 }
 
 function sharesState(overrides: Partial<ProjectSharesState> = {}): ProjectSharesState {

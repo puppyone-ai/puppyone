@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { accessSurfaceFixture } from "../../../support/cloud/accessSurfaceFixture";
 import type { DesktopCloudDashboard, DesktopCloudTree } from "../../../../src/lib/cloudApi";
 import {
   getCloudOverviewEntryUpdatedAt,
@@ -11,7 +12,10 @@ describe("Cloud Overview metrics", () => {
   it("separates active connections from the total access-point inventory", () => {
     const metrics = getCloudOverviewMetrics({
       scopes: [],
-      connectors: [],
+      connectors: [
+        accessSurfaceFixture({ id: "cli", kind: "cli", status: "active" }),
+        accessSurfaceFixture({ id: "git", kind: "git_remote", status: "paused" }),
+      ],
       mcpEndpoints: [],
       identity: {
         project_id: "project-1",
@@ -22,6 +26,13 @@ describe("Cloud Overview metrics", () => {
 
     expect(metrics.accessPointCount).toBe(2);
     expect(metrics.activeAccessPointCount).toBe(1);
+  });
+
+  it("does not count a repository URL or setup placeholders as persisted Access", () => {
+    const metrics = getCloudOverviewMetrics({ scopes: [], connectors: [], mcpEndpoints: [],
+      identity: { project_id: "project-1", url: "https://cloud.example/git/project-1.git", scopes: [] } });
+    expect(metrics.accessPointCount).toBe(0);
+    expect(metrics.activeAccessPointCount).toBe(0);
   });
 
   it("keeps only direct children and orders product folders before files", () => {
@@ -131,7 +142,7 @@ function createDashboard(nodes: Partial<DesktopCloudDashboard["nodes"]>): Deskto
   return {
     project: { id: "project-1", name: "Atlas" },
     nodes: { total: 0, folders: 0, files: 0, ...nodes },
-    connections: [],
+    resources: [],
     tools: [],
     uploads: [],
   };

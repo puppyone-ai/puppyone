@@ -1,4 +1,3 @@
-import { activateTooltip } from "../../../../primitives/Tooltip";
 import { EditorSelection } from "@codemirror/state";
 import { EditorView, WidgetType } from "@codemirror/view";
 import { bidiIsolate } from "@puppyone/localization/core";
@@ -114,7 +113,6 @@ export class CodeBlockWidget extends WidgetType {
       const sourceReferenceText = formatMarkdownCodeSourceReference(this.sourceReference);
       sourceReference.className = "cm-md-code-source-reference";
       sourceReference.textContent = sourceReferenceText;
-      activateTooltip(sourceReference, sourceReferenceText, { overflowOnly: true });
       sourceReference.setAttribute(
         "aria-label",
         t("editor.markdown.code.source", { source: bidiIsolate(sourceReferenceText) }),

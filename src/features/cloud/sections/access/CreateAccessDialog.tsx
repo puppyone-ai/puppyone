@@ -5,12 +5,11 @@ import { useLocalization } from "@puppyone/localization/react";
 import { DesktopDialogCloseButton, DesktopDialogRoot, DesktopDialogSurface } from "../../../../components/DesktopDialog";
 import { DesktopOverlayLayer } from "../../../app-shell/DesktopOverlayPortal";
 import type {
-  DesktopCloudConnector,
+  DesktopCloudAccessSurface,
   DesktopCloudMcpEndpoint,
   DesktopCloudRepositoryView,
   DesktopCloudSession,
 } from "../../../../lib/cloudApi";
-import { scopeMatchesMcpEndpoint } from "../../utils";
 import { repositoryTargetKey } from "../../repositoryTarget";
 import { cloudMessage, formatCloudMessage, type CloudMessageDescriptor } from "../../cloudPresentation";
 import { CreateAccessFolderTree, TreeDisclosureMarker } from "./CreateAccessFolderTree";
@@ -49,7 +48,7 @@ export function DesktopCloudCreateAccessDialog({
   cloudSession: DesktopCloudSession;
   apiBaseUrl: string | null;
   scopes: DesktopCloudRepositoryView[];
-  connectorsByTarget: Map<string, DesktopCloudConnector[]>;
+  connectorsByTarget: Map<string, DesktopCloudAccessSurface[]>;
   mcpEndpointsByTarget: Map<string, DesktopCloudMcpEndpoint[]>;
   initialPath?: string | null;
   initialIntent?: CreateAccessIntent;
@@ -90,9 +89,9 @@ export function DesktopCloudCreateAccessDialog({
     if (!selectedExistingScope) return new Set<string>();
     const providers = new Set(
       (connectorsByTarget.get(repositoryTargetKey(selectedExistingScope.target)) ?? [])
-        .map((connector) => normalizeAccessProviderKey(connector.provider)),
+        .map((connector) => normalizeAccessProviderKey(connector.kind)),
     );
-    if (selectedMcpEndpoints.some((endpoint) => scopeMatchesMcpEndpoint(selectedExistingScope, endpoint))) {
+    if (selectedMcpEndpoints.length > 0) {
       providers.add("mcp");
     }
     return providers;

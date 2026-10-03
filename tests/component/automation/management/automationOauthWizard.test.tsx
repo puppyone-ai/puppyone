@@ -162,7 +162,7 @@ describe("Automation OAuth wizard", () => {
     apiMocks.status.mockResolvedValue(oauthStatus(true));
     apiMocks.resources.mockResolvedValue({ resources: [resource()], next_cursor: null });
     apiMocks.create.mockResolvedValue({
-      sync: {
+      binding: {
         id: "connection-1",
         project_id: "project-1",
         path: "Google Docs",
@@ -172,7 +172,8 @@ describe("Automation OAuth wizard", () => {
         status: "active",
       },
       execution_result: {
-        run_id: "run-1",
+        synchronize_run_id: "run-1",
+        synchronize_binding_id: "connection-1",
         status: "queued",
         summary: "Sync queued",
       },
@@ -192,8 +193,8 @@ describe("Automation OAuth wizard", () => {
     });
 
     expect(onCreated).toHaveBeenCalledWith(expect.objectContaining({
-      connectionId: "connection-1",
-      runId: "run-1",
+      synchronizeBindingId: "connection-1",
+      synchronizeRunId: "run-1",
       status: "queued",
       summary: "Sync queued",
     }));

@@ -102,6 +102,7 @@ export function getOrCreateDocumentWorkingCopy(options: Readonly<{
   const existing = bindings.get(identity.resourcePath);
   if (existing) {
     existing.onPersistedRef.current = options.onPersisted;
+    existing.session.rebindPersistence(options.persistence);
     existing.session.setSaveMode(options.saveMode);
     return existing;
   }

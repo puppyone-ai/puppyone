@@ -1,5 +1,5 @@
 import type {
-  DesktopCloudConnector,
+  DesktopCloudAccessSurface,
   DesktopCloudMcpEndpoint,
   DesktopCloudRepoIdentity,
   DesktopCloudRepositoryView,
@@ -13,7 +13,6 @@ import {
   getScopeIdentifierName,
   getScopePathLabel,
   profileSlug,
-  scopeMatchesMcpEndpoint,
   shellQuote,
 } from "../../utils";
 import type {
@@ -27,14 +26,14 @@ import { resolveAccessPointKind } from "./accessPointKindRegistry";
 
 export type AccessPointProjection = Readonly<{
   scopeRows: DesktopCloudRepositoryView[];
-  connectorsByTarget: Map<string, DesktopCloudConnector[]>;
+  connectorsByTarget: Map<string, DesktopCloudAccessSurface[]>;
   mcpEndpointsByTarget: Map<string, DesktopCloudMcpEndpoint[]>;
   accessPointRows: AccessPointRow[];
 }>;
 
 export type AccessPointAdapterOptions = Readonly<{
   scope: DesktopCloudRepositoryView;
-  connectors: DesktopCloudConnector[];
+  connectors: DesktopCloudAccessSurface[];
   mcpEndpoints: DesktopCloudMcpEndpoint[];
   identity: DesktopCloudRepoIdentity | null;
   apiBaseUrl: string | null;
@@ -50,15 +49,15 @@ export function buildAccessPointProjection({
   catalogKind = "all",
 }: {
   scopes: DesktopCloudScope[];
-  connectors: DesktopCloudConnector[];
+  connectors: DesktopCloudAccessSurface[];
   mcpEndpoints: DesktopCloudMcpEndpoint[];
   identity: DesktopCloudRepoIdentity | null;
   apiBaseUrl: string | null;
   catalogKind?: AccessPointCatalogKind;
 }): AccessPointProjection {
-  const scopeRows = getCloudScopeRows(scopes, identity);
+  const scopeRows = getCloudScopeRows(scopes, identity, connectors[0]?.project_id);
   const connectorsByTarget = groupConnectorsByTarget(connectors);
-  const mcpEndpointsByTarget = groupMcpEndpointsByTarget(scopeRows, mcpEndpoints);
+  const mcpEndpointsByTarget = groupMcpEndpointsByTarget(connectors, mcpEndpoints);
   return {
     scopeRows,
     connectorsByTarget,
@@ -83,7 +82,7 @@ export function buildAccessPointRows({
   placeholderKinds = [],
 }: {
   scopeRows: DesktopCloudRepositoryView[];
-  connectors: DesktopCloudConnector[];
+  connectors: DesktopCloudAccessSurface[];
   mcpEndpoints: DesktopCloudMcpEndpoint[];
   identity: DesktopCloudRepoIdentity | null;
   apiBaseUrl: string | null;
@@ -115,9 +114,9 @@ export function buildAccessPointsForScope({
 }: AccessPointAdapterOptions): AccessPoint[] {
   const context = getAccessPointContext({ scope, identity, apiBaseUrl });
   const scopeConnectors = connectors.filter((connector) => sameRepositoryTarget(connector.target, scope.target));
-  const scopeMcpEndpoints = mcpEndpoints.filter((endpoint) => scopeMatchesMcpEndpoint(scope, endpoint));
-  const cliConnector = scopeConnectors.find((connector) => resolveAccessPointKind(connector.provider) === "cli");
-  const gitConnector = scopeConnectors.find((connector) => resolveAccessPointKind(connector.provider) === "git");
+  const scopeMcpSurfaces = scopeConnectors.filter((surface) => surface.kind === "mcp" || surface.kind === "mcp_endpoint");
+  const cliConnector = scopeConnectors.find((connector) => resolveAccessPointKind(connector.kind) === "cli");
+  const gitConnector = scopeConnectors.find((connector) => resolveAccessPointKind(connector.kind) === "git");
   const accessPoints: AccessPoint[] = [
     {
       id: `builtin:cli:${scope.id}`,
@@ -127,6 +126,7 @@ export function buildAccessPointsForScope({
       subtitle: "",
       status: normalizeAccessPointStatus(cliConnector?.status),
       connector: cliConnector,
+      placeholder: !cliConnector,
       commands: [
         { id: "login", value: context.cliCommand, disabled: !context.cliCommand },
         {
@@ -139,11 +139,12 @@ export function buildAccessPointsForScope({
     {
       id: `builtin:git:${scope.id}`,
       kind: "git",
-      sourceProvider: gitConnector?.provider ?? "git",
+      sourceProvider: gitConnector?.kind ?? "git",
       title: "",
       subtitle: "",
-      status: normalizeAccessPointStatus(gitConnector?.status ?? (context.gitUrl ? "active" : "missing")),
+      status: normalizeAccessPointStatus(gitConnector?.status),
       connector: gitConnector,
+      placeholder: !gitConnector,
       commands: [
         {
           id: "existing-folder",
@@ -157,22 +158,23 @@ export function buildAccessPointsForScope({
         },
       ],
     },
-    ...scopeMcpEndpoints.map((endpoint): AccessPoint => {
-      const accessLabel = endpoint.accesses?.length
+    ...scopeMcpSurfaces.map((surface): AccessPoint => {
+      // Adapter detail is the same persisted Access ID, never a path-based join.
+      const endpoint = mcpEndpoints.find((item) => item.id === surface.id && item.project_id === surface.project_id);
+      const accessLabel = endpoint?.accesses?.length
         ? endpoint.accesses.map((access) => access.path || "/").join(", ")
-        : endpoint.path || "/";
-      const serverUrl = endpoint.api_key && context.apiBase
-        ? `${context.apiBase}/api/v1/mcp/server/${endpoint.api_key}`
-        : "";
+        : scope.path || "/";
       return {
-        id: `mcp:${endpoint.id}`,
+        id: `mcp:${surface.id}`,
         kind: "mcp",
-        sourceProvider: "mcp",
-        title: endpoint.name || "",
+        sourceProvider: surface.kind,
+        title: surface.name || endpoint?.name || "",
         subtitle: accessLabel,
-        status: normalizeAccessPointStatus(endpoint.status || "active"),
+        status: normalizeAccessPointStatus(surface.status),
+        connector: surface,
         endpoint,
-        commands: serverUrl ? [{ id: "server-url", value: serverUrl }] : [],
+        // Ordinary reads contain hints, not a runnable credential or key URL.
+        commands: [],
       };
     }),
   ];
@@ -239,8 +241,8 @@ function ensureAccessPointPlaceholder(
   ];
 }
 
-function groupConnectorsByTarget(connectors: DesktopCloudConnector[]) {
-  const groups = new Map<string, DesktopCloudConnector[]>();
+function groupConnectorsByTarget(connectors: DesktopCloudAccessSurface[]) {
+  const groups = new Map<string, DesktopCloudAccessSurface[]>();
   for (const connector of connectors) {
     const key = repositoryTargetKey(connector.target);
     const group = groups.get(key) ?? [];
@@ -251,15 +253,16 @@ function groupConnectorsByTarget(connectors: DesktopCloudConnector[]) {
 }
 
 function groupMcpEndpointsByTarget(
-  scopeRows: DesktopCloudRepositoryView[],
+  surfaces: DesktopCloudAccessSurface[],
   mcpEndpoints: DesktopCloudMcpEndpoint[],
 ) {
   const groups = new Map<string, DesktopCloudMcpEndpoint[]>();
-  for (const scope of scopeRows) {
-    groups.set(
-      repositoryTargetKey(scope.target),
-      mcpEndpoints.filter((endpoint) => scopeMatchesMcpEndpoint(scope, endpoint)),
-    );
+  for (const surface of surfaces) {
+    if (surface.kind !== "mcp" && surface.kind !== "mcp_endpoint") continue;
+    const endpoint = mcpEndpoints.find((item) => item.id === surface.id && item.project_id === surface.project_id);
+    if (!endpoint) continue;
+    const key = repositoryTargetKey(surface.target);
+    groups.set(key, [...(groups.get(key) ?? []), endpoint]);
   }
   return groups;
 }

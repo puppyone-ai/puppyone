@@ -156,7 +156,7 @@ function addLineDecoration(
   ranges.push(Decoration.line({
     class: ["cm-ai-edit-line", `cm-ai-edit-line-${classKind}`, ...markerClasses].join(" "),
     attributes: {
-      title: getHunkTitle(hunk, view),
+      "aria-description": getHunkTitle(hunk, view),
     },
   }).range(line.from));
 }

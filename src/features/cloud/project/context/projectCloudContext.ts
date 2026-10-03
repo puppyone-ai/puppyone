@@ -3,7 +3,10 @@ import { normalizeCloudSection } from "../../routes/cloudRoutes";
 import { cloudMessage, type CloudMessageDescriptor } from "../../cloudPresentation";
 import type { RepositoryTarget } from "../../repositoryTarget";
 
-/** Ephemeral UI context resolved from the open repository's canonical remote. */
+/**
+ * Ephemeral local-association resolution or an explicitly selected, authorized
+ * hosted target. A resolved context is never a persisted local-folder binding.
+ */
 export type ProjectCloudContext =
   | { status: "local-only"; projectId: null }
   | { status: "resolving"; projectId: null }
@@ -27,6 +30,18 @@ export type ProjectCloudContext =
 
 export function getResolvedCloudProjectId(context: ProjectCloudContext): string | null {
   return context.status === "resolved" ? context.projectId : null;
+}
+
+/** Location UI reports association readiness, never account login as Project availability. */
+export function getProjectCloudLocationState(
+  context: ProjectCloudContext,
+  authenticated: boolean,
+): "unavailable" | "available" | "signed-out" | "resolving" | "attention" {
+  if (context.status === "resolved") return "available";
+  if (context.status === "resolving") return "resolving";
+  if (context.status === "local-only") return "unavailable";
+  if (context.status === "wrong-account" && !authenticated) return "signed-out";
+  return "attention";
 }
 
 export function cloudContextHasProject(context: ProjectCloudContext): boolean {

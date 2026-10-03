@@ -13,8 +13,21 @@ import {
 } from "../../shared/repositoryContract.js";
 import { invalidateCloudCacheForMutation } from "../features/cloud/cache/cloudCache";
 import { createCloudAutomationApi } from "./cloud/automationApi";
-import { createSynchronizeApi, type DesktopCloudSynchronizeBinding, type DesktopCloudSynchronizeRun } from "./cloud/synchronizeApi";
-export type { DesktopCloudSynchronizeBinding, DesktopCloudSynchronizeRun } from "./cloud/synchronizeApi";
+import { createSynchronizeApi } from "./cloud/synchronizeApi";
+import { createAccessSurfacesApi } from "./cloud/accessSurfacesApi";
+import { createResourceDashboardApi, type DesktopCloudDashboard } from "./cloud/resourceDashboardApi";
+export type { DesktopCloudDashboard, DesktopCloudDashboardResource } from "./cloud/resourceDashboardApi";
+export type {
+  DesktopCloudAccessSurface, DesktopCloudAccessSurfacePatch, DesktopCloudAccessKind,
+  DesktopCloudAccessDirection, DesktopCloudAccessSurfaceCreate,
+  DesktopCloudAccessSurfaceConfigure, DesktopCloudAccessSurfaceCreated,
+  DesktopCloudAccessCredentialIssued,
+} from "./cloud/accessSurfacesApi";
+export type {
+  DesktopCloudSynchronizeBinding, DesktopCloudSynchronizeRun,
+  DesktopCloudCreateSynchronizeBindingRequest, DesktopCloudCreateSynchronizeBindingResult,
+  DesktopCloudUpdateSynchronizeBindingRequest, DesktopCloudUpdateSynchronizeTriggerRequest,
+} from "./cloud/synchronizeApi";
 import type { RepositoryTarget } from "../features/cloud/repositoryTarget";
 
 export type { RepositoryTarget } from "../features/cloud/repositoryTarget";
@@ -296,53 +309,6 @@ export type DesktopBillingAppliedQuote = DesktopBillingQuote & {
   operation: DesktopBillingOperation;
 };
 
-export type DesktopCloudDashboard = {
-  project: {
-    id: string;
-    name: string;
-    description?: string | null;
-  };
-  nodes: {
-    total: number;
-    folders: number;
-    files: number;
-    storage_bytes?: number | null;
-    storage_limit_bytes?: number | null;
-  };
-  connections: DesktopCloudDashboardConnection[];
-  tools: Array<{
-    id: string;
-    name: string;
-    type?: string | null;
-    index_status?: string | null;
-    chunks_count?: number | null;
-    total_files?: number | null;
-    indexed_files?: number | null;
-  }>;
-  uploads: Array<{
-    id: string;
-    status: string;
-    type: string;
-    progress?: number;
-    message?: string | null;
-  }>;
-};
-
-export type DesktopCloudDashboardConnection = {
-  id: string;
-  provider: string;
-  name?: string | null;
-  path?: string | null;
-  direction?: string | null;
-  status: string;
-  access_key?: string | null;
-  trigger?: Record<string, unknown> | null;
-  last_synced_at?: string | null;
-  error_message?: string | null;
-  created_at?: string | null;
-  usage_buckets?: number[];
-};
-
 export type DesktopCloudTreeEntry = {
   name: string;
   path: string;
@@ -411,34 +377,6 @@ export type DesktopCloudCreateScopeRequest = {
   max_mode?: "r" | "rw";
 };
 
-export type DesktopCloudConnector = {
-  id: string;
-  target: RepositoryTarget;
-  provider: string;
-  name: string;
-  direction: string;
-  config?: Record<string, unknown>;
-  oauth_connection_id?: number | null;
-  trigger?: Record<string, unknown>;
-  status: string;
-  last_run_at?: string | null;
-  last_run_id?: string | null;
-  error_message?: string | null;
-  created_by?: string | null;
-  created_at?: string | null;
-  updated_at?: string | null;
-};
-
-export type DesktopCloudConnectorPatch = {
-  name?: string;
-  direction?: string;
-  config?: Record<string, unknown>;
-  policy?: unknown;
-  oauth_connection_id?: number | null;
-  trigger?: Record<string, unknown> | null;
-  status?: string;
-};
-
 export type DesktopCloudAutomationConfigField = {
   key: string;
   label: string;
@@ -467,27 +405,6 @@ export type DesktopCloudAutomationProviderSpec = {
   icon_url?: string | null;
 };
 
-/** @deprecated ISSUE-058 transition; resource consumers use SynchronizeBinding. */
-export type DesktopCloudAutomationConnection = DesktopCloudSynchronizeBinding;
-
-export type DesktopCloudCreateAutomationRequest = {
-  project_id: string;
-  provider: string;
-  config: Record<string, unknown>;
-  target_folder_path?: string;
-  target_path?: string;
-  direction?: string;
-  conflict_strategy?: string;
-  sync_mode?: "manual" | "scheduled" | "realtime";
-  trigger?: { type: string; schedule?: string; timezone?: string };
-};
-
-export type DesktopCloudCreateAutomationResult = {
-  /** Legacy server response key. Product/domain code calls this Automation. */
-  sync: DesktopCloudAutomationConnection;
-  execution_result?: Record<string, unknown> | null;
-};
-
 export type DesktopCloudAutomationOauthStatus = {
   connected: boolean;
   workspace_name: string | null;
@@ -510,21 +427,6 @@ export type DesktopCloudAutomationProviderResources = {
   resources: DesktopCloudAutomationProviderResource[];
   next_cursor: string | null;
 };
-
-export type DesktopCloudUpdateAutomationConnectionRequest = {
-  config?: Record<string, unknown>;
-  target_path?: string;
-  direction?: string;
-  conflict_strategy?: string;
-};
-
-export type DesktopCloudUpdateAutomationTriggerRequest = {
-  sync_mode: "manual" | "scheduled" | "realtime";
-  trigger?: { type: string; schedule?: string; timezone?: string } | null;
-};
-
-/** @deprecated ISSUE-058 transition; resource consumers use SynchronizeRun. */
-export type DesktopCloudAutomationRun = DesktopCloudSynchronizeRun;
 
 export type DesktopCloudMcpEndpoint = {
   id: string;
@@ -674,6 +576,7 @@ export async function cloudApiRequest<T>(
     try {
       const transported = await window.puppyoneDesktop.requestCloudSessionApi({
         apiBaseUrl: requestedApiBase,
+        expectedSession: { userId: session.user_id, generation: session.session_generation },
         path: path.startsWith("/") ? path : `/${path}`,
         method: init.method ?? "GET",
         headers: {
@@ -700,6 +603,25 @@ export async function cloudApiRequest<T>(
 function isMutationMethod(method: string | undefined) {
   const normalized = (method ?? "GET").toUpperCase();
   return normalized !== "GET" && normalized !== "HEAD" && normalized !== "OPTIONS";
+}
+
+/** Account catalog: the server filters by the current human ProjectGrant. */
+export function listCloudProjects(session: DesktopCloudSession, apiBaseUrl: string): Promise<DesktopCloudProject[]> {
+  return cloudApiRequest<DesktopCloudProject[]>("/projects/?include_access_counts=false", session, undefined, {}, apiBaseUrl);
+}
+
+/** Empty project creation is separate from publishing any local repository. */
+export function createCloudProject(
+  session: DesktopCloudSession,
+  input: { name: string; org_id: string },
+  operationId: string,
+  apiBaseUrl: string,
+): Promise<DesktopCloudProject> {
+  return cloudApiRequest<DesktopCloudProject>("/projects/", session, undefined, {
+    method: "POST",
+    headers: { "Idempotency-Key": operationId },
+    body: JSON.stringify(input),
+  }, apiBaseUrl);
 }
 
 export function getCloudProject(
@@ -1541,7 +1463,7 @@ export function getCloudDashboard(
   onSessionChange?: MutableSessionHandler,
   apiBaseUrl?: string | null,
 ): Promise<DesktopCloudDashboard> {
-  return cloudApiRequest<DesktopCloudDashboard>(`/projects/${projectId}/dashboard`, session, onSessionChange, {}, apiBaseUrl);
+  return createResourceDashboardApi(cloudApiRequest).getResourceDashboard(session, projectId, onSessionChange, apiBaseUrl);
 }
 
 export function listCloudRoot(
@@ -1668,34 +1590,13 @@ export function createCloudScope(
   );
 }
 
-export function listCloudConnectors(
-  session: DesktopCloudSession,
-  projectId: string,
-  onSessionChange?: MutableSessionHandler,
-  apiBaseUrl?: string | null,
-): Promise<DesktopCloudConnector[]> {
-  return cloudApiRequest<DesktopCloudConnector[]>(`/projects/${projectId}/connectors`, session, onSessionChange, {}, apiBaseUrl);
-}
-
-export function updateCloudConnector(
-  session: DesktopCloudSession,
-  projectId: string,
-  connectorId: string,
-  body: DesktopCloudConnectorPatch,
-  onSessionChange?: MutableSessionHandler,
-  apiBaseUrl?: string | null,
-): Promise<DesktopCloudConnector> {
-  return cloudApiRequest<DesktopCloudConnector>(
-    `/projects/${encodeURIComponent(projectId)}/connectors/${encodeURIComponent(connectorId)}`,
-    session,
-    onSessionChange,
-    {
-      method: "PATCH",
-      body: JSON.stringify(body),
-    },
-    apiBaseUrl,
-  );
-}
+export const {
+  listAccessSurfaces, getAccessSurface, createAccessSurface, updateAccessSurface,
+  enableTargetAccess, activateAccessSurfaceAgent, pauseAccessSurface, resumeAccessSurface,
+  deleteAccessSurface, configureAccessSurface, listAccessibleSurfaces,
+  renameAccessSurface, updateAccessSurfaceMetadata, regenerateAccessSurfaceKey,
+  deleteConfiguredAccessSurface,
+} = createAccessSurfacesApi(cloudApiRequest);
 
 export const {
   supportsCloudAutomationOauth,
@@ -1712,19 +1613,6 @@ export const {
   updateSynchronizeTrigger, listSynchronizeRuns, getSynchronizeRun,
   refreshSynchronizeBinding, pauseSynchronizeBinding, resumeSynchronizeBinding,
   deleteSynchronizeBinding,
-} = synchronizeApi;
-
-// Bounded ISSUE-058 compatibility exports; one resource implementation only.
-export const {
-  createSynchronizeBinding: createCloudAutomation,
-  updateSynchronizeBinding: updateCloudAutomationConnection,
-  updateSynchronizeTrigger: updateCloudAutomationTrigger,
-  listSynchronizeRuns: listCloudAutomationConnectionRuns,
-  getSynchronizeRun: getCloudAutomationRun,
-  refreshSynchronizeBinding: refreshCloudAutomationConnection,
-  pauseSynchronizeBinding: pauseCloudAutomationConnection,
-  resumeSynchronizeBinding: resumeCloudAutomationConnection,
-  deleteSynchronizeBinding: deleteCloudAutomationConnection,
 } = synchronizeApi;
 
 export function listCloudMcpEndpoints(

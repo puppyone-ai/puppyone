@@ -16,10 +16,8 @@ export type CloudAutomationTransport = <T>(
 ) => Promise<T>;
 
 export function createCloudAutomationApi(cloudApiRequest: CloudAutomationTransport) {
-  // Compatibility boundary only. The Cloud service has not yet migrated its
-  // established `/integrations` transport routes. Product and feature code must
-  // use Automation terminology and reach those routes only through this adapter.
-  const CLOUD_AUTOMATION_LEGACY_WIRE_BASE = "/integrations";
+  // Automation composes provider discovery and OAuth; resource URLs are canonical.
+  const SYNCHRONIZE_BASE = "/synchronize";
 
   // Connector provider keys are part of the desktop domain model, while the
   // OAuth router has an independently-established slug contract. Keep the
@@ -38,7 +36,7 @@ export function createCloudAutomationApi(cloudApiRequest: CloudAutomationTranspo
   });
 
   function cloudAutomationWirePath(suffix: string) {
-    return `${CLOUD_AUTOMATION_LEGACY_WIRE_BASE}${suffix}`;
+    return `${SYNCHRONIZE_BASE}${suffix}`;
   }
 
   function cloudAutomationOauthPath(provider: string, suffix: "status" | "authorize") {
@@ -129,7 +127,7 @@ export function createCloudAutomationApi(cloudApiRequest: CloudAutomationTranspo
     apiBaseUrl?: string | null,
   ): Promise<DesktopCloudAutomationProviderSpec[]> {
     return cloudApiRequest<DesktopCloudAutomationProviderSpec[]>(
-      cloudAutomationWirePath("/connectors"),
+      cloudAutomationWirePath("/providers"),
       session,
       onSessionChange,
       {},

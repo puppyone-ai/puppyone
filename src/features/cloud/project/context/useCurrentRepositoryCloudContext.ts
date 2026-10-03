@@ -66,6 +66,7 @@ export function useCurrentRepositoryCloudContext({
   cloudEnabled,
   desktopCloudApiBaseUrl,
   resolutionInputsLoading,
+  refreshKey = 0,
   updateCloudSession,
   workspace,
 }: {
@@ -74,6 +75,7 @@ export function useCurrentRepositoryCloudContext({
   cloudEnabled: boolean;
   desktopCloudApiBaseUrl: string | null;
   resolutionInputsLoading: boolean;
+  refreshKey?: number;
   updateCloudSession: (session: DesktopCloudSession | null) => void;
   workspace: Workspace | null;
 }): ProjectCloudContext {
@@ -255,7 +257,7 @@ export function useCurrentRepositoryCloudContext({
 
     void resolveCanonical().catch(onFailure);
     return () => { cancelled = true; };
-  }, [cloudEnabled, resolutionInputsLoading, snapshot, updateCloudSession]);
+  }, [cloudEnabled, refreshKey, resolutionInputsLoading, snapshot, updateCloudSession]);
 
   if (!workspace || !cloudEnabled) {
     return { status: "local-only", projectId: null };

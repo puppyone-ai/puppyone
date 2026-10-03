@@ -36,6 +36,8 @@ export function getDocumentInputRuntime(port: DataPort, node: DocumentDataNode):
     assertEditorRuntimeAdmission();
     if (documentOperationQueue.isBlocked(identity, path)) throw new Error("This document is being moved or closed.");
     runtime = new DocumentInputRuntime(identity, path, port, node); documents.set(path, runtime);
+  } else {
+    runtime.rebindPort(port);
   }
   return runtime;
 }
@@ -79,13 +81,22 @@ export class DocumentInputRuntime {
   private readonly needsResource: boolean;
   private state: DocumentInputState;
 
-  constructor(readonly storageIdentity: string, readonly path: string, private readonly port: DataPort, node: DocumentDataNode) {
+  constructor(readonly storageIdentity: string, readonly path: string, private port: DataPort, node: DocumentDataNode) {
     const requirement = getEditorSourceRequirement(node);
     this.resourceDirectory = getEditorProviderPolicy(node).resourceDependencies === "document-directory" ? getDataResourceParent(path) ?? "" : null;
     this.needsContent = Boolean(port.readFile && shouldReadEditorContent(node));
     this.needsResource = Boolean(port.getFileUrl && (requirement === "resource" || requirement === "content-and-resource"));
     this.state = Object.freeze({ content: null, loading: this.needsContent, error: null,
       fileUrl: null, fileUrlLoading: this.needsResource, fileUrlError: null, generation: 0 });
+  }
+
+  rebindPort(port: DataPort): void {
+    if (port === this.port || this.disposed) return;
+    if (getEditorStorageIdentity(port) !== this.storageIdentity) throw new Error("Cannot rebind a document to another storage identity.");
+    this.port = port;
+    // Stable document identity does not mean a provider lease is still valid
+    // after re-authentication or reopening a retained Cloud workspace.
+    this.refresh();
   }
 
   getSnapshot = (): DocumentInputState => this.state;

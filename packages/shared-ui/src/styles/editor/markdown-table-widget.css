@@ -291,124 +291,12 @@
   display: none;
 }
 
+/* Menu chrome and states come from the shared editable-table menu. Only
+   Markdown's heading-free icon rows need intrinsic, content-hugging sizing. */
 .cm-md-table-context-menu.desktop-menu-surface {
-  z-index: 10000;
-  display: grid;
-  width: 236px;
-  animation: cm-md-table-menu-in 120ms cubic-bezier(0.2, 0, 0, 1);
-  transform-origin: top left;
-  max-height: min(520px, calc(100vh - 16px));
-  gap: 0;
-  padding: var(--po-menu-padding, 4px);
-  overflow: auto;
-  border: 1px solid var(--po-menu-border);
-  border-radius: var(--po-menu-radius);
-  background: var(--po-menu-bg);
-  background-clip: padding-box;
-  box-shadow: var(--po-menu-shadow);
-  color: var(--po-text);
-  font-family: var(--po-font-sans, inherit);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-}
-
-.cm-md-table-context-menu .desktop-menu-section {
-  display: grid;
-  gap: 2px;
-}
-
-.cm-md-table-context-menu .desktop-menu-section + .desktop-menu-section {
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px solid var(--po-divider);
-}
-
-.cm-md-table-context-menu .desktop-menu-section-label {
-  padding: 0 var(--po-menu-item-padding-inline) 4px;
-  color: var(--po-text-disabled);
-  font-size: var(--po-type-ui-caption, 12px);
-  font-weight: 650;
-  letter-spacing: 0;
-  line-height: 15px;
-  text-transform: uppercase;
-}
-
-.cm-md-table-context-menu .desktop-menu-section-list {
-  display: grid;
-  gap: 2px;
-}
-
-.cm-md-table-context-menu .desktop-menu-item {
-  display: flex;
-  align-items: center;
-  gap: var(--po-menu-item-gap);
-  width: 100%;
+  width: max-content;
   min-width: 0;
-  height: var(--po-menu-item-height);
-  padding: 0 var(--po-menu-item-padding-inline);
-  border: 0;
-  border-radius: var(--po-menu-item-radius);
-  background: transparent;
-  color: var(--po-text-muted);
-  cursor: var(--po-clickable-cursor, default);
-  font: inherit;
-  font-size: var(--po-type-ui-body, 14px);
-  font-weight: 500;
-  line-height: 18px;
-  text-align: left;
-  transition: background 100ms ease, color 100ms ease;
-}
-
-.cm-md-table-context-menu .desktop-menu-item:hover:not(:disabled),
-.cm-md-table-context-menu .desktop-menu-item:focus-visible:not(:disabled),
-.cm-md-table-context-menu .desktop-menu-item.selected {
-  background: var(--po-hover);
-  color: var(--po-text);
-  outline: none;
-}
-
-.cm-md-table-context-menu .desktop-menu-item:disabled {
-  color: var(--po-text-disabled);
-  cursor: default;
-  opacity: 0.58;
-}
-
-.cm-md-table-context-menu .desktop-menu-item.selected:disabled {
-  color: var(--po-text);
-  opacity: 1;
-}
-
-.cm-md-table-context-menu .desktop-menu-item.danger {
-  color: var(--po-danger);
-}
-
-.cm-md-table-context-menu .desktop-menu-item.danger:hover:not(:disabled),
-.cm-md-table-context-menu .desktop-menu-item.danger:focus-visible:not(:disabled) {
-  background: color-mix(in srgb, var(--po-danger) 10%, transparent);
-}
-
-.cm-md-table-context-menu .desktop-menu-item-body {
-  display: flex;
-  min-width: 0;
-  flex: 1 1 auto;
-  align-items: baseline;
-  gap: 7px;
-}
-
-.cm-md-table-context-menu .desktop-menu-item-label,
-.cm-md-table-context-menu .desktop-menu-item-trailing {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.cm-md-table-context-menu .desktop-menu-item-trailing {
-  flex: 0 0 auto;
-  color: var(--po-text-disabled);
-  font-size: var(--po-text-size-hint, 12px);
-  font-weight: 650;
-  text-transform: uppercase;
+  max-width: calc(100vw - 16px);
 }
 
 .markdown-codemirror-editor .cm-md-table-cell-content a {
@@ -444,13 +332,6 @@
   font-style: italic;
 }
 
-@keyframes cm-md-table-menu-in {
-  from {
-    opacity: 0;
-    transform: scale(0.98) translateY(-2px);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .markdown-codemirror-editor .cm-md-table-widget,
   .markdown-codemirror-editor .cm-md-table-widget th,
@@ -462,9 +343,5 @@
   .markdown-codemirror-editor .cm-md-table-column-resize-handle,
   .markdown-codemirror-editor .cm-md-table-column-resize-handle::before {
     transition: none;
-  }
-
-  .cm-md-table-context-menu.desktop-menu-surface {
-    animation: none;
   }
 }

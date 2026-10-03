@@ -32,6 +32,15 @@ export function Tooltip({
   });
 }
 
+/** Disable hover/focus hint bubbles for an entire surface, including nested controls. */
+export function disableTooltipHints(element: HTMLElement) {
+  element.dataset.tooltipDisabled = "true";
+}
+
+export function isTooltipSuppressed(element: Element): boolean {
+  return element.closest('[data-tooltip-disabled="true"]') !== null;
+}
+
 export function activateTooltip(
   element: HTMLElement,
   content: string | null | undefined,

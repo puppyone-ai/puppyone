@@ -38,13 +38,14 @@ const endpoint: DesktopCloudMcpEndpoint = {
   created_at: "2026-09-28T10:00:00Z",
 };
 
-function dashboardWith(connections: DesktopCloudDashboard["connections"]): DesktopCloudDashboard {
+function dashboardWith(resources: DesktopCloudDashboard["resources"]): DesktopCloudDashboard {
   return {
     project: { id: "proj-1", name: "Notes" },
     nodes: { total: 0, folders: 0, files: 0 },
-    connections,
+    resources,
     tools: [],
-  } as unknown as DesktopCloudDashboard;
+    uploads: [],
+  };
 }
 
 describe("share targets", () => {
@@ -121,17 +122,27 @@ describe("project shares", () => {
   it("joins endpoints with dashboard usage to show who has actually connected", () => {
     const shares = buildProjectShares(
       [endpoint, { ...endpoint, id: "ep-2", name: "Claude", accesses: [{ path: "docs", readonly: false }] }],
-      dashboardWith([{ id: "ep-2", provider: "mcp", status: "active", last_synced_at: "2026-09-28T11:00:00Z" }]),
+      dashboardWith([{ resource_kind: "access", resource_id: "ep-2", project_id: "proj-1", kind: "mcp", target: projectRootTarget("proj-1"), status: "active", last_activity_at: "2026-09-28T11:00:00Z" }]),
     );
     expect(shares).toHaveLength(2);
     expect(shares[0]).toMatchObject({ id: "ep-1", path: "", readonly: true, lastSeenAt: null });
     expect(shares[1]).toMatchObject({ id: "ep-2", path: "docs", readonly: false, lastSeenAt: "2026-09-28T11:00:00Z" });
   });
 
+  it("never treats an equal Synchronize ID or foreign Access Project as a share receipt", () => {
+    const resources: DesktopCloudDashboard["resources"] = [
+      { resource_kind: "synchronize", resource_id: endpoint.id, project_id: "proj-1", provider: "url", path: "", status: "active", last_activity_at: "2026-09-28T11:00:00Z" },
+      { resource_kind: "access", resource_id: endpoint.id, project_id: "foreign", kind: "mcp", target: projectRootTarget("foreign"), status: "active", last_activity_at: "2026-09-28T11:00:00Z" },
+    ];
+    const [share] = buildProjectShares([endpoint], dashboardWith(resources));
+    expect(share.lastSeenAt).toBeNull();
+    expect(shareHasReceipt(share, null)).toBe(false);
+  });
+
   it("only counts usage after the share was issued as a receipt", () => {
     const [share] = buildProjectShares(
       [endpoint],
-      dashboardWith([{ id: "ep-1", provider: "mcp", status: "active", last_synced_at: "2026-09-28T11:00:00Z" }]),
+      dashboardWith([{ resource_kind: "access", resource_id: "ep-1", project_id: "proj-1", kind: "mcp", target: projectRootTarget("proj-1"), status: "active", last_activity_at: "2026-09-28T11:00:00Z" }]),
     );
     expect(shareHasReceipt(share, "2026-09-28T10:30:00Z")).toBe(true);
     expect(shareHasReceipt(share, "2026-09-28T11:30:00Z")).toBe(false);

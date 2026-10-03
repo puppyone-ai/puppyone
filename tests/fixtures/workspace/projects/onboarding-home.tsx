@@ -17,12 +17,12 @@ createRoot(document.getElementById("root")!).render(
   <TestLocalizationProvider locale="en" messages={englishCatalog}>
     <MinimalOnboarding
       appearance={createTestSurfaceAppearance({ themeMode })}
-      projectItems={query.get("state") === "projects" ? [{
-        id: "example-project",
-        label: "Notes",
-        localPath: "/example/Projects/Notes",
-        lastOpenedAt: null,
-      }] : []}
+      projectItems={query.get("state") === "projects" ? Array.from({ length: Math.max(1, Math.min(100, Number(query.get("count")) || 1)) }, (_, index) => ({
+        id: `example-project-${index}`,
+        label: index ? `Notes ${index + 1}` : "Notes",
+        localPath: `/example/Projects/Notes-${index}`,
+        lastModifiedAt: null,
+      })) : []}
       onChooseWorkspace={noop}
       onOpenWorkspacePath={noop}
       onOpenDroppedWorkspace={noop}

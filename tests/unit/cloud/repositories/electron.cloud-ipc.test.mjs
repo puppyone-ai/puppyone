@@ -12,12 +12,25 @@ function register(cloudAuthService) {
   return handlers;
 }
 
+const expectedSession = { userId: "user-1", generation: "generation-1" };
+
 describe("Cloud IPC structured error transport", () => {
+  it("requires a renderer account lease instead of silently adopting Main's account", async () => {
+    const requestSessionApi = vi.fn();
+    const handlers = register({ requestSessionApi });
+    const result = await handlers.get("cloud:session-api-request")(null, {
+      apiBaseUrl: "https://api.puppyone.ai/api/v1", path: "/content/project/write", method: "POST",
+    });
+    expect(result.ok).toBe(false);
+    expect(requestSessionApi).not.toHaveBeenCalled();
+  });
+
   it("returns session API data in a versioned success envelope", async () => {
     const requestSessionApi = vi.fn().mockResolvedValue({ project: { id: "project-1" } });
     const handlers = register({ requestSessionApi });
 
     const result = await handlers.get("cloud:session-api-request")(null, {
+      expectedSession,
       apiBaseUrl: "https://api.puppyone.ai/api/v1",
       path: "/projects/project-1/repository-context",
       method: "POST",
@@ -29,6 +42,7 @@ describe("Cloud IPC structured error transport", () => {
       ok: true,
       data: { project: { id: "project-1" } },
     });
+    expect(requestSessionApi.mock.calls[0][3]).toEqual(expectedSession);
   });
 
   it("preserves status and code without parsing Electron rejection text", async () => {
@@ -39,6 +53,7 @@ describe("Cloud IPC structured error transport", () => {
     const handlers = register({ requestSessionApi: vi.fn().mockRejectedValue(error) });
 
     const result = await handlers.get("cloud:session-api-request")(null, {
+      expectedSession,
       apiBaseUrl: "https://api.puppyone.ai/api/v1",
       path: "/projects/project-1/repository-context",
       method: "POST",

@@ -41,6 +41,22 @@ describe("native title suppression", () => {
     expect(document.querySelector("[title]")).toBeNull();
   });
 
+  it("keeps custom hints and accessibility descriptions while removing native titles", async () => {
+    document.body.innerHTML = '<button title="Native hint" aria-label="Accessible action" aria-describedby="help" aria-description="Action details" data-tooltip="Custom hint">Action</button><span id="help">Help</span>';
+    stopSuppression = installNativeTitleSuppression();
+    const button = document.querySelector("button")!;
+    expect(button.hasAttribute("title")).toBe(false);
+    expect(button.dataset.tooltip).toBe("Custom hint");
+    expect(button.getAttribute("aria-label")).toBe("Accessible action");
+    expect(button.getAttribute("aria-describedby")).toBe("help");
+    expect(button.getAttribute("aria-description")).toBe("Action details");
+
+    button.title = "Reintroduced by a third-party control";
+    await flushMutationObserver();
+    expect(button.hasAttribute("title")).toBe(false);
+    expect(button.getAttribute("aria-label")).toBe("Accessible action");
+  });
+
   it("removes SVG title bubbles while retaining their accessible name", async () => {
     stopSuppression = installNativeTitleSuppression();
     const container = document.createElement("div");

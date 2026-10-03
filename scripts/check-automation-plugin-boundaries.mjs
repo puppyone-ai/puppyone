@@ -74,7 +74,7 @@ if (!/lazy\(\(\) => import\("\.\.\/\.\.\/automation\/CloudProjectAutomationView"
 }
 
 const automationDomain = read("src/features/automation/automationDomain.ts");
-if (/DesktopCloudConnector|DesktopCloudRepositoryView|scopeByTarget/.test(automationDomain)) {
+if (/DesktopCloud(?:Connector|AccessSurface)|DesktopCloudRepositoryView|scopeByTarget/.test(automationDomain)) {
   errors.push("Automation source rows must use SynchronizeBinding, not Access IDs or a Scope join.");
 }
 const automationView = read("src/features/automation/CloudProjectAutomationView.tsx");
@@ -82,9 +82,15 @@ if (/accessData|\.connectors/.test(automationView) || !automationView.includes("
   errors.push("Automation must load its own Synchronize resource list.");
 }
 
-const cloudAutomationApi = read("src/lib/cloud/automationApi.ts");
-if (!/CLOUD_AUTOMATION_LEGACY_WIRE_BASE\s*=\s*"\/integrations"/.test(cloudAutomationApi)) {
-  errors.push("The legacy /integrations server route must stay isolated behind the Automation transport adapter.");
+for (const client of ["src/lib/cloud/automationApi.ts", "src/lib/cloud/synchronizeApi.ts"]) {
+  const source = read(client);
+  if (source.includes("/integrations") || !source.includes('"/synchronize"')) {
+    errors.push(`${client} must use canonical Synchronize routes without legacy fallback.`);
+  }
+}
+const cloudFacade = read("src/lib/cloudApi.ts");
+if (/DesktopCloudAutomation(?:Connection|Run)|createSynchronizeBinding: createCloudAutomation/.test(cloudFacade)) {
+  errors.push("Retired Automation resource aliases must not return to the public facade.");
 }
 
 for (const filePath of walkSourceFiles(path.join(repoRoot, "src"))) {

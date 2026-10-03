@@ -295,9 +295,12 @@ export function CsvTableEditor({
     if (result.changed) reportLocalEdit(result.revision);
   }, [model, reportLocalEdit]);
 
-  const commitModelResult = useCallback((result: ReturnType<CsvDocumentModel["applyStructureOperation"]>) => {
+  const commitModelResult = useCallback((
+    result: ReturnType<CsvDocumentModel["applyStructureOperation"]>,
+    focus: "operation-target" | "preserve" = "operation-target",
+  ) => {
     if (result.changed) reportLocalEdit(result.revision);
-    if (result.focus) requestFocus(result.focus);
+    if (focus === "operation-target" && result.focus) requestFocus(result.focus);
   }, [reportLocalEdit, requestFocus]);
 
   const addRow = useCallback(() => {
@@ -308,8 +311,22 @@ export function CsvTableEditor({
     commitModelResult(model.appendColumn(headerEnabled));
   }, [commitModelResult, headerEnabled, model]);
 
-  const applyStructureOperation = useCallback((operation: CsvTableStructureOperation) => {
-    commitModelResult(model.applyStructureOperation(headerEnabled, operation));
+  const applyStructureOperation = useCallback((
+    operation: CsvTableStructureOperation,
+    focus: "operation-target" | "preserve" = "operation-target",
+  ) => {
+    if (focus === "preserve") {
+      // Pointer reordering is not an implicit request to edit one cell. End an
+      // existing in-table edit session, but never steal focus from elsewhere.
+      pendingFocusRef.current = null;
+      const table = tableRef.current;
+      const activeElement = table?.ownerDocument.activeElement;
+      if (table && activeElement instanceof HTMLElement && table.contains(activeElement)) {
+        activeElement.blur();
+      }
+      setActiveCell(null);
+    }
+    commitModelResult(model.applyStructureOperation(headerEnabled, operation), focus);
   }, [commitModelResult, headerEnabled, model]);
 
   const expandTable = useCallback((targetDataRowCount: number, targetColumnCount: number) => {

@@ -32,6 +32,7 @@ import type {
 } from "../sourceSnapshot";
 import { getRendererPerformanceTracker } from "../../performance/rendererPerformance";
 import { subscribeTypographyChanges } from "../../core/typography";
+import { disableTooltipHints } from "../../primitives/Tooltip";
 import { markdownLocalizationExtension } from "./core/editor/markdownLocalization";
 import { resolveMarkdownDialect } from "./core/dialect/markdownDialect";
 import {
@@ -240,6 +241,7 @@ export function MarkdownCodeMirrorEditor({
   useLayoutEffect(() => {
     const host = hostRef.current;
     if (!host) return undefined;
+    disableTooltipHints(host);
     const initialConfig = initialEditorConfigRef.current;
     const model = modelOwner?.getOrCreate("codemirror-markdown", () => new CodeMirrorDocumentModel(initialConfig.value, getDocRevision))
       ?? new CodeMirrorDocumentModel(initialConfig.value, getDocRevision);

@@ -1,5 +1,5 @@
 import type {
-  DesktopCloudConnector,
+  DesktopCloudAccessSurface,
   DesktopCloudMcpEndpoint,
   DesktopCloudRepositoryView,
 } from "../../../../lib/cloudApi";
@@ -38,7 +38,7 @@ export type AccessPoint = Readonly<{
   prompt?: string;
   commands?: readonly AccessPointCommand[];
   endpoint?: DesktopCloudMcpEndpoint;
-  connector?: DesktopCloudConnector;
+  connector?: DesktopCloudAccessSurface;
   placeholder?: boolean;
 }>;
 

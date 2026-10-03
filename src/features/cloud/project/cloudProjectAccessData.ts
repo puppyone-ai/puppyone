@@ -1,5 +1,5 @@
 import type {
-  DesktopCloudConnector,
+  DesktopCloudAccessSurface,
   DesktopCloudMcpEndpoint,
   DesktopCloudRepoIdentity,
   DesktopCloudRepositoryView,
@@ -12,8 +12,8 @@ import type { AccessPointRow } from "../access-points/model";
 export type CloudProjectAccessData = {
   scopes: DesktopCloudScope[];
   scopeRows: DesktopCloudRepositoryView[];
-  connectors: DesktopCloudConnector[];
-  connectorsByTarget: Map<string, DesktopCloudConnector[]>;
+  connectors: DesktopCloudAccessSurface[];
+  connectorsByTarget: Map<string, DesktopCloudAccessSurface[]>;
   mcpEndpoints: DesktopCloudMcpEndpoint[];
   mcpEndpointsByTarget: Map<string, DesktopCloudMcpEndpoint[]>;
   accessPointRows: AccessPointRow[];

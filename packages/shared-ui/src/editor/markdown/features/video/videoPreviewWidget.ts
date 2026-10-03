@@ -1,4 +1,3 @@
-import { activateTooltip } from "../../../../primitives/Tooltip";
 import { EditorView, WidgetType } from "@codemirror/view";
 import { getMarkdownEmbedHost } from "../../platform/codemirror/embedHost";
 import { MarkdownWidgetMeasureController } from "../../platform/codemirror/layoutCoordinator";
@@ -64,7 +63,6 @@ export class VideoPreviewWidget extends WidgetType {
     video.hidden = true;
     video.setAttribute("aria-hidden", "true");
     if (this.model.title) {
-      activateTooltip(video, this.model.title);
       video.setAttribute("aria-label", this.model.title);
     }
     if (this.model.width) video.width = this.model.width;

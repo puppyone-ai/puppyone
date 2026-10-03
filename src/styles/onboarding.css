@@ -1,4 +1,6 @@
 .onboarding-shell {
+  --onboarding-titlebar-block-size: 38px;
+  --onboarding-account-rail-end: 91px;
   position: relative;
   display: flex;
   align-items: center;
@@ -17,7 +19,7 @@
   top: 0;
   inset-inline: 0;
   box-sizing: border-box;
-  height: 38px;
+  height: var(--onboarding-titlebar-block-size);
   border-bottom: 1px solid var(--po-header-divider);
   background: var(--po-header);
 }
@@ -54,8 +56,29 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+.onboarding-homepage-shell[data-onboarding-state="projects"] {
+  /* Preserve the original long-list title anchor (562px reference composition).
+   * This positions the title; it is not a height limit on the actual list. */
+  padding-block-start: max(91px, calc(50vh - 281px));
+  padding-block-end: 16px;
+}
+
 .onboarding-shell[data-onboarding-state="projects"] .onboarding-homepage {
-  height: fit-content;
+  --onboarding-primary-inset-end: 10px;
+  --onboarding-primary-actions-gap: 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+}
+
+.onboarding-shell[data-onboarding-state="projects"] .onboarding-launcher {
+  /* Short histories hug content; long histories shrink only the middle track. */
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
 .onboarding-launcher {
@@ -155,7 +178,7 @@
 }
 
 .onboarding-home-primary[data-onboarding-primary="projects"] {
-  max-height: min(332px, calc(100vh - 380px));
+  min-height: 0;
   grid-template-rows: minmax(0, 1fr);
 }
 
@@ -215,6 +238,10 @@
   justify-items: start;
   gap: 2px;
   padding: 0 0 18px;
+}
+
+.onboarding-shell[data-onboarding-state="projects"] .onboarding-entry-actions {
+  padding-block-end: 0;
 }
 
 .onboarding-entry-action {
@@ -408,15 +435,19 @@
 }
 
 .onboarding-project-list {
+  /* Persistent navigation affordance: legible in both light and dark themes. */
+  --po-scrollbar-presentation-thumb: color-mix(in srgb, var(--po-text-muted) 40%, transparent);
+  --po-scrollbar-presentation-thumb-hover: color-mix(in srgb, var(--po-text-muted) 60%, transparent);
   display: grid;
   width: 100%;
   min-width: 0;
   min-height: 0;
-  max-height: clamp(88px, calc(100vh - 428px), 284px);
   align-content: start;
   gap: 2px;
   padding: 0;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
   overscroll-behavior: contain;
   border: 0;
   border-radius: 0;
@@ -425,6 +456,95 @@
 
 .onboarding-project-row {
   width: 100%;
+}
+
+.onboarding-project-icon {
+  position: relative;
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.onboarding-project-icon.is-cloud,
+.onboarding-project-cloud-badge,
+.desktop-menu-icon-button.onboarding-project-cloud {
+  color: var(--po-info);
+}
+
+.onboarding-project-cloud-badge {
+  position: absolute;
+  inset-inline-end: -4px;
+  inset-block-end: -3px;
+  fill: var(--po-surface);
+}
+
+.onboarding-project-cloud {
+  position: absolute;
+  inset-inline-end: 34px;
+  top: 50%;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.onboarding-project-row-wrap:hover .onboarding-project-cloud,
+.onboarding-project-row-wrap:focus-within .onboarding-project-cloud {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.onboarding-project-row-wrap.has-cloud:hover .onboarding-project-row,
+.onboarding-project-row-wrap.has-cloud:focus-within .onboarding-project-row {
+  padding-inline-end: 66px;
+}
+
+.homepage-cloud-account {
+  position: absolute;
+  z-index: 4;
+  /* Center account state between the 38px titlebar and the 91px Homepage
+   * top rail. Deriving both insets from the same center prevents a subtle
+   * top-heavy 14px/11px placement around the 28px signed-out button. */
+  top: calc(
+    (var(--onboarding-titlebar-block-size) + var(--onboarding-account-rail-end)) / 2
+  );
+  inset-inline-end: 48px;
+  display: flex;
+  max-width: min(320px, calc(100% - 96px));
+  min-height: 28px;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  color: var(--po-text-subtle);
+  font-size: var(--po-text-size-hint, 12px);
+  transform: translateY(-50%);
+}
+
+.homepage-cloud-account.is-error {
+  color: var(--po-danger);
+}
+
+.homepage-cloud-sign-in {
+  padding: 0 9px;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: var(--desktop-control-radius, 6px);
+  background: color-mix(in srgb, var(--po-control) 72%, transparent);
+  color: var(--po-text-muted);
+  cursor: var(--po-clickable-cursor, default);
+  font: inherit;
+  font-weight: 580;
+}
+
+.homepage-cloud-sign-in:hover {
+  border-color: var(--po-border);
+  background: var(--po-control-hover);
+  color: var(--po-text);
+}
+
+.homepage-cloud-sign-in:focus-visible {
+  outline: 2px solid var(--po-focus-ring);
+  outline-offset: 2px;
 }
 
 .onboarding-project-row .desktop-menu-item-icon {
@@ -512,6 +632,7 @@
 }
 
 .onboarding-homepage-error {
+  flex: 0 0 auto;
   width: min(520px, 100%);
 }
 
@@ -547,6 +668,15 @@
     padding: 28px 18px;
   }
 
+  .homepage-cloud-account {
+    inset-inline-end: 18px;
+    max-width: calc(100% - 36px);
+  }
+
+  .homepage-cloud-sign-in span {
+    display: none;
+  }
+
   .onboarding-project-row .desktop-menu-item-label {
     max-width: 100%;
     flex: 1 1 auto;
@@ -562,6 +692,7 @@
 }
 
 @media (hover: none) {
+  .onboarding-project-cloud,
   .onboarding-project-remove {
     opacity: 1;
     pointer-events: auto;
@@ -573,6 +704,11 @@
 }
 
 @media (max-height: 760px) {
+  .onboarding-homepage-shell[data-onboarding-state="projects"] {
+    /* Original medium-window anchor: 510px composition, 87px minimum. */
+    padding-block-start: max(87px, calc(50vh - 255px));
+  }
+
   .onboarding-homepage {
     --onboarding-page-gap: 24px;
     --onboarding-title-primary-gap: 46px;
@@ -586,13 +722,14 @@
   .onboarding-shell[data-onboarding-state="projects"] .onboarding-homepage {
     --onboarding-page-gap: 14px;
   }
-
-  .onboarding-project-list {
-    max-height: clamp(88px, calc(100vh - 418px), 260px);
-  }
 }
 
 @media (max-height: 620px) {
+  .onboarding-homepage-shell[data-onboarding-state="projects"] {
+    /* Keep the original compact-window title offset, not the new 48px one. */
+    padding-block-start: 91px;
+  }
+
   .onboarding-homepage-shell {
     padding-top: 28px;
     padding-bottom: 28px;
@@ -610,9 +747,5 @@
 
   .onboarding-shell[data-onboarding-state="projects"] .onboarding-homepage {
     --onboarding-page-gap: 18px;
-  }
-
-  .onboarding-project-list {
-    max-height: clamp(72px, calc(100vh - 408px), 180px);
   }
 }
