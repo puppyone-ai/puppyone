@@ -63,13 +63,20 @@ app.whenReady().then(async () => {
     const signIn = document.querySelector('.homepage-cloud-sign-in');
     const list = document.querySelector('.onboarding-project-list');
     const button = signIn?.getBoundingClientRect();
+    const shell = document.querySelector('.onboarding-shell');
+    const titlebar = document.querySelector('.onboarding-titlebar')?.getBoundingClientRect();
+    const railEnd = Number.parseFloat(getComputedStyle(shell).getPropertyValue('--onboarding-account-rail-end'));
     const projectRows = [...document.querySelectorAll('.onboarding-project-row-wrap')];
     return { exists:Boolean(signIn), inProjectList:Boolean(signIn?.closest('.onboarding-project-list')),
       top:button?.top, right:button ? innerWidth - button.right : null,
+      topGap:button && titlebar ? button.top - titlebar.bottom : null,
+      bottomGap:button ? railEnd - button.bottom : null,
       projectRows:projectRows.length, projectLabels:projectRows.map(row => row.querySelector('.desktop-menu-item-label')?.textContent) };
   })()`);
   assert(signedOutHome.exists && !signedOutHome.inProjectList, "Sign-in is global Homepage chrome, never a synthetic Project row");
   assert(signedOutHome.top >= 38 && signedOutHome.right <= 60, "Sign-in stays in the upper-right account position");
+  assert(Math.abs(signedOutHome.topGap - signedOutHome.bottomGap) <= 0.01,
+    `Sign-in top/bottom rail gaps must match (${signedOutHome.topGap}px / ${signedOutHome.bottomGap}px)`);
   assert(!signedOutHome.projectLabels.some(label => /sign in/i.test(label ?? "")), "Every Project-list row is a Project");
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await writeFile(path.join(artifacts, "signed-out-home.png"), (await window.webContents.capturePage()).toPNG());
