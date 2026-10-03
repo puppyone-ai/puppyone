@@ -46,7 +46,7 @@ describe("Markdown table EditorView interactions", () => {
     },
   );
 
-  it("moves a column without turning the destination's first cell into an edit selection", async () => {
+  it("keeps the moved column structurally selected without focusing its first cell", async () => {
     const view = createTableView();
     const surface = view.dom.querySelector<HTMLElement>(".cm-md-table-surface")!;
     const table = view.dom.querySelector<HTMLTableElement>(".cm-md-table-widget")!;
@@ -89,11 +89,22 @@ describe("Markdown table EditorView interactions", () => {
     expect(handle.classList.contains("is-dragging")).toBe(false);
     expect(document.activeElement).toBe(focusSentinel);
     expect(view.dom.querySelector(".cm-md-table-cell-content:focus")).toBeNull();
-    expect(view.dom.querySelector<HTMLElement>(".po-editable-table-selection-outline")?.hidden).toBe(true);
+    const outline = view.dom.querySelector<HTMLElement>(".po-editable-table-selection-outline")!;
+    const selectedColumn = view.dom.querySelector<HTMLTableCellElement>(
+      "thead .po-editable-table-selection-target",
+    );
+    expect(outline.hidden).toBe(false);
+    expect(outline.dataset.axis).toBe("column");
+    expect(selectedColumn?.getAttribute("aria-colindex")).toBe("3");
+    expect(selectedColumn?.textContent).toContain("A");
     expect(source(view).split("\n")[0]).toMatch(/^\| B\s+\| C\s+\| A\s+\|$/);
+
+    view.contentDOM.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }));
+    await nextAnimationFrame();
+    expect(outline.hidden).toBe(true);
   });
 
-  it("moves a body row without turning its first cell into an edit selection", async () => {
+  it("keeps the moved body row structurally selected without focusing its first cell", async () => {
     const view = createTableView();
     const surface = view.dom.querySelector<HTMLElement>(".cm-md-table-surface")!;
     const table = view.dom.querySelector<HTMLTableElement>(".cm-md-table-widget")!;
@@ -137,8 +148,18 @@ describe("Markdown table EditorView interactions", () => {
     expect(handle.classList.contains("is-dragging")).toBe(false);
     expect(document.activeElement).toBe(focusSentinel);
     expect(view.dom.querySelector(".cm-md-table-cell-content:focus")).toBeNull();
-    expect(view.dom.querySelector<HTMLElement>(".po-editable-table-selection-outline")?.hidden).toBe(true);
+    const outline = view.dom.querySelector<HTMLElement>(".po-editable-table-selection-outline")!;
+    const selectedRow = view.dom.querySelector<HTMLTableRowElement>(
+      "tbody .po-editable-table-selection-target",
+    );
+    expect(outline.hidden).toBe(false);
+    expect(outline.dataset.axis).toBe("row");
+    expect(selectedRow?.dataset.mdTableRow).toBe("2");
+    expect(selectedRow?.textContent).toContain("one");
     expect(source(view).split("\n")[2]).toMatch(/^\| four\s+\| five\s+\| six\s+\|$/);
     expect(source(view).split("\n")[3]).toMatch(/^\| one\s+\| two\s+\| three\s+\|$/);
+
+    selectedRow?.cells[0]?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    expect(outline.hidden).toBe(true);
   });
 });

@@ -53,8 +53,10 @@ describe("Markdown table drag lifecycle", () => {
       getTableRange: () => ({ from: 0, to: 13 }),
       table,
       view: {
+        dispatch: vi.fn(),
         state: {
           readOnly: false,
+          field: () => null,
           facet: () => ({
             direction: "ltr",
             formatNumber: (value: number | bigint) => String(value),

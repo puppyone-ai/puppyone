@@ -38,6 +38,10 @@ type CsvTableControlsProps = Readonly<{
 }>;
 
 type CsvTableDragKind = "column" | "row";
+type CsvTableStructuralSelection = Readonly<{
+  index: number;
+  kind: CsvTableDragKind;
+}>;
 
 // Table grips straddle their outside edge by roughly nine pixels. Once the
 // remaining scroll-padding gap is narrower than that, dock the grip inside its
@@ -66,6 +70,7 @@ export function CsvTableControls({
   const activeDragCleanupRef = useRef<(() => void) | null>(null);
   const menuSequenceRef = useRef(0);
   const menuTargetRef = useRef<CsvTableMenuTarget | null>(null);
+  const structuralSelectionRef = useRef<CsvTableStructuralSelection | null>(null);
   const onOperationRef = useRef(onOperation);
   const positionHandlesRef = useRef<() => void>(() => undefined);
   const openMenuRef = useRef<(kind: CsvTableDragKind, sourceIndex: number, handle: HTMLButtonElement) => void>(
@@ -132,6 +137,33 @@ export function CsvTableControls({
     };
     const getColumnCell = (columnIndex: number) => getColumnCells()
       .find((cell) => Number(cell.dataset.csvColumn) === columnIndex) ?? null;
+    const clearPersistentStructuralSelection = () => {
+      const current = structuralSelectionRef.current;
+      if (!current) return;
+      structuralSelectionRef.current = null;
+      setCsvTableSourceHighlight(table, current.kind, current.index, false, selection);
+    };
+    const persistStructuralSelection = (kind: CsvTableDragKind, index: number) => {
+      const next = { kind, index } as const;
+      structuralSelectionRef.current = next;
+      queueMicrotask(() => {
+        if (disposed || structuralSelectionRef.current !== next) return;
+        if (kind === "row") hoverRef.current.rowIndex = index;
+        else hoverRef.current.columnIndex = index;
+        setCsvTableSourceHighlight(table, kind, index, true, selection);
+        positionHandles();
+      });
+    };
+    const restoredSelection = structuralSelectionRef.current;
+    if (restoredSelection) {
+      setCsvTableSourceHighlight(
+        table,
+        restoredSelection.kind,
+        restoredSelection.index,
+        true,
+        selection,
+      );
+    }
     const setHandleVisible = (handle: HTMLElement, visible: boolean) => {
       handle.classList.toggle("is-visible", visible);
     };
@@ -253,6 +285,7 @@ export function CsvTableControls({
 
     const openMenu = (kind: CsvTableDragKind, sourceIndex: number, handle: HTMLButtonElement) => {
       closeMenu(false);
+      clearPersistentStructuralSelection();
       positionHandles();
       const crossRow = hoverRef.current.rowIndex ?? Math.min(firstMovableRow, rowCount - 1);
       const crossColumn = hoverRef.current.columnIndex ?? 0;
@@ -390,6 +423,7 @@ export function CsvTableControls({
       event.stopPropagation();
       closeMenu(false);
       activeDragCleanupRef.current?.();
+      clearPersistentStructuralSelection();
 
       const handle = kind === "column" ? columnHandle : rowHandle;
       const otherHandle = kind === "column" ? rowHandle : columnHandle;
@@ -426,37 +460,42 @@ export function CsvTableControls({
             }), moveEvent.clientY);
         renderDropIndicator(kind, sourceIndex, dropBoundary);
       };
-      const applyMove = () => {
-        if (dropBoundary == null) return;
+      const applyMove = (): CsvTableStructuralSelection | null => {
+        if (dropBoundary == null) return null;
         if (kind === "column") {
           const columnCells = getColumnCells();
           const targetBoundary = dropBoundary < columnCells.length
             ? Number(columnCells[dropBoundary]?.dataset.csvColumn)
             : Number(columnCells[columnCells.length - 1]?.dataset.csvColumn) + 1;
           const targetColumnIndex = targetBoundary > sourceIndex ? targetBoundary - 1 : targetBoundary;
-          if (targetColumnIndex === sourceIndex) return;
-          onOperationRef.current({
-            type: "move-column-to",
-            rowIndex: hoverRef.current.rowIndex ?? firstMovableRow,
-            columnIndex: sourceIndex,
-            targetColumnIndex,
-          }, "preserve");
-          return;
+          if (!Number.isInteger(targetColumnIndex)) return null;
+          if (targetColumnIndex !== sourceIndex) {
+            onOperationRef.current({
+              type: "move-column-to",
+              rowIndex: hoverRef.current.rowIndex ?? firstMovableRow,
+              columnIndex: sourceIndex,
+              targetColumnIndex,
+            }, "preserve");
+          }
+          return { kind, index: targetColumnIndex };
         }
         const bodyRows = getBodyRows();
         const sourcePosition = bodyRows.findIndex((row) => Number(row.dataset.csvRow) === sourceIndex);
-        if (sourcePosition < 0) return;
+        if (sourcePosition < 0) return null;
         const targetBoundary = dropBoundary < bodyRows.length
           ? Number(bodyRows[dropBoundary]?.dataset.csvRow)
           : Number(bodyRows[bodyRows.length - 1]?.dataset.csvRow) + 1;
         const targetRowIndex = targetBoundary > sourceIndex ? targetBoundary - 1 : targetBoundary;
-        if (!Number.isInteger(targetRowIndex) || targetRowIndex === sourceIndex) return;
-        onOperationRef.current({
-          type: "move-row-to",
-          rowIndex: sourceIndex,
-          columnIndex: hoverRef.current.columnIndex ?? 0,
-          targetRowIndex,
-        }, "preserve");
+        if (!Number.isInteger(targetRowIndex)) return null;
+        if (targetRowIndex !== sourceIndex) {
+          onOperationRef.current({
+            type: "move-row-to",
+            rowIndex: sourceIndex,
+            columnIndex: hoverRef.current.columnIndex ?? 0,
+            targetRowIndex,
+          }, "preserve");
+        }
+        return { kind, index: targetRowIndex };
       };
       const cleanup = (preserveSourceHighlight = false) => {
         if (activeDragCleanupRef.current !== cleanup) return;
@@ -481,8 +520,12 @@ export function CsvTableControls({
         upEvent.stopPropagation();
         const shouldApply = moved;
         cleanup(!shouldApply);
-        if (shouldApply) applyMove();
-        else openMenu(kind, sourceIndex, handle);
+        if (shouldApply) {
+          const nextSelection = applyMove();
+          if (nextSelection) {
+            persistStructuralSelection(nextSelection.kind, nextSelection.index);
+          }
+        } else openMenu(kind, sourceIndex, handle);
       };
       const onPointerCancel = (cancelEvent: PointerEvent) => {
         if (cancelEvent.pointerId !== pointerId) return;
@@ -542,8 +585,21 @@ export function CsvTableControls({
       hoverRef.current.columnIndex = null;
       positionHandles();
     };
+    const onTableCellPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element) || !target.closest("th, td")) return;
+      clearPersistentStructuralSelection();
+    };
+    const onStructuralSelectionKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || !structuralSelectionRef.current) return;
+      event.preventDefault();
+      event.stopPropagation();
+      clearPersistentStructuralSelection();
+    };
     table.addEventListener("pointerover", updateHoverFromEvent);
+    table.addEventListener("pointerdown", onTableCellPointerDown);
     table.addEventListener("contextmenu", openCellMenu);
+    table.ownerDocument.addEventListener("keydown", onStructuralSelectionKeyDown, true);
     surface.addEventListener("pointerleave", clearHover);
     // No layout is read when no handle is active; an active handle stays
     // pixel-synchronous with the existing sticky interaction contract.
@@ -558,12 +614,24 @@ export function CsvTableControls({
       activeDragCleanupRef.current?.();
       activeDragCleanupRef.current = null;
       table.removeEventListener("pointerover", updateHoverFromEvent);
+      table.removeEventListener("pointerdown", onTableCellPointerDown);
       table.removeEventListener("contextmenu", openCellMenu);
+      table.ownerDocument.removeEventListener("keydown", onStructuralSelectionKeyDown, true);
       surface.removeEventListener("pointerleave", clearHover);
       scrollContainer?.removeEventListener("scroll", onScroll);
       if (positionFrame !== null) cancelAnimationFrame(positionFrame);
       positionFrame = null;
       resizeObserver?.disconnect();
+      const persistedSelection = structuralSelectionRef.current;
+      if (persistedSelection) {
+        setCsvTableSourceHighlight(
+          table,
+          persistedSelection.kind,
+          persistedSelection.index,
+          false,
+          selection,
+        );
+      }
       selection.dispose();
       if (selectionRef.current === selection) selectionRef.current = null;
       setColumnHandleDocked(null, false);

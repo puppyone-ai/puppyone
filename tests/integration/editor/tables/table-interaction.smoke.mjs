@@ -252,6 +252,37 @@ app.whenReady().then(async () => {
         assert.equal((await metrics()).csvSource, baseline.csvSource, "styling altered CSV source");
       }
     }
+    // A successful reorder keeps structural selection on the moved row or
+    // column. It must not collapse to a destination cell or disappear.
+    for (const kind of ["markdown", "csv"]) {
+      const beforeRowDrop = await evaluate(`window.tableFixture.metrics('${kind}')`);
+      const rowDrop = await evaluate(`window.tableFixture.drag('${kind}', 'row', 3, 0)`);
+      assert.notEqual(kind === "markdown" ? rowDrop.markdown : rowDrop.csvSource,
+        kind === "markdown" ? beforeRowDrop.markdown : beforeRowDrop.csvSource,
+        `${kind} row reorder did not commit`);
+      assert(rowDrop.outline, `${kind} row drop cleared the structural perimeter`);
+      assert.equal(rowDrop.axis, "row", `${kind} row drop selected the wrong structural axis`);
+      assert.match(rowDrop.structuralTarget?.text ?? "", /Project files/,
+        `${kind} row selection did not follow the moved row`);
+      assert.equal(rowDrop.activeTableCell, null, `${kind} row drop focused a destination cell`);
+      assert.equal(rowDrop.focusedTableCellCount, 0, `${kind} row drop painted a cell focus ring`);
+      results.push({ mode: "dark", kind, state: "row-drop-selected", ...rowDrop });
+      await screenshot(`dark-${kind}-row-drop-selected`);
+
+      const beforeColumnDrop = await evaluate(`window.tableFixture.metrics('${kind}')`);
+      const columnDrop = await evaluate(`window.tableFixture.drag('${kind}', 'column', 0, 3)`);
+      assert.notEqual(kind === "markdown" ? columnDrop.markdown : columnDrop.csvSource,
+        kind === "markdown" ? beforeColumnDrop.markdown : beforeColumnDrop.csvSource,
+        `${kind} column reorder did not commit`);
+      assert(columnDrop.outline, `${kind} column drop cleared the structural perimeter`);
+      assert.equal(columnDrop.axis, "column", `${kind} column drop selected the wrong structural axis`);
+      assert.match(columnDrop.structuralTarget?.text ?? "", /Order/,
+        `${kind} column selection did not follow the moved column`);
+      assert.equal(columnDrop.activeTableCell, null, `${kind} column drop focused a destination cell`);
+      assert.equal(columnDrop.focusedTableCellCount, 0, `${kind} column drop painted a cell focus ring`);
+      results.push({ mode: "dark", kind, state: "column-drop-selected", ...columnDrop });
+      await screenshot(`dark-${kind}-column-drop-selected`);
+    }
     for (const kind of ["markdown", "csv"]) {
       await click(await evaluate(`window.tableFixture.point('${kind}')`));
       await evaluate(`window.tableFixture.selectText('${kind}')`);
