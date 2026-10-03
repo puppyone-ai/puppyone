@@ -67,7 +67,6 @@ export type MinimalOnboardingProps = {
   onRemoveProject?: (path: string) => Promise<void>;
   recentWorkspaces?: RecentWorkspaceHomeItem[];
   projectItems?: ProjectHomeItem[];
-  groupedProjects?: boolean;
   cloudStatus?: ReactNode;
   cloudOpening?: boolean;
   onOpenCloudProject?: (projectId: string) => void;
@@ -93,7 +92,6 @@ export function MinimalOnboarding({
   onRemoveProject,
   recentWorkspaces = [],
   projectItems,
-  groupedProjects = false,
   cloudStatus,
   cloudOpening = false,
   onOpenCloudProject,
@@ -109,11 +107,11 @@ export function MinimalOnboarding({
   const projectEntryFlow = useProjectEntryFlow();
   const importPreviewBrands = resolveImportPreviewBrands(experimentalSettings);
   const items = useMemo(
-    () => (projectItems ?? recentWorkspaces.map(({ workspace, lastOpenedAt }) => ({
+    () => (projectItems ?? recentWorkspaces.map(({ workspace }) => ({
       id: workspace.id,
       label: workspace.name,
       localPath: workspace.path,
-      lastOpenedAt: lastOpenedAt ?? null,
+      lastModifiedAt: workspace.lastModifiedAt ?? null,
     }))),
     [projectItems, recentWorkspaces],
   );
@@ -257,7 +255,6 @@ export function MinimalOnboarding({
           primary={hasProjects ? (
             <OnboardingProjectList
               items={items}
-              grouped={groupedProjects}
               status={cloudStatus}
               onOpenCloudProject={onOpenCloudProject}
               busy={busy}

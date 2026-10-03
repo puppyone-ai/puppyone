@@ -13,7 +13,7 @@ import { useNativeCloudWorkbench } from "./useNativeCloudWorkbench";
 import { AccountCloudWorkspaceSurface } from "./AccountCloudWorkspaceSurface";
 
 const API = "https://cloud-fixture.puppyone.ai/api/v1";
-const project = (id: string) => ({ id, name: `Hosted ${id}`, org_id: "team", capabilities: ["content.read", "content.write"] });
+const project = (id: string) => ({ id, name: `Hosted ${id}`, org_id: "team", updated_at: id === "beta" ? "2026-06-01T00:00:00Z" : "2026-04-01T00:00:00Z", capabilities: ["content.read", "content.write"] });
 const projects = [project("alpha"), project("beta")];
 const files = new Map([["alpha", "ALPHA_CLOUD_BODY"], ["beta", "BETA_CLOUD_BODY"]]);
 const heads = new Map([["alpha", 1], ["beta", 1]]);
@@ -32,6 +32,9 @@ async function fixtureRequest(request: Parameters<NonNullable<typeof window.pupp
     const id = url.pathname.split("/")[2]!;
     const operation = url.pathname.split("/").at(-1);
     const path = url.searchParams.get("path") ?? "";
+    if (operation === "commits") return { project_id: id, commits: [], head_commit_id: null, refs: [],
+      refs_included: true, snapshot_id: "a".repeat(64), next_cursor: null, has_more: false, total: 0,
+      graph_health: "complete", unreadable_commit_ids: [] };
     if (operation === "ls") return { entries: [{ name: "readme.txt", path: "readme.txt", type: "file" }], head_commit_id: `head-${heads.get(id)}` };
     if (operation === "stat") return { exists: true, name: "readme.txt", type: "file", path };
     if (operation === "cat") return { content_text: files.get(id), head_commit_id: `head-${heads.get(id)}` };
@@ -74,9 +77,10 @@ function AccountCloudFixture() {
   const account = useAccountCloudWorkspace({ enabled: true, session, apiBaseUrl: API });
   const homepage = useHomepageCloudProjects({ enabled: true, visible: !account.active, session, apiBaseUrl: API,
     local: includeLocal ? [
-      { workspace: { id: "local-alpha", name: "Hosted alpha", path: "/fixture/alpha", status: "recording", hydrationState: "ready",
+      { workspace: { id: "local-alpha", name: "Hosted alpha", path: "/fixture/alpha", status: "recording", hydrationState: "ready", lastModifiedAt: "2026-04-01T00:00:00Z",
         puppyoneGitRemote: { origin: "https://cloud-fixture.puppyone.ai", projectId: "alpha" } } },
-      { workspace: { id: "local-notes", name: "Local notes", path: "/fixture/notes", status: "recording" } },
+      { workspace: { id: "local-notes", name: "Local notes", path: "/fixture/notes", status: "recording", lastModifiedAt: "2026-05-01T00:00:00Z" } },
+      ...Array.from({ length: 4 }, (_, i) => ({ workspace: { id: `local-${i}`, name: `Local sample ${i}`, path: `/fixture/sample-${i}`, status: "recording" as const } })),
     ] : [] });
   const workbench = useNativeCloudWorkbench({ context: account.context, session, apiBaseUrl: API,
     active: account.active, filesVisibilitySettings: preferences.filesVisibilitySettings });
@@ -95,7 +99,7 @@ function AccountCloudFixture() {
   }, [account]);
   return <SurfaceAppearanceProvider value={appearance}>
     {!account.active && <MinimalOnboarding appearance={appearance} projectItems={homepage.items}
-      groupedProjects={Boolean(session)} cloudOpening={account.opening}
+      cloudOpening={account.opening}
       onChooseWorkspace={async () => {}} onOpenWorkspacePath={async () => {}} onOpenDroppedWorkspace={async () => {}}
       onOpenCloudProject={(id) => void account.openTarget({ kind: "project_root", project_id: id })}
       cloudStatus={<HomepageCloudStatus status={homepage.status} restoring={false} empty={homepage.items.length === 0} apiBaseUrl={API}

@@ -8,7 +8,7 @@ import { useAccountCloudWorkspace, type AccountCloudWorkspace } from "../../../.
 import { useHomepageCloudProjects } from "../../../../src/features/cloud/workbench/useHomepageCloudProjects";
 import { HomepageCloudStatus } from "../../../../src/features/cloud/workbench/HomepageCloudStatus";
 import { buildHomepageProjects } from "../../../../src/features/cloud/workbench/homepageCloudProjects";
-import { cloudHistoryTargetKey, readCloudProjectHistory, rememberCloudProjectOpen } from "../../../../src/features/cloud/workbench/homepageCloudHistory";
+import { latestProjectModifiedAt } from "../../../../src/features/cloud/workbench/homepageCloudActivity";
 import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
 import type { RecentWorkspaceHomeItem } from "../../../../src/features/app-shell/workspaceHomeModel";
 import { withTestLocalization } from "../../../support/react/localization";
@@ -19,8 +19,12 @@ const API = "https://cloud-fixture.puppyone.ai/api/v1";
 const session: DesktopCloudSession = { api_base_url: API, user_id: "alice", user_email: "alice@example.com",
   session_generation: "one", expires_in: 3600, expires_at: Date.now() + 3600000, status: "authenticated" };
 const project = (id: string) => ({ id, name: `Project ${id}`, capabilities: ["content.read"] });
+const historyFor = (id: string, date: string | null = null) => ({ project_id: id,
+  commits: date ? [{ commit_id: "a".repeat(40), parent_ids: [], created_at: date }] : [],
+  head_commit_id: date ? "a".repeat(40) : null, refs: [], refs_included: true, snapshot_id: "b".repeat(64),
+  has_more: false, next_cursor: null, total: date ? 1 : 0, graph_health: "complete", unreadable_commit_ids: [] });
 const local: RecentWorkspaceHomeItem = { workspace: { id: "local", name: "Project a", path: "/fixture/local", status: "recording",
-  hydrationState: "ready", puppyoneGitRemote: { origin: "https://cloud-fixture.puppyone.ai", projectId: "a" } }, lastOpenedAt: "2026-01-01T00:00:00Z" };
+  hydrationState: "ready", lastModifiedAt: "2026-01-01T00:00:00Z", puppyoneGitRemote: { origin: "https://cloud-fixture.puppyone.ai", projectId: "a" } }, lastOpenedAt: "2026-01-01T00:00:00Z" };
 let root: Root;
 let account: AccountCloudWorkspace;
 let home: ReturnType<typeof useHomepageCloudProjects>;
@@ -35,7 +39,7 @@ function Harness({ currentSession = session, visible = true, enabled = true, lib
   home = useHomepageCloudProjects({ enabled, visible: visible && !account.active, session: currentSession, apiBaseUrl: API, local: localItems });
   const Home = library ? AssetLibraryHome : MinimalOnboarding;
   return visible && !account.active ? <Home appearance={appearance} projectItems={home.items}
-    groupedProjects={enabled && Boolean(currentSession)} onChooseWorkspace={async () => {}}
+    onChooseWorkspace={async () => {}}
     onOpenDroppedWorkspace={async () => {}} onOpenWorkspacePath={openLocal}
     cloudOpening={account.opening} onOpenCloudProject={(id) => void account.openTarget({ kind: "project_root", project_id: id })}
     cloudStatus={enabled ? <HomepageCloudStatus status={home.status} restoring={false} empty={home.items.length === 0} apiBaseUrl={API}
@@ -54,6 +58,7 @@ beforeEach(() => {
     if (request.path.endsWith("/repository-context")) {
       const { target } = JSON.parse(request.body!); return { project: project(target.project_id), target };
     }
+    if (request.path.includes("/commits?")) return historyFor(request.path.split("/")[2]!);
     if (request.path.startsWith("/content/")) return { entries: [], head_commit_id: "head" };
     throw new Error(`Unexpected ${request.path}`);
   });
@@ -71,12 +76,16 @@ describe("inline Homepage Cloud projects", () => {
     expect(document.body.textContent).toContain("Sign in to PuppyOne Cloud");
     await render();
     expect(document.querySelectorAll(".onboarding-project-row-wrap")).toHaveLength(2);
-    expect([...document.querySelectorAll(".onboarding-project-group")].map((el) => el.textContent)).toEqual(["Local + Cloud", "Cloud"]);
+    expect(document.querySelector(".onboarding-project-group")).toBeNull();
+    expect(document.querySelector('[data-cloud-project-id="a"] [data-project-location="linked"]')).toBeTruthy();
+    expect(document.querySelector('[data-cloud-project-id="b"] [data-project-location="cloud"]')).toBeTruthy();
     expect(document.querySelectorAll('[data-cloud-project-id="a"]')).toHaveLength(1);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(document.body.textContent).not.toContain("Browse Cloud projects");
     expect(document.querySelector("form")).toBeNull();
-    expect(bridge.mock.calls.map(([request]) => request.path)).toEqual(["/projects/?include_access_counts=false"]);
+    expect(bridge.mock.calls.map(([request]) => request.path)).toEqual([
+      "/projects/?include_access_counts=false", "/content/a/commits?limit=1&order=topo", "/content/b/commits?limit=1&order=topo",
+    ]);
   });
 
   it("opens a merged row locally by default, while its explicit Cloud action authorizes the exact ID", async () => {
@@ -87,7 +96,7 @@ describe("inline Homepage Cloud projects", () => {
     expect(account.active).toBe(true); expect(account.context.projectId).toBe("a");
     expect(JSON.parse(bridge.mock.calls[0][0].body!).target).toEqual({ kind: "project_root", project_id: "a" });
     expect(bridge.mock.calls.every(([request]) => request.method === "GET" || request.path.endsWith("/repository-context"))).toBe(true);
-    expect(readCloudProjectHistory(API, "alice").has(cloudHistoryTargetKey({ kind: "project_root", project_id: "a" }))).toBe(true);
+    expect(Object.keys(localStorage).some((key) => key.startsWith("puppyone.cloud-project-history"))).toBe(false);
   });
 
   it("opens Cloud-only rows directly without a local folder or intermediate dialog", async () => {
@@ -128,7 +137,7 @@ describe("inline Homepage Cloud projects", () => {
     await click('[role="status"] button');
     await act(async () => pending.resolve({ project: project("b"), target: { kind: "project_root", project_id: "b" } }));
     expect(account.active).toBe(false); expect(account.opening).toBe(false);
-    expect(readCloudProjectHistory(API, "alice").size).toBe(0);
+    expect(Object.keys(localStorage).some((key) => key.startsWith("puppyone.cloud-project-history"))).toBe(false);
   });
 
   it("discards old-account listing responses and revokes the catalog immediately on sign-out", async () => {
@@ -147,10 +156,11 @@ describe("inline Homepage Cloud projects", () => {
   it("loads only on the visible enabled Homepage, and revalidates on return or a new session generation", async () => {
     await render({ visible: false }); expect(bridge).not.toHaveBeenCalled();
     await render({ enabled: false }); expect(bridge).not.toHaveBeenCalled();
-    await render(); expect(bridge).toHaveBeenCalledTimes(1);
-    await render({ currentSession: { ...session, expires_at: session.expires_at + 1000 } }); expect(bridge).toHaveBeenCalledTimes(1);
-    await render({ visible: false }); await render(); expect(bridge).toHaveBeenCalledTimes(2);
-    await render({ currentSession: { ...session, session_generation: "new" } }); expect(bridge).toHaveBeenCalledTimes(3);
+    const listings = () => bridge.mock.calls.filter(([request]) => request.path.startsWith("/projects/?"));
+    await render(); expect(listings()).toHaveLength(1);
+    await render({ currentSession: { ...session, expires_at: session.expires_at + 1000 } }); expect(listings()).toHaveLength(1);
+    await render({ visible: false }); await render(); expect(listings()).toHaveLength(2);
+    await render({ currentSession: { ...session, session_generation: "new" } }); expect(listings()).toHaveLength(3);
   });
 
   it("shows an inline empty state when neither location has a project", async () => {
@@ -158,6 +168,40 @@ describe("inline Homepage Cloud projects", () => {
     expect(document.body.textContent).toContain("No accessible projects in this Cloud account.");
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(document.querySelectorAll(".onboarding-project-row-wrap")).toHaveLength(0);
+  });
+
+  it("enriches ordering with actual content history instead of treating project metadata as a content clock", async () => {
+    const actual = bridge.getMockImplementation()!;
+    bridge.mockImplementation((request) => request.path.includes("/b/commits?")
+      ? historyFor("b", "2026-06-01T00:00:00Z") : actual(request));
+    await render();
+    expect(home.items[0]).toMatchObject({ cloudProjectId: "b", lastModifiedAt: "2026-06-01T00:00:00.000Z" });
+    expect(account.active).toBe(false);
+    expect(bridge.mock.calls.every(([request]) => !request.path.endsWith("/ls"))).toBe(true);
+  });
+
+  it("bounds activity reads and stops queued work when Homepage is hidden", async () => {
+    const pending = deferred<unknown>();
+    bridge.mockImplementation((request) => request.path.startsWith("/projects/?")
+      ? Array.from({ length: 12 }, (_, i) => project(String(i))) : pending.promise);
+    await render(); expect(home.items).toHaveLength(13);
+    expect(bridge.mock.calls.filter(([request]) => request.path.includes("/commits?")).length).toBe(4);
+    await render({ visible: false });
+    await act(async () => pending.resolve(historyFor("0", "2099-01-01T00:00:00Z")));
+    expect(bridge.mock.calls.filter(([request]) => request.path.includes("/commits?")).length).toBe(4);
+    expect(home.items.some((item) => item.lastModifiedAt?.startsWith("2099"))).toBe(false);
+  });
+
+  it("never applies old-account activity to the next account's matching Project IDs", async () => {
+    const pending = deferred<unknown>(); const actual = bridge.getMockImplementation()!;
+    bridge.mockImplementation((request) => request.path.includes("/commits?") && request.expectedSession.userId === "alice"
+      ? pending.promise : actual(request));
+    await render();
+    await render({ currentSession: { ...session, user_id: "bob", session_generation: "two" } });
+    await act(async () => pending.resolve(historyFor("b", "2099-01-01T00:00:00Z")));
+    expect(home.items.some((item) => item.lastModifiedAt?.startsWith("2099"))).toBe(false);
+    expect(bridge.mock.calls.filter(([request]) => request.path.includes("/commits?")).map(([request]) => request.expectedSession.userId))
+      .toEqual(["alice", "alice", "bob", "bob"]);
   });
 
   it("does not truncate Cloud projects at the old local-recents limit", async () => {
@@ -168,14 +212,14 @@ describe("inline Homepage Cloud projects", () => {
   it("projects the same Cloud catalog and dual actions into the optional library view", async () => {
     await render({ library: true });
     expect(document.querySelectorAll(".asset-library-card")).toHaveLength(2);
-    expect(document.querySelectorAll(".asset-library-project-group")).toHaveLength(2);
+    expect(document.querySelector(".asset-library-project-group")).toBeNull();
     const cloud = buttons().find((button) => button.getAttribute("aria-label")?.includes("in Cloud"));
     expect(cloud).toBeTruthy(); await act(async () => cloud!.click());
     expect(account.context.projectId).toBe("a");
   });
 });
 
-describe("Homepage identity and opening order", () => {
+describe("Homepage identity and modification order", () => {
   const build = (locals: RecentWorkspaceHomeItem[], cloud = [project("a")]) => buildHomepageProjects({ local: locals, cloud, apiBaseUrl: API });
   it.each([
     { puppyoneGitRemote: null },
@@ -186,30 +230,32 @@ describe("Homepage identity and opening order", () => {
     { hydrationState: "metadata" as const }, { hydrationState: "error" as const },
   ])("does not merge by name, config ID, stale metadata, a foreign origin or Scope (%j)", (patch) => {
     const items = build([{ ...local, workspace: { ...local.workspace, projectId: "a", ...patch } }]);
-    expect(items).toHaveLength(2); expect(items[0].localPath).toBe(""); expect(items[1].cloudProjectId).toBeUndefined();
+    expect(items).toHaveLength(2);
+    expect(items.find((item) => item.cloudProjectId)?.localPath).toBe("");
+    expect(items.find((item) => item.localPath)?.cloudProjectId).toBeUndefined();
   });
   it("does not treat a local locator as proof of account access", () => {
-    expect(build([local], [project("other")]).map((item) => item.cloudProjectId)).toEqual(["other", undefined]);
+    expect(build([local], [project("other")]).find((item) => item.localPath)?.cloudProjectId).toBeUndefined();
   });
-  it("keeps multiple checkouts distinct, merging the most recently opened one only", () => {
-    const next = { ...local, workspace: { ...local.workspace, id: "next", path: "/fixture/next" }, lastOpenedAt: "2026-02-01T00:00:00Z" };
+  it("keeps multiple checkouts distinct, merging the most recently modified one only", () => {
+    const next = { ...local, workspace: { ...local.workspace, id: "next", path: "/fixture/next", lastModifiedAt: "2026-02-01T00:00:00Z" } };
     const items = build([local, next]); expect(items).toHaveLength(2);
     expect(items[0]).toMatchObject({ cloudProjectId: "a", localPath: "/fixture/next" });
     expect(items[1].localPath).toBe("/fixture/local");
   });
-  it("orders both, Cloud and local groups, with actual last-open times ahead of unopened items", () => {
-    const history = new Map([[cloudHistoryTargetKey({ kind: "project_root", project_id: "z" }), "2026-03-01T00:00:00Z"]]);
-    const localOnly = { workspace: { ...local.workspace, id: "new", path: "/fixture/new", puppyoneGitRemote: null }, lastOpenedAt: "2026-05-01T00:00:00Z" };
-    const items = buildHomepageProjects({ local: [localOnly, local], cloud: [project("b"), project("z"), project("a")], apiBaseUrl: API, history });
-    expect(items.map((item) => item.cloudProjectId ?? "local")).toEqual(["a", "z", "b", "local"]);
+  it("sorts the entire list by modification, without location rank or opening-time fallback", () => {
+    const activity = new Map([["z", "2026-03-01T00:00:00Z"]]);
+    const localOnly = { workspace: { ...local.workspace, id: "new", path: "/fixture/new", puppyoneGitRemote: null,
+      lastModifiedAt: "2026-05-01T00:00:00Z" }, lastOpenedAt: "2025-01-01T00:00:00Z" };
+    const reopened = { ...local, lastOpenedAt: "2099-01-01T00:00:00Z" };
+    const items = buildHomepageProjects({ local: [localOnly, reopened], cloud: [project("b"), project("z"), project("a")], apiBaseUrl: API, activity });
+    expect(items.map((item) => item.cloudProjectId ?? "local")).toEqual(["local", "z", "a", "b"]);
   });
-  it("isolates navigation timestamps by connection, account and exact target, tolerating unavailable storage", () => {
-    rememberCloudProjectOpen(API, "alice", { kind: "scope", project_id: "a", scope_id: "docs" });
-    expect(readCloudProjectHistory(API, "bob").size).toBe(0);
-    expect(readCloudProjectHistory("https://other.example/api/v1", "alice").size).toBe(0);
-    const items = buildHomepageProjects({ local: [], cloud: [project("a")], apiBaseUrl: API, history: readCloudProjectHistory(API, "alice") });
-    expect(items[0].lastOpenedAt).toBeUndefined();
-    const storage = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("Quota"); });
-    expect(() => rememberCloudProjectOpen(API, "alice", { kind: "project_root", project_id: "a" })).not.toThrow(); storage.mockRestore();
+  it("uses the later actual update of a merged project, with unknown/invalid dates last", () => {
+    const items = buildHomepageProjects({ local: [local], cloud: [{ ...project("a"), updated_at: "2026-06-01T00:00:00Z" },
+      { ...project("b"), updated_at: "not-a-date" }], apiBaseUrl: API });
+    expect(items[0].lastModifiedAt).toBe("2026-06-01T00:00:00.000Z");
+    expect(items[1].lastModifiedAt).toBeNull();
+    expect(latestProjectModifiedAt(null, undefined, "invalid")).toBeNull();
   });
 });

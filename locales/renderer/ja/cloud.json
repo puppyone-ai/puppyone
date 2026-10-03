@@ -1,7 +1,7 @@
 {
-  "home.group.both": "ローカル + クラウド",
-  "home.group.cloud": "クラウド",
-  "home.group.local": "ローカル",
+  "home.location.linked": "ローカル + クラウド",
+  "home.location.cloud": "クラウド",
+  "home.location.local": "ローカル",
   "home.cloud": "クラウド",
   "home.openLocal": "{project} をローカルで開く",
   "home.openCloud": "{project} をクラウドで開く",

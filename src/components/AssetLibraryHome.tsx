@@ -1,10 +1,11 @@
 import { Tooltip } from "@puppyone/shared-ui";
-import { AlertTriangle, Cloud, FolderOpen, Monitor, Plus } from "lucide-react";
+import { AlertTriangle, Cloud, FolderOpen, Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import { useWorkspaceFolderDrop } from "../features/app-shell/useWorkspaceFolderDrop";
 import type { MinimalOnboardingProps } from "./MinimalOnboarding";
-import { getHomeProjectGroup as group, type ProjectHomeItem } from "../features/app-shell/workspaceHomeModel";
+import type { ProjectHomeItem } from "../features/app-shell/workspaceHomeModel";
+import { HomeProjectIcon } from "./onboarding/HomeProjectIcon";
 import { DesktopWindowDragRegion } from "./DesktopWindowChrome";
 import { InlineLoading } from "./loading";
 
@@ -15,7 +16,6 @@ export function AssetLibraryHome({
   onOpenDroppedWorkspace,
   recentWorkspaces = [],
   projectItems,
-  groupedProjects = false,
   cloudStatus,
   cloudOpening = false,
   onOpenCloudProject,
@@ -27,11 +27,11 @@ export function AssetLibraryHome({
   const [error, setError] = useState<string | null>(initialError);
   const [openingPath, setOpeningPath] = useState<string | null>(null);
   const items = useMemo<ProjectHomeItem[]>(
-    () => (projectItems ?? recentWorkspaces.map(({ workspace, lastOpenedAt }) => ({
+    () => (projectItems ?? recentWorkspaces.map(({ workspace }) => ({
       id: workspace.id,
       label: workspace.name,
       localPath: workspace.path,
-      lastOpenedAt: lastOpenedAt ?? null,
+      lastModifiedAt: workspace.lastModifiedAt ?? null,
     }))),
     [projectItems, recentWorkspaces],
   );
@@ -108,15 +108,14 @@ export function AssetLibraryHome({
 
         {cloudStatus}
         <div className="asset-library-home-grid">
-          {items.map((item, index) => (
+          {items.map((item) => (
             <ProjectAssetCard
               key={item.id}
-              groupLabel={groupedProjects && (index === 0 || group(items[index - 1]!) !== group(item)) ? t(`cloud.home.group.${group(item)}`) : undefined}
               onOpenCloud={item.cloudProjectId && onOpenCloudProject ? () => onOpenCloudProject(item.cloudProjectId!) : undefined}
               item={item}
               busy={busy}
               opening={openingPath === item.localPath}
-              activity={formatActivity(item.lastOpenedAt, t("onboarding.time.previouslyOpened"), formatDate, formatRelativeTime)}
+              activity={formatActivity(item.lastModifiedAt, "", formatDate, formatRelativeTime)}
               onOpen={() => item.localPath ? void openPath(item.localPath) : item.cloudProjectId && onOpenCloudProject?.(item.cloudProjectId)}
             />
           ))}
@@ -135,7 +134,6 @@ export function AssetLibraryHome({
 
 function ProjectAssetCard({
   item,
-  groupLabel,
   onOpenCloud,
   busy,
   opening,
@@ -143,7 +141,6 @@ function ProjectAssetCard({
   onOpen,
 }: {
   item: ProjectHomeItem;
-  groupLabel?: string;
   onOpenCloud?: () => void;
   busy: boolean;
   opening: boolean;
@@ -153,8 +150,6 @@ function ProjectAssetCard({
   const { t } = useLocalization();
   const name = item.label || item.localPath.split("/").at(-1) || t("onboarding.projects.untitled");
   return (
-    <>
-    {groupLabel && <h2 className="asset-library-project-group onboarding-project-group">{groupLabel}</h2>}
     <article className={`asset-library-card ${opening ? "is-opening" : ""}`}>
       <button
         className="asset-library-card-main"
@@ -169,9 +164,9 @@ function ProjectAssetCard({
           <Tooltip content={item.localPath || item.cloudProjectId} overflowOnly><bdi className="asset-library-card-title">{name}</bdi></Tooltip>
           <span className="asset-library-card-footer">
             <span className="asset-library-card-location local">
-              {opening ? <InlineLoading label={t("onboarding.status.opening")} size="xs" tone="neutral" /> : <>{item.localPath ? <Monitor size={13} strokeWidth={1.9} /> : <Cloud size={13} strokeWidth={1.9} />}<span>{t(item.localPath ? "onboarding.library.location.local" : "cloud.home.cloud")}</span></>}
+              {opening ? <InlineLoading label={t("onboarding.status.opening")} size="xs" tone="neutral" /> : <><HomeProjectIcon item={item} /><span>{t(item.localPath ? "onboarding.library.location.local" : "cloud.home.cloud")}</span></>}
             </span>
-            <span className="asset-library-card-meta">{item.localPath || item.lastOpenedAt ? activity : ""}</span>
+            <span className="asset-library-card-meta">{activity}</span>
           </span>
         </span>
       </button>
@@ -179,7 +174,6 @@ function ProjectAssetCard({
         disabled={busy} aria-label={t("cloud.home.openCloud", { project: bidiIsolate(name) })}
         onClick={onOpenCloud}><Cloud size={12} />{t("cloud.home.cloud")}</button>}
     </article>
-    </>
   );
 }
 
