@@ -174,7 +174,7 @@ async function run() {
   const retried = await control("state");
   assert.equal(retried.bindings.length, 1);
   assert.equal(retried.bindings[0].id, report.binding_id);
-  assert.ok(retried.runs.every(run => run.connection_id === report.binding_id));
+  assert.ok(retried.runs.every(run => run.synchronize_binding_id === report.binding_id));
   report.run_ids = retried.runs.map(run => run.id);
   await control("inventory/down", "POST");
   await reload();
