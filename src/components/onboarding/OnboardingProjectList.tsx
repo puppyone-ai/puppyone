@@ -1,7 +1,7 @@
 import { Tooltip } from "@puppyone/shared-ui";
 import { bidiIsolate, useLocalization, type MessageFormatter } from "@puppyone/localization";
 import { Cloud, Unlink } from "lucide-react";
-import type { DragEvent as ReactDragEvent, ReactNode } from "react";
+import type { DragEvent as ReactDragEvent } from "react";
 import {
   getProjectName,
   getWorkspaceParentPathForDisplay,
@@ -13,7 +13,6 @@ import { HomeProjectIcon } from "./HomeProjectIcon";
 
 type OnboardingProjectListProps = {
   items: ProjectHomeItem[];
-  status?: ReactNode;
   onOpenCloudProject?: (projectId: string) => void;
   busy: boolean;
   openingPath: string | null;
@@ -27,7 +26,6 @@ type OnboardingProjectListProps = {
 
 export function OnboardingProjectList({
   items,
-  status,
   onOpenCloudProject,
   busy,
   openingPath,
@@ -49,7 +47,6 @@ export function OnboardingProjectList({
       aria-label={t("onboarding.projects.title")}
       tabIndex={0}
     >
-      {status}
       {items.map((item) => {
         const name = getProjectName(item, t("onboarding.projects.untitled"));
         const parentPath = getWorkspaceParentPathForDisplay(item.localPath);

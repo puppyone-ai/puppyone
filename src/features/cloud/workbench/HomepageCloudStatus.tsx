@@ -1,11 +1,10 @@
 import { Cloud } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
-import { DesktopMenuItem } from "../../../components/DesktopMenu";
 import { InlineLoading } from "../../../components/loading";
 import { useCloudAuthController } from "../hooks/useCloudAuthController";
 import type { AccountCloudWorkspace } from "./useAccountCloudWorkspace";
 
-/** Inline Homepage feedback, not a second catalog or project picker. */
+/** Global Homepage account affordance. It must never masquerade as a Project row. */
 export function HomepageCloudStatus({ status, restoring, empty = false, apiBaseUrl, controller, onRetry }: {
   status: "signed-out" | "loading" | "ready" | "error";
   restoring: boolean;
@@ -17,11 +16,11 @@ export function HomepageCloudStatus({ status, restoring, empty = false, apiBaseU
   const { t } = useLocalization();
   const auth = useCloudAuthController({ cloudApiBaseUrl: apiBaseUrl });
   const authError = status === "signed-out" ? auth.error : null;
-  if (controller.opening) return <div className="onboarding-cloud-status" role="status">
+  if (controller.opening) return <div className="homepage-cloud-account" role="status">
     <InlineLoading label={t("onboarding.status.opening")} size="xs" tone="neutral" />
     <button type="button" className="desktop-cloud-row-action" onClick={controller.cancel}>{t("common.action.cancel")}</button>
   </div>;
-  if (controller.error || status === "error" || authError) return <div className="onboarding-cloud-status" role="alert">
+  if (controller.error || status === "error" || authError) return <div className="homepage-cloud-account is-error" role="alert">
     <span>{authError ?? t(controller.error ? "cloud.catalog.openFailed" : "cloud.catalog.loadFailed")}</span>
     <button type="button" className="desktop-cloud-row-action" onClick={() => {
       if (authError) auth.startSignIn();
@@ -29,10 +28,12 @@ export function HomepageCloudStatus({ status, restoring, empty = false, apiBaseU
       else onRetry();
     }}>{t("cloud.common.retry")}</button>
   </div>;
-  if (restoring || status === "loading" || (status === "signed-out" && auth.signingIn)) return <div className="onboarding-cloud-status" role="status">
+  if (restoring || status === "loading" || (status === "signed-out" && auth.signingIn)) return <div className="homepage-cloud-account" role="status">
     <InlineLoading label={t(auth.signingIn ? "cloud.home.waitingForSignIn" : "cloud.home.loading")} size="xs" tone="neutral" />
   </div>;
-  if (status === "signed-out") return <DesktopMenuItem role="button" className="onboarding-project-row"
-    icon={<Cloud size={14} />} label={t("cloud.auth.signInToCloud")} onClick={auth.startSignIn} />;
-  return empty ? <p className="onboarding-cloud-status">{t("cloud.catalog.empty")}</p> : null;
+  if (status === "signed-out") return <button type="button" className="homepage-cloud-account homepage-cloud-sign-in"
+    aria-label={t("cloud.auth.signInToCloud")} onClick={auth.startSignIn}>
+    <Cloud size={14} aria-hidden="true" /><span>{t("cloud.auth.signIn")}</span>
+  </button>;
+  return empty ? <p className="homepage-cloud-account">{t("cloud.catalog.empty")}</p> : null;
 }

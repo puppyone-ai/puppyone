@@ -42,7 +42,7 @@ function Harness({ currentSession = session, visible = true, enabled = true, lib
     onChooseWorkspace={async () => {}}
     onOpenDroppedWorkspace={async () => {}} onOpenWorkspacePath={openLocal}
     cloudOpening={account.opening} onOpenCloudProject={(id) => void account.openTarget({ kind: "project_root", project_id: id })}
-    cloudStatus={enabled ? <HomepageCloudStatus status={home.status} restoring={false} empty={home.items.length === 0} apiBaseUrl={API}
+    cloudAccountStatus={enabled ? <HomepageCloudStatus status={home.status} restoring={false} empty={home.items.length === 0} apiBaseUrl={API}
       controller={account} onRetry={home.refresh} /> : undefined} /> : null;
 }
 async function render(props: Parameters<typeof Harness>[0] = {}) { await act(async () => root.render(withTestLocalization(<Harness {...props} />))); }
@@ -73,7 +73,10 @@ describe("inline Homepage Cloud projects", () => {
     await render({ currentSession: null });
     expect(bridge).not.toHaveBeenCalled();
     expect(document.querySelectorAll(".onboarding-project-row-wrap")).toHaveLength(1);
-    expect(document.body.textContent).toContain("Sign in to PuppyOne Cloud");
+    const signIn = buttons().find((button) => button.getAttribute("aria-label") === "Sign in to PuppyOne Cloud");
+    expect(signIn?.closest(".onboarding-project-list")).toBeNull();
+    expect(signIn?.classList.contains("homepage-cloud-account")).toBe(true);
+    expect(signIn?.textContent).toBe("Sign in");
     await render();
     expect(document.querySelectorAll(".onboarding-project-row-wrap")).toHaveLength(2);
     expect(document.querySelector(".onboarding-project-group")).toBeNull();

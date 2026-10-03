@@ -295,11 +295,13 @@ export function DesktopProjectLocationControls({
           const disabled = !selected && (!navigate || (location === "local"
             ? projectLocation?.localAvailable === false
             : projectLocation?.cloudState === "resolving"));
+          const signedOutCloud = location === "cloud" && projectLocation?.cloudState === "signed-out";
           const tooltip = selected ? t("shell.workspaceSwitcher.current")
             : creating ? t("shell.workspaceSwitcher.createCloudVersion")
               : location === "cloud" && projectLocation?.cloudState === "resolving"
                 ? t("shell.workspaceSwitcher.location.checking")
-                : t(location === "local" ? "shell.surface.switchToLocal" : "shell.surface.switchToCloud");
+                : signedOutCloud ? t("shell.workspaceSwitcher.location.signInToAccess")
+                  : t(location === "local" ? "shell.surface.switchToLocal" : "shell.surface.switchToCloud");
           return <Tooltip content={tooltip} key={location}><button
             className="desktop-project-location-tab"
             type="button"
@@ -315,7 +317,9 @@ export function DesktopProjectLocationControls({
           >
             <ProjectLocationMark className="desktop-project-location-tab-mark" kind={location} creating={creating} size={14} />
             <span>{location === "local" ? localDeviceLabel
-              : t(creating ? "shell.workspaceSwitcher.createCloudVersion" : "shell.navigation.cloud")}</span>
+              : t(creating ? "shell.workspaceSwitcher.createCloudVersion"
+                : signedOutCloud ? "shell.workspaceSwitcher.location.signInToAccess"
+                  : "shell.navigation.cloud")}</span>
           </button></Tooltip>;
         })}
       </div>

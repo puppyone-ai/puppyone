@@ -67,7 +67,7 @@ export type MinimalOnboardingProps = {
   onRemoveProject?: (path: string) => Promise<void>;
   recentWorkspaces?: RecentWorkspaceHomeItem[];
   projectItems?: ProjectHomeItem[];
-  cloudStatus?: ReactNode;
+  cloudAccountStatus?: ReactNode;
   cloudOpening?: boolean;
   onOpenCloudProject?: (projectId: string) => void;
   operationStatus?: OnboardingOperationStatus | null;
@@ -92,7 +92,7 @@ export function MinimalOnboarding({
   onRemoveProject,
   recentWorkspaces = [],
   projectItems,
-  cloudStatus,
+  cloudAccountStatus,
   cloudOpening = false,
   onOpenCloudProject,
   initialError = null,
@@ -194,7 +194,8 @@ export function MinimalOnboarding({
     onInvalidDrop: () => setError(t("onboarding.error.dropLocalFolder")),
   });
 
-  const hasProjects = items.length > 0 || Boolean(cloudStatus);
+  // Account/auth controls are page chrome, never synthetic Project rows.
+  const hasProjects = items.length > 0;
   const onboardingState: OnboardingHomeState = hasProjects ? "projects" : "empty";
   const [showEmptyStateIntro, setShowEmptyStateIntro] = useState(() => !hasProjects);
   const homepageRef = useRef<HTMLElement>(null);
@@ -243,6 +244,7 @@ export function MinimalOnboarding({
       onDrop={folderDrop.onDrop}
     >
       <DesktopWindowDragRegion className="onboarding-titlebar" />
+      {cloudAccountStatus}
       <section
         ref={homepageRef}
         className="onboarding-homepage"
@@ -255,7 +257,6 @@ export function MinimalOnboarding({
           primary={hasProjects ? (
             <OnboardingProjectList
               items={items}
-              status={cloudStatus}
               onOpenCloudProject={onOpenCloudProject}
               busy={busy}
               openingPath={openingPath}

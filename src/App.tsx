@@ -104,6 +104,7 @@ import { useExternalFileOpen } from "./features/external-apps/useExternalFileOpe
 import { useDesktopCloudSession } from "./features/cloud/hooks/useDesktopCloudSession";
 import {
   getResolvedCloudProjectId,
+  getProjectCloudLocationState,
   resolveCloudHubSectionAfterContextChange,
   useCurrentRepositoryCloudContext,
 } from "./features/cloud/project/context";
@@ -837,9 +838,9 @@ function AppContent() {
     onSessionChange: updateCloudSession,
   });
   const cloudSignedIn = activeCloudSession !== null;
+  const projectCloudLocationState = getProjectCloudLocationState(projectCloudContext, cloudSignedIn);
   const projectLocation = cloudEnabled
-    ? { current: "local" as const, localAvailable: true,
-        cloudState: cloudSignedIn ? "available" as const : "signed-out" as const }
+    ? { current: "local" as const, localAvailable: true, cloudState: projectCloudLocationState }
     : undefined;
   // The wizard stacks above the Cloud dialog so the Homepage is still there when it closes.
   const openShareWizard = useCallback((targetId: ShareTargetId | null, path = "") => {
@@ -1457,7 +1458,7 @@ function AppContent() {
         projectItems={homepageCloud.items}
         onOpenCloudProject={(projectId) => { cancelRepositoryCloudSwitch(); void accountCloud.openTarget({ kind: "project_root", project_id: projectId }); }}
         cloudOpening={accountCloud.opening}
-        cloudStatus={cloudEnabled ? <HomepageCloudStatus status={homepageCloud.status} restoring={cloudSessionRestoring} empty={homepageCloud.items.length === 0}
+        cloudAccountStatus={cloudEnabled ? <HomepageCloudStatus status={homepageCloud.status} restoring={cloudSessionRestoring} empty={homepageCloud.items.length === 0}
           apiBaseUrl={desktopCloudApiBaseUrl} controller={accountCloud} onRetry={homepageCloud.refresh} /> : undefined}
         initialError={restoreWorkspaceError}
         appearance={surfaceAppearance}
