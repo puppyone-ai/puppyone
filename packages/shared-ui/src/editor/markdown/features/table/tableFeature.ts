@@ -7,6 +7,7 @@ import {
 import { compileTableElementPlan } from "./tablePlan";
 import { MarkdownTableWidget } from "./tableWidget";
 import { markdownTableFocusExtension } from "./tableFocus";
+import { markdownTableStructuralSelectionExtension } from "./tableStructuralSelectionState";
 import type { MarkdownInlinePreviewRenderer } from "../../shared/preview/markdownInlinePreviewPort";
 
 export function createTableFeature(renderInlinePreview: MarkdownInlinePreviewRenderer) {
@@ -15,7 +16,10 @@ export function createTableFeature(renderInlinePreview: MarkdownInlinePreviewRen
     semanticKinds: ["table"],
     inlineWidgetKinds: [],
     blockWidgetKinds: ["table"],
-    livePreviewExtensions: [markdownTableFocusExtension],
+    livePreviewExtensions: [
+      markdownTableFocusExtension,
+      markdownTableStructuralSelectionExtension,
+    ],
     collectBlock(state, line) {
       const syntaxRange = getMarkdownTableSyntaxRange(state, line.number);
       if (!syntaxRange) return null;

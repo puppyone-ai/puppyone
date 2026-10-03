@@ -91,6 +91,48 @@ const api = {
     const rect = cells[column].getBoundingClientRect();
     return { x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2) };
   },
+  async drag(kind: string, axis: "column" | "row", targetRow: number, targetColumn: number) {
+    const sourceCell = table(kind).tBodies[0].rows[0].querySelectorAll<HTMLElement>(
+      kind === "markdown" ? "td" : "td[data-csv-column]",
+    )[0];
+    sourceCell.dispatchEvent(new PointerEvent("pointerover", { bubbles: true, pointerId: 71 }));
+    await new Promise(requestAnimationFrame);
+    const handle = document.querySelector<HTMLElement>(`#${kind} .po-editable-table-${axis}-handle`)!;
+    const grip = handle.querySelector<HTMLElement>(".po-editable-table-drag-handle-visual")!;
+    const start = grip.getBoundingClientRect();
+    const targetCells = table(kind).tBodies[0].rows[targetRow].querySelectorAll<HTMLElement>(
+      kind === "markdown" ? "td" : "td[data-csv-column]",
+    );
+    const target = targetCells[targetColumn].getBoundingClientRect();
+    let capturedPointer: number | null = null;
+    Object.defineProperties(handle, {
+      setPointerCapture: { configurable: true, value: (pointerId: number) => { capturedPointer = pointerId; } },
+      hasPointerCapture: { configurable: true, value: (pointerId: number) => capturedPointer === pointerId },
+      releasePointerCapture: { configurable: true, value: (pointerId: number) => {
+        if (capturedPointer === pointerId) capturedPointer = null;
+      } },
+    });
+    try {
+      handle.dispatchEvent(new PointerEvent("pointerdown", {
+        bubbles: true, button: 0, clientX: start.x + start.width / 2,
+        clientY: start.y + start.height / 2, pointerId: 71,
+      }));
+      handle.dispatchEvent(new PointerEvent("pointermove", {
+        bubbles: true, button: 0, clientX: target.x + target.width / 2,
+        clientY: target.y + target.height / 2, pointerId: 71,
+      }));
+      handle.dispatchEvent(new PointerEvent("pointerup", {
+        bubbles: true, button: 0, clientX: target.x + target.width / 2,
+        clientY: target.y + target.height / 2, pointerId: 71,
+      }));
+      await wait();
+    } finally {
+      delete (handle as { setPointerCapture?: unknown }).setPointerCapture;
+      delete (handle as { hasPointerCapture?: unknown }).hasPointerCapture;
+      delete (handle as { releasePointerCapture?: unknown }).releasePointerCapture;
+    }
+    return api.metrics(kind);
+  },
   async captureHandleMotion(kind: string, hold = false) {
     await new Promise(requestAnimationFrame);
     const handles = ["column", "row"].map(axis => document.querySelector<HTMLElement>(`#${kind} .po-editable-table-${axis}-handle`)!);
@@ -113,6 +155,11 @@ const api = {
     const grip = document.querySelector<HTMLElement>(`#${kind} .po-editable-table-column-handle .po-editable-table-drag-handle-visual`)!;
     const outline = document.querySelector<HTMLElement>(`#${kind} .po-editable-table-selection-outline`)!;
     const target = element.querySelector<HTMLElement>(".po-editable-table-selection-target");
+    const targetInputs = target?.querySelectorAll<HTMLInputElement>("input") ?? [];
+    const activeElement = document.activeElement;
+    const activeTableCell = activeElement instanceof Element && element.contains(activeElement)
+      ? activeElement.closest("th, td")
+      : null;
     return { table: boxes(element), radius: style.borderRadius, border: style.borderTopWidth, borderColor: style.borderTopColor,
       backgrounds: [...element.querySelectorAll("th, td")].map(item => { const css = getComputedStyle(item); return [css.backgroundColor, css.backgroundImage]; }),
       textSelectionBackground: getComputedStyle(input(kind), "::selection").backgroundColor,
@@ -137,7 +184,17 @@ const api = {
       outlineColor: getComputedStyle(outline).borderTopColor, blockSelected: element.closest(".cm-md-table-widget-wrap")?.classList.contains("is-doc-selected") ?? false,
       tableShadow: style.boxShadow,
       editorSelection: kind === "markdown" ? { focused: EditorView.findFromDOM(document.querySelector("#markdown .cm-editor")!)!.hasFocus, selection: EditorView.findFromDOM(document.querySelector("#markdown .cm-editor")!)!.state.selection.toJSON(), active: document.activeElement?.className } : null,
-      target: target ? boxes(target) : null, axis: outline.dataset.axis, markdown, csvSource: csvPort?.readSnapshot().content };
+      target: target ? boxes(target) : null,
+      structuralTarget: target ? {
+        column: target.dataset.csvColumn ?? target.getAttribute("aria-colindex"),
+        row: target.dataset.csvRow ?? target.dataset.mdTableRow,
+        text: targetInputs.length > 0
+          ? [...targetInputs].map(item => item.value).join("|")
+          : target.textContent,
+      } : null,
+      activeTableCell: activeTableCell ? boxes(activeTableCell) : null,
+      focusedTableCellCount: element.querySelectorAll("th:focus-within, td:focus-within").length,
+      axis: outline.dataset.axis, markdown, csvSource: csvPort?.readSnapshot().content };
   },
   menuPlacement(kind: string, axis: string) {
     const menu = document.querySelector<HTMLElement>(kind === "markdown"

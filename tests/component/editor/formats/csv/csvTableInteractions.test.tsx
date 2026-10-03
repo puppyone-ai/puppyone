@@ -739,7 +739,7 @@ describe("CSV table interactions", () => {
     expect(findButton("Insert row below")).toBeNull();
   });
 
-  it("drags rows and columns without synthesizing a first-cell edit selection", async () => {
+  it("keeps dropped rows and columns structurally selected without focusing their first cell", async () => {
     let geometry = mockTableGeometry();
     const activeInput = geometry.firstBodyCell.querySelector<HTMLInputElement>("input")!;
     act(() => activeInput.focus());
@@ -762,7 +762,13 @@ describe("CSV table interactions", () => {
     expect(rowHandle.classList.contains("is-dragging")).toBe(false);
     expect(document.activeElement).not.toBeInstanceOf(HTMLInputElement);
     expect(container?.querySelector("input:focus")).toBeNull();
-    expect(container?.querySelector<HTMLElement>(".po-editable-table-selection-outline")?.hidden).toBe(true);
+    let outline = container?.querySelector<HTMLElement>(".po-editable-table-selection-outline");
+    let selectedTarget = container?.querySelector<HTMLElement>(".po-editable-table-selection-target");
+    expect(outline?.hidden).toBe(false);
+    expect(outline?.dataset.axis).toBe("row");
+    expect(selectedTarget?.dataset.csvRow).toBe("2");
+    expect(selectedTarget?.querySelector<HTMLInputElement>('input[data-csv-column="0"]')?.value)
+      .toBe("Ada");
 
     geometry = mockTableGeometry();
     const focusSentinel = document.createElement("button");
@@ -784,7 +790,15 @@ describe("CSV table interactions", () => {
     expect(columnHandle.classList.contains("is-dragging")).toBe(false);
     expect(document.activeElement).toBe(focusSentinel);
     expect(container?.querySelector("input:focus")).toBeNull();
-    expect(container?.querySelector<HTMLElement>(".po-editable-table-selection-outline")?.hidden).toBe(true);
+    outline = container?.querySelector<HTMLElement>(".po-editable-table-selection-outline");
+    selectedTarget = container?.querySelector<HTMLElement>(".po-editable-table-selection-target");
+    expect(outline?.hidden).toBe(false);
+    expect(outline?.dataset.axis).toBe("column");
+    expect(selectedTarget?.dataset.csvColumn).toBe("1");
+    expect(selectedTarget?.querySelector<HTMLInputElement>("input")?.value).toBe("Name");
+
+    act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })));
+    expect(outline?.hidden).toBe(true);
   });
 });
 
