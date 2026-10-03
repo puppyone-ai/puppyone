@@ -86,7 +86,7 @@ import type { PuppyoneWorkspaceConfig } from "./types/electron";
 import {
   mergePuppyoneWorkspaceConfig,
 } from "./features/app-shell/preferences";
-import { DesktopProjectLocationControls } from "./features/app-shell/DesktopWorkspaceSwitcher";
+import { DesktopProjectLocationControls, type DesktopProjectLocation } from "./features/app-shell/DesktopWorkspaceSwitcher";
 import { DesktopTitlebarContext } from "./features/app-shell/DesktopTitlebarContext";
 import { getProjectBackupProviders } from "./features/app-shell/projectBackupProviders";
 import { DesktopWorkspaceContent } from "./features/app-shell/DesktopWorkspaceContent";
@@ -847,8 +847,10 @@ function AppContent() {
   });
   const cloudSignedIn = activeCloudSession !== null;
   const projectCloudLocationState = getProjectCloudLocationState(projectCloudContext, cloudSignedIn);
-  const projectLocation = cloudEnabled
-    ? { current: "local" as const, localAvailable: true, cloudState: projectCloudLocationState }
+  // The retained Header and provider body share the committed location. A
+  // resolved association (or a pending switch) alone must not select Cloud.
+  const projectLocation: DesktopProjectLocation | undefined = cloudEnabled
+    ? { current: cloudWorkspaceActive ? "cloud" : "local", localAvailable: true, cloudState: projectCloudLocationState }
     : undefined;
   // The wizard stacks above the Cloud dialog so the Homepage is still there when it closes.
   const openShareWizard = useCallback((targetId: ShareTargetId | null, path = "") => {
@@ -1748,7 +1750,7 @@ function AppContent() {
             </div>
           )}
         >
-          <DesktopWorkspaceLocationSurface location={cloudWorkspaceActive ? "cloud" : "local"}
+          <DesktopWorkspaceLocationSurface location={projectLocation?.current ?? "local"}
             local={<>
           {gitPresentation.cardEnabled && <DesktopGitHeaderCard
             anchorRef={gitAnchorRef}
