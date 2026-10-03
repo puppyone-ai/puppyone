@@ -42,7 +42,7 @@ export function getAutomationBindingName(binding: DesktopCloudSynchronizeBinding
 
 export function getAutomationBindingPath(binding: DesktopCloudSynchronizeBinding) {
   // path is the persisted destination; do not infer it from an unrelated Scope.
-  return binding.path?.replace(/^\/+|\/+$/g, "") || "";
+  return binding.path.replace(/^\/+|\/+$/g, "");
 }
 
 /** The Cloud web app still exposes its established workflow route. */

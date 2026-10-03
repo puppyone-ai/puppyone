@@ -5,7 +5,7 @@ import type { CloudAutomationTransport } from "./automationApi";
 export type DesktopCloudSynchronizeBinding = {
   id: string;
   project_id: string;
-  path: string | null;
+  path: string;
   provider: string;
   direction: string;
   config: Record<string, unknown>;
@@ -74,8 +74,16 @@ export function createSynchronizeApi(request: CloudAutomationTransport) {
     if (typeof id !== "string" || !id.trim()) throw new Error("A Synchronize binding ID is required.");
     return `${base}/bindings/${encodeURIComponent(id)}`;
   };
+  const explicitId = (id: string) => typeof id === "string" && Boolean(id.trim());
+  const validateBinding = (binding: DesktopCloudSynchronizeBinding, id?: string) => {
+    if (!binding || !explicitId(binding.id) || !explicitId(binding.project_id)
+      || typeof binding.path !== "string" || (id !== undefined && binding.id !== id)) {
+      throw new Error("Synchronize returned an invalid binding identity or target path.");
+    }
+    return binding;
+  };
   const validateRun = (run: DesktopCloudSynchronizeRun): DesktopCloudSynchronizeRun => {
-    if (typeof run.synchronize_binding_id !== "string" || !run.synchronize_binding_id.trim()) {
+    if (!run || !explicitId(run.id) || !explicitId(run.synchronize_binding_id)) {
       throw new Error("Synchronize run is missing its binding ID.");
     }
     return run;
@@ -85,6 +93,7 @@ export function createSynchronizeApi(request: CloudAutomationTransport) {
     session: DesktopCloudSession, projectId: string,
     onSessionChange?: SessionHandler, apiBaseUrl?: string | null,
   ): Promise<DesktopCloudSynchronizeBinding[]> {
+    if (!explicitId(projectId)) throw new Error("An explicit Synchronize Project ID is required.");
     const bindings = await request<DesktopCloudSynchronizeBinding[]>(
       `${base}/bindings?${new URLSearchParams({ project_id: projectId })}`,
       session, onSessionChange, {}, apiBaseUrl,
@@ -95,6 +104,12 @@ export function createSynchronizeApi(request: CloudAutomationTransport) {
     if (bindings.some((binding) => binding.project_id !== projectId)) {
       throw new Error("Synchronize list returned a binding from another project.");
     }
+    const seen = new Set<string>();
+    for (const binding of bindings) {
+      validateBinding(binding);
+      if (seen.has(binding.id)) throw new Error("Synchronize list returned duplicate binding identities.");
+      seen.add(binding.id);
+    }
     return bindings;
   }
 
@@ -102,22 +117,24 @@ export function createSynchronizeApi(request: CloudAutomationTransport) {
     session: DesktopCloudSession, body: DesktopCloudCreateSynchronizeBindingRequest,
     onSessionChange?: SessionHandler, apiBaseUrl?: string | null,
   ): Promise<DesktopCloudCreateSynchronizeBindingResult> {
+    if (!explicitId(body.project_id)) throw new Error("An explicit Synchronize Project ID is required.");
     const result = await request<DesktopCloudCreateSynchronizeBindingResult>(`${base}/bindings`, session, onSessionChange,
       { method: "POST", body: JSON.stringify(body) }, apiBaseUrl);
     if (!result.binding?.id || result.binding.project_id !== body.project_id
       || (result.execution_result && result.execution_result.synchronize_binding_id !== result.binding.id)) {
       throw new Error("Synchronize creation returned inconsistent resource identities.");
     }
+    validateBinding(result.binding);
     return result;
   }
 
-  function updateSynchronizeBinding(
+  async function updateSynchronizeBinding(
     session: DesktopCloudSession, synchronizeBindingId: string,
     body: DesktopCloudUpdateSynchronizeBindingRequest,
     onSessionChange?: SessionHandler, apiBaseUrl?: string | null,
   ): Promise<DesktopCloudSynchronizeBinding> {
-    return request(bindingPath(synchronizeBindingId), session, onSessionChange,
-      { method: "PATCH", body: JSON.stringify(body) }, apiBaseUrl);
+    return validateBinding(await request<DesktopCloudSynchronizeBinding>(bindingPath(synchronizeBindingId), session, onSessionChange,
+      { method: "PATCH", body: JSON.stringify(body) }, apiBaseUrl), synchronizeBindingId);
   }
 
   function updateSynchronizeTrigger(
@@ -138,26 +155,39 @@ export function createSynchronizeApi(request: CloudAutomationTransport) {
       `${bindingPath(synchronizeBindingId)}/runs?limit=${normalizedLimit}`,
       session, onSessionChange, {}, apiBaseUrl,
     );
-    if (runs.some((run) => run.synchronize_binding_id !== synchronizeBindingId)) {
+    if (!Array.isArray(runs) || runs.some((run) => !run || run.synchronize_binding_id !== synchronizeBindingId)) {
       throw new Error("Synchronize history returned a run from another binding.");
     }
-    return runs.map(validateRun);
+    const seen = new Set<string>();
+    return runs.map(run => {
+      validateRun(run);
+      if (seen.has(run.id)) throw new Error("Synchronize history returned duplicate run identities.");
+      seen.add(run.id);
+      return run;
+    });
   }
 
   async function getSynchronizeRun(
     session: DesktopCloudSession, runId: string,
     onSessionChange?: SessionHandler, apiBaseUrl?: string | null,
   ): Promise<DesktopCloudSynchronizeRun> {
-    return validateRun(await request<DesktopCloudSynchronizeRun>(`${base}/runs/${encodeURIComponent(runId)}`,
+    if (!explicitId(runId)) throw new Error("An explicit Synchronize run ID is required.");
+    const run = validateRun(await request<DesktopCloudSynchronizeRun>(`${base}/runs/${encodeURIComponent(runId)}`,
       session, onSessionChange, {}, apiBaseUrl));
+    if (run.id !== runId) throw new Error("Synchronize detail returned another run.");
+    return run;
   }
 
-  function refreshSynchronizeBinding(
+  async function refreshSynchronizeBinding(
     session: DesktopCloudSession, synchronizeBindingId: string,
     onSessionChange?: SessionHandler, apiBaseUrl?: string | null,
   ): Promise<unknown> {
-    return request(`${bindingPath(synchronizeBindingId)}/refresh`, session, onSessionChange,
+    const result = await request<{ results: Array<{ synchronize_binding_id: string }> }>(`${bindingPath(synchronizeBindingId)}/refresh`, session, onSessionChange,
       { method: "POST", body: "{}" }, apiBaseUrl);
+    if (!Array.isArray(result?.results) || result.results.length !== 1 || result.results.some(row => !row || row.synchronize_binding_id !== synchronizeBindingId)) {
+      throw new Error("Synchronize refresh returned another binding.");
+    }
+    return result;
   }
 
   function pauseSynchronizeBinding(

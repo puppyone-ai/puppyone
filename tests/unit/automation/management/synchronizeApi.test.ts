@@ -6,9 +6,9 @@ const session = { user_id: "user-1" } as DesktopCloudSession;
 
 describe("canonical Synchronize resource transport", () => {
   it("lists actual bindings for an encoded project, never Access or Scope records", async () => {
-    const request = vi.fn().mockResolvedValue([{ id: "binding-1", project_id: "project/a" }]);
+    const request = vi.fn().mockResolvedValue([{ id: "binding-1", project_id: "project/a", path: "" }]);
     const api = createSynchronizeApi(request);
-    expect(await api.listSynchronizeBindings(session, "project/a")).toEqual([{ id: "binding-1", project_id: "project/a" }]);
+    expect(await api.listSynchronizeBindings(session, "project/a")).toEqual([{ id: "binding-1", project_id: "project/a", path: "" }]);
     expect(request).toHaveBeenCalledWith("/synchronize/bindings?project_id=project%2Fa", session, undefined, {}, undefined);
   });
 
@@ -41,7 +41,7 @@ describe("canonical Synchronize resource transport", () => {
 
   it("creates a canonical binding and preserves arbitrary source metadata", async () => {
     const body = { project_id: "project", provider: "url", config: { source: { metadata: { connection_id: "custom" } } } };
-    const result = { binding: { id: "binding", project_id: "project" },
+    const result = { binding: { id: "binding", project_id: "project", path: "" },
       execution_result: { synchronize_binding_id: "binding", synchronize_run_id: "run", status: "queued" } };
     const request = vi.fn().mockResolvedValue(result);
     expect(await createSynchronizeApi(request).createSynchronizeBinding(session, body)).toEqual(result);
@@ -56,8 +56,27 @@ describe("canonical Synchronize resource transport", () => {
     expect(request).toHaveBeenCalledTimes(1);
   });
 
+  it("rejects missing paths, duplicate IDs and foreign management/history echoes", async () => {
+    const binding = { id: "binding", project_id: "project", path: "" };
+    const request = vi.fn(); const api = createSynchronizeApi(request);
+    request.mockResolvedValue([{ ...binding, path: null }]);
+    await expect(api.listSynchronizeBindings(session, "project")).rejects.toThrow("target path");
+    request.mockResolvedValue([binding, binding]);
+    await expect(api.listSynchronizeBindings(session, "project")).rejects.toThrow("duplicate");
+    request.mockResolvedValue({ ...binding, id: "other" });
+    await expect(api.updateSynchronizeBinding(session, "binding", {})).rejects.toThrow("identity");
+    request.mockResolvedValue({ results: [{ synchronize_binding_id: "other" }] });
+    await expect(api.refreshSynchronizeBinding(session, "binding")).rejects.toThrow("another binding");
+    request.mockResolvedValue({ id: "other-run", synchronize_binding_id: "binding" });
+    await expect(api.getSynchronizeRun(session, "run")).rejects.toThrow("another run");
+    request.mockClear();
+    await expect(api.listSynchronizeBindings(session, "")).rejects.toThrow("Project ID");
+    await expect(api.getSynchronizeRun(session, "")).rejects.toThrow("run ID");
+    expect(request).not.toHaveBeenCalled();
+  });
+
   it("targets one binding for pause/resume/refresh/delete without resource lookup by name", async () => {
-    const request = vi.fn().mockResolvedValue({});
+    const request = vi.fn().mockResolvedValue({ results: [{ synchronize_binding_id: "binding/1" }] });
     const api = createSynchronizeApi(request);
     await api.pauseSynchronizeBinding(session, "binding/1");
     await api.resumeSynchronizeBinding(session, "binding/1");

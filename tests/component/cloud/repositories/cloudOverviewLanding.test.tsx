@@ -98,7 +98,7 @@ describe("CloudRepositoryOverview landing page", () => {
             storage_bytes: 104_857_600,
             storage_limit_bytes: 524_288_000,
           },
-          connections: [],
+          resources: [],
           tools: [],
           uploads: [],
         }}

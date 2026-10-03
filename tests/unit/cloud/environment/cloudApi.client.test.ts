@@ -352,6 +352,7 @@ describe("cloud API client delegation", () => {
       undefined,
       API,
     );
+    bridge.mockResolvedValueOnce({ id: "connection/1", project_id: "project-1", path: "Research/Docs" });
     await updateSynchronizeBinding(
       session,
       "connection/1",

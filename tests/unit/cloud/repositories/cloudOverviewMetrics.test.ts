@@ -142,7 +142,7 @@ function createDashboard(nodes: Partial<DesktopCloudDashboard["nodes"]>): Deskto
   return {
     project: { id: "project-1", name: "Atlas" },
     nodes: { total: 0, folders: 0, files: 0, ...nodes },
-    connections: [],
+    resources: [],
     tools: [],
     uploads: [],
   };

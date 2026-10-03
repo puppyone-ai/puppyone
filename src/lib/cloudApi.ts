@@ -15,6 +15,8 @@ import { invalidateCloudCacheForMutation } from "../features/cloud/cache/cloudCa
 import { createCloudAutomationApi } from "./cloud/automationApi";
 import { createSynchronizeApi } from "./cloud/synchronizeApi";
 import { createAccessSurfacesApi } from "./cloud/accessSurfacesApi";
+import { createResourceDashboardApi, type DesktopCloudDashboard } from "./cloud/resourceDashboardApi";
+export type { DesktopCloudDashboard, DesktopCloudDashboardResource } from "./cloud/resourceDashboardApi";
 export type {
   DesktopCloudAccessSurface, DesktopCloudAccessSurfacePatch, DesktopCloudAccessKind,
   DesktopCloudAccessDirection, DesktopCloudAccessSurfaceCreate,
@@ -305,53 +307,6 @@ export type DesktopBillingOperation = {
 
 export type DesktopBillingAppliedQuote = DesktopBillingQuote & {
   operation: DesktopBillingOperation;
-};
-
-export type DesktopCloudDashboard = {
-  project: {
-    id: string;
-    name: string;
-    description?: string | null;
-  };
-  nodes: {
-    total: number;
-    folders: number;
-    files: number;
-    storage_bytes?: number | null;
-    storage_limit_bytes?: number | null;
-  };
-  connections: DesktopCloudDashboardConnection[];
-  tools: Array<{
-    id: string;
-    name: string;
-    type?: string | null;
-    index_status?: string | null;
-    chunks_count?: number | null;
-    total_files?: number | null;
-    indexed_files?: number | null;
-  }>;
-  uploads: Array<{
-    id: string;
-    status: string;
-    type: string;
-    progress?: number;
-    message?: string | null;
-  }>;
-};
-
-export type DesktopCloudDashboardConnection = {
-  id: string;
-  provider: string;
-  name?: string | null;
-  path?: string | null;
-  direction?: string | null;
-  status: string;
-  access_key?: string | null;
-  trigger?: Record<string, unknown> | null;
-  last_synced_at?: string | null;
-  error_message?: string | null;
-  created_at?: string | null;
-  usage_buckets?: number[];
 };
 
 export type DesktopCloudTreeEntry = {
@@ -1508,7 +1463,7 @@ export function getCloudDashboard(
   onSessionChange?: MutableSessionHandler,
   apiBaseUrl?: string | null,
 ): Promise<DesktopCloudDashboard> {
-  return cloudApiRequest<DesktopCloudDashboard>(`/projects/${projectId}/dashboard`, session, onSessionChange, {}, apiBaseUrl);
+  return createResourceDashboardApi(cloudApiRequest).getResourceDashboard(session, projectId, onSessionChange, apiBaseUrl);
 }
 
 export function listCloudRoot(
