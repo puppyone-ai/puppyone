@@ -99,6 +99,24 @@ describe("native Cloud workbench switching", () => {
     expect(cloud.editorWorkbench.activePath).toBe(node!.path);
   });
 
+  it("preflights an authenticated linked switch without replacing the Header with a loading dialog", async () => {
+    installBridge();
+    let release!: (value: unknown) => void;
+    const pending = new Promise((resolve) => { release = resolve; });
+    let holdRoot = true;
+    bridge.mockImplementation((request) => {
+      if (holdRoot && request.path.includes("/ls")) { holdRoot = false; return pending; }
+      return { entries: [], head_commit_id: "cloud-head" };
+    });
+    await render(<Harness />);
+    await click("Cloud");
+    expect(surface("local").hidden).toBe(false);
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    await act(async () => { release({ entries: [], head_commit_id: "cloud-head" }); await pending; });
+    await vi.waitFor(() => expect(surface("cloud").hidden).toBe(false));
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
   it("keeps the local workbench while an unhosted project awaits explicit creation", async () => {
     installBridge(); await render(<Harness linked={false} />); await click("Create Cloud");
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Create Cloud version");

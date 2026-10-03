@@ -38,7 +38,10 @@ import { CloudWorkspaceSwitchDialog } from "./features/cloud/workbench/CloudWork
 import { RepositoryCloudSwitchGate } from "./features/cloud/workbench/RepositoryCloudSwitchGate";
 import { useHomepageCloudProjects } from "./features/cloud/workbench/useHomepageCloudProjects";
 import { HomepageCloudStatus } from "./features/cloud/workbench/HomepageCloudStatus";
-import { AccountCloudWorkspaceSurface } from "./features/cloud/workbench/AccountCloudWorkspaceSurface";
+import {
+  AccountCloudWorkspaceSurface,
+  useAccountCloudWorkspacePresentation,
+} from "./features/cloud/workbench/AccountCloudWorkspaceSurface";
 import { getCloudAuthSession, resolveCloudAuthState } from "./features/cloud/auth";
 import { useNativeCloudWorkbench } from "./features/cloud/workbench/useNativeCloudWorkbench";
 import {
@@ -87,6 +90,7 @@ import { DesktopProjectLocationControls } from "./features/app-shell/DesktopWork
 import { DesktopTitlebarContext } from "./features/app-shell/DesktopTitlebarContext";
 import { getProjectBackupProviders } from "./features/app-shell/projectBackupProviders";
 import { DesktopWorkspaceContent } from "./features/app-shell/DesktopWorkspaceContent";
+import { DesktopWorkspaceLocationSurface } from "./features/app-shell/DesktopWorkspaceLocationSurface";
 import { DesktopTitlebarActions } from "./features/app-shell/DesktopTitlebarActions";
 import {
   DesktopShellLocationBar,
@@ -776,6 +780,10 @@ function AppContent() {
     active: cloudWorkspaceActive,
     filesVisibilitySettings,
   });
+  const accountCloudPresentation = useAccountCloudWorkspacePresentation({
+    workbench: nativeCloudWorkbench,
+    preferences,
+  });
   const repositoryCloudSwitch = useRepositoryCloudWorkspaceSwitch({
     enabled: cloudEnabled && Boolean(focusedWorkspace),
     scope: JSON.stringify([focusedWorkspace?.id, focusedWorkspace?.path]),
@@ -1409,8 +1417,9 @@ function AppContent() {
     setRightSidebarOpen,
     setRightSidebarSurface,
   ]);
-  const accountCloudSurface = <AccountCloudWorkspaceSurface workbench={nativeCloudWorkbench} active={cloudWorkspaceActive}
-    preferences={preferences} appearance={surfaceAppearance} onLocal={openLocalWorkspace} onHome={() => void goToHomepage()} />;
+  const accountCloudSurface = !workspace ? <AccountCloudWorkspaceSurface workbench={nativeCloudWorkbench}
+    presentation={accountCloudPresentation} active={cloudWorkspaceActive}
+    preferences={preferences} appearance={surfaceAppearance} onLocal={openLocalWorkspace} onHome={() => void goToHomepage()} /> : null;
   const repositoryCloudDialog = <CloudWorkspaceSwitchDialog controller={repositoryCloudSwitch}
     authenticationRequired={!activeCloudSession}
     gate={<RepositoryCloudSwitchGate context={projectCloudContext} apiBaseUrl={desktopCloudApiBaseUrl}
@@ -1629,12 +1638,10 @@ function AppContent() {
       <CloudShareProvider value={cloudShareActions}>
       <div
         className={`app-shell cloud-runtime ${resolvedTheme === "dark" ? "dark" : ""}`}
-        hidden={cloudWorkspaceActive}
         {...surfaceAppearance.rootProps}
-        style={{ ...surfaceAppearance.rootProps.style, ...(cloudWorkspaceActive ? { display: "none" } : {}) }}
       >
         <DesktopCloudShell
-          active={!cloudWorkspaceActive}
+          active
           onGoHome={() => void goToHomepage()}
           renderLeadingRail={projectSwitcherRailVisible ? ({ expanded }) => (
             <ProjectSwitcherRail
@@ -1676,12 +1683,14 @@ function AppContent() {
             : titlebarSidebarSlot}
           titlebarActions={titlebarActions}
           titlebarCenteredSlot={centerProjectInHeader ? titlebarContext : undefined}
-          titlebarTabs={titlebarEditorTabs}
+          titlebarTabs={cloudWorkspaceActive
+            ? editorTabsInHeaderEnabled ? accountCloudPresentation.titlebarTabs : undefined
+            : titlebarEditorTabs}
           alignTitlebarTabsToExplorer={editorTabsInHeaderEnabled}
           titlebarTabsHostRef={experimentalSettings.enableWorkbenchTabsInHeader && !editorTabsInHeaderEnabled
             ? setTitlebarTabHost
             : undefined}
-          locationBar={locationBarVisible ? (
+          locationBar={cloudWorkspaceActive ? accountCloudPresentation.locationBar : locationBarVisible ? (
             <DesktopShellLocationBar
               path={locationBarPath}
               onNavigate={handleLocationBarNavigate}
@@ -1739,7 +1748,9 @@ function AppContent() {
             </div>
           )}
         >
-          {!cloudWorkspaceActive && gitPresentation.cardEnabled && <DesktopGitHeaderCard
+          <DesktopWorkspaceLocationSurface location={cloudWorkspaceActive ? "cloud" : "local"}
+            local={<>
+          {gitPresentation.cardEnabled && <DesktopGitHeaderCard
             anchorRef={gitAnchorRef}
             open={gitPresentation.cardOpen}
             surface={gitPresentation.cardSurface}
@@ -1841,6 +1852,9 @@ function AppContent() {
             sidebarUtility={projectSwitcherRailVisible
               ? undefined
               : feedbackLauncher}
+          />
+            </>}
+            cloud={accountCloudPresentation.content}
           />
         </DesktopCloudShell>
         <DesktopOverlayPortal
