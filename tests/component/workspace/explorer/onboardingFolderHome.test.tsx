@@ -297,6 +297,15 @@ describe("project folder home", () => {
     expect(onboardingCss).not.toContain("::-webkit-scrollbar");
   });
 
+  it("preserves the upper rhythm and reclaims space only below the project list", () => {
+    expect(onboardingCss).toContain("padding-block-start: max(91px, calc(50vh - 281px));");
+    expect(onboardingCss).toContain("padding-block-start: max(87px, calc(50vh - 255px));");
+    expect(onboardingCss).toContain("padding-block-start: 91px;");
+    expect(onboardingCss).toContain("padding-block-end: 16px;");
+    expect(onboardingCss).toMatch(/\.onboarding-shell\[data-onboarding-state="projects"\] \.onboarding-homepage\s*\{[^}]*--onboarding-primary-inset-end:\s*10px;[^}]*--onboarding-primary-actions-gap:\s*12px;/s);
+    expect(onboardingCss).toMatch(/\.onboarding-shell\[data-onboarding-state="projects"\] \.onboarding-entry-actions\s*\{[^}]*padding-block-end:\s*0;/s);
+  });
+
   it("keeps one folder action after the project panel", async () => {
     const onChooseWorkspace = vi.fn(async () => undefined);
     const container = renderHome({

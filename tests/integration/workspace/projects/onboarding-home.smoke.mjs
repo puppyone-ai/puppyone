@@ -90,6 +90,7 @@ async function runSmoke() {
             const images = [...document.querySelectorAll('.onboarding-brand-lockup img, .onboarding-entry-import img')];
             return {
               create: rect(create), brand: rect(brand), launcher: rect(launcher), actions: rect(actions), label: create.textContent,
+              homepage: rect(document.querySelector('.onboarding-homepage')),
               brandText: brand.querySelector('.onboarding-brand-name, .onboarding-brand-prompt').textContent,
               primaryKind: primarySection.dataset.onboardingPrimary,
               primaryBorderTop: primaryStyle.borderTopWidth,
@@ -223,7 +224,8 @@ async function runSmoke() {
           const titleToSectionGap = state === 'empty' ? 24 : height <= 620 ? 34 : height <= 760 ? 46 : 58;
           assert.ok(Math.abs(snapshot.firstSection.y - snapshot.brand.y - snapshot.brand.height - titleToSectionGap) < 1, `${context}: shared title-to-section gap`);
           assert.ok(Math.abs(snapshot.firstClickable.y - snapshot.brand.y - snapshot.brand.height - titleToSectionGap - 25) < 1, `${context}: shared title-to-first-clickable gap`);
-          assert.ok(Math.abs(snapshot.launcher.y + snapshot.launcher.height / 2 - height / 2) < 1, `${context}: shared launcher is vertically centered`);
+          const verticalCenter = state === 'empty' ? height / 2 : snapshot.homepage.y + snapshot.homepage.height / 2;
+          assert.ok(Math.abs(snapshot.launcher.y + snapshot.launcher.height / 2 - verticalCenter) < 1, `${context}: short content is centered in its available region`);
           assert.equal(snapshot.primaryKind, state === 'empty' ? 'create' : 'projects', `${context}: one primary-section contract swaps content by state`);
           assert.equal(snapshot.primaryBorderTop, '1px', `${context}: shared primary frame has a top rule`);
           assert.equal(snapshot.primaryPaddingTop, '24px', `${context}: shared primary frame owns the content inset`);
@@ -423,7 +425,11 @@ async function runSmoke() {
 async function validateProjectScrollports() {
   const samples = [];
   for (const theme of ["dark", "light"]) {
-    for (const [width, height, minimumListHeight] of [[640, 520, 160], [900, 680, 300], [1200, 900, 480], [1200, 1200, 740]]) {
+    // Original pre-expansion title/list anchors: grow below them, not above.
+    for (const [width, height, minimumListHeight, titleTop, listTop] of [
+      [640, 520, 200, 91, 178], [591, 594, 275, 91, 178], [992, 596, 275, 91, 178],
+      [900, 680, 350, 87, 186], [1200, 900, 475, 169, 280], [1200, 1200, 625, 319, 430],
+    ]) {
       window.setContentSize(width, height);
       const url = new URL(`http://127.0.0.1:${server.httpServer.address().port}/tests/fixtures/workspace/projects/onboarding-home.html`);
       url.searchParams.set("state", "projects"); url.searchParams.set("count", "40"); url.searchParams.set("theme", theme);
@@ -437,6 +443,10 @@ async function validateProjectScrollports() {
         const rect = selector => { const r = document.querySelector(selector).getBoundingClientRect(); return { top:r.top, bottom:r.bottom, height:r.height, left:r.left, right:r.right, width:r.width }; };
         return { viewport:{ width:innerWidth, height:innerHeight }, list:rect('.onboarding-project-list'), launcher:rect('.onboarding-launcher'), page:rect('.onboarding-homepage'),
           brand:rect('.onboarding-brand-lockup'), actions:rect('.onboarding-entry-actions'), row:rect('.onboarding-project-row'),
+          lowerInset:getComputedStyle(document.querySelector('.onboarding-home-primary')).paddingBottom,
+          actionGap:getComputedStyle(document.querySelector('.onboarding-home-primary')).marginBottom,
+          actionPadding:getComputedStyle(document.querySelector('.onboarding-entry-actions')).paddingBottom,
+          lastAction:rect('[data-onboarding-action=import]'),
           scrollHeight:list.scrollHeight, clientHeight:list.clientHeight, gutter:list.offsetWidth-list.clientWidth,
           thumb:getComputedStyle(list, '::-webkit-scrollbar-thumb').backgroundColor,
           thumbInset:getComputedStyle(list, '::-webkit-scrollbar-thumb').borderTopWidth, hover:list.matches(':hover'),
@@ -447,6 +457,12 @@ async function validateProjectScrollports() {
       assert.deepEqual(snapshot.viewport, { width, height }, `${context}: test the requested viewport, not an OS-clamped window`);
       assert.ok(snapshot.list.height >= minimumListHeight, `${context}: use available height, not the old 112–284px cap (${snapshot.list.height}px)`);
       assert.ok(Math.abs(snapshot.launcher.height - snapshot.page.height) < 1, `${context}: no wasted available vertical space`);
+      assert.equal(snapshot.brand.top, titleTop, `${context}: preserve the original top margin, not the regressed 48px anchor`);
+      assert.equal(snapshot.list.top, listTop, `${context}: title-to-list spacing stays untouched`);
+      assert.equal(snapshot.lowerInset, '10px', `${context}: reduce only the inset below the list`);
+      assert.equal(snapshot.actionGap, '12px', `${context}: compact spacing below the divider`);
+      assert.equal(snapshot.actionPadding, '0px', `${context}: remove trailing action-area padding`);
+      assert.equal(height - snapshot.lastAction.bottom, 16, `${context}: do not leave the old large bottom blank`);
       assert.ok(snapshot.brand.top >= 38 && snapshot.actions.bottom <= height, `${context}: title and all actions remain onscreen`);
       assert.ok(snapshot.list.top >= snapshot.brand.bottom && snapshot.list.bottom <= snapshot.actions.top, `${context}: no overlapping chrome`);
       assert.ok(snapshot.scrollHeight > snapshot.clientHeight && !snapshot.outerOverflow, `${context}: only the Project list scrolls`);

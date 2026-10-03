@@ -55,11 +55,15 @@
 }
 
 .onboarding-homepage-shell[data-onboarding-state="projects"] {
-  /* Keep long lists below the native titlebar, including short windows. */
-  padding-block: 48px;
+  /* Preserve the original long-list title anchor (562px reference composition).
+   * This positions the title; it is not a height limit on the actual list. */
+  padding-block-start: max(91px, calc(50vh - 281px));
+  padding-block-end: 16px;
 }
 
 .onboarding-shell[data-onboarding-state="projects"] .onboarding-homepage {
+  --onboarding-primary-inset-end: 10px;
+  --onboarding-primary-actions-gap: 12px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -232,6 +236,10 @@
   justify-items: start;
   gap: 2px;
   padding: 0 0 18px;
+}
+
+.onboarding-shell[data-onboarding-state="projects"] .onboarding-entry-actions {
+  padding-block-end: 0;
 }
 
 .onboarding-entry-action {
@@ -651,6 +659,11 @@
 }
 
 @media (max-height: 760px) {
+  .onboarding-homepage-shell[data-onboarding-state="projects"] {
+    /* Original medium-window anchor: 510px composition, 87px minimum. */
+    padding-block-start: max(87px, calc(50vh - 255px));
+  }
+
   .onboarding-homepage {
     --onboarding-page-gap: 24px;
     --onboarding-title-primary-gap: 46px;
@@ -667,6 +680,11 @@
 }
 
 @media (max-height: 620px) {
+  .onboarding-homepage-shell[data-onboarding-state="projects"] {
+    /* Keep the original compact-window title offset, not the new 48px one. */
+    padding-block-start: 91px;
+  }
+
   .onboarding-homepage-shell {
     padding-top: 28px;
     padding-bottom: 28px;
