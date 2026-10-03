@@ -281,6 +281,20 @@ describe("project folder home", () => {
     expect(surface.dataset.onboardingState).toBe("projects");
     expect(homepage?.className).toBe("onboarding-homepage");
     expect(homepage?.getAttribute("data-start-page-layout")).toBeNull();
+    const list = container.querySelector<HTMLElement>(".onboarding-project-list");
+    expect(list?.dataset.poScrollbar).toBe("menu");
+    expect(list?.dataset.poScrollbarVisibility).toBe("always");
+    expect(list?.getAttribute("role")).toBe("region");
+    expect(list?.getAttribute("aria-label")).toBe("Projects");
+    expect(list?.tabIndex).toBe(0);
+  });
+
+  it("lets the project scrollport use remaining height without fixed list caps", () => {
+    expect(onboardingCss).toContain("grid-template-rows: auto minmax(0, 1fr) auto;");
+    expect(onboardingCss).toMatch(/\.onboarding-project-list\s*\{[^}]*min-height:\s*0;[^}]*overflow-y:\s*auto;[^}]*overflow-x:\s*hidden;[^}]*scrollbar-gutter:\s*stable;/s);
+    expect(onboardingCss).not.toMatch(/\.onboarding-project-list\s*\{[^}]*max-height:/s);
+    expect(onboardingCss).not.toMatch(/\.onboarding-home-primary\[data-onboarding-primary="projects"\]\s*\{[^}]*max-height:/s);
+    expect(onboardingCss).not.toContain("::-webkit-scrollbar");
   });
 
   it("keeps one folder action after the project panel", async () => {

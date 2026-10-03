@@ -41,7 +41,14 @@ export function OnboardingProjectList({
   const { t, formatRelativeTime } = useLocalization();
 
   return (
-    <div className="onboarding-project-list" data-po-scrollbar="menu">
+    <div
+      className="onboarding-project-list"
+      data-po-scrollbar="menu"
+      data-po-scrollbar-visibility="always"
+      role="region"
+      aria-label={t("onboarding.projects.title")}
+      tabIndex={0}
+    >
       {status}
       {items.map((item) => {
         const name = getProjectName(item, t("onboarding.projects.untitled"));

@@ -40,7 +40,7 @@ async function runSmoke() {
     await server.listen();
     await mkdir(screenshots, { recursive: true });
     window = new BrowserWindow({
-      show: true, width: 900, height: 680, frame: false,
+      show: true, width: 900, height: 680, frame: false, enableLargerThanScreen: true,
       webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false },
     });
     window.webContents.on("console-message", (details) => {
@@ -49,7 +49,7 @@ async function runSmoke() {
     const labels = { en: "New empty project" };
     const projectPrompts = { en: "Which project do you want to start with?" };
     const importLabels = { en: "Import" };
-    const importIntros = { en: "Export content from these apps as local files." };
+    const importIntros = { en: "Bring content from these apps into a local project." };
     for (const locale of Object.keys(labels)) {
       for (const theme of ["dark", "light"]) {
         for (const [state, width, height] of [
@@ -313,7 +313,7 @@ async function runSmoke() {
           await evaluate("document.querySelector('[data-onboarding-action=open]').focus()");
           window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Tab" });
           window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Tab" });
-          await until("document.activeElement?.dataset.onboardingAction === 'clone'");
+          await until("document.activeElement?.dataset.onboardingAction === 'import'");
           await until("document.activeElement?.matches(':focus-visible')");
           await evaluate("Promise.all(document.activeElement.getAnimations().map(animation => animation.finished))");
           assert.equal(await evaluate("getComputedStyle(document.activeElement).outlineStyle"), "solid", `${context}: import focus ring`);
@@ -338,7 +338,7 @@ async function runSmoke() {
           assert.deepEqual(importFocus, openFocus, `${context}: import and open share keyboard focus treatment`);
           window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Tab" });
           window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Tab" });
-          await until("document.activeElement?.dataset.onboardingAction === 'clone'");
+          await until("document.activeElement?.dataset.onboardingAction === 'import'");
           window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Enter" });
           window.webContents.sendInputEvent({ type: "char", keyCode: "\r" });
           window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Enter" });
@@ -401,12 +401,13 @@ async function runSmoke() {
           await until("document.activeElement?.dataset.importSource === 'gitlab'");
           window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Escape" });
           window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Escape" });
-          await until("!document.querySelector('[role=dialog]') && document.activeElement?.dataset.onboardingAction === 'clone'");
+          await until("!document.querySelector('[role=dialog]') && document.activeElement?.dataset.onboardingAction === 'import'");
           console.log(`Passed ${context}`);
         }
       }
     }
-    console.log(`Onboarding visual smoke passed: 10 English-only cases; screenshots: ${screenshots}`);
+    await validateProjectScrollports();
+    console.log(`Onboarding visual smoke passed: 10 entry cases plus short/long list geometry and persistent scrolling; screenshots: ${screenshots}`);
   } catch (error) {
     console.error(error);
     if (window && !window.isDestroyed()) console.error(await evaluate("({ active: document.activeElement?.outerHTML, dialogs: document.querySelectorAll('[role=dialog]').length, text: document.body.innerText })"));
@@ -417,4 +418,79 @@ async function runSmoke() {
     await server?.close();
     app.exit(exitCode);
   }
+}
+
+async function validateProjectScrollports() {
+  const samples = [];
+  for (const theme of ["dark", "light"]) {
+    for (const [width, height, minimumListHeight] of [[640, 520, 160], [900, 680, 300], [1200, 900, 480], [1200, 1200, 740]]) {
+      window.setContentSize(width, height);
+      const url = new URL(`http://127.0.0.1:${server.httpServer.address().port}/tests/fixtures/workspace/projects/onboarding-home.html`);
+      url.searchParams.set("state", "projects"); url.searchParams.set("count", "40"); url.searchParams.set("theme", theme);
+      await window.loadURL(url.href);
+      await window.webContents.debugger.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true });
+      await until("document.querySelectorAll('.onboarding-project-row-wrap').length === 40");
+      await window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 39 });
+      await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+      const snapshot = await evaluate(`(() => {
+        const list = document.querySelector('.onboarding-project-list');
+        const rect = selector => { const r = document.querySelector(selector).getBoundingClientRect(); return { top:r.top, bottom:r.bottom, height:r.height, left:r.left, right:r.right, width:r.width }; };
+        return { viewport:{ width:innerWidth, height:innerHeight }, list:rect('.onboarding-project-list'), launcher:rect('.onboarding-launcher'), page:rect('.onboarding-homepage'),
+          brand:rect('.onboarding-brand-lockup'), actions:rect('.onboarding-entry-actions'), row:rect('.onboarding-project-row'),
+          scrollHeight:list.scrollHeight, clientHeight:list.clientHeight, gutter:list.offsetWidth-list.clientWidth,
+          thumb:getComputedStyle(list, '::-webkit-scrollbar-thumb').backgroundColor, hover:list.matches(':hover'),
+          outerOverflow:document.querySelector('.onboarding-shell').scrollHeight > innerHeight,
+          region:list.getAttribute('role'), tabIndex:list.tabIndex };
+      })()`);
+      const context = `long-projects/${theme}/${width}x${height}`;
+      assert.deepEqual(snapshot.viewport, { width, height }, `${context}: test the requested viewport, not an OS-clamped window`);
+      assert.ok(snapshot.list.height >= minimumListHeight, `${context}: use available height, not the old 112–284px cap (${snapshot.list.height}px)`);
+      assert.ok(Math.abs(snapshot.launcher.height - snapshot.page.height) < 1, `${context}: no wasted available vertical space`);
+      assert.ok(snapshot.brand.top >= 38 && snapshot.actions.bottom <= height, `${context}: title and all actions remain onscreen`);
+      assert.ok(snapshot.list.top >= snapshot.brand.bottom && snapshot.list.bottom <= snapshot.actions.top, `${context}: no overlapping chrome`);
+      assert.ok(snapshot.scrollHeight > snapshot.clientHeight && !snapshot.outerOverflow, `${context}: only the Project list scrolls`);
+      assert.equal(snapshot.gutter, 12, `${context}: deterministic reserved scrollbar lane`);
+      assert.equal(snapshot.hover, false, `${context}: visibility must not depend on hovering the list`);
+      assert.notEqual(snapshot.thumb, 'rgba(0, 0, 0, 0)', `${context}: persistent thumb before any interaction`);
+      assert.equal(snapshot.region, 'region'); assert.equal(snapshot.tabIndex, 0);
+      await writeFile(path.join(screenshots, `long-projects-${theme}-${width}x${height}.png`), (await window.capturePage()).toPNG());
+      await window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mouseWheel",
+        x: Math.round(snapshot.list.left + 30), y: Math.round(snapshot.list.top + 20), deltaX: 0, deltaY: 250 });
+      await until("document.querySelector('.onboarding-project-list').scrollTop > 0");
+      await evaluate("document.querySelector('.onboarding-project-list').focus()");
+      window.webContents.sendInputEvent({ type: "keyDown", keyCode: "End" });
+      window.webContents.sendInputEvent({ type: "keyUp", keyCode: "End" });
+      await until("(() => { const el = document.querySelector('.onboarding-project-list'); return el.scrollTop >= el.scrollHeight - el.clientHeight - 2; })()");
+      const after = await evaluate(`({ brandTop:document.querySelector('.onboarding-brand-lockup').getBoundingClientRect().top,
+        actionsTop:document.querySelector('.onboarding-entry-actions').getBoundingClientRect().top })`);
+      assert.equal(after.brandTop, snapshot.brand.top, `${context}: scrolling does not move the title`);
+      assert.equal(after.actionsTop, snapshot.actions.top, `${context}: scrolling does not move the actions`);
+      samples.push({ context, ...snapshot });
+      console.log(`Passed ${context}: ${snapshot.list.height}px list, visible thumb, wheel/End scrolling`);
+    }
+  }
+  // The opt-in must not change ordinary scroll owners or override system mode.
+  const policy = await evaluate(`(() => {
+    const ordinary = document.createElement('div'); ordinary.dataset.poScrollbar = 'content';
+    ordinary.style.cssText = 'position:fixed;top:0;left:0;width:20px;height:20px;overflow:auto';
+    ordinary.innerHTML = '<div style="height:80px"></div>'; document.body.appendChild(ordinary);
+    const transient = getComputedStyle(ordinary, '::-webkit-scrollbar-thumb').backgroundColor;
+    ordinary.remove();
+    document.documentElement.dataset.poScrollbarMode = 'system';
+    const systemWidth = getComputedStyle(document.querySelector('.onboarding-project-list'), '::-webkit-scrollbar').width;
+    document.documentElement.dataset.poScrollbarMode = 'product';
+    return { transient, systemWidth };
+  })()`);
+  assert.equal(policy.transient, 'rgba(0, 0, 0, 0)', 'Other default scroll owners remain transient');
+  assert.notEqual(policy.systemWidth, '12px', 'System scrollbar mode retains OS-owned geometry');
+  window.setContentSize(1200, 900);
+  const shortUrl = new URL(`http://127.0.0.1:${server.httpServer.address().port}/tests/fixtures/workspace/projects/onboarding-home.html?state=projects&count=1`);
+  await window.loadURL(shortUrl.href); await until("document.querySelectorAll('.onboarding-project-row-wrap').length === 1");
+  const short = await evaluate(`(() => { const list=document.querySelector('.onboarding-project-list'); return {
+    height:list.clientHeight, content:list.scrollHeight, width:document.querySelector('.onboarding-project-row').getBoundingClientRect().width,
+    launcher:document.querySelector('.onboarding-launcher').getBoundingClientRect().height }; })()`);
+  assert.equal(short.height, short.content, 'A short list does not manufacture overflow');
+  assert.ok(short.height < 50 && short.launcher < 400, 'A few projects still hug content, without an empty stretched panel');
+  assert.equal(short.width, samples.find(sample => sample.context === 'long-projects/dark/1200x900').row.width, 'Stable gutter keeps short/long row geometry identical');
+  await writeFile(path.join(screenshots, 'scrollport-results.json'), JSON.stringify({ samples, short, policy }, null, 2));
 }

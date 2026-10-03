@@ -54,8 +54,25 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+.onboarding-homepage-shell[data-onboarding-state="projects"] {
+  /* Keep long lists below the native titlebar, including short windows. */
+  padding-block: 48px;
+}
+
 .onboarding-shell[data-onboarding-state="projects"] .onboarding-homepage {
-  height: fit-content;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+}
+
+.onboarding-shell[data-onboarding-state="projects"] .onboarding-launcher {
+  /* Short histories hug content; long histories shrink only the middle track. */
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
 .onboarding-launcher {
@@ -155,7 +172,7 @@
 }
 
 .onboarding-home-primary[data-onboarding-primary="projects"] {
-  max-height: min(332px, calc(100vh - 380px));
+  min-height: 0;
   grid-template-rows: minmax(0, 1fr);
 }
 
@@ -412,11 +429,12 @@
   width: 100%;
   min-width: 0;
   min-height: 0;
-  max-height: clamp(88px, calc(100vh - 428px), 284px);
   align-content: start;
   gap: 2px;
   padding: 0;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
   overscroll-behavior: contain;
   border: 0;
   border-radius: 0;
@@ -567,6 +585,7 @@
 }
 
 .onboarding-homepage-error {
+  flex: 0 0 auto;
   width: min(520px, 100%);
 }
 
@@ -642,10 +661,6 @@
   .onboarding-shell[data-onboarding-state="projects"] .onboarding-homepage {
     --onboarding-page-gap: 14px;
   }
-
-  .onboarding-project-list {
-    max-height: clamp(88px, calc(100vh - 418px), 260px);
-  }
 }
 
 @media (max-height: 620px) {
@@ -666,9 +681,5 @@
 
   .onboarding-shell[data-onboarding-state="projects"] .onboarding-homepage {
     --onboarding-page-gap: 18px;
-  }
-
-  .onboarding-project-list {
-    max-height: clamp(72px, calc(100vh - 408px), 180px);
   }
 }

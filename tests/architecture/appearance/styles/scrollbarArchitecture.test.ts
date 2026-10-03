@@ -62,6 +62,13 @@ describe("scrollbar architecture", () => {
     expect(scrollbarsCss).toContain('@media (forced-colors: active)');
   });
 
+  it("supports persistent overflow discoverability without changing default or system owners", () => {
+    const transientRule = readRule(scrollbarsCss, ':root[data-po-scrollbar-mode="product"][data-interface-style="default"]\n  :where([data-po-scrollbar]:not([data-po-scrollbar="hidden"]):not([data-po-scrollbar-visibility="always"]))::-webkit-scrollbar-thumb');
+    expect(transientRule).toContain("background-color: transparent;");
+    expect(scrollbarsCss).not.toContain('[data-po-scrollbar-visibility="always"]::-webkit-scrollbar');
+    expect(readCss("src/components/onboarding/OnboardingProjectList.tsx")).toContain('data-po-scrollbar-visibility="always"');
+  });
+
   it("shares one presentation color and explicit owner state across surfaces", () => {
     expect(tokensCss).toContain("--po-scrollbar-presentation-thumb: color-mix(");
     expect(tokensCss).toContain("--po-scrollbar-presentation-thumb-hover: color-mix(");
