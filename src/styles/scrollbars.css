@@ -75,6 +75,7 @@
 
 :root[data-po-scrollbar-mode="product"][data-interface-style="default"]
   :where(
+    [data-po-scrollbar]:not([data-po-scrollbar="hidden"])[data-po-scrollbar-visibility="always"],
     [data-po-scrollbar]:not([data-po-scrollbar="hidden"]):hover,
     [data-po-scrollbar].po-scrollbar-active
   )::-webkit-scrollbar-thumb {

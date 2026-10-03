@@ -438,7 +438,8 @@ async function validateProjectScrollports() {
         return { viewport:{ width:innerWidth, height:innerHeight }, list:rect('.onboarding-project-list'), launcher:rect('.onboarding-launcher'), page:rect('.onboarding-homepage'),
           brand:rect('.onboarding-brand-lockup'), actions:rect('.onboarding-entry-actions'), row:rect('.onboarding-project-row'),
           scrollHeight:list.scrollHeight, clientHeight:list.clientHeight, gutter:list.offsetWidth-list.clientWidth,
-          thumb:getComputedStyle(list, '::-webkit-scrollbar-thumb').backgroundColor, hover:list.matches(':hover'),
+          thumb:getComputedStyle(list, '::-webkit-scrollbar-thumb').backgroundColor,
+          thumbInset:getComputedStyle(list, '::-webkit-scrollbar-thumb').borderTopWidth, hover:list.matches(':hover'),
           outerOverflow:document.querySelector('.onboarding-shell').scrollHeight > innerHeight,
           region:list.getAttribute('role'), tabIndex:list.tabIndex };
       })()`);
@@ -452,6 +453,7 @@ async function validateProjectScrollports() {
       assert.equal(snapshot.gutter, 12, `${context}: deterministic reserved scrollbar lane`);
       assert.equal(snapshot.hover, false, `${context}: visibility must not depend on hovering the list`);
       assert.notEqual(snapshot.thumb, 'rgba(0, 0, 0, 0)', `${context}: persistent thumb before any interaction`);
+      assert.equal(snapshot.thumbInset, '2px', `${context}: use the shared visible presentation, not the faint idle thumb`);
       assert.equal(snapshot.region, 'region'); assert.equal(snapshot.tabIndex, 0);
       await writeFile(path.join(screenshots, `long-projects-${theme}-${width}x${height}.png`), (await window.capturePage()).toPNG());
       await window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mouseWheel",
