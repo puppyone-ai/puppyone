@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { closeActiveMarkdownTableMenu } from "../../../../../../packages/shared-ui/src/editor/markdown/features/table/tableMenuState";
 
-import { createTableView, source, makeHandleCaptureSafe } from "../../../../../support/editor/markdown/tableInteractions";
+import { createTableView, source, makeHandleCaptureSafe, mockRect, rect } from "../../../../../support/editor/markdown/tableInteractions";
 
 describe("Markdown table EditorView interactions", () => {
 
@@ -206,6 +206,28 @@ describe("Markdown table EditorView interactions", () => {
     expect(document.querySelector(".cm-md-table-context-menu")).toBeNull();
     expect(document.activeElement).toBe(outsideButton);
     expect(firstBodyCell.dataset.mdTableEditing).toBeUndefined();
+  });
+
+  it("opens a row handle's horizontal toolbar below the visible grip", () => {
+    const view = createTableView();
+    view.dom.querySelector<HTMLElement>("tbody td")!
+      .dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
+    const handle = view.dom.querySelector<HTMLElement>(".cm-md-table-row-handle")!;
+    const visual = handle.querySelector<HTMLElement>(".cm-md-table-drag-handle-visual")!;
+    makeHandleCaptureSafe(handle);
+    mockRect(visual, rect(92, 134, 14, 22));
+
+    handle.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true, button: 0, clientX: 99, clientY: 145, pointerId: 20,
+    }));
+    handle.dispatchEvent(new PointerEvent("pointerup", {
+      bubbles: true, button: 0, clientX: 99, clientY: 145, pointerId: 20,
+    }));
+
+    const menu = document.querySelector<HTMLElement>(".cm-md-table-context-menu")!;
+    expect(menu.style.left).toBe("92px");
+    expect(menu.style.top).toBe("160px");
+    expect(menu.querySelectorAll("button")).toHaveLength(6);
   });
 
   it("highlights a handle's source column from pointer-down until its menu closes", () => {

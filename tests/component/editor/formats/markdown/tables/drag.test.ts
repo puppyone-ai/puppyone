@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { createTableView, source, rect, mockRect, makeHandleCaptureSafe } from "../../../../../support/editor/markdown/tableInteractions";
+import { createTableView, source, nextAnimationFrame, rect, mockRect, makeHandleCaptureSafe } from "../../../../../support/editor/markdown/tableInteractions";
 
 describe("Markdown table EditorView interactions", () => {
   it.each(["pointercancel", "Escape", "lostpointercapture", "blur"])(
@@ -46,7 +46,7 @@ describe("Markdown table EditorView interactions", () => {
     },
   );
 
-  it("moves a column with the pointer drag handle", () => {
+  it("moves a column without turning the destination's first cell into an edit selection", async () => {
     const view = createTableView();
     const surface = view.dom.querySelector<HTMLElement>(".cm-md-table-surface")!;
     const table = view.dom.querySelector<HTMLTableElement>(".cm-md-table-widget")!;
@@ -56,6 +56,9 @@ describe("Markdown table EditorView interactions", () => {
     headers.forEach((header, index) => mockRect(header, rect(index * 100, 20, 100, 30)));
 
     headers[0]?.dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
+    const focusSentinel = document.createElement("button");
+    document.body.appendChild(focusSentinel);
+    focusSentinel.focus();
     const handle = view.dom.querySelector<HTMLElement>(".cm-md-table-column-handle")!;
     expect(handle.querySelector(".cm-md-table-drag-handle-visual")).not.toBeNull();
     makeHandleCaptureSafe(handle);
@@ -80,12 +83,17 @@ describe("Markdown table EditorView interactions", () => {
       pointerId: 11,
     }))).not.toThrow();
 
+    await nextAnimationFrame();
+    await nextAnimationFrame();
     expect(handle.classList.contains("is-pressed")).toBe(false);
     expect(handle.classList.contains("is-dragging")).toBe(false);
+    expect(document.activeElement).toBe(focusSentinel);
+    expect(view.dom.querySelector(".cm-md-table-cell-content:focus")).toBeNull();
+    expect(view.dom.querySelector<HTMLElement>(".po-editable-table-selection-outline")?.hidden).toBe(true);
     expect(source(view).split("\n")[0]).toMatch(/^\| B\s+\| C\s+\| A\s+\|$/);
   });
 
-  it("moves a body row with the pointer drag handle", () => {
+  it("moves a body row without turning its first cell into an edit selection", async () => {
     const view = createTableView();
     const surface = view.dom.querySelector<HTMLElement>(".cm-md-table-surface")!;
     const table = view.dom.querySelector<HTMLTableElement>(".cm-md-table-widget")!;
@@ -95,6 +103,9 @@ describe("Markdown table EditorView interactions", () => {
     bodyRows.forEach((row, index) => mockRect(row, rect(0, 50 + index * 30, 300, 30)));
 
     bodyRows[0]?.cells[0]?.dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
+    const focusSentinel = document.createElement("button");
+    document.body.appendChild(focusSentinel);
+    focusSentinel.focus();
     const handle = view.dom.querySelector<HTMLElement>(".cm-md-table-row-handle")!;
     makeHandleCaptureSafe(handle);
     handle.dispatchEvent(new PointerEvent("pointerdown", {
@@ -120,8 +131,13 @@ describe("Markdown table EditorView interactions", () => {
       pointerId: 12,
     }))).not.toThrow();
 
+    await nextAnimationFrame();
+    await nextAnimationFrame();
     expect(handle.classList.contains("is-pressed")).toBe(false);
     expect(handle.classList.contains("is-dragging")).toBe(false);
+    expect(document.activeElement).toBe(focusSentinel);
+    expect(view.dom.querySelector(".cm-md-table-cell-content:focus")).toBeNull();
+    expect(view.dom.querySelector<HTMLElement>(".po-editable-table-selection-outline")?.hidden).toBe(true);
     expect(source(view).split("\n")[2]).toMatch(/^\| four\s+\| five\s+\| six\s+\|$/);
     expect(source(view).split("\n")[3]).toMatch(/^\| one\s+\| two\s+\| three\s+\|$/);
   });

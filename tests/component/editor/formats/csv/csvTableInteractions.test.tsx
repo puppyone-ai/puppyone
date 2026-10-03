@@ -626,6 +626,8 @@ describe("CSV table interactions", () => {
     expect(rowHandle.getAttribute("aria-expanded")).toBe("true");
     expect(rowHandle.classList.contains("is-pressed")).toBe(false);
     expect(rowHandle.classList.contains("is-menu-active")).toBe(true);
+    expect((menu as HTMLElement).style.left).toBe("92px");
+    expect((menu as HTMLElement).style.top).toBe("164px");
 
     const moveDown = findButton("Move row down");
     await act(async () => {
@@ -634,6 +636,8 @@ describe("CSV table interactions", () => {
     });
     expect(latestSnapshot).toBe("Name,Score\nLin,2\nAda,1");
     expect(document.querySelector(".csv-table-editor__context-menu")).toBeNull();
+    expect((document.activeElement as HTMLInputElement | null)?.dataset.csvRow).toBe("2");
+    expect((document.activeElement as HTMLInputElement | null)?.dataset.csvColumn).toBe("0");
   });
 
   it("docks the row handle inside the frozen gutter before the viewport clips it", () => {
@@ -735,8 +739,11 @@ describe("CSV table interactions", () => {
     expect(findButton("Insert row below")).toBeNull();
   });
 
-  it("drags rows and columns using midpoint drop boundaries", async () => {
+  it("drags rows and columns without synthesizing a first-cell edit selection", async () => {
     let geometry = mockTableGeometry();
+    const activeInput = geometry.firstBodyCell.querySelector<HTMLInputElement>("input")!;
+    act(() => activeInput.focus());
+    expect(document.activeElement).toBe(activeInput);
     act(() => geometry.firstRecordIndexCell.dispatchEvent(new PointerEvent("pointerover", { bubbles: true })));
     const rowHandle = container?.querySelector<HTMLButtonElement>(".csv-table-editor__row-handle");
     if (!rowHandle) throw new Error("CSV row handle did not mount.");
@@ -753,8 +760,14 @@ describe("CSV table interactions", () => {
     expect(latestSnapshot).toBe("Name,Score\nLin,2\nAda,1");
     expect(rowHandle.classList.contains("is-pressed")).toBe(false);
     expect(rowHandle.classList.contains("is-dragging")).toBe(false);
+    expect(document.activeElement).not.toBeInstanceOf(HTMLInputElement);
+    expect(container?.querySelector("input:focus")).toBeNull();
+    expect(container?.querySelector<HTMLElement>(".po-editable-table-selection-outline")?.hidden).toBe(true);
 
     geometry = mockTableGeometry();
+    const focusSentinel = document.createElement("button");
+    document.body.appendChild(focusSentinel);
+    focusSentinel.focus();
     act(() => geometry.firstBodyCell.dispatchEvent(new PointerEvent("pointerover", { bubbles: true })));
     const columnHandle = container?.querySelector<HTMLButtonElement>(".csv-table-editor__column-handle");
     if (!columnHandle) throw new Error("CSV column handle did not mount.");
@@ -769,6 +782,9 @@ describe("CSV table interactions", () => {
     expect(latestSnapshot).toBe("Score,Name\n2,Lin\n1,Ada");
     expect(columnHandle.classList.contains("is-pressed")).toBe(false);
     expect(columnHandle.classList.contains("is-dragging")).toBe(false);
+    expect(document.activeElement).toBe(focusSentinel);
+    expect(container?.querySelector("input:focus")).toBeNull();
+    expect(container?.querySelector<HTMLElement>(".po-editable-table-selection-outline")?.hidden).toBe(true);
   });
 });
 

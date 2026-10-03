@@ -32,6 +32,7 @@ export type MarkdownTableCellDraft = {
 export function dispatchMarkdownTableStructureOperation(
   context: MarkdownTableDispatchContext,
   operation: MarkdownTableStructureOperation,
+  options: Readonly<{ focus?: "operation-target" | "preserve" }> = {},
 ) {
   closeActiveMarkdownTableMenu();
   const result = applyMarkdownTableOperation({
@@ -53,9 +54,12 @@ export function dispatchMarkdownTableStructureOperation(
         Math.max(1, context.alignments.length),
       ),
     });
+  const restoreOperationFocus = options.focus !== "preserve";
   const effects = [
     continuity,
-    result.focus ? requestMarkdownTableFocus(context.tableFrom, result.focus) : null,
+    restoreOperationFocus && result.focus
+      ? requestMarkdownTableFocus(context.tableFrom, result.focus)
+      : null,
   ].filter((effect) => effect !== null);
 
   context.view.dispatch({
@@ -64,10 +68,10 @@ export function dispatchMarkdownTableStructureOperation(
       to: context.tableTo,
       insert: result.replacement,
     },
-    selection: EditorSelection.cursor(context.tableFrom),
+    selection: restoreOperationFocus ? EditorSelection.cursor(context.tableFrom) : undefined,
     effects: effects.length > 0 ? effects : undefined,
   });
-  if (!result.focus) context.view.focus();
+  if (restoreOperationFocus && !result.focus) context.view.focus();
 }
 
 export function getMarkdownTableInlineSequenceChange(

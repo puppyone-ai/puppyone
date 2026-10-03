@@ -139,6 +139,13 @@ const api = {
       editorSelection: kind === "markdown" ? { focused: EditorView.findFromDOM(document.querySelector("#markdown .cm-editor")!)!.hasFocus, selection: EditorView.findFromDOM(document.querySelector("#markdown .cm-editor")!)!.state.selection.toJSON(), active: document.activeElement?.className } : null,
       target: target ? boxes(target) : null, axis: outline.dataset.axis, markdown, csvSource: csvPort?.readSnapshot().content };
   },
+  menuPlacement(kind: string, axis: string) {
+    const menu = document.querySelector<HTMLElement>(kind === "markdown"
+      ? ".cm-md-table-context-menu"
+      : ".csv-table-editor__context-menu")!;
+    const grip = document.querySelector<HTMLElement>(`#${kind} .po-editable-table-${axis}-handle .po-editable-table-drag-handle-visual`)!;
+    return { menu: boxes(menu), grip: boxes(grip) };
+  },
   menuMetrics() {
     const menu = document.querySelector<HTMLElement>(".cm-md-table-context-menu")!;
     const css = getComputedStyle(menu);

@@ -185,10 +185,10 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
     const rect = anchor.getBoundingClientRect();
     let nextMenu: HTMLElement | null = null;
     nextMenu = showMarkdownTableContextMenu(dispatchContext, {
-      clientX: kind === "row"
-        ? localization.direction === "rtl" ? rect.left - 4 : rect.right + 4
-        : rect.left,
-      clientY: kind === "row" ? rect.top : rect.bottom + 4,
+      // Both horizontal toolbars open below their visible grip. A row menu
+      // beside the grip obscures the selected row and its destination context.
+      clientX: rect.left,
+      clientY: rect.bottom + 4,
       columnCount: context.columnCount,
       columnIndex: kind === "column" ? sourceIndex : hover.columnIndex ?? 0,
       onClose: () => {
@@ -371,7 +371,7 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
           rowIndex: hover.rowIndex ?? 0,
           columnIndex: sourceIndex,
           targetColumnIndex,
-        });
+        }, { focus: "preserve" });
         return;
       }
       const sourceBodyIndex = sourceIndex - 1;
@@ -382,7 +382,7 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
         rowIndex: sourceIndex,
         columnIndex: hover.columnIndex ?? 0,
         targetRowIndex: targetBodyIndex + 1,
-      });
+      }, { focus: "preserve" });
     };
 
     const cleanup = ({ preserveSourceHighlight = false }: { preserveSourceHighlight?: boolean } = {}) => {

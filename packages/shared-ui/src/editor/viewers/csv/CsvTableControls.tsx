@@ -26,7 +26,10 @@ type CsvTableControlsProps = Readonly<{
   headerEnabled: boolean;
   locale: string;
   onAutoFitColumn: (columnIndex: number) => void;
-  onOperation: (operation: CsvTableStructureOperation) => void;
+  onOperation: (
+    operation: CsvTableStructureOperation,
+    focus?: "operation-target" | "preserve",
+  ) => void;
   rowCount: number;
   rowNumbersVisible: boolean;
   surfaceRef: RefObject<HTMLDivElement>;
@@ -261,10 +264,12 @@ export function CsvTableControls({
         ? getColumnCell(sourceIndex)?.getBoundingClientRect()
         : null;
       const nextTarget: CsvTableMenuTarget = {
-        clientX: kind === "row"
-          ? direction === "rtl" ? rect.left - 4 : rect.right + 4
-          : rect.left,
-        clientY: kind === "row" ? rect.top : (dockedColumnCellRect?.bottom ?? rect.bottom) + 4,
+        // Keep horizontal action rows below the visible grip instead of
+        // covering the row whose structure they describe.
+        clientX: rect.left,
+        clientY: kind === "column"
+          ? (dockedColumnCellRect?.bottom ?? rect.bottom) + 4
+          : rect.bottom + 4,
         columnIndex: kind === "column" ? sourceIndex : crossColumn,
         kind,
         menuId: `csv-table-menu-${++menuSequenceRef.current}`,
@@ -435,7 +440,7 @@ export function CsvTableControls({
             rowIndex: hoverRef.current.rowIndex ?? firstMovableRow,
             columnIndex: sourceIndex,
             targetColumnIndex,
-          });
+          }, "preserve");
           return;
         }
         const bodyRows = getBodyRows();
@@ -451,7 +456,7 @@ export function CsvTableControls({
           rowIndex: sourceIndex,
           columnIndex: hoverRef.current.columnIndex ?? 0,
           targetRowIndex,
-        });
+        }, "preserve");
       };
       const cleanup = (preserveSourceHighlight = false) => {
         if (activeDragCleanupRef.current !== cleanup) return;

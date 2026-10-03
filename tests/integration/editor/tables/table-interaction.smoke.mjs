@@ -150,6 +150,12 @@ app.whenReady().then(async () => {
           window.webContents.sendInputEvent({ type: "mouseUp", button: "left", clickCount: 1, ...handle });
           await wait();
           const selected = await metrics();
+          const placement = await evaluate(`window.tableFixture.menuPlacement('${kind}', '${axis}')`);
+          if (axis === "row") {
+            near(placement.menu.x, placement.grip.x, `${kind} row menu must align with the grip's inline start`);
+            assert(placement.menu.y >= placement.grip.y + placement.grip.height + 3,
+              `${kind} row menu must open below the grip instead of beside the selected row`);
+          }
           assertActiveHandle(selected, axis, `${kind} ${axis} menu-open`);
           assert.equal(selected.handleStates.find(handle => handle.axis === axis).pressed, false);
           assert.equal(selected.handleStates.find(handle => handle.axis === axis).menuActive, true);
