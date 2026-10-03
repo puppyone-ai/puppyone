@@ -396,6 +396,7 @@ export function CsvTableControls({
       hoverRef.current.dragging = true;
       positionHandles();
       handle.setPointerCapture?.(pointerId);
+      handle.classList.add("is-pressed");
       setCsvTableSourceHighlight(table, kind, sourceIndex, true, selection);
 
       const beginVisualDrag = () => {
@@ -404,6 +405,7 @@ export function CsvTableControls({
         surface.classList.add("is-table-dragging");
       };
       const onPointerMove = (moveEvent: PointerEvent) => {
+        if (moveEvent.pointerId !== pointerId) return;
         moveEvent.preventDefault();
         moveEvent.stopPropagation();
         if (!moved) {
@@ -455,18 +457,21 @@ export function CsvTableControls({
         if (activeDragCleanupRef.current !== cleanup) return;
         activeDragCleanupRef.current = null;
         hoverRef.current.dragging = false;
-        handle.classList.remove("is-dragging");
+        handle.classList.remove("is-pressed", "is-dragging");
         surface.classList.remove("is-table-dragging");
         dropIndicator.hidden = true;
         if (!preserveSourceHighlight) setCsvTableSourceHighlight(table, kind, sourceIndex, false, selection);
-        if (handle.hasPointerCapture?.(pointerId)) handle.releasePointerCapture?.(pointerId);
         handle.removeEventListener("pointermove", onPointerMove);
         handle.removeEventListener("pointerup", onPointerUp);
         handle.removeEventListener("pointercancel", onPointerCancel);
+        handle.removeEventListener("lostpointercapture", onLostPointerCapture);
         table.ownerDocument.removeEventListener("keydown", onKeyDown, true);
+        table.ownerDocument.defaultView?.removeEventListener("blur", onBlur);
+        if (handle.hasPointerCapture?.(pointerId)) handle.releasePointerCapture?.(pointerId);
         if (!disposed) positionHandles();
       };
       const onPointerUp = (upEvent: PointerEvent) => {
+        if (upEvent.pointerId !== pointerId) return;
         upEvent.preventDefault();
         upEvent.stopPropagation();
         const shouldApply = moved;
@@ -475,6 +480,7 @@ export function CsvTableControls({
         else openMenu(kind, sourceIndex, handle);
       };
       const onPointerCancel = (cancelEvent: PointerEvent) => {
+        if (cancelEvent.pointerId !== pointerId) return;
         cancelEvent.preventDefault();
         cancelEvent.stopPropagation();
         cleanup();
@@ -486,11 +492,18 @@ export function CsvTableControls({
         cleanup();
       };
 
+      const onLostPointerCapture = (captureEvent: PointerEvent) => {
+        if (captureEvent.pointerId === pointerId) cleanup();
+      };
+      const onBlur = () => cleanup();
+
       activeDragCleanupRef.current = cleanup;
       handle.addEventListener("pointermove", onPointerMove);
       handle.addEventListener("pointerup", onPointerUp);
       handle.addEventListener("pointercancel", onPointerCancel);
+      handle.addEventListener("lostpointercapture", onLostPointerCapture);
       table.ownerDocument.addEventListener("keydown", onKeyDown, true);
+      table.ownerDocument.defaultView?.addEventListener("blur", onBlur);
     };
     startDragRef.current = startDrag;
 

@@ -538,6 +538,67 @@ describe("CSV table interactions", () => {
     expect(onPreviewChange).toHaveBeenLastCalledWith(null);
   });
 
+  it.each(["pointercancel", "Escape", "lostpointercapture", "blur"])(
+    "clears pressed and drag highlighting on %s without changing CSV or opening a menu",
+    (reason) => {
+      const geometry = mockTableGeometry();
+      const original = latestSnapshot;
+      for (const axis of ["column", "row"]) {
+        for (const moved of [false, true]) {
+          act(() => geometry.firstBodyCell.dispatchEvent(new PointerEvent("pointerover", { bubbles: true })));
+          const handle = container!.querySelector<HTMLButtonElement>(`.csv-table-editor__${axis}-handle`)!;
+          const outline = container!.querySelector<HTMLElement>(".po-editable-table-selection-outline")!;
+          makePointerCaptureSafe(handle);
+          act(() => handle.dispatchEvent(pointerEvent("pointerdown", 118, 145, 41)));
+          expect(handle.classList.contains("is-pressed")).toBe(true);
+          expect(outline.hidden).toBe(false);
+          act(() => {
+            for (const type of ["pointermove", "pointerup", "pointercancel", "lostpointercapture"]) {
+              handle.dispatchEvent(pointerEvent(type, 180, 181, 42));
+            }
+          });
+          expect(handle.classList.contains("is-pressed")).toBe(true);
+          expect(handle.classList.contains("is-dragging")).toBe(false);
+          if (moved) {
+            act(() => handle.dispatchEvent(pointerEvent("pointermove", 180, 181, 41)));
+            expect(handle.classList.contains("is-dragging")).toBe(true);
+            expect(handle.classList.contains("is-pressed")).toBe(true);
+          }
+          act(() => {
+            if (reason === "Escape") document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+            else if (reason === "blur") window.dispatchEvent(new Event("blur"));
+            else handle.dispatchEvent(pointerEvent(reason, 180, 181, 41));
+          });
+          expect(handle.classList.contains("is-pressed")).toBe(false);
+          expect(handle.classList.contains("is-dragging")).toBe(false);
+          expect(outline.hidden).toBe(true);
+          act(() => handle.dispatchEvent(pointerEvent("pointerup", 180, 181, 41)));
+          expect(document.querySelector(".csv-table-editor__context-menu")).toBeNull();
+          expect(latestSnapshot).toBe(original);
+          expect(changeCount).toBe(0);
+        }
+      }
+    },
+  );
+
+  it.each(["column", "row"])("cleans up a pressed %s handle when its provider unmounts", (axis) => {
+    const geometry = mockTableGeometry();
+    act(() => geometry.firstBodyCell.dispatchEvent(new PointerEvent("pointerover", { bubbles: true })));
+    const handle = container!.querySelector<HTMLButtonElement>(`.csv-table-editor__${axis}-handle`)!;
+    makePointerCaptureSafe(handle);
+    act(() => handle.dispatchEvent(pointerEvent("pointerdown", 118, 145, 41)));
+    expect(handle.classList.contains("is-pressed")).toBe(true);
+    const removeHandleListener = vi.spyOn(handle, "removeEventListener");
+    const removeWindowListener = vi.spyOn(window, "removeEventListener");
+    act(() => root?.unmount());
+    root = null;
+    expect(handle.classList.contains("is-pressed")).toBe(false);
+    expect(removeHandleListener).toHaveBeenCalledWith("lostpointercapture", expect.any(Function));
+    expect(removeWindowListener).toHaveBeenCalledWith("blur", expect.any(Function));
+    expect(document.querySelector(".csv-table-editor__context-menu")).toBeNull();
+    expect(changeCount).toBe(0);
+  });
+
   it("opens a row-scoped menu from the same hover handle used for dragging", async () => {
     const geometry = mockTableGeometry();
     act(() => geometry.firstRecordIndexCell.dispatchEvent(new PointerEvent("pointerover", { bubbles: true })));
@@ -553,6 +614,8 @@ describe("CSV table interactions", () => {
 
     await act(async () => {
       rowHandle.dispatchEvent(pointerEvent("pointerdown", 98, 145, 7));
+      expect(rowHandle.classList.contains("is-pressed")).toBe(true);
+      expect(container?.querySelector<HTMLElement>(".po-editable-table-selection-outline")?.hidden).toBe(false);
       rowHandle.dispatchEvent(pointerEvent("pointerup", 98, 145, 7));
       await Promise.resolve();
     });
@@ -561,6 +624,8 @@ describe("CSV table interactions", () => {
     expect(menu).not.toBeNull();
     expect(menu?.querySelectorAll('[role="menuitem"]')).toHaveLength(6);
     expect(rowHandle.getAttribute("aria-expanded")).toBe("true");
+    expect(rowHandle.classList.contains("is-pressed")).toBe(false);
+    expect(rowHandle.classList.contains("is-menu-active")).toBe(true);
 
     const moveDown = findButton("Move row down");
     await act(async () => {
@@ -680,10 +745,14 @@ describe("CSV table interactions", () => {
     await act(async () => {
       rowHandle.dispatchEvent(pointerEvent("pointerdown", 118, 145, 9));
       rowHandle.dispatchEvent(pointerEvent("pointermove", 118, 181, 9));
+      expect(rowHandle.classList.contains("is-pressed")).toBe(true);
+      expect(rowHandle.classList.contains("is-dragging")).toBe(true);
       rowHandle.dispatchEvent(pointerEvent("pointerup", 118, 181, 9));
       await Promise.resolve();
     });
     expect(latestSnapshot).toBe("Name,Score\nLin,2\nAda,1");
+    expect(rowHandle.classList.contains("is-pressed")).toBe(false);
+    expect(rowHandle.classList.contains("is-dragging")).toBe(false);
 
     geometry = mockTableGeometry();
     act(() => geometry.firstBodyCell.dispatchEvent(new PointerEvent("pointerover", { bubbles: true })));
@@ -698,6 +767,8 @@ describe("CSV table interactions", () => {
       await Promise.resolve();
     });
     expect(latestSnapshot).toBe("Score,Name\n2,Lin\n1,Ada");
+    expect(columnHandle.classList.contains("is-pressed")).toBe(false);
+    expect(columnHandle.classList.contains("is-dragging")).toBe(false);
   });
 });
 

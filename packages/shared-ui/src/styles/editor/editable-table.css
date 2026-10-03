@@ -90,7 +90,9 @@
   background: var(--po-editable-table-handle-background);
   color: var(--po-editable-table-handle-color);
   pointer-events: none;
-  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  /* Structural strokes and grip faces change in the same frame. Only idle
+     hover dots soften; never delay the pressed/selected color behind them. */
+  transition: color 120ms ease;
 }
 
 .po-editable-table-drag-handle:not(.is-visible) {
@@ -164,11 +166,13 @@
 }
 
 .po-editable-table-drag-handle:focus-visible .po-editable-table-drag-handle-visual,
+.po-editable-table-drag-handle.is-pressed .po-editable-table-drag-handle-visual,
 .po-editable-table-drag-handle.is-menu-active .po-editable-table-drag-handle-visual,
 .po-editable-table-drag-handle.is-dragging .po-editable-table-drag-handle-visual {
   border-color: var(--po-editable-table-selection-border);
   background: var(--po-editable-table-selection-border);
   color: #ffffff;
+  transition: none;
 }
 
 .po-editable-table-drag-handle:focus-visible {

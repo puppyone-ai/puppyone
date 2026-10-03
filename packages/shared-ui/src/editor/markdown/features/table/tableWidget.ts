@@ -312,7 +312,6 @@ export class MarkdownTableWidget extends WidgetType {
     const dragLayer = createMarkdownTableDragLayer({
       alignments: this.alignments,
       columnCount,
-      columnLayout,
       inlineViewport,
       rows: this.rows,
       table,

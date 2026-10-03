@@ -20,12 +20,10 @@ import {
   getEditableTableDropBoundary,
 } from "../../../table/editableTableDrag";
 import type { MarkdownTableInlineViewportController } from "./tableInlineViewportController";
-import type { MarkdownTableColumnLayoutController } from "./tableColumnLayoutController";
 
 export type MarkdownTableDragHandleContext = {
   alignments: readonly MarkdownTableAlignment[];
   columnCount: number;
-  columnLayout: MarkdownTableColumnLayoutController | null;
   inlineViewport: MarkdownTableInlineViewportController;
   rows: readonly MarkdownTableRow[];
   table: HTMLTableElement;
@@ -193,13 +191,6 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
       clientY: kind === "row" ? rect.top : rect.bottom + 4,
       columnCount: context.columnCount,
       columnIndex: kind === "column" ? sourceIndex : hover.columnIndex ?? 0,
-      layoutActions: kind === "column" && context.columnLayout
-        ? {
-            autoFitColumn: () => context.columnLayout?.autoFitColumn(sourceIndex),
-            fitToViewport: () => context.columnLayout?.fitToViewport(),
-            resetColumnWidths: () => context.columnLayout?.resetColumnWidths(),
-          }
-        : undefined,
       onClose: () => {
         setDragSourceHighlight(kind, sourceIndex, false);
         handle.classList.remove("is-menu-active");
@@ -324,6 +315,7 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
     positionHandles();
     setInteractionPinnedRow(kind === "row" ? sourceIndex : hover.rowIndex);
     handle.setPointerCapture(pointerId);
+    handle.classList.add("is-pressed");
     setDragSourceHighlight(kind, sourceIndex, true);
 
     const beginVisualDrag = () => {
@@ -351,6 +343,7 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
     };
 
     const onPointerMove = (moveEvent: PointerEvent) => {
+      if (moveEvent.pointerId !== pointerId) return;
       moveEvent.preventDefault();
       moveEvent.stopPropagation();
       if (!moved) {
@@ -396,21 +389,24 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
       if (activeDragCleanup !== cleanup) return;
       activeDragCleanup = null;
       hover.dragging = false;
-      handle.classList.remove("is-dragging");
+      handle.classList.remove("is-pressed", "is-dragging");
       context.wrapper.classList.remove("is-table-dragging");
       context.inlineViewport.stopDragAutoScroll();
       setInteractionPinnedRow(null);
       dropIndicator.hidden = true;
       if (!preserveSourceHighlight) setDragSourceHighlight(kind, sourceIndex, false);
-      if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId);
       handle.removeEventListener("pointermove", onPointerMove);
       handle.removeEventListener("pointerup", onPointerUp);
       handle.removeEventListener("pointercancel", onPointerCancel);
+      handle.removeEventListener("lostpointercapture", onLostPointerCapture);
       doc.removeEventListener("keydown", onKeyDown, true);
+      doc.defaultView?.removeEventListener("blur", onBlur);
+      if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId);
       if (!disposed) positionHandles();
     };
 
     const onPointerUp = (upEvent: PointerEvent) => {
+      if (upEvent.pointerId !== pointerId) return;
       upEvent.preventDefault();
       upEvent.stopPropagation();
       const shouldApply = moved;
@@ -423,6 +419,7 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
     };
 
     const onPointerCancel = (cancelEvent: PointerEvent) => {
+      if (cancelEvent.pointerId !== pointerId) return;
       cancelEvent.preventDefault();
       cancelEvent.stopPropagation();
       cleanup();
@@ -435,11 +432,18 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
       cleanup();
     };
 
+    const onLostPointerCapture = (captureEvent: PointerEvent) => {
+      if (captureEvent.pointerId === pointerId) cleanup();
+    };
+    const onBlur = () => cleanup();
+
     activeDragCleanup = cleanup;
     handle.addEventListener("pointermove", onPointerMove);
     handle.addEventListener("pointerup", onPointerUp);
     handle.addEventListener("pointercancel", onPointerCancel);
+    handle.addEventListener("lostpointercapture", onLostPointerCapture);
     doc.addEventListener("keydown", onKeyDown, true);
+    doc.defaultView?.addEventListener("blur", onBlur);
   };
 
   const bindHandle = (handle: HTMLButtonElement, kind: MarkdownTableDragKind) => {

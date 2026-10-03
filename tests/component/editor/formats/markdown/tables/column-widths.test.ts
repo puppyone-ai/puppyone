@@ -31,7 +31,7 @@ describe("Markdown table EditorView interactions", () => {
       .map((column) => column.style.width)).toEqual(widths);
   });
 
-  it("caps compact initial tracks at 220px", () => {
+  it("caps initial tracks at 220px and preserves double-click auto-fit outside the compact menu", () => {
     const view = createTableView([
       `| ${"wide ".repeat(80)} | B |`,
       "| --- | --- |",
@@ -65,12 +65,11 @@ describe("Markdown table EditorView interactions", () => {
       button: 0,
       pointerId: 30,
     }));
-    Array.from(document.querySelectorAll<HTMLButtonElement>(
-      ".cm-md-table-context-menu button",
-    )).find((button) => button.textContent?.includes("Reset column widths"))?.click();
+    const menu = document.querySelector<HTMLElement>(".cm-md-table-context-menu")!;
+    expect(menu.textContent).not.toMatch(/Auto fit column|Fit columns to viewport|Reset column widths/);
     expect(view.dom.querySelector<HTMLTableColElement>(
       '.cm-md-table-widget col[data-md-table-column="0"]',
-    )?.style.width).toBe("220px");
+    )?.style.width).toBe("280px");
   });
 
   it("keeps a user-resized track stable across content commits and reopening", () => {

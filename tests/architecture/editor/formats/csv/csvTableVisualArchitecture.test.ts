@@ -175,10 +175,17 @@ describe("CSV table visual architecture", () => {
       const rule = css.match(new RegExp(`\\.${selector}\\s*\\{([^}]*)\\}`, "s"))?.[1];
       expect(rule).toContain("border-radius: var(--po-editable-table-radius);");
     }
-    // Focus, open menus, and dragging still use the structural-selection cue.
+    // Pressed, focused, menu-open and dragging states use the exact same
+    // selection stroke, immediately rather than an independent color fade.
     expect(sharedTableCss).toMatch(
-      /\.po-editable-table-drag-handle:focus-visible[^}]*\.is-menu-active[^}]*\.is-dragging[^}]*\{[^}]*border-color:\s*var\(--po-editable-table-selection-border\)[^}]*background:\s*var\(--po-editable-table-selection-border\)/s,
+      /\.po-editable-table-drag-handle:focus-visible[^}]*\.is-pressed[^}]*\.is-menu-active[^}]*\.is-dragging[^}]*\{[^}]*border-color:\s*var\(--po-editable-table-selection-border\)[^}]*background:\s*var\(--po-editable-table-selection-border\)[^}]*transition:\s*none/s,
     );
+    const gripRule = sharedTableCss.match(/\.po-editable-table-drag-handle-visual\s*\{([^}]*)\}/s)?.[1];
+    expect(gripRule).not.toMatch(/transition:\s*(?:background|border-color)/);
+    const markdownMenuRule = markdownTableCss.match(/\.cm-md-table-context-menu\.desktop-menu-surface\s*\{([^}]*)\}/s)?.[1];
+    expect(markdownMenuRule).toContain("width: max-content;");
+    expect(markdownMenuRule).toContain("min-width: 0;");
+    expect(markdownTableCss).not.toContain(".cm-md-table-context-menu .desktop-menu-section-label");
   });
 
   it("assigns the two-axis CSV viewport to exactly one scroll owner", () => {

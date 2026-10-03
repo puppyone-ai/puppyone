@@ -125,10 +125,41 @@ const api = {
           backgroundColor: css.backgroundColor, backgroundImage: css.backgroundImage,
           backgroundAlpha: colorAlpha(css.backgroundColor), backgroundClip: css.backgroundClip };
       }),
-      outline: outline.hidden ? null : boxes(outline), outlineBorder: getComputedStyle(outline).borderTopWidth, blockSelected: element.closest(".cm-md-table-widget-wrap")?.classList.contains("is-doc-selected") ?? false,
+      handleStates: [...document.querySelectorAll<HTMLElement>(`#${kind} .po-editable-table-drag-handle`)].map(handle => {
+        const css = getComputedStyle(handle.querySelector(".po-editable-table-drag-handle-visual")!);
+        return { axis: handle.classList.contains("po-editable-table-column-handle") ? "column" : "row",
+          pressed: handle.classList.contains("is-pressed"), dragging: handle.classList.contains("is-dragging"),
+          menuActive: handle.classList.contains("is-menu-active"), background: css.backgroundColor,
+          border: css.borderTopColor, color: css.color, backgroundAlpha: colorAlpha(css.backgroundColor),
+          transitionDuration: css.transitionDuration };
+      }),
+      outline: outline.hidden ? null : boxes(outline), outlineBorder: getComputedStyle(outline).borderTopWidth,
+      outlineColor: getComputedStyle(outline).borderTopColor, blockSelected: element.closest(".cm-md-table-widget-wrap")?.classList.contains("is-doc-selected") ?? false,
       tableShadow: style.boxShadow,
       editorSelection: kind === "markdown" ? { focused: EditorView.findFromDOM(document.querySelector("#markdown .cm-editor")!)!.hasFocus, selection: EditorView.findFromDOM(document.querySelector("#markdown .cm-editor")!)!.state.selection.toJSON(), active: document.activeElement?.className } : null,
       target: target ? boxes(target) : null, axis: outline.dataset.axis, markdown, csvSource: csvPort?.readSnapshot().content };
+  },
+  menuMetrics() {
+    const menu = document.querySelector<HTMLElement>(".cm-md-table-context-menu")!;
+    const css = getComputedStyle(menu);
+    const rowWidths = [...menu.querySelectorAll(".desktop-menu-section-list")].map(row => {
+      const buttons = row.querySelectorAll("button");
+      return buttons[buttons.length - 1].getBoundingClientRect().right - buttons[0].getBoundingClientRect().left;
+    });
+    return { bounds: boxes(menu), viewport: { width: innerWidth, height: innerHeight },
+      requiredWidth: Math.max(...rowWidths) + parseFloat(css.paddingLeft) + parseFloat(css.paddingRight)
+        + parseFloat(css.borderLeftWidth) + parseFloat(css.borderRightWidth),
+      headings: menu.querySelectorAll(".desktop-menu-section-label").length,
+      buttons: menu.querySelectorAll("button").length,
+      groups: [...menu.querySelectorAll('[role="group"]')].map(group => group.getAttribute("aria-label")),
+      radios: [...menu.querySelectorAll('[role="menuitemradio"]')].map(button => ({
+        label: button.getAttribute("aria-label"), checked: button.getAttribute("aria-checked"),
+      })) };
+  },
+  openMenuAtEdge() {
+    input("markdown").dispatchEvent(new MouseEvent("contextmenu", {
+      bubbles: true, cancelable: true, clientX: innerWidth - 1, clientY: innerHeight - 1,
+    }));
   },
   selectText(kind: string) {
     const element = input(kind); element.focus();
