@@ -151,10 +151,10 @@ describe("CSV table visual architecture", () => {
     );
   });
 
-  it("softens row and column handles with grid-border fill and a subtly lighter rim", () => {
+  it("gives row and column handles an opaque grid-border fill and a subtly lighter rim", () => {
     expect(sharedTableCss).toContain("--po-editable-table-handle-radius: 2px;");
-    expect(sharedTableCss).toContain(
-      "--po-editable-table-handle-background: var(--po-editable-table-border);",
+    expect(sharedTableCss).toMatch(
+      /--po-editable-table-handle-background:\s*linear-gradient\(var\(--po-editable-table-border\), var\(--po-editable-table-border\)\) padding-box,\s*var\(--po-editor-bg\) border-box;/s,
     );
     expect(sharedTableCss).toContain(
       "--po-editable-table-handle-border: color-mix(in srgb, var(--po-editable-table-border) 88%, #ffffff 12%);",

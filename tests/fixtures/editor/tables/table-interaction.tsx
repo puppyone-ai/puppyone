@@ -60,6 +60,15 @@ const cell = (kind: string) => table(kind).querySelector<HTMLElement>(kind === "
 const input = (kind: string) => cell(kind).querySelector<HTMLElement>(kind === "markdown" ? "[contenteditable]" : "input")!;
 const boxes = (element: Element) => { const { x, y, width, height } = element.getBoundingClientRect(); return { x, y, width, height }; };
 const wait = () => new Promise(resolve => setTimeout(resolve, 150));
+const colorCanvas = document.createElement("canvas");
+colorCanvas.width = colorCanvas.height = 1;
+const colorContext = colorCanvas.getContext("2d", { willReadFrequently: true })!;
+const colorAlpha = (color: string) => {
+  colorContext.clearRect(0, 0, 1, 1);
+  colorContext.fillStyle = color;
+  colorContext.fillRect(0, 0, 1, 1);
+  return colorContext.getImageData(0, 0, 1, 1).data[3];
+};
 const api = {
   async ready() {
     for (let i = 0; i < 300 && (!table("markdown") || !table("csv")); i++) await new Promise(resolve => setTimeout(resolve, 20));
@@ -108,7 +117,8 @@ const api = {
       gripStyles: [...document.querySelectorAll(`#${kind} .po-editable-table-drag-handle-visual`)].map(handle => {
         const css = getComputedStyle(handle);
         return { radius: css.borderRadius, border: css.borderTopWidth, borderColor: css.borderTopColor,
-          backgroundColor: css.backgroundColor, backgroundImage: css.backgroundImage };
+          backgroundColor: css.backgroundColor, backgroundImage: css.backgroundImage,
+          backgroundAlpha: colorAlpha(css.backgroundColor), backgroundClip: css.backgroundClip };
       }),
       outline: outline.hidden ? null : boxes(outline), outlineBorder: getComputedStyle(outline).borderTopWidth, blockSelected: element.closest(".cm-md-table-widget-wrap")?.classList.contains("is-doc-selected") ?? false,
       tableShadow: style.boxShadow,
