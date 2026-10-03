@@ -1,7 +1,7 @@
 {
-  "home.group.both": "로컬 + 클라우드",
-  "home.group.cloud": "클라우드",
-  "home.group.local": "로컬",
+  "home.location.linked": "로컬 + 클라우드",
+  "home.location.cloud": "클라우드",
+  "home.location.local": "로컬",
   "home.cloud": "클라우드",
   "home.openLocal": "{project} 로컬에서 열기",
   "home.openCloud": "{project} 클라우드에서 열기",

@@ -427,30 +427,45 @@
   width: 100%;
 }
 
-.onboarding-project-group {
-  margin: 14px 8px 4px;
-  color: var(--po-text-subtle);
-  font-size: var(--po-text-size-hint, 12px);
-  font-weight: 500;
+.onboarding-project-icon {
+  position: relative;
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
 }
 
-.onboarding-project-group:first-child {
-  margin-top: 0;
+.onboarding-project-icon.is-cloud,
+.onboarding-project-cloud-badge,
+.desktop-menu-icon-button.onboarding-project-cloud {
+  color: var(--po-info);
+}
+
+.onboarding-project-cloud-badge {
+  position: absolute;
+  inset-inline-end: -4px;
+  inset-block-end: -3px;
+  fill: var(--po-surface);
 }
 
 .onboarding-project-cloud {
   position: absolute;
-  inset-inline-end: 38px;
+  inset-inline-end: 34px;
   top: 50%;
+  opacity: 0;
+  pointer-events: none;
   transform: translateY(-50%);
 }
 
-.onboarding-project-row-wrap.has-cloud .onboarding-project-row {
-  padding-inline-end: 112px;
+.onboarding-project-row-wrap:hover .onboarding-project-cloud,
+.onboarding-project-row-wrap:focus-within .onboarding-project-cloud {
+  opacity: 1;
+  pointer-events: auto;
 }
 
-.onboarding-project-row-wrap.has-cloud .desktop-menu-item-trailing {
-  display: none;
+.onboarding-project-row-wrap.has-cloud:hover .onboarding-project-row,
+.onboarding-project-row-wrap.has-cloud:focus-within .onboarding-project-row {
+  padding-inline-end: 66px;
 }
 
 .onboarding-cloud-status {
@@ -602,6 +617,7 @@
 }
 
 @media (hover: none) {
+  .onboarding-project-cloud,
   .onboarding-project-remove {
     opacity: 1;
     pointer-events: auto;

@@ -37,7 +37,7 @@ app.whenReady().then(async () => {
   await waitFor("document.querySelectorAll('[data-cloud-project-id]').length === 2");
   assert(await evaluate("!document.querySelector('[role=dialog]') && !document.querySelector('.desktop-cloud-home-entry')"), "Homepage must list Cloud projects without a browse button or picker");
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-  assert(await evaluate("document.querySelector('.onboarding-project-list').getBoundingClientRect().height > 70"), "Homepage project list must be visible");
+  assert(await evaluate("document.querySelector('.onboarding-project-list').getBoundingClientRect().height > 50"), "Homepage project list must be visible");
   await writeFile(path.join(artifacts, "catalog.png"), (await window.webContents.capturePage()).toPNG());
   await openProject("alpha");
   await waitFor("document.querySelector('.cm-content').textContent.includes('ALPHA_CLOUD_BODY')");
@@ -64,20 +64,22 @@ app.whenReady().then(async () => {
   await evaluate("document.querySelector('button[data-project-location=local]').click()");
   await waitFor("!window.__accountCloudSmoke.state().active && Boolean(document.querySelector('.onboarding-project-list'))");
   await evaluate("window.__accountCloudSmoke.showLocalFixtures()");
-  await waitFor("document.querySelectorAll('.onboarding-project-group').length === 3");
-  assert(await evaluate("document.querySelectorAll('[data-cloud-project-id=alpha]').length === 1 && Boolean(document.querySelector('[data-project-group=both] .onboarding-project-cloud'))"), "A confirmed local/Cloud project must occupy one row with an explicit Cloud action");
+  await waitFor("document.querySelectorAll('.onboarding-project-row-wrap').length === 7");
+  assert(await evaluate("!document.querySelector('.onboarding-project-group') && document.querySelectorAll('[data-cloud-project-id=alpha]').length === 1 && Boolean(document.querySelector('[data-project-location=linked] .onboarding-project-cloud-badge'))"), "One flat list must express linked projects through their folder/cloud icon, not section headings");
+  assert(await evaluate("[...document.querySelectorAll('.onboarding-project-row-wrap')].slice(0,3).map(row => row.querySelector('.desktop-menu-item-label').textContent).join('|') === 'Hosted beta|Local notes|Hosted alpha'"), "All locations must share one last-modified order");
+  assert(await evaluate("getComputedStyle(document.querySelector('[data-project-location=cloud]')).color !== getComputedStyle(document.querySelector('[data-project-location=local]')).color"), "The Cloud-only outline icon must use the semantic blue/info color");
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-  await writeFile(path.join(artifacts, "grouped-homepage.png"), (await window.webContents.capturePage()).toPNG());
+  await writeFile(path.join(artifacts, "flat-homepage.png"), (await window.webContents.capturePage()).toPNG());
   window.setSize(640, 520);
   await waitFor("innerWidth === 640 && innerHeight === 520");
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   assert(await evaluate(`(() => {
     const list = document.querySelector('.onboarding-project-list');
     const action = document.querySelector('.onboarding-project-cloud').getBoundingClientRect();
-    const row = document.querySelector('[data-project-group=both]').getBoundingClientRect();
+    const row = document.querySelector('[data-cloud-project-id=alpha]').getBoundingClientRect();
     return list.scrollHeight > list.clientHeight && action.left >= row.left && action.right <= row.right;
-  })()`), "Grouped projects must scroll and retain the explicit Cloud action at the minimum window size");
-  await writeFile(path.join(artifacts, "grouped-homepage-minimum.png"), (await window.webContents.capturePage()).toPNG());
+  })()`), "The flat project list must scroll and retain the explicit Cloud action at the minimum window size");
+  await writeFile(path.join(artifacts, "flat-homepage-minimum.png"), (await window.webContents.capturePage()).toPNG());
   assert(errors.length === 0, `Unexpected renderer errors: ${errors.join("; ")}`);
   const result = { passed: true, geometry, ...(await evaluate("window.__accountCloudSmoke.state()")), errors };
   await writeFile(path.join(artifacts, "result.json"), JSON.stringify(result, null, 2));

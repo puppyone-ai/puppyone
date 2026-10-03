@@ -5,7 +5,6 @@ import {
 import type { ProjectCloudContext } from "../project/context/projectCloudContext";
 import type { RepositoryTarget } from "../repositoryTarget";
 import { createCloudDataService } from "./cloudDataPort";
-import { rememberCloudProjectOpen } from "./homepageCloudHistory";
 
 type ResolvedContext = Extract<ProjectCloudContext, { status: "resolved" }>;
 type Selection = { authority: string; context: ResolvedContext };
@@ -71,7 +70,6 @@ export function useAccountCloudWorkspace({ enabled, session, apiBaseUrl }: {
       if (!isCurrent()) return;
       setSelection({ authority: captured.authority, context: resolved });
       setLocation("cloud");
-      rememberCloudProjectOpen(apiBaseUrl, captured.session.user_id, resolved.target);
     } catch {
       if (isCurrent()) setError("open");
     } finally { if (isCurrent()) setOpeningTarget(null); }
@@ -87,8 +85,7 @@ export function useAccountCloudWorkspace({ enabled, session, apiBaseUrl }: {
     cancel();
     setSelection({ authority: captured.authority, context: resolved });
     setLocation("cloud");
-    rememberCloudProjectOpen(apiBaseUrl, captured.session.user_id, resolved.target);
-  }, [apiBaseUrl, cancel]);
+  }, [cancel]);
   const useLocal = useCallback(() => { cancel(); setLocation("local"); }, [cancel]);
   return {
     active, context, openingTarget, opening: Boolean(openingTarget), error,

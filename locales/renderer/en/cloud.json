@@ -1,7 +1,7 @@
 {
-  "home.group.both": "Local + Cloud",
-  "home.group.cloud": "Cloud",
-  "home.group.local": "Local",
+  "home.location.linked": "Local project with Cloud version",
+  "home.location.cloud": "Cloud project",
+  "home.location.local": "Local project",
   "home.cloud": "Cloud",
   "home.openLocal": "Open {project} locally",
   "home.openCloud": "Open {project} in Cloud",

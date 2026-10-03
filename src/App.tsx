@@ -1455,7 +1455,6 @@ function AppContent() {
         onOpenWorkspacePath={openWorkspacePath}
         onRemoveProject={removeWorkspaceFromRecents}
         projectItems={homepageCloud.items}
-        groupedProjects={cloudEnabled && Boolean(activeCloudSession)}
         onOpenCloudProject={(projectId) => { cancelRepositoryCloudSwitch(); void accountCloud.openTarget({ kind: "project_root", project_id: projectId }); }}
         cloudOpening={accountCloud.opening}
         cloudStatus={cloudEnabled ? <HomepageCloudStatus status={homepageCloud.status} restoring={cloudSessionRestoring} empty={homepageCloud.items.length === 0}

@@ -213,10 +213,6 @@
   color: var(--po-warning);
 }
 
-.asset-library-project-group {
-  grid-column: 1 / -1;
-}
-
 .asset-library-home-grid {
   display: grid;
   min-width: 0;

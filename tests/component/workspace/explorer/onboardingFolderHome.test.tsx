@@ -304,7 +304,8 @@ describe("project folder home", () => {
     expect(projectFolder).not.toBeNull();
     expect(container.querySelector(".desktop-menu-item-label")?.textContent).toBe("Notes");
     expect(container.querySelector(".desktop-menu-item-detail")?.textContent).toBe("~/Desktop");
-    expect(container.querySelector(".desktop-menu-item-trailing")?.textContent).toContain("Previously opened");
+    // Opening history is not a project modification timestamp.
+    expect(container.querySelector(".desktop-menu-item-trailing")?.textContent ?? "").toBe("");
 
     await act(async () => container.querySelector<HTMLButtonElement>("[data-onboarding-action='open']")?.click());
     expect(onChooseWorkspace).toHaveBeenCalledTimes(1);

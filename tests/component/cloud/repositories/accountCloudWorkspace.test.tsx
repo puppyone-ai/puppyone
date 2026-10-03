@@ -305,7 +305,8 @@ describe("account-owned Cloud workspaces on the existing API", () => {
 
   it("does not fetch organizations or create or publish projects from the Homepage", async () => {
     await render({ homeVisible: true });
-    expect(bridge.mock.calls.map(([request]) => request.path)).toEqual(["/projects/?include_access_counts=false"]);
+    expect(bridge.mock.calls.every(([request]) => request.method === "GET"
+      && (request.path.startsWith("/projects/?") || request.path.includes("/commits?limit=1")))).toBe(true);
     expect(localWrite).not.toHaveBeenCalled();
   });
 });

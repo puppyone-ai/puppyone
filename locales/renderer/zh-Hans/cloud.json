@@ -1,7 +1,7 @@
 {
-  "home.group.both": "本地 + 云端",
-  "home.group.cloud": "云端",
-  "home.group.local": "本地",
+  "home.location.linked": "本地项目（已上云）",
+  "home.location.cloud": "云端项目",
+  "home.location.local": "本地项目",
   "home.cloud": "云端",
   "home.openLocal": "在本地打开 {project}",
   "home.openCloud": "在云端打开 {project}",
