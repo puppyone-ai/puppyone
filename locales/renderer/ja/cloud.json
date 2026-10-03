@@ -1,4 +1,12 @@
 {
+  "home.group.both": "ローカル + クラウド",
+  "home.group.cloud": "クラウド",
+  "home.group.local": "ローカル",
+  "home.cloud": "クラウド",
+  "home.openLocal": "{project} をローカルで開く",
+  "home.openCloud": "{project} をクラウドで開く",
+  "home.loading": "クラウドプロジェクトを読み込み中…",
+  "home.waitingForSignIn": "ブラウザーでサインインを完了してください…",
   "catalog.title": "クラウドプロジェクト",
   "catalog.browse": "クラウドプロジェクトを表示",
   "catalog.description": "アクセス可能なプロジェクトを開きます。ローカルリポジトリの変更や同期は行いません。",

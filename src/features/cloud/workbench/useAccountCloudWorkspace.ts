@@ -1,18 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  createCloudProject, getCloudRepositoryContext, listCloudOrganizations, listCloudProjects,
-  type DesktopCloudOrganization, type DesktopCloudProject, type DesktopCloudSession,
+  getCloudRepositoryContext, type DesktopCloudSession,
 } from "../../../lib/cloudApi";
 import type { ProjectCloudContext } from "../project/context/projectCloudContext";
 import type { RepositoryTarget } from "../repositoryTarget";
 import { createCloudDataService } from "./cloudDataPort";
+import { rememberCloudProjectOpen } from "./homepageCloudHistory";
 
 type ResolvedContext = Extract<ProjectCloudContext, { status: "resolved" }>;
 type Selection = { authority: string; context: ResolvedContext };
-type Catalog = { authority: string; projects: DesktopCloudProject[]; organizations: DesktopCloudOrganization[] };
 const LOCAL: ProjectCloudContext = { status: "local-only", projectId: null };
 
-/** Homepage catalog and hosted selection. Header association owns a separate direct-switch intent. */
+/** Hosted selection only. Homepage listing and Header association own separate navigation surfaces. */
 export function useAccountCloudWorkspace({ enabled, session, apiBaseUrl }: {
   enabled: boolean;
   session: DesktopCloudSession | null;
@@ -25,76 +24,36 @@ export function useAccountCloudWorkspace({ enabled, session, apiBaseUrl }: {
   const requestId = useRef(0);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [location, setLocation] = useState<"local" | "cloud">("local");
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [catalog, setCatalog] = useState<Catalog | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [opening, setOpening] = useState(false);
-  const [error, setError] = useState<"list" | "open" | "create" | null>(null);
-  const [reload, setReload] = useState(0);
-  const createAttempts = useRef(new Map<string, string>());
-  const lastAttempt = useRef<{ kind: "open"; target: RepositoryTarget } | { kind: "create"; orgId: string; name: string } | null>(null);
+  const [openingTarget, setOpeningTarget] = useState<RepositoryTarget | null>(null);
+  const [error, setError] = useState<"open" | null>(null);
+  const lastAttempt = useRef<RepositoryTarget | null>(null);
   const context = authority && selection?.authority === authority ? selection.context : LOCAL;
   const active = enabled && location === "cloud" && context.status === "resolved";
 
+  useEffect(() => () => { requestId.current++; }, []);
   useEffect(() => {
     // Revoke pending UI work on sign-out, account changes and environment changes.
     requestId.current++;
-    setOpening(false);
-    setLoading(false);
+    setOpeningTarget(null);
     setError(null);
-    setCatalog(null);
     setSelection(null);
     lastAttempt.current = null;
     setLocation("local");
-    createAttempts.current.clear();
   }, [authority]);
-
-  useEffect(() => {
-    if (!enabled) { setPickerOpen(false); return; }
-    if (!pickerOpen || !authority || !session) return;
-    let cancelled = false;
-    setLoading(true);
-    // Listing starts when a direct open reveals the picker. Do not erase a
-    // failed open/create just because the background catalog finishes later.
-    setError((previous) => previous === "list" ? null : previous);
-    // Organization discovery is for the explicit create action; its failure
-    // must not hide an otherwise accessible project catalog.
-    void Promise.all([
-      listCloudProjects(session, apiBaseUrl),
-      listCloudOrganizations(session, undefined, apiBaseUrl).catch(() => []),
-    ]).then(([projects, organizations]) => {
-      if (!cancelled && current.current.authority === authority) setCatalog({ authority, projects, organizations });
-    }, () => {
-      if (!cancelled && current.current.authority === authority) setError("list");
-    }).finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-    // Session refresh snapshots do not change account authority.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiBaseUrl, authority, enabled, pickerOpen, reload]);
 
   const cancel = useCallback(() => {
     requestId.current++;
     lastAttempt.current = null;
-    setPickerOpen(false);
-    setOpening(false);
+    setOpeningTarget(null);
     setError(null);
-  }, []);
-  const browse = useCallback(() => {
-    if (!current.current.enabled) return;
-    requestId.current++;
-    lastAttempt.current = null;
-    setOpening(false);
-    setError(null);
-    setPickerOpen(true);
   }, []);
   const openTarget = useCallback(async (target: RepositoryTarget) => {
     const captured = current.current;
-    if (!captured.authority || !captured.session) { browse(); return; }
-    lastAttempt.current = { kind: "open", target };
+    if (!captured.authority || !captured.session) return;
+    lastAttempt.current = target;
     const id = ++requestId.current;
     const isCurrent = () => requestId.current === id && current.current.authority === captured.authority;
-    setPickerOpen(true);
-    setOpening(true);
+    setOpeningTarget(target);
     setError(null);
     try {
       const result = await getCloudRepositoryContext(captured.session, target.project_id, target, undefined, apiBaseUrl);
@@ -112,11 +71,11 @@ export function useAccountCloudWorkspace({ enabled, session, apiBaseUrl }: {
       if (!isCurrent()) return;
       setSelection({ authority: captured.authority, context: resolved });
       setLocation("cloud");
-      setPickerOpen(false);
+      rememberCloudProjectOpen(apiBaseUrl, captured.session.user_id, resolved.target);
     } catch {
       if (isCurrent()) setError("open");
-    } finally { if (isCurrent()) setOpening(false); }
-  }, [apiBaseUrl, browse]);
+    } finally { if (isCurrent()) setOpeningTarget(null); }
+  }, [apiBaseUrl]);
   // The repository switch controller has already authorized this exact target
   // and read its root. Commit it without opening or fetching the account catalog.
   const activatePrepared = useCallback((resolved: ResolvedContext, expectedSession: DesktopCloudSession) => {
@@ -128,41 +87,13 @@ export function useAccountCloudWorkspace({ enabled, session, apiBaseUrl }: {
     cancel();
     setSelection({ authority: captured.authority, context: resolved });
     setLocation("cloud");
-  }, [cancel]);
+    rememberCloudProjectOpen(apiBaseUrl, captured.session.user_id, resolved.target);
+  }, [apiBaseUrl, cancel]);
   const useLocal = useCallback(() => { cancel(); setLocation("local"); }, [cancel]);
-  const create = useCallback(async (orgId: string, name: string) => {
-    const captured = current.current;
-    if (!captured.session || !captured.authority || !orgId || !name.trim()) return;
-    lastAttempt.current = { kind: "create", orgId, name };
-    const id = ++requestId.current;
-    const isCurrent = () => requestId.current === id && current.current.authority === captured.authority;
-    const input = { org_id: orgId, name: name.trim() };
-    const key = JSON.stringify([captured.authority, input]);
-    const operationId = createAttempts.current.get(key) ?? crypto.randomUUID();
-    createAttempts.current.set(key, operationId);
-    setOpening(true);
-    setError(null);
-    try {
-      const project = await createCloudProject(captured.session, input, operationId, apiBaseUrl);
-      if (!isCurrent()) return;
-      setReload((value) => value + 1);
-      // Keep the key on an ambiguous response/retry; opening never publishes local bytes.
-      await openTarget({ kind: "project_root", project_id: project.id });
-    } catch { if (isCurrent()) setError("create"); }
-    finally { if (isCurrent()) setOpening(false); }
-  }, [apiBaseUrl, openTarget]);
   return {
-    active, context, pickerOpen: enabled && pickerOpen, loading, opening, error,
-    projects: authority && catalog?.authority === authority ? catalog.projects : [],
-    organizations: authority && catalog?.authority === authority ? catalog.organizations : [],
-    browse, cancel, useLocal, openTarget, activatePrepared, create,
-    retry: () => {
-      const attempt = lastAttempt.current;
-      if (error === "open" && attempt?.kind === "open") return openTarget(attempt.target);
-      if (error === "create" && attempt?.kind === "create") return create(attempt.orgId, attempt.name);
-      setReload((value) => value + 1);
-    },
-    refresh: () => setReload((value) => value + 1),
+    active, context, openingTarget, opening: Boolean(openingTarget), error,
+    cancel, useLocal, openTarget, activatePrepared,
+    retry: () => { if (lastAttempt.current) return openTarget(lastAttempt.current); },
   };
 }
 export type AccountCloudWorkspace = ReturnType<typeof useAccountCloudWorkspace>;

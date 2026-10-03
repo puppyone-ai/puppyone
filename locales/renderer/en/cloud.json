@@ -1,4 +1,12 @@
 {
+  "home.group.both": "Local + Cloud",
+  "home.group.cloud": "Cloud",
+  "home.group.local": "Local",
+  "home.cloud": "Cloud",
+  "home.openLocal": "Open {project} locally",
+  "home.openCloud": "Open {project} in Cloud",
+  "home.loading": "Loading Cloud projects…",
+  "home.waitingForSignIn": "Complete sign-in in your browser…",
   "catalog.title": "Cloud projects",
   "catalog.browse": "Browse Cloud projects",
   "catalog.description": "Open a project you can access. This does not change or sync your local repository.",

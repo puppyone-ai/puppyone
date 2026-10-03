@@ -1,4 +1,12 @@
 {
+  "home.group.both": "Lokal + Cloud",
+  "home.group.cloud": "Cloud",
+  "home.group.local": "Lokal",
+  "home.cloud": "Cloud",
+  "home.openLocal": "{project} lokal öffnen",
+  "home.openCloud": "{project} in der Cloud öffnen",
+  "home.loading": "Cloud-Projekte werden geladen…",
+  "home.waitingForSignIn": "Anmeldung im Browser abschließen…",
   "catalog.title": "Cloud-Projekte",
   "catalog.browse": "Cloud-Projekte durchsuchen",
   "catalog.description": "Öffnen Sie ein zugängliches Projekt. Ihr lokales Repository wird nicht geändert oder synchronisiert.",

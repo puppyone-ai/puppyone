@@ -4,12 +4,13 @@ import { useLocalization } from "@puppyone/localization";
 import { TypographyCatalogProvider, useTypographyCatalog, useTypographyRuntime } from "../../typography";
 import { resolveSurfaceAppearance, SurfaceAppearanceProvider } from "../../appearance/AppearanceRuntime";
 import { useDesktopPreferences } from "../../app-shell/useDesktopPreferences";
-import { DesktopOverlayPortal } from "../../app-shell/DesktopOverlayPortal";
+import { MinimalOnboarding } from "../../../components/MinimalOnboarding";
+import { useHomepageCloudProjects } from "./useHomepageCloudProjects";
+import { HomepageCloudStatus } from "./HomepageCloudStatus";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import { useAccountCloudWorkspace } from "./useAccountCloudWorkspace";
 import { useNativeCloudWorkbench } from "./useNativeCloudWorkbench";
 import { AccountCloudWorkspaceSurface } from "./AccountCloudWorkspaceSurface";
-import { AccountCloudProjectPicker } from "./AccountCloudProjectPicker";
 
 const API = "https://cloud-fixture.puppyone.ai/api/v1";
 const project = (id: string) => ({ id, name: `Hosted ${id}`, org_id: "team", capabilities: ["content.read", "content.write"] });
@@ -51,7 +52,8 @@ declare global { interface Window { __accountCloudSmoke?: {
   edit: (text: string) => void;
   signOut: () => void;
   signIn: () => void;
-  browse: () => void;
+  home: () => void;
+  showLocalFixtures: () => void;
 }; } }
 
 /** Production account controller and hosted shell, with no checkout or real Cloud bytes. */
@@ -61,7 +63,8 @@ export function AccountCloudWorkbenchSmokeHarness() {
 function AccountCloudFixture() {
   const [session, setSession] = useState<DesktopCloudSession | null>(makeSession);
   const preferences = useDesktopPreferences();
-  const { locale, t } = useLocalization();
+  const { locale } = useLocalization();
+  const [includeLocal, setIncludeLocal] = useState(false);
   const catalog = useTypographyCatalog();
   const typography = useTypographyRuntime(preferences.typographyPreferences, catalog, locale);
   const appearance = resolveSurfaceAppearance({ appearance: preferences.resolvedAppearance, typography,
@@ -69,11 +72,18 @@ function AccountCloudFixture() {
     lightThemePreset: preferences.lightThemePreset, darkThemePreset: preferences.darkThemePreset,
     pointerCursors: preferences.pointerCursors, diffMarkers: preferences.diffMarkers });
   const account = useAccountCloudWorkspace({ enabled: true, session, apiBaseUrl: API });
+  const homepage = useHomepageCloudProjects({ enabled: true, visible: !account.active, session, apiBaseUrl: API,
+    local: includeLocal ? [
+      { workspace: { id: "local-alpha", name: "Hosted alpha", path: "/fixture/alpha", status: "recording", hydrationState: "ready",
+        puppyoneGitRemote: { origin: "https://cloud-fixture.puppyone.ai", projectId: "alpha" } } },
+      { workspace: { id: "local-notes", name: "Local notes", path: "/fixture/notes", status: "recording" } },
+    ] : [] });
   const workbench = useNativeCloudWorkbench({ context: account.context, session, apiBaseUrl: API,
     active: account.active, filesVisibilitySettings: preferences.filesVisibilitySettings });
   useEffect(() => {
     window.__accountCloudSmoke = { state: () => ({ active: account.active, project: account.context.projectId, writes }),
-      browse: account.browse, signOut: () => setSession(null), signIn: () => setSession(makeSession()),
+      home: account.useLocal, showLocalFixtures: () => setIncludeLocal(true),
+      signOut: () => setSession(null), signIn: () => setSession(makeSession()),
       edit: (text) => {
         const editor = document.querySelector(".desktop-account-cloud-workspace .cm-editor");
         const view = editor ? EditorView.findFromDOM(editor as HTMLElement) : null;
@@ -84,12 +94,13 @@ function AccountCloudFixture() {
     return () => { delete window.__accountCloudSmoke; };
   }, [account]);
   return <SurfaceAppearanceProvider value={appearance}>
-    {!account.active && <button data-account-cloud-entry onClick={account.browse}>{t("cloud.catalog.browse")}</button>}
+    {!account.active && <MinimalOnboarding appearance={appearance} projectItems={homepage.items}
+      groupedProjects={Boolean(session)} cloudOpening={account.opening}
+      onChooseWorkspace={async () => {}} onOpenWorkspacePath={async () => {}} onOpenDroppedWorkspace={async () => {}}
+      onOpenCloudProject={(id) => void account.openTarget({ kind: "project_root", project_id: id })}
+      cloudStatus={<HomepageCloudStatus status={homepage.status} restoring={false} empty={homepage.items.length === 0} apiBaseUrl={API}
+        controller={account} onRetry={homepage.refresh} />} />}
     <AccountCloudWorkspaceSurface workbench={workbench} active={account.active} preferences={preferences}
       appearance={appearance} onLocal={account.useLocal} onHome={account.useLocal} />
-    <DesktopOverlayPortal appearance={appearance}>
-      <AccountCloudProjectPicker controller={account} apiBaseUrl={API} onSignOut={() => setSession(null)}
-        authState={session ? { status: "signed-in", session, apiBaseUrl: API } : { status: "signed-out", apiBaseUrl: API }} />
-    </DesktopOverlayPortal>
   </SurfaceAppearanceProvider>;
 }

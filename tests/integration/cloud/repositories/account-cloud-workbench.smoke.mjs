@@ -20,9 +20,9 @@ const waitFor = async (expression) => {
   throw new Error(`Timed out: ${expression}; ${errors.join("; ")}`);
 };
 async function openProject(id) {
-  await evaluate("window.__accountCloudSmoke.browse()");
-  await waitFor(`Boolean([...document.querySelectorAll('.desktop-cloud-account-project')].find(el => el.textContent.includes('Hosted ${id}')))`);
-  await evaluate(`[...document.querySelectorAll('.desktop-cloud-account-project')].find(el => el.textContent.includes('Hosted ${id}')).click()`);
+  await evaluate("window.__accountCloudSmoke.home()");
+  await waitFor(`Boolean(document.querySelector('[data-cloud-project-id="${id}"] .onboarding-project-row'))`);
+  await evaluate(`document.querySelector('[data-cloud-project-id="${id}"] .onboarding-project-row').click()`);
   await waitFor(`window.__accountCloudSmoke.state().active && window.__accountCloudSmoke.state().project === '${id}' && !document.querySelector('[role=dialog]')`);
   await waitFor("Boolean(document.querySelector('[data-cloud-native=true] .tree-row'))");
   await evaluate("[...document.querySelectorAll('[data-cloud-native=true] .tree-row')].find(el => el.textContent.includes('readme')).click()");
@@ -34,10 +34,10 @@ app.whenReady().then(async () => {
   window.webContents.on("console-message", (event) => { if (event.level === "error" || event.level === 3) errors.push(event.message); });
   await window.loadURL(`${pathToFileURL(path.join(repo, "dist/index.html")).href}#account-cloud-workbench-smoke`);
   await waitFor("Boolean(window.__accountCloudSmoke)");
-  await evaluate("document.querySelector('[data-account-cloud-entry]').click()");
-  await waitFor("document.querySelectorAll('.desktop-cloud-account-project').length === 2 && getComputedStyle(document.querySelector('[role=dialog]')).opacity === '1'");
+  await waitFor("document.querySelectorAll('[data-cloud-project-id]').length === 2");
+  assert(await evaluate("!document.querySelector('[role=dialog]') && !document.querySelector('.desktop-cloud-home-entry')"), "Homepage must list Cloud projects without a browse button or picker");
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-  assert(await evaluate("document.querySelector('[role=dialog]').getBoundingClientRect().height > 300"), "Project catalog must be visible");
+  assert(await evaluate("document.querySelector('.onboarding-project-list').getBoundingClientRect().height > 70"), "Homepage project list must be visible");
   await writeFile(path.join(artifacts, "catalog.png"), (await window.webContents.capturePage()).toPNG());
   await openProject("alpha");
   await waitFor("document.querySelector('.cm-content').textContent.includes('ALPHA_CLOUD_BODY')");
@@ -62,7 +62,22 @@ app.whenReady().then(async () => {
   await evaluate("window.__accountCloudSmoke.edit('ALPHA_AFTER_RELOGIN')");
   await waitFor("window.__accountCloudSmoke.state().writes.some(write => write.content === 'ALPHA_AFTER_RELOGIN')");
   await evaluate("document.querySelector('button[data-project-location=local]').click()");
-  await waitFor("!window.__accountCloudSmoke.state().active && Boolean(document.querySelector('[data-account-cloud-entry]'))");
+  await waitFor("!window.__accountCloudSmoke.state().active && Boolean(document.querySelector('.onboarding-project-list'))");
+  await evaluate("window.__accountCloudSmoke.showLocalFixtures()");
+  await waitFor("document.querySelectorAll('.onboarding-project-group').length === 3");
+  assert(await evaluate("document.querySelectorAll('[data-cloud-project-id=alpha]').length === 1 && Boolean(document.querySelector('[data-project-group=both] .onboarding-project-cloud'))"), "A confirmed local/Cloud project must occupy one row with an explicit Cloud action");
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  await writeFile(path.join(artifacts, "grouped-homepage.png"), (await window.webContents.capturePage()).toPNG());
+  window.setSize(640, 520);
+  await waitFor("innerWidth === 640 && innerHeight === 520");
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  assert(await evaluate(`(() => {
+    const list = document.querySelector('.onboarding-project-list');
+    const action = document.querySelector('.onboarding-project-cloud').getBoundingClientRect();
+    const row = document.querySelector('[data-project-group=both]').getBoundingClientRect();
+    return list.scrollHeight > list.clientHeight && action.left >= row.left && action.right <= row.right;
+  })()`), "Grouped projects must scroll and retain the explicit Cloud action at the minimum window size");
+  await writeFile(path.join(artifacts, "grouped-homepage-minimum.png"), (await window.webContents.capturePage()).toPNG());
   assert(errors.length === 0, `Unexpected renderer errors: ${errors.join("; ")}`);
   const result = { passed: true, geometry, ...(await evaluate("window.__accountCloudSmoke.state()")), errors };
   await writeFile(path.join(artifacts, "result.json"), JSON.stringify(result, null, 2));

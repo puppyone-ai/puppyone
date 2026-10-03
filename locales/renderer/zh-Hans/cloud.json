@@ -1,4 +1,12 @@
 {
+  "home.group.both": "本地 + 云端",
+  "home.group.cloud": "云端",
+  "home.group.local": "本地",
+  "home.cloud": "云端",
+  "home.openLocal": "在本地打开 {project}",
+  "home.openCloud": "在云端打开 {project}",
+  "home.loading": "正在加载云端项目…",
+  "home.waitingForSignIn": "请在浏览器中完成登录…",
   "catalog.title": "云端项目",
   "catalog.browse": "浏览云端项目",
   "catalog.description": "打开你有权限访问的项目。此操作不会修改或同步本地仓库。",

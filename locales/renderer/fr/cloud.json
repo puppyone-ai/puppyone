@@ -1,4 +1,12 @@
 {
+  "home.group.both": "Local + Cloud",
+  "home.group.cloud": "Cloud",
+  "home.group.local": "Local",
+  "home.cloud": "Cloud",
+  "home.openLocal": "Ouvrir {project} en local",
+  "home.openCloud": "Ouvrir {project} dans le Cloud",
+  "home.loading": "Chargement des projets Cloud…",
+  "home.waitingForSignIn": "Terminez la connexion dans votre navigateur…",
   "catalog.title": "Projets Cloud",
   "catalog.browse": "Parcourir les projets Cloud",
   "catalog.description": "Ouvrez un projet accessible. Cela ne modifie ni ne synchronise votre dépôt local.",

@@ -4,7 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAccountCloudWorkspace, type AccountCloudWorkspace } from "../../../../src/features/cloud/workbench/useAccountCloudWorkspace";
 import { useNativeCloudWorkbench, type NativeCloudWorkbench } from "../../../../src/features/cloud/workbench/useNativeCloudWorkbench";
-import { AccountCloudProjectPicker } from "../../../../src/features/cloud/workbench/AccountCloudProjectPicker";
+import { useHomepageCloudProjects } from "../../../../src/features/cloud/workbench/useHomepageCloudProjects";
 import { useRepositoryCloudWorkspaceSwitch } from "../../../../src/features/cloud/workbench/useRepositoryCloudWorkspaceSwitch";
 import { CloudWorkspaceSwitchDialog } from "../../../../src/features/cloud/workbench/CloudWorkspaceSwitchDialog";
 import { RepositoryCloudSwitchGate } from "../../../../src/features/cloud/workbench/RepositoryCloudSwitchGate";
@@ -24,6 +24,7 @@ const session: DesktopCloudSession = { api_base_url: API, user_id: "alice", user
 const project = (id: string) => ({ id, name: `Project ${id}`, org_id: "org", capabilities: ["content.read", "content.write"] });
 let root: Root;
 let account: AccountCloudWorkspace;
+let homepage: ReturnType<typeof useHomepageCloudProjects>;
 let header: ReturnType<typeof useRepositoryCloudWorkspaceSwitch>;
 const associated = (id: string): ProjectCloudContext => ({ status: "resolved", projectId: id, projectName: `Project ${id}`,
   target: { kind: "project_root", project_id: id }, capabilities: ["content.read", "content.write"] });
@@ -36,10 +37,11 @@ const localFolder = { id: "local-a", path: "/fixture/header-local", name: "Local
 const localGit = gitStatus({ remotes: [{ name: "puppyone", fetchUrl: "https://cloud-fixture.puppyone.ai/git/a.git",
   pushUrl: "https://cloud-fixture.puppyone.ai/git/a.git", branches: [] }] });
 const ignoreSessionChange = () => {};
-function Harness({ currentSession = session, enabled = true, association = { status: "local-only", projectId: null }, scope = "local-folder", resolveAssociation = false }: {
-  currentSession?: DesktopCloudSession | null; enabled?: boolean; association?: ProjectCloudContext; scope?: string; resolveAssociation?: boolean;
+function Harness({ currentSession = session, enabled = true, homeVisible = false, association = { status: "local-only", projectId: null }, scope = "local-folder", resolveAssociation = false }: {
+  currentSession?: DesktopCloudSession | null; enabled?: boolean; homeVisible?: boolean; association?: ProjectCloudContext; scope?: string; resolveAssociation?: boolean;
 }) {
   account = useAccountCloudWorkspace({ enabled, session: currentSession, apiBaseUrl: API });
+  homepage = useHomepageCloudProjects({ enabled, visible: homeVisible && !account.active, session: currentSession, apiBaseUrl: API, local: [] });
   const derivedContext = useCurrentRepositoryCloudContext({ workspace: resolveAssociation ? localFolder : null,
     activeGitStatus: localGit, activeCloudSession: currentSession, cloudEnabled: enabled,
     desktopCloudApiBaseUrl: API, resolutionInputsLoading: false, updateCloudSession: ignoreSessionChange });
@@ -49,8 +51,7 @@ function Harness({ currentSession = session, enabled = true, association = { sta
   workbench = useNativeCloudWorkbench({ context: account.context, session: currentSession, apiBaseUrl: API,
     active: account.active, filesVisibilitySettings: { showHiddenFiles: true, excludePatterns: [] } });
   return <><div data-active={account.active} data-project={account.context.projectId ?? ""} />
-    <AccountCloudProjectPicker controller={account} apiBaseUrl={API} onSignOut={() => {}}
-      authState={currentSession ? { status: "signed-in", apiBaseUrl: API, session: currentSession } : { status: "signed-out", apiBaseUrl: API }} />
+    {homeVisible && !account.active && homepage.items.map((item) => <span key={item.id}>{item.label}</span>)}
     <CloudWorkspaceSwitchDialog controller={header} authenticationRequired={!currentSession}
       gate={<RepositoryCloudSwitchGate context={headerContext} apiBaseUrl={API} onRetry={header.retry}
         authState={currentSession ? { status: "signed-in", apiBaseUrl: API, session: currentSession } : { status: "signed-out", apiBaseUrl: API }} />} />
@@ -92,14 +93,13 @@ afterEach(async () => {
 
 describe("account-owned Cloud workspaces on the existing API", () => {
   it("opens an authorized hosted project without any local workspace or Git remote", async () => {
-    await render(); expect(bridge).not.toHaveBeenCalled();
-    await act(async () => account.browse());
+    await render({ homeVisible: true });
     expect(document.body.textContent).toContain("Project a");
     await open("a");
     expect(account.active).toBe(true);
     expect(workbench.service?.workspace.name).toBe("Project a");
     expect(workbench.service?.workspace.path).toMatch(/^puppyone-cloud:/);
-    expect(account.pickerOpen).toBe(false);
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
     const [node] = await workbench.dataPort!.listChildren(null);
     expect((await workbench.dataPort!.readFile!(node!.path)).content).toBe("Cloud content");
     expect(bridge.mock.calls.find(([request]) => request.path.startsWith("/projects/?"))![0]).toMatchObject({
@@ -110,15 +110,14 @@ describe("account-owned Cloud workspaces on the existing API", () => {
 
   it.each(["local-only", "wrong-host", "not-authorized", "not-found"])("keeps the account catalog usable when local association is %s", async (status) => {
     const context = status === "local-only" ? { status, projectId: null } : { status, projectId: "local-target", message: cloudMessage("remote-wrong-host") };
-    await render({ association: context as ProjectCloudContext });
-    await act(async () => account.browse());
-    expect(account.projects).toHaveLength(2);
+    await render({ homeVisible: true, association: context as ProjectCloudContext });
+    expect(homepage.items).toHaveLength(2);
     expect(account.error).toBeNull();
     expect(bridge.mock.calls.some(([request]) => request.path.includes("repository-context"))).toBe(false);
     await open("b"); expect(account.context.projectId).toBe("b");
   });
 
-  it("keeps Header failure scoped, and only lists projects on explicit Homepage browsing", async () => {
+  it("keeps Header failure scoped, and automatically lists projects only on the Homepage", async () => {
     const actual = bridge.getMockImplementation()!;
     bridge.mockImplementation(async (request) => {
       if (request.path.includes("/missing/")) throw Object.assign(new Error("Not found"), { status: 404 });
@@ -126,20 +125,21 @@ describe("account-owned Cloud workspaces on the existing API", () => {
     });
     await render({ association: associated("missing") });
     await act(async () => header.request());
-    expect(account.active).toBe(false); expect(account.pickerOpen).toBe(false);
+    expect(account.active).toBe(false);
     expect(header.pending).toBe(true); expect(header.error?.code).toBe("remote-not-found");
-    expect(account.projects).toHaveLength(0);
+    expect(homepage.items).toHaveLength(0);
     expect(bridge.mock.calls.some(([request]) => request.path.startsWith("/projects/?"))).toBe(false);
-    await act(async () => { header.cancel(); account.browse(); });
-    expect(account.projects).toHaveLength(2);
+    await act(async () => header.cancel());
+    await render({ homeVisible: true });
+    expect(homepage.items).toHaveLength(2);
     await open("a"); expect(account.active).toBe(true);
   });
 
   it("lists projects after sign-in without selecting a project implicitly", async () => {
-    await render({ currentSession: null }); await act(async () => account.browse());
-    expect(bridge).not.toHaveBeenCalled(); expect(account.pickerOpen).toBe(true);
-    await render();
-    expect(account.projects).toHaveLength(2); expect(account.active).toBe(false);
+    await render({ currentSession: null, homeVisible: true });
+    expect(bridge).not.toHaveBeenCalled();
+    await render({ homeVisible: true });
+    expect(homepage.items).toHaveLength(2); expect(account.active).toBe(false);
   });
 
   it("preserves the current Cloud project when opening another project fails", async () => {
@@ -151,7 +151,7 @@ describe("account-owned Cloud workspaces on the existing API", () => {
     });
     await open("b");
     expect(account.context.projectId).toBe("a"); expect(account.active).toBe(true);
-    expect(account.pickerOpen).toBe(true); expect(account.error).toBe("open");
+    expect(account.error).toBe("open");
     bridge.mockImplementation(actual);
     await act(async () => account.retry());
     expect(account.context.projectId).toBe("b");
@@ -185,7 +185,7 @@ describe("account-owned Cloud workspaces on the existing API", () => {
     await act(async () => { opening = account.openTarget({ kind: "project_root", project_id: "a" }); });
     await render({ currentSession: null });
     await act(async () => { pending.resolve({ project: project("a"), target: { kind: "project_root", project_id: "a" } }); await opening; });
-    expect(account.active).toBe(false); expect(account.projects).toEqual([]); expect(account.context.projectId).toBeNull();
+    expect(account.active).toBe(false); expect(homepage.items).toEqual([]); expect(account.context.projectId).toBeNull();
   });
 
   it("returns to local without changing Git configuration or losing the selected Cloud identity", async () => {
@@ -193,9 +193,9 @@ describe("account-owned Cloud workspaces on the existing API", () => {
     const id = workbench.service!.workspace.id;
     await act(async () => account.useLocal());
     expect(account.active).toBe(false); expect(workbench.service!.workspace.id).toBe(id);
-    await act(async () => account.browse());
+    await render({ homeVisible: true });
     expect(account.context.projectId).toBe("a"); expect(account.active).toBe(false);
-    expect(account.pickerOpen).toBe(true);
+    expect(homepage.items).toHaveLength(2);
     await open("b"); expect(account.context.projectId).toBe("b");
     expect(bridge.mock.calls.every(([request]) => request.method === "GET" || request.path.endsWith("/repository-context"))).toBe(true);
     expect(localWrite).not.toHaveBeenCalled();
@@ -230,7 +230,7 @@ describe("account-owned Cloud workspaces on the existing API", () => {
     await open("b"); await act(async () => account.useLocal()); bridge.mockClear();
     await act(async () => header.request());
     expect(account.active).toBe(true); expect(account.context.projectId).toBe("a");
-    expect(header.pending).toBe(false); expect(account.pickerOpen).toBe(false);
+    expect(header.pending).toBe(false);
     expect(document.querySelector(".desktop-cloud-account-picker")).toBeNull();
     expect(bridge.mock.calls.every(([request]) => request.path.startsWith("/content/a/"))).toBe(true);
   });
@@ -239,12 +239,12 @@ describe("account-owned Cloud workspaces on the existing API", () => {
     await render({ currentSession: null, association: { status: "wrong-account", projectId: "a", message: cloudMessage("remote-sign-in") } });
     await act(async () => header.request());
     expect(document.querySelector("[data-cloud-sign-in-action]")).toBeTruthy();
-    expect(account.pickerOpen).toBe(false); expect(bridge).not.toHaveBeenCalled();
+    expect(bridge).not.toHaveBeenCalled();
     await render({ association: { status: "resolving", projectId: null } });
     expect(header.pending).toBe(true); expect(account.active).toBe(false); expect(bridge).not.toHaveBeenCalled();
     await render({ association: associated("a") });
     expect(account.context.projectId).toBe("a"); expect(account.active).toBe(true);
-    expect(header.pending).toBe(false); expect(account.pickerOpen).toBe(false);
+    expect(header.pending).toBe(false);
     expect(bridge.mock.calls.every(([request]) => request.path.startsWith("/content/a/"))).toBe(true);
   });
 
@@ -254,12 +254,12 @@ describe("account-owned Cloud workspaces on the existing API", () => {
     await render({ currentSession: null, resolveAssociation: true });
     await act(async () => header.request()); expect(bridge).not.toHaveBeenCalled();
     await render({ resolveAssociation: true });
-    expect(header.pending).toBe(true); expect(account.active).toBe(false); expect(account.pickerOpen).toBe(false);
+    expect(header.pending).toBe(true); expect(account.active).toBe(false);
     expect(bridge.mock.calls[0][0].path).toBe("/projects/a/repository-context");
     expect(JSON.parse(bridge.mock.calls[0][0].body!).target).toEqual({ kind: "project_root", project_id: "a" });
     await act(async () => authorization.resolve({ project: project("a"), target: { kind: "project_root", project_id: "a" } }));
     expect(account.context.projectId).toBe("a"); expect(account.active).toBe(true);
-    expect(header.pending).toBe(false); expect(account.pickerOpen).toBe(false);
+    expect(header.pending).toBe(false);
     expect(bridge.mock.calls.some(([request]) => request.path.startsWith("/projects/?") || request.path === "/organizations/")).toBe(false);
   });
 
@@ -268,7 +268,7 @@ describe("account-owned Cloud workspaces on the existing API", () => {
       : { status, projectId: "a", message: cloudMessage("remote-unresolvable") };
     await render({ association: association as ProjectCloudContext });
     await act(async () => header.request());
-    expect(header.pending).toBe(true); expect(account.pickerOpen).toBe(false);
+    expect(header.pending).toBe(true);
     expect(document.querySelector("[role=alert]")).toBeTruthy();
     expect(document.querySelector(".desktop-cloud-account-projects")).toBeNull();
     expect(bridge).not.toHaveBeenCalled();
@@ -277,7 +277,7 @@ describe("account-owned Cloud workspaces on the existing API", () => {
   it("closing Header sign-in cancels late authenticated navigation", async () => {
     await render({ currentSession: null }); await act(async () => header.request());
     await act(async () => header.cancel()); await render({ association: associated("a") });
-    expect(header.pending).toBe(false); expect(account.active).toBe(false); expect(account.pickerOpen).toBe(false);
+    expect(header.pending).toBe(false); expect(account.active).toBe(false);
     expect(bridge).not.toHaveBeenCalled();
   });
 
@@ -303,19 +303,9 @@ describe("account-owned Cloud workspaces on the existing API", () => {
     expect(new URL(bridge.mock.calls[0][0].path, API).searchParams.get("path")).toBe("docs");
   });
 
-  it("creates through the current org contract, retaining the idempotency key on retry", async () => {
-    const actual = bridge.getMockImplementation()!; let count = 0;
-    bridge.mockImplementation((request) => {
-      if (request.path === "/projects/" && ++count === 1) throw new Error("Lost response");
-      return actual(request);
-    });
-    await render(); await act(async () => account.browse());
-    await act(async () => account.create("org", "New project")); expect(account.error).toBe("create");
-    await act(async () => account.create("org", "New project"));
-    const creates = bridge.mock.calls.filter(([request]) => request.path === "/projects/").map(([request]) => request);
-    expect(creates).toHaveLength(2);
-    expect(creates[0].headers!["Idempotency-Key"]).toBe(creates[1].headers!["Idempotency-Key"]);
-    expect(JSON.parse(creates[0].body!)).toEqual({ org_id: "org", name: "New project" });
-    expect(account.context.projectId).toBe("created"); expect(localWrite).not.toHaveBeenCalled();
+  it("does not fetch organizations or create or publish projects from the Homepage", async () => {
+    await render({ homeVisible: true });
+    expect(bridge.mock.calls.map(([request]) => request.path)).toEqual(["/projects/?include_access_counts=false"]);
+    expect(localWrite).not.toHaveBeenCalled();
   });
 });

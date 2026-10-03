@@ -9,7 +9,6 @@ import { DesktopShellLocationBar } from "../../app-shell/DesktopShellLocationBar
 import { EditorHeaderTabs } from "../../editor-workbench/header/EditorHeaderTabs";
 import { DesktopCloudFileWorkspace, type CloudFileSurfaceProps } from "./DesktopCloudFileWorkspace";
 import type { NativeCloudWorkbench } from "./useNativeCloudWorkbench";
-import "./account-cloud-workspace.css";
 
 const noop = () => undefined;
 

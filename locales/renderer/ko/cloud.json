@@ -1,4 +1,12 @@
 {
+  "home.group.both": "로컬 + 클라우드",
+  "home.group.cloud": "클라우드",
+  "home.group.local": "로컬",
+  "home.cloud": "클라우드",
+  "home.openLocal": "{project} 로컬에서 열기",
+  "home.openCloud": "{project} 클라우드에서 열기",
+  "home.loading": "클라우드 프로젝트 불러오는 중…",
+  "home.waitingForSignIn": "브라우저에서 로그인을 완료하세요…",
   "catalog.title": "클라우드 프로젝트",
   "catalog.browse": "클라우드 프로젝트 찾아보기",
   "catalog.description": "접근할 수 있는 프로젝트를 엽니다. 로컬 저장소를 변경하거나 동기화하지 않습니다.",
