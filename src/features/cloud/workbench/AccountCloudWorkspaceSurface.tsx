@@ -1,6 +1,5 @@
 import { useMemo } from "react";
-import { Cloud, ChevronDown } from "lucide-react";
-import { useLocalization } from "@puppyone/localization";
+import { Cloud } from "lucide-react";
 import { createWorkspaceResourceUri } from "@puppyone/shared-ui";
 import { DesktopCloudShell } from "../../../components/DesktopCloudShell";
 import type { DesktopPreferencesController } from "../../app-shell/useDesktopPreferences";
@@ -15,15 +14,14 @@ import "./account-cloud-workspace.css";
 const noop = () => undefined;
 
 /** A hosted workspace never needs a local root or a local Git controller. */
-export function AccountCloudWorkspaceSurface({ workbench, active, preferences, appearance, onLocal, onBrowse }: {
+export function AccountCloudWorkspaceSurface({ workbench, active, preferences, appearance, onLocal, onHome }: {
   workbench: NativeCloudWorkbench;
   active: boolean;
   preferences: DesktopPreferencesController;
   appearance: ResolvedSurfaceAppearance;
   onLocal: () => void;
-  onBrowse: () => void;
+  onHome: () => void;
 }) {
-  const { t } = useLocalization();
   const { service, editorWorkbench, actions } = workbench;
   const interaction = useMemo(() => ({ showSaveStatus: true,
     markdownBlockDragEnabled: preferences.experimentalSettings.enableMarkdownBlockDrag,
@@ -44,14 +42,13 @@ export function AccountCloudWorkspaceSurface({ workbench, active, preferences, a
   return <div className={`app-shell cloud-runtime desktop-account-cloud-workspace ${appearance.appearance.effectiveColorMode === "dark" ? "dark" : ""}`} hidden={!active}
     {...appearance.rootProps}
     style={{ ...appearance.rootProps.style, ...(!active ? { display: "none" } : {}) }} data-active-cloud-project={service.workspace.projectId}>
-    <DesktopCloudShell active={active} onGoHome={onLocal} leftSidebarCollapsed={preferences.sidebarCollapsed}
+    <DesktopCloudShell active={active} onGoHome={onHome} leftSidebarCollapsed={preferences.sidebarCollapsed}
       leftSidebarWidth={preferences.explorerWidth} onLeftSidebarExpand={() => preferences.setSidebarCollapsed(false)}
-      titlebarSidebarSlot={<button type="button" className="desktop-titlebar-workspace-button"
-        onClick={onBrowse} aria-label={t("cloud.catalog.browse")}>
-        <Cloud size={16} /><bdi className="desktop-titlebar-workspace-name">{service.workspace.name}</bdi><ChevronDown size={12} />
-      </button>}
+      titlebarSidebarSlot={<div className="desktop-titlebar-workspace-button">
+        <Cloud size={16} /><bdi className="desktop-titlebar-workspace-name">{service.workspace.name}</bdi>
+      </div>}
       titlebarActions={<DesktopProjectLocationControls projectLocation={{ current: "cloud", localAvailable: true, cloudState: "available" }}
-        cloudProject={{ id: service.workspace.projectId!, name: service.workspace.name }} onViewLocal={onLocal} onViewCloud={onBrowse} />}
+        cloudProject={{ id: service.workspace.projectId!, name: service.workspace.name }} onViewLocal={onLocal} />}
       titlebarTabs={preferences.experimentalSettings.enableEditorTabsInHeader ? tabs : undefined}
       alignTitlebarTabsToExplorer={preferences.experimentalSettings.enableEditorTabsInHeader}
       locationBar={preferences.resolvedAppearance.composition.locationBar === "workspace-path-v1" ? <DesktopShellLocationBar

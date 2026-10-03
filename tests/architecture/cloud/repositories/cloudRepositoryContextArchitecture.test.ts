@@ -58,6 +58,23 @@ describe("repository-context architecture", () => {
     expect(appSource).not.toMatch(/revokeCloudWorkspace|workspaceInstanceId/);
   });
 
+  it("separates direct Header switching from Homepage project selection", () => {
+    const source = (path: string) => readFileSync(new URL(`../../../../src/${path}`, import.meta.url), "utf8");
+    const app = source("App.tsx");
+    const header = source("features/cloud/workbench/useRepositoryCloudWorkspaceSwitch.ts");
+    const surface = source("features/cloud/workbench/AccountCloudWorkspaceSurface.tsx");
+    const gate = source("features/cloud/workbench/RepositoryCloudSwitchGate.tsx");
+    expect(app).toContain("const requestCloudWorkspace = repositoryCloudSwitch.request");
+    expect(app).toContain('onClick={browseAccountCloudProjects}>{t("cloud.catalog.browse")}');
+    expect(app).toContain("onPrepared: accountCloud.activatePrepared");
+    expect(app).toContain("{accountCloudPicker}{repositoryCloudDialog}");
+    expect(header).toContain("useCloudWorkspaceSwitch");
+    expect(header).not.toMatch(/listCloudProjects|browse|catalog|openTarget/);
+    expect(gate).not.toContain("AccountCloudProjectPicker");
+    expect(surface).not.toMatch(/onBrowse|cloud\.catalog\.browse/);
+    expect(app).not.toContain("accountCloud.open;");
+  });
+
   it("keeps Initialize remote mutation inside the durable main-process transaction", () => {
     const coordinatorSource = readFileSync(
       new URL("../../../../electron/main/cloud-initialization/coordinator.mjs", import.meta.url),

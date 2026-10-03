@@ -84,9 +84,9 @@ function AccountCloudFixture() {
     return () => { delete window.__accountCloudSmoke; };
   }, [account]);
   return <SurfaceAppearanceProvider value={appearance}>
-    {!account.active && <button data-account-cloud-entry onClick={() => account.open()}>{t("cloud.catalog.browse")}</button>}
+    {!account.active && <button data-account-cloud-entry onClick={account.browse}>{t("cloud.catalog.browse")}</button>}
     <AccountCloudWorkspaceSurface workbench={workbench} active={account.active} preferences={preferences}
-      appearance={appearance} onLocal={account.useLocal} onBrowse={account.browse} />
+      appearance={appearance} onLocal={account.useLocal} onHome={account.useLocal} />
     <DesktopOverlayPortal appearance={appearance}>
       <AccountCloudProjectPicker controller={account} apiBaseUrl={API} onSignOut={() => setSession(null)}
         authState={session ? { status: "signed-in", session, apiBaseUrl: API } : { status: "signed-out", apiBaseUrl: API }} />

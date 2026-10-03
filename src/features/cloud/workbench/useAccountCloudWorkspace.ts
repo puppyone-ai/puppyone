@@ -12,7 +12,7 @@ type Selection = { authority: string; context: ResolvedContext };
 type Catalog = { authority: string; projects: DesktopCloudProject[]; organizations: DesktopCloudOrganization[] };
 const LOCAL: ProjectCloudContext = { status: "local-only", projectId: null };
 
-/** Account navigation is independent of local checkouts. A remote is only a suggested target. */
+/** Homepage catalog and hosted selection. Header association owns a separate direct-switch intent. */
 export function useAccountCloudWorkspace({ enabled, session, apiBaseUrl }: {
   enabled: boolean;
   session: DesktopCloudSession | null;
@@ -117,13 +117,18 @@ export function useAccountCloudWorkspace({ enabled, session, apiBaseUrl }: {
       if (isCurrent()) setError("open");
     } finally { if (isCurrent()) setOpening(false); }
   }, [apiBaseUrl, browse]);
-  const open = useCallback((recommended?: ProjectCloudContext) => {
-    if (!enabled) return;
-    // A failed or absent local association cannot block account navigation.
-    if (context.status === "resolved") void openTarget(context.target);
-    else if (recommended?.status === "resolved" && session) void openTarget(recommended.target);
-    else browse();
-  }, [browse, context, enabled, openTarget, session]);
+  // The repository switch controller has already authorized this exact target
+  // and read its root. Commit it without opening or fetching the account catalog.
+  const activatePrepared = useCallback((resolved: ResolvedContext, expectedSession: DesktopCloudSession) => {
+    const captured = current.current;
+    if (!captured.authority || !captured.session
+      || captured.session.user_id !== expectedSession.user_id
+      || captured.session.session_generation !== expectedSession.session_generation
+      || captured.session.api_base_url !== expectedSession.api_base_url) return;
+    cancel();
+    setSelection({ authority: captured.authority, context: resolved });
+    setLocation("cloud");
+  }, [cancel]);
   const useLocal = useCallback(() => { cancel(); setLocation("local"); }, [cancel]);
   const create = useCallback(async (orgId: string, name: string) => {
     const captured = current.current;
@@ -150,7 +155,7 @@ export function useAccountCloudWorkspace({ enabled, session, apiBaseUrl }: {
     active, context, pickerOpen: enabled && pickerOpen, loading, opening, error,
     projects: authority && catalog?.authority === authority ? catalog.projects : [],
     organizations: authority && catalog?.authority === authority ? catalog.organizations : [],
-    open, browse, cancel, useLocal, openTarget, create,
+    browse, cancel, useLocal, openTarget, activatePrepared, create,
     retry: () => {
       const attempt = lastAttempt.current;
       if (error === "open" && attempt?.kind === "open") return openTarget(attempt.target);

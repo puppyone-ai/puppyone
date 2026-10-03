@@ -33,6 +33,9 @@ import {
 } from "./features/settings";
 import { CLOUD_HUB_ENTRY_SECTION, type CloudWorkspaceSection } from "./features/cloud";
 import { useAccountCloudWorkspace } from "./features/cloud/workbench/useAccountCloudWorkspace";
+import { useRepositoryCloudWorkspaceSwitch } from "./features/cloud/workbench/useRepositoryCloudWorkspaceSwitch";
+import { CloudWorkspaceSwitchDialog } from "./features/cloud/workbench/CloudWorkspaceSwitchDialog";
+import { RepositoryCloudSwitchGate } from "./features/cloud/workbench/RepositoryCloudSwitchGate";
 import { AccountCloudProjectPicker } from "./features/cloud/workbench/AccountCloudProjectPicker";
 import { AccountCloudWorkspaceSurface } from "./features/cloud/workbench/AccountCloudWorkspaceSurface";
 import { getCloudAuthSession, resolveCloudAuthState } from "./features/cloud/auth";
@@ -747,6 +750,7 @@ function AppContent() {
   });
 
 
+  const [cloudResolutionRefreshKey, setCloudResolutionRefreshKey] = useState(0);
   const projectCloudContext = useCurrentRepositoryCloudContext({
     workspace: focusedWorkspace,
     activeGitStatus,
@@ -754,6 +758,7 @@ function AppContent() {
     cloudEnabled,
     desktopCloudApiBaseUrl,
     resolutionInputsLoading: cloudResolutionInputsLoading,
+    refreshKey: cloudResolutionRefreshKey,
     updateCloudSession,
   });
   const resolvedCloudProjectId = getResolvedCloudProjectId(projectCloudContext);
@@ -764,24 +769,40 @@ function AppContent() {
     active: cloudWorkspaceActive,
     filesVisibilitySettings,
   });
-  const requestCloudWorkspace = accountCloud.open;
-  const cancelCloudWorkspaceSwitch = accountCloud.cancel;
+  const repositoryCloudSwitch = useRepositoryCloudWorkspaceSwitch({
+    enabled: cloudEnabled && Boolean(focusedWorkspace),
+    scope: JSON.stringify([focusedWorkspace?.id, focusedWorkspace?.path]),
+    context: projectCloudContext, session: activeCloudSession, apiBaseUrl: desktopCloudApiBaseUrl,
+    onPrepared: accountCloud.activatePrepared,
+  });
+  const requestCloudWorkspace = repositoryCloudSwitch.request;
+  const cancelRepositoryCloudSwitch = repositoryCloudSwitch.cancel;
+  const cancelAccountCloudPicker = accountCloud.cancel;
+  const cancelCloudWorkspaceSwitch = useCallback(() => {
+    cancelRepositoryCloudSwitch(); cancelAccountCloudPicker();
+  }, [cancelAccountCloudPicker, cancelRepositoryCloudSwitch]);
+  const browseCloudCatalog = accountCloud.browse;
+  const browseAccountCloudProjects = useCallback(() => {
+    cancelRepositoryCloudSwitch(); browseCloudCatalog();
+  }, [browseCloudCatalog, cancelRepositoryCloudSwitch]);
   const openCloudWorkspace = useCallback(() => {
     if (!cloudEnabled) return;
-    requestCloudWorkspace(projectCloudContext);
+    cancelAccountCloudPicker();
+    requestCloudWorkspace();
     setActiveCloudSection(CLOUD_HUB_ENTRY_SECTION);
     setCloudDialogOpen(false);
     setSettingsDialogOpen(false);
     setPluginsDialogOpen(false);
     setSwitcherOpen(false);
     setBranchSwitcherOpen(false);
-  }, [cloudEnabled, projectCloudContext, requestCloudWorkspace, setBranchSwitcherOpen]);
+  }, [cancelAccountCloudPicker, cloudEnabled, requestCloudWorkspace, setBranchSwitcherOpen]);
   const openLocalWorkspace = useCallback(() => {
+    cancelRepositoryCloudSwitch();
     returnToLocalWorkspace();
     setCloudDialogOpen(false);
     setSwitcherOpen(false);
     setBranchSwitcherOpen(false);
-  }, [returnToLocalWorkspace, setBranchSwitcherOpen]);
+  }, [cancelRepositoryCloudSwitch, returnToLocalWorkspace, setBranchSwitcherOpen]);
 
   useEffect(() => {
     if (cloudWorkspaceActive) resetDataNodeActions();
@@ -829,10 +850,10 @@ function AppContent() {
   }, [setBranchSwitcherOpen, shareOnboardingEnabled]);
   const closeShareWizard = useCallback(() => setShareWizard(null), []);
   useEffect(() => {
-    if (accountCloud.pickerOpen && (cloudDialogOpen || settingsDialogOpen || pluginsDialogOpen || shareWizard)) {
+    if ((accountCloud.pickerOpen || repositoryCloudSwitch.pending) && (cloudDialogOpen || settingsDialogOpen || pluginsDialogOpen || shareWizard)) {
       cancelCloudWorkspaceSwitch();
     }
-  }, [cancelCloudWorkspaceSwitch, cloudDialogOpen, accountCloud.pickerOpen, pluginsDialogOpen, settingsDialogOpen, shareWizard]);
+  }, [cancelCloudWorkspaceSwitch, cloudDialogOpen, accountCloud.pickerOpen, repositoryCloudSwitch.pending, pluginsDialogOpen, settingsDialogOpen, shareWizard]);
   useEffect(() => {
     if (shareOnboardingEnabled) return;
     setShareWizard(null);
@@ -875,6 +896,8 @@ function AppContent() {
     try {
       if (!await drainWorkspaceNavigation()) return;
       await showHomepage();
+      cancelCloudWorkspaceSwitch();
+      returnToLocalWorkspace();
       clearWorkspace();
       setSwitcherOpen(false);
       setBranchSwitcherOpen(false);
@@ -886,6 +909,8 @@ function AppContent() {
       setRestoreWorkspaceError(error instanceof Error ? error.message : String(error));
     }
   }, [
+    cancelCloudWorkspaceSwitch,
+    returnToLocalWorkspace,
     clearWorkspace,
     drainWorkspaceNavigation,
     refreshRecentWorkspaceList,
@@ -1382,7 +1407,14 @@ function AppContent() {
     setRightSidebarSurface,
   ]);
   const accountCloudSurface = <AccountCloudWorkspaceSurface workbench={nativeCloudWorkbench} active={cloudWorkspaceActive}
-    preferences={preferences} appearance={surfaceAppearance} onLocal={openLocalWorkspace} onBrowse={accountCloud.browse} />;
+    preferences={preferences} appearance={surfaceAppearance} onLocal={openLocalWorkspace} onHome={() => void goToHomepage()} />;
+  const repositoryCloudDialog = <CloudWorkspaceSwitchDialog controller={repositoryCloudSwitch}
+    authenticationRequired={!activeCloudSession}
+    gate={<RepositoryCloudSwitchGate context={projectCloudContext} apiBaseUrl={desktopCloudApiBaseUrl}
+      authState={resolveCloudAuthState({ cloudSession: activeCloudSession, sessionRestoring: cloudSessionRestoring,
+        environment: { apiBaseUrl: desktopCloudApiBaseUrl, source: "default", cloudRemote: null } })}
+      onRetry={() => { setCloudResolutionRefreshKey((value) => value + 1); repositoryCloudSwitch.retry(); }}
+      onPublishLocal={workspace ? () => { cancelRepositoryCloudSwitch(); openCloudDialogAt("initialize"); } : undefined} />} />;
   const accountCloudPicker = <AccountCloudProjectPicker controller={accountCloud} apiBaseUrl={desktopCloudApiBaseUrl}
     authState={resolveCloudAuthState({ cloudSession: activeCloudSession, sessionRestoring: cloudSessionRestoring,
       environment: { apiBaseUrl: desktopCloudApiBaseUrl, source: "default", cloudRemote: null } })}
@@ -1397,7 +1429,7 @@ function AppContent() {
         <div hidden={cloudWorkspaceActive} style={{ display: cloudWorkspaceActive ? "none" : "contents" }}>
           {content}
           {cloudEnabled && <button type="button" className="desktop-cloud-row-action desktop-cloud-home-entry"
-            onClick={openCloudWorkspace}>{t("cloud.catalog.browse")}</button>}
+            onClick={browseAccountCloudProjects}>{t("cloud.catalog.browse")}</button>}
         </div>
         {accountCloudSurface}
         <DesktopOverlayPortal appearance={surfaceAppearance}>{accountCloudPicker}</DesktopOverlayPortal>
@@ -1992,7 +2024,7 @@ function AppContent() {
       </div>
       </CloudShareProvider>
       {accountCloudSurface}
-      <DesktopOverlayPortal appearance={surfaceAppearance}>{accountCloudPicker}</DesktopOverlayPortal>
+      <DesktopOverlayPortal appearance={surfaceAppearance}>{accountCloudPicker}{repositoryCloudDialog}</DesktopOverlayPortal>
     </SurfaceAppearanceProvider>
   );
 }
