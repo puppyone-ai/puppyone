@@ -497,18 +497,46 @@
   padding-inline-end: 66px;
 }
 
-.onboarding-cloud-status {
+.homepage-cloud-account {
+  position: absolute;
+  z-index: 4;
+  top: 52px;
+  inset-inline-end: 48px;
   display: flex;
+  max-width: min(320px, calc(100% - 96px));
+  min-height: 28px;
+  box-sizing: border-box;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 8px;
-  padding: 8px;
   color: var(--po-text-subtle);
   font-size: var(--po-text-size-hint, 12px);
 }
 
-.onboarding-cloud-status[role="alert"] {
+.homepage-cloud-account.is-error {
   color: var(--po-danger);
+}
+
+.homepage-cloud-sign-in {
+  padding: 0 9px;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: var(--desktop-control-radius, 6px);
+  background: color-mix(in srgb, var(--po-control) 72%, transparent);
+  color: var(--po-text-muted);
+  cursor: var(--po-clickable-cursor, default);
+  font: inherit;
+  font-weight: 580;
+}
+
+.homepage-cloud-sign-in:hover {
+  border-color: var(--po-border);
+  background: var(--po-control-hover);
+  color: var(--po-text);
+}
+
+.homepage-cloud-sign-in:focus-visible {
+  outline: 2px solid var(--po-focus-ring);
+  outline-offset: 2px;
 }
 
 .onboarding-project-row .desktop-menu-item-icon {
@@ -630,6 +658,16 @@
 @media (max-width: 520px) {
   .onboarding-shell {
     padding: 28px 18px;
+  }
+
+  .homepage-cloud-account {
+    top: 46px;
+    inset-inline-end: 18px;
+    max-width: calc(100% - 36px);
+  }
+
+  .homepage-cloud-sign-in span {
+    display: none;
   }
 
   .onboarding-project-row .desktop-menu-item-label {

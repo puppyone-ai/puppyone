@@ -16,7 +16,7 @@ export function AssetLibraryHome({
   onOpenDroppedWorkspace,
   recentWorkspaces = [],
   projectItems,
-  cloudStatus,
+  cloudAccountStatus,
   cloudOpening = false,
   onOpenCloudProject,
   operationStatus = null,
@@ -95,6 +95,7 @@ export function AssetLibraryHome({
       onDrop={folderDrop.onDrop}
     >
       <DesktopWindowDragRegion className="asset-library-home-titlebar" />
+      {cloudAccountStatus}
       <section className="asset-library-home" aria-label={t("onboarding.projects.title")}>
         <header className="asset-library-home-header"><div className="asset-library-home-heading"><h1>{t("onboarding.projects.title")}</h1></div></header>
 
@@ -106,7 +107,6 @@ export function AssetLibraryHome({
         )}
         {error && <div className="asset-library-home-alert" role="alert"><AlertTriangle size={15} /><span>{error}</span></div>}
 
-        {cloudStatus}
         <div className="asset-library-home-grid">
           {items.map((item) => (
             <ProjectAssetCard

@@ -22,7 +22,8 @@ const waitFor = async (expression) => {
 async function openProject(id) {
   await evaluate("window.__accountCloudSmoke.home()");
   await waitFor(`Boolean(document.querySelector('[data-cloud-project-id="${id}"] .onboarding-project-row'))`);
-  await evaluate(`document.querySelector('[data-cloud-project-id="${id}"] .onboarding-project-row').click()`);
+  await evaluate(`(document.querySelector('[data-cloud-project-id="${id}"] .onboarding-project-cloud')
+    ?? document.querySelector('[data-cloud-project-id="${id}"] .onboarding-project-row')).click()`);
   await waitFor(`window.__accountCloudSmoke.state().active && window.__accountCloudSmoke.state().project === '${id}' && !document.querySelector('[role=dialog]')`);
   await waitFor("Boolean(document.querySelector('[data-cloud-native=true] .tree-row'))");
   await evaluate("[...document.querySelectorAll('[data-cloud-native=true] .tree-row')].find(el => el.textContent.includes('readme')).click()");
@@ -56,6 +57,22 @@ app.whenReady().then(async () => {
   assert(await evaluate("!document.querySelector('.cm-content').textContent.includes('ALPHA_EDIT_ONLY')"), "Different project must not display the previous draft");
   await evaluate("window.__accountCloudSmoke.signOut()");
   await waitFor("!window.__accountCloudSmoke.state().active && !document.querySelector('.desktop-account-cloud-workspace')");
+  await evaluate("window.__accountCloudSmoke.home(); window.__accountCloudSmoke.showLocalFixtures()");
+  await waitFor("Boolean(document.querySelector('.onboarding-homepage .onboarding-project-list'))");
+  const signedOutHome = await evaluate(`(() => {
+    const signIn = document.querySelector('.homepage-cloud-sign-in');
+    const list = document.querySelector('.onboarding-project-list');
+    const button = signIn?.getBoundingClientRect();
+    const projectRows = [...document.querySelectorAll('.onboarding-project-row-wrap')];
+    return { exists:Boolean(signIn), inProjectList:Boolean(signIn?.closest('.onboarding-project-list')),
+      top:button?.top, right:button ? innerWidth - button.right : null,
+      projectRows:projectRows.length, projectLabels:projectRows.map(row => row.querySelector('.desktop-menu-item-label')?.textContent) };
+  })()`);
+  assert(signedOutHome.exists && !signedOutHome.inProjectList, "Sign-in is global Homepage chrome, never a synthetic Project row");
+  assert(signedOutHome.top >= 38 && signedOutHome.right <= 60, "Sign-in stays in the upper-right account position");
+  assert(!signedOutHome.projectLabels.some(label => /sign in/i.test(label ?? "")), "Every Project-list row is a Project");
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  await writeFile(path.join(artifacts, "signed-out-home.png"), (await window.webContents.capturePage()).toPNG());
   await evaluate("window.__accountCloudSmoke.signIn()");
   await openProject("alpha");
   await waitFor("document.querySelector('.cm-content').textContent.includes('ALPHA_EDIT_ONLY')");

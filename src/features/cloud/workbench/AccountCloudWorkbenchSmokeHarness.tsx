@@ -102,7 +102,7 @@ function AccountCloudFixture() {
       cloudOpening={account.opening}
       onChooseWorkspace={async () => {}} onOpenWorkspacePath={async () => {}} onOpenDroppedWorkspace={async () => {}}
       onOpenCloudProject={(id) => void account.openTarget({ kind: "project_root", project_id: id })}
-      cloudStatus={<HomepageCloudStatus status={homepage.status} restoring={false} empty={homepage.items.length === 0} apiBaseUrl={API}
+      cloudAccountStatus={<HomepageCloudStatus status={homepage.status} restoring={false} empty={homepage.items.length === 0} apiBaseUrl={API}
         controller={account} onRetry={homepage.refresh} />} />}
     <AccountCloudWorkspaceSurface workbench={workbench} active={account.active} preferences={preferences}
       appearance={appearance} onLocal={account.useLocal} onHome={account.useLocal} />

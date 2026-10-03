@@ -9,7 +9,7 @@ import { useRepositoryCloudWorkspaceSwitch } from "../../../../src/features/clou
 import { CloudWorkspaceSwitchDialog } from "../../../../src/features/cloud/workbench/CloudWorkspaceSwitchDialog";
 import { RepositoryCloudSwitchGate } from "../../../../src/features/cloud/workbench/RepositoryCloudSwitchGate";
 import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
-import type { ProjectCloudContext } from "../../../../src/features/cloud/project/context/projectCloudContext";
+import { getProjectCloudLocationState, type ProjectCloudContext } from "../../../../src/features/cloud/project/context/projectCloudContext";
 import { cloudMessage } from "../../../../src/features/cloud/cloudPresentation";
 import { useCurrentRepositoryCloudContext } from "../../../../src/features/cloud/project/context/useCurrentRepositoryCloudContext";
 import { gitStatus } from "../../../support/source-control/gitFixtures";
@@ -92,6 +92,11 @@ afterEach(async () => {
 });
 
 describe("account-owned Cloud workspaces on the existing API", () => {
+  it("does not confuse login state with repository Cloud availability", () => {
+    expect(getProjectCloudLocationState({ status: "local-only", projectId: null }, true)).toBe("unavailable");
+    expect(getProjectCloudLocationState({ status: "wrong-account", projectId: "a", message: cloudMessage("remote-sign-in") }, false)).toBe("signed-out");
+    expect(getProjectCloudLocationState(associated("a"), true)).toBe("available");
+  });
   it("opens an authorized hosted project without any local workspace or Git remote", async () => {
     await render({ homeVisible: true });
     expect(document.body.textContent).toContain("Project a");
