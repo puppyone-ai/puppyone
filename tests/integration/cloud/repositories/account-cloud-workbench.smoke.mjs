@@ -71,6 +71,7 @@ app.whenReady().then(async () => {
   assert(signedOutHome.exists && !signedOutHome.inProjectList, "Sign-in is global Homepage chrome, never a synthetic Project row");
   assert(signedOutHome.top >= 38 && signedOutHome.right <= 60, "Sign-in stays in the upper-right account position");
   assert(!signedOutHome.projectLabels.some(label => /sign in/i.test(label ?? "")), "Every Project-list row is a Project");
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await writeFile(path.join(artifacts, "signed-out-home.png"), (await window.webContents.capturePage()).toPNG());
   await evaluate("window.__accountCloudSmoke.signIn()");
   await openProject("alpha");
