@@ -35,10 +35,11 @@
   --po-editable-table-line-height: 1.45;
   --po-editable-table-row-min-height: 31px;
   --po-editable-table-header-font-weight: 650;
-  /* Handles belong to the grid, not a separate floating-control palette.
-     Hover strengthens the grip dots while keeping the table's face and stroke. */
-  --po-editable-table-handle-background: var(--po-editable-table-header-background);
-  --po-editable-table-handle-border: var(--po-editable-table-border);
+  /* Fill grips with the grid stroke, then gently lift the rim. A small
+     radius softens the control without rounding the data grid itself. */
+  --po-editable-table-handle-radius: 2px;
+  --po-editable-table-handle-background: var(--po-editable-table-border);
+  --po-editable-table-handle-border: color-mix(in srgb, var(--po-editable-table-border) 88%, #ffffff 12%);
   --po-editable-table-handle-color: var(--po-surface-editable-table-handle-color, var(--po-text-muted));
   --po-editable-table-handle-hover-background: var(--po-editable-table-handle-background);
   --po-editable-table-handle-hover-border: var(--po-editable-table-handle-border);
@@ -80,9 +81,9 @@
   box-sizing: border-box;
   place-items: center;
   /* Revealed handles must read as complete controls before the pointer
-     reaches them. An opaque face also separates the dots from table lines. */
+     reaches them, even when only the table itself is hovered. */
   border: 1px solid var(--po-editable-table-handle-border);
-  border-radius: var(--po-editable-table-radius);
+  border-radius: var(--po-editable-table-handle-radius);
   background: var(--po-editable-table-handle-background);
   color: var(--po-editable-table-handle-color);
   pointer-events: none;

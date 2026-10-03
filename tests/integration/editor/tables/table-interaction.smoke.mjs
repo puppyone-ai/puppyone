@@ -66,9 +66,11 @@ app.whenReady().then(async () => {
         assert.equal(baseline.gripShadow, "none", "grip must not look raised");
         assert.equal(baseline.gripStyles.length, 2, "row and column grips must share the table style");
         for (const gripStyle of baseline.gripStyles) {
-          assert.equal(gripStyle.radius, baseline.radius, `${kind} grip radius must match the table`);
+          assert.equal(gripStyle.radius, "2px", `${kind} grip must have a small corner radius`);
           assert.equal(gripStyle.border, baseline.border, `${kind} grip stroke must match the table`);
-          assert.equal(gripStyle.borderColor, baseline.borderColor, `${kind} grip border color must match the table`);
+          assert.equal(gripStyle.backgroundColor, baseline.borderColor, `${kind} grip fill must use the table border color`);
+          assert.equal(gripStyle.backgroundImage, "none", `${kind} grip fill must be a solid color`);
+          assert.notEqual(gripStyle.borderColor, gripStyle.backgroundColor, `${kind} grip rim must remain distinct from its fill`);
         }
         assert.deepEqual(baseline.dots, { width: "12px", height: "4px" }, "column handle needs a single line of three dots");
         for (const reduced of [false, true]) {

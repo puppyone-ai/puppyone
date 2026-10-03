@@ -151,12 +151,13 @@ describe("CSV table visual architecture", () => {
     );
   });
 
-  it("keeps row and column handles in the table palette with the same corner radius", () => {
+  it("softens row and column handles with grid-border fill and a subtly lighter rim", () => {
+    expect(sharedTableCss).toContain("--po-editable-table-handle-radius: 2px;");
     expect(sharedTableCss).toContain(
-      "--po-editable-table-handle-background: var(--po-editable-table-header-background);",
+      "--po-editable-table-handle-background: var(--po-editable-table-border);",
     );
     expect(sharedTableCss).toContain(
-      "--po-editable-table-handle-border: var(--po-editable-table-border);",
+      "--po-editable-table-handle-border: color-mix(in srgb, var(--po-editable-table-border) 88%, #ffffff 12%);",
     );
     expect(sharedTableCss).toContain(
       "--po-editable-table-handle-hover-background: var(--po-editable-table-handle-background);",
@@ -165,7 +166,7 @@ describe("CSV table visual architecture", () => {
       "--po-editable-table-handle-hover-border: var(--po-editable-table-handle-border);",
     );
     expect(sharedTableCss).toMatch(
-      /\.po-editable-table-drag-handle-visual\s*\{[^}]*border:\s*1px solid var\(--po-editable-table-handle-border\)[^}]*border-radius:\s*var\(--po-editable-table-radius\)[^}]*background:\s*var\(--po-editable-table-handle-background\)/s,
+      /\.po-editable-table-drag-handle-visual\s*\{[^}]*border:\s*1px solid var\(--po-editable-table-handle-border\)[^}]*border-radius:\s*var\(--po-editable-table-handle-radius\)[^}]*background:\s*var\(--po-editable-table-handle-background\)/s,
     );
     for (const [css, selector] of [
       [csvTableCss, "csv-table-editor__table"],
