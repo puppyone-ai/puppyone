@@ -1,4 +1,6 @@
 .onboarding-shell {
+  --onboarding-titlebar-block-size: 38px;
+  --onboarding-account-rail-end: 91px;
   position: relative;
   display: flex;
   align-items: center;
@@ -17,7 +19,7 @@
   top: 0;
   inset-inline: 0;
   box-sizing: border-box;
-  height: 38px;
+  height: var(--onboarding-titlebar-block-size);
   border-bottom: 1px solid var(--po-header-divider);
   background: var(--po-header);
 }
@@ -500,7 +502,12 @@
 .homepage-cloud-account {
   position: absolute;
   z-index: 4;
-  top: 52px;
+  /* Center account state between the 38px titlebar and the 91px Homepage
+   * top rail. Deriving both insets from the same center prevents a subtle
+   * top-heavy 14px/11px placement around the 28px signed-out button. */
+  top: calc(
+    (var(--onboarding-titlebar-block-size) + var(--onboarding-account-rail-end)) / 2
+  );
   inset-inline-end: 48px;
   display: flex;
   max-width: min(320px, calc(100% - 96px));
@@ -511,6 +518,7 @@
   gap: 8px;
   color: var(--po-text-subtle);
   font-size: var(--po-text-size-hint, 12px);
+  transform: translateY(-50%);
 }
 
 .homepage-cloud-account.is-error {
@@ -661,7 +669,6 @@
   }
 
   .homepage-cloud-account {
-    top: 46px;
     inset-inline-end: 18px;
     max-width: calc(100% - 36px);
   }
