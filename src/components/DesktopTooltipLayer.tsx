@@ -1,3 +1,4 @@
+import { isTooltipSuppressed } from "@puppyone/shared-ui";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -14,6 +15,7 @@ const VIEWPORT_MARGIN = 8;
 const TRIGGER_GAP = 8;
 
 function readTooltip(target: HTMLElement): ActiveTooltip | null {
+  if (isTooltipSuppressed(target)) return null;
   const label = target.dataset.tooltip?.trim();
   if (!label) return null;
   if (
@@ -33,9 +35,8 @@ function readTooltip(target: HTMLElement): ActiveTooltip | null {
 }
 
 function tooltipTarget(node: EventTarget | null): HTMLElement | null {
-  return node instanceof Element
-    ? node.closest<HTMLElement>("[data-tooltip]")
-    : null;
+  if (!(node instanceof Element) || isTooltipSuppressed(node)) return null;
+  return node.closest<HTMLElement>("[data-tooltip]");
 }
 
 function positionTooltip(

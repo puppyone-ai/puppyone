@@ -113,6 +113,10 @@ app.whenReady().then(async () => {
           window.webContents.sendInputEvent({ type: "mouseMove", ...await evaluate(`window.tableFixture.point('${kind}', '.po-editable-table-${axis}-handle')`) });
           await wait();
           assert.deepEqual((await metrics()).gripStyles, baseline.gripStyles, `${kind} ${axis} hover must keep the table palette and radius`);
+          if (kind === "markdown") {
+            await evaluate("new Promise(resolve => setTimeout(resolve, 500))");
+            assert.equal(await evaluate("document.querySelector('[role=tooltip]') !== null"), false, "Markdown handle hover opened a hint bubble");
+          }
         }
         await click(point);
         await evaluate(`window.tableFixture.selectText('${kind}')`); await wait();
@@ -129,6 +133,14 @@ app.whenReady().then(async () => {
           assert(selected.outline && selected.target, `${kind}: ${axis} selection perimeter missing`);
           assert.equal(selected.axis, axis);
           assert.equal(selected.outlineBorder, "2px");
+          if (kind === "markdown") {
+            const menuHints = await evaluate(`(() => {
+              const menu = document.querySelector('.cm-md-table-context-menu');
+              return { disabled: menu.dataset.tooltipDisabled, hints: menu.querySelectorAll('[data-tooltip], [title]').length,
+                bubble: document.querySelector('[role=tooltip]') !== null };
+            })()`);
+            assert.deepEqual(menuHints, { disabled: "true", hints: 0, bubble: false }, "Markdown menu focus opened a redundant hint bubble");
+          }
           assert.equal(selected.textSelectionBackground, "rgba(0, 0, 0, 0)", "structural selection painted a second text highlight");
           assert.deepEqual(selected.backgrounds, baseline.backgrounds, `${axis} selection tinted cells`);
           if (axis === "column") {

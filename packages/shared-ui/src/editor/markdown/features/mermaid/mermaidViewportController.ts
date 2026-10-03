@@ -1,4 +1,3 @@
-import { activateTooltip } from "../../../../primitives/Tooltip";
 import type { MarkdownLocalization } from "../../core/editor/markdownLocalization";
 import { mountSanitizedMermaidSvg, type MermaidSvgMount } from "./mermaidRenderer";
 
@@ -126,7 +125,6 @@ function createZoomButton(label: string, accessibleLabel: string): HTMLButtonEle
   button.type = "button";
   button.className = "cm-md-mermaid-zoom-action";
   button.textContent = label;
-  activateTooltip(button, accessibleLabel);
   button.setAttribute("aria-label", accessibleLabel);
   return button;
 }

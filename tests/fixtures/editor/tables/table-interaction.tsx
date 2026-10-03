@@ -14,6 +14,10 @@ import { BUILTIN_SUB_THEMES } from "../../../../src/features/themes/builtinSubTh
 import { DEFAULT_TYPOGRAPHY_PREFERENCES, resolveTypography } from "../../../../src/features/typography";
 import { DEFAULT_MARKDOWN_PRESENTATION_SETTINGS } from "../../../../src/features/markdown/markdownPresentation";
 import englishCatalog from "../../../../src/localization/catalog-loaders/en";
+import { DesktopTooltipLayer } from "../../../../src/components/DesktopTooltipLayer";
+import { installNativeTitleSuppression } from "../../../../src/lib/nativeTitleSuppression";
+
+installNativeTitleSuppression();
 
 const rows = [
   ["Order", "Area", "English copy", "中文释义"],
@@ -51,6 +55,7 @@ function Harness() {
         onSnapshotPortChange={onCsvSnapshot}
         onSourceRevisionChange={() => {}} /></section>
     </div>
+    <DesktopTooltipLayer />
   </SurfaceAppearanceProvider></TestLocalizationProvider>;
 }
 createRoot(document.getElementById("root")!).render(<Harness />);

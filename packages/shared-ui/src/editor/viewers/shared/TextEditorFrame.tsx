@@ -37,6 +37,7 @@ export type TextEditorFrameProps = {
   hideSourceView: boolean;
   enableModeToggleShortcut?: boolean;
   modeControlPlacement?: "inline" | "pane-menu";
+  modeTooltipsEnabled?: boolean;
   liveModeLabel?: string;
   sourceModeLabel?: string;
   liveModeIcon?: "edit" | "preview";
@@ -61,6 +62,7 @@ export function TextEditorFrame({
   hideSourceView,
   enableModeToggleShortcut = false,
   modeControlPlacement = "inline",
+  modeTooltipsEnabled = true,
   liveModeLabel,
   sourceModeLabel,
   liveModeIcon = "edit",
@@ -380,7 +382,7 @@ export function TextEditorFrame({
         modeControlPlacement === "inline" || !publishPaneMenuContribution
       ) && (
         <div className="editor-mode-toggle" aria-label={t("editor.mode.label")}>
-          <Tooltip content={liveModeLabel ?? t("editor.mode.live")}><button
+          <Tooltip content={modeTooltipsEnabled ? liveModeLabel ?? t("editor.mode.live") : null}><button
             className={mode === "live" ? "active" : ""}
             type="button"
             onClick={() => switchMode("live")}
@@ -388,7 +390,7 @@ export function TextEditorFrame({
           >
             {liveModeIcon === "preview" ? <PreviewIcon /> : <PencilIcon />}
           </button></Tooltip>
-          <Tooltip content={sourceModeLabel ?? t("editor.mode.source")}><button
+          <Tooltip content={modeTooltipsEnabled ? sourceModeLabel ?? t("editor.mode.source") : null}><button
             className={mode === "source" ? "active" : ""}
             type="button"
             onClick={() => switchMode("source")}

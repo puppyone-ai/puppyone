@@ -2,7 +2,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
-import { Tooltip, activateTooltip } from "../../../../packages/shared-ui/src/primitives/Tooltip";
+import { Tooltip, activateTooltip, disableTooltipHints, isTooltipSuppressed } from "../../../../packages/shared-ui/src/primitives/Tooltip";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -37,6 +37,24 @@ describe("Tooltip", () => {
     expect(button?.dataset.tooltipWhen).toBe("overflow");
     expect(button?.dataset.tooltipPlacement).toBe("top");
     expect(button?.dataset.tooltipShortcut).toBe("⌘K");
+  });
+
+  it("disables nested hints without removing accessible names or explicit content", () => {
+    const scope = document.createElement("div");
+    const button = document.createElement("button");
+    scope.append(button);
+    document.body.append(scope);
+    button.setAttribute("aria-label", "Accessible command");
+    activateTooltip(button, "Nested hint");
+    expect(isTooltipSuppressed(button)).toBe(false);
+
+    disableTooltipHints(scope);
+    disableTooltipHints(scope);
+    expect(isTooltipSuppressed(button)).toBe(true);
+    expect(isTooltipSuppressed(scope)).toBe(true);
+    expect(button.dataset.tooltip).toBe("Nested hint");
+    expect(button.getAttribute("aria-label")).toBe("Accessible command");
+    expect(scope.hasAttribute("title")).toBe(false);
   });
 
   it("requires the same explicit activation for imperative DOM", () => {

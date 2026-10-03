@@ -1,4 +1,4 @@
-import { activateTooltip } from "../../../../primitives/Tooltip";
+import { disableTooltipHints } from "../../../../primitives/Tooltip";
 import type { MarkdownTableAlignment, MarkdownTableStructureOperation } from "./tableModel";
 import {
   dispatchMarkdownTableStructureOperation,
@@ -93,6 +93,7 @@ export function showMarkdownTableContextMenu(
   const restoreFocus = target.restoreFocus
     ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
   const menu = document.createElement("div");
+  disableTooltipHints(menu);
   menu.id = `cm-md-table-menu-${++markdownTableMenuSequence}`;
   menu.className = "desktop-menu-surface cm-md-table-context-menu po-editable-table-context-menu";
   menu.dataset.nativeSurfaceOccluder = "true";
@@ -462,7 +463,6 @@ function createMarkdownTableMenuItem(
   button.disabled = item.disabled === true;
   button.tabIndex = -1;
   button.setAttribute("aria-label", item.label);
-  activateTooltip(button, item.label);
 
   const body = document.createElement("span");
   body.className = "desktop-menu-item-body";

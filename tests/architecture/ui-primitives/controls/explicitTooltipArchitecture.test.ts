@@ -96,6 +96,29 @@ function findDirectTooltipActivation(file: string) {
 }
 
 describe("explicit tooltip architecture", () => {
+  it("keeps Markdown controls and their portalled menus free of hover hint activation", () => {
+    const markdownRoot = path.join(REPOSITORY_ROOT, "packages/shared-ui/src/editor/markdown");
+    const violations = sourceFiles(markdownRoot).filter((file) => {
+      const source = fs.readFileSync(file, "utf8");
+      return /\bactivateTooltip\s*\(|<Tooltip\b/.test(source);
+    }).map((file) => path.relative(REPOSITORY_ROOT, file));
+    expect(violations).toEqual([]);
+    expect(fs.readFileSync(path.join(markdownRoot, "MarkdownCodeMirrorEditor.tsx"), "utf8"))
+      .toContain("disableTooltipHints(host)");
+    expect(fs.readFileSync(path.join(markdownRoot, "MarkdownViewer.tsx"), "utf8"))
+      .toContain("modeTooltipsEnabled={false}");
+    expect(fs.readFileSync(path.join(markdownRoot, "features/table/tableContextMenu.ts"), "utf8"))
+      .toContain("disableTooltipHints(menu)");
+  });
+
+  it("installs the native-title guard and the product-authored tooltip layer at startup", () => {
+    const entry = fs.readFileSync(path.join(REPOSITORY_ROOT, "src/main.tsx"), "utf8");
+    expect(entry).toContain("installNativeTitleSuppression()");
+    expect(entry).toContain("<DesktopTooltipLayer />");
+    expect(fs.readFileSync(path.join(REPOSITORY_ROOT, "src/styles.css"), "utf8"))
+      .toContain('"./styles/tooltip.css"');
+  });
+
   it("routes product tooltips through the shared opt-in API", () => {
     const violations = SOURCE_ROOTS.flatMap(sourceFiles).flatMap(findDirectTooltipActivation);
     expect(violations).toEqual([]);
