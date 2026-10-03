@@ -151,6 +151,35 @@ describe("CSV table visual architecture", () => {
     );
   });
 
+  it("keeps row and column handles in the table palette with the same corner radius", () => {
+    expect(sharedTableCss).toContain(
+      "--po-editable-table-handle-background: var(--po-editable-table-header-background);",
+    );
+    expect(sharedTableCss).toContain(
+      "--po-editable-table-handle-border: var(--po-editable-table-border);",
+    );
+    expect(sharedTableCss).toContain(
+      "--po-editable-table-handle-hover-background: var(--po-editable-table-handle-background);",
+    );
+    expect(sharedTableCss).toContain(
+      "--po-editable-table-handle-hover-border: var(--po-editable-table-handle-border);",
+    );
+    expect(sharedTableCss).toMatch(
+      /\.po-editable-table-drag-handle-visual\s*\{[^}]*border:\s*1px solid var\(--po-editable-table-handle-border\)[^}]*border-radius:\s*var\(--po-editable-table-radius\)[^}]*background:\s*var\(--po-editable-table-handle-background\)/s,
+    );
+    for (const [css, selector] of [
+      [csvTableCss, "csv-table-editor__table"],
+      [markdownTableCss, "cm-md-table-widget"],
+    ]) {
+      const rule = css.match(new RegExp(`\\.${selector}\\s*\\{([^}]*)\\}`, "s"))?.[1];
+      expect(rule).toContain("border-radius: var(--po-editable-table-radius);");
+    }
+    // Focus, open menus, and dragging still use the structural-selection cue.
+    expect(sharedTableCss).toMatch(
+      /\.po-editable-table-drag-handle:focus-visible[^}]*\.is-menu-active[^}]*\.is-dragging[^}]*\{[^}]*border-color:\s*var\(--po-editable-table-selection-border\)[^}]*background:\s*var\(--po-editable-table-selection-border\)/s,
+    );
+  });
+
   it("assigns the two-axis CSV viewport to exactly one scroll owner", () => {
     expect(csvViewerSource).toContain('liveScrollOwner="viewer"');
     expect(textEditorFrameSource).toContain('liveScrollOwner = "frame"');
@@ -257,7 +286,7 @@ describe("CSV table visual architecture", () => {
     );
     expect(csvTableCss).not.toContain(".csv-table-editor__surface::after");
     expect(csvTableCss).toMatch(
-      /\.csv-table-editor__table\s*\{[^}]*border:\s*1px solid var\(--po-editable-table-border\)[^}]*border-radius:\s*0/s,
+      /\.csv-table-editor__table\s*\{[^}]*border:\s*1px solid var\(--po-editable-table-border\)[^}]*border-radius:\s*var\(--po-editable-table-radius\)/s,
     );
     expect(csvTableCss).toContain("--po-editable-table-cell-max-width: 560px");
     expect(sharedTableCss).toContain("--po-editable-table-background:");

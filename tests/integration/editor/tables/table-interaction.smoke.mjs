@@ -64,6 +64,12 @@ app.whenReady().then(async () => {
         assert.equal(baseline.cellBorder, "1px", `${kind} cell stroke`);
         near(baseline.grip.width, 22, "compact grip width"); near(baseline.grip.height, 14, "compact grip height");
         assert.equal(baseline.gripShadow, "none", "grip must not look raised");
+        assert.equal(baseline.gripStyles.length, 2, "row and column grips must share the table style");
+        for (const gripStyle of baseline.gripStyles) {
+          assert.equal(gripStyle.radius, baseline.radius, `${kind} grip radius must match the table`);
+          assert.equal(gripStyle.border, baseline.border, `${kind} grip stroke must match the table`);
+          assert.equal(gripStyle.borderColor, baseline.borderColor, `${kind} grip border color must match the table`);
+        }
         assert.deepEqual(baseline.dots, { width: "12px", height: "4px" }, "column handle needs a single line of three dots");
         for (const reduced of [false, true]) {
           await reducedMotion(reduced);
@@ -100,6 +106,11 @@ app.whenReady().then(async () => {
         window.webContents.sendInputEvent({ type: "mouseMove", ...point }); await wait();
         assert.deepEqual((await metrics()).backgrounds, baseline.backgrounds, "hover tinted cells");
         await screenshot(`${mode}-${kind}-handles-visible`);
+        for (const axis of ["column", "row"]) {
+          window.webContents.sendInputEvent({ type: "mouseMove", ...await evaluate(`window.tableFixture.point('${kind}', '.po-editable-table-${axis}-handle')`) });
+          await wait();
+          assert.deepEqual((await metrics()).gripStyles, baseline.gripStyles, `${kind} ${axis} hover must keep the table palette and radius`);
+        }
         await click(point);
         await evaluate(`window.tableFixture.selectText('${kind}')`); await wait();
         const focused = await metrics();

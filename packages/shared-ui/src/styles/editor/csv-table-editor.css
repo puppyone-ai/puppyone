@@ -234,7 +234,7 @@
   margin: 0;
   overflow: visible;
   border: 1px solid var(--po-editable-table-border);
-  border-radius: 0;
+  border-radius: var(--po-editable-table-radius);
   border-collapse: separate;
   border-spacing: 0;
   table-layout: fixed;

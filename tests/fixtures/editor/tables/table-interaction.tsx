@@ -105,6 +105,11 @@ const api = {
       cell: boxes(c), cellBorder: focus.borderRightWidth, cellFocus: focus.boxShadow,
       dots: { width: getComputedStyle(grip, "::before").width, height: getComputedStyle(grip, "::before").height },
       grip: boxes(grip), gripShadow: getComputedStyle(grip).boxShadow, gripColor: getComputedStyle(grip).backgroundColor,
+      gripStyles: [...document.querySelectorAll(`#${kind} .po-editable-table-drag-handle-visual`)].map(handle => {
+        const css = getComputedStyle(handle);
+        return { radius: css.borderRadius, border: css.borderTopWidth, borderColor: css.borderTopColor,
+          backgroundColor: css.backgroundColor, backgroundImage: css.backgroundImage };
+      }),
       outline: outline.hidden ? null : boxes(outline), outlineBorder: getComputedStyle(outline).borderTopWidth, blockSelected: element.closest(".cm-md-table-widget-wrap")?.classList.contains("is-doc-selected") ?? false,
       tableShadow: style.boxShadow,
       editorSelection: kind === "markdown" ? { focused: EditorView.findFromDOM(document.querySelector("#markdown .cm-editor")!)!.hasFocus, selection: EditorView.findFromDOM(document.querySelector("#markdown .cm-editor")!)!.state.selection.toJSON(), active: document.activeElement?.className } : null,
