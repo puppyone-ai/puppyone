@@ -425,6 +425,9 @@
 }
 
 .onboarding-project-list {
+  /* Persistent navigation affordance: legible in both light and dark themes. */
+  --po-scrollbar-presentation-thumb: color-mix(in srgb, var(--po-text-muted) 40%, transparent);
+  --po-scrollbar-presentation-thumb-hover: color-mix(in srgb, var(--po-text-muted) 60%, transparent);
   display: grid;
   width: 100%;
   min-width: 0;
