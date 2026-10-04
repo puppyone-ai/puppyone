@@ -18,6 +18,27 @@ afterEach(() => {
 });
 
 describe("EditorHeaderTabs", () => {
+  it("registers hidden scrollbar ownership and reveals the activated overflow tab", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    const editors = Array.from({ length: 20 }, (_, index) => createEditorInput(`notes/${index}.md`));
+    const props = {
+      editors, fileIconTheme: "default" as const, storageIdentity: null,
+      onActivate: vi.fn(), onClose: vi.fn(), onMove: vi.fn(),
+    };
+    act(() => root?.render(withTestLocalization(<EditorHeaderTabs {...props} activeEditorId={editors[0]!.id} />)));
+    const tablist = container.querySelector<HTMLElement>('[role="tablist"]')!;
+    expect(tablist.dataset.poScrollbar).toBe("hidden");
+    const lastTab = container.querySelector<HTMLButtonElement>(`[data-editor-tab-id="${editors[19]!.id}"]`)!;
+    const scrollIntoView = vi.fn();
+    lastTab.scrollIntoView = scrollIntoView;
+    act(() => root?.render(withTestLocalization(<EditorHeaderTabs {...props} activeEditorId={editors[19]!.id} />)));
+    expect(container.querySelector('[role="tablist"]')).toBe(tablist);
+    expect(lastTab.getAttribute("aria-selected")).toBe("true");
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", inline: "nearest" });
+  });
+
   it("switches files, closes through the host barrier, and opens the create menu", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
