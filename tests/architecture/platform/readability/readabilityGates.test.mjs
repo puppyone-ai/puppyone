@@ -59,7 +59,8 @@ describe("readability gates reject new code, without suppressing bug rules", () 
     "src/a.mts", "electron/a.cts", "local-api/a.tsx", "electron/a.mjs", "local-api/a.mjs", "shared/a.js",
     "src/a.js", "packages/shared-ui/src/a.mjs", "electron/a.cjs",
   ])("covers %s", async (filePath) => {
-    const text = filePath.endsWith(".cjs") ? "const f = a ? b ? c : d : e; debugger;" : `${nested} debugger;`;
+    const annotation = /\.(?:[cm]?ts|tsx)$/.test(filePath) ? "const typed: number = 1; " : "";
+    const text = filePath.endsWith(".cjs") ? "const f = a ? b ? c : d : e; debugger;" : `${annotation}${nested} debugger;`;
     const [result] = await eslint.lintText(text, { filePath });
     expect(result.messages.map((message) => message.ruleId)).toEqual(expect.arrayContaining(["no-nested-ternary", "no-debugger"]));
     expect(result.fatalErrorCount).toBe(0);
