@@ -136,22 +136,6 @@ export function DesktopCloudShell({
   onRightSidebarWidthChange,
 }: DesktopCloudShellProps) {
   const { t } = useLocalization();
-  const shellRef = useRef<HTMLDivElement>(null);
-  const arrivalScope = useMemo(() => ({ active, workspaceLocation }), [active, workspaceLocation]);
-  const [arrivalReadyScope, setArrivalReadyScope] = useState<typeof arrivalScope | null>(null);
-  useEffect(() => {
-    if (!arrivalScope.active || arrivalScope.workspaceLocation !== "cloud") return;
-    const wipe = shellRef.current?.querySelector<HTMLElement>(".desktop-cloud-header-wipe");
-    const animations = wipe?.getAnimations?.() ?? [];
-    if (animations.length === 0) { setArrivalReadyScope(arrivalScope); return; }
-    let cancelled = false;
-    // A fast provider may finish before the Header. Wait only for its remaining
-    // reveal, never add a fresh delay after a slow network preparation.
-    void Promise.all(animations.map(animation => animation.finished.catch(() => undefined))).then(() => {
-      if (!cancelled) setArrivalReadyScope(arrivalScope);
-    });
-    return () => { cancelled = true; };
-  }, [arrivalScope]);
   const bodyRef = useRef<HTMLDivElement>(null);
   const [navigationToolbarHost, setNavigationToolbarHost] = useState<HTMLDivElement | null>(null);
   const [leadingRailResizerElement, setLeadingRailResizerElement] = useState<HTMLDivElement | null>(null);
@@ -343,7 +327,6 @@ export function DesktopCloudShell({
 
   return (
     <div
-      ref={shellRef}
       className="desktop-shell"
       data-workspace-kind={workspaceLocation === "cloud" ? "cloud" : undefined}
       data-leading-rail={leadingRailPresent ? "true" : undefined}
@@ -352,10 +335,6 @@ export function DesktopCloudShell({
       data-titlebar-sidebar-state={sidebarState}
       style={shellStyle}
     >
-      {active && workspaceLocation === "cloud" && <div className="desktop-cloud-entry-light" aria-hidden="true"
-        data-arrival-ready={arrivalReadyScope === arrivalScope}>
-        <div className="desktop-cloud-entry-sweep" />
-      </div>}
       <div className="desktop-shell-workbench">
         <DesktopWindowChrome
           workspaceLocation={requestedWorkspaceLocation ?? workspaceLocation}

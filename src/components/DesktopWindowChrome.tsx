@@ -46,7 +46,7 @@ export function DesktopWindowChrome({
       data-window-full-screen={fullScreen ? "true" : undefined}
       data-centered-project={centeredContext ? "true" : undefined}
     >
-      {workspaceLocation === "cloud" && <span className="desktop-cloud-header-wipe" aria-hidden="true" />}
+      {workspaceLocation === "cloud" && <span className="desktop-cloud-header-reveal" aria-hidden="true" />}
       <div className="desktop-titlebar-layout">
         <div className="desktop-titlebar-leading">
           <div className="desktop-titlebar-left">

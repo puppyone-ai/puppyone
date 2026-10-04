@@ -80,43 +80,34 @@ function installBridge() {
 }
 
 describe("native Cloud workbench switching", () => {
-  it("mounts an arrival light only for the committed active Cloud shell and retains content", async () => {
+  it("shows committed content without an arrival cover and retains Header and drafts", async () => {
     const shell = (location: "local" | "cloud", active = true, requested?: "local" | "cloud") => <DesktopCloudShell workspaceLocation={location} requestedWorkspaceLocation={requested} active={active}>
       <input aria-label="Retained content" defaultValue="Unsaved draft" />
     </DesktopCloudShell>;
     await render(shell("local"));
-    const input = document.querySelector('input[aria-label="Retained content"]');
-    expect(document.querySelector(".desktop-cloud-entry-light")).toBeNull();
+    const input = document.querySelector<HTMLInputElement>('input[aria-label="Retained content"]')!;
+    input.value = "Local draft";
     await render(shell("local", true, "cloud"));
     expect(document.querySelector(".desktop-titlebar")?.getAttribute("data-workspace-kind")).toBe("cloud");
     expect(document.querySelector(".desktop-shell")?.getAttribute("data-workspace-kind")).toBeNull();
-    expect(document.querySelector(".desktop-cloud-entry-light")).toBeNull();
-    const headerWipe = document.querySelector(".desktop-cloud-header-wipe");
-    let completeHeader!: () => void;
-    const headerCompletion = new Promise<void>(resolve => { completeHeader = resolve; });
-    Object.defineProperty(headerWipe, "getAnimations", { value: () => [{ finished: headerCompletion }] });
-    await render(shell("cloud"));
-    expect(document.querySelector(".desktop-cloud-header-wipe")).toBe(headerWipe);
-    const light = document.querySelector(".desktop-cloud-entry-light");
-    expect(light?.getAttribute("data-arrival-ready")).toBe("false");
-    await act(async () => { completeHeader(); });
-    expect(document.querySelector(".desktop-cloud-entry-light")).toBe(light);
-    expect(light?.getAttribute("data-arrival-ready")).toBe("true");
-    expect(light?.getAttribute("aria-hidden")).toBe("true");
-    expect(light?.children).toHaveLength(1);
-    await render(shell("cloud"));
-    expect(document.querySelector(".desktop-cloud-entry-light")).toBe(light);
-    await render(shell("cloud", false));
-    expect(document.querySelector(".desktop-cloud-entry-light")).toBeNull();
+    const reveal = document.querySelector(".desktop-cloud-header-reveal");
+    expect(reveal).not.toBeNull();
+    for (const [location, active] of [["cloud", true], ["cloud", true], ["cloud", false]] as const) {
+      await render(shell(location, active));
+      expect(document.querySelector(".desktop-cloud-header-reveal")).toBe(reveal);
+      expect(document.querySelector(".desktop-cloud-entry-light, .desktop-cloud-entry-sweep")).toBeNull();
+      expect(document.querySelector('input[aria-label="Retained content"]')).toBe(input);
+      expect(input.value).toBe("Local draft");
+    }
     await render(shell("local"));
-    expect(document.querySelector(".desktop-cloud-header-wipe")).toBeNull();
+    expect(document.querySelector(".desktop-cloud-header-reveal")).toBeNull();
     await render(shell("local", true, "cloud"));
     await render(shell("local"));
     expect(document.querySelector(".desktop-titlebar")?.getAttribute("data-workspace-kind")).toBeNull();
-    expect(document.querySelector(".desktop-cloud-entry-light")).toBeNull();
     await render(shell("cloud"));
-    expect(document.querySelector(".desktop-cloud-entry-light")).not.toBe(light);
-    expect(document.querySelector('input[aria-label="Retained content"]')).toBe(input);
+    expect(document.querySelector(".desktop-cloud-header-reveal")).not.toBe(reveal);
+    expect(document.querySelector(".desktop-cloud-entry-light, .desktop-cloud-entry-sweep")).toBeNull();
+    expect(input.value).toBe("Local draft");
   });
 
   it("switches the main surface without a dialog and restores the exact local editor host and draft", async () => {

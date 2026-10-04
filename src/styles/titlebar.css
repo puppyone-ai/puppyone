@@ -45,22 +45,32 @@
 
 /* Reveal the requested Cloud color under stationary text and controls. The
  * layer mounts once on entry and survives the subsequent provider commit. */
-.desktop-cloud-header-wipe {
+.desktop-cloud-header-reveal {
   position: absolute;
   z-index: -1;
   inset: 0;
   background: var(--po-header);
   pointer-events: none;
-  animation: desktop-cloud-header-reveal 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-@keyframes desktop-cloud-header-reveal {
-  from { clip-path: inset(0 0 0 0); }
-  to { clip-path: inset(0 0 100% 0); }
+/* A small blue disc grows from the Header's bottom center. Clipping keeps the
+ * circle entirely within the Header, with no moving text or workspace cover. */
+.desktop-cloud-header-reveal::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--po-cloud-header-bg);
+  animation: desktop-cloud-header-expand 520ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+@keyframes desktop-cloud-header-expand {
+  from { clip-path: circle(4px at 50% 100%); }
+  to { clip-path: circle(100% at 50% 100%); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .desktop-cloud-header-wipe { display: none; animation: none; }
+  .desktop-cloud-header-reveal { display: none; }
+  .desktop-cloud-header-reveal::after { animation: none; }
 }
 
 /* Native system chrome already owns its caption buttons. Only overlay chrome
