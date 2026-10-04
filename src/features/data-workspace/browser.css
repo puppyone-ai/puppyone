@@ -278,7 +278,9 @@
   cursor: var(--po-clickable-cursor, default);
 }
 
-.desktop-data-workspace-wrap {
+/* Ready file trees and the Cloud preparation tree share Desktop geometry. */
+.desktop-data-workspace-wrap,
+.desktop-cloud-preparation {
   --po-tree-row-left-gap: var(--desktop-sidebar-row-left-gap);
   --po-tree-row-right-gap: var(--desktop-sidebar-row-right-gap);
   --po-tree-scrollbar-width: var(--desktop-sidebar-scrollbar-width);
@@ -302,6 +304,9 @@
   --po-tree-root-top-gap: var(--desktop-sidebar-row-left-gap);
   --po-tree-no-root-top-gap: var(--desktop-sidebar-row-left-gap);
   --po-tree-list-bottom-gap: var(--desktop-sidebar-list-padding-block);
+}
+
+.desktop-data-workspace-wrap {
   --data-explorer-footer-height: auto;
   --data-explorer-footer-min-height: var(--desktop-sidebar-navigation-height);
 

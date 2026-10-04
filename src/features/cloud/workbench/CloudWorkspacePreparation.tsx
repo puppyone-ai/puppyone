@@ -11,8 +11,13 @@ export function CloudWorkspacePreparation({ controller }: { controller: CloudWor
   return <section className="desktop-cloud-preparation" aria-label={t("cloud.productName")}
     aria-busy={!controller.error}>
     <aside className="explorer-column desktop-cloud-preparation-rail">
-      <div className="explorer-tree-scroll">
-        {!controller.error && <ExplorerTreeSkeleton loadingLabel={t("shared-ui.explorer.loadingWorkspace")} />}
+      {/* The tree shell owns row geometry; the list owns its outer gutters. */}
+      <div className="explorer-tree-shell no-root">
+        <div className="explorer-tree-scroll" data-po-scrollbar="sidebar">
+          <div className="explorer-tree-list">
+            {!controller.error && <ExplorerTreeSkeleton loadingLabel={t("shared-ui.explorer.loadingWorkspace")} />}
+          </div>
+        </div>
       </div>
     </aside>
     <main className="browser-column desktop-editor-panel">

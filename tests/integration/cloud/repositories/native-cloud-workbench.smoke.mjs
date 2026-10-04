@@ -319,6 +319,34 @@ app.whenReady().then(async () => {
   await evaluate("Promise.all(document.querySelector('.desktop-project-location-indicator').getAnimations().map(animation => animation.finished.catch(() => {})))");
   await new Promise(resolve => setTimeout(resolve, 100));
   await writeFile(path.join(artifacts, 'cloud-switch-loading.png'), (await window.webContents.capturePage()).toPNG());
+  for (const theme of ['light', 'dark']) {
+    await evaluate(`window.__nativeCloudWorkbenchSmoke.setLoginAppearance('${theme}', 'en')`);
+    for (const width of [640, 1100]) {
+      window.setSize(width, 760);
+      await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+      const loadingLayout = await evaluate(`(() => {
+        const rail = document.querySelector('.desktop-cloud-preparation-rail');
+        const tree = document.querySelector('[data-workspace-location=local] .explorer-tree-shell');
+        const css = getComputedStyle(tree), bounds = rail.getBoundingClientRect();
+        const number = name => parseFloat(css.getPropertyValue(name));
+        const rows = [...rail.querySelectorAll('.explorer-tree-skeleton-row')].map(row => {
+          const r = row.getBoundingClientRect();
+          const icon = row.querySelector('.explorer-tree-skeleton-icon').getBoundingClientRect();
+          const label = row.querySelector('.explorer-tree-skeleton-label').getBoundingClientRect();
+          return { x:icon.x-bounds.x, y:r.y-bounds.y, height:r.height, gap:label.x-icon.right };
+        });
+        return { rows, height:number('--tree-row-height'), indent:number('--tree-row-indent'),
+          inset:number('--tree-row-left-gap')+number('--tree-row-content-left'),
+          top:number('--tree-no-root-top-gap'), gap:number('--tree-row-icon-label-gap') };
+      })()`);
+      assert(loadingLayout.rows.length === 6 && loadingLayout.rows.every((row, index) =>
+        Math.abs(row.height-loadingLayout.height) < 1 && Math.abs(row.gap-loadingLayout.gap) < 1
+        && Math.abs(row.y-(loadingLayout.top+index*(loadingLayout.height+2))) < 1
+        && Math.abs(row.x-(loadingLayout.inset+([0,1,1,0,1,1][index])*loadingLayout.indent)) < 1),
+      `Pending Cloud skeleton must preserve file-tree geometry (${theme}/${width}): ${JSON.stringify(loadingLayout)}`);
+      await writeFile(path.join(artifacts, `cloud-loading-${theme}-${width}.png`), (await window.webContents.capturePage()).toPNG());
+    }
+  }
   await evaluate("window.__nativeCloudWorkbenchSmoke.finishCloudRead()");
   await waitFor("window.__nativeCloudWorkbenchSmoke.state().location === 'cloud'");
   assert(await evaluate("document.querySelector('.desktop-cloud-header-reveal').dataset.fixtureIdentity === 'requested-header-reveal' && document.querySelector('.desktop-cloud-header-reveal').getAnimations({subtree:true}).every(animation => animation.playState === 'paused')"),
