@@ -10,6 +10,74 @@
   contain: strict;
 }
 
+/* The sheet travels out to the right, revealing the prepared page from left
+   to right without transforming retained document or native surface hosts. */
+.desktop-cloud-entry-light::before {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  content: "";
+  background: var(--po-canvas);
+  box-shadow: -18px 0 36px color-mix(in srgb, var(--po-brand-blue) 24%, transparent);
+  animation: desktop-cloud-page-turn 650ms cubic-bezier(0.65, 0, 0.35, 1) both;
+}
+
+@keyframes desktop-cloud-page-turn {
+  from { transform: translateX(0); }
+  to { transform: translateX(110%); }
+}
+
+.desktop-cloud-preparation {
+  position: absolute;
+  z-index: 10;
+  inset: 0;
+  display: flex;
+  overflow: hidden;
+  background: var(--po-canvas);
+  color: var(--po-text);
+  animation: desktop-cloud-preparation-reveal 450ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.desktop-cloud-preparation-rail {
+  box-sizing: border-box;
+  width: var(--desktop-shell-explorer-width, 240px);
+  flex: 0 0 auto;
+  padding: 28px 20px;
+  border-inline-end: 1px solid var(--po-border);
+  background: var(--po-sidebar);
+}
+
+.desktop-cloud-preparation-rail span {
+  display: block;
+  width: 80%;
+  height: 14px;
+  margin-block-end: 22px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--po-text) 8%, transparent);
+}
+
+.desktop-cloud-preparation-rail span:nth-child(even) { width: 56%; }
+
+.desktop-cloud-preparation-main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px;
+  text-align: center;
+}
+
+.desktop-cloud-preparation-main p { margin: 0; color: var(--po-text-muted); }
+.desktop-cloud-preparation-mark { color: var(--po-brand-blue); }
+
+@keyframes desktop-cloud-preparation-reveal {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0); }
+}
+
 .desktop-cloud-entry-aura {
   position: absolute;
   inset: -25% -15%;
@@ -63,4 +131,5 @@
 @media (prefers-reduced-motion: reduce) {
   .desktop-cloud-entry-light { display: none; }
   .desktop-cloud-entry-light > div { animation: none; }
+  .desktop-cloud-entry-light::before, .desktop-cloud-preparation { animation: none; }
 }

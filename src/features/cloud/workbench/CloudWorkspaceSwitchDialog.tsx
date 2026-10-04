@@ -10,13 +10,14 @@ import type { CloudWorkspaceSwitch } from "./useCloudWorkspaceSwitch";
 import "./cloud-workspace-switch.css";
 
 /** Authentication and preparation overlay the retained current-device workbench. */
-export function CloudWorkspaceSwitchDialog({ controller, gate, authenticationRequired = false }: {
+export function CloudWorkspaceSwitchDialog({ controller, gate, authenticationRequired = false, preparingInPlace = false }: {
   controller: CloudWorkspaceSwitch;
   gate: ReactNode;
   authenticationRequired?: boolean;
+  preparingInPlace?: boolean;
 }) {
   const { t } = useLocalization();
-  const inlinePreparation = controller.pending && controller.checking && !authenticationRequired;
+  const inlinePreparation = controller.pending && (controller.checking || preparingInPlace) && !authenticationRequired;
   const cancel = controller.cancel;
   useEffect(() => {
     if (!inlinePreparation) return undefined;

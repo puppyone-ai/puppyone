@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
   Tooltip,
   RENDERER_ASSET_PATHS,
@@ -55,6 +55,9 @@ type DesktopWorkspaceSwitcherProps = {
 export type DesktopProjectLocation = Readonly<{
   /** The project surface currently displayed; a remote alone does not select Cloud. */
   current: "local" | "cloud";
+  /** Immediate user selection while the committed provider prepares. */
+  requested?: "local" | "cloud";
+  loading?: boolean;
   localAvailable: boolean;
   cloudState: "unavailable" | "available" | "signed-out" | "resolving" | "attention";
 }>;
@@ -84,6 +87,8 @@ export function DesktopWorkspaceSwitcher({
   const { t } = useLocalization();
   const [view, setView] = useState<"projects" | "add">("projects");
   const [projectMenuWidth, setProjectMenuWidth] = useState(248);
+  const reserveProjectMenuWidth = useCallback((width: number) => setProjectMenuWidth(previous => Math.max(previous, width)), []);
+  useEffect(() => { if (!open) setProjectMenuWidth(248); }, [open]);
   const localDeviceLabel = useProjectDeviceLabel();
   const currentProjectLocationKind = projectLocation?.current ?? "local";
   const workspaceContextAssetLabel = currentProjectLocationKind === "cloud"
@@ -133,6 +138,7 @@ export function DesktopWorkspaceSwitcher({
         className="desktop-project-menu"
         gap={4}
         onDismiss={onClose}
+        dismissOnFocusExit={false}
         open={open}
         preferredMaxHeight={520}
         preferredWidth={view === "add" ? 240 : projectMenuWidth}
@@ -151,7 +157,7 @@ export function DesktopWorkspaceSwitcher({
               onViewLocal={onViewLocal}
               onViewCloud={onViewCloud}
               onDone={onClose}
-              onPreferredWidthChange={setProjectMenuWidth}
+              onPreferredWidthChange={reserveProjectMenuWidth}
             />
             {(attachedFolders.length > 1 || multiRootWorkspacesEnabled) && (
               <div className="desktop-project-list" data-po-scrollbar="menu"
@@ -245,19 +251,9 @@ export function DesktopProjectLocationControls({
   const localDeviceLabel = useProjectDeviceLabel();
   const controlsRef = useRef<HTMLDivElement>(null);
   const current = projectLocation?.current ?? "local";
-  const cloudLinked = current === "cloud" || Boolean(cloudProject?.id)
-    || projectLocation?.cloudState === "available" || projectLocation?.cloudState === "signed-out";
-  const createCloud = !cloudLinked && Boolean(onViewCloud)
-    && (!projectLocation || projectLocation.cloudState === "unavailable");
-  const motion = useProjectLocationMotion(current, `${localDeviceLabel}:${createCloud}:${projectLocation?.cloudState}:${t("shell.navigation.cloud")}`);
-  const [requestedLocation, setRequestedLocation] = useState<"local" | "cloud" | null>(null);
-  useEffect(() => {
-    if (!requestedLocation || requestedLocation !== current) return;
-    // Keep the switch visible long enough to see the selection travel.
-    const delay = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? 0 : 380;
-    const timer = window.setTimeout(() => { setRequestedLocation(null); onDone?.(); }, delay);
-    return () => window.clearTimeout(timer);
-  }, [current, onDone, requestedLocation]);
+  const selection = projectLocation?.requested ?? current;
+  const createCloud = shouldCreateCloud(projectLocation, cloudProject, Boolean(onViewCloud));
+  const motion = useProjectLocationMotion(selection, `${localDeviceLabel}:${createCloud}:${projectLocation?.cloudState}:${t("shell.navigation.cloud")}`);
   const repositoryUrl = backupProviders.includes("github")
     ? getProjectBackupSnapshot(backupStatus, "github").repositoryUrl : null;
   // Measure translated labels with their actual themed font, preserving the
@@ -295,46 +291,17 @@ export function DesktopProjectLocationControls({
   }, [createCloud, localDeviceLabel, onPreferredWidthChange, repositoryUrl, t]);
   const maskImage = `url("${resolveRendererPublicAssetUrl(RENDERER_ASSET_PATHS.icons.integrations.github)}")`;
   return (
-    <div ref={controlsRef} className="desktop-project-location-controls" data-cloud-entry={createCloud ? "create" : "switch"}>
+    <div ref={controlsRef} className="desktop-project-location-controls"
+      data-cloud-entry={createCloud ? "create" : "switch"}>
       <div ref={motion.trackRef} className="desktop-project-location-tabs" role="group"
-        data-location={current} data-indicator-ready={motion.measured || undefined}
+        data-location={selection} data-indicator-ready={motion.measured || undefined}
+        aria-busy={projectLocation?.loading || undefined}
         aria-label={t("shell.workspaceSwitcher.projectDetails")}>
         <span className="desktop-project-location-indicator" aria-hidden="true" style={motion.indicatorStyle} />
-        {(["local", "cloud"] as const).map((location) => {
-          const creating = location === "cloud" && createCloud;
-          const selected = location === current;
-          const navigate = location === "local" ? onViewLocal : onViewCloud;
-          const disabled = !selected && (!navigate || (location === "local"
-            ? projectLocation?.localAvailable === false
-            : projectLocation?.cloudState === "resolving"));
-          const signedOutCloud = location === "cloud" && projectLocation?.cloudState === "signed-out";
-          const tooltip = selected ? t("shell.workspaceSwitcher.current")
-            : creating ? t("shell.workspaceSwitcher.createCloudVersion")
-              : location === "cloud" && projectLocation?.cloudState === "resolving"
-                ? t("shell.workspaceSwitcher.location.checking")
-                : signedOutCloud ? t("shell.workspaceSwitcher.location.signInToAccess")
-                  : t(location === "local" ? "shell.surface.switchToLocal" : "shell.surface.switchToCloud");
-          return <Tooltip content={tooltip} key={location}><button
-            className="desktop-project-location-tab"
-            type="button"
-            data-project-location={location}
-            data-cloud-action={creating ? "create" : undefined}
-            aria-pressed={creating ? undefined : selected}
-            aria-current={selected ? "true" : undefined}
-            disabled={disabled}
-            onClick={() => {
-              if (selected || creating || signedOutCloud || projectLocation?.cloudState !== "available") onDone?.();
-              else setRequestedLocation(location);
-              if (!selected) navigate?.();
-            }}
-          >
-            <ProjectLocationMark className="desktop-project-location-tab-mark" kind={location} creating={creating} size={14} />
-            <span>{location === "local" ? localDeviceLabel
-              : t(creating ? "shell.workspaceSwitcher.createCloudVersion"
-                : signedOutCloud ? "shell.workspaceSwitcher.location.signInToAccess"
-                  : "shell.navigation.cloud")}</span>
-          </button></Tooltip>;
-        })}
+        {(["local", "cloud"] as const).map(location => <ProjectLocationTab key={location}
+          location={location} current={current} selection={selection} createCloud={createCloud}
+          localDeviceLabel={localDeviceLabel} projectLocation={projectLocation}
+          onViewLocal={onViewLocal} onViewCloud={onViewCloud} />)}
       </div>
       {repositoryUrl && <Tooltip content={t("shell.workspaceSwitcher.openGitHubRepository")}><a
         className="desktop-project-repository-link"
@@ -349,6 +316,58 @@ export function DesktopProjectLocationControls({
       </a></Tooltip>}
     </div>
   );
+}
+
+function shouldCreateCloud(location: DesktopProjectLocation | undefined, cloudProject: DesktopProjectCloudCopy | undefined, canNavigate: boolean) {
+  const linked = location?.current === "cloud" || Boolean(cloudProject?.id)
+    || location?.cloudState === "available" || location?.cloudState === "signed-out";
+  return !linked && canNavigate && (!location || location.cloudState === "unavailable");
+}
+
+type LocationTabProps = Pick<Parameters<typeof DesktopProjectLocationControls>[0], "projectLocation" | "onViewLocal" | "onViewCloud"> & {
+  location: "local" | "cloud";
+  current: "local" | "cloud";
+  selection: "local" | "cloud";
+  createCloud: boolean;
+  localDeviceLabel: string;
+};
+
+function ProjectLocationTab(props: LocationTabProps) {
+  const { t } = useLocalization();
+  const { location, current, selection, createCloud, localDeviceLabel, projectLocation, onViewLocal, onViewCloud } = props;
+  const creating = location === "cloud" && createCloud;
+  const selected = location === selection;
+  const navigate = location === "local" ? onViewLocal : onViewCloud;
+  const disabled = !selected && (!navigate || (location === "local" && projectLocation?.localAvailable === false));
+  let label = localDeviceLabel;
+  if (location === "cloud") {
+    let key = "shell.navigation.cloud";
+    if (creating) key = "shell.workspaceSwitcher.createCloudVersion";
+    else if (projectLocation?.cloudState === "signed-out") key = "shell.workspaceSwitcher.location.signInToAccess";
+    label = t(key);
+  }
+  return <Tooltip content={t(getLocationTabTooltip(props))}><button
+    className="desktop-project-location-tab" type="button" data-project-location={location}
+    data-cloud-action={creating ? "create" : undefined}
+    aria-pressed={creating ? undefined : selected}
+    aria-current={location === current ? "true" : undefined}
+    data-cloud-pending={location === "cloud" && projectLocation?.loading || undefined}
+    disabled={disabled} onClick={() => { if (!selected) navigate?.(); }}>
+    <ProjectLocationMark className="desktop-project-location-tab-mark" kind={location} creating={creating} size={14} />
+    <span>{label}</span>
+  </button></Tooltip>;
+}
+
+function getLocationTabTooltip({ location, selection, projectLocation, createCloud }: LocationTabProps) {
+  if (location === selection) {
+    if (projectLocation?.loading) return "shell.workspaceSwitcher.location.checking";
+    return "shell.workspaceSwitcher.current";
+  }
+  if (location === "local") return "shell.surface.switchToLocal";
+  if (createCloud) return "shell.workspaceSwitcher.createCloudVersion";
+  if (projectLocation?.cloudState === "resolving") return "shell.workspaceSwitcher.location.checking";
+  if (projectLocation?.cloudState === "signed-out") return "shell.workspaceSwitcher.location.signInToAccess";
+  return "shell.surface.switchToCloud";
 }
 
 function DesktopProjectRow({
@@ -407,7 +426,8 @@ function ProjectLocationMark({
   size?: number;
   strokeWidth?: number;
 }) {
-  const Icon = kind === "cloud" ? (creating ? Plus : Cloud) : Laptop;
+  const CloudMark = creating ? Plus : Cloud;
+  const Icon = kind === "cloud" ? CloudMark : Laptop;
   return (
     <span
       className={`desktop-project-location-mark ${className}`}

@@ -86,7 +86,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(Boolean(requireMenu().querySelector("a"))).toBe(github);
     expect(requireMenu().textContent).not.toContain("GitHub");
     act(() => create.click());
-    expect(actions).toEqual(["close", "initialize"]);
+    expect(actions).toEqual(["initialize"]);
     expect(onShare).not.toHaveBeenCalled();
     expect(locationButton("local").getAttribute("aria-pressed")).toBe("true");
   });
@@ -121,7 +121,7 @@ describe("titlebar Portal menu interactions", () => {
       projectLocation: { current: "local", localAvailable: true, cloudState } });
     expect(locationButton("cloud").textContent).toBe("Cloud");
     expect(locationButton("cloud").hasAttribute("data-cloud-action")).toBe(false);
-    expect(locationButton("cloud").disabled).toBe(cloudState === "resolving");
+    expect(locationButton("cloud").disabled).toBe(false);
   });
 
   it.each([undefined, "unavailable", "available", "signed-out", "resolving", "attention"] as const)(
@@ -134,12 +134,12 @@ describe("titlebar Portal menu interactions", () => {
       });
       expect(document.querySelector(".desktop-titlebar-workspace-button .lucide-laptop")).not.toBeNull();
       expect(locationButton("local").getAttribute("aria-pressed")).toBe("true");
-      expect(locationButton("cloud").disabled).toBe(cloudState === "resolving");
+      expect(locationButton("cloud").disabled).toBe(false);
     },
   );
 
   it.each(["unavailable", "signed-out", "attention"] as const)(
-    "closes the menu before navigating to Cloud, independently of Share (%s)", async (cloudState) => {
+    "keeps the menu while navigating to Cloud, independently of Share (%s)", async (cloudState) => {
       const actions: string[] = [];
       const onShare = vi.fn();
       await renderSwitcher({
@@ -149,31 +149,48 @@ describe("titlebar Portal menu interactions", () => {
         onShare,
       });
       act(() => locationButton("cloud").click());
-      expect(actions).toEqual(["close", "cloud"]);
+      expect(actions).toEqual(["cloud"]);
       expect(onShare).not.toHaveBeenCalled();
       // Selection changes only when the caller actually displays Cloud.
       expect(locationButton("local").getAttribute("aria-pressed")).toBe("true");
     },
   );
 
-  it("keeps the location switch visible until Cloud commits and the indicator settles", async () => {
-    vi.useFakeTimers();
-    const actions: string[] = [];
+  it("keeps the same project popover through immediate selection, loading and commit", async () => {
     const container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
-    const props = { onDone: () => actions.push("close"), onViewCloud: () => actions.push("cloud") };
-    const controls = (current: "local" | "cloud") => withTestLocalization(<DesktopProjectLocationControls {...props}
-      projectLocation={{ current, localAvailable: true, cloudState: "available" }} />);
-    const button = (location: string) => container.querySelector<HTMLButtonElement>(`button[data-project-location="${location}"]`)!;
-    await act(async () => root?.render(controls("local")));
-    act(() => button("cloud").click());
-    expect(actions).toEqual(["cloud"]);
-    expect(button("local").getAttribute("aria-pressed")).toBe("true");
-    await act(async () => root?.render(controls("cloud")));
-    expect(actions).toEqual(["cloud"]);
-    await act(async () => { await vi.advanceTimersByTimeAsync(380); });
-    expect(actions).toEqual(["cloud", "close"]);
+    const anchor = createRef<HTMLDivElement>();
+    const onClose = vi.fn();
+    const onCloud = vi.fn();
+    const onLocal = vi.fn();
+    const render = async (current: "local" | "cloud", requested?: "cloud") => {
+      await act(async () => root?.render(withTestLocalization(<DesktopWorkspaceSwitcher
+        open refObject={anchor} titlebarLabel="Project" workspace={createWorkspace("one", "Project")}
+        workspaceFolders={[]} multiRootWorkspacesEnabled={false}
+        projectLocation={{ current, requested, loading: Boolean(requested), localAvailable: true, cloudState: "available" }}
+        onToggle={vi.fn()} onClose={onClose} onViewCloud={onCloud} onViewLocal={onLocal} />)));
+    };
+    await render("local");
+    const menu = requireMenu();
+    const plate = menu.querySelector(".desktop-project-location-indicator");
+    expect(anchor.current?.querySelector(".desktop-project-location-controls")).toBeNull();
+    act(() => locationButton("cloud").click());
+    expect(onCloud).toHaveBeenCalledOnce();
+    await render("local", "cloud");
+    expect(locationButton("cloud").getAttribute("aria-pressed")).toBe("true");
+    expect(locationButton("local").getAttribute("aria-current")).toBe("true");
+    act(() => locationButton("local").click());
+    expect(onLocal).toHaveBeenCalledOnce();
+    await render("cloud");
+    expect(requireMenu()).toBe(menu);
+    expect(menu.querySelector(".desktop-project-location-indicator")).toBe(plate);
+    const editor = document.createElement("input");
+    document.body.append(editor);
+    act(() => editor.focus());
+    expect(onClose).not.toHaveBeenCalled();
+    act(() => document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true })));
+    expect(onClose).toHaveBeenCalledOnce();
   });
 
   it("does not offer a false switch when a destination is unavailable", async () => {
@@ -190,7 +207,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(onClose).not.toHaveBeenCalled();
     act(() => locationButton("cloud").click());
     expect(onCloud).not.toHaveBeenCalled();
-    expect(onClose).toHaveBeenCalledOnce();
+    expect(onClose).not.toHaveBeenCalled();
     expect(document.querySelector(".desktop-titlebar-workspace-button .desktop-cloud-icon[data-cloud-icon=ant-design]")).not.toBeNull();
   });
 
@@ -261,11 +278,9 @@ describe("titlebar Portal menu interactions", () => {
     const editor = container.querySelector<HTMLInputElement>("input")!;
     const project = container.querySelector<HTMLButtonElement>(".desktop-titlebar-workspace-button")!;
     expect(container.querySelector(".desktop-titlebar-branch-button")).toBeNull();
-    vi.useFakeTimers();
+    const projectMenu = requireMenu();
     await act(async () => locationButton("cloud").click());
-    await act(async () => { await vi.advanceTimersByTimeAsync(380); });
-    expect(document.querySelector("[data-titlebar-context-menu]")).toBeNull();
-    vi.useRealTimers();
+    expect(requireMenu()).toBe(projectMenu);
     const cloud = document.querySelector(".desktop-cloud-dialog")!;
     expect(cloud.querySelector("[data-project-location='cloud'][aria-pressed='true']")).not.toBeNull();
     expect(cloud.textContent).toContain("Cloud project");
@@ -275,7 +290,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(container.querySelector("input")).toBe(editor);
     expect(editor.value).toBe("Unsaved local draft");
     expect(project.querySelector(".lucide-laptop")).not.toBeNull();
-    await act(async () => project.click());
+    expect(requireMenu()).toBe(projectMenu);
     expect(locationButton("local").getAttribute("aria-pressed")).toBe("true");
   });
 

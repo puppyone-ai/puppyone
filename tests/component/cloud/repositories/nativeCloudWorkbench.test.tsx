@@ -8,6 +8,7 @@ import { DesktopProjectLocationControls } from "../../../../src/features/app-she
 import { useNativeCloudWorkbench, type NativeCloudWorkbench } from "../../../../src/features/cloud/workbench/useNativeCloudWorkbench";
 import { useCloudWorkspaceSwitch } from "../../../../src/features/cloud/workbench/useCloudWorkspaceSwitch";
 import { CloudWorkspaceSwitchDialog } from "../../../../src/features/cloud/workbench/CloudWorkspaceSwitchDialog";
+import { CloudWorkspacePreparation } from "../../../../src/features/cloud/workbench/CloudWorkspacePreparation";
 import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
 import { withTestLocalization } from "../../../support/react/localization";
 
@@ -45,11 +46,14 @@ function Harness({ linked = true, currentSession = session, localIdentity = "loc
   const controller = useCloudWorkspaceSwitch({ enabled, scope: localIdentity, session: currentSession,
     service: cloud.service, providerError: cloud.error, initializationPending, onCommit });
   return <>
-    <DesktopProjectLocationControls projectLocation={{ current: location, localAvailable: true, cloudState: linked ? "available" : "unavailable" }}
+    <DesktopProjectLocationControls projectLocation={{ current: location, requested: controller.requestedLocation, loading: controller.checking,
+      localAvailable: true, cloudState: linked ? "available" : "unavailable" }}
       onViewLocal={() => { controller.cancel(); setSelection(null); }} onViewCloud={controller.request} />
     <DesktopWorkspaceLocationSurface location={location} local={<LocalEditor />}
+      preparation={controller.pending && currentSession && linked ? <CloudWorkspacePreparation controller={controller} /> : undefined}
       cloud={cloud.dataPort && cloud.visited ? <div data-cloud-storage={cloud.dataPort.documentPersistence?.storageIdentity}>{cloud.editorWorkbench.state.editors.map((editor) => <span key={editor.id}>{editor.label}</span>)}</div> : null} />
-    <CloudWorkspaceSwitchDialog controller={controller} gate={currentSession ? <button>Create Cloud version</button> : <button>Sign in</button>} />
+    <CloudWorkspaceSwitchDialog controller={controller} preparingInPlace={Boolean(currentSession && linked)}
+      gate={currentSession ? <button>Create Cloud version</button> : <button>Sign in</button>} />
   </>;
 }
 
@@ -133,10 +137,31 @@ describe("native Cloud workbench switching", () => {
     await render(<Harness />);
     await click("Cloud");
     expect(surface("local").hidden).toBe(false);
+    expect(document.querySelector('button[data-project-location="cloud"]')?.getAttribute("aria-pressed")).toBe("true");
+    expect(document.querySelector('button[data-project-location="local"]')?.getAttribute("aria-current")).toBe("true");
+    expect(document.querySelector('.desktop-project-location-tabs')?.getAttribute("aria-busy")).toBe("true");
+    expect(document.querySelector('.desktop-cloud-preparation')).not.toBeNull();
+    expect(surface("local").hasAttribute("inert")).toBe(true);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     await act(async () => { release({ entries: [], head_commit_id: "cloud-head" }); await pending; });
     await vi.waitFor(() => expect(surface("cloud").hidden).toBe(false));
     expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("returns the slider to Local immediately and revokes a pending Cloud response", async () => {
+    installBridge();
+    let release!: (value: unknown) => void;
+    bridge.mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+    await render(<Harness />);
+    const local = document.querySelector('input[aria-label="local readme.md"]');
+    await click("Cloud");
+    expect(document.querySelector('button[data-project-location="cloud"]')?.getAttribute("aria-pressed")).toBe("true");
+    await click("This Mac");
+    expect(document.querySelector('button[data-project-location="local"]')?.getAttribute("aria-pressed")).toBe("true");
+    expect(document.querySelector('.desktop-cloud-preparation')).toBeNull();
+    await act(async () => release({ entries: [], head_commit_id: "stale" }));
+    expect(surface("cloud").hidden).toBe(true);
+    expect(document.querySelector('input[aria-label="local readme.md"]')).toBe(local);
   });
 
   it("keeps the local workbench while an unhosted project awaits explicit creation", async () => {

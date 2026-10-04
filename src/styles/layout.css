@@ -8,6 +8,7 @@
 }
 
 .desktop-shell-pane-group {
+  position: relative;
   display: flex;
   min-width: 0;
   min-height: 0;
@@ -509,8 +510,17 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   background: transparent;
 }
 
+.desktop-project-location-tab[data-cloud-pending] .desktop-project-location-tab-mark {
+  animation: desktop-cloud-selection-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes desktop-cloud-selection-pulse {
+  50% { opacity: 0.4; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .desktop-project-location-indicator { transition: none; }
+  .desktop-project-location-tab[data-cloud-pending] .desktop-project-location-tab-mark { animation: none; }
 }
 
 .desktop-project-location-tab,

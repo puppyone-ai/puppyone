@@ -9,6 +9,7 @@ type DesktopTitlebarMenuLayerProps = {
   className: string;
   gap?: number;
   onDismiss: () => void;
+  dismissOnFocusExit?: boolean;
   open: boolean;
   preferredMaxHeight: number;
   preferredWidth?: number;
@@ -31,6 +32,7 @@ export function DesktopTitlebarMenuLayer({
   className,
   gap = 4,
   onDismiss,
+  dismissOnFocusExit = true,
   open,
   preferredMaxHeight,
   preferredWidth = TITLEBAR_CONTEXT_MENU_WIDTH,
@@ -75,7 +77,7 @@ export function DesktopTitlebarMenuLayer({
       if (!isInsideMenu(event.target) && !isInsideModal(event.target)) onDismiss();
     };
     const closeOnFocusExit = (event: FocusEvent) => {
-      if (!isInsideMenu(event.target) && !isInsideModal(event.target)) onDismiss();
+      if (dismissOnFocusExit && !isInsideMenu(event.target) && !isInsideModal(event.target)) onDismiss();
     };
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.isComposing || event.defaultPrevented) return;
@@ -98,7 +100,7 @@ export function DesktopTitlebarMenuLayer({
       document.removeEventListener("focusin", closeOnFocusExit, true);
       document.removeEventListener("keydown", closeOnEscape, captureEscape);
     };
-  }, [anchorRef, onDismiss, open, overlayRef, role]);
+  }, [anchorRef, dismissOnFocusExit, onDismiss, open, overlayRef, role]);
 
   if (!open) return null;
 

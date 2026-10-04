@@ -72,7 +72,8 @@ export function useCloudWorkspaceSwitch({
 
   const pending = Boolean(enabled && intent?.scope === scope);
   const prepared = preparation?.intent === intent && preparation.service === service ? preparation : null;
-  return { pending, checking: Boolean(pending && session && service && !initializationPending && !prepared?.error),
+  return { pending, requestedLocation: pending ? "cloud" as const : undefined,
+    checking: Boolean(pending && session && service && !initializationPending && !prepared?.error),
     error: prepared?.error ?? null, request, cancel, retry };
 }
 

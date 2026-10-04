@@ -1592,14 +1592,6 @@
       "count": 3
     }
   },
-  "src/features/app-shell/DesktopWorkspaceSwitcher.tsx": {
-    "complexity": {
-      "count": 1
-    },
-    "no-nested-ternary": {
-      "count": 5
-    }
-  },
   "src/features/app-shell/ProjectSwitcherRail.tsx": {
     "complexity": {
       "count": 1

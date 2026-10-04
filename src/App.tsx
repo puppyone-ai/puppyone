@@ -88,6 +88,7 @@ import { DesktopTitlebarContext } from "./features/app-shell/DesktopTitlebarCont
 import { getProjectBackupProviders } from "./features/app-shell/projectBackupProviders";
 import { DesktopWorkspaceContent } from "./features/app-shell/DesktopWorkspaceContent";
 import { DesktopWorkspaceLocationSurface } from "./features/app-shell/DesktopWorkspaceLocationSurface";
+import { CloudWorkspacePreparation } from "./features/cloud/workbench/CloudWorkspacePreparation";
 import { DesktopTitlebarActions } from "./features/app-shell/DesktopTitlebarActions";
 import {
   DesktopShellLocationBar,
@@ -798,14 +799,12 @@ function AppContent() {
     setCloudDialogOpen(false);
     setSettingsDialogOpen(false);
     setPluginsDialogOpen(false);
-    setSwitcherOpen(false);
     setBranchSwitcherOpen(false);
   }, [cancelAccountCloudOpen, cloudEnabled, requestCloudWorkspace, setBranchSwitcherOpen]);
   const openLocalWorkspace = useCallback(() => {
     cancelRepositoryCloudSwitch();
     returnToLocalWorkspace();
     setCloudDialogOpen(false);
-    setSwitcherOpen(false);
     setBranchSwitcherOpen(false);
   }, [cancelRepositoryCloudSwitch, returnToLocalWorkspace, setBranchSwitcherOpen]);
 
@@ -841,11 +840,15 @@ function AppContent() {
   });
   const cloudSignedIn = activeCloudSession !== null;
   const projectCloudLocationState = getProjectCloudLocationState(projectCloudContext, cloudSignedIn);
-  // The retained Header and provider body share the committed location. A
-  // resolved association (or a pending switch) alone must not select Cloud.
+  // Header selection follows intent immediately; the provider remains local
+  // until authorization and root-file access complete.
   const projectLocation: DesktopProjectLocation | undefined = cloudEnabled
-    ? { current: cloudWorkspaceActive ? "cloud" : "local", localAvailable: true, cloudState: projectCloudLocationState }
+    ? { current: cloudWorkspaceActive ? "cloud" : "local", requested: repositoryCloudSwitch.requestedLocation,
+      loading: repositoryCloudSwitch.pending && !repositoryCloudSwitch.error,
+      localAvailable: true, cloudState: projectCloudLocationState }
     : undefined;
+  const prepareCloudInPlace = Boolean(activeCloudSession && (projectCloudContext.status === "resolved"
+    || projectCloudContext.status === "resolving" || repositoryCloudSwitch.error));
   // The wizard stacks above the Cloud dialog so the Homepage is still there when it closes.
   const openShareWizard = useCallback((targetId: ShareTargetId | null, path = "") => {
     if (!shareOnboardingEnabled) return;
@@ -1390,6 +1393,7 @@ function AppContent() {
     presentation={accountCloudPresentation} active={cloudWorkspaceActive}
     appearance={surfaceAppearance} onLocal={openLocalWorkspace} onHome={() => void goToHomepage()} /> : null;
   const repositoryCloudDialog = <CloudWorkspaceSwitchDialog controller={repositoryCloudSwitch}
+    preparingInPlace={prepareCloudInPlace}
     authenticationRequired={!activeCloudSession}
     gate={<RepositoryCloudSwitchGate context={projectCloudContext} apiBaseUrl={desktopCloudApiBaseUrl}
       authState={resolveCloudAuthState({ cloudSession: activeCloudSession, sessionRestoring: cloudSessionRestoring,
@@ -1710,6 +1714,8 @@ function AppContent() {
           )}
         >
           <DesktopWorkspaceLocationSurface location={projectLocation?.current ?? "local"}
+            preparation={repositoryCloudSwitch.pending && prepareCloudInPlace
+              ? <CloudWorkspacePreparation controller={repositoryCloudSwitch} /> : undefined}
             local={<>
           {gitPresentation.cardEnabled && <DesktopGitHeaderCard
             anchorRef={gitAnchorRef}

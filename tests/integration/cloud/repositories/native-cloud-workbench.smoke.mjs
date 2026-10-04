@@ -52,7 +52,7 @@ async function captureCloudArrival(scene) {
     return { count:animations.length, pointerEvents:getComputedStyle(light).pointerEvents,
       y:rect.y, width:rect.width, aura:Number(getComputedStyle(light.firstElementChild).opacity) };
   })()`);
-  assert(sample.count === 3 && sample.aura > 0.2, 'Committed Cloud must play the arrival light');
+  assert(sample.count === 4 && sample.aura > 0.2, 'Committed Cloud must play the arrival light');
   assert(sample.pointerEvents === 'none' && sample.y === 40, 'Arrival must preserve Header and pointer interactions');
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   // Let the paused animation's paint reach the native compositor.
@@ -220,12 +220,31 @@ async function captureNativeCorners(scene, sample) {
   const corners = verifyCornerArcs(pixel,width,height,sample.frame.radius,blue);
   nativeCornerCaptures.push({scene,width,height,scale,blue,corners});
 }
+async function openProjectMenu() {
+  const opening = !await evaluate("Boolean(document.querySelector('.desktop-project-menu'))");
+  if (opening) {
+    await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
+  }
+  await waitFor("Boolean(document.querySelector('.desktop-project-menu'))");
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  if (opening) {
+    const plate = await evaluate(`(() => {
+      const track = document.querySelector('.desktop-project-location-tabs');
+      const plate = track.querySelector('.desktop-project-location-indicator');
+      const selected = track.querySelector('button[aria-pressed=true]');
+      const a = plate.getBoundingClientRect(), b = selected.getBoundingClientRect();
+      return {animations:plate.getAnimations().length, offset:Math.abs(a.x-b.x), width:Math.abs(a.width-b.width)};
+    })()`);
+    assert(plate.animations === 0 && plate.offset < 1 && plate.width < 1,
+      `Opening the project bar must place the slider at its current selection without sliding: ${JSON.stringify(plate)}`);
+  }
+}
 async function selectLocation(location) {
-  await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
+  await openProjectMenu();
   await waitFor(`Boolean(document.querySelector('button[data-project-location="${location}"]'))`);
   await evaluate(`document.querySelector('button[data-project-location="${location}"]').click()`);
   await waitFor(`window.__nativeCloudWorkbenchSmoke.state().location === '${location}'`);
-  await waitFor("!document.querySelector('[data-titlebar-context-menu]')");
+  assert(await evaluate("Boolean(document.querySelector('[data-titlebar-context-menu]'))"), "Project switch bar must remain open after switching");
 }
 app.whenReady().then(async () => {
   const platformHost = createDesktopPlatformHost();
@@ -257,9 +276,33 @@ app.whenReady().then(async () => {
     return { headerCenter:h.x + h.width / 2, contextCenter:c.x + c.width / 2,
       projectName:context.querySelector('.desktop-titlebar-workspace-name')?.textContent };
   })()`);
-  await selectLocation("cloud");
+  await evaluate("window.__nativeCloudWorkbenchSmoke.holdCloudRead()");
+  await openProjectMenu();
+  const pendingMenu = await evaluate(`(() => {
+    const menu = document.querySelector('.desktop-project-menu');
+    menu.dataset.fixtureIdentity = 'retained-switch-bar';
+    const r = menu.getBoundingClientRect();
+    return {x:r.x,y:r.y,width:r.width,height:r.height};
+  })()`);
+  await evaluate("document.querySelector('button[data-project-location=cloud]').click()");
+  await waitFor("document.querySelector('.desktop-project-location-tabs').getAttribute('aria-busy') === 'true'");
+  await waitFor("document.querySelector('.desktop-project-location-indicator').getAnimations().some(animation => animation.transitionProperty === 'transform')");
+  assert(await evaluate("window.__nativeCloudWorkbenchSmoke.state().location === 'local' && document.querySelector('button[data-project-location=cloud]').getAttribute('aria-pressed') === 'true' && Boolean(document.querySelector('.desktop-cloud-preparation'))"),
+    "Selection must move immediately while provider preparation continues in the background");
+  await evaluate("Promise.all(document.querySelector('.desktop-project-location-indicator').getAnimations().map(animation => animation.finished.catch(() => {})))");
+  await new Promise(resolve => setTimeout(resolve, 100));
+  await writeFile(path.join(artifacts, 'cloud-switch-loading.png'), (await window.webContents.capturePage()).toPNG());
+  await evaluate("window.__nativeCloudWorkbenchSmoke.finishCloudRead()");
+  await waitFor("window.__nativeCloudWorkbenchSmoke.state().location === 'cloud'");
+  const readyMenu = await evaluate(`(() => {
+    const menu = document.querySelector('.desktop-project-menu');
+    const r = menu.getBoundingClientRect();
+    return {identity:menu.dataset.fixtureIdentity,x:r.x,y:r.y,width:r.width,height:r.height};
+  })()`);
+  assert(readyMenu.identity === 'retained-switch-bar' && ['x','y','width','height'].every(key => Math.abs(readyMenu[key]-pendingMenu[key])<1),
+    'The same switch bar must keep its position and dimensions after Cloud loads');
   await waitFor("Boolean(document.querySelector('[data-cloud-native=true]')?.textContent.includes('cloud-only'))");
-  assert(await evaluate("document.querySelector('[data-workspace-location=local]').hidden && !document.querySelector('[data-workspace-location=cloud]').hidden && !document.querySelector('[role=dialog]')"), "Cloud switch must replace the main surface without a dialog");
+  assert(await evaluate("document.querySelector('[data-workspace-location=local]').hidden && !document.querySelector('[data-workspace-location=cloud]').hidden && !document.querySelector('.desktop-cloud-workspace-switch-dialog')"), "Cloud switch must replace the main surface without a dialog");
   const cloudHeader = await evaluate(`(() => {
     const header = document.querySelector('.desktop-titlebar');
     const context = document.querySelector('.desktop-titlebar-centered-context');
@@ -332,7 +375,7 @@ app.whenReady().then(async () => {
       headerPresentations.push({ theme, width, index, ...sample });
       if (index < 2) await writeFile(path.join(artifacts, `header-${theme}-${width}-${location}.png`), (await window.webContents.capturePage()).toPNG());
       if (location === "cloud") {
-        await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
+        await openProjectMenu();
         await waitFor("Boolean(document.querySelector('button[data-project-location=cloud]'))");
         await evaluate("Promise.all(document.querySelector('.desktop-project-location-indicator').getAnimations().map(animation => animation.finished.catch(() => {})))");
         assert(await evaluate(`(() => {
@@ -343,6 +386,8 @@ app.whenReady().then(async () => {
         })()`), 'Sliding indicator must align with the selected translated button');
         headerPresentations.push({ theme, width, expanded:true, ...await headerPresentation(location) });
         await evaluate("document.querySelector('button[data-project-location=cloud]').click()");
+        assert(await evaluate("Boolean(document.querySelector('.desktop-project-menu'))"), "Selecting the current location must keep the bar open");
+        await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
         await waitFor("!document.querySelector('.desktop-project-menu')");
       }
     }
@@ -365,7 +410,7 @@ app.whenReady().then(async () => {
   await waitFor("window.__nativeCloudWorkbenchSmoke.state().location === 'local'");
   await headerPresentation("local");
   assert(await evaluate("document.querySelector('[data-workspace-location=local] .cm-editor')?.dataset.fixtureIdentity === 'retained-local-host'"), "Session loss must restore the retained local editor");
-  await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
+  await openProjectMenu();
   await waitFor("Boolean(document.querySelector('button[data-project-location=cloud]'))");
   await evaluate("document.querySelector('button[data-project-location=cloud]').click()");
   await waitFor("Boolean(document.querySelector('.desktop-cloud-workspace-switch-dialog [data-cloud-sign-in-action]'))");
@@ -383,7 +428,7 @@ app.whenReady().then(async () => {
   const verifyLogin = async (scene) => {
     await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     const sample = await evaluate(`(() => {
-      const dialog = document.querySelector('[role=dialog]');
+      const dialog = document.querySelector('.desktop-cloud-workspace-switch-dialog');
       const cta = dialog.querySelector('.desktop-cloud-sign-in-cta');
       const button = cta.querySelector('[data-cloud-sign-in-action]');
       const box = (node) => { const r = node.getBoundingClientRect(); return { x:r.x, y:r.y, width:r.width, height:r.height }; };
@@ -437,18 +482,18 @@ app.whenReady().then(async () => {
   window.setContentSize(1100, 760);
   await evaluate("window.__nativeCloudWorkbenchSmoke.setLoginAppearance('dark', 'en')");
   await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
-  await waitFor("!document.querySelector('[role=dialog]')");
+  await waitFor("!document.querySelector('.desktop-cloud-workspace-switch-dialog')");
   await evaluate("window.__nativeCloudWorkbenchSmoke.setCloudSessionAvailable(true)");
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   assert((await state()).location === "local", "Late authentication after cancellation must not select Cloud");
   await headerPresentation("local");
   await evaluate("window.__nativeCloudWorkbenchSmoke.setCloudSessionAvailable(false)");
-  await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
+  await openProjectMenu();
   await waitFor("Boolean(document.querySelector('button[data-project-location=cloud]'))");
   await evaluate("document.querySelector('button[data-project-location=cloud]').click()");
   await waitFor("Boolean(document.querySelector('.desktop-cloud-workspace-switch-dialog'))");
   await evaluate("window.__nativeCloudWorkbenchSmoke.setCloudSessionAvailable(true)");
-  await waitFor("window.__nativeCloudWorkbenchSmoke.state().location === 'cloud' && !document.querySelector('[role=dialog]')");
+  await waitFor("window.__nativeCloudWorkbenchSmoke.state().location === 'cloud' && !document.querySelector('.desktop-cloud-workspace-switch-dialog')");
   await waitFor("document.querySelector('[data-cloud-native=true]').textContent.includes('cloud-only')");
   await selectLocation("local");
   assert(await evaluate("document.querySelector('[data-workspace-location=local] .cm-editor')?.dataset.fixtureIdentity === 'retained-local-host' && document.querySelector('[data-workspace-location=local] .cm-content').textContent.includes('LOCAL_UNSAVED_DRAFT')"), "Authentication must preserve local drafts");

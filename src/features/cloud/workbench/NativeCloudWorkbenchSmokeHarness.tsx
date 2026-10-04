@@ -10,6 +10,7 @@ import { useDesktopPreference, useDesktopPreferenceEffects, initializeDesktopPre
 import { EditorHeaderTabs } from "../../editor-workbench/header/EditorHeaderTabs";
 import { useCloudWorkspaceSwitch } from "./useCloudWorkspaceSwitch";
 import { CloudWorkspaceSwitchDialog } from "./CloudWorkspaceSwitchDialog";
+import { CloudWorkspacePreparation } from "./CloudWorkspacePreparation";
 import { CloudSignedOutRoute } from "../auth/CloudSignedOutRoute";
 import { useLocalization } from "@puppyone/localization/react";
 import type { AppLanguagePreference } from "@puppyone/localization/core";
@@ -50,6 +51,8 @@ const cloudWrites: Array<{ path: string; content: string }> = [];
 const localWrites: Array<{ path: string; content: string }> = [];
 const localSaveCompletions: Array<() => void> = [];
 const requests: string[] = [];
+let cloudReadBarrier: Promise<void> | null = null;
+let finishCloudRead: (() => void) | null = null;
 const authStateListeners = new Set<(state: DesktopCloudAuthState) => void>();
 const authErrorListeners = new Set<(payload: { message?: string }) => void>();
 window.puppyoneDesktop = {
@@ -68,6 +71,7 @@ window.puppyoneDesktop = {
     const path = url.searchParams.get("path") ?? "";
     const body = request.body ? JSON.parse(request.body) : null;
     if (operation === "ls") {
+      if (cloudReadBarrier) await cloudReadBarrier;
       const names = new Set([...cloudFiles.keys()].filter((file) => !path || file.startsWith(`${path}/`))
         .map((file) => file.slice(path.length + (path ? 1 : 0)).split("/")[0]!));
       return { entries: [...names].map((name) => ({ path: [path, name].filter(Boolean).join("/"), name,
@@ -94,6 +98,8 @@ declare global {
     state: () => { location: string; cloudWrites: typeof cloudWrites; localWrites: typeof localWrites; requests: string[] };
     edit: (location: "local" | "cloud", text: string) => void;
     finishLocalSaves: () => void;
+    holdCloudRead: () => void;
+    finishCloudRead: () => void;
     setCloudSessionAvailable: (available: boolean) => void;
     setLoginAppearance: (theme: "light" | "dark", locale: AppLanguagePreference) => Promise<void>;
     resetLogin: () => void;
@@ -172,6 +178,8 @@ export function NativeCloudWorkbenchSmokeHarness() {
       resetLogin: () => { for (const listener of authStateListeners) listener({ status: "signed-out", session: null }); },
       failLogin: () => { for (const listener of authErrorListeners) listener({ message: "Fixture browser sign-in failed. Try again." }); },
       finishLocalSaves: () => { localSaveCompletions.splice(0).forEach((finish) => finish()); },
+      holdCloudRead: () => { cloudReadBarrier = new Promise(resolve => { finishCloudRead = resolve; }); },
+      finishCloudRead: () => { cloudReadBarrier = null; finishCloudRead?.(); finishCloudRead = null; },
     };
     return () => { delete window.__nativeCloudWorkbenchSmoke; };
   }, [location, setLanguagePreference]);
@@ -181,20 +189,22 @@ export function NativeCloudWorkbenchSmokeHarness() {
       onLeftSidebarExpand={() => setSidebarCollapsed(false)}
       titlebarCenteredSlot={<DesktopWorkspaceSwitcher open={menuOpen} refObject={menuRef} titlebarLabel={localWorkspace.name}
         workspace={localWorkspace} workspaceFolders={[]} multiRootWorkspacesEnabled={false}
-        projectLocation={{ current: location, localAvailable: true, cloudState: "available" }} cloudProject={{ id: context.projectId }}
+        projectLocation={{ current: location, requested: controller.requestedLocation, loading: controller.pending && !controller.error,
+          localAvailable: true, cloudState: "available" }} cloudProject={{ id: context.projectId }}
         onClose={() => setMenuOpen(false)} onToggle={() => setMenuOpen((current) => !current)}
-        onViewLocal={() => { controller.cancel(); setCloudSelected(false); setMenuOpen(false); }} onViewCloud={() => { controller.request(); setMenuOpen(false); }} />}
+        onViewLocal={() => { controller.cancel(); setCloudSelected(false); }} onViewCloud={controller.request} />}
       titlebarTabs={<EditorHeaderTabs activeEditorId={visibleWorkbench.activeEditorId}
         editors={visibleWorkbench.state.editors}
         storageIdentity={location === "cloud" ? workbench.dataPort?.documentPersistence?.storageIdentity ?? null : localPort.documentPersistence!.storageIdentity}
         onActivate={visibleWorkbench.activate} onClose={location === "cloud" ? workbench.closeEditor : visibleWorkbench.close}
         onMove={visibleWorkbench.moveTab} />}>
       <DesktopWorkspaceLocationSurface location={location}
+        preparation={controller.pending && cloudSessionAvailable ? <CloudWorkspacePreparation controller={controller} /> : undefined}
         local={<DesktopDataWorkspaceSurface {...commonSurfaceProps} />}
         cloud={<DesktopCloudFileWorkspace workbench={workbench} surfaceProps={commonSurfaceProps}
           providerStateContent={null} />} />
     </DesktopCloudShell>
-    <CloudWorkspaceSwitchDialog controller={controller} authenticationRequired={!cloudSessionAvailable}
+    <CloudWorkspaceSwitchDialog controller={controller} authenticationRequired={!cloudSessionAvailable} preparingInPlace={cloudSessionAvailable}
       gate={<CloudSignedOutRoute compact activeSection="contents" apiBaseUrl={API}
         authState={{ status: "signed-out", apiBaseUrl: API }} loadingLabel="Restoring Cloud session…" />} />
   </div>;
