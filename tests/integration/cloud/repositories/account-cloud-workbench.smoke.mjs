@@ -64,6 +64,7 @@ app.whenReady().then(async () => {
       && getComputedStyle(header).backgroundColor === expected
       && getComputedStyle(header).backgroundImage === 'none'
       && frame.borderColor === accent && frame.borderWidth === '2px' && frame.pointerEvents === 'none'
+      && getComputedStyle(header.querySelector('.desktop-titlebar-workspace-mark[data-project-location=cloud]')).color === accent
       && shell.getBoundingClientRect().height === innerHeight
       && header.getBoundingClientRect().width === innerWidth;
   })()`), "Hosted-only Cloud projects keep the original Header and product-blue whole-window frame");

@@ -39,7 +39,7 @@ describe("titlebar typography architecture", () => {
     expect(conflict).toContain("var(--po-danger) 78%, white");
   });
 
-  it("keeps the original Header and controls for both providers; only the frame conveys Cloud", () => {
+  it("keeps the original Header background and text for both providers", () => {
     const titlebarRule = readCssBlock(`\n${titlebarCss}`, ".desktop-titlebar");
 
     expect(tokensCss).toContain(
@@ -58,6 +58,13 @@ describe("titlebar typography architecture", () => {
     const skinContract = readFileSync(new URL("../../../../src/styles/interface-skin-contract.css", import.meta.url), "utf8");
     expect(skinContract).toContain('.desktop-titlebar[data-workspace-kind="local"] {');
     expect(skinContract).not.toContain('.desktop-titlebar[data-workspace-kind] {');
+  });
+
+  it("colors only the committed Cloud Header mark with the same accent as the frame", () => {
+    const mark = readCssBlock(titlebarCss, '.desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark[data-project-location="cloud"]');
+    expect(mark.trim()).toBe("color: var(--po-accent);");
+    expect(readCssBlock(titlebarCss, '.desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark'))
+      .toContain("color: inherit;");
   });
 
   it("paints a non-interactive Cloud frame without consuming layout or replacing native hit testing", () => {

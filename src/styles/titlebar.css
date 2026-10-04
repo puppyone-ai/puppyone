@@ -1095,6 +1095,10 @@
   color: inherit;
 }
 
+.desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark[data-project-location="cloud"] {
+  color: var(--po-accent);
+}
+
 .desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark > svg {
   display: block;
 }

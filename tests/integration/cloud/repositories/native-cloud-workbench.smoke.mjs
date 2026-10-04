@@ -74,6 +74,11 @@ async function headerPresentation(location) {
       center:h.x+h.width/2, projectCenter:c.x+c.width/2,
       background:rgb(css.backgroundColor), expected:rgb(expected), accent:rgb(accent),
       backgroundImage:css.backgroundImage,
+      icon:{ location:button.querySelector('.desktop-titlebar-workspace-mark').dataset.projectLocation,
+        color:rgb(getComputedStyle(button.querySelector('.desktop-titlebar-workspace-mark')).color),
+        stroke:rgb(getComputedStyle(button.querySelector('.desktop-titlebar-workspace-mark svg')).stroke) },
+      labelColor:rgb(getComputedStyle(button.querySelector('.desktop-titlebar-workspace-name')).color),
+      buttonColor:rgb(getComputedStyle(button).color),
       controlPalette:['text', 'text-muted', 'hover', 'active', 'focus', 'divider'].map(key => css.getPropertyValue('--desktop-titlebar-' + key)),
       frame:{ location:shell.dataset.workspaceKind ?? 'local', identity:shell.dataset.fixtureIdentity,
         x:s.x, y:s.y, width:s.width, height:s.height, content:frame.content,
@@ -89,6 +94,10 @@ async function headerPresentation(location) {
   assert(sample.location === location, `Header tint must follow the committed ${location} provider`);
   assert(JSON.stringify(sample.background) === JSON.stringify(sample.expected), `Header must keep its original palette on both providers: ${JSON.stringify(sample)}`);
   assert(sample.backgroundImage === 'none', 'The previous gradient must be removed');
+  const expectedIcon = location === 'cloud' ? sample.accent : sample.buttonColor;
+  assert(sample.icon.location === location && JSON.stringify(sample.icon.color) === JSON.stringify(expectedIcon)
+    && JSON.stringify(sample.icon.stroke) === JSON.stringify(expectedIcon), 'Only the active Cloud mark must match the blue frame; Local inherits normal ink');
+  assert(JSON.stringify(sample.labelColor) === JSON.stringify(sample.buttonColor), 'Blue icon must not recolor the project name');
   assert(sample.frame.location === location && sample.frame.identity === 'retained-shell', 'Window frame must follow the same committed provider without remounting');
   assert(sample.frame.x === 0 && sample.frame.y === 0 && sample.frame.width === sample.viewport
     && sample.frame.height === sample.viewportHeight, 'Cloud frame must enclose the whole window, not just the editor');
@@ -107,6 +116,9 @@ async function headerPresentation(location) {
     return (Math.max(a,b)+0.05)/(Math.min(a,b)+0.05);
   }));
   assert(sample.contrast >= 4.5, `Header project text needs 4.5:1 contrast: ${sample.contrast}`);
+  const iconInk = luminance(sample.icon.color), iconPaper = luminance(sample.contrastSamples[0].paper);
+  sample.iconContrast = (Math.max(iconInk,iconPaper)+0.05)/(Math.min(iconInk,iconPaper)+0.05);
+  assert(sample.iconContrast >= 3, `Header location icon needs 3:1 contrast: ${sample.iconContrast}`);
   return sample;
 }
 async function windowFramePixels(sample) {
