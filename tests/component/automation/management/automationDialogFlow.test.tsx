@@ -1,7 +1,7 @@
 /**
  * @vitest-environment happy-dom
  */
-import React from "react";
+import React, { type ComponentProps } from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -24,6 +24,17 @@ afterEach(() => {
 });
 
 describe("CloudNewAutomationDialog", () => {
+  it.each([
+    ["loading wins over error and empty", { providersLoading: true, providersError: "offline", providers: [] }],
+    ["error wins over empty", { providersError: "offline", providers: [] }],
+    ["empty catalog", { providers: [] }],
+    ["missing selected provider", { template: { id: "missing", provider: "missing", sourceLabel: "Missing", presentation: "catalog", categories: [], iconUrl: null } }],
+  ] satisfies Array<[string, Partial<ComponentProps<typeof CloudNewAutomationDialog>>]>)("locks %s", (_label, overrides) => {
+    const container = renderDialog({ template: null }, overrides);
+    expect(container.querySelector(".desktop-dialog-body")?.textContent).toMatchSnapshot();
+    expect(container.querySelector(".desktop-cloud-automation-builder")).toBeNull();
+  });
+
   it("opens a template directly in its provider-specific builder", () => {
     const container = renderDialog({
       template: {
@@ -70,7 +81,7 @@ describe("CloudNewAutomationDialog", () => {
   });
 });
 
-function renderDialog({ template }: { template: AutomationTemplate | null }) {
+function renderDialog({ template }: { template: AutomationTemplate | null }, overrides: Partial<ComponentProps<typeof CloudNewAutomationDialog>> = {}) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -90,6 +101,7 @@ function renderDialog({ template }: { template: AutomationTemplate | null }) {
       onRefresh={vi.fn(async () => undefined)}
       onCreated={vi.fn()}
       onClose={vi.fn()}
+      {...overrides}
     />,
   )));
   const overlayRoot = document.querySelector<HTMLElement>("#desktop-overlay-root");

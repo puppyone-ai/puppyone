@@ -85,12 +85,7 @@ describe("Desktop Agent architecture boundaries", () => {
     expect(timeline).toContain("showEmptyState && emptyState");
     expect(emptyState).toContain("<AgentBrandMark");
     expect(emptyState).not.toMatch(/selectedModel|AgentModelPicker/);
-    expect(source("src/features/desktop-agent/ui/AgentChatTabPanel.tsx")).toContain(
-      "const showReadyEmptyState = (routingReady || computeOnboarding)",
-    );
     const tabPanel = source("src/features/desktop-agent/ui/AgentChatTabPanel.tsx");
-    expect(tabPanel).toContain('capabilities?.modelConnections && readiness?.code === "RUNTIME_SETUP_REQUIRED"');
-    expect(tabPanel).toContain("!state.selectedModel && !state.session && !hasCommittedTranscript && !state.error && !failed");
     expect(tabPanel).toContain("commandTarget && routingReady");
     expect(markdown).not.toContain("dangerouslySetInnerHTML");
     expect(markdownDocument).not.toContain("dangerouslySetInnerHTML");

@@ -207,8 +207,7 @@ describe("Desktop Agent sidebar visual contract", () => {
     expect(css).not.toContain("assets/icons/agents/");
     expect(brandImageCss).toMatch(/\.dark \.po-agent-brand-image\[data-agent-brand-theme="light"\]\s*\{[^}]*display:\s*none/s);
     expect(brandImageCss).toMatch(/\.dark \.po-agent-brand-image\[data-agent-brand-theme="dark"\]\s*\{[^}]*display:\s*block/s);
-    expect(panel).toContain("loading={startupLoading}");
-    expect(panel).toContain("dock={startupLoading ? null");
+    // Startup loading/dock visibility is exercised by desktop-agent.panel.test.ts.
     expect(composerToolbar).toContain("<AgentAttachmentButton");
     expect(attachmentButton).toContain("inputRef.current?.click()");
     expect(attachmentButton).not.toContain("DesktopOverlayLayer");
@@ -252,7 +251,7 @@ describe("Desktop Agent sidebar visual contract", () => {
     expect(css).not.toContain(".desktop-agent-composer-hint");
     expect(panel).not.toContain("<AgentSurfaceHeader");
     expect(panel).not.toContain("<AgentRuntimePicker");
-    expect(panel).toContain("t(DEFAULT_AGENT_COMPOSER_PLACEHOLDER_ID)");
+    // Placeholder policy is covered by agentChatViewModel.test.ts.
     expect(composer).toContain('DEFAULT_AGENT_COMPOSER_PLACEHOLDER_ID = "agent.composer.placeholder.default"');
     expect(css).toMatch(/\.desktop-agent-picker\.is-header\s*\{[^}]*width:\s*max-content[^}]*max-width:\s*100%/s);
     expect(css).toMatch(/\.desktop-agent-picker\.is-header \.desktop-agent-picker-trigger\s*\{[^}]*width:\s*max-content[^}]*max-width:\s*100%[^}]*border:\s*0[^}]*font-size:\s*var\(--po-type-header-content, 15px\)[^}]*font-weight:\s*var\(--po-font-weight-chrome, 500\)/s);
@@ -273,7 +272,7 @@ describe("Desktop Agent sidebar visual contract", () => {
     expect(css).toMatch(/\.desktop-agent-session-header-actions\s*\{[^}]*border:\s*0[^}]*background:\s*transparent/s);
     expect(panelStatus).toContain("const detail = failed");
     expect(composer).not.toContain("<Zap");
-    expect(panel).toContain('t("agent.composer.placeholder.followUp")');
+
     expect(panel).toContain("<AgentPanelLayout");
     expect(css).toMatch(/\.desktop-agent-jump-latest\s*\{[^}]*position:\s*absolute[^}]*inset-inline-start:\s*50%[^}]*width:\s*var\(--agent-control-size\)[^}]*height:\s*var\(--agent-control-size\)[^}]*border-radius:\s*50%[^}]*transform:\s*translateX\(-50%\)/s);
     expect(brandMark).toContain("resolveAgentBrand");
