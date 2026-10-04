@@ -1,5 +1,6 @@
 import { Tooltip } from "@puppyone/shared-ui";
-import { Cloud, X } from "lucide-react";
+import { X } from "lucide-react";
+import { CloudIcon as Cloud } from "../../../components/icons/CloudIcon";
 import { useLocalization } from "@puppyone/localization";
 import type { GitSyncState } from "../types";
 import { SourceControlDots } from "./GitSidebarPrimitives";

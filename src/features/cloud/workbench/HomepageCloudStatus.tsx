@@ -1,4 +1,4 @@
-import { Cloud } from "lucide-react";
+import { CloudIcon as Cloud } from "../../../components/icons/CloudIcon";
 import { useLocalization } from "@puppyone/localization";
 import { InlineLoading } from "../../../components/loading";
 import { useCloudAuthController } from "../hooks/useCloudAuthController";

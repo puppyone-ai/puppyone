@@ -171,7 +171,7 @@ describe("titlebar Portal menu interactions", () => {
     act(() => locationButton("cloud").click());
     expect(onCloud).not.toHaveBeenCalled();
     expect(onClose).toHaveBeenCalledOnce();
-    expect(document.querySelector(".desktop-titlebar-workspace-button .lucide-cloud")).not.toBeNull();
+    expect(document.querySelector(".desktop-titlebar-workspace-button .desktop-cloud-icon[data-cloud-icon=ant-design]")).not.toBeNull();
   });
 
   it("opens the GitHub push repository without navigating either project surface", async () => {
@@ -246,7 +246,7 @@ describe("titlebar Portal menu interactions", () => {
     const cloud = document.querySelector(".desktop-cloud-dialog")!;
     expect(cloud.querySelector("[data-project-location='cloud'][aria-pressed='true']")).not.toBeNull();
     expect(cloud.textContent).toContain("Cloud project");
-    expect(project.querySelector(".lucide-cloud")).not.toBeNull();
+    expect(project.querySelector(".desktop-cloud-icon[data-cloud-icon=ant-design]")).not.toBeNull();
     await act(async () => cloud.querySelector<HTMLButtonElement>("button[data-project-location='local']")!.click());
     expect(document.querySelector(".desktop-cloud-dialog")).toBeNull();
     expect(container.querySelector("input")).toBe(editor);

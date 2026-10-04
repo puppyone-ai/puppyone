@@ -458,7 +458,7 @@ describe("Project switcher rail", () => {
     expect(rows[1]?.getAttribute("data-context-asset-kind")).toBe("cloud");
     expect(rows[1]?.getAttribute("data-avatar-kind")).toBe("context-cloud");
     expect(rows[1]?.querySelector(".desktop-project-switcher-rail-initial")).toBeNull();
-    const cloudMark = rows[1]?.querySelector(".lucide-cloud");
+    const cloudMark = rows[1]?.querySelector(".desktop-cloud-icon[data-cloud-icon=ant-design]");
     expect(cloudMark?.closest(".desktop-project-switcher-rail-context-avatar")).not.toBeNull();
     expect(cloudMark?.getAttribute("width")).toBe("15");
     expect(cloudMark?.getAttribute("stroke-width")).toBe("1.8");
@@ -482,7 +482,7 @@ describe("Project switcher rail", () => {
     expect(compactLocalMark?.getAttribute("width")).toBe("15");
     expect(compactRows[1]?.querySelector(".desktop-project-switcher-rail-identity-badge")?.textContent).toBe("C");
     const compactCloudMark = compactRows[1]?.querySelector(
-      ".desktop-project-switcher-rail-compact-context-avatar .lucide-cloud",
+      ".desktop-project-switcher-rail-compact-context-avatar .desktop-cloud-icon[data-cloud-icon=ant-design]",
     );
     expect(compactCloudMark).not.toBeNull();
     expect(compactCloudMark?.getAttribute("width")).toBe("15");

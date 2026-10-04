@@ -9,7 +9,6 @@ import {
 } from "@puppyone/shared-ui";
 import {
   ArrowLeft,
-  Cloud,
   Plus,
   FolderPlus,
   Laptop,
@@ -22,6 +21,7 @@ import {
 import type { GitStatusSnapshot } from "../../types/electron";
 import { DesktopTitlebarMenuLayer } from "./DesktopTitlebarMenuLayer";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
+import { CloudIcon as Cloud } from "../../components/icons/CloudIcon";
 import {
   ProjectContextAssetMark,
   resolveProjectContextAssetKind,

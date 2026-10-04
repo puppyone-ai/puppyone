@@ -1,5 +1,6 @@
 import { Tooltip } from "@puppyone/shared-ui";
-import { Check, Cloud, Copy, LockKeyhole, Unlink } from "lucide-react";
+import { Check, Copy, LockKeyhole, Unlink } from "lucide-react";
+import { CloudIcon as Cloud } from "../../../../components/icons/CloudIcon";
 import { useEffect, useState } from "react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";

@@ -1,4 +1,4 @@
-import { Cloud } from "lucide-react";
+import { CloudIcon as Cloud } from "../../components/icons/CloudIcon";
 import { useLocalization } from "@puppyone/localization";
 import type { ReactNode } from "react";
 import {
@@ -35,7 +35,7 @@ export function CloudDialog({ sidebar, main, onClose, locationControls }: CloudD
           <header className="desktop-dialog-header desktop-cloud-dialog-header">
             <div className="desktop-dialog-title-row desktop-cloud-dialog-title-row">
               <span className="desktop-cloud-dialog-leading" aria-hidden="true">
-                <Cloud size={15} strokeWidth={1.9} />
+                <Cloud size={15} />
               </span>
               <h2>{title}</h2>
             </div>

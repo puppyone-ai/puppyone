@@ -37,7 +37,7 @@ describe("CloudDialog", () => {
     const dialog = overlayRoot?.querySelector<HTMLElement>(".desktop-cloud-dialog");
     expect(dialog?.getAttribute("role")).toBe("dialog");
     expect(dialog?.getAttribute("aria-label")).toBe("PuppyOne Cloud");
-    expect(dialog?.querySelector(".lucide-cloud")).not.toBeNull();
+    expect(dialog?.querySelector(".desktop-cloud-icon[data-cloud-icon=ant-design]")).not.toBeNull();
     expect(host.querySelector(".desktop-cloud-dialog")).toBeNull();
     expect(dialog?.querySelector("[data-testid='cloud-navigation']")?.textContent)
       .toBe("Navigation");

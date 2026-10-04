@@ -468,15 +468,15 @@
 
 .onboarding-project-icon.is-cloud,
 .onboarding-project-cloud-badge,
-.desktop-menu-icon-button.onboarding-project-cloud {
-  color: var(--po-info);
+.desktop-menu-icon-button.onboarding-project-cloud,
+.homepage-cloud-sign-in .desktop-cloud-icon {
+  color: var(--po-brand-blue);
 }
 
 .onboarding-project-cloud-badge {
   position: absolute;
   inset-inline-end: -4px;
   inset-block-end: -3px;
-  fill: var(--po-surface);
 }
 
 .onboarding-project-cloud {

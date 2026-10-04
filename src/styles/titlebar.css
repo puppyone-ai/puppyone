@@ -1096,7 +1096,7 @@
 }
 
 .desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark[data-project-location="cloud"] {
-  color: var(--po-accent);
+  color: var(--po-brand-blue);
 }
 
 .desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark > svg {

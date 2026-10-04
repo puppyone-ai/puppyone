@@ -1,5 +1,16 @@
 # Third-party notices
 
+## Cloud identity icon
+
+The symmetric Cloud outline uses Ant Design Icons' `CloudOutlined`, MIT licensed,
+Copyright (c) 2018-present Ant UED. The original outline is embedded in
+`src/components/icons/CloudIcon.tsx`; the linked-folder badge optionally uses the
+same outer contour as an opaque backplate. No icon library or remote asset fetch
+is added at runtime. The complete license is distributed at
+`public/assets/icons/cloud/ant-design-license.txt`.
+Immutable source:
+https://github.com/ant-design/ant-design-icons/blob/7f2516ac91226d2b41f93b35cb5197c8d94f7189/packages/icons-svg/svg/outlined/cloud.svg
+
 ## Cloud Agent catalog marks
 
 The experimental Cloud Agent catalog displays product marks for identification;

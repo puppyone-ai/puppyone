@@ -1,6 +1,7 @@
 import { Tooltip } from "@puppyone/shared-ui";
 import { bidiIsolate, useLocalization, type MessageFormatter } from "@puppyone/localization";
-import { Cloud, Unlink } from "lucide-react";
+import { Unlink } from "lucide-react";
+import { CloudIcon as Cloud } from "../icons/CloudIcon";
 import type { DragEvent as ReactDragEvent } from "react";
 import {
   getProjectName,

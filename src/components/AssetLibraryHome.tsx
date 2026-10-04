@@ -1,5 +1,6 @@
 import { Tooltip } from "@puppyone/shared-ui";
-import { AlertTriangle, Cloud, FolderOpen, Plus } from "lucide-react";
+import { AlertTriangle, FolderOpen, Plus } from "lucide-react";
+import { CloudIcon as Cloud } from "./icons/CloudIcon";
 import { useEffect, useMemo, useState } from "react";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import { useWorkspaceFolderDrop } from "../features/app-shell/useWorkspaceFolderDrop";

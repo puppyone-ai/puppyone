@@ -57,7 +57,7 @@ app.whenReady().then(async () => {
     const probe = document.createElement('span');
     probe.style.color = 'var(--po-header)'; header.append(probe);
     const expected = getComputedStyle(probe).color;
-    probe.style.color = 'var(--po-accent)';
+    probe.style.color = 'var(--po-brand-blue)';
     const accent = getComputedStyle(probe).color; probe.remove();
     const shell = header.closest('.desktop-shell'), frame = getComputedStyle(shell, '::after');
     return header.dataset.workspaceKind === 'cloud' && shell.dataset.workspaceKind === 'cloud'
@@ -65,6 +65,7 @@ app.whenReady().then(async () => {
       && getComputedStyle(header).backgroundImage === 'none'
       && frame.borderColor === accent && frame.borderWidth === '2px' && frame.pointerEvents === 'none'
       && getComputedStyle(header.querySelector('.desktop-titlebar-workspace-mark[data-project-location=cloud]')).color === accent
+      && getComputedStyle(header.querySelector('[data-cloud-icon=ant-design] [data-cloud-outline]')).fill === 'rgb(69, 153, 223)'
       && shell.getBoundingClientRect().height === innerHeight
       && header.getBoundingClientRect().width === innerWidth;
   })()`), "Hosted-only Cloud projects keep the original Header and product-blue whole-window frame");
@@ -120,7 +121,26 @@ app.whenReady().then(async () => {
   await waitFor("document.querySelectorAll('.onboarding-project-row-wrap').length === 7");
   assert(await evaluate("!document.querySelector('.onboarding-project-group') && document.querySelectorAll('[data-cloud-project-id=alpha]').length === 1 && Boolean(document.querySelector('[data-project-location=linked] .onboarding-project-cloud-badge'))"), "One flat list must express linked projects through their folder/cloud icon, not section headings");
   assert(await evaluate("[...document.querySelectorAll('.onboarding-project-row-wrap')].slice(0,3).map(row => row.querySelector('.desktop-menu-item-label').textContent).join('|') === 'Hosted beta|Local notes|Hosted alpha'"), "All locations must share one last-modified order");
-  assert(await evaluate("getComputedStyle(document.querySelector('[data-project-location=cloud]')).color !== getComputedStyle(document.querySelector('[data-project-location=local]')).color"), "The Cloud-only outline icon must use the semantic blue/info color");
+  const homepageMarks = [];
+  for (const theme of ['light', 'dark']) {
+    await evaluate(`window.__accountCloudSmoke.setTheme('${theme}')`);
+    await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+    const marks = await evaluate(`(() => {
+      const home = document.querySelector('.onboarding-shell');
+      const selectors = ['.onboarding-project-icon.is-cloud', '.onboarding-project-cloud-badge', '.onboarding-project-cloud'];
+      return { marks:selectors.map(selector => {
+        const node = home.querySelector(selector), svg = node.matches('svg') ? node : node.querySelector('svg');
+        return { selector, name:svg.dataset.cloudIcon, color:getComputedStyle(node).color,
+          fill:getComputedStyle(svg.querySelector('[data-cloud-outline]')).fill,
+          backplate:svg.querySelector('[data-cloud-backplate]')?.getAttribute('fill') ?? null };
+      }), localColor:getComputedStyle(home.querySelector('.onboarding-project-icon.is-local')).color,
+        folderIsNotCloud:!home.querySelector('.onboarding-project-icon.is-local [data-cloud-icon]') };
+    })()`);
+    assert(marks.marks.every(mark => mark.name === 'ant-design' && mark.color === 'rgb(69, 153, 223)' && mark.fill === mark.color), 'Cloud-only, linked badge and open-Cloud action must all use the approved mark and exact product blue in both themes');
+    assert(marks.marks[1].backplate === 'var(--po-surface)' && marks.folderIsNotCloud && marks.localColor !== 'rgb(69, 153, 223)', 'Linked badge keeps its surface backplate; Local folder keeps ordinary styling');
+    homepageMarks.push({ theme, ...marks });
+    await writeFile(path.join(artifacts, `cloud-marks-${theme}.png`), (await window.webContents.capturePage()).toPNG());
+  }
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await writeFile(path.join(artifacts, "flat-homepage.png"), (await window.webContents.capturePage()).toPNG());
   window.setSize(640, 520);
@@ -134,7 +154,7 @@ app.whenReady().then(async () => {
   })()`), "The flat project list must scroll and retain the explicit Cloud action at the minimum window size");
   await writeFile(path.join(artifacts, "flat-homepage-minimum.png"), (await window.webContents.capturePage()).toPNG());
   assert(errors.length === 0, `Unexpected renderer errors: ${errors.join("; ")}`);
-  const result = { passed: true, geometry, ...(await evaluate("window.__accountCloudSmoke.state()")), errors };
+  const result = { passed: true, geometry, homepageMarks, ...(await evaluate("window.__accountCloudSmoke.state()")), errors };
   await writeFile(path.join(artifacts, "result.json"), JSON.stringify(result, null, 2));
   console.log("Account Cloud workspace Electron smoke passed.");
   window.destroy(); app.exit(0);

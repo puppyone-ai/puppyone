@@ -1,4 +1,5 @@
-import { Cloud, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
+import { CloudIcon as Cloud } from "../../../components/icons/CloudIcon";
 import { useLocalization } from "@puppyone/localization";
 import { useEffect, type ReactNode } from "react";
 import { DesktopDialogCloseButton, DesktopDialogRoot, DesktopDialogSurface } from "../../../components/DesktopDialog";

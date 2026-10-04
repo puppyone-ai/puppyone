@@ -59,6 +59,7 @@ declare global { interface Window { __accountCloudSmoke?: {
   signIn: () => void;
   home: () => void;
   showLocalFixtures: () => void;
+  setTheme: (theme: "light" | "dark") => void;
 }; } }
 
 /** Production account controller and hosted shell, with no checkout or real Cloud bytes. */
@@ -76,6 +77,7 @@ function AccountCloudFixture() {
   const markdownPresentation = useDesktopPreference(s => s.markdownPresentation);
   const pointerCursors = useDesktopPreference(s => s.pointerCursors);
   const { resolvedAppearance } = useDesktopAppearance();
+  const setTheme = useDesktopPreference(s => s.setThemeMode);
   const typographyPreferences = useDesktopPreference(s => s.typographyPreferences);
   const { locale } = useLocalization();
   const [includeLocal, setIncludeLocal] = useState(false);
@@ -98,7 +100,7 @@ function AccountCloudFixture() {
   const presentation = useAccountCloudWorkspacePresentation({ workbench });
   useEffect(() => {
     window.__accountCloudSmoke = { state: () => ({ active: account.active, project: account.context.projectId, writes }),
-      home: account.useLocal, showLocalFixtures: () => setIncludeLocal(true),
+      home: account.useLocal, showLocalFixtures: () => setIncludeLocal(true), setTheme,
       signOut: () => setSession(null), signIn: () => setSession(makeSession()),
       edit: (text) => {
         const editor = document.querySelector(".desktop-account-cloud-workspace .cm-editor");
@@ -108,7 +110,7 @@ function AccountCloudFixture() {
       },
     };
     return () => { delete window.__accountCloudSmoke; };
-  }, [account]);
+  }, [account, setTheme]);
   return <SurfaceAppearanceProvider value={appearance}>
     {!account.active && <MinimalOnboarding appearance={appearance} projectItems={homepage.items}
       cloudOpening={account.opening}

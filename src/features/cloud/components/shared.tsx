@@ -1,4 +1,5 @@
-import { Check, ChevronRight, Cloud, Copy, ExternalLink, FileText, FolderOpen, GitBranch, RefreshCw } from "lucide-react";
+import { Check, ChevronRight, Copy, ExternalLink, FileText, FolderOpen, GitBranch, RefreshCw, type LucideIcon } from "lucide-react";
+import { CloudIcon as Cloud } from "../../../components/icons/CloudIcon";
 import {
   Tooltip,
   FilePreviewIcon,
@@ -406,7 +407,7 @@ export function CloudInlineEmpty({
   title,
   detail,
 }: {
-  icon: typeof Cloud;
+  icon: LucideIcon;
   title: string;
   detail: string;
 }) {

@@ -52,7 +52,7 @@
   z-index: 101;
   inset: 0;
   box-sizing: border-box;
-  border: 2px solid var(--po-accent);
+  border: 2px solid var(--po-brand-blue);
   border-radius: var(--desktop-cloud-frame-radius, 0px);
   content: "";
   pointer-events: none;

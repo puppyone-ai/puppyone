@@ -1,4 +1,5 @@
-import { ArrowUpRight, Cloud, LoaderCircle } from "lucide-react";
+import { ArrowUpRight, LoaderCircle } from "lucide-react";
+import { CloudIcon as Cloud } from "../../../components/icons/CloudIcon";
 import { useLocalization } from "@puppyone/localization/react";
 import "./desktop-cloud-sign-in-cta.css";
 
@@ -12,7 +13,7 @@ export function DesktopCloudSignInCta({ signingIn, error, onSignIn }: {
   return (
     <section className="desktop-cloud-sign-in-cta" aria-busy={signingIn}>
       <div className="desktop-cloud-sign-in-mark" aria-hidden="true">
-        <Cloud size={24} strokeWidth={1.6} />
+        <Cloud size={24} />
       </div>
       <div className="desktop-cloud-sign-in-copy">
         <h2>{t("cloud.auth.desktopTitle")}</h2>

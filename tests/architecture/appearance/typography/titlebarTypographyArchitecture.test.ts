@@ -60,9 +60,13 @@ describe("titlebar typography architecture", () => {
     expect(skinContract).not.toContain('.desktop-titlebar[data-workspace-kind] {');
   });
 
-  it("colors only the committed Cloud Header mark with the same accent as the frame", () => {
+  it("colors the committed Cloud Header mark and Homepage marks with product blue, not theme accent/info", () => {
     const mark = readCssBlock(titlebarCss, '.desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark[data-project-location="cloud"]');
-    expect(mark.trim()).toBe("color: var(--po-accent);");
+    expect(tokensCss).toContain("--po-brand-blue: #4599df;");
+    expect(mark.trim()).toBe("color: var(--po-brand-blue);");
+    const onboarding = readFileSync(new URL("../../../../src/styles/onboarding.css", import.meta.url), "utf8");
+    expect(readCssBlock(onboarding, '.onboarding-project-icon.is-cloud,\n.onboarding-project-cloud-badge,\n.desktop-menu-icon-button.onboarding-project-cloud,\n.homepage-cloud-sign-in .desktop-cloud-icon'))
+      .toContain("color: var(--po-brand-blue);");
     expect(readCssBlock(titlebarCss, '.desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark'))
       .toContain("color: inherit;");
   });
@@ -72,7 +76,7 @@ describe("titlebar typography architecture", () => {
     const frame = readCssBlock(shellCss, '.desktop-shell[data-workspace-kind="cloud"]::after');
     expect(frame).toContain("position: absolute;");
     expect(frame).toContain("inset: 0;");
-    expect(frame).toContain("border: 2px solid var(--po-accent);");
+    expect(frame).toContain("border: 2px solid var(--po-brand-blue);");
     expect(frame).toContain("border-radius: var(--desktop-cloud-frame-radius, 0px);");
     expect(shellCss).toContain('[data-window-platform="macos"][data-window-chrome-mode="overlay"]:not([data-window-full-screen="true"])');
     expect(shellCss).toContain("--desktop-cloud-frame-radius: var(--desktop-macos-window-frame-radius);");

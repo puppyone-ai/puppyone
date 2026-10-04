@@ -1,5 +1,8 @@
 :root {
   color-scheme: light;
+  /* Product identity blue, shared by Cloud marks/frame in both color modes.
+     Deliberately distinct from the active theme's accent and info/status colors. */
+  --po-brand-blue: #4599df;
   --desktop-control-radius: 6px;
   /* Mirrored from electron/main/window-layout-contract.mjs and guarded by the architecture check. */
   --desktop-window-min-width: 640px;
