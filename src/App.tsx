@@ -840,15 +840,19 @@ function AppContent() {
   });
   const cloudSignedIn = activeCloudSession !== null;
   const projectCloudLocationState = getProjectCloudLocationState(projectCloudContext, cloudSignedIn);
+  const prepareCloudInPlace = Boolean(activeCloudSession && (projectCloudContext.status === "resolved"
+    || projectCloudContext.status === "resolving" || repositoryCloudSwitch.error));
+  const headerWorkspaceLocation = cloudWorkspaceActive ? "cloud"
+    : (prepareCloudInPlace && repositoryCloudSwitch.requestedLocation) || "local";
+  const cloudHeaderActive = headerWorkspaceLocation === "cloud";
   // Header selection follows intent immediately; the provider remains local
   // until authorization and root-file access complete.
   const projectLocation: DesktopProjectLocation | undefined = cloudEnabled
     ? { current: cloudWorkspaceActive ? "cloud" : "local", requested: repositoryCloudSwitch.requestedLocation,
+      headerLocation: headerWorkspaceLocation,
       loading: repositoryCloudSwitch.pending && !repositoryCloudSwitch.error,
       localAvailable: true, cloudState: projectCloudLocationState }
     : undefined;
-  const prepareCloudInPlace = Boolean(activeCloudSession && (projectCloudContext.status === "resolved"
-    || projectCloudContext.status === "resolving" || repositoryCloudSwitch.error));
   // The wizard stacks above the Cloud dialog so the Homepage is still there when it closes.
   const openShareWizard = useCallback((targetId: ShareTargetId | null, path = "") => {
     if (!shareOnboardingEnabled) return;
@@ -1511,8 +1515,8 @@ function AppContent() {
   const chromeActionProps = {
     desktopUpdateState: desktopUpdates.state,
     terminalSidebarOpen: agentSidebarOpen,
-    terminalToolEnabled: !cloudWorkspaceActive,
-    gitChangesAvailable: Boolean(focusedWorkspace) && !cloudWorkspaceActive,
+    terminalToolEnabled: !cloudHeaderActive,
+    gitChangesAvailable: Boolean(focusedWorkspace) && !cloudHeaderActive,
     gitChangesOpen: gitPresentation.open,
     gitCardEnabled: gitPresentation.cardEnabled,
     gitAnchorRef,
@@ -1529,18 +1533,18 @@ function AppContent() {
   const titlebarContext = (
     <DesktopTitlebarContext
       compactProjectMenu={centerProjectInHeader}
-      activeGitStatus={cloudWorkspaceActive ? null : activeGitStatus}
-      showBranchSwitcher={!cloudWorkspaceActive}
+      activeGitStatus={cloudHeaderActive ? null : activeGitStatus}
+      showBranchSwitcher={!cloudHeaderActive}
       backupProviders={focusedWorkspace?.path === workspace.path && gitStatusPath === workspace.path
         ? getProjectBackupProviders(activeGitStatus) : []}
       backupStatus={focusedWorkspace?.path === workspace.path && gitStatusPath === workspace.path
         ? activeGitStatus : null}
       branchSwitcherOpen={branchSwitcherOpen}
       branchSwitcherRef={branchSwitcherRef}
-      gitStatusLoading={!cloudWorkspaceActive && gitStatusLoading}
-      gitOperationLoading={cloudWorkspaceActive ? null : gitOperationLoading}
-      localBranches={cloudWorkspaceActive ? [] : localBranches}
-      remoteBranches={cloudWorkspaceActive ? [] : remoteBranches}
+      gitStatusLoading={!cloudHeaderActive && gitStatusLoading}
+      gitOperationLoading={cloudHeaderActive ? null : gitOperationLoading}
+      localBranches={cloudHeaderActive ? [] : localBranches}
+      remoteBranches={cloudHeaderActive ? [] : remoteBranches}
       projectLocation={projectLocation}
       cloudProject={focusedWorkspace?.path === workspace.path && projectCloudContext.status === "resolved"
         ? { id: projectCloudContext.projectId, name: projectCloudContext.projectName } : undefined}
@@ -1609,7 +1613,7 @@ function AppContent() {
         <DesktopCloudShell
           active
           workspaceLocation={projectLocation?.current ?? "local"}
-          requestedWorkspaceLocation={prepareCloudInPlace ? projectLocation?.requested : undefined}
+          requestedWorkspaceLocation={headerWorkspaceLocation}
           onGoHome={() => void goToHomepage()}
           renderLeadingRail={projectSwitcherRailVisible ? ({ expanded }) => (
             <ProjectSwitcherRail
@@ -1652,18 +1656,18 @@ function AppContent() {
           titlebarActions={titlebarActions}
           titlebarCenteredSlot={centerProjectInHeader ? titlebarContext : undefined}
           titlebarTabs={cloudWorkspaceActive
-            ? editorTabsInHeaderEnabled ? accountCloudPresentation.titlebarTabs : undefined
+            ? editorTabsInHeaderEnabled && accountCloudPresentation.titlebarTabs
             : titlebarEditorTabs}
           alignTitlebarTabsToExplorer={editorTabsInHeaderEnabled}
           titlebarTabsHostRef={enableWorkbenchTabsInHeader && !editorTabsInHeaderEnabled
             ? setTitlebarTabHost
             : undefined}
-          locationBar={cloudWorkspaceActive ? accountCloudPresentation.locationBar : locationBarVisible ? (
+          locationBar={cloudWorkspaceActive ? accountCloudPresentation.locationBar : locationBarVisible && (
             <DesktopShellLocationBar
               path={locationBarPath}
               onNavigate={handleLocationBarNavigate}
             />
-          ) : undefined}
+          )}
           rightSidebarOpen={rightSidebarContentVisible}
           resizableRightSidebar
           rightSidebarWidth={rightSidebarWidth}

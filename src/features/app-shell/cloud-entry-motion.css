@@ -27,12 +27,12 @@
 }
 
 /* The cover mounts with the committed page, then waits for the Header reveal.
- * This prevents a ready-page flash before the downward transition starts. */
+ * This prevents a ready-page flash before the upward transition starts. */
 .desktop-cloud-entry-light:not([data-arrival-ready="true"]) > div {
   animation-play-state: paused;
 }
 
-/* Continue the Header's downward reveal with the same easing. The regular
+/* Continue the Header's upward reveal with the same easing. The regular
  * canvas clears quietly while retained content stays stationary. */
 .desktop-cloud-entry-sweep {
   position: absolute;
@@ -45,7 +45,7 @@
 @keyframes desktop-cloud-arrival-sweep {
   0% { opacity: 1; transform: translateY(0); }
   90% { opacity: 1; }
-  100% { opacity: 0; transform: translateY(100%); }
+  100% { opacity: 0; transform: translateY(-100%); }
 }
 
 @media (prefers-reduced-motion: reduce) {

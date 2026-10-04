@@ -165,7 +165,8 @@ describe("titlebar Portal menu interactions", () => {
       await act(async () => root?.render(withTestLocalization(<DesktopWorkspaceSwitcher
         open refObject={anchor} titlebarLabel="Project" workspace={createWorkspace("one", "Project")}
         workspaceFolders={[]} multiRootWorkspacesEnabled={false}
-        projectLocation={{ current, requested, loading: Boolean(requested), localAvailable: true, cloudState: "available" }}
+        projectLocation={{ current, requested, headerLocation: requested ?? current,
+          loading: Boolean(requested), localAvailable: true, cloudState: "available" }}
         onToggle={vi.fn()} onClose={onClose} onViewCloud={onCloud} onViewLocal={onLocal} />)));
     };
     await render("local");
@@ -179,8 +180,13 @@ describe("titlebar Portal menu interactions", () => {
     expect(locationButton("cloud").querySelector('[data-puppy-loader="pulse-grid"]')).not.toBeNull();
     expect(locationButton("cloud").getAttribute("aria-pressed")).toBe("true");
     expect(locationButton("local").getAttribute("aria-current")).toBe("true");
+    expect(anchor.current?.querySelector('.desktop-titlebar-workspace-mark[data-project-location="cloud"]')).not.toBeNull();
+    expect(anchor.current?.querySelector(".desktop-titlebar-workspace-button")?.getAttribute("aria-label")).toContain("Cloud");
     act(() => locationButton("local").click());
     expect(onLocal).toHaveBeenCalledOnce();
+    await render("local");
+    expect(anchor.current?.querySelector('.desktop-titlebar-workspace-mark[data-project-location="local"]')).not.toBeNull();
+    expect(requireMenu()).toBe(menu);
     await render("cloud");
     expect(locationButton("cloud").querySelector('[data-puppy-loader]')).toBeNull();
     expect(requireMenu()).toBe(menu);

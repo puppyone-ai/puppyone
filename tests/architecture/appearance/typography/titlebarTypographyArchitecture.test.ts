@@ -63,10 +63,9 @@ describe("titlebar typography architecture", () => {
     expect(skinContract).not.toContain('.desktop-titlebar[data-workspace-kind] {');
   });
 
-  it("keeps the Cloud Header mark readable on blue and Homepage marks in product blue", () => {
-    const mark = readCssBlock(titlebarCss, '.desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark[data-project-location="cloud"]');
+  it("lets the Cloud Header mark inherit project text while Homepage marks use product blue", () => {
     expect(tokensCss).toContain("--po-brand-blue: #4599df;");
-    expect(mark.trim()).toBe("color: var(--desktop-titlebar-text);");
+    expect(titlebarCss).not.toContain('.desktop-titlebar-workspace-mark[data-project-location="cloud"]');
     const onboarding = readFileSync(new URL("../../../../src/styles/onboarding.css", import.meta.url), "utf8");
     expect(readCssBlock(onboarding, '.onboarding-project-icon.is-cloud,\n.onboarding-project-cloud-badge,\n.desktop-menu-icon-button.onboarding-project-cloud,\n.homepage-cloud-sign-in .desktop-cloud-icon'))
       .toContain("color: var(--po-brand-blue);");

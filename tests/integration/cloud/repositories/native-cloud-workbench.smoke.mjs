@@ -63,10 +63,10 @@ async function captureCloudArrival(scene) {
   })()`);
   assert(sample.count === 1 && sample.opacity > 0.9, 'Committed Cloud must play one content reveal');
   assert(sample.pointerEvents === 'none' && sample.y === 40, 'Arrival must preserve Header and pointer interactions');
-  assert(sample.animationName === 'desktop-cloud-arrival-sweep' && sample.sweepY > sample.firstY
-    && sample.firstY > sample.y && sample.sweepX === 0 && sample.sweepWidth === sample.width
+  assert(sample.animationName === 'desktop-cloud-arrival-sweep' && sample.sweepY < sample.firstY
+    && sample.firstY < sample.y && sample.sweepX === 0 && sample.sweepWidth === sample.width
     && !sample.radialLight && sample.leadingDecoration === 'none',
-    'Content must reveal downward across the full width without flare, a decorative leading edge, or sideways motion');
+    'Content must reveal upward across the full width without flare, a decorative leading edge, or sideways motion');
   await evaluate("Promise.all((document.querySelector('.desktop-cloud-header-wipe')?.getAnimations() ?? []).map(animation => animation.finished.catch(() => {})))");
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   // Let the paused animation's paint reach the native compositor.
@@ -139,6 +139,7 @@ async function headerPresentation(location) {
   assert(JSON.stringify(sample.buttonColor) === JSON.stringify(sample.themeText), 'Cloud and Local must preserve the current theme foreground');
   assert(sample.backgroundImage === 'none', 'The previous gradient must be removed');
   const expectedIcon = sample.buttonColor;
+  assert(JSON.stringify(sample.icon.color) === JSON.stringify(sample.labelColor), 'Cloud and device marks must match project text color, open or closed');
   assert(sample.icon.location === location && JSON.stringify(sample.icon.color) === JSON.stringify(expectedIcon)
     && JSON.stringify(sample.icon.paint) === JSON.stringify(expectedIcon), 'Location icons must share readable Header ink');
   assert(JSON.stringify(sample.accent) === '[69,153,223]', 'Brand blue is the approved #4599DF in both themes, not adaptive accent/info');
@@ -302,6 +303,8 @@ app.whenReady().then(async () => {
     return { headerCenter:h.x + h.width / 2, contextCenter:c.x + c.width / 2,
       projectName:context.querySelector('.desktop-titlebar-workspace-name')?.textContent };
   })()`);
+  assert(await evaluate("Boolean(document.querySelector('.desktop-titlebar-terminal')) && Boolean(document.querySelector('.desktop-titlebar-changes'))"),
+    'Local must expose its Chat and Git Header actions before switching');
   await evaluate("window.__nativeCloudWorkbenchSmoke.holdCloudRead()");
   await openProjectMenu();
   await checkProjectBarRelayout("menu.style.setProperty('--po-type-ui-control', '19px');");
@@ -327,10 +330,12 @@ app.whenReady().then(async () => {
     animation.currentTime = 140;
     const laterInsets = getComputedStyle(wipe).clipPath.slice(6, -1).split(/\\s+/).map(parseFloat);
     return header.dataset.workspaceKind === 'cloud' && !document.querySelector('.desktop-cloud-entry-light')
-      && firstInsets[0] > 0 && laterInsets[0] > firstInsets[0]
-      && firstInsets.slice(1).every(value => value === 0) && laterInsets.slice(1).every(value => value === 0)
+      && firstInsets[2] > 0 && laterInsets[2] > firstInsets[2]
+      && [0,1,3].every(index => (firstInsets[index] ?? 0) === 0 && (laterInsets[index] ?? 0) === 0)
       && animation.animationName === 'desktop-cloud-header-reveal';
-  })()`), 'Header must reveal blue downward during preparation, before page arrival');
+  })()`), 'Header must reveal blue upward during preparation, before page arrival');
+  assert(await evaluate("Boolean(document.querySelector('.desktop-titlebar-workspace-mark[data-project-location=cloud]')) && !document.querySelector('.desktop-titlebar-terminal, .desktop-titlebar-changes')"),
+    'Cloud intent must change the Header mark and remove local actions before provider commit');
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await writeFile(path.join(artifacts, 'cloud-header-switch.png'), (await window.webContents.capturePage()).toPNG());
   await evaluate("document.querySelector('.desktop-cloud-header-wipe').getAnimations()[0].finish()");
@@ -464,6 +469,8 @@ app.whenReady().then(async () => {
   await evaluate("document.querySelector('button[data-project-location=cloud]').click()");
   await waitFor("Boolean(document.querySelector('.desktop-cloud-workspace-switch-dialog [data-cloud-sign-in-action]'))");
   assert(await evaluate("window.__nativeCloudWorkbenchSmoke.state().location === 'local' && !document.querySelector('[data-workspace-location=local]').hidden && document.querySelector('[data-workspace-location=cloud]').hidden"), "Sign-in must precede Cloud selection");
+  assert(await evaluate("Boolean(document.querySelector('.desktop-titlebar-workspace-mark[data-project-location=local]')) && Boolean(document.querySelector('.desktop-titlebar-terminal')) && Boolean(document.querySelector('.desktop-titlebar-changes'))"),
+    'An unresolved sign-in gate must retain the Local Header identity and actions');
   assert(await evaluate("!document.querySelector('.desktop-cloud-workspace-switch-dialog aside, .desktop-cloud-workspace-switch-dialog nav')"), "The sign-in dialog must not introduce service navigation");
   await headerPresentation("local");
   const authGeometry = await presentation("local");

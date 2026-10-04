@@ -5,6 +5,7 @@ import { DesktopCloudShell } from "../../../components/DesktopCloudShell";
 import { resetDesktopPlatformCapabilitiesForTests } from "../../../platform/desktopPlatformClient";
 import { DesktopOverlayPortal } from "../../app-shell/DesktopOverlayPortal";
 import { DesktopWorkspaceSwitcher } from "../../app-shell/DesktopWorkspaceSwitcher";
+import { DesktopTitlebarActions } from "../../app-shell/DesktopTitlebarActions";
 import { DesktopWorkspaceLocationSurface } from "../../app-shell/DesktopWorkspaceLocationSurface";
 import { useDesktopPreference, useDesktopPreferenceEffects, initializeDesktopPreferences } from "../../settings";
 import { EditorHeaderTabs } from "../../editor-workbench/header/EditorHeaderTabs";
@@ -164,6 +165,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
     workspaceAtomicRefreshToken: 0, workspaceSurfaceError: null, sidebarCreateMenuOpen: false,
   };
   const visibleWorkbench = location === "cloud" ? workbench.editorWorkbench : localWorkbench;
+  const headerLocation = (cloudSessionAvailable ? controller.requestedLocation : undefined) ?? location;
   useEffect(() => {
     window.__nativeCloudWorkbenchSmoke = {
       state: () => ({ location, cloudWrites, localWrites, requests }),
@@ -186,14 +188,17 @@ export function NativeCloudWorkbenchSmokeHarness() {
   return <div className={`app-shell${theme === "dark" ? " dark" : ""}`} data-po-appearance-root="true" data-native-cloud-smoke-ready="true">
     <DesktopOverlayPortal theme={theme}>{null}</DesktopOverlayPortal>
     <DesktopCloudShell workspaceLocation={location} leftSidebarCollapsed={sidebarCollapsed} leftSidebarWidth={explorerWidth}
-      requestedWorkspaceLocation={cloudSessionAvailable ? controller.requestedLocation : undefined}
+      requestedWorkspaceLocation={headerLocation}
       onLeftSidebarExpand={() => setSidebarCollapsed(false)}
       titlebarCenteredSlot={<DesktopWorkspaceSwitcher open={menuOpen} refObject={menuRef} titlebarLabel={localWorkspace.name}
         workspace={localWorkspace} workspaceFolders={[]} multiRootWorkspacesEnabled={false}
-        projectLocation={{ current: location, requested: controller.requestedLocation, loading: controller.pending && !controller.error,
+        projectLocation={{ current: location, requested: controller.requestedLocation, headerLocation, loading: controller.pending && !controller.error,
           localAvailable: true, cloudState: "available" }} cloudProject={{ id: context.projectId }}
         onClose={() => setMenuOpen(false)} onToggle={() => setMenuOpen((current) => !current)}
         onViewLocal={() => { controller.cancel(); setCloudSelected(false); }} onViewCloud={controller.request} />}
+      titlebarActions={<DesktopTitlebarActions terminalSidebarOpen={false}
+        terminalToolEnabled={headerLocation === "local"} gitChangesAvailable={headerLocation === "local"}
+        onToggleTerminal={noop} onToggleGitChanges={noop} />}
       titlebarTabs={<EditorHeaderTabs activeEditorId={visibleWorkbench.activeEditorId}
         editors={visibleWorkbench.state.editors}
         storageIdentity={location === "cloud" ? workbench.dataPort?.documentPersistence?.storageIdentity ?? null : localPort.documentPersistence!.storageIdentity}

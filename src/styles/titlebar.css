@@ -56,7 +56,7 @@
 
 @keyframes desktop-cloud-header-reveal {
   from { clip-path: inset(0 0 0 0); }
-  to { clip-path: inset(100% 0 0 0); }
+  to { clip-path: inset(0 0 100% 0); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1106,10 +1106,6 @@
   align-items: center;
   justify-content: center;
   color: inherit;
-}
-
-.desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark[data-project-location="cloud"] {
-  color: var(--desktop-titlebar-text);
 }
 
 .desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark > svg {

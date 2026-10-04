@@ -1494,9 +1494,6 @@
     },
     "max-lines-per-function": {
       "count": 1
-    },
-    "no-nested-ternary": {
-      "count": 2
     }
   },
   "src/ai-edits/mockAiEdits.ts": {

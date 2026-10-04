@@ -52,6 +52,8 @@ export type DesktopProjectLocation = Readonly<{
   current: "local" | "cloud";
   /** Immediate user selection while the committed provider prepares. */
   requested?: "local" | "cloud";
+  /** Header destination after entry gates, which may precede the provider commit. */
+  headerLocation?: "local" | "cloud";
   loading?: boolean;
   localAvailable: boolean;
   cloudState: "unavailable" | "available" | "signed-out" | "resolving" | "attention";
@@ -80,8 +82,8 @@ export function DesktopWorkspaceSwitcher({
   const { t } = useLocalization();
   const [view, setView] = useState<"projects" | "add">("projects");
   const localDeviceLabel = useProjectDeviceLabel();
-  const currentProjectLocationKind = projectLocation?.current ?? "local";
-  const workspaceContextAssetLabel = currentProjectLocationKind === "cloud"
+  const headerProjectLocationKind = projectLocation?.headerLocation ?? projectLocation?.current ?? "local";
+  const workspaceContextAssetLabel = headerProjectLocationKind === "cloud"
     ? t("shell.workspaceSwitcher.location.cloud") : localDeviceLabel;
   const attachedFolders = useMemo(
     () => workspaceFolders.length > 0
@@ -118,7 +120,7 @@ export function DesktopWorkspaceSwitcher({
       >
         <ProjectLocationMark
           className="desktop-titlebar-workspace-mark"
-          kind={currentProjectLocationKind}
+          kind={headerProjectLocationKind}
           size={16}
         />
         <bdi className="desktop-titlebar-workspace-name">{titlebarLabel}</bdi>
