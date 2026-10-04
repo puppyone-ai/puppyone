@@ -318,6 +318,7 @@ describe("settings visual architecture", () => {
 
   it("uses one flat Settings contract and removes legacy card primitives", () => {
     const components = source("src/components/SettingsControls.tsx");
+    const facade = source("src/features/settings/components.tsx");
     const view = source("src/features/settings/SettingsView.tsx");
     const workspaceConfig = source("src/features/settings/PuppyoneWorkspaceConfigSettings.tsx");
     const splitViews = [
@@ -330,7 +331,7 @@ describe("settings visual architecture", () => {
       "PrivacySettingsView.tsx",
       "RepositorySettingsViews.tsx",
     ].map((fileName) => source(`src/features/settings/main/${fileName}`)).join("\n");
-    const settingsImplementation = `${components}\n${view}\n${workspaceConfig}\n${splitViews}`;
+    const settingsImplementation = `${facade}\n${components}\n${view}\n${workspaceConfig}\n${splitViews}`;
     const settings = source("src/styles/settings.css");
 
     expect(components).toContain("SettingsSubsection");
