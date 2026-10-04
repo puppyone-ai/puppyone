@@ -8,6 +8,7 @@
   --desktop-titlebar-active: var(--po-selected);
   --desktop-titlebar-focus: var(--po-focus-ring);
   --desktop-titlebar-divider: var(--po-header-divider);
+  --desktop-titlebar-tab-bg: var(--po-canvas);
   --desktop-titlebar-context-font-family: var(--po-font-ui);
   --desktop-titlebar-context-font-size: var(--po-font-size-chrome, 13px);
   --desktop-titlebar-context-font-weight:
@@ -34,6 +35,19 @@
   background: var(--desktop-titlebar-bg);
   box-shadow: none;
   color: var(--desktop-titlebar-text);
+}
+
+/* Cloud identity belongs to the existing Header, without framing the workspace. */
+.desktop-titlebar[data-workspace-kind="cloud"] {
+  --desktop-titlebar-bg: var(--po-brand-blue);
+  --desktop-titlebar-text: #081522;
+  --desktop-titlebar-text-muted: var(--desktop-titlebar-text);
+  --desktop-titlebar-text-disabled: color-mix(in srgb, var(--desktop-titlebar-text) 55%, var(--desktop-titlebar-bg));
+  --desktop-titlebar-hover: color-mix(in srgb, var(--desktop-titlebar-text) 8%, transparent);
+  --desktop-titlebar-active: color-mix(in srgb, var(--desktop-titlebar-text) 12%, transparent);
+  --desktop-titlebar-focus: color-mix(in srgb, var(--desktop-titlebar-text) 45%, transparent);
+  --desktop-titlebar-divider: color-mix(in srgb, var(--desktop-titlebar-text) 18%, transparent);
+  --desktop-titlebar-tab-bg: var(--desktop-titlebar-active);
 }
 
 /* Native system chrome already owns its caption buttons. Only overlay chrome
@@ -352,7 +366,7 @@
 }
 
 .desktop-titlebar-editor-tab[data-active="true"] {
-  background: var(--po-canvas);
+  background: var(--desktop-titlebar-tab-bg);
   color: var(--desktop-titlebar-text);
 }
 
@@ -362,7 +376,7 @@
   inset-inline: 0;
   inset-block-end: 0;
   height: 1px;
-  background: var(--po-canvas);
+  background: var(--desktop-titlebar-tab-bg);
   content: "";
   pointer-events: none;
 }
@@ -1096,7 +1110,7 @@
 }
 
 .desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark[data-project-location="cloud"] {
-  color: var(--po-brand-blue);
+  color: var(--desktop-titlebar-text);
 }
 
 .desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark > svg {

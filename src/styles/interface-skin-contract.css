@@ -17,8 +17,7 @@
   box-shadow: var(--interface-shell-box-shadow);
 }
 
-/* Cloud location is expressed by the outer frame, not a separate Header
- * palette. Preserve the same pre-existing context cascade as Local. */
+/* Local retains the interface skin; Cloud uses the product-blue Header palette. */
 :root[data-interface-style]:not([data-interface-style="default"]) .desktop-titlebar[data-workspace-kind="local"] {
   --desktop-titlebar-bg: var(--interface-titlebar-context-desktop-titlebar-bg);
   --desktop-titlebar-text: var(--interface-titlebar-context-desktop-titlebar-text);

@@ -39,7 +39,7 @@ describe("titlebar typography architecture", () => {
     expect(conflict).toContain("var(--po-danger) 78%, white");
   });
 
-  it("keeps the original Header background and text for both providers", () => {
+  it("keeps the Local palette and gives committed Cloud its own Header palette", () => {
     const titlebarRule = readCssBlock(`\n${titlebarCss}`, ".desktop-titlebar");
 
     expect(tokensCss).toContain(
@@ -51,7 +51,9 @@ describe("titlebar typography architecture", () => {
     expect(titlebarRule).toContain("--desktop-titlebar-bg: var(--po-header);");
     expect(titlebarRule).toContain("--po-font-size-chrome: var(--po-type-header-content);");
     expect(titlebarRule).toContain("background: var(--desktop-titlebar-bg);");
-    expect(titlebarCss).not.toContain('.desktop-titlebar[data-workspace-kind="cloud"]');
+    const cloud = readCssBlock(titlebarCss, '.desktop-titlebar[data-workspace-kind="cloud"]');
+    expect(cloud).toContain("--desktop-titlebar-bg: var(--po-brand-blue);");
+    expect(cloud).toContain("--desktop-titlebar-text: #081522;");
     expect(titlebarRule).toContain("--desktop-titlebar-text: var(--po-text);");
     expect(titlebarRule).toContain("--desktop-titlebar-text-muted: var(--po-text-muted);");
     expect(titlebarCss).not.toContain(".desktop-titlebar-workspace-button.cloud {");
@@ -60,10 +62,10 @@ describe("titlebar typography architecture", () => {
     expect(skinContract).not.toContain('.desktop-titlebar[data-workspace-kind] {');
   });
 
-  it("colors the committed Cloud Header mark and Homepage marks with product blue, not theme accent/info", () => {
+  it("keeps the Cloud Header mark readable on blue and Homepage marks in product blue", () => {
     const mark = readCssBlock(titlebarCss, '.desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark[data-project-location="cloud"]');
     expect(tokensCss).toContain("--po-brand-blue: #4599df;");
-    expect(mark.trim()).toBe("color: var(--po-brand-blue);");
+    expect(mark.trim()).toBe("color: var(--desktop-titlebar-text);");
     const onboarding = readFileSync(new URL("../../../../src/styles/onboarding.css", import.meta.url), "utf8");
     expect(readCssBlock(onboarding, '.onboarding-project-icon.is-cloud,\n.onboarding-project-cloud-badge,\n.desktop-menu-icon-button.onboarding-project-cloud,\n.homepage-cloud-sign-in .desktop-cloud-icon'))
       .toContain("color: var(--po-brand-blue);");
@@ -71,18 +73,10 @@ describe("titlebar typography architecture", () => {
       .toContain("color: inherit;");
   });
 
-  it("paints a non-interactive Cloud frame without consuming layout or replacing native hit testing", () => {
+  it("does not paint a Cloud frame around the workspace", () => {
     const shellCss = readFileSync(new URL("../../../../src/styles/shell.css", import.meta.url), "utf8");
-    const frame = readCssBlock(shellCss, '.desktop-shell[data-workspace-kind="cloud"]::after');
-    expect(frame).toContain("position: absolute;");
-    expect(frame).toContain("inset: 0;");
-    expect(frame).toContain("border: 2px solid var(--po-brand-blue);");
-    expect(frame).toContain("border-radius: var(--desktop-cloud-frame-radius, 0px);");
-    expect(shellCss).toContain('[data-window-platform="macos"][data-window-chrome-mode="overlay"]:not([data-window-full-screen="true"])');
-    expect(shellCss).toContain("--desktop-cloud-frame-radius: var(--desktop-macos-window-frame-radius);");
-    expect(tokensCss).toContain("--desktop-macos-window-frame-radius: 16px;");
-    expect(frame).toContain("pointer-events: none;");
-    expect(frame).not.toMatch(/(?:padding|margin|app-region|transition|animation)\s*:/);
+    expect(shellCss).not.toContain('.desktop-shell[data-workspace-kind="cloud"]::after');
+    expect(shellCss).not.toContain("--desktop-cloud-frame-radius");
   });
 
   it("keeps the titlebar divider inside the native window edge", () => {

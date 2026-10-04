@@ -53,7 +53,7 @@ async function captureCloudArrival(scene) {
     return { count:animations.length, pointerEvents:getComputedStyle(light).pointerEvents,
       y:rect.y, width:rect.width, aura:Number(getComputedStyle(light.firstElementChild).opacity) };
   })()`);
-  assert(sample.count === 4 && sample.aura > 0.2, 'Committed Cloud must play the arrival light');
+  assert(sample.count === 3 && sample.aura > 0.2, 'Committed Cloud must play the arrival light');
   assert(sample.pointerEvents === 'none' && sample.y === 40, 'Arrival must preserve Header and pointer interactions');
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   // Let the paused animation's paint reach the native compositor.
@@ -117,21 +117,18 @@ async function headerPresentation(location) {
       }) };
   })()`);
   assert(sample.location === location, `Header tint must follow the committed ${location} provider`);
-  assert(JSON.stringify(sample.background) === JSON.stringify(sample.expected), `Header must keep its original palette on both providers: ${JSON.stringify(sample)}`);
+  assert(JSON.stringify(sample.background) === JSON.stringify(location === 'cloud' ? sample.accent : sample.expected), `Cloud must tint only the Header; Local retains its theme: ${JSON.stringify(sample)}`);
   assert(sample.backgroundImage === 'none', 'The previous gradient must be removed');
-  const expectedIcon = location === 'cloud' ? sample.accent : sample.buttonColor;
+  const expectedIcon = sample.buttonColor;
   assert(sample.icon.location === location && JSON.stringify(sample.icon.color) === JSON.stringify(expectedIcon)
-    && JSON.stringify(sample.icon.paint) === JSON.stringify(expectedIcon), 'Cloud outline fill must match the brand-blue frame; Local inherits normal ink');
+    && JSON.stringify(sample.icon.paint) === JSON.stringify(expectedIcon), 'Location icons must share readable Header ink');
   assert(JSON.stringify(sample.accent) === '[69,153,223]', 'Brand blue is the approved #4599DF in both themes, not adaptive accent/info');
   assert(sample.icon.name === (location === 'cloud' ? 'ant-design' : null), 'Use the approved Cloud outline only for the committed Cloud provider');
   assert(JSON.stringify(sample.labelColor) === JSON.stringify(sample.buttonColor), 'Blue icon must not recolor the project name');
   assert(sample.frame.location === location && sample.frame.identity === 'retained-shell', 'Window frame must follow the same committed provider without remounting');
   assert(sample.frame.x === 0 && sample.frame.y === 0 && sample.frame.width === sample.viewport
     && sample.frame.height === sample.viewportHeight, 'Cloud frame must enclose the whole window, not just the editor');
-  if (location === 'cloud') {
-    assert(sample.frame.borderWidth === '2px' && JSON.stringify(sample.frame.color) === JSON.stringify(sample.accent), 'Frame and Cloud mark must share the approved product blue');
-    assert(sample.frame.pointerEvents === 'none' && !sample.frame.interceptsPointer, 'Frame must not intercept pointer or resize interactions');
-  } else assert(sample.frame.content === 'none', 'Local must have no Cloud frame');
+  assert(sample.frame.content === 'none', 'Neither location may paint a frame around the workspace');
   assert(sample.identity === "retained-header" && sample.x === 0 && sample.width === sample.viewport,
     "Tint must cover the original full-width Header, including both blank sides");
   assert(Math.abs(sample.center - sample.projectCenter) < 0.01, "Tint must not move the centered project context");
@@ -142,14 +139,10 @@ async function headerPresentation(location) {
     const a = luminance(ink), b = luminance(paper);
     return (Math.max(a,b)+0.05)/(Math.min(a,b)+0.05);
   }));
-  assert(sample.contrast >= 4.5, `Header project text needs 4.5:1 contrast: ${sample.contrast}`);
+  assert(sample.contrast >= 4.5, `Header project text needs 4.5:1 contrast: ${sample.contrast}; ${JSON.stringify(sample.contrastSamples)}`);
   const iconInk = luminance(sample.icon.color), iconPaper = luminance(sample.contrastSamples[0].paper);
   sample.iconContrast = (Math.max(iconInk,iconPaper)+0.05)/(Math.min(iconInk,iconPaper)+0.05);
-  // Exact approved brand blue is below 3:1 on light surfaces. Record, do not
-  // relabel that as an accessibility pass or silently darken the selected logo.
-  // The brand mark is supplementary; the named project control and location
-  // menu retain their textual identification and existing contrast checks.
-  sample.brandBelow3 = location === 'cloud' && sample.iconContrast < 3;
+  assert(sample.iconContrast >= 3, `Location icon needs 3:1 contrast: ${sample.iconContrast}`);
   if (location === 'cloud') assert(sample.icon.accessibleLabel.includes('Cloud'), 'Location needs a textual accessible name, not just the brand color');
   else assert(sample.iconContrast >= 3, `Local location icon needs 3:1 contrast: ${sample.iconContrast}`);
   return sample;
@@ -160,8 +153,7 @@ async function windowFramePixels(sample) {
   const bitmap = image.toBitmap();
   const scale = Math.sqrt(bitmap.length / (width * height * 4));
   assert(Number.isInteger(width*scale) && Number.isInteger(height*scale), 'Capture must cover the entire viewport');
-  // Read native-resolution pixels: resizing a 2px border introduces filter
-  // ringing/color conversion, which is not part of the rendered frame.
+  // Read native-resolution pixels to distinguish Header tint from body edges.
   const pixel = (x, y) => {
     const offset = (Math.floor((y+0.5)*scale)*width*scale+Math.floor((x+0.5)*scale))*4;
     return [bitmap[offset+2],bitmap[offset+1],bitmap[offset]];
@@ -172,39 +164,15 @@ async function windowFramePixels(sample) {
   const header = [12,width-20].flatMap(x => [3,10,20,30,37].map(y => ({x,y,rgb:pixel(x,y)})));
   for (const point of header) assert(distance(point.rgb,paintedHeader) <= 1, `Entire Header must have one solid color: ${JSON.stringify(point)}`);
   const paintedFrame = pixel(1,Math.floor(height/2));
-  const edges = [[Math.floor(width/2),0],[Math.floor(width/2),1],[0,Math.floor(height/2)],[1,Math.floor(height/2)],
+  const edges = [[0,Math.floor(height/2)],[1,Math.floor(height/2)],
     [width-1,Math.floor(height/2)],[width-2,Math.floor(height/2)],
     [Math.floor(width/2),height-1],[Math.floor(width/2),height-2]].map(([x,y]) => ({x,y,rgb:pixel(x,y)}));
-  for (const point of edges) assert(sample.location === 'cloud' ? distance(point.rgb,paintedFrame) <= 1
-    : distance(point.rgb,sample.accent) > 5, `Frame must appear/disappear on all four edges with the provider: ${JSON.stringify(point)}`);
+  for (const point of edges) assert(distance(point.rgb,sample.accent) > 5,
+    `Blue must not extend to the workspace side or bottom edges: ${JSON.stringify(point)}`);
   const interior = [[4,Math.floor(height/2)],[width-5,Math.floor(height/2)],[Math.floor(width/2),height-5]]
     .map(([x,y]) => ({x,y,rgb:pixel(x,y)}));
-  let corners = [];
-  if (sample.location === 'cloud') {
-    assert(distance(paintedFrame,paintedHeader) > 5, 'Cloud must not tint the Header');
-    for (const point of interior) assert(distance(point.rgb,paintedFrame) > 5, 'Frame must remain thin and not recolor the workspace');
-    if (sample.frame.radius > 0) corners = verifyCornerArcs(pixel, width, height, sample.frame.radius, paintedFrame);
-  }
-  return {paintedHeader,paintedFrame,header,edges,interior,corners};
-}
-
-function verifyCornerArcs(pixel, width, height, radius, blue) {
-  const checks = [];
-  for (const [name,right,bottom] of [['top-left',false,false],['top-right',true,false],['bottom-left',false,true],['bottom-right',true,true]]) {
-    for (let degrees=5; degrees<90; degrees+=5) {
-      const angle = degrees*Math.PI/180;
-      const x = radius-(radius-1)*Math.cos(angle), y = radius-(radius-1)*Math.sin(angle);
-      let distance = Infinity;
-      // Subpixel search stays within the 2px stroke, avoiding raster AA at its edges.
-      for (const dx of [-0.5,0,0.5]) for (const dy of [-0.5,0,0.5]) {
-        const rgb = pixel(right ? width-1-x-dx : x+dx, bottom ? height-1-y-dy : y+dy);
-        distance = Math.min(distance, Math.max(...rgb.map((v,i) => Math.abs(v-blue[i]))));
-      }
-      assert(distance < 25, `${name} blue arc has a gap at ${degrees} degrees (distance ${distance})`);
-      checks.push({name,degrees,distance});
-    }
-  }
-  return checks;
+  if (sample.location === 'cloud') assert(distance(paintedFrame,paintedHeader) > 5, 'Cloud Header must remain distinct from the normal workspace');
+  return {paintedHeader,paintedFrame,header,edges,interior};
 }
 
 async function captureNativeCorners(scene, sample) {
@@ -217,9 +185,9 @@ async function captureNativeCorners(scene, sample) {
   const [width,height] = window.getSize();
   const scale = Math.sqrt(bitmap.length/(width*height*4));
   const pixel = (x,y) => { const offset=(Math.floor((y+0.5)*scale)*width*scale+Math.floor((x+0.5)*scale))*4; return [bitmap[offset+2],bitmap[offset+1],bitmap[offset]]; };
-  const blue = pixel(1,Math.floor(height/2));
-  const corners = verifyCornerArcs(pixel,width,height,sample.frame.radius,blue);
-  nativeCornerCaptures.push({scene,width,height,scale,blue,corners});
+  const side = pixel(1,Math.floor(height/2));
+  assert(Math.max(...side.map((value,index) => Math.abs(value-sample.accent[index]))) > 5, 'Native window must not have a blue perimeter');
+  nativeCornerCaptures.push({scene,width,height,scale,side});
 }
 async function openProjectMenu() {
   const opening = !await evaluate("Boolean(document.querySelector('.desktop-project-menu'))");
@@ -397,15 +365,13 @@ app.whenReady().then(async () => {
       if (location === "cloud") await captureCloudArrival(`${theme}-${width}`);
       const sample = await headerPresentation(location);
       sample.pixels = await windowFramePixels(sample);
-      if (before) assert(JSON.stringify(sample.controlPalette) === JSON.stringify(before.controlPalette), 'Cloud must not change Header control colors');
       if (nativeCorners && location === 'cloud') {
-        assert(sample.frame.radius === 16, 'Windowed macOS frame must draw actual rounded arcs');
         await captureNativeCorners(`${theme}-${width}`,sample);
         // Exercise the production event consumer without changing the user's macOS Space.
         window.webContents.send('window-layout:chrome-state-changed', {fullScreen:true});
-        await waitFor("getComputedStyle(document.querySelector('.desktop-shell'),'::after').borderTopLeftRadius === '0px'");
+        await waitFor("document.querySelector('.desktop-titlebar').dataset.windowFullScreen === 'true'");
         window.webContents.send('window-layout:chrome-state-changed', {fullScreen:false});
-        await waitFor("getComputedStyle(document.querySelector('.desktop-shell'),'::after').borderTopLeftRadius === '16px'");
+        await waitFor("document.querySelector('.desktop-titlebar').dataset.windowFullScreen !== 'true'");
       }
       if (before) for (const key of ["x", "y", "width", "height", "projectCenter"]) {
         assert(Math.abs(sample[key] - before[key]) < 0.01, `Header ${key} moved on ${theme} ${width}px switch`);

@@ -90,7 +90,7 @@ describe("native Cloud workbench switching", () => {
     await render(shell("cloud"));
     const light = document.querySelector(".desktop-cloud-entry-light");
     expect(light?.getAttribute("aria-hidden")).toBe("true");
-    expect(light?.children).toHaveLength(3);
+    expect(light?.children).toHaveLength(2);
     await render(shell("cloud"));
     expect(document.querySelector(".desktop-cloud-entry-light")).toBe(light);
     await render(shell("cloud", false));

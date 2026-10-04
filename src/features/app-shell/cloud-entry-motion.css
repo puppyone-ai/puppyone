@@ -3,10 +3,9 @@
 .desktop-cloud-entry-light {
   position: absolute;
   z-index: 100;
-  inset: 40px 2px 2px;
+  inset: 40px 0 0;
   overflow: hidden;
   pointer-events: none;
-  border-radius: 0 0 var(--desktop-cloud-frame-radius, 0px) var(--desktop-cloud-frame-radius, 0px);
   contain: strict;
 }
 
@@ -65,16 +64,6 @@
   animation: desktop-cloud-arrival-beam 1350ms 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.desktop-cloud-entry-edge {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  opacity: 0;
-  box-shadow: inset 0 0 36px color-mix(in srgb, var(--po-brand-blue) 32%, transparent),
-    inset 0 1px 0 color-mix(in srgb, var(--po-brand-blue) 75%, transparent);
-  animation: desktop-cloud-arrival-edge 1600ms ease-out both;
-}
-
 @keyframes desktop-cloud-arrival-aura {
   0% { opacity: 0; transform: scale(0.65); }
   24% { opacity: 1; }
@@ -86,12 +75,6 @@
   22% { opacity: 1; }
   65% { opacity: 0.75; }
   100% { opacity: 0; transform: translateX(45%); }
-}
-
-@keyframes desktop-cloud-arrival-edge {
-  0% { opacity: 0; }
-  24% { opacity: 1; }
-  100% { opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
