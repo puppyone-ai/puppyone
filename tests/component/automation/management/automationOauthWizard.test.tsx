@@ -50,6 +50,23 @@ afterEach(() => {
 });
 
 describe("Automation OAuth wizard", () => {
+  it("keeps the resolving state visible until account lookup completes", () => {
+    apiMocks.status.mockReturnValue(new Promise(() => {}));
+    const container = renderWizard(TEMPLATE);
+    expect(stripBidiIsolation(container.querySelector(".desktop-dialog-body")?.textContent)).toMatchSnapshot();
+    expect(container.querySelector(".desktop-cloud-automation-builder")).toBeNull();
+  });
+
+  it("shows lookup failure and retries without losing the chosen source", async () => {
+    apiMocks.status.mockRejectedValueOnce(new Error("offline")).mockReturnValue(new Promise(() => {}));
+    const container = renderWizard(TEMPLATE);
+    await flushEffects();
+    expect(stripBidiIsolation(container.querySelector(".desktop-dialog-body")?.textContent)).toMatchSnapshot();
+    act(() => findButton(container, "Retry")?.click());
+    expect(container.textContent).toContain("Checking");
+    expect(apiMocks.status).toHaveBeenCalledTimes(2);
+  });
+
   it.each([
     { entry: "template", connected: true, expected: "configure" },
     { entry: "template", connected: false, expected: "connect" },
