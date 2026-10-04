@@ -215,10 +215,8 @@ describe("Sidebar architecture", () => {
     expect(auxiliaryHostSource).toContain("lastExpandedWidth");
     expect(auxiliaryHostSource).toContain("onCommit: commitPane");
     expect(auxiliaryHostSource).toContain('typeof children === "function"');
-    expect(appSource).toContain(
-      'active={presentation.contentVisible && rightSidebarSurface === "chat"}',
-    );
-    expect(appSource).not.toContain("active={rightSidebarOpen}");
+    // appChatActivation.test.tsx renders App to verify pane visibility,
+    // selected surface and the Cloud guard without pinning its JSX expression.
     expect(sharedDataWorkspaceCss).not.toContain("--data-explorer-min-width");
     expect(collapsiblePaneResizeSource).toContain("canonical live resize width");
     expect(collapsiblePaneResizeSource).toContain("last-expanded content plane");

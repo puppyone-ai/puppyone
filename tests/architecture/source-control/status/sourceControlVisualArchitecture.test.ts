@@ -264,8 +264,8 @@ describe("source-control visual architecture", () => {
     expect(appSource).toContain('rightSidebarSurface === "history"');
     expect(appSource).toContain("<GitChangesSidebar");
     expect(appSource).toContain("<GitHistorySidebar");
-    expect(appSource).toContain('setRightSidebarSurface("history")');
-    expect(appSource).toContain('setRightSidebarSurface("changes")');
+    // headerGitCard.test.tsx exercises History/Back routing in both sidebar
+    // and Header-card presentations through the owning useGitPresentation hook.
     expect(appSource).toContain('setRightSidebarSurface("chat")');
     expect(appSource).not.toContain("gitHistoryContribution");
     expect(appSource).not.toContain("GIT_HISTORY_WORKBENCH_KIND");

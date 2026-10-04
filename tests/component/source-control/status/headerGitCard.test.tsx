@@ -45,6 +45,22 @@ function Harness({ centeredProject = true, cardExperiment = true, workspaceScope
   status.unstagedEntries = status.entries;
   status.sourceControl.groups = [{ id: "workingTree", label: "Changes", resources: [resource] }];
   const succeed = async () => true;
+  const changes = <GitChangesSidebar
+    focusNavigation={presentation.cardEnabled}
+    repository={{ status, puppyoneConfig: null, gitDisplayMode: "professional", gitSidebarLayout: "cards", fileIconTheme: "default" }}
+    view={{ selectedWorkingFile: selection, operationLoading: null, operationError: null, loading: false, error: null }}
+    actions={{ initialize: succeed, selectWorkingFile: setSelection, stagePaths: succeed, stageAll: succeed,
+      unstagePaths: succeed, discardPaths: succeed, stageAndCommit: succeed, commit: succeed, commitAndPush: succeed,
+      continueOperation: succeed, abortOperation: succeed, pull: succeed, push: succeed, publish: succeed }}
+    workingFileDiff={null} workingFileDiffLoading={false} workingFileDiffError={null}
+    onOpenFile={() => {}} onOpenHistory={presentation.openHistory}
+    cloudBackup={{ loading: false, error: null, enabled: false, start: () => {} }}
+  />;
+  const history = <GitHistorySidebar focusNavigation={presentation.cardEnabled}
+    status={status} statusLoading={false} statusError={null}
+    selectedCommitId={null} commitDetail={null} commitDetailLoading={false} commitDetailError={null}
+    historyLoading={false} fileIconTheme="default" initializing={false}
+    onInitialize={succeed} onSelectCommit={() => {}} onBack={presentation.backToChanges} />;
   return <>
     <DesktopTitlebarActions
       titlebarActionsSettings={DEFAULT_TITLEBAR_ACTIONS_SETTINGS}
@@ -59,22 +75,12 @@ function Harness({ centeredProject = true, cardExperiment = true, workspaceScope
     <button className="editor-action" onClick={() => setEditorClicks((value) => value + 1)}>Editor</button>
     <DesktopGitHeaderCard anchorRef={anchorRef} open={presentation.cardOpen}
       surface={presentation.cardSurface} onDismiss={presentation.closeCard}
-      changes={<GitChangesSidebar
-        focusNavigation
-        repository={{ status, puppyoneConfig: null, gitDisplayMode: "professional", gitSidebarLayout: "cards", fileIconTheme: "default" }}
-        view={{ selectedWorkingFile: selection, operationLoading: null, operationError: null, loading: false, error: null }}
-        actions={{ initialize: succeed, selectWorkingFile: setSelection, stagePaths: succeed, stageAll: succeed,
-          unstagePaths: succeed, discardPaths: succeed, stageAndCommit: succeed, commit: succeed, commitAndPush: succeed,
-          continueOperation: succeed, abortOperation: succeed, pull: succeed, push: succeed, publish: succeed }}
-        workingFileDiff={null} workingFileDiffLoading={false} workingFileDiffError={null}
-        onOpenFile={() => {}} onOpenHistory={presentation.openHistory}
-        cloudBackup={{ loading: false, error: null, enabled: false, start: () => {} }}
-      />}
-      history={<GitHistorySidebar focusNavigation status={status} statusLoading={false} statusError={null}
-        selectedCommitId={null} commitDetail={null} commitDetailLoading={false} commitDetailError={null}
-        historyLoading={false} fileIconTheme="default" initializing={false}
-        onInitialize={succeed} onSelectCommit={() => {}} onBack={presentation.backToChanges} />}
+      changes={changes} history={history}
     />
+    {!presentation.cardEnabled && presentation.effectiveSidebarOpen && <aside>
+      {sidebarSurface === "changes" && changes}
+      {sidebarSurface === "history" && history}
+    </aside>}
   </>;
 }
 
@@ -156,6 +162,28 @@ describe("Git Header card", () => {
     act(() => changes?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     expect(card()).toBeNull();
     expect(document.activeElement).toBe(button());
+  });
+
+  it.each([false, true])("routes History and Back through the selected presentation (card=%s)", (cardExperiment) => {
+    mount({ cardExperiment, initialSidebar: "chat" });
+    act(() => button().click());
+    act(() => button('.desktop-git-changes-sidebar button[aria-label="History"]').click());
+    assertActive("changes", false);
+    assertActive("history", true);
+    expect(document.querySelector(".desktop-git-history-sidebar")).not.toBeNull();
+    expect(document.querySelector("output")?.getAttribute("data-sidebar-surface")).toBe(cardExperiment ? "chat" : "history");
+
+    act(() => button(".desktop-git-history-sidebar .desktop-git-view-back").click());
+    assertActive("changes", true);
+    assertActive("history", false);
+    expect(document.querySelector(".desktop-git-changes-sidebar")).not.toBeNull();
+    if (cardExperiment) {
+      expect(document.querySelector(".desktop-git-history-sidebar")?.closest("[hidden]")).not.toBeNull();
+    } else {
+      expect(document.querySelector(".desktop-git-history-sidebar")).toBeNull();
+    }
+    expect(document.querySelector("output")?.getAttribute("data-sidebar-surface")).toBe(cardExperiment ? "chat" : "changes");
+    expect(document.querySelector("output")?.getAttribute("data-sidebar-open")).toBe("true");
   });
 
   it.each(["project", "home", "experiment", "layout"])("closes on %s changes without reopening stale content", (change) => {
