@@ -72,6 +72,8 @@ describe("AccessPointRoutePage catalog", () => {
     const mcpRow = container.querySelector<HTMLButtonElement>(".desktop-cloud-access-point-row");
     act(() => mcpRow?.click());
     expect(document.body.querySelector('[role="dialog"]')?.getAttribute("aria-label")).toBe("Docs MCP");
+    expect([...document.querySelectorAll(".desktop-cloud-access-permission-group-title em")]
+      .some(node => /^\d+ of \d+$/.test(node.textContent ?? ""))).toBe(true);
   });
 
   it("starts new access as an Agent connection with MCP selected", async () => {

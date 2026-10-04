@@ -34,6 +34,9 @@ async function fixtureRequest(request: Parameters<NonNullable<typeof window.pupp
     const id = url.pathname.split("/")[2]!;
     const operation = url.pathname.split("/").at(-1);
     const path = url.searchParams.get("path") ?? "";
+    if (url.pathname === `/projects/${id}`) return project(id);
+    if (["scopes", "surfaces", "mcp-endpoints", "bindings", "providers"].includes(operation ?? "")) return [];
+    if (operation === "access-point") return { project_id: id, url: `https://cloud-fixture.puppyone.ai/git/${id}.git`, scopes: [] };
     if (operation === "commits") return { project_id: id, commits: [], head_commit_id: null, refs: [],
       refs_included: true, snapshot_id: "a".repeat(64), next_cursor: null, has_more: false, total: 0,
       graph_health: "complete", unreadable_commit_ids: [] };
@@ -119,6 +122,7 @@ function AccountCloudFixture() {
       cloudAccountStatus={<HomepageCloudStatus status={homepage.status} restoring={false} empty={homepage.items.length === 0} apiBaseUrl={API}
         controller={account} onRetry={homepage.refresh} />} />}
     <AccountCloudWorkspaceSurface workbench={workbench} presentation={presentation} active={account.active}
+      context={account.context} session={session} apiBaseUrl={API} onSessionChange={setSession}
       appearance={appearance} onLocal={account.useLocal} onHome={account.useLocal} />
   </SurfaceAppearanceProvider>;
 }

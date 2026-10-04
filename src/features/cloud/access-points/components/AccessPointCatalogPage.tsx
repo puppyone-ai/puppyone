@@ -57,7 +57,7 @@ export function AccessPointCatalogPage({
           <header className="desktop-cloud-access-landing-header">
             <div className="desktop-cloud-access-landing-copy">
               <h1>{presentation.title}</h1>
-              <p>{presentation.description}</p>
+              <p>{routeKind === "mcp" ? t("cloud.workspaceTools.connectAgents") : presentation.description}</p>
             </div>
             {canManage && (
               <button className="desktop-cloud-access-new-button" type="button" onClick={onCreate}>

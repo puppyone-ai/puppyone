@@ -6,6 +6,7 @@ import { resetDesktopPlatformCapabilitiesForTests } from "../../../platform/desk
 import { DesktopOverlayPortal } from "../../app-shell/DesktopOverlayPortal";
 import { DesktopWorkspaceSwitcher } from "../../app-shell/DesktopWorkspaceSwitcher";
 import { DesktopTitlebarActions } from "../../app-shell/DesktopTitlebarActions";
+import { CloudWorkspaceHeaderTools } from "./CloudWorkspaceHeaderTools";
 import { DesktopWorkspaceLocationSurface } from "../../app-shell/DesktopWorkspaceLocationSurface";
 import { useDesktopPreference, useDesktopPreferenceEffects, initializeDesktopPreferences } from "../../settings";
 import { EditorHeaderTabs } from "../../editor-workbench/header/EditorHeaderTabs";
@@ -43,7 +44,7 @@ const fileSurface = resolveWorkspaceSurface({ capabilities: { cloudEnabled: true
 const session: DesktopCloudSession = { api_base_url: API, user_id: "fixture-user", user_email: "user@example.com",
   session_generation: "fixture-session", status: "authenticated", expires_at: Date.now() + 3_600_000, expires_in: 3600 };
 const context = { status: "resolved" as const, projectId: "fixture-project", projectName: "Native workspace",
-  target: { kind: "project_root" as const, project_id: "fixture-project" }, capabilities: ["content.read", "content.write"] };
+  target: { kind: "project_root" as const, project_id: "fixture-project" }, capabilities: ["content.read", "content.write", "access_surface.manage"] };
 const cloudFiles = new Map([
   ["readme.txt", "CLOUD_FILE_BODY"], ["cloud-only.md", "# Cloud only"], ["records/sample.csv", "Name,Value\nCloud,42"],
 ]);
@@ -71,6 +72,11 @@ window.puppyoneDesktop = {
     const operation = url.pathname.split("/").at(-1);
     const path = url.searchParams.get("path") ?? "";
     const body = request.body ? JSON.parse(request.body) : null;
+    if (url.pathname === "/projects/fixture-project") return { id: context.projectId,
+      name: context.projectName, capabilities: context.capabilities };
+    if (operation === "scopes" || operation === "mcp-endpoints" || operation === "surfaces"
+      || operation === "bindings" || operation === "providers") return [];
+    if (operation === "access-point") return { project_id: context.projectId, url: "https://cloud-fixture.puppyone.ai/git/project.git", scopes: [] };
     if (operation === "ls") {
       if (cloudReadBarrier) await cloudReadBarrier;
       const names = new Set([...cloudFiles.keys()].filter((file) => !path || file.startsWith(`${path}/`))
@@ -196,9 +202,13 @@ export function NativeCloudWorkbenchSmokeHarness() {
           localAvailable: true, cloudState: "available" }} cloudProject={{ id: context.projectId }}
         onClose={() => setMenuOpen(false)} onToggle={() => setMenuOpen((current) => !current)}
         onViewLocal={() => { controller.cancel(); setCloudSelected(false); }} onViewCloud={controller.request} />}
-      titlebarActions={<DesktopTitlebarActions terminalSidebarOpen={false}
+      titlebarActions={<>
+        {headerLocation === "cloud" && <CloudWorkspaceHeaderTools context={location === "cloud" ? context : null}
+          session={cloudSessionAvailable ? session : null} apiBaseUrl={API} onSessionChange={noop} />}
+        <DesktopTitlebarActions terminalSidebarOpen={false}
         terminalToolEnabled={headerLocation === "local"} gitChangesAvailable={headerLocation === "local"}
-        onToggleTerminal={noop} onToggleGitChanges={noop} />}
+        onToggleTerminal={noop} onToggleGitChanges={noop} />
+      </>}
       titlebarTabs={<EditorHeaderTabs activeEditorId={visibleWorkbench.activeEditorId}
         editors={visibleWorkbench.state.editors}
         storageIdentity={location === "cloud" ? workbench.dataPort?.documentPersistence?.storageIdentity ?? null : localPort.documentPersistence!.storageIdentity}

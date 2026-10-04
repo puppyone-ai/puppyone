@@ -1,0 +1,12 @@
+.desktop-cloud-workspace-tool-content {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.desktop-cloud-workspace-tool-content > .desktop-cloud-main-view {
+  flex: 1;
+  width: 100%;
+}

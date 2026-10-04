@@ -918,5 +918,8 @@
   "share.readers.revoke": "撤回",
   "share.readers.confirmRevoke": "确认撤回",
   "share.readers.revokeFailed": "撤回失败，请重试。",
-  "share.readers.copyUrl": "复制 URL"
+  "share.readers.copyUrl": "复制 URL",
+  "workspaceTools.automations": "自动化",
+  "workspaceTools.mcp": "MCP",
+  "workspaceTools.connectAgents": "通过 MCP，让更多 Agent 接入这个云端项目。"
 }

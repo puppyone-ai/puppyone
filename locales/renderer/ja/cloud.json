@@ -918,5 +918,8 @@
   "share.readers.revoke": "取り消す",
   "share.readers.confirmRevoke": "アクセスを取り消す",
   "share.readers.revokeFailed": "アクセスを取り消せませんでした。もう一度お試しください。",
-  "share.readers.copyUrl": "URL をコピー"
+  "share.readers.copyUrl": "URL をコピー",
+  "workspaceTools.automations": "自動化",
+  "workspaceTools.mcp": "MCP",
+  "workspaceTools.connectAgents": "MCP を使って、このクラウドプロジェクトに他の Agent を接続できます。"
 }

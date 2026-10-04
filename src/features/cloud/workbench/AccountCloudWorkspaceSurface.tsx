@@ -8,6 +8,9 @@ import { DesktopShellLocationBar } from "../../app-shell/DesktopShellLocationBar
 import { EditorHeaderTabs } from "../../editor-workbench/header/EditorHeaderTabs";
 import { DesktopCloudFileWorkspace, type CloudFileSurfaceProps } from "./DesktopCloudFileWorkspace";
 import type { NativeCloudWorkbench } from "./useNativeCloudWorkbench";
+import type { DesktopCloudSession } from "../../../lib/cloudApi";
+import { CloudWorkspaceHeaderTools } from "./CloudWorkspaceHeaderTools";
+import type { ProjectCloudContext } from "../project/context";
 
 const noop = () => undefined;
 
@@ -47,13 +50,17 @@ export function useAccountCloudWorkspacePresentation({ workbench }: {
 
 /** Hosted-only surface used when no local repository is open. Repository-linked
  * switching embeds the presentation above in the retained local shell instead. */
-export function AccountCloudWorkspaceSurface({ workbench, presentation, active, appearance, onLocal, onHome }: {
+export function AccountCloudWorkspaceSurface({ workbench, presentation, active, appearance, onLocal, onHome, context, session, apiBaseUrl, onSessionChange }: {
   workbench: NativeCloudWorkbench;
   presentation: AccountCloudWorkspacePresentation;
   active: boolean;
   appearance: ResolvedSurfaceAppearance;
   onLocal: () => void;
   onHome: () => void;
+  session: DesktopCloudSession | null;
+  context: ProjectCloudContext;
+  apiBaseUrl: string;
+  onSessionChange: (session: DesktopCloudSession | null) => void;
 }) {
   const sidebarCollapsed = useDesktopPreference(s => s.sidebarCollapsed);
   const explorerWidth = useDesktopPreference(s => s.explorerWidth);
@@ -68,6 +75,8 @@ export function AccountCloudWorkspaceSurface({ workbench, presentation, active, 
     style={{ ...appearance.rootProps.style, ...(!active ? { display: "none" } : {}) }} data-active-cloud-project={service.workspace.projectId}>
     <DesktopCloudShell active={active} workspaceLocation="cloud" onGoHome={onHome} leftSidebarCollapsed={sidebarCollapsed}
       leftSidebarWidth={explorerWidth} onLeftSidebarExpand={() => setSidebarCollapsed(false)}
+      titlebarActions={active && <CloudWorkspaceHeaderTools context={context} session={session}
+        apiBaseUrl={apiBaseUrl} onSessionChange={onSessionChange} />}
       titlebarCenteredSlot={<DesktopWorkspaceSwitcher open={menuOpen} refObject={menuRef}
         titlebarLabel={service.workspace.name} workspace={service.workspace} workspaceFolders={[service.folder]}
         multiRootWorkspacesEnabled={false} projectLocation={{ current: "cloud", localAvailable: true, cloudState: "available" }}

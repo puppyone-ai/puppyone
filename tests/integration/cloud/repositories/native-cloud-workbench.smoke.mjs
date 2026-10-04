@@ -181,7 +181,8 @@ async function windowFramePixels(sample) {
   const distance = (a,b) => Math.max(...a.map((value,i) => Math.abs(value-b[i])));
   // CSS-to-token equality is checked above; compare actual paints in one image.
   const paintedHeader = pixel(12,10);
-  const header = [12,width-20].flatMap(x => [3,10,20,30,37].map(y => ({x,y,rgb:pixel(x,y)})));
+  // The trailing track now contains CTA text; sample the reserved outer padding.
+  const header = [12,width-3].flatMap(x => [3,10,20,30,37].map(y => ({x,y,rgb:pixel(x,y)})));
   for (const point of header) assert(distance(point.rgb,paintedHeader) <= 1, `Entire Header must have one solid color: ${JSON.stringify(point)}`);
   const paintedFrame = pixel(1,Math.floor(height/2));
   const edges = [[0,Math.floor(height/2)],[1,Math.floor(height/2)],
@@ -336,6 +337,8 @@ app.whenReady().then(async () => {
   })()`), 'Header must reveal blue upward during preparation, before page arrival');
   assert(await evaluate("Boolean(document.querySelector('.desktop-titlebar-workspace-mark[data-project-location=cloud]')) && !document.querySelector('.desktop-titlebar-terminal, .desktop-titlebar-changes')"),
     'Cloud intent must change the Header mark and remove local actions before provider commit');
+  assert(await evaluate("document.querySelectorAll('[data-cloud-workspace-tool]').length === 2 && [...document.querySelectorAll('[data-cloud-workspace-tool]')].every(button => button.disabled)"),
+    'Both Cloud CTAs must appear immediately and await the authorized provider commit');
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await writeFile(path.join(artifacts, 'cloud-header-switch.png'), (await window.webContents.capturePage()).toPNG());
   await evaluate("document.querySelector('.desktop-cloud-header-wipe').getAnimations()[0].finish()");
@@ -400,6 +403,38 @@ app.whenReady().then(async () => {
   assert(await evaluate("[...document.querySelectorAll('[data-cloud-native=true] .csv-table-editor__table input, [data-cloud-native=true] .csv-table-editor__table textarea')].some(input => input.value === '42')"), "Cloud data files must use the native data viewer");
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await writeFile(path.join(artifacts, "cloud-data.png"), (await window.webContents.capturePage()).toPNG());
+  assert(await evaluate("[...document.querySelectorAll('[data-cloud-workspace-tool]')].every(button => !button.disabled) && !window.__nativeCloudWorkbenchSmoke.state().requests.some(path => path.includes('/mcp-endpoints') || path.includes('/synchronize'))"),
+    'Cloud tool pages must load only when the user opens a ready CTA');
+  for (const tool of ['automation', 'mcp']) {
+    const beforeRequests = (await state()).requests.length;
+    await evaluate(`document.querySelector('[data-cloud-workspace-tool=${tool}]').click()`);
+    await waitFor(`Boolean(document.querySelector('[data-cloud-workspace-tool-page=${tool}][data-cloud-project-id=fixture-project]'))`);
+    await waitFor(tool === 'automation'
+      ? "window.__nativeCloudWorkbenchSmoke.state().requests.some(path => path.includes('/synchronize/bindings?project_id=fixture-project'))"
+      : "Boolean(document.querySelector('.desktop-cloud-access-new-button'))");
+    assert(await evaluate("!document.querySelector('.desktop-cloud-workspace-tool-dialog [role=alert]')"), 'Cloud tool must load its native page without an error');
+    await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+    await writeFile(path.join(artifacts, `cloud-${tool}-tool.png`), (await window.webContents.capturePage()).toPNG());
+    const toolRequests = (await state()).requests.slice(beforeRequests);
+    assert(!toolRequests.some(path => path.startsWith('/projects/?') || path.includes('/dashboard') || path.includes('/commits')),
+      'Cloud tool entry must not enumerate projects or fetch unrelated overview data');
+    if (tool === 'automation') assert(!toolRequests.some(path => path.includes('/access/') || path.includes('/mcp-endpoints')),
+      'Automation must use Synchronize resources, independently of MCP');
+    if (tool === 'mcp') {
+      assert(await evaluate("document.querySelector('.desktop-cloud-access-landing-copy').textContent.includes('Connect more agents')"),
+        'MCP must explain that users can connect more agents');
+      await evaluate("document.querySelector('.desktop-cloud-access-new-button').click()");
+      await waitFor("Boolean(document.querySelector('.desktop-cloud-create-access-dialog'))");
+      await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
+      await waitFor("!document.querySelector('.desktop-cloud-create-access-dialog')");
+      assert(await evaluate("Boolean(document.querySelector('.desktop-cloud-workspace-tool-dialog'))"),
+        'Dismissing Agent configuration must retain the MCP task');
+    }
+    await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
+    await waitFor("!document.querySelector('.desktop-cloud-workspace-tool-dialog')");
+    assert(await evaluate("document.querySelector('[data-workspace-location=local] .cm-editor').dataset.fixtureIdentity === 'retained-local-host'"),
+      'Cloud task dialogs must retain existing editor hosts');
+  }
   for (const width of [1100, 640]) for (const theme of ["light", "dark"]) {
     window.setContentSize(width, 760);
     await waitFor(`innerWidth === ${width}`);
@@ -409,6 +444,15 @@ app.whenReady().then(async () => {
       if ((await state()).location !== location) await selectLocation(location);
       if (location === "cloud") await captureCloudArrival(`${theme}-${width}`);
       const sample = await headerPresentation(location);
+      assert(await evaluate(`document.querySelectorAll('[data-cloud-workspace-tool]').length === ${location === 'cloud' ? 2 : 0}`),
+        'Cloud CTAs must follow the active environment in both themes and widths');
+      if (location === 'cloud') assert(await evaluate(`(() => {
+        const project = document.querySelector('.desktop-titlebar-centered-context').getBoundingClientRect();
+        return [...document.querySelectorAll('[data-cloud-workspace-tool]')].every(button => {
+          const r = button.getBoundingClientRect();
+          return r.x >= project.right && r.right <= innerWidth && r.y >= 0 && r.bottom <= 40;
+        });
+      })()`), 'Cloud CTAs must fit beside the centered project without overlapping it');
       sample.pixels = await windowFramePixels(sample);
       if (nativeCorners && location === 'cloud') {
         await captureNativeCorners(`${theme}-${width}`,sample);

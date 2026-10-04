@@ -55,25 +55,34 @@ app.whenReady().then(async () => {
   assert(await evaluate(`(() => {
     const header = document.querySelector('.desktop-titlebar');
     const probe = document.createElement('span');
-    probe.style.color = 'var(--po-header)'; header.append(probe);
+    probe.style.color = 'var(--po-cloud-header-bg)'; header.append(probe);
     const expected = getComputedStyle(probe).color;
-    probe.style.color = 'var(--po-brand-blue)';
-    const accent = getComputedStyle(probe).color; probe.remove();
+    const ink = getComputedStyle(header.querySelector('.desktop-titlebar-workspace-name')).color; probe.remove();
     const shell = header.closest('.desktop-shell'), frame = getComputedStyle(shell, '::after');
     return header.dataset.workspaceKind === 'cloud' && shell.dataset.workspaceKind === 'cloud'
       && getComputedStyle(header).backgroundColor === expected
       && getComputedStyle(header).backgroundImage === 'none'
-      && frame.borderColor === accent && frame.borderWidth === '2px' && frame.pointerEvents === 'none'
-      && getComputedStyle(header.querySelector('.desktop-titlebar-workspace-mark[data-project-location=cloud]')).color === accent
-      && getComputedStyle(header.querySelector('[data-cloud-icon=ant-design] [data-cloud-outline]')).fill === 'rgb(69, 153, 223)'
+      && frame.content === 'none'
+      && getComputedStyle(header.querySelector('.desktop-titlebar-workspace-mark[data-project-location=cloud]')).color === ink
+      && getComputedStyle(header.querySelector('[data-cloud-icon=ant-design] [data-cloud-outline]')).fill === ink
       && shell.getBoundingClientRect().height === innerHeight
       && header.getBoundingClientRect().width === innerWidth;
-  })()`), "Hosted-only Cloud projects keep the original Header and product-blue whole-window frame");
+  })()`), "Hosted-only projects use the theme-blue Header, matching icon/text and no outer frame");
+  assert(await evaluate("document.querySelectorAll('.desktop-account-cloud-workspace [data-cloud-workspace-tool]').length === 2 && [...document.querySelectorAll('[data-cloud-workspace-tool]')].every(button => !button.disabled)"),
+    'Hosted-only Cloud must expose both ready Header CTAs');
+  await evaluate("document.querySelector('[data-cloud-workspace-tool=mcp]').click()");
+  await waitFor("Boolean(document.querySelector('[data-cloud-workspace-tool-page=mcp][data-cloud-project-id=alpha] .desktop-cloud-access-catalog-page'))");
+  assert(await evaluate("!document.querySelector('.desktop-cloud-access-new-button')"),
+    'A project without access-management permission may view MCP but cannot create a connection');
+  await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
+  await waitFor("!document.querySelector('.desktop-cloud-workspace-tool-dialog')");
   await evaluate("document.querySelector('.desktop-account-cloud-workspace .desktop-titlebar-workspace-button').click()");
   await waitFor("Boolean(document.querySelector('button[data-project-location=cloud]'))");
   assert(await evaluate("document.querySelector('button[data-project-location=cloud]').getAttribute('aria-pressed') === 'true' && !document.querySelector('.desktop-account-cloud-workspace .desktop-titlebar-actions [data-project-location]')"),
     "Hosted location remains the centered project-menu slider, never a right-side Header replacement");
   await evaluate("document.querySelector('button[data-project-location=cloud]').click()");
+  assert(await evaluate("Boolean(document.querySelector('.desktop-project-menu'))"), 'Selecting the current Cloud location retains the popover');
+  await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
   await waitFor("!document.querySelector('.desktop-project-menu')");
   assert(geometry.explorer.width > 100 && geometry.editor.width > 300 && geometry.editor.height > 400, "No-local hosted shell must have a usable native layout");
   await evaluate("window.__accountCloudSmoke.edit('ALPHA_EDIT_ONLY')");

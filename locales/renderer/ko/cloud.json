@@ -918,5 +918,8 @@
   "share.readers.revoke": "철회",
   "share.readers.confirmRevoke": "접근 권한 철회",
   "share.readers.revokeFailed": "접근 권한을 철회하지 못했습니다. 다시 시도하세요.",
-  "share.readers.copyUrl": "URL 복사"
+  "share.readers.copyUrl": "URL 복사",
+  "workspaceTools.automations": "자동화",
+  "workspaceTools.mcp": "MCP",
+  "workspaceTools.connectAgents": "MCP를 통해 더 많은 Agent를 이 클라우드 프로젝트에 연결하세요."
 }

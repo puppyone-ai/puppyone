@@ -918,5 +918,8 @@
   "share.readers.revoke": "Widerrufen",
   "share.readers.confirmRevoke": "Zugriff widerrufen",
   "share.readers.revokeFailed": "Der Zugriff konnte nicht widerrufen werden. Versuche es erneut.",
-  "share.readers.copyUrl": "URL kopieren"
+  "share.readers.copyUrl": "URL kopieren",
+  "workspaceTools.automations": "Automatisierungen",
+  "workspaceTools.mcp": "MCP",
+  "workspaceTools.connectAgents": "Verbinde weitere Agents über MCP mit diesem Cloud-Projekt."
 }
