@@ -233,14 +233,13 @@
 }
 
 .desktop-titlebar[data-workspace-kind="cloud"] {
-  --desktop-titlebar-bg: var(--po-cloud-titlebar-bg);
-  --desktop-titlebar-text: var(--po-cloud-titlebar-text);
-  --desktop-titlebar-text-muted: var(--po-cloud-titlebar-text-muted);
-  --desktop-titlebar-text-disabled: var(--po-cloud-titlebar-text-disabled);
-  --desktop-titlebar-hover: var(--po-cloud-titlebar-hover);
-  --desktop-titlebar-active: var(--po-cloud-titlebar-active);
-  --desktop-titlebar-focus: var(--po-cloud-titlebar-focus);
-  --desktop-titlebar-divider: var(--po-cloud-titlebar-divider);
+  /* A full-width top wash, not a second surface: the lower half and all
+   * controls retain the ordinary Header palette. Scale with the chrome height. */
+  background-image: linear-gradient(
+    to bottom,
+    var(--po-cloud-titlebar-bg) 0%,
+    transparent 50%
+  );
 }
 
 .desktop-titlebar-left {

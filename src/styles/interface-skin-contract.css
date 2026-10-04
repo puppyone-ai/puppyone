@@ -17,8 +17,8 @@
   box-shadow: var(--interface-shell-box-shadow);
 }
 
-/* Location is a semantic environment cue, not a skin accent. Keep Cloud's
- * full-width low-saturation blue palette instead of overriding it here. */
+/* Location is a semantic environment cue, not a skin accent. Cloud keeps
+ * the ordinary Header base/controls beneath its full-width upper-half wash. */
 :root[data-interface-style]:not([data-interface-style="default"]) .desktop-titlebar[data-workspace-kind="local"] {
   --desktop-titlebar-bg: var(--interface-titlebar-context-desktop-titlebar-bg);
   --desktop-titlebar-text: var(--interface-titlebar-context-desktop-titlebar-text);

@@ -54,12 +54,14 @@ app.whenReady().then(async () => {
   assert(await evaluate(`(() => {
     const header = document.querySelector('.desktop-titlebar');
     const probe = document.createElement('span');
-    probe.style.color = 'var(--po-cloud-titlebar-bg)'; header.append(probe);
+    probe.style.color = 'var(--po-header)'; header.append(probe);
     const expected = getComputedStyle(probe).color; probe.remove();
     return header.dataset.workspaceKind === 'cloud'
       && getComputedStyle(header).backgroundColor === expected
+      && getComputedStyle(header).backgroundImage.includes('linear-gradient')
+      && getComputedStyle(header).backgroundImage.includes('50%')
       && header.getBoundingClientRect().width === innerWidth;
-  })()`), "Hosted-only Cloud projects use the same full-width blue Header contract");
+  })()`), "Hosted-only Cloud projects use the same full-width upper-half gradient over the ordinary Header base");
   await evaluate("document.querySelector('.desktop-account-cloud-workspace .desktop-titlebar-workspace-button').click()");
   await waitFor("Boolean(document.querySelector('button[data-project-location=cloud]'))");
   assert(await evaluate("document.querySelector('button[data-project-location=cloud]').getAttribute('aria-pressed') === 'true' && !document.querySelector('.desktop-account-cloud-workspace .desktop-titlebar-actions [data-project-location]')"),

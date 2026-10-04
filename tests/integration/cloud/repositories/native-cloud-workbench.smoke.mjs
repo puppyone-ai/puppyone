@@ -45,9 +45,11 @@ async function headerPresentation(location) {
     const h = header.getBoundingClientRect(), c = context.getBoundingClientRect();
     const css = getComputedStyle(header), control = getComputedStyle(button);
     const probe = document.createElement('span');
-    probe.style.color = 'var(${location === "cloud" ? "--po-cloud-titlebar-bg" : "--po-header"})';
     header.append(probe);
+    probe.style.color = 'var(--po-header)';
     const expected = getComputedStyle(probe).color;
+    probe.style.color = 'var(--po-cloud-titlebar-bg)';
+    const cloudTop = getComputedStyle(probe).color;
     probe.remove();
     const canvas = document.createElement('canvas').getContext('2d');
     const rgb = (...colors) => {
@@ -58,21 +60,54 @@ async function headerPresentation(location) {
     return { location:header.dataset.workspaceKind ?? 'local', identity:header.dataset.fixtureIdentity,
       x:h.x, y:h.y, width:h.width, height:h.height, viewport:innerWidth,
       center:h.x+h.width/2, projectCenter:c.x+c.width/2,
-      background:rgb(css.backgroundColor), expected:rgb(expected),
-      paper:rgb(css.backgroundColor, control.backgroundColor),
-      ink:rgb(css.backgroundColor, control.backgroundColor, control.color) };
+      background:rgb(css.backgroundColor), expected:rgb(expected), cloudTop:rgb(cloudTop),
+      backgroundImage:css.backgroundImage,
+      controlPalette:['text', 'text-muted', 'text-disabled', 'hover', 'active', 'focus', 'divider']
+        .map(key => css.getPropertyValue('--desktop-titlebar-' + key).trim()),
+      contrastSamples:[css.backgroundColor, ...(header.dataset.workspaceKind === 'cloud' ? [cloudTop] : [])]
+        .map(background => ({ paper:rgb(background, control.backgroundColor),
+          ink:rgb(background, control.backgroundColor, control.color) })) };
   })()`);
   assert(sample.location === location, `Header tint must follow the committed ${location} provider`);
-  assert(JSON.stringify(sample.background) === JSON.stringify(sample.expected), `Wrong ${location} Header background: ${JSON.stringify(sample)}`);
+  assert(JSON.stringify(sample.background) === JSON.stringify(sample.expected), `Header base must remain the original color: ${JSON.stringify(sample)}`);
+  assert(location === 'cloud' ? sample.backgroundImage.includes('linear-gradient') && sample.backgroundImage.includes('50%')
+    : sample.backgroundImage === 'none', `Only committed Cloud gets the upper-half gradient: ${sample.backgroundImage}`);
   assert(sample.identity === "retained-header" && sample.x === 0 && sample.width === sample.viewport,
     "Tint must cover the original full-width Header, including both blank sides");
   assert(Math.abs(sample.center - sample.projectCenter) < 0.01, "Tint must not move the centered project context");
   const luminance = (rgb) => rgb.map(v => v/255).map(v => v <= 0.04045 ? v/12.92 : ((v+0.055)/1.055)**2.4)
     .reduce((sum, value, i) => sum + value * [0.2126,0.7152,0.0722][i], 0);
-  const ink = luminance(sample.ink), paper = luminance(sample.paper);
-  sample.contrast = (Math.max(ink,paper)+0.05)/(Math.min(ink,paper)+0.05);
+  // Conservatively cover both ends of the wash, not just the solid base under
+  // the lower half of the label. Keep original foreground and interaction colors.
+  sample.contrast = Math.min(...sample.contrastSamples.map(({ ink, paper }) => {
+    const a = luminance(ink), b = luminance(paper);
+    return (Math.max(a,b)+0.05)/(Math.min(a,b)+0.05);
+  }));
   assert(sample.contrast >= 4.5, `Header project text needs 4.5:1 contrast: ${sample.contrast}`);
   return sample;
+}
+async function headerPixels(sample) {
+  const image = (await window.webContents.capturePage({ x:0, y:0, width:sample.width, height:sample.height }))
+    .resize({ width:sample.width, height:sample.height, quality:'best' });
+  const bitmap = image.toBitmap();
+  assert(bitmap.length === sample.width * sample.height * 4, 'Header capture must use logical-pixel dimensions');
+  const pixel = (x, y) => { const offset = (y*sample.width+x)*4; return [bitmap[offset+2],bitmap[offset+1],bitmap[offset]]; };
+  const distance = (a,b) => Math.max(...a.map((value,i) => Math.abs(value-b[i])));
+  // Sample both blank ends, away from tabs, label, divider and native controls.
+  const columns = [12, sample.width-20].map(x => [1, 10, 20, 30, 37].map(y => ({ x,y,rgb:pixel(x,y) })));
+  for (const column of columns) {
+    for (const {y,rgb} of column) if (sample.location === 'local' || y >= sample.height/2) {
+      assert(distance(rgb,sample.background) <= 1, `The lower half must equal Local, not a solid Cloud fill: ${JSON.stringify({sample,column})}`);
+    }
+    if (sample.location === 'cloud') {
+      const [top,middle,bottom] = column.map(point => point.rgb);
+      assert(distance(top,sample.background) > 5 && distance(top,sample.cloudTop) < distance(top,sample.background), 'Top must visibly carry the blue location cue');
+      assert(distance(middle,sample.background) < distance(top,sample.background)
+        && distance(middle,sample.background) > distance(bottom,sample.background)+2, 'Blue must fade progressively through the upper half');
+    }
+  }
+  for (let i=0; i<columns[0].length; i++) assert(distance(columns[0][i].rgb,columns[1][i].rgb) <= 1, 'Gradient must cover both blank ends equally');
+  return columns;
 }
 async function selectLocation(location) {
   await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
@@ -155,6 +190,8 @@ app.whenReady().then(async () => {
     for (const [index, location] of ["local", "cloud", "local"].entries()) {
       if ((await state()).location !== location) await selectLocation(location);
       const sample = await headerPresentation(location);
+      sample.pixels = await headerPixels(sample);
+      if (before) assert(JSON.stringify(sample.controlPalette) === JSON.stringify(before.controlPalette), 'Cloud must retain the original text, hover, active, focus and divider palette');
       if (before) for (const key of ["x", "y", "width", "height", "projectCenter"]) {
         assert(Math.abs(sample[key] - before[key]) < 0.01, `Header ${key} moved on ${theme} ${width}px switch`);
       }

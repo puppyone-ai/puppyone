@@ -39,7 +39,7 @@ describe("titlebar typography architecture", () => {
     expect(conflict).toContain("var(--po-danger) 78%, white");
   });
 
-  it("scopes the sky-blue titlebar surface to cloud workspaces", () => {
+  it("fades Cloud blue through only the upper half without recoloring Header controls", () => {
     const titlebarRule = readCssBlock(`\n${titlebarCss}`, ".desktop-titlebar");
     const cloudTitlebarRule = readCssBlock(
       titlebarCss,
@@ -55,8 +55,12 @@ describe("titlebar typography architecture", () => {
     expect(titlebarRule).toContain("--desktop-titlebar-bg: var(--po-header);");
     expect(titlebarRule).toContain("--po-font-size-chrome: var(--po-type-header-content);");
     expect(titlebarRule).toContain("background: var(--desktop-titlebar-bg);");
-    expect(cloudTitlebarRule).toContain("--desktop-titlebar-bg: var(--po-cloud-titlebar-bg);");
-    expect(cloudTitlebarRule).toContain("--desktop-titlebar-divider: var(--po-cloud-titlebar-divider);");
+    expect(cloudTitlebarRule).toContain("background-image: linear-gradient(");
+    expect(cloudTitlebarRule).toContain("to bottom,");
+    expect(cloudTitlebarRule).toContain("var(--po-cloud-titlebar-bg) 0%,");
+    expect(cloudTitlebarRule).toContain("transparent 50%");
+    expect(cloudTitlebarRule).not.toMatch(/--desktop-titlebar-[\w-]+\s*:/);
+    expect(cloudTitlebarRule).not.toMatch(/(?:height|padding|margin|transition|animation)\s*:/);
     expect(titlebarCss).not.toContain(".desktop-titlebar-workspace-button.cloud {");
     const skinContract = readFileSync(new URL("../../../../src/styles/interface-skin-contract.css", import.meta.url), "utf8");
     expect(skinContract).toContain('.desktop-titlebar[data-workspace-kind="local"] {');
