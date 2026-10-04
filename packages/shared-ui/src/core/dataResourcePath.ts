@@ -10,6 +10,19 @@ import { isRootedFilesystemPath, looksLikeResourceUri } from "./resourcePath";
 
 const resourceIdentity = new ResourceUriIdentityService();
 
+/** A supplied storage root takes precedence. Only local Folder identities
+ * have a first-segment root; remote authorities require the complete root. */
+export function resolveDataResourceWorkspaceRoot(resource: string, workspaceRoot?: string | null): ResourceUri | null {
+  if (!isDataResourceUri(resource)) return null;
+  if (isDataResourceUri(workspaceRoot) && resourceIdentity.isEqualOrParent(resource, workspaceRoot)) {
+    return workspaceRoot;
+  }
+  const parsed = parseResourceUri(resource);
+  if (parsed.scheme !== "puppyone-local") return null;
+  const folderId = parsed.path.split("/")[0];
+  return folderId ? createResourceUri({ ...parsed, path: folderId }) : null;
+}
+
 /**
  * Data surfaces still expose strings for legacy provider paths. Once a string
  * is a Resource URI, every path operation must preserve its provider/root

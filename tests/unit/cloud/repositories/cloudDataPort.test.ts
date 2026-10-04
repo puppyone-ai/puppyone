@@ -16,6 +16,7 @@ const error = (status: number) => Object.assign(new Error(`Cloud HTTP ${status}`
 const entry = (path: string) => ({ path, name: path.split("/").at(-1), type: path.endsWith(".md") ? "markdown" : "file" });
 
 beforeEach(() => {
+  vi.restoreAllMocks();
   files = new Map([["readme.md", "Cloud original"], ["data.json", '{"cloud":true}'], ["notes/a.md", "Scoped original"], ["movie.mp4", "binary"]]);
   revision = 1;
   bridge = vi.fn(async (request) => {
@@ -178,13 +179,41 @@ describe("native Cloud provider", () => {
     expect(localRead).not.toHaveBeenCalled();
   });
 
+  it.each(["notes.md", "records.csv", "settings.json", "worker.ts", "page.html"])("reads and saves %s through Cloud CAS without local file access", async (path) => {
+    files.set(path, "original");
+    const cloud = service();
+    const document = await cloud.dataPort.readFile!(createWorkspaceResourceUri(cloud.folder.uri, path));
+    expect(document).toMatchObject({ content: "original", version: "head-1" });
+    expect(await save(cloud.dataPort, document.path, "edited", document.version!)).toMatchObject({ ok: true, version: "head-2" });
+    expect(files.get(path)).toBe("edited");
+    expect(JSON.parse(bridge.mock.calls.find(([request]) => request.path.endsWith("/write"))![0].body))
+      .toMatchObject({ path, content: "edited", base_commit_id: "head-1" });
+  });
+
+  it("supplies immutable HTML from the accepted snapshot and releases only its own blob URLs", async () => {
+    files.set("page.html", "<h1>Original</h1>");
+    const createUrl = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:cloud-html");
+    const revokeUrl = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    const cloud = service();
+    await cloud.dataPort.readFile!("page.html");
+    files.set("page.html", "<h1>New HEAD</h1>"); revision++;
+    expect(await cloud.dataPort.getFileUrl!("page.html", { expectedVersion: "head-1" })).toBe("blob:cloud-html");
+    expect(await (createUrl.mock.calls[0][0] as Blob).text()).toBe("<h1>Original</h1>");
+    expect(bridge.mock.calls.some(([request]) => request.path.endsWith("/inline/sign"))).toBe(false);
+    await cloud.dataPort.revokeFileUrl!("blob:foreign");
+    await cloud.dataPort.revokeFileUrl!("blob:cloud-html");
+    await cloud.dataPort.revokeFileUrl!("blob:cloud-html");
+    expect(revokeUrl).toHaveBeenCalledExactlyOnceWith("blob:cloud-html");
+    await expect(cloud.dataPort.getFileUrl!("page.html", { expectedVersion: "unknown" })).rejects.toThrow(/version/);
+  });
+
   it("uses signed inline URLs for native binary previews without decoding the binary as text", async () => {
     const cloud = service();
     expect(await cloud.dataPort.readFile!("movie.mp4")).toMatchObject({ content: null, type: "video" });
     const url = new URL(await cloud.dataPort.getFileUrl!("movie.mp4"));
     expect(url.origin).toBe("https://cloud-fixture.puppyone.ai"); expect(url.searchParams.get("path")).toBe("movie.mp4");
     expect(bridge.mock.calls.some(([request]) => request.path.includes("/cat"))).toBe(false);
-    await expect(cloud.dataPort.getFileUrl!("movie.mp4", { expectedVersion: "head-1" })).rejects.toThrow(/Immutable/);
+    await expect(cloud.dataPort.getFileUrl!("movie.mp4", { expectedVersion: "head-1" })).rejects.toThrow(/version/);
   });
 
   it.each([

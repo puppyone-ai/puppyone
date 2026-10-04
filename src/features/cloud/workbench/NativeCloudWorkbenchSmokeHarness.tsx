@@ -27,7 +27,7 @@ import type { DesktopCloudSession } from "../../../lib/cloudApi";
 
 initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
 
-const API = "http://127.0.0.1:9090/api/v1";
+const API = "https://cloud-fixture.puppyone.ai/api/v1";
 const localRoot = createWorkspaceRootUri("cloud-switch-fixture-local");
 const localPath = createWorkspaceResourceUri(localRoot, "readme.txt");
 const localWorkspace: Workspace = { id: "cloud-switch-fixture", name: "Native workspace", path: "/Users/demo/native-workspace", status: "recording" };
@@ -47,8 +47,17 @@ const context = { status: "resolved" as const, projectId: "fixture-project", pro
   target: { kind: "project_root" as const, project_id: "fixture-project" }, capabilities: ["content.read", "content.write", "access_surface.manage"] };
 const cloudFiles = new Map([
   ["readme.txt", "CLOUD_FILE_BODY"], ["cloud-only.md", "# Cloud only"], ["records/sample.csv", "Name,Value\nCloud,42"],
+  ["notes.md", "# Cloud note\n\n![Cloud diagram](/assets/diagram.svg)"],
+  ["assets/diagram.svg", "fixture-image"], ["report.xlsx", "fixture-binary"],
+  ["settings.json", '{"cloud":true}'], ["page.html", "<!doctype html><html><head><title>Cloud page</title></head><body><h1>Cloud HTML</h1></body></html>"],
 ]);
 let head = 1;
+function listFixtureDirectory(path: string) {
+  const names = new Set([...cloudFiles.keys()].filter((file) => !path || file.startsWith(`${path}/`))
+    .map((file) => file.slice(path.length + (path ? 1 : 0)).split("/")[0]!));
+  return { entries: [...names].map((name) => ({ path: [path, name].filter(Boolean).join("/"), name,
+    type: cloudFiles.has([path, name].filter(Boolean).join("/")) ? "file" : "folder", children_count: 1 })), head_commit_id: `cloud-${head}` };
+}
 const cloudWrites: Array<{ path: string; content: string }> = [];
 const localWrites: Array<{ path: string; content: string }> = [];
 const localSaveCompletions: Array<() => void> = [];
@@ -77,18 +86,15 @@ window.puppyoneDesktop = {
       name: context.projectName, capabilities: context.capabilities };
     if (!cloudToolsAvailable && ["surfaces", "bindings", "providers"].includes(operation ?? ""))
       return { transport: "puppyone-cloud-ipc-v1", ok: false, error: { status: 404, message: "Not Found" } };
-    if (operation === "scopes" || operation === "mcp-endpoints" || operation === "surfaces"
-      || operation === "bindings" || operation === "providers") return [];
+    if (["scopes", "mcp-endpoints", "surfaces", "bindings", "providers"].includes(operation ?? "")) return [];
     if (operation === "access-point") return { project_id: context.projectId, url: "https://cloud-fixture.puppyone.ai/git/project.git", scopes: [] };
     if (operation === "ls") {
       if (cloudReadBarrier) await cloudReadBarrier;
-      const names = new Set([...cloudFiles.keys()].filter((file) => !path || file.startsWith(`${path}/`))
-        .map((file) => file.slice(path.length + (path ? 1 : 0)).split("/")[0]!));
-      return { entries: [...names].map((name) => ({ path: [path, name].filter(Boolean).join("/"), name,
-        type: cloudFiles.has([path, name].filter(Boolean).join("/")) ? "file" : "folder", children_count: 1 })), head_commit_id: `cloud-${head}` };
+      return listFixtureDirectory(path);
     }
     if (operation === "stat") return { path, name: path.split("/").at(-1), type: cloudFiles.has(path) ? "file" : "folder", exists: true };
     if (operation === "cat") return { content_text: cloudFiles.get(path), head_commit_id: `cloud-${head}` };
+    if (operation === "sign") return { url: `/api/v1/content/fixture-project/inline?path=${encodeURIComponent(body.path)}&token=fixture-token` };
     if (operation === "write") {
       if (body.base_commit_id !== `cloud-${head}`) return { transport: "puppyone-cloud-ipc-v1", ok: false, error: { status: 409, message: "Fixture conflict" } };
       cloudFiles.set(body.path, body.content); cloudWrites.push({ path: body.path, content: body.content }); head++;
@@ -183,7 +189,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
     window.__nativeCloudWorkbenchSmoke = {
       state: () => ({ location, cloudWrites, localWrites, requests }),
       edit: (target, text) => {
-        const element = document.querySelector(`[data-workspace-location="${target}"] .cm-editor`);
+        const element = document.querySelector(`[data-workspace-location="${target}"] .document-surface-slot.is-committed:not(.is-obscured) .cm-editor`);
         const view = element ? EditorView.findFromDOM(element as HTMLElement) : null;
         if (!view) throw new Error(`No ${target} CodeMirror view`);
         view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } });

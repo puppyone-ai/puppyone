@@ -87,6 +87,7 @@ export function createCloudDataService({
   };
   const apiPath = `/content/${encodeURIComponent(context.projectId)}`;
   const snapshots = new Map<string, Map<string, string>>();
+  const snapshotUrls = new Set<string>();
   let mutationTail: Promise<unknown> = Promise.resolve();
   const assertCurrent = () => {
     if (!isCurrent()) throw new Error("Cloud workspace session changed. Reopen the Cloud workspace.");
@@ -252,7 +253,17 @@ export function createCloudDataService({
         mimeType: node.mimeType, size: node.size, content: text?.content ?? null, version: text?.version ?? null };
     },
     getFileUrl: async (path, options) => {
-      if (options?.expectedVersion) throw new Error("Immutable Cloud file previews are unavailable.");
+      if (options?.expectedVersion) {
+        // Dual-input HTML uses the exact bytes already accepted by readFile.
+        // The signed inline API follows HEAD and cannot supply that guarantee.
+        const content = snapshots.get(remotePath(path))?.get(options.expectedVersion);
+        if (!/\.html?$/i.test(relativePath(path)) || content === undefined) {
+          throw new Error("This Cloud file version is no longer available. Reload the file.");
+        }
+        const url = URL.createObjectURL(new Blob([content], { type: "text/html" }));
+        snapshotUrls.add(url);
+        return url;
+      }
       const signed = await request<{ url: string }>("inline/sign", { path: remotePath(path) });
       const url = new URL(signed.url, `${apiBaseUrl.replace(/\/+$/, "")}/`);
       const expectedPath = `${base.pathname.replace(/\/+$/, "")}${apiPath}/inline`;
@@ -260,6 +271,9 @@ export function createCloudDataService({
         || url.pathname !== expectedPath || url.searchParams.get("path") !== remotePath(path)
         || !url.searchParams.get("token")) throw new Error("Cloud returned an invalid file preview URL.");
       return url.toString();
+    },
+    revokeFileUrl: (url) => {
+      if (snapshotUrls.delete(url)) URL.revokeObjectURL(url);
     },
     ...(writable ? {
       documentPersistence: { kind: "cloud" as const, storageIdentity, persist },

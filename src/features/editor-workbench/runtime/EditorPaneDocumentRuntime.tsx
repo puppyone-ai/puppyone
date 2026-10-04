@@ -142,6 +142,7 @@ function RegularEditorPaneDocumentRuntime({
         />
       )}
       error={source.error}
+      onRetry={source.retry}
       aiEditFile={aiEditFile}
       showHeader={false}
       hideSourceView={hideSourceView}

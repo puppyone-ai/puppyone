@@ -46,6 +46,7 @@ export type FilePreviewProps = {
   loading?: boolean;
   loadingIndicator?: ReactNode;
   error?: string | null;
+  onRetry?: () => void;
   aiEditFile?: AiEditFile | null;
   showHeader?: boolean;
   emptySlot?: ReactNode;
@@ -83,6 +84,7 @@ export function FilePreview({
   loading = false,
   loadingIndicator,
   error = null,
+  onRetry,
   aiEditFile = null,
   showHeader = true,
   emptySlot,
@@ -160,6 +162,12 @@ export function FilePreview({
           )}
 
           <div className="file-preview-body">
+            {(error || fileUrlError) && (fileContent || fileUrl) && (
+              <div className="file-preview-input-error" role="alert">
+                <span dir="auto">{error || fileUrlError}</span>
+                {onRetry && <button type="button" onClick={onRetry}>{t("common.action.retry")}</button>}
+              </div>
+            )}
             <EditorPreviewBoundary
               key={node.path}
               failureTitle={t("shared-ui.preview.crashed")}
@@ -178,6 +186,7 @@ export function FilePreview({
                 loadingIndicator={loadingIndicator}
                 surfacePreparation={surfacePreparation}
                 error={error}
+                onRetry={onRetry}
                 aiEditFile={aiEditFile}
                 documentPersistence={documentPersistence}
                 onDocumentPersisted={onDocumentPersisted}

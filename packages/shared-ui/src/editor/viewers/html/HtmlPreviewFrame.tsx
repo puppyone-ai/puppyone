@@ -125,6 +125,11 @@ export function buildHtmlPreviewDocument(rawHtml: string, baseHref: string | nul
   if (originalBase !== undefined) {
     try { resolvedBase = new URL(originalBase, baseHref ?? undefined).href; } catch { /* No valid resource base is available. */ }
   }
+  if (policy.csp && resolvedBase) {
+    try {
+      if (!["https:", "puppyone-local:"].includes(new URL(resolvedBase).protocol)) resolvedBase = null;
+    } catch { resolvedBase = null; }
+  }
   const csp = policy.csp
     ? `<meta http-equiv="Content-Security-Policy" content="${escapeHtmlAttribute(policy.csp)}">`
     : "";

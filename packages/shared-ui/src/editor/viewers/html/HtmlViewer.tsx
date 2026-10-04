@@ -10,6 +10,7 @@ import type { PresetViewerRenderContext } from "../../registry/viewerTypes";
 import { CodeMirrorDocumentModel, externalDocumentUpdate } from "../../document-session/CodeMirrorDocumentModel";
 import { useDocumentModelOwner } from "../../document-session/DocumentModelOwner";
 import { useEditableDocumentSource } from "../../document-session/EditableDocumentSourceContext";
+import { useEditorPreviewServices } from "../../preview-services/EditorPreviewServices";
 const HtmlPreviewFrame = lazy(() => import("./HtmlPreviewFrame").then((module) => ({ default: module.HtmlPreviewFrame })));
 const HtmlVisualSurface = lazy(() => import("./HtmlVisualSurface").then((module) => ({ default: module.HtmlVisualSurface })));
 
@@ -29,11 +30,16 @@ function HtmlDocumentEditor({ document, content, fileUrl, htmlTrustMode, canEdit
   const owner = useDocumentModelOwner();
   const publishMenu = useEditorPaneMenuContributionPublisher();
   const editingSource = useEditableDocumentSource();
+  const projection = useEditorPreviewServices().services?.documentProjection;
+  // Cloud can read/write HTML text without a native interactive projection
+  // service. Present the safe page and source editor instead of starting an
+  // editing bridge the provider cannot support.
+  const canVisualEdit = canEdit && (document.sourceKind !== "cloud" || Boolean(projection));
   const initialContent = useRef(content);
   initialContent.current = content;
   const model = useMemo(() => owner?.getOrCreate("html-text", () => new CodeMirrorDocumentModel(initialContent.current, undefined, true))
     ?? new CodeMirrorDocumentModel(initialContent.current, undefined, true), [owner]);
-  const [mode, setMode] = useState<Mode>(canEdit ? "edit" : "preview");
+  const [mode, setMode] = useState<Mode>(canVisualEdit ? "edit" : "preview");
   const [preview, setPreview] = useState(() => model.readSnapshot().content);
   const [error, setError] = useState<string | null>(null);
   const prepare = useRef<(() => void | Promise<void>) | null>(null);
@@ -76,8 +82,8 @@ function HtmlDocumentEditor({ document, content, fileUrl, htmlTrustMode, canEdit
   }, [content, model, editingSource]);
   useLayoutEffect(() => {
     model.setInputEnabled(canEdit && workingCopyEnabled.current);
-    if (!canEdit && currentMode.current === "edit") { setPreview(model.readSnapshot().content); setMode("preview"); }
-  }, [canEdit, model]);
+    if (!canVisualEdit && currentMode.current === "edit") { setPreview(model.readSnapshot().content); setMode("preview"); }
+  }, [canEdit, canVisualEdit, model]);
 
   const switchMode = useCallback(async (next: Mode) => {
     if (next === mode) return;
@@ -88,7 +94,7 @@ function HtmlDocumentEditor({ document, content, fileUrl, htmlTrustMode, canEdit
       setError(null); setMode(next);
     } catch { setError(t("editor.html.finishComposition")); }
   }, [mode, model, t]);
-  const showPage = canEdit ? "edit" : "preview";
+  const showPage = canVisualEdit ? "edit" : "preview";
   const toggleLabel = t(mode === "source" ? "editor.html.showPage" : "editor.html.showCode");
   useLayoutEffect(() => {
     if (hideSourceView || !publishMenu) return;

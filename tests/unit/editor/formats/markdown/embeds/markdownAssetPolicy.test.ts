@@ -6,6 +6,7 @@ import {
   resolveWorkspaceRelativePath,
 } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/policy/markdownAssetPolicy";
 import { createAssetBroker } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/brokers/assetBroker";
+import { resolveMarkdownAssetPath } from "../../../../../../packages/shared-ui/src/editor/markdown/features/media/markdownMediaReference";
 import { createCapabilityPrincipal } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/security/capabilityPrincipal";
 import {
   allowsLocalActiveHtml,
@@ -15,9 +16,35 @@ import {
 import { createExecutionSessionStore } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/sessions/executionSession";
 
 describe("markdownAssetPolicy", () => {
+  it("resolves Cloud relative and root assets within the complete account/project/scope root", () => {
+    const root = "puppyone-cloud://cloud.example/https/api/v1/owner/project/scope";
+    const source = `${root}/notes/doc.md`;
+    for (const href of ["../assets/a.png", "/assets/a.png", `${root}/assets/a.png`]) {
+      expect(evaluateMarkdownAssetHref(href, { documentPath: source, workspaceRoot: root }))
+        .toMatchObject({ ok: true, kind: "workspace-relative", path: "assets/a.png" });
+      expect(resolveMarkdownAssetPath(source, href, root)).toBe(`${root}/assets/a.png`);
+    }
+    for (const href of ["../../secret.png", "/../../secret.png", `${root}-other/a.png`,
+      "puppyone-cloud://other.example/https/api/v1/owner/project/scope/a.png"]) {
+      expect(evaluateMarkdownAssetHref(href, { documentPath: source, workspaceRoot: root }).ok).toBe(false);
+      expect(resolveMarkdownAssetPath(source, href, root)).toBeNull();
+    }
+    expect(resolveMarkdownAssetPath(source, "../assets/a.png")).toBeNull();
+    expect(evaluateMarkdownAssetHref(`${root}/assets/a.png?token=secret`, { documentPath: source, workspaceRoot: root }).ok).toBe(false);
+  });
   it("denies file:// and executable schemes", () => {
     expect(evaluateMarkdownAssetHref("file:///tmp/x.png", { documentPath: "a.md" }).ok).toBe(false);
     expect(evaluateMarkdownAssetHref("javascript:alert(1)", { documentPath: "a.md" }).ok).toBe(false);
+  });
+
+  it("accepts provider-resolved loopback assets while keeping authored HTTP images denied", () => {
+    for (const host of ["localhost", "127.0.0.1", "[::1]"]) {
+      const url = `http://${host}:8000/api/v1/content/p/inline?path=a.png&token=fixture`;
+      expect(isBrokerSafeResolvedAssetUrl(url)).toBe(true);
+      expect(evaluateMarkdownAssetHref(url, { documentPath: "a.md", remotePolicy: "https-only" }).ok).toBe(false);
+    }
+    expect(isBrokerSafeResolvedAssetUrl("http://example.com/a.png")).toBe(false);
+    expect(isBrokerSafeResolvedAssetUrl("http://user:password@localhost/a.png")).toBe(false);
   });
 
   it("denies svg data URLs and oversized data images", () => {

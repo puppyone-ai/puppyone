@@ -51,6 +51,7 @@ export type EditorDocumentHostProps = {
   loadingIndicator?: ReactNode;
   surfacePreparation?: ViewerSurfacePreparation;
   error?: string | null;
+  onRetry?: () => void;
   fileUrlLoading?: boolean;
   fileUrlError?: string | null;
   documentPersistence?: DocumentPersistencePort | null;
@@ -95,6 +96,7 @@ function EditorDocumentSurface({
   loadingIndicator,
   surfacePreparation = "hidden-safe",
   error = null,
+  onRetry,
   fileUrlLoading = false,
   fileUrlError = null,
   documentPersistence = null,
@@ -204,11 +206,13 @@ function EditorDocumentSurface({
     );
   }
 
-  if (viewer.source !== "resource" && error && !content) {
+  const inputError = error || fileUrlError;
+  if (inputError && !content && !document.url) {
     return (
       <EditorUnavailableState
         title={t("editor.unavailable.title")}
-        message={error}
+        message={inputError}
+        onRetry={onRetry}
         documentPath={document.path}
         openExternalFile={openExternalFile}
         openLabel={t("editor.openDefaultApp")}
@@ -316,17 +320,23 @@ function EditorUnavailableState({
   documentPath,
   openExternalFile,
   openLabel,
+  onRetry,
 }: {
   title: string;
   message: string;
   documentPath: string;
   openExternalFile?: (path: string) => Promise<void>;
   openLabel: string;
+  onRetry?: () => void;
 }) {
+  const { t } = useLocalization();
   return (
     <div className="editor-state editor-state--stacked danger">
       <strong>{title}</strong>
       <span dir="auto">{message}</span>
+      {onRetry && <button type="button" data-po-interaction="navigation" onClick={onRetry}>
+        {t("common.action.retry")}
+      </button>}
       {openExternalFile && (
         <button
           type="button"

@@ -26,6 +26,40 @@ afterEach(() => {
 });
 
 describe("DataWorkspace Project switching", () => {
+  it("retries a failed Cloud root without remounting the workspace", async () => {
+    const read = vi.fn().mockRejectedValueOnce(new Error("Root unavailable")).mockResolvedValue([
+      { id: "a.md", path: "a.md", name: "a.md", type: "markdown" },
+    ]);
+    const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
+    await act(async () => root!.render(withTestLocalization(<DataWorkspace workspace={workspace()}
+      dataPort={{ listChildren: read }} folderExpansionStrategy="optimistic" />)));
+    expect(host.textContent).toContain("Root unavailable");
+    const retry = [...host.querySelectorAll("button")].find((button) => button.textContent === "Retry")!;
+    await act(async () => { retry.click(); await flushMicrotasks(); });
+    expect(host.querySelector('[data-explorer-path="a.md"]')).not.toBeNull();
+    expect(host.textContent).not.toContain("Root unavailable");
+    expect(read).toHaveBeenCalledTimes(2);
+  });
+  it("retries a failed Cloud branch in place while preserving expansion and showing loading immediately", async () => {
+    const result = deferred<DataNode[]>();
+    const folder: DataNode = { id: "slow", path: "slow", name: "slow", type: "folder", hasChildren: true };
+    const read = vi.fn().mockRejectedValueOnce(new Error("Folder unavailable")).mockReturnValue(result.promise);
+    const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
+    await act(async () => root!.render(withTestLocalization(<DataWorkspace workspace={workspace()}
+      dataPort={{ listChildren: (path) => path ? read() : Promise.resolve([folder]) }}
+      folderExpansionStrategy="optimistic" explorerLoadingPresentation="skeleton" />)));
+    const row = () => host.querySelector<HTMLElement>('[data-explorer-path="slow"]')!;
+    await act(async () => { row().click(); await flushMicrotasks(); });
+    const retry = [...host.querySelectorAll("button")].find((button) => button.textContent === "Retry")!;
+    expect(retry).toBeDefined();
+    await act(async () => retry.click());
+    expect(row().getAttribute("aria-expanded")).toBe("true");
+    expect(host.querySelector(".explorer-tree-branch-skeleton")).not.toBeNull();
+    expect(host.querySelector('[role="alert"]')).toBeNull();
+    expect(read).toHaveBeenCalledTimes(2);
+    await act(async () => result.resolve([{ id: "slow/a.md", path: "slow/a.md", name: "a.md", type: "markdown" }]));
+    expect(host.querySelector('[data-explorer-path="slow/a.md"]')).not.toBeNull();
+  });
   it("expands optimistically, deduplicates slow reads and preserves collapse intent when they finish", async () => {
     const listing = deferred<DataNode[]>();
     const folder: DataNode = { id: "slow", path: "slow", name: "slow", type: "folder", hasChildren: true };

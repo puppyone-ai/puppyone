@@ -28,6 +28,7 @@ import {
   getDisplayNameKey,
   getExplorerDisplayName,
   type ExplorerVisibleNodeRow,
+  type ExplorerVisibleMetaRow,
   type ExplorerVisibleRow,
 } from "./explorer/explorerVisibleModel";
 import {
@@ -71,6 +72,8 @@ export type ExplorerTreeProps = {
   loadingPaths?: ReadonlySet<string>;
   rootLoading?: boolean;
   rootError?: string | null;
+  folderErrors?: ReadonlyMap<string, string>;
+  onRetryFolder?: (path: string | null) => void;
   rootLabel?: string;
   showRoot?: boolean;
   loadingLabel?: string;
@@ -145,6 +148,8 @@ export function ExplorerTree({
   loadingPaths,
   rootLoading = false,
   rootError = null,
+  folderErrors,
+  onRetryFolder,
   rootLabel,
   showRoot = true,
   loadingLabel,
@@ -195,7 +200,8 @@ export function ExplorerTree({
     expandedPaths,
     loadingPaths: resolvedLoadingPaths,
     loadingLabel: resolvedLoadingLabel,
-  }), [expandedPaths, nodes, resolvedLoadingLabel, resolvedLoadingPaths]);
+    folderErrors,
+  }), [expandedPaths, folderErrors, nodes, resolvedLoadingLabel, resolvedLoadingPaths]);
   const initialLoading = rootLoading && nodes.length === 0;
   const softWorkspaceGrouping = useMemo(
     () => nodes.filter((node) => node.workspaceFolderRoot).length > 1,
@@ -661,6 +667,7 @@ export function ExplorerTree({
       {rootError && nodes.length > 0 && (
         <div className="explorer-tree-error-banner" role="alert" dir="auto">
           {rootError}
+          {onRetryFolder && <button type="button" onClick={() => onRetryFolder(null)}>{t("common.action.retry")}</button>}
         </div>
       )}
 
@@ -679,15 +686,13 @@ export function ExplorerTree({
               {renderListStart()}
             </div>
           )}
-          {initialLoading ? (
-            loadingPresentation === "skeleton"
-              ? <ExplorerTreeSkeleton loadingLabel={resolvedLoadingLabel} />
-              : loadingPresentation === "dots"
-                ? <ExplorerTreeMetaRow depth={0} loading>{resolvedLoadingLabel}</ExplorerTreeMetaRow>
-                : null
-          ) : rootError && nodes.length === 0 ? (
-            <ExplorerTreeMetaRow depth={0}>{rootError}</ExplorerTreeMetaRow>
-          ) : nodes.length > 0 ? (
+          {initialLoading && <ExplorerInitialLoading presentation={loadingPresentation} label={resolvedLoadingLabel} />}
+          {!initialLoading && rootError && nodes.length === 0 && (
+            <ExplorerTreeMetaRow depth={0}><span role="alert">{rootError}</span>
+              {onRetryFolder && <button type="button" onClick={() => onRetryFolder(null)}>{t("common.action.retry")}</button>}
+            </ExplorerTreeMetaRow>
+          )}
+          {!initialLoading && nodes.length > 0 && (
             <div
               className="explorer-tree-virtual-canvas"
               style={{ height: `${virtualWindow.totalHeight}px` }}
@@ -711,11 +716,11 @@ export function ExplorerTree({
                     instruction={motionPlan?.instructions.get(row.key)}
                   >
                     {row.kind === "meta" ? (
-                      <ExplorerTreeLoadingRow
+                      <ExplorerVisibleMetaRowContent
+                        row={row}
                         depth={getExplorerPresentationDepth(row.depth, softWorkspaceGrouping)}
-                        label={row.label}
-                        loading={row.loading}
                         presentation={loadingPresentation}
+                        onRetry={onRetryFolder}
                       />
                     ) : (
                       <TreeNodeRow
@@ -766,7 +771,7 @@ export function ExplorerTree({
                 </div>
               ))}
             </div>
-          ) : null}
+          )}
           {!initialLoading && renderListEnd && (
             <ExplorerListEndMotionShell
               generation={motionPlan?.generation ?? 0}
@@ -1146,6 +1151,8 @@ function TreeDisclosureMarker({
   size?: number;
 }) {
   const { direction } = useLocalization();
+  const closedTransform = direction === "rtl" ? "scaleX(-1)" : "rotate(0deg)";
+  const openTransform = direction === "rtl" ? "rotate(-90deg)" : "rotate(90deg)";
   return (
     <svg
       width={size}
@@ -1160,14 +1167,30 @@ function TreeDisclosureMarker({
       className="tree-disclosure-marker"
       data-expanded={expanded ? "true" : "false"}
       style={{
-        transform: expanded
-          ? direction === "rtl" ? "rotate(-90deg)" : "rotate(90deg)"
-          : direction === "rtl" ? "scaleX(-1)" : "rotate(0deg)",
+        transform: expanded ? openTransform : closedTransform,
       }}
     >
       <path d="M4 2.5 7.5 6 4 9.5" />
     </svg>
   );
+}
+
+function ExplorerInitialLoading({ presentation, label }: { presentation: ExplorerLoadingPresentation; label: string }) {
+  if (presentation === "skeleton") return <ExplorerTreeSkeleton loadingLabel={label} />;
+  if (presentation === "dots") return <ExplorerTreeMetaRow depth={0} loading>{label}</ExplorerTreeMetaRow>;
+  return null;
+}
+
+function ExplorerVisibleMetaRowContent({ row, depth, presentation, onRetry }: {
+  row: ExplorerVisibleMetaRow; depth: number; presentation: ExplorerLoadingPresentation;
+  onRetry?: ExplorerTreeProps["onRetryFolder"];
+}) {
+  const { t } = useLocalization();
+  if (!row.retryPath) return <ExplorerTreeLoadingRow depth={depth} label={row.label} loading={row.loading} presentation={presentation} />;
+  return <ExplorerTreeMetaRow depth={depth}>
+    <span role="alert" className="tree-folder-error" title={row.label}>{row.label}</span>
+    {onRetry && <button type="button" onClick={() => onRetry(row.retryPath!)}>{t("common.action.retry")}</button>}
+  </ExplorerTreeMetaRow>;
 }
 
 function ExplorerTreeMetaRow({

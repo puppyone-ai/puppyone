@@ -40,6 +40,8 @@ describe("multi-root Resource URI routing", () => {
     const reference = resolveMarkdownMediaReference(source, "diagram.png", "wiki-target", linkGraph);
     expect(reference).toBe(image);
     expect(resolveMarkdownAssetPath(source, reference!)).toBe(image);
+    // An aggregate Project root does not replace this Folder's identity.
+    expect(resolveMarkdownAssetPath(source, reference!, createWorkspaceRootUri("project-composition"))).toBe(image);
   });
 
   it("qualifies Git, Agent, and AI provider paths at an explicit Folder boundary", () => {

@@ -829,9 +829,6 @@
     },
     "max-lines-per-function": {
       "count": 1
-    },
-    "no-nested-ternary": {
-      "count": 4
     }
   },
   "packages/shared-ui/src/data/explorer/explorerMotionAnimation.ts": {

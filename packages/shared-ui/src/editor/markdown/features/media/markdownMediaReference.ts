@@ -6,12 +6,10 @@ import {
   type MarkdownAssetKind,
 } from "../../platform/policy/markdownAssetPolicy";
 import {
-  createResourceUri,
   createWorkspaceResourceUri,
   getWorkspaceResourcePath,
-  parseResourceUri,
 } from "../../../../core/resourceUri";
-import { isDataResourceUri } from "../../../../core/dataResourcePath";
+import { isDataResourceUri, resolveDataResourceWorkspaceRoot } from "../../../../core/dataResourcePath";
 
 /**
  * The narrow URL-resolution contract shared by media renderers. The required
@@ -26,17 +24,23 @@ export type BrokeredMarkdownMediaUrlResolver = (
 ) => string | null | Promise<string | null>;
 
 /** Public host adapter for resolving any authored Markdown media path. */
-export function resolveMarkdownAssetPath(sourcePath: string, href: string): string | null {
-  if (isDataResourceUri(href)) return href;
+export function resolveMarkdownAssetPath(sourcePath: string, href: string, workspaceRoot?: string | null): string | null {
   if (isDataResourceUri(sourcePath)) {
-    const parsed = parseResourceUri(sourcePath);
-    const rootSegment = parsed.path.split("/").filter(Boolean)[0];
-    if (!rootSegment) return null;
-    const rootUri = createResourceUri({ ...parsed, path: rootSegment });
-    const providerSourcePath = getWorkspaceResourcePath(rootUri, sourcePath);
-    const providerAssetPath = resolveWorkspaceRelativePath(providerSourcePath, href);
-    return providerAssetPath ? createWorkspaceResourceUri(rootUri, providerAssetPath) : null;
+    // Cloud roots include host, account, project and scope. A first-segment
+    // root would permit /images/... to escape the current project.
+    const rootUri = resolveDataResourceWorkspaceRoot(sourcePath, workspaceRoot);
+    if (!rootUri) return null;
+    try {
+      const providerSourcePath = getWorkspaceResourcePath(rootUri, sourcePath);
+      if (isDataResourceUri(href)) {
+        getWorkspaceResourcePath(rootUri, href);
+        return href;
+      }
+      const providerAssetPath = resolveWorkspaceRelativePath(providerSourcePath, href);
+      return providerAssetPath ? createWorkspaceResourceUri(rootUri, providerAssetPath) : null;
+    } catch { return null; }
   }
+  if (isDataResourceUri(href)) return null;
   return resolveWorkspaceRelativePath(sourcePath, href);
 }
 

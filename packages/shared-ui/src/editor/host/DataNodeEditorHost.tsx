@@ -36,6 +36,7 @@ export type DataNodeEditorHostProps = {
   loadingIndicator?: ReactNode;
   surfacePreparation?: ViewerSurfacePreparation;
   error?: string | null;
+  onRetry?: () => void;
   documentPersistence?: DocumentPersistencePort | null;
   onDocumentPersisted?: (commit: DocumentPersistedCommit) => void;
   aiEditFile?: AiEditFile | null;
@@ -70,6 +71,7 @@ export function DataNodeEditorHost({
   loadingIndicator,
   surfacePreparation,
   error = null,
+  onRetry,
   documentPersistence = null,
   onDocumentPersisted,
   aiEditFile = null,
@@ -116,6 +118,7 @@ export function DataNodeEditorHost({
       error={error}
       fileUrlLoading={fileUrlLoading}
       fileUrlError={fileUrlError}
+      onRetry={onRetry}
       documentPersistence={documentPersistence}
       onDocumentPersisted={onDocumentPersisted}
       aiEditFile={aiEditFile}

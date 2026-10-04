@@ -3,7 +3,10 @@
  * Brokers must evaluate hrefs here before calling any host resolver.
  */
 
-export const MARKDOWN_ASSET_POLICY_VERSION = "2026-08-06";
+import { isDataResourceUri, resolveDataResourceWorkspaceRoot } from "../../../../core/dataResourcePath";
+import { getWorkspaceResourcePath } from "../../../../core/resourceUri";
+
+export const MARKDOWN_ASSET_POLICY_VERSION = "2026-10-05";
 export const MARKDOWN_ASSET_MAX_DATA_URL_BYTES = 2 * 1024 * 1024;
 export const MARKDOWN_ASSET_MAX_IN_FLIGHT = 8;
 export type MarkdownAssetKind = "image" | "video";
@@ -67,7 +70,7 @@ export function evaluateMarkdownAssetHref(
 ): MarkdownAssetPolicyResult {
   const trimmed = href.trim();
   if (!trimmed) return { ok: false, reason: "empty-href" };
-  if (C0_OR_DEL.test(trimmed) || ENCODED_CONTROL.test(trimmed)) {
+  if (hasInvalidAssetCharacters(trimmed)) {
     return { ok: false, reason: "control-character-denied" };
   }
 
@@ -100,18 +103,22 @@ export function evaluateMarkdownAssetHref(
     };
   }
 
+  const workspaceInput = resolveWorkspaceAssetInput(context, trimmed);
+  if (!workspaceInput) return { ok: false, reason: "outside-workspace" };
+  const { documentPath, href: workspaceHref } = workspaceInput;
+
   // A tokenized custom-protocol URL or blob URL copied into Markdown is an
   // ambient capability and must not be replayable as document source. Trusted
   // host resolvers may return these URLs after resolving a workspace asset.
-  if (/^(?:blob:|puppyone-local:)/i.test(trimmed)) {
+  if (/^(?:blob:|puppyone-local:)/i.test(workspaceHref)) {
     return { ok: false, reason: "ambient-capability-denied" };
   }
 
-  if (trimmed.startsWith("#") || hasUrlScheme(trimmed)) {
+  if (workspaceHref.startsWith("#") || hasUrlScheme(workspaceHref)) {
     return { ok: false, reason: "unsupported-scheme" };
   }
 
-  const resolvedPath = resolveWorkspaceRelativePath(context.documentPath, trimmed);
+  const resolvedPath = resolveWorkspaceRelativePath(documentPath, workspaceHref);
   if (!resolvedPath) return { ok: false, reason: "path-unresolvable" };
 
   if (resolvedPath.split("/").some((segment) => segment === ".." || segment === "")) {
@@ -130,6 +137,23 @@ export function evaluateMarkdownAssetHref(
   };
 }
 
+function hasInvalidAssetCharacters(value: string) {
+  return C0_OR_DEL.test(value) || ENCODED_CONTROL.test(value);
+}
+
+function resolveWorkspaceAssetInput(context: MarkdownAssetPolicyContext, href: string) {
+  if (!isDataResourceUri(context.documentPath)) return { documentPath: context.documentPath, href };
+  const root = resolveDataResourceWorkspaceRoot(context.documentPath, context.workspaceRoot);
+  if (!root) return null;
+  try {
+    // Logical identities must stay within the complete root. Capability URLs
+    // and references to other accounts/projects are never authored assets.
+    if (isDataResourceUri(href) && /[?#]/.test(href)) return null;
+    return { documentPath: getWorkspaceResourcePath(root, context.documentPath),
+      href: isDataResourceUri(href) ? `/${getWorkspaceResourcePath(root, href)}` : href };
+  } catch { return null; }
+}
+
 export function isBrokerSafeResolvedAssetUrl(
   url: string,
   kind: MarkdownAssetKind = "image",
@@ -142,7 +166,16 @@ export function isBrokerSafeResolvedAssetUrl(
   if (/^data:/i.test(trimmed)) {
     return kind === "image" && evaluateDataImageHref(trimmed).ok;
   }
-  if (/^https?:/i.test(trimmed)) return parseSafeRemoteAssetUrl(trimmed) !== null;
+  if (/^https?:/i.test(trimmed)) {
+    if (parseSafeRemoteAssetUrl(trimmed)) return true;
+    // A trusted provider may serve its signed assets from a local development
+    // service. This exception never applies to authored remote media hrefs.
+    try {
+      const resolved = new URL(trimmed);
+      return resolved.protocol === "http:" && !resolved.username && !resolved.password
+        && ["localhost", "127.0.0.1", "[::1]"].includes(resolved.hostname);
+    } catch { return false; }
+  }
   return /^(blob:|puppyone-local:)/i.test(trimmed);
 }
 

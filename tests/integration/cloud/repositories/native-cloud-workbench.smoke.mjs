@@ -9,6 +9,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import XLSX from "xlsx";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const rendererPath = process.env.PUPPYONE_NATIVE_WORKBENCH_RENDERER ?? path.join(repo, "dist/index.html");
@@ -257,6 +258,23 @@ app.whenReady().then(async () => {
     ...(nativeCorners ? platformHost.windowChrome.browserWindowOptions : {}),
     webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false,
       ...(nativeCorners ? { preload:path.join(repo,'tests/fixtures/cloud/repositories/window-chrome-preload.cjs') } : {}) } });
+  // Isolated test transport: production viewers consume real HTTPS resources,
+  // without reaching a network, account or user repository.
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([["Cloud report", "Value"], ["Verified", 42]]), "Cloud");
+  const spreadsheet = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+  await window.webContents.session.protocol.handle("https", (request) => {
+    const url = new URL(request.url);
+    if (url.host !== "cloud-fixture.puppyone.ai" || url.pathname !== "/api/v1/content/fixture-project/inline"
+      || url.searchParams.get("token") !== "fixture-token") return new Response(null, { status: 404 });
+    const path = url.searchParams.get("path");
+    const body = path === "assets/diagram.svg"
+      ? '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="120"><rect width="300" height="120" rx="12" fill="#102a43"/><text x="24" y="68" fill="#e3f0fb" font-family="sans-serif" font-size="24">Cloud asset</text></svg>'
+      : path === "report.xlsx" ? spreadsheet : null;
+    return body ? new Response(body, { headers: { "Access-Control-Allow-Origin": "*",
+      "Content-Type": path.endsWith(".svg") ? "image/svg+xml" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" } })
+      : new Response(null, { status: 404 });
+  });
   window.webContents.on("console-message", (event) => { if (event.level === "error" || event.level === 3) errors.push(event.message); });
   await window.loadURL(`${pathToFileURL(rendererPath).href}#native-cloud-workbench-smoke`);
   await waitFor("Boolean(window.__nativeCloudWorkbenchSmoke && document.querySelector('[data-workspace-location=local] .cm-content')?.textContent.includes('LOCAL_FILE_BODY'))");
@@ -437,6 +455,40 @@ app.whenReady().then(async () => {
   assert(await evaluate("[...document.querySelectorAll('[data-cloud-native=true] .csv-table-editor__table input, [data-cloud-native=true] .csv-table-editor__table textarea')].some(input => input.value === '42')"), "Cloud data files must use the native data viewer");
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await writeFile(path.join(artifacts, "cloud-data.png"), (await window.webContents.capturePage()).toPNG());
+  await evaluate(`(() => {
+    const input = [...document.querySelectorAll('[data-cloud-native=true] .csv-table-editor__table input, [data-cloud-native=true] .csv-table-editor__table textarea')].find(input => input.value === '42');
+    input.focus(); input.select();
+  })()`);
+  await window.webContents.insertText("43");
+  await waitFor("window.__nativeCloudWorkbenchSmoke.state().cloudWrites.some(write => write.path === 'records/sample.csv' && write.content.includes('43'))");
+  const openCloudFile = async (name) => {
+    await evaluate(`[...document.querySelectorAll('[data-cloud-native=true] .tree-row')].find(row => row.querySelector('.tree-label-primary')?.textContent === ${JSON.stringify(name)}).click()`);
+  };
+  await openCloudFile("notes");
+  await waitFor("Boolean(document.querySelector('[data-cloud-native=true] img[alt=\"Cloud diagram\"]')?.naturalWidth)");
+  await writeFile(path.join(artifacts, "cloud-markdown-assets.png"), (await window.webContents.capturePage()).toPNG());
+  await evaluate("window.__nativeCloudWorkbenchSmoke.edit('cloud', '# Cloud note updated\\n\\n![Cloud diagram](/assets/diagram.svg)')");
+  await waitFor("window.__nativeCloudWorkbenchSmoke.state().cloudWrites.some(write => write.path === 'notes.md' && write.content.includes('Cloud note updated'))");
+  await openCloudFile("settings");
+  await waitFor("document.querySelector('[data-cloud-native=true] .document-surface-slot.is-committed:not(.is-obscured) .cm-content')?.textContent.includes('cloud')");
+  await evaluate(`window.__nativeCloudWorkbenchSmoke.edit('cloud', '{"cloud":true,"saved":true}')`);
+  await waitFor("window.__nativeCloudWorkbenchSmoke.state().cloudWrites.some(write => write.path === 'settings.json' && write.content.includes('saved'))");
+  await openCloudFile("page");
+  await waitFor("Boolean(document.querySelector('[data-cloud-native=true] .document-surface-slot.is-committed:not(.is-obscured) .html-document-editor iframe[aria-busy=false]'))");
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  await writeFile(path.join(artifacts, "cloud-html.png"), (await window.webContents.capturePage()).toPNG());
+  await evaluate("document.querySelector('[data-cloud-native=true] .desktop-editor-pane-handle').click()");
+  await waitFor("Boolean([...document.querySelectorAll('.desktop-editor-pane-menu button')].find(button => button.textContent === 'Show code'))");
+  await evaluate("[...document.querySelectorAll('.desktop-editor-pane-menu button')].find(button => button.textContent === 'Show code').click()");
+  await waitFor("Boolean(document.querySelector('[data-cloud-native=true] .document-surface-slot.is-committed:not(.is-obscured) .html-document-editor .cm-editor'))");
+  await evaluate("window.__nativeCloudWorkbenchSmoke.edit('cloud', '<!doctype html><h1>Cloud HTML saved</h1>')");
+  await waitFor("window.__nativeCloudWorkbenchSmoke.state().cloudWrites.some(write => write.path === 'page.html' && write.content.includes('Cloud HTML saved'))");
+  await openCloudFile("report");
+  await waitFor("Boolean(document.querySelector('[data-cloud-native=true] .document-surface-slot.is-committed[data-surface-ready=true] .office-spreadsheet-preview'))");
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  await writeFile(path.join(artifacts, "cloud-office.png"), (await window.webContents.capturePage()).toPNG());
+  await openCloudFile("readme");
+  await waitFor("document.querySelector('[data-cloud-native=true] .cm-content')?.textContent.includes('CLOUD_EDIT_ONLY')");
   assert(await evaluate("[...document.querySelectorAll('[data-cloud-workspace-tool]')].every(button => !button.disabled) && !window.__nativeCloudWorkbenchSmoke.state().requests.some(path => path.includes('/mcp-endpoints') || path.includes('/synchronize'))"),
     'Cloud tool pages must load only when the user opens a ready CTA');
   for (const tool of ['automation', 'connect']) {

@@ -328,6 +328,7 @@ export function DataWorkspace({
     initialExplorerSession?.rootLoaded ? new Set() : new Set([ROOT_FOLDER_KEY])
   ));
   const [failedFolderPaths, setFailedFolderPathsState] = useState<Set<string>>(() => new Set());
+  const [folderErrors, setFolderErrors] = useState<ReadonlyMap<string, string>>(() => new Map());
   const [expandedFolderPaths, setExpandedFolderPaths] = useState<Set<string>>(() => new Set([
     ...(initialExplorerSession?.expandedPaths ?? EMPTY_PATH_LIST),
     ...defaultExpandedPaths,
@@ -447,6 +448,9 @@ export function DataWorkspace({
       const promise = (async () => {
         setFolderLoading(folderPath, true);
         setFolderFailed(folderPath, false);
+        setFolderErrors((current) => {
+          const next = new Map(current); next.delete(loadingKey); return next;
+        });
         setLoadError(null);
 
         try {
@@ -460,6 +464,8 @@ export function DataWorkspace({
           if (requestGeneration === loadGenerationRef.current) {
             setFolderFailed(folderPath, true);
             setLoadError(error instanceof Error ? error.message : String(error));
+            setFolderErrors((current) => new Map(current).set(loadingKey,
+              error instanceof Error ? error.message : String(error)));
           }
           return null;
         } finally {
@@ -510,6 +516,7 @@ export function DataWorkspace({
     failedFolderPathsRef.current = new Set();
     setFailedFolderPathsState(failedFolderPathsRef.current);
     setLoadError(null);
+    setFolderErrors(new Map());
     setDocumentNavigationError(null);
     documentNavigationRequestRef.current += 1;
     setMarkdownLinkIndex(EMPTY_MARKDOWN_LINK_GRAPH_INDEX);
@@ -593,6 +600,7 @@ export function DataWorkspace({
       failedFolderPathsRef.current = new Set();
       setFailedFolderPathsState(failedFolderPathsRef.current);
       setLoadError(null);
+      setFolderErrors(new Map());
     }
     const loadedFolderPaths = Array.from(new Set([
       ...collectLoadedFolderPaths(tree),
@@ -947,7 +955,7 @@ export function DataWorkspace({
   const markdownAssetUrlResolver = useCallback(
     async (sourcePath: string, href: string, signal?: AbortSignal) => {
       if (!dataPort.getFileUrl || signal?.aborted) return null;
-      const assetPath = resolveMarkdownAssetPath(sourcePath, href);
+      const assetPath = resolveMarkdownAssetPath(sourcePath, href, workspace.path);
       if (!assetPath) return null;
 
       try {
@@ -956,7 +964,7 @@ export function DataWorkspace({
         return null;
       }
     },
-    [dataPort],
+    [dataPort, workspace.path],
   );
   if (markdownAssetResolverRevisionRef.current.resolver !== markdownAssetUrlResolver) {
     markdownAssetResolverRevisionRef.current = {
@@ -1368,7 +1376,9 @@ export function DataWorkspace({
                       loadingPaths={loadingFolderPaths}
                       rootLoading={explorerPresentationPending || rootLoading}
                       loadingPresentation={explorerLoadingPresentation}
-                      rootError={loadError}
+                      rootError={folderErrors.get(ROOT_FOLDER_KEY)}
+                      folderErrors={folderErrors}
+                      onRetryFolder={(path) => { void loadFolder(path, true); }}
                       rootLabel={labels?.root ?? t("shared-ui.explorer.root")}
                       showRoot={showExplorerRoot}
                       loadingLabel={labels?.loadingWorkspace ?? t("shared-ui.explorer.loadingWorkspace")}
