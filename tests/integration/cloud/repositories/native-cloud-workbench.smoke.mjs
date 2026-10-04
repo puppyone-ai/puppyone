@@ -45,20 +45,26 @@ const waitFor = async (expression) => {
 const headerPresentations = [];
 const nativeCornerCaptures = [];
 async function captureCloudArrival(scene) {
-  await waitFor("Boolean(document.querySelector('.desktop-cloud-entry-light'))");
+  await waitFor("Boolean(document.querySelector('.desktop-cloud-entry-light[data-arrival-ready=true]'))");
   const sample = await evaluate(`(() => {
     const light = document.querySelector('.desktop-cloud-entry-light');
     const animations = light.getAnimations({subtree:true});
-    for (const animation of animations) { animation.pause(); animation.currentTime = 550; }
+    for (const animation of animations) { animation.pause(); animation.currentTime = 120; }
+    const sweep = light.querySelector('.desktop-cloud-entry-sweep');
+    const firstY = sweep.getBoundingClientRect().y;
+    for (const animation of animations) animation.currentTime = 360;
     const rect = light.getBoundingClientRect();
     return { count:animations.length, pointerEvents:getComputedStyle(light).pointerEvents,
-      y:rect.y, width:rect.width, aura:Number(getComputedStyle(light.querySelector('.desktop-cloud-entry-aura')).opacity),
-      waveOrigin:getComputedStyle(light.querySelector('.desktop-cloud-entry-wave')).transformOrigin,
-      opaqueSheet:getComputedStyle(light, '::before').content };
+      y:rect.y, width:rect.width, opacity:Number(getComputedStyle(sweep).opacity),
+      firstY, sweepY:sweep.getBoundingClientRect().y, sweepX:sweep.getBoundingClientRect().x,
+      sweepWidth:sweep.getBoundingClientRect().width, animationName:animations[0].animationName,
+      radialLight:!!light.querySelector('.desktop-cloud-entry-wave, .desktop-cloud-entry-aura, .desktop-cloud-entry-flare') };
   })()`);
-  assert(sample.count === 3 && sample.aura > 0.2, 'Committed Cloud must play the arrival light');
+  assert(sample.count === 1 && sample.opacity > 0.9, 'Committed Cloud must play one content reveal');
   assert(sample.pointerEvents === 'none' && sample.y === 40, 'Arrival must preserve Header and pointer interactions');
-  assert(sample.waveOrigin === `${sample.width / 2}px 0px` && sample.opaqueSheet === 'none', 'Radiance must originate at Header center without a horizontal page sheet');
+  assert(sample.animationName === 'desktop-cloud-arrival-sweep' && sample.sweepY > sample.firstY
+    && sample.firstY > sample.y && sample.sweepX === 0 && sample.sweepWidth === sample.width && !sample.radialLight,
+    'Content must reveal downward across the full width without radial flare or sideways motion');
   await evaluate("Promise.all((document.querySelector('.desktop-cloud-header-wipe')?.getAnimations() ?? []).map(animation => animation.finished.catch(() => {})))");
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   // Let the paused animation's paint reach the native compositor.

@@ -352,10 +352,9 @@ export function DesktopCloudShell({
       data-titlebar-sidebar-state={sidebarState}
       style={shellStyle}
     >
-      {active && workspaceLocation === "cloud" && arrivalReadyScope === arrivalScope && <div className="desktop-cloud-entry-light" aria-hidden="true">
-        <div className="desktop-cloud-entry-flare" />
-        <div className="desktop-cloud-entry-aura" />
-        <div className="desktop-cloud-entry-wave" />
+      {active && workspaceLocation === "cloud" && <div className="desktop-cloud-entry-light" aria-hidden="true"
+        data-arrival-ready={arrivalReadyScope === arrivalScope}>
+        <div className="desktop-cloud-entry-sweep" />
       </div>}
       <div className="desktop-shell-workbench">
         <DesktopWindowChrome

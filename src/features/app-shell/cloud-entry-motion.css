@@ -26,69 +26,38 @@
   overflow: hidden;
 }
 
-/* A compact flare ignites directly below the centered Header project control. */
-.desktop-cloud-entry-flare {
-  position: absolute;
-  top: -70px;
-  left: 20%;
-  width: 60%;
-  height: 180px;
-  opacity: 0;
-  background: radial-gradient(ellipse at center,
-    color-mix(in srgb, white 52%, transparent),
-    color-mix(in srgb, var(--po-brand-blue) 42%, transparent) 24%,
-    transparent 68%);
-  animation: desktop-cloud-arrival-flare 1000ms ease-out both;
+/* The cover mounts with the committed page, then waits for the Header reveal.
+ * This prevents a ready-page flash before the downward transition starts. */
+.desktop-cloud-entry-light:not([data-arrival-ready="true"]) > div {
+  animation-play-state: paused;
 }
 
-/* The bloom illuminates the content without hiding or moving the prepared page. */
-.desktop-cloud-entry-aura {
+/* Reveal prepared content from top to bottom. A soft leading edge follows the
+ * cover, while retained editor hosts and the Header remain stationary. */
+.desktop-cloud-entry-sweep {
   position: absolute;
   inset: 0;
-  opacity: 0;
-  background: radial-gradient(ellipse at 50% 0%,
-    color-mix(in srgb, var(--po-brand-blue) 30%, transparent),
-    color-mix(in srgb, var(--po-brand-blue) 16%, transparent) 38%,
-    transparent 78%);
-  transform-origin: 50% 0%;
-  animation: desktop-cloud-arrival-aura 1900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  background: var(--po-canvas);
+  pointer-events: none;
+  animation: desktop-cloud-arrival-sweep 800ms cubic-bezier(0.45, 0, 0.2, 1) both;
 }
 
-/* A page-sized texture expands around the Header center. The gradient's radius
- * follows the farthest corner, covering either aspect ratio without an oversized bitmap. */
-.desktop-cloud-entry-wave {
+.desktop-cloud-entry-sweep::before {
   position: absolute;
-  inset: 0;
-  opacity: 0;
-  transform-origin: 50% 0%;
-  background: radial-gradient(circle farthest-corner at 50% 0%,
-    transparent 58%,
-    color-mix(in srgb, var(--po-brand-blue) 16%, transparent) 61%,
-    color-mix(in srgb, white 24%, transparent) 64%,
-    color-mix(in srgb, var(--po-brand-blue) 28%, transparent) 66%,
-    transparent 72%);
-  animation: desktop-cloud-arrival-wave 1900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  inset: -24px 0 auto;
+  height: 32px;
+  content: "";
+  background: linear-gradient(to bottom,
+    transparent,
+    color-mix(in srgb, var(--po-brand-blue) 10%, transparent) 50%,
+    color-mix(in srgb, var(--po-brand-blue) 22%, transparent) 75%,
+    transparent);
 }
 
-@keyframes desktop-cloud-arrival-flare {
-  0% { opacity: 0; transform: scale(0.4); }
-  20% { opacity: 0.85; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.2); }
-}
-
-@keyframes desktop-cloud-arrival-aura {
-  0% { opacity: 0; transform: scale(0.15); }
-  22% { opacity: 1; }
-  58% { opacity: 0.6; }
-  100% { opacity: 0; transform: scale(1.6); }
-}
-
-@keyframes desktop-cloud-arrival-wave {
-  0% { opacity: 0; transform: scale(0.015); }
-  12% { opacity: 0.85; }
-  48% { opacity: 0.65; }
-  82% { opacity: 0.2; }
-  100% { opacity: 0; transform: scale(1.7); }
+@keyframes desktop-cloud-arrival-sweep {
+  0% { opacity: 1; transform: translateY(0); }
+  90% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(calc(100% + 32px)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

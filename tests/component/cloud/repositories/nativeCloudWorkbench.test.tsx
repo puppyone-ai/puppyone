@@ -97,11 +97,13 @@ describe("native Cloud workbench switching", () => {
     Object.defineProperty(headerWipe, "getAnimations", { value: () => [{ finished: headerCompletion }] });
     await render(shell("cloud"));
     expect(document.querySelector(".desktop-cloud-header-wipe")).toBe(headerWipe);
-    expect(document.querySelector(".desktop-cloud-entry-light")).toBeNull();
-    await act(async () => { completeHeader(); });
     const light = document.querySelector(".desktop-cloud-entry-light");
+    expect(light?.getAttribute("data-arrival-ready")).toBe("false");
+    await act(async () => { completeHeader(); });
+    expect(document.querySelector(".desktop-cloud-entry-light")).toBe(light);
+    expect(light?.getAttribute("data-arrival-ready")).toBe("true");
     expect(light?.getAttribute("aria-hidden")).toBe("true");
-    expect(light?.children).toHaveLength(3);
+    expect(light?.children).toHaveLength(1);
     await render(shell("cloud"));
     expect(document.querySelector(".desktop-cloud-entry-light")).toBe(light);
     await render(shell("cloud", false));
