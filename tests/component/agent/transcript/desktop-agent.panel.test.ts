@@ -31,6 +31,17 @@ afterEach(() => {
 });
 
 describe("Project-owned Agent Chat Workbench lifecycle", () => {
+  it("keeps discovery failure visible and blocks session preparation", async () => {
+    const harness = createBridgeHarness();
+    harness.bridge.discoverAgentProviders = vi.fn(async () => { throw new Error("Discovery offline"); });
+    const container = renderPanel(harness.bridge);
+    await flushEffects();
+    expect(container.querySelector(".desktop-agent-empty-state")).toBeNull();
+    expect(container.textContent).toContain("Discovery offline");
+    expect(container.querySelector<HTMLButtonElement>('button[aria-label="Send message"]')?.disabled).toBe(true);
+    expect(harness.bridge.openAgentSession).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["RUNTIME_SETUP_REQUIRED", false],
     ["AUTHENTICATION_REQUIRED", true],

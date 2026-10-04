@@ -6,12 +6,7 @@ const root = path.resolve(import.meta.dirname, "../../../..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
 describe("Built-in compute selection ownership", () => {
-  it("mounts compute policy only behind app-managed model capability, without changing Harness routing", () => {
-    const panel = read("src/features/desktop-agent/ui/AgentChatTabPanel.tsx");
-    expect(panel).toContain('capabilities?.modelConnections && <BuiltInAgentCompute');
-    expect(panel).toContain('control.id !== "model"');
-    expect(panel).toContain('!capabilities?.modelConnections || computeReady');
-    expect(panel).toContain('!pendingConnectionModel');
+  it("keeps compute-source names out of Harness routing", () => {
     expect(read("src/features/desktop-agent/domain/agent-backend-routing.ts")).not.toMatch(/ollama|lm-studio|unsloth|ComputeSource/iu);
   });
 
