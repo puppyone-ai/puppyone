@@ -186,6 +186,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
   return <div className={`app-shell${theme === "dark" ? " dark" : ""}`} data-po-appearance-root="true" data-native-cloud-smoke-ready="true">
     <DesktopOverlayPortal theme={theme}>{null}</DesktopOverlayPortal>
     <DesktopCloudShell workspaceLocation={location} leftSidebarCollapsed={sidebarCollapsed} leftSidebarWidth={explorerWidth}
+      requestedWorkspaceLocation={cloudSessionAvailable ? controller.requestedLocation : undefined}
       onLeftSidebarExpand={() => setSidebarCollapsed(false)}
       titlebarCenteredSlot={<DesktopWorkspaceSwitcher open={menuOpen} refObject={menuRef} titlebarLabel={localWorkspace.name}
         workspace={localWorkspace} workspaceFolders={[]} multiRootWorkspacesEnabled={false}

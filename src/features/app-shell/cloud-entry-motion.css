@@ -9,23 +9,6 @@
   contain: strict;
 }
 
-/* The sheet travels out to the right, revealing the prepared page from left
-   to right without transforming retained document or native surface hosts. */
-.desktop-cloud-entry-light::before {
-  position: absolute;
-  z-index: 1;
-  inset: 0;
-  content: "";
-  background: var(--po-canvas);
-  box-shadow: -18px 0 36px color-mix(in srgb, var(--po-brand-blue) 24%, transparent);
-  animation: desktop-cloud-page-turn 650ms cubic-bezier(0.65, 0, 0.35, 1) both;
-}
-
-@keyframes desktop-cloud-page-turn {
-  from { transform: translateX(0); }
-  to { transform: translateX(110%); }
-}
-
 .desktop-cloud-preparation {
   position: absolute;
   z-index: 10;
@@ -43,42 +26,72 @@
   overflow: hidden;
 }
 
-.desktop-cloud-entry-aura {
+/* A compact flare ignites directly below the centered Header project control. */
+.desktop-cloud-entry-flare {
   position: absolute;
-  inset: -25% -15%;
+  top: -70px;
+  left: 20%;
+  width: 60%;
+  height: 180px;
   opacity: 0;
-  background: radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--po-brand-blue) 32%, transparent), transparent 58%),
-    radial-gradient(ellipse at 85% 35%, color-mix(in srgb, var(--po-brand-blue) 14%, transparent), transparent 45%);
-  transform-origin: 50% 0%;
-  animation: desktop-cloud-arrival-aura 1600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  background: radial-gradient(ellipse at center,
+    color-mix(in srgb, white 52%, transparent),
+    color-mix(in srgb, var(--po-brand-blue) 42%, transparent) 24%,
+    transparent 68%);
+  animation: desktop-cloud-arrival-flare 1000ms ease-out both;
 }
 
-.desktop-cloud-entry-beam {
+/* The bloom illuminates the content without hiding or moving the prepared page. */
+.desktop-cloud-entry-aura {
   position: absolute;
-  inset: -30% -40%;
+  inset: 0;
   opacity: 0;
-  background: linear-gradient(115deg, transparent 38%, color-mix(in srgb, var(--po-brand-blue) 7%, transparent) 44%,
-    color-mix(in srgb, var(--po-brand-blue) 24%, transparent) 49%,
-    color-mix(in srgb, var(--po-text) 10%, transparent) 50%,
-    color-mix(in srgb, var(--po-brand-blue) 12%, transparent) 52%, transparent 60%);
-  animation: desktop-cloud-arrival-beam 1350ms 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  background: radial-gradient(ellipse at 50% 0%,
+    color-mix(in srgb, var(--po-brand-blue) 30%, transparent),
+    color-mix(in srgb, var(--po-brand-blue) 16%, transparent) 38%,
+    transparent 78%);
+  transform-origin: 50% 0%;
+  animation: desktop-cloud-arrival-aura 1900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* A page-sized texture expands around the Header center. The gradient's radius
+ * follows the farthest corner, covering either aspect ratio without an oversized bitmap. */
+.desktop-cloud-entry-wave {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform-origin: 50% 0%;
+  background: radial-gradient(circle farthest-corner at 50% 0%,
+    transparent 58%,
+    color-mix(in srgb, var(--po-brand-blue) 16%, transparent) 61%,
+    color-mix(in srgb, white 24%, transparent) 64%,
+    color-mix(in srgb, var(--po-brand-blue) 28%, transparent) 66%,
+    transparent 72%);
+  animation: desktop-cloud-arrival-wave 1900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes desktop-cloud-arrival-flare {
+  0% { opacity: 0; transform: scale(0.4); }
+  20% { opacity: 0.85; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.2); }
 }
 
 @keyframes desktop-cloud-arrival-aura {
-  0% { opacity: 0; transform: scale(0.65); }
-  24% { opacity: 1; }
-  100% { opacity: 0; transform: scale(1.15); }
+  0% { opacity: 0; transform: scale(0.15); }
+  22% { opacity: 1; }
+  58% { opacity: 0.6; }
+  100% { opacity: 0; transform: scale(1.6); }
 }
 
-@keyframes desktop-cloud-arrival-beam {
-  0% { opacity: 0; transform: translateX(-45%); }
-  22% { opacity: 1; }
-  65% { opacity: 0.75; }
-  100% { opacity: 0; transform: translateX(45%); }
+@keyframes desktop-cloud-arrival-wave {
+  0% { opacity: 0; transform: scale(0.015); }
+  12% { opacity: 0.85; }
+  48% { opacity: 0.65; }
+  82% { opacity: 0.2; }
+  100% { opacity: 0; transform: scale(1.7); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .desktop-cloud-entry-light { display: none; }
   .desktop-cloud-entry-light > div { animation: none; }
-  .desktop-cloud-entry-light::before { animation: none; }
 }

@@ -5,7 +5,7 @@ import { useDesktopPlatformCapabilities } from "../platform/useDesktopPlatformCa
 import { PuppyBrandMark } from "./brand/PuppyBrandMark";
 
 type DesktopWindowChromeProps = {
-  /** Committed provider location, never a remote locator or pending intent. */
+  /** Header presentation location; shell content separately owns the committed provider. */
   workspaceLocation?: "local" | "cloud";
   context?: ReactNode;
   centeredContext?: ReactNode;
@@ -46,6 +46,7 @@ export function DesktopWindowChrome({
       data-window-full-screen={fullScreen ? "true" : undefined}
       data-centered-project={centeredContext ? "true" : undefined}
     >
+      {workspaceLocation === "cloud" && <span className="desktop-cloud-header-wipe" aria-hidden="true" />}
       <div className="desktop-titlebar-layout">
         <div className="desktop-titlebar-leading">
           <div className="desktop-titlebar-left">

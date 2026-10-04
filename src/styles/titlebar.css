@@ -43,6 +43,26 @@
   --desktop-titlebar-tab-bg: var(--desktop-titlebar-active);
 }
 
+/* Reveal the requested Cloud color under stationary text and controls. The
+ * layer mounts once on entry and survives the subsequent provider commit. */
+.desktop-cloud-header-wipe {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: var(--po-header);
+  pointer-events: none;
+  animation: desktop-cloud-header-reveal 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes desktop-cloud-header-reveal {
+  from { clip-path: inset(0 0 0 0); }
+  to { clip-path: inset(0 0 0 100%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desktop-cloud-header-wipe { display: none; animation: none; }
+}
+
 /* Native system chrome already owns its caption buttons. Only overlay chrome
  * needs space for macOS traffic lights inside the renderer titlebar. */
 .desktop-titlebar[data-window-chrome-mode="native"] {

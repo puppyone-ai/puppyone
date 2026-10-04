@@ -1609,6 +1609,7 @@ function AppContent() {
         <DesktopCloudShell
           active
           workspaceLocation={projectLocation?.current ?? "local"}
+          requestedWorkspaceLocation={prepareCloudInPlace ? projectLocation?.requested : undefined}
           onGoHome={() => void goToHomepage()}
           renderLeadingRail={projectSwitcherRailVisible ? ({ expanded }) => (
             <ProjectSwitcherRail

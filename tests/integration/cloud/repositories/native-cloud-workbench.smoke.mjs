@@ -45,16 +45,21 @@ const waitFor = async (expression) => {
 const headerPresentations = [];
 const nativeCornerCaptures = [];
 async function captureCloudArrival(scene) {
+  await waitFor("Boolean(document.querySelector('.desktop-cloud-entry-light'))");
   const sample = await evaluate(`(() => {
     const light = document.querySelector('.desktop-cloud-entry-light');
     const animations = light.getAnimations({subtree:true});
     for (const animation of animations) { animation.pause(); animation.currentTime = 550; }
     const rect = light.getBoundingClientRect();
     return { count:animations.length, pointerEvents:getComputedStyle(light).pointerEvents,
-      y:rect.y, width:rect.width, aura:Number(getComputedStyle(light.firstElementChild).opacity) };
+      y:rect.y, width:rect.width, aura:Number(getComputedStyle(light.querySelector('.desktop-cloud-entry-aura')).opacity),
+      waveOrigin:getComputedStyle(light.querySelector('.desktop-cloud-entry-wave')).transformOrigin,
+      opaqueSheet:getComputedStyle(light, '::before').content };
   })()`);
   assert(sample.count === 3 && sample.aura > 0.2, 'Committed Cloud must play the arrival light');
   assert(sample.pointerEvents === 'none' && sample.y === 40, 'Arrival must preserve Header and pointer interactions');
+  assert(sample.waveOrigin === `${sample.width / 2}px 0px` && sample.opaqueSheet === 'none', 'Radiance must originate at Header center without a horizontal page sheet');
+  await evaluate("Promise.all((document.querySelector('.desktop-cloud-header-wipe')?.getAnimations() ?? []).map(animation => animation.finished.catch(() => {})))");
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   // Let the paused animation's paint reach the native compositor.
   await new Promise(resolve => setTimeout(resolve, 100));
@@ -67,9 +72,9 @@ async function captureCloudArrival(scene) {
 }
 async function headerPresentation(location) {
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-  // Existing control hover/color transitions can straddle a theme change; measure
-  // settled contrast, while the Header background itself switches synchronously.
+  // Measure settled contrast after control transitions and the Header reveal.
   await evaluate("Promise.all(document.querySelector('.desktop-titlebar-workspace-button').getAnimations().map(animation => animation.finished.catch(() => {})))");
+  await evaluate("Promise.all((document.querySelector('.desktop-cloud-header-wipe')?.getAnimations() ?? []).map(animation => animation.finished.catch(() => {})))");
   const sample = await evaluate(`(() => {
     const header = document.querySelector('.desktop-titlebar');
     const context = header.querySelector('.desktop-titlebar-centered-context');
@@ -304,11 +309,25 @@ app.whenReady().then(async () => {
   await waitFor("document.querySelector('.desktop-project-location-indicator').getAnimations().some(animation => animation.transitionProperty === 'transform')");
   assert(await evaluate("window.__nativeCloudWorkbenchSmoke.state().location === 'local' && document.querySelector('button[data-project-location=cloud]').getAttribute('aria-pressed') === 'true' && Boolean(document.querySelector('.desktop-cloud-preparation'))"),
     "Selection must move immediately while provider preparation continues in the background");
+  assert(await evaluate(`(() => {
+    const header = document.querySelector('.desktop-titlebar');
+    const wipe = header.querySelector('.desktop-cloud-header-wipe');
+    wipe.dataset.fixtureIdentity = 'requested-header-wipe';
+    const animation = wipe.getAnimations()[0];
+    animation.pause(); animation.currentTime = 140;
+    return header.dataset.workspaceKind === 'cloud' && !document.querySelector('.desktop-cloud-entry-light')
+      && getComputedStyle(wipe).clipPath !== 'inset(0px)' && animation.animationName === 'desktop-cloud-header-reveal';
+  })()`), 'Header must start its blue reveal during preparation, with no page arrival light');
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  await writeFile(path.join(artifacts, 'cloud-header-switch.png'), (await window.webContents.capturePage()).toPNG());
+  await evaluate("document.querySelector('.desktop-cloud-header-wipe').getAnimations()[0].finish()");
   await evaluate("Promise.all(document.querySelector('.desktop-project-location-indicator').getAnimations().map(animation => animation.finished.catch(() => {})))");
   await new Promise(resolve => setTimeout(resolve, 100));
   await writeFile(path.join(artifacts, 'cloud-switch-loading.png'), (await window.webContents.capturePage()).toPNG());
   await evaluate("window.__nativeCloudWorkbenchSmoke.finishCloudRead()");
   await waitFor("window.__nativeCloudWorkbenchSmoke.state().location === 'cloud'");
+  assert(await evaluate("document.querySelector('.desktop-cloud-header-wipe').dataset.fixtureIdentity === 'requested-header-wipe' && document.querySelector('.desktop-cloud-header-wipe').getAnimations().every(animation => animation.playState === 'finished')"),
+    'Provider commit must retain the already completed Header reveal');
   const readyMenu = await evaluate(`(() => {
     const menu = document.querySelector('.desktop-project-menu');
     const r = menu.getBoundingClientRect();
