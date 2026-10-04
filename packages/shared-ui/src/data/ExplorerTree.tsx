@@ -1223,7 +1223,7 @@ function ExplorerTreeLoadingRow({
   );
 }
 
-function ExplorerTreeSkeleton({ loadingLabel }: { loadingLabel: string }) {
+export function ExplorerTreeSkeleton({ loadingLabel }: { loadingLabel: string }) {
   return (
     <div
       className="explorer-tree-skeleton"

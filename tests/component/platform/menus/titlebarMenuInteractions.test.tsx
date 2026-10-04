@@ -108,12 +108,13 @@ describe("titlebar Portal menu interactions", () => {
     expect(container.querySelector(".desktop-titlebar-workspace-button .lucide-laptop")).not.toBeNull();
   });
 
-  it("labels a linked but signed-out destination as authentication-required, not available Cloud", async () => {
+  it("keeps the Cloud label stable when a linked destination requires sign-in", async () => {
     await renderSwitcher({ onViewCloud: vi.fn(),
       projectLocation: { current: "local", localAvailable: true, cloudState: "signed-out" } });
-    expect(locationButton("cloud").textContent).toBe("Sign in to access");
+    expect(locationButton("cloud").textContent).toBe("Cloud");
     expect(locationButton("cloud").getAttribute("data-cloud-action")).toBeNull();
     expect(locationButton("cloud").disabled).toBe(false);
+    expect(locationButton("cloud").querySelector('[data-puppy-loader]')).toBeNull();
   });
 
   it.each(["resolving", "attention"] as const)("does not offer a new deployment while Cloud association is %s", async (cloudState) => {
@@ -122,6 +123,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(locationButton("cloud").textContent).toBe("Cloud");
     expect(locationButton("cloud").hasAttribute("data-cloud-action")).toBe(false);
     expect(locationButton("cloud").disabled).toBe(false);
+    expect(Boolean(locationButton("cloud").querySelector('[data-puppy-loader="pulse-grid"]'))).toBe(cloudState === "resolving");
   });
 
   it.each([undefined, "unavailable", "available", "signed-out", "resolving", "attention"] as const)(
@@ -178,11 +180,14 @@ describe("titlebar Portal menu interactions", () => {
     act(() => locationButton("cloud").click());
     expect(onCloud).toHaveBeenCalledOnce();
     await render("local", "cloud");
+    expect(locationButton("cloud").textContent).toBe("Cloud");
+    expect(locationButton("cloud").querySelector('[data-puppy-loader="pulse-grid"]')).not.toBeNull();
     expect(locationButton("cloud").getAttribute("aria-pressed")).toBe("true");
     expect(locationButton("local").getAttribute("aria-current")).toBe("true");
     act(() => locationButton("local").click());
     expect(onLocal).toHaveBeenCalledOnce();
     await render("cloud");
+    expect(locationButton("cloud").querySelector('[data-puppy-loader]')).toBeNull();
     expect(requireMenu()).toBe(menu);
     expect(menu.querySelector(".desktop-project-location-indicator")).toBe(plate);
     const editor = document.createElement("input");
@@ -370,7 +375,8 @@ describe("titlebar Portal menu interactions", () => {
     const menu = requireMenu();
     expect(container.contains(menu)).toBe(false);
     expect(menu.dataset.windowNoDrag).toBe("true");
-    expect(menu.style.width).toBe("248px");
+    expect(menu.style.width).toBe("max-content");
+    expect(menu.style.minWidth).toBe("248px");
     expect(menu.querySelector(".desktop-project-location-controls")).not.toBeNull();
     expect(menu.textContent).toContain("Add Project…");
     expect(menu.textContent).not.toContain("Open Folder in New Window…");

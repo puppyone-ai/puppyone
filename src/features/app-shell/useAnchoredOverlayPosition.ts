@@ -89,6 +89,7 @@ type UseAnchoredOverlayPositionOptions = {
   boundarySelector?: string;
   preferredWidth?: number;
   preferredMaxHeight?: number;
+  widthMode?: "fixed" | "content";
   gap?: number;
   margin?: number;
   alignment?: "start" | "center" | "end";
@@ -101,6 +102,7 @@ export function useAnchoredOverlayPosition({
   boundarySelector,
   preferredWidth = 320,
   preferredMaxHeight = 360,
+  widthMode = "fixed",
   gap = 8,
   margin = 12,
   alignment = "start",
@@ -127,14 +129,17 @@ export function useAnchoredOverlayPosition({
       viewportWidth,
       viewportHeight,
       overlayHeight: overlay.getBoundingClientRect().height,
-      preferredWidth,
+      preferredWidth: widthMode === "content"
+        ? Math.max(preferredWidth, overlay.getBoundingClientRect().width) : preferredWidth,
       preferredMaxHeight,
       gap,
       margin,
       alignment,
       placementPreference,
     });
-    setPosition(position);
+    setPosition(previous => previous && Object.keys(position).every(key =>
+      previous[key as keyof AnchoredOverlayPosition] === position[key as keyof AnchoredOverlayPosition])
+      ? previous : position);
   }, [
     alignment,
     anchorRef,
@@ -144,6 +149,7 @@ export function useAnchoredOverlayPosition({
     placementPreference,
     preferredMaxHeight,
     preferredWidth,
+    widthMode,
   ]);
 
   useLayoutEffect(() => {

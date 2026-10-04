@@ -1597,11 +1597,6 @@
       "count": 1
     }
   },
-  "src/features/app-shell/WorkspaceMenuVisualSmokeHarness.tsx": {
-    "no-nested-ternary": {
-      "count": 1
-    }
-  },
   "src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchLauncher.tsx": {
     "no-nested-ternary": {
       "count": 1

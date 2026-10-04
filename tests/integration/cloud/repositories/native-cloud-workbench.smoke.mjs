@@ -11,6 +11,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const rendererPath = process.env.PUPPYONE_NATIVE_WORKBENCH_RENDERER ?? path.join(repo, "dist/index.html");
 const nativeCorners = process.argv.includes('--native-corners');
 if (nativeCorners && process.platform !== 'darwin') throw new Error('Native corner capture requires macOS');
 const artifacts = path.join(repo, `artifacts/tests/cloud/${nativeCorners ? 'native-window-corners' : 'native-workbench'}`);
@@ -223,7 +224,26 @@ async function captureNativeCorners(scene, sample) {
 async function openProjectMenu() {
   const opening = !await evaluate("Boolean(document.querySelector('.desktop-project-menu'))");
   if (opening) {
-    await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
+    const frames = await evaluate(`new Promise(resolve => {
+      const samples = [];
+      document.querySelector('.desktop-titlebar-workspace-button').click();
+      const sample = () => {
+        const menu = document.querySelector('.desktop-project-menu');
+        if (menu && getComputedStyle(menu).visibility !== 'hidden') {
+          const track = menu.querySelector('.desktop-project-location-tabs');
+          const plate = track.querySelector('.desktop-project-location-indicator');
+          const selected = track.querySelector('button[aria-pressed=true]');
+          const a = plate.getBoundingClientRect(), b = selected.getBoundingClientRect(), m = menu.getBoundingClientRect();
+          samples.push({x:m.x,y:m.y,width:m.width,height:m.height,offset:Math.abs(a.x-b.x),plateWidth:Math.abs(a.width-b.width),animations:plate.getAnimations().length});
+        }
+        if (samples.length < 24) requestAnimationFrame(sample); else resolve(samples);
+      };
+      requestAnimationFrame(sample);
+    })`);
+    assert(frames.every(frame => frame.offset < 1 && frame.plateWidth < 1 && frame.animations === 0),
+      `Opening must keep the slider aligned on every visible frame: ${JSON.stringify(frames)}`);
+    assert(frames.every(frame => ['x','y','width','height'].every(key => Math.abs(frame[key]-frames[0][key]) < 1)),
+      `Opening must not expand or collapse the project bar: ${JSON.stringify(frames)}`);
   }
   await waitFor("Boolean(document.querySelector('.desktop-project-menu'))");
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
@@ -246,6 +266,23 @@ async function selectLocation(location) {
   await waitFor(`window.__nativeCloudWorkbenchSmoke.state().location === '${location}'`);
   assert(await evaluate("Boolean(document.querySelector('[data-titlebar-context-menu]'))"), "Project switch bar must remain open after switching");
 }
+async function checkProjectBarRelayout(setup) {
+  const frames = await evaluate(`new Promise(resolve => {
+    const menu = document.querySelector('.desktop-project-menu');
+    ${setup}
+    const frames = [];
+    const sample = () => {
+      const plate = menu.querySelector('.desktop-project-location-indicator');
+      const button = menu.querySelector('button[aria-pressed=true]');
+      const a = plate.getBoundingClientRect(), b = button.getBoundingClientRect();
+      frames.push({offset:Math.abs(a.x-b.x),width:Math.abs(a.width-b.width),animations:plate.getAnimations().length});
+      if (frames.length < 24) requestAnimationFrame(sample); else resolve(frames);
+    };
+    requestAnimationFrame(sample);
+  })`);
+  assert(frames.every(frame => frame.offset < 1 && frame.width < 1 && frame.animations === 0),
+    `Font/layout changes must not stretch or slide the selection plate: ${JSON.stringify(frames)}`);
+}
 app.whenReady().then(async () => {
   const platformHost = createDesktopPlatformHost();
   if (nativeCorners) {
@@ -257,7 +294,7 @@ app.whenReady().then(async () => {
     webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false,
       ...(nativeCorners ? { preload:path.join(repo,'tests/fixtures/cloud/repositories/window-chrome-preload.cjs') } : {}) } });
   window.webContents.on("console-message", (event) => { if (event.level === "error" || event.level === 3) errors.push(event.message); });
-  await window.loadURL(`${pathToFileURL(path.join(repo, "dist/index.html")).href}#native-cloud-workbench-smoke`);
+  await window.loadURL(`${pathToFileURL(rendererPath).href}#native-cloud-workbench-smoke`);
   await waitFor("Boolean(window.__nativeCloudWorkbenchSmoke && document.querySelector('[data-workspace-location=local] .cm-content')?.textContent.includes('LOCAL_FILE_BODY'))");
   // Visible compositing is required for captures of paused arrival animations;
   // hidden-window capturePage can return the previous provider's frame.
@@ -278,6 +315,8 @@ app.whenReady().then(async () => {
   })()`);
   await evaluate("window.__nativeCloudWorkbenchSmoke.holdCloudRead()");
   await openProjectMenu();
+  await checkProjectBarRelayout("menu.style.setProperty('--po-type-ui-control', '19px');");
+  await checkProjectBarRelayout("menu.style.removeProperty('--po-type-ui-control');");
   const pendingMenu = await evaluate(`(() => {
     const menu = document.querySelector('.desktop-project-menu');
     menu.dataset.fixtureIdentity = 'retained-switch-bar';
@@ -382,7 +421,7 @@ app.whenReady().then(async () => {
           const track = document.querySelector('.desktop-project-location-tabs');
           const indicator = track.querySelector('.desktop-project-location-indicator').getBoundingClientRect();
           const selected = track.querySelector('button[aria-pressed=true]').getBoundingClientRect();
-          return track.dataset.indicatorReady === 'true' && Math.abs(indicator.x-selected.x)<1 && Math.abs(indicator.width-selected.width)<1;
+          return Math.abs(indicator.x-selected.x)<1 && Math.abs(indicator.width-selected.width)<1;
         })()`), 'Sliding indicator must align with the selected translated button');
         headerPresentations.push({ theme, width, expanded:true, ...await headerPresentation(location) });
         await evaluate("document.querySelector('button[data-project-location=cloud]').click()");

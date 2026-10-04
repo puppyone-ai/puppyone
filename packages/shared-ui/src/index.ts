@@ -171,7 +171,7 @@ export type {
   DataWorkspaceProps,
   DataWorkspaceState,
 } from "./data/DataWorkspace";
-export { ExplorerTree } from "./data/ExplorerTree";
+export { ExplorerTree, ExplorerTreeSkeleton } from "./data/ExplorerTree";
 export type { ExplorerSelectionIntent, ExplorerTreeProps } from "./data/ExplorerTree";
 export {
   EXPLORER_REFERENCE_DRAG_TYPE,

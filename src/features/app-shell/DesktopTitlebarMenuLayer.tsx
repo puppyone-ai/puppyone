@@ -13,6 +13,7 @@ type DesktopTitlebarMenuLayerProps = {
   open: boolean;
   preferredMaxHeight: number;
   preferredWidth?: number;
+  widthMode?: "fixed" | "content";
   alignment?: "start" | "center" | "end";
   role?: "menu" | "dialog";
   id?: string;
@@ -36,6 +37,7 @@ export function DesktopTitlebarMenuLayer({
   open,
   preferredMaxHeight,
   preferredWidth = TITLEBAR_CONTEXT_MENU_WIDTH,
+  widthMode = "fixed",
   alignment = "start",
   role = "menu",
   id,
@@ -45,6 +47,7 @@ export function DesktopTitlebarMenuLayer({
     open,
     anchorRef,
     preferredWidth,
+    widthMode,
     preferredMaxHeight,
     gap,
     margin: 8,
@@ -108,13 +111,17 @@ export function DesktopTitlebarMenuLayer({
     ? {
         left: overlayPosition.left,
         top: overlayPosition.top,
-        width: overlayPosition.width,
+        width: widthMode === "content" ? "max-content" : overlayPosition.width,
+        minWidth: widthMode === "content" ? overlayPosition.width : undefined,
+        maxWidth: widthMode === "content" ? "calc(100vw - 16px)" : undefined,
         maxHeight: overlayPosition.maxHeight,
       }
     : {
         left: 0,
         top: 0,
-        width: preferredWidth,
+        width: widthMode === "content" ? "max-content" : preferredWidth,
+        minWidth: widthMode === "content" ? `min(${preferredWidth}px, calc(100vw - 16px))` : undefined,
+        maxWidth: widthMode === "content" ? "calc(100vw - 16px)" : undefined,
         maxHeight: preferredMaxHeight,
         visibility: "hidden",
         pointerEvents: "none",

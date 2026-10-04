@@ -141,6 +141,9 @@ describe("native Cloud workbench switching", () => {
     expect(document.querySelector('button[data-project-location="local"]')?.getAttribute("aria-current")).toBe("true");
     expect(document.querySelector('.desktop-project-location-tabs')?.getAttribute("aria-busy")).toBe("true");
     expect(document.querySelector('.desktop-cloud-preparation')).not.toBeNull();
+    expect(document.querySelector('.desktop-cloud-preparation [data-testid="explorer-tree-skeleton"]')).not.toBeNull();
+    expect(document.querySelector('.desktop-cloud-preparation [data-puppy-loader="pulse-grid"]')).not.toBeNull();
+    expect(document.querySelector('.desktop-cloud-preparation')?.textContent).toBe("");
     expect(surface("local").hasAttribute("inert")).toBe(true);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     await act(async () => { release({ entries: [], head_commit_id: "cloud-head" }); await pending; });

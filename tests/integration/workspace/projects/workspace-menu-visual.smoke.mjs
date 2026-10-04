@@ -47,7 +47,7 @@ async function runSmoke() {
   await window.webContents.executeJavaScript(`localStorage.setItem('puppyone.desktop.developmentLanguage', ${JSON.stringify(locale)})`);
   for (const platform of ["macos", "windows", "linux"]) {
   for (const theme of ["light", "dark"]) {
-  for (const state of ["local-only", "local-github", "local-cloud-no-github", "local-cloud", "cloud-only", "resolving"]) {
+  for (const state of ["local-only", "local-github", "local-cloud-no-github", "local-cloud", "cloud-only", "resolving", "signed-out"]) {
   const url = pathToFileURL(rendererPath);
   url.searchParams.set("project-state", state);
   url.searchParams.set("theme", theme);
@@ -63,12 +63,16 @@ async function runSmoke() {
     true,
   );
 
+  await checkStableReopening(window);
+  if (locale === "en" && platform === "macos" && theme === "light") await checkStableReopening(window, "rtl");
+
   const snapshot = await window.webContents.executeJavaScript(`(() => {
     const menu = document.querySelector('[data-titlebar-context-menu="true"]');
     const row = menu.querySelector('.desktop-project-location-controls');
     const track = menu.querySelector('.desktop-project-location-tabs');
     const buttons = [...menu.querySelectorAll('button[data-project-location]')];
     const selected = menu.querySelector('button[aria-pressed="true"]');
+    const plate = menu.querySelector('.desktop-project-location-indicator');
     const create = menu.querySelector('button[data-cloud-action="create"]');
     const github = menu.querySelector('.desktop-project-repository-link');
     const header = document.querySelector('.workspace-menu-visual-titlebar');
@@ -86,7 +90,7 @@ async function runSmoke() {
       return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
     };
     const contrast = (first, second) => (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
-    const selectedLuminance = luminance(getComputedStyle(selected).backgroundColor);
+    const selectedLuminance = luminance(getComputedStyle(plate).backgroundColor);
     const trackLuminance = luminance(getComputedStyle(track).backgroundColor);
     return {
       locale: document.documentElement.lang,
@@ -113,9 +117,9 @@ async function runSmoke() {
       normalTextColor: getComputedStyle(menu).color,
       selectedContrast: contrast(selectedLuminance, luminance(getComputedStyle(selected).color)),
       selectedEmphasis: contrast(selectedLuminance, trackLuminance),
-      iconWidths: buttons.map(button => button.querySelector('svg').getBoundingClientRect().width),
+      iconWidths: buttons.map(button => button.querySelector('.desktop-project-location-tab-mark').getBoundingClientRect().width),
       iconColorsMatch: buttons.every(button => getComputedStyle(button.querySelector('.desktop-project-location-tab-mark')).color === getComputedStyle(button.querySelector('span:last-child')).color),
-      selectedBackground: getComputedStyle(selected).backgroundColor,
+      selectedBackground: getComputedStyle(plate).backgroundColor,
       trackBackground: getComputedStyle(track).backgroundColor,
       headerColorsMatch: getComputedStyle(header.querySelector('.desktop-titlebar-workspace-mark')).color === getComputedStyle(header.querySelector('.desktop-titlebar-workspace-name')).color,
       menuBackground: getComputedStyle(menu).backgroundColor,
@@ -133,7 +137,7 @@ async function runSmoke() {
 
   const evidence = JSON.stringify(snapshot);
   assert(snapshot.state === state, `Wrong fixture state: ${evidence}`);
-  assert(snapshot.menuWidth >= 248 && snapshot.menuWidth <= 360 && snapshot.menuHeight === 46 && snapshot.controlsFit, `Project menu must stay compact and fit translated device labels: ${evidence}`);
+  assert(snapshot.menuWidth >= 248 && snapshot.menuWidth <= 480 && snapshot.menuHeight === 46 && snapshot.controlsFit, `Project menu must stay compact and fit translated device labels: ${evidence}`);
   assert(snapshot.menuPadding === 6 && snapshot.rowGap === snapshot.menuPadding, `Control spacing must match menu padding: ${evidence}`);
   assert(snapshot.buttonHeights.every(height => height === 28) && snapshot.buttonYs[0] === snapshot.buttonYs[1], `Local and Cloud must share one horizontal control: ${evidence}`);
   assert(snapshot.currentCount === 1 && snapshot.pressedCount === 1, `Exactly one surface must be selected: ${evidence}`);
@@ -142,13 +146,14 @@ async function runSmoke() {
   assert(snapshot.cloudEntry === (creating ? "create" : "switch"), `Use creation only for a confirmed unhosted project: ${evidence}`);
   assert(snapshot.labelsFit && snapshot.labels.join("|") === [catalog[platform === "macos" ? "workspaceSwitcher.location.thisMac" : "workspaceSwitcher.location.thisComputer"], catalog[creating ? "workspaceSwitcher.createCloudVersion" : "navigation.cloud"]].join("|"), `Only the two unclipped localized actions belong in this menu: ${evidence}`);
   assert(creating ? snapshot.createIcon && snapshot.createContrast >= 4.5 && snapshot.createEmphasis !== "none" : !snapshot.createIcon && snapshot.createContrast === null, `Creation must be a readable accented action with a plus mark, separate from selection: ${evidence}`);
-  assert(snapshot.iconWidths.every(width => width === 14) && snapshot.iconColorsMatch && snapshot.headerColorsMatch, `Small icons must match their labels: ${evidence}`);
+  assert(snapshot.iconWidths.every(width => width === 14) && snapshot.iconColorsMatch
+    && (state === "cloud-only" || snapshot.headerColorsMatch), `Small icons must match their labels; the committed Cloud Header mark keeps its brand tint: ${evidence}`);
   assert(snapshot.selectedTextColor === snapshot.normalTextColor && snapshot.selectedContrast >= 7
     && snapshot.selectedEmphasis > 1.03 && snapshot.selectedEmphasis < 1.7,
     `Selection needs a subtle themed background and normal text without inversion: ${evidence}`);
   assert(snapshot.menuBackground === snapshot.headerBackground && snapshot.menuShadow !== "none", `Popup must use themed Header color and a floating shadow: ${evidence}`);
   assert(snapshot.location === (state === "cloud-only" ? "cloud" : "local"), `Current surface drifted: ${evidence}`);
-  assert(snapshot.localDisabled === (state === "cloud-only") && snapshot.cloudDisabled === (state === "resolving"), `Destination availability drifted: ${evidence}`);
+  assert(snapshot.localDisabled === (state === "cloud-only") && !snapshot.cloudDisabled, `Destination availability drifted: ${evidence}`);
   if (state === "local-only" || state === "local-cloud-no-github" || state === "resolving") {
     assert(!snapshot.githubUrl, `No repository button without a recognized GitHub remote: ${evidence}`);
   } else {
@@ -171,7 +176,7 @@ async function runSmoke() {
   }
   }
   }
-  console.log(`workspace menu visual smoke passed: ${locale}, 36 scenarios`);
+  console.log(`workspace menu visual smoke passed: ${locale}, 42 scenarios`);
   }
   if (screenshotPath) {
     await writeFile(path.join(path.dirname(screenshotPath), "visual-results.json"), JSON.stringify(observations, null, 2) + "\n");
@@ -181,6 +186,33 @@ async function runSmoke() {
     if (!window.isDestroyed()) window.destroy();
     app.quit();
   }
+}
+
+async function checkStableReopening(window, direction = "ltr") {
+  await window.webContents.executeJavaScript("document.querySelector('.desktop-titlebar-workspace-button').click()", true);
+  await waitForRenderer(window, "!document.querySelector('.desktop-project-menu')");
+  const frames = await window.webContents.executeJavaScript(`new Promise(resolve => {
+    document.documentElement.dir = '${direction}';
+    document.querySelector('.desktop-titlebar-workspace-button').click();
+    const frames = [];
+    const sample = () => {
+      const menu = document.querySelector('.desktop-project-menu');
+      if (menu && getComputedStyle(menu).visibility !== 'hidden') {
+        const a = menu.querySelector('.desktop-project-location-indicator').getBoundingClientRect();
+        const b = menu.querySelector('button[aria-pressed=true]').getBoundingClientRect();
+        const m = menu.getBoundingClientRect();
+        const track = menu.querySelector('.desktop-project-location-tabs');
+        const css = getComputedStyle(menu.querySelector('.desktop-project-location-indicator'));
+        frames.push({x:m.x,y:m.y,width:m.width,height:m.height,offset:Math.abs(a.x-b.x),plateWidth:Math.abs(a.width-b.width),animations:menu.querySelector('.desktop-project-location-indicator').getAnimations().length,rtl:track.matches(':dir(rtl)'),direction:getComputedStyle(track).direction,left:css.left,right:css.right,transform:css.transform});
+      }
+      if (frames.length < 8) requestAnimationFrame(sample); else resolve(frames);
+    };
+    requestAnimationFrame(sample);
+  })`, true);
+  assert(frames.every(frame => frame.offset < 1 && frame.plateWidth < 1 && frame.animations === 0
+    && ['x','y','width','height'].every(key => Math.abs(frame[key]-frames[0][key]) < 1)),
+    `Every visible opening frame must have final menu and slider geometry (${direction}): ${JSON.stringify(frames)}`);
+  if (direction === "rtl") await checkStableReopening(window);
 }
 
 async function waitForRenderer(window, expression, timeoutMs = 10_000) {

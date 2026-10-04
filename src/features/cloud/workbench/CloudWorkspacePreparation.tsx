@@ -1,6 +1,7 @@
 import { RefreshCw } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
-import { CloudIcon } from "../../../components/icons/CloudIcon";
+import { ExplorerTreeSkeleton } from "@puppyone/shared-ui";
+import { PageLoading } from "../../../components/loading";
 import { formatCloudMessage } from "../cloudPresentation";
 import type { CloudWorkspaceSwitch } from "./useCloudWorkspaceSwitch";
 
@@ -9,18 +10,18 @@ export function CloudWorkspacePreparation({ controller }: { controller: CloudWor
   const { t } = useLocalization();
   return <section className="desktop-cloud-preparation" aria-label={t("cloud.productName")}
     aria-busy={!controller.error}>
-    <div className="desktop-cloud-preparation-rail" aria-hidden="true">
-      {[0, 1, 2, 3, 4].map(index => <span key={index} />)}
-    </div>
-    <div className="desktop-cloud-preparation-main">
-      <CloudIcon size={32} className="desktop-cloud-preparation-mark" />
-      <strong>{t("cloud.productName")}</strong>
-      {controller.error ? <>
+    <aside className="explorer-column desktop-cloud-preparation-rail">
+      <div className="explorer-tree-scroll">
+        {!controller.error && <ExplorerTreeSkeleton loadingLabel={t("shared-ui.explorer.loadingWorkspace")} />}
+      </div>
+    </aside>
+    <main className="browser-column desktop-editor-panel">
+      {controller.error ? <div className="editor-state editor-state--stacked">
         <p role="alert">{formatCloudMessage(controller.error, t)}</p>
         <button type="button" className="desktop-cloud-row-action" onClick={controller.retry}>
           <RefreshCw size={13} /><span>{t("cloud.common.retry")}</span>
         </button>
-      </> : <p role="status">{t("cloud.loading.project")}</p>}
-    </div>
+      </div> : <PageLoading variant="fill" label={null} ariaLabel={t("cloud.loading.project")} />}
+    </main>
   </section>;
 }

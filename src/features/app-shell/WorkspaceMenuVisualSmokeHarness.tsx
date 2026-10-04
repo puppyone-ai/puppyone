@@ -1,8 +1,8 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { type Workspace } from "@puppyone/shared-ui";
 import type { DesktopPlatform, GitStatusSnapshot } from "../../types/electron";
 import { DesktopOverlayPortal } from "./DesktopOverlayPortal";
-import { DesktopWorkspaceSwitcher } from "./DesktopWorkspaceSwitcher";
+import { DesktopWorkspaceSwitcher, type DesktopProjectLocation } from "./DesktopWorkspaceSwitcher";
 import { resetDesktopPlatformCapabilitiesForTests } from "../../platform/desktopPlatformClient";
 import "./workspace-menu-visual-smoke.css";
 
@@ -27,10 +27,14 @@ resetDesktopPlatformCapabilitiesForTests();
 /** Deterministic browser fixture for reviewing the Workspace menu hierarchy. */
 export function WorkspaceMenuVisualSmokeHarness() {
   const anchorRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(true);
   const state = new URLSearchParams(window.location.search).get("project-state") ?? "local-only";
-  const linked = state === "local-cloud" || state === "cloud-only" || state === "local-cloud-no-github";
-  const githubLinked = state === "local-cloud" || state === "cloud-only" || state === "local-github";
+  const linked = state === "local-cloud" || state === "cloud-only" || state === "local-cloud-no-github" || state === "signed-out";
+  const githubLinked = state === "local-cloud" || state === "cloud-only" || state === "local-github" || state === "signed-out";
   const current = state === "cloud-only" ? "cloud" : "local";
+  let cloudState: DesktopProjectLocation["cloudState"] = linked ? "available" : "unavailable";
+  if (state === "signed-out") cloudState = "signed-out";
+  if (state === "resolving") cloudState = "resolving";
   const theme = new URLSearchParams(window.location.search).get("theme") === "light" ? "light" : "dark";
 
   return (
@@ -41,7 +45,7 @@ export function WorkspaceMenuVisualSmokeHarness() {
       <header className="desktop-titlebar workspace-menu-visual-titlebar">
         <div className="desktop-titlebar-context">
           <DesktopWorkspaceSwitcher
-            open
+            open={open}
             refObject={anchorRef}
             titlebarLabel={currentWorkspace.name}
             menuAlignment="center"
@@ -51,16 +55,16 @@ export function WorkspaceMenuVisualSmokeHarness() {
             projectLocation={{
               current,
               localAvailable: current === "local",
-              cloudState: state === "resolving" ? "resolving" : linked ? "available" : "unavailable",
+              cloudState,
             }}
             cloudProject={linked ? { id: "project-1" } : undefined}
             backupProviders={githubLinked ? ["github"] : []}
             backupStatus={githubLinked ? versionStatus : null}
             onOpenFolder={() => undefined}
-            onClose={() => undefined}
+            onClose={() => setOpen(false)}
             onViewLocal={() => undefined}
             onViewCloud={() => undefined}
-            onToggle={() => undefined}
+            onToggle={() => setOpen(current => !current)}
           />
         </div>
       </header>
