@@ -92,7 +92,9 @@ function getUntrackedSyncState(
     ?? branchLabel;
 
   if (publishRemote) {
-    return getPublishSyncState(status, branchLabel, publishRemote, publishRemote === puppyoneRemote, backupBranch, t);
+    return getPublishSyncState(status, {
+      branchLabel, publishRemote, isCloudRemote: publishRemote === puppyoneRemote, backupBranch,
+    }, t);
   }
 
   if (configuredCloudBackup) {
@@ -137,8 +139,14 @@ function getUntrackedSyncState(
 }
 
 function getPublishSyncState(
-  status: GitStatusSnapshot, branchLabel: string, publishRemote: GitStatusSnapshot["remotes"][number],
-  isCloudRemote: boolean, backupBranch: string, t: MessageFormatter,
+  status: GitStatusSnapshot,
+  { branchLabel, publishRemote, isCloudRemote, backupBranch }: {
+    branchLabel: string;
+    publishRemote: GitStatusSnapshot["remotes"][number];
+    isCloudRemote: boolean;
+    backupBranch: string;
+  },
+  t: MessageFormatter,
 ): GitSyncState {
   const syncTarget = status.syncTarget;
   const isPuppyonePublishRemote = publishRemote.name.toLowerCase() === "puppyone" || isCloudRemote;
@@ -147,6 +155,7 @@ function getPublishSyncState(
   const targetExists = syncTarget?.exists === true;
   const targetAhead = targetExists ? syncTarget.ahead : 0;
   const targetBehind = targetExists ? syncTarget.behind : 0;
+  const labels = { action: publishLabel, branch: branchLabel, target: publishTargetLabel };
   return {
     branchLabel,
     upstreamLabel: publishTargetLabel,
@@ -163,9 +172,9 @@ function getPublishSyncState(
     pushDisabled: getTargetPushDisabled(targetExists, targetAhead, targetBehind, status.headCommitId),
     pullLabel: t("source-control.sync.pullRemote"),
     pullTitle: getRemotePullTitle(targetExists, targetBehind, publishTargetLabel, t),
-    pushTitle: getPublishPushTitle(status, isPuppyonePublishRemote, publishLabel, branchLabel, publishTargetLabel, t),
+    pushTitle: getPublishPushTitle(status, isPuppyonePublishRemote, labels, t),
     pushLabel: publishLabel,
-    pushDetail: getPublishPushDetail(targetExists, targetAhead, publishLabel, branchLabel, publishTargetLabel, t),
+    pushDetail: getPublishPushDetail(targetExists, targetAhead, labels, t),
   };
 }
 
@@ -230,8 +239,10 @@ function getRemotePullTitle(exists: boolean, behind: number, target: string, t: 
   return t("source-control.sync.pullFrom", { count: behind, target: bidiIsolate(target) });
 }
 
+type PublishLabels = { action: string; branch: string; target: string };
+
 function getPublishPushTitle(
-  status: GitStatusSnapshot, isCloud: boolean, action: string, branch: string, target: string, t: MessageFormatter,
+  status: GitStatusSnapshot, isCloud: boolean, { action, branch, target }: PublishLabels, t: MessageFormatter,
 ) {
   if (!status.headCommitId) {
     return t(isCloud ? "source-control.sync.commitBeforePublish" : "source-control.sync.commitBeforePush");
@@ -243,7 +254,7 @@ function getPublishPushTitle(
 }
 
 function getPublishPushDetail(
-  exists: boolean, ahead: number, action: string, branch: string, target: string, t: MessageFormatter,
+  exists: boolean, ahead: number, { action, branch, target }: PublishLabels, t: MessageFormatter,
 ) {
   if (!exists) {
     return t("source-control.sync.createRemote", { action, branch: bidiIsolate(branch), target: bidiIsolate(target) });

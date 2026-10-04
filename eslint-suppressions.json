@@ -97,14 +97,6 @@
       "count": 1
     }
   },
-  "electron/main/agent/connections/local-agent-connection-policy.mjs": {
-    "complexity": {
-      "count": 1
-    },
-    "no-nested-ternary": {
-      "count": 5
-    }
-  },
   "electron/main/agent/connections/probes/codex-local-probe.mjs": {
     "complexity": {
       "count": 1
@@ -716,11 +708,6 @@
       "count": 1
     }
   },
-  "electron/main/viewer-packs/preset-viewer-manifest.mjs": {
-    "complexity": {
-      "count": 1
-    }
-  },
   "electron/main/viewer-packs/session-manager.mjs": {
     "complexity": {
       "count": 2
@@ -1177,11 +1164,6 @@
     }
   },
   "packages/shared-ui/src/editor/registry/presetViewerContribution.ts": {
-    "complexity": {
-      "count": 1
-    }
-  },
-  "packages/shared-ui/src/editor/registry/presetViewerManifest.ts": {
     "complexity": {
       "count": 1
     }
@@ -1720,17 +1702,6 @@
       "count": 5
     }
   },
-  "src/features/automation/AutomationCreateDialog.tsx": {
-    "complexity": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 1
-    },
-    "no-nested-ternary": {
-      "count": 14
-    }
-  },
   "src/features/automation/AutomationManageDialog.tsx": {
     "complexity": {
       "count": 1
@@ -1818,17 +1789,6 @@
   "src/features/cloud/initialization/CloudGitPrerequisite.tsx": {
     "no-nested-ternary": {
       "count": 2
-    }
-  },
-  "src/features/cloud/initialization/CloudInitializationView.tsx": {
-    "complexity": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 1
-    },
-    "no-nested-ternary": {
-      "count": 11
     }
   },
   "src/features/cloud/initialization/CloudPublishProgressIndicator.tsx": {
@@ -2032,14 +1992,6 @@
     },
     "no-nested-ternary": {
       "count": 1
-    }
-  },
-  "src/features/desktop-agent/ui/AgentChatTabPanel.tsx": {
-    "complexity": {
-      "count": 1
-    },
-    "no-nested-ternary": {
-      "count": 6
     }
   },
   "src/features/desktop-agent/ui/AgentComposer.tsx": {
@@ -2425,10 +2377,7 @@
   },
   "src/features/source-control/viewModel.ts": {
     "complexity": {
-      "count": 2
-    },
-    "no-nested-ternary": {
-      "count": 6
+      "count": 1
     }
   },
   "src/features/typography/fontCatalog.ts": {

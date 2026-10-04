@@ -274,7 +274,7 @@ function useAutomationCreateWizard({
     };
   }, [apiBaseUrl, cloudSession, connectAttempt, onCloudSessionChange, provider, step]);
 
-  const validation = deriveAutomationValidation(provider, configValues, source, targetPath, trigger, saving);
+  const validation = deriveAutomationValidation({ provider, configValues, source, targetPath, trigger, saving });
   const { canCreate, normalizedTargetPath } = validation;
 
   const continueWithProvider = () => {
@@ -466,14 +466,14 @@ function AutomationConfigureStep({ props, wizard, provider }: WizardContentProps
   );
 }
 
-function deriveAutomationValidation(
-  provider: DesktopCloudAutomationProviderSpec | null,
-  configValues: Record<string, string>,
-  source: AutomationSourceSelection | null,
-  targetPath: string,
-  trigger: Parameters<typeof getAutomationTriggerValidationError>[0],
-  saving: boolean,
-) {
+function deriveAutomationValidation({ provider, configValues, source, targetPath, trigger, saving }: {
+  provider: DesktopCloudAutomationProviderSpec | null;
+  configValues: Record<string, string>;
+  source: AutomationSourceSelection | null;
+  targetPath: string;
+  trigger: Parameters<typeof getAutomationTriggerValidationError>[0];
+  saving: boolean;
+}) {
   const fields = getCloudAutomationUserConfigFields(provider);
   const missingRequired = fields.some((field) => field.required && !configValues[field.key]?.trim());
   const sourceMissing = Boolean(provider && provider.provider !== "url" && providerNeedsOauth(provider) && !source?.resourceId.trim());
