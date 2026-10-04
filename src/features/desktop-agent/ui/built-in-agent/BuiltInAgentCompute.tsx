@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { KeyRound, Server, Sparkles } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import type { AgentModel } from "../../domain/agent-contract";
-import { useModelConnections, type ModelConnectionStore } from "../../../model-connections";
+import { useModelConnections } from "../../../model-connections";
 import { AgentSessionControlPicker } from "../AgentSessionControlPicker";
 import "./built-in-agent-compute.css";
 
@@ -20,7 +20,6 @@ export function BuiltInAgentCompute({
   onReadyChange,
   onAccessRequiredChange,
   accessPrompt = false,
-  store: suppliedStore,
 }: {
   models: AgentModel[];
   selectedModel: string | null;
@@ -32,10 +31,9 @@ export function BuiltInAgentCompute({
   onReadyChange: (ready: boolean) => void;
   onAccessRequiredChange?: (reason: ComputeAccessRequired) => void;
   accessPrompt?: boolean;
-  store?: ModelConnectionStore;
 }) {
   const { t } = useLocalization();
-  const { state, store } = useModelConnections(suppliedStore);
+  const { state, store } = useModelConnections();
   const lastRevision = useRef<number | null>(null);
   const catalogCallback = useRef(onCatalogChange);
   catalogCallback.current = onCatalogChange;

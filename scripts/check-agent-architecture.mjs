@@ -706,8 +706,8 @@ for (const file of walkSourceFiles(modelConnectionRenderer)) {
   if (/\bfetch\s*\(|\b(?:localStorage|sessionStorage)\b|safeStorage|pi-coding-agent/.test(source)) {
     errors.push(`${relative(file)} bypasses the Main-owned model connection authority`);
   }
-  if (!isInsideOrSame(file, path.join(modelConnectionRenderer, "infrastructure")) && /window\.puppyoneDesktop|ipcRenderer/.test(source)) {
-    errors.push(`${relative(file)} bypasses the ModelConnectionClientPort`);
+  if (file !== path.join(modelConnectionRenderer, "modelConnectionsApi.ts") && /window\.puppyoneDesktop|ipcRenderer/.test(source)) {
+    errors.push(`${relative(file)} bypasses modelConnectionsApi`);
   }
 }
 for (const file of walkSourceFiles(path.join(mainRuntimesRoot, "puppyone-agent"))) {

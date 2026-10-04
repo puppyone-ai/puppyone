@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
-import type { ModelConnection, ModelCatalogSnapshot } from "../../../../shared/model-connections/types";
-import { SettingsValueRow } from "../../settings/components";
+import type { ModelConnection, ModelCatalogSnapshot } from "../../../shared/model-connections/types";
+import { SettingsValueRow } from "../../components/SettingsControls";
 
 export function ModelConnectionDetails({ connection, catalog, busy, onEdit, onRefresh, onVerify, onRemove }: {
   connection: ModelConnection;
@@ -40,8 +40,7 @@ export function ModelConnectionDetails({ connection, catalog, busy, onEdit, onRe
       <div className="desktop-settings-list model-connections-list">
         {models.map((model) => <div className="desktop-settings-row model-connections-model" key={model.id}>
           <span className="model-connections-identity"><strong>{model.name}</strong>
-            <small>{t(model.verifiedAt ? "settings.modelConnections.verified" : model.capabilities.tools === "supported"
-              ? "settings.modelConnections.advertised" : "settings.modelConnections.unverified")}</small>
+            <small>{t(verificationLabel(model))}</small>
           </span>
           <button type="button" className="desktop-settings-row-action"
             disabled={busy || catalog?.status !== "ready" || !model.contextWindow || (connection.driver === "unsloth" && !connection.serverToolsDisabled)}
@@ -68,4 +67,10 @@ export function ModelConnectionDetails({ connection, catalog, busy, onEdit, onRe
       </button>}
     </div>
   </div>;
+}
+
+function verificationLabel(model: ModelCatalogSnapshot["models"][number]) {
+  if (model.verifiedAt) return "settings.modelConnections.verified";
+  if (model.capabilities.tools === "supported") return "settings.modelConnections.advertised";
+  return "settings.modelConnections.unverified";
 }

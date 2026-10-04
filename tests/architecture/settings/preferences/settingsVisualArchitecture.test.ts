@@ -317,7 +317,7 @@ describe("settings visual architecture", () => {
   });
 
   it("uses one flat Settings contract and removes legacy card primitives", () => {
-    const components = source("src/features/settings/components.tsx");
+    const components = source("src/components/SettingsControls.tsx");
     const view = source("src/features/settings/SettingsView.tsx");
     const workspaceConfig = source("src/features/settings/PuppyoneWorkspaceConfigSettings.tsx");
     const splitViews = [

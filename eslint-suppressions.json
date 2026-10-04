@@ -2209,24 +2209,6 @@
       "count": 1
     }
   },
-  "src/features/model-connections/ui/ModelConnectionDetails.tsx": {
-    "no-nested-ternary": {
-      "count": 1
-    }
-  },
-  "src/features/model-connections/ui/ModelConnectionSetup.tsx": {
-    "complexity": {
-      "count": 1
-    }
-  },
-  "src/features/model-connections/ui/ModelConnectionsSettings.tsx": {
-    "complexity": {
-      "count": 1
-    },
-    "no-nested-ternary": {
-      "count": 1
-    }
-  },
   "src/features/native-surfaces/useNativeSurfaceLayoutTransition.ts": {
     "max-params": {
       "count": 1

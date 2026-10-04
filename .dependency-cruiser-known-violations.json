@@ -9399,24 +9399,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/model-connections/ui/ModelConnectionDetails.tsx",
-    "to": "src/features/settings/components.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-model-connections"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/model-connections/ui/ModelConnectionsSettings.tsx",
-    "to": "src/features/settings/components.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-model-connections"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/features/plugins/PluginsDialog.tsx",
     "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
     "rule": {

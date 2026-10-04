@@ -27,7 +27,7 @@ describe("Built-in compute selection ownership", () => {
     expect(account).toContain('t("agent.compute.topUp"');
     expect(source).not.toMatch(/ModelConnectionQuickSetup|ModelConnectionsSettings|store\.(save|discover|verify)\(/u);
     expect(publicConnections).not.toContain("ModelConnectionQuickSetup");
-    expect(fs.existsSync(path.join(root, "src/features/model-connections/ui/ModelConnectionQuickSetup.tsx"))).toBe(false);
+    expect(fs.existsSync(path.join(root, "src/features/model-connections/ModelConnectionQuickSetup.tsx"))).toBe(false);
     expect(source).not.toMatch(/fetch\s*\(|ipcRenderer|safeStorage|localStorage|pi-coding-agent/u);
   });
 

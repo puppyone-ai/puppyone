@@ -1,5 +1,6 @@
-import type { ModelConnectionCandidate, ModelConnectionSnapshot, SaveModelConnectionRequest } from "../../../../shared/model-connections/types";
-import type { ConnectionRevisionRequest, ModelConnectionClientPort } from "./ModelConnectionClientPort";
+import { useEffect, useSyncExternalStore } from "react";
+import type { ModelConnectionCandidate, ModelConnectionSnapshot, SaveModelConnectionRequest } from "../../../shared/model-connections/types";
+import { modelConnectionsApi, type ConnectionRevisionRequest } from "./modelConnectionsApi";
 
 export type ModelConnectionViewState = {
   snapshot: ModelConnectionSnapshot | null;
@@ -14,29 +15,25 @@ export class ModelConnectionStore {
   private listeners = new Set<() => void>();
   private references = 0;
   private unsubscribe: (() => void) | null = null;
-  constructor(private readonly client: ModelConnectionClientPort) {}
   getSnapshot = () => this.state;
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   connect = () => {
     if (this.references++ === 0) {
-      this.unsubscribe = this.client.subscribe(this.apply);
+      this.unsubscribe = modelConnectionsApi.subscribe(this.apply);
       void this.load();
     }
     return () => { if (--this.references === 0) { this.unsubscribe?.(); this.unsubscribe = null; } };
   };
-  load = () => this.run("read", () => this.client.read());
-  managed = (request: import("../../../../shared/model-connections/types").ManagedConnectionAction) => this.run("managed", () => {
-    if (!this.client.managed) throw new Error("NATIVE_BRIDGE_UNAVAILABLE");
-    return this.client.managed(request);
-  });
-  save = (request: SaveModelConnectionRequest) => this.run("save", () => this.client.save(request));
-  remove = (request: ConnectionRevisionRequest) => this.run(request.id, () => this.client.remove(request));
-  refresh = (id: string) => this.run(id, () => this.client.refresh({ id }));
-  verify = (request: ConnectionRevisionRequest & { modelId: string }) => this.run(request.id, () => this.client.verify(request));
+  load = () => this.run("read", () => modelConnectionsApi.read());
+  managed = (request: import("../../../shared/model-connections/types").ManagedConnectionAction) => this.run("managed", () => modelConnectionsApi.managed(request));
+  save = (request: SaveModelConnectionRequest) => this.run("save", () => modelConnectionsApi.save(request));
+  remove = (request: ConnectionRevisionRequest) => this.run(request.id, () => modelConnectionsApi.remove(request));
+  refresh = (id: string) => this.run(id, () => modelConnectionsApi.refresh({ id }));
+  verify = (request: ConnectionRevisionRequest & { modelId: string }) => this.run(request.id, () => modelConnectionsApi.verify(request));
   discover = async () => {
     if (this.state.pending.discover) return;
     this.busy("discover", true);
-    try { this.patch({ candidates: await this.client.discover(), error: null }); }
+    try { this.patch({ candidates: await modelConnectionsApi.discover(), error: null }); }
     catch (error) { this.fail(error); }
     finally { this.busy("discover", false); }
   };
@@ -59,4 +56,12 @@ export class ModelConnectionStore {
     this.state = { ...this.state, ...patch };
     for (const listener of this.listeners) listener();
   }
+}
+
+export const modelConnectionsStore = new ModelConnectionStore();
+
+export function useModelConnections(store = modelConnectionsStore) {
+  const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+  useEffect(() => store.connect(), [store]);
+  return { state, store };
 }

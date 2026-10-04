@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import { useLocalization } from "@puppyone/localization";
-import type { ModelConnection, ModelConnectionCandidate, ModelConnectionDriver, ModelConnectionSourceKind, SaveModelConnectionRequest } from "../../../../shared/model-connections/types";
+import type { ModelConnection, ModelConnectionCandidate, ModelConnectionDriver, ModelConnectionSourceKind, SaveModelConnectionRequest } from "../../../shared/model-connections/types";
 
 const DRIVERS: { id: ModelConnectionDriver; name: string; url: string }[] = [
   { id: "ollama", name: "Ollama", url: "http://127.0.0.1:11434/v1" },
@@ -19,17 +19,16 @@ export function ModelConnectionSetup({ connection, candidate, sourceKind, busy, 
 }) {
   const { t } = useLocalization();
   const formId = useId();
-  const initialDriver = connection?.driver ?? candidate?.driver ?? (sourceKind === "api" ? "openai-compatible" : "ollama");
-  const initialDefinition = DRIVERS.find((entry) => entry.id === initialDriver)!;
-  const [driver, setDriver] = useState<ModelConnectionDriver>(initialDriver);
-  const [name, setName] = useState(connection?.name ?? candidate?.name ?? initialDefinition.name);
-  const [baseUrl, setBaseUrl] = useState(connection?.baseUrl ?? candidate?.baseUrl ?? initialDefinition.url);
-  const [auth, setAuth] = useState<"none" | "bearer">(connection?.auth ?? (["unsloth", "openai-compatible"].includes(initialDriver) ? "bearer" : "none"));
-  const [apiKey, setApiKey] = useState("");
-  const [manualModelId, setManualModelId] = useState(connection?.manualModelId ?? "");
-  const [defaultModelId, setDefaultModelId] = useState(connection?.defaultModelId ?? "");
-  const [context, setContext] = useState(String(connection?.manualContextWindow ?? 4096));
-  const [serverToolsDisabled, setServerToolsDisabled] = useState(connection?.serverToolsDisabled ?? false);
+  const initial = initialConnectionFields(connection, candidate, sourceKind);
+  const [driver, setDriver] = useState<ModelConnectionDriver>(initial.driver);
+  const [name, setName] = useState(initial.name);
+  const [baseUrl, setBaseUrl] = useState(initial.baseUrl);
+  const [auth, setAuth] = useState<"none" | "bearer">(initial.auth);
+  const [apiKey, setApiKey] = useState(initial.apiKey);
+  const [manualModelId, setManualModelId] = useState(initial.manualModelId);
+  const [defaultModelId, setDefaultModelId] = useState(initial.defaultModelId);
+  const [context, setContext] = useState(initial.context);
+  const [serverToolsDisabled, setServerToolsDisabled] = useState(initial.serverToolsDisabled);
   const selectDriver = (next: ModelConnectionDriver) => {
     const definition = DRIVERS.find((entry) => entry.id === next)!;
     setDriver(next);
@@ -116,4 +115,20 @@ export function ModelConnectionSetup({ connection, candidate, sourceKind, busy, 
       </div>
     </fieldset>
   </form>;
+}
+
+function initialConnectionFields(connection: Partial<ModelConnection> = {}, candidate: Partial<ModelConnectionCandidate> = {}, sourceKind: ModelConnectionSourceKind) {
+  const initialDriver = connection.driver ?? candidate.driver ?? (sourceKind === "api" ? "openai-compatible" : "ollama");
+  const initialDefinition = DRIVERS.find((entry) => entry.id === initialDriver)!;
+  return {
+    driver: initialDriver,
+    name: connection.name ?? candidate.name ?? initialDefinition.name,
+    baseUrl: connection.baseUrl ?? candidate.baseUrl ?? initialDefinition.url,
+    auth: connection.auth ?? (["unsloth", "openai-compatible"].includes(initialDriver) ? "bearer" as const : "none" as const),
+    apiKey: "",
+    manualModelId: connection.manualModelId ?? "",
+    defaultModelId: connection.defaultModelId ?? "",
+    context: String(connection.manualContextWindow ?? 4096),
+    serverToolsDisabled: connection.serverToolsDisabled ?? false,
+  };
 }

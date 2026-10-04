@@ -1,3 +1,3 @@
-export { ModelConnectionsSettings } from "./ui/ModelConnectionsSettings";
-export { useModelConnections } from "./controller/useModelConnections";
-export type { ModelConnectionStore } from "./application/ModelConnectionStore";
+export { ModelConnectionsSettings } from "./ModelConnectionsSettings";
+export { useModelConnections } from "./modelConnectionsStore";
+export type { ModelConnectionStore } from "./modelConnectionsStore";

@@ -1,17 +1,16 @@
 import { useEffect } from "react";
 import { useLocalization } from "@puppyone/localization";
-import { useModelConnections, type ModelConnectionStore } from "../../model-connections";
+import { useModelConnections } from "../../model-connections";
 import { SettingsSubsection, SettingsValueRow } from "../components";
 
 /** Personal billing stays available independently of experimental Cloud hosting. */
-export function AccountAICredits({ store: providedStore, signedIn, onSignIn, signInDisabled = false }: {
-  store?: ModelConnectionStore;
+export function AccountAICredits({ signedIn, onSignIn, signInDisabled = false }: {
   signedIn: boolean;
   onSignIn?: () => void;
   signInDisabled?: boolean;
 }) {
   const { t } = useLocalization();
-  const { state, store } = useModelConnections(providedStore);
+  const { state, store } = useModelConnections();
   const credit = state.snapshot?.managed;
   const showAccount = signedIn && credit?.signedIn;
   const operationError = state.error === "AUTHENTICATION_FAILED"
