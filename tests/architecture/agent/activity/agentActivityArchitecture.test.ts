@@ -7,7 +7,7 @@ const root = process.cwd();
 describe("Agent activity architecture boundaries", () => {
   it("keeps provider payloads outside shared and Renderer code", () => {
     const shared = source("shared/agent-activity-contract/types.ts");
-    const presence = source("src/features/desktop-agent-presence/ui/AgentFilePresence.tsx");
+    const presence = source("src/features/desktop-agent-presence/AgentFilePresence.tsx");
     expect(shared).not.toMatch(/tool_input|hook_event_name|Electron|React/);
     expect(presence).not.toMatch(/codex|claude|cursor|opencode|hermes|PreToolUse/iu);
   });

@@ -1,7 +1,7 @@
 import { Tooltip } from "@puppyone/shared-ui";
 import { Hand, Eye } from "lucide-react";
 import { useCallback, useSyncExternalStore } from "react";
-import type { AgentActivityStore } from "../application/agentActivityStore";
+import type { AgentActivityStore } from "./agentActivityStore";
 import "./agent-file-presence.css";
 
 export function AgentFilePresence({

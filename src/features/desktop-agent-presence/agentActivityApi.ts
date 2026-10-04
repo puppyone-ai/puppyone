@@ -1,7 +1,6 @@
-import type { AgentActivityClient } from "../../application/agentActivityClient";
-import type { AgentActivityEvent, AgentActivitySnapshot } from "../../../../../shared/agent-activity-contract/types";
+import type { AgentActivityEvent, AgentActivitySnapshot } from "../../../shared/agent-activity-contract/types";
 
-export const electronAgentActivityClient: AgentActivityClient = {
+export const agentActivityApi = {
   subscribe: async (): Promise<AgentActivitySnapshot> => window.puppyoneDesktop?.subscribeAgentActivity?.() ?? {
     schemaVersion: 1 as const,
     activities: [] as const,
@@ -13,3 +12,5 @@ export const electronAgentActivityClient: AgentActivityClient = {
     window.puppyoneDesktop?.unsubscribeAgentActivity?.();
   },
 };
+
+export type AgentActivityClient = typeof agentActivityApi;

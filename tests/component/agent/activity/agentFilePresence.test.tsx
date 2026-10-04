@@ -5,9 +5,9 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
 import type { AgentActivityEvent } from "../../../../shared/agent-activity-contract/types";
-import type { AgentActivityClient } from "../../../../src/features/desktop-agent-presence/application/agentActivityClient";
-import { AgentActivityStore } from "../../../../src/features/desktop-agent-presence/application/agentActivityStore";
-import { AgentFilePresence } from "../../../../src/features/desktop-agent-presence/ui/AgentFilePresence";
+import type { AgentActivityClient } from "../../../../src/features/desktop-agent-presence/agentActivityApi";
+import { AgentActivityStore } from "../../../../src/features/desktop-agent-presence/agentActivityStore";
+import { AgentFilePresence } from "../../../../src/features/desktop-agent-presence/AgentFilePresence";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

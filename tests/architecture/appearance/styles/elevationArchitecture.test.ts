@@ -17,7 +17,7 @@ const accessMethodCard = readSource(
 );
 const utilityScreens = readSource("../../../../src/styles/utility-screens.css");
 const agentFilePresence = readSource(
-  "../../../../src/features/desktop-agent-presence/ui/agent-file-presence.css",
+  "../../../../src/features/desktop-agent-presence/agent-file-presence.css",
 );
 const editorFind = readSource("../../../../packages/shared-ui/src/styles/editor/editor-find.css");
 const editorChrome = readSource("../../../../packages/shared-ui/src/styles/editor/editor-chrome.css");

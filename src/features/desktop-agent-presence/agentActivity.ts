@@ -1,7 +1,7 @@
 import type {
   AgentActivityEvent,
   AgentActivityOperation,
-} from "../../../../shared/agent-activity-contract/types";
+} from "../../../shared/agent-activity-contract/types";
 
 const PROVIDER_LABELS: Readonly<Record<string, string>> = Object.freeze({
   codex: "Codex",

@@ -1,11 +1,11 @@
-import type { AgentActivityEvent } from "../../../../shared/agent-activity-contract/types";
-import { AGENT_ACTIVITY_LIMITS } from "../../../../shared/agent-activity-contract/constants.mjs";
-import type { AgentActivityClient } from "./agentActivityClient";
+import type { AgentActivityEvent } from "../../../shared/agent-activity-contract/types";
+import { AGENT_ACTIVITY_LIMITS } from "../../../shared/agent-activity-contract/constants.mjs";
+import type { AgentActivityClient } from "./agentActivityApi";
 import {
   normalizeWorkspaceRelativePath,
   projectFilePresence,
   type AgentFilePresenceProjection,
-} from "../domain/agentActivity";
+} from "./agentActivity";
 
 export const AGENT_FILE_ACTIVITY_COMPLETION_LINGER_MS = AGENT_ACTIVITY_LIMITS.completedLingerMs;
 
