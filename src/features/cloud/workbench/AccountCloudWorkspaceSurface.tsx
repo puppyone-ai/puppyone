@@ -21,7 +21,7 @@ export type AccountCloudWorkspacePresentation = Readonly<{
 export function useAccountCloudWorkspacePresentation({ workbench }: {
   workbench: NativeCloudWorkbench;
 }): AccountCloudWorkspacePresentation {
-  const { fileIconTheme, resolvedAppearance } = useDesktopAppearance();
+  const { resolvedAppearance } = useDesktopAppearance();
   const { service, editorWorkbench, actions } = workbench;
   if (!service || !workbench.visited) return { content: null, locationBar: null, titlebarTabs: null };
   const surfaceProps: CloudFileSurfaceProps = {
@@ -32,7 +32,7 @@ export function useAccountCloudWorkspacePresentation({ workbench }: {
       pluginsOpen: false, settingsOpen: false, showPlugins: false, showSettings: false, showWorkspaceNavigation: false },
   };
   const titlebarTabs = <EditorHeaderTabs activeEditorId={editorWorkbench.activeEditorId} editors={editorWorkbench.state.editors}
-    fileIconTheme={fileIconTheme} storageIdentity={workbench.dataPort?.documentPersistence?.storageIdentity ?? null}
+    storageIdentity={workbench.dataPort?.documentPersistence?.storageIdentity ?? null}
     onActivate={editorWorkbench.activate} onClose={workbench.closeEditor} onMove={editorWorkbench.moveTab}
     onCreate={service.writable ? (anchor) => actions.openCreateEntryMenu(service.folder.uri, anchor) : undefined} />;
   const locationBar = resolvedAppearance.composition.locationBar === "workspace-path-v1" ? <DesktopShellLocationBar

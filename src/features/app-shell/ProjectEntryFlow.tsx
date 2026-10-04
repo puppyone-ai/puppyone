@@ -1,3 +1,4 @@
+import { useDesktopPreference } from "../../preferencesStore";
 import { useCallback, useMemo, useState } from "react";
 import { OnboardingImportDialog } from "../../components/OnboardingImportDialog";
 import { OnboardingProjectEntryDialog } from "../../components/OnboardingProjectEntryDialog";
@@ -10,10 +11,6 @@ import type {
   WorkspaceProjectLocationGrant,
 } from "../../types/electron";
 import { ProjectEntryLauncherDialog } from "./ProjectEntryLauncherDialog";
-import {
-  DEFAULT_EXPERIMENTAL_SETTINGS,
-  type ExperimentalSettings,
-} from "../../preferences";
 import {
   resolveImportPreviewBrands,
   resolveVisibleImportSources,
@@ -63,7 +60,6 @@ export type ProjectEntryFlowProps = Readonly<{
   onListResources?: (request: { provider: string; connectionId: string; parentId?: string | null; cursor?: string | null }) => Promise<WorkspaceImportResourcePage>;
   onCancelImport?: (taskId: string) => Promise<{ cancelled: boolean }>;
   onImportProgress?: (listener: (progress: WorkspaceImportProgress) => void) => () => void;
-  experimentalSettings?: ExperimentalSettings;
 }>;
 
 export function ProjectEntryFlow({
@@ -77,10 +73,10 @@ export function ProjectEntryFlow({
   onListResources,
   onCancelImport,
   onImportProgress,
-  experimentalSettings = DEFAULT_EXPERIMENTAL_SETTINGS,
 }: ProjectEntryFlowProps) {
-  const visibleImportSources = resolveVisibleImportSources(experimentalSettings);
-  const importPreviewBrands = resolveImportPreviewBrands(experimentalSettings);
+  const enableOtherAppImports = useDesktopPreference(s => s.experimentalSettings.enableOtherAppImports);
+  const visibleImportSources = resolveVisibleImportSources({ enableOtherAppImports });
+  const importPreviewBrands = resolveImportPreviewBrands({ enableOtherAppImports });
 
   if (controller.step === "launcher") {
     return (

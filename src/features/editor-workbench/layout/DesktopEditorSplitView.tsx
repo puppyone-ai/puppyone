@@ -28,7 +28,6 @@ import {
   type EditorPaneLayoutState,
   type EditorPaneSplitOptions,
   type EditorSplitDirection,
-  type FileIconThemeId,
   type MarkdownWorkspaceEnvironment,
   type ViewerExtensionHostAdapter,
   type Workspace,
@@ -60,7 +59,6 @@ export type DesktopEditorSplitViewProps = Readonly<{
   documentSourceKind?: DocumentSourceKind;
   editorGroup: EditorGroupState;
   editorInteractionPreferences: EditorInteractionPreferences;
-  fileIconTheme: FileIconThemeId;
   layout: EditorPaneLayoutState;
   editorTree: readonly DataNode[];
   markdownEnvironment: MarkdownWorkspaceEnvironment;
@@ -103,7 +101,6 @@ export function DesktopEditorSplitView({
   documentSourceKind = "local",
   editorGroup,
   editorInteractionPreferences,
-  fileIconTheme,
   layout,
   editorTree,
   markdownEnvironment,
@@ -183,7 +180,6 @@ export function DesktopEditorSplitView({
           editorNodeIndex={editorNodeIndex}
           editorInteractionPreferences={editorInteractionPreferences}
           externalOpen={externalOpen}
-          fileIconTheme={fileIconTheme}
           fileDrop={fileDrop}
           pane={pane}
           paneCount={paneCount}
@@ -279,7 +275,6 @@ type EditorPaneProps = Readonly<{
   editorNodeIndex: EditorNodeIndex;
   editorInteractionPreferences: EditorInteractionPreferences;
   externalOpen?: DesktopEditorSplitViewProps["externalOpen"];
-  fileIconTheme: FileIconThemeId;
   fileDrop: EditorFileDropController;
   pane: EditorPaneLayoutLeaf;
   paneCount: number;
@@ -306,7 +301,6 @@ function EditorPane({
   editorNodeIndex,
   editorInteractionPreferences,
   externalOpen,
-  fileIconTheme,
   fileDrop,
   pane,
   paneCount,
@@ -388,7 +382,6 @@ function EditorPane({
           documentSourceKind={documentSourceKind}
           editor={editor}
           editorInteractionPreferences={editorInteractionPreferences}
-          fileIconTheme={fileIconTheme}
           markdownEnvironment={markdownEnvironment}
           documentNavigation={documentNavigation}
           refreshKey={refreshKey}

@@ -1,3 +1,4 @@
+import { initializeDesktopPreferences } from "../../../../src/preferencesStore";
 import { MarkdownLayoutProbe } from "./markdownLayoutProbe";
 import { mdiLayoutProbe } from "./markdownMdiLayoutProbe";
 import { EditorView } from "@codemirror/view";
@@ -26,6 +27,8 @@ import "../../../../src/styles.css";
 import "../../../../src/styles/cascade.css";
 import { unavailableDocumentNavigation } from "../../../support/editor/documentFixtures";
 import { requireEditorView } from "../../../support/editor/editorView";
+
+initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
 
 declare global {
   interface Window {
@@ -158,7 +161,6 @@ function HorizontalMarkdownSplitFixture() {
         editorGroup={editorGroup}
         editorInteractionPreferences={{ showSaveStatus: false, markdownBlockDragEnabled: false }}
         editorTree={tree}
-        fileIconTheme="default"
         layout={layout}
         markdownEnvironment={markdownEnvironment}
         workspace={{ id: "workspace", name: "Workspace", path: "/workspace", status: "recording" }}

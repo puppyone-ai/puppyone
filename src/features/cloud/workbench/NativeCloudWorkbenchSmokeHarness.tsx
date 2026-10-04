@@ -5,7 +5,7 @@ import { DesktopCloudShell } from "../../../components/DesktopCloudShell";
 import { DesktopOverlayPortal } from "../../app-shell/DesktopOverlayPortal";
 import { DesktopWorkspaceSwitcher } from "../../app-shell/DesktopWorkspaceSwitcher";
 import { DesktopWorkspaceLocationSurface } from "../../app-shell/DesktopWorkspaceLocationSurface";
-import { useDesktopPreference, selectFileIconTheme, useDesktopPreferenceEffects, initializeDesktopPreferences } from "../../settings";
+import { useDesktopPreference, useDesktopPreferenceEffects, initializeDesktopPreferences } from "../../settings";
 import { EditorHeaderTabs } from "../../editor-workbench/header/EditorHeaderTabs";
 import { useCloudWorkspaceSwitch } from "./useCloudWorkspaceSwitch";
 import { CloudWorkspaceSwitchDialog } from "./CloudWorkspaceSwitchDialog";
@@ -106,7 +106,6 @@ export function NativeCloudWorkbenchSmokeHarness() {
   const menuRef = useRef<HTMLDivElement>(null);
   useDesktopPreferenceEffects();
   const explorerWidth = useDesktopPreference(s => s.explorerWidth);
-  const fileIconTheme = useDesktopPreference(selectFileIconTheme);
   const filesVisibilitySettings = useDesktopPreference(s => s.filesVisibilitySettings);
   const setSidebarCollapsed = useDesktopPreference(s => s.setSidebarCollapsed);
   const sidebarCollapsed = useDesktopPreference(s => s.sidebarCollapsed);
@@ -179,7 +178,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
         onClose={() => setMenuOpen(false)} onToggle={() => setMenuOpen((current) => !current)}
         onViewLocal={() => { controller.cancel(); setCloudSelected(false); setMenuOpen(false); }} onViewCloud={() => { controller.request(); setMenuOpen(false); }} />}
       titlebarTabs={<EditorHeaderTabs activeEditorId={visibleWorkbench.activeEditorId}
-        editors={visibleWorkbench.state.editors} fileIconTheme={fileIconTheme}
+        editors={visibleWorkbench.state.editors}
         storageIdentity={location === "cloud" ? workbench.dataPort?.documentPersistence?.storageIdentity ?? null : localPort.documentPersistence!.storageIdentity}
         onActivate={visibleWorkbench.activate} onClose={location === "cloud" ? workbench.closeEditor : visibleWorkbench.close}
         onMove={visibleWorkbench.moveTab} />}>

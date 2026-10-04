@@ -49,16 +49,11 @@ describe("Sub Theme settings", () => {
   it("wires the catalog and preferences through the settings surface", () => {
     const app = source("src/App.tsx");
     const surface = source("src/features/settings/SettingsWorkspaceSurface.tsx");
-    const view = source("src/features/settings/SettingsView.tsx");
     const typography = source("src/features/settings/main/TypographySettingsView.tsx");
 
     expect(app).toContain("subThemeCatalog={subThemeCatalog}");
     expect(surface).toContain("subThemeCatalog: SubThemeCatalogController");
     expect(surface).not.toContain("setSurfaceThemeOverride");
-    expect(view).toContain("<SubThemeSettingsSection");
-    expect(view).toContain("requestedSubThemeId={requestedSubThemeId}");
-    expect(view.indexOf("<SubThemeSettingsSection")).toBeGreaterThan(view.indexOf('activeSection === "appearance"'));
-    expect(view.indexOf("<SubThemeSettingsSection")).toBeGreaterThan(view.indexOf("<InterfacePaletteSettings"));
     expect(typography).not.toContain("ThemeSettingsSection");
   });
 });

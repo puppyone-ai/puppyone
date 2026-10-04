@@ -1,23 +1,21 @@
+import { useDesktopPreference } from "../../../preferencesStore";
 import { useLayoutEffect, useMemo, useSyncExternalStore } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import type { AuxiliaryWorkbenchContribution, AuxiliaryWorkbenchCreationRecipe, AuxiliaryWorkbenchHistoryTarget } from "./types";
 import type { WorkbenchLauncherContext } from "./AuxiliaryWorkbenchPanel";
 import type { ProjectWorkbenchStore } from "./ProjectWorkbenchStore";
 import { AGENT_CHAT_LOCAL_AGENT_IDS, filterAgentChatCreationRecipesByLocalAgentIds } from "./agentChatCreationRecipes";
-import type { LocalAgentSetupPreferences } from "../../../../shared/local-agent-installation/setup-types";
 import { LocalAgentSetupSection, useLocalAgentInstallations } from "../../local-agents";
 import { DESKTOP_TERMINAL_LAUNCHERS } from "../../desktop-terminal/model/terminalLaunchers";
 import { TerminalLauncher } from "../../desktop-terminal/ui/TerminalLauncher";
 import { WorkbenchLauncherState } from "./WorkbenchLauncherState";
 
 /** Product composition: generic workbench admission plus feature-owned launchers. */
-export function AuxiliaryWorkbenchLauncher({ store, contributions, hiddenAgentIds, setupPreferences, onSetupPreferencesChange, groupId, itemId, presented }: WorkbenchLauncherContext & {
+export function AuxiliaryWorkbenchLauncher({ store, contributions, groupId, itemId, presented }: WorkbenchLauncherContext & {
   store: ProjectWorkbenchStore;
   contributions: readonly AuxiliaryWorkbenchContribution[];
-  hiddenAgentIds: readonly string[];
-  setupPreferences?: LocalAgentSetupPreferences;
-  onSetupPreferencesChange?: (preferences: LocalAgentSetupPreferences) => void;
 }) {
+  const hiddenAgentIds = useDesktopPreference(s => s.localAgentsSettings.hiddenTerminalAgentIds);
   const { t } = useLocalization();
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const launcherState = store.getResource(`launcher:${itemId ?? "empty"}`, () => new WorkbenchLauncherState());
@@ -57,9 +55,6 @@ export function AuxiliaryWorkbenchLauncher({ store, contributions, hiddenAgentId
       enabled={presented && !historyOpen}
       surface={chat ? "chat" : "terminal"}
       eligibleInstallationIds={chat ? AGENT_CHAT_LOCAL_AGENT_IDS : terminal ? DESKTOP_TERMINAL_LAUNCHERS.filter(({ id }) => id !== "shell").map(({ id }) => id) : []}
-      hiddenAgentIds={hiddenAgentIds}
-      preferences={setupPreferences}
-      onPreferencesChange={onSetupPreferencesChange}
       discovery={discovery}
       onRefresh={discovery.refresh}
     />}

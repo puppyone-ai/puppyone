@@ -402,7 +402,6 @@ export function DesktopDataWorkspaceSurface({
                   externalOpen={externalOpen}
                   editorInteractionPreferences={editorInteractionPreferences}
                   editorTree={state.tree}
-                  fileIconTheme={fileIconTheme}
                   layout={editorWorkbench.paneLayout}
                   markdownEnvironment={state.markdownEnvironment}
                   documentNavigation={state.documentNavigation}

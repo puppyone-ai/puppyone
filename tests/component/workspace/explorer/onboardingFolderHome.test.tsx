@@ -1,10 +1,11 @@
+import { initializeDesktopPreferences, desktopPreferencesStore as preferences } from "../../../../src/preferencesStore";
 /**
  * @vitest-environment happy-dom
  */
 import { readFileSync } from "node:fs";
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MinimalOnboarding, type MinimalOnboardingProps } from "../../../../src/components/MinimalOnboarding";
 import { OnboardingImportDialog } from "../../../../src/components/OnboardingImportDialog";
 import { PUPPY_BRAND_MARK_ASSETS } from "../../../../src/components/brand/PuppyBrandMark";
@@ -17,6 +18,8 @@ import { createTestSurfaceAppearance } from "../../../support/react/surfaceAppea
 import { DEFAULT_EXPERIMENTAL_SETTINGS } from "../../../../src/preferences";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+beforeEach(() => { localStorage.clear(); initializeDesktopPreferences(); });
 
 let root: Root | null = null;
 const originalClipboard = navigator.clipboard;
@@ -575,11 +578,11 @@ describe("project folder home", () => {
     ".onboarding-entry-import [data-import-brand='obsidian']",
   ])("opens the common source picker from the import entry (%s)", async (selector) => {
     const onDefaultProjectLocation = vi.fn(async () => null);
+    preferences.getState().setExperimentalSettings(ALL_EXPERIMENTAL_IMPORTS);
     const container = renderHome({
       onImportSource: vi.fn(async () => true),
       onChooseWorkspace: vi.fn(async () => undefined),
       onDefaultProjectLocation,
-      experimentalSettings: ALL_EXPERIMENTAL_IMPORTS,
     });
 
     await act(async () => {
@@ -612,10 +615,20 @@ describe("project folder home", () => {
     expect(container.querySelector("[role='dialog']")).toBeNull();
   });
 
+  it("updates the production import preview and open picker from the import preference", async () => {
+    const container = renderHome({ onImportSource: vi.fn(async () => true) });
+    await act(async () => container.querySelector<HTMLButtonElement>(".onboarding-entry-import")?.click());
+    expect(container.querySelector('[data-import-source="obsidian"]')).toBeNull();
+    act(() => preferences.getState().setExperimentalSettings(current => ({ ...current, enableOtherAppImports: true })));
+    expect(container.querySelector('[data-import-source="obsidian"]')).not.toBeNull();
+    expect(container.querySelector(".onboarding-entry-import [data-import-brand='obsidian']")).not.toBeNull();
+    expect(JSON.parse(localStorage.getItem("puppyone.desktop.experimental")!).enableOtherAppImports).toBe(true);
+  });
+
   it("keeps remote providers unavailable until direct service adapters exist", async () => {
     const onImportSource = vi.fn(async () => true);
+    preferences.getState().setExperimentalSettings(ALL_EXPERIMENTAL_IMPORTS);
     const container = renderHome({
-      experimentalSettings: ALL_EXPERIMENTAL_IMPORTS,
       onImportSource,
     });
     await act(async () => container.querySelector<HTMLButtonElement>(".onboarding-entry-import")?.click());
@@ -675,8 +688,8 @@ describe("project folder home", () => {
   it("copies an Obsidian vault through the local source adapter", async () => {
     const onChooseWorkspace = vi.fn(async () => undefined);
     const onImportSource = vi.fn(async () => true);
+    preferences.getState().setExperimentalSettings(ALL_EXPERIMENTAL_IMPORTS);
     const container = renderHome({
-      experimentalSettings: ALL_EXPERIMENTAL_IMPORTS,
       onImportSource,
       onChooseWorkspace,
     });

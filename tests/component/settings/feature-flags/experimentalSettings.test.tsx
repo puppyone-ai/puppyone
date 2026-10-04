@@ -1,12 +1,15 @@
+import { initializeDesktopPreferences, desktopPreferencesStore as store } from "../../../../src/preferencesStore";
 /** @vitest-environment happy-dom */
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ExperimentalSettingsView } from "../../../../src/features/settings/main/ExperimentalSettingsView";
 import { DEFAULT_EXPERIMENTAL_SETTINGS } from "../../../../src/preferences";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+beforeEach(() => { localStorage.clear(); initializeDesktopPreferences(); });
 
 let root: Root | null = null;
 
@@ -18,28 +21,24 @@ afterEach(() => {
 
 describe("Experimental settings", () => {
   it("offers a separate default-off Git card in the Header group", () => {
-    const onChange = vi.fn();
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
     act(() => root?.render(withTestLocalization(
-      <ExperimentalSettingsView settings={DEFAULT_EXPERIMENTAL_SETTINGS}
-        assetLibraryHomeAvailable={false} onChange={onChange} />,
+      <ExperimentalSettingsView />,
     )));
     const toggle = host.querySelector<HTMLInputElement>('input[aria-label="Git card in Header"]');
     expect(toggle?.closest(".desktop-settings-subsection")?.querySelector("h3")?.textContent).toBe("Header & layout");
     expect(toggle?.checked).toBe(false);
     act(() => toggle?.click());
-    expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_EXPERIMENTAL_SETTINGS, enableGitCardInHeader: true });
+    expect(store.getState().experimentalSettings).toEqual({ ...DEFAULT_EXPERIMENTAL_SETTINGS, enableGitCardInHeader: true });
   });
   it("groups experiments and enables centered project names without changing other flags", () => {
-    const onChange = vi.fn();
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
     act(() => root?.render(withTestLocalization(
-      <ExperimentalSettingsView settings={DEFAULT_EXPERIMENTAL_SETTINGS}
-        assetLibraryHomeAvailable={false} onChange={onChange} />,
+      <ExperimentalSettingsView />,
     )));
 
     const groups = [...host.querySelectorAll(".desktop-settings-subsection")];
@@ -49,30 +48,25 @@ describe("Experimental settings", () => {
     const toggle = groups[0]?.querySelector<HTMLInputElement>('input[aria-label="Center project in Header"]');
     expect(toggle?.checked).toBe(false);
     act(() => toggle?.click());
-    expect(onChange).toHaveBeenCalledWith({
+    expect(store.getState().experimentalSettings).toEqual({
       ...DEFAULT_EXPERIMENTAL_SETTINGS,
       enableCenteredProjectInHeader: true,
     });
   });
 
   it("offers one default-off import experiment", () => {
-    const onChange = vi.fn();
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
 
     act(() => root?.render(withTestLocalization(
-      <ExperimentalSettingsView
-        settings={DEFAULT_EXPERIMENTAL_SETTINGS}
-        assetLibraryHomeAvailable={false}
-        onChange={onChange}
-      />,
+      <ExperimentalSettingsView />,
     )));
 
     const toggle = host.querySelector<HTMLInputElement>('input[aria-label="Import from other apps"]');
     expect(toggle?.checked).toBe(false);
     act(() => toggle?.click());
-    expect(onChange).toHaveBeenCalledWith({
+    expect(store.getState().experimentalSettings).toEqual({
       ...DEFAULT_EXPERIMENTAL_SETTINGS,
       enableOtherAppImports: true,
     });
@@ -83,27 +77,24 @@ describe("Experimental settings", () => {
     document.body.append(host);
     root = createRoot(host);
     act(() => root?.render(withTestLocalization(
-      <ExperimentalSettingsView settings={DEFAULT_EXPERIMENTAL_SETTINGS}
-        assetLibraryHomeAvailable={false} onChange={vi.fn()} />,
+      <ExperimentalSettingsView />,
     )));
     expect(host.querySelector('input[aria-label="Built-in Agent"]')).toBeNull();
     expect(DEFAULT_EXPERIMENTAL_SETTINGS.enableCloudWorkspace).toBe(false);
   });
 
   it("uses the Cloud switch for hosting and sharing", () => {
-    const onChange = vi.fn();
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
     act(() => root?.render(withTestLocalization(
-      <ExperimentalSettingsView settings={DEFAULT_EXPERIMENTAL_SETTINGS}
-        assetLibraryHomeAvailable={false} onChange={onChange} />,
+      <ExperimentalSettingsView />,
     )));
 
     const toggle = host.querySelector<HTMLInputElement>('input[aria-label="PuppyOne Cloud"]');
     expect(toggle?.checked).toBe(false);
     act(() => toggle?.click());
-    expect(onChange).toHaveBeenCalledWith({
+    expect(store.getState().experimentalSettings).toEqual({
       ...DEFAULT_EXPERIMENTAL_SETTINGS,
       enableCloudWorkspace: true,
     });
@@ -112,54 +103,45 @@ describe("Experimental settings", () => {
   });
 
   it("ships Share from the Header on, with its own switch to hide the Header entry", () => {
-    const onChange = vi.fn();
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
     act(() => root?.render(withTestLocalization(
-      <ExperimentalSettingsView settings={DEFAULT_EXPERIMENTAL_SETTINGS}
-        assetLibraryHomeAvailable={false} onChange={onChange} />,
+      <ExperimentalSettingsView />,
     )));
 
     const toggle = host.querySelector<HTMLInputElement>('input[aria-label="Share from the Header"]');
     expect(toggle?.checked).toBe(true);
     act(() => toggle?.click());
-    expect(onChange).toHaveBeenCalledWith({
+    expect(store.getState().experimentalSettings).toEqual({
       ...DEFAULT_EXPERIMENTAL_SETTINGS,
       enableShareOnboarding: false,
     });
   });
 
   it("keeps Header chat tabs behind a separate default-off switch", () => {
-    const onChange = vi.fn();
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
     act(() => root?.render(withTestLocalization(
-      <ExperimentalSettingsView settings={DEFAULT_EXPERIMENTAL_SETTINGS}
-        assetLibraryHomeAvailable={false} onChange={onChange} />,
+      <ExperimentalSettingsView />,
     )));
     const toggle = host.querySelector<HTMLInputElement>('input[aria-label="Chat tabs in Header"]');
     expect(toggle?.checked).toBe(false);
     act(() => toggle?.click());
-    expect(onChange).toHaveBeenCalledWith({
+    expect(store.getState().experimentalSettings).toEqual({
       ...DEFAULT_EXPERIMENTAL_SETTINGS,
       enableWorkbenchTabsInHeader: true,
     });
   });
 
   it("offers an off-by-default cross-Project switcher rail", () => {
-    const onChange = vi.fn();
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
 
     act(() => root?.render(withTestLocalization(
-      <ExperimentalSettingsView
-        settings={DEFAULT_EXPERIMENTAL_SETTINGS}
-        assetLibraryHomeAvailable={false}
-        onChange={onChange}
-      />,
+      <ExperimentalSettingsView />,
     )));
 
     const toggle = host.querySelector<HTMLInputElement>(
@@ -170,24 +152,19 @@ describe("Experimental settings", () => {
     expect(host.querySelector('input[aria-label="Agent Chat"]')).toBeNull();
 
     act(() => toggle?.click());
-    expect(onChange).toHaveBeenCalledWith({
+    expect(store.getState().experimentalSettings).toEqual({
       ...DEFAULT_EXPERIMENTAL_SETTINGS,
       enableProjectSwitcherRail: true,
     });
   });
 
   it("offers an off-by-default multi-project Workspace opt-in", () => {
-    const onChange = vi.fn();
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
 
     act(() => root?.render(withTestLocalization(
-      <ExperimentalSettingsView
-        settings={DEFAULT_EXPERIMENTAL_SETTINGS}
-        assetLibraryHomeAvailable={false}
-        onChange={onChange}
-      />,
+      <ExperimentalSettingsView />,
     )));
 
     const toggle = host.querySelector<HTMLInputElement>(
@@ -197,24 +174,19 @@ describe("Experimental settings", () => {
     expect(toggle?.checked).toBe(false);
 
     act(() => toggle?.click());
-    expect(onChange).toHaveBeenCalledWith({
+    expect(store.getState().experimentalSettings).toEqual({
       ...DEFAULT_EXPERIMENTAL_SETTINGS,
       enableMultiRootWorkspaces: true,
     });
   });
 
   it("offers an off-by-default onboarding replay switch", () => {
-    const onChange = vi.fn();
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
 
     act(() => root?.render(withTestLocalization(
-      <ExperimentalSettingsView
-        settings={DEFAULT_EXPERIMENTAL_SETTINGS}
-        assetLibraryHomeAvailable={false}
-        onChange={onChange}
-      />,
+      <ExperimentalSettingsView />,
     )));
 
     const toggle = host.querySelector<HTMLInputElement>(
@@ -222,45 +194,35 @@ describe("Experimental settings", () => {
     );
     expect(toggle?.checked).toBe(false);
     act(() => toggle?.click());
-    expect(onChange).toHaveBeenCalledWith({
+    expect(store.getState().experimentalSettings).toEqual({
       ...DEFAULT_EXPERIMENTAL_SETTINGS,
       enableAlwaysShowOnboardingCoachmarks: true,
     });
   });
 
   it("offers an off-by-default first-project starting-point opt-in", () => {
-    const onChange = vi.fn();
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
 
     act(() => root?.render(withTestLocalization(
-      <ExperimentalSettingsView
-        settings={DEFAULT_EXPERIMENTAL_SETTINGS}
-        assetLibraryHomeAvailable={false}
-        onChange={onChange}
-      />,
+      <ExperimentalSettingsView />,
     )));
 
     const toggle = host.querySelector<HTMLInputElement>(
       'input[aria-label="First project starting point"]',
     );
     expect(toggle).toBeNull();
-    expect(onChange).not.toHaveBeenCalled();
+    expect(store.getState().experimentalSettings).toEqual(DEFAULT_EXPERIMENTAL_SETTINGS);
   });
 
   it("offers an off-by-default Automation opt-in", () => {
-    const onChange = vi.fn();
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
 
     act(() => root?.render(withTestLocalization(
-      <ExperimentalSettingsView
-        settings={DEFAULT_EXPERIMENTAL_SETTINGS}
-        assetLibraryHomeAvailable={false}
-        onChange={onChange}
-      />,
+      <ExperimentalSettingsView />,
     )));
 
     const toggle = host.querySelector<HTMLInputElement>('input[aria-label="Automation"]');
@@ -268,7 +230,7 @@ describe("Experimental settings", () => {
     expect(toggle?.checked).toBe(false);
 
     act(() => toggle?.click());
-    expect(onChange).toHaveBeenCalledWith({
+    expect(store.getState().experimentalSettings).toEqual({
       ...DEFAULT_EXPERIMENTAL_SETTINGS,
       enableCloudAutomation: true,
     });

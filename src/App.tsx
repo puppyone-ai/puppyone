@@ -78,10 +78,7 @@ import {
   getDesktopCloudApiBaseUrl,
   type DesktopCloudSession,
 } from "./lib/cloudApi";
-import {
-  resolveVisibleCreateNewMenuItems,
-  type FilesVisibilitySettings,
-} from "./preferences";
+import { resolveVisibleCreateNewMenuItems } from "./preferences";
 import type { PuppyoneWorkspaceConfig } from "./types/electron";
 import {
   mergePuppyoneWorkspaceConfig,
@@ -192,27 +189,36 @@ function AppContent() {
   const lastProjectViewRef = useRef<ProjectDesktopView>("data");
   const subThemeCatalog = useSubThemeCatalog();
   useDesktopPreferenceEffects(subThemeCatalog.snapshot);
-  const { resolvedAppearance, resolvedTheme, fileIconTheme, darkThemePreset, lightThemePreset } = useDesktopAppearance();
+  const { resolvedAppearance, resolvedTheme, darkThemePreset, lightThemePreset } = useDesktopAppearance();
   const aiEditAssistEnabled = useDesktopPreference(s => s.aiEditAssistEnabled);
   const createNewMenuSettings = useDesktopPreference(s => s.createNewMenuSettings);
   const explorerWidth = useDesktopPreference(s => s.explorerWidth);
-  const experimentalSettings = useDesktopPreference(s => s.experimentalSettings);
+  const enableMultiRootWorkspaces = useDesktopPreference(s => s.experimentalSettings.enableMultiRootWorkspaces);
+  const enableCloudWorkspace = useDesktopPreference(s => s.experimentalSettings.enableCloudWorkspace);
+  const enableShareOnboarding = useDesktopPreference(s => s.experimentalSettings.enableShareOnboarding);
+  const enableAssetLibraryHome = useDesktopPreference(s => s.experimentalSettings.enableAssetLibraryHome);
+  const enableCenteredProjectInHeader = useDesktopPreference(s => s.experimentalSettings.enableCenteredProjectInHeader);
+  const enableGitCardInHeader = useDesktopPreference(s => s.experimentalSettings.enableGitCardInHeader);
+  const enableViewerPlugins = useDesktopPreference(s => s.experimentalSettings.enableViewerPlugins);
+  const enableOtherAppImports = useDesktopPreference(s => s.experimentalSettings.enableOtherAppImports);
+  const enableAlwaysShowOnboardingCoachmarks = useDesktopPreference(s => s.experimentalSettings.enableAlwaysShowOnboardingCoachmarks);
+  const enableEditorTabsInHeader = useDesktopPreference(s => s.experimentalSettings.enableEditorTabsInHeader);
+  const enableProjectSwitcherRail = useDesktopPreference(s => s.experimentalSettings.enableProjectSwitcherRail);
+  const enableWorkbenchTabsInHeader = useDesktopPreference(s => s.experimentalSettings.enableWorkbenchTabsInHeader);
+  const enablePuppyFlowFiles = useDesktopPreference(s => s.experimentalSettings.enablePuppyFlowFiles);
   const filesVisibilitySettings = useDesktopPreference(s => s.filesVisibilitySettings);
   const interfaceStyle = useDesktopPreference(s => s.interfaceStyle);
   const rightSidebarOpen = useDesktopPreference(s => s.rightSidebarOpen);
   const terminalToolEnabled = useDesktopPreference(s => s.rightSidebarToolsSettings.enabled.terminal);
   const rightSidebarWidth = useDesktopPreference(s => s.rightSidebarWidth);
   const rightSidebarSurface = useDesktopPreference(s => s.rightSidebarSurface);
-  const localAgentsSettings = useDesktopPreference(s => s.localAgentsSettings);
+  const hiddenTerminalAgentIds = useDesktopPreference(s => s.localAgentsSettings.hiddenTerminalAgentIds);
   const sidebarCollapsed = useDesktopPreference(s => s.sidebarCollapsed);
-  const titlebarActionsSettings = useDesktopPreference(s => s.titlebarActionsSettings);
   const diffMarkers = useDesktopPreference(s => s.diffMarkers);
   const markdownPresentation = useDesktopPreference(s => s.markdownPresentation);
   const pointerCursors = useDesktopPreference(s => s.pointerCursors);
-  const setFilesVisibilitySettings = useDesktopPreference(s => s.setFilesVisibilitySettings);
   const setRightSidebarWidth = useDesktopPreference(s => s.setRightSidebarWidth);
   const setRightSidebarSurface = useDesktopPreference(s => s.setRightSidebarSurface);
-  const setLocalAgentsSettings = useDesktopPreference(s => s.setLocalAgentsSettings);
   const setSidebarCollapsed = useDesktopPreference(s => s.setSidebarCollapsed);
   const setRightSidebarOpen = useDesktopPreference(s => s.setRightSidebarOpen);
   const setProjectSwitcherExpanded = useDesktopPreference(s => s.setProjectSwitcherExpanded);
@@ -222,7 +228,7 @@ function AppContent() {
   const loadingAnimationPreset = useDesktopPreference(s => s.loadingAnimationPreset);
   const projectSwitcherExpanded = useDesktopPreference(s => s.projectSwitcherExpanded);
   const setProjectSwitcherWidth = useDesktopPreference(s => s.setProjectSwitcherWidth);
-  const multiRootWorkspacesEnabled = experimentalSettings.enableMultiRootWorkspaces;
+  const multiRootWorkspacesEnabled = enableMultiRootWorkspaces;
   useSubThemeNativeMenu({
     snapshot: subThemeCatalog.snapshot,
     rootThemeId: interfaceStyle,
@@ -250,10 +256,10 @@ function AppContent() {
   const cloudAvailable = useFeatureFlag("cloudWorkspace");
   // The build flag only marks availability; PuppyOne Cloud stays hidden until
   // the user opts into the experiment in Settings.
-  const cloudEnabled = cloudAvailable && experimentalSettings.enableCloudWorkspace;
+  const cloudEnabled = cloudAvailable && enableCloudWorkspace;
   // Share onboarding rides on top of Cloud: the Header cloud icon becomes the
   // project's Local/Cloud indicator and the only entry into sharing.
-  const shareOnboardingEnabled = cloudEnabled && experimentalSettings.enableShareOnboarding;
+  const shareOnboardingEnabled = cloudEnabled && enableShareOnboarding;
   const assetLibraryHomeAvailable = useFeatureFlag("assetLibraryHome");
   const {
     cloudSession,
@@ -344,17 +350,17 @@ function AppContent() {
     typography,
   ]);
   const createNewItems = useMemo(
-    () => resolveVisibleCreateNewMenuItems(createNewMenuSettings, experimentalSettings),
-    [createNewMenuSettings, experimentalSettings],
+    () => resolveVisibleCreateNewMenuItems(createNewMenuSettings, { enablePuppyFlowFiles }),
+    [createNewMenuSettings, enablePuppyFlowFiles],
   );
   const agentChatRuntimeVisibility = useMemo(() => {
     return resolveAgentChatRuntimeVisibility(AGENT_CHAT_CREATION_RECIPES, {
-      hiddenLocalAgentIds: localAgentsSettings.hiddenTerminalAgentIds,
+      hiddenLocalAgentIds: hiddenTerminalAgentIds,
     });
-  }, [localAgentsSettings.hiddenTerminalAgentIds]);
+  }, [hiddenTerminalAgentIds]);
   const assetLibraryHomeEnabled = isAssetLibraryHomeEnabled({
     available: assetLibraryHomeAvailable,
-    optedIn: experimentalSettings.enableAssetLibraryHome,
+    optedIn: enableAssetLibraryHome,
   });
   const Homepage = assetLibraryHomeEnabled ? AssetLibraryHome : MinimalOnboarding;
   const [activeSettingsSection, setActiveSettingsSection] = useState<SettingsSection>("general");
@@ -453,12 +459,12 @@ function AppContent() {
       activeElement.blur();
     }
   }, []);
-  const centerProjectInHeader = experimentalSettings.enableCenteredProjectInHeader;
+  const centerProjectInHeader = enableCenteredProjectInHeader;
   const gitAnchorRef = useRef<HTMLDivElement>(null);
   const closeProjectMenu = useCallback(() => setSwitcherOpen(false), []);
   const gitPresentation = useGitPresentation({
     centeredProject: centerProjectInHeader,
-    cardExperiment: experimentalSettings.enableGitCardInHeader,
+    cardExperiment: enableGitCardInHeader,
     workspaceScope: focusedWorkspace?.path ?? null,
     sidebarOpen: rightSidebarOpen,
     sidebarSurface: rightSidebarSurface,
@@ -593,14 +599,14 @@ function AppContent() {
   }, [setBranchSwitcherOpen]);
   const closeSettingsDialog = useCallback(() => setSettingsDialogOpen(false), []);
   const openPluginsDialog = useCallback(() => {
-    if (!experimentalSettings.enableViewerPlugins) return;
+    if (!enableViewerPlugins) return;
     setActiveView("data");
     setPluginsDialogOpen(true);
     setSettingsDialogOpen(false);
     setCloudDialogOpen(false);
     setSwitcherOpen(false);
     setBranchSwitcherOpen(false);
-  }, [experimentalSettings.enableViewerPlugins, setBranchSwitcherOpen]);
+  }, [enableViewerPlugins, setBranchSwitcherOpen]);
   const closePluginsDialog = useCallback(() => setPluginsDialogOpen(false), []);
   const openCloudDialogAt = useCallback((section: CloudWorkspaceSection) => {
     if (!cloudEnabled) return;
@@ -685,17 +691,17 @@ function AppContent() {
   });
 
   useEffect(() => {
-    if (!experimentalSettings.enableViewerPlugins) setPluginsDialogOpen(false);
-  }, [experimentalSettings.enableViewerPlugins]);
+    if (!enableViewerPlugins) setPluginsDialogOpen(false);
+  }, [enableViewerPlugins]);
 
   useEffect(() => {
     if (!isSettingsSectionAvailable(activeSettingsSection, {
       cloudEnabled,
-      otherAppImportsEnabled: experimentalSettings.enableOtherAppImports,
+      otherAppImportsEnabled: enableOtherAppImports,
     })) {
       setActiveSettingsSection("general");
     }
-  }, [activeSettingsSection, cloudEnabled, experimentalSettings.enableOtherAppImports]);
+  }, [activeSettingsSection, cloudEnabled, enableOtherAppImports]);
 
   useEffect(() => {
     const preventFileDropNavigation = (event: DragEvent) => {
@@ -1058,11 +1064,6 @@ function AppContent() {
     ));
   }, [setActiveExplorerNode]);
 
-  const handleFilesVisibilitySettingsChange = useCallback((nextSettings: FilesVisibilitySettings) => {
-    setFilesVisibilitySettings(nextSettings);
-    refreshWorkspaceContent();
-  }, [refreshWorkspaceContent, setFilesVisibilitySettings]);
-
   const handlePuppyoneConfigChange = useCallback(async (nextConfig: PuppyoneWorkspaceConfig) => {
     const savedConfig = await savePuppyoneConfig(nextConfig);
     if (savedConfig) {
@@ -1358,7 +1359,7 @@ function AppContent() {
   const gitTitlebarStatus = getGitTitlebarStatus(activeGitStatus);
   const headerCoachmarks = useHeaderCoachmarks({
     agentOpen: agentSidebarOpen,
-    alwaysShow: experimentalSettings.enableAlwaysShowOnboardingCoachmarks,
+    alwaysShow: enableAlwaysShowOnboardingCoachmarks,
     changesOpen: gitPresentation.open,
     localChangeCount: activeGitStatus?.isRepo ? gitTitlebarStatus.localChanges : null,
     workspaceEntryId: workspaceEntryIntent?.id ?? null,
@@ -1439,7 +1440,6 @@ function AppContent() {
           apiBaseUrl={desktopCloudApiBaseUrl} controller={accountCloud} onRetry={homepageCloud.refresh} /> : undefined}
         initialError={restoreWorkspaceError}
         appearance={surfaceAppearance}
-        experimentalSettings={experimentalSettings}
       />,
     );
   }
@@ -1498,7 +1498,6 @@ function AppContent() {
       commitDetailLoading={gitCommitDetailLoading}
       commitDetailError={gitCommitDetailError}
       historyLoading={gitHistoryLoading}
-      fileIconTheme={fileIconTheme}
       initializing={gitOperationLoading === "init"}
       onInitialize={handleInitializeGitRepository}
       onSelectCommit={selectGitCommit}
@@ -1507,7 +1506,6 @@ function AppContent() {
   );
   const chromeActionProps = {
     desktopUpdateState: desktopUpdates.state,
-    titlebarActionsSettings,
     terminalSidebarOpen: agentSidebarOpen,
     terminalToolEnabled: !cloudWorkspaceActive,
     gitChangesAvailable: Boolean(focusedWorkspace) && !cloudWorkspaceActive,
@@ -1577,12 +1575,11 @@ function AppContent() {
       {...chromeActionProps}
     />
   );
-  const editorTabsInHeaderEnabled = experimentalSettings.enableEditorTabsInHeader;
+  const editorTabsInHeaderEnabled = enableEditorTabsInHeader;
   const titlebarEditorTabs = editorTabsInHeaderEnabled ? (
     <EditorHeaderTabs
       activeEditorId={editorWorkbench.activeEditorId}
       editors={editorWorkbench.state.editors}
-      fileIconTheme={fileIconTheme}
       storageIdentity={documentStorageIdentity}
       onActivate={handleEditorTabActivate}
       onClose={handleEditorClose}
@@ -1595,7 +1592,7 @@ function AppContent() {
       appearance={surfaceAppearance}
     />
   );
-  const projectSwitcherRailEnabled = experimentalSettings.enableProjectSwitcherRail;
+  const projectSwitcherRailEnabled = enableProjectSwitcherRail;
   const projectSwitcherRailVisible = projectSwitcherRailEnabled;
 
   return (
@@ -1617,7 +1614,7 @@ function AppContent() {
               recentWorkspaces={recentWorkspaceItems}
               onCreateNew={projectEntryFlow.openLauncher}
               pluginsOpen={pluginsDialogOpen}
-              onOpenPlugins={experimentalSettings.enableViewerPlugins
+              onOpenPlugins={enableViewerPlugins
                 ? openPluginsDialog
                 : undefined}
               settingsOpen={settingsDialogOpen}
@@ -1653,7 +1650,7 @@ function AppContent() {
             ? editorTabsInHeaderEnabled ? accountCloudPresentation.titlebarTabs : undefined
             : titlebarEditorTabs}
           alignTitlebarTabsToExplorer={editorTabsInHeaderEnabled}
-          titlebarTabsHostRef={experimentalSettings.enableWorkbenchTabsInHeader && !editorTabsInHeaderEnabled
+          titlebarTabsHostRef={enableWorkbenchTabsInHeader && !editorTabsInHeaderEnabled
             ? setTitlebarTabHost
             : undefined}
           locationBar={cloudWorkspaceActive ? accountCloudPresentation.locationBar : locationBarVisible ? (
@@ -1678,7 +1675,7 @@ function AppContent() {
                   key={projectWorkbench.context.generation}
                   store={projectWorkbench}
                   active={presentation.contentVisible && !cloudWorkspaceActive && rightSidebarSurface === "chat"}
-                  titlebarTabHost={experimentalSettings.enableWorkbenchTabsInHeader && !editorTabsInHeaderEnabled
+                  titlebarTabHost={enableWorkbenchTabsInHeader && !editorTabsInHeaderEnabled
                     ? titlebarTabHost
                     : null}
                   onReveal={() => {
@@ -1690,9 +1687,7 @@ function AppContent() {
                     const folder = workbenchWorkspace?.folders.find((entry) => entry.workspace.path === projectWorkbench.context.rootPath);
                     if (folder) void handleRemoveProject(folder);
                   }}
-                  renderLauncher={(context) => <AuxiliaryWorkbenchLauncher {...context} store={projectWorkbench} contributions={auxiliaryWorkbenchContributions} hiddenAgentIds={localAgentsSettings.hiddenTerminalAgentIds}
-                    setupPreferences={localAgentsSettings.setupSuggestions}
-                    onSetupPreferencesChange={(setupSuggestions) => setLocalAgentsSettings({ ...localAgentsSettings, setupSuggestions })} />}
+                  renderLauncher={(context) => <AuxiliaryWorkbenchLauncher {...context} store={projectWorkbench} contributions={auxiliaryWorkbenchContributions} />}
                 />}
               </div>
               {!gitPresentation.cardEnabled && (
@@ -1780,7 +1775,7 @@ function AppContent() {
             onCreateEntryMenu={openCreateEntryMenu}
             onDismissCreateEntryMenu={() => setCreateEntryDraft(null)}
             fileClipboardController={fileClipboardController}
-            onFilesVisibilitySettingsChange={handleFilesVisibilitySettingsChange}
+            onFilesVisibilityChange={refreshWorkspaceContent}
             onNavigate={navigateDesktopView}
             onCloseCloud={closeCloudDialog}
             onClosePlugins={closePluginsDialog}
@@ -1836,7 +1831,7 @@ function AppContent() {
                 projectEntryFlow.openImport();
               }}
                 subThemeCatalog={subThemeCatalog}
-              onFilesVisibilitySettingsChange={handleFilesVisibilitySettingsChange}
+              onFilesVisibilityChange={refreshWorkspaceContent}
               git={{
                 status: activeGitStatus,
                 loading: gitStatusLoading,
@@ -1897,7 +1892,6 @@ function AppContent() {
             onCancelImport={cancelImportSource}
             onImportProgress={onImportSourceProgress}
             onOpenFolder={() => void openFolder()}
-            experimentalSettings={experimentalSettings}
           />
           {gitOperationError && !pendingBranchSwitch && (
             <GitOperationErrorDialog
@@ -1913,7 +1907,6 @@ function AppContent() {
             createEntryDraft.selectedKind ? (
               <DesktopCreateEntryDialog
                 draft={createEntryDraft}
-                fileIconTheme={fileIconTheme}
                 onChange={setCreateEntryDraft}
                 onCancel={() => setCreateEntryDraft(null)}
                 onCreate={createEntryFromMenu}
@@ -1923,7 +1916,6 @@ function AppContent() {
                 draft={createEntryDraft}
                 mainEntries={createNewItems.main}
                 submenuItemKinds={createNewItems.submenu}
-                fileIconTheme={fileIconTheme}
                 onCancel={() => setCreateEntryDraft(null)}
                 onSelectKind={selectCreateEntryKind}
               />
@@ -1932,7 +1924,6 @@ function AppContent() {
           {nodeActionMenu && (
             <DesktopNodeActionMenu
               draft={nodeActionMenu}
-              experimentalSettings={experimentalSettings}
               showRevealInFinder
               showOpenInDefaultApp
               canPaste={nodeActionMenu.node.type === "folder" && fileClipboardController.canPasteInto(nodeActionMenu.node.path)}

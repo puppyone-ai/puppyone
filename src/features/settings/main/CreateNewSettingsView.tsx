@@ -1,3 +1,5 @@
+import { useShallow } from "zustand/react/shallow";
+import { useDesktopPreference, selectFileIconTheme } from "../../../preferencesStore";
 import { useMemo, useState, type DragEvent } from "react";
 import {
   ChevronRight,
@@ -14,6 +16,7 @@ import {
 } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
 import {
+  CREATE_NEW_ITEM_IDS,
   CREATE_NEW_MENU_VERSION,
   CREATE_NEW_SUBMENU_ID,
   cloneDefaultCreateNewMenuSettings,
@@ -24,7 +27,6 @@ import {
   type CreateNewMenuPlacement,
   type CreateNewMenuSettings,
   type CreateNewSubmenuId,
-  type ExperimentalSettings,
 } from "../../../preferences";
 import { getCreateEntryMenuItem } from "../../create-new/createEntryMenuRegistry";
 import { SettingsSectionHeader } from "../components";
@@ -36,17 +38,11 @@ type DragTarget = {
   index: number;
 };
 
-export function CreateNewSettingsView({
-  settings,
-  experimentalSettings,
-  fileIconTheme,
-  onChange,
-}: {
-  settings: CreateNewMenuSettings;
-  experimentalSettings: ExperimentalSettings;
-  fileIconTheme: FileIconThemeId;
-  onChange: (settings: CreateNewMenuSettings) => void;
-}) {
+export function CreateNewSettingsView() {
+  const settings = useDesktopPreference(s => s.createNewMenuSettings);
+  const availableItemIds = useDesktopPreference(useShallow(s => CREATE_NEW_ITEM_IDS.filter(id => isCreateNewItemAvailable(id, s.experimentalSettings))));
+  const fileIconTheme = useDesktopPreference(selectFileIconTheme);
+  const onChange = useDesktopPreference(s => s.setCreateNewMenuSettings);
   const { t } = useLocalization();
   const [draggedEntry, setDraggedEntry] = useState<CreateNewDraggableEntry | null>(null);
   const [dragTarget, setDragTarget] = useState<DragTarget | null>(null);
@@ -127,7 +123,7 @@ export function CreateNewSettingsView({
     const label = isSubmenu
       ? t("workspace.node.customFiles")
       : t(`workspace.node.create.kind.${entry}.label`);
-    const available = isSubmenu || isCreateNewItemAvailable(entry, experimentalSettings);
+    const available = isSubmenu || availableItemIds.includes(entry);
     const dragBefore = dragTarget?.group === group && dragTarget.index === index;
     const dragAfter = dragTarget?.group === group && dragTarget.index === index + 1;
 

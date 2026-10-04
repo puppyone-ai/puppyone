@@ -1,11 +1,12 @@
 // @vitest-environment happy-dom
-import { act, type ComponentProps } from "react";
+import { act, Profiler, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import { DataWorkspace, type Workspace } from "@puppyone/shared-ui";
+import { DataWorkspace, PULSE_GRID_PRESET_IDS, type Workspace } from "@puppyone/shared-ui";
 import { initializeDesktopPreferences, desktopPreferencesStore as store, useDesktopPreference } from "../../../../src/preferencesStore";
 import { createSettingsWorkspaceSurface, type SettingsWorkspaceSurfaceProps } from "../../../../src/features/settings/SettingsWorkspaceSurface";
 import { BUILTIN_SUB_THEME_CATALOG } from "../../../../src/features/settings/appearanceSlice";
+import { DesktopTitlebarActions } from "../../../../src/features/app-shell/DesktopTitlebarActions";
 import { DesktopDataWorkspaceSurface } from "../../../../src/features/app-shell/DesktopDataWorkspaceSurface";
 import { DesktopPaneLayoutProvider } from "../../../../src/features/app-shell/layout/DesktopPaneLayoutContext";
 import { resolveDesktopPaneLayout } from "../../../../src/features/app-shell/layout/desktopPaneLayout";
@@ -25,7 +26,7 @@ const noop = () => {};
 const workspace: Workspace = { id: "preferences", name: "Fixture", path: "/fixture/preferences", status: "recording" };
 const settings: SettingsWorkspaceSurfaceProps = {
   workspace, activeSection: "appearance", onSelectSection: noop, onOpenImport: noop,
-  onFilesVisibilitySettingsChange: value => store.getState().setFilesVisibilitySettings(value),
+  onFilesVisibilityChange: noop,
   subThemeCatalog: { snapshot: BUILTIN_SUB_THEME_CATALOG, status: "ready", error: null,
     openDirectory: async () => ({ opened: false }), createTheme: async () => ({ created: false }) },
   git: { status: null, loading: false, error: null, refresh: noop },
@@ -74,6 +75,24 @@ function DataSurface({ collapsed }: { collapsed: boolean }) {
 }
 
 describe("mounted desktop preference consumers", () => {
+  it("does not render the production Account section when unrelated preferences change", async () => {
+    const commits = vi.fn();
+    const { main } = createSettingsWorkspaceSurface({ ...settings, activeSection: "account",
+      cloud: { ...settings.cloud, enabled: true, apiBaseUrl: "http://fixture.invalid/api/v1" } });
+    await act(async () => root.render(withTestLocalization(<Profiler id="account" onRender={commits}>{main}</Profiler>)));
+    expect(host.textContent).toContain("Account");
+    const mountedCommits = commits.mock.calls.length;
+    act(() => store.getState().setPointerCursors(true));
+    expect(commits).toHaveBeenCalledTimes(mountedCommits);
+    act(() => store.getState().setGitSidebarLayout("dividers"));
+    expect(commits).toHaveBeenCalledTimes(mountedCommits);
+    act(() => {
+      store.getState().setLocalAgentsSettings(current => ({ ...current, chatHistoryDiscoveryEnabled: true }));
+      store.getState().setExperimentalSettings(current => ({ ...current, enableOtherAppImports: true }));
+      store.getState().setTypographyPreferences(current => ({ ...current, scale: "large" }));
+    });
+    expect(commits).toHaveBeenCalledTimes(mountedCommits);
+  });
   it("updates pointer cursors from real settings without notifying unrelated layout/editor/agent selectors", () => {
     const counts = { pointer: 0, layout: 0, editor: 0, agent: 0 };
     function Pointer() { useDesktopPreference(s => s.pointerCursors); counts.pointer++; return null; }
@@ -87,6 +106,71 @@ describe("mounted desktop preference consumers", () => {
     expect(store.getState().pointerCursors).toBe(true);
     expect(counts).toEqual({ ...before, pointer: before.pointer + 1 });
     expect(host.querySelector<HTMLInputElement>('input[aria-labelledby="desktop-pointer-cursors-label"]')?.checked).toBe(true);
+  });
+  it("keeps the production appearance controls ordered and persists each loading preset and Git layout", () => {
+    renderSettings("appearance");
+    const list = host.querySelector(".desktop-settings-lead-list")!;
+    expect(list.children[0].classList.contains("desktop-theme-mode-row")).toBe(true);
+    expect(list.children[1].classList.contains("desktop-theme-settings-section")).toBe(true);
+    expect(list.lastElementChild?.querySelector(".desktop-interface-style-segment")).not.toBeNull();
+    expect(list.lastElementChild?.previousElementSibling?.querySelector("#desktop-pointer-cursors-label")).not.toBeNull();
+    expect(list.querySelectorAll(".desktop-theme-segment.desktop-appearance-option-segment")).toHaveLength(3);
+    expect(list.querySelectorAll(".desktop-appearance-hug-segment")).toHaveLength(2);
+    const git = list.children[3];
+    const loading = list.children[4];
+    const presets = [...loading.querySelectorAll<HTMLButtonElement>("button")];
+    expect(presets).toHaveLength(PULSE_GRID_PRESET_IDS.length);
+    for (const [index, preset] of PULSE_GRID_PRESET_IDS.entries()) {
+      expect(presets[index].querySelectorAll("[data-pulse-grid-point]")).toHaveLength(9);
+      act(() => presets[index].click());
+      expect(presets[index].getAttribute("aria-pressed")).toBe("true");
+      expect(store.getState().loadingAnimationPreset).toBe(preset);
+      expect(JSON.parse(localStorage.getItem("puppyone.desktop.appearance")!).shared.loadingAnimationPreset).toBe(preset);
+    }
+    act(() => git.querySelectorAll<HTMLButtonElement>("button")[1].click());
+    expect(store.getState().gitSidebarLayout).toBe("dividers");
+    expect(localStorage.getItem("puppyone.desktop.gitSidebarLayout")).toBe("dividers");
+    expect(git.querySelectorAll("button")[1].getAttribute("aria-pressed")).toBe("true");
+  });
+  it("preserves icon selection when switching root themes and hides fixed color-mode controls", () => {
+    renderSettings("appearance");
+    const icons = host.querySelectorAll<HTMLButtonElement>(".desktop-theme-segment.desktop-appearance-option-segment")[0];
+    const options = icons.querySelectorAll<HTMLButtonElement>("button");
+    act(() => options[1].click());
+    expect(store.getState().fileIconTheme).not.toBe("default");
+    const requested = store.getState().fileIconTheme;
+    act(() => store.getState().setInterfaceStyle("windows-xp"));
+    expect(options[1].getAttribute("aria-pressed")).toBe("true");
+    expect(store.getState().fileIconTheme).toBe(requested);
+    expect(host.querySelector(".desktop-theme-mode-row")).toBeNull();
+  });
+  it("updates the mounted titlebar directly from the Header controls and retains action callbacks", () => {
+    const terminal = vi.fn();
+    const { main } = createSettingsWorkspaceSurface(settings);
+    act(() => root.render(withTestLocalization(<>{main}<DesktopTitlebarActions terminalSidebarOpen={false}
+      terminalToolEnabled gitChangesAvailable onToggleTerminal={terminal} /></>)));
+    click(".desktop-titlebar-terminal");
+    expect(terminal).toHaveBeenCalledOnce();
+    const toggles = host.querySelectorAll<HTMLInputElement>(".desktop-settings-tool-item input");
+    act(() => toggles[1].click());
+    expect(store.getState().titlebarActionsSettings.enabled.terminal).toBe(false);
+    expect(store.getState().rightSidebarToolsSettings.enabled.terminal).toBe(false);
+    expect(host.querySelector(".desktop-titlebar-terminal")).toBeNull();
+    expect(host.querySelector(".desktop-titlebar-changes")).not.toBeNull();
+    expect(JSON.parse(localStorage.getItem("puppyone.desktop.titlebarActions")!).enabled.terminal).toBe(false);
+    expect(JSON.parse(localStorage.getItem("puppyone.desktop.rightSidebarTools")!).enabled.terminal).toBe(false);
+    act(() => toggles[1].click());
+    expect(host.querySelector(".desktop-titlebar-terminal")).not.toBeNull();
+    expect(store.getState().rightSidebarToolsSettings.enabled.terminal).toBe(true);
+  });
+  it("updates file visibility in its control and notifies the workspace refresh owner", () => {
+    const refresh = vi.fn();
+    const { main } = createSettingsWorkspaceSurface({ ...settings, activeSection: "files", onFilesVisibilityChange: refresh });
+    act(() => root.render(withTestLocalization(main)));
+    click('input[type="checkbox"]');
+    expect(store.getState().filesVisibilitySettings.showHiddenFiles).toBe(true);
+    expect(JSON.parse(localStorage.getItem("puppyone.desktop.filesVisibility")!).showHiddenFiles).toBe(true);
+    expect(refresh).toHaveBeenCalledOnce();
   });
   it("wires the real Sub Theme picker to per-root persisted preferences", () => {
     renderSettings("appearance");

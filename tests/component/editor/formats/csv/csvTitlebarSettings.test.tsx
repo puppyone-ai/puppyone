@@ -1,3 +1,4 @@
+import { initializeDesktopPreferences } from "../../../../../src/preferencesStore";
 import type { DocumentDataNode } from "@puppyone/shared-ui";
 import { unavailableDocumentNavigation } from "../../../../support/editor/documentFixtures";
 /**
@@ -15,7 +16,7 @@ import {
 } from "@puppyone/shared-ui";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DesktopEditorSplitView } from "../../../../../src/features/editor-workbench/layout/DesktopEditorSplitView";
 import { withTestLocalization } from "../../../../support/react/localization";
 
@@ -30,6 +31,8 @@ afterEach(() => {
   document.body.replaceChildren();
   window.localStorage.clear();
 });
+
+beforeEach(() => initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} }));
 
 describe("CSV pane-menu settings", () => {
   it("keeps file, view, and pane actions scoped to the CSV pane", async () => {
@@ -65,7 +68,6 @@ describe("CSV pane-menu settings", () => {
           editorInteractionPreferences={{ showSaveStatus: false, markdownBlockDragEnabled: false }}
           externalOpen={{ open: openExternal }}
           editorTree={[node]}
-          fileIconTheme="default"
           layout={createEditorPaneLayout(path)}
           markdownEnvironment={workspaceState(node).markdownEnvironment}
           workspace={{ id: "workspace", name: "Workspace", path: "/workspace", status: "recording" }}
@@ -180,7 +182,6 @@ describe("CSV pane-menu settings", () => {
           editorInteractionPreferences={{ showSaveStatus: false, markdownBlockDragEnabled: false }}
           externalOpen={{ open: openExternal }}
           editorTree={nodes}
-          fileIconTheme="default"
           layout={layout}
           markdownEnvironment={workspaceState(nodes[1]!).markdownEnvironment}
           workspace={{ id: "workspace", name: "Workspace", path: "/workspace", status: "recording" }}

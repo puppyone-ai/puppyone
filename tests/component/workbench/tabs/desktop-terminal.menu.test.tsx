@@ -1,18 +1,20 @@
+import { initializeDesktopPreferences, desktopPreferencesStore as preferences } from "../../../../src/preferencesStore";
 /**
  * @vitest-environment happy-dom
  */
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DesktopTitlebarActions } from "../../../../src/features/app-shell/DesktopTitlebarActions";
 import { AuxiliaryWorkbenchCloseDialog } from "../../../../src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchCloseDialog";
 import type { TerminalTabMoveDragController } from "../../../../src/features/desktop-terminal/interactions/useTerminalTabMoveDrag";
 import type { TerminalRuntimeHandle } from "../../../../src/features/desktop-terminal/runtime/terminalRuntime";
 import { TerminalSessionHeader } from "../../../../src/features/desktop-terminal/ui/session-header/TerminalSessionHeader";
-import { DEFAULT_TITLEBAR_ACTIONS_SETTINGS } from "../../../../src/preferences";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+beforeEach(() => { localStorage.clear(); initializeDesktopPreferences(); });
 
 let root: Root | null = null;
 
@@ -32,7 +34,7 @@ describe("Desktop Terminal tab session manager", () => {
       document.body.appendChild(container);
       root = createRoot(container);
       act(() => root?.render(withTestLocalization(
-        <DesktopTitlebarActions titlebarActionsSettings={DEFAULT_TITLEBAR_ACTIONS_SETTINGS}
+        <DesktopTitlebarActions
           terminalSidebarOpen={false} terminalToolEnabled gitChangesAvailable
           cloudEnabled={cloudEnabled} shareEnabled={shareEnabled}
           onToggleTerminal={vi.fn()} />,
@@ -54,7 +56,7 @@ describe("Desktop Terminal tab session manager", () => {
     document.body.appendChild(container);
     root = createRoot(container);
     const render = (shareEnabled: boolean) => act(() => root?.render(withTestLocalization(
-      <DesktopTitlebarActions titlebarActionsSettings={DEFAULT_TITLEBAR_ACTIONS_SETTINGS}
+      <DesktopTitlebarActions
         terminalSidebarOpen={false} terminalToolEnabled cloudEnabled
         visibleGroups={["app-status", "header", "right-sidebar"]}
         shareEnabled={shareEnabled} onShare={onShare} onToggleTerminal={vi.fn()} />,
@@ -86,7 +88,7 @@ describe("Desktop Terminal tab session manager", () => {
 
     act(() => root?.render(withTestLocalization(
       <DesktopTitlebarActions
-        titlebarActionsSettings={DEFAULT_TITLEBAR_ACTIONS_SETTINGS}
+
         terminalSidebarOpen={false}
         terminalToolEnabled
         placement="toolbar"
@@ -110,7 +112,7 @@ describe("Desktop Terminal tab session manager", () => {
   it.each(["titlebar", "toolbar"] as const)("hides local execution controls in the Cloud %s", (placement) => {
     const container = document.createElement("div"); document.body.appendChild(container); root = createRoot(container);
     act(() => root?.render(withTestLocalization(
-      <DesktopTitlebarActions titlebarActionsSettings={DEFAULT_TITLEBAR_ACTIONS_SETTINGS}
+      <DesktopTitlebarActions
         terminalSidebarOpen={false} terminalToolEnabled={false} gitChangesAvailable={false}
         placement={placement} cloudEnabled shareEnabled onShare={vi.fn()} onToggleTerminal={vi.fn()} />,
     )));

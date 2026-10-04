@@ -3,7 +3,7 @@ import { useLocalization } from "@puppyone/localization";
 import { Button } from "@puppyone/shared-ui";
 import { DesktopMenuSurface } from "../../components/DesktopMenu";
 import { DesktopOverlayLayer } from "./DesktopOverlayPortal";
-import { AgentEntryIcon } from "./AgentEntryIcon";
+import { AgentEntryIcon } from "../../components/brand/AgentEntryIcon";
 import { useAnchoredOverlayPosition } from "./useAnchoredOverlayPosition";
 import { VersionControlIcon } from "../source-control/VersionControlIcon";
 import type { HeaderCoachmarkId } from "./headerCoachmarks";

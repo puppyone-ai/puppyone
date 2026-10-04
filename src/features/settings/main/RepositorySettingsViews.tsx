@@ -1,3 +1,4 @@
+import { useDesktopPreference } from "../../../preferencesStore";
 import { Tooltip } from "@puppyone/shared-ui";
 import { Copy, RefreshCw } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
@@ -129,7 +130,6 @@ export function CloudHostingSettingsView({
 
 export function GitSettingsView({
   workspaceRoot,
-  experimentalOptIn,
   status,
   loading,
   error,
@@ -139,9 +139,9 @@ export function GitSettingsView({
   onRefresh,
 }: RepositorySettingsBaseProps & {
   workspaceRoot: string;
-  experimentalOptIn: boolean;
 }) {
   const { t } = useLocalization();
+  const experimentalOptIn = useDesktopPreference(s => s.experimentalSettings.enableGitAutoCommit);
   const autoCommit = useGitAutoCommitSettings(workspaceRoot, experimentalOptIn);
   const autoCommitPolicy = autoCommit.snapshot?.workspacePolicy ?? null;
   const autoCommitRuntime = autoCommit.snapshot?.runtime ?? null;

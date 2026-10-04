@@ -1,3 +1,4 @@
+import { initializeDesktopPreferences } from "../../../../src/preferencesStore";
 import { redo, undo, undoDepth } from "@codemirror/commands";
 import { TestLocalizationProvider } from "@puppyone/localization/testing";
 import { EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT, getEditorPanes, withEditorDocumentOperations,
@@ -20,6 +21,8 @@ import "../../../../src/styles/cascade.css";
 import { unavailableDocumentNavigation } from "../../../support/editor/documentFixtures";
 import { requireEditorView } from "../../../support/editor/editorView";
 import { EDITOR_PANE_CASES, paneCaseNode, type EditorPaneCase } from "../../../fixtures/editor/runtime/editorPaneCases";
+
+initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
 
 type Point = { x: number; y: number };
 declare global {
@@ -71,7 +74,7 @@ function Harness({ subject, port }: { subject: DocumentDataNode; port: DataPort 
   useEffect(() => { if (!initialized.current) { initialized.current = true; editor.openDocument(subject); } }, [editor, subject]);
   return <section style={{ height: "100vh", width: "100vw", position: "relative", minHeight: 0, minWidth: 0 }}>
     <DesktopEditorSplitView aiEditRequest={null} dataPort={port} editorGroup={editor.state} layout={editor.paneLayout}
-      editorInteractionPreferences={{ showSaveStatus: false, markdownBlockDragEnabled: false }} fileIconTheme="default"
+      editorInteractionPreferences={{ showSaveStatus: false, markdownBlockDragEnabled: false }}
       editorTree={[subject, sibling]} markdownEnvironment={EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT}
       documentNavigation={unavailableDocumentNavigation} workspace={workspace} externalOpen={{ open: () => {} }}
       onClosePane={editor.closePane} onFocusPane={editor.focusPane} onResizeSplit={editor.resizeSplit}

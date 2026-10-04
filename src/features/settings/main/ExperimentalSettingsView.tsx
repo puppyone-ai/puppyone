@@ -1,16 +1,13 @@
+import { useDesktopPreference } from "../../../preferencesStore";
+import { useFeatureFlag } from "../../flags";
 import { useLocalization } from "@puppyone/localization";
 import type { ExperimentalSettings } from "../../../preferences";
 import { SettingsSectionHeader, SettingsSubsection, SettingsToggle } from "../components";
 
-export function ExperimentalSettingsView({
-  settings,
-  assetLibraryHomeAvailable,
-  onChange,
-}: {
-  settings: ExperimentalSettings;
-  assetLibraryHomeAvailable: boolean;
-  onChange: (settings: ExperimentalSettings) => void;
-}) {
+export function ExperimentalSettingsView() {
+  const settings = useDesktopPreference(s => s.experimentalSettings);
+  const onChange = useDesktopPreference(s => s.setExperimentalSettings);
+  const assetLibraryHomeAvailable = useFeatureFlag("assetLibraryHome");
   const { t } = useLocalization();
   const groups: Array<{
     id: string;

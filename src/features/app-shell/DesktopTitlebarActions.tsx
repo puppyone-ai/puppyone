@@ -1,9 +1,9 @@
+import { useDesktopPreference } from "../../preferencesStore";
 import { Tooltip } from "@puppyone/shared-ui";
 import { Fragment, type ReactNode, type RefObject } from "react";
 import { Forward } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import { getOrderedHeaderElementDefinitions, type HeaderElementRenderContext } from "./headerElements";
-import type { TitlebarActionsSettings } from "../../preferences";
 import type { DesktopUpdateState } from "../../types/electron";
 import {
   DesktopUpdateTitlebarButton,
@@ -19,7 +19,6 @@ import { GIT_HEADER_CARD_ID } from "./DesktopGitHeaderCard";
 
 type DesktopTitlebarActionsProps = {
   desktopUpdateState?: DesktopUpdateState | null;
-  titlebarActionsSettings: TitlebarActionsSettings;
   terminalSidebarOpen: boolean;
   terminalToolEnabled: boolean;
   gitChangesAvailable?: boolean;
@@ -43,7 +42,6 @@ export type DesktopTitlebarActionGroup = "app-status" | "header" | "right-sideba
 
 export function DesktopTitlebarActions({
   desktopUpdateState = null,
-  titlebarActionsSettings,
   terminalSidebarOpen,
   terminalToolEnabled,
   gitChangesAvailable = false,
@@ -62,6 +60,7 @@ export function DesktopTitlebarActions({
   placement = "titlebar",
   visibleGroups,
 }: DesktopTitlebarActionsProps) {
+  const titlebarActionsSettings = useDesktopPreference(s => s.titlebarActionsSettings);
   const { t } = useLocalization();
 
   const headerElementContext: HeaderElementRenderContext = {

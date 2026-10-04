@@ -1,7 +1,7 @@
+import { useDesktopPreference } from "../../../preferencesStore";
 import { RefreshCw } from "lucide-react";
 import { useMemo } from "react";
 import { useLocalization } from "@puppyone/localization";
-import type { LocalAgentsSettings } from "./localAgentSetupPreferences";
 import {
   LOCAL_AGENT_CHAT_RECIPES,
   LOCAL_AGENT_CHAT_IDS,
@@ -12,7 +12,6 @@ import { DESKTOP_TERMINAL_LAUNCHERS } from "../../../lib/terminalLaunchers";
 import { AgentLauncherIcon } from "../../../components/brand/AgentLauncherIcon";
 import { SettingsSectionHeader } from "../../../components/SettingsControls";
 import {
-  isTerminalAgentVisible,
   setTerminalAgentVisible,
 } from "./localAgentSelection";
 import { LocalAgentHooksSettingsSection } from "./LocalAgentHooksSettingsView";
@@ -22,15 +21,10 @@ const terminalLauncherById = new Map<string, (typeof DESKTOP_TERMINAL_LAUNCHERS)
   DESKTOP_TERMINAL_LAUNCHERS.map((launcher) => [launcher.id, launcher]),
 );
 
-export function LocalAgentsSettingsView({
-  settings,
-  onChange,
-  onActivityIndicatorsEnabledChange,
-}: {
-  settings: LocalAgentsSettings;
-  onChange: (settings: LocalAgentsSettings) => void;
-  onActivityIndicatorsEnabledChange: (enabled: boolean) => void;
-}) {
+export function LocalAgentsSettingsView() {
+  const hiddenAgentIds = useDesktopPreference(s => s.localAgentsSettings.hiddenTerminalAgentIds);
+  const chatHistoryDiscoveryEnabled = useDesktopPreference(s => s.localAgentsSettings.chatHistoryDiscoveryEnabled);
+  const onChange = useDesktopPreference(s => s.setLocalAgentsSettings);
   const { t } = useLocalization();
   const discovery = useLocalAgentInstallations({ enabled: true });
   const {
@@ -79,7 +73,7 @@ export function LocalAgentsSettingsView({
               </header>
               <div className="desktop-settings-list desktop-local-agent-settings-table">
                 {detected.map((agent) => {
-                  const visible = isTerminalAgentVisible(settings, agent.id);
+                  const visible = !hiddenAgentIds.includes(agent.id);
                   const displayName = agent.terminalLauncher
                     ? t(agent.terminalLauncher.nameMessage)
                     : agent.label;
@@ -99,8 +93,8 @@ export function LocalAgentsSettingsView({
                           type="checkbox"
                           checked={visible}
                           aria-label={t("settings.localAgents.toggle", { agent: displayName })}
-                          onChange={(event) => onChange(setTerminalAgentVisible(
-                            settings,
+                          onChange={(event) => onChange(current => setTerminalAgentVisible(
+                            current,
                             agent.id,
                             event.target.checked,
                           ))}
@@ -142,12 +136,12 @@ export function LocalAgentsSettingsView({
                   <label className="desktop-settings-switch">
                     <input
                       type="checkbox"
-                      checked={settings.chatHistoryDiscoveryEnabled}
+                      checked={chatHistoryDiscoveryEnabled}
                       aria-label={t("settings.localAgents.history.toggle")}
-                      onChange={(event) => onChange({
-                        ...settings,
+                      onChange={(event) => onChange(current => ({
+                        ...current,
                         chatHistoryDiscoveryEnabled: event.target.checked,
-                      })}
+                      }))}
                     />
                     <span aria-hidden="true" />
                   </label>
@@ -158,15 +152,11 @@ export function LocalAgentsSettingsView({
               detectedAgentIds={detectedAgentIds}
               agentPhase={phase}
               onRefreshAgents={refresh}
-              onActivityIndicatorsEnabledChange={onActivityIndicatorsEnabledChange}
             />
             <LocalAgentSetupSection
               enabled
               surface="chat"
               eligibleInstallationIds={LOCAL_AGENT_CHAT_IDS}
-              hiddenAgentIds={settings.hiddenTerminalAgentIds}
-              preferences={settings.setupSuggestions}
-              onPreferencesChange={(setupSuggestions) => onChange({ ...settings, setupSuggestions })}
               discovery={discovery}
               onRefresh={refresh}
               presentation="settings"

@@ -1,6 +1,6 @@
+import { useDesktopPreference } from "../../../preferencesStore";
 import { useEffect, useRef, useState } from "react";
 import { useLocalization } from "@puppyone/localization/react";
-import type { LocalAgentSetupPreferences } from "../../../../shared/local-agent-installation/setup-types";
 import { isActivationActive } from "../../../../shared/local-agent-activation/schema.mjs";
 import { AgentLauncherIcon } from "../../../components/brand/AgentLauncherIcon";
 import type { LocalAgentInstallationStoreSnapshot } from "../installation/LocalAgentInstallationStore";
@@ -10,15 +10,18 @@ import { useLocalAgentActivation } from "../activation/LocalAgentActivationStore
 import { LocalAgentActivationDialog } from "../activation/LocalAgentActivationDialog";
 import "./local-agent-setup.css";
 
-export function LocalAgentSetupSection({ enabled, surface, eligibleInstallationIds, hiddenAgentIds, preferences: input,
-  onPreferencesChange, discovery, presentation = "launcher", onReturnToLauncher }: {
-  enabled: boolean; surface: "chat" | "terminal"; eligibleInstallationIds: readonly string[]; hiddenAgentIds: readonly string[];
-  preferences?: LocalAgentSetupPreferences; onPreferencesChange?: (value: LocalAgentSetupPreferences) => void;
+export function LocalAgentSetupSection({ enabled, surface, eligibleInstallationIds,
+  discovery, presentation = "launcher", onReturnToLauncher }: {
+  enabled: boolean; surface: "chat" | "terminal"; eligibleInstallationIds: readonly string[];
   discovery: LocalAgentInstallationStoreSnapshot; onRefresh: () => void;
   presentation?: "launcher" | "settings"; onReturnToLauncher?: () => void;
 }) {
   const { t } = useLocalization();
+  const input = useDesktopPreference(s => s.localAgentsSettings.setupSuggestions);
+  const hiddenAgentIds = useDesktopPreference(s => s.localAgentsSettings.hiddenTerminalAgentIds);
+  const setLocalAgentsSettings = useDesktopPreference(s => s.setLocalAgentsSettings);
   const preferences = normalizeSetupPreferences(input);
+  const onPreferencesChange = (setupSuggestions: typeof preferences) => setLocalAgentsSettings(current => ({ ...current, setupSuggestions }));
   const setup = useLocalAgentSetup({ enabled, surface, eligibleInstallationIds, hiddenAgentIds, preferences, discovery });
   const activation = useLocalAgentActivation();
   const [selected, setSelected] = useState<{ id: string; name: string } | null>(null);
@@ -51,8 +54,8 @@ export function LocalAgentSetupSection({ enabled, surface, eligibleInstallationI
   return <section ref={root} className="local-agent-setup" data-presentation={presentation} aria-label={t("settings.agentSetup.title")}>
     {isSettings && <div className="local-agent-setup-preferences">
       <label className="local-agent-setup-toggle"><input type="checkbox" checked={preferences.enabled}
-        onChange={event => onPreferencesChange?.({ ...preferences, enabled: event.target.checked })} /><span>{t("settings.agentSetup.suggestions")}</span></label>
-      {preferences.dismissedSetupIds.length > 0 && <button onClick={() => onPreferencesChange?.({ ...preferences, dismissedSetupIds: [] })}>{t("settings.agentSetup.restore")}</button>}
+        onChange={event => onPreferencesChange({ ...preferences, enabled: event.target.checked })} /><span>{t("settings.agentSetup.suggestions")}</span></label>
+      {preferences.dismissedSetupIds.length > 0 && <button onClick={() => onPreferencesChange({ ...preferences, dismissedSetupIds: [] })}>{t("settings.agentSetup.restore")}</button>}
     </div>}
     {[...new Set([...entries.map(entry => entry.setupId), ...pending.map(operation => operation.setupId)])].map(id => {
       const operation = pending.find(item => item.setupId === id);

@@ -1,4 +1,4 @@
-import { useDesktopPreference, selectFileIconTheme } from "../../settings";
+import { useDesktopPreference } from "../../settings";
 import { useMemo, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization";
 import { DesktopDataWorkspaceSurface, type DesktopDataWorkspaceSurfaceProps } from "../../app-shell/DesktopDataWorkspaceSurface";
@@ -37,13 +37,12 @@ function CloudFileBinding({ workbench, surfaceProps, providerStateContent }: {
   const { surfaceService, dataPort, editorWorkbench, actions } = workbench;
   const { createEntryDraft, nodeActionMenu, fileClipboardController: clipboard } = actions;
   const createNewMenuSettings = useDesktopPreference(s => s.createNewMenuSettings);
-  const experimentalSettings = useDesktopPreference(s => s.experimentalSettings);
-  const fileIconTheme = useDesktopPreference(selectFileIconTheme);
+  const enablePuppyFlowFiles = useDesktopPreference(s => s.experimentalSettings.enablePuppyFlowFiles);
   const folders = useMemo(() => [surfaceService.folder], [surfaceService]);
   const createItems = useMemo(() => {
-    const items = resolveVisibleCreateNewMenuItems(createNewMenuSettings, experimentalSettings);
+    const items = resolveVisibleCreateNewMenuItems(createNewMenuSettings, { enablePuppyFlowFiles });
     return { main: items.main.filter((item) => item !== "slides"), submenu: items.submenu.filter((item) => item !== "slides") };
-  }, [createNewMenuSettings, experimentalSettings]);
+  }, [createNewMenuSettings, enablePuppyFlowFiles]);
   return <>
     <DesktopDataWorkspaceSurface {...surfaceProps}
       dataPort={dataPort ?? surfaceService.dataPort} documentSourceKind="cloud"
@@ -69,11 +68,11 @@ function CloudFileBinding({ workbench, surfaceProps, providerStateContent }: {
       workspaceRefreshToken={workbench.refreshToken} workspaceAtomicRefreshToken={0}
       workspaceSurfaceError={dataPort ? workbench.error : null} />
     {createEntryDraft && (createEntryDraft.selectedKind
-      ? <DesktopCreateEntryDialog draft={createEntryDraft} fileIconTheme={fileIconTheme}
+      ? <DesktopCreateEntryDialog draft={createEntryDraft}
           onChange={actions.setCreateEntryDraft} onCancel={() => actions.setCreateEntryDraft(null)} onCreate={actions.createEntryFromMenu} />
       : <DesktopCreateEntryMenu draft={createEntryDraft} mainEntries={createItems.main} submenuItemKinds={createItems.submenu}
-          fileIconTheme={fileIconTheme} onCancel={() => actions.setCreateEntryDraft(null)} onSelectKind={actions.selectCreateEntryKind} />)}
-    {nodeActionMenu && <DesktopNodeActionMenu draft={nodeActionMenu} experimentalSettings={experimentalSettings}
+          onCancel={() => actions.setCreateEntryDraft(null)} onSelectKind={actions.selectCreateEntryKind} />)}
+    {nodeActionMenu && <DesktopNodeActionMenu draft={nodeActionMenu}
       showRevealInFinder={false} showOpenInDefaultApp={false} canCopy={clipboard.canCopy} canCut={clipboard.canCut}
       canPaste={nodeActionMenu.node.type === "folder" && clipboard.canPasteInto(nodeActionMenu.node.path)} canDuplicate={clipboard.canDuplicate}
       onChange={actions.setNodeActionMenu} onCancel={() => actions.setNodeActionMenu(null)}

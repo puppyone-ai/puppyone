@@ -1,10 +1,12 @@
+import { useDesktopPreference } from "../../../preferencesStore";
 import { SidebarRoot, SidebarRow, SidebarScrollArea, Tooltip } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
 import { SidebarGroup } from "../../../components/sidebar";
 import type { SettingsSidebarProps } from "../types";
 import { resolveSettingsSidebarGroups } from "./settingsSidebarModel";
 
-export function SettingsSidebar({ activeSection, cloudEnabled, otherAppImportsEnabled, onSelectSection }: SettingsSidebarProps) {
+export function SettingsSidebar({ activeSection, cloudEnabled, onSelectSection }: SettingsSidebarProps) {
+  const otherAppImportsEnabled = useDesktopPreference(s => s.experimentalSettings.enableOtherAppImports);
   const { t } = useLocalization();
   const groups = resolveSettingsSidebarGroups({ cloudEnabled, otherAppImportsEnabled });
 

@@ -1,3 +1,4 @@
+import { useDesktopPreference } from "../../../preferencesStore";
 import { RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocalization, type MessageFormatter } from "@puppyone/localization";
@@ -18,13 +19,12 @@ export function LocalAgentHooksSettingsSection({
   detectedAgentIds,
   agentPhase,
   onRefreshAgents,
-  onActivityIndicatorsEnabledChange,
 }: {
   detectedAgentIds: readonly string[];
   agentPhase: LocalAgentInstallationDiscoveryPhase;
   onRefreshAgents: () => Promise<void>;
-  onActivityIndicatorsEnabledChange: (enabled: boolean) => void;
 }) {
+  const onActivityIndicatorsEnabledChange = useDesktopPreference(s => s.setAgentFileActivityIndicatorsEnabled);
   const { t } = useLocalization();
   const [providers, setProviders] = useState<readonly AgentActivityProviderStatus[]>([]);
   const [phase, setPhase] = useState<EnrollmentPhase>("loading");

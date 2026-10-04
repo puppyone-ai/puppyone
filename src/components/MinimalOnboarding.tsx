@@ -1,3 +1,4 @@
+import { useDesktopPreference } from "../preferencesStore";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import { AlertTriangle } from "lucide-react";
 import {
@@ -20,10 +21,6 @@ import {
   type RecentWorkspaceHomeItem,
 } from "../features/app-shell/workspaceHomeModel";
 import { writeClipboardText } from "../features/settings/utils";
-import {
-  DEFAULT_EXPERIMENTAL_SETTINGS,
-  type ExperimentalSettings,
-} from "../preferences";
 import { resolveImportPreviewBrands } from "../features/project-import/importSourceRegistry";
 import type {
   WorkspaceImportSourceRequest,
@@ -73,7 +70,6 @@ export type MinimalOnboardingProps = {
   operationStatus?: OnboardingOperationStatus | null;
   initialError?: string | null;
   appearance: ResolvedSurfaceAppearance;
-  experimentalSettings?: ExperimentalSettings;
 };
 
 /** Homepage project list. Cloud catalog/auth is supplied by the host, not discovered by the view. */
@@ -97,7 +93,6 @@ export function MinimalOnboarding({
   onOpenCloudProject,
   initialError = null,
   appearance,
-  experimentalSettings = DEFAULT_EXPERIMENTAL_SETTINGS,
 }: MinimalOnboardingProps) {
   const { t } = useLocalization();
   const [error, setError] = useState<string | null>(initialError);
@@ -105,7 +100,8 @@ export function MinimalOnboarding({
   const [removingPath, setRemovingPath] = useState<string | null>(null);
   const [draggingPath, setDraggingPath] = useState<string | null>(null);
   const projectEntryFlow = useProjectEntryFlow();
-  const importPreviewBrands = resolveImportPreviewBrands(experimentalSettings);
+  const enableOtherAppImports = useDesktopPreference(s => s.experimentalSettings.enableOtherAppImports);
+  const importPreviewBrands = resolveImportPreviewBrands({ enableOtherAppImports });
   const items = useMemo(
     () => (projectItems ?? recentWorkspaces.map(({ workspace }) => ({
       id: workspace.id,
@@ -305,7 +301,6 @@ export function MinimalOnboarding({
         onCancelImport={onCancelImportSource}
         onImportProgress={onImportSourceProgress}
         onOpenFolder={() => void chooseFolder()}
-        experimentalSettings={experimentalSettings}
       />
       {showEmptyStateIntro && (
         <OnboardingEmptyStateIntro onComplete={completeEmptyStateIntro} />

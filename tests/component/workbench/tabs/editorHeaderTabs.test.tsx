@@ -1,7 +1,8 @@
+import { initializeDesktopPreferences, desktopPreferencesStore as preferences } from "../../../../src/preferencesStore";
 /** @vitest-environment happy-dom */
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createEditorInput } from "@puppyone/shared-ui";
 import { EditorHeaderTabs } from "../../../../src/features/editor-workbench/header/EditorHeaderTabs";
 import { withTestLocalization } from "../../../support/react/localization";
@@ -17,6 +18,8 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+beforeEach(() => { localStorage.clear(); initializeDesktopPreferences(); });
+
 describe("EditorHeaderTabs", () => {
   it("registers hidden scrollbar ownership and reveals the activated overflow tab", () => {
     const container = document.createElement("div");
@@ -24,7 +27,7 @@ describe("EditorHeaderTabs", () => {
     root = createRoot(container);
     const editors = Array.from({ length: 20 }, (_, index) => createEditorInput(`notes/${index}.md`));
     const props = {
-      editors, fileIconTheme: "default" as const, storageIdentity: null,
+      editors, storageIdentity: null,
       onActivate: vi.fn(), onClose: vi.fn(), onMove: vi.fn(),
     };
     act(() => root?.render(withTestLocalization(<EditorHeaderTabs {...props} activeEditorId={editors[0]!.id} />)));
@@ -55,7 +58,7 @@ describe("EditorHeaderTabs", () => {
             createEditorInput("notes/a.md", "a.md"),
             createEditorInput("notes/b.md", "b.md"),
           ]}
-          fileIconTheme="default"
+
           storageIdentity={null}
           onActivate={setActiveEditorId}
           onClose={onClose}
@@ -98,7 +101,7 @@ describe("EditorHeaderTabs", () => {
             createEditorInput("b.md"),
             createEditorInput("c.md"),
           ]}
-          fileIconTheme="default"
+
           storageIdentity={null}
           onActivate={setActiveEditorId}
           onClose={vi.fn()}

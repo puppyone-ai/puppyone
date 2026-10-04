@@ -7,7 +7,6 @@ import { type Workspace } from "@puppyone/shared-ui";
 import type { DesktopView } from "../../../components/DesktopCloudShell";
 import type { DesktopUpdatesController } from "../../updates";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
-import type { FilesVisibilitySettings } from "../../../preferences";
 import type {
   CloudPublishErrorCode,
   CloudPublishProgress,
@@ -80,7 +79,7 @@ export function useWorkspaceSurfaceContent({
   cloud,
   desktopUpdates,
   git,
-  onFilesVisibilitySettingsChange,
+  onFilesVisibilityChange,
   onOpenGitChanges,
   onOpenImport,
   onPuppyoneConfigChange,
@@ -98,7 +97,7 @@ export function useWorkspaceSurfaceContent({
   cloud: DesktopWorkspaceCloudSurfaceController;
   desktopUpdates: DesktopUpdatesController;
   git: DesktopGitController;
-  onFilesVisibilitySettingsChange: (settings: FilesVisibilitySettings) => void;
+  onFilesVisibilityChange: () => void;
   onOpenGitChanges: () => void;
   onOpenImport: () => void;
   onPuppyoneConfigChange: (config: PuppyoneWorkspaceConfig) => Promise<PuppyoneWorkspaceConfig | null>;
@@ -155,8 +154,8 @@ export function useWorkspaceSurfaceContent({
     activeSection: settingsSection,
     onSelectSection: onSelectSettingsSection,
     onOpenImport,
-      subThemeCatalog,
-    onFilesVisibilitySettingsChange,
+    subThemeCatalog,
+    onFilesVisibilityChange,
     git: {
       status: git.activeGitStatus,
       loading: git.gitStatusLoading,

@@ -1,3 +1,4 @@
+import { useDesktopPreference, selectFileIconTheme } from "../../preferencesStore";
 import type { CSSProperties, Dispatch, ReactNode, SetStateAction } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -171,17 +172,16 @@ export function DesktopCreateEntryMenu({
   draft,
   mainEntries,
   submenuItemKinds,
-  fileIconTheme,
   onCancel,
   onSelectKind,
 }: {
   draft: DesktopCreateEntryDraft;
   mainEntries: readonly CreateNewMainMenuEntry[];
   submenuItemKinds: readonly CreateNewItemId[];
-  fileIconTheme?: FileIconThemeId | null;
   onCancel: () => void;
   onSelectKind: (kind: DesktopCreateEntryKind) => void;
 }) {
+  const fileIconTheme = useDesktopPreference(selectFileIconTheme);
   const { t } = useLocalization();
   const menuRef = useRef<HTMLDivElement>(null);
   const menuRowHeight = useCssPixelCustomProperty(
@@ -421,17 +421,16 @@ export function DesktopCreateEntryMenu({
 
 export function DesktopCreateEntryDialog({
   draft,
-  fileIconTheme,
   onChange,
   onCancel,
   onCreate,
 }: {
   draft: DesktopCreateEntryDraft;
-  fileIconTheme?: FileIconThemeId | null;
   onChange: Dispatch<SetStateAction<DesktopCreateEntryDraft | null>>;
   onCancel: () => void;
   onCreate: () => void;
 }) {
+  const fileIconTheme = useDesktopPreference(selectFileIconTheme);
   const { t } = useLocalization();
   const inputRef = useRef<HTMLInputElement>(null);
   const selectedKind = draft.selectedKind;
@@ -545,7 +544,6 @@ export function DesktopCreateEntryDialog({
 
 export function DesktopNodeActionMenu({
   draft,
-  experimentalSettings,
   showRevealInFinder = true,
   showOpenInDefaultApp = true,
   canPaste = false,
@@ -566,7 +564,6 @@ export function DesktopNodeActionMenu({
   onShare,
 }: {
   draft: DesktopNodeActionMenuDraft;
-  experimentalSettings?: ExperimentalSettings | null;
   showRevealInFinder?: boolean;
   showOpenInDefaultApp?: boolean;
   canPaste?: boolean;
@@ -591,7 +588,6 @@ export function DesktopNodeActionMenu({
     return (
       <DesktopNodeRenameDialog
         draft={draft}
-        experimentalSettings={experimentalSettings}
         onChange={onChange}
         onCancel={onCancel}
         onRename={onRename}
@@ -853,24 +849,23 @@ function DesktopNodeActionPopover({
 
 function DesktopNodeRenameDialog({
   draft,
-  experimentalSettings,
   onChange,
   onCancel,
   onRename,
 }: {
   draft: DesktopNodeActionMenuDraft;
-  experimentalSettings?: ExperimentalSettings | null;
   onChange: Dispatch<SetStateAction<DesktopNodeActionMenuDraft | null>>;
   onCancel: () => void;
   onRename: () => void;
 }) {
+  const enablePuppyFlowFiles = useDesktopPreference(s => s.experimentalSettings.enablePuppyFlowFiles);
   const { t } = useLocalization();
   const inputRef = useRef<HTMLInputElement>(null);
   const selectRef = useRef<HTMLSelectElement>(null);
   const isFile = draft.node.type !== "folder";
   const fileTypeOptions = useMemo(
-    () => getDesktopFileTypeOptions(draft.renameExtensionValue, t, experimentalSettings),
-    [draft.renameExtensionValue, experimentalSettings, t],
+    () => getDesktopFileTypeOptions(draft.renameExtensionValue, t, { enablePuppyFlowFiles }),
+    [draft.renameExtensionValue, enablePuppyFlowFiles, t],
   );
   const title = draft.renameFocus === "type" && isFile
     ? t("workspace.node.changeType")
@@ -1045,7 +1040,7 @@ function CreateEntryGlyph({
 type DesktopFileTypeOption = {
   id: string;
   extension: string;
-  experimentalSetting?: keyof ExperimentalSettings;
+  experimentalSetting?: "enablePuppyFlowFiles";
 };
 
 const DESKTOP_FILE_TYPE_OPTIONS = [
@@ -1115,7 +1110,7 @@ export function validateDesktopNodeName(name: string): void {
 export function getDesktopFileTypeOptions(
   currentExtension: string,
   t: MessageFormatter,
-  experimentalSettings?: ExperimentalSettings | null,
+  experimentalSettings?: Pick<ExperimentalSettings, "enablePuppyFlowFiles"> | null,
 ): Array<{ label: string; extension: string }> {
   const extension = normalizeDesktopExtension(currentExtension);
   const options = DESKTOP_FILE_TYPE_OPTIONS

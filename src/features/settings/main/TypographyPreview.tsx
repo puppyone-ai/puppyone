@@ -1,3 +1,5 @@
+import { useDesktopPreference } from "../../../preferencesStore";
+import { resolveDesktopAppearance } from "../appearanceSlice";
 import { useLocalization } from "@puppyone/localization";
 import { ChevronDown, FileText, Folder, MessageSquare } from "lucide-react";
 
@@ -5,7 +7,8 @@ const previewProject = "PuppyOne";
 const previewFiles = ["Notes.md", "Ideas.md"];
 
 /** A static workspace sample using the same semantic type roles as the app. */
-export function TypographyPreview({ markdownThemeId }: { markdownThemeId: string }) {
+export function TypographyPreview() {
+  const markdownThemeId = useDesktopPreference(s => resolveDesktopAppearance(s).subThemeId);
   const { t } = useLocalization();
 
   return (

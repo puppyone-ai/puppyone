@@ -1,3 +1,4 @@
+import { initializeDesktopPreferences, desktopPreferencesStore as preferences } from "../../../../src/preferencesStore";
 /** @vitest-environment happy-dom */
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -27,6 +28,8 @@ afterEach(async () => {
   document.body.replaceChildren();
   vi.restoreAllMocks();
 });
+
+beforeEach(() => { localStorage.clear(); initializeDesktopPreferences(); });
 
 describe("Git Auto Commit settings", () => {
   it("renders no feature controls when the optional preload capability is absent", async () => {
@@ -148,10 +151,10 @@ function HookProbe({ rootPath }: { rootPath: string }) {
 
 async function renderGitSettings(experimentalOptIn: boolean) {
   await act(async () => {
+    preferences.setState(current => ({ experimentalSettings: { ...current.experimentalSettings, enableGitAutoCommit: experimentalOptIn } }));
     root?.render(withTestLocalization(
       <GitSettingsView
         workspaceRoot={workspaceRoot}
-        experimentalOptIn={experimentalOptIn}
         status={gitStatus()}
         loading={false}
         error={null}

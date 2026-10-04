@@ -1,15 +1,18 @@
+import { initializeDesktopPreferences, desktopPreferencesStore as preferences } from "../../../../src/preferencesStore";
 /**
  * @vitest-environment happy-dom
  */
 import { act, createRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DesktopTitlebarActions } from "../../../../src/features/app-shell/DesktopTitlebarActions";
 import { DesktopTitlebarContext } from "../../../../src/features/app-shell/DesktopTitlebarContext";
 import { DEFAULT_TITLEBAR_ACTIONS_SETTINGS } from "../../../../src/preferences";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+beforeEach(() => { localStorage.clear(); initializeDesktopPreferences(); });
 
 let root: Root | null = null;
 
@@ -29,7 +32,6 @@ describe("Git right-sidebar titlebar entries", () => {
     const onShare = vi.fn();
     const onToggleWorkspaceSwitcher = vi.fn();
     const actionProps = {
-      titlebarActionsSettings: DEFAULT_TITLEBAR_ACTIONS_SETTINGS,
       terminalSidebarOpen: false,
       terminalToolEnabled: true,
       gitChangesAvailable: true,
@@ -41,7 +43,9 @@ describe("Git right-sidebar titlebar entries", () => {
       shareEnabled: true,
       onShare,
     };
-    const render = (centered: boolean, changesEnabled = true) => act(() => root?.render(withTestLocalization(
+    const render = (centered: boolean, changesEnabled = true) => act(() => {
+      preferences.getState().setTitlebarActionsSettings(current => ({ ...current, enabled: { ...current.enabled, changes: changesEnabled } }));
+      root?.render(withTestLocalization(
       <>
         <DesktopTitlebarContext
           compactProjectMenu={centered}
@@ -60,14 +64,11 @@ describe("Git right-sidebar titlebar entries", () => {
         <div data-header-trailing>
           <DesktopTitlebarActions
             {...actionProps}
-            titlebarActionsSettings={{
-              ...DEFAULT_TITLEBAR_ACTIONS_SETTINGS,
-              enabled: { ...DEFAULT_TITLEBAR_ACTIONS_SETTINGS.enabled, changes: changesEnabled },
-            }}
           />
         </div>
       </>,
-    )));
+    ));
+    });
 
     render(centered);
     const context = container.querySelector(".desktop-titlebar-context");
@@ -110,10 +111,11 @@ describe("Git right-sidebar titlebar entries", () => {
     expect(container.querySelector("[data-header-trailing]")?.contains(
       container.querySelector(".desktop-titlebar-changes"),
     )).toBe(true);
-    render(centered, false);
+    act(() => preferences.getState().setTitlebarActionsSettings(current => ({ ...current, enabled: { ...current.enabled, changes: false } })));
     expect(container.querySelector(".desktop-titlebar-changes")).toBeNull();
     expect(container.querySelector(".desktop-titlebar-context .desktop-titlebar-action-divider")).toBeNull();
     expect(container.querySelector(".desktop-titlebar-terminal")).not.toBeNull();
+    expect(JSON.parse(localStorage.getItem("puppyone.desktop.titlebarActions")!).enabled.changes).toBe(false);
   });
 
   it("retains Git in the workspace toolbar", () => {
@@ -122,7 +124,6 @@ describe("Git right-sidebar titlebar entries", () => {
     root = createRoot(container);
     act(() => root?.render(withTestLocalization(
       <DesktopTitlebarActions
-        titlebarActionsSettings={DEFAULT_TITLEBAR_ACTIONS_SETTINGS}
         terminalSidebarOpen={false} terminalToolEnabled gitChangesAvailable
         placement="toolbar" visibleGroups={["header", "right-sidebar"]}
         onToggleTerminal={vi.fn()}
@@ -137,13 +138,10 @@ describe("Git right-sidebar titlebar entries", () => {
     document.body.append(container);
     root = createRoot(container);
     const onToggleGitChanges = vi.fn();
+    preferences.getState().setTitlebarActionsSettings({ ...DEFAULT_TITLEBAR_ACTIONS_SETTINGS, order: ["terminal", "changes"] });
 
     act(() => root?.render(withTestLocalization(
       <DesktopTitlebarActions
-        titlebarActionsSettings={{
-          ...DEFAULT_TITLEBAR_ACTIONS_SETTINGS,
-          order: ["terminal", "changes"],
-        }}
         terminalSidebarOpen={false}
         terminalToolEnabled
         gitChangesAvailable
@@ -199,7 +197,6 @@ describe("Git right-sidebar titlebar entries", () => {
 
     act(() => root?.render(withTestLocalization(
       <DesktopTitlebarActions
-        titlebarActionsSettings={DEFAULT_TITLEBAR_ACTIONS_SETTINGS}
         terminalSidebarOpen={false}
         terminalToolEnabled={false}
         gitChangesAvailable

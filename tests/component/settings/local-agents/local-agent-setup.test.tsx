@@ -1,7 +1,8 @@
+import { initializeDesktopPreferences, desktopPreferencesStore as store } from "../../../../src/preferencesStore";
 /** @vitest-environment happy-dom */
 import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TestLocalizationProvider } from "@puppyone/localization/testing";
 import { mergeCatalogNamespaces } from "@puppyone/localization/core";
 import { LocalAgentSetupSection } from "../../../../src/features/local-agents";
@@ -14,6 +15,8 @@ import common from "../../../../locales/renderer/en/common.json";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const messages = mergeCatalogNamespaces({ settings, common });
+beforeEach(() => { localStorage.clear(); initializeDesktopPreferences(); });
+
 let root: Root | null = null;
 afterEach(() => { act(() => root?.unmount()); root = null; document.body.innerHTML = ""; delete (window as Window & { puppyoneDesktop?: unknown }).puppyoneDesktop; });
 const preferences = { enabled: true, dismissedSetupIds: [], snoozedUntil: {} };
@@ -45,8 +48,8 @@ async function mount({ existing, guided = false, companionPresent = true }: { ex
   const builtin = document.createElement("button"); builtin.textContent = "Built-in Agent"; document.body.append(builtin);
   const container = document.createElement("div"); document.body.append(container); root = createRoot(container);
   let props: ComponentProps<typeof LocalAgentSetupSection> = {
-    enabled: true, surface: "chat", eligibleInstallationIds: ["codex", "cursor"], hiddenAgentIds: [], preferences,
-    onPreferencesChange: vi.fn(), onRefresh: vi.fn(), onReturnToLauncher: () => builtin.focus(),
+    enabled: true, surface: "chat", eligibleInstallationIds: ["codex", "cursor"],
+    onRefresh: vi.fn(), onReturnToLauncher: () => builtin.focus(),
     discovery: { ids: [], phase: "ready", hasFailures: false, refreshing: false, progress: null,
       snapshot: { schemaVersion: 1, generation: 1, scanId: "scan:1", source: "scan", results: [], availableAgentIds: [], requestedAt: "2026-09-20T00:00:00Z", completedAt: "2026-09-20T00:00:00Z" } },
   };
@@ -67,6 +70,21 @@ describe("Local Agent activation interaction", () => {
     expect(document.querySelector(".local-agent-setup-card")).toBeNull();
     expect(document.body.textContent).not.toMatch(/app detected|No callable|Set up Agents/);
     expect(h.plan).not.toHaveBeenCalled(); expect(h.start).not.toHaveBeenCalled();
+  });
+  it("owns setup visibility and suggestion controls, preserving unrelated local-agent settings", async () => {
+    const h = await mount();
+    await act(async () => store.getState().setLocalAgentsSettings(current => ({ ...current, hiddenTerminalAgentIds: ["codex"], chatHistoryDiscoveryEnabled: true })));
+    expect(document.querySelector('[aria-label="Activate Codex"]')).toBeNull();
+    expect(document.querySelector('[aria-label="Activate Cursor"]')).not.toBeNull();
+    await h.render({ presentation: "settings" });
+    const toggle = document.querySelector<HTMLInputElement>(".local-agent-setup-toggle input")!;
+    expect(toggle.checked).toBe(true);
+    await act(async () => toggle.click());
+    expect(toggle.checked).toBe(false);
+    expect(store.getState().localAgentsSettings).toEqual({ hiddenTerminalAgentIds: ["codex"], chatHistoryDiscoveryEnabled: true,
+      setupSuggestions: { enabled: false, dismissedSetupIds: [], snoozedUntil: {} } });
+    expect(JSON.parse(localStorage.getItem("puppyone.desktop.localAgents")!).setupSuggestions.enabled).toBe(false);
+    expect(document.querySelector('[aria-label="Activate Cursor"]')).toBeNull();
   });
   it("explains changes before consent; only confirmation starts installation", async () => {
     const h = await mount(); await click("Activate Codex");
@@ -95,8 +113,8 @@ describe("Local Agent activation interaction", () => {
     expect(h.action).toHaveBeenLastCalledWith({ operationId: "operation:codex", action: "cancel" });
   });
   it("does not hide an ongoing task when suggestions are disabled", async () => {
-    const h = await mount({ existing: operation() });
-    await h.render({ preferences: { ...preferences, enabled: false } });
+    await mount({ existing: operation() });
+    await act(async () => store.getState().setLocalAgentsSettings(s => ({ ...s, setupSuggestions: { ...preferences, enabled: false } })));
     expect(button("View Codex activation")).toBeTruthy(); expect(button("Stop activating Codex")).toBeTruthy();
     expect(document.querySelectorAll(".local-agent-setup-row")).toHaveLength(1);
   });

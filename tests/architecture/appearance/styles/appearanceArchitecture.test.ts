@@ -321,14 +321,6 @@ describe("appearance profile architecture", () => {
     expect(result.diagnostics[0]?.code).toBe("sub-theme-mode-unsupported");
   });
 
-  it("renders Color Mode and Sub Theme before the Root Theme footer", () => {
-    const settings = source("src/features/settings/SettingsView.tsx");
-    expectInOrder(settings, [
-      "<InterfacePaletteSettings",
-      "<SubThemeSettingsSection",
-      "<InterfaceStyleSetting",
-    ]);
-  });
 
   it("does not authorize overwriting a newer unsupported preference document", () => {
     const result = readAppearancePreferences(JSON.stringify({
@@ -352,9 +344,8 @@ describe("appearance profile architecture", () => {
     expect(settings).not.toContain("settings.appearance.navigation.title");
     expect(settings).not.toContain("<TypographyScaleSetting");
     expect(typographySettings).toContain("<TypographyScaleSetting");
-    expect(typographySettings).toContain("preferences={typographyPreferences}");
     expect(settings).not.toContain("onLegacyContentSizeChange");
-    expect(settings).toContain("resolvedAppearance.decisions.fileIconTheme");
+    // Root-theme icon locking is exercised by the mounted Settings consumer tests.
     expect(settings).not.toContain("editorPresentation");
     expect(settings).not.toContain("dockIcon");
     expect(shell).toContain('? "bottom"');

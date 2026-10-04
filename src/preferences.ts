@@ -535,7 +535,7 @@ export function isCreateNewMenuPlacement(value: unknown): value is CreateNewMenu
 
 export function isCreateNewItemAvailable(
   kind: CreateNewItemId,
-  experimentalSettings: ExperimentalSettings,
+  experimentalSettings: Pick<ExperimentalSettings, "enablePuppyFlowFiles">,
 ): boolean {
   const experimentalSetting = getCreateEntryMenuItem(kind).experimentalSetting;
   return !experimentalSetting || experimentalSettings[experimentalSetting];
@@ -600,7 +600,7 @@ function isLegacyCreateNewDefault(items: readonly {
 
 export function resolveVisibleCreateNewMenuItems(
   settings: CreateNewMenuSettings,
-  experimentalSettings: ExperimentalSettings,
+  experimentalSettings: Pick<ExperimentalSettings, "enablePuppyFlowFiles">,
 ): Readonly<{ main: CreateNewMainMenuEntry[]; submenu: CreateNewItemId[] }> {
   const submenu = settings.submenu.filter((kind) => (
     isCreateNewItemAvailable(kind, experimentalSettings)

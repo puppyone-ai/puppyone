@@ -1,3 +1,4 @@
+import { initializeDesktopPreferences } from "../../preferencesStore";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import { AuxiliaryWorkbenchPanel } from "../app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel";
@@ -84,6 +85,8 @@ function TerminalFixture({ project, item, presentation, readAppearance }: Auxili
   return <TerminalSessionView runtime={entry.runtime} workspacePath={project.context.rootPath}
     presented={presentation.presented} focused={presentation.commandTarget} />;
 }
+
+initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
 
 export function AuxiliaryAppearanceSmokeHarness() {
   const { t } = useLocalization();
@@ -182,7 +185,7 @@ export function AuxiliaryAppearanceSmokeHarness() {
       <div className="desktop-right-sidebar is-open auxiliary-appearance-smoke-sidebar" style={{ width }}>
         <div ref={surface} className="desktop-right-sidebar-stack">
           <AuxiliaryWorkbenchPanel store={store} contributions={contributions} active={active} renderLauncher={(context) => headerMotion ? <AuxiliaryWorkbenchLauncher
-            {...context} store={store} contributions={contributions} hiddenAgentIds={[]}
+            {...context} store={store} contributions={contributions}
           /> : null} />
         </div>
       </div>

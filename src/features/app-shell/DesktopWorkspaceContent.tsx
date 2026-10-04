@@ -16,7 +16,6 @@ import type { DesktopGitController } from "../source-control";
 import type { SettingsSection } from "../settings";
 import type { DesktopView } from "../../components/DesktopCloudShell";
 import type { DesktopUpdatesController } from "../updates";
-import type { FilesVisibilitySettings } from "../../preferences";
 import {
   formatFileOperationNotice,
   type FileClipboardController,
@@ -71,7 +70,7 @@ type DesktopWorkspaceContentProps = {
   openNodeActionPath: string | null;
   onCreateEntryMenu: (parentPath: string | null, anchorRect: DesktopCreateEntryAnchorInput) => void;
   onDismissCreateEntryMenu: () => void;
-  onFilesVisibilitySettingsChange: (settings: FilesVisibilitySettings) => void;
+  onFilesVisibilityChange: () => void;
   onNavigate: (view: DesktopView) => void;
   onCloseCloud: () => void;
   onClosePlugins: () => void;
@@ -130,7 +129,7 @@ export function DesktopWorkspaceContent({
   openNodeActionPath,
   onCreateEntryMenu,
   onDismissCreateEntryMenu,
-  onFilesVisibilitySettingsChange,
+  onFilesVisibilityChange,
   onNavigate,
   onCloseCloud,
   onClosePlugins,
@@ -191,7 +190,7 @@ export function DesktopWorkspaceContent({
     cloud,
     desktopUpdates,
     git,
-    onFilesVisibilitySettingsChange,
+    onFilesVisibilityChange,
     onOpenGitChanges,
     onOpenImport,
     onPuppyoneConfigChange,

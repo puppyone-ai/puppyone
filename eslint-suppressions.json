@@ -2229,11 +2229,6 @@
       "count": 2
     }
   },
-  "src/features/settings/SettingsView.tsx": {
-    "max-lines-per-function": {
-      "count": 1
-    }
-  },
   "src/features/settings/main/AccountAICredits.tsx": {
     "no-nested-ternary": {
       "count": 1

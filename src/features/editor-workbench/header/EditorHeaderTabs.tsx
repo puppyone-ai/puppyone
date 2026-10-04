@@ -1,3 +1,4 @@
+import { useDesktopPreference, selectFileIconTheme } from "../../../preferencesStore";
 import {
   FileGlyphIcon,
   Tooltip,
@@ -7,7 +8,6 @@ import {
   subscribeDocumentWorkingCopyStatuses,
   type DocumentSessionStatus,
   type EditorInput,
-  type FileIconThemeId,
 } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
 import {
@@ -27,7 +27,6 @@ const EMPTY_STATUSES: ReadonlyMap<string, DocumentSessionStatus> = new Map();
 type EditorHeaderTabsProps = Readonly<{
   activeEditorId: string | null;
   editors: readonly EditorInput[];
-  fileIconTheme: FileIconThemeId;
   storageIdentity: string | null;
   onActivate: (editorId: string) => void;
   onClose: (editorId: string) => Promise<void> | void;
@@ -38,13 +37,13 @@ type EditorHeaderTabsProps = Readonly<{
 export function EditorHeaderTabs({
   activeEditorId,
   editors,
-  fileIconTheme,
   storageIdentity,
   onActivate,
   onClose,
   onCreate,
   onMove,
 }: EditorHeaderTabsProps) {
+  const fileIconTheme = useDesktopPreference(selectFileIconTheme);
   const { t } = useLocalization();
   const statuses = useSyncExternalStore(
     subscribeDocumentWorkingCopyStatuses,

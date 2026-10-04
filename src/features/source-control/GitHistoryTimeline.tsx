@@ -1,10 +1,10 @@
+import { useDesktopPreference, selectFileIconTheme } from "../../preferencesStore";
 import { ChevronDown, GitBranch } from "lucide-react";
 import {
   Tooltip,
   FileGlyphIcon,
   VirtualSidebarList,
   useCssPixelCustomProperty,
-  type FileIconThemeId,
 } from "@puppyone/shared-ui";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import { useCallback, useRef, useState } from "react";
@@ -26,14 +26,12 @@ export function GitHistoryTimeline({
   selectedCommitId,
   status,
   loading,
-  fileIconTheme,
   onSelectCommit,
 }: {
   commits: GitCommitSummary[];
   selectedCommitId: string | null;
   status: GitStatusSnapshot | null;
   loading: boolean;
-  fileIconTheme: FileIconThemeId;
   onSelectCommit: (commitId: string) => void;
 }) {
   const { t, formatDate, formatRelativeTime } = useLocalization();
@@ -102,7 +100,6 @@ export function GitHistoryTimeline({
           <GitHistoryRow
             commit={row.commit}
             isSelected={row.commit.commit_id === selectedCommitId}
-            fileIconTheme={fileIconTheme}
             onClick={() => onSelectCommit(row.commit.commit_id)}
           />
         )}
@@ -125,12 +122,10 @@ export function GitHistoryTimeline({
 function GitHistoryRow({
   commit,
   isSelected,
-  fileIconTheme,
   onClick,
 }: {
   commit: GitCommitSummary;
   isSelected: boolean;
-  fileIconTheme: FileIconThemeId;
   onClick: () => void;
 }) {
   const { t, formatNumber } = useLocalization();
@@ -174,7 +169,6 @@ function GitHistoryRow({
             {visibleChanges.map((change) => (
               <GitHistoryFilePreview
                 change={change}
-                fileIconTheme={fileIconTheme}
                 key={`${change.status}:${change.oldPath ?? ""}:${change.path}`}
               />
             ))}
@@ -192,11 +186,10 @@ function GitHistoryRow({
 
 function GitHistoryFilePreview({
   change,
-  fileIconTheme,
 }: {
   change: GitCommitChange;
-  fileIconTheme: FileIconThemeId;
 }) {
+  const fileIconTheme = useDesktopPreference(selectFileIconTheme);
   const { t } = useLocalization();
   const displayPath = change.status === "renamed" && change.oldPath
     ? `${change.oldPath} → ${change.path}`

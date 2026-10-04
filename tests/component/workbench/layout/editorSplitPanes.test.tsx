@@ -1,3 +1,4 @@
+import { initializeDesktopPreferences, desktopPreferencesStore as preferences } from "../../../../src/preferencesStore";
 import { unavailableDocumentNavigation } from "../../../support/editor/documentFixtures";
 import { requireEditorView } from "../../../support/editor/editorView";
 import { installDesktopBridge } from "../../../support/electron/desktopBridge";
@@ -28,7 +29,7 @@ import {
 } from "@puppyone/shared-ui";
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DocumentSurfaceHost } from "../../../../packages/shared-ui/src/editor/host/DocumentSurfaceHost";
 import { DesktopEditorSplitView } from "../../../../src/features/editor-workbench/layout/DesktopEditorSplitView";
 import {
@@ -50,6 +51,8 @@ afterEach(() => {
   delete window.puppyoneDesktop;
   vi.restoreAllMocks();
 });
+
+beforeEach(() => { localStorage.clear(); initializeDesktopPreferences(); });
 
 describe("DesktopEditorSplitView", () => {
   it("shows an explicit empty state when a split pane has no document", () => {
@@ -135,7 +138,6 @@ describe("DesktopEditorSplitView", () => {
               editorGroup={group}
               editorInteractionPreferences={{ showSaveStatus: false, markdownBlockDragEnabled: false }}
               editorTree={[node]}
-              fileIconTheme="default"
               layout={layout}
               markdownEnvironment={emptyWorkspaceState().markdownEnvironment}
               workspace={{ id: "workspace", name: "Workspace", path: "/workspace", status: "recording" }}
@@ -538,7 +540,6 @@ describe("DesktopEditorSplitView", () => {
           editorGroup={group}
           editorInteractionPreferences={{ showSaveStatus: false, markdownBlockDragEnabled: false }}
           editorTree={state.tree}
-          fileIconTheme="default"
           layout={layout}
           markdownEnvironment={state.markdownEnvironment}
           workspace={{ id: "workspace", name: "Workspace", path: "/workspace", status: "recording" }}
@@ -615,7 +616,6 @@ describe("DesktopEditorSplitView", () => {
           editorGroup={group}
           editorInteractionPreferences={{ showSaveStatus: false, markdownBlockDragEnabled: false }}
           editorTree={state.tree}
-          fileIconTheme="default"
           layout={layout}
           markdownEnvironment={state.markdownEnvironment}
           workspace={{ id: "workspace", name: "Workspace", path: "/workspace", status: "recording" }}
@@ -716,7 +716,6 @@ describe("DesktopEditorSplitView", () => {
           editorGroup={group}
           editorInteractionPreferences={{ showSaveStatus: false, markdownBlockDragEnabled: false }}
           editorTree={state.tree}
-          fileIconTheme="default"
           layout={layout}
           markdownEnvironment={state.markdownEnvironment}
           workspace={{ id: "workspace", name: "Workspace", path: "/workspace", status: "recording" }}
@@ -831,7 +830,6 @@ describe("DesktopEditorSplitView", () => {
           editorGroup={group}
           editorInteractionPreferences={{ showSaveStatus: false, markdownBlockDragEnabled: false }}
           editorTree={state.tree}
-          fileIconTheme="default"
           layout={layout}
           markdownEnvironment={state.markdownEnvironment}
           workspace={{ id: "workspace", name: "Workspace", path: "/workspace", status: "recording" }}
@@ -942,7 +940,6 @@ describe("DesktopEditorSplitView", () => {
           editorGroup={group}
           editorInteractionPreferences={{ showSaveStatus: false, markdownBlockDragEnabled: false }}
           editorTree={state.tree}
-          fileIconTheme="default"
           layout={currentLayout}
           markdownEnvironment={state.markdownEnvironment}
           workspace={{ id: "workspace", name: "Workspace", path: "/workspace", status: "recording" }}
@@ -1054,7 +1051,6 @@ describe("DesktopEditorSplitView", () => {
                 editorGroup={group}
                 editorInteractionPreferences={{ showSaveStatus: false, markdownBlockDragEnabled: false }}
                 editorTree={state.tree}
-                fileIconTheme="default"
                 layout={layout}
                 markdownEnvironment={state.markdownEnvironment}
                 workspace={{ id: "workspace", name: "Workspace", path: "/workspace", status: "recording" }}
@@ -1195,7 +1191,6 @@ function renderSplitView(
       editorGroup={editorGroup}
       editorInteractionPreferences={{ showSaveStatus: false, markdownBlockDragEnabled: false }}
       editorTree={[]}
-      fileIconTheme="default"
       layout={layout}
       markdownEnvironment={emptyWorkspaceState().markdownEnvironment}
       workspace={{ id: "workspace", name: "Workspace", path: "/workspace", status: "recording" }}
@@ -1321,7 +1316,6 @@ function runtimeProps(
       showSaveStatus: false,
       markdownBlockDragEnabled: false,
     },
-    fileIconTheme: "default",
     markdownEnvironment,
     treeNode: node,
     workspaceId: "workspace",

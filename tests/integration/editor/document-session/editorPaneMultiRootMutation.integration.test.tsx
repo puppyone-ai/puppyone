@@ -1,3 +1,4 @@
+import { initializeDesktopPreferences } from "../../../../src/preferencesStore";
 import { createEditorInput, createWorkspaceRootUri } from "@puppyone/shared-ui";
 import { unavailableDocumentNavigation } from "../../../support/editor/documentFixtures";
 import { requireEditorView } from "../../../support/editor/editorView";
@@ -16,7 +17,7 @@ import {
 } from "@puppyone/shared-ui";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { closeAllDocumentWorkingCopies } from "../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
 import { appendWorkbenchWorkspaceContentChange } from "../../../../src/features/data-workspace/workbenchWorkspaceContentChange";
 import { EditorPaneDocumentRuntime } from "../../../../src/features/editor-workbench/runtime/EditorPaneDocumentRuntime";
@@ -33,6 +34,8 @@ afterEach(async () => {
   await closeAllDocumentWorkingCopies("app-close").catch(() => undefined);
   document.body.innerHTML = "";
 });
+
+beforeEach(() => initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} }));
 
 describe("P0 multi-root open-editor mutation delivery", () => {
   it("reloads both same-name open files when two root events are React-batched into one render", async () => {
@@ -131,7 +134,7 @@ function pane(
         showSaveStatus: false,
         markdownBlockDragEnabled: false,
       }}
-      fileIconTheme="default"
+
       markdownEnvironment={EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT}
       refreshKey={refreshKey}
       treeNode={node}

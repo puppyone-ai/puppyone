@@ -1,3 +1,4 @@
+import { useDesktopPreference, selectFileIconTheme } from "../../../preferencesStore";
 import { memo, useMemo } from "react";
 import { useLocalization } from "@puppyone/localization";
 import { PageLoading } from "../../../components/loading";
@@ -15,7 +16,6 @@ import {
   type EditorGroupState,
   type EditorInteractionPreferences,
   type FileContent,
-  type FileIconThemeId,
   type MarkdownWorkspaceEnvironment,
   type ViewerExtensionHostAdapter,
   type Workspace,
@@ -30,7 +30,6 @@ export type EditorPaneDocumentRuntimeProps = Readonly<{
   documentSourceKind?: DocumentSourceKind;
   editor: EditorGroupState["editors"][number] | null;
   editorInteractionPreferences: EditorInteractionPreferences;
-  fileIconTheme: FileIconThemeId;
   markdownEnvironment: MarkdownWorkspaceEnvironment;
   documentNavigation: DocumentNavigationPort;
   refreshKey?: WorkspaceContentChange;
@@ -49,7 +48,6 @@ export const EditorPaneDocumentRuntime = memo(function EditorPaneDocumentRuntime
   documentSourceKind = "local",
   editor,
   editorInteractionPreferences,
-  fileIconTheme,
   markdownEnvironment,
   documentNavigation,
   refreshKey,
@@ -66,7 +64,6 @@ export const EditorPaneDocumentRuntime = memo(function EditorPaneDocumentRuntime
       documentSourceKind={documentSourceKind}
       editor={editor}
       editorInteractionPreferences={editorInteractionPreferences}
-      fileIconTheme={fileIconTheme}
       markdownEnvironment={markdownEnvironment}
       documentNavigation={documentNavigation}
       refreshKey={refreshKey}
@@ -87,7 +84,6 @@ function RegularEditorPaneDocumentRuntime({
   documentSourceKind = "local",
   editor,
   editorInteractionPreferences,
-  fileIconTheme,
   markdownEnvironment,
   documentNavigation,
   refreshKey,
@@ -97,6 +93,7 @@ function RegularEditorPaneDocumentRuntime({
   workspaceRoot,
   markdownDialect,
 }: RegularEditorPaneDocumentRuntimeProps) {
+  const fileIconTheme = useDesktopPreference(selectFileIconTheme);
   const { t } = useLocalization();
   const invalidTreeNode = Boolean(treeNode && !isDocumentDataNode(treeNode));
   const fallbackNode = useMemo(
@@ -185,7 +182,6 @@ export function areEditorPaneDocumentRuntimePropsEqual(
       === next.editorInteractionPreferences.markdownBlockDragEnabled
     && previous.editorInteractionPreferences.markdownHeadingOutlineEnabled
       === next.editorInteractionPreferences.markdownHeadingOutlineEnabled
-    && previous.fileIconTheme === next.fileIconTheme
     && samePaneEnvironment(
       previous.markdownEnvironment,
       next.markdownEnvironment,

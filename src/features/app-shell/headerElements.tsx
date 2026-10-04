@@ -13,7 +13,7 @@ import {
   type TitlebarActionId,
 } from "../../preferences";
 import type { MessageFormatter } from "@puppyone/localization";
-import { AgentEntryIcon } from "./AgentEntryIcon";
+import { AgentEntryIcon } from "../../components/brand/AgentEntryIcon";
 import { VersionControlIcon } from "../source-control/VersionControlIcon";
 import type { GitTitlebarStatus } from "../source-control/gitTitlebarStatus";
 import { HeaderFeatureCoachmark } from "./HeaderFeatureCoachmark";

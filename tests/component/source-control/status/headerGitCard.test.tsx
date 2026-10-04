@@ -10,7 +10,6 @@ import type { RightSidebarSurface } from "../../../../src/preferenceStorage";
 import { GitChangesSidebar } from "../../../../src/features/source-control/GitChangesSidebar";
 import { GitHistorySidebar } from "../../../../src/features/source-control/GitHistorySidebar";
 import type { GitWorkingSelection } from "../../../../src/features/source-control/types";
-import { DEFAULT_TITLEBAR_ACTIONS_SETTINGS } from "../../../../src/preferences";
 import { gitResource, gitStatus } from "../../../support/source-control/gitFixtures";
 import { withTestLocalization } from "../../../support/react/localization";
 
@@ -60,11 +59,11 @@ function Harness({ centeredProject = true, cardExperiment = true, workspaceScope
   const history = <GitHistorySidebar focusNavigation={presentation.cardEnabled}
     status={status} statusLoading={false} statusError={null}
     selectedCommitId={null} commitDetail={null} commitDetailLoading={false} commitDetailError={null}
-    historyLoading={false} fileIconTheme="default" initializing={false}
+    historyLoading={false}  initializing={false}
     onInitialize={succeed} onSelectCommit={() => {}} onBack={presentation.backToChanges} />;
   return <>
     <DesktopTitlebarActions
-      titlebarActionsSettings={DEFAULT_TITLEBAR_ACTIONS_SETTINGS}
+
       terminalSidebarOpen={false} terminalToolEnabled={false} onToggleTerminal={() => {}}
       gitChangesAvailable gitChangesOpen={presentation.open}
       gitCardEnabled={presentation.cardEnabled} gitAnchorRef={anchorRef}

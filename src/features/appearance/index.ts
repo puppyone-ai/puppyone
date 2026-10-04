@@ -2,4 +2,4 @@ export { APPEARANCE_PREFERENCES_STORAGE_KEY, createAppearancePreferencesV6, read
 export type { AppearancePreferencesV6,RootThemeAppearancePreferences } from "./appearancePreferences";
 export { getDefaultSubThemeId, getInterfaceStyleFirstPaint, supportsThemePreset } from "./interfaceStyles";
 export { readLegacyAppearanceDocument, readLegacyAppearanceSnapshot, removeLegacyAppearancePreferences } from "./legacyAppearancePreferences";
-export { resolveAppearance } from "./resolveAppearance";
+export { resolveAppearance, isAppearanceDecisionLocked, isAppearanceValueAllowed } from "./resolveAppearance";

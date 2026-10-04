@@ -802,15 +802,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/settings/SettingsView.tsx",
-    "to": "src/features/app-shell/headerElements.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/lib/cloudApi.ts",
     "to": "src/features/cloud/cache/cloudCache.ts",
     "rule": {
@@ -9273,35 +9264,8 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/settings/SettingsView.tsx",
-    "to": "src/features/app-shell/headerElements.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-settings"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/settings/SettingsView.tsx",
-    "to": "src/features/appearance/resolveAppearance.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-settings"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/features/settings/SettingsWorkspaceSurface.tsx",
     "to": "src/features/themes/useSubThemeCatalog.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-settings"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/settings/types.ts",
-    "to": "src/features/appearance/resolveAppearance.ts",
     "rule": {
       "severity": "error",
       "name": "public-domain-entry-src-features-settings"
