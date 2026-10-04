@@ -10,17 +10,17 @@ import { ResourcePreviewState } from "../media/ResourceViewers";
 import { preflightPdfResource } from "./pdfResourcePreflight";
 
 type PdfViewerProps = Pick<PresetViewerRenderContext,
-  "document" | "fileUrl" | "fileUrlLoading" | "fileUrlError" | "workspaceId"
+  "document" | "fileUrl" | "fileUrlLoading" | "fileUrlError" | "workspaceId" | "onRetryInput"
 > & Partial<Pick<PresetViewerRenderContext, "resourcePolicy">>;
 
 export const PDF_ATTACHMENT_TIMEOUT_MS = 15_000;
 
 export function PdfViewer({ document, fileUrl, fileUrlLoading, fileUrlError, resourcePolicy,
-  workspaceId }: PdfViewerProps) {
+  workspaceId, onRetryInput }: PdfViewerProps) {
   const { t } = useLocalization();
   const [attempt, setAttempt] = useState(0);
   const publishPaneMenuContribution = useEditorPaneMenuContributionPublisher();
-  const reload = useCallback(() => setAttempt((value) => value + 1), []);
+  const reload = useCallback(() => { onRetryInput?.(); setAttempt((value) => value + 1); }, [onRetryInput]);
   const maxBytes = resourcePolicy?.maxSourceBytes ?? getPresetViewerDefinition("pdf-preview").resourcePolicy.maxSourceBytes;
 
   useLayoutEffect(() => {

@@ -11,10 +11,11 @@ export function isEmbeddedPdfFrame(frame) {
   return false;
 }
 
-export function isAllowedPdfResource(urlValue) {
+export function isAllowedPdfResource(urlValue, isAuthorizedCloudResource = () => false) {
   try {
     const url = new URL(urlValue);
     if (url.href.startsWith(PDF_EXTENSION_ORIGIN) || url.protocol === "chrome:" || url.protocol === "chrome-untrusted:") return true;
+    if (["http:", "https:"].includes(url.protocol)) return isAuthorizedCloudResource(url.href);
     // Capability authorization, signature and size checks remain in the local
     // protocol. PDF content never gets the AppPreview network allowlist.
     return url.protocol === "puppyone-local:" && url.hostname === "file"
@@ -25,7 +26,7 @@ export function isAllowedPdfResource(urlValue) {
 
 /** Sole owner of the default session's request hook. Future policies must be
  * composed here: Electron keeps only the last webRequest listener. */
-export function installEmbeddedContentSessionSecurity(session, { applicationUrl } = {}) {
+export function installEmbeddedContentSessionSecurity(session, { applicationUrl, isAuthorizedCloudResource } = {}) {
   const mayWriteClipboard = (contents, permission, details) => permission === "clipboard-sanitized-write"
     && details?.isMainFrame === true
     && isApplicationDocument(contents?.getURL(), applicationUrl)
@@ -36,7 +37,7 @@ export function installEmbeddedContentSessionSecurity(session, { applicationUrl 
   session.setPermissionCheckHandler((contents, permission, _origin, details) => mayWriteClipboard(contents, permission, details));
   session.webRequest.onBeforeRequest((details, callback) => {
     const pdf = isEmbeddedPdfFrame(details.frame) || details.referrer?.startsWith(PDF_EXTENSION_ORIGIN);
-    callback({ cancel: Boolean(pdf && !isAllowedPdfResource(details.url)) });
+    callback({ cancel: Boolean(pdf && (!['GET','HEAD'].includes(details.method ?? 'GET') || !isAllowedPdfResource(details.url,isAuthorizedCloudResource))) });
   });
 }
 

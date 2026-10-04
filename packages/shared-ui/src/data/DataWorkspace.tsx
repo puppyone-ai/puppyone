@@ -1459,6 +1459,7 @@ export function DataWorkspace({
                   fileUrlError={selectedFileUrlError}
                   loading={fileLoading || selectedFileContentPending}
                   error={selectedFileError}
+                  onRetry={selectedInput.retry}
                   aiEditFile={selectedPreviewAiEditFile}
                   showHeader={showPreviewHeader}
                   hideSourceView={hidePreviewSourceView}

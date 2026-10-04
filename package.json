@@ -110,6 +110,7 @@
     "smoke:html-editor": "electron tests/integration/editor/formats/html/html-visual-editor.smoke.mjs",
     "smoke:html-app": "electron tests/e2e/editor/formats/html/editor-html.smoke.mjs",
     "smoke:pdf-dom": "electron tests/integration/editor/formats/pdf/dom-embedded-pdf-surface.smoke.mjs",
+    "smoke:cloud-formats": "electron tests/integration/cloud/repositories/native-cloud-workbench.smoke.mjs",
     "smoke:pdf-app": "electron tests/e2e/editor/formats/pdf/editor-pdf.smoke.mjs",
     "smoke:database-app": "electron tests/e2e/editor/formats/database/editor-database.smoke.mjs",
     "audit:viewer-gpu": "electron tests/performance/scenarios/editor/viewers/audit-viewer-gpu.mjs",

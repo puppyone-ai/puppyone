@@ -5,7 +5,8 @@ import {
   getWorkspaceResourcePath,
   getFileSemanticKind,
   isDataResourceUri,
-  isTextLikeFile,
+  getEditorSourceRequirement,
+  resolveFileFormat,
   type DataNode,
   type DataPort,
   type DocumentPersistenceResult,
@@ -18,6 +19,7 @@ import { cloudApiRequest, type DesktopCloudSession } from "../../../lib/cloudApi
 import { resolveCloudApiBaseUrl } from "../../../../shared/cloudEndpoint.js";
 import type { ProjectCloudContext } from "../project/context/projectCloudContext";
 import type { ResolvedWorkbenchDataResource } from "../../data-workspace/workbenchDataPort";
+import { createCloudNativePreviewPorts } from "../../../platform";
 
 type CloudEntry = {
   path: string;
@@ -119,7 +121,7 @@ export function createCloudDataService({
     const uri = resourceUri(entry.path);
     return {
       id: uri, path: uri, resourceUri: uri, name: entry.name,
-      type: entry.type === "folder" ? "folder" : getFileSemanticKind(entry.name, entry.type, entry.mime_type),
+      type: entry.type === "folder" ? "folder" : getFileSemanticKind(relativePath(uri), entry.type, entry.mime_type),
       mimeType: entry.mime_type,
       size: entry.size_bytes == null ? undefined : String(entry.size_bytes),
       source: "cloud",
@@ -234,7 +236,28 @@ export function createCloudDataService({
       message: error instanceof Error ? error.message : String(error) };
     }
   });
+  const bridge = window.puppyoneDesktop;
+  const nativePreview = typeof bridge?.openCloudDatabasePreview === "function"
+    ? createCloudNativePreviewPorts(bridge, (path) => ({ apiBaseUrl, projectId: context.projectId,
+      path: remotePath(path), expectedSession: { userId: session.user_id, generation: session.session_generation } }), assertCurrent)
+    : null;
   const dataPort: DataPort = {
+    ...(nativePreview ? { previewServices: { database: nativePreview.database },
+      convertOfficeDocumentToDocx: nativePreview.convertOfficeDocumentToDocx } : {}),
+    ...(typeof window.puppyoneDesktop?.createSandboxedPreviewDocument === "function" ? {
+      previewServices: { ...(nativePreview ? { database: nativePreview.database } : {}), documentProjection: { async create(path: string, content: string, signal: AbortSignal,
+        options?: { interactive: boolean; baseHref?: string | null }) {
+        assertCurrent(); signal.throwIfAborted();
+        const bridge = window.puppyoneDesktop!;
+        const { createCloudHtmlProjection } = await import("./cloudHtmlProjection");
+        return createCloudHtmlProjection(path, content, {
+          root: rootUri, readText, sign: async (resource) => dataPort.getFileUrl!(resource),
+          assertCurrent, revokeResource: (url) => dataPort.revokeFileUrl!(url),
+          createDocument: (request) => bridge.createSandboxedPreviewDocument(request),
+          revokeDocument: (url) => bridge.revokeSandboxedPreviewDocument({ url }),
+        }, signal, options);
+      } } },
+    } : {}),
     listChildren: async (path) => (await list(path)).entries.map(mapEntry),
     resolveNode: async (path) => {
       if (!relativePath(path)) return { id: rootUri, name: workspace.name, path: rootUri,
@@ -247,7 +270,8 @@ export function createCloudDataService({
       const entry = await stat(path);
       if (!entry || entry.type === "folder") throw new Error("Cloud file not found.");
       const node = mapEntry(entry);
-      const text = isTextLikeFile(entry.name, entry.type, entry.mime_type) ? await readText(path) : null;
+      const requirement = getEditorSourceRequirement({ name: relativePath(path), type: node.type, mimeType: entry.mime_type });
+      const text = requirement === "content" || requirement === "content-and-resource" ? await readText(path) : null;
       options?.signal?.throwIfAborted();
       return { path: node.path, name: node.name, type: node.type as FileContent["type"],
         mimeType: node.mimeType, size: node.size, content: text?.content ?? null, version: text?.version ?? null };
@@ -257,23 +281,29 @@ export function createCloudDataService({
         // Dual-input HTML uses the exact bytes already accepted by readFile.
         // The signed inline API follows HEAD and cannot supply that guarantee.
         const content = snapshots.get(remotePath(path))?.get(options.expectedVersion);
-        if (!/\.html?$/i.test(relativePath(path)) || content === undefined) {
+        if (resolveFileFormat({ name: relativePath(path) }).defaultViewer !== "html-artifact" || content === undefined) {
           throw new Error("This Cloud file version is no longer available. Reload the file.");
         }
         const url = URL.createObjectURL(new Blob([content], { type: "text/html" }));
         snapshotUrls.add(url);
         return url;
       }
-      const signed = await request<{ url: string }>("inline/sign", { path: remotePath(path) });
+      assertCurrent();
+      const signed = typeof bridge?.retainCloudPreviewResource === "function"
+        ? await bridge.retainCloudPreviewResource({ apiBaseUrl, projectId: context.projectId, path: remotePath(path),
+          expectedSession: { userId: session.user_id, generation: session.session_generation } })
+        : await request<{ url: string }>("inline/sign", { path: remotePath(path) });
       const url = new URL(signed.url, `${apiBaseUrl.replace(/\/+$/, "")}/`);
       const expectedPath = `${base.pathname.replace(/\/+$/, "")}${apiPath}/inline`;
       if (url.origin !== base.origin || url.username || url.password || url.hash
         || url.pathname !== expectedPath || url.searchParams.get("path") !== remotePath(path)
         || !url.searchParams.get("token")) throw new Error("Cloud returned an invalid file preview URL.");
+      try { assertCurrent(); } catch (error) { await bridge?.revokeCloudPreviewResource?.({url:url.href}); throw error; }
       return url.toString();
     },
-    revokeFileUrl: (url) => {
+    revokeFileUrl: async (url) => {
       if (snapshotUrls.delete(url)) URL.revokeObjectURL(url);
+      else await bridge?.revokeCloudPreviewResource?.({url});
     },
     ...(writable ? {
       documentPersistence: { kind: "cloud" as const, storageIdentity, persist },

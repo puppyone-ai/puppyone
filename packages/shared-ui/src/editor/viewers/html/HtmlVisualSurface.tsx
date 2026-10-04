@@ -95,7 +95,7 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, regist
         await lease.close();
         if (abort.signal.aborted) return;
         if (projectionPort) {
-          documentLease = await projectionPort.create(path, lease.value.source, abort.signal);
+          documentLease = await projectionPort.create(path, lease.value.source, abort.signal, { interactive: false, baseHref: lease.value.session.index.baseHref });
           if (abort.signal.aborted) { await documentLease.close(); documentLease = null; return; }
         }
         if (!abort.signal.aborted && lease.value.session.valid) setProjection({ ...lease.value, url: documentLease?.url });

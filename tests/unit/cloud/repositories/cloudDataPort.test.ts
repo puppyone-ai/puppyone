@@ -1,6 +1,6 @@
 /** @vitest-environment happy-dom */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createWorkspaceResourceUri } from "@puppyone/shared-ui";
+import { FILE_FORMATS, createWorkspaceResourceUri, getEditorSourceRequirement, isDocumentDataNode, resolveEditorViewer } from "@puppyone/shared-ui";
 import { createCloudDataService } from "../../../../src/features/cloud/workbench/cloudDataPort";
 import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
 
@@ -12,13 +12,15 @@ const context = { status: "resolved" as const, projectId: "project", projectName
 let bridge: ReturnType<typeof vi.fn>;
 let files: Map<string, string>;
 let revision: number;
+let mimeTypes: Map<string, string>;
 const error = (status: number) => Object.assign(new Error(`Cloud HTTP ${status}`), { status });
-const entry = (path: string) => ({ path, name: path.split("/").at(-1), type: path.endsWith(".md") ? "markdown" : "file" });
+const entry = (path: string) => ({ path, name: path.split("/").at(-1), type: path.endsWith(".md") ? "markdown" : "file", mime_type: mimeTypes.get(path) });
 
 beforeEach(() => {
   vi.restoreAllMocks();
   files = new Map([["readme.md", "Cloud original"], ["data.json", '{"cloud":true}'], ["notes/a.md", "Scoped original"], ["movie.mp4", "binary"]]);
   revision = 1;
+  mimeTypes = new Map();
   bridge = vi.fn(async (request) => {
     const url = new URL(request.path, API);
     const operation = url.pathname.split("/").at(-1);
@@ -42,6 +44,97 @@ beforeEach(() => {
 });
 const service = (extra: Partial<Parameters<typeof createCloudDataService>[0]> = {}) => createCloudDataService({ session, context, apiBaseUrl: API, ...extra });
 const save = (port: ReturnType<typeof service>["dataPort"], path: string, content: string, baseVersion: string | null) => port.documentPersistence!.persist({ path, content, baseVersion, revision: "edit-1", reason: "edit" });
+
+describe("Cloud HTML projection ownership", () => {
+  const projectionBridge = () => {
+    const create = vi.fn(async () => ({ url: "puppyone-preview://document/fixture/index.html" }));
+    const revoke = vi.fn(async () => ({ revoked: true }));
+    const revokeResource = vi.fn(async (_request: { url: string }) => undefined);
+    Object.assign(window.puppyoneDesktop!, { createSandboxedPreviewDocument: create,
+      revokeSandboxedPreviewDocument: revoke, revokeCloudPreviewResource: revokeResource });
+    return { create, revoke, revokeResource };
+  };
+  it("releases document and signed assets together, once", async () => {
+    const { revoke, revokeResource } = projectionBridge();
+    const projection = await service().dataPort.previewServices!.documentProjection!.create(
+      "index.html", '<img src="picture.png"><img src="picture.png">', new AbortController().signal,
+    );
+    await projection.close(); await projection.close();
+    expect(revoke).toHaveBeenCalledOnce();
+    expect(revokeResource).toHaveBeenCalledOnce();
+    expect(revokeResource.mock.calls[0][0]).toMatchObject({ url: expect.stringContaining('path=picture.png') });
+  });
+  it("releases a late signature after a sibling stylesheet fails", async () => {
+    const { create, revokeResource } = projectionBridge();
+    let release!: (value: { url: string }) => void;
+    const retain = vi.fn(() => new Promise<{ url: string }>((resolve) => { release = resolve; }));
+    Object.assign(window.puppyoneDesktop!, { retainCloudPreviewResource: retain });
+    const result = service().dataPort.previewServices!.documentProjection!.create("index.html",
+      '<img src="picture.png"><link rel="stylesheet" href="missing.css">', new AbortController().signal);
+    await expect(result).rejects.toThrow();
+    release({ url: API + '/content/project/inline?path=picture.png&token=fixture' });
+    await vi.waitFor(() => expect(revokeResource).toHaveBeenCalledOnce());
+    expect(create).not.toHaveBeenCalled();
+  });
+});
+
+// Explicit acceptance families keep the provider contract independent of the
+// implementation's legacy text/category heuristic. A new family must declare
+// what it needs before this inventory can pass.
+const SOURCE_REQUIREMENTS: Record<string, string> = {
+  "context-map-viewer": "content", "puppyflow-editor": "content", "markdown-editor": "content",
+  "monaco-code": "content", "plain-text": "content", "csv-table": "content", "app-preview": "content",
+  "html-artifact": "content-and-resource", "image-preview": "resource", "audio-preview": "resource",
+  "video-preview": "resource", "pdf-preview": "resource", "office-preview": "resource",
+  "database-preview": "resource-session", "binary-placeholder": "none",
+};
+
+describe("complete Cloud format input acceptance", () => {
+  it.each(FILE_FORMATS)("$id preserves every registered name and supplies the declared editor input", async (format) => {
+    // Existing semantic media fallback also tries the browser decoder for
+    // recognized legacy containers; that is routing, not codec acceptance.
+    const semanticMedia = format.defaultViewer === "binary-placeholder"
+      && ["image", "audio", "video"].includes(format.category);
+    const expected = semanticMedia ? "resource" : SOURCE_REQUIREMENTS[format.defaultViewer];
+    expect(expected, `Declare acceptance for ${format.defaultViewer}`).toBeDefined();
+    const names = [...(format.extensions ?? []).map((extension) => `sample${extension}`),
+      ...(format.filenames ?? []), ...(format.filenamePatterns ?? []).map((pattern) => pattern
+        .replaceAll("**/", "scope/").replaceAll("**", "scope").replaceAll("*", "fixture").replaceAll("?", "x"))];
+    if (!names.length) names.push(`sample-${format.id}`);
+    const cloud = service();
+    for (const name of new Set(names)) {
+      files.set(name, '{"cloud":"registered-source"}');
+      if (format.mimeTypes?.[0]) mimeTypes.set(name, format.mimeTypes[0]);
+      const path = createWorkspaceResourceUri(cloud.folder.uri, name);
+      const node = (await cloud.dataPort.resolveNode!(path))!;
+      if (!isDocumentDataNode(node)) throw new Error("Expected a format document.");
+      expect(getEditorSourceRequirement(node), name).toBe(expected);
+      const local = { ...node, path: name, source: "local" as const };
+      expect(resolveEditorViewer({ ...node, sourceKind: "cloud" }).viewer.id, name)
+        .toBe(resolveEditorViewer({ ...local, sourceKind: "local" }).viewer.id);
+      const content = await cloud.dataPort.readFile!(path);
+      if (expected === "content" || expected === "content-and-resource") {
+        expect(content.content, name).toBe('{"cloud":"registered-source"}');
+        const result = await save(cloud.dataPort, path, '{"cloud":"saved"}', content.version!);
+        expect(result, name).toMatchObject({ ok: true });
+        expect(files.get(name)).toBe('{"cloud":"saved"}');
+        if (expected === "content-and-resource") {
+          const url = await cloud.dataPort.getFileUrl!(path, { expectedVersion: content.version! });
+          expect(url).toMatch(/^blob:/);
+          await cloud.dataPort.revokeFileUrl!(url);
+        }
+      } else {
+        expect(content.content, name).toBeNull();
+        if (expected === "resource") {
+          const url = new URL(await cloud.dataPort.getFileUrl!(path));
+          expect(url.origin).toBe(new URL(API).origin);
+          expect(url.searchParams.get("path")).toBe(name);
+          expect(url.searchParams.get("token")).toBe("fixture-token");
+        }
+      }
+    }
+  });
+});
 
 describe("native Cloud provider", () => {
   it("creates the first file and folder with the existing empty-repository CAS contract", async () => {

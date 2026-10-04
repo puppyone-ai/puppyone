@@ -53,6 +53,7 @@ export function installWindowNavigationSecurity({
   webContents,
   applicationUrl,
   externalNavigation,
+  isAuthorizedCloudResource,
 }) {
   if (!externalNavigation || typeof externalNavigation.openDetached !== "function") {
     throw new TypeError("Window navigation security requires the external navigation service.");
@@ -72,7 +73,7 @@ export function installWindowNavigationSecurity({
   webContents.on("will-redirect", handleTopLevelNavigation);
   webContents.on("will-frame-navigate", (details) => {
     if (!details || details.isMainFrame) return;
-    if ((isEmbeddedPdfFrame(details.frame) && !isAllowedPdfResource(details.url))
+    if ((isEmbeddedPdfFrame(details.frame) && !isAllowedPdfResource(details.url, isAuthorizedCloudResource))
       || shouldBlockEmbeddedFrameNavigation(details.url, applicationUrl)) {
       details.preventDefault();
     }

@@ -1,11 +1,18 @@
 #!/usr/bin/env electron
-import { app, BrowserWindow, ipcMain, nativeImage } from "electron";
+import { app, BrowserWindow, ipcMain, nativeImage, protocol, utilityProcess } from "electron";
+import { cloudFormatFixtures, acceptCloudFormats, acceptExpiredCloudMedia } from "../../../support/cloud/formatAcceptance.mjs";
+import { createDatabasePreviewService } from "../../../../electron/main/database-preview/service.mjs";
+import { createCloudNativePreviewService, registerCloudNativePreviewIpc } from "../../../../electron/main/cloud-native-preview-service.mjs";
+import { createCloudPreviewResourceService, registerCloudPreviewResourceIpc } from "../../../../electron/main/cloud-preview-resource-service.mjs";
+import { installEmbeddedContentSessionSecurity } from "../../../../electron/main/embedded-pdf-security.mjs";
+import { installWindowNavigationSecurity } from "../../../../electron/main/security.mjs";
+import { createPreviewDocumentService, registerPreviewDocumentIpc, PREVIEW_DOCUMENT_SCHEME, PREVIEW_DOCUMENT_PRIVILEGES } from "../../../../electron/main/preview-document-service.mjs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createDesktopPlatformHost } from "../../../../electron/main/platform/create-platform-host.mjs";
 import { registerPlatformIpcHandlers } from "../../../../electron/main/ipc/platform-ipc.mjs";
 import { registerWindowLayoutIpcHandlers } from "../../../../electron/main/ipc/window-layout-ipc.mjs";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -15,14 +22,22 @@ const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const rendererPath = process.env.PUPPYONE_NATIVE_WORKBENCH_RENDERER ?? path.join(repo, "dist/index.html");
 const nativeCorners = process.argv.includes('--native-corners');
 if (nativeCorners && process.platform !== 'darwin') throw new Error('Native corner capture requires macOS');
-const artifacts = path.join(repo, `artifacts/tests/cloud/${nativeCorners ? 'native-window-corners' : 'native-workbench'}`);
+const artifacts = process.env.PUPPYONE_CLOUD_FORMAT_ARTIFACT_DIR
+  ?? path.join(repo, `artifacts/tests/cloud/${nativeCorners ? 'native-window-corners' : 'native-workbench'}`);
 await mkdir(artifacts, { recursive: true });
+await rm(path.join(artifacts, "report.json"), { force: true });
+await rm(path.join(artifacts, "cloud-format-acceptance.json"), { force: true });
 app.setPath("userData", await mkdtemp(path.join(os.tmpdir(), "puppyone-native-cloud-")));
 app.commandLine.appendSwitch("disable-renderer-backgrounding");
-app.commandLine.appendSwitch("disable-gpu");
+protocol.registerSchemesAsPrivileged([{ scheme: PREVIEW_DOCUMENT_SCHEME, privileges: PREVIEW_DOCUMENT_PRIVILEGES }]);
 // Keep Chromium fixture rendering on a consistent color profile.
 app.commandLine.appendSwitch("force-color-profile", "srgb");
 const errors = [];
+const pdfRuntimeDiagnostics = [];
+const handledResourceErrors = [];
+let expectedResourceFailure = false;
+let resourceToken = 'fixture-token';
+let deniedResourceRequests = 0;
 let window;
 const assert = (value, message) => { if (!value) throw new Error(message); };
 const evaluate = async (code) => { try { return await window.webContents.executeJavaScript(code, true); } catch (error) { throw new Error(`Renderer step failed: ${code}: ${error.message}; ${errors.join("; ")}`); } };
@@ -249,15 +264,38 @@ async function checkProjectBarRelayout(setup) {
     `Font/layout changes must not stretch or slide the selection plate: ${JSON.stringify(frames)}`);
 }
 app.whenReady().then(async () => {
+  const previewDocuments = createPreviewDocumentService();
+  registerPreviewDocumentIpc(ipcMain, previewDocuments);
   const platformHost = createDesktopPlatformHost();
+  const formats = await cloudFormatFixtures(repo);
+  const database = createDatabasePreviewService({ spawnHost: () => utilityProcess.fork(path.join(repo, 'electron/utility/database-preview/main.mjs'), [], {
+    serviceName: 'Cloud Format Acceptance', stdio: 'ignore', execArgv: ['--max-old-space-size=128'] }) });
+  const nativeAuth = { readSession: async () => ({ user_id: 'fixture-user', session_generation: 'fixture-session', api_base_url: 'https://cloud-fixture.puppyone.ai/api/v1' }),
+      requestSessionApi: async (_base, requestPath, init) => {
+        const value = await evaluate(`window.puppyoneDesktop.requestCloudSessionApi(${JSON.stringify({ path: requestPath, method: init.method, body: init.body })})`);
+        if (value?.transport && !value.ok) throw Object.assign(new Error('Fixture API failure'), {status:value.error.status});
+        return value;
+      } };
+  const nativePreviews = createCloudNativePreviewService({ database, convertOffice: platformHost.documents.convertOfficeDocumentToDocx,
+    auth:nativeAuth, fetchResource: async (url) => {
+      const resource = formats.resources.get(new URL(url).searchParams.get('path'));
+      return resource ? new Response(resource.bytes) : new Response(null, {status:404});
+    } });
+  registerCloudNativePreviewIpc(ipcMain, nativePreviews);
+  const cloudResources=createCloudPreviewResourceService({auth:nativeAuth});
+  registerCloudPreviewResourceIpc(ipcMain,cloudResources);
   if (nativeCorners) {
     registerPlatformIpcHandlers({ ipcMain, platformHost });
     registerWindowLayoutIpcHandlers({ ipcMain, BrowserWindow });
   }
   window = new BrowserWindow({ show: false, width: 1100, height: 760, frame: nativeCorners,
     ...(nativeCorners ? platformHost.windowChrome.browserWindowOptions : {}),
-    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false,
-      ...(nativeCorners ? { preload:path.join(repo,'tests/fixtures/cloud/repositories/window-chrome-preload.cjs') } : {}) } });
+    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, plugins:true,
+      preload:path.join(repo, `tests/fixtures/cloud/repositories/${nativeCorners ? 'window-chrome' : 'preview-document'}-preload.cjs`) } });
+  window.webContents.session.protocol.handle(PREVIEW_DOCUMENT_SCHEME, (request) => previewDocuments.handle(request));
+  installEmbeddedContentSessionSecurity(window.webContents.session,{applicationUrl:pathToFileURL(rendererPath).href,isAuthorizedCloudResource:cloudResources.allowed});
+  installWindowNavigationSecurity({webContents:window.webContents,applicationUrl:pathToFileURL(rendererPath).href,
+    isAuthorizedCloudResource:cloudResources.allowed,externalNavigation:{openDetached:(url)=>{errors.push(`Unexpected external navigation: ${url}`);}}});
   // Isolated test transport: production viewers consume real HTTPS resources,
   // without reaching a network, account or user repository.
   const workbook = XLSX.utils.book_new();
@@ -266,8 +304,25 @@ app.whenReady().then(async () => {
   await window.webContents.session.protocol.handle("https", (request) => {
     const url = new URL(request.url);
     if (url.host !== "cloud-fixture.puppyone.ai" || url.pathname !== "/api/v1/content/fixture-project/inline"
-      || url.searchParams.get("token") !== "fixture-token") return new Response(null, { status: 404 });
+      ) return new Response(null, { status: 404 });
+    if (url.searchParams.get('token') !== resourceToken) {
+      if (expectedResourceFailure && url.searchParams.get('path') === 'acceptance/navy.mp4') deniedResourceRequests++;
+      return new Response(null,{status:403});
+    }
     const path = url.searchParams.get("path");
+    const resource = formats.resources.get(path);
+    if (resource) {
+      const headers = { 'Content-Type':resource.mimeType, 'Access-Control-Allow-Origin':'*', 'Accept-Ranges':'bytes', 'Cache-Control':'no-store' };
+      if (path.endsWith('.pdf') && request.method==='HEAD') return new Response(null,{status:405,headers});
+      const range = /^bytes=(\d+)-(\d*)$/.exec(request.headers.get('Range') ?? '');
+      if (range) {
+        const start=Number(range[1]), end=Math.min(Number(range[2] || resource.bytes.length-1),resource.bytes.length-1);
+        if (start > end) return new Response(null,{status:416});
+        const body=resource.bytes.subarray(start,end+1);
+        return new Response(body,{status:206,headers:{...headers,'Content-Length':String(body.length),'Content-Range':`bytes ${start}-${end}/${resource.bytes.length}`}});
+      }
+      return new Response(request.method==='HEAD'?null:resource.bytes,{headers:{...headers,'Content-Length':String(resource.bytes.length)}});
+    }
     const body = path === "assets/diagram.svg"
       ? '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="120"><rect width="300" height="120" rx="12" fill="#102a43"/><text x="24" y="68" fill="#e3f0fb" font-family="sans-serif" font-size="24">Cloud asset</text></svg>'
       : path === "report.xlsx" ? spreadsheet : null;
@@ -275,7 +330,22 @@ app.whenReady().then(async () => {
       "Content-Type": path.endsWith(".svg") ? "image/svg+xml" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" } })
       : new Response(null, { status: 404 });
   });
-  window.webContents.on("console-message", (event) => { if (event.level === "error" || event.level === 3) errors.push(event.message); });
+  window.webContents.on("console-message", (event) => {
+    if (event.level !== 'error' && event.level !== 3) return;
+    // Reproduced by the existing Local PDF smoke on Electron 41.10.6.
+    // Keep these exact extension diagnostics visible; app errors still fail,
+    // and acceptance separately requires PDFium page dimensions and paint.
+    if (process.versions.electron === '41.10.6'
+      && event.frame?.url === 'chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/index.html'
+      && event.sourceId === 'node:electron/js2c/sandbox_bundle' && event.lineNumber === 2
+      && ['Electron sandboxed_renderer.bundle.js script failed to run',
+        'TypeError: object null is not iterable (cannot read property Symbol(Symbol.iterator))'].includes(event.message)) {
+      pdfRuntimeDiagnostics.push({message:event.message,frame:event.frame.url,source:event.sourceId,line:event.lineNumber});
+      return;
+    }
+    if (expectedResourceFailure && /Failed to load resource:.*403/.test(event.message)) handledResourceErrors.push(event.message);
+    else errors.push(event.message);
+  });
   await window.loadURL(`${pathToFileURL(rendererPath).href}#native-cloud-workbench-smoke`);
   await waitFor("Boolean(window.__nativeCloudWorkbenchSmoke && document.querySelector('[data-workspace-location=local] .cm-content')?.textContent.includes('LOCAL_FILE_BODY'))");
   // Visible compositing is required for captures of the paused Header reveal;
@@ -487,7 +557,14 @@ app.whenReady().then(async () => {
   await waitFor("Boolean(document.querySelector('[data-cloud-native=true] .document-surface-slot.is-committed[data-surface-ready=true] .office-spreadsheet-preview'))");
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await writeFile(path.join(artifacts, "cloud-office.png"), (await window.webContents.capturePage()).toPNG());
-  await openCloudFile("readme");
+  const formatAcceptance = await acceptCloudFormats({window, evaluate, waitFor, fixtures:formats, artifacts, assert});
+  expectedResourceFailure=true;
+  formatAcceptance.expiry = await acceptExpiredCloudMedia({evaluate,waitFor,assert,expire:(token)=>{resourceToken=token;}});
+  expectedResourceFailure=false;
+  assert(deniedResourceRequests > 0, 'Expiry test must perform a real rejected old-token request');
+  await writeFile(path.join(artifacts,'cloud-format-acceptance.json'),JSON.stringify({...formatAcceptance,deniedResourceRequests,handledResourceErrors},null,2));
+  await nativePreviews.closeAll();
+  await evaluate("window.__nativeCloudWorkbenchSmoke.openCloudFile('readme.txt')");
   await waitFor("document.querySelector('[data-cloud-native=true] .cm-content')?.textContent.includes('CLOUD_EDIT_ONLY')");
   assert(await evaluate("[...document.querySelectorAll('[data-cloud-workspace-tool]')].every(button => !button.disabled) && !window.__nativeCloudWorkbenchSmoke.state().requests.some(path => path.includes('/mcp-endpoints') || path.includes('/synchronize'))"),
     'Cloud tool pages must load only when the user opens a ready CTA');
@@ -733,8 +810,8 @@ app.whenReady().then(async () => {
   assert(await evaluate("document.querySelector('[data-workspace-location=local] .cm-editor')?.dataset.fixtureIdentity === 'retained-local-host' && document.querySelector('[data-workspace-location=local] .cm-content').textContent.includes('LOCAL_UNSAVED_DRAFT')"), "Authentication must preserve local drafts");
   await evaluate("window.__nativeCloudWorkbenchSmoke.finishLocalSaves()");
   snapshot = await state();
-  await writeFile(path.join(artifacts, "report.json"), JSON.stringify({ passed: true, localHost, localPresentation, cloudPresentation, headerPresentations, nativeCornerCaptures, authGeometry, loginPresentations, snapshot, errors }, null, 2));
   assert(!errors.length, `Renderer errors: ${errors.join("; ")}`);
+  await writeFile(path.join(artifacts, "report.json"), JSON.stringify({ passed: true, electronVersion:process.versions.electron, pdfRuntimeDiagnostics, localHost, localPresentation, cloudPresentation, headerPresentations, nativeCornerCaptures, authGeometry, loginPresentations, snapshot, errors }, null, 2));
   console.log("Native Cloud workbench smoke passed: identical native layout/styles, Cloud tree/data/edit/save, centered sign-in across themes and eight locales, browser waiting/error states, login before switching, cancellation, isolated drafts and retained hosts.");
   window.destroy(); app.exit(0);
 }).catch(async (error) => {

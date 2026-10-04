@@ -146,6 +146,7 @@ type OfficeViewerProps = Pick<
   | "fileUrl"
   | "fileUrlLoading"
   | "fileUrlError"
+  | "onRetryInput"
   | "openExternalFile"
   | "convertOfficeDocumentToDocx"
   | "markdownEnvironment"
@@ -163,6 +164,7 @@ export function OfficeViewer({
   convertOfficeDocumentToDocx,
   markdownEnvironment,
   officeEditorActions = [],
+  onRetryInput,
 }: OfficeViewerProps) {
   const createTaskController = useEditorTaskController();
   const { t } = useLocalization();
@@ -264,6 +266,7 @@ export function OfficeViewer({
           <OfficeEmptyState
             title={t("editor.preview.failed")}
             message={state.message}
+            onRetry={onRetryInput}
             documentPath={document.path}
             openExternalFile={openExternalFile}
           />
@@ -1495,11 +1498,13 @@ function OfficeEmptyState({
   message,
   documentPath,
   openExternalFile,
+  onRetry,
 }: {
   title: string;
   message: string;
   documentPath?: string;
   openExternalFile?: (path: string) => Promise<void>;
+  onRetry?: () => void;
 }) {
   const { t } = useLocalization();
   const [externalOpenError, setExternalOpenError] = useState<string | null>(null);
@@ -1515,6 +1520,7 @@ function OfficeEmptyState({
     <div className="office-preview-empty">
       <strong>{title}</strong>
       <span dir="auto">{message}</span>
+      {onRetry && <button type="button" onClick={onRetry}>{t("common.action.retry")}</button>}
       {documentPath && openExternalFile && (
         <button type="button" data-po-interaction="navigation" onClick={openExternally}>
           {t("editor.openDefaultApp")}

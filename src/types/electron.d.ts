@@ -1263,9 +1263,17 @@ declare global {
       }) => Promise<{ url: string }>;
       revokeFileUrl: (request: { url: string }) => Promise<{ revoked: boolean }>;
       createPreviewDocument: (request: { rootPath: string; path: string; content: string; interactive?: boolean }) => Promise<{ url: string }>;
+      createSandboxedPreviewDocument: (request: { content: string; interactive?: boolean }) => Promise<{ url: string }>;
+      revokeSandboxedPreviewDocument: (request: { url: string }) => Promise<{ revoked: boolean }>;
       openDatabasePreview: import("../platform/databasePreviewClient").DatabaseBridge["openDatabasePreview"];
       readDatabasePreviewPage: import("../platform/databasePreviewClient").DatabaseBridge["readDatabasePreviewPage"];
       closeDatabasePreview: import("../platform/databasePreviewClient").DatabaseBridge["closeDatabasePreview"];
+      openCloudDatabasePreview: import("../platform/cloudNativePreviewClient").CloudNativePreviewBridge["openCloudDatabasePreview"];
+      readCloudDatabasePreviewPage: import("../platform/cloudNativePreviewClient").CloudNativePreviewBridge["readCloudDatabasePreviewPage"];
+      closeCloudNativePreview: import("../platform/cloudNativePreviewClient").CloudNativePreviewBridge["closeCloudNativePreview"];
+      convertCloudOfficeDocument: import("../platform/cloudNativePreviewClient").CloudNativePreviewBridge["convertCloudOfficeDocument"];
+      retainCloudPreviewResource: (request: import("../platform/cloudNativePreviewClient").CloudPreviewSource) => Promise<{ url: string }>;
+      revokeCloudPreviewResource: (request: { url: string }) => Promise<void>;
       convertOfficeDocumentToDocx: (
         request: WorkspaceConvertOfficeDocumentToDocxRequest,
       ) => Promise<WorkspaceConvertOfficeDocumentToDocxResult>;

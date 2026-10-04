@@ -447,6 +447,18 @@
       "artifacts": ["{checkDir}/evidence/result.json", "{checkDir}/evidence"]
     },
     {
+      "id": "cloud-formats",
+      "name": "Cloud file formats: real previews, playback, visual editing and expired-resource recovery",
+      "group": "app",
+      "command": ["npm", "run", "smoke:cloud-formats"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": ["build"],
+      "timeoutSeconds": 300,
+      "runtime": "electron",
+      "environment": { "PUPPYONE_CLOUD_FORMAT_ARTIFACT_DIR": "{checkDir}/evidence" },
+      "artifacts": ["{checkDir}/evidence/report.json", "{checkDir}/evidence/cloud-format-acceptance.json", "{checkDir}/evidence"]
+    },
+    {
       "id": "database-app",
       "name": "SQLite/DuckDB: DOM containment, bounded pages, source integrity and native exit",
       "group": "app",

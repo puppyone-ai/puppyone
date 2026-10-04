@@ -115,6 +115,27 @@ describe("desktop window navigation security", () => {
     expect(shell.openExternal).toHaveBeenCalledTimes(2);
   });
 
+  it("allows only retained provider URLs in the native PDF frame and blocks them after release", () => {
+    const listeners = new Map();
+    const retained = new Set(["https://cloud.example/api/v1/content/project/inline?path=book.pdf&token=signed"]);
+    installWindowNavigationSecurity({
+      webContents: { on: (name, handler) => listeners.set(name, handler), setWindowOpenHandler: vi.fn() },
+      applicationUrl: "file:///app/dist/index.html",
+      externalNavigation: { openDetached: vi.fn() },
+      isAuthorizedCloudResource: (url) => retained.has(url),
+    });
+    const navigate = (url) => {
+      const event = { isMainFrame: false, url, frame: { url: "chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/index.html" }, preventDefault: vi.fn() };
+      listeners.get("will-frame-navigate")(event);
+      return event.preventDefault;
+    };
+    const [url] = retained;
+    expect(navigate(url)).not.toHaveBeenCalled();
+    expect(navigate("https://cloud.example/unrelated.pdf")).toHaveBeenCalledOnce();
+    retained.clear();
+    expect(navigate(url)).toHaveBeenCalledOnce();
+  });
+
   it("prevents an embedded frame from ever becoming same-origin with the shell", () => {
     expect(shouldBlockEmbeddedFrameNavigation(
       "http://127.0.0.1:5173/settings",

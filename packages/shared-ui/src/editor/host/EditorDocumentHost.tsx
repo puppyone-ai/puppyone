@@ -234,6 +234,7 @@ function EditorDocumentSurface({
         fileUrl: document.url,
         fileUrlLoading,
         fileUrlError,
+        onRetryInput: onRetry,
         loading,
         error,
         canEdit,

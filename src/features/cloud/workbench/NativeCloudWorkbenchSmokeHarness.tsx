@@ -52,11 +52,18 @@ const cloudFiles = new Map([
   ["settings.json", '{"cloud":true}'], ["page.html", "<!doctype html><html><head><title>Cloud page</title></head><body><h1>Cloud HTML</h1></body></html>"],
 ]);
 let head = 1;
+let resourceGeneration = 0;
+const cloudMimeTypes = new Map<string, string>();
 function listFixtureDirectory(path: string) {
   const names = new Set([...cloudFiles.keys()].filter((file) => !path || file.startsWith(`${path}/`))
     .map((file) => file.slice(path.length + (path ? 1 : 0)).split("/")[0]!));
   return { entries: [...names].map((name) => ({ path: [path, name].filter(Boolean).join("/"), name,
     type: cloudFiles.has([path, name].filter(Boolean).join("/")) ? "file" : "folder", children_count: 1 })), head_commit_id: `cloud-${head}` };
+}
+function statFixture(path: string) {
+  const exists = cloudFiles.has(path) || [...cloudFiles.keys()].some((file) => file.startsWith(`${path}/`));
+  if (!exists) return { transport: "puppyone-cloud-ipc-v1", ok: false, error: { status: 404, message: "Missing fixture" } };
+  return { path, name: path.split("/").at(-1), type: cloudFiles.has(path) ? "file" : "folder", mime_type: cloudMimeTypes.get(path), exists: true };
 }
 const cloudWrites: Array<{ path: string; content: string }> = [];
 const localWrites: Array<{ path: string; content: string }> = [];
@@ -70,6 +77,7 @@ const authErrorListeners = new Set<(payload: { message?: string }) => void>();
 window.puppyoneDesktop = {
   ...window.puppyoneDesktop,
   ...window.__nativeCloudChromeBridge,
+  ...window.__nativeCloudPreviewBridge,
   startCloudOAuth: async () => {
     for (const listener of authStateListeners) listener({ status: "signing-in", session: null });
     return { ok: true };
@@ -92,9 +100,11 @@ window.puppyoneDesktop = {
       if (cloudReadBarrier) await cloudReadBarrier;
       return listFixtureDirectory(path);
     }
-    if (operation === "stat") return { path, name: path.split("/").at(-1), type: cloudFiles.has(path) ? "file" : "folder", exists: true };
+    if (operation === "stat") {
+      return statFixture(path);
+    }
     if (operation === "cat") return { content_text: cloudFiles.get(path), head_commit_id: `cloud-${head}` };
-    if (operation === "sign") return { url: `/api/v1/content/fixture-project/inline?path=${encodeURIComponent(body.path)}&token=fixture-token` };
+    if (operation === "sign") return { url: `/api/v1/content/fixture-project/inline?path=${encodeURIComponent(body.path)}&token=fixture-token${resourceGeneration ? `-${resourceGeneration}` : ""}` };
     if (operation === "write") {
       if (body.base_commit_id !== `cloud-${head}`) return { transport: "puppyone-cloud-ipc-v1", ok: false, error: { status: 409, message: "Fixture conflict" } };
       cloudFiles.set(body.path, body.content); cloudWrites.push({ path: body.path, content: body.content }); head++;
@@ -108,11 +118,17 @@ if (window.__nativeCloudChromeBridge) resetDesktopPlatformCapabilitiesForTests()
 
 declare global {
   interface Window {
+    __nativeCloudPreviewBridge?: Pick<NonNullable<Window["puppyoneDesktop"]>,
+      "createSandboxedPreviewDocument" | "revokeSandboxedPreviewDocument" | "openCloudDatabasePreview"
+      | "readCloudDatabasePreviewPage" | "closeCloudNativePreview" | "convertCloudOfficeDocument" | "retainCloudPreviewResource" | "revokeCloudPreviewResource">;
     __nativeCloudChromeBridge?: Pick<NonNullable<Window["puppyoneDesktop"]>,
       "getPlatformCapabilities" | "getWindowChromeState" | "onWindowChromeStateChanged">;
     __nativeCloudWorkbenchSmoke?: {
     state: () => { location: string; cloudWrites: typeof cloudWrites; localWrites: typeof localWrites; requests: string[] };
     edit: (location: "local" | "cloud", text: string) => void;
+    openCloudFile: (path: string) => Promise<void>;
+    addCloudFixtures: (entries: Array<{ path: string; mimeType: string; content?: string }>) => void;
+    rotateCloudResourceToken: () => string;
     finishLocalSaves: () => void;
     holdCloudRead: () => void;
     finishCloudRead: () => void;
@@ -188,6 +204,16 @@ export function NativeCloudWorkbenchSmokeHarness() {
   useEffect(() => {
     window.__nativeCloudWorkbenchSmoke = {
       state: () => ({ location, cloudWrites, localWrites, requests }),
+      openCloudFile: async (path) => {
+        if (!workbench.service) throw new Error("Cloud fixture is unavailable.");
+        const resource = createWorkspaceResourceUri(workbench.service.folder.uri, path);
+        await workbench.onActivePathChange(resource);
+      },
+      addCloudFixtures: (entries) => {
+        for (const entry of entries) { cloudFiles.set(entry.path, entry.content ?? "fixture-binary"); cloudMimeTypes.set(entry.path, entry.mimeType); }
+        workbench.refresh();
+      },
+      rotateCloudResourceToken: () => `fixture-token-${++resourceGeneration}`,
       edit: (target, text) => {
         const element = document.querySelector(`[data-workspace-location="${target}"] .document-surface-slot.is-committed:not(.is-obscured) .cm-editor`);
         const view = element ? EditorView.findFromDOM(element as HTMLElement) : null;
@@ -204,7 +230,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
       finishCloudRead: () => { cloudReadBarrier = null; finishCloudRead?.(); finishCloudRead = null; },
     };
     return () => { delete window.__nativeCloudWorkbenchSmoke; };
-  }, [location, setLanguagePreference, setSidebarCollapsed]);
+  }, [location, setLanguagePreference, setSidebarCollapsed, workbench]);
   const projectSwitcher = <DesktopWorkspaceSwitcher open={menuOpen} refObject={menuRef} titlebarLabel={localWorkspace.name}
         workspace={localWorkspace} workspaceFolders={[]} multiRootWorkspacesEnabled={false}
         projectLocation={{ current: location, requested: controller.requestedLocation, headerLocation, loading: controller.pending && !controller.error,

@@ -5,6 +5,8 @@ import { registerLocalAgentSetupIpcHandlers } from "./main/ipc/local-agent-setup
 import { composeLocalAgentActivation } from "./main/compose-local-agent-activation.mjs";
 import { registerLocalAgentActivationIpcHandlers } from "./main/ipc/local-agent-activation-ipc.mjs";
 import { createDatabasePreviewService, registerDatabasePreviewIpc } from "./main/database-preview/service.mjs";
+import { createCloudNativePreviewService, registerCloudNativePreviewIpc } from "./main/cloud-native-preview-service.mjs";
+import { createCloudPreviewResourceService, registerCloudPreviewResourceIpc } from "./main/cloud-preview-resource-service.mjs";
 import { app, BrowserWindow, dialog, ipcMain, Menu, MessageChannelMain, nativeImage, nativeTheme, net, powerMonitor, protocol, safeStorage, session as electronSession, shell, utilityProcess, webContents, WebContentsView } from "electron";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { getDesktopReturnScheme, getDesktopReturnUrl, isDesktopReturnUrl } from "../shared/desktop/return-to-app-link.mjs";
@@ -107,6 +109,7 @@ import { registerWindowLayoutIpcHandlers } from "./main/ipc/window-layout-ipc.mj
 import { registerProjectAppearanceIpcHandlers } from "./main/ipc/project-appearance-ipc.mjs";
 import { registerGitMetadataWatchIpcHandlers } from "./main/ipc/git-metadata-watch-ipc.mjs";
 import { registerLocalFileProtocol } from "./main/local-file-protocol.mjs";
+import { createPreviewDocumentService, registerPreviewDocumentIpc, PREVIEW_DOCUMENT_SCHEME, PREVIEW_DOCUMENT_PRIVILEGES } from "./main/preview-document-service.mjs";
 import { installEmbeddedContentSessionSecurity } from "./main/embedded-pdf-security.mjs";
 import { createLocalFileCapabilityStore } from "./main/local-file-capabilities.mjs";
 import { createProjectAppearanceStore } from "./main/project-appearance/project-appearance-store.mjs";
@@ -242,6 +245,7 @@ const workspaceStateFilename = "desktop-workspace-state.json";
 const desktopWindowChromeOptions = desktopPlatformHost.windowChrome.browserWindowOptions;
 
 const privilegedSchemes = [
+  { scheme: PREVIEW_DOCUMENT_SCHEME, privileges: PREVIEW_DOCUMENT_PRIVILEGES },
   {
     scheme: "puppyone-local",
     privileges: {
@@ -281,6 +285,7 @@ const windowsById = new Map();
 const windowStateById = new Map();
 const workspaceWindowByPath = new Map();
 const localFileCapabilities = createLocalFileCapabilityStore();
+const previewDocumentService = createPreviewDocumentService();
 let lastFocusedWindowId = null;
 let initialWindowReady = false;
 const trustedIpcMain = createTrustedIpcMain({
@@ -509,6 +514,12 @@ const cloudAuthService = createCloudAuthService({
   getWindows: () => BrowserWindow.getAllWindows(),
   revealWindow: revealLastFocusedWindow,
 });
+const cloudNativePreviewService = createCloudNativePreviewService({ auth: cloudAuthService,
+  database: databasePreviewService, convertOffice: desktopPlatformHost.documents.convertOfficeDocumentToDocx,
+  fetchResource: (url, options) => net.fetch(url, options) });
+cloudAuthService.subscribe(() => { void cloudNativePreviewService.reconcileSession().catch(() => {}); });
+const cloudPreviewResourceService = createCloudPreviewResourceService({auth:cloudAuthService});
+cloudAuthService.subscribe((state) => cloudPreviewResourceService.reconcileSession(state.session));
 const gitOperationCoordinator = createGitOperationCoordinator();
 const gitAutoCommitHost = createGitAutoCommitHost({
   available: gitAutoCommitFeatureProfile.available,
@@ -620,6 +631,7 @@ async function createWindow(options = {}) {
     webContents: window.webContents,
     applicationUrl: rendererApplicationUrl,
     externalNavigation,
+    isAuthorizedCloudResource: cloudPreviewResourceService.allowed,
   });
   windowsById.set(webContentsId, window);
   window.webContents.once("destroyed", () => {
@@ -854,7 +866,8 @@ app.whenReady().then(async () => {
       console.warn("Unable to register the PuppyOne Desktop return link:", error);
     }
   }
-  installEmbeddedContentSessionSecurity(electronSession.defaultSession, { applicationUrl: rendererApplicationUrl });
+  installEmbeddedContentSessionSecurity(electronSession.defaultSession, { applicationUrl: rendererApplicationUrl,
+    isAuthorizedCloudResource: cloudPreviewResourceService.allowed });
   await localeService.initialize();
   const updatePreferenceStore = createDesktopUpdatePreferenceStore({
     filePath: path.join(app.getPath("userData"), "desktop-update-preferences.json"),
@@ -898,6 +911,8 @@ app.whenReady().then(async () => {
     resolveCapability: localFileCapabilities.resolve,
     applicationUrl: rendererApplicationUrl,
   });
+  protocol.handle(PREVIEW_DOCUMENT_SCHEME, (request) => previewDocumentService.handle(request));
+  registerPreviewDocumentIpc(trustedIpcMain, previewDocumentService);
   registerProjectIconProtocol({
     protocol,
     store: projectAppearanceStore,
@@ -1016,6 +1031,7 @@ app.on("before-quit", createApplicationCloseCoordinator({
   getWindows: () => BrowserWindow.getAllWindows(),
   closeResources: async () => {
     await projectSessions.closeAllWindows();
+    await cloudNativePreviewService.closeAll();
     await Promise.all([agentService.closeAll(), terminalService.closeAll(), databasePreviewService.closeAll()]);
   },
   onFailure: async () => {
@@ -1114,6 +1130,8 @@ function registerIpcHandlers() {
     detachWorkspaceFromCurrentWindow,
   });
   registerCloudIpcHandlers({ ipcMain: trustedIpcMain, cloudAuthService });
+  registerCloudNativePreviewIpc(trustedIpcMain, cloudNativePreviewService);
+  registerCloudPreviewResourceIpc(trustedIpcMain, cloudPreviewResourceService);
   registerCloudPublishIpcHandlers({
     ipcMain: trustedIpcMain,
     authorizeWorkspaceRoot,
@@ -1745,10 +1763,13 @@ function assignWindowWorkspaceComposition(window, folders, options = {}) {
 }
 
 function releaseWindowWorkspaceById(webContentsId, window = null) {
+  cloudPreviewResourceService.revokeOwner(webContentsId);
+  void cloudNativePreviewService.closeOwner(webContentsId).catch(() => {});
   void databasePreviewService.closeOwner(webContentsId).catch(() => {});
   gitAutoCommitHost.releaseWindow(webContentsId);
   viewerPackHost?.destroySessionsForOwner(webContentsId);
   localFileCapabilities.revokeSender(webContentsId);
+  previewDocumentService.revokeOwner(webContentsId);
   const state = windowStateById.get(webContentsId);
   const workspacePaths = [...new Set([...(state?.folderPaths ?? []), ...projectSessions.snapshot(webContentsId).projects.map((project) => project.rootPath)])];
   for (const workspacePath of workspacePaths) {

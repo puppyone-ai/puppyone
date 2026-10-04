@@ -13,20 +13,21 @@ export type ResourceViewerProps = Pick<
   | "fileUrl"
   | "fileUrlLoading"
   | "fileUrlError"
+  | "onRetryInput"
   | "fileIconTheme"
 >;
 
-export function ImageResourceViewer({ document, fileUrl, fileUrlLoading, fileUrlError }: ResourceViewerProps) {
+export function ImageResourceViewer({ document, fileUrl, fileUrlLoading, fileUrlError, onRetryInput }: ResourceViewerProps) {
   return (
     <ResourcePreviewState fileUrl={fileUrl} loading={fileUrlLoading} error={fileUrlError} kind="image">
       {(url) => (
-        <ImagePreviewSurface url={url} name={document.name} />
+        <ImagePreviewSurface url={url} name={document.name} onRetry={onRetryInput} />
       )}
     </ResourcePreviewState>
   );
 }
 
-function ImagePreviewSurface({ url, name }: { url: string; name: string }) {
+function ImagePreviewSurface({ url, name, onRetry }: { url: string; name: string; onRetry?: () => void }) {
   const { t } = useLocalization();
   const [readyUrl, setReadyUrl] = useState<string | null>(null);
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
@@ -35,8 +36,9 @@ function ImagePreviewSurface({ url, name }: { url: string; name: string }) {
 
   if (failed) {
     return (
-      <div className="editor-state danger">
+      <div className="editor-state editor-state--stacked danger" role="alert">
         {t("editor.resource.unavailable", { kind: t("editor.resource.kind.image") })}
+        <ResourceRetry onRetry={onRetry} />
       </div>
     );
   }
@@ -72,26 +74,26 @@ function ImagePreviewSurface({ url, name }: { url: string; name: string }) {
   );
 }
 
-export function AudioResourceViewer({ document, fileUrl, fileUrlLoading, fileUrlError, fileIconTheme }: ResourceViewerProps) {
+export function AudioResourceViewer({ document, fileUrl, fileUrlLoading, fileUrlError, fileIconTheme, onRetryInput }: ResourceViewerProps) {
   return (
     <ResourcePreviewState fileUrl={fileUrl} loading={fileUrlLoading} error={fileUrlError} kind="audio">
       {(url) => (
         <AudioPreviewSurface
           url={url}
           name={document.name}
-          mimeType={document.mimeType}
           fileIconTheme={fileIconTheme}
+          onRetry={onRetryInput}
         />
       )}
     </ResourcePreviewState>
   );
 }
 
-export function VideoResourceViewer({ document, fileUrl, fileUrlLoading, fileUrlError }: ResourceViewerProps) {
+export function VideoResourceViewer({ document, fileUrl, fileUrlLoading, fileUrlError, onRetryInput }: ResourceViewerProps) {
   return (
     <ResourcePreviewState fileUrl={fileUrl} loading={fileUrlLoading} error={fileUrlError} kind="video">
       {(url) => (
-        <VideoPreviewSurface url={url} mimeType={document.mimeType} />
+        <VideoPreviewSurface url={url} onRetry={onRetryInput} />
       )}
     </ResourcePreviewState>
   );
@@ -100,13 +102,13 @@ export function VideoResourceViewer({ document, fileUrl, fileUrlLoading, fileUrl
 function AudioPreviewSurface({
   url,
   name,
-  mimeType,
   fileIconTheme,
+  onRetry,
 }: {
   url: string;
   name: string;
-  mimeType?: string | null;
   fileIconTheme: ResourceViewerProps["fileIconTheme"];
+  onRetry?: () => void;
 }) {
   const { t } = useLocalization();
   const [readyUrl, setReadyUrl] = useState<string | null>(null);
@@ -114,8 +116,9 @@ function AudioPreviewSurface({
   const ready = readyUrl === url;
   if (failedUrl === url) {
     return (
-      <div className="editor-state danger">
+      <div className="editor-state editor-state--stacked danger" role="alert">
         {t("editor.resource.unavailable", { kind: t("editor.resource.kind.audio") })}
+        <ResourceRetry onRetry={onRetry} />
       </div>
     );
   }
@@ -130,12 +133,12 @@ function AudioPreviewSurface({
         <strong dir="auto">{name}</strong>
         <audio
           key={url}
+          src={url}
           controls
           preload="metadata"
           onLoadedMetadata={() => setReadyUrl(url)}
           onError={() => setFailedUrl(url)}
         >
-          <source src={url} type={mimeType ?? undefined} />
           <UnsupportedMedia kind="audio" />
         </audio>
       </div>
@@ -143,15 +146,16 @@ function AudioPreviewSurface({
   );
 }
 
-function VideoPreviewSurface({ url, mimeType }: { url: string; mimeType?: string | null }) {
+function VideoPreviewSurface({ url, onRetry }: { url: string; onRetry?: () => void }) {
   const { t } = useLocalization();
   const [readyUrl, setReadyUrl] = useState<string | null>(null);
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const ready = readyUrl === url;
   if (failedUrl === url) {
     return (
-      <div className="editor-state danger">
+      <div className="editor-state editor-state--stacked danger" role="alert">
         {t("editor.resource.unavailable", { kind: t("editor.resource.kind.video") })}
+        <ResourceRetry onRetry={onRetry} />
       </div>
     );
   }
@@ -163,13 +167,13 @@ function VideoPreviewSurface({ url, mimeType }: { url: string; mimeType?: string
     >
       <video
         key={url}
+        src={url}
         className="native-video-preview"
         controls
         preload="auto"
         onLoadedData={(event) => markVideoFrameReady(event.currentTarget, () => setReadyUrl(url))}
         onError={() => setFailedUrl(url)}
       >
-        <source src={url} type={mimeType ?? undefined} />
         <UnsupportedMedia kind="video" />
       </video>
     </div>
@@ -222,4 +226,9 @@ export function ResourcePreviewState({
 function UnsupportedMedia({ kind }: { kind: "audio" | "video" }) {
   const { t } = useLocalization();
   return <>{t(`editor.resource.unsupported.${kind}`)}</>;
+}
+
+function ResourceRetry({ onRetry }: { onRetry?: () => void }) {
+  const { t } = useLocalization();
+  return onRetry ? <button type="button" onClick={onRetry}>{t("common.action.retry")}</button> : null;
 }

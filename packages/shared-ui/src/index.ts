@@ -140,6 +140,7 @@ export {
 } from "./core/fileFormats";
 
 export { DataWorkspace } from "./data/DataWorkspace";
+export { resolveMarkdownAssetPath } from "./editor/markdown";
 export {
   createDocumentNavigationPort,
   parseDocumentReferenceIntent,

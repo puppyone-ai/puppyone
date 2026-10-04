@@ -2,6 +2,7 @@
   "extends": "../../tsconfig.json",
   "include": [
     "../../src/vite-env.d.ts",
+    "../../src/types/css-tree.d.ts",
     "../**/*.ts",
     "../**/*.tsx"
   ],
