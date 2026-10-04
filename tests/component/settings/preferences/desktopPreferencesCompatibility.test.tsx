@@ -36,7 +36,7 @@ describe("desktop preference wire compatibility (locked before the store migrati
     localStorage.setItem("puppyone.desktop.agentPreferredModel", " gpt-5 ");
     localStorage.setItem("puppyone.desktop.localAgents", JSON.stringify({ hiddenTerminalAgentIds: ["workbuddy", "codex", "codex", "INVALID ID"], chatHistoryDiscoveryEnabled: true }));
     localStorage.setItem("puppyone.desktop.rightSidebarTools", JSON.stringify({ terminal: false }));
-    localStorage.setItem("puppyone.desktop.experimentalSettings", JSON.stringify({ enableNotionImport: true, enableGitAutoCommit: true, enableShareOnboarding: false }));
+    localStorage.setItem("puppyone.desktop.experimental", JSON.stringify({ enableNotionImport: true, enableGitAutoCommit: true, enableShareOnboarding: false }));
     localStorage.setItem("puppyone.desktop.createNewMenu", JSON.stringify({ items: [{kind: "csv", enabled: true, placement: "main"}] }));
     localStorage.setItem("puppyone.desktop.explorerWidth", "1.9");
     localStorage.setItem("puppyone.desktop.rightSidebarWidth", "500.7");
