@@ -15,169 +15,163 @@ export function getGitSyncState(
   puppyoneConfig: PuppyoneWorkspaceConfig | null,
   t: MessageFormatter,
 ): GitSyncState {
-  if (!status?.isRepo) {
+  if (!status?.isRepo) return getInactiveSyncState(t);
+  if (status.effectiveHosting.kind === "puppyone-cloud") return getCloudSyncState(status, t);
+  if (!currentBranch?.upstream) return getUntrackedSyncState(status, puppyoneConfig, t);
+  return getTrackedSyncState(status, { ...currentBranch, upstream: currentBranch.upstream }, t);
+}
+
+function getInactiveSyncState(t: MessageFormatter): GitSyncState {
+  return {
+    branchLabel: t("source-control.sync.noBranch"),
+    upstreamLabel: t("source-control.history.inactive"),
+    remoteExists: false,
+    setupRequired: true,
+    setupTitle: t("source-control.sync.chooseTarget"),
+    setupDetail: t("source-control.sync.initializeThenCloud"),
+    behind: 0,
+    ahead: 0,
+    pullDetail: t("source-control.sync.noLocalRepository"),
+    pullDisabled: true,
+    pushDisabled: true,
+    pullLabel: t("source-control.sync.pullRemote"),
+    pullTitle: t("source-control.sync.initializeBeforePull"),
+    pushTitle: t("source-control.sync.initializeBeforePush"),
+    pushLabel: t("source-control.sync.push"),
+    pushDetail: t("source-control.sync.noLocalRepository"),
+  };
+}
+
+function getCloudSyncState(status: GitStatusSnapshot, t: MessageFormatter): GitSyncState {
+  const branchLabel = displayGitBranch(status, t("source-control.branch.initial"));
+  const target = status.syncTarget;
+  const targetLabel = target?.ref ?? "Puppyone Cloud";
+  const targetExists = target?.exists === true;
+  const targetAhead = target?.ahead ?? 0;
+  const targetBehind = target?.behind ?? 0;
+  return {
+    branchLabel,
+    upstreamLabel: targetLabel,
+    remoteExists: targetExists,
+    setupRequired: !target?.remote,
+    setupTitle: "Puppyone Cloud",
+    setupDetail: target?.remote
+      ? t("source-control.sync.syncingWith", { target: bidiIsolate(targetLabel) })
+      : t("source-control.sync.configureCloudRemote"),
+    behind: targetBehind,
+    ahead: targetAhead,
+    pullDetail: targetExists
+      ? t("source-control.sync.cloudCommitsOn", { count: targetBehind, target: bidiIsolate(targetLabel) })
+      : t("source-control.sync.noCloudBranch", { target: bidiIsolate(targetLabel) }),
+    pullDisabled: !targetExists || targetBehind === 0,
+    pushDisabled: getTargetPushDisabled(targetExists, targetAhead, targetBehind, status.headCommitId),
+    pullLabel: targetBehind > 0
+      ? t("source-control.sync.downloadCount", { count: targetBehind })
+      : t("source-control.action.download"),
+    pullTitle: getCloudPullTitle(targetExists, targetBehind, targetLabel, t),
+    pushTitle: getCloudPushTitle(targetAhead, targetBehind, targetLabel, t),
+    pushLabel: t("source-control.sync.upload"),
+    pushDetail: targetAhead > 0
+      ? t("source-control.sync.committedWaiting", { count: targetAhead })
+      : t("source-control.sync.noCommittedWaiting"),
+  };
+}
+
+function getUntrackedSyncState(
+  status: GitStatusSnapshot, puppyoneConfig: PuppyoneWorkspaceConfig | null, t: MessageFormatter,
+): GitSyncState {
+  const branchLabel = displayGitBranch(status, t("source-control.branch.initial"));
+  const preferredRemote = getPreferredGitRemote(status, puppyoneConfig);
+  const puppyoneRemote = getPuppyoneRemote(status)?.remote
+    ?? status.remotes.find((remote) => remote.name.toLowerCase() === "puppyone");
+  const configuredCloudBackup = puppyoneConfig?.backup?.enabled === true;
+  const publishRemote = preferredRemote ?? puppyoneRemote;
+  const backupBranch = puppyoneConfig?.sync?.sourceOfTruth?.branch
+    ?? puppyoneConfig?.backup?.branch
+    ?? puppyoneConfig?.git?.watchedBranch
+    ?? branchLabel;
+
+  if (publishRemote) {
+    return getPublishSyncState(status, branchLabel, publishRemote, publishRemote === puppyoneRemote, backupBranch, t);
+  }
+
+  if (configuredCloudBackup) {
     return {
-      branchLabel: t("source-control.sync.noBranch"),
-      upstreamLabel: t("source-control.history.inactive"),
+      branchLabel,
+      upstreamLabel: "Puppyone Cloud",
       remoteExists: false,
-      setupRequired: true,
-      setupTitle: t("source-control.sync.chooseTarget"),
-      setupDetail: t("source-control.sync.initializeThenCloud"),
+      setupRequired: false,
+      setupTitle: t("source-control.sync.target"),
+      setupDetail: t("source-control.sync.cloudBackupEnabled"),
       behind: 0,
       ahead: 0,
-      pullDetail: t("source-control.sync.noLocalRepository"),
+      pullDetail: t("source-control.sync.configureBeforePull"),
       pullDisabled: true,
       pushDisabled: true,
       pullLabel: t("source-control.sync.pullRemote"),
-      pullTitle: t("source-control.sync.initializeBeforePull"),
-      pushTitle: t("source-control.sync.initializeBeforePush"),
-      pushLabel: t("source-control.sync.push"),
-      pushDetail: t("source-control.sync.noLocalRepository"),
+      pullTitle: t("source-control.sync.configureBeforePull"),
+      pushTitle: t("source-control.sync.configureBeforePush"),
+      pushLabel: t("source-control.sync.publish"),
+      pushDetail: t("source-control.sync.noConfiguredRemote"),
     };
   }
 
-  if (status.effectiveHosting.kind === "puppyone-cloud") {
-    const branchLabel = displayGitBranch(status, t("source-control.branch.initial"));
-    const target = status.syncTarget;
-    const targetLabel = target?.ref ?? "Puppyone Cloud";
-    const targetExists = target?.exists === true;
-    const targetAhead = target?.ahead ?? 0;
-    const targetBehind = target?.behind ?? 0;
-    return {
-      branchLabel,
-      upstreamLabel: targetLabel,
-      remoteExists: targetExists,
-      setupRequired: !target?.remote,
-      setupTitle: "Puppyone Cloud",
-      setupDetail: target?.remote
-        ? t("source-control.sync.syncingWith", { target: bidiIsolate(targetLabel) })
-        : t("source-control.sync.configureCloudRemote"),
-      behind: targetBehind,
-      ahead: targetAhead,
-      pullDetail: targetExists
-        ? t("source-control.sync.cloudCommitsOn", { count: targetBehind, target: bidiIsolate(targetLabel) })
-        : t("source-control.sync.noCloudBranch", { target: bidiIsolate(targetLabel) }),
-      pullDisabled: !targetExists || targetBehind === 0,
-      pushDisabled: targetExists
-        ? targetAhead === 0 || targetBehind > 0
-        : !status.headCommitId,
-      pullLabel: targetBehind > 0
-        ? t("source-control.sync.downloadCount", { count: targetBehind })
-        : t("source-control.action.download"),
-      pullTitle: targetExists
-        ? targetBehind === 0
-          ? t("source-control.cloud.upToDate")
-          : t("source-control.sync.downloadFrom", { count: targetBehind, target: bidiIsolate(targetLabel) })
-        : t("source-control.sync.cloudBranchMissing"),
-      pushTitle: targetBehind > 0
-        ? t("source-control.sync.downloadBeforeUpload")
-        : targetAhead === 0
-          ? t("source-control.sync.noCommittedToUpload")
-          : t("source-control.sync.uploadTo", { count: targetAhead, target: bidiIsolate(targetLabel) }),
-      pushLabel: t("source-control.sync.upload"),
-      pushDetail: targetAhead > 0
-        ? t("source-control.sync.committedWaiting", { count: targetAhead })
-        : t("source-control.sync.noCommittedWaiting"),
-    };
-  }
+  return {
+    branchLabel,
+    upstreamLabel: t("source-control.sync.localOnly"),
+    remoteExists: false,
+    setupRequired: true,
+    setupTitle: t("source-control.sync.chooseTarget"),
+    setupDetail: t("source-control.sync.backupLocalBranch", { branch: bidiIsolate(branchLabel) }),
+    behind: 0,
+    ahead: 0,
+    pullDetail: t("source-control.sync.noTrackingBranch"),
+    pullDisabled: true,
+    pushDisabled: true,
+    pullLabel: t("source-control.sync.pullRemote"),
+    pullTitle: t("source-control.sync.chooseBeforePull"),
+    pushTitle: t("source-control.sync.chooseBeforePush"),
+    pushLabel: t("source-control.sync.push"),
+    pushDetail: t("source-control.sync.chooseFirst"),
+  };
+}
 
-  if (!currentBranch?.upstream) {
-    const branchLabel = displayGitBranch(status, t("source-control.branch.initial"));
-    const preferredRemote = getPreferredGitRemote(status, puppyoneConfig);
-    const puppyoneRemote = getPuppyoneRemote(status)?.remote
-      ?? status.remotes.find((remote) => remote.name.toLowerCase() === "puppyone");
-    const configuredCloudBackup = puppyoneConfig?.backup?.enabled === true;
-    const publishRemote = preferredRemote ?? puppyoneRemote;
-    const backupBranch = puppyoneConfig?.sync?.sourceOfTruth?.branch
-      ?? puppyoneConfig?.backup?.branch
-      ?? puppyoneConfig?.git?.watchedBranch
-      ?? branchLabel;
-    const syncTarget = status.syncTarget;
+function getPublishSyncState(
+  status: GitStatusSnapshot, branchLabel: string, publishRemote: GitStatusSnapshot["remotes"][number],
+  isCloudRemote: boolean, backupBranch: string, t: MessageFormatter,
+): GitSyncState {
+  const syncTarget = status.syncTarget;
+  const isPuppyonePublishRemote = publishRemote.name.toLowerCase() === "puppyone" || isCloudRemote;
+  const publishLabel = t(isPuppyonePublishRemote ? "source-control.sync.publish" : "source-control.sync.push");
+  const publishTargetLabel = syncTarget?.ref ?? `${publishRemote.name}/${backupBranch}`;
+  const targetExists = syncTarget?.exists === true;
+  const targetAhead = targetExists ? syncTarget.ahead : 0;
+  const targetBehind = targetExists ? syncTarget.behind : 0;
+  return {
+    branchLabel,
+    upstreamLabel: publishTargetLabel,
+    remoteExists: targetExists,
+    setupRequired: false,
+    setupTitle: t("source-control.sync.target"),
+    setupDetail: t("source-control.sync.primaryRemote", { remote: bidiIsolate(publishRemote.name) }),
+    behind: targetBehind,
+    ahead: targetAhead,
+    pullDetail: targetExists
+      ? t("source-control.sync.remoteCommitsOn", { count: targetBehind, target: bidiIsolate(publishTargetLabel) })
+      : t("source-control.sync.noRemoteBranch", { target: bidiIsolate(publishTargetLabel) }),
+    pullDisabled: !targetExists || targetBehind === 0,
+    pushDisabled: getTargetPushDisabled(targetExists, targetAhead, targetBehind, status.headCommitId),
+    pullLabel: t("source-control.sync.pullRemote"),
+    pullTitle: getRemotePullTitle(targetExists, targetBehind, publishTargetLabel, t),
+    pushTitle: getPublishPushTitle(status, isPuppyonePublishRemote, publishLabel, branchLabel, publishTargetLabel, t),
+    pushLabel: publishLabel,
+    pushDetail: getPublishPushDetail(targetExists, targetAhead, publishLabel, branchLabel, publishTargetLabel, t),
+  };
+}
 
-    if (publishRemote) {
-      const isPuppyonePublishRemote = publishRemote.name.toLowerCase() === "puppyone" || publishRemote === puppyoneRemote;
-      const publishLabel = t(isPuppyonePublishRemote ? "source-control.sync.publish" : "source-control.sync.push");
-      const publishTargetLabel = syncTarget?.ref ?? `${publishRemote.name}/${backupBranch}`;
-      const targetExists = syncTarget?.exists === true;
-      const targetAhead = targetExists ? syncTarget.ahead : 0;
-      const targetBehind = targetExists ? syncTarget.behind : 0;
-      return {
-        branchLabel,
-        upstreamLabel: publishTargetLabel,
-        remoteExists: targetExists,
-        setupRequired: false,
-        setupTitle: t("source-control.sync.target"),
-        setupDetail: t("source-control.sync.primaryRemote", { remote: bidiIsolate(publishRemote.name) }),
-        behind: targetBehind,
-        ahead: targetAhead,
-        pullDetail: targetExists
-          ? t("source-control.sync.remoteCommitsOn", { count: targetBehind, target: bidiIsolate(publishTargetLabel) })
-          : t("source-control.sync.noRemoteBranch", { target: bidiIsolate(publishTargetLabel) }),
-        pullDisabled: !targetExists || targetBehind === 0,
-        pushDisabled: targetExists
-          ? targetAhead === 0 || targetBehind > 0
-          : !status.headCommitId,
-        pullLabel: t("source-control.sync.pullRemote"),
-        pullTitle: targetExists
-          ? targetBehind === 0
-            ? t("source-control.sync.upToDate")
-            : t("source-control.sync.pullFrom", { count: targetBehind, target: bidiIsolate(publishTargetLabel) })
-          : t("source-control.sync.remoteBranchMissing"),
-        pushTitle: status.headCommitId
-          ? targetExists && targetBehind > 0
-            ? t("source-control.sync.sendDiverged", { action: publishLabel, count: targetAhead, target: bidiIsolate(publishTargetLabel) })
-            : t("source-control.sync.sendBranch", { action: publishLabel, branch: bidiIsolate(branchLabel), target: bidiIsolate(publishTargetLabel) })
-          : t(isPuppyonePublishRemote ? "source-control.sync.commitBeforePublish" : "source-control.sync.commitBeforePush"),
-        pushLabel: publishLabel,
-        pushDetail: targetExists
-          ? targetAhead > 0
-            ? t("source-control.sync.localWaiting", { count: targetAhead })
-            : t("source-control.sync.noLocalWaiting", { target: bidiIsolate(publishTargetLabel) })
-          : t("source-control.sync.createRemote", { action: publishLabel, branch: bidiIsolate(branchLabel), target: bidiIsolate(publishTargetLabel) }),
-      };
-    }
-
-    if (configuredCloudBackup) {
-      return {
-        branchLabel,
-        upstreamLabel: "Puppyone Cloud",
-        remoteExists: false,
-        setupRequired: false,
-        setupTitle: t("source-control.sync.target"),
-        setupDetail: t("source-control.sync.cloudBackupEnabled"),
-        behind: 0,
-        ahead: 0,
-        pullDetail: t("source-control.sync.configureBeforePull"),
-        pullDisabled: true,
-        pushDisabled: true,
-        pullLabel: t("source-control.sync.pullRemote"),
-        pullTitle: t("source-control.sync.configureBeforePull"),
-        pushTitle: t("source-control.sync.configureBeforePush"),
-        pushLabel: t("source-control.sync.publish"),
-        pushDetail: t("source-control.sync.noConfiguredRemote"),
-      };
-    }
-
-    return {
-      branchLabel,
-      upstreamLabel: t("source-control.sync.localOnly"),
-      remoteExists: false,
-      setupRequired: true,
-      setupTitle: t("source-control.sync.chooseTarget"),
-      setupDetail: t("source-control.sync.backupLocalBranch", { branch: bidiIsolate(branchLabel) }),
-      behind: 0,
-      ahead: 0,
-      pullDetail: t("source-control.sync.noTrackingBranch"),
-      pullDisabled: true,
-      pushDisabled: true,
-      pullLabel: t("source-control.sync.pullRemote"),
-      pullTitle: t("source-control.sync.chooseBeforePull"),
-      pushTitle: t("source-control.sync.chooseBeforePush"),
-      pushLabel: t("source-control.sync.push"),
-      pushDetail: t("source-control.sync.chooseFirst"),
-    };
-  }
-
+function getTrackedSyncState(
+  status: GitStatusSnapshot, currentBranch: GitStatusSnapshot["branches"][number] & { upstream: string }, t: MessageFormatter,
+): GitSyncState {
   const upstreamRemoteName = getUpstreamRemoteName(currentBranch.upstream);
   const upstreamRemote = status.remotes.find((remote) => remote.name === upstreamRemoteName) ?? null;
   const isPuppyoneRemote = Boolean(parsePuppyoneRemote(upstreamRemote?.pushUrl ?? upstreamRemote?.fetchUrl ?? null));
@@ -205,16 +199,63 @@ export function getGitSyncState(
     pullTitle: behind === 0
       ? t("source-control.sync.upToDate")
       : t("source-control.sync.pullFrom", { count: behind, target: bidiIsolate(currentBranch.upstream) }),
-    pushTitle: ahead === 0
-      ? t("source-control.sync.noLocalToPush")
-      : behind > 0
-        ? t("source-control.sync.sendDiverged", { action: pushLabel, count: ahead, target: bidiIsolate(currentBranch.upstream) })
-        : t("source-control.sync.sendTo", { action: pushLabel, count: ahead, target: bidiIsolate(currentBranch.upstream) }),
+    pushTitle: getTrackedPushTitle(ahead, behind, pushLabel, currentBranch.upstream, t),
     pushLabel,
     pushDetail: ahead > 0
       ? t("source-control.sync.committedWaiting", { count: ahead })
       : t("source-control.sync.noCommittedWaiting"),
   };
+}
+
+function getTargetPushDisabled(exists: boolean, ahead: number, behind: number, head: string | null) {
+  if (!exists) return !head;
+  return ahead === 0 || behind > 0;
+}
+
+function getCloudPullTitle(exists: boolean, behind: number, target: string, t: MessageFormatter) {
+  if (!exists) return t("source-control.sync.cloudBranchMissing");
+  if (behind === 0) return t("source-control.cloud.upToDate");
+  return t("source-control.sync.downloadFrom", { count: behind, target: bidiIsolate(target) });
+}
+
+function getCloudPushTitle(ahead: number, behind: number, target: string, t: MessageFormatter) {
+  if (behind > 0) return t("source-control.sync.downloadBeforeUpload");
+  if (ahead === 0) return t("source-control.sync.noCommittedToUpload");
+  return t("source-control.sync.uploadTo", { count: ahead, target: bidiIsolate(target) });
+}
+
+function getRemotePullTitle(exists: boolean, behind: number, target: string, t: MessageFormatter) {
+  if (!exists) return t("source-control.sync.remoteBranchMissing");
+  if (behind === 0) return t("source-control.sync.upToDate");
+  return t("source-control.sync.pullFrom", { count: behind, target: bidiIsolate(target) });
+}
+
+function getPublishPushTitle(
+  status: GitStatusSnapshot, isCloud: boolean, action: string, branch: string, target: string, t: MessageFormatter,
+) {
+  if (!status.headCommitId) {
+    return t(isCloud ? "source-control.sync.commitBeforePublish" : "source-control.sync.commitBeforePush");
+  }
+  if (status.syncTarget?.exists === true && status.syncTarget.behind > 0) {
+    return t("source-control.sync.sendDiverged", { action, count: status.syncTarget.ahead, target: bidiIsolate(target) });
+  }
+  return t("source-control.sync.sendBranch", { action, branch: bidiIsolate(branch), target: bidiIsolate(target) });
+}
+
+function getPublishPushDetail(
+  exists: boolean, ahead: number, action: string, branch: string, target: string, t: MessageFormatter,
+) {
+  if (!exists) {
+    return t("source-control.sync.createRemote", { action, branch: bidiIsolate(branch), target: bidiIsolate(target) });
+  }
+  if (ahead > 0) return t("source-control.sync.localWaiting", { count: ahead });
+  return t("source-control.sync.noLocalWaiting", { target: bidiIsolate(target) });
+}
+
+function getTrackedPushTitle(ahead: number, behind: number, action: string, target: string, t: MessageFormatter) {
+  if (ahead === 0) return t("source-control.sync.noLocalToPush");
+  if (behind > 0) return t("source-control.sync.sendDiverged", { action, count: ahead, target: bidiIsolate(target) });
+  return t("source-control.sync.sendTo", { action, count: ahead, target: bidiIsolate(target) });
 }
 
 export function buildSourceControlSidebarModel({

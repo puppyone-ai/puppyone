@@ -85,6 +85,69 @@ window.addEventListener("pagehide", () => {
 
 const root = ReactDOM.createRoot(rootElement);
 
+const smokeSurfaces = new Map<string, () => Promise<React.ReactNode>>([
+  ["#auxiliary-appearance-smoke", async () => {
+    const { AuxiliaryAppearanceSmokeHarness } = await import("./features/appearance/AuxiliaryAppearanceSmokeHarness");
+    return <AuxiliaryAppearanceSmokeHarness />;
+  }],
+  ["#terminal-launcher-visual-smoke", async () => {
+    const { TerminalLauncherVisualSmokeHarness } = await import("./features/desktop-terminal/visual-smoke");
+    return <TerminalLauncherVisualSmokeHarness />;
+  }],
+  ["#terminal-split-visual-smoke", async () => {
+    const { TerminalSplitVisualSmokeHarness } = await import("./features/desktop-terminal/visual-smoke");
+    return <TerminalSplitVisualSmokeHarness />;
+  }],
+  ["#agent-visual-smoke", async () => {
+    const { AgentVisualSmokeHarness } = await import("./features/desktop-agent/visual-smoke");
+    return <AgentVisualSmokeHarness />;
+  }],
+  ["#agent-render-stability-smoke", async () => {
+    const { AgentRenderStabilitySmokeHarness } = await import("./features/desktop-agent/visual-smoke");
+    return <AgentRenderStabilitySmokeHarness />;
+  }],
+  ["#agent-tool-stability-smoke", async () => {
+    const { AgentToolStabilitySmokeHarness } = await import("./features/desktop-agent/visual-smoke");
+    return <AgentToolStabilitySmokeHarness />;
+  }],
+  ["#renderer-performance-smoke", async () => {
+    const { RendererPerformanceSmokeHarness } = await import("./performance/RendererPerformanceSmokeHarness");
+    return <RendererPerformanceSmokeHarness />;
+  }],
+  ["#csv-editor-performance-smoke", async () => {
+    const { CsvEditorPerformanceSmokeHarness } = await import("./performance/CsvEditorPerformanceSmokeHarness");
+    return <CsvEditorPerformanceSmokeHarness />;
+  }],
+  ["#markdown-line-geometry-smoke", async () => {
+    const { MarkdownLineGeometrySmokeHarness } = await import("./performance/MarkdownLineGeometrySmokeHarness");
+    return <MarkdownLineGeometrySmokeHarness />;
+  }],
+  ["#markdown-theme-inheritance-smoke", async () => {
+    const { MarkdownThemeInheritanceSmokeHarness } = await import("./features/appearance/MarkdownThemeInheritanceSmokeHarness");
+    return <MarkdownThemeInheritanceSmokeHarness />;
+  }],
+  ["#appearance-visual-smoke", async () => {
+    const { AppearanceVisualSmokeHarness } = await import("./features/appearance/AppearanceVisualSmokeHarness");
+    return <AppearanceVisualSmokeHarness />;
+  }],
+  ["#account-cloud-workbench-smoke", async () => {
+    const { AccountCloudWorkbenchSmokeHarness } = await import("./features/cloud/workbench/AccountCloudWorkbenchSmokeHarness");
+    return <AccountCloudWorkbenchSmokeHarness />;
+  }],
+  ["#native-cloud-workbench-smoke", async () => {
+    const { NativeCloudWorkbenchSmokeHarness } = await import("./features/cloud/workbench/NativeCloudWorkbenchSmokeHarness");
+    return <NativeCloudWorkbenchSmokeHarness />;
+  }],
+  ["#workspace-menu-visual-smoke", async () => {
+    const { WorkspaceMenuVisualSmokeHarness } = await import("./features/app-shell/WorkspaceMenuVisualSmokeHarness");
+    return <WorkspaceMenuVisualSmokeHarness />;
+  }],
+  ["#header-coachmark-visual-smoke", async () => {
+    const { HeaderCoachmarkVisualSmokeHarness } = await import("./features/app-shell/HeaderCoachmarkVisualSmokeHarness");
+    return <HeaderCoachmarkVisualSmokeHarness />;
+  }],
+]);
+
 async function renderApplication() {
   const [localization, platformCapabilities] = await Promise.all([
     bootstrapRendererLocalization(),
@@ -95,74 +158,14 @@ async function renderApplication() {
   } else {
     delete document.documentElement.dataset.desktopPlatform;
   }
-  let surface: React.ReactNode;
-
-  if (window.location.hash === "#auxiliary-appearance-smoke") {
-    const { AuxiliaryAppearanceSmokeHarness } = await import("./features/appearance/AuxiliaryAppearanceSmokeHarness");
-    surface = <AuxiliaryAppearanceSmokeHarness />;
-  } else if (window.location.hash === "#terminal-launcher-visual-smoke") {
-    const { TerminalLauncherVisualSmokeHarness } = await import(
-      "./features/desktop-terminal/visual-smoke"
-    );
-    surface = <TerminalLauncherVisualSmokeHarness />;
-  } else if (window.location.hash === "#terminal-split-visual-smoke") {
-    const { TerminalSplitVisualSmokeHarness } = await import(
-      "./features/desktop-terminal/visual-smoke"
-    );
-    surface = <TerminalSplitVisualSmokeHarness />;
-  } else if (window.location.hash === "#agent-visual-smoke") {
-    const { AgentVisualSmokeHarness } = await import("./features/desktop-agent/visual-smoke");
-    surface = <AgentVisualSmokeHarness />;
-  } else if (window.location.hash === "#agent-render-stability-smoke") {
-    const { AgentRenderStabilitySmokeHarness } = await import("./features/desktop-agent/visual-smoke");
-    surface = <AgentRenderStabilitySmokeHarness />;
-  } else if (window.location.hash === "#agent-tool-stability-smoke") {
-    const { AgentToolStabilitySmokeHarness } = await import("./features/desktop-agent/visual-smoke");
-    surface = <AgentToolStabilitySmokeHarness />;
-  } else if (window.location.hash === "#renderer-performance-smoke") {
-    const { RendererPerformanceSmokeHarness } = await import("./performance/RendererPerformanceSmokeHarness");
-    surface = <RendererPerformanceSmokeHarness />;
-  } else if (window.location.hash === "#csv-editor-performance-smoke") {
-    const { CsvEditorPerformanceSmokeHarness } = await import("./performance/CsvEditorPerformanceSmokeHarness");
-    surface = <CsvEditorPerformanceSmokeHarness />;
-  } else if (window.location.hash === "#markdown-line-geometry-smoke") {
-    const { MarkdownLineGeometrySmokeHarness } = await import("./performance/MarkdownLineGeometrySmokeHarness");
-    surface = <MarkdownLineGeometrySmokeHarness />;
-  } else if (window.location.hash === "#markdown-theme-inheritance-smoke") {
-    const { MarkdownThemeInheritanceSmokeHarness } = await import(
-      "./features/appearance/MarkdownThemeInheritanceSmokeHarness"
-    );
-    surface = <MarkdownThemeInheritanceSmokeHarness />;
-  } else if (window.location.hash === "#appearance-visual-smoke") {
-    const { AppearanceVisualSmokeHarness } = await import(
-      "./features/appearance/AppearanceVisualSmokeHarness"
-    );
-    surface = <AppearanceVisualSmokeHarness />;
-  } else if (window.location.hash === "#account-cloud-workbench-smoke") {
-    const { AccountCloudWorkbenchSmokeHarness } = await import("./features/cloud/workbench/AccountCloudWorkbenchSmokeHarness");
-    surface = <AccountCloudWorkbenchSmokeHarness />;
-  } else if (window.location.hash === "#native-cloud-workbench-smoke") {
-    const { NativeCloudWorkbenchSmokeHarness } = await import("./features/cloud/workbench/NativeCloudWorkbenchSmokeHarness");
-    surface = <NativeCloudWorkbenchSmokeHarness />;
-  } else if (window.location.hash === "#workspace-menu-visual-smoke") {
-    const { WorkspaceMenuVisualSmokeHarness } = await import(
-      "./features/app-shell/WorkspaceMenuVisualSmokeHarness"
-    );
-    surface = <WorkspaceMenuVisualSmokeHarness />;
-  } else if (window.location.hash === "#header-coachmark-visual-smoke") {
-    const { HeaderCoachmarkVisualSmokeHarness } = await import(
-      "./features/app-shell/HeaderCoachmarkVisualSmokeHarness"
-    );
-    surface = <HeaderCoachmarkVisualSmokeHarness />;
-  } else {
-    surface = (
-      <TypographyCatalogProvider>
-        <FeatureFlagsProvider>
-          <App />
-        </FeatureFlagsProvider>
-      </TypographyCatalogProvider>
-    );
-  }
+  const loadSmokeSurface = smokeSurfaces.get(window.location.hash);
+  const surface = loadSmokeSurface ? await loadSmokeSurface() : (
+    <TypographyCatalogProvider>
+      <FeatureFlagsProvider>
+        <App />
+      </FeatureFlagsProvider>
+    </TypographyCatalogProvider>
+  );
 
   root.render(
     <React.StrictMode>
