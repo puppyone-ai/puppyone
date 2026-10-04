@@ -3,6 +3,7 @@ import { act, useCallback, useEffect, useState, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DesktopWorkspaceLocationSurface } from "../../../../src/features/app-shell/DesktopWorkspaceLocationSurface";
+import { DesktopCloudShell } from "../../../../src/components/DesktopCloudShell";
 import { DesktopProjectLocationControls } from "../../../../src/features/app-shell/DesktopWorkspaceSwitcher";
 import { useNativeCloudWorkbench, type NativeCloudWorkbench } from "../../../../src/features/cloud/workbench/useNativeCloudWorkbench";
 import { useCloudWorkspaceSwitch } from "../../../../src/features/cloud/workbench/useCloudWorkspaceSwitch";
@@ -10,7 +11,7 @@ import { CloudWorkspaceSwitchDialog } from "../../../../src/features/cloud/workb
 import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
 import { withTestLocalization } from "../../../support/react/localization";
 
-vi.mock("../../../../src/platform/useDesktopPlatformCapabilities", () => ({ useDesktopPlatformCapabilities: () => ({ platform: "macos" }) }));
+vi.mock("../../../../src/platform/useDesktopPlatformCapabilities", () => ({ useDesktopPlatformCapabilities: () => ({ platform: "macos", windowChrome: { mode: "overlay" } }) }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const API = "https://cloud-fixture.puppyone.ai/api/v1";
 const session: DesktopCloudSession = { api_base_url: API, user_id: "owner", user_email: "owner@example.com",
@@ -75,6 +76,27 @@ function installBridge() {
 }
 
 describe("native Cloud workbench switching", () => {
+  it("mounts an arrival light only for the committed active Cloud shell and retains content", async () => {
+    const shell = (location: "local" | "cloud", active = true) => <DesktopCloudShell workspaceLocation={location} active={active}>
+      <input aria-label="Retained content" defaultValue="Unsaved draft" />
+    </DesktopCloudShell>;
+    await render(shell("local"));
+    const input = document.querySelector('input[aria-label="Retained content"]');
+    expect(document.querySelector(".desktop-cloud-entry-light")).toBeNull();
+    await render(shell("cloud"));
+    const light = document.querySelector(".desktop-cloud-entry-light");
+    expect(light?.getAttribute("aria-hidden")).toBe("true");
+    expect(light?.children).toHaveLength(3);
+    await render(shell("cloud"));
+    expect(document.querySelector(".desktop-cloud-entry-light")).toBe(light);
+    await render(shell("cloud", false));
+    expect(document.querySelector(".desktop-cloud-entry-light")).toBeNull();
+    await render(shell("local"));
+    await render(shell("cloud"));
+    expect(document.querySelector(".desktop-cloud-entry-light")).not.toBe(light);
+    expect(document.querySelector('input[aria-label="Retained content"]')).toBe(input);
+  });
+
   it("switches the main surface without a dialog and restores the exact local editor host and draft", async () => {
     installBridge(); await render(<Harness />);
     const local = document.querySelector<HTMLInputElement>('input[aria-label="local readme.md"]')!;

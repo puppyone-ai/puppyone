@@ -138,7 +138,7 @@ describe("titlebar Portal menu interactions", () => {
     },
   );
 
-  it.each(["unavailable", "available", "signed-out", "attention"] as const)(
+  it.each(["unavailable", "signed-out", "attention"] as const)(
     "closes the menu before navigating to Cloud, independently of Share (%s)", async (cloudState) => {
       const actions: string[] = [];
       const onShare = vi.fn();
@@ -155,6 +155,26 @@ describe("titlebar Portal menu interactions", () => {
       expect(locationButton("local").getAttribute("aria-pressed")).toBe("true");
     },
   );
+
+  it("keeps the location switch visible until Cloud commits and the indicator settles", async () => {
+    vi.useFakeTimers();
+    const actions: string[] = [];
+    const container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    const props = { onDone: () => actions.push("close"), onViewCloud: () => actions.push("cloud") };
+    const controls = (current: "local" | "cloud") => withTestLocalization(<DesktopProjectLocationControls {...props}
+      projectLocation={{ current, localAvailable: true, cloudState: "available" }} />);
+    const button = (location: string) => container.querySelector<HTMLButtonElement>(`button[data-project-location="${location}"]`)!;
+    await act(async () => root?.render(controls("local")));
+    act(() => button("cloud").click());
+    expect(actions).toEqual(["cloud"]);
+    expect(button("local").getAttribute("aria-pressed")).toBe("true");
+    await act(async () => root?.render(controls("cloud")));
+    expect(actions).toEqual(["cloud"]);
+    await act(async () => { await vi.advanceTimersByTimeAsync(380); });
+    expect(actions).toEqual(["cloud", "close"]);
+  });
 
   it("does not offer a false switch when a destination is unavailable", async () => {
     const onLocal = vi.fn();
@@ -241,8 +261,11 @@ describe("titlebar Portal menu interactions", () => {
     const editor = container.querySelector<HTMLInputElement>("input")!;
     const project = container.querySelector<HTMLButtonElement>(".desktop-titlebar-workspace-button")!;
     expect(container.querySelector(".desktop-titlebar-branch-button")).toBeNull();
+    vi.useFakeTimers();
     await act(async () => locationButton("cloud").click());
+    await act(async () => { await vi.advanceTimersByTimeAsync(380); });
     expect(document.querySelector("[data-titlebar-context-menu]")).toBeNull();
+    vi.useRealTimers();
     const cloud = document.querySelector(".desktop-cloud-dialog")!;
     expect(cloud.querySelector("[data-project-location='cloud'][aria-pressed='true']")).not.toBeNull();
     expect(cloud.textContent).toContain("Cloud project");

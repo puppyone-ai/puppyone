@@ -332,6 +332,11 @@ export function DesktopCloudShell({
       data-titlebar-sidebar-state={sidebarState}
       style={shellStyle}
     >
+      {active && workspaceLocation === "cloud" && <div className="desktop-cloud-entry-light" aria-hidden="true">
+        <div className="desktop-cloud-entry-aura" />
+        <div className="desktop-cloud-entry-beam" />
+        <div className="desktop-cloud-entry-edge" />
+      </div>}
       <div className="desktop-shell-workbench">
         <DesktopWindowChrome
           workspaceLocation={workspaceLocation}

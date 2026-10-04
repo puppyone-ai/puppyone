@@ -1,0 +1,66 @@
+/* One arrival sequence after the provider commits. The retained editor hosts
+   never move; only these decorative layers animate and then become invisible. */
+.desktop-cloud-entry-light {
+  position: absolute;
+  z-index: 100;
+  inset: 40px 2px 2px;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: 0 0 var(--desktop-cloud-frame-radius, 0px) var(--desktop-cloud-frame-radius, 0px);
+  contain: strict;
+}
+
+.desktop-cloud-entry-aura {
+  position: absolute;
+  inset: -25% -15%;
+  opacity: 0;
+  background: radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--po-brand-blue) 32%, transparent), transparent 58%),
+    radial-gradient(ellipse at 85% 35%, color-mix(in srgb, var(--po-brand-blue) 14%, transparent), transparent 45%);
+  transform-origin: 50% 0%;
+  animation: desktop-cloud-arrival-aura 1600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.desktop-cloud-entry-beam {
+  position: absolute;
+  inset: -30% -40%;
+  opacity: 0;
+  background: linear-gradient(115deg, transparent 38%, color-mix(in srgb, var(--po-brand-blue) 7%, transparent) 44%,
+    color-mix(in srgb, var(--po-brand-blue) 24%, transparent) 49%,
+    color-mix(in srgb, var(--po-text) 10%, transparent) 50%,
+    color-mix(in srgb, var(--po-brand-blue) 12%, transparent) 52%, transparent 60%);
+  animation: desktop-cloud-arrival-beam 1350ms 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.desktop-cloud-entry-edge {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  box-shadow: inset 0 0 36px color-mix(in srgb, var(--po-brand-blue) 32%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--po-brand-blue) 75%, transparent);
+  animation: desktop-cloud-arrival-edge 1600ms ease-out both;
+}
+
+@keyframes desktop-cloud-arrival-aura {
+  0% { opacity: 0; transform: scale(0.65); }
+  24% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.15); }
+}
+
+@keyframes desktop-cloud-arrival-beam {
+  0% { opacity: 0; transform: translateX(-45%); }
+  22% { opacity: 1; }
+  65% { opacity: 0.75; }
+  100% { opacity: 0; transform: translateX(45%); }
+}
+
+@keyframes desktop-cloud-arrival-edge {
+  0% { opacity: 0; }
+  24% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desktop-cloud-entry-light { display: none; }
+  .desktop-cloud-entry-light > div { animation: none; }
+}

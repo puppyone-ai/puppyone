@@ -28,6 +28,7 @@ import {
 } from "./ProjectContextAssetMark";
 import { getWorkspaceParentPathForDisplay } from "./workspaceHomeModel";
 import { useDesktopPlatformCapabilities } from "../../platform/useDesktopPlatformCapabilities";
+import { useProjectLocationMotion } from "./useProjectLocationMotion";
 
 type DesktopWorkspaceSwitcherProps = {
   open: boolean;
@@ -248,6 +249,15 @@ export function DesktopProjectLocationControls({
     || projectLocation?.cloudState === "available" || projectLocation?.cloudState === "signed-out";
   const createCloud = !cloudLinked && Boolean(onViewCloud)
     && (!projectLocation || projectLocation.cloudState === "unavailable");
+  const motion = useProjectLocationMotion(current, `${localDeviceLabel}:${createCloud}:${projectLocation?.cloudState}:${t("shell.navigation.cloud")}`);
+  const [requestedLocation, setRequestedLocation] = useState<"local" | "cloud" | null>(null);
+  useEffect(() => {
+    if (!requestedLocation || requestedLocation !== current) return;
+    // Keep the switch visible long enough to see the selection travel.
+    const delay = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? 0 : 380;
+    const timer = window.setTimeout(() => { setRequestedLocation(null); onDone?.(); }, delay);
+    return () => window.clearTimeout(timer);
+  }, [current, onDone, requestedLocation]);
   const repositoryUrl = backupProviders.includes("github")
     ? getProjectBackupSnapshot(backupStatus, "github").repositoryUrl : null;
   // Measure translated labels with their actual themed font, preserving the
@@ -286,8 +296,10 @@ export function DesktopProjectLocationControls({
   const maskImage = `url("${resolveRendererPublicAssetUrl(RENDERER_ASSET_PATHS.icons.integrations.github)}")`;
   return (
     <div ref={controlsRef} className="desktop-project-location-controls" data-cloud-entry={createCloud ? "create" : "switch"}>
-      <div className="desktop-project-location-tabs" role="group"
+      <div ref={motion.trackRef} className="desktop-project-location-tabs" role="group"
+        data-location={current} data-indicator-ready={motion.measured || undefined}
         aria-label={t("shell.workspaceSwitcher.projectDetails")}>
+        <span className="desktop-project-location-indicator" aria-hidden="true" style={motion.indicatorStyle} />
         {(["local", "cloud"] as const).map((location) => {
           const creating = location === "cloud" && createCloud;
           const selected = location === current;
@@ -311,7 +323,8 @@ export function DesktopProjectLocationControls({
             aria-current={selected ? "true" : undefined}
             disabled={disabled}
             onClick={() => {
-              onDone?.();
+              if (selected || creating || signedOutCloud || projectLocation?.cloudState !== "available") onDone?.();
+              else setRequestedLocation(location);
               if (!selected) navigate?.();
             }}
           >

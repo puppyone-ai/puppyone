@@ -476,6 +476,8 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-location-tabs {
+  position: relative;
+  isolation: isolate;
   display: flex;
   min-width: 0;
   flex: 1;
@@ -483,6 +485,32 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   padding: 2px;
   border-radius: 7px;
   background: var(--po-editor-bg);
+}
+
+.desktop-project-location-indicator {
+  position: absolute;
+  z-index: -1;
+  inset-block: 2px;
+  left: 0;
+  border-radius: 5px;
+  background: var(--po-selected);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--po-text) 8%, transparent);
+  pointer-events: none;
+  transition: transform 360ms cubic-bezier(0.22, 1, 0.36, 1), width 360ms cubic-bezier(0.22, 1, 0.36, 1), background 360ms, box-shadow 360ms;
+}
+
+.desktop-project-location-tabs[data-location="cloud"] .desktop-project-location-indicator {
+  background: color-mix(in srgb, var(--po-brand-blue) 16%, var(--po-selected));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--po-brand-blue) 35%, transparent),
+    0 0 14px color-mix(in srgb, var(--po-brand-blue) 18%, transparent);
+}
+
+.desktop-project-location-tabs[data-indicator-ready] .desktop-project-location-tab[aria-pressed="true"] {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desktop-project-location-indicator { transition: none; }
 }
 
 .desktop-project-location-tab,

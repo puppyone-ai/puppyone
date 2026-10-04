@@ -43,6 +43,27 @@ const waitFor = async (expression) => {
 };
 const headerPresentations = [];
 const nativeCornerCaptures = [];
+async function captureCloudArrival(scene) {
+  const sample = await evaluate(`(() => {
+    const light = document.querySelector('.desktop-cloud-entry-light');
+    const animations = light.getAnimations({subtree:true});
+    for (const animation of animations) { animation.pause(); animation.currentTime = 550; }
+    const rect = light.getBoundingClientRect();
+    return { count:animations.length, pointerEvents:getComputedStyle(light).pointerEvents,
+      y:rect.y, width:rect.width, aura:Number(getComputedStyle(light.firstElementChild).opacity) };
+  })()`);
+  assert(sample.count === 3 && sample.aura > 0.2, 'Committed Cloud must play the arrival light');
+  assert(sample.pointerEvents === 'none' && sample.y === 40, 'Arrival must preserve Header and pointer interactions');
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  // Let the paused animation's paint reach the native compositor.
+  await new Promise(resolve => setTimeout(resolve, 100));
+  await writeFile(path.join(artifacts, `cloud-arrival-${scene}.png`), (await window.webContents.capturePage()).toPNG());
+  await evaluate(`(() => {
+    const light = document.querySelector('.desktop-cloud-entry-light');
+    light.getAnimations({subtree:true}).forEach(animation => animation.finish());
+    if ([...light.children].some(node => getComputedStyle(node).opacity !== '0')) throw new Error('Arrival must settle to transparent');
+  })()`);
+}
 async function headerPresentation(location) {
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   // Existing control hover/color transitions can straddle a theme change; measure
@@ -204,6 +225,7 @@ async function selectLocation(location) {
   await waitFor(`Boolean(document.querySelector('button[data-project-location="${location}"]'))`);
   await evaluate(`document.querySelector('button[data-project-location="${location}"]').click()`);
   await waitFor(`window.__nativeCloudWorkbenchSmoke.state().location === '${location}'`);
+  await waitFor("!document.querySelector('[data-titlebar-context-menu]')");
 }
 app.whenReady().then(async () => {
   const platformHost = createDesktopPlatformHost();
@@ -218,7 +240,9 @@ app.whenReady().then(async () => {
   window.webContents.on("console-message", (event) => { if (event.level === "error" || event.level === 3) errors.push(event.message); });
   await window.loadURL(`${pathToFileURL(path.join(repo, "dist/index.html")).href}#native-cloud-workbench-smoke`);
   await waitFor("Boolean(window.__nativeCloudWorkbenchSmoke && document.querySelector('[data-workspace-location=local] .cm-content')?.textContent.includes('LOCAL_FILE_BODY'))");
-  if (nativeCorners) window.showInactive();
+  // Visible compositing is required for captures of paused arrival animations;
+  // hidden-window capturePage can return the previous provider's frame.
+  window.showInactive();
   await evaluate("window.__nativeCloudWorkbenchSmoke.edit('local', 'LOCAL_UNSAVED_DRAFT')");
   await waitFor("window.__nativeCloudWorkbenchSmoke.state().localWrites.some(item => item.content === 'LOCAL_UNSAVED_DRAFT')");
   const localPresentation = await presentation("local");
@@ -288,6 +312,7 @@ app.whenReady().then(async () => {
     let before;
     for (const [index, location] of ["local", "cloud", "local"].entries()) {
       if ((await state()).location !== location) await selectLocation(location);
+      if (location === "cloud") await captureCloudArrival(`${theme}-${width}`);
       const sample = await headerPresentation(location);
       sample.pixels = await windowFramePixels(sample);
       if (before) assert(JSON.stringify(sample.controlPalette) === JSON.stringify(before.controlPalette), 'Cloud must not change Header control colors');
@@ -309,12 +334,29 @@ app.whenReady().then(async () => {
       if (location === "cloud") {
         await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
         await waitFor("Boolean(document.querySelector('button[data-project-location=cloud]'))");
+        await evaluate("Promise.all(document.querySelector('.desktop-project-location-indicator').getAnimations().map(animation => animation.finished.catch(() => {})))");
+        assert(await evaluate(`(() => {
+          const track = document.querySelector('.desktop-project-location-tabs');
+          const indicator = track.querySelector('.desktop-project-location-indicator').getBoundingClientRect();
+          const selected = track.querySelector('button[aria-pressed=true]').getBoundingClientRect();
+          return track.dataset.indicatorReady === 'true' && Math.abs(indicator.x-selected.x)<1 && Math.abs(indicator.width-selected.width)<1;
+        })()`), 'Sliding indicator must align with the selected translated button');
         headerPresentations.push({ theme, width, expanded:true, ...await headerPresentation(location) });
         await evaluate("document.querySelector('button[data-project-location=cloud]').click()");
         await waitFor("!document.querySelector('.desktop-project-menu')");
       }
     }
   }
+  window.webContents.debugger.attach('1.3');
+  await window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {
+    features:[{name:'prefers-reduced-motion',value:'reduce'}],
+  });
+  await selectLocation("cloud");
+  assert(await evaluate("getComputedStyle(document.querySelector('.desktop-cloud-entry-light')).display === 'none' && document.querySelector('.desktop-cloud-entry-light').getAnimations({subtree:true}).length === 0"),
+    "Reduced motion must suppress the decorative arrival sequence");
+  await selectLocation("local");
+  await window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {features:[]});
+  window.webContents.debugger.detach();
   window.setContentSize(1100, 760);
   await waitFor("innerWidth === 1100");
   await evaluate("window.__nativeCloudWorkbenchSmoke.setLoginAppearance('dark', 'en')");
