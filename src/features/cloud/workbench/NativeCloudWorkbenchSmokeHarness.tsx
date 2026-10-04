@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { EditorView } from "@codemirror/view";
 import { createWorkspaceRootUri, createWorkspaceResourceUri, getWorkspaceResourcePath, canonicalizeResourceUri, isDocumentDataNode, withEditorDocumentOperations, type DataPort, type Workspace, type WorkspaceFolder } from "@puppyone/shared-ui";
 import { DesktopCloudShell } from "../../../components/DesktopCloudShell";
@@ -112,6 +112,8 @@ declare global {
     finishCloudRead: () => void;
     setCloudToolsAvailable: (available: boolean) => void;
     setCloudSessionAvailable: (available: boolean) => void;
+    setSidebarCollapsed: (collapsed: boolean) => void;
+    setCenteredProject: (centered: boolean) => void;
     setLoginAppearance: (theme: "light" | "dark", locale: AppLanguagePreference) => Promise<void>;
     resetLogin: () => void;
     failLogin: () => void;
@@ -126,6 +128,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
   const [cloudSessionAvailable, setCloudSessionAvailable] = useState(true);
   const location = cloudSelected && cloudSessionAvailable ? "cloud" : "local";
   useEffect(() => { if (!cloudSessionAvailable) setCloudSelected(false); }, [cloudSessionAvailable]);
+  const [centeredProject, setCenteredProject] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   useDesktopPreferenceEffects();
@@ -186,7 +189,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
         view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } });
       },
       setCloudToolsAvailable: (available) => { cloudToolsAvailable = available; },
-      setCloudSessionAvailable,
+      setCloudSessionAvailable, setSidebarCollapsed, setCenteredProject,
       setLoginAppearance: async (nextTheme, locale) => { setTheme(nextTheme); await setLanguagePreference(locale); },
       resetLogin: () => { for (const listener of authStateListeners) listener({ status: "signed-out", session: null }); },
       failLogin: () => { for (const listener of authErrorListeners) listener({ message: "Fixture browser sign-in failed. Try again." }); },
@@ -195,18 +198,19 @@ export function NativeCloudWorkbenchSmokeHarness() {
       finishCloudRead: () => { cloudReadBarrier = null; finishCloudRead?.(); finishCloudRead = null; },
     };
     return () => { delete window.__nativeCloudWorkbenchSmoke; };
-  }, [location, setLanguagePreference]);
-  return <div className={`app-shell${theme === "dark" ? " dark" : ""}`} data-po-appearance-root="true" data-native-cloud-smoke-ready="true">
-    <DesktopOverlayPortal theme={theme}>{null}</DesktopOverlayPortal>
-    <DesktopCloudShell workspaceLocation={location} leftSidebarCollapsed={sidebarCollapsed} leftSidebarWidth={explorerWidth}
-      requestedWorkspaceLocation={headerLocation}
-      onLeftSidebarExpand={() => setSidebarCollapsed(false)}
-      titlebarCenteredSlot={<DesktopWorkspaceSwitcher open={menuOpen} refObject={menuRef} titlebarLabel={localWorkspace.name}
+  }, [location, setLanguagePreference, setSidebarCollapsed]);
+  const projectSwitcher = <DesktopWorkspaceSwitcher open={menuOpen} refObject={menuRef} titlebarLabel={localWorkspace.name}
         workspace={localWorkspace} workspaceFolders={[]} multiRootWorkspacesEnabled={false}
         projectLocation={{ current: location, requested: controller.requestedLocation, headerLocation, loading: controller.pending && !controller.error,
           localAvailable: true, cloudState: "available" }} cloudProject={{ id: context.projectId }}
         onClose={() => setMenuOpen(false)} onToggle={() => setMenuOpen((current) => !current)}
-        onViewLocal={() => { controller.cancel(); setCloudSelected(false); }} onViewCloud={controller.request} />}
+        onViewLocal={() => { controller.cancel(); setCloudSelected(false); }} onViewCloud={controller.request} />;
+  return <div className={`app-shell${theme === "dark" ? " dark" : ""}`} data-po-appearance-root="true" data-native-cloud-smoke-ready="true">
+    <DesktopOverlayPortal theme={theme}>{null}</DesktopOverlayPortal>
+    <DesktopCloudShell onGoHome={noop} workspaceLocation={location} leftSidebarCollapsed={sidebarCollapsed} leftSidebarWidth={explorerWidth}
+      requestedWorkspaceLocation={headerLocation}
+      onLeftSidebarExpand={() => setSidebarCollapsed(false)}
+      {...getProjectHeaderSlots(centeredProject, projectSwitcher)}
       titlebarActions={<>
         {headerLocation === "cloud" && <CloudWorkspaceHeaderTools context={location === "cloud" ? context : null}
           session={cloudSessionAvailable ? session : null} apiBaseUrl={API} onSessionChange={noop} />}
@@ -229,4 +233,9 @@ export function NativeCloudWorkbenchSmokeHarness() {
       gate={<CloudSignedOutRoute compact activeSection="contents" apiBaseUrl={API}
         authState={{ status: "signed-out", apiBaseUrl: API }} loadingLabel="Restoring Cloud session…" />} />
   </div>;
+}
+
+function getProjectHeaderSlots(centered: boolean, project: ReactNode) {
+  return centered ? { titlebarCenteredSlot: project }
+    : { titlebarSidebarSlot: <div className="desktop-titlebar-context">{project}</div> };
 }

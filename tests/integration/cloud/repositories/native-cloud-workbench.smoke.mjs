@@ -481,6 +481,40 @@ app.whenReady().then(async () => {
       }
     }
   }
+  for (const width of [1100, 640]) for (const theme of ['light', 'dark']) {
+    window.setContentSize(width, 760);
+    await waitFor(`innerWidth === ${width}`);
+    await evaluate(`window.__nativeCloudWorkbenchSmoke.setLoginAppearance('${theme}', 'en')`);
+    for (const centered of [true, false]) for (const location of ['local', 'cloud']) {
+      await evaluate(`window.__nativeCloudWorkbenchSmoke.setCenteredProject(${centered})`);
+      if ((await state()).location !== location) await selectLocation(location);
+      await evaluate("window.__nativeCloudWorkbenchSmoke.setSidebarCollapsed(true)");
+      await waitFor("Boolean(document.querySelector('.desktop-titlebar-sidebar-expand'))");
+      const leading = await evaluate(`(() => {
+        const header = document.querySelector('.desktop-titlebar');
+        const home = header.querySelector('.desktop-titlebar-home').getBoundingClientRect();
+        const expand = header.querySelector('.desktop-titlebar-sidebar-expand').getBoundingClientRect();
+        const project = header.querySelector('.desktop-titlebar-workspace-button').getBoundingClientRect();
+        return { gap: expand.x - home.right, projectGap: project.x - expand.right, home: home.width, expand: expand.width,
+          expectedGap: parseFloat(getComputedStyle(header).getPropertyValue('--desktop-titlebar-button-gap')),
+          expectedSize: parseFloat(getComputedStyle(header).getPropertyValue('--desktop-chrome-control-size')),
+          expectedExpandSize: parseFloat(getComputedStyle(header).getPropertyValue('--desktop-titlebar-tool-action-width')) };
+      })()`);
+      assert(leading.gap >= leading.expectedGap - 0.1,
+        `Left Header controls must retain the Element spacing in ${location}, ${theme}, ${width}px: ${JSON.stringify(leading)}`);
+      assert(Math.abs(leading.home - leading.expectedSize) < 0.1 && Math.abs(leading.expand - leading.expectedExpandSize) < 0.1,
+        `Left Header controls must not shrink on ${location} entry: ${JSON.stringify(leading)}`);
+      if (!centered) assert(leading.projectGap >= leading.expectedGap - 0.1,
+        `Expand and project controls must keep their gap in ${location}, ${theme}, ${width}px: ${JSON.stringify(leading)}`);
+      if (location === 'cloud') {
+        await evaluate("Promise.all((document.querySelector('.desktop-cloud-header-reveal')?.getAnimations({subtree:true}) ?? []).map(animation => animation.finished.catch(() => {})))");
+        await writeFile(path.join(artifacts, `header-leading-${theme}-${width}-${centered ? 'centered' : 'left'}.png`), (await window.webContents.capturePage()).toPNG());
+      }
+      await evaluate("document.querySelector('.desktop-titlebar-sidebar-expand').click()");
+      await waitFor("!document.querySelector('.desktop-titlebar-sidebar-expand')");
+    }
+  }
+  await evaluate("window.__nativeCloudWorkbenchSmoke.setCenteredProject(true)");
   window.webContents.debugger.attach('1.3');
   await window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {
     features:[{name:'prefers-reduced-motion',value:'reduce'}],
