@@ -6,7 +6,7 @@ import ts from "typescript";
 import { act, createRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DesktopWindowChrome } from "../../../../src/components/DesktopWindowChrome";
+import { DesktopCloudShell } from "../../../../src/components/DesktopCloudShell";
 import { DesktopTitlebarContext } from "../../../../src/features/app-shell/DesktopTitlebarContext";
 import { DesktopWorkspaceLocationSurface } from "../../../../src/features/app-shell/DesktopWorkspaceLocationSurface";
 import type { DesktopProjectLocation } from "../../../../src/features/app-shell/DesktopWorkspaceSwitcher";
@@ -24,6 +24,7 @@ const app = ts.createSourceFile("App.tsx", readFileSync(resolve(process.cwd(), "
   ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 let locationBinding = "";
 let surfaceBinding = "";
+let chromeBinding = "";
 const headerBindings: string[] = [];
 function visit(node: ts.Node) {
   if (ts.isVariableDeclaration(node) && node.name.getText(app) === "projectLocation") {
@@ -32,12 +33,14 @@ function visit(node: ts.Node) {
   if (ts.isJsxSelfClosingElement(node) || ts.isJsxOpeningElement(node)) {
     const name = node.tagName.getText(app);
     const propName = name === "DesktopWorkspaceLocationSurface" ? "location"
-      : name === "DesktopTitlebarContext" || name === "DesktopProjectLocationControls" ? "projectLocation" : null;
+      : name === "DesktopCloudShell" ? "workspaceLocation"
+        : name === "DesktopTitlebarContext" || name === "DesktopProjectLocationControls" ? "projectLocation" : null;
     if (propName) {
       const prop = node.attributes.properties.find((attribute) => ts.isJsxAttribute(attribute) && attribute.name.getText(app) === propName);
       if (prop && ts.isJsxAttribute(prop) && prop.initializer && ts.isJsxExpression(prop.initializer)) {
         const expression = prop.initializer.expression?.getText(app) ?? "";
         if (propName === "location") surfaceBinding = expression;
+        else if (propName === "workspaceLocation") chromeBinding = expression;
         else headerBindings.push(expression);
       }
     }
@@ -49,11 +52,12 @@ visit(app);
 function appLocation(cloudWorkspaceActive: boolean, cloudState: DesktopProjectLocation["cloudState"] = "available", cloudEnabled = true) {
   expect(locationBinding).not.toBe("");
   expect(surfaceBinding).not.toBe("");
+  expect(chromeBinding).not.toBe("");
   expect(headerBindings).toEqual(["projectLocation", "projectLocation"]);
   const compiled = ts.transpileModule(`const projectLocation = ${locationBinding};
-    ({ projectLocation, surface: ${surfaceBinding} });`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+    ({ projectLocation, surface: ${surfaceBinding}, chrome: ${chromeBinding} });`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   return runInNewContext(compiled, { cloudEnabled, cloudWorkspaceActive, projectCloudLocationState: cloudState }) as {
-    projectLocation: DesktopProjectLocation | undefined; surface: "local" | "cloud";
+    projectLocation: DesktopProjectLocation | undefined; surface: "local" | "cloud"; chrome: "local" | "cloud";
   };
 }
 
@@ -69,8 +73,8 @@ const surface = (name: string) => document.querySelector<HTMLElement>(`[data-wor
 async function renderCommittedLocation(active: boolean, onLocal = vi.fn(), onCloud = vi.fn()) {
   if (!root) { const container = document.createElement("div"); document.body.appendChild(container); root = createRoot(container); }
   const state = appLocation(active);
-  await act(async () => root!.render(withTestLocalization(<>
-    <DesktopWindowChrome centeredContext={<DesktopTitlebarContext compactProjectMenu
+  await act(async () => root!.render(withTestLocalization(
+    <DesktopCloudShell workspaceLocation={state.chrome} titlebarCenteredSlot={<DesktopTitlebarContext compactProjectMenu
       activeGitStatus={null} showBranchSwitcher={false} branchSwitcherOpen={false} branchSwitcherRef={branchRef}
       gitStatusLoading={false} gitOperationLoading={null} localBranches={[]} remoteBranches={[]}
       workspace={workspace} workspaceFolders={[]} multiRootWorkspacesEnabled={false} availableProjects={[]}
@@ -78,11 +82,11 @@ async function renderCommittedLocation(active: boolean, onLocal = vi.fn(), onClo
       workspaceSwitcherOpen workspaceSwitcherRef={menuRef}
       onCheckoutBranch={async () => false} onCloseBranchSwitcher={noop} onCloseWorkspaceSwitcher={noop}
       onAddProject={noop} onAddExistingProject={noop} onToggleBranchSwitcher={noop} onToggleWorkspaceSwitcher={noop}
-      onViewLocal={onLocal} onViewCloud={onCloud} />} />
+      onViewLocal={onLocal} onViewCloud={onCloud} />}>
     <DesktopWorkspaceLocationSurface location={state.surface}
       local={<input aria-label="Local draft" defaultValue="LOCAL_ONLY" />}
       cloud={<div data-cloud-native="true">CLOUD_ONLY</div>} />
-  </>)));
+    </DesktopCloudShell>)));
 }
 
 afterEach(() => { act(() => root?.unmount()); root = null; document.body.innerHTML = ""; vi.restoreAllMocks(); });
@@ -92,6 +96,7 @@ describe("production App location wiring", () => {
     const state = appLocation(active);
     expect(state.surface).toBe(active ? "cloud" : "local");
     expect(state.projectLocation?.current).toBe(state.surface);
+    expect(state.chrome).toBe(state.surface);
   });
 
   it("updates the Header icon, menu selection and return action when Cloud content becomes visible", async () => {
@@ -107,10 +112,12 @@ describe("production App location wiring", () => {
     expect(onCloud).toHaveBeenCalledOnce();
     // Merely requesting Cloud does not relabel the still-local provider.
     expect(surface("local").hidden).toBe(false);
+    expect(header?.getAttribute("data-workspace-kind")).toBeNull();
 
     await renderCommittedLocation(true, onLocal, onCloud);
     expect(surface("local").hidden).toBe(true);
     expect(surface("cloud").hidden).toBe(false);
+    expect(header?.getAttribute("data-workspace-kind")).toBe("cloud");
     expect(cloudButton().getAttribute("aria-pressed")).toBe("true");
     expect(cloudButton().getAttribute("aria-current")).toBe("true");
     expect(localButton().getAttribute("aria-pressed")).toBe("false");
@@ -126,6 +133,7 @@ describe("production App location wiring", () => {
     await renderCommittedLocation(false, onLocal, onCloud);
     expect(surface("cloud").hidden).toBe(true);
     expect(surface("local").hidden).toBe(false);
+    expect(header?.getAttribute("data-workspace-kind")).toBeNull();
     expect(localButton().getAttribute("aria-pressed")).toBe("true");
     expect(cloudButton().getAttribute("aria-pressed")).toBe("false");
     expect(title?.querySelector('[data-project-location="local"]')).not.toBeNull();
@@ -137,5 +145,6 @@ describe("production App location wiring", () => {
     const state = appLocation(false, cloudState);
     expect(state.projectLocation).toMatchObject({ current: "local", cloudState });
     expect(state.surface).toBe("local");
+    expect(state.chrome).toBe("local");
   });
 });

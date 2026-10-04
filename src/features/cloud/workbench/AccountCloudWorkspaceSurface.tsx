@@ -67,7 +67,7 @@ export function AccountCloudWorkspaceSurface({ workbench, presentation, active, 
   return <div className={`app-shell cloud-runtime desktop-account-cloud-workspace ${appearance.appearance.effectiveColorMode === "dark" ? "dark" : ""}`} hidden={!active}
     {...appearance.rootProps}
     style={{ ...appearance.rootProps.style, ...(!active ? { display: "none" } : {}) }} data-active-cloud-project={service.workspace.projectId}>
-    <DesktopCloudShell active={active} onGoHome={onHome} leftSidebarCollapsed={preferences.sidebarCollapsed}
+    <DesktopCloudShell active={active} workspaceLocation="cloud" onGoHome={onHome} leftSidebarCollapsed={preferences.sidebarCollapsed}
       leftSidebarWidth={preferences.explorerWidth} onLeftSidebarExpand={() => preferences.setSidebarCollapsed(false)}
       titlebarCenteredSlot={<DesktopWorkspaceSwitcher open={menuOpen} refObject={menuRef}
         titlebarLabel={service.workspace.name} workspace={service.workspace} workspaceFolders={[service.folder]}

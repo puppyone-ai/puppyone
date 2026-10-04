@@ -32,6 +32,48 @@ const waitFor = async (expression) => {
   while (Date.now() < deadline) { if (await evaluate(expression)) return; await new Promise((resolve) => setTimeout(resolve, 50)); }
   throw new Error(`Renderer did not become ready: ${expression}`);
 };
+const headerPresentations = [];
+async function headerPresentation(location) {
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  // Existing control hover/color transitions can straddle a theme change; measure
+  // settled contrast, while the Header background itself switches synchronously.
+  await evaluate("Promise.all(document.querySelector('.desktop-titlebar-workspace-button').getAnimations().map(animation => animation.finished.catch(() => {})))");
+  const sample = await evaluate(`(() => {
+    const header = document.querySelector('.desktop-titlebar');
+    const context = header.querySelector('.desktop-titlebar-centered-context');
+    const button = context.querySelector('.desktop-titlebar-workspace-button');
+    const h = header.getBoundingClientRect(), c = context.getBoundingClientRect();
+    const css = getComputedStyle(header), control = getComputedStyle(button);
+    const probe = document.createElement('span');
+    probe.style.color = 'var(${location === "cloud" ? "--po-cloud-titlebar-bg" : "--po-header"})';
+    header.append(probe);
+    const expected = getComputedStyle(probe).color;
+    probe.remove();
+    const canvas = document.createElement('canvas').getContext('2d');
+    const rgb = (...colors) => {
+      canvas.clearRect(0,0,1,1);
+      for (const color of colors) { canvas.fillStyle = color; canvas.fillRect(0,0,1,1); }
+      return [...canvas.getImageData(0,0,1,1).data].slice(0,3);
+    };
+    return { location:header.dataset.workspaceKind ?? 'local', identity:header.dataset.fixtureIdentity,
+      x:h.x, y:h.y, width:h.width, height:h.height, viewport:innerWidth,
+      center:h.x+h.width/2, projectCenter:c.x+c.width/2,
+      background:rgb(css.backgroundColor), expected:rgb(expected),
+      paper:rgb(css.backgroundColor, control.backgroundColor),
+      ink:rgb(css.backgroundColor, control.backgroundColor, control.color) };
+  })()`);
+  assert(sample.location === location, `Header tint must follow the committed ${location} provider`);
+  assert(JSON.stringify(sample.background) === JSON.stringify(sample.expected), `Wrong ${location} Header background: ${JSON.stringify(sample)}`);
+  assert(sample.identity === "retained-header" && sample.x === 0 && sample.width === sample.viewport,
+    "Tint must cover the original full-width Header, including both blank sides");
+  assert(Math.abs(sample.center - sample.projectCenter) < 0.01, "Tint must not move the centered project context");
+  const luminance = (rgb) => rgb.map(v => v/255).map(v => v <= 0.04045 ? v/12.92 : ((v+0.055)/1.055)**2.4)
+    .reduce((sum, value, i) => sum + value * [0.2126,0.7152,0.0722][i], 0);
+  const ink = luminance(sample.ink), paper = luminance(sample.paper);
+  sample.contrast = (Math.max(ink,paper)+0.05)/(Math.min(ink,paper)+0.05);
+  assert(sample.contrast >= 4.5, `Header project text needs 4.5:1 contrast: ${sample.contrast}`);
+  return sample;
+}
 async function selectLocation(location) {
   await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
   await waitFor(`Boolean(document.querySelector('button[data-project-location="${location}"]'))`);
@@ -105,8 +147,36 @@ app.whenReady().then(async () => {
   assert(await evaluate("[...document.querySelectorAll('[data-cloud-native=true] .csv-table-editor__table input, [data-cloud-native=true] .csv-table-editor__table textarea')].some(input => input.value === '42')"), "Cloud data files must use the native data viewer");
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await writeFile(path.join(artifacts, "cloud-data.png"), (await window.webContents.capturePage()).toPNG());
+  for (const width of [1100, 640]) for (const theme of ["light", "dark"]) {
+    window.setContentSize(width, 760);
+    await waitFor(`innerWidth === ${width}`);
+    await evaluate(`window.__nativeCloudWorkbenchSmoke.setLoginAppearance('${theme}', 'en')`);
+    let before;
+    for (const [index, location] of ["local", "cloud", "local"].entries()) {
+      if ((await state()).location !== location) await selectLocation(location);
+      const sample = await headerPresentation(location);
+      if (before) for (const key of ["x", "y", "width", "height", "projectCenter"]) {
+        assert(Math.abs(sample[key] - before[key]) < 0.01, `Header ${key} moved on ${theme} ${width}px switch`);
+      }
+      before ??= sample;
+      headerPresentations.push({ theme, width, index, ...sample });
+      if (index < 2) await writeFile(path.join(artifacts, `header-${theme}-${width}-${location}.png`), (await window.webContents.capturePage()).toPNG());
+      if (location === "cloud") {
+        await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
+        await waitFor("Boolean(document.querySelector('button[data-project-location=cloud]'))");
+        headerPresentations.push({ theme, width, expanded:true, ...await headerPresentation(location) });
+        await evaluate("document.querySelector('button[data-project-location=cloud]').click()");
+        await waitFor("!document.querySelector('.desktop-project-menu')");
+      }
+    }
+  }
+  window.setContentSize(1100, 760);
+  await waitFor("innerWidth === 1100");
+  await evaluate("window.__nativeCloudWorkbenchSmoke.setLoginAppearance('dark', 'en')");
+  await selectLocation("cloud");
   await evaluate("window.__nativeCloudWorkbenchSmoke.setCloudSessionAvailable(false)");
   await waitFor("window.__nativeCloudWorkbenchSmoke.state().location === 'local'");
+  await headerPresentation("local");
   assert(await evaluate("document.querySelector('[data-workspace-location=local] .cm-editor')?.dataset.fixtureIdentity === 'retained-local-host'"), "Session loss must restore the retained local editor");
   await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
   await waitFor("Boolean(document.querySelector('button[data-project-location=cloud]'))");
@@ -114,6 +184,7 @@ app.whenReady().then(async () => {
   await waitFor("Boolean(document.querySelector('.desktop-cloud-workspace-switch-dialog [data-cloud-sign-in-action]'))");
   assert(await evaluate("window.__nativeCloudWorkbenchSmoke.state().location === 'local' && !document.querySelector('[data-workspace-location=local]').hidden && document.querySelector('[data-workspace-location=cloud]').hidden"), "Sign-in must precede Cloud selection");
   assert(await evaluate("!document.querySelector('.desktop-cloud-workspace-switch-dialog aside, .desktop-cloud-workspace-switch-dialog nav')"), "The sign-in dialog must not introduce service navigation");
+  await headerPresentation("local");
   const authGeometry = await presentation("local");
   for (const region of ["explorer", "editor", "footer"]) for (const property of ["x", "y", "width", "height"]) {
     assert(Math.abs(authGeometry[region][property] - localPresentation[region][property]) < 1, "Authentication changed the retained local layout");
@@ -183,6 +254,7 @@ app.whenReady().then(async () => {
   await evaluate("window.__nativeCloudWorkbenchSmoke.setCloudSessionAvailable(true)");
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   assert((await state()).location === "local", "Late authentication after cancellation must not select Cloud");
+  await headerPresentation("local");
   await evaluate("window.__nativeCloudWorkbenchSmoke.setCloudSessionAvailable(false)");
   await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
   await waitFor("Boolean(document.querySelector('button[data-project-location=cloud]'))");
@@ -195,7 +267,7 @@ app.whenReady().then(async () => {
   assert(await evaluate("document.querySelector('[data-workspace-location=local] .cm-editor')?.dataset.fixtureIdentity === 'retained-local-host' && document.querySelector('[data-workspace-location=local] .cm-content').textContent.includes('LOCAL_UNSAVED_DRAFT')"), "Authentication must preserve local drafts");
   await evaluate("window.__nativeCloudWorkbenchSmoke.finishLocalSaves()");
   snapshot = await state();
-  await writeFile(path.join(artifacts, "report.json"), JSON.stringify({ passed: true, localHost, localPresentation, cloudPresentation, authGeometry, loginPresentations, snapshot, errors }, null, 2));
+  await writeFile(path.join(artifacts, "report.json"), JSON.stringify({ passed: true, localHost, localPresentation, cloudPresentation, headerPresentations, authGeometry, loginPresentations, snapshot, errors }, null, 2));
   assert(!errors.length, `Renderer errors: ${errors.join("; ")}`);
   console.log("Native Cloud workbench smoke passed: identical native layout/styles, Cloud tree/data/edit/save, centered sign-in across themes and eight locales, browser waiting/error states, login before switching, cancellation, isolated drafts and retained hosts.");
   window.destroy(); app.exit(0);

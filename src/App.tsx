@@ -1644,6 +1644,7 @@ function AppContent() {
       >
         <DesktopCloudShell
           active
+          workspaceLocation={projectLocation?.current ?? "local"}
           onGoHome={() => void goToHomepage()}
           renderLeadingRail={projectSwitcherRailVisible ? ({ expanded }) => (
             <ProjectSwitcherRail

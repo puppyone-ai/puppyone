@@ -5,6 +5,8 @@ import { useDesktopPlatformCapabilities } from "../platform/useDesktopPlatformCa
 import { PuppyBrandMark } from "./brand/PuppyBrandMark";
 
 type DesktopWindowChromeProps = {
+  /** Committed provider location, never a remote locator or pending intent. */
+  workspaceLocation?: "local" | "cloud";
   context?: ReactNode;
   centeredContext?: ReactNode;
   actions?: ReactNode;
@@ -20,6 +22,7 @@ type DesktopWindowChromeProps = {
  * hit testing.
  */
 export function DesktopWindowChrome({
+  workspaceLocation = "local",
   context,
   centeredContext,
   actions,
@@ -34,6 +37,8 @@ export function DesktopWindowChrome({
   return (
     <header
       className="desktop-titlebar"
+      // Leave Local's existing skin cascade untouched; only Cloud opts into tint.
+      data-workspace-kind={workspaceLocation === "cloud" ? "cloud" : undefined}
       data-window-drag-region="true"
       data-window-chrome-mode={platformCapabilities?.windowChrome.mode}
       data-window-platform={platformCapabilities?.platform}

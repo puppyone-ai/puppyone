@@ -50,6 +50,7 @@ const FOLLOW_RIGHT_SIDEBAR_EDGE_IN_HEADER = false;
 
 type DesktopCloudShellProps = {
   children: ReactNode;
+  workspaceLocation?: "local" | "cloud";
   /** Retained hidden workspaces must not publish native window constraints. */
   active?: boolean;
   leadingRail?: ReactNode;
@@ -92,6 +93,7 @@ type DesktopCloudShellProps = {
 
 export function DesktopCloudShell({
   children,
+  workspaceLocation = "local",
   active = true,
   leadingRail,
   renderLeadingRail,
@@ -331,6 +333,7 @@ export function DesktopCloudShell({
     >
       <div className="desktop-shell-workbench">
         <DesktopWindowChrome
+          workspaceLocation={workspaceLocation}
           context={(
             <>
               <div

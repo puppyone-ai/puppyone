@@ -58,6 +58,9 @@ describe("titlebar typography architecture", () => {
     expect(cloudTitlebarRule).toContain("--desktop-titlebar-bg: var(--po-cloud-titlebar-bg);");
     expect(cloudTitlebarRule).toContain("--desktop-titlebar-divider: var(--po-cloud-titlebar-divider);");
     expect(titlebarCss).not.toContain(".desktop-titlebar-workspace-button.cloud {");
+    const skinContract = readFileSync(new URL("../../../../src/styles/interface-skin-contract.css", import.meta.url), "utf8");
+    expect(skinContract).toContain('.desktop-titlebar[data-workspace-kind="local"] {');
+    expect(skinContract).not.toContain('.desktop-titlebar[data-workspace-kind] {');
   });
 
   it("keeps the titlebar divider inside the native window edge", () => {

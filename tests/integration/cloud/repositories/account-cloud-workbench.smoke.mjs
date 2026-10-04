@@ -51,6 +51,15 @@ app.whenReady().then(async () => {
   })()`);
   assert(Math.abs((geometry.project.x + geometry.project.width / 2) - (geometry.header.x + geometry.header.width / 2)) < 0.01,
     "Hosted project context must remain centered in the Header");
+  assert(await evaluate(`(() => {
+    const header = document.querySelector('.desktop-titlebar');
+    const probe = document.createElement('span');
+    probe.style.color = 'var(--po-cloud-titlebar-bg)'; header.append(probe);
+    const expected = getComputedStyle(probe).color; probe.remove();
+    return header.dataset.workspaceKind === 'cloud'
+      && getComputedStyle(header).backgroundColor === expected
+      && header.getBoundingClientRect().width === innerWidth;
+  })()`), "Hosted-only Cloud projects use the same full-width blue Header contract");
   await evaluate("document.querySelector('.desktop-account-cloud-workspace .desktop-titlebar-workspace-button').click()");
   await waitFor("Boolean(document.querySelector('button[data-project-location=cloud]'))");
   assert(await evaluate("document.querySelector('button[data-project-location=cloud]').getAttribute('aria-pressed') === 'true' && !document.querySelector('.desktop-account-cloud-workspace .desktop-titlebar-actions [data-project-location]')"),

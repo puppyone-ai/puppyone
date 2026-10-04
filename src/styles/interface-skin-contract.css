@@ -17,7 +17,9 @@
   box-shadow: var(--interface-shell-box-shadow);
 }
 
-:root[data-interface-style]:not([data-interface-style="default"]) .desktop-titlebar[data-workspace-kind] {
+/* Location is a semantic environment cue, not a skin accent. Keep Cloud's
+ * full-width low-saturation blue palette instead of overriding it here. */
+:root[data-interface-style]:not([data-interface-style="default"]) .desktop-titlebar[data-workspace-kind="local"] {
   --desktop-titlebar-bg: var(--interface-titlebar-context-desktop-titlebar-bg);
   --desktop-titlebar-text: var(--interface-titlebar-context-desktop-titlebar-text);
   --desktop-titlebar-text-muted: var(--interface-titlebar-context-desktop-titlebar-text-muted);
