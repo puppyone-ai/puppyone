@@ -26,6 +26,33 @@ afterEach(() => {
 });
 
 describe("DataWorkspace Project switching", () => {
+  it("expands optimistically, deduplicates slow reads and preserves collapse intent when they finish", async () => {
+    const listing = deferred<DataNode[]>();
+    const folder: DataNode = { id: "slow", path: "slow", name: "slow", type: "folder", hasChildren: true };
+    const listChildren = vi.fn((path: string | null) => path === null ? Promise.resolve([folder]) : listing.promise);
+    const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
+    await act(async () => root!.render(withTestLocalization(
+      <DataWorkspace workspace={workspace()} dataPort={{ listChildren }}
+        folderExpansionStrategy="optimistic" explorerLoadingPresentation="skeleton" />,
+    )));
+    const row = () => host.querySelector<HTMLElement>('[data-explorer-path="slow"]')!;
+    await act(async () => row().click());
+    expect(row().getAttribute("aria-expanded")).toBe("true");
+    expect(host.querySelector(".explorer-tree-branch-skeleton")).not.toBeNull();
+    await act(async () => row().click());
+    expect(row().getAttribute("aria-expanded")).toBe("false");
+    await act(async () => row().click());
+    expect(row().getAttribute("aria-expanded")).toBe("true");
+    expect(listChildren.mock.calls.filter(([path]) => path === "slow")).toHaveLength(1);
+    await act(async () => row().click());
+    await act(async () => listing.resolve([{ id: "slow/file.md", path: "slow/file.md", name: "file.md", type: "markdown" }]));
+    expect(row().getAttribute("aria-expanded")).toBe("false");
+    expect(host.querySelector('[data-explorer-path="slow/file.md"]')).toBeNull();
+    await act(async () => row().click());
+    expect(host.querySelector('[data-explorer-path="slow/file.md"]')).not.toBeNull();
+    expect(listChildren.mock.calls.filter(([path]) => path === "slow")).toHaveLength(1);
+  });
+
   it("keys UI sessions by stable Project identity rather than runtime composition identity", () => {
     const first = workspace();
     const reopened = { ...first, id: "runtime-reopened" };
@@ -33,6 +60,27 @@ describe("DataWorkspace Project switching", () => {
     expect(createProjectExplorerSessionKey(first, [])).toBe(
       createProjectExplorerSessionKey(reopened, []),
     );
+  });
+
+  it("keeps a failed optimistic folder expanded without retry loops and retries when reopened", async () => {
+    const folder: DataNode = { id: "slow", path: "slow", name: "slow", type: "folder", hasChildren: true };
+    const child: DataNode = { id: "slow/file.md", path: "slow/file.md", name: "file.md", type: "markdown" };
+    const readFolder = vi.fn().mockRejectedValueOnce(new Error("Folder read failed")).mockResolvedValue([child]);
+    const listChildren = vi.fn((path: string | null) => path === null ? Promise.resolve([folder]) : readFolder());
+    const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
+    await act(async () => root!.render(withTestLocalization(
+      <DataWorkspace workspace={workspace()} dataPort={{ listChildren }} folderExpansionStrategy="optimistic" />,
+    )));
+    const row = () => host.querySelector<HTMLElement>('[data-explorer-path="slow"]')!;
+    await act(async () => { row().click(); await flushMicrotasks(); });
+    expect(row().getAttribute("aria-expanded")).toBe("true");
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain("Folder read failed");
+    expect(readFolder).toHaveBeenCalledTimes(1);
+    await act(async () => row().click());
+    await act(async () => { row().click(); await flushMicrotasks(); });
+    expect(host.querySelector('[data-explorer-path="slow/file.md"]')).not.toBeNull();
+    expect(host.querySelector('[role="alert"]')).toBeNull();
+    expect(readFolder).toHaveBeenCalledTimes(2);
   });
 
   it("preserves descendants when a later parent listing omits nested children", () => {

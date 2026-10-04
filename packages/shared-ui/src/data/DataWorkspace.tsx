@@ -1033,16 +1033,15 @@ export function DataWorkspace({
         return;
       }
 
-      if (loadingFolderPaths.has(node.path)) return;
-
       if (folderExpansionStrategy === "optimistic") {
         setExpandedFolderPaths((current) => addSetValue(current, node.path));
-        void loadFolder(node.path).then((loaded) => {
-          if (loaded) return;
-          setExpandedFolderPaths((current) => deleteSetValue(current, node.path));
-        });
+        // Network completion owns the data, never the user's expansion intent.
+        // Errors stay visible; collapse/reopen retries the failed directory.
+        void loadFolder(node.path);
         return;
       }
+
+      if (loadingFolderPaths.has(node.path)) return;
 
       void loadFolder(node.path).then((loaded) => {
         if (!loaded) return;

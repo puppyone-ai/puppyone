@@ -401,8 +401,37 @@ app.whenReady().then(async () => {
   assert(await evaluate("document.querySelector('[data-workspace-location=local] .cm-editor')?.dataset.fixtureIdentity === 'retained-local-host' && document.querySelector('[data-workspace-location=local] .cm-content').textContent.includes('LOCAL_UNSAVED_DRAFT')"), "Returning to This Mac must retain the same editor and local unsaved draft");
   await selectLocation("cloud");
   assert(await evaluate("document.querySelector('[data-workspace-location=cloud] .cm-content').textContent.includes('CLOUD_EDIT_ONLY') && document.querySelector('.desktop-titlebar-editor-tabs').textContent.includes('readme')"), "Returning to Cloud must retain its own tabs and content");
-  await evaluate("[...document.querySelectorAll('[data-cloud-native=true] .tree-row')].find(row => row.textContent.includes('records')).click()");
+  await evaluate("window.__nativeCloudWorkbenchSmoke.holdCloudRead(); [...document.querySelectorAll('[data-cloud-native=true] .tree-row')].find(row => row.textContent.includes('cloud-only')).click()");
+  await waitFor("Boolean(document.querySelector('[data-cloud-native=true] .document-surface-preparation-pending [data-puppy-loader]'))");
+  assert(await evaluate("document.querySelector('[data-cloud-native=true] .tree-row[aria-selected=true]').textContent.includes('cloud-only') && Boolean(document.querySelector('[data-cloud-native=true] .document-surface-slot.is-obscured[aria-hidden=true]'))"),
+    'Cloud file selection must update immediately and replace the previous content with normal loading before the read finishes');
+  await writeFile(path.join(artifacts, 'cloud-file-loading.png'), (await window.webContents.capturePage()).toPNG());
+  await evaluate("[...document.querySelectorAll('[data-cloud-native=true] .tree-row')].find(row => row.textContent.includes('readme')).click(); window.__nativeCloudWorkbenchSmoke.finishCloudRead()");
+  await waitFor("window.__nativeCloudWorkbenchSmoke.state().requests.some(path => path.includes('/cat?path=cloud-only.md'))");
+  await waitFor("!document.querySelector('[data-cloud-native=true] .document-surface-preparation-pending') && document.querySelector('[data-cloud-native=true] .cm-content').textContent.includes('CLOUD_EDIT_ONLY')");
+  assert(await evaluate("document.querySelector('[data-cloud-native=true] .tree-row[aria-selected=true]').textContent.includes('readme')"),
+    'A late Cloud file read must not replace a newer file selection or its retained draft');
+  const folderReads = () => evaluate("window.__nativeCloudWorkbenchSmoke.state().requests.filter(path => path.includes('/ls?path=records')).length");
+  const readsBeforeExpansion = await folderReads();
+  const clickRecords = () => evaluate("[...document.querySelectorAll('[data-cloud-native=true] .tree-row')].find(row => row.textContent.includes('records')).click()");
+  await evaluate("window.__nativeCloudWorkbenchSmoke.holdCloudRead()");
+  await clickRecords();
+  await waitFor("Boolean(document.querySelector('[data-cloud-native=true] .explorer-tree-branch-skeleton'))");
+  assert(await evaluate("[...document.querySelectorAll('[data-cloud-native=true] .tree-row')].find(row => row.textContent.includes('records')).getAttribute('aria-expanded') === 'true'"),
+    'Cloud folders must expand immediately with an indented loading row during a slow read');
+  await evaluate("Promise.all(document.querySelector('[data-cloud-native=true] .explorer-tree-shell').getAnimations({subtree:true}).filter(animation => animation.effect.getTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => {})))");
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  await writeFile(path.join(artifacts, 'cloud-folder-loading.png'), (await window.webContents.capturePage()).toPNG());
+  await clickRecords();
+  await clickRecords();
+  assert(await folderReads() === readsBeforeExpansion + 1, 'Repeated Cloud expansion must share the pending directory read');
+  await clickRecords();
+  await evaluate("window.__nativeCloudWorkbenchSmoke.finishCloudRead(); new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  assert(await evaluate("[...document.querySelectorAll('[data-cloud-native=true] .tree-row')].find(row => row.textContent.includes('records')).getAttribute('aria-expanded') === 'false'"),
+    'A completed Cloud directory read must preserve the user\'s collapse intent');
+  await clickRecords();
   await waitFor("document.querySelector('[data-cloud-native=true]').textContent.includes('sample')");
+  assert(await folderReads() === readsBeforeExpansion + 1, 'A loaded Cloud folder must reopen from its retained tree cache');
   await evaluate("[...document.querySelectorAll('[data-cloud-native=true] .tree-row')].find(row => row.textContent.includes('sample')).click()");
   await waitFor("[...document.querySelectorAll('[data-cloud-native=true] .csv-table-editor__table input, [data-cloud-native=true] .csv-table-editor__table textarea')].some(input => input.value === '42')");
   assert(await evaluate("[...document.querySelectorAll('[data-cloud-native=true] .csv-table-editor__table input, [data-cloud-native=true] .csv-table-editor__table textarea')].some(input => input.value === '42')"), "Cloud data files must use the native data viewer");

@@ -99,6 +99,35 @@ describe("DocumentSurfaceHost", () => {
     expect(getSurface(container, "c.csv").dataset.surfaceState).toBe("committed");
   });
 
+  it("shows loading immediately without discarding the retained document or accepting stale readiness", async () => {
+    const ready = new Map<string, () => void>();
+    const container = createContainer();
+    const render = (key: string) => renderSurface(container, key, key, ready, "hidden-safe", "loading");
+    await render("a.md");
+    act(() => ready.get("a.md")?.());
+    const original = getSurface(container, "a.md");
+    await render("b.md");
+    const staleReady = ready.get("b.md");
+    expect(original.inert).toBe(true);
+    expect(original.classList.contains("is-obscured")).toBe(true);
+    expect(original.getAttribute("aria-hidden")).toBe("true");
+    expect(container.querySelector('.document-surface-preparation-pending [data-testid="official-loading-indicator"]')).not.toBeNull();
+    await render("c.md");
+    act(() => staleReady?.());
+    expect(getSurface(container, "c.md").dataset.surfaceState).toBe("staging");
+    await render("a.md");
+    expect(getSurface(container, "a.md")).toBe(original);
+    expect(original.inert).toBe(false);
+    expect(original.getAttribute("aria-hidden")).toBeNull();
+    expect(container.querySelector(".document-surface-preparation-pending")).toBeNull();
+    act(() => ready.get("c.md")?.());
+    expect(getSurface(container, "a.md")).toBe(original);
+    await render("b.md");
+    act(() => ready.get("b.md")?.());
+    expect(container.querySelector(".document-surface-preparation-pending")).toBeNull();
+    expect(getSurface(container, "b.md").inert).toBe(false);
+  });
+
   it("commits a visible-first Viewer immediately instead of mounting it in a hidden staging slot", async () => {
     const ready = new Map<string, () => void>();
     const container = createContainer();
@@ -248,11 +277,13 @@ async function renderSurface(
   label: string,
   ready: Map<string, () => void>,
   surfacePreparation: "hidden-safe" | "requires-visible" = "hidden-safe",
+  transitionPresentation: "retain-content" | "loading" = "retain-content",
 ) {
   await act(async () => root?.render(
     <DocumentSurfaceHost
       surfaceKey={surfaceKey}
       surfacePreparation={surfacePreparation}
+      transitionPresentation={transitionPresentation}
       pendingIndicator={<span data-testid="official-loading-indicator" />}
     >
       {({ onSurfaceReady }) => {

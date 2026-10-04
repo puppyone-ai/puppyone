@@ -24,9 +24,8 @@ export type DocumentSurfaceRenderControls = Readonly<{
 }>;
 
 /**
- * A non-visual readiness signal for document renderers. File transitions keep
- * the committed surface on screen, so pending renderers must report their busy
- * state without introducing a second, viewer-specific loading page.
+ * A readiness signal for document renderers. The host owns transition feedback,
+ * so pending renderers report busy state without introducing another loading page.
  */
 export function DocumentSurfacePending({
   label,
@@ -50,6 +49,8 @@ export function DocumentSurfacePending({
 export type DocumentSurfaceHostProps = {
   surfaceKey: string;
   pendingIndicator?: ReactNode;
+  /** Choose visible feedback separately from a Viewer's preparation needs. */
+  transitionPresentation?: "retain-content" | "loading";
   /**
    * Hidden-safe surfaces preserve the previous document until ready. A
    * requires-visible surface becomes the committed layout slot immediately so
@@ -76,8 +77,10 @@ type DocumentSurfaceHostState = {
 
 /**
  * Owns the one transition invariant shared by every document renderer: the
- * hidden-safe renderers keep the committed surface visible until their staged
- * replacement reports ready. Renderers that need a real layout box are
+ * hidden-safe renderers retain the committed surface until their staged
+ * replacement reports ready. Presentation can keep it visible or show the
+ * supplied loading indicator while blocking the retained surface. Renderers
+ * that need a real layout box are
  * committed immediately and never initialized under visibility:hidden. A late
  * readiness signal can never commit stale content.
  */
@@ -192,18 +195,21 @@ export class DocumentSurfaceHost extends Component<
   }
 
   private renderEntry(entry: SurfaceEntry, staging: boolean) {
+    const obscured = !staging && Boolean(this.state.staging)
+      && this.props.transitionPresentation === "loading" && Boolean(this.props.pendingIndicator);
+    const inactive = staging || obscured;
     return (
       <div
         key={entry.id}
-        ref={(element) => this.setSlotElementState(element, staging)}
-        className={`document-surface-slot ${staging ? "is-staging" : "is-committed"}`}
+        ref={(element) => this.setSlotElementState(element, inactive)}
+        className={`document-surface-slot ${staging ? "is-staging" : "is-committed"}${obscured ? " is-obscured" : ""}`}
         data-surface-key={entry.key}
         data-surface-state={staging ? "staging" : "committed"}
         data-surface-preparation={entry.preparation}
         data-surface-ready={!staging && this.state.committedReady ? "true" : "false"}
-        aria-hidden={staging || undefined}
+        aria-hidden={inactive || undefined}
       >
-        <DocumentSurfaceStateContext.Provider value={staging ? "staging" : "committed"}>
+        <DocumentSurfaceStateContext.Provider value={inactive ? "staging" : "committed"}>
           {entry.render({ onSurfaceReady: () => this.markReady(entry.id) })}
         </DocumentSurfaceStateContext.Provider>
       </div>
@@ -212,10 +218,11 @@ export class DocumentSurfaceHost extends Component<
 
   render() {
     const { committed, staging } = this.state;
-    const showPreparationPending = (
-      committed.preparation === "requires-visible"
-      && !this.state.committedReady
-      && this.props.pendingIndicator
+    const showPreparationPending = this.props.pendingIndicator && (
+      (staging && this.props.transitionPresentation === "loading") || (
+        committed.preparation === "requires-visible"
+        && !this.state.committedReady
+      )
     );
     return (
       <div

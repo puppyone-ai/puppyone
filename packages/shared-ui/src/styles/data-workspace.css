@@ -898,7 +898,8 @@ body.data-sidebar-resizing .data-preview-accessory {
   min-height: 0;
 }
 
-.document-surface-slot.is-staging {
+.document-surface-slot.is-staging,
+.document-surface-slot.is-obscured {
   /* The host sets inert + aria-hidden to block input and accessibility.
      Opacity hides the whole surface without toggling inherited visibility or
      pointer-events on every descendant during handoff. */

@@ -128,6 +128,7 @@ export function FilePreview({
       surfaceKey={surfaceKey}
       surfacePreparation={surfacePreparation}
       pendingIndicator={loadingIndicator}
+      transitionPresentation={documentSourceKind === "cloud" ? "loading" : "retain-content"}
     >
       {({ onSurfaceReady }) => node ? (
         <div className={`file-preview-shell ${showHeader ? "" : "without-header"}`}>
