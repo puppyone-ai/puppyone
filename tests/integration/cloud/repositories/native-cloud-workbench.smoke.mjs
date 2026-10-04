@@ -49,22 +49,24 @@ async function captureCloudArrival(scene) {
   const sample = await evaluate(`(() => {
     const light = document.querySelector('.desktop-cloud-entry-light');
     const animations = light.getAnimations({subtree:true});
-    for (const animation of animations) { animation.pause(); animation.currentTime = 120; }
+    for (const animation of animations) { animation.pause(); animation.currentTime = 60; }
     const sweep = light.querySelector('.desktop-cloud-entry-sweep');
     const firstY = sweep.getBoundingClientRect().y;
-    for (const animation of animations) animation.currentTime = 360;
+    for (const animation of animations) animation.currentTime = 180;
     const rect = light.getBoundingClientRect();
     return { count:animations.length, pointerEvents:getComputedStyle(light).pointerEvents,
       y:rect.y, width:rect.width, opacity:Number(getComputedStyle(sweep).opacity),
       firstY, sweepY:sweep.getBoundingClientRect().y, sweepX:sweep.getBoundingClientRect().x,
       sweepWidth:sweep.getBoundingClientRect().width, animationName:animations[0].animationName,
+      leadingDecoration:getComputedStyle(sweep, '::before').content,
       radialLight:!!light.querySelector('.desktop-cloud-entry-wave, .desktop-cloud-entry-aura, .desktop-cloud-entry-flare') };
   })()`);
   assert(sample.count === 1 && sample.opacity > 0.9, 'Committed Cloud must play one content reveal');
   assert(sample.pointerEvents === 'none' && sample.y === 40, 'Arrival must preserve Header and pointer interactions');
   assert(sample.animationName === 'desktop-cloud-arrival-sweep' && sample.sweepY > sample.firstY
-    && sample.firstY > sample.y && sample.sweepX === 0 && sample.sweepWidth === sample.width && !sample.radialLight,
-    'Content must reveal downward across the full width without radial flare or sideways motion');
+    && sample.firstY > sample.y && sample.sweepX === 0 && sample.sweepWidth === sample.width
+    && !sample.radialLight && sample.leadingDecoration === 'none',
+    'Content must reveal downward across the full width without flare, a decorative leading edge, or sideways motion');
   await evaluate("Promise.all((document.querySelector('.desktop-cloud-header-wipe')?.getAnimations() ?? []).map(animation => animation.finished.catch(() => {})))");
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   // Let the paused animation's paint reach the native compositor.
@@ -320,10 +322,15 @@ app.whenReady().then(async () => {
     const wipe = header.querySelector('.desktop-cloud-header-wipe');
     wipe.dataset.fixtureIdentity = 'requested-header-wipe';
     const animation = wipe.getAnimations()[0];
-    animation.pause(); animation.currentTime = 140;
+    animation.pause(); animation.currentTime = 70;
+    const firstInsets = getComputedStyle(wipe).clipPath.slice(6, -1).split(/\\s+/).map(parseFloat);
+    animation.currentTime = 140;
+    const laterInsets = getComputedStyle(wipe).clipPath.slice(6, -1).split(/\\s+/).map(parseFloat);
     return header.dataset.workspaceKind === 'cloud' && !document.querySelector('.desktop-cloud-entry-light')
-      && getComputedStyle(wipe).clipPath !== 'inset(0px)' && animation.animationName === 'desktop-cloud-header-reveal';
-  })()`), 'Header must start its blue reveal during preparation, with no page arrival light');
+      && firstInsets[0] > 0 && laterInsets[0] > firstInsets[0]
+      && firstInsets.slice(1).every(value => value === 0) && laterInsets.slice(1).every(value => value === 0)
+      && animation.animationName === 'desktop-cloud-header-reveal';
+  })()`), 'Header must reveal blue downward during preparation, before page arrival');
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await writeFile(path.join(artifacts, 'cloud-header-switch.png'), (await window.webContents.capturePage()).toPNG());
   await evaluate("document.querySelector('.desktop-cloud-header-wipe').getAnimations()[0].finish()");

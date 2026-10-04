@@ -51,12 +51,12 @@
   inset: 0;
   background: var(--po-header);
   pointer-events: none;
-  animation: desktop-cloud-header-reveal 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: desktop-cloud-header-reveal 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @keyframes desktop-cloud-header-reveal {
   from { clip-path: inset(0 0 0 0); }
-  to { clip-path: inset(0 0 0 100%); }
+  to { clip-path: inset(100% 0 0 0); }
 }
 
 @media (prefers-reduced-motion: reduce) {

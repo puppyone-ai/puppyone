@@ -32,32 +32,20 @@
   animation-play-state: paused;
 }
 
-/* Reveal prepared content from top to bottom. A soft leading edge follows the
- * cover, while retained editor hosts and the Header remain stationary. */
+/* Continue the Header's downward reveal with the same easing. The regular
+ * canvas clears quietly while retained content stays stationary. */
 .desktop-cloud-entry-sweep {
   position: absolute;
   inset: 0;
   background: var(--po-canvas);
   pointer-events: none;
-  animation: desktop-cloud-arrival-sweep 800ms cubic-bezier(0.45, 0, 0.2, 1) both;
-}
-
-.desktop-cloud-entry-sweep::before {
-  position: absolute;
-  inset: -24px 0 auto;
-  height: 32px;
-  content: "";
-  background: linear-gradient(to bottom,
-    transparent,
-    color-mix(in srgb, var(--po-brand-blue) 10%, transparent) 50%,
-    color-mix(in srgb, var(--po-brand-blue) 22%, transparent) 75%,
-    transparent);
+  animation: desktop-cloud-arrival-sweep 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @keyframes desktop-cloud-arrival-sweep {
   0% { opacity: 1; transform: translateY(0); }
   90% { opacity: 1; }
-  100% { opacity: 0; transform: translateY(calc(100% + 32px)); }
+  100% { opacity: 0; transform: translateY(100%); }
 }
 
 @media (prefers-reduced-motion: reduce) {
