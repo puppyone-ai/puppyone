@@ -57,6 +57,7 @@ export function SettingsView({
   if (!isSettingsSectionAvailable(activeSection, {
     cloudEnabled,
     otherAppImportsEnabled,
+    localWorkspaceAvailable: workspace !== null,
   })) {
     return (
       <GeneralSettingsView
@@ -97,6 +98,7 @@ export function SettingsView({
   }
 
   if (activeSection === "local-project") {
+    if (!workspace) return null;
     return (
       <LocalProjectSettingsView
         workspace={workspace}
@@ -128,6 +130,7 @@ export function SettingsView({
   };
 
   if (activeSection === "git") {
+    if (!workspace) return null;
     return (
       <GitSettingsView
         workspaceRoot={workspace.path}

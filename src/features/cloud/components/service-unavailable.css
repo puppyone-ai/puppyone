@@ -1,0 +1,50 @@
+.desktop-cloud-service-unavailable {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 14px;
+  padding: 48px 32px;
+  color: var(--po-text);
+}
+
+.desktop-cloud-service-unavailable > svg,
+.desktop-cloud-service-unavailable p {
+  color: var(--po-text-muted);
+}
+
+.desktop-cloud-service-unavailable h1 {
+  margin: 0;
+  font-size: var(--po-text-size-page-title, 20px);
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.desktop-cloud-service-unavailable p {
+  max-width: 440px;
+  margin: 0 0 4px;
+  font-size: var(--po-text-size-body, 13px);
+  line-height: 1.6;
+}
+
+.desktop-cloud-service-retry {
+  height: var(--po-control-size);
+  padding: 0 12px;
+  border: 1px solid var(--po-border);
+  border-radius: 6px;
+  background: var(--po-panel);
+  color: var(--po-text);
+  font: inherit;
+  font-size: var(--po-text-size-body, 13px);
+  cursor: var(--po-clickable-cursor, default);
+}
+
+.desktop-cloud-service-retry:hover {
+  background: var(--po-hover);
+}
+
+.desktop-cloud-service-retry:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--po-accent) 36%, transparent);
+  outline-offset: 2px;
+}

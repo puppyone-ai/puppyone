@@ -11,7 +11,7 @@ import { SettingsSidebar } from "./sidebar";
 import type { SettingsSection } from "./types";
 
 export type SettingsWorkspaceSurfaceProps = {
-  workspace: Workspace;
+  workspace: Workspace | null;
   activeSection: SettingsSection;
   onSelectSection: (section: SettingsSection) => void;
   subThemeCatalog: SubThemeCatalogController;
@@ -66,6 +66,7 @@ export function createSettingsWorkspaceSurface({
       <SettingsSidebar
         activeSection={activeSection}
         cloudEnabled={cloud.enabled}
+        localWorkspaceAvailable={workspace !== null}
         onSelectSection={onSelectSection}
       />
     ),

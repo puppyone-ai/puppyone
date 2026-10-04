@@ -5,10 +5,10 @@ import { SidebarGroup } from "../../../components/sidebar";
 import type { SettingsSidebarProps } from "../types";
 import { resolveSettingsSidebarGroups } from "./settingsSidebarModel";
 
-export function SettingsSidebar({ activeSection, cloudEnabled, onSelectSection }: SettingsSidebarProps) {
+export function SettingsSidebar({ activeSection, cloudEnabled, localWorkspaceAvailable = true, onSelectSection }: SettingsSidebarProps) {
   const otherAppImportsEnabled = useDesktopPreference(s => s.experimentalSettings.enableOtherAppImports);
   const { t } = useLocalization();
-  const groups = resolveSettingsSidebarGroups({ cloudEnabled, otherAppImportsEnabled });
+  const groups = resolveSettingsSidebarGroups({ cloudEnabled, otherAppImportsEnabled, localWorkspaceAvailable });
 
   return (
     <SidebarRoot className="desktop-settings-sidebar" aria-label={t("settings.sidebar.desktopApp")}>

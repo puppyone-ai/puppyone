@@ -779,6 +779,9 @@ function AppContent() {
   });
   const accountCloudPresentation = useAccountCloudWorkspacePresentation({
     workbench: nativeCloudWorkbench,
+    onOpenSettings: openSettingsDialog, settingsOpen: settingsDialogOpen,
+    showWorkspaceNavigation: !enableProjectSwitcherRail || !workspace,
+    sidebarUtility: <DesktopHelpLauncher appearance={surfaceAppearance} />,
   });
   const repositoryCloudSwitch = useRepositoryCloudWorkspaceSwitch({
     enabled: cloudEnabled && Boolean(focusedWorkspace),
@@ -1406,6 +1409,57 @@ function AppContent() {
         environment: { apiBaseUrl: desktopCloudApiBaseUrl, source: "default", cloudRemote: null } })}
       onRetry={() => { setCloudResolutionRefreshKey((value) => value + 1); repositoryCloudSwitch.retry(); }}
       onPublishLocal={workspace ? () => { cancelRepositoryCloudSwitch(); openCloudDialogAt("initialize"); } : undefined} />} />;
+  const settingsWorkspace = focusedWorkspace ?? workspace ?? null;
+  const settingsOverlay = <DesktopOverlayPortal appearance={surfaceAppearance}>
+    {settingsDialogOpen && (
+      <SettingsDialog
+        workspace={settingsWorkspace}
+        activeSection={activeSettingsSection}
+        onSelectSection={setActiveSettingsSection}
+        onOpenImport={() => {
+          setSettingsDialogOpen(false);
+          projectEntryFlow.openImport();
+        }}
+        subThemeCatalog={subThemeCatalog}
+        onFilesVisibilityChange={refreshWorkspaceContent}
+        git={{
+          status: activeGitStatus,
+          loading: gitStatusLoading,
+          error: gitStatusError,
+          refresh: refreshGitStatus,
+        }}
+        cloud={{
+          enabled: cloudEnabled,
+          session: cloudSession,
+          sessionRestoring: cloudSessionRestoring,
+          apiBaseUrl: desktopCloudApiBaseUrl,
+          onSessionChange: handleCloudSessionChange,
+        }}
+        workspaceConfig={{
+          value: puppyoneConfig,
+          loading: puppyoneConfigLoading,
+          saving: puppyoneConfigSaving,
+          error: puppyoneConfigError,
+          change: handlePuppyoneConfigChange,
+          unlink: unlinkCurrentWorkspace,
+        }}
+        updates={{
+          state: desktopUpdates.state,
+          check: desktopUpdates.checkForUpdates,
+          install: desktopUpdates.updateNow,
+          automaticDownloadPreferenceAvailable:
+            desktopUpdates.automaticDownloadPreferenceAvailable,
+          automaticDownloadPreferenceSaving:
+            desktopUpdates.automaticDownloadPreferenceSaving,
+          automaticDownloadPreferenceError:
+            desktopUpdates.automaticDownloadPreferenceError,
+          setAutomaticallyDownloadUpdates:
+            desktopUpdates.setAutomaticallyDownloadUpdates,
+        }}
+        onClose={closeSettingsDialog}
+      />
+    )}
+  </DesktopOverlayPortal>;
   const themeRuntime = (content: ReactNode) => (
     <SurfaceAppearanceProvider value={surfaceAppearance}>
       <div
@@ -1416,6 +1470,7 @@ function AppContent() {
           {content}
         </div>
         {accountCloudSurface}
+        {settingsOverlay}
       </div>
     </SurfaceAppearanceProvider>
   );
@@ -1834,54 +1889,6 @@ function AppContent() {
           appearance={surfaceAppearance}
         >
           <>
-          {settingsDialogOpen && (
-            <SettingsDialog
-              workspace={focusedWorkspace ?? workspace}
-              activeSection={activeSettingsSection}
-              onSelectSection={setActiveSettingsSection}
-              onOpenImport={() => {
-                setSettingsDialogOpen(false);
-                projectEntryFlow.openImport();
-              }}
-                subThemeCatalog={subThemeCatalog}
-              onFilesVisibilityChange={refreshWorkspaceContent}
-              git={{
-                status: activeGitStatus,
-                loading: gitStatusLoading,
-                error: gitStatusError,
-                refresh: refreshGitStatus,
-              }}
-              cloud={{
-                enabled: cloudEnabled,
-                session: cloudSession,
-                sessionRestoring: cloudSessionRestoring,
-                apiBaseUrl: desktopCloudApiBaseUrl,
-                onSessionChange: handleCloudSessionChange,
-              }}
-              workspaceConfig={{
-                value: puppyoneConfig,
-                loading: puppyoneConfigLoading,
-                saving: puppyoneConfigSaving,
-                error: puppyoneConfigError,
-                change: handlePuppyoneConfigChange,
-                unlink: unlinkCurrentWorkspace,
-              }}
-              updates={{
-                state: desktopUpdates.state,
-                check: desktopUpdates.checkForUpdates,
-                install: desktopUpdates.updateNow,
-                automaticDownloadPreferenceAvailable:
-                  desktopUpdates.automaticDownloadPreferenceAvailable,
-                automaticDownloadPreferenceSaving:
-                  desktopUpdates.automaticDownloadPreferenceSaving,
-                automaticDownloadPreferenceError:
-                  desktopUpdates.automaticDownloadPreferenceError,
-                setAutomaticallyDownloadUpdates:
-                  desktopUpdates.setAutomaticallyDownloadUpdates,
-              }}
-              onClose={closeSettingsDialog}
-            />
-          )}
           {pendingBranchSwitch && (
             <BranchSwitchConflictDialog
               branchName={pendingBranchSwitch.branchName}
@@ -2003,6 +2010,7 @@ function AppContent() {
           </>
         </DesktopOverlayPortal>
       </div>
+      {settingsOverlay}
       </CloudShareProvider>
       {accountCloudSurface}
       <DesktopOverlayPortal appearance={surfaceAppearance}>{repositoryCloudDialog}</DesktopOverlayPortal>

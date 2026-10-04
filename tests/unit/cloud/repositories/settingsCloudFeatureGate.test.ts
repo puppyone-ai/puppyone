@@ -33,6 +33,18 @@ describe("Settings Cloud feature gate", () => {
     expect(isSettingsSectionAvailable("cloud", { cloudEnabled: true })).toBe(true);
   });
 
+  it("keeps app and account settings available in hosted-only workspaces", () => {
+    const context = { cloudEnabled: true, localWorkspaceAvailable: false };
+    const sections = resolveSettingsSidebarGroups(context).flatMap(group => group.items.map(item => item.id));
+    expect(sections).toContain("general");
+    expect(sections).toContain("appearance");
+    expect(sections).toContain("account");
+    for (const section of ["local-project", "git", "files", "cloud"] as const) {
+      expect(isSettingsSectionAvailable(section, context)).toBe(false);
+      expect(sections).not.toContain(section);
+    }
+  });
+
   it("shows the import settings page only while the import experiment is enabled", () => {
     expect(isSettingsSectionAvailable("other-app-imports", {
       cloudEnabled: false,

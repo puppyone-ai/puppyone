@@ -10,6 +10,7 @@ import { HomepageCloudStatus } from "./HomepageCloudStatus";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import { useAccountCloudWorkspace } from "./useAccountCloudWorkspace";
 import { useNativeCloudWorkbench } from "./useNativeCloudWorkbench";
+import { DesktopHelpLauncher } from "../../app-shell/DesktopHelpLauncher";
 import { AccountCloudWorkspaceSurface, useAccountCloudWorkspacePresentation } from "./AccountCloudWorkspaceSurface";
 
 initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
@@ -56,7 +57,7 @@ window.puppyoneDesktop = { ...window.puppyoneDesktop,
 } as NonNullable<typeof window.puppyoneDesktop>;
 
 declare global { interface Window { __accountCloudSmoke?: {
-  state: () => { active: boolean; project: string | null; writes: typeof writes };
+  state: () => { active: boolean; project: string | null; writes: typeof writes; settingsOpened: number };
   edit: (text: string) => void;
   signOut: () => void;
   signIn: () => void;
@@ -100,9 +101,12 @@ function AccountCloudFixture() {
     ] : [] });
   const workbench = useNativeCloudWorkbench({ context: account.context, session, apiBaseUrl: API,
     active: account.active, filesVisibilitySettings: filesVisibilitySettings });
-  const presentation = useAccountCloudWorkspacePresentation({ workbench });
+  const [settingsOpened, setSettingsOpened] = useState(0);
+  const presentation = useAccountCloudWorkspacePresentation({ workbench,
+    onOpenSettings: () => setSettingsOpened(count => count + 1),
+    sidebarUtility: <DesktopHelpLauncher appearance={appearance} /> });
   useEffect(() => {
-    window.__accountCloudSmoke = { state: () => ({ active: account.active, project: account.context.projectId, writes }),
+    window.__accountCloudSmoke = { state: () => ({ active: account.active, project: account.context.projectId, writes, settingsOpened }),
       home: account.useLocal, showLocalFixtures: () => setIncludeLocal(true), setTheme,
       signOut: () => setSession(null), signIn: () => setSession(makeSession()),
       edit: (text) => {
@@ -113,7 +117,7 @@ function AccountCloudFixture() {
       },
     };
     return () => { delete window.__accountCloudSmoke; };
-  }, [account, setTheme]);
+  }, [account, setTheme, settingsOpened]);
   return <SurfaceAppearanceProvider value={appearance}>
     {!account.active && <MinimalOnboarding appearance={appearance} projectItems={homepage.items}
       cloudOpening={account.opening}

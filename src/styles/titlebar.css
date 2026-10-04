@@ -708,31 +708,9 @@
   gap: var(--desktop-titlebar-button-gap);
 }
 
-.desktop-titlebar-cloud-tool {
-  width: auto;
-  min-width: var(--desktop-chrome-control-size);
-  gap: 6px;
-  padding-inline: 7px 8px;
-  font-family: var(--desktop-titlebar-context-font-family);
-  font-size: var(--desktop-titlebar-context-font-size);
-  font-weight: var(--desktop-titlebar-context-font-weight);
-  line-height: var(--desktop-titlebar-context-line-height);
-  white-space: nowrap;
-}
-
 .desktop-titlebar-cloud-tool > svg {
   display: block;
   flex: 0 0 auto;
-}
-
-.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-action.desktop-titlebar-cloud-tool {
-  width: auto;
-  flex: 0 0 auto;
-  padding-inline: 7px 8px;
-}
-
-@media (max-width: 800px) {
-  .desktop-titlebar-cloud-tool-label { display: none; }
 }
 
 .desktop-header-coachmark-anchor {

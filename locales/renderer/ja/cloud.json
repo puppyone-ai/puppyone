@@ -921,5 +921,8 @@
   "share.readers.copyUrl": "URL をコピー",
   "workspaceTools.automations": "自動化",
   "workspaceTools.mcp": "MCP",
-  "workspaceTools.connectAgents": "MCP を使って、このクラウドプロジェクトに他の Agent を接続できます。"
+  "workspaceTools.connectAgents": "MCP を使って、このクラウドプロジェクトに他の Agent を接続できます。",
+  "workspaceTools.connect": "接続",
+  "workspaceTools.unavailable": "{service}を利用できません",
+  "workspaceTools.unavailableDescription": "クラウドサービスを読み込めませんでした。接続を確認するか、サービス更新後に再試行してください。"
 }

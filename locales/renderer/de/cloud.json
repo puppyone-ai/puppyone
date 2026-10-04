@@ -921,5 +921,8 @@
   "share.readers.copyUrl": "URL kopieren",
   "workspaceTools.automations": "Automatisierungen",
   "workspaceTools.mcp": "MCP",
-  "workspaceTools.connectAgents": "Verbinde weitere Agents über MCP mit diesem Cloud-Projekt."
+  "workspaceTools.connectAgents": "Verbinde weitere Agents über MCP mit diesem Cloud-Projekt.",
+  "workspaceTools.connect": "Verbinden",
+  "workspaceTools.unavailable": "{service} ist nicht verfügbar",
+  "workspaceTools.unavailableDescription": "Dieser Cloud-Dienst konnte nicht geladen werden. Prüfe deine Verbindung oder versuche es nach der Aktualisierung des Dienstes erneut."
 }

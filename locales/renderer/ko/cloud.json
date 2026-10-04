@@ -921,5 +921,8 @@
   "share.readers.copyUrl": "URL 복사",
   "workspaceTools.automations": "자동화",
   "workspaceTools.mcp": "MCP",
-  "workspaceTools.connectAgents": "MCP를 통해 더 많은 Agent를 이 클라우드 프로젝트에 연결하세요."
+  "workspaceTools.connectAgents": "MCP를 통해 더 많은 Agent를 이 클라우드 프로젝트에 연결하세요.",
+  "workspaceTools.connect": "연결",
+  "workspaceTools.unavailable": "{service}을(를) 사용할 수 없습니다",
+  "workspaceTools.unavailableDescription": "클라우드 서비스를 불러올 수 없습니다. 연결을 확인하거나 서비스 업데이트 후 다시 시도하세요."
 }

@@ -6,7 +6,7 @@ import type { SubThemeCatalogController } from "../themes/useSubThemeCatalog";
 export type SettingsSection = "general" | "privacy" | "local-project" | "appearance" | "typography" | "local-agents" | "model-connections" | "new-menu" | "other-app-imports" | "experimental" | "git" | "files" | "account" | "cloud";
 
 export type SettingsViewProps = {
-  workspace: Workspace;
+  workspace: Workspace | null;
   activeSection: SettingsSection;
   gitStatus: GitStatusSnapshot | null;
   gitStatusLoading: boolean;
@@ -36,6 +36,7 @@ export type SettingsViewProps = {
 };
 
 export type SettingsSidebarProps = {
+  localWorkspaceAvailable?: boolean;
   activeSection: SettingsSection;
   cloudEnabled: boolean;
   onSelectSection: (section: SettingsSection) => void;

@@ -33,17 +33,19 @@ const button = (tool: string) => document.querySelector<HTMLButtonElement>(`[dat
 describe("Cloud workspace Header tools", () => {
   it("presents both actions during preparation without opening a task before commit", async () => {
     await render({ context: null });
-    expect(button("automation").textContent).toBe("Automations");
-    expect(button("mcp").textContent).toBe("MCP");
+    expect(button("automation").textContent).toBe("");
+    expect(button("automation").getAttribute("aria-label")).toBe("Automations");
+    expect(button("connect").textContent).toBe("");
+    expect(button("connect").getAttribute("aria-label")).toBe("Connect");
     expect(button("automation").disabled).toBe(true);
-    expect(button("mcp").disabled).toBe(true);
-    act(() => button("mcp").click());
+    expect(button("connect").disabled).toBe(true);
+    act(() => button("connect").click());
     expect(document.querySelector("[role=dialog]")).toBeNull();
     await render();
-    expect(button("mcp").disabled).toBe(false);
+    expect(button("connect").disabled).toBe(false);
   });
 
-  it.each(["automation", "mcp"])("opens %s for the authorized hosted project and allows dismissal", async tool => {
+  it.each(["automation", "connect"])("opens %s for the authorized hosted project and allows dismissal", async tool => {
     await render();
     act(() => button(tool).click());
     expect(document.querySelector("[role=dialog]")?.getAttribute("data-tool")).toBe(tool);
@@ -54,10 +56,10 @@ describe("Cloud workspace Header tools", () => {
   });
 
   it("closes a task when the active Cloud project changes", async () => {
-    await render(); act(() => button("mcp").click());
+    await render(); act(() => button("connect").click());
     await render({ context: context("other-project") });
     expect(document.querySelector("[role=dialog]")).toBeNull();
-    act(() => button("mcp").click());
+    act(() => button("connect").click());
     expect(document.querySelector("[role=dialog]")?.getAttribute("data-project")).toBe("other-project");
   });
 
@@ -71,6 +73,6 @@ describe("Cloud workspace Header tools", () => {
     };
     await render(changes[change as keyof typeof changes]);
     expect(document.querySelector("[role=dialog]")).toBeNull();
-    if (change === "sign-out") expect(button("mcp").disabled).toBe(true);
+    if (change === "sign-out") expect(button("connect").disabled).toBe(true);
   });
 });

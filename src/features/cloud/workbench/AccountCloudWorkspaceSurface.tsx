@@ -21,18 +21,22 @@ export type AccountCloudWorkspacePresentation = Readonly<{
 }>;
 
 /** Build the provider-specific body while leaving window chrome to its caller. */
-export function useAccountCloudWorkspacePresentation({ workbench }: {
+export function useAccountCloudWorkspacePresentation({ workbench, onOpenSettings, settingsOpen = false, showWorkspaceNavigation = true, sidebarUtility }: {
   workbench: NativeCloudWorkbench;
+  onOpenSettings: () => void;
+  settingsOpen?: boolean;
+  showWorkspaceNavigation?: boolean;
+  sidebarUtility?: ReactNode;
 }): AccountCloudWorkspacePresentation {
   const { resolvedAppearance } = useDesktopAppearance();
   const { service, editorWorkbench, actions } = workbench;
   if (!service || !workbench.visited) return { content: null, locationBar: null, titlebarTabs: null };
   const surfaceProps: CloudFileSurfaceProps = {
-    showSaveStatus: true, viewerExtensionAdapter: null,
+    showSaveStatus: true, viewerExtensionAdapter: null, sidebarUtility,
     navigation: { activeView: "data", availableSurfaceIds: ["data"], gitEnabled: false,
       gitIncomingCount: 0, gitOperationLoading: null, gitStatus: null, workspaceChangeCount: 0,
-      onNavigate: noop, onOpenPlugins: noop, onOpenSettings: noop,
-      pluginsOpen: false, settingsOpen: false, showPlugins: false, showSettings: false, showWorkspaceNavigation: false },
+      onNavigate: noop, onOpenPlugins: noop, onOpenSettings,
+      pluginsOpen: false, settingsOpen, showPlugins: false, showSettings: true, showWorkspaceNavigation },
   };
   const titlebarTabs = <EditorHeaderTabs activeEditorId={editorWorkbench.activeEditorId} editors={editorWorkbench.state.editors}
     storageIdentity={workbench.dataPort?.documentPersistence?.storageIdentity ?? null}

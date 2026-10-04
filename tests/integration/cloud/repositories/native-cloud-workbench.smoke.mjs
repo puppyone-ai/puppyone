@@ -382,10 +382,17 @@ app.whenReady().then(async () => {
   await writeFile(path.join(artifacts, "cloud-data.png"), (await window.webContents.capturePage()).toPNG());
   assert(await evaluate("[...document.querySelectorAll('[data-cloud-workspace-tool]')].every(button => !button.disabled) && !window.__nativeCloudWorkbenchSmoke.state().requests.some(path => path.includes('/mcp-endpoints') || path.includes('/synchronize'))"),
     'Cloud tool pages must load only when the user opens a ready CTA');
-  for (const tool of ['automation', 'mcp']) {
+  for (const tool of ['automation', 'connect']) {
     const beforeRequests = (await state()).requests.length;
     await evaluate(`document.querySelector('[data-cloud-workspace-tool=${tool}]').click()`);
     await waitFor(`Boolean(document.querySelector('[data-cloud-workspace-tool-page=${tool}][data-cloud-project-id=fixture-project]'))`);
+    await waitFor("Boolean(document.querySelector('.desktop-cloud-service-unavailable'))");
+    assert(await evaluate("document.querySelectorAll('.desktop-cloud-workspace-tool-dialog [role=alert]').length === 1 && !document.querySelector('.desktop-cloud-automation-new-button, .desktop-cloud-access-new-button') && !document.querySelector('.desktop-cloud-service-unavailable').textContent.includes('404')"),
+      'An older Cloud backend must produce one native unavailable state with no creation action or raw HTTP error');
+    await evaluate("Promise.all(document.querySelector('.desktop-cloud-workspace-tool-dialog').getAnimations().map(animation => animation.finished.catch(() => {})))");
+    await writeFile(path.join(artifacts, `cloud-${tool}-unavailable.png`), (await window.webContents.capturePage()).toPNG());
+    await evaluate("window.__nativeCloudWorkbenchSmoke.setCloudToolsAvailable(true); document.querySelector('.desktop-cloud-service-retry').click()");
+    await waitFor(tool === 'automation' ? "Boolean(document.querySelector('.desktop-cloud-automation-catalog'))" : "Boolean(document.querySelector('.desktop-cloud-access-catalog'))");
     await waitFor(tool === 'automation'
       ? "window.__nativeCloudWorkbenchSmoke.state().requests.some(path => path.includes('/synchronize/bindings?project_id=fixture-project'))"
       : "Boolean(document.querySelector('.desktop-cloud-access-new-button'))");
@@ -397,7 +404,13 @@ app.whenReady().then(async () => {
       'Cloud tool entry must not enumerate projects or fetch unrelated overview data');
     if (tool === 'automation') assert(!toolRequests.some(path => path.includes('/access/') || path.includes('/mcp-endpoints')),
       'Automation must use Synchronize resources, independently of MCP');
-    if (tool === 'mcp') {
+    if (tool === 'connect') {
+      assert(await evaluate("document.querySelector('.desktop-cloud-dialog-layout').getBoundingClientRect().height > 500 && document.querySelector('[data-cloud-connect-method=mcp]').getAttribute('aria-current') === 'page'"), 'Connect must use the Settings-style sidebar and content layout');
+      for (const method of ['cli', 'git', 'mcp']) {
+        await evaluate(`document.querySelector('[data-cloud-connect-method=${method}]').click()`);
+        await waitFor(`document.querySelector('[data-cloud-connect-method=${method}]').getAttribute('aria-current') === 'page'`);
+      }
+
       assert(await evaluate("document.querySelector('.desktop-cloud-access-landing-copy').textContent.includes('Connect more agents')"),
         'MCP must explain that users can connect more agents');
       await evaluate("document.querySelector('.desktop-cloud-access-new-button').click()");
@@ -409,6 +422,7 @@ app.whenReady().then(async () => {
     }
     await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
     await waitFor("!document.querySelector('.desktop-cloud-workspace-tool-dialog')");
+    await evaluate("window.__nativeCloudWorkbenchSmoke.setCloudToolsAvailable(false)");
     assert(await evaluate("document.querySelector('[data-workspace-location=local] .cm-editor').dataset.fixtureIdentity === 'retained-local-host'"),
       'Cloud task dialogs must retain existing editor hosts');
   }

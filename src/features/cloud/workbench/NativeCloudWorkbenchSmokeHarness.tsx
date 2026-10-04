@@ -53,6 +53,7 @@ const cloudWrites: Array<{ path: string; content: string }> = [];
 const localWrites: Array<{ path: string; content: string }> = [];
 const localSaveCompletions: Array<() => void> = [];
 const requests: string[] = [];
+let cloudToolsAvailable = false;
 let cloudReadBarrier: Promise<void> | null = null;
 let finishCloudRead: (() => void) | null = null;
 const authStateListeners = new Set<(state: DesktopCloudAuthState) => void>();
@@ -74,6 +75,8 @@ window.puppyoneDesktop = {
     const body = request.body ? JSON.parse(request.body) : null;
     if (url.pathname === "/projects/fixture-project") return { id: context.projectId,
       name: context.projectName, capabilities: context.capabilities };
+    if (!cloudToolsAvailable && ["surfaces", "bindings", "providers"].includes(operation ?? ""))
+      return { transport: "puppyone-cloud-ipc-v1", ok: false, error: { status: 404, message: "Not Found" } };
     if (operation === "scopes" || operation === "mcp-endpoints" || operation === "surfaces"
       || operation === "bindings" || operation === "providers") return [];
     if (operation === "access-point") return { project_id: context.projectId, url: "https://cloud-fixture.puppyone.ai/git/project.git", scopes: [] };
@@ -107,6 +110,7 @@ declare global {
     finishLocalSaves: () => void;
     holdCloudRead: () => void;
     finishCloudRead: () => void;
+    setCloudToolsAvailable: (available: boolean) => void;
     setCloudSessionAvailable: (available: boolean) => void;
     setLoginAppearance: (theme: "light" | "dark", locale: AppLanguagePreference) => Promise<void>;
     resetLogin: () => void;
@@ -181,6 +185,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
         if (!view) throw new Error(`No ${target} CodeMirror view`);
         view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } });
       },
+      setCloudToolsAvailable: (available) => { cloudToolsAvailable = available; },
       setCloudSessionAvailable,
       setLoginAppearance: async (nextTheme, locale) => { setTheme(nextTheme); await setLanguagePreference(locale); },
       resetLogin: () => { for (const listener of authStateListeners) listener({ status: "signed-out", session: null }); },

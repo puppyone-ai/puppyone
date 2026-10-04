@@ -921,5 +921,8 @@
   "share.readers.copyUrl": "复制 URL",
   "workspaceTools.automations": "自动化",
   "workspaceTools.mcp": "MCP",
-  "workspaceTools.connectAgents": "通过 MCP，让更多 Agent 接入这个云端项目。"
+  "workspaceTools.connectAgents": "通过 MCP，让更多 Agent 接入这个云端项目。",
+  "workspaceTools.connect": "连接",
+  "workspaceTools.unavailable": "暂时无法使用{service}",
+  "workspaceTools.unavailableDescription": "无法加载此云端服务。请检查连接，或在服务更新后重试。"
 }
