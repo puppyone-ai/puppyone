@@ -71,19 +71,25 @@ export function useNativeCloudWorkbench({ context, session, apiBaseUrl, active, 
   const [activeNode, setActiveNode] = useProjectExplorerSelection(service?.workspace ?? null);
   const [refreshToken, setRefreshToken] = useState<WorkspaceContentChange>({ sequence: 0, entries: [] });
   const [navigationError, setNavigationError] = useState<string | null>(null);
-  const refresh = useCallback(() => setRefreshToken((current) => ({ sequence: current.sequence + 1, entries: [] })), []);
+  const navigationRequest = useRef(0);
+  const revalidate = useCallback(() => setRefreshToken((current) => ({ sequence: current.sequence + 1, entries: [] })), []);
+  const refresh = useCallback(() => { service?.invalidateReads(); revalidate(); }, [service, revalidate]);
   const activateNode = useCallback((node: DataNode) => {
     if (!service?.resolveResource(node.path)) return;
     setActiveNode(node);
     if (isDocumentDataNode(node)) editorWorkbench.openDocument(node);
   }, [editorWorkbench, service, setActiveNode]);
   const onActivePathChange = useCallback(async (path: string | null, node?: DataNode | null) => {
+    const requestId = ++navigationRequest.current;
     try {
       if (!path) { setActiveNode(null); return; }
       const target = node ?? await dataPort?.resolveNode?.(path);
+      if (requestId !== navigationRequest.current) return;
       if (target) activateNode(target);
       setNavigationError(null);
-    } catch (cause) { setNavigationError(cause instanceof Error ? cause.message : String(cause)); }
+    } catch (cause) {
+      if (requestId === navigationRequest.current) setNavigationError(cause instanceof Error ? cause.message : String(cause));
+    }
   }, [activateNode, dataPort, setActiveNode]);
   const actions = useDataNodeActions({
     dataPort, workspace: service?.workspace ?? null, setActiveExplorerNode: setActiveNode,
@@ -102,19 +108,32 @@ export function useNativeCloudWorkbench({ context, session, apiBaseUrl, active, 
     } catch (cause) { setNavigationError(cause instanceof Error ? cause.message : String(cause)); }
   }, [dataPort, editorWorkbench]);
   const resetActions = actions.resetDataNodeActions;
-  useEffect(() => { if (!active) resetActions(); }, [active, resetActions]);
   useEffect(() => {
+    if (!active) { navigationRequest.current++; resetActions(); }
+  }, [active, resetActions]);
+  useEffect(() => {
+    navigationRequest.current++;
     resetActions();
     setNavigationError(null);
   }, [serviceKey, resetActions]);
+  const lastRevalidation = useRef<{ key: string | null; at: number }>({ key: null, at: 0 });
   useEffect(() => {
     if (!active || !service) return;
-    const onFocus = () => { if (document.visibilityState !== "hidden") refresh(); };
+    if (lastRevalidation.current.key !== serviceKey) lastRevalidation.current = { key: serviceKey, at: Date.now() };
+    const onFocus = () => {
+      if (document.visibilityState === "hidden" || Date.now() - lastRevalidation.current.at < 30_000) return;
+      lastRevalidation.current.at = Date.now();
+      revalidate();
+    };
     window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
     const timer = window.setInterval(onFocus, 30_000);
-    refresh();
-    return () => { window.clearInterval(timer); window.removeEventListener("focus", onFocus); };
-  }, [active, service, refresh]);
+    onFocus();
+    return () => {
+      window.clearInterval(timer); window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [active, service, serviceKey, revalidate]);
   useEffect(() => {
     if (!active) return;
     const onKeyDown = (event: KeyboardEvent) => {

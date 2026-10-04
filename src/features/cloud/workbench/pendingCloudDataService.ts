@@ -12,6 +12,7 @@ export function createPendingCloudDataService(identity: string | null, localWork
     trustState: "untrusted" as const, workspace };
   return {
     workspace, folder, writable: false,
+    invalidateReads: () => undefined,
     dataPort: {
       listChildren: async () => [],
       resolveNode: async () => null,

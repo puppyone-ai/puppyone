@@ -20,6 +20,7 @@ import { resolveCloudApiBaseUrl } from "../../../../shared/cloudEndpoint.js";
 import type { ProjectCloudContext } from "../project/context/projectCloudContext";
 import type { ResolvedWorkbenchDataResource } from "../../data-workspace/workbenchDataPort";
 import { createCloudNativePreviewPorts } from "../../../platform";
+import { createCloudWorkbenchReads, waitForCloudRead } from "./cloudWorkbenchReads";
 
 type CloudEntry = {
   path: string;
@@ -38,6 +39,7 @@ export type NativeCloudDataService = Readonly<{
   folder: WorkspaceFolder;
   dataPort: DataPort;
   writable: boolean;
+  invalidateReads: () => void;
   resolveResource: (path: string | null) => ResolvedWorkbenchDataResource | null;
 }>;
 
@@ -88,6 +90,7 @@ export function createCloudDataService({
     workspace,
   };
   const apiPath = `/content/${encodeURIComponent(context.projectId)}`;
+  const reads = createCloudWorkbenchReads(session, context, apiBaseUrl, scopePath);
   const snapshots = new Map<string, Map<string, string>>();
   const snapshotUrls = new Set<string>();
   let mutationTail: Promise<unknown> = Promise.resolve();
@@ -117,19 +120,8 @@ export function createCloudDataService({
     }
     return createWorkspaceResourceUri(rootUri, scopePath ? cleanPath.slice(scopePath.length).replace(/^\//, "") : cleanPath);
   };
-  const mapEntry = (entry: CloudEntry): DataNode => {
-    const uri = resourceUri(entry.path);
-    return {
-      id: uri, path: uri, resourceUri: uri, name: entry.name,
-      type: entry.type === "folder" ? "folder" : getFileSemanticKind(relativePath(uri), entry.type, entry.mime_type),
-      mimeType: entry.mime_type,
-      size: entry.size_bytes == null ? undefined : String(entry.size_bytes),
-      source: "cloud",
-      workspaceFolderId: folder.id,
-      hasChildren: entry.type === "folder" ? (entry.children_count ?? 1) > 0 : undefined,
-    };
-  };
-  const list = (path: string | null) => request<CloudDirectory>(`ls?path=${encodeURIComponent(remotePath(path))}`);
+  const mapEntry = (entry: CloudEntry) => mapCloudEntry(entry, resourceUri(entry.path), folder.id);
+  const list = (path: string | null) => reads.fetch<CloudDirectory>(`ls?path=${encodeURIComponent(remotePath(path))}`);
   const remember = (path: string, version: string, content: string) => {
     const versions = snapshots.get(path) ?? new Map<string, string>();
     versions.set(version, content);
@@ -143,7 +135,7 @@ export function createCloudDataService({
     // with a newer HEAD and defeat the subsequent conditional write.
     for (let attempt = 0; attempt < 3; attempt++) {
       const before = await head();
-      const result = await request<CloudContent>(`cat?path=${encodeURIComponent(remotePath(path))}`);
+      const result = await reads.fetch<CloudContent>(`cat?path=${encodeURIComponent(remotePath(path))}`);
       if (typeof result.head_commit_id !== "string" || !result.head_commit_id) throw new Error("Cloud response has no storage revision.");
       if (before !== result.head_commit_id) continue;
       const content = typeof result.content_text === "string" ? result.content_text
@@ -156,7 +148,8 @@ export function createCloudDataService({
   };
   const stat = async (path: string): Promise<CloudEntry | null> => {
     try {
-      const entry = await request<CloudEntry>(`stat?path=${encodeURIComponent(remotePath(path))}`);
+      const entry = await reads.load("stat", remotePath(path), () =>
+        reads.fetch<CloudEntry>(`stat?path=${encodeURIComponent(remotePath(path))}`));
       return entry.exists === false ? null : entry;
     } catch (error) {
       if (statusOf(error) === 404) return null;
@@ -258,23 +251,34 @@ export function createCloudDataService({
         }, signal, options);
       } } },
     } : {}),
-    listChildren: async (path) => (await list(path)).entries.map(mapEntry),
+    getCachedChildren: (path) => {
+      assertCurrent();
+      return reads.peek<DataNode[]>("directory", remotePath(path));
+    },
+    listChildren: async (path) => {
+      assertCurrent();
+      const children = await reads.load("directory", remotePath(path), async () => (await list(path)).entries.map(mapEntry), 30_000);
+      assertCurrent();
+      return children;
+    },
     resolveNode: async (path) => {
+      assertCurrent();
       if (!relativePath(path)) return { id: rootUri, name: workspace.name, path: rootUri,
         resourceUri: rootUri, type: "folder", source: "cloud", workspaceFolderId: folder.id, workspaceFolderRoot: true };
       const entry = await stat(path);
+      assertCurrent();
       return entry ? mapEntry(entry) : null;
     },
     readFile: async (path, options): Promise<FileContent> => {
+      assertCurrent();
       options?.signal?.throwIfAborted();
-      const entry = await stat(path);
-      if (!entry || entry.type === "folder") throw new Error("Cloud file not found.");
-      const node = mapEntry(entry);
-      const requirement = getEditorSourceRequirement({ name: relativePath(path), type: node.type, mimeType: entry.mime_type });
-      const text = requirement === "content" || requirement === "content-and-resource" ? await readText(path) : null;
-      options?.signal?.throwIfAborted();
-      return { path: node.path, name: node.name, type: node.type as FileContent["type"],
-        mimeType: node.mimeType, size: node.size, content: text?.content ?? null, version: text?.version ?? null };
+      const result = await waitForCloudRead(reads.load("file", remotePath(path), () =>
+        readCloudFile(relativePath(path), () => stat(path), () => readText(path), mapEntry)), options?.signal);
+      assertCurrent();
+      // Each service owns its own HTML version leases even when the bytes
+      // were fetched by a different view of the same authenticated resource.
+      if (typeof result.content === "string" && result.version) remember(remotePath(path), result.version, result.content);
+      return result;
     },
     getFileUrl: async (path, options) => {
       if (options?.expectedVersion) {
@@ -336,12 +340,42 @@ export function createCloudDataService({
       }),
     } : {}),
   };
-  return { workspace, folder, dataPort, writable, resolveResource: (path) => {
+  return { workspace, folder, dataPort, writable,
+    invalidateReads: () => { assertCurrent(); reads.invalidate(); },
+    resolveResource: (path) => {
     try {
       const providerPath = relativePath(path) || null;
       return { folder, providerPath, resourceUri: createWorkspaceResourceUri(rootUri, providerPath ?? "") };
     } catch { return null; }
   } };
+}
+
+function mapCloudEntry(entry: CloudEntry, uri: ResourceUri, folderId: string): DataNode {
+  return {
+    id: uri, path: uri, resourceUri: uri, name: entry.name,
+    type: entry.type === "folder" ? "folder" : getFileSemanticKind(entry.path, entry.type, entry.mime_type),
+    mimeType: entry.mime_type,
+    size: entry.size_bytes == null ? undefined : String(entry.size_bytes),
+    source: "cloud", workspaceFolderId: folderId,
+    hasChildren: entry.type === "folder" ? (entry.children_count ?? 1) > 0 : undefined,
+  };
+}
+
+/** Keep Web's stat/source parallelism without weakening the source revision check. */
+async function readCloudFile(name: string, stat: () => Promise<CloudEntry | null>,
+  readText: () => Promise<{ content: string; version: string }>, mapEntry: (entry: CloudEntry) => DataNode): Promise<FileContent> {
+  const inferred = getEditorSourceRequirement({ name, type: getFileSemanticKind(name) });
+  const needsText = (requirement: string) => requirement === "content" || requirement === "content-and-resource";
+  // Known text formats start alongside stat. Unknown formats wait for MIME.
+  const [entry, speculative] = await Promise.all([
+    stat(), needsText(inferred) ? readText() : Promise.resolve(null),
+  ]);
+  if (!entry || entry.type === "folder") throw new Error("Cloud file not found.");
+  const node = mapEntry(entry);
+  const requirement = getEditorSourceRequirement({ name, type: node.type, mimeType: entry.mime_type });
+  const text = needsText(requirement) ? speculative ?? await readText() : null;
+  return { path: node.path, name: node.name, type: node.type as FileContent["type"],
+    mimeType: node.mimeType, size: node.size, content: text?.content ?? null, version: text?.version ?? null };
 }
 
 function normalizeProviderPath(path: string): string {

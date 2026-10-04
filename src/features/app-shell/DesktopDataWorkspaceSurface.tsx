@@ -335,7 +335,7 @@ export function DesktopDataWorkspaceSurface({
         editorSaveMode="auto"
         htmlTrustMode="safe"
         aiEditRequest={activeAiEditRequest}
-        enableMarkdownLinkContentIndexing
+        enableMarkdownLinkContentIndexing={documentSourceKind !== "cloud"}
         folderExpansionStrategy={documentSourceKind === "cloud" ? "optimistic" : "load-before-expand"}
         refreshKey={workspaceRefreshToken}
         atomicRefreshKey={workspaceAtomicRefreshToken}

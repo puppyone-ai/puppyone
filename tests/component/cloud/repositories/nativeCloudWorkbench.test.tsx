@@ -1,7 +1,7 @@
 /** @vitest-environment happy-dom */
 import { act, useCallback, useEffect, useState, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DesktopWorkspaceLocationSurface } from "../../../../src/features/app-shell/DesktopWorkspaceLocationSurface";
 import { DesktopCloudShell } from "../../../../src/components/DesktopCloudShell";
 import { DesktopProjectLocationControls } from "../../../../src/features/app-shell/DesktopWorkspaceSwitcher";
@@ -9,6 +9,7 @@ import { useNativeCloudWorkbench, type NativeCloudWorkbench } from "../../../../
 import { useCloudWorkspaceSwitch } from "../../../../src/features/cloud/workbench/useCloudWorkspaceSwitch";
 import { CloudWorkspaceSwitchDialog } from "../../../../src/features/cloud/workbench/CloudWorkspaceSwitchDialog";
 import { CloudWorkspacePreparation } from "../../../../src/features/cloud/workbench/CloudWorkspacePreparation";
+import { cloudCache } from "../../../../src/features/cloud/cache/cloudCache";
 import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
 import { withTestLocalization } from "../../../support/react/localization";
 
@@ -67,6 +68,7 @@ const click = async (label: string) => {
   await act(async () => { button.click(); });
 };
 const surface = (name: string) => document.querySelector<HTMLElement>(`[data-workspace-location="${name}"]`)!;
+beforeEach(() => cloudCache.clear());
 afterEach(() => { act(() => root?.unmount()); root = null; document.body.innerHTML = ""; window.localStorage.clear(); vi.restoreAllMocks(); mounted = 0; });
 
 function installBridge() {
@@ -80,6 +82,32 @@ function installBridge() {
 }
 
 describe("native Cloud workbench switching", () => {
+  it("coalesces focus refreshes and never refreshes the hidden Local-to-Cloud surface", async () => {
+    let now = Date.now(); vi.spyOn(Date, "now").mockImplementation(() => now);
+    installBridge(); await render(<Harness />); await click("Cloud");
+    const initial = cloud.refreshToken.sequence;
+    await act(async () => { window.dispatchEvent(new Event("focus")); window.dispatchEvent(new Event("focus")); });
+    expect(cloud.refreshToken.sequence).toBe(initial);
+    now += 30_001;
+    await act(async () => { window.dispatchEvent(new Event("focus")); window.dispatchEvent(new Event("focus")); });
+    expect(cloud.refreshToken.sequence).toBe(initial + 1);
+    await click("This Mac"); now += 30_001;
+    await act(async () => window.dispatchEvent(new Event("focus")));
+    expect(cloud.refreshToken.sequence).toBe(initial + 1);
+  });
+
+  it("does not let a slow path lookup replace the user's newer file selection", async () => {
+    installBridge(); await render(<Harness />); await click("Cloud");
+    let finish!: (value: unknown) => void;
+    bridge.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    let pending!: Promise<void>;
+    await act(async () => { pending = cloud.onActivePathChange("slow.md"); });
+    const [node] = await cloud.dataPort!.listChildren(null);
+    await act(async () => cloud.onActivePathChange(node!.path, node));
+    await act(async () => { finish({ exists: true, type: "markdown", path: "slow.md", name: "slow.md" }); await pending; });
+    expect(cloud.editorWorkbench.activePath).toBe(node!.path);
+  });
+
   it("shows committed content without an arrival cover and retains Header and drafts", async () => {
     const shell = (location: "local" | "cloud", active = true, requested?: "local" | "cloud") => <DesktopCloudShell workspaceLocation={location} requestedWorkspaceLocation={requested} active={active}>
       <input aria-label="Retained content" defaultValue="Unsaved draft" />

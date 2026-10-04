@@ -2,6 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FILE_FORMATS, createWorkspaceResourceUri, getEditorSourceRequirement, isDocumentDataNode, resolveEditorViewer } from "@puppyone/shared-ui";
 import { createCloudDataService } from "../../../../src/features/cloud/workbench/cloudDataPort";
+import { cloudCache } from "../../../../src/features/cloud/cache/cloudCache";
 import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
 
 const API = "https://cloud-fixture.puppyone.ai/api/v1";
@@ -17,6 +18,7 @@ const error = (status: number) => Object.assign(new Error(`Cloud HTTP ${status}`
 const entry = (path: string) => ({ path, name: path.split("/").at(-1), type: path.endsWith(".md") ? "markdown" : "file", mime_type: mimeTypes.get(path) });
 
 beforeEach(() => {
+  cloudCache.clear();
   vi.restoreAllMocks();
   files = new Map([["readme.md", "Cloud original"], ["data.json", '{"cloud":true}'], ["notes/a.md", "Scoped original"], ["movie.mp4", "binary"]]);
   revision = 1;
@@ -44,6 +46,92 @@ beforeEach(() => {
 });
 const service = (extra: Partial<Parameters<typeof createCloudDataService>[0]> = {}) => createCloudDataService({ session, context, apiBaseUrl: API, ...extra });
 const save = (port: ReturnType<typeof service>["dataPort"], path: string, content: string, baseVersion: string | null) => port.documentPersistence!.persist({ path, content, baseVersion, revision: "edit-1", reason: "edit" });
+
+describe("Web-aligned Cloud reads", () => {
+  const count = (operation: string) => bridge.mock.calls.filter(([request]) => new URL(request.path, API).pathname.endsWith(`/${operation}`)).length;
+
+  it("shares preflight, explorer and folder-view reads across provider instances", async () => {
+    let finish!: (value: unknown) => void;
+    bridge.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const preflight = service();
+    const mounted = service();
+    const first = preflight.dataPort.listChildren(null);
+    const second = mounted.dataPort.listChildren(null);
+    expect(count("ls")).toBe(1);
+    finish({ entries: [entry("readme.md")], head_commit_id: "head-1" });
+    const [left, right] = await Promise.all([first, second]);
+    expect(left).toEqual(right);
+    expect(mounted.dataPort.getCachedChildren!(null)).toEqual(right);
+    await service().dataPort.listChildren(null);
+    expect(count("ls")).toBe(1);
+  });
+
+  it("paints stale directories while revalidating, then invalidates them after a write", async () => {
+    let time = Date.now(); vi.spyOn(Date, "now").mockImplementation(() => time);
+    const cloud = service();
+    await cloud.dataPort.listChildren(null);
+    time += 30_001;
+    files.set("new.md", "new");
+    expect(cloud.dataPort.getCachedChildren!(null)?.some((node) => node.name === "new.md")).toBe(false);
+    await Promise.all([cloud.dataPort.listChildren(null), service().dataPort.listChildren(null)]);
+    expect(count("ls")).toBe(2);
+    expect(cloud.dataPort.getCachedChildren!(null)?.some((node) => node.name === "new.md")).toBe(true);
+    await cloud.dataPort.deleteNode!("new.md");
+    expect(cloud.dataPort.getCachedChildren!(null)).toBeUndefined();
+    await cloud.dataPort.listChildren(null);
+    expect(cloud.dataPort.getCachedChildren!(null)?.some((node) => node.name === "new.md")).toBe(false);
+  });
+
+  it("keeps preview signing read-only and never uses a cached root as a write baseline", async () => {
+    const cloud = service();
+    await cloud.dataPort.listChildren(null);
+    await cloud.dataPort.getFileUrl!("movie.mp4");
+    await cloud.dataPort.listChildren(null);
+    expect(count("ls")).toBe(1);
+    revision++;
+    await cloud.dataPort.deleteNode!("movie.mp4");
+    const deletion = bridge.mock.calls.find(([request]) => request.path.endsWith("/rm"))![0];
+    expect(JSON.parse(deletion.body).base_commit_id).toBe("head-2");
+  });
+
+  it("starts text content before slow stat completes and shares it without coupling cancellation", async () => {
+    const actual = bridge.getMockImplementation()! as (request: unknown) => Promise<unknown>;
+    let finish!: (value: unknown) => void;
+    bridge.mockImplementation((request) => request.path.includes("/stat")
+      ? new Promise((resolve) => { finish = resolve; }) : actual(request));
+    const controller = new AbortController();
+    const cancelled = service().dataPort.readFile!("readme.md", { signal: controller.signal });
+    const surviving = service().dataPort.readFile!("readme.md");
+    await vi.waitFor(() => expect(count("cat")).toBe(1));
+    const rejection = expect(cancelled).rejects.toMatchObject({ name: "AbortError" });
+    controller.abort(); await rejection;
+    expect(count("stat")).toBe(1);
+    finish({ ...entry("readme.md"), exists: true });
+    expect(await surviving).toMatchObject({ content: "Cloud original", version: "head-1" });
+    expect(count("cat")).toBe(1);
+  });
+
+  it("isolates directory caches by scope, permissions and authenticated generation", async () => {
+    await service().dataPort.listChildren(null);
+    const restricted = service({ context: { ...context, capabilities: ["content.read"] } });
+    expect(restricted.dataPort.getCachedChildren!(null)).toBeUndefined();
+    const scoped = service({ context: { ...context, target: { kind: "scope", project_id: "project", scope_id: "notes" }, scopePath: "notes" } });
+    expect(scoped.dataPort.getCachedChildren!(null)).toBeUndefined();
+    expect((await scoped.dataPort.listChildren(null))[0]?.name).toBe("a.md");
+    const signedInAgain = service({ session: { ...session, session_generation: "two" } });
+    expect(signedInAgain.dataPort.getCachedChildren!(null)).toBeUndefined();
+    await signedInAgain.dataPort.listChildren(null);
+    expect(count("ls")).toBe(3);
+  });
+
+  it("clears stale directory snapshots when access is revoked", async () => {
+    const cloud = service();
+    await cloud.dataPort.listChildren(null);
+    bridge.mockRejectedValue(error(403));
+    await expect(cloud.dataPort.readFile!("readme.md")).rejects.toMatchObject({ status: 403 });
+    expect(cloud.dataPort.getCachedChildren!(null)).toBeUndefined();
+  });
+});
 
 describe("Cloud HTML projection ownership", () => {
   const projectionBridge = () => {

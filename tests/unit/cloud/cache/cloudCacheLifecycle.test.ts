@@ -64,6 +64,7 @@ describe("account/revision-aware Cloud cache", () => {
     await cache.load(first, async () => "1234567890", { ttlMs: 10 });
     currentTime = 111;
     expect(cache.read(first)).toBeUndefined();
+    expect(cache.read(first, { allowStale: true })).toBe("1234567890");
 
     await cache.load(createContext(session, "two"), async () => "1234567890", { ttlMs: 100 });
     await cache.load(createContext(session, "three"), async () => "1234567890", { ttlMs: 100 });
@@ -71,6 +72,26 @@ describe("account/revision-aware Cloud cache", () => {
     expect(cache.snapshot().entries).toBeLessThanOrEqual(2);
     expect(cache.snapshot().bytes).toBeLessThanOrEqual(30);
     expect(cache.snapshot().evictions).toBeGreaterThan(0);
+  });
+
+  it("retains a stale snapshot during a single background revalidation and never reuses an uncached body", async () => {
+    let time = 0;
+    const cache = createCloudCache({ now: () => time });
+    const context = createContext(createSession("one"));
+    await cache.load(context, async () => ["old"], { ttlMs: 30 });
+    time = 31;
+    let finish!: (value: string[]) => void;
+    const loader = vi.fn(() => new Promise<string[]>((resolve) => { finish = resolve; }));
+    const first = cache.load(context, loader, { ttlMs: 30 });
+    const second = cache.load(context, loader, { ttlMs: 30 });
+    expect(cache.read(context, { allowStale: true })).toEqual(["old"]);
+    expect(loader).toHaveBeenCalledOnce();
+    finish(["new"]);
+    await Promise.all([first, second]);
+    expect(cache.read(context)).toEqual(["new"]);
+    const bodyContext = { ...context, resource: "body" };
+    await cache.load(bodyContext, async () => "body", { ttlMs: 0 });
+    expect(cache.read(bodyContext, { allowStale: true })).toBeUndefined();
   });
 
   it("invalidates a project namespace after a successful mutation and clears on logout", async () => {

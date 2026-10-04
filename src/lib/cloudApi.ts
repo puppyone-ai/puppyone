@@ -586,7 +586,7 @@ export async function cloudApiRequest<T>(
         ...(body === undefined ? {} : { body }),
       });
       const result = unwrapCloudIpcEnvelope<T>(transported);
-      if (isMutationMethod(init.method)) {
+      if (isMutationMethod(init.method) && !/^\/content\/[^/]+\/inline\/sign(?:\?|$)/.test(path)) {
         invalidateCloudCacheForMutation({ session, apiPath: path });
       }
       return result;

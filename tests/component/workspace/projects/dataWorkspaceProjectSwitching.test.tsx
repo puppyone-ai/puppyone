@@ -26,6 +26,73 @@ afterEach(() => {
 });
 
 describe("DataWorkspace Project switching", () => {
+  it("shows a cached Cloud root immediately and replaces it after background revalidation", async () => {
+    const response = deferred<DataNode[]>();
+    const cached: DataNode = { id: "cached.md", path: "cached.md", name: "cached.md", type: "markdown" };
+    const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
+    await act(async () => root!.render(withTestLocalization(<DataWorkspace workspace={workspace()}
+      dataPort={{ listChildren: () => response.promise, getCachedChildren: () => [cached] }}
+      folderExpansionStrategy="optimistic" explorerLoadingPresentation="skeleton" />)));
+    expect(host.querySelector('[data-explorer-path="cached.md"]')).not.toBeNull();
+    expect(host.querySelector('[data-testid="explorer-tree-skeleton"]')).toBeNull();
+    await act(async () => response.resolve([{ ...cached, id: "new.md", path: "new.md", name: "new.md" }]));
+    expect(host.querySelector('[data-explorer-path="cached.md"]')).toBeNull();
+    expect(host.querySelector('[data-explorer-path="new.md"]')).not.toBeNull();
+  });
+
+  it.each(["", "puppyone-cloud://api.example/https/api/v1/owner/project/root/"])("loads restored Cloud siblings in parallel and skips collapsed branches on refresh (%s)", async (prefix) => {
+    const folders: DataNode[] = ["left", "right"].map((name) => `${prefix}${name}`).map((path) => ({ id: path, path, name: path, type: "folder", hasChildren: true }));
+    const left = deferred<DataNode[]>(); const right = deferred<DataNode[]>();
+    const children = (path: string): DataNode[] => [{ id: `${path}/a.md`, path: `${path}/a.md`, name: "a.md", type: "markdown" }];
+    const listChildren = vi.fn((path: string | null) => path === `${prefix}left` ? left.promise : path === `${prefix}right` ? right.promise : Promise.resolve(folders));
+    const dataPort: DataPort = { listChildren, getCachedChildren: (path) => path === null ? folders : undefined };
+    const initialExplorerSession = { tree: folders, rootLoaded: true, expandedPaths: [`${prefix}left`, `${prefix}right`] };
+    const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
+    const view = (sequence: number) => withTestLocalization(<DataWorkspace workspace={workspace()} dataPort={dataPort}
+      initialExplorerSession={initialExplorerSession} folderExpansionStrategy="optimistic" refreshKey={{ sequence, entries: [] }} />);
+    await act(async () => root!.render(view(0)));
+    expect(listChildren.mock.calls.some(([path]) => path === `${prefix}left`)).toBe(true);
+    expect(listChildren.mock.calls.some(([path]) => path === `${prefix}right`)).toBe(true);
+    await act(async () => { left.resolve(children(`${prefix}left`)); right.resolve(children(`${prefix}right`)); });
+    await act(async () => host.querySelector<HTMLElement>(`[data-explorer-path="${prefix}left"]`)!.click());
+    listChildren.mockClear();
+    await act(async () => root!.render(view(1)));
+    expect(listChildren.mock.calls.map(([path]) => path)).toEqual([null, `${prefix}right`]);
+    await act(async () => host.querySelector<HTMLElement>(`[data-explorer-path="${prefix}left"]`)!.click());
+    expect(listChildren.mock.calls.some(([path]) => path === `${prefix}left`)).toBe(true);
+  });
+
+  it("keeps cached rows on network failure but clears them when permission is denied", async () => {
+    const cached: DataNode = { id: "cached.md", path: "cached.md", name: "cached.md", type: "markdown" };
+    const listChildren = vi.fn().mockRejectedValueOnce(new Error("Offline"))
+      .mockRejectedValueOnce(Object.assign(new Error("Forbidden"), { status: 403 }));
+    const dataPort: DataPort = { listChildren, getCachedChildren: () => [cached] };
+    const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
+    await act(async () => root!.render(withTestLocalization(<DataWorkspace workspace={workspace()} dataPort={dataPort} />)));
+    expect(host.querySelector('[data-explorer-path="cached.md"]')).not.toBeNull();
+    const retry = [...host.querySelectorAll("button")].find((button) => button.textContent === "Retry")!;
+    await act(async () => retry.click());
+    expect(host.querySelector('[data-explorer-path="cached.md"]')).toBeNull();
+    expect(host.textContent).toContain("Forbidden");
+  });
+
+  it("does not join or display a pre-mutation directory read after refresh", async () => {
+    const old = deferred<DataNode[]>(); const fresh = deferred<DataNode[]>();
+    const listChildren = vi.fn().mockReturnValueOnce(old.promise).mockReturnValueOnce(fresh.promise);
+    const dataPort: DataPort = { listChildren, getCachedChildren: () => undefined };
+    const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
+    const view = (sequence: number) => withTestLocalization(<DataWorkspace workspace={workspace()} dataPort={dataPort}
+      refreshKey={{ sequence, entries: [] }} />);
+    await act(async () => root!.render(view(0)));
+    await act(async () => root!.render(view(1)));
+    expect(listChildren).toHaveBeenCalledTimes(2);
+    const node: DataNode = { id: "new.md", path: "new.md", name: "new.md", type: "markdown" };
+    await act(async () => fresh.resolve([node]));
+    await act(async () => old.resolve([{ ...node, id: "old.md", path: "old.md", name: "old.md" }]));
+    expect(host.querySelector('[data-explorer-path="new.md"]')).not.toBeNull();
+    expect(host.querySelector('[data-explorer-path="old.md"]')).toBeNull();
+  });
+
   it("retries a failed Cloud root without remounting the workspace", async () => {
     const read = vi.fn().mockRejectedValueOnce(new Error("Root unavailable")).mockResolvedValue([
       { id: "a.md", path: "a.md", name: "a.md", type: "markdown" },

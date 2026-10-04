@@ -450,6 +450,11 @@ app.whenReady().then(async () => {
   assert(readyMenu.identity === 'retained-switch-bar' && ['x','y','width','height'].every(key => Math.abs(readyMenu[key]-pendingMenu[key])<1),
     'The same switch bar must keep its position and dimensions after Cloud loads');
   await waitFor("Boolean(document.querySelector('[data-cloud-native=true]')?.textContent.includes('cloud-only'))");
+  const initialCloudRequests = (await state()).requests;
+  assert(initialCloudRequests.filter(path => path === '/content/fixture-project/ls?path=').length === 1,
+    'Preflight and the mounted explorer must share one root directory read');
+  assert(!initialCloudRequests.some(path => path.includes('/cat?')),
+    'Opening a Cloud project must not download unopened file bodies for a Markdown index');
   assert(await evaluate("document.querySelector('[data-workspace-location=local]').hidden && !document.querySelector('[data-workspace-location=cloud]').hidden && !document.querySelector('.desktop-cloud-workspace-switch-dialog')"), "Cloud switch must replace the main surface without a dialog");
   const cloudHeader = await evaluate(`(() => {
     const header = document.querySelector('.desktop-titlebar');
@@ -728,9 +733,13 @@ app.whenReady().then(async () => {
     'An unresolved sign-in gate must retain the Local Header identity and actions');
   assert(await evaluate("!document.querySelector('.desktop-cloud-workspace-switch-dialog aside, .desktop-cloud-workspace-switch-dialog nav')"), "The sign-in dialog must not introduce service navigation");
   await headerPresentation("local");
+  // Cached Cloud entry no longer supplies an accidental network delay after
+  // the preceding sidebar collapse/expand matrix. Measure the settled pane.
+  await evaluate("Promise.all([...document.querySelectorAll('[data-workspace-location=local] .po-collapsible-pane-frame')].flatMap(node => node.getAnimations()).map(animation => animation.finished.catch(() => {})))");
   const authGeometry = await presentation("local");
   for (const region of ["explorer", "editor", "footer"]) for (const property of ["x", "y", "width", "height"]) {
-    assert(Math.abs(authGeometry[region][property] - localPresentation[region][property]) < 1, "Authentication changed the retained local layout");
+    assert(Math.abs(authGeometry[region][property] - localPresentation[region][property]) < 1,
+      `Authentication changed retained local ${region} ${property}: ${localPresentation[region][property]} -> ${authGeometry[region][property]}`);
   }
   await waitFor("getComputedStyle(document.querySelector('.desktop-cloud-workspace-switch-dialog')).opacity === '1' && document.querySelector('.desktop-cloud-workspace-switch-dialog').getBoundingClientRect().height > 200");
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");

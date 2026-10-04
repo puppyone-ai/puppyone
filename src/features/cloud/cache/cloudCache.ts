@@ -45,15 +45,16 @@ export function createCloudCache({
     clear();
   }
 
-  function read<T>(context: CloudCacheContext): T | undefined {
+  function read<T>(context: CloudCacheContext, { allowStale = false } = {}): T | undefined {
     const key = cacheKey(context);
     const entry = entries.get(key);
     if (!entry) {
       stats.misses += 1;
       return undefined;
     }
-    if (entry.namespace !== activeNamespace || entry.expiresAt <= now()) {
-      deleteEntry(key, entry);
+    if (entry.namespace !== activeNamespace || (!allowStale && entry.expiresAt <= now())) {
+      // Keep expired snapshots within the same LRU budget so views can paint
+      // them while load() coalesces a fresh read in the background.
       stats.misses += 1;
       return undefined;
     }
@@ -80,6 +81,9 @@ export function createCloudCache({
     const request = loader()
       .then((value) => {
         if (activeNamespace !== capturedNamespace || cacheEpoch !== capturedEpoch) return value;
+        // Some reads need in-flight deduplication, but no reusable snapshot
+        // (notably document bodies and their optimistic-write baselines).
+        if (ttlMs <= 0) return value;
         const entry: CacheEntry = {
           value,
           expiresAt: now() + Math.max(0, ttlMs),

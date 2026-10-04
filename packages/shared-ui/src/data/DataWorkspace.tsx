@@ -446,7 +446,6 @@ export function DataWorkspace({
       if (existingRequest?.generation === requestGeneration) return existingRequest.promise;
 
       const promise = (async () => {
-        setFolderLoading(folderPath, true);
         setFolderFailed(folderPath, false);
         setFolderErrors((current) => {
           const next = new Map(current); next.delete(loadingKey); return next;
@@ -454,14 +453,34 @@ export function DataWorkspace({
         setLoadError(null);
 
         try {
+          const cached = dataPort.getCachedChildren?.(folderPath);
+          if (cached !== undefined) {
+            setTree((current) => reconcileFolderChildren(current, folderPath, cached));
+            if (!folderPath) { setRootLoaded(true); setInitialExplorerHydrationPending(false); }
+          }
+          // Refreshing a known Cloud directory keeps its rows in place.
+          // Only the first read needs a loading row/skeleton.
+          setFolderLoading(folderPath, !dataPort.getCachedChildren || !isFolderLoaded(folderPath));
           const children = await dataPort.listChildren(folderPath);
           if (requestGeneration !== loadGenerationRef.current) return null;
           setTree((current) => reconcileFolderChildren(current, folderPath, children));
           setFolderFailed(folderPath, false);
-          if (!folderPath) setRootLoaded(true);
+          if (!folderPath) {
+            setRootLoaded(true);
+            if (dataPort.getCachedChildren) setInitialExplorerHydrationPending(false);
+          }
           return children;
         } catch (error) {
           if (requestGeneration === loadGenerationRef.current) {
+            if (dataPort.getCachedChildren && error && typeof error === "object"
+              && "status" in error && (error.status === 401 || error.status === 403)) {
+              loadGenerationRef.current++;
+              folderLoadRequestsRef.current.clear();
+              setLoadingFolderPaths(new Set());
+              setInitialExplorerHydrationPending(false);
+              setTree([]);
+              setRootLoaded(false);
+            }
             setFolderFailed(folderPath, true);
             setLoadError(error instanceof Error ? error.message : String(error));
             setFolderErrors((current) => new Map(current).set(loadingKey,
@@ -482,16 +501,38 @@ export function DataWorkspace({
       folderLoadRequestsRef.current.set(loadingKey, { generation: requestGeneration, promise });
       return promise;
     },
-    [dataPort, setFolderFailed, setFolderLoading, setRootLoaded, setTree],
+    [dataPort, isFolderLoaded, setFolderFailed, setFolderLoading, setRootLoaded, setTree],
   );
 
   const loadFolder = useCallback(
     async (folderPath: string | null, force = false) => {
-      if (!force && isFolderLoaded(folderPath)) return true;
+      if (!force && !dataPort.getCachedChildren && isFolderLoaded(folderPath)) return true;
       return (await loadFolderChildren(folderPath)) !== null;
     },
-    [isFolderLoaded, loadFolderChildren],
+    [dataPort, isFolderLoaded, loadFolderChildren],
   );
+
+  const revalidateFolders = useCallback(async (paths: string[], generation: number) => {
+    // Parents must exist before their descendants can be reconciled. Siblings
+    // are independent; Cloud loads them in bounded parallel waves.
+    const byDepth = new Map<number, string[]>();
+    for (const path of paths) {
+      const depth = path.split("/").length;
+      byDepth.set(depth, [...(byDepth.get(depth) ?? []), path]);
+    }
+    const concurrency = dataPort.getCachedChildren ? 4 : 1;
+    for (const [, layer] of [...byDepth].sort(([left], [right]) => left - right)) {
+      for (let index = 0; index < layer.length; index += concurrency) {
+        if (generation !== loadGenerationRef.current) return;
+        await Promise.all(layer.slice(index, index + concurrency).map(async (path) => {
+          if (dataPort.getCachedChildren && (!expandedFolderPathsRef.current.has(path)
+            || hasCollapsedAncestor(treeRef.current, path, expandedFolderPathsRef.current))) return;
+          const folder = findDataNode(treeRef.current, path);
+          if (folder?.type === "folder") await loadFolder(path, true);
+        }));
+      }
+    }
+  }, [dataPort, loadFolder]);
 
   useEffect(() => {
     loadGenerationRef.current += 1;
@@ -538,7 +579,8 @@ export function DataWorkspace({
   }, [defaultExplorerWidth, explorerWidth, maxExplorerWidth, minExplorerWidth]);
 
   useEffect(() => {
-    const requestGeneration = loadGenerationRef.current;
+    const requestGeneration = ++loadGenerationRef.current;
+    folderLoadRequestsRef.current.clear();
     let cancelled = false;
     void (async () => {
       try {
@@ -546,13 +588,7 @@ export function DataWorkspace({
         if (!rootReady || requestGeneration !== loadGenerationRef.current) return;
         const foldersToRevalidate = [...expandedFolderPathsRef.current]
           .sort((left, right) => left.split("/").length - right.split("/").length);
-        for (const folderPath of foldersToRevalidate) {
-          if (requestGeneration !== loadGenerationRef.current) return;
-          if (failedFolderPathsRef.current.has(folderPath)) continue;
-          const folder = findDataNode(treeRef.current, folderPath);
-          if (!folder || folder.type !== "folder") continue;
-          await loadFolder(folderPath, true);
-        }
+        await revalidateFolders(foldersToRevalidate.filter((path) => !failedFolderPathsRef.current.has(path)), requestGeneration);
       } finally {
         if (!cancelled && requestGeneration === loadGenerationRef.current) {
           setInitialExplorerHydrationPending(false);
@@ -562,7 +598,7 @@ export function DataWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [dataPort, loadFolder, workspace.id, workspace.path]);
+  }, [dataPort, loadFolder, revalidateFolders, workspace.id, workspace.path]);
 
   useEffect(() => {
     onExplorerSessionChange?.({
@@ -576,14 +612,18 @@ export function DataWorkspace({
     if (!rootLoaded) return;
     const rootRequest = folderLoadRequestsRef.current.get(ROOT_FOLDER_KEY);
     if (rootRequest?.generation === loadGenerationRef.current) return;
+    let available = dataPort.getCachedChildren ? Math.max(0, 4 - folderLoadRequestsRef.current.size) : Infinity;
     for (const folderPath of expandedFolderPaths) {
+      if (available <= 0) break;
+      if (dataPort.getCachedChildren && hasCollapsedAncestor(tree, folderPath, expandedFolderPaths)) continue;
       const folder = findDataNode(tree, folderPath);
       if (!folder || folder.type !== "folder" || Array.isArray(folder.children)) continue;
       if (loadingFolderPaths.has(folderPath)) continue;
       if (failedFolderPaths.has(folderPath)) continue;
       void loadFolder(folderPath);
+      available--;
     }
-  }, [expandedFolderPaths, failedFolderPaths, loadFolder, loadingFolderPaths, rootLoaded, tree]);
+  }, [dataPort, expandedFolderPaths, failedFolderPaths, loadFolder, loadingFolderPaths, rootLoaded, tree]);
 
   useEffect(() => {
     if (refreshKey === undefined || Object.is(lastRefreshKeyRef.current, refreshKey)) {
@@ -593,17 +633,17 @@ export function DataWorkspace({
     lastRefreshKeyRef.current = refreshKey;
     const pendingAtomicRefreshKey = atomicRefreshKey;
     const atomicRefresh = completedAtomicRefreshKey !== pendingAtomicRefreshKey;
-    if (atomicRefresh) {
+    if (atomicRefresh || dataPort.getCachedChildren) {
       loadGenerationRef.current += 1;
       folderLoadRequestsRef.current.clear();
-      setLoadingFolderPaths(new Set([ROOT_FOLDER_KEY]));
+      setLoadingFolderPaths(new Set(atomicRefresh ? [ROOT_FOLDER_KEY] : []));
       failedFolderPathsRef.current = new Set();
       setFailedFolderPathsState(failedFolderPathsRef.current);
       setLoadError(null);
       setFolderErrors(new Map());
     }
     const loadedFolderPaths = Array.from(new Set([
-      ...collectLoadedFolderPaths(tree),
+      ...(dataPort.getCachedChildren ? expandedFolderPathsRef.current : collectLoadedFolderPaths(tree)),
       ...collectAncestorFolderPaths(resolvedActivePath),
     ])).sort((left, right) => left.split("/").length - right.split("/").length);
     const requestGeneration = loadGenerationRef.current;
@@ -611,12 +651,7 @@ export function DataWorkspace({
       try {
         const rootReady = await loadFolder(null, true);
         if (!rootReady || requestGeneration !== loadGenerationRef.current) return;
-        for (const folderPath of loadedFolderPaths) {
-          if (requestGeneration !== loadGenerationRef.current) return;
-          const folder = findDataNode(treeRef.current, folderPath);
-          if (!folder || folder.type !== "folder") continue;
-          await loadFolder(folderPath, true);
-        }
+        await revalidateFolders(loadedFolderPaths, requestGeneration);
       } finally {
         if (atomicRefresh && requestGeneration === loadGenerationRef.current) {
           setCompletedAtomicRefreshKey(pendingAtomicRefreshKey);
@@ -626,7 +661,9 @@ export function DataWorkspace({
   }, [
     atomicRefreshKey,
     completedAtomicRefreshKey,
+    dataPort,
     loadFolder,
+    revalidateFolders,
     refreshKey,
     resolvedActivePath,
     tree,
@@ -1038,6 +1075,7 @@ export function DataWorkspace({
 
       if (Array.isArray(node.children)) {
         setExpandedFolderPaths((current) => addSetValue(current, node.path));
+        if (dataPort.getCachedChildren) void loadFolder(node.path);
         return;
       }
 
@@ -1056,7 +1094,7 @@ export function DataWorkspace({
         setExpandedFolderPaths((current) => addSetValue(current, node.path));
       });
     },
-    [folderExpansionStrategy, loadFolder, loadingFolderPaths],
+    [dataPort, folderExpansionStrategy, loadFolder, loadingFolderPaths],
   );
 
   const applyPersistedFileContent = (node: DocumentDataNode, commit: DocumentPersistedCommit) => {
@@ -1787,6 +1825,12 @@ function normalizeDataPath(path: string): string {
 
 function collectAncestorFolderPaths(activePath: string | null): string[] {
   return collectDataResourceAncestors(activePath);
+}
+
+function hasCollapsedAncestor(tree: DataNode[], path: string, expandedPaths: ReadonlySet<string>): boolean {
+  // URI authority/scope segments are resource identity, not rendered folders.
+  return collectAncestorFolderPaths(path).some((parent) =>
+    findDataNode(tree, parent)?.type === "folder" && !expandedPaths.has(parent));
 }
 
 function getLoadingKey(folderPath: string | null): string {

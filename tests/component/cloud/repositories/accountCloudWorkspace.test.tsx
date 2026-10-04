@@ -8,6 +8,7 @@ import { useHomepageCloudProjects } from "../../../../src/features/cloud/workben
 import { useRepositoryCloudWorkspaceSwitch } from "../../../../src/features/cloud/workbench/useRepositoryCloudWorkspaceSwitch";
 import { CloudWorkspaceSwitchDialog } from "../../../../src/features/cloud/workbench/CloudWorkspaceSwitchDialog";
 import { RepositoryCloudSwitchGate } from "../../../../src/features/cloud/workbench/RepositoryCloudSwitchGate";
+import { cloudCache } from "../../../../src/features/cloud/cache/cloudCache";
 import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
 import { getProjectCloudLocationState, type ProjectCloudContext } from "../../../../src/features/cloud/project/context/projectCloudContext";
 import { cloudMessage } from "../../../../src/features/cloud/cloudPresentation";
@@ -64,6 +65,7 @@ async function open(id: string) { await act(async () => { await account.openTarg
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>((r) => { resolve = r; }); return { resolve, promise }; }
 
 beforeEach(() => {
+  cloudCache.clear();
   generation = "head-1";
   bridge = vi.fn(async (request) => {
     if (request.path.startsWith("/projects/?")) return [project("a"), project("b")];

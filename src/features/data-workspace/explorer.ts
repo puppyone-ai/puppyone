@@ -17,6 +17,10 @@ export function createExplorerDataPort(dataPort: DataPort, settings: FilesVisibi
 
   return {
     ...dataPort,
+    ...(dataPort.getCachedChildren ? {
+      getCachedChildren: (folderPath: string | null) => dataPort.getCachedChildren!(folderPath)
+        ?.filter((node) => !matchers.some((matcher) => matcher(node))),
+    } : {}),
     listChildren: async (folderPath) => {
       const children = await dataPort.listChildren(folderPath);
       return children.filter((node) => !matchers.some((matcher) => matcher(node)));

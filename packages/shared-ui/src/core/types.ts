@@ -299,6 +299,8 @@ export type DataPort = {
   previewServices?: import("../editor/preview-services/types").EditorPreviewServices;
   editorAssets?: import("../editor/resource/DocumentAssetImport").DocumentAssetImportPort;
   listChildren: (folderPath: string | null) => Promise<DataNode[]>;
+  /** Same-identity snapshot, possibly stale. listChildren revalidates it without clearing the view. */
+  getCachedChildren?: (folderPath: string | null) => DataNode[] | undefined;
   /** Resolve one workspace-relative entry without enumerating or previewing its siblings. */
   resolveNode?: (path: string) => Promise<DataNode | null>;
   readFile?: (path: string, options?: DataReadOptions) => Promise<FileContent>;
