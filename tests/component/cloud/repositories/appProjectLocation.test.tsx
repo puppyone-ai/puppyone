@@ -103,6 +103,7 @@ describe("production App location wiring", () => {
     const onLocal = vi.fn(), onCloud = vi.fn();
     await renderCommittedLocation(false, onLocal, onCloud);
     const header = document.querySelector(".desktop-titlebar");
+    const shell = document.querySelector(".desktop-shell");
     const title = document.querySelector(".desktop-titlebar-workspace-button");
     const draft = document.querySelector<HTMLInputElement>('input[aria-label="Local draft"]')!;
     draft.value = "UNSAVED_LOCAL_DRAFT";
@@ -113,11 +114,14 @@ describe("production App location wiring", () => {
     // Merely requesting Cloud does not relabel the still-local provider.
     expect(surface("local").hidden).toBe(false);
     expect(header?.getAttribute("data-workspace-kind")).toBeNull();
+    expect(shell?.getAttribute("data-workspace-kind")).toBeNull();
 
     await renderCommittedLocation(true, onLocal, onCloud);
     expect(surface("local").hidden).toBe(true);
     expect(surface("cloud").hidden).toBe(false);
     expect(header?.getAttribute("data-workspace-kind")).toBe("cloud");
+    expect(document.querySelector(".desktop-shell")).toBe(shell);
+    expect(shell?.getAttribute("data-workspace-kind")).toBe("cloud");
     expect(cloudButton().getAttribute("aria-pressed")).toBe("true");
     expect(cloudButton().getAttribute("aria-current")).toBe("true");
     expect(localButton().getAttribute("aria-pressed")).toBe("false");
@@ -134,6 +138,7 @@ describe("production App location wiring", () => {
     expect(surface("cloud").hidden).toBe(true);
     expect(surface("local").hidden).toBe(false);
     expect(header?.getAttribute("data-workspace-kind")).toBeNull();
+    expect(shell?.getAttribute("data-workspace-kind")).toBeNull();
     expect(localButton().getAttribute("aria-pressed")).toBe("true");
     expect(cloudButton().getAttribute("aria-pressed")).toBe("false");
     expect(title?.querySelector('[data-project-location="local"]')).not.toBeNull();

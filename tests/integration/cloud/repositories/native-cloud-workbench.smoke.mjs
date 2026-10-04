@@ -11,6 +11,8 @@ await mkdir(artifacts, { recursive: true });
 app.setPath("userData", await mkdtemp(path.join(os.tmpdir(), "puppyone-native-cloud-")));
 app.commandLine.appendSwitch("disable-renderer-backgrounding");
 app.commandLine.appendSwitch("disable-gpu");
+// Keep Chromium fixture rendering on a consistent color profile.
+app.commandLine.appendSwitch("force-color-profile", "srgb");
 const errors = [];
 let window;
 const assert = (value, message) => { if (!value) throw new Error(message); };
@@ -43,13 +45,15 @@ async function headerPresentation(location) {
     const context = header.querySelector('.desktop-titlebar-centered-context');
     const button = context.querySelector('.desktop-titlebar-workspace-button');
     const h = header.getBoundingClientRect(), c = context.getBoundingClientRect();
-    const css = getComputedStyle(header), control = getComputedStyle(button);
+    const css = getComputedStyle(header);
+    const shell = header.closest('.desktop-shell'), s = shell.getBoundingClientRect();
+    const frame = getComputedStyle(shell, '::after');
     const probe = document.createElement('span');
     header.append(probe);
-    probe.style.color = 'var(--po-header)';
+    probe.style.color = 'var(${location === "cloud" ? "--po-accent" : "--po-header"})';
     const expected = getComputedStyle(probe).color;
-    probe.style.color = 'var(--po-cloud-titlebar-bg)';
-    const cloudTop = getComputedStyle(probe).color;
+    probe.style.color = 'var(--po-accent)';
+    const accent = getComputedStyle(probe).color;
     probe.remove();
     const canvas = document.createElement('canvas').getContext('2d');
     const rgb = (...colors) => {
@@ -58,27 +62,37 @@ async function headerPresentation(location) {
       return [...canvas.getImageData(0,0,1,1).data].slice(0,3);
     };
     return { location:header.dataset.workspaceKind ?? 'local', identity:header.dataset.fixtureIdentity,
-      x:h.x, y:h.y, width:h.width, height:h.height, viewport:innerWidth,
+      x:h.x, y:h.y, width:h.width, height:h.height, viewport:innerWidth, viewportHeight:innerHeight,
       center:h.x+h.width/2, projectCenter:c.x+c.width/2,
-      background:rgb(css.backgroundColor), expected:rgb(expected), cloudTop:rgb(cloudTop),
+      background:rgb(css.backgroundColor), expected:rgb(expected), accent:rgb(accent),
       backgroundImage:css.backgroundImage,
-      controlPalette:['text', 'text-muted', 'text-disabled', 'hover', 'active', 'focus', 'divider']
-        .map(key => css.getPropertyValue('--desktop-titlebar-' + key).trim()),
-      contrastSamples:[css.backgroundColor, ...(header.dataset.workspaceKind === 'cloud' ? [cloudTop] : [])]
-        .map(background => ({ paper:rgb(background, control.backgroundColor),
-          ink:rgb(background, control.backgroundColor, control.color) })) };
+      frame:{ location:shell.dataset.workspaceKind ?? 'local', identity:shell.dataset.fixtureIdentity,
+        x:s.x, y:s.y, width:s.width, height:s.height, content:frame.content,
+        color:rgb(frame.borderTopColor), borderWidth:frame.borderTopWidth, pointerEvents:frame.pointerEvents,
+        interceptsPointer:document.elementFromPoint(1,innerHeight/2) === shell },
+      contrastSamples:[button, ...header.querySelectorAll('.desktop-titlebar-editor-tab')].map(node => {
+        const control = getComputedStyle(node);
+        return { label:node.className, paper:rgb(css.backgroundColor, control.backgroundColor),
+          ink:rgb(css.backgroundColor, control.backgroundColor, control.color) };
+      }) };
   })()`);
   assert(sample.location === location, `Header tint must follow the committed ${location} provider`);
-  assert(JSON.stringify(sample.background) === JSON.stringify(sample.expected), `Header base must remain the original color: ${JSON.stringify(sample)}`);
-  assert(location === 'cloud' ? sample.backgroundImage.includes('linear-gradient') && sample.backgroundImage.includes('50%')
-    : sample.backgroundImage === 'none', `Only committed Cloud gets the upper-half gradient: ${sample.backgroundImage}`);
+  assert(JSON.stringify(sample.background) === JSON.stringify(sample.expected), `Header must use product accent on Cloud and original color on Local: ${JSON.stringify(sample)}`);
+  assert(sample.backgroundImage === 'none', 'The previous gradient must be removed');
+  assert(sample.frame.location === location && sample.frame.identity === 'retained-shell', 'Window frame must follow the same committed provider without remounting');
+  assert(sample.frame.x === 0 && sample.frame.y === 0 && sample.frame.width === sample.viewport
+    && sample.frame.height === sample.viewportHeight, 'Cloud frame must enclose the whole window, not just the editor');
+  if (location === 'cloud') {
+    assert(sample.frame.borderWidth === '2px' && JSON.stringify(sample.frame.color) === JSON.stringify(sample.accent), 'Header and 2px frame must share the product accent');
+    assert(sample.frame.pointerEvents === 'none' && !sample.frame.interceptsPointer, 'Frame must not intercept pointer or resize interactions');
+  } else assert(sample.frame.content === 'none', 'Local must have no Cloud frame');
   assert(sample.identity === "retained-header" && sample.x === 0 && sample.width === sample.viewport,
     "Tint must cover the original full-width Header, including both blank sides");
   assert(Math.abs(sample.center - sample.projectCenter) < 0.01, "Tint must not move the centered project context");
   const luminance = (rgb) => rgb.map(v => v/255).map(v => v <= 0.04045 ? v/12.92 : ((v+0.055)/1.055)**2.4)
     .reduce((sum, value, i) => sum + value * [0.2126,0.7152,0.0722][i], 0);
-  // Conservatively cover both ends of the wash, not just the solid base under
-  // the lower half of the label. Keep original foreground and interaction colors.
+  // Include active editor tabs: their former canvas backplate would make
+  // on-accent text unreadable even if the centered project label passed.
   sample.contrast = Math.min(...sample.contrastSamples.map(({ ink, paper }) => {
     const a = luminance(ink), b = luminance(paper);
     return (Math.max(a,b)+0.05)/(Math.min(a,b)+0.05);
@@ -86,28 +100,32 @@ async function headerPresentation(location) {
   assert(sample.contrast >= 4.5, `Header project text needs 4.5:1 contrast: ${sample.contrast}`);
   return sample;
 }
-async function headerPixels(sample) {
-  const image = (await window.webContents.capturePage({ x:0, y:0, width:sample.width, height:sample.height }))
-    .resize({ width:sample.width, height:sample.height, quality:'best' });
+async function windowFramePixels(sample) {
+  const width = sample.viewport, height = sample.viewportHeight;
+  const image = await window.webContents.capturePage();
   const bitmap = image.toBitmap();
-  assert(bitmap.length === sample.width * sample.height * 4, 'Header capture must use logical-pixel dimensions');
-  const pixel = (x, y) => { const offset = (y*sample.width+x)*4; return [bitmap[offset+2],bitmap[offset+1],bitmap[offset]]; };
+  const scale = Math.sqrt(bitmap.length / (width * height * 4));
+  assert(Number.isInteger(width*scale) && Number.isInteger(height*scale), 'Capture must cover the entire viewport');
+  // Read native-resolution pixels: resizing a 2px border introduces filter
+  // ringing/color conversion, which is not part of the rendered frame.
+  const pixel = (x, y) => {
+    const offset = (Math.floor((y+0.5)*scale)*width*scale+Math.floor((x+0.5)*scale))*4;
+    return [bitmap[offset+2],bitmap[offset+1],bitmap[offset]];
+  };
   const distance = (a,b) => Math.max(...a.map((value,i) => Math.abs(value-b[i])));
-  // Sample both blank ends, away from tabs, label, divider and native controls.
-  const columns = [12, sample.width-20].map(x => [1, 10, 20, 30, 37].map(y => ({ x,y,rgb:pixel(x,y) })));
-  for (const column of columns) {
-    for (const {y,rgb} of column) if (sample.location === 'local' || y >= sample.height/2) {
-      assert(distance(rgb,sample.background) <= 1, `The lower half must equal Local, not a solid Cloud fill: ${JSON.stringify({sample,column})}`);
-    }
-    if (sample.location === 'cloud') {
-      const [top,middle,bottom] = column.map(point => point.rgb);
-      assert(distance(top,sample.background) > 5 && distance(top,sample.cloudTop) < distance(top,sample.background), 'Top must visibly carry the blue location cue');
-      assert(distance(middle,sample.background) < distance(top,sample.background)
-        && distance(middle,sample.background) > distance(bottom,sample.background)+2, 'Blue must fade progressively through the upper half');
-    }
-  }
-  for (let i=0; i<columns[0].length; i++) assert(distance(columns[0][i].rgb,columns[1][i].rgb) <= 1, 'Gradient must cover both blank ends equally');
-  return columns;
+  // CSS-to-token equality is checked above; compare actual paints in one image.
+  const paintedHeader = pixel(12,10);
+  const header = [12,width-20].flatMap(x => [3,10,20,30,37].map(y => ({x,y,rgb:pixel(x,y)})));
+  for (const point of header) assert(distance(point.rgb,paintedHeader) <= 1, `Entire Header must have one solid color: ${JSON.stringify(point)}`);
+  const edges = [[12,0],[12,1],[0,Math.floor(height/2)],[1,Math.floor(height/2)],
+    [width-1,Math.floor(height/2)],[width-2,Math.floor(height/2)],
+    [Math.floor(width/2),height-1],[Math.floor(width/2),height-2]].map(([x,y]) => ({x,y,rgb:pixel(x,y)}));
+  for (const point of edges) assert(sample.location === 'cloud' ? distance(point.rgb,paintedHeader) <= 1
+    : distance(point.rgb,sample.accent) > 5, `Frame must appear/disappear on all four edges with the provider: ${JSON.stringify(point)}`);
+  const interior = [[4,Math.floor(height/2)],[width-5,Math.floor(height/2)],[Math.floor(width/2),height-5]]
+    .map(([x,y]) => ({x,y,rgb:pixel(x,y)}));
+  if (sample.location === 'cloud') for (const point of interior) assert(distance(point.rgb,paintedHeader) > 5, 'Frame must remain thin and not recolor the workspace');
+  return {paintedHeader,header,edges,interior};
 }
 async function selectLocation(location) {
   await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
@@ -130,6 +148,7 @@ app.whenReady().then(async () => {
     const header = document.querySelector('.desktop-titlebar');
     const context = document.querySelector('.desktop-titlebar-centered-context');
     header.dataset.fixtureIdentity = 'retained-header';
+    header.closest('.desktop-shell').dataset.fixtureIdentity = 'retained-shell';
     const h = header.getBoundingClientRect(), c = context.getBoundingClientRect();
     return { headerCenter:h.x + h.width / 2, contextCenter:c.x + c.width / 2,
       projectName:context.querySelector('.desktop-titlebar-workspace-name')?.textContent };
@@ -190,8 +209,7 @@ app.whenReady().then(async () => {
     for (const [index, location] of ["local", "cloud", "local"].entries()) {
       if ((await state()).location !== location) await selectLocation(location);
       const sample = await headerPresentation(location);
-      sample.pixels = await headerPixels(sample);
-      if (before) assert(JSON.stringify(sample.controlPalette) === JSON.stringify(before.controlPalette), 'Cloud must retain the original text, hover, active, focus and divider palette');
+      sample.pixels = await windowFramePixels(sample);
       if (before) for (const key of ["x", "y", "width", "height", "projectCenter"]) {
         assert(Math.abs(sample[key] - before[key]) < 0.01, `Header ${key} moved on ${theme} ${width}px switch`);
       }

@@ -10,6 +10,7 @@ await mkdir(artifacts, { recursive: true });
 app.setPath("userData", await mkdtemp(path.join(os.tmpdir(), "puppyone-account-cloud-")));
 app.commandLine.appendSwitch("disable-renderer-backgrounding");
 app.commandLine.appendSwitch("disable-gpu");
+app.commandLine.appendSwitch("force-color-profile", "srgb");
 let window;
 const errors = [];
 const assert = (condition, message) => { if (!condition) throw new Error(message); };
@@ -54,14 +55,16 @@ app.whenReady().then(async () => {
   assert(await evaluate(`(() => {
     const header = document.querySelector('.desktop-titlebar');
     const probe = document.createElement('span');
-    probe.style.color = 'var(--po-header)'; header.append(probe);
+    probe.style.color = 'var(--po-accent)'; header.append(probe);
     const expected = getComputedStyle(probe).color; probe.remove();
-    return header.dataset.workspaceKind === 'cloud'
+    const shell = header.closest('.desktop-shell'), frame = getComputedStyle(shell, '::after');
+    return header.dataset.workspaceKind === 'cloud' && shell.dataset.workspaceKind === 'cloud'
       && getComputedStyle(header).backgroundColor === expected
-      && getComputedStyle(header).backgroundImage.includes('linear-gradient')
-      && getComputedStyle(header).backgroundImage.includes('50%')
+      && getComputedStyle(header).backgroundImage === 'none'
+      && frame.borderColor === expected && frame.borderWidth === '2px' && frame.pointerEvents === 'none'
+      && shell.getBoundingClientRect().height === innerHeight
       && header.getBoundingClientRect().width === innerWidth;
-  })()`), "Hosted-only Cloud projects use the same full-width upper-half gradient over the ordinary Header base");
+  })()`), "Hosted-only Cloud projects use the same product-blue Header and whole-window frame");
   await evaluate("document.querySelector('.desktop-account-cloud-workspace .desktop-titlebar-workspace-button').click()");
   await waitFor("Boolean(document.querySelector('button[data-project-location=cloud]'))");
   assert(await evaluate("document.querySelector('button[data-project-location=cloud]').getAttribute('aria-pressed') === 'true' && !document.querySelector('.desktop-account-cloud-workspace .desktop-titlebar-actions [data-project-location]')"),

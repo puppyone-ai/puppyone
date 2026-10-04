@@ -233,13 +233,25 @@
 }
 
 .desktop-titlebar[data-workspace-kind="cloud"] {
-  /* A full-width top wash, not a second surface: the lower half and all
-   * controls retain the ordinary Header palette. Scale with the chrome height. */
-  background-image: linear-gradient(
-    to bottom,
-    var(--po-cloud-titlebar-bg) 0%,
-    transparent 50%
-  );
+  /* Same product accent as the window frame, with theme-aware on-accent ink. */
+  --desktop-titlebar-bg: var(--po-accent);
+  --desktop-titlebar-text: var(--po-text-inverse);
+  --desktop-titlebar-text-muted: var(--po-text-inverse);
+  --desktop-titlebar-text-disabled: color-mix(in srgb, var(--po-text-inverse) 55%, transparent);
+  --desktop-titlebar-hover: color-mix(in srgb, var(--po-text) 8%, transparent);
+  --desktop-titlebar-active: color-mix(in srgb, var(--po-text) 14%, transparent);
+  --desktop-titlebar-focus: var(--po-text-inverse);
+  --desktop-titlebar-divider: color-mix(in srgb, var(--po-text-inverse) 24%, transparent);
+}
+
+/* Keep active tabs on the accent plane: the Local canvas background would
+ * make light on-accent labels disappear in light mode (and vice versa). */
+.desktop-titlebar[data-workspace-kind="cloud"] .desktop-titlebar-editor-tab[data-active="true"] {
+  background: var(--desktop-titlebar-active);
+}
+
+.desktop-titlebar[data-workspace-kind="cloud"] .desktop-titlebar-editor-tab[data-active="true"]::after {
+  background: var(--desktop-titlebar-divider);
 }
 
 .desktop-titlebar-left {

@@ -140,7 +140,7 @@
  * local titlebar and sidebar use a restrained blend of chrome and editor
  * materials. That keeps the frame legible without creating a heavy contrast:
  * subtly darker in light themes and subtly lighter in dark themes. Cloud
- * workspaces still opt into the dedicated sky-blue titlebar tokens.
+ * workspaces use the product accent for both the Header and window outline.
  */
 :root,
 :where(.app-shell, .onboarding-shell, .desktop-overlay-root, .desktop-theme-preview-surface, .dark) {

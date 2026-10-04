@@ -45,6 +45,19 @@
   color: var(--po-text);
 }
 
+/* Paint inside the whole workspace, above the native-edge backing (100) but
+ * below the overlay root. No layout space or pointer/native-drag ownership. */
+.desktop-shell[data-workspace-kind="cloud"]::after {
+  position: absolute;
+  z-index: 101;
+  inset: 0;
+  box-sizing: border-box;
+  border: 2px solid var(--po-accent);
+  border-radius: inherit;
+  content: "";
+  pointer-events: none;
+}
+
 .desktop-shell-workbench {
   display: flex;
   min-width: 0;

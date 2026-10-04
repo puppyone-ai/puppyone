@@ -325,6 +325,7 @@ export function DesktopCloudShell({
   return (
     <div
       className="desktop-shell"
+      data-workspace-kind={workspaceLocation === "cloud" ? "cloud" : undefined}
       data-leading-rail={leadingRailPresent ? "true" : undefined}
       data-header-follows-right-sidebar={trackRightSidebarHeader ? "true" : undefined}
       data-titlebar-tabs-align-explorer={alignTitlebarTabsToExplorer ? "true" : undefined}
