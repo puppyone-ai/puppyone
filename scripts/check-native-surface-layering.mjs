@@ -51,6 +51,7 @@ for (const relativePath of [
 const menuSource = read("src/components/DesktopMenu.tsx");
 const dialogSource = read("src/components/DesktopDialog.tsx");
 const overlayPortalSource = read("src/features/app-shell/DesktopOverlayPortal.tsx");
+const overlayLayerSource = read("src/components/DesktopOverlayLayer.tsx");
 if (!menuSource.includes("useNativeSurfaceOcclusionLease")) {
   errors.push("DesktopMenuSurface must own a native-surface occlusion lease");
 }
@@ -60,7 +61,7 @@ if (!dialogSource.includes("useNativeSurfaceOcclusionLease")) {
 if (!overlayPortalSource.includes("useNativeSurfaceOcclusionObserver")) {
   errors.push("DesktopOverlayPortal must observe marked cross-package and imperative overlays");
 }
-if (!overlayPortalSource.includes("useNativeSurfaceOcclusionLease")) {
+if (!overlayLayerSource.includes("useNativeSurfaceOcclusionLease")) {
   errors.push("DesktopOverlayLayer must own a native-surface occlusion lease");
 }
 

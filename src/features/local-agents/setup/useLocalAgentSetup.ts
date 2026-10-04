@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { LocalAgentSetupPreferences, LocalAgentSetupRequest, LocalAgentSetupSnapshot } from "../../../../shared/local-agent-installation/setup-types";
-import type { LocalAgentInstallationStoreSnapshot } from "../application/LocalAgentInstallationStore";
+import type { LocalAgentInstallationStoreSnapshot } from "../installation/LocalAgentInstallationStore";
 
 let nextClientId = 0;
 

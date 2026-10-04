@@ -1,4 +1,4 @@
-import type { LocalAgentsSettings } from "../../../preferences";
+import type { LocalAgentsSettings } from "./localAgentSetupPreferences";
 
 export function setTerminalAgentVisible(
   settings: LocalAgentsSettings,

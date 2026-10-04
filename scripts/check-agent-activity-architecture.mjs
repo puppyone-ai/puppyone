@@ -43,8 +43,8 @@ for (const filePath of sourceFiles(path.join(root, "src", "features", "editor-wo
   }
 }
 
-requirePath("src/features/local-agents/ui/LocalAgentsSettingsView.tsx");
-requirePath("src/features/local-agents/ui/LocalAgentHooksSettingsView.tsx");
+requirePath("src/features/local-agents/setup/LocalAgentsSettingsView.tsx");
+requirePath("src/features/local-agents/setup/LocalAgentHooksSettingsView.tsx");
 requirePath("electron/main/terminal-agent/activity/registration/cursor-cli-hook-config.mjs");
 requirePath("electron/main/terminal-agent/activity/bridge/shell-file-intent.mjs");
 requirePath("tests/fixtures/agent/activity/codex-0.147.0/pre-tool-use-bash-read.json");
@@ -89,7 +89,7 @@ if (/AgentActivity|agentFileActivity|localAgents/u.test(generalSettings)) {
   errors.push("General Settings must not own Agent activity enrollment");
 }
 
-const localAgentsSettings = read("src/features/local-agents/ui/LocalAgentsSettingsView.tsx");
+const localAgentsSettings = read("src/features/local-agents/setup/LocalAgentsSettingsView.tsx");
 if (!localAgentsSettings.includes("useLocalAgentInstallations")
     || !localAgentsSettings.includes("DESKTOP_TERMINAL_LAUNCHERS")
     || !localAgentsSettings.includes("desktop-settings-switch")
@@ -103,8 +103,8 @@ if (/getAgentActivityEnrollment|setAgentActivityEnrollment/u.test(localAgentsSet
 const passiveTerminalAgentDiscoveryFiles = [
   "electron/main/local-agent-installation/installation-service.mjs",
   "electron/main/local-agent-installation/executable-resolver.mjs",
-  "src/features/local-agents/application/LocalAgentInstallationStore.ts",
-  "src/features/local-agents/controller/useLocalAgentInstallations.ts",
+  "src/features/local-agents/installation/LocalAgentInstallationStore.ts",
+  "src/features/local-agents/installation/useLocalAgentInstallations.ts",
 ];
 const hookEnrollmentPattern = /(?:agent-activity:enrollment|terminal-agent\/activity|hook-registration|reconcileNativeActivityHooks|getAgentActivityEnrollment|setAgentActivityEnrollment)/u;
 for (const filePath of passiveTerminalAgentDiscoveryFiles) {
@@ -127,14 +127,14 @@ if (localAgentHooksIndex >= 0) {
 }
 
 const settingsView = read("src/features/settings/SettingsView.tsx");
-const localAgentsPage = read("src/features/local-agents/ui/LocalAgentsSettingsView.tsx");
+const localAgentsPage = read("src/features/local-agents/setup/LocalAgentsSettingsView.tsx");
 if (!localAgentsPage.includes("<LocalAgentHooksSettingsSection")
     || settingsView.includes('activeSection === "local-agent-hooks"')
     || settingsView.includes("<AgentFileActivityAppearanceSetting")) {
   errors.push("Native Hook enrollment must live under the Local Agents settings page");
 }
 
-const localAgentHooksSettings = read("src/features/local-agents/ui/LocalAgentHooksSettingsView.tsx");
+const localAgentHooksSettings = read("src/features/local-agents/setup/LocalAgentHooksSettingsView.tsx");
 const enrollmentSetIndex = localAgentHooksSettings.indexOf("await setEnrollment");
 const activityPreferenceIndex = localAgentHooksSettings.indexOf(
   "onActivityIndicatorsEnabledChange",

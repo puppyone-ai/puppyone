@@ -4,7 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TestLocalizationProvider } from "@puppyone/localization/testing";
 import { mergeCatalogNamespaces } from "@puppyone/localization/core";
-import { LocalAgentSetupSection } from "../../../../src/features/local-agents/ui/LocalAgentSetupSection";
+import { LocalAgentSetupSection } from "../../../../src/features/local-agents";
 import { LocalAgentActivationStore } from "../../../../src/features/local-agents/activation/LocalAgentActivationStore";
 import { installDesktopBridge } from "../../../support/electron/desktopBridge";
 import type { LocalAgentSetupSnapshot } from "../../../../shared/local-agent-installation/setup-types";

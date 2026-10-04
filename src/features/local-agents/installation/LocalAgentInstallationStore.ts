@@ -3,13 +3,13 @@ import {
   discoverLocalAgentInstallations,
   subscribeToLocalAgentInstallationChanges,
   subscribeToLocalAgentInstallationProgress,
-} from "../infrastructure/electron/localAgentInstallationClient";
+} from "./localAgentInstallationClient";
 import {
   normalizeAvailableLocalAgentIds,
   normalizeLocalAgentInstallationProgress,
   normalizeLocalAgentInstallationSnapshot,
   type LocalAgentInstallationDiscoveryPhase,
-} from "../model/localAgentInstallationAvailability";
+} from "./localAgentInstallationAvailability";
 
 export type LocalAgentInstallationStoreSnapshot = {
   ids: LocalAgentInstallationSnapshot["availableAgentIds"];

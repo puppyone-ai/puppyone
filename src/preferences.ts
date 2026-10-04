@@ -1,4 +1,4 @@
-import { normalizeSetupPreferences } from "./features/local-agents/model/localAgentSetupPreferences";
+import { normalizeSetupPreferences, type LocalAgentsSettings } from "./features/local-agents";
 import {
   DEFAULT_TYPOGRAPHY_PREFERENCES,
   parseTypographyPreferences,
@@ -75,11 +75,7 @@ export type TitlebarActionsSettings = {
   enabled: Record<TitlebarActionId, boolean>;
   order: TitlebarActionId[];
 };
-export type LocalAgentsSettings = {
-  hiddenTerminalAgentIds: string[];
-  chatHistoryDiscoveryEnabled: boolean;
-  setupSuggestions?: import("../shared/local-agent-installation/setup-types").LocalAgentSetupPreferences;
-};
+export type { LocalAgentsSettings } from "./features/local-agents";
 export type ExperimentalSettings = {
   enableAssetLibraryHome: boolean;
   enableAlwaysShowOnboardingCoachmarks: boolean;

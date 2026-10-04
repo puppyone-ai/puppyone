@@ -1,6 +1,12 @@
 import { LOCAL_AGENT_INSTALLATION_IDS } from "../../../../shared/local-agent-installation/types";
 import type { LocalAgentSetupPreferences } from "../../../../shared/local-agent-installation/setup-types";
 
+export type LocalAgentsSettings = {
+  hiddenTerminalAgentIds: string[];
+  chatHistoryDiscoveryEnabled: boolean;
+  setupSuggestions?: LocalAgentSetupPreferences;
+};
+
 export const DEFAULT_SETUP_PREFERENCES: LocalAgentSetupPreferences = {
   enabled: true, dismissedSetupIds: [], snoozedUntil: {},
 };

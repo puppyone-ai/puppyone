@@ -8,8 +8,8 @@ describe("settings visual architecture", () => {
     const sidebarModel = source("src/features/settings/sidebar/settingsSidebarModel.ts");
     const types = source("src/features/settings/types.ts");
     const general = source("src/features/settings/main/GeneralSettingsView.tsx");
-    const localAgents = source("src/features/local-agents/ui/LocalAgentsSettingsView.tsx");
-    const localAgentHooks = source("src/features/local-agents/ui/LocalAgentHooksSettingsView.tsx");
+    const localAgents = source("src/features/local-agents/setup/LocalAgentsSettingsView.tsx");
+    const localAgentHooks = source("src/features/local-agents/setup/LocalAgentHooksSettingsView.tsx");
     const localProject = source("src/features/settings/main/LocalProjectSettingsView.tsx");
     const privacy = source("src/features/settings/main/PrivacySettingsView.tsx");
     const language = source("src/features/settings/LanguageSetting.tsx");
@@ -108,7 +108,7 @@ describe("settings visual architecture", () => {
   it("shares grouped settings layout between New Menu and Local Agents", () => {
     const settings = source("src/styles/settings.css");
     const newMenu = source("src/features/settings/main/CreateNewSettingsView.tsx");
-    const localAgents = source("src/features/local-agents/ui/LocalAgentsSettingsView.tsx");
+    const localAgents = source("src/features/local-agents/setup/LocalAgentsSettingsView.tsx");
     const newMenuStyles = source("src/styles/settings-new-menu.css");
 
     for (const view of [newMenu, localAgents]) {

@@ -4,7 +4,7 @@ import { createCompanionPresenceService } from "../../../../electron/main/local-
 import { setupRegistry, companionIdentities } from "../../../../electron/main/local-agent-installation/setup/setup-registry.mjs";
 import { createLocalAgentInstallationService } from "../../../../electron/main/local-agent-installation/installation-service.mjs";
 import { adviseSetup } from "../../../../electron/main/local-agent-installation/setup/setup-advisor.mjs";
-import { normalizeSetupPreferences } from "../../../../src/features/local-agents/model/localAgentSetupPreferences";
+import { normalizeSetupPreferences } from "../../../../src/features/local-agents";
 import { DESKTOP_TERMINAL_LAUNCHERS } from "../../../../src/features/desktop-terminal/model/terminalLaunchers";
 import { AGENT_CHAT_CREATION_RECIPES } from "../../../../src/features/app-shell/auxiliary-workbench/agentChatCreationRecipes";
 

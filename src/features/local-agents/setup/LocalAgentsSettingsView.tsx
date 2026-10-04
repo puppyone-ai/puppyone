@@ -1,20 +1,20 @@
 import { RefreshCw } from "lucide-react";
 import { useMemo } from "react";
 import { useLocalization } from "@puppyone/localization";
-import type { LocalAgentsSettings } from "../../../preferences";
+import type { LocalAgentsSettings } from "./localAgentSetupPreferences";
 import {
-  AGENT_CHAT_CREATION_RECIPES,
-  AGENT_CHAT_LOCAL_AGENT_IDS,
+  LOCAL_AGENT_CHAT_RECIPES,
+  LOCAL_AGENT_CHAT_IDS,
   localAgentIdForAgentChatRuntime,
-} from "../../app-shell/auxiliary-workbench/agentChatCreationRecipes";
-import { useLocalAgentInstallations } from "../controller/useLocalAgentInstallations";
-import { DESKTOP_TERMINAL_LAUNCHERS } from "../../desktop-terminal/model/terminalLaunchers";
+} from "./localAgentCatalog";
+import { useLocalAgentInstallations } from "../installation/useLocalAgentInstallations";
+import { DESKTOP_TERMINAL_LAUNCHERS } from "../../../lib/terminalLaunchers";
 import { AgentLauncherIcon } from "../../../components/brand/AgentLauncherIcon";
-import { SettingsSectionHeader } from "../../settings/components";
+import { SettingsSectionHeader } from "../../../components/SettingsControls";
 import {
   isTerminalAgentVisible,
   setTerminalAgentVisible,
-} from "../model/localAgentSelection";
+} from "./localAgentSelection";
 import { LocalAgentHooksSettingsSection } from "./LocalAgentHooksSettingsView";
 import { LocalAgentSetupSection } from "./LocalAgentSetupSection";
 
@@ -41,8 +41,7 @@ export function LocalAgentsSettingsView({
   } = discovery;
   const detected = useMemo(() => {
     const ids = new Set<string>(detectedAgentIds);
-    return AGENT_CHAT_CREATION_RECIPES.flatMap((recipe) => {
-      if (recipe.availability === "bundled") return [];
+    return LOCAL_AGENT_CHAT_RECIPES.flatMap((recipe) => {
       const localAgentId = localAgentIdForAgentChatRuntime(recipe.id);
       if (!ids.has(localAgentId)) return [];
       return [{
@@ -164,7 +163,7 @@ export function LocalAgentsSettingsView({
             <LocalAgentSetupSection
               enabled
               surface="chat"
-              eligibleInstallationIds={AGENT_CHAT_LOCAL_AGENT_IDS}
+              eligibleInstallationIds={LOCAL_AGENT_CHAT_IDS}
               hiddenAgentIds={settings.hiddenTerminalAgentIds}
               preferences={settings.setupSuggestions}
               onPreferencesChange={(setupSuggestions) => onChange({ ...settings, setupSuggestions })}

@@ -5,9 +5,8 @@ import type { WorkbenchLauncherContext } from "./AuxiliaryWorkbenchPanel";
 import type { ProjectWorkbenchStore } from "./ProjectWorkbenchStore";
 import { AGENT_CHAT_LOCAL_AGENT_IDS, filterAgentChatCreationRecipesByLocalAgentIds } from "./agentChatCreationRecipes";
 import type { LocalAgentSetupPreferences } from "../../../../shared/local-agent-installation/setup-types";
-import { LocalAgentSetupSection } from "../../local-agents/ui/LocalAgentSetupSection";
+import { LocalAgentSetupSection, useLocalAgentInstallations } from "../../local-agents";
 import { DESKTOP_TERMINAL_LAUNCHERS } from "../../desktop-terminal/model/terminalLaunchers";
-import { useLocalAgentInstallations } from "../../local-agents/controller/useLocalAgentInstallations";
 import { TerminalLauncher } from "../../desktop-terminal/ui/TerminalLauncher";
 import { WorkbenchLauncherState } from "./WorkbenchLauncherState";
 

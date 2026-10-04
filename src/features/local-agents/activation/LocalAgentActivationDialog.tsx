@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { DesktopOverlayLayer } from "../../app-shell/DesktopOverlayPortal";
+import { DesktopOverlayLayer } from "../../../components/DesktopOverlayLayer";
 import { useLocalization } from "@puppyone/localization/react";
 import { DesktopDialogRoot, DesktopDialogSurface, DesktopDialogCloseButton } from "../../../components/DesktopDialog";
 import { AgentLauncherIcon } from "../../../components/brand/AgentLauncherIcon";

@@ -820,24 +820,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/local-agents/activation/LocalAgentActivationDialog.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/local-agents/ui/LocalAgentsSettingsView.tsx",
-    "to": "src/features/app-shell/auxiliary-workbench/agentChatCreationRecipes.ts",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/features/plugins/PluginsDialog.tsx",
     "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
     "rule": {
@@ -7500,24 +7482,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchLauncher.tsx",
-    "to": "src/features/local-agents/controller/useLocalAgentInstallations.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-app-shell"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchLauncher.tsx",
-    "to": "src/features/local-agents/ui/LocalAgentSetupSection.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-app-shell"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/features/app-shell/auxiliary-workbench/layout/interactions/useWorkbenchSplitResizeGesture.ts",
     "to": "src/features/workbench-interactions/useInteractionTermination.ts",
     "rule": {
@@ -9129,15 +9093,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/desktop-terminal/ui/TerminalLauncher.tsx",
-    "to": "src/features/local-agents/model/localAgentInstallationAvailability.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-terminal"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/features/desktop-terminal/ui/TerminalLauncherVisualSmokeHarness.tsx",
     "to": "src/features/app-shell/auxiliary-workbench/agentChatCreationRecipes.ts",
     "rule": {
@@ -9175,24 +9130,6 @@
   {
     "type": "dependency",
     "from": "src/features/desktop-terminal/ui/TerminalLauncherVisualSmokeHarness.tsx",
-    "to": "src/features/local-agents/model/localAgentInstallationAvailability.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-terminal"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-terminal/ui/TerminalLauncherVisualSmokeHarness.tsx",
-    "to": "src/features/local-agents/ui/LocalAgentSetupSection.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-terminal"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-terminal/ui/TerminalLauncherVisualSmokeHarness.tsx",
     "to": "src/features/markdown/markdownPresentation.ts",
     "rule": {
       "severity": "error",
@@ -9203,15 +9140,6 @@
     "type": "dependency",
     "from": "src/features/desktop-terminal/ui/TerminalSessionHost.tsx",
     "to": "src/features/app-shell/auxiliary-workbench/types.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-terminal"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-terminal/ui/TerminalSessionHost.tsx",
-    "to": "src/features/local-agents/model/localAgentInstallationAvailability.ts",
     "rule": {
       "severity": "error",
       "name": "public-domain-entry-src-features-desktop-terminal"
@@ -9350,51 +9278,6 @@
     "rule": {
       "severity": "error",
       "name": "public-domain-entry-src-features-editor-workbench"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/local-agents/activation/LocalAgentActivationDialog.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-local-agents"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/local-agents/ui/LocalAgentHooksSettingsView.tsx",
-    "to": "src/features/desktop-terminal/model/terminalLaunchers.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-local-agents"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/local-agents/ui/LocalAgentsSettingsView.tsx",
-    "to": "src/features/app-shell/auxiliary-workbench/agentChatCreationRecipes.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-local-agents"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/local-agents/ui/LocalAgentsSettingsView.tsx",
-    "to": "src/features/desktop-terminal/model/terminalLaunchers.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-local-agents"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/local-agents/ui/LocalAgentsSettingsView.tsx",
-    "to": "src/features/settings/components.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-local-agents"
     }
   },
   {

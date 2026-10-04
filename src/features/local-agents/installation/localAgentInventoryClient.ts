@@ -1,4 +1,4 @@
-import type { AgentLocalConnectionsSnapshot } from "../../../../../shared/agent-contract/types";
+import type { AgentLocalConnectionsSnapshot } from "../../../../shared/agent-contract/types";
 
 export function discoverLocalAgents(
   workspaceRoot: string,

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
+import { useLayoutEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { DarkThemePreset, DiffMarkers, LightThemePreset } from "../../preferences";
 import {
@@ -10,11 +10,11 @@ import {
   type ResolvedSurfaceAppearance,
 } from "../appearance/AppearanceRuntime";
 import {
-  useNativeSurfaceOcclusionLease,
   useNativeSurfaceOcclusionObserver,
 } from "../native-surfaces";
 
-const DESKTOP_OVERLAY_ROOT_ID = "desktop-overlay-root";
+import { useDesktopOverlayRoot } from "../../components/DesktopOverlayLayer";
+export { DesktopOverlayLayer } from "../../components/DesktopOverlayLayer";
 
 export type DesktopOverlayTheme = "light" | "dark";
 
@@ -65,39 +65,6 @@ export function DesktopOverlayPortal({
 
   if (!root) return null;
   return createPortal(children, root);
-}
-
-/** Portals feature-owned menus and dialogs into the shared, themed desktop overlay root. */
-export function DesktopOverlayLayer({ children }: { children: ReactNode }) {
-  useNativeSurfaceOcclusionLease();
-  const root = useDesktopOverlayRoot();
-  if (!root) return null;
-  return createPortal(children, root);
-}
-
-function useDesktopOverlayRoot() {
-  const [root, setRoot] = useState<HTMLElement | null>(null);
-
-  useEffect(() => {
-    setRoot(getDesktopOverlayRoot());
-  }, []);
-
-  return root;
-}
-
-function getDesktopOverlayRoot() {
-  const existing = document.getElementById(DESKTOP_OVERLAY_ROOT_ID);
-  if (existing instanceof HTMLElement) {
-    existing.dataset.poOverlayRoot = "true";
-    return existing;
-  }
-
-  const root = document.createElement("div");
-  root.id = DESKTOP_OVERLAY_ROOT_ID;
-  root.className = "desktop-overlay-root";
-  root.dataset.poOverlayRoot = "true";
-  document.body.appendChild(root);
-  return root;
 }
 
 function applyDesktopOverlayTheme(

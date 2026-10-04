@@ -5,11 +5,11 @@ import type {
   AgentActivityEnrollmentSnapshot,
   AgentActivityProviderStatus,
 } from "../../../../shared/agent-activity-contract/types";
-import type { LocalAgentInstallationDiscoveryPhase } from "../model/localAgentInstallationAvailability";
+import type { LocalAgentInstallationDiscoveryPhase } from "../installation/localAgentInstallationAvailability";
 import {
   DESKTOP_TERMINAL_LAUNCHERS,
   type DesktopTerminalLauncherId,
-} from "../../desktop-terminal/model/terminalLaunchers";
+} from "../../../lib/terminalLaunchers";
 import { AgentLauncherIcon } from "../../../components/brand/AgentLauncherIcon";
 
 type EnrollmentPhase = "loading" | "ready" | "error";

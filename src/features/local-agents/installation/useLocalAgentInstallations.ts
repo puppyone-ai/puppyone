@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react";
-import { LocalAgentInstallationStore } from "../application/LocalAgentInstallationStore";
+import { LocalAgentInstallationStore } from "./LocalAgentInstallationStore";
 
 let sharedStore: LocalAgentInstallationStore | null = null;
 let sharedBridge: Window["puppyoneDesktop"] | undefined;

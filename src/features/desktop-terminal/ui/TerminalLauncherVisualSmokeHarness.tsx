@@ -1,9 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { AGENT_CHAT_CREATION_RECIPES, filterAgentChatCreationRecipesByLocalAgentIds } from "../../app-shell/auxiliary-workbench/agentChatCreationRecipes";
 import type { LocalAgentInstallationId } from "../../../../shared/local-agent-installation/types";
-import type { LocalAgentInstallationDiscoveryPhase } from "../../local-agents/model/localAgentInstallationAvailability";
 import { TerminalLauncher } from "./TerminalLauncher";
-import { LocalAgentSetupSection } from "../../local-agents/ui/LocalAgentSetupSection";
+import { LocalAgentSetupSection, type LocalAgentInstallationDiscoveryPhase } from "../../local-agents";
 import { DesktopOverlayPortal } from "../../app-shell/DesktopOverlayPortal";
 import type { LocalAgentSetupPreferences } from "../../../../shared/local-agent-installation/setup-types";
 import { resolveAppearance } from "../../appearance/resolveAppearance";
