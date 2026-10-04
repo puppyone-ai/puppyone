@@ -1,6 +1,6 @@
 :root {
   color-scheme: light;
-  /* Product identity blue, shared by the Cloud Header and marks in both color modes.
+  /* Product identity blue, shared by Cloud marks and arrival light in both color modes.
      Deliberately distinct from the active theme's accent and info/status colors. */
   --po-brand-blue: #4599df;
   --desktop-control-radius: 6px;
@@ -145,7 +145,7 @@
  * local titlebar and sidebar use a restrained blend of chrome and editor
  * materials. That keeps the frame legible without creating a heavy contrast:
  * subtly darker in light themes and subtly lighter in dark themes. Cloud
- * workspaces keep that same Header and use the product accent only for the window outline.
+ * workspaces use a solid, appearance-aware blue Header with the same foreground palette.
  */
 :root,
 :where(.app-shell, .onboarding-shell, .desktop-overlay-root, .desktop-theme-preview-surface, .dark) {
@@ -210,6 +210,8 @@
 
   --po-canvas: var(--po-surface-editor);
   --po-header: color-mix(in srgb, var(--po-surface-chrome) 40%, var(--po-surface-editor));
+  /* Resolve at each theme scope so the blue and foreground change mode together. */
+  --po-cloud-header-bg: light-dark(#e3f0fb, #102a43);
   --po-sidebar: color-mix(in srgb, var(--po-surface-chrome) 40%, var(--po-surface-editor));
   --po-chrome: var(--po-surface-chrome);
   --po-panel: var(--po-surface-panel);

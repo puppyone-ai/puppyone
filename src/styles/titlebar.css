@@ -39,14 +39,7 @@
 
 /* Cloud identity belongs to the existing Header, without framing the workspace. */
 .desktop-titlebar[data-workspace-kind="cloud"] {
-  --desktop-titlebar-bg: var(--po-brand-blue);
-  --desktop-titlebar-text: #081522;
-  --desktop-titlebar-text-muted: var(--desktop-titlebar-text);
-  --desktop-titlebar-text-disabled: color-mix(in srgb, var(--desktop-titlebar-text) 55%, var(--desktop-titlebar-bg));
-  --desktop-titlebar-hover: color-mix(in srgb, var(--desktop-titlebar-text) 8%, transparent);
-  --desktop-titlebar-active: color-mix(in srgb, var(--desktop-titlebar-text) 12%, transparent);
-  --desktop-titlebar-focus: color-mix(in srgb, var(--desktop-titlebar-text) 45%, transparent);
-  --desktop-titlebar-divider: color-mix(in srgb, var(--desktop-titlebar-text) 18%, transparent);
+  --desktop-titlebar-bg: var(--po-cloud-header-bg);
   --desktop-titlebar-tab-bg: var(--desktop-titlebar-active);
 }
 

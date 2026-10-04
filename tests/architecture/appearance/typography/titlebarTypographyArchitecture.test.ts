@@ -39,7 +39,7 @@ describe("titlebar typography architecture", () => {
     expect(conflict).toContain("var(--po-danger) 78%, white");
   });
 
-  it("keeps the Local palette and gives committed Cloud its own Header palette", () => {
+  it("tints committed Cloud chrome while preserving the theme foreground palette", () => {
     const titlebarRule = readCssBlock(`\n${titlebarCss}`, ".desktop-titlebar");
 
     expect(tokensCss).toContain(
@@ -52,8 +52,9 @@ describe("titlebar typography architecture", () => {
     expect(titlebarRule).toContain("--po-font-size-chrome: var(--po-type-header-content);");
     expect(titlebarRule).toContain("background: var(--desktop-titlebar-bg);");
     const cloud = readCssBlock(titlebarCss, '.desktop-titlebar[data-workspace-kind="cloud"]');
-    expect(cloud).toContain("--desktop-titlebar-bg: var(--po-brand-blue);");
-    expect(cloud).toContain("--desktop-titlebar-text: #081522;");
+    expect(cloud).toContain("--desktop-titlebar-bg: var(--po-cloud-header-bg);");
+    expect(tokensCss).toContain("--po-cloud-header-bg: light-dark(#e3f0fb, #102a43);");
+    expect(cloud).not.toMatch(/--desktop-titlebar-(?:text|hover|active|focus|divider)\s*:/);
     expect(titlebarRule).toContain("--desktop-titlebar-text: var(--po-text);");
     expect(titlebarRule).toContain("--desktop-titlebar-text-muted: var(--po-text-muted);");
     expect(titlebarCss).not.toContain(".desktop-titlebar-workspace-button.cloud {");

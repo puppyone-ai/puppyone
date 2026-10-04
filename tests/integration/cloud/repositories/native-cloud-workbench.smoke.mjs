@@ -86,6 +86,10 @@ async function headerPresentation(location) {
     const expected = getComputedStyle(probe).color;
     probe.style.color = 'var(--po-brand-blue)';
     const accent = getComputedStyle(probe).color;
+    probe.style.color = 'var(--po-cloud-header-bg)';
+    const cloudBackground = getComputedStyle(probe).color;
+    probe.style.color = 'var(--po-text)';
+    const themeText = getComputedStyle(probe).color;
     probe.remove();
     const canvas = document.createElement('canvas').getContext('2d');
     const rgb = (...colors) => {
@@ -97,6 +101,7 @@ async function headerPresentation(location) {
       x:h.x, y:h.y, width:h.width, height:h.height, viewport:innerWidth, viewportHeight:innerHeight,
       center:h.x+h.width/2, projectCenter:c.x+c.width/2,
       background:rgb(css.backgroundColor), expected:rgb(expected), accent:rgb(accent),
+      cloudBackground:rgb(cloudBackground), themeText:rgb(themeText),
       backgroundImage:css.backgroundImage,
       icon:{ location:mark.dataset.projectLocation, name:svg.dataset.cloudIcon ?? null,
         color:rgb(getComputedStyle(mark).color),
@@ -117,7 +122,8 @@ async function headerPresentation(location) {
       }) };
   })()`);
   assert(sample.location === location, `Header tint must follow the committed ${location} provider`);
-  assert(JSON.stringify(sample.background) === JSON.stringify(location === 'cloud' ? sample.accent : sample.expected), `Cloud must tint only the Header; Local retains its theme: ${JSON.stringify(sample)}`);
+  assert(JSON.stringify(sample.background) === JSON.stringify(location === 'cloud' ? sample.cloudBackground : sample.expected), `Cloud must tint only the Header and follow its appearance mode: ${JSON.stringify(sample)}`);
+  assert(JSON.stringify(sample.buttonColor) === JSON.stringify(sample.themeText), 'Cloud and Local must preserve the current theme foreground');
   assert(sample.backgroundImage === 'none', 'The previous gradient must be removed');
   const expectedIcon = sample.buttonColor;
   assert(sample.icon.location === location && JSON.stringify(sample.icon.color) === JSON.stringify(expectedIcon)
@@ -376,6 +382,10 @@ app.whenReady().then(async () => {
       if (before) for (const key of ["x", "y", "width", "height", "projectCenter"]) {
         assert(Math.abs(sample[key] - before[key]) < 0.01, `Header ${key} moved on ${theme} ${width}px switch`);
       }
+      if (before) assert(JSON.stringify(sample.controlPalette) === JSON.stringify(before.controlPalette),
+        `Header text and interaction colors must stay in the ${theme} theme when switching locations`);
+      if (location === 'cloud') assert(JSON.stringify(sample.background) === JSON.stringify(theme === 'dark' ? [16,42,67] : [227,240,251]),
+        `Cloud Header must use deep blue in dark mode and pale blue in light mode: ${JSON.stringify(sample.background)}`);
       before ??= sample;
       headerPresentations.push({ theme, width, index, ...sample });
       if (index < 2) await writeFile(path.join(artifacts, `header-${theme}-${width}-${location}.png`), (await window.webContents.capturePage()).toPNG());
