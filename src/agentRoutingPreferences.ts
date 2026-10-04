@@ -1,6 +1,11 @@
-import type { AgentRoutePreference } from "./features/desktop-agent/domain/agent-route-preference";
-
-export type { AgentRoutePreference } from "./features/desktop-agent/domain/agent-route-preference";
+/** Runtime-scoped routing state. Only PuppyOne-managed runtimes need provider/model fields. */
+export type AgentRoutePreference = {
+  providerId?: string;
+  modelId?: string;
+  variant?: string;
+  effort?: string;
+  mode?: string;
+};
 
 export const AGENT_ROUTING_PREFERENCES_VERSION = 2 as const;
 
