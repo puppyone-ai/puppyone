@@ -220,6 +220,8 @@ async function openProjectMenu() {
       `Opening must not expand or collapse the project bar: ${JSON.stringify(frames)}`);
   }
   await waitFor("Boolean(document.querySelector('.desktop-project-menu'))");
+  assert(await evaluate("getComputedStyle(document.querySelector('.desktop-project-menu')).outlineStyle === 'none' && !document.querySelector('.desktop-project-repository-link')"),
+    'The project popover must have no outer focus outline or GitHub shortcut');
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   if (opening) {
     const plate = await evaluate(`(() => {

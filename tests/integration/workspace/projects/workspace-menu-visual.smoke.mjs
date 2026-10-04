@@ -125,6 +125,8 @@ async function runSmoke() {
       menuBackground: getComputedStyle(menu).backgroundColor,
       headerBackground: getComputedStyle(header).backgroundColor,
       menuShadow: getComputedStyle(menu).boxShadow,
+      menuOutline: getComputedStyle(menu).outlineStyle,
+      selectedShadow: getComputedStyle(plate).boxShadow,
       localDisabled: buttons[0].disabled,
       cloudDisabled: buttons[1].disabled,
       githubUrl: github?.href,
@@ -154,11 +156,13 @@ async function runSmoke() {
   assert(snapshot.menuBackground === snapshot.headerBackground && snapshot.menuShadow !== "none", `Popup must use themed Header color and a floating shadow: ${evidence}`);
   assert(snapshot.location === (state === "cloud-only" ? "cloud" : "local"), `Current surface drifted: ${evidence}`);
   assert(snapshot.localDisabled === (state === "cloud-only") && !snapshot.cloudDisabled, `Destination availability drifted: ${evidence}`);
-  if (state === "local-only" || state === "local-cloud-no-github" || state === "resolving") {
-    assert(!snapshot.githubUrl, `No repository button without a recognized GitHub remote: ${evidence}`);
-  } else {
-    assert(snapshot.githubUrl === "https://github.com/example/project" && snapshot.githubWidth === 28 && snapshot.githubIconWidth === 14 && snapshot.githubGap === snapshot.menuPadding, `GitHub must remain a small separate external link after Cloud: ${evidence}`);
-  }
+  assert(!snapshot.githubUrl, `Project location controls must omit the GitHub shortcut: ${evidence}`);
+  assert(snapshot.menuOutline === "none", `Initial dialog focus must not outline the whole popup: ${evidence}`);
+  const localSelection = observations.find(scene => scene.locale === locale && scene.platform === platform
+    && scene.theme === theme && scene.state === "local-cloud");
+  if (state === "cloud-only") assert(snapshot.selectedBackground === localSelection.selectedBackground
+    && snapshot.selectedShadow === localSelection.selectedShadow,
+    `Local and Cloud must use the same selection plate appearance: ${evidence}`);
 
   const captureBounds = await window.webContents.executeJavaScript(`(() => {
     const rect = document.querySelector('[data-titlebar-context-menu="true"]').getBoundingClientRect();

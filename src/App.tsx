@@ -1758,8 +1758,6 @@ function AppContent() {
             cloudLocationControls={focusedWorkspace?.path === workspace.path ? (
               <DesktopProjectLocationControls
                 projectLocation={projectLocation}
-                backupProviders={gitStatusPath === workspace.path ? getProjectBackupProviders(activeGitStatus) : []}
-                backupStatus={gitStatusPath === workspace.path ? activeGitStatus : null}
                 onViewLocal={openLocalWorkspace}
                 onViewCloud={openCloudWorkspace}
               />

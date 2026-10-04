@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState, type RefObject } from "react";
 import {
   Tooltip,
-  RENDERER_ASSET_PATHS,
   createWorkspaceFolder,
-  resolveRendererPublicAssetUrl,
   type Workspace,
   type WorkspaceFolder,
 } from "@puppyone/shared-ui";
@@ -15,10 +13,7 @@ import {
 } from "lucide-react";
 import { DesktopMenuItem } from "../../components/DesktopMenu";
 import { PulseGrid } from "../../components/loading";
-import {
-  getProjectBackupSnapshot,
-  type ProjectBackupProvider,
-} from "./projectBackupProviders";
+import type { ProjectBackupProvider } from "./projectBackupProviders";
 import type { GitStatusSnapshot } from "../../types/electron";
 import { DesktopTitlebarMenuLayer } from "./DesktopTitlebarMenuLayer";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
@@ -74,8 +69,6 @@ export function DesktopWorkspaceSwitcher({
   multiRootWorkspacesEnabled,
   projectLocation,
   cloudProject,
-  backupProviders = [],
-  backupStatus = null,
   availableProjects = [],
   onAddExistingProject,
   onOpenFolder,
@@ -150,11 +143,8 @@ export function DesktopWorkspaceSwitcher({
               projectLocation={projectLocation}
               cloudProject={cloudProject ?? (workspace.puppyoneGitRemote?.projectId
                 ? { id: workspace.puppyoneGitRemote.projectId } : undefined)}
-              backupProviders={backupProviders}
-              backupStatus={backupStatus}
               onViewLocal={onViewLocal}
               onViewCloud={onViewCloud}
-              onDone={onClose}
             />
             {(attachedFolders.length > 1 || multiRootWorkspacesEnabled) && (
               <div className="desktop-project-list" data-po-scrollbar="menu"
@@ -228,28 +218,19 @@ export function DesktopWorkspaceSwitcher({
 export function DesktopProjectLocationControls({
   projectLocation,
   cloudProject,
-  backupProviders = [],
-  backupStatus = null,
   onViewLocal,
   onViewCloud,
-  onDone,
 }: {
   projectLocation?: DesktopProjectLocation;
   cloudProject?: DesktopProjectCloudCopy;
-  backupProviders?: readonly ProjectBackupProvider[];
-  backupStatus?: GitStatusSnapshot | null;
   onViewLocal?: () => void;
   onViewCloud?: () => void;
-  onDone?: () => void;
 }) {
   const { t } = useLocalization();
   const localDeviceLabel = useProjectDeviceLabel();
   const current = projectLocation?.current ?? "local";
   const selection = projectLocation?.requested ?? current;
   const createCloud = shouldCreateCloud(projectLocation, cloudProject, Boolean(onViewCloud));
-  const repositoryUrl = backupProviders.includes("github")
-    ? getProjectBackupSnapshot(backupStatus, "github").repositoryUrl : null;
-  const maskImage = `url("${resolveRendererPublicAssetUrl(RENDERER_ASSET_PATHS.icons.integrations.github)}")`;
   return (
     <div className="desktop-project-location-controls"
       data-cloud-entry={createCloud ? "create" : "switch"}>
@@ -263,17 +244,6 @@ export function DesktopProjectLocationControls({
           localDeviceLabel={localDeviceLabel} projectLocation={projectLocation}
           onViewLocal={onViewLocal} onViewCloud={onViewCloud} />)}
       </div>
-      {repositoryUrl && <Tooltip content={t("shell.workspaceSwitcher.openGitHubRepository")}><a
-        className="desktop-project-repository-link"
-        href={repositoryUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label={t("shell.workspaceSwitcher.openGitHubRepository")}
-        onClick={onDone}
-      >
-        <span className="desktop-project-github-mark" aria-hidden="true"
-          style={{ maskImage, WebkitMaskImage: maskImage }} />
-      </a></Tooltip>}
     </div>
   );
 }

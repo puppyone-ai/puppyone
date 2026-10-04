@@ -467,6 +467,8 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   display: flex;
   max-height: min(520px, calc(100vh - 58px));
   flex-direction: column;
+  /* This container receives initial dialog focus; buttons own the visible focus ring. */
+  outline: none;
 }
 
 .desktop-project-location-controls {
@@ -500,14 +502,11 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   background: var(--po-selected);
   box-shadow: 0 1px 3px color-mix(in srgb, var(--po-text) 8%, transparent);
   pointer-events: none;
-  transition: transform 360ms cubic-bezier(0.22, 1, 0.36, 1), background 360ms, box-shadow 360ms;
+  transition: transform 360ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .desktop-project-location-tabs[data-location="cloud"] .desktop-project-location-indicator {
   transform: translateX(calc(100% + 2px));
-  background: color-mix(in srgb, var(--po-brand-blue) 16%, var(--po-selected));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--po-brand-blue) 35%, transparent),
-    0 0 14px color-mix(in srgb, var(--po-brand-blue) 18%, transparent);
 }
 
 [dir="rtl"] .desktop-project-location-tabs .desktop-project-location-indicator {
@@ -523,8 +522,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   .desktop-project-location-indicator { transition: none; }
 }
 
-.desktop-project-location-tab,
-.desktop-project-repository-link {
+.desktop-project-location-tab {
   display: inline-flex;
   height: 28px;
   align-items: center;
@@ -552,8 +550,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   color: var(--po-text);
 }
 
-.desktop-project-location-tab:hover:not(:disabled):not([aria-pressed="true"]),
-.desktop-project-repository-link:hover {
+.desktop-project-location-tab:hover:not(:disabled):not([aria-pressed="true"]) {
   color: var(--po-text);
   background: var(--po-hover);
 }
@@ -576,8 +573,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   opacity: 0.45;
 }
 
-.desktop-project-location-tab:focus-visible,
-.desktop-project-repository-link:focus-visible {
+.desktop-project-location-tab:focus-visible {
   outline: 2px solid var(--po-focus-ring);
   outline-offset: 2px;
 }
@@ -589,17 +585,6 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   flex: 0 0 14px;
   place-items: center;
   color: inherit;
-}
-
-.desktop-project-repository-link {
-  width: 28px;
-  flex: 0 0 28px;
-  text-decoration: none;
-}
-
-.desktop-project-repository-link .desktop-project-github-mark {
-  width: 14px;
-  height: 14px;
 }
 
 .desktop-project-menu .desktop-menu-item-icon {

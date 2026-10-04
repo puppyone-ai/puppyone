@@ -36,7 +36,7 @@ afterEach(() => {
 describe("titlebar Portal menu interactions", () => {
   it.each([
     ["macos", "This Mac"], ["windows", "This computer"], ["linux", "This computer"], [null, "This computer"],
-  ] as const)("names the current device on %s beside Cloud and a safe GitHub link", async (platform, label) => {
+  ] as const)("names the current device on %s beside Cloud without a GitHub link", async (platform, label) => {
     devicePlatform.value = platform;
     const workspace = createWorkspace("one", "Workspace one");
     await renderSwitcher({
@@ -59,12 +59,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(menu.querySelector("time")).toBeNull();
     expect(menu.querySelector("[data-backup-details]")).toBeNull();
     expect(menu.textContent).not.toContain(workspace.path);
-    const link = menu.querySelector<HTMLAnchorElement>("a")!;
-    expect(link.getAttribute("aria-label")).toBe("Open GitHub repository");
-    expect(link.href).toBe("https://github.com/team/project");
-    expect(link.textContent).toBe("");
-    expect(link.querySelector(".desktop-project-github-mark")).not.toBeNull();
-    expect(locationButton("cloud").compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(menu.querySelector("a")).toBeNull();
   });
 
   it.each([false, true])("offers Create Cloud for an unhosted project, with existing GitHub: %s", async (github) => {
@@ -83,7 +78,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(create.getAttribute("data-cloud-action")).toBe("create");
     expect(create.hasAttribute("aria-pressed")).toBe(false);
     expect(locationButton("local").getAttribute("aria-pressed")).toBe("true");
-    expect(Boolean(requireMenu().querySelector("a"))).toBe(github);
+    expect(requireMenu().querySelector("a")).toBeNull();
     expect(requireMenu().textContent).not.toContain("GitHub");
     act(() => create.click());
     expect(actions).toEqual(["initialize"]);
@@ -216,7 +211,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(document.querySelector(".desktop-titlebar-workspace-button .desktop-cloud-icon[data-cloud-icon=ant-design]")).not.toBeNull();
   });
 
-  it("opens the GitHub push repository without navigating either project surface", async () => {
+  it("omits the GitHub shortcut even when a push repository is configured", async () => {
     const onLocal = vi.fn();
     const onCloud = vi.fn();
     const onClose = vi.fn();
@@ -227,13 +222,8 @@ describe("titlebar Portal menu interactions", () => {
         pushUrl: "git@github.com:team/fork.git", branches: [] }] }),
       onViewLocal: onLocal, onViewCloud: onCloud, onClose,
     });
-    const link = requireMenu().querySelector<HTMLAnchorElement>("a")!;
-    expect(link.href).toBe("https://github.com/team/fork");
-    expect(link.target).toBe("_blank");
-    expect(link.rel).toBe("noopener noreferrer");
-    link.addEventListener("click", (event) => event.preventDefault());
-    act(() => link.click());
-    expect(onClose).toHaveBeenCalledOnce();
+    expect(requireMenu().querySelector("a")).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
     expect(onLocal).not.toHaveBeenCalled();
     expect(onCloud).not.toHaveBeenCalled();
   });
