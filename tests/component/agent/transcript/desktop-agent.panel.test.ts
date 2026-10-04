@@ -1,3 +1,4 @@
+import { initializeDesktopPreferences, desktopPreferencesStore } from "../../../../src/preferencesStore";
 import { displaySnapshot, withDisplayFeed } from "../../../support/agent/agentDisplayFixture";
 import { defineAgentEvent, type AgentEventPayloadMap } from "../../../support/agent/agentEventFixture";
 import { installDesktopBridge, type DesktopBridge } from "../../../support/electron/desktopBridge";
@@ -509,12 +510,14 @@ function renderPanel(
 }
 
 function renderPanelContent(preferredRuntimeId: string | null = null) {
+  initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
+  desktopPreferencesStore.getState().setAgentPreferredRuntime(preferredRuntimeId);
   const contribution: AuxiliaryWorkbenchContribution = {
     kind: "agent-chat", label: "Chat", createLabel: "New chat", maximumItems: 8,
     minimumSize: { width: 280, height: 260 },
     initialSnapshot: { title: "New chat", accessibleLabel: "New chat", detail: null, iconKey: null, status: "idle", running: false, resourceId: null },
     renderItem: (context) => React.createElement(AgentChatWorkbenchItem, {
-      ...context, hiddenRuntimeIds: [], preferredRuntimeId, preferredRoute: {}, preferredModel: null,
+      ...context, hiddenRuntimeIds: [],
       onOpenAccount: vi.fn(),
       onOpenModelConnections: vi.fn(),
     }),

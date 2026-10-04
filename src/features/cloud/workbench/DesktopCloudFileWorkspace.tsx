@@ -1,3 +1,4 @@
+import { useDesktopPreference, selectFileIconTheme } from "../../settings";
 import { useMemo, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization";
 import { DesktopDataWorkspaceSurface, type DesktopDataWorkspaceSurfaceProps } from "../../app-shell/DesktopDataWorkspaceSurface";
@@ -13,7 +14,7 @@ const dataSurface = resolveWorkspaceSurface({ capabilities: { cloudEnabled: true
     cloud: () => ({ sidebar: null, main: null }), settings: () => ({ sidebar: null, main: null }) } });
 
 export type CloudFileSurfaceProps = Pick<DesktopDataWorkspaceSurfaceProps,
-  "preferences" | "editorInteractionPreferences" | "viewerExtensionAdapter" | "sidebarCompanion" | "sidebarUtility" | "navigation">;
+  "showSaveStatus" | "viewerExtensionAdapter" | "sidebarCompanion" | "sidebarUtility" | "navigation">;
 
 /** Bind Cloud data/actions to the existing workbench; no alternate file UI. */
 export function DesktopCloudFileWorkspace({ workbench, surfaceProps, providerStateContent }: {
@@ -35,12 +36,14 @@ function CloudFileBinding({ workbench, surfaceProps, providerStateContent }: {
   const { t } = useLocalization();
   const { surfaceService, dataPort, editorWorkbench, actions } = workbench;
   const { createEntryDraft, nodeActionMenu, fileClipboardController: clipboard } = actions;
-  const { preferences } = surfaceProps;
+  const createNewMenuSettings = useDesktopPreference(s => s.createNewMenuSettings);
+  const experimentalSettings = useDesktopPreference(s => s.experimentalSettings);
+  const fileIconTheme = useDesktopPreference(selectFileIconTheme);
   const folders = useMemo(() => [surfaceService.folder], [surfaceService]);
   const createItems = useMemo(() => {
-    const items = resolveVisibleCreateNewMenuItems(preferences.createNewMenuSettings, preferences.experimentalSettings);
+    const items = resolveVisibleCreateNewMenuItems(createNewMenuSettings, experimentalSettings);
     return { main: items.main.filter((item) => item !== "slides"), submenu: items.submenu.filter((item) => item !== "slides") };
-  }, [preferences.createNewMenuSettings, preferences.experimentalSettings]);
+  }, [createNewMenuSettings, experimentalSettings]);
   return <>
     <DesktopDataWorkspaceSurface {...surfaceProps}
       dataPort={dataPort ?? surfaceService.dataPort} documentSourceKind="cloud"
@@ -66,11 +69,11 @@ function CloudFileBinding({ workbench, surfaceProps, providerStateContent }: {
       workspaceRefreshToken={workbench.refreshToken} workspaceAtomicRefreshToken={0}
       workspaceSurfaceError={dataPort ? workbench.error : null} />
     {createEntryDraft && (createEntryDraft.selectedKind
-      ? <DesktopCreateEntryDialog draft={createEntryDraft} fileIconTheme={preferences.fileIconTheme}
+      ? <DesktopCreateEntryDialog draft={createEntryDraft} fileIconTheme={fileIconTheme}
           onChange={actions.setCreateEntryDraft} onCancel={() => actions.setCreateEntryDraft(null)} onCreate={actions.createEntryFromMenu} />
       : <DesktopCreateEntryMenu draft={createEntryDraft} mainEntries={createItems.main} submenuItemKinds={createItems.submenu}
-          fileIconTheme={preferences.fileIconTheme} onCancel={() => actions.setCreateEntryDraft(null)} onSelectKind={actions.selectCreateEntryKind} />)}
-    {nodeActionMenu && <DesktopNodeActionMenu draft={nodeActionMenu} experimentalSettings={preferences.experimentalSettings}
+          fileIconTheme={fileIconTheme} onCancel={() => actions.setCreateEntryDraft(null)} onSelectKind={actions.selectCreateEntryKind} />)}
+    {nodeActionMenu && <DesktopNodeActionMenu draft={nodeActionMenu} experimentalSettings={experimentalSettings}
       showRevealInFinder={false} showOpenInDefaultApp={false} canCopy={clipboard.canCopy} canCut={clipboard.canCut}
       canPaste={nodeActionMenu.node.type === "folder" && clipboard.canPasteInto(nodeActionMenu.node.path)} canDuplicate={clipboard.canDuplicate}
       onChange={actions.setNodeActionMenu} onCancel={() => actions.setNodeActionMenu(null)}

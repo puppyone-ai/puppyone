@@ -1,3 +1,4 @@
+import { initializeDesktopPreferences, desktopPreferencesStore } from "../../../src/preferencesStore";
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { vi } from "vitest";
@@ -158,13 +159,14 @@ export async function createAgentWorkbenchLifecycleHarness({ holdCreation = fals
       return createProjectAgentClientProvider(context, () => managed);
     },
   });
+  initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
+  desktopPreferencesStore.getState().setAgentPreferredRuntime("codex");
   const contribution: AuxiliaryWorkbenchContribution = {
     kind: "agent-chat", label: "Chat", createLabel: "New chat", maximumItems: 8,
     minimumSize: { width: 280, height: 260 },
     initialSnapshot: { title: "New chat", accessibleLabel: "New chat", detail: null, iconKey: null,
       status: "idle", running: false, resourceId: null },
-    renderItem: props => <AgentChatWorkbenchItem {...props} hiddenRuntimeIds={[]} preferredRuntimeId="codex"
-      preferredModel={null} preferredRoute={{}} onOpenAccount={() => {}} onOpenModelConnections={() => {}} />,
+    renderItem: props => <AgentChatWorkbenchItem {...props} hiddenRuntimeIds={[]} onOpenAccount={() => {}} onOpenModelConnections={() => {}} />,
     close: createAgentChatCloseAdapter(testT, ({ project, item }) => requestCloseAgentChatWorkbenchItem(project, item.id)),
   };
   const container = document.createElement("div");

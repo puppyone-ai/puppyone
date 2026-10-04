@@ -1,3 +1,4 @@
+import { useDesktopPreference } from "../../../preferencesStore";
 import { Tooltip } from "@puppyone/shared-ui";
 import { useMemo } from "react";
 import { ArrowLeft } from "lucide-react";
@@ -21,12 +22,10 @@ export function AgentChatHistoryBrowser({
   openingTargetId,
   onBack,
   onOpen,
-  historyDiscoveryEnabled,
-  onHistoryDiscoveryEnabledChange,
-}: AuxiliaryWorkbenchHistoryBrowserContext & Readonly<{
-  historyDiscoveryEnabled: boolean;
-  onHistoryDiscoveryEnabledChange: (enabled: boolean) => void;
-}>) {
+}: AuxiliaryWorkbenchHistoryBrowserContext) {
+  const historyDiscoveryEnabled = useDesktopPreference(s => s.localAgentsSettings.chatHistoryDiscoveryEnabled);
+  const setLocalAgentsSettings = useDesktopPreference(s => s.setLocalAgentsSettings);
+  const onHistoryDiscoveryEnabledChange = (enabled: boolean) => setLocalAgentsSettings(s => ({ ...s, chatHistoryDiscoveryEnabled: enabled }));
   const { t } = useLocalization();
   const controller = useMemo(
     () => project

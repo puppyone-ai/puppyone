@@ -3,7 +3,7 @@ import { EditorView } from "@codemirror/view";
 import { useLocalization } from "@puppyone/localization";
 import { TypographyCatalogProvider, useTypographyCatalog, useTypographyRuntime } from "../../typography";
 import { resolveSurfaceAppearance, SurfaceAppearanceProvider } from "../../appearance/AppearanceRuntime";
-import { useDesktopPreferences } from "../../app-shell/useDesktopPreferences";
+import { useDesktopPreference, useDesktopAppearance, useDesktopPreferenceEffects, initializeDesktopPreferences } from "../../settings";
 import { MinimalOnboarding } from "../../../components/MinimalOnboarding";
 import { useHomepageCloudProjects } from "./useHomepageCloudProjects";
 import { HomepageCloudStatus } from "./HomepageCloudStatus";
@@ -11,6 +11,8 @@ import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import { useAccountCloudWorkspace } from "./useAccountCloudWorkspace";
 import { useNativeCloudWorkbench } from "./useNativeCloudWorkbench";
 import { AccountCloudWorkspaceSurface, useAccountCloudWorkspacePresentation } from "./AccountCloudWorkspaceSurface";
+
+initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
 
 const API = "https://cloud-fixture.puppyone.ai/api/v1";
 const project = (id: string) => ({ id, name: `Hosted ${id}`, org_id: "team", updated_at: id === "beta" ? "2026-06-01T00:00:00Z" : "2026-04-01T00:00:00Z", capabilities: ["content.read", "content.write"] });
@@ -65,15 +67,24 @@ export function AccountCloudWorkbenchSmokeHarness() {
 }
 function AccountCloudFixture() {
   const [session, setSession] = useState<DesktopCloudSession | null>(makeSession);
-  const preferences = useDesktopPreferences();
+  useDesktopPreferenceEffects();
+  const { darkThemePreset } = useDesktopAppearance();
+  const diffMarkers = useDesktopPreference(s => s.diffMarkers);
+  const filesVisibilitySettings = useDesktopPreference(s => s.filesVisibilitySettings);
+  const { lightThemePreset } = useDesktopAppearance();
+  const loadingAnimationPreset = useDesktopPreference(s => s.loadingAnimationPreset);
+  const markdownPresentation = useDesktopPreference(s => s.markdownPresentation);
+  const pointerCursors = useDesktopPreference(s => s.pointerCursors);
+  const { resolvedAppearance } = useDesktopAppearance();
+  const typographyPreferences = useDesktopPreference(s => s.typographyPreferences);
   const { locale } = useLocalization();
   const [includeLocal, setIncludeLocal] = useState(false);
   const catalog = useTypographyCatalog();
-  const typography = useTypographyRuntime(preferences.typographyPreferences, catalog, locale);
-  const appearance = resolveSurfaceAppearance({ appearance: preferences.resolvedAppearance, typography,
-    markdownPresentation: preferences.markdownPresentation, loadingAnimationPreset: preferences.loadingAnimationPreset,
-    lightThemePreset: preferences.lightThemePreset, darkThemePreset: preferences.darkThemePreset,
-    pointerCursors: preferences.pointerCursors, diffMarkers: preferences.diffMarkers });
+  const typography = useTypographyRuntime(typographyPreferences, catalog, locale);
+  const appearance = resolveSurfaceAppearance({ appearance: resolvedAppearance, typography,
+    markdownPresentation: markdownPresentation, loadingAnimationPreset: loadingAnimationPreset,
+    lightThemePreset: lightThemePreset, darkThemePreset: darkThemePreset,
+    pointerCursors: pointerCursors, diffMarkers: diffMarkers });
   const account = useAccountCloudWorkspace({ enabled: true, session, apiBaseUrl: API });
   const homepage = useHomepageCloudProjects({ enabled: true, visible: !account.active, session, apiBaseUrl: API,
     local: includeLocal ? [
@@ -83,8 +94,8 @@ function AccountCloudFixture() {
       ...Array.from({ length: 4 }, (_, i) => ({ workspace: { id: `local-${i}`, name: `Local sample ${i}`, path: `/fixture/sample-${i}`, status: "recording" as const } })),
     ] : [] });
   const workbench = useNativeCloudWorkbench({ context: account.context, session, apiBaseUrl: API,
-    active: account.active, filesVisibilitySettings: preferences.filesVisibilitySettings });
-  const presentation = useAccountCloudWorkspacePresentation({ workbench, preferences });
+    active: account.active, filesVisibilitySettings: filesVisibilitySettings });
+  const presentation = useAccountCloudWorkspacePresentation({ workbench });
   useEffect(() => {
     window.__accountCloudSmoke = { state: () => ({ active: account.active, project: account.context.projectId, writes }),
       home: account.useLocal, showLocalFixtures: () => setIncludeLocal(true),
@@ -106,6 +117,6 @@ function AccountCloudFixture() {
       cloudAccountStatus={<HomepageCloudStatus status={homepage.status} restoring={false} empty={homepage.items.length === 0} apiBaseUrl={API}
         controller={account} onRetry={homepage.refresh} />} />}
     <AccountCloudWorkspaceSurface workbench={workbench} presentation={presentation} active={account.active}
-      preferences={preferences} appearance={appearance} onLocal={account.useLocal} onHome={account.useLocal} />
+      appearance={appearance} onLocal={account.useLocal} onHome={account.useLocal} />
   </SurfaceAppearanceProvider>;
 }

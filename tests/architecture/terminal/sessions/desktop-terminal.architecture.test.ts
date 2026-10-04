@@ -316,7 +316,6 @@ describe("Desktop Terminal architecture boundaries", () => {
     );
     const settings = source("src/features/settings/SettingsView.tsx");
     const preferences = source("src/preferences.ts");
-    const desktopPreferences = source("src/features/app-shell/useDesktopPreferences.ts");
     const titlebarCss = source("src/styles/titlebar.css");
     expect(titlebarActions).toContain("onToggleTerminal");
     expect(titlebarActions).not.toContain("TerminalTitlebarMenu");
@@ -344,7 +343,6 @@ describe("Desktop Terminal architecture boundaries", () => {
     expect(settings).not.toContain("terminalLayout");
     expect(preferences).not.toContain("TerminalSessionLayout");
     expect(preferences).not.toContain("terminalSessionLayout");
-    expect(desktopPreferences).not.toContain("terminalSessionLayout");
     expect(titlebarCss).not.toContain(".desktop-titlebar-terminal-menu");
   });
 });

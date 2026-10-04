@@ -1,3 +1,4 @@
+import { useDesktopPreference, selectFileIconTheme } from "../../preferencesStore";
 import { Tooltip } from "@puppyone/shared-ui";
 import { ArrowLeft, History } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -7,7 +8,8 @@ import { GitSidebar, type GitSidebarProps } from "./SourceControlSidebar";
 import { WorkingFileActions, WorkingFileDetail } from "./WorkingFileDetail";
 import { useGitViewNavigationFocus } from "./useGitViewNavigationFocus";
 
-export type GitChangesSidebarProps = GitSidebarProps & Readonly<{
+export type GitChangesSidebarProps = Omit<GitSidebarProps, "repository"> & Readonly<{
+  repository: Omit<GitSidebarProps["repository"], "gitDisplayMode" | "gitSidebarLayout" | "fileIconTheme">;
   workingFileDiff: GitCommitDetail | null;
   workingFileDiffLoading: boolean;
   workingFileDiffError: string | null;
@@ -22,7 +24,7 @@ export type GitChangesSidebarProps = GitSidebarProps & Readonly<{
  * untouched; Back restores the established Git list and commit workflow.
  */
 export function GitChangesSidebar({
-  repository,
+  repository: repositoryState,
   view,
   actions,
   cloudBackup,
@@ -33,6 +35,10 @@ export function GitChangesSidebar({
   onOpenHistory,
   focusNavigation = false,
 }: GitChangesSidebarProps) {
+  const gitDisplayMode = useDesktopPreference(s => s.gitDisplayMode);
+  const gitSidebarLayout = useDesktopPreference(s => s.gitSidebarLayout);
+  const fileIconTheme = useDesktopPreference(selectFileIconTheme);
+  const repository = { ...repositoryState, gitDisplayMode, gitSidebarLayout, fileIconTheme };
   const { t } = useLocalization();
   const [detailVisible, setDetailVisible] = useState(false);
   const rootRef = useGitViewNavigationFocus(focusNavigation, detailVisible);

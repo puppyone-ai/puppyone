@@ -216,7 +216,6 @@ describe("Desktop Agent architecture boundaries", () => {
     const sessionCache = source("electron/main/agent/cache/ephemeral-agent-session-cache.mjs");
     const conversationCatalog = source("electron/main/agent/persistence/agent-conversation-catalog.mjs");
     const inventory = source("electron/main/agent/connections/local-agent-inventory.mjs");
-    const preferences = source("src/features/app-shell/preferences.ts");
     const header = source("src/features/desktop-agent/ui/AgentSurfaceHeader.tsx");
     const controllerState = source("src/features/desktop-agent/application/agent-controller-state.ts");
     expect(main).toContain("createEphemeralAgentSessionCache");
@@ -230,7 +229,6 @@ describe("Desktop Agent architecture boundaries", () => {
     expect(conversationCatalog).toContain("providerSessionId,");
     expect(main).toContain("agent-runtime-inventory.json");
     expect(inventory).toContain("PERSISTED_CACHE_TTL_MS");
-    expect(preferences).toContain("AGENT_ROUTING_PREFERENCES_STORAGE_KEY");
     expect(header).toContain("<AgentBrandMark");
     expect(header).not.toContain("PuppyBrandMark");
     expect(header).not.toMatch(/Session history|Recent chats|Archive chat|Delete local chat|Fork chat/);

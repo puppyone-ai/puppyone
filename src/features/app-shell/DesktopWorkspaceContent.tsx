@@ -1,5 +1,5 @@
+import { useDesktopPreference } from "../settings";
 import {
-  useMemo,
   type ComponentProps,
   type ReactNode,
 } from "react";
@@ -7,7 +7,6 @@ import {
   DataWorkspace,
   type AiEditRequest,
   type DataNode,
-  type EditorInteractionPreferences,
   type Workspace,
   type WorkspaceContentChange,
   type WorkspaceFolder,
@@ -24,8 +23,7 @@ import {
 } from "../data-workspace/useFileClipboard";
 import type { PuppyoneWorkspaceConfig } from "../../types/electron";
 import type { DesktopCreateEntryAnchorInput } from "../data-workspace/nodeActions";
-import { isViewerPluginsEnabled, PluginsDialog } from "../plugins";
-import type { DesktopPreferencesController } from "./useDesktopPreferences";
+import { PluginsDialog } from "../plugins";
 import {
   useWorkspaceSurfaceContent,
   type DesktopWorkspaceCloudSurfaceController,
@@ -85,7 +83,6 @@ type DesktopWorkspaceContentProps = {
   onPuppyoneConfigChange: (config: PuppyoneWorkspaceConfig) => Promise<PuppyoneWorkspaceConfig | null>;
   onSelectSettingsSection: (section: SettingsSection) => void;
   onUnlinkWorkspace: () => Promise<void>;
-  preferences: DesktopPreferencesController;
   puppyoneConfig: PuppyoneWorkspaceConfig | null;
   puppyoneConfigError: string | null;
   puppyoneConfigLoading: boolean;
@@ -145,7 +142,6 @@ export function DesktopWorkspaceContent({
   onPuppyoneConfigChange,
   onSelectSettingsSection,
   onUnlinkWorkspace,
-  preferences,
   puppyoneConfig,
   puppyoneConfigError,
   puppyoneConfigLoading,
@@ -167,11 +163,9 @@ export function DesktopWorkspaceContent({
   workspaceAtomicRefreshToken,
   sidebarCreateMenuOpen,
 }: DesktopWorkspaceContentProps) {
+  const viewerPluginsEnabled = useDesktopPreference(s => s.experimentalSettings.enableViewerPlugins);
   const { t } = useLocalization();
   const fileOperationNotice = formatFileOperationNotice(fileClipboardController.notice, t);
-  const viewerPluginsEnabled = isViewerPluginsEnabled({
-    settings: preferences.experimentalSettings,
-  });
   const {
     adapter: viewerExtensionAdapter,
     hostAvailable: externalViewerPacksEnabled,
@@ -182,14 +176,6 @@ export function DesktopWorkspaceContent({
     workspaceKey,
     workspacePath: workspace.path,
   });
-  const editorInteractionPreferences = useMemo<EditorInteractionPreferences>(() => ({
-    showSaveStatus: false,
-    markdownBlockDragEnabled: preferences.experimentalSettings.enableMarkdownBlockDrag,
-    markdownHeadingOutlineEnabled: preferences.experimentalSettings.enableMarkdownHeadingOutline,
-  }), [
-    preferences.experimentalSettings.enableMarkdownBlockDrag,
-    preferences.experimentalSettings.enableMarkdownHeadingOutline,
-  ]);
   const {
     availableSurfaceIds,
     cloudSurface,
@@ -211,8 +197,7 @@ export function DesktopWorkspaceContent({
     onPuppyoneConfigChange,
     onSelectSettingsSection,
     onUnlinkWorkspace,
-    preferences,
-    puppyoneConfig,
+      puppyoneConfig,
     puppyoneConfigError,
     puppyoneConfigLoading,
     puppyoneConfigSaving,
@@ -229,7 +214,7 @@ export function DesktopWorkspaceContent({
     dataPort: fileSurfacePort,
     editorWorkbench,
     externalOpen,
-    editorInteractionPreferences,
+    showSaveStatus: false,
     fileClipboardController,
     fileOperationNotice,
     onActiveDataNodeChange,
@@ -241,8 +226,7 @@ export function DesktopWorkspaceContent({
     onCreateEntryMenu,
     onDismissCreateEntryMenu,
     onNodeActionMenu,
-    preferences,
-    resolvedSurface,
+      resolvedSurface,
     sidebarCompanion,
     sidebarUtility,
     viewerExtensionAdapter,

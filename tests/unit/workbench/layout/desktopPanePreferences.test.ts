@@ -7,7 +7,7 @@ import {
   RIGHT_SIDEBAR_WIDTH_STORAGE_KEY,
   readInitialExplorerWidth,
   readInitialRightSidebarWidth,
-} from "../../../../src/features/app-shell/preferences";
+} from "../../../../src/preferenceStorage";
 import {
   DEFAULT_EXPLORER_WIDTH,
   DEFAULT_RIGHT_SIDEBAR_WIDTH,

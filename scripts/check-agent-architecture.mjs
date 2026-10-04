@@ -608,15 +608,9 @@ if (!mainEntrySource.includes("createAgentProcessSupervisor") || !processSupervi
   errors.push("native Agent process starts must be bounded by the shared process supervisor");
 }
 
-const routingPreferencesSource = readFileSync(
-  path.join(repoRoot, "src", "features", "app-shell", "agentRoutingPreferences.ts"),
-  "utf8",
-);
 const runtimePickerSource = readFileSync(path.join(rendererUiRoot, "AgentRuntimePicker.tsx"), "utf8");
 const backendRoutingSource = readFileSync(path.join(rendererDomainRoot, "agent-backend-routing.ts"), "utf8");
-if (!routingPreferencesSource.includes("routes: Record<string, AgentRoutePreference>") || !routingPreferencesSource.includes("legacyModelId")) {
-  errors.push("Agent routing preferences must be versioned, runtime-scoped, and migrate the legacy global model");
-}
+// Versioned routing and legacy migration are covered by agentRoutingPreferences.test.ts and desktopPreferencesCompatibility.test.tsx.
 if (!runtimePickerSource.includes("AgentRuntimePicker") || !runtimePickerSource.includes("agent.runtime.")) {
   errors.push("the Chat header must expose an Agent runtime picker, not a provider picker");
 }

@@ -1,11 +1,12 @@
+import { initializeDesktopPreferences, desktopPreferencesStore } from "../../../../src/preferencesStore";
 /** @vitest-environment happy-dom */
 import { act, useRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it } from "vitest";
+import { beforeEach, afterEach, describe, expect, it } from "vitest";
 import { DesktopTitlebarActions } from "../../../../src/features/app-shell/DesktopTitlebarActions";
 import { DesktopGitHeaderCard } from "../../../../src/features/app-shell/DesktopGitHeaderCard";
 import { useGitPresentation } from "../../../../src/features/app-shell/useGitPresentation";
-import type { RightSidebarSurface } from "../../../../src/features/app-shell/preferences";
+import type { RightSidebarSurface } from "../../../../src/preferenceStorage";
 import { GitChangesSidebar } from "../../../../src/features/source-control/GitChangesSidebar";
 import { GitHistorySidebar } from "../../../../src/features/source-control/GitHistorySidebar";
 import type { GitWorkingSelection } from "../../../../src/features/source-control/types";
@@ -47,7 +48,7 @@ function Harness({ centeredProject = true, cardExperiment = true, workspaceScope
   const succeed = async () => true;
   const changes = <GitChangesSidebar
     focusNavigation={presentation.cardEnabled}
-    repository={{ status, puppyoneConfig: null, gitDisplayMode: "professional", gitSidebarLayout: "cards", fileIconTheme: "default" }}
+    repository={{ status, puppyoneConfig: null }}
     view={{ selectedWorkingFile: selection, operationLoading: null, operationError: null, loading: false, error: null }}
     actions={{ initialize: succeed, selectWorkingFile: setSelection, stagePaths: succeed, stageAll: succeed,
       unstagePaths: succeed, discardPaths: succeed, stageAndCommit: succeed, commit: succeed, commitAndPush: succeed,
@@ -225,4 +226,9 @@ describe("Git Header card", () => {
     expect(card()).not.toBeNull();
     expect(document.activeElement).toBe(action);
   });
+});
+
+beforeEach(() => {
+  initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
+  desktopPreferencesStore.getState().setGitDisplayMode("professional");
 });

@@ -1,3 +1,4 @@
+import { useDesktopPreference, selectAgentPreferredRoute } from "../../../preferencesStore";
 import { useCallback, useMemo } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import type {
@@ -7,7 +8,6 @@ import type {
 } from "../../app-shell/auxiliary-workbench/types";
 import type { AgentChatTabPresentation } from "../domain/agent-chat-presentation";
 import { projectAgentControllers } from "./projectAgentControllers";
-import type { AgentRoutePreference } from "../domain/agent-route-preference";
 import { openExternalAgentUrl } from "../infrastructure/electron/electronAgentClient";
 import { AgentChatTabPanel } from "../ui/AgentChatTabPanel";
 import type { AgentWorkspaceReferenceResolver } from "../ui/useAgentReferenceIngestion";
@@ -19,12 +19,6 @@ export type AgentChatWorkbenchItemProps = AuxiliaryWorkbenchItemRenderContext & 
   onOpenFile?: (path: string) => void;
   onOpenAccount: () => void;
   onOpenModelConnections: () => void;
-  onPreferredModelChange?: (model: string) => void;
-  onPreferredRouteChange?: (route: AgentRoutePreference) => void;
-  onPreferredRuntimeChange?: (runtimeId: string | null) => void;
-  preferredModel: string | null;
-  preferredRoute: Readonly<AgentRoutePreference>;
-  preferredRuntimeId: string | null;
   resolveWorkspaceReference?: AgentWorkspaceReferenceResolver;
 }>;
 
@@ -35,17 +29,18 @@ export function AgentChatWorkbenchItem({
   onOpenFile,
   onOpenAccount,
   onOpenModelConnections,
-  onPreferredModelChange,
-  onPreferredRouteChange,
-  onPreferredRuntimeChange,
   onPresentationChange,
-  preferredModel,
-  preferredRoute,
-  preferredRuntimeId,
   presentation,
   focusRequest,
   resolveWorkspaceReference,
 }: AgentChatWorkbenchItemProps) {
+  const selectedRuntimeId = useDesktopPreference(s => s.agentRoutingPreferences.selectedRuntimeId);
+  const preferredRuntimeId = selectedRuntimeId && !hiddenRuntimeIds.includes(selectedRuntimeId) ? selectedRuntimeId : null;
+  const preferredRoute = useDesktopPreference(selectAgentPreferredRoute);
+  const preferredModel = preferredRoute.modelId ?? null;
+  const onPreferredModelChange = useDesktopPreference(s => s.setAgentPreferredModel);
+  const onPreferredRouteChange = useDesktopPreference(s => s.setAgentPreferredRoute);
+  const onPreferredRuntimeChange = useDesktopPreference(s => s.setAgentPreferredRuntime);
   const { t } = useLocalization();
   const controller = useMemo(
     () => projectAgentControllers(project).get(item.id),

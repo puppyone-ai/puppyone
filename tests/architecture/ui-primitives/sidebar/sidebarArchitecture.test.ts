@@ -185,8 +185,6 @@ describe("Sidebar architecture", () => {
     expect(sharedDataWorkspaceCss).not.toContain(".data-explorer-collapsed-fill");
     expect(dataWorkspaceSource).toContain("Math.max(");
     expect(dataWorkspaceSource).toContain("explorerResize.width,");
-    expect(dataSurfaceSource).toContain("paneLayout?.explorer.collapsed");
-    expect(dataSurfaceSource).toContain("? preferences.explorerWidth");
     expect(sidebarBoundarySmoke).toContain("explorerMotion.maxDividerDelta<=1");
     expect(sidebarBoundarySmoke).toContain("explorerMotion.contentWidths.length===1");
     expect(sidebarBoundarySmoke).toContain("collapsePreview.contentWidth");

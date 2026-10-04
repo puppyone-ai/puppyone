@@ -43,14 +43,12 @@ describe("pane-scoped external-open architecture", () => {
     const sidebar = source("src/features/settings/sidebar/settingsSidebarModel.ts");
     const target = source("src/features/external-apps/useExternalFileOpen.ts");
     const preferences = source("src/preferences.ts");
-    const preferenceController = source("src/features/app-shell/useDesktopPreferences.ts");
     const preload = source("electron/preload.cjs");
     const ipc = source("electron/main/ipc/workspace-files-ipc.mjs");
 
     expect(settings).not.toContain("DefaultAppsSettingsView");
     expect(sidebar).not.toContain("external-apps");
     expect(preferences).not.toContain("ExternalAppsSettings");
-    expect(preferenceController).toContain('localStorage.removeItem("puppyone.desktop.externalApps")');
     expect(target).toContain("openWorkspaceEntryExternal");
     expect(target).not.toMatch(/strategy|appPath|getAppName/);
     expect(preload).toContain("openEntryExternal:");

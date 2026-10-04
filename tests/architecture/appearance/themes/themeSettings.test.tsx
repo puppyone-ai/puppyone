@@ -54,8 +54,6 @@ describe("Sub Theme settings", () => {
 
     expect(app).toContain("subThemeCatalog={subThemeCatalog}");
     expect(surface).toContain("subThemeCatalog: SubThemeCatalogController");
-    expect(surface).toContain("preferences.requestedSubThemeId");
-    expect(surface).toContain("preferences.setSubThemeId");
     expect(surface).not.toContain("setSurfaceThemeOverride");
     expect(view).toContain("<SubThemeSettingsSection");
     expect(view).toContain("requestedSubThemeId={requestedSubThemeId}");

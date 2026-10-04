@@ -100,7 +100,7 @@ import {
 import { DesktopOverlayPortal } from "./features/app-shell/DesktopOverlayPortal";
 import { DesktopHelpLauncher } from "./features/app-shell/DesktopHelpLauncher";
 import { RestoringWorkspaceScreen } from "./features/app-shell/RestoringWorkspaceScreen";
-import { useDesktopPreferences } from "./features/app-shell/useDesktopPreferences";
+import { useDesktopPreference, useDesktopAppearance, useDesktopPreferenceEffects } from "./features/settings";
 import { isAssetLibraryHomeEnabled } from "./features/app-shell/homeFeatureGate";
 import { useWorkspaceLifecycle } from "./features/app-shell/useWorkspaceLifecycle";
 import { usePuppyoneConfig } from "./features/app-shell/usePuppyoneConfig";
@@ -191,19 +191,48 @@ function AppContent() {
   const [activeView, setActiveView] = useState<DesktopView>("data");
   const lastProjectViewRef = useRef<ProjectDesktopView>("data");
   const subThemeCatalog = useSubThemeCatalog();
-  const preferences = useDesktopPreferences(subThemeCatalog.snapshot);
-  const multiRootWorkspacesEnabled = preferences.experimentalSettings.enableMultiRootWorkspaces;
+  useDesktopPreferenceEffects(subThemeCatalog.snapshot);
+  const { resolvedAppearance, resolvedTheme, fileIconTheme, darkThemePreset, lightThemePreset } = useDesktopAppearance();
+  const aiEditAssistEnabled = useDesktopPreference(s => s.aiEditAssistEnabled);
+  const createNewMenuSettings = useDesktopPreference(s => s.createNewMenuSettings);
+  const explorerWidth = useDesktopPreference(s => s.explorerWidth);
+  const experimentalSettings = useDesktopPreference(s => s.experimentalSettings);
+  const filesVisibilitySettings = useDesktopPreference(s => s.filesVisibilitySettings);
+  const interfaceStyle = useDesktopPreference(s => s.interfaceStyle);
+  const rightSidebarOpen = useDesktopPreference(s => s.rightSidebarOpen);
+  const terminalToolEnabled = useDesktopPreference(s => s.rightSidebarToolsSettings.enabled.terminal);
+  const rightSidebarWidth = useDesktopPreference(s => s.rightSidebarWidth);
+  const rightSidebarSurface = useDesktopPreference(s => s.rightSidebarSurface);
+  const localAgentsSettings = useDesktopPreference(s => s.localAgentsSettings);
+  const sidebarCollapsed = useDesktopPreference(s => s.sidebarCollapsed);
+  const titlebarActionsSettings = useDesktopPreference(s => s.titlebarActionsSettings);
+  const diffMarkers = useDesktopPreference(s => s.diffMarkers);
+  const markdownPresentation = useDesktopPreference(s => s.markdownPresentation);
+  const pointerCursors = useDesktopPreference(s => s.pointerCursors);
+  const setFilesVisibilitySettings = useDesktopPreference(s => s.setFilesVisibilitySettings);
+  const setRightSidebarWidth = useDesktopPreference(s => s.setRightSidebarWidth);
+  const setRightSidebarSurface = useDesktopPreference(s => s.setRightSidebarSurface);
+  const setLocalAgentsSettings = useDesktopPreference(s => s.setLocalAgentsSettings);
+  const setSidebarCollapsed = useDesktopPreference(s => s.setSidebarCollapsed);
+  const setRightSidebarOpen = useDesktopPreference(s => s.setRightSidebarOpen);
+  const setProjectSwitcherExpanded = useDesktopPreference(s => s.setProjectSwitcherExpanded);
+  const typographyPreferences = useDesktopPreference(s => s.typographyPreferences);
+  const projectSwitcherWidth = useDesktopPreference(s => s.projectSwitcherWidth);
+  const setSubThemeId = useDesktopPreference(s => s.setSubThemeId);
+  const loadingAnimationPreset = useDesktopPreference(s => s.loadingAnimationPreset);
+  const projectSwitcherExpanded = useDesktopPreference(s => s.projectSwitcherExpanded);
+  const setProjectSwitcherWidth = useDesktopPreference(s => s.setProjectSwitcherWidth);
+  const multiRootWorkspacesEnabled = experimentalSettings.enableMultiRootWorkspaces;
   useSubThemeNativeMenu({
     snapshot: subThemeCatalog.snapshot,
-    rootThemeId: preferences.interfaceStyle,
-    colorMode: preferences.resolvedAppearance.effectiveColorMode,
-    selectedSubThemeId: preferences.resolvedAppearance.subThemeId,
-    onSubThemeChange: preferences.setSubThemeId,
+    rootThemeId: interfaceStyle,
+    colorMode: resolvedAppearance.effectiveColorMode,
+    selectedSubThemeId: resolvedAppearance.subThemeId,
+    onSubThemeChange: setSubThemeId,
   });
-  const { setRightSidebarOpen, setProjectSwitcherExpanded } = preferences;
   const fontCatalog = useTypographyCatalog();
   const typography = useTypographyRuntime(
-    preferences.typographyPreferences,
+    typographyPreferences,
     fontCatalog,
     locale,
   );
@@ -212,7 +241,7 @@ function AppContent() {
   );
   const projectSwitcherExpandedWidth = resolveProjectSwitcherRailWidth(
     true,
-    preferences.projectSwitcherWidth,
+    projectSwitcherWidth,
   );
   const setProjectSwitcherCollapsed = useCallback(
     (collapsed: boolean) => setProjectSwitcherExpanded(!collapsed),
@@ -221,10 +250,10 @@ function AppContent() {
   const cloudAvailable = useFeatureFlag("cloudWorkspace");
   // The build flag only marks availability; PuppyOne Cloud stays hidden until
   // the user opts into the experiment in Settings.
-  const cloudEnabled = cloudAvailable && preferences.experimentalSettings.enableCloudWorkspace;
+  const cloudEnabled = cloudAvailable && experimentalSettings.enableCloudWorkspace;
   // Share onboarding rides on top of Cloud: the Header cloud icon becomes the
   // project's Local/Cloud indicator and the only entry into sharing.
-  const shareOnboardingEnabled = cloudEnabled && preferences.experimentalSettings.enableShareOnboarding;
+  const shareOnboardingEnabled = cloudEnabled && experimentalSettings.enableShareOnboarding;
   const assetLibraryHomeAvailable = useFeatureFlag("assetLibraryHome");
   const {
     cloudSession,
@@ -295,51 +324,11 @@ function AppContent() {
     enabled: cloudEnabled, session: activeCloudSession, apiBaseUrl: desktopCloudApiBaseUrl,
     local: recentWorkspaceItems,
   });
-  const {
-    aiEditAssistEnabled,
-    createNewMenuSettings,
-    explorerWidth,
-    experimentalSettings,
-    fileIconTheme,
-    filesVisibilitySettings,
-    interfaceStyle,
-    resolvedAppearance,
-    resolvedTheme,
-    rightSidebarOpen,
-    rightSidebarToolsSettings,
-    rightSidebarWidth,
-    rightSidebarSurface,
-    agentPreferredRuntime,
-    agentPreferredRoute,
-    agentPreferredModel,
-    localAgentsSettings,
-    sidebarCollapsed,
-    terminalToolEnabled,
-    titlebarActionsSettings,
-    darkThemePreset,
-    diffMarkers,
-    lightThemePreset,
-    markdownPresentation,
-    pointerCursors,
-    setAiEditAssistEnabled,
-    setExplorerWidth,
-    setFileIconTheme,
-    setFilesVisibilitySettings,
-    setRightSidebarToolsSettings,
-    setRightSidebarWidth,
-    setRightSidebarSurface,
-    setAgentPreferredRuntime,
-    setAgentPreferredRoute,
-    setAgentPreferredModel,
-    setLocalAgentsSettings,
-    setSidebarCollapsed,
-    setThemeMode,
-  } = preferences;
   const surfaceAppearance = useMemo(() => resolveSurfaceAppearance({
     appearance: resolvedAppearance,
     typography,
     markdownPresentation,
-    loadingAnimationPreset: preferences.loadingAnimationPreset,
+    loadingAnimationPreset,
     lightThemePreset,
     darkThemePreset,
     pointerCursors,
@@ -350,7 +339,7 @@ function AppContent() {
     lightThemePreset,
     markdownPresentation,
     pointerCursors,
-    preferences.loadingAnimationPreset,
+    loadingAnimationPreset,
     resolvedAppearance,
     typography,
   ]);
@@ -782,7 +771,6 @@ function AppContent() {
   });
   const accountCloudPresentation = useAccountCloudWorkspacePresentation({
     workbench: nativeCloudWorkbench,
-    preferences,
   });
   const repositoryCloudSwitch = useRepositoryCloudWorkspaceSwitch({
     enabled: cloudEnabled && Boolean(focusedWorkspace),
@@ -1310,11 +1298,6 @@ function AppContent() {
           <Suspense fallback={null}>
             <AgentChatHistoryBrowser
               {...context}
-              historyDiscoveryEnabled={localAgentsSettings.chatHistoryDiscoveryEnabled}
-              onHistoryDiscoveryEnabledChange={(enabled) => setLocalAgentsSettings({
-                ...localAgentsSettings,
-                chatHistoryDiscoveryEnabled: enabled,
-              })}
             />
           </Suspense>
         ),
@@ -1326,15 +1309,6 @@ function AppContent() {
           <AgentChatWorkbenchItem
             {...context}
             hiddenRuntimeIds={agentChatRuntimeVisibility.hiddenRuntimeIds}
-            preferredRuntimeId={agentPreferredRuntime
-              && !agentChatRuntimeVisibility.hiddenRuntimeIds.includes(agentPreferredRuntime)
-              ? agentPreferredRuntime
-              : null}
-            onPreferredRuntimeChange={setAgentPreferredRuntime}
-            preferredRoute={agentPreferredRoute}
-            onPreferredRouteChange={setAgentPreferredRoute}
-            preferredModel={agentPreferredModel}
-            onPreferredModelChange={setAgentPreferredModel}
             onOpenFile={(path) => handleAgentOpenFile(context.item.rootId, path)}
             onOpenAccount={() => openSettingsDialog("account")}
             onOpenModelConnections={() => openSettingsDialog("model-connections")}
@@ -1345,18 +1319,10 @@ function AppContent() {
       close: createAgentChatCloseAdapter(t, ({ item, project }) => closeAgentChatWorkbenchItem(project, item.id)),
     });
   }, [
-    agentPreferredModel,
-    agentPreferredRoute,
-    agentPreferredRuntime,
     agentChatRuntimeVisibility,
     handleAgentOpenFile,
-    localAgentsSettings,
     openSettingsDialog,
     resolveAgentWorkspaceReference,
-    setAgentPreferredModel,
-    setAgentPreferredRoute,
-    setAgentPreferredRuntime,
-    setLocalAgentsSettings,
     t,
   ]);
   const readAuxiliaryTerminalAppearance = useCallback(() => {
@@ -1421,7 +1387,7 @@ function AppContent() {
   ]);
   const accountCloudSurface = !workspace ? <AccountCloudWorkspaceSurface workbench={nativeCloudWorkbench}
     presentation={accountCloudPresentation} active={cloudWorkspaceActive}
-    preferences={preferences} appearance={surfaceAppearance} onLocal={openLocalWorkspace} onHome={() => void goToHomepage()} /> : null;
+    appearance={surfaceAppearance} onLocal={openLocalWorkspace} onHome={() => void goToHomepage()} /> : null;
   const repositoryCloudDialog = <CloudWorkspaceSwitchDialog controller={repositoryCloudSwitch}
     authenticationRequired={!activeCloudSession}
     gate={<RepositoryCloudSwitchGate context={projectCloudContext} apiBaseUrl={desktopCloudApiBaseUrl}
@@ -1484,9 +1450,6 @@ function AppContent() {
       repository={{
         status: activeGitStatus,
         puppyoneConfig,
-        gitDisplayMode: preferences.gitDisplayMode,
-        gitSidebarLayout: preferences.gitSidebarLayout,
-        fileIconTheme,
       }}
       view={{
         selectedWorkingFile: selectedGitWorkingFile,
@@ -1672,12 +1635,12 @@ function AppContent() {
           leadingRailWidth={projectSwitcherExpandedWidth}
           leadingRailMinWidth={MIN_PROJECT_SWITCHER_EXPANDED_WIDTH}
           leadingRailMaxWidth={MAX_PROJECT_SWITCHER_EXPANDED_WIDTH}
-          leadingRailCollapsed={!preferences.projectSwitcherExpanded}
+          leadingRailCollapsed={!projectSwitcherExpanded}
           leadingRailCollapsedWidth={projectSwitcherCompactWidth}
           leadingRailCollapseThreshold={MIN_PROJECT_SWITCHER_EXPANDED_WIDTH / 2}
           resizableLeadingRail
           onLeadingRailCollapsedChange={setProjectSwitcherCollapsed}
-          onLeadingRailWidthChange={preferences.setProjectSwitcherWidth}
+          onLeadingRailWidthChange={setProjectSwitcherWidth}
           leftSidebarCollapsed={sidebarCollapsed}
           leftSidebarPresent={Boolean(dataPort)}
           leftSidebarWidth={explorerWidth}
@@ -1829,7 +1792,6 @@ function AppContent() {
             onPuppyoneConfigChange={handlePuppyoneConfigChange}
             onSelectSettingsSection={setActiveSettingsSection}
             onUnlinkWorkspace={unlinkCurrentWorkspace}
-            preferences={preferences}
             puppyoneConfig={puppyoneConfig}
             puppyoneConfigError={puppyoneConfigError}
             puppyoneConfigLoading={puppyoneConfigLoading}
@@ -1873,8 +1835,7 @@ function AppContent() {
                 setSettingsDialogOpen(false);
                 projectEntryFlow.openImport();
               }}
-              preferences={preferences}
-              subThemeCatalog={subThemeCatalog}
+                subThemeCatalog={subThemeCatalog}
               onFilesVisibilitySettingsChange={handleFilesVisibilitySettingsChange}
               git={{
                 status: activeGitStatus,
@@ -1971,7 +1932,7 @@ function AppContent() {
           {nodeActionMenu && (
             <DesktopNodeActionMenu
               draft={nodeActionMenu}
-              experimentalSettings={preferences.experimentalSettings}
+              experimentalSettings={experimentalSettings}
               showRevealInFinder
               showOpenInDefaultApp
               canPaste={nodeActionMenu.node.type === "folder" && fileClipboardController.canPasteInto(nodeActionMenu.node.path)}

@@ -169,7 +169,8 @@
     "postcss": "^8.5.26",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
-    "semver": "^7.7.3"
+    "semver": "^7.7.3",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@aiden0z/pptx-renderer": "^1.2.4",

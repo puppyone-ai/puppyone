@@ -1,10 +1,13 @@
+import { useSurfaceAppearance } from "../../../../src/features/appearance/AppearanceRuntime";
+import { useEditorAppearanceRevision } from "@puppyone/shared-ui";
+import { initializeDesktopPreferences, desktopPreferencesStore } from "../../../../src/preferencesStore";
 /** @vitest-environment happy-dom */
 import { act, type ComponentProps, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../../../../src/App";
 import type { DesktopCloudShell } from "../../../../src/components/DesktopCloudShell";
-import type { RightSidebarSurface } from "../../../../src/features/app-shell/preferences";
+import type { RightSidebarSurface } from "../../../../src/preferenceStorage";
 import { withTestLocalization } from "../../../support/react/localization";
 
 const state = vi.hoisted(() => ({
@@ -30,16 +33,8 @@ vi.mock("../../../../src/components/DesktopCloudShell", () => ({
   ),
 }));
 vi.mock("../../../../src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel", () => ({
-  AuxiliaryWorkbenchPanel: ({ active }: { active: boolean }) => <input data-chat-active={String(active)} defaultValue="draft" />,
+  AuxiliaryWorkbenchPanel: ({ active }: { active: boolean }) => <><input data-chat-active={String(active)} defaultValue="draft" /><EditorAppearanceProbe /></>,
 }));
-vi.mock("../../../../src/features/app-shell/useDesktopPreferences", async (importOriginal) => {
-  const original = await importOriginal<typeof import("../../../../src/features/app-shell/useDesktopPreferences")>();
-  return { useDesktopPreferences: () => ({
-    ...original.useDesktopPreferences(),
-    rightSidebarOpen: true,
-    rightSidebarSurface: state.sidebarSurface,
-  }) };
-});
 vi.mock("../../../../src/features/app-shell/useWorkspaceLifecycle", () => ({
   useWorkspaceLifecycle: () => ({ workspace: state.workspace, workbenchWorkspace: null, workspaces: [], recentWorkspaceItems: [] }),
 }));
@@ -101,6 +96,8 @@ beforeEach(() => {
   state.contentVisible = true;
   state.sidebarSurface = "chat";
   window.localStorage.clear();
+  initializeDesktopPreferences();
+  desktopPreferencesStore.getState().setRightSidebarOpen(true);
   vi.stubGlobal("fetch", vi.fn(() => { throw new Error("App activation tests must not access the network"); }));
 });
 afterEach(() => {
@@ -117,7 +114,10 @@ async function render() {
     document.body.append(host);
     root = createRoot(host);
   }
-  await act(async () => root!.render(withTestLocalization(<App />)));
+  await act(async () => {
+    desktopPreferencesStore.getState().setRightSidebarSurface(state.sidebarSurface);
+    root!.render(withTestLocalization(<App />));
+  });
   const chat = document.querySelector<HTMLInputElement>("[data-chat-active]");
   expect(chat).not.toBeNull();
   return chat!;
@@ -150,4 +150,32 @@ describe("App Chat activation", () => {
     expect(chat.dataset.chatActive).toBe("true");
     expect(chat.value).toBe("unsaved local draft");
   });
+});
+
+function EditorAppearanceProbe() {
+  const appearance = useSurfaceAppearance();
+  const revision = useEditorAppearanceRevision();
+  return <output data-editor-revision={revision} data-heading-scale={appearance.markdownPresentation.headingScale}
+    data-typography-scale={appearance.typography.scale} />;
+}
+
+it("updates the mounted App shell and editor appearance boundary from preference actions", async () => {
+  await render();
+  const initialRevision = document.querySelector("[data-editor-revision]")?.getAttribute("data-editor-revision");
+  await act(async () => {
+    const actions = desktopPreferencesStore.getState();
+    actions.setPointerCursors(true);
+    actions.setDiffMarkers("symbols");
+    actions.setTypographyPreferences(s => ({ ...s, scale: "large" }));
+    actions.setMarkdownPresentation(s => ({ ...s, headingScale: "large" }));
+    actions.setThemeMode("dark");
+  });
+  const shell = document.querySelector<HTMLElement>("[data-po-appearance-root]");
+  expect(shell?.dataset.pointerCursors).toBe("true");
+  expect(shell?.dataset.diffMarkers).toBe("symbols");
+  expect(shell?.classList.contains("dark")).toBe(true);
+  const editor = document.querySelector<HTMLElement>("[data-editor-revision]");
+  expect(editor?.dataset.headingScale).toBe("large");
+  expect(editor?.dataset.typographyScale).toBe("large");
+  expect(editor?.dataset.editorRevision).not.toBe(initialRevision);
 });

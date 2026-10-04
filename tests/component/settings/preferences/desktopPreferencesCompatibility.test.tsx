@@ -2,17 +2,19 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useDesktopPreferences, type DesktopPreferencesController } from "../../../../src/features/app-shell/useDesktopPreferences";
+import { initializeDesktopPreferences } from "../../../../src/preferencesStore";
+import { useDesktopPreferenceEffects } from "../../../../src/features/settings/useDesktopPreferenceEffects";
+import { usePreferenceSnapshot } from "../../../support/react/desktopPreferences";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root;
 let host: HTMLDivElement;
-let latest: DesktopPreferencesController;
-function Harness() { latest = useDesktopPreferences(); return null; }
+let latest: ReturnType<typeof usePreferenceSnapshot>;
+function Harness() { useDesktopPreferenceEffects(); latest = usePreferenceSnapshot(); return null; }
 function stored() {
   return Object.fromEntries(Object.keys(localStorage).sort().map(key => [key, localStorage.getItem(key)]));
 }
-function mount() { act(() => root.render(<Harness />)); }
+function mount() { initializeDesktopPreferences(); act(() => root.render(<Harness />)); }
 beforeEach(() => {
   localStorage.clear();
   vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
@@ -77,8 +79,9 @@ describe("desktop preference wire compatibility (locked before the store migrati
     expect(latest.agentPreferredModel).toBe("gpt-5");
     expect(document.documentElement.dataset.agentFileActivity).toBe("visible");
   });
-  it("currently throws if legacy storage reads are unavailable", () => {
+  it("keeps defaults usable if storage reads are unavailable", () => {
     vi.spyOn(localStorage, "getItem").mockImplementation(() => { throw new DOMException("Denied", "SecurityError"); });
-    expect(mount).toThrow("Denied");
+    expect(mount).not.toThrow();
+    expect(latest.gitDisplayMode).toBe("simple");
   });
 });

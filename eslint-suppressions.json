@@ -1674,11 +1674,6 @@
       "count": 2
     }
   },
-  "src/features/app-shell/useDesktopPreferences.ts": {
-    "max-lines-per-function": {
-      "count": 1
-    }
-  },
   "src/features/app-shell/useWorkspaceLifecycle.ts": {
     "max-lines-per-function": {
       "count": 1

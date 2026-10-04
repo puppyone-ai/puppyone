@@ -244,15 +244,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/cloud/workbench/AccountCloudWorkbenchSmokeHarness.tsx",
-    "to": "src/features/app-shell/useDesktopPreferences.ts",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/features/cloud/workbench/AccountCloudWorkspaceSurface.tsx",
     "to": "src/features/app-shell/DesktopShellLocationBar.tsx",
     "rule": {
@@ -264,15 +255,6 @@
     "type": "dependency",
     "from": "src/features/cloud/workbench/AccountCloudWorkspaceSurface.tsx",
     "to": "src/features/app-shell/DesktopWorkspaceSwitcher.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/AccountCloudWorkspaceSurface.tsx",
-    "to": "src/features/app-shell/useDesktopPreferences.ts",
     "rule": {
       "severity": "error",
       "name": "composition-root-only"
@@ -345,15 +327,6 @@
     "type": "dependency",
     "from": "src/features/cloud/workbench/NativeCloudWorkbenchSmokeHarness.tsx",
     "to": "src/features/app-shell/DesktopWorkspaceSwitcher.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/NativeCloudWorkbenchSmokeHarness.tsx",
-    "to": "src/features/app-shell/useDesktopPreferences.ts",
     "rule": {
       "severity": "error",
       "name": "composition-root-only"
@@ -7455,15 +7428,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/app-shell/agentRoutingPreferences.ts",
-    "to": "src/features/desktop-agent/domain/agent-route-preference.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-app-shell"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchLauncher.tsx",
     "to": "src/features/desktop-terminal/model/terminalLaunchers.ts",
     "rule": {
@@ -7781,69 +7745,6 @@
     "type": "dependency",
     "from": "src/features/app-shell/RestoringWorkspaceScreen.tsx",
     "to": "src/features/appearance/AppearanceRuntime.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-app-shell"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/app-shell/useDesktopPreferences.ts",
-    "to": "src/features/appearance/appearancePreferences.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-app-shell"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/app-shell/useDesktopPreferences.ts",
-    "to": "src/features/appearance/interfaceStyles.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-app-shell"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/app-shell/useDesktopPreferences.ts",
-    "to": "src/features/appearance/legacyAppearancePreferences.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-app-shell"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/app-shell/useDesktopPreferences.ts",
-    "to": "src/features/appearance/resolveAppearance.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-app-shell"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/app-shell/useDesktopPreferences.ts",
-    "to": "src/features/markdown/markdownPresentation.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-app-shell"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/app-shell/useDesktopPreferences.ts",
-    "to": "src/features/themes/builtinSubThemes.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-app-shell"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/app-shell/useDesktopPreferences.ts",
-    "to": "src/features/themes/themeTypes.ts",
     "rule": {
       "severity": "error",
       "name": "public-domain-entry-src-features-app-shell"
@@ -8338,15 +8239,6 @@
   {
     "type": "dependency",
     "from": "src/features/cloud/workbench/AccountCloudWorkbenchSmokeHarness.tsx",
-    "to": "src/features/app-shell/useDesktopPreferences.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/AccountCloudWorkbenchSmokeHarness.tsx",
     "to": "src/features/appearance/AppearanceRuntime.tsx",
     "rule": {
       "severity": "error",
@@ -8366,15 +8258,6 @@
     "type": "dependency",
     "from": "src/features/cloud/workbench/AccountCloudWorkspaceSurface.tsx",
     "to": "src/features/app-shell/DesktopWorkspaceSwitcher.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/AccountCloudWorkspaceSurface.tsx",
-    "to": "src/features/app-shell/useDesktopPreferences.ts",
     "rule": {
       "severity": "error",
       "name": "public-domain-entry-src-features-cloud"
@@ -8492,15 +8375,6 @@
     "type": "dependency",
     "from": "src/features/cloud/workbench/NativeCloudWorkbenchSmokeHarness.tsx",
     "to": "src/features/app-shell/DesktopWorkspaceSwitcher.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/NativeCloudWorkbenchSmokeHarness.tsx",
-    "to": "src/features/app-shell/useDesktopPreferences.ts",
     "rule": {
       "severity": "error",
       "name": "public-domain-entry-src-features-cloud"
@@ -9410,24 +9284,6 @@
     "type": "dependency",
     "from": "src/features/settings/SettingsView.tsx",
     "to": "src/features/appearance/resolveAppearance.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-settings"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/settings/SettingsWorkspaceSurface.tsx",
-    "to": "src/features/appearance/resolveAppearance.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-settings"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/settings/SettingsWorkspaceSurface.tsx",
-    "to": "src/features/markdown/markdownPresentation.ts",
     "rule": {
       "severity": "error",
       "name": "public-domain-entry-src-features-settings"

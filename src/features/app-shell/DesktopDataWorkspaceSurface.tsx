@@ -1,3 +1,4 @@
+import { useDesktopPreference, selectFileIconTheme } from "../settings";
 import {
   useCallback,
   useMemo,
@@ -36,7 +37,6 @@ import {
   MAX_EXPLORER_WIDTH,
   MIN_EXPLORER_WIDTH,
 } from "./layout/desktopPaneLayout";
-import type { DesktopPreferencesController } from "./useDesktopPreferences";
 import { DesktopSidebarFooterNavigation } from "./navigation";
 import { WorkspaceSurfaceOutlet, type ResolvedWorkspaceSurface } from "./workspace-surfaces";
 import type { DesktopView } from "../../components/DesktopCloudShell";
@@ -67,7 +67,7 @@ export type DesktopDataWorkspaceSurfaceProps = {
   externalOpen: Readonly<{
     open: (path: string) => void | Promise<void>;
   }>;
-  editorInteractionPreferences: NonNullable<DataWorkspaceProps["editorInteractionPreferences"]>;
+  showSaveStatus: boolean;
   fileClipboardController: FileClipboardController;
   fileOperationNotice: string | null;
   navigation: {
@@ -99,7 +99,6 @@ export type DesktopDataWorkspaceSurfaceProps = {
   onCreateEntryMenu: (parentPath: string | null, anchorRect: DesktopCreateEntryAnchorInput) => void;
   onDismissCreateEntryMenu: () => void;
   onNodeActionMenu: (node: DataNode, anchorRect: DOMRect, selectedNodes?: readonly DataNode[]) => void;
-  preferences: DesktopPreferencesController;
   resolvedSurface: ResolvedWorkspaceSurface;
   sidebarCompanion?: ReactNode;
   sidebarUtility?: ReactNode;
@@ -122,7 +121,7 @@ export function DesktopDataWorkspaceSurface({
   providerStateContent,
   editorWorkbench,
   externalOpen,
-  editorInteractionPreferences,
+  showSaveStatus,
   fileClipboardController,
   fileOperationNotice,
   navigation,
@@ -135,7 +134,6 @@ export function DesktopDataWorkspaceSurface({
   onCreateEntryMenu,
   onDismissCreateEntryMenu,
   onNodeActionMenu,
-  preferences,
   resolvedSurface,
   sidebarCompanion,
   sidebarUtility,
@@ -148,6 +146,10 @@ export function DesktopDataWorkspaceSurface({
   workspaceSurfaceError,
   sidebarCreateMenuOpen,
 }: DesktopDataWorkspaceSurfaceProps) {
+  const markdownBlockDragEnabled = useDesktopPreference(s => s.experimentalSettings.enableMarkdownBlockDrag);
+  const markdownHeadingOutlineEnabled = useDesktopPreference(s => s.experimentalSettings.enableMarkdownHeadingOutline);
+  const editorInteractionPreferences = useMemo(() => ({ showSaveStatus, markdownBlockDragEnabled, markdownHeadingOutlineEnabled }),
+    [showSaveStatus, markdownBlockDragEnabled, markdownHeadingOutlineEnabled]);
   const localResources = documentSourceKind === "local";
   const canCreate = Boolean(dataPort.createFile || dataPort.createFolder);
   const canChangeNodes = Boolean(dataPort.renameNode || dataPort.moveNode || dataPort.deleteNode);
@@ -170,6 +172,11 @@ export function DesktopDataWorkspaceSurface({
   );
   const [explorerResizeHandle, setExplorerResizeHandle] = useState<HTMLDivElement | null>(null);
   useNativeSurfacePointerRoutingRegion("explorer-resize", explorerResizeHandle);
+  const explorerWidth = useDesktopPreference(s => s.explorerWidth);
+  const fileIconTheme = useDesktopPreference(selectFileIconTheme);
+  const setExplorerWidth = useDesktopPreference(s => s.setExplorerWidth);
+  const setSidebarCollapsed = useDesktopPreference(s => s.setSidebarCollapsed);
+  const sidebarCollapsed = useDesktopPreference(s => s.sidebarCollapsed);
   const { t } = useLocalization();
   const paneLayout = useDesktopPaneLayout();
   const activeWorkspaceResource = useMemo(
@@ -190,13 +197,13 @@ export function DesktopDataWorkspaceSurface({
   // Shell's resolved width becomes zero while collapsed and must never replace
   // that retained geometry, or the Explorer children will reflow during exit.
   const resolvedExplorerWidth = paneLayout?.explorer.collapsed
-    ? preferences.explorerWidth
-    : paneLayout?.explorer.width ?? preferences.explorerWidth;
+    ? explorerWidth
+    : paneLayout?.explorer.width ?? explorerWidth;
   const resolvedExplorerMaxWidth = paneLayout?.explorer.maxWidth
     ?? MAX_EXPLORER_WIDTH;
   const resolvedExplorerMinWidth = paneLayout?.explorer.minWidth ?? MIN_EXPLORER_WIDTH;
   const resolvedExplorerCollapsed = paneLayout?.explorer.collapsed
-    ?? preferences.sidebarCollapsed;
+    ?? sidebarCollapsed;
   const navigationCommon = {
     activeView: navigation.activeView,
     availableSurfaceIds: navigation.availableSurfaceIds,
@@ -265,8 +272,8 @@ export function DesktopDataWorkspaceSurface({
         maxExplorerWidth={resolvedExplorerMaxWidth}
         collapsedExplorerWidth={COLLAPSED_EXPLORER_WIDTH}
         explorerCollapseThreshold={EXPLORER_COLLAPSE_THRESHOLD}
-        onExplorerCollapsedChange={preferences.setSidebarCollapsed}
-        onExplorerWidthChange={preferences.setExplorerWidth}
+        onExplorerCollapsedChange={setSidebarCollapsed}
+        onExplorerWidthChange={setExplorerWidth}
         onExplorerResizeActiveChange={onExplorerResizeActiveChange}
         explorerResizeHandleRef={setExplorerResizeHandle}
         showHeader={false}
@@ -323,7 +330,7 @@ export function DesktopDataWorkspaceSurface({
         showPreviewHeader={false}
         loadActiveFileSource={resolvedSurface.id !== "data"}
         hidePreviewSourceView
-        fileIconTheme={preferences.fileIconTheme}
+        fileIconTheme={fileIconTheme}
         editorInteractionPreferences={editorInteractionPreferences}
         editorSaveMode="auto"
         htmlTrustMode="safe"
@@ -395,7 +402,7 @@ export function DesktopDataWorkspaceSurface({
                   externalOpen={externalOpen}
                   editorInteractionPreferences={editorInteractionPreferences}
                   editorTree={state.tree}
-                  fileIconTheme={preferences.fileIconTheme}
+                  fileIconTheme={fileIconTheme}
                   layout={editorWorkbench.paneLayout}
                   markdownEnvironment={state.markdownEnvironment}
                   documentNavigation={state.documentNavigation}

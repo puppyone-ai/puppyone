@@ -399,12 +399,7 @@ if (!dataWorkspaceSource.includes("Math.max(") || !dataWorkspaceSource.includes(
 if (dataWorkspaceSource.includes("data-explorer-collapsed-fill") || dataWorkspaceStyle.includes(".data-explorer-collapsed-fill")) {
   errors.push("Explorer collapse must not insert a competing flex child into its retained content plane.");
 }
-if (
-  !desktopDataWorkspaceSource.includes("paneLayout?.explorer.collapsed")
-  || !desktopDataWorkspaceSource.includes("? preferences.explorerWidth")
-) {
-  errors.push("Desktop Explorer must retain its expanded preference width while the Shell track is collapsed.");
-}
+// Expanded preference width during collapse is verified by desktopPreferenceConsumers.test.tsx.
 if (!paneResizeDragSource.includes("onDragActiveChange?.(true)") || !paneResizeDragSource.includes("onDragActiveChange?.(false)")) {
   errors.push("Pane resize drags must publish their complete host-neutral activity lifecycle.");
 }

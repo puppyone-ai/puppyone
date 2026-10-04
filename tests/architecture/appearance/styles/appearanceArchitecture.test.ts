@@ -345,10 +345,8 @@ describe("appearance profile architecture", () => {
   it("keeps Settings and Shell on the shared resolver rather than Style-ID branches", () => {
     const settings = source("src/features/settings/SettingsView.tsx");
     const typographySettings = source("src/features/settings/main/TypographySettingsView.tsx");
-    const preferences = source("src/features/app-shell/useDesktopPreferences.ts");
     const shell = source("src/features/app-shell/DesktopDataWorkspaceSurface.tsx");
 
-    expect(preferences).toContain("resolveAppearance({");
     expect(settings).not.toContain("resolvedAppearance.decisions.sidebarNavigationLayout");
     expect(settings).not.toContain("onSidebarNavigationLayoutChange");
     expect(settings).not.toContain("settings.appearance.navigation.title");
@@ -358,9 +356,7 @@ describe("appearance profile architecture", () => {
     expect(settings).not.toContain("onLegacyContentSizeChange");
     expect(settings).toContain("resolvedAppearance.decisions.fileIconTheme");
     expect(settings).not.toContain("editorPresentation");
-    expect(preferences).not.toContain("editorPresentation");
     expect(settings).not.toContain("dockIcon");
-    expect(preferences).not.toContain("dockIcon");
     expect(shell).toContain('? "bottom"');
     expect(shell).not.toContain("preferences.sidebarNavigationPlacement");
     expect(settings).not.toMatch(/interfaceStyle\s*===\s*["']windows-xp["']/);

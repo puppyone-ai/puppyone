@@ -1,4 +1,4 @@
-import { normalizeSetupPreferences, type LocalAgentsSettings } from "./features/local-agents";
+import { normalizeSetupPreferences, type LocalAgentsSettings } from "./localAgentPreferences";
 import {
   DEFAULT_TYPOGRAPHY_PREFERENCES,
   parseTypographyPreferences,
@@ -75,7 +75,7 @@ export type TitlebarActionsSettings = {
   enabled: Record<TitlebarActionId, boolean>;
   order: TitlebarActionId[];
 };
-export type { LocalAgentsSettings } from "./features/local-agents";
+export type { LocalAgentsSettings } from "./localAgentPreferences";
 export type ExperimentalSettings = {
   enableAssetLibraryHome: boolean;
   enableAlwaysShowOnboardingCoachmarks: boolean;

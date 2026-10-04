@@ -1,19 +1,7 @@
-import type { FileIconThemeId, Workspace } from "@puppyone/shared-ui";
-import type {
-  DarkThemePreset,
-  CreateNewMenuSettings,
-  ExperimentalSettings,
-  FilesVisibilitySettings,
-  InterfaceStyle,
-  GitSidebarLayout,
-  LightThemePreset,
-  LoadingAnimationPreset,
-  LocalAgentsSettings,
-  RightSidebarToolsSettings,
-  ThemeMode,
-  TitlebarActionsSettings,
-  TypographyPreferences,
-} from "../../preferences";
+import { useDesktopPreference } from "../../preferencesStore";
+import { useDesktopAppearance } from "./useDesktopAppearance";
+import type { Workspace } from "@puppyone/shared-ui";
+import type { FilesVisibilitySettings } from "../../preferences";
 import type { DesktopCloudSession } from "../../lib/cloudApi";
 import type {
   DesktopUpdateState,
@@ -21,53 +9,14 @@ import type {
   PuppyoneWorkspaceConfig,
 } from "../../types/electron";
 import { SettingsView } from "./SettingsView";
-import type { ResolvedAppearance } from "../appearance/resolveAppearance";
-import type { MarkdownPresentationSettings } from "../markdown/markdownPresentation";
 import type { SubThemeCatalogController } from "../themes/useSubThemeCatalog";
 import { SettingsSidebar } from "./sidebar";
 import type { SettingsSection } from "./types";
-
-export type SettingsPreferencesPort = {
-  themeMode: ThemeMode;
-  interfaceStyle: InterfaceStyle;
-  resolvedAppearance: ResolvedAppearance;
-  lightThemePreset: LightThemePreset;
-  darkThemePreset: DarkThemePreset;
-  loadingAnimationPreset: LoadingAnimationPreset;
-  localAgentsSettings: LocalAgentsSettings;
-  typographyPreferences: TypographyPreferences;
-  pointerCursors: boolean;
-  markdownPresentation: MarkdownPresentationSettings;
-  requestedSubThemeId: string;
-  fileIconTheme: FileIconThemeId;
-  filesVisibilitySettings: FilesVisibilitySettings;
-  createNewMenuSettings: CreateNewMenuSettings;
-  experimentalSettings: ExperimentalSettings;
-  rightSidebarToolsSettings: RightSidebarToolsSettings;
-  titlebarActionsSettings: TitlebarActionsSettings;
-  gitSidebarLayout: GitSidebarLayout;
-  setThemeMode: (value: ThemeMode) => void;
-  setInterfaceStyle: (value: InterfaceStyle) => void;
-  setLoadingAnimationPreset: (value: LoadingAnimationPreset) => void;
-  setLocalAgentsSettings: (value: LocalAgentsSettings) => void;
-  setAgentFileActivityIndicatorsEnabled: (value: boolean) => void;
-  setTypographyPreferences: (value: TypographyPreferences) => void;
-  setPointerCursors: (value: boolean) => void;
-  setMarkdownPresentation: (value: MarkdownPresentationSettings) => void;
-  setSubThemeId: (subThemeId: string) => void;
-  setFileIconTheme: (value: FileIconThemeId) => void;
-  setCreateNewMenuSettings: (value: CreateNewMenuSettings) => void;
-  setExperimentalSettings: (value: ExperimentalSettings) => void;
-  setRightSidebarToolsSettings: (value: RightSidebarToolsSettings) => void;
-  setTitlebarActionsSettings: (value: TitlebarActionsSettings) => void;
-  setGitSidebarLayout: (value: GitSidebarLayout) => void;
-};
 
 export type SettingsWorkspaceSurfaceProps = {
   workspace: Workspace;
   activeSection: SettingsSection;
   onSelectSection: (section: SettingsSection) => void;
-  preferences: SettingsPreferencesPort;
   subThemeCatalog: SubThemeCatalogController;
   onFilesVisibilitySettingsChange: (settings: FilesVisibilitySettings) => void;
   onOpenImport: () => void;
@@ -110,7 +59,6 @@ export function createSettingsWorkspaceSurface({
   onFilesVisibilitySettingsChange,
   onOpenImport,
   onSelectSection,
-  preferences,
   subThemeCatalog,
   updates,
   workspace,
@@ -118,38 +66,69 @@ export function createSettingsWorkspaceSurface({
 }: SettingsWorkspaceSurfaceProps) {
   return {
     sidebar: (
-      <SettingsSidebar
+      <SettingsWorkspaceSidebar
         activeSection={activeSection}
         cloudEnabled={cloud.enabled}
-        otherAppImportsEnabled={preferences.experimentalSettings.enableOtherAppImports}
         onSelectSection={onSelectSection}
       />
     ),
-    main: (
+    main: <SettingsWorkspaceMain {...{ workspace, activeSection, cloud, git, onFilesVisibilitySettingsChange, onOpenImport,
+      onSelectSection, subThemeCatalog, updates, workspaceConfig }} />,
+  } as const;
+}
+
+function SettingsWorkspaceMain({ workspace, activeSection, cloud, git, onFilesVisibilitySettingsChange, onOpenImport, subThemeCatalog, updates, workspaceConfig }: SettingsWorkspaceSurfaceProps) {
+  const { darkThemePreset, fileIconTheme, lightThemePreset, requestedSubThemeId, resolvedAppearance, themeMode } = useDesktopAppearance();
+  const createNewMenuSettings = useDesktopPreference(s => s.createNewMenuSettings);
+  const experimentalSettings = useDesktopPreference(s => s.experimentalSettings);
+  const filesVisibilitySettings = useDesktopPreference(s => s.filesVisibilitySettings);
+  const gitSidebarLayout = useDesktopPreference(s => s.gitSidebarLayout);
+  const interfaceStyle = useDesktopPreference(s => s.interfaceStyle);
+  const loadingAnimationPreset = useDesktopPreference(s => s.loadingAnimationPreset);
+  const localAgentsSettings = useDesktopPreference(s => s.localAgentsSettings);
+  const pointerCursors = useDesktopPreference(s => s.pointerCursors);
+  const rightSidebarToolsSettings = useDesktopPreference(s => s.rightSidebarToolsSettings);
+  const setAgentFileActivityIndicatorsEnabled = useDesktopPreference(s => s.setAgentFileActivityIndicatorsEnabled);
+  const setCreateNewMenuSettings = useDesktopPreference(s => s.setCreateNewMenuSettings);
+  const setExperimentalSettings = useDesktopPreference(s => s.setExperimentalSettings);
+  const setFileIconTheme = useDesktopPreference(s => s.setFileIconTheme);
+  const setGitSidebarLayout = useDesktopPreference(s => s.setGitSidebarLayout);
+  const setInterfaceStyle = useDesktopPreference(s => s.setInterfaceStyle);
+  const setLoadingAnimationPreset = useDesktopPreference(s => s.setLoadingAnimationPreset);
+  const setLocalAgentsSettings = useDesktopPreference(s => s.setLocalAgentsSettings);
+  const setPointerCursors = useDesktopPreference(s => s.setPointerCursors);
+  const setRightSidebarToolsSettings = useDesktopPreference(s => s.setRightSidebarToolsSettings);
+  const setSubThemeId = useDesktopPreference(s => s.setSubThemeId);
+  const setThemeMode = useDesktopPreference(s => s.setThemeMode);
+  const setTitlebarActionsSettings = useDesktopPreference(s => s.setTitlebarActionsSettings);
+  const setTypographyPreferences = useDesktopPreference(s => s.setTypographyPreferences);
+  const titlebarActionsSettings = useDesktopPreference(s => s.titlebarActionsSettings);
+  const typographyPreferences = useDesktopPreference(s => s.typographyPreferences);
+  return (
       <SettingsView
         workspace={workspace}
         activeSection={activeSection}
         gitStatus={git.status}
         gitStatusLoading={git.loading}
         gitStatusError={git.error}
-        themeMode={preferences.themeMode}
-        interfaceStyle={preferences.interfaceStyle}
-        resolvedAppearance={preferences.resolvedAppearance}
-        lightThemePreset={preferences.lightThemePreset}
-        darkThemePreset={preferences.darkThemePreset}
-        loadingAnimationPreset={preferences.loadingAnimationPreset}
-        localAgentsSettings={preferences.localAgentsSettings}
-        typographyPreferences={preferences.typographyPreferences}
-        pointerCursors={preferences.pointerCursors}
-        requestedSubThemeId={preferences.requestedSubThemeId}
+        themeMode={themeMode}
+        interfaceStyle={interfaceStyle}
+        resolvedAppearance={resolvedAppearance}
+        lightThemePreset={lightThemePreset}
+        darkThemePreset={darkThemePreset}
+        loadingAnimationPreset={loadingAnimationPreset}
+        localAgentsSettings={localAgentsSettings}
+        typographyPreferences={typographyPreferences}
+        pointerCursors={pointerCursors}
+        requestedSubThemeId={requestedSubThemeId}
         subThemeCatalog={subThemeCatalog}
-        fileIconTheme={preferences.fileIconTheme}
-        filesVisibilitySettings={preferences.filesVisibilitySettings}
-        createNewMenuSettings={preferences.createNewMenuSettings}
-        experimentalSettings={preferences.experimentalSettings}
-        rightSidebarToolsSettings={preferences.rightSidebarToolsSettings}
-        titlebarActionsSettings={preferences.titlebarActionsSettings}
-        gitSidebarLayout={preferences.gitSidebarLayout}
+        fileIconTheme={fileIconTheme}
+        filesVisibilitySettings={filesVisibilitySettings}
+        createNewMenuSettings={createNewMenuSettings}
+        experimentalSettings={experimentalSettings}
+        rightSidebarToolsSettings={rightSidebarToolsSettings}
+        titlebarActionsSettings={titlebarActionsSettings}
+        gitSidebarLayout={gitSidebarLayout}
         cloudEnabled={cloud.enabled}
         cloudSession={cloud.session}
         cloudSessionRestoring={cloud.sessionRestoring}
@@ -159,22 +138,22 @@ export function createSettingsWorkspaceSurface({
         puppyoneConfigSaving={workspaceConfig.saving}
         puppyoneConfigError={workspaceConfig.error}
         updateState={updates.state}
-        onThemeModeChange={preferences.setThemeMode}
-        onInterfaceStyleChange={preferences.setInterfaceStyle}
-        onLoadingAnimationPresetChange={preferences.setLoadingAnimationPreset}
-        onLocalAgentsSettingsChange={preferences.setLocalAgentsSettings}
-        onAgentFileActivityIndicatorsEnabledChange={preferences.setAgentFileActivityIndicatorsEnabled}
-        onTypographyPreferencesChange={preferences.setTypographyPreferences}
-        onPointerCursorsChange={preferences.setPointerCursors}
-        onSubThemeChange={preferences.setSubThemeId}
-        onFileIconThemeChange={preferences.setFileIconTheme}
+        onThemeModeChange={setThemeMode}
+        onInterfaceStyleChange={setInterfaceStyle}
+        onLoadingAnimationPresetChange={setLoadingAnimationPreset}
+        onLocalAgentsSettingsChange={setLocalAgentsSettings}
+        onAgentFileActivityIndicatorsEnabledChange={setAgentFileActivityIndicatorsEnabled}
+        onTypographyPreferencesChange={setTypographyPreferences}
+        onPointerCursorsChange={setPointerCursors}
+        onSubThemeChange={setSubThemeId}
+        onFileIconThemeChange={setFileIconTheme}
         onFilesVisibilitySettingsChange={onFilesVisibilitySettingsChange}
-        onCreateNewMenuSettingsChange={preferences.setCreateNewMenuSettings}
+        onCreateNewMenuSettingsChange={setCreateNewMenuSettings}
         onOpenImport={onOpenImport}
-        onExperimentalSettingsChange={preferences.setExperimentalSettings}
-        onRightSidebarToolsSettingsChange={preferences.setRightSidebarToolsSettings}
-        onTitlebarActionsSettingsChange={preferences.setTitlebarActionsSettings}
-        onGitSidebarLayoutChange={preferences.setGitSidebarLayout}
+        onExperimentalSettingsChange={setExperimentalSettings}
+        onRightSidebarToolsSettingsChange={setRightSidebarToolsSettings}
+        onTitlebarActionsSettingsChange={setTitlebarActionsSettings}
+        onGitSidebarLayoutChange={setGitSidebarLayout}
         onCloudSessionChange={cloud.onSessionChange}
         onPuppyoneConfigChange={workspaceConfig.change}
         onUnlinkWorkspace={workspaceConfig.unlink}
@@ -186,6 +165,10 @@ export function createSettingsWorkspaceSurface({
         automaticDownloadPreferenceError={updates.automaticDownloadPreferenceError}
         onAutomaticallyDownloadUpdatesChange={(enabled) => void updates.setAutomaticallyDownloadUpdates(enabled)}
       />
-    ),
-  } as const;
+    );
+}
+
+function SettingsWorkspaceSidebar(props: Omit<Parameters<typeof SettingsSidebar>[0], "otherAppImportsEnabled">) {
+  const otherAppImportsEnabled = useDesktopPreference(s => s.experimentalSettings.enableOtherAppImports);
+  return <SettingsSidebar {...props} otherAppImportsEnabled={otherAppImportsEnabled} />;
 }

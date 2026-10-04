@@ -1,6 +1,6 @@
-import type { AgentRoutePreference } from "../desktop-agent/domain/agent-route-preference";
+import type { AgentRoutePreference } from "./features/desktop-agent/domain/agent-route-preference";
 
-export type { AgentRoutePreference } from "../desktop-agent/domain/agent-route-preference";
+export type { AgentRoutePreference } from "./features/desktop-agent/domain/agent-route-preference";
 
 export const AGENT_ROUTING_PREFERENCES_VERSION = 2 as const;
 

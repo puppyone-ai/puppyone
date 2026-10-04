@@ -1,3 +1,4 @@
+import { useDesktopPreference } from "../../settings";
 import { useMemo, type ReactNode } from "react";
 import { getCloudAuthSession } from "../../cloud/auth";
 import { CloudFileWorkspaceGate } from "../../cloud/workbench/CloudFileWorkspaceGate";
@@ -25,7 +26,6 @@ import {
 } from "../../cloud";
 import { getGitHostingMode, type DesktopGitController } from "../../source-control";
 import { createSettingsWorkspaceSurface, type SettingsSection } from "../../settings";
-import type { DesktopPreferencesController } from "../useDesktopPreferences";
 import type { SubThemeCatalogController } from "../../themes/useSubThemeCatalog";
 import {
   getAvailableWorkspaceSurfaces,
@@ -86,7 +86,6 @@ export function useWorkspaceSurfaceContent({
   onPuppyoneConfigChange,
   onSelectSettingsSection,
   onUnlinkWorkspace,
-  preferences,
   puppyoneConfig,
   puppyoneConfigError,
   puppyoneConfigLoading,
@@ -105,7 +104,6 @@ export function useWorkspaceSurfaceContent({
   onPuppyoneConfigChange: (config: PuppyoneWorkspaceConfig) => Promise<PuppyoneWorkspaceConfig | null>;
   onSelectSettingsSection: (section: SettingsSection) => void;
   onUnlinkWorkspace: () => Promise<void>;
-  preferences: DesktopPreferencesController;
   puppyoneConfig: PuppyoneWorkspaceConfig | null;
   puppyoneConfigError: string | null;
   puppyoneConfigLoading: boolean;
@@ -114,6 +112,7 @@ export function useWorkspaceSurfaceContent({
   subThemeCatalog: SubThemeCatalogController;
   workspace: Workspace;
 }): WorkspaceSurfaceContentResult {
+  const automationEnabled = useDesktopPreference(s => s.experimentalSettings.enableCloudAutomation);
   const surfaceCapabilities = useMemo<WorkspaceSurfaceCapabilities>(() => ({
     cloudEnabled: cloud.enabled,
   }), [cloud.enabled]);
@@ -156,8 +155,7 @@ export function useWorkspaceSurfaceContent({
     activeSection: settingsSection,
     onSelectSection: onSelectSettingsSection,
     onOpenImport,
-    preferences,
-    subThemeCatalog,
+      subThemeCatalog,
     onFilesVisibilitySettingsChange,
     git: {
       status: git.activeGitStatus,
@@ -198,7 +196,7 @@ export function useWorkspaceSurfaceContent({
     projectContext,
     onCloudSessionChange: cloud.onCloudSessionChange,
     activeSection: cloud.activeSection,
-    automationEnabled: preferences.experimentalSettings.enableCloudAutomation,
+    automationEnabled: automationEnabled,
     loading: git.gitStatusLoading,
     error: git.gitStatusError,
     cloudBackupLoading: cloud.backupLoading,
@@ -221,7 +219,7 @@ export function useWorkspaceSurfaceContent({
       <CloudServiceSidebar
         cloudAuthState={cloudAuthState}
         activeSection={cloud.activeSection}
-        automationEnabled={preferences.experimentalSettings.enableCloudAutomation}
+        automationEnabled={automationEnabled}
         projectAvailable={cloudContextHasProject(projectContext)}
         projectCapabilities={projectContext.status === "resolved"
           ? projectContext.capabilities ?? []
