@@ -1,0 +1,2478 @@
+{
+  "electron/app-preview-runtime.mjs": {
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "electron/cloud-auth-service.mjs": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main.mjs": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/agent-events.mjs": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/agent-reference-authorization.mjs": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/application/agent-input-policy.mjs": {
+    "complexity": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "electron/main/agent/application/history/agent-history-queries.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/application/history/native-conversation-indexer.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/application/session/agent-session-lifecycle.mjs": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/application/session/agent-session-runtime.mjs": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/application/turn/agent-start-transaction.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/application/turn/agent-turn-coordinator.mjs": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/cache/ephemeral-agent-session-cache.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/connections/local-agent-connection-policy.mjs": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 5
+    }
+  },
+  "electron/main/agent/connections/probes/codex-local-probe.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/connections/probes/cursor-local-probe.mjs": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/domain/agent-event-checkpoint.mjs": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "electron/main/agent/domain/agent-recovery.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/domain/agent-session-actor.mjs": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "electron/main/agent/domain/agent-session-control.mjs": {
+    "complexity": {
+      "count": 3
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/domain/agent-session-model.mjs": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/domain/transcript/display-control.mjs": {
+    "no-nested-ternary": {
+      "count": 4
+    }
+  },
+  "electron/main/agent/domain/transcript/display-projection.mjs": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "electron/main/agent/domain/transcript/display-window.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/domain/transcript/transcript-reducer.mjs": {
+    "complexity": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 5
+    }
+  },
+  "electron/main/agent/infrastructure/attachments/agent-attachment-store.mjs": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/migrations/legacy-file-change-evidence.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/persistence/agent-conversation-catalog.mjs": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/protocols/acp/acp-event-normalizer.mjs": {
+    "complexity": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 5
+    }
+  },
+  "electron/main/agent/protocols/acp/acp-interactions.mjs": {
+    "no-nested-ternary": {
+      "count": 3
+    }
+  },
+  "electron/main/agent/protocols/acp/acp-prompt-input.mjs": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "electron/main/agent/protocols/acp/acp-runtime-adapter.mjs": {
+    "complexity": {
+      "count": 4
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/protocols/pi-rpc/pi-event-normalizer.mjs": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "electron/main/agent/protocols/pi-rpc/pi-rpc-client.mjs": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/protocols/pi-rpc/pi-rpc-runtime-adapter.mjs": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/runtime/agent-file-change-evidence.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/runtime/agent-runtime-registry.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/runtimes/claude/claude-agent-sdk-adapter.mjs": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/runtimes/claude/claude-discovery.mjs": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/runtimes/claude/claude-events.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/runtimes/claude/claude-message-channel.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/runtimes/claude/claude-native-values.mjs": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/runtimes/claude/claude-spawn.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/runtimes/codex/codex-app-server-adapter.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/runtimes/codex/codex-events.mjs": {
+    "complexity": {
+      "count": 3
+    },
+    "no-nested-ternary": {
+      "count": 5
+    }
+  },
+  "electron/main/agent/runtimes/codex/codex-history-reader.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/runtimes/codex/codex-interactions.mjs": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/runtimes/codex/codex-native-values.mjs": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/runtimes/cursor/cursor-discovery.mjs": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "electron/main/agent/runtimes/hermes/hermes-discovery.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/runtimes/puppyone-agent/puppyone-agent-discovery.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/runtimes/puppyone-agent/worker/model-configuration.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/runtimes/puppyone-agent/worker/policy.mjs": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "electron/main/agent/runtimes/puppyone-agent/worker/runtime.mjs": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/runtimes/workbuddy/workbuddy-discovery.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/transports/executable-discovery.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/agent/transports/jsonl-rpc-connection.mjs": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/auth/loopback-callback-server.mjs": {
+    "complexity": {
+      "count": 1
+    },
+    "max-params": {
+      "count": 1
+    }
+  },
+  "electron/main/cloud-git-connect-coordinator.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/cloud-git-operation-lease.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/cloud-initialization/contract.mjs": {
+    "max-params": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/cloud-initialization/coordinator.mjs": {
+    "complexity": {
+      "count": 3
+    },
+    "max-depth": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/cloud-initialization/journal/migrate-v1.mjs": {
+    "no-nested-ternary": {
+      "count": 4
+    }
+  },
+  "electron/main/cloud-publish-git-credentials.mjs": {
+    "max-params": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/cloud-publish-git.mjs": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "electron/main/database-preview/duckdb-adapter.mjs": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/database-preview/service.mjs": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/database-preview/sqlite-adapter.mjs": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/git-auto-commit/deadline-scheduler.mjs": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "electron/main/git-auto-commit/service.mjs": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "electron/main/git-metadata-watch-service.mjs": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "electron/main/ipc/native-surface-pointer-passthrough-ipc.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/ipc/workspace-files-ipc.mjs": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "electron/main/ipc/workspace-git-ipc.mjs": {
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "electron/main/item-hosts/agent-process-service.mjs": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "electron/main/item-hosts/resource-budget.mjs": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/local-agent-activation/activation-journal.mjs": {
+    "no-nested-ternary": {
+      "count": 3
+    }
+  },
+  "electron/main/local-agent-activation/managed-artifact-installer.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/local-agent-catalog/agent-definition.mjs": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/local-agent-installation/candidate-identity.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/local-agent-installation/executable-resolver.mjs": {
+    "complexity": {
+      "count": 3
+    },
+    "max-depth": {
+      "count": 2
+    }
+  },
+  "electron/main/local-agent-installation/installation-definition.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/local-agent-installation/installation-service.mjs": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/local-agent-installation/setup/setup-advisor.mjs": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/local-agent-installation/setup/setup-service.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/local-file-capabilities.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/local-file-protocol.mjs": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/markdown-web-embed-policy.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/markdown-web-embed-service.mjs": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "electron/main/model-connections/connection-service.mjs": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "electron/main/model-connections/drivers/shared.mjs": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/model-connections/http-client.mjs": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "electron/main/model-connections/managed-connection.mjs": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "electron/main/model-connections/managed-usage.mjs": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/native-surfaces/pointer-passthrough-coordinator.mjs": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/platform/create-platform-host.mjs": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/platform/macos/companion-apps.mjs": {
+    "max-depth": {
+      "count": 4
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/project-appearance/project-appearance-store.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/project-entry-service.mjs": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/project-initialization-service.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/renderer-output-lease.mjs": {
+    "max-depth": {
+      "count": 1
+    }
+  },
+  "electron/main/resource-drag-session-service.mjs": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/telemetry/application/desktop-telemetry-service.mjs": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "electron/main/terminal-agent/activity/bridge/shell-file-intent.mjs": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "electron/main/terminal-service.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/terminal-shell-host.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/themes/theme-css-compiler.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/themes/theme-selection-colors.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/themes/theme-service.mjs": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/themes/theme-single-file-contract.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/viewer-packs/archive-validator.mjs": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "electron/main/viewer-packs/core-format-policy.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/viewer-packs/manifest-schema.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/viewer-packs/package-service.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/viewer-packs/preset-viewer-manifest.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "electron/main/viewer-packs/session-manager.mjs": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "electron/main/window-workspace-state.mjs": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/workspace-resource-resolver.mjs": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "electron/main/workspace-state-store.mjs": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "electron/update-service.mjs": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "local-api/edit-review.mjs": {
+    "max-params": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "local-api/files/file-format-policy.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "local-api/files/workspace-activity.mjs": {
+    "max-depth": {
+      "count": 2
+    }
+  },
+  "local-api/git/auto-commit.mjs": {
+    "complexity": {
+      "count": 3
+    }
+  },
+  "local-api/git/cloud-remote.mjs": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "local-api/git/source-control-model.mjs": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "local-api/git/sync-target.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "local-api/templates/materialize.mjs": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "local-api/workspace-config.mjs": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "local-api/workspace.mjs": {
+    "complexity": {
+      "count": 5
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-params": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 8
+    }
+  },
+  "packages/shared-ui/src/core/fileFormats.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/data/DataWorkspace.tsx": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "packages/shared-ui/src/data/ExplorerTree.tsx": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 4
+    }
+  },
+  "packages/shared-ui/src/data/explorer/explorerMotionAnimation.ts": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/ai-edits/diff.ts": {
+    "max-params": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/code/codeLanguageSupport.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/codemirror/readingAnchor.ts": {
+    "no-nested-ternary": {
+      "count": 3
+    }
+  },
+  "packages/shared-ui/src/editor/codemirror/viewportLayout.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/conflictMarkers.ts": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/document-session/DocumentEditingSession.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/document-session/documentResourceOperations.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-depth": {
+      "count": 3
+    }
+  },
+  "packages/shared-ui/src/editor/document-session/documentStorageReads.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/find/editorFind.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/find/useCsvFindAdapter.ts": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/host/DataNodeEditorHost.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/host/EditorDocumentHost.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/host/FilePreview.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/MarkdownCodeMirrorEditor.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/composition/preview/markdownInlineRenderer.ts": {
+    "max-params": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/core/commands/markdownBlockCommands.ts": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/core/commands/markdownInlineCommands.ts": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/core/decorations/blockDecorations.ts": {
+    "max-params": {
+      "count": 2
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/core/decorations/inlineDecorations.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-params": {
+      "count": 5
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/core/editor/markdownAiEditExtension.ts": {
+    "max-params": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/core/editor/markdownLivePreviewContext.ts": {
+    "max-params": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/core/interaction/markdownBlockDrag.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/core/plans/markdownBlockExecution.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/core/projection/markdownDocumentProjection.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/features/code-block/codeBlockWidget.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "max-params": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/features/html/htmlBlockModel.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/features/html/htmlBlockPolicy.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/features/html/htmlBlockStructure.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 3
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/features/html/htmlBlockWidget.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/features/html/htmlTagTokenizer.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-depth": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/features/html/inlineHtmlPolicy.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/features/html/sanitizeHtml.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/features/image/imagePreviewWidget.ts": {
+    "max-params": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/features/mdx-component/mdxComponentModel.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-params": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/features/mdx-component/mdxComponentSyntax.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/features/mdx-component/mdxTabsWidget.ts": {
+    "max-params": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/features/mermaid/mermaidBlockWidget.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "max-params": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/features/table/tableCellEditor.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "max-params": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/features/table/tableContextMenu.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/features/table/tableDragLayer.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/features/table/tableInlineViewportController.ts": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/features/table/tableModel.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/features/table/tableWidget.ts": {
+    "max-params": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions.ts": {
+    "max-params": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/platform/brokers/assetBroker.ts": {
+    "max-params": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/platform/brokers/transactionBroker.ts": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/platform/codemirror/embeddedEditSession.ts": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/platform/codemirror/embeddedInlineViewportSession.ts": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/platform/codemirror/embeddedTableColumnLayoutSession.ts": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/platform/policy/markdownAssetPolicy.ts": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/platform/policy/markdownHtmlSanitizerPolicy.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "packages/shared-ui/src/editor/markdown/shared/widgets/markdownWidgetMeasure.ts": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/navigation/documentNavigation.ts": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/registry/editorProviderPolicy.ts": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/registry/presetViewerContribution.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/registry/presetViewerManifest.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/security/docxDomSanitizer.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/security/zipCentralDirectoryPreflight.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/table/editableTableLayout.ts": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/table/useTabularViewport.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/viewers/app/AppPreviewSetupView.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 11
+    }
+  },
+  "packages/shared-ui/src/editor/viewers/app/AppPreviewViewer.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 7
+    }
+  },
+  "packages/shared-ui/src/editor/viewers/context-map/ContextMapViewer.tsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/viewers/context-map/contextMapLayout.ts": {
+    "max-depth": {
+      "count": 1
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 4
+    }
+  },
+  "packages/shared-ui/src/editor/viewers/csv/CsvCellEditor.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "packages/shared-ui/src/editor/viewers/csv/CsvDocumentModel.ts": {
+    "max-params": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/viewers/csv/CsvTableControls.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 3
+    }
+  },
+  "packages/shared-ui/src/editor/viewers/csv/CsvTableEditor.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/viewers/csv/CsvTableMenu.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "packages/shared-ui/src/editor/viewers/csv/CsvTableResizeControl.tsx": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/viewers/csv/csvTableOperations.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/viewers/database/DatabaseViewer.tsx": {
+    "complexity": {
+      "count": 3
+    },
+    "no-nested-ternary": {
+      "count": 8
+    }
+  },
+  "packages/shared-ui/src/editor/viewers/html/HtmlBlockActionRail.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/viewers/html/HtmlFloatingToolbar.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/viewers/html/HtmlViewer.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/viewers/html/HtmlVisualSurface.tsx": {
+    "complexity": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/viewers/html/htmlBridgeProtocol.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/viewers/html/htmlEditCompiler.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/viewers/html/htmlPreviewProjection.ts": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/viewers/html/htmlSourceIndex.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/viewers/office/OfficeViewer.tsx": {
+    "complexity": {
+      "count": 4
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/viewers/office/officeTextFallbackTask.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/viewers/office/spreadsheetOoxmlPresentation.ts": {
+    "complexity": {
+      "count": 3
+    },
+    "no-nested-ternary": {
+      "count": 3
+    }
+  },
+  "packages/shared-ui/src/editor/viewers/office/spreadsheetParser.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-params": {
+      "count": 3
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/viewers/office/spreadsheetPreview.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/viewers/pdf/PdfViewer.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/viewers/puppyflow/puppyflowModel.ts": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/editor/viewers/shared/TextEditorFrame.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/primitives/LoadingIndicator.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/sidebar/CollapsiblePaneFrame.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "packages/shared-ui/src/workbench/auxiliary-workbench/auxiliaryWorkbenchModel.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "packages/shared-ui/src/workbench/split-tree/splitTreeModel.ts": {
+    "max-params": {
+      "count": 2
+    }
+  },
+  "shared/agent-contract/display-schema.mjs": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "shared/agent-contract/event-schema.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "shared/agent-contract/reference-input.mjs": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "shared/agent-contract/runtime-schema.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "shared/agent-contract/schema.mjs": {
+    "complexity": {
+      "count": 3
+    }
+  },
+  "shared/agent-contract/types.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "shared/database-preview/contract.mjs": {
+    "no-nested-ternary": {
+      "count": 4
+    }
+  },
+  "shared/desktop/application-identity.mjs": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "shared/desktop/artifact-contract.mjs": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "shared/desktop/release-identity.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "shared/desktop/update-policy.mjs": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "shared/item-host-contract/rpc.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "shared/model-connections/schema.mjs": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/App.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/ai-edits/mockAiEdits.ts": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/components/AssetLibraryHome.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/components/DesktopCloudShell.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/components/DesktopTooltipLayer.tsx": {
+    "no-nested-ternary": {
+      "count": 3
+    }
+  },
+  "src/components/OnboardingProjectEntryDialog.tsx": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/components/ScrollbarActivity.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/components/brand/AgentLauncherIcon.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/components/loading/index.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/components/onboarding/HomeProjectIcon.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/components/onboarding/OnboardingProjectList.tsx": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/features/app-shell/DesktopDataWorkspaceSurface.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/features/app-shell/DesktopHelpLauncher.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 6
+    }
+  },
+  "src/features/app-shell/DesktopOverlayPortal.tsx": {
+    "max-params": {
+      "count": 1
+    }
+  },
+  "src/features/app-shell/DesktopTitlebarActions.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/features/app-shell/DesktopTitlebarContext.tsx": {
+    "no-nested-ternary": {
+      "count": 3
+    }
+  },
+  "src/features/app-shell/DesktopWorkspaceSwitcher.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 5
+    }
+  },
+  "src/features/app-shell/ProjectSwitcherRail.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/features/app-shell/WorkspaceMenuVisualSmokeHarness.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchLauncher.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/app-shell/auxiliary-workbench/layout/AuxiliaryWorkbenchHeader.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/features/app-shell/auxiliary-workbench/layout/AuxiliaryWorkbenchStatus.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/app-shell/auxiliary-workbench/layout/useWorkbenchSessionHeaderMotion.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/app-shell/auxiliary-workbench/useAuxiliaryWorkbenchCloseCoordinator.ts": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/app-shell/auxiliary/AuxiliaryPanelHost.tsx": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/features/app-shell/navigation/DesktopNavigationItems.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/app-shell/preferences.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/features/app-shell/projectBackupProviders.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 9
+    }
+  },
+  "src/features/app-shell/useAnchoredOverlayPosition.ts": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/features/app-shell/useDesktopPreferences.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/features/app-shell/useWorkspaceLifecycle.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/appearance/appearancePreferences.ts": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/features/appearance/resolveAppearance.ts": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/automation/AutomationControls.tsx": {
+    "no-nested-ternary": {
+      "count": 5
+    }
+  },
+  "src/features/automation/AutomationCreateDialog.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 14
+    }
+  },
+  "src/features/automation/AutomationManageDialog.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 5
+    }
+  },
+  "src/features/automation/AutomationPage.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/features/automation/automationPresentation.ts": {
+    "no-nested-ternary": {
+      "count": 4
+    }
+  },
+  "src/features/automation/automationRequest.ts": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/features/cloud/CloudServiceMainView.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/features/cloud/access-points/components/AccessPointStatus.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/cloud/billing/cloudBillingApi.ts": {
+    "max-params": {
+      "count": 2
+    }
+  },
+  "src/features/cloud/billing/cloudBillingState.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/features/cloud/billing/useCloudBillingController.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/features/cloud/cloudPresentation.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/features/cloud/components/CloudActivationHero.tsx": {
+    "no-nested-ternary": {
+      "count": 4
+    }
+  },
+  "src/features/cloud/data/cloudProjectDetails.ts": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/cloud/graph/model.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/features/cloud/graph/shared.ts": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/cloud/history/CloudHistoryView.tsx": {
+    "no-nested-ternary": {
+      "count": 3
+    }
+  },
+  "src/features/cloud/initialization/CloudGitPrerequisite.tsx": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/features/cloud/initialization/CloudInitializationView.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 11
+    }
+  },
+  "src/features/cloud/initialization/CloudPublishProgressIndicator.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/cloud/initialization/useCloudInitialization.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/features/cloud/organization/CloudOrganizationBillingPage.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/cloud/organization/CloudOrganizationTeamPage.tsx": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/features/cloud/project/context/projectCloudContext.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/features/cloud/sections/access/AccessMethodCard.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/cloud/sections/access/AccessMethodPermissions.tsx": {
+    "no-nested-ternary": {
+      "count": 4
+    }
+  },
+  "src/features/cloud/sections/access/CreateAccessDialog.tsx": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/features/cloud/sections/access/CreateAccessMethodRow.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/cloud/sections/access/ScopeAccessDetail.tsx": {
+    "no-nested-ternary": {
+      "count": 3
+    }
+  },
+  "src/features/cloud/sections/access/ScopeSettingsBlock.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/cloud/sections/branches/BranchesSection.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 3
+    }
+  },
+  "src/features/cloud/sections/overview/OverviewDashboard.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/cloud/sections/overview/OverviewSection.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/cloud/sections/settings/SettingsSection.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 3
+    }
+  },
+  "src/features/cloud/share/CloudShareHome.tsx": {
+    "no-nested-ternary": {
+      "count": 4
+    }
+  },
+  "src/features/cloud/share/CloudShareStatusCard.tsx": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/features/cloud/share/ShareWizardDialog.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 5
+    }
+  },
+  "src/features/cloud/workbench/CloudWorkspaceSwitchDialog.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/cloud/workbench/DesktopCloudFileWorkspace.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/cloud/workbench/cloudDataPort.ts": {
+    "no-nested-ternary": {
+      "count": 5
+    }
+  },
+  "src/features/cloud/workbench/useCloudWorkspaceSwitch.ts": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/features/cloud/workbench/useNativeCloudWorkbench.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/features/cloud/workspace/workspaceCloudResolutionKey.ts": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/data-workspace/nodeActions.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 3
+    }
+  },
+  "src/features/data-workspace/useDataNodeActions.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/data-workspace/useFileClipboard.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/features/desktop-agent/application/AgentSessionController.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/features/desktop-agent/application/AgentSessionReplica.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/desktop-agent/application/AgentTurnSubmissionCoordinator.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/features/desktop-agent/application/ConversationHistoryController.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/features/desktop-agent/domain/agent-workspace-path.ts": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/features/desktop-agent/infrastructure/electron/agentExecutionClient.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/features/desktop-agent/ui/AgentApprovalDock.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/desktop-agent/ui/AgentChatTabPanel.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 6
+    }
+  },
+  "src/features/desktop-agent/ui/AgentComposer.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/features/desktop-agent/ui/AgentConversationHistory.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 6
+    }
+  },
+  "src/features/desktop-agent/ui/AgentMessagePart.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/desktop-agent/ui/AgentPanelStatus.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/features/desktop-agent/ui/AgentPickerPopover.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/features/desktop-agent/ui/AgentQuestionDock.tsx": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/features/desktop-agent/ui/AgentReferenceDisplayList.tsx": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/features/desktop-agent/ui/AgentRenderStabilitySmokeHarness.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-depth": {
+      "count": 2
+    }
+  },
+  "src/features/desktop-agent/ui/AgentSessionControlPicker.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/desktop-agent/ui/AgentToolStabilitySmokeHarness.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/features/desktop-agent/ui/AgentTranscript.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/features/desktop-agent/ui/AgentVisualSmokeHarness.tsx": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/features/desktop-agent/ui/activity/AgentActivityShell.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/features/desktop-agent/ui/activity/AgentFileChangeActivity.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/desktop-agent/ui/activity/AgentPlanActivity.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/desktop-agent/ui/agent-history-presentation.ts": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/desktop-agent/ui/built-in-agent/BuiltInAgentCompute.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 7
+    }
+  },
+  "src/features/desktop-agent/ui/composer/AgentComposerToolbar.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/desktop-agent/ui/composer/AgentVisualAttachmentList.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/desktop-agent/ui/transcript/transcript-rows.ts": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/desktop-agent/ui/transcript/transcript-viewport.ts": {
+    "max-params": {
+      "count": 1
+    }
+  },
+  "src/features/desktop-agent/ui/useAgentReferenceIngestion.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/features/desktop-agent/ui/useAgentRoutingPreferences.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/features/desktop-agent/workbench/AgentChatWorkbenchItem.tsx": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/features/desktop-terminal/model/terminalSessions.ts": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/features/desktop-terminal/ui/LauncherDiscoveryFeedback.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/desktop-terminal/ui/TerminalLauncher.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 4
+    }
+  },
+  "src/features/desktop-terminal/ui/TerminalLauncherVisualSmokeHarness.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/desktop-terminal/ui/session-header/TerminalSessionHeader.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/features/desktop-terminal/ui/session-header/TerminalSessionOverflowMenu.tsx": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/features/editor-workbench/controller/useDesktopEditorWorkbench.ts": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/editor-workbench/header/EditorHeaderTabs.tsx": {
+    "no-nested-ternary": {
+      "count": 5
+    }
+  },
+  "src/features/editor-workbench/layout/DesktopEditorSplitView.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/features/editor-workbench/layout/EditorPaneActionsMenu.tsx": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/features/editor-workbench/layout/EditorPaneChrome.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/editor-workbench/layout/EditorPaneShell.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/local-agents/activation/LocalAgentActivationDialog.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/features/model-connections/ui/ModelConnectionDetails.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/model-connections/ui/ModelConnectionSetup.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/features/model-connections/ui/ModelConnectionsSettings.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/native-surfaces/useNativeSurfaceLayoutTransition.ts": {
+    "max-params": {
+      "count": 1
+    }
+  },
+  "src/features/plugins/PluginsSidebar.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/plugins/PluginsView.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/project-import/ImportLocationField.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/settings/PuppyoneWorkspaceConfigSettings.tsx": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/features/settings/SettingsView.tsx": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/features/settings/main/AccountAICredits.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/settings/main/AccountSettingsView.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 4
+    }
+  },
+  "src/features/settings/main/RepositorySettingsViews.tsx": {
+    "complexity": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 5
+    }
+  },
+  "src/features/source-control/GitCommitDetail.tsx": {
+    "no-nested-ternary": {
+      "count": 3
+    }
+  },
+  "src/features/source-control/GitHistorySidebar.tsx": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/features/source-control/GitHistoryTimeline.tsx": {
+    "no-nested-ternary": {
+      "count": 3
+    }
+  },
+  "src/features/source-control/SourceControlSidebar.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/features/source-control/WorkingFileDetail.tsx": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/features/source-control/components.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/source-control/diff/contributions/docx-redline/worker/align.ts": {
+    "max-params": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/source-control/diff/contributions/docx-redline/worker/normalize.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/features/source-control/diff/contributions/docx-redline/worker/task.ts": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/features/source-control/diff/contributions/text-unified/TextUnifiedDiff.tsx": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/source-control/gitRefreshScheduler.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/features/source-control/operationDialogs.tsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/features/source-control/remotes.ts": {
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/source-control/sidebar/GitLocalStatusPanels.tsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/source-control/sidebar/useGitSidebarPanelLayout.ts": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/features/source-control/useDesktopGitController.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-nested-ternary": {
+      "count": 5
+    }
+  },
+  "src/features/source-control/useGitRepositoryLifecycle.ts": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/features/source-control/viewModel.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 6
+    }
+  },
+  "src/features/typography/fontCatalog.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "no-nested-ternary": {
+      "count": 1
+    }
+  },
+  "src/features/updates/DesktopUpdateTitlebarButton.tsx": {
+    "no-nested-ternary": {
+      "count": 3
+    }
+  },
+  "src/lib/cloud/resourceDashboardApi.ts": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/lib/cloudApi.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-params": {
+      "count": 6
+    }
+  },
+  "src/lib/cloudHistoryApi.ts": {
+    "max-params": {
+      "count": 1
+    }
+  },
+  "src/performance/RendererPerformanceSmokeHarness.tsx": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/preferences.ts": {
+    "complexity": {
+      "count": 1
+    }
+  }
+}

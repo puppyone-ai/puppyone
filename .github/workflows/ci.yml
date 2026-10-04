@@ -90,6 +90,27 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Fetch readability comparison commit
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # Never fall back to HEAD/HEAD^: that could compare a baseline to
+          # itself or omit earlier commits in a multi-commit push.
+          if [[ ! "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] || [[ "$BASE_SHA" == 0000000000000000000000000000000000000000 ]]; then
+            echo "A valid PR base or pre-push commit is required." >&2
+            exit 1
+          fi
+          git fetch --no-tags --depth=1 origin "$BASE_SHA"
+          git cat-file -e "$BASE_SHA^{commit}"
+          echo "READABILITY_BASE=$BASE_SHA" >> "$GITHUB_ENV"
+
+      - name: Readability and dependency gates
+        run: |
+          npm run lint
+          npm run check:dependencies
+          npm run check:readability-baselines
+          npm run test:readability-gates
+
       - name: Pre-release Checks — source
         run: npm run check:release -- --group source
 
