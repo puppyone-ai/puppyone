@@ -1,0 +1,429 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Cloud initialization render contract captured before extraction > locks branch missing 1`] = `
+{
+  "alerts": [
+    "Check out a branch before pushing to Cloud.",
+  ],
+  "buttons": [
+    {
+      "busy": "true",
+      "disabled": true,
+      "text": "Initialize and Push",
+    },
+  ],
+  "hero": true,
+  "progress": false,
+  "select": undefined,
+  "text": "Notestopic2 commits3 local changesNew Cloud projectNot initializedmainOneCheck out a branch before pushing to Cloud.Initialize and Push",
+}
+`;
+
+exports[`Cloud initialization render contract captured before extraction > locks choose source 1`] = `
+{
+  "alerts": [],
+  "buttons": [
+    {
+      "busy": null,
+      "disabled": false,
+      "text": "Use current branch",
+    },
+  ],
+  "hero": true,
+  "progress": false,
+  "select": undefined,
+  "text": "Notestopic2 commits3 local changesNew Cloud projectCloud project ready · Push not acceptedmainOneCloud project ready · Push not acceptedNotes exists in Cloud but has not accepted a commit yet. Retry the Push or explicitly delete the empty project.Uncommitted changes stay local and are not included in this Push.Use current branch",
+}
+`;
+
+exports[`Cloud initialization render contract captured before extraction > locks commit missing 1`] = `
+{
+  "alerts": [
+    "Create the first commit before pushing to Cloud.",
+  ],
+  "buttons": [
+    {
+      "busy": "true",
+      "disabled": true,
+      "text": "Initialize and Push",
+    },
+  ],
+  "hero": true,
+  "progress": false,
+  "select": undefined,
+  "text": "Notestopic2 commits3 local changesNew Cloud projectNot initializedmainOneCreate the first commit before pushing to Cloud.Initialize and Push",
+}
+`;
+
+exports[`Cloud initialization render contract captured before extraction > locks default validating progress 1`] = `
+{
+  "alerts": [
+    "Checking repository…",
+  ],
+  "buttons": [],
+  "hero": false,
+  "progress": true,
+  "select": undefined,
+  "text": "1ProjectChecking repository…2Access3Remote4Upload5FinishKeep PuppyOne open during the first upload. This operation is resumable and will not create a duplicate project.",
+}
+`;
+
+exports[`Cloud initialization render contract captured before extraction > locks explicit readiness 1`] = `
+{
+  "alerts": [
+    "Create the first commit before pushing to Cloud.",
+  ],
+  "buttons": [
+    {
+      "busy": "true",
+      "disabled": true,
+      "text": "Initialize and Push",
+    },
+  ],
+  "hero": true,
+  "progress": false,
+  "select": undefined,
+  "text": "Notestopic2 commits3 local changesNew Cloud projectNot initializedmainOneCreate the first commit before pushing to Cloud.Initialize and Push",
+}
+`;
+
+exports[`Cloud initialization render contract captured before extraction > locks finish cleanup 1`] = `
+{
+  "alerts": [],
+  "buttons": [
+    {
+      "busy": null,
+      "disabled": false,
+      "text": "Finish cleanup",
+    },
+  ],
+  "hero": true,
+  "progress": false,
+  "select": undefined,
+  "text": "Notestopic2 commits3 local changesNew Cloud projectCleanup pendingmainOneCleanup pendingDeletion of Notes was requested. Finish cleanup; changing branches or commits is not required.Uncommitted changes stay local and are not included in this Push.Finish cleanup",
+}
+`;
+
+exports[`Cloud initialization render contract captured before extraction > locks minimum change count 1`] = `
+{
+  "alerts": [],
+  "buttons": [
+    {
+      "busy": null,
+      "disabled": false,
+      "text": "Retry Push",
+    },
+    {
+      "busy": null,
+      "disabled": false,
+      "text": "Delete empty Cloud project",
+    },
+  ],
+  "hero": true,
+  "progress": false,
+  "select": undefined,
+  "text": "Notestopic2 commitsAt least 3 local changesNew Cloud projectCloud project ready · Push not acceptedmainOneCloud project ready · Push not acceptedNotes exists in Cloud but has not accepted a commit yet. Retry the Push or explicitly delete the empty project.Uncommitted changes stay local and are not included in this Push.Retry PushDelete empty Cloud project",
+}
+`;
+
+exports[`Cloud initialization render contract captured before extraction > locks multiple organizations 1`] = `
+{
+  "alerts": [],
+  "buttons": [
+    {
+      "busy": "true",
+      "disabled": true,
+      "text": "Initialize and Push",
+    },
+  ],
+  "hero": true,
+  "progress": false,
+  "select": "<select aria-label="Organization"><option value="" disabled="">Select an organization</option><option value="org-1">One</option><option value="org-2">Two</option></select>",
+  "text": "Notestopic2 commits3 local changesNew Cloud projectNot initializedmainOrganizationSelect an organizationOneTwoInitialize and Push",
+}
+`;
+
+exports[`Cloud initialization render contract captured before extraction > locks no actions 1`] = `
+{
+  "alerts": [],
+  "buttons": [
+    {
+      "busy": null,
+      "disabled": true,
+      "text": "Initialize and Push",
+    },
+  ],
+  "hero": true,
+  "progress": false,
+  "select": undefined,
+  "text": "Notestopic2 commits3 local changesNew Cloud projectCloud branch conflictmainOneCloud branch conflictCloud main contains a different commit. Nothing was overwritten; fetch and compare before continuing.Uncommitted changes stay local and are not included in this Push.Initialize and Push",
+}
+`;
+
+exports[`Cloud initialization render contract captured before extraction > locks organization error 1`] = `
+{
+  "alerts": [],
+  "buttons": [
+    {
+      "busy": null,
+      "disabled": false,
+      "text": "Retry",
+    },
+    {
+      "busy": "true",
+      "disabled": true,
+      "text": "Initialize and Push",
+    },
+  ],
+  "hero": true,
+  "progress": false,
+  "select": undefined,
+  "text": "Notestopic2 commits3 local changesNew Cloud projectNot initializedmainRetryofflineInitialize and Push",
+}
+`;
+
+exports[`Cloud initialization render contract captured before extraction > locks organization loading 1`] = `
+{
+  "alerts": [],
+  "buttons": [
+    {
+      "busy": "true",
+      "disabled": true,
+      "text": "Initialize and Push",
+    },
+  ],
+  "hero": true,
+  "progress": false,
+  "select": undefined,
+  "text": "Notestopic2 commits3 local changesNew Cloud projectNot initializedmainLoading…Initialize and Push",
+}
+`;
+
+exports[`Cloud initialization render contract captured before extraction > locks organization none 1`] = `
+{
+  "alerts": [],
+  "buttons": [
+    {
+      "busy": "true",
+      "disabled": true,
+      "text": "Initialize and Push",
+    },
+  ],
+  "hero": true,
+  "progress": false,
+  "select": undefined,
+  "text": "Notestopic2 commits3 local changesNew Cloud projectNot initializedmainNo organization is available for this account.Initialize and Push",
+}
+`;
+
+exports[`Cloud initialization render contract captured before extraction > locks organization ready 1`] = `
+{
+  "alerts": [],
+  "buttons": [
+    {
+      "busy": "true",
+      "disabled": true,
+      "text": "Initialize and Push",
+    },
+  ],
+  "hero": true,
+  "progress": false,
+  "select": undefined,
+  "text": "Notestopic2 commits3 local changesNew Cloud projectNot initializedmainOneInitialize and Push",
+}
+`;
+
+exports[`Cloud initialization render contract captured before extraction > locks organization selection-required 1`] = `
+{
+  "alerts": [],
+  "buttons": [
+    {
+      "busy": "true",
+      "disabled": true,
+      "text": "Initialize and Push",
+    },
+  ],
+  "hero": true,
+  "progress": false,
+  "select": undefined,
+  "text": "Notestopic2 commits3 local changesNew Cloud projectNot initializedmainOneSelect the organization that will own this Cloud project.Initialize and Push",
+}
+`;
+
+exports[`Cloud initialization render contract captured before extraction > locks organization signed-out 1`] = `
+{
+  "alerts": [],
+  "buttons": [
+    {
+      "busy": "true",
+      "disabled": true,
+      "text": "Initialize and Push",
+    },
+  ],
+  "hero": true,
+  "progress": false,
+  "select": undefined,
+  "text": "Notestopic2 commits3 local changesNew Cloud projectNot initializedmainInitialize and Push",
+}
+`;
+
+exports[`Cloud initialization render contract captured before extraction > locks prerequisite 1`] = `
+{
+  "alerts": [],
+  "buttons": [
+    {
+      "busy": null,
+      "disabled": false,
+      "text": "Get Started",
+    },
+  ],
+  "hero": false,
+  "progress": false,
+  "select": undefined,
+  "text": "Connect another AgentShare this Cloud project with ChatGPT, Claude, and other Agents.Get StartedChatGPTClaudeCursorManusHermesGrok",
+}
+`;
+
+exports[`Cloud initialization render contract captured before extraction > locks push latest 1`] = `
+{
+  "alerts": [],
+  "buttons": [
+    {
+      "busy": null,
+      "disabled": false,
+      "text": "Push latest commit",
+    },
+  ],
+  "hero": true,
+  "progress": false,
+  "select": undefined,
+  "text": "Notestopic2 commits3 local changesNew Cloud projectCloud project ready · Push not acceptedmainOneCloud project ready · Push not acceptedNotes exists in Cloud but has not accepted a commit yet. Retry the Push or explicitly delete the empty project.Uncommitted changes stay local and are not included in this Push.Push latest commit",
+}
+`;
+
+exports[`Cloud initialization render contract captured before extraction > locks reconcile 1`] = `
+{
+  "alerts": [],
+  "buttons": [
+    {
+      "busy": null,
+      "disabled": false,
+      "text": "Check Cloud status",
+    },
+  ],
+  "hero": true,
+  "progress": false,
+  "select": undefined,
+  "text": "Notestopic2 commits3 local changesNew Cloud projectPush status needs confirmationmainOnePush status needs confirmationThe Push response was lost. Check Cloud status before creating another attempt.Uncommitted changes stay local and are not included in this Push.Check Cloud status",
+}
+`;
+
+exports[`Cloud initialization render contract captured before extraction > locks repository missing 1`] = `
+{
+  "alerts": [
+    "This folder is not a Git repository. Initialize Git and create a commit first.",
+  ],
+  "buttons": [
+    {
+      "busy": "true",
+      "disabled": true,
+      "text": "Initialize and Push",
+    },
+  ],
+  "hero": true,
+  "progress": false,
+  "select": undefined,
+  "text": "Notestopic2 commits3 local changesNew Cloud projectNot initializedmainOneThis folder is not a Git repository. Initialize Git and create a commit first.Initialize and Push",
+}
+`;
+
+exports[`Cloud initialization render contract captured before extraction > locks retry push 1`] = `
+{
+  "alerts": [],
+  "buttons": [
+    {
+      "busy": null,
+      "disabled": false,
+      "text": "Retry Push",
+    },
+    {
+      "busy": null,
+      "disabled": false,
+      "text": "Delete empty Cloud project",
+    },
+  ],
+  "hero": true,
+  "progress": false,
+  "select": undefined,
+  "text": "Notestopic2 commits3 local changesNew Cloud projectCloud project ready · Push not acceptedmainOneCloud project ready · Push not acceptedNotes exists in Cloud but has not accepted a commit yet. Retry the Push or explicitly delete the empty project.Uncommitted changes stay local and are not included in this Push.Retry PushDelete empty Cloud project",
+}
+`;
+
+exports[`Cloud initialization render contract captured before extraction > locks state loading sign in pending 1`] = `
+{
+  "alerts": [
+    "Finish signing in in your browser to continue publishing.",
+  ],
+  "buttons": [
+    {
+      "busy": "true",
+      "disabled": true,
+      "text": "Waiting for sign-in…",
+    },
+  ],
+  "hero": true,
+  "progress": false,
+  "select": undefined,
+  "text": "Finish signing in in your browser to continue publishing.Notestopic2 commits3 local changesNew Cloud projectWaiting for sign-in…mainOneWaiting for sign-in…",
+}
+`;
+
+exports[`Cloud initialization render contract captured before extraction > locks state loading signed out 1`] = `
+{
+  "alerts": [],
+  "buttons": [
+    {
+      "busy": "true",
+      "disabled": true,
+      "text": "Sign in to PuppyOne Cloud",
+    },
+  ],
+  "hero": true,
+  "progress": false,
+  "select": undefined,
+  "text": "Notestopic2 commits3 local changesNew Cloud projectNot initializedmainSign in to PuppyOne Cloud",
+}
+`;
+
+exports[`Cloud initialization render contract captured before extraction > locks uploading with error 1`] = `
+{
+  "alerts": [
+    "Your Cloud project and remote are ready, but the initial push did not finish. Review changes, then choose Resume.",
+    "Uploading and publishing files…",
+  ],
+  "buttons": [],
+  "hero": false,
+  "progress": true,
+  "select": undefined,
+  "text": "Your Cloud project and remote are ready, but the initial push did not finish. Review changes, then choose Resume.1Project2Access3Remote4UploadUploading and publishing files…5FinishKeep PuppyOne open during the first upload. This operation is resumable and will not create a duplicate project.",
+}
+`;
+
+exports[`Cloud initialization render contract captured before extraction > locks waiting for sign in 1`] = `
+{
+  "alerts": [],
+  "buttons": [
+    {
+      "busy": "true",
+      "disabled": true,
+      "text": "Get Started",
+    },
+  ],
+  "hero": false,
+  "progress": false,
+  "select": undefined,
+  "text": "Connect another AgentShare this Cloud project with ChatGPT, Claude, and other Agents.Get StartedChatGPTClaudeCursorManusHermesGrok",
+}
+`;
+
+exports[`Cloud initialization render contract captured before extraction > requires confirmation to delete an empty project and supports cancel 1`] = `"Delete this empty Cloud project?This permanently deletes Notes. Your local repository and files are not changed.CancelDelete empty Cloud project"`;
