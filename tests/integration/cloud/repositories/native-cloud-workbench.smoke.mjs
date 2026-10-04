@@ -1,12 +1,19 @@
 #!/usr/bin/env electron
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, ipcMain, nativeImage } from "electron";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { createDesktopPlatformHost } from "../../../../electron/main/platform/create-platform-host.mjs";
+import { registerPlatformIpcHandlers } from "../../../../electron/main/ipc/platform-ipc.mjs";
+import { registerWindowLayoutIpcHandlers } from "../../../../electron/main/ipc/window-layout-ipc.mjs";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const artifacts = path.join(repo, "artifacts/tests/cloud/native-workbench");
+const nativeCorners = process.argv.includes('--native-corners');
+if (nativeCorners && process.platform !== 'darwin') throw new Error('Native corner capture requires macOS');
+const artifacts = path.join(repo, `artifacts/tests/cloud/${nativeCorners ? 'native-window-corners' : 'native-workbench'}`);
 await mkdir(artifacts, { recursive: true });
 app.setPath("userData", await mkdtemp(path.join(os.tmpdir(), "puppyone-native-cloud-")));
 app.commandLine.appendSwitch("disable-renderer-backgrounding");
@@ -35,6 +42,7 @@ const waitFor = async (expression) => {
   throw new Error(`Renderer did not become ready: ${expression}`);
 };
 const headerPresentations = [];
+const nativeCornerCaptures = [];
 async function headerPresentation(location) {
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   // Existing control hover/color transitions can straddle a theme change; measure
@@ -50,7 +58,7 @@ async function headerPresentation(location) {
     const frame = getComputedStyle(shell, '::after');
     const probe = document.createElement('span');
     header.append(probe);
-    probe.style.color = 'var(${location === "cloud" ? "--po-accent" : "--po-header"})';
+    probe.style.color = 'var(--po-header)';
     const expected = getComputedStyle(probe).color;
     probe.style.color = 'var(--po-accent)';
     const accent = getComputedStyle(probe).color;
@@ -66,9 +74,11 @@ async function headerPresentation(location) {
       center:h.x+h.width/2, projectCenter:c.x+c.width/2,
       background:rgb(css.backgroundColor), expected:rgb(expected), accent:rgb(accent),
       backgroundImage:css.backgroundImage,
+      controlPalette:['text', 'text-muted', 'hover', 'active', 'focus', 'divider'].map(key => css.getPropertyValue('--desktop-titlebar-' + key)),
       frame:{ location:shell.dataset.workspaceKind ?? 'local', identity:shell.dataset.fixtureIdentity,
         x:s.x, y:s.y, width:s.width, height:s.height, content:frame.content,
         color:rgb(frame.borderTopColor), borderWidth:frame.borderTopWidth, pointerEvents:frame.pointerEvents,
+        radius:parseFloat(frame.borderTopLeftRadius),
         interceptsPointer:document.elementFromPoint(1,innerHeight/2) === shell },
       contrastSamples:[button, ...header.querySelectorAll('.desktop-titlebar-editor-tab')].map(node => {
         const control = getComputedStyle(node);
@@ -77,13 +87,13 @@ async function headerPresentation(location) {
       }) };
   })()`);
   assert(sample.location === location, `Header tint must follow the committed ${location} provider`);
-  assert(JSON.stringify(sample.background) === JSON.stringify(sample.expected), `Header must use product accent on Cloud and original color on Local: ${JSON.stringify(sample)}`);
+  assert(JSON.stringify(sample.background) === JSON.stringify(sample.expected), `Header must keep its original palette on both providers: ${JSON.stringify(sample)}`);
   assert(sample.backgroundImage === 'none', 'The previous gradient must be removed');
   assert(sample.frame.location === location && sample.frame.identity === 'retained-shell', 'Window frame must follow the same committed provider without remounting');
   assert(sample.frame.x === 0 && sample.frame.y === 0 && sample.frame.width === sample.viewport
     && sample.frame.height === sample.viewportHeight, 'Cloud frame must enclose the whole window, not just the editor');
   if (location === 'cloud') {
-    assert(sample.frame.borderWidth === '2px' && JSON.stringify(sample.frame.color) === JSON.stringify(sample.accent), 'Header and 2px frame must share the product accent');
+    assert(sample.frame.borderWidth === '2px' && JSON.stringify(sample.frame.color) === JSON.stringify(sample.accent), 'Only the 2px frame uses the product accent');
     assert(sample.frame.pointerEvents === 'none' && !sample.frame.interceptsPointer, 'Frame must not intercept pointer or resize interactions');
   } else assert(sample.frame.content === 'none', 'Local must have no Cloud frame');
   assert(sample.identity === "retained-header" && sample.x === 0 && sample.width === sample.viewport,
@@ -91,8 +101,7 @@ async function headerPresentation(location) {
   assert(Math.abs(sample.center - sample.projectCenter) < 0.01, "Tint must not move the centered project context");
   const luminance = (rgb) => rgb.map(v => v/255).map(v => v <= 0.04045 ? v/12.92 : ((v+0.055)/1.055)**2.4)
     .reduce((sum, value, i) => sum + value * [0.2126,0.7152,0.0722][i], 0);
-  // Include active editor tabs: their former canvas backplate would make
-  // on-accent text unreadable even if the centered project label passed.
+  // Include active editor tabs as well as the centered project label.
   sample.contrast = Math.min(...sample.contrastSamples.map(({ ink, paper }) => {
     const a = luminance(ink), b = luminance(paper);
     return (Math.max(a,b)+0.05)/(Math.min(a,b)+0.05);
@@ -117,15 +126,55 @@ async function windowFramePixels(sample) {
   const paintedHeader = pixel(12,10);
   const header = [12,width-20].flatMap(x => [3,10,20,30,37].map(y => ({x,y,rgb:pixel(x,y)})));
   for (const point of header) assert(distance(point.rgb,paintedHeader) <= 1, `Entire Header must have one solid color: ${JSON.stringify(point)}`);
-  const edges = [[12,0],[12,1],[0,Math.floor(height/2)],[1,Math.floor(height/2)],
+  const paintedFrame = pixel(1,Math.floor(height/2));
+  const edges = [[Math.floor(width/2),0],[Math.floor(width/2),1],[0,Math.floor(height/2)],[1,Math.floor(height/2)],
     [width-1,Math.floor(height/2)],[width-2,Math.floor(height/2)],
     [Math.floor(width/2),height-1],[Math.floor(width/2),height-2]].map(([x,y]) => ({x,y,rgb:pixel(x,y)}));
-  for (const point of edges) assert(sample.location === 'cloud' ? distance(point.rgb,paintedHeader) <= 1
+  for (const point of edges) assert(sample.location === 'cloud' ? distance(point.rgb,paintedFrame) <= 1
     : distance(point.rgb,sample.accent) > 5, `Frame must appear/disappear on all four edges with the provider: ${JSON.stringify(point)}`);
   const interior = [[4,Math.floor(height/2)],[width-5,Math.floor(height/2)],[Math.floor(width/2),height-5]]
     .map(([x,y]) => ({x,y,rgb:pixel(x,y)}));
-  if (sample.location === 'cloud') for (const point of interior) assert(distance(point.rgb,paintedHeader) > 5, 'Frame must remain thin and not recolor the workspace');
-  return {paintedHeader,header,edges,interior};
+  let corners = [];
+  if (sample.location === 'cloud') {
+    assert(distance(paintedFrame,paintedHeader) > 5, 'Cloud must not tint the Header');
+    for (const point of interior) assert(distance(point.rgb,paintedFrame) > 5, 'Frame must remain thin and not recolor the workspace');
+    if (sample.frame.radius > 0) corners = verifyCornerArcs(pixel, width, height, sample.frame.radius, paintedFrame);
+  }
+  return {paintedHeader,paintedFrame,header,edges,interior,corners};
+}
+
+function verifyCornerArcs(pixel, width, height, radius, blue) {
+  const checks = [];
+  for (const [name,right,bottom] of [['top-left',false,false],['top-right',true,false],['bottom-left',false,true],['bottom-right',true,true]]) {
+    for (let degrees=5; degrees<90; degrees+=5) {
+      const angle = degrees*Math.PI/180;
+      const x = radius-(radius-1)*Math.cos(angle), y = radius-(radius-1)*Math.sin(angle);
+      let distance = Infinity;
+      // Subpixel search stays within the 2px stroke, avoiding raster AA at its edges.
+      for (const dx of [-0.5,0,0.5]) for (const dy of [-0.5,0,0.5]) {
+        const rgb = pixel(right ? width-1-x-dx : x+dx, bottom ? height-1-y-dy : y+dy);
+        distance = Math.min(distance, Math.max(...rgb.map((v,i) => Math.abs(v-blue[i]))));
+      }
+      assert(distance < 25, `${name} blue arc has a gap at ${degrees} degrees (distance ${distance})`);
+      checks.push({name,degrees,distance});
+    }
+  }
+  return checks;
+}
+
+async function captureNativeCorners(scene, sample) {
+  // This captures our isolated fixture window via WindowServer, including the
+  // real macOS rounded mask. capturePage alone cannot detect compositor clipping.
+  const file = path.join(artifacts, `native-${scene}.png`);
+  const id = window.getMediaSourceId().split(':')[1];
+  await promisify(execFile)('/usr/sbin/screencapture', ['-x','-o','-l',id,file]);
+  const image = nativeImage.createFromPath(file), bitmap = image.toBitmap();
+  const [width,height] = window.getSize();
+  const scale = Math.sqrt(bitmap.length/(width*height*4));
+  const pixel = (x,y) => { const offset=(Math.floor((y+0.5)*scale)*width*scale+Math.floor((x+0.5)*scale))*4; return [bitmap[offset+2],bitmap[offset+1],bitmap[offset]]; };
+  const blue = pixel(1,Math.floor(height/2));
+  const corners = verifyCornerArcs(pixel,width,height,sample.frame.radius,blue);
+  nativeCornerCaptures.push({scene,width,height,scale,blue,corners});
 }
 async function selectLocation(location) {
   await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
@@ -134,11 +183,19 @@ async function selectLocation(location) {
   await waitFor(`window.__nativeCloudWorkbenchSmoke.state().location === '${location}'`);
 }
 app.whenReady().then(async () => {
-  window = new BrowserWindow({ show: false, width: 1100, height: 760, frame: false,
-    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false } });
+  const platformHost = createDesktopPlatformHost();
+  if (nativeCorners) {
+    registerPlatformIpcHandlers({ ipcMain, platformHost });
+    registerWindowLayoutIpcHandlers({ ipcMain, BrowserWindow });
+  }
+  window = new BrowserWindow({ show: false, width: 1100, height: 760, frame: nativeCorners,
+    ...(nativeCorners ? platformHost.windowChrome.browserWindowOptions : {}),
+    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false,
+      ...(nativeCorners ? { preload:path.join(repo,'tests/fixtures/cloud/repositories/window-chrome-preload.cjs') } : {}) } });
   window.webContents.on("console-message", (event) => { if (event.level === "error" || event.level === 3) errors.push(event.message); });
   await window.loadURL(`${pathToFileURL(path.join(repo, "dist/index.html")).href}#native-cloud-workbench-smoke`);
   await waitFor("Boolean(window.__nativeCloudWorkbenchSmoke && document.querySelector('[data-workspace-location=local] .cm-content')?.textContent.includes('LOCAL_FILE_BODY'))");
+  if (nativeCorners) window.showInactive();
   await evaluate("window.__nativeCloudWorkbenchSmoke.edit('local', 'LOCAL_UNSAVED_DRAFT')");
   await waitFor("window.__nativeCloudWorkbenchSmoke.state().localWrites.some(item => item.content === 'LOCAL_UNSAVED_DRAFT')");
   const localPresentation = await presentation("local");
@@ -210,6 +267,16 @@ app.whenReady().then(async () => {
       if ((await state()).location !== location) await selectLocation(location);
       const sample = await headerPresentation(location);
       sample.pixels = await windowFramePixels(sample);
+      if (before) assert(JSON.stringify(sample.controlPalette) === JSON.stringify(before.controlPalette), 'Cloud must not change Header control colors');
+      if (nativeCorners && location === 'cloud') {
+        assert(sample.frame.radius === 16, 'Windowed macOS frame must draw actual rounded arcs');
+        await captureNativeCorners(`${theme}-${width}`,sample);
+        // Exercise the production event consumer without changing the user's macOS Space.
+        window.webContents.send('window-layout:chrome-state-changed', {fullScreen:true});
+        await waitFor("getComputedStyle(document.querySelector('.desktop-shell'),'::after').borderTopLeftRadius === '0px'");
+        window.webContents.send('window-layout:chrome-state-changed', {fullScreen:false});
+        await waitFor("getComputedStyle(document.querySelector('.desktop-shell'),'::after').borderTopLeftRadius === '16px'");
+      }
       if (before) for (const key of ["x", "y", "width", "height", "projectCenter"]) {
         assert(Math.abs(sample[key] - before[key]) < 0.01, `Header ${key} moved on ${theme} ${width}px switch`);
       }
@@ -322,7 +389,7 @@ app.whenReady().then(async () => {
   assert(await evaluate("document.querySelector('[data-workspace-location=local] .cm-editor')?.dataset.fixtureIdentity === 'retained-local-host' && document.querySelector('[data-workspace-location=local] .cm-content').textContent.includes('LOCAL_UNSAVED_DRAFT')"), "Authentication must preserve local drafts");
   await evaluate("window.__nativeCloudWorkbenchSmoke.finishLocalSaves()");
   snapshot = await state();
-  await writeFile(path.join(artifacts, "report.json"), JSON.stringify({ passed: true, localHost, localPresentation, cloudPresentation, headerPresentations, authGeometry, loginPresentations, snapshot, errors }, null, 2));
+  await writeFile(path.join(artifacts, "report.json"), JSON.stringify({ passed: true, localHost, localPresentation, cloudPresentation, headerPresentations, nativeCornerCaptures, authGeometry, loginPresentations, snapshot, errors }, null, 2));
   assert(!errors.length, `Renderer errors: ${errors.join("; ")}`);
   console.log("Native Cloud workbench smoke passed: identical native layout/styles, Cloud tree/data/edit/save, centered sign-in across themes and eight locales, browser waiting/error states, login before switching, cancellation, isolated drafts and retained hosts.");
   window.destroy(); app.exit(0);

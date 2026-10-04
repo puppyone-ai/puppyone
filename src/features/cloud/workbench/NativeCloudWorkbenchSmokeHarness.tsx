@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EditorView } from "@codemirror/view";
 import { createWorkspaceRootUri, createWorkspaceResourceUri, getWorkspaceResourcePath, canonicalizeResourceUri, isDocumentDataNode, withEditorDocumentOperations, type DataPort, type Workspace, type WorkspaceFolder } from "@puppyone/shared-ui";
 import { DesktopCloudShell } from "../../../components/DesktopCloudShell";
+import { resetDesktopPlatformCapabilitiesForTests } from "../../../platform/desktopPlatformClient";
 import { DesktopOverlayPortal } from "../../app-shell/DesktopOverlayPortal";
 import { DesktopWorkspaceSwitcher } from "../../app-shell/DesktopWorkspaceSwitcher";
 import { DesktopWorkspaceLocationSurface } from "../../app-shell/DesktopWorkspaceLocationSurface";
@@ -53,6 +54,7 @@ const authStateListeners = new Set<(state: DesktopCloudAuthState) => void>();
 const authErrorListeners = new Set<(payload: { message?: string }) => void>();
 window.puppyoneDesktop = {
   ...window.puppyoneDesktop,
+  ...window.__nativeCloudChromeBridge,
   startCloudOAuth: async () => {
     for (const listener of authStateListeners) listener({ status: "signing-in", session: null });
     return { ok: true };
@@ -81,9 +83,14 @@ window.puppyoneDesktop = {
     throw new Error(`Unexpected fixture request: ${request.path}`);
   },
 } as NonNullable<typeof window.puppyoneDesktop>;
+// Bootstrap may have cached the no-bridge snapshot before this lazy fixture loaded.
+if (window.__nativeCloudChromeBridge) resetDesktopPlatformCapabilitiesForTests();
 
 declare global {
-  interface Window { __nativeCloudWorkbenchSmoke?: {
+  interface Window {
+    __nativeCloudChromeBridge?: Pick<NonNullable<Window["puppyoneDesktop"]>,
+      "getPlatformCapabilities" | "getWindowChromeState" | "onWindowChromeStateChanged">;
+    __nativeCloudWorkbenchSmoke?: {
     state: () => { location: string; cloudWrites: typeof cloudWrites; localWrites: typeof localWrites; requests: string[] };
     edit: (location: "local" | "cloud", text: string) => void;
     finishLocalSaves: () => void;

@@ -53,9 +53,16 @@
   inset: 0;
   box-sizing: border-box;
   border: 2px solid var(--po-accent);
-  border-radius: inherit;
+  border-radius: var(--desktop-cloud-frame-radius, 0px);
   content: "";
   pointer-events: none;
+}
+
+/* The macOS compositor clips the window but cannot round an already-painted
+ * rectangular stroke. Draw the arc ourselves, following the native Header's
+ * platform/full-screen state; do not infer full screen from viewport size. */
+.desktop-shell[data-workspace-kind="cloud"]:has(> .desktop-shell-workbench > .desktop-titlebar[data-window-platform="macos"][data-window-chrome-mode="overlay"]:not([data-window-full-screen="true"])) {
+  --desktop-cloud-frame-radius: var(--desktop-macos-window-frame-radius);
 }
 
 .desktop-shell-workbench {

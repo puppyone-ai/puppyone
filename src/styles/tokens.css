@@ -6,6 +6,8 @@
   --desktop-toolbar-action-radius: 5px;
   /* Default native Header height is mirrored from window-layout-contract.mjs. */
   --desktop-chrome-height: 40px;
+  /* Logical-pixel contour of the macOS rounded overlay window (not a layout inset). */
+  --desktop-macos-window-frame-radius: 16px;
   /* Standard control geometry is owned by shared-ui/control-geometry.css. */
   --desktop-chrome-control-size: var(--po-control-size);
   --desktop-titlebar-control-height: var(--po-control-size-compact);
@@ -140,7 +142,7 @@
  * local titlebar and sidebar use a restrained blend of chrome and editor
  * materials. That keeps the frame legible without creating a heavy contrast:
  * subtly darker in light themes and subtly lighter in dark themes. Cloud
- * workspaces use the product accent for both the Header and window outline.
+ * workspaces keep that same Header and use the product accent only for the window outline.
  */
 :root,
 :where(.app-shell, .onboarding-shell, .desktop-overlay-root, .desktop-theme-preview-surface, .dark) {

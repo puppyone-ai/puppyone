@@ -39,12 +39,8 @@ describe("titlebar typography architecture", () => {
     expect(conflict).toContain("var(--po-danger) 78%, white");
   });
 
-  it("uses the product accent for the whole Cloud Header with on-accent controls", () => {
+  it("keeps the original Header and controls for both providers; only the frame conveys Cloud", () => {
     const titlebarRule = readCssBlock(`\n${titlebarCss}`, ".desktop-titlebar");
-    const cloudTitlebarRule = readCssBlock(
-      titlebarCss,
-      '.desktop-titlebar[data-workspace-kind="cloud"]',
-    );
 
     expect(tokensCss).toContain(
       "--po-header: color-mix(in srgb, var(--po-surface-chrome) 40%, var(--po-surface-editor));",
@@ -55,14 +51,9 @@ describe("titlebar typography architecture", () => {
     expect(titlebarRule).toContain("--desktop-titlebar-bg: var(--po-header);");
     expect(titlebarRule).toContain("--po-font-size-chrome: var(--po-type-header-content);");
     expect(titlebarRule).toContain("background: var(--desktop-titlebar-bg);");
-    expect(cloudTitlebarRule).toContain("--desktop-titlebar-bg: var(--po-accent);");
-    expect(cloudTitlebarRule).toContain("--desktop-titlebar-text: var(--po-text-inverse);");
-    expect(cloudTitlebarRule).toContain("--desktop-titlebar-text-muted: var(--po-text-inverse);");
-    expect(cloudTitlebarRule).not.toContain("gradient");
-    expect(cloudTitlebarRule).not.toContain("--po-cloud-titlebar-bg");
-    expect(readCssBlock(titlebarCss, '.desktop-titlebar[data-workspace-kind="cloud"] .desktop-titlebar-editor-tab[data-active="true"]'))
-      .toContain("background: var(--desktop-titlebar-active);");
-    expect(cloudTitlebarRule).not.toMatch(/(?:height|padding|margin|transition|animation)\s*:/);
+    expect(titlebarCss).not.toContain('.desktop-titlebar[data-workspace-kind="cloud"]');
+    expect(titlebarRule).toContain("--desktop-titlebar-text: var(--po-text);");
+    expect(titlebarRule).toContain("--desktop-titlebar-text-muted: var(--po-text-muted);");
     expect(titlebarCss).not.toContain(".desktop-titlebar-workspace-button.cloud {");
     const skinContract = readFileSync(new URL("../../../../src/styles/interface-skin-contract.css", import.meta.url), "utf8");
     expect(skinContract).toContain('.desktop-titlebar[data-workspace-kind="local"] {');
@@ -75,7 +66,10 @@ describe("titlebar typography architecture", () => {
     expect(frame).toContain("position: absolute;");
     expect(frame).toContain("inset: 0;");
     expect(frame).toContain("border: 2px solid var(--po-accent);");
-    expect(frame).toContain("border-radius: inherit;");
+    expect(frame).toContain("border-radius: var(--desktop-cloud-frame-radius, 0px);");
+    expect(shellCss).toContain('[data-window-platform="macos"][data-window-chrome-mode="overlay"]:not([data-window-full-screen="true"])');
+    expect(shellCss).toContain("--desktop-cloud-frame-radius: var(--desktop-macos-window-frame-radius);");
+    expect(tokensCss).toContain("--desktop-macos-window-frame-radius: 16px;");
     expect(frame).toContain("pointer-events: none;");
     expect(frame).not.toMatch(/(?:padding|margin|app-region|transition|animation)\s*:/);
   });

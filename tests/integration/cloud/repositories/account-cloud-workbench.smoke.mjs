@@ -55,16 +55,18 @@ app.whenReady().then(async () => {
   assert(await evaluate(`(() => {
     const header = document.querySelector('.desktop-titlebar');
     const probe = document.createElement('span');
-    probe.style.color = 'var(--po-accent)'; header.append(probe);
-    const expected = getComputedStyle(probe).color; probe.remove();
+    probe.style.color = 'var(--po-header)'; header.append(probe);
+    const expected = getComputedStyle(probe).color;
+    probe.style.color = 'var(--po-accent)';
+    const accent = getComputedStyle(probe).color; probe.remove();
     const shell = header.closest('.desktop-shell'), frame = getComputedStyle(shell, '::after');
     return header.dataset.workspaceKind === 'cloud' && shell.dataset.workspaceKind === 'cloud'
       && getComputedStyle(header).backgroundColor === expected
       && getComputedStyle(header).backgroundImage === 'none'
-      && frame.borderColor === expected && frame.borderWidth === '2px' && frame.pointerEvents === 'none'
+      && frame.borderColor === accent && frame.borderWidth === '2px' && frame.pointerEvents === 'none'
       && shell.getBoundingClientRect().height === innerHeight
       && header.getBoundingClientRect().width === innerWidth;
-  })()`), "Hosted-only Cloud projects use the same product-blue Header and whole-window frame");
+  })()`), "Hosted-only Cloud projects keep the original Header and product-blue whole-window frame");
   await evaluate("document.querySelector('.desktop-account-cloud-workspace .desktop-titlebar-workspace-button').click()");
   await waitFor("Boolean(document.querySelector('button[data-project-location=cloud]'))");
   assert(await evaluate("document.querySelector('button[data-project-location=cloud]').getAttribute('aria-pressed') === 'true' && !document.querySelector('.desktop-account-cloud-workspace .desktop-titlebar-actions [data-project-location]')"),
