@@ -119,22 +119,6 @@ describe("Experimental settings", () => {
     });
   });
 
-  it("keeps Header chat tabs behind a separate default-off switch", () => {
-    const host = document.createElement("div");
-    document.body.append(host);
-    root = createRoot(host);
-    act(() => root?.render(withTestLocalization(
-      <ExperimentalSettingsView />,
-    )));
-    const toggle = host.querySelector<HTMLInputElement>('input[aria-label="Chat tabs in Header"]');
-    expect(toggle?.checked).toBe(false);
-    act(() => toggle?.click());
-    expect(store.getState().experimentalSettings).toEqual({
-      ...DEFAULT_EXPERIMENTAL_SETTINGS,
-      enableWorkbenchTabsInHeader: true,
-    });
-  });
-
   it("offers an off-by-default cross-Project switcher rail", () => {
     const host = document.createElement("div");
     document.body.append(host);

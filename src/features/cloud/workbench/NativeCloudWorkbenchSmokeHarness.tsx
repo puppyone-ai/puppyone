@@ -9,7 +9,6 @@ import { DesktopTitlebarActions } from "../../app-shell/DesktopTitlebarActions";
 import { CloudWorkspaceHeaderTools } from "./CloudWorkspaceHeaderTools";
 import { DesktopWorkspaceLocationSurface } from "../../app-shell/DesktopWorkspaceLocationSurface";
 import { useDesktopPreference, useDesktopPreferenceEffects, initializeDesktopPreferences } from "../../settings";
-import { EditorHeaderTabs } from "../../editor-workbench/header/EditorHeaderTabs";
 import { useCloudWorkspaceSwitch } from "./useCloudWorkspaceSwitch";
 import { CloudWorkspaceSwitchDialog } from "./CloudWorkspaceSwitchDialog";
 import { CloudWorkspacePreparation } from "./CloudWorkspacePreparation";
@@ -199,7 +198,6 @@ export function NativeCloudWorkbenchSmokeHarness() {
     resolveWorkspaceResource: resolveLocal, workspaceRefreshToken: { sequence: 0, entries: [] },
     workspaceAtomicRefreshToken: 0, workspaceSurfaceError: null, sidebarCreateMenuOpen: false,
   };
-  const visibleWorkbench = location === "cloud" ? workbench.editorWorkbench : localWorkbench;
   const headerLocation = (cloudSessionAvailable ? controller.requestedLocation : undefined) ?? location;
   useEffect(() => {
     window.__nativeCloudWorkbenchSmoke = {
@@ -250,11 +248,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
         terminalToolEnabled={headerLocation === "local"} gitChangesAvailable={headerLocation === "local"}
         onToggleTerminal={noop} onToggleGitChanges={noop} />
       </>}
-      titlebarTabs={<EditorHeaderTabs activeEditorId={visibleWorkbench.activeEditorId}
-        editors={visibleWorkbench.state.editors}
-        storageIdentity={location === "cloud" ? workbench.dataPort?.documentPersistence?.storageIdentity ?? null : localPort.documentPersistence!.storageIdentity}
-        onActivate={visibleWorkbench.activate} onClose={location === "cloud" ? workbench.closeEditor : visibleWorkbench.close}
-        onMove={visibleWorkbench.moveTab} />}>
+      >
       <DesktopWorkspaceLocationSurface location={location}
         preparation={controller.pending && cloudSessionAvailable ? <CloudWorkspacePreparation controller={controller} /> : undefined}
         local={<DesktopDataWorkspaceSurface {...commonSurfaceProps} />}

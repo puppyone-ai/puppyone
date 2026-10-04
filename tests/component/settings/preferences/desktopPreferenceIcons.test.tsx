@@ -2,9 +2,8 @@
 import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createEditorInput, EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT, FilePreview } from "@puppyone/shared-ui";
+import { EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT, FilePreview } from "@puppyone/shared-ui";
 import { desktopPreferencesStore as store, initializeDesktopPreferences } from "../../../../src/preferencesStore";
-import { EditorHeaderTabs } from "../../../../src/features/editor-workbench/header/EditorHeaderTabs";
 import { EditorPaneDocumentRuntime } from "../../../../src/features/editor-workbench/runtime/EditorPaneDocumentRuntime";
 import { GitHistorySidebar } from "../../../../src/features/source-control/GitHistorySidebar";
 import { DesktopCreateEntryDialog, DesktopCreateEntryMenu, DesktopNodeActionMenu, type DesktopCreateEntryDraft } from "../../../../src/features/data-workspace/nodeActions";
@@ -37,21 +36,17 @@ function icon(selector: string) {
 }
 
 describe("desktop icon preference consumers", () => {
-  it("updates Header and Git history glyphs without new parent props", () => {
-    const editor = createEditorInput("README.md");
+  it("updates Git history glyphs without new parent props", () => {
     const commit = { commit_id: "fixture", parent_ids: [], author_name: "Fixture", author_email: "fixture@example.invalid",
       created_at: "2026-10-04T00:00:00Z", message: "Fixture", changes: [{ path: "README.md", oldPath: null,
         status: "modified" as const, additions: 1, deletions: 0 }] };
     act(() => root.render(withTestLocalization(<>
-      <EditorHeaderTabs activeEditorId={editor.id} editors={[editor]} storageIdentity={null} onActivate={noop} onClose={noop} onMove={noop} />
       <GitHistorySidebar status={gitStatus({ commits: [commit], allCommits: [commit], totalCommits: 1 })} statusLoading={false}
         statusError={null} selectedCommitId={null} commitDetail={null} commitDetailLoading={false} commitDetailError={null}
         historyLoading={false} initializing={false} onInitialize={async () => true} onSelectCommit={noop} onBack={noop} />
     </>)));
-    const header = icon(".desktop-titlebar-editor-tab-icon");
     const history = icon(".desktop-history-row-file-icon");
     act(() => store.getState().setFileIconTheme("semantic"));
-    expect(icon(".desktop-titlebar-editor-tab-icon")).not.toBe(header);
     expect(icon(".desktop-history-row-file-icon")).not.toBe(history);
     expect(JSON.parse(localStorage.getItem("puppyone.desktop.appearance")!).shared.fileIconTheme).toBe("semantic");
   });

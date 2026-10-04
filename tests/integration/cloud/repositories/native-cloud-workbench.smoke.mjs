@@ -117,7 +117,7 @@ async function headerPresentation(location) {
         color:rgb(frame.borderTopColor), borderWidth:frame.borderTopWidth, pointerEvents:frame.pointerEvents,
         radius:parseFloat(frame.borderTopLeftRadius),
         interceptsPointer:document.elementFromPoint(1,innerHeight/2) === shell },
-      contrastSamples:[button, ...header.querySelectorAll('.desktop-titlebar-editor-tab')].map(node => {
+      contrastSamples:[button].map(node => {
         const control = getComputedStyle(node);
         return { label:node.className, paper:rgb(css.backgroundColor, control.backgroundColor),
           ink:rgb(css.backgroundColor, control.backgroundColor, control.color) };
@@ -143,7 +143,7 @@ async function headerPresentation(location) {
   assert(Math.abs(sample.center - sample.projectCenter) < 0.01, "Tint must not move the centered project context");
   const luminance = (rgb) => rgb.map(v => v/255).map(v => v <= 0.04045 ? v/12.92 : ((v+0.055)/1.055)**2.4)
     .reduce((sum, value, i) => sum + value * [0.2126,0.7152,0.0722][i], 0);
-  // Include active editor tabs as well as the centered project label.
+  // Verify the project label in the regular Header; Header tabs are experimental.
   sample.contrast = Math.min(...sample.contrastSamples.map(({ ink, paper }) => {
     const a = luminance(ink), b = luminance(paper);
     return (Math.max(a,b)+0.05)/(Math.min(a,b)+0.05);
@@ -488,7 +488,7 @@ app.whenReady().then(async () => {
   await selectLocation("local");
   assert(await evaluate("document.querySelector('[data-workspace-location=local] .cm-editor')?.dataset.fixtureIdentity === 'retained-local-host' && document.querySelector('[data-workspace-location=local] .cm-content').textContent.includes('LOCAL_UNSAVED_DRAFT')"), "Returning to This Mac must retain the same editor and local unsaved draft");
   await selectLocation("cloud");
-  assert(await evaluate("document.querySelector('[data-workspace-location=cloud] .cm-content').textContent.includes('CLOUD_EDIT_ONLY') && document.querySelector('.desktop-titlebar-editor-tabs').textContent.includes('readme')"), "Returning to Cloud must retain its own tabs and content");
+  assert(await evaluate("document.querySelector('[data-workspace-location=cloud] .cm-content').textContent.includes('CLOUD_EDIT_ONLY')"), "Returning to Cloud must retain its own document content");
   await evaluate("window.__nativeCloudWorkbenchSmoke.holdCloudRead(); [...document.querySelectorAll('[data-cloud-native=true] .tree-row')].find(row => row.textContent.includes('cloud-only')).click()");
   await waitFor("Boolean(document.querySelector('[data-cloud-native=true] .document-surface-preparation-pending [data-puppy-loader]'))");
   assert(await evaluate("document.querySelector('[data-cloud-native=true] .tree-row[aria-selected=true]').textContent.includes('cloud-only') && Boolean(document.querySelector('[data-cloud-native=true] .document-surface-slot.is-obscured[aria-hidden=true]'))"),

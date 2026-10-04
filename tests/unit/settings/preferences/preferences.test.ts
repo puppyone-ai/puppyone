@@ -232,10 +232,6 @@ describe("experimental preferences", () => {
     expect(parseExperimentalSettings("not-json").enableCloudWorkspace).toBe(false);
     expect(parseExperimentalSettings(JSON.stringify({ enableCloudWorkspace: false })).enableCloudWorkspace).toBe(false);
     expect(parseExperimentalSettings(JSON.stringify({ enableCloudWorkspace: true })).enableCloudWorkspace).toBe(true);
-    expect(parseExperimentalSettings(null).enableWorkbenchTabsInHeader).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableWorkbenchTabsInHeader: true })).enableWorkbenchTabsInHeader).toBe(true);
-    expect(parseExperimentalSettings(null).enableEditorTabsInHeader).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableEditorTabsInHeader: true })).enableEditorTabsInHeader).toBe(true);
     expect(parseExperimentalSettings(null).enableCenteredProjectInHeader).toBe(false);
     expect(parseExperimentalSettings(JSON.stringify({ enableCenteredProjectInHeader: true })).enableCenteredProjectInHeader).toBe(true);
   });

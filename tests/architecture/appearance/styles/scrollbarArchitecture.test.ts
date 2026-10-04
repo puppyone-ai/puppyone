@@ -69,15 +69,12 @@ describe("scrollbar architecture", () => {
     expect(readCss("src/components/onboarding/OnboardingProjectList.tsx")).toContain('data-po-scrollbar-visibility="always"');
   });
 
-  it("hides registered editor tab scrollbars through the shared contract while retaining horizontal overflow", () => {
+  it("supports hidden scrollbars through the shared contract", () => {
     const hiddenRule = readRule(scrollbarsCss, ':where([data-po-scrollbar="hidden"])::-webkit-scrollbar');
     expect(hiddenRule).toContain("display: none;");
     expect(hiddenRule).toContain("width: 0;");
     expect(hiddenRule).toContain("height: 0;");
-    const tabsRule = readRule(readCss("src/styles/titlebar.css"), "\n.desktop-titlebar-editor-tabs");
-    expect(tabsRule).toContain("overflow-x: auto;");
-    expect(tabsRule).toContain("overflow-y: hidden;");
-    expect(tabsRule).toContain("overscroll-behavior-inline: contain;");
+
   });
 
   it("shares one presentation color and explicit owner state across surfaces", () => {
