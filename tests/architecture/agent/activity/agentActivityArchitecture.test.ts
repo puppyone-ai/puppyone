@@ -1,10 +1,17 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const root = process.cwd();
 
 describe("Agent activity architecture boundaries", () => {
+  it("keeps the small presence module flat, including its styles", () => {
+    const directories = readdirSync(path.join(root, "src/features/desktop-agent-presence"), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+    expect(directories).toEqual([]);
+  });
+
   it("keeps provider payloads outside shared and Renderer code", () => {
     const shared = source("shared/agent-activity-contract/types.ts");
     const presence = source("src/features/desktop-agent-presence/AgentFilePresence.tsx");
