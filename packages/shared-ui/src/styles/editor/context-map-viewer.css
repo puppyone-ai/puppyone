@@ -297,7 +297,7 @@ button.folder-relationship-layered-node > .folder-relationship-card-hitarea {
   box-sizing: border-box;
   align-items: center;
   justify-content: center;
-  padding: clamp(48px, 7vw, 92px);
+  padding: 48px;
   transform-origin: 0 0;
   will-change: transform;
 }
@@ -770,7 +770,6 @@ button.folder-relationship-layered-node > .folder-relationship-card-hitarea {
 
   .folder-relationship-world {
     min-width: 760px;
-    padding: 44px 28px;
   }
 
   .folder-relationship-grid {

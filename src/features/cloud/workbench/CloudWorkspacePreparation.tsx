@@ -1,9 +1,9 @@
-import { RefreshCw } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import { ExplorerTreeSkeleton } from "@puppyone/shared-ui";
 import { PageLoading } from "../../../components/loading";
 import { formatCloudMessage } from "../cloudPresentation";
 import type { CloudWorkspaceSwitch } from "./useCloudWorkspaceSwitch";
+import { CloudWorkspaceRecovery } from "./CloudWorkspaceRecovery";
 
 /** Presentation for the requested destination; no provider or editor ownership. */
 export function CloudWorkspacePreparation({ controller }: { controller: CloudWorkspaceSwitch }) {
@@ -21,12 +21,8 @@ export function CloudWorkspacePreparation({ controller }: { controller: CloudWor
       </div>
     </aside>
     <main className="browser-column desktop-editor-panel">
-      {controller.error ? <div className="editor-state editor-state--stacked">
-        <p role="alert">{formatCloudMessage(controller.error, t)}</p>
-        <button type="button" className="desktop-cloud-row-action" onClick={controller.retry}>
-          <RefreshCw size={13} /><span>{t("cloud.common.retry")}</span>
-        </button>
-      </div> : <PageLoading variant="fill" label={null} ariaLabel={t("cloud.loading.project")} />}
+      {controller.error ? <CloudWorkspaceRecovery message={formatCloudMessage(controller.error, t)}
+        onRetry={controller.retry} /> : <PageLoading variant="fill" label={null} ariaLabel={t("cloud.loading.project")} />}
     </main>
   </section>;
 }

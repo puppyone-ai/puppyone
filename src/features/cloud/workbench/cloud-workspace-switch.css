@@ -19,21 +19,57 @@
 
   .desktop-cloud-workspace-switch-recovery {
     display: flex;
+    width: 100%;
+    min-height: 0;
+    flex: 1;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
-    padding: 32px;
+    justify-content: center;
+    gap: 18px;
+    overflow: auto;
+    padding: 32px var(--desktop-utility-page-padding-inline);
     color: var(--po-text);
     text-align: center;
+    font-family: var(--po-font-sans);
+    font-size: var(--po-type-ui-body, 14px);
+    line-height: 1.5;
   }
 
-  .desktop-cloud-workspace-switch-recovery p {
+  .desktop-cloud-workspace-recovery-copy {
+    display: grid;
+    width: min(100%, 420px);
+    gap: 8px;
+  }
+
+  .desktop-cloud-workspace-recovery-copy strong {
+    font-size: var(--po-type-ui-section-title, 16px);
+    font-weight: var(--po-text-weight-medium, 500);
+  }
+
+  .desktop-cloud-workspace-recovery-copy p {
     margin: 0;
+    color: var(--po-text-muted);
+    overflow-wrap: anywhere;
   }
 
-  .desktop-cloud-workspace-switch-recovery p {
-    color: var(--po-text-muted);
-    font-size: var(--po-text-size-body);
+  .desktop-cloud-workspace-recovery-copy small {
+    color: var(--po-text-subtle);
+    font-size: var(--po-type-ui-caption, 12px);
+  }
+
+  .desktop-cloud-workspace-recovery-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .desktop-cloud-workspace-recovery-actions .desktop-dialog-button {
+    gap: 6px;
+    border-color: var(--po-border-subtle);
+    color: var(--po-text);
+    font-size: var(--po-type-ui-control, 14px);
+    font-weight: var(--po-text-weight-medium, 500);
   }
 
   .desktop-cloud-workspace-switch-dialog.is-authentication {

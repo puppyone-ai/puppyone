@@ -44,17 +44,6 @@
   --po-markdown-editor-content-padding-block: 28px;
 }
 
-@media (max-width: 760px) {
-  .markdown-presentation-preview {
-    height: 300px;
-  }
-
-  .markdown-presentation-preview .markdown-codemirror-editor {
-    --po-markdown-editor-gutter-min: 20px;
-    --po-markdown-editor-content-padding-block: 22px;
-  }
-}
-
 .markdown-codemirror-editor .cm-editor {
   height: 100%;
   min-height: 100%;

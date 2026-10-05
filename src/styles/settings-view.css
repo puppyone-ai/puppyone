@@ -5,11 +5,8 @@
 .desktop-settings-dialog-backdrop,
 .desktop-plugins-dialog-backdrop,
 .desktop-cloud-dialog-backdrop {
-  /* Size each axis independently so a narrower window cannot make the dialog
-   * taller. The same insets constrain the backdrop and its task surface. */
-  --desktop-task-dialog-inset-inline: clamp(16px, 4vw, 40px);
-  --desktop-task-dialog-inset-block: clamp(16px, 4vh, 40px);
-  padding: var(--desktop-task-dialog-inset-block) var(--desktop-task-dialog-inset-inline);
+  /* The surface shrinks with the viewport; its outer inset stays fixed. */
+  padding: var(--desktop-task-dialog-inset);
   background: color-mix(in srgb, var(--po-backdrop) 84%, transparent);
   backdrop-filter: blur(1.5px);
   -webkit-backdrop-filter: blur(1.5px);
@@ -24,9 +21,9 @@
   --desktop-task-dialog-header-focus: var(--po-focus-ring);
   --desktop-task-dialog-header-divider: var(--po-header-divider);
 
-  width: min(var(--desktop-dialog-width, 960px), calc(100vw - 2 * var(--desktop-task-dialog-inset-inline)));
-  height: min(760px, calc(100vh - 2 * var(--desktop-task-dialog-inset-block)));
-  max-height: calc(100vh - 2 * var(--desktop-task-dialog-inset-block));
+  width: min(var(--desktop-dialog-width, 960px), calc(100vw - 2 * var(--desktop-task-dialog-inset)));
+  height: min(760px, calc(100vh - 2 * var(--desktop-task-dialog-inset)));
+  max-height: calc(100vh - 2 * var(--desktop-task-dialog-inset));
   border-radius: 14px;
   background: var(--po-canvas);
 }
@@ -172,7 +169,7 @@
 
 .desktop-settings-dialog-content .desktop-settings-body {
   padding-block: 48px 40px;
-  padding-inline: clamp(20px, 4vw, 42px);
+  padding-inline: var(--desktop-utility-page-padding-inline);
 }
 
 .desktop-settings-body {

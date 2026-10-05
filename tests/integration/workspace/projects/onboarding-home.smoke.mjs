@@ -209,7 +209,7 @@ async function runSmoke() {
             assert.equal(snapshot.importBadges[i].x - previous.x - previous.width, -6, `${context}: circular source badges overlap`);
           }
           assert.equal(snapshot.importText, importLabels[locale], `${context}: complete localized text`);
-          assert.equal(snapshot.brand.width, width >= 563 ? 440 : 324, `${context}: shared responsive column width`);
+          assert.equal(snapshot.brand.width, Math.min(440, width - 56), `${context}: column width fits within stable page insets`);
           assert.equal(snapshot.brand.x, snapshot.actions.x, `${context}: brand and actions share a left edge`);
           assert.equal(snapshot.brand.width, snapshot.actions.width, `${context}: shared content-column width`);
           assert.equal(snapshot.create.x, snapshot.actions.x, `${context}: no extra action-area left padding`);
@@ -221,7 +221,7 @@ async function runSmoke() {
           assert.equal(snapshot.launcher.width, snapshot.brand.width, `${context}: launcher uses the shared width`);
           assert.equal(snapshot.firstSection.x, snapshot.brand.x, `${context}: first content section uses the shared left edge`);
           assert.equal(snapshot.firstSection.width, snapshot.brand.width, `${context}: first content section spans the shared column`);
-          const titleToSectionGap = state === 'empty' ? 24 : height <= 620 ? 34 : height <= 760 ? 46 : 58;
+          const titleToSectionGap = state === 'empty' ? 24 : 34;
           assert.ok(Math.abs(snapshot.firstSection.y - snapshot.brand.y - snapshot.brand.height - titleToSectionGap) < 1, `${context}: shared title-to-section gap`);
           assert.ok(Math.abs(snapshot.firstClickable.y - snapshot.brand.y - snapshot.brand.height - titleToSectionGap - 25) < 1, `${context}: shared title-to-first-clickable gap`);
           const verticalCenter = state === 'empty' ? height / 2 : snapshot.homepage.y + snapshot.homepage.height / 2;
@@ -425,10 +425,10 @@ async function runSmoke() {
 async function validateProjectScrollports() {
   const samples = [];
   for (const theme of ["dark", "light"]) {
-    // Original pre-expansion title/list anchors: grow below them, not above.
+    // Keep the same title/list clearance at every window size; grow the list below it.
     for (const [width, height, minimumListHeight, titleTop, listTop] of [
       [640, 520, 200, 91, 178], [591, 594, 275, 91, 178], [992, 596, 275, 91, 178],
-      [900, 680, 350, 87, 186], [1200, 900, 475, 169, 280], [1200, 1200, 625, 319, 430],
+      [900, 680, 350, 91, 178], [1200, 900, 475, 91, 178], [1200, 1200, 625, 91, 178],
     ]) {
       window.setContentSize(width, height);
       const url = new URL(`http://127.0.0.1:${server.httpServer.address().port}/tests/fixtures/workspace/projects/onboarding-home.html`);

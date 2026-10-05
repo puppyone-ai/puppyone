@@ -79,9 +79,11 @@ async function checkCloudToolSizing(tool, phase) {
           const header = dialog.querySelector('.desktop-cloud-dialog-header');
           const close = header.querySelector('button');
           const rect = dialog.getBoundingClientRect(), button = close.getBoundingClientRect();
+          const backdrop = getComputedStyle(dialog.closest('.desktop-dialog-backdrop'));
           return { x:rect.x, y:rect.y, width:rect.width, height:rect.height,
             viewportWidth:innerWidth, viewportHeight:innerHeight,
             titleSize:getComputedStyle(header.querySelector('h2')).fontSize,
+            inset:[backdrop.paddingTop, backdrop.paddingRight, backdrop.paddingBottom, backdrop.paddingLeft],
             closeFits:button.left >= rect.left && button.right <= rect.right
               && button.top >= rect.top && button.bottom <= rect.bottom };
         })()`);
@@ -89,7 +91,7 @@ async function checkCloudToolSizing(tool, phase) {
           && sample.y + sample.height <= height - 15 && sample.closeFits,
           `Cloud ${tool} must fit the viewport and retain its close control (${phase}): ${JSON.stringify(sample)}`);
         if (previous) assert(sample.width <= previous.width + 1 && sample.height <= previous.height + 1
-          && sample.titleSize === previous.titleSize,
+          && sample.titleSize === previous.titleSize && JSON.stringify(sample.inset) === JSON.stringify(previous.inset),
           `Shrinking the viewport must not enlarge Cloud ${tool} (${phase}): ${JSON.stringify({previous, sample})}`);
         previous = sample;
         toolDialogPresentations.push({ tool, phase, ...sample });

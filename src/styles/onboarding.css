@@ -28,7 +28,7 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  padding: 48px;
+  padding: 48px var(--desktop-utility-page-padding-inline);
 }
 
 .onboarding-homepage {
@@ -57,13 +57,13 @@
 }
 
 .onboarding-homepage-shell[data-onboarding-state="projects"] {
-  /* Preserve the original long-list title anchor (562px reference composition).
-   * This positions the title; it is not a height limit on the actual list. */
-  padding-block-start: max(91px, calc(50vh - 281px));
+  /* Keep the account rail and title clearance stable; the list owns scrolling. */
+  padding-block-start: var(--onboarding-account-rail-end);
   padding-block-end: 16px;
 }
 
 .onboarding-shell[data-onboarding-state="projects"] .onboarding-homepage {
+  --onboarding-title-primary-gap: 34px;
   --onboarding-primary-inset-end: 10px;
   --onboarding-primary-actions-gap: 12px;
   display: flex;
@@ -657,17 +657,7 @@
   margin-top: 1px;
 }
 
-@media (max-width: 820px) {
-  .onboarding-shell {
-    padding: 40px 28px;
-  }
-}
-
 @media (max-width: 520px) {
-  .onboarding-shell {
-    padding: 28px 18px;
-  }
-
   .homepage-cloud-account {
     inset-inline-end: 18px;
     max-width: calc(100% - 36px);
@@ -700,52 +690,5 @@
 
   .onboarding-project-row .desktop-menu-item-trailing {
     opacity: 0;
-  }
-}
-
-@media (max-height: 760px) {
-  .onboarding-homepage-shell[data-onboarding-state="projects"] {
-    /* Original medium-window anchor: 510px composition, 87px minimum. */
-    padding-block-start: max(87px, calc(50vh - 255px));
-  }
-
-  .onboarding-homepage {
-    --onboarding-page-gap: 24px;
-    --onboarding-title-primary-gap: 46px;
-    --onboarding-primary-actions-gap: 14px;
-  }
-
-  .onboarding-shell[data-onboarding-state="empty"] .onboarding-homepage {
-    --onboarding-title-primary-gap: 24px;
-  }
-
-  .onboarding-shell[data-onboarding-state="projects"] .onboarding-homepage {
-    --onboarding-page-gap: 14px;
-  }
-}
-
-@media (max-height: 620px) {
-  .onboarding-homepage-shell[data-onboarding-state="projects"] {
-    /* Keep the original compact-window title offset, not the new 48px one. */
-    padding-block-start: 91px;
-  }
-
-  .onboarding-homepage-shell {
-    padding-top: 28px;
-    padding-bottom: 28px;
-  }
-
-  .onboarding-homepage {
-    --onboarding-page-gap: 20px;
-    --onboarding-title-primary-gap: 34px;
-    --onboarding-primary-actions-gap: 18px;
-  }
-
-  .onboarding-shell[data-onboarding-state="empty"] .onboarding-homepage {
-    --onboarding-title-primary-gap: 24px;
-  }
-
-  .onboarding-shell[data-onboarding-state="projects"] .onboarding-homepage {
-    --onboarding-page-gap: 18px;
   }
 }

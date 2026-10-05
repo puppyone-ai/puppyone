@@ -4,6 +4,7 @@ import { CloudSignedOutRoute } from "../auth/CloudSignedOutRoute";
 import { CloudWorkspaceLoadingState } from "../components/shared";
 import { formatCloudMessage } from "../cloudPresentation";
 import type { ProjectCloudContext } from "../project/context/projectCloudContext";
+import { CloudWorkspaceRecovery } from "./CloudWorkspaceRecovery";
 
 /** Header recovery stays with the current repository, never a project picker. */
 export function RepositoryCloudSwitchGate({ context, authState, apiBaseUrl, onRetry, onPublishLocal }: {
@@ -19,12 +20,9 @@ export function RepositoryCloudSwitchGate({ context, authState, apiBaseUrl, onRe
   if (context.status === "resolving" || context.status === "resolved") {
     return <CloudWorkspaceLoadingState label={t("cloud.loading.matchingProject")} />;
   }
-  return <div className="desktop-cloud-workspace-switch-recovery">
-    <p role="alert">{context.status === "local-only" ? t("cloud.state.localOnlyDescription")
-      : formatCloudMessage(context.message, t)}</p>
-    <p>{t("cloud.recovery.localStatePreserved")}</p>
-    <button type="button" className="desktop-cloud-row-action" onClick={onRetry}>{t("cloud.common.retry")}</button>
-    {context.status === "local-only" && onPublishLocal && <button type="button" className="desktop-cloud-row-action"
-      onClick={onPublishLocal}>{t("cloud.catalog.publishLocal")}</button>}
-  </div>;
+  return <CloudWorkspaceRecovery title={context.status === "local-only" ? t("cloud.state.localOnly") : undefined}
+    message={context.status === "local-only" ? t("cloud.state.localOnlyDescription")
+    : formatCloudMessage(context.message, t)} onRetry={onRetry} showLocalState
+    actions={context.status === "local-only" && onPublishLocal && <button type="button" className="desktop-dialog-button"
+      onClick={onPublishLocal}>{t("cloud.catalog.publishLocal")}</button>} />;
 }

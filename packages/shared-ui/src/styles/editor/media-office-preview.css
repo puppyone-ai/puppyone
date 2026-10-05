@@ -986,7 +986,7 @@
   width: min(920px, 100%);
   max-height: 100%;
   aspect-ratio: 16 / 9;
-  padding: clamp(24px, 5vw, 64px);
+  padding: 24px;
   overflow: auto;
   border: 1px solid var(--po-border-subtle);
   border-radius: 2px;
@@ -1033,9 +1033,6 @@
     min-height: 42px;
   }
 
-  .office-pptx-stage {
-    padding: 18px 18px 56px;
-  }
 }
 
 .office-preview-empty {

@@ -2,7 +2,7 @@
   align-items: flex-start;
   justify-content: center;
   overflow: auto;
-  padding: 68px 48px 48px;
+  padding: 68px var(--desktop-utility-page-padding-inline) 40px;
 }
 
 .asset-library-home-titlebar {
@@ -562,10 +562,6 @@
 }
 
 @media (max-width: 760px) {
-  .asset-library-home-shell {
-    padding: 66px 24px 40px;
-  }
-
   .asset-library-home-header {
     align-items: stretch;
     flex-direction: column;
@@ -603,15 +599,6 @@
   }
 }
 
-@media (max-height: 720px) and (min-width: 761px) {
-  .asset-library-home-shell {
-    padding-top: 56px;
-  }
-
-  .asset-library-home {
-    gap: 14px;
-  }
-}
 
 @media (prefers-reduced-motion: reduce) {
   .asset-library-card,

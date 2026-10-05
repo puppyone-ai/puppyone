@@ -1,4 +1,3 @@
-import { RefreshCw } from "lucide-react";
 import { CloudIcon as Cloud } from "../../../components/icons/CloudIcon";
 import { useLocalization } from "@puppyone/localization";
 import { useEffect, type ReactNode } from "react";
@@ -8,6 +7,7 @@ import { CloudWorkspaceLoadingState } from "../components/shared";
 import { formatCloudMessage } from "../cloudPresentation";
 import type { CloudWorkspaceSwitch } from "./useCloudWorkspaceSwitch";
 import "./cloud-workspace-switch.css";
+import { CloudWorkspaceRecovery } from "./CloudWorkspaceRecovery";
 
 /** Authentication and preparation overlay the retained current-device workbench. */
 export function CloudWorkspaceSwitchDialog({ controller, gate, authenticationRequired = false, preparingInPlace = false }: {
@@ -46,13 +46,8 @@ export function CloudWorkspaceSwitchDialog({ controller, gate, authenticationReq
           <DesktopDialogCloseButton label={t("common.action.close")} onClick={controller.cancel} />
         </header>}
         <div className="desktop-cloud-workspace-switch-content" data-po-scrollbar="content">
-          {controller.error ? <div className="desktop-cloud-workspace-switch-recovery">
-            <p role="alert">{formatCloudMessage(controller.error, t)}</p>
-            <p>{t("cloud.recovery.localStatePreserved")}</p>
-            <button type="button" className="desktop-cloud-row-action" onClick={controller.retry}>
-              <RefreshCw size={13} /><span>{t("cloud.common.retry")}</span>
-            </button>
-          </div> : controller.checking ? <CloudWorkspaceLoadingState label={t("cloud.loading.project")} /> : gate}
+          {controller.error ? <CloudWorkspaceRecovery message={formatCloudMessage(controller.error, t)}
+            onRetry={controller.retry} showLocalState /> : controller.checking ? <CloudWorkspaceLoadingState label={t("cloud.loading.project")} /> : gate}
         </div>
       </DesktopDialogSurface>
     </DesktopDialogRoot>

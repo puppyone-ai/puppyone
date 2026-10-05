@@ -395,10 +395,6 @@
 }
 
 @media (max-width: 720px) {
-  .database-preview__frame {
-    padding: 18px 18px 68px;
-  }
-
   .database-preview__engine {
     display: none;
   }

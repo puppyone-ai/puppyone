@@ -21,7 +21,7 @@
     justify-items: start;
     gap: 24px;
     margin: auto;
-    padding: clamp(32px, 7vh, 76px) 40px;
+    padding: 48px var(--desktop-utility-page-padding-inline);
     overflow: auto;
     box-sizing: border-box;
     text-align: start;
@@ -786,10 +786,6 @@
   }
 
   @container (max-width: 820px) {
-    .desktop-cloud-mcp-activation {
-      padding-inline: 32px;
-    }
-
     .desktop-cloud-mcp-activation.is-connection {
       gap: 24px;
     }
@@ -804,7 +800,6 @@
       --desktop-cloud-secondary-art-scale: 0.32;
       grid-template-columns: minmax(0, 1fr);
       gap: 22px;
-      padding: 32px 24px;
     }
 
     .desktop-cloud-mcp-activation.is-connection {
@@ -830,7 +825,6 @@
       --desktop-cloud-secondary-art-scale: 0.28;
       grid-template-columns: minmax(0, 1fr);
       gap: 18px;
-      padding: 26px 18px;
     }
 
     .desktop-cloud-mcp-activation.is-connection {
@@ -846,11 +840,6 @@
     }
   }
 
-  @media (max-height: 720px) {
-    .desktop-cloud-mcp-activation {
-      padding-block: 24px;
-    }
-  }
 
   @media (prefers-reduced-motion: reduce) {
     .desktop-cloud-mcp-activation * {
