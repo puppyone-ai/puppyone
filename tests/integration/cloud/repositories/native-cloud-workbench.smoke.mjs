@@ -919,6 +919,25 @@ app.whenReady().then(async () => {
   await evaluate("window.__nativeCloudWorkbenchSmoke.finishPublish()");
   await waitFor("window.__nativeCloudWorkbenchSmoke.state().location === 'cloud' && !document.querySelector('.desktop-cloud-workspace-switch-dialog')");
   await selectLocation('local');
+  await evaluate("window.__nativeCloudWorkbenchSmoke.setRepositoryWrongHost(true)");
+  await openProjectMenu();
+  await evaluate("document.querySelector('button[data-project-location=cloud]').click()");
+  await waitFor("Boolean(document.querySelector('.desktop-cloud-project-connection-error'))");
+  for (const theme of ['light', 'dark']) {
+    await evaluate(`window.__nativeCloudWorkbenchSmoke.setLoginAppearance('${theme}', 'en')`);
+    await evaluate(`(() => {
+      const dialog = document.querySelector('.desktop-cloud-workspace-switch-dialog');
+      return Promise.all([...dialog.getAnimations(), ...dialog.querySelector('button.primary').getAnimations()]
+        .map(animation => animation.finished.catch(() => {})));
+    })()`);
+    await writeFile(path.join(artifacts, `connection-error-${theme}.png`), (await window.webContents.capturePage()).toPNG());
+  }
+  await evaluate("document.querySelector('.desktop-cloud-project-connection-error summary').click()");
+  await waitFor("document.querySelector('.desktop-cloud-project-connection-error details').open");
+  await writeFile(path.join(artifacts, 'connection-error-details.png'), (await window.webContents.capturePage()).toPNG());
+  await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
+  await waitFor("!document.querySelector('.desktop-cloud-workspace-switch-dialog')");
+  await evaluate("window.__nativeCloudWorkbenchSmoke.setRepositoryWrongHost(false)");
   await evaluate("window.__nativeCloudWorkbenchSmoke.finishLocalSaves()");
   snapshot = await state();
   assert(!errors.length, `Renderer errors: ${errors.join("; ")}`);

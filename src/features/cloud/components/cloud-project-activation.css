@@ -5,7 +5,7 @@
     min-width: 0;
     flex-direction: column;
     align-items: center;
-    gap: 20px;
+    gap: 24px;
     padding: 32px 28px;
     color: var(--po-text);
     font-family: var(--po-font-sans);
@@ -13,8 +13,8 @@
   }
 
   .desktop-cloud-project-illustration {
-    width: min(100%, 420px);
-    height: 136px;
+    width: min(100%, 360px);
+    height: 116px;
     flex: 0 0 auto;
     color: var(--po-text-muted);
   }
@@ -65,7 +65,6 @@
   .desktop-cloud-project-benefit + .desktop-cloud-project-benefit { border-inline-start: 1px solid var(--po-divider); }
   .desktop-cloud-project-benefit > svg { margin-bottom: 6px; }
   .desktop-cloud-project-benefit strong { font-weight: var(--po-text-weight-medium, 500); }
-  .desktop-cloud-project-benefit > span { color: var(--po-text-muted); }
   .desktop-cloud-project-agent-brands {
     display: flex;
     min-height: 26px;
@@ -110,4 +109,33 @@
     line-height: 1.5;
     overflow-wrap: anywhere;
   }
+
+  .desktop-cloud-project-connection-error {
+    display: grid;
+    gap: 6px;
+    color: var(--po-text-muted);
+    font-size: var(--po-type-ui-caption, 12px);
+    line-height: 1.5;
+  }
+
+  .desktop-cloud-project-connection-error p { margin: 0; }
+  .desktop-cloud-project-connection-error summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--po-text-subtle);
+    list-style: none;
+  }
+
+  .desktop-cloud-project-connection-error summary::-webkit-details-marker { display: none; }
+  .desktop-cloud-project-connection-error summary:hover { color: var(--po-text); }
+  .desktop-cloud-project-connection-error summary:focus-visible {
+    border-radius: var(--desktop-control-radius);
+    outline: 2px solid var(--po-focus-ring);
+    outline-offset: 3px;
+  }
+
+  .desktop-cloud-project-connection-error summary svg { flex: 0 0 auto; }
+  .desktop-cloud-project-connection-error details[open] summary svg { transform: rotate(90deg); }
+  .desktop-cloud-project-connection-error details p { margin-top: 8px; }
 }

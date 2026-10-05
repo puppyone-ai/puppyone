@@ -926,14 +926,10 @@
   "workspaceTools.unavailable": "{service} est indisponible",
   "workspaceTools.unavailableDescription": "Impossible de charger ce service cloud. Vérifiez votre connexion ou réessayez après la mise à jour du service.",
   "activation.project.title": "Votre projet, partout et à tout moment.",
-  "activation.project.description": "Partagez ce projet avec votre équipe.",
   "activation.project.share": "Partagez avec votre équipe",
-  "activation.project.shareHint": "Travaillez ensemble",
   "activation.project.agents": "Connectez des agents",
-  "activation.project.agentsHint": "Travaillez avec vos fichiers",
   "activation.project.automation": "Automatisez les mises à jour",
-  "activation.project.automationHint": "Gardez les sources synchronisées",
   "activation.project.publish": "Passez ce projet dans Cloud",
-  "activation.project.publishHint": "Vos fichiers locaux restent sur cet appareil.",
-  "activation.project.reconnect": "Reconnecter le projet Cloud"
+  "activation.project.reconnect": "Reconnecter le projet Cloud",
+  "activation.project.errorDetails": "Détails de l’erreur"
 }

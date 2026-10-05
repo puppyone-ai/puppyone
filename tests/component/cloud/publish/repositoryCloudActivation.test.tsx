@@ -72,7 +72,10 @@ describe("repository Cloud activation", () => {
       message: cloudMessage("remote-wrong-host", { origin: "https://other.puppyone.ai" }) } });
     expect(host.querySelector("[data-cloud-publish-action]")).toBeNull();
     expect(host.querySelector("h2")?.textContent).toContain("Take your project");
-    expect(host.querySelector('[role="alert"]')?.textContent).toContain("https://other.puppyone.ai");
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe("Cloud project unavailable");
+    const details = host.querySelector<HTMLDetailsElement>("details")!;
+    expect(details.open).toBe(false);
+    expect(details.textContent).toContain("https://other.puppyone.ai");
     await act(async () => host.querySelector<HTMLButtonElement>("button")!.click());
     expect(retry).toHaveBeenCalledOnce();
     expect(publish).not.toHaveBeenCalled();

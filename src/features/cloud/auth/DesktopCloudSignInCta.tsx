@@ -12,7 +12,7 @@ export function DesktopCloudSignInCta({ signingIn, error, onSignIn }: {
   const { t } = useLocalization();
   return (
     <CloudProjectActivation busy={signingIn}
-      hint={t(signingIn ? "cloud.auth.desktopWaitingHint" : "cloud.auth.desktopBrowserHint")}
+      hint={signingIn ? t("cloud.auth.desktopWaitingHint") : undefined}
       supplemental={error && <p className="desktop-cloud-sign-in-error" role="alert">{error}</p>}
       action={
         <button

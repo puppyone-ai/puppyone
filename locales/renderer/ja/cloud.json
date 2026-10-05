@@ -926,14 +926,10 @@
   "workspaceTools.unavailable": "{service}を利用できません",
   "workspaceTools.unavailableDescription": "クラウドサービスを読み込めませんでした。接続を確認するか、サービス更新後に再試行してください。",
   "activation.project.title": "いつでも、どこでも使えるプロジェクト。",
-  "activation.project.description": "このプロジェクトをチームで共有しましょう。",
   "activation.project.share": "チームと共有",
-  "activation.project.shareHint": "一緒に作業",
   "activation.project.agents": "エージェントと接続",
-  "activation.project.agentsHint": "ファイルを活用",
   "activation.project.automation": "更新を自動化",
-  "activation.project.automationHint": "外部ソースを同期",
   "activation.project.publish": "このプロジェクトをクラウドへ",
-  "activation.project.publishHint": "ローカルファイルはこのデバイスに残ります。",
-  "activation.project.reconnect": "クラウドプロジェクトに再接続"
+  "activation.project.reconnect": "クラウドプロジェクトに再接続",
+  "activation.project.errorDetails": "エラーの詳細"
 }

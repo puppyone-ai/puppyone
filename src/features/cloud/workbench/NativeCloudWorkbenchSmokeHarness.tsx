@@ -14,6 +14,8 @@ import { CloudWorkspaceSwitchDialog } from "./CloudWorkspaceSwitchDialog";
 import { CloudWorkspacePreparation } from "./CloudWorkspacePreparation";
 import { RepositoryCloudSwitchGate } from "./RepositoryCloudSwitchGate";
 import { CloudLocalOnlyWorkspace } from "../initialization/CloudInitializationView";
+import { cloudMessage } from "../cloudPresentation";
+import type { ProjectCloudContext } from "../project/context/projectCloudContext";
 import { useLocalization } from "@puppyone/localization/react";
 import type { AppLanguagePreference } from "@puppyone/localization/core";
 import type { DesktopCloudAuthState } from "../../../lib/cloudSession";
@@ -45,6 +47,12 @@ const session: DesktopCloudSession = { api_base_url: API, user_id: "fixture-user
   session_generation: "fixture-session", status: "authenticated", expires_at: Date.now() + 3_600_000, expires_in: 3600 };
 const context = { status: "resolved" as const, projectId: "fixture-project", projectName: "Native workspace",
   target: { kind: "project_root" as const, project_id: "fixture-project" }, capabilities: ["content.read", "content.write", "access_surface.manage"] };
+function resolveSmokeRepositoryContext(localOnly: boolean, wrongHost: boolean): ProjectCloudContext {
+  if (wrongHost) return { status: "wrong-host", projectId: context.projectId,
+    message: cloudMessage("remote-wrong-host", { origin: "http://api.puppyone.ai" }) };
+  if (localOnly) return { status: "local-only", projectId: null };
+  return context;
+}
 const cloudFiles = new Map([
   ["readme.txt", "CLOUD_FILE_BODY"], ["cloud-only.md", "# Cloud only"], ["records/sample.csv", "Name,Value\nCloud,42"],
   ["notes.md", "# Cloud note\n\n![Cloud diagram](/assets/diagram.svg)"],
@@ -136,6 +144,7 @@ declare global {
     setCloudToolsAvailable: (available: boolean) => void;
     setCloudSessionAvailable: (available: boolean) => void;
     setRepositoryLocalOnly: (localOnly: boolean) => void;
+    setRepositoryWrongHost: (wrongHost: boolean) => void;
     finishPublish: () => void;
     setSidebarCollapsed: (collapsed: boolean) => void;
     setCenteredProject: (centered: boolean) => void;
@@ -152,6 +161,9 @@ export function NativeCloudWorkbenchSmokeHarness() {
   const [cloudSelected, setCloudSelected] = useState(false);
   const [cloudSessionAvailable, setCloudSessionAvailable] = useState(true);
   const [repositoryLocalOnly, setRepositoryLocalOnly] = useState(false);
+  const [repositoryWrongHost, setRepositoryWrongHost] = useState(false);
+  const repositoryContext = resolveSmokeRepositoryContext(repositoryLocalOnly, repositoryWrongHost);
+  const repositoryUnavailable = repositoryContext.status !== "resolved";
   const [publishLoading, setPublishLoading] = useState(false);
   const location = cloudSelected && cloudSessionAvailable ? "cloud" : "local";
   useEffect(() => { if (!cloudSessionAvailable) setCloudSelected(false); }, [cloudSessionAvailable]);
@@ -168,7 +180,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
   const commitCloud = useCallback(() => setCloudSelected(true), []);
   const controller = useCloudWorkspaceSwitch({ enabled: true, scope: localWorkspace.id,
     session: cloudSessionAvailable ? session : null, service: workbench.service,
-    providerError: workbench.error, initializationPending: repositoryLocalOnly || publishLoading, onCommit: commitCloud });
+    providerError: workbench.error, initializationPending: repositoryUnavailable || publishLoading, onCommit: commitCloud });
   const localPort = useMemo<DataPort>(() => withEditorDocumentOperations({
     listChildren: async () => localNodes,
     resolveNode: async (path) => localNodes.find((node) => node.path === path) ?? null,
@@ -204,7 +216,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
     resolveWorkspaceResource: resolveLocal, workspaceRefreshToken: { sequence: 0, entries: [] },
     workspaceAtomicRefreshToken: 0, workspaceSurfaceError: null, sidebarCreateMenuOpen: false,
   };
-  const preparingInPlace = cloudSessionAvailable && !repositoryLocalOnly && !publishLoading;
+  const preparingInPlace = cloudSessionAvailable && !repositoryUnavailable && !publishLoading;
   const headerLocation = (preparingInPlace ? controller.requestedLocation : undefined) ?? location;
   useEffect(() => {
     window.__nativeCloudWorkbenchSmoke = {
@@ -226,7 +238,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
         view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } });
       },
       setCloudToolsAvailable: (available) => { cloudToolsAvailable = available; },
-      setCloudSessionAvailable, setSidebarCollapsed, setCenteredProject, setRepositoryLocalOnly,
+      setCloudSessionAvailable, setSidebarCollapsed, setCenteredProject, setRepositoryLocalOnly, setRepositoryWrongHost,
       finishPublish: () => { setPublishLoading(false); setRepositoryLocalOnly(false); },
       setLoginAppearance: async (nextTheme, locale) => { setTheme(nextTheme); await setLanguagePreference(locale); },
       resetLogin: () => { for (const listener of authStateListeners) listener({ status: "signed-out", session: null }); },
@@ -266,7 +278,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
     <CloudWorkspaceSwitchDialog controller={controller} authenticationRequired={!cloudSessionAvailable}
       preparingInPlace={preparingInPlace}
       gate={<RepositoryCloudSwitchGate apiBaseUrl={API} onRetry={controller.retry}
-        context={repositoryLocalOnly ? { status: "local-only", projectId: null } : context}
+        context={repositoryContext}
         initializationPending={publishLoading}
         authState={cloudSessionAvailable ? { status: "signed-in", apiBaseUrl: API, session } : { status: "signed-out", apiBaseUrl: API }}
         publishEntry={<CloudLocalOnlyWorkspace activeSection="contents" workspace={localWorkspace}

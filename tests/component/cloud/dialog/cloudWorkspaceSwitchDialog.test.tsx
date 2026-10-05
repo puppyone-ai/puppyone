@@ -51,7 +51,6 @@ describe("login before Cloud selection", () => {
     expect(dialog.getAttribute("aria-modal")).toBe("true");
     expect(dialog.querySelector("aside, nav")).toBeNull();
     expect(dialog.textContent).toContain("Take your project anywhere, anytime.");
-    expect(dialog.textContent).toContain("Share this project with your teammates.");
     expect(dialog.textContent).toContain("Manus");
     expect(dialog.textContent).toContain("Viktor");
     expect(local.value).toBe("Keep this draft");

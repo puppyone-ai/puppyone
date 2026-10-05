@@ -18,13 +18,11 @@ export function CloudProjectActivation({ action, hint, supplemental, busy = fals
     <header className="desktop-cloud-project-activation-copy">
       <p className="desktop-cloud-project-activation-eyebrow">{t("cloud.productName")}</p>
       <h2 id={titleId}>{t("cloud.activation.project.title")}</h2>
-      <p>{t("cloud.activation.project.description")}</p>
     </header>
     <div className="desktop-cloud-project-benefits">
       <div className="desktop-cloud-project-benefit">
         <UsersRound size={26} aria-hidden="true" />
         <strong>{t("cloud.activation.project.share")}</strong>
-        <span>{t("cloud.activation.project.shareHint")}</span>
       </div>
       <div className="desktop-cloud-project-benefit">
         <div className="desktop-cloud-project-agent-brands">
@@ -32,19 +30,15 @@ export function CloudProjectActivation({ action, hint, supplemental, busy = fals
           <span><AgentBrandImage brandId="viktor" />{getAgentBrand("viktor")?.displayName}</span>
         </div>
         <strong>{t("cloud.activation.project.agents")}</strong>
-        <span>{t("cloud.activation.project.agentsHint")}</span>
       </div>
       <div className="desktop-cloud-project-benefit">
         <Workflow size={26} aria-hidden="true" />
         <strong>{t("cloud.activation.project.automation")}</strong>
-        <span>{t("cloud.activation.project.automationHint")}</span>
       </div>
     </div>
     {supplemental && <div className="desktop-cloud-project-activation-supplemental">{supplemental}</div>}
     <div className="desktop-cloud-project-activation-actions">{action}</div>
-    <div className="desktop-cloud-project-activation-hint" aria-live="polite">
-      {hint ?? t("cloud.activation.project.publishHint")}
-    </div>
+    {hint && <div className="desktop-cloud-project-activation-hint" aria-live="polite">{hint}</div>}
   </section>;
 }
 
