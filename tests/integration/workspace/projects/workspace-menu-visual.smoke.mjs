@@ -12,6 +12,7 @@ const screenshotPath = process.env.PUPPYONE_WORKSPACE_MENU_SCREENSHOT ?? null;
 const locales = ["en", "zh-Hans", "de", "es", "fr", "ja", "ko", "pt-BR"];
 const observations = [];
 const inlineObservations = [];
+const slideObservations = [];
 
 app.commandLine.appendSwitch("disable-gpu");
 app.setPath("userData", path.join(os.tmpdir(), `puppyone-workspace-menu-smoke-${process.pid}`));
@@ -185,10 +186,11 @@ async function runSmoke() {
   console.log(`workspace menu visual smoke passed: ${locale}, 42 scenarios`);
   }
   if (screenshotPath) {
-    await writeFile(path.join(path.dirname(screenshotPath), "visual-results.json"), JSON.stringify({ popover: observations, headerIcons: inlineObservations }, null, 2) + "\n");
+    await writeFile(path.join(path.dirname(screenshotPath), "visual-results.json"), JSON.stringify({ popover: observations, headerIcons: inlineObservations, slides: slideObservations }, null, 2) + "\n");
   }
   console.log(`workspace menu visual smoke passed: ${observations.length} scenarios`);
   console.log(`Header location icons visual smoke passed: ${inlineObservations.length} scenarios`);
+  console.log(`Header location slider motion passed: ${slideObservations.length} transitions`);
   } finally {
     if (!window.isDestroyed()) window.destroy();
     app.quit();
@@ -209,6 +211,7 @@ async function checkInlinePresentation(window, url, scene, catalog) {
       const label = wrap.querySelector('.desktop-titlebar-workspace-name');
       const plate = wrap.querySelector('.desktop-project-location-indicator');
       const selected = wrap.querySelector('button[aria-pressed="true"]');
+      const track = wrap.querySelector('.desktop-project-location-tabs');
       const rect = element => {
         const r = element.getBoundingClientRect();
         return { x: r.x, y: r.y, width: r.width, height: r.height, right: r.right, bottom: r.bottom };
@@ -224,6 +227,9 @@ async function checkInlinePresentation(window, url, scene, catalog) {
         pressedCount: wrap.querySelectorAll('button[aria-pressed="true"]').length,
         selected: selected.dataset.projectLocation,
         plate: rect(plate), selectedBounds: rect(selected),
+        track: { bounds: rect(track), background: getComputedStyle(track).backgroundColor,
+          border: getComputedStyle(track).borderTopWidth, radius: getComputedStyle(track).borderRadius },
+        buttonBackgrounds: buttons.map(button => getComputedStyle(button).backgroundColor),
         loading: !!buttons[1].querySelector('[data-puppy-loader="pulse-grid"]'),
         create: buttons[1].dataset.cloudAction === 'create',
         plus: !!buttons[1].querySelector('.lucide-plus'),
@@ -240,6 +246,10 @@ async function checkInlinePresentation(window, url, scene, catalog) {
       && snapshot.buttons[1].label === catalog[creating ? "workspaceSwitcher.createCloudVersion" : "navigation.cloud"], `Icon-only actions must retain localized accessible names: ${evidence}`);
     assert(snapshot.currentCount === 1 && snapshot.pressedCount === 1 && snapshot.selected === (scene.state === "cloud-only" ? "cloud" : "local"), `Inline selection must match committed state: ${evidence}`);
     assert(Math.abs(snapshot.plate.x - snapshot.selectedBounds.x) < 1 && Math.abs(snapshot.plate.width - snapshot.selectedBounds.width) < 1, `Indicator must initialize at the active location without replay: ${evidence}`);
+    assert(snapshot.track.bounds.width === 64 && snapshot.track.bounds.height === 34
+      && snapshot.track.border === "1px" && snapshot.track.background !== "rgba(0, 0, 0, 0)"
+      && snapshot.buttonBackgrounds.every(background => background === "rgba(0, 0, 0, 0)"),
+      `Use one visible track and one moving plate, with transparent icon targets: ${evidence}`);
     assert(snapshot.loading === (scene.state === "resolving") && snapshot.create === creating && !snapshot.plus,
       `Keep the Cloud glyph and shared loading/creation state: ${evidence}`);
     assert(snapshot.buttons[0].disabled === (scene.state === "cloud-only") && !snapshot.buttons[1].disabled,
@@ -250,7 +260,57 @@ async function checkInlinePresentation(window, url, scene, catalog) {
       await writeFile(path.join(path.dirname(screenshotPath), `header-icons-${scene.theme}-${width}.png`), capture.toPNG());
     }
   }
+  if (scene.locale === "en" && scene.platform === "macos" && scene.state === "local-cloud") {
+    for (const direction of ["ltr", "rtl"]) {
+      for (const destination of ["cloud", "local"]) {
+        slideObservations.push({ theme: scene.theme, direction, destination,
+          ...await checkHeaderSlide(window, direction, destination) });
+      }
+    }
+  }
   window.setContentSize(996, 744);
+}
+
+async function checkHeaderSlide(window, direction, destination) {
+  const result = await window.webContents.executeJavaScript(`(async () => {
+    document.documentElement.dir = ${JSON.stringify(direction)};
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const track = document.querySelector('[data-presentation="header-icons"] .desktop-project-location-tabs');
+    const plate = track.querySelector('.desktop-project-location-indicator');
+    const target = track.querySelector('button[data-project-location=${destination}]');
+    const before = plate.getBoundingClientRect().x;
+    const frames = [];
+    const started = performance.now();
+    target.click();
+    await new Promise(resolve => {
+      const sample = () => {
+        const p = plate.getBoundingClientRect(), t = track.getBoundingClientRect();
+        frames.push({ x: p.x, width: t.width, height: t.height, busy: track.getAttribute('aria-busy'),
+          retained: plate === track.querySelector('.desktop-project-location-indicator') });
+        if (performance.now() - started < 430) requestAnimationFrame(sample);
+        else resolve();
+      };
+      requestAnimationFrame(sample);
+    });
+    return { before, after: plate.getBoundingClientRect().x, target: target.getBoundingClientRect().x,
+      reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
+      selected: track.dataset.location, current: track.querySelector('button[aria-current="true"]').dataset.projectLocation,
+      frames };
+  })()`, true);
+  const evidence = JSON.stringify({ direction, destination, ...result });
+  assert(result.selected === destination && result.current === "local"
+    && Math.abs(result.after - result.target) < 1 && Math.abs(Math.abs(result.after - result.before) - 30) < 1,
+    `Click must move the plate immediately while the committed provider can still be local: ${evidence}`);
+  assert(result.frames.every(frame => frame.retained && frame.width === 64 && frame.height === 34
+    && (destination !== "cloud" || frame.busy === "true")), `Keep the track and plate stable through Cloud loading: ${evidence}`);
+  if (!result.reducedMotion) {
+    assert(result.frames.some(frame => Math.abs(frame.x - result.before) > 1 && Math.abs(frame.x - result.after) > 1),
+      `Slide must have visible intermediate positions: ${evidence}`);
+    const sign = Math.sign(result.after - result.before);
+    assert(result.frames.every((frame, index) => index === 0 || sign * (frame.x - result.frames[index - 1].x) >= -0.5),
+      `Slide must progress smoothly toward its destination: ${evidence}`);
+  }
+  return result;
 }
 
 async function checkStableReopening(window, direction = "ltr") {

@@ -594,19 +594,28 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 
 .desktop-project-location-controls[data-presentation="header-icons"] .desktop-project-location-tabs {
   grid-template-columns: repeat(2, 28px);
-  background: transparent;
+  /* One shared track makes the moving selection read as a location switch. */
+  border: 1px solid var(--po-shell-divider);
+  background: var(--po-editor-bg);
 }
 
 .desktop-project-location-controls[data-presentation="header-icons"] .desktop-project-location-tab:not([data-cloud-action="create"]) {
   color: var(--desktop-titlebar-text-muted);
 }
 
-.desktop-project-location-controls[data-presentation="header-icons"] .desktop-project-location-tab {
+.desktop-project-location-controls[data-presentation="header-icons"] .desktop-project-location-tab,
+.desktop-project-location-controls[data-presentation="header-icons"] .desktop-project-location-tab:hover:not(:disabled) {
   min-width: 0;
   padding: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .desktop-project-location-controls[data-presentation="header-icons"] .desktop-project-location-tab[aria-pressed="true"] {
+  color: var(--desktop-titlebar-text);
+}
+
+.desktop-project-location-controls[data-presentation="header-icons"] .desktop-project-location-tab:hover:not(:disabled):not([data-cloud-action="create"]) {
   color: var(--desktop-titlebar-text);
 }
 

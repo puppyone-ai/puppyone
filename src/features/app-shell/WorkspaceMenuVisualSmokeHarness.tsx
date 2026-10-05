@@ -35,6 +35,7 @@ resetDesktopPlatformCapabilitiesForTests();
 export function WorkspaceMenuVisualSmokeHarness() {
   const anchorRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(true);
+  const [requested, setRequested] = useState<DesktopProjectLocation["requested"]>();
   const state = new URLSearchParams(window.location.search).get("project-state") ?? "local-only";
   const linked = state === "local-cloud" || state === "cloud-only" || state === "local-cloud-no-github" || state === "signed-out";
   const githubLinked = state === "local-cloud" || state === "cloud-only" || state === "local-github" || state === "signed-out";
@@ -61,6 +62,8 @@ export function WorkspaceMenuVisualSmokeHarness() {
             multiRootWorkspacesEnabled={false}
             projectLocation={{
               current,
+              requested,
+              loading: requested !== undefined && requested !== current,
               localAvailable: current === "local",
               cloudState,
             }}
@@ -69,8 +72,8 @@ export function WorkspaceMenuVisualSmokeHarness() {
             backupStatus={githubLinked ? versionStatus : null}
             onOpenFolder={() => undefined}
             onClose={() => setOpen(false)}
-            onViewLocal={() => undefined}
-            onViewCloud={() => undefined}
+            onViewLocal={() => setRequested("local")}
+            onViewCloud={() => setRequested("cloud")}
             onToggle={() => setOpen(current => !current)}
           />
         </div>
