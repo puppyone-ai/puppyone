@@ -39,13 +39,13 @@
     --po-switch-border-off: rgba(31, 41, 55, 0.12);
     --po-switch-thumb: #ffffff;
     --po-switch-thumb-shadow: rgba(31, 41, 55, 0.17);
-    --po-focus-ring: rgba(79, 70, 229, 0.32);
+    --po-focus-ring: rgba(69, 153, 223, 0.32);
     --po-shadow: rgba(31, 41, 55, 0.12);
     --po-backdrop: rgba(37, 39, 44, 0.22);
     --po-backdrop-strong: rgba(37, 39, 44, 0.34);
-    --po-accent: #4f46e5;
+    --po-accent: #4599df;
     --po-text-selection-bg: color-mix(in srgb, var(--po-accent) 22%, transparent);
-    --po-accent-text: #4338ca;
+    --po-accent-text: #226ca4;
     --po-success: #13834a;
     --po-warning: #a66705;
     --po-danger: #dc2626;

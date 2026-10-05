@@ -46,14 +46,14 @@ describe("titlebar typography architecture", () => {
       "--po-header: color-mix(in srgb, var(--po-surface-chrome) 40%, var(--po-surface-editor));",
     );
     expect(tokensCss).not.toContain("--po-cloud-titlebar-bg:");
-    expect(neutralThemeCss).toContain("--po-accent: #2563eb;");
+    expect(neutralThemeCss).toContain("--po-accent: #4599df;");
     expect(neutralThemeCss).toContain("--po-accent: #60a5fa;");
     expect(titlebarRule).toContain("--desktop-titlebar-bg: var(--po-header);");
     expect(titlebarRule).toContain("--po-font-size-chrome: var(--po-type-header-content);");
     expect(titlebarRule).toContain("background: var(--desktop-titlebar-bg);");
     const cloud = readCssBlock(titlebarCss, '.desktop-titlebar[data-workspace-kind="cloud"]');
     expect(cloud).toContain("--desktop-titlebar-bg: var(--po-cloud-header-bg);");
-    expect(tokensCss).toContain("--po-cloud-header-bg: light-dark(#e3f0fb, #102a43);");
+    expect(tokensCss).toContain("color-mix(in srgb, var(--po-header) 85%, var(--po-brand-blue) 15%)");
     expect(cloud).not.toMatch(/--desktop-titlebar-(?:text|hover|active|focus|divider)\s*:/);
     expect(titlebarRule).toContain("--desktop-titlebar-text: var(--po-text);");
     expect(titlebarRule).toContain("--desktop-titlebar-text-muted: var(--po-text-muted);");
