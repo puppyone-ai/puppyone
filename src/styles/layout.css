@@ -456,14 +456,14 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-menu {
-  --desktop-project-menu-spacing: 6px;
+  --desktop-project-menu-spacing: 3px;
   --po-menu-padding: var(--desktop-project-menu-spacing);
   --po-menu-bg: var(--po-header);
-  --po-menu-border: var(--po-divider);
+  --po-menu-border: var(--po-border-subtle);
   --interface-menu-background: var(--po-header);
   --po-menu-shadow-compact:
-    0 2px 6px color-mix(in srgb, var(--po-shadow) 65%, transparent),
-    0 12px 28px -4px var(--po-shadow);
+    0 2px 4px color-mix(in srgb, var(--po-shadow) 45%, transparent),
+    0 6px 16px -4px color-mix(in srgb, var(--po-shadow) 65%, transparent);
   display: flex;
   max-height: min(520px, calc(100vh - 58px));
   flex-direction: column;
@@ -475,7 +475,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 6px;
+  gap: var(--desktop-project-menu-spacing, 6px);
 }
 
 .desktop-project-location-tabs {

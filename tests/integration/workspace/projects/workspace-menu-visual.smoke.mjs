@@ -139,8 +139,8 @@ async function runSmoke() {
 
   const evidence = JSON.stringify(snapshot);
   assert(snapshot.state === state, `Wrong fixture state: ${evidence}`);
-  assert(snapshot.menuWidth >= 248 && snapshot.menuWidth <= 480 && snapshot.menuHeight === 46 && snapshot.controlsFit, `Project menu must stay compact and fit translated device labels: ${evidence}`);
-  assert(snapshot.menuPadding === 6 && snapshot.rowGap === snapshot.menuPadding, `Control spacing must match menu padding: ${evidence}`);
+  assert(snapshot.menuWidth >= 248 && snapshot.menuWidth <= 480 && snapshot.menuHeight === 40 && snapshot.controlsFit, `Project menu must stay compact and fit translated device labels: ${evidence}`);
+  assert(snapshot.menuPadding === 3 && snapshot.rowGap === snapshot.menuPadding, `Control spacing must match menu padding: ${evidence}`);
   assert(snapshot.buttonHeights.every(height => height === 28) && snapshot.buttonYs[0] === snapshot.buttonYs[1], `Local and Cloud must share one horizontal control: ${evidence}`);
   assert(snapshot.currentCount === 1 && snapshot.pressedCount === 1, `Exactly one surface must be selected: ${evidence}`);
   const creating = state === "local-only" || state === "local-github";

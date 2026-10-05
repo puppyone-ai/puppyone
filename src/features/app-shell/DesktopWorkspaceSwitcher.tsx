@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
   Tooltip,
   createWorkspaceFolder,
@@ -80,6 +80,7 @@ export function DesktopWorkspaceSwitcher({
   onToggle,
 }: DesktopWorkspaceSwitcherProps) {
   const { t } = useLocalization();
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const [view, setView] = useState<"projects" | "add">("projects");
   const localDeviceLabel = useProjectDeviceLabel();
   const headerProjectLocationKind = projectLocation?.headerLocation ?? projectLocation?.current ?? "local";
@@ -107,6 +108,7 @@ export function DesktopWorkspaceSwitcher({
           project: bidiIsolate(workspace.name),
         }) + ` · ${workspaceContextAssetLabel}`}><button
         className="desktop-titlebar-workspace-button local"
+        ref={triggerRef}
         type="button"
         aria-label={t("shell.workspaceSwitcher.openMenu", {
           workspace: bidiIsolate(workspace.name),
@@ -126,9 +128,9 @@ export function DesktopWorkspaceSwitcher({
         <bdi className="desktop-titlebar-workspace-name">{titlebarLabel}</bdi>
       </button></Tooltip>
       <DesktopTitlebarMenuLayer
-        anchorRef={refObject}
+        anchorRef={triggerRef}
         className="desktop-project-menu"
-        gap={4}
+        gap={2}
         onDismiss={onClose}
         dismissOnFocusExit={false}
         open={open}

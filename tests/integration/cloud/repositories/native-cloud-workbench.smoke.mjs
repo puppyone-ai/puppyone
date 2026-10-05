@@ -649,8 +649,12 @@ app.whenReady().then(async () => {
       }
       if (before) assert(JSON.stringify(sample.controlPalette) === JSON.stringify(before.controlPalette),
         `Header text and interaction colors must stay in the ${theme} theme when switching locations`);
-      if (location === 'cloud') assert(JSON.stringify(sample.background) === JSON.stringify(theme === 'dark' ? [16,42,67] : [227,240,251]),
-        `Cloud Header must use deep blue in dark mode and pale blue in light mode: ${JSON.stringify(sample.background)}`);
+      if (location === 'cloud') {
+        const expectedCloudBackground = theme === 'dark' ? [16, 42, 67]
+          : sample.expected.map((channel, i) => Math.round(channel * 0.85 + sample.accent[i] * 0.15));
+        assert(sample.background.every((channel, i) => Math.abs(channel - expectedCloudBackground[i]) <= 1),
+          `Cloud Header must use deep blue in dark mode and theme grey tinted with product blue in light mode: ${JSON.stringify(sample.background)}`);
+      }
       before ??= sample;
       headerPresentations.push({ theme, width, index, ...sample });
       if (index < 2) await writeFile(path.join(artifacts, `header-${theme}-${width}-${location}.png`), (await window.webContents.capturePage()).toPNG());
