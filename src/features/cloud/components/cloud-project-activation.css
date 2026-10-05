@@ -5,43 +5,35 @@
     min-width: 0;
     flex-direction: column;
     align-items: center;
-    gap: 24px;
+    gap: 20px;
     padding: 32px 28px;
-    color: var(--po-text);
-    font-family: var(--po-font-sans);
+    color: var(--po-text-muted);
+    font-family: var(--po-font-ui, var(--po-font-sans));
+    font-size: var(--po-type-ui-control, 14px);
+    font-weight: var(--po-text-weight-regular, 400);
+    line-height: 1.5;
     text-align: center;
   }
 
   .desktop-cloud-project-illustration {
-    width: min(100%, 360px);
-    height: 116px;
+    width: min(100%, 264px);
+    height: 86px;
     flex: 0 0 auto;
     color: var(--po-text-muted);
   }
 
-  .desktop-cloud-project-illustration-halo { fill: color-mix(in srgb, var(--po-accent) 7%, transparent); }
   .desktop-cloud-project-illustration-links { color: var(--po-accent); }
 
-  .desktop-cloud-project-activation-copy { display: grid; gap: 10px; }
-  .desktop-cloud-project-activation-copy p,
-  .desktop-cloud-project-activation-copy h2 { margin: 0; }
+  .desktop-cloud-project-activation-copy { width: 100%; }
   .desktop-cloud-project-activation-copy h2 {
     max-width: 420px;
+    margin: 0;
     margin-inline: auto;
-    font-size: var(--po-text-size-title, 24px);
-    font-weight: var(--po-text-weight-semibold, 600);
-    line-height: 1.25;
-    text-wrap: balance;
-  }
-
-  .desktop-cloud-project-activation-copy p {
-    color: var(--po-text-muted);
-    font-size: var(--po-type-ui-body, 14px);
+    color: inherit;
+    font-size: var(--po-type-ui-section-title, 16px);
+    font-weight: var(--po-text-weight-medium, 500);
     line-height: 1.5;
-  }
-
-  .desktop-cloud-project-activation-copy .desktop-cloud-project-activation-eyebrow {
-    font-size: var(--po-type-ui-caption, 12px);
+    text-wrap: balance;
   }
 
   .desktop-cloud-project-benefits {
@@ -56,66 +48,64 @@
     min-width: 0;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     padding-inline: 10px;
-    font-size: var(--po-type-ui-caption, 12px);
-    line-height: 1.4;
+    font: inherit;
   }
 
   .desktop-cloud-project-benefit + .desktop-cloud-project-benefit { border-inline-start: 1px solid var(--po-divider); }
-  .desktop-cloud-project-benefit > svg { margin-bottom: 6px; }
-  .desktop-cloud-project-benefit strong { font-weight: var(--po-text-weight-medium, 500); }
   .desktop-cloud-project-agent-brands {
     display: flex;
-    min-height: 26px;
-    flex-wrap: wrap;
+    height: 20px;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    margin-bottom: 6px;
-    font-size: var(--po-text-size-micro, 10px);
   }
 
-  .desktop-cloud-project-agent-brands span { display: inline-flex; align-items: center; gap: 4px; }
-  .desktop-cloud-project-agent-brands .po-agent-brand-image { width: 18px; height: 18px; object-fit: contain; }
-  .desktop-cloud-project-activation-actions { width: min(100%, 440px); }
+  .desktop-cloud-project-agent-brands span { display: grid; width: 20px; height: 20px; place-items: center; }
+  .desktop-cloud-project-agent-brands .po-agent-brand-image { width: 20px; height: 20px; object-fit: contain; }
+  .desktop-cloud-project-activation-actions { width: min(100%, 320px); }
   .desktop-cloud-project-activation-actions > button {
     width: 100%;
     max-width: none;
-    min-height: 36px;
+    height: var(--po-control-size);
+    min-height: var(--po-control-size);
     justify-content: center;
     gap: 8px;
+    font: inherit;
   }
 
   .desktop-cloud-project-activation-actions > button.primary {
-    border-color: var(--po-accent);
-    background: light-dark(var(--po-accent-text), var(--po-accent));
-    color: var(--po-text-inverse);
+    font: inherit;
+  }
+
+  .desktop-cloud-project-activation-actions > button.primary:not(:disabled) {
+    border-color: var(--po-border-strong);
+    background: var(--po-control);
+    color: inherit;
   }
 
   .desktop-cloud-project-activation-actions > button.primary:hover:not(:disabled) {
-    filter: brightness(1.05);
+    background: var(--po-control-hover);
+    color: var(--po-text);
   }
 
   .desktop-cloud-project-activation-hint {
-    color: var(--po-text-subtle);
-    font-size: var(--po-type-ui-caption, 12px);
-    line-height: 1.5;
+    color: inherit;
+    font: inherit;
   }
 
   .desktop-cloud-project-activation-supplemental {
     width: min(100%, 440px);
-    font-size: var(--po-type-ui-body, 14px);
-    line-height: 1.5;
+    font: inherit;
     overflow-wrap: anywhere;
   }
 
   .desktop-cloud-project-connection-error {
     display: grid;
     gap: 6px;
-    color: var(--po-text-muted);
-    font-size: var(--po-type-ui-caption, 12px);
-    line-height: 1.5;
+    color: inherit;
+    font: inherit;
   }
 
   .desktop-cloud-project-connection-error p { margin: 0; }
@@ -123,7 +113,7 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    color: var(--po-text-subtle);
+    color: inherit;
     list-style: none;
   }
 

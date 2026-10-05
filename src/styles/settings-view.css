@@ -14,13 +14,18 @@
 
 .desktop-settings-dialog,
 .desktop-plugins-dialog,
-.desktop-cloud-dialog {
+.desktop-cloud-dialog,
+.desktop-cloud-workspace-switch-dialog {
   --desktop-task-dialog-header-bg: var(--po-header);
   --desktop-task-dialog-header-text: var(--po-text-muted);
   --desktop-task-dialog-header-hover: var(--po-hover);
   --desktop-task-dialog-header-focus: var(--po-focus-ring);
   --desktop-task-dialog-header-divider: var(--po-header-divider);
+}
 
+.desktop-settings-dialog,
+.desktop-plugins-dialog,
+.desktop-cloud-dialog {
   width: min(var(--desktop-dialog-width, 960px), calc(100vw - 2 * var(--desktop-task-dialog-inset)));
   height: min(760px, calc(100vh - 2 * var(--desktop-task-dialog-inset)));
   max-height: calc(100vh - 2 * var(--desktop-task-dialog-inset));

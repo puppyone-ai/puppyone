@@ -16,24 +16,23 @@ export function CloudProjectActivation({ action, hint, supplemental, busy = fals
   return <section className="desktop-cloud-project-activation" aria-labelledby={titleId} aria-busy={busy}>
     <CloudProjectIllustration />
     <header className="desktop-cloud-project-activation-copy">
-      <p className="desktop-cloud-project-activation-eyebrow">{t("cloud.productName")}</p>
       <h2 id={titleId}>{t("cloud.activation.project.title")}</h2>
     </header>
     <div className="desktop-cloud-project-benefits">
       <div className="desktop-cloud-project-benefit">
-        <UsersRound size={26} aria-hidden="true" />
-        <strong>{t("cloud.activation.project.share")}</strong>
+        <UsersRound size={20} aria-hidden="true" />
+        <span>{t("cloud.activation.project.share")}</span>
       </div>
       <div className="desktop-cloud-project-benefit">
         <div className="desktop-cloud-project-agent-brands">
-          <span><AgentBrandImage brandId="manus" />{getAgentBrand("manus")?.displayName}</span>
-          <span><AgentBrandImage brandId="viktor" />{getAgentBrand("viktor")?.displayName}</span>
+          <span role="img" aria-label={getAgentBrand("manus")?.displayName}><AgentBrandImage brandId="manus" /></span>
+          <span role="img" aria-label={getAgentBrand("viktor")?.displayName}><AgentBrandImage brandId="viktor" /></span>
         </div>
-        <strong>{t("cloud.activation.project.agents")}</strong>
+        <span>{t("cloud.activation.project.agents")}</span>
       </div>
       <div className="desktop-cloud-project-benefit">
-        <Workflow size={26} aria-hidden="true" />
-        <strong>{t("cloud.activation.project.automation")}</strong>
+        <Workflow size={20} aria-hidden="true" />
+        <span>{t("cloud.activation.project.automation")}</span>
       </div>
     </div>
     {supplemental && <div className="desktop-cloud-project-activation-supplemental">{supplemental}</div>}
@@ -45,7 +44,6 @@ export function CloudProjectActivation({ action, hint, supplemental, busy = fals
 function CloudProjectIllustration() {
   return <svg className="desktop-cloud-project-illustration" viewBox="0 0 420 136"
     fill="none" aria-hidden="true" focusable="false">
-    <circle cx="212" cy="66" r="62" className="desktop-cloud-project-illustration-halo" />
     <g stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M28 82V59Q28 55 33 55H48L56 66H91Q96 66 96 71V100Q96 105 91 105H33Q28 105 28 100Z" />
       <path d="M57 25L82 20L88 49L63 54ZM61 32L77 29M64 39L80 36M66 46L77 44" />

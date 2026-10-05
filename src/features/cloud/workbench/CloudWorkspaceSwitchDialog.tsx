@@ -34,17 +34,17 @@ export function CloudWorkspaceSwitchDialog({ controller, gate, authenticationReq
   // dialog is reserved for authentication or actionable recovery.
   if (!controller.pending || inlinePreparation) return null;
   return <DesktopOverlayLayer>
-    <DesktopDialogRoot onClose={controller.cancel}>
+    <DesktopDialogRoot className="desktop-cloud-dialog-backdrop" onClose={controller.cancel}>
       <DesktopDialogSurface className={`desktop-cloud-workspace-switch-dialog${authenticationRequired ? " is-authentication" : ""}`}
-        width={640}
+        width={560}
         ariaLabel={t(authenticationRequired ? "cloud.auth.desktopTitle" : "cloud.productName")}>
-        {!controller.error
-          ? <DesktopDialogCloseButton className="desktop-cloud-workspace-sign-in-close"
-            label={t("common.action.close")} onClick={controller.cancel} />
-          : <header className="desktop-dialog-header">
-          <div className="desktop-dialog-title-row"><Cloud size={15} /><h2>{t("cloud.productName")}</h2></div>
+        <header className="desktop-dialog-header desktop-cloud-dialog-header">
+          <div className="desktop-dialog-title-row desktop-cloud-dialog-title-row">
+            <span className="desktop-cloud-dialog-leading" aria-hidden="true"><Cloud size={15} /></span>
+            <h2>{t("cloud.productName")}</h2>
+          </div>
           <DesktopDialogCloseButton label={t("common.action.close")} onClick={controller.cancel} />
-        </header>}
+        </header>
         <div className="desktop-cloud-workspace-switch-content" data-po-scrollbar="content">
           {controller.error ? <CloudWorkspaceRecovery message={formatCloudMessage(controller.error, t)}
             onRetry={controller.retry} showLocalState /> : controller.checking ? <CloudWorkspaceLoadingState label={t("cloud.loading.project")} /> : gate}
