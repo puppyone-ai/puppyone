@@ -71,7 +71,7 @@ describe("repository Cloud activation", () => {
     await render({ context: { status: "wrong-host", projectId: "existing",
       message: cloudMessage("remote-wrong-host", { origin: "https://other.puppyone.ai" }) } });
     expect(host.querySelector("[data-cloud-publish-action]")).toBeNull();
-    expect(host.querySelector("h2")?.textContent).toContain("Take your project");
+    expect(host.querySelector("h2")?.textContent).toContain("Your project, always online.");
     expect(host.querySelector('[role="alert"]')?.textContent).toBe("Cloud project unavailable");
     const details = host.querySelector<HTMLDetailsElement>("details")!;
     expect(details.open).toBe(false);

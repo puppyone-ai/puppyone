@@ -42,26 +42,22 @@ export function CloudProjectActivation({ action, hint, supplemental, busy = fals
 }
 
 function CloudProjectIllustration() {
-  return <svg className="desktop-cloud-project-illustration" viewBox="0 0 420 136"
-    fill="none" aria-hidden="true" focusable="false">
-    <g stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M28 82V59Q28 55 33 55H48L56 66H91Q96 66 96 71V100Q96 105 91 105H33Q28 105 28 100Z" />
-      <path d="M57 25L82 20L88 49L63 54ZM61 32L77 29M64 39L80 36M66 46L77 44" />
-      <path d="M96 10L119 16L114 44L90 38ZM100 20L114 23M98 27L111 30M97 34L106 36" />
-      <path d="M185 94C151 94 150 55 178 51C188 22 228 22 238 53C267 54 269 94 240 94Z" />
-      <rect x="330" y="16" width="68" height="50" rx="6" />
-      <path d="M330 29H398M338 23H339M345 23H346M352 23H353" />
-      <rect x="338" y="94" width="58" height="34" rx="5" />
-      <path d="M350 104L358 111L350 118M366 118H378" />
+  return <svg className="desktop-cloud-project-illustration" viewBox="0 0 240 64"
+    fill="currentColor" aria-hidden="true" focusable="false">
+    <path d="M12 28Q12 24 16 24H30L36 30H54Q58 30 58 34V49Q58 53 54 53H16Q12 53 12 49Z" />
+    <rect x="27" y="7" width="17" height="13" rx="2" opacity=".5" />
+    <rect x="47" y="12" width="13" height="11" rx="2" opacity=".3" />
+    <path d="M103 48C83 48 81 27 97 23C103 3 130 3 137 24C154 24 157 48 139 48Z" />
+    <rect x="193" y="6" width="34" height="24" rx="4" />
+    <rect x="196" y="39" width="28" height="20" rx="4" opacity=".7" />
+    <g className="desktop-cloud-project-illustration-cutouts" fill="var(--po-canvas)" opacity=".65">
+      <rect x="198" y="12" width="24" height="2" rx="1" />
+      <rect x="198" y="19" width="16" height="3" rx="1" />
     </g>
-    <g className="desktop-cloud-project-illustration-links" stroke="currentColor" strokeWidth="2.5"
-      strokeLinecap="round" strokeDasharray="1 7">
-      <path d="M117 61Q130 78 151 73M269 54Q298 60 320 40M274 84Q302 81 328 109" />
-    </g>
-    <g className="desktop-cloud-project-illustration-links" fill="currentColor">
-      <path d="M151 69L158 74L151 79ZM320 35L327 40L320 45ZM328 104L335 109L328 114Z" />
-      <rect x="340" y="38" width="46" height="5" rx="2" opacity=".3" />
-      <rect x="340" y="50" width="30" height="5" rx="2" opacity=".3" />
+    <path d="M203 44L208 49L203 54M212 54H218" fill="none" stroke="var(--po-canvas)"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity=".65" />
+    <g fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M65 37H80M158 34H173Q179 34 179 28V22Q179 18 185 18H188M179 32V44Q179 49 185 49H191" />
     </g>
   </svg>;
 }

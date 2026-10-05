@@ -50,12 +50,12 @@ describe("login before Cloud selection", () => {
     const dialog = document.querySelector('[role="dialog"]')!;
     expect(dialog.getAttribute("aria-modal")).toBe("true");
     expect(dialog.querySelector("aside, nav")).toBeNull();
-    expect(dialog.textContent).toContain("Take your project anywhere, anytime.");
+    expect(dialog.textContent).toContain("Your project, always online.");
     expect(dialog.querySelector('[role="img"][aria-label="Manus"]')).not.toBeNull();
     expect(dialog.querySelector('[role="img"][aria-label="Viktor"]')).not.toBeNull();
     expect(local.value).toBe("Keep this draft");
     const signIn = dialog.querySelector<HTMLButtonElement>("[data-cloud-sign-in-action]")!;
-    expect(signIn.textContent).toBe("Continue in browser");
+    expect(signIn.textContent).toBe("Sign in to get started");
     expect(document.activeElement).toBe(signIn);
     await act(async () => signIn.click());
     expect(native ? auth.start : auth.browser).toHaveBeenCalledWith(native ? API : "/login");
