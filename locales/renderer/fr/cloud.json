@@ -926,10 +926,13 @@
   "workspaceTools.unavailable": "{service} est indisponible",
   "workspaceTools.unavailableDescription": "Impossible de charger ce service cloud. Vérifiez votre connexion ou réessayez après la mise à jour du service.",
   "activation.project.title": "Votre projet, toujours en ligne.",
-  "activation.project.share": "Partagez avec votre équipe",
-  "activation.project.agents": "Connectez des agents",
+  "activation.project.share": "Collaborez",
+  "activation.project.agents": "Agents Cloud",
   "activation.project.automation": "Automatisez 24 h/24",
   "activation.project.publish": "Passez ce projet dans Cloud",
   "activation.project.reconnect": "Reconnecter le projet Cloud",
-  "activation.project.errorDetails": "Détails de l’erreur"
+  "activation.project.errorDetails": "Détails de l’erreur",
+  "activation.project.shareOutcome": "Partagez un lien du projet",
+  "activation.project.automationOutcome": "Fonctionne même hors ligne",
+  "activation.project.agentsOutcome": "Connectez via MCP"
 }

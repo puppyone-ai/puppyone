@@ -45,7 +45,7 @@
   .desktop-cloud-project-benefit {
     display: flex;
     min-width: 0;
-    min-height: 112px;
+    min-height: 136px;
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
@@ -58,27 +58,49 @@
     font: inherit;
   }
 
-  .desktop-cloud-project-benefit > span {
+  .desktop-cloud-project-benefit-copy {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 4px;
+    text-wrap: balance;
+  }
+
+  .desktop-cloud-project-benefit-copy > span {
     display: flex;
     min-height: 42px;
-    flex: 1;
     align-items: center;
     justify-content: center;
     color: var(--po-text);
-    text-wrap: balance;
+  }
+
+  .desktop-cloud-project-benefit-copy > small {
+    display: flex;
+    min-height: 39px;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    color: var(--po-text-muted);
+    font: inherit;
+    font-size: var(--po-type-ui-meta, 13px);
   }
 
   .desktop-cloud-project-benefit > svg { flex: 0 0 auto; }
   .desktop-cloud-project-agent-brands {
     display: flex;
     height: 20px;
+    flex: 0 0 auto;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 6px;
   }
 
   .desktop-cloud-project-agent-brands span { display: grid; width: 20px; height: 20px; place-items: center; }
-  .desktop-cloud-project-agent-brands .po-agent-brand-image { width: 20px; height: 20px; object-fit: contain; }
+  .desktop-cloud-project-agent-brands .po-agent-brand-image,
+  .desktop-cloud-project-agent-brands .po-agent-monochrome-brand-image { width: 20px; height: 20px; object-fit: contain; }
   .desktop-cloud-project-activation-actions { width: min(100%, 320px); }
   .desktop-cloud-project-activation-actions > button {
     width: 100%;

@@ -926,10 +926,13 @@
   "workspaceTools.unavailable": "{service} ist nicht verfügbar",
   "workspaceTools.unavailableDescription": "Dieser Cloud-Dienst konnte nicht geladen werden. Prüfe deine Verbindung oder versuche es nach der Aktualisierung des Dienstes erneut.",
   "activation.project.title": "Dein Projekt, immer online.",
-  "activation.project.share": "Mit dem Team teilen",
-  "activation.project.agents": "Agenten verbinden",
+  "activation.project.share": "Zusammenarbeiten",
+  "activation.project.agents": "Cloud-Agenten",
   "activation.project.automation": "Rund um die Uhr automatisieren",
   "activation.project.publish": "Dieses Projekt in die Cloud bringen",
   "activation.project.reconnect": "Cloud-Projekt erneut verbinden",
-  "activation.project.errorDetails": "Fehlerdetails"
+  "activation.project.errorDetails": "Fehlerdetails",
+  "activation.project.shareOutcome": "Projektlink teilen",
+  "activation.project.automationOutcome": "Läuft auch, wenn du offline bist",
+  "activation.project.agentsOutcome": "Über MCP verbinden"
 }

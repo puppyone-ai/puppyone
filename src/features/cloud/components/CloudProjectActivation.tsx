@@ -1,8 +1,10 @@
 import { useId, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization/react";
-import { AgentBrandImage, getAgentBrand } from "@puppyone/shared-ui";
-import { UsersRound, Workflow } from "lucide-react";
+import { AgentBrandImage, AgentMonochromeBrandImage, getAgentBrand } from "@puppyone/shared-ui";
+import { Clock3, UsersRound } from "lucide-react";
 import "./cloud-project-activation.css";
+
+const CLOUD_AGENT_BRANDS = ["manus", "viktor", "chatgpt", "claude"] as const;
 
 /** One project value surface; authentication and publishing retain their owners. */
 export function CloudProjectActivation({ action, hint, supplemental, busy = false }: {
@@ -21,18 +23,34 @@ export function CloudProjectActivation({ action, hint, supplemental, busy = fals
     <div className="desktop-cloud-project-benefits">
       <div className="desktop-cloud-project-benefit">
         <UsersRound size={20} aria-hidden="true" />
-        <span>{t("cloud.activation.project.share")}</span>
+        <div className="desktop-cloud-project-benefit-copy">
+          <span>{t("cloud.activation.project.share")}</span>
+          <small>{t("cloud.activation.project.shareOutcome")}</small>
+        </div>
+      </div>
+      <div className="desktop-cloud-project-benefit">
+        <Clock3 size={20} aria-hidden="true" />
+        <div className="desktop-cloud-project-benefit-copy">
+          <span>{t("cloud.activation.project.automation")}</span>
+          <small>{t("cloud.activation.project.automationOutcome")}</small>
+        </div>
       </div>
       <div className="desktop-cloud-project-benefit">
         <div className="desktop-cloud-project-agent-brands">
-          <span role="img" aria-label={getAgentBrand("manus")?.displayName}><AgentBrandImage brandId="manus" /></span>
-          <span role="img" aria-label={getAgentBrand("viktor")?.displayName}><AgentBrandImage brandId="viktor" /></span>
+          {CLOUD_AGENT_BRANDS.map((brandId) => {
+            // The hosted Claude client shares the mark, not the local CLI name.
+            const name = brandId === "claude" ? "Claude" : getAgentBrand(brandId)?.displayName;
+            return <span key={brandId} role="img" aria-label={name} title={name}>
+              {brandId === "chatgpt"
+                ? <AgentMonochromeBrandImage brandId={brandId} />
+                : <AgentBrandImage brandId={brandId} />}
+            </span>;
+          })}
         </div>
-        <span>{t("cloud.activation.project.agents")}</span>
-      </div>
-      <div className="desktop-cloud-project-benefit">
-        <Workflow size={20} aria-hidden="true" />
-        <span>{t("cloud.activation.project.automation")}</span>
+        <div className="desktop-cloud-project-benefit-copy">
+          <span>{t("cloud.activation.project.agents")}</span>
+          <small>{t("cloud.activation.project.agentsOutcome")}</small>
+        </div>
       </div>
     </div>
     {supplemental && <div className="desktop-cloud-project-activation-supplemental">{supplemental}</div>}

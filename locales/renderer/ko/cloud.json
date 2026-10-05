@@ -926,10 +926,13 @@
   "workspaceTools.unavailable": "{service}을(를) 사용할 수 없습니다",
   "workspaceTools.unavailableDescription": "클라우드 서비스를 불러올 수 없습니다. 연결을 확인하거나 서비스 업데이트 후 다시 시도하세요.",
   "activation.project.title": "프로젝트를 항상 온라인으로.",
-  "activation.project.share": "팀과 공유",
-  "activation.project.agents": "에이전트 연결",
+  "activation.project.share": "함께 작업",
+  "activation.project.agents": "클라우드 에이전트",
   "activation.project.automation": "24시간 자동화",
   "activation.project.publish": "이 프로젝트를 클라우드로",
   "activation.project.reconnect": "클라우드 프로젝트 다시 연결",
-  "activation.project.errorDetails": "오류 세부 정보"
+  "activation.project.errorDetails": "오류 세부 정보",
+  "activation.project.shareOutcome": "프로젝트 링크 공유",
+  "activation.project.automationOutcome": "오프라인에서도 계속 실행",
+  "activation.project.agentsOutcome": "MCP로 연결"
 }

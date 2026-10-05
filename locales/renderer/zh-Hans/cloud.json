@@ -926,10 +926,13 @@
   "workspaceTools.unavailable": "暂时无法使用{service}",
   "workspaceTools.unavailableDescription": "无法加载此云端服务。请检查连接，或在服务更新后重试。",
   "activation.project.title": "让项目持续在线。",
-  "activation.project.share": "与团队分享",
-  "activation.project.agents": "连接 Agent",
+  "activation.project.share": "团队协作",
+  "activation.project.agents": "云端 Agent",
   "activation.project.automation": "全天候自动化",
   "activation.project.publish": "将这个项目上云",
   "activation.project.reconnect": "重新连接云端项目",
-  "activation.project.errorDetails": "错误详情"
+  "activation.project.errorDetails": "错误详情",
+  "activation.project.shareOutcome": "通过项目链接分享",
+  "activation.project.automationOutcome": "离线也能持续运行",
+  "activation.project.agentsOutcome": "通过 MCP 连接"
 }
