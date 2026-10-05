@@ -227,6 +227,14 @@ describe("experimental preferences", () => {
     expect(settings).not.toHaveProperty("enableAgentCompanion");
   });
 
+  it.each([null, "not-json", "{}", '{"enableProjectLocationIconsInHeader":"true"}'])("keeps existing installations on the project popup (%s)", (stored) => {
+    expect(parseExperimentalSettings(stored).enableProjectLocationIconsInHeader).toBe(false);
+  });
+
+  it("restores explicit Header location icon consent", () => {
+    expect(parseExperimentalSettings(JSON.stringify({ enableProjectLocationIconsInHeader: true })).enableProjectLocationIconsInHeader).toBe(true);
+  });
+
   it("keeps PuppyOne Cloud off unless the user explicitly opts in", () => {
     expect(parseExperimentalSettings(null).enableCloudWorkspace).toBe(false);
     expect(parseExperimentalSettings("not-json").enableCloudWorkspace).toBe(false);

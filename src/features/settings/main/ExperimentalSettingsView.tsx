@@ -18,6 +18,7 @@ export function ExperimentalSettingsView() {
       rows: [
         { messageKey: "editorTabsInHeader", settingKey: "enableEditorTabsInHeader" },
         { messageKey: "centerProjectInHeader", settingKey: "enableCenteredProjectInHeader" },
+        { messageKey: "projectLocationIconsInHeader", settingKey: "enableProjectLocationIconsInHeader" },
         { messageKey: "gitCardInHeader", settingKey: "enableGitCardInHeader" },
         { messageKey: "workbenchTabsInHeader", settingKey: "enableWorkbenchTabsInHeader" },
         { messageKey: "shareOnboarding", settingKey: "enableShareOnboarding" },

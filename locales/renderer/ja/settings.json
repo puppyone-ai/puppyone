@@ -261,6 +261,8 @@
   "experimental.groups.cloud": "クラウドと自動化",
   "experimental.centerProjectInHeader.title": "プロジェクト名を Header の中央に配置",
   "experimental.centerProjectInHeader.detail": "プロジェクト名を中央に、共有、Git、チャットを右側に表示します。",
+  "experimental.projectLocationIconsInHeader.title": "Header にローカルとクラウドのアイコンを表示",
+  "experimental.projectLocationIconsInHeader.detail": "Header にパソコンと Cloud のアイコンを表示します。オフにするとプロジェクト名の下に切り替えメニューを表示します。",
   "experimental.gitCardInHeader.title": "ヘッダーの Git カード",
   "experimental.gitCardInHeader.detail": "プロジェクトを中央に表示するレイアウトで、Git ボタンの下にカードを開きます。",
   "experimental.otherAppImports.title": "他のアプリからインポート",

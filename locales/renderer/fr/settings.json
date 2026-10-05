@@ -261,6 +261,8 @@
   "experimental.groups.cloud": "Cloud et automatisation",
   "experimental.centerProjectInHeader.title": "Centrer le projet dans le Header",
   "experimental.centerProjectInHeader.detail": "Centrer le titre du projet ; garder Partager, Git et Chat à droite.",
+  "experimental.projectLocationIconsInHeader.title": "Icônes de localisation du projet dans le Header",
+  "experimental.projectLocationIconsInHeader.detail": "Afficher les icônes ordinateur et Cloud dans le Header. Désactiver pour utiliser le menu sous le nom du projet.",
   "experimental.gitCardInHeader.title": "Carte Git dans l’en-tête",
   "experimental.gitCardInHeader.detail": "Lorsque le projet est centré, ouvre Git sous son bouton dans l’en-tête.",
   "experimental.otherAppImports.title": "Importer depuis d’autres applications",

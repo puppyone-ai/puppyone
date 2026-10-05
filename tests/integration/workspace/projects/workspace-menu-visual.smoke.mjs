@@ -11,6 +11,7 @@ const rendererPath = path.join(repoRoot, "dist", "index.html");
 const screenshotPath = process.env.PUPPYONE_WORKSPACE_MENU_SCREENSHOT ?? null;
 const locales = ["en", "zh-Hans", "de", "es", "fr", "ja", "ko", "pt-BR"];
 const observations = [];
+const inlineObservations = [];
 
 app.commandLine.appendSwitch("disable-gpu");
 app.setPath("userData", path.join(os.tmpdir(), `puppyone-workspace-menu-smoke-${process.pid}`));
@@ -177,19 +178,79 @@ async function runSmoke() {
     await writeFile(statePath, capture.toPNG());
   }
   observations.push({ locale, platform, theme, ...snapshot });
+  await checkInlinePresentation(window, url, { locale, platform, theme, state }, catalog);
   }
   }
   }
   console.log(`workspace menu visual smoke passed: ${locale}, 42 scenarios`);
   }
   if (screenshotPath) {
-    await writeFile(path.join(path.dirname(screenshotPath), "visual-results.json"), JSON.stringify(observations, null, 2) + "\n");
+    await writeFile(path.join(path.dirname(screenshotPath), "visual-results.json"), JSON.stringify({ popover: observations, headerIcons: inlineObservations }, null, 2) + "\n");
   }
   console.log(`workspace menu visual smoke passed: ${observations.length} scenarios`);
+  console.log(`Header location icons visual smoke passed: ${inlineObservations.length} scenarios`);
   } finally {
     if (!window.isDestroyed()) window.destroy();
     app.quit();
   }
+}
+
+async function checkInlinePresentation(window, url, scene, catalog) {
+  const inlineUrl = new URL(url);
+  inlineUrl.searchParams.set("location-presentation", "header-icons");
+  await window.loadURL(inlineUrl.href);
+  await waitForRenderer(window, "Boolean(document.querySelector('[data-location-presentation=\"header-icons\"] button[data-project-location=\"cloud\"]'))");
+  for (const width of [996, 640]) {
+    window.setContentSize(width, 744);
+    await window.webContents.executeJavaScript("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))", true);
+    const snapshot = await window.webContents.executeJavaScript(`(() => {
+      const wrap = document.querySelector('[data-location-presentation="header-icons"]');
+      const buttons = [...wrap.querySelectorAll('button[data-project-location]')];
+      const label = wrap.querySelector('.desktop-titlebar-workspace-name');
+      const plate = wrap.querySelector('.desktop-project-location-indicator');
+      const selected = wrap.querySelector('button[aria-pressed="true"]');
+      const rect = element => {
+        const r = element.getBoundingClientRect();
+        return { x: r.x, y: r.y, width: r.width, height: r.height, right: r.right, bottom: r.bottom };
+      };
+      return {
+        hasPopup: !!document.querySelector('.desktop-project-menu'),
+        name: label.textContent, nameBounds: rect(label),
+        buttons: buttons.map(button => ({ bounds: rect(button), label: button.getAttribute('aria-label'),
+          text: button.textContent, color: getComputedStyle(button).color,
+          markColor: getComputedStyle(button.querySelector('.desktop-project-location-tab-mark')).color,
+          disabled: button.disabled })),
+        currentCount: wrap.querySelectorAll('button[aria-current="true"]').length,
+        pressedCount: wrap.querySelectorAll('button[aria-pressed="true"]').length,
+        selected: selected.dataset.projectLocation,
+        plate: rect(plate), selectedBounds: rect(selected),
+        loading: !!buttons[1].querySelector('[data-puppy-loader="pulse-grid"]'),
+        create: buttons[1].dataset.cloudAction === 'create',
+        plus: !!buttons[1].querySelector('.lucide-plus'),
+      };
+    })()`, true);
+    const evidence = JSON.stringify({ ...scene, width, ...snapshot });
+    const creating = scene.state === "local-only" || scene.state === "local-github";
+    assert(!snapshot.hasPopup && snapshot.name === "To-Do-List", `Inline experiment must keep the name and move location controls into Header: ${evidence}`);
+    assert(snapshot.buttons.length === 2 && snapshot.buttons.every(button => button.text === "" && button.bounds.width === 28
+      && button.bounds.height === 28 && button.bounds.x >= 0 && button.bounds.right <= width && button.bounds.bottom <= 48
+      && button.color === button.markColor), `Header icons must be compact, unclipped and inherit foreground: ${evidence}`);
+    assert(snapshot.nameBounds.right <= snapshot.buttons[0].bounds.x + 1, `Project name and icons must not overlap: ${evidence}`);
+    assert(snapshot.buttons[0].label === catalog[scene.platform === "macos" ? "workspaceSwitcher.location.thisMac" : "workspaceSwitcher.location.thisComputer"]
+      && snapshot.buttons[1].label === catalog[creating ? "workspaceSwitcher.createCloudVersion" : "navigation.cloud"], `Icon-only actions must retain localized accessible names: ${evidence}`);
+    assert(snapshot.currentCount === 1 && snapshot.pressedCount === 1 && snapshot.selected === (scene.state === "cloud-only" ? "cloud" : "local"), `Inline selection must match committed state: ${evidence}`);
+    assert(Math.abs(snapshot.plate.x - snapshot.selectedBounds.x) < 1 && Math.abs(snapshot.plate.width - snapshot.selectedBounds.width) < 1, `Indicator must initialize at the active location without replay: ${evidence}`);
+    assert(snapshot.loading === (scene.state === "resolving") && snapshot.create === creating && !snapshot.plus,
+      `Keep the Cloud glyph and shared loading/creation state: ${evidence}`);
+    assert(snapshot.buttons[0].disabled === (scene.state === "cloud-only") && !snapshot.buttons[1].disabled,
+      `Inline destination availability must match the popup: ${evidence}`);
+    inlineObservations.push({ ...scene, width, ...snapshot });
+    if (screenshotPath && scene.locale === "en" && scene.platform === "macos" && scene.state === "local-cloud") {
+      const capture = await window.capturePage({ x: 0, y: 0, width, height: 100 });
+      await writeFile(path.join(path.dirname(screenshotPath), `header-icons-${scene.theme}-${width}.png`), capture.toPNG());
+    }
+  }
+  window.setContentSize(996, 744);
 }
 
 async function checkStableReopening(window, direction = "ltr") {

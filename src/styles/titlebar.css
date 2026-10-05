@@ -1119,6 +1119,12 @@
   box-shadow: inset 0 0 0 1px var(--desktop-titlebar-focus);
 }
 
+.desktop-titlebar-workspace-label,
+.desktop-titlebar-workspace-label:hover {
+  background: transparent;
+  color: var(--desktop-titlebar-text);
+}
+
 .desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark {
   display: inline-flex;
   width: var(--desktop-titlebar-workspace-icon-slot-size);

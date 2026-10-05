@@ -5,6 +5,13 @@ import { DesktopOverlayPortal } from "./DesktopOverlayPortal";
 import { DesktopWorkspaceSwitcher, type DesktopProjectLocation } from "./DesktopWorkspaceSwitcher";
 import { resetDesktopPlatformCapabilitiesForTests } from "../../platform/desktopPlatformClient";
 import "./workspace-menu-visual-smoke.css";
+import { desktopPreferencesStore, initializeDesktopPreferences } from "../../preferencesStore";
+
+initializeDesktopPreferences();
+desktopPreferencesStore.getState().setExperimentalSettings(s => ({
+  ...s,
+  enableProjectLocationIconsInHeader: new URLSearchParams(window.location.search).get("location-presentation") === "header-icons",
+}));
 
 const currentWorkspace = workspace("todo", "To-Do-List", "/Users/demo/Desktop/To-Do-List");
 

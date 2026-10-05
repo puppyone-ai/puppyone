@@ -298,6 +298,8 @@
   "experimental.groups.cloud": "云端与自动化",
   "experimental.centerProjectInHeader.title": "项目名称居中",
   "experimental.centerProjectInHeader.detail": "将项目名称放在 Header 中间，分享、Git 和聊天保留在右侧。",
+  "experimental.projectLocationIconsInHeader.title": "Header 显示本地 / 云图标",
+  "experimental.projectLocationIconsInHeader.detail": "直接在 Header 中显示电脑和云图标；关闭后使用项目名称下方的切换弹层。",
   "experimental.gitCardInHeader.title": "Git 弹出卡片",
   "experimental.gitCardInHeader.detail": "在项目居中的布局下，点击 Git 在 Header 下方显示卡片。",
   "experimental.otherAppImports.title": "从其他应用导入",

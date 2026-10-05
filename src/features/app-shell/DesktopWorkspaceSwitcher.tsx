@@ -24,6 +24,7 @@ import {
 } from "./ProjectContextAssetMark";
 import { getWorkspaceParentPathForDisplay } from "./workspaceHomeModel";
 import { useDesktopPlatformCapabilities } from "../../platform/useDesktopPlatformCapabilities";
+import { useDesktopPreference } from "../../preferencesStore";
 
 type DesktopWorkspaceSwitcherProps = {
   open: boolean;
@@ -80,12 +81,9 @@ export function DesktopWorkspaceSwitcher({
   onToggle,
 }: DesktopWorkspaceSwitcherProps) {
   const { t } = useLocalization();
+  const inlineLocations = useDesktopPreference(s => s.experimentalSettings.enableProjectLocationIconsInHeader);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [view, setView] = useState<"projects" | "add">("projects");
-  const localDeviceLabel = useProjectDeviceLabel();
-  const headerProjectLocationKind = projectLocation?.headerLocation ?? projectLocation?.current ?? "local";
-  const workspaceContextAssetLabel = headerProjectLocationKind === "cloud"
-    ? t("shell.workspaceSwitcher.location.cloud") : localDeviceLabel;
   const attachedFolders = useMemo(
     () => workspaceFolders.length > 0
       ? workspaceFolders
@@ -96,6 +94,11 @@ export function DesktopWorkspaceSwitcher({
     const attachedPaths = new Set(attachedFolders.map((folder) => folder.workspace.path));
     return availableProjects.filter((project) => !attachedPaths.has(project.path));
   }, [attachedFolders, availableProjects]);
+  const hasProjectMenu = !inlineLocations || attachedFolders.length > 1 || multiRootWorkspacesEnabled;
+  const resolvedCloudProject = resolveProjectCloudCopy(workspace, cloudProject);
+  useEffect(() => {
+    if (open && !hasProjectMenu) onClose();
+  }, [hasProjectMenu, onClose, open]);
   useEffect(() => {
     if (!open || (view === "add" && !multiRootWorkspacesEnabled)) setView("projects");
   }, [multiRootWorkspacesEnabled, open, view]);
@@ -103,37 +106,26 @@ export function DesktopWorkspaceSwitcher({
     setView("projects");
   }, [workspace.path]);
   return (
-    <div className="desktop-titlebar-workspace-wrap" ref={refObject}>
-      <Tooltip content={t("shell.workspaceSwitcher.projectTitle", {
-          project: bidiIsolate(workspace.name),
-        }) + ` · ${workspaceContextAssetLabel}`}><button
-        className="desktop-titlebar-workspace-button local"
-        ref={triggerRef}
-        type="button"
-        aria-label={t("shell.workspaceSwitcher.openMenu", {
-          workspace: bidiIsolate(workspace.name),
-        }) + ` · ${workspaceContextAssetLabel}`}
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        onClick={() => {
-          setView("projects");
-          onToggle();
-        }}
-      >
-        <ProjectLocationMark
-          className="desktop-titlebar-workspace-mark"
-          kind={headerProjectLocationKind}
-          size={16}
-        />
-        <bdi className="desktop-titlebar-workspace-name">{titlebarLabel}</bdi>
-      </button></Tooltip>
+    <div className="desktop-titlebar-workspace-wrap" ref={refObject}
+      data-location-presentation={inlineLocations ? "header-icons" : "popover"}>
+      <DesktopProjectTitle workspace={workspace} titlebarLabel={titlebarLabel}
+        projectLocation={projectLocation} inlineLocations={inlineLocations}
+        hasProjectMenu={hasProjectMenu} open={open} triggerRef={triggerRef}
+        onToggle={() => { setView("projects"); onToggle(); }} />
+      {inlineLocations && <DesktopProjectLocationControls
+        presentation="header-icons"
+        projectLocation={projectLocation}
+        cloudProject={resolvedCloudProject}
+        onViewLocal={onViewLocal}
+        onViewCloud={onViewCloud}
+      />}
       <DesktopTitlebarMenuLayer
         anchorRef={triggerRef}
         className="desktop-project-menu"
         gap={2}
         onDismiss={onClose}
         dismissOnFocusExit={false}
-        open={open}
+        open={open && hasProjectMenu}
         preferredMaxHeight={520}
         preferredWidth={view === "add" ? 240 : 248}
         widthMode={view === "add" ? "fixed" : "content"}
@@ -143,13 +135,12 @@ export function DesktopWorkspaceSwitcher({
       >
         {view !== "add" ? (
           <>
-            <DesktopProjectLocationControls
+            {!inlineLocations && <DesktopProjectLocationControls
               projectLocation={projectLocation}
-              cloudProject={cloudProject ?? (workspace.puppyoneGitRemote?.projectId
-                ? { id: workspace.puppyoneGitRemote.projectId } : undefined)}
+              cloudProject={resolvedCloudProject}
               onViewLocal={onViewLocal}
               onViewCloud={onViewCloud}
-            />
+            />}
             {(attachedFolders.length > 1 || multiRootWorkspacesEnabled) && (
               <div className="desktop-project-list" data-po-scrollbar="menu"
                 role="menu" aria-label={t("shell.workspaceSwitcher.projects")}>
@@ -218,13 +209,48 @@ export function DesktopWorkspaceSwitcher({
   );
 }
 
+function resolveProjectCloudCopy(workspace: Workspace, cloudProject?: DesktopProjectCloudCopy) {
+  if (cloudProject) return cloudProject;
+  const projectId = workspace.puppyoneGitRemote?.projectId;
+  return projectId ? { id: projectId } : undefined;
+}
+
+function DesktopProjectTitle({ workspace, titlebarLabel, projectLocation, inlineLocations, hasProjectMenu, open, triggerRef, onToggle }: {
+  workspace: Workspace;
+  titlebarLabel: string;
+  projectLocation?: DesktopProjectLocation;
+  inlineLocations: boolean;
+  hasProjectMenu: boolean;
+  open: boolean;
+  triggerRef: RefObject<HTMLButtonElement>;
+  onToggle: () => void;
+}) {
+  const { t } = useLocalization();
+  const deviceLabel = useProjectDeviceLabel();
+  const kind = projectLocation?.headerLocation ?? projectLocation?.current ?? "local";
+  const contextLabel = kind === "cloud" ? t("shell.workspaceSwitcher.location.cloud") : deviceLabel;
+  return <Tooltip content={t("shell.workspaceSwitcher.projectTitle", { project: bidiIsolate(workspace.name) }) + ` · ${contextLabel}`}>
+    {hasProjectMenu ? <button className="desktop-titlebar-workspace-button local"
+      ref={triggerRef} type="button"
+      aria-label={t("shell.workspaceSwitcher.openMenu", { workspace: bidiIsolate(workspace.name) }) + ` · ${contextLabel}`}
+      aria-expanded={open} aria-haspopup="dialog" onClick={onToggle}>
+      {!inlineLocations && <ProjectLocationMark className="desktop-titlebar-workspace-mark" kind={kind} size={16} />}
+      <bdi className="desktop-titlebar-workspace-name">{titlebarLabel}</bdi>
+    </button> : <span className="desktop-titlebar-workspace-button desktop-titlebar-workspace-label">
+      <bdi className="desktop-titlebar-workspace-name">{titlebarLabel}</bdi>
+    </span>}
+  </Tooltip>;
+}
+
 /** Location controls own selection; CSS owns their shared button/plate geometry. */
 export function DesktopProjectLocationControls({
+  presentation = "popover",
   projectLocation,
   cloudProject,
   onViewLocal,
   onViewCloud,
 }: {
+  presentation?: "popover" | "header-icons";
   projectLocation?: DesktopProjectLocation;
   cloudProject?: DesktopProjectCloudCopy;
   onViewLocal?: () => void;
@@ -237,6 +263,7 @@ export function DesktopProjectLocationControls({
   const createCloud = shouldCreateCloud(projectLocation, cloudProject, Boolean(onViewCloud));
   return (
     <div className="desktop-project-location-controls"
+      data-presentation={presentation}
       data-cloud-entry={createCloud ? "create" : "switch"}>
       <div className="desktop-project-location-tabs" role="group"
         data-location={selection}
@@ -246,6 +273,7 @@ export function DesktopProjectLocationControls({
         {(["local", "cloud"] as const).map(location => <ProjectLocationTab key={location}
           location={location} current={current} selection={selection} createCloud={createCloud}
           localDeviceLabel={localDeviceLabel} projectLocation={projectLocation}
+          presentation={presentation}
           onViewLocal={onViewLocal} onViewCloud={onViewCloud} />)}
       </div>
     </div>
@@ -264,33 +292,37 @@ type LocationTabProps = Pick<Parameters<typeof DesktopProjectLocationControls>[0
   selection: "local" | "cloud";
   createCloud: boolean;
   localDeviceLabel: string;
+  presentation: "popover" | "header-icons";
 };
 
 function ProjectLocationTab(props: LocationTabProps) {
   const { t } = useLocalization();
-  const { location, current, selection, createCloud, localDeviceLabel, projectLocation, onViewLocal, onViewCloud } = props;
+  const { location, current, selection, createCloud, localDeviceLabel, projectLocation, onViewLocal, onViewCloud, presentation } = props;
+  const iconOnly = presentation === "header-icons";
   const creating = location === "cloud" && createCloud;
   const loading = location === "cloud" && Boolean(projectLocation?.loading || projectLocation?.cloudState === "resolving");
   const selected = location === selection;
   const navigate = location === "local" ? onViewLocal : onViewCloud;
   const disabled = !selected && (!navigate || (location === "local" && projectLocation?.localAvailable === false));
-  let label = localDeviceLabel;
-  if (location === "cloud") {
-    let key = "shell.navigation.cloud";
-    if (creating) key = "shell.workspaceSwitcher.createCloudVersion";
-    label = t(key);
-  }
+  const label = useProjectLocationLabel(location, creating, localDeviceLabel);
   return <Tooltip content={t(getLocationTabTooltip(props))}><button
     className="desktop-project-location-tab" type="button" data-project-location={location}
+    aria-label={label}
     data-cloud-action={creating ? "create" : undefined}
     aria-pressed={creating ? undefined : selected}
     aria-current={location === current ? "true" : undefined}
     data-cloud-pending={loading || undefined}
     disabled={disabled} onClick={() => { if (!selected) navigate?.(); }}>
     {loading ? <span className="desktop-project-location-tab-mark" aria-hidden="true"><PulseGrid size="xs" ariaHidden /></span>
-      : <ProjectLocationMark className="desktop-project-location-tab-mark" kind={location} creating={creating} size={14} />}
-    <span>{label}</span>
+      : <ProjectLocationMark className="desktop-project-location-tab-mark" kind={location} creating={creating && !iconOnly} size={iconOnly ? 16 : 14} />}
+    {!iconOnly && <span>{label}</span>}
   </button></Tooltip>;
+}
+
+function useProjectLocationLabel(location: "local" | "cloud", creating: boolean, deviceLabel: string) {
+  const { t } = useLocalization();
+  if (location === "local") return deviceLabel;
+  return t(creating ? "shell.workspaceSwitcher.createCloudVersion" : "shell.navigation.cloud");
 }
 
 function getLocationTabTooltip({ location, selection, projectLocation, createCloud }: LocationTabProps) {

@@ -20,6 +20,22 @@ afterEach(() => {
 });
 
 describe("Experimental settings", () => {
+  it("persists the Header location experiment independently and restores the popup when disabled", () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    act(() => root?.render(withTestLocalization(<ExperimentalSettingsView />)));
+    const toggle = host.querySelector<HTMLInputElement>('input[aria-label="Project location icons in Header"]');
+    expect(toggle?.checked).toBe(false);
+    expect(toggle?.closest(".desktop-settings-subsection")?.querySelector("h3")?.textContent).toBe("Header & layout");
+    act(() => toggle?.click());
+    expect(store.getState().experimentalSettings).toEqual({ ...DEFAULT_EXPERIMENTAL_SETTINGS, enableProjectLocationIconsInHeader: true });
+    act(() => initializeDesktopPreferences());
+    expect(toggle?.checked).toBe(true);
+    act(() => toggle?.click());
+    act(() => initializeDesktopPreferences());
+    expect(store.getState().experimentalSettings).toEqual(DEFAULT_EXPERIMENTAL_SETTINGS);
+  });
   it("offers a separate default-off Git card in the Header group", () => {
     const host = document.createElement("div");
     document.body.append(host);

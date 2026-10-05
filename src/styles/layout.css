@@ -587,6 +587,35 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   color: inherit;
 }
 
+/* The experiment changes the entry surface, not location state or navigation. */
+.desktop-project-location-controls[data-presentation="header-icons"] {
+  flex: 0 0 auto;
+}
+
+.desktop-project-location-controls[data-presentation="header-icons"] .desktop-project-location-tabs {
+  grid-template-columns: repeat(2, 28px);
+  background: transparent;
+}
+
+.desktop-project-location-controls[data-presentation="header-icons"] .desktop-project-location-tab:not([data-cloud-action="create"]) {
+  color: var(--desktop-titlebar-text-muted);
+}
+
+.desktop-project-location-controls[data-presentation="header-icons"] .desktop-project-location-tab {
+  min-width: 0;
+  padding: 0;
+}
+
+.desktop-project-location-controls[data-presentation="header-icons"] .desktop-project-location-tab[aria-pressed="true"] {
+  color: var(--desktop-titlebar-text);
+}
+
+.desktop-project-location-controls[data-presentation="header-icons"] .desktop-project-location-tab-mark {
+  width: 16px;
+  height: 16px;
+  flex-basis: 16px;
+}
+
 .desktop-project-menu .desktop-menu-item-icon {
   opacity: 1;
 }
