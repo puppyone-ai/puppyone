@@ -593,10 +593,21 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-location-controls[data-presentation="header-icons"] .desktop-project-location-tabs {
-  grid-template-columns: repeat(2, 28px);
-  /* One shared track makes the moving selection read as a location switch. */
-  border: 1px solid var(--po-shell-divider);
-  background: var(--po-editor-bg);
+  grid-template-columns: repeat(2, var(--desktop-chrome-control-size));
+  height: var(--desktop-titlebar-control-height);
+  padding: 0;
+  border: 0;
+  border-radius: var(--desktop-toolbar-action-radius);
+  background: var(--desktop-titlebar-bg);
+  box-shadow: inset 0 0 0 1px var(--po-shell-divider);
+}
+
+.desktop-project-location-controls[data-presentation="header-icons"] .desktop-project-location-indicator {
+  inset-block: 0;
+  inset-inline: 0 auto;
+  width: calc((100% - 2px) / 2);
+  border-radius: var(--desktop-toolbar-action-radius);
+  background: var(--desktop-titlebar-location-selected-bg);
 }
 
 .desktop-project-location-controls[data-presentation="header-icons"] .desktop-project-location-tab:not([data-cloud-action="create"]) {
@@ -606,13 +617,15 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 .desktop-project-location-controls[data-presentation="header-icons"] .desktop-project-location-tab,
 .desktop-project-location-controls[data-presentation="header-icons"] .desktop-project-location-tab:hover:not(:disabled) {
   min-width: 0;
+  height: var(--desktop-titlebar-control-height);
   padding: 0;
+  border-radius: var(--desktop-toolbar-action-radius);
   background: transparent;
   box-shadow: none;
 }
 
 .desktop-project-location-controls[data-presentation="header-icons"] .desktop-project-location-tab[aria-pressed="true"] {
-  color: var(--desktop-titlebar-text);
+  color: var(--po-text);
 }
 
 .desktop-project-location-controls[data-presentation="header-icons"] .desktop-project-location-tab:hover:not(:disabled):not([data-cloud-action="create"]) {

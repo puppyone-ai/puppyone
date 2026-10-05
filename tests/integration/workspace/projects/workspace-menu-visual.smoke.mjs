@@ -212,6 +212,12 @@ async function checkInlinePresentation(window, url, scene, catalog) {
       const plate = wrap.querySelector('.desktop-project-location-indicator');
       const selected = wrap.querySelector('button[aria-pressed="true"]');
       const track = wrap.querySelector('.desktop-project-location-tabs');
+      const header = wrap.closest('.desktop-titlebar');
+      const peer = document.createElement('button');
+      peer.className = 'desktop-titlebar-action';
+      header.append(peer);
+      const peerBounds = peer.getBoundingClientRect();
+      peer.remove();
       const rect = element => {
         const r = element.getBoundingClientRect();
         return { x: r.x, y: r.y, width: r.width, height: r.height, right: r.right, bottom: r.bottom };
@@ -227,6 +233,9 @@ async function checkInlinePresentation(window, url, scene, catalog) {
         pressedCount: wrap.querySelectorAll('button[aria-pressed="true"]').length,
         selected: selected.dataset.projectLocation,
         plate: rect(plate), selectedBounds: rect(selected),
+        selectedBackground: getComputedStyle(plate).backgroundColor,
+        headerBackground: getComputedStyle(header).backgroundColor,
+        peer: { width: peerBounds.width, height: peerBounds.height },
         track: { bounds: rect(track), background: getComputedStyle(track).backgroundColor,
           border: getComputedStyle(track).borderTopWidth, radius: getComputedStyle(track).borderRadius },
         buttonBackgrounds: buttons.map(button => getComputedStyle(button).backgroundColor),
@@ -238,18 +247,19 @@ async function checkInlinePresentation(window, url, scene, catalog) {
     const evidence = JSON.stringify({ ...scene, width, ...snapshot });
     const creating = scene.state === "local-only" || scene.state === "local-github";
     assert(!snapshot.hasPopup && snapshot.name === "To-Do-List", `Inline experiment must keep the name and move location controls into Header: ${evidence}`);
-    assert(snapshot.buttons.length === 2 && snapshot.buttons.every(button => button.text === "" && button.bounds.width === 28
-      && button.bounds.height === 28 && button.bounds.x >= 0 && button.bounds.right <= width && button.bounds.bottom <= 48
+    assert(snapshot.buttons.length === 2 && snapshot.buttons.every(button => button.text === "" && button.bounds.width === snapshot.peer.width
+      && button.bounds.height === snapshot.peer.height && button.bounds.x >= 0 && button.bounds.right <= width && button.bounds.bottom <= 48
       && button.color === button.markColor), `Header icons must be compact, unclipped and inherit foreground: ${evidence}`);
     assert(snapshot.nameBounds.right <= snapshot.buttons[0].bounds.x + 1, `Project name and icons must not overlap: ${evidence}`);
     assert(snapshot.buttons[0].label === catalog[scene.platform === "macos" ? "workspaceSwitcher.location.thisMac" : "workspaceSwitcher.location.thisComputer"]
       && snapshot.buttons[1].label === catalog[creating ? "workspaceSwitcher.createCloudVersion" : "navigation.cloud"], `Icon-only actions must retain localized accessible names: ${evidence}`);
     assert(snapshot.currentCount === 1 && snapshot.pressedCount === 1 && snapshot.selected === (scene.state === "cloud-only" ? "cloud" : "local"), `Inline selection must match committed state: ${evidence}`);
     assert(Math.abs(snapshot.plate.x - snapshot.selectedBounds.x) < 1 && Math.abs(snapshot.plate.width - snapshot.selectedBounds.width) < 1, `Indicator must initialize at the active location without replay: ${evidence}`);
-    assert(snapshot.track.bounds.width === 64 && snapshot.track.bounds.height === 34
-      && snapshot.track.border === "1px" && snapshot.track.background !== "rgba(0, 0, 0, 0)"
+    assert(snapshot.track.bounds.width === snapshot.peer.width * 2 + 2 && snapshot.track.bounds.height === snapshot.peer.height
+      && snapshot.plate.height === snapshot.peer.height && snapshot.track.background === snapshot.headerBackground
+      && (scene.theme === "light" ? snapshot.selectedBackground === "rgb(255, 255, 255)" : snapshot.selectedBackground !== snapshot.headerBackground)
       && snapshot.buttonBackgrounds.every(background => background === "rgba(0, 0, 0, 0)"),
-      `Use one visible track and one moving plate, with transparent icon targets: ${evidence}`);
+      `Match Header control geometry; the shared track blends into Header and only the selected plate is raised: ${evidence}`);
     assert(snapshot.loading === (scene.state === "resolving") && snapshot.create === creating && !snapshot.plus,
       `Keep the Cloud glyph and shared loading/creation state: ${evidence}`);
     assert(snapshot.buttons[0].disabled === (scene.state === "cloud-only") && !snapshot.buttons[1].disabled,
@@ -279,6 +289,8 @@ async function checkHeaderSlide(window, direction, destination) {
     const plate = track.querySelector('.desktop-project-location-indicator');
     const target = track.querySelector('button[data-project-location=${destination}]');
     const before = plate.getBoundingClientRect().x;
+    const geometry = track.getBoundingClientRect();
+    const travel = Math.abs(target.getBoundingClientRect().x - track.querySelector('button[data-project-location=${destination === "cloud" ? "local" : "cloud"}]').getBoundingClientRect().x);
     const frames = [];
     const started = performance.now();
     target.click();
@@ -293,15 +305,16 @@ async function checkHeaderSlide(window, direction, destination) {
       requestAnimationFrame(sample);
     });
     return { before, after: plate.getBoundingClientRect().x, target: target.getBoundingClientRect().x,
+      travel, width: geometry.width, height: geometry.height,
       reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
       selected: track.dataset.location, current: track.querySelector('button[aria-current="true"]').dataset.projectLocation,
       frames };
   })()`, true);
   const evidence = JSON.stringify({ direction, destination, ...result });
   assert(result.selected === destination && result.current === "local"
-    && Math.abs(result.after - result.target) < 1 && Math.abs(Math.abs(result.after - result.before) - 30) < 1,
+    && Math.abs(result.after - result.target) < 1 && Math.abs(Math.abs(result.after - result.before) - result.travel) < 1,
     `Click must move the plate immediately while the committed provider can still be local: ${evidence}`);
-  assert(result.frames.every(frame => frame.retained && frame.width === 64 && frame.height === 34
+  assert(result.frames.every(frame => frame.retained && frame.width === result.width && frame.height === result.height
     && (destination !== "cloud" || frame.busy === "true")), `Keep the track and plate stable through Cloud loading: ${evidence}`);
   if (!result.reducedMotion) {
     assert(result.frames.some(frame => Math.abs(frame.x - result.before) > 1 && Math.abs(frame.x - result.after) > 1),

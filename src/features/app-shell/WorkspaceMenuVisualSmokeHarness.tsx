@@ -7,10 +7,11 @@ import { resetDesktopPlatformCapabilitiesForTests } from "../../platform/desktop
 import "./workspace-menu-visual-smoke.css";
 import { desktopPreferencesStore, initializeDesktopPreferences } from "../../preferencesStore";
 
+const inlineLocations = new URLSearchParams(window.location.search).get("location-presentation") === "header-icons";
 initializeDesktopPreferences();
 desktopPreferencesStore.getState().setExperimentalSettings(s => ({
   ...s,
-  enableProjectLocationIconsInHeader: new URLSearchParams(window.location.search).get("location-presentation") === "header-icons",
+  enableProjectLocationIconsInHeader: inlineLocations,
 }));
 
 const currentWorkspace = workspace("todo", "To-Do-List", "/Users/demo/Desktop/To-Do-List");
@@ -50,7 +51,8 @@ export function WorkspaceMenuVisualSmokeHarness() {
       data-po-appearance-root="true"
       data-workspace-menu-visual-ready="true" data-project-state={state} data-device-platform={platform}>
       <DesktopOverlayPortal theme={theme}>{null}</DesktopOverlayPortal>
-      <header className="desktop-titlebar workspace-menu-visual-titlebar">
+      <header className="desktop-titlebar workspace-menu-visual-titlebar"
+        data-workspace-kind={inlineLocations ? (requested ?? current) : undefined}>
         <div className="desktop-titlebar-context">
           <DesktopWorkspaceSwitcher
             open={open}
