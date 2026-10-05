@@ -731,7 +731,7 @@
   padding: 4px;
   border: 1px solid color-mix(in srgb, var(--po-border-subtle) 72%, transparent);
   border-radius: 9px;
-  background: color-mix(in srgb, var(--po-panel-raised) 94%, transparent);
+  background: var(--po-menu-bg);
   box-shadow: 0 4px 16px color-mix(in srgb, var(--po-shadow) 12%, transparent);
   backdrop-filter: blur(8px);
   font-family: var(--po-font-ui, var(--po-font-sans));

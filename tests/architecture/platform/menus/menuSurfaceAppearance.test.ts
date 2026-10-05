@@ -16,11 +16,11 @@ const plugins = source("src/features/plugins/plugins.css");
 const agentComposer = source("src/features/desktop-agent/ui/styles/composer.css");
 
 describe("desktop menu appearance architecture", () => {
-  it("derives every popup from a chrome-emphasized Appearance surface", () => {
+  it("derives every popup from the Header's Appearance surface", () => {
     const surface = readCssBlock(menus, ".desktop-titlebar-menu");
 
     expect(tokens).toContain(
-      "--po-surface-menu: color-mix(in srgb, var(--po-header) 94%, var(--po-text) 6%);",
+      "--po-surface-menu: var(--po-header);",
     );
     expect(tokens).toContain("--po-menu-bg: var(--po-surface-menu);");
     expect(tokens).toContain("--po-menu-border: var(--po-border);");

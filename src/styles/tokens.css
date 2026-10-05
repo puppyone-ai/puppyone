@@ -205,9 +205,9 @@
   --po-surface-auxiliary: var(--po-sidebar);
   --po-surface-agent: var(--po-surface-editor);
   --po-surface-terminal: var(--po-surface-editor);
-  /* Popup controls belong to application chrome. A small foreground mix gives
-   * them more separation than the Header in both light and dark appearances. */
-  --po-surface-menu: color-mix(in srgb, var(--po-header) 94%, var(--po-text) 6%);
+  /* Popup controls share the Header's theme material. Borders, elevation and
+   * interaction states provide separation without adding another grey tier. */
+  --po-surface-menu: var(--po-header);
 
   --po-canvas: var(--po-surface-editor);
   --po-header: color-mix(in srgb, var(--po-surface-chrome) 40%, var(--po-surface-editor));
