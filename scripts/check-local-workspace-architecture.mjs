@@ -43,6 +43,10 @@ const requiredBoundaries = [
     exports: ["createWorkspaceCloudRemoteActions"],
   },
   {
+    path: "local-api/git/sync-config.mjs",
+    exports: ["readGitBranchBinding", "readGitPullPolicyArgs", "readOptionalGitConfig"],
+  },
+  {
     path: "local-api/git/sync-target.mjs",
     exports: ["createGitSyncTargetPolicy", "normalizeCurrentBranchName", "splitRemoteBranchName"],
   },
@@ -72,6 +76,8 @@ const retiredFacadeImplementations = [
   "function chooseGitSyncTarget",
   "function choosePuppyoneRemoteName",
   "function getConfiguredSyncBranch",
+  "async function readGitBranchBinding",
+  "async function readGitPullPolicyArgs",
   "function hasEffectivePuppyoneHostingTarget",
   "function normalizePuppyoneWorkspaceConfig",
   "const mimeTypeByExtension",
@@ -90,6 +96,7 @@ for (const requiredImport of [
   'from "./git/source-control-model.mjs"',
   'from "./git/cloud-remote.mjs"',
   'from "./git/sync-target.mjs"',
+  'from "./git/sync-config.mjs"',
   'from "./workspace-config.mjs"',
 ]) {
   if (!workspaceFacade.includes(requiredImport)) {
