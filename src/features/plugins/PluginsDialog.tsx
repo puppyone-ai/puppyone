@@ -38,7 +38,7 @@ export function PluginsDialog({
       <DesktopDialogRoot className="desktop-plugins-dialog-backdrop" onClose={onClose}>
         <DesktopDialogSurface
           className="desktop-plugins-dialog"
-          width="min(960px, calc(100vw - 80px))"
+          width={960}
           ariaLabel={title}
         >
           <header className="desktop-dialog-header desktop-plugins-dialog-header">

@@ -59,7 +59,49 @@ const waitFor = async (expression) => {
   throw new Error(`Renderer did not become ready: ${expression}`);
 };
 const headerPresentations = [];
+const toolDialogPresentations = [];
 const nativeCornerCaptures = [];
+async function checkCloudToolSizing(tool, phase) {
+  const originalSize = window.getContentSize();
+  const series = [
+    [[1100, 760], [721, 760], [720, 760], [719, 760], [640, 760]],
+    [[640, 760], [640, 520], [640, 360]],
+  ];
+  try {
+    for (const sizes of series) {
+      let previous;
+      for (const [width, height] of sizes) {
+        window.setContentSize(width, height);
+        await waitFor(`innerWidth === ${width} && innerHeight === ${height}`);
+        await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+        const sample = await evaluate(`(() => {
+          const dialog = document.querySelector('.desktop-cloud-workspace-tool-dialog');
+          const header = dialog.querySelector('.desktop-cloud-dialog-header');
+          const close = header.querySelector('button');
+          const rect = dialog.getBoundingClientRect(), button = close.getBoundingClientRect();
+          return { x:rect.x, y:rect.y, width:rect.width, height:rect.height,
+            viewportWidth:innerWidth, viewportHeight:innerHeight,
+            titleSize:getComputedStyle(header.querySelector('h2')).fontSize,
+            closeFits:button.left >= rect.left && button.right <= rect.right
+              && button.top >= rect.top && button.bottom <= rect.bottom };
+        })()`);
+        assert(sample.x >= 15 && sample.y >= 15 && sample.x + sample.width <= width - 15
+          && sample.y + sample.height <= height - 15 && sample.closeFits,
+          `Cloud ${tool} must fit the viewport and retain its close control (${phase}): ${JSON.stringify(sample)}`);
+        if (previous) assert(sample.width <= previous.width + 1 && sample.height <= previous.height + 1
+          && sample.titleSize === previous.titleSize,
+          `Shrinking the viewport must not enlarge Cloud ${tool} (${phase}): ${JSON.stringify({previous, sample})}`);
+        previous = sample;
+        toolDialogPresentations.push({ tool, phase, ...sample });
+        if (phase === 'ready' && height === 520) await writeFile(path.join(artifacts, `cloud-${tool}-compact.png`),
+          (await window.webContents.capturePage()).toPNG());
+      }
+    }
+  } finally {
+    window.setContentSize(...originalSize);
+    await waitFor(`innerWidth === ${originalSize[0]} && innerHeight === ${originalSize[1]}`);
+  }
+}
 async function captureCloudReady(scene) {
   assert(await evaluate("!document.querySelector('.desktop-cloud-entry-light, .desktop-cloud-entry-sweep, [data-arrival-ready]')"),
     'Ready Cloud content must have no page cover or separate arrival animation');
@@ -581,6 +623,7 @@ app.whenReady().then(async () => {
     assert(await evaluate("document.querySelectorAll('.desktop-cloud-workspace-tool-dialog [role=alert]').length === 1 && !document.querySelector('.desktop-cloud-automation-new-button, .desktop-cloud-access-new-button') && !document.querySelector('.desktop-cloud-service-unavailable').textContent.includes('404')"),
       'An older Cloud backend must produce one native unavailable state with no creation action or raw HTTP error');
     await evaluate("Promise.all(document.querySelector('.desktop-cloud-workspace-tool-dialog').getAnimations().map(animation => animation.finished.catch(() => {})))");
+    await checkCloudToolSizing(tool, 'unavailable');
     await writeFile(path.join(artifacts, `cloud-${tool}-unavailable.png`), (await window.webContents.capturePage()).toPNG());
     await evaluate("window.__nativeCloudWorkbenchSmoke.setCloudToolsAvailable(true); document.querySelector('.desktop-cloud-service-retry').click()");
     await waitFor(tool === 'automation' ? "Boolean(document.querySelector('.desktop-cloud-automation-catalog'))" : "Boolean(document.querySelector('.desktop-cloud-access-catalog'))");
@@ -588,6 +631,7 @@ app.whenReady().then(async () => {
       ? "window.__nativeCloudWorkbenchSmoke.state().requests.some(path => path.includes('/synchronize/bindings?project_id=fixture-project'))"
       : "Boolean(document.querySelector('.desktop-cloud-access-new-button'))");
     assert(await evaluate("!document.querySelector('.desktop-cloud-workspace-tool-dialog [role=alert]')"), 'Cloud tool must load its native page without an error');
+    await checkCloudToolSizing(tool, 'ready');
     await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     await writeFile(path.join(artifacts, `cloud-${tool}-tool.png`), (await window.webContents.capturePage()).toPNG());
     const toolRequests = (await state()).requests.slice(beforeRequests);
@@ -824,7 +868,7 @@ app.whenReady().then(async () => {
   await evaluate("window.__nativeCloudWorkbenchSmoke.finishLocalSaves()");
   snapshot = await state();
   assert(!errors.length, `Renderer errors: ${errors.join("; ")}`);
-  await writeFile(path.join(artifacts, "report.json"), JSON.stringify({ passed: true, electronVersion:process.versions.electron, pdfRuntimeDiagnostics, localHost, localPresentation, cloudPresentation, headerPresentations, nativeCornerCaptures, authGeometry, loginPresentations, snapshot, errors }, null, 2));
+  await writeFile(path.join(artifacts, "report.json"), JSON.stringify({ passed: true, electronVersion:process.versions.electron, pdfRuntimeDiagnostics, localHost, localPresentation, cloudPresentation, headerPresentations, toolDialogPresentations, nativeCornerCaptures, authGeometry, loginPresentations, snapshot, errors }, null, 2));
   console.log("Native Cloud workbench smoke passed: identical native layout/styles, Cloud tree/data/edit/save, centered sign-in across themes and eight locales, browser waiting/error states, login before switching, cancellation, isolated drafts and retained hosts.");
   window.destroy(); app.exit(0);
 }).catch(async (error) => {

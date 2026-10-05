@@ -28,7 +28,7 @@ export function SettingsDialog({ onClose, ...settings }: SettingsDialogProps) {
     <DesktopDialogRoot className="desktop-settings-dialog-backdrop" onClose={onClose}>
       <DesktopDialogSurface
         className="desktop-settings-dialog"
-        width="min(960px, calc(100vw - 80px))"
+        width={960}
         ariaLabel={title}
       >
         <header className="desktop-dialog-header desktop-settings-dialog-header">

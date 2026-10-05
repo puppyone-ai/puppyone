@@ -459,7 +459,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   --desktop-project-menu-spacing: 3px;
   --po-menu-padding: var(--desktop-project-menu-spacing);
   --po-menu-bg: var(--po-header);
-  --po-menu-border: var(--po-border-subtle);
+  --po-menu-border: var(--po-shell-divider);
   --interface-menu-background: var(--po-header);
   --po-menu-shadow-compact:
     0 2px 4px color-mix(in srgb, var(--po-shadow) 45%, transparent),

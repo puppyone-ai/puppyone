@@ -26,7 +26,7 @@ export function CloudWorkspaceToolDialog({ tool, context, session, apiBaseUrl, o
   return <DesktopOverlayLayer>
     <DesktopDialogRoot className="desktop-cloud-dialog-backdrop" onClose={onClose}>
       <DesktopDialogSurface className="desktop-cloud-dialog desktop-cloud-workspace-tool-dialog"
-        width="min(960px, calc(100vw - 80px))" ariaLabel={title}>
+        width={960} ariaLabel={title}>
         <header className="desktop-dialog-header desktop-cloud-dialog-header">
           <div className="desktop-dialog-title-row desktop-cloud-dialog-title-row">
             <span className="desktop-cloud-dialog-leading" aria-hidden="true">{tool === "automation" ? <Grid2X2 size={15} /> : <Plug size={15} />}</span><h2>{title}</h2></div>

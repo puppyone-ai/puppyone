@@ -5,7 +5,11 @@
 .desktop-settings-dialog-backdrop,
 .desktop-plugins-dialog-backdrop,
 .desktop-cloud-dialog-backdrop {
-  padding: 40px;
+  /* Size each axis independently so a narrower window cannot make the dialog
+   * taller. The same insets constrain the backdrop and its task surface. */
+  --desktop-task-dialog-inset-inline: clamp(16px, 4vw, 40px);
+  --desktop-task-dialog-inset-block: clamp(16px, 4vh, 40px);
+  padding: var(--desktop-task-dialog-inset-block) var(--desktop-task-dialog-inset-inline);
   background: color-mix(in srgb, var(--po-backdrop) 84%, transparent);
   backdrop-filter: blur(1.5px);
   -webkit-backdrop-filter: blur(1.5px);
@@ -20,8 +24,9 @@
   --desktop-task-dialog-header-focus: var(--po-focus-ring);
   --desktop-task-dialog-header-divider: var(--po-header-divider);
 
-  height: min(760px, calc(100vh - 80px));
-  max-height: calc(100vh - 80px);
+  width: min(var(--desktop-dialog-width, 960px), calc(100vw - 2 * var(--desktop-task-dialog-inset-inline)));
+  height: min(760px, calc(100vh - 2 * var(--desktop-task-dialog-inset-block)));
+  max-height: calc(100vh - 2 * var(--desktop-task-dialog-inset-block));
   border-radius: 14px;
   background: var(--po-canvas);
 }
@@ -119,7 +124,7 @@
   display: grid;
   min-height: 0;
   flex: 1;
-  grid-template-columns: 196px minmax(0, 1fr);
+  grid-template-columns: clamp(164px, 24vw, 196px) minmax(0, 1fr);
   overflow: hidden;
 }
 
@@ -167,33 +172,7 @@
 
 .desktop-settings-dialog-content .desktop-settings-body {
   padding-block: 48px 40px;
-  padding-inline: clamp(24px, 4vw, 42px);
-}
-
-@media (max-width: 720px) {
-  .desktop-settings-dialog-backdrop,
-  .desktop-plugins-dialog-backdrop,
-  .desktop-cloud-dialog-backdrop {
-    padding: 16px;
-  }
-
-  .desktop-settings-dialog,
-  .desktop-plugins-dialog,
-  .desktop-cloud-dialog {
-    width: calc(100vw - 32px) !important;
-    height: calc(100vh - 32px);
-    max-height: calc(100vh - 32px);
-  }
-
-  .desktop-settings-dialog-layout,
-  .desktop-plugins-dialog-layout,
-  .desktop-cloud-dialog-layout {
-    grid-template-columns: 164px minmax(0, 1fr);
-  }
-
-  .desktop-settings-dialog-content .desktop-settings-body {
-    padding-inline: 20px;
-  }
+  padding-inline: clamp(20px, 4vw, 42px);
 }
 
 .desktop-settings-body {
