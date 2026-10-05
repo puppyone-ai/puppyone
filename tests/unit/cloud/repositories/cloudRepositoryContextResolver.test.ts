@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   assertCloudRemoteNameAvailable,
   assertExpectedGitRepositoryState,
+  isTrustedCloudProjectLocator,
+  isTrustedCloudGitOrigin,
 } from "../../../../src/features/cloud/workspace/workspaceGitRemote";
 import {
   describePuppyoneRemoteCandidates,
@@ -22,6 +24,27 @@ describe("Initialize remote collision policy", () => {
     expect(() => assertCloudRemoteNameAvailable({
       remotes: [{ name: "origin" }],
     } as never)).not.toThrow();
+  });
+});
+
+describe("legacy Cloud locator identity", () => {
+  const api = "https://api.puppyone.ai/api/v1";
+  it("accepts the official HTTP identity without trusting HTTP Git transport", () => {
+    const locator = "http://api.puppyone.ai/git/project-1.git";
+    expect(isTrustedCloudProjectLocator(locator, api)).toBe(true);
+    expect(isTrustedCloudGitOrigin(locator, api)).toBe(false);
+  });
+  it.each([
+    "http://other.puppyone.ai/git/project-1.git",
+    "http://api.puppyone.ai:9000/git/project-1.git",
+    "http://user:secret@api.puppyone.ai/git/project-1.git",
+    "http://api.puppyone.ai/git/project-1.git?token=secret",
+    "http://api.puppyone.ai/git/project-1.git#secret",
+  ])("rejects unrelated or credential-bearing locators: %s", locator => {
+    expect(isTrustedCloudProjectLocator(locator, api)).toBe(false);
+  });
+  it("keeps development and production environments distinct", () => {
+    expect(isTrustedCloudProjectLocator("http://api.puppyone.ai/git/project-1.git", "http://localhost:8000/api/v1")).toBe(false);
   });
 });
 

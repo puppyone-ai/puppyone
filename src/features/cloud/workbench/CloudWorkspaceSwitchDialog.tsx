@@ -36,9 +36,9 @@ export function CloudWorkspaceSwitchDialog({ controller, gate, authenticationReq
   return <DesktopOverlayLayer>
     <DesktopDialogRoot onClose={controller.cancel}>
       <DesktopDialogSurface className={`desktop-cloud-workspace-switch-dialog${authenticationRequired ? " is-authentication" : ""}`}
-        width={authenticationRequired ? 440 : "min(720px, calc(100vw - 48px))"}
+        width={640}
         ariaLabel={t(authenticationRequired ? "cloud.auth.desktopTitle" : "cloud.productName")}>
-        {authenticationRequired
+        {!controller.error
           ? <DesktopDialogCloseButton className="desktop-cloud-workspace-sign-in-close"
             label={t("common.action.close")} onClick={controller.cancel} />
           : <header className="desktop-dialog-header">

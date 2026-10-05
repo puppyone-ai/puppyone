@@ -8,6 +8,7 @@ import type {
 import { formatCloudPublishFailure } from "../cloudPresentation";
 import type { CloudWorkspaceSection } from "../types";
 import { CloudActivationHero } from "../components/CloudActivationHero";
+import { CloudProjectActivation } from "../components/CloudProjectActivation";
 import { CloudPublishConfirmationDialog } from "./CloudPublishConfirmationDialog";
 import { getCloudPublishProgressLabel } from "./CloudPublishProgressIndicator";
 
@@ -39,6 +40,8 @@ export function CloudGitPrerequisite({
   onPublishWorkspace: (organizationId?: string) => void;
 }) {
   const { t } = useLocalization();
+  const Activation = ["contents", "initialize", "project"].includes(activeSection)
+    ? CloudProjectActivation : CloudActivationHero;
   const [confirmationOpen, setConfirmationOpen] = useState(false);
 
   const showOrganizationSupplemental = [
@@ -90,7 +93,7 @@ export function CloudGitPrerequisite({
   return (
     <>
       <div className="desktop-cloud-publish-container">
-        <CloudActivationHero
+        <Activation
           activeSection={activeSection}
           className="desktop-cloud-git-prerequisite"
           ariaLabel={t("cloud.initialize.publishFolderTitle")}
@@ -102,6 +105,8 @@ export function CloudGitPrerequisite({
               type="button"
               aria-busy={publishBusy || undefined}
               aria-haspopup="dialog"
+              data-cloud-publish-action="true"
+              data-desktop-dialog-initial-focus="true"
               disabled={publishBusy || !publishEnabled}
               onClick={() => setConfirmationOpen(true)}
             >
@@ -109,7 +114,7 @@ export function CloudGitPrerequisite({
               <span>
                 {progressStage
                   ? getCloudPublishProgressLabel(progressStage, t)
-                  : t("cloud.initialize.enableGitAndPublish")}
+                  : t(Activation === CloudProjectActivation ? "cloud.activation.project.publish" : "cloud.initialize.enableGitAndPublish")}
               </span>
             </button>
           )}

@@ -924,5 +924,16 @@
   "workspaceTools.connectAgents": "通过 MCP，让更多 Agent 接入这个云端项目。",
   "workspaceTools.connect": "连接",
   "workspaceTools.unavailable": "暂时无法使用{service}",
-  "workspaceTools.unavailableDescription": "无法加载此云端服务。请检查连接，或在服务更新后重试。"
+  "workspaceTools.unavailableDescription": "无法加载此云端服务。请检查连接，或在服务更新后重试。",
+  "activation.project.title": "让项目随时随地可用。",
+  "activation.project.description": "与团队成员分享这个项目。",
+  "activation.project.share": "与团队分享",
+  "activation.project.shareHint": "协同工作",
+  "activation.project.agents": "连接 Agent",
+  "activation.project.agentsHint": "让 Agent 使用项目文件",
+  "activation.project.automation": "自动更新",
+  "activation.project.automationHint": "持续同步外部来源",
+  "activation.project.publish": "将这个项目上云",
+  "activation.project.publishHint": "本地文件仍保留在这台设备上。",
+  "activation.project.reconnect": "重新连接云端项目"
 }

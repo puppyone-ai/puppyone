@@ -924,5 +924,16 @@
   "workspaceTools.connectAgents": "Connect more agents to this Cloud project through MCP.",
   "workspaceTools.connect": "Connect",
   "workspaceTools.unavailable": "{service} is unavailable",
-  "workspaceTools.unavailableDescription": "We couldn’t load this Cloud service. Check your connection or try again after the service is updated."
+  "workspaceTools.unavailableDescription": "We couldn’t load this Cloud service. Check your connection or try again after the service is updated.",
+  "activation.project.title": "Take your project anywhere, anytime.",
+  "activation.project.description": "Share this project with your teammates.",
+  "activation.project.share": "Share with your team",
+  "activation.project.shareHint": "Work together",
+  "activation.project.agents": "Connect agents",
+  "activation.project.agentsHint": "Work with your files",
+  "activation.project.automation": "Automate updates",
+  "activation.project.automationHint": "Keep sources in sync",
+  "activation.project.publish": "Bring this project to Cloud",
+  "activation.project.publishHint": "Your local files stay on this device.",
+  "activation.project.reconnect": "Reconnect Cloud project"
 }

@@ -924,5 +924,16 @@
   "workspaceTools.connectAgents": "Conecta más agentes a este proyecto en la nube mediante MCP.",
   "workspaceTools.connect": "Conectar",
   "workspaceTools.unavailable": "{service} no está disponible",
-  "workspaceTools.unavailableDescription": "No se pudo cargar este servicio de la nube. Comprueba tu conexión o vuelve a intentarlo tras actualizar el servicio."
+  "workspaceTools.unavailableDescription": "No se pudo cargar este servicio de la nube. Comprueba tu conexión o vuelve a intentarlo tras actualizar el servicio.",
+  "activation.project.title": "Tu proyecto, donde y cuando quieras.",
+  "activation.project.description": "Comparte este proyecto con tu equipo.",
+  "activation.project.share": "Comparte con tu equipo",
+  "activation.project.shareHint": "Trabajad juntos",
+  "activation.project.agents": "Conecta agentes",
+  "activation.project.agentsHint": "Trabaja con tus archivos",
+  "activation.project.automation": "Automatiza actualizaciones",
+  "activation.project.automationHint": "Mantén las fuentes sincronizadas",
+  "activation.project.publish": "Lleva este proyecto a Cloud",
+  "activation.project.publishHint": "Tus archivos locales permanecen en este dispositivo.",
+  "activation.project.reconnect": "Reconectar el proyecto de Cloud"
 }

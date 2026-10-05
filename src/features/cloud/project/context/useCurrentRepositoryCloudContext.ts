@@ -14,7 +14,7 @@ import { cloudMessage } from "../../cloudPresentation";
 import { repositoryTargetMatchesRemote } from "../../repositoryTarget";
 import { isRetryableCloudFailure } from "../../workspace/cloudProjectResolution";
 import { createWorkspaceCloudResolutionKey } from "../../workspace/workspaceCloudResolutionKey";
-import { isTrustedCloudGitOrigin } from "../../workspace/workspaceGitRemote";
+import { isTrustedCloudProjectLocator } from "../../workspace/workspaceGitRemote";
 import type { ProjectCloudContext } from "./projectCloudContext";
 
 type UniqueRemote = Extract<PuppyoneRemoteResolution, { status: "unique" }>;
@@ -153,7 +153,7 @@ export function useCurrentRepositoryCloudContext({
 
     const cloudRemote = remoteResolution;
     const candidateProjectId = cloudRemote.info.projectId ?? null;
-    if (!isTrustedCloudGitOrigin(cloudRemote.rawUrl, apiBaseUrl)) {
+    if (!isTrustedCloudProjectLocator(cloudRemote.rawUrl, apiBaseUrl)) {
       apply({
         status: "wrong-host",
         projectId: candidateProjectId,

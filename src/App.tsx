@@ -37,6 +37,7 @@ import { CloudWorkspaceHeaderTools } from "./features/cloud/workbench/CloudWorks
 import { useRepositoryCloudWorkspaceSwitch } from "./features/cloud/workbench/useRepositoryCloudWorkspaceSwitch";
 import { CloudWorkspaceSwitchDialog } from "./features/cloud/workbench/CloudWorkspaceSwitchDialog";
 import { RepositoryCloudSwitchGate } from "./features/cloud/workbench/RepositoryCloudSwitchGate";
+import { CloudInitializationRoute } from "./features/cloud/initialization/CloudInitializationRoute";
 import { useHomepageCloudProjects } from "./features/cloud/workbench/useHomepageCloudProjects";
 import { HomepageCloudStatus } from "./features/cloud/workbench/HomepageCloudStatus";
 import {
@@ -783,11 +784,13 @@ function AppContent() {
     showWorkspaceNavigation: !enableProjectSwitcherRail || !workspace,
     sidebarUtility: <DesktopHelpLauncher appearance={surfaceAppearance} />,
   });
+  const repositoryCloudInitializationPending = cloudBackupLoading || cloudPublishStateLoading || Boolean(cloudPublishState);
   const repositoryCloudSwitch = useRepositoryCloudWorkspaceSwitch({
     enabled: cloudEnabled && Boolean(focusedWorkspace),
     scope: JSON.stringify([focusedWorkspace?.id, focusedWorkspace?.path]),
     context: projectCloudContext, session: activeCloudSession, apiBaseUrl: desktopCloudApiBaseUrl,
     onPrepared: accountCloud.activatePrepared,
+    initializationPending: repositoryCloudInitializationPending,
   });
   const requestCloudWorkspace = repositoryCloudSwitch.request;
   const cancelRepositoryCloudSwitch = repositoryCloudSwitch.cancel;
@@ -844,7 +847,7 @@ function AppContent() {
   });
   const cloudSignedIn = activeCloudSession !== null;
   const projectCloudLocationState = getProjectCloudLocationState(projectCloudContext, cloudSignedIn);
-  const prepareCloudInPlace = Boolean(activeCloudSession && (projectCloudContext.status === "resolved"
+  const prepareCloudInPlace = Boolean(activeCloudSession && !repositoryCloudInitializationPending && (projectCloudContext.status === "resolved"
     || projectCloudContext.status === "resolving" || repositoryCloudSwitch.error));
   const headerWorkspaceLocation = cloudWorkspaceActive ? "cloud"
     : (prepareCloudInPlace && repositoryCloudSwitch.requestedLocation) || "local";
@@ -1408,6 +1411,18 @@ function AppContent() {
       authState={resolveCloudAuthState({ cloudSession: activeCloudSession, sessionRestoring: cloudSessionRestoring,
         environment: { apiBaseUrl: desktopCloudApiBaseUrl, source: "default", cloudRemote: null } })}
       onRetry={() => { setCloudResolutionRefreshKey((value) => value + 1); repositoryCloudSwitch.retry(); }}
+      initializationPending={repositoryCloudInitializationPending}
+      publishEntry={workspace && activeCloudSession && focusedWorkspace?.path === workspace.path ? <CloudInitializationRoute
+        activeSection="contents" workspace={workspace} status={activeGitStatus}
+        session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} accountEmail={activeCloudSession.user_email}
+        loading={gitStatusLoading} error={gitStatusError} cloudActionNotice={null}
+        cloudBackupLoading={cloudBackupLoading} cloudBackupPending={pendingCloudBackupSetup}
+        cloudPublishError={cloudPublishError} cloudPublishNotice={cloudPublishNotice}
+        cloudPublishProgress={cloudPublishProgress} cloudPublishState={cloudPublishState}
+        cloudPublishStateLoading={cloudPublishStateLoading} onSessionChange={updateCloudSession}
+        onAbandonPublish={handleAbandonPuppyoneBackup} onRefresh={() => void refreshGitStatus("configuration")}
+        onPublishWorkspace={(organizationId) => void handleStartPuppyoneBackup(organizationId, { navigateToCloud: false })}
+      /> : undefined}
       onPublishLocal={workspace ? () => { cancelRepositoryCloudSwitch(); openCloudDialogAt("initialize"); } : undefined} />} />;
   const settingsWorkspace = focusedWorkspace ?? workspace ?? null;
   const settingsOverlay = <DesktopOverlayPortal appearance={surfaceAppearance}>

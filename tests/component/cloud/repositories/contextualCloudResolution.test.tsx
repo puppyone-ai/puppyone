@@ -58,17 +58,19 @@ function ContextHarness({
   activeCloudSession = session,
   activeWorkspace = workspace,
   status,
+  apiBaseUrl = session.api_base_url,
 }: {
   activeCloudSession?: DesktopCloudSession | null;
   activeWorkspace?: Workspace | null;
   status: GitStatusSnapshot;
+  apiBaseUrl?: string;
 }) {
   const updateCloudSession = React.useCallback(() => undefined, []);
   const context = useCurrentRepositoryCloudContext({
     activeCloudSession,
     activeGitStatus: status,
     cloudEnabled: true,
-    desktopCloudApiBaseUrl: session.api_base_url,
+    desktopCloudApiBaseUrl: apiBaseUrl,
     resolutionInputsLoading: false,
     updateCloudSession,
     workspace: activeWorkspace,
@@ -167,6 +169,20 @@ describe("current-repository Cloud context", () => {
       target: { kind: "scope", project_id: "project-1", scope_id: "scope-docs" },
       scopePath: "docs",
     });
+  });
+
+  it("verifies a legacy official HTTP locator via the configured HTTPS API", async () => {
+    const apiBaseUrl = "https://api.puppyone.ai/api/v1";
+    const secureSession = { ...session, api_base_url: apiBaseUrl };
+    cloudApi.getCloudRepositoryContext.mockResolvedValue({
+      target: { kind: "project_root", project_id: "project-1" },
+      project: { id: "project-1", name: "Notes" },
+    });
+    const context = await renderUntil(<ContextHarness activeCloudSession={secureSession} apiBaseUrl={apiBaseUrl}
+      status={gitStatus({ fetch: "http://api.puppyone.ai/git/project-1.git" })} />, ["resolved"]);
+    expect(context).toMatchObject({ status: "resolved", projectId: "project-1" });
+    expect(cloudApi.getCloudRepositoryContext).toHaveBeenCalledWith(secureSession, "project-1",
+      { kind: "project_root", project_id: "project-1" }, expect.any(Function), apiBaseUrl);
   });
 
   it("requires a session for a canonical remote without calling the API", async () => {

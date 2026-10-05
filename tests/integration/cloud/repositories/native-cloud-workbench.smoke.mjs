@@ -796,14 +796,18 @@ app.whenReady().then(async () => {
   await writeFile(path.join(artifacts, "login-before-switch.png"), (await window.webContents.capturePage()).toPNG());
   const loginPresentations = [];
   const verifyLogin = async (scene) => {
+    await evaluate(`Promise.all([
+      ...document.querySelector('[data-cloud-sign-in-action]').getAnimations(),
+      ...document.querySelector('.desktop-cloud-workspace-switch-dialog').getAnimations()
+    ].map(animation => animation.finished.catch(() => {})))`);
     await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     const sample = await evaluate(`(() => {
       const dialog = document.querySelector('.desktop-cloud-workspace-switch-dialog');
-      const cta = dialog.querySelector('.desktop-cloud-sign-in-cta');
+      const cta = dialog.querySelector('.desktop-cloud-project-activation');
       const button = cta.querySelector('[data-cloud-sign-in-action]');
       const box = (node) => { const r = node.getBoundingClientRect(); return { x:r.x, y:r.y, width:r.width, height:r.height }; };
       return { dialog:box(dialog), cta:box(cta), button:box(button),
-        centered:[cta, ...cta.querySelectorAll('.desktop-cloud-sign-in-mark, h2, [data-cloud-sign-in-action]')].map(node => box(node).x + box(node).width / 2),
+        centered:[cta, ...cta.querySelectorAll('h2, [data-cloud-sign-in-action]')].map(node => box(node).x + box(node).width / 2),
         overflow:button.scrollWidth > button.clientWidth || cta.scrollWidth > cta.clientWidth,
         text:cta.textContent, background:getComputedStyle(dialog).backgroundColor,
         color:getComputedStyle(button).color, locale:document.documentElement.lang,
@@ -816,7 +820,7 @@ app.whenReady().then(async () => {
     assert(Math.abs(sample.dialog.x*2 + sample.dialog.width - window.getContentSize()[0]) < 2, `Dialog is off-center: ${scene}`);
     assert(Math.abs(sample.dialog.y*2 + sample.dialog.height - window.getContentSize()[1]) < 2, `Dialog is not vertically centered: ${scene}`);
     assert(!sample.overflow && !sample.oldPageLayout, `Sign-in content is clipped or uses full-page layout: ${scene}`);
-    assert(sample.dialog.width <= 442 && sample.dialog.height < window.getContentSize()[1]-32, `Sign-in is oversized: ${scene}`);
+    assert(sample.dialog.width <= 642 && sample.dialog.height < window.getContentSize()[1]-32, `Sign-in is oversized: ${scene}`);
     loginPresentations.push({ scene, ...sample });
     return sample;
   };
@@ -825,12 +829,12 @@ app.whenReady().then(async () => {
     width: Math.ceil(initialLogin.dialog.width + 48), height: Math.ceil(initialLogin.dialog.height + 48) };
   await writeFile(path.join(artifacts, "login-preview.png"), (await window.webContents.capturePage(preview)).toPNG());
   await evaluate("document.querySelector('[data-cloud-sign-in-action]').click()");
-  await waitFor("document.querySelector('.desktop-cloud-sign-in-cta')?.getAttribute('aria-busy') === 'true'");
+  await waitFor("document.querySelector('.desktop-cloud-project-activation')?.getAttribute('aria-busy') === 'true'");
   let login = await verifyLogin("waiting-en");
   assert(login.disabled && login.text.includes("Finish signing in in your browser"), "Pending login needs clear browser guidance");
   await writeFile(path.join(artifacts, "login-waiting.png"), (await window.webContents.capturePage()).toPNG());
   await evaluate("window.__nativeCloudWorkbenchSmoke.failLogin()");
-  await waitFor("Boolean(document.querySelector('.desktop-cloud-sign-in-cta [role=alert]'))");
+  await waitFor("Boolean(document.querySelector('.desktop-cloud-project-activation [role=alert]'))");
   login = await verifyLogin("error-en");
   assert(!login.disabled && login.alert.includes("Try again"), "Failed login must offer another attempt");
   await writeFile(path.join(artifacts, "login-error.png"), (await window.webContents.capturePage()).toPNG());
@@ -867,10 +871,58 @@ app.whenReady().then(async () => {
   await waitFor("document.querySelector('[data-cloud-native=true]').textContent.includes('cloud-only')");
   await selectLocation("local");
   assert(await evaluate("document.querySelector('[data-workspace-location=local] .cm-editor')?.dataset.fixtureIdentity === 'retained-local-host' && document.querySelector('[data-workspace-location=local] .cm-content').textContent.includes('LOCAL_UNSAVED_DRAFT')"), "Authentication must preserve local drafts");
+  await evaluate("window.__nativeCloudWorkbenchSmoke.setRepositoryLocalOnly(true); window.__nativeCloudWorkbenchSmoke.setCloudSessionAvailable(false)");
+  await openProjectMenu();
+  await evaluate("document.querySelector('button[data-project-location=cloud]').click()");
+  await waitFor("Boolean(document.querySelector('[data-cloud-sign-in-action]'))");
+  const activationTitle = await evaluate("document.querySelector('.desktop-cloud-project-activation h2').textContent");
+  await evaluate("window.__nativeCloudWorkbenchSmoke.setCloudSessionAvailable(true)");
+  await waitFor("Boolean(document.querySelector('[data-cloud-publish-action]:not(:disabled)'))");
+  assert(await evaluate(`document.querySelector('.desktop-cloud-project-activation h2').textContent === ${JSON.stringify(activationTitle)}`),
+    "Signing in to an unhosted repository must retain the same value surface");
+  const publishPresentations = [];
+  for (const [width, height] of [[1100,760], [720,640], [640,640], [480,640]]) {
+    window.setContentSize(width, height);
+    await waitFor(`innerWidth === ${width}`);
+    for (const theme of ['light', 'dark']) {
+      await evaluate(`window.__nativeCloudWorkbenchSmoke.setLoginAppearance('${theme}', 'en')`);
+      await evaluate(`Promise.all([
+        ...document.querySelector('[data-cloud-publish-action]').getAnimations(),
+        ...document.querySelector('.desktop-cloud-workspace-switch-dialog').getAnimations()
+      ].map(animation => animation.finished.catch(() => {})))`);
+      const presentation = await evaluate(`(() => {
+        const dialog = document.querySelector('.desktop-cloud-workspace-switch-dialog');
+        const card = dialog.querySelector('.desktop-cloud-project-activation');
+        const button = card.querySelector('[data-cloud-publish-action]');
+        const rect = dialog.getBoundingClientRect(), style = getComputedStyle(card);
+        return { width:rect.width, height:rect.height, x:rect.x, y:rect.y, padding:style.padding,
+          overflow:card.scrollWidth > card.clientWidth || button.scrollWidth > button.clientWidth,
+          action:button.textContent, color:getComputedStyle(button).color, background:getComputedStyle(button).backgroundColor };
+      })()`);
+      assert(presentation.x >= 31 && presentation.y >= 31 && !presentation.overflow,
+        `Publish dialog must preserve fixed insets without clipping (${theme}/${width}): ${JSON.stringify(presentation)}`);
+      assert(presentation.padding === '32px 28px' && presentation.action === 'Bring this project to Cloud',
+        'Authenticated activation must retain spacing and offer actual publication');
+      publishPresentations.push({theme, viewport:width, ...presentation});
+      if (width === 1100 || width === 640) await writeFile(path.join(artifacts, `publish-${theme}-${width}.png`), (await window.webContents.capturePage()).toPNG());
+    }
+  }
+  window.setContentSize(1100,760);
+  await evaluate("document.querySelector('[data-cloud-publish-action]').click()");
+  await waitFor("Boolean(document.querySelector('.desktop-cloud-publish-confirmation'))");
+  assert((await state()).publishRequests.length === 0, 'The existing upload confirmation must precede publication');
+  await evaluate("document.querySelector('.desktop-cloud-publish-confirmation .desktop-dialog-button.primary').click()");
+  await waitFor("window.__nativeCloudWorkbenchSmoke.state().publishRequests.length === 1");
+  assert((await state()).publishRequests[0] === 'fixture-org', 'Publication must use the selected organization');
+  assert((await state()).location === 'local' && await evaluate("Boolean(document.querySelector('.desktop-cloud-workspace-switch-dialog .desktop-cloud-publish-running'))"),
+    'Uploading must retain the Local workbench and show existing publication progress');
+  await evaluate("window.__nativeCloudWorkbenchSmoke.finishPublish()");
+  await waitFor("window.__nativeCloudWorkbenchSmoke.state().location === 'cloud' && !document.querySelector('.desktop-cloud-workspace-switch-dialog')");
+  await selectLocation('local');
   await evaluate("window.__nativeCloudWorkbenchSmoke.finishLocalSaves()");
   snapshot = await state();
   assert(!errors.length, `Renderer errors: ${errors.join("; ")}`);
-  await writeFile(path.join(artifacts, "report.json"), JSON.stringify({ passed: true, electronVersion:process.versions.electron, pdfRuntimeDiagnostics, localHost, localPresentation, cloudPresentation, headerPresentations, toolDialogPresentations, nativeCornerCaptures, authGeometry, loginPresentations, snapshot, errors }, null, 2));
+  await writeFile(path.join(artifacts, "report.json"), JSON.stringify({ passed: true, electronVersion:process.versions.electron, pdfRuntimeDiagnostics, localHost, localPresentation, cloudPresentation, headerPresentations, toolDialogPresentations, nativeCornerCaptures, authGeometry, loginPresentations, publishPresentations, snapshot, errors }, null, 2));
   console.log("Native Cloud workbench smoke passed: identical native layout/styles, Cloud tree/data/edit/save, centered sign-in across themes and eight locales, browser waiting/error states, login before switching, cancellation, isolated drafts and retained hosts.");
   window.destroy(); app.exit(0);
 }).catch(async (error) => {

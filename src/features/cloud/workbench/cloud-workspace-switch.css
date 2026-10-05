@@ -1,8 +1,10 @@
 @layer features {
   .desktop-cloud-workspace-switch-dialog {
+    position: relative;
     display: flex;
+    width: min(var(--desktop-dialog-width, 640px), calc(100vw - 2 * var(--desktop-task-dialog-inset)));
     flex-direction: column;
-    max-height: calc(100vh - 80px);
+    max-height: calc(100vh - 2 * var(--desktop-task-dialog-inset));
     overflow: hidden;
   }
 
@@ -14,7 +16,14 @@
   }
 
   .desktop-cloud-workspace-switch-content > .desktop-cloud-main-view {
+    height: auto;
+    padding: 0;
+    background: transparent;
     overflow: visible;
+  }
+
+  .desktop-cloud-workspace-switch-dialog .desktop-cloud-workspace-switch-content .desktop-cloud-page-shell {
+    min-height: 0;
   }
 
   .desktop-cloud-workspace-switch-recovery {

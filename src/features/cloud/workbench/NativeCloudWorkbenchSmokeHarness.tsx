@@ -12,7 +12,8 @@ import { useDesktopPreference, useDesktopPreferenceEffects, initializeDesktopPre
 import { useCloudWorkspaceSwitch } from "./useCloudWorkspaceSwitch";
 import { CloudWorkspaceSwitchDialog } from "./CloudWorkspaceSwitchDialog";
 import { CloudWorkspacePreparation } from "./CloudWorkspacePreparation";
-import { CloudSignedOutRoute } from "../auth/CloudSignedOutRoute";
+import { RepositoryCloudSwitchGate } from "./RepositoryCloudSwitchGate";
+import { CloudLocalOnlyWorkspace } from "../initialization/CloudInitializationView";
 import { useLocalization } from "@puppyone/localization/react";
 import type { AppLanguagePreference } from "@puppyone/localization/core";
 import type { DesktopCloudAuthState } from "../../../lib/cloudSession";
@@ -68,6 +69,7 @@ const cloudWrites: Array<{ path: string; content: string }> = [];
 const localWrites: Array<{ path: string; content: string }> = [];
 const localSaveCompletions: Array<() => void> = [];
 const requests: string[] = [];
+const publishRequests: Array<string | undefined> = [];
 let cloudToolsAvailable = false;
 let cloudReadBarrier: Promise<void> | null = null;
 let finishCloudRead: (() => void) | null = null;
@@ -123,7 +125,7 @@ declare global {
     __nativeCloudChromeBridge?: Pick<NonNullable<Window["puppyoneDesktop"]>,
       "getPlatformCapabilities" | "getWindowChromeState" | "onWindowChromeStateChanged">;
     __nativeCloudWorkbenchSmoke?: {
-    state: () => { location: string; cloudWrites: typeof cloudWrites; localWrites: typeof localWrites; requests: string[] };
+    state: () => { location: string; cloudWrites: typeof cloudWrites; localWrites: typeof localWrites; requests: string[]; publishRequests: typeof publishRequests };
     edit: (location: "local" | "cloud", text: string) => void;
     openCloudFile: (path: string) => Promise<void>;
     addCloudFixtures: (entries: Array<{ path: string; mimeType: string; content?: string }>) => void;
@@ -133,6 +135,8 @@ declare global {
     finishCloudRead: () => void;
     setCloudToolsAvailable: (available: boolean) => void;
     setCloudSessionAvailable: (available: boolean) => void;
+    setRepositoryLocalOnly: (localOnly: boolean) => void;
+    finishPublish: () => void;
     setSidebarCollapsed: (collapsed: boolean) => void;
     setCenteredProject: (centered: boolean) => void;
     setLoginAppearance: (theme: "light" | "dark", locale: AppLanguagePreference) => Promise<void>;
@@ -147,6 +151,8 @@ export function NativeCloudWorkbenchSmokeHarness() {
   const { setLanguagePreference } = useLocalization();
   const [cloudSelected, setCloudSelected] = useState(false);
   const [cloudSessionAvailable, setCloudSessionAvailable] = useState(true);
+  const [repositoryLocalOnly, setRepositoryLocalOnly] = useState(false);
+  const [publishLoading, setPublishLoading] = useState(false);
   const location = cloudSelected && cloudSessionAvailable ? "cloud" : "local";
   useEffect(() => { if (!cloudSessionAvailable) setCloudSelected(false); }, [cloudSessionAvailable]);
   const [centeredProject, setCenteredProject] = useState(true);
@@ -162,7 +168,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
   const commitCloud = useCallback(() => setCloudSelected(true), []);
   const controller = useCloudWorkspaceSwitch({ enabled: true, scope: localWorkspace.id,
     session: cloudSessionAvailable ? session : null, service: workbench.service,
-    providerError: workbench.error, initializationPending: false, onCommit: commitCloud });
+    providerError: workbench.error, initializationPending: repositoryLocalOnly || publishLoading, onCommit: commitCloud });
   const localPort = useMemo<DataPort>(() => withEditorDocumentOperations({
     listChildren: async () => localNodes,
     resolveNode: async (path) => localNodes.find((node) => node.path === path) ?? null,
@@ -198,10 +204,11 @@ export function NativeCloudWorkbenchSmokeHarness() {
     resolveWorkspaceResource: resolveLocal, workspaceRefreshToken: { sequence: 0, entries: [] },
     workspaceAtomicRefreshToken: 0, workspaceSurfaceError: null, sidebarCreateMenuOpen: false,
   };
-  const headerLocation = (cloudSessionAvailable ? controller.requestedLocation : undefined) ?? location;
+  const preparingInPlace = cloudSessionAvailable && !repositoryLocalOnly && !publishLoading;
+  const headerLocation = (preparingInPlace ? controller.requestedLocation : undefined) ?? location;
   useEffect(() => {
     window.__nativeCloudWorkbenchSmoke = {
-      state: () => ({ location, cloudWrites, localWrites, requests }),
+      state: () => ({ location, cloudWrites, localWrites, requests, publishRequests }),
       openCloudFile: async (path) => {
         if (!workbench.service) throw new Error("Cloud fixture is unavailable.");
         const resource = createWorkspaceResourceUri(workbench.service.folder.uri, path);
@@ -219,7 +226,8 @@ export function NativeCloudWorkbenchSmokeHarness() {
         view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } });
       },
       setCloudToolsAvailable: (available) => { cloudToolsAvailable = available; },
-      setCloudSessionAvailable, setSidebarCollapsed, setCenteredProject,
+      setCloudSessionAvailable, setSidebarCollapsed, setCenteredProject, setRepositoryLocalOnly,
+      finishPublish: () => { setPublishLoading(false); setRepositoryLocalOnly(false); },
       setLoginAppearance: async (nextTheme, locale) => { setTheme(nextTheme); await setLanguagePreference(locale); },
       resetLogin: () => { for (const listener of authStateListeners) listener({ status: "signed-out", session: null }); },
       failLogin: () => { for (const listener of authErrorListeners) listener({ message: "Fixture browser sign-in failed. Try again." }); },
@@ -250,14 +258,23 @@ export function NativeCloudWorkbenchSmokeHarness() {
       </>}
       >
       <DesktopWorkspaceLocationSurface location={location}
-        preparation={controller.pending && cloudSessionAvailable ? <CloudWorkspacePreparation controller={controller} /> : undefined}
+        preparation={controller.pending && preparingInPlace ? <CloudWorkspacePreparation controller={controller} /> : undefined}
         local={<DesktopDataWorkspaceSurface {...commonSurfaceProps} />}
         cloud={<DesktopCloudFileWorkspace workbench={workbench} surfaceProps={commonSurfaceProps}
           providerStateContent={null} />} />
     </DesktopCloudShell>
-    <CloudWorkspaceSwitchDialog controller={controller} authenticationRequired={!cloudSessionAvailable} preparingInPlace={cloudSessionAvailable}
-      gate={<CloudSignedOutRoute compact activeSection="contents" apiBaseUrl={API}
-        authState={{ status: "signed-out", apiBaseUrl: API }} loadingLabel="Restoring Cloud session…" />} />
+    <CloudWorkspaceSwitchDialog controller={controller} authenticationRequired={!cloudSessionAvailable}
+      preparingInPlace={preparingInPlace}
+      gate={<RepositoryCloudSwitchGate apiBaseUrl={API} onRetry={controller.retry}
+        context={repositoryLocalOnly ? { status: "local-only", projectId: null } : context}
+        initializationPending={publishLoading}
+        authState={cloudSessionAvailable ? { status: "signed-in", apiBaseUrl: API, session } : { status: "signed-out", apiBaseUrl: API }}
+        publishEntry={<CloudLocalOnlyWorkspace activeSection="contents" workspace={localWorkspace}
+          accountEmail={session.user_email} branchName="main" totalCommits={1} localChangeCount={0}
+          isGitRepository hasHeadCommit hasCurrentBranch publishLoading={publishLoading}
+          organizations={[{ id: "fixture-org", name: "Fixture team" }]}
+          selectedOrganizationId="fixture-org" organizationStatus="ready"
+          onPublishWorkspace={(organizationId) => { publishRequests.push(organizationId); setPublishLoading(true); }} />} />} />
   </div>;
 }
 

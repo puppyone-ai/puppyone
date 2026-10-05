@@ -38,8 +38,9 @@ const localFolder = { id: "local-a", path: "/fixture/header-local", name: "Local
 const localGit = gitStatus({ remotes: [{ name: "puppyone", fetchUrl: "https://cloud-fixture.puppyone.ai/git/a.git",
   pushUrl: "https://cloud-fixture.puppyone.ai/git/a.git", branches: [] }] });
 const ignoreSessionChange = () => {};
-function Harness({ currentSession = session, enabled = true, homeVisible = false, association = { status: "local-only", projectId: null }, scope = "local-folder", resolveAssociation = false }: {
+function Harness({ currentSession = session, enabled = true, homeVisible = false, association = { status: "local-only", projectId: null }, scope = "local-folder", resolveAssociation = false, initializationPending = false }: {
   currentSession?: DesktopCloudSession | null; enabled?: boolean; homeVisible?: boolean; association?: ProjectCloudContext; scope?: string; resolveAssociation?: boolean;
+  initializationPending?: boolean;
 }) {
   account = useAccountCloudWorkspace({ enabled, session: currentSession, apiBaseUrl: API });
   homepage = useHomepageCloudProjects({ enabled, visible: homeVisible && !account.active, session: currentSession, apiBaseUrl: API, local: [] });
@@ -48,7 +49,7 @@ function Harness({ currentSession = session, enabled = true, homeVisible = false
     desktopCloudApiBaseUrl: API, resolutionInputsLoading: false, updateCloudSession: ignoreSessionChange });
   const headerContext = resolveAssociation ? derivedContext : association;
   header = useRepositoryCloudWorkspaceSwitch({ enabled, scope, context: headerContext, session: currentSession,
-    apiBaseUrl: API, onPrepared: account.activatePrepared });
+    apiBaseUrl: API, onPrepared: account.activatePrepared, initializationPending });
   workbench = useNativeCloudWorkbench({ context: account.context, session: currentSession, apiBaseUrl: API,
     active: account.active, filesVisibilitySettings: { showHiddenFiles: true, excludePatterns: [] } });
   return <><div data-active={account.active} data-project={account.context.projectId ?? ""} />
@@ -251,6 +252,20 @@ describe("account-owned Cloud workspaces on the existing API", () => {
     expect(header.pending).toBe(true); expect(account.active).toBe(false); expect(bridge).not.toHaveBeenCalled();
     await render({ association: associated("a") });
     expect(account.context.projectId).toBe("a"); expect(account.active).toBe(true);
+    expect(header.pending).toBe(false);
+    expect(bridge.mock.calls.every(([request]) => request.path.startsWith("/content/a/"))).toBe(true);
+  });
+
+  it("waits for the first upload before opening a newly associated Cloud project", async () => {
+    const association = associated("a");
+    await render({ association, initializationPending: true });
+    await act(async () => header.request());
+    expect(account.active).toBe(false);
+    expect(header.pending).toBe(true);
+    expect(bridge).not.toHaveBeenCalled();
+    await render({ association });
+    expect(account.active).toBe(true);
+    expect(account.context.projectId).toBe("a");
     expect(header.pending).toBe(false);
     expect(bridge.mock.calls.every(([request]) => request.path.startsWith("/content/a/"))).toBe(true);
   });

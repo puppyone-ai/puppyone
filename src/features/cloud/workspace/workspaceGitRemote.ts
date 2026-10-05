@@ -41,6 +41,23 @@ function isLoopbackOrigin(value: string | null | undefined): boolean {
   }
 }
 
+/** Legacy official HTTP locators are identity hints only. Resolve them through
+ * the configured HTTPS API; this must never authorize HTTP Git credentials. */
+export function isTrustedCloudProjectLocator(remote: string, apiBaseUrl: string | null): boolean {
+  if (isTrustedCloudGitOrigin(remote, apiBaseUrl)) return true;
+  if (!apiBaseUrl) return false;
+  try {
+    const locator = new URL(remote);
+    const api = new URL(apiBaseUrl);
+    return locator.protocol === "http:" && api.protocol === "https:"
+      && locator.hostname === "api.puppyone.ai" && api.hostname === locator.hostname
+      && !locator.port && !api.port && !locator.username && !locator.password
+      && !locator.search && !locator.hash;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Initialization is allowed to create the canonical remote, never to repoint an
  * existing one. Callers must use a freshly-read snapshot for this preflight.
