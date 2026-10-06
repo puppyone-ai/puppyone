@@ -5,17 +5,17 @@ import { resolveAnchoredOverlayPosition } from "../../../../src/features/app-she
 const appSource = source("src/App.tsx");
 const layerSource = source("src/features/app-shell/DesktopTitlebarMenuLayer.tsx");
 const projectSource = source("src/features/app-shell/DesktopWorkspaceSwitcher.tsx");
-const branchSource = source("src/features/app-shell/DesktopTitlebarContext.tsx");
+const locationSource = source("src/features/app-shell/DesktopProjectLocationSwitcher.tsx");
 const titlebarCss = source("src/styles/titlebar.css");
 const dialogCss = source("src/styles/dialogs.css");
 
 describe("titlebar menu overlay architecture", () => {
-  it("portals project and branch menus out of the clipped Header tree", () => {
+  it("portals project and location menus out of the clipped Header tree", () => {
     expect(layerSource).toContain("<DesktopOverlayLayer>");
     expect(layerSource).toContain("useAnchoredOverlayPosition");
     expect(layerSource).toContain('data-titlebar-context-menu="true"');
     expect(projectSource).toContain("<DesktopTitlebarMenuLayer");
-    expect(branchSource).toContain("<DesktopTitlebarMenuLayer");
+    expect(locationSource).toContain("<DesktopTitlebarMenuLayer");
     expect(layerSource).toContain('typographySurface="left-sidebar"');
     expect(titlebarCss).toMatch(
       /\.desktop-titlebar-menu\.desktop-titlebar-menu-overlay\s*\{[^}]*position:\s*fixed;[^}]*inset-inline-start:\s*auto;/s,
@@ -35,7 +35,7 @@ describe("titlebar menu overlay architecture", () => {
     expect(appSource).not.toContain("const closeOnPointerDown = (event: PointerEvent)");
   });
 
-  it("uses a compact fixed width for both project and branch menus", () => {
+  it("uses a compact fixed width for both project and location menus", () => {
     expect(layerSource).toContain("const TITLEBAR_CONTEXT_MENU_WIDTH = 300;");
     expect(titlebarCss).toContain("width: min(300px, calc(100vw - 16px));");
   });

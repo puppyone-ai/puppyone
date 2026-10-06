@@ -48,18 +48,11 @@ describe("Git right-sidebar titlebar entries", () => {
       root?.render(withTestLocalization(
       <>
         <DesktopTitlebarContext
-          compactProjectMenu={centered}
-          activeGitStatus={null}
-          branchSwitcherOpen={false} branchSwitcherRef={createRef<HTMLDivElement>()}
-          gitStatusLoading={false} gitOperationLoading={null}
-          localBranches={[]} remoteBranches={[]}
+          menuAlignment={centered ? "center" : "start"} titlebarLabel="Demo"
           workspace={{ id: "demo", name: "Demo", path: "/tmp/demo", status: "recording" }}
           workspaceFolders={[]} multiRootWorkspacesEnabled={false} availableProjects={[]}
-          workspaceSwitcherOpen={false} workspaceSwitcherRef={createRef<HTMLDivElement>()}
-          onCheckoutBranch={vi.fn(async () => true)}
-          onCloseBranchSwitcher={vi.fn()} onCloseWorkspaceSwitcher={vi.fn()}
-          onAddProject={vi.fn()} onAddExistingProject={vi.fn()}
-          onToggleBranchSwitcher={vi.fn()} onToggleWorkspaceSwitcher={onToggleWorkspaceSwitcher}
+          open={false} refObject={createRef<HTMLDivElement>()}
+          onClose={vi.fn()} onToggle={onToggleWorkspaceSwitcher}
         />
         <div data-header-trailing>
           <DesktopTitlebarActions
@@ -71,6 +64,7 @@ describe("Git right-sidebar titlebar entries", () => {
     });
 
     render(centered);
+    expect(container.querySelector(".desktop-titlebar-branch-button")).toBeNull();
     const context = container.querySelector(".desktop-titlebar-context");
     const trailing = container.querySelector("[data-header-trailing]");
     const changes = container.querySelector<HTMLButtonElement>(".desktop-titlebar-changes");

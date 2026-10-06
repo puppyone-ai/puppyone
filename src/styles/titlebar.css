@@ -209,15 +209,10 @@
   min-width: 0;
   overflow: hidden;
   height: 100%;
-  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+  grid-template-columns: minmax(0, max-content) minmax(var(--desktop-titlebar-drag-min-width), 1fr);
   align-items: center;
   gap: 6px;
   padding-inline: calc(var(--desktop-titlebar-safe-area-x) + var(--desktop-titlebar-content-start)) 6px;
-}
-
-.desktop-shell[data-titlebar-tabs-align-explorer="true"][data-titlebar-sidebar-state="expanded"]
-  .desktop-titlebar[data-centered-project="true"] .desktop-titlebar-leading {
-  grid-template-columns: minmax(0, var(--desktop-titlebar-leading-track)) minmax(0, 1fr);
 }
 
 .desktop-titlebar-centered-context {
@@ -341,9 +336,12 @@
 
 .desktop-titlebar-session-tabs-host {
   display: flex;
+  box-sizing: border-box;
   min-width: 0;
   width: 100%;
   height: 100%;
+  /* Tabs may fill the track; native window dragging must still have a target. */
+  padding-inline-end: var(--desktop-titlebar-drag-min-width);
   align-items: center;
   overflow: hidden;
 }
@@ -1082,10 +1080,42 @@
   width: max-content;
   max-width: var(--desktop-titlebar-workspace-max-width);
   min-width: 0;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   height: 100%;
   align-items: center;
   gap: var(--desktop-titlebar-button-gap);
+}
+
+.desktop-titlebar-location-wrap {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  height: 100%;
+}
+
+.desktop-titlebar-location-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--desktop-titlebar-control-height);
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--desktop-toolbar-action-radius);
+  background: transparent;
+  color: var(--desktop-titlebar-text-muted);
+  font: inherit;
+  white-space: nowrap;
+}
+
+.desktop-titlebar-location-button:hover,
+.desktop-titlebar-location-button[aria-expanded="true"] {
+  background: var(--desktop-titlebar-hover);
+  color: var(--desktop-titlebar-text);
+}
+
+.desktop-titlebar-location-button:focus-visible {
+  outline: 1px solid var(--desktop-titlebar-focus);
+  outline-offset: -1px;
 }
 
 .desktop-titlebar-workspace-button {

@@ -69,7 +69,6 @@ export function DesktopWindowChrome({
               <div
                 ref={sessionTabsHostRef}
                 className="desktop-titlebar-session-tabs-host"
-                data-window-no-drag="true"
               >
                 {tabs}
               </div>
@@ -77,7 +76,7 @@ export function DesktopWindowChrome({
           </div>
         </div>
         {centeredContext && (
-          <div className="desktop-titlebar-centered-context" data-window-no-drag="true">
+          <div className="desktop-titlebar-centered-context">
             {centeredContext}
           </div>
         )}

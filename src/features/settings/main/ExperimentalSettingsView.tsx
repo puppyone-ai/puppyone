@@ -65,6 +65,18 @@ export function ExperimentalSettingsView() {
           {groups.map(({ id, rows }, index) => (
             <SettingsSubsection key={id} title={t(`settings.experimental.groups.${id}`)} leading={index === 0}>
               <div className="desktop-settings-list">
+                {id === "header" && <div className="desktop-settings-row desktop-settings-row-control">
+                  <span>{t("settings.experimental.projectHeaderAlignment.title")}</span>
+                  <div className="desktop-theme-segment" role="group" aria-label={t("settings.experimental.projectHeaderAlignment.title")}>
+                    {([false, true] as const).map(centered => <button key={String(centered)} type="button"
+                      className={settings.enableCenteredProjectInHeader === centered ? "active" : ""}
+                      aria-pressed={settings.enableCenteredProjectInHeader === centered}
+                      onClick={() => onChange({ ...settings, enableCenteredProjectInHeader: centered })}>
+                      {t(centered ? "settings.experimental.projectHeaderAlignment.center" : "settings.experimental.projectHeaderAlignment.left")}
+                    </button>)}
+                  </div>
+                </div>}
+
                 {rows.map(({ messageKey, settingKey }) => (
                   <div className="desktop-settings-row desktop-settings-row-control" key={settingKey}>
                     <span>{t(`settings.experimental.${messageKey}.title`)}</span>

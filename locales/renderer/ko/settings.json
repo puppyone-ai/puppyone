@@ -1,4 +1,7 @@
 {
+  "experimental.projectHeaderAlignment.title": "프로젝트 헤더 위치",
+  "experimental.projectHeaderAlignment.left": "왼쪽",
+  "experimental.projectHeaderAlignment.center": "가운데",
   "activation.activate": "활성화",
   "activation.consent": "Puppyone이 백그라운드에서 {agent} CLI를 설치합니다. 설치가 완료되면 활성화됩니다. 처음 사용할 때 로그인이 필요할 수 있습니다. 기존 설치는 재사용합니다.",
   "activation.guided": "이 Agent는 공식 설정 절차를 사용합니다. 설정 페이지를 열고 돌아온 후 설치를 확인합니다. 로그인과 모델 설정은 시작할 때 확인합니다.",
@@ -260,7 +263,7 @@
   "experimental.groups.imports": "가져오기 및 플러그인",
   "experimental.groups.cloud": "클라우드 및 자동화",
   "experimental.projectLocationIconsInHeader.title": "헤더의 로컬 / Cloud 전환",
-  "experimental.projectLocationIconsInHeader.detail": "PuppyOne Cloud가 활성화되면 왼쪽 정렬된 프로젝트 이름 옆에 로컬 / Cloud 전환을 표시합니다. 끄면 프로젝트 메뉴에서 전환합니다.",
+  "experimental.projectLocationIconsInHeader.detail": "PuppyOne Cloud가 켜져 있으면 프로젝트 이름 옆에 Local / Cloud 전환을 표시합니다. 끄면 위치 메뉴에서 전환합니다.",
   "experimental.otherAppImports.title": "다른 앱에서 가져오기",
   "experimental.otherAppImports.detail": "가져오기에 Notion, Google Drive, Airtable, Obsidian을 표시하고 설정 페이지를 추가합니다.",
   "experimental.detail": "초기 데스크톱 기능을 사용합니다. 모든 실험은 기본적으로 꺼져 있습니다.",

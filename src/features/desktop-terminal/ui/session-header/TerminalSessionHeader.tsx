@@ -124,7 +124,6 @@ export function TerminalSessionHeader({
   return (
     <header
       className="desktop-terminal-subheader"
-      data-window-no-drag="true"
       style={{
         "--desktop-terminal-header-gap": `${TERMINAL_SESSION_HEADER_METRICS.gap}px`,
         "--desktop-terminal-tab-control-height": `${TERMINAL_SESSION_HEADER_METRICS.createControl}px`,

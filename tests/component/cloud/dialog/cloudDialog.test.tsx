@@ -2,7 +2,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DesktopProjectLocationControls } from "../../../../src/features/app-shell/DesktopWorkspaceSwitcher";
+import { DesktopProjectLocationControls } from "../../../../src/features/app-shell/DesktopProjectLocationSwitcher";
 import { CloudDialog } from "../../../../src/features/cloud/CloudDialog";
 import { renderWithTestLocalization } from "../../../support/react/localization";
 

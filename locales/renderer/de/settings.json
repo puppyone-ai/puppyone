@@ -1,4 +1,7 @@
 {
+  "experimental.projectHeaderAlignment.title": "Position des Projektkopfs",
+  "experimental.projectHeaderAlignment.left": "Links",
+  "experimental.projectHeaderAlignment.center": "Zentriert",
   "activation.activate": "Aktivieren",
   "activation.consent": "Puppyone installiert die {agent}-CLI im Hintergrund. Nach der Installation ist sie aktiviert. Bei der ersten Nutzung ist möglicherweise eine Anmeldung nötig. Eine vorhandene Installation wird weiterverwendet.",
   "activation.guided": "Dieser Agent verwendet die offizielle Einrichtung. Puppyone öffnet die Anleitung und prüft danach die Installation. Anmeldung und Modelleinstellungen werden beim Start geprüft.",
@@ -260,7 +263,7 @@
   "experimental.groups.imports": "Importe und Plugins",
   "experimental.groups.cloud": "Cloud und Automatisierung",
   "experimental.projectLocationIconsInHeader.title": "Lokal-/Cloud-Umschalter in der Kopfzeile",
-  "experimental.projectLocationIconsInHeader.detail": "Wenn PuppyOne Cloud aktiviert ist, erscheint der Lokal-/Cloud-Umschalter neben dem linksbündigen Projektnamen. Bei Deaktivierung erfolgt der Wechsel über das Projektmenü.",
+  "experimental.projectLocationIconsInHeader.detail": "Wenn PuppyOne Cloud aktiviert ist, den Local-/Cloud-Umschalter neben dem Projektnamen anzeigen. Andernfalls über das Standortmenü wechseln.",
   "experimental.otherAppImports.title": "Aus anderen Apps importieren",
   "experimental.otherAppImports.detail": "Notion, Google Drive, Airtable und Obsidian im Import anzeigen und ihre Einstellungsseite hinzufügen.",
   "experimental.detail": "Aktiviere frühe Desktop-Funktionen. Alle Experimente sind standardmäßig deaktiviert.",

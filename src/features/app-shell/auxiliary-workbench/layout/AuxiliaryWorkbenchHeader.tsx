@@ -107,7 +107,6 @@ export function AuxiliaryWorkbenchHeader({
   return (
     <header
       className="desktop-terminal-subheader"
-      data-window-no-drag="true"
       style={{
         "--desktop-terminal-header-gap": `${WORKBENCH_SESSION_HEADER_METRICS.gap}px`,
         "--desktop-terminal-tab-control-height": `${WORKBENCH_SESSION_HEADER_METRICS.createControl}px`,

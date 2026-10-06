@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { DesktopCloudShell } from "../../../../src/components/DesktopCloudShell";
 import { DesktopTitlebarContext } from "../../../../src/features/app-shell/DesktopTitlebarContext";
 import { DesktopWorkspaceLocationSurface } from "../../../../src/features/app-shell/DesktopWorkspaceLocationSurface";
-import type { DesktopProjectLocation } from "../../../../src/features/app-shell/DesktopWorkspaceSwitcher";
+import type { DesktopProjectLocation } from "../../../../src/features/app-shell/DesktopProjectLocationSwitcher";
 import { withTestLocalization } from "../../../support/react/localization";
 
 vi.mock("../../../../src/platform/useDesktopPlatformCapabilities", () => ({
@@ -56,7 +56,9 @@ function appLocation(cloudWorkspaceActive: boolean, cloudState: DesktopProjectLo
   expect(headerBindings).toEqual(["projectLocation", "projectLocation"]);
   const compiled = ts.transpileModule(`const projectLocation = ${locationBinding};
     ({ projectLocation, surface: ${surfaceBinding}, chrome: ${chromeBinding} });`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
-  return runInNewContext(compiled, { cloudEnabled, cloudWorkspaceActive, projectCloudLocationState: cloudState }) as {
+  return runInNewContext(compiled, { cloudEnabled, cloudWorkspaceActive, projectCloudLocationState: cloudState,
+    headerWorkspaceLocation: cloudWorkspaceActive ? "cloud" : "local",
+    repositoryCloudSwitch: { requestedLocation: cloudWorkspaceActive ? "cloud" : "local", pending: false, error: null } }) as {
     projectLocation: DesktopProjectLocation | undefined; surface: "local" | "cloud"; chrome: "local" | "cloud";
   };
 }
@@ -64,7 +66,6 @@ function appLocation(cloudWorkspaceActive: boolean, cloudState: DesktopProjectLo
 let root: Root | null = null;
 const workspace = { id: "todo", name: "To-Do-List", path: "/fixture/todo", status: "recording" as const };
 const menuRef = createRef<HTMLDivElement>();
-const branchRef = createRef<HTMLDivElement>();
 const noop = () => undefined;
 const localButton = () => document.querySelector<HTMLButtonElement>('button[data-project-location="local"]')!;
 const cloudButton = () => document.querySelector<HTMLButtonElement>('button[data-project-location="cloud"]')!;
@@ -74,19 +75,17 @@ async function renderCommittedLocation(active: boolean, onLocal = vi.fn(), onClo
   if (!root) { const container = document.createElement("div"); document.body.appendChild(container); root = createRoot(container); }
   const state = appLocation(active);
   await act(async () => root!.render(withTestLocalization(
-    <DesktopCloudShell workspaceLocation={state.chrome} titlebarCenteredSlot={<DesktopTitlebarContext compactProjectMenu
-      activeGitStatus={null} showBranchSwitcher={false} branchSwitcherOpen={false} branchSwitcherRef={branchRef}
-      gitStatusLoading={false} gitOperationLoading={null} localBranches={[]} remoteBranches={[]}
+    <DesktopCloudShell workspaceLocation={state.chrome} titlebarCenteredSlot={<DesktopTitlebarContext titlebarLabel={workspace.name}
       workspace={workspace} workspaceFolders={[]} multiRootWorkspacesEnabled={false} availableProjects={[]}
       projectLocation={state.projectLocation} cloudProject={{ id: "cloud-todo" }}
-      workspaceSwitcherOpen workspaceSwitcherRef={menuRef}
-      onCheckoutBranch={async () => false} onCloseBranchSwitcher={noop} onCloseWorkspaceSwitcher={noop}
-      onAddProject={noop} onAddExistingProject={noop} onToggleBranchSwitcher={noop} onToggleWorkspaceSwitcher={noop}
+      open={false} refObject={menuRef} onClose={noop} onToggle={noop}
       onViewLocal={onLocal} onViewCloud={onCloud} />}>
     <DesktopWorkspaceLocationSurface location={state.surface}
       local={<input aria-label="Local draft" defaultValue="LOCAL_ONLY" />}
       cloud={<div data-cloud-native="true">CLOUD_ONLY</div>} />
     </DesktopCloudShell>)));
+  const trigger = document.querySelector<HTMLButtonElement>(".desktop-titlebar-location-button");
+  if (trigger?.getAttribute("aria-expanded") === "false") act(() => trigger.click());
 }
 
 afterEach(() => { act(() => root?.unmount()); root = null; document.body.innerHTML = ""; vi.restoreAllMocks(); });
@@ -104,7 +103,7 @@ describe("production App location wiring", () => {
     await renderCommittedLocation(false, onLocal, onCloud);
     const header = document.querySelector(".desktop-titlebar");
     const shell = document.querySelector(".desktop-shell");
-    const title = document.querySelector(".desktop-titlebar-workspace-button");
+    const title = document.querySelector(".desktop-titlebar-location-button");
     const draft = document.querySelector<HTMLInputElement>('input[aria-label="Local draft"]')!;
     draft.value = "UNSAVED_LOCAL_DRAFT";
     expect(localButton().getAttribute("aria-pressed")).toBe("true");
@@ -129,7 +128,7 @@ describe("production App location wiring", () => {
     expect(title?.querySelector('[data-project-location="cloud"]')).not.toBeNull();
     expect(title?.getAttribute("aria-label")).toContain("Cloud");
     expect(document.querySelector(".desktop-titlebar")).toBe(header);
-    expect(document.querySelector(".desktop-titlebar-workspace-button")).toBe(title);
+    expect(document.querySelector(".desktop-titlebar-location-button")).toBe(title);
     expect(document.querySelector(".desktop-titlebar-centered-context .desktop-titlebar-workspace-name")?.textContent).toBe("To-Do-List");
     await act(async () => localButton().click());
     expect(onLocal).toHaveBeenCalledOnce();

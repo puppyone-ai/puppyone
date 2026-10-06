@@ -1,4 +1,7 @@
 {
+  "experimental.projectHeaderAlignment.title": "项目标题位置",
+  "experimental.projectHeaderAlignment.left": "居左",
+  "experimental.projectHeaderAlignment.center": "居中",
   "activation.activate": "激活",
   "activation.consent": "Puppyone 将在后台安装 {agent} CLI，安装完成即激活。首次使用时可能需要登录。已有安装会直接复用。",
   "activation.guided": "此 Agent 需要通过官方流程完成设置。Puppyone 会帮你打开设置入口，并在返回后检查安装；账号与模型配置在启动 Agent 时检查。",
@@ -297,7 +300,7 @@
   "experimental.groups.imports": "导入与插件",
   "experimental.groups.cloud": "云端与自动化",
   "experimental.projectLocationIconsInHeader.title": "在顶部显示本地 / 云端切换",
-  "experimental.projectLocationIconsInHeader.detail": "开启 PuppyOne Cloud 后，在靠左的项目名旁显示本地 / 云端切换。关闭此选项则通过项目菜单切换。",
+  "experimental.projectLocationIconsInHeader.detail": "启用 PuppyOne Cloud 后，在项目名称旁直接显示 Local / Cloud 切换。关闭后，通过位置菜单切换。",
   "experimental.otherAppImports.title": "从其他应用导入",
   "experimental.otherAppImports.detail": "在导入中显示 Notion、Google Drive、Airtable 和 Obsidian，并添加对应的设置页。",
   "experimental.detail": "选择体验早期桌面功能。所有实验默认关闭。",

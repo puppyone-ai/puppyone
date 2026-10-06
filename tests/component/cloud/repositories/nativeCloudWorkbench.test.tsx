@@ -4,7 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DesktopWorkspaceLocationSurface } from "../../../../src/features/app-shell/DesktopWorkspaceLocationSurface";
 import { DesktopCloudShell } from "../../../../src/components/DesktopCloudShell";
-import { DesktopProjectLocationControls } from "../../../../src/features/app-shell/DesktopWorkspaceSwitcher";
+import { DesktopProjectLocationControls } from "../../../../src/features/app-shell/DesktopProjectLocationSwitcher";
 import { useNativeCloudWorkbench, type NativeCloudWorkbench } from "../../../../src/features/cloud/workbench/useNativeCloudWorkbench";
 import { useCloudWorkspaceSwitch } from "../../../../src/features/cloud/workbench/useCloudWorkspaceSwitch";
 import { CloudWorkspaceSwitchDialog } from "../../../../src/features/cloud/workbench/CloudWorkspaceSwitchDialog";

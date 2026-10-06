@@ -56,6 +56,8 @@ async function runSmoke() {
   url.searchParams.set("platform", platform);
   url.hash = "workspace-menu-visual-smoke";
   await window.loadURL(url.href);
+  await waitForRenderer(window, "Boolean(document.querySelector('.desktop-titlebar-location-button'))");
+  await window.webContents.executeJavaScript("document.querySelector('.desktop-titlebar-location-button').click()");
   await waitForRenderer(window, `Boolean(
     document.querySelector('[data-workspace-menu-visual-ready="true"]')
     && document.querySelector('.desktop-project-location-controls')
@@ -208,7 +210,7 @@ async function checkInlinePresentation(window, url, scene, catalog) {
     const snapshot = await window.webContents.executeJavaScript(`(() => {
       const wrap = document.querySelector('[data-location-presentation="header-icons"]');
       const buttons = [...wrap.querySelectorAll('button[data-project-location]')];
-      const label = wrap.querySelector('.desktop-titlebar-workspace-name');
+      const label = document.querySelector('.desktop-titlebar-workspace-name');
       const plate = wrap.querySelector('.desktop-project-location-indicator');
       const selected = wrap.querySelector('button[aria-pressed="true"]');
       const track = wrap.querySelector('.desktop-project-location-tabs');
@@ -223,7 +225,7 @@ async function checkInlinePresentation(window, url, scene, catalog) {
         return { x: r.x, y: r.y, width: r.width, height: r.height, right: r.right, bottom: r.bottom };
       };
       return {
-        hasPopup: !!document.querySelector('.desktop-project-menu'),
+        hasPopup: !!document.querySelector('.desktop-project-location-menu'),
         name: label.textContent, nameBounds: rect(label),
         buttons: buttons.map(button => ({ bounds: rect(button), label: button.getAttribute('aria-label'),
           text: button.textContent, color: getComputedStyle(button).color,
@@ -327,14 +329,14 @@ async function checkHeaderSlide(window, direction, destination) {
 }
 
 async function checkStableReopening(window, direction = "ltr") {
-  await window.webContents.executeJavaScript("document.querySelector('.desktop-titlebar-workspace-button').click()", true);
-  await waitForRenderer(window, "!document.querySelector('.desktop-project-menu')");
+  await window.webContents.executeJavaScript("document.querySelector('.desktop-titlebar-location-button').click()", true);
+  await waitForRenderer(window, "!document.querySelector('.desktop-project-location-menu')");
   const frames = await window.webContents.executeJavaScript(`new Promise(resolve => {
     document.documentElement.dir = '${direction}';
-    document.querySelector('.desktop-titlebar-workspace-button').click();
+    document.querySelector('.desktop-titlebar-location-button').click();
     const frames = [];
     const sample = () => {
-      const menu = document.querySelector('.desktop-project-menu');
+      const menu = document.querySelector('.desktop-project-location-menu');
       if (menu && getComputedStyle(menu).visibility !== 'hidden') {
         const a = menu.querySelector('.desktop-project-location-indicator').getBoundingClientRect();
         const b = menu.querySelector('button[aria-pressed=true]').getBoundingClientRect();

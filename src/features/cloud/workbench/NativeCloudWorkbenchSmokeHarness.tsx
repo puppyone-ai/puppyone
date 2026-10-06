@@ -4,7 +4,7 @@ import { createWorkspaceRootUri, createWorkspaceResourceUri, getWorkspaceResourc
 import { DesktopCloudShell } from "../../../components/DesktopCloudShell";
 import { resetDesktopPlatformCapabilitiesForTests } from "../../../platform/desktopPlatformClient";
 import { DesktopOverlayPortal } from "../../app-shell/DesktopOverlayPortal";
-import { DesktopWorkspaceSwitcher } from "../../app-shell/DesktopWorkspaceSwitcher";
+import { DesktopTitlebarContext } from "../../app-shell/DesktopTitlebarContext";
 import { DesktopTitlebarActions } from "../../app-shell/DesktopTitlebarActions";
 import { CloudWorkspaceHeaderTools } from "./CloudWorkspaceHeaderTools";
 import { DesktopWorkspaceLocationSurface } from "../../app-shell/DesktopWorkspaceLocationSurface";
@@ -259,7 +259,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
     };
     return () => { delete window.__nativeCloudWorkbenchSmoke; };
   }, [location, setLanguagePreference, setSidebarCollapsed, workbench]);
-  const projectSwitcher = <DesktopWorkspaceSwitcher open={menuOpen} refObject={menuRef} titlebarLabel={localWorkspace.name}
+  const projectSwitcher = <DesktopTitlebarContext open={menuOpen} refObject={menuRef} titlebarLabel={localWorkspace.name}
         workspace={localWorkspace} workspaceFolders={[]} multiRootWorkspacesEnabled={false}
         projectLocation={{ current: location, requested: controller.requestedLocation, headerLocation, loading: controller.pending && !controller.error,
           localAvailable: true, cloudState: "available" }} cloudProject={{ id: context.projectId }}

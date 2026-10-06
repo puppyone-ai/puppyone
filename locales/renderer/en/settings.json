@@ -1,4 +1,7 @@
 {
+  "experimental.projectHeaderAlignment.title": "Project header position",
+  "experimental.projectHeaderAlignment.left": "Left",
+  "experimental.projectHeaderAlignment.center": "Center",
   "activation.activate": "Activate",
   "activation.consent": "Puppyone will install the {agent} CLI in the background. Once installed, it is activated. You may need to sign in when you first use it. An existing installation will be reused.",
   "activation.guided": "This Agent uses its official setup flow. Puppyone will guide you there and check the installation when you return. Sign-in and model setup are checked when you start the Agent.",
@@ -297,7 +300,7 @@
   "experimental.groups.imports": "Imports & plugins",
   "experimental.groups.cloud": "Cloud & automation",
   "experimental.projectLocationIconsInHeader.title": "Local / Cloud switch in Header",
-  "experimental.projectLocationIconsInHeader.detail": "When PuppyOne Cloud is enabled, show the local / Cloud switch beside the left-aligned project name. Turn off to use the project menu.",
+  "experimental.projectLocationIconsInHeader.detail": "When PuppyOne Cloud is enabled, show the Local / Cloud switch beside the project name. Turn off to switch from the location menu.",
   "experimental.otherAppImports.title": "Import from other apps",
   "experimental.otherAppImports.detail": "Show Notion, Google Drive, Airtable, and Obsidian in Import and add their Settings page.",
   "experimental.detail": "Opt in to early desktop experiences. Every experiment is off by default.",

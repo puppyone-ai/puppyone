@@ -298,7 +298,7 @@ describe("titlebar typography architecture", () => {
     expect(rule).toContain("line-height: var(--desktop-titlebar-context-line-height);");
   });
 
-  it("keeps the project quiet and distinguishes the branch with its semantic glyph", () => {
+  it("keeps the combined Home / project trigger quiet and separates the location control", () => {
     const context = readCssBlock(titlebarCss, ".desktop-titlebar-context");
     const projectButton = readCssBlock(titlebarCss, ".desktop-titlebar-workspace-button");
     const projectName = readCssBlock(titlebarCss, ".desktop-titlebar-workspace-name");
@@ -308,9 +308,10 @@ describe("titlebar typography architecture", () => {
     );
     const branchButton = readCssBlock(titlebarCss, ".desktop-titlebar-branch-button");
 
-    expect(titlebarContextSource).toContain("<GitBranch size={13}");
+    expect(titlebarContextSource).not.toContain("GitBranch");
+    expect(titlebarContextSource).toContain("<DesktopProjectLocationSwitcher");
     expect(workspaceSwitcherSource).toContain('className="desktop-titlebar-workspace-mark"');
-    expect(workspaceSwitcherSource).toContain('projectLocation?.current ?? "local"');
+    expect(workspaceSwitcherSource).toContain("<House");
     expect(titlebarContextSource).not.toContain("desktop-titlebar-cloud-button");
     expect(titlebarContextSource).not.toContain("desktop-titlebar-context-divider");
     expect(titlebarContextSource).not.toContain("VersionControlIcon");
@@ -376,7 +377,7 @@ describe("titlebar typography architecture", () => {
     expect(context).toContain("--desktop-titlebar-workspace-max-width: 220px;");
     expect(context).toContain("--desktop-titlebar-branch-max-width: 200px;");
     expect(project).toContain("width: max-content;");
-    expect(project).toContain("flex: 0 0 auto;");
+    expect(project).toContain("flex: 0 1 auto;");
     expect(branch).toContain("width: max-content;");
     expect(branch).toContain("min-width: var(--desktop-titlebar-tool-action-width);");
     expect(branch).toContain("flex: 0 1 auto;");

@@ -1,8 +1,8 @@
 /** @vitest-environment happy-dom */
-import { act, createRef, useState } from "react";
+import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DesktopWorkspaceSwitcher, type DesktopProjectLocation } from "../../../../src/features/app-shell/DesktopWorkspaceSwitcher";
+import { DesktopProjectLocationSwitcher, type DesktopProjectLocation } from "../../../../src/features/app-shell/DesktopProjectLocationSwitcher";
 import { desktopPreferencesStore as store, initializeDesktopPreferences } from "../../../../src/preferencesStore";
 import { withTestLocalization } from "../../../support/react/localization";
 
@@ -12,7 +12,6 @@ vi.mock("../../../../src/platform/useDesktopPlatformCapabilities", () => ({
 }));
 let root: Root;
 let host: HTMLDivElement;
-const workspace = { id: "todo", name: "To-Do-List", path: "/fixture/todo", status: "recording" as const };
 
 beforeEach(() => {
   localStorage.clear();
@@ -32,27 +31,19 @@ function icons(enabled: boolean) {
 function button(location: "local" | "cloud") {
   return document.querySelector<HTMLButtonElement>(`button[data-project-location="${location}"]`)!;
 }
-async function render(props: Partial<Parameters<typeof DesktopWorkspaceSwitcher>[0]> = {}) {
-  await act(async () => root.render(withTestLocalization(<DesktopWorkspaceSwitcher
-    open refObject={createRef<HTMLDivElement>()} titlebarLabel={workspace.name}
-    workspace={workspace} workspaceFolders={[]} multiRootWorkspacesEnabled={false}
-    onClose={vi.fn()} onToggle={vi.fn()}
+async function render(props: Partial<Parameters<typeof DesktopProjectLocationSwitcher>[0]> = {}) {
+  await act(async () => root.render(withTestLocalization(<DesktopProjectLocationSwitcher
     projectLocation={{ current: "local", localAvailable: true, cloudState: "available" }}
     {...props} />)));
+  if (!store.getState().experimentalSettings.enableProjectLocationIconsInHeader) act(() => document.querySelector<HTMLButtonElement>(".desktop-titlebar-location-button")?.click());
 }
 
 describe("project location presentation experiment", () => {
   it.each([false, true])("hides local / Cloud switching while Cloud is disabled (icons: %s)", async (inline) => {
     icons(inline);
-    const close = vi.fn();
-    await render({ projectLocation: undefined, onClose: close });
+    await render({ projectLocation: undefined });
     expect(document.querySelector(".desktop-project-location-controls")).toBeNull();
-    expect(document.querySelector(".desktop-project-menu")).toBeNull();
-    expect(host.querySelector(".desktop-titlebar-workspace-label")?.textContent).toBe(workspace.name);
-    expect(close).toHaveBeenCalledOnce();
-    await render({ multiRootWorkspacesEnabled: true, projectLocation: undefined, onOpenFolder: vi.fn() });
-    expect(document.querySelector(".desktop-project-menu")?.textContent).toContain("Add Project…");
-    expect(document.querySelector(".desktop-project-location-controls")).toBeNull();
+    expect(document.querySelector(".desktop-titlebar-location-button")).toBeNull();
   });
 
   it.each([false, true])("uses one selection controller before, during and after Cloud loading (icons: %s)", async (inline) => {
@@ -61,18 +52,16 @@ describe("project location presentation experiment", () => {
     const navigate = vi.fn();
     function Harness() {
       const [location, setLocation] = useState<DesktopProjectLocation>({ current: "local", localAvailable: true, cloudState: "available" });
-      const [open, setOpen] = useState(!inline);
       finish = () => setLocation({ ...location, current: "cloud", requested: "cloud", loading: false });
-      return <DesktopWorkspaceSwitcher open={open} refObject={createRef<HTMLDivElement>()}
-        workspace={workspace} titlebarLabel={workspace.name} workspaceFolders={[]} multiRootWorkspacesEnabled={false}
-        projectLocation={location} onClose={() => setOpen(false)} onToggle={() => setOpen(!open)}
+      return <DesktopProjectLocationSwitcher projectLocation={location}
         onViewCloud={() => { navigate("cloud"); setLocation({ ...location, requested: "cloud", headerLocation: "cloud", loading: true }); }}
         onViewLocal={() => { navigate("local"); setLocation({ ...location, current: "local", requested: "local", headerLocation: "local", loading: false }); }} />;
     }
     await act(async () => root.render(withTestLocalization(<Harness />)));
+    if (!inline) act(() => document.querySelector<HTMLButtonElement>(".desktop-titlebar-location-button")!.click());
     const controls = document.querySelector(".desktop-project-location-controls");
     const cloudButton = button("cloud");
-    expect(Boolean(controls?.closest(".desktop-project-menu"))).toBe(!inline);
+    expect(Boolean(controls?.closest(".desktop-project-location-menu"))).toBe(!inline);
     expect(cloudButton.getAttribute("aria-label")).toBe("Cloud");
     expect(cloudButton.textContent).toBe(inline ? "" : "Cloud");
     act(() => cloudButton.click());
@@ -94,16 +83,15 @@ describe("project location presentation experiment", () => {
   });
 
   it("updates live and removes the old popup without duplicating location controls", async () => {
-    const close = vi.fn();
-    await render({ onClose: close });
-    expect(document.querySelector(".desktop-project-menu")).not.toBeNull();
+    await render();
+    expect(document.querySelector(".desktop-project-location-menu")).not.toBeNull();
     icons(true);
-    expect(close).toHaveBeenCalledOnce();
-    expect(document.querySelector(".desktop-project-menu")).toBeNull();
+    expect(document.querySelector(".desktop-project-location-menu")).toBeNull();
     expect(document.querySelectorAll("button[data-project-location]")).toHaveLength(2);
-    expect(host.querySelector(".desktop-titlebar-workspace-label")?.textContent).toBe(workspace.name);
     icons(false);
-    expect(document.querySelector(".desktop-project-menu")).not.toBeNull();
+    expect(document.querySelector(".desktop-project-location-menu")).toBeNull();
+    expect(document.querySelectorAll("button[data-project-location]")).toHaveLength(0);
+    act(() => document.querySelector<HTMLButtonElement>(".desktop-titlebar-location-button")!.click());
     expect(document.querySelectorAll("button[data-project-location]")).toHaveLength(2);
   });
 
@@ -129,11 +117,11 @@ describe("project location presentation experiment", () => {
     expect(signIn).toHaveBeenCalledOnce();
   });
 
-  it("retains the project composition menu independently of inline location icons", async () => {
-    icons(true);
-    await render({ multiRootWorkspacesEnabled: true, onOpenFolder: vi.fn() });
-    expect(document.querySelector(".desktop-project-menu")?.textContent).toContain("Add Project…");
-    expect(document.querySelector(".desktop-project-menu .desktop-project-location-controls")).toBeNull();
-    expect(host.querySelectorAll("button[data-project-location]")).toHaveLength(2);
+  it("closes the location popup when the project menu opens", async () => {
+    await render();
+    expect(document.querySelector(".desktop-project-location-menu")).not.toBeNull();
+    await act(async () => root.render(withTestLocalization(<DesktopProjectLocationSwitcher
+      projectMenuOpen projectLocation={{ current: "local", localAvailable: true, cloudState: "available" }} />)));
+    expect(document.querySelector(".desktop-project-location-menu")).toBeNull();
   });
 });

@@ -85,9 +85,8 @@ import type { GitRemoteSummary, PuppyoneWorkspaceConfig } from "./types/electron
 import {
   mergePuppyoneWorkspaceConfig,
 } from "./features/app-shell/preferences";
-import { DesktopProjectLocationControls, type DesktopProjectLocation } from "./features/app-shell/DesktopWorkspaceSwitcher";
+import { DesktopProjectLocationControls, type DesktopProjectLocation } from "./features/app-shell/DesktopProjectLocationSwitcher";
 import { DesktopTitlebarContext } from "./features/app-shell/DesktopTitlebarContext";
-import { getProjectBackupProviders } from "./features/app-shell/projectBackupProviders";
 import { DesktopWorkspaceContent } from "./features/app-shell/DesktopWorkspaceContent";
 import { DesktopWorkspaceLocationSurface } from "./features/app-shell/DesktopWorkspaceLocationSurface";
 import { CloudWorkspacePreparation } from "./features/cloud/workbench/CloudWorkspacePreparation";
@@ -203,6 +202,7 @@ function AppContent() {
   const enableViewerPlugins = useDesktopPreference(s => s.experimentalSettings.enableViewerPlugins);
   const enableOtherAppImports = useDesktopPreference(s => s.experimentalSettings.enableOtherAppImports);
   const enableAlwaysShowOnboardingCoachmarks = useDesktopPreference(s => s.experimentalSettings.enableAlwaysShowOnboardingCoachmarks);
+  const centerProjectInHeader = useDesktopPreference(s => s.experimentalSettings.enableCenteredProjectInHeader);
   const enableEditorTabsInHeader = useDesktopPreference(s => s.experimentalSettings.enableEditorTabsInHeader);
   const enableProjectSwitcherRail = useDesktopPreference(s => s.experimentalSettings.enableProjectSwitcherRail);
   const enableWorkbenchTabsInHeader = useDesktopPreference(s => s.experimentalSettings.enableWorkbenchTabsInHeader);
@@ -536,8 +536,6 @@ function AppContent() {
   });
   const {
     activeGitStatus,
-    branchSwitcherOpen,
-    branchSwitcherRef,
     gitCommitDetail,
     gitCommitDetailError,
     gitCommitDetailLoading,
@@ -551,9 +549,7 @@ function AppContent() {
     gitWorkingFileDiff,
     gitWorkingFileDiffError,
     gitWorkingFileDiffLoading,
-    localBranches,
     pendingBranchSwitch,
-    remoteBranches,
     selectedGitCommitId,
     selectedGitWorkingFile,
     applyGitStatus,
@@ -561,7 +557,6 @@ function AppContent() {
     clearGitSelection,
     dismissGitOperationError,
     handleAbortGitOperation,
-    handleCheckoutGitBranch,
     handleCommitAndCheckoutBranch,
     handleCommitAndPushGit,
     handleCommitGit,
@@ -969,6 +964,16 @@ function AppContent() {
     if (activeView !== "settings" && activeView !== "cloud") lastProjectViewRef.current = activeView;
   }, [activeView]);
 
+  const openProjectFromHeader = useCallback(async (path: string) => {
+    setSwitcherOpen(false);
+    try {
+      await openWorkspaceTarget({ kind: "local", path, placement: "dedicated-window" });
+      await refreshRecentWorkspaceList();
+    } catch (error) {
+      setRestoreWorkspaceError(error instanceof Error ? error.message : String(error));
+    }
+  }, [refreshRecentWorkspaceList, setRestoreWorkspaceError]);
+
   const switchProjectFromRail = useCallback(async (path: string) => {
     const projectView = lastProjectViewRef.current;
     if (path === workspace?.path) {
@@ -1217,15 +1222,6 @@ function AppContent() {
     setBranchSwitcherOpen(false);
   }, [setBranchSwitcherOpen, switcherOpen]);
 
-  const toggleBranchSwitcher = useCallback(() => {
-    setBranchSwitcherOpen((open) => !open);
-    setSwitcherOpen(false);
-  }, [setBranchSwitcherOpen]);
-
-  const closeBranchSwitcher = useCallback(() => {
-    setBranchSwitcherOpen(false);
-  }, [setBranchSwitcherOpen]);
-
   const closeWorkspaceSwitcher = useCallback(() => {
     setSwitcherOpen(false);
   }, []);
@@ -1401,7 +1397,9 @@ function AppContent() {
   const accountCloudSurface = !workspace ? <AccountCloudWorkspaceSurface workbench={nativeCloudWorkbench}
     presentation={accountCloudPresentation} active={cloudWorkspaceActive}
     context={accountCloud.context} session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession}
-    appearance={surfaceAppearance} onLocal={openLocalWorkspace} onHome={() => void goToHomepage()} /> : null;
+    appearance={surfaceAppearance} onLocal={openLocalWorkspace} onHome={() => void goToHomepage()}
+    localProjects={recentWorkspaceItems.map(item => item.workspace)} onSelectProject={openProjectFromHeader}
+    onCreateProject={projectEntryFlow.openCreate} /> : null;
   const repositoryCloudDialog = <CloudWorkspaceSwitchDialog controller={repositoryCloudSwitch}
     preparingInPlace={prepareCloudInPlace}
     authenticationRequired={!activeCloudSession}
@@ -1605,18 +1603,8 @@ function AppContent() {
   };
   const titlebarContext = (
     <DesktopTitlebarContext
-      activeGitStatus={cloudHeaderActive ? null : activeGitStatus}
-      showBranchSwitcher={!cloudHeaderActive}
-      backupProviders={focusedWorkspace?.path === workspace.path && gitStatusPath === workspace.path
-        ? getProjectBackupProviders(activeGitStatus) : []}
-      backupStatus={focusedWorkspace?.path === workspace.path && gitStatusPath === workspace.path
-        ? activeGitStatus : null}
-      branchSwitcherOpen={branchSwitcherOpen}
-      branchSwitcherRef={branchSwitcherRef}
-      gitStatusLoading={!cloudHeaderActive && gitStatusLoading}
-      gitOperationLoading={cloudHeaderActive ? null : gitOperationLoading}
-      localBranches={cloudHeaderActive ? [] : localBranches}
-      remoteBranches={cloudHeaderActive ? [] : remoteBranches}
+      titlebarLabel={workspace.name}
+      menuAlignment={centerProjectInHeader ? "center" : "start"}
       projectLocation={projectLocation}
       cloudProject={focusedWorkspace?.path === workspace.path && projectCloudContext.status === "resolved"
         ? { id: projectCloudContext.projectId, name: projectCloudContext.projectName } : undefined}
@@ -1624,18 +1612,17 @@ function AppContent() {
       workspaceFolders={workbenchWorkspace?.folders ?? []}
       multiRootWorkspacesEnabled={multiRootWorkspacesEnabled}
       availableProjects={recentWorkspaceItems.map((item) => item.workspace)}
-      workspaceSwitcherOpen={switcherOpen}
-      workspaceSwitcherRef={switcherRef}
-      onCheckoutBranch={handleCheckoutGitBranch}
-      onAddProject={() => void addProject()}
+      open={switcherOpen}
+      refObject={switcherRef}
+      onOpenFolder={() => void addProject()}
       onAddExistingProject={(folderPath) => void addExistingProject(folderPath)}
-      onShare={openCloudShare}
       onViewLocal={openLocalWorkspace}
       onViewCloud={cloudEnabled ? openCloudWorkspace : undefined}
-      onCloseWorkspaceSwitcher={closeWorkspaceSwitcher}
-      onCloseBranchSwitcher={closeBranchSwitcher}
-      onToggleBranchSwitcher={toggleBranchSwitcher}
-      onToggleWorkspaceSwitcher={toggleWorkspaceSwitcher}
+      onClose={closeWorkspaceSwitcher}
+      onToggle={toggleWorkspaceSwitcher}
+      onHome={() => void goToHomepage()}
+      onCreateProject={projectEntryFlow.openCreate}
+      onSelectProject={openProjectFromHeader}
     />
   );
 
@@ -1686,7 +1673,6 @@ function AppContent() {
           active
           workspaceLocation={projectLocation?.current ?? "local"}
           requestedWorkspaceLocation={headerWorkspaceLocation}
-          onGoHome={() => void goToHomepage()}
           renderLeadingRail={projectSwitcherRailVisible ? ({ expanded }) => (
             <ProjectSwitcherRail
               activeView={activeView}
@@ -1722,7 +1708,8 @@ function AppContent() {
           leftSidebarCollapsed={sidebarCollapsed}
           leftSidebarPresent={Boolean(dataPort)}
           leftSidebarWidth={explorerWidth}
-          titlebarSidebarSlot={titlebarContext}
+          titlebarSidebarSlot={centerProjectInHeader ? undefined : titlebarContext}
+          titlebarCenteredSlot={centerProjectInHeader ? titlebarContext : undefined}
           titlebarActions={titlebarActions}
           titlebarTabs={cloudWorkspaceActive
             ? editorTabsInHeaderEnabled && accountCloudPresentation.titlebarTabs

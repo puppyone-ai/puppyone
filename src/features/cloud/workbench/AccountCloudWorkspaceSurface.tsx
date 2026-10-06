@@ -1,9 +1,9 @@
 import { useDesktopPreference, useDesktopAppearance } from "../../settings";
 import { useRef, useState, type ReactNode } from "react";
-import { createWorkspaceResourceUri } from "@puppyone/shared-ui";
+import { createWorkspaceResourceUri, type Workspace } from "@puppyone/shared-ui";
 import { DesktopCloudShell } from "../../../components/DesktopCloudShell";
 import type { ResolvedSurfaceAppearance } from "../../appearance/AppearanceRuntime";
-import { DesktopWorkspaceSwitcher } from "../../app-shell/DesktopWorkspaceSwitcher";
+import { DesktopTitlebarContext } from "../../app-shell/DesktopTitlebarContext";
 import { DesktopShellLocationBar } from "../../app-shell/DesktopShellLocationBar";
 import { EditorHeaderTabs } from "../../editor-workbench/header/EditorHeaderTabs";
 import { DesktopCloudFileWorkspace, type CloudFileSurfaceProps } from "./DesktopCloudFileWorkspace";
@@ -54,13 +54,16 @@ export function useAccountCloudWorkspacePresentation({ workbench, onOpenSettings
 
 /** Hosted-only surface used when no local repository is open. Repository-linked
  * switching embeds the presentation above in the retained local shell instead. */
-export function AccountCloudWorkspaceSurface({ workbench, presentation, active, appearance, onLocal, onHome, context, session, apiBaseUrl, onSessionChange }: {
+export function AccountCloudWorkspaceSurface({ workbench, presentation, active, appearance, onLocal, onHome, context, session, apiBaseUrl, onSessionChange, localProjects, onSelectProject, onCreateProject }: {
   workbench: NativeCloudWorkbench;
   presentation: AccountCloudWorkspacePresentation;
   active: boolean;
   appearance: ResolvedSurfaceAppearance;
   onLocal: () => void;
   onHome: () => void;
+  localProjects: readonly Workspace[];
+  onSelectProject: (path: string) => void;
+  onCreateProject: () => void;
   session: DesktopCloudSession | null;
   context: ProjectCloudContext;
   apiBaseUrl: string;
@@ -70,23 +73,28 @@ export function AccountCloudWorkspaceSurface({ workbench, presentation, active, 
   const explorerWidth = useDesktopPreference(s => s.explorerWidth);
   const setSidebarCollapsed = useDesktopPreference(s => s.setSidebarCollapsed);
   const editorTabsInHeader = useDesktopPreference(s => s.experimentalSettings.enableEditorTabsInHeader);
+  const centered = useDesktopPreference(s => s.experimentalSettings.enableCenteredProjectInHeader);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { service } = workbench;
   if (!service || !workbench.visited) return null;
-  return <div className={`app-shell cloud-runtime desktop-account-cloud-workspace ${appearance.appearance.effectiveColorMode === "dark" ? "dark" : ""}`} hidden={!active}
-    {...appearance.rootProps}
-    style={{ ...appearance.rootProps.style, ...(!active ? { display: "none" } : {}) }} data-active-cloud-project={service.workspace.projectId}>
-    <DesktopCloudShell active={active} workspaceLocation="cloud" onGoHome={onHome} leftSidebarCollapsed={sidebarCollapsed}
-      leftSidebarWidth={explorerWidth} onLeftSidebarExpand={() => setSidebarCollapsed(false)}
-      titlebarActions={active && <CloudWorkspaceHeaderTools context={context} session={session}
-        apiBaseUrl={apiBaseUrl} onSessionChange={onSessionChange} />}
-      titlebarSidebarSlot={<DesktopWorkspaceSwitcher open={menuOpen} refObject={menuRef}
+  const projectContext = <DesktopTitlebarContext open={menuOpen} refObject={menuRef}
         titlebarLabel={service.workspace.name} workspace={service.workspace} workspaceFolders={[service.folder]}
         multiRootWorkspacesEnabled={false} projectLocation={{ current: "cloud", localAvailable: true, cloudState: "available" }}
         cloudProject={{ id: service.workspace.projectId!, name: service.workspace.name }}
         onClose={() => setMenuOpen(false)} onToggle={() => setMenuOpen((current) => !current)}
-        onViewLocal={() => { setMenuOpen(false); onLocal(); }} />}
+        onViewLocal={() => { setMenuOpen(false); onLocal(); }}
+        availableProjects={localProjects} onSelectProject={onSelectProject} onCreateProject={onCreateProject} onHome={onHome}
+        menuAlignment={centered ? "center" : "start"} />;
+  return <div className={`app-shell cloud-runtime desktop-account-cloud-workspace ${appearance.appearance.effectiveColorMode === "dark" ? "dark" : ""}`} hidden={!active}
+    {...appearance.rootProps}
+    style={{ ...appearance.rootProps.style, ...(!active ? { display: "none" } : {}) }} data-active-cloud-project={service.workspace.projectId}>
+    <DesktopCloudShell active={active} workspaceLocation="cloud" leftSidebarCollapsed={sidebarCollapsed}
+      leftSidebarWidth={explorerWidth} onLeftSidebarExpand={() => setSidebarCollapsed(false)}
+      titlebarActions={active && <CloudWorkspaceHeaderTools context={context} session={session}
+        apiBaseUrl={apiBaseUrl} onSessionChange={onSessionChange} />}
+      titlebarSidebarSlot={centered ? undefined : projectContext}
+      titlebarCenteredSlot={centered ? projectContext : undefined}
       titlebarTabs={editorTabsInHeader ? presentation.titlebarTabs : undefined}
       alignTitlebarTabsToExplorer={editorTabsInHeader}
       locationBar={presentation.locationBar}>

@@ -1,8 +1,9 @@
 import { useRef, useState } from "react";
 import { type Workspace } from "@puppyone/shared-ui";
-import type { DesktopPlatform, GitStatusSnapshot } from "../../types/electron";
+import type { DesktopPlatform } from "../../types/electron";
 import { DesktopOverlayPortal } from "./DesktopOverlayPortal";
-import { DesktopWorkspaceSwitcher, type DesktopProjectLocation } from "./DesktopWorkspaceSwitcher";
+import { DesktopTitlebarContext } from "./DesktopTitlebarContext";
+import type { DesktopProjectLocation } from "./DesktopProjectLocationSwitcher";
 import { resetDesktopPlatformCapabilitiesForTests } from "../../platform/desktopPlatformClient";
 import "./workspace-menu-visual-smoke.css";
 import { desktopPreferencesStore, initializeDesktopPreferences } from "../../preferencesStore";
@@ -35,11 +36,10 @@ resetDesktopPlatformCapabilitiesForTests();
 /** Deterministic browser fixture for reviewing the Workspace menu hierarchy. */
 export function WorkspaceMenuVisualSmokeHarness() {
   const anchorRef = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [requested, setRequested] = useState<DesktopProjectLocation["requested"]>();
   const state = new URLSearchParams(window.location.search).get("project-state") ?? "local-only";
   const linked = state === "local-cloud" || state === "cloud-only" || state === "local-cloud-no-github" || state === "signed-out";
-  const githubLinked = state === "local-cloud" || state === "cloud-only" || state === "local-github" || state === "signed-out";
   const current = state === "cloud-only" ? "cloud" : "local";
   let cloudState: DesktopProjectLocation["cloudState"] = linked ? "available" : "unavailable";
   if (state === "signed-out") cloudState = "signed-out";
@@ -54,7 +54,7 @@ export function WorkspaceMenuVisualSmokeHarness() {
       <header className="desktop-titlebar workspace-menu-visual-titlebar"
         data-workspace-kind={inlineLocations ? (requested ?? current) : undefined}>
         <div className="desktop-titlebar-context">
-          <DesktopWorkspaceSwitcher
+          <DesktopTitlebarContext
             open={open}
             refObject={anchorRef}
             titlebarLabel={currentWorkspace.name}
@@ -70,8 +70,6 @@ export function WorkspaceMenuVisualSmokeHarness() {
               cloudState,
             }}
             cloudProject={linked ? { id: "project-1" } : undefined}
-            backupProviders={githubLinked ? ["github"] : []}
-            backupStatus={githubLinked ? versionStatus : null}
             onOpenFolder={() => undefined}
             onClose={() => setOpen(false)}
             onViewLocal={() => setRequested("local")}
@@ -91,32 +89,6 @@ export function WorkspaceMenuVisualSmokeHarness() {
     </main>
   );
 }
-
-const versionStatus: GitStatusSnapshot = {
-  isRepo: true, branch: "main", headCommitId: "fixture-head", totalCommits: 1,
-  entries: [], stagedEntries: [], unstagedEntries: [], untrackedEntries: [],
-  branches: ["puppyone/main", "origin/main"].map((name) => ({
-    name, current: false, remote: true, upstream: null, ahead: 0, behind: 0,
-    lastCommitId: "fixture-head", lastCommitMessage: "Fixture version",
-    lastCommitDate: "2026-10-01T14:32:00Z",
-  })),
-  remotes: [
-    { name: "puppyone", fetchUrl: "https://cloud.example/git/project-1.git",
-      pushUrl: "https://cloud.example/git/project-1.git", branches: ["main"] },
-    { name: "origin", fetchUrl: "https://github.com/example/project.git", pushUrl: null, branches: ["main"] },
-  ],
-  syncTarget: null,
-  effectiveHosting: { kind: "local-only", remoteName: null, branchName: "main", ref: null,
-    ready: false, reason: "local-only", identity: null },
-  sourceControl: {
-    input: { placeholder: "", defaultMessage: "" }, groups: [],
-    remote: { target: null, currentBranch: "main", upstream: null, ahead: 0, behind: 0,
-      incomingPreview: [], outgoingPreview: [], canPull: false, canPush: false,
-      canSync: false, canPublish: false, state: "no-remote" },
-    actions: { canStageAll: false, canUnstageAll: false, canDiscardAll: false, canCommit: false },
-  },
-  commits: [], allCommits: [], statusLimit: 10_000, didHitStatusLimit: false,
-};
 
 function workspace(id: string, name: string, path: string): Workspace {
   return { id, name, path, status: "recording", workspaceInstanceId: `${id}-instance` };

@@ -82,6 +82,7 @@ export type ExperimentalSettings = {
   enableCloudAutomation: boolean;
   enableCloudWorkspace: boolean;
   enableEditorTabsInHeader: boolean;
+  enableCenteredProjectInHeader: boolean;
   enableProjectLocationIconsInHeader: boolean;
   enableShareOnboarding: boolean;
   enableWorkbenchTabsInHeader: boolean;
@@ -170,6 +171,7 @@ export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
   enableCloudAutomation: false,
   enableCloudWorkspace: false,
   enableEditorTabsInHeader: false,
+  enableCenteredProjectInHeader: false,
   enableProjectLocationIconsInHeader: false,
   /** Share-first Cloud Homepage and Header entry. On by default; switch off for the classic layout. */
   enableShareOnboarding: true,
@@ -423,6 +425,7 @@ export function parseExperimentalSettings(value: string | null | undefined): Exp
       enableCloudAutomation: parsed.enableCloudAutomation === true,
       enableCloudWorkspace: parsed.enableCloudWorkspace === true,
       enableEditorTabsInHeader: parsed.enableEditorTabsInHeader === true,
+      enableCenteredProjectInHeader: parsed.enableCenteredProjectInHeader === true,
       enableProjectLocationIconsInHeader: parsed.enableProjectLocationIconsInHeader === true,
       enableShareOnboarding: parsed.enableShareOnboarding !== false,
       enableWorkbenchTabsInHeader: parsed.enableWorkbenchTabsInHeader === true,

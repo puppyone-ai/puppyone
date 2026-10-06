@@ -133,7 +133,7 @@ async function headerPresentation(location) {
   const sample = await evaluate(`(() => {
     const header = document.querySelector('.desktop-titlebar');
     const context = header.querySelector('.desktop-titlebar-centered-context');
-    const button = context.querySelector('.desktop-titlebar-workspace-button');
+    const button = context.querySelector('.desktop-titlebar-location-button');
     const mark = button.querySelector('.desktop-titlebar-workspace-mark'), svg = mark.querySelector('svg');
     const outline = svg.querySelector('[data-cloud-outline]');
     const h = header.getBoundingClientRect(), c = context.getBoundingClientRect();
@@ -258,13 +258,13 @@ async function captureNativeCorners(scene, sample) {
   nativeCornerCaptures.push({scene,width,height,scale,side});
 }
 async function openProjectMenu() {
-  const opening = !await evaluate("Boolean(document.querySelector('.desktop-project-menu'))");
+  const opening = !await evaluate("Boolean(document.querySelector('.desktop-project-location-menu'))");
   if (opening) {
     const frames = await evaluate(`new Promise(resolve => {
       const samples = [];
-      document.querySelector('.desktop-titlebar-workspace-button').click();
+      document.querySelector('.desktop-titlebar-location-button').click();
       const sample = () => {
-        const menu = document.querySelector('.desktop-project-menu');
+        const menu = document.querySelector('.desktop-project-location-menu');
         if (menu && getComputedStyle(menu).visibility !== 'hidden') {
           const track = menu.querySelector('.desktop-project-location-tabs');
           const plate = track.querySelector('.desktop-project-location-indicator');
@@ -281,8 +281,8 @@ async function openProjectMenu() {
     assert(frames.every(frame => ['x','y','width','height'].every(key => Math.abs(frame[key]-frames[0][key]) < 1)),
       `Opening must not expand or collapse the project bar: ${JSON.stringify(frames)}`);
   }
-  await waitFor("Boolean(document.querySelector('.desktop-project-menu'))");
-  assert(await evaluate("getComputedStyle(document.querySelector('.desktop-project-menu')).outlineStyle === 'none' && !document.querySelector('.desktop-project-repository-link')"),
+  await waitFor("Boolean(document.querySelector('.desktop-project-location-menu'))");
+  assert(await evaluate("getComputedStyle(document.querySelector('.desktop-project-location-menu')).outlineStyle === 'none' && !document.querySelector('.desktop-project-repository-link')"),
     'The project popover must have no outer focus outline or GitHub shortcut');
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   if (opening) {
@@ -306,7 +306,7 @@ async function selectLocation(location) {
 }
 async function checkProjectBarRelayout(setup) {
   const frames = await evaluate(`new Promise(resolve => {
-    const menu = document.querySelector('.desktop-project-menu');
+    const menu = document.querySelector('.desktop-project-location-menu');
     ${setup}
     const frames = [];
     const sample = () => {
@@ -430,7 +430,7 @@ app.whenReady().then(async () => {
   await checkProjectBarRelayout("menu.style.setProperty('--po-type-ui-control', '19px');");
   await checkProjectBarRelayout("menu.style.removeProperty('--po-type-ui-control');");
   const pendingMenu = await evaluate(`(() => {
-    const menu = document.querySelector('.desktop-project-menu');
+    const menu = document.querySelector('.desktop-project-location-menu');
     menu.dataset.fixtureIdentity = 'retained-switch-bar';
     const r = menu.getBoundingClientRect();
     return {x:r.x,y:r.y,width:r.width,height:r.height};
@@ -501,7 +501,7 @@ app.whenReady().then(async () => {
     'Ready Cloud content must appear immediately even while the Header animation is paused');
   await evaluate("document.querySelector('.desktop-cloud-header-reveal').getAnimations({subtree:true})[0].finish()");
   const readyMenu = await evaluate(`(() => {
-    const menu = document.querySelector('.desktop-project-menu');
+    const menu = document.querySelector('.desktop-project-location-menu');
     const r = menu.getBoundingClientRect();
     return {identity:menu.dataset.fixtureIdentity,x:r.x,y:r.y,width:r.width,height:r.height};
   })()`);
@@ -730,9 +730,9 @@ app.whenReady().then(async () => {
         })()`), 'Sliding indicator must align with the selected translated button');
         headerPresentations.push({ theme, width, expanded:true, ...await headerPresentation(location) });
         await evaluate("document.querySelector('button[data-project-location=cloud]').click()");
-        assert(await evaluate("Boolean(document.querySelector('.desktop-project-menu'))"), "Selecting the current location must keep the bar open");
-        await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
-        await waitFor("!document.querySelector('.desktop-project-menu')");
+        assert(await evaluate("Boolean(document.querySelector('.desktop-project-location-menu'))"), "Selecting the current location must keep the bar open");
+        await evaluate("document.querySelector('.desktop-titlebar-location-button').click()");
+        await waitFor("!document.querySelector('.desktop-project-location-menu')");
       }
     }
   }
