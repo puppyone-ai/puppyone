@@ -5,7 +5,7 @@
     min-width: 0;
     flex-direction: column;
     align-items: center;
-    gap: 20px;
+    gap: 24px;
     padding: 32px 28px;
     color: var(--po-text-muted);
     font-family: var(--po-font-ui, var(--po-font-sans));
@@ -15,7 +15,21 @@
     text-align: center;
   }
 
-  .desktop-cloud-project-activation-copy { width: 100%; }
+  .desktop-cloud-project-activation-copy {
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+  }
+
+  .desktop-cloud-project-illustration {
+    width: min(100%, 224px);
+    height: auto;
+    flex: 0 0 auto;
+    color: color-mix(in srgb, var(--po-text-muted) 26%, transparent);
+  }
+
   .desktop-cloud-project-activation-copy h2 {
     max-width: 420px;
     margin: 0;
@@ -29,10 +43,10 @@
 
   .desktop-cloud-project-benefits {
     display: grid;
-    width: 100%;
+    width: min(100%, 440px);
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
-    margin-block: 4px;
+    gap: 12px;
+    margin: 0;
     padding: 0;
     list-style: none;
   }
@@ -41,26 +55,17 @@
     display: flex;
     box-sizing: border-box;
     min-width: 0;
-    min-height: 148px;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: 10px;
-    padding: 16px 12px;
-    border: 1px solid var(--po-border-subtle);
-    border-radius: var(--desktop-control-radius-large, 8px);
-    background: var(--po-header);
+    gap: 8px;
+    padding: 8px 4px;
     color: var(--po-text-muted);
     font: inherit;
   }
 
   .desktop-cloud-project-benefit-copy {
-    display: flex;
     min-width: 0;
-    min-height: 39px;
     margin: 0;
-    align-items: center;
-    justify-content: center;
     color: var(--po-text-muted);
     font: inherit;
     font-size: var(--po-type-ui-meta, 13px);
@@ -70,83 +75,14 @@
   .desktop-cloud-project-benefit-visual {
     display: flex;
     width: 100%;
-    height: 64px;
+    height: 28px;
     flex: 0 0 auto;
     align-items: center;
     justify-content: center;
   }
 
-  .desktop-cloud-project-sharing-visual {
-    position: relative;
-    max-width: 128px;
-  }
-
-  .desktop-cloud-project-sharing-file {
-    display: grid;
-    box-sizing: border-box;
-    width: calc(100% - 24px);
-    height: 52px;
-    gap: 6px;
-    padding: 8px;
-    border: 1px solid var(--po-border-subtle);
-    border-radius: 6px;
-    background: var(--po-canvas);
-    box-shadow: 0 3px 8px rgb(0 0 0 / 6%);
-  }
-
-  .desktop-cloud-project-sharing-file-heading {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-
-  .desktop-cloud-project-sharing-file-heading > span {
-    width: 64%;
-    height: 3px;
-    border-radius: 2px;
-    background: var(--po-text-muted);
-    opacity: 0.45;
-  }
-
-  .desktop-cloud-project-sharing-file-lines {
-    display: grid;
-    gap: 4px;
-  }
-
-  .desktop-cloud-project-sharing-file-lines > span {
-    height: 3px;
-    border-radius: 2px;
-    background: var(--po-divider);
-  }
-
-  .desktop-cloud-project-sharing-file-lines > span:nth-child(2) { width: 76%; }
-  .desktop-cloud-project-sharing-file-lines > span:nth-child(3) { width: 58%; }
-
-  .desktop-cloud-project-collaborator {
-    position: absolute;
-    display: block;
-    box-sizing: border-box;
-    width: 22px;
-    height: 22px;
-    overflow: hidden;
-    border: 1.5px solid var(--po-brand-blue);
-    border-radius: 50%;
-    box-shadow: 0 2px 5px rgb(0 0 0 / 12%);
-  }
-
-  .desktop-cloud-project-collaborator svg { display: block; width: 100%; height: 100%; }
-  .desktop-cloud-project-collaborator[data-person="0"] { inset-inline-start: 0; bottom: 9px; }
-  .desktop-cloud-project-collaborator[data-person="1"] { inset-inline-end: 0; top: 7px; }
-  .desktop-cloud-project-collaborator[data-person="2"] { inset-inline-end: 21px; bottom: 0; border-color: var(--po-success); }
-
   .desktop-cloud-project-availability-visual {
-    gap: 6px;
-    color: var(--po-success);
-  }
-
-  .desktop-cloud-project-availability-visual > svg { flex: 0 0 auto; }
-  .desktop-cloud-project-availability-visual > span {
-    font-size: 30px;
+    font-size: 21px;
     font-weight: var(--po-text-weight-medium, 500);
     line-height: 1;
     letter-spacing: -0.04em;
@@ -155,8 +91,8 @@
 
   .desktop-cloud-project-agent-brands {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 24px));
-    gap: 6px;
+    grid-template-columns: repeat(4, minmax(0, 20px));
+    gap: 5px;
   }
 
   .desktop-cloud-project-agent-brands span { display: grid; width: 100%; aspect-ratio: 1; place-items: center; }
