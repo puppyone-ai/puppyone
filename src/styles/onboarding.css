@@ -553,14 +553,18 @@ span.homepage-cloud-feedback {
   flex: 0 0 auto;
   padding: 0;
   border-radius: 50%;
-  background: var(--po-accent);
-  color: var(--po-text-inverse);
+  background: var(--po-control);
+  color: var(--po-text);
 }
 
 .homepage-cloud-avatar:hover,
 .homepage-cloud-avatar:focus-visible {
-  background: var(--po-accent);
-  color: var(--po-text-inverse);
+  background: var(--po-control-hover);
+  color: var(--po-text);
+}
+
+.homepage-cloud-avatar:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--po-focus-ring);
 }
 
 .onboarding-project-row .desktop-menu-item-icon {
