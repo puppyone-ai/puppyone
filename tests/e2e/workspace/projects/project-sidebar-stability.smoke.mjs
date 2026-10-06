@@ -18,7 +18,7 @@ app.setPath("appData", temporaryRoot);
 app.setPath("userData", path.join(temporaryRoot, getDesktopBuildChannelPolicy("dev").userDataName));
 await fs.mkdir(app.getPath("userData"), { recursive: true });
 app.on("window-all-closed", () => {});
-const report = { ok: false, navigationCount: 0, cases: [], error: null };
+const report = { ok: false, navigationCount: 0, cases: [], dedicatedOpenRequests: [], error: null };
 let window;
 let server;
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -29,7 +29,10 @@ const guard = setTimeout(() => { console.error("Project sidebar check timed out"
 // is observable even on a fast local disk. No workspace result is mocked.
 const handle = ipcMain.handle.bind(ipcMain);
 ipcMain.handle = (channel, listener) => handle(channel, async (event, ...args) => {
-  if (channel === "workspace:open-current") await wait(350);
+  if (channel === "workspace:open-new-window") {
+    report.dedicatedOpenRequests.push(args[0]);
+    await wait(350);
+  }
   return listener(event, ...args);
 });
 
@@ -93,7 +96,7 @@ async function verifySwitches(expanded) {
   await evaluate(`window.sidebarDocumentIdentity = crypto.randomUUID();`);
   const documentIdentity = await evaluate("window.sidebarDocumentIdentity");
 
-  for (const name of ["Project B", "Project C", "Project A"]) {
+  for (const name of ["Project B", "Project C"]) {
     await evaluate(`(() => {
       const rail = document.querySelector('.desktop-project-switcher-rail');
       const selectors = ['.desktop-project-switcher-rail', '.desktop-project-switcher-rail-create', '.desktop-titlebar-brand-icon'];
@@ -115,11 +118,16 @@ async function verifySwitches(expanded) {
     })()`);
     await until("window.sidebarObservation.frames.some(frame => frame.pending)", "pending navigation frame");
     await fs.writeFile(path.join(reportDirectory, `${mode}-${name.replaceAll(" ", "-")}-pending.png`), (await window.webContents.capturePage()).toPNG());
-    await until(`[...document.querySelectorAll('.desktop-project-switcher-rail-project')].some(row => row.getAttribute('aria-label').includes(${JSON.stringify(name)}) && row.getAttribute('aria-current') === 'page') && !document.querySelector('.desktop-project-switcher-rail [aria-busy=true]')`, "navigation committed");
+    await until("!document.querySelector('.desktop-project-switcher-rail [aria-busy=true]')", "dedicated-window opening settled");
+    assert.equal(path.basename(report.dedicatedOpenRequests.at(-1)), name, "Sidebar used the dedicated-window route");
+    assert.equal(BrowserWindow.getAllWindows().length, name === "Project B" ? 2 : 3, "target project opened in another window");
+    assert.equal(await evaluate("document.querySelector('.desktop-project-switcher-rail-project[aria-current=page]')?.getAttribute('aria-label').includes('Project A')"), true, "the original project stayed selected");
+    assert.equal(await evaluate("!!document.querySelector('.desktop-titlebar-workspace-label[data-window-drag-region=true]') && !document.querySelector('.desktop-project-menu')"), true, "Sidebar mode retains a static draggable Header identity");
     await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     const observation = await evaluate(`window.sidebarObservation.recording = false; window.sidebarObservation`);
     report.cases.push({ name, mode, ...observation });
   }
+  for (const owner of BrowserWindow.getAllWindows()) if (owner !== window) owner.destroy();
   window.webContents.removeListener("did-navigate", recordNavigation);
   assert.equal(await evaluate("window.sidebarDocumentIdentity"), documentIdentity, "project switching replaced the renderer document");
   assert.equal(report.navigationCount, 0, "project switching navigated/reloaded the renderer");
@@ -192,7 +200,7 @@ void (bootstrapError ? Promise.reject(bootstrapError) : run()).catch((error) => 
   clearTimeout(guard);
   await fs.writeFile(path.join(reportDirectory, "report.json"), JSON.stringify(report, null, 2));
   console.log(`Project sidebar report: ${reportDirectory}/report.json`);
-  window?.destroy();
+  for (const owner of BrowserWindow.getAllWindows()) owner.destroy();
   await server?.close();
   app.exit(report.ok ? 0 : 1);
 });

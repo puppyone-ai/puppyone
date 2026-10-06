@@ -1,5 +1,5 @@
 import { useDesktopPreference, useDesktopAppearance } from "../../settings";
-import { useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { createWorkspaceResourceUri } from "@puppyone/shared-ui";
 import { DesktopCloudShell } from "../../../components/DesktopCloudShell";
 import type { ResolvedSurfaceAppearance } from "../../appearance/AppearanceRuntime";
@@ -55,7 +55,7 @@ export function useAccountCloudWorkspacePresentation({ workbench, onOpenSettings
 
 /** Hosted-only surface used when no local repository is open. Repository-linked
  * switching embeds the presentation above in the retained local shell instead. */
-export function AccountCloudWorkspaceSurface({ workbench, presentation, active, appearance, onLocal, onHome, context, session, apiBaseUrl, onSessionChange, projectItems, onSelectProject, onSelectCloudProject, onCreateProject }: {
+export function AccountCloudWorkspaceSurface({ workbench, presentation, active, appearance, onLocal, onHome, context, session, apiBaseUrl, onSessionChange, projectItems, onSelectProject, onSelectCloudProject, onCreateProject, projectRail }: {
   workbench: NativeCloudWorkbench;
   presentation: AccountCloudWorkspacePresentation;
   active: boolean;
@@ -63,6 +63,10 @@ export function AccountCloudWorkspaceSurface({ workbench, presentation, active, 
   onLocal: () => void;
   onHome: () => void;
   projectItems: readonly ProjectHomeItem[];
+  projectRail?: Pick<ComponentProps<typeof DesktopCloudShell>, "renderLeadingRail"
+    | "leadingRailWidth" | "leadingRailMinWidth" | "leadingRailMaxWidth"
+    | "leadingRailCollapsed" | "leadingRailCollapsedWidth" | "leadingRailCollapseThreshold"
+    | "resizableLeadingRail" | "onLeadingRailCollapsedChange" | "onLeadingRailWidthChange">;
   onSelectProject: (path: string) => void;
   onSelectCloudProject: (projectId: string) => void;
   onCreateProject: () => void;
@@ -81,6 +85,7 @@ export function AccountCloudWorkspaceSurface({ workbench, presentation, active, 
   const { service } = workbench;
   if (!service || !workbench.visited) return null;
   const projectContext = <DesktopTitlebarContext open={menuOpen} refObject={menuRef}
+        projectMenuEnabled={!projectRail}
         titlebarLabel={service.workspace.name} workspace={service.workspace} workspaceFolders={[service.folder]}
         multiRootWorkspacesEnabled={false} projectLocation={{ current: "cloud", localAvailable: true, cloudState: "available" }}
         cloudProject={{ id: service.workspace.projectId!, name: service.workspace.name }}
@@ -93,6 +98,7 @@ export function AccountCloudWorkspaceSurface({ workbench, presentation, active, 
     {...appearance.rootProps}
     style={{ ...appearance.rootProps.style, ...(!active ? { display: "none" } : {}) }} data-active-cloud-project={service.workspace.projectId}>
     <DesktopCloudShell active={active} workspaceLocation="cloud" leftSidebarCollapsed={sidebarCollapsed}
+      {...projectRail}
       leftSidebarWidth={explorerWidth} onLeftSidebarExpand={() => setSidebarCollapsed(false)}
       titlebarActions={active && <CloudWorkspaceHeaderTools context={context} session={session}
         apiBaseUrl={apiBaseUrl} onSessionChange={onSessionChange} />}

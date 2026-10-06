@@ -297,7 +297,7 @@ describe("DesktopHelpLauncher", () => {
       /sidebarUtility=\{projectSwitcherRailVisible[\s\S]*?\? undefined[\s\S]*?: feedbackLauncher\}/,
     );
     expect(appSource).toContain("const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);");
-    expect(appSource).toContain("renderLeadingRail={projectSwitcherRailVisible ? ({ expanded }) => (");
+    expect(appSource).toContain("renderLeadingRail={enableProjectSwitcherRail ? ({ expanded }) => renderProjectRail(");
     expect(appSource).toContain("expanded={expanded}");
     expect(appSource).toContain("leftSidebarCollapsed={sidebarCollapsed}");
     expect(appSource).toContain("rightSidebarOpen={rightSidebarContentVisible}");
@@ -310,7 +310,7 @@ describe("DesktopHelpLauncher", () => {
     expect(appSource).toContain("settingsNavigationVisible={!projectSwitcherRailEnabled}");
     expect(appSource).toContain("workspaceNavigationVisible={!projectSwitcherRailEnabled}");
     expect(appSource).toMatch(
-      /<ProjectSwitcherRail[\s\S]*?utilitySlot=\{\([\s\S]*?<DesktopHelpLauncher/,
+      /<ProjectSwitcherRail[\s\S]*?utilitySlot=\{<DesktopHelpLauncher/,
     );
     expect(launcherCss).toMatch(
       /\.desktop-feedback\s*\{[^}]*display:\s*flex[^}]*pointer-events:\s*auto/s,

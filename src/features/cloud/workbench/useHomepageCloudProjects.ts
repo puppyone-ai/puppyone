@@ -7,7 +7,7 @@ import { loadCloudProjectActivity } from "./homepageCloudActivity";
 type Catalog = { authority: string; projects: DesktopCloudProject[]; status: "loading" | "ready" | "error";
   activity?: ReadonlyMap<string, string> };
 
-/** One account-scoped catalog shared by Homepage and Header project navigation. */
+/** One account-scoped catalog shared by Homepage, Header and Sidebar navigation. */
 export function useHomepageCloudProjects({ visible, enabled, session, apiBaseUrl, local }: {
   visible: boolean;
   enabled: boolean;

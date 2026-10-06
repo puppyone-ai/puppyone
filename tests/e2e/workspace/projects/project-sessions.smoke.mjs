@@ -309,12 +309,11 @@ async function click(selector) {
   await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
 }
 async function selectProject(name) {
-  await evaluate(`(() => {
-    const button=[...document.querySelectorAll('.desktop-project-switcher-rail-project')]
-      .find(candidate=>candidate.getAttribute('aria-label')?.includes(${JSON.stringify(name)}));
-    if(!button)throw new Error(${JSON.stringify("Project rail button is unavailable: ")}+${JSON.stringify(name)});
-    button.click();
-  })()`);
+  // Session retention exercises Main's existing current-window open request.
+  // Sidebar selection itself now opens a dedicated window, covered separately.
+  const target = workspaces.find(workspace => workspace.name === name);
+  if (!target) throw new Error(`Unknown session fixture project: ${name}`);
+  window.webContents.send("workspace:open-requested", { rootPath: target.path });
   await untilRenderer(`[...document.querySelectorAll('.desktop-project-switcher-rail-project')].some(button => button.getAttribute('aria-label')?.includes(${JSON.stringify(name)}) && button.getAttribute('aria-current') === 'page')`, name);
 }
 function tabIds() { return evaluate("[...document.querySelectorAll('[data-terminal-tab-session-id]')].map(x => x.dataset.terminalTabSessionId)"); }

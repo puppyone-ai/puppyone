@@ -370,6 +370,13 @@ body.desktop-project-switcher-resizing * {
   font-weight: 400;
 }
 
+/* Keep the compact identity badge clear of the linked project's Cloud badge. */
+.desktop-project-switcher-rail-project[data-context-asset-kind="linked"]
+  .desktop-project-switcher-rail-identity-badge {
+  inset-block-start: -5px;
+  inset-block-end: auto;
+}
+
 .desktop-project-switcher-rail[data-expanded="true"]
   .desktop-project-switcher-rail-create
   .desktop-project-switcher-rail-avatar,

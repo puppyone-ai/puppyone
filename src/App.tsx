@@ -20,6 +20,7 @@ import {
   isDocumentDataNode,
   qualifyDataResourcePath,
   type DataNode,
+  type Workspace,
   type WorkspaceContentChange,
   type WorkspaceFolder,
 } from "@puppyone/shared-ui";
@@ -779,8 +780,8 @@ function AppContent() {
   const accountCloudPresentation = useAccountCloudWorkspacePresentation({
     workbench: nativeCloudWorkbench,
     onOpenSettings: openSettingsDialog, settingsOpen: settingsDialogOpen,
-    showWorkspaceNavigation: !enableProjectSwitcherRail || !workspace,
-    sidebarUtility: <DesktopHelpLauncher appearance={surfaceAppearance} />,
+    showWorkspaceNavigation: !enableProjectSwitcherRail,
+    sidebarUtility: enableProjectSwitcherRail ? undefined : <DesktopHelpLauncher appearance={surfaceAppearance} />,
   });
   const repositoryCloudInitializationPending = cloudBackupLoading || cloudPublishStateLoading || Boolean(cloudPublishState);
   const repositoryCloudSwitch = useRepositoryCloudWorkspaceSwitch({
@@ -1413,11 +1414,47 @@ function AppContent() {
     setRightSidebarOpen,
     setRightSidebarSurface,
   ]);
+  const projectRailLayout = {
+    leadingRailWidth: projectSwitcherExpandedWidth,
+    leadingRailMinWidth: MIN_PROJECT_SWITCHER_EXPANDED_WIDTH,
+    leadingRailMaxWidth: MAX_PROJECT_SWITCHER_EXPANDED_WIDTH,
+    leadingRailCollapsed: !projectSwitcherExpanded,
+    leadingRailCollapsedWidth: projectSwitcherCompactWidth,
+    leadingRailCollapseThreshold: MIN_PROJECT_SWITCHER_EXPANDED_WIDTH / 2,
+    resizableLeadingRail: true,
+    onLeadingRailCollapsedChange: setProjectSwitcherCollapsed,
+    onLeadingRailWidthChange: setProjectSwitcherWidth,
+  };
+  const renderProjectRail = (activeWorkspace: Workspace, expanded: boolean, activeCloudProjectId?: string | null) => (
+    <ProjectSwitcherRail
+      activeView={activeView}
+      activeWorkspace={activeWorkspace}
+      activeCloudProjectId={activeCloudProjectId}
+      expanded={expanded}
+      recentWorkspaces={recentWorkspaceItems}
+      projectItems={projectCatalog.items}
+      onHome={() => void goToHomepage()}
+      onAddProject={workspace && multiRootWorkspacesEnabled ? () => void addProject() : undefined}
+      onCreateNew={projectEntryFlow.openLauncher}
+      pluginsOpen={pluginsDialogOpen}
+      onOpenPlugins={enableViewerPlugins ? openPluginsDialog : undefined}
+      settingsOpen={settingsDialogOpen}
+      onOpenSettings={openSettingsDialog}
+      onRenameProject={renameProject}
+      onSelectProject={openProjectFromHeader}
+      onSelectCloudProject={openCloudProjectFromHeader}
+      onUnlinkProject={unlinkProjectFromRail}
+      utilitySlot={<DesktopHelpLauncher appearance={surfaceAppearance} />}
+    />
+  );
+  const hostedWorkspace = nativeCloudWorkbench.service?.workspace;
   const accountCloudSurface = !workspace ? <AccountCloudWorkspaceSurface workbench={nativeCloudWorkbench}
     presentation={accountCloudPresentation} active={cloudWorkspaceActive}
     context={accountCloud.context} session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession}
     appearance={surfaceAppearance} onLocal={openLocalWorkspace} onHome={() => void goToHomepage()}
     projectItems={projectCatalog.items} onSelectProject={openProjectFromHeader} onSelectCloudProject={openCloudProjectFromHeader}
+    projectRail={enableProjectSwitcherRail && hostedWorkspace ? { ...projectRailLayout,
+      renderLeadingRail: ({ expanded }) => renderProjectRail(hostedWorkspace, expanded) } : undefined}
     onCreateProject={projectEntryFlow.openCreate} /> : null;
   const repositoryCloudDialog = <CloudWorkspaceSwitchDialog controller={repositoryCloudSwitch}
     preparingInPlace={prepareCloudInPlace}
@@ -1623,6 +1660,7 @@ function AppContent() {
   const titlebarContext = (
     <DesktopTitlebarContext
       titlebarLabel={workspace.name}
+      projectMenuEnabled={!enableProjectSwitcherRail}
       menuAlignment={centerProjectInHeader ? "center" : "start"}
       projectLocation={projectLocation}
       cloudProject={focusedWorkspace?.path === workspace.path && projectCloudContext.status === "resolved"
@@ -1682,7 +1720,6 @@ function AppContent() {
   );
   const projectSwitcherRailEnabled = enableProjectSwitcherRail;
   const projectSwitcherRailVisible = projectSwitcherRailEnabled;
-
   return (
     <SurfaceAppearanceProvider value={surfaceAppearance}>
       <CloudShareProvider value={cloudShareActions}>
@@ -1694,38 +1731,9 @@ function AppContent() {
           active
           workspaceLocation={projectLocation?.current ?? "local"}
           requestedWorkspaceLocation={headerWorkspaceLocation}
-          renderLeadingRail={projectSwitcherRailVisible ? ({ expanded }) => (
-            <ProjectSwitcherRail
-              activeView={activeView}
-              activeWorkspace={workspace}
-              expanded={expanded}
-              recentWorkspaces={recentWorkspaceItems}
-              onCreateNew={projectEntryFlow.openLauncher}
-              pluginsOpen={pluginsDialogOpen}
-              onOpenPlugins={enableViewerPlugins
-                ? openPluginsDialog
-                : undefined}
-              settingsOpen={settingsDialogOpen}
-              onOpenSettings={openSettingsDialog}
-              onRenameProject={renameProject}
-              onSelectProject={switchProjectFromRail}
-              onUnlinkProject={unlinkProjectFromRail}
-              utilitySlot={(
-                <DesktopHelpLauncher
-                  appearance={surfaceAppearance}
-                />
-              )}
-            />
-          ) : undefined}
-          leadingRailWidth={projectSwitcherExpandedWidth}
-          leadingRailMinWidth={MIN_PROJECT_SWITCHER_EXPANDED_WIDTH}
-          leadingRailMaxWidth={MAX_PROJECT_SWITCHER_EXPANDED_WIDTH}
-          leadingRailCollapsed={!projectSwitcherExpanded}
-          leadingRailCollapsedWidth={projectSwitcherCompactWidth}
-          leadingRailCollapseThreshold={MIN_PROJECT_SWITCHER_EXPANDED_WIDTH / 2}
-          resizableLeadingRail
-          onLeadingRailCollapsedChange={setProjectSwitcherCollapsed}
-          onLeadingRailWidthChange={setProjectSwitcherWidth}
+          renderLeadingRail={enableProjectSwitcherRail ? ({ expanded }) => renderProjectRail(workspace, expanded,
+            cloudWorkspaceActive && accountCloud.context.status === "resolved" ? accountCloud.context.projectId : undefined) : undefined}
+          {...projectRailLayout}
           leftSidebarCollapsed={sidebarCollapsed}
           leftSidebarPresent={Boolean(dataPort)}
           leftSidebarWidth={explorerWidth}

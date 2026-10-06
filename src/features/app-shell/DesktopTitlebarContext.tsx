@@ -7,7 +7,8 @@ export function DesktopTitlebarContext({ projectLocation, cloudProject, onViewLo
   return <div className="desktop-titlebar-context">
     <DesktopWorkspaceSwitcher {...project} />
     <DesktopProjectLocationSwitcher projectLocation={projectLocation} cloudProject={cloudProject}
-      onViewLocal={onViewLocal} onViewCloud={onViewCloud} projectMenuOpen={project.open} onOpen={project.onClose} />
+      onViewLocal={onViewLocal} onViewCloud={onViewCloud}
+      projectMenuOpen={project.projectMenuEnabled !== false && project.open} onOpen={project.onClose} />
   </div>;
 }
 

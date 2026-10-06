@@ -42,6 +42,27 @@ const projectProps = { open: true, refObject: createRef<HTMLDivElement>(), works
   workspaceFolders: [], multiRootWorkspacesEnabled: false, onClose: noOp, onToggle: noOp };
 
 describe("combined Home and project menu", () => {
+  it("uses a draggable static project identity in Sidebar mode while retaining the provider menu", async () => {
+    const toggle = vi.fn(), close = vi.fn(), viewCloud = vi.fn();
+    await render(<DesktopTitlebarContext {...projectProps} projectMenuEnabled={false}
+      availableProjects={[workspace, second]} onToggle={toggle} onClose={close}
+      projectLocation={{ current: "local", localAvailable: true, cloudState: "available" }} onViewCloud={viewCloud} />);
+    const identity = container.querySelector<HTMLElement>(".desktop-titlebar-workspace-label")!;
+    expect(identity.tagName).toBe("DIV");
+    expect(identity.textContent).toBe(workspace.name);
+    expect(identity.dataset.windowDragRegion).toBe("true");
+    expect(identity.querySelector('[data-project-location="local"]')).not.toBeNull();
+    expect(identity.hasAttribute("aria-haspopup")).toBe(false);
+    expect(identity.hasAttribute("aria-expanded")).toBe(false);
+    act(() => identity.click());
+    expect(toggle).not.toHaveBeenCalled();
+    expect(document.querySelector(".desktop-project-menu")).toBeNull();
+    openLocation();
+    act(() => locationButton("cloud").click());
+    expect(viewCloud).toHaveBeenCalledOnce();
+    expect(document.querySelector(".desktop-project-menu")).toBeNull();
+  });
+
   it("lists registered projects, marks the current one and routes Home, create and another project separately", async () => {
     const close = vi.fn(), home = vi.fn(), create = vi.fn(), select = vi.fn();
     await render(<DesktopWorkspaceSwitcher {...projectProps} availableProjects={[workspace, second, second]}

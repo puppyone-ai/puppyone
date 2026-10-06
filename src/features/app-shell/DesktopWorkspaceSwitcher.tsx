@@ -22,6 +22,7 @@ export type DesktopWorkspaceSwitcherProps = {
   refObject: RefObject<HTMLDivElement>;
   titlebarLabel: string;
   menuAlignment?: "start" | "center";
+  projectMenuEnabled?: boolean;
   workspace: Workspace;
   workspaceFolders: readonly WorkspaceFolder[];
   multiRootWorkspacesEnabled: boolean;
@@ -42,6 +43,7 @@ export function DesktopWorkspaceSwitcher({
   refObject,
   titlebarLabel,
   menuAlignment = "start",
+  projectMenuEnabled = true,
   workspace,
   workspaceFolders,
   multiRootWorkspacesEnabled,
@@ -80,6 +82,21 @@ export function DesktopWorkspaceSwitcher({
   useEffect(() => {
     setView("projects");
   }, [workspace.path]);
+  useEffect(() => {
+    if (!projectMenuEnabled && open) onClose();
+  }, [projectMenuEnabled, open, onClose]);
+  if (!projectMenuEnabled) {
+    const project = projects.find(item => item.localPath === workspace.path
+      || Boolean(currentCloudProjectId && item.cloudProjectId === currentCloudProjectId))
+      ?? { id: workspace.id, label: titlebarLabel, localPath: currentCloudProjectId ? "" : workspace.path,
+        ...(currentCloudProjectId ? { cloudProjectId: currentCloudProjectId } : {}) };
+    return <div className="desktop-titlebar-workspace-wrap" ref={refObject}>
+      <div className="desktop-titlebar-workspace-button desktop-titlebar-workspace-label" data-window-drag-region="true">
+        <span className="desktop-titlebar-workspace-mark"><HomeProjectIcon item={project} /></span>
+        <bdi className="desktop-titlebar-workspace-name">{titlebarLabel}</bdi>
+      </div>
+    </div>;
+  }
   return (
     <div className="desktop-titlebar-workspace-wrap" ref={refObject}>
       <button
