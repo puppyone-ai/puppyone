@@ -27,7 +27,6 @@
   "empty.spinLogo": "旋转 {agent} 标志",
   "visual.title": "智能体架构",
   "launcher.title": "选择要启动的智能体",
-  "launcher.description": "选择此设备上可用的智能体。完成选择后才会启动对话。",
   "launcher.scanAgain": "重新扫描",
   "launcher.noneAvailable": "未找到可用的智能体",
   "launcher.needsAttention": "{agent} 需要处理",

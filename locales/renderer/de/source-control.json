@@ -240,7 +240,6 @@
   "dialog.discard.count": "Lokale Änderungen in {count, plural, one {# Datei} other {# Dateien}} verwerfen? Dies kann nicht rückgängig gemacht werden.",
   "dialog.discard.path": "Lokale Änderungen in {path} verwerfen? Dies kann nicht rückgängig gemacht werden.",
   "dialog.error.copyPrompt": "Anfrage kopieren",
-  "dialog.error.detail": "Kopiere die Reparaturanfrage in Codex oder Claude Code, wenn ein Agent den Fehler beheben soll.",
   "dialog.error.rawOutput": "Unveränderte Git-Ausgabe",
   "dialog.error.title": "Git-Vorgang fehlgeschlagen",
   "dialog.switch.changeCount": "{count, plural, one {lokale Änderung} other {lokale Änderungen}} in diesem Arbeitsbereich.",

@@ -64,7 +64,7 @@ exports[`Cloud initialization render contract captured before extraction > locks
   "hero": false,
   "progress": true,
   "select": undefined,
-  "text": "1ProjectChecking repository…2Access3Remote4Upload5FinishKeep PuppyOne open during the first upload. This operation is resumable and will not create a duplicate project.",
+  "text": "1ProjectChecking repository…2Access3Remote4Upload5FinishKeep PuppyOne open during the first upload.",
 }
 `;
 
@@ -405,7 +405,7 @@ exports[`Cloud initialization render contract captured before extraction > locks
   "hero": false,
   "progress": true,
   "select": undefined,
-  "text": "Your Cloud project and remote are ready, but the initial push did not finish. Review changes, then choose Resume.1Project2Access3Remote4UploadUploading and publishing files…5FinishKeep PuppyOne open during the first upload. This operation is resumable and will not create a duplicate project.",
+  "text": "Your Cloud project and remote are ready, but the initial push did not finish. Review changes, then choose Resume.1Project2Access3Remote4UploadUploading and publishing files…5FinishKeep PuppyOne open during the first upload.",
 }
 `;
 

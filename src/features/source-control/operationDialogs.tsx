@@ -291,7 +291,6 @@ export function GitOperationErrorDialog({
             </span>
             <div>
               <h2 id="git-operation-error-title">{t("source-control.dialog.error.title")}</h2>
-              <p>{t("source-control.dialog.error.detail")}</p>
             </div>
           </div>
           <DesktopDialogCloseButton onClick={onClose} />

@@ -52,13 +52,14 @@ export function AgentPanelStatus({
           description={failed
             ? errorPresentation?.summary || t("agent.readiness.sessionRecovery")
             : detail}
-          details={<>
+          details={(!failed || detail) && <details>
+            <summary>{t("agent.header.diagnostics")}</summary>
             {!failed && <small className="desktop-agent-readiness-detail desktop-agent-readiness-code">{t("agent.readiness.statusCode", { code: readinessPresentation.code })}</small>}
             {!failed && readinessPresentation.diagnostic && (
               <small className="desktop-agent-readiness-detail" dir="auto">{t("agent.readiness.diagnostic", { detail: bidiIsolate(readinessPresentation.diagnostic) })}</small>
             )}
             {failed && detail && <small className="desktop-agent-readiness-detail" dir="auto">{detail}</small>}
-          </>}
+          </details>}
           actions={<button
             type="button"
             className="desktop-agent-button is-secondary desktop-agent-readiness-action"

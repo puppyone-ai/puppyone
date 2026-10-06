@@ -240,7 +240,6 @@
   "dialog.discard.count": "{count, plural, other {# 個のファイル}}のローカル変更を破棄しますか？この操作は取り消せません。",
   "dialog.discard.path": "{path} のローカル変更を破棄しますか？この操作は取り消せません。",
   "dialog.error.copyPrompt": "依頼文をコピー",
-  "dialog.error.detail": "エージェントに修復させる場合は、修正依頼文を Codex または Claude Code にコピーしてください。",
   "dialog.error.rawOutput": "Git の生出力",
   "dialog.error.title": "Git 操作に失敗しました",
   "dialog.switch.changeCount": "このワークスペースに{count, plural, other {# 件のローカル変更}}があります。",

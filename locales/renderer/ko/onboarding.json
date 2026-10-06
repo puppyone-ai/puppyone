@@ -33,7 +33,6 @@
   "entry.chooseLocationHint": "{provider} 저장소가 이 컴퓨터에 복사됩니다.",
   "entry.clone.unsupportedUrl": "{provider} 저장소 URL을 입력하세요.",
   "entry.import.title": "가져오기",
-  "entry.import.intro": "이 앱의 콘텐츠를 로컬 프로젝트로 가져옵니다.",
   "entry.import.directUnavailable": "직접 가져오기 준비 중",
   "entry.import.connect": "{provider} 연결",
   "entry.import.chooseResource": "가져올 콘텐츠 선택",

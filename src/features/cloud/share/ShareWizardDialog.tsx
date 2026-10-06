@@ -266,11 +266,9 @@ function ShareTargetStep({
             </button>
           ))}
         </div>
-        <div className="desktop-share-preview" aria-live="polite">
-          {selectedTarget
-            ? t(shareTargetPreviewKey(selectedTarget.id))
-            : t("cloud.share.target.pickHint")}
-        </div>
+        {selectedTarget && <div className="desktop-share-preview" aria-live="polite">
+          {t(shareTargetPreviewKey(selectedTarget.id))}
+        </div>}
       </div>
       <footer className={`desktop-dialog-footer${canGoBack ? " two-action" : ""}`}>
         {canGoBack && (
@@ -678,7 +676,7 @@ function ShareConnectStep({
     <>
       <div className="desktop-dialog-body desktop-share-dialog-body desktop-share-connect">
         {phase.kind === "sign-in" && (
-          <ShareSignIn apiBaseUrl={apiBaseUrl} targetLabel={targetLabel} />
+          <ShareSignIn apiBaseUrl={apiBaseUrl} />
         )}
         {phase.kind === "organization" && session && (
           <ShareOrganizationPicker
@@ -919,12 +917,10 @@ function ReaderCopyUrlButton({ url }: { url: string }) {
   );
 }
 
-function ShareSignIn({ apiBaseUrl, targetLabel }: { apiBaseUrl: string | null; targetLabel: string }) {
-  const { t } = useLocalization();
+function ShareSignIn({ apiBaseUrl }: { apiBaseUrl: string | null }) {
   const auth = useCloudAuthController({ cloudApiBaseUrl: apiBaseUrl });
   return (
     <div className="desktop-share-sign-in">
-      <p>{t("cloud.share.publish.signIn", { target: targetLabel })}</p>
       <CloudAuthCard signingIn={auth.signingIn} error={auth.error} onSignIn={auth.startSignIn} />
     </div>
   );
@@ -1166,7 +1162,6 @@ function ShareReceipt({
       <span className="desktop-share-receipt-dot" aria-hidden="true" />
       <span>
         <strong>{t("cloud.share.receipt.waiting", { target: targetLabel })}</strong>
-        <small>{t("cloud.share.receipt.waitingHint", { target: targetLabel })}</small>
       </span>
     </div>
   );

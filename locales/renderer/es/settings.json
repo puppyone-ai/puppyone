@@ -2,7 +2,7 @@
   "activation.activate": "Activar",
   "activation.consent": "Puppyone instalará la CLI de {agent} en segundo plano. Quedará activada al instalarse. Puede que debas iniciar sesión al usarla por primera vez. Se reutilizará una instalación existente.",
   "activation.guided": "Este Agent usa su configuración oficial. Puppyone la abrirá y comprobará la instalación al volver. La sesión y el modelo se revisan al iniciar el Agent.",
-  "activation.control": "Puedes consultar el progreso o detenerlo en cualquier paso. Al cerrar esta ventana, la tarea continúa en segundo plano.",
+  "activation.control": "La tarea continúa en segundo plano al cerrar esta ventana.",
   "activation.details": "Detalles de instalación",
   "activation.location": "Se instala en el directorio de usuario de Puppyone, sin permisos de administrador ni cambios en el shell.",
   "activation.start": "Instalar y activar",
@@ -534,5 +534,7 @@
   "typography.preview.rightSidebar": "Barra lateral derecha",
   "typography.preview.chat": "Chat",
   "typography.preview.message": "Puedo ayudarte a organizar estas notas.",
-  "modelConnections.source.managed": "Cuenta PuppyOne"
+  "modelConnections.source.managed": "Cuenta PuppyOne",
+  "modelConnections.keyStorage": "Almacenamiento de la clave",
+  "modelConnections.keyRequired": "Vuelve a introducir la clave API para esta dirección o método de autenticación."
 }

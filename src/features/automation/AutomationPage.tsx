@@ -156,7 +156,6 @@ export function CloudAutomationPage({
       {hasAnyAutomation && (
         <header className="desktop-cloud-automation-add-more-header">
           <h2>{t("automation.page.addMoreSources")}</h2>
-          <p>{t("automation.page.addMoreDescription")}</p>
         </header>
       )}
       <nav
@@ -213,7 +212,6 @@ export function CloudAutomationPage({
           <header className="desktop-cloud-automation-landing-header">
             <div className="desktop-cloud-automation-landing-copy">
               <h1>{t("automation.page.title")}</h1>
-              <p>{t("automation.page.description")}</p>
             </div>
             <button type="button" className="desktop-cloud-automation-new-button" onClick={() => openNewAutomation()}>
               {t("automation.page.new")}

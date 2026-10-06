@@ -42,7 +42,6 @@ export function CloudProjectHistoryView({
         ) : rows.length === 0 ? (
           <CloudProjectHistoryEmpty
             title={t("cloud.history.noCommits")}
-            detail={t("cloud.history.noCommitsDetail")}
             onRefresh={onRefresh}
           />
         ) : selectedCommit && selectedRow ? (
@@ -57,7 +56,6 @@ export function CloudProjectHistoryView({
         ) : (
           <CloudProjectHistoryEmpty
             title={t("cloud.history.selectCommit")}
-            detail={t("cloud.history.selectCommitDetail")}
           />
         )}
       </div>
@@ -71,7 +69,7 @@ function CloudProjectHistoryEmpty({
   onRefresh,
 }: {
   title: string;
-  detail: string;
+  detail?: string;
   onRefresh?: () => void | Promise<void>;
 }) {
   const { t } = useLocalization();
@@ -79,7 +77,7 @@ function CloudProjectHistoryEmpty({
     <div className="desktop-cloud-project-history-empty">
       <span><Clock3 size={26} aria-hidden="true" /></span>
       <strong>{title}</strong>
-      <p>{detail}</p>
+      {detail && <p>{detail}</p>}
       {onRefresh && (
         <button type="button" onClick={() => void onRefresh()}>
           <RefreshCw size={13} aria-hidden="true" />

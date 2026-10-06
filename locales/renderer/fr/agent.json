@@ -27,7 +27,6 @@
   "empty.spinLogo": "Faire tourner le logo {agent}",
   "visual.title": "Architecture des agents",
   "launcher.title": "Démarrer avec un agent",
-  "launcher.description": "Choisissez un agent disponible sur cet appareil. La discussion démarre après votre sélection.",
   "launcher.scanAgain": "Rechercher à nouveau",
   "launcher.noneAvailable": "Aucun agent disponible trouvé",
   "launcher.needsAttention": "{agent} nécessite votre attention",

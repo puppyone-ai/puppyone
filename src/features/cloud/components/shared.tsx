@@ -280,14 +280,14 @@ export function CloudWebEmpty({
 }: {
   icon: CloudEmptyStateIcon;
   title: string;
-  detail: string;
+  detail?: string;
 }) {
   return (
     <div className="desktop-cloud-web-empty">
       <span><Icon size={18} /></span>
       <div>
         <strong>{title}</strong>
-        <p>{detail}</p>
+        {detail && <p>{detail}</p>}
       </div>
     </div>
   );

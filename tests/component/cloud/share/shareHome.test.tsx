@@ -109,7 +109,7 @@ describe("Cloud Share page", () => {
     expect(page).not.toBeNull();
     expect(page?.querySelector("h1")?.textContent).toBe("Share");
     expect(stripBidiIsolation(page?.querySelector(".desktop-share-page-header p")?.textContent)).toBe("Who can read Atlas");
-    expect(page?.querySelector(".desktop-share-status--page")?.textContent).toContain("Synced · no Agent can read it yet");
+    expect(page?.querySelector(".desktop-share-status--page")?.textContent).toContain("In Cloud · no Agent can read it yet");
 
     const targets = page?.querySelectorAll<HTMLButtonElement>(".desktop-share-page-target");
     expect(targets).toHaveLength(SHARE_TARGETS.length);
@@ -133,7 +133,7 @@ describe("Cloud Share page", () => {
     )));
     const card = host.querySelector<HTMLElement>(".desktop-share-status--page");
     expect(card?.dataset.shareState).toBe("shared");
-    expect(card?.textContent).toContain("Synced · 1 Agent can read it");
+    expect(card?.textContent).toContain("In Cloud · 1 Agent can read it");
     expect(card?.textContent).toContain("Viktor");
     expect(card?.textContent).toContain("docs");
     expect(card?.querySelector(".desktop-share-status-primary")?.textContent).toBe("Manage sharing");

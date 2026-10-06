@@ -150,7 +150,6 @@ export function CloudProjectSettingsSection({
           <header className="desktop-cloud-settings-landing-header">
             <div className="desktop-cloud-settings-landing-copy">
               <h1>{t("cloud.route.settings.title")}</h1>
-              <p>{t("cloud.route.settings.description")}</p>
             </div>
           </header>
 
@@ -197,7 +196,6 @@ export function CloudProjectSettingsSection({
               <header className="desktop-cloud-settings-panel-header">
                 <div>
                   <h2>{t("cloud.settings.generalTitle")}</h2>
-                  <p>{t("cloud.settings.generalDetail")}</p>
                 </div>
                 <button
                   className="desktop-cloud-settings-primary-button"
@@ -211,12 +209,10 @@ export function CloudProjectSettingsSection({
               <div className="desktop-cloud-settings-form">
                 <label className="desktop-cloud-settings-field">
                   <span>{t("cloud.common.name")}</span>
-                  <small>{t("cloud.settings.nameHelp")}</small>
                   <input value={name} maxLength={200} disabled={savingGeneral} onChange={(event) => setName(event.target.value)} />
                 </label>
                 <label className="desktop-cloud-settings-field">
                   <span>{t("cloud.settings.description")}</span>
-                  <small>{t("cloud.settings.descriptionHelp")}</small>
                   <textarea value={description} rows={3} disabled={savingGeneral} onChange={(event) => setDescription(event.target.value)} />
                 </label>
                 <label className="desktop-cloud-settings-field">
@@ -227,7 +223,6 @@ export function CloudProjectSettingsSection({
                 <div className="desktop-cloud-settings-id-row">
                   <div>
                     <span>{t("cloud.project.id")}</span>
-                    <small>{t("cloud.settings.projectIdHelp")}</small>
                   </div>
                   <div>
                     <Tooltip content={currentProject.id} overflowOnly><code>{currentProject.id}</code></Tooltip>
@@ -277,7 +272,6 @@ export function CloudProjectSettingsSection({
               <header className="desktop-cloud-settings-panel-header">
                 <div>
                   <h2>{t("cloud.settings.connectionTitle")}</h2>
-                  <p>{t("cloud.settings.connectionDetail")}</p>
                 </div>
               </header>
               <div className={`desktop-cloud-settings-connection-row ${matchesRepositoryRemote ? "connected" : ""}`}>

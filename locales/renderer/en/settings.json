@@ -2,7 +2,7 @@
   "activation.activate": "Activate",
   "activation.consent": "Puppyone will install the {agent} CLI in the background. Once installed, it is activated. You may need to sign in when you first use it. An existing installation will be reused.",
   "activation.guided": "This Agent uses its official setup flow. Puppyone will guide you there and check the installation when you return. Sign-in and model setup are checked when you start the Agent.",
-  "activation.control": "You can view progress or stop at any step. Closing this window lets the task continue in the background.",
+  "activation.control": "Closing this window lets the task continue in the background.",
   "activation.details": "Installation details",
   "activation.location": "Installed in Puppyone’s user directory. No administrator access or shell configuration changes.",
   "activation.start": "Install and activate",
@@ -534,5 +534,7 @@
   "typography.preview.rightSidebar": "Right sidebar",
   "typography.preview.chat": "Chat",
   "typography.preview.message": "I can help you organize these notes.",
-  "modelConnections.source.managed": "PuppyOne account"
+  "modelConnections.source.managed": "PuppyOne account",
+  "modelConnections.keyStorage": "Key storage",
+  "modelConnections.keyRequired": "Re-enter the API key for this endpoint or authentication method."
 }

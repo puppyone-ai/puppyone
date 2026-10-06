@@ -240,7 +240,6 @@
   "dialog.discard.count": "Annuler les modifications locales de {count, plural, one {# fichier} other {# fichiers}} ? Cette action est irréversible.",
   "dialog.discard.path": "Annuler les modifications locales de {path} ? Cette action est irréversible.",
   "dialog.error.copyPrompt": "Copier l’instruction",
-  "dialog.error.detail": "Copiez l’instruction de correction dans Codex ou Claude Code si vous souhaitez qu’un agent résolve le problème.",
   "dialog.error.rawOutput": "Sortie brute Git",
   "dialog.error.title": "Échec de l’opération Git",
   "dialog.switch.changeCount": "{count, plural, one {changement local} other {changements locaux}} dans cet espace de travail.",

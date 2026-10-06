@@ -33,7 +33,6 @@
   "entry.chooseLocationHint": "{provider} リポジトリをこのコンピューターにコピーします。",
   "entry.clone.unsupportedUrl": "{provider} リポジトリの URL を入力してください。",
   "entry.import.title": "インポート",
-  "entry.import.intro": "これらのアプリの内容をローカルプロジェクトに取り込みます。",
   "entry.import.directUnavailable": "直接取り込み準備中",
   "entry.import.connect": "{provider} に接続",
   "entry.import.chooseResource": "取り込む内容を選択",

@@ -240,7 +240,6 @@
   "dialog.discard.count": "Descartar as alterações locais de {count, plural, one {# arquivo} other {# arquivos}}? Esta ação não pode ser desfeita.",
   "dialog.discard.path": "Descartar as alterações locais de {path}? Esta ação não pode ser desfeita.",
   "dialog.error.copyPrompt": "Copiar solicitação",
-  "dialog.error.detail": "Copie a solicitação de correção para o Codex ou Claude Code se quiser que um agente faça o reparo.",
   "dialog.error.rawOutput": "Saída original do Git",
   "dialog.error.title": "Falha na operação do Git",
   "dialog.switch.changeCount": "{count, plural, one {alteração local} other {alterações locais}} neste espaço de trabalho.",

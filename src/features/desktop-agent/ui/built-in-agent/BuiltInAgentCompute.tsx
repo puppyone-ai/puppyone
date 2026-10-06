@@ -58,7 +58,7 @@ export function BuiltInAgentCompute({
   const managed = snapshot?.managed;
   const ready = Boolean(current && currentConnection && (source !== "managed" || managed?.available));
   const needsManagedAccess = source === "managed" && (!selectedModel || currentConnection?.sourceKind === "managed");
-  const connecting = !managed || managed.reason === "loading"
+  const connecting = state.pending.managed || !managed || managed.reason === "loading"
     || Boolean(managed.signedIn && !ready && (state.pending.managed || managed.reason === "ready"));
   const accessRequired = needsManagedAccess && !ready
     ? connecting ? "loading" : managed?.reason === "ready" ? null : managed?.reason ?? "loading" : null;
@@ -110,14 +110,16 @@ export function BuiltInAgentCompute({
     </div>}
     {showPrompt && <div className="desktop-agent-access-prompt" role="region" aria-label={t("agent.compute.accessTitle")} aria-busy={connecting}>
       <div className="desktop-agent-access-copy">
-        <strong role="status">{t(connecting ? "agent.compute.connecting" : !managed?.signedIn ? "agent.compute.accessTitle" : managed.reason === "insufficient-credit"
+        <strong>{t(connecting || !managed?.signedIn ? "agent.compute.accessTitle" : managed.reason === "insufficient-credit"
           ? "agent.compute.insufficientCredit" : "agent.compute.connectionUnavailable")}</strong>
-        {!connecting && !managed?.signedIn ? <p>{(managed?.trialCreditMicroUsd ?? 0) > 0
+        {!managed?.signedIn && <p>{(managed?.trialCreditMicroUsd ?? 0) > 0
           ? t("agent.compute.trialOffer", { amount: money(managed?.trialCreditMicroUsd ?? 0) })
-          : t("agent.compute.walletDetail")}</p> : <p>{t("agent.compute.draftKept")}</p>}
+          : t("agent.compute.walletDetail")}</p>}
       </div>
-      {!connecting && <div className="desktop-agent-access-actions">
-        {!managed?.signedIn ? <button type="button" className="desktop-agent-access-primary" disabled={disabled || state.pending.managed}
+      <div className="desktop-agent-access-actions">
+        {connecting ? <button type="button" className="desktop-agent-access-primary" disabled>
+          <span role="status">{t("agent.compute.connecting")}</span>
+        </button> : !managed?.signedIn ? <button type="button" className="desktop-agent-access-primary" disabled={disabled || state.pending.managed}
           onClick={() => void store.managed({ action: "sign-in" })}>
           {t("agent.compute.signInToStart")}
         </button> : managed.reason === "insufficient-credit" ? <button type="button" className="desktop-agent-access-primary"
@@ -126,7 +128,7 @@ export function BuiltInAgentCompute({
         </button> : <button type="button" className="desktop-agent-access-primary" disabled={state.pending.managed}
           onClick={() => void store.managed({ action: "refresh" })}>{t("common.action.retry")}</button>}
         {!managed?.signedIn && customize}
-      </div>}
+      </div>
       {!connecting && state.error && (!managed?.signedIn || managed.reason !== "gateway-unavailable") && <small role="alert">{operationError}</small>}
     </div>}
   </section>;

@@ -15,9 +15,7 @@ export function CloudOverviewActions({
   return (
     <section className="desktop-cloud-overview-actions" aria-label={t("cloud.overview.actionsAria")}>
       <header className="desktop-cloud-overview-actions-header">
-        <span>{t("cloud.access.create.startWithJob")}</span>
         <h2>{t("cloud.access.create.intentQuestion")}</h2>
-        <p>{t("cloud.access.create.description")}</p>
       </header>
 
       <div className="desktop-cloud-overview-action-grid">

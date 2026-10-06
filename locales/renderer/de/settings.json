@@ -2,7 +2,7 @@
   "activation.activate": "Aktivieren",
   "activation.consent": "Puppyone installiert die {agent}-CLI im Hintergrund. Nach der Installation ist sie aktiviert. Bei der ersten Nutzung ist möglicherweise eine Anmeldung nötig. Eine vorhandene Installation wird weiterverwendet.",
   "activation.guided": "Dieser Agent verwendet die offizielle Einrichtung. Puppyone öffnet die Anleitung und prüft danach die Installation. Anmeldung und Modelleinstellungen werden beim Start geprüft.",
-  "activation.control": "Sie können den Fortschritt jederzeit ansehen oder stoppen. Nach dem Schließen läuft die Aufgabe im Hintergrund weiter.",
+  "activation.control": "Nach dem Schließen dieses Fensters läuft die Aufgabe im Hintergrund weiter.",
   "activation.details": "Installationsdetails",
   "activation.location": "Installation im Puppyone-Benutzerverzeichnis, ohne Administratorrechte oder Änderungen an der Shell-Konfiguration.",
   "activation.start": "Installieren und aktivieren",
@@ -534,5 +534,7 @@
   "typography.preview.rightSidebar": "Rechte Seitenleiste",
   "typography.preview.chat": "Chat",
   "typography.preview.message": "Ich helfe dir, diese Notizen zu ordnen.",
-  "modelConnections.source.managed": "PuppyOne-Konto"
+  "modelConnections.source.managed": "PuppyOne-Konto",
+  "modelConnections.keyStorage": "Schlüsselspeicherung",
+  "modelConnections.keyRequired": "Gib den API-Schlüssel für diese Adresse oder Authentifizierungsmethode erneut ein."
 }

@@ -29,6 +29,7 @@ export function ModelConnectionSetup({ connection, candidate, sourceKind, busy, 
   const [defaultModelId, setDefaultModelId] = useState(initial.defaultModelId);
   const [context, setContext] = useState(initial.context);
   const [serverToolsDisabled, setServerToolsDisabled] = useState(initial.serverToolsDisabled);
+  const keyRequired = Boolean(connection?.credentialConfigured && (baseUrl !== connection.baseUrl || auth !== connection.auth));
   const selectDriver = (next: ModelConnectionDriver) => {
     const definition = DRIVERS.find((entry) => entry.id === next)!;
     setDriver(next);
@@ -75,7 +76,10 @@ export function ModelConnectionSetup({ connection, candidate, sourceKind, busy, 
           <label htmlFor={`${formId}-key`}>{t(connection?.credentialConfigured ? "settings.modelConnections.replaceKey" : "settings.modelConnections.apiKey")}</label>
           <input className="desktop-settings-text-input" id={`${formId}-key`} type="password" autoComplete="off" spellCheck={false} value={apiKey} maxLength={8192} minLength={8}
             onChange={(event) => setApiKey(event.target.value)} />
-          <small>{t("settings.modelConnections.keyHelp")}</small>
+          {keyRequired && <small role="status">{t("settings.modelConnections.keyRequired")}</small>}
+          <details><summary>{t("settings.modelConnections.keyStorage")}</summary>
+            <small>{t("settings.modelConnections.keyHelp")}</small>
+          </details>
         </div>}
         {driver === "unsloth" && <label className="model-connection-checkbox">
           <input type="checkbox" checked={serverToolsDisabled} onChange={(event) => setServerToolsDisabled(event.target.checked)} />

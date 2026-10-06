@@ -33,7 +33,6 @@
   "entry.chooseLocationHint": "Le dépôt {provider} sera copié sur cet ordinateur.",
   "entry.clone.unsupportedUrl": "Saisissez l’URL d’un dépôt {provider}.",
   "entry.import.title": "Importer",
-  "entry.import.intro": "Importez le contenu de ces applications dans un projet local.",
   "entry.import.directUnavailable": "Import direct à venir",
   "entry.import.connect": "Se connecter à {provider}",
   "entry.import.chooseResource": "Choisir le contenu à importer",

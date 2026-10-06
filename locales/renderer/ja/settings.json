@@ -2,7 +2,7 @@
   "activation.activate": "有効化",
   "activation.consent": "Puppyone は {agent} CLI をバックグラウンドでインストールします。インストール完了で有効化されます。初回使用時にログインが必要な場合があります。既存のインストールは再利用します。",
   "activation.guided": "この Agent は公式の設定手順を使用します。設定ページを開き、戻った後にインストールを確認します。ログインとモデル設定は起動時に確認します。",
-  "activation.control": "進捗の確認と停止はいつでもできます。このウィンドウを閉じても処理は続きます。",
+  "activation.control": "このウィンドウを閉じても、タスクはバックグラウンドで続行します。",
   "activation.details": "インストールの詳細",
   "activation.location": "Puppyone のユーザーディレクトリにインストールします。管理者権限やシェル設定の変更は不要です。",
   "activation.start": "インストールして有効化",
@@ -534,5 +534,7 @@
   "typography.preview.rightSidebar": "右サイドバー",
   "typography.preview.chat": "チャット",
   "typography.preview.message": "このメモの整理をお手伝いします。",
-  "modelConnections.source.managed": "PuppyOne アカウント"
+  "modelConnections.source.managed": "PuppyOne アカウント",
+  "modelConnections.keyStorage": "キーの保存",
+  "modelConnections.keyRequired": "接続先または認証方式を変更した場合は、API キーを再入力してください。"
 }

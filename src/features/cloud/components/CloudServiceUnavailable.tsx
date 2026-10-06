@@ -8,7 +8,6 @@ export function CloudServiceUnavailable({ title, onRetry }: { title: string; onR
   return <section className="desktop-cloud-service-unavailable" role="alert">
     <Plug size={24} aria-hidden="true" />
     <h1>{t("cloud.workspaceTools.unavailable", { service: title })}</h1>
-    <p>{t("cloud.workspaceTools.unavailableDescription")}</p>
     <button className="desktop-cloud-service-retry" type="button" onClick={onRetry}>{t("common.action.retry")}</button>
   </section>;
 }

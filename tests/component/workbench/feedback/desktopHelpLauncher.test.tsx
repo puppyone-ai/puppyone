@@ -157,7 +157,9 @@ describe("DesktopHelpLauncher", () => {
       email: "person@example.com",
       locale: "en",
     });
-    expect(document.querySelector(".desktop-feedback-status")?.textContent).toContain("Sent");
+    expect(submitButton?.textContent).toContain("Sent");
+    expect(submitButton?.querySelector('[role="status"]')).not.toBeNull();
+    expect(document.querySelector(".desktop-feedback-status")?.textContent).toBe("");
   });
 
   it("can only be dismissed with its close button", () => {

@@ -1196,7 +1196,7 @@
       "count": 1
     },
     "no-nested-ternary": {
-      "count": 11
+      "count": 9
     }
   },
   "packages/shared-ui/src/editor/viewers/app/AppPreviewViewer.tsx": {
@@ -1568,7 +1568,7 @@
       "count": 1
     },
     "no-nested-ternary": {
-      "count": 6
+      "count": 4
     }
   },
   "src/features/app-shell/DesktopOverlayPortal.tsx": {

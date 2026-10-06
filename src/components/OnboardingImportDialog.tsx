@@ -1,6 +1,6 @@
 import { Tooltip } from "@puppyone/shared-ui";
 import { ArrowLeft } from "lucide-react";
-import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization";
 import {
   DEFAULT_VISIBLE_IMPORT_SOURCES,
@@ -95,7 +95,6 @@ export function OnboardingImportDialog({
   visibleSources = DEFAULT_VISIBLE_IMPORT_SOURCES,
 }: OnboardingImportDialogProps) {
   const { t } = useLocalization();
-  const introId = useId();
   const [source, setSource] = useState<OnboardingImportSource | null>(null);
   const [busy, setBusy] = useState(false);
   const selectedDescriptor = visibleSources.find((entry) => entry.id === source);
@@ -118,7 +117,6 @@ export function OnboardingImportDialog({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        aria-describedby={source === null ? introId : undefined}
         data-import-source={source ?? "sources"}
         onClick={(event) => event.stopPropagation()}
       >
@@ -146,7 +144,6 @@ export function OnboardingImportDialog({
 
         {source === null && (
           <ImportSourceList
-            introId={introId}
             onSelect={selectSource}
             visibleSources={visibleSources}
           />
@@ -195,18 +192,15 @@ export function OnboardingImportDialog({
 }
 
 function ImportSourceList({
-  introId,
   onSelect,
   visibleSources,
 }: {
-  introId: string;
   onSelect: (source: OnboardingImportSource) => void;
   visibleSources: readonly ImportSourceDescriptor[];
 }) {
   const { t } = useLocalization();
   return (
     <div className="desktop-dialog-body desktop-file-dialog-body onboarding-entry-dialog-body">
-      <p id={introId} className="onboarding-import-intro">{t("onboarding.entry.import.intro")}</p>
       <ul className="onboarding-import-sources">
         {visibleSources.map(({ id, label, mode, operational }, index) => (
           <ImportSourceRow
@@ -389,7 +383,7 @@ function RepositoryImportStep({
               spellCheck={false}
               disabled={busy}
               aria-invalid={unsupportedUrl ? "true" : undefined}
-              aria-describedby="onboarding-clone-hint"
+              aria-describedby={unsupportedUrl ? "onboarding-clone-hint" : undefined}
               data-desktop-dialog-initial-focus="true"
               placeholder={`https://${provider}.com/owner/repository.git`}
               onChange={(event) => {
@@ -398,17 +392,9 @@ function RepositoryImportStep({
               }}
             />
           </label>
-          <p
-            id="onboarding-clone-hint"
-            className={`onboarding-entry-dialog-note onboarding-clone-hint ${unsupportedUrl ? "is-unsupported" : ""}`}
-            role={unsupportedUrl ? "alert" : undefined}
-          >
-            {t(unsupportedUrl
-              ? "onboarding.entry.clone.unsupportedUrl"
-              : "onboarding.entry.chooseLocationHint", {
-              provider: REPOSITORY_PROVIDER_LABELS[provider],
-            })}
-          </p>
+          {unsupportedUrl && <p id="onboarding-clone-hint" className="onboarding-entry-dialog-note onboarding-clone-hint is-unsupported" role="alert">
+            {t("onboarding.entry.clone.unsupportedUrl", { provider: REPOSITORY_PROVIDER_LABELS[provider] })}
+          </p>}
           <ImportLocationField
             location={destination.location}
             choosing={destination.choosing}

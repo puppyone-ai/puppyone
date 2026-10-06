@@ -7,9 +7,8 @@ import "./cloud-project-activation.css";
 const CLOUD_AGENT_BRANDS = ["manus", "viktor", "chatgpt", "claude"] as const;
 
 /** One project value surface; authentication and publishing retain their owners. */
-export function CloudProjectActivation({ action, hint, supplemental, busy = false }: {
+export function CloudProjectActivation({ action, supplemental, busy = false }: {
   action: ReactNode;
-  hint?: ReactNode;
   supplemental?: ReactNode;
   busy?: boolean;
 }) {
@@ -55,7 +54,6 @@ export function CloudProjectActivation({ action, hint, supplemental, busy = fals
     </div>
     {supplemental && <div className="desktop-cloud-project-activation-supplemental">{supplemental}</div>}
     <div className="desktop-cloud-project-activation-actions">{action}</div>
-    {hint && <div className="desktop-cloud-project-activation-hint" aria-live="polite">{hint}</div>}
   </section>;
 }
 

@@ -27,7 +27,6 @@
   "empty.spinLogo": "{agent} のロゴを回転",
   "visual.title": "エージェントアーキテクチャ",
   "launcher.title": "エージェントを選んで開始",
-  "launcher.description": "このデバイスで利用できるエージェントを選択してください。選択後にチャットが開始されます。",
   "launcher.scanAgain": "再スキャン",
   "launcher.noneAvailable": "利用できるエージェントが見つかりません",
   "launcher.needsAttention": "{agent} の確認が必要です",

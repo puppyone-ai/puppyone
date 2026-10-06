@@ -2,7 +2,7 @@
   "activation.activate": "激活",
   "activation.consent": "Puppyone 将在后台安装 {agent} CLI，安装完成即激活。首次使用时可能需要登录。已有安装会直接复用。",
   "activation.guided": "此 Agent 需要通过官方流程完成设置。Puppyone 会帮你打开设置入口，并在返回后检查安装；账号与模型配置在启动 Agent 时检查。",
-  "activation.control": "你可以随时查看进度或终止。关闭此窗口后，任务会在后台继续。",
+  "activation.control": "关闭此窗口后，任务仍会在后台继续。",
   "activation.details": "安装详情",
   "activation.location": "安装在 Puppyone 的用户目录，无需管理员权限，不修改 shell 配置。",
   "activation.start": "安装并激活",
@@ -534,5 +534,7 @@
   "typography.preview.rightSidebar": "右侧栏",
   "typography.preview.chat": "聊天",
   "typography.preview.message": "我可以帮你整理这些笔记。",
-  "modelConnections.source.managed": "PuppyOne 账户"
+  "modelConnections.source.managed": "PuppyOne 账户",
+  "modelConnections.keyStorage": "密钥存储",
+  "modelConnections.keyRequired": "更改地址或认证方式后，请重新输入 API 密钥。"
 }

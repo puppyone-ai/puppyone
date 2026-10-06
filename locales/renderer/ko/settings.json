@@ -2,7 +2,7 @@
   "activation.activate": "활성화",
   "activation.consent": "Puppyone이 백그라운드에서 {agent} CLI를 설치합니다. 설치가 완료되면 활성화됩니다. 처음 사용할 때 로그인이 필요할 수 있습니다. 기존 설치는 재사용합니다.",
   "activation.guided": "이 Agent는 공식 설정 절차를 사용합니다. 설정 페이지를 열고 돌아온 후 설치를 확인합니다. 로그인과 모델 설정은 시작할 때 확인합니다.",
-  "activation.control": "언제든 진행 상황을 확인하거나 중지할 수 있습니다. 창을 닫아도 작업은 계속됩니다.",
+  "activation.control": "이 창을 닫아도 작업은 백그라운드에서 계속됩니다.",
   "activation.details": "설치 세부 정보",
   "activation.location": "Puppyone 사용자 디렉터리에 설치합니다. 관리자 권한이나 셸 설정 변경은 필요하지 않습니다.",
   "activation.start": "설치 및 활성화",
@@ -534,5 +534,7 @@
   "typography.preview.rightSidebar": "오른쪽 사이드바",
   "typography.preview.chat": "채팅",
   "typography.preview.message": "이 메모를 정리해 드릴게요.",
-  "modelConnections.source.managed": "PuppyOne 계정"
+  "modelConnections.source.managed": "PuppyOne 계정",
+  "modelConnections.keyStorage": "키 저장",
+  "modelConnections.keyRequired": "주소 또는 인증 방식을 변경하면 API 키를 다시 입력하세요."
 }

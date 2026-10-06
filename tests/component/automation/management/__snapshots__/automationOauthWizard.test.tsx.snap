@@ -1,5 +1,5 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`Automation OAuth wizard > keeps the resolving state visible until account lookup completes 1`] = `"Checking Google Docs…Reading the connection for this signed-in Cloud account.Back"`;
+exports[`Automation OAuth wizard > keeps the resolving state visible until account lookup completes 1`] = `"Checking Google Docs…Back"`;
 
 exports[`Automation OAuth wizard > shows lookup failure and retries without losing the chosen source 1`] = `"Connection status unavailableError: offlineBackRetry"`;

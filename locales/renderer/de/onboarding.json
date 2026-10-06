@@ -33,7 +33,6 @@
   "entry.chooseLocationHint": "Das {provider}-Repository wird auf diesen Computer kopiert.",
   "entry.clone.unsupportedUrl": "Gib eine {provider}-Repository-URL ein.",
   "entry.import.title": "Importieren",
-  "entry.import.intro": "Übertrage Inhalte aus diesen Apps in ein lokales Projekt.",
   "entry.import.directUnavailable": "Direktimport folgt",
   "entry.import.connect": "Mit {provider} verbinden",
   "entry.import.chooseResource": "Inhalt zum Importieren auswählen",

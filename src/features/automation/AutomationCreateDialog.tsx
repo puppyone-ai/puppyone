@@ -113,7 +113,7 @@ export function CloudNewAutomationDialog(props: CloudNewAutomationDialogProps) {
             <div className="desktop-dialog-title-row">
               <div>
                 <h2>{title}</h2>
-                <p>{getWizardDescription(step, provider, activeTemplate, t)}</p>
+                {step === "configure" && activeTemplate && <p>{formatAutomationTemplateDescription(activeTemplate, t)}</p>}
               </div>
             </div>
             <DesktopDialogCloseButton disabled={saving} onClick={onClose} />
@@ -397,7 +397,7 @@ function AutomationConfigureStep({ props, wizard, provider }: WizardContentProps
   const { t } = useLocalization();
   const { projectId, cloudSession, apiBaseUrl, onCloudSessionChange } = props;
   const { configValues, source, setConfigValues, setSource, trigger, setTrigger, targetPath, setTargetPath, saving, setStep, handleCreate } = wizard;
-  const { normalizedTargetPath, canCreate } = wizard.validation;
+  const { canCreate } = wizard.validation;
   const feedbackMessage = formatAutomationCreateFailure(wizard.feedback, t);
   return (
     <>
@@ -429,7 +429,7 @@ function AutomationConfigureStep({ props, wizard, provider }: WizardContentProps
         <section className="desktop-cloud-automation-node">
           <div className="desktop-cloud-automation-node-header">
             <span className="desktop-cloud-automation-node-icon"><img src={resolveRendererPublicAssetUrl(RENDERER_ASSET_PATHS.icons.ui.folder)} alt="" /></span>
-            <span dir="auto">/{normalizedTargetPath}</span>
+            <span>{t("automation.destination.projectFolder")}</span>
           </div>
           <div className="desktop-cloud-automation-node-body">
             <CloudAutomationDestinationEditor
@@ -449,7 +449,7 @@ function AutomationConfigureStep({ props, wizard, provider }: WizardContentProps
         </div>
       )}
       <div className="desktop-cloud-automation-dialog-footer-row">
-        <span className={canCreate ? "ready" : "muted"}>
+        <span className="muted">
           {getAutomationValidationMessage(wizard.validation, t)}
         </span>
         <div className="desktop-cloud-automation-actions">
@@ -489,7 +489,7 @@ function getAutomationValidationMessage(validation: ReturnType<typeof deriveAuto
   if (validation.sourceMissing) return t("automation.create.sourceMissing");
   if (validation.targetPathError) return formatAutomationValidationError(validation.targetPathError, t);
   if (validation.triggerError) return formatAutomationValidationError(validation.triggerError, t);
-  return t("automation.create.ready");
+  return null;
 }
 
 function getWizardTitle(step: WizardStep, provider: DesktopCloudAutomationProviderSpec | null, template: AutomationTemplate | null, t: MessageFormatter) {
@@ -507,8 +507,7 @@ function getConnectionHeading(phase: "starting" | "waiting" | "error", providerU
   return t("automation.connection.authorizationAttention");
 }
 
-function getConnectionDescription(phase: "starting" | "waiting" | "error", providerUnavailable: boolean, provider: string, error: OauthConnectFailure | null, t: MessageFormatter) {
-  if (phase !== "error") return t("automation.connection.finishInBrowser", { provider: bidiIsolate(provider) });
+function getConnectionDescription(providerUnavailable: boolean, provider: string, error: OauthConnectFailure | null, t: MessageFormatter) {
   if (providerUnavailable) return t("automation.connection.providerUnavailableDetail", { provider: bidiIsolate(provider) });
   return t("automation.error.detail", { detail: bidiIsolate(error?.detail) });
 }
@@ -529,12 +528,10 @@ function ConnectionResolvingState({
   return (
     <div className="desktop-cloud-automation-connect-state">
       {lookup?.state === "error" ? <ShieldCheck size={28} /> : <LoaderCircle className="desktop-dialog-spinner" size={28} />}
-      <h3>{lookup?.state === "error"
+      <h3 role="status">{lookup?.state === "error"
         ? t("automation.connection.statusUnavailable")
         : t("automation.connection.checkingProvider", { provider: bidiIsolate(providerLabel) })}</h3>
-      <p dir="auto">{lookup?.error
-        ? t("automation.error.detail", { detail: bidiIsolate(lookup.error) })
-        : t("automation.connection.readingAccount")}</p>
+      {lookup?.error && <p role="alert" dir="auto">{t("automation.error.detail", { detail: bidiIsolate(lookup.error) })}</p>}
       <div className="desktop-cloud-automation-actions">
         <button className="desktop-dialog-button" type="button" onClick={onBack}>{t("automation.action.back")}</button>
         {lookup?.state === "error" && (
@@ -563,8 +560,8 @@ function ConnectionWaitingState({
   return (
     <div className="desktop-cloud-automation-connect-state">
       {phase === "error" ? <ExternalLink size={28} /> : <LoaderCircle className="desktop-dialog-spinner" size={28} />}
-      <h3>{getConnectionHeading(phase, providerUnavailable, provider.display_name, t)}</h3>
-      <p dir="auto">{getConnectionDescription(phase, providerUnavailable, provider.display_name, error, t)}</p>
+      <h3 role="status">{getConnectionHeading(phase, providerUnavailable, provider.display_name, t)}</h3>
+      {phase === "error" && <p role="alert" dir="auto">{getConnectionDescription(providerUnavailable, provider.display_name, error, t)}</p>}
       <div className="desktop-cloud-automation-actions">
         <button className={`desktop-dialog-button${providerUnavailable ? " primary" : ""}`} type="button" onClick={onCancel}>
           {providerUnavailable ? t("automation.create.chooseAnotherSource") : t("common.action.cancel")}
@@ -610,21 +607,6 @@ function getProviderConnectionBadge(
   }
   if (lookup.state === "error") return { label: t("automation.connection.statusUnavailableShort"), tone: "error" };
   return { label: t("automation.connection.required"), tone: "required" };
-}
-
-function getWizardDescription(
-  step: WizardStep,
-  provider: DesktopCloudAutomationProviderSpec | null,
-  template: AutomationTemplate | null,
-  t: MessageFormatter,
-) {
-  if (step === "choose") return t("automation.create.description.choose");
-  if (step === "connect") return t("automation.create.description.connect");
-  if (step === "resolving") return t("automation.create.description.resolving");
-  if (template) return formatAutomationTemplateDescription(template, t);
-  return t("automation.create.description.configure", {
-    provider: bidiIsolate(provider?.display_name ?? t("automation.source.generic")),
-  });
 }
 
 function createAutomationEcho(

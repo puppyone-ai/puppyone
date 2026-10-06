@@ -126,11 +126,6 @@
     background: color-mix(in srgb, var(--po-text) 90%, var(--po-canvas));
   }
 
-  .desktop-cloud-project-activation-hint {
-    color: inherit;
-    font: inherit;
-  }
-
   .desktop-cloud-project-activation-supplemental {
     width: min(100%, 440px);
     font: inherit;

@@ -82,8 +82,8 @@ export function AgentSurfaceHeader({
         <Tooltip content={t("agent.header.sessionActions")}><button type="button" className="desktop-agent-icon-button" aria-label={t("agent.header.sessionActionsFor", { agent: bidiIsolate(runtimeLabel) })} aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((value) => !value)}><MoreHorizontal size={16} /></button></Tooltip>
         {menuOpen && (
           <DesktopMenuSurface ariaLabel={t("agent.header.sessionActionsFor", { agent: bidiIsolate(runtimeLabel) })} className="desktop-menu-surface desktop-agent-session-menu">
-            <DesktopMenuItem icon={<CircleAlert size={15} />} label={t("agent.header.diagnostics")} detail={diagnostic || t("agent.header.noDiagnostics")} disabled />
-            {(canCompact || onCloseSession) && <DesktopMenuSeparator />}
+            <AgentDiagnosticsMenuItem diagnostic={diagnostic} />
+            {diagnostic && (canCompact || onCloseSession) && <DesktopMenuSeparator />}
             {canCompact && onCompactSession && <DesktopMenuItem icon={<RotateCcw size={15} />} label={t("agent.header.compactContext")} disabled={loading || newSessionDisabled} onClick={() => { setMenuOpen(false); onCompactSession(); }} />}
             {onCloseSession && <DesktopMenuItem icon={<RotateCcw size={15} />} label={t("agent.header.closeConnection")} disabled={loading || closeDisabled} onClick={() => { setMenuOpen(false); onCloseSession(); }} />}
           </DesktopMenuSurface>
@@ -91,4 +91,13 @@ export function AgentSurfaceHeader({
       </div>
     </header>
   );
+}
+
+function AgentDiagnosticsMenuItem({ diagnostic }: { diagnostic?: string | null }) {
+  const { t } = useLocalization();
+  const [open, setOpen] = useState(false);
+  if (!diagnostic) return null;
+  return <DesktopMenuItem icon={<CircleAlert size={15} />} label={t("agent.header.diagnostics")}
+    aria-expanded={open} detail={open ? diagnostic : undefined}
+    onClick={() => setOpen((value) => !value)} />;
 }

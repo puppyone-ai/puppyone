@@ -27,7 +27,6 @@
   "empty.spinLogo": "Spin the {agent} logo",
   "visual.title": "Agent architecture",
   "launcher.title": "Start with an Agent",
-  "launcher.description": "Choose an Agent available on this device. Chat starts after you make a selection.",
   "launcher.scanAgain": "Scan again",
   "launcher.noneAvailable": "No available Agents found",
   "launcher.needsAttention": "{agent} needs attention",

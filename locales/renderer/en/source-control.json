@@ -240,7 +240,6 @@
   "dialog.discard.count": "Discard local changes in {count, plural, one {# file} other {# files}}? This cannot be undone.",
   "dialog.discard.path": "Discard local changes in {path}? This cannot be undone.",
   "dialog.error.copyPrompt": "Copy Prompt",
-  "dialog.error.detail": "Copy the fix prompt into Codex or Claude Code if you want an agent to repair it.",
   "dialog.error.rawOutput": "Raw Git output",
   "dialog.error.title": "Git Operation Failed",
   "dialog.switch.changeCount": "{count, plural, one {local change} other {local changes}} in this workspace.",

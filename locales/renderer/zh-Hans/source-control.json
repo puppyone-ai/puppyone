@@ -240,7 +240,6 @@
   "dialog.discard.count": "要丢弃 {count, plural, other {# 个文件}}中的本地更改吗？此操作无法撤销。",
   "dialog.discard.path": "要丢弃 {path} 中的本地更改吗？此操作无法撤销。",
   "dialog.error.copyPrompt": "复制修复提示",
-  "dialog.error.detail": "如果希望代理协助修复，请将修复提示复制到 Codex 或 Claude Code。",
   "dialog.error.rawOutput": "Git 原始输出",
   "dialog.error.title": "Git 操作失败",
   "dialog.switch.changeCount": "此工作区中有 {count, plural, other {# 项本地更改}}。",

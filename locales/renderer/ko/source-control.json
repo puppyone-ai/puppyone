@@ -240,7 +240,6 @@
   "dialog.discard.count": "{count, plural, other {#개 파일}}의 로컬 변경 사항을 버리시겠습니까? 이 작업은 취소할 수 없습니다.",
   "dialog.discard.path": "{path}의 로컬 변경 사항을 버리시겠습니까? 이 작업은 취소할 수 없습니다.",
   "dialog.error.copyPrompt": "요청문 복사",
-  "dialog.error.detail": "에이전트가 문제를 해결하도록 하려면 수정 요청문을 Codex 또는 Claude Code에 복사하세요.",
   "dialog.error.rawOutput": "Git 원본 출력",
   "dialog.error.title": "Git 작업 실패",
   "dialog.switch.changeCount": "이 작업 공간에 {count, plural, other {#개의 로컬 변경 사항}}이 있습니다.",

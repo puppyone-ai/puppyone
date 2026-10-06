@@ -181,7 +181,6 @@ export function DesktopCloudCreateAccessDialog({
           <div className="desktop-dialog-title-row">
             <div>
               <h2>{t("cloud.access.create.title")}</h2>
-              <p>{t("cloud.access.create.description")}</p>
             </div>
           </div>
           <DesktopDialogCloseButton disabled={saving} onClick={onClose} />

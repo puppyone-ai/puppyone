@@ -16,7 +16,7 @@ export function CloudWorkspaceRecovery({ title, message, onRetry, actions, showL
     <div className="desktop-cloud-workspace-recovery-copy" role="alert">
       <strong>{title ?? t("cloud.recovery.title")}</strong>
       <p>{message}</p>
-      {showLocalState && <small>{t("cloud.recovery.localStatePreserved")}</small>}
+      {showLocalState && <details><summary>{t("cloud.common.details")}</summary><small>{t("cloud.recovery.localStatePreserved")}</small></details>}
     </div>
     <div className="desktop-cloud-workspace-recovery-actions">
       <button type="button" className="desktop-dialog-button" onClick={onRetry}>

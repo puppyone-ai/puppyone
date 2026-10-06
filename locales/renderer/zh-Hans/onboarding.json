@@ -33,7 +33,6 @@
   "entry.chooseLocationHint": "{provider} 仓库会复制到这台电脑上。",
   "entry.clone.unsupportedUrl": "请输入 {provider} 仓库链接。",
   "entry.import.title": "导入",
-  "entry.import.intro": "把这些应用中的内容导入本地项目。",
   "entry.import.directUnavailable": "直连待接入",
   "entry.import.connect": "连接 {provider}",
   "entry.import.chooseResource": "选择要导入的内容",

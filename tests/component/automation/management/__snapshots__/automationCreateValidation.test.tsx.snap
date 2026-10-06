@@ -12,7 +12,7 @@ exports[`Automation configure rendering captured before extraction > disables cr
       "text": "Create Automation",
     },
   ],
-  "footer": "Ready to create Automation and queue its first sync.BackCreate Automation",
+  "footer": "BackCreate Automation",
 }
 `;
 
@@ -28,7 +28,7 @@ exports[`Automation configure rendering captured before extraction > disables cr
       "text": "Creating…",
     },
   ],
-  "footer": "Ready to create Automation and queue its first sync.BackCreating…",
+  "footer": "BackCreating…",
 }
 `;
 
@@ -60,7 +60,7 @@ exports[`Automation configure rendering captured before extraction > keeps requi
       "text": "Create Automation",
     },
   ],
-  "footer": "Ready to create Automation and queue its first sync.BackCreate Automation",
+  "footer": "BackCreate Automation",
 }
 `;
 

@@ -19,10 +19,8 @@ export function CreateAccessIntentPicker({
     <section className="desktop-cloud-create-access-intent">
       <div className="desktop-cloud-create-access-intent-header">
         <div>
-          <span>{t("cloud.access.create.startWithJob")}</span>
           <strong>{t("cloud.access.create.intentQuestion")}</strong>
         </div>
-        <small>{t("cloud.access.create.intentHelp")}</small>
       </div>
       <div className="desktop-cloud-create-access-intent-grid">
         {CREATE_ACCESS_INTENT_OPTIONS.map((option) => {

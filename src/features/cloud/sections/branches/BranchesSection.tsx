@@ -161,7 +161,6 @@ export function CloudBranchesSection({
           <CloudWebEmpty
             icon={GitBranch}
             title={t("cloud.branches.none")}
-            detail={t("cloud.branches.noneDetail")}
           />
         ) : (
           <>

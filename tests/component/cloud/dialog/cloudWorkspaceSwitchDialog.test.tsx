@@ -61,7 +61,10 @@ describe("login before Cloud selection", () => {
     expect(native ? auth.start : auth.browser).toHaveBeenCalledWith(native ? API : "/login");
     expect(native ? auth.browser : auth.start).not.toHaveBeenCalled();
     expect(signIn.disabled).toBe(native);
-    if (native) expect(dialog.textContent).toContain("Finish signing in in your browser.");
+    if (native) {
+      expect(dialog.querySelector("[data-cloud-sign-in-action]")?.textContent).toContain("Waiting for sign-in");
+      expect(dialog.querySelector(".desktop-cloud-project-activation-hint")).toBeNull();
+    }
     expect(document.querySelector('[data-current-provider]')?.getAttribute("data-current-provider")).toBe("local");
     await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     expect(document.querySelector('[role="dialog"]')).toBeNull();

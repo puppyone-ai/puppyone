@@ -28,7 +28,6 @@ export function VersionControlSetupState({
         </div>
       )}
       title={t("source-control.setup.title")}
-      description={t("source-control.setup.description")}
       action={(
         <button
           className="desktop-version-control-enable-button"

@@ -213,14 +213,6 @@ export function DesktopHelpLauncher(overlayTheme: DesktopHelpLauncherProps) {
         : submissionState === "error"
           ? t("shell.feedback.error")
           : t("shell.feedback.send");
-  const liveStatus =
-    submissionState === "sending"
-      ? t("shell.feedback.sending")
-      : submissionState === "sent"
-        ? t("shell.feedback.sent")
-        : submissionState === "error"
-          ? t("shell.feedback.error")
-          : attachmentError;
 
   return (
     <div
@@ -391,8 +383,8 @@ export function DesktopHelpLauncher(overlayTheme: DesktopHelpLauncherProps) {
                 </div>
 
                 <footer className="desktop-dialog-footer desktop-feedback-footer">
-                  <span className="desktop-feedback-status" aria-live="polite">
-                    {liveStatus}
+                  <span className="desktop-feedback-status" role="alert">
+                    {attachmentError}
                   </span>
                   <Tooltip content={sendLabel}><button
                     className="desktop-dialog-button primary desktop-feedback-submit"
@@ -413,7 +405,7 @@ export function DesktopHelpLauncher(overlayTheme: DesktopHelpLauncherProps) {
                     ) : submissionState === "error" ? (
                       <CircleAlert size={14} strokeWidth={1.9} aria-hidden="true" />
                     ) : null}
-                    <span>{sendLabel}</span>
+                    <span role="status" aria-live="polite">{sendLabel}</span>
                   </button></Tooltip>
                 </footer>
               </form>

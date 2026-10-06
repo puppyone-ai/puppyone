@@ -12,7 +12,6 @@ export function DesktopCloudSignInCta({ signingIn, error, onSignIn }: {
   const { t } = useLocalization();
   return (
     <CloudProjectActivation busy={signingIn}
-      hint={signingIn ? t("cloud.auth.desktopWaitingHint") : undefined}
       supplemental={error && <p className="desktop-cloud-sign-in-error" role="alert">{error}</p>}
       action={
         <button
@@ -26,7 +25,7 @@ export function DesktopCloudSignInCta({ signingIn, error, onSignIn }: {
           {signingIn
             ? <LoaderCircle size={14} className="desktop-dialog-spinner" aria-hidden="true" />
             : <ArrowUpRight size={14} aria-hidden="true" />}
-          <span>{t(signingIn ? "cloud.auth.desktopWaiting" : "cloud.auth.desktopContinue")}</span>
+          <span role="status" aria-live="polite">{t(signingIn ? "cloud.auth.desktopWaiting" : "cloud.auth.desktopContinue")}</span>
         </button>
       }
     />

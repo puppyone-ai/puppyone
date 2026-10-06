@@ -33,7 +33,6 @@
   "entry.chooseLocationHint": "The {provider} repository will be copied to this computer.",
   "entry.clone.unsupportedUrl": "Enter a {provider} repository URL.",
   "entry.import.title": "Import",
-  "entry.import.intro": "Bring content from these apps into a local project.",
   "entry.import.directUnavailable": "Direct import pending",
   "entry.import.connect": "Connect to {provider}",
   "entry.import.chooseResource": "Choose what to import",

@@ -189,7 +189,9 @@ it.each(["loading", "ready"] as const)("shows preparation instead of a billing e
     managed: { signedIn: true, reason, available: reason === "ready" } });
   expect(document.querySelector('[role="status"]')?.textContent).toBe("Connecting to compute…");
   expect(document.querySelector('[aria-busy="true"]')).not.toBeNull();
-  expect(document.querySelector(".desktop-agent-access-primary")).toBeNull();
+  expect(document.querySelector<HTMLButtonElement>(".desktop-agent-access-primary")?.disabled).toBe(true);
+  expect(document.querySelector(".desktop-agent-access-primary")?.textContent).toBe("Connecting to compute…");
+  expect(document.body.textContent).not.toContain("Your draft is saved");
   expect(document.body.textContent).not.toMatch(/Could not|Refresh balance|Add credit/);
   expect(onReadyChange).toHaveBeenLastCalledWith(false);
 });

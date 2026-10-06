@@ -74,9 +74,6 @@ export function CloudOrganizationTeamPage({
   return (
     <CloudOrganizationPageShell
       title={t("cloud.route.cloud-team.title")}
-      description={t("cloud.team.description", {
-        organization: bidiIsolate(organization?.name ?? t("cloud.organization.yours")),
-      })}
       actions={(
         <>
           <CloudOrganizationSelector organizationData={orgData} />
@@ -173,7 +170,7 @@ export function CloudOrganizationPageShell({
   children,
 }: {
   title: string;
-  description: string;
+  description?: string;
   actions?: ReactNode;
   children: ReactNode;
 }) {
@@ -184,7 +181,7 @@ export function CloudOrganizationPageShell({
           <header className="desktop-cloud-org-header">
             <div className="desktop-cloud-org-header-copy">
               <h1>{title}</h1>
-              <p>{description}</p>
+              {description && <p>{description}</p>}
             </div>
             {actions && <div className="desktop-cloud-org-actions">{actions}</div>}
           </header>
