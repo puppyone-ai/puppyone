@@ -217,8 +217,15 @@ async function checkInlinePresentation(window, url, scene, catalog) {
       const header = wrap.closest('.desktop-titlebar');
       const peer = document.createElement('button');
       peer.className = 'desktop-titlebar-action';
+      peer.setAttribute('aria-pressed', 'true');
       header.append(peer);
       const peerBounds = peer.getBoundingClientRect();
+      const peerStyle = getComputedStyle(peer);
+      const peerSelection = {
+        background: peerStyle.backgroundColor, image: peerStyle.backgroundImage,
+        color: peerStyle.color, shadow: peerStyle.boxShadow,
+        border: peerStyle.borderTop,
+      };
       peer.remove();
       const rect = element => {
         const r = element.getBoundingClientRect();
@@ -245,7 +252,7 @@ async function checkInlinePresentation(window, url, scene, catalog) {
         hasPopup: !!document.querySelector('.desktop-project-location-menu'),
         name: label.textContent, nameBounds: rect(label), nameFont: getComputedStyle(label).font,
         nameColor: getComputedStyle(label).color,
-        colorScheme: getComputedStyle(header).colorScheme, headerTextColor: getComputedStyle(header).color,
+        colorScheme: getComputedStyle(header).colorScheme,
         selectedContrast: contrast(selectedLuminance, luminance(getComputedStyle(selected).color)),
         selectedEmphasis: contrast(selectedLuminance, headerLuminance),
         selectedLighter: selectedLuminance > headerLuminance,
@@ -259,8 +266,11 @@ async function checkInlinePresentation(window, url, scene, catalog) {
         selected: selected.dataset.projectLocation,
         plate: rect(plate), selectedBounds: rect(selected),
         selectedBackground: getComputedStyle(plate).backgroundColor,
+        selectedImage: getComputedStyle(plate).backgroundImage,
+        selectedShadow: getComputedStyle(plate).boxShadow,
+        selectedBorder: getComputedStyle(plate).borderTop,
         headerBackground: getComputedStyle(header).backgroundColor,
-        peer: { width: peerBounds.width, height: peerBounds.height },
+        peer: { width: peerBounds.width, height: peerBounds.height, ...peerSelection },
         track: { bounds: rect(track), background: getComputedStyle(track).backgroundColor,
           padding: parseFloat(getComputedStyle(track).paddingLeft),
           border: getComputedStyle(track).borderTopWidth, radius: getComputedStyle(track).borderRadius },
@@ -277,7 +287,7 @@ async function checkInlinePresentation(window, url, scene, catalog) {
       (button.selected ? button.text === catalog[scene.state === "cloud-only" ? "navigation.cloud" : "workspaceSwitcher.location.local"]
         : button.text === "" && button.bounds.width === snapshot.peer.width - snapshot.track.padding)
       && button.font === snapshot.nameFont
-      && (!button.selected || button.color === (snapshot.colorScheme === "dark" ? snapshot.headerTextColor : snapshot.nameColor))
+      && (!button.selected || button.color === snapshot.peer.color)
       && button.bounds.height === snapshot.peer.height - 2 * snapshot.track.padding
       && button.bounds.x >= snapshot.track.bounds.x + snapshot.track.padding
       && button.bounds.right <= snapshot.track.bounds.right - snapshot.track.padding
@@ -289,8 +299,11 @@ async function checkInlinePresentation(window, url, scene, catalog) {
     assert(snapshot.buttons[0].label === catalog["workspaceSwitcher.location.local"]
       && snapshot.buttons[1].label === catalog[creating ? "workspaceSwitcher.shareToCloud" : "navigation.cloud"], `Header actions must retain localized accessible names: ${evidence}`);
     assert(snapshot.currentCount === 1 && snapshot.pressedCount === 1 && snapshot.selected === (scene.state === "cloud-only" ? "cloud" : "local"), `Inline selection must match committed state: ${evidence}`);
-    if (snapshot.colorScheme === "dark") assert(snapshot.selectedLighter && snapshot.selectedEmphasis >= 1.3 && snapshot.selectedContrast >= 4.5,
-      `Dark Header selection needs a distinct lighter plate and readable text: ${evidence}`);
+    assert(snapshot.selectedBackground === snapshot.peer.background && snapshot.selectedImage === snapshot.peer.image
+      && snapshot.selectedShadow === snapshot.peer.shadow && snapshot.selectedBorder === snapshot.peer.border,
+      `Location selection must match the Header's selected action surface, shadow and border: ${evidence}`);
+    if (snapshot.colorScheme === "dark") assert(snapshot.selectedContrast >= 4.5,
+      `Dark Header selected text must remain readable: ${evidence}`);
     assert(Math.abs(snapshot.plate.x - snapshot.selectedBounds.x) < 1 && Math.abs(snapshot.plate.y - snapshot.selectedBounds.y) < 1
       && Math.abs(snapshot.plate.width - snapshot.selectedBounds.width) < 1 && snapshot.plate.height === snapshot.selectedBounds.height,
       `Indicator must fit the inset active location without replay: ${evidence}`);

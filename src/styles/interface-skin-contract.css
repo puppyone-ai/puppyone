@@ -61,6 +61,23 @@
   box-shadow: var(--interface-titlebar-control-active-box-shadow);
 }
 
+/* The sliding location plate follows the same selected Header control tokens. */
+:root[data-interface-style]:not([data-interface-style="default"])
+  .desktop-project-location-controls[data-presentation="header-icons"] {
+  --desktop-project-location-selected-bg:
+    var(--desktop-titlebar-windows-hover-background, var(--interface-titlebar-control-active-background));
+  --desktop-project-location-selected-color:
+    var(--desktop-titlebar-windows-symbol-color, var(--interface-titlebar-control-active-color));
+  --desktop-project-location-selected-shadow: var(--interface-titlebar-control-active-box-shadow);
+}
+
+:root[data-interface-style]:not([data-interface-style="default"])
+  .desktop-project-location-controls[data-presentation="header-icons"] .desktop-project-location-indicator {
+  box-sizing: border-box;
+  border: var(--interface-titlebar-control-border);
+  border-color: var(--interface-titlebar-control-active-border-color);
+}
+
 :root[data-interface-style]:not([data-interface-style="default"])
   :where(.desktop-explorer-toolbar, .browser-toolbar, .file-preview-header) {
   border-bottom: var(--interface-toolbar-border-bottom);
