@@ -548,8 +548,8 @@ span.homepage-cloud-feedback {
 }
 
 .homepage-cloud-avatar {
-  width: var(--desktop-titlebar-control-height);
-  height: var(--desktop-titlebar-control-height);
+  width: 24px;
+  height: 24px;
   flex: 0 0 auto;
   padding: 0;
   border-radius: 50%;
