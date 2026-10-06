@@ -81,6 +81,15 @@
   color: #ffffff;
 }
 
+:root[data-interface-style="windows-xp"] .desktop-project-location-controls[data-presentation="header-icons"] {
+  --desktop-project-location-bg: transparent;
+  --desktop-titlebar-text: var(--xp-titlebar-text);
+  --desktop-titlebar-text-muted: var(--xp-titlebar-text);
+  font-size: var(--po-type-ui-body, 14px);
+  font-weight: 700;
+  line-height: 18px;
+}
+
 :root[data-interface-style="windows-xp"] .desktop-window-controls {
   display: flex;
   flex: 0 0 auto;

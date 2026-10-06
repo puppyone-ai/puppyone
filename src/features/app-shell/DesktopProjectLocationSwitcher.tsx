@@ -88,6 +88,10 @@ export function DesktopProjectLocationControls({
         aria-busy={projectLocation?.loading || projectLocation?.cloudState === "resolving" || undefined}
         aria-label={t("shell.workspaceSwitcher.projectDetails")}>
         <span className="desktop-project-location-indicator" aria-hidden="true" />
+        {presentation === "header-icons" && <span className="desktop-project-location-label-size" aria-hidden="true">
+          <span>{t("shell.workspaceSwitcher.location.local")}</span>
+          <span>{t("shell.navigation.cloud")}</span>
+        </span>}
         {(["local", "cloud"] as const).map(location => <ProjectLocationTab key={location}
           location={location} current={current} selection={selection} createCloud={createCloud}
           localDeviceLabel={localDeviceLabel} projectLocation={projectLocation}
@@ -115,14 +119,14 @@ type LocationTabProps = Pick<Parameters<typeof DesktopProjectLocationControls>[0
 
 function ProjectLocationTab(props: LocationTabProps) {
   const { t } = useLocalization();
-  const { location, current, selection, createCloud, localDeviceLabel, projectLocation, onViewLocal, onViewCloud, presentation } = props;
-  const iconOnly = presentation === "header-icons";
+  const { location, current, selection, createCloud, projectLocation, onViewLocal, onViewCloud, presentation } = props;
+  const inHeader = presentation === "header-icons";
   const creating = location === "cloud" && createCloud;
   const loading = location === "cloud" && Boolean(projectLocation?.loading || projectLocation?.cloudState === "resolving");
   const selected = location === selection;
   const navigate = location === "local" ? onViewLocal : onViewCloud;
   const disabled = !selected && (!navigate || (location === "local" && projectLocation?.localAvailable === false));
-  const label = useProjectLocationLabel(location, creating, localDeviceLabel);
+  const { label, visibleLabel, iconOnly } = useProjectLocationTabLabels(props, creating, selected);
   return <Tooltip content={iconOnly ? t(getLocationTabTooltip(props)) : undefined}><button
     className="desktop-project-location-tab" type="button" data-project-location={location}
     aria-label={label}
@@ -132,9 +136,17 @@ function ProjectLocationTab(props: LocationTabProps) {
     data-cloud-pending={loading || undefined}
     disabled={disabled} onClick={() => { if (!selected) navigate?.(); }}>
     {loading ? <span className="desktop-project-location-tab-mark" aria-hidden="true"><PulseGrid size="xs" ariaHidden /></span>
-      : <ProjectLocationMark className="desktop-project-location-tab-mark" kind={location} creating={creating && !iconOnly} size={iconOnly ? 16 : 14} />}
-    {!iconOnly && <span>{label}</span>}
+      : <ProjectLocationMark className="desktop-project-location-tab-mark" kind={location} creating={creating && !inHeader} size={inHeader ? 16 : 14} />}
+    {!iconOnly && <span>{visibleLabel}</span>}
   </button></Tooltip>;
+}
+
+function useProjectLocationTabLabels({ location, presentation, localDeviceLabel }: LocationTabProps, creating: boolean, selected: boolean) {
+  const { t } = useLocalization();
+  const label = useProjectLocationLabel(location, creating, localDeviceLabel);
+  if (presentation !== "header-icons") return { label, visibleLabel: label, iconOnly: false };
+  const visibleLabel = t(location === "local" ? "shell.workspaceSwitcher.location.local" : "shell.navigation.cloud");
+  return { label: creating ? label : visibleLabel, visibleLabel, iconOnly: !selected };
 }
 
 function useProjectLocationLabel(location: "local" | "cloud", creating: boolean, deviceLabel: string) {

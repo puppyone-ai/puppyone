@@ -64,10 +64,13 @@ describe("project location presentation experiment", () => {
     expect(Boolean(controls?.closest(".desktop-project-location-menu"))).toBe(!inline);
     expect(cloudButton.getAttribute("aria-label")).toBe("Cloud");
     expect(cloudButton.textContent).toBe(inline ? "" : "Cloud");
+    expect(button("local").textContent).toBe(inline ? "Local" : "This Mac");
     act(() => cloudButton.click());
     expect(button("cloud")).toBe(cloudButton);
     expect(button("cloud").getAttribute("aria-pressed")).toBe("true");
     expect(button("local").getAttribute("aria-current")).toBe("true");
+    expect(cloudButton.textContent).toBe("Cloud");
+    expect(button("local").textContent).toBe(inline ? "" : "This Mac");
     expect(controls?.getAttribute("data-presentation")).toBe(inline ? "header-icons" : "popover");
     expect(document.querySelector('.desktop-project-location-tabs')?.getAttribute("aria-busy")).toBe("true");
     expect(button("cloud").querySelector('[data-puppy-loader="pulse-grid"]')).not.toBeNull();
@@ -77,8 +80,11 @@ describe("project location presentation experiment", () => {
     expect(button("cloud")).toBe(cloudButton);
     expect(button("cloud").getAttribute("aria-current")).toBe("true");
     expect(button("cloud").querySelector('[data-puppy-loader]')).toBeNull();
+    expect(cloudButton.textContent).toBe("Cloud");
     act(() => button("local").click());
     expect(button("local").getAttribute("aria-pressed")).toBe("true");
+    expect(button("local").textContent).toBe(inline ? "Local" : "This Mac");
+    expect(cloudButton.textContent).toBe(inline ? "" : "Cloud");
     expect(navigate.mock.calls).toEqual([["cloud"], ["local"]]);
   });
 

@@ -226,9 +226,11 @@ async function checkInlinePresentation(window, url, scene, catalog) {
       };
       return {
         hasPopup: !!document.querySelector('.desktop-project-location-menu'),
-        name: label.textContent, nameBounds: rect(label),
+        name: label.textContent, nameBounds: rect(label), nameFont: getComputedStyle(label).font,
+        nameColor: getComputedStyle(label).color,
         buttons: buttons.map(button => ({ bounds: rect(button), label: button.getAttribute('aria-label'),
           text: button.textContent, color: getComputedStyle(button).color,
+          font: getComputedStyle(button).font, selected: button.getAttribute('aria-pressed') === 'true',
           markColor: getComputedStyle(button.querySelector('.desktop-project-location-tab-mark')).color,
           disabled: button.disabled })),
         currentCount: wrap.querySelectorAll('button[aria-current="true"]').length,
@@ -250,23 +252,28 @@ async function checkInlinePresentation(window, url, scene, catalog) {
     const evidence = JSON.stringify({ ...scene, width, ...snapshot });
     const creating = scene.state === "local-only" || scene.state === "local-github";
     assert(!snapshot.hasPopup && snapshot.name === "To-Do-List", `Inline experiment must keep the name and move location controls into Header: ${evidence}`);
-    assert(snapshot.buttons.length === 2 && snapshot.buttons.every(button => button.text === "" && button.bounds.width === snapshot.peer.width - snapshot.track.padding
+    assert(snapshot.buttons.length === 2 && snapshot.buttons.every(button =>
+      (button.selected ? button.text === catalog[scene.state === "cloud-only" ? "navigation.cloud" : "workspaceSwitcher.location.local"]
+        : button.text === "" && button.bounds.width === snapshot.peer.width - snapshot.track.padding)
+      && button.font === snapshot.nameFont && (!button.selected || button.color === snapshot.nameColor)
       && button.bounds.height === snapshot.peer.height - 2 * snapshot.track.padding
       && button.bounds.x >= snapshot.track.bounds.x + snapshot.track.padding
       && button.bounds.right <= snapshot.track.bounds.right - snapshot.track.padding
       && button.bounds.y >= snapshot.track.bounds.y + snapshot.track.padding
       && button.bounds.bottom <= snapshot.track.bounds.bottom - snapshot.track.padding
       && button.bounds.x >= 0 && button.bounds.right <= width && button.bounds.bottom <= 48
-      && button.color === button.markColor), `Header icons must be compact, unclipped and inherit foreground: ${evidence}`);
+      && button.color === button.markColor), `Header current label and icons must fit, match project typography and inherit foreground: ${evidence}`);
     assert(snapshot.nameBounds.right <= snapshot.buttons[0].bounds.x + 1, `Project name and icons must not overlap: ${evidence}`);
-    assert(snapshot.buttons[0].label === catalog[scene.platform === "macos" ? "workspaceSwitcher.location.thisMac" : "workspaceSwitcher.location.thisComputer"]
-      && snapshot.buttons[1].label === catalog[creating ? "workspaceSwitcher.shareToCloud" : "navigation.cloud"], `Icon-only actions must retain localized accessible names: ${evidence}`);
+    assert(snapshot.buttons[0].label === catalog["workspaceSwitcher.location.local"]
+      && snapshot.buttons[1].label === catalog[creating ? "workspaceSwitcher.shareToCloud" : "navigation.cloud"], `Header actions must retain localized accessible names: ${evidence}`);
     assert(snapshot.currentCount === 1 && snapshot.pressedCount === 1 && snapshot.selected === (scene.state === "cloud-only" ? "cloud" : "local"), `Inline selection must match committed state: ${evidence}`);
     assert(Math.abs(snapshot.plate.x - snapshot.selectedBounds.x) < 1 && Math.abs(snapshot.plate.y - snapshot.selectedBounds.y) < 1
       && Math.abs(snapshot.plate.width - snapshot.selectedBounds.width) < 1 && snapshot.plate.height === snapshot.selectedBounds.height,
       `Indicator must fit the inset active location without replay: ${evidence}`);
-    assert(snapshot.track.bounds.width === snapshot.peer.width * 2 + 2 && snapshot.track.bounds.height === snapshot.peer.height
-      && snapshot.track.padding === 2 && snapshot.track.background === snapshot.headerBackground
+    assert(Math.abs(snapshot.track.bounds.width - snapshot.buttons.reduce((sum, button) => sum + button.bounds.width, 0) - 2 - 2 * snapshot.track.padding) < 1
+      && snapshot.track.bounds.height === snapshot.peer.height
+      && snapshot.track.padding === 2
+      && snapshot.track.background === (scene.style === "windows-xp" ? "rgba(0, 0, 0, 0)" : snapshot.headerBackground)
       && snapshot.selectedBackground !== "rgb(255, 255, 255)" && snapshot.selectedBackground !== snapshot.headerBackground
       && snapshot.buttonBackgrounds.every(background => background === "rgba(0, 0, 0, 0)"),
       `Keep the selected shade inset inside the Header-sized track: ${evidence}`);
@@ -300,7 +307,6 @@ async function checkHeaderSlide(window, direction, destination) {
     const target = track.querySelector('button[data-project-location=${destination}]');
     const before = plate.getBoundingClientRect().x;
     const geometry = track.getBoundingClientRect();
-    const travel = Math.abs(target.getBoundingClientRect().x - track.querySelector('button[data-project-location=${destination === "cloud" ? "local" : "cloud"}]').getBoundingClientRect().x);
     const frames = [];
     const started = performance.now();
     target.click();
@@ -315,7 +321,7 @@ async function checkHeaderSlide(window, direction, destination) {
       requestAnimationFrame(sample);
     });
     return { before, after: plate.getBoundingClientRect().x, target: target.getBoundingClientRect().x,
-      travel, width: geometry.width, height: geometry.height,
+      travel: Math.abs(target.getBoundingClientRect().x - before), width: geometry.width, height: geometry.height,
       reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
       selected: track.dataset.location, current: track.querySelector('button[aria-current="true"]').dataset.projectLocation,
       frames };
