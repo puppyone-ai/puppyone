@@ -40,6 +40,7 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, onSessi
           </button>
         </Tooltip>;
       })}
+      <span className="desktop-titlebar-action-divider" aria-hidden="true" />
       <Tooltip content={t(agentOpen ? "shell.titlebar.hideAgent" : "shell.titlebar.showAgent")}>
         <button type="button" className="desktop-titlebar-action desktop-titlebar-terminal"
           data-cloud-workspace-tool="agent" disabled={!ready || !onToggleAgent}
