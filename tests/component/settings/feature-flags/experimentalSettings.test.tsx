@@ -20,19 +20,33 @@ afterEach(() => {
 });
 
 describe("Experimental settings", () => {
-  it("persists the Header location experiment independently and restores the popup when disabled", () => {
+  it("persists exclusive location and chat placement choices independently and restores the original defaults", () => {
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
     act(() => root?.render(withTestLocalization(<ExperimentalSettingsView />)));
-    const toggle = host.querySelector<HTMLInputElement>('input[aria-label="Local / Cloud switch in Header"]');
-    expect(toggle?.checked).toBe(false);
-    expect(toggle?.closest(".desktop-settings-subsection")?.querySelector("h3")?.textContent).toBe("Header & layout");
-    act(() => toggle?.click());
+    const locationGroup = host.querySelector('[role="group"][aria-label="Local / Cloud switch position"]')!;
+    const chatGroup = host.querySelector('[role="group"][aria-label="Chat tabs position"]')!;
+    const [menu, locationHeader] = [...locationGroup.querySelectorAll<HTMLButtonElement>("button")];
+    const [sidebar, chatHeader] = [...chatGroup.querySelectorAll<HTMLButtonElement>("button")];
+    expect([menu.textContent, locationHeader.textContent]).toEqual(["Menu", "Header"]);
+    expect([sidebar.textContent, chatHeader.textContent]).toEqual(["Sidebar", "Header"]);
+    expect(menu.getAttribute("aria-pressed")).toBe("true");
+    expect(sidebar.getAttribute("aria-pressed")).toBe("true");
+    expect(locationGroup.closest(".desktop-settings-subsection")?.querySelector("h3")?.textContent).toBe("Header & layout");
+    act(() => locationHeader.click());
     expect(store.getState().experimentalSettings).toEqual({ ...DEFAULT_EXPERIMENTAL_SETTINGS, enableProjectLocationIconsInHeader: true });
+    act(() => chatHeader.click());
+    expect(store.getState().experimentalSettings).toEqual({ ...DEFAULT_EXPERIMENTAL_SETTINGS,
+      enableProjectLocationIconsInHeader: true, enableWorkbenchTabsInHeader: true });
     act(() => initializeDesktopPreferences());
-    expect(toggle?.checked).toBe(true);
-    act(() => toggle?.click());
+    expect(locationHeader.getAttribute("aria-pressed")).toBe("true");
+    expect(menu.getAttribute("aria-pressed")).toBe("false");
+    expect(chatHeader.getAttribute("aria-pressed")).toBe("true");
+    expect(sidebar.getAttribute("aria-pressed")).toBe("false");
+    act(() => menu.click());
+    expect(chatHeader.getAttribute("aria-pressed")).toBe("true");
+    act(() => sidebar.click());
     act(() => initializeDesktopPreferences());
     expect(store.getState().experimentalSettings).toEqual(DEFAULT_EXPERIMENTAL_SETTINGS);
   });

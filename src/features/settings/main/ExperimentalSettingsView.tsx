@@ -11,13 +11,21 @@ export function ExperimentalSettingsView() {
   const { t } = useLocalization();
   const groups: Array<{
     id: string;
-    rows: Array<{ messageKey: string; settingKey: keyof ExperimentalSettings }>;
+    rows: Array<{
+      messageKey: string;
+      settingKey: keyof ExperimentalSettings;
+      choices?: Array<{ messageKey: string; value: boolean }>;
+    }>;
   }> = [
     {
       id: "header",
       rows: [
-        { messageKey: "projectLocationIconsInHeader", settingKey: "enableProjectLocationIconsInHeader" },
-        { messageKey: "workbenchTabsInHeader", settingKey: "enableWorkbenchTabsInHeader" },
+        { messageKey: "projectHeaderAlignment", settingKey: "enableCenteredProjectInHeader",
+          choices: [{ messageKey: "left", value: false }, { messageKey: "center", value: true }] },
+        { messageKey: "projectLocationIconsInHeader", settingKey: "enableProjectLocationIconsInHeader",
+          choices: [{ messageKey: "menu", value: false }, { messageKey: "header", value: true }] },
+        { messageKey: "workbenchTabsInHeader", settingKey: "enableWorkbenchTabsInHeader",
+          choices: [{ messageKey: "sidebar", value: false }, { messageKey: "header", value: true }] },
         { messageKey: "shareOnboarding", settingKey: "enableShareOnboarding" },
         { messageKey: "projectSwitcherRail", settingKey: "enableProjectSwitcherRail" },
         { messageKey: "multiRootWorkspaces", settingKey: "enableMultiRootWorkspaces" },
@@ -65,29 +73,27 @@ export function ExperimentalSettingsView() {
           {groups.map(({ id, rows }, index) => (
             <SettingsSubsection key={id} title={t(`settings.experimental.groups.${id}`)} leading={index === 0}>
               <div className="desktop-settings-list">
-                {id === "header" && <div className="desktop-settings-row desktop-settings-row-control">
-                  <span>{t("settings.experimental.projectHeaderAlignment.title")}</span>
-                  <div className="desktop-theme-segment" role="group" aria-label={t("settings.experimental.projectHeaderAlignment.title")}>
-                    {([false, true] as const).map(centered => <button key={String(centered)} type="button"
-                      className={settings.enableCenteredProjectInHeader === centered ? "active" : ""}
-                      aria-pressed={settings.enableCenteredProjectInHeader === centered}
-                      onClick={() => onChange({ ...settings, enableCenteredProjectInHeader: centered })}>
-                      {t(centered ? "settings.experimental.projectHeaderAlignment.center" : "settings.experimental.projectHeaderAlignment.left")}
-                    </button>)}
-                  </div>
-                </div>}
-
-                {rows.map(({ messageKey, settingKey }) => (
-                  <div className="desktop-settings-row desktop-settings-row-control" key={settingKey}>
-                    <span>{t(`settings.experimental.${messageKey}.title`)}</span>
-                    <SettingsToggle
-                      label={t(`settings.experimental.${messageKey}.title`)}
-                      description={t(`settings.experimental.${messageKey}.detail`)}
+                {rows.map(({ messageKey, settingKey, choices }) => {
+                  const label = t(`settings.experimental.${messageKey}.title`);
+                  const description = messageKey === "projectHeaderAlignment"
+                    ? undefined : t(`settings.experimental.${messageKey}.detail`);
+                  return <div className={`desktop-settings-row desktop-settings-row-control${choices ? " desktop-settings-wide-control-row" : ""}`} key={settingKey}>
+                    <span>{label}</span>
+                    {choices ? <div className="desktop-theme-segment" role="group" aria-label={label} aria-description={description}>
+                      {choices.map(choice => <button key={choice.messageKey} type="button"
+                        className={settings[settingKey] === choice.value ? "active" : ""}
+                        aria-pressed={settings[settingKey] === choice.value}
+                        onClick={() => onChange({ ...settings, [settingKey]: choice.value })}>
+                        {t(`settings.experimental.${messageKey}.${choice.messageKey}`)}
+                      </button>)}
+                    </div> : <SettingsToggle
+                      label={label}
+                      description={description}
                       checked={settings[settingKey]}
                       onChange={(checked) => onChange({ ...settings, [settingKey]: checked })}
-                    />
-                  </div>
-                ))}
+                    />}
+                  </div>;
+                })}
               </div>
             </SettingsSubsection>
           ))}
