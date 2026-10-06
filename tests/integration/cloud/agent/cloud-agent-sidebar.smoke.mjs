@@ -29,7 +29,9 @@ const composer = "document.querySelector('.desktop-cloud-agent-sidebar .cm-conte
 const send = "document.querySelector('.desktop-cloud-agent-sidebar .desktop-agent-composer-action')";
 const rightPane = "document.querySelector('.desktop-right-sidebar')";
 async function selectLocation(location) {
-  await evaluate("document.querySelector('.desktop-titlebar-location-button').click()");
+  if (!await evaluate(`Boolean(document.querySelector('button[data-project-location=${location}]'))`)) {
+    await evaluate("document.querySelector('.desktop-titlebar-location-button').click()");
+  }
   await waitFor(`Boolean(document.querySelector('button[data-project-location=${location}]'))`);
   await evaluate(`document.querySelector('button[data-project-location=${location}]').click()`);
 }
@@ -154,6 +156,33 @@ async function exercise(mode) {
   await waitFor(`Boolean(${composer}) && ${send}?.classList.contains('is-stop')`);
   await evaluate(`${send}.click()`);
   await waitFor(`${api}.state().agent.states[1] === 'stopped' && !${send}.classList.contains('is-stop')`);
+  const chatSessions = [];
+  for (let turn = 1; turn <= 3; turn++) {
+    if (turn > 1) {
+      if (hosted) {
+        await evaluate(`${entry}.click()`);
+        await waitFor(`${entry}.getAttribute('aria-expanded') === 'false'`);
+      } else {
+        await selectLocation("local");
+        await waitFor(`${api}.state().location === 'local' && ${rightPane}.dataset.paneCollapsed === 'true'`);
+        await selectLocation("cloud");
+        await waitFor(`${api}.state().location === 'cloud' && !${entry}.disabled`);
+        assert(await evaluate(`${entry}.getAttribute('aria-expanded') === 'false'`), "Cloud chat remains closed after each return");
+        await evaluate("document.querySelector('.desktop-titlebar-location-button').click()");
+      }
+      await evaluate(`${entry}.click()`);
+      await waitFor(`Boolean(${composer})`);
+    }
+    const prompt = `Connection test: turn ${turn}`;
+    await evaluate(`${api}.editAgent(${JSON.stringify(prompt)})`);
+    await waitFor(`${composer}?.textContent === ${JSON.stringify(prompt)} && !${send}.disabled`);
+    await evaluate(`${send}.click()`);
+    await waitFor(`!![...document.querySelectorAll('.desktop-cloud-agent-sidebar .desktop-agent-message.is-assistant')].find(x=>x.textContent.includes(${JSON.stringify(`Connected: ${prompt}`)}))`);
+    await waitFor(`[...${composer}.querySelectorAll('.cm-line:not(:has(.cm-placeholder))')].every(line=>!line.textContent) && !${send}.classList.contains('is-stop')`);
+    chatSessions.push(await evaluate(`${api}.state().agent.runs.at(-1).session_id`));
+  }
+  assert(new Set(chatSessions).size === 1, "Three replies across reopen/location switches retain one server session");
+  await writeFile(path.join(artifacts, `${mode}-chat-roundtrip.png`), (await window.webContents.capturePage()).toPNG());
   if (hosted) {
     await evaluate(`${api}.editAgent('Publish another update')`);
     await waitFor(`${composer}?.textContent === 'Publish another update'`);

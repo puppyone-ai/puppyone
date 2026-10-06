@@ -95,6 +95,27 @@ describe("Cloud Agent durable client", () => {
     expect(calls.every(request => request.method !== "POST")).toBe(true);
   });
 
+  it("keeps a 500 submission unresolved across reopen and retries its receipt before admission", async () => {
+    let available = false;
+    handle = async request => {
+      if (!available) throw httpError(500);
+      if (request.path.includes("/requests/")) throw httpError(404);
+      return run({ request_id: JSON.parse(request.body!).request_id, state: "succeeded", snapshot: { text: "Connected" } });
+    };
+    const chat = controller(); await chat.load(); chat.setDraft("Connection test");
+    expect(await chat.submit("Connection test")).toBe(false);
+    const requestId = chat.getSnapshot().pending!.request_id;
+    expect(chat.getSnapshot().error).toMatchObject({ status: 500 });
+    chat.setOpen(false); chat.setOpen(true); await chat.load();
+    expect(chat.getSnapshot()).toMatchObject({ draft: "Connection test", pending: { request_id: requestId }, runs: [] });
+    expect(calls.filter(request => request.method === "POST")).toHaveLength(1);
+    available = true;
+    expect(await chat.submit("Connection test")).toBe(true);
+    expect(calls.at(-2)?.path).toContain(`/requests/project/${requestId}`);
+    expect(JSON.parse(calls.at(-1)!.body!).request_id).toBe(requestId);
+    expect(chat.getSnapshot()).toMatchObject({ draft: "", pending: null, error: null });
+  });
+
   it("reuses an approval decision ID after transport loss and stops only on an explicit command", async () => {
     const waiting = run({ state: "waiting_approval", tools: [{ call_id: "tool", name: "write", input: { path: "notes.md" }, state: "waiting" }] });
     handle = async request => run({ ...waiting, request_id: JSON.parse(request.body!).request_id });

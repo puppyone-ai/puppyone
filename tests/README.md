@@ -34,6 +34,20 @@ Agent lives below `agent/{sessions,events,composer,transcript,activity,reference
 provider-specific cases go under `runtimes/{codex,claude,opencode,pi,acp,discovery}`.
 Shared setup belongs in `support`, and assertions remain in the case files.
 
+Cloud Agent has separate fixture and live commands: `npm run smoke:cloud-agent`
+uses a built renderer and isolated protocol fixtures; `npm run test:e2e:cloud-agent:live --
+--api-base <cloud-api-base> --project-id <project-id> --workspace <local-project-name>`
+attaches to one signed-in development App on loopback CDP port 9222. The live
+test uses an already hosted Project-root repository with an empty composer,
+creates one new chat and sends three connectivity prompts through the UI.
+It returns Local → Cloud twice, checks server completion and rendered assistant
+replies, and requires all three runs to belong to one session. Its read-only
+receipt probe fails before sending if the durable API/storage is unavailable.
+No fixture fallback or skip can produce a passing live report. Reports go to
+`artifacts/tests/cloud/agent-live/result.json`; `--out` selects another directory.
+The canonical [Cloud Agent verification boundary](https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppyone-desktop/cloud/agent-client.md)
+records environment results and outstanding hosted acceptance.
+
 ## Electron and CI
 
 Existing `smoke:*` commands remain supported. “Smoke” describes a critical

@@ -25,7 +25,15 @@ export function createCloudAgentSmokeFixture(publish: (project: string) => void)
     if (input.path.startsWith("/agents/sessions/")) return runs.filter(run => input.path.includes(run.session_id)).reverse();
     const run = runs.find(run => input.path.includes(run.id) || input.path.includes(run.request_id));
     if (!run) throw new Error("Missing fixture run");
-    if (input.path.includes("/events?")) { await new Promise(resolve => setTimeout(resolve, 200)); return []; }
+    if (input.path.includes("/events?")) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+      if (run.prompt.startsWith("Connection test:") && run.state === "queued") {
+        run.state = "succeeded"; run.sequence++;
+        run.snapshot = { text: `Connected: ${run.prompt}` };
+        return [{ id: run.sequence, event: "text", data: { delta: run.snapshot.text } }];
+      }
+      return [];
+    }
     if (input.path.endsWith("/stop")) {
       run.state = "stopped"; run.stop_requested = true; run.sequence++;
     }
@@ -42,16 +50,20 @@ export function createCloudAgentSmokeFixture(publish: (project: string) => void)
     const result = await request(input);
     return result === undefined ? fallback(input) : result;
   };
-  return { request, wrap, state: () => ({ requests: [...requests], states: runs.map(run => run.state) }) };
+  return { request, wrap, state: () => ({ requests: [...requests], states: runs.map(run => run.state),
+    runs: runs.map(({ id, session_id, request_id, prompt }) => ({ id, session_id, request_id, prompt })) }) };
 }
 
 function createRun(body: CloudAgentSubmission & { project_id: string }): CloudAgentRun {
+  const chatOnly = body.prompt.startsWith("Connection test:");
   const approval = !body.prompt.includes("stop");
+  let state: CloudAgentRun["state"] = approval ? "waiting_approval" : "running";
+  if (chatOnly) state = "queued";
   return { id: crypto.randomUUID(), project_id: body.project_id,
     agent_id: `configured-${body.project_id}`, session_id: body.session_id || crypto.randomUUID(),
-    request_id: body.request_id, prompt: body.prompt, state: approval ? "waiting_approval" : "running",
-    sequence: 2, stop_requested: false, snapshot: { text: "I will update the cloud file." }, publication: null,
-    tools: approval ? [{ call_id: "write-notes", name: "write", input: { path: "readme.txt" }, state: "waiting" }] : [],
+    request_id: body.request_id, prompt: body.prompt, state,
+    sequence: 2, stop_requested: false, snapshot: { text: chatOnly ? "" : "I will update the cloud file." }, publication: null,
+    tools: !chatOnly && approval ? [{ call_id: "write-notes", name: "write", input: { path: "readme.txt" }, state: "waiting" }] : [],
     created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
 }
 
