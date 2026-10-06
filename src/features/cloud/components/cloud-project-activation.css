@@ -96,8 +96,8 @@
     font-size: var(--po-type-ui-control, 14px);
   }
   .desktop-cloud-project-scene-member {
-    fill: var(--po-header);
-    stroke: currentColor;
+    fill: currentColor;
+    stroke: none;
   }
 
   .desktop-cloud-project-agent-brands {
