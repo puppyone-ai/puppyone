@@ -111,7 +111,7 @@ export function DesktopWorkspaceSwitcher({
         {view !== "add" ? (
           <>
             {onHome && <>
-              <DesktopMenuItem icon={<ArrowLeft className="desktop-project-menu-action-icon po-directional-icon" />} label={t("shell.workspaceSwitcher.home")}
+              <DesktopMenuItem icon={<ArrowLeft className="po-directional-icon" size={15} />} label={t("shell.workspaceSwitcher.home")}
                 onClick={() => { onClose(); onHome(); }} />
               {projects.length > 0 && <DesktopMenuSeparator />}
             </>}
@@ -135,7 +135,7 @@ export function DesktopWorkspaceSwitcher({
             </div>
             {onCreateProject && <>
               {projects.length > 0 && <DesktopMenuSeparator />}
-              <DesktopMenuItem icon={<Plus className="desktop-project-menu-action-icon" />} label={t("shell.workspaceSwitcher.createNew")}
+              <DesktopMenuItem icon={<Plus size={15} />} label={t("shell.workspaceSwitcher.createNew")}
                 onClick={() => { onClose(); onCreateProject(); }} />
             </>}
             {(attachedFolders.length > 1 || multiRootWorkspacesEnabled) && (
@@ -165,7 +165,7 @@ export function DesktopWorkspaceSwitcher({
               aria-label={t("shell.workspaceSwitcher.projects")}>
               <DesktopMenuItem
                 className="desktop-project-add"
-                icon={<ArrowLeft className="desktop-project-menu-action-icon po-directional-icon" />}
+                icon={<ArrowLeft className="po-directional-icon" size={15} strokeWidth={1.9} />}
                 label={t("shell.workspaceSwitcher.projects")}
                 onClick={() => setView("projects")}
               />

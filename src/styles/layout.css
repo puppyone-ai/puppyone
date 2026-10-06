@@ -647,9 +647,15 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   opacity: 1;
 }
 
-.desktop-project-menu .desktop-project-menu-action-icon {
-  width: var(--po-menu-icon-slot-size);
-  height: var(--po-menu-icon-slot-size);
+/* Long project lists scroll; Home and Create new retain the standard row height. */
+.desktop-project-menu > .desktop-menu-item {
+  min-height: var(--po-menu-item-height);
+  flex-shrink: 0;
+}
+
+.desktop-project-menu > .desktop-menu-separator,
+.desktop-project-menu > .desktop-project-back-group {
+  flex-shrink: 0;
 }
 
 .desktop-project-menu .desktop-menu-item-trailing {
@@ -667,6 +673,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-switcher-list {
+  flex: 1 1 auto;
   margin-top: 0;
   padding-top: 0;
   border-top: 0;
