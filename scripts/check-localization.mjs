@@ -22,6 +22,8 @@ const allowedUserInterfaceLiterals = new Set([
   "PDF",
   // Input examples and file-extension tokens intentionally preserve their syntax.
   "https://…",
+  // Decorative sharing example: keep the product URL identical in every locale.
+  "puppyone.ai/…",
   "md",
 ]);
 

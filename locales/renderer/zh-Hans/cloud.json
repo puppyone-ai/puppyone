@@ -908,7 +908,7 @@
   "activation.project.title": "让项目持续在线。",
   "activation.project.share": "与团队共享",
   "activation.project.agents": "连接云原生 Agent",
-  "activation.project.availability": "你离线时，项目仍在线",
+  "activation.project.backup": "备份你的项目",
   "activation.project.publish": "分享到云端",
   "activation.project.reconnect": "重新连接云端项目",
   "activation.project.errorDetails": "错误详情",

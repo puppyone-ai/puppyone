@@ -49,6 +49,10 @@ export const RENDERER_ASSET_PATHS = {
         dark: "assets/icons/agents/built-in-agent-dark.svg",
       },
       viktor: { light: "assets/icons/agents/viktor.png" },
+      grokBot: {
+        light: "assets/icons/agents/grok-bot.svg",
+        dark: "assets/icons/agents/grok-bot-dark.svg",
+      },
       replit: { light: "assets/icons/agents/replit.svg" },
       gemini: { light: "assets/icons/agents/gemini.svg" },
       githubCopilot: { light: "assets/icons/agents/github-copilot.svg" },

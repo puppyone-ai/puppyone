@@ -908,7 +908,7 @@
   "activation.project.title": "Tu proyecto, siempre en línea.",
   "activation.project.share": "Comparte con tu equipo",
   "activation.project.agents": "Conectar agentes nativos de la nube",
-  "activation.project.availability": "En línea aunque estés desconectado",
+  "activation.project.backup": "Respalda tu proyecto",
   "activation.project.publish": "Compartir en la nube",
   "activation.project.reconnect": "Reconectar el proyecto de Cloud",
   "activation.project.errorDetails": "Detalles del error",

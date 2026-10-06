@@ -908,7 +908,7 @@
   "activation.project.title": "プロジェクトを、いつでもオンラインに。",
   "activation.project.share": "チームと共有",
   "activation.project.agents": "クラウドネイティブ Agent を接続",
-  "activation.project.availability": "オフラインでもプロジェクトはオンライン",
+  "activation.project.backup": "プロジェクトをバックアップ",
   "activation.project.publish": "クラウドに共有",
   "activation.project.reconnect": "クラウドプロジェクトに再接続",
   "activation.project.errorDetails": "エラーの詳細",
