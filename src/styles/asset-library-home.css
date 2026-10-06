@@ -2,15 +2,7 @@
   align-items: flex-start;
   justify-content: center;
   overflow: auto;
-  padding: 68px var(--desktop-utility-page-padding-inline) 40px;
-}
-
-.asset-library-home-titlebar {
-  position: absolute;
-  z-index: 20;
-  top: 0;
-  inset-inline: 0;
-  height: 38px;
+  padding: calc(var(--desktop-chrome-height) + 28px) var(--desktop-utility-page-padding-inline) 40px;
 }
 
 .asset-library-home {

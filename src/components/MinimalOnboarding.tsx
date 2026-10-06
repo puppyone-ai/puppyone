@@ -30,7 +30,7 @@ import type {
   WorkspaceCreateProjectResult,
   WorkspaceProjectLocationGrant,
 } from "../types/electron";
-import { DesktopWindowDragRegion } from "./DesktopWindowChrome";
+import { DesktopWindowChrome } from "./DesktopWindowChrome";
 import { OnboardingBrandLockup } from "./onboarding/OnboardingBrandLockup";
 import { OnboardingEmptyStateIntro } from "./onboarding/OnboardingEmptyStateIntro";
 import {
@@ -239,8 +239,7 @@ export function MinimalOnboarding({
       onDragLeave={folderDrop.onDragLeave}
       onDrop={folderDrop.onDrop}
     >
-      <DesktopWindowDragRegion className="onboarding-titlebar" />
-      {cloudAccountStatus}
+      <DesktopWindowChrome actions={cloudAccountStatus} />
       <section
         ref={homepageRef}
         className="onboarding-homepage"

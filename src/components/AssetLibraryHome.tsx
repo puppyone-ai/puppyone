@@ -6,7 +6,7 @@ import { useWorkspaceFolderDrop } from "../features/app-shell/useWorkspaceFolder
 import type { MinimalOnboardingProps } from "./MinimalOnboarding";
 import type { ProjectHomeItem } from "../features/app-shell/workspaceHomeModel";
 import { HomeProjectIcon } from "./onboarding/HomeProjectIcon";
-import { DesktopWindowDragRegion } from "./DesktopWindowChrome";
+import { DesktopWindowChrome } from "./DesktopWindowChrome";
 import { InlineLoading } from "./loading";
 
 /** Optional visual home consuming the same host-owned local/Cloud project model. */
@@ -94,8 +94,7 @@ export function AssetLibraryHome({
       onDragLeave={folderDrop.onDragLeave}
       onDrop={folderDrop.onDrop}
     >
-      <DesktopWindowDragRegion className="asset-library-home-titlebar" />
-      {cloudAccountStatus}
+      <DesktopWindowChrome actions={cloudAccountStatus} />
       <section className="asset-library-home" aria-label={t("onboarding.projects.title")}>
         <header className="asset-library-home-header"><div className="asset-library-home-heading"><h1>{t("onboarding.projects.title")}</h1></div></header>
 

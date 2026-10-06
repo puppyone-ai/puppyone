@@ -1,6 +1,4 @@
 .onboarding-shell {
-  --onboarding-titlebar-block-size: 38px;
-  --onboarding-account-rail-end: 91px;
   position: relative;
   display: flex;
   align-items: center;
@@ -13,15 +11,10 @@
   color: var(--po-text);
 }
 
-.onboarding-titlebar {
+.onboarding-shell > .desktop-titlebar {
   position: absolute;
-  z-index: 2;
   top: 0;
   inset-inline: 0;
-  box-sizing: border-box;
-  height: var(--onboarding-titlebar-block-size);
-  border-bottom: 1px solid var(--po-header-divider);
-  background: var(--po-header);
 }
 
 .onboarding-homepage-shell {
@@ -57,8 +50,8 @@
 }
 
 .onboarding-homepage-shell[data-onboarding-state="projects"] {
-  /* Keep the account rail and title clearance stable; the list owns scrolling. */
-  padding-block-start: var(--onboarding-account-rail-end);
+  /* The shared Header owns account controls; only the project list scrolls. */
+  padding-block-start: calc(var(--desktop-chrome-height) + 51px);
   padding-block-end: 16px;
 }
 
@@ -468,8 +461,7 @@
 
 .onboarding-project-icon.is-cloud,
 .onboarding-project-cloud-badge,
-.desktop-menu-icon-button.onboarding-project-cloud,
-.homepage-cloud-sign-in .desktop-cloud-icon {
+.desktop-menu-icon-button.onboarding-project-cloud {
   color: var(--po-brand-blue);
 }
 
@@ -500,25 +492,27 @@
 }
 
 .homepage-cloud-account {
-  position: absolute;
-  z-index: 4;
-  /* Center account state between the 38px titlebar and the 91px Homepage
-   * top rail. Deriving both insets from the same center prevents a subtle
-   * top-heavy 14px/11px placement around the 28px signed-out button. */
-  top: calc(
-    (var(--onboarding-titlebar-block-size) + var(--onboarding-account-rail-end)) / 2
-  );
-  inset-inline-end: 48px;
   display: flex;
-  max-width: min(320px, calc(100% - 96px));
-  min-height: 28px;
+  min-width: 0;
+  max-width: min(360px, calc(100vw - 180px));
+  height: var(--desktop-titlebar-control-height);
   box-sizing: border-box;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+  margin: 0;
   color: var(--po-text-subtle);
-  font-size: var(--po-text-size-hint, 12px);
-  transform: translateY(-50%);
+  font-family: var(--desktop-titlebar-context-font-family);
+  font-size: var(--desktop-titlebar-context-font-size);
+  font-weight: var(--desktop-titlebar-context-font-weight);
+  line-height: var(--desktop-titlebar-context-line-height);
+}
+
+.homepage-cloud-account > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .homepage-cloud-account.is-error {
@@ -526,25 +520,16 @@
 }
 
 .homepage-cloud-sign-in {
-  padding: 0 9px;
-  border: 1px solid var(--po-border-subtle);
-  border-radius: var(--desktop-control-radius, 6px);
-  background: color-mix(in srgb, var(--po-control) 72%, transparent);
-  color: var(--po-text-muted);
+  width: auto;
+  gap: 6px;
+  padding-inline: 7px 8px;
+  color: var(--desktop-titlebar-text-muted);
   cursor: var(--po-clickable-cursor, default);
-  font: inherit;
-  font-weight: 580;
+  white-space: nowrap;
 }
 
-.homepage-cloud-sign-in:hover {
-  border-color: var(--po-border);
-  background: var(--po-control-hover);
-  color: var(--po-text);
-}
-
-.homepage-cloud-sign-in:focus-visible {
-  outline: 2px solid var(--po-focus-ring);
-  outline-offset: 2px;
+.homepage-cloud-sign-in > svg {
+  flex: 0 0 auto;
 }
 
 .onboarding-project-row .desktop-menu-item-icon {
@@ -658,15 +643,6 @@
 }
 
 @media (max-width: 520px) {
-  .homepage-cloud-account {
-    inset-inline-end: 18px;
-    max-width: calc(100% - 36px);
-  }
-
-  .homepage-cloud-sign-in span {
-    display: none;
-  }
-
   .onboarding-project-row .desktop-menu-item-label {
     max-width: 100%;
     flex: 1 1 auto;

@@ -105,22 +105,21 @@ app.whenReady().then(async () => {
   await waitFor("Boolean(document.querySelector('.onboarding-homepage .onboarding-project-list'))");
   const signedOutHome = await evaluate(`(() => {
     const signIn = document.querySelector('.homepage-cloud-sign-in');
-    const list = document.querySelector('.onboarding-project-list');
     const button = signIn?.getBoundingClientRect();
-    const shell = document.querySelector('.onboarding-shell');
-    const titlebar = document.querySelector('.onboarding-titlebar')?.getBoundingClientRect();
-    const railEnd = Number.parseFloat(getComputedStyle(shell).getPropertyValue('--onboarding-account-rail-end'));
+    const titlebar = document.querySelector('.onboarding-shell > .desktop-titlebar')?.getBoundingClientRect();
     const projectRows = [...document.querySelectorAll('.onboarding-project-row-wrap')];
     return { exists:Boolean(signIn), inProjectList:Boolean(signIn?.closest('.onboarding-project-list')),
+      inHeader:Boolean(signIn?.closest('.desktop-titlebar-actions')), headerHeight:titlebar?.height,
       top:button?.top, right:button ? innerWidth - button.right : null,
-      topGap:button && titlebar ? button.top - titlebar.bottom : null,
-      bottomGap:button ? railEnd - button.bottom : null,
+      topGap:button && titlebar ? button.top - titlebar.top : null,
+      bottomGap:button && titlebar ? titlebar.bottom - button.bottom : null,
       projectRows:projectRows.length, projectLabels:projectRows.map(row => row.querySelector('.desktop-menu-item-label')?.textContent) };
   })()`);
-  assert(signedOutHome.exists && !signedOutHome.inProjectList, "Sign-in is global Homepage chrome, never a synthetic Project row");
-  assert(signedOutHome.top >= 38 && signedOutHome.right <= 60, "Sign-in stays in the upper-right account position");
+  assert(signedOutHome.exists && signedOutHome.inHeader && !signedOutHome.inProjectList, "Sign-in belongs to the Homepage Header, never a synthetic Project row");
+  assert(signedOutHome.headerHeight === geometry.header.height, "Homepage and project Headers must have the same height");
+  assert(signedOutHome.topGap >= 0 && signedOutHome.bottomGap >= 0 && signedOutHome.right <= 20, "Sign-in stays within the Header at its trailing edge");
   assert(Math.abs(signedOutHome.topGap - signedOutHome.bottomGap) <= 0.01,
-    `Sign-in top/bottom rail gaps must match (${signedOutHome.topGap}px / ${signedOutHome.bottomGap}px)`);
+    `Sign-in must be vertically centered in the Header (${signedOutHome.topGap}px / ${signedOutHome.bottomGap}px)`);
   assert(!signedOutHome.projectLabels.some(label => /sign in/i.test(label ?? "")), "Every Project-list row is a Project");
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await writeFile(path.join(artifacts, "signed-out-home.png"), (await window.webContents.capturePage()).toPNG());

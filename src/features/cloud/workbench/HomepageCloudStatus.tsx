@@ -1,4 +1,4 @@
-import { CloudIcon as Cloud } from "../../../components/icons/CloudIcon";
+import { UserRound } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import { InlineLoading } from "../../../components/loading";
 import { useCloudAuthController } from "../hooks/useCloudAuthController";
@@ -31,9 +31,9 @@ export function HomepageCloudStatus({ status, restoring, empty = false, apiBaseU
   if (restoring || status === "loading" || (status === "signed-out" && auth.signingIn)) return <div className="homepage-cloud-account" role="status">
     <InlineLoading label={t(auth.signingIn ? "cloud.home.waitingForSignIn" : "cloud.home.loading")} size="xs" tone="neutral" />
   </div>;
-  if (status === "signed-out") return <button type="button" className="homepage-cloud-account homepage-cloud-sign-in"
+  if (status === "signed-out") return <button type="button" className="desktop-titlebar-action homepage-cloud-account homepage-cloud-sign-in"
     aria-label={t("cloud.auth.signInToCloud")} onClick={auth.startSignIn}>
-    <Cloud size={14} aria-hidden="true" /><span>{t("cloud.auth.signIn")}</span>
+    <UserRound size={15} strokeWidth={1.8} aria-hidden="true" /><span>{t("cloud.auth.signIn")}</span>
   </button>;
   return empty ? <p className="homepage-cloud-account">{t("cloud.catalog.empty")}</p> : null;
 }
