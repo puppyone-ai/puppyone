@@ -29,14 +29,14 @@ export function CloudProjectActivation({ action, supplemental, busy = false }: {
         <div className="desktop-cloud-project-benefit-visual"><CloudProjectAvailabilityScene /></div>
         <p className="desktop-cloud-project-benefit-copy">{t("cloud.activation.project.availability")}</p>
       </li>
-      <li className="desktop-cloud-project-benefit desktop-cloud-project-benefit-agents">
+      <li className="desktop-cloud-project-benefit">
         <div className="desktop-cloud-project-benefit-visual">
           <div className="desktop-cloud-project-agent-brands">
             {CLOUD_AGENT_BRANDS.map((brandId) => {
               // The hosted Claude client shares the mark, not the local CLI name.
               const name = brandId === "claude" ? "Claude" : getAgentBrand(brandId)?.displayName;
               return <span key={brandId} role="img" aria-label={name}>
-                {brandId === "chatgpt"
+                {brandId === "chatgpt" || brandId === "claude"
                   ? <AgentMonochromeBrandImage brandId={brandId} />
                   : <AgentBrandImage brandId={brandId} />}
               </span>;

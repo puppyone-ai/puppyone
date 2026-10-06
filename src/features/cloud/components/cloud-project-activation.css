@@ -6,8 +6,8 @@
     min-width: 0;
     flex-direction: column;
     align-items: center;
-    gap: 24px;
-    padding: 32px 28px;
+    gap: 32px;
+    padding: 32px;
     color: var(--po-text-muted);
     font-family: var(--po-font-ui, var(--po-font-sans));
     font-size: var(--po-type-ui-control, 14px);
@@ -25,7 +25,7 @@
   }
 
   .desktop-cloud-project-illustration {
-    width: min(100%, 192px);
+    width: min(100%, 224px);
     height: auto;
     flex: 0 0 auto;
     color: color-mix(in srgb, var(--po-text-muted) 52%, var(--po-canvas));
@@ -46,7 +46,7 @@
     display: grid;
     width: 100%;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
+    gap: 16px;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -58,73 +58,70 @@
     min-width: 0;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
+    gap: 12px;
+    padding: 20px 16px;
+    border-radius: 8px;
+    background: var(--po-header);
     color: var(--po-text);
     font: inherit;
   }
 
   .desktop-cloud-project-benefit-copy {
     min-width: 0;
-    max-width: 112px;
     margin: 0;
     color: var(--po-text);
     font: inherit;
-    font-size: var(--po-type-ui-caption, 12px);
-    text-wrap: balance;
+    font-size: var(--po-type-ui-control, 14px);
+    white-space: nowrap;
   }
-
-  .desktop-cloud-project-benefit-agents .desktop-cloud-project-benefit-copy { max-width: 144px; }
 
   .desktop-cloud-project-benefit-visual {
     display: flex;
     width: 100%;
-    height: 40px;
+    height: 72px;
     align-items: center;
     justify-content: center;
+    color: var(--po-text-muted);
   }
 
-  .desktop-cloud-project-benefit-scene { display: block; width: min(100%, 160px); height: 40px; }
-  .desktop-cloud-project-scene-url-frame { stroke: var(--po-divider); stroke-width: 1; }
+  .desktop-cloud-project-benefit-scene { display: block; width: min(100%, 200px); height: 72px; }
+  .desktop-cloud-project-scene-url-frame { stroke: currentColor; stroke-width: 1; }
   .desktop-cloud-project-scene-url {
-    fill: var(--po-text);
-    font-family: var(--po-font-ui, var(--po-font-sans));
-    font-size: 9px;
-  }
-  .desktop-cloud-project-scene-member {
-    fill: var(--po-canvas);
-    stroke: var(--po-text-muted);
-    stroke-width: 1;
-  }
-  .desktop-cloud-project-scene-online { color: var(--po-success); }
-  .desktop-cloud-project-scene-hours {
     fill: currentColor;
     font-family: var(--po-font-ui, var(--po-font-sans));
-    font-size: 22px;
-    font-weight: var(--po-text-weight-medium, 500);
-    letter-spacing: -0.04em;
+    font-size: 11px;
+  }
+  .desktop-cloud-project-scene-member {
+    fill: var(--po-header);
+    stroke: currentColor;
+    stroke-width: 1;
   }
 
   .desktop-cloud-project-agent-brands {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 12px;
   }
 
-  .desktop-cloud-project-agent-brands span { display: grid; width: 20px; height: 20px; place-items: center; }
+  .desktop-cloud-project-agent-brands span { display: grid; width: 28px; height: 28px; place-items: center; }
+  .desktop-cloud-project-agent-brands .po-agent-brand-image { filter: grayscale(1); }
   .desktop-cloud-project-agent-brands .po-agent-brand-image,
   .desktop-cloud-project-agent-brands .po-agent-monochrome-brand-image { width: 100%; height: 100%; object-fit: contain; }
 
-  @container desktop-cloud-project (max-width: 420px) {
+  @container desktop-cloud-project (max-width: 740px) {
     .desktop-cloud-project-benefits { grid-template-columns: minmax(0, 1fr); }
     .desktop-cloud-project-benefit {
       display: grid;
-      grid-template-columns: minmax(0, 144px) minmax(0, 1fr);
+      grid-template-columns: minmax(0, 160px) minmax(0, 1fr);
       align-items: center;
-      gap: 16px;
+      gap: 24px;
       text-align: start;
     }
-    .desktop-cloud-project-benefit-copy,
-    .desktop-cloud-project-benefit-agents .desktop-cloud-project-benefit-copy { max-width: none; }
+  }
+
+  @container desktop-cloud-project (max-width: 480px) {
+    .desktop-cloud-project-benefit { display: flex; text-align: center; }
+    .desktop-cloud-project-benefit-copy { font-size: var(--po-type-ui-caption, 12px); }
   }
 
   .desktop-cloud-project-activation-actions { display: flex; width: 100%; justify-content: center; }
