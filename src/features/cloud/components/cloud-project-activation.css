@@ -4,6 +4,7 @@
     display: flex;
     width: 100%;
     min-width: 0;
+    flex-shrink: 0;
     flex-direction: column;
     align-items: center;
     gap: 32px;
@@ -109,19 +110,38 @@
   .desktop-cloud-project-agent-brands .po-agent-brand-image { width: 100%; height: 100%; object-fit: contain; }
 
   @container desktop-cloud-project (max-width: 740px) {
-    .desktop-cloud-project-benefits { grid-template-columns: minmax(0, 1fr); }
-    .desktop-cloud-project-benefit {
-      display: grid;
-      grid-template-columns: minmax(0, 160px) minmax(0, 1fr);
-      align-items: center;
-      gap: 24px;
-      text-align: start;
-    }
+    .desktop-cloud-project-benefit { padding: 16px 12px; }
+    .desktop-cloud-project-benefit-visual { height: 80px; }
+    .desktop-cloud-project-benefit-scene { height: 80px; }
+    .desktop-cloud-project-benefit-copy { font-size: var(--po-type-ui-caption, 12px); }
   }
 
-  @container desktop-cloud-project (max-width: 480px) {
-    .desktop-cloud-project-benefit { display: flex; text-align: center; }
+  @container desktop-cloud-project (max-width: 600px) {
+    .desktop-cloud-project-benefits { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+    .desktop-cloud-project-benefit {
+      display: grid;
+      grid-template-columns: minmax(0, 128px) minmax(0, 1fr);
+      align-items: center;
+      gap: 16px;
+      padding: 12px 16px;
+      text-align: start;
+    }
+    .desktop-cloud-project-benefit-visual,
+    .desktop-cloud-project-benefit-scene { height: 64px; }
+    .desktop-cloud-project-benefit-copy { font-size: var(--po-type-ui-control, 14px); }
+  }
+
+  @container desktop-cloud-project (max-width: 400px) {
+    .desktop-cloud-project-benefit { grid-template-columns: minmax(0, 96px) minmax(0, 1fr); gap: 12px; padding: 12px; }
+    .desktop-cloud-project-benefit-visual,
+    .desktop-cloud-project-benefit-scene { height: 56px; }
     .desktop-cloud-project-benefit-copy { font-size: var(--po-type-ui-caption, 12px); }
+  }
+
+  @container desktop-cloud-switch (max-width: 804px) {
+    .desktop-cloud-project-activation { gap: 24px; padding: 24px; }
+    .desktop-cloud-project-activation-copy { gap: 12px; }
+    .desktop-cloud-project-illustration { width: min(100%, 192px); }
   }
 
   .desktop-cloud-project-activation-actions { display: flex; width: 100%; justify-content: center; }

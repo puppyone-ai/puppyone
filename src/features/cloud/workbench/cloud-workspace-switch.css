@@ -10,9 +10,10 @@
   }
 
   .desktop-cloud-workspace-switch-content {
+    container: desktop-cloud-switch / inline-size;
     display: flex;
     flex-direction: column;
-    min-height: 240px;
+    min-height: 0;
     overflow: auto;
   }
 
