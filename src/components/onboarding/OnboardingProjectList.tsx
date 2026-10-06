@@ -77,7 +77,6 @@ export function OnboardingProjectList({
             {item.localPath && item.cloudProjectId && onOpenCloudProject && <DesktopMenuIconButton
               className="onboarding-project-cloud" disabled={busy}
               label={t("cloud.home.openCloud", { project: bidiIsolate(name) })}
-              tooltip={t("cloud.home.openCloud", { project: bidiIsolate(name) })}
               onClick={() => onOpenCloudProject(item.cloudProjectId!)} icon={<Cloud size={14} />} />}
             {onRemove && item.localPath && (
               <DesktopMenuIconButton
@@ -85,7 +84,6 @@ export function OnboardingProjectList({
                 disabled={busy && !removing}
                 aria-busy={removing || undefined}
                 label={t("onboarding.projects.removeFor", { project: bidiIsolate(name) })}
-                tooltip={t("onboarding.projects.removeHint")}
                 onClick={() => onRemove(item)}
                 icon={removing
                   ? <InlineLoading label={null} size="xs" tone="neutral" />

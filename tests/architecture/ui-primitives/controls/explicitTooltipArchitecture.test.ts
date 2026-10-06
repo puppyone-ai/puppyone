@@ -58,8 +58,11 @@ function findDirectTooltipActivation(file: string) {
   const visit = (node: ts.Node) => {
     if (
       ts.isJsxAttribute(node)
-      && node.name.getText(sourceFile).startsWith("data-tooltip")
+      && (node.name.getText(sourceFile).startsWith("data-tooltip")
+        || node.name.getText(sourceFile) === "tooltip"
+        || node.name.getText(sourceFile) === "tooltipOverflowOnly")
     ) report(node);
+    if (ts.isImportSpecifier(node) && (node.propertyName ?? node.name).text === "activateTooltip") report(node);
     if (
       ts.isBinaryExpression(node)
       && node.operatorToken.kind === ts.SyntaxKind.EqualsToken
@@ -119,8 +122,25 @@ describe("explicit tooltip architecture", () => {
       .toContain('"./styles/tooltip.css"');
   });
 
-  it("routes product tooltips through the shared opt-in API", () => {
+  it("only activates product tooltips through explicit Tooltip composition", () => {
     const violations = SOURCE_ROOTS.flatMap(sourceFiles).flatMap(findDirectTooltipActivation);
     expect(violations).toEqual([]);
   }, ARCHITECTURE_SCAN_TIMEOUT_MS);
+
+  it("keeps generic controls free of automatic tooltip wrappers", () => {
+    const genericControls = [
+      "src/components/DesktopMenu.tsx",
+      "src/components/DesktopDialog.tsx",
+      "src/components/SettingsControls.tsx",
+      "src/components/onboarding/HomeProjectIcon.tsx",
+      "packages/shared-ui/src/primitives/IconButton.tsx",
+    ];
+    const violations = genericControls.filter(file => /<Tooltip\b|\btooltip\??\s*[:=]/.test(
+      fs.readFileSync(path.join(REPOSITORY_ROOT, file), "utf8"),
+    ));
+    expect(violations).toEqual([]);
+    const publicApi = fs.readFileSync(path.join(REPOSITORY_ROOT, "packages/shared-ui/src/index.ts"), "utf8");
+    expect(publicApi).not.toContain("activateTooltip");
+    expect(fs.readFileSync(TOOLTIP_PRIMITIVE, "utf8")).not.toContain("activateTooltip");
+  });
 });

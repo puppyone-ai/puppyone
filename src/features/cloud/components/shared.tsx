@@ -296,20 +296,18 @@ export function CloudWebEmpty({
 export function CloudSourceDock({
   remote,
   branch,
-  tooltip,
 }: {
   remote: string;
   branch: string;
-  tooltip?: string;
 }) {
   const { t } = useLocalization();
   return (
-    <Tooltip content={tooltip}><div className="desktop-cloud-source-dock">
+    <div className="desktop-cloud-source-dock">
       <span className="desktop-cloud-web-status-dot ready" aria-hidden="true" />
       <strong>{t("cloud.common.cloudSource")}</strong>
       <em dir="auto">{remote}</em>
       <em dir="auto">{branch}</em>
-    </div></Tooltip>
+    </div>
   );
 }
 

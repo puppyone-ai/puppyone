@@ -1,7 +1,7 @@
 export * from "./core/types";
 export { STANDARD_CONTROL_SIZE } from "./core/controlGeometry";
 export { OverflowDots } from "./primitives/OverflowDots";
-export { Tooltip, activateTooltip, disableTooltipHints, isTooltipSuppressed } from "./primitives/Tooltip";
+export { Tooltip, disableTooltipHints, isTooltipSuppressed } from "./primitives/Tooltip";
 export type { TooltipPlacement, TooltipProps } from "./primitives/Tooltip";
 export {
   resolveCssPixelCustomProperty,

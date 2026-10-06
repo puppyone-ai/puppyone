@@ -45,11 +45,11 @@ export function HtmlFloatingToolbar({ selection, viewport, text, image, alt, dis
     return () => observer.disconnect();
   }, [viewport, palette]);
   const style = (property: HtmlStyleProperty, value: string) => apply({ kind: "style", property, value });
-  const button = (label: string, icon: ReactNode, action: () => void, pressed?: boolean) => <Tooltip content={label}><button type="button"
-     aria-label={label} disabled={disabled} aria-pressed={pressed} onClick={action}>{icon}</button></Tooltip>;
+  const button = (label: string, icon: ReactNode, action: () => void, pressed?: boolean) => <button type="button"
+     aria-label={label} disabled={disabled} aria-pressed={pressed} onClick={action}>{icon}</button>;
   const colorButton = (property: "color" | "background-color", value: string) => {
     const textColor = property === "color";
-    return <Tooltip content={t(`editor.html.style.${property}`)}><button type="button" className="html-floating-toolbar__color-control"
+    return <button type="button" className="html-floating-toolbar__color-control"
        aria-label={t(`editor.html.style.${property}`)} disabled={disabled}
       data-palette={property} data-color-role={textColor ? "text" : "background"}
       aria-expanded={palette === property} aria-haspopup="dialog"
@@ -61,7 +61,7 @@ export function HtmlFloatingToolbar({ selection, viewport, text, image, alt, dis
         : <span className="html-floating-toolbar__background-color-value" aria-hidden="true">
           <span style={{ background: value }} />
         </span>}
-    </button></Tooltip>;
+    </button>;
   };
   const weight = Number.parseInt(String(styles.fontWeight), 10);
   const bold = weight >= 600 || styles.fontWeight === "bold";

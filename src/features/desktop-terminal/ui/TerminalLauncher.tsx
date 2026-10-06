@@ -262,7 +262,7 @@ function TerminalAgentButton({
   const description = t(launcher.descriptionMessage);
 
   return (
-    <Tooltip content={description}><button
+    <button
       type="button"
       className="desktop-terminal-launcher-tool"
       data-po-interaction="navigation"
@@ -272,7 +272,7 @@ function TerminalAgentButton({
     >
       <WorkbenchLauncherIcon launcherId={launcher.id} />
       <span>{label}</span>
-    </button></Tooltip>
+    </button>
   );
 }
 
@@ -295,7 +295,7 @@ function ChatRecipeButton({
   const title = statusLabel ? `${recipe.label} — ${statusLabel}` : recipe.label;
 
   return (
-    <Tooltip content={available ? undefined : title}><button
+    <button
       type="button"
       className="desktop-terminal-launcher-tool"
       data-po-interaction="navigation"
@@ -306,6 +306,6 @@ function ChatRecipeButton({
     >
       <WorkbenchLauncherIcon iconKey={recipe.iconKey} />
       <span>{recipe.label}</span>
-    </button></Tooltip>
+    </button>
   );
 }

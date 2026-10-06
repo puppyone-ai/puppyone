@@ -1,4 +1,3 @@
-import { Tooltip } from "@puppyone/shared-ui";
 import { useId, type ReactNode } from "react";
 
 export function SettingsSectionHeader({ title }: { title: string }) {
@@ -29,16 +28,12 @@ export function SettingsSubsection({ title, detail, children, leading = false }:
 export function SettingsValueRow({
   label,
   value,
-  tooltip,
-  tooltipOverflowOnly = false,
   action,
   monospace = false,
   tone,
 }: {
   label: string;
   value: ReactNode;
-  tooltip?: string;
-  tooltipOverflowOnly?: boolean;
   action?: ReactNode;
   monospace?: boolean;
   tone?: "success";
@@ -47,12 +42,12 @@ export function SettingsValueRow({
     <div className={`desktop-settings-row desktop-settings-value-row ${action ? "desktop-settings-row-control" : ""}`}>
       <span>{label}</span>
       <div className="desktop-settings-value">
-        <Tooltip content={tooltip} overflowOnly={tooltipOverflowOnly}><span
+        <span
           className={`desktop-settings-value-text ${monospace ? "desktop-settings-code" : ""} ${tone === "success" ? "success" : ""}`}
           dir={monospace ? "ltr" : "auto"}
         >
           {value}
-        </span></Tooltip>
+        </span>
         {action}
       </div>
     </div>

@@ -1,4 +1,3 @@
-import { Tooltip } from "@puppyone/shared-ui";
 import { useEffect, useRef, type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import { useNativeSurfaceOcclusionLease } from "../features/native-surfaces";
 
@@ -175,7 +174,7 @@ export function DesktopDialogCloseButton({
   onClick: () => void;
 }) {
   return (
-    <Tooltip content={label}><button
+    <button
       className={`desktop-dialog-icon-button ${className}`.trim()}
       type="button"
       disabled={disabled}
@@ -190,6 +189,6 @@ export function DesktopDialogCloseButton({
           strokeLinecap="round"
         />
       </svg>
-    </button></Tooltip>
+    </button>
   );
 }

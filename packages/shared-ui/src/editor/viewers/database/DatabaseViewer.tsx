@@ -224,12 +224,12 @@ function DatabaseIconButton({ active = false, children, disabled = false, label,
   label: string;
   onClick: () => void;
 }) {
-  return <Tooltip content={label}><button
+  return <button
     className="database-preview__icon-button"
     type="button"
     aria-label={label}
     aria-pressed={active || undefined}
     disabled={disabled}
     onClick={onClick}
->{children}</button></Tooltip>;
+>{children}</button>;
 }

@@ -121,8 +121,7 @@ export function DesktopWorkspaceSwitcher({
                   || Boolean(currentCloudProjectId && project.cloudProjectId === currentCloudProjectId);
                 return <DesktopMenuItem key={project.id}
                   icon={<HomeProjectIcon item={project} />}
-                  label={<bdi>{getProjectName(project, t("onboarding.projects.untitled"))}</bdi>}
-                  tooltip={project.localPath || project.cloudProjectId} selected={selected}
+                  label={<bdi>{getProjectName(project, t("onboarding.projects.untitled"))}</bdi>} selected={selected}
                   aria-current={selected ? "page" : undefined}
                   trailing={selected ? <Check size={14} /> : undefined}
                   onClick={() => {

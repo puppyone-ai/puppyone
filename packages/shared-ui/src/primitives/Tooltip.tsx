@@ -11,8 +11,9 @@ export type TooltipProps = {
 };
 
 /**
- * Explicitly opts one control into the product tooltip layer without adding a
- * layout wrapper. Visible labels and accessibility names never activate it.
+ * The only tooltip activation API: callers explicitly wrap the intended control.
+ * UI primitives never infer hints from labels or accept a tooltip prop. This
+ * adds no layout wrapper; visible labels and accessibility names do not opt in.
  */
 export function Tooltip({
   children,
@@ -39,32 +40,4 @@ export function disableTooltipHints(element: HTMLElement) {
 
 export function isTooltipSuppressed(element: Element): boolean {
   return element.closest('[data-tooltip-disabled="true"]') !== null;
-}
-
-export function activateTooltip(
-  element: HTMLElement,
-  content: string | null | undefined,
-  options: {
-    overflowOnly?: boolean;
-    placement?: TooltipPlacement;
-    shortcut?: string | null;
-  } = {},
-) {
-  const normalizedContent = content?.trim();
-  if (!normalizedContent) {
-    delete element.dataset.tooltip;
-    delete element.dataset.tooltipPlacement;
-    delete element.dataset.tooltipShortcut;
-    delete element.dataset.tooltipWhen;
-    return;
-  }
-
-  element.dataset.tooltip = normalizedContent;
-  if (options.placement) element.dataset.tooltipPlacement = options.placement;
-  else delete element.dataset.tooltipPlacement;
-  const shortcut = options.shortcut?.trim();
-  if (shortcut) element.dataset.tooltipShortcut = shortcut;
-  else delete element.dataset.tooltipShortcut;
-  if (options.overflowOnly) element.dataset.tooltipWhen = "overflow";
-  else delete element.dataset.tooltipWhen;
 }

@@ -1,6 +1,5 @@
 import { ArrowDown, ArrowUp, Check, Plus } from "lucide-react";
 import {
-  Tooltip,
   SidebarResizeHandle,
   type SidebarResizeIntent,
 } from "@puppyone/shared-ui";
@@ -72,7 +71,6 @@ export function GitSidebarSectionResizer({
 
 export function GitOperationButton({
   className,
-  tooltip,
   disabled,
   icon,
   label,
@@ -83,7 +81,6 @@ export function GitOperationButton({
   onClick,
 }: {
   className: string;
-  tooltip: string;
   disabled: boolean;
   icon: GitActionIconKind;
   label: string;
@@ -101,7 +98,7 @@ export function GitOperationButton({
     loading ? "is-loading" : "",
   ].filter(Boolean).join(" ");
   return (
-    <Tooltip content={tooltip}><button
+    <button
       className={buttonClassName}
       type="button"
       aria-label={loading ? loadingLabel : label}
@@ -111,7 +108,7 @@ export function GitOperationButton({
     >
       {loading ? <SourceControlDots /> : renderGitActionIcon(icon)}
       <span className="desktop-git-operation-label">{loading ? loadingLabel : label}</span>
-    </button></Tooltip>
+    </button>
   );
 }
 

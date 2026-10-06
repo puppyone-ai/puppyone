@@ -362,7 +362,6 @@ export function BranchMenuGroup({
         <DesktopMenuItem
           key={`${branch.remote ? "remote" : "local"}:${branch.name}`}
           className="desktop-branch-menu-row"
-          tooltip={branch.lastCommitMessage ?? branch.name}
           selected={branch.current}
           disabled={Boolean(operationLoading) || branch.current}
           icon={<VersionControlIcon size={13} />}

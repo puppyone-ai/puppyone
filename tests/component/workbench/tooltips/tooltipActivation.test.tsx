@@ -2,7 +2,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
-import { Tooltip, activateTooltip, disableTooltipHints, isTooltipSuppressed } from "../../../../packages/shared-ui/src/primitives/Tooltip";
+import { Tooltip, disableTooltipHints, isTooltipSuppressed } from "../../../../packages/shared-ui/src/primitives/Tooltip";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -41,11 +41,12 @@ describe("Tooltip", () => {
 
   it("disables nested hints without removing accessible names or explicit content", () => {
     const scope = document.createElement("div");
-    const button = document.createElement("button");
-    scope.append(button);
     document.body.append(scope);
-    button.setAttribute("aria-label", "Accessible command");
-    activateTooltip(button, "Nested hint");
+    root = createRoot(scope);
+    act(() => root?.render(<Tooltip content="Nested hint">
+      <button aria-label="Accessible command">Command</button>
+    </Tooltip>));
+    const button = scope.querySelector("button")!;
     expect(isTooltipSuppressed(button)).toBe(false);
 
     disableTooltipHints(scope);
@@ -55,19 +56,5 @@ describe("Tooltip", () => {
     expect(button.dataset.tooltip).toBe("Nested hint");
     expect(button.getAttribute("aria-label")).toBe("Accessible command");
     expect(scope.hasAttribute("title")).toBe(false);
-  });
-
-  it("requires the same explicit activation for imperative DOM", () => {
-    const button = document.createElement("button");
-    button.setAttribute("aria-label", "Accessible name only");
-    expect(button.hasAttribute("data-tooltip")).toBe(false);
-
-    activateTooltip(button, "Explicit help", { placement: "right" });
-    expect(button.dataset.tooltip).toBe("Explicit help");
-    expect(button.dataset.tooltipPlacement).toBe("right");
-
-    activateTooltip(button, null);
-    expect(button.hasAttribute("data-tooltip")).toBe(false);
-    expect(button.hasAttribute("data-tooltip-placement")).toBe(false);
   });
 });

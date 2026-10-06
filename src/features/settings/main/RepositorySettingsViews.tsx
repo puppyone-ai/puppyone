@@ -103,8 +103,6 @@ export function CloudHostingSettingsView({
                       <SettingsValueRow
                         label={t("settings.cloud.connectionUrl")}
                         value={cloudRemoteUrl ? maskRemoteUrl(cloudRemoteUrl) : t("settings.shared.notConfigured")}
-                        tooltip={cloudRemoteUrl ? maskRemoteUrl(cloudRemoteUrl) : undefined}
-                        tooltipOverflowOnly
                         monospace
                         action={cloudRemoteUrl ? (
                           <CopyAction

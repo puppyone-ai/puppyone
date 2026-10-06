@@ -1,5 +1,4 @@
 "use client";
-import { Tooltip } from "../../../primitives/Tooltip";
 
 import {
   Code2,
@@ -258,7 +257,7 @@ function ToolbarButton({
   children: ReactNode;
 }) {
   return (
-    <Tooltip content={label}><button
+    <button
       className={active ? "active" : ""}
       data-po-interaction={navigation ? "navigation" : undefined}
       type="button"
@@ -267,7 +266,7 @@ function ToolbarButton({
       onClick={onClick}
     >
       {children}
-    </button></Tooltip>
+    </button>
   );
 }
 

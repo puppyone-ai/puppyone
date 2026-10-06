@@ -1,4 +1,3 @@
-import { Tooltip } from "@puppyone/shared-ui";
 import { Hand, Eye } from "lucide-react";
 import { useCallback, useSyncExternalStore } from "react";
 import type { AgentActivityStore } from "./agentActivityStore";
@@ -28,7 +27,7 @@ export function AgentFilePresence({
   const Icon = primary.kind === "reading" ? Eye : Hand;
 
   return (
-    <Tooltip content={label}><span
+    <span
       className="desktop-agent-file-presence"
       data-kind={primary.kind}
       data-phase={active ? "active" : "settled"}
@@ -46,7 +45,7 @@ export function AgentFilePresence({
       {additionalCount > 0 && (
         <span className="desktop-agent-file-presence-count" aria-hidden="true">+{additionalCount}</span>
       )}
-    </span></Tooltip>
+    </span>
   );
 }
 

@@ -2,7 +2,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Tooltip, activateTooltip, disableTooltipHints } from "../../../../packages/shared-ui/src/primitives/Tooltip";
+import { Tooltip, disableTooltipHints } from "../../../../packages/shared-ui/src/primitives/Tooltip";
 import { DesktopTooltipLayer } from "../../../../src/components/DesktopTooltipLayer";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -77,11 +77,16 @@ describe("DesktopTooltipLayer", () => {
     expect(button.getAttribute("aria-label")).toBe("Editor command");
     expect(button.getAttribute("aria-describedby")).toBe("existing-help");
 
-    const outside = document.createElement("button");
-    activateTooltip(outside, "Shell command");
-    document.body.append(outside);
-    act(() => outside.focus());
-    expect(document.querySelector('[role="tooltip"]')?.textContent).toBe("Shell command");
+    const outsideHost = document.createElement("div");
+    document.body.append(outsideHost);
+    const outsideRoot = createRoot(outsideHost);
+    try {
+      act(() => outsideRoot.render(<Tooltip content="Shell command"><button>Shell</button></Tooltip>));
+      act(() => outsideHost.querySelector<HTMLButtonElement>("button")!.focus());
+      expect(document.querySelector('[role="tooltip"]')?.textContent).toBe("Shell command");
+    } finally {
+      act(() => outsideRoot.unmount());
+    }
   });
 
   it("rechecks suppression before a delayed hover hint opens", () => {

@@ -710,7 +710,7 @@ describe("CSV table interactions", () => {
     expect(menu?.querySelectorAll(".desktop-menu-item.is-icon")).toHaveLength(12);
     expect(menu?.querySelectorAll(".po-editable-table-menu-icon")).toHaveLength(12);
     expect(Array.from(menu?.querySelectorAll<HTMLButtonElement>(".desktop-menu-item") ?? [])
-      .every((button) => button.dataset.tooltip === button.getAttribute("aria-label"))).toBe(true);
+      .every((button) => !button.hasAttribute("data-tooltip") && Boolean(button.getAttribute("aria-label")))).toBe(true);
     expect(findButton("Auto fit column")).not.toBeNull();
     const moveColumnRight = findButton("Move column right");
     await act(async () => {
