@@ -655,10 +655,16 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   display: grid;
   gap: 2px;
   min-height: 0;
-  margin-top: 8px;
-  padding-top: 8px;
+  margin-top: 4px;
+  padding-top: 4px;
   border-top: 1px solid var(--po-divider);
   overflow: auto;
+}
+
+.desktop-project-switcher-list {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
 }
 
 .desktop-project-mark {
@@ -703,8 +709,8 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 
 .desktop-project-back-group {
   display: grid;
-  margin-bottom: 8px;
-  padding-bottom: 8px;
+  margin-bottom: 4px;
+  padding-bottom: 4px;
   border-bottom: 1px solid var(--po-divider);
 }
 

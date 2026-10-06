@@ -10,10 +10,9 @@ import {
   Plus,
   FolderPlus,
   House,
-  FolderClosed,
   Check,
 } from "lucide-react";
-import { DesktopMenuItem } from "../../components/DesktopMenu";
+import { DesktopMenuItem, DesktopMenuSeparator } from "../../components/DesktopMenu";
 import { DesktopTitlebarMenuLayer } from "./DesktopTitlebarMenuLayer";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import {
@@ -102,18 +101,24 @@ export function DesktopWorkspaceSwitcher({
       >
         {view !== "add" ? (
           <>
-            {onHome && <DesktopMenuItem icon={<House size={15} />} label={t("shell.workspaceSwitcher.home")}
-              onClick={() => { onClose(); onHome(); }} />}
-            <div className="desktop-project-list" data-po-scrollbar="menu">
+            {onHome && <>
+              <DesktopMenuItem icon={<ArrowLeft className="po-directional-icon" size={15} />} label={t("shell.workspaceSwitcher.home")}
+                onClick={() => { onClose(); onHome(); }} />
+              {projects.length > 0 && <DesktopMenuSeparator />}
+            </>}
+            <div className="desktop-project-list desktop-project-switcher-list" data-po-scrollbar="menu">
               {projects.map(project => <DesktopMenuItem key={project.path}
-                icon={<FolderClosed size={15} />} label={<bdi>{project.name}</bdi>}
+                icon={<ProjectContextAssetMark kind={resolveProjectContextAssetKind(project)} />} label={<bdi>{project.name}</bdi>}
                 tooltip={project.path} selected={project.path === workspace.path}
                 aria-current={project.path === workspace.path ? "page" : undefined}
                 trailing={project.path === workspace.path ? <Check size={14} /> : undefined}
                 onClick={() => { onClose(); if (project.path !== workspace.path) onSelectProject?.(project.path); }} />)}
             </div>
-            {onCreateProject && <DesktopMenuItem icon={<Plus size={15} />} label={t("shell.workspaceSwitcher.createNew")}
-              onClick={() => { onClose(); onCreateProject(); }} />}
+            {onCreateProject && <>
+              {projects.length > 0 && <DesktopMenuSeparator />}
+              <DesktopMenuItem icon={<Plus size={15} />} label={t("shell.workspaceSwitcher.createNew")}
+                onClick={() => { onClose(); onCreateProject(); }} />
+            </>}
             {(attachedFolders.length > 1 || multiRootWorkspacesEnabled) && (
               <div className="desktop-project-list" data-po-scrollbar="menu"
                 role="menu" aria-label={t("shell.workspaceSwitcher.projects")}>
@@ -216,4 +221,3 @@ function DesktopProjectRow({
     </div>
   );
 }
-
