@@ -20,10 +20,8 @@ export function HomepageCloudStatus({ status, restoring, empty = false, apiBaseU
   const auth = useCloudAuthController({ cloudApiBaseUrl: apiBaseUrl });
   const authError = status === "signed-out" ? auth.error : null;
   let feedback: ReactNode = null;
-  if (controller.opening) feedback = <div className="homepage-cloud-feedback" role="status">
-    <InlineLoading label={t("onboarding.status.opening")} size="xs" tone="neutral" />
-    <button type="button" className="desktop-cloud-row-action" onClick={controller.cancel}>{t("common.action.cancel")}</button>
-  </div>;
+  // Project-opening progress and cancellation belong to the Homepage overlay.
+  if (controller.opening) feedback = null;
   else if (controller.error || status === "error" || authError) feedback = <div className="homepage-cloud-feedback is-error" role="alert">
     <span>{authError ?? t(controller.error ? "cloud.catalog.openFailed" : "cloud.catalog.loadFailed")}</span>
     <button type="button" className="desktop-cloud-row-action" onClick={() => {

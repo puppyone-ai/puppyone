@@ -63,9 +63,7 @@ export function OnboardingProjectList({
               label={<bdi>{name}</bdi>}
               detail={parentPath ? <bdi dir="ltr">{parentPath}</bdi>
                 : item.cloudProjectId ? <bdi>{item.cloudProjectId.slice(0, 8)}</bdi> : undefined}
-              trailing={openingPath === item.localPath
-                ? <InlineLoading label={t("onboarding.status.opening")} size="xs" tone="neutral" />
-                : formatModificationTime(item.lastModifiedAt, t, formatRelativeTime)}
+              trailing={formatModificationTime(item.lastModifiedAt, t, formatRelativeTime)}
               disabled={busy}
               aria-busy={openingPath === item.localPath || undefined}
               aria-label={t(item.cloudProjectId ? item.localPath ? "cloud.home.openLocal" : "cloud.home.openCloud" : "onboarding.projects.open", { project: bidiIsolate(name) })}

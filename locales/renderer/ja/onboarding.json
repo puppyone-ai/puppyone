@@ -96,6 +96,7 @@
   "operation.openingLocal.title": "ローカルフォルダを開いています",
   "operation.openingLocal.detail": "選択したワークスペースを読み込んでいます。",
   "status.opening": "開いています",
+  "status.loadingProject": "プロジェクトを読み込んでいます",
   "status.loadingCloudProjects": "Cloud プロジェクトを読み込み中",
   "status.cloudProjectsUnavailable": "Cloud プロジェクトを利用できません",
   "status.signInToCreateCloud": "Puppyone Cloud にサインインすると、このプロジェクトが作成されます。",

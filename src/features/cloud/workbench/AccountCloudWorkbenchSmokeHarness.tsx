@@ -136,6 +136,7 @@ function AccountCloudFixture() {
   return <SurfaceAppearanceProvider value={appearance}>
     {!account.active && <MinimalOnboarding appearance={appearance} projectItems={homepage.items}
       cloudOpening={account.opening}
+      onCancelCloudOpening={account.cancel}
       onChooseWorkspace={async () => {}} onOpenWorkspacePath={async () => {}} onOpenDroppedWorkspace={async () => {}}
       onOpenCloudProject={(id) => void account.openTarget({ kind: "project_root", project_id: id })}
       cloudAccountStatus={<HomepageCloudStatus status={homepage.status} restoring={false} empty={homepage.items.length === 0} apiBaseUrl={API}

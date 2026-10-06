@@ -96,6 +96,7 @@
   "operation.openingLocal.title": "로컬 폴더 여는 중",
   "operation.openingLocal.detail": "선택한 워크스페이스를 불러오고 있습니다.",
   "status.opening": "여는 중",
+  "status.loadingProject": "프로젝트 불러오는 중",
   "status.loadingCloudProjects": "Cloud 프로젝트 불러오는 중",
   "status.cloudProjectsUnavailable": "Cloud 프로젝트를 사용할 수 없음",
   "status.signInToCreateCloud": "Puppyone Cloud에 로그인하면 이 프로젝트가 생성됩니다.",

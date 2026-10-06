@@ -96,6 +96,7 @@
   "operation.openingLocal.title": "Lokaler Ordner wird geöffnet",
   "operation.openingLocal.detail": "Der ausgewählte Arbeitsbereich wird geladen.",
   "status.opening": "Wird geöffnet",
+  "status.loadingProject": "Projekt wird geladen",
   "status.loadingCloudProjects": "Cloud-Projekte werden geladen",
   "status.cloudProjectsUnavailable": "Cloud-Projekte sind nicht verfügbar",
   "status.signInToCreateCloud": "Melde dich bei Puppyone Cloud an; anschließend wird dieses Projekt erstellt.",

@@ -1592,6 +1592,7 @@ function AppContent() {
         projectItems={projectCatalog.items}
         onOpenCloudProject={(projectId) => { cancelRepositoryCloudSwitch(); void accountCloud.openTarget({ kind: "project_root", project_id: projectId }); }}
         cloudOpening={accountCloud.opening}
+        onCancelCloudOpening={accountCloud.cancel}
         cloudAccountStatus={cloudAvailable ? <HomepageCloudStatus status={projectCatalog.status} restoring={cloudSessionRestoring} empty={cloudEnabled && projectCatalog.items.length === 0}
           session={activeCloudSession} onOpenAccount={() => openSettingsDialog("account")}
           apiBaseUrl={desktopCloudApiBaseUrl} controller={accountCloud} onRetry={projectCatalog.refresh} /> : undefined}

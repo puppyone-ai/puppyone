@@ -806,7 +806,7 @@ describe("project folder home", () => {
     expect(onImportSource).not.toHaveBeenCalled();
   });
 
-  it("shows project-opening progress only inside the project row", async () => {
+  it("shows project-opening progress in a page overlay and blocks duplicate opens", async () => {
     let finishOpening: (() => void) | null = null;
     const onOpenWorkspacePath = vi.fn(() => new Promise<void>((resolve) => {
       finishOpening = resolve;
@@ -827,11 +827,21 @@ describe("project folder home", () => {
       await Promise.resolve();
     });
 
-    expect(row?.querySelectorAll("[data-puppy-loader]")).toHaveLength(1);
-    expect(container.querySelector(".onboarding-operation-status")).toBeNull();
+    const overlay = container.querySelector(".onboarding-project-loading");
+    const page = container.querySelector<HTMLElement>(".onboarding-homepage");
+    expect(overlay?.textContent).toContain("Loading project");
+    expect(overlay?.closest(".desktop-titlebar")).toBeNull();
+    expect(page?.inert).toBe(true);
+    expect(row?.disabled).toBe(true);
+    expect(row?.querySelector("[data-puppy-loader]")).toBeNull();
     expect(container.querySelectorAll("[data-puppy-loader]")).toHaveLength(1);
+    await act(async () => row?.click());
+    expect(onOpenWorkspacePath).toHaveBeenCalledOnce();
 
     await act(async () => finishOpening?.());
+    expect(container.querySelector(".onboarding-project-loading")).toBeNull();
+    expect(page?.inert).toBe(false);
+    expect(row?.disabled).toBe(false);
   });
 
   it("shows folder-opening progress only inside the folder action", async () => {

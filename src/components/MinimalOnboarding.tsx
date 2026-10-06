@@ -39,6 +39,7 @@ import {
 } from "./onboarding/OnboardingEntryActions";
 import { OnboardingHomeLayout } from "./onboarding/OnboardingHomeLayout";
 import { OnboardingProjectList } from "./onboarding/OnboardingProjectList";
+import { isHomepageProjectOpening, OnboardingProjectLoading } from "./onboarding/OnboardingProjectLoading";
 import { OnboardingTelemetryDisclosure } from "./onboarding/OnboardingTelemetryDisclosure";
 import type { OnboardingHomeState } from "./onboarding/types";
 
@@ -66,6 +67,7 @@ export type MinimalOnboardingProps = {
   projectItems?: ProjectHomeItem[];
   cloudAccountStatus?: ReactNode;
   cloudOpening?: boolean;
+  onCancelCloudOpening?: () => void;
   onOpenCloudProject?: (projectId: string) => void;
   operationStatus?: OnboardingOperationStatus | null;
   initialError?: string | null;
@@ -90,6 +92,7 @@ export function MinimalOnboarding({
   projectItems,
   cloudAccountStatus,
   cloudOpening = false,
+  onCancelCloudOpening,
   onOpenCloudProject,
   initialError = null,
   appearance,
@@ -172,6 +175,7 @@ export function MinimalOnboarding({
   };
 
   const busy = Boolean(openingPath) || Boolean(removingPath) || cloudOpening;
+  const openingProject = isHomepageProjectOpening(openingPath, cloudOpening);
   const startProjectDrag = (event: ReactDragEvent<HTMLButtonElement>, item: ProjectHomeItem) => {
     const absolutePath = item.localPath.trim();
     if (busy || !absolutePath) {
@@ -201,8 +205,8 @@ export function MinimalOnboarding({
   }, [hasProjects]);
 
   useEffect(() => {
-    if (homepageRef.current) homepageRef.current.inert = showEmptyStateIntro;
-  }, [showEmptyStateIntro]);
+    if (homepageRef.current) homepageRef.current.inert = showEmptyStateIntro || openingProject;
+  }, [showEmptyStateIntro, openingProject]);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return undefined;
@@ -245,6 +249,7 @@ export function MinimalOnboarding({
         className="onboarding-homepage"
         aria-label={t("onboarding.projects.title")}
         aria-hidden={showEmptyStateIntro || undefined}
+        aria-busy={openingProject || undefined}
       >
         <OnboardingHomeLayout
           brand={<OnboardingBrandLockup state={onboardingState} resolvedTheme={resolvedTheme} />}
@@ -286,6 +291,7 @@ export function MinimalOnboarding({
 
         {error && <div className="onboarding-error onboarding-homepage-error" role="alert"><AlertTriangle size={15} /><span>{error}</span></div>}
       </section>
+      <OnboardingProjectLoading open={openingProject} cloudOpening={cloudOpening} onCancel={onCancelCloudOpening} />
       {onboardingState === "empty" && (
         <OnboardingTelemetryDisclosure ready={!showEmptyStateIntro} />
       )}

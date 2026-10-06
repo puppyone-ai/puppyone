@@ -96,6 +96,7 @@
   "operation.openingLocal.title": "正在打开本地文件夹",
   "operation.openingLocal.detail": "正在加载所选工作区。",
   "status.opening": "正在打开",
+  "status.loadingProject": "正在加载项目",
   "status.loadingCloudProjects": "正在加载云端项目",
   "status.cloudProjectsUnavailable": "云端项目不可用",
   "status.signInToCreateCloud": "登录 Puppyone Cloud 后将创建此项目。",
