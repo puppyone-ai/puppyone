@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Grid2X2, Plug } from "lucide-react";
 import { Tooltip } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
+import { AgentEntryIcon } from "../../../components/brand/AgentEntryIcon";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import type { ProjectCloudContext } from "../project/context";
 import { CloudWorkspaceToolDialog, type CloudWorkspaceTool } from "./CloudWorkspaceToolDialog";
@@ -37,6 +38,14 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, onSessi
           </button>
         </Tooltip>;
       })}
+      {/* ISSUE-112 owns the Cloud session client; never fall back to the local launcher. */}
+      <Tooltip content={t("shell.titlebar.showAgent")}>
+        <button type="button" className="desktop-titlebar-action desktop-titlebar-terminal"
+          data-cloud-workspace-tool="agent" disabled aria-label={t("shell.titlebar.showAgent")}
+          aria-pressed={false}>
+          <AgentEntryIcon size={15} strokeWidth={1.8} aria-hidden="true" />
+        </button>
+      </Tooltip>
     </div>
     {tool && context?.status === "resolved" && session && <CloudWorkspaceToolDialog
       tool={tool} context={context} session={session} apiBaseUrl={apiBaseUrl}
