@@ -49,7 +49,7 @@ describe("repository Cloud activation", () => {
     expect(host.querySelector('[role="img"][aria-label="Viktor"]')).not.toBeNull();
     const button = host.querySelector<HTMLButtonElement>("[data-cloud-publish-action]")!;
     expect(button.disabled).toBe(false);
-    expect(button.textContent).toBe("Bring this project to Cloud");
+    expect(button.textContent).toBe("Deploy this project to Cloud");
     await act(async () => button.click());
     expect(publish).not.toHaveBeenCalled();
     const confirmation = document.querySelector('[role="dialog"]')!;

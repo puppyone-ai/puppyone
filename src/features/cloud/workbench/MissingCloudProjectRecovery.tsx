@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { RefreshCw } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
 import { getCloudRepositoryContext, type DesktopCloudSession } from "../../../lib/cloudApi";
 import type { GitRemoteSummary, GitStatusSnapshot } from "../../../types/electron";
@@ -65,19 +64,13 @@ export function MissingCloudProjectRecovery({ context, status, session, apiBaseU
 
   return <>
     <CloudProjectActivation
-      supplemental={<div className="desktop-cloud-project-connection-error">
-        <p role="status">{t("cloud.message.remote-not-found")}</p>
-      </div>}
       action={<button type="button" className="desktop-dialog-button primary" data-desktop-dialog-initial-focus="true"
         aria-haspopup={replaceable ? "dialog" : undefined} data-cloud-replace-action={replaceable || undefined}
         onClick={() => {
           if (replaceable && status) { setError(null); setReviewedRemotes(status.remotes.map(item => ({ ...item }))); }
           else onRetry();
         }}>
-        {replaceable ? t("cloud.activation.project.startNew") : t("cloud.common.retry")}
-      </button>}
-      hint={replaceable && <button type="button" className="desktop-dialog-button" onClick={onRetry}>
-        <RefreshCw size={13} aria-hidden="true" />{t("cloud.common.retry")}
+        {replaceable ? t("cloud.activation.project.publish") : t("cloud.common.retry")}
       </button>} />
     {reviewedRemotes && <CloudPublishConfirmationDialog
       title={t("cloud.activation.project.replaceTitle")}

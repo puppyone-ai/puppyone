@@ -915,7 +915,7 @@ app.whenReady().then(async () => {
       })()`);
       assert(presentation.x >= 31 && presentation.y >= 31 && !presentation.overflow,
         `Publish dialog must preserve fixed insets without clipping (${theme}/${width}): ${JSON.stringify(presentation)}`);
-      assert(presentation.padding === '32px 28px' && presentation.action === 'Bring this project to Cloud',
+      assert(presentation.padding === '32px 28px' && presentation.action === 'Deploy this project to Cloud',
         'Authenticated activation must retain spacing and offer actual publication');
       publishPresentations.push({theme, viewport:width, ...presentation});
       if (width === 1100 || width === 640) await writeFile(path.join(artifacts, `publish-${theme}-${width}.png`), (await window.webContents.capturePage()).toPNG());
