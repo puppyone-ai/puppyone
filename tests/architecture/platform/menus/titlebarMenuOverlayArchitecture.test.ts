@@ -57,6 +57,7 @@ describe("titlebar menu overlay architecture", () => {
       left: 8,
       top: 42,
       width: 284,
+      maxWidth: 284,
       maxHeight: 520,
       placement: "below",
     });

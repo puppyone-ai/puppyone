@@ -28,6 +28,7 @@ export type AnchoredOverlayPosition = {
   left: number;
   top: number;
   width: number;
+  maxWidth: number;
   maxHeight: number;
   placement: AnchoredOverlayPlacement;
 };
@@ -80,7 +81,7 @@ export function resolveAnchoredOverlayPosition({
       ? anchor.bottom + gap
       : Math.min(anchor.bottom + gap, safeBottom - renderedHeight);
 
-  return { left, top, width, maxHeight, placement };
+  return { left, top, width, maxWidth: availableWidth, maxHeight, placement };
 }
 
 type UseAnchoredOverlayPositionOptions = {

@@ -70,7 +70,7 @@ describe("Editor pane actions menu", () => {
     const handle = container.querySelector<HTMLButtonElement>(".desktop-editor-pane-handle")!;
     await openPaneMenu(handle);
     const menu = document.querySelector<HTMLElement>(".desktop-editor-pane-menu")!;
-    expect(menu.style.width).toBe("63px");
+    expect(menu.style.width).toBe("");
     const actions = Array.from(menu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'));
 
     expect(menu.dataset.hasSecondary).toBeUndefined();

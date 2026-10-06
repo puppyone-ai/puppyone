@@ -209,6 +209,8 @@ describe("editor split-pane architecture", () => {
       "--desktop-editor-pane-menu-action-size: var(--desktop-titlebar-control-height);",
     );
     expect(paneMenuRule).toContain("position: fixed;");
+    expect(paneMenuRule).toContain("width: max-content;");
+    expect(paneMenuRule).toContain("overflow-x: auto;");
     expect(paneMenuRule).toContain("overflow-y: auto;");
     expect(paneMenuRule).not.toContain("box-shadow:");
     expect(splitStyles).not.toContain('.desktop-editor-pane-menu[data-has-secondary="true"]');
@@ -222,12 +224,13 @@ describe("editor split-pane architecture", () => {
       ".desktop-editor-pane-menu-end-actions",
     );
     expect(endActionsRule).toContain("display: flex;");
+    expect(endActionsRule).toContain("flex: 0 0 auto;");
     expect(endActionsRule).not.toContain("margin-inline-start: auto;");
-    const segmentedEndActionsRule = readCssBlock(
+    const primaryActionsRule = readCssBlock(
       splitStyles,
-      ".desktop-editor-pane-menu-segmented-control + .desktop-editor-pane-menu-end-actions",
+      ".desktop-editor-pane-menu-primary-actions",
     );
-    expect(segmentedEndActionsRule).toContain("margin-inline-start: auto;");
+    expect(primaryActionsRule).toContain("width: max-content;");
     const externalDividerRule = readCssBlock(
       splitStyles,
       ".desktop-editor-pane-menu-action-divider",
@@ -253,8 +256,6 @@ describe("editor split-pane architecture", () => {
     );
     expect(compactMenuElevationRule).toContain("box-shadow: var(--po-menu-shadow-compact);");
     expect(tokens).toContain("--po-menu-shadow-compact: var(--po-elevation-low);");
-    expect(paneActionsMenuSource).toContain("PANE_DIVIDER_WIDTH = 1");
-    expect(paneActionsMenuSource).toContain("PANE_DIVIDER_INLINE_MARGIN = 3");
     expect(paneActionsMenuSource).toContain(
       'className="desktop-editor-pane-menu-primary-action desktop-editor-pane-menu-close-action"',
     );
@@ -277,8 +278,9 @@ describe("editor split-pane architecture", () => {
     expect(paneActionsMenuSource).toContain(
       "segmentedControl && <PaneMenuSegmentedControl item={segmentedControl}",
     );
-    expect(paneActionsMenuSource).toContain("resolvePaneActionsMenuWidth({");
-    expect(paneActionsMenuSource).toContain("PANE_ACTION_SLOT_SIZE = 25");
+    expect(paneActionsMenuSource).toContain('widthMode: "content"');
+    expect(paneActionsMenuSource).toContain("maxWidth: overlayPosition.maxWidth");
+    expect(paneActionsMenuSource).not.toContain("resolvePaneActionsMenuWidth");
     expect(splitSource).toContain("editorResource: editor?.resource ?? null");
     expect(splitSource).toContain(
       "menuContribution?.editorResource === editor?.resource",

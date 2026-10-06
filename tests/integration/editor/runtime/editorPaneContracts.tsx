@@ -162,6 +162,18 @@ async function closeThroughMenu(owner: HTMLElement) {
   // child redirect a later synthetic click away from the owner renderer.
   handle.click();
   await until(() => document.querySelector('[aria-label="Close editor pane"]'), "Pane menu failed to open");
+  await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  const menu = document.querySelector<HTMLElement>(".desktop-editor-pane-menu")!;
+  const menuRect = menu.getBoundingClientRect();
+  const menuStyle = getComputedStyle(menu);
+  const contentLeft = menuRect.left + parseFloat(menuStyle.borderLeftWidth) + parseFloat(menuStyle.paddingLeft);
+  const contentRight = menuRect.right - parseFloat(menuStyle.borderRightWidth) - parseFloat(menuStyle.paddingRight);
+  assert(menu.scrollWidth <= menu.clientWidth + 1, "Pane menu clips its action row");
+  for (const button of menu.querySelectorAll<HTMLElement>(".desktop-editor-pane-menu-primary-actions button")) {
+    const rect = button.getBoundingClientRect();
+    assert(rect.left >= contentLeft - 1 && rect.right <= contentRight + 1,
+      `Pane menu clips ${button.getAttribute("aria-label")}`);
+  }
   // The matrix verifies pane semantics, not OS hit testing. Activate the real
   // menu command directly so compositor-dependent pointer timing cannot turn
   // a close into an unrelated outside-click on hosted CI.
@@ -262,7 +274,7 @@ async function runCase(testCase: EditorPaneCase, direction: EditorSplitDirection
   root!.unmount(); root = null;
   await closeAllDocumentWorkingCopies("app-close");
   assert(isNativeSurfaceLayoutStable(), "Resize lease leaked after unmount");
-  return { id: testCase.id, viewerId: testCase.viewerId, direction, passed: true, checks: ["render", "split", "shrink", "expand", "move", "menu-close-target", "active-owner", "sibling-model", "undo-redo-disk", "resource-release", "last-pane"] };
+  return { id: testCase.id, viewerId: testCase.viewerId, direction, passed: true, checks: ["render", "split", "shrink", "expand", "move", "menu-content-fit", "menu-close-target", "active-owner", "sibling-model", "undo-redo-disk", "resource-release", "last-pane"] };
 }
 
 window.editorPaneContracts = { async run() {
