@@ -139,7 +139,7 @@
   "message.remote-unresolvable": "无法将 PuppyOne Git 远程仓库解析为 Cloud 项目。",
   "message.remote-network-failed": "无法验证此 Git 远程仓库指向的 Cloud 项目。",
   "message.remote-locator-conflict": "此工作区存在互相冲突的 PuppyOne Git 远程仓库。请先修复远程仓库配置。",
-  "message.remote-not-found": "此 Git 远程仓库指向的项目或范围已不存在。",
+  "message.remote-not-found": "当前云服务中找不到此文件夹关联的项目或范围。",
   "message.project-publish-failed": "无法将此项目发布到 PuppyOne Cloud。",
   "message.project-publish-service-upgrade": "PuppyOne Cloud 正在升级。你的 Cloud 项目是安全的；请稍后选择“继续”。",
   "message.project-publish-create-failed": "PuppyOne Cloud 无法创建此项目。请重试。",
@@ -934,5 +934,10 @@
   "activation.project.errorDetails": "错误详情",
   "activation.project.shareOutcome": "通过项目链接分享",
   "activation.project.automationOutcome": "离线也能持续运行",
-  "activation.project.agentsOutcome": "通过 MCP 连接"
+  "activation.project.agentsOutcome": "通过 MCP 连接",
+  "activation.project.startNew": "创建新的云项目",
+  "activation.project.replaceTitle": "替换云端连接",
+  "activation.project.replaceDescription": "移除此文件夹原有的云端 Git 连接，再继续创建新的云项目。本机文件和 Git 历史将保留。",
+  "activation.project.replaceConfirm": "继续",
+  "activation.project.replaceFailed": "无法替换云端连接。请刷新连接后重试。"
 }

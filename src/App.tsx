@@ -37,6 +37,7 @@ import { CloudWorkspaceHeaderTools } from "./features/cloud/workbench/CloudWorks
 import { useRepositoryCloudWorkspaceSwitch } from "./features/cloud/workbench/useRepositoryCloudWorkspaceSwitch";
 import { CloudWorkspaceSwitchDialog } from "./features/cloud/workbench/CloudWorkspaceSwitchDialog";
 import { RepositoryCloudSwitchGate } from "./features/cloud/workbench/RepositoryCloudSwitchGate";
+import { MissingCloudProjectRecovery } from "./features/cloud/workbench/MissingCloudProjectRecovery";
 import { CloudInitializationRoute } from "./features/cloud/initialization/CloudInitializationRoute";
 import { useHomepageCloudProjects } from "./features/cloud/workbench/useHomepageCloudProjects";
 import { HomepageCloudStatus } from "./features/cloud/workbench/HomepageCloudStatus";
@@ -81,7 +82,7 @@ import {
   type DesktopCloudSession,
 } from "./lib/cloudApi";
 import { resolveVisibleCreateNewMenuItems } from "./preferences";
-import type { PuppyoneWorkspaceConfig } from "./types/electron";
+import type { GitRemoteSummary, PuppyoneWorkspaceConfig } from "./types/electron";
 import {
   mergePuppyoneWorkspaceConfig,
 } from "./features/app-shell/preferences";
@@ -1126,11 +1127,15 @@ function AppContent() {
     }
   }, [cloudEnabled, setSidebarCollapsed, settingsDialogOpen, updateCloudSession]);
 
-  const handleRemoveCloudRemote = useCallback(async () => {
+  const handleRemoveCloudRemote = useCallback(async (expectedRemotes?: readonly GitRemoteSummary[]) => {
     if (!focusedWorkspace) return;
-    const refreshedStatus = await removeWorkspaceGitRemote(focusedWorkspace.path, "puppyone");
+    const context = captureGitRepositoryContext(focusedWorkspace.path);
+    if (!context) throw new Error("The current repository is unavailable.");
+    const refreshedStatus = await removeWorkspaceGitRemote(focusedWorkspace.path, "puppyone", expectedRemotes);
+    if (!isGitRepositoryContextCurrent(context)) return;
     const currentConfig = puppyoneConfig
       ?? await readPuppyoneWorkspaceConfig(focusedWorkspace.path);
+    if (!isGitRepositoryContextCurrent(context)) return;
     const configReferencesPuppyone = currentConfig.sync.sourceOfTruth.service === "puppyone"
       || currentConfig.sync.sourceOfTruth.remote === "puppyone"
       || currentConfig.backup.service === "puppyone"
@@ -1160,7 +1165,6 @@ function AppContent() {
         throw new Error("The PuppyOne Git remote was removed, but Desktop could not update the local sync settings.");
       }
     }
-    const context = captureGitRepositoryContext(focusedWorkspace.path);
     if (context && applyGitStatus(
       refreshedStatus,
       context,
@@ -1172,6 +1176,7 @@ function AppContent() {
   }, [
     applyGitStatus,
     captureGitRepositoryContext,
+    isGitRepositoryContextCurrent,
     handlePuppyoneConfigChange,
     puppyoneConfig,
     refreshWorkspaceContent,
@@ -1412,6 +1417,13 @@ function AppContent() {
         environment: { apiBaseUrl: desktopCloudApiBaseUrl, source: "default", cloudRemote: null } })}
       onRetry={() => { setCloudResolutionRefreshKey((value) => value + 1); repositoryCloudSwitch.retry(); }}
       initializationPending={repositoryCloudInitializationPending}
+      missingProjectRecovery={workspace && activeCloudSession && focusedWorkspace?.path === workspace.path
+        && projectCloudContext.status === "not-found" ? <MissingCloudProjectRecovery
+          key={JSON.stringify([workspace.path, desktopCloudApiBaseUrl, activeCloudSession.user_id,
+            activeCloudSession.session_generation, projectCloudContext.projectId])}
+          context={projectCloudContext} status={activeGitStatus} session={activeCloudSession}
+          apiBaseUrl={desktopCloudApiBaseUrl} onRemoveCloudRemote={handleRemoveCloudRemote}
+          onRetry={() => { setCloudResolutionRefreshKey(value => value + 1); repositoryCloudSwitch.retry(); }} /> : undefined}
       publishEntry={workspace && activeCloudSession && focusedWorkspace?.path === workspace.path ? <CloudInitializationRoute
         activeSection="contents" workspace={workspace} status={activeGitStatus}
         session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} accountEmail={activeCloudSession.user_email}

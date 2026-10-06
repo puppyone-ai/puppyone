@@ -2793,7 +2793,7 @@ function parseGitTrackingText(value) {
   };
 }
 
-async function readGitRemotes(rootPath, options = {}) {
+export async function readGitRemotes(rootPath, options = {}) {
   const signal = options.signal;
   const result = await execGit(rootPath, ["remote", "-v"], { optionalLocks: false, signal }).catch(() => {
     throwIfGitStatusAborted(signal);

@@ -139,7 +139,7 @@
   "message.remote-unresolvable": "Das PuppyOne-Git-Remote konnte keinem Cloud-Projekt zugeordnet werden.",
   "message.remote-network-failed": "Das durch dieses Git-Remote bezeichnete Cloud-Projekt konnte nicht überprüft werden.",
   "message.remote-locator-conflict": "Dieser Arbeitsbereich enthält widersprüchliche PuppyOne-Git-Remotes. Repariere sie, bevor du fortfährst.",
-  "message.remote-not-found": "Das von diesem Git-Remote bezeichnete Projekt oder der Scope existiert nicht mehr.",
+  "message.remote-not-found": "Das mit diesem Ordner verknüpfte Projekt oder der Scope wurde beim aktuellen Cloud-Dienst nicht gefunden.",
   "message.project-publish-failed": "Dieses Projekt konnte nicht in PuppyOne Cloud veröffentlicht werden.",
   "message.project-publish-service-upgrade": "PuppyOne Cloud wird gerade aktualisiert. Ihr Cloud-Projekt ist sicher; wählen Sie in Kürze Fortsetzen.",
   "message.project-publish-create-failed": "PuppyOne Cloud konnte dieses Projekt nicht erstellen. Versuchen Sie es erneut.",
@@ -934,5 +934,10 @@
   "activation.project.errorDetails": "Fehlerdetails",
   "activation.project.shareOutcome": "Projektlink teilen",
   "activation.project.automationOutcome": "Läuft auch, wenn du offline bist",
-  "activation.project.agentsOutcome": "Über MCP verbinden"
+  "activation.project.agentsOutcome": "Über MCP verbinden",
+  "activation.project.startNew": "Neues Cloud-Projekt starten",
+  "activation.project.replaceTitle": "Cloud-Verbindung ersetzen",
+  "activation.project.replaceDescription": "Entferne die alte Cloud-Git-Verbindung dieses Ordners und erstelle dann ein neues Cloud-Projekt. Deine Dateien und der Git-Verlauf bleiben auf diesem Mac.",
+  "activation.project.replaceConfirm": "Weiter",
+  "activation.project.replaceFailed": "Die Cloud-Verbindung konnte nicht ersetzt werden. Aktualisiere die Verbindung und versuche es erneut."
 }

@@ -13,6 +13,7 @@ import { useCloudWorkspaceSwitch } from "./useCloudWorkspaceSwitch";
 import { CloudWorkspaceSwitchDialog } from "./CloudWorkspaceSwitchDialog";
 import { CloudWorkspacePreparation } from "./CloudWorkspacePreparation";
 import { RepositoryCloudSwitchGate } from "./RepositoryCloudSwitchGate";
+import { MissingCloudProjectRecovery } from "./MissingCloudProjectRecovery";
 import { CloudLocalOnlyWorkspace } from "../initialization/CloudInitializationView";
 import { cloudMessage } from "../cloudPresentation";
 import type { ProjectCloudContext } from "../project/context/projectCloudContext";
@@ -47,7 +48,8 @@ const session: DesktopCloudSession = { api_base_url: API, user_id: "fixture-user
   session_generation: "fixture-session", status: "authenticated", expires_at: Date.now() + 3_600_000, expires_in: 3600 };
 const context = { status: "resolved" as const, projectId: "fixture-project", projectName: "Native workspace",
   target: { kind: "project_root" as const, project_id: "fixture-project" }, capabilities: ["content.read", "content.write", "access_surface.manage"] };
-function resolveSmokeRepositoryContext(localOnly: boolean, wrongHost: boolean): ProjectCloudContext {
+function resolveSmokeRepositoryContext(localOnly: boolean, wrongHost: boolean, missing: boolean): ProjectCloudContext {
+  if (missing) return { status: "not-found", projectId: context.projectId, message: cloudMessage("remote-not-found") };
   if (wrongHost) return { status: "wrong-host", projectId: context.projectId,
     message: cloudMessage("remote-wrong-host", { origin: "http://api.puppyone.ai" }) };
   if (localOnly) return { status: "local-only", projectId: null };
@@ -79,6 +81,8 @@ const localSaveCompletions: Array<() => void> = [];
 const requests: string[] = [];
 const publishRequests: Array<string | undefined> = [];
 let cloudToolsAvailable = false;
+let cloudProjectMissing = false;
+const detachRequests: string[][] = [];
 let cloudReadBarrier: Promise<void> | null = null;
 let finishCloudRead: (() => void) | null = null;
 const authStateListeners = new Set<(state: DesktopCloudAuthState) => void>();
@@ -99,6 +103,9 @@ window.puppyoneDesktop = {
     const operation = url.pathname.split("/").at(-1);
     const path = url.searchParams.get("path") ?? "";
     const body = request.body ? JSON.parse(request.body) : null;
+    if (operation === "repository-context") return cloudProjectMissing
+      ? { transport: "puppyone-cloud-ipc-v1", ok: false, error: { status: 404, message: "Project not found" } }
+      : { project: { id: context.projectId }, target: context.target };
     if (url.pathname === "/projects/fixture-project") return { id: context.projectId,
       name: context.projectName, capabilities: context.capabilities };
     if (!cloudToolsAvailable && ["surfaces", "bindings", "providers"].includes(operation ?? ""))
@@ -133,7 +140,7 @@ declare global {
     __nativeCloudChromeBridge?: Pick<NonNullable<Window["puppyoneDesktop"]>,
       "getPlatformCapabilities" | "getWindowChromeState" | "onWindowChromeStateChanged">;
     __nativeCloudWorkbenchSmoke?: {
-    state: () => { location: string; cloudWrites: typeof cloudWrites; localWrites: typeof localWrites; requests: string[]; publishRequests: typeof publishRequests };
+    state: () => { location: string; cloudWrites: typeof cloudWrites; localWrites: typeof localWrites; requests: string[]; publishRequests: typeof publishRequests; detachRequests: typeof detachRequests };
     edit: (location: "local" | "cloud", text: string) => void;
     openCloudFile: (path: string) => Promise<void>;
     addCloudFixtures: (entries: Array<{ path: string; mimeType: string; content?: string }>) => void;
@@ -145,6 +152,7 @@ declare global {
     setCloudSessionAvailable: (available: boolean) => void;
     setRepositoryLocalOnly: (localOnly: boolean) => void;
     setRepositoryWrongHost: (wrongHost: boolean) => void;
+    setRepositoryMissing: (missing: boolean) => void;
     finishPublish: () => void;
     setSidebarCollapsed: (collapsed: boolean) => void;
     setCenteredProject: (centered: boolean) => void;
@@ -162,7 +170,8 @@ export function NativeCloudWorkbenchSmokeHarness() {
   const [cloudSessionAvailable, setCloudSessionAvailable] = useState(true);
   const [repositoryLocalOnly, setRepositoryLocalOnly] = useState(false);
   const [repositoryWrongHost, setRepositoryWrongHost] = useState(false);
-  const repositoryContext = resolveSmokeRepositoryContext(repositoryLocalOnly, repositoryWrongHost);
+  const [repositoryMissing, setRepositoryMissing] = useState(false);
+  const repositoryContext = resolveSmokeRepositoryContext(repositoryLocalOnly, repositoryWrongHost, repositoryMissing);
   const repositoryUnavailable = repositoryContext.status !== "resolved";
   const [publishLoading, setPublishLoading] = useState(false);
   const location = cloudSelected && cloudSessionAvailable ? "cloud" : "local";
@@ -220,7 +229,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
   const headerLocation = (preparingInPlace ? controller.requestedLocation : undefined) ?? location;
   useEffect(() => {
     window.__nativeCloudWorkbenchSmoke = {
-      state: () => ({ location, cloudWrites, localWrites, requests, publishRequests }),
+      state: () => ({ location, cloudWrites, localWrites, requests, publishRequests, detachRequests }),
       openCloudFile: async (path) => {
         if (!workbench.service) throw new Error("Cloud fixture is unavailable.");
         const resource = createWorkspaceResourceUri(workbench.service.folder.uri, path);
@@ -239,6 +248,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
       },
       setCloudToolsAvailable: (available) => { cloudToolsAvailable = available; },
       setCloudSessionAvailable, setSidebarCollapsed, setCenteredProject, setRepositoryLocalOnly, setRepositoryWrongHost,
+      setRepositoryMissing: (missing) => { cloudProjectMissing = missing; setRepositoryMissing(missing); },
       finishPublish: () => { setPublishLoading(false); setRepositoryLocalOnly(false); },
       setLoginAppearance: async (nextTheme, locale) => { setTheme(nextTheme); await setLanguagePreference(locale); },
       resetLogin: () => { for (const listener of authStateListeners) listener({ status: "signed-out", session: null }); },
@@ -280,6 +290,14 @@ export function NativeCloudWorkbenchSmokeHarness() {
       gate={<RepositoryCloudSwitchGate apiBaseUrl={API} onRetry={controller.retry}
         context={repositoryContext}
         initializationPending={publishLoading}
+        missingProjectRecovery={repositoryContext.status === "not-found" ? <MissingCloudProjectRecovery
+          context={repositoryContext} session={session} apiBaseUrl={API} onRetry={controller.retry}
+          status={{ remotes: [{ name: "puppyone", fetchUrl: `${API.replace('/api/v1', '')}/git/${context.projectId}.git`,
+            pushUrl: `${API.replace('/api/v1', '')}/git/${context.projectId}.git`, branches: [] }] }}
+          onRemoveCloudRemote={async remotes => {
+            detachRequests.push(remotes.map(remote => remote.name));
+            cloudProjectMissing = false; setRepositoryMissing(false); setRepositoryLocalOnly(true);
+          }} /> : undefined}
         authState={cloudSessionAvailable ? { status: "signed-in", apiBaseUrl: API, session } : { status: "signed-out", apiBaseUrl: API }}
         publishEntry={<CloudLocalOnlyWorkspace activeSection="contents" workspace={localWorkspace}
           accountEmail={session.user_email} branchName="main" totalCommits={1} localChangeCount={0}

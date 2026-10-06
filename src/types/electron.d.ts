@@ -1368,6 +1368,7 @@ declare global {
       removeGitRemote: (request: {
         rootPath: string;
         remoteName?: string;
+        expectedRemotes?: GitRemoteSummary[];
       }) => Promise<GitStatusSnapshot>;
       readPuppyoneConfig: (request: {
         rootPath: string;

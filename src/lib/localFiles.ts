@@ -20,6 +20,7 @@ import type {
   GitBranchGraphSnapshot,
   GitRepositoryInvalidatedEvent,
   GitRepositoryWatchResult,
+  GitRemoteSummary,
   GitStatusSnapshot,
   GitWorkingDiffScope,
   LastWorkspaceResult,
@@ -585,8 +586,10 @@ export async function initializeWorkspaceGitRepository(rootPath: string): Promis
 export async function removeWorkspaceGitRemote(
   rootPath: string,
   remoteName = "puppyone",
+  expectedRemotes?: readonly GitRemoteSummary[],
 ): Promise<GitStatusSnapshot> {
-  return getDesktopBridge().removeGitRemote({ rootPath, remoteName });
+  return getDesktopBridge().removeGitRemote({ rootPath, remoteName,
+    ...(expectedRemotes ? { expectedRemotes: [...expectedRemotes] } : {}) });
 }
 
 export async function readPuppyoneWorkspaceConfig(rootPath: string): Promise<PuppyoneWorkspaceConfig> {

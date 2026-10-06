@@ -10,13 +10,14 @@ import { CloudProjectActivation } from "../components/CloudProjectActivation";
 import { ChevronRight } from "lucide-react";
 
 /** Header recovery stays with the current repository, never a project picker. */
-export function RepositoryCloudSwitchGate({ context, authState, apiBaseUrl, onRetry, onPublishLocal, publishEntry, initializationPending = false }: {
+export function RepositoryCloudSwitchGate({ context, authState, apiBaseUrl, onRetry, onPublishLocal, publishEntry, missingProjectRecovery, initializationPending = false }: {
   context: ProjectCloudContext;
   authState: CloudAuthState;
   apiBaseUrl: string;
   onRetry: () => void;
   onPublishLocal?: () => void;
   publishEntry?: ReactNode;
+  missingProjectRecovery?: ReactNode;
   initializationPending?: boolean;
 }) {
   const { t } = useLocalization();
@@ -29,6 +30,7 @@ export function RepositoryCloudSwitchGate({ context, authState, apiBaseUrl, onRe
   if (context.status === "local-only" && onPublishLocal) return <CloudProjectActivation
     action={<button type="button" className="desktop-dialog-button primary" data-desktop-dialog-initial-focus="true"
       onClick={onPublishLocal}>{t("cloud.activation.project.publish")}</button>} />;
+  if (context.status === "not-found" && missingProjectRecovery) return missingProjectRecovery;
   if (context.status === "wrong-host") return <CloudProjectActivation
     supplemental={<div className="desktop-cloud-project-connection-error">
       <p role="alert">{t("cloud.recovery.title")}</p>

@@ -111,6 +111,20 @@ async function captureCloudReady(scene) {
   await writeFile(path.join(artifacts, `cloud-ready-${scene}.png`), (await window.webContents.capturePage()).toPNG());
 }
 
+async function captureSettledDialog(scene, selector) {
+  await waitFor(`Boolean(document.querySelector('${selector}'))`);
+  await evaluate(`(async () => {
+    await document.fonts.ready;
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const dialog = document.querySelector('${selector}');
+    await Promise.all(dialog.getAnimations({ subtree:true })
+      .filter(animation => Number.isFinite(animation.effect.getComputedTiming().endTime))
+      .map(animation => animation.finished.catch(() => {})));
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  })()`);
+  await writeFile(path.join(artifacts, `${scene}.png`), (await window.webContents.capturePage()).toPNG());
+}
+
 async function headerPresentation(location) {
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   // Measure settled contrast after control transitions and the Header reveal.
@@ -938,6 +952,34 @@ app.whenReady().then(async () => {
   await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
   await waitFor("!document.querySelector('.desktop-cloud-workspace-switch-dialog')");
   await evaluate("window.__nativeCloudWorkbenchSmoke.setRepositoryWrongHost(false)");
+  await evaluate("window.__nativeCloudWorkbenchSmoke.setRepositoryMissing(true)");
+  await openProjectMenu();
+  await evaluate("document.querySelector('button[data-project-location=cloud]').click()");
+  await waitFor("Boolean(document.querySelector('[data-cloud-replace-action]'))");
+  assert((await state()).detachRequests.length === 0, 'A missing Cloud project must not automatically detach the Git connection');
+  for (const theme of ['light', 'dark']) {
+    await evaluate(`window.__nativeCloudWorkbenchSmoke.setLoginAppearance('${theme}', 'en')`);
+    await waitFor(`document.querySelector('.desktop-overlay-root')?.dataset.themeMode === '${theme}'`);
+    await captureSettledDialog(`missing-project-${theme}`, '.desktop-cloud-workspace-switch-dialog');
+  }
+  await evaluate("document.querySelector('[data-cloud-replace-action]').click()");
+  await waitFor("Boolean(document.querySelector('.desktop-cloud-publish-confirmation'))");
+  await captureSettledDialog('missing-project-confirmation', '.desktop-cloud-publish-confirmation');
+  assert((await state()).detachRequests.length === 0, 'Replacement confirmation must precede detaching');
+  await evaluate("[...document.querySelectorAll('.desktop-cloud-publish-confirmation button')].find(button => button.textContent === 'Cancel').click()");
+  await waitFor("!document.querySelector('.desktop-cloud-publish-confirmation')");
+  assert((await state()).detachRequests.length === 0, 'Cancelling replacement must keep the old connection');
+  await evaluate("document.querySelector('[data-cloud-replace-action]').click()");
+  await waitFor("Boolean(document.querySelector('.desktop-cloud-publish-confirmation'))");
+  await evaluate("document.querySelector('.desktop-cloud-publish-confirmation button.primary').click()");
+  await waitFor("Boolean(document.querySelector('[data-cloud-publish-action]'))");
+  assert((await state()).detachRequests.length === 1 && (await state()).detachRequests[0].join(',') === 'puppyone',
+    'Reviewed replacement must detach exactly the old canonical Cloud remote');
+  assert((await state()).publishRequests.length === 1,
+    'Replacing the connection must return to explicit organization-scoped publication without uploading automatically');
+  await captureSettledDialog('missing-project-ready-to-publish', '.desktop-cloud-workspace-switch-dialog');
+  await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
+  await waitFor("!document.querySelector('.desktop-cloud-workspace-switch-dialog')");
   await evaluate("window.__nativeCloudWorkbenchSmoke.finishLocalSaves()");
   snapshot = await state();
   assert(!errors.length, `Renderer errors: ${errors.join("; ")}`);
