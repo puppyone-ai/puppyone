@@ -78,30 +78,25 @@
   .desktop-cloud-project-benefit-visual {
     display: flex;
     width: 100%;
-    height: 72px;
+    height: 100px;
     align-items: center;
     justify-content: center;
     color: var(--po-text-muted);
   }
 
-  .desktop-cloud-project-benefit-scene { display: block; width: min(100%, 200px); height: 72px; }
-  .desktop-cloud-project-scene-link { color: var(--po-accent-text); }
-  .desktop-cloud-project-scene-folder { color: var(--po-warning); }
-  .desktop-cloud-project-scene-backup-check { color: var(--po-success); }
+  .desktop-cloud-project-benefit-scene { display: block; width: min(100%, 220px); height: 96px; }
   .desktop-cloud-project-scene-url-frame {
     fill: var(--po-header);
     stroke: var(--po-border-strong);
-    stroke-width: 1;
   }
   .desktop-cloud-project-scene-url {
     fill: var(--po-accent-text);
     font-family: var(--po-font-ui, var(--po-font-sans));
-    font-size: 11px;
+    font-size: var(--po-type-ui-control, 14px);
   }
   .desktop-cloud-project-scene-member {
-    fill: color-mix(in srgb, currentColor 10%, var(--po-header));
+    fill: var(--po-header);
     stroke: currentColor;
-    stroke-width: 1;
   }
 
   .desktop-cloud-project-agent-brands {

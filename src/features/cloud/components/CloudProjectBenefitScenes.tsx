@@ -1,30 +1,29 @@
-import { ArrowRight, Check, FolderClosed, Link2, UserRound } from "lucide-react";
-import { CloudIcon } from "../../../components/icons/CloudIcon";
+import { ArrowRight, Cloud, Laptop, Link2, UserRound } from "lucide-react";
+
+// Diagram glyphs share one outline family and the same rendered stroke width.
+const SCENE_STROKE_WIDTH = 1.5;
+const SCENE_ICON_PROPS = { strokeWidth: SCENE_STROKE_WIDTH, absoluteStrokeWidth: true } as const;
 
 /** Decorative examples explain the handoffs without implying live project state. */
 export function CloudProjectSharingScene() {
-  return <svg className="desktop-cloud-project-benefit-scene" viewBox="0 0 200 72"
-    fill="none" aria-hidden="true" focusable="false">
-    <path d="M32 36h8m120 0h8" stroke="currentColor" strokeWidth="1.2" />
-    <rect className="desktop-cloud-project-scene-url-frame" x="40" y="23" width="120" height="26" rx="6" />
-    <Link2 x={48} y={29} width={14} height={14} strokeWidth={1.6} />
-    <text className="desktop-cloud-project-scene-url" x="68" y="40">puppyone.ai/…</text>
-    <circle className="desktop-cloud-project-scene-member" cx="18" cy="36" r="14" />
-    <UserRound x={10} y={28} width={16} height={16} strokeWidth={1.6} />
-    <circle className="desktop-cloud-project-scene-member" cx="182" cy="36" r="14" />
-    <UserRound x={174} y={28} width={16} height={16} strokeWidth={1.6} />
+  return <svg className="desktop-cloud-project-benefit-scene" viewBox="0 0 220 96"
+    fill="none" strokeWidth={SCENE_STROKE_WIDTH} aria-hidden="true" focusable="false">
+    <path d="M48 40v15m124-15v15" stroke="currentColor" />
+    <rect className="desktop-cloud-project-scene-url-frame" x="32" y="6" width="156" height="34" rx="6" />
+    <Link2 {...SCENE_ICON_PROPS} x={48} y={14} size={18} />
+    <text className="desktop-cloud-project-scene-url" x="74" y="29">puppyone.ai/…</text>
+    <circle className="desktop-cloud-project-scene-member" cx="48" cy="70" r="15" />
+    <UserRound {...SCENE_ICON_PROPS} x={38} y={60} size={20} />
+    <circle className="desktop-cloud-project-scene-member" cx="172" cy="70" r="15" />
+    <UserRound {...SCENE_ICON_PROPS} x={162} y={60} size={20} />
   </svg>;
 }
 
 export function CloudProjectBackupScene() {
-  return <svg className="desktop-cloud-project-benefit-scene" viewBox="0 0 200 72"
-    fill="none" aria-hidden="true" focusable="false">
-    <FolderClosed className="desktop-cloud-project-scene-folder" x={28} y={18} width={36} height={36} strokeWidth={1.5} />
-    <ArrowRight className="desktop-cloud-project-scene-link" x={86} y={27} width={18} height={18} strokeWidth={1.5} />
-    <CloudIcon className="desktop-cloud-project-scene-link" x={124} y={10} size={48} />
-    <g className="desktop-cloud-project-scene-backup-check">
-      <circle className="desktop-cloud-project-scene-member" cx="165" cy="49" r="9" />
-      <Check x={159} y={43} width={12} height={12} strokeWidth={1.8} />
-    </g>
+  return <svg className="desktop-cloud-project-benefit-scene" viewBox="0 0 220 96"
+    fill="none" strokeWidth={SCENE_STROKE_WIDTH} aria-hidden="true" focusable="false">
+    <Laptop {...SCENE_ICON_PROPS} x={28} y={24} size={48} />
+    <ArrowRight {...SCENE_ICON_PROPS} x={98} y={36} size={24} />
+    <Cloud {...SCENE_ICON_PROPS} x={144} y={24} size={48} />
   </svg>;
 }
