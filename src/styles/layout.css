@@ -647,6 +647,11 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   opacity: 1;
 }
 
+.desktop-project-menu .desktop-project-menu-action-icon {
+  width: var(--po-menu-icon-slot-size);
+  height: var(--po-menu-icon-slot-size);
+}
+
 .desktop-project-menu .desktop-menu-item-trailing {
   color: inherit;
 }
