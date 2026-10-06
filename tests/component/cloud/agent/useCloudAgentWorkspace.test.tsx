@@ -40,7 +40,24 @@ describe("Cloud Agent view identity", () => {
     await render(changes[change as keyof typeof changes]);
     expect(agent.controller).not.toBe(first);
     expect(agent.state.draft).toBe(""); expect(agent.open).toBe(false);
-    await render(); expect(agent.state.draft).toBe("Private draft");
+    await render(); expect(agent.state.draft).toBe("Private draft"); expect(agent.open).toBe(false);
+  });
+
+  it("collapses when leaving Cloud and keeps the conversation closed until explicitly reopened", async () => {
+    await render();
+    const controller = agent.controller!;
+    await act(async () => { controller.setDraft("Cloud draft"); controller.setOpen(true); });
+    expect(agent.open).toBe(true);
+    await render({ active: false });
+    expect(controller.getSnapshot().open).toBe(false);
+    expect(controller.getSnapshot().draft).toBe("Cloud draft");
+    await render();
+    expect(agent.controller).toBe(controller);
+    expect(agent.open).toBe(false);
+    expect(agent.state.draft).toBe("Cloud draft");
+    await act(async () => agent.toggle?.());
+    expect(agent.open).toBe(true);
+    expect(agent.state.draft).toBe("Cloud draft");
   });
 
   it("keeps a delayed admission with its original project while the user changes projects", async () => {

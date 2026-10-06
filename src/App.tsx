@@ -484,9 +484,6 @@ function AppContent() {
     onReveal: closeProjectMenu,
     beforeOpenSidebar: blurAuxiliarySurfaceFocus,
   });
-  const rightSidebarContentVisible = rightSidebarOpen && !cloudWorkspaceActive;
-  const agentSidebarOpen = rightSidebarContentVisible
-    && rightSidebarSurface === "chat";
   const handleRemoveProject = useCallback(async (folder: WorkspaceFolder) => {
     if (documentStorageIdentity) {
       await closeDocumentWorkingCopiesUnderResource(documentStorageIdentity, folder.uri);
@@ -789,6 +786,12 @@ function AppContent() {
   });
   const cloudAgent = useCloudAgentWorkspace({ context: accountCloud.context, session: activeCloudSession,
     apiBaseUrl: desktopCloudApiBaseUrl, active: cloudWorkspaceActive, onPublication: nativeCloudWorkbench.refresh });
+  const setCloudAgentOpen = cloudAgent.setOpen;
+  const closeWorkspaceSidebars = useCallback(() => {
+    blurAuxiliarySurfaceFocus();
+    setRightSidebarOpen(false);
+    setCloudAgentOpen?.(false);
+  }, [blurAuxiliarySurfaceFocus, setCloudAgentOpen, setRightSidebarOpen]);
   const repositoryCloudInitializationPending = cloudBackupLoading || cloudPublishStateLoading || Boolean(cloudPublishState);
   const repositoryCloudSwitch = useRepositoryCloudWorkspaceSwitch({
     enabled: cloudEnabled && Boolean(focusedWorkspace),
@@ -801,10 +804,12 @@ function AppContent() {
   const cancelRepositoryCloudSwitch = repositoryCloudSwitch.cancel;
   const cancelAccountCloudOpen = accountCloud.cancel;
   const cancelCloudWorkspaceSwitch = useCallback(() => {
+    closeWorkspaceSidebars();
     cancelRepositoryCloudSwitch(); cancelAccountCloudOpen();
-  }, [cancelAccountCloudOpen, cancelRepositoryCloudSwitch]);
+  }, [cancelAccountCloudOpen, cancelRepositoryCloudSwitch, closeWorkspaceSidebars]);
   const openCloudWorkspace = useCallback(() => {
     if (!cloudEnabled) return;
+    closeWorkspaceSidebars();
     cancelAccountCloudOpen();
     requestCloudWorkspace();
     setActiveCloudSection(CLOUD_HUB_ENTRY_SECTION);
@@ -812,13 +817,14 @@ function AppContent() {
     setSettingsDialogOpen(false);
     setPluginsDialogOpen(false);
     setBranchSwitcherOpen(false);
-  }, [cancelAccountCloudOpen, cloudEnabled, requestCloudWorkspace, setBranchSwitcherOpen]);
+  }, [cancelAccountCloudOpen, closeWorkspaceSidebars, cloudEnabled, requestCloudWorkspace, setBranchSwitcherOpen]);
   const openLocalWorkspace = useCallback(() => {
+    closeWorkspaceSidebars();
     cancelRepositoryCloudSwitch();
     returnToLocalWorkspace();
     setCloudDialogOpen(false);
     setBranchSwitcherOpen(false);
-  }, [cancelRepositoryCloudSwitch, returnToLocalWorkspace, setBranchSwitcherOpen]);
+  }, [cancelRepositoryCloudSwitch, closeWorkspaceSidebars, returnToLocalWorkspace, setBranchSwitcherOpen]);
 
   useEffect(() => {
     if (cloudWorkspaceActive) resetDataNodeActions();
@@ -857,6 +863,12 @@ function AppContent() {
   const headerWorkspaceLocation = cloudWorkspaceActive ? "cloud"
     : (prepareCloudInPlace && repositoryCloudSwitch.requestedLocation) || "local";
   const cloudHeaderActive = headerWorkspaceLocation === "cloud";
+  const localRightSidebarActive = !cloudWorkspaceActive && !repositoryCloudSwitch.pending;
+  const rightSidebarContentVisible = rightSidebarOpen && localRightSidebarActive;
+  const agentSidebarOpen = rightSidebarContentVisible && rightSidebarSurface === "chat";
+  const handleLocalRightSidebarOpenChange = useCallback((open: boolean) => {
+    if (!open || localRightSidebarActive) setRightSidebarOpen(open);
+  }, [localRightSidebarActive, setRightSidebarOpen]);
   // Header selection follows intent immediately; the provider remains local
   // until authorization and root-file access complete.
   const projectLocation: DesktopProjectLocation | undefined = cloudEnabled
@@ -1406,7 +1418,7 @@ function AppContent() {
     void handleActiveDataPathChange(qualifyDataResourcePath(rootUri, path));
   }, [focusedWorkspaceFolder?.uri, handleActiveDataPathChange]);
   const handleToggleAgentWorkbench = useCallback(() => {
-    if (cloudWorkspaceActive) return;
+    if (!localRightSidebarActive) return;
     if (agentSidebarOpen) {
       setRightSidebarOpen(false);
       return;
@@ -1416,7 +1428,7 @@ function AppContent() {
     setSwitcherOpen(false);
   }, [
     agentSidebarOpen,
-    cloudWorkspaceActive,
+    localRightSidebarActive,
     setRightSidebarOpen,
     setRightSidebarSurface,
   ]);
@@ -1782,7 +1794,7 @@ function AppContent() {
           resizableRightSidebar
           rightSidebarWidth={rightSidebarWidth}
           onLeftSidebarExpand={() => setSidebarCollapsed(false)}
-          onRightSidebarOpenChange={cloudWorkspaceActive ? cloudAgent.setOpen : setRightSidebarOpen}
+          onRightSidebarOpenChange={cloudWorkspaceActive ? cloudAgent.setOpen : handleLocalRightSidebarOpenChange}
           onRightSidebarWidthChange={setRightSidebarWidth}
           rightSidebar={(presentation) => (
             <div ref={auxiliarySurfaceRef} className="desktop-right-sidebar-stack">
@@ -1791,17 +1803,18 @@ function AppContent() {
                 {renderCloudAgentSidebar(presentation.contentVisible && cloudWorkspaceActive)}
               </div>
               <div
-                className={`desktop-right-sidebar-surface ${!cloudWorkspaceActive && rightSidebarSurface === "chat" ? "is-active" : ""}`}
-                aria-hidden={cloudWorkspaceActive || rightSidebarSurface !== "chat"}
+                className={`desktop-right-sidebar-surface ${localRightSidebarActive && rightSidebarSurface === "chat" ? "is-active" : ""}`}
+                aria-hidden={!localRightSidebarActive || rightSidebarSurface !== "chat"}
               >
                 {projectWorkbench && <AuxiliaryWorkbenchPanel
                   key={projectWorkbench.context.generation}
                   store={projectWorkbench}
-                  active={presentation.contentVisible && !cloudWorkspaceActive && rightSidebarSurface === "chat"}
+                  active={presentation.contentVisible && localRightSidebarActive && rightSidebarSurface === "chat"}
                   titlebarTabHost={enableWorkbenchTabsInHeader && !editorTabsInHeaderEnabled
                     ? titlebarTabHost
                     : null}
                   onReveal={() => {
+                    if (!localRightSidebarActive) return;
                     setRightSidebarSurface("chat");
                     setRightSidebarOpen(true);
                   }}
@@ -1814,14 +1827,14 @@ function AppContent() {
                 />}
               </div>
               <div
-                className={`desktop-right-sidebar-surface ${!cloudWorkspaceActive && rightSidebarSurface === "changes" ? "is-active" : ""}`}
-                aria-hidden={cloudWorkspaceActive || rightSidebarSurface !== "changes"}
+                className={`desktop-right-sidebar-surface ${localRightSidebarActive && rightSidebarSurface === "changes" ? "is-active" : ""}`}
+                aria-hidden={!localRightSidebarActive || rightSidebarSurface !== "changes"}
               >
                 {gitChangesView}
               </div>
               <div
-                className={`desktop-right-sidebar-surface ${!cloudWorkspaceActive && rightSidebarSurface === "history" ? "is-active" : ""}`}
-                aria-hidden={cloudWorkspaceActive || rightSidebarSurface !== "history"}
+                className={`desktop-right-sidebar-surface ${localRightSidebarActive && rightSidebarSurface === "history" ? "is-active" : ""}`}
+                aria-hidden={!localRightSidebarActive || rightSidebarSurface !== "history"}
               >
                 {gitHistoryView}
               </div>

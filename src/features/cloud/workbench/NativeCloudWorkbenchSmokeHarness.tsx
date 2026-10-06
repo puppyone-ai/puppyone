@@ -197,6 +197,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
   const controller = useCloudWorkspaceSwitch({ enabled: true, scope: localWorkspace.id,
     session: cloudSessionAvailable ? session : null, service: workbench.service,
     providerError: workbench.error, initializationPending: repositoryUnavailable || publishLoading, onCommit: commitCloud });
+  const sidebar = useSmokeLocationSidebars(location, controller.pending, agent);
   const localPort = useMemo<DataPort>(() => withEditorDocumentOperations({
     listChildren: async () => localNodes,
     resolveNode: async (path) => localNodes.find((node) => node.path === path) ?? null,
@@ -262,7 +263,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
       resetLogin: () => { for (const listener of authStateListeners) listener({ status: "signed-out", session: null }); },
       failLogin: () => { for (const listener of authErrorListeners) listener({ message: "Fixture browser sign-in failed. Try again." }); },
       finishLocalSaves: () => { localSaveCompletions.splice(0).forEach((finish) => finish()); },
-      holdCloudRead: () => { cloudReadBarrier = new Promise(resolve => { finishCloudRead = resolve; }); },
+      holdCloudRead: () => { workbench.service?.invalidateReads(); cloudReadBarrier = new Promise(resolve => { finishCloudRead = resolve; }); },
       finishCloudRead: () => { cloudReadBarrier = null; finishCloudRead?.(); finishCloudRead = null; },
     };
     return () => { delete window.__nativeCloudWorkbenchSmoke; };
@@ -272,13 +273,15 @@ export function NativeCloudWorkbenchSmokeHarness() {
         projectLocation={{ current: location, requested: controller.requestedLocation, headerLocation, loading: controller.pending && !controller.error,
           localAvailable: true, cloudState: "available" }} cloudProject={{ id: context.projectId }}
         onClose={() => setMenuOpen(false)} onToggle={() => setMenuOpen((current) => !current)}
-        onViewLocal={() => { controller.cancel(); setCloudSelected(false); }} onViewCloud={controller.request} />;
+        onViewLocal={() => { sidebar.close(); controller.cancel(); setCloudSelected(false); }}
+        onViewCloud={() => { sidebar.close(); controller.request(); }} />;
   return <div className={`app-shell${theme === "dark" ? " dark" : ""}`} data-po-appearance-root="true" data-native-cloud-smoke-ready="true">
     <DesktopOverlayPortal theme={theme}>{null}</DesktopOverlayPortal>
     <DesktopCloudShell onGoHome={noop} workspaceLocation={location} leftSidebarCollapsed={sidebarCollapsed} leftSidebarWidth={explorerWidth}
-      rightSidebarOpen={agent.open} rightSidebarWidth={360} resizableRightSidebar onRightSidebarOpenChange={agent.setOpen}
-      rightSidebar={pane => <CloudAgentSidebarHost controller={agent.controller} state={agent.state}
-        active={location === "cloud" && pane.contentVisible} title="Cloud project" />}
+      rightSidebarOpen={sidebar.open}
+      rightSidebarWidth={360} resizableRightSidebar
+      onRightSidebarOpenChange={sidebar.setOpen}
+      rightSidebar={pane => <SmokeAgentSidebar location={location} pending={controller.pending} agent={agent} contentVisible={pane.contentVisible} />}
       requestedWorkspaceLocation={headerLocation}
       onLeftSidebarExpand={() => setSidebarCollapsed(false)}
       {...getProjectHeaderSlots(centeredProject, projectSwitcher)}
@@ -286,9 +289,9 @@ export function NativeCloudWorkbenchSmokeHarness() {
         {headerLocation === "cloud" && <CloudWorkspaceHeaderTools context={location === "cloud" ? context : null}
           session={cloudSessionAvailable ? session : null} apiBaseUrl={API} onSessionChange={noop}
           agentOpen={agent.open} onToggleAgent={agent.toggle} />}
-        <DesktopTitlebarActions terminalSidebarOpen={false}
+        <DesktopTitlebarActions terminalSidebarOpen={sidebar.localOpen}
         terminalToolEnabled={headerLocation === "local"} gitChangesAvailable={headerLocation === "local"}
-        onToggleTerminal={noop} onToggleGitChanges={noop} />
+        onToggleTerminal={sidebar.toggleLocal} onToggleGitChanges={noop} />
       </>}
       >
       <DesktopWorkspaceLocationSurface location={location}
@@ -317,6 +320,35 @@ export function NativeCloudWorkbenchSmokeHarness() {
           organizations={[{ id: "fixture-org", name: "Fixture team" }]}
           selectedOrganizationId="fixture-org" organizationStatus="ready"
           onPublishWorkspace={(organizationId) => { publishRequests.push(organizationId); setPublishLoading(true); }} />} />} />
+  </div>;
+}
+
+function useSmokeLocationSidebars(location: "local" | "cloud", pending: boolean, agent: ReturnType<typeof useCloudAgentWorkspace>) {
+  const [localOpen, setLocalOpen] = useState(false);
+  const localActive = location === "local" && !pending;
+  return {
+    localOpen: localOpen && localActive,
+    open: location === "cloud" ? agent.open : localOpen && localActive,
+    setOpen: location === "cloud" ? agent.setOpen : (open: boolean) => { if (!open || localActive) setLocalOpen(open); },
+    toggleLocal: () => { if (localActive) setLocalOpen(open => !open); },
+    close: () => { setLocalOpen(false); agent.setOpen?.(false); },
+  };
+}
+
+function SmokeAgentSidebar({ location, pending, agent, contentVisible }: {
+  location: "local" | "cloud";
+  pending: boolean;
+  agent: ReturnType<typeof useCloudAgentWorkspace>;
+  contentVisible: boolean;
+}) {
+  const localActive = location === "local" && !pending;
+  return <div className="desktop-right-sidebar-stack">
+    <div className={`desktop-right-sidebar-surface ${location === "cloud" ? "is-active" : ""}`} aria-hidden={location !== "cloud"}>
+      <CloudAgentSidebarHost controller={agent.controller} state={agent.state}
+        active={location === "cloud" && contentVisible} title="Cloud project" />
+    </div>
+    <div className={`desktop-right-sidebar-surface ${localActive ? "is-active" : ""}`}
+      aria-hidden={!localActive} data-native-local-agent="true">Local Agent fixture</div>
   </div>;
 }
 

@@ -27,6 +27,39 @@ async function waitFor(expression) {
 const entry = "document.querySelector('[data-cloud-workspace-tool=agent]')";
 const composer = "document.querySelector('.desktop-cloud-agent-sidebar .cm-content')";
 const send = "document.querySelector('.desktop-cloud-agent-sidebar .desktop-agent-composer-action')";
+const rightPane = "document.querySelector('.desktop-right-sidebar')";
+async function selectLocation(location) {
+  await evaluate("document.querySelector('.desktop-titlebar-location-button').click()");
+  await waitFor(`Boolean(document.querySelector('button[data-project-location=${location}]'))`);
+  await evaluate(`document.querySelector('button[data-project-location=${location}]').click()`);
+}
+async function checkLocationRoundTrip(api) {
+  await selectLocation("local");
+  await waitFor(`${api}.state().location === 'local' && ${rightPane}.dataset.paneCollapsed === 'true'`);
+  await evaluate("document.querySelector('.desktop-titlebar-location-button').click()");
+  await evaluate("document.querySelector('.desktop-titlebar-terminal').click()");
+  await waitFor(`${rightPane}.dataset.paneCollapsed === 'false'`);
+  await evaluate(`${api}.holdCloudRead()`);
+  await selectLocation("cloud");
+  await waitFor(`${entry}?.disabled && ${rightPane}.dataset.paneCollapsed === 'true'`);
+  assert(await evaluate(`${api}.state().location === 'local' && document.querySelector('[data-native-local-agent]').getAttribute('aria-hidden') === 'true'`),
+    "Requesting Cloud must collapse and hide Local sidebar before file access completes");
+  await evaluate("document.querySelector('button[data-project-location=local]').click()");
+  await waitFor("!document.querySelector('[data-cloud-workspace-tool=agent]')");
+  await evaluate(`${api}.finishCloudRead()`);
+  await evaluate("new Promise(resolve => setTimeout(resolve, 300))");
+  assert(await evaluate(`${api}.state().location === 'local' && ${rightPane}.dataset.paneCollapsed === 'true'`),
+    "Cancelling Cloud must retain a closed Local pane and fence the delayed response");
+  await evaluate("document.querySelector('button[data-project-location=cloud]').click()");
+  await waitFor(`${api}.state().location === 'cloud' && !${entry}.disabled`);
+  assert(await evaluate(`${entry}.getAttribute('aria-expanded') === 'false' && ${rightPane}.dataset.paneCollapsed === 'true'`),
+    "Returning to a previously opened Cloud Agent must keep the pane closed");
+  await evaluate("document.querySelector('.desktop-titlebar-location-button').click()");
+  await evaluate(`${entry}.click()`);
+  await waitFor(`${composer}?.textContent.includes('Keep this draft')`);
+  assert(await evaluate("document.querySelector('[data-native-local-agent]').getAttribute('aria-hidden') === 'true'"),
+    "Explicit reopen must show Cloud chat while Local remains hidden");
+}
 async function exercise(mode) {
   const hosted = mode === "hosted";
   const api = hosted ? "window.__accountCloudSmoke" : "window.__nativeCloudWorkbenchSmoke";
@@ -42,9 +75,15 @@ async function exercise(mode) {
     await waitFor("Boolean(document.querySelector('[data-cloud-native=true] .tree-row'))");
     await evaluate("document.querySelector('[data-cloud-native=true] .tree-row').click()");
   } else {
+    await evaluate("document.querySelector('.desktop-titlebar-terminal').click()");
+    await waitFor(`${rightPane}.dataset.paneCollapsed === 'false'`);
+    await evaluate(`${api}.holdCloudRead()`);
     await evaluate("document.querySelector('.desktop-titlebar-location-button').click()");
     await waitFor("Boolean(document.querySelector('button[data-project-location=cloud]'))");
     await evaluate("document.querySelector('button[data-project-location=cloud]').click()");
+    await waitFor(`${entry}?.disabled && ${rightPane}.dataset.paneCollapsed === 'true'`);
+    assert(await evaluate(`${api}.state().location === 'local'`), "Local pane closes before Cloud commits");
+    await evaluate(`${api}.finishCloudRead()`);
     await waitFor(`${api}.state().location === 'cloud'`);
     await evaluate("document.querySelector('.desktop-titlebar-location-button').click()");
     await waitFor("!document.querySelector('.desktop-project-location-menu')");
@@ -69,9 +108,12 @@ async function exercise(mode) {
   await evaluate(`${entry}.click()`);
   await waitFor(`${composer}?.textContent.includes('Keep this draft')`);
   assert(await evaluate(`!${send}.disabled`), "Reopened composer keeps an editable draft");
+  if (!hosted) await checkLocationRoundTrip(api);
   for (const theme of ["light", "dark"]) {
     await evaluate(hosted ? `${api}.setTheme('${theme}')` : `${api}.setLoginAppearance('${theme}', 'en')`);
     await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+    await waitFor(`${rightPane}.dataset.panePresentation === 'expanded'`);
+    await waitFor("[...document.querySelectorAll('.desktop-cloud-header-reveal')].every(element => element.getAnimations({subtree:true}).every(animation => animation.playState === 'finished'))");
     const geometry = await evaluate(`(() => {
       const panel = document.querySelector('.desktop-cloud-agent-sidebar').getBoundingClientRect();
       const input = document.querySelector('.desktop-agent-composer').getBoundingClientRect();
@@ -94,6 +136,17 @@ async function exercise(mode) {
   await waitFor(`${composer}?.textContent === 'Keep running until I stop'`);
   await evaluate(`${send}.click()`);
   await waitFor(`${send}?.classList.contains('is-stop')`);
+  if (!hosted) {
+    await selectLocation("local");
+    await waitFor(`${api}.state().location === 'local' && ${rightPane}.dataset.paneCollapsed === 'true'`);
+    assert(await evaluate(`${api}.state().agent.states[1] === 'running'`), "Changing location must not stop the remote task");
+    await evaluate("document.querySelector('button[data-project-location=cloud]').click()");
+    await waitFor(`${api}.state().location === 'cloud' && !${entry}.disabled`);
+    assert(await evaluate(`${entry}.getAttribute('aria-expanded') === 'false'`), "A running task must not reopen the Cloud pane on return");
+    await evaluate("document.querySelector('.desktop-titlebar-location-button').click()");
+    await evaluate(`${entry}.click()`);
+    await waitFor(`${send}?.classList.contains('is-stop')`);
+  }
   await evaluate(`${entry}.click()`);
   await waitFor(`${entry}.getAttribute('aria-expanded') === 'false'`);
   assert(await evaluate(`${api}.state().agent.states[1] === 'running'`), "Hiding the sidebar does not stop the server task");

@@ -32,6 +32,13 @@ export function useCloudAgentWorkspace({ context, session, apiBaseUrl, active, o
   }, [key, storageKey, apiBaseUrl, target, session]);
   const state = useSyncExternalStore(controller?.subscribe ?? subscribeEmpty,
     controller?.getSnapshot ?? readEmpty, controller?.getSnapshot ?? readEmpty);
+  // Retain the actor's conversation and execution, but leave its pane closed
+  // when the location or identity changes so returning requires an explicit open.
+  useEffect(() => {
+    const close = () => { if (controller?.getSnapshot().open) controller.setOpen(false); };
+    if (!active) close();
+    return close;
+  }, [active, controller]);
   const working = cloudRunActive(state.runs[state.runs.length - 1]);
   const observing = active && (state.open || working);
   useEffect(() => {
