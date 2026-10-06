@@ -239,6 +239,7 @@ async function checkInlinePresentation(window, url, scene, catalog) {
         headerBackground: getComputedStyle(header).backgroundColor,
         peer: { width: peerBounds.width, height: peerBounds.height },
         track: { bounds: rect(track), background: getComputedStyle(track).backgroundColor,
+          padding: parseFloat(getComputedStyle(track).paddingLeft),
           border: getComputedStyle(track).borderTopWidth, radius: getComputedStyle(track).borderRadius },
         buttonBackgrounds: buttons.map(button => getComputedStyle(button).backgroundColor),
         loading: !!buttons[1].querySelector('[data-puppy-loader="pulse-grid"]'),
@@ -249,19 +250,26 @@ async function checkInlinePresentation(window, url, scene, catalog) {
     const evidence = JSON.stringify({ ...scene, width, ...snapshot });
     const creating = scene.state === "local-only" || scene.state === "local-github";
     assert(!snapshot.hasPopup && snapshot.name === "To-Do-List", `Inline experiment must keep the name and move location controls into Header: ${evidence}`);
-    assert(snapshot.buttons.length === 2 && snapshot.buttons.every(button => button.text === "" && button.bounds.width === snapshot.peer.width
-      && button.bounds.height === snapshot.peer.height && button.bounds.x >= 0 && button.bounds.right <= width && button.bounds.bottom <= 48
+    assert(snapshot.buttons.length === 2 && snapshot.buttons.every(button => button.text === "" && button.bounds.width === snapshot.peer.width - snapshot.track.padding
+      && button.bounds.height === snapshot.peer.height - 2 * snapshot.track.padding
+      && button.bounds.x >= snapshot.track.bounds.x + snapshot.track.padding
+      && button.bounds.right <= snapshot.track.bounds.right - snapshot.track.padding
+      && button.bounds.y >= snapshot.track.bounds.y + snapshot.track.padding
+      && button.bounds.bottom <= snapshot.track.bounds.bottom - snapshot.track.padding
+      && button.bounds.x >= 0 && button.bounds.right <= width && button.bounds.bottom <= 48
       && button.color === button.markColor), `Header icons must be compact, unclipped and inherit foreground: ${evidence}`);
     assert(snapshot.nameBounds.right <= snapshot.buttons[0].bounds.x + 1, `Project name and icons must not overlap: ${evidence}`);
     assert(snapshot.buttons[0].label === catalog[scene.platform === "macos" ? "workspaceSwitcher.location.thisMac" : "workspaceSwitcher.location.thisComputer"]
       && snapshot.buttons[1].label === catalog[creating ? "workspaceSwitcher.createCloudVersion" : "navigation.cloud"], `Icon-only actions must retain localized accessible names: ${evidence}`);
     assert(snapshot.currentCount === 1 && snapshot.pressedCount === 1 && snapshot.selected === (scene.state === "cloud-only" ? "cloud" : "local"), `Inline selection must match committed state: ${evidence}`);
-    assert(Math.abs(snapshot.plate.x - snapshot.selectedBounds.x) < 1 && Math.abs(snapshot.plate.width - snapshot.selectedBounds.width) < 1, `Indicator must initialize at the active location without replay: ${evidence}`);
+    assert(Math.abs(snapshot.plate.x - snapshot.selectedBounds.x) < 1 && Math.abs(snapshot.plate.y - snapshot.selectedBounds.y) < 1
+      && Math.abs(snapshot.plate.width - snapshot.selectedBounds.width) < 1 && snapshot.plate.height === snapshot.selectedBounds.height,
+      `Indicator must fit the inset active location without replay: ${evidence}`);
     assert(snapshot.track.bounds.width === snapshot.peer.width * 2 + 2 && snapshot.track.bounds.height === snapshot.peer.height
-      && snapshot.plate.height === snapshot.peer.height && snapshot.track.background === snapshot.headerBackground
-      && (scene.theme === "light" ? snapshot.selectedBackground === "rgb(255, 255, 255)" : snapshot.selectedBackground !== snapshot.headerBackground)
+      && snapshot.track.padding === 2 && snapshot.track.background === snapshot.headerBackground
+      && snapshot.selectedBackground !== "rgb(255, 255, 255)" && snapshot.selectedBackground !== snapshot.headerBackground
       && snapshot.buttonBackgrounds.every(background => background === "rgba(0, 0, 0, 0)"),
-      `Match Header control geometry; the shared track blends into Header and only the selected plate is raised: ${evidence}`);
+      `Keep the selected shade inset inside the Header-sized track: ${evidence}`);
     assert(snapshot.loading === (scene.state === "resolving") && snapshot.create === creating && !snapshot.plus,
       `Keep the Cloud glyph and shared loading/creation state: ${evidence}`);
     assert(snapshot.buttons[0].disabled === (scene.state === "cloud-only") && !snapshot.buttons[1].disabled,
