@@ -86,17 +86,15 @@
 
   .desktop-cloud-project-benefit-scene { display: block; width: min(100%, 200px); height: 72px; }
   .desktop-cloud-project-scene-link { color: var(--po-accent-text); }
-  .desktop-cloud-project-scene-member-left { color: var(--po-purple); }
-  .desktop-cloud-project-scene-member-right,
   .desktop-cloud-project-scene-folder { color: var(--po-warning); }
   .desktop-cloud-project-scene-backup-check { color: var(--po-success); }
   .desktop-cloud-project-scene-url-frame {
-    fill: color-mix(in srgb, var(--po-accent) 10%, var(--po-header));
-    stroke: currentColor;
+    fill: var(--po-header);
+    stroke: var(--po-border-strong);
     stroke-width: 1;
   }
   .desktop-cloud-project-scene-url {
-    fill: currentColor;
+    fill: var(--po-accent-text);
     font-family: var(--po-font-ui, var(--po-font-sans));
     font-size: 11px;
   }
