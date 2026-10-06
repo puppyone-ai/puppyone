@@ -224,10 +224,31 @@ async function checkInlinePresentation(window, url, scene, catalog) {
         const r = element.getBoundingClientRect();
         return { x: r.x, y: r.y, width: r.width, height: r.height, right: r.right, bottom: r.bottom };
       };
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      const luminance = color => {
+        context.clearRect(0, 0, 1, 1);
+        context.fillStyle = getComputedStyle(header).backgroundColor;
+        context.fillRect(0, 0, 1, 1);
+        context.fillStyle = color;
+        context.fillRect(0, 0, 1, 1);
+        const rgb = [...context.getImageData(0, 0, 1, 1).data].slice(0, 3).map(value => {
+          const component = value / 255;
+          return component <= 0.04045 ? component / 12.92 : ((component + 0.055) / 1.055) ** 2.4;
+        });
+        return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+      };
+      const contrast = (first, second) => (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+      const selectedLuminance = luminance(getComputedStyle(plate).backgroundColor);
+      const headerLuminance = luminance(getComputedStyle(header).backgroundColor);
       return {
         hasPopup: !!document.querySelector('.desktop-project-location-menu'),
         name: label.textContent, nameBounds: rect(label), nameFont: getComputedStyle(label).font,
         nameColor: getComputedStyle(label).color,
+        colorScheme: getComputedStyle(header).colorScheme, headerTextColor: getComputedStyle(header).color,
+        selectedContrast: contrast(selectedLuminance, luminance(getComputedStyle(selected).color)),
+        selectedEmphasis: contrast(selectedLuminance, headerLuminance),
+        selectedLighter: selectedLuminance > headerLuminance,
         buttons: buttons.map(button => ({ bounds: rect(button), label: button.getAttribute('aria-label'),
           text: button.textContent, color: getComputedStyle(button).color,
           font: getComputedStyle(button).font, selected: button.getAttribute('aria-pressed') === 'true',
@@ -255,7 +276,8 @@ async function checkInlinePresentation(window, url, scene, catalog) {
     assert(snapshot.buttons.length === 2 && snapshot.buttons.every(button =>
       (button.selected ? button.text === catalog[scene.state === "cloud-only" ? "navigation.cloud" : "workspaceSwitcher.location.local"]
         : button.text === "" && button.bounds.width === snapshot.peer.width - snapshot.track.padding)
-      && button.font === snapshot.nameFont && (!button.selected || button.color === snapshot.nameColor)
+      && button.font === snapshot.nameFont
+      && (!button.selected || button.color === (snapshot.colorScheme === "dark" ? snapshot.headerTextColor : snapshot.nameColor))
       && button.bounds.height === snapshot.peer.height - 2 * snapshot.track.padding
       && button.bounds.x >= snapshot.track.bounds.x + snapshot.track.padding
       && button.bounds.right <= snapshot.track.bounds.right - snapshot.track.padding
@@ -267,6 +289,8 @@ async function checkInlinePresentation(window, url, scene, catalog) {
     assert(snapshot.buttons[0].label === catalog["workspaceSwitcher.location.local"]
       && snapshot.buttons[1].label === catalog[creating ? "workspaceSwitcher.shareToCloud" : "navigation.cloud"], `Header actions must retain localized accessible names: ${evidence}`);
     assert(snapshot.currentCount === 1 && snapshot.pressedCount === 1 && snapshot.selected === (scene.state === "cloud-only" ? "cloud" : "local"), `Inline selection must match committed state: ${evidence}`);
+    if (snapshot.colorScheme === "dark") assert(snapshot.selectedLighter && snapshot.selectedEmphasis >= 1.3 && snapshot.selectedContrast >= 4.5,
+      `Dark Header selection needs a distinct lighter plate and readable text: ${evidence}`);
     assert(Math.abs(snapshot.plate.x - snapshot.selectedBounds.x) < 1 && Math.abs(snapshot.plate.y - snapshot.selectedBounds.y) < 1
       && Math.abs(snapshot.plate.width - snapshot.selectedBounds.width) < 1 && snapshot.plate.height === snapshot.selectedBounds.height,
       `Indicator must fit the inset active location without replay: ${evidence}`);

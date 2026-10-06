@@ -594,8 +594,11 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 .desktop-project-location-controls[data-presentation="header-icons"] {
   --desktop-project-location-bg: var(--desktop-titlebar-bg);
   --desktop-project-location-compact-width: calc(var(--desktop-chrome-control-size) - var(--desktop-project-location-inset));
-  /* Darken the current Header color without introducing another hue. */
-  --desktop-project-location-selected-bg: rgb(0 0 0 / 6%);
+  /* Lift the selected segment on dark Headers; shade it on light Headers. */
+  --desktop-project-location-selected-bg: light-dark(
+    rgb(0 0 0 / 6%),
+    color-mix(in srgb, var(--desktop-titlebar-text) 14%, transparent)
+  );
   flex: 0 0 auto;
   font-family: var(--desktop-titlebar-context-font-family);
   font-size: var(--desktop-titlebar-context-font-size);
@@ -636,7 +639,9 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   width: calc(100% - 2 * var(--desktop-project-location-inset)
     - var(--desktop-project-location-gap) - var(--desktop-project-location-compact-width));
   border-radius: max(0px, calc(var(--desktop-toolbar-action-radius) - var(--desktop-project-location-inset)));
-  box-shadow: 0 1px 1px color-mix(in srgb, var(--po-shadow) 65%, transparent);
+  box-shadow:
+    inset 0 0 0 1px light-dark(transparent, color-mix(in srgb, var(--desktop-titlebar-text) 10%, transparent)),
+    0 1px 1px color-mix(in srgb, var(--po-shadow) 65%, transparent);
 }
 
 .desktop-project-location-controls[data-presentation="header-icons"] .desktop-project-location-tabs[data-location="cloud"] .desktop-project-location-indicator {
@@ -674,7 +679,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 }
 
 .desktop-project-location-controls[data-presentation="header-icons"] .desktop-project-location-tab[aria-pressed="true"] {
-  color: var(--desktop-titlebar-text-muted);
+  color: light-dark(var(--desktop-titlebar-text-muted), var(--desktop-titlebar-text));
 }
 
 .desktop-project-location-controls[data-presentation="header-icons"] .desktop-project-location-tab:hover:not(:disabled):not([data-cloud-action="create"]) {
