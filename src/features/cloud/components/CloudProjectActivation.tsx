@@ -1,7 +1,7 @@
 import { useId, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import { AgentBrandImage, AgentMonochromeBrandImage, getAgentBrand } from "@puppyone/shared-ui";
-import { Link2 } from "lucide-react";
+import { CloudProjectAgentConnections, CloudProjectAvailabilityScene, CloudProjectSharingScene } from "./CloudProjectBenefitScenes";
 import { CloudProjectIllustration } from "./CloudProjectIllustration";
 import "./cloud-project-activation.css";
 
@@ -22,24 +22,27 @@ export function CloudProjectActivation({ action, supplemental, busy = false }: {
     </header>
     <ul className="desktop-cloud-project-benefits" role="list">
       <li className="desktop-cloud-project-benefit">
-        <div className="desktop-cloud-project-benefit-visual" aria-hidden="true"><Link2 size={20} /></div>
+        <div className="desktop-cloud-project-benefit-visual"><CloudProjectSharingScene /></div>
         <p className="desktop-cloud-project-benefit-copy">{t("cloud.activation.project.share")}</p>
       </li>
       <li className="desktop-cloud-project-benefit">
-        <div className="desktop-cloud-project-benefit-visual desktop-cloud-project-availability-visual" aria-hidden="true">24×7</div>
+        <div className="desktop-cloud-project-benefit-visual"><CloudProjectAvailabilityScene /></div>
         <p className="desktop-cloud-project-benefit-copy">{t("cloud.activation.project.availability")}</p>
       </li>
       <li className="desktop-cloud-project-benefit">
-        <div className="desktop-cloud-project-benefit-visual desktop-cloud-project-agent-brands">
-          {CLOUD_AGENT_BRANDS.map((brandId) => {
-            // The hosted Claude client shares the mark, not the local CLI name.
-            const name = brandId === "claude" ? "Claude" : getAgentBrand(brandId)?.displayName;
-            return <span key={brandId} role="img" aria-label={name}>
-              {brandId === "chatgpt"
-                ? <AgentMonochromeBrandImage brandId={brandId} />
-                : <AgentBrandImage brandId={brandId} />}
-            </span>;
-          })}
+        <div className="desktop-cloud-project-benefit-visual">
+          <CloudProjectAgentConnections />
+          <div className="desktop-cloud-project-agent-brands">
+            {CLOUD_AGENT_BRANDS.map((brandId) => {
+              // The hosted Claude client shares the mark, not the local CLI name.
+              const name = brandId === "claude" ? "Claude" : getAgentBrand(brandId)?.displayName;
+              return <span key={brandId} role="img" aria-label={name}>
+                {brandId === "chatgpt"
+                  ? <AgentMonochromeBrandImage brandId={brandId} />
+                  : <AgentBrandImage brandId={brandId} />}
+              </span>;
+            })}
+          </div>
         </div>
         <p className="desktop-cloud-project-benefit-copy">{t("cloud.activation.project.agents")}</p>
       </li>

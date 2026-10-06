@@ -902,7 +902,7 @@
   "activation.project.title": "프로젝트를 항상 온라인으로.",
   "activation.project.share": "팀과 공유",
   "activation.project.agents": "에이전트 연결",
-  "activation.project.availability": "언제나 사용 가능",
+  "activation.project.availability": "오프라인이어도 프로젝트는 온라인",
   "activation.project.publish": "클라우드에 공유",
   "activation.project.reconnect": "클라우드 프로젝트 다시 연결",
   "activation.project.errorDetails": "오류 세부 정보",

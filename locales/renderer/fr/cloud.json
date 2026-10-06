@@ -902,7 +902,7 @@
   "activation.project.title": "Votre projet, toujours en ligne.",
   "activation.project.share": "Partager avec votre équipe",
   "activation.project.agents": "Connecter des agents",
-  "activation.project.availability": "Toujours disponible",
+  "activation.project.availability": "En ligne quand vous êtes hors ligne",
   "activation.project.publish": "Partager dans le cloud",
   "activation.project.reconnect": "Reconnecter le projet Cloud",
   "activation.project.errorDetails": "Détails de l’erreur",

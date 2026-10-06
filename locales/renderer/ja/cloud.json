@@ -902,7 +902,7 @@
   "activation.project.title": "プロジェクトを、いつでもオンラインに。",
   "activation.project.share": "チームと共有",
   "activation.project.agents": "Agent を接続",
-  "activation.project.availability": "常時利用可能",
+  "activation.project.availability": "オフラインでもプロジェクトはオンライン",
   "activation.project.publish": "クラウドに共有",
   "activation.project.reconnect": "クラウドプロジェクトに再接続",
   "activation.project.errorDetails": "エラーの詳細",
