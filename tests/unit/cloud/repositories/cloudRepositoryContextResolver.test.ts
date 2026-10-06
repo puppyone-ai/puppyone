@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   assertCloudRemoteNameAvailable,
   assertExpectedGitRepositoryState,
@@ -29,6 +29,8 @@ describe("Initialize remote collision policy", () => {
 
 describe("legacy Cloud locator identity", () => {
   const api = "https://api.puppyone.ai/api/v1";
+  beforeEach(() => vi.stubEnv("VITE_DESKTOP_CLOUD_GIT_ORIGIN", ""));
+  afterEach(() => vi.unstubAllEnvs());
   it("accepts the official HTTP identity without trusting HTTP Git transport", () => {
     const locator = "http://api.puppyone.ai/git/project-1.git";
     expect(isTrustedCloudProjectLocator(locator, api)).toBe(true);
@@ -42,9 +44,30 @@ describe("legacy Cloud locator identity", () => {
     "http://api.puppyone.ai/git/project-1.git#secret",
   ])("rejects unrelated or credential-bearing locators: %s", locator => {
     expect(isTrustedCloudProjectLocator(locator, api)).toBe(false);
+    vi.stubEnv("VITE_DESKTOP_CLOUD_GIT_ORIGIN", "https://api.puppyone.ai");
+    expect(isTrustedCloudProjectLocator(locator, "http://localhost:9090/api/v1")).toBe(false);
   });
   it("keeps development and production environments distinct", () => {
     expect(isTrustedCloudProjectLocator("http://api.puppyone.ai/git/project-1.git", "http://localhost:8000/api/v1")).toBe(false);
+  });
+  it.each(["http://localhost:9090/api/v1", "http://127.0.0.1:9090/api/v1"])(
+    "recognizes the legacy identity for an explicitly configured hosted Git origin via %s", apiBaseUrl => {
+      vi.stubEnv("VITE_DESKTOP_CLOUD_GIT_ORIGIN", "https://api.puppyone.ai");
+      const locator = "http://api.puppyone.ai/git/project-1.git";
+      expect(isTrustedCloudProjectLocator(locator, apiBaseUrl)).toBe(true);
+      expect(isTrustedCloudGitOrigin(locator, apiBaseUrl)).toBe(false);
+    },
+  );
+  it.each(["https://other.puppyone.ai", "http://api.puppyone.ai", "https://api.puppyone.ai:9000"])(
+    "does not infer a hosted Git identity from a different configured origin: %s", gitOrigin => {
+      vi.stubEnv("VITE_DESKTOP_CLOUD_GIT_ORIGIN", gitOrigin);
+      expect(isTrustedCloudProjectLocator("http://api.puppyone.ai/git/project-1.git", "http://localhost:9090/api/v1")).toBe(false);
+      expect(isTrustedCloudGitOrigin("http://api.puppyone.ai/git/project-1.git", "http://localhost:9090/api/v1")).toBe(false);
+    },
+  );
+  it("does not let the development Git override bind a different hosted API", () => {
+    vi.stubEnv("VITE_DESKTOP_CLOUD_GIT_ORIGIN", "https://api.puppyone.ai");
+    expect(isTrustedCloudProjectLocator("http://api.puppyone.ai/git/project-1.git", "https://other.puppyone.ai/api/v1")).toBe(false);
   });
 });
 

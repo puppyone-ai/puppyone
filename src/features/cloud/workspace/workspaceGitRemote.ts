@@ -26,10 +26,9 @@ export function isTrustedCloudGitOrigin(
 ): boolean {
   if (sameCloudOrigin(remoteOrOrigin, apiBaseUrl)) return true;
   if (!remoteOrOrigin || !isLoopbackOrigin(apiBaseUrl)) return false;
-  const configuredGitOrigin = (
-    import.meta as ImportMeta & { env?: Record<string, string | undefined> }
-  ).env?.VITE_DESKTOP_CLOUD_GIT_ORIGIN?.trim();
-  return Boolean(configuredGitOrigin && sameCloudOrigin(remoteOrOrigin, configuredGitOrigin));
+  const configuredGitOrigin = import.meta.env.VITE_DESKTOP_CLOUD_GIT_ORIGIN?.trim();
+  return Boolean(configuredGitOrigin && sameCloudOrigin(remoteOrOrigin, configuredGitOrigin)
+    && cloudOriginFromApiBase(configuredGitOrigin).startsWith("https://"));
 }
 
 function isLoopbackOrigin(value: string | null | undefined): boolean {
@@ -41,18 +40,22 @@ function isLoopbackOrigin(value: string | null | undefined): boolean {
   }
 }
 
-/** Legacy official HTTP locators are identity hints only. Resolve them through
- * the configured HTTPS API; this must never authorize HTTP Git credentials. */
+/** Legacy official HTTP locators are identity hints only. Verify them through
+ * the configured API when its HTTPS Git origin is trusted, including an explicit
+ * hosted Git origin in loopback development. Never authorize HTTP Git credentials. */
 export function isTrustedCloudProjectLocator(remote: string, apiBaseUrl: string | null): boolean {
   if (isTrustedCloudGitOrigin(remote, apiBaseUrl)) return true;
   if (!apiBaseUrl) return false;
   try {
     const locator = new URL(remote);
-    const api = new URL(apiBaseUrl);
-    return locator.protocol === "http:" && api.protocol === "https:"
-      && locator.hostname === "api.puppyone.ai" && api.hostname === locator.hostname
-      && !locator.port && !api.port && !locator.username && !locator.password
-      && !locator.search && !locator.hash;
+    if (locator.protocol !== "http:" || locator.hostname !== "api.puppyone.ai"
+      || locator.port || locator.username || locator.password || locator.search || locator.hash) {
+      return false;
+    }
+    // Normalize identity in memory only; API requests still use apiBaseUrl and
+    // the existing remote/transport remains untouched.
+    locator.protocol = "https:";
+    return isTrustedCloudGitOrigin(locator.origin, apiBaseUrl);
   } catch {
     return false;
   }
