@@ -593,7 +593,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
 /* The experiment changes the entry surface, not location state or navigation. */
 .desktop-project-location-controls[data-presentation="header-icons"] {
   --desktop-project-location-bg: var(--desktop-titlebar-bg);
-  --desktop-project-location-selected-bg: color-mix(in srgb, var(--desktop-project-location-bg) 84%, var(--desktop-titlebar-text) 16%);
+  --desktop-project-location-selected-bg: color-mix(in srgb, var(--desktop-project-location-bg) 88%, var(--po-brand-blue) 12%);
   flex: 0 0 auto;
 }
 
