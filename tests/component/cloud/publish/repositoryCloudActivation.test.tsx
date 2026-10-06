@@ -44,7 +44,7 @@ describe("repository Cloud activation", () => {
     await render();
     expect(host.querySelector("h2")!.textContent).toBe(before);
     expect(host.querySelector("[data-cloud-sign-in-action]")).toBeNull();
-    expect(host.textContent).toContain("Share via link");
+    expect(host.textContent).toContain("Share with your team");
     expect(host.querySelector('[role="img"][aria-label="Manus"]')).not.toBeNull();
     expect(host.querySelector('[role="img"][aria-label="Viktor"]')).not.toBeNull();
     const button = host.querySelector<HTMLButtonElement>("[data-cloud-publish-action]")!;
