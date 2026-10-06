@@ -72,7 +72,7 @@ export function assertCloudRemoteNameAvailable(
   const normalizedRemoteName = remoteName.toLowerCase();
   if (status.remotes.some((remote) => remote.name.toLowerCase() === normalizedRemoteName)) {
     throw new Error(
-      `A Git remote named "${remoteName}" already exists. Remove or rename it before initializing this project on PuppyOne Cloud.`,
+      `A Git remote named "${remoteName}" already exists. Remove or rename it before initializing this project on Puppyone Cloud.`,
     );
   }
 }
@@ -100,7 +100,7 @@ export function assertExpectedGitRepositoryState(
     || (expected.branch !== undefined && actualBranch !== expected.branch)
   ) {
     throw new Error(
-      "The local Git branch or HEAD changed while PuppyOne Cloud initialization was starting. Review the current branch and try again.",
+      "The local Git branch or HEAD changed while Puppyone Cloud initialization was starting. Review the current branch and try again.",
     );
   }
 }

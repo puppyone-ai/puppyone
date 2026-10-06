@@ -1,4 +1,5 @@
-import { FileText, Link2, Moon, UserRound } from "lucide-react";
+import { Link2, Moon, UserRound } from "lucide-react";
+import { CloudIcon } from "../../../components/icons/CloudIcon";
 
 /** Decorative examples explain the handoffs without implying live project state. */
 export function CloudProjectSharingScene() {
@@ -37,7 +38,7 @@ export function CloudProjectAgentConnections() {
   return <svg className="desktop-cloud-project-benefit-scene desktop-cloud-project-agent-connections"
     viewBox="0 0 160 96" fill="none" aria-hidden="true" focusable="false">
     <rect className="desktop-cloud-project-scene-surface" x="63" y="10" width="34" height="28" rx="5" />
-    <FileText x={72} y={16} width={16} height={16} strokeWidth={1.5} />
+    <CloudIcon x={70} y={14} size={20} />
     <path className="desktop-cloud-project-scene-connector"
       d="M80 38v9M26 58v-7a4 4 0 0 1 4-4h100a4 4 0 0 1 4 4v7M62 47v11M98 47v11" />
   </svg>;

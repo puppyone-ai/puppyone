@@ -18,7 +18,7 @@ afterEach(() => {
 });
 
 describe("CloudDialog", () => {
-  it("keeps PuppyOne Cloud navigation and content in the shared dismissible overlay", () => {
+  it("keeps Puppyone Cloud navigation and content in the shared dismissible overlay", () => {
     const host = document.createElement("div");
     const onClose = vi.fn();
     document.body.append(host);
@@ -35,7 +35,7 @@ describe("CloudDialog", () => {
     const overlayRoot = document.querySelector<HTMLElement>("#desktop-overlay-root");
     const dialog = overlayRoot?.querySelector<HTMLElement>(".desktop-cloud-dialog");
     expect(dialog?.getAttribute("role")).toBe("dialog");
-    expect(dialog?.getAttribute("aria-label")).toBe("PuppyOne Cloud");
+    expect(dialog?.getAttribute("aria-label")).toBe("Puppyone Cloud");
     expect(dialog?.querySelector(".desktop-cloud-icon[data-cloud-icon=ant-design]")).not.toBeNull();
     expect(host.querySelector(".desktop-cloud-dialog")).toBeNull();
     expect(dialog?.querySelector("[data-testid='cloud-navigation']")?.textContent)

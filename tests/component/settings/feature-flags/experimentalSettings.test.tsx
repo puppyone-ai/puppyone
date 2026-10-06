@@ -128,7 +128,7 @@ describe("Experimental settings", () => {
       <ExperimentalSettingsView />,
     )));
 
-    const toggle = host.querySelector<HTMLInputElement>('input[aria-label="PuppyOne Cloud"]');
+    const toggle = host.querySelector<HTMLInputElement>('input[aria-label="Puppyone Cloud"]');
     expect(toggle?.checked).toBe(false);
     act(() => toggle?.click());
     expect(store.getState().experimentalSettings).toEqual({

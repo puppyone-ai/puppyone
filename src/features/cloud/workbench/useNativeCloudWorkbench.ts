@@ -52,7 +52,7 @@ export function useNativeCloudWorkbench({ context, session, apiBaseUrl, active, 
   const dataPort = useMemo(() => service
     ? withEditorDocumentOperations(createExplorerDataPort(service.dataPort, filesVisibilitySettings))
     : null, [service, filesVisibilitySettings]);
-  const pendingService = useMemo(() => createPendingCloudDataService(apiBaseUrl, "PuppyOne Cloud"), [apiBaseUrl]);
+  const pendingService = useMemo(() => createPendingCloudDataService(apiBaseUrl, "Puppyone Cloud"), [apiBaseUrl]);
   const surfaceService = service ?? pendingService;
   const [surfaceVisitedKey, setSurfaceVisitedKey] = useState<string | null>(null);
   useEffect(() => { if (active) setSurfaceVisitedKey(pendingService.workspace.id); }, [active, pendingService]);

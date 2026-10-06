@@ -247,10 +247,10 @@ export function createPublishError(code, message, retryable, cause = undefined) 
 
 export function mapCloudMutationError(defaultCode, message, error) {
   if (["SESSION_SIGNED_OUT", "SESSION_SIGNING_OUT", "SESSION_CHANGED"].includes(error?.code)) {
-    return createPublishError("SESSION_REQUIRED", "Sign in to PuppyOne Cloud to continue.", true, error);
+    return createPublishError("SESSION_REQUIRED", "Sign in to Puppyone Cloud to continue.", true, error);
   }
   if (Number(error?.status) === 401) {
-    return createPublishError("SESSION_REQUIRED", "Sign in to PuppyOne Cloud to continue.", true, error);
+    return createPublishError("SESSION_REQUIRED", "Sign in to Puppyone Cloud to continue.", true, error);
   }
   if (Number(error?.status) === 403) {
     return createPublishError("PERMISSION_DENIED", "You do not have permission to access this Cloud Project.", false, error);
@@ -268,7 +268,7 @@ export function mapCloudMutationError(defaultCode, message, error) {
   ].includes(error?.code)) {
     return createPublishError(
       "SERVICE_UPGRADE_REQUIRED",
-      "PuppyOne Cloud is being upgraded. Resume publishing shortly.",
+      "Puppyone Cloud is being upgraded. Resume publishing shortly.",
       true,
       error,
     );
@@ -363,7 +363,7 @@ function normalizePublishError(error) {
     code,
     retryable,
     message: code === "UNKNOWN"
-      ? "Unable to complete PuppyOne Cloud initialization."
+      ? "Unable to complete Puppyone Cloud initialization."
       : sanitizeDiagnostic(error instanceof Error ? error.message : String(error ?? "")),
   };
 }

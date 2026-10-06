@@ -235,7 +235,7 @@ describe("experimental preferences", () => {
     expect(parseExperimentalSettings(JSON.stringify({ enableProjectLocationIconsInHeader: true })).enableProjectLocationIconsInHeader).toBe(true);
   });
 
-  it("keeps PuppyOne Cloud off unless the user explicitly opts in", () => {
+  it("keeps Puppyone Cloud off unless the user explicitly opts in", () => {
     expect(parseExperimentalSettings(null).enableCloudWorkspace).toBe(false);
     expect(parseExperimentalSettings("not-json").enableCloudWorkspace).toBe(false);
     expect(parseExperimentalSettings(JSON.stringify({ enableCloudWorkspace: false })).enableCloudWorkspace).toBe(false);

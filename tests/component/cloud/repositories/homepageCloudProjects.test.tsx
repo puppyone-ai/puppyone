@@ -75,7 +75,7 @@ describe("inline Homepage Cloud projects", () => {
     await render({ currentSession: null });
     expect(bridge).not.toHaveBeenCalled();
     expect(document.querySelectorAll(".onboarding-project-row-wrap")).toHaveLength(1);
-    const signIn = buttons().find((button) => button.getAttribute("aria-label") === "Sign in to PuppyOne Cloud");
+    const signIn = buttons().find((button) => button.getAttribute("aria-label") === "Sign in to Puppyone Cloud");
     expect(signIn?.closest(".onboarding-project-list")).toBeNull();
     expect(signIn?.closest(".desktop-titlebar")).not.toBeNull();
     expect(signIn?.querySelector("svg")).toBeNull();

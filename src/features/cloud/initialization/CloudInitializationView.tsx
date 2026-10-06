@@ -275,7 +275,7 @@ function CloudPublishHero({ props, view }: PublishSectionProps) {
         </svg>
       </div>
 
-      <div className="desktop-cloud-publish-symbol cloud" aria-label="PuppyOne Cloud">
+      <div className="desktop-cloud-publish-symbol cloud" aria-label="Puppyone Cloud">
         <div className="desktop-cloud-publish-symbol-mark">
           <CloudPublishCloudMark className="desktop-cloud-publish-symbol-icon" />
         </div>

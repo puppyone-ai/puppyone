@@ -60,14 +60,14 @@ export function waitForCloudPublishReconciliation(delayMs) {
 
 export function remoteConfigFailureMessage(stage, error) {
   return withSafeGitDiagnostic(
-    `Unable to configure the canonical PuppyOne Cloud Git remote while ${stage}.`,
+    `Unable to configure the canonical Puppyone Cloud Git remote while ${stage}.`,
     error,
   );
 }
 
 export function pushFailureMessage(error) {
   return withSafeGitDiagnostic(
-    "Unable to push the initial commit to PuppyOne Cloud.",
+    "Unable to push the initial commit to Puppyone Cloud.",
     error,
   );
 }

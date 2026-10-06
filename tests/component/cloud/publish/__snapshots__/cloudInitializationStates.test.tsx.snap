@@ -385,13 +385,13 @@ exports[`Cloud initialization render contract captured before extraction > locks
     {
       "busy": "true",
       "disabled": true,
-      "text": "Sign in to PuppyOne Cloud",
+      "text": "Sign in to Puppyone Cloud",
     },
   ],
   "hero": true,
   "progress": false,
   "select": undefined,
-  "text": "Notestopic2 commits3 local changesNew Cloud projectNot initializedmainSign in to PuppyOne Cloud",
+  "text": "Notestopic2 commits3 local changesNew Cloud projectNot initializedmainSign in to Puppyone Cloud",
 }
 `;
 

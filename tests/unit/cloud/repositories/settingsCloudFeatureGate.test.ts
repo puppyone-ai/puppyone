@@ -24,7 +24,7 @@ describe("Settings Cloud feature gate", () => {
     expect(isSettingsSectionAvailable("model-connections", { cloudEnabled: false })).toBe(true);
   });
 
-  it("reveals the complete Cloud settings group after PuppyOne Cloud is enabled", () => {
+  it("reveals the complete Cloud settings group after Puppyone Cloud is enabled", () => {
     const cloudGroup = resolveSettingsSidebarGroups({ cloudEnabled: true })
       .find((group) => group.id === "cloud");
 
