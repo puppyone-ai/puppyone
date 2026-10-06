@@ -77,7 +77,7 @@ export function ExperimentalSettingsView() {
                   const label = t(`settings.experimental.${messageKey}.title`);
                   const description = messageKey === "projectHeaderAlignment"
                     ? undefined : t(`settings.experimental.${messageKey}.detail`);
-                  return <div className={`desktop-settings-row desktop-settings-row-control${choices ? " desktop-settings-wide-control-row" : ""}`} key={settingKey}>
+                  return <div className={`desktop-settings-row desktop-settings-row-control${choices ? " desktop-settings-choice-row" : ""}`} key={settingKey}>
                     <span>{label}</span>
                     {choices ? <div className="desktop-theme-segment" role="group" aria-label={label} aria-description={description}>
                       {choices.map(choice => <button key={choice.messageKey} type="button"
