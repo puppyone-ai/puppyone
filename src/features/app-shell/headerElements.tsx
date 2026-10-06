@@ -74,7 +74,7 @@ export const HEADER_ELEMENT_DEFINITIONS: readonly HeaderElementDefinition[] = [
           onDismiss={() => context.coachmark.acknowledge("changes")}
           onPrimary={activate}
         >
-        <button
+        <Tooltip content={toolbarPlacement ? undefined : statusLabel}><button
           className={toolbarPlacement
             ? "desktop-shell-toolbar-button desktop-shell-toolbar-changes"
             : "desktop-titlebar-action desktop-titlebar-changes"}
@@ -97,7 +97,7 @@ export const HEADER_ELEMENT_DEFINITIONS: readonly HeaderElementDefinition[] = [
             status={changes.status}
             showIdleEntry={!toolbarPlacement}
           />
-        </button>
+        </button></Tooltip>
         </HeaderFeatureCoachmark>
       );
     },
