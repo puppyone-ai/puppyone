@@ -94,7 +94,8 @@ export function DesktopWorkspaceSwitcher({
     const attachedPaths = new Set(attachedFolders.map((folder) => folder.workspace.path));
     return availableProjects.filter((project) => !attachedPaths.has(project.path));
   }, [attachedFolders, availableProjects]);
-  const hasProjectMenu = !inlineLocations || attachedFolders.length > 1 || multiRootWorkspacesEnabled;
+  const hasLocations = Boolean(projectLocation);
+  const hasProjectMenu = (hasLocations && !inlineLocations) || attachedFolders.length > 1 || multiRootWorkspacesEnabled;
   const resolvedCloudProject = resolveProjectCloudCopy(workspace, cloudProject);
   useEffect(() => {
     if (open && !hasProjectMenu) onClose();
@@ -112,7 +113,7 @@ export function DesktopWorkspaceSwitcher({
         projectLocation={projectLocation} inlineLocations={inlineLocations}
         hasProjectMenu={hasProjectMenu} open={open} triggerRef={triggerRef}
         onToggle={() => { setView("projects"); onToggle(); }} />
-      {inlineLocations && <DesktopProjectLocationControls
+      {hasLocations && inlineLocations && <DesktopProjectLocationControls
         presentation="header-icons"
         projectLocation={projectLocation}
         cloudProject={resolvedCloudProject}
@@ -135,7 +136,7 @@ export function DesktopWorkspaceSwitcher({
       >
         {view !== "add" ? (
           <>
-            {!inlineLocations && <DesktopProjectLocationControls
+            {hasLocations && !inlineLocations && <DesktopProjectLocationControls
               projectLocation={projectLocation}
               cloudProject={resolvedCloudProject}
               onViewLocal={onViewLocal}

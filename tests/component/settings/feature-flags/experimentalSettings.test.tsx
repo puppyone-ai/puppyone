@@ -25,7 +25,7 @@ describe("Experimental settings", () => {
     document.body.append(host);
     root = createRoot(host);
     act(() => root?.render(withTestLocalization(<ExperimentalSettingsView />)));
-    const toggle = host.querySelector<HTMLInputElement>('input[aria-label="Project location icons in Header"]');
+    const toggle = host.querySelector<HTMLInputElement>('input[aria-label="Local / Cloud switch in Header"]');
     expect(toggle?.checked).toBe(false);
     expect(toggle?.closest(".desktop-settings-subsection")?.querySelector("h3")?.textContent).toBe("Header & layout");
     act(() => toggle?.click());
@@ -36,38 +36,20 @@ describe("Experimental settings", () => {
     act(() => initializeDesktopPreferences());
     expect(store.getState().experimentalSettings).toEqual(DEFAULT_EXPERIMENTAL_SETTINGS);
   });
-  it("offers a separate default-off Git card in the Header group", () => {
+  it("keeps file tabs last in Header settings and retires the centered title and Git card switches", () => {
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
-    act(() => root?.render(withTestLocalization(
-      <ExperimentalSettingsView />,
-    )));
-    const toggle = host.querySelector<HTMLInputElement>('input[aria-label="Git card in Header"]');
-    expect(toggle?.closest(".desktop-settings-subsection")?.querySelector("h3")?.textContent).toBe("Header & layout");
-    expect(toggle?.checked).toBe(false);
-    act(() => toggle?.click());
-    expect(store.getState().experimentalSettings).toEqual({ ...DEFAULT_EXPERIMENTAL_SETTINGS, enableGitCardInHeader: true });
-  });
-  it("groups experiments and enables centered project names without changing other flags", () => {
-    const host = document.createElement("div");
-    document.body.append(host);
-    root = createRoot(host);
-    act(() => root?.render(withTestLocalization(
-      <ExperimentalSettingsView />,
-    )));
-
+    act(() => root?.render(withTestLocalization(<ExperimentalSettingsView />)));
     const groups = [...host.querySelectorAll(".desktop-settings-subsection")];
     expect(groups.map((group) => group.querySelector("h3")?.textContent)).toEqual([
       "Header & layout", "Markdown", "Imports & plugins", "Cloud & automation",
     ]);
-    const toggle = groups[0]?.querySelector<HTMLInputElement>('input[aria-label="Center project in Header"]');
-    expect(toggle?.checked).toBe(false);
-    act(() => toggle?.click());
-    expect(store.getState().experimentalSettings).toEqual({
-      ...DEFAULT_EXPERIMENTAL_SETTINGS,
-      enableCenteredProjectInHeader: true,
-    });
+    const toggles = [...groups[0]!.querySelectorAll("input")];
+    expect(toggles.at(-1)?.getAttribute("aria-label")).toBe("File tabs in Header");
+    expect(host.querySelector('input[aria-label="Git card in Header"]')).toBeNull();
+    expect(host.querySelector('input[aria-label="Center project in Header"]')).toBeNull();
+    expect(store.getState().experimentalSettings).toEqual(DEFAULT_EXPERIMENTAL_SETTINGS);
   });
 
   it("offers one default-off import experiment", () => {

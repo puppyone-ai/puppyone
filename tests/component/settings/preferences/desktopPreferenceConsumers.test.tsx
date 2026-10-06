@@ -182,10 +182,10 @@ describe("mounted desktop preference consumers", () => {
   });
   it("updates only the requested experiment from mounted settings and persists after remount", () => {
     renderSettings("experimental"); const before = store.getState().experimentalSettings;
-    click('input[aria-label="Git card in Header"]');
-    expect(store.getState().experimentalSettings).toEqual({ ...before, enableGitCardInHeader: true });
+    click('input[aria-label="Local / Cloud switch in Header"]');
+    expect(store.getState().experimentalSettings).toEqual({ ...before, enableProjectLocationIconsInHeader: true });
     act(() => initializeDesktopPreferences());
-    expect(host.querySelector<HTMLInputElement>('input[aria-label="Git card in Header"]')?.checked).toBe(true);
+    expect(host.querySelector<HTMLInputElement>('input[aria-label="Local / Cloud switch in Header"]')?.checked).toBe(true);
   });
   it("retains expanded preference width while the shell track is collapsed and observes live resize/icon changes", () => {
     store.getState().setExplorerWidth(390);

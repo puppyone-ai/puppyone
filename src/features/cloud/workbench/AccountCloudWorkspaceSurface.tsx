@@ -81,7 +81,7 @@ export function AccountCloudWorkspaceSurface({ workbench, presentation, active, 
       leftSidebarWidth={explorerWidth} onLeftSidebarExpand={() => setSidebarCollapsed(false)}
       titlebarActions={active && <CloudWorkspaceHeaderTools context={context} session={session}
         apiBaseUrl={apiBaseUrl} onSessionChange={onSessionChange} />}
-      titlebarCenteredSlot={<DesktopWorkspaceSwitcher open={menuOpen} refObject={menuRef}
+      titlebarSidebarSlot={<DesktopWorkspaceSwitcher open={menuOpen} refObject={menuRef}
         titlebarLabel={service.workspace.name} workspace={service.workspace} workspaceFolders={[service.folder]}
         multiRootWorkspacesEnabled={false} projectLocation={{ current: "cloud", localAvailable: true, cloudState: "available" }}
         cloudProject={{ id: service.workspace.projectId!, name: service.workspace.name }}

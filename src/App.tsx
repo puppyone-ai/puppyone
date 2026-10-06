@@ -1,7 +1,6 @@
 import { useWorkspaceEntryBootstrap } from "./features/app-shell/useWorkspaceEntryBootstrap";
 import { useHeaderCoachmarks } from "./features/app-shell/headerCoachmarks";
 import { useGitPresentation } from "./features/app-shell/useGitPresentation";
-import { DesktopGitHeaderCard } from "./features/app-shell/DesktopGitHeaderCard";
 import {
   lazy,
   Suspense,
@@ -201,8 +200,6 @@ function AppContent() {
   const enableCloudWorkspace = useDesktopPreference(s => s.experimentalSettings.enableCloudWorkspace);
   const enableShareOnboarding = useDesktopPreference(s => s.experimentalSettings.enableShareOnboarding);
   const enableAssetLibraryHome = useDesktopPreference(s => s.experimentalSettings.enableAssetLibraryHome);
-  const enableCenteredProjectInHeader = useDesktopPreference(s => s.experimentalSettings.enableCenteredProjectInHeader);
-  const enableGitCardInHeader = useDesktopPreference(s => s.experimentalSettings.enableGitCardInHeader);
   const enableViewerPlugins = useDesktopPreference(s => s.experimentalSettings.enableViewerPlugins);
   const enableOtherAppImports = useDesktopPreference(s => s.experimentalSettings.enableOtherAppImports);
   const enableAlwaysShowOnboardingCoachmarks = useDesktopPreference(s => s.experimentalSettings.enableAlwaysShowOnboardingCoachmarks);
@@ -463,12 +460,8 @@ function AppContent() {
       activeElement.blur();
     }
   }, []);
-  const centerProjectInHeader = enableCenteredProjectInHeader;
-  const gitAnchorRef = useRef<HTMLDivElement>(null);
   const closeProjectMenu = useCallback(() => setSwitcherOpen(false), []);
   const gitPresentation = useGitPresentation({
-    centeredProject: centerProjectInHeader,
-    cardExperiment: enableGitCardInHeader,
     workspaceScope: focusedWorkspace?.path ?? null,
     sidebarOpen: rightSidebarOpen,
     sidebarSurface: rightSidebarSurface,
@@ -477,7 +470,7 @@ function AppContent() {
     onReveal: closeProjectMenu,
     beforeOpenSidebar: blurAuxiliarySurfaceFocus,
   });
-  const rightSidebarContentVisible = gitPresentation.effectiveSidebarOpen && !cloudWorkspaceActive;
+  const rightSidebarContentVisible = rightSidebarOpen && !cloudWorkspaceActive;
   const agentSidebarOpen = rightSidebarContentVisible
     && rightSidebarSurface === "chat";
   const handleRemoveProject = useCallback(async (folder: WorkspaceFolder) => {
@@ -1538,7 +1531,6 @@ function AppContent() {
 
   const gitChangesView = (
     <GitChangesSidebar
-      focusNavigation={gitPresentation.cardEnabled}
       repository={{
         status: activeGitStatus,
         puppyoneConfig,
@@ -1581,7 +1573,6 @@ function AppContent() {
   );
   const gitHistoryView = (
     <GitHistorySidebar
-      focusNavigation={gitPresentation.cardEnabled}
       status={activeGitStatus}
       statusLoading={gitStatusLoading}
       statusError={gitStatusError}
@@ -1602,8 +1593,6 @@ function AppContent() {
     terminalToolEnabled: !cloudHeaderActive,
     gitChangesAvailable: Boolean(focusedWorkspace) && !cloudHeaderActive,
     gitChangesOpen: gitPresentation.open,
-    gitCardEnabled: gitPresentation.cardEnabled,
-    gitAnchorRef,
     gitChangesStatus: gitTitlebarStatus,
     activeCoachmark: headerCoachmarks.active,
     onAcknowledgeCoachmark: headerCoachmarks.acknowledge,
@@ -1616,7 +1605,6 @@ function AppContent() {
   };
   const titlebarContext = (
     <DesktopTitlebarContext
-      compactProjectMenu={centerProjectInHeader}
       activeGitStatus={cloudHeaderActive ? null : activeGitStatus}
       showBranchSwitcher={!cloudHeaderActive}
       backupProviders={focusedWorkspace?.path === workspace.path && gitStatusPath === workspace.path
@@ -1650,8 +1638,6 @@ function AppContent() {
       onToggleWorkspaceSwitcher={toggleWorkspaceSwitcher}
     />
   );
-
-  const titlebarSidebarSlot = centerProjectInHeader ? undefined : titlebarContext;
 
   const locationBarVisible = resolvedAppearance.composition.locationBar === "workspace-path-v1";
   const locationResource = resolveWorkspaceResource(activeDocumentPath ?? activeExplorerNode?.path ?? null);
@@ -1736,11 +1722,8 @@ function AppContent() {
           leftSidebarCollapsed={sidebarCollapsed}
           leftSidebarPresent={Boolean(dataPort)}
           leftSidebarWidth={explorerWidth}
-          titlebarSidebarSlot={projectSwitcherRailEnabled
-            ? undefined
-            : titlebarSidebarSlot}
+          titlebarSidebarSlot={titlebarContext}
           titlebarActions={titlebarActions}
-          titlebarCenteredSlot={centerProjectInHeader ? titlebarContext : undefined}
           titlebarTabs={cloudWorkspaceActive
             ? editorTabsInHeaderEnabled && accountCloudPresentation.titlebarTabs
             : titlebarEditorTabs}
@@ -1785,22 +1768,18 @@ function AppContent() {
                   renderLauncher={(context) => <AuxiliaryWorkbenchLauncher {...context} store={projectWorkbench} contributions={auxiliaryWorkbenchContributions} />}
                 />}
               </div>
-              {!gitPresentation.cardEnabled && (
-                <>
-                  <div
-                    className={`desktop-right-sidebar-surface ${!cloudWorkspaceActive && rightSidebarSurface === "changes" ? "is-active" : ""}`}
-                    aria-hidden={cloudWorkspaceActive || rightSidebarSurface !== "changes"}
-                  >
-                    {gitChangesView}
-                  </div>
-                  <div
-                    className={`desktop-right-sidebar-surface ${!cloudWorkspaceActive && rightSidebarSurface === "history" ? "is-active" : ""}`}
-                    aria-hidden={cloudWorkspaceActive || rightSidebarSurface !== "history"}
-                  >
-                    {gitHistoryView}
-                  </div>
-                </>
-              )}
+              <div
+                className={`desktop-right-sidebar-surface ${!cloudWorkspaceActive && rightSidebarSurface === "changes" ? "is-active" : ""}`}
+                aria-hidden={cloudWorkspaceActive || rightSidebarSurface !== "changes"}
+              >
+                {gitChangesView}
+              </div>
+              <div
+                className={`desktop-right-sidebar-surface ${!cloudWorkspaceActive && rightSidebarSurface === "history" ? "is-active" : ""}`}
+                aria-hidden={cloudWorkspaceActive || rightSidebarSurface !== "history"}
+              >
+                {gitHistoryView}
+              </div>
             </div>
           )}
         >
@@ -1808,14 +1787,6 @@ function AppContent() {
             preparation={repositoryCloudSwitch.pending && prepareCloudInPlace
               ? <CloudWorkspacePreparation controller={repositoryCloudSwitch} /> : undefined}
             local={<>
-          {gitPresentation.cardEnabled && <DesktopGitHeaderCard
-            anchorRef={gitAnchorRef}
-            open={gitPresentation.cardOpen}
-            surface={gitPresentation.cardSurface}
-            onDismiss={gitPresentation.closeCard}
-            changes={gitChangesView}
-            history={gitHistoryView}
-          />}
           <DesktopWorkspaceContent
             activeAiEditRequest={activeAiEditRequest}
             activeDocumentPath={activeDocumentPath}

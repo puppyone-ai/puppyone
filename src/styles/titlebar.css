@@ -1238,34 +1238,6 @@
   inset-inline-start: auto;
 }
 
-.desktop-titlebar-git-card-anchor {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-}
-
-.desktop-titlebar-menu.desktop-git-header-card {
-  --po-menu-bg: var(--po-header);
-  --interface-menu-background: var(--po-header);
-  --po-surface-auxiliary: var(--po-header);
-  display: flex;
-  height: 560px;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.desktop-git-header-card-surface {
-  display: flex;
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.desktop-git-header-card-surface[hidden] {
-  display: none;
-}
-
 .desktop-titlebar-branch-wrap {
   position: relative;
   display: flex;

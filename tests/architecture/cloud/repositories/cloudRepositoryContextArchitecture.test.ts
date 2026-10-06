@@ -80,7 +80,7 @@ describe("repository-context architecture", () => {
     expect(app).not.toContain("accountCloud.open;");
     expect(app).toContain("const accountCloudSurface = !workspace ?");
     expect(app).toContain("<DesktopWorkspaceLocationSurface location={projectLocation?.current ?? \"local\"}");
-    expect(surface).toContain("titlebarCenteredSlot={<DesktopWorkspaceSwitcher");
+    expect(surface).toContain("titlebarSidebarSlot={<DesktopWorkspaceSwitcher");
     expect(surface).not.toContain("titlebarActions={<DesktopProjectLocationControls");
   });
 

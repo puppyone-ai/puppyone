@@ -1,6 +1,6 @@
 import { useDesktopPreference } from "../../preferencesStore";
 import { Tooltip } from "@puppyone/shared-ui";
-import { Fragment, type ReactNode, type RefObject } from "react";
+import { Fragment, type ReactNode } from "react";
 import { Forward } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import { getOrderedHeaderElementDefinitions, type HeaderElementRenderContext } from "./headerElements";
@@ -15,7 +15,6 @@ import {
   type GitTitlebarStatus,
 } from "../source-control/gitTitlebarStatus";
 import type { HeaderCoachmarkId } from "./headerCoachmarks";
-import { GIT_HEADER_CARD_ID } from "./DesktopGitHeaderCard";
 
 type DesktopTitlebarActionsProps = {
   desktopUpdateState?: DesktopUpdateState | null;
@@ -24,8 +23,6 @@ type DesktopTitlebarActionsProps = {
   gitChangesAvailable?: boolean;
   gitChangesOpen?: boolean;
   gitChangesStatus?: GitTitlebarStatus;
-  gitCardEnabled?: boolean;
-  gitAnchorRef?: RefObject<HTMLDivElement>;
   onUpdateNow?: () => void;
   onToggleTerminal: () => void;
   onToggleGitChanges?: () => void;
@@ -47,8 +44,6 @@ export function DesktopTitlebarActions({
   gitChangesAvailable = false,
   gitChangesOpen = false,
   gitChangesStatus = EMPTY_GIT_TITLEBAR_STATUS,
-  gitCardEnabled = false,
-  gitAnchorRef,
   onUpdateNow = () => {},
   onToggleTerminal,
   onToggleGitChanges = () => {},
@@ -80,7 +75,6 @@ export function DesktopTitlebarActions({
       onToggle: onToggleGitChanges,
       sidebarOpen: gitChangesOpen,
       status: gitChangesStatus,
-      cardId: gitCardEnabled && placement === "titlebar" ? GIT_HEADER_CARD_ID : undefined,
     },
   };
 
@@ -164,11 +158,7 @@ export function DesktopTitlebarActions({
             {separatesActionGroups && (
               <span className="desktop-titlebar-action-divider" aria-hidden="true" />
             )}
-            {item.id === "changes" && gitCardEnabled && placement === "titlebar" ? (
-              <div className="desktop-titlebar-git-card-anchor" ref={gitAnchorRef}>
-                {item.node}
-              </div>
-            ) : item.node}
+            {item.node}
           </Fragment>
         );
       })}

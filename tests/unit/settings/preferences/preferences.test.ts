@@ -240,8 +240,6 @@ describe("experimental preferences", () => {
     expect(parseExperimentalSettings("not-json").enableCloudWorkspace).toBe(false);
     expect(parseExperimentalSettings(JSON.stringify({ enableCloudWorkspace: false })).enableCloudWorkspace).toBe(false);
     expect(parseExperimentalSettings(JSON.stringify({ enableCloudWorkspace: true })).enableCloudWorkspace).toBe(true);
-    expect(parseExperimentalSettings(null).enableCenteredProjectInHeader).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableCenteredProjectInHeader: true })).enableCenteredProjectInHeader).toBe(true);
   });
 
   it("keeps Share from the Header on unless the user explicitly opts out", () => {
@@ -252,13 +250,14 @@ describe("experimental preferences", () => {
     expect(parseExperimentalSettings(JSON.stringify({ enableShareOnboarding: true })).enableShareOnboarding).toBe(true);
   });
 
-  it("only restores the Git Header card after an explicit opt-in", () => {
-    for (const stored of [null, "not-json", "{}", '{"enableGitCardInHeader":"true"}']) {
-      expect(parseExperimentalSettings(stored).enableGitCardInHeader).toBe(false);
-    }
-    const stored = JSON.stringify({ enableGitCardInHeader: true, enableCenteredProjectInHeader: false });
-    expect(parseExperimentalSettings(stored).enableGitCardInHeader).toBe(true);
-    expect(parseExperimentalSettings(stored).enableCenteredProjectInHeader).toBe(false);
+  it("ignores retired centered project and Git card preferences without enabling Cloud", () => {
+    const settings = parseExperimentalSettings(JSON.stringify({
+      enableCenteredProjectInHeader: true,
+      enableGitCardInHeader: true,
+    }));
+    expect(settings).toEqual(DEFAULT_EXPERIMENTAL_SETTINGS);
+    expect(settings).not.toHaveProperty("enableCenteredProjectInHeader");
+    expect(settings).not.toHaveProperty("enableGitCardInHeader");
   });
 
   it("keeps onboarding coachmark replay off unless the user explicitly opts in", () => {

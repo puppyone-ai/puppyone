@@ -42,6 +42,19 @@ async function render(props: Partial<Parameters<typeof DesktopWorkspaceSwitcher>
 }
 
 describe("project location presentation experiment", () => {
+  it.each([false, true])("hides local / Cloud switching while Cloud is disabled (icons: %s)", async (inline) => {
+    icons(inline);
+    const close = vi.fn();
+    await render({ projectLocation: undefined, onClose: close });
+    expect(document.querySelector(".desktop-project-location-controls")).toBeNull();
+    expect(document.querySelector(".desktop-project-menu")).toBeNull();
+    expect(host.querySelector(".desktop-titlebar-workspace-label")?.textContent).toBe(workspace.name);
+    expect(close).toHaveBeenCalledOnce();
+    await render({ multiRootWorkspacesEnabled: true, projectLocation: undefined, onOpenFolder: vi.fn() });
+    expect(document.querySelector(".desktop-project-menu")?.textContent).toContain("Add Project…");
+    expect(document.querySelector(".desktop-project-location-controls")).toBeNull();
+  });
+
   it.each([false, true])("uses one selection controller before, during and after Cloud loading (icons: %s)", async (inline) => {
     icons(inline);
     let finish: () => void = () => undefined;

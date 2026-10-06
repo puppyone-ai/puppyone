@@ -121,12 +121,12 @@ describe("titlebar Portal menu interactions", () => {
     expect(Boolean(locationButton("cloud").querySelector('[data-puppy-loader="pulse-grid"]'))).toBe(cloudState === "resolving");
   });
 
-  it.each([undefined, "unavailable", "available", "signed-out", "resolving", "attention"] as const)(
+  it.each(["unavailable", "available", "signed-out", "resolving", "attention"] as const)(
     "does not select Cloud just because the local project has a remote (%s)", async (cloudState) => {
       await renderSwitcher({
         workspace: { ...createWorkspace("one", "Workspace one"),
           puppyoneGitRemote: { origin: "https://cloud.example.com", projectId: "linked-project" } },
-        projectLocation: cloudState ? { current: "local", localAvailable: true, cloudState } : undefined,
+        projectLocation: { current: "local", localAvailable: true, cloudState },
         onViewCloud: vi.fn(),
       });
       expect(document.querySelector(".desktop-titlebar-workspace-button .lucide-laptop")).not.toBeNull();
@@ -311,6 +311,7 @@ describe("titlebar Portal menu interactions", () => {
         workspace={workspace} workspaceFolders={[]} multiRootWorkspacesEnabled={false}
         backupProviders={["github", "gitlab"]}
         cloudProject={{ id: "cloud-notes", name: "Notes on Cloud" }}
+        projectLocation={{ current: "local", localAvailable: true, cloudState: "available" }}
         onToggle={() => { onToggle(); setOpen((value) => !value); }}
         onClose={() => { onClose(); setOpen(false); }}
       />;
@@ -358,6 +359,7 @@ describe("titlebar Portal menu interactions", () => {
             createWorkspaceFolder(secondWorkspace, { index: 1 }),
           ]}
           availableProjects={[workspace, secondWorkspace, thirdWorkspace]}
+          projectLocation={{ current: "local", localAvailable: true, cloudState: "available" }}
           multiRootWorkspacesEnabled
           onAddExistingProject={onAddExistingProject}
           onOpenFolder={onAddProject}
@@ -454,6 +456,7 @@ describe("titlebar Portal menu interactions", () => {
           workspace={createWorkspace("one", "Workspace one")}
           workspaceFolders={[]}
           multiRootWorkspacesEnabled={false}
+          projectLocation={{ current: "local", localAvailable: true, cloudState: "available" }}
           onAddExistingProject={vi.fn()}
           onOpenFolder={vi.fn()}
           onClose={vi.fn()}
@@ -552,7 +555,7 @@ describe("titlebar Portal menu interactions", () => {
     expect(branchButton?.querySelector(".desktop-titlebar-branch-placeholder")).not.toBeNull();
   });
 
-  it("keeps the local Header mark and disables Cloud when no navigation is provided", async () => {
+  it("shows only the project name when Cloud is disabled", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -584,14 +587,10 @@ describe("titlebar Portal menu interactions", () => {
       await Promise.resolve();
     });
 
-    const workspaceButton = container.querySelector<HTMLButtonElement>(".desktop-titlebar-workspace-button");
-    expect(workspaceButton?.querySelector('.lucide-laptop')).not.toBeNull();
-    expect(workspaceButton?.querySelector('.lucide-folder-closed')).toBeNull();
-    expect(workspaceButton?.getAttribute("aria-label")).toContain("This Mac");
-    expect(container.querySelector(".desktop-titlebar-cloud-button")).toBeNull();
-    expect(requireMenu().textContent).toBe("This MacCloud");
-    expect(locationButton("local").getAttribute("aria-pressed")).toBe("true");
-    expect(locationButton("cloud").disabled).toBe(true);
+    expect(container.querySelector(".desktop-titlebar-workspace-label")?.textContent).toBe("Workspace one");
+    expect(container.querySelector("button.desktop-titlebar-workspace-button")).toBeNull();
+    expect(document.querySelector(".desktop-project-location-controls")).toBeNull();
+    expect(document.querySelector('[data-titlebar-context-menu="true"]')).toBeNull();
   });
 });
 
@@ -642,6 +641,7 @@ async function renderSwitcher(props: Partial<Parameters<typeof DesktopWorkspaceS
   await act(async () => root?.render(withTestLocalization(
     <DesktopWorkspaceSwitcher open refObject={createRef<HTMLDivElement>()}
       titlebarLabel={workspace.name} workspace={workspace} workspaceFolders={[]}
+      projectLocation={{ current: "local", localAvailable: true, cloudState: "available" }}
       multiRootWorkspacesEnabled={false} onClose={vi.fn()} onToggle={vi.fn()} {...props} />,
   )));
   return container;

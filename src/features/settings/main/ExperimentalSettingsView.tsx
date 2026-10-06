@@ -16,10 +16,7 @@ export function ExperimentalSettingsView() {
     {
       id: "header",
       rows: [
-        { messageKey: "editorTabsInHeader", settingKey: "enableEditorTabsInHeader" },
-        { messageKey: "centerProjectInHeader", settingKey: "enableCenteredProjectInHeader" },
         { messageKey: "projectLocationIconsInHeader", settingKey: "enableProjectLocationIconsInHeader" },
-        { messageKey: "gitCardInHeader", settingKey: "enableGitCardInHeader" },
         { messageKey: "workbenchTabsInHeader", settingKey: "enableWorkbenchTabsInHeader" },
         { messageKey: "shareOnboarding", settingKey: "enableShareOnboarding" },
         { messageKey: "projectSwitcherRail", settingKey: "enableProjectSwitcherRail" },
@@ -28,6 +25,7 @@ export function ExperimentalSettingsView() {
         ...(assetLibraryHomeAvailable
           ? [{ messageKey: "projectsHome", settingKey: "enableAssetLibraryHome" as const }]
           : []),
+        { messageKey: "editorTabsInHeader", settingKey: "enableEditorTabsInHeader" },
       ],
     },
     {
