@@ -1,4 +1,6 @@
 {
+  "session.cloudConflict": "El archivo en la nube ha cambiado. Tus cambios sin guardar se conservan. Cópialos antes de recargar.",
+  "session.discardAndReload": "Descartar cambios y recargar",
   "database.title": "Vista previa de base de datos",
   "database.readonly": "Solo lectura",
   "database.reload": "Volver a cargar",

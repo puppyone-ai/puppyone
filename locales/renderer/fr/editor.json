@@ -1,4 +1,6 @@
 {
+  "session.cloudConflict": "Le fichier Cloud a changé. Vos modifications non enregistrées sont conservées. Copiez-les avant de recharger.",
+  "session.discardAndReload": "Abandonner les modifications et recharger",
   "database.title": "Aperçu de la base de données",
   "database.readonly": "Lecture seule",
   "database.reload": "Recharger",

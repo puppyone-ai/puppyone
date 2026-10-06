@@ -1,4 +1,6 @@
 {
+  "session.cloudConflict": "The Cloud file changed. Your unsaved edits are preserved. Copy them before reloading.",
+  "session.discardAndReload": "Discard edits and reload",
   "database.title": "Database preview",
   "database.readonly": "Read-only",
   "database.reload": "Reload",

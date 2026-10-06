@@ -7,6 +7,7 @@ export function formatDocumentSessionError(
   t: MessageFormatter,
 ): string | null {
   if (!error) return null;
+  if (error.code === "external-conflict") return t("editor.session.cloudConflict");
   return error.detail
     ? t("editor.session.saveFailedDetail", { detail: bidiIsolate(error.detail) })
     : t("editor.session.saveFailed");

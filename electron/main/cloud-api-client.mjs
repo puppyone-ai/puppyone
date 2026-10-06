@@ -2,6 +2,7 @@ import {
   cloudApiBaseUrlFromRemote,
   normalizeCloudApiBaseUrl,
 } from "../../shared/cloudEndpoint.js";
+import { readCloudAgentEventBatch } from "./cloud-agent-event-reader.mjs";
 
 export function buildCloudApiBaseCandidates(remoteUrl, apiBaseUrl) {
   const candidates = [];
@@ -87,6 +88,9 @@ export async function requestCloudApi(apiBase, apiPath, init) {
 
   if (response.ok && responseType === "bytes") {
     return new Uint8Array(await response.arrayBuffer());
+  }
+  if (response.ok && responseType === "agent-events") {
+    return readCloudAgentEventBatch(response);
   }
 
   let payload = null;

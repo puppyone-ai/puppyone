@@ -16,6 +16,8 @@ type AgentSurfaceHeaderProps = {
   newSessionDisabled: boolean;
   onNewSession: () => void;
   showNewSessionAction?: boolean;
+  showSessionActions?: boolean;
+  trailingActions?: ReactNode;
   agentSelector?: ReactNode;
   diagnostic?: string | null;
   closeDisabled?: boolean;
@@ -34,6 +36,8 @@ export function AgentSurfaceHeader({
   newSessionDisabled,
   onNewSession,
   showNewSessionAction = true,
+  showSessionActions = true,
+  trailingActions,
   agentSelector = null,
   diagnostic,
   closeDisabled = false,
@@ -79,7 +83,10 @@ export function AgentSurfaceHeader({
       </div>
       <div className="desktop-agent-session-header-actions" ref={menuRef}>
         {showNewSessionAction && <Tooltip content={t("agent.header.newSession", { agent: bidiIsolate(runtimeLabel) })}><button type="button" className="desktop-agent-icon-button" aria-label={t("agent.header.newSession", { agent: bidiIsolate(runtimeLabel) })} disabled={loading || newSessionDisabled} onClick={onNewSession}><Plus size={16} /></button></Tooltip>}
-        <Tooltip content={t("agent.header.sessionActions")}><button type="button" className="desktop-agent-icon-button" aria-label={t("agent.header.sessionActionsFor", { agent: bidiIsolate(runtimeLabel) })} aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((value) => !value)}><MoreHorizontal size={16} /></button></Tooltip>
+        <SessionActionsTrigger visible={showSessionActions} label={t("agent.header.sessionActions")}
+          ariaLabel={t("agent.header.sessionActionsFor", { agent: bidiIsolate(runtimeLabel) })}
+          open={menuOpen} onClick={() => setMenuOpen((value) => !value)} />
+        {trailingActions}
         {menuOpen && (
           <DesktopMenuSurface ariaLabel={t("agent.header.sessionActionsFor", { agent: bidiIsolate(runtimeLabel) })} className="desktop-menu-surface desktop-agent-session-menu">
             <AgentDiagnosticsMenuItem diagnostic={diagnostic} />
@@ -91,6 +98,15 @@ export function AgentSurfaceHeader({
       </div>
     </header>
   );
+}
+
+function SessionActionsTrigger({ visible, label, ariaLabel, open, onClick }: {
+  visible: boolean; label: string; ariaLabel: string; open: boolean; onClick: () => void;
+}) {
+  if (!visible) return null;
+  return <Tooltip content={label}><button type="button" className="desktop-agent-icon-button"
+    aria-label={ariaLabel} aria-haspopup="menu" aria-expanded={open} onClick={onClick}>
+    <MoreHorizontal size={16} /></button></Tooltip>;
 }
 
 function AgentDiagnosticsMenuItem({ diagnostic }: { diagnostic?: string | null }) {

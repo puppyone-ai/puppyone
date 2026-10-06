@@ -110,6 +110,7 @@ export function DocumentSessionBoundary({
             <EditorSaveButton
               status={sessionState.status}
               manual={saveMode === "manual"}
+              retryable={sessionState.error?.code !== "external-conflict"}
               onSave={save}
             />
           </div>
@@ -117,6 +118,9 @@ export function DocumentSessionBoundary({
         {sessionError && (
           <div className="editor-inline-error" role="alert" dir="auto">
             <span>{sessionError}</span>
+            {sessionState.error?.code === "external-conflict" && <button type="button"
+              className="editor-save-chip action" onClick={session.reloadExternalBaseline}>
+              {t("editor.session.discardAndReload")}</button>}
           </div>
         )}
         {children}

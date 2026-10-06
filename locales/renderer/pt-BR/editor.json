@@ -1,4 +1,6 @@
 {
+  "session.cloudConflict": "O arquivo na nuvem mudou. Suas edições não salvas foram preservadas. Copie-as antes de recarregar.",
+  "session.discardAndReload": "Descartar edições e recarregar",
   "database.title": "Prévia do banco de dados",
   "database.readonly": "Somente leitura",
   "database.reload": "Recarregar",

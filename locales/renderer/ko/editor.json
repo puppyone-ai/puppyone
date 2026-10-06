@@ -1,4 +1,6 @@
 {
+  "session.cloudConflict": "클라우드 파일이 변경되었습니다. 저장하지 않은 편집 내용은 유지됩니다. 다시 불러오기 전에 복사하세요.",
+  "session.discardAndReload": "편집을 버리고 다시 불러오기",
   "database.title": "데이터베이스 미리보기",
   "database.readonly": "읽기 전용",
   "database.reload": "다시 불러오기",

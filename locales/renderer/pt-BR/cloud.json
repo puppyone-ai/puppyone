@@ -1,4 +1,10 @@
 {
+  "agent.permissionDenied": "Você não tem permissão para usar este Agent na nuvem.",
+  "agent.busy": "Este chat já tem uma tarefa ativa. Tente novamente quando ela terminar.",
+  "agent.connectionError": "Não foi possível carregar o chat da Cloud",
+  "agent.conflict": "Estas alterações precisam de uma revisão de conflito. Inicie um novo chat para continuar.",
+  "agent.outcome_unknown": "O resultado precisa de confirmação. A operação não será repetida automaticamente.",
+  "agent.failed": "A tarefa da Cloud não pôde ser concluída.",
   "home.location.linked": "Local + Nuvem",
   "home.location.cloud": "Nuvem",
   "home.location.local": "Local",

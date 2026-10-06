@@ -1,4 +1,10 @@
 {
+  "agent.permissionDenied": "你没有使用此云端 Agent 的权限。",
+  "agent.busy": "此聊天已有正在执行的任务，请在任务结束后重试。",
+  "agent.connectionError": "无法加载云端聊天",
+  "agent.conflict": "这些修改需要处理冲突。可以新建聊天继续。",
+  "agent.outcome_unknown": "操作结果需要确认，不会自动重复执行。",
+  "agent.failed": "云端任务未能完成。",
   "home.location.linked": "本地项目（已上云）",
   "home.location.cloud": "云端项目",
   "home.location.local": "本地项目",

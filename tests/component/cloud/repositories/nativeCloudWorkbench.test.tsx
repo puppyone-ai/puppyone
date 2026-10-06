@@ -12,6 +12,7 @@ import { CloudWorkspacePreparation } from "../../../../src/features/cloud/workbe
 import { cloudCache } from "../../../../src/features/cloud/cache/cloudCache";
 import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
 import { withTestLocalization } from "../../../support/react/localization";
+import { workspaceContentChangeMatchesResource } from "@puppyone/shared-ui";
 
 vi.mock("../../../../src/platform/useDesktopPlatformCapabilities", () => ({ useDesktopPlatformCapabilities: () => ({ platform: "macos", windowChrome: { mode: "overlay" } }) }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -82,6 +83,14 @@ function installBridge() {
 }
 
 describe("native Cloud workbench switching", () => {
+  it("notifies opened Cloud documents after publication using an owned root", async () => {
+    installBridge(); await render(<Harness />); await click("Cloud");
+    const [node] = await cloud.dataPort!.listChildren(null);
+    const before = cloud.refreshToken.sequence;
+    await act(async () => cloud.refresh());
+    expect(workspaceContentChangeMatchesResource(cloud.refreshToken, node!.path, before)).toBe(true);
+    expect(workspaceContentChangeMatchesResource(cloud.refreshToken, "puppyone-workspace://different-root/readme.md", before)).toBe(false);
+  });
   it("coalesces focus refreshes and never refreshes the hidden Local-to-Cloud surface", async () => {
     let now = Date.now(); vi.spyOn(Date, "now").mockImplementation(() => now);
     installBridge(); await render(<Harness />); await click("Cloud");

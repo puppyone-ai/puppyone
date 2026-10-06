@@ -12,6 +12,8 @@ import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import { CloudWorkspaceHeaderTools } from "./CloudWorkspaceHeaderTools";
 import type { ProjectCloudContext } from "../project/context";
 import type { ProjectHomeItem } from "../../app-shell/workspaceHomeModel";
+import { useCloudAgentWorkspace } from "../agent/useCloudAgentWorkspace";
+import { CloudAgentSidebarHost } from "../agent/lazy";
 
 const noop = () => undefined;
 
@@ -55,10 +57,11 @@ export function useAccountCloudWorkspacePresentation({ workbench, onOpenSettings
 
 /** Hosted-only surface used when no local repository is open. Repository-linked
  * switching embeds the presentation above in the retained local shell instead. */
-export function AccountCloudWorkspaceSurface({ workbench, presentation, active, appearance, onLocal, onHome, context, session, apiBaseUrl, onSessionChange, projectItems, onSelectProject, onSelectCloudProject, onCreateProject, projectRail }: {
+export function AccountCloudWorkspaceSurface({ workbench, presentation, active, appearance, onLocal, onHome, context, session, apiBaseUrl, onSessionChange, projectItems, onSelectProject, onSelectCloudProject, onCreateProject, projectRail, agent: suppliedAgent }: {
   workbench: NativeCloudWorkbench;
   presentation: AccountCloudWorkspacePresentation;
   active: boolean;
+  agent?: ReturnType<typeof useCloudAgentWorkspace>;
   appearance: ResolvedSurfaceAppearance;
   onLocal: () => void;
   onHome: () => void;
@@ -77,11 +80,16 @@ export function AccountCloudWorkspaceSurface({ workbench, presentation, active, 
 }) {
   const sidebarCollapsed = useDesktopPreference(s => s.sidebarCollapsed);
   const explorerWidth = useDesktopPreference(s => s.explorerWidth);
+  const rightSidebarWidth = useDesktopPreference(s => s.rightSidebarWidth);
+  const setRightSidebarWidth = useDesktopPreference(s => s.setRightSidebarWidth);
   const setSidebarCollapsed = useDesktopPreference(s => s.setSidebarCollapsed);
   const editorTabsInHeader = useDesktopPreference(s => s.experimentalSettings.enableEditorTabsInHeader);
   const centered = useDesktopPreference(s => s.experimentalSettings.enableCenteredProjectInHeader);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const ownAgent = useCloudAgentWorkspace({ context: suppliedAgent ? null : context, session, apiBaseUrl,
+    active: !suppliedAgent && active, onPublication: workbench.refresh });
+  const agent = suppliedAgent ?? ownAgent;
   const { service } = workbench;
   if (!service || !workbench.visited) return null;
   const projectContext = <DesktopTitlebarContext open={menuOpen} refObject={menuRef}
@@ -101,12 +109,17 @@ export function AccountCloudWorkspaceSurface({ workbench, presentation, active, 
       {...projectRail}
       leftSidebarWidth={explorerWidth} onLeftSidebarExpand={() => setSidebarCollapsed(false)}
       titlebarActions={active && <CloudWorkspaceHeaderTools context={context} session={session}
-        apiBaseUrl={apiBaseUrl} onSessionChange={onSessionChange} />}
+        apiBaseUrl={apiBaseUrl} onSessionChange={onSessionChange} agentOpen={agent.open} onToggleAgent={agent.toggle} />}
       titlebarSidebarSlot={centered ? undefined : projectContext}
       titlebarCenteredSlot={centered ? projectContext : undefined}
       titlebarTabs={editorTabsInHeader ? presentation.titlebarTabs : undefined}
       alignTitlebarTabsToExplorer={editorTabsInHeader}
-      locationBar={presentation.locationBar}>
+      locationBar={presentation.locationBar}
+      rightSidebarOpen={agent.open} rightSidebarWidth={rightSidebarWidth} resizableRightSidebar
+      onRightSidebarOpenChange={agent.setOpen} onRightSidebarWidthChange={setRightSidebarWidth}
+      rightSidebar={pane => <CloudAgentSidebarHost key={JSON.stringify([apiBaseUrl, session?.user_id,
+        session?.session_generation, context])} controller={agent.controller} state={agent.state}
+        active={active && pane.contentVisible} title={service.workspace.name} />}>
       {presentation.content}
     </DesktopCloudShell>
   </div>;

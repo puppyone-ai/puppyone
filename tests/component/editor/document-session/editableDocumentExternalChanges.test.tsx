@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { DocumentSessionBoundary } from "../../../../packages/shared-ui/src/editor/document-session/DocumentSessionBoundary";
 import { TextEditorFrame } from "../../../../packages/shared-ui/src/editor/viewers/shared/TextEditorFrame";
 import { withTestLocalization } from "../../../support/react/localization";
+import type { DocumentPersistencePort } from "@puppyone/shared-ui";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -21,6 +22,19 @@ afterEach(() => {
 });
 
 describe("editable document external changes", () => {
+  it("preserves unsaved Cloud edits until an explicit discard and reload", async () => {
+    const persistence = { ...createPersistence(), kind: "cloud" as const };
+    const harness = createHarness(persistence);
+    await act(async () => harness.render("one", "v1"));
+    act(() => harness.change("human unsaved edit"));
+    await act(async () => harness.render("agent publication", "cloud-v2"));
+    expect(harness.value()).toBe("human unsaved edit");
+    expect(harness.container.querySelector(".editor-inline-error")?.textContent).toContain("unsaved edits are preserved");
+    expect(persistence.persist).not.toHaveBeenCalled();
+    act(() => harness.container.querySelector<HTMLButtonElement>(".editor-inline-error button")!.click());
+    expect(harness.value()).toBe("agent publication");
+    expect(harness.container.querySelector(".editor-inline-error")).toBeNull();
+  });
   it("reloads an external file version when the editor is clean", async () => {
     const persistence = createPersistence();
     const harness = createHarness(persistence);
@@ -119,7 +133,7 @@ function createPersistence() {
 }
 
 function createHarness(
-  persistence: ReturnType<typeof createPersistence>,
+  persistence: DocumentPersistencePort,
   saveMode: "auto" | "manual" = "manual",
 ) {
   const container = document.createElement("div");

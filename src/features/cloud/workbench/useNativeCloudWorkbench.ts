@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   closeDocumentWorkingCopy,
+  appendWorkspaceContentChange,
   isDocumentDataNode,
   withEditorDocumentOperations,
   type DataNode,
@@ -72,7 +73,9 @@ export function useNativeCloudWorkbench({ context, session, apiBaseUrl, active, 
   const [refreshToken, setRefreshToken] = useState<WorkspaceContentChange>({ sequence: 0, entries: [] });
   const [navigationError, setNavigationError] = useState<string | null>(null);
   const navigationRequest = useRef(0);
-  const revalidate = useCallback(() => setRefreshToken((current) => ({ sequence: current.sequence + 1, entries: [] })), []);
+  const revalidate = useCallback(() => {
+    if (service) setRefreshToken(current => appendWorkspaceContentChange(current, { rootUri: service.folder.uri, paths: null }));
+  }, [service]);
   const refresh = useCallback(() => { service?.invalidateReads(); revalidate(); }, [service, revalidate]);
   const activateNode = useCallback((node: DataNode) => {
     if (!service?.resolveResource(node.path)) return;

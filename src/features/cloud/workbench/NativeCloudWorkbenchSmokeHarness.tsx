@@ -27,6 +27,9 @@ import { resolveWorkspaceSurface } from "../../app-shell/workspace-surfaces/work
 import { useDesktopEditorWorkbench } from "../../editor-workbench/controller/useDesktopEditorWorkbench";
 import { useDataNodeActions } from "../../data-workspace/useDataNodeActions";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
+import { createCloudAgentSmokeFixture, editCloudAgentPrompt } from "../agent/CloudAgentSmokeFixture";
+import { useCloudAgentWorkspace } from "../agent/useCloudAgentWorkspace";
+import { CloudAgentSidebarHost } from "../agent/lazy";
 
 initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
 
@@ -62,6 +65,7 @@ const cloudFiles = new Map([
   ["settings.json", '{"cloud":true}'], ["page.html", "<!doctype html><html><head><title>Cloud page</title></head><body><h1>Cloud HTML</h1></body></html>"],
 ]);
 let head = 1;
+const agentFixture = createCloudAgentSmokeFixture(() => { cloudFiles.set("readme.txt", "AGENT_PUBLISHED_CLOUD_BODY"); head++; });
 let resourceGeneration = 0;
 const cloudMimeTypes = new Map<string, string>();
 function listFixtureDirectory(path: string) {
@@ -97,7 +101,7 @@ window.puppyoneDesktop = {
   },
   onCloudAuthStateChanged: (listener) => { authStateListeners.add(listener); return () => { authStateListeners.delete(listener); }; },
   onCloudAuthError: (listener) => { authErrorListeners.add(listener); return () => { authErrorListeners.delete(listener); }; },
-  requestCloudSessionApi: async (request) => {
+  requestCloudSessionApi: agentFixture.wrap(async (request) => {
     requests.push(request.path);
     const url = new URL(request.path, API);
     const operation = url.pathname.split("/").at(-1);
@@ -127,7 +131,7 @@ window.puppyoneDesktop = {
       return { path: body.path, commit_id: `cloud-${head}`, conflicts: [] };
     }
     throw new Error(`Unexpected fixture request: ${request.path}`);
-  },
+  }),
 } as NonNullable<typeof window.puppyoneDesktop>;
 // Bootstrap may have cached the no-bridge snapshot before this lazy fixture loaded.
 if (window.__nativeCloudChromeBridge) resetDesktopPlatformCapabilitiesForTests();
@@ -140,7 +144,8 @@ declare global {
     __nativeCloudChromeBridge?: Pick<NonNullable<Window["puppyoneDesktop"]>,
       "getPlatformCapabilities" | "getWindowChromeState" | "onWindowChromeStateChanged">;
     __nativeCloudWorkbenchSmoke?: {
-    state: () => { location: string; cloudWrites: typeof cloudWrites; localWrites: typeof localWrites; requests: string[]; publishRequests: typeof publishRequests; detachRequests: typeof detachRequests };
+    state: () => { location: string; cloudWrites: typeof cloudWrites; localWrites: typeof localWrites; requests: string[]; publishRequests: typeof publishRequests; detachRequests: typeof detachRequests; agent: ReturnType<typeof agentFixture.state> };
+    editAgent: typeof editCloudAgentPrompt;
     edit: (location: "local" | "cloud", text: string) => void;
     openCloudFile: (path: string) => Promise<void>;
     addCloudFixtures: (entries: Array<{ path: string; mimeType: string; content?: string }>) => void;
@@ -186,6 +191,8 @@ export function NativeCloudWorkbenchSmokeHarness() {
   const sidebarCollapsed = useDesktopPreference(s => s.sidebarCollapsed);
   const workbench = useNativeCloudWorkbench({ context, session: cloudSessionAvailable ? session : null, apiBaseUrl: API,
     active: location === "cloud", filesVisibilitySettings: filesVisibilitySettings });
+  const agent = useCloudAgentWorkspace({ context, session: cloudSessionAvailable ? session : null, apiBaseUrl: API,
+    active: location === "cloud", onPublication: workbench.refresh });
   const commitCloud = useCallback(() => setCloudSelected(true), []);
   const controller = useCloudWorkspaceSwitch({ enabled: true, scope: localWorkspace.id,
     session: cloudSessionAvailable ? session : null, service: workbench.service,
@@ -229,7 +236,8 @@ export function NativeCloudWorkbenchSmokeHarness() {
   const headerLocation = (preparingInPlace ? controller.requestedLocation : undefined) ?? location;
   useEffect(() => {
     window.__nativeCloudWorkbenchSmoke = {
-      state: () => ({ location, cloudWrites, localWrites, requests, publishRequests, detachRequests }),
+      state: () => ({ location, cloudWrites, localWrites, requests, publishRequests, detachRequests, agent: agentFixture.state() }),
+      editAgent: editCloudAgentPrompt,
       openCloudFile: async (path) => {
         if (!workbench.service) throw new Error("Cloud fixture is unavailable.");
         const resource = createWorkspaceResourceUri(workbench.service.folder.uri, path);
@@ -268,12 +276,16 @@ export function NativeCloudWorkbenchSmokeHarness() {
   return <div className={`app-shell${theme === "dark" ? " dark" : ""}`} data-po-appearance-root="true" data-native-cloud-smoke-ready="true">
     <DesktopOverlayPortal theme={theme}>{null}</DesktopOverlayPortal>
     <DesktopCloudShell onGoHome={noop} workspaceLocation={location} leftSidebarCollapsed={sidebarCollapsed} leftSidebarWidth={explorerWidth}
+      rightSidebarOpen={agent.open} rightSidebarWidth={360} resizableRightSidebar onRightSidebarOpenChange={agent.setOpen}
+      rightSidebar={pane => <CloudAgentSidebarHost controller={agent.controller} state={agent.state}
+        active={location === "cloud" && pane.contentVisible} title="Cloud project" />}
       requestedWorkspaceLocation={headerLocation}
       onLeftSidebarExpand={() => setSidebarCollapsed(false)}
       {...getProjectHeaderSlots(centeredProject, projectSwitcher)}
       titlebarActions={<>
         {headerLocation === "cloud" && <CloudWorkspaceHeaderTools context={location === "cloud" ? context : null}
-          session={cloudSessionAvailable ? session : null} apiBaseUrl={API} onSessionChange={noop} />}
+          session={cloudSessionAvailable ? session : null} apiBaseUrl={API} onSessionChange={noop}
+          agentOpen={agent.open} onToggleAgent={agent.toggle} />}
         <DesktopTitlebarActions terminalSidebarOpen={false}
         terminalToolEnabled={headerLocation === "local"} gitChangesAvailable={headerLocation === "local"}
         onToggleTerminal={noop} onToggleGitChanges={noop} />

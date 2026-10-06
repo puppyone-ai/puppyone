@@ -1,4 +1,6 @@
 {
+  "session.cloudConflict": "云端文件已更改，未保存的编辑已保留。重新加载前请先复制这些内容。",
+  "session.discardAndReload": "放弃编辑并重新加载",
   "database.title": "数据库预览",
   "database.readonly": "只读",
   "database.reload": "重新加载",

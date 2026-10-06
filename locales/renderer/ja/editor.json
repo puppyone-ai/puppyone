@@ -1,4 +1,6 @@
 {
+  "session.cloudConflict": "クラウドファイルが変更されました。未保存の編集は保持されています。再読み込み前にコピーしてください。",
+  "session.discardAndReload": "編集を破棄して再読み込み",
   "database.title": "データベースプレビュー",
   "database.readonly": "読み取り専用",
   "database.reload": "再読み込み",

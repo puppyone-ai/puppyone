@@ -15,6 +15,18 @@ function register(cloudAuthService) {
 const expectedSession = { userId: "user-1", generation: "generation-1" };
 
 describe("Cloud IPC structured error transport", () => {
+  it("bounds the authenticated run SSE subscription without exposing credentials", async () => {
+    const requestSessionApi = vi.fn().mockResolvedValue([]);
+    const handlers = register({ requestSessionApi });
+    const path = "/agents/runs/11111111-1111-4111-8111-111111111111/events?after=8";
+    const result = await handlers.get("cloud:session-api-request")(null, {
+      expectedSession, apiBaseUrl: "https://api.puppyone.ai/api/v1", path,
+    });
+    expect(result).toMatchObject({ ok: true, data: [] });
+    expect(requestSessionApi.mock.calls[0][2]).toMatchObject({ method: "GET", responseType: "agent-events" });
+    expect(requestSessionApi.mock.calls[0][2].signal).toBeInstanceOf(AbortSignal);
+    expect(requestSessionApi.mock.calls[0][3]).toEqual(expectedSession);
+  });
   it("requires a renderer account lease instead of silently adopting Main's account", async () => {
     const requestSessionApi = vi.fn();
     const handlers = register({ requestSessionApi });

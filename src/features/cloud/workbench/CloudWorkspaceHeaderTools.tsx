@@ -12,6 +12,8 @@ type Props = {
   session: DesktopCloudSession | null;
   apiBaseUrl: string;
   onSessionChange: (session: DesktopCloudSession | null) => void;
+  agentOpen?: boolean;
+  onToggleAgent?: () => void;
 };
 
 /** Both hosted entry paths use the active Cloud identity, never a retained local remote. */
@@ -21,7 +23,7 @@ export function CloudWorkspaceHeaderTools(props: Props) {
   return <ScopedCloudWorkspaceHeaderTools key={scope} {...props} />;
 }
 
-function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, onSessionChange }: Props) {
+function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, onSessionChange, agentOpen = false, onToggleAgent }: Props) {
   const { t } = useLocalization();
   const [tool, setTool] = useState<CloudWorkspaceTool | null>(null);
   const ready = context?.status === "resolved" && session !== null;
@@ -38,11 +40,11 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, onSessi
           </button>
         </Tooltip>;
       })}
-      {/* ISSUE-112 owns the Cloud session client; never fall back to the local launcher. */}
-      <Tooltip content={t("shell.titlebar.showAgent")}>
+      <Tooltip content={t(agentOpen ? "shell.titlebar.hideAgent" : "shell.titlebar.showAgent")}>
         <button type="button" className="desktop-titlebar-action desktop-titlebar-terminal"
-          data-cloud-workspace-tool="agent" disabled aria-label={t("shell.titlebar.showAgent")}
-          aria-pressed={false}>
+          data-cloud-workspace-tool="agent" disabled={!ready || !onToggleAgent}
+          aria-label={t(agentOpen ? "shell.titlebar.hideAgent" : "shell.titlebar.showAgent")}
+          aria-pressed={agentOpen} aria-expanded={agentOpen} onClick={onToggleAgent}>
           <AgentEntryIcon size={15} strokeWidth={1.8} aria-hidden="true" />
         </button>
       </Tooltip>

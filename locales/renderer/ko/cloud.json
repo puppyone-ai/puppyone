@@ -1,4 +1,10 @@
 {
+  "agent.permissionDenied": "이 클라우드 Agent를 사용할 권한이 없습니다.",
+  "agent.busy": "이 채팅에서 작업이 이미 실행 중입니다. 완료 후 다시 시도하세요.",
+  "agent.connectionError": "클라우드 채팅을 불러올 수 없습니다",
+  "agent.conflict": "변경 사항의 충돌을 검토해야 합니다. 새 채팅에서 계속하세요.",
+  "agent.outcome_unknown": "결과를 확인해야 합니다. 작업이 자동으로 반복되지 않습니다.",
+  "agent.failed": "클라우드 작업을 완료하지 못했습니다.",
   "home.location.linked": "로컬 + 클라우드",
   "home.location.cloud": "클라우드",
   "home.location.local": "로컬",

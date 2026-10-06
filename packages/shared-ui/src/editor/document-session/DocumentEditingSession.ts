@@ -65,6 +65,7 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
   private source: EditorSourceSnapshotPort | null = null;
   private detachedSnapshot: EditorSourceSnapshot | null = null;
   private persistedContent: string;
+  private externalBaseline: { content: string; version: string | null } | null = null;
   private storageVersion: string | null;
   private currentRevision: string | null = null;
   private persistedRevision: string | null = null;
@@ -217,6 +218,11 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
       return;
     }
 
+    if (this.externalBaseline) {
+      this.dirty = true;
+      this.publish("error", { code: "external-conflict", detail: null });
+      return;
+    }
     this.dirty = true;
     this.publish(this.inFlight ? "saving" : "dirty", null);
     if (this.saveMode === "auto") this.scheduleImmediateCommit();
@@ -292,12 +298,33 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
       // newer typing; the receipt will advance this candidate's baseline.
       return "acknowledged";
     }
+    if (this.persistence.kind === "cloud" && this.hasUnpersistedChanges()
+      && (this.source?.readSnapshot() ?? this.detachedSnapshot)?.content !== content) {
+      return this.deferCloudBaseline(content, version);
+    }
     return this.adoptStorageSnapshot(content, version);
+  };
+
+  /** Cloud publication must preserve unsaved input until the user chooses reload. */
+  private deferCloudBaseline(content: string, version: string | null): ExternalBaselineResult {
+    this.externalBaseline = { content, version };
+    this.storageEpoch++;
+    this.cancelImmediateCommit();
+    this.pending = null;
+    this.dirty = true;
+    this.rejectWaitersThrough(this.nextSequence, new Error("Cloud content changed while this document has unsaved edits."));
+    this.publish("error", { code: "external-conflict", detail: null });
+    return "deferred";
+  }
+
+  reloadExternalBaseline = (): void => {
+    if (this.externalBaseline) this.adoptStorageSnapshot(this.externalBaseline.content, this.externalBaseline.version);
   };
 
   /** Disk is authoritative. Retire every older input/save intent before
    * replacing the model, so an obsolete completion cannot restore it later. */
   private adoptStorageSnapshot(content: string, version: string | null): ExternalBaselineResult {
+    this.externalBaseline = null;
     const currentSnapshot = this.source?.readSnapshot() ?? this.detachedSnapshot;
     const converged = currentSnapshot?.content === content;
     this.storageEpoch += 1;
@@ -403,6 +430,7 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
   private enqueue(snapshot: EditorSourceSnapshot, reason: DocumentPersistenceReason): Promise<void> {
     this.cancelImmediateCommit();
     if (this.unavailable) return Promise.reject(new Error(this.unavailable));
+    if (this.externalBaseline) return Promise.reject(new Error("Resolve the Cloud file conflict before saving."));
 
     if (snapshot.content === this.persistedContent && this.inFlight
       && this.inFlight.storageEpoch !== this.storageEpoch) {
@@ -494,7 +522,10 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
       } else if (result.kind === "conflict") {
         // Conditional write rejection is an observation of disk, not a UI
         // conflict. Never retry the obsolete local snapshot over these bytes.
-        this.adoptStorageSnapshot(result.content, result.version);
+        if (this.persistence.kind === "cloud") {
+          if (result.content === candidate.snapshot.content) this.acknowledge(candidate, { ok: true, version: result.version });
+          else this.reconcileExternalBaseline(result.content, result.version);
+        } else this.adoptStorageSnapshot(result.content, result.version);
       } else {
         failure = new Error(result.message);
       }
@@ -505,7 +536,7 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
       this.inFlight = null;
     }
 
-    if (this.unavailable || this.disposed) return;
+    if (this.unavailable || this.disposed || this.externalBaseline) return;
 
     if (failure) {
       const sessionError = createSessionError("persistence-failed", toErrorMessage(failure));

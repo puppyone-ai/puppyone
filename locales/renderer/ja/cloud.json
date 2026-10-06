@@ -1,4 +1,10 @@
 {
+  "agent.permissionDenied": "このクラウド Agent を使用する権限がありません。",
+  "agent.busy": "このチャットではタスクが実行中です。完了後に再試行してください。",
+  "agent.connectionError": "クラウドチャットを読み込めませんでした",
+  "agent.conflict": "変更の競合を確認する必要があります。新しいチャットで続けてください。",
+  "agent.outcome_unknown": "結果の確認が必要です。操作は自動的に繰り返されません。",
+  "agent.failed": "クラウドタスクを完了できませんでした。",
   "home.location.linked": "ローカル + クラウド",
   "home.location.cloud": "クラウド",
   "home.location.local": "ローカル",

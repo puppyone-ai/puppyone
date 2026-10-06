@@ -1,4 +1,6 @@
 {
+  "session.cloudConflict": "Die Cloud-Datei wurde geändert. Deine ungespeicherten Änderungen bleiben erhalten. Kopiere sie vor dem Neuladen.",
+  "session.discardAndReload": "Änderungen verwerfen und neu laden",
   "database.title": "Datenbankvorschau",
   "database.readonly": "Schreibgeschützt",
   "database.reload": "Neu laden",

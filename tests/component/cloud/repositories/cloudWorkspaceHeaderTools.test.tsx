@@ -31,6 +31,16 @@ async function render(props: Partial<Parameters<typeof CloudWorkspaceHeaderTools
 const button = (tool: string) => document.querySelector<HTMLButtonElement>(`[data-cloud-workspace-tool="${tool}"]`)!;
 
 describe("Cloud workspace Header tools", () => {
+  it("enables the shared Agent entry and toggles its sidebar state", async () => {
+    const toggle = vi.fn(); await render({ onToggleAgent: toggle });
+    expect(button("agent").disabled).toBe(false);
+    expect(button("agent").getAttribute("aria-expanded")).toBe("false");
+    act(() => button("agent").click()); expect(toggle).toHaveBeenCalledTimes(1);
+    await render({ onToggleAgent: toggle, agentOpen: true });
+    expect(button("agent").getAttribute("aria-expanded")).toBe("true");
+    expect(button("agent").getAttribute("aria-label")).toBe("Hide Agent");
+    act(() => button("agent").click()); expect(toggle).toHaveBeenCalledTimes(2);
+  });
   it("presents both actions during preparation without opening a task before commit", async () => {
     await render({ context: null });
     expect(button("automation").textContent).toBe("");

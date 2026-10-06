@@ -71,6 +71,8 @@ export function registerCloudIpcHandlers({ ipcMain, cloudAuthService }) {
       return cloudAuthService.requestSessionApi(apiBase, apiPath, {
         method,
         headers,
+        ...(method === "GET" && /^\/agents\/runs\/[0-9a-f-]{36}\/events\?after=\d{1,15}$/i.test(apiPath)
+          ? { responseType: "agent-events", signal: AbortSignal.timeout(15_000) } : {}),
         ...(body === undefined ? {} : { body }),
       }, expectedSession);
     });

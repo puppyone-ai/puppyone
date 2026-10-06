@@ -12,6 +12,7 @@ import { useAccountCloudWorkspace } from "./useAccountCloudWorkspace";
 import { useNativeCloudWorkbench } from "./useNativeCloudWorkbench";
 import { DesktopHelpLauncher } from "../../app-shell/DesktopHelpLauncher";
 import { AccountCloudWorkspaceSurface, useAccountCloudWorkspacePresentation } from "./AccountCloudWorkspaceSurface";
+import { createCloudAgentSmokeFixture, editCloudAgentPrompt } from "../agent/CloudAgentSmokeFixture";
 
 initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
 
@@ -20,11 +21,18 @@ const project = (id: string) => ({ id, name: `Hosted ${id}`, org_id: "team", upd
 const projects = [project("alpha"), project("beta")];
 const files = new Map([["alpha", "ALPHA_CLOUD_BODY"], ["beta", "BETA_CLOUD_BODY"]]);
 const heads = new Map([["alpha", 1], ["beta", 1]]);
+const agentFixture = createCloudAgentSmokeFixture(id => {
+  heads.set(id, heads.get(id)! + 1); files.set(id, `AGENT_PUBLISHED_CLOUD_BODY_${heads.get(id)}`);
+});
+let writeBarrier: Promise<void> | null = null;
+let releaseWriteBarrier = () => {};
 const writes: Array<{ project: string; content: string }> = [];
 let sessionNumber = 1;
 const makeSession = (): DesktopCloudSession => ({ api_base_url: API, user_id: "fixture-user", user_email: "fixture@example.com",
   session_generation: String(sessionNumber++), expires_in: 3600, expires_at: Date.now() + 3600000, status: "authenticated" });
 async function fixtureRequest(request: Parameters<NonNullable<typeof window.puppyoneDesktop>["requestCloudSessionApi"]>[0]) {
+    const agentResult = await agentFixture.request(request);
+    if (agentResult !== undefined) return agentResult;
     if (request.path.startsWith("/projects/?")) return projects;
     if (request.path === "/organizations/") return [{ id: "team", name: "Fixture team" }];
     if (request.path.endsWith("/repository-context")) {
@@ -45,8 +53,9 @@ async function fixtureRequest(request: Parameters<NonNullable<typeof window.pupp
     if (operation === "stat") return { exists: true, name: "readme.txt", type: "file", path };
     if (operation === "cat") return { content_text: files.get(id), head_commit_id: `head-${heads.get(id)}` };
     if (operation === "write") {
+      await writeBarrier;
       const body = JSON.parse(request.body!);
-      if (body.base_commit_id !== `head-${heads.get(id)}`) throw new Error("Fixture CAS mismatch");
+      if (body.base_commit_id !== `head-${heads.get(id)}`) throw Object.assign(new Error("Fixture CAS mismatch"), { status: 409 });
       files.set(id, body.content); heads.set(id, heads.get(id)! + 1); writes.push({ project: id, content: body.content });
       return { path: body.path, commit_id: `head-${heads.get(id)}` };
     }
@@ -57,7 +66,10 @@ window.puppyoneDesktop = { ...window.puppyoneDesktop,
 } as NonNullable<typeof window.puppyoneDesktop>;
 
 declare global { interface Window { __accountCloudSmoke?: {
-  state: () => { active: boolean; project: string | null; writes: typeof writes; settingsOpened: number };
+  state: () => { active: boolean; project: string | null; writes: typeof writes; settingsOpened: number; agent: ReturnType<typeof agentFixture.state> };
+  editAgent: typeof editCloudAgentPrompt;
+  holdWrites: () => void;
+  releaseWrites: () => void;
   edit: (text: string) => void;
   signOut: () => void;
   signIn: () => void;
@@ -106,7 +118,10 @@ function AccountCloudFixture() {
     onOpenSettings: () => setSettingsOpened(count => count + 1),
     sidebarUtility: <DesktopHelpLauncher appearance={appearance} /> });
   useEffect(() => {
-    window.__accountCloudSmoke = { state: () => ({ active: account.active, project: account.context.projectId, writes, settingsOpened }),
+    window.__accountCloudSmoke = { state: () => ({ active: account.active, project: account.context.projectId, writes, settingsOpened, agent: agentFixture.state() }),
+      editAgent: editCloudAgentPrompt,
+      holdWrites: () => { writeBarrier = new Promise(resolve => { releaseWriteBarrier = resolve; }); },
+      releaseWrites: () => { writeBarrier = null; releaseWriteBarrier(); },
       home: account.useLocal, showLocalFixtures: () => setIncludeLocal(true), setTheme,
       signOut: () => setSession(null), signIn: () => setSession(makeSession()),
       edit: (text) => {

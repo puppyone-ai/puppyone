@@ -68,8 +68,8 @@ app.whenReady().then(async () => {
       && shell.getBoundingClientRect().height === innerHeight
       && header.getBoundingClientRect().width === innerWidth;
   })()`), "Hosted-only projects use the theme-blue Header, matching icon/text and no outer frame");
-  assert(await evaluate("document.querySelectorAll('.desktop-account-cloud-workspace [data-cloud-workspace-tool]').length === 2 && [...document.querySelectorAll('[data-cloud-workspace-tool]')].every(button => !button.disabled)"),
-    'Hosted-only Cloud must expose both ready Header CTAs');
+  assert(await evaluate("document.querySelectorAll('.desktop-account-cloud-workspace [data-cloud-workspace-tool]').length === 3 && [...document.querySelectorAll('[data-cloud-workspace-tool]')].every(button => !button.disabled)"),
+    'Hosted-only Cloud must expose Automations, Connect and Agent');
   assert(await evaluate("Boolean(document.querySelector('.desktop-account-cloud-workspace .desktop-sidebar-footer-bar .desktop-feedback'))"), 'Hosted Cloud must retain the Feedback footer');
   await evaluate("document.querySelector('.desktop-account-cloud-workspace .desktop-sidebar-footer-button[aria-label=Settings]').click()");
   await waitFor("window.__accountCloudSmoke.state().settingsOpened === 1");

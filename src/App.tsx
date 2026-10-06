@@ -34,6 +34,8 @@ import {
 import { CLOUD_HUB_ENTRY_SECTION, type CloudWorkspaceSection } from "./features/cloud";
 import { useAccountCloudWorkspace } from "./features/cloud/workbench/useAccountCloudWorkspace";
 import { CloudWorkspaceHeaderTools } from "./features/cloud/workbench/CloudWorkspaceHeaderTools";
+import { useCloudAgentWorkspace } from "./features/cloud/agent/useCloudAgentWorkspace";
+import { CloudAgentSidebarHost } from "./features/cloud/agent/lazy";
 import { useRepositoryCloudWorkspaceSwitch } from "./features/cloud/workbench/useRepositoryCloudWorkspaceSwitch";
 import { CloudWorkspaceSwitchDialog } from "./features/cloud/workbench/CloudWorkspaceSwitchDialog";
 import { RepositoryCloudSwitchGate } from "./features/cloud/workbench/RepositoryCloudSwitchGate";
@@ -785,6 +787,8 @@ function AppContent() {
     showWorkspaceNavigation: !enableProjectSwitcherRail,
     sidebarUtility: enableProjectSwitcherRail ? undefined : <DesktopHelpLauncher appearance={surfaceAppearance} />,
   });
+  const cloudAgent = useCloudAgentWorkspace({ context: accountCloud.context, session: activeCloudSession,
+    apiBaseUrl: desktopCloudApiBaseUrl, active: cloudWorkspaceActive, onPublication: nativeCloudWorkbench.refresh });
   const repositoryCloudInitializationPending = cloudBackupLoading || cloudPublishStateLoading || Boolean(cloudPublishState);
   const repositoryCloudSwitch = useRepositoryCloudWorkspaceSwitch({
     enabled: cloudEnabled && Boolean(focusedWorkspace),
@@ -1451,6 +1455,7 @@ function AppContent() {
   );
   const hostedWorkspace = nativeCloudWorkbench.service?.workspace;
   const accountCloudSurface = !workspace ? <AccountCloudWorkspaceSurface workbench={nativeCloudWorkbench}
+    agent={cloudAgent}
     presentation={accountCloudPresentation} active={cloudWorkspaceActive}
     context={accountCloud.context} session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession}
     appearance={surfaceAppearance} onLocal={openLocalWorkspace} onHome={() => void goToHomepage()}
@@ -1710,10 +1715,16 @@ function AppContent() {
   const titlebarActions = (
     <>
       {cloudHeaderActive && <CloudWorkspaceHeaderTools context={cloudWorkspaceActive ? accountCloud.context : null}
-        session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession} />}
+        session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession}
+        agentOpen={cloudAgent.open} onToggleAgent={cloudWorkspaceActive ? cloudAgent.toggle : undefined} />}
       <DesktopTitlebarActions {...chromeActionProps} shareEnabled={!cloudHeaderActive && shareOnboardingEnabled} />
     </>
   );
+  const renderCloudAgentSidebar = (active: boolean) => <CloudAgentSidebarHost
+    key={JSON.stringify([desktopCloudApiBaseUrl, activeCloudSession?.user_id,
+      activeCloudSession?.session_generation, accountCloud.context])}
+    controller={cloudAgent.controller} state={cloudAgent.state} active={active}
+    title={nativeCloudWorkbench.service?.workspace.name ?? ""} />;
   const editorTabsInHeaderEnabled = enableEditorTabsInHeader;
   const titlebarEditorTabs = editorTabsInHeaderEnabled ? (
     <EditorHeaderTabs
@@ -1766,14 +1777,18 @@ function AppContent() {
               onNavigate={handleLocationBarNavigate}
             />
           )}
-          rightSidebarOpen={rightSidebarContentVisible}
+          rightSidebarOpen={cloudWorkspaceActive ? cloudAgent.open : rightSidebarContentVisible}
           resizableRightSidebar
           rightSidebarWidth={rightSidebarWidth}
           onLeftSidebarExpand={() => setSidebarCollapsed(false)}
-          onRightSidebarOpenChange={setRightSidebarOpen}
+          onRightSidebarOpenChange={cloudWorkspaceActive ? cloudAgent.setOpen : setRightSidebarOpen}
           onRightSidebarWidthChange={setRightSidebarWidth}
           rightSidebar={(presentation) => (
             <div ref={auxiliarySurfaceRef} className="desktop-right-sidebar-stack">
+              <div className={`desktop-right-sidebar-surface ${cloudWorkspaceActive ? "is-active" : ""}`}
+                aria-hidden={!cloudWorkspaceActive}>
+                {renderCloudAgentSidebar(presentation.contentVisible && cloudWorkspaceActive)}
+              </div>
               <div
                 className={`desktop-right-sidebar-surface ${!cloudWorkspaceActive && rightSidebarSurface === "chat" ? "is-active" : ""}`}
                 aria-hidden={cloudWorkspaceActive || rightSidebarSurface !== "chat"}
