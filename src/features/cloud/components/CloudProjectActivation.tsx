@@ -1,8 +1,9 @@
 import { useId, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import { AgentBrandImage, getAgentBrand } from "@puppyone/shared-ui";
+import { CloudIcon } from "../../../components/icons/CloudIcon";
 import { CloudProjectBackupScene, CloudProjectSharingScene } from "./CloudProjectBenefitScenes";
-import { CloudProjectIllustration } from "./CloudProjectIllustration";
+import { McpLogoIcon } from "./McpLogoIcon";
 import "./cloud-project-activation.css";
 
 const CLOUD_AGENT_BRANDS = ["manus", "viktor", "grok-bot"] as const;
@@ -17,27 +18,28 @@ export function CloudProjectActivation({ action, supplemental, busy = false }: {
   const titleId = useId();
   return <section className="desktop-cloud-project-activation" aria-labelledby={titleId} aria-busy={busy}>
     <header className="desktop-cloud-project-activation-copy">
-      <CloudProjectIllustration />
+      <CloudIcon size={20} />
       <h2 id={titleId}>{t("cloud.activation.project.title")}</h2>
     </header>
     <ul className="desktop-cloud-project-benefits" role="list">
       <li className="desktop-cloud-project-benefit">
-        <div className="desktop-cloud-project-benefit-visual"><CloudProjectSharingScene /></div>
         <p className="desktop-cloud-project-benefit-copy">{t("cloud.activation.project.share")}</p>
+        <div className="desktop-cloud-project-benefit-visual"><CloudProjectSharingScene /></div>
       </li>
       <li className="desktop-cloud-project-benefit">
-        <div className="desktop-cloud-project-benefit-visual"><CloudProjectBackupScene /></div>
         <p className="desktop-cloud-project-benefit-copy">{t("cloud.activation.project.backup")}</p>
+        <div className="desktop-cloud-project-benefit-visual"><CloudProjectBackupScene /></div>
       </li>
       <li className="desktop-cloud-project-benefit">
+        <p className="desktop-cloud-project-benefit-copy">{t("cloud.activation.project.agents")}</p>
         <div className="desktop-cloud-project-benefit-visual">
           <div className="desktop-cloud-project-agent-brands">
             {CLOUD_AGENT_BRANDS.map((brandId) => <span key={brandId} role="img" aria-label={getAgentBrand(brandId)?.displayName}>
               <AgentBrandImage brandId={brandId} />
             </span>)}
+            <span role="img" aria-label="MCP"><McpLogoIcon size={24} /></span>
           </div>
         </div>
-        <p className="desktop-cloud-project-benefit-copy">{t("cloud.activation.project.agents")}</p>
       </li>
     </ul>
     {supplemental && <div className="desktop-cloud-project-activation-supplemental">{supplemental}</div>}

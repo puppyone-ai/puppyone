@@ -20,22 +20,14 @@
   .desktop-cloud-project-activation-copy {
     display: flex;
     width: 100%;
-    flex-direction: column;
     align-items: center;
-    gap: 16px;
-  }
-
-  .desktop-cloud-project-illustration {
-    width: min(100%, 224px);
-    height: auto;
-    flex: 0 0 auto;
-    color: color-mix(in srgb, var(--po-text-muted) 52%, var(--po-canvas));
+    justify-content: center;
+    gap: 8px;
   }
 
   .desktop-cloud-project-activation-copy h2 {
     max-width: 420px;
     margin: 0;
-    margin-inline: auto;
     color: var(--po-text);
     font-size: var(--po-type-ui-section-title, 16px);
     font-weight: var(--po-text-weight-medium, 500);
@@ -60,9 +52,6 @@
     flex-direction: column;
     align-items: center;
     gap: 12px;
-    padding: 20px 16px;
-    border-radius: 8px;
-    background: var(--po-header);
     color: var(--po-text);
     font: inherit;
   }
@@ -79,9 +68,12 @@
   .desktop-cloud-project-benefit-visual {
     display: flex;
     width: 100%;
-    height: 100px;
+    height: 128px;
     align-items: center;
     justify-content: center;
+    padding: 16px;
+    border-radius: 8px;
+    background: var(--po-header);
     color: var(--po-text-muted);
   }
 
@@ -95,11 +87,10 @@
     font-family: var(--po-font-ui, var(--po-font-sans));
     font-size: var(--po-type-ui-control, 14px);
   }
-  .desktop-cloud-project-scene-cloud [data-cloud-outline] {
-    /* Trim the filled outline in its 1024-unit viewBox to match the 2px scene strokes. */
-    stroke: var(--po-header);
-    stroke-width: 32;
-    stroke-linejoin: round;
+  .desktop-cloud-project-backup-marks {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 
   .desktop-cloud-project-agent-brands {
@@ -112,38 +103,27 @@
   .desktop-cloud-project-agent-brands .po-agent-brand-image { width: 100%; height: 100%; object-fit: contain; }
 
   @container desktop-cloud-project (max-width: 740px) {
-    .desktop-cloud-project-benefit { padding: 16px 12px; }
-    .desktop-cloud-project-benefit-visual { height: 80px; }
+    .desktop-cloud-project-benefit-visual { height: 100px; padding: 12px; }
     .desktop-cloud-project-benefit-scene { height: 80px; }
     .desktop-cloud-project-benefit-copy { font-size: var(--po-type-ui-caption, 12px); }
   }
 
   @container desktop-cloud-project (max-width: 600px) {
     .desktop-cloud-project-benefits { grid-template-columns: minmax(0, 1fr); gap: 12px; }
-    .desktop-cloud-project-benefit {
-      display: grid;
-      grid-template-columns: minmax(0, 128px) minmax(0, 1fr);
-      align-items: center;
-      gap: 16px;
-      padding: 12px 16px;
-      text-align: start;
-    }
-    .desktop-cloud-project-benefit-visual,
+    .desktop-cloud-project-benefit { gap: 8px; }
+    .desktop-cloud-project-benefit-visual { height: 72px; padding: 4px 12px; }
     .desktop-cloud-project-benefit-scene { height: 64px; }
     .desktop-cloud-project-benefit-copy { font-size: var(--po-type-ui-control, 14px); }
   }
 
   @container desktop-cloud-project (max-width: 400px) {
-    .desktop-cloud-project-benefit { grid-template-columns: minmax(0, 96px) minmax(0, 1fr); gap: 12px; padding: 12px; }
-    .desktop-cloud-project-benefit-visual,
+    .desktop-cloud-project-benefit-visual { height: 64px; }
     .desktop-cloud-project-benefit-scene { height: 56px; }
     .desktop-cloud-project-benefit-copy { font-size: var(--po-type-ui-caption, 12px); }
   }
 
   @container desktop-cloud-switch (max-width: 804px) {
     .desktop-cloud-project-activation { gap: 24px; padding: 24px; }
-    .desktop-cloud-project-activation-copy { gap: 12px; }
-    .desktop-cloud-project-illustration { width: min(100%, 192px); }
   }
 
   .desktop-cloud-project-activation-actions { display: flex; width: 100%; justify-content: center; }

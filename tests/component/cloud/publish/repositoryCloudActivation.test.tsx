@@ -49,7 +49,7 @@ describe("repository Cloud activation", () => {
     expect(host.querySelector('[role="img"][aria-label="Viktor"]')).not.toBeNull();
     const button = host.querySelector<HTMLButtonElement>("[data-cloud-publish-action]")!;
     expect(button.disabled).toBe(false);
-    expect(button.textContent).toBe("Share to Cloud");
+    expect(button.textContent).toBe("Share project to Cloud");
     await act(async () => button.click());
     expect(publish).not.toHaveBeenCalled();
     const confirmation = document.querySelector('[role="dialog"]')!;
@@ -71,7 +71,7 @@ describe("repository Cloud activation", () => {
     await render({ context: { status: "wrong-host", projectId: "existing",
       message: cloudMessage("remote-wrong-host", { origin: "https://other.puppyone.ai" }) } });
     expect(host.querySelector("[data-cloud-publish-action]")).toBeNull();
-    expect(host.querySelector("h2")?.textContent).toContain("Your project, always online.");
+    expect(host.querySelector("h2")?.textContent).toContain("Get Puppyone Cloud");
     expect(host.querySelector('[role="alert"]')?.textContent).toBe("Cloud project unavailable");
     const details = host.querySelector<HTMLDetailsElement>("details")!;
     expect(details.open).toBe(false);

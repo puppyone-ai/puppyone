@@ -66,7 +66,7 @@ describe("missing Cloud project recovery", () => {
     expect(host.textContent).toContain("Share with your team");
     expect(host.textContent).not.toContain("current Cloud service");
     expect(host.textContent).not.toContain("Retry");
-    expect(host.querySelector("[data-cloud-replace-action]")?.textContent).toBe("Share to Cloud");
+    expect(host.querySelector("[data-cloud-replace-action]")?.textContent).toBe("Share project to Cloud");
     expect(host.textContent).not.toContain("no longer exists");
     expect(remove).not.toHaveBeenCalled(); expect(publish).not.toHaveBeenCalled();
     await beginReplacement();
@@ -76,7 +76,7 @@ describe("missing Cloud project recovery", () => {
       { kind: "project_root", project_id: "project-1" }, undefined, base);
     expect(remove).toHaveBeenCalledWith(status.remotes);
     expect(host.querySelector("[data-cloud-replace-action]")).toBeNull();
-    expect(host.querySelector("[data-cloud-publish-action]")?.textContent).toBe("Share to Cloud");
+    expect(host.querySelector("[data-cloud-publish-action]")?.textContent).toBe("Share project to Cloud");
     expect(publish).not.toHaveBeenCalled();
     await act(async () => host.querySelector<HTMLButtonElement>("[data-cloud-publish-action]")!.click());
     const confirm = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(b => b.textContent === "Confirm")!;

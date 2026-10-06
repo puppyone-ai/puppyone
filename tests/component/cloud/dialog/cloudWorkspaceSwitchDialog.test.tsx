@@ -50,7 +50,7 @@ describe("login before Cloud selection", () => {
     const dialog = document.querySelector('[role="dialog"]')!;
     expect(dialog.getAttribute("aria-modal")).toBe("true");
     expect(dialog.querySelector("aside, nav")).toBeNull();
-    expect(dialog.textContent).toContain("Your project, always online.");
+    expect(dialog.textContent).toContain("Get Puppyone Cloud");
     expect(dialog.querySelector('[role="img"][aria-label="Manus"]')).not.toBeNull();
     expect(dialog.querySelector('[role="img"][aria-label="Viktor"]')).not.toBeNull();
     expect(local.value).toBe("Keep this draft");
