@@ -13,6 +13,7 @@ import {
   Check,
 } from "lucide-react";
 import { DesktopMenuItem, DesktopMenuSeparator } from "../../components/DesktopMenu";
+import { HomeProjectIcon } from "../../components/onboarding/HomeProjectIcon";
 import { DesktopTitlebarMenuLayer } from "./DesktopTitlebarMenuLayer";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import {
@@ -108,7 +109,12 @@ export function DesktopWorkspaceSwitcher({
             </>}
             <div className="desktop-project-list desktop-project-switcher-list" data-po-scrollbar="menu">
               {projects.map(project => <DesktopMenuItem key={project.path}
-                icon={<ProjectContextAssetMark kind={resolveProjectContextAssetKind(project)} />} label={<bdi>{project.name}</bdi>}
+                icon={<HomeProjectIcon item={{
+                  id: project.id,
+                  label: project.name,
+                  localPath: project.path.startsWith("puppyone-cloud:") ? "" : project.path,
+                  cloudProjectId: project.puppyoneGitRemote?.projectId ?? project.projectId ?? undefined,
+                }} />} label={<bdi>{project.name}</bdi>}
                 tooltip={project.path} selected={project.path === workspace.path}
                 aria-current={project.path === workspace.path ? "page" : undefined}
                 trailing={project.path === workspace.path ? <Check size={14} /> : undefined}
