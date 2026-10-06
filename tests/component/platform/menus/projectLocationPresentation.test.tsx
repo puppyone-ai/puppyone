@@ -99,7 +99,7 @@ describe("project location presentation experiment", () => {
     icons(true);
     const create = vi.fn();
     await render({ projectLocation: { current: "local", localAvailable: true, cloudState: "unavailable" }, onViewCloud: create });
-    expect(button("cloud").getAttribute("aria-label")).toBe("Create Cloud");
+    expect(button("cloud").getAttribute("aria-label")).toBe("Share to Cloud");
     expect(button("cloud").querySelector(".lucide-plus")).toBeNull();
     expect(button("cloud").querySelector("svg")).not.toBeNull();
     act(() => button("cloud").click());

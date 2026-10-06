@@ -67,7 +67,7 @@
   "workspaceSwitcher.shareViaCloud": "クラウドで共有",
   "workspaceSwitcher.remoteCopies": "プロジェクトのバージョン",
   "workspaceSwitcher.enableCloudVersions": "クラウド版を作成",
-  "workspaceSwitcher.createCloudVersion": "クラウド作成",
+  "workspaceSwitcher.shareToCloud": "クラウドに共有",
   "workspaceSwitcher.cloudVersion": "クラウド版",
   "workspaceSwitcher.location.onCloud": "クラウド上",
   "workspaceSwitcher.switch": "切り替え",

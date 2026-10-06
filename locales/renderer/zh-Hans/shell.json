@@ -67,7 +67,7 @@
   "workspaceSwitcher.shareViaCloud": "通过云端分享",
   "workspaceSwitcher.remoteCopies": "项目版本",
   "workspaceSwitcher.enableCloudVersions": "创建云端备份版",
-  "workspaceSwitcher.createCloudVersion": "创建云端版本",
+  "workspaceSwitcher.shareToCloud": "分享到云端",
   "workspaceSwitcher.cloudVersion": "云端版本",
   "workspaceSwitcher.location.onCloud": "在云端",
   "workspaceSwitcher.switch": "切换",

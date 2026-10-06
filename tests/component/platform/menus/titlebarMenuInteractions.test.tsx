@@ -141,7 +141,7 @@ describe("independent Local / Cloud menu", () => {
       const cloud = vi.fn();
       await render(<DesktopProjectLocationSwitcher projectLocation={{ current: "local", localAvailable: true, cloudState }} onViewCloud={cloud} />);
       openLocation(); const popup = menu(".desktop-project-location-menu");
-      expect(locationButton("cloud").textContent).toBe(cloudState === "unavailable" ? "Create Cloud" : "Cloud");
+      expect(locationButton("cloud").textContent).toBe(cloudState === "unavailable" ? "Share to Cloud" : "Cloud");
       expect(Boolean(locationButton("cloud").querySelector('[data-puppy-loader]'))).toBe(cloudState === "resolving");
       act(() => locationButton("cloud").click());
       expect(cloud).toHaveBeenCalledOnce();

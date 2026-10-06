@@ -54,7 +54,7 @@ function Harness({ linked = true, currentSession = session, localIdentity = "loc
       preparation={controller.pending && currentSession && linked ? <CloudWorkspacePreparation controller={controller} /> : undefined}
       cloud={cloud.dataPort && cloud.visited ? <div data-cloud-storage={cloud.dataPort.documentPersistence?.storageIdentity}>{cloud.editorWorkbench.state.editors.map((editor) => <span key={editor.id}>{editor.label}</span>)}</div> : null} />
     <CloudWorkspaceSwitchDialog controller={controller} preparingInPlace={Boolean(currentSession && linked)}
-      gate={currentSession ? <button>Create Cloud version</button> : <button>Sign in</button>} />
+      gate={currentSession ? <button>Share to Cloud</button> : <button>Sign in</button>} />
   </>;
 }
 
@@ -205,8 +205,8 @@ describe("native Cloud workbench switching", () => {
   });
 
   it("keeps the local workbench while an unhosted project awaits explicit creation", async () => {
-    installBridge(); await render(<Harness linked={false} />); await click("Create Cloud");
-    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Create Cloud version");
+    installBridge(); await render(<Harness linked={false} />); await click("Share to Cloud");
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Share to Cloud");
     expect(surface("local").hidden).toBe(false);
     expect(surface("cloud").hidden).toBe(true);
     expect(document.querySelector('[role="dialog"] aside, [role="dialog"] nav')).toBeNull();
@@ -224,7 +224,7 @@ describe("native Cloud workbench switching", () => {
   });
 
   it("does not switch on a later publication completion after cancellation", async () => {
-    installBridge(); await render(<Harness linked={false} />); await click("Create Cloud");
+    installBridge(); await render(<Harness linked={false} />); await click("Share to Cloud");
     await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     await render(<Harness />);
     expect(surface("local").hidden).toBe(false);

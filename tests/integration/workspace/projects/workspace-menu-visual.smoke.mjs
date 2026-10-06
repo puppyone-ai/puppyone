@@ -150,7 +150,7 @@ async function runSmoke() {
   const creating = state === "local-only" || state === "local-github";
   assert(snapshot.locale === locale && snapshot.devicePlatform === platform, `Wrong locale or device platform: ${evidence}`);
   assert(snapshot.cloudEntry === (creating ? "create" : "switch"), `Use creation only for a confirmed unhosted project: ${evidence}`);
-  assert(snapshot.labelsFit && snapshot.labels.join("|") === [catalog[platform === "macos" ? "workspaceSwitcher.location.thisMac" : "workspaceSwitcher.location.thisComputer"], catalog[creating ? "workspaceSwitcher.createCloudVersion" : "navigation.cloud"]].join("|"), `Only the two unclipped localized actions belong in this menu: ${evidence}`);
+  assert(snapshot.labelsFit && snapshot.labels.join("|") === [catalog[platform === "macos" ? "workspaceSwitcher.location.thisMac" : "workspaceSwitcher.location.thisComputer"], catalog[creating ? "workspaceSwitcher.shareToCloud" : "navigation.cloud"]].join("|"), `Only the two unclipped localized actions belong in this menu: ${evidence}`);
   assert(creating ? snapshot.createIcon && snapshot.createContrast >= 4.5 && snapshot.createEmphasis !== "none" : !snapshot.createIcon && snapshot.createContrast === null, `Creation must be a readable accented action with a plus mark, separate from selection: ${evidence}`);
   assert(snapshot.iconWidths.every(width => width === 14) && snapshot.iconColorsMatch
     && (state === "cloud-only" || snapshot.headerColorsMatch), `Small icons must match their labels; the committed Cloud Header mark keeps its brand tint: ${evidence}`);
@@ -260,7 +260,7 @@ async function checkInlinePresentation(window, url, scene, catalog) {
       && button.color === button.markColor), `Header icons must be compact, unclipped and inherit foreground: ${evidence}`);
     assert(snapshot.nameBounds.right <= snapshot.buttons[0].bounds.x + 1, `Project name and icons must not overlap: ${evidence}`);
     assert(snapshot.buttons[0].label === catalog[scene.platform === "macos" ? "workspaceSwitcher.location.thisMac" : "workspaceSwitcher.location.thisComputer"]
-      && snapshot.buttons[1].label === catalog[creating ? "workspaceSwitcher.createCloudVersion" : "navigation.cloud"], `Icon-only actions must retain localized accessible names: ${evidence}`);
+      && snapshot.buttons[1].label === catalog[creating ? "workspaceSwitcher.shareToCloud" : "navigation.cloud"], `Icon-only actions must retain localized accessible names: ${evidence}`);
     assert(snapshot.currentCount === 1 && snapshot.pressedCount === 1 && snapshot.selected === (scene.state === "cloud-only" ? "cloud" : "local"), `Inline selection must match committed state: ${evidence}`);
     assert(Math.abs(snapshot.plate.x - snapshot.selectedBounds.x) < 1 && Math.abs(snapshot.plate.y - snapshot.selectedBounds.y) < 1
       && Math.abs(snapshot.plate.width - snapshot.selectedBounds.width) < 1 && snapshot.plate.height === snapshot.selectedBounds.height,

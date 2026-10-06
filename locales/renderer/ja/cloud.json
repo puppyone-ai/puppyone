@@ -903,7 +903,7 @@
   "activation.project.share": "チームと共有",
   "activation.project.agents": "Agent を接続",
   "activation.project.availability": "常時利用可能",
-  "activation.project.publish": "このプロジェクトをクラウドにデプロイ",
+  "activation.project.publish": "クラウドに共有",
   "activation.project.reconnect": "クラウドプロジェクトに再接続",
   "activation.project.errorDetails": "エラーの詳細",
   "activation.project.replaceTitle": "クラウド接続を置き換える",

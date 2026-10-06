@@ -67,7 +67,7 @@
   "workspaceSwitcher.shareViaCloud": "클라우드로 공유",
   "workspaceSwitcher.remoteCopies": "프로젝트 버전",
   "workspaceSwitcher.enableCloudVersions": "클라우드 백업 만들기",
-  "workspaceSwitcher.createCloudVersion": "클라우드 만들기",
+  "workspaceSwitcher.shareToCloud": "클라우드에 공유",
   "workspaceSwitcher.cloudVersion": "클라우드 버전",
   "workspaceSwitcher.location.onCloud": "클라우드에서",
   "workspaceSwitcher.switch": "전환",

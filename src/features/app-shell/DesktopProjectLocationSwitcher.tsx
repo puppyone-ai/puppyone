@@ -140,7 +140,7 @@ function ProjectLocationTab(props: LocationTabProps) {
 function useProjectLocationLabel(location: "local" | "cloud", creating: boolean, deviceLabel: string) {
   const { t } = useLocalization();
   if (location === "local") return deviceLabel;
-  return t(creating ? "shell.workspaceSwitcher.createCloudVersion" : "shell.navigation.cloud");
+  return t(creating ? "shell.workspaceSwitcher.shareToCloud" : "shell.navigation.cloud");
 }
 
 function getLocationTabTooltip({ location, selection, projectLocation, createCloud }: LocationTabProps) {
@@ -149,7 +149,7 @@ function getLocationTabTooltip({ location, selection, projectLocation, createClo
     return "shell.workspaceSwitcher.current";
   }
   if (location === "local") return "shell.surface.switchToLocal";
-  if (createCloud) return "shell.workspaceSwitcher.createCloudVersion";
+  if (createCloud) return "shell.workspaceSwitcher.shareToCloud";
   if (projectLocation?.cloudState === "signed-out") return "shell.workspaceSwitcher.location.signInToAccess";
   return "shell.surface.switchToCloud";
 }

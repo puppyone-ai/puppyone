@@ -903,7 +903,7 @@
   "activation.project.share": "Partager avec votre équipe",
   "activation.project.agents": "Connecter des agents",
   "activation.project.availability": "Toujours disponible",
-  "activation.project.publish": "Déployer ce projet sur Cloud",
+  "activation.project.publish": "Partager dans le cloud",
   "activation.project.reconnect": "Reconnecter le projet Cloud",
   "activation.project.errorDetails": "Détails de l’erreur",
   "activation.project.replaceTitle": "Remplacer la connexion Cloud",

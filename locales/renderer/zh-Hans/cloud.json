@@ -903,7 +903,7 @@
   "activation.project.share": "与团队共享",
   "activation.project.agents": "连接 Agent",
   "activation.project.availability": "始终可用",
-  "activation.project.publish": "将此项目部署到云端",
+  "activation.project.publish": "分享到云端",
   "activation.project.reconnect": "重新连接云端项目",
   "activation.project.errorDetails": "错误详情",
   "activation.project.replaceTitle": "替换云端连接",

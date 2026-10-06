@@ -67,7 +67,7 @@
   "workspaceSwitcher.shareViaCloud": "Compartilhar na nuvem",
   "workspaceSwitcher.remoteCopies": "Versões do projeto",
   "workspaceSwitcher.enableCloudVersions": "Criar cópia cloud",
-  "workspaceSwitcher.createCloudVersion": "Criar Cloud",
+  "workspaceSwitcher.shareToCloud": "Compartilhar na nuvem",
   "workspaceSwitcher.cloudVersion": "Versão cloud",
   "workspaceSwitcher.location.onCloud": "Na nuvem",
   "workspaceSwitcher.switch": "Alternar",
