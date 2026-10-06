@@ -50,7 +50,7 @@ describe("Experimental settings", () => {
     act(() => initializeDesktopPreferences());
     expect(store.getState().experimentalSettings).toEqual(DEFAULT_EXPERIMENTAL_SETTINGS);
   });
-  it("keeps file tabs last in Header settings and uses alignment choices and retires the Git card switch", () => {
+  it("keeps file navigation last in Header settings and preserves its pane/Header choice", () => {
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
@@ -59,10 +59,19 @@ describe("Experimental settings", () => {
     expect(groups.map((group) => group.querySelector("h3")?.textContent)).toEqual([
       "Header & layout", "Markdown", "Imports & plugins", "Cloud & automation",
     ]);
-    const toggles = [...groups[0]!.querySelectorAll("input")];
-    expect(toggles.at(-1)?.getAttribute("aria-label")).toBe("File tabs in Header");
+    const rows = [...groups[0]!.querySelectorAll(".desktop-settings-row")];
+    const fileGroup = rows.at(-1)?.querySelector('[role="group"][aria-label="File navigation"]')!;
+    const [panes, header] = [...fileGroup.querySelectorAll<HTMLButtonElement>("button")];
+    expect([panes.textContent, header.textContent]).toEqual(["Panes", "Header tabs"]);
+    expect(panes.getAttribute("aria-pressed")).toBe("true");
     expect(host.querySelector('input[aria-label="Git card in Header"]')).toBeNull();
     expect(host.querySelector('input[aria-label="Center project in Header"]')).toBeNull();
+    expect(store.getState().experimentalSettings).toEqual(DEFAULT_EXPERIMENTAL_SETTINGS);
+    act(() => header.click());
+    act(() => initializeDesktopPreferences());
+    expect(store.getState().experimentalSettings).toEqual({ ...DEFAULT_EXPERIMENTAL_SETTINGS, enableEditorTabsInHeader: true });
+    expect(header.getAttribute("aria-pressed")).toBe("true");
+    act(() => panes.click());
     expect(store.getState().experimentalSettings).toEqual(DEFAULT_EXPERIMENTAL_SETTINGS);
   });
 
@@ -130,7 +139,7 @@ describe("Experimental settings", () => {
     expect(host.querySelector('input[aria-label="Editor save status"]')).toBeNull();
   });
 
-  it("ships Share from the Header on, with its own switch to hide the Header entry", () => {
+  it("keeps project sharing as an enabled-by-default feature switch", () => {
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
@@ -138,7 +147,7 @@ describe("Experimental settings", () => {
       <ExperimentalSettingsView />,
     )));
 
-    const toggle = host.querySelector<HTMLInputElement>('input[aria-label="Share from the Header"]');
+    const toggle = host.querySelector<HTMLInputElement>('input[aria-label="Project sharing"]');
     expect(toggle?.checked).toBe(true);
     act(() => toggle?.click());
     expect(store.getState().experimentalSettings).toEqual({
@@ -147,7 +156,7 @@ describe("Experimental settings", () => {
     });
   });
 
-  it("offers an off-by-default cross-Project switcher rail", () => {
+  it("offers Header menu / Sidebar project switching choices and preserves the saved position", () => {
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
@@ -156,18 +165,22 @@ describe("Experimental settings", () => {
       <ExperimentalSettingsView />,
     )));
 
-    const toggle = host.querySelector<HTMLInputElement>(
-      'input[aria-label="Project switcher rail"]',
-    );
-    expect(toggle).not.toBeNull();
-    expect(toggle?.checked).toBe(false);
+    const group = host.querySelector('[role="group"][aria-label="Project switcher position"]')!;
+    const [menu, sidebar] = [...group.querySelectorAll<HTMLButtonElement>("button")];
+    expect([menu.textContent, sidebar.textContent]).toEqual(["Header menu", "Sidebar"]);
+    expect(menu.getAttribute("aria-pressed")).toBe("true");
     expect(host.querySelector('input[aria-label="Agent Chat"]')).toBeNull();
 
-    act(() => toggle?.click());
+    act(() => sidebar.click());
+    act(() => initializeDesktopPreferences());
     expect(store.getState().experimentalSettings).toEqual({
       ...DEFAULT_EXPERIMENTAL_SETTINGS,
       enableProjectSwitcherRail: true,
     });
+    expect(sidebar.getAttribute("aria-pressed")).toBe("true");
+    expect(menu.getAttribute("aria-pressed")).toBe("false");
+    act(() => menu.click());
+    expect(store.getState().experimentalSettings).toEqual(DEFAULT_EXPERIMENTAL_SETTINGS);
   });
 
   it("offers an off-by-default multi-project Workspace opt-in", () => {
@@ -192,7 +205,7 @@ describe("Experimental settings", () => {
     });
   });
 
-  it("offers an off-by-default onboarding replay switch", () => {
+  it("offers Once / Repeat onboarding hints without disabling hints", () => {
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
@@ -201,31 +214,37 @@ describe("Experimental settings", () => {
       <ExperimentalSettingsView />,
     )));
 
-    const toggle = host.querySelector<HTMLInputElement>(
-      'input[aria-label="Always show onboarding hints"]',
-    );
-    expect(toggle?.checked).toBe(false);
-    act(() => toggle?.click());
+    const group = host.querySelector('[role="group"][aria-label="Onboarding hint frequency"]')!;
+    const [once, repeat] = [...group.querySelectorAll<HTMLButtonElement>("button")];
+    expect([once.textContent, repeat.textContent]).toEqual(["Once", "Repeat"]);
+    expect(once.getAttribute("aria-pressed")).toBe("true");
+    act(() => repeat.click());
+    act(() => initializeDesktopPreferences());
     expect(store.getState().experimentalSettings).toEqual({
       ...DEFAULT_EXPERIMENTAL_SETTINGS,
       enableAlwaysShowOnboardingCoachmarks: true,
     });
+    expect(repeat.getAttribute("aria-pressed")).toBe("true");
+    expect(once.getAttribute("aria-pressed")).toBe("false");
+    act(() => once.click());
+    expect(store.getState().experimentalSettings).toEqual(DEFAULT_EXPERIMENTAL_SETTINGS);
   });
 
-  it("offers an off-by-default first-project starting-point opt-in", () => {
+  it("hides Project homepage from Experimental without resetting its saved preference", () => {
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
+    act(() => store.getState().setExperimentalSettings(s => ({ ...s, enableAssetLibraryHome: true })));
 
     act(() => root?.render(withTestLocalization(
       <ExperimentalSettingsView />,
     )));
 
     const toggle = host.querySelector<HTMLInputElement>(
-      'input[aria-label="First project starting point"]',
+      'input[aria-label="Projects homepage"]',
     );
     expect(toggle).toBeNull();
-    expect(store.getState().experimentalSettings).toEqual(DEFAULT_EXPERIMENTAL_SETTINGS);
+    expect(store.getState().experimentalSettings).toEqual({ ...DEFAULT_EXPERIMENTAL_SETTINGS, enableAssetLibraryHome: true });
   });
 
   it("offers an off-by-default Automation opt-in", () => {

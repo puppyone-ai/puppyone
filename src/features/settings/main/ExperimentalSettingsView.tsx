@@ -1,5 +1,4 @@
 import { useDesktopPreference } from "../../../preferencesStore";
-import { useFeatureFlag } from "../../flags";
 import { useLocalization } from "@puppyone/localization";
 import type { ExperimentalSettings } from "../../../preferences";
 import { SettingsSectionHeader, SettingsSubsection, SettingsToggle } from "../components";
@@ -7,7 +6,6 @@ import { SettingsSectionHeader, SettingsSubsection, SettingsToggle } from "../co
 export function ExperimentalSettingsView() {
   const settings = useDesktopPreference(s => s.experimentalSettings);
   const onChange = useDesktopPreference(s => s.setExperimentalSettings);
-  const assetLibraryHomeAvailable = useFeatureFlag("assetLibraryHome");
   const { t } = useLocalization();
   const groups: Array<{
     id: string;
@@ -27,13 +25,13 @@ export function ExperimentalSettingsView() {
         { messageKey: "workbenchTabsInHeader", settingKey: "enableWorkbenchTabsInHeader",
           choices: [{ messageKey: "sidebar", value: false }, { messageKey: "header", value: true }] },
         { messageKey: "shareOnboarding", settingKey: "enableShareOnboarding" },
-        { messageKey: "projectSwitcherRail", settingKey: "enableProjectSwitcherRail" },
+        { messageKey: "projectSwitcherRail", settingKey: "enableProjectSwitcherRail",
+          choices: [{ messageKey: "menu", value: false }, { messageKey: "sidebar", value: true }] },
         { messageKey: "multiRootWorkspaces", settingKey: "enableMultiRootWorkspaces" },
-        { messageKey: "alwaysShowOnboardingCoachmarks", settingKey: "enableAlwaysShowOnboardingCoachmarks" },
-        ...(assetLibraryHomeAvailable
-          ? [{ messageKey: "projectsHome", settingKey: "enableAssetLibraryHome" as const }]
-          : []),
-        { messageKey: "editorTabsInHeader", settingKey: "enableEditorTabsInHeader" },
+        { messageKey: "alwaysShowOnboardingCoachmarks", settingKey: "enableAlwaysShowOnboardingCoachmarks",
+          choices: [{ messageKey: "once", value: false }, { messageKey: "repeat", value: true }] },
+        { messageKey: "editorTabsInHeader", settingKey: "enableEditorTabsInHeader",
+          choices: [{ messageKey: "panes", value: false }, { messageKey: "header", value: true }] },
       ],
     },
     {
