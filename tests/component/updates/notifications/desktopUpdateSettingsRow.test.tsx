@@ -30,7 +30,7 @@ describe("DesktopUpdateSettingsRow", () => {
     let button = host.querySelector<HTMLButtonElement>("button");
     expect(button?.textContent).toContain("Already up to date");
     expect(button?.disabled).toBe(true);
-    expect(button?.dataset.tooltip).toBe("Version 1.4.0 is up to date.");
+    expect(button?.hasAttribute("data-tooltip")).toBe(false);
 
     await renderState(host, createState("available"), onUpdateNow);
 
@@ -71,7 +71,7 @@ describe("DesktopUpdateSettingsRow", () => {
     expect(button?.textContent).toContain("Development build");
     expect(button?.textContent).not.toContain("Already up to date");
     expect(button?.disabled).toBe(true);
-    expect(button?.dataset.tooltip).toBe("Auto updates are disabled for Development builds.");
+    expect(button?.hasAttribute("data-tooltip")).toBe(false);
   });
 });
 

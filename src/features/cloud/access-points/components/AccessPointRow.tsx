@@ -1,4 +1,3 @@
-import { Tooltip } from "@puppyone/shared-ui";
 import { ChevronRight } from "lucide-react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
@@ -44,7 +43,7 @@ export function AccessPointRow({
         <strong dir="auto">{title}</strong>
         <span>
           <span dir="auto">{scopeName}</span>
-          <Tooltip content={scopePath} overflowOnly><code>{scopePath}</code></Tooltip>
+          <code>{scopePath}</code>
         </span>
       </span>
       <span className="desktop-cloud-access-point-right">

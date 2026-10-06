@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { CloudUpload, RefreshCw } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
 import {
@@ -42,10 +43,10 @@ export function CloudPublishConfirmationDialog({
             </span>
             <h2>{title}</h2>
           </div>
-          {!busy && <DesktopDialogCloseButton
+          {!busy && <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton
             label={t("common.action.close")}
             onClick={onCancel}
-          />}
+          /></Tooltip>}
         </header>
 
         <div className="desktop-dialog-body">

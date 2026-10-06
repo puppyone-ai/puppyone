@@ -74,7 +74,7 @@ export function AgentSurfaceHeader({
         {agentSelector && <div className="desktop-agent-session-agent-selector">{agentSelector}</div>}
       </div>
       <div className="desktop-agent-session-heading">
-        <Tooltip content={title} overflowOnly><strong>{title}</strong></Tooltip>
+        <strong>{title}</strong>
         <span><i className={`is-${statusCode}`} />{statusLabel}</span>
       </div>
       <div className="desktop-agent-session-header-actions" ref={menuRef}>

@@ -61,16 +61,14 @@ export function AgentRuntimeLauncher({
                       />
                       <span>{entry.descriptor.displayName}</span>
                       {!ready && (
-                        <Tooltip content={detail || undefined}>
-                          <span
-                            className="desktop-agent-runtime-launcher-warning"
-                            aria-label={detail
-                              ? t("agent.launcher.needsAttention", { agent: bidiIsolate(entry.descriptor.displayName) })
-                              : undefined}
-                          >
-                            <CircleAlert size={13} strokeWidth={1.7} aria-hidden="true" />
-                          </span>
-                        </Tooltip>
+                        <span
+                          className="desktop-agent-runtime-launcher-warning"
+                          aria-label={detail
+                            ? t("agent.launcher.needsAttention", { agent: bidiIsolate(entry.descriptor.displayName) })
+                            : undefined}
+                        >
+                          <CircleAlert size={13} strokeWidth={1.7} aria-hidden="true" />
+                        </span>
                       )}
                     </button>
                   );

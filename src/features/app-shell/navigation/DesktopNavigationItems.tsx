@@ -44,7 +44,7 @@ export function DesktopNavigationItems({
           ? getDesktopGitNavSummary(gitStatus, gitIncomingCount, gitOperationLoading)
           : null;
         return (
-          <button
+          <Tooltip key={item.view} content={!showLabel && (shellToolbar || badge.kind !== "remote") ? navLabel : undefined}><button
             key={item.view}
             className={[buttonClassName, activeView === item.view ? "active" : ""].filter(Boolean).join(" ")}
             type="button"
@@ -66,7 +66,7 @@ export function DesktopNavigationItems({
             )}
             {!shellToolbar && <DesktopNavBadge badge={badge} />}
             {gitSummary && <DesktopGitNavBubble summary={gitSummary} />}
-          </button>
+          </button></Tooltip>
         );
       })}
     </>
@@ -88,7 +88,7 @@ export function DesktopSidebarSettingsButton({
 }) {
   const { t } = useLocalization();
   return (
-    <Tooltip content={t("shell.navigation.settings")}><button
+    <Tooltip content={showLabel ? undefined : t("shell.navigation.settings")}><button
       className={`${buttonClassName} ${settingsOpen ? "active" : ""}`}
       type="button"
       aria-label={t("shell.navigation.settings")}
@@ -127,7 +127,7 @@ export function DesktopSidebarPluginsButton({
 }) {
   const { t } = useLocalization();
   return (
-    <Tooltip content={t("shell.navigation.plugins")}><button
+    <Tooltip content={showLabel ? undefined : t("shell.navigation.plugins")}><button
       className={`${buttonClassName} ${pluginsOpen ? "active" : ""}`}
       type="button"
       aria-label={t("shell.navigation.plugins")}

@@ -41,7 +41,7 @@ export function CloudCommitDetail({
     <article className="desktop-commit-detail desktop-cloud-commit-detail">
       <div className="desktop-commit-summary desktop-cloud-commit-summary">
         <div className="desktop-commit-id-row desktop-cloud-commit-id-row">
-          <Tooltip content={commit.commit_id}><strong dir="ltr">{shortCommit(commit.commit_id)}</strong></Tooltip>
+          <strong dir="ltr">{shortCommit(commit.commit_id)}</strong>
           {isHead && <span className="desktop-head-badge">HEAD</span>}
           {row.labels.filter((label) => (
             !(isHead && formatCloudGraphLabel(label, t) === "HEAD")
@@ -76,11 +76,11 @@ export function CloudCommitDetail({
         <p><bdi>{commit.message || t("cloud.history.updateWorkspace")}</bdi></p>
         <div className="desktop-commit-meta">
           <bdi>{author}</bdi>
-          <Tooltip content={exactTime || undefined}><span>
+          <span aria-description={exactTime || undefined}>
             {commit.created_at
               ? formatRelativeTime(commit.created_at, localization)
               : t("cloud.history.timeUnavailable")}
-          </span></Tooltip>
+          </span>
           <span>{t("source-control.commit.parentCount", { count: commit.parent_ids.length })}</span>
         </div>
       </div>

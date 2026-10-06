@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { CircleAlert } from "lucide-react";
 import { Button } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
@@ -49,10 +50,10 @@ export function AuxiliaryWorkbenchCloseDialog({
               </span>
               <h2>{decision.dialog.title}</h2>
             </div>
-            <DesktopDialogCloseButton
+            <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton
               label={t("common.action.close")}
               onClick={onDismiss}
-            />
+            /></Tooltip>
           </header>
 
           <div className="desktop-dialog-body">

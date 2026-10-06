@@ -224,7 +224,7 @@ export function TerminalLauncher({
             </div>
 
             {terminalEnabled && (
-              <Tooltip content={t(shell.descriptionMessage)}><button
+              <button
                 type="button"
                 className="desktop-terminal-launcher-shell"
                 data-po-interaction="navigation"
@@ -234,7 +234,7 @@ export function TerminalLauncher({
               >
                 <WorkbenchLauncherIcon launcherId="shell" />
                 <span>{t("terminal.title")}</span>
-              </button></Tooltip>
+              </button>
             )}
           </div>
 

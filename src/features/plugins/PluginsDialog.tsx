@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { Blocks } from "lucide-react";
 import { useState } from "react";
 import type { ViewerPackSnapshot } from "@puppyone/shared-ui";
@@ -48,7 +49,7 @@ export function PluginsDialog({
               </span>
               <h2>{title}</h2>
             </div>
-            <DesktopDialogCloseButton label={t("common.action.close")} onClick={onClose} />
+            <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} onClick={onClose} /></Tooltip>
           </header>
 
           <div className="desktop-plugins-dialog-layout">

@@ -86,6 +86,7 @@ export function ProjectSwitcherRail({
 }: ProjectSwitcherRailProps) {
   const { t } = useLocalization();
   const [pendingPath, setPendingPath] = useState<string | null>(null);
+  const [failedAvatarUrls, setFailedAvatarUrls] = useState<ReadonlySet<string>>(() => new Set());
   const [projectActionSession, setProjectActionSession] = useState<ProjectActionSession | null>(null);
   const queuedProjectRef = useRef<Workspace | null>(null);
   const switchInFlightRef = useRef(false);
@@ -184,6 +185,10 @@ export function ProjectSwitcherRail({
           const appearance = appearanceIdentity
             ? appearanceCatalog.appearances.get(appearanceIdentity)
             : null;
+          const assetUrl = appearance?.icon?.kind === "asset" ? appearance.icon.url : null;
+          const imageUrl = assetUrl && !failedAvatarUrls.has(assetUrl) ? assetUrl : null;
+          const emoji = appearance?.icon?.kind === "emoji" ? appearance.icon.value : null;
+          const avatarHasText = !imageUrl && !emoji;
           const label = `${t("shell.workspaceSwitcher.projectTitle", {
             project: bidiIsolate(workspace.name),
           })} · ${contextAssetLabel}`;
@@ -196,7 +201,7 @@ export function ProjectSwitcherRail({
                 : undefined}
               key={workspace.path}
             >
-              <Tooltip content={expanded ? undefined : workspace.name} placement="right"><button
+              <Tooltip content={!expanded && !avatarHasText ? workspace.name : undefined} placement="right"><button
                 className={`desktop-project-switcher-rail-button desktop-project-switcher-rail-project ${expanded ? "desktop-project-switcher-rail-expanded-project po-sidebar-row" : "desktop-project-switcher-rail-compact-project"}${active ? " active" : ""}`}
                 type="button"
                 aria-current={active ? "page" : undefined}
@@ -211,10 +216,13 @@ export function ProjectSwitcherRail({
                 draggable={Boolean(workspace.path.trim())}
                 onClick={() => void selectProject(workspace)}
                 onDragStart={(event) => beginProjectRootDrag(event, workspace.path)}
+                onErrorCapture={() => {
+                  if (assetUrl) setFailedAvatarUrls((current) => new Set(current).add(assetUrl));
+                }}
               >
                 <ProjectSwitcherAvatar
-                  imageUrl={appearance?.icon?.kind === "asset" ? appearance.icon.url : null}
-                  emoji={appearance?.icon?.kind === "emoji" ? appearance.icon.value : null}
+                  imageUrl={imageUrl}
+                  emoji={emoji}
                   initial={initial}
                   contextAssetKind={contextAssetKind}
                   compact={!expanded}
@@ -239,7 +247,7 @@ export function ProjectSwitcherRail({
             </div>
           );
         })}
-        <Tooltip content={t("shell.workspaceSwitcher.createNew")} placement={expanded ? "bottom" : "right"}><button
+        <Tooltip content={expanded ? undefined : t("shell.workspaceSwitcher.createNew")} placement={expanded ? "bottom" : "right"}><button
           className={`desktop-project-switcher-rail-button desktop-project-switcher-rail-create ${expanded ? "desktop-project-switcher-rail-expanded-create po-sidebar-row" : "desktop-project-switcher-rail-compact-create"}`}
           type="button"
           aria-label={t("shell.workspaceSwitcher.createNew")}
@@ -304,8 +312,7 @@ function ProjectSwitcherAvatar({
   contextAssetKind: ProjectContextAssetKind;
   compact: boolean;
 }>) {
-  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
-  const showImage = Boolean(imageUrl && imageUrl !== failedImageUrl);
+  const showImage = Boolean(imageUrl);
   if (!compact) {
     return (
       <span
@@ -332,7 +339,6 @@ function ProjectSwitcherAvatar({
             src={imageUrl ?? undefined}
             alt=""
             draggable="false"
-            onError={() => setFailedImageUrl(imageUrl)}
           />
         ) : emoji ?? initial}
       </bdi>

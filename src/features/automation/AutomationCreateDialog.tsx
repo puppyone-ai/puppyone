@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import {
   ArrowRight,
   Check,
@@ -116,7 +117,7 @@ export function CloudNewAutomationDialog(props: CloudNewAutomationDialogProps) {
                 {step === "configure" && activeTemplate && <p>{formatAutomationTemplateDescription(activeTemplate, t)}</p>}
               </div>
             </div>
-            <DesktopDialogCloseButton disabled={saving} onClick={onClose} />
+            <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} disabled={saving} onClick={onClose} /></Tooltip>
           </header>
           <div
             className="desktop-dialog-body desktop-cloud-automation-dialog-body"

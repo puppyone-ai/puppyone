@@ -11,6 +11,7 @@ import {
 import {
   classifyReferenceDataTransfer,
   hasFileReferenceDataTransferSource,
+  Tooltip,
 } from "@puppyone/shared-ui";
 import type { TerminalRuntimeHandle } from "../runtime/terminalRuntime";
 import { useLocalization } from "@puppyone/localization";
@@ -191,8 +192,9 @@ export function TerminalSessionView({
             "--desktop-terminal-scrollbar-viewport-ratio": scrollbarState.viewportRatio,
           } as CSSProperties}
         >
-          <button
+          <Tooltip content={t("shared-ui.scrollbar.up")}><button
             className="desktop-terminal-classic-scrollbar-button decrement"
+            aria-label={t("shared-ui.scrollbar.up")}
             type="button"
             tabIndex={-1}
             disabled={!scrollbarState.canDecrement}
@@ -200,7 +202,7 @@ export function TerminalSessionView({
             onPointerUp={stopScrollbarRepeat}
             onPointerCancel={stopScrollbarRepeat}
             onLostPointerCapture={stopScrollbarRepeat}
-          />
+          /></Tooltip>
           <div
             ref={scrollbarTrackRef}
             className="desktop-terminal-classic-scrollbar-track"
@@ -215,8 +217,9 @@ export function TerminalSessionView({
               onLostPointerCapture={stopScrollbarDrag}
             />
           </div>
-          <button
+          <Tooltip content={t("shared-ui.scrollbar.down")}><button
             className="desktop-terminal-classic-scrollbar-button increment"
+            aria-label={t("shared-ui.scrollbar.down")}
             type="button"
             tabIndex={-1}
             disabled={!scrollbarState.canIncrement}
@@ -224,7 +227,7 @@ export function TerminalSessionView({
             onPointerUp={stopScrollbarRepeat}
             onPointerCancel={stopScrollbarRepeat}
             onLostPointerCapture={stopScrollbarRepeat}
-          />
+          /></Tooltip>
         </div>
       </div>
     </div>

@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
 import {
@@ -58,7 +59,7 @@ export function AccessPointManageDialog({
               <p>{bidiIsolate(`${getScopeDisplayName(row.scope, t)} · ${getScopePathLabel(row.scope)}`)}</p>
             </div>
           </div>
-          <DesktopDialogCloseButton label={t("cloud.common.close")} onClick={onClose} />
+          <Tooltip content={t("cloud.common.close")}><DesktopDialogCloseButton label={t("cloud.common.close")} onClick={onClose} /></Tooltip>
         </header>
         <div className="desktop-dialog-body desktop-cloud-access-manage-body" data-po-scrollbar="content">
           <DesktopCloudScopeAccessDetail

@@ -61,8 +61,8 @@ export function OnboardingProjectList({
               role="button"
               icon={<HomeProjectIcon item={item} />}
               label={<bdi>{name}</bdi>}
-              detail={parentPath ? <Tooltip content={item.localPath} overflowOnly><bdi dir="ltr">{parentPath}</bdi></Tooltip>
-                : item.cloudProjectId ? <Tooltip content={item.cloudProjectId}><bdi>{item.cloudProjectId.slice(0, 8)}</bdi></Tooltip> : undefined}
+              detail={parentPath ? <bdi dir="ltr">{parentPath}</bdi>
+                : item.cloudProjectId ? <bdi>{item.cloudProjectId.slice(0, 8)}</bdi> : undefined}
               trailing={openingPath === item.localPath
                 ? <InlineLoading label={t("onboarding.status.opening")} size="xs" tone="neutral" />
                 : formatModificationTime(item.lastModifiedAt, t, formatRelativeTime)}
@@ -74,12 +74,12 @@ export function OnboardingProjectList({
               onDragStart={(event) => onDragStart(event, item)}
               onDragEnd={onDragEnd}
             />
-            {item.localPath && item.cloudProjectId && onOpenCloudProject && <DesktopMenuIconButton
+            {item.localPath && item.cloudProjectId && onOpenCloudProject && <Tooltip content={t("cloud.home.openCloud", { project: bidiIsolate(name) })}><DesktopMenuIconButton
               className="onboarding-project-cloud" disabled={busy}
               label={t("cloud.home.openCloud", { project: bidiIsolate(name) })}
-              onClick={() => onOpenCloudProject(item.cloudProjectId!)} icon={<Cloud size={14} />} />}
+              onClick={() => onOpenCloudProject(item.cloudProjectId!)} icon={<Cloud size={14} />} /></Tooltip>}
             {onRemove && item.localPath && (
-              <DesktopMenuIconButton
+              <Tooltip content={t("onboarding.projects.removeFor", { project: bidiIsolate(name) })}><DesktopMenuIconButton
                 className="onboarding-project-remove"
                 disabled={busy && !removing}
                 aria-busy={removing || undefined}
@@ -88,7 +88,7 @@ export function OnboardingProjectList({
                 icon={removing
                   ? <InlineLoading label={null} size="xs" tone="neutral" />
                   : <Unlink size={14} aria-hidden="true" />}
-              />
+              /></Tooltip>
             )}
           </div>
         );

@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { CloudIcon as Cloud } from "../../components/icons/CloudIcon";
 import { useLocalization } from "@puppyone/localization";
 import type { ReactNode } from "react";
@@ -42,7 +43,7 @@ export function CloudDialog({ sidebar, main, onClose, locationControls }: CloudD
             {locationControls && <div className="desktop-cloud-dialog-location-controls">
               {locationControls}
             </div>}
-            <DesktopDialogCloseButton label={t("common.action.close")} onClick={onClose} />
+            <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} onClick={onClose} /></Tooltip>
           </header>
 
           <div className="desktop-cloud-dialog-layout">

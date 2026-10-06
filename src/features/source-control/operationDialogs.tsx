@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { DesktopDialogCloseButton, DesktopDialogRoot } from "../../components/DesktopDialog";
@@ -221,7 +222,7 @@ export function BranchSwitchConflictDialog({
               <p>{t("source-control.dialog.switch.detail", { branch: bidiIsolate(branchName) })}</p>
             </div>
           </div>
-          <DesktopDialogCloseButton disabled={loading} onClick={onCancel} />
+          <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} disabled={loading} onClick={onCancel} /></Tooltip>
         </header>
 
         <div className="desktop-dialog-body" data-po-scrollbar="content">
@@ -293,7 +294,7 @@ export function GitOperationErrorDialog({
               <h2 id="git-operation-error-title">{t("source-control.dialog.error.title")}</h2>
             </div>
           </div>
-          <DesktopDialogCloseButton onClick={onClose} />
+          <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} onClick={onClose} /></Tooltip>
         </header>
 
         <div className="desktop-dialog-body" data-po-scrollbar="content">

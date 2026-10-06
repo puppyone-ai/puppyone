@@ -123,7 +123,7 @@ function ProjectLocationTab(props: LocationTabProps) {
   const navigate = location === "local" ? onViewLocal : onViewCloud;
   const disabled = !selected && (!navigate || (location === "local" && projectLocation?.localAvailable === false));
   const label = useProjectLocationLabel(location, creating, localDeviceLabel);
-  return <Tooltip content={t(getLocationTabTooltip(props))}><button
+  return <Tooltip content={iconOnly ? t(getLocationTabTooltip(props)) : undefined}><button
     className="desktop-project-location-tab" type="button" data-project-location={location}
     aria-label={label}
     data-cloud-action={creating ? "create" : undefined}

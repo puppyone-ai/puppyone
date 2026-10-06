@@ -481,7 +481,7 @@ export function DesktopCreateEntryDialog({
               <h2 id="desktop-create-entry-title">{getCreateEntryDialogTitle(selectedKind, t)}</h2>
             </div>
           </div>
-          <DesktopDialogCloseButton disabled={draft.creatingKind !== null} onClick={onCancel} />
+          <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} disabled={draft.creatingKind !== null} onClick={onCancel} /></Tooltip>
         </header>
 
         <div
@@ -913,7 +913,7 @@ function DesktopNodeRenameDialog({
               <h2 id="desktop-node-rename-title">{title}</h2>
             </div>
           </div>
-          <DesktopDialogCloseButton disabled={draft.operation !== null} onClick={onCancel} />
+          <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} disabled={draft.operation !== null} onClick={onCancel} /></Tooltip>
         </header>
 
         <div

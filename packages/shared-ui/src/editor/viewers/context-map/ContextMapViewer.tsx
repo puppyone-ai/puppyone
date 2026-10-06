@@ -858,7 +858,7 @@ function RadialRelationshipNode({
         />
       </span>
       <span className="folder-relationship-card-copy">
-        <Tooltip content={entry.node.name} overflowOnly><strong>{entry.node.name}</strong></Tooltip>
+        <strong>{entry.node.name}</strong>
       </span>
     </span>
   );
@@ -1237,7 +1237,7 @@ function LayeredRelationshipNode({
         />
       </span>
       <span className="folder-relationship-card-copy">
-        <Tooltip content={entry.node.name} overflowOnly><strong>{entry.node.name}</strong></Tooltip>
+        <strong>{entry.node.name}</strong>
       </span>
     </span>
   );
@@ -1977,7 +1977,7 @@ function RelationshipNode({
         <FileGlyphIcon name={node.name} type={node.type} size={24} theme={fileIconTheme} />
       </span>
       <span className="folder-relationship-card-copy">
-        <Tooltip content={node.name} overflowOnly><strong>{node.name}</strong></Tooltip>
+        <strong>{node.name}</strong>
       </span>
     </span>
   );

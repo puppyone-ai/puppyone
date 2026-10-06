@@ -183,15 +183,16 @@ function CloudOverviewHeaderFact({
       className="desktop-cloud-overview-header-fact desktop-cloud-overview-header-fact--interactive"
       type="button"
       aria-label={ariaLabel}
+      aria-description={valueTitle}
       aria-busy={loading}
       onClick={onClick}
     >
       <span className="desktop-cloud-overview-header-fact-label">{label}</span>
-      <Tooltip content={valueTitle}><strong>
+      <strong>
         {loading
           ? <span className="desktop-cloud-overview-value-skeleton" aria-hidden="true" />
           : value}
-      </strong></Tooltip>
+      </strong>
     </button>
   );
 }
@@ -226,7 +227,7 @@ function CloudOverviewStorageMeter({
       };
 
   return (
-    <Tooltip content={pending ? t("cloud.common.loading") : detail}><div
+    <div
       className={`desktop-cloud-overview-project-storage${pending ? " is-loading" : ""}`}
       aria-busy={pending}
     >
@@ -235,6 +236,6 @@ function CloudOverviewStorageMeter({
           <span style={{ width: `${usage.percent}%` }} />
         ) : null}
       </span>
-    </div></Tooltip>
+    </div>
   );
 }

@@ -488,7 +488,7 @@ describe("Project switcher rail", () => {
     expect(compactCloudMark?.getAttribute("width")).toBe("15");
   });
 
-  it("uses the shared tooltip for compact Project names and the create action", async () => {
+  it("omits hints for Project initials and expanded labels while hinting the icon-only create action", async () => {
     const active = workspace("active", "Alpha Project", "/projects/alpha");
     const host = document.createElement("div");
     document.body.append(host);
@@ -506,8 +506,8 @@ describe("Project switcher rail", () => {
     const compactRow = host.querySelector<HTMLButtonElement>(
       ".desktop-project-switcher-rail-project",
     );
-    expect(compactRow?.dataset.tooltip).toBe("Alpha Project");
-    expect(compactRow?.dataset.tooltipPlacement).toBe("right");
+    expect(compactRow?.textContent).toContain("A");
+    expect(compactRow?.hasAttribute("data-tooltip")).toBe(false);
     expect(compactRow?.hasAttribute("title")).toBe(false);
     const create = host.querySelector<HTMLButtonElement>(".desktop-project-switcher-rail-create");
     expect(create?.dataset.tooltip).toBe("Create new");
@@ -524,6 +524,7 @@ describe("Project switcher rail", () => {
       />,
     )));
     expect(host.querySelector<HTMLButtonElement>(".desktop-project-switcher-rail-project")?.dataset.tooltip).toBeUndefined();
+    expect(host.querySelector<HTMLButtonElement>(".desktop-project-switcher-rail-create")?.hasAttribute("data-tooltip")).toBe(false);
   });
 
   it("derives a stable Unicode grapheme from the Project identity", () => {

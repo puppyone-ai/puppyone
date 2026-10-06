@@ -168,7 +168,7 @@ app.whenReady().then(async () => {
               return { disabled: menu.dataset.tooltipDisabled, hints: menu.querySelectorAll('[data-tooltip], [title]').length,
                 bubble: document.querySelector('[role=tooltip]') !== null };
             })()`);
-            assert.deepEqual(menuHints, { disabled: "true", hints: 0, bubble: false }, "Markdown menu focus opened a redundant hint bubble");
+            assert.deepEqual(menuHints, { disabled: undefined, hints: 0, bubble: false }, "Markdown menu gained an implicit hint or blanket suppression");
             const menu = await evaluate("window.tableFixture.menuMetrics()");
             assert.equal(menu.headings, 0, "Markdown menu must not render section headings");
             near(menu.bounds.width, menu.requiredWidth, "menu has surplus right-side width");

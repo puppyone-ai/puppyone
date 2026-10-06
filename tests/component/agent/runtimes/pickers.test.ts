@@ -316,7 +316,8 @@ describe("Desktop Agent renderer surfaces", () => {
     const cursor = Array.from(popup.querySelectorAll('[role="option"]')).find((option) => option.textContent?.includes("Cursor Agent")) as HTMLButtonElement;
     expect(cursor.getAttribute("aria-disabled")).toBeNull();
     expect(cursor.querySelector(".desktop-agent-picker-warning")).not.toBeNull();
-    expect(cursor.querySelector(".desktop-agent-picker-warning")?.getAttribute("data-tooltip")).toContain("Native protocol unavailable");
+    expect(cursor.querySelector(".desktop-agent-picker-warning")?.hasAttribute("data-tooltip")).toBe(false);
+    expect(cursor.querySelector(".desktop-agent-picker-warning")?.getAttribute("aria-label")).toContain("Native protocol unavailable");
     expect(popup.textContent).not.toContain("Native protocol unavailable");
     act(() => cursor.click());
     expect(onSelectRuntime).toHaveBeenCalledWith("cursor");

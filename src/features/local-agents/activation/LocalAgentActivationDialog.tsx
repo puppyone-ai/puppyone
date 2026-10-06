@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { useEffect, useRef, useState } from "react";
 import { DesktopOverlayLayer } from "../../../components/DesktopOverlayLayer";
 import { useLocalization } from "@puppyone/localization/react";
@@ -42,7 +43,7 @@ export function LocalAgentActivationDialog({ setupId, displayName, surface, oper
     <DesktopDialogSurface className="local-agent-activation-dialog" width={420} ariaLabel={t("settings.agentSetup.activate", { agent: displayName })}>
       <header className="desktop-dialog-header">
         <div className="local-agent-activation-title"><AgentLauncherIcon launcherId={setupId} /><h2>{t("settings.agentSetup.activate", { agent: displayName })}</h2></div>
-        <DesktopDialogCloseButton label={t("common.action.close")} onClick={onClose} />
+        <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} onClick={onClose} /></Tooltip>
       </header>
       <div className="desktop-dialog-body local-agent-activation-body">
         {confirming ? <>

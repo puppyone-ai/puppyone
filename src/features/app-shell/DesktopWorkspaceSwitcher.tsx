@@ -1,10 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import {
-  Tooltip,
-  createWorkspaceFolder,
-  type Workspace,
-  type WorkspaceFolder,
-} from "@puppyone/shared-ui";
+import { createWorkspaceFolder, type Workspace, type WorkspaceFolder } from "@puppyone/shared-ui";
 import {
   ArrowLeft,
   Plus,
@@ -87,13 +82,13 @@ export function DesktopWorkspaceSwitcher({
   }, [workspace.path]);
   return (
     <div className="desktop-titlebar-workspace-wrap" ref={refObject}>
-      <Tooltip content={t("shell.workspaceSwitcher.projects")}><button
+      <button
         type="button" ref={triggerRef} className="desktop-titlebar-workspace-button"
         aria-label={t("shell.workspaceSwitcher.openMenu", { workspace: bidiIsolate(workspace.name) })}
         aria-expanded={open} aria-haspopup="menu" onClick={() => { setView("projects"); onToggle(); }}>
         <House className="desktop-titlebar-workspace-mark" size={16} strokeWidth={1.65} aria-hidden="true" />
         <bdi className="desktop-titlebar-workspace-name">{titlebarLabel}</bdi>
-      </button></Tooltip>
+      </button>
       <DesktopTitlebarMenuLayer
         anchorRef={triggerRef}
         className="desktop-project-menu"
@@ -175,9 +170,7 @@ export function DesktopWorkspaceSwitcher({
                 <DesktopMenuItem
                   className="desktop-project-add"
                   detail={(
-                    <Tooltip content={project.path} overflowOnly>
-                      <bdi dir="ltr">{getWorkspaceParentPathForDisplay(project.path)}</bdi>
-                    </Tooltip>
+                    <bdi dir="ltr">{getWorkspaceParentPathForDisplay(project.path)}</bdi>
                   )}
                   icon={(
                     <ProjectContextAssetMark
@@ -227,12 +220,12 @@ function DesktopProjectRow({
         <span className="desktop-menu-item-body">
           <bdi className="desktop-menu-item-label">{folder.name}</bdi>
           {detail ? (
-            <Tooltip content={folder.workspace.path} overflowOnly><bdi
+            <bdi
               className="desktop-menu-item-detail"
               dir="ltr"
             >
               {detail}
-            </bdi></Tooltip>
+            </bdi>
           ) : null}
         </span>
       </div>

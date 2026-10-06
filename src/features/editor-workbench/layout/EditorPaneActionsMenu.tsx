@@ -185,30 +185,30 @@ export function EditorPaneActionsMenu({
               <span className="desktop-editor-pane-menu-action-divider" aria-hidden="true" />
             )}
             {findCommand && (
-              <DesktopMenuIconButton
+              <Tooltip content={t("editor.find.label")}><DesktopMenuIconButton
                 className="desktop-editor-pane-menu-primary-action desktop-editor-pane-menu-find-action"
                 icon={<Search size={15} strokeWidth={1.9} />}
                 label={t("editor.find.label")}
                 role="menuitem"
                 onClick={() => runAndClose(findCommand.open)}
-              />
+              /></Tooltip>
             )}
             {onOpenExternal && (
-              <DesktopMenuIconButton
+              <Tooltip content={openExternalLabel}><DesktopMenuIconButton
                 className="desktop-editor-pane-menu-primary-action desktop-editor-pane-menu-external-action"
                 icon={<ExternalLink size={15} strokeWidth={1.8} />}
                 label={openExternalLabel}
                 role="menuitem"
                 onClick={() => runAndClose(onOpenExternal)}
-              />
+              /></Tooltip>
             )}
-            <DesktopMenuIconButton
+            <Tooltip content={t("editor.panes.closePane")}><DesktopMenuIconButton
               className="desktop-editor-pane-menu-primary-action desktop-editor-pane-menu-close-action"
               icon={<X size={15} strokeWidth={1.8} />}
               label={t("editor.panes.closePane")}
               role="menuitem"
               onClick={() => runAndClose(onClosePane)}
-            />
+            /></Tooltip>
           </div>
         </div>
         {hasSecondaryActions && (

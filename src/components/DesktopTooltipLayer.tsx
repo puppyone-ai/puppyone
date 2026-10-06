@@ -74,8 +74,8 @@ function positionTooltip(
 }
 
 /**
- * One tooltip surface for explicitly authored hints. Visible labels should not
- * repeat themselves here; clipped values can opt into `data-tooltip-when="overflow"`.
+ * One tooltip surface for explicitly authored hints on controls without visible
+ * text. The owning UI controls hint content when its presentation changes.
  */
 export function DesktopTooltipLayer() {
   const tooltipId = useId();

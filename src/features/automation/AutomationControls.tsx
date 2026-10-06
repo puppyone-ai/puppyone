@@ -260,9 +260,7 @@ function CloudAutomationResourcePicker({
           {resources.map((resource) => {
             const selected = value?.resourceId === resource.id;
             return (
-              <Tooltip content={resource.authorized
-                  ? undefined
-                  : t("automation.resource.notAuthorized", { name: bidiIsolate(resource.name) })} key={`${resource.type}:${resource.id}`}><button
+              <button key={`${resource.type}:${resource.id}`}
                 className={selected ? "selected" : undefined}
                 type="button"
                 disabled={!resource.authorized}
@@ -276,7 +274,7 @@ function CloudAutomationResourcePicker({
                 <span>{resource.authorized
                   ? selected ? t("automation.resource.selected") : t("automation.resource.select")
                   : t("automation.resource.noAccess")}</span>
-              </button></Tooltip>
+              </button>
             );
           })}
         </div>

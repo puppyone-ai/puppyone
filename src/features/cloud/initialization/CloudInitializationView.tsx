@@ -1,4 +1,3 @@
-import { Tooltip } from "@puppyone/shared-ui";
 import {
   FilePenLine,
   GitBranch,
@@ -212,9 +211,9 @@ function CloudPublishHero({ props, view }: PublishSectionProps) {
           <CloudPublishFolderMark className="desktop-cloud-publish-symbol-icon" />
         </div>
         <div className="desktop-cloud-publish-details local">
-          <Tooltip content={workspace.path} overflowOnly><p className="desktop-cloud-publish-project" dir="auto">
+          <p className="desktop-cloud-publish-project" dir="auto">
             {workspace.name}
-          </p></Tooltip>
+          </p>
           <ul className="desktop-cloud-publish-meta">
             <li>
               <GitBranch size={13} aria-hidden="true" />

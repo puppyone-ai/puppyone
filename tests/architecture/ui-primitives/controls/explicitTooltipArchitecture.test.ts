@@ -99,7 +99,7 @@ function findDirectTooltipActivation(file: string) {
 }
 
 describe("explicit tooltip architecture", () => {
-  it("keeps Markdown controls and their portalled menus free of hover hint activation", () => {
+  it("keeps Markdown DOM controls free of implicit activation without suppressing explicit mode hints", () => {
     const markdownRoot = path.join(REPOSITORY_ROOT, "packages/shared-ui/src/editor/markdown");
     const violations = sourceFiles(markdownRoot).filter((file) => {
       const source = fs.readFileSync(file, "utf8");
@@ -107,11 +107,16 @@ describe("explicit tooltip architecture", () => {
     }).map((file) => path.relative(REPOSITORY_ROOT, file));
     expect(violations).toEqual([]);
     expect(fs.readFileSync(path.join(markdownRoot, "MarkdownCodeMirrorEditor.tsx"), "utf8"))
-      .toContain("disableTooltipHints(host)");
+      .not.toContain("disableTooltipHints(host)");
     expect(fs.readFileSync(path.join(markdownRoot, "MarkdownViewer.tsx"), "utf8"))
-      .toContain("modeTooltipsEnabled={false}");
+      .not.toContain("modeTooltipsEnabled");
     expect(fs.readFileSync(path.join(markdownRoot, "features/table/tableContextMenu.ts"), "utf8"))
-      .toContain("disableTooltipHints(menu)");
+      .not.toContain("disableTooltipHints(menu)");
+    const textEditorFrame = fs.readFileSync(path.join(
+      REPOSITORY_ROOT, "packages/shared-ui/src/editor/viewers/shared/TextEditorFrame.tsx",
+    ), "utf8");
+    expect(textEditorFrame).toContain('<Tooltip content={liveModeLabel ?? t("editor.mode.live")}');
+    expect(textEditorFrame).toContain('<Tooltip content={sourceModeLabel ?? t("editor.mode.source")}');
   });
 
   it("installs the native-title guard and the product-authored tooltip layer at startup", () => {

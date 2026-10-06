@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { Download, FilePlus2, FolderOpen, Plus } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import type { ReactNode } from "react";
@@ -53,10 +54,10 @@ export function ProjectEntryLauncherDialog({
             </span>
             <h2>{title}</h2>
           </div>
-          <DesktopDialogCloseButton
+          <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton
             label={t("common.action.close")}
             onClick={onClose}
-          />
+          /></Tooltip>
         </header>
 
         <div className="desktop-dialog-body desktop-project-entry-launcher-body">

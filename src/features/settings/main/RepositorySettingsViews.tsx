@@ -1,5 +1,4 @@
 import { useDesktopPreference } from "../../../preferencesStore";
-import { Tooltip } from "@puppyone/shared-ui";
 import { Copy, RefreshCw } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import type { GitStatusSnapshot, PuppyoneWorkspaceConfig } from "../../../types/electron";
@@ -270,13 +269,13 @@ export function GitSettingsView({
                         <span>{t("settings.git.remoteBranchCount", { count: remote.branches.length })}</span>
                       </div>
                       <div className="desktop-settings-remote-setting-url">
-                        <Tooltip content={copyUrl ? maskRemoteUrl(copyUrl) : undefined} overflowOnly><code
+                        <code
                           dir="ltr"
                         >
                           {copyUrl ? maskRemoteUrl(copyUrl) : t("settings.shared.notConfigured")}
-                        </code></Tooltip>
+                        </code>
                         {pushUrlDiffers && remote.pushUrl && (
-                          <Tooltip content={maskRemoteUrl(remote.pushUrl)}><small>{t("settings.git.pushUrlDiffers")}</small></Tooltip>
+                          <small>{t("settings.git.pushUrlDiffers")}</small>
                         )}
                       </div>
                       <CopyAction

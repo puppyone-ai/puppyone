@@ -1,5 +1,5 @@
 import { useLocalization } from "@puppyone/localization/react";
-import { SidebarRoot, SidebarRow, SidebarScrollArea, Tooltip } from "@puppyone/shared-ui";
+import { SidebarRoot, SidebarRow, SidebarScrollArea } from "@puppyone/shared-ui";
 import { SidebarGroup } from "../../components/sidebar";
 import type { CloudServiceSidebarProps, CloudWorkspaceSection } from "./types";
 import { getCloudAuthSession } from "./auth";
@@ -121,18 +121,17 @@ export function CloudSidebarNavItem({
     : undefined;
 
   return (
-    <Tooltip content={lockedTitle}>
-      <SidebarRow
-        active={active}
-        disabled={item.locked}
-        aria-disabled={item.locked || undefined}
-        onClick={() => {
-          if (!item.locked) onSelect(item.id);
-        }}
-        icon={<Icon size={15} />}
-        label={label}
-      />
-    </Tooltip>
+    <SidebarRow
+      active={active}
+      disabled={item.locked}
+      aria-disabled={item.locked || undefined}
+      aria-description={lockedTitle}
+      onClick={() => {
+        if (!item.locked) onSelect(item.id);
+      }}
+      icon={<Icon size={15} />}
+      label={label}
+    />
   );
 }
 

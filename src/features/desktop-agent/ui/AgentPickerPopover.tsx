@@ -224,7 +224,7 @@ export function AgentPickerPopover({
       label={<bdi dir="auto">{option.label}</bdi>}
       detail={option.meta ? <bdi dir="auto">{option.meta}</bdi> : undefined}
       trailing={option.warning
-        ? <Tooltip content={option.warning}><span className="desktop-agent-picker-warning" aria-label={option.warning}><CircleAlert size={14} strokeWidth={1.8} aria-hidden="true" /></span></Tooltip>
+        ? <span className="desktop-agent-picker-warning" aria-label={option.warning}><CircleAlert size={14} strokeWidth={1.8} aria-hidden="true" /></span>
         : option.selected
           ? <Check className="desktop-agent-picker-check" size={14} aria-hidden="true" />
           : undefined}

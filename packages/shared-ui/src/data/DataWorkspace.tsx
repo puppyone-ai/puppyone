@@ -1385,9 +1385,9 @@ export function DataWorkspace({
                           </button></Tooltip>
                         )}
                         {resolvedCapabilities.accessPoints && onAccess && (
-                          <button type="button" aria-label={t("shared-ui.explorer.access")} onClick={() => onAccess(currentFolderPath)}>
+                          <Tooltip content={t("shared-ui.explorer.access")}><button type="button" aria-label={t("shared-ui.explorer.access")} onClick={() => onAccess(currentFolderPath)}>
                             <Link2 size={15} />
-                          </button>
+                          </button></Tooltip>
                         )}
                       </div>
                     </div>

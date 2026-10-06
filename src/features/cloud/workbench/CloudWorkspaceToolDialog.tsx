@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { lazy, Suspense } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
@@ -30,7 +31,7 @@ export function CloudWorkspaceToolDialog({ tool, context, session, apiBaseUrl, o
         <header className="desktop-dialog-header desktop-cloud-dialog-header">
           <div className="desktop-dialog-title-row desktop-cloud-dialog-title-row">
             <span className="desktop-cloud-dialog-leading" aria-hidden="true">{tool === "automation" ? <Grid2X2 size={15} /> : <Plug size={15} />}</span><h2>{title}</h2></div>
-          <DesktopDialogCloseButton label={t("common.action.close")} onClick={onClose} />
+          <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} onClick={onClose} /></Tooltip>
         </header>
         <div className="desktop-cloud-workspace-tool-content" data-cloud-workspace-tool-page={tool} data-cloud-project-id={context.projectId}>
           <CloudSurfaceFrame surface={tool === "automation" ? "automation" : "landing"}>

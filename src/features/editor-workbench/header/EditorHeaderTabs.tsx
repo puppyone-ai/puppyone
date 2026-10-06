@@ -138,30 +138,28 @@ export function EditorHeaderTabs({
             onDragStart={(event) => beginDrag(event, editor.id)}
             onDrop={(event) => moveBefore(event, editor.id)}
           >
-            <Tooltip content={editor.resource} overflowOnly>
-              <button
-                ref={(element) => {
-                  if (element) tabRefs.current.set(editor.id, element);
-                  else tabRefs.current.delete(editor.id);
-                }}
-                type="button"
-                className="desktop-titlebar-editor-tab-select"
-                role="tab"
-                aria-selected={active}
-                tabIndex={active ? 0 : -1}
-                data-editor-tab-id={editor.id}
-                onClick={() => onActivate(editor.id)}
-                onAuxClick={(event: ReactMouseEvent<HTMLButtonElement>) => {
-                  if (event.button === 1) void close(editor.id);
-                }}
-                onKeyDown={(event) => activateFromKeyboard(event, editor.id)}
-              >
-                <span className="desktop-titlebar-editor-tab-icon" aria-hidden="true">
-                  <FileGlyphIcon name={editor.label} size={15} theme={fileIconTheme} />
-                </span>
-                <span className="desktop-titlebar-editor-tab-label" dir="auto">{editor.label}</span>
-              </button>
-            </Tooltip>
+            <button
+              ref={(element) => {
+                if (element) tabRefs.current.set(editor.id, element);
+                else tabRefs.current.delete(editor.id);
+              }}
+              type="button"
+              className="desktop-titlebar-editor-tab-select"
+              role="tab"
+              aria-selected={active}
+              tabIndex={active ? 0 : -1}
+              data-editor-tab-id={editor.id}
+              onClick={() => onActivate(editor.id)}
+              onAuxClick={(event: ReactMouseEvent<HTMLButtonElement>) => {
+                if (event.button === 1) void close(editor.id);
+              }}
+              onKeyDown={(event) => activateFromKeyboard(event, editor.id)}
+            >
+              <span className="desktop-titlebar-editor-tab-icon" aria-hidden="true">
+                <FileGlyphIcon name={editor.label} size={15} theme={fileIconTheme} />
+              </span>
+              <span className="desktop-titlebar-editor-tab-label" dir="auto">{editor.label}</span>
+            </button>
             <span className="desktop-titlebar-editor-tab-state" aria-hidden="true">
               {status === "saving" || closing
                 ? <LoaderCircle className="is-spinning" size={12} />
@@ -171,7 +169,7 @@ export function EditorHeaderTabs({
                     ? <span className="desktop-titlebar-editor-tab-dirty" />
                     : null}
             </span>
-            <button
+            <Tooltip content={t("shell.editorTabs.close", { name: editor.label })}><button
               type="button"
               className="desktop-titlebar-editor-tab-close"
               aria-label={t("shell.editorTabs.close", { name: editor.label })}
@@ -182,7 +180,7 @@ export function EditorHeaderTabs({
               }}
             >
               <X size={12} strokeWidth={1.8} aria-hidden="true" />
-            </button>
+            </button></Tooltip>
           </div>
         );
       })}

@@ -16,5 +16,9 @@
   "status.modified": "Modificado",
   "status.created": "Creado",
   "status.deleted": "Eliminado",
-  "status.moved": "Movido"
+  "status.moved": "Movido",
+  "scrollbar.up": "Desplazar hacia arriba",
+  "scrollbar.down": "Desplazar hacia abajo",
+  "scrollbar.left": "Desplazar hacia la izquierda",
+  "scrollbar.right": "Desplazar hacia la derecha"
 }

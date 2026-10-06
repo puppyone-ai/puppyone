@@ -16,5 +16,9 @@
   "status.modified": "変更済み",
   "status.created": "作成済み",
   "status.deleted": "削除済み",
-  "status.moved": "移動済み"
+  "status.moved": "移動済み",
+  "scrollbar.up": "上にスクロール",
+  "scrollbar.down": "下にスクロール",
+  "scrollbar.left": "左にスクロール",
+  "scrollbar.right": "右にスクロール"
 }

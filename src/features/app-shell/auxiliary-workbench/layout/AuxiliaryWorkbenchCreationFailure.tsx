@@ -19,7 +19,7 @@ export function AuxiliaryWorkbenchCreationFailure({
     ? t(messageKey)
     : t("terminal.workbench.itemLoadFailed", { item: failure.label });
   return (
-    <Tooltip content={failure.detail || undefined}><div
+    <div
       className="desktop-terminal-workbench-create-failure"
       role="alert"
       data-native-surface-occluder="true"
@@ -31,12 +31,12 @@ export function AuxiliaryWorkbenchCreationFailure({
           <RefreshCw size={12} strokeWidth={1.8} aria-hidden="true" /> {t("common.action.retry")}
         </button>
       )}
-      <DesktopMenuIconButton
+      <Tooltip content={t("terminal.workbench.dismissError")}><DesktopMenuIconButton
         label={t("terminal.workbench.dismissError")}
         icon={<X size={12} strokeWidth={1.8} aria-hidden="true" />}
         onClick={onDismiss}
-      />
-    </div></Tooltip>
+      /></Tooltip>
+    </div>
   );
 }
 

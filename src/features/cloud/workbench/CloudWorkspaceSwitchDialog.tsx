@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { CloudIcon as Cloud } from "../../../components/icons/CloudIcon";
 import { useLocalization } from "@puppyone/localization";
 import { useEffect, type ReactNode } from "react";
@@ -43,7 +44,7 @@ export function CloudWorkspaceSwitchDialog({ controller, gate, authenticationReq
             <span className="desktop-cloud-dialog-leading" aria-hidden="true"><Cloud size={15} /></span>
             <h2>{t("cloud.productName")}</h2>
           </div>
-          <DesktopDialogCloseButton label={t("common.action.close")} onClick={controller.cancel} />
+          <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} onClick={controller.cancel} /></Tooltip>
         </header>
         <div className="desktop-cloud-workspace-switch-content" data-po-scrollbar="content">
           {controller.error ? <CloudWorkspaceRecovery message={formatCloudMessage(controller.error, t)}

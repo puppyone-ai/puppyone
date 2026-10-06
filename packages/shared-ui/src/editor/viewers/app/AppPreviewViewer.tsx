@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "../../../primitives/Tooltip";
 
 import {
   Code2,
@@ -10,7 +11,7 @@ import {
   Square,
   TerminalSquare,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import {
   getAppPreviewManifestDisplayName,
@@ -119,26 +120,26 @@ export function AppPreviewViewer({
         </div>
 
         <div className="app-preview-toolbar" aria-label={t("editor.app.controls")}>
-          <ToolbarButton navigation active={mode === "preview"} label={t("editor.app.preview")} onClick={() => setMode("preview")}>
+          <Tooltip content={t("editor.app.preview")}><ToolbarButton navigation active={mode === "preview"} label={t("editor.app.preview")} onClick={() => setMode("preview")}>
             <Eye size={14} strokeWidth={2} />
-          </ToolbarButton>
-          <ToolbarButton navigation active={mode === "source"} label={t("editor.app.manifestSource")} onClick={() => setMode("source")}>
+          </ToolbarButton></Tooltip>
+          <Tooltip content={t("editor.app.manifestSource")}><ToolbarButton navigation active={mode === "source"} label={t("editor.app.manifestSource")} onClick={() => setMode("source")}>
             <Code2 size={14} strokeWidth={2} />
-          </ToolbarButton>
+          </ToolbarButton></Tooltip>
           {configured ? (
             <>
-              <ToolbarButton navigation active={mode === "logs"} label={t("editor.app.runtimeLogs")} onClick={() => setMode("logs")}>
+              <Tooltip content={t("editor.app.runtimeLogs")}><ToolbarButton navigation active={mode === "logs"} label={t("editor.app.runtimeLogs")} onClick={() => setMode("logs")}>
                 <TerminalSquare size={14} strokeWidth={2} />
-              </ToolbarButton>
-              <ToolbarButton navigation active={mode === "settings"} label={t("editor.app.setup.settingsTitle")} onClick={() => setMode("settings")}>
+              </ToolbarButton></Tooltip>
+              <Tooltip content={t("editor.app.setup.settingsTitle")}><ToolbarButton navigation active={mode === "settings"} label={t("editor.app.setup.settingsTitle")} onClick={() => setMode("settings")}>
                 <Settings2 size={14} strokeWidth={2} />
-              </ToolbarButton>
+              </ToolbarButton></Tooltip>
             </>
           ) : null}
           {configured && mode === "preview" ? (
             <>
               <span className="app-preview-toolbar-separator" aria-hidden="true" />
-              <ToolbarButton
+              <Tooltip content={t("editor.app.reload")}><ToolbarButton
                 label={t("editor.app.reload")}
                 disabled={!frameUrl}
                 onClick={() => {
@@ -146,17 +147,17 @@ export function AppPreviewViewer({
                 }}
               >
                 <RefreshCw size={14} strokeWidth={2} />
-              </ToolbarButton>
+              </ToolbarButton></Tooltip>
               <span className="app-preview-toolbar-separator" aria-hidden="true" />
-              <ToolbarButton label={t("editor.app.restart")} disabled={!appPreview?.restart || state.status === "starting"} onClick={() => session.restart()}>
+              <Tooltip content={t("editor.app.restart")}><ToolbarButton label={t("editor.app.restart")} disabled={!appPreview?.restart || state.status === "starting"} onClick={() => session.restart()}>
                 <RotateCw size={14} strokeWidth={2} />
-              </ToolbarButton>
-              <ToolbarButton label={t("editor.app.stop")} disabled={!appPreview?.stop || (state.status !== "running" && state.status !== "starting")} onClick={() => void session.stop()}>
+              </ToolbarButton></Tooltip>
+              <Tooltip content={t("editor.app.stop")}><ToolbarButton label={t("editor.app.stop")} disabled={!appPreview?.stop || (state.status !== "running" && state.status !== "starting")} onClick={() => void session.stop()}>
                 <Square size={13} strokeWidth={2} />
-              </ToolbarButton>
-              <ToolbarButton navigation label={t("editor.app.openBrowser")} disabled={!appPreview?.openExternal || !runningUrl} onClick={() => void appPreview?.openExternal?.(document.path)}>
+              </ToolbarButton></Tooltip>
+              <Tooltip content={t("editor.app.openBrowser")}><ToolbarButton navigation label={t("editor.app.openBrowser")} disabled={!appPreview?.openExternal || !runningUrl} onClick={() => void appPreview?.openExternal?.(document.path)}>
                 <ExternalLink size={14} strokeWidth={2} />
-              </ToolbarButton>
+              </ToolbarButton></Tooltip>
             </>
           ) : null}
         </div>
@@ -248,7 +249,8 @@ function ToolbarButton({
   disabled = false,
   onClick,
   children,
-}: {
+  ...buttonProps
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
   active?: boolean;
   navigation?: boolean;
   label: string;
@@ -258,6 +260,7 @@ function ToolbarButton({
 }) {
   return (
     <button
+      {...buttonProps}
       className={active ? "active" : ""}
       data-po-interaction={navigation ? "navigation" : undefined}
       type="button"

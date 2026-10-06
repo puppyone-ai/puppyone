@@ -1,4 +1,3 @@
-import { Tooltip } from "@puppyone/shared-ui";
 import { AlertTriangle, CheckCircle2, Download, Info, RefreshCw, RotateCw } from "lucide-react";
 import { useLocalization, type MessageFormatter } from "@puppyone/localization";
 import type { DesktopUpdateState, DesktopUpdateStatus } from "../../types/electron";
@@ -23,7 +22,7 @@ export function DesktopUpdateSettingsRow({
   return (
     <div className="desktop-settings-row desktop-settings-row-control">
       <span>{t("updates.settings.title")}</span>
-      <Tooltip content={action.disabled ? detail : undefined}><button
+      <button
         className={`desktop-settings-action ${action.primary ? "primary" : ""}`}
         type="button"
         aria-label={`${action.label}. ${detail}`}
@@ -32,7 +31,7 @@ export function DesktopUpdateSettingsRow({
       >
         <Icon size={14} className={action.spinning ? "spin" : undefined} />
         <span>{action.label}</span>
-      </button></Tooltip>
+      </button>
     </div>
   );
 }

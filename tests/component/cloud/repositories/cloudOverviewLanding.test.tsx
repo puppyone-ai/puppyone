@@ -252,7 +252,7 @@ describe("CloudRepositoryOverview landing page", () => {
     expect(fileRows).toHaveLength(5);
     expect(Array.from(fileRows ?? []).every((row) => !row.hasAttribute("data-tooltip"))).toBe(true);
     expect(Array.from(dashboard?.querySelectorAll<HTMLElement>(".desktop-cloud-overview-file-name") ?? [])
-      .every((name) => name.dataset.tooltipWhen === "overflow")).toBe(true);
+      .every((name) => !name.hasAttribute("data-tooltip"))).toBe(true);
     expect(fileRows?.[0]?.textContent).toContain("assets");
     expect(fileRows?.[1]?.textContent).toContain("docs");
     const usersRow = Array.from(fileRows ?? []).find((row) => row.textContent?.includes("users.csv"));
@@ -269,7 +269,7 @@ describe("CloudRepositoryOverview landing page", () => {
     expect(container.textContent).not.toContain("Shared product research");
     const storage = container.querySelector<HTMLElement>(".desktop-cloud-overview-project-storage");
     expect(storage?.textContent).toBe("");
-    expect(storage?.dataset.tooltip).toBe("100 MB of 500 MB");
+    expect(storage?.hasAttribute("data-tooltip")).toBe(false);
     expect(storage?.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("20");
     expect(storage?.querySelector('[role="progressbar"]')?.getAttribute("aria-valuetext")).toBe("100 MB of 500 MB");
     expect(storage?.parentElement?.classList.contains("desktop-cloud-overview-landing-header")).toBe(true);

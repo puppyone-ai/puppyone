@@ -135,11 +135,11 @@ export function OnboardingImportDialog({
             )}
             <h2>{title}</h2>
           </div>
-          <DesktopDialogCloseButton
+          <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton
             label={t("common.action.close")}
             disabled={busy}
             onClick={onClose}
-          />
+          /></Tooltip>
         </header>
 
         {source === null && (
@@ -241,7 +241,7 @@ function ImportSourceRow({
 }) {
   return (
     <li>
-      <Tooltip content={!operational ? unavailableLabel : undefined}><button
+      <button
         className="onboarding-import-source"
         type="button"
         data-import-source={source}
@@ -253,7 +253,7 @@ function ImportSourceRow({
         <span className="onboarding-import-source-icon" aria-hidden="true">{icon}</span>
         <span className="onboarding-import-source-label">{title}</span>
         {!operational && <span className="onboarding-import-source-status">{unavailableLabel}</span>}
-      </button></Tooltip>
+      </button>
     </li>
   );
 }

@@ -1,4 +1,3 @@
-import { Tooltip } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import {
   agentActivityToolId,
@@ -46,8 +45,8 @@ function SearchResults({ results, onOpenFile }: { results: ReturnType<typeof col
       {results.lines.map((line, index) => {
         const path = resultPath(line);
         return path && onOpenFile
-          ? <Tooltip content={line} overflowOnly key={`${index}:${line}`}><button type="button" data-po-interaction="navigation" onClick={() => onOpenFile(path)}>{line}</button></Tooltip>
-          : <Tooltip content={line} overflowOnly key={`${index}:${line}`}><span>{line}</span></Tooltip>;
+          ? <button key={`${index}:${line}`} type="button" data-po-interaction="navigation" onClick={() => onOpenFile(path)}>{line}</button>
+          : <span key={`${index}:${line}`}>{line}</span>;
       })}
       {results.omittedLines > 0 && <small>{t("agent.activity.moreResults", { count: results.omittedLines, value: formatNumber(results.omittedLines) })}</small>}
     </div>

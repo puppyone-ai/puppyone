@@ -124,11 +124,11 @@ export function OnboardingProjectEntryDialog({
             </span>
             <h2>{title}</h2>
           </div>
-          <DesktopDialogCloseButton
+          <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton
             label={t("common.action.close")}
             disabled={busy}
             onClick={onClose}
-          />
+          /></Tooltip>
         </header>
 
         <div className="desktop-dialog-body desktop-file-dialog-body onboarding-entry-dialog-body">
@@ -169,13 +169,13 @@ export function OnboardingProjectEntryDialog({
                 onClick={() => void chooseLocation()}
               >
                 <FolderOpen aria-hidden="true" />
-                <Tooltip content={location?.path} overflowOnly><bdi
+                <bdi
                   className={`onboarding-entry-location-path ${location ? "is-selected" : ""}`}
                   dir="ltr"
                   aria-live="polite"
                 >
                   {location?.path ?? t("onboarding.entry.create.locationPlaceholder")}
-                </bdi></Tooltip>
+                </bdi>
                 <span className="onboarding-entry-location-action">
                   {t(choosingLocation
                     ? "onboarding.entry.create.browsing"

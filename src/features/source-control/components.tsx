@@ -175,7 +175,7 @@ function SourceControlPreviewResourceRow({
           <FileGlyphIcon name={getGitResourceIconName(resource)} size={18} theme={fileIconTheme} />
         </span>
         <span className="desktop-working-tree-copy">
-          <Tooltip content={displayPath} overflowOnly><span className="desktop-working-tree-name">{displayName}</span></Tooltip>
+          <span className="desktop-working-tree-name">{displayName}</span>
           <GitResourceStatusMarker resource={resource} />
         </span>
       </button>
@@ -222,7 +222,7 @@ export function SourceControlWorkingTreeRow({
           <FileGlyphIcon name={getGitResourceIconName(resource)} size={18} theme={fileIconTheme} />
         </span>
         <span className="desktop-working-tree-copy">
-          <Tooltip content={displayPath} overflowOnly><span className="desktop-working-tree-name">{displayName}</span></Tooltip>
+          <span className="desktop-working-tree-name">{displayName}</span>
           <GitResourceStatusMarker resource={resource} />
         </span>
       </button>

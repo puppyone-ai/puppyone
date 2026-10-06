@@ -106,19 +106,14 @@ export const AuxiliaryWorkbenchTab = memo(function AuxiliaryWorkbenchTab({
         onLostPointerCapture={tabMove.lostCapture}
       >
         <AuxiliaryWorkbenchStatus key={`status:${item.id}`} className="desktop-terminal-tab-status" item={item} />
-        <Tooltip
-          content={compact ? undefined : item.snapshot.accessibleLabel}
-          overflowOnly
-        >
-          <span key={`title:${item.id}`} className="desktop-terminal-tab-title">{item.snapshot.title}</span>
-        </Tooltip>
+        <span key={`title:${item.id}`} className="desktop-terminal-tab-title">{item.snapshot.title}</span>
       </button></Tooltip>
-      <DesktopMenuIconButton
+      <Tooltip content={t("terminal.closeSession", { title: item.snapshot.title })}><DesktopMenuIconButton
         className="desktop-terminal-tab-close"
         label={t("terminal.closeSession", { title: item.snapshot.title })}
         icon={<X size={12} strokeWidth={1.8} aria-hidden="true" />}
         onClick={() => onClose(item.id)}
-      />
+      /></Tooltip>
     </div>
   );
 });

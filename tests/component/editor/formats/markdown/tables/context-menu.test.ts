@@ -104,7 +104,7 @@ describe("Markdown table EditorView interactions", () => {
     expect(iconButtons.length).toBeGreaterThan(0);
     expect(iconButtons.every((button) => button.querySelector(".po-editable-table-menu-icon"))).toBe(true);
     expect(iconButtons.every((button) => Boolean(button.getAttribute("aria-label")))).toBe(true);
-    expect(menu.dataset.tooltipDisabled).toBe("true");
+    expect(menu.dataset.tooltipDisabled).toBeUndefined();
     expect(menu.querySelector("[data-tooltip], [title]")).toBeNull();
     expect(view.dom.querySelector("[data-tooltip], [title]")).toBeNull();
     expect(menu.querySelectorAll(".desktop-menu-section-list.is-icon-toolbar").length).toBeGreaterThan(0);

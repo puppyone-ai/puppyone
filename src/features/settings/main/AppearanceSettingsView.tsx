@@ -1,4 +1,4 @@
-import { Tooltip, FILE_ICON_THEMES, PULSE_GRID_PRESET_FRAMES, PULSE_GRID_PRESET_IDS, FileGlyphIcon } from "@puppyone/shared-ui";
+import { FILE_ICON_THEMES, PULSE_GRID_PRESET_FRAMES, PULSE_GRID_PRESET_IDS, FileGlyphIcon } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
 import { TITLEBAR_ACTION_IDS } from "../../../preferences";
 import { AgentEntryIcon } from "../../../components/brand/AgentEntryIcon";
@@ -47,7 +47,7 @@ function FileIconSetting() {
       <span>{t("settings.appearance.fileIcons.title")}</span>
       <div className="desktop-theme-segment desktop-appearance-option-segment" aria-label={t("settings.appearance.fileIcons.ariaLabel")}>
         {FILE_ICON_THEMES.map((theme) => (
-          <Tooltip content={fileIconDecision.reasonKey ? t(fileIconDecision.reasonKey) : undefined} key={theme.id}><button
+          <button key={theme.id}
             className={`${fileIconDecision.effectiveValue === theme.id ? "active" : ""}${fileIconLocked || !isAppearanceValueAllowed(fileIconDecision, theme.id) ? " is-policy-controlled" : ""}`}
             type="button"
             aria-disabled={fileIconLocked || !isAppearanceValueAllowed(fileIconDecision, theme.id)}
@@ -60,7 +60,7 @@ function FileIconSetting() {
           >
             <FileGlyphIcon name="document.md" size={14} theme={theme.id} />
             <span>{t(`settings.appearance.fileIcons.${theme.id}.label`)}</span>
-          </button></Tooltip>
+          </button>
         ))}
       </div>
       {fileIconDecision.reasonKey && (

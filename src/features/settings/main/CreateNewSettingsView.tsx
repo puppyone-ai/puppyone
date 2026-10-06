@@ -128,7 +128,7 @@ export function CreateNewSettingsView() {
     const dragAfter = dragTarget?.group === group && dragTarget.index === index + 1;
 
     return (
-      <Tooltip content={!available ? t("settings.createNew.unavailable") : undefined} key={entry}><div
+      <div key={entry}
         className={`desktop-create-new-row ${isSubmenu ? "desktop-create-new-submenu-row" : "desktop-create-new-file-row"}`}
         data-drag-before={dragBefore || undefined}
         data-drag-after={dragAfter || undefined}
@@ -170,7 +170,7 @@ export function CreateNewSettingsView() {
             <ChevronRight className="po-directional-icon" size={14} aria-hidden="true" />
           </div>
         )}
-      </div></Tooltip>
+      </div>
     );
   };
 

@@ -204,11 +204,11 @@ export function ProjectRowActions({
                     {t("shell.workspaceSwitcher.renameProjectTitle")}
                   </h2>
                 </div>
-                <DesktopDialogCloseButton
+                <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton
                   label={t("common.action.close")}
                   disabled={pending !== null}
                   onClick={() => onSurfaceChange(null)}
-                />
+                /></Tooltip>
               </header>
               <div className="desktop-dialog-body">
                 <label className="desktop-dialog-field">
@@ -273,11 +273,11 @@ export function ProjectRowActions({
                     {t("shell.workspaceSwitcher.unlinkProjectTitle")}
                   </h2>
                 </div>
-                <DesktopDialogCloseButton
+                <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton
                   label={t("common.action.close")}
                   disabled={pending !== null}
                   onClick={() => onSurfaceChange(null)}
-                />
+                /></Tooltip>
               </header>
               <div className="desktop-dialog-body">
                 <p>

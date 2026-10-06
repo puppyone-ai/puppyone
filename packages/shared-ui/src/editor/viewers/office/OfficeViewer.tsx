@@ -985,23 +985,23 @@ function PresentationNavigation({
   const { t } = useLocalization();
   return (
     <div className="office-pptx-navigation">
-      <button
+      <Tooltip content={t("editor.office.previousSlide")}><button
         type="button"
         aria-label={t("editor.office.previousSlide")}
         disabled={activeSlide <= 0}
         onClick={() => onSelect(Math.max(0, activeSlide - 1))}
       >
         <ChevronLeft size={15} strokeWidth={2} />
-      </button>
+      </button></Tooltip>
       <span>{t("editor.office.slidePosition", { current: activeSlide + 1, total: slideCount })}</span>
-      <button
+      <Tooltip content={t("editor.office.nextSlide")}><button
         type="button"
         aria-label={t("editor.office.nextSlide")}
         disabled={activeSlide >= slideCount - 1}
         onClick={() => onSelect(Math.min(slideCount - 1, activeSlide + 1))}
       >
         <ChevronRight size={15} strokeWidth={2} />
-      </button>
+      </button></Tooltip>
     </div>
   );
 }
@@ -1252,7 +1252,7 @@ function SpreadsheetPreview({
         const frozenColumn = cell.columnPosition < selectedSheet.frozenColumns;
         const workbookStyle = result.styles[cell.styleId];
         return (
-          <Tooltip content={cell.value || undefined} overflowOnly key={`${row.rowIndex}-${cell.columnIndex}`}><td
+          <td key={`${row.rowIndex}-${cell.columnIndex}`}
             data-cell-kind={cell.kind}
             data-column-position={cell.columnPosition}
             data-frozen-column={frozenColumn ? "true" : undefined}
@@ -1274,7 +1274,7 @@ function SpreadsheetPreview({
             }}
           >
             <span dir="auto">{cell.value}</span>
-          </td></Tooltip>
+          </td>
         );
       })}
     </tr>
@@ -1377,14 +1377,14 @@ function SpreadsheetPreview({
         aria-label={t("editor.office.sheets")}
       >
         {result.sheets.map((sheet, index) => (
-          <Tooltip content={sheet.name} overflowOnly key={sheet.name}><button
+          <button key={sheet.name}
             type="button"
             role="tab"
             aria-selected={index === activeSheet}
             onClick={() => onActiveSheetChange(index)}
           >
             <span dir="auto">{sheet.name}</span>
-          </button></Tooltip>
+          </button>
         ))}
       </div>
     </div>

@@ -185,7 +185,7 @@ export function DesktopCloudScopeAccessDetail({
       <div className="desktop-cloud-access-web-rail">
         <header className="desktop-cloud-access-web-scope-header">
           <div className="desktop-cloud-access-web-scope-copy">
-            <Tooltip content={scopeName} overflowOnly><h1>{scopeName}</h1></Tooltip>
+            <h1>{scopeName}</h1>
             <div className={`desktop-cloud-access-web-aggregate ${aggregateTone}`}>
               <span className={`desktop-cloud-web-status-dot ${aggregateTone === "ready" ? "ready" : aggregateTone === "warning" ? "warning" : ""}`} aria-hidden="true" />
               <strong>{formatAccessPointAggregate(aggregate.code, t)}</strong>
@@ -194,7 +194,7 @@ export function DesktopCloudScopeAccessDetail({
             </div>
             <div className="desktop-cloud-access-web-meta">
               <span>{t("cloud.common.scope")}</span>
-              <Tooltip content={scopePath} overflowOnly><code>{scopePath}</code></Tooltip>
+              <code>{scopePath}</code>
               <span aria-hidden="true">·</span>
               <span>{modeLabel}</span>
             </div>

@@ -16,5 +16,9 @@
   "status.modified": "수정됨",
   "status.created": "생성됨",
   "status.deleted": "삭제됨",
-  "status.moved": "이동됨"
+  "status.moved": "이동됨",
+  "scrollbar.up": "위로 스크롤",
+  "scrollbar.down": "아래로 스크롤",
+  "scrollbar.left": "왼쪽으로 스크롤",
+  "scrollbar.right": "오른쪽으로 스크롤"
 }

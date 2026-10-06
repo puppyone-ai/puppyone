@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode } from "react";
+import { useEffect, useRef, type ButtonHTMLAttributes, type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import { useNativeSurfaceOcclusionLease } from "../features/native-surfaces";
 
 const DIALOG_FOCUSABLE_SELECTOR = [
@@ -167,7 +167,8 @@ export function DesktopDialogCloseButton({
   className = "",
   disabled,
   onClick,
-}: {
+  ...buttonProps
+}: Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children" | "title" | "onClick"> & {
   label?: string;
   className?: string;
   disabled?: boolean;
@@ -175,6 +176,7 @@ export function DesktopDialogCloseButton({
 }) {
   return (
     <button
+      {...buttonProps}
       className={`desktop-dialog-icon-button ${className}`.trim()}
       type="button"
       disabled={disabled}

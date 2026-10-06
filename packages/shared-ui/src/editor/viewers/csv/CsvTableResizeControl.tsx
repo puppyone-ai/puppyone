@@ -402,7 +402,10 @@ export function CsvTableResizeControl({
                     const selected = row <= pickerSelection.addedRows && column <= pickerSelection.addedColumns;
                     const expansion = { addedRows: row, addedColumns: column };
                     return (
-                      <button
+                      <Tooltip key={`${row}-${column}`} content={t("editor.csv.expandTo", {
+                          rows: currentDataRowCount + row,
+                          columns: currentColumnCount + column,
+                        })}><button
                         key={`${row}-${column}`}
                         ref={(element) => {
                           const key = expansionKey(expansion);
@@ -424,7 +427,7 @@ export function CsvTableResizeControl({
                         onFocus={() => setPickerSelection(expansion)}
                         onKeyDown={(event) => movePickerSelection(event, row, column)}
                         onPointerEnter={() => setPickerSelection(expansion)}
-                      />
+                      /></Tooltip>
                     );
                   })}
                 </div>

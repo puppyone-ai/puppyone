@@ -1,6 +1,5 @@
 import { useDesktopPreference } from "../../../preferencesStore";
 import { useDesktopAppearance } from "../useDesktopAppearance";
-import { Tooltip } from "@puppyone/shared-ui";
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import {
@@ -39,7 +38,7 @@ export function InterfacePaletteSettings() {
             const option = THEME_MODE_OPTIONS[mode];
             const Icon = option.icon;
             return (
-              <Tooltip content={decision.reasonKey ? t(decision.reasonKey) : undefined} key={mode}><button
+              <button key={mode}
                 className={`desktop-theme-choice ${decision.effectiveValue === mode ? "active" : ""}${locked || !isAppearanceValueAllowed(decision, mode) ? " is-policy-controlled" : ""}`}
                 type="button"
                 aria-disabled={locked || !isAppearanceValueAllowed(decision, mode)}
@@ -58,7 +57,7 @@ export function InterfacePaletteSettings() {
                   <Icon size={13} />
                   <span>{t(option.labelId)}</span>
                 </span>
-              </button></Tooltip>
+              </button>
             );
           })}
         </div>

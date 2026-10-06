@@ -350,7 +350,8 @@ describe("Desktop Agent reference ingestion", () => {
     expect(buttons[0]!.getAttribute("aria-label")).toContain("Remove reference");
     expect(buttons[0]!.getAttribute("aria-label")).toContain("capture.png");
     if (status === "error") {
-      expect(card.getAttribute("data-tooltip")).toContain("Image could not be prepared");
+      expect(card.hasAttribute("data-tooltip")).toBe(false);
+      expect(card.getAttribute("aria-label")).toContain("Image could not be prepared");
       expect(card.querySelector(".desktop-agent-visual-attachment-status.is-error")).not.toBeNull();
     }
     act(() => buttons[0]!.click());

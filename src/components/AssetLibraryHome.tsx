@@ -1,4 +1,3 @@
-import { Tooltip } from "@puppyone/shared-ui";
 import { AlertTriangle, FolderOpen, Plus } from "lucide-react";
 import { CloudIcon as Cloud } from "./icons/CloudIcon";
 import { useEffect, useMemo, useState } from "react";
@@ -162,7 +161,7 @@ function ProjectAssetCard({
       >
         <span className="asset-library-card-cover" data-signature="0" aria-hidden="true"><span className="asset-library-card-monogram">{name.slice(0, 2).toUpperCase()}</span></span>
         <span className="asset-library-card-body">
-          <Tooltip content={item.localPath || item.cloudProjectId} overflowOnly><bdi className="asset-library-card-title">{name}</bdi></Tooltip>
+          <bdi className="asset-library-card-title">{name}</bdi>
           <span className="asset-library-card-footer">
             <span className="asset-library-card-location local">
               {opening ? <InlineLoading label={t("onboarding.status.opening")} size="xs" tone="neutral" /> : <><HomeProjectIcon item={item} /><span>{t(item.localPath ? "onboarding.library.location.local" : "cloud.home.cloud")}</span></>}

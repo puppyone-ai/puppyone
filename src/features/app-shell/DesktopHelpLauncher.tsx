@@ -235,11 +235,11 @@ export function DesktopHelpLauncher(overlayTheme: DesktopHelpLauncherProps) {
                 <div className="desktop-dialog-title-row">
                   <h2>{label}</h2>
                 </div>
-                <DesktopDialogCloseButton
+                <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton
                   className="desktop-feedback-close"
                   label={t("common.action.close")}
                   onClick={close}
-                />
+                /></Tooltip>
               </header>
 
               <form
@@ -341,13 +341,13 @@ export function DesktopHelpLauncher(overlayTheme: DesktopHelpLauncherProps) {
                           </button></Tooltip>
                         )}
                         {attachmentState === "error" && attachmentError ? (
-                          <Tooltip content={attachmentError}><span
+                          <span
                             className="desktop-feedback-attachment-error"
                             role="img"
                             aria-label={attachmentError}
                           >
                             <CircleAlert size={14} strokeWidth={1.8} aria-hidden="true" />
-                          </span></Tooltip>
+                          </span>
                         ) : null}
                       </div>
                     </div>
@@ -386,7 +386,7 @@ export function DesktopHelpLauncher(overlayTheme: DesktopHelpLauncherProps) {
                   <span className="desktop-feedback-status" role="alert">
                     {attachmentError}
                   </span>
-                  <Tooltip content={sendLabel}><button
+                  <button
                     className="desktop-dialog-button primary desktop-feedback-submit"
                     type="submit"
                     aria-label={sendLabel}
@@ -406,7 +406,7 @@ export function DesktopHelpLauncher(overlayTheme: DesktopHelpLauncherProps) {
                       <CircleAlert size={14} strokeWidth={1.9} aria-hidden="true" />
                     ) : null}
                     <span role="status" aria-live="polite">{sendLabel}</span>
-                  </button></Tooltip>
+                  </button>
                 </footer>
               </form>
             </DesktopDialogSurface>

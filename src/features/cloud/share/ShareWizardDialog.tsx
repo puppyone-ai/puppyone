@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import { bidiIsolate } from "@puppyone/localization";
 import {
@@ -140,7 +141,7 @@ export function ShareWizardDialog(props: ShareWizardDialogProps) {
               </span>
               <h2 dir="auto">{title}</h2>
             </div>
-            <DesktopDialogCloseButton label={t("common.action.close")} onClick={props.onClose} />
+            <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} onClick={props.onClose} /></Tooltip>
           </header>
 
           {step !== "readers" && <ShareStepper step={step} />}
@@ -845,16 +846,17 @@ function ShareReadersStep({
                   <span className="desktop-share-readers-actions">
                     {confirming === share.id ? (
                       <>
-                        <button
+                        <Tooltip content={revoking === share.id ? t("cloud.share.readers.confirmRevoke") : undefined}><button
                           type="button"
                           className="desktop-dialog-button destructive"
                           disabled={revoking === share.id}
+                          aria-label={t("cloud.share.readers.confirmRevoke")}
                           onClick={() => void revoke(share)}
                         >
                           {revoking === share.id
                             ? <LoaderCircle size={13} className="animate-spin" aria-hidden="true" />
                             : t("cloud.share.readers.confirmRevoke")}
-                        </button>
+                        </button></Tooltip>
                         <button type="button" className="desktop-dialog-button" onClick={() => setConfirming(null)}>
                           {t("common.action.cancel")}
                         </button>
@@ -1039,7 +1041,7 @@ function ShareHandoffPanel({
             display={keyVisible && handoff.apiKey ? handoff.apiKey : maskApiKey(handoff.apiKey, handoff.apiKeyHint)}
             disabled={!handoff.apiKey}
             trailing={handoff.apiKey ? (
-              <button
+              <Tooltip content={t(keyVisible ? "cloud.share.action.hideKey" : "cloud.share.action.showKey")}><button
                 type="button"
                 className="desktop-share-copy-toggle"
                 aria-pressed={keyVisible}
@@ -1047,7 +1049,7 @@ function ShareHandoffPanel({
                 onClick={() => setKeyVisible((visible) => !visible)}
               >
                 {keyVisible ? <EyeOff size={13} /> : <Eye size={13} />}
-              </button>
+              </button></Tooltip>
             ) : null}
           />
           {reused && !handoff.apiKey && (

@@ -183,7 +183,7 @@ export function DesktopCloudCreateAccessDialog({
               <h2>{t("cloud.access.create.title")}</h2>
             </div>
           </div>
-          <DesktopDialogCloseButton disabled={saving} onClick={onClose} />
+          <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} disabled={saving} onClick={onClose} /></Tooltip>
         </header>
         <div
           className="desktop-dialog-body desktop-cloud-create-access-body"
@@ -217,12 +217,12 @@ export function DesktopCloudCreateAccessDialog({
               </FieldLabel>
 
               <FieldLabel label={t("cloud.common.path")} required>
-                <Tooltip content={selectedLabel} overflowOnly><div
+                <div
                   className={`desktop-cloud-create-access-path-box ${selectedExistingScope ? "existing" : ""} ${normalizedSelected === null ? "empty" : ""}`}
                 >
                   <TreeDisclosureMarker expanded={normalizedSelected !== null} />
                   <span>{selectedLabel}</span>
-                </div></Tooltip>
+                </div>
                 {selectedExistingScope ? (
                   <div className="desktop-cloud-create-access-field-note">
                     {t("cloud.access.create.pathAlreadyHasAccess")}

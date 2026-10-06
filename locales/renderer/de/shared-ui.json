@@ -16,5 +16,9 @@
   "status.modified": "Geändert",
   "status.created": "Erstellt",
   "status.deleted": "Gelöscht",
-  "status.moved": "Verschoben"
+  "status.moved": "Verschoben",
+  "scrollbar.up": "Nach oben scrollen",
+  "scrollbar.down": "Nach unten scrollen",
+  "scrollbar.left": "Nach links scrollen",
+  "scrollbar.right": "Nach rechts scrollen"
 }
