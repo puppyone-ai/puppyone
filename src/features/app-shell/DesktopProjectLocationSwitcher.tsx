@@ -52,7 +52,7 @@ export function DesktopProjectLocationSwitcher({ projectLocation, cloudProject, 
       </button>
       <DesktopTitlebarMenuLayer anchorRef={anchor} open={open} onDismiss={() => setOpen(false)}
         dismissOnFocusExit={false} className="desktop-project-location-menu" gap={2}
-        preferredWidth={248} preferredMaxHeight={160} widthMode="content" role="dialog"
+        preferredWidth={248} preferredMaxHeight={160} widthMode="content" alignment="center" role="dialog"
         ariaLabel={t("shell.workspaceSwitcher.projectDetails")}>
         {controls}
       </DesktopTitlebarMenuLayer>

@@ -1095,16 +1095,36 @@
 
 .desktop-titlebar-location-button {
   display: inline-flex;
+  box-sizing: border-box;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: var(--desktop-titlebar-workspace-icon-label-gap);
   height: var(--desktop-titlebar-control-height);
-  padding: 0 6px;
+  padding: 0 var(--desktop-titlebar-workspace-inline-padding);
   border: 0;
   border-radius: var(--desktop-toolbar-action-radius);
   background: transparent;
   color: var(--desktop-titlebar-text-muted);
-  font: inherit;
+  font-family: var(--desktop-titlebar-context-font-family);
+  font-size: var(--desktop-titlebar-context-font-size);
+  font-weight: var(--desktop-titlebar-context-font-weight);
+  line-height: var(--desktop-titlebar-context-line-height);
   white-space: nowrap;
+}
+
+.desktop-titlebar-location-button .desktop-titlebar-workspace-mark {
+  display: grid;
+  width: var(--desktop-titlebar-workspace-icon-slot-size);
+  height: var(--desktop-titlebar-workspace-icon-slot-size);
+  flex: 0 0 var(--desktop-titlebar-workspace-icon-slot-size);
+  place-items: center;
+  color: inherit;
+}
+
+.desktop-titlebar-location-button .desktop-titlebar-workspace-mark > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .desktop-titlebar-location-button:hover,
