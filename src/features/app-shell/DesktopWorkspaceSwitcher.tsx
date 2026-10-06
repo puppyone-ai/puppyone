@@ -20,7 +20,7 @@ import {
   ProjectContextAssetMark,
   resolveProjectContextAssetKind,
 } from "./ProjectContextAssetMark";
-import { getWorkspaceParentPathForDisplay } from "./workspaceHomeModel";
+import { getProjectName, getWorkspaceParentPathForDisplay, type ProjectHomeItem } from "./workspaceHomeModel";
 
 export type DesktopWorkspaceSwitcherProps = {
   open: boolean;
@@ -31,11 +31,13 @@ export type DesktopWorkspaceSwitcherProps = {
   workspaceFolders: readonly WorkspaceFolder[];
   multiRootWorkspacesEnabled: boolean;
   availableProjects?: readonly Workspace[];
+  projectItems?: readonly ProjectHomeItem[];
   onAddExistingProject?: (folderPath: string) => void;
   onOpenFolder?: () => void;
   onClose: () => void;
   onToggle: () => void;
   onSelectProject?: (path: string) => void;
+  onSelectCloudProject?: (projectId: string) => void;
   onCreateProject?: () => void;
   onHome?: () => void;
 };
@@ -49,11 +51,13 @@ export function DesktopWorkspaceSwitcher({
   workspaceFolders,
   multiRootWorkspacesEnabled,
   availableProjects = [],
+  projectItems,
   onAddExistingProject,
   onOpenFolder,
   onClose,
   onToggle,
   onSelectProject,
+  onSelectCloudProject,
   onCreateProject,
   onHome,
 }: DesktopWorkspaceSwitcherProps) {
@@ -70,7 +74,11 @@ export function DesktopWorkspaceSwitcher({
     const attachedPaths = new Set(attachedFolders.map((folder) => folder.workspace.path));
     return availableProjects.filter((project) => !attachedPaths.has(project.path));
   }, [attachedFolders, availableProjects]);
-  const projects = useMemo(() => [...new Map(availableProjects.map(project => [project.path, project])).values()], [availableProjects]);
+  const projects = useMemo(() => projectItems ?? [...new Map(availableProjects.map(project => [project.path, project])).values()]
+    .map(project => ({ id: project.id, label: project.name,
+      localPath: project.path.startsWith("puppyone-cloud:") ? "" : project.path,
+      cloudProjectId: project.puppyoneGitRemote?.projectId ?? project.projectId ?? undefined })), [availableProjects, projectItems]);
+  const currentCloudProjectId = workspace.path.startsWith("puppyone-cloud:") ? workspace.projectId : null;
   useEffect(() => {
     if (!open || (view === "add" && !multiRootWorkspacesEnabled)) setView("projects");
   }, [multiRootWorkspacesEnabled, open, view]);
@@ -108,17 +116,22 @@ export function DesktopWorkspaceSwitcher({
               {projects.length > 0 && <DesktopMenuSeparator />}
             </>}
             <div className="desktop-project-list desktop-project-switcher-list" data-po-scrollbar="menu">
-              {projects.map(project => <DesktopMenuItem key={project.path}
-                icon={<HomeProjectIcon item={{
-                  id: project.id,
-                  label: project.name,
-                  localPath: project.path.startsWith("puppyone-cloud:") ? "" : project.path,
-                  cloudProjectId: project.puppyoneGitRemote?.projectId ?? project.projectId ?? undefined,
-                }} />} label={<bdi>{project.name}</bdi>}
-                tooltip={project.path} selected={project.path === workspace.path}
-                aria-current={project.path === workspace.path ? "page" : undefined}
-                trailing={project.path === workspace.path ? <Check size={14} /> : undefined}
-                onClick={() => { onClose(); if (project.path !== workspace.path) onSelectProject?.(project.path); }} />)}
+              {projects.map(project => {
+                const selected = project.localPath === workspace.path
+                  || Boolean(currentCloudProjectId && project.cloudProjectId === currentCloudProjectId);
+                return <DesktopMenuItem key={project.id}
+                  icon={<HomeProjectIcon item={project} />}
+                  label={<bdi>{getProjectName(project, t("onboarding.projects.untitled"))}</bdi>}
+                  tooltip={project.localPath || project.cloudProjectId} selected={selected}
+                  aria-current={selected ? "page" : undefined}
+                  trailing={selected ? <Check size={14} /> : undefined}
+                  onClick={() => {
+                    onClose();
+                    if (selected) return;
+                    if (project.localPath) onSelectProject?.(project.localPath);
+                    else if (project.cloudProjectId) onSelectCloudProject?.(project.cloudProjectId);
+                  }} />;
+              })}
             </div>
             {onCreateProject && <>
               {projects.length > 0 && <DesktopMenuSeparator />}

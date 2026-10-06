@@ -6,6 +6,7 @@ export function registerWorkspaceNavigationIpcHandlers({
   showHomepageForCurrentWindow,
   openWorkspaceInCurrentWindow,
   openWorkspaceInNewWindow,
+  openCloudProjectInNewWindow,
   createProjectForCurrentWindow,
   connectImportSourceForCurrentWindow,
   listImportResourcesForCurrentWindow,
@@ -76,6 +77,10 @@ export function registerWorkspaceNavigationIpcHandlers({
   ipcMain.handle("workspace:open-new-window", async (_event, folderPath) => {
     const persistedPath = await workspaceStateStore.requireRecentWorkspacePath(folderPath);
     return openWorkspaceInNewWindow(persistedPath);
+  });
+
+  ipcMain.handle("workspace:open-cloud-new-window", async (_event, target) => {
+    return openCloudProjectInNewWindow(target);
   });
 
   ipcMain.handle("workspace:create-project-current", async (event, request) => {

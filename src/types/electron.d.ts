@@ -645,11 +645,14 @@ export type GitRepositoryWindowFocusEvent = {
   focused: boolean;
 };
 
+export type CloudProjectWindowTarget = Readonly<{ projectId: string; userId: string }>;
+
 export type LastWorkspaceResult = {
   workspaceId: string | null;
   path: string | null;
   workspace: Workspace | null;
   workspaces?: Workspace[];
+  initialCloudProject?: CloudProjectWindowTarget | null;
   error: string | null;
 };
 
@@ -1192,6 +1195,7 @@ declare global {
       onProjectSessionsChanged: (callback: (snapshot: import("../../shared/project-session-contract/types").ProjectSessionSnapshot) => void) => () => void;
       openWorkspaceInCurrentWindow: (folderPath: string) => Promise<WorkspaceOpenResult>;
       openWorkspaceInNewWindow: (folderPath: string) => Promise<WorkspaceOpenResult>;
+      openCloudProjectInNewWindow: (target: CloudProjectWindowTarget) => Promise<{ ok: boolean }>;
       openDroppedWorkspaceInCurrentWindow: (folder: File) => Promise<WorkspaceOpenResult>;
       selectFolder: () => Promise<WorkspaceOpenResult | null>;
       selectFolderToAttach: () => Promise<WorkspaceAttachResult | null>;

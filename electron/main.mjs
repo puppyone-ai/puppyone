@@ -641,6 +641,7 @@ async function createWindow(options = {}) {
   windowStateById.set(webContentsId, new WindowWorkspaceState({
     initialWorkspaceId: options.initialWorkspaceId ?? null,
     initialWorkspacePaths,
+    initialCloudProject: options.initialCloudProject ?? null,
   }));
   lastFocusedWindowId = webContentsId;
 
@@ -1117,6 +1118,7 @@ function registerIpcHandlers() {
     openWorkspaceInCurrentWindow,
     openWorkspaceInNewWindow,
     createProjectForCurrentWindow,
+    openCloudProjectInNewWindow,
     connectImportSourceForCurrentWindow,
     listImportResourcesForCurrentWindow,
     importSourceForCurrentWindow,
@@ -1345,6 +1347,7 @@ async function getInitialWorkspaceResultForWindow(sender) {
       path: null,
       workspace: null,
       workspaces: [],
+      initialCloudProject: state?.initialCloudProject ?? null,
       error: null,
     };
   }
@@ -1684,6 +1687,20 @@ async function openWorkspaceInNewWindow(folderPath, options = {}) {
     path: canonicalPath,
     workspace,
   };
+}
+
+async function openCloudProjectInNewWindow(target) {
+  if (typeof target?.projectId !== "string" || !target.projectId.trim() || target.projectId.length > 256) {
+    throw new Error("A Cloud project ID is required.");
+  }
+  const session = await cloudAuthService.readSession();
+  if (!session || session.user_id !== target.userId) {
+    throw new Error("The signed-in Cloud account has changed.");
+  }
+  // Carry identity only. The new renderer restores auth and authorizes the
+  // repository through the existing Cloud workbench before opening any files.
+  await createWindow({ initialCloudProject: { projectId: target.projectId.trim(), userId: session.user_id } });
+  return { ok: true };
 }
 
 async function attachWorkspaceToCurrentWindow(sender, folderPath) {

@@ -39,6 +39,7 @@ import type {
   WorkspaceAttachResult,
   WorkspaceDetachResult,
   WorkspaceOpenResult,
+  CloudProjectWindowTarget,
   WorkspaceProjectLocationGrant,
 } from "../types/electron";
 import {
@@ -329,6 +330,10 @@ export async function openWorkspaceInCurrentWindow(folderPath: string): Promise<
 
 export async function openWorkspaceInNewWindow(folderPath: string): Promise<WorkspaceOpenResult> {
   return getDesktopBridge().openWorkspaceInNewWindow(folderPath);
+}
+
+export async function openCloudProjectInNewWindow(target: CloudProjectWindowTarget): Promise<void> {
+  await getDesktopBridge().openCloudProjectInNewWindow(target);
 }
 
 export async function openDroppedWorkspaceInCurrentWindow(folder: File): Promise<WorkspaceOpenResult> {

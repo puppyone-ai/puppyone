@@ -7,7 +7,7 @@ import { loadCloudProjectActivity } from "./homepageCloudActivity";
 type Catalog = { authority: string; projects: DesktopCloudProject[]; status: "loading" | "ready" | "error";
   activity?: ReadonlyMap<string, string> };
 
-/** Auto-load only on the visible Homepage. Header switching never fetches this catalog. */
+/** One account-scoped catalog shared by Homepage and Header project navigation. */
 export function useHomepageCloudProjects({ visible, enabled, session, apiBaseUrl, local }: {
   visible: boolean;
   enabled: boolean;

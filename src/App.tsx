@@ -73,6 +73,7 @@ import { useDesktopUpdates } from "./features/updates";
 import {
   readPuppyoneWorkspaceConfig,
   removeWorkspaceGitRemote,
+  openCloudProjectInNewWindow,
   showHomepage,
 } from "./lib/localFiles";
 import { openWorkspaceTarget } from "./lib/workspaceOpening";
@@ -307,6 +308,7 @@ function AppContent() {
     refreshRecentWorkspaceList,
     restoreWorkspaceError,
     restoringWorkspace,
+    initialCloudProject,
     setRestoreWorkspaceError,
     setWorkspaces,
     workbenchWorkspace,
@@ -326,11 +328,18 @@ function AppContent() {
       setSwitcherOpen(false);
     }, []),
   });
-  const homepageCloud = useHomepageCloudProjects({
-    visible: !workspace && !restoringWorkspace && !cloudWorkspaceActive,
+  const projectCatalog = useHomepageCloudProjects({
+    visible: !restoringWorkspace,
     enabled: cloudEnabled, session: activeCloudSession, apiBaseUrl: desktopCloudApiBaseUrl,
     local: recentWorkspaceItems,
   });
+  const initialCloudProjectOpened = useRef(false);
+  useEffect(() => {
+    if (initialCloudProjectOpened.current || restoringWorkspace || !initialCloudProject
+      || !cloudEnabled || !activeCloudSession || activeCloudSession.user_id !== initialCloudProject.userId) return;
+    initialCloudProjectOpened.current = true;
+    void accountCloud.openTarget({ kind: "project_root", project_id: initialCloudProject.projectId });
+  }, [accountCloud.openTarget, activeCloudSession, cloudEnabled, initialCloudProject, restoringWorkspace]);
   const surfaceAppearance = useMemo(() => resolveSurfaceAppearance({
     appearance: resolvedAppearance,
     typography,
@@ -974,6 +983,16 @@ function AppContent() {
     }
   }, [refreshRecentWorkspaceList, setRestoreWorkspaceError]);
 
+  const openCloudProjectFromHeader = useCallback(async (projectId: string) => {
+    if (!activeCloudSession) return;
+    setSwitcherOpen(false);
+    try {
+      await openCloudProjectInNewWindow({ projectId, userId: activeCloudSession.user_id });
+    } catch (error) {
+      setRestoreWorkspaceError(error instanceof Error ? error.message : String(error));
+    }
+  }, [activeCloudSession, setRestoreWorkspaceError]);
+
   const switchProjectFromRail = useCallback(async (path: string) => {
     const projectView = lastProjectViewRef.current;
     if (path === workspace?.path) {
@@ -1398,7 +1417,7 @@ function AppContent() {
     presentation={accountCloudPresentation} active={cloudWorkspaceActive}
     context={accountCloud.context} session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession}
     appearance={surfaceAppearance} onLocal={openLocalWorkspace} onHome={() => void goToHomepage()}
-    localProjects={recentWorkspaceItems.map(item => item.workspace)} onSelectProject={openProjectFromHeader}
+    projectItems={projectCatalog.items} onSelectProject={openProjectFromHeader} onSelectCloudProject={openCloudProjectFromHeader}
     onCreateProject={projectEntryFlow.openCreate} /> : null;
   const repositoryCloudDialog = <CloudWorkspaceSwitchDialog controller={repositoryCloudSwitch}
     preparingInPlace={prepareCloudInPlace}
@@ -1516,11 +1535,11 @@ function AppContent() {
         onOpenDroppedWorkspace={openDroppedWorkspace}
         onOpenWorkspacePath={openWorkspacePath}
         onRemoveProject={removeWorkspaceFromRecents}
-        projectItems={homepageCloud.items}
+        projectItems={projectCatalog.items}
         onOpenCloudProject={(projectId) => { cancelRepositoryCloudSwitch(); void accountCloud.openTarget({ kind: "project_root", project_id: projectId }); }}
         cloudOpening={accountCloud.opening}
-        cloudAccountStatus={cloudEnabled ? <HomepageCloudStatus status={homepageCloud.status} restoring={cloudSessionRestoring} empty={homepageCloud.items.length === 0}
-          apiBaseUrl={desktopCloudApiBaseUrl} controller={accountCloud} onRetry={homepageCloud.refresh} /> : undefined}
+        cloudAccountStatus={cloudEnabled ? <HomepageCloudStatus status={projectCatalog.status} restoring={cloudSessionRestoring} empty={projectCatalog.items.length === 0}
+          apiBaseUrl={desktopCloudApiBaseUrl} controller={accountCloud} onRetry={projectCatalog.refresh} /> : undefined}
         initialError={restoreWorkspaceError}
         appearance={surfaceAppearance}
       />,
@@ -1612,6 +1631,7 @@ function AppContent() {
       workspaceFolders={workbenchWorkspace?.folders ?? []}
       multiRootWorkspacesEnabled={multiRootWorkspacesEnabled}
       availableProjects={recentWorkspaceItems.map((item) => item.workspace)}
+      projectItems={projectCatalog.items}
       open={switcherOpen}
       refObject={switcherRef}
       onOpenFolder={() => void addProject()}
@@ -1623,6 +1643,7 @@ function AppContent() {
       onHome={() => void goToHomepage()}
       onCreateProject={projectEntryFlow.openCreate}
       onSelectProject={openProjectFromHeader}
+      onSelectCloudProject={openCloudProjectFromHeader}
     />
   );
 

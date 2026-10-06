@@ -34,6 +34,7 @@ import type {
   WorkspaceImportSourceRequest,
   WorkspaceCreateProjectRequest,
   WorkspaceOpenResult,
+  CloudProjectWindowTarget,
   WorkspaceProjectLocationGrant,
 } from "../../types/electron";
 import {
@@ -60,6 +61,7 @@ export function useWorkspaceLifecycle({
   const [recentWorkspaceItems, setRecentWorkspaceItems] = useState<RecentWorkspaceHomeItem[]>([]);
   const [workbenchWorkspace, setWorkbenchWorkspace] = useState<WorkbenchWorkspace | null>(null);
   const [restoringWorkspace, setRestoringWorkspace] = useState(true);
+  const [initialCloudProject, setInitialCloudProject] = useState<CloudProjectWindowTarget | null>(null);
   const [restoreWorkspaceError, setRestoreWorkspaceError] = useState<string | null>(null);
   const [workspaceEntryIntent, setWorkspaceEntryIntent] = useState<WorkspaceEntryIntent | null>(null);
   const consumeWorkspaceEntryIntent = useCallback((intentId: string) => {
@@ -394,6 +396,7 @@ export function useWorkspaceLifecycle({
     Promise.all([getInitialWorkspace(), getRecentWorkspaces()])
       .then(([initialWorkspace, recentWorkspaces]) => {
         if (cancelled) return;
+        setInitialCloudProject(initialWorkspace.initialCloudProject ?? null);
         if (recentWorkspaceRequestRef.current === recentRequestId) {
           setRecentWorkspaceItems(getRecentWorkspaceItems(recentWorkspaces));
           setWorkspaces((current) => mergeWorkspaceLists(current, recentWorkspaces.workspaces));
@@ -470,6 +473,7 @@ export function useWorkspaceLifecycle({
     refreshRecentWorkspaceList,
     restoreWorkspaceError,
     restoringWorkspace,
+    initialCloudProject,
     setRestoreWorkspaceError,
     setWorkspaces,
     workbenchWorkspace,

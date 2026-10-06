@@ -1,6 +1,6 @@
 import { useDesktopPreference, useDesktopAppearance } from "../../settings";
 import { useRef, useState, type ReactNode } from "react";
-import { createWorkspaceResourceUri, type Workspace } from "@puppyone/shared-ui";
+import { createWorkspaceResourceUri } from "@puppyone/shared-ui";
 import { DesktopCloudShell } from "../../../components/DesktopCloudShell";
 import type { ResolvedSurfaceAppearance } from "../../appearance/AppearanceRuntime";
 import { DesktopTitlebarContext } from "../../app-shell/DesktopTitlebarContext";
@@ -11,6 +11,7 @@ import type { NativeCloudWorkbench } from "./useNativeCloudWorkbench";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import { CloudWorkspaceHeaderTools } from "./CloudWorkspaceHeaderTools";
 import type { ProjectCloudContext } from "../project/context";
+import type { ProjectHomeItem } from "../../app-shell/workspaceHomeModel";
 
 const noop = () => undefined;
 
@@ -54,15 +55,16 @@ export function useAccountCloudWorkspacePresentation({ workbench, onOpenSettings
 
 /** Hosted-only surface used when no local repository is open. Repository-linked
  * switching embeds the presentation above in the retained local shell instead. */
-export function AccountCloudWorkspaceSurface({ workbench, presentation, active, appearance, onLocal, onHome, context, session, apiBaseUrl, onSessionChange, localProjects, onSelectProject, onCreateProject }: {
+export function AccountCloudWorkspaceSurface({ workbench, presentation, active, appearance, onLocal, onHome, context, session, apiBaseUrl, onSessionChange, projectItems, onSelectProject, onSelectCloudProject, onCreateProject }: {
   workbench: NativeCloudWorkbench;
   presentation: AccountCloudWorkspacePresentation;
   active: boolean;
   appearance: ResolvedSurfaceAppearance;
   onLocal: () => void;
   onHome: () => void;
-  localProjects: readonly Workspace[];
+  projectItems: readonly ProjectHomeItem[];
   onSelectProject: (path: string) => void;
+  onSelectCloudProject: (projectId: string) => void;
   onCreateProject: () => void;
   session: DesktopCloudSession | null;
   context: ProjectCloudContext;
@@ -84,7 +86,8 @@ export function AccountCloudWorkspaceSurface({ workbench, presentation, active, 
         cloudProject={{ id: service.workspace.projectId!, name: service.workspace.name }}
         onClose={() => setMenuOpen(false)} onToggle={() => setMenuOpen((current) => !current)}
         onViewLocal={() => { setMenuOpen(false); onLocal(); }}
-        availableProjects={localProjects} onSelectProject={onSelectProject} onCreateProject={onCreateProject} onHome={onHome}
+        projectItems={projectItems} onSelectProject={onSelectProject} onSelectCloudProject={onSelectCloudProject}
+        onCreateProject={onCreateProject} onHome={onHome}
         menuAlignment={centered ? "center" : "start"} />;
   return <div className={`app-shell cloud-runtime desktop-account-cloud-workspace ${appearance.appearance.effectiveColorMode === "dark" ? "dark" : ""}`} hidden={!active}
     {...appearance.rootProps}

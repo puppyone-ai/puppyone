@@ -272,6 +272,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   },
   openWorkspaceInCurrentWindow: (folderPath) => ipcRenderer.invoke("workspace:open-current", folderPath),
   openWorkspaceInNewWindow: (folderPath) => ipcRenderer.invoke("workspace:open-new-window", folderPath),
+  openCloudProjectInNewWindow: (target) => ipcRenderer.invoke("workspace:open-cloud-new-window", target),
   openDroppedWorkspaceInCurrentWindow: (folder) => {
     const folderPath = webUtils.getPathForFile(folder);
     if (typeof folderPath !== "string" || !folderPath.trim()) {
