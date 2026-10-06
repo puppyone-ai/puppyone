@@ -15,13 +15,6 @@
     text-align: center;
   }
 
-  .desktop-cloud-project-illustration {
-    width: min(100%, 192px);
-    height: 52px;
-    flex: 0 0 auto;
-    color: color-mix(in srgb, var(--po-text-muted) 22%, transparent);
-  }
-
   .desktop-cloud-project-activation-copy { width: 100%; }
   .desktop-cloud-project-activation-copy h2 {
     max-width: 420px;
@@ -40,15 +33,18 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
     margin-block: 4px;
+    padding: 0;
+    list-style: none;
   }
 
   .desktop-cloud-project-benefit {
     display: flex;
+    box-sizing: border-box;
     min-width: 0;
-    min-height: 136px;
+    min-height: 104px;
     flex-direction: column;
     align-items: center;
-    justify-content: flex-start;
+    justify-content: center;
     gap: 12px;
     padding: 16px 12px;
     border: 1px solid var(--po-border-subtle);
@@ -61,31 +57,14 @@
   .desktop-cloud-project-benefit-copy {
     display: flex;
     min-width: 0;
-    flex: 1;
-    flex-direction: column;
-    align-items: stretch;
-    justify-content: flex-start;
-    gap: 4px;
-    text-wrap: balance;
-  }
-
-  .desktop-cloud-project-benefit-copy > span {
-    display: flex;
-    min-height: 42px;
-    align-items: center;
-    justify-content: center;
-    color: var(--po-text);
-  }
-
-  .desktop-cloud-project-benefit-copy > small {
-    display: flex;
     min-height: 39px;
-    flex: 1;
+    margin: 0;
     align-items: center;
     justify-content: center;
     color: var(--po-text-muted);
     font: inherit;
     font-size: var(--po-type-ui-meta, 13px);
+    text-wrap: balance;
   }
 
   .desktop-cloud-project-benefit > svg { flex: 0 0 auto; }
