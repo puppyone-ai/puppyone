@@ -95,7 +95,7 @@ function fixtureHtml(direction, reserveVerticalScrollbar) {
             --po-control: #eef0f4;
             --po-divider: #d6d9df;
             --po-editor-bg: #fff;
-            --po-editor-content-edge-inset: 64px;
+            --po-editor-content-edge-inset: 48px;
             --po-font-sans: system-ui, sans-serif;
             --po-panel: #fff;
             --po-scrollbar-thumb: #aeb4bf;
@@ -301,7 +301,7 @@ function focusStabilityFixtureHtml() {
             --po-control: #eef0f4;
             --po-divider: #d6d9df;
             --po-editor-bg: #fff;
-            --po-editor-content-edge-inset: 64px;
+            --po-editor-content-edge-inset: 48px;
             --po-font-sans: system-ui, sans-serif;
             --po-panel: #fff;
             --po-scrollbar-size: 12px;
@@ -463,7 +463,7 @@ async function runSmoke() {
       const { initial, scrolled, end } = result;
       const actualViewportWidth = result.viewportWidth;
       const label = `${direction}-${actualViewportWidth}${reserveVerticalScrollbar ? "-vertical-scrollbar" : ""}`;
-      const expectedGutter = Math.max(64, (initial.outerClientWidth - 724) / 2);
+      const expectedGutter = Math.max(48, (initial.outerClientWidth - 724) / 2);
       const expectedInteractionGutter = 18;
       const expectedWideBlockEdgeInset = 0;
       const expectedViewportInset = Math.min(

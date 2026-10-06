@@ -61,5 +61,5 @@
 
 /* Markdown uses a document-sized inset; wide tabular editors own their spacing. */
 .markdown-codemirror-editor {
-  --po-editor-content-edge-inset: 64px;
+  --po-editor-content-edge-inset: 48px;
 }

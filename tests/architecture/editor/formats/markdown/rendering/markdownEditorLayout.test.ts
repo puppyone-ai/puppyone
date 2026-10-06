@@ -108,9 +108,9 @@ describe("Markdown editor layout", () => {
     const scrollerRule = readCssRule(markdownEditorCss, ".markdown-codemirror-editor .cm-scroller");
     const contentRule = readCssRule(markdownEditorCss, ".markdown-codemirror-editor .cm-content");
 
-    expect(editorEntryCss).toContain("--po-editor-content-edge-inset: 64px;");
-    expect(editorRule).toContain("--po-markdown-editor-gutter-min: var(--po-editor-content-edge-inset, 64px);");
-    expect(editorRule).toContain("--po-markdown-editor-content-padding-block: var(--po-editor-content-edge-inset, 64px);");
+    expect(editorEntryCss).toContain("--po-editor-content-edge-inset: 48px;");
+    expect(editorRule).toContain("--po-markdown-editor-gutter-min: var(--po-editor-content-edge-inset, 48px);");
+    expect(editorRule).toContain("--po-markdown-editor-content-padding-block: var(--po-editor-content-edge-inset, 48px);");
     expect(contentRule).toContain("--po-markdown-editor-content-gutter-inline: max(");
     expect(contentRule).toContain("padding-block: var(--po-markdown-editor-content-padding-block);");
     expect(contentRule).toContain("padding-inline: var(--po-markdown-editor-content-gutter-inline);");
