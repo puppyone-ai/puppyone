@@ -13,6 +13,7 @@
   "projects.removeHint": "Remove apenas este registro. Os arquivos locais não são excluídos.",
   "projects.untitled": "Projeto sem título",
   "action.createCloudProject": "Criar projeto na Cloud",
+  "action.continueLocally": "Continuar sem entrar",
   "action.openFolder": "Abrir uma pasta",
   "action.createLocalProject": "Novo projeto vazio",
   "action.cloneRepository": "Importar",

@@ -1,26 +1,30 @@
-import { UserRound } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
+import type { ReactNode } from "react";
 import { InlineLoading } from "../../../components/loading";
 import { useCloudAuthController } from "../hooks/useCloudAuthController";
+import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import type { AccountCloudWorkspace } from "./useAccountCloudWorkspace";
 
 /** Global Homepage account affordance. It must never masquerade as a Project row. */
-export function HomepageCloudStatus({ status, restoring, empty = false, apiBaseUrl, controller, onRetry }: {
+export function HomepageCloudStatus({ status, restoring, empty = false, apiBaseUrl, controller, session, onOpenAccount, onRetry }: {
   status: "signed-out" | "loading" | "ready" | "error";
   restoring: boolean;
   empty?: boolean;
   apiBaseUrl: string;
   controller: AccountCloudWorkspace;
+  session: DesktopCloudSession | null;
+  onOpenAccount: () => void;
   onRetry: () => void;
 }) {
   const { t } = useLocalization();
   const auth = useCloudAuthController({ cloudApiBaseUrl: apiBaseUrl });
   const authError = status === "signed-out" ? auth.error : null;
-  if (controller.opening) return <div className="homepage-cloud-account" role="status">
+  let feedback: ReactNode = null;
+  if (controller.opening) feedback = <div className="homepage-cloud-feedback" role="status">
     <InlineLoading label={t("onboarding.status.opening")} size="xs" tone="neutral" />
     <button type="button" className="desktop-cloud-row-action" onClick={controller.cancel}>{t("common.action.cancel")}</button>
   </div>;
-  if (controller.error || status === "error" || authError) return <div className="homepage-cloud-account is-error" role="alert">
+  else if (controller.error || status === "error" || authError) feedback = <div className="homepage-cloud-feedback is-error" role="alert">
     <span>{authError ?? t(controller.error ? "cloud.catalog.openFailed" : "cloud.catalog.loadFailed")}</span>
     <button type="button" className="desktop-cloud-row-action" onClick={() => {
       if (authError) auth.startSignIn();
@@ -28,12 +32,19 @@ export function HomepageCloudStatus({ status, restoring, empty = false, apiBaseU
       else onRetry();
     }}>{t("cloud.common.retry")}</button>
   </div>;
-  if (restoring || status === "loading" || (status === "signed-out" && auth.signingIn)) return <div className="homepage-cloud-account" role="status">
+  else if (restoring || status === "loading" || (!session && auth.signingIn)) feedback = <div className="homepage-cloud-feedback" role="status">
     <InlineLoading label={t(auth.signingIn ? "cloud.home.waitingForSignIn" : "cloud.home.loading")} size="xs" tone="neutral" />
   </div>;
-  if (status === "signed-out") return <button type="button" className="desktop-titlebar-action homepage-cloud-account homepage-cloud-sign-in"
-    aria-label={t("cloud.auth.signInToCloud")} onClick={auth.startSignIn}>
-    <UserRound size={15} strokeWidth={1.8} aria-hidden="true" /><span>{t("cloud.auth.signIn")}</span>
-  </button>;
-  return empty ? <p className="homepage-cloud-account">{t("cloud.catalog.empty")}</p> : null;
+  else if (empty && session) feedback = <span className="homepage-cloud-feedback">{t("cloud.catalog.empty")}</span>;
+
+  return <div className="homepage-cloud-account">
+    {feedback}
+    {!restoring && (session ? <button type="button" className="desktop-titlebar-action homepage-cloud-avatar"
+      aria-label={`${t("settings.sidebar.account")}: ${session.user_email}`} onClick={onOpenAccount}>
+      <span aria-hidden="true">{Array.from(session.user_email.trim())[0]?.toLocaleUpperCase() || "P"}</span>
+    </button> : <button type="button" className="desktop-titlebar-action homepage-cloud-sign-in"
+      aria-label={t("cloud.auth.signInToCloud")} disabled={auth.signingIn} onClick={auth.startSignIn}>
+      {t("cloud.auth.signIn")}
+    </button>)}
+  </div>;
 }

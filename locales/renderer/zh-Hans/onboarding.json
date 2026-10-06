@@ -13,6 +13,7 @@
   "projects.removeHint": "仅移除此注册记录，不会删除本地文件。",
   "projects.untitled": "未命名项目",
   "action.createCloudProject": "创建云端项目",
+  "action.continueLocally": "暂不登录",
   "action.openFolder": "打开文件夹",
   "action.createLocalProject": "新建空项目",
   "action.cloneRepository": "导入",

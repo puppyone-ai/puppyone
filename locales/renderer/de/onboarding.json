@@ -13,6 +13,7 @@
   "projects.removeHint": "Entfernt nur diesen Eintrag. Lokale Dateien werden nicht gelöscht.",
   "projects.untitled": "Unbenanntes Projekt",
   "action.createCloudProject": "Cloud-Projekt erstellen",
+  "action.continueLocally": "Ohne Anmeldung fortfahren",
   "action.openFolder": "Ordner öffnen",
   "action.createLocalProject": "Neues leeres Projekt",
   "action.cloneRepository": "Importieren",

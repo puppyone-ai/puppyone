@@ -13,6 +13,7 @@
   "projects.removeHint": "Seule cette inscription est retirée. Les fichiers locaux ne sont pas supprimés.",
   "projects.untitled": "Projet sans titre",
   "action.createCloudProject": "Créer un projet Cloud",
+  "action.continueLocally": "Continuer sans se connecter",
   "action.openFolder": "Ouvrir un dossier",
   "action.createLocalProject": "Nouveau projet vide",
   "action.cloneRepository": "Importer",

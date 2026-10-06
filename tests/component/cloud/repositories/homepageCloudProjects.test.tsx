@@ -29,6 +29,7 @@ let root: Root;
 let account: AccountCloudWorkspace;
 let home: ReturnType<typeof useHomepageCloudProjects>;
 let openLocal: ReturnType<typeof vi.fn<(path: string) => Promise<void>>>;
+let openAccount: ReturnType<typeof vi.fn<() => void>>;
 type Request = Parameters<NonNullable<typeof window.puppyoneDesktop>["requestCloudSessionApi"]>[0];
 let bridge: ReturnType<typeof vi.fn<(request: Request) => unknown>>;
 const appearance = createTestSurfaceAppearance();
@@ -42,8 +43,8 @@ function Harness({ currentSession = session, visible = true, enabled = true, lib
     onChooseWorkspace={async () => {}}
     onOpenDroppedWorkspace={async () => {}} onOpenWorkspacePath={openLocal}
     cloudOpening={account.opening} onOpenCloudProject={(id) => void account.openTarget({ kind: "project_root", project_id: id })}
-    cloudAccountStatus={enabled ? <HomepageCloudStatus status={home.status} restoring={false} empty={home.items.length === 0} apiBaseUrl={API}
-      controller={account} onRetry={home.refresh} /> : undefined} /> : null;
+    cloudAccountStatus={<HomepageCloudStatus status={home.status} restoring={false} empty={enabled && home.items.length === 0} apiBaseUrl={API}
+      session={currentSession} onOpenAccount={openAccount} controller={account} onRetry={home.refresh} />} /> : null;
 }
 async function render(props: Parameters<typeof Harness>[0] = {}) { await act(async () => root.render(withTestLocalization(<Harness {...props} />))); }
 const buttons = () => [...document.querySelectorAll<HTMLButtonElement>("button")];
@@ -63,6 +64,7 @@ beforeEach(() => {
     throw new Error(`Unexpected ${request.path}`);
   });
   openLocal = vi.fn(async () => {});
+  openAccount = vi.fn();
   window.puppyoneDesktop = { requestCloudSessionApi: bridge } as unknown as NonNullable<typeof window.puppyoneDesktop>;
   const container = document.createElement("div"); document.body.appendChild(container); root = createRoot(container);
 });
@@ -75,7 +77,8 @@ describe("inline Homepage Cloud projects", () => {
     expect(document.querySelectorAll(".onboarding-project-row-wrap")).toHaveLength(1);
     const signIn = buttons().find((button) => button.getAttribute("aria-label") === "Sign in to PuppyOne Cloud");
     expect(signIn?.closest(".onboarding-project-list")).toBeNull();
-    expect(signIn?.classList.contains("homepage-cloud-account")).toBe(true);
+    expect(signIn?.closest(".desktop-titlebar")).not.toBeNull();
+    expect(signIn?.querySelector("svg")).toBeNull();
     expect(signIn?.textContent).toBe("Sign in");
     await render();
     expect(document.querySelectorAll(".onboarding-project-row-wrap")).toHaveLength(2);
@@ -89,6 +92,20 @@ describe("inline Homepage Cloud projects", () => {
     expect(bridge.mock.calls.map(([request]) => request.path)).toEqual([
       "/projects/?include_access_counts=false", "/content/a/commits?limit=1&order=topo", "/content/b/commits?limit=1&order=topo",
     ]);
+  });
+
+  it("keeps the account avatar available without the Cloud experiment and opens account settings", async () => {
+    await render({ enabled: false });
+    expect(bridge).not.toHaveBeenCalled();
+    expect(document.querySelector(".homepage-cloud-sign-in")).toBeNull();
+    const avatar = document.querySelector<HTMLButtonElement>(".homepage-cloud-avatar");
+    expect(avatar?.textContent).toBe("A");
+    expect(avatar?.getAttribute("aria-label")).toContain("alice@example.com");
+    await click(".homepage-cloud-avatar");
+    expect(openAccount).toHaveBeenCalledOnce();
+    await render({ enabled: false, currentSession: null });
+    expect(document.querySelector(".homepage-cloud-avatar")).toBeNull();
+    expect(document.querySelector(".homepage-cloud-sign-in")?.textContent).toBe("Sign in");
   });
 
   it("opens a merged row locally by default, while its explicit Cloud action authorizes the exact ID", async () => {
@@ -111,6 +128,7 @@ describe("inline Homepage Cloud projects", () => {
   it("keeps local rows usable during loading and after a listing failure; retry stays inline", async () => {
     const pending = deferred<unknown>(); bridge.mockReturnValueOnce(pending.promise);
     await render(); expect(document.body.textContent).toContain("Loading Cloud projects");
+    expect(document.querySelector(".homepage-cloud-avatar")).not.toBeNull();
     await click(".onboarding-project-row"); expect(openLocal).toHaveBeenCalled();
     await act(async () => pending.resolve([project("a")]));
     bridge.mockRejectedValueOnce(new Error("Offline")); await act(async () => home.refresh());

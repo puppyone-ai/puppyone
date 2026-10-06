@@ -13,6 +13,7 @@
   "projects.removeHint": "등록 정보만 제거하며 로컬 파일은 삭제하지 않습니다.",
   "projects.untitled": "제목 없는 프로젝트",
   "action.createCloudProject": "Cloud 프로젝트 만들기",
+  "action.continueLocally": "로그인 없이 계속",
   "action.openFolder": "폴더 열기",
   "action.createLocalProject": "새 빈 프로젝트",
   "action.cloneRepository": "가져오기",

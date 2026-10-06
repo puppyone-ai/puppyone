@@ -13,6 +13,7 @@
   "projects.removeHint": "登録のみを削除します。ローカルファイルは削除されません。",
   "projects.untitled": "名称未設定のプロジェクト",
   "action.createCloudProject": "Cloud プロジェクトを作成",
+  "action.continueLocally": "ログインせずに続ける",
   "action.openFolder": "フォルダを開く",
   "action.createLocalProject": "空のプロジェクトを作成",
   "action.cloneRepository": "インポート",

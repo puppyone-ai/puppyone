@@ -46,6 +46,8 @@ import {
   useAccountCloudWorkspacePresentation,
 } from "./features/cloud/workbench/AccountCloudWorkspaceSurface";
 import { getCloudAuthSession, resolveCloudAuthState } from "./features/cloud/auth";
+import { FirstRunSignInScreen } from "./features/cloud/auth/FirstRunSignInScreen";
+import { useFirstRunSignIn } from "./features/cloud/auth/useFirstRunSignIn";
 import { useNativeCloudWorkbench } from "./features/cloud/workbench/useNativeCloudWorkbench";
 import {
   MinimalOnboarding,
@@ -1484,6 +1486,12 @@ function AppContent() {
       /> : undefined}
       onPublishLocal={workspace ? () => { cancelRepositoryCloudSwitch(); openCloudDialogAt("initialize"); } : undefined} />} />;
   const settingsWorkspace = focusedWorkspace ?? workspace ?? null;
+  const firstRunSignIn = useFirstRunSignIn({
+    available: cloudAvailable && Boolean(desktopCloudApiBaseUrl),
+    restoring: cloudSessionRestoring || restoringWorkspace,
+    signedIn: Boolean(activeCloudSession),
+    hasProjects: Boolean(workspace || initialCloudProject || recentWorkspaceItems.length || workspaces.length),
+  });
   const settingsOverlay = <DesktopOverlayPortal appearance={surfaceAppearance}>
     {settingsDialogOpen && (
       <SettingsDialog
@@ -1549,7 +1557,7 @@ function AppContent() {
     </SurfaceAppearanceProvider>
   );
 
-  if (restoringWorkspace && !workspace) {
+  if (!workspace && (restoringWorkspace || firstRunSignIn.pending)) {
     return themeRuntime(
       <RestoringWorkspaceScreen
         appearance={surfaceAppearance}
@@ -1558,6 +1566,10 @@ function AppContent() {
   }
 
   if (!workspace) {
+    if (firstRunSignIn.required) return themeRuntime(
+      <FirstRunSignInScreen appearance={surfaceAppearance} apiBaseUrl={desktopCloudApiBaseUrl}
+        onContinueLocally={firstRunSignIn.complete} />,
+    );
     return themeRuntime(
       <Homepage
         onChooseWorkspace={openFolder}
@@ -1575,7 +1587,8 @@ function AppContent() {
         projectItems={projectCatalog.items}
         onOpenCloudProject={(projectId) => { cancelRepositoryCloudSwitch(); void accountCloud.openTarget({ kind: "project_root", project_id: projectId }); }}
         cloudOpening={accountCloud.opening}
-        cloudAccountStatus={cloudEnabled ? <HomepageCloudStatus status={projectCatalog.status} restoring={cloudSessionRestoring} empty={projectCatalog.items.length === 0}
+        cloudAccountStatus={cloudAvailable ? <HomepageCloudStatus status={projectCatalog.status} restoring={cloudSessionRestoring} empty={cloudEnabled && projectCatalog.items.length === 0}
+          session={activeCloudSession} onOpenAccount={() => openSettingsDialog("account")}
           apiBaseUrl={desktopCloudApiBaseUrl} controller={accountCloud} onRetry={projectCatalog.refresh} /> : undefined}
         initialError={restoreWorkspaceError}
         appearance={surfaceAppearance}

@@ -124,6 +124,7 @@ function AccountCloudFixture() {
       onChooseWorkspace={async () => {}} onOpenWorkspacePath={async () => {}} onOpenDroppedWorkspace={async () => {}}
       onOpenCloudProject={(id) => void account.openTarget({ kind: "project_root", project_id: id })}
       cloudAccountStatus={<HomepageCloudStatus status={homepage.status} restoring={false} empty={homepage.items.length === 0} apiBaseUrl={API}
+        session={session} onOpenAccount={() => setSettingsOpened(count => count + 1)}
         controller={account} onRetry={homepage.refresh} />} />}
     <AccountCloudWorkspaceSurface projectItems={homepage.items} onSelectProject={() => {}}
       onSelectCloudProject={(id) => void account.openTarget({ kind: "project_root", project_id: id })}
