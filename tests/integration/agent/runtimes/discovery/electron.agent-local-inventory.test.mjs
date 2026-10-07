@@ -31,6 +31,7 @@ import { deriveLocalConnection } from "../../../../../electron/main/agent/connec
 import { localAgentToolRegistryDefaults } from "../../../../../electron/main/agent/connections/tools/local-agent-tool-registry.mjs";
 import { CLAUDE_LOCAL_TOOL } from "../../../../../electron/main/agent/connections/tools/claude-tool.mjs";
 import { OPENCODE_LOCAL_TOOL } from "../../../../../electron/main/agent/connections/tools/opencode-tool.mjs";
+import { discoverCursorBackend } from "../../../../../electron/main/agent/runtimes/cursor/cursor-discovery.mjs";
 
 const temporaryDirectories = [];
 
@@ -259,6 +260,52 @@ describe("Desktop Agent local-tool inventory", () => {
       integration: "blocked",
       selectable: false,
     });
+  });
+
+  it("accepts a real Cursor-shaped CLI whose version and status each exceed the generic probe budget", async () => {
+    const directory = await temporaryDirectory();
+    const script = path.join(directory, "slow-cursor.mjs");
+    await writeFile(script, `
+      const output = process.argv[2] === "--version"
+        ? "2026.10.01-e373342"
+        : "Authenticated as private@example.test";
+      setTimeout(() => process.stdout.write(output), 1_800);
+    `);
+    const cursor = await discoverCursorBackend({
+      resolveCandidate: async () => ({
+        ...fixedCandidate(process.execPath, "cursor-agent"),
+        canonicalIdentity: await realpath(process.execPath),
+        argsPrefix: [script],
+      }),
+      env: {},
+    });
+
+    expect(cursor).toMatchObject({ status: "ready", code: "READY", selectable: true });
+    expect(JSON.stringify(cursor)).not.toContain("private@example.test");
+  }, 15_000);
+
+  it("still kills an unresponsive Cursor status process and blocks selection", async () => {
+    vi.useFakeTimers();
+    const hanging = fakeChild();
+    const pending = probeCursorLocal({
+      candidate: fixedCandidate("/tools/cursor-agent", "cursor-agent"),
+      runCommand: async (file, args, options) => args[0] === "--version"
+        ? { code: 0, stdout: "2026.10.01-e373342", stderr: "" }
+        : runBoundedProbeCommand(file, args, { ...options, spawn: () => hanging }),
+    });
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(hanging.kill).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(8_001);
+    const cursor = await pending;
+
+    expect(hanging.kill).toHaveBeenCalledWith("SIGKILL");
+    expect(cursor).toMatchObject({
+      installation: "detected",
+      authentication: "error",
+      authenticationFailure: "timed-out",
+      authenticationDiagnostic: "Cursor status probe timed out.",
+    });
+    expect(deriveLocalConnection(cursor)).toMatchObject({ selectable: false });
   });
 
   it("disposes an in-flight Codex protocol probe when application inventory is cancelled", async () => {
