@@ -89,7 +89,7 @@ describe("Desktop Agent sidebar visual contract", () => {
     expect(css).not.toContain(".desktop-agent-message-actions");
     expect(messagePart).not.toContain("Copy response");
     expect(messagePart).not.toContain("clipboard");
-    expect(css).toMatch(/\.desktop-agent-message-text\s*\{[^}]*color:\s*var\(--agent-text-muted\)[^}]*font-size:\s*var\(--agent-conversation-font-size\)[^}]*line-height:\s*var\(--agent-conversation-line-height\)/s);
+    expect(css).toMatch(/\.desktop-agent-message-text\s*\{[^}]*color:\s*var\(--agent-text\)[^}]*font-size:\s*var\(--agent-conversation-font-size\)[^}]*line-height:\s*var\(--agent-conversation-line-height\)/s);
     expect(css).toMatch(/\.desktop-agent-markdown\s*\{[^}]*color:\s*var\(--agent-text-muted\)[^}]*font-family:\s*var\(--agent-font-family\)[^}]*font-size:\s*var\(--agent-conversation-font-size\)[^}]*font-weight:\s*var\(--agent-font-weight\)[^}]*line-height:\s*var\(--agent-response-line-height\)/s);
     expect(css).toMatch(/\.desktop-agent-markdown h1,[^{]*\.desktop-agent-markdown h6\s*\{[^}]*color:\s*var\(--agent-text-muted\)[^}]*font-size:\s*var\(--agent-conversation-font-size\)[^}]*font-weight:\s*var\(--po-text-weight-semibold, 600\)[^}]*line-height:\s*var\(--agent-response-line-height\)/s);
     expect(css).toMatch(/\.desktop-agent-markdown :is\(strong, b\)\s*\{[^}]*color:\s*var\(--agent-text-muted\)[^}]*font-weight:\s*var\(--po-text-weight-semibold, 600\)/s);

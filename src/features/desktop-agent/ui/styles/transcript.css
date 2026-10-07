@@ -272,7 +272,7 @@
 }
 .desktop-agent-message.is-assistant:has(.desktop-agent-message-status) { padding-inline-end: 84px; }
 .desktop-agent-message-text {
-  color: var(--agent-text-muted);
+  color: var(--agent-text);
   font-size: var(--agent-conversation-font-size);
   line-height: var(--agent-conversation-line-height);
   white-space: pre-wrap;
@@ -283,7 +283,7 @@
   border: 1px solid var(--agent-border-subtle);
   border-radius: 4px;
   background: var(--agent-row-hover-surface);
-  color: var(--agent-text-muted);
+  color: inherit;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
   font-weight: 450;
