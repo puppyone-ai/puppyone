@@ -1,3 +1,12 @@
+.markdown-codemirror-editor {
+  /* Resolve before the selected widget suppresses its inner native text paint. */
+  --cm-md-table-document-selection: var(--po-selection-background, var(--po-text-selection-bg));
+}
+
+:root[data-po-window-active="false"] .markdown-codemirror-editor {
+  --cm-md-table-document-selection: var(--po-selection-inactive-background, var(--po-text-selection-inactive-bg));
+}
+
 .markdown-codemirror-editor .cm-md-table-widget-wrap {
   --cm-md-table-handle-gutter: var(--po-editable-table-handle-gutter);
   --cm-md-table-interaction-gutter: var(--po-editable-table-interaction-gutter);
@@ -203,8 +212,8 @@
 
 /* Document selection sweeping over the table selects it as one block. */
 .markdown-codemirror-editor .cm-md-table-widget-wrap.is-doc-selected .cm-md-table-widget {
-  border-color: var(--po-editable-table-selection-border);
-  box-shadow: 0 0 0 1px var(--po-editable-table-selection-border);
+  border-color: var(--cm-md-table-document-selection);
+  box-shadow: 0 0 0 1px var(--cm-md-table-document-selection);
 }
 
 .markdown-codemirror-editor .cm-md-table-widget th,

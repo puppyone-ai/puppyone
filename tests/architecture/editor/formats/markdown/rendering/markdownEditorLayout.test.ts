@@ -419,8 +419,8 @@ describe("Markdown rich-block boundary affordance", () => {
     expect(markdownTableCss).not.toContain(
       ".cm-md-table-widget-wrap:focus-within:not(.is-doc-selected) .cm-md-table-widget",
     );
-    expect(selectedRule).toContain("border-color:");
-    expect(selectedRule).toContain("box-shadow: 0 0 0 1px var(--po-editable-table-selection-border);");
+    expect(selectedRule).toContain("border-color: var(--cm-md-table-document-selection);");
+    expect(selectedRule).toContain("box-shadow: 0 0 0 1px var(--cm-md-table-document-selection);");
   });
 
   it("uses semantic fixed column tracks so cell focus cannot resize a Markdown table", () => {
