@@ -2,6 +2,7 @@ import { watch, watchFile, unwatchFile } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getDefaultElectronBin } from "./electron-runtime.mjs";
+import { repairNodePtyPermissions } from "./node-pty-permissions.mjs";
 import { watchInterfaceStyleGraph } from "./interface-style-graph-watcher.mjs";
 import {
   isLoopbackHostname,
@@ -69,6 +70,7 @@ void startDevelopmentEnvironment();
 
 async function startDevelopmentEnvironment() {
   try {
+    repairNodePtyPermissions(desktopRoot);
     const developmentEnvironment = loadDesktopDevelopmentEnvironment({ desktopRoot });
     const rendererUrl = parseConfiguredHttpUrl(
       developmentEnvironment.PUPPYONE_DESKTOP_RENDERER_URL,

@@ -265,6 +265,10 @@ describe("desktop build identity", () => {
         mac: {},
       },
     }));
+    const helper = path.join(repositoryRoot, "node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper");
+    await fs.mkdir(path.dirname(helper), { recursive: true });
+    await fs.writeFile(helper, "fixture");
+    await fs.chmod(helper, 0o644);
 
     const prepared = await prepareDesktopBuild({
       repositoryRoot,
@@ -280,6 +284,7 @@ describe("desktop build identity", () => {
     );
 
     expect(assertDesktopBuildInfo(persisted)).toEqual(prepared.buildInfo);
+    if (process.platform !== "win32") expect((await fs.stat(helper)).mode & 0o111).toBe(0o111);
     await expect(prepareDesktopBuild({
       repositoryRoot,
       buildNumber: 42,

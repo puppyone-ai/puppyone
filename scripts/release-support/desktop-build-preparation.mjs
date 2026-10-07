@@ -14,6 +14,7 @@ import {
   createDesktopElectronBuilderConfig as createTargetDesktopElectronBuilderConfig,
 } from "../../tooling/desktop/build/create-builder-config.mjs";
 import { getDesktopTargetDefinition } from "../../tooling/desktop/targets/target-manifest.mjs";
+import { repairNodePtyPermissions } from "../node-pty-permissions.mjs";
 
 export const DEFAULT_BUILD_INFO_PATH = "generated/desktop-build-info.json";
 export const DEFAULT_BUILDER_CONFIG_PATH = "generated/electron-builder.json";
@@ -31,6 +32,7 @@ export async function prepareDesktopBuild({
   target = null,
 } = {}) {
   const root = path.resolve(repositoryRoot ?? process.cwd());
+  repairNodePtyPermissions(root);
   const packageMetadata = JSON.parse(
     await fs.readFile(path.join(root, "package.json"), "utf8"),
   );
