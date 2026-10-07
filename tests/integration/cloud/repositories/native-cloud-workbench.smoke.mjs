@@ -446,19 +446,17 @@ app.whenReady().then(async () => {
     reveal.dataset.fixtureIdentity = 'requested-header-reveal';
     const animation = reveal.getAnimations({subtree:true})[0];
     animation.pause(); animation.currentTime = 35;
-    const firstInset = getComputedStyle(reveal, '::after').clipPath;
+    const firstCircle = getComputedStyle(reveal, '::after').clipPath;
     animation.currentTime = 70;
-    const laterInset = getComputedStyle(reveal, '::after').clipPath;
-    const topInset = inset => {
-      const match = inset.match(/^inset\\(([-\\d.]+)% 0px(?: 0px){1,2}\\)$/);
-      return match ? Number(match[1]) : NaN;
-    };
+    const laterCircle = getComputedStyle(reveal, '::after').clipPath;
+    const radius = circle => Number(circle.match(/[-\\d.]+(?=%)/)?.[0]);
     return header.dataset.workspaceKind === 'cloud' && !document.querySelector('.desktop-cloud-entry-light')
-      && topInset(firstInset) < 100 && topInset(laterInset) > 0
-      && topInset(laterInset) < topInset(firstInset)
+      && firstCircle.startsWith('circle(') && laterCircle.startsWith('circle(')
+      && firstCircle.endsWith('at 60% 85%)') && laterCircle.endsWith('at 60% 85%)')
+      && radius(firstCircle) > 0 && radius(laterCircle) > radius(firstCircle)
       && animation.effect.getTiming().duration === 260
-      && animation.animationName === 'desktop-cloud-header-sweep';
-  })()`), 'Header blue must sweep from bottom to top over 260ms while Cloud prepares');
+      && animation.animationName === 'desktop-cloud-header-expand';
+  })()`), 'Header blue must expand from its lower-right center over 260ms while Cloud prepares');
   assert(await evaluate("Boolean(document.querySelector('.desktop-titlebar-workspace-mark[data-project-location=cloud]')) && !document.querySelector('.desktop-titlebar-terminal, .desktop-titlebar-changes')"),
     'Cloud intent must change the Header mark and remove local actions before provider commit');
   assert(await evaluate("document.querySelectorAll('[data-cloud-workspace-tool]').length === 2 && [...document.querySelectorAll('[data-cloud-workspace-tool]')].every(button => button.disabled)"),

@@ -53,30 +53,19 @@
   pointer-events: none;
 }
 
-/* Sweep the full-width Cloud color from bottom to top under stationary content.
- * The first/last fifth accelerate/decelerate; the middle stays at constant speed. */
+/* Expand the Cloud color from just right of center near the Header's bottom.
+ * The circle stays clipped to the Header under stationary text and controls. */
 .desktop-cloud-header-reveal::after {
   content: "";
   position: absolute;
   inset: 0;
   background: var(--po-cloud-header-bg);
-  animation: desktop-cloud-header-sweep 260ms linear both;
+  animation: desktop-cloud-header-expand 260ms cubic-bezier(0.4, 0, 0.2, 1) both;
 }
 
-@keyframes desktop-cloud-header-sweep {
-  from {
-    clip-path: inset(100% 0 0 0);
-    animation-timing-function: cubic-bezier(0.333333, 0, 0.666667, 0.333333);
-  }
-  20% {
-    clip-path: inset(87.5% 0 0 0);
-    animation-timing-function: linear;
-  }
-  80% {
-    clip-path: inset(12.5% 0 0 0);
-    animation-timing-function: cubic-bezier(0.333333, 0.666667, 0.666667, 1);
-  }
-  to { clip-path: inset(0); }
+@keyframes desktop-cloud-header-expand {
+  from { clip-path: circle(4px at 60% 85%); }
+  to { clip-path: circle(100% at 60% 85%); }
 }
 
 @media (prefers-reduced-motion: reduce) {
