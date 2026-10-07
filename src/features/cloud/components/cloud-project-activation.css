@@ -17,24 +17,6 @@
     text-align: center;
   }
 
-  .desktop-cloud-project-activation-copy {
-    display: flex;
-    width: 100%;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-  }
-
-  .desktop-cloud-project-activation-copy h2 {
-    max-width: 420px;
-    margin: 0;
-    color: var(--po-text);
-    font-size: var(--po-type-ui-section-title, 16px);
-    font-weight: var(--po-text-weight-medium, 500);
-    line-height: 1.5;
-    text-wrap: balance;
-  }
-
   .desktop-cloud-project-benefits {
     display: grid;
     width: 100%;

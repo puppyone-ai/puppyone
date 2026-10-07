@@ -38,11 +38,11 @@ export function CloudWorkspaceSwitchDialog({ controller, gate, authenticationReq
     <DesktopDialogRoot className="desktop-cloud-dialog-backdrop" onClose={controller.cancel}>
       <DesktopDialogSurface className={`desktop-cloud-workspace-switch-dialog${authenticationRequired ? " is-authentication" : ""}`}
         width={880}
-        ariaLabel={t(authenticationRequired ? "cloud.auth.desktopTitle" : "cloud.productName")}>
+        ariaLabel={t("cloud.activation.project.title")}>
         <header className="desktop-dialog-header desktop-cloud-dialog-header">
           <div className="desktop-dialog-title-row desktop-cloud-dialog-title-row">
             <span className="desktop-cloud-dialog-leading" aria-hidden="true"><Cloud size={15} /></span>
-            <h2>{t("cloud.productName")}</h2>
+            <h2>{t("cloud.activation.project.title")}</h2>
           </div>
           <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} onClick={controller.cancel} /></Tooltip>
         </header>

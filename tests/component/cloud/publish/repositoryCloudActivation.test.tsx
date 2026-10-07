@@ -39,10 +39,10 @@ afterEach(async () => { await act(async () => root.unmount()); document.body.inn
 describe("repository Cloud activation", () => {
   it("keeps the value surface after login and changes its action to publish this project", async () => {
     await render({ signedIn: false });
-    const before = host.querySelector("h2")!.textContent;
+    const before = host.querySelector(".desktop-cloud-project-activation")!.getAttribute("aria-label");
     expect(host.querySelector("[data-cloud-sign-in-action]")).not.toBeNull();
     await render();
-    expect(host.querySelector("h2")!.textContent).toBe(before);
+    expect(host.querySelector(".desktop-cloud-project-activation")!.getAttribute("aria-label")).toBe(before);
     expect(host.querySelector("[data-cloud-sign-in-action]")).toBeNull();
     expect(host.textContent).toContain("Share with your team");
     expect(host.querySelector('[role="img"][aria-label="Manus"]')).not.toBeNull();
@@ -71,7 +71,7 @@ describe("repository Cloud activation", () => {
     await render({ context: { status: "wrong-host", projectId: "existing",
       message: cloudMessage("remote-wrong-host", { origin: "https://other.puppyone.ai" }) } });
     expect(host.querySelector("[data-cloud-publish-action]")).toBeNull();
-    expect(host.querySelector("h2")?.textContent).toContain("Get Puppyone Cloud");
+    expect(host.querySelector(".desktop-cloud-project-activation")?.getAttribute("aria-label")).toBe("Get Puppyone Cloud");
     expect(host.querySelector('[role="alert"]')?.textContent).toBe("Cloud project unavailable");
     const details = host.querySelector<HTMLDetailsElement>("details")!;
     expect(details.open).toBe(false);
