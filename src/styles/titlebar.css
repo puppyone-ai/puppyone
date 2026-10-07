@@ -53,27 +53,27 @@
   pointer-events: none;
 }
 
-/* Sweep the full-height Cloud color from left to right under stationary content.
+/* Sweep the full-width Cloud color from bottom to top under stationary content.
  * The first/last fifth accelerate/decelerate; the middle stays at constant speed. */
 .desktop-cloud-header-reveal::after {
   content: "";
   position: absolute;
   inset: 0;
   background: var(--po-cloud-header-bg);
-  animation: desktop-cloud-header-sweep 520ms linear both;
+  animation: desktop-cloud-header-sweep 260ms linear both;
 }
 
 @keyframes desktop-cloud-header-sweep {
   from {
-    clip-path: inset(0 100% 0 0);
+    clip-path: inset(100% 0 0 0);
     animation-timing-function: cubic-bezier(0.333333, 0, 0.666667, 0.333333);
   }
   20% {
-    clip-path: inset(0 87.5% 0 0);
+    clip-path: inset(87.5% 0 0 0);
     animation-timing-function: linear;
   }
   80% {
-    clip-path: inset(0 12.5% 0 0);
+    clip-path: inset(12.5% 0 0 0);
     animation-timing-function: cubic-bezier(0.333333, 0.666667, 0.666667, 1);
   }
   to { clip-path: inset(0); }

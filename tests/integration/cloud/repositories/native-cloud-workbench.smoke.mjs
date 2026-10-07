@@ -445,18 +445,20 @@ app.whenReady().then(async () => {
     const reveal = header.querySelector('.desktop-cloud-header-reveal');
     reveal.dataset.fixtureIdentity = 'requested-header-reveal';
     const animation = reveal.getAnimations({subtree:true})[0];
-    animation.pause(); animation.currentTime = 70;
+    animation.pause(); animation.currentTime = 35;
     const firstInset = getComputedStyle(reveal, '::after').clipPath;
-    animation.currentTime = 140;
+    animation.currentTime = 70;
     const laterInset = getComputedStyle(reveal, '::after').clipPath;
-    const rightInset = inset => Number(inset.match(/[-\\d.]+(?=%)/)?.[0]);
+    const topInset = inset => {
+      const match = inset.match(/^inset\\(([-\\d.]+)% 0px(?: 0px){1,2}\\)$/);
+      return match ? Number(match[1]) : NaN;
+    };
     return header.dataset.workspaceKind === 'cloud' && !document.querySelector('.desktop-cloud-entry-light')
-      && firstInset.startsWith('inset(0px ') && laterInset.startsWith('inset(0px ')
-      && firstInset.endsWith(' 0px 0px)') && laterInset.endsWith(' 0px 0px)')
-      && rightInset(firstInset) < 100 && rightInset(laterInset) > 0
-      && rightInset(laterInset) < rightInset(firstInset)
+      && topInset(firstInset) < 100 && topInset(laterInset) > 0
+      && topInset(laterInset) < topInset(firstInset)
+      && animation.effect.getTiming().duration === 260
       && animation.animationName === 'desktop-cloud-header-sweep';
-  })()`), 'Header blue must sweep from left to right while Cloud prepares');
+  })()`), 'Header blue must sweep from bottom to top over 260ms while Cloud prepares');
   assert(await evaluate("Boolean(document.querySelector('.desktop-titlebar-workspace-mark[data-project-location=cloud]')) && !document.querySelector('.desktop-titlebar-terminal, .desktop-titlebar-changes')"),
     'Cloud intent must change the Header mark and remove local actions before provider commit');
   assert(await evaluate("document.querySelectorAll('[data-cloud-workspace-tool]').length === 2 && [...document.querySelectorAll('[data-cloud-workspace-tool]')].every(button => button.disabled)"),
