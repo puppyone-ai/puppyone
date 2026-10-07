@@ -1,4 +1,6 @@
 {
+  "workbench.renderFailure": "このタブを表示できません。",
+  "workbench.reloadView": "表示を再読み込み",
   "workbench.newTab": "新しいタブ",
   "projectSessions.sessionCloseFailed": "セッションを閉じられませんでした。再試行してください。",
   "projectSessions.closing": "プロジェクトを閉じています…",

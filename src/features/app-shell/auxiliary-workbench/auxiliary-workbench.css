@@ -73,6 +73,27 @@
   background: var(--po-hover);
 }
 
+.auxiliary-workbench-render-failure {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  align-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 16px;
+  color: var(--po-text);
+  background: var(--po-surface-auxiliary);
+  font-size: var(--po-type-right-sidebar-meta, 13px);
+  line-height: var(--po-type-right-sidebar-meta-line-height, 19px);
+}
+
+.auxiliary-workbench-render-failure > svg {
+  flex: 0 0 auto;
+  color: var(--po-text-muted);
+}
+
 .desktop-terminal-group-viewport,
 .desktop-terminal-split,
 .desktop-terminal-tab-group,

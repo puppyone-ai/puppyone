@@ -1,4 +1,6 @@
 {
+  "workbench.renderFailure": "Não foi possível exibir esta aba.",
+  "workbench.reloadView": "Recarregar visualização",
   "workbench.newTab": "Nova aba",
   "projectSessions.sessionCloseFailed": "Não foi possível fechar esta sessão. Tente novamente.",
   "projectSessions.closing": "Fechando este projeto…",

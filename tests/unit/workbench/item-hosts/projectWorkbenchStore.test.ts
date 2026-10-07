@@ -85,4 +85,32 @@ describe("project-owned workbench state", () => {
     expect(b.getSnapshot().topology.items).toEqual([]);
     a.dispose(); b.dispose();
   });
+
+  it("retries Chat creation and rollback without re-preparing or closing the existing Terminal", async () => {
+    const terminal = { ...contribution(vi.fn(async () => {})), kind: "terminal" };
+    const chat = contribution(vi.fn()
+      .mockRejectedValueOnce(Object.assign(new Error("temporary"), { retryable: true }))
+      .mockResolvedValue(undefined));
+    const store = new ProjectWorkbenchStore(record("a")); store.configure([terminal, chat]);
+    const runtime = store.getResource("terminals", () => ({ sessionId: "live-terminal", dispose: vi.fn() }));
+    const terminalId = (await store.create("terminal", null))!;
+    const terminalSnapshot = { ...terminal.initialSnapshot, running: true, status: "running" as const, resourceId: runtime.sessionId };
+    store.updateSnapshot(terminalId, terminalSnapshot);
+    const topology = store.getSnapshot().topology;
+    const close = vi.spyOn(terminal.close, "commit");
+
+    expect(await store.create("chat", null)).toBeNull();
+    expect(store.getSnapshot().topology).toBe(topology);
+    expect(chat.discardPreparedItem).toHaveBeenCalledOnce();
+    expect(await store.retryCreation()).not.toBeNull();
+    expect(store.getSnapshot().topology.items.map((item) => item.kind)).toEqual(["terminal", "chat"]);
+    expect(store.getSnapshot().topology.items[0].id).toBe(terminalId);
+    expect(store.getSnapshot().snapshots.get(terminalId)).toBe(terminalSnapshot);
+    expect(store.getResource("terminals", () => { throw new Error("runtime was lost"); })).toBe(runtime);
+    expect(terminal.prepare).toHaveBeenCalledOnce();
+    expect(terminal.discardPreparedItem).not.toHaveBeenCalled();
+    expect(close).not.toHaveBeenCalled();
+    expect(runtime.dispose).not.toHaveBeenCalled();
+    store.dispose();
+  });
 });

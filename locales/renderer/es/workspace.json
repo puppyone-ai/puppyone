@@ -1,4 +1,6 @@
 {
+  "workbench.renderFailure": "No se puede mostrar esta pestaña.",
+  "workbench.reloadView": "Recargar vista",
   "workbench.newTab": "Nueva pestaña",
   "projectSessions.sessionCloseFailed": "No se pudo cerrar esta sesión. Inténtalo de nuevo.",
   "projectSessions.closing": "Cerrando este proyecto…",

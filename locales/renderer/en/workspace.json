@@ -1,4 +1,6 @@
 {
+  "workbench.renderFailure": "Unable to display this tab.",
+  "workbench.reloadView": "Reload view",
   "workbench.newTab": "New tab",
   "projectSessions.sessionCloseFailed": "This session could not be closed. Try again.",
   "projectSessions.closing": "Closing this project…",

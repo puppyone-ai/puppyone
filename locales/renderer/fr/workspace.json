@@ -1,4 +1,6 @@
 {
+  "workbench.renderFailure": "Impossible d’afficher cet onglet.",
+  "workbench.reloadView": "Recharger la vue",
   "workbench.newTab": "Nouvel onglet",
   "projectSessions.sessionCloseFailed": "Impossible de fermer cette session. Réessayez.",
   "projectSessions.closing": "Fermeture du projet…",
