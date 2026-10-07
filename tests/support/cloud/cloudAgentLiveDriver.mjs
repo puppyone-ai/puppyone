@@ -123,12 +123,16 @@ export async function connectCloudAgentLiveDriver(options) {
       await wait(`!document.querySelector('${cloud} .desktop-agent-message')`, "new empty chat");
     },
     async sendAndReceive(marker) {
+      const started = performance.now();
+      let firstText;
       const prompt = `Connection test only. Reply with exactly ${marker}. Do not read or change any files, use tools, or publish changes.`;
       await click(`${cloud} .cm-content`);
+      await evaluate(`document.querySelector('${cloud} .cm-content').focus()`);
       await command("Input.insertText", { text: prompt });
       await wait(`(${draftText})===${q(prompt)}`, "prompt entered");
       await click(`${cloud} .desktop-agent-composer-action:not(.is-stop)`);
       await wait(`!(${draftText}).trim()`, "server admission and cleared composer");
+      const admitted = performance.now();
       const saved = await savedSession();
       assert.ok(saved?.sessionId, "Accepted session must be retained");
       const deadline = Date.now() + options.timeout;
@@ -138,7 +142,13 @@ export async function connectCloudAgentLiveDriver(options) {
         assert.ok(runs.filter(run => run.prompt === prompt).length <= 1, "No duplicate admission for one message");
         if (receipt) {
           const run = await request(`/agents/runs/${receipt.id}`);
-          if (run.state === "succeeded") return run;
+          if (run.snapshot?.text && firstText === undefined) firstText = performance.now();
+          if (run.state === "succeeded") return { ...run, acceptance_timing: {
+            admission_ms: admitted - started,
+            first_text_observed_ms: firstText === undefined ? null : firstText - started,
+            completed_ms: performance.now() - started,
+            observation: "client polling; includes transport and poll interval",
+          }};
           if (!["queued", "running", "waiting_approval", "publishing"].includes(run.state)) throw new Error(`Run ended as ${run.state}: ${run.snapshot?.code || ''}`);
           if (run.state === "waiting_approval") throw new Error("Connectivity prompt unexpectedly requested tools/approval");
         }

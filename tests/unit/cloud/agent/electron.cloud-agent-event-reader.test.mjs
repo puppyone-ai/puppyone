@@ -19,13 +19,22 @@ describe("Authenticated Cloud Agent SSE batching", () => {
     ]);
     expect(cancel).toHaveBeenCalledTimes(1);
   });
-  it("bounds batches and returns immediately on keepalive and authoritative reset", async () => {
+  it("bounds batches, idle wait time and authoritative reset", async () => {
     const many = stream([encode(Array.from({ length: 65 }, (_, i) => frame(i + 1)).join(""))]);
     expect(await readCloudAgentEventBatch(many.response)).toHaveLength(64);
     const heartbeat = stream([encode(": keepalive\n\n")]);
-    expect(await readCloudAgentEventBatch(heartbeat.response)).toEqual([]);
+    expect(await readCloudAgentEventBatch(heartbeat.response, { maxWaitMs: 20 })).toEqual([]);
+    expect(heartbeat.cancel).toHaveBeenCalledTimes(1);
     const reset = stream([encode(frame(8, "reset", { sequence: 8 }))]);
     expect(await readCloudAgentEventBatch(reset.response)).toEqual([{ id: 8, event: "reset", data: { sequence: 8 } }]);
+  });
+  it("retains one idle connection across repeated keepalives until data arrives", async () => {
+    const fixture = stream([encode(": keepalive\n\n"), encode(": keepalive\n\n"),
+      encode(frame(1, "text", { delta: "reply" })), encode(": keepalive\n\n")]);
+    expect(await readCloudAgentEventBatch(fixture.response)).toEqual([
+      { id: 1, event: "text", data: { delta: "reply" } },
+    ]);
+    expect(fixture.cancel).toHaveBeenCalledTimes(1);
   });
   it("rejects malformed cursors, non-SSE and unbounded frames", async () => {
     await expect(readCloudAgentEventBatch(stream([encode(frame("not-a-sequence"))]).response)).rejects.toThrow("cursor");

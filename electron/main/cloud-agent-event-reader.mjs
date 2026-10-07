@@ -1,6 +1,6 @@
 /** Bound one authenticated SSE read so the existing IPC envelope stays finite.
  * Closing a read cancels only the subscription, never the server-owned run. */
-export async function readCloudAgentEventBatch(response) {
+export async function readCloudAgentEventBatch(response, { maxWaitMs = 10000 } = {}) {
   if (!response.headers.get("content-type")?.includes("text/event-stream") || !response.body) {
     throw new Error("Cloud Agent returned an invalid event stream.");
   }
@@ -8,9 +8,12 @@ export async function readCloudAgentEventBatch(response) {
   const decoder = new TextDecoder();
   const events = [];
   let buffer = "";
+  let timer;
+  const deadline = new Promise(resolve => { timer = setTimeout(() => resolve(null), maxWaitMs); });
   try {
     while (true) {
-      const chunk = await reader.read();
+      const chunk = await Promise.race([reader.read(), deadline]);
+      if (chunk === null) return events;
       buffer += decoder.decode(chunk.value, { stream: !chunk.done });
       buffer = buffer.replace(/\r\n/g, "\n");
       if (buffer.length > 512 * 1024) throw new Error("Cloud Agent event exceeds the transport limit.");
@@ -18,7 +21,10 @@ export async function readCloudAgentEventBatch(response) {
         const end = buffer.indexOf("\n\n");
         const frame = buffer.slice(0, end);
         buffer = buffer.slice(end + 2);
-        if (frame.startsWith(":")) return events;
+        // An idle heartbeat is not EOF. Keep the authenticated subscription
+        // open instead of creating a snapshot/reconnect loop every 200 ms.
+        if (frame.startsWith(":") && events.length) return events;
+        if (frame.startsWith(":")) continue;
         const event = parseEvent(frame);
         if (!event) continue;
         events.push(event);
@@ -27,6 +33,7 @@ export async function readCloudAgentEventBatch(response) {
       if (chunk.done) return events;
     }
   } finally {
+    clearTimeout(timer);
     await reader.cancel().catch(() => undefined);
     reader.releaseLock();
   }

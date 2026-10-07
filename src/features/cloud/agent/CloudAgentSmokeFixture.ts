@@ -7,7 +7,7 @@ export function createCloudAgentSmokeFixture(publish: (project: string) => void)
   const runs: CloudAgentRun[] = [];
   const requests: string[] = [];
   async function request(input: FixtureRequest) {
-    if (!input.path.startsWith("/agents/") && !input.path.startsWith("/chat/sessions?")) return undefined;
+    if (!input.path.startsWith("/agents/")) return undefined;
     requests.push(`${input.method ?? "GET"} ${input.path}`);
     const body = JSON.parse(input.body || "{}");
     if (input.path === "/agents/runs" && input.method === "POST") {
@@ -16,7 +16,7 @@ export function createCloudAgentSmokeFixture(publish: (project: string) => void)
       const run = createRun(body);
       runs.push(run); return run;
     }
-    if (input.path.startsWith("/chat/")) {
+    if (input.path.startsWith("/agents/sessions?")) {
       const agent = new URL(input.path, "https://cloud-fixture.puppyone.ai").searchParams.get("agent_id");
       return [...new Map(runs.filter(run => run.agent_id === agent).map(run => [run.session_id, {
         id: run.session_id, agent_id: run.agent_id, title: run.prompt, mode: "cloud_pi", updated_at: run.updated_at,

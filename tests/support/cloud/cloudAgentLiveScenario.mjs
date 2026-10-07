@@ -39,7 +39,8 @@ export async function cloudAgentLiveScenario(driver, report) {
     sessionId ??= run.session_id;
     assert.equal(run.session_id, sessionId, "Switching location must preserve the server conversation");
     await driver.assertAssistantReply(run.id, marker);
-    report.turns.push({ id: run.id, request_id: run.request_id, session_id: run.session_id, state: run.state });
+    report.turns.push({ id: run.id, request_id: run.request_id, session_id: run.session_id, state: run.state,
+      ...(run.acceptance_timing ? { timing: run.acceptance_timing } : {}) });
     report.steps.push(`reply-${turn}-confirmed-and-rendered`);
   }
   await driver.assertSessionRuns(sessionId, [...runIds]);

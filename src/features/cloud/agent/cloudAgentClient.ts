@@ -61,7 +61,7 @@ export class CloudAgentClient {
     });
   }
   async sessions(agent: string) {
-    const rows = await this.request<CloudAgentSession[]>(`/chat/sessions?agent_id=${encodeURIComponent(agent)}&limit=200`);
+    const rows = await this.request<CloudAgentSession[]>(`/agents/sessions?project_id=${encodeURIComponent(this.target.project_id)}&agent_id=${encodeURIComponent(agent)}&limit=200`);
     return rows.filter(row => row.mode === "cloud_pi" && row.agent_id === agent);
   }
   events(run: string, after: number) {
