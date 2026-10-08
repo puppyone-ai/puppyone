@@ -107,6 +107,53 @@ app.whenReady().then(async () => {
       assert.equal(committed.rows, 3); assert.equal(committed.localEdits, 1);
       assert.equal(committed.previews, 0); assert(committed.mountedCells <= 2_000);
       results.push({ mode, axis: "wide-row-preview", before, preview, committed });
+      for (const rtl of [false, true]) {
+        await evaluate(`window.csvExpansionFixture.reset('${mode}', 20, ${rtl})`);
+        const from = await evaluate("window.csvExpansionFixture.corner()");
+        const initial = await metrics();
+        const edge = { x: rtl ? initial.scroll.left - 12 : initial.scroll.right + 12, y: from.y };
+        await mouse("mousePressed", from, true);
+        await mouse("mouseMoved", edge, true);
+        // Keep the pointer stationary: edge scrolling must continue without more events.
+        for(let attempt=0;attempt<100;attempt++) {
+          if((await metrics()).previewColumns >= 5) break;
+          await new Promise(resolve => setTimeout(resolve, 20));
+        }
+        await screenshot(`${mode}-edge-${rtl ? "rtl" : "ltr"}`);
+        const edgePreview = await metrics();
+        assert(edgePreview.previewColumns >= 5, "full viewport blocked further expansion");
+        assert(edgePreview.scrollOffset > initial.scrollOffset + 100, "viewport did not follow the preview");
+        assert.equal(edgePreview.modelColumns, 20); assert.equal(edgePreview.localEdits, 0);
+        assert(edgePreview.mountedCells <= 2_000);
+        assert(edgePreview.columns > 0, "edge preview lost the existing column projection");
+        await release(edge);
+        const edgeCommit = await metrics();
+        assert.equal(edgeCommit.modelColumns, 20 + edgePreview.previewColumns);
+        assert.equal(edgeCommit.localEdits, 1); assert.equal(edgeCommit.previews, 0);
+        assert.equal(edgeCommit.lastColumn, edgeCommit.modelColumns - 1, "new columns were not visible after release");
+        assert(Math.abs(edgeCommit.scrollOffset - edgePreview.scrollOffset) < 48, `commit jumped away from the new columns: ${edgePreview.scrollOffset}→${edgeCommit.scrollOffset}`);
+        await evaluate("window.csvExpansionFixture.history(false)");
+        assert.equal((await metrics()).modelColumns, 20);
+        await evaluate("window.csvExpansionFixture.history(true)");
+        assert.equal((await metrics()).modelColumns, edgeCommit.modelColumns);
+        await evaluate("window.csvExpansionFixture.visitAwayAndBack()");
+        assert.equal((await metrics()).source, edgeCommit.source);
+        results.push({ mode, axis: "edge-scroll", rtl, initial, edgePreview, edgeCommit });
+      }
+      await evaluate(`window.csvExpansionFixture.reset('${mode}', 20)`);
+      const cancelFrom = await evaluate("window.csvExpansionFixture.corner()");
+      const cancelInitial = await metrics();
+      const cancelEdge = { x: cancelInitial.scroll.right + 12, y: cancelFrom.y };
+      await mouse("mousePressed", cancelFrom, true); await mouse("mouseMoved", cancelEdge, true);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      assert((await metrics()).previewColumns >= 2);
+      await window.webContents.debugger.sendCommand("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+      await window.webContents.debugger.sendCommand("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+      await release(cancelEdge); await new Promise(resolve => setTimeout(resolve, 220));
+      const cancelled = await metrics();
+      assert.equal(cancelled.source, cancelInitial.source); assert.equal(cancelled.localEdits, 0);
+      assert.equal(cancelled.previews, 0); assert(Math.abs(cancelled.scrollOffset - cancelInitial.scrollOffset) <= 1);
+      results.push({ mode, axis: "edge-cancel", cancelled });
     }
     assert.deepEqual(errors, [], "renderer errors during expansion");
     console.log(JSON.stringify({ passed: true, cases: results.length, artifacts }));

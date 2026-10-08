@@ -7,6 +7,7 @@ import {
   memo,
   useCallback,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -231,18 +232,23 @@ export function CsvTableEditor({
   const headerRowCount = headerEnabled ? 1 : 0;
   const dataRowCount = Math.max(0, modelSnapshot.rows.length - headerRowCount);
   const columnCount = modelSnapshot.columns.length;
+  const previewAddedRows = resizePreview?.addedRows ?? 0;
+  const previewAddedColumns = resizePreview?.addedColumns ?? 0;
+  const projectedColumnWidths = useMemo(() => previewAddedColumns
+    ? [...columnLayoutSnapshot.widths, ...Array.from({ length: previewAddedColumns }, () => EDITABLE_TABLE_COLUMN_MIN_WIDTH)]
+    : columnLayoutSnapshot.widths, [columnLayoutSnapshot.widths, previewAddedColumns]);
   const pinnedDataRowIndex = activeCell && activeCell.rowIndex >= headerRowCount
     ? activeCell.rowIndex - headerRowCount
     : null;
   const viewport = useTabularViewport({
     initialWindow: documentModels?.readViewState("csv:viewport"),
-    columnWidths: columnLayoutSnapshot.widths,
+    columnWidths: projectedColumnWidths,
     direction,
     hasHeader: headerEnabled,
     hasRowNumbers: rowNumbersVisible,
     pinnedColumnIndex: activeCell?.columnIndex,
     pinnedDataRowIndex,
-    rowCount: dataRowCount,
+    rowCount: dataRowCount + previewAddedRows,
     scrollRef,
     surfaceRef,
   });
@@ -251,8 +257,8 @@ export function CsvTableEditor({
   useLayoutEffect(() => {
     // Retain the projection origin; reattachment measures a minimal probe there
     // before mounting the full viewport so cells are styled only once.
-    documentModels?.writeViewState("csv:viewport", { rowRange: viewport.rowRange, columnRange: viewport.columnRange });
-  }, [documentModels, viewport.rowRange, viewport.columnRange]);
+    if (!resizePreview) documentModels?.writeViewState("csv:viewport", { rowRange: viewport.rowRange, columnRange: viewport.columnRange });
+  }, [documentModels, resizePreview, viewport.rowRange, viewport.columnRange]);
 
   useLayoutEffect(() => {
     scheduleViewportUpdate();
@@ -334,21 +340,25 @@ export function CsvTableEditor({
       columnIndex: Math.max(0, columnCount - 1),
       targetDataRowCount,
       targetColumnCount,
-    });
+    }, "preserve");
   }, [applyStructureOperation, columnCount, headerEnabled, modelSnapshot.rows.length]);
+
+  const handleHistoryKeyDown = useCallback((event: ReactKeyboardEvent<HTMLElement>) => {
+    const mod = event.metaKey || event.ctrlKey;
+    if (mod && !event.altKey && event.key.toLocaleLowerCase() === "z") {
+      event.preventDefault();
+      event.stopPropagation();
+      const result = event.shiftKey ? model.redo() : model.undo();
+      if (result.changed) reportLocalEdit(result.revision);
+      return;
+    }
+  }, [model, reportLocalEdit]);
 
   const handleCellKeyDown = useCallback((
     event: ReactKeyboardEvent<HTMLInputElement>,
     rowIndex: number,
     columnIndex: number,
   ) => {
-    const mod = event.metaKey || event.ctrlKey;
-    if (mod && !event.altKey && event.key.toLocaleLowerCase() === "z") {
-      event.preventDefault();
-      const result = event.shiftKey ? model.redo() : model.undo();
-      if (result.changed) reportLocalEdit(result.revision);
-      return;
-    }
     if (event.key !== "Tab" || event.altKey || event.ctrlKey || event.metaKey) return;
     const firstRowIndex = headerEnabled ? 0 : headerRowCount;
     const lastRowIndex = modelSnapshot.rows.length - 1;
@@ -361,7 +371,7 @@ export function CsvTableEditor({
       rowIndex: firstRowIndex + Math.floor(nextLinearIndex / columnCount),
       columnIndex: nextLinearIndex % columnCount,
     });
-  }, [columnCount, headerEnabled, headerRowCount, model, modelSnapshot.rows.length, reportLocalEdit, requestFocus]);
+  }, [columnCount, headerEnabled, headerRowCount, modelSnapshot.rows.length, requestFocus]);
 
   const setFirstRecordAsHeader = useCallback((enabled: boolean) => {
     headerPreferenceInitializedRef.current = true;
@@ -451,17 +461,15 @@ export function CsvTableEditor({
     scheduleViewportUpdate();
   }, [scheduleViewportUpdate]);
 
-  const previewAddedRows = resizePreview?.addedRows ?? 0;
-  const previewAddedColumns = resizePreview?.addedColumns ?? 0;
   const structuralDataRowCount = Math.max(0, modelSnapshot.rows.length - (headerEnabled ? 1 : 0));
   const ariaColumnOffset = rowNumbersVisible ? 2 : 1;
   const physicalColumnCount = viewport.columnItems.length
-    + (rowNumbersVisible ? 1 : 0)
-    + previewAddedColumns;
+    + (rowNumbersVisible ? 1 : 0);
 
   return (
     <section
       className="csv-table-editor"
+      onKeyDownCapture={handleHistoryKeyDown}
       // This synchronous model and its measured bounded projection are ready
       // for the host handoff; unrelated DOM mutations need no extra quiet frame.
       data-document-surface-ready={viewport.measured ? "true" : undefined}
@@ -508,29 +516,30 @@ export function CsvTableEditor({
               data-csv-mounted-rows={viewport.mountedRowCount}
               data-csv-mounted-columns={viewport.mountedColumnCount}
               data-csv-mounted-cells={viewport.mountedCellCount}
+              data-csv-preview-columns={previewAddedColumns || undefined}
             >
               <colgroup>
                 {rowNumbersVisible && <col className="csv-table-editor__record-index-column" />}
-                {viewport.columnItems.map((item) => item.kind === "gap" ? (
-                  <col
-                    className="csv-table-editor__virtual-column-spacer"
-                    key={`column-gap-${item.start}-${item.end}`}
-                    style={{ width: item.size }}
-                  />
-                ) : (
-                  <col
-                    data-csv-column={item.index}
-                    key={modelSnapshot.columns[item.index]?.id ?? `column-${item.index}`}
-                    style={{ width: columnLayoutSnapshot.widths[item.index] }}
-                  />
-                ))}
-                {Array.from({ length: previewAddedColumns }, (_, previewColumnIndex) => (
-                  <col
-                    className="csv-table-editor__expansion-column"
-                    key={`expansion-column-${previewColumnIndex}`}
-                    style={{ width: EDITABLE_TABLE_COLUMN_MIN_WIDTH }}
-                  />
-                ))}
+                {viewport.columnItems.map((item) => {
+                  if (item.kind === "gap") return (
+                    <col
+                      className="csv-table-editor__virtual-column-spacer"
+                      key={`column-gap-${item.start}-${item.end}`}
+                      style={{ width: item.size }}
+                    />
+                  );
+                  if (item.index >= columnCount) return (
+                    <col className="csv-table-editor__expansion-column" key={`expansion-column-${item.index}`}
+                      style={{ width: EDITABLE_TABLE_COLUMN_MIN_WIDTH }} />
+                  );
+                  return (
+                    <col
+                      data-csv-column={item.index}
+                      key={modelSnapshot.columns[item.index]?.id ?? `column-${item.index}`}
+                      style={{ width: columnLayoutSnapshot.widths[item.index] }}
+                    />
+                  );
+                })}
               </colgroup>
               {headerEnabled && modelSnapshot.rows[0] && (
                 <thead>
@@ -542,7 +551,7 @@ export function CsvTableEditor({
                     onActivate={setActiveCell}
                     onCellKeyDown={handleCellKeyDown}
                     onUpdateCell={updateCell}
-                    previewAddedColumns={previewAddedColumns}
+                    columnCount={columnCount}
                     readOnly={readOnly}
                     row={modelSnapshot.rows[0]}
                     rowNumbersVisible={rowNumbersVisible}
@@ -563,6 +572,16 @@ export function CsvTableEditor({
                 ) : (() => {
                   const rowIndex = item.index + headerRowCount;
                   const row = modelSnapshot.rows[rowIndex];
+                  if (item.index >= dataRowCount) return (
+                    <tr className="csv-table-editor__expansion-row" key={`expansion-row-${item.index}`} aria-hidden="true">
+                      {rowNumbersVisible && <th className="csv-table-editor__record-index csv-table-editor__expansion-cell csv-table-editor__expansion-record-index">
+                        <span className="csv-table-editor__record-index-label">{item.index + 1}</span>
+                      </th>}
+                      {viewport.columnItems.map(column => column.kind === "gap" ? (
+                        <td className="csv-table-editor__virtual-column-spacer" key={`gap-${column.start}-${column.end}`} style={{ width: column.size }} />
+                      ) : <td className="csv-table-editor__body-cell csv-table-editor__expansion-cell" key={`cell-${column.index}`} />)}
+                    </tr>
+                  );
                   if (!row) return null;
                   return (
                     <MemoCsvBodyRow
@@ -577,7 +596,7 @@ export function CsvTableEditor({
                       onActivate={setActiveCell}
                       onCellKeyDown={handleCellKeyDown}
                       onUpdateCell={updateCell}
-                      previewAddedColumns={previewAddedColumns}
+                      columnCount={columnCount}
                       readOnly={readOnly}
                       row={row}
                       rowIndex={rowIndex}
@@ -586,42 +605,6 @@ export function CsvTableEditor({
                     />
                   );
                 })())}
-                {Array.from({ length: previewAddedRows }, (_, previewRowIndex) => {
-                  const displayRowNumber = structuralDataRowCount + previewRowIndex + 1;
-                  return (
-                    <tr
-                      className="csv-table-editor__expansion-row"
-                      key={`expansion-row-${previewRowIndex}`}
-                      aria-hidden="true"
-                    >
-                      {rowNumbersVisible && (
-                        <th className="csv-table-editor__record-index csv-table-editor__expansion-cell csv-table-editor__expansion-record-index">
-                          <span className="csv-table-editor__record-index-label">
-                            {displayRowNumber}
-                          </span>
-                        </th>
-                      )}
-                      {viewport.columnItems.map((item) => item.kind === "gap" ? (
-                        <td
-                          className="csv-table-editor__virtual-column-spacer"
-                          key={`expansion-gap-${item.start}-${item.end}`}
-                          style={{ width: item.size }}
-                        />
-                      ) : (
-                        <td
-                          className="csv-table-editor__body-cell csv-table-editor__expansion-cell"
-                          key={`expansion-cell-${item.index}`}
-                        />
-                      ))}
-                      {Array.from({ length: previewAddedColumns }, (_, previewColumnIndex) => (
-                        <td
-                          className="csv-table-editor__body-cell csv-table-editor__expansion-cell"
-                          key={`expansion-row-${previewRowIndex}-cell-${previewColumnIndex}`}
-                        />
-                      ))}
-                    </tr>
-                  );
-                })}
               </tbody>
             </table>
 
@@ -697,7 +680,7 @@ type CsvRowProjectionProps = Readonly<{
     columnIndex: number,
   ) => void;
   onUpdateCell: (rowIndex: number, columnIndex: number, value: string) => void;
-  previewAddedColumns: number;
+  columnCount: number;
   readOnly: boolean;
   row: CsvModelRow;
   rowNumbersVisible: boolean;
@@ -712,7 +695,7 @@ const MemoCsvHeaderRow = memo(function CsvHeaderRow({
   onActivate,
   onCellKeyDown,
   onUpdateCell,
-  previewAddedColumns,
+  columnCount,
   readOnly,
   row,
   rowNumbersVisible,
@@ -729,46 +712,46 @@ const MemoCsvHeaderRow = memo(function CsvHeaderRow({
           aria-label={t("editor.csv.headerRecord")}
         />
       )}
-      {columnItems.map((item) => item.kind === "gap" ? (
-        <th
-          className="csv-table-editor__virtual-column-spacer"
-          key={`header-gap-${item.start}-${item.end}`}
-          aria-hidden="true"
-          style={{ width: item.size }}
-        />
-      ) : (
-        <th
-          className="csv-table-editor__header-cell"
-          scope="col"
-          key={`header-${item.index}`}
-          data-csv-row="0"
-          data-csv-column={item.index}
-          data-find-match={matchKeys.has(getCsvFindMatchKey({ rowIndex: 0, columnIndex: item.index })) ? "true" : undefined}
-          data-find-current={currentMatch?.rowIndex === 0 && currentMatch.columnIndex === item.index ? "true" : undefined}
-          aria-colindex={item.index + ariaColumnOffset}
-        >
-          <input
-            value={row.cells[item.index] ?? ""}
-            readOnly={readOnly}
-            onChange={(event) => onUpdateCell(0, item.index, event.currentTarget.value)}
-            onFocus={() => onActivate({ rowIndex: 0, columnIndex: item.index })}
-            onKeyDown={(event) => onCellKeyDown(event, 0, item.index)}
-            aria-label={t("editor.csv.columnHeader", { column: item.index + 1 })}
-            aria-haspopup="menu"
-            aria-expanded="false"
+      {columnItems.map((item) => {
+        if (item.kind === "gap") return (
+          <th
+            className="csv-table-editor__virtual-column-spacer"
+            key={`header-gap-${item.start}-${item.end}`}
+            aria-hidden="true"
+            style={{ width: item.size }}
+          />
+        );
+        if (item.index >= columnCount) return (
+          <th className="csv-table-editor__header-cell csv-table-editor__expansion-cell csv-table-editor__expansion-cell--column"
+            key={`expansion-header-${item.index}`} aria-hidden="true" />
+        );
+        return (
+          <th
+            className="csv-table-editor__header-cell"
+            scope="col"
+            key={`header-${item.index}`}
             data-csv-row="0"
             data-csv-column={item.index}
-            spellCheck={false}
-          />
-        </th>
-      ))}
-      {Array.from({ length: previewAddedColumns }, (_, previewColumnIndex) => (
-        <th
-          className="csv-table-editor__header-cell csv-table-editor__expansion-cell csv-table-editor__expansion-cell--column"
-          key={`expansion-header-${previewColumnIndex}`}
-          aria-hidden="true"
-        />
-      ))}
+            data-find-match={matchKeys.has(getCsvFindMatchKey({ rowIndex: 0, columnIndex: item.index })) ? "true" : undefined}
+            data-find-current={currentMatch?.rowIndex === 0 && currentMatch.columnIndex === item.index ? "true" : undefined}
+            aria-colindex={item.index + ariaColumnOffset}
+          >
+            <input
+              value={row.cells[item.index] ?? ""}
+              readOnly={readOnly}
+              onChange={(event) => onUpdateCell(0, item.index, event.currentTarget.value)}
+              onFocus={() => onActivate({ rowIndex: 0, columnIndex: item.index })}
+              onKeyDown={(event) => onCellKeyDown(event, 0, item.index)}
+              aria-label={t("editor.csv.columnHeader", { column: item.index + 1 })}
+              aria-haspopup="menu"
+              aria-expanded="false"
+              data-csv-row="0"
+              data-csv-column={item.index}
+              spellCheck={false}
+            />
+          </th>
+        );
+      })}
     </tr>
   );
 });
@@ -784,7 +767,7 @@ const MemoCsvBodyRow = memo(function CsvBodyRow({
   onActivate,
   onCellKeyDown,
   onUpdateCell,
-  previewAddedColumns,
+  columnCount,
   readOnly,
   row,
   rowIndex,
@@ -810,48 +793,48 @@ const MemoCsvBodyRow = memo(function CsvBodyRow({
           </span>
         </th>
       )}
-      {columnItems.map((item) => item.kind === "gap" ? (
-        <td
-          className="csv-table-editor__virtual-column-spacer"
-          key={`cell-gap-${row.id}-${item.start}-${item.end}`}
-          aria-hidden="true"
-          style={{ width: item.size }}
-        />
-      ) : (
-        <td
-          className="csv-table-editor__body-cell"
-          key={`cell-${row.id}-${item.index}`}
-          data-csv-row={rowIndex}
-          data-csv-column={item.index}
-          data-find-match={matchKeys.has(getCsvFindMatchKey({ rowIndex, columnIndex: item.index })) ? "true" : undefined}
-          data-find-current={currentMatch?.rowIndex === rowIndex && currentMatch.columnIndex === item.index ? "true" : undefined}
-          aria-colindex={item.index + ariaColumnOffset}
-        >
-          <CsvCellEditor
-            value={row.cells[item.index] ?? ""}
-            readOnly={readOnly}
-            rowIndex={rowIndex}
-            columnIndex={item.index}
-            displayRowNumber={displayRowNumber}
-            reference={documentNavigation?.resolveReference(
-              documentPath,
-              row.cells[item.index] ?? "",
-            ) ?? null}
-            navigation={documentNavigation}
-            onActivate={() => onActivate({ rowIndex, columnIndex: item.index })}
-            onCellKeyDown={(event) => onCellKeyDown(event, rowIndex, item.index)}
-            onUpdate={(value) => onUpdateCell(rowIndex, item.index, value)}
-            t={t}
+      {columnItems.map((item) => {
+        if (item.kind === "gap") return (
+          <td
+            className="csv-table-editor__virtual-column-spacer"
+            key={`cell-gap-${row.id}-${item.start}-${item.end}`}
+            aria-hidden="true"
+            style={{ width: item.size }}
           />
-        </td>
-      ))}
-      {Array.from({ length: previewAddedColumns }, (_, previewColumnIndex) => (
-        <td
-          className="csv-table-editor__body-cell csv-table-editor__expansion-cell csv-table-editor__expansion-cell--column"
-          key={`expansion-cell-${row.id}-${previewColumnIndex}`}
-          aria-hidden="true"
-        />
-      ))}
+        );
+        if (item.index >= columnCount) return (
+          <td className="csv-table-editor__body-cell csv-table-editor__expansion-cell csv-table-editor__expansion-cell--column"
+            key={`expansion-cell-${item.index}`} aria-hidden="true" />
+        );
+        return (
+          <td
+            className="csv-table-editor__body-cell"
+            key={`cell-${row.id}-${item.index}`}
+            data-csv-row={rowIndex}
+            data-csv-column={item.index}
+            data-find-match={matchKeys.has(getCsvFindMatchKey({ rowIndex, columnIndex: item.index })) ? "true" : undefined}
+            data-find-current={currentMatch?.rowIndex === rowIndex && currentMatch.columnIndex === item.index ? "true" : undefined}
+            aria-colindex={item.index + ariaColumnOffset}
+          >
+            <CsvCellEditor
+              value={row.cells[item.index] ?? ""}
+              readOnly={readOnly}
+              rowIndex={rowIndex}
+              columnIndex={item.index}
+              displayRowNumber={displayRowNumber}
+              reference={documentNavigation?.resolveReference(
+                documentPath,
+                row.cells[item.index] ?? "",
+              ) ?? null}
+              navigation={documentNavigation}
+              onActivate={() => onActivate({ rowIndex, columnIndex: item.index })}
+              onCellKeyDown={(event) => onCellKeyDown(event, rowIndex, item.index)}
+              onUpdate={(value) => onUpdateCell(rowIndex, item.index, value)}
+              t={t}
+            />
+          </td>
+        );
+      })}
     </tr>
   );
 });

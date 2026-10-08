@@ -1,7 +1,9 @@
 import "../../../../src/styles/cascade.css";
 import "../../../../src/styles.css";
 import { TestLocalizationProvider } from "@puppyone/localization/testing";
-import { StrictMode, useLayoutEffect, useState } from "react";
+import { LocalizationProvider } from "@puppyone/localization/react";
+import type { LocaleState } from "@puppyone/localization/core";
+import { StrictMode, useLayoutEffect, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { CsvTableEditor } from "../../../../packages/shared-ui/src/editor/viewers/csv/CsvTableEditor";
@@ -20,18 +22,27 @@ const makeDocument = (columns = 2) => ({ owner: new DocumentModelOwner(), id: `e
     Array.from({ length: columns }, () => "1").join(","), Array.from({ length: columns }, () => "2").join(",")].join("\n") });
 let port: EditorSourceSnapshotPort | null = null;
 let localEdits = 0;
-let reset: (mode: "light" | "dark", columns?: number) => void;
+let reset: (mode: "light" | "dark", columns?: number, rtl?: boolean) => void;
 let show: (visible: boolean) => void;
 const settle = () => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+const mirroredState: LocaleState = { preference: "en", locale: "en", direction: "rtl", systemLanguages: ["en"] };
+const mirroredClient = { setLanguagePreference: async () => mirroredState, onLocaleChanged: () => () => {} };
+const loadCatalog = async () => ({ catalog: englishCatalog, fallbackCatalog: englishCatalog });
+function FixtureLocalization({ rtl, children }: { rtl: boolean; children: ReactNode }) {
+  if (!rtl) return <TestLocalizationProvider messages={englishCatalog}>{children}</TestLocalizationProvider>;
+  return <LocalizationProvider initialState={mirroredState} initialCatalog={englishCatalog} fallbackCatalog={englishCatalog}
+    client={mirroredClient} loadCatalog={loadCatalog}>{children}</LocalizationProvider>;
+}
 
 function Harness() {
   const [documentState, setDocument] = useState(makeDocument);
   const [mode, setMode] = useState<"light" | "dark">("light");
   const [visible, setVisible] = useState(true);
-  reset = (nextMode, columns) => {
+  const [rtl, setRtl] = useState(false);
+  reset = (nextMode, columns, nextRtl = false) => {
     documentState.owner.dispose();
     localEdits = 0;
-    flushSync(() => { setDocument(makeDocument(columns)); setMode(nextMode); setVisible(true); });
+    flushSync(() => { setDocument(makeDocument(columns)); setMode(nextMode); setVisible(true); setRtl(nextRtl); });
   };
   show = value => flushSync(() => setVisible(value));
   const appearance = resolveAppearance({ interfaceStyle: "default", themeMode: mode,
@@ -42,7 +53,7 @@ function Harness() {
     markdownPresentation: DEFAULT_MARKDOWN_PRESENTATION_SETTINGS, loadingAnimationPreset: "ikun",
     lightThemePreset: "neutral", darkThemePreset: "default", pointerCursors: false, diffMarkers: "color" });
   useLayoutEffect(() => applySurfaceAppearanceToElement(document.documentElement, surface), [surface]);
-  return <TestLocalizationProvider messages={englishCatalog}><SurfaceAppearanceProvider value={surface}>
+  return <FixtureLocalization rtl={rtl}><SurfaceAppearanceProvider value={surface}>
     <div {...surface.rootProps} className={mode === "dark" ? "dark" : ""}
       style={{ ...surface.rootProps.style, background: "var(--po-editor-bg)", color: "var(--po-text)",
         padding: 32, minHeight: "100vh", width: "100%", flexShrink: 0, boxSizing: "border-box" }}>
@@ -54,7 +65,7 @@ function Harness() {
         </DocumentModelProvider>
       </section>
     </div>
-  </SurfaceAppearanceProvider></TestLocalizationProvider>;
+  </SurfaceAppearanceProvider></FixtureLocalization>;
 }
 createRoot(document.getElementById("root")!).render(<StrictMode><Harness /></StrictMode>);
 
@@ -66,11 +77,11 @@ const api = {
     await document.fonts.ready;
     await settle();
   },
-  async reset(mode: "light" | "dark", columns = 2) { reset(mode, columns); await api.ready(); },
+  async reset(mode: "light" | "dark", columns = 2, rtl = false) { reset(mode, columns, rtl); await api.ready(); },
   async visitAwayAndBack() { show(false); await settle(); show(true); await api.ready(); },
   async corner() {
     const scroll = document.querySelector<HTMLDivElement>(".csv-table-editor__scroll")!;
-    scroll.scrollLeft = scroll.scrollWidth - scroll.clientWidth;
+    scroll.scrollLeft = (document.documentElement.dir === "rtl" ? -1 : 1) * (scroll.scrollWidth - scroll.clientWidth);
     await settle();
     const rect = document.querySelector(".csv-table-editor__resize-handle")!.getBoundingClientRect();
     return { x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2) };
@@ -92,11 +103,13 @@ const api = {
       previewTracks: preview?.children.length ?? 0, previewCells: preview?.querySelectorAll("td").length ?? 0,
       previews: table().querySelectorAll(".csv-table-editor__expansion-cell").length,
       mountedCells: Number(table().dataset.csvMountedCells), firstInputValue: firstInput?.value,
+      previewColumns: Number(table().dataset.csvPreviewColumns ?? 0), scrollOffset: Math.abs(scroll.scrollLeft),
+      lastColumn: Math.max(...Array.from(table().querySelectorAll<HTMLElement>("thead th[data-csv-column]"), cell => Number(cell.dataset.csvColumn))),
       scroll: bounds(scroll), surface: bounds(document.querySelector(".csv-table-editor__surface")!),
       status: document.querySelector(".csv-table-editor__resize-status")?.textContent };
   },
   async history(redo: boolean) {
-    const input = table().querySelector<HTMLInputElement>('input[data-csv-row="1"][data-csv-column="0"]')!;
+    const input = table().querySelector<HTMLInputElement>('input[data-csv-row="1"]')!;
     input.focus();
     input.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "z", metaKey: true, shiftKey: redo }));
     await settle();

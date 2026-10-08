@@ -278,10 +278,16 @@ export function useTabularViewport({
       const measuredRowSize = Number.parseFloat(
         computed.getPropertyValue("--po-editable-table-row-min-height"),
       );
+      // offsetLeft is a physical coordinate and can become negative as an RTL
+      // table grows. Convert the inline-start inset to logical scroll space.
+      const viewportInlineEnd = scroll.getBoundingClientRect().left + scroll.clientLeft + scroll.clientWidth;
+      const surfaceInlineOffset = direction === "rtl"
+        ? viewportInlineEnd - surface.getBoundingClientRect().right + Math.abs(scroll.scrollLeft)
+        : surface.offsetLeft;
       metricsRef.current = {
         rowSize: measuredRowSize > 0 ? measuredRowSize : DEFAULT_ROW_SIZE,
         surfaceBlockOffset: surface.offsetTop,
-        surfaceInlineOffset: surface.offsetLeft,
+        surfaceInlineOffset,
       };
       scrollSampleRef.current = {
         offset: scroll.scrollTop,
@@ -298,7 +304,7 @@ export function useTabularViewport({
     observer?.observe(scroll);
     observer?.observe(surface);
     return () => observer?.disconnect();
-  }, [scrollRef, scheduleWindowUpdate, surfaceRef, updateWindow]);
+  }, [direction, scrollRef, scheduleWindowUpdate, surfaceRef, updateWindow]);
 
   useLayoutEffect(() => {
     updateWindow();

@@ -39,6 +39,24 @@ afterEach(() => {
 });
 
 describe("tabular viewport geometry changes", () => {
+  it("keeps RTL geometry in logical scroll coordinates as the table grows", () => {
+    act(() => root.render(<Harness rows={2} columns={20} direction="rtl" />));
+    const scroll = container.firstElementChild as HTMLElement;
+    const surface = scroll.firstElementChild as HTMLElement;
+    scroll.scrollLeft = -960;
+    Object.defineProperties(scroll, {
+      clientWidth: { configurable: true, value: 400 },
+      getBoundingClientRect: { configurable: true, value: () => ({ left: 100, right: 500 }) },
+    });
+    Object.defineProperties(surface, {
+      offsetLeft: { configurable: true, value: -2_000 },
+      getBoundingClientRect: { configurable: true, value: () => ({ right: 500 - 32 + Math.abs(scroll.scrollLeft) }) },
+    });
+    act(() => root.render(<Harness rows={2} columns={25} direction="rtl" />));
+    expect(projection.columnRange.start).toBeLessThanOrEqual(10);
+    expect(projection.columnRange.end).toBeGreaterThanOrEqual(14);
+  });
+
   it.each([
     ["resize frame", 2, 5], ["scroll end", 2, 5],
     ["resize frame", 5, 2], ["scroll end", 5, 2],
@@ -68,13 +86,13 @@ describe("tabular viewport geometry changes", () => {
   });
 });
 
-function Harness({ rows, columns }: { rows: number; columns: number }) {
+function Harness({ rows, columns, direction = "ltr" }: { rows: number; columns: number; direction?: "ltr" | "rtl" }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const widths = useMemo(() => Array.from({ length: columns }, () => 96), [columns]);
   projection = useTabularViewport({
     rowCount: rows, columnWidths: widths,
-    direction: "ltr", hasHeader: false, hasRowNumbers: false, scrollRef, surfaceRef,
+    direction, hasHeader: false, hasRowNumbers: false, scrollRef, surfaceRef,
   });
   return <div ref={scrollRef}><div ref={surfaceRef} /></div>;
 }

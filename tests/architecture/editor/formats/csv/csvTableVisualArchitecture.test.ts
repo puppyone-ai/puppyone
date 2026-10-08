@@ -266,7 +266,8 @@ describe("CSV table visual architecture", () => {
     expect(csvEditorSource).toContain("csv-table-editor__expansion-row");
     expect(csvEditorSource).toContain("csv-table-editor__expansion-cell");
     expect(csvEditorSource).toContain("onPreviewChange={setResizePreview}");
-    expect(csvEditorSource).toContain("structuralDataRowCount + previewRowIndex + 1");
+    // Preview record numbering is covered by csvTableInteractions' DOM checks;
+    // it must remain correct when preview rows enter the virtual window.
     expect(csvResizeSource).not.toContain('className="csv-table-editor__resize-preview"');
     expect(csvResizeSource).not.toContain("getCsvTableResizePreviewGeometry");
     expect(csvResizeSource).toContain("getCsvTableResizeViewportConstraints");

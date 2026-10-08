@@ -6,6 +6,7 @@ import { ArrowDownRight } from "lucide-react";
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -19,6 +20,8 @@ const RESIZE_DRAG_ACTIVATION_DISTANCE = 8;
 const RESIZE_PICKER_ROWS = 6;
 const RESIZE_PICKER_COLUMNS = 6;
 const FALLBACK_ROW_HEIGHT = 31;
+const EXPANSION_EDGE_ZONE = 48;
+const EXPANSION_EDGE_SPEED = 600;
 
 export type CsvTableExpansion = Readonly<{
   addedRows: number;
@@ -29,6 +32,15 @@ type DragSession = {
   pointerId: number;
   startX: number;
   startY: number;
+  currentX: number;
+  currentY: number;
+  direction: "ltr" | "rtl";
+  scrollContainer: HTMLElement | null;
+  startScrollOffset: number;
+  autoScrollOffset: number;
+  lastFrameTime: number | null;
+  baseRows: number;
+  baseColumns: number;
   moved: boolean;
   rowHeight: number;
   columnWidth: number;
@@ -68,6 +80,7 @@ export function CsvTableResizeControl({
   const pickerRef = useRef<HTMLDivElement>(null);
   const pickerCellRefs = useRef(new Map<string, HTMLButtonElement>());
   const dragSessionRef = useRef<DragSession | null>(null);
+  const autoScrollFrameRef = useRef<number | null>(null);
   const suppressClickRef = useRef(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerSelection, setPickerSelection] = useState<CsvTableExpansion>({
@@ -82,12 +95,17 @@ export function CsvTableResizeControl({
   const canExpand = availableRows > 0 || availableColumns > 0;
   const canOpenPicker = pickerRowCount > 0 && pickerColumnCount > 0;
 
-  const clearDragSession = useCallback(() => {
+  const clearDragSession = useCallback((restoreScroll = true) => {
     const session = dragSessionRef.current;
     dragSessionRef.current = null;
+    if (autoScrollFrameRef.current !== null) window.cancelAnimationFrame(autoScrollFrameRef.current);
+    autoScrollFrameRef.current = null;
     setDragPreview(null);
     onPreviewChange(null);
     if (!session) return;
+    if (restoreScroll && session.scrollContainer) {
+      session.scrollContainer.scrollLeft = session.direction === "rtl" ? -session.startScrollOffset : session.startScrollOffset;
+    }
 
     const handle = buttonRef.current;
     try {
@@ -99,7 +117,23 @@ export function CsvTableResizeControl({
     }
   }, [onPreviewChange]);
 
-  useEffect(() => () => onPreviewChange(null), [onPreviewChange]);
+  useEffect(() => () => clearDragSession(), [clearDragSession]);
+
+  const finishDrag = useCallback((cancelled: boolean) => {
+    const session = dragSessionRef.current;
+    if (!session) return null;
+    clearDragSession(cancelled);
+    suppressClickRef.current = session.moved;
+    if (!cancelled && session.moved && (session.preview.addedRows || session.preview.addedColumns)) {
+      onExpand(session.baseRows + session.preview.addedRows, session.baseColumns + session.preview.addedColumns);
+    }
+    return session;
+  }, [clearDragSession, onExpand]);
+
+  useEffect(() => {
+    // A changed table shape or reading direction invalidates a live gesture.
+    if (dragSessionRef.current) clearDragSession();
+  }, [currentColumnCount, currentDataRowCount, direction, clearDragSession]);
 
   useEffect(() => {
     const handle = buttonRef.current;
@@ -109,12 +143,12 @@ export function CsvTableResizeControl({
 
     const cancelActiveDrag = () => {
       if (!dragSessionRef.current) return;
-      clearDragSession();
+      finishDrag(true);
     };
     const onPointerEndOutsideHandle = (event: PointerEvent) => {
       const session = dragSessionRef.current;
       if (!session || event.pointerId !== session.pointerId) return;
-      cancelActiveDrag();
+      finishDrag(event.type === "pointercancel");
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || !dragSessionRef.current) return;
@@ -138,7 +172,50 @@ export function CsvTableResizeControl({
       document.removeEventListener("keydown", onKeyDown, true);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [clearDragSession]);
+  }, [clearDragSession, finishDrag]);
+
+  const publishDragPreview = useCallback((session: DragSession) => {
+    const currentY = session.pointerBounds
+      ? clampNumber(session.currentY, session.pointerBounds.top, session.pointerBounds.bottom)
+      : session.currentY;
+    const expansion = getCsvTableExpansionFromDrag({
+      horizontalDistance: (session.direction === "rtl" ? session.startX - session.currentX : session.currentX - session.startX)
+        + session.autoScrollOffset,
+      verticalDistance: currentY - session.startY,
+      rowHeight: session.rowHeight, columnWidth: session.columnWidth,
+      maximumAddedRows: session.maximumAddedRows, maximumAddedColumns: session.maximumAddedColumns,
+    });
+    if (expansion.addedRows === session.preview.addedRows && expansion.addedColumns === session.preview.addedColumns) return;
+    session.preview = expansion;
+    setDragPreview(expansion);
+    onPreviewChange(expansion.addedRows || expansion.addedColumns ? expansion : null);
+  }, [onPreviewChange]);
+
+  const scrollPreviewIntoView = useCallback(() => {
+    const session = dragSessionRef.current;
+    if (!session?.scrollContainer || !session.autoScrollOffset) return;
+    const offset = session.startScrollOffset + session.autoScrollOffset;
+    session.scrollContainer.scrollLeft = session.direction === "rtl" ? -offset : offset;
+  }, []);
+  // New tracks must exist before asking the browser to scroll into them.
+  useLayoutEffect(scrollPreviewIntoView, [dragPreview, scrollPreviewIntoView]);
+
+  const advanceAutoScroll = (time: number) => {
+    autoScrollFrameRef.current = null;
+    const session = dragSessionRef.current;
+    if (!session?.moved || !session.scrollContainer) return;
+    const velocity = getCsvExpansionEdgeVelocity(session.currentX, getElementClientViewportRect(session.scrollContainer), session.direction);
+    if (!velocity || session.preview.addedColumns >= session.maximumAddedColumns) {
+      session.lastFrameTime = null;
+      return;
+    }
+    const elapsed = session.lastFrameTime === null ? 16 : Math.max(0, Math.min(32, time - session.lastFrameTime));
+    session.lastFrameTime = time;
+    session.autoScrollOffset += velocity * elapsed / 1_000;
+    publishDragPreview(session);
+    scrollPreviewIntoView();
+    autoScrollFrameRef.current = window.requestAnimationFrame(advanceAutoScroll);
+  };
 
   useEffect(() => {
     if (!pickerOpen) return;
@@ -205,8 +282,6 @@ export function CsvTableResizeControl({
     const rowHeight = measuredRowHeight > 0 ? measuredRowHeight : FALLBACK_ROW_HEIGHT;
     const scrollContainer = surface?.closest<HTMLElement>(".csv-table-editor__scroll");
     const viewportConstraints = getCsvTableResizeViewportConstraints({
-      columnWidth: EDITABLE_TABLE_COLUMN_MIN_WIDTH,
-      direction,
       editorRect: scrollContainer ? getElementClientViewportRect(scrollContainer) : null,
       maximumAddedColumns: availableColumns,
       maximumAddedRows: availableRows,
@@ -221,6 +296,15 @@ export function CsvTableResizeControl({
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
+      currentX: event.clientX,
+      currentY: event.clientY,
+      direction,
+      scrollContainer: scrollContainer ?? null,
+      startScrollOffset: Math.abs(scrollContainer?.scrollLeft ?? 0),
+      autoScrollOffset: 0,
+      lastFrameTime: null,
+      baseRows: currentDataRowCount,
+      baseColumns: currentColumnCount,
       moved: false,
       rowHeight,
       columnWidth: EDITABLE_TABLE_COLUMN_MIN_WIDTH,
@@ -239,9 +323,7 @@ export function CsvTableResizeControl({
   const handlePointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const session = dragSessionRef.current;
     if (!session || session.pointerId !== event.pointerId) return;
-    const currentX = session.pointerBounds
-      ? clampNumber(event.clientX, session.pointerBounds.left, session.pointerBounds.right)
-      : event.clientX;
+    const currentX = event.clientX;
     const currentY = session.pointerBounds
       ? clampNumber(event.clientY, session.pointerBounds.top, session.pointerBounds.bottom)
       : event.clientY;
@@ -253,34 +335,19 @@ export function CsvTableResizeControl({
     if (!session.moved && movement < RESIZE_DRAG_ACTIVATION_DISTANCE) return;
 
     session.moved = true;
-    session.preview = getCsvTableExpansionFromDrag({
-      horizontalDistance,
-      verticalDistance,
-      rowHeight: session.rowHeight,
-      columnWidth: session.columnWidth,
-      maximumAddedRows: session.maximumAddedRows,
-      maximumAddedColumns: session.maximumAddedColumns,
-    });
-    setDragPreview(session.preview);
-    onPreviewChange(
-      session.preview.addedRows > 0 || session.preview.addedColumns > 0
-        ? {
-            addedRows: session.preview.addedRows,
-            addedColumns: session.preview.addedColumns,
-          }
-        : null,
-    );
+    session.currentX = currentX;
+    session.currentY = event.clientY;
+    publishDragPreview(session);
+    if (autoScrollFrameRef.current === null) autoScrollFrameRef.current = window.requestAnimationFrame(advanceAutoScroll);
     event.preventDefault();
     event.stopPropagation();
   };
 
   const finishPointerInteraction = (event: ReactPointerEvent<HTMLButtonElement>, cancelled: boolean) => {
-    const session = dragSessionRef.current;
-    if (!session || session.pointerId !== event.pointerId) return;
-    clearDragSession();
+    if (dragSessionRef.current?.pointerId !== event.pointerId) return;
+    const session = finishDrag(cancelled);
+    if (!session) return;
     if (!session.moved) return;
-    suppressClickRef.current = !cancelled;
-    if (!cancelled) commitExpansion(session.preview);
     event.preventDefault();
     event.stopPropagation();
   };
@@ -496,21 +563,16 @@ function snapOutwardDistanceToTrackCount(
 }
 
 /**
- * Freezes the visible CSV scroll viewport at drag start. A preview may consume
- * the remaining canvas after the current table, but it cannot extend outside
- * that viewport or produce a partially clipped row or column.
+ * Vertical expansion uses the remaining canvas; horizontal expansion may grow
+ * past the viewport through an edge-scrolled, virtualized preview.
  */
 export function getCsvTableResizeViewportConstraints({
-  columnWidth,
-  direction,
   editorRect,
   maximumAddedColumns,
   maximumAddedRows,
   rowHeight,
   surfaceRect,
 }: Readonly<{
-  columnWidth: number;
-  direction: "ltr" | "rtl";
   editorRect: CsvTableResizeRect | null;
   maximumAddedColumns: number;
   maximumAddedRows: number;
@@ -528,20 +590,10 @@ export function getCsvTableResizeViewportConstraints({
   }
 
   const normalizedRowHeight = normalizePositiveDimension(rowHeight, FALLBACK_ROW_HEIGHT);
-  const normalizedColumnWidth = normalizePositiveDimension(
-    columnWidth,
-    EDITABLE_TABLE_COLUMN_MIN_WIDTH,
-  );
   const availableBlockSize = Math.max(0, editorRect.bottom - surfaceRect.bottom);
-  const availableInlineSize = Math.max(0, direction === "rtl"
-    ? surfaceRect.left - editorRect.left
-    : editorRect.right - surfaceRect.right);
 
   return {
-    maximumAddedColumns: Math.min(
-      safeMaximumColumns,
-      Math.floor(availableInlineSize / normalizedColumnWidth),
-    ),
+    maximumAddedColumns: safeMaximumColumns,
     maximumAddedRows: Math.min(
       safeMaximumRows,
       Math.floor(availableBlockSize / normalizedRowHeight),
@@ -553,6 +605,12 @@ export function getCsvTableResizeViewportConstraints({
       top: editorRect.top,
     },
   } as const;
+}
+
+export function getCsvExpansionEdgeVelocity(pointerX: number, viewport: CsvTableResizeRect, direction: "ltr" | "rtl"): number {
+  const pressure = direction === "rtl" ? viewport.left + EXPANSION_EDGE_ZONE - pointerX
+    : pointerX - (viewport.right - EXPANSION_EDGE_ZONE);
+  return Math.max(0, Math.min(1, pressure / EXPANSION_EDGE_ZONE)) * EXPANSION_EDGE_SPEED;
 }
 
 function expansionKey(expansion: CsvTableExpansion): string {
