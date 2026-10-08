@@ -4,7 +4,7 @@ import {
 } from "../../../lib/cloudApi";
 import type { ProjectCloudContext } from "../project/context/projectCloudContext";
 import type { RepositoryTarget } from "../repositoryTarget";
-import { createCloudDataService } from "./cloudDataPort";
+import { createCloudDataService } from "../files/cloudDataPort";
 
 type ResolvedContext = Extract<ProjectCloudContext, { status: "resolved" }>;
 type Selection = { authority: string; context: ResolvedContext };

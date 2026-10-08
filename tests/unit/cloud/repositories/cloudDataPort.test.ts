@@ -1,9 +1,11 @@
 /** @vitest-environment happy-dom */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FILE_FORMATS, createWorkspaceResourceUri, getEditorSourceRequirement, isDocumentDataNode, resolveEditorViewer } from "@puppyone/shared-ui";
-import { createCloudDataService } from "../../../../src/features/cloud/workbench/cloudDataPort";
+import { createCloudDataService } from "../../../../src/features/cloud/files/cloudDataPort";
 import { cloudCache } from "../../../../src/features/cloud/cache/cloudCache";
 import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
+
+import { nativeSnapshot, nativeVersion, nativeReceipt } from "../../../fixtures/cloud/repositories/nativeRepository";
 
 const API = "https://cloud-fixture.puppyone.ai/api/v1";
 const session: DesktopCloudSession = { api_base_url: API, user_id: "owner", user_email: "owner@example.com",
@@ -28,19 +30,19 @@ beforeEach(() => {
     const operation = url.pathname.split("/").at(-1);
     const path = url.searchParams.get("path") ?? "";
     if (request.method === "GET") {
-      if (operation === "ls") return { head_commit_id: `head-${revision}`, entries: [...files.keys()].filter((file) => file.startsWith(path ? `${path}/` : "") && !file.slice(path.length + (path ? 1 : 0)).includes("/")).map(entry) };
+      if (operation === "ls") return { ...nativeSnapshot(`head-${revision}`), entries: [...files.keys()].filter((file) => file.startsWith(path ? `${path}/` : "") && !file.slice(path.length + (path ? 1 : 0)).includes("/")).map(entry) };
       if (!files.has(path)) throw error(404);
-      if (operation === "stat") return { ...entry(path), exists: true, head_commit_id: `head-${revision}` };
-      if (operation === "cat") return { path, type: entry(path).type, content_text: files.get(path), head_commit_id: `head-${revision}` };
+      if (operation === "stat") return { ...entry(path), exists: true, ...nativeSnapshot(`head-${revision}`) };
+      if (operation === "cat") return { path, type: entry(path).type, content_text: files.get(path), ...nativeSnapshot(`head-${revision}`) };
     }
     const body = JSON.parse(request.body);
     if (operation === "sign") return { url: `/api/v1/content/project/inline?path=${encodeURIComponent(body.path)}&token=fixture-token` };
     if (body.base_commit_id !== `head-${revision}`) throw error(409);
-    if (operation === "write") { files.set(body.path, body.content); revision++; return { path: body.path, commit_id: `head-${revision}`, conflicts: [] }; }
+    if (operation === "write") { files.set(body.path, body.content); revision++; return { path: body.path, ...nativeReceipt(`head-${revision}`), conflicts: [] }; }
     if (operation === "mv") { files.set(body.new_path, files.get(body.old_path)!); files.delete(body.old_path); }
     if (operation === "rm") files.delete(body.path);
     revision++;
-    return { path: body.path, commit_id: `head-${revision}` };
+    return { path: body.path, ...nativeReceipt(`head-${revision}`) };
   });
   window.puppyoneDesktop = { requestCloudSessionApi: bridge } as unknown as NonNullable<typeof window.puppyoneDesktop>;
 });
@@ -58,7 +60,7 @@ describe("Web-aligned Cloud reads", () => {
     const first = preflight.dataPort.listChildren(null);
     const second = mounted.dataPort.listChildren(null);
     expect(count("ls")).toBe(1);
-    finish({ entries: [entry("readme.md")], head_commit_id: "head-1" });
+    finish({ entries: [entry("readme.md")], ...nativeSnapshot("head-1") });
     const [left, right] = await Promise.all([first, second]);
     expect(left).toEqual(right);
     expect(mounted.dataPort.getCachedChildren!(null)).toEqual(right);
@@ -82,22 +84,23 @@ describe("Web-aligned Cloud reads", () => {
     expect(cloud.dataPort.getCachedChildren!(null)?.some((node) => node.name === "new.md")).toBe(false);
   });
 
-  it("keeps preview signing read-only and never uses a cached root as a write baseline", async () => {
+  it("keeps preview signing read-only and protects an observed revision with CAS", async () => {
     const cloud = service();
     await cloud.dataPort.listChildren(null);
     await cloud.dataPort.getFileUrl!("movie.mp4");
     await cloud.dataPort.listChildren(null);
     expect(count("ls")).toBe(1);
     revision++;
-    await cloud.dataPort.deleteNode!("movie.mp4");
+    await expect(cloud.dataPort.deleteNode!("movie.mp4")).rejects.toMatchObject({ status: 409 });
     const deletion = bridge.mock.calls.find(([request]) => request.path.endsWith("/rm"))![0];
-    expect(JSON.parse(deletion.body).base_commit_id).toBe("head-2");
+    expect(JSON.parse(deletion.body).base_commit_id).toBe("head-1");
+    expect(count("ls")).toBe(1);
   });
 
-  it("starts text content before slow stat completes and shares it without coupling cancellation", async () => {
+  it("opens text with one cat request and shares it without coupling cancellation", async () => {
     const actual = bridge.getMockImplementation()! as (request: unknown) => Promise<unknown>;
     let finish!: (value: unknown) => void;
-    bridge.mockImplementation((request) => request.path.includes("/stat")
+    bridge.mockImplementation((request) => request.path.includes("/cat")
       ? new Promise((resolve) => { finish = resolve; }) : actual(request));
     const controller = new AbortController();
     const cancelled = service().dataPort.readFile!("readme.md", { signal: controller.signal });
@@ -105,9 +108,10 @@ describe("Web-aligned Cloud reads", () => {
     await vi.waitFor(() => expect(count("cat")).toBe(1));
     const rejection = expect(cancelled).rejects.toMatchObject({ name: "AbortError" });
     controller.abort(); await rejection;
-    expect(count("stat")).toBe(1);
-    finish({ ...entry("readme.md"), exists: true });
-    expect(await surviving).toMatchObject({ content: "Cloud original", version: "head-1" });
+    expect(count("stat")).toBe(0);
+    expect(count("ls")).toBe(0);
+    finish({ path: "readme.md", type: "markdown", content_text: "Cloud original", ...nativeSnapshot("head-1") });
+    expect(await surviving).toMatchObject({ content: "Cloud original", version: nativeVersion("head-1") });
     expect(count("cat")).toBe(1);
   });
 
@@ -124,12 +128,45 @@ describe("Web-aligned Cloud reads", () => {
     expect(count("ls")).toBe(3);
   });
 
+  it("keeps a replacement provider's shared read alive after the first UI lease is revoked", async () => {
+    let current = true;
+    let finish!: (value: unknown) => void;
+    bridge.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const retired = service({ isCurrent: () => current }).dataPort.readFile!("readme.md");
+    const mounted = service().dataPort.readFile!("readme.md");
+    const rejected = expect(retired).rejects.toThrow(/session changed/);
+    current = false;
+    finish({ path: "readme.md", type: "markdown", content_text: "Cloud original", ...nativeSnapshot("head-1") });
+    await rejected;
+    expect(await mounted).toMatchObject({ content: "Cloud original", version: nativeVersion("head-1") });
+    expect(count("cat")).toBe(1);
+  });
+
   it("clears stale directory snapshots when access is revoked", async () => {
     const cloud = service();
     await cloud.dataPort.listChildren(null);
     bridge.mockRejectedValue(error(403));
     await expect(cloud.dataPort.readFile!("readme.md")).rejects.toMatchObject({ status: 403 });
     expect(cloud.dataPort.getCachedChildren!(null)).toBeUndefined();
+  });
+
+  it("reads unknown text through stat then cat, and binary metadata without cat", async () => {
+    files.set("opaque-source", "plain text"); mimeTypes.set("opaque-source", "text/plain");
+    const cloud = service();
+    expect(await cloud.dataPort.readFile!("opaque-source")).toMatchObject({ content: "plain text" });
+    expect(bridge.mock.calls.map(([r]) => new URL(r.path, API).pathname.split("/").at(-1))).toEqual(["stat", "cat"]);
+    bridge.mockClear();
+    expect(await cloud.dataPort.readFile!("movie.mp4")).toMatchObject({ content: null });
+    expect(count("stat")).toBe(1); expect(count("cat")).toBe(0); expect(count("ls")).toBe(0);
+  });
+
+  it("accepts a coherent pinned response even when another writer commits during the read", async () => {
+    bridge.mockImplementation(async () => {
+      revision++;
+      return { path: "readme.md", type: "markdown", content_text: "Captured bytes", ...nativeSnapshot("head-1") };
+    });
+    expect(await service().dataPort.readFile!("readme.md")).toMatchObject({ content: "Captured bytes", version: nativeVersion("head-1") });
+    expect(count("cat")).toBe(1); expect(count("ls")).toBe(0);
   });
 });
 
@@ -225,11 +262,76 @@ describe("complete Cloud format input acceptance", () => {
 });
 
 describe("native Cloud provider", () => {
+  it("moves an observed directory with one atomic command and no root listing or per-file calls", async () => {
+    const cloud = service();
+    bridge.mockResolvedValueOnce({ entries: [{ path: "notes", name: "notes", type: "folder", children_count: 1000 }], ...nativeSnapshot("head-1") });
+    await cloud.dataPort.listChildren(null);
+    bridge.mockClear();
+    await cloud.dataPort.moveNode!("notes", "archive/notes");
+    expect(bridge).toHaveBeenCalledOnce();
+    const request = bridge.mock.calls[0][0];
+    expect(request.path).toBe("/content/project/mv");
+    expect(JSON.parse(request.body)).toMatchObject({ old_path: "notes", new_path: "archive/notes", no_clobber: true,
+      native: { repository_revision: nativeSnapshot("head-1").repository_revision, request_key: expect.stringMatching(/^[\da-f-]{36}$/) } });
+    expect(revision).toBe(2);
+  });
+
+  it("reuses the exact operation UUID and input after a committed response is lost", async () => {
+    const actual = bridge.getMockImplementation()! as (request: unknown) => Promise<unknown>;
+    const receipts = new Map<string, unknown>();
+    const cloud = service();
+    await cloud.dataPort.readFile!("readme.md");
+    bridge.mockClear();
+    bridge.mockImplementation(async (request) => {
+      const key = JSON.parse(request.body).native.request_key;
+      if (receipts.has(key)) return receipts.get(key);
+      const receipt = await actual(request); receipts.set(key, receipt);
+      throw error(503);
+    });
+    expect(await save(cloud.dataPort, "readme.md", "Once", nativeVersion("head-1"))).toMatchObject({ ok: true });
+    expect(bridge).toHaveBeenCalledTimes(2);
+    expect(bridge.mock.calls[0][0].body).toBe(bridge.mock.calls[1][0].body);
+    expect(revision).toBe(2); expect(files.get("readme.md")).toBe("Once");
+  });
+
+  it("keeps an unconfirmed operation identity for an explicit retry in the same provider", async () => {
+    const actual = bridge.getMockImplementation()! as (request: unknown) => Promise<unknown>;
+    const cloud = service(); await cloud.dataPort.readFile!("readme.md"); bridge.mockClear();
+    bridge.mockRejectedValue(error(503));
+    expect(await save(cloud.dataPort, "readme.md", "Retry", nativeVersion("head-1"))).toMatchObject({ ok: false, kind: "io" });
+    const originalBody = bridge.mock.calls[0][0].body;
+    bridge.mockImplementation(actual);
+    expect(await save(cloud.dataPort, "readme.md", "Retry", nativeVersion("head-1"))).toMatchObject({ ok: true });
+    expect(bridge.mock.calls[2][0].body).toBe(originalBody);
+  });
+
+  it("does not rebase an edit onto a different branch even when the file bytes match", async () => {
+    const cloud = service(); await cloud.dataPort.readFile!("readme.md");
+    const actual = bridge.getMockImplementation()! as (request: unknown) => Promise<unknown>;
+    bridge.mockClear();
+    bridge.mockImplementation(async (request) => {
+      if (request.method === "POST") throw error(409);
+      const result = await actual(request) as ReturnType<typeof nativeSnapshot>;
+      const ref = btoa("refs/heads/another");
+      return { ...result, repository_revision: { ...result.repository_revision, target_ref_b64: ref,
+        head_guard: { kind: "symbolic", target_b64: ref } } };
+    });
+    expect(await save(cloud.dataPort, "readme.md", "My edit", nativeVersion("head-1"))).toMatchObject({ ok: false, kind: "conflict" });
+    expect(bridge.mock.calls.filter(([r]) => r.method === "POST")).toHaveLength(1);
+  });
+
+  it("rejects a transaction receipt belonging to another project", async () => {
+    const cloud = service(); await cloud.dataPort.readFile!("readme.md"); bridge.mockClear();
+    bridge.mockResolvedValue({ path: "readme.md", ...nativeReceipt("head-2", "another") });
+    expect(await save(cloud.dataPort, "readme.md", "My edit", nativeVersion("head-1"))).toMatchObject({ ok: false, kind: "io" });
+    expect(bridge).toHaveBeenCalledOnce();
+  });
+
   it("creates the first file and folder with the existing empty-repository CAS contract", async () => {
     bridge.mockImplementation(async (request) => {
-      if (request.method === "GET") return { entries: [], head_commit_id: "" };
-      expect(JSON.parse(request.body).base_commit_id).toBe("");
-      return { path: JSON.parse(request.body).path, commit_id: "first-head" };
+      if (request.method === "GET") return { entries: [], ...nativeSnapshot("") };
+      expect(JSON.parse(request.body).native.repository_revision).toBeDefined();
+      return { path: JSON.parse(request.body).path, ...nativeReceipt("first-head") };
     });
     const cloud = service();
     await cloud.dataPort.createFile!("first.md", "First file");
@@ -244,8 +346,8 @@ describe("native Cloud provider", () => {
     expect(node.source).toBe("cloud");
     expect(node.path).toBe(createWorkspaceResourceUri(cloud.folder.uri, "readme.md"));
     expect(node.path).not.toContain("puppyone-local:");
-    expect(await cloud.dataPort.readFile!(node.path)).toMatchObject({ content: "Cloud original", version: "head-1", path: node.path });
-    expect(await save(cloud.dataPort, node.path, "Cloud edit", "head-1")).toEqual({ ok: true, version: "head-2" });
+    expect(await cloud.dataPort.readFile!(node.path)).toMatchObject({ content: "Cloud original", version: nativeVersion("head-1"), path: node.path });
+    expect(await save(cloud.dataPort, node.path, "Cloud edit", nativeVersion("head-1"))).toEqual({ ok: true, version: nativeVersion("head-2") });
     expect(files.get("readme.md")).toBe("Cloud edit");
     expect(bridge.mock.calls.every(([request]) => request.apiBaseUrl === API && !request.headers.Authorization)).toBe(true);
     const write = bridge.mock.calls.find(([request]) => request.path.endsWith("/write"))![0];
@@ -272,7 +374,7 @@ describe("native Cloud provider", () => {
   });
 
   it("does not accept entries outside the resolved Cloud scope", async () => {
-    bridge.mockResolvedValueOnce({ entries: [entry("secret.md")], head_commit_id: "head-1" });
+    bridge.mockResolvedValueOnce({ entries: [entry("secret.md")], ...nativeSnapshot("head-1") });
     const scoped = service({ context: { ...context, target: { kind: "scope", project_id: "project", scope_id: "scope" }, scopePath: "notes" } });
     await expect(scoped.dataPort.listChildren(null)).rejects.toThrow(/outside/);
   });
@@ -293,7 +395,7 @@ describe("native Cloud provider", () => {
     const cloud = service();
     await cloud.dataPort.readFile!("readme.md");
     files.set("readme.md", "Someone else's Cloud edit"); revision++;
-    expect(await save(cloud.dataPort, "readme.md", "My edit", "head-1")).toEqual({ ok: false, kind: "conflict", content: "Someone else's Cloud edit", version: "head-2" });
+    expect(await save(cloud.dataPort, "readme.md", "My edit", nativeVersion("head-1"))).toEqual({ ok: false, kind: "conflict", content: "Someone else's Cloud edit", version: nativeVersion("head-2") });
     expect(files.get("readme.md")).toBe("Someone else's Cloud edit");
     expect(bridge.mock.calls.filter(([request]) => request.path.endsWith("/write"))).toHaveLength(1);
   });
@@ -302,7 +404,7 @@ describe("native Cloud provider", () => {
     const cloud = service();
     await cloud.dataPort.readFile!("readme.md");
     files.set("data.json", '{"otherWriter":true}'); revision++;
-    expect(await save(cloud.dataPort, "readme.md", "My edit", "head-1")).toEqual({ ok: true, version: "head-3" });
+    expect(await save(cloud.dataPort, "readme.md", "My edit", nativeVersion("head-1"))).toEqual({ ok: true, version: nativeVersion("head-3") });
     expect(files.get("data.json")).toBe('{"otherWriter":true}');
     expect(bridge.mock.calls.filter(([request]) => request.path.endsWith("/write")).map(([request]) => JSON.parse(request.body).base_commit_id)).toEqual(["head-1", "head-2"]);
   });
@@ -310,7 +412,7 @@ describe("native Cloud provider", () => {
   it("serializes writes from two editors without mistaking another file's save for a conflict", async () => {
     const cloud = service();
     await Promise.all([cloud.dataPort.readFile!("readme.md"), cloud.dataPort.readFile!("data.json")]);
-    const result = await Promise.all([save(cloud.dataPort, "readme.md", "One", "head-1"), save(cloud.dataPort, "data.json", "{}", "head-1")]);
+    const result = await Promise.all([save(cloud.dataPort, "readme.md", "One", nativeVersion("head-1")), save(cloud.dataPort, "data.json", "{}", nativeVersion("head-1"))]);
     expect(result.every((item) => item.ok)).toBe(true);
     expect(files.get("readme.md")).toBe("One"); expect(files.get("data.json")).toBe("{}");
   });
@@ -325,7 +427,7 @@ describe("native Cloud provider", () => {
     const actual = bridge.getMockImplementation()! as (request: unknown) => Promise<unknown>;
     bridge.mockImplementation(async (request) => {
       const response = await actual(request);
-      return new URL(request.path, API).pathname.endsWith("/ls")
+      return /\/(ls|cat)(\?|$)/.test(request.path)
         ? { ...(response as object), head_commit_id: null } : response;
     });
     const cloud = service();
@@ -341,14 +443,14 @@ describe("native Cloud provider", () => {
     await cloud.dataPort.readFile!("readme.md");
     current = false;
     await expect(cloud.dataPort.listChildren(null)).rejects.toThrow(/session changed/);
-    await expect(save(cloud.dataPort, "readme.md", "Stale edit", "head-1")).rejects.toThrow(/session changed/);
+    await expect(save(cloud.dataPort, "readme.md", "Stale edit", nativeVersion("head-1"))).rejects.toThrow(/session changed/);
     expect(files.get("readme.md")).toBe("Cloud original");
     expect(bridge.mock.calls.filter(([request]) => request.method === "POST")).toHaveLength(0);
   });
 
   it("discards a result that arrives after the authority changed", async () => {
     let current = true;
-    bridge.mockImplementationOnce(async () => { current = false; return { entries: [entry("readme.md")], head_commit_id: "head-1" }; });
+    bridge.mockImplementationOnce(async () => { current = false; return { entries: [entry("readme.md")], ...nativeSnapshot("head-1") }; });
     await expect(service({ isCurrent: () => current }).dataPort.listChildren(null)).rejects.toThrow(/session changed/);
   });
 
@@ -364,8 +466,8 @@ describe("native Cloud provider", () => {
     files.set(path, "original");
     const cloud = service();
     const document = await cloud.dataPort.readFile!(createWorkspaceResourceUri(cloud.folder.uri, path));
-    expect(document).toMatchObject({ content: "original", version: "head-1" });
-    expect(await save(cloud.dataPort, document.path, "edited", document.version!)).toMatchObject({ ok: true, version: "head-2" });
+    expect(document).toMatchObject({ content: "original", version: nativeVersion("head-1") });
+    expect(await save(cloud.dataPort, document.path, "edited", document.version!)).toMatchObject({ ok: true, version: nativeVersion("head-2") });
     expect(files.get(path)).toBe("edited");
     expect(JSON.parse(bridge.mock.calls.find(([request]) => request.path.endsWith("/write"))![0].body))
       .toMatchObject({ path, content: "edited", base_commit_id: "head-1" });
@@ -378,7 +480,7 @@ describe("native Cloud provider", () => {
     const cloud = service();
     await cloud.dataPort.readFile!("page.html");
     files.set("page.html", "<h1>New HEAD</h1>"); revision++;
-    expect(await cloud.dataPort.getFileUrl!("page.html", { expectedVersion: "head-1" })).toBe("blob:cloud-html");
+    expect(await cloud.dataPort.getFileUrl!("page.html", { expectedVersion: nativeVersion("head-1") })).toBe("blob:cloud-html");
     expect(await (createUrl.mock.calls[0][0] as Blob).text()).toBe("<h1>Original</h1>");
     expect(bridge.mock.calls.some(([request]) => request.path.endsWith("/inline/sign"))).toBe(false);
     await cloud.dataPort.revokeFileUrl!("blob:foreign");
@@ -394,7 +496,7 @@ describe("native Cloud provider", () => {
     const url = new URL(await cloud.dataPort.getFileUrl!("movie.mp4"));
     expect(url.origin).toBe("https://cloud-fixture.puppyone.ai"); expect(url.searchParams.get("path")).toBe("movie.mp4");
     expect(bridge.mock.calls.some(([request]) => request.path.includes("/cat"))).toBe(false);
-    await expect(cloud.dataPort.getFileUrl!("movie.mp4", { expectedVersion: "head-1" })).rejects.toThrow(/version/);
+    await expect(cloud.dataPort.getFileUrl!("movie.mp4", { expectedVersion: nativeVersion("head-1") })).rejects.toThrow(/version/);
   });
 
   it.each([
@@ -431,46 +533,35 @@ describe("native Cloud provider", () => {
   it("preserves alternate extensions instead of silently appending .md or .json", async () => {
     files.set("notes.mdx", "before");
     const cloud = service(); await cloud.dataPort.readFile!("notes.mdx");
-    expect(await save(cloud.dataPort, "notes.mdx", "after", "head-1")).toMatchObject({ ok: true });
+    expect(await save(cloud.dataPort, "notes.mdx", "after", nativeVersion("head-1"))).toMatchObject({ ok: true });
     const request = bridge.mock.calls.find(([item]) => item.path.endsWith("/write"))![0];
     expect(JSON.parse(request.body).node_type).toBe("file");
   });
 
-  it("rejects a mixed blob/HEAD response and retries before establishing a save baseline", async () => {
-    const actual = bridge.getMockImplementation()! as (request: unknown) => Promise<unknown>;
-    let firstCat = true;
-    bridge.mockImplementation(async (request) => {
-      if (request.path.includes("/cat") && firstCat) {
-        firstCat = false; files.set("readme.md", "Published during read"); revision++;
-        return { content_text: "Cloud original", head_commit_id: "head-2" };
-      }
-      return actual(request);
-    });
-    const cloud = service();
-    expect(await cloud.dataPort.readFile!("readme.md")).toMatchObject({ content: "Published during read", version: "head-2" });
-    expect(await save(cloud.dataPort, "readme.md", "Edited current version", "head-2")).toMatchObject({ ok: true });
+  it("rejects a response whose commit and pinned revision disagree", async () => {
+    bridge.mockResolvedValue({ path: "readme.md", type: "markdown", content_text: "bytes",
+      ...nativeSnapshot("head-1"), head_commit_id: "head-2" });
+    await expect(service().dataPort.readFile!("readme.md")).rejects.toThrow(/inconsistent storage revision/);
+    expect(bridge).toHaveBeenCalledTimes(1);
   });
 
-  it("does not overwrite a file created while the directory response was being assembled", async () => {
+  it("does not overwrite a file created after the directory snapshot", async () => {
     const actual = bridge.getMockImplementation()! as (request: unknown) => Promise<unknown>;
-    let directoryReads = 0;
     bridge.mockImplementation(async (request) => {
-      if (request.path.includes("/ls") && ++directoryReads === 2) {
-        files.set("new.md", "Other creator"); revision++;
-        return { entries: [], head_commit_id: "head-2" };
-      }
-      return actual(request);
+      const response = await actual(request);
+      if (request.path.includes("/ls")) { files.set("new.md", "Other creator"); revision++; }
+      return response;
     });
-    await expect(service().dataPort.createFile!("new.md", "My new file")).rejects.toThrow(/already exists/);
+    await expect(service().dataPort.createFile!("new.md", "My new file")).rejects.toMatchObject({ status: 409 });
     expect(files.get("new.md")).toBe("Other creator");
-    expect(bridge.mock.calls.some(([request]) => request.method === "POST")).toBe(false);
+    expect(bridge.mock.calls.filter(([request]) => request.path.includes("/ls"))).toHaveLength(1);
   });
 
   it("allows a restored baseline only through CAS and never retries it without the original bytes", async () => {
-    expect(await save(service().dataPort, "readme.md", "Restored draft", "head-1")).toMatchObject({ ok: true });
+    expect(await save(service().dataPort, "readme.md", "Restored draft", nativeVersion("head-1"))).toMatchObject({ ok: true });
     const restored = service();
     files.set("readme.md", "New writer"); revision++;
-    expect(await save(restored.dataPort, "readme.md", "Older draft", "head-1")).toMatchObject({ ok: false, kind: "conflict", content: "New writer" });
+    expect(await save(restored.dataPort, "readme.md", "Older draft", nativeVersion("head-1"))).toMatchObject({ ok: false, kind: "conflict", content: "New writer" });
     expect(files.get("readme.md")).toBe("New writer");
   });
 

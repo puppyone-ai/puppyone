@@ -41,9 +41,10 @@ export function createCloudNativePreviewService({ auth, database, convertOffice,
     await assertSession(entry); return value;
   }
   async function head(entry) {
-    const directory = await request(entry, "ls");
-    if (typeof directory.head_commit_id !== "string" || !directory.head_commit_id) throw databaseError("stale-input");
-    return directory.head_commit_id;
+    // Root metadata carries the pinned revision without enumerating children.
+    const snapshot = await request(entry, "stat?path=");
+    if (typeof snapshot.head_commit_id !== "string" || !snapshot.head_commit_id) throw databaseError("stale-input");
+    return snapshot.head_commit_id;
   }
   function validateSignedUrl(entry, signed) {
     const base = new URL(entry.input.apiBaseUrl), url = new URL(signed.url, `${base.href}/`);

@@ -131,6 +131,35 @@ describe("account/revision-aware Cloud cache", () => {
     expect(freshLoader).toHaveBeenCalledTimes(1);
     expect(cache.read(context)).toEqual(["fresh"]);
   });
+
+  it("keeps another project's in-flight read shared and cacheable after invalidation", async () => {
+    const cache = createCloudCache();
+    const context = createContext(createSession("generation-1"));
+    let finish!: (value: string) => void;
+    const loader = vi.fn(() => new Promise<string>((resolve) => { finish = resolve; }));
+    const first = cache.load(context, loader, { ttlMs: 30_000 });
+    cache.invalidate({ projectId: "unrelated-project" });
+    const second = cache.load(context, loader, { ttlMs: 30_000 });
+    expect(first).toBe(second);
+    expect(loader).toHaveBeenCalledOnce();
+    finish("body"); await first;
+    expect(cache.read(context)).toBe("body");
+  });
+
+  it("invalidates overlapping paths without dropping sibling in-flight reads", async () => {
+    const cache = createCloudCache();
+    const context = { ...createContext(createSession("one")), path: "notes/one.md" };
+    const sibling = { ...context, path: "other/two.md" };
+    let finishOld!: (value: string) => void;
+    const old = cache.load(context, () => new Promise<string>((resolve) => { finishOld = resolve; }), { ttlMs: 1000 });
+    const pending = cache.load(sibling, async () => "sibling", { ttlMs: 1000 });
+    cache.invalidate({ projectId: context.projectId, path: "notes" });
+    expect(cache.load(sibling, async () => "duplicate", { ttlMs: 1000 })).toBe(pending);
+    await cache.load(context, async () => "fresh", { ttlMs: 1000 });
+    finishOld("stale"); await old; await pending;
+    expect(cache.read(context)).toBe("fresh");
+    expect(cache.read(sibling)).toBe("sibling");
+  });
 });
 
 function createSession(generation: string): DesktopCloudSession {

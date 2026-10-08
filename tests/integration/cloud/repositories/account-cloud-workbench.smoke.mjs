@@ -14,7 +14,10 @@ app.commandLine.appendSwitch("force-color-profile", "srgb");
 let window;
 const errors = [];
 const assert = (condition, message) => { if (!condition) throw new Error(message); };
-const evaluate = (code) => window.webContents.executeJavaScript(code, true);
+const evaluate = async (code) => {
+  try { return await window.webContents.executeJavaScript(code, true); }
+  catch (error) { throw new Error(`Renderer step failed: ${code}: ${error.message}; ${errors.join("; ")}`); }
+};
 const waitFor = async (expression) => {
   const deadline = Date.now() + 15000;
   while (Date.now() < deadline) { if (await evaluate(expression)) return; await new Promise((r) => setTimeout(r, 50)); }
@@ -83,14 +86,14 @@ app.whenReady().then(async () => {
     'A project without access-management permission may view MCP but cannot create a connection');
   await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
   await waitFor("!document.querySelector('.desktop-cloud-workspace-tool-dialog')");
-  await evaluate("document.querySelector('.desktop-account-cloud-workspace .desktop-titlebar-workspace-button').click()");
+  await evaluate("document.querySelector('.desktop-account-cloud-workspace .desktop-titlebar-location-button').click()");
   await waitFor("Boolean(document.querySelector('button[data-project-location=cloud]'))");
   assert(await evaluate("document.querySelector('button[data-project-location=cloud]').getAttribute('aria-pressed') === 'true' && !document.querySelector('.desktop-account-cloud-workspace .desktop-titlebar-actions [data-project-location]')"),
-    "Hosted location remains the centered project-menu slider, never a right-side Header replacement");
+    "Hosted location uses its dedicated location popover, outside the right-side Header tools");
   await evaluate("document.querySelector('button[data-project-location=cloud]').click()");
-  assert(await evaluate("Boolean(document.querySelector('.desktop-project-menu'))"), 'Selecting the current Cloud location retains the popover');
-  await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
-  await waitFor("!document.querySelector('.desktop-project-menu')");
+  assert(await evaluate("Boolean(document.querySelector('.desktop-project-location-menu'))"), 'Selecting the current Cloud location retains the popover');
+  await evaluate("document.querySelector('.desktop-titlebar-location-button').click()");
+  await waitFor("!document.querySelector('.desktop-project-location-menu')");
   assert(geometry.explorer.width > 100 && geometry.editor.width > 300 && geometry.editor.height > 400, "No-local hosted shell must have a usable native layout");
   await evaluate("window.__accountCloudSmoke.edit('ALPHA_EDIT_ONLY')");
   await waitFor("window.__accountCloudSmoke.state().writes.some(write => write.project === 'alpha' && write.content === 'ALPHA_EDIT_ONLY')");
@@ -128,7 +131,7 @@ app.whenReady().then(async () => {
   await waitFor("document.querySelector('.cm-content').textContent.includes('ALPHA_EDIT_ONLY')");
   await evaluate("window.__accountCloudSmoke.edit('ALPHA_AFTER_RELOGIN')");
   await waitFor("window.__accountCloudSmoke.state().writes.some(write => write.content === 'ALPHA_AFTER_RELOGIN')");
-  await evaluate("document.querySelector('.desktop-account-cloud-workspace .desktop-titlebar-workspace-button').click()");
+  await evaluate("document.querySelector('.desktop-account-cloud-workspace .desktop-titlebar-location-button').click()");
   await waitFor("Boolean(document.querySelector('button[data-project-location=local]'))");
   await evaluate("document.querySelector('button[data-project-location=local]').click()");
   await waitFor("!window.__accountCloudSmoke.state().active && Boolean(document.querySelector('.onboarding-project-list'))");

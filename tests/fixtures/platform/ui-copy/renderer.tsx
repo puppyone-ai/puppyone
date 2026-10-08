@@ -8,7 +8,7 @@ import { LocalizationProvider, useLocalization } from '@puppyone/localization/re
 import english from '../../../../src/localization/catalog-loaders/en';
 import { CloudWorkspaceSwitchDialog } from '../../../../src/features/cloud/workbench/CloudWorkspaceSwitchDialog';
 import { useCloudWorkspaceSwitch } from '../../../../src/features/cloud/workbench/useCloudWorkspaceSwitch';
-import type { NativeCloudDataService } from '../../../../src/features/cloud/workbench/cloudDataPort';
+import type { NativeCloudDataService } from '../../../../src/features/cloud/files/cloudDataPort';
 import { CloudSignedOutRoute } from '../../../../src/features/cloud/auth/CloudSignedOutRoute';
 import type { DesktopCloudAuthState } from '../../../../src/lib/cloudSession';
 import { DesktopCloudSignInCta } from '../../../../src/features/cloud/auth/DesktopCloudSignInCta';

@@ -20,6 +20,7 @@ const allowedUserInterfaceLiterals = new Set([
   "CLI",
   "HEAD",
   "PDF",
+  "MCP",
   // Input examples and file-extension tokens intentionally preserve their syntax.
   "https://…",
   // Decorative sharing example: keep the product URL identical in every locale.

@@ -1,3 +1,4 @@
+import { nativeSnapshot, nativeReceipt } from "./cloudRepositorySmokeFixture";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { EditorView } from "@codemirror/view";
 import { createWorkspaceRootUri, createWorkspaceResourceUri, getWorkspaceResourcePath, canonicalizeResourceUri, isDocumentDataNode, withEditorDocumentOperations, type DataPort, type Workspace, type WorkspaceFolder } from "@puppyone/shared-ui";
@@ -72,12 +73,12 @@ function listFixtureDirectory(path: string) {
   const names = new Set([...cloudFiles.keys()].filter((file) => !path || file.startsWith(`${path}/`))
     .map((file) => file.slice(path.length + (path ? 1 : 0)).split("/")[0]!));
   return { entries: [...names].map((name) => ({ path: [path, name].filter(Boolean).join("/"), name,
-    type: cloudFiles.has([path, name].filter(Boolean).join("/")) ? "file" : "folder", children_count: 1 })), head_commit_id: `cloud-${head}` };
+    type: cloudFiles.has([path, name].filter(Boolean).join("/")) ? "file" : "folder", children_count: 1 })), ...nativeSnapshot(`cloud-${head}`) };
 }
 function statFixture(path: string) {
-  const exists = cloudFiles.has(path) || [...cloudFiles.keys()].some((file) => file.startsWith(`${path}/`));
+  const exists = !path || cloudFiles.has(path) || [...cloudFiles.keys()].some((file) => file.startsWith(`${path}/`));
   if (!exists) return { transport: "puppyone-cloud-ipc-v1", ok: false, error: { status: 404, message: "Missing fixture" } };
-  return { path, name: path.split("/").at(-1), type: cloudFiles.has(path) ? "file" : "folder", mime_type: cloudMimeTypes.get(path), exists: true };
+  return { path, name: path.split("/").at(-1), type: cloudFiles.has(path) ? "file" : "folder", mime_type: cloudMimeTypes.get(path), exists: true, ...nativeSnapshot(`cloud-${head}`) };
 }
 const cloudWrites: Array<{ path: string; content: string }> = [];
 const localWrites: Array<{ path: string; content: string }> = [];
@@ -123,12 +124,12 @@ window.puppyoneDesktop = {
     if (operation === "stat") {
       return statFixture(path);
     }
-    if (operation === "cat") return { content_text: cloudFiles.get(path), head_commit_id: `cloud-${head}` };
+    if (operation === "cat") return { path, type: "file", content_text: cloudFiles.get(path), ...nativeSnapshot(`cloud-${head}`) };
     if (operation === "sign") return { url: `/api/v1/content/fixture-project/inline?path=${encodeURIComponent(body.path)}&token=fixture-token${resourceGeneration ? `-${resourceGeneration}` : ""}` };
     if (operation === "write") {
       if (body.base_commit_id !== `cloud-${head}`) return { transport: "puppyone-cloud-ipc-v1", ok: false, error: { status: 409, message: "Fixture conflict" } };
       cloudFiles.set(body.path, body.content); cloudWrites.push({ path: body.path, content: body.content }); head++;
-      return { path: body.path, commit_id: `cloud-${head}`, conflicts: [] };
+      return { path: body.path, ...nativeReceipt(`cloud-${head}`, "fixture-project"), conflicts: [] };
     }
     throw new Error(`Unexpected fixture request: ${request.path}`);
   }),
@@ -341,14 +342,15 @@ function SmokeAgentSidebar({ location, pending, agent, contentVisible }: {
   agent: ReturnType<typeof useCloudAgentWorkspace>;
   contentVisible: boolean;
 }) {
+  const { t } = useLocalization();
   const localActive = location === "local" && !pending;
   return <div className="desktop-right-sidebar-stack">
     <div className={`desktop-right-sidebar-surface ${location === "cloud" ? "is-active" : ""}`} aria-hidden={location !== "cloud"}>
       <CloudAgentSidebarHost controller={agent.controller} state={agent.state}
-        active={location === "cloud" && contentVisible} title="Cloud project" />
+        active={location === "cloud" && contentVisible} title={t("cloud.home.location.cloud")} />
     </div>
     <div className={`desktop-right-sidebar-surface ${localActive ? "is-active" : ""}`}
-      aria-hidden={!localActive} data-native-local-agent="true">Local Agent fixture</div>
+      aria-hidden={!localActive} data-native-local-agent="true">{t("agent.panel.chat", { agent: t("shell.navigation.local") })}</div>
   </div>;
 }
 

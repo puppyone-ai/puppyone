@@ -15,25 +15,15 @@ import {
   type Workspace,
   type WorkspaceFolder,
 } from "@puppyone/shared-ui";
-import { cloudApiRequest, type DesktopCloudSession } from "../../../lib/cloudApi";
+import { type DesktopCloudSession } from "../../../lib/cloudApi";
 import { resolveCloudApiBaseUrl } from "../../../../shared/cloudEndpoint.js";
 import type { ProjectCloudContext } from "../project/context/projectCloudContext";
 import type { ResolvedWorkbenchDataResource } from "../../data-workspace/workbenchDataPort";
 import { createCloudNativePreviewPorts } from "../../../platform";
-import { createCloudWorkbenchReads, waitForCloudRead } from "./cloudWorkbenchReads";
+import { waitForCloudRead } from "./cloudFileReads";
+import { createCloudFileClient } from "./cloudFileClient";
+import { snapshotVersion, statusOf, versionRevision, type CloudEntry } from "./contracts";
 
-type CloudEntry = {
-  path: string;
-  name: string;
-  type: string;
-  mime_type?: string | null;
-  size_bytes?: number | null;
-  children_count?: number | null;
-  exists?: boolean;
-};
-type CloudDirectory = { entries: CloudEntry[]; head_commit_id: string };
-type CloudContent = { content_text?: string | null; content?: unknown; head_commit_id: string };
-type CloudWrite = { path: string; commit_id: string; conflicts?: string[] };
 export type NativeCloudDataService = Readonly<{
   workspace: Workspace;
   folder: WorkspaceFolder;
@@ -90,23 +80,17 @@ export function createCloudDataService({
     workspace,
   };
   const apiPath = `/content/${encodeURIComponent(context.projectId)}`;
-  const reads = createCloudWorkbenchReads(session, context, apiBaseUrl, scopePath);
   const snapshots = new Map<string, Map<string, string>>();
   const snapshotUrls = new Set<string>();
   let mutationTail: Promise<unknown> = Promise.resolve();
   const assertCurrent = () => {
     if (!isCurrent()) throw new Error("Cloud workspace session changed. Reopen the Cloud workspace.");
   };
-  const request = async <T>(endpoint: string, body?: object): Promise<T> => {
-    assertCurrent();
-    const result = await cloudApiRequest<T>(`${apiPath}/${endpoint}`, session, undefined,
-      body ? { method: "POST", body: JSON.stringify(body) } : {}, apiBaseUrl);
-    assertCurrent();
-    return result;
-  };
+  const files = createCloudFileClient(session, context, apiBaseUrl, scopePath, assertCurrent);
   const relativePath = (resource: string | null): string => {
     assertValidDataResourceReference(resource);
-    return !resource ? "" : isDataResourceUri(resource)
+    if (!resource) return "";
+    return isDataResourceUri(resource)
       ? getWorkspaceResourcePath(rootUri, resource)
       : normalizeProviderPath(resource);
   };
@@ -121,7 +105,7 @@ export function createCloudDataService({
     return createWorkspaceResourceUri(rootUri, scopePath ? cleanPath.slice(scopePath.length).replace(/^\//, "") : cleanPath);
   };
   const mapEntry = (entry: CloudEntry) => mapCloudEntry(entry, resourceUri(entry.path), folder.id);
-  const list = (path: string | null) => reads.fetch<CloudDirectory>(`ls?path=${encodeURIComponent(remotePath(path))}`);
+  const list = (path: string | null) => files.list(remotePath(path));
   const remember = (path: string, version: string, content: string) => {
     const versions = snapshots.get(path) ?? new Map<string, string>();
     versions.set(version, content);
@@ -130,26 +114,13 @@ export function createCloudDataService({
     while (snapshots.size > 128) snapshots.delete(snapshots.keys().next().value!);
   };
   const readText = async (path: string) => {
-    // The HTTP cat contract reports project HEAD after reading the blob.
-    // Bracket that read so a concurrent publication cannot label old bytes
-    // with a newer HEAD and defeat the subsequent conditional write.
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const before = await head();
-      const result = await reads.fetch<CloudContent>(`cat?path=${encodeURIComponent(remotePath(path))}`);
-      if (typeof result.head_commit_id !== "string" || !result.head_commit_id) throw new Error("Cloud response has no storage revision.");
-      if (before !== result.head_commit_id) continue;
-      const content = typeof result.content_text === "string" ? result.content_text
-        : typeof result.content === "string" ? result.content
-          : result.content == null ? "" : JSON.stringify(result.content, null, 2);
-      remember(remotePath(path), result.head_commit_id, content);
-      return { content, version: result.head_commit_id };
-    }
-    throw new Error("Cloud changed while reading this file. Refresh to retry.");
+    const result = await files.readText(remotePath(path));
+    remember(remotePath(path), result.version, result.content);
+    return result;
   };
-  const stat = async (path: string): Promise<CloudEntry | null> => {
+  const stat = async (path: string) => {
     try {
-      const entry = await reads.load("stat", remotePath(path), () =>
-        reads.fetch<CloudEntry>(`stat?path=${encodeURIComponent(remotePath(path))}`));
+      const entry = await files.stat(remotePath(path));
       return entry.exists === false ? null : entry;
     } catch (error) {
       if (statusOf(error) === 404) return null;
@@ -161,27 +132,12 @@ export function createCloudDataService({
     mutationTail = pending.catch(() => undefined);
     return pending;
   };
-  const head = async () => {
-    const result = await list(null);
-    // The existing Cloud contract uses an explicit empty HEAD for a new,
-    // empty repository. Missing/null is invalid; "" is a valid CAS baseline.
-    if (typeof result.head_commit_id !== "string") throw new Error("Cloud response has no storage revision.");
-    return result.head_commit_id;
-  };
-  const coherentDirectory = async (path: string | null) => {
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const before = await head();
-      const directory = await list(path);
-      if (directory.head_commit_id === before) return directory;
-    }
-    throw new Error("Cloud changed while listing this folder. Refresh to retry.");
-  };
   const move = async (from: string, to: string) => {
     if (!relativePath(from) || !relativePath(to)) throw new Error("The Cloud repository root cannot be moved.");
     const oldPath = remotePath(from);
     const newPath = remotePath(to);
-    await request("mv", { old_path: oldPath, new_path: newPath,
-      no_clobber: true, base_commit_id: await head() });
+    await files.mutate("mv", { old_path: oldPath, new_path: newPath,
+      no_clobber: true }, await files.baseline(oldPath));
     for (const [path, versions] of [...snapshots]) {
       if (path === oldPath || path.startsWith(`${oldPath}/`)) {
         snapshots.delete(path); snapshots.set(`${newPath}${path.slice(oldPath.length)}`, versions);
@@ -199,33 +155,31 @@ export function createCloudDataService({
       let version = input.baseVersion;
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
-          const result = await request<CloudWrite>("write", {
-            path: remotePath(input.path), content: input.content,
-            node_type: nodeType(input.path), base_commit_id: version,
-          });
-          if (result.conflicts?.length) {
-            const latest = await readText(input.path);
-            return { ok: false, kind: "conflict", ...latest };
-          }
-          if (resourceUri(result.path) !== createWorkspaceResourceUri(rootUri, relativePath(input.path))) {
+          const result = await files.mutate("write", {
+            path: remotePath(input.path), content: input.content, node_type: nodeType(input.path),
+          }, version);
+          if (!result.path || resourceUri(result.path) !== createWorkspaceResourceUri(rootUri, relativePath(input.path))) {
             throw new Error("Cloud saved a different resource.");
           }
-          if (typeof result.commit_id !== "string" || !result.commit_id) throw new Error("Cloud save has no storage revision.");
-          remember(remotePath(input.path), result.commit_id, input.content);
-          return { ok: true, version: result.commit_id };
+          remember(remotePath(input.path), result.version, input.content);
+          return { ok: true, version: result.version };
         } catch (error) {
           if (statusOf(error) !== 409) throw error;
           const latest = await readText(input.path);
           // Another file changed the project HEAD. Retry only when this file's
           // original bytes are still intact; same-file edits stay a conflict.
-          if (original === undefined || latest.content !== original) return { ok: false, kind: "conflict", ...latest };
+          if (original === undefined || latest.content !== original || !sameTarget(version, latest.version)) {
+            return { ok: false, kind: "conflict", content: latest.content, version: latest.version };
+          }
           version = latest.version;
         }
       }
       return { ok: false, kind: "io", message: "Cloud is changing. Retry saving this file." };
     } catch (error) {
-      return { ok: false, kind: statusOf(error) === 404 ? "not-found"
-        : [401, 403].includes(statusOf(error)) ? "permission-denied" : "io",
+      let kind: "not-found" | "permission-denied" | "io" = "io";
+      if (statusOf(error) === 404) kind = "not-found";
+      else if ([401, 403].includes(statusOf(error))) kind = "permission-denied";
+      return { ok: false, kind,
       message: error instanceof Error ? error.message : String(error) };
     }
   });
@@ -253,11 +207,11 @@ export function createCloudDataService({
     } : {}),
     getCachedChildren: (path) => {
       assertCurrent();
-      return reads.peek<DataNode[]>("directory", remotePath(path));
+      return files.peekDirectory(remotePath(path))?.entries.map(mapEntry);
     },
     listChildren: async (path) => {
       assertCurrent();
-      const children = await reads.load("directory", remotePath(path), async () => (await list(path)).entries.map(mapEntry), 30_000);
+      const children = (await list(path)).entries.map(mapEntry);
       assertCurrent();
       return children;
     },
@@ -272,12 +226,16 @@ export function createCloudDataService({
     readFile: async (path, options): Promise<FileContent> => {
       assertCurrent();
       options?.signal?.throwIfAborted();
-      const result = await waitForCloudRead(reads.load("file", remotePath(path), () =>
-        readCloudFile(relativePath(path), () => stat(path), () => readText(path), mapEntry)), options?.signal);
+      // Share transport reads, not a result bound to another provider's UI lease.
+      const result = await waitForCloudRead(
+        readCloudFile(relativePath(path), () => stat(path), () => readText(path), mapEntry), options?.signal);
       assertCurrent();
       // Each service owns its own HTML version leases even when the bytes
       // were fetched by a different view of the same authenticated resource.
-      if (typeof result.content === "string" && result.version) remember(remotePath(path), result.version, result.content);
+      if (typeof result.content === "string" && result.version) {
+        remember(remotePath(path), result.version, result.content);
+        files.rememberVersion(remotePath(path), result.version);
+      }
       return result;
     },
     getFileUrl: async (path, options) => {
@@ -296,7 +254,7 @@ export function createCloudDataService({
       const signed = typeof bridge?.retainCloudPreviewResource === "function"
         ? await bridge.retainCloudPreviewResource({ apiBaseUrl, projectId: context.projectId, path: remotePath(path),
           expectedSession: { userId: session.user_id, generation: session.session_generation } })
-        : await request<{ url: string }>("inline/sign", { path: remotePath(path) });
+        : await files.sign(remotePath(path));
       const url = new URL(signed.url, `${apiBaseUrl.replace(/\/+$/, "")}/`);
       const expectedPath = `${base.pathname.replace(/\/+$/, "")}${apiPath}/inline`;
       if (url.origin !== base.origin || url.username || url.password || url.hash
@@ -313,19 +271,20 @@ export function createCloudDataService({
       documentPersistence: { kind: "cloud" as const, storageIdentity, persist },
       createFolder: (path: string) => serializeMutation(async () => {
         if (!relativePath(path)) throw new Error("The Cloud repository root already exists.");
-        await request("mkdir", { path: remotePath(path), base_commit_id: await head() });
+        const remote = remotePath(path);
+        const parent = remote.includes("/") ? remote.slice(0, remote.lastIndexOf("/")) : "";
+        await files.mutate("mkdir", { path: remote }, await files.baseline(parent));
       }),
       createFile: (path: string, content = "") => serializeMutation(async () => {
         const relative = relativePath(path);
         if (!relative) throw new Error("A Cloud file name is required.");
         const parent = relative.includes("/") ? relative.slice(0, relative.lastIndexOf("/")) : null;
-        const directory = await coherentDirectory(parent);
+        const directory = await list(parent);
         if (directory.entries.some((entry) => normalizeProviderPath(entry.path) === remotePath(path))) {
           throw new Error("A Cloud file already exists at this path.");
         }
-        if (typeof directory.head_commit_id !== "string") throw new Error("Cloud response has no storage revision.");
-        await request("write", { path: remotePath(path), content,
-          node_type: nodeType(path), base_commit_id: directory.head_commit_id });
+        await files.mutate("write", { path: remotePath(path), content,
+          node_type: nodeType(path) }, snapshotVersion(directory));
       }),
       renameNode: (path: string, name: string) => serializeMutation(async () => {
         if (!name || name === "." || name === ".." || /[\/\\\0]/.test(name)) throw new Error("Invalid Cloud file name.");
@@ -336,12 +295,12 @@ export function createCloudDataService({
       moveNode: (from: string, to: string) => serializeMutation(() => move(from, to)),
       deleteNode: (path: string) => serializeMutation(async () => {
         if (!relativePath(path)) throw new Error("The Cloud repository root cannot be deleted.");
-        await request("rm", { path: remotePath(path), recursive: true, base_commit_id: await head() });
+        await files.mutate("rm", { path: remotePath(path), recursive: true }, await files.baseline(remotePath(path)));
       }),
     } : {}),
   };
   return { workspace, folder, dataPort, writable,
-    invalidateReads: () => { assertCurrent(); reads.invalidate(); },
+    invalidateReads: () => { assertCurrent(); files.invalidate(); },
     resolveResource: (path) => {
     try {
       const providerPath = relativePath(path) || null;
@@ -361,21 +320,35 @@ function mapCloudEntry(entry: CloudEntry, uri: ResourceUri, folderId: string): D
   };
 }
 
-/** Keep Web's stat/source parallelism without weakening the source revision check. */
+/** Known text consumes the pinned cat response directly; other formats first resolve MIME. */
 async function readCloudFile(name: string, stat: () => Promise<CloudEntry | null>,
-  readText: () => Promise<{ content: string; version: string }>, mapEntry: (entry: CloudEntry) => DataNode): Promise<FileContent> {
-  const inferred = getEditorSourceRequirement({ name, type: getFileSemanticKind(name) });
+  readText: () => Promise<{ content: string; version: string; entry: CloudEntry }>,
+  mapEntry: (entry: CloudEntry) => DataNode): Promise<FileContent> {
   const needsText = (requirement: string) => requirement === "content" || requirement === "content-and-resource";
-  // Known text formats start alongside stat. Unknown formats wait for MIME.
-  const [entry, speculative] = await Promise.all([
-    stat(), needsText(inferred) ? readText() : Promise.resolve(null),
-  ]);
-  if (!entry || entry.type === "folder") throw new Error("Cloud file not found.");
+  const inferred = getEditorSourceRequirement({ name, type: getFileSemanticKind(name) });
+  let text: Awaited<ReturnType<typeof readText>> | null = null;
+  let entry: CloudEntry | null;
+  if (needsText(inferred)) {
+    text = await readText(); entry = text.entry;
+  } else {
+    entry = await stat();
+    if (!entry || entry.type === "folder") throw new Error("Cloud file not found.");
+    const node = mapEntry(entry);
+    if (needsText(getEditorSourceRequirement({ name, type: node.type, mimeType: entry.mime_type }))) {
+      text = await readText();
+      // cat is the content authority. Do not attach metadata from a different snapshot.
+      if ("repository_revision" in entry && snapshotVersion(entry as import("./contracts").CloudStat) !== text.version) entry = text.entry;
+    }
+  }
   const node = mapEntry(entry);
-  const requirement = getEditorSourceRequirement({ name, type: node.type, mimeType: entry.mime_type });
-  const text = needsText(requirement) ? speculative ?? await readText() : null;
   return { path: node.path, name: node.name, type: node.type as FileContent["type"],
     mimeType: node.mimeType, size: node.size, content: text?.content ?? null, version: text?.version ?? null };
+}
+
+function sameTarget(left: string, right: string) {
+  const a = versionRevision(left), b = versionRevision(right);
+  return a.generation === b.generation && a.object_format === b.object_format
+    && a.target_ref_b64 === b.target_ref_b64 && JSON.stringify(a.head_guard) === JSON.stringify(b.head_guard);
 }
 
 function normalizeProviderPath(path: string): string {
@@ -387,8 +360,7 @@ function normalizeProviderPath(path: string): string {
 function nodeType(path: string): "json" | "markdown" | "file" {
   // The Cloud writer appends .json/.md for structured types. Use file for
   // alternate extensions so a save can never silently change the file name.
-  return path.endsWith(".json") ? "json" : path.endsWith(".md") ? "markdown" : "file";
-}
-function statusOf(error: unknown): number {
-  return error && typeof error === "object" && "status" in error ? Number(error.status) : 0;
+  if (path.endsWith(".json")) return "json";
+  if (path.endsWith(".md")) return "markdown";
+  return "file";
 }

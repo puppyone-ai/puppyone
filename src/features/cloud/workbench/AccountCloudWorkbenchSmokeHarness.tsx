@@ -1,9 +1,10 @@
+import { nativeSnapshot, nativeReceipt } from "./cloudRepositorySmokeFixture";
 import { useEffect, useState } from "react";
 import { EditorView } from "@codemirror/view";
 import { useLocalization } from "@puppyone/localization";
 import { TypographyCatalogProvider, useTypographyCatalog, useTypographyRuntime } from "../../typography";
 import { resolveSurfaceAppearance, SurfaceAppearanceProvider } from "../../appearance/AppearanceRuntime";
-import { useDesktopPreference, useDesktopAppearance, useDesktopPreferenceEffects, initializeDesktopPreferences } from "../../settings";
+import { useDesktopPreference, useDesktopAppearance, useDesktopPreferenceEffects, initializeDesktopPreferences, desktopPreferencesStore } from "../../settings";
 import { MinimalOnboarding } from "../../../components/MinimalOnboarding";
 import { useHomepageCloudProjects } from "./useHomepageCloudProjects";
 import { HomepageCloudStatus } from "./HomepageCloudStatus";
@@ -15,6 +16,8 @@ import { AccountCloudWorkspaceSurface, useAccountCloudWorkspacePresentation } fr
 import { createCloudAgentSmokeFixture, editCloudAgentPrompt } from "../agent/CloudAgentSmokeFixture";
 
 initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
+// The geometry acceptance below exercises the optional centered Header layout.
+desktopPreferencesStore.setState(s => ({ experimentalSettings: { ...s.experimentalSettings, enableCenteredProjectInHeader: true } }));
 
 const API = "https://cloud-fixture.puppyone.ai/api/v1";
 const project = (id: string) => ({ id, name: `Hosted ${id}`, org_id: "team", updated_at: id === "beta" ? "2026-06-01T00:00:00Z" : "2026-04-01T00:00:00Z", capabilities: ["content.read", "content.write"] });
@@ -49,15 +52,15 @@ async function fixtureRequest(request: Parameters<NonNullable<typeof window.pupp
     if (operation === "commits") return { project_id: id, commits: [], head_commit_id: null, refs: [],
       refs_included: true, snapshot_id: "a".repeat(64), next_cursor: null, has_more: false, total: 0,
       graph_health: "complete", unreadable_commit_ids: [] };
-    if (operation === "ls") return { entries: [{ name: "readme.txt", path: "readme.txt", type: "file" }], head_commit_id: `head-${heads.get(id)}` };
-    if (operation === "stat") return { exists: true, name: "readme.txt", type: "file", path };
-    if (operation === "cat") return { content_text: files.get(id), head_commit_id: `head-${heads.get(id)}` };
+    if (operation === "ls") return { entries: [{ name: "readme.txt", path: "readme.txt", type: "file" }], ...nativeSnapshot(`head-${heads.get(id)}`) };
+    if (operation === "stat") return { exists: true, name: "readme.txt", type: "file", path, ...nativeSnapshot(`head-${heads.get(id)}`) };
+    if (operation === "cat") return { path, type: "file", content_text: files.get(id), ...nativeSnapshot(`head-${heads.get(id)}`) };
     if (operation === "write") {
       await writeBarrier;
       const body = JSON.parse(request.body!);
       if (body.base_commit_id !== `head-${heads.get(id)}`) throw Object.assign(new Error("Fixture CAS mismatch"), { status: 409 });
       files.set(id, body.content); heads.set(id, heads.get(id)! + 1); writes.push({ project: id, content: body.content });
-      return { path: body.path, commit_id: `head-${heads.get(id)}` };
+      return { path: body.path, ...nativeReceipt(`head-${heads.get(id)}`, id) };
     }
     throw new Error(`Unexpected account workspace fixture request: ${request.path}`);
 }

@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import type { ProjectCloudContext } from "../project/context/projectCloudContext";
-import { createCloudDataService } from "./cloudDataPort";
+import { createCloudDataService } from "../files/cloudDataPort";
 import { useCloudWorkspaceSwitch } from "./useCloudWorkspaceSwitch";
 
 type ResolvedContext = Extract<ProjectCloudContext, { status: "resolved" }>;

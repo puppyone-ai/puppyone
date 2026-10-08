@@ -1,3 +1,4 @@
+import { nativeSnapshot, nativeVersion, nativeReceipt } from "../../../fixtures/cloud/repositories/nativeRepository";
 /** @vitest-environment happy-dom */
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -77,10 +78,10 @@ beforeEach(() => {
     }
     const url = new URL(request.path, API);
     const path = url.searchParams.get("path") ?? "";
-    if (url.pathname.endsWith("/ls")) return { entries: [{ name: "readme.txt", path: "readme.txt", type: "file" }], head_commit_id: generation };
-    if (url.pathname.endsWith("/stat")) return { name: path, path, type: "file", exists: true };
-    if (url.pathname.endsWith("/cat")) return { content_text: "Cloud content", head_commit_id: generation };
-    if (url.pathname.endsWith("/write")) return { path: JSON.parse(request.body!).path, commit_id: "head-2" };
+    if (url.pathname.endsWith("/ls")) return { entries: [{ name: "readme.txt", path: "readme.txt", type: "file" }], ...nativeSnapshot(generation) };
+    if (url.pathname.endsWith("/stat")) return { name: path, path, type: "file", exists: true, ...nativeSnapshot(generation) };
+    if (url.pathname.endsWith("/cat")) return { path: "readme.txt", type: "file", content_text: "Cloud content", ...nativeSnapshot(generation) };
+    if (url.pathname.endsWith("/write")) return { path: JSON.parse(request.body!).path, ...nativeReceipt("head-2", url.pathname.split("/")[2]) };
     if (request.path === "/projects/" && request.method === "POST") return project("created");
     throw new Error(`Unexpected fixture request: ${request.path}`);
   });
@@ -173,7 +174,7 @@ describe("account-owned Cloud workspaces on the existing API", () => {
     await act(async () => { opening = account.openTarget({ kind: "project_root", project_id: "a" }); });
     await act(async () => account.cancel());
     await open("b");
-    await act(async () => { pending.resolve({ entries: [], head_commit_id: "old" }); await opening; });
+    await act(async () => { pending.resolve({ entries: [], ...nativeSnapshot("old") }); await opening; });
     expect(account.context.projectId).toBe("b");
   });
 
@@ -216,7 +217,7 @@ describe("account-owned Cloud workspaces on the existing API", () => {
     const runtime = getDocumentInputRuntime(port, node as Parameters<typeof getDocumentInputRuntime>[1]);
     const stop = runtime.subscribe(() => {});
     await vi.waitFor(() => expect(runtime.getSnapshot().content?.content).toBe("Cloud content")); stop();
-    const copy = getOrCreateDocumentWorkingCopy({ documentId: node.path, initialContent: "Cloud content", initialVersion: "head-1", saveMode: "manual", persistence: port.documentPersistence! });
+    const copy = getOrCreateDocumentWorkingCopy({ documentId: node.path, initialContent: "Cloud content", initialVersion: nativeVersion("head-1"), saveMode: "manual", persistence: port.documentPersistence! });
     await render({ currentSession: null });
     await render({ currentSession: { ...session, session_generation: "two" } }); await open("a");
     const nextPort = workbench.dataPort!;
@@ -224,7 +225,7 @@ describe("account-owned Cloud workspaces on the existing API", () => {
     const stopAgain = reopened.subscribe(() => {});
     await vi.waitFor(() => expect(reopened.getSnapshot().generation).toBeGreaterThan(1)); stopAgain();
     expect(reopened.getSnapshot().error).toBeNull();
-    const nextCopy = getOrCreateDocumentWorkingCopy({ documentId: node.path, initialContent: "Cloud content", initialVersion: "head-1", saveMode: "manual", persistence: nextPort.documentPersistence! });
+    const nextCopy = getOrCreateDocumentWorkingCopy({ documentId: node.path, initialContent: "Cloud content", initialVersion: nativeVersion("head-1"), saveMode: "manual", persistence: nextPort.documentPersistence! });
     expect(nextCopy).toBe(copy);
     let text = "Cloud content";
     const detach = copy.session.attachSource({ readSnapshot: () => ({ revision: "edit-1", content: text }), replaceContent: (value) => { text = value; return { revision: "edit-2", content: text }; } });
@@ -309,7 +310,7 @@ describe("account-owned Cloud workspaces on the existing API", () => {
     await render({ association: associated("a"), scope: "local-a" });
     await act(async () => header.request());
     await render({ association: associated("b"), scope: "local-b" });
-    await act(async () => pending.resolve({ entries: [], head_commit_id: "late" }));
+    await act(async () => pending.resolve({ entries: [], ...nativeSnapshot("late") }));
     expect(account.active).toBe(false); expect(header.pending).toBe(false);
     expect(bridge.mock.calls.some(([request]) => request.path.startsWith("/content/b/"))).toBe(false);
   });
@@ -318,7 +319,7 @@ describe("account-owned Cloud workspaces on the existing API", () => {
     const association: ProjectCloudContext = { status: "resolved", projectId: "a", target: { kind: "scope", project_id: "a", scope_id: "scope-a" },
       scopePath: "docs", capabilities: ["content.read"] };
     // Return only entries inside the authorized view.
-    bridge.mockResolvedValue({ entries: [], head_commit_id: "head-1" });
+    bridge.mockResolvedValue({ entries: [], ...nativeSnapshot("head-1") });
     await render({ association }); await act(async () => header.request());
     expect(account.context).toMatchObject({ target: association.target, scopePath: "docs" });
     expect(workbench.service?.writable).toBe(false);

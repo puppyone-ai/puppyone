@@ -29,6 +29,7 @@ import {
   validateDesktopCloudOrganizationSeatUsage,
 } from "../../../../src/lib/cloudApi";
 import { getCloudHistory, normalizeCloudHistory } from "../../../../src/lib/cloudHistoryApi";
+import { cloudCache } from "../../../../src/features/cloud/cache/cloudCache";
 
 const API = "https://api.puppyone.ai/api/v1";
 const session = {
@@ -56,6 +57,17 @@ afterEach(() => {
 });
 
 describe("cloud API client delegation", () => {
+  it("does not invalidate file reads when resolving a repository context through POST", async () => {
+    cloudCache.clear();
+    const context = { session, projectId: "project-1", revision: "one", resource: "directory" };
+    await cloudCache.load(context, async () => ["cached"], { ttlMs: 30_000 });
+    bridge.mockResolvedValue({});
+    await cloudApiRequest("/projects/project-1/repository-context", session, undefined,
+      { method: "POST", body: JSON.stringify({ target: { kind: "project_root", project_id: "project-1" } }) }, API);
+    expect(cloudCache.read(context)).toEqual(["cached"]);
+    await cloudApiRequest("/content/project-1/mv", session, undefined, { method: "POST", body: "{}" }, API);
+    expect(cloudCache.read(context)).toBeUndefined();
+  });
   it("reads capability-derived seat usage without trusting or mis-encoding organization ids", async () => {
     bridge.mockResolvedValueOnce({ billable_seat_quantity: 2 });
 

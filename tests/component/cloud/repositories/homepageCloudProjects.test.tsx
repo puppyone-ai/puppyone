@@ -1,3 +1,4 @@
+import { nativeSnapshot } from "../../../fixtures/cloud/repositories/nativeRepository";
 /** @vitest-environment happy-dom */
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -66,7 +67,7 @@ beforeEach(() => {
       const { target } = JSON.parse(request.body!); return { project: project(target.project_id), target };
     }
     if (request.path.includes("/commits?")) return historyFor(request.path.split("/")[2]!);
-    if (request.path.startsWith("/content/")) return { entries: [], head_commit_id: "head" };
+    if (request.path.startsWith("/content/")) return { entries: [], ...nativeSnapshot("head") };
     throw new Error(`Unexpected ${request.path}`);
   });
   openLocal = vi.fn(async () => {});

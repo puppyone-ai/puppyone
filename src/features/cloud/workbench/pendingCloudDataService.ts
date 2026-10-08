@@ -1,5 +1,5 @@
 import { createResourceUri, type Workspace } from "@puppyone/shared-ui";
-import type { NativeCloudDataService } from "./cloudDataPort";
+import type { NativeCloudDataService } from "../files/cloudDataPort";
 
 /** An unavailable Cloud provider must never expose the local project's bytes. */
 export function createPendingCloudDataService(identity: string | null, localWorkspaceName?: string): NativeCloudDataService {

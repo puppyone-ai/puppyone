@@ -14,7 +14,7 @@ import { createExplorerDataPort } from "../../data-workspace/explorer";
 import { useProjectExplorerSelection } from "../../data-workspace/useProjectExplorerSession";
 import { useDesktopEditorWorkbench } from "../../editor-workbench/controller/useDesktopEditorWorkbench";
 import { useDataNodeActions } from "../../data-workspace/useDataNodeActions";
-import { createCloudDataService } from "./cloudDataPort";
+import { createCloudDataService } from "../files/cloudDataPort";
 import { createPendingCloudDataService } from "./pendingCloudDataService";
 
 const noop = () => undefined;

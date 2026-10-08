@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createResourceUri, createWorkspaceResourceUri } from "@puppyone/shared-ui";
-import { projectCloudHtml } from "../../../../src/features/cloud/workbench/cloudHtmlProjection";
+import { projectCloudHtml } from "../../../../src/features/cloud/files/cloudHtmlProjection";
 
 const root = createResourceUri({ scheme: "puppyone-cloud", authority: "fixture.test", path: "https/api/v1/owner/project/root" });
 const resource = (path: string) => createWorkspaceResourceUri(root, path);

@@ -586,7 +586,7 @@ export async function cloudApiRequest<T>(
         ...(body === undefined ? {} : { body }),
       });
       const result = unwrapCloudIpcEnvelope<T>(transported);
-      if (isMutationMethod(init.method) && !/^\/content\/[^/]+\/inline\/sign(?:\?|$)/.test(path)) {
+      if (invalidatesCloudData(path, init.method)) {
         invalidateCloudCacheForMutation({ session, apiPath: path });
       }
       return result;
@@ -600,8 +600,12 @@ export async function cloudApiRequest<T>(
   throw error;
 }
 
-function isMutationMethod(method: string | undefined) {
+function invalidatesCloudData(path: string, method: string | undefined) {
   const normalized = (method ?? "GET").toUpperCase();
+  // These POSTs resolve read context/resources; they do not change Project data.
+  const apiPath = path.startsWith("/") ? path : `/${path}`;
+  if (normalized === "POST" && (/^\/content\/[^/]+\/inline\/sign(?:\?|$)/.test(apiPath)
+    || /^\/projects\/[^/]+\/repository-context(?:\?|$)/.test(apiPath))) return false;
   return normalized !== "GET" && normalized !== "HEAD" && normalized !== "OPTIONS";
 }
 

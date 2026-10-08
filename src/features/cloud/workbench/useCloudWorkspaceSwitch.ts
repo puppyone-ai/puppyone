@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import { cloudMessage, type CloudMessageDescriptor } from "../cloudPresentation";
-import type { NativeCloudDataService } from "./cloudDataPort";
+import type { NativeCloudDataService } from "../files/cloudDataPort";
 
 type SwitchIntent = { scope: string; attempt: number };
 type Preparation = { intent: SwitchIntent; service: NativeCloudDataService | null; error: CloudMessageDescriptor | null };

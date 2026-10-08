@@ -211,7 +211,8 @@ for (const token of [
 }
 if (
   !auxiliarySource.includes('typeof children === "function"')
-  || !appSource.includes('active={presentation.contentVisible && !cloudWorkspaceActive && rightSidebarSurface === "chat"}')
+  || !appSource.includes('const localRightSidebarActive = !cloudWorkspaceActive && !repositoryCloudSwitch.pending;')
+  || !appSource.includes('active={presentation.contentVisible && localRightSidebarActive && rightSidebarSurface === "chat"}')
   || appSource.includes("active={rightSidebarOpen}")
 ) {
   errors.push("Auxiliary native content must follow the shared frame lifecycle and remain inactive while the Cloud provider is selected.");

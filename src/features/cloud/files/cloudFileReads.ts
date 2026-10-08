@@ -3,7 +3,7 @@ import { cloudCache, type CloudCacheContext } from "../cache/cloudCache";
 import type { ProjectCloudContext } from "../project/context/projectCloudContext";
 
 /** Resource-scoped reads shared by preflight and mounted Cloud workbenches. */
-export function createCloudWorkbenchReads(session: DesktopCloudSession,
+export function createCloudFileReads(session: DesktopCloudSession,
   context: Extract<ProjectCloudContext, { status: "resolved" }>, apiBaseUrl: string, scopePath: string) {
   const key = (resource: string, path: string): CloudCacheContext => ({
     session: { ...session, api_base_url: apiBaseUrl }, projectId: context.projectId,

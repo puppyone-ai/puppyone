@@ -1,3 +1,4 @@
+import { nativeSnapshot } from "../../../fixtures/cloud/repositories/nativeRepository";
 /** @vitest-environment happy-dom */
 import { act, useCallback, useEffect, useState, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -75,9 +76,9 @@ afterEach(() => { act(() => root?.unmount()); root = null; document.body.innerHT
 function installBridge() {
   bridge = vi.fn(async (request) => {
     const path = new URL(request.path, API).searchParams.get("path");
-    if (request.path.includes("/stat")) return { exists: true, type: "markdown", path, name: "readme.md" };
-    if (request.path.includes("/cat")) return { content_text: "Cloud original", head_commit_id: "cloud-head" };
-    return { entries: [{ type: "markdown", name: "readme.md", path: "readme.md" }], head_commit_id: "cloud-head" };
+    if (request.path.includes("/stat")) return { exists: true, type: "markdown", path, name: "readme.md", ...nativeSnapshot("cloud-head") };
+    if (request.path.includes("/cat")) return { path, type: "markdown", content_text: "Cloud original", ...nativeSnapshot("cloud-head") };
+    return { entries: [{ type: "markdown", name: "readme.md", path: "readme.md" }], ...nativeSnapshot("cloud-head") };
   });
   window.puppyoneDesktop = { requestCloudSessionApi: bridge } as unknown as NonNullable<typeof window.puppyoneDesktop>;
 }
@@ -178,7 +179,7 @@ describe("native Cloud workbench switching", () => {
     let holdRoot = true;
     bridge.mockImplementation((request) => {
       if (holdRoot && request.path.includes("/ls")) { holdRoot = false; return pending; }
-      return { entries: [], head_commit_id: "cloud-head" };
+      return { entries: [], ...nativeSnapshot("cloud-head") };
     });
     await render(<Harness />);
     await click("Cloud");
@@ -192,7 +193,7 @@ describe("native Cloud workbench switching", () => {
     expect(document.querySelector('.desktop-cloud-preparation')?.textContent).toBe("");
     expect(surface("local").hasAttribute("inert")).toBe(true);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
-    await act(async () => { release({ entries: [], head_commit_id: "cloud-head" }); await pending; });
+    await act(async () => { release({ entries: [], ...nativeSnapshot("cloud-head") }); await pending; });
     await vi.waitFor(() => expect(surface("cloud").hidden).toBe(false));
     expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
@@ -208,7 +209,7 @@ describe("native Cloud workbench switching", () => {
     await click("This Mac");
     expect(document.querySelector('button[data-project-location="local"]')?.getAttribute("aria-pressed")).toBe("true");
     expect(document.querySelector('.desktop-cloud-preparation')).toBeNull();
-    await act(async () => release({ entries: [], head_commit_id: "stale" }));
+    await act(async () => release({ entries: [], ...nativeSnapshot("stale") }));
     expect(surface("cloud").hidden).toBe(true);
     expect(document.querySelector('input[aria-label="local readme.md"]')).toBe(local);
   });
@@ -283,7 +284,7 @@ describe("native Cloud workbench switching", () => {
     if (change === "repository") await render(<Harness localIdentity="another-project" />);
     if (change === "disabled") await render(<Harness enabled={false} />);
     if (change === "account") await render(<Harness currentSession={null} />);
-    await act(async () => finish({ entries: [], head_commit_id: "stale" }));
+    await act(async () => finish({ entries: [], ...nativeSnapshot("stale") }));
     expect(surface("local").hidden).toBe(false);
     if (change === "account") {
       await render(<Harness currentSession={{ ...session, user_id: "another-account", session_generation: "second" }} />);

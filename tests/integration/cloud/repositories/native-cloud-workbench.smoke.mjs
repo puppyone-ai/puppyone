@@ -21,6 +21,7 @@ import XLSX from "xlsx";
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const rendererPath = process.env.PUPPYONE_NATIVE_WORKBENCH_RENDERER ?? path.join(repo, "dist/index.html");
 const nativeCorners = process.argv.includes('--native-corners');
+const filesOnly = process.argv.includes('--files-only');
 if (nativeCorners && process.platform !== 'darwin') throw new Error('Native corner capture requires macOS');
 const artifacts = process.env.PUPPYONE_CLOUD_FORMAT_ARTIFACT_DIR
   ?? path.join(repo, `artifacts/tests/cloud/${nativeCorners ? 'native-window-corners' : 'native-workbench'}`);
@@ -128,7 +129,7 @@ async function captureSettledDialog(scene, selector) {
 async function headerPresentation(location) {
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   // Measure settled contrast after control transitions and the Header reveal.
-  await evaluate("Promise.all(document.querySelector('.desktop-titlebar-workspace-button').getAnimations().map(animation => animation.finished.catch(() => {})))");
+  await evaluate("Promise.all([...document.querySelectorAll('.desktop-titlebar-workspace-button, .desktop-titlebar-location-button')].flatMap(button => button.getAnimations()).map(animation => animation.finished.catch(() => {})))");
   await evaluate("Promise.all((document.querySelector('.desktop-cloud-header-reveal')?.getAnimations({subtree:true}) ?? []).map(animation => animation.finished.catch(() => {})))");
   const sample = await evaluate(`(() => {
     const header = document.querySelector('.desktop-titlebar');
@@ -150,6 +151,9 @@ async function headerPresentation(location) {
     const cloudBackground = getComputedStyle(probe).color;
     probe.style.color = 'var(--po-text)';
     const themeText = getComputedStyle(probe).color;
+    probe.style.color = button.matches(':hover') || button.getAttribute('aria-expanded') === 'true'
+      ? 'var(--desktop-titlebar-text)' : 'var(--desktop-titlebar-text-muted)';
+    const expectedButtonColor = getComputedStyle(probe).color;
     probe.remove();
     const canvas = document.createElement('canvas').getContext('2d');
     const rgb = (...colors) => {
@@ -167,8 +171,9 @@ async function headerPresentation(location) {
         color:rgb(getComputedStyle(mark).color),
         paint:rgb(outline ? getComputedStyle(outline).fill : getComputedStyle(svg).stroke),
         accessibleLabel:button.getAttribute('aria-label') },
-      labelColor:rgb(getComputedStyle(button.querySelector('.desktop-titlebar-workspace-name')).color),
+      labelColor:rgb(getComputedStyle(button.lastElementChild).color),
       buttonColor:rgb(getComputedStyle(button).color),
+      expectedButtonColor:rgb(expectedButtonColor),
       controlPalette:['text', 'text-muted', 'hover', 'active', 'focus', 'divider'].map(key => css.getPropertyValue('--desktop-titlebar-' + key)),
       frame:{ location:shell.dataset.workspaceKind ?? 'local', identity:shell.dataset.fixtureIdentity,
         x:s.x, y:s.y, width:s.width, height:s.height, content:frame.content,
@@ -183,15 +188,15 @@ async function headerPresentation(location) {
   })()`);
   assert(sample.location === location, `Header tint must follow the committed ${location} provider`);
   assert(JSON.stringify(sample.background) === JSON.stringify(location === 'cloud' ? sample.cloudBackground : sample.expected), `Cloud must tint only the Header and follow its appearance mode: ${JSON.stringify(sample)}`);
-  assert(JSON.stringify(sample.buttonColor) === JSON.stringify(sample.themeText), 'Cloud and Local must preserve the current theme foreground');
+  assert(JSON.stringify(sample.buttonColor) === JSON.stringify(sample.expectedButtonColor), 'Location control ink must follow the current theme and interaction state');
   assert(sample.backgroundImage === 'none', 'The previous gradient must be removed');
   const expectedIcon = sample.buttonColor;
-  assert(JSON.stringify(sample.icon.color) === JSON.stringify(sample.labelColor), 'Cloud and device marks must match project text color, open or closed');
+  assert(JSON.stringify(sample.icon.color) === JSON.stringify(sample.labelColor), 'Cloud and device marks must match their location label, open or closed');
   assert(sample.icon.location === location && JSON.stringify(sample.icon.color) === JSON.stringify(expectedIcon)
     && JSON.stringify(sample.icon.paint) === JSON.stringify(expectedIcon), 'Location icons must share readable Header ink');
   assert(JSON.stringify(sample.accent) === '[69,153,223]', 'Brand blue is the approved #4599DF in both themes, not adaptive accent/info');
   assert(sample.icon.name === (location === 'cloud' ? 'ant-design' : null), 'Use the approved Cloud outline only for the committed Cloud provider');
-  assert(JSON.stringify(sample.labelColor) === JSON.stringify(sample.buttonColor), 'Blue icon must not recolor the project name');
+  assert(JSON.stringify(sample.labelColor) === JSON.stringify(sample.buttonColor), 'Blue icon must not recolor the location label');
   assert(sample.frame.location === location && sample.frame.identity === 'retained-shell', 'Window frame must follow the same committed provider without remounting');
   assert(sample.frame.x === 0 && sample.frame.y === 0 && sample.frame.width === sample.viewport
     && sample.frame.height === sample.viewportHeight, 'Cloud frame must enclose the whole window, not just the editor');
@@ -457,10 +462,10 @@ app.whenReady().then(async () => {
       && animation.effect.getTiming().duration === 260
       && animation.animationName === 'desktop-cloud-header-expand';
   })()`), 'Header blue must expand from its lower-right center over 260ms while Cloud prepares');
-  assert(await evaluate("Boolean(document.querySelector('.desktop-titlebar-workspace-mark[data-project-location=cloud]')) && !document.querySelector('.desktop-titlebar-terminal, .desktop-titlebar-changes')"),
+  assert(await evaluate("Boolean(document.querySelector('.desktop-titlebar-workspace-mark[data-project-location=cloud]')) && !document.querySelector('.desktop-titlebar-terminal:not([data-cloud-workspace-tool]), .desktop-titlebar-changes')"),
     'Cloud intent must change the Header mark and remove local actions before provider commit');
-  assert(await evaluate("document.querySelectorAll('[data-cloud-workspace-tool]').length === 2 && [...document.querySelectorAll('[data-cloud-workspace-tool]')].every(button => button.disabled)"),
-    'Both Cloud CTAs must appear immediately and await the authorized provider commit');
+  assert(await evaluate("document.querySelectorAll('[data-cloud-workspace-tool]').length === 3 && [...document.querySelectorAll('[data-cloud-workspace-tool]')].every(button => button.disabled)"),
+    'All three Cloud tools must appear immediately and await the authorized provider commit');
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await writeFile(path.join(artifacts, 'cloud-header-switch.png'), (await window.webContents.capturePage()).toPNG());
   await evaluate("Promise.all(document.querySelector('.desktop-project-location-indicator').getAnimations().map(animation => animation.finished.catch(() => {})))");
@@ -532,6 +537,10 @@ app.whenReady().then(async () => {
   assert(await evaluate("!document.querySelector('[data-cloud-native=true]').textContent.includes('local-only') && document.querySelector('[data-cloud-native=true]').textContent.includes('cloud-only')"), "Cloud tree must contain Cloud files only");
   await evaluate("[...document.querySelectorAll('[data-cloud-native=true] .tree-row')].find(row => row.textContent.includes('readme')).click()");
   await waitFor("Boolean(document.querySelector('[data-workspace-location=cloud] .cm-content')?.textContent.includes('CLOUD_FILE_BODY'))");
+  const openedFileRequests = (await state()).requests.slice(initialCloudRequests.length)
+    .filter(path => path.startsWith('/content/'));
+  assert(JSON.stringify(openedFileRequests) === JSON.stringify(['/content/fixture-project/cat?path=readme.txt']),
+    `Opening known text from the explorer must make one cat request: ${JSON.stringify(openedFileRequests)}`);
   const cloudPresentation = await presentation("cloud");
   for (const region of ["explorer", "editor", "footer", "row", "code"]) {
     const before = localPresentation[region], after = cloudPresentation[region];
@@ -630,6 +639,17 @@ app.whenReady().then(async () => {
   await nativePreviews.closeAll();
   await evaluate("window.__nativeCloudWorkbenchSmoke.openCloudFile('readme.txt')");
   await waitFor("document.querySelector('[data-cloud-native=true] .cm-content')?.textContent.includes('CLOUD_EDIT_ONLY')");
+  if (filesOnly) {
+    assert(!errors.length, `Renderer errors: ${errors.join('; ')}`);
+    await evaluate("window.__nativeCloudWorkbenchSmoke.finishLocalSaves()");
+    await writeFile(path.join(artifacts, 'file-operations-report.json'), JSON.stringify({
+      passed: true, scope: 'Cloud file operations and format previews',
+      rootReadsAtEntry: initialCloudRequests.filter(path => path === '/content/fixture-project/ls?path=').length,
+      openedFileRequests, snapshot: await state(), errors,
+    }, null, 2));
+    console.log('Cloud file operations Electron acceptance passed: shared directory reads, one-request text open, edits, drafts, and format previews.');
+    window.destroy(); app.exit(0); return;
+  }
   assert(await evaluate("[...document.querySelectorAll('[data-cloud-workspace-tool]')].every(button => !button.disabled) && !window.__nativeCloudWorkbenchSmoke.state().requests.some(path => path.includes('/mcp-endpoints') || path.includes('/synchronize'))"),
     'Cloud tool pages must load only when the user opens a ready CTA');
   for (const tool of ['automation', 'connect']) {
@@ -663,8 +683,8 @@ app.whenReady().then(async () => {
         await waitFor(`document.querySelector('[data-cloud-connect-method=${method}]').getAttribute('aria-current') === 'page'`);
       }
 
-      assert(await evaluate("document.querySelector('.desktop-cloud-access-landing-copy').textContent.includes('Connect more agents')"),
-        'MCP must explain that users can connect more agents');
+      assert(await evaluate("document.querySelector('.desktop-cloud-access-landing-copy').textContent.includes('Connect another Agent')"),
+        'MCP must explain that users can connect another Agent');
       await evaluate("document.querySelector('.desktop-cloud-access-new-button').click()");
       await waitFor("Boolean(document.querySelector('.desktop-cloud-create-access-dialog'))");
       await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
@@ -687,7 +707,7 @@ app.whenReady().then(async () => {
       if ((await state()).location !== location) await selectLocation(location);
       if (location === "cloud") await captureCloudReady(`${theme}-${width}`);
       const sample = await headerPresentation(location);
-      assert(await evaluate(`document.querySelectorAll('[data-cloud-workspace-tool]').length === ${location === 'cloud' ? 2 : 0}`),
+      assert(await evaluate(`document.querySelectorAll('[data-cloud-workspace-tool]').length === ${location === 'cloud' ? 3 : 0}`),
         'Cloud CTAs must follow the active environment in both themes and widths');
       if (location === 'cloud') assert(await evaluate(`(() => {
         const project = document.querySelector('.desktop-titlebar-centered-context').getBoundingClientRect();

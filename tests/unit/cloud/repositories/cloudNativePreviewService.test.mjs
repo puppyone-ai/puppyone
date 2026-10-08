@@ -19,7 +19,7 @@ async function setup() {
   const auth = { readSession: vi.fn(async () => session), requestSessionApi: vi.fn(async (_base, endpoint, init, expected) => {
     expect(expected).toEqual(input().expectedSession);
     expect(init.signal).toBeInstanceOf(AbortSignal);
-    if (endpoint.endsWith("/ls")) return { head_commit_id: "fixture-head" };
+    if (endpoint.endsWith("/stat?path=")) return { head_commit_id: "fixture-head" };
     if (endpoint.includes("/stat?")) throw Object.assign(new Error("missing"), { status: 404 });
     const source = JSON.parse(init.body);
     return { url: `${base}/content/fixture-project/inline?path=${encodeURIComponent(source.path)}&token=fixture-token` };
@@ -45,6 +45,8 @@ describe("authenticated Cloud native decoder leases", () => {
     expect(request.path).toBe("source.sqlite");
     expect((await fs.stat(path.join(request.rootPath, request.path))).mode & 0o777).toBe(0o400);
     expect(await f.service.readDatabase(7, { id: input().id, objectId: "object" })).toEqual({ rows: [] });
+    expect(f.auth.requestSessionApi.mock.calls.some(([, endpoint]) => endpoint.endsWith("/ls"))).toBe(false);
+    expect(f.auth.requestSessionApi.mock.calls.filter(([, endpoint]) => endpoint.endsWith("/stat?path=")).length).toBeGreaterThan(0);
     await expect(f.service.readDatabase(8, { id: input().id })).rejects.toMatchObject({ code: "session-expired" });
     let release;
     f.database.close.mockImplementation(() => new Promise((resolve) => { release = resolve; }));
@@ -65,7 +67,7 @@ describe("authenticated Cloud native decoder leases", () => {
   it.each(["https://other.test/private?path=data.sqlite&token=x", `${base}/content/other/inline?path=data.sqlite&token=x`,
     `${base}/content/fixture-project/inline?path=other.sqlite&token=x`])("rejects forged signed endpoints before native fetch: %s", async (url) => {
     const f = await setup();
-    f.auth.requestSessionApi.mockImplementation(async (_base, endpoint) => endpoint.endsWith("/ls") ? { head_commit_id: "h" } : { url });
+    f.auth.requestSessionApi.mockImplementation(async (_base, endpoint) => endpoint.endsWith("/stat?path=") ? { head_commit_id: "h" } : { url });
     await expect(f.service.openDatabase(7, input())).rejects.toMatchObject({ code: "permission-denied" });
     expect(f.fetchResource).not.toHaveBeenCalled(); expect(await fs.readdir(f.root)).toEqual([]);
   });
@@ -80,10 +82,10 @@ describe("authenticated Cloud native decoder leases", () => {
   it("rejects recovery sidecars and changing HEAD before starting a decoder", async () => {
     const f = await setup();
     const original = f.auth.requestSessionApi.getMockImplementation();
-    f.auth.requestSessionApi.mockImplementation(async (...args) => args[1].includes("/stat?") ? { exists: true } : original(...args));
+    f.auth.requestSessionApi.mockImplementation(async (...args) => args[1].includes("/stat?") && !args[1].endsWith("path=") ? { exists: true } : original(...args));
     await expect(f.service.openDatabase(7, input())).rejects.toMatchObject({ code: "recovery-required" });
     let head = 0;
-    f.auth.requestSessionApi.mockImplementation(async (...args) => args[1].endsWith("/ls") ? { head_commit_id: `${++head}` } : original(...args));
+    f.auth.requestSessionApi.mockImplementation(async (...args) => args[1].endsWith("/stat?path=") ? { head_commit_id: `${++head}` } : original(...args));
     await expect(f.service.openDatabase(7, input())).rejects.toMatchObject({ code: "stale-input" });
     expect(f.database.open).not.toHaveBeenCalled(); expect(await fs.readdir(f.root)).toEqual([]);
   });

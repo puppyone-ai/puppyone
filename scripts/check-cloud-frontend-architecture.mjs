@@ -27,6 +27,10 @@ for (const relativePath of requiredArchiveFiles) {
 }
 
 const lineBudgets = new Map([
+  ["src/features/cloud/files/cloudDataPort.ts", 390],
+  ["src/features/cloud/files/cloudFileClient.ts", 230],
+  ["src/features/cloud/files/cloudFileReads.ts", 100],
+  ["src/features/cloud/files/contracts.ts", 150],
   ["src/features/cloud/CloudServiceMainView.tsx", 260],
   ["src/features/cloud/routes/CloudRouter.tsx", 160],
   ["src/features/cloud/routes/CloudProjectRouteOutlet.tsx", 240],
@@ -69,6 +73,13 @@ const productionCode = productionFiles
   .filter((filePath) => /\.(?:ts|tsx|js|jsx|mjs|cjs)$/.test(filePath))
   .map((filePath) => ({ filePath, source: readAbsolute(filePath) }));
 
+// The account workspace now has an authenticated, typed native-window entry.
+// It does not restore the archived Cloud catalog's renderer navigation API.
+const cloudWindowOwners = new Set([
+  "src/App.tsx", "src/lib/localFiles.ts", "src/types/electron.d.ts",
+  "electron/main/ipc/workspace-navigation-ipc.mjs", "electron/main.mjs", "electron/preload.cjs",
+]);
+
 for (const { filePath, source } of productionCode) {
   const relativePath = path.relative(repoRoot, filePath);
   if (/\b(?:from\s+|import\s*\()["'][^"']*archive\/desktop-cloud-catalog/.test(source)) {
@@ -85,6 +96,7 @@ for (const { filePath, source } of productionCode) {
     "cloudOnlyWorkspace",
     "cloud://",
   ]) {
+    if (token === "openCloudProjectInNewWindow" && cloudWindowOwners.has(relativePath)) continue;
     if (token === "cloud://" ? /(?<![\w-])cloud:\/\//.test(source) : source.includes(token)) {
       errors.push(`${relativePath} reintroduced retired Cloud catalog token ${token}`);
     }
@@ -376,6 +388,21 @@ const cloudClassNames = new Set(
 for (const className of cloudClassNames) {
   if (!rendererSource.includes(className)) {
     errors.push(`Cloud CSS class has no renderer owner: ${className}`);
+  }
+}
+
+const cloudFiles = "src/features/cloud/files/";
+const dataPort = read(`${cloudFiles}cloudDataPort.ts`);
+if (!dataPort.includes('from "./cloudFileClient"') || /cloudApiRequest|requestCloudSessionApi|reads\.fetch/.test(dataPort)) {
+  errors.push("Cloud DataPort must adapt the file client, not assemble HTTP operations.");
+}
+for (const { filePath, source } of productionCode) {
+  const relativePath = path.relative(repoRoot, filePath);
+  if (relativePath.startsWith(cloudFiles) && /from\s+["'][^"']*workbench\/|import\(["'][^"']*workbench\//.test(source)) {
+    errors.push(`${relativePath} must not depend on Cloud workbench presentation`);
+  }
+  if (/cloud\/workbench\/cloud(?:DataPort|WorkbenchReads|HtmlProjection)/.test(source)) {
+    errors.push(`${relativePath} uses a retired Cloud file ownership path`);
   }
 }
 
