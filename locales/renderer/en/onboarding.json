@@ -121,5 +121,15 @@
   "library.createInCloud": "Create in Cloud",
   "library.addFromMac": "Add from this Mac",
   "entry.create.createdNote": "Project created at {path}. You can retry opening it without creating it again.",
-  "entry.create.retryOpen": "Open created project"
+  "entry.create.retryOpen": "Open created project",
+  "template.title": "Create from template",
+  "template.useLink": "Use a template link",
+  "template.link": "Template link",
+  "template.paste": "Paste link",
+  "template.pasteFailed": "Paste the template link into the field.",
+  "template.preview": "Preview template",
+  "template.loading": "Loading…",
+  "template.signIn": "Sign in to use this template",
+  "template.signingIn": "Signing in…",
+  "template.linkPlaceholder": "https://www.puppyone.ai/t/…"
 }

@@ -12,8 +12,10 @@ export function createProjectEntryService({
   pathModule = path,
   cloneGit = cloneGitRepository,
   journalDirectory = null,
+  resolveTemplate,
+  validateTemplateSource,
 } = {}) {
-  const initialization = createProjectInitializationService({ journalDirectory });
+  const initialization = createProjectInitializationService({ journalDirectory, resolveTemplate, validateSource: validateTemplateSource });
   const imports = createLocalProjectImportService({
     io: fsPromises,
     validateName: requireProjectName,

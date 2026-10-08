@@ -121,5 +121,15 @@
   "library.createInCloud": "Cloud に作成",
   "library.addFromMac": "この Mac から追加",
   "entry.create.createdNote": "{path} にプロジェクトを作成しました。再作成せずに開き直せます。",
-  "entry.create.retryOpen": "作成済みプロジェクトを開く"
+  "entry.create.retryOpen": "作成済みプロジェクトを開く",
+  "template.title": "テンプレートから作成",
+  "template.useLink": "テンプレートリンクを使う",
+  "template.link": "テンプレートリンク",
+  "template.paste": "リンクを貼り付け",
+  "template.pasteFailed": "入力欄にテンプレートリンクを貼り付けてください。",
+  "template.preview": "テンプレートを確認",
+  "template.loading": "読み込み中…",
+  "template.signIn": "ログインしてテンプレートを使う",
+  "template.signingIn": "ログイン中…",
+  "template.linkPlaceholder": "https://www.puppyone.ai/t/…"
 }

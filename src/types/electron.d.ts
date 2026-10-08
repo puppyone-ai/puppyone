@@ -715,11 +715,16 @@ export type WorkspaceDetachResult = {
   workspaces: Workspace[];
 };
 
+export type MarketplaceTemplateDetail = {
+  id: string; releaseId: string; name: string; description: string;
+  version: string; author: string; locale: string; shareUrl: string;
+};
+
 export type WorkspaceCreateProjectRequest = {
   name: string;
   locationGrantId: string;
   operationId: string;
-  source: { kind: "blank" } | { kind: "template"; ref: { sourceId: "builtin"; id: "puppyone.project.getting-started"; version: 1 } };
+  source: { kind: "blank" } | { kind: "template"; ref: { sourceId: "builtin"; id: "puppyone.project.getting-started"; version: 1 } } | { kind: "template"; ref: { sourceId: "marketplace"; id: string; releaseId: string } };
   locale: string;
 };
 
@@ -730,7 +735,7 @@ export type ProjectInitializationReceipt = {
   name: string;
   createdPaths: string[];
   initialOpenPath: string | null;
-  template: { sourceId: string; id: string; version: number; digest: string; resolvedLocale: string } | null;
+  template: { sourceId: string; id: string; version: number | string; releaseId?: string; digest: string; resolvedLocale: string } | null;
 };
 
 export type WorkspaceCreateProjectResult = {
@@ -1204,6 +1209,10 @@ declare global {
       selectFolderInNewWindow: () => Promise<WorkspaceOpenResult | null>;
       selectLocalProjectLocation: () => Promise<WorkspaceProjectLocationGrant | null>;
       getDefaultLocalProjectLocation: () => Promise<WorkspaceProjectLocationGrant | null>;
+      resolveTemplateLink: (request: { url: string; locale: string }) => Promise<MarketplaceTemplateDetail>;
+      readTemplateImportIntent: () => Promise<{ id: string; url: string } | null>;
+      acknowledgeTemplateImportIntent: (id: string) => Promise<void>;
+      onTemplateImportRequested: (callback: () => void) => () => void;
       createLocalProject: (
         request: WorkspaceCreateProjectRequest,
       ) => Promise<WorkspaceCreateProjectResult>;

@@ -121,5 +121,15 @@
   "library.createInCloud": "在云端创建",
   "library.addFromMac": "从这台 Mac 添加",
   "entry.create.createdNote": "项目已创建在 {path}。可以重新打开，不会重复创建。",
-  "entry.create.retryOpen": "打开已创建的项目"
+  "entry.create.retryOpen": "打开已创建的项目",
+  "template.title": "从模板创建",
+  "template.useLink": "使用模板链接",
+  "template.link": "模板链接",
+  "template.paste": "粘贴链接",
+  "template.pasteFailed": "请将模板链接粘贴到输入框。",
+  "template.preview": "预览模板",
+  "template.loading": "加载中…",
+  "template.signIn": "登录后使用模板",
+  "template.signingIn": "登录中…",
+  "template.linkPlaceholder": "https://www.puppyone.ai/t/…"
 }

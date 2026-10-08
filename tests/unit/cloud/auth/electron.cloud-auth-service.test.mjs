@@ -591,12 +591,53 @@ async function projectMutationAcrossOAuth({ replacementUserId, includeIdempotenc
   };
 }
 
+describe("Main-only template authorization", () => {
+  const request = { id: "b91aaade-bc9e-4dfd-8f23-11f06ec00301", releaseId: "b91aaade-bc9e-4dfd-8f23-11f06ec00101" };
+  const config = { origin: "https://www.puppyone.ai", apiBase: API };
+  it("refreshes an expired session and sends tokens only to the fixed website origin", async () => {
+    const fetchImpl = vi.fn(async () => Response.json({ schema_version: 1 }));
+    const fixture = createFixture({ fetchImpl, templateMarketplace: config });
+    fixture.requestCloudApi.mockImplementation(async () => authResponse());
+    expect(await fixture.service.requestTemplateDownload(request)).toEqual({ schema_version: 1 });
+    const [url, init] = fetchImpl.mock.calls[0];
+    expect(url).toBe(`${config.origin}/api/templates/${request.id}/download`);
+    expect(init.redirect).toBe("error");
+    expect(init.headers.Authorization).toBe(`Bearer ${jwtFor("user-123")}`);
+    expect(JSON.parse(init.body)).toEqual({ release_id: request.releaseId });
+    expect(JSON.stringify(fixture.messages)).not.toContain(jwtFor("user-123"));
+    fixture.service.dispose();
+  });
+  it("refreshes once on a 401 and preserves the same account lease", async () => {
+    const fetchImpl = vi.fn().mockResolvedValueOnce(new Response("expired", { status: 401 })).mockResolvedValueOnce(Response.json({ ok: true }));
+    const fixture = createFixture({ fetchImpl, templateMarketplace: config });
+    fixture.requestCloudApi.mockImplementation(async () => authResponse());
+    const before = await fixture.service.readSession();
+    expect(await fixture.service.requestTemplateDownload(request)).toEqual({ ok: true });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect((await fixture.service.readSession()).session_generation).toBe(before.session_generation);
+    fixture.service.dispose();
+  });
+  it("rejects signed-out, foreign-tenant and malformed requests without dispatch", async () => {
+    for (const credential of [null, { ...createCredential(), api_origin: "https://another.example/api/v1" }]) {
+      const fetchImpl = vi.fn(); const fixture = createFixture({ credential, fetchImpl, templateMarketplace: config });
+      await expect(fixture.service.requestTemplateDownload(request)).rejects.toThrow();
+      expect(fetchImpl).not.toHaveBeenCalled();
+      fixture.service.dispose();
+    }
+    const fixture = createFixture({ fetchImpl: vi.fn(), templateMarketplace: config });
+    await expect(fixture.service.requestTemplateDownload({ ...request, id: "../../private" })).rejects.toThrow();
+    expect(fixture.requestCloudApi).not.toHaveBeenCalled();
+    fixture.service.dispose();
+  });
+});
+
 function createFixture({
   credential = createCredential(),
   fetchImpl = globalThis.fetch,
   localCloudWebUrl = "http://localhost:3000",
   returnAppUrl = null,
   windowCount = 1,
+  templateMarketplace = null,
 } = {}) {
   let storedCredential = credential;
   const credentialStore = {
@@ -631,6 +672,7 @@ function createFixture({
     fetchImpl,
     localCloudWebUrl,
     returnAppUrl,
+    templateMarketplace,
     externalNavigation: { open: openExternal },
     startCallbackServer,
     logger: { warn: vi.fn(), error: vi.fn() },

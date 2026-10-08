@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { installBrokenStdioGuards } from "./main/stdio-guard.mjs";
 import { createCompanionPresenceService } from "./main/local-agent-installation/setup/companion-presence-service.mjs";
 import { createLocalAgentSetupService } from "./main/local-agent-installation/setup/setup-service.mjs";
@@ -48,6 +49,8 @@ import {
   getCloudApiErrorMessage,
   requestCloudApi,
 } from "./main/cloud-api-client.mjs";
+import { createTemplateMarketplaceService } from "./main/template-marketplace-service.mjs";
+import { parseTemplateLink, resolveTemplateStoreOrigin, templateShareLink } from "../shared/desktop/template-link.mjs";
 import { createCloudAuthService } from "./cloud-auth-service.mjs";
 import {
   createApplicationQuitIntent,
@@ -196,6 +199,14 @@ const desktopPlatformHost = createDesktopPlatformHost({
   safeStorage,
 });
 const appName = desktopApplicationIdentity.applicationName;
+const templateStoreOrigin = resolveTemplateStoreOrigin({ isPackaged: app.isPackaged, override: process.env.PUPPYONE_TEMPLATE_STORE_ORIGIN });
+let pendingTemplateIntent = null;
+const templateLinkOptions = { origin: templateStoreOrigin, channel: desktopBuildInfo.channel };
+for (const argument of process.argv) {
+  if (typeof argument === "string" && argument.startsWith(`${getDesktopReturnScheme(desktopBuildInfo.channel)}://templates/`)) {
+    try { pendingTemplateIntent = { id: randomUUID(), url: templateShareLink(parseTemplateLink(argument, templateLinkOptions), templateStoreOrigin), ownerId: null }; } catch { /* Invalid external intents are ignored. */ }
+  }
+}
 
 // Resolve only core launch data before the single-instance boundary. A
 // duplicate CLI launch must exit before optional subsystems are constructed.
@@ -496,6 +507,8 @@ const workspaceStateStore = createWorkspaceStateStore({
 });
 const projectEntryService = createProjectEntryService({
   journalDirectory: () => path.join(app.getPath("userData"), "project-initialization"),
+  resolveTemplate: (source, locale) => templateMarketplaceService.resolveTemplate(source, locale),
+  validateTemplateSource: (plan) => templateMarketplaceService.validateSource(plan),
 });
 const projectEntryOperationSenders = new Set();
 const importSourceTasks = new Map();
@@ -511,8 +524,13 @@ const cloudAuthService = createCloudAuthService({
   getLocale: () => localeService.getSnapshot().locale,
   returnAppUrl: app.isPackaged ? getDesktopReturnUrl(desktopBuildInfo.channel) : null,
   localCloudWebUrl: desktopCloudConfiguration?.webOrigin,
+  templateMarketplace: { origin: templateStoreOrigin, apiBase: desktopCloudConfiguration?.apiBase ?? null },
   getWindows: () => BrowserWindow.getAllWindows(),
   revealWindow: revealLastFocusedWindow,
+});
+const templateMarketplaceService = createTemplateMarketplaceService({
+  origin: templateStoreOrigin, channel: desktopBuildInfo.channel, cloudAuthService,
+  allowLocalDownloads: !app.isPackaged,
 });
 const cloudNativePreviewService = createCloudNativePreviewService({ auth: cloudAuthService,
   database: databasePreviewService, convertOffice: desktopPlatformHost.documents.convertOfficeDocumentToDocx,
@@ -839,7 +857,24 @@ function resolveAppIconPath() {
   });
 }
 
+async function queueTemplateIntent(value) {
+  let parsed;
+  try { parsed = parseTemplateLink(value, templateLinkOptions); } catch { return false; }
+  const intent = { id: randomUUID(), url: templateShareLink(parsed, templateStoreOrigin), ownerId: null };
+  pendingTemplateIntent = intent;
+  if (initialWindowReady) {
+    const window = await createOrRevealWindow();
+    if (pendingTemplateIntent === intent && !window.isDestroyed()) {
+      intent.ownerId = window.webContents.id;
+      window.webContents.send("template:import-requested");
+    }
+  }
+  return true;
+}
+
 app.on("second-instance", (_event, argv, workingDirectory, launchIntent) => {
+  const templateLink = argv.find(value => value.startsWith(`${getDesktopReturnScheme(desktopBuildInfo.channel)}://templates/`));
+  if (templateLink) { void queueTemplateIntent(templateLink).catch(() => console.warn("Unable to open the template import window.")); return; }
   void handleSecondInstanceLaunch({
     launchIntent,
     argv,
@@ -852,6 +887,9 @@ app.on("second-instance", (_event, argv, workingDirectory, launchIntent) => {
 });
 
 app.on("open-url", (event, url) => {
+  if (url.startsWith(`${getDesktopReturnScheme(desktopBuildInfo.channel)}://templates/`)) {
+    event.preventDefault(); void queueTemplateIntent(url).catch(() => console.warn("Unable to open the template import window.")); return;
+  }
   if (!isDesktopReturnUrl(url, desktopBuildInfo.channel)) return;
   event.preventDefault();
   if (initialWindowReady) revealLastFocusedWindow();
@@ -971,6 +1009,13 @@ app.whenReady().then(async () => {
     initialWorkspacePaths: initialWorkspaceComposition.paths,
   });
   initialWindowReady = true;
+  if (pendingTemplateIntent) {
+    const window = await createOrRevealWindow();
+    if (pendingTemplateIntent && !window.isDestroyed()) {
+      pendingTemplateIntent.ownerId = window.webContents.id;
+      window.webContents.send("template:import-requested");
+    }
+  }
 
   app.on("activate", () => {
     void localeService.refreshSystemLanguages().catch((error) => {
@@ -1132,6 +1177,16 @@ function registerIpcHandlers() {
     detachWorkspaceFromCurrentWindow,
   });
   registerCloudIpcHandlers({ ipcMain: trustedIpcMain, cloudAuthService });
+  trustedIpcMain.handle("template:resolve", (_event, request) => templateMarketplaceService.resolveLink(request?.url, request?.locale));
+  trustedIpcMain.handle("template:read-intent", (event) => {
+    if (pendingTemplateIntent && pendingTemplateIntent.ownerId !== null && !BrowserWindow.getAllWindows().some(window => window.webContents.id === pendingTemplateIntent.ownerId)) pendingTemplateIntent.ownerId = null;
+    if (!pendingTemplateIntent || (pendingTemplateIntent.ownerId !== null && pendingTemplateIntent.ownerId !== event.sender.id)) return null;
+    pendingTemplateIntent.ownerId = event.sender.id;
+    return { id: pendingTemplateIntent.id, url: pendingTemplateIntent.url };
+  });
+  trustedIpcMain.handle("template:acknowledge-intent", (event, id) => {
+    if (pendingTemplateIntent?.id === id && pendingTemplateIntent.ownerId === event.sender.id) pendingTemplateIntent = null;
+  });
   registerCloudNativePreviewIpc(trustedIpcMain, cloudNativePreviewService);
   registerCloudPreviewResourceIpc(trustedIpcMain, cloudPreviewResourceService);
   registerCloudPublishIpcHandlers({

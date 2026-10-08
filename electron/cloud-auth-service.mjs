@@ -6,6 +6,7 @@ import {
 } from "../shared/cloudEndpoint.js";
 import { createCredentialStore } from "./main/auth/credential-store.mjs";
 import { startLoopbackCallbackServer } from "./main/auth/loopback-callback-server.mjs";
+import { requireTemplateId } from "../shared/desktop/template-link.mjs";
 
 const DEFAULT_SESSION_STATE_FILENAME = "desktop-cloud-session.json";
 const SESSION_REFRESH_SKEW_MS = 60_000;
@@ -24,6 +25,7 @@ export function createCloudAuthService({
   startCallbackServer = startLoopbackCallbackServer,
   fetchImpl = globalThis.fetch,
   localCloudWebUrl = null,
+  templateMarketplace = null,
   now = () => Date.now(),
   randomBytes = crypto.randomBytes,
   logger = console,
@@ -267,6 +269,43 @@ export function createCloudAuthService({
       if (generation !== sessionGeneration) throw createSessionChangedError();
       return { response, close };
     } catch (error) { close(); throw error; }
+  }
+
+  // Main-only, fixed-origin template authorization. No renderer can supply a
+  // destination or receive an access token through this method.
+  async function requestTemplateDownload({ id, releaseId }) {
+    assertNotDisposed();
+    requireTemplateId(id); requireTemplateId(releaseId);
+    if (!templateMarketplace) throw new Error("Template store is not configured.");
+    const apiBase = normalizeCloudApiBaseUrl(templateMarketplace.apiBase);
+    await ensureCredentialLoaded();
+    if (authStatus === "signing-out" || !credential || !apiBase || !isSessionForApiBase(credential, apiBase)) throw createSignedOutError(apiBase);
+    const generation = sessionGeneration;
+    const actor = credential.user_id;
+    const assertSession = () => {
+      if (generation !== sessionGeneration || actor !== credential?.user_id || authStatus === "signing-out") throw createSessionChangedError();
+    };
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const session = attempt === 0 && runtimeSession && isFreshSession(runtimeSession, now())
+        ? runtimeSession : await refreshSessionSingleflight(apiBase);
+      assertSession();
+      const controller = new AbortController();
+      activeRequestControllers.add(controller);
+      try {
+        const response = await fetchImpl(`${templateMarketplace.origin}/api/templates/${id}/download`, {
+          method: "POST", redirect: "error", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]),
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ release_id: releaseId }),
+        });
+        assertSession();
+        if (response.status === 401 && attempt === 0) { await response.body?.cancel(); continue; }
+        const data = await readTemplateAuthorizationResponse(response);
+        assertSession();
+        if (!response.ok) throw new Error(data?.error?.message || "Template authorization failed. Please sign in again.");
+        return data;
+      } finally { activeRequestControllers.delete(controller); }
+    }
+    throw createSignedOutError(apiBase);
   }
 
   async function requestSessionApi(apiBase, apiPath, init = {}, expectedSession = null) {
@@ -661,6 +700,7 @@ export function createCloudAuthService({
     restoreSession,
     startOAuth,
     requestSessionApi,
+    requestTemplateDownload,
     openAgentStream,
     subscribe(listener) { stateSubscribers.add(listener); return () => stateSubscribers.delete(listener); },
     clearSession,
@@ -968,4 +1008,20 @@ function safeErrorMessage(error, fallback = "Cloud authentication failed.") {
   return message
     .replace(/[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}/g, "[redacted-token]")
     .replace(/(refresh_token|code_verifier|access_token)=?[^\s&]*/gi, "$1=[redacted]");
+}
+
+async function readTemplateAuthorizationResponse(response) {
+  if (!response.body) throw new Error("Template authorization failed.");
+  const reader = response.body.getReader();
+  const chunks = []; let size = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.length;
+      if (size > 16384) throw new Error("Invalid template authorization response.");
+      chunks.push(Buffer.from(value));
+    }
+  } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
+  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }

@@ -2,6 +2,8 @@ import { Tooltip } from "@puppyone/shared-ui";
 import { FolderOpen, FolderPlus } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useLocalization } from "@puppyone/localization";
+import { useProjectTemplateImport } from "./useProjectTemplateImport";
+import { ProjectTemplateImportFields } from "./ProjectTemplateImportFields";
 import type { WorkspaceCreateProjectRequest, WorkspaceCreateProjectResult, WorkspaceProjectLocationGrant } from "../types/electron";
 import {
   DesktopDialogCloseButton,
@@ -12,15 +14,17 @@ import {
  * Project initialization dialog. The location is prefilled with the built-in
  * projects folder and the project name is prefilled, so the default path is a
  * single Create action. Browse and name editing remain available as escape
- * hatches. Every project starts with the built-in Getting Started file.
+ * hatches. Users may also choose a published marketplace template.
  */
 export function OnboardingProjectEntryDialog({
   onClose,
+  initialTemplateUrl = null,
   onDefaultLocation,
   onChooseLocation,
   onSubmit,
 }: {
   onClose: () => void;
+  initialTemplateUrl?: string | null;
   onDefaultLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
   onChooseLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
   onSubmit: (request: WorkspaceCreateProjectRequest) => Promise<WorkspaceCreateProjectResult>;
@@ -36,9 +40,13 @@ export function OnboardingProjectEntryDialog({
   const [location, setLocation] = useState<WorkspaceProjectLocationGrant | null>(null);
   const [error, setError] = useState<string | null>(null);
   const defaultLocationRequest = useRef<Promise<WorkspaceProjectLocationGrant | null> | null>(null);
-  const busy = submitting || choosingLocation;
+  const marketplace = useProjectTemplateImport(initialTemplateUrl, locale, (detail) => {
+    setValue(`${detail.name} ${crypto.randomUUID().slice(0, 4).toUpperCase()}`);
+    requestRef.current = null;
+  });
+  const busy = submitting || choosingLocation || marketplace.resolving;
   const fieldsDisabled = busy || created !== null;
-  const title = t("onboarding.entry.create.title");
+  const title = t(marketplace.mode ? "onboarding.template.title" : "onboarding.entry.create.title");
 
   useEffect(() => {
     if (!onDefaultLocation) return;
@@ -59,7 +67,7 @@ export function OnboardingProjectEntryDialog({
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const name = value.trim();
-    if (!name || busy || !location) return;
+    if (!name || busy || !location || !marketplace.canCreate) return;
     setError(null);
     setSubmitting(true);
     try {
@@ -68,10 +76,7 @@ export function OnboardingProjectEntryDialog({
         locationGrantId: location.grantId,
         operationId: crypto.randomUUID(),
         locale,
-        source: {
-          kind: "template",
-          ref: { sourceId: "builtin", id: "puppyone.project.getting-started", version: 1 },
-        },
+        source: marketplace.source,
       };
       const result = await onSubmit(requestRef.current);
       if (result.opening.status === "opened") {
@@ -133,6 +138,7 @@ export function OnboardingProjectEntryDialog({
 
         <div className="desktop-dialog-body desktop-file-dialog-body onboarding-entry-dialog-body">
           <div className="onboarding-entry-create-fields">
+            <ProjectTemplateImportFields controller={marketplace} disabled={fieldsDisabled} onChange={() => { requestRef.current = null; setError(null); }} />
             <label className="onboarding-entry-create-field">
               <span className="onboarding-entry-create-label">
                 {t("onboarding.entry.create.nameLabel")}
@@ -202,7 +208,7 @@ export function OnboardingProjectEntryDialog({
           <button
             className="desktop-dialog-button primary file"
             type="submit"
-            disabled={busy || !value.trim() || !location}
+            disabled={busy || !value.trim() || !location || !marketplace.canCreate}
           >
             {t(submitting
               ? "onboarding.entry.create.submitting"

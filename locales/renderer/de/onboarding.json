@@ -121,5 +121,15 @@
   "library.createInCloud": "In Cloud erstellen",
   "library.addFromMac": "Von diesem Mac hinzufügen",
   "entry.create.createdNote": "Projekt unter {path} erstellt. Du kannst es erneut öffnen, ohne es nochmals zu erstellen.",
-  "entry.create.retryOpen": "Erstelltes Projekt öffnen"
+  "entry.create.retryOpen": "Erstelltes Projekt öffnen",
+  "template.title": "Aus Vorlage erstellen",
+  "template.useLink": "Vorlagenlink verwenden",
+  "template.link": "Vorlagenlink",
+  "template.paste": "Link einfügen",
+  "template.pasteFailed": "Füge den Vorlagenlink in das Feld ein.",
+  "template.preview": "Vorlage ansehen",
+  "template.loading": "Wird geladen…",
+  "template.signIn": "Anmelden, um die Vorlage zu verwenden",
+  "template.signingIn": "Anmeldung läuft…",
+  "template.linkPlaceholder": "https://www.puppyone.ai/t/…"
 }

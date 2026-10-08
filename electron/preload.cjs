@@ -287,6 +287,14 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   selectFolderInNewWindow: () => ipcRenderer.invoke("workspace:select-folder-new-window"),
   selectLocalProjectLocation: () => ipcRenderer.invoke("workspace:select-project-location-current"),
   getDefaultLocalProjectLocation: () => ipcRenderer.invoke("workspace:default-project-location-current"),
+  resolveTemplateLink: (request) => ipcRenderer.invoke("template:resolve", request),
+  readTemplateImportIntent: () => ipcRenderer.invoke("template:read-intent"),
+  acknowledgeTemplateImportIntent: (id) => ipcRenderer.invoke("template:acknowledge-intent", id),
+  onTemplateImportRequested: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on("template:import-requested", handler);
+    return () => ipcRenderer.removeListener("template:import-requested", handler);
+  },
   createLocalProject: (request) => ipcRenderer.invoke("workspace:create-project-current", request),
   connectImportSource: (request) => ipcRenderer.invoke("workspace:import-source-connect", request),
   listImportResources: (request) => ipcRenderer.invoke("workspace:import-source-list", request),

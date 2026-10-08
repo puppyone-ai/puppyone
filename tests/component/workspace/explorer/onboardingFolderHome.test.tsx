@@ -414,6 +414,27 @@ describe("project folder home", () => {
     expect(onImportSource).not.toHaveBeenCalled();
   });
 
+  it("requires an explicit template preview and sign-in before marketplace creation", async () => {
+    const readText = vi.fn(async () => "https://www.puppyone.ai/t/b91aaade-bc9e-4dfd-8f23-11f06ec00301");
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { readText } });
+    const resolveTemplateLink = vi.fn(async () => ({ id: "b91aaade-bc9e-4dfd-8f23-11f06ec00301", releaseId: "b91aaade-bc9e-4dfd-8f23-11f06ec00101", name: "CRM", description: "Customers", version: "1.0.0", author: "Puppyone", locale: "en", shareUrl: "https://www.puppyone.ai/t/b91aaade-bc9e-4dfd-8f23-11f06ec00301" }));
+    window.puppyoneDesktop = { resolveTemplateLink } as unknown as NonNullable<typeof window.puppyoneDesktop>;
+    const onCreateProject = vi.fn(createProjectResult);
+    const location = vi.fn(async () => ({ grantId: "default", path: "/example/Projects" }));
+    const container = renderHome({ onDefaultProjectLocation: location, onChooseProjectLocation: location, onCreateProject });
+    await act(async () => container.querySelector<HTMLButtonElement>("[data-onboarding-action='create']")?.click());
+    expect(readText).not.toHaveBeenCalled();
+    await act(async () => container.querySelector<HTMLInputElement>("input[type='checkbox']")?.click());
+    const submit = container.querySelector<HTMLButtonElement>("button[type='submit']");
+    expect(submit?.disabled).toBe(true);
+    await act(async () => [...container.querySelectorAll("button")].find(button => button.textContent === "Paste link")?.click());
+    expect(readText).toHaveBeenCalledOnce();
+    expect(resolveTemplateLink).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain("Customers");
+    expect(submit?.disabled).toBe(true);
+    expect(onCreateProject).not.toHaveBeenCalled();
+  });
+
   it("prefills the name and built-in projects folder for one-action creation", async () => {
     const onDefaultProjectLocation = vi.fn(async () => ({
       grantId: "default-1",
@@ -441,7 +462,7 @@ describe("project folder home", () => {
     expect(onChooseProjectLocation).not.toHaveBeenCalled();
     expect(container.querySelector(".onboarding-entry-location-path")?.textContent).toBe("/Users/example/Documents/PuppyOne");
     expect(container.querySelector(".onboarding-entry-location-action")?.textContent).toBe("Change");
-    const projectName = container.querySelector<HTMLInputElement>(".onboarding-entry-dialog input");
+    const projectName = container.querySelector<HTMLInputElement>(".onboarding-entry-dialog input[type='text']");
     expect(projectName?.value).toMatch(/^My project [A-F0-9]{4}$/);
     const defaultName = projectName?.value;
     expect(container.querySelector(".onboarding-entry-dialog select")).toBeNull();
@@ -485,7 +506,7 @@ describe("project folder home", () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    setInputValue(container.querySelector<HTMLInputElement>(".onboarding-entry-dialog input"), "Knowledge Base");
+    setInputValue(container.querySelector<HTMLInputElement>(".onboarding-entry-dialog input[type='text']"), "Knowledge Base");
     await act(async () => {
       container.querySelector<HTMLButtonElement>(".onboarding-entry-browse-button")?.click();
       await Promise.resolve();
@@ -521,7 +542,7 @@ describe("project folder home", () => {
     expect(container.querySelector(".onboarding-entry-location-path")?.textContent).toBe("Choose a folder");
     expect(container.querySelector(".onboarding-entry-location-action")?.textContent).toBe("Browse");
     const createButton = container.querySelector<HTMLButtonElement>(".onboarding-entry-dialog button[type='submit']");
-    setInputValue(container.querySelector<HTMLInputElement>(".onboarding-entry-dialog input"), "Knowledge Base");
+    setInputValue(container.querySelector<HTMLInputElement>(".onboarding-entry-dialog input[type='text']"), "Knowledge Base");
     expect(createButton?.disabled).toBe(true);
   });
 

@@ -121,5 +121,15 @@
   "library.createInCloud": "Criar na Cloud",
   "library.addFromMac": "Adicionar deste Mac",
   "entry.create.createdNote": "Projeto criado em {path}. Você pode tentar abri-lo novamente sem recriá-lo.",
-  "entry.create.retryOpen": "Abrir projeto criado"
+  "entry.create.retryOpen": "Abrir projeto criado",
+  "template.title": "Criar a partir de modelo",
+  "template.useLink": "Usar um link de modelo",
+  "template.link": "Link do modelo",
+  "template.paste": "Colar link",
+  "template.pasteFailed": "Cole o link do modelo no campo.",
+  "template.preview": "Visualizar modelo",
+  "template.loading": "Carregando…",
+  "template.signIn": "Entrar para usar este modelo",
+  "template.signingIn": "Entrando…",
+  "template.linkPlaceholder": "https://www.puppyone.ai/t/…"
 }
