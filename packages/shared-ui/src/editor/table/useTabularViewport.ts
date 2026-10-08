@@ -192,13 +192,20 @@ export function useTabularViewport({
     scrollRef,
   ]);
 
+  const latestUpdateWindowRef = useRef(updateWindow);
+  useLayoutEffect(() => {
+    latestUpdateWindowRef.current = updateWindow;
+  }, [updateWindow]);
+
+  // Queued resize/scroll-end work must use the latest committed geometry, even
+  // when a structural edit or undo happens before the callback is delivered.
   const scheduleWindowUpdate = useCallback(() => {
     if (frameRef.current !== null) return;
     frameRef.current = requestFrame(() => {
       frameRef.current = null;
-      updateWindow();
+      latestUpdateWindowRef.current();
     });
-  }, [updateWindow]);
+  }, []);
 
   const handleScroll = useCallback(() => {
     const scroll = scrollRef.current;
@@ -254,7 +261,7 @@ export function useTabularViewport({
       };
       columnOverscanRef.current = COLUMN_OVERSCAN_PX;
       rowOverscanRef.current = restingOverscan;
-      updateWindow(restingOverscan);
+      latestUpdateWindowRef.current(restingOverscan);
     }, SCROLL_END_DELAY_MS);
   }, [scrollRef, updateWindow]);
 

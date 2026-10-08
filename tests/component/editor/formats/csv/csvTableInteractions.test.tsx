@@ -42,6 +42,53 @@ afterEach(async () => {
 });
 
 describe("CSV table interactions", () => {
+  it.each([
+    ["rows", 0, 93, 5, 2],
+    ["columns", 288, 0, 2, 5],
+    ["both axes", 288, 93, 5, 5],
+  ] as const)("renders corner expansion of %s immediately in StrictMode", async (_axis, dx, dy, rows, columns) => {
+    await act(async () => {
+      root?.unmount();
+      root = createRoot(container!);
+      root.render(withTestLocalization(<React.StrictMode><Harness /></React.StrictMode>));
+    });
+    mockTableGeometry();
+    const handle = container!.querySelector<HTMLButtonElement>(".csv-table-editor__resize-handle")!;
+    makePointerCaptureSafe(handle);
+    act(() => handle.dispatchEvent(pointerEvent("pointerdown", 300, 200, 81)));
+    act(() => handle.dispatchEvent(pointerEvent("pointermove", 300 + dx, 200 + dy, 81)));
+    expect(container!.querySelector("[data-resize-preview]")).not.toBeNull();
+    act(() => handle.dispatchEvent(pointerEvent("pointerup", 300 + dx, 200 + dy, 81)));
+
+    expect(changeCount).toBe(1);
+    expect(latestSnapshot.split("\n")).toHaveLength(rows + 1);
+    expect(latestSnapshot.split("\n")[0].split(",")).toHaveLength(columns);
+    expect(container!.querySelectorAll("thead th[data-csv-column]")).toHaveLength(columns);
+    expect(container!.querySelectorAll("tbody tr[data-csv-row]")).toHaveLength(rows);
+    expect(container!.querySelectorAll("tbody tr:first-child td[data-csv-column]")).toHaveLength(columns);
+    expect(container!.querySelector(".csv-table-editor__expansion-cell")).toBeNull();
+
+    const historyKey = (shiftKey: boolean) => {
+      const input = container!.querySelector<HTMLInputElement>('input[data-csv-row="1"][data-csv-column="0"]')!;
+      act(() => input.dispatchEvent(new KeyboardEvent("keydown", {
+        bubbles: true, cancelable: true, key: "z", metaKey: true, shiftKey,
+      })));
+    };
+    historyKey(false);
+    expect(container!.querySelectorAll("thead th[data-csv-column]")).toHaveLength(2);
+    expect(container!.querySelectorAll("tbody tr[data-csv-row]")).toHaveLength(2);
+    historyKey(true);
+    expect(container!.querySelectorAll("thead th[data-csv-column]")).toHaveLength(columns);
+    expect(container!.querySelectorAll("tbody tr[data-csv-row]")).toHaveLength(rows);
+
+    act(() => handle.dispatchEvent(pointerEvent("pointerdown", 300, 200, 82)));
+    act(() => handle.dispatchEvent(pointerEvent("pointermove", 396, 231, 82)));
+    act(() => handle.dispatchEvent(pointerEvent("pointerup", 396, 231, 82)));
+    expect(changeCount).toBe(4);
+    expect(container!.querySelectorAll("thead th[data-csv-column]")).toHaveLength(columns + 1);
+    expect(container!.querySelectorAll("tbody tr[data-csv-row]")).toHaveLength(rows + 1);
+  });
+
   it("keeps data-row numbers inside the frame while settings control header semantics", async () => {
     expect(container?.querySelector(".csv-table-editor__toolbar")).toBeNull();
     expect(container?.querySelector(".csv-table-editor__settings-button")).toBeInstanceOf(

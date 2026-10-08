@@ -30,6 +30,22 @@ afterEach(async () => {
 });
 
 describe("CSV bounded renderer performance", () => {
+  it("projects expansion-preview rows into the same column tracks as a wide CSV", async () => {
+    await renderCsv(2, 500, "wide-preview.csv", true);
+    const handle = required<HTMLButtonElement>(container, ".csv-table-editor__resize-handle");
+    act(() => handle.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true, button: 0, pointerId: 31, clientX: 300, clientY: 200,
+    })));
+    act(() => handle.dispatchEvent(new PointerEvent("pointermove", {
+      bubbles: true, pointerId: 31, clientX: 300, clientY: 231,
+    })));
+    const preview = required<HTMLTableRowElement>(container, ".csv-table-editor__expansion-row");
+    const tracks = container.querySelectorAll("colgroup col");
+    expect(preview.children.length).toBe(tracks.length);
+    expect(preview.querySelectorAll("td").length).toBeLessThan(30);
+    expect(preview.querySelector(".csv-table-editor__virtual-column-spacer")).not.toBeNull();
+  });
+
   it("keeps a 500 by 20 table below the mounted row and cell budgets", async () => {
     const snapshotPort: { current: EditorSourceSnapshotPort | null } = { current: null };
     const localRevisions: string[] = [];
@@ -171,13 +187,14 @@ describe("CSV bounded renderer performance", () => {
   });
 });
 
-async function renderCsv(rowCount: number, columnCount: number, documentId: string): Promise<void> {
+async function renderCsv(rowCount: number, columnCount: number, documentId: string, editable = false): Promise<void> {
   await act(async () => {
     root.render(withTestLocalization(
       <CsvTableEditor
         content={makeCsv(rowCount, columnCount)}
         documentId={documentId}
         nodeName={documentId}
+        readOnly={!editable}
       />,
     ));
     await Promise.resolve();

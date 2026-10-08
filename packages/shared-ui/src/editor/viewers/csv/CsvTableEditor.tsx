@@ -168,8 +168,6 @@ export function CsvTableEditor({
     return () => callbacksRef.current.onSnapshotPortChange?.(null);
   }, [documentModels, model]);
 
-  useLayoutEffect(() => () => columnLayout.dispose(), [columnLayout]);
-
   const [headerEnabled, setHeaderEnabled] = useState(modelSnapshot.suggestedHeader);
   const [rowNumbersVisible, setRowNumbersVisible] = useState(true);
   const [resizePreview, setResizePreview] = useState<CsvTableExpansion | null>(null);
@@ -455,7 +453,6 @@ export function CsvTableEditor({
 
   const previewAddedRows = resizePreview?.addedRows ?? 0;
   const previewAddedColumns = resizePreview?.addedColumns ?? 0;
-  const previewColumnCount = columnCount + previewAddedColumns;
   const structuralDataRowCount = Math.max(0, modelSnapshot.rows.length - (headerEnabled ? 1 : 0));
   const ariaColumnOffset = rowNumbersVisible ? 2 : 1;
   const physicalColumnCount = viewport.columnItems.length
@@ -604,7 +601,19 @@ export function CsvTableEditor({
                           </span>
                         </th>
                       )}
-                      {Array.from({ length: previewColumnCount }, (_, previewColumnIndex) => (
+                      {viewport.columnItems.map((item) => item.kind === "gap" ? (
+                        <td
+                          className="csv-table-editor__virtual-column-spacer"
+                          key={`expansion-gap-${item.start}-${item.end}`}
+                          style={{ width: item.size }}
+                        />
+                      ) : (
+                        <td
+                          className="csv-table-editor__body-cell csv-table-editor__expansion-cell"
+                          key={`expansion-cell-${item.index}`}
+                        />
+                      ))}
+                      {Array.from({ length: previewAddedColumns }, (_, previewColumnIndex) => (
                         <td
                           className="csv-table-editor__body-cell csv-table-editor__expansion-cell"
                           key={`expansion-row-${previewRowIndex}-cell-${previewColumnIndex}`}

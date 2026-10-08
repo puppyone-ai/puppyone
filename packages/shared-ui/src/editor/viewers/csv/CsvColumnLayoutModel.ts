@@ -34,7 +34,7 @@ export type CsvColumnLayoutPersistence = Readonly<{
 export class CsvColumnLayoutModel {
   private readonly knownWidths = new Map<string, number>();
   private readonly listeners = new Set<() => void>();
-  private readonly unsubscribeFromDocument: () => void;
+  private unsubscribeFromDocument: (() => void) | null = null;
   private revisionSequence = 0;
   private sourceEpoch: number;
   private state: CsvColumnLayoutSnapshot;
@@ -55,20 +55,27 @@ export class CsvColumnLayoutModel {
     });
     this.sourceEpoch = document.epoch;
     this.state = this.createSnapshot(document.columns, widths);
-    this.unsubscribeFromDocument = documentModel.subscribe(this.syncFromDocument);
   }
 
   readonly getSnapshot = (): CsvColumnLayoutSnapshot => this.state;
 
   readonly subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+    // React may discard a render or replay subscriptions in StrictMode. Only
+    // mounted consumers own a document subscription; reconnecting also catches
+    // structural edits made while this view was detached.
+    if (!this.unsubscribeFromDocument) {
+      this.unsubscribeFromDocument = this.documentModel.subscribe(this.syncFromDocument);
+      this.syncFromDocument();
+    }
+    return () => {
+      this.listeners.delete(listener);
+      if (this.listeners.size === 0) {
+        this.unsubscribeFromDocument?.();
+        this.unsubscribeFromDocument = null;
+      }
+    };
   };
-
-  dispose(): void {
-    this.unsubscribeFromDocument();
-    this.listeners.clear();
-  }
 
   readonly setColumnWidth = (columnIndex: number, width: number): void => {
     const columnId = this.state.columnIds[columnIndex];
