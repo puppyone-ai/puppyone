@@ -524,6 +524,12 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   color: inherit;
 }
 
+.desktop-project-location-option[data-cloud-action="create"],
+.desktop-project-location-option[data-cloud-action="create"]:hover:not(:disabled),
+.desktop-project-location-option[data-cloud-action="create"]:focus-visible {
+  color: var(--po-accent-text);
+}
+
 .desktop-project-location-indicator {
   position: absolute;
   z-index: -1;
