@@ -60,6 +60,7 @@ export function WorkspaceMenuVisualSmokeHarness() {
             titlebarLabel={currentWorkspace.name}
             menuAlignment="center"
             workspace={currentWorkspace}
+            availableProjects={[currentWorkspace]}
             workspaceFolders={[]}
             multiRootWorkspacesEnabled={false}
             projectLocation={{

@@ -49,6 +49,7 @@ async function runSmoke() {
   await window.webContents.executeJavaScript(`localStorage.setItem('puppyone.desktop.developmentLanguage', ${JSON.stringify(locale)})`);
   for (const platform of ["macos", "windows", "linux"]) {
   for (const theme of ["light", "dark"]) {
+  let projectRowAppearance;
   for (const state of ["local-only", "local-github", "local-cloud-no-github", "local-cloud", "cloud-only", "resolving", "signed-out"]) {
   const url = pathToFileURL(rendererPath);
   url.searchParams.set("project-state", state);
@@ -57,6 +58,7 @@ async function runSmoke() {
   url.hash = "workspace-menu-visual-smoke";
   await window.loadURL(url.href);
   await waitForRenderer(window, "Boolean(document.querySelector('.desktop-titlebar-location-button'))");
+  if (!projectRowAppearance) projectRowAppearance = await readProjectRowAppearance(window);
   await window.webContents.executeJavaScript("document.querySelector('.desktop-titlebar-location-button').click()");
   await waitForRenderer(window, `Boolean(
     document.querySelector('[data-workspace-menu-visual-ready="true"]')
@@ -76,14 +78,14 @@ async function runSmoke() {
     const track = menu.querySelector('.desktop-project-location-tabs');
     const buttons = [...menu.querySelectorAll('button[data-project-location]')];
     const selected = menu.querySelector('button[aria-pressed="true"]');
-    const plate = menu.querySelector('.desktop-project-location-indicator');
     const create = menu.querySelector('button[data-cloud-action="create"]');
     const github = menu.querySelector('.desktop-project-repository-link');
     const header = document.querySelector('.workspace-menu-visual-titlebar');
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
     const luminance = color => {
-      context.fillStyle = getComputedStyle(track).backgroundColor;
+      context.clearRect(0, 0, 1, 1);
+      context.fillStyle = getComputedStyle(menu).backgroundColor;
       context.fillRect(0, 0, 1, 1);
       context.fillStyle = color;
       context.fillRect(0, 0, 1, 1);
@@ -94,8 +96,7 @@ async function runSmoke() {
       return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
     };
     const contrast = (first, second) => (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
-    const selectedLuminance = luminance(getComputedStyle(plate).backgroundColor);
-    const trackLuminance = luminance(getComputedStyle(track).backgroundColor);
+    const selectedLuminance = luminance(getComputedStyle(selected).backgroundColor);
     return {
       locale: document.documentElement.lang,
       cloudEntry: row.dataset.cloudEntry,
@@ -104,7 +105,6 @@ async function runSmoke() {
         && (!github || github.getBoundingClientRect().right <= menu.getBoundingClientRect().right - 6),
       createIcon: !!create?.querySelector('.lucide-plus'),
       createContrast: create ? contrast(luminance(getComputedStyle(create).color), luminance(getComputedStyle(create).backgroundColor)) : null,
-      createEmphasis: create ? getComputedStyle(create).boxShadow : null,
       state: document.querySelector('[data-project-state]')?.dataset.projectState,
       location: selected.dataset.projectLocation,
       currentCount: menu.querySelectorAll('[aria-current="true"]').length,
@@ -112,25 +112,29 @@ async function runSmoke() {
       menuWidth: menu.getBoundingClientRect().width,
       menuHeight: menu.getBoundingClientRect().height,
       menuPadding: parseFloat(getComputedStyle(menu).paddingLeft),
-      rowGap: parseFloat(getComputedStyle(row).gap),
+      rowGap: parseFloat(getComputedStyle(track).gap),
       buttonHeights: buttons.map(button => button.getBoundingClientRect().height),
       buttonYs: buttons.map(button => button.getBoundingClientRect().y),
+      buttonXs: buttons.map(button => button.getBoundingClientRect().x),
+      buttonWidths: buttons.map(button => button.getBoundingClientRect().width),
+      fonts: buttons.map(button => getComputedStyle(button).font),
       labels: buttons.map(button => button.textContent),
       labelsFit: buttons.every(button => button.scrollWidth <= button.clientWidth),
       selectedTextColor: getComputedStyle(selected).color,
       normalTextColor: getComputedStyle(menu).color,
       selectedContrast: contrast(selectedLuminance, luminance(getComputedStyle(selected).color)),
-      selectedEmphasis: contrast(selectedLuminance, trackLuminance),
-      iconWidths: buttons.map(button => button.querySelector('.desktop-project-location-tab-mark').getBoundingClientRect().width),
-      iconColorsMatch: buttons.every(button => getComputedStyle(button.querySelector('.desktop-project-location-tab-mark')).color === getComputedStyle(button.querySelector('span:last-child')).color),
-      selectedBackground: getComputedStyle(plate).backgroundColor,
-      trackBackground: getComputedStyle(track).backgroundColor,
+      iconWidths: buttons.map(button => button.querySelector('.desktop-menu-item-icon').getBoundingClientRect().width),
+      iconColorsMatch: buttons.every(button => getComputedStyle(button.querySelector('.desktop-menu-item-icon')).color === getComputedStyle(button.querySelector('.desktop-menu-item-label')).color),
+      selectedBackground: getComputedStyle(selected).backgroundColor,
+      selectedCheck: !!selected.querySelector('.desktop-menu-item-trailing .lucide-check'),
+      checkCount: menu.querySelectorAll('.desktop-menu-item-trailing .lucide-check').length,
+      hasSlider: !!menu.querySelector('.desktop-project-location-indicator'),
       headerColorsMatch: getComputedStyle(header.querySelector('.desktop-titlebar-workspace-mark')).color === getComputedStyle(header.querySelector('.desktop-titlebar-workspace-name')).color,
       menuBackground: getComputedStyle(menu).backgroundColor,
       headerBackground: getComputedStyle(header).backgroundColor,
       menuShadow: getComputedStyle(menu).boxShadow,
       menuOutline: getComputedStyle(menu).outlineStyle,
-      selectedShadow: getComputedStyle(plate).boxShadow,
+      selectedShadow: getComputedStyle(selected).boxShadow,
       localDisabled: buttons[0].disabled,
       cloudDisabled: buttons[1].disabled,
       githubUrl: github?.href,
@@ -143,20 +147,28 @@ async function runSmoke() {
 
   const evidence = JSON.stringify(snapshot);
   assert(snapshot.state === state, `Wrong fixture state: ${evidence}`);
-  assert(snapshot.menuWidth >= 248 && snapshot.menuWidth <= 480 && snapshot.menuHeight === 40 && snapshot.controlsFit, `Project menu must stay compact and fit translated device labels: ${evidence}`);
-  assert(snapshot.menuPadding === 3 && snapshot.rowGap === snapshot.menuPadding, `Control spacing must match menu padding: ${evidence}`);
-  assert(snapshot.buttonHeights.every(height => height === 28) && snapshot.buttonYs[0] === snapshot.buttonYs[1], `Local and Cloud must share one horizontal control: ${evidence}`);
+  assert(snapshot.menuWidth >= 248 && snapshot.menuWidth <= 480
+    && snapshot.menuHeight === 2 * projectRowAppearance.height + 10 && snapshot.controlsFit,
+    `Project location list must fit translated labels within two compact rows: ${evidence}`);
+  assert(snapshot.menuPadding === 3 && snapshot.rowGap === 2, `List padding and row gap must match the project menu: ${evidence}`);
+  assert(snapshot.buttonHeights.every(height => height === projectRowAppearance.height)
+    && snapshot.buttonYs[1] === snapshot.buttonYs[0] + projectRowAppearance.height + snapshot.rowGap
+    && snapshot.buttonXs[0] === snapshot.buttonXs[1] && snapshot.buttonWidths[0] === snapshot.buttonWidths[1],
+    `Local must appear above Cloud in equal full-width project-menu rows: ${evidence}`);
   assert(snapshot.currentCount === 1 && snapshot.pressedCount === 1, `Exactly one surface must be selected: ${evidence}`);
   const creating = state === "local-only" || state === "local-github";
   assert(snapshot.locale === locale && snapshot.devicePlatform === platform, `Wrong locale or device platform: ${evidence}`);
   assert(snapshot.cloudEntry === (creating ? "create" : "switch"), `Use creation only for a confirmed unhosted project: ${evidence}`);
   assert(snapshot.labelsFit && snapshot.labels.join("|") === [catalog[platform === "macos" ? "workspaceSwitcher.location.thisMac" : "workspaceSwitcher.location.thisComputer"], catalog[creating ? "workspaceSwitcher.shareToCloud" : "navigation.cloud"]].join("|"), `Only the two unclipped localized actions belong in this menu: ${evidence}`);
-  assert(creating ? snapshot.createIcon && snapshot.createContrast >= 4.5 && snapshot.createEmphasis !== "none" : !snapshot.createIcon && snapshot.createContrast === null, `Creation must be a readable accented action with a plus mark, separate from selection: ${evidence}`);
-  assert(snapshot.iconWidths.every(width => width === 14) && snapshot.iconColorsMatch
+  assert(creating ? snapshot.createIcon && snapshot.createContrast >= 4.5 : !snapshot.createIcon && snapshot.createContrast === null,
+    `Unhosted projects keep a readable Share to Cloud row with a plus mark: ${evidence}`);
+  assert(snapshot.iconWidths.every(width => width === projectRowAppearance.iconWidth) && snapshot.iconColorsMatch
     && (state === "cloud-only" || snapshot.headerColorsMatch), `Small icons must match their labels; the committed Cloud Header mark keeps its brand tint: ${evidence}`);
-  assert(snapshot.selectedTextColor === snapshot.normalTextColor && snapshot.selectedContrast >= 7
-    && snapshot.selectedEmphasis > 1.03 && snapshot.selectedEmphasis < 1.7,
-    `Selection needs a subtle themed background and normal text without inversion: ${evidence}`);
+  assert(snapshot.selectedTextColor === projectRowAppearance.color && snapshot.selectedContrast >= 7
+    && snapshot.selectedBackground === projectRowAppearance.background && snapshot.selectedShadow === projectRowAppearance.shadow
+    && snapshot.fonts.every(font => font === projectRowAppearance.font)
+    && snapshot.selectedCheck && snapshot.checkCount === 1 && !snapshot.hasSlider,
+    `Selection, typography and checkmark must match the project menu: ${evidence}`);
   assert(snapshot.menuBackground === snapshot.headerBackground && snapshot.menuShadow !== "none", `Popup must use themed Header color and a floating shadow: ${evidence}`);
   assert(snapshot.location === (state === "cloud-only" ? "cloud" : "local"), `Current surface drifted: ${evidence}`);
   assert(snapshot.localDisabled === (state === "cloud-only") && !snapshot.cloudDisabled, `Destination availability drifted: ${evidence}`);
@@ -166,7 +178,7 @@ async function runSmoke() {
     && scene.theme === theme && scene.state === "local-cloud");
   if (state === "cloud-only") assert(snapshot.selectedBackground === localSelection.selectedBackground
     && snapshot.selectedShadow === localSelection.selectedShadow,
-    `Local and Cloud must use the same selection plate appearance: ${evidence}`);
+    `Local and Cloud must use the same selected row appearance: ${evidence}`);
 
   const captureBounds = await window.webContents.executeJavaScript(`(() => {
     const rect = document.querySelector('[data-titlebar-context-menu="true"]').getBoundingClientRect();
@@ -181,6 +193,7 @@ async function runSmoke() {
     await writeFile(statePath, capture.toPNG());
   }
   observations.push({ locale, platform, theme, ...snapshot });
+  if (!creating && state !== "cloud-only") await checkPopoverSelection(window);
   await checkInlinePresentation(window, url, { locale, platform, theme, state }, catalog);
   }
   }
@@ -379,6 +392,45 @@ async function checkHeaderSlide(window, direction, destination) {
   return result;
 }
 
+async function readProjectRowAppearance(window) {
+  await window.webContents.executeJavaScript("document.querySelector('.desktop-titlebar-workspace-button').click()", true);
+  await waitForRenderer(window, "Boolean(document.querySelector('.desktop-project-switcher-list .desktop-menu-item.selected'))");
+  const appearance = await window.webContents.executeJavaScript(`(() => {
+    const row = document.querySelector('.desktop-project-switcher-list .desktop-menu-item.selected');
+    const css = getComputedStyle(row);
+    return { height: row.getBoundingClientRect().height, font: css.font, color: css.color,
+      background: css.backgroundColor, shadow: css.boxShadow,
+      iconWidth: row.querySelector('.desktop-menu-item-icon').getBoundingClientRect().width };
+  })()`, true);
+  await window.webContents.executeJavaScript("document.querySelector('.desktop-titlebar-workspace-button').click()", true);
+  await waitForRenderer(window, "!document.querySelector('.desktop-project-menu')");
+  return appearance;
+}
+
+async function checkPopoverSelection(window) {
+  const result = await window.webContents.executeJavaScript(`new Promise(resolve => {
+    const cloud = document.querySelector('.desktop-project-location-menu button[data-project-location="cloud"]');
+    cloud.click();
+    const frames = [];
+    const sample = () => {
+      const menu = document.querySelector('.desktop-project-location-menu');
+      const local = menu?.querySelector('button[data-project-location="local"]');
+      const selected = menu?.querySelector('button.selected');
+      frames.push({ retained: menu?.querySelector('button[data-project-location="cloud"]') === cloud,
+        selected: selected?.dataset.projectLocation, current: local?.getAttribute('aria-current'),
+        check: !!selected?.querySelector('.lucide-check'),
+        busy: menu?.querySelector('.desktop-project-location-tabs').getAttribute('aria-busy'),
+        spinner: !!cloud.querySelector('[data-puppy-loader="pulse-grid"]'),
+        stacked: local && cloud.getBoundingClientRect().top >= local.getBoundingClientRect().bottom + 2 });
+      if (frames.length < 8) requestAnimationFrame(sample); else resolve(frames);
+    };
+    requestAnimationFrame(sample);
+  })`, true);
+  assert(result.every(frame => frame.retained && frame.selected === 'cloud' && frame.current === 'true'
+    && frame.check && frame.busy === 'true' && frame.spinner && frame.stacked),
+    `Cloud preparation must retain the list, requested checkmark and committed provider: ${JSON.stringify(result)}`);
+}
+
 async function checkStableReopening(window, direction = "ltr") {
   await window.webContents.executeJavaScript("document.querySelector('.desktop-titlebar-location-button').click()", true);
   await waitForRenderer(window, "!document.querySelector('.desktop-project-location-menu')");
@@ -389,20 +441,21 @@ async function checkStableReopening(window, direction = "ltr") {
     const sample = () => {
       const menu = document.querySelector('.desktop-project-location-menu');
       if (menu && getComputedStyle(menu).visibility !== 'hidden') {
-        const a = menu.querySelector('.desktop-project-location-indicator').getBoundingClientRect();
-        const b = menu.querySelector('button[aria-pressed=true]').getBoundingClientRect();
         const m = menu.getBoundingClientRect();
         const track = menu.querySelector('.desktop-project-location-tabs');
-        const css = getComputedStyle(menu.querySelector('.desktop-project-location-indicator'));
-        frames.push({x:m.x,y:m.y,width:m.width,height:m.height,offset:Math.abs(a.x-b.x),plateWidth:Math.abs(a.width-b.width),animations:menu.querySelector('.desktop-project-location-indicator').getAnimations().length,rtl:track.matches(':dir(rtl)'),direction:getComputedStyle(track).direction,left:css.left,right:css.right,transform:css.transform});
+        const buttons = [...track.querySelectorAll('button')].map(button => button.getBoundingClientRect());
+        frames.push({ x:m.x, y:m.y, width:m.width, height:m.height,
+          aligned: buttons[0].x === buttons[1].x && buttons[0].width === buttons[1].width,
+          stacked: buttons[1].top === buttons[0].bottom + 2,
+          hasSlider: !!menu.querySelector('.desktop-project-location-indicator') });
       }
       if (frames.length < 8) requestAnimationFrame(sample); else resolve(frames);
     };
     requestAnimationFrame(sample);
   })`, true);
-  assert(frames.every(frame => frame.offset < 1 && frame.plateWidth < 1 && frame.animations === 0
+  assert(frames.every(frame => frame.aligned && frame.stacked && !frame.hasSlider
     && ['x','y','width','height'].every(key => Math.abs(frame[key]-frames[0][key]) < 1)),
-    `Every visible opening frame must have final menu and slider geometry (${direction}): ${JSON.stringify(frames)}`);
+    `Every visible opening frame must have final vertical list geometry (${direction}): ${JSON.stringify(frames)}`);
   if (direction === "rtl") await checkStableReopening(window);
 }
 

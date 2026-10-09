@@ -499,6 +499,31 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   background: var(--desktop-project-location-bg);
 }
 
+.desktop-project-location-controls[data-presentation="popover"] {
+  width: 100%;
+}
+
+.desktop-project-location-controls[data-presentation="popover"] .desktop-project-location-tabs {
+  grid-template-columns: minmax(0, 1fr);
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.desktop-project-location-option .desktop-menu-item-icon {
+  opacity: 1;
+}
+
+.desktop-project-location-option .desktop-menu-item-trailing {
+  color: inherit;
+}
+
+.desktop-project-location-option-mark {
+  display: grid;
+  place-items: center;
+  color: inherit;
+}
+
 .desktop-project-location-indicator {
   position: absolute;
   z-index: -1;

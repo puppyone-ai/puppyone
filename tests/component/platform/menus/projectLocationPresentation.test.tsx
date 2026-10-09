@@ -72,6 +72,13 @@ describe("project location presentation experiment", () => {
     expect(cloudButton.textContent).toBe("Cloud");
     expect(button("local").textContent).toBe(inline ? "" : "This Mac");
     expect(controls?.getAttribute("data-presentation")).toBe(inline ? "header-icons" : "popover");
+    if (!inline) {
+      expect(cloudButton.classList.contains("desktop-menu-item")).toBe(true);
+      expect(cloudButton.classList.contains("selected")).toBe(true);
+      expect(cloudButton.querySelector(".desktop-menu-item-trailing .lucide-check")).not.toBeNull();
+      expect(button("local").querySelector(".desktop-menu-item-trailing")).toBeNull();
+      expect(controls?.querySelector(".desktop-project-location-indicator")).toBeNull();
+    }
     expect(document.querySelector('.desktop-project-location-tabs')?.getAttribute("aria-busy")).toBe("true");
     expect(button("cloud").querySelector('[data-puppy-loader="pulse-grid"]')).not.toBeNull();
     act(() => cloudButton.click());

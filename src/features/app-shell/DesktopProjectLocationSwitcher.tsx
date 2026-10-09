@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ButtonHTMLAttributes } from "react";
 import { Tooltip } from "@puppyone/shared-ui";
-import { Laptop, Plus } from "lucide-react";
+import { Check, Laptop, Plus } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import { PulseGrid } from "../../components/loading";
+import { DesktopMenuItem } from "../../components/DesktopMenu";
 import { CloudIcon as Cloud } from "../../components/icons/CloudIcon";
 import { useDesktopPreference } from "../../preferencesStore";
 import { useDesktopPlatformCapabilities } from "../../platform/useDesktopPlatformCapabilities";
@@ -60,7 +61,7 @@ export function DesktopProjectLocationSwitcher({ projectLocation, cloudProject, 
   </div>;
 }
 
-/** Location controls own selection; CSS owns their shared button/plate geometry. */
+/** One selection controller serves the default menu and optional Header segments. */
 export function DesktopProjectLocationControls({
   presentation = "popover",
   projectLocation,
@@ -87,7 +88,7 @@ export function DesktopProjectLocationControls({
         data-location={selection}
         aria-busy={projectLocation?.loading || projectLocation?.cloudState === "resolving" || undefined}
         aria-label={t("shell.workspaceSwitcher.projectDetails")}>
-        <span className="desktop-project-location-indicator" aria-hidden="true" />
+        {presentation === "header-icons" && <span className="desktop-project-location-indicator" aria-hidden="true" />}
         {presentation === "header-icons" && <span className="desktop-project-location-label-size" aria-hidden="true">
           <span>{t("shell.workspaceSwitcher.location.local")}</span>
           <span>{t("shell.navigation.cloud")}</span>
@@ -127,18 +128,34 @@ function ProjectLocationTab(props: LocationTabProps) {
   const navigate = location === "local" ? onViewLocal : onViewCloud;
   const disabled = !selected && (!navigate || (location === "local" && projectLocation?.localAvailable === false));
   const { label, visibleLabel, iconOnly } = useProjectLocationTabLabels(props, creating, selected);
+  const mark = <ProjectLocationTabMark location={location} loading={loading} creating={creating} inHeader={inHeader} />;
+  const buttonProps: ButtonHTMLAttributes<HTMLButtonElement> = {
+    "aria-label": label, "aria-pressed": creating ? undefined : selected,
+    "aria-current": location === current ? "true" : undefined,
+    disabled, onClick: () => { if (!selected) navigate?.(); },
+  };
+  const locationAttributes = {
+    "data-project-location": location, "data-cloud-action": creating ? "create" : undefined,
+    "data-cloud-pending": loading || undefined,
+  };
+  const selectedRow = selected && !creating;
+  if (!inHeader) return <DesktopMenuItem className="desktop-project-location-option" role="button"
+    icon={mark} label={visibleLabel} selected={selectedRow}
+    trailing={selectedRow ? <Check size={14} aria-hidden="true" /> : undefined}
+    {...locationAttributes} {...buttonProps} />;
   return <Tooltip content={iconOnly ? t(getLocationTabTooltip(props)) : undefined}><button
-    className="desktop-project-location-tab" type="button" data-project-location={location}
-    aria-label={label}
-    data-cloud-action={creating ? "create" : undefined}
-    aria-pressed={creating ? undefined : selected}
-    aria-current={location === current ? "true" : undefined}
-    data-cloud-pending={loading || undefined}
-    disabled={disabled} onClick={() => { if (!selected) navigate?.(); }}>
-    {loading ? <span className="desktop-project-location-tab-mark" aria-hidden="true"><PulseGrid size="xs" ariaHidden /></span>
-      : <ProjectLocationMark className="desktop-project-location-tab-mark" kind={location} creating={creating && !inHeader} size={inHeader ? 16 : 14} />}
+    className="desktop-project-location-tab" type="button" {...locationAttributes} {...buttonProps}>
+    {mark}
     {!iconOnly && <span>{visibleLabel}</span>}
   </button></Tooltip>;
+}
+
+function ProjectLocationTabMark({ location, loading, creating, inHeader }: {
+  location: DesktopProjectLocation["current"]; loading: boolean; creating: boolean; inHeader: boolean;
+}) {
+  if (loading) return <span className="desktop-project-location-tab-mark" aria-hidden="true"><PulseGrid size="xs" ariaHidden /></span>;
+  return <ProjectLocationMark className={inHeader ? "desktop-project-location-tab-mark" : "desktop-project-location-option-mark"}
+    kind={location} creating={creating && !inHeader} size={inHeader ? 16 : 15} />;
 }
 
 function useProjectLocationTabLabels({ location, presentation, localDeviceLabel }: LocationTabProps, creating: boolean, selected: boolean) {
