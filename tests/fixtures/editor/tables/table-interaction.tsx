@@ -30,15 +30,18 @@ const rows = [
 const initialMarkdown = "Before the table\n\n" + [rows[0], rows[0].map(() => "---"), ...rows.slice(1)].map(row => `| ${row.join(" | ")} |`).join("\n") + "\n\nAfter the table";
 const csv = rows.map(row => row.join(",")).join("\n");
 let setMode: (mode: "light" | "dark") => void;
+let setTheme: (theme: string | null) => void;
 let markdown = initialMarkdown;
 let csvPort: EditorSourceSnapshotPort | null = null;
 const onMarkdown = (value: string) => { markdown = value; };
 const onCsvSnapshot = (port: EditorSourceSnapshotPort | null) => { csvPort = port; };
 function Harness() {
   const [mode, updateMode] = useState<"light" | "dark">("light");
+  const [theme, updateTheme] = useState<string | null>(null);
   setMode = mode => flushSync(() => updateMode(mode));
+  setTheme = theme => flushSync(() => updateTheme(theme));
   const appearance = resolveAppearance({ interfaceStyle: "default", themeMode: mode,
-    requestedSubThemeIds: { light: "default.neutral", dark: "default.dark" },
+    requestedSubThemeIds: { light: theme ?? "default.neutral", dark: theme ?? "default.dark" },
     subThemeCatalog: { subThemes: [...BUILTIN_SUB_THEMES], diagnostics: [] },
     sidebarNavigationLayout: "bottom-horizontal", fileIconTheme: "default" });
   const surface = resolveSurfaceAppearance({ appearance, typography: resolveTypography(DEFAULT_TYPOGRAPHY_PREFERENCES),
@@ -82,6 +85,7 @@ const api = {
     if (!CSS.supports("anchor-scope", "--table")) throw new Error("Runtime lacks scoped CSS anchor positioning");
   },
   async mode(mode: "light" | "dark") { setMode(mode); await wait(); },
+  async theme(theme: string | null) { setTheme(theme); await wait(); },
   point(kind: string, selector = "cell") {
     const target = selector === "cell" ? input(kind) : document.querySelector<HTMLElement>(`#${kind} ${selector}`)!;
     const rect = target.getBoundingClientRect(); return { x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2) };
@@ -160,7 +164,9 @@ const api = {
     const activeTableCell = activeElement instanceof Element && element.contains(activeElement)
       ? activeElement.closest("th, td")
       : null;
-    return { table: boxes(element), radius: style.borderRadius, border: style.borderTopWidth, borderColor: style.borderTopColor,
+    return { table: boxes(element), subThemeId: element.closest("[data-po-appearance-root]")?.getAttribute("data-sub-theme-id"),
+      dark: element.closest(".dark") !== null,
+      radius: style.borderRadius, border: style.borderTopWidth, borderColor: style.borderTopColor,
       backgrounds: [...element.querySelectorAll("th, td")].map(item => { const css = getComputedStyle(item); return [css.backgroundColor, css.backgroundImage]; }),
       textSelectionBackground: getComputedStyle(input(kind), "::selection").backgroundColor,
       cell: boxes(c), cellBorder: focus.borderRightWidth, cellFocus: focus.boxShadow,

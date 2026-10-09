@@ -37,12 +37,13 @@
   --po-editable-table-header-font-weight: 650;
   /* Composite the grid stroke over an opaque editor base: theme dividers
      may have alpha, but grips must never reveal table lines underneath.
-     Keep the base under the rim too, so its lighter stroke stays opaque. */
+     Keep the base under the rim too. Its stroke follows the grid, rather
+     than adding white that makes dark-mode grips look separately outlined. */
   --po-editable-table-handle-radius: 2px;
   --po-editable-table-handle-background:
     linear-gradient(var(--po-editable-table-border), var(--po-editable-table-border)) padding-box,
     var(--po-editor-bg) border-box;
-  --po-editable-table-handle-border: color-mix(in srgb, var(--po-editable-table-border) 88%, #ffffff 12%);
+  --po-editable-table-handle-border: var(--po-editable-table-border);
   --po-editable-table-handle-color: var(--po-surface-editable-table-handle-color, var(--po-text-muted));
   --po-editable-table-handle-hover-background: var(--po-editable-table-handle-background);
   --po-editable-table-handle-hover-border: var(--po-editable-table-handle-border);

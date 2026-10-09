@@ -151,13 +151,13 @@ describe("CSV table visual architecture", () => {
     );
   });
 
-  it("gives row and column handles an opaque grid-border fill and a subtly lighter rim", () => {
+  it("gives row and column handles an opaque grid-border fill and a matching rim", () => {
     expect(sharedTableCss).toContain("--po-editable-table-handle-radius: 2px;");
     expect(sharedTableCss).toMatch(
       /--po-editable-table-handle-background:\s*linear-gradient\(var\(--po-editable-table-border\), var\(--po-editable-table-border\)\) padding-box,\s*var\(--po-editor-bg\) border-box;/s,
     );
     expect(sharedTableCss).toContain(
-      "--po-editable-table-handle-border: color-mix(in srgb, var(--po-editable-table-border) 88%, #ffffff 12%);",
+      "--po-editable-table-handle-border: var(--po-editable-table-border);",
     );
     expect(sharedTableCss).toContain(
       "--po-editable-table-handle-hover-background: var(--po-editable-table-handle-background);",

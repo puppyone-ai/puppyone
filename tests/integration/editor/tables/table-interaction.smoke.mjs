@@ -77,10 +77,10 @@ app.whenReady().then(async () => {
         for (const gripStyle of baseline.gripStyles) {
           assert.equal(gripStyle.radius, "2px", `${kind} grip must have a small corner radius`);
           assert.equal(gripStyle.border, baseline.border, `${kind} grip stroke must match the table`);
+          assert.equal(gripStyle.borderColor, baseline.borderColor, `${mode} ${kind} grip rim must match the table palette`);
           assert.equal(gripStyle.backgroundAlpha, 255, `${kind} grip must have a fully opaque background`);
           assert(gripStyle.backgroundImage.includes(baseline.borderColor), `${kind} grip tint must use the table border color`);
           assert.equal(gripStyle.backgroundClip, "padding-box, border-box", `${kind} opaque base must cover the face and rim`);
-          assert.notEqual(gripStyle.borderColor, gripStyle.backgroundColor, `${kind} grip rim must remain distinct from its fill`);
         }
         assert.deepEqual(baseline.dots, { width: "12px", height: "4px" }, "column handle needs a single line of three dots");
         for (const reduced of [false, true]) {
@@ -292,6 +292,28 @@ app.whenReady().then(async () => {
       const edited = await evaluate(`window.tableFixture.metrics('${kind}')`);
       assert((kind === "markdown" ? edited.markdown : edited.csvSource).includes("Edited"), `${kind} edit did not reach source`);
       results.push({ kind, state: "source-edit", ...edited });
+    }
+    // A format-specific table border (CSV) and a theme divider (Markdown)
+    // must both feed the grip rim, including after a live theme/mode switch.
+    for (const theme of ["default.github", "default.newspaper"]) {
+      await evaluate(`window.tableFixture.theme('${theme}')`);
+      for (const mode of ["light", "dark"]) {
+        await evaluate(`window.tableFixture.mode('${mode}')`);
+        for (const kind of ["markdown", "csv"]) {
+          window.webContents.sendInputEvent({ type: "mouseMove", ...await evaluate(`window.tableFixture.cellPoint('${kind}', 0, 0)`) });
+          await wait();
+          const palette = await evaluate(`window.tableFixture.metrics('${kind}')`);
+          assert.equal(palette.subThemeId, theme, `${kind}: theme fixture did not switch to ${theme}`);
+          assert.equal(palette.dark, mode === "dark", `${kind}: mode fixture did not switch to ${mode}`);
+          for (const grip of palette.gripStyles) {
+            assert.equal(grip.borderColor, palette.borderColor, `${theme} ${mode} ${kind}: grip rim diverged from grid`);
+            assert(grip.backgroundImage.includes(palette.borderColor), `${theme} ${mode} ${kind}: grip fill lost grid tint`);
+            assert.equal(grip.backgroundAlpha, 255, `${theme} ${mode} ${kind}: grip base became transparent`);
+          }
+          results.push({ theme, mode, kind, state: "theme-grip-palette", ...palette });
+          await screenshot(`${theme}-${mode}-${kind}-handles-visible`);
+        }
+      }
     }
     assert.equal(errors.length, 0, errors.join("\n"));
   } catch (error) {
