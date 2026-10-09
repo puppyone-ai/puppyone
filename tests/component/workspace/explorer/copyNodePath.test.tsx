@@ -14,6 +14,7 @@ let actions: ReturnType<typeof useDataNodeActions>;
 let writeText: ReturnType<typeof vi.fn<(value: string) => Promise<void>>>;
 let getPathForCopy: ReturnType<typeof vi.fn<(path: string) => string>>;
 let dataPort: DataPort;
+let onCopyLink: (() => void) | undefined;
 const noop = () => undefined;
 const folder: DataNode = { id: "docs", path: "docs", name: "docs", type: "folder" };
 const file: DataNode = { id: "docs/笔记 #1.md", path: "docs/笔记 #1.md", name: "笔记 #1.md", type: "markdown" };
@@ -26,12 +27,14 @@ function Harness() {
   const draft = actions.nodeActionMenu;
   return draft && <DesktopNodeActionMenu draft={draft} onChange={actions.setNodeActionMenu}
     onCancel={() => actions.setNodeActionMenu(null)} onCopyPath={actions.copyNodePathFromMenu}
+    onCopyLink={onCopyLink}
     canCopy={false} canCut={false} canDuplicate={false}
     onCopy={noop} onCut={noop} onPaste={noop} onDuplicate={noop} onCreateInside={noop}
     onRename={noop} onDelete={noop} onOpenInDefaultApp={noop} onRevealInFinder={noop} />;
 }
 
 beforeEach(() => {
+  onCopyLink = undefined;
   writeText = vi.fn(async () => undefined);
   vi.stubGlobal("navigator", Object.create(navigator, { clipboard: { value: { writeText } } }));
   getPathForCopy = vi.fn((path) => `/project/${path}`);
@@ -47,6 +50,20 @@ function open(node: DataNode, selected: DataNode[] = [node]) {
 function firstRow() { return host.querySelector<HTMLButtonElement>(".desktop-node-action-menu button")!; }
 
 describe("Explorer Copy Path", () => {
+  it("offers Copy Link only when the owning Cloud workspace provides it", () => {
+    open(file);
+    expect(host.textContent).not.toContain("Copy Link");
+    onCopyLink = vi.fn();
+    open(folder);
+    const buttons = Array.from(host.querySelectorAll<HTMLButtonElement>(".desktop-node-action-menu button"));
+    expect(buttons[0]?.textContent?.trim()).toBe("Copy Path");
+    expect(buttons[1]?.textContent?.trim()).toBe("Copy Link");
+    act(() => buttons[1]?.click());
+    expect(onCopyLink).toHaveBeenCalledOnce();
+    expect(dataPort.moveNode).not.toHaveBeenCalled();
+    expect(dataPort.copyNode).not.toHaveBeenCalled();
+  });
+
   it.each([folder, file, { ...file, type: "image" as const, name: "photo.png" }])(
     "puts Copy Path first for $type and writes the readable path without file mutations", async (node) => {
       open(node);

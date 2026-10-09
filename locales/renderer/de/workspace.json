@@ -1,4 +1,5 @@
 {
+  "node.copyLink": "Link kopieren",
   "workbench.renderFailure": "Dieser Tab kann nicht angezeigt werden.",
   "workbench.reloadView": "Ansicht neu laden",
   "workbench.newTab": "Neuer Tab",

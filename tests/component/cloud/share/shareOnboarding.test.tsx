@@ -136,6 +136,24 @@ describe("Share dialog", () => {
   }
   const dialog = () => document.querySelector<HTMLElement>("[role='dialog']");
 
+  it("hands people a selected folder URL without creating a scope or credential", async () => {
+    const projectId = "01926faa-7ed1-7000-a000-000000000001";
+    const props = { ...baseProps(), initialTargetId: "person" as const,
+      initialPath: "docs/笔记 #1", projectContext: { status: "resolved" as const,
+        projectId, target: projectRootTarget(projectId) } };
+    await act(async () => root?.render(withTestLocalization(<ShareWizardDialog {...props} shares={sharesState()} />)));
+    await flush();
+    const next = dialog()?.querySelector<HTMLButtonElement>(".desktop-dialog-button.primary");
+    expect(next).toBeTruthy();
+    expect(dialog()?.textContent).toContain("Recipients use their existing workspace permissions.");
+    await act(async () => next?.click());
+    await flush();
+    const values = Array.from(dialog()?.querySelectorAll<HTMLElement>(".desktop-share-copy-value") ?? []).map(value => value.textContent);
+    expect(values).toContain(`https://cloud.example/${projectId}/docs/%E7%AC%94%E8%AE%B0%20%231/`);
+    expect(api.createCloudScope).not.toHaveBeenCalled();
+    expect(api.createCloudMcpEndpoint).not.toHaveBeenCalled();
+  });
+
   it("walks who → how much → paste-ready URL and reports the issued share", async () => {
     api.createCloudMcpEndpoint.mockResolvedValue(issuedEndpoint);
     const props = baseProps();

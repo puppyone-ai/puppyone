@@ -1,4 +1,5 @@
 {
+  "node.copyLink": "Copier le lien",
   "workbench.renderFailure": "Impossible d’afficher cet onglet.",
   "workbench.reloadView": "Recharger la vue",
   "workbench.newTab": "Nouvel onglet",

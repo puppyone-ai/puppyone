@@ -1,4 +1,5 @@
 {
+  "node.copyLink": "リンクをコピー",
   "workbench.renderFailure": "このタブを表示できません。",
   "workbench.reloadView": "表示を再読み込み",
   "workbench.newTab": "新しいタブ",

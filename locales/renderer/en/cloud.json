@@ -1,4 +1,5 @@
 {
+  "share.scope.workspacePermissions": "Recipients use their existing workspace permissions.",
   "agent.permissionDenied": "You do not have permission to use this Cloud Agent.",
   "agent.busy": "This chat already has an active task. Try again after it finishes.",
   "agent.connectionError": "Could not load the Cloud chat",

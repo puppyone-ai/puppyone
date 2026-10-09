@@ -1,4 +1,5 @@
 {
+  "node.copyLink": "Copiar link",
   "workbench.renderFailure": "Não foi possível exibir esta aba.",
   "workbench.reloadView": "Recarregar visualização",
   "workbench.newTab": "Nova aba",

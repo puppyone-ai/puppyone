@@ -29,6 +29,7 @@ import {
   type DesktopCloudMcpEndpoint,
   type DesktopCloudSession,
 } from "../../../lib/cloudApi";
+import { workspaceResourceUrl } from "../files/workspaceResourceUrl";
 import type { CloudPublishProgress } from "../../../types/electron";
 import { CloudAuthCard } from "../auth/CloudAuthCard";
 import {
@@ -341,6 +342,7 @@ function ShareScopeStep({
   }, [folders, initialPath]);
   const selectedFolder = visibleFolders.find((entry) => entry.path === path) ?? null;
   const linkChannel = target.channel === "link";
+  const modeLabel = mode === "r" ? "cloud.share.scope.previewMode.r" : "cloud.share.scope.previewMode.rw";
 
   return (
     <>
@@ -386,9 +388,7 @@ function ShareScopeStep({
                 : t("cloud.share.scope.previewFolder", { folder: bidiIsolate(selectedFolder?.name ?? path) })}
             </strong>
             <span className="desktop-share-scope-preview-mode">
-              {t(linkChannel || mode === "r"
-                ? "cloud.share.scope.previewMode.r"
-                : "cloud.share.scope.previewMode.rw")}
+              {t(linkChannel ? "cloud.share.scope.workspacePermissions" : modeLabel)}
             </span>
           </aside>
         </div>
@@ -659,11 +659,11 @@ function ShareConnectStep({
   const projectLink = useMemo(() => {
     if (!projectId) return null;
     try {
-      return getDesktopCloudWebUrl(`/projects/${projectId}`);
+      return workspaceResourceUrl(getDesktopCloudWebUrl("/"), projectId, scope.path, true);
     } catch {
       return null;
     }
-  }, [projectId]);
+  }, [projectId, scope.path]);
   const handoff = ready
     ? buildShareHandoff({ target, endpoint: ready.endpoint, apiBaseUrl, projectLink })
     : null;

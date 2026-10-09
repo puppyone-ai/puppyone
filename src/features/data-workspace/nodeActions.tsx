@@ -14,6 +14,7 @@ import {
   Plus,
   Scissors,
   Share2,
+  Link2,
   Trash2,
   Workflow,
   X,
@@ -83,7 +84,7 @@ export type DesktopNodeActionMenuDraft = {
   renameExtensionValue: string;
   renameFocus: "name" | "type";
   error: DesktopNodeActionError | null;
-  operation: "copy-path" | "rename" | "delete" | "open" | "reveal" | "paste" | "duplicate" | null;
+  operation: "copy-link" | "copy-path" | "rename" | "delete" | "open" | "reveal" | "paste" | "duplicate" | null;
 };
 
 export type DesktopNodeActionError = Readonly<
@@ -553,6 +554,7 @@ export function DesktopNodeActionMenu({
   onChange,
   onCancel,
   onCopyPath,
+  onCopyLink,
   onCopy,
   onCut,
   onPaste,
@@ -574,6 +576,7 @@ export function DesktopNodeActionMenu({
   onChange: Dispatch<SetStateAction<DesktopNodeActionMenuDraft | null>>;
   onCancel: () => void;
   onCopyPath: () => void;
+  onCopyLink?: () => void;
   onCopy: () => void;
   onCut: () => void;
   onPaste: () => void;
@@ -609,6 +612,7 @@ export function DesktopNodeActionMenu({
         onChange={onChange}
         onCancel={onCancel}
         onCopyPath={onCopyPath}
+        onCopyLink={onCopyLink}
         onCopy={onCopy}
         onCut={onCut}
         onPaste={onPaste}
@@ -633,6 +637,7 @@ function DesktopNodeActionPopover({
   onChange,
   onCancel,
   onCopyPath,
+  onCopyLink,
   onCopy,
   onCut,
   onPaste,
@@ -653,6 +658,7 @@ function DesktopNodeActionPopover({
   onChange: Dispatch<SetStateAction<DesktopNodeActionMenuDraft | null>>;
   onCancel: () => void;
   onCopyPath: () => void;
+  onCopyLink?: () => void;
   onCopy: () => void;
   onCut: () => void;
   onPaste: () => void;
@@ -682,7 +688,7 @@ function DesktopNodeActionPopover({
   const singleNodeAction = actionCount === 1;
   const errorMessage = formatDesktopNodeActionError(draft.error, t);
   const showShare = Boolean(onShare) && singleNodeAction && draft.node.type === "folder";
-  const menuRowCount = 5
+  const menuRowCount = 5 + Number(singleNodeAction && Boolean(onCopyLink))
     + (draft.node.type === "folder" ? 2 : 0)
     + Number(showShare)
     + Number(singleNodeAction && showOpenInDefaultApp && draft.node.type !== "folder")
@@ -752,6 +758,12 @@ function DesktopNodeActionPopover({
         disabled={draft.operation !== null}
         onClick={onCopyPath}
       />
+      {onCopyLink && singleNodeAction && <DesktopNodeActionMenuItem
+        icon={<Link2 size={14} />}
+        label={t("workspace.node.copyLink")}
+        disabled={draft.operation !== null}
+        onClick={onCopyLink}
+      />}
       <DesktopMenuSeparator />
       {draft.node.type === "folder" && (
         <DesktopNodeActionMenuItem

@@ -1,4 +1,5 @@
 {
+  "share.scope.workspacePermissions": "受信者には既存のワークスペース権限が適用されます。",
   "agent.permissionDenied": "このクラウド Agent を使用する権限がありません。",
   "agent.busy": "このチャットではタスクが実行中です。完了後に再試行してください。",
   "agent.connectionError": "クラウドチャットを読み込めませんでした",

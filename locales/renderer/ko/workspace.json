@@ -1,4 +1,5 @@
 {
+  "node.copyLink": "링크 복사",
   "workbench.renderFailure": "이 탭을 표시할 수 없습니다.",
   "workbench.reloadView": "화면 다시 불러오기",
   "workbench.newTab": "새 탭",

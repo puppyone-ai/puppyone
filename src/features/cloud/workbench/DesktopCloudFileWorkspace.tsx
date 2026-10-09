@@ -4,9 +4,12 @@ import { useLocalization } from "@puppyone/localization";
 import { DesktopDataWorkspaceSurface, type DesktopDataWorkspaceSurfaceProps } from "../../app-shell/DesktopDataWorkspaceSurface";
 import { resolveWorkspaceSurface } from "../../app-shell/workspace-surfaces/workspaceSurfaceRegistry";
 import { formatFileOperationNotice } from "../../data-workspace/useFileClipboard";
-import { DesktopCreateEntryDialog, DesktopCreateEntryMenu, DesktopNodeActionMenu } from "../../data-workspace/nodeActions";
+import { DesktopCreateEntryDialog, DesktopCreateEntryMenu, DesktopNodeActionMenu, toDesktopNodeActionError } from "../../data-workspace/nodeActions";
 import { resolveVisibleCreateNewMenuItems } from "../../../preferences";
 import type { NativeCloudWorkbench } from "./useNativeCloudWorkbench";
+import { getDesktopCloudWebUrl } from "../../../lib/cloudApi";
+import { writeClipboardText } from "../../../lib/clipboard";
+import { workspaceResourceUrl } from "../files/workspaceResourceUrl";
 
 const noop = () => undefined;
 const dataSurface = resolveWorkspaceSurface({ capabilities: { cloudEnabled: true }, requestedId: "data",
@@ -36,6 +39,21 @@ function CloudFileBinding({ workbench, surfaceProps, providerStateContent }: {
   const { t } = useLocalization();
   const { surfaceService, dataPort, editorWorkbench, actions } = workbench;
   const { createEntryDraft, nodeActionMenu, fileClipboardController: clipboard } = actions;
+  const copyLink = async () => {
+    if (!nodeActionMenu || nodeActionMenu.operation || !surfaceService.workspace.projectId) return;
+    const pending = { ...nodeActionMenu, operation: "copy-link" as const, error: null };
+    actions.setNodeActionMenu(pending);
+    try {
+      const path = surfaceService.getPathForCopy(nodeActionMenu.node.path);
+      const url = workspaceResourceUrl(getDesktopCloudWebUrl("/"), surfaceService.workspace.projectId,
+        path === "." ? "" : path, nodeActionMenu.node.type === "folder");
+      await writeClipboardText(url);
+      actions.setNodeActionMenu(current => current === pending ? null : current);
+    } catch (error) {
+      actions.setNodeActionMenu(current => current === pending
+        ? { ...current, operation: null, error: toDesktopNodeActionError(error) } : current);
+    }
+  };
   const createNewMenuSettings = useDesktopPreference(s => s.createNewMenuSettings);
   const enablePuppyFlowFiles = useDesktopPreference(s => s.experimentalSettings.enablePuppyFlowFiles);
   const folders = useMemo(() => [surfaceService.folder], [surfaceService]);
@@ -77,6 +95,7 @@ function CloudFileBinding({ workbench, surfaceProps, providerStateContent }: {
       canPaste={nodeActionMenu.node.type === "folder" && clipboard.canPasteInto(nodeActionMenu.node.path)} canDuplicate={clipboard.canDuplicate}
       onChange={actions.setNodeActionMenu} onCancel={() => actions.setNodeActionMenu(null)}
       onCopyPath={actions.copyNodePathFromMenu}
+      onCopyLink={copyLink}
       onCopy={() => { clipboard.copyNodes(nodeActionMenu.nodes); actions.setNodeActionMenu(null); }}
       onCut={() => { clipboard.cutNodes(nodeActionMenu.nodes); actions.setNodeActionMenu(null); }}
       onPaste={() => { actions.setNodeActionMenu(null); void clipboard.pasteNodes(nodeActionMenu.node.path); }}

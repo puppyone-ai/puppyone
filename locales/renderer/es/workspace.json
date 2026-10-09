@@ -1,4 +1,5 @@
 {
+  "node.copyLink": "Copiar enlace",
   "workbench.renderFailure": "No se puede mostrar esta pestaña.",
   "workbench.reloadView": "Recargar vista",
   "workbench.newTab": "Nueva pestaña",
