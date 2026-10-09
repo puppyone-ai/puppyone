@@ -63,6 +63,7 @@
   "node.creating": "만드는 중…",
   "node.create": "만들기",
   "node.actionsFor": "{name} 작업",
+  "node.copyPath": "경로 복사",
   "node.newFileOrFolder": "새 파일 또는 폴더",
   "node.pasteIntoFolder": "폴더에 붙여넣기",
   "node.copyItems": "항목 {count}개 복사",

@@ -214,6 +214,7 @@ describe("create entry menu", () => {
         canPaste
         onChange={vi.fn()}
         onCancel={vi.fn()}
+        onCopyPath={vi.fn()}
         onCopy={vi.fn()}
         onCut={vi.fn()}
         onPaste={vi.fn()}
@@ -230,6 +231,7 @@ describe("create entry menu", () => {
       container.querySelectorAll("button"),
       (button) => button.textContent?.trim() ?? "",
     );
+    expect(labels[0]).toBe("Copy Path");
     expect(labels.some((label) => label.startsWith("Paste into folder"))).toBe(true);
     const menu = container.querySelector<HTMLElement>(".desktop-node-action-menu");
     expect(menu?.classList.contains("desktop-sidebar-action-menu")).toBe(true);

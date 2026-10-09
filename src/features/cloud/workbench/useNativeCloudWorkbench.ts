@@ -95,7 +95,7 @@ export function useNativeCloudWorkbench({ context, session, apiBaseUrl, active, 
     }
   }, [activateNode, dataPort, setActiveNode]);
   const actions = useDataNodeActions({
-    dataPort, workspace: service?.workspace ?? null, setActiveExplorerNode: setActiveNode,
+    dataPort, getPathForCopy: service?.getPathForCopy, workspace: service?.workspace ?? null, setActiveExplorerNode: setActiveNode,
     onEnterDataView: noop, onLocalWorkspaceContentChanged: noop,
     onWorkspaceContentChanged: refresh, onActivateNode: activateNode,
     onResourceMoved: editorWorkbench.rebaseResource, onResourceDeleted: editorWorkbench.closeUnderResource,

@@ -63,6 +63,7 @@
   "node.creating": "正在创建…",
   "node.create": "创建",
   "node.actionsFor": "{name} 的操作",
+  "node.copyPath": "复制路径",
   "node.newFileOrFolder": "新建文件或文件夹",
   "node.pasteIntoFolder": "粘贴到文件夹",
   "node.copyItems": "复制 {count} 个项目",

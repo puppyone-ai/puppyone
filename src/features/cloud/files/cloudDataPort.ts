@@ -31,6 +31,7 @@ export type NativeCloudDataService = Readonly<{
   writable: boolean;
   invalidateReads: () => void;
   resolveResource: (path: string | null) => ResolvedWorkbenchDataResource | null;
+  getPathForCopy: (path: string) => string;
 }>;
 
 /** Cloud owns the bytes. The renderer never mirrors them into a local checkout. */
@@ -300,6 +301,7 @@ export function createCloudDataService({
     } : {}),
   };
   return { workspace, folder, dataPort, writable,
+    getPathForCopy: (path) => { assertCurrent(); return remotePath(path) || "."; },
     invalidateReads: () => { assertCurrent(); files.invalidate(); },
     resolveResource: (path) => {
     try {

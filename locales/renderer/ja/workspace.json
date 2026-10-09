@@ -63,6 +63,7 @@
   "node.creating": "作成中…",
   "node.create": "作成",
   "node.actionsFor": "{name} の操作",
+  "node.copyPath": "パスをコピー",
   "node.newFileOrFolder": "新規ファイルまたはフォルダー",
   "node.pasteIntoFolder": "フォルダーにペースト",
   "node.copyItems": "{count}件をコピー",

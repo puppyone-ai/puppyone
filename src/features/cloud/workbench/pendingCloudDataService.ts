@@ -12,6 +12,7 @@ export function createPendingCloudDataService(identity: string | null, localWork
     trustState: "untrusted" as const, workspace };
   return {
     workspace, folder, writable: false,
+    getPathForCopy: () => { throw new Error("Cloud file provider is unavailable."); },
     invalidateReads: () => undefined,
     dataPort: {
       listChildren: async () => [],

@@ -66,7 +66,7 @@ describe("desktop icon preference consumers", () => {
     const node = { id: "note.txt", name: "note.txt", path: "note.txt", type: "text" as const };
     act(() => root.render(withTestLocalization(<DesktopNodeActionMenu draft={{ node, nodes: [node], anchor: draft.anchor,
       mode: "rename", renameNameValue: "note", renameExtensionValue: ".txt", renameFocus: "type", error: null, operation: null }}
-      onChange={noop} onCancel={noop} onCopy={noop} onCut={noop} onPaste={noop} onDuplicate={noop} onCreateInside={noop}
+      onChange={noop} onCancel={noop} onCopyPath={noop} onCopy={noop} onCut={noop} onPaste={noop} onDuplicate={noop} onCreateInside={noop}
       onRename={noop} onDelete={noop} onOpenInDefaultApp={noop} onRevealInFinder={noop} />)));
     expect(document.querySelector('option[value=".puppyflow"]')).toBeNull();
     act(() => store.getState().setExperimentalSettings(current => ({ ...current, enablePuppyFlowFiles: true })));

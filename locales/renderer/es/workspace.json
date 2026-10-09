@@ -63,6 +63,7 @@
   "node.creating": "Creando…",
   "node.create": "Crear",
   "node.actionsFor": "Acciones para {name}",
+  "node.copyPath": "Copiar ruta",
   "node.newFileOrFolder": "Nuevo archivo o carpeta",
   "node.pasteIntoFolder": "Pegar en la carpeta",
   "node.copyItems": "{count, plural, one {Copiar elemento} other {Copiar # elementos}}",

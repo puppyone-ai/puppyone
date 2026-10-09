@@ -33,9 +33,11 @@ import { collapseNestedNodes } from "./fileClipboard";
 import { useFileClipboard } from "./useFileClipboard";
 import { useLocalization } from "@puppyone/localization/react";
 import { bidiIsolate } from "@puppyone/localization/core";
+import { writeClipboardText } from "../../lib/clipboard";
 
 export function useDataNodeActions({
   dataPort: rawDataPort,
+  getPathForCopy,
   onEnterDataView,
   onLocalWorkspaceContentChanged,
   onWorkspaceContentChanged,
@@ -46,6 +48,8 @@ export function useDataNodeActions({
   workspace,
 }: {
   dataPort: DataPort | null;
+  /** Provider-owned readable path; Resource URIs must not reach the clipboard. */
+  getPathForCopy?: (path: string) => string;
   onEnterDataView: () => void;
   onLocalWorkspaceContentChanged: () => void;
   onWorkspaceContentChanged: () => void;
@@ -348,6 +352,23 @@ export function useDataNodeActions({
     t,
   ]);
 
+  const copyNodePathFromMenu = useCallback(async () => {
+    if (!getPathForCopy || !nodeActionMenu || nodeActionMenu.operation) return;
+
+    const pendingDraft: DesktopNodeActionMenuDraft = {
+      ...nodeActionMenu, operation: "copy-path", error: null,
+    };
+    setNodeActionMenu(pendingDraft);
+    try {
+      await writeClipboardText(getPathForCopy(pendingDraft.node.path));
+      setNodeActionMenu((current) => current === pendingDraft ? null : current);
+    } catch (error) {
+      setNodeActionMenu((current) => current === pendingDraft ? {
+        ...current, operation: null, error: toDesktopNodeActionError(error),
+      } : current);
+    }
+  }, [getPathForCopy, nodeActionMenu]);
+
   const revealNodeInFinderFromMenu = useCallback(async () => {
     if (!dataPort?.revealInFileManager || !nodeActionMenu || nodeActionMenu.operation) return;
 
@@ -397,6 +418,7 @@ export function useDataNodeActions({
     createEntryFromMenu,
     renameNodeFromMenu,
     deleteNodeFromMenu,
+    copyNodePathFromMenu,
     revealNodeInFinderFromMenu,
     openNodeInDefaultAppFromMenu,
   };

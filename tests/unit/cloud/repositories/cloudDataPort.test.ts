@@ -52,6 +52,31 @@ const save = (port: ReturnType<typeof service>["dataPort"], path: string, conten
 describe("Web-aligned Cloud reads", () => {
   const count = (operation: string) => bridge.mock.calls.filter(([request]) => new URL(request.path, API).pathname.endsWith(`/${operation}`)).length;
 
+  it("copies plain repository paths without requests or write permission", () => {
+    const cloud = service({ context: { ...context, capabilities: ["content.read"] } });
+    expect(cloud.getPathForCopy(createWorkspaceResourceUri(cloud.folder.uri, "docs/笔记 #1.md")))
+      .toBe("docs/笔记 #1.md");
+    expect(cloud.getPathForCopy(cloud.folder.uri)).toBe(".");
+    expect(bridge).not.toHaveBeenCalled();
+  });
+
+  it("includes the resolved Cloud scope in copied repository paths", () => {
+    const cloud = service({ context: { ...context, target: { kind: "scope", project_id: "project", scope_id: "notes" }, scopePath: "notes" } });
+    expect(cloud.getPathForCopy(createWorkspaceResourceUri(cloud.folder.uri, "a.md"))).toBe("notes/a.md");
+    expect(cloud.getPathForCopy(cloud.folder.uri)).toBe("notes");
+    expect(bridge).not.toHaveBeenCalled();
+  });
+
+  it("rejects outside resources and retired Cloud sessions before copying a path", () => {
+    let current = true;
+    const cloud = service({ isCurrent: () => current });
+    expect(() => cloud.getPathForCopy("puppyone-cloud://outside/readme.md")).toThrow();
+    expect(() => cloud.getPathForCopy("../readme.md")).toThrow();
+    current = false;
+    expect(() => cloud.getPathForCopy("readme.md")).toThrow(/session changed/);
+    expect(bridge).not.toHaveBeenCalled();
+  });
+
   it("shares preflight, explorer and folder-view reads across provider instances", async () => {
     let finish!: (value: unknown) => void;
     bridge.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));

@@ -17,6 +17,7 @@ import {
   copyWorkspaceEntryBetweenRoots,
   createLocalDataPort,
 } from "../../lib/localFiles";
+import { projectLocalResourcePath } from "../../../shared/workspace-resource-reference.mjs";
 
 export type ResolvedWorkbenchDataResource = Readonly<{
   folder: WorkspaceFolder;
@@ -29,6 +30,7 @@ export type WorkbenchDataService = Readonly<{
   rootResourcePaths: readonly ResourceUri[];
   resolveResource: (path: string | null) => ResolvedWorkbenchDataResource;
   tryResolveResource: (path: string | null) => ResolvedWorkbenchDataResource | null;
+  getPathForCopy: (path: string) => string;
 }>;
 
 const resourceIdentity = new ResourceUriIdentityService();
@@ -317,6 +319,10 @@ export function createWorkbenchDataService(
     rootResourcePaths: Object.freeze(workbench.folders.map((folder) => folder.uri)),
     resolveResource,
     tryResolveResource,
+    getPathForCopy: (path) => {
+      const resource = resolveResource(path);
+      return projectLocalResourcePath(resource.folder.workspace.path, resource.providerPath ?? ".");
+    },
   });
 }
 

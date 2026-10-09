@@ -76,6 +76,7 @@ function CloudFileBinding({ workbench, surfaceProps, providerStateContent }: {
       showRevealInFinder={false} showOpenInDefaultApp={false} canCopy={clipboard.canCopy} canCut={clipboard.canCut}
       canPaste={nodeActionMenu.node.type === "folder" && clipboard.canPasteInto(nodeActionMenu.node.path)} canDuplicate={clipboard.canDuplicate}
       onChange={actions.setNodeActionMenu} onCancel={() => actions.setNodeActionMenu(null)}
+      onCopyPath={actions.copyNodePathFromMenu}
       onCopy={() => { clipboard.copyNodes(nodeActionMenu.nodes); actions.setNodeActionMenu(null); }}
       onCut={() => { clipboard.cutNodes(nodeActionMenu.nodes); actions.setNodeActionMenu(null); }}
       onPaste={() => { actions.setNodeActionMenu(null); void clipboard.pasteNodes(nodeActionMenu.node.path); }}

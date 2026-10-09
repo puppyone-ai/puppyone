@@ -679,10 +679,12 @@ function AppContent() {
     createEntryFromMenu,
     renameNodeFromMenu,
     deleteNodeFromMenu,
+    copyNodePathFromMenu,
     revealNodeInFinderFromMenu,
     openNodeInDefaultAppFromMenu,
   } = useDataNodeActions({
     dataPort,
+    getPathForCopy: workbenchDataService?.getPathForCopy,
     onEnterDataView: enterDataView,
     onLocalWorkspaceContentChanged: refreshGitStatus,
     onWorkspaceContentChanged: refreshWorkspaceContent,
@@ -2008,6 +2010,7 @@ function AppContent() {
               canDuplicate={fileClipboardController.canDuplicate}
               onChange={setNodeActionMenu}
               onCancel={() => setNodeActionMenu(null)}
+              onCopyPath={copyNodePathFromMenu}
               onCopy={() => {
                 fileClipboardController.copyNodes(nodeActionMenu.nodes);
                 setNodeActionMenu(null);

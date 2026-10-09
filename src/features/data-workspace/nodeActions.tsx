@@ -83,7 +83,7 @@ export type DesktopNodeActionMenuDraft = {
   renameExtensionValue: string;
   renameFocus: "name" | "type";
   error: DesktopNodeActionError | null;
-  operation: "rename" | "delete" | "open" | "reveal" | "paste" | "duplicate" | null;
+  operation: "copy-path" | "rename" | "delete" | "open" | "reveal" | "paste" | "duplicate" | null;
 };
 
 export type DesktopNodeActionError = Readonly<
@@ -552,6 +552,7 @@ export function DesktopNodeActionMenu({
   canDuplicate = true,
   onChange,
   onCancel,
+  onCopyPath,
   onCopy,
   onCut,
   onPaste,
@@ -572,6 +573,7 @@ export function DesktopNodeActionMenu({
   canDuplicate?: boolean;
   onChange: Dispatch<SetStateAction<DesktopNodeActionMenuDraft | null>>;
   onCancel: () => void;
+  onCopyPath: () => void;
   onCopy: () => void;
   onCut: () => void;
   onPaste: () => void;
@@ -606,6 +608,7 @@ export function DesktopNodeActionMenu({
         canDuplicate={canDuplicate}
         onChange={onChange}
         onCancel={onCancel}
+        onCopyPath={onCopyPath}
         onCopy={onCopy}
         onCut={onCut}
         onPaste={onPaste}
@@ -629,6 +632,7 @@ function DesktopNodeActionPopover({
   canDuplicate,
   onChange,
   onCancel,
+  onCopyPath,
   onCopy,
   onCut,
   onPaste,
@@ -648,6 +652,7 @@ function DesktopNodeActionPopover({
   canDuplicate: boolean;
   onChange: Dispatch<SetStateAction<DesktopNodeActionMenuDraft | null>>;
   onCancel: () => void;
+  onCopyPath: () => void;
   onCopy: () => void;
   onCut: () => void;
   onPaste: () => void;
@@ -677,14 +682,14 @@ function DesktopNodeActionPopover({
   const singleNodeAction = actionCount === 1;
   const errorMessage = formatDesktopNodeActionError(draft.error, t);
   const showShare = Boolean(onShare) && singleNodeAction && draft.node.type === "folder";
-  const menuRowCount = 4
+  const menuRowCount = 5
     + (draft.node.type === "folder" ? 2 : 0)
     + Number(showShare)
     + Number(singleNodeAction && showOpenInDefaultApp && draft.node.type !== "folder")
     + Number(singleNodeAction && showRevealInFinder)
     + Number(singleNodeAction)
     + Number(singleNodeAction && draft.node.type !== "folder");
-  const separatorCount = 1 + Number(draft.node.type === "folder");
+  const separatorCount = 2 + Number(draft.node.type === "folder");
   const estimatedHeight = (menuPadding * 2)
     + (menuRowCount * menuRowHeight)
     + (separatorCount * MENU_SEPARATOR_BLOCK_SIZE)
@@ -741,6 +746,13 @@ function DesktopNodeActionPopover({
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
     >
+      <DesktopNodeActionMenuItem
+        icon={<Copy size={14} />}
+        label={t("workspace.node.copyPath")}
+        disabled={draft.operation !== null}
+        onClick={onCopyPath}
+      />
+      <DesktopMenuSeparator />
       {draft.node.type === "folder" && (
         <DesktopNodeActionMenuItem
           icon={<FolderPlus size={14} />}
