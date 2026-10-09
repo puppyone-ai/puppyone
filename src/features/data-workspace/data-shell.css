@@ -104,7 +104,9 @@
 .desktop-data-workspace-wrap[data-sidebar-navigation-placement="top"] .explorer-tree-shell::before,
 .desktop-data-workspace-wrap[data-sidebar-navigation-placement="bottom"] .explorer-tree-shell::after {
   position: absolute;
-  inset-inline: 0 var(--desktop-sidebar-navigation-fade-scrollbar-inset);
+  /* The fade belongs to the whole rail, including its scrollbar gutter.
+     It is decorative and never intercepts scrollbar or row input. */
+  inset-inline: 0;
   z-index: 5;
   height: calc(var(--desktop-sidebar-navigation-fade-size) * var(--tree-edge-fade-top, 0));
   content: "";

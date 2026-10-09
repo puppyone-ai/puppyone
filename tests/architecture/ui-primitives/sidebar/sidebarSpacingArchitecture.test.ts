@@ -257,6 +257,8 @@ describe("sidebar spacing architecture", () => {
     );
     expect(bottomPlacement).toContain("--data-explorer-footer-divider-width: 0px;");
     expect(dataShellCss).not.toContain(".data-explorer-footer:has(");
+    expect(sharedFadeGeometry).toContain("inset-inline: 0;");
+    expect(sharedFadeGeometry).toContain("pointer-events: none;");
     expect(sharedFadeGeometry).toContain(
       "height: calc(var(--desktop-sidebar-navigation-fade-size) * var(--tree-edge-fade-top, 0));",
     );
