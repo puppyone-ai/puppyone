@@ -117,6 +117,7 @@ type TreeDropTarget = {
   targetFolderPath: string | null;
   mode: "folder" | "parent";
   valid: boolean;
+  operation: "copy" | "move";
 } | null;
 
 type TreeDragController = {
@@ -345,6 +346,7 @@ export function ExplorerTree({
     targetFolderPath: string | null,
     mode: "folder" | "parent",
     valid: boolean,
+    operation: "copy" | "move",
   ) => {
     setDropTarget((current) => {
       if (
@@ -352,10 +354,11 @@ export function ExplorerTree({
         && current.targetFolderPath === targetFolderPath
         && current.mode === mode
         && current.valid === valid
+        && current.operation === operation
       ) {
         return current;
       }
-      return { rowPath, targetFolderPath, mode, valid };
+      return { rowPath, targetFolderPath, mode, valid, operation };
     });
   }, []);
 
@@ -410,14 +413,14 @@ export function ExplorerTree({
       event.preventDefault();
       event.stopPropagation();
       event.dataTransfer.dropEffect = valid ? "move" : "none";
-      setNextDropTarget(rowPath, targetFolderPath, mode, valid);
+      setNextDropTarget(rowPath, targetFolderPath, mode, valid, "move");
       return valid;
     }
     if (fileDropEnabled && hasDataTransferFiles(event.dataTransfer)) {
       event.preventDefault();
       event.stopPropagation();
       event.dataTransfer.dropEffect = "copy";
-      setNextDropTarget(rowPath, targetFolderPath, mode, true);
+      setNextDropTarget(rowPath, targetFolderPath, mode, true, "copy");
       return true;
     }
 
@@ -436,7 +439,7 @@ export function ExplorerTree({
     event.preventDefault();
     event.stopPropagation();
     event.dataTransfer.dropEffect = valid ? "move" : "none";
-    setNextDropTarget(rowPath, targetFolderPath, mode, valid);
+    setNextDropTarget(rowPath, targetFolderPath, mode, valid, "move");
     return valid;
   }, [fileDropEnabled, moveEnabled, nativeDraggedNodes, setNextDropTarget]);
 
@@ -602,9 +605,12 @@ export function ExplorerTree({
     handleTreeNavigation(event);
   }, [handleClipboardShortcut, handleTreeNavigation]);
 
+  const externalDropTarget = importEnabled && dropTarget?.valid && dropTarget.operation === "copy" ? dropTarget : null;
+  const fileDropDestination = dropTarget?.targetFolderPath === null ? "root" : "folder";
   return (
     <div
-      className={`explorer-tree-shell ${showRoot ? "has-root" : "no-root"} ${scrollable ? "is-scrollable" : ""} ${draggedNodes.length > 0 ? "is-dragging-node" : ""} ${dropTarget && draggedNodes.length === 0 ? "is-importing-files" : ""}`}
+      className={`explorer-tree-shell ${showRoot ? "has-root" : "no-root"} ${scrollable ? "is-scrollable" : ""} ${draggedNodes.length > 0 ? "is-dragging-node" : ""} ${externalDropTarget ? "is-importing-files" : ""}`}
+      data-file-drop-target={externalDropTarget ? fileDropDestination : undefined}
       data-workspace-grouping={softWorkspaceGrouping ? "soft" : undefined}
       data-scroll-at-bottom={scrollEdgeState.atBottom ? "true" : "false"}
       data-scroll-at-top={scrollEdgeState.atTop ? "true" : "false"}
@@ -622,6 +628,9 @@ export function ExplorerTree({
       onContextMenu={onRootContextMenu}
       onKeyDown={handleTreeKeyDown}
     >
+      {externalDropTarget && <div className="explorer-tree-drop-feedback" aria-hidden="true">
+        <span className="explorer-tree-drop-hint">{t("shared-ui.explorer.dropToAddFiles")}</span>
+      </div>}
       {showRoot && (
         <div className="explorer-tree-root-scope">
           {onRootClick ? (

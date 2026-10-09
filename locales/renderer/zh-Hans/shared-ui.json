@@ -1,5 +1,6 @@
 {
   "loading": "正在加载…",
+  "explorer.dropToAddFiles": "松开以添加文件",
   "explorer.root": "根目录",
   "explorer.emptyFolder": "空文件夹",
   "explorer.loadingWorkspace": "正在加载工作区…",

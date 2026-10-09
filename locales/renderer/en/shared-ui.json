@@ -1,5 +1,6 @@
 {
   "loading": "Loading…",
+  "explorer.dropToAddFiles": "Drop to add files",
   "explorer.root": "Root",
   "explorer.emptyFolder": "Empty folder",
   "explorer.loadingWorkspace": "Loading workspace…",

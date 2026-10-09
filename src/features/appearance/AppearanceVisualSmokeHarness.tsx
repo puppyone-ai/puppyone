@@ -27,6 +27,7 @@ import "./appearance-visual-smoke.css";
 const searchParams = new URLSearchParams(window.location.search);
 const style = parseInterfaceStyle(searchParams.get("style"));
 const dialogFixture = searchParams.get("dialog");
+const fileDropFixture = searchParams.has("file-drop");
 const requestedTypographyScale = searchParams.get("scale");
 const typographyScale = TYPOGRAPHY_SCALE_OPTIONS.find(
   (candidate) => candidate === requestedTypographyScale,
@@ -141,6 +142,13 @@ export function AppearanceVisualSmokeHarness() {
                 renderListEnd={() => <div className="appearance-visual-scroll-spacer" aria-hidden="true" />}
                 selectedPaths={fixtureSelectedPaths}
                 showRoot={false}
+                onImportFiles={fileDropFixture ? (files, target) => {
+                  const tree = document.querySelector<HTMLElement>(".explorer-tree-shell");
+                  if (tree) {
+                    tree.dataset.importedFiles = files.map(file => file.name).join(",");
+                    tree.dataset.importTarget = target ?? "root";
+                  }
+                } : undefined}
               />
             </div>
             <SmokeNavigation />

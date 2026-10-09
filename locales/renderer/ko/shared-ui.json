@@ -1,5 +1,6 @@
 {
   "loading": "불러오는 중…",
+  "explorer.dropToAddFiles": "놓아서 파일 추가",
   "explorer.root": "루트",
   "explorer.emptyFolder": "빈 폴더",
   "explorer.loadingWorkspace": "작업 공간을 불러오는 중…",

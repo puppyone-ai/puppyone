@@ -1,5 +1,6 @@
 {
   "loading": "Cargando…",
+  "explorer.dropToAddFiles": "Suelta para añadir archivos",
   "explorer.root": "Raíz",
   "explorer.emptyFolder": "Carpeta vacía",
   "explorer.loadingWorkspace": "Cargando el espacio de trabajo…",
