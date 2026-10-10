@@ -35,6 +35,7 @@ import {
   equalExplorerRowInteraction,
   selectExplorerRowInteraction,
   type ExplorerRowInteractionState,
+  type ExplorerRowActionMenu,
   type ExplorerRowStateSources,
 } from "./explorer/explorerRowInteraction";
 import {
@@ -64,6 +65,8 @@ export type ExplorerLoadingPresentation = "dots" | "skeleton" | "none";
 export type ExplorerTreeProps = {
   nodes: readonly DataNode[];
   activePath: string | null;
+  /** Independent from selection; changing triggers on the same row also invalidates its actions. */
+  openActionMenu?: ExplorerRowActionMenu | null;
   selectedPaths?: ReadonlySet<string>;
   cutPaths?: ReadonlySet<string>;
   currentFolderPath?: string | null;
@@ -141,6 +144,7 @@ const EXPLORER_ROW_DOM_ID_PREFIX = "puppyone-explorer-row";
 export function ExplorerTree({
   nodes,
   activePath,
+  openActionMenu = null,
   selectedPaths = EMPTY_PATH_SET,
   cutPaths = EMPTY_PATH_SET,
   currentFolderPath = null,
@@ -219,12 +223,13 @@ export function ExplorerTree({
   );
   const rowStateSources = useMemo<ExplorerRowStateSources>(() => ({
     activePath,
+    openActionMenu,
     selectedPaths,
     cutPaths,
     loadingPaths: resolvedLoadingPaths,
     draggedPaths,
     dropTarget,
-  }), [activePath, cutPaths, draggedPaths, dropTarget, resolvedLoadingPaths, selectedPaths]);
+  }), [activePath, openActionMenu, cutPaths, draggedPaths, dropTarget, resolvedLoadingPaths, selectedPaths]);
   const activeIndex = activePath ? visibleModel.pathToIndex.get(activePath) ?? null : null;
   const firstNavigableIndex = useMemo(
     () => findNavigableRowIndex(visibleModel.rows, 0, 1),
@@ -636,6 +641,7 @@ export function ExplorerTree({
           {onRootClick ? (
             <button
               className={`tree-row root root-command ${dropTarget?.rowPath === null && dropTarget.valid ? "drop-target" : ""} ${dropTarget?.rowPath === null && !dropTarget.valid ? "drop-invalid" : ""}`}
+              data-action-menu-open={openActionMenu?.path === null || undefined}
               type="button"
               style={{ "--depth": 0 } as CSSProperties}
               onDragEnter={dropEnabled ? (event) => dragController.onRowDragOver(event, null, null, "folder") : undefined}
@@ -655,6 +661,7 @@ export function ExplorerTree({
           ) : (
             <div
               className={`tree-row root ${dropTarget?.rowPath === null && dropTarget.valid ? "drop-target" : ""} ${dropTarget?.rowPath === null && !dropTarget.valid ? "drop-invalid" : ""}`}
+              data-action-menu-open={openActionMenu?.path === null || undefined}
               style={{ "--depth": 0 } as CSSProperties}
               onDragEnter={dropEnabled ? (event) => dragController.onRowDragOver(event, null, null, "folder") : undefined}
               onDragOver={dropEnabled ? (event) => dragController.onRowDragOver(event, null, null, "folder") : undefined}
@@ -886,6 +893,7 @@ const TreeNodeRow = memo(function TreeNodeRow({
       className={`tree-row ${isFolder ? "folder" : "file"} ${node.workspaceFolderRoot ? "workspace-folder-root" : ""} ${workspaceGroupHeader ? "workspace-group-header" : ""} ${interaction.selected ? "selected" : ""} ${interaction.active ? "active" : ""} ${interaction.cut ? "clipboard-cut" : ""} ${interaction.loading ? "loading" : ""} ${interaction.dragging ? "dragging" : ""} ${interaction.dropOver ? "drop-target" : ""} ${interaction.dropParentOver ? "drop-parent-target" : ""} ${interaction.dropInvalid ? "drop-invalid" : ""} ${node.status ? `status-${node.status}` : ""}`}
       role="treeitem"
       data-explorer-path={node.path}
+      data-action-menu-open={interaction.openMenuTrigger !== null || undefined}
       draggable={!node.workspaceFolderRoot && dragController.enabled}
       tabIndex={focusable ? 0 : -1}
       aria-level={row.depth + 1}

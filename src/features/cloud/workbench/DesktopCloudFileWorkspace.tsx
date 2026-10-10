@@ -81,7 +81,10 @@ function CloudFileBinding({ workbench, surfaceProps, providerStateContent }: {
       onCreateEntryMenu={(parent, anchor) => { if (surfaceService.writable) actions.openCreateEntryMenu(parent ?? surfaceService.folder.uri, anchor); }}
       onDismissCreateEntryMenu={() => actions.setCreateEntryDraft(null)}
       onNodeActionMenu={actions.openNodeActionMenu}
-      openCreateEntryParentPath={createEntryDraft?.parentPath} openNodeActionPath={nodeActionMenu?.node.path ?? null}
+      openCreateEntryParentPath={createEntryDraft && !createEntryDraft.selectedKind
+        && createEntryDraft.anchor.placement !== "auto-end" ? createEntryDraft.parentPath : undefined}
+      openNodeActionPath={nodeActionMenu?.mode === "actions"
+        ? nodeActionMenu.launcherPath ?? nodeActionMenu.node.path : null}
       sidebarCreateMenuOpen={Boolean(createEntryDraft && !createEntryDraft.selectedKind)}
       workspaceRefreshToken={workbench.refreshToken} workspaceAtomicRefreshToken={0}
       workspaceSurfaceError={dataPort ? workbench.error : null} />

@@ -99,6 +99,7 @@ export function useDataNodeActions({
     onEnterDataView();
     setCreateEntryDraft(null);
     setNodeActionMenu({
+      launcherPath: node.path,
       node: primaryNode,
       nodes,
       anchor: rectToCreateEntryAnchor(anchorRect),

@@ -616,12 +616,13 @@ body.data-sidebar-resizing .data-preview-accessory {
   --tree-row-action-reserve: 56px;
 }
 
-.tree-row:has(.tree-row-action-button[aria-expanded="true"]) {
+.tree-row[data-action-menu-open="true"],
+.tree-row.workspace-group-header[data-action-menu-open="true"] {
   background: var(--po-menu-trigger-row-open-background, var(--tree-row-hover-bg));
   color: var(--po-text);
 }
 
-.tree-row:is(.selected, .active):has(.tree-row-action-button[aria-expanded="true"]) {
+.tree-row:is(.selected, .active)[data-action-menu-open="true"] {
   background: var(--tree-row-selected-bg);
 }
 
@@ -629,7 +630,7 @@ body.data-sidebar-resizing .data-preview-accessory {
 .tree-row:hover:has(.tree-row-actions) .tree-row-content,
 .tree-row:focus-visible:has(.tree-row-actions) .tree-row-content,
 .tree-row:has(.tree-row-action-button:focus-visible) .tree-row-content,
-.tree-row:has(.tree-row-action-button[aria-expanded="true"]) .tree-row-content {
+.tree-row[data-action-menu-open="true"] .tree-row-content {
   padding-right: var(--tree-row-action-reserve);
 }
 
@@ -653,7 +654,7 @@ body.data-sidebar-resizing .data-preview-accessory {
 .tree-row:hover .tree-row-actions,
 .tree-row:focus-visible .tree-row-actions,
 .tree-row:has(.tree-row-action-button:focus-visible) .tree-row-actions,
-.tree-row:has(.tree-row-action-button[aria-expanded="true"]) .tree-row-actions {
+.tree-row[data-action-menu-open="true"] .tree-row-actions {
   opacity: 1;
   pointer-events: auto;
 }

@@ -1902,7 +1902,9 @@ function AppContent() {
               && createEntryDraft.anchor.placement !== "auto-end"
               ? createEntryDraft.parentPath
               : undefined}
-            openNodeActionPath={nodeActionMenu?.mode === "actions" ? nodeActionMenu.node.path : null}
+            openNodeActionPath={nodeActionMenu?.mode === "actions"
+              ? nodeActionMenu.launcherPath ?? nodeActionMenu.node.path
+              : null}
             onCreateEntryMenu={openCreateEntryMenu}
             onDismissCreateEntryMenu={() => setCreateEntryDraft(null)}
             fileClipboardController={fileClipboardController}

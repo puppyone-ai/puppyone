@@ -50,6 +50,12 @@ function open(node: DataNode, selected: DataNode[] = [node]) {
 function firstRow() { return host.querySelector<HTMLButtonElement>(".desktop-node-action-menu button")!; }
 
 describe("Explorer Copy Path", () => {
+  it("retains the clicked row as launcher when nested selection collapses to its folder", () => {
+    open(file, [folder, file]);
+    expect(actions.nodeActionMenu?.node).toBe(folder);
+    expect(actions.nodeActionMenu?.launcherPath).toBe(file.path);
+  });
+
   it("offers Copy Link only when the owning Cloud workspace provides it", () => {
     open(file);
     expect(host.textContent).not.toContain("Copy Link");

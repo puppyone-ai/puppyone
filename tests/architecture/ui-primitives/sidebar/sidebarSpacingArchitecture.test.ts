@@ -416,13 +416,13 @@ describe("sidebar spacing architecture", () => {
 
   it("reveals low-frequency tree actions on hover, keyboard focus, or an open menu", () => {
     expect(dataTreeCss).toContain(
-      ".tree-row:hover .tree-row-actions,\n.tree-row:focus-visible .tree-row-actions,\n.tree-row:has(.tree-row-action-button:focus-visible) .tree-row-actions,\n.tree-row:has(.tree-row-action-button[aria-expanded=\"true\"]) .tree-row-actions",
+      ".tree-row:hover .tree-row-actions,\n.tree-row:focus-visible .tree-row-actions,\n.tree-row:has(.tree-row-action-button:focus-visible) .tree-row-actions,\n.tree-row[data-action-menu-open=\"true\"] .tree-row-actions",
     );
     expect(dataTreeCss).toContain(
       ".tree-row:has(.tree-row-action-button:focus-visible) .tree-row-content",
     );
     expect(dataTreeCss).toContain(
-      '.tree-row:has(.tree-row-action-button[aria-expanded="true"])',
+      '.tree-row[data-action-menu-open="true"]',
     );
     expect(dataTreeCss).not.toContain(".tree-row.active .tree-row-actions");
     expect(dataTreeCss).not.toContain(".tree-row:focus-within .tree-row-actions");

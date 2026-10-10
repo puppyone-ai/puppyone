@@ -5,7 +5,8 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DataNode } from "../../../../packages/shared-ui/src/core/types";
-import { ExplorerTree } from "../../../../packages/shared-ui/src/data/ExplorerTree";
+import { ExplorerTree, type ExplorerTreeProps } from "../../../../packages/shared-ui/src/data/ExplorerTree";
+import { DesktopExplorerRowActions } from "../../../../src/features/data-workspace/nodeActions";
 import { createExplorerMotionPlan } from "../../../../packages/shared-ui/src/data/explorer/explorerMotionPlan";
 import {
   buildExplorerVisibleModel,
@@ -254,6 +255,64 @@ describe("Explorer bounded rendering", () => {
       nodes[0]?.path,
       nodes[1]?.path,
     ].sort());
+  });
+
+  it("refreshes open menu triggers without changing selection or re-rendering unrelated rows", () => {
+    const nodes = makeNodes(100);
+    nodes[0] = { ...nodes[0]!, type: "folder", children: [] };
+    const expandedPaths = new Set<string>();
+    const onSelectNode = vi.fn();
+    let menu: ExplorerTreeProps["openActionMenu"] = null;
+    const renderNodeActions = vi.fn((node: DataNode) => (
+      <DesktopExplorerRowActions
+        node={node}
+        parentPath={node.type === "folder" ? node.path : null}
+        nodeMenuOpen={menu?.path === node.path && menu.trigger === "more"}
+        createMenuOpen={menu?.path === node.path && menu.trigger === "create"}
+        onCreate={vi.fn()}
+        onOpenNodeMenu={vi.fn()}
+      />
+    ));
+    const container = document.createElement("div");
+    Object.assign(container.style, { width: "320px", height: "640px" });
+    document.body.appendChild(container);
+    root = createRoot(container);
+    const renderMenu = (next: ExplorerTreeProps["openActionMenu"]) => {
+      menu = next;
+      act(() => root?.render(withTestLocalization(
+        <ExplorerTree nodes={nodes} activePath={null} expandedPaths={expandedPaths}
+          showRoot={false} onSelectNode={onSelectNode} renderNodeActions={renderNodeActions}
+          openActionMenu={menu} />,
+      )));
+    };
+    const expectRefreshed = (paths: string[]) => {
+      expect(renderNodeActions.mock.calls.map(([node]) => node.path).sort()).toEqual(paths.sort());
+      expect(container.querySelector('.tree-row.active, .tree-row.selected')).toBeNull();
+      expect(onSelectNode).not.toHaveBeenCalled();
+      renderNodeActions.mockClear();
+    };
+
+    renderMenu(null);
+    renderNodeActions.mockClear();
+    renderMenu({ path: nodes[0]!.path, trigger: "more" });
+    const first = container.querySelector(`[data-explorer-path="${nodes[0]!.path}"]`)!;
+    expect(first.getAttribute("data-action-menu-open")).toBe("true");
+    const firstTriggers = first.querySelectorAll('.tree-row-action-button');
+    expect(Array.from(firstTriggers, button => button.getAttribute("aria-expanded"))).toEqual(["false", "true"]);
+    expectRefreshed([nodes[0]!.path]);
+
+    renderMenu({ path: nodes[0]!.path, trigger: "create" });
+    expect(Array.from(firstTriggers, button => button.getAttribute("aria-expanded"))).toEqual(["true", "false"]);
+    expectRefreshed([nodes[0]!.path]);
+
+    renderMenu({ path: nodes[1]!.path, trigger: "more" });
+    expect(first.getAttribute("data-action-menu-open")).toBeNull();
+    expect(first.querySelector('[aria-expanded="true"]')).toBeNull();
+    expectRefreshed([nodes[0]!.path, nodes[1]!.path]);
+
+    renderMenu(null);
+    expect(container.querySelector('[data-action-menu-open="true"], .tree-row-action-button[aria-expanded="true"]')).toBeNull();
+    expectRefreshed([nodes[1]!.path]);
   });
 
   it("keeps keyboard navigation and additive/range selection on the full model", () => {

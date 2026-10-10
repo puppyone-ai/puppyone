@@ -87,7 +87,7 @@ describe("desktop menu appearance architecture", () => {
     expect(nodeActions).toContain('aria-expanded={createMenuOpen}');
     expect(nodeActions).toContain('aria-expanded={nodeMenuOpen}');
     expect(dataTree).toContain(
-      '.tree-row:has(.tree-row-action-button[aria-expanded="true"])',
+      '.tree-row[data-action-menu-open="true"]',
     );
     expect(dataTree).toContain(
       "background: var(--po-menu-trigger-open-background, var(--po-control-hover));",

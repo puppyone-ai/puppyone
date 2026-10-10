@@ -76,6 +76,8 @@ export type DesktopCreateEntryDraft = {
   name: string;
 };
 export type DesktopNodeActionMenuDraft = {
+  /** The clicked row may differ from the collapsed multi-selection command target. */
+  launcherPath?: string;
   node: DataNode;
   nodes: DataNode[];
   anchor: DesktopCreateEntryAnchor;

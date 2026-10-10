@@ -378,6 +378,11 @@ export function DesktopDataWorkspaceSurface({
             </>
           );
         }}
+        explorerOpenActionMenu={openNodeActionPath !== null
+          ? { path: openNodeActionPath, trigger: "more" }
+          : openCreateEntryParentPath !== undefined
+            ? { path: openCreateEntryParentPath, trigger: "create" }
+            : null}
         explorerSlot={resolvedSurface.id === "data" || resolvedSurface.content.sidebar == null
           ? undefined
           : <WorkspaceSurfaceOutlet region="sidebar" surface={resolvedSurface} />}

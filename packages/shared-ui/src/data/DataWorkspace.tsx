@@ -43,6 +43,7 @@ import { createDocumentNavigationPort } from "../editor/navigation/documentNavig
 import {
   ExplorerTree,
   type ExplorerLoadingPresentation,
+  type ExplorerTreeProps,
 } from "./ExplorerTree";
 import { FilePreview, type FilePreviewProps } from "../editor/host/FilePreview";
 import { acquireFileResource } from "../editor/resource/FileResourcePool";
@@ -155,6 +156,7 @@ export type DataWorkspaceProps = {
   explorerRootActionSlot?: DataWorkspaceSlot;
   explorerFolderActionSlot?: DataWorkspaceFolderSlot;
   explorerNodeActionSlot?: DataWorkspaceNodeSlot;
+  explorerOpenActionMenu?: ExplorerTreeProps["openActionMenu"];
   resizableExplorer?: boolean;
   explorerCollapsed?: boolean;
   explorerWidth?: number;
@@ -257,6 +259,7 @@ export function DataWorkspace({
   explorerRootActionSlot,
   explorerFolderActionSlot,
   explorerNodeActionSlot,
+  explorerOpenActionMenu,
   resizableExplorer = false,
   explorerCollapsed = false,
   explorerWidth,
@@ -1442,6 +1445,7 @@ export function DataWorkspace({
                       renderRootActions={explorerRootActionSlot ? () => renderWorkspaceSlot(explorerRootActionSlot, workspaceState) : undefined}
                       renderFolderActions={explorerFolderActionSlot ? (folder) => renderWorkspaceFolderSlot(explorerFolderActionSlot, workspaceState, folder) : undefined}
                       renderNodeActions={explorerNodeActionSlot ? (node) => renderWorkspaceNodeSlot(explorerNodeActionSlot, workspaceState, node) : undefined}
+                      openActionMenu={explorerOpenActionMenu}
                     />
                   </div>
                   {explorerSlot && (
