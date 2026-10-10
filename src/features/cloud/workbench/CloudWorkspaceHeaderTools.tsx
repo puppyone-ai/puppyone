@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState } from "react";
-import { History, SquareArrowOutUpRight } from "lucide-react";
+import { Forward, History } from "lucide-react";
 import { Tooltip } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import { AgentEntryIcon } from "../../../components/brand/AgentEntryIcon";
@@ -35,10 +35,11 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, previewEntries, his
   return <>
     <div className="desktop-titlebar-cloud-tools" data-window-no-drag="true" aria-busy={!ready || undefined}>
       <Tooltip content={ready ? t("shell.titlebar.share") : t("shell.workspaceSwitcher.location.checking")}>
-        <button type="button" className="desktop-titlebar-action desktop-titlebar-cloud-tool"
+        <button type="button" className="desktop-titlebar-action desktop-titlebar-share"
           data-cloud-workspace-tool="share" disabled={!ready} aria-label={t("shell.titlebar.share")}
           aria-haspopup="dialog" aria-expanded={sharing} onClick={() => setSharing(true)}>
-          <SquareArrowOutUpRight size={15} aria-hidden="true" />
+          <Forward size={16} strokeWidth={1.8} aria-hidden="true" />
+          <span className="desktop-titlebar-share-label">{t("shell.titlebar.share")}</span>
         </button>
       </Tooltip>
       <Tooltip content={t("source-control.history.title")}>
