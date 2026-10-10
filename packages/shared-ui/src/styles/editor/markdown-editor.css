@@ -353,17 +353,21 @@
 
 .markdown-codemirror-editor .cm-md-list-line {
   position: relative;
-  padding-left: calc(20px + var(--md-list-depth, 0) * 16px);
+  --md-list-marker-slot-width: max(var(--po-md-list-marker-width), calc(var(--md-list-marker-columns, 0) * 1ch));
+  --md-list-prefix-width: calc(var(--po-md-list-inset) + var(--md-list-marker-slot-width) + var(--po-md-list-marker-gap) + var(--md-list-depth, 0) * var(--po-md-list-indent-step));
+  padding-inline-start: var(--md-list-prefix-width);
   color: var(--po-md-list-color);
 }
 
-.markdown-codemirror-editor .cm-md-list-line:not(.cm-md-task-line)::before {
+.markdown-codemirror-editor .cm-md-list-line:not(.cm-md-task-line):not(.cm-md-list-continuation)::before {
   position: absolute;
-  left: calc(var(--md-list-depth, 0) * 16px);
+  inset-inline-start: calc(var(--po-md-list-inset) + var(--md-list-depth, 0) * var(--po-md-list-indent-step));
+  inset-block-start: var(--md-line-padding-before, var(--po-markdown-editor-line-spacing));
   display: inline-flex;
-  width: 20px;
+  width: var(--md-list-marker-slot-width);
+  height: 1lh;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   color: var(--po-md-list-marker-color);
   font-weight: var(--po-md-list-marker-weight);
   user-select: none;
@@ -413,11 +417,9 @@
 .markdown-codemirror-editor .cm-md-task-line {
   --md-task-checkbox-size: 1.05em;
   --md-task-checkbox-hit-size: 24px;
-  /* Checkbox (~15px) + ~9px gap to the text — the to-do list convention;
-     wider gaps read as disconnected. */
-  --md-task-prefix-width: calc(24px + var(--md-list-depth, 0) * 16px);
+  --md-task-prefix-width: var(--md-list-prefix-width);
   position: relative;
-  padding-left: var(--md-task-prefix-width);
+  padding-inline-start: var(--md-task-prefix-width);
   color: var(--po-md-list-color);
 }
 
@@ -430,9 +432,10 @@
 
 .markdown-codemirror-editor .cm-md-task-checkbox-widget {
   position: absolute;
-  /* Center on the first text line: line padding + half the 1.68 line box. */
-  top: calc(var(--po-markdown-editor-line-spacing, 0px) + 0.84em);
-  left: calc(var(--md-list-depth, 0) * 16px - 5px);
+  /* The hit target stays compact, centered in the file-owned marker slot
+     and on the first text line, even when item spacing or fonts change. */
+  inset-block-start: calc(var(--md-line-padding-before, var(--po-markdown-editor-line-spacing)) + .5lh);
+  inset-inline-start: calc(var(--po-md-list-inset) + var(--md-list-depth, 0) * var(--po-md-list-indent-step) + (var(--md-list-marker-slot-width) - var(--md-task-checkbox-hit-size)) / 2);
   display: inline-grid;
   width: var(--md-task-checkbox-hit-size);
   height: var(--md-task-checkbox-hit-size);
@@ -445,7 +448,7 @@
   cursor: var(--po-clickable-cursor, default);
   font: inherit;
   place-items: center;
-  line-height: 1;
+  line-height: inherit;
   text-decoration: none;
   transform: translateY(-50%);
   user-select: none;

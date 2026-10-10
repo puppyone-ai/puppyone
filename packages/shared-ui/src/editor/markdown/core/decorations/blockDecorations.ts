@@ -1,3 +1,4 @@
+import { getMarkdownBlockRhythm, type MarkdownLineRhythm } from "../presentation/markdownBlockRhythm";
 import type { EditorState } from "@codemirror/state";
 import { Decoration } from "@codemirror/view";
 import type { MarkdownAssetUrlResolver, MarkdownHtmlTrustMode, MarkdownLinkGraph } from "../../../registry/viewerTypes";
@@ -49,6 +50,7 @@ export function addMarkdownBlockAndLineDecorations(
   const lastLine = state.doc.lineAt(rangeTo);
   const plans = getMarkdownPlansInRange(state, firstLine.from, lastLine.to);
   const planLookup = createLinePlanLookup(state, plans);
+  const rhythm = getMarkdownBlockRhythm(state, firstLine.from, lastLine.to);
   const featureComposition = state.facet(markdownFeatureCompositionFacet);
   markdownDecorationDiagnostics.rangeBuilds += 1;
   markdownDecorationDiagnostics.linesScanned += lastLine.number - firstLine.number + 1;
@@ -115,6 +117,7 @@ export function addMarkdownBlockAndLineDecorations(
       documentPath,
       markdownAssetUrlResolver,
       planLookup.plansByLineFrom.get(line.from) ?? EMPTY_INDEXED_PLANS,
+      rhythm.get(line.from),
     );
     lineNumber += 1;
   }
@@ -157,6 +160,7 @@ function decorateMarkdownLine(
   documentPath: string,
   markdownAssetUrlResolver: MarkdownAssetUrlResolver | null,
   plans: readonly IndexedMarkdownPlan[],
+  rhythm?: MarkdownLineRhythm,
 ) {
   const taskPlan = findTaskCheckboxPlan(plans, lineFrom, lineTo);
   const parsedTaskLine = taskPlan ? getMarkdownTaskLine({ from: lineFrom, to: lineTo, text }) : null;
@@ -168,11 +172,12 @@ function decorateMarkdownLine(
     text,
     state.facet(markdownFeatureCompositionFacet),
   );
-  if (lineClasses) {
+  const classes = [...new Set([...lineClasses.split(" ").filter(Boolean), ...(rhythm?.classes ?? [])])].join(" ");
+  if (classes) {
     builders.decorations.push(
       Decoration.line({
-        class: lineClasses,
-        attributes: getMarkdownLineAttributes(taskLine, listMatch),
+        class: classes,
+        attributes: getMarkdownLineAttributes(taskLine, listMatch, rhythm),
       }).range(lineFrom),
     );
   }
@@ -212,7 +217,9 @@ function decorateMarkdownLine(
     return;
   }
 
-  if (listMatch) {
+  if (rhythm?.list && rhythm.list.prefixTo > lineFrom) {
+    addSourceSyntaxDecoration(builders, lineFrom, rhythm.list.prefixTo, "list", false);
+  } else if (listMatch) {
     addSourceSyntaxDecoration(builders, lineFrom, lineFrom + listMatch[0].length, "list", false);
   }
 
@@ -258,7 +265,9 @@ export function getMarkdownDecorationDiagnostics() {
 function getMarkdownLineAttributes(
   taskLine: MarkdownTaskLine | null,
   listMatch: RegExpExecArray | null,
+  rhythm?: MarkdownLineRhythm,
 ): Record<string, string> | undefined {
+  if (rhythm?.list) return { style: `--md-list-depth:${rhythm.list.depth};--md-list-marker:${cssString(rhythm.list.marker)};--md-list-marker-columns:${rhythm.list.columns};` };
   if (taskLine) return { style: `--md-list-depth:${taskLine.depth};` };
   if (!listMatch) return undefined;
 

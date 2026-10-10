@@ -272,6 +272,13 @@
     --po-md-content-letter-spacing: 0;
     --po-md-content-line-height: 24px;
     --po-md-block-gap: 16px;
+    --po-md-paragraph-gap-before: .375em;
+    --po-md-paragraph-gap-after: 1.25em;
+    --po-md-list-inset: .75em;
+    --po-md-list-marker-width: 1.5em;
+    --po-md-list-marker-gap: .5em;
+    --po-md-list-indent-step: 2em;
+    --po-md-list-item-gap: .5em;
     --po-md-heading-gap-before: 32px;
     --po-md-heading-gap-after: 20px;
     --po-md-h1-gap-before: var(--po-md-heading-gap-before);

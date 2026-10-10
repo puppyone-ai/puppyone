@@ -25,6 +25,36 @@
   line-height: inherit;
 }
 
+/* Native paragraphs are source ranges, not individual visual lines. The
+   document projection marks their edges before CodeMirror measures height. */
+.markdown-codemirror-editor[data-live-preview="true"] .cm-line:is(.cm-md-paragraph-start, .cm-md-paragraph-end, .cm-md-list-item-start, .cm-md-list-item-end, .cm-md-list-start, .cm-md-list-end) {
+  padding-block: var(--md-line-padding-before, var(--po-markdown-editor-line-spacing)) var(--md-line-padding-after, var(--po-markdown-editor-line-spacing));
+}
+
+.markdown-codemirror-editor[data-live-preview="true"] .cm-md-paragraph-start {
+  --md-line-padding-before: var(--po-md-paragraph-gap-before);
+}
+
+.markdown-codemirror-editor[data-live-preview="true"] .cm-md-paragraph-end {
+  --md-line-padding-after: var(--po-md-paragraph-gap-after);
+}
+
+.markdown-codemirror-editor[data-live-preview="true"] .cm-md-list-item-start {
+  --md-line-padding-before: calc(var(--po-md-list-item-gap) / 2);
+}
+
+.markdown-codemirror-editor[data-live-preview="true"] .cm-md-list-item-end {
+  --md-line-padding-after: calc(var(--po-md-list-item-gap) / 2);
+}
+
+.markdown-codemirror-editor[data-live-preview="true"] .cm-md-list-start {
+  --md-line-padding-before: calc(var(--po-md-paragraph-gap-before) + var(--po-md-list-item-gap) / 2);
+}
+
+.markdown-codemirror-editor[data-live-preview="true"] .cm-md-list-end {
+  --md-line-padding-after: calc(var(--po-md-paragraph-gap-after) + var(--po-md-list-item-gap) / 2);
+}
+
 /* CodeMirror measures line border boxes. Represent semantic outer gaps as
    line padding so its height map, caret hit testing and scroll anchors include
    the full heading rhythm; HTML consumes the same roles as block margins. */
@@ -162,6 +192,19 @@
   margin-block: 0 var(--po-md-block-gap);
 }
 
+/* HTML re-enters normal block layout and consumes the same paragraph roles. */
+.markdown-codemirror-editor .cm-md-html-rendered-surface p {
+  margin-block: var(--po-md-paragraph-gap-before) var(--po-md-paragraph-gap-after);
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface li > p:first-child {
+  margin-block-start: 0;
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface li > p:last-child {
+  margin-block-end: 0;
+}
+
 .markdown-codemirror-editor .cm-md-html-rendered-surface pre {
   background: var(--po-md-code-block-background);
   padding: var(--po-md-code-block-padding);
@@ -231,7 +274,43 @@
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface :where(ul, ol) {
-  padding-inline-start: 2em;
+  --md-list-marker-slot-width: max(var(--po-md-list-marker-width), calc(var(--md-list-marker-columns, 0) * 1ch));
+  margin-block: var(--po-md-paragraph-gap-before) var(--po-md-paragraph-gap-after);
+  padding-inline-start: calc(var(--po-md-list-inset) + var(--md-list-marker-slot-width) + var(--po-md-list-marker-gap));
+  list-style: none;
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface ul {
+  --md-list-marker-columns: 0;
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface li :where(ul, ol) {
+  margin-block: 0;
+  padding-inline-start: var(--po-md-list-indent-step);
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface li {
+  position: relative;
+  margin-block: calc(var(--po-md-list-item-gap) / 2);
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface li::before {
+  position: absolute;
+  inset-inline-start: calc(0px - var(--md-list-marker-slot-width) - var(--po-md-list-marker-gap));
+  inset-block-start: 0;
+  display: inline-flex;
+  width: var(--md-list-marker-slot-width);
+  height: 1lh;
+  align-items: center;
+  justify-content: center;
+  color: var(--po-md-list-marker-color);
+  font-weight: var(--po-md-list-marker-weight);
+  user-select: none;
+  content: "•";
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface ol > li::before {
+  content: counter(list-item) ".";
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface blockquote {

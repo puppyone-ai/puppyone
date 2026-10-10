@@ -270,8 +270,78 @@ function assertHeadingRhythm(metrics, newspaper, wrapped = false) {
   }
 }
 
+function readBlockRhythm() {
+  const host=document.querySelector('#markdown .markdown-codemirror-editor');
+  const geometry=window.tableFixture.markdownLineGeometry();
+  const textRects=element => {
+    const walker=document.createTreeWalker(element,NodeFilter.SHOW_TEXT), rects=[];
+    while(walker.nextNode()) {
+      const node=walker.currentNode;
+      if(!node.textContent.trim() || node.parentElement.closest('button,.cm-md-hidden-syntax')) continue;
+      const range=document.createRange();range.selectNodeContents(node);
+      rects.push(...[...range.getClientRects()].filter(rect=>rect.width>2&&rect.height>2).map(rect=>({x:rect.x,y:rect.y,width:rect.width,height:rect.height})));
+    }
+    return rects;
+  };
+  const read=element => {
+    const css=getComputedStyle(element), pseudo=getComputedStyle(element,'::before'), rect=element.getBoundingClientRect();
+    const text=textRects(element);
+    const sourceLine=geometry.lines.find(line=>line.text.trim()===element.textContent.trim() || line.text.includes(element.textContent.trim()));
+    return {text:element.textContent, classes:element.className, x:rect.x,height:rect.height, size:parseFloat(css.fontSize),
+      before:parseFloat(css.paddingTop),after:parseFloat(css.paddingBottom),indent:parseFloat(css.paddingInlineStart),
+      marginBefore:parseFloat(css.marginTop),marginAfter:parseFloat(css.marginBottom),
+      depth:Number(css.getPropertyValue('--md-list-depth')),columns:Number(css.getPropertyValue('--md-list-marker-columns')),
+      marker:{content:pseudo.content,left:parseFloat(pseudo.insetInlineStart),top:parseFloat(pseudo.insetBlockStart),width:parseFloat(pseudo.width),height:parseFloat(pseudo.height),align:pseudo.justifyContent},
+      textRects:text,sourceLine,
+      checkbox:(()=>{const button=element.querySelector('.cm-md-task-checkbox-widget');if(!button)return null;const box=button.getBoundingClientRect();return {x:box.x-rect.x,y:box.y-rect.y,width:box.width,height:box.height};})()};
+  };
+  return { paragraphs:[...host.querySelectorAll('.cm-line.cm-md-paragraph-start, .cm-line.cm-md-paragraph-end')].map(read),
+    lists:[...host.querySelectorAll('.cm-line.cm-md-list-line')].map(read),
+    htmlParagraphs:[...host.querySelectorAll('.cm-md-html-rendered-surface > div > p')].map(read),
+    htmlLists:[...host.querySelectorAll('.cm-md-html-rendered-surface li')].map(read),
+    htmlOrderedColumns:host.querySelector('.cm-md-html-rendered-surface ol').style.getPropertyValue('--md-list-marker-columns'),
+    htmlOrderedStart:host.querySelector('.cm-md-html-rendered-surface ol').start,
+    selectedLine:geometry.selectedLine };
+}
+
+function assertBlockRhythm(metrics) {
+  const near=(a,b,label)=>assert(Math.abs(a-b)<.7,`${label}: ${a} vs ${b}`);
+  const paragraph=metrics.paragraphs.find(line=>line.text.startsWith('P1'));
+  const continuation=metrics.paragraphs.find(line=>line.text.startsWith('Continued paragraph'));
+  assert(paragraph && continuation,'missing multiline paragraph');
+  near(paragraph.before,paragraph.size*.375,'paragraph before');near(paragraph.after,3,'soft source line padding');
+  near(continuation.before,3,'continuation padding');near(continuation.after,continuation.size*1.25,'paragraph after');
+  for(const line of [...metrics.paragraphs,...metrics.lists]) near(line.height,line.sourceLine.height,'CodeMirror block height');
+  const bullet=metrics.lists.find(line=>line.text.includes('Bullet first'));
+  assert(bullet.textRects.length>=2,'long bullet did not wrap');
+  near(bullet.indent,bullet.size*2.75,'character-relative indent');near(bullet.marker.left,bullet.size*.75,'inset marker');
+  near(bullet.marker.width,bullet.size*1.5,'marker slot');assert.equal(bullet.marker.align,'center');
+  near(bullet.marker.top,bullet.before,'marker tracks first line padding');
+  for(const rect of bullet.textRects) near(rect.x-bullet.x,bullet.indent,'wrapped hanging indent');
+  const continued=metrics.lists.find(line=>line.text.includes('Continued list item'));
+  assert(continued.classes.includes('cm-md-list-continuation'));
+  near(continued.indent,bullet.indent,'source continuation indent');
+  for(const rect of continued.textRects)near(rect.x-continued.x,continued.indent,'hidden continuation prefix');
+  const nested=metrics.lists.find(line=>line.text.includes('Nested bullet'));
+  assert.equal(nested.depth,1);near(nested.indent-bullet.indent,bullet.size*2,'semantic nested step');
+  const ordered=metrics.lists.filter(line=>/Ordered (nine|ten|hundred)/.test(line.text));
+  assert.equal(ordered.length,3);
+  for(const line of ordered){assert.equal(line.columns,4);near(line.indent,ordered[0].indent,'shared ordered column');assert.equal(line.marker.align,'center');}
+  const task=metrics.lists.find(line=>line.text.includes('Task item'));
+  near(task.indent,bullet.indent,'shared task text column');
+  near(task.checkbox.x+task.checkbox.width/2,bullet.marker.left+bullet.marker.width/2,'centered checkbox');
+  near(task.checkbox.y+task.checkbox.height/2,task.before+bullet.marker.height/2,'checkbox first line center');
+  assert.equal(metrics.htmlParagraphs.length,2);
+  for(const line of metrics.htmlParagraphs){near(line.marginBefore,line.size*.375,'HTML paragraph before');near(line.marginAfter,line.size*1.25,'HTML paragraph after');}
+  for(const line of metrics.htmlLists){assert.equal(line.marker.align,'center');assert(line.marker.width>0,'HTML marker lost its slot');}
+  assert.equal(metrics.htmlOrderedColumns,'2');assert.equal(metrics.htmlOrderedStart,1);
+}
+
 function readFileAuthority() {
   const host = document.querySelector("#markdown .markdown-codemirror-editor");
+  for (const selector of ['.cm-md-heading-1','.cm-md-heading-2','.cm-md-paragraph-start','.cm-md-paragraph-end','.cm-md-list-line','.cm-md-html-rendered-surface pre']) {
+    if(!host.querySelector(selector)) throw new Error(`Registered-file fixture missing measured projection: ${selector}`);
+  }
   const css = element => getComputedStyle(element);
   const canvas = document.createElement("canvas"), context = canvas.getContext("2d", { willReadFrequently: true });
   const color = value => {
@@ -292,6 +362,10 @@ function readFileAuthority() {
     headingBefore: css(host.querySelector(".cm-md-heading-1")).paddingTop,
     headingAfter: css(host.querySelector(".cm-md-heading-1")).paddingBottom,
     subheadingBefore: css(host.querySelector(".cm-md-heading-2")).paddingTop,
+    paragraphBefore: css(host.querySelector(".cm-md-paragraph-start")).paddingTop,
+    paragraphAfter: css(host.querySelector(".cm-md-paragraph-end")).paddingBottom,
+    listIndent: css(host.querySelector(".cm-md-list-line")).paddingInlineStart,
+    listMarkerInset: getComputedStyle(host.querySelector(".cm-md-list-line"), "::before").insetInlineStart,
     peerColor: color(css(document.querySelector("#peer .cm-editor")).color), blocks,
     cells: [...host.querySelectorAll(".cm-md-table-widget :is(th,td), .cm-md-html-rendered-surface table :is(th,td)")].map(element => ({
       header: element.tagName === "TH", color: color(css(element).color), size: css(element).fontSize, font: css(element).fontFamily })),
@@ -330,7 +404,9 @@ app.whenReady().then(async () => {
         const host = document.querySelector('#markdown .markdown-codemirror-editor');
         for (const token of ['--po-user-md-strong-color', '--po-host-md-inline-code-color', '--po-host-md-blockquote-color']) host.style.removeProperty(token);
         if (${override}) { host.style.setProperty('--po-user-md-strong-color', '#d90071'); host.style.setProperty('--po-host-md-inline-code-color', '#147a96'); host.style.setProperty('--po-host-md-blockquote-color', '#587366'); }
-        document.activeElement?.blur();
+        document.querySelector('#markdown .cm-content').blur();
+        for(let frame=0;frame<30&&host.querySelector('.cm-editor.cm-focused');frame++) await new Promise(resolve=>requestAnimationFrame(resolve));
+        if(host.querySelector('.cm-editor.cm-focused')) throw new Error('Native Markdown blur did not settle');
       })()`);
       for (const entry of ["preview", "emphasis", "inline-code"]) {
         const focused = entry !== "preview";
@@ -473,6 +549,55 @@ app.whenReady().then(async () => {
     }
     await browser.webContents.debugger.sendCommand("Emulation.clearDeviceMetricsOverride");
     await evaluate("document.querySelector('#markdown').style.height='1300px'");
+    const blockSource=[
+      'P1 paragraph ' + 'readable 正文 '.repeat(10),
+      'Continued paragraph in the same semantic block.', '', 'P2 next paragraph.', '',
+      '- Bullet first ' + 'wrapped 列表正文 '.repeat(12),
+      '  Continued list item on a second source line.',
+      '    - Nested bullet', '- Bullet next', '',
+      '9. Ordered nine', '10. Ordered ten', '100. Ordered hundred', '', '- [ ] Task item', '',
+      '<div><p>HTML paragraph one.</p><p>HTML paragraph two.</p><ul><li>HTML bullet<ul><li>HTML nested</li></ul></li><li>HTML next</li></ul><ol><li>HTML first</li><li>HTML second</li><li>HTML third</li></ol></div>', '', 'End',
+    ].join('\n');
+    for(const mode of ['light','dark'])for(const theme of [null,'default.newspaper'])for(const width of [1080,760]) {
+      await browser.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride',{width,height:4000,deviceScaleFactor:1,mobile:false});
+      await evaluate(`(async()=>{
+        await window.tableFixture.mode('${mode}');await window.tableFixture.theme(${JSON.stringify(theme)});
+        document.querySelector('#markdown').style.height='3500px';
+        document.querySelector('#markdown .markdown-codemirror-editor').removeAttribute('style');
+        await window.tableFixture.setMarkdownSource(${JSON.stringify(blockSource)});
+        await document.fonts.ready;await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+      })()`);
+      const metrics=await evaluate(`(${readBlockRhythm.toString()})()`);assertBlockRhythm(metrics);
+      const point=metrics.lists.find(line=>line.text.includes('Bullet first')).textRects[0];
+      const inputPoint={x:Math.round(point.x+point.width/2),y:Math.round(point.y+point.height/2)};
+      browser.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...inputPoint});
+      browser.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...inputPoint});
+      await evaluate('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))');
+      const edited=await evaluate(`(${readBlockRhythm.toString()})()`);assertBlockRhythm(edited);
+      assert.equal(edited.selectedLine,edited.lists.find(line=>line.text.includes('Bullet first')).sourceLine.number,'pointer missed hanging list text');
+      assert.equal(await evaluate('window.tableFixture.markdownSource()'),blockSource,'presentation changed canonical source');
+      await evaluate('window.tableFixture.preview(false)');
+      const sourceMode=await evaluate(`(()=>{
+        const host=document.querySelector('#markdown .markdown-codemirror-editor');
+        return {projectedLists:host.querySelectorAll('.cm-md-list-line').length,
+          lines:[...host.querySelectorAll('.cm-line')].map(line=>{const css=getComputedStyle(line);return {before:css.paddingTop,after:css.paddingBottom,indent:css.paddingInlineStart};})};
+      })()`);
+      assert.equal(sourceMode.projectedLists,0);
+      for(const line of sourceMode.lines){assert.equal(line.before,'0px');assert.equal(line.after,'0px');assert.equal(line.indent,'0px');}
+      metrics.sourceMode=sourceMode;
+      await evaluate('window.tableFixture.preview(true)');
+      assertBlockRhythm(await evaluate(`(${readBlockRhythm.toString()})()`));
+      const name=`block-rhythm-${mode}-${theme??'default'}-${width}`;
+      results.push({name,metrics});console.log(`PASS ${name}`);
+      const bottom=await evaluate("document.querySelector('#markdown .cm-content > .cm-line:last-child').getBoundingClientRect().bottom+48");
+      await fs.writeFile(path.join(artifacts,`${name}.png`),(await browser.webContents.capturePage({x:0,y:0,width,height:Math.ceil(bottom+24)})).toPNG());
+    }
+    await browser.webContents.debugger.sendCommand('Emulation.clearDeviceMetricsOverride');
+    await evaluate("document.querySelector('#markdown').style.height='1300px'");
+    // Custom font/spacing profiles are taller than the neutral document.
+    // Keep every measured structured adapter inside this fixture's viewport.
+    await browser.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride',{width:1080,height:3200,deviceScaleFactor:1,mobile:false});
+    await evaluate("document.querySelector('#markdown').style.height='2800px'");
     // Exercise the real single-file registration pipeline, not inline CSS
     // pretending to be a theme. Reloading the same id must update all adapters
     // while retaining the CodeMirror view, document, selection and scroll.
@@ -495,6 +620,11 @@ app.whenReady().then(async () => {
         "--po-md-h1-gap-before": revision ? "49px" : "37px",
         "--po-md-h1-gap-after": revision ? "25px" : "17px",
         "--po-md-heading-line-height": revision ? "1.6" : "1.4",
+        "--po-md-paragraph-gap-before": revision ? "11px" : "7px",
+        "--po-md-paragraph-gap-after": revision ? "27px" : "19px",
+        "--po-md-list-inset": revision ? "15px" : "9px",
+        "--po-md-list-marker-width": "28px",
+        "--po-md-list-marker-gap": revision ? "12px" : "8px",
         "--po-md-code-font": '"Courier New", monospace',
         "--po-md-table-font-size": revision ? "14px" : "12px",
         "--po-md-table-line-height": "1.6",
@@ -541,7 +671,7 @@ app.whenReady().then(async () => {
         await window.tableFixture.peerTheme(${JSON.stringify(peer.themeId)});
         const host = document.querySelector('#markdown .markdown-codemirror-editor');
         host.removeAttribute('style');
-        ${revision === 0 ? `await window.tableFixture.setMarkdownSource(${JSON.stringify("# File heading\n\n## File subheading\nAfter subheading\n\n" + structuredSource + "\n\n" + Array(25).fill("Trailing line").join("\n"))});` : ""}
+        ${revision === 0 ? `await window.tableFixture.setMarkdownSource(${JSON.stringify("# File heading\n\n## File subheading\nAfter subheading\n\n- File list item\n- Second file list item\n\n" + structuredSource + "\n\n" + Array(25).fill("Trailing line").join("\n"))});` : ""}
         await document.fonts.ready;
         await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
       })()`);
@@ -552,6 +682,10 @@ app.whenReady().then(async () => {
       assert.equal(metrics.headingSize, revision ? "42px" : "38px");
       assert.equal(metrics.headingBefore, revision ? "49px" : "37px");
       assert.equal(metrics.headingAfter, revision ? "25px" : "17px");
+      assert.equal(metrics.paragraphBefore,revision ? "11px" : "7px");
+      assert.equal(metrics.paragraphAfter,revision ? "27px" : "19px");
+      assert.equal(metrics.listIndent,revision ? "55px" : "45px");
+      assert.equal(metrics.listMarkerInset,revision ? "15px" : "9px");
       assert.equal(metrics.subheadingBefore, revision ? "38.5px" : "31.5px", "per-level gap lost its file-owned base reference");
       assert(Math.abs(parseFloat(metrics.headingLineHeight)-(revision ? 42*1.6 : 38*1.4)) < .01, "file heading line-height was lost");
       assert(metrics.bodyFont.includes("Georgia"));

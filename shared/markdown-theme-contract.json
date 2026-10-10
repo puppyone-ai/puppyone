@@ -33,6 +33,27 @@
       "name": "--po-md-block-gap"
     },
     {
+      "name": "--po-md-paragraph-gap-before"
+    },
+    {
+      "name": "--po-md-paragraph-gap-after"
+    },
+    {
+      "name": "--po-md-list-inset"
+    },
+    {
+      "name": "--po-md-list-marker-width"
+    },
+    {
+      "name": "--po-md-list-marker-gap"
+    },
+    {
+      "name": "--po-md-list-indent-step"
+    },
+    {
+      "name": "--po-md-list-item-gap"
+    },
+    {
       "name": "--po-md-heading-gap-before"
     },
     {

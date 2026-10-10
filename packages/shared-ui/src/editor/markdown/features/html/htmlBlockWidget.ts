@@ -9,6 +9,7 @@ import { bindInlineHtmlDomInteractions } from "./inlineHtmlDomAdapter";
 import {
   resolveMarkdownImageSrcset,
 } from "../image/markdownImageModel";
+import { prepareHtmlListGeometry } from "./htmlListGeometry";
 import type { BrokeredMarkdownMediaUrlResolver } from "../media/markdownMediaReference";
 import { prepareBrokeredMarkdownImage } from "../media/markdownPassiveImage";
 import type { MarkdownHtmlBlock } from "./htmlBlockModel";
@@ -354,6 +355,7 @@ function createSanitizedHtmlPreviewBlock(
   wrapper.dataset.poScrollbar = "content";
   wrapper.dir = "auto";
   wrapper.appendChild(result.fragment);
+  prepareHtmlListGeometry(wrapper);
   for (const pre of wrapper.querySelectorAll<HTMLElement>("pre")) {
     pre.dataset.poScrollbar = "content";
   }

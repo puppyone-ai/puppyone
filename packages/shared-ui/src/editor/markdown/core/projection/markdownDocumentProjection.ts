@@ -1,3 +1,4 @@
+import { getChangedMarkdownRhythmRanges } from "../presentation/markdownBlockRhythm";
 import { getChangedSyntaxProjectionRange } from "./syntaxProjectionRange";
 import { syntaxTree } from "@codemirror/language";
 import {
@@ -340,7 +341,7 @@ function replaceDecorationRange(
 }
 
 function getChangedProjectionRanges(transaction: Transaction): InlineRevealRange[] {
-  const ranges: InlineRevealRange[] = [];
+  const ranges: InlineRevealRange[] = [...getChangedMarkdownRhythmRanges(transaction)];
   transaction.changes.iterChangedRanges((_fromA, _toA, fromB, toB) => {
     ranges.push(normalizeProjectionRange(transaction.state, fromB, Math.max(fromB, toB)));
   });
