@@ -57,9 +57,9 @@ describe("Web-aligned Cloud reads", () => {
     const cloud = service();
     await cloud.dataPort.listChildren(cloud.folder.uri);
     const path = createWorkspaceResourceUri(cloud.folder.uri, "readme.md");
-    await cloud.dataPort.readFile(path);
+    await cloud.dataPort.readFile!(path);
     const before = bridge.mock.calls.length;
-    const editorWorkbench = { activePath: path } as NativeCloudWorkbench["editorWorkbench"];
+    const editorWorkbench = { activePath: path } as unknown as NativeCloudWorkbench["editorWorkbench"];
     const resource = captureCloudWorkspaceShareResource({ service: cloud,
       activeNode: { id: "old", path: "data.json", name: "data.json", type: "json" }, editorWorkbench });
     expect(resource?.path).toBe("readme.md");
