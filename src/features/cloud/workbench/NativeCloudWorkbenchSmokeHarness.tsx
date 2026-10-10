@@ -30,7 +30,9 @@ import { useDataNodeActions } from "../../data-workspace/useDataNodeActions";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import { createCloudAgentSmokeFixture, editCloudAgentPrompt } from "../agent/CloudAgentSmokeFixture";
 import { useCloudAgentWorkspace } from "../agent/useCloudAgentWorkspace";
-import { CloudAgentSidebarHost } from "../agent/lazy";
+import { CloudWorkspaceSidebar } from "./CloudWorkspaceSidebar";
+import { useCloudWorkspaceSidebar, type CloudWorkspaceSidebarController } from "./useCloudWorkspaceSidebar";
+import { cloudHistorySmokeFixture } from "./cloudRepositorySmokeFixture";
 
 initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
 
@@ -50,8 +52,8 @@ const fileSurface = resolveWorkspaceSurface({ capabilities: { cloudEnabled: true
     cloud: () => ({ sidebar: null, main: null }), settings: () => ({ sidebar: null, main: null }) } });
 const session: DesktopCloudSession = { api_base_url: API, user_id: "fixture-user", user_email: "user@example.com",
   session_generation: "fixture-session", status: "authenticated", expires_at: Date.now() + 3_600_000, expires_in: 3600 };
-const context = { status: "resolved" as const, projectId: "fixture-project", projectName: "Native workspace",
-  target: { kind: "project_root" as const, project_id: "fixture-project" }, capabilities: ["content.read", "content.write", "access_surface.manage"] };
+const context = { status: "resolved" as const, projectId: "11111111-1111-4111-8111-111111111111", projectName: "Native workspace",
+  target: { kind: "project_root" as const, project_id: "11111111-1111-4111-8111-111111111111" }, capabilities: ["content.read", "content.write", "access_surface.manage"] };
 function resolveSmokeRepositoryContext(localOnly: boolean, wrongHost: boolean, missing: boolean): ProjectCloudContext {
   if (missing) return { status: "not-found", projectId: context.projectId, message: cloudMessage("remote-not-found") };
   if (wrongHost) return { status: "wrong-host", projectId: context.projectId,
@@ -111,12 +113,10 @@ window.puppyoneDesktop = {
     if (operation === "repository-context") return cloudProjectMissing
       ? { transport: "puppyone-cloud-ipc-v1", ok: false, error: { status: 404, message: "Project not found" } }
       : { project: { id: context.projectId }, target: context.target };
-    if (url.pathname === "/projects/fixture-project") return { id: context.projectId,
+    if (url.pathname === "/projects/11111111-1111-4111-8111-111111111111") return { id: context.projectId,
       name: context.projectName, capabilities: context.capabilities };
-    if (!cloudToolsAvailable && ["surfaces", "bindings", "providers"].includes(operation ?? ""))
-      return { transport: "puppyone-cloud-ipc-v1", ok: false, error: { status: 404, message: "Not Found" } };
-    if (["scopes", "mcp-endpoints", "surfaces", "bindings", "providers"].includes(operation ?? "")) return [];
-    if (operation === "access-point") return { project_id: context.projectId, url: "https://cloud-fixture.puppyone.ai/git/project.git", scopes: [] };
+    const metadata = cloudMetadataFixture(operation);
+    if (metadata !== undefined) return metadata;
     if (operation === "ls") {
       if (cloudReadBarrier) await cloudReadBarrier;
       return listFixtureDirectory(path);
@@ -125,11 +125,11 @@ window.puppyoneDesktop = {
       return statFixture(path);
     }
     if (operation === "cat") return { path, type: "file", content_text: cloudFiles.get(path), ...nativeSnapshot(`cloud-${head}`) };
-    if (operation === "sign") return { url: `/api/v1/content/fixture-project/inline?path=${encodeURIComponent(body.path)}&token=fixture-token${resourceGeneration ? `-${resourceGeneration}` : ""}` };
+    if (operation === "sign") return { url: `/api/v1/content/11111111-1111-4111-8111-111111111111/inline?path=${encodeURIComponent(body.path)}&token=fixture-token${resourceGeneration ? `-${resourceGeneration}` : ""}` };
     if (operation === "write") {
       if (body.base_commit_id !== `cloud-${head}`) return { transport: "puppyone-cloud-ipc-v1", ok: false, error: { status: 409, message: "Fixture conflict" } };
       cloudFiles.set(body.path, body.content); cloudWrites.push({ path: body.path, content: body.content }); head++;
-      return { path: body.path, ...nativeReceipt(`cloud-${head}`, "fixture-project"), conflicts: [] };
+      return { path: body.path, ...nativeReceipt(`cloud-${head}`, "11111111-1111-4111-8111-111111111111"), conflicts: [] };
     }
     throw new Error(`Unexpected fixture request: ${request.path}`);
   }),
@@ -190,15 +190,17 @@ export function NativeCloudWorkbenchSmokeHarness() {
   const filesVisibilitySettings = useDesktopPreference(s => s.filesVisibilitySettings);
   const setSidebarCollapsed = useDesktopPreference(s => s.setSidebarCollapsed);
   const sidebarCollapsed = useDesktopPreference(s => s.sidebarCollapsed);
-  const workbench = useNativeCloudWorkbench({ context, session: cloudSessionAvailable ? session : null, apiBaseUrl: API,
+  const activeSession = cloudSessionAvailable ? session : null;
+  const workbench = useNativeCloudWorkbench({ context, session: activeSession, apiBaseUrl: API,
     active: location === "cloud", filesVisibilitySettings: filesVisibilitySettings });
-  const agent = useCloudAgentWorkspace({ context, session: cloudSessionAvailable ? session : null, apiBaseUrl: API,
+  const agent = useCloudAgentWorkspace({ context, session: activeSession, apiBaseUrl: API,
     active: location === "cloud", onPublication: workbench.refresh });
   const commitCloud = useCallback(() => setCloudSelected(true), []);
   const controller = useCloudWorkspaceSwitch({ enabled: true, scope: localWorkspace.id,
-    session: cloudSessionAvailable ? session : null, service: workbench.service,
+    session: activeSession, service: workbench.service,
     providerError: workbench.error, initializationPending: repositoryUnavailable || publishLoading, onCommit: commitCloud });
-  const sidebar = useSmokeLocationSidebars(location, controller.pending, agent);
+  const cloudSidebar = useCloudWorkspaceSidebar({ context, session: activeSession, apiBaseUrl: API, active: location === "cloud", agent });
+  const sidebar = useSmokeLocationSidebars(location, controller.pending, cloudSidebar);
   const localPort = useMemo<DataPort>(() => withEditorDocumentOperations({
     listChildren: async () => localNodes,
     resolveNode: async (path) => localNodes.find((node) => node.path === path) ?? null,
@@ -282,14 +284,15 @@ export function NativeCloudWorkbenchSmokeHarness() {
       rightSidebarOpen={sidebar.open}
       rightSidebarWidth={360} resizableRightSidebar
       onRightSidebarOpenChange={sidebar.setOpen}
-      rightSidebar={pane => <SmokeAgentSidebar location={location} pending={controller.pending} agent={agent} contentVisible={pane.contentVisible} />}
+      rightSidebar={pane => <SmokeAgentSidebar location={location} pending={controller.pending} agent={agent} cloudSidebar={cloudSidebar} revisionKey={String(workbench.refreshToken.sequence)} contentVisible={pane.contentVisible} />}
       requestedWorkspaceLocation={headerLocation}
       onLeftSidebarExpand={() => setSidebarCollapsed(false)}
       {...getProjectHeaderSlots(centeredProject, projectSwitcher)}
       titlebarActions={<>
         {headerLocation === "cloud" && <CloudWorkspaceHeaderTools context={location === "cloud" ? context : null}
-          session={cloudSessionAvailable ? session : null} apiBaseUrl={API} onSessionChange={noop}
-          agentOpen={agent.open} onToggleAgent={agent.toggle} />}
+          session={activeSession} apiBaseUrl={API} onSessionChange={noop}
+          agentOpen={agent.open} onToggleAgent={cloudSidebar.toggleAgent}
+          historyOpen={cloudSidebar.historyOpen} onToggleHistory={cloudSidebar.toggleHistory} />}
         <DesktopTitlebarActions terminalSidebarOpen={sidebar.localOpen}
         terminalToolEnabled={headerLocation === "local"} gitChangesAvailable={headerLocation === "local"}
         onToggleTerminal={sidebar.toggleLocal} onToggleGitChanges={noop} />
@@ -324,30 +327,33 @@ export function NativeCloudWorkbenchSmokeHarness() {
   </div>;
 }
 
-function useSmokeLocationSidebars(location: "local" | "cloud", pending: boolean, agent: ReturnType<typeof useCloudAgentWorkspace>) {
+function useSmokeLocationSidebars(location: "local" | "cloud", pending: boolean, sidebar: CloudWorkspaceSidebarController) {
   const [localOpen, setLocalOpen] = useState(false);
   const localActive = location === "local" && !pending;
   return {
     localOpen: localOpen && localActive,
-    open: location === "cloud" ? agent.open : localOpen && localActive,
-    setOpen: location === "cloud" ? agent.setOpen : (open: boolean) => { if (!open || localActive) setLocalOpen(open); },
+    open: location === "cloud" ? sidebar.open : localOpen && localActive,
+    setOpen: location === "cloud" ? sidebar.setOpen : (open: boolean) => { if (!open || localActive) setLocalOpen(open); },
     toggleLocal: () => { if (localActive) setLocalOpen(open => !open); },
-    close: () => { setLocalOpen(false); agent.setOpen?.(false); },
+    close: () => { setLocalOpen(false); sidebar.close(); },
   };
 }
 
-function SmokeAgentSidebar({ location, pending, agent, contentVisible }: {
+function SmokeAgentSidebar({ location, pending, agent, cloudSidebar, revisionKey, contentVisible }: {
   location: "local" | "cloud";
   pending: boolean;
   agent: ReturnType<typeof useCloudAgentWorkspace>;
+  cloudSidebar: CloudWorkspaceSidebarController;
+  revisionKey: string;
   contentVisible: boolean;
 }) {
   const { t } = useLocalization();
   const localActive = location === "local" && !pending;
   return <div className="desktop-right-sidebar-stack">
     <div className={`desktop-right-sidebar-surface ${location === "cloud" ? "is-active" : ""}`} aria-hidden={location !== "cloud"}>
-      <CloudAgentSidebarHost controller={agent.controller} state={agent.state}
-        active={location === "cloud" && contentVisible} title={t("cloud.home.location.cloud")} />
+      <CloudWorkspaceSidebar sidebar={cloudSidebar} agent={agent} context={context} session={session} apiBaseUrl={API}
+        active={location === "cloud" && contentVisible} title={t("cloud.home.location.cloud")}
+        revisionKey={revisionKey} onSessionChange={noop} />
     </div>
     <div className={`desktop-right-sidebar-surface ${localActive ? "is-active" : ""}`}
       aria-hidden={!localActive} data-native-local-agent="true">{t("agent.panel.chat", { agent: t("shell.navigation.local") })}</div>
@@ -357,4 +363,12 @@ function SmokeAgentSidebar({ location, pending, agent, contentVisible }: {
 function getProjectHeaderSlots(centered: boolean, project: ReactNode) {
   return centered ? { titlebarCenteredSlot: project }
     : { titlebarSidebarSlot: <div className="desktop-titlebar-context">{project}</div> };
+}
+
+function cloudMetadataFixture(operation: string | undefined) {
+    if (!cloudToolsAvailable && ["surfaces", "bindings", "providers"].includes(operation ?? ""))
+      return { transport: "puppyone-cloud-ipc-v1", ok: false, error: { status: 404, message: "Not Found" } };
+    if (["scopes", "mcp-endpoints", "surfaces", "bindings", "providers"].includes(operation ?? "")) return [];
+    if (operation === "access-point") return { project_id: context.projectId, url: "https://cloud-fixture.puppyone.ai/git/project.git", scopes: [] };
+    if (operation === "commits") return cloudHistorySmokeFixture(context.projectId);
 }

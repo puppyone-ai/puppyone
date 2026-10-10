@@ -60,51 +60,7 @@ const waitFor = async (expression) => {
   throw new Error(`Renderer did not become ready: ${expression}`);
 };
 const headerPresentations = [];
-const toolDialogPresentations = [];
 const nativeCornerCaptures = [];
-async function checkCloudToolSizing(tool, phase) {
-  const originalSize = window.getContentSize();
-  const series = [
-    [[1100, 760], [721, 760], [720, 760], [719, 760], [640, 760]],
-    [[640, 760], [640, 520], [640, 360]],
-  ];
-  try {
-    for (const sizes of series) {
-      let previous;
-      for (const [width, height] of sizes) {
-        window.setContentSize(width, height);
-        await waitFor(`innerWidth === ${width} && innerHeight === ${height}`);
-        await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-        const sample = await evaluate(`(() => {
-          const dialog = document.querySelector('.desktop-cloud-workspace-tool-dialog');
-          const header = dialog.querySelector('.desktop-cloud-dialog-header');
-          const close = header.querySelector('button');
-          const rect = dialog.getBoundingClientRect(), button = close.getBoundingClientRect();
-          const backdrop = getComputedStyle(dialog.closest('.desktop-dialog-backdrop'));
-          return { x:rect.x, y:rect.y, width:rect.width, height:rect.height,
-            viewportWidth:innerWidth, viewportHeight:innerHeight,
-            titleSize:getComputedStyle(header.querySelector('h2')).fontSize,
-            inset:[backdrop.paddingTop, backdrop.paddingRight, backdrop.paddingBottom, backdrop.paddingLeft],
-            closeFits:button.left >= rect.left && button.right <= rect.right
-              && button.top >= rect.top && button.bottom <= rect.bottom };
-        })()`);
-        assert(sample.x >= 15 && sample.y >= 15 && sample.x + sample.width <= width - 15
-          && sample.y + sample.height <= height - 15 && sample.closeFits,
-          `Cloud ${tool} must fit the viewport and retain its close control (${phase}): ${JSON.stringify(sample)}`);
-        if (previous) assert(sample.width <= previous.width + 1 && sample.height <= previous.height + 1
-          && sample.titleSize === previous.titleSize && JSON.stringify(sample.inset) === JSON.stringify(previous.inset),
-          `Shrinking the viewport must not enlarge Cloud ${tool} (${phase}): ${JSON.stringify({previous, sample})}`);
-        previous = sample;
-        toolDialogPresentations.push({ tool, phase, ...sample });
-        if (phase === 'ready' && height === 520) await writeFile(path.join(artifacts, `cloud-${tool}-compact.png`),
-          (await window.webContents.capturePage()).toPNG());
-      }
-    }
-  } finally {
-    window.setContentSize(...originalSize);
-    await waitFor(`innerWidth === ${originalSize[0]} && innerHeight === ${originalSize[1]}`);
-  }
-}
 async function captureCloudReady(scene) {
   assert(await evaluate("!document.querySelector('.desktop-cloud-entry-light, .desktop-cloud-entry-sweep, [data-arrival-ready]')"),
     'Ready Cloud content must have no page cover or separate arrival animation');
@@ -366,7 +322,7 @@ app.whenReady().then(async () => {
   const spreadsheet = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
   await window.webContents.session.protocol.handle("https", (request) => {
     const url = new URL(request.url);
-    if (url.host !== "cloud-fixture.puppyone.ai" || url.pathname !== "/api/v1/content/fixture-project/inline"
+    if (url.host !== "cloud-fixture.puppyone.ai" || url.pathname !== "/api/v1/content/11111111-1111-4111-8111-111111111111/inline"
       ) return new Response(null, { status: 404 });
     if (url.searchParams.get('token') !== resourceToken) {
       if (expectedResourceFailure && url.searchParams.get('path') === 'acceptance/navy.mp4') deniedResourceRequests++;
@@ -515,7 +471,7 @@ app.whenReady().then(async () => {
     'The same switch bar must keep its position and dimensions after Cloud loads');
   await waitFor("Boolean(document.querySelector('[data-cloud-native=true]')?.textContent.includes('cloud-only'))");
   const initialCloudRequests = (await state()).requests;
-  assert(initialCloudRequests.filter(path => path === '/content/fixture-project/ls?path=').length === 1,
+  assert(initialCloudRequests.filter(path => path === '/content/11111111-1111-4111-8111-111111111111/ls?path=').length === 1,
     'Preflight and the mounted explorer must share one root directory read');
   assert(!initialCloudRequests.some(path => path.includes('/cat?')),
     'Opening a Cloud project must not download unopened file bodies for a Markdown index');
@@ -539,7 +495,7 @@ app.whenReady().then(async () => {
   await waitFor("Boolean(document.querySelector('[data-workspace-location=cloud] .cm-content')?.textContent.includes('CLOUD_FILE_BODY'))");
   const openedFileRequests = (await state()).requests.slice(initialCloudRequests.length)
     .filter(path => path.startsWith('/content/'));
-  assert(JSON.stringify(openedFileRequests) === JSON.stringify(['/content/fixture-project/cat?path=readme.txt']),
+  assert(JSON.stringify(openedFileRequests) === JSON.stringify(['/content/11111111-1111-4111-8111-111111111111/cat?path=readme.txt']),
     `Opening known text from the explorer must make one cat request: ${JSON.stringify(openedFileRequests)}`);
   const cloudPresentation = await presentation("cloud");
   for (const region of ["explorer", "editor", "footer", "row", "code"]) {
@@ -644,7 +600,7 @@ app.whenReady().then(async () => {
     await evaluate("window.__nativeCloudWorkbenchSmoke.finishLocalSaves()");
     await writeFile(path.join(artifacts, 'file-operations-report.json'), JSON.stringify({
       passed: true, scope: 'Cloud file operations and format previews',
-      rootReadsAtEntry: initialCloudRequests.filter(path => path === '/content/fixture-project/ls?path=').length,
+      rootReadsAtEntry: initialCloudRequests.filter(path => path === '/content/11111111-1111-4111-8111-111111111111/ls?path=').length,
       openedFileRequests, snapshot: await state(), errors,
     }, null, 2));
     console.log('Cloud file operations Electron acceptance passed: shared directory reads, one-request text open, edits, drafts, and format previews.');
@@ -652,52 +608,24 @@ app.whenReady().then(async () => {
   }
   assert(await evaluate("[...document.querySelectorAll('[data-cloud-workspace-tool]')].every(button => !button.disabled) && !window.__nativeCloudWorkbenchSmoke.state().requests.some(path => path.includes('/mcp-endpoints') || path.includes('/synchronize'))"),
     'Cloud tool pages must load only when the user opens a ready CTA');
-  for (const tool of ['automation', 'connect']) {
-    const beforeRequests = (await state()).requests.length;
-    await evaluate(`document.querySelector('[data-cloud-workspace-tool=${tool}]').click()`);
-    await waitFor(`Boolean(document.querySelector('[data-cloud-workspace-tool-page=${tool}][data-cloud-project-id=fixture-project]'))`);
-    await waitFor("Boolean(document.querySelector('.desktop-cloud-service-unavailable'))");
-    assert(await evaluate("document.querySelectorAll('.desktop-cloud-workspace-tool-dialog [role=alert]').length === 1 && !document.querySelector('.desktop-cloud-automation-new-button, .desktop-cloud-access-new-button') && !document.querySelector('.desktop-cloud-service-unavailable').textContent.includes('404')"),
-      'An older Cloud backend must produce one native unavailable state with no creation action or raw HTTP error');
-    await evaluate("Promise.all(document.querySelector('.desktop-cloud-workspace-tool-dialog').getAnimations().map(animation => animation.finished.catch(() => {})))");
-    await checkCloudToolSizing(tool, 'unavailable');
-    await writeFile(path.join(artifacts, `cloud-${tool}-unavailable.png`), (await window.webContents.capturePage()).toPNG());
-    await evaluate("window.__nativeCloudWorkbenchSmoke.setCloudToolsAvailable(true); document.querySelector('.desktop-cloud-service-retry').click()");
-    await waitFor(tool === 'automation' ? "Boolean(document.querySelector('.desktop-cloud-automation-catalog'))" : "Boolean(document.querySelector('.desktop-cloud-access-catalog'))");
-    await waitFor(tool === 'automation'
-      ? "window.__nativeCloudWorkbenchSmoke.state().requests.some(path => path.includes('/synchronize/bindings?project_id=fixture-project'))"
-      : "Boolean(document.querySelector('.desktop-cloud-access-new-button'))");
-    assert(await evaluate("!document.querySelector('.desktop-cloud-workspace-tool-dialog [role=alert]')"), 'Cloud tool must load its native page without an error');
-    await checkCloudToolSizing(tool, 'ready');
-    await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-    await writeFile(path.join(artifacts, `cloud-${tool}-tool.png`), (await window.webContents.capturePage()).toPNG());
-    const toolRequests = (await state()).requests.slice(beforeRequests);
-    assert(!toolRequests.some(path => path.startsWith('/projects/?') || path.includes('/dashboard') || path.includes('/commits')),
-      'Cloud tool entry must not enumerate projects or fetch unrelated overview data');
-    if (tool === 'automation') assert(!toolRequests.some(path => path.includes('/access/') || path.includes('/mcp-endpoints')),
-      'Automation must use Synchronize resources, independently of MCP');
-    if (tool === 'connect') {
-      assert(await evaluate("document.querySelector('.desktop-cloud-dialog-layout').getBoundingClientRect().height > 500 && document.querySelector('[data-cloud-connect-method=mcp]').getAttribute('aria-current') === 'page'"), 'Connect must use the Settings-style sidebar and content layout');
-      for (const method of ['cli', 'git', 'mcp']) {
-        await evaluate(`document.querySelector('[data-cloud-connect-method=${method}]').click()`);
-        await waitFor(`document.querySelector('[data-cloud-connect-method=${method}]').getAttribute('aria-current') === 'page'`);
-      }
-
-      assert(await evaluate("document.querySelector('.desktop-cloud-access-landing-copy').textContent.includes('Connect another Agent')"),
-        'MCP must explain that users can connect another Agent');
-      await evaluate("document.querySelector('.desktop-cloud-access-new-button').click()");
-      await waitFor("Boolean(document.querySelector('.desktop-cloud-create-access-dialog'))");
-      await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
-      await waitFor("!document.querySelector('.desktop-cloud-create-access-dialog')");
-      assert(await evaluate("Boolean(document.querySelector('.desktop-cloud-workspace-tool-dialog'))"),
-        'Dismissing Agent configuration must retain the MCP task');
-    }
-    await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
-    await waitFor("!document.querySelector('.desktop-cloud-workspace-tool-dialog')");
-    await evaluate("window.__nativeCloudWorkbenchSmoke.setCloudToolsAvailable(false)");
-    assert(await evaluate("document.querySelector('[data-workspace-location=local] .cm-editor').dataset.fixtureIdentity === 'retained-local-host'"),
-      'Cloud task dialogs must retain existing editor hosts');
-  }
+  assert(await evaluate("!document.querySelector('[data-cloud-workspace-tool=automation], [data-cloud-workspace-tool=connect]')"),
+    'Cloud Header exposes Share, History and Agent');
+  const beforeSharing = (await state()).requests.length;
+  await evaluate("document.querySelector('[data-cloud-workspace-tool=share]').click()");
+  await waitFor("Boolean(document.querySelector('.desktop-cloud-workspace-share input'))");
+  assert(await evaluate("document.querySelector('.desktop-cloud-workspace-share input').value.endsWith('/11111111-1111-4111-8111-111111111111/')"),
+    'Workspace sharing must expose its canonical human URL');
+  assert((await state()).requests.length === beforeSharing, 'Sharing a URL must not issue Cloud API requests');
+  await captureSettledDialog('cloud-share', '.desktop-cloud-workspace-share');
+  await evaluate("document.querySelector('.desktop-cloud-workspace-share .desktop-dialog-icon-button').click()");
+  await evaluate("document.querySelector('[data-cloud-workspace-tool=history]').click()");
+  await waitFor("document.querySelector('.desktop-cloud-workspace-history')?.textContent.includes('Update research notes')");
+  const beforeDetail = (await state()).requests.length;
+  await evaluate("document.querySelector('.desktop-cloud-workspace-history .desktop-history-row').click()");
+  await waitFor("Boolean(document.querySelector('.desktop-cloud-workspace-history .desktop-commit-detail'))");
+  assert((await state()).requests.length === beforeDetail, 'Commit details must reuse the history response');
+  await writeFile(path.join(artifacts, 'cloud-history.png'), (await window.webContents.capturePage()).toPNG());
+  await evaluate("document.querySelector('.desktop-cloud-workspace-history button[aria-label=Close]').click()");
   for (const width of [1100, 640]) for (const theme of ["light", "dark"]) {
     window.setContentSize(width, 760);
     await waitFor(`innerWidth === ${width}`);
@@ -1004,7 +932,7 @@ app.whenReady().then(async () => {
   await evaluate("window.__nativeCloudWorkbenchSmoke.finishLocalSaves()");
   snapshot = await state();
   assert(!errors.length, `Renderer errors: ${errors.join("; ")}`);
-  await writeFile(path.join(artifacts, "report.json"), JSON.stringify({ passed: true, electronVersion:process.versions.electron, pdfRuntimeDiagnostics, localHost, localPresentation, cloudPresentation, headerPresentations, toolDialogPresentations, nativeCornerCaptures, authGeometry, loginPresentations, publishPresentations, snapshot, errors }, null, 2));
+  await writeFile(path.join(artifacts, "report.json"), JSON.stringify({ passed: true, electronVersion:process.versions.electron, pdfRuntimeDiagnostics, localHost, localPresentation, cloudPresentation, headerPresentations,  nativeCornerCaptures, authGeometry, loginPresentations, publishPresentations, snapshot, errors }, null, 2));
   console.log("Native Cloud workbench smoke passed: identical native layout/styles, Cloud tree/data/edit/save, centered sign-in across themes and eight locales, browser waiting/error states, login before switching, cancellation, isolated drafts and retained hosts.");
   window.destroy(); app.exit(0);
 }).catch(async (error) => {

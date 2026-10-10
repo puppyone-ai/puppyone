@@ -1,4 +1,4 @@
-import { nativeSnapshot, nativeReceipt } from "./cloudRepositorySmokeFixture";
+import { nativeSnapshot, nativeReceipt, cloudHistorySmokeFixture } from "./cloudRepositorySmokeFixture";
 import { useEffect, useState } from "react";
 import { EditorView } from "@codemirror/view";
 import { useLocalization } from "@puppyone/localization";
@@ -49,9 +49,7 @@ async function fixtureRequest(request: Parameters<NonNullable<typeof window.pupp
     if (url.pathname === `/projects/${id}`) return project(id);
     if (["scopes", "surfaces", "mcp-endpoints", "bindings", "providers"].includes(operation ?? "")) return [];
     if (operation === "access-point") return { project_id: id, url: `https://cloud-fixture.puppyone.ai/git/${id}.git`, scopes: [] };
-    if (operation === "commits") return { project_id: id, commits: [], head_commit_id: null, refs: [],
-      refs_included: true, snapshot_id: "a".repeat(64), next_cursor: null, has_more: false, total: 0,
-      graph_health: "complete", unreadable_commit_ids: [] };
+    if (operation === "commits") return cloudHistorySmokeFixture(id);
     if (operation === "ls") return { entries: [{ name: "readme.txt", path: "readme.txt", type: "file" }], ...nativeSnapshot(`head-${heads.get(id)}`) };
     if (operation === "stat") return { exists: true, name: "readme.txt", type: "file", path, ...nativeSnapshot(`head-${heads.get(id)}`) };
     if (operation === "cat") return { path, type: "file", content_text: files.get(id), ...nativeSnapshot(`head-${heads.get(id)}`) };

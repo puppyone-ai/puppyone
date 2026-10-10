@@ -13,7 +13,8 @@ import { CloudWorkspaceHeaderTools } from "./CloudWorkspaceHeaderTools";
 import type { ProjectCloudContext } from "../project/context";
 import type { ProjectHomeItem } from "../../app-shell/workspaceHomeModel";
 import { useCloudAgentWorkspace } from "../agent/useCloudAgentWorkspace";
-import { CloudAgentSidebarHost } from "../agent/lazy";
+import { CloudWorkspaceSidebar } from "./CloudWorkspaceSidebar";
+import { useCloudWorkspaceSidebar, type CloudWorkspaceSidebarController } from "./useCloudWorkspaceSidebar";
 
 const noop = () => undefined;
 
@@ -57,11 +58,12 @@ export function useAccountCloudWorkspacePresentation({ workbench, onOpenSettings
 
 /** Hosted-only surface used when no local repository is open. Repository-linked
  * switching embeds the presentation above in the retained local shell instead. */
-export function AccountCloudWorkspaceSurface({ workbench, presentation, active, appearance, onLocal, onHome, context, session, apiBaseUrl, onSessionChange, projectItems, onSelectProject, onSelectCloudProject, onCreateProject, projectRail, agent: suppliedAgent }: {
+export function AccountCloudWorkspaceSurface({ workbench, presentation, active, appearance, onLocal, onHome, context, session, apiBaseUrl, onSessionChange, projectItems, onSelectProject, onSelectCloudProject, onCreateProject, projectRail, agent: suppliedAgent, sidebar: suppliedSidebar }: {
   workbench: NativeCloudWorkbench;
   presentation: AccountCloudWorkspacePresentation;
   active: boolean;
   agent?: ReturnType<typeof useCloudAgentWorkspace>;
+  sidebar?: CloudWorkspaceSidebarController;
   appearance: ResolvedSurfaceAppearance;
   onLocal: () => void;
   onHome: () => void;
@@ -90,6 +92,8 @@ export function AccountCloudWorkspaceSurface({ workbench, presentation, active, 
   const ownAgent = useCloudAgentWorkspace({ context: suppliedAgent ? null : context, session, apiBaseUrl,
     active: !suppliedAgent && active, onPublication: workbench.refresh });
   const agent = suppliedAgent ?? ownAgent;
+  const ownSidebar = useCloudWorkspaceSidebar({ context, session, apiBaseUrl, active: !suppliedSidebar && active, agent });
+  const sidebar = suppliedSidebar ?? ownSidebar;
   const { service } = workbench;
   if (!service || !workbench.visited) return null;
   const projectContext = <DesktopTitlebarContext open={menuOpen} refObject={menuRef}
@@ -109,17 +113,18 @@ export function AccountCloudWorkspaceSurface({ workbench, presentation, active, 
       {...projectRail}
       leftSidebarWidth={explorerWidth} onLeftSidebarExpand={() => setSidebarCollapsed(false)}
       titlebarActions={active && <CloudWorkspaceHeaderTools context={context} session={session}
-        apiBaseUrl={apiBaseUrl} onSessionChange={onSessionChange} agentOpen={agent.open} onToggleAgent={agent.toggle} />}
+        apiBaseUrl={apiBaseUrl} onSessionChange={onSessionChange} agentOpen={agent.open} onToggleAgent={sidebar.toggleAgent}
+        historyOpen={sidebar.historyOpen} onToggleHistory={sidebar.toggleHistory} />}
       titlebarSidebarSlot={centered ? undefined : projectContext}
       titlebarCenteredSlot={centered ? projectContext : undefined}
       titlebarTabs={editorTabsInHeader ? presentation.titlebarTabs : undefined}
       alignTitlebarTabsToExplorer={editorTabsInHeader}
       locationBar={presentation.locationBar}
-      rightSidebarOpen={agent.open} rightSidebarWidth={rightSidebarWidth} resizableRightSidebar
-      onRightSidebarOpenChange={agent.setOpen} onRightSidebarWidthChange={setRightSidebarWidth}
-      rightSidebar={pane => <CloudAgentSidebarHost key={JSON.stringify([apiBaseUrl, session?.user_id,
-        session?.session_generation, context])} controller={agent.controller} state={agent.state}
-        active={active && pane.contentVisible} title={service.workspace.name} />}>
+      rightSidebarOpen={sidebar.open} rightSidebarWidth={rightSidebarWidth} resizableRightSidebar
+      onRightSidebarOpenChange={sidebar.setOpen} onRightSidebarWidthChange={setRightSidebarWidth}
+      rightSidebar={pane => <CloudWorkspaceSidebar sidebar={sidebar} agent={agent} context={context}
+        session={session} apiBaseUrl={apiBaseUrl} active={active && pane.contentVisible} title={service.workspace.name}
+        revisionKey={String(workbench.refreshToken.sequence)} onSessionChange={onSessionChange} />}>
       {presentation.content}
     </DesktopCloudShell>
   </div>;

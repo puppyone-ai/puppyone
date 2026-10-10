@@ -1,4 +1,6 @@
 {
+  "share.workspace": "工作区",
+  "share.copyFailed": "链接复制失败。可以选中链接手动复制，或重试。",
   "share.scope.workspacePermissions": "接收者使用已有的工作区权限。",
   "agent.permissionDenied": "你没有使用此云端 Agent 的权限。",
   "agent.busy": "此聊天已有正在执行的任务，请在任务结束后重试。",

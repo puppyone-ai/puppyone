@@ -7,10 +7,10 @@ import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
 import type { ProjectCloudContext } from "../../../../src/features/cloud/project/context";
 import { withTestLocalization } from "../../../support/react/localization";
 
-vi.mock("../../../../src/features/cloud/workbench/CloudWorkspaceToolDialog", () => ({
-  CloudWorkspaceToolDialog: ({ tool, context, session, onClose }: {
-    tool: string; context: { projectId: string }; session: DesktopCloudSession; onClose: () => void;
-  }) => <div role="dialog" data-tool={tool} data-project={context.projectId} data-account={session.user_id}>
+vi.mock("../../../../src/features/cloud/share/CloudWorkspaceShareDialog", () => ({
+  CloudWorkspaceShareDialog: ({ context, onClose }: {
+    context: { projectId: string }; onClose: () => void;
+  }) => <div role="dialog" data-project={context.projectId}>
     <button onClick={onClose}>Close</button>
   </div>,
 }));
@@ -26,7 +26,7 @@ afterEach(() => { act(() => root?.unmount()); root = null; document.body.replace
 async function render(props: Partial<Parameters<typeof CloudWorkspaceHeaderTools>[0]> = {}) {
   if (!root) { const host = document.createElement("div"); document.body.append(host); root = createRoot(host); }
   await act(async () => root?.render(withTestLocalization(<CloudWorkspaceHeaderTools
-    context={context()} session={session} apiBaseUrl={API} onSessionChange={vi.fn()} {...props} />)));
+    context={context()} session={session} apiBaseUrl={API} onSessionChange={vi.fn()} onToggleHistory={vi.fn()} {...props} />)));
 }
 const button = (tool: string) => document.querySelector<HTMLButtonElement>(`[data-cloud-workspace-tool="${tool}"]`)!;
 
@@ -41,40 +41,54 @@ describe("Cloud workspace Header tools", () => {
     expect(button("agent").getAttribute("aria-label")).toBe("Hide Agent");
     act(() => button("agent").click()); expect(toggle).toHaveBeenCalledTimes(2);
   });
-  it("presents both actions during preparation without opening a task before commit", async () => {
+  it("replaces Automate and Connect with Share and History, disabled during preparation", async () => {
     await render({ context: null });
-    expect(button("automation").textContent).toBe("");
-    expect(button("automation").getAttribute("aria-label")).toBe("Automations");
-    expect(button("connect").textContent).toBe("");
-    expect(button("connect").getAttribute("aria-label")).toBe("Connect");
-    expect(button("automation").disabled).toBe(true);
-    expect(button("connect").disabled).toBe(true);
-    act(() => button("connect").click());
+    expect(button("automation")).toBeNull();
+    expect(button("connect")).toBeNull();
+    expect(button("share").getAttribute("aria-label")).toBe("Share");
+    expect(button("history").getAttribute("aria-label")).toBe("History");
+    expect(button("share").disabled).toBe(true);
+    expect(button("history").disabled).toBe(true);
+    await act(async () => button("share").click());
     expect(document.querySelector("[role=dialog]")).toBeNull();
     await render();
-    expect(button("connect").disabled).toBe(false);
+    expect(button("share").disabled).toBe(false);
+    expect(button("history").disabled).toBe(false);
   });
 
-  it.each(["automation", "connect"])("opens %s for the authorized hosted project and allows dismissal", async tool => {
+  it("toggles cloud History independently from the share dialog", async () => {
+    const toggle = vi.fn(); await render({ onToggleHistory: toggle });
+    act(() => button("history").click()); expect(toggle).toHaveBeenCalledTimes(1);
+    expect(document.querySelector("[role=dialog]")).toBeNull();
+    await render({ onToggleHistory: toggle, historyOpen: true });
+    expect(button("history").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("does not read project-wide history for a scoped target", async () => {
+    await render({ context: { status: "resolved", projectId: "hosted-project",
+      target: { kind: "scope", project_id: "hosted-project", scope_id: "limited" } } });
+    expect(button("history").disabled).toBe(true);
+  });
+
+  it("opens sharing for the active hosted project and allows dismissal", async () => {
     await render();
-    act(() => button(tool).click());
-    expect(document.querySelector("[role=dialog]")?.getAttribute("data-tool")).toBe(tool);
+    await act(async () => button("share").click());
     expect(document.querySelector("[role=dialog]")?.getAttribute("data-project")).toBe("hosted-project");
-    expect(button(tool).getAttribute("aria-expanded")).toBe("true");
+    expect(button("share").getAttribute("aria-expanded")).toBe("true");
     act(() => document.querySelector<HTMLButtonElement>("[role=dialog] button")!.click());
     expect(document.querySelector("[role=dialog]")).toBeNull();
   });
 
   it("closes a task when the active Cloud project changes", async () => {
-    await render(); act(() => button("connect").click());
+    await render(); await act(async () => button("share").click());
     await render({ context: context("other-project") });
     expect(document.querySelector("[role=dialog]")).toBeNull();
-    act(() => button("connect").click());
+    await act(async () => button("share").click());
     expect(document.querySelector("[role=dialog]")?.getAttribute("data-project")).toBe("other-project");
   });
 
   it.each(["account", "generation", "host", "sign-out"])("revokes an open task on %s change", async change => {
-    await render(); act(() => button("automation").click());
+    await render(); await act(async () => button("share").click());
     const changes = {
       account: { session: { ...session, user_id: "two" } },
       generation: { session: { ...session, session_generation: "two" } },
@@ -83,6 +97,6 @@ describe("Cloud workspace Header tools", () => {
     };
     await render(changes[change as keyof typeof changes]);
     expect(document.querySelector("[role=dialog]")).toBeNull();
-    if (change === "sign-out") expect(button("connect").disabled).toBe(true);
+    if (change === "sign-out") expect(button("share").disabled).toBe(true);
   });
 });

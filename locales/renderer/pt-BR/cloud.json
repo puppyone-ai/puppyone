@@ -1,4 +1,6 @@
 {
+  "share.workspace": "espaço de trabalho",
+  "share.copyFailed": "Não foi possível copiar o link. Selecione-o para copiar manualmente ou tente novamente.",
   "share.scope.workspacePermissions": "As permissões existentes do espaço de trabalho se aplicam.",
   "agent.permissionDenied": "Você não tem permissão para usar este Agent na nuvem.",
   "agent.busy": "Este chat já tem uma tarefa ativa. Tente novamente quando ela terminar.",

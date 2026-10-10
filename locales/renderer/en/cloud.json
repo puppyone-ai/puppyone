@@ -1,4 +1,6 @@
 {
+  "share.workspace": "workspace",
+  "share.copyFailed": "Couldn’t copy the link. Select the link to copy it manually, or try again.",
   "share.scope.workspacePermissions": "Recipients use their existing workspace permissions.",
   "agent.permissionDenied": "You do not have permission to use this Cloud Agent.",
   "agent.busy": "This chat already has an active task. Try again after it finishes.",

@@ -1,4 +1,6 @@
 {
+  "share.workspace": "ワークスペース",
+  "share.copyFailed": "リンクをコピーできませんでした。リンクを選択して手動でコピーするか、もう一度お試しください。",
   "share.scope.workspacePermissions": "受信者には既存のワークスペース権限が適用されます。",
   "agent.permissionDenied": "このクラウド Agent を使用する権限がありません。",
   "agent.busy": "このチャットではタスクが実行中です。完了後に再試行してください。",

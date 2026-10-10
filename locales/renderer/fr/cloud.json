@@ -1,4 +1,6 @@
 {
+  "share.workspace": "espace de travail",
+  "share.copyFailed": "Impossible de copier le lien. Sélectionnez-le pour le copier manuellement ou réessayez.",
   "share.scope.workspacePermissions": "Les autorisations existantes de l’espace de travail s’appliquent.",
   "agent.permissionDenied": "Vous n’avez pas l’autorisation d’utiliser cet agent Cloud.",
   "agent.busy": "Une tâche est déjà en cours dans cette conversation. Réessayez une fois terminée.",

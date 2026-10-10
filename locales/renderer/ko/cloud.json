@@ -1,4 +1,6 @@
 {
+  "share.workspace": "워크스페이스",
+  "share.copyFailed": "링크를 복사하지 못했습니다. 링크를 선택해 직접 복사하거나 다시 시도하세요.",
   "share.scope.workspacePermissions": "받는 사람의 기존 워크스페이스 권한이 적용됩니다.",
   "agent.permissionDenied": "이 클라우드 Agent를 사용할 권한이 없습니다.",
   "agent.busy": "이 채팅에서 작업이 이미 실행 중입니다. 완료 후 다시 시도하세요.",

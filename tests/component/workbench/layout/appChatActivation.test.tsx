@@ -52,7 +52,7 @@ vi.mock("../../../../src/features/cloud/workbench/useAccountCloudWorkspace", () 
   useAccountCloudWorkspace: () => ({ active: state.cloudActive, cancel: state.noop,
     useLocal: () => { state.cloudActive = false; } }),
 }));
-vi.mock("../../../../src/features/cloud/workbench/useNativeCloudWorkbench", () => ({ useNativeCloudWorkbench: () => ({}) }));
+vi.mock("../../../../src/features/cloud/workbench/useNativeCloudWorkbench", () => ({ useNativeCloudWorkbench: () => ({ refreshToken: { sequence: 0, entries: [] } }) }));
 vi.mock("../../../../src/features/cloud/workbench/AccountCloudWorkspaceSurface", () => ({
   AccountCloudWorkspaceSurface: () => null,
   useAccountCloudWorkspacePresentation: () => ({}),

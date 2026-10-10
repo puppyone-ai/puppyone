@@ -35,7 +35,8 @@ import { CLOUD_HUB_ENTRY_SECTION, type CloudWorkspaceSection } from "./features/
 import { useAccountCloudWorkspace } from "./features/cloud/workbench/useAccountCloudWorkspace";
 import { CloudWorkspaceHeaderTools } from "./features/cloud/workbench/CloudWorkspaceHeaderTools";
 import { useCloudAgentWorkspace } from "./features/cloud/agent/useCloudAgentWorkspace";
-import { CloudAgentSidebarHost } from "./features/cloud/agent/lazy";
+import { CloudWorkspaceSidebar } from "./features/cloud/workbench/CloudWorkspaceSidebar";
+import { useCloudWorkspaceSidebar } from "./features/cloud/workbench/useCloudWorkspaceSidebar";
 import { useRepositoryCloudWorkspaceSwitch } from "./features/cloud/workbench/useRepositoryCloudWorkspaceSwitch";
 import { CloudWorkspaceSwitchDialog } from "./features/cloud/workbench/CloudWorkspaceSwitchDialog";
 import { RepositoryCloudSwitchGate } from "./features/cloud/workbench/RepositoryCloudSwitchGate";
@@ -788,12 +789,14 @@ function AppContent() {
   });
   const cloudAgent = useCloudAgentWorkspace({ context: accountCloud.context, session: activeCloudSession,
     apiBaseUrl: desktopCloudApiBaseUrl, active: cloudWorkspaceActive, onPublication: nativeCloudWorkbench.refresh });
-  const setCloudAgentOpen = cloudAgent.setOpen;
+  const cloudSidebar = useCloudWorkspaceSidebar({ context: accountCloud.context, session: activeCloudSession,
+    apiBaseUrl: desktopCloudApiBaseUrl, active: cloudWorkspaceActive, agent: cloudAgent });
+  const closeCloudSidebar = cloudSidebar.close;
   const closeWorkspaceSidebars = useCallback(() => {
     blurAuxiliarySurfaceFocus();
     setRightSidebarOpen(false);
-    setCloudAgentOpen?.(false);
-  }, [blurAuxiliarySurfaceFocus, setCloudAgentOpen, setRightSidebarOpen]);
+    closeCloudSidebar();
+  }, [blurAuxiliarySurfaceFocus, closeCloudSidebar, setRightSidebarOpen]);
   const repositoryCloudInitializationPending = cloudBackupLoading || cloudPublishStateLoading || Boolean(cloudPublishState);
   const repositoryCloudSwitch = useRepositoryCloudWorkspaceSwitch({
     enabled: cloudEnabled && Boolean(focusedWorkspace),
@@ -1469,7 +1472,7 @@ function AppContent() {
   );
   const hostedWorkspace = nativeCloudWorkbench.service?.workspace;
   const accountCloudSurface = !workspace ? <AccountCloudWorkspaceSurface workbench={nativeCloudWorkbench}
-    agent={cloudAgent}
+    agent={cloudAgent} sidebar={cloudSidebar}
     presentation={accountCloudPresentation} active={cloudWorkspaceActive}
     context={accountCloud.context} session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession}
     appearance={surfaceAppearance} onLocal={openLocalWorkspace} onHome={() => void goToHomepage()}
@@ -1731,15 +1734,15 @@ function AppContent() {
     <>
       {cloudHeaderActive && <CloudWorkspaceHeaderTools context={cloudWorkspaceActive ? accountCloud.context : null}
         session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession}
-        agentOpen={cloudAgent.open} onToggleAgent={cloudWorkspaceActive ? cloudAgent.toggle : undefined} />}
+        historyOpen={cloudSidebar.historyOpen} onToggleHistory={cloudSidebar.toggleHistory}
+        agentOpen={cloudAgent.open} onToggleAgent={cloudWorkspaceActive ? cloudSidebar.toggleAgent : undefined} />}
       <DesktopTitlebarActions {...chromeActionProps} shareEnabled={!cloudHeaderActive && shareOnboardingEnabled} />
     </>
   );
-  const renderCloudAgentSidebar = (active: boolean) => <CloudAgentSidebarHost
-    key={JSON.stringify([desktopCloudApiBaseUrl, activeCloudSession?.user_id,
-      activeCloudSession?.session_generation, accountCloud.context])}
-    controller={cloudAgent.controller} state={cloudAgent.state} active={active}
-    title={nativeCloudWorkbench.service?.workspace.name ?? ""} />;
+  const renderCloudSidebar = (active: boolean) => <CloudWorkspaceSidebar sidebar={cloudSidebar}
+    agent={cloudAgent} context={accountCloud.context} session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl}
+    active={active} title={nativeCloudWorkbench.service?.workspace.name ?? ""}
+    revisionKey={String(nativeCloudWorkbench.refreshToken.sequence)} onSessionChange={updateCloudSession} />;
   const editorTabsInHeaderEnabled = enableEditorTabsInHeader;
   const titlebarEditorTabs = editorTabsInHeaderEnabled ? (
     <EditorHeaderTabs
@@ -1792,17 +1795,17 @@ function AppContent() {
               onNavigate={handleLocationBarNavigate}
             />
           )}
-          rightSidebarOpen={cloudWorkspaceActive ? cloudAgent.open : rightSidebarContentVisible}
+          rightSidebarOpen={cloudWorkspaceActive ? cloudSidebar.open : rightSidebarContentVisible}
           resizableRightSidebar
           rightSidebarWidth={rightSidebarWidth}
           onLeftSidebarExpand={() => setSidebarCollapsed(false)}
-          onRightSidebarOpenChange={cloudWorkspaceActive ? cloudAgent.setOpen : handleLocalRightSidebarOpenChange}
+          onRightSidebarOpenChange={cloudWorkspaceActive ? cloudSidebar.setOpen : handleLocalRightSidebarOpenChange}
           onRightSidebarWidthChange={setRightSidebarWidth}
           rightSidebar={(presentation) => (
             <div ref={auxiliarySurfaceRef} className="desktop-right-sidebar-stack">
               <div className={`desktop-right-sidebar-surface ${cloudWorkspaceActive ? "is-active" : ""}`}
                 aria-hidden={!cloudWorkspaceActive}>
-                {renderCloudAgentSidebar(presentation.contentVisible && cloudWorkspaceActive)}
+                {renderCloudSidebar(presentation.contentVisible && cloudWorkspaceActive)}
               </div>
               <div
                 className={`desktop-right-sidebar-surface ${localRightSidebarActive && rightSidebarSurface === "chat" ? "is-active" : ""}`}

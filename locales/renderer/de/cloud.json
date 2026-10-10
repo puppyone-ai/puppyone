@@ -1,4 +1,6 @@
 {
+  "share.workspace": "Arbeitsbereich",
+  "share.copyFailed": "Der Link konnte nicht kopiert werden. Wähle ihn zum manuellen Kopieren aus oder versuche es erneut.",
   "share.scope.workspacePermissions": "Es gelten die bestehenden Arbeitsbereichsberechtigungen der Empfänger.",
   "agent.permissionDenied": "Du hast keine Berechtigung, diesen Cloud-Agent zu verwenden.",
   "agent.busy": "In diesem Chat läuft bereits eine Aufgabe. Versuche es nach ihrem Abschluss erneut.",
