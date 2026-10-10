@@ -935,5 +935,7 @@
   "billing.subscriptionStatus.past_due": "Pago vencido",
   "billing.subscriptionStatus.revoked": "Acceso revocado",
   "billing.subscriptionStatus.disputed": "Pago en disputa",
-  "share.thisProject": "Compartir este proyecto"
+  "share.thisProject": "Compartir este proyecto",
+  "agent.pendingTitle": "Confirma el mensaje anterior",
+  "agent.pendingDetail": "Reintenta el mensaje pendiente antes de cerrar esta pestaña para poder recuperar su resultado."
 }

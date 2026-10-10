@@ -1,11 +1,11 @@
 import { lazy, Suspense } from "react";
 import { PageLoading } from "../../../components/loading";
-import type { CloudAgentController, CloudAgentState } from "./CloudAgentController";
+import type { CloudAgentWorkbench } from "./CloudAgentWorkbench";
 
 const Sidebar = lazy(() => import("./CloudAgentSidebar").then(module => ({ default: module.CloudAgentSidebar })));
 export function CloudAgentSidebarHost(props: {
-  controller: CloudAgentController | null; state: CloudAgentState; active: boolean; title: string;
+  workbench: CloudAgentWorkbench | null; active: boolean; open: boolean;
 }) {
-  if (!props.controller || !props.state.open) return null;
-  return <Suspense fallback={<PageLoading variant="fill" />}><Sidebar {...props} controller={props.controller} /></Suspense>;
+  if (!props.workbench || !props.open) return null;
+  return <Suspense fallback={<PageLoading variant="fill" />}><Sidebar {...props} workbench={props.workbench} /></Suspense>;
 }

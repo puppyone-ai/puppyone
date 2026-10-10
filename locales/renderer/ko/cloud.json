@@ -935,5 +935,7 @@
   "billing.subscriptionStatus.past_due": "결제 연체",
   "billing.subscriptionStatus.revoked": "접근 권한 철회됨",
   "billing.subscriptionStatus.disputed": "결제 이의 제기 중",
-  "share.thisProject": "이 프로젝트 공유"
+  "share.thisProject": "이 프로젝트 공유",
+  "agent.pendingTitle": "이전 메시지 확인",
+  "agent.pendingDetail": "결과를 복구할 수 있도록 대기 중인 메시지를 다시 시도한 후 탭을 닫으세요."
 }

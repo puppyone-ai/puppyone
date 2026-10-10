@@ -68,7 +68,7 @@ function createRun(body: CloudAgentSubmission & { project_id: string }): CloudAg
 }
 
 export function editCloudAgentPrompt(text: string) {
-  const node = document.querySelector(".desktop-cloud-agent-sidebar .cm-editor");
+  const node = document.querySelector('.desktop-terminal-contribution-host[aria-hidden="false"] .desktop-cloud-agent-sidebar .cm-editor');
   const editor = node ? EditorView.findFromDOM(node as HTMLElement) : null;
   if (!editor) throw new Error("No cloud Agent composer");
   editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: text } });

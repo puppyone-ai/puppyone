@@ -8,7 +8,7 @@ import type { CloudWorkspaceSidebarController } from "./useCloudWorkspaceSidebar
 
 const HistorySidebar = lazy(() => import("../history/CloudWorkspaceHistorySidebar").then(module => ({ default: module.CloudWorkspaceHistorySidebar })));
 
-export function CloudWorkspaceSidebar({ sidebar, agent, context, session, apiBaseUrl, active, title, revisionKey, onSessionChange }: {
+export function CloudWorkspaceSidebar({ sidebar, agent, context, session, apiBaseUrl, active, revisionKey, onSessionChange }: {
   sidebar: CloudWorkspaceSidebarController;
   agent: ReturnType<typeof useCloudAgentWorkspace>;
   context: ProjectCloudContext | null;
@@ -24,5 +24,5 @@ export function CloudWorkspaceSidebar({ sidebar, agent, context, session, apiBas
     <HistorySidebar key={sidebar.scope} session={session} projectId={context.projectId} apiBaseUrl={apiBaseUrl}
       active={active} revisionKey={revisionKey} onSessionChange={onSessionChange} onClose={sidebar.close} />
   </Suspense>;
-  return <CloudAgentSidebarHost key={sidebar.scope} controller={agent.controller} state={agent.state} active={active} title={title} />;
+  return <CloudAgentSidebarHost key={sidebar.scope} workbench={agent.workbench} open={agent.open} active={active} />;
 }

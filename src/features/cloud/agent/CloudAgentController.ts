@@ -16,15 +16,18 @@ export class CloudAgentController {
   private published = new Set<string>();
   private decisions = new Map<string, { id: string; allow: boolean }>();
   private state: CloudAgentState;
-  constructor(readonly client: CloudAgentClient, private storageKey: string) {
+  constructor(readonly client: CloudAgentClient, private storageKey: string,
+    private options: { initial?: Partial<Saved>; sharedHistory?: boolean } = {}) {
     let saved: Partial<Saved> = {};
     try {
       const value = JSON.parse(localStorage.getItem(storageKey) || "{}");
       if (value && typeof value === "object") saved = value;
     } catch { /* Unavailable storage must not block chat. */ }
+    saved = { ...saved, ...options.initial };
     this.state = { sessionId: saved.sessionId ?? null, agentId: saved.agentId ?? null,
       pending: saved.pending ?? null, open: false, draft: saved.pending?.prompt ?? "", loading: true,
       submitting: false, resolving: null, runs: [], sessions: [], error: null, reconnecting: false };
+    if (options.initial) this.save();
   }
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   getSnapshot = () => this.state;
@@ -66,7 +69,7 @@ export class CloudAgentController {
           if (revision === this.revision) this.accept(next);
         }
       }
-      if (agentId) {
+      if (agentId && !this.options.sharedHistory) {
         const sessions = await this.client.sessions(agentId);
         if (revision === this.revision) this.patch({ sessions });
       }

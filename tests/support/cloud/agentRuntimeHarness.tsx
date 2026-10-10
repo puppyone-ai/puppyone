@@ -21,8 +21,7 @@ function Harness() {
     <nav><button data-test-location="local" onClick={() => setActive(false)}>Local</button>
       <button data-test-location="cloud" onClick={() => setActive(true)}>Cloud</button>
       <button data-test-open-agent onClick={() => agent.toggle?.()}>Puppyone Agent</button></nav>
-    {active && agent.open && agent.controller && <CloudAgentSidebar controller={agent.controller}
-      state={agent.state} active title="Owned native Git project" />}
+    {active && agent.open && agent.workbench && <CloudAgentSidebar workbench={agent.workbench} active />}
   </main>;
 }
 createRoot(document.getElementById("root")!).render(<LocalizationProvider initialState={localization.state}

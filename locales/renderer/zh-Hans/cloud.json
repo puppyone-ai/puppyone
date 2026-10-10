@@ -935,5 +935,7 @@
   "billing.subscriptionStatus.past_due": "支付逾期",
   "billing.subscriptionStatus.revoked": "访问已撤销",
   "billing.subscriptionStatus.disputed": "支付争议",
-  "share.thisProject": "分享此项目"
+  "share.thisProject": "分享此项目",
+  "agent.pendingTitle": "确认上一条消息",
+  "agent.pendingDetail": "请先重试待确认的消息，再关闭标签，以便恢复发送结果。"
 }

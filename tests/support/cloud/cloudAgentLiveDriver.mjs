@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-const cloud = ".desktop-cloud-agent-sidebar";
+const cloud = '.desktop-terminal-contribution-host[aria-hidden="false"] .desktop-cloud-agent-sidebar';
 const cloudEntry = "[data-cloud-workspace-tool=agent]";
 const location = name => `button[data-project-location=${name}]`;
 // CodeMirror renders its placeholder inside the empty cm-line.
@@ -69,10 +69,10 @@ export async function connectCloudAgentLiveDriver(options) {
   };
   const savedSession = async () => evaluate(`(async()=>{
     const {session}=await window.puppyoneDesktop.readCloudAuthState();
-    const rows=Object.keys(localStorage).filter(k=>k.startsWith('["cloud-agent-v1"')).map(k=>({key:JSON.parse(k),saved:JSON.parse(localStorage.getItem(k))}));
-    const row=rows.find(x=>x.key[1]===${q(options.apiBase)} && x.key[2]===session.user_id
-      && x.key[3]===${q(options.projectId)} && x.key[4]===${q(`project:${options.projectId}`)} && x.saved.sessionId);
-    return row ? {sessionId:row.saved.sessionId} : null;
+    const base=JSON.stringify(['cloud-agent-v1',${q(options.apiBase)},session.user_id,${q(options.projectId)},${q(`project:${options.projectId}`)}]);
+    const id=document.querySelector('.desktop-right-sidebar .desktop-terminal-tab.is-active')?.dataset.terminalTabSessionId;
+    const saved=id ? JSON.parse(localStorage.getItem(id==='primary' ? base : base+':tab:'+id)||'null') : null;
+    return saved?.sessionId ? {sessionId:saved.sessionId} : null;
   })()`);
   const driver = {
     projectId: options.projectId,
@@ -118,8 +118,9 @@ export async function connectCloudAgentLiveDriver(options) {
       assert.ok(await evaluate(`document.querySelector('${cloudEntry}').getAttribute('aria-expanded')==='true'`), "Cloud Agent must open directly");
     },
     async startEmptyChat() {
-      assert.ok(await evaluate(`!(${draftText}).trim()`), "Keep an existing user draft; run on a project with an empty composer");
-      await click(`${cloud} .desktop-agent-session-header-actions button:has(.lucide-plus)`);
+      // Admission starts in a new native tab; existing drafts and runs remain untouched.
+      await click('.desktop-right-sidebar [aria-label="New tab"]');
+      await click('.desktop-right-sidebar .desktop-terminal-launcher-tool');
       await wait(`!document.querySelector('${cloud} .desktop-agent-message')`, "new empty chat");
     },
     async sendAndReceive(marker) {

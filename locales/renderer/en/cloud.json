@@ -935,5 +935,7 @@
   "billing.subscriptionStatus.past_due": "Payment overdue",
   "billing.subscriptionStatus.revoked": "Access revoked",
   "billing.subscriptionStatus.disputed": "Payment disputed",
-  "share.thisProject": "Share this project"
+  "share.thisProject": "Share this project",
+  "agent.pendingTitle": "Confirm the previous message",
+  "agent.pendingDetail": "Retry the pending message before closing this tab so its result can be recovered."
 }

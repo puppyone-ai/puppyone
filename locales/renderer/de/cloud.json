@@ -935,5 +935,7 @@
   "billing.subscriptionStatus.past_due": "Zahlung überfällig",
   "billing.subscriptionStatus.revoked": "Zugriff entzogen",
   "billing.subscriptionStatus.disputed": "Zahlung angefochten",
-  "share.thisProject": "Dieses Projekt teilen"
+  "share.thisProject": "Dieses Projekt teilen",
+  "agent.pendingTitle": "Vorherige Nachricht bestätigen",
+  "agent.pendingDetail": "Versuche die ausstehende Nachricht erneut, bevor du diesen Tab schließt, damit ihr Ergebnis wiederhergestellt werden kann."
 }

@@ -935,5 +935,7 @@
   "billing.subscriptionStatus.past_due": "支払い期限超過",
   "billing.subscriptionStatus.revoked": "アクセス取消済み",
   "billing.subscriptionStatus.disputed": "支払い異議申し立て中",
-  "share.thisProject": "このプロジェクトを共有"
+  "share.thisProject": "このプロジェクトを共有",
+  "agent.pendingTitle": "前のメッセージを確認",
+  "agent.pendingDetail": "結果を復元できるよう、保留中のメッセージを再試行してからタブを閉じてください。"
 }

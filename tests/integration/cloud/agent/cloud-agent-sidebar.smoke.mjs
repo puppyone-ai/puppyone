@@ -35,6 +35,52 @@ async function selectLocation(location) {
   await waitFor(`Boolean(document.querySelector('button[data-project-location=${location}]'))`);
   await evaluate(`document.querySelector('button[data-project-location=${location}]').click()`);
 }
+async function settleSidebar() {
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  await waitFor("[...document.querySelectorAll('.desktop-right-sidebar')].every(element => element.getAnimations({subtree:true}).every(animation => animation.effect?.getTiming().iterations === Infinity || animation.playState !== 'running'))");
+}
+async function checkWorkbench(api, mode) {
+  const tabs = "document.querySelectorAll('.desktop-right-sidebar [role=tab]')";
+  const plus = "document.querySelector('.desktop-right-sidebar [aria-label=\"New tab\"]')";
+  const selectedHost = '.desktop-terminal-contribution-host[aria-hidden="false"]';
+  const visibleComposer = `document.querySelector('${selectedHost} .cm-content')`;
+  const closeActive = "document.querySelector('.desktop-terminal-tab:has([aria-selected=true]) .desktop-terminal-tab-close').click()";
+  const before = await evaluate(`${api}.state().agent.requests.length`);
+  await evaluate(`${plus}.click()`);
+  await waitFor("Boolean(document.querySelector('.desktop-terminal-launcher-tool'))");
+  assert(await evaluate(`${tabs}.length === 2 && !document.querySelector('.desktop-terminal-launcher-scan')`), "Plus opens the native launcher without local discovery");
+  await evaluate("document.querySelector('.desktop-terminal-launcher-tool').click()");
+  await waitFor(`${tabs}.length === 2 && Boolean(${visibleComposer})`);
+  await evaluate(`${api}.editAgent('Independent second draft')`);
+  await waitFor(`${visibleComposer}?.textContent === 'Independent second draft'`);
+  assert(await evaluate(`${api}.state().agent.requests.length === ${before}`), "New tab and draft must not make API requests");
+  await settleSidebar();
+  await writeFile(path.join(artifacts, `${mode}-tabs.png`), (await window.webContents.capturePage()).toPNG());
+  await evaluate(`${tabs}[0].click()`);
+  await waitFor(`${tabs}[0].getAttribute('aria-selected') === 'true'`);
+  await evaluate(closeActive);
+  await waitFor(`${tabs}.length === 1`);
+  await evaluate(`${plus}.click()`);
+  await waitFor("Boolean(document.querySelector('.desktop-terminal-launcher-history'))");
+  await evaluate("document.querySelector('.desktop-terminal-launcher-history').click()");
+  await waitFor("Boolean(document.querySelector('.desktop-agent-history-option'))");
+  await evaluate("document.querySelector('.desktop-agent-history-toolbar-button[aria-label=\"Search chat history\"]').click()");
+  await waitFor("Boolean(document.querySelector('.desktop-agent-history-search input'))");
+  await settleSidebar();
+  await writeFile(path.join(artifacts, `${mode}-history.png`), (await window.webContents.capturePage()).toPNG());
+  await evaluate("document.querySelector('.desktop-agent-history-toolbar-button[aria-label=\"Back to Agents\"]').click()");
+  await waitFor("Boolean(document.querySelector('.desktop-terminal-launcher-tool'))");
+  await evaluate("document.querySelector('.desktop-terminal-launcher-history').click()");
+  await waitFor("Boolean(document.querySelector('.desktop-agent-history-option'))");
+  await evaluate("document.querySelector('.desktop-agent-history-option').click()");
+  await waitFor(`Boolean(${visibleComposer}) && !document.querySelector('.desktop-agent-history-view')`);
+  assert(await evaluate(`document.querySelector('${selectedHost} .desktop-cloud-agent-sidebar').textContent.includes('Connected: Connection test: turn 3')`), "History restores the original messages");
+  // Close the empty secondary tab so the existing publication checks address the restored chat.
+  await evaluate(`${tabs}[0].click()`);
+  await waitFor(`${visibleComposer}?.textContent === 'Independent second draft'`);
+  await evaluate(closeActive);
+  await waitFor(`${tabs}.length === 1 && Boolean(${visibleComposer})`);
+}
 async function checkLocationRoundTrip(api) {
   await selectLocation("local");
   await waitFor(`${api}.state().location === 'local' && ${rightPane}.dataset.paneCollapsed === 'true'`);
@@ -183,6 +229,7 @@ async function exercise(mode) {
   }
   assert(new Set(chatSessions).size === 1, "Three replies across reopen/location switches retain one server session");
   await writeFile(path.join(artifacts, `${mode}-chat-roundtrip.png`), (await window.webContents.capturePage()).toPNG());
+  await checkWorkbench(api, mode);
   if (hosted) {
     await evaluate(`${api}.editAgent('Publish another update')`);
     await waitFor(`${composer}?.textContent === 'Publish another update'`);

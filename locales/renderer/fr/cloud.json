@@ -935,5 +935,7 @@
   "billing.subscriptionStatus.past_due": "Paiement en retard",
   "billing.subscriptionStatus.revoked": "Accès révoqué",
   "billing.subscriptionStatus.disputed": "Paiement contesté",
-  "share.thisProject": "Partager ce projet"
+  "share.thisProject": "Partager ce projet",
+  "agent.pendingTitle": "Confirmer le message précédent",
+  "agent.pendingDetail": "Réessayez le message en attente avant de fermer cet onglet pour pouvoir récupérer son résultat."
 }

@@ -43,6 +43,7 @@ type TerminalLauncherProps = {
   launching?: boolean;
   terminalEnabled?: boolean;
   titleId?: string;
+  headingLabel?: string;
   history?: AuxiliaryWorkbenchHistoryContribution | null;
   historyRootId?: string;
   historyRootPath?: string;
@@ -51,7 +52,7 @@ type TerminalLauncherProps = {
   onOpenHistory?: () => void;
   onRestoreHistoryTarget?: (target: AuxiliaryWorkbenchHistoryTarget) => Promise<boolean>;
   onLaunch: (launcherId: DesktopTerminalLauncherId) => void;
-  onRefresh: () => void;
+  onRefresh?: () => void;
 };
 
 /**
@@ -85,6 +86,7 @@ export function TerminalLauncher({
   onRefresh,
   terminalEnabled = true,
   titleId = "desktop-terminal-launcher-title",
+  headingLabel,
 }: TerminalLauncherProps) {
   const { t } = useLocalization();
   const toolsRef = useRef<HTMLDivElement>(null);
@@ -171,10 +173,10 @@ export function TerminalLauncher({
                 <TerminalActivityGrid className="desktop-terminal-launcher-spinner" />
               )}
               <span>
-                {t(launching ? "terminal.launcher.launching" : "terminal.launcher.localTitle")}
+                {headingLabel ?? t(launching ? "terminal.launcher.launching" : "terminal.launcher.localTitle")}
               </span>
             </h2>
-            <Tooltip content={t("terminal.launcher.scanAgain")}><button
+            {onRefresh && <Tooltip content={t("terminal.launcher.scanAgain")}><button
               type="button"
               className="desktop-terminal-launcher-scan"
               onClick={onRefresh}
@@ -182,7 +184,7 @@ export function TerminalLauncher({
               aria-label={t("terminal.launcher.scanAgain")}
             >
               <RefreshCw size={12} strokeWidth={1.7} aria-hidden="true" />
-            </button></Tooltip>
+            </button></Tooltip>}
           </header>
           {history && onRestoreHistoryTarget && (
             <Tooltip content={history.label}><button
