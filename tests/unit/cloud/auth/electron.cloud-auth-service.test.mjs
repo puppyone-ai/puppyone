@@ -27,7 +27,7 @@ describe("main-owned Cloud Auth Broker", () => {
 
   it("permits a matching renderer lease across a same-account token refresh", async () => {
     const fixture = createFixture();
-    fixture.requestCloudApi.mockImplementation(async (_base, path) => path === "/auth/refresh"
+    fixture.requestCloudApi.mockImplementation(async (_base, path) => path === "/token?grant_type=refresh_token"
       ? authResponse() : { ok: true });
     const session = await fixture.service.readSession();
     await expect(fixture.service.requestSessionApi(API, "/content/project/write", { method: "POST" },
@@ -39,7 +39,7 @@ describe("main-owned Cloud Auth Broker", () => {
     const fixture = createFixture();
     let receivedSignal;
     fixture.requestCloudApi.mockImplementation(async (_base, path, init) => {
-      if (path === "/auth/refresh") return authResponse({ accessToken: jwtFor("user-123") });
+      if (path === "/token?grant_type=refresh_token") return authResponse({ accessToken: jwtFor("user-123") });
       if (path === "/auth/initialize") return { ok: true };
       receivedSignal = init.signal;
       return new Promise((_resolve, reject) => init.signal.addEventListener("abort", () => reject(init.signal.reason), { once: true }));
@@ -57,7 +57,7 @@ describe("main-owned Cloud Auth Broker", () => {
   it("keeps Agent bearer auth in Main and aborts the open stream on sign-out", async () => {
     const fetchImpl = vi.fn(async () => new Response("data: started\n\n", { headers: { "content-type": "text/event-stream" } }));
     const fixture = createFixture({ fetchImpl });
-    fixture.requestCloudApi.mockImplementation(async (_base, path) => path === "/auth/refresh"
+    fixture.requestCloudApi.mockImplementation(async (_base, path) => path === "/token?grant_type=refresh_token"
       ? authResponse({ accessToken: jwtFor("user-123") }) : { ok: true });
     const observed = [];
     fixture.service.subscribe((state) => observed.push(state));
@@ -80,7 +80,7 @@ describe("main-owned Cloud Auth Broker", () => {
   it("adds auth without overriding the multipart boundary for managed Office uploads", async () => {
     const fixture = createFixture();
     fixture.requestCloudApi.mockImplementation(async (_apiBase, apiPath, init) => {
-      if (apiPath === "/auth/refresh") {
+      if (apiPath === "/token?grant_type=refresh_token") {
         return authResponse({ accessToken: jwtFor("user-123") });
       }
       if (apiPath === "/auth/initialize") return { ok: true };
@@ -103,7 +103,7 @@ describe("main-owned Cloud Auth Broker", () => {
     const fixture = createFixture();
     let refreshCount = 0;
     fixture.requestCloudApi.mockImplementation(async (_apiBase, apiPath, init) => {
-      if (apiPath === "/auth/refresh") {
+      if (apiPath === "/token?grant_type=refresh_token") {
         refreshCount += 1;
         await Promise.resolve();
         return authResponse({ accessToken: jwtFor("user-123"), refreshToken: "rotated-refresh" });
@@ -142,7 +142,7 @@ describe("main-owned Cloud Auth Broker", () => {
     });
 
     fixture.requestCloudApi.mockImplementation(async (_apiBase, apiPath, init) => {
-      if (apiPath === "/auth/refresh") {
+      if (apiPath === "/token?grant_type=refresh_token") {
         refreshCount += 1;
         return authResponse({
           accessToken: refreshCount === 1 ? initialAccessToken : rotatedAccessToken,
@@ -196,7 +196,7 @@ describe("main-owned Cloud Auth Broker", () => {
     const forbidden = createFixture();
     let refreshCount = 0;
     forbidden.requestCloudApi.mockImplementation(async (_base, path) => {
-      if (path === "/auth/refresh") {
+      if (path === "/token?grant_type=refresh_token") {
         refreshCount += 1;
         return authResponse({ accessToken: jwtFor("user-123") });
       }
@@ -209,227 +209,70 @@ describe("main-owned Cloud Auth Broker", () => {
     expect(forbidden.credentialStore.clear).not.toHaveBeenCalled();
   });
 
-  it("generates Desktop PKCE, binds the loopback redirect, exchanges the verifier once, and persists v2", async () => {
-    const fixture = createFixture({ credential: null, returnAppUrl: "puppyone://open" });
-    let onCallback = null;
-    let isExpectedCallback = null;
-    let onReturnToApp = null;
-    const close = vi.fn(async () => {});
-    fixture.startCallbackServer.mockImplementation(async ({
-      onCallback: callback,
-      isExpectedCallback: expectedCallback,
-      onReturnToApp: returnHandler,
-    }) => {
-      onCallback = callback;
-      isExpectedCallback = expectedCallback;
-      onReturnToApp = returnHandler;
-      return {
-        redirectUri: "http://127.0.0.1:43123/auth/callback",
-        close,
-      };
-    });
+  it("owns Supabase PKCE, consumes callbacks once and never calls a cloud handoff", async () => {
+    const fixture = createFixture({ credential: null });
     fixture.requestCloudApi.mockImplementation(async (_base, path, init) => {
-      const body = init.body ? JSON.parse(init.body) : {};
-      if (path === "/auth/desktop/start") {
-        expect(body).toMatchObject({
-          callback_url: "http://127.0.0.1:43123/auth/callback",
-          code_challenge_method: "S256",
-        });
-        expect(body.code_challenge).toMatch(/^[A-Za-z0-9_-]{43}$/);
-        return { state: "oauth-state-1", login_url: "https://app.puppyone.ai/login" };
+      if (path === "/token?grant_type=pkce") {
+        const body = JSON.parse(init.body);
+        const url = new URL(fixture.openExternal.mock.calls[0][0]);
+        expect(createPkceChallenge(body.code_verifier)).toBe(url.searchParams.get("code_challenge"));
+        return authResponse();
       }
-      if (path === "/auth/desktop/exchange") {
-        expect(body).toMatchObject({
-          code: "exchange-code",
-          state: "oauth-state-1",
-          redirect_uri: "http://127.0.0.1:43123/auth/callback",
-        });
-        expect(createPkceChallenge(body.code_verifier)).toHaveLength(43);
-        return authResponse({ accessToken: jwtFor("oauth-user"), refreshToken: "oauth-refresh" });
-      }
-      if (path === "/auth/initialize") return { ok: true };
-      throw new Error(`unexpected path ${path}`);
+      return { ok: true };
     });
-
-    await fixture.service.startOAuth({ apiBase: API, provider: "github" });
-    expect(fixture.startCallbackServer).toHaveBeenCalledWith(expect.objectContaining({
-      returnAppUrl: "puppyone://open",
-    }));
-    expect(fixture.openExternal).toHaveBeenCalledWith("https://app.puppyone.ai/login");
-    expect(isExpectedCallback(
-      "http://127.0.0.1:43123/auth/callback?state=oauth-state-1&code=exchange-code",
-    )).toBe(true);
-    expect(isExpectedCallback(
-      "http://127.0.0.1:43123/auth/callback?state=wrong&code=exchange-code",
-    )).toBe(false);
-
-    await expect(fixture.service.startOAuth({ apiBase: API, provider: "github" }))
-      .resolves.toEqual({ ok: true, pending: true });
-    expect(fixture.openExternal).toHaveBeenCalledTimes(1);
-    const signedIn = await onCallback(
-      "http://127.0.0.1:43123/auth/callback?state=oauth-state-1&code=exchange-code",
-    );
-
-    expect(signedIn).toMatchObject({ user_id: "oauth-user", status: "authenticated" });
-    expect(onReturnToApp).toBeTypeOf("function");
-    expect(close).not.toHaveBeenCalled();
-    expect(fixture.credentialStore.write).toHaveBeenCalledWith(expect.objectContaining({
-      version: 2,
-      user_id: "oauth-user",
-      refresh_token: "oauth-refresh",
-    }));
-    await expect(fixture.service.handleCallback(
-      "http://127.0.0.1:43123/auth/callback?state=oauth-state-1&code=exchange-code",
-    )).resolves.toBeNull();
-    expect(fixture.requestCloudApi.mock.calls.filter((call) => call[1] === "/auth/desktop/exchange"))
-      .toHaveLength(1);
+    await fixture.service.startOAuth({ apiBase: API, provider: "google" });
+    const callback = nativeCallback(fixture, "provider-code");
+    expect(await fixture.service.handleCallback(callback)).toMatchObject({ status: "authenticated" });
+    expect(await fixture.service.handleCallback(callback)).toBeNull();
+    expect(fixture.requestCloudApi.mock.calls.filter(call => call[1] === "/token?grant_type=pkce")).toHaveLength(1);
+    expect(fixture.requestCloudApi.mock.calls.some(call => call[1].startsWith("/auth/desktop"))).toBe(false);
+    fixture.service.dispose();
   });
 
-  it("broadcasts an actionable error when browser sign-in expires", async () => {
+  it("expires pending native login and closes the listener", async () => {
     vi.useFakeTimers();
     const fixture = createFixture({ credential: null });
-    const close = vi.fn(async () => {});
-    fixture.startCallbackServer.mockResolvedValue({
-      redirectUri: "http://127.0.0.1:43123/auth/callback",
-      close,
-    });
-    fixture.requestCloudApi.mockResolvedValue({
-      state: "oauth-state-timeout",
-      login_url: "https://app.puppyone.ai/login",
-    });
-
     try {
-      await fixture.service.startOAuth({ apiBase: API, provider: "github" });
+      await fixture.service.startOAuth({ apiBase: API });
       await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
-
-      expect(fixture.messages).toContainEqual([
-        "cloud-auth:error",
-        { message: "Cloud sign-in expired. Please try again." },
-      ]);
-      expect(close).toHaveBeenCalledOnce();
-      await expect(fixture.service.readState()).resolves.toMatchObject({
-        status: "signed-out",
-        session: null,
-      });
-    } finally {
-      fixture.service.dispose();
-      vi.useRealTimers();
-    }
+      expect(fixture.messages).toContainEqual(["cloud-auth:error", { message: "Cloud sign-in expired. Please try again." }]);
+      expect((await fixture.service.readState()).status).toBe("signed-out");
+      expect(fixture.closeCallback).toHaveBeenCalledOnce();
+    } finally { fixture.service.dispose(); vi.useRealTimers(); }
   });
 
-  it("does not open a blank browser when the local login page is unavailable", async () => {
-    const fetchImpl = vi.fn().mockRejectedValue(new Error("connection refused"));
-    const fixture = createFixture({ credential: null, fetchImpl });
-    fixture.startCallbackServer.mockResolvedValue({
-      redirectUri: "http://127.0.0.1:43123/auth/callback",
-      close: vi.fn(async () => {}),
-    });
-    fixture.requestCloudApi.mockResolvedValue({
-      state: "oauth-state-local",
-      login_url: "http://localhost:3000/login?client=desktop",
-    });
-
-    await expect(fixture.service.startOAuth({ apiBase: API }))
-      .rejects.toThrow("Local Cloud login page is unavailable at http://localhost:3000");
-    expect(fixture.openExternal).not.toHaveBeenCalled();
+  it("rejects a mismatched port or state without consuming the valid attempt", async () => {
+    const fixture = createFixture({ credential: null });
+    fixture.requestCloudApi.mockImplementation(async () => authResponse());
+    await fixture.service.startOAuth({ apiBase: API, provider: "github" });
+    const callback = nativeCallback(fixture, "provider-code");
+    expect(await fixture.service.handleCallback(callback.replace(":43123/", ":43124/"))).toBeNull();
+    expect(await fixture.service.handleCallback(callback.replace("state=", "state=wrong"))).toBeNull();
+    expect(await fixture.service.handleCallback(callback)).toMatchObject({ status: "authenticated" });
+    fixture.service.dispose();
   });
 
-  it("preflights the expected local Puppyone login page before opening it", async () => {
-    const fetchImpl = vi.fn().mockResolvedValue({
-      ok: true,
-      text: vi.fn().mockResolvedValue("<h1>Sign in to Puppyone</h1>"),
-    });
-    const fixture = createFixture({ credential: null, fetchImpl });
-    fixture.startCallbackServer.mockResolvedValue({
-      redirectUri: "http://127.0.0.1:43123/auth/callback",
-      close: vi.fn(async () => {}),
-    });
-    const loginUrl = "http://localhost:3000/login?client=desktop";
-    fixture.requestCloudApi.mockResolvedValue({
-      state: "oauth-state-local",
-      login_url: loginUrl,
-    });
-
-    await expect(fixture.service.startOAuth({ apiBase: API })).resolves.toEqual({ ok: true });
-    expect(fetchImpl).toHaveBeenCalledWith(
-      new URL(loginUrl),
-      expect.objectContaining({ cache: "no-store" }),
-    );
-    expect(fixture.openExternal).toHaveBeenCalledWith(loginUrl);
-  });
-
-  it("opens an equivalent loopback login through the configured browser origin", async () => {
-    const fetchImpl = vi.fn().mockResolvedValue({
-      ok: true,
-      text: vi.fn().mockResolvedValue("<h1>Sign in to Puppyone</h1>"),
-    });
-    const fixture = createFixture({ credential: null, fetchImpl });
-    fixture.startCallbackServer.mockResolvedValue({
-      redirectUri: "http://127.0.0.1:43123/auth/callback",
-      close: vi.fn(async () => {}),
-    });
-    fixture.requestCloudApi.mockResolvedValue({
-      state: "oauth-state-loopback-alias",
-      login_url: "http://127.0.0.1:3000/login?client=desktop&desktop_state=oauth-state-loopback-alias",
-    });
-    const trustedLoginUrl = "http://localhost:3000/login?client=desktop&desktop_state=oauth-state-loopback-alias";
-
-    await expect(fixture.service.startOAuth({ apiBase: API })).resolves.toEqual({ ok: true });
-    expect(fetchImpl).toHaveBeenCalledWith(
-      new URL(trustedLoginUrl),
-      expect.objectContaining({ cache: "no-store" }),
-    );
-    expect(fixture.openExternal).toHaveBeenCalledWith(trustedLoginUrl);
-  });
-
-  it("rejects a local login URL on a different port", async () => {
-    const fetchImpl = vi.fn();
-    const fixture = createFixture({ credential: null, fetchImpl });
-    fixture.startCallbackServer.mockResolvedValue({
-      redirectUri: "http://127.0.0.1:43123/auth/callback",
-      close: vi.fn(async () => {}),
-    });
-    fixture.requestCloudApi.mockResolvedValue({
-      state: "oauth-state-wrong-port",
-      login_url: "http://127.0.0.1:3001/login?client=desktop",
-    });
-
-    await expect(fixture.service.startOAuth({ apiBase: API }))
-      .rejects.toThrow("Local Cloud login URL does not match VITE_DESKTOP_CLOUD_WEB_URL.");
-    expect(fetchImpl).not.toHaveBeenCalled();
-    expect(fixture.openExternal).not.toHaveBeenCalled();
-  });
-
-  it("keeps a loopback login path under the configured browser origin", async () => {
-    const fetchImpl = vi.fn().mockResolvedValue({
-      ok: true,
-      text: vi.fn().mockResolvedValue("<h1>Sign in to Puppyone</h1>"),
-    });
-    const fixture = createFixture({ credential: null, fetchImpl });
-    fixture.startCallbackServer.mockResolvedValue({
-      redirectUri: "http://127.0.0.1:43123/auth/callback",
-      close: vi.fn(async () => {}),
-    });
-    fixture.requestCloudApi.mockResolvedValue({
-      state: "oauth-state-path",
-      login_url: "http://127.0.0.1:3000//other.example/login?client=desktop",
-    });
-    const trustedLoginUrl = "http://localhost:3000//other.example/login?client=desktop";
-
-    await expect(fixture.service.startOAuth({ apiBase: API })).resolves.toEqual({ ok: true });
-    expect(fetchImpl).toHaveBeenCalledWith(
-      new URL(trustedLoginUrl),
-      expect.objectContaining({ cache: "no-store" }),
-    );
-    expect(fixture.openExternal).toHaveBeenCalledWith(trustedLoginUrl);
+  it("cannot adopt a delayed OAuth response after sign-out", async () => {
+    const fixture = createFixture({ credential: null });
+    let finish;
+    fixture.requestCloudApi.mockImplementation(async (_base, path) => path === "/token?grant_type=pkce"
+      ? new Promise(resolve => { finish = resolve; }) : { ok: true });
+    await fixture.service.startOAuth({ apiBase: API, provider: "google" });
+    const pending = fixture.service.handleCallback(nativeCallback(fixture, "code"));
+    await vi.waitFor(() => expect(finish).toBeTypeOf("function"));
+    await fixture.service.clearSession();
+    finish(authResponse());
+    expect(await pending).toBeNull();
+    expect(await fixture.service.readSession()).toBeNull();
+    fixture.service.dispose();
   });
 
   it("always completes local logout and rejects an old-generation late result when remote revoke is unavailable", async () => {
     const fixture = createFixture({ windowCount: 2 });
     let resolveRequest;
     fixture.requestCloudApi.mockImplementation(async (_base, path) => {
-      if (path === "/auth/refresh") return authResponse({ accessToken: jwtFor("user-123") });
-      if (path === "/auth/logout") throw Object.assign(new Error("Not found"), { status: 404 });
+      if (path === "/token?grant_type=refresh_token") return authResponse({ accessToken: jwtFor("user-123") });
+      if (path === "/logout?scope=local") throw Object.assign(new Error("Not found"), { status: 404 });
       if (path === "/auth/initialize") return { ok: true };
       return new Promise((resolve) => { resolveRequest = resolve; });
     });
@@ -462,14 +305,11 @@ describe("main-owned Cloud Auth Broker", () => {
       };
     });
     fixture.requestCloudApi.mockImplementation(async (_base, path, init) => {
-      if (path === "/auth/refresh") {
+      if (path === "/token?grant_type=refresh_token") {
         return authResponse({ accessToken: jwtFor("user-123", "initial") });
       }
       if (path === "/auth/initialize") return { ok: true };
-      if (path === "/auth/desktop/start") {
-        return { state: "replacement-state", login_url: "https://app.puppyone.ai/login" };
-      }
-      if (path === "/auth/desktop/exchange") {
+      if (path === "/token?grant_type=pkce") {
         return authResponse({
           accessToken: jwtFor("user-123", "replacement"),
           refreshToken: "replacement-refresh",
@@ -497,7 +337,7 @@ describe("main-owned Cloud Auth Broker", () => {
 
     await fixture.service.startOAuth({ apiBase: API, provider: "github" });
     await onCallback(
-      "http://127.0.0.1:43123/auth/callback?state=replacement-state&code=replacement-code",
+      nativeCallback(fixture, "replacement-code"),
     );
     resolveFirstContext({ stale: true });
 
@@ -548,14 +388,11 @@ async function projectMutationAcrossOAuth({ replacementUserId, includeIdempotenc
     };
   });
   fixture.requestCloudApi.mockImplementation(async (_base, path, init) => {
-    if (path === "/auth/refresh") {
+    if (path === "/token?grant_type=refresh_token") {
       return authResponse({ accessToken: jwtFor("user-123", "initial") });
     }
     if (path === "/auth/initialize") return { ok: true };
-    if (path === "/auth/desktop/start") {
-      return { state: "replacement-state", login_url: "https://app.puppyone.ai/login" };
-    }
-    if (path === "/auth/desktop/exchange") {
+    if (path === "/token?grant_type=pkce") {
       return authResponse({
         accessToken: jwtFor(replacementUserId, "replacement"),
         refreshToken: "replacement-refresh",
@@ -580,7 +417,7 @@ async function projectMutationAcrossOAuth({ replacementUserId, includeIdempotenc
   await vi.waitFor(() => expect(resolveFirstProject).toBeTypeOf("function"));
   await fixture.service.startOAuth({ apiBase: API, provider: "github" });
   await onCallback(
-    "http://127.0.0.1:43123/auth/callback?state=replacement-state&code=replacement-code",
+    nativeCallback(fixture, "replacement-code"),
   );
   resolveFirstProject({ stale: true });
   return {
@@ -658,13 +495,28 @@ function createFixture({
   const messages = windowMessages[0];
   const requestCloudApi = vi.fn();
   const openExternal = vi.fn(async () => ({ ok: true }));
-  const startCallbackServer = vi.fn();
+  const closeCallback = vi.fn(async () => {});
+  const startCallbackServer = vi.fn(async () => ({ redirectUri: "http://127.0.0.1:43123/auth/callback", close: closeCallback }));
+  // A shared fake dispatcher lets the session-owner tests coordinate delayed
+  // business and identity responses; adapter tests verify the actual origins.
+  const supabaseAuth = {
+    providers: vi.fn(async () => ["email", "google", "github"]),
+    authorize: vi.fn(async (_base, provider, redirect, challenge) => {
+      const url = new URL("https://auth.example.test/auth/v1/authorize");
+      url.search = new URLSearchParams({ provider, redirect_to: redirect, code_challenge: challenge }).toString();
+      return url.toString();
+    }),
+    exchange: (base, code, verifier) => requestCloudApi(base, "/token?grant_type=pkce", { method: "POST", body: JSON.stringify({ auth_code: code, code_verifier: verifier }) }),
+    refresh: (base, token) => requestCloudApi(base, "/token?grant_type=refresh_token", { method: "POST", body: JSON.stringify({ refresh_token: token }) }),
+    logout: (base, token) => requestCloudApi(base, "/logout?scope=local", { method: "POST", headers: { Authorization: `Bearer ${token}` } }),
+  };
   const service = createCloudAuthService({
     app: {
       getPath: () => "/unused",
       setAsDefaultProtocolClient: vi.fn(),
     },
     projectRoot: "/project",
+    supabaseAuth,
     requestCloudApi,
     getWindows: () => windows,
     revealWindow: vi.fn(),
@@ -679,6 +531,8 @@ function createFixture({
   });
   return {
     service,
+    closeCallback,
+    supabaseAuth,
     requestCloudApi,
     credentialStore,
     openExternal,
@@ -715,4 +569,12 @@ function jwtFor(subject, signature = "signature") {
   const header = Buffer.from(JSON.stringify({ alg: "none", typ: "JWT" })).toString("base64url");
   const payload = Buffer.from(JSON.stringify({ sub: subject })).toString("base64url");
   return `${header}.${payload}.${signature}`;
+}
+
+function nativeCallback(fixture, code) {
+  const authorize = new URL(fixture.openExternal.mock.calls.at(-1)[0]);
+  const relay = new URL(authorize.searchParams.get("redirect_to"));
+  const callback = new URL(relay.searchParams.get("desktop_callback"));
+  callback.search = new URLSearchParams({ state: relay.searchParams.get("desktop_state"), code }).toString();
+  return callback.toString();
 }

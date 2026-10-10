@@ -1,4 +1,6 @@
 import crypto from "node:crypto";
+import { createSupabaseAuthClient } from "./main/auth/supabase-auth-client.mjs";
+import { createNativeLoginPage } from "./main/auth/native-login-page.mjs";
 import path from "node:path";
 import {
   formatCloudApiHost,
@@ -30,6 +32,7 @@ export function createCloudAuthService({
   randomBytes = crypto.randomBytes,
   logger = console,
   credentialStore: providedCredentialStore = null,
+  supabaseAuth: providedSupabaseAuth = null,
 }) {
   if (!providedCredentialStore && !secureStorage) {
     throw new TypeError("Cloud authentication secureStorage is required.");
@@ -43,6 +46,7 @@ export function createCloudAuthService({
     now,
     logger,
   });
+  const supabaseAuth = providedSupabaseAuth ?? createSupabaseAuthClient({ requestCloudApi, fetchImpl });
   const pendingOAuthStates = new Map();
   const pendingOAuthStarts = new Map();
   const refreshPromises = new Map();
@@ -57,6 +61,7 @@ export function createCloudAuthService({
   let authStatus = "signed-out";
   let sessionGeneration = createSessionGeneration(randomBytes);
   let disposed = false;
+  let credentialMutation = Promise.resolve();
 
   async function readSession() {
     await ensureCredentialLoaded();
@@ -100,6 +105,7 @@ export function createCloudAuthService({
     const normalizedApiBase = normalizeCloudApiBaseUrl(apiBase);
     if (!normalizedApiBase) throw new Error("Cloud API base URL is invalid.");
     await ensureCredentialLoaded();
+    if (authStatus === "signing-out") throw createSessionChangedError();
     const normalizedProvider = normalizeOAuthProvider(provider);
     const startKey = getOAuthStartKey(normalizedApiBase);
     const pendingState = findPendingOAuthState(startKey);
@@ -108,42 +114,46 @@ export function createCloudAuthService({
     if (existing) return existing;
 
     const previousStatus = authStatus;
+    const operationGeneration = sessionGeneration;
     const request = (async () => {
       setAuthStatus("signing-in");
       const verifier = createPkceVerifier(randomBytes);
       const challenge = createPkceChallenge(verifier);
+      const state = randomBytes(32).toString("base64url");
       let callbackServer = null;
       try {
+        const web = new URL(requireSecureBrowserUrl(localCloudWebUrl, "Cloud Web origin is not configured."));
+        if (web.pathname !== "/" || web.search || web.hash) throw new Error("Cloud Web origin is invalid.");
+        const providers = await supabaseAuth.providers(normalizedApiBase);
+        if (!providers.length) throw new Error("No sign-in methods are enabled for this environment.");
+        if (normalizedProvider && !providers.includes(normalizedProvider)) throw new Error("Sign-in method is unavailable.");
+        const login = createNativeLoginPage({
+          state, providers, webOrigin: web.origin,
+          onAction: async (action, fields) => {
+            const pending = pendingOAuthStates.get(state);
+            if (!pending || now() - pending.createdAt >= OAUTH_STATE_TTL_MS || pending.generation !== sessionGeneration) throw createSessionChangedError();
+            if (action === "google" || action === "github") return { redirect: await supabaseAuth.authorize(normalizedApiBase, action, pending.providerCallback, challenge) };
+            let data;
+            if (action === "resend") data = await supabaseAuth.resend(normalizedApiBase, fields.email);
+            else if (action === "verify") data = await supabaseAuth.verify(normalizedApiBase, fields.email, fields.token);
+            else data = await supabaseAuth[action](normalizedApiBase, fields.email, fields.password);
+            if (!data?.access_token) return {};
+            // Email authentication completes through the same Main session owner.
+            clearPendingOAuthState(state, { keepCallbackServer: true });
+            return { session: await finishNativeSignIn(pending, data) };
+          },
+        });
         callbackServer = await startCallbackServer({
-          logger,
-          appPath: app.getAppPath?.(),
-          getLocale,
-          returnAppUrl,
+          logger, appPath: app.getAppPath?.(), getLocale, returnAppUrl,
           onReturnToApp: revealWindow,
           onCallback: (callbackUrl) => handleCallback(callbackUrl),
           isExpectedCallback: (callbackUrl) => isExpectedPendingCallback(callbackUrl),
+          onLoginRequest: login,
         });
         const callbackUrl = requireLoopbackRedirectUri(callbackServer?.redirectUri);
-        const start = await requestCloudApi(normalizedApiBase, "/auth/desktop/start", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            provider: normalizedProvider,
-            callback_url: callbackUrl,
-            code_challenge: challenge,
-            code_challenge_method: "S256",
-          }),
-        });
-        const state = requireNonEmptyString(start?.state, "Cloud sign-in start did not return state.");
-        const loginUrl = requireSecureBrowserUrl(
-          start?.login_url,
-          "Cloud sign-in start did not return a secure browser URL.",
-        );
-        const trustedLoginUrl = await resolveTrustedBrowserLoginUrl(
-          loginUrl,
-          fetchImpl,
-          localCloudWebUrl,
-        );
+        const providerCallback = new URL("/auth/callback", web.origin);
+        providerCallback.search = new URLSearchParams({ desktop_state: state, desktop_callback: callbackUrl }).toString();
+        if (operationGeneration !== sessionGeneration || disposed) throw createSessionChangedError();
         const timeout = setTimeout(() => {
           clearPendingOAuthState(state);
           restoreStatusAfterOAuth(previousStatus);
@@ -151,26 +161,22 @@ export function createCloudAuthService({
           broadcastPublicState();
         }, OAUTH_STATE_TTL_MS);
         timeout.unref?.();
-
         pendingOAuthStates.set(state, {
-          startKey,
-          apiBase: normalizedApiBase,
-          provider: normalizedProvider,
-          callbackUrl,
-          verifier,
-          challenge,
-          callbackServer,
-          timeout,
-          createdAt: now(),
-          previousStatus,
+          startKey, apiBase: normalizedApiBase, callbackUrl, verifier, challenge,
+          providerCallback: providerCallback.toString(), generation: operationGeneration,
+          callbackServer, timeout, createdAt: now(), previousStatus,
         });
         callbackServer = null;
-
-        await externalNavigation.open(trustedLoginUrl);
+        const loginUrl = new URL("/auth/login", callbackUrl);
+        loginUrl.searchParams.set("state", state);
+        await externalNavigation.open(normalizedProvider
+          ? await supabaseAuth.authorize(normalizedApiBase, normalizedProvider, providerCallback.toString(), challenge)
+          : loginUrl.toString());
         return { ok: true };
       } catch (error) {
         await callbackServer?.close?.().catch(() => undefined);
-        restoreStatusAfterOAuth(previousStatus);
+        clearPendingOAuthState(state);
+        if (operationGeneration === sessionGeneration) restoreStatusAfterOAuth(previousStatus);
         broadcastPublicState();
         throw error;
       }
@@ -189,7 +195,7 @@ export function createCloudAuthService({
       const url = new URL(callbackUrl);
       const state = url.searchParams.get("state");
       const pending = state ? pendingOAuthStates.get(state) : null;
-      if (!pending) throw new Error("Cloud sign-in callback expired. Please sign in again.");
+      if (!pending || !isExpectedPendingCallback(callbackUrl)) throw new Error("Cloud sign-in callback expired. Please sign in again.");
       if (!isExactCallbackRedirect(url, pending.callbackUrl)) {
         throw new Error("Cloud sign-in callback redirect did not match the pending request.");
       }
@@ -208,30 +214,8 @@ export function createCloudAuthService({
       // Consume the local flow before exchange. Replayed callbacks can no longer
       // obtain the verifier, even if the backend code has not yet been consumed.
       clearPendingOAuthState(state, { keepCallbackServer: true });
-      const data = await requestCloudApi(pending.apiBase, "/auth/desktop/exchange", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code,
-          state,
-          code_verifier: pending.verifier,
-          redirect_uri: pending.callbackUrl,
-        }),
-      });
-      const session = buildSessionFromAuth(data, {
-        fallbackEmail: data?.user?.email,
-        fallbackRefreshToken: "",
-        fallbackUserId: null,
-        apiOrigin: pending.apiBase,
-        now,
-      });
-      await adoptAuthenticatedSession(session, { rotateGeneration: true });
-      // Account initialization is idempotent application setup, not part of
-      // proving identity. Keep the securely persisted session and retry setup
-      // on later Cloud requests if this first attempt is temporarily down.
-      await initializeCurrentSessionBestEffort(pending.apiBase, session);
-      revealWindow();
-      return toPublicSession(runtimeSession, authStatus, sessionGeneration);
+      const data = await supabaseAuth.exchange(pending.apiBase, code, pending.verifier);
+      return await finishNativeSignIn(pending, data);
     } catch (error) {
       logger.error?.("Cloud OAuth callback failed:", safeErrorMessage(error));
       if (!runtimeSession) setAuthStatus(credential ? "offline-authenticated" : "signed-out", { broadcast: false });
@@ -240,6 +224,18 @@ export function createCloudAuthService({
       revealWindow();
       return null;
     }
+  }
+
+  async function finishNativeSignIn(pending, data) {
+    if (disposed || pending.generation !== sessionGeneration || now() - pending.createdAt >= OAUTH_STATE_TTL_MS) throw createSessionChangedError();
+    const session = buildSessionFromAuth(data, {
+      fallbackEmail: data?.user?.email, fallbackRefreshToken: "", fallbackUserId: null,
+      apiOrigin: pending.apiBase, now,
+    });
+    await adoptAuthenticatedSession(session, { rotateGeneration: true });
+    await initializeCurrentSessionBestEffort(pending.apiBase, session);
+    revealWindow();
+    return toPublicSession(runtimeSession, authStatus, sessionGeneration);
   }
 
   // Main-only streaming boundary. The general renderer JSON bridge cannot ask
@@ -416,6 +412,7 @@ export function createCloudAuthService({
     sessionGeneration = createSessionGeneration(randomBytes);
     for (const controller of activeRequestControllers) controller.abort();
     activeRequestControllers.clear();
+    for (const state of pendingOAuthStates.keys()) clearPendingOAuthState(state);
     setAuthStatus("signing-out");
     await revokeRemoteSessionBestEffort(capturedCredential, capturedSession);
     await clearLocalSession({ rotateGeneration: false });
@@ -433,7 +430,7 @@ export function createCloudAuthService({
     setAuthStatus("signed-out", { broadcast: false });
     let clearError = null;
     try {
-      await credentialStore.clear();
+      await mutateCredential(() => credentialStore.clear());
     } catch (error) {
       clearError = error;
       logger.error?.("Unable to clear PuppyOne credential store:", safeErrorMessage(error));
@@ -476,11 +473,7 @@ export function createCloudAuthService({
     const refresh = (async () => {
       setAuthStatus("refreshing");
       try {
-        const data = await requestCloudApi(normalizedApiBase, "/auth/refresh", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refresh_token: operationCredential.refresh_token }),
-        });
+        const data = await supabaseAuth.refresh(normalizedApiBase, operationCredential.refresh_token);
         if (operationGeneration !== sessionGeneration || credential !== operationCredential) {
           throw createSessionChangedError();
         }
@@ -516,7 +509,14 @@ export function createCloudAuthService({
     }
   }
 
+  function mutateCredential(operation) {
+    const pending = credentialMutation.then(operation);
+    credentialMutation = pending.catch(() => undefined);
+    return pending;
+  }
+
   async function adoptAuthenticatedSession(session, { rotateGeneration }) {
+    const expectedGeneration = sessionGeneration;
     const nextCredential = {
       version: 2,
       user_id: session.user_id,
@@ -525,12 +525,16 @@ export function createCloudAuthService({
       refresh_token: session.refresh_token,
       updated_at: new Date(now()).toISOString(),
     };
-    await credentialStore.write(nextCredential);
-    if (rotateGeneration) sessionGeneration = createSessionGeneration(randomBytes);
-    credential = nextCredential;
-    credentialLoaded = true;
-    runtimeSession = session;
-    setAuthStatus("authenticated");
+    await mutateCredential(async () => {
+      if (disposed || expectedGeneration !== sessionGeneration) throw createSessionChangedError();
+      await credentialStore.write(nextCredential);
+      if (disposed || expectedGeneration !== sessionGeneration) throw createSessionChangedError();
+      if (rotateGeneration) sessionGeneration = createSessionGeneration(randomBytes);
+      credential = nextCredential;
+      credentialLoaded = true;
+      runtimeSession = session;
+      setAuthStatus("authenticated");
+    });
   }
 
   async function performAuthenticatedRequest(apiBase, apiPath, init, session, requestGeneration) {
@@ -557,17 +561,9 @@ export function createCloudAuthService({
     const timeout = setTimeout(() => controller.abort(), LOGOUT_TIMEOUT_MS);
     timeout.unref?.();
     try {
-      await requestCloudApi(capturedCredential.api_origin, "/auth/logout", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(capturedSession?.access_token
-            ? { Authorization: `Bearer ${capturedSession.access_token}` }
-            : {}),
-        },
-        body: JSON.stringify({ refresh_token: capturedCredential.refresh_token }),
-        signal: controller.signal,
-      });
+      const session = capturedSession && isFreshSession(capturedSession, now()) ? capturedSession
+        : await supabaseAuth.refresh(capturedCredential.api_origin, capturedCredential.refresh_token, controller.signal);
+      await supabaseAuth.logout(capturedCredential.api_origin, session.access_token, controller.signal);
     } catch (error) {
       logger.warn?.("PuppyOne remote logout was unavailable; local logout will continue.", {
         status: Number.isFinite(error?.status) ? error.status : undefined,
@@ -647,7 +643,11 @@ export function createCloudAuthService({
       const pending = state ? pendingOAuthStates.get(state) : null;
       return Boolean(
         pending
-        && now() - pending.createdAt <= OAUTH_STATE_TTL_MS
+        && !disposed && pending.generation === sessionGeneration
+        && url.searchParams.getAll("state").length === 1
+        && url.searchParams.getAll("code").length <= 1
+        && !url.username && !url.password && !url.hash
+        && now() - pending.createdAt < OAUTH_STATE_TTL_MS
         && isExactCallbackRedirect(url, pending.callbackUrl),
       );
     } catch {
@@ -926,55 +926,6 @@ function requireSecureBrowserUrl(value, message) {
   return url.toString();
 }
 
-async function resolveTrustedBrowserLoginUrl(loginUrl, fetchImpl, localCloudWebUrl) {
-  const url = new URL(loginUrl);
-  const loopback = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(url.hostname);
-  if (!loopback) return url.toString();
-
-  let configuredUrl;
-  try {
-    configuredUrl = new URL(localCloudWebUrl);
-  } catch {
-    throw new Error("VITE_DESKTOP_CLOUD_WEB_URL must configure the local Cloud login origin.");
-  }
-  if (
-    configuredUrl.protocol !== "http:"
-    || !["localhost", "127.0.0.1", "::1", "[::1]"].includes(configuredUrl.hostname)
-    || configuredUrl.username
-    || configuredUrl.password
-    || url.protocol !== "http:"
-    || configuredUrl.port !== url.port
-  ) {
-    throw new Error("Local Cloud login URL does not match VITE_DESKTOP_CLOUD_WEB_URL.");
-  }
-
-  // localhost, 127.0.0.1, and ::1 are equivalent loopback spellings, but they
-  // are different browser origins. Always navigate through the configured
-  // origin so cookies and OAuth state stay attached to the Desktop's declared
-  // Cloud web endpoint. The API controls only the login path and query.
-  const trustedUrl = new URL(configuredUrl.origin);
-  trustedUrl.pathname = url.pathname;
-  trustedUrl.search = url.search;
-  trustedUrl.hash = url.hash;
-
-  try {
-    const response = await fetchImpl(trustedUrl, {
-      cache: "no-store",
-      redirect: "follow",
-      signal: AbortSignal.timeout(5_000),
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const body = await response.text();
-    if (!body.includes("Puppyone") || !body.includes("Sign in")) {
-      throw new Error("Puppyone login page marker is missing");
-    }
-    return trustedUrl.toString();
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    throw new Error(`Local Cloud login page is unavailable at ${trustedUrl.origin}. ${detail}`);
-  }
-}
-
 function normalizeOAuthProvider(value) {
   if (value == null || value === "") return undefined;
   if (value === "google" || value === "github") return value;
@@ -1001,7 +952,9 @@ function normalizeEmail(value) {
 }
 
 function safeErrorMessage(error, fallback = "Cloud authentication failed.") {
-  const message = error instanceof Error ? error.message : typeof error === "string" ? error : fallback;
+  let message = fallback;
+  if (error instanceof Error) message = error.message;
+  else if (typeof error === "string") message = error;
   if (!message) return fallback;
   // Avoid accidentally forwarding JWTs or callback credentials into renderer
   // diagnostics. The replacement is intentionally broad.

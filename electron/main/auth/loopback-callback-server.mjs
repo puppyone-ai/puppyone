@@ -24,6 +24,7 @@ const BRAND_MARK = `<svg width="128" height="128" viewBox="0 0 128 128" fill="no
 </svg>`;
 export async function startLoopbackCallbackServer({
   onCallback,
+  onLoginRequest = null,
   isExpectedCallback,
   onReturnToApp = null,
   returnAppUrl = null,
@@ -61,6 +62,22 @@ export async function startLoopbackCallbackServer({
       return;
     }
 
+    if (request.headers.host !== new URL(redirectUri).host || !request.url.startsWith("/") || request.url.startsWith("//")) {
+      respond(response, 400, "unrecognized", locale, geistFont); return;
+    }
+    if (onLoginRequest && !handled && request.url.split("?")[0] === "/auth/login") {
+      try {
+        const result = await onLoginRequest(request, response, redirectUri);
+        if (result?.session) {
+          handled = true;
+          finish(response, result.session, locale);
+        }
+      } catch {
+        if (!response.headersSent) respond(response, 400, "failed", locale, geistFont);
+      }
+      return;
+    }
+
     if (returnEnabled && request.method === "POST" && request.url === returnPath) {
       response.once("finish", () => {
         try {
@@ -92,21 +109,7 @@ export async function startLoopbackCallbackServer({
     handled = true;
     try {
       const session = await onCallback(serializedCallbackUrl);
-      if (session && typeof onReturnToApp === "function") {
-        returnEnabled = true;
-        returnTimer = setTimeout(() => void close().catch(() => undefined), RETURN_ACTION_TTL_MS);
-        returnTimer.unref?.();
-      }
-      respond(
-        response,
-        session ? 200 : 400,
-        session ? "success" : "failed",
-        locale,
-        geistFont,
-        returnEnabled ? returnPath : null,
-        returnEnabled ? returnAppUrl : null,
-      );
-      if (!returnEnabled) void close().catch(() => undefined);
+      finish(response, session, locale);
     } catch (error) {
       logger.warn?.("PuppyOne loopback callback failed.", {
         error: error instanceof Error ? error.message : String(error),
@@ -116,6 +119,19 @@ export async function startLoopbackCallbackServer({
     }
   });
 
+  function finish(response, session, locale) {
+    if (session && typeof onReturnToApp === "function") {
+      returnEnabled = true;
+      returnTimer = setTimeout(() => void close().catch(() => undefined), RETURN_ACTION_TTL_MS);
+      returnTimer.unref?.();
+    }
+    respond(response, session ? 200 : 400, session ? "success" : "failed", locale, geistFont,
+      returnEnabled ? returnPath : null, returnEnabled ? returnAppUrl : null);
+    if (!returnEnabled) void close().catch(() => undefined);
+  }
+
+  server.requestTimeout = 20_000;
+  server.headersTimeout = 15_000;
   server.on("clientError", (_error, socket) => {
     socket.end("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");
   });
