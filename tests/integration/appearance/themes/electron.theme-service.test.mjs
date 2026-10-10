@@ -3,6 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createThemeService } from "../../../../electron/main/themes/theme-service.mjs";
+import { parseSingleFileThemeCss } from "../../../../electron/main/themes/theme-single-file-contract.mjs";
+import { DEFAULT_MARKDOWN_THEME_CSS } from "../../../../electron/main/themes/markdown-theme-defaults.generated.mjs";
 
 const temporaryDirectories = [];
 
@@ -366,6 +368,23 @@ describe("host-owned CSS theme service", () => {
       light: { background: "#fafafa", colorScheme: "light" },
       dark: { background: "#161616", colorScheme: "dark" },
     });
+  });
+
+  it("creates a complete editable Markdown profile and reloads authored values without rewriting it", async () => {
+    const userDataPath = await createTemporaryDirectory();
+    const service = createThemeService({ userDataPath, shell: createShell() });
+    await service.createTheme();
+    const file = path.join(userDataPath, "themes/custom-theme/theme.css");
+    const source = await readFile(file, "utf8");
+    expect(parseSingleFileThemeCss(source).stylesheets.markdown.trim()).toBe(DEFAULT_MARKDOWN_THEME_CSS.trim());
+    const edited = source.replace("--po-md-inline-code-background: transparent;", "--po-md-inline-code-background: #e1d2c3;")
+      .replace("--po-md-code-font: \"Geist Mono\"", "--po-md-code-font: \"Example Mono\"");
+    await writeFile(file, edited);
+    const snapshot = await service.listThemes();
+    expect(snapshot.diagnostics).toEqual([]);
+    expect(snapshot.themes[0].compiledCss.markdown).toContain("--po-host-md-inline-code-background: #e1d2c3;");
+    expect(snapshot.themes[0].compiledCss.markdown).toContain("--po-host-md-code-font: \"Example Mono\"");
+    expect(await readFile(file, "utf8")).toBe(edited);
   });
 
   it("keeps a legacy managed Custom CSS directory on disk without loading it", async () => {

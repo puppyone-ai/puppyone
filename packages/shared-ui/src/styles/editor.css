@@ -38,6 +38,7 @@
 @import "./editor/markdown-editor.css";
 
 /* Markdown semantic presentation profile shared by native Markdown and HTML */
+@import "./editor/markdown-theme-tokens.generated.css";
 @import "./editor/markdown-content.css";
 
 /* Markdown live preview: fenced code + Mermaid widgets */

@@ -172,9 +172,9 @@
   margin: 0;
   overflow: auto;
   color: inherit;
-  font-family: var(--po-font-mono);
-  font-size: var(--po-type-editor-code, 13px);
-  line-height: 1.45;
+  font-family: var(--po-md-code-font);
+  font-size: var(--po-md-code-block-font-size);
+  line-height: var(--po-md-code-block-line-height);
   white-space: pre-wrap;
 }
 

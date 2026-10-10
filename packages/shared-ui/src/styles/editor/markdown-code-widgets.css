@@ -1,7 +1,7 @@
 .markdown-codemirror-editor .cm-md-code-widget {
   position: relative;
   margin: 0;
-  padding: 14px 0 16px;
+  padding: max(var(--po-md-code-block-gap-before), var(--po-md-metadata-line-height)) 0 var(--po-md-code-block-gap-after);
   color: var(--po-md-code-block-color);
   cursor: text;
 }
@@ -18,7 +18,7 @@
   --po-code-token-operator: var(--po-md-syntax-operator);
   --po-code-token-meta: var(--po-md-syntax-meta);
   overflow: hidden;
-  border-radius: 4px;
+  border-radius: var(--po-md-code-block-radius);
   background: var(--po-md-code-block-background);
 }
 
@@ -28,7 +28,7 @@
   inset-inline: 12px;
   display: flex;
   min-width: 0;
-  height: 14px;
+  height: var(--po-md-metadata-line-height);
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
@@ -39,17 +39,17 @@
   flex: 0 1 auto;
   min-width: 0;
   max-inline-size: 40%;
-  height: 14px;
+  height: var(--po-md-metadata-line-height);
   padding: 0;
   border: 0;
   border-radius: 3px;
   outline: 0;
   background: transparent;
-  color: var(--po-text-subtle);
-  font-family: var(--po-font-sans);
-  font-size: var(--po-type-ui-caption, 12px);
-  font-weight: 650;
-  line-height: 14px;
+  color: var(--po-md-metadata-color);
+  font-family: var(--po-md-metadata-font);
+  font-size: var(--po-md-metadata-font-size);
+  font-weight: var(--po-md-metadata-font-weight);
+  line-height: var(--po-md-metadata-line-height);
   text-align: right;
 }
 
@@ -57,17 +57,17 @@
   min-width: 0;
   flex: 1 1 auto;
   overflow: hidden;
-  color: var(--po-text-subtle);
-  font-family: var(--po-font-sans);
-  font-size: var(--po-type-ui-caption, 12px);
-  font-weight: 650;
-  line-height: 14px;
+  color: var(--po-md-metadata-color);
+  font-family: var(--po-md-metadata-font);
+  font-size: var(--po-md-metadata-font-size);
+  font-weight: var(--po-md-metadata-font-weight);
+  line-height: var(--po-md-metadata-line-height);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .markdown-codemirror-editor .cm-md-code-language:focus {
-  background: color-mix(in srgb, var(--po-control) 22%, transparent);
+  background: var(--po-md-code-focus-background);
 }
 
 .markdown-codemirror-editor .cm-md-code-surface {
@@ -82,20 +82,20 @@
   max-width: 100%;
   min-height: 44px;
   margin: 0;
-  padding: 12px 14px;
+  padding: var(--po-md-code-block-padding);
   border: 0;
   outline: 0;
   resize: none;
   background: transparent;
   color: inherit;
-  font-family: var(--po-font-mono);
-  font-size: var(--po-md-structured-font-size);
+  font-family: var(--po-md-code-font);
+  font-size: var(--po-md-code-block-font-size);
   font-feature-settings: "liga" 0, "calt" 0;
   font-variant-ligatures: none;
-  font-weight: 400;
+  font-weight: var(--po-md-code-block-font-weight);
   field-sizing: content;
   letter-spacing: normal;
-  line-height: 20px;
+  line-height: var(--po-md-code-block-line-height);
   overflow-x: auto;
   overflow-y: hidden;
   white-space: pre;
@@ -110,16 +110,16 @@
   width: 100%;
   min-height: 44px;
   margin: 0;
-  padding: 12px 14px;
+  padding: var(--po-md-code-block-padding);
   overflow: hidden;
   color: inherit;
-  font-family: var(--po-font-mono);
-  font-size: var(--po-md-structured-font-size);
+  font-family: var(--po-md-code-font);
+  font-size: var(--po-md-code-block-font-size);
   font-feature-settings: "liga" 0, "calt" 0;
   font-variant-ligatures: none;
-  font-weight: 400;
+  font-weight: var(--po-md-code-block-font-weight);
   letter-spacing: normal;
-  line-height: 20px;
+  line-height: var(--po-md-code-block-line-height);
   pointer-events: none;
   tab-size: var(--cm-md-code-tab-size, 2);
   visibility: hidden;
@@ -132,7 +132,7 @@
 
 .markdown-codemirror-editor .cm-md-code-surface.is-highlighted .cm-md-code-textarea {
   color: transparent;
-  caret-color: var(--po-accent);
+  caret-color: var(--po-md-code-caret-color);
 }
 
 .markdown-codemirror-editor .cm-md-code-highlight .cm-code-comment {
@@ -176,8 +176,8 @@
 }
 
 .markdown-codemirror-editor .cm-md-code-highlight .cm-code-invalid {
-  color: var(--po-danger);
-  text-decoration: underline wavy color-mix(in srgb, var(--po-danger) 75%, transparent);
+  color: var(--po-md-error-color);
+  text-decoration: underline wavy color-mix(in srgb, var(--po-md-error-color) 75%, transparent);
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
 }
@@ -193,7 +193,7 @@
 }
 
 .markdown-codemirror-editor .cm-md-code-textarea:focus {
-  background: color-mix(in srgb, var(--po-control) 18%, transparent);
+  background: var(--po-md-code-focus-background);
 }
 
 .markdown-codemirror-editor .cm-md-mermaid-widget {
@@ -268,7 +268,7 @@
   min-width: 42px;
   padding-inline: 5px;
   color: var(--po-text-muted);
-  font-family: var(--po-font-mono);
+  font-family: var(--po-md-code-font);
   font-size: var(--po-type-ui-micro, 11px);
   line-height: 22px;
   text-align: center;
@@ -312,17 +312,17 @@
   min-height: 120px;
   max-height: 420px;
   margin: 0;
-  padding: 12px 14px;
+  padding: var(--po-md-code-block-padding);
   overflow: auto;
   border: 1px solid color-mix(in srgb, var(--po-divider) 82%, transparent);
   border-radius: 6px;
   outline: 0;
   resize: vertical;
-  background: color-mix(in srgb, var(--po-inset) 76%, transparent);
-  color: color-mix(in srgb, var(--po-text) 84%, var(--po-text-muted));
-  font-family: var(--po-font-mono);
-  font-size: var(--po-type-ui-meta, 13px);
-  line-height: 1.55;
+  background: var(--po-md-code-block-background);
+  color: var(--po-md-code-block-color);
+  font-family: var(--po-md-code-font);
+  font-size: var(--po-md-code-block-font-size);
+  line-height: var(--po-md-code-block-line-height);
   tab-size: 2;
   white-space: pre;
 }
@@ -343,7 +343,7 @@
   padding: 16px;
   border: 1px solid color-mix(in srgb, var(--po-divider) 70%, transparent);
   border-radius: 6px;
-  background: color-mix(in srgb, var(--po-panel) 28%, transparent);
+  background: var(--po-md-mermaid-panel);
 }
 
 .markdown-codemirror-editor[data-readonly="false"] .cm-md-mermaid-preview {
@@ -399,14 +399,14 @@
   width: 100%;
   max-height: 260px;
   margin: 0;
-  padding: 12px 14px;
+  padding: var(--po-md-code-block-padding);
   overflow: auto;
   border-radius: 5px;
-  background: color-mix(in srgb, var(--po-inset) 72%, transparent);
-  color: var(--po-text-muted);
-  font-family: var(--po-font-mono);
-  font-size: var(--po-type-ui-meta, 13px);
-  line-height: 1.5;
+  background: var(--po-md-code-block-background);
+  color: var(--po-md-code-block-color);
+  font-family: var(--po-md-code-font);
+  font-size: var(--po-md-code-block-font-size);
+  line-height: var(--po-md-code-block-line-height);
   text-align: left;
   white-space: pre;
 }

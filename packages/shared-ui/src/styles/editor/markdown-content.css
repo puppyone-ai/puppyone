@@ -1,186 +1,13 @@
-/*
- * Markdown presentation profile v2.
- *
- * This is the semantic design-language authority shared by CodeMirror-native
- * Markdown and sanitized HTML. Feature Widget styles own editing chrome and
- * intrinsic controls; they must not redefine this type scale or block rhythm.
- */
+/* Markdown semantic projection. Registered theme files own visual values;
+   the generated contract binds them on the document boundary. Editing chrome
+   and intrinsic layout stay with their feature adapters. */
 .markdown-codemirror-editor {
-  --po-selection-background: var(--po-host-md-selection-bg, var(--po-text-selection-bg));
-  --po-selection-inactive-background: var(--po-host-md-selection-inactive-bg, var(--po-text-selection-inactive-bg));
-  --po-md-presentation-version: 2;
-  --po-md-surface-background: var(--po-host-md-surface-background, var(--po-editor-bg));
-  /* Themes own only the primary face. PuppyOne recomposes locale, Emoji, and
-     generic fallbacks at the document's lang boundary. */
-  --po-md-content-font-primary: var(--po-font-content-primary, "Geist Sans");
-  --po-md-content-font-fallback: var(--po-font-content-fallback, var(--po-font-locale-sans), var(--po-font-emoji), sans-serif);
-  --po-md-content-font: var(--po-host-md-content-font, var(--po-md-content-font-primary), var(--po-md-content-font-fallback));
-  --po-editor-content-font: var(--po-font-editor-content-user, var(--po-md-content-font));
-  --po-md-content-size: var(--po-type-editor-content, var(--po-text-size-content, 15px));
-  --po-md-content-weight: var(--po-host-md-content-weight, var(--po-content-reading-weight, 450));
-  --po-md-content-letter-spacing: var(--po-host-md-content-letter-spacing, var(--po-content-reading-letter-spacing, 0));
-  --po-md-content-line-height: var(--po-type-editor-line-height, var(--po-content-reading-line-height, 24px));
-  /* Light surfaces use the full semantic foreground. Regular CJK glyphs need
-     contrast, not a theme-specific synthetic weight. */
-  --po-md-content-color: var(--po-host-md-content-color, var(--po-text));
-  --po-md-block-gap: var(--po-host-md-block-gap, 16px);
-  --po-md-heading-gap-before: var(--po-host-md-heading-gap-before, 24px);
-  --po-md-heading-gap-after: var(--po-host-md-heading-gap-after, 16px);
-  --po-md-heading-color: var(--po-host-md-heading-color, var(--po-text));
-  --po-md-heading-weight: var(--po-host-md-heading-weight, 600);
-  --po-md-h1-weight: var(--po-host-md-h1-weight, 650);
-  --po-md-h2-weight: var(--po-host-md-h2-weight, 625);
-  --po-md-h3-weight: var(--po-host-md-h3-weight, 600);
-  --po-md-heading-line-height: var(--po-host-md-heading-line-height, 1.25);
-  --po-md-heading-border-color: var(--po-host-md-heading-border-color, transparent);
-  --po-md-rule-color: var(--po-host-md-rule-color, color-mix(in srgb, var(--po-divider) 96%, var(--po-text-muted) 4%));
-  --po-md-link-color: var(--po-host-md-link-color, var(--po-accent));
-  /* Quotes are supporting content, so both text and structure recede toward
-     the active document surface instead of competing with body copy. */
-  --po-md-blockquote-color: var(
-    --po-host-md-blockquote-color,
-    color-mix(in srgb, var(--po-text-muted) 76%, var(--po-md-surface-background))
-  );
-  --po-md-blockquote-border-color: var(
-    --po-host-md-blockquote-border-color,
-    color-mix(in srgb, var(--po-divider) 76%, var(--po-md-surface-background))
-  );
-  --po-md-inline-code-color: var(--po-host-md-inline-code-color, var(--po-text));
-  --po-md-structured-font-size: var(--po-type-editor-data, var(--po-text-size-data, 13px));
-  --po-md-table-color: var(--po-md-blockquote-color);
-  --po-md-code-block-background: var(--po-host-md-code-block-background, color-mix(in srgb, var(--po-control) 28%, transparent));
-  --po-md-code-block-color: var(--po-host-md-code-block-color, var(--po-md-blockquote-color));
-  --po-md-syntax-keyword: var(--po-host-md-syntax-keyword, var(--po-purple, #8250df));
-  --po-md-syntax-string: var(--po-host-md-syntax-string, color-mix(in srgb, var(--po-success, #1a7f37) 82%, var(--po-text)));
-  --po-md-syntax-comment: var(--po-host-md-syntax-comment, var(--po-text-muted));
-  --po-md-syntax-constant: var(--po-host-md-syntax-constant, color-mix(in srgb, var(--po-warning, #9a6700) 80%, var(--po-text)));
-  --po-md-syntax-special: var(--po-host-md-syntax-special, color-mix(in srgb, var(--po-notification, #cf222e) 76%, var(--po-text)));
-  --po-md-syntax-type: var(--po-host-md-syntax-type, var(--po-info, #0550ae));
-  --po-md-syntax-function: var(--po-host-md-syntax-function, var(--po-accent-text, var(--po-accent)));
-  --po-md-syntax-property: var(--po-host-md-syntax-property, color-mix(in srgb, var(--po-accent) 72%, var(--po-text)));
-  --po-md-syntax-operator: var(--po-host-md-syntax-operator, color-mix(in srgb, var(--po-text) 82%, var(--po-accent)));
-  --po-md-syntax-meta: var(--po-host-md-syntax-meta, color-mix(in srgb, var(--po-purple, #8250df) 72%, var(--po-text)));
-  --po-md-h1-size: var(--po-user-md-h1-size, var(--po-type-editor-heading-1, 30px));
-  --po-md-h2-size: var(--po-user-md-h2-size, var(--po-type-editor-heading-2, 23px));
-  --po-md-h3-size: var(--po-user-md-h3-size, var(--po-type-editor-heading-3, 19px));
-  --po-md-h4-size: var(--po-type-editor-heading-4, 17px);
-  --po-md-h5-size: var(--po-type-editor-heading-5, 16px);
-  --po-md-h6-size: var(--po-type-editor-heading-6, 15px);
-  --po-md-strong-weight: var(--po-user-md-strong-weight, var(--po-host-md-strong-weight, 600));
-  --po-md-strong-color: var(--po-user-md-strong-color, var(--po-host-md-strong-color, var(--po-text)));
+  --po-selection-background: var(--po-md-selection-bg);
+  --po-selection-inactive-background: var(--po-md-selection-inactive-bg);
+  --po-md-presentation-version: 3;
+  --po-editor-content-font: var(--po-md-content-font);
   background: var(--po-md-surface-background);
   color: var(--po-md-content-color);
-}
-
-/* Reverse-polarity text appears optically heavier. Keep the exact same font
-   face and weight across themes, and soften only the dark-theme foreground. */
-:where(.dark) .markdown-codemirror-editor {
-  --po-md-content-color: var(
-    --po-host-md-content-color,
-    color-mix(in srgb, var(--po-text) 80%, var(--po-text-muted))
-  );
-}
-
-/* An explicit Editor font is a user override above the selected Markdown
-   theme. Keep technical/code surfaces out of this list so their monospace
-   contract remains intact. Ordinary theme CSS cannot use !important. */
-:where([data-font-editor-content-mode="explicit"])
-  [data-po-theme-surface="markdown"]
-  :where(
-    .cm-editor,
-    .cm-content,
-    .cm-line:not(.cm-md-code-block-line),
-    .cm-md-heading,
-    .cm-md-heading-1,
-    .cm-md-heading-2,
-    .cm-md-heading-3,
-    .cm-md-heading-4,
-    .cm-md-heading-5,
-    .cm-md-heading-6,
-    .cm-md-html-rendered-surface,
-    .cm-md-html-rendered-surface p,
-    .cm-md-html-rendered-surface li,
-    .cm-md-html-rendered-surface blockquote,
-    .cm-md-html-rendered-surface dt,
-    .cm-md-html-rendered-surface dd,
-    .cm-md-html-rendered-surface th,
-    .cm-md-html-rendered-surface td,
-    .cm-md-html-rendered-surface h1,
-    .cm-md-html-rendered-surface h2,
-    .cm-md-html-rendered-surface h3,
-    .cm-md-html-rendered-surface h4,
-    .cm-md-html-rendered-surface h5,
-    .cm-md-html-rendered-surface h6,
-    .cm-md-html-rendered-surface strong,
-    .cm-md-html-rendered-surface b,
-    .cm-md-html-rendered-surface em,
-    .cm-md-html-rendered-surface i,
-    .cm-md-html-rendered-surface a
-  ) {
-  font-family: var(--po-font-editor-content-user) !important;
-}
-
-:where([data-font-editor-content-mode="explicit"])
-  [data-po-theme-surface="markdown"]
-  :where(.cm-line:not(.cm-md-code-block-line))
-  *:not(:is(.cm-md-math-inline-widget, .cm-md-math-block-widget, .cm-md-math-inline-widget *, .cm-md-math-block-widget *)) {
-  font-family: var(--po-font-editor-content-user) !important;
-}
-
-:where([data-font-editor-content-mode="explicit"])
-  [data-po-theme-surface="markdown"]
-  .cm-md-html-rendered-surface
-  *:not(:is(.katex, .katex *)) {
-  font-family: var(--po-font-editor-content-user) !important;
-}
-
-:where([data-font-editor-content-mode="explicit"])
-  [data-po-theme-surface="markdown"]
-  .cm-md-table-cell-content,
-:where([data-font-editor-content-mode="explicit"])
-  [data-po-theme-surface="markdown"]
-  .cm-md-table-cell-content *:not(:is(.katex, .katex *)),
-:where([data-font-editor-content-mode="explicit"])
-  [data-po-theme-surface="markdown"]
-  .cm-md-mdx-tab-panel,
-:where([data-font-editor-content-mode="explicit"])
-  [data-po-theme-surface="markdown"]
-  .cm-md-mdx-tab-panel *:not(:is(.katex, .katex *)) {
-  font-family: var(--po-font-editor-content-user) !important;
-}
-
-/* Text font never changes technical content. Reassert the product code role
-   after prose rules. */
-[data-po-theme-surface="markdown"] .cm-md-code-block-line,
-[data-po-theme-surface="markdown"] .cm-md-code-block-line *,
-[data-po-theme-surface="markdown"] .cm-md-code-fence,
-[data-po-theme-surface="markdown"] .cm-md-code-fence *,
-[data-po-theme-surface="markdown"] .cm-md-syntax-monospace,
-[data-po-theme-surface="markdown"] .cm-md-syntax-monospace *,
-[data-po-theme-surface="markdown"] .cm-md-inline-code,
-[data-po-theme-surface="markdown"] .cm-md-inline-code *,
-[data-po-theme-surface="markdown"] .cm-md-table-line,
-[data-po-theme-surface="markdown"] .cm-md-table-line *,
-[data-po-theme-surface="markdown"] .cm-md-table-cell-content code,
-[data-po-theme-surface="markdown"] .cm-md-table-cell-content code *,
-[data-po-theme-surface="markdown"] .cm-md-mdx-tab-panel code,
-[data-po-theme-surface="markdown"] .cm-md-mdx-tab-panel code *,
-[data-po-theme-surface="markdown"] .cm-md-code-textarea,
-[data-po-theme-surface="markdown"] .cm-md-mermaid-source,
-[data-po-theme-surface="markdown"] .cm-md-mermaid-source-fallback,
-[data-po-theme-surface="markdown"] .cm-md-mermaid-source-fallback *,
-[data-po-theme-surface="markdown"] .cm-md-html-source-fallback pre,
-[data-po-theme-surface="markdown"] .cm-md-html-source-fallback pre *,
-[data-po-theme-surface="markdown"] .cm-md-mdx-source-toggle,
-[data-po-theme-surface="markdown"] .cm-md-html-rendered-surface pre,
-[data-po-theme-surface="markdown"] .cm-md-html-rendered-surface pre *,
-[data-po-theme-surface="markdown"] .cm-md-html-rendered-surface code,
-[data-po-theme-surface="markdown"] .cm-md-html-rendered-surface code *,
-[data-po-theme-surface="markdown"] .cm-md-html-rendered-surface kbd,
-[data-po-theme-surface="markdown"] .cm-md-html-rendered-surface kbd *,
-[data-po-theme-surface="markdown"] .cm-md-html-rendered-surface samp,
-[data-po-theme-surface="markdown"] .cm-md-html-rendered-surface samp * {
-  font-family: var(--po-font-code) !important;
 }
 
 .markdown-codemirror-editor .cm-scroller {
@@ -227,16 +54,16 @@
 }
 
 .markdown-codemirror-editor[data-live-preview="true"] .cm-md-heading-6 {
-  color: var(--po-text-muted);
+  color: var(--po-md-h6-color);
   font-size: var(--po-md-h6-size);
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface {
-  --background-primary: var(--po-editor-bg);
+  --background-primary: var(--po-md-surface-background);
   --background-primary-alt: color-mix(in srgb, var(--po-panel) 56%, transparent);
   --background-modifier-border: var(--po-divider);
-  --text-muted: var(--po-text-muted);
-  --text-normal: var(--po-text);
+  --text-muted: var(--po-md-blockquote-color);
+  --text-normal: var(--po-md-content-color);
   box-sizing: border-box;
   contain: layout paint;
   display: flow-root;
@@ -300,7 +127,7 @@
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface h6 {
-  color: var(--po-text-muted);
+  color: var(--po-md-h6-color);
   font-size: var(--po-md-h6-size);
 }
 
@@ -309,26 +136,71 @@
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface pre {
+  background: var(--po-md-code-block-background);
+  padding: var(--po-md-code-block-padding);
+  border-radius: var(--po-md-code-block-radius);
   color: var(--po-md-code-block-color);
-  font-size: var(--po-md-structured-font-size);
+  font-size: var(--po-md-code-block-font-size);
+  font-family: var(--po-md-code-font);
+  font-weight: var(--po-md-code-block-font-weight);
+  line-height: var(--po-md-code-block-line-height);
   overflow: auto;
   white-space: pre-wrap;
 }
 
-/* Markdown's supporting surfaces share the reading profile. The editable
-   table adapter retains the common geometry used by CSV. */
-.markdown-codemirror-editor .cm-md-table-widget-wrap {
-  --po-editable-table-color: var(--po-md-table-color);
-  --po-editable-table-header-color: var(--po-md-table-color);
-  --po-editable-table-body-color: var(--po-md-table-color);
-  --po-editable-table-font-size: var(--po-md-structured-font-size);
+.markdown-codemirror-editor .cm-md-html-rendered-surface pre code {
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
 }
 
-.markdown-codemirror-editor
-  :is(.cm-md-table-widget, .cm-md-html-rendered-surface table) {
-  --po-md-inline-foreground: var(--po-md-table-color);
+/* One file-owned table profile across the editable adapter and Safe HTML. */
+.markdown-codemirror-editor .cm-md-table-widget-wrap {
+  --po-editable-table-color: var(--po-md-table-color);
+  --po-editable-table-header-color: var(--po-md-table-header-color);
+  --po-editable-table-body-color: var(--po-md-table-body-color);
+  --po-editable-table-font-size: var(--po-md-table-font-size);
+  --po-editable-table-line-height: var(--po-md-table-line-height);
+  --po-editable-table-header-font-weight: var(--po-md-table-header-weight);
+  --po-editable-table-format-background: var(--po-md-table-background);
+  --po-editable-table-format-border: var(--po-md-table-border);
+  --po-editable-table-format-cell-border: var(--po-md-table-cell-border);
+  --po-editable-table-format-header-background: var(--po-md-table-header-background);
+  --po-editable-table-cell-padding: var(--po-md-table-cell-padding);
+}
+
+.markdown-codemirror-editor :is(.cm-md-table-widget, .cm-md-html-rendered-surface table) {
   color: var(--po-md-table-color);
-  font-size: var(--po-md-structured-font-size);
+  font-family: var(--po-md-table-font);
+  font-size: var(--po-md-table-font-size);
+  line-height: var(--po-md-table-line-height);
+}
+
+.markdown-codemirror-editor :is(.cm-md-table-widget, .cm-md-html-rendered-surface table) th {
+  --po-md-inline-foreground: var(--po-md-table-header-color);
+  color: var(--po-md-table-header-color);
+  font-weight: var(--po-md-table-header-weight);
+}
+
+.markdown-codemirror-editor :is(.cm-md-table-widget, .cm-md-html-rendered-surface table) td {
+  --po-md-inline-foreground: var(--po-md-table-body-color);
+  color: var(--po-md-table-body-color);
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface table {
+  border-collapse: collapse;
+  background: var(--po-md-table-background);
+  border: 1px solid var(--po-md-table-border);
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface table :is(th, td) {
+  padding: var(--po-md-table-cell-padding);
+  border: 1px solid var(--po-md-table-cell-border);
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface th {
+  background: var(--po-md-table-header-background);
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface :where(ul, ol) {
@@ -336,8 +208,8 @@
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface blockquote {
-  padding-inline: 1em;
-  border-inline-start: 0.25em solid var(--po-md-blockquote-border-color);
+  padding-inline: var(--po-md-blockquote-padding-inline);
+  border-inline-start: var(--po-md-blockquote-border-width) solid var(--po-md-blockquote-border-color);
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface hr {
@@ -376,11 +248,11 @@
 }
 
 .markdown-codemirror-editor .cm-md-syntax-emphasis {
-  color: var(--po-md-inline-foreground, var(--po-text-muted));
+  color: var(--po-md-inline-foreground, var(--po-md-emphasis-color));
 }
 
 .markdown-codemirror-editor .cm-md-syntax-strikethrough {
-  color: var(--po-md-inline-foreground, var(--po-text-subtle));
+  color: var(--po-md-inline-foreground, var(--po-md-strikethrough-color));
 }
 
 .markdown-codemirror-editor :is(em, i, s, del).cm-md-inline-html,
@@ -388,24 +260,23 @@
   color: var(--po-md-inline-foreground, inherit);
 }
 
-/* CodeMirror text, inline renderer chips and sanitized HTML are projections
-   of the same unboxed inline-code role. Block code keeps its syntax palette. */
+/* Every inline-code adapter consumes the file-owned role. Block code keeps
+   its separate background and syntax palette. */
 .markdown-codemirror-editor :is(.cm-md-syntax-monospace, .cm-md-inline-code, code.cm-md-inline-html),
-.markdown-codemirror-editor .cm-md-html-rendered-surface :where(code:not(pre code)) {
+.markdown-codemirror-editor .cm-md-html-rendered-surface :where(code:not(pre code), kbd, samp) {
   color: var(--po-md-inline-foreground, var(--po-md-inline-code-color));
-  background: transparent;
-  font-family: var(--po-font-mono);
-}
-
-.markdown-codemirror-editor .cm-md-table-cell-content .cm-md-inline-code {
-  font-size: inherit;
+  background: var(--po-md-inline-code-background);
+  padding: var(--po-md-inline-code-padding);
+  border-radius: var(--po-md-inline-code-radius);
+  font-size: var(--po-md-inline-code-font-size);
+  font-family: var(--po-md-code-font);
 }
 
 /* Native quoted lists retain their actual source marker; ordinary native
    lists paint a pseudo-element. Both and Safe HTML use the quote foreground. */
 .markdown-codemirror-editor[data-live-preview="true"] .cm-md-syntax-list.cm-md-syntax-markup,
 .markdown-codemirror-editor .cm-md-html-rendered-surface li::marker {
-  color: var(--po-md-blockquote-color);
+  color: var(--po-md-list-marker-color);
 }
 
 /* Emphasis must never make an already-strong heading lighter. */
@@ -435,7 +306,7 @@
   min-width: 1em;
   min-height: 1em;
   border-radius: 3px;
-  background: color-mix(in srgb, var(--po-control) 38%, transparent);
+  background: var(--po-md-placeholder-background);
 }
 
 .markdown-codemirror-editor .cm-md-html-image-fallback {
@@ -443,10 +314,10 @@
   min-height: 1.5em;
   align-items: center;
   padding-inline: 0.4em;
-  border: 1px solid color-mix(in srgb, var(--po-divider) 86%, transparent);
+  border: 1px solid var(--po-md-fallback-border);
   border-radius: 3px;
-  color: var(--po-text-muted);
-  font-size: var(--po-type-editor-data, var(--po-text-size-data, 13px));
+  color: var(--po-md-fallback-color);
+  font-size: var(--po-md-table-font-size);
   line-height: 1.35;
 }
 
@@ -456,7 +327,7 @@
   max-width: 100%;
   max-height: min(70vh, 720px);
   border-radius: 6px;
-  background: #000;
+  background: var(--po-md-media-background);
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface :where(img, video, canvas, svg) {

@@ -10,7 +10,8 @@ describe("Sub Theme CSS compiler", () => {
     });
 
     const host = '[data-po-appearance-root][data-sub-theme-id="com.example.newsprint"]';
-    expect(result.css).toContain(`${host} {`);
+    expect(result.css).toContain(`@scope (${host}) to ([data-po-appearance-root])`);
+    expect(result.css).toContain(".markdown-codemirror-editor {");
     expect(result.css).toContain("--po-host-md-content-color: #332f2a");
     expect(result.css).toContain("--po-host-md-h1-size: 32px");
     expect(result.css).toContain("--po-host-md-h1-weight: 700");
@@ -27,6 +28,18 @@ describe("Sub Theme CSS compiler", () => {
     expect(result.css).toContain("--po-host-csv-surface-background: #fff");
     expect(result.css).toContain("--po-host-csv-table-border: #ddd");
     expect(result.css).not.toMatch(/\.csv-table-editor|\.editable-table/);
+  });
+
+  it("resolves Markdown references at a scoped document boundary in each mode", async () => {
+    const result = await compileThemeCss({ themeId: "com.example.authority", target: "markdown",
+      css: ":root { --po-md-table-font-size: 12px; --po-md-code-block-font-size: var(--po-md-table-font-size); --po-md-code-font: Example Mono } .dark .theme-root { --po-md-inline-code-background: #243344 }",
+    });
+    expect(result.css).toContain("--po-host-md-code-block-font-size: var(--po-host-md-table-font-size)");
+    expect(result.css).toContain('@scope ([data-po-appearance-root][data-sub-theme-id="com.example.authority"]:where(.dark)) to ([data-po-appearance-root])');
+    expect(result.css).not.toMatch(/\.markdown-codemirror-editor\s+\./);
+    await expect(compileThemeCss({ themeId: "com.example.authority", target: "markdown",
+      css: ".markdown-codemirror-editor code { color: red }",
+    })).rejects.toThrow();
   });
 
   it("maps bounded typography defaults onto a private theme layer", async () => {

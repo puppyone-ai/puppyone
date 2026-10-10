@@ -10,7 +10,9 @@ import { MarkdownCodeMirrorEditor } from "../../../../packages/shared-ui/src/edi
 import { CsvTableEditor } from "../../../../packages/shared-ui/src/editor/viewers/csv/CsvTableEditor";
 import { resolveAppearance } from "../../../../src/features/appearance/resolveAppearance";
 import { applySurfaceAppearanceToElement, resolveSurfaceAppearance, SurfaceAppearanceProvider } from "../../../../src/features/appearance/AppearanceRuntime";
-import { BUILTIN_SUB_THEMES } from "../../../../src/features/themes/builtinSubThemes";
+import { createSubThemeCatalogSnapshot } from "../../../../src/features/themes/builtinSubThemes";
+import type { DesktopThemeSnapshot } from "../../../../src/types/electron";
+import { getMermaidThemeSnapshot } from "../../../../packages/shared-ui/src/editor/markdown/features/mermaid/mermaidRenderer";
 import { DEFAULT_TYPOGRAPHY_PREFERENCES, resolveTypography } from "../../../../src/features/typography";
 import { DEFAULT_MARKDOWN_PRESENTATION_SETTINGS } from "../../../../src/features/markdown/markdownPresentation";
 import englishCatalog from "../../../../src/localization/catalog-loaders/en";
@@ -31,6 +33,8 @@ const initialMarkdown = "Before the table\n\n" + [rows[0], rows[0].map(() => "--
 const csv = rows.map(row => row.join(",")).join("\n");
 let setMode: (mode: "light" | "dark") => void;
 let setTheme: (theme: string | null) => void;
+let registerThemes: (snapshot: DesktopThemeSnapshot) => void;
+let setPeerTheme: (theme: string | null) => void;
 let markdown = initialMarkdown;
 let csvPort: EditorSourceSnapshotPort | null = null;
 const onMarkdown = (value: string) => { markdown = value; };
@@ -38,21 +42,33 @@ const onCsvSnapshot = (port: EditorSourceSnapshotPort | null) => { csvPort = por
 function Harness() {
   const [mode, updateMode] = useState<"light" | "dark">("light");
   const [theme, updateTheme] = useState<string | null>(null);
+  const [catalog, updateCatalog] = useState(() => createSubThemeCatalogSnapshot({ themes: [], diagnostics: [] }));
+  const [peerTheme, updatePeerTheme] = useState<string | null>(null);
+  registerThemes = snapshot => flushSync(() => updateCatalog(createSubThemeCatalogSnapshot(snapshot)));
+  setPeerTheme = theme => flushSync(() => updatePeerTheme(theme));
   setMode = mode => flushSync(() => updateMode(mode));
   setTheme = theme => flushSync(() => updateTheme(theme));
   const appearance = resolveAppearance({ interfaceStyle: "default", themeMode: mode,
     requestedSubThemeIds: { light: theme ?? "default.neutral", dark: theme ?? "default.dark" },
-    subThemeCatalog: { subThemes: [...BUILTIN_SUB_THEMES], diagnostics: [] },
+    subThemeCatalog: catalog,
     sidebarNavigationLayout: "bottom-horizontal", fileIconTheme: "default" });
   const surface = resolveSurfaceAppearance({ appearance, typography: resolveTypography(DEFAULT_TYPOGRAPHY_PREFERENCES),
     markdownPresentation: DEFAULT_MARKDOWN_PRESENTATION_SETTINGS, loadingAnimationPreset: "ikun",
     lightThemePreset: "neutral", darkThemePreset: "default", pointerCursors: false, diffMarkers: "color" });
+  const peer = resolveSurfaceAppearance({ appearance: resolveAppearance({ interfaceStyle: "default", themeMode: mode,
+    requestedSubThemeIds: { light: peerTheme ?? "default.neutral", dark: peerTheme ?? "default.neutral" },
+    subThemeCatalog: catalog, sidebarNavigationLayout: "bottom-horizontal", fileIconTheme: "default" }),
+    typography: resolveTypography(DEFAULT_TYPOGRAPHY_PREFERENCES), markdownPresentation: DEFAULT_MARKDOWN_PRESENTATION_SETTINGS,
+    loadingAnimationPreset: "ikun", lightThemePreset: "neutral", darkThemePreset: "default", pointerCursors: false, diffMarkers: "color" });
   useLayoutEffect(() => applySurfaceAppearanceToElement(document.documentElement, surface), [surface]);
   return <TestLocalizationProvider messages={englishCatalog}><SurfaceAppearanceProvider value={surface}>
     <div {...surface.rootProps} id="surface" className={mode === "dark" ? "dark" : ""}
       style={{ ...surface.rootProps.style, background: "var(--po-editor-bg)", color: "var(--po-text)", padding: 24, width: "100%", flexShrink: 0, minHeight: "100vh" }}>
       <h2 style={{ margin: 0, font: "600 16px system-ui" }}>Markdown</h2>
       <section id="markdown" style={{ height: 400 }}><MarkdownCodeMirrorEditor value={initialMarkdown} livePreview readOnly={false} onChange={onMarkdown} /></section>
+      {peerTheme && <SurfaceAppearanceProvider value={peer}><section {...peer.rootProps} id="peer" className={mode === "dark" ? "dark" : ""} style={{ ...peer.rootProps.style, height: 400 }}>
+        <MarkdownCodeMirrorEditor value={"Peer **bold** and `code`."} livePreview readOnly />
+      </section></SurfaceAppearanceProvider>}
       <h2 style={{ margin: 0, font: "600 16px system-ui" }}>CSV</h2>
       <section id="csv" style={{ height: 340 }}><CsvTableEditor content={csv} documentId="table-style-fixture" readOnly={false}
         onSnapshotPortChange={onCsvSnapshot}
@@ -77,6 +93,7 @@ const colorAlpha = (color: string) => {
   colorContext.fillRect(0, 0, 1, 1);
   return colorContext.getImageData(0, 0, 1, 1).data[3];
 };
+let retainedSession: { view: EditorView; source: string; selection: string; scroll: number; scrollAnchor: number } | null = null;
 const api = {
   async ready() {
     for (let i = 0; i < 300 && (!table("markdown") || !table("csv")); i++) await new Promise(resolve => setTimeout(resolve, 20));
@@ -86,6 +103,26 @@ const api = {
   },
   async mode(mode: "light" | "dark") { setMode(mode); await wait(); },
   async theme(theme: string | null) { setTheme(theme); await wait(); },
+  async registerThemes(snapshot: DesktopThemeSnapshot) { registerThemes(snapshot); await wait(); },
+  async peerTheme(theme: string | null) { setPeerTheme(theme); await wait(); },
+  mermaidTheme() { return getMermaidThemeSnapshot(document.querySelector("#markdown .cm-editor")!).config; },
+  checkpointMarkdownSession() {
+    const view = EditorView.findFromDOM(document.querySelector("#markdown .cm-editor")!)!;
+    view.dispatch({ selection: { anchor: 3, head: 8 } });
+    view.scrollDOM.scrollTop = 27;
+    retainedSession = { view, source: view.state.doc.toString(), selection: JSON.stringify(view.state.selection.toJSON()), scroll: view.scrollDOM.scrollTop,
+      scrollAnchor: view.lineBlockAtHeight(view.scrollDOM.scrollTop).from };
+  },
+  markdownSessionRetained() {
+    const view = EditorView.findFromDOM(document.querySelector("#markdown .cm-editor")!)!;
+    return { viewRetained: retainedSession?.view === view, sourceRetained: retainedSession?.source === view.state.doc.toString(),
+      selectionRetained: retainedSession?.selection === JSON.stringify(view.state.selection.toJSON()),
+      // A font-size change reflows pixels. Preserve the source anchor and a
+      // nonzero scroll position rather than requiring identical CSS pixels.
+      scrollRetained: retainedSession?.scrollAnchor === view.lineBlockAtHeight(view.scrollDOM.scrollTop).from
+        && (retainedSession.scroll === 0 || view.scrollDOM.scrollTop > 0),
+      scrollBefore: retainedSession?.scroll, scrollAfter: view.scrollDOM.scrollTop };
+  },
   async setMarkdownSource(source: string) {
     (document.activeElement as HTMLElement | null)?.blur();
     const view = EditorView.findFromDOM(document.querySelector("#markdown .cm-editor")!)!;

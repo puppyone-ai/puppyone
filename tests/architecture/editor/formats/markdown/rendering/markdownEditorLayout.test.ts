@@ -37,6 +37,13 @@ const markdownInlineCss = readFileSync(
   new URL("../../../../../../packages/shared-ui/src/styles/editor/markdown-inline-widgets.css", import.meta.url),
   "utf8",
 );
+const markdownProjectionCss = readFileSync(
+  new URL("../../../../../../packages/shared-ui/src/styles/editor/markdown-theme-tokens.generated.css", import.meta.url),
+  "utf8",
+);
+const neutralThemeCss = readFileSync(
+  new URL("../../../../../../sub-themes/default-neutral/theme.css", import.meta.url), "utf8",
+);
 const markdownCodeMirrorExtensionsSource = readFileSync(
   new URL("../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions.ts", import.meta.url),
   "utf8",
@@ -44,10 +51,10 @@ const markdownCodeMirrorExtensionsSource = readFileSync(
 
 describe("Markdown editor layout", () => {
   it("keeps supporting quotes quieter than body copy in every theme", () => {
-    expect(markdownContentCss).toContain(
+    expect(neutralThemeCss).toContain(
       "color-mix(in srgb, var(--po-text-muted) 76%, var(--po-md-surface-background))",
     );
-    expect(markdownContentCss).toContain(
+    expect(neutralThemeCss).toContain(
       "color-mix(in srgb, var(--po-divider) 76%, var(--po-md-surface-background))",
     );
   });
@@ -63,10 +70,10 @@ describe("Markdown editor layout", () => {
     expect(markdownContentCss).not.toMatch(/:is\(\.cm-md-blockquote,[^{}]*\)\s+:is\(/s);
     expect(readCssRule(markdownEditorCss,
       ".markdown-codemirror-editor .cm-md-list-line:not(.cm-md-task-line)::before",
-    )).toContain("color: var(--po-md-blockquote-color);");
+    )).toContain("color: var(--po-md-list-marker-color);");
     expect(readCssRule(markdownContentCss,
       ".markdown-codemirror-editor .cm-md-html-rendered-surface li::marker",
-    )).toContain("color: var(--po-md-blockquote-color);");
+    )).toContain("color: var(--po-md-list-marker-color);");
   });
 
   it("shares its reading width with other document-like product surfaces", () => {
@@ -107,7 +114,7 @@ describe("Markdown editor layout", () => {
       /\.markdown-codemirror-editor\[data-live-preview="false"\][\s\S]*?\{[\s\S]*?font-family:\s*inherit;/s,
     );
     expect(markdownEditorCss).toMatch(
-      /\.markdown-codemirror-editor\[data-live-preview="false"\][\s\S]*?\{[\s\S]*?font-size:\s*var\(--po-type-editor-content, 15px\);/s,
+      /\.markdown-codemirror-editor\[data-live-preview="false"\][\s\S]*?\{[\s\S]*?font-size:\s*var\(--po-md-content-size\);/s,
     );
     expect(markdownEditorCss).toMatch(
       /\.markdown-codemirror-editor\[data-live-preview="false"\][\s\S]*?\{[\s\S]*?font-style:\s*normal;/s,
@@ -199,10 +206,6 @@ describe("Markdown HTML media layout", () => {
 
   it("uses one semantic presentation profile without a second HTML widget gap", () => {
     const profileRule = readCssRule(markdownContentCss, ".markdown-codemirror-editor");
-    const darkProfileRule = readCssRule(
-      markdownContentCss,
-      ":where(.dark) .markdown-codemirror-editor",
-    );
     const editorTextRule = readCssRule(
       markdownEditorCss,
       ".markdown-codemirror-editor .cm-editor",
@@ -245,27 +248,12 @@ describe("Markdown HTML media layout", () => {
     );
 
     expect(editorEntryCss).toContain('@import "./editor/markdown-content.css";');
-    expect(profileRule).toContain("--po-md-presentation-version: 2;");
-    expect(profileRule).toContain(
-      "--po-md-content-size: var(--po-type-editor-content, var(--po-text-size-content, 15px));",
-    );
-    expect(profileRule).toContain(
-      "--po-md-content-weight: var(--po-host-md-content-weight, var(--po-content-reading-weight, 450));",
-    );
-    expect(profileRule).toContain(
-      "--po-md-content-letter-spacing: var(--po-host-md-content-letter-spacing, var(--po-content-reading-letter-spacing, 0));",
-    );
-    expect(profileRule).toContain(
-      "--po-md-content-line-height: var(--po-type-editor-line-height, var(--po-content-reading-line-height, 24px));",
-    );
-    expect(profileRule).toContain("--po-md-content-color: var(--po-host-md-content-color, var(--po-text));");
-    expect(darkProfileRule).toContain(
-      "--po-md-content-color: var(\n    --po-host-md-content-color,\n    color-mix(in srgb, var(--po-text) 80%, var(--po-text-muted))",
-    );
-    expect(darkProfileRule).not.toContain("--po-md-content-weight:");
-    expect(profileRule).toContain("--po-md-block-gap: var(--po-host-md-block-gap, 16px);");
-    expect(profileRule).toContain("--po-md-heading-gap-before: var(--po-host-md-heading-gap-before, 24px);");
-    expect(profileRule).toContain("--po-md-heading-gap-after: var(--po-host-md-heading-gap-after, 16px);");
+    expect(editorEntryCss).toContain('@import "./editor/markdown-theme-tokens.generated.css";');
+    expect(profileRule).toContain("--po-md-presentation-version: 3;");
+    expect(profileRule).not.toMatch(/--po-md-(?:content|h[1-6]|strong|rule)[a-z-]*:/);
+    expect(markdownProjectionCss).toContain("--po-md-content-size: var(--po-host-md-content-size);");
+    expect(markdownProjectionCss).toContain("--po-md-content-line-height: var(--po-host-md-content-line-height);");
+    expect(markdownProjectionCss).not.toContain("--po-type-editor-");
     expect(editorTextRule).toContain("font-family: var(--po-editor-content-font);");
     expect(editorTextRule).toContain("font-size: var(--po-md-content-size);");
     expect(editorTextRule).toContain("font-weight: var(--po-md-content-weight);");
@@ -273,23 +261,10 @@ describe("Markdown HTML media layout", () => {
     expect(htmlSurfaceRule).toContain("font-size: var(--po-md-content-size);");
     expect(htmlSurfaceRule).toContain("font-weight: var(--po-md-content-weight);");
     expect(htmlSurfaceRule).toContain("line-height: var(--po-md-content-line-height);");
-    expect(profileRule).toContain("--po-md-h1-weight: var(--po-host-md-h1-weight, 650);");
-    expect(profileRule).toContain("--po-md-h2-weight: var(--po-host-md-h2-weight, 625);");
-    expect(profileRule).toContain("--po-md-h3-weight: var(--po-host-md-h3-weight, 600);");
-    expect(profileRule).toContain("--po-md-heading-line-height: var(--po-host-md-heading-line-height, 1.25);");
-    expect(profileRule).toContain(
-      "--po-md-h1-size: var(--po-user-md-h1-size, var(--po-type-editor-heading-1, 30px));",
-    );
-    expect(profileRule).toContain(
-      "--po-md-strong-weight: var(--po-user-md-strong-weight, var(--po-host-md-strong-weight, 600));",
-    );
-    expect(profileRule).toContain(
-      "--po-md-strong-color: var(--po-user-md-strong-color, var(--po-host-md-strong-color, var(--po-text)));",
-    );
+    expect(markdownProjectionCss).toContain("--po-md-h1-size: var(--po-user-md-h1-size, var(--po-host-md-h1-size));");
+    expect(markdownProjectionCss).toContain("--po-md-strong-weight: var(--po-user-md-strong-weight, var(--po-host-md-strong-weight));");
+    expect(markdownProjectionCss).toContain("--po-md-strong-color: var(--po-user-md-strong-color, var(--po-host-md-strong-color));");
     expect(markdownContentCss).not.toMatch(/app-shell|onboarding-shell|desktop-overlay-root/);
-    expect(profileRule).toContain(
-      "--po-md-rule-color: var(--po-host-md-rule-color, color-mix(in srgb, var(--po-divider) 96%, var(--po-text-muted) 4%));",
-    );
     expect(nativeHeadingRule).toContain("font-size: var(--po-md-h1-size);");
     expect(nativeHeadingRule).toContain(
       "--po-md-current-heading-weight: var(--po-md-h1-weight);",
@@ -475,7 +450,10 @@ describe("Markdown rich-block boundary affordance", () => {
     );
 
     for (const rule of [textareaRule, highlightRule]) {
-      expect(rule).toContain("font-weight: 400;");
+      expect(rule).toContain("font-weight: var(--po-md-code-block-font-weight);");
+      expect(rule).toContain("font-size: var(--po-md-code-block-font-size);");
+      expect(rule).toContain("line-height: var(--po-md-code-block-line-height);");
+      expect(rule).toContain("padding: var(--po-md-code-block-padding);");
       expect(rule).toContain("font-variant-ligatures: none;");
       expect(rule).toContain("font-feature-settings: \"liga\" 0, \"calt\" 0;");
       expect(rule).toContain("letter-spacing: normal;");

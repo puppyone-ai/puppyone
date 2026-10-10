@@ -23,13 +23,23 @@ const rootThemeManifestPath = path.join(
   "src/features/appearance/interface-style-manifest.json",
 );
 const checkOnly = process.argv.includes("--check");
+const markdownContract = JSON.parse(readFileSync(path.join(repoRoot, "shared/markdown-theme-contract.json"), "utf8"));
 const rootThemeManifest = JSON.parse(readFileSync(rootThemeManifestPath, "utf8"));
 
 try {
   const definitions = await buildDefinitions();
   const fallback = validateFallbackTheme(definitions);
+  const fallbackSource = parseSingleFileThemeCss(readFileSync(path.join(repoRoot, "sub-themes", fallback.id.replaceAll(".", "-"), "theme.css"), "utf8"), {
+    allowReservedBuiltinId: true, allowBuiltinCompatibilityMetadata: true,
+  }).stylesheets.markdown;
   const outputs = new Map([
     [outputPath, renderRegistry(definitions)],
+    [path.join(repoRoot, "electron/main/themes/markdown-theme-defaults.generated.mjs"),
+      `// Generated from sub-themes/${fallback.id.replaceAll(".", "-")}/theme.css.
+export const DEFAULT_MARKDOWN_THEME_CSS = ${JSON.stringify(fallbackSource)};
+`],
+    [path.join(repoRoot, "packages/shared-ui/src/styles/editor/markdown-theme-tokens.generated.css"),
+      renderMarkdownProjection(fallbackSource)],
     [path.join(repoRoot, "src/styles/fallback-theme.generated.css"), renderFallbackCss(fallback)],
     [path.join(repoRoot, "src/features/themes/subThemeBootstrap.generated.ts"), renderTypeScriptBootstrap(definitions, fallback)],
     [path.join(repoRoot, "public/sub-theme-bootstrap.js"), renderBrowserBootstrap(definitions, fallback)],
@@ -105,6 +115,13 @@ async function buildDefinitions() {
     }
     orders.add(parsed.builtinOrder);
     validateRootCompatibility(parsed, rootThemes, relativeThemePath);
+    const markdownRoles = new Set();
+    postcss.parse(parsed.stylesheets.markdown).walkRules(rule => {
+      if (rule.selector.trim() !== ":root") return;
+      rule.walkDecls(declaration => markdownRoles.add(declaration.prop));
+    });
+    const missing = markdownContract.tokens.filter(({ name }) => !markdownRoles.has(name));
+    if (missing.length) fail(`${relativeThemePath} must declare its complete Markdown profile: ${missing.map(({ name }) => name).join(", ")}`);
 
     const compiledCss = {};
     let firstPaint;
@@ -369,4 +386,27 @@ function fail(message) {
 
 function formatError(error) {
   return error instanceof Error ? error.message : String(error);
+}
+
+function renderMarkdownProjection(defaultSource) {
+  const defaults = postcss.parse(defaultSource);
+  defaults.walkRules(rule => {
+    rule.selector = rule.selector.includes(".dark")
+      ? ":where(.dark) :where(.markdown-codemirror-editor)"
+      : ":where(.markdown-codemirror-editor)";
+    rule.walkDecls(declaration => {
+      declaration.prop = declaration.prop.replace("--po-md-", "--po-host-md-");
+      declaration.value = declaration.value.replace(/--po-md-([a-z0-9-]+)/g, "--po-host-md-$1");
+    });
+  });
+  const bindings = markdownContract.tokens.map(({ name, override }) => {
+    const host = name.replace("--po-md-", "--po-host-md-");
+    return `  ${name}: ${override ? `var(${override}, var(${host}))` : `var(${host})`};`;
+  });
+  return [
+    "/* Generated from the Markdown theme contract and default-neutral/theme.css.",
+    "   No handwritten visual defaults belong in renderer adapters. */",
+    `@layer fallback {\n${defaults.toString()}\n}`,
+    ".markdown-codemirror-editor {", ...bindings, "}", "",
+  ].join("\n");
 }

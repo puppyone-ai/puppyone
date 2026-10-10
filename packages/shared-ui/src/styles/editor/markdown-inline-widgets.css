@@ -143,6 +143,6 @@
 }
 
 .markdown-codemirror-editor .cm-md-inline-code {
-  font-family: var(--po-font-mono);
-  font-size: var(--po-type-editor-code, var(--po-code-font-size, 13px));
+  font-family: var(--po-md-code-font);
+  font-size: var(--po-md-inline-code-font-size);
 }

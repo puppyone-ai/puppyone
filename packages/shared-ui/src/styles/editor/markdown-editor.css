@@ -15,7 +15,7 @@
   height: 100%;
   overflow: hidden;
   box-sizing: border-box;
-  background: var(--po-editor-bg);
+  background: var(--po-md-surface-background);
   color: var(--po-text);
   cursor: text;
   /* Document rasterization is content presentation, not interface chrome.
@@ -35,7 +35,7 @@
   overflow: hidden;
   border: 1px solid var(--po-border);
   border-radius: 8px;
-  background: var(--po-editor-bg);
+  background: var(--po-md-surface-background);
   box-shadow: inset 0 1px 0 color-mix(in srgb, white 2%, transparent);
 }
 
@@ -47,7 +47,7 @@
 .markdown-codemirror-editor .cm-editor {
   height: 100%;
   min-height: 100%;
-  color: var(--po-text);
+  color: var(--po-md-content-color);
   font-family: var(--po-editor-content-font);
   font-size: var(--po-md-content-size);
   font-weight: var(--po-md-content-weight);
@@ -257,13 +257,13 @@
 }
 
 .markdown-codemirror-editor .cm-placeholder {
-  color: var(--po-text-disabled);
+  color: var(--po-md-markup-color);
   font-style: italic;
 }
 
 .markdown-codemirror-editor .cm-md-markup,
 .markdown-codemirror-editor .cm-md-syntax-markup {
-  color: var(--po-text-disabled);
+  color: var(--po-md-markup-color);
 }
 
 .markdown-codemirror-editor .cm-md-heading-mark,
@@ -275,7 +275,7 @@
 .markdown-codemirror-editor .cm-md-emphasis-mark,
 .markdown-codemirror-editor .cm-md-link-mark,
 .markdown-codemirror-editor .cm-md-url {
-  color: var(--po-text-disabled);
+  color: var(--po-md-markup-color);
 }
 
 .markdown-codemirror-editor .cm-md-syntax-emphasis {
@@ -290,13 +290,13 @@
 .markdown-codemirror-editor .cm-md-syntax-monospace,
 .markdown-codemirror-editor .cm-md-code-fence,
 .markdown-codemirror-editor .cm-md-code-block-line {
-  font-family: var(--po-font-mono);
+  font-family: var(--po-md-code-font);
 }
 
 .markdown-codemirror-editor .cm-md-code-fence,
 .markdown-codemirror-editor .cm-md-code-block-line {
   color: var(--po-md-code-block-color);
-  font-size: var(--po-md-structured-font-size);
+  font-size: var(--po-md-code-block-font-size);
 }
 
 /* Sub Themes expose semantic syntax colors; this editor-owned projection is
@@ -336,7 +336,7 @@
 ) {
   color: inherit;
   font-family: inherit;
-  font-size: var(--po-type-editor-content, 15px);
+  font-size: var(--po-md-content-size);
   font-style: normal;
   font-weight: inherit;
   text-decoration: none;
@@ -347,14 +347,14 @@
 }
 
 .markdown-codemirror-editor .cm-md-blockquote {
-  padding-left: 16px;
-  border-left: 3px solid var(--po-md-blockquote-border-color);
+  padding-left: var(--po-md-blockquote-padding-inline);
+  border-left: var(--po-md-blockquote-border-width) solid var(--po-md-blockquote-border-color);
 }
 
 .markdown-codemirror-editor .cm-md-list-line {
   position: relative;
   padding-left: calc(20px + var(--md-list-depth, 0) * 16px);
-  color: color-mix(in srgb, var(--po-text) 78%, var(--po-text-muted));
+  color: var(--po-md-list-color);
 }
 
 .markdown-codemirror-editor .cm-md-list-line:not(.cm-md-task-line)::before {
@@ -364,28 +364,28 @@
   width: 20px;
   align-items: center;
   justify-content: flex-start;
-  color: var(--po-md-blockquote-color);
-  font-weight: 650;
+  color: var(--po-md-list-marker-color);
+  font-weight: var(--po-md-list-marker-weight);
   user-select: none;
   content: var(--md-list-marker, "");
 }
 
 .markdown-codemirror-editor .cm-md-list-mark {
-  color: var(--po-md-blockquote-color);
-  font-weight: 650;
+  color: var(--po-md-list-marker-color);
+  font-weight: var(--po-md-list-marker-weight);
 }
 
 .markdown-codemirror-editor .cm-md-task-marker {
-  font-weight: 650;
+  font-weight: var(--po-md-list-marker-weight);
 }
 
 .markdown-codemirror-editor .cm-md-table-line {
-  font-family: var(--po-font-mono);
-  color: color-mix(in srgb, var(--po-text) 76%, var(--po-text-muted));
+  font-family: var(--po-md-code-font);
+  color: var(--po-md-table-color);
 }
 
 .markdown-codemirror-editor .cm-md-hr {
-  color: var(--po-text-disabled);
+  color: var(--po-md-markup-color);
 }
 
 .markdown-codemirror-editor .cm-md-hidden-syntax {
@@ -400,14 +400,14 @@
 }
 
 .markdown-codemirror-editor .cm-md-source-syntax {
-  color: var(--po-text-disabled);
+  color: var(--po-md-markup-color);
   opacity: 1;
 }
 
 .markdown-codemirror-editor .cm-md-source-syntax-heading,
 .markdown-codemirror-editor .cm-md-source-syntax-list,
 .markdown-codemirror-editor .cm-md-source-syntax-task {
-  font-weight: 650;
+  font-weight: var(--po-md-list-marker-weight);
 }
 
 .markdown-codemirror-editor .cm-md-task-line {
@@ -418,14 +418,14 @@
   --md-task-prefix-width: calc(24px + var(--md-list-depth, 0) * 16px);
   position: relative;
   padding-left: var(--md-task-prefix-width);
-  color: color-mix(in srgb, var(--po-text) 78%, var(--po-text-muted));
+  color: var(--po-md-list-color);
 }
 
 .markdown-codemirror-editor .cm-md-task-checked {
-  color: var(--po-text-subtle);
+  color: var(--po-md-task-completed-color);
   text-decoration: line-through;
   text-decoration-thickness: 1px;
-  text-decoration-color: color-mix(in srgb, var(--po-text-subtle) 72%, transparent);
+  text-decoration-color: var(--po-md-task-completed-decoration-color);
 }
 
 .markdown-codemirror-editor .cm-md-task-checkbox-widget {
@@ -865,7 +865,7 @@
   flex: 0 0 auto;
   padding: 0 2px 10px;
   cursor: var(--po-clickable-cursor, default);
-  font-family: var(--po-font-mono);
+  font-family: var(--po-md-code-font);
   font-size: var(--po-type-ui-caption, 12px);
   opacity: 0;
   transition: opacity 140ms ease;

@@ -1,5 +1,6 @@
 import postcss from "postcss";
 import path from "node:path";
+import { readFileSync } from "node:fs";
 import { parse, walk } from "css-tree";
 import { THEME_TARGETS } from "./theme-package-contract.mjs";
 import { completeSelectionPairs, validateSelectionColors } from "./theme-selection-colors.mjs";
@@ -140,62 +141,13 @@ const typographyTokenMap = new Map([
   ["--po-code-font-size", Object.freeze({ host: "--po-theme-code-font-size", min: 10, max: 20 })],
   ["--po-terminal-font-size", Object.freeze({ host: "--po-theme-terminal-font-size", min: 10, max: 20 })],
 ]);
-const markdownTokenMap = new Map([
-  ["--po-md-selection-bg", "--po-host-md-selection-bg"],
-  ["--po-md-selection-inactive-bg", "--po-host-md-selection-inactive-bg"],
-  ["--po-md-surface-background", "--po-host-md-surface-background"],
-  ["--po-md-content-color", "--po-host-md-content-color"],
-  ["--po-md-content-font", "--po-host-md-content-font"],
-  ["--po-md-content-size", "--po-host-md-content-size"],
-  ["--po-md-content-weight", "--po-host-md-content-weight"],
-  ["--po-md-content-letter-spacing", "--po-host-md-content-letter-spacing"],
-  ["--po-md-content-line-height", "--po-host-md-content-line-height"],
-  ["--po-md-block-gap", "--po-host-md-block-gap"],
-  ["--po-md-heading-gap-before", "--po-host-md-heading-gap-before"],
-  ["--po-md-heading-gap-after", "--po-host-md-heading-gap-after"],
-  ["--po-md-heading-color", "--po-host-md-heading-color"],
-  ["--po-md-heading-weight", "--po-host-md-heading-weight"],
-  ["--po-md-heading-line-height", "--po-host-md-heading-line-height"],
-  ["--po-md-heading-border-color", "--po-host-md-heading-border-color"],
-  ["--po-md-h1-size", "--po-host-md-h1-size"],
-  ["--po-md-h2-size", "--po-host-md-h2-size"],
-  ["--po-md-h3-size", "--po-host-md-h3-size"],
-  ["--po-md-h4-size", "--po-host-md-h4-size"],
-  ["--po-md-h5-size", "--po-host-md-h5-size"],
-  ["--po-md-h6-size", "--po-host-md-h6-size"],
-  ["--po-md-h1-weight", "--po-host-md-h1-weight"],
-  ["--po-md-h2-weight", "--po-host-md-h2-weight"],
-  ["--po-md-h3-weight", "--po-host-md-h3-weight"],
-  ["--po-md-strong-weight", "--po-host-md-strong-weight"],
-  ["--po-md-strong-color", "--po-host-md-strong-color"],
-  ["--po-md-rule-color", "--po-host-md-rule-color"],
-  ["--po-md-link-color", "--po-host-md-link-color"],
-  ["--po-md-blockquote-color", "--po-host-md-blockquote-color"],
-  ["--po-md-blockquote-border-color", "--po-host-md-blockquote-border-color"],
-  ["--po-md-inline-code-background", "--po-host-md-inline-code-background"],
-  ["--po-md-inline-code-color", "--po-host-md-inline-code-color"],
-  ["--po-md-code-block-background", "--po-host-md-code-block-background"],
-  ["--po-md-code-block-color", "--po-host-md-code-block-color"],
-  ["--po-md-syntax-keyword", "--po-host-md-syntax-keyword"],
-  ["--po-md-syntax-string", "--po-host-md-syntax-string"],
-  ["--po-md-syntax-comment", "--po-host-md-syntax-comment"],
-  ["--po-md-syntax-constant", "--po-host-md-syntax-constant"],
-  ["--po-md-syntax-special", "--po-host-md-syntax-special"],
-  ["--po-md-syntax-type", "--po-host-md-syntax-type"],
-  ["--po-md-syntax-function", "--po-host-md-syntax-function"],
-  ["--po-md-syntax-property", "--po-host-md-syntax-property"],
-  ["--po-md-syntax-operator", "--po-host-md-syntax-operator"],
-  ["--po-md-syntax-meta", "--po-host-md-syntax-meta"],
-]);
-const markdownIntegerSizeTokens = new Set([
-  "--po-md-content-size",
-  "--po-md-h1-size",
-  "--po-md-h2-size",
-  "--po-md-h3-size",
-  "--po-md-h4-size",
-  "--po-md-h5-size",
-  "--po-md-h6-size",
-]);
+const markdownContract = JSON.parse(readFileSync(
+  new URL("../../../shared/markdown-theme-contract.json", import.meta.url), "utf8",
+));
+const markdownTokenMap = new Map(markdownContract.tokens.map(({ name }) => [
+  name, name.replace("--po-md-", "--po-host-md-"),
+]));
+const markdownIntegerSizeTokens = new Set(markdownContract.integerSizes);
 const csvTokenMap = new Map([
   ["--po-csv-selection-bg", "--po-host-csv-selection-bg"],
   ["--po-csv-selection-inactive-bg", "--po-host-csv-selection-inactive-bg"],
@@ -433,15 +385,28 @@ function validateAtRules(root) {
 
 function scopeRules(root, { themeId, target }) {
   const host = `[data-po-appearance-root][data-sub-theme-id="${themeId}"]`;
-  root.walkRules((rule) => {
+  for (const rule of collectRules(root)) {
     const selectors = splitSelectors(rule.selector);
-    const scoped = selectors.map((selector) => scopeSelector(selector, host, target));
-    const rootOnly = selectors.every((selector) => isApplicationRootSelector(selector));
-    if (!rootOnly) {
+    if (!selectors.every(isApplicationRootSelector)) {
       throw new TypeError(`${target} Sub Themes may only declare root-level public tokens.`);
     }
-    rule.selector = scoped.join(", ");
-  });
+    if (target !== "markdown") {
+      rule.selector = selectors.map((selector) => scopeSelector(selector, host, target)).join(", ");
+      continue;
+    }
+    // Resolve Markdown references on the pane, where document lang and inline
+    // context exist. A nested Appearance root ends this theme's scope, so a
+    // parent theme cannot style another pane/portal's registered profile.
+    const scopes = [...new Set(selectors.map(selector =>
+      hasDarkSelector(selector) ? `${host}:where(.dark)` : host,
+    ))].map(scopeRoot => {
+      const scope = postcss.atRule({ name: "scope", params: `(${scopeRoot}) to ([data-po-appearance-root])` });
+      const projection = rule.clone({ selector: ".markdown-codemirror-editor" });
+      scope.append(projection);
+      return scope;
+    });
+    rule.replaceWith(...scopes);
+  }
 }
 
 function scopeSelector(selector, host, target) {

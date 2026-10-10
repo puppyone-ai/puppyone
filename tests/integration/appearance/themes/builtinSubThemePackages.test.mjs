@@ -9,6 +9,7 @@ import { parseSingleFileThemeCss } from "../../../../electron/main/themes/theme-
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const packagesRoot = path.join(repoRoot, "sub-themes");
+const markdownContract = JSON.parse(readFileSync(path.join(repoRoot, "shared/markdown-theme-contract.json"), "utf8"));
 
 function declarationsForSelector(css, selector) {
   const declarations = {};
@@ -76,7 +77,11 @@ describe("built-in Sub Theme package architecture", () => {
           supportedModes: theme.modes,
           allowReservedBuiltinId: true,
         });
-        expect(result.css).not.toMatch(/\.cm-|\.markdown-codemirror-editor|\.csv-table-editor/);
+        expect(result.css).not.toMatch(/\.cm-|\.csv-table-editor/);
+        if (target === "markdown") {
+          expect(result.css).toContain("@scope (");
+          expect(result.css).toContain("to ([data-po-appearance-root])");
+        } else expect(result.css).not.toContain(".markdown-codemirror-editor");
         expect(result.css).not.toContain("@puppyone");
         if (target === "application") {
           for (const mode of theme.modes) {
@@ -106,6 +111,25 @@ describe("built-in Sub Theme package architecture", () => {
       ["scripts/generate-builtin-sub-themes.mjs", "--check"],
       { cwd: repoRoot, stdio: "pipe" },
     )).not.toThrow();
+  });
+
+  it("declares every Markdown visual role in each file and generates defaults from that file", () => {
+    for (const directory of readdirSync(packagesRoot).sort()) {
+      const parsed = parseSingleFileThemeCss(readFileSync(path.join(packagesRoot, directory, "theme.css"), "utf8"), {
+        allowReservedBuiltinId: true, allowBuiltinCompatibilityMetadata: true,
+      });
+      const roles = declarationsForSelector(parsed.stylesheets.markdown, ":root");
+      expect(Object.keys(roles).sort()).toEqual(markdownContract.tokens.map(({ name }) => name).sort());
+      expect(roles["--po-md-inline-code-background"]).toBe("transparent");
+      expect(roles["--po-md-code-block-font-size"]).toBe("var(--po-md-table-font-size)");
+      expect(roles["--po-md-code-block-color"]).toBe("var(--po-md-blockquote-color)");
+    }
+    const projection = readFileSync(path.join(repoRoot, "packages/shared-ui/src/styles/editor/markdown-theme-tokens.generated.css"), "utf8");
+    for (const { name } of markdownContract.tokens) {
+      expect(projection).toContain(`${name}:`);
+      expect(projection).toContain(`${name.replace("--po-md-", "--po-host-md-")}:`);
+    }
+    expect(projection).not.toContain("--po-type-editor-");
   });
 
   it("keeps Neutral's Dark chrome unified and distinct from the editor", async () => {
