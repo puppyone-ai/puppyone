@@ -39,6 +39,28 @@ async function settleSidebar() {
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await waitFor("[...document.querySelectorAll('.desktop-right-sidebar')].every(element => element.getAnimations({subtree:true}).every(animation => animation.effect?.getTiming().iterations === Infinity || animation.playState !== 'running'))");
 }
+async function checkHistoryTypography() {
+  const typography = await evaluate(`(() => {
+    const title = document.querySelector('.desktop-agent-history-title');
+    const time = document.querySelector('.desktop-agent-history-time');
+    const option = document.querySelector('.desktop-agent-history-option');
+    const style = getComputedStyle(option);
+    return {
+      title: getComputedStyle(title).fontSize,
+      time: getComputedStyle(time).fontSize,
+      contentRole: style.getPropertyValue('--agent-font-size').trim(),
+      metaRole: style.getPropertyValue('--agent-font-size-meta').trim(),
+      color: getComputedStyle(time).color,
+      metaColor: style.getPropertyValue('--agent-text-subtle').trim(),
+    };
+  })()`);
+  assert(typography.contentRole && typography.metaRole, 'Cloud history must inherit the native Agent typography boundary');
+  assert(parseFloat(typography.title) === parseFloat(typography.contentRole), 'History titles use the native content size');
+  assert(parseFloat(typography.time) === parseFloat(typography.metaRole), 'History timestamps use the smaller native metadata size');
+  assert(parseFloat(typography.time) < parseFloat(typography.title), 'History metadata must retain its visual hierarchy');
+  assert(typography.metaColor, 'Cloud history must inherit the native supporting text color');
+  return typography;
+}
 async function checkWorkbench(api, mode) {
   const tabs = "document.querySelectorAll('.desktop-right-sidebar [role=tab]')";
   const plus = "document.querySelector('.desktop-right-sidebar [aria-label=\"New tab\"]')";
@@ -64,6 +86,8 @@ async function checkWorkbench(api, mode) {
   await waitFor("Boolean(document.querySelector('.desktop-terminal-launcher-history'))");
   await evaluate("document.querySelector('.desktop-terminal-launcher-history').click()");
   await waitFor("Boolean(document.querySelector('.desktop-agent-history-option'))");
+  const typography = await checkHistoryTypography();
+  await writeFile(path.join(artifacts, `${mode}-history-typography.json`), JSON.stringify(typography, null, 2));
   await evaluate("document.querySelector('.desktop-agent-history-toolbar-button[aria-label=\"Search chat history\"]').click()");
   await waitFor("Boolean(document.querySelector('.desktop-agent-history-search input'))");
   await settleSidebar();

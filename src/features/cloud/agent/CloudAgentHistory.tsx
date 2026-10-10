@@ -17,7 +17,8 @@ export function CloudAgentHistory({ workbench, excludedResourceIds, openingTarge
     terminalState: "idle", selectedModel: null, lastSequence: 0,
   })), [state.sessions, excludedResourceIds, workbench, t]);
   const settledStatus = state.loaded ? "complete" : "not-requested";
-  return <AgentConversationHistory sessions={sessions} runtimes={[]} loading={!state.loaded && state.loading}
+  return <div className="desktop-agent-boundary desktop-agent-runtime-launcher is-history">
+    <AgentConversationHistory sessions={sessions} runtimes={[]} loading={!state.loaded && state.loading}
     refreshing={state.loaded && state.loading} loadingMore={false} hasMore={false} error={state.error}
     excludedSessionCount={state.sessions.length - sessions.length} openingSessionId={openingTargetId}
     sources={{ "cloud-pi": { runtimeId: "cloud-pi", status: state.error ? "failed" : settledStatus,
@@ -25,5 +26,6 @@ export function CloudAgentHistory({ workbench, excludedResourceIds, openingTarge
     onOpen={session => {
       const payload = state.sessions.find(row => row.id === session.id);
       if (payload) onOpen({ id: session.id, title: session.title, iconKey: "puppyone-agent", payload });
-    }} onRefresh={() => { void workbench.refreshHistory(); }} onLoadMore={() => {}} onBack={onBack} />;
+    }} onRefresh={() => { void workbench.refreshHistory(); }} onLoadMore={() => {}} onBack={onBack} />
+  </div>;
 }
