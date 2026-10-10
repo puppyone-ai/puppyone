@@ -140,7 +140,13 @@ async function runSmoke() {
       normalTextColor: getComputedStyle(menu).color,
       selectedContrast: contrast(selectedLuminance, luminance(getComputedStyle(selected).color)),
       iconWidths: buttons.map(button => button.querySelector('.desktop-menu-item-icon').getBoundingClientRect().width),
-      iconColorsMatch: buttons.every(button => getComputedStyle(button.querySelector('.desktop-menu-item-icon')).color === getComputedStyle(button.querySelector('.desktop-menu-item-label')).color),
+      iconColorsCorrect: buttons.every(button => {
+        const mark = button.querySelector('.desktop-project-location-option-mark');
+        const icon = mark ?? button.querySelector('.desktop-menu-item-icon');
+        const expectedColor = mark && button.dataset.projectLocation === 'cloud'
+          ? accentColor : getComputedStyle(button.querySelector('.desktop-menu-item-label')).color;
+        return getComputedStyle(icon).color === expectedColor;
+      }),
       selectedBackground: getComputedStyle(selected).backgroundColor,
       selectedCheck: !!selected.querySelector('.desktop-menu-item-trailing .lucide-check'),
       checkCount: menu.querySelectorAll('.desktop-menu-item-trailing .lucide-check').length,
@@ -176,12 +182,13 @@ async function runSmoke() {
   assert(snapshot.locale === locale && snapshot.devicePlatform === platform, `Wrong locale or device platform: ${evidence}`);
   assert(snapshot.cloudEntry === (creating ? "create" : "switch"), `Use creation only for a confirmed unhosted project: ${evidence}`);
   assert(snapshot.labelsFit && snapshot.labels.join("|") === [catalog[platform === "macos" ? "workspaceSwitcher.location.thisMac" : "workspaceSwitcher.location.thisComputer"], catalog[creating ? "workspaceSwitcher.shareToCloud" : "navigation.cloud"]].join("|"), `Only the two unclipped localized actions belong in this menu: ${evidence}`);
-  assert(creating ? snapshot.createIcon && snapshot.separatorSpacing === 7
+  assert(snapshot.separatorSpacing === 7, `Device and Cloud rows must always have a compact divider: ${evidence}`);
+  assert(creating ? snapshot.createIcon
     && snapshot.createContrast >= 4.5 && snapshot.createColor === snapshot.accentColor
-    : !snapshot.createIcon && snapshot.separatorSpacing === 0 && snapshot.createContrast === null,
-    `Unhosted projects keep a readable Share to Cloud row with the shared Cloud mark and a compact divider: ${evidence}`);
-  assert(snapshot.iconWidths.every(width => width === projectRowAppearance.iconWidth) && snapshot.iconColorsMatch
-    && (state === "cloud-only" || snapshot.headerColorsMatch), `Small icons must match their labels; the committed Cloud Header mark keeps its brand tint: ${evidence}`);
+    : !snapshot.createIcon && snapshot.createContrast === null,
+    `Unhosted projects keep a readable Share to Cloud row with the shared Cloud mark: ${evidence}`);
+  assert(snapshot.iconWidths.every(width => width === projectRowAppearance.iconWidth) && snapshot.iconColorsCorrect
+    && (state === "cloud-only" || snapshot.headerColorsMatch), `Device icons must match their labels and Cloud icons use the theme accent: ${evidence}`);
   assert(snapshot.selectedTextColor === projectRowAppearance.color && snapshot.selectedContrast >= 7
     && snapshot.selectedBackground === projectRowAppearance.background && snapshot.selectedShadow === projectRowAppearance.shadow
     && snapshot.fonts.every(font => font === projectRowAppearance.font)
@@ -464,7 +471,7 @@ async function checkStableReopening(window, direction = "ltr") {
         const buttons = [...track.querySelectorAll('button')].map(button => button.getBoundingClientRect());
         frames.push({ x:m.x, y:m.y, width:m.width, height:m.height,
           aligned: buttons[0].x === buttons[1].x && buttons[0].width === buttons[1].width,
-          stacked: buttons[1].top === buttons[0].bottom + 2,
+          stacked: buttons[1].top === buttons[0].bottom + 9,
           hasSlider: !!menu.querySelector('.desktop-project-location-indicator') });
       }
       if (frames.length < 8) requestAnimationFrame(sample); else resolve(frames);

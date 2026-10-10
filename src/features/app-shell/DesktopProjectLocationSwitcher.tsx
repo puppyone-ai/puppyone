@@ -94,7 +94,7 @@ export function DesktopProjectLocationControls({
           <span>{t("shell.navigation.cloud")}</span>
         </span>}
         {(["local", "cloud"] as const).map(location => <Fragment key={location}>
-          {location === "cloud" && createCloud && presentation === "popover"
+          {location === "cloud" && presentation === "popover"
             && <DesktopMenuSeparator className="desktop-project-location-separator" />}
           <ProjectLocationTab
             location={location} current={current} selection={selection} createCloud={createCloud}
