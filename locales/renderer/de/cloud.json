@@ -934,5 +934,8 @@
   "billing.subscriptionStatus.cancel_scheduled": "Kündigung geplant",
   "billing.subscriptionStatus.past_due": "Zahlung überfällig",
   "billing.subscriptionStatus.revoked": "Zugriff entzogen",
-  "billing.subscriptionStatus.disputed": "Zahlung angefochten"
+  "billing.subscriptionStatus.disputed": "Zahlung angefochten",
+  "share.preview.title": "Ansicht für Empfänger",
+  "share.preview.open": "Vorschau öffnen",
+  "share.preview.note": "Teile diesen Link für eine Vorschau deines Arbeitsbereichs. Es gelten die Berechtigungen des Arbeitsbereichs."
 }

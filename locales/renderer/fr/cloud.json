@@ -934,5 +934,8 @@
   "billing.subscriptionStatus.cancel_scheduled": "Annulation programmée",
   "billing.subscriptionStatus.past_due": "Paiement en retard",
   "billing.subscriptionStatus.revoked": "Accès révoqué",
-  "billing.subscriptionStatus.disputed": "Paiement contesté"
+  "billing.subscriptionStatus.disputed": "Paiement contesté",
+  "share.preview.title": "Ce que voient les destinataires",
+  "share.preview.open": "Ouvrir l’aperçu",
+  "share.preview.note": "Partagez ce lien pour présenter votre espace de travail. Les autorisations de cet espace s’appliquent."
 }

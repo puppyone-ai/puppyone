@@ -11,13 +11,13 @@ vi.mock("../../../../src/lib/clipboard", () => ({ writeClipboardText: vi.fn().mo
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const projectId = "11111111-1111-4111-8111-111111111111";
 let root: Root | null = null;
-async function render(scopePath?: string) {
+async function render(scopePath?: string, previewEntries?: { name: string; type: string }[]) {
   const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
   const onClose = vi.fn();
   await act(async () => root!.render(withTestLocalization(<CloudWorkspaceShareDialog
     context={{ status: "resolved", projectId, projectName: "Research", scopePath,
       target: scopePath ? { kind: "scope", project_id: projectId, scope_id: "limited" } : { kind: "project_root", project_id: projectId } }}
-    onClose={onClose} />)));
+    previewEntries={previewEntries} onClose={onClose} />)));
   return onClose;
 }
 const copy = () => document.querySelector<HTMLButtonElement>(".desktop-dialog-button.primary")!;
@@ -36,6 +36,15 @@ describe("Cloud workspace link sharing", () => {
     expect(fetch).not.toHaveBeenCalled(); fetch.mockRestore();
     act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     expect(close).toHaveBeenCalledTimes(1);
+  });
+  it("shows cached file names in the recipient preview without fetching their contents", async () => {
+    const fetch = vi.spyOn(globalThis, "fetch");
+    await render(undefined, [{ name: ".DS_Store", type: "file" }, { name: "Notes", type: "folder" }, { name: "Research.md", type: "markdown" }]);
+    expect(document.querySelector(".desktop-cloud-share-preview-window")?.textContent).toContain("Research.md");
+    expect(document.querySelector(".desktop-cloud-share-preview-window")?.textContent).toContain("Notes");
+    expect(document.body.textContent).not.toContain(".DS_Store");
+    expect(document.querySelector(".desktop-cloud-share-preview-heading a")?.getAttribute("href")).toBe(`https://cloud-fixture.puppyone.ai/${projectId}/`);
+    expect(fetch).not.toHaveBeenCalled(); fetch.mockRestore();
   });
   it("preserves an authorized folder locator and encodes each path segment", async () => {
     await render("研究资料/Notes #1");

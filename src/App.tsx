@@ -1733,6 +1733,7 @@ function AppContent() {
   const titlebarActions = (
     <>
       {cloudHeaderActive && <CloudWorkspaceHeaderTools context={cloudWorkspaceActive ? accountCloud.context : null}
+        previewEntries={cloudWorkspaceActive && nativeCloudWorkbench.service ? nativeCloudWorkbench.service.dataPort.getCachedChildren?.(nativeCloudWorkbench.service.folder.uri) : undefined}
         session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession}
         historyOpen={cloudSidebar.historyOpen} onToggleHistory={cloudSidebar.toggleHistory}
         agentOpen={cloudAgent.open} onToggleAgent={cloudWorkspaceActive ? cloudSidebar.toggleAgent : undefined} />}

@@ -934,5 +934,8 @@
   "billing.subscriptionStatus.cancel_scheduled": "キャンセル予定",
   "billing.subscriptionStatus.past_due": "支払い期限超過",
   "billing.subscriptionStatus.revoked": "アクセス取消済み",
-  "billing.subscriptionStatus.disputed": "支払い異議申し立て中"
+  "billing.subscriptionStatus.disputed": "支払い異議申し立て中",
+  "share.preview.title": "受信者に表示されるページ",
+  "share.preview.open": "プレビューを開く",
+  "share.preview.note": "このリンクを共有すると、相手はワークスペースをプレビューできます。アクセスにはワークスペースの権限が適用されます。"
 }

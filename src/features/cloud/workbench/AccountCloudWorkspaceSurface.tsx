@@ -113,6 +113,7 @@ export function AccountCloudWorkspaceSurface({ workbench, presentation, active, 
       {...projectRail}
       leftSidebarWidth={explorerWidth} onLeftSidebarExpand={() => setSidebarCollapsed(false)}
       titlebarActions={active && <CloudWorkspaceHeaderTools context={context} session={session}
+        previewEntries={service.dataPort.getCachedChildren?.(service.folder.uri)}
         apiBaseUrl={apiBaseUrl} onSessionChange={onSessionChange} agentOpen={agent.open} onToggleAgent={sidebar.toggleAgent}
         historyOpen={sidebar.historyOpen} onToggleHistory={sidebar.toggleHistory} />}
       titlebarSidebarSlot={centered ? undefined : projectContext}

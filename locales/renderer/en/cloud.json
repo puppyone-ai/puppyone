@@ -934,5 +934,8 @@
   "billing.subscriptionStatus.cancel_scheduled": "Cancellation scheduled",
   "billing.subscriptionStatus.past_due": "Payment overdue",
   "billing.subscriptionStatus.revoked": "Access revoked",
-  "billing.subscriptionStatus.disputed": "Payment disputed"
+  "billing.subscriptionStatus.disputed": "Payment disputed",
+  "share.preview.title": "What recipients see",
+  "share.preview.open": "Open preview",
+  "share.preview.note": "Share this link to let others preview your workspace. Access follows your workspace permissions."
 }

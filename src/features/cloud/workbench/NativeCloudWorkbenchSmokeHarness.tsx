@@ -290,6 +290,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
       {...getProjectHeaderSlots(centeredProject, projectSwitcher)}
       titlebarActions={<>
         {headerLocation === "cloud" && <CloudWorkspaceHeaderTools context={location === "cloud" ? context : null}
+          previewEntries={location === "cloud" && workbench.service ? workbench.service.dataPort.getCachedChildren?.(workbench.service.folder.uri) : undefined}
           session={activeSession} apiBaseUrl={API} onSessionChange={noop}
           agentOpen={agent.open} onToggleAgent={cloudSidebar.toggleAgent}
           historyOpen={cloudSidebar.historyOpen} onToggleHistory={cloudSidebar.toggleHistory} />}

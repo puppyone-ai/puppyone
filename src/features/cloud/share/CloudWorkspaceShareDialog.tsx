@@ -8,10 +8,12 @@ import { writeClipboardText } from "../../../lib/clipboard";
 import { DesktopOverlayLayer } from "../../app-shell/DesktopOverlayPortal";
 import { workspaceResourceUrl } from "../files/workspaceResourceUrl";
 import type { ProjectCloudContext } from "../project/context";
+import { CloudWorkspaceSharePreview, type SharePreviewEntry } from "./CloudWorkspaceSharePreview";
 import "./workspace-share.css";
 
-export function CloudWorkspaceShareDialog({ context, onClose }: {
+export function CloudWorkspaceShareDialog({ context, previewEntries, onClose }: {
   context: Extract<ProjectCloudContext, { status: "resolved" }>;
+  previewEntries?: readonly SharePreviewEntry[];
   onClose: () => void;
 }) {
   const { t } = useLocalization();
@@ -30,7 +32,7 @@ export function CloudWorkspaceShareDialog({ context, onClose }: {
   };
   return <DesktopOverlayLayer>
     <DesktopDialogRoot onClose={onClose}>
-      <DesktopDialogSurface width={440} ariaLabel={title} className="desktop-cloud-workspace-share">
+      <DesktopDialogSurface width={560} ariaLabel={title} className="desktop-cloud-workspace-share">
         <header className="desktop-dialog-header">
           <div className="desktop-dialog-title-row"><Link2 size={17} aria-hidden="true" /><h2>{title}</h2></div>
           <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} onClick={onClose} /></Tooltip>
@@ -41,6 +43,7 @@ export function CloudWorkspaceShareDialog({ context, onClose }: {
           </label>}
           {!url && <p role="alert">{t("cloud.share.publish.unavailable")}</p>}
           <p>{t("cloud.share.handoff.linkNote")} {t("cloud.share.scope.workspacePermissions")}</p>
+          {url && <CloudWorkspaceSharePreview title={context.projectName || t("cloud.share.workspace")} url={url} entries={previewEntries} />}
           {status === "failed" && <p role="alert">{t("cloud.share.copyFailed")}</p>}
         </div>
         <footer className="desktop-dialog-footer">

@@ -4,12 +4,14 @@ import { Tooltip } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import { AgentEntryIcon } from "../../../components/brand/AgentEntryIcon";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
+import type { SharePreviewEntry } from "../share/CloudWorkspaceSharePreview";
 import type { ProjectCloudContext } from "../project/context";
 
 const ShareDialog = lazy(() => import("../share/CloudWorkspaceShareDialog").then(module => ({ default: module.CloudWorkspaceShareDialog })));
 
 type Props = {
   context: ProjectCloudContext | null;
+  previewEntries?: readonly SharePreviewEntry[];
   session: DesktopCloudSession | null;
   apiBaseUrl: string;
   onSessionChange: (session: DesktopCloudSession | null) => void;
@@ -26,7 +28,7 @@ export function CloudWorkspaceHeaderTools(props: Props) {
   return <ScopedCloudWorkspaceHeaderTools key={scope} {...props} />;
 }
 
-function ScopedCloudWorkspaceHeaderTools({ context, session, historyOpen = false, onToggleHistory, agentOpen = false, onToggleAgent }: Props) {
+function ScopedCloudWorkspaceHeaderTools({ context, session, previewEntries, historyOpen = false, onToggleHistory, agentOpen = false, onToggleAgent }: Props) {
   const { t } = useLocalization();
   const [sharing, setSharing] = useState(false);
   const ready = context?.status === "resolved" && session !== null;
@@ -58,7 +60,7 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, historyOpen = false
       </Tooltip>
     </div>
     {sharing && context?.status === "resolved" && session && <Suspense fallback={null}>
-      <ShareDialog context={context} onClose={() => setSharing(false)} />
+      <ShareDialog context={context} previewEntries={previewEntries} onClose={() => setSharing(false)} />
     </Suspense>}
   </>;
 }

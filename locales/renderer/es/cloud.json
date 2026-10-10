@@ -934,5 +934,8 @@
   "billing.subscriptionStatus.cancel_scheduled": "Cancelación programada",
   "billing.subscriptionStatus.past_due": "Pago vencido",
   "billing.subscriptionStatus.revoked": "Acceso revocado",
-  "billing.subscriptionStatus.disputed": "Pago en disputa"
+  "billing.subscriptionStatus.disputed": "Pago en disputa",
+  "share.preview.title": "Lo que ven los destinatarios",
+  "share.preview.open": "Abrir vista previa",
+  "share.preview.note": "Comparte este enlace para mostrar tu espacio de trabajo. Se aplican sus permisos de acceso."
 }
