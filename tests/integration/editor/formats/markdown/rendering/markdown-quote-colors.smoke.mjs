@@ -28,7 +28,7 @@ const sourceIdentity = {
   electron: process.versions.electron, chromium: process.versions.chrome,
 };
 const source = [
-  "Ordinary **bold**, `body code`, [link](https://example.com).",
+  "Ordinary **bold**, `body code`, <code>body HTML code</code>, [link](https://example.com).",
   "",
   "> Quote **bold** *italic* ~~strike~~ <b>HTML bold</b> <i>HTML italic</i>.",
   "> 1. First **bold**",
@@ -40,7 +40,7 @@ const source = [
   "1. Outside **bold**",
   "2. Second outside",
   "",
-  "<div><blockquote><p>HTML quote <strong>bold</strong> <em>italic</em> <del>strike</del> <code>HTML code</code> <strong><code>bold code</code></strong> <code><em>italic code</em></code> <kbd>kbd</kbd> <a href=\"https://example.com\"><strong>bold link</strong> <code>code link</code></a></p><ol><li>HTML first</li><li>HTML second</li></ol></blockquote><ol><li>Outside HTML first</li></ol><pre><code>Block code control</code></pre></div>",
+  "<div><p>HTML prose <code>HTML body code</code></p><blockquote><p>HTML quote <strong>bold</strong> <em>italic</em> <del>strike</del> <code>HTML code</code> <strong><code>bold code</code></strong> <code><em>italic code</em></code> <kbd>kbd</kbd> <a href=\"https://example.com\"><strong>bold link</strong> <code>code link</code></a></p><ol><li>HTML first</li><li>HTML second</li></ol></blockquote><ol><li>Outside HTML first</li></ol><pre><code>Block code control</code></pre></div>",
   "",
   "| Inline renderer |",
   "| --- |",
@@ -93,12 +93,18 @@ function readColors() {
     .map(element => ({ text: getComputedStyle(element, "::before").content,
       actual: color(element, "::before"), expected: quoteColor }));
   const htmlMarkers = [...host.querySelectorAll(".cm-md-html-rendered-surface li")]
-    .map(element => ({ text: element.textContent, actual: color(element, "::marker"), expected: quoteColor }));
+    .map(element => ({ text: element.textContent, actual: color(element, "::before"), expected: quoteColor }));
   const bodyLine = host.querySelector(".cm-line");
   const link = bodyLine.querySelector(linkSelector);
   const quotedLinks = [...host.querySelectorAll(".cm-md-blockquote .cm-md-syntax-link, .cm-md-html-rendered-surface blockquote a strong")]
     .map(element => ({ text: element.textContent, actual: color(element), expected: color(link) }));
   const bodyCode = bodyLine.querySelector(".cm-md-syntax-monospace");
+  const bodyCodes = [...host.querySelectorAll(".cm-md-syntax-monospace:not(.cm-md-syntax-markup), .cm-md-inline-code, code.cm-md-inline-html, .cm-md-html-rendered-surface code:not(pre code)")]
+    .filter(element => !element.closest(".cm-md-blockquote, blockquote, .cm-md-table-widget, table, .cm-md-code-widget, pre, .cm-md-syntax-link, a, [data-md-link-interaction=navigate]"))
+    .map(element => ({ text: element.textContent, actual: color(element), size: getComputedStyle(element).fontSize,
+      weight: getComputedStyle(element).fontWeight }));
+  const probe = document.createElement("span"); probe.style.color = "var(--po-md-surface-background)";
+  host.appendChild(probe); const surfaceColor = color(probe); probe.remove();
   const codeSelector = ".cm-md-syntax-monospace, .cm-md-inline-code, code.cm-md-inline-html";
   const quoteCode = quotes.flatMap(quote => [...quote.querySelectorAll(codeSelector)]
     .filter(element => !element.matches(".cm-md-syntax-link, .cm-md-syntax-markup, .cm-md-markup, [class*='cm-md-source-syntax']")
@@ -115,7 +121,9 @@ function readColors() {
   const htmlLinkedCode = htmlQuote.querySelector("a code");
   quotedLinks.push({ text: htmlLinkedCode.textContent, actual: color(htmlLinkedCode), expected: color(link) });
   const blockCode = host.querySelector(".cm-md-html-rendered-surface pre code");
-  return { editing: Boolean(host.querySelector(".cm-editor.cm-focused")), quoteColor, bodyColor: color(bodyLine), ordinaryStrongColor: color(bodyLine.querySelector(".cm-md-syntax-strong")),
+  return { editing: Boolean(host.querySelector(".cm-editor.cm-focused")), selectedThemeId: document.querySelector("#surface").dataset.subThemeId,
+    quoteColor, surfaceColor, bodyCodes, bodyColor: color(bodyLine), bodySize: getComputedStyle(bodyLine).fontSize,
+    bodyWeight: getComputedStyle(bodyLine).fontWeight, ordinaryStrongColor: color(bodyLine.querySelector(".cm-md-syntax-strong")),
     ordinaryStrongWeight: getComputedStyle(bodyLine.querySelector(".cm-md-syntax-strong")).fontWeight,
     quoteStrongWeight: getComputedStyle(quotes[0].querySelector(".cm-md-syntax-strong")).fontWeight,
     ordinaryCodeColor: color(bodyCode), codeFont: getComputedStyle(bodyCode).fontFamily,
@@ -136,6 +144,26 @@ function assertColors(metrics, override) {
     assert.deepEqual(metrics.quoteColor, [88, 115, 102, 255], "quote host token did not propagate");
     assert.deepEqual(metrics.ordinaryStrongColor, [217, 0, 113, 255], "ordinary strong user override was lost");
     assert.deepEqual(metrics.ordinaryCodeColor, [20, 122, 150, 255], "ordinary code host override was lost");
+  } else {
+    assert.notDeepEqual(metrics.ordinaryCodeColor, metrics.bodyColor, "inline code lost its softer foreground");
+    assert.notDeepEqual(metrics.ordinaryCodeColor, metrics.quoteColor, "inline code must stay readable above supporting quote text");
+    for (let channel = 0; channel < 3; channel++) {
+      assert(metrics.ordinaryCodeColor[channel] >= Math.min(metrics.bodyColor[channel], metrics.quoteColor[channel]) - 1
+        && metrics.ordinaryCodeColor[channel] <= Math.max(metrics.bodyColor[channel], metrics.quoteColor[channel]) + 1,
+      "inline code must remain in its theme's body/quote palette");
+    }
+    const luminance = color => color.slice(0, 3).map(value => value / 255)
+      .map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4)
+      .reduce((sum, value, index) => sum + value * [.2126, .7152, .0722][index], 0);
+    const foreground = luminance(metrics.ordinaryCodeColor), background = luminance(metrics.surfaceColor);
+    assert((Math.max(foreground, background) + .05) / (Math.min(foreground, background) + .05) >= 4.5,
+      "muted inline code lost readable contrast");
+  }
+  assert(metrics.bodyCodes.length >= 3, "native, inline HTML and Safe HTML body code must render");
+  for (const code of metrics.bodyCodes) {
+    assert.deepEqual(code.actual, metrics.ordinaryCodeColor, `body inline adapter foreground: ${code.text}`);
+    assert.equal(code.size, metrics.bodySize, `body inline code gained a private font size: ${code.text}`);
+    assert.equal(code.weight, metrics.bodyWeight, `body inline code gained a private bold weight: ${code.text}`);
   }
   const minimums = { quoteEmphasis: 8, htmlEmphasis: 3, quoteCode: 3, htmlCode: 4, widgetCode: 1, quotedMarkers: 3, nativeMarkers: 2, htmlMarkers: 3, quotedLinks: 3 };
   for (const [group, minimum] of Object.entries(minimums)) {
@@ -369,7 +397,8 @@ function readFileAuthority() {
     peerColor: color(css(document.querySelector("#peer .cm-editor")).color), blocks,
     cells: [...host.querySelectorAll(".cm-md-table-widget :is(th,td), .cm-md-html-rendered-surface table :is(th,td)")].map(element => ({
       header: element.tagName === "TH", color: color(css(element).color), size: css(element).fontSize, font: css(element).fontFamily })),
-    inline: [...host.querySelectorAll(".cm-md-syntax-monospace:not(.cm-md-syntax-markup), .cm-md-inline-code, code.cm-md-inline-html, .cm-md-html-rendered-surface code:not(pre code)")].map(element => ({ text: element.textContent, background: color(css(element).backgroundColor) })),
+    inline: [...host.querySelectorAll(".cm-md-syntax-monospace:not(.cm-md-syntax-markup), .cm-md-inline-code, code.cm-md-inline-html, .cm-md-html-rendered-surface code:not(pre code)")].map(element => ({ text: element.textContent, background: color(css(element).backgroundColor), color: color(css(element).color),
+      supportingContext: Boolean(element.closest(".cm-md-blockquote, blockquote, .cm-md-table-widget, table, .cm-md-syntax-link, a, [data-md-link-interaction=navigate]")) })),
     htmlBlock: { color: color(htmlPre.color), size: htmlPre.fontSize, padding: htmlPre.padding, background: color(htmlPre.backgroundColor) },
     mermaid: window.tableFixture.mermaidTheme(),
     session: window.tableFixture.markdownSessionRetained(),
@@ -426,6 +455,27 @@ app.whenReady().then(async () => {
         results.push({ name, metrics });
         await fs.writeFile(path.join(artifacts, `${name}.png`), (await browser.webContents.capturePage()).toPNG());
         console.log(`PASS ${name}`);
+      }
+    }
+    // Neutral/Newspaper above cover native editing and explicit overrides.
+    // Check every other built-in file in its supported modes, including the
+    // actual XP appearance family rather than a fallback Default theme.
+    for (const theme of ["default.warm", "default.graphite", "default.github", "windows-xp.luna-blue"]) {
+      for (const mode of theme === "windows-xp.luna-blue" ? ["light"] : ["light", "dark"]) {
+        await evaluate(`(async () => {
+          await window.tableFixture.mode('${mode}'); await window.tableFixture.theme('${theme}', '${theme.startsWith("windows-xp") ? "windows-xp" : "default"}');
+          const host = document.querySelector('#markdown .markdown-codemirror-editor');
+          for (const token of ['--po-user-md-strong-color', '--po-host-md-inline-code-color', '--po-host-md-blockquote-color']) host.style.removeProperty(token);
+          document.querySelector('#markdown .cm-content').blur();
+          for(let frame=0;frame<30&&host.querySelector('.cm-editor.cm-focused');frame++) await new Promise(resolve=>requestAnimationFrame(resolve));
+        })()`);
+        const metrics = await evaluate(`(${readColors.toString()})()`);
+        assert.equal(metrics.selectedThemeId, theme, "built-in test selected a fallback theme");
+        assert.equal(metrics.editing, false);
+        assertColors(metrics, false);
+        const name = `inline-tone-${mode}-${theme}`;
+        results.push({ name, metrics }); console.log(`PASS ${name}`);
+        await fs.writeFile(path.join(artifacts, `${name}.png`), (await browser.webContents.capturePage()).toPNG());
       }
     }
     await evaluate(`window.tableFixture.setMarkdownSource(${JSON.stringify(structuredSource)})`);
@@ -633,6 +683,7 @@ app.whenReady().then(async () => {
         "--po-md-code-block-radius": "9px",
         "--po-md-inline-code-padding": "1px 3px",
         "--po-md-inline-code-radius": "5px",
+        "--po-md-inline-code-color": revision ? "#786592" : "#596c87",
         "--po-md-mermaid-accent": "#b25696",
       };
       for (const [name, value] of Object.entries(roles)) css = setRole(css, name, value);
@@ -708,6 +759,9 @@ app.whenReady().then(async () => {
       const inlineBg = mode === "dark" ? revision ? "#57404f" : "#44313b" : revision ? "#d1bbcd" : "#e9dde5";
       assert(metrics.inline.length >= 5);
       for (const inline of metrics.inline) assert.equal(inline.background, inlineBg, `file inline background: ${inline.text}`);
+      const bodyInline = metrics.inline.filter(inline => !inline.supportingContext);
+      assert(bodyInline.length >= 3, "file body inline adapters are missing");
+      for (const inline of bodyInline) assert.equal(inline.color, revision ? "#786592" : "#596c87", `file inline foreground: ${inline.text}`);
       assert.equal(metrics.htmlBlock.size, size); assert.equal(metrics.htmlBlock.padding, "17px 19px");
       assert.equal(metrics.htmlBlock.color, revision ? "#84655c" : "#627b6d");
       assert.equal(metrics.htmlBlock.background, metrics.blocks[0].background);

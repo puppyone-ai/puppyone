@@ -33,7 +33,7 @@ const initialMarkdown = "Before the table\n\n" + [rows[0], rows[0].map(() => "--
 const csv = rows.map(row => row.join(",")).join("\n");
 let setPreview: (enabled: boolean) => void;
 let setMode: (mode: "light" | "dark") => void;
-let setTheme: (theme: string | null) => void;
+let setTheme: (theme: string | null, interfaceStyle?: "default" | "windows-xp") => void;
 let registerThemes: (snapshot: DesktopThemeSnapshot) => void;
 let setPeerTheme: (theme: string | null) => void;
 let markdown = initialMarkdown;
@@ -45,13 +45,14 @@ function Harness() {
   setPreview = enabled => flushSync(() => updatePreview(enabled));
   const [mode, updateMode] = useState<"light" | "dark">("light");
   const [theme, updateTheme] = useState<string | null>(null);
+  const [interfaceStyle, updateInterfaceStyle] = useState<"default" | "windows-xp">("default");
   const [catalog, updateCatalog] = useState(() => createSubThemeCatalogSnapshot({ themes: [], diagnostics: [] }));
   const [peerTheme, updatePeerTheme] = useState<string | null>(null);
   registerThemes = snapshot => flushSync(() => updateCatalog(createSubThemeCatalogSnapshot(snapshot)));
   setPeerTheme = theme => flushSync(() => updatePeerTheme(theme));
   setMode = mode => flushSync(() => updateMode(mode));
-  setTheme = theme => flushSync(() => updateTheme(theme));
-  const appearance = resolveAppearance({ interfaceStyle: "default", themeMode: mode,
+  setTheme = (theme, style = "default") => flushSync(() => { updateTheme(theme); updateInterfaceStyle(style); });
+  const appearance = resolveAppearance({ interfaceStyle, themeMode: mode,
     requestedSubThemeIds: { light: theme ?? "default.neutral", dark: theme ?? "default.dark" },
     subThemeCatalog: catalog,
     sidebarNavigationLayout: "bottom-horizontal", fileIconTheme: "default" });
@@ -106,7 +107,7 @@ const api = {
   },
   async preview(enabled: boolean) { setPreview(enabled); await wait(); },
   async mode(mode: "light" | "dark") { setMode(mode); await wait(); },
-  async theme(theme: string | null) { setTheme(theme); await wait(); },
+  async theme(theme: string | null, interfaceStyle?: "default" | "windows-xp") { setTheme(theme, interfaceStyle); await wait(); },
   async registerThemes(snapshot: DesktopThemeSnapshot) { registerThemes(snapshot); await wait(); },
   async peerTheme(theme: string | null) { setPeerTheme(theme); await wait(); },
   mermaidTheme() { return getMermaidThemeSnapshot(document.querySelector("#markdown .cm-editor")!).config; },

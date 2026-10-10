@@ -148,7 +148,7 @@
     --po-md-blockquote-color: #655e55;
     --po-md-blockquote-border-color: #9f917e;
     --po-md-inline-code-background: transparent;
-    --po-md-inline-code-color: #6e4f2a;
+    --po-md-inline-code-color: color-mix(in srgb, var(--po-md-content-color) 45%, var(--po-md-blockquote-color));
     --po-md-code-block-background: #eee9df;
     --po-md-code-block-color: var(--po-md-blockquote-color);
     --po-md-syntax-keyword: #7b3f2f;
@@ -212,7 +212,7 @@
     --po-md-link-color: #cdb58e;
     --po-md-blockquote-color: #bdb4a6;
     --po-md-blockquote-border-color: #887d6e;
-    --po-md-inline-code-color: #d0b583;
+    --po-md-inline-code-color: color-mix(in srgb, var(--po-md-content-color) 45%, var(--po-md-blockquote-color));
     --po-md-syntax-keyword: #e0a28f;
     --po-md-syntax-string: #b8ca91;
     --po-md-syntax-comment: #958b7d;
