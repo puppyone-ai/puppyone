@@ -9,19 +9,6 @@
 .desktop-cloud-share-copy:focus-visible { outline: 2px solid var(--po-accent); outline-offset: 1px; }
 .desktop-cloud-share-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .desktop-cloud-share-preview-window { height: 186px; overflow: hidden; border: 1px solid var(--po-border); border-radius: 8px; background: var(--po-canvas); mask-image: linear-gradient(to bottom, black 65%, transparent 100%); }
-.desktop-cloud-share-preview-brand { display: flex; align-items: center; justify-content: space-between; height: 31px; padding: 0 12px; background: var(--po-header); border-bottom: 1px solid var(--po-divider); font-size: 10px; }
-.desktop-cloud-share-preview-layout { display: grid; grid-template-columns: 38% minmax(0, 1fr); height: 160px; }
-.desktop-cloud-share-preview-files { min-width: 0; padding: 9px 6px; background: var(--po-sidebar); border-right: 1px solid var(--po-divider); }
-.desktop-cloud-share-preview-folder, .desktop-cloud-share-preview-row { display: flex; align-items: center; gap: 5px; padding: 5px 6px; min-width: 0; font-size: 9px; border-radius: 3px; }
-.desktop-cloud-share-preview-folder { padding-bottom: 10px; }
-.desktop-cloud-share-preview-files svg { flex-shrink: 0; color: var(--po-text-muted); }
-.desktop-cloud-share-preview-files span, .desktop-cloud-share-preview-files strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.desktop-cloud-share-preview-row.selected { background: var(--po-selected); }
-.desktop-cloud-share-preview-row i { width: 65%; height: 5px; background: var(--po-divider); border-radius: 2px; }
-.desktop-cloud-share-preview-document { min-width: 0; background: var(--po-surface-editor); }
-.desktop-cloud-share-preview-document-title { display: flex; align-items: center; gap: 5px; padding: 9px 12px; border-bottom: 1px solid var(--po-divider); font-size: 9px; color: var(--po-text-muted); }
-.desktop-cloud-share-preview-document-title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.desktop-cloud-share-preview-paper { display: grid; gap: 9px; padding: 18px 22px; }
-.desktop-cloud-share-preview-paper strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; margin-bottom: 3px; }
-.desktop-cloud-share-preview-paper i { height: 4px; border-radius: 2px; background: var(--po-divider); }
-.desktop-cloud-share-preview-paper i:nth-of-type(3n) { width: 72%; }
+.desktop-cloud-share-preview-canvas { width: 200%; height: 200%; transform: scale(.5); transform-origin: top left; pointer-events: none; }
+.desktop-cloud-share-preview-files { flex-shrink: 0; }
+.desktop-cloud-share-preview-document { display: flex; flex: 1; min-width: 0; min-height: 0; overflow: hidden; }

@@ -934,5 +934,6 @@
   "billing.subscriptionStatus.cancel_scheduled": "已安排取消",
   "billing.subscriptionStatus.past_due": "支付逾期",
   "billing.subscriptionStatus.revoked": "访问已撤销",
-  "billing.subscriptionStatus.disputed": "支付争议"
+  "billing.subscriptionStatus.disputed": "支付争议",
+  "share.thisProject": "分享此项目"
 }

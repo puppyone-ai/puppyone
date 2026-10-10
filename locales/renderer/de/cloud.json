@@ -934,5 +934,6 @@
   "billing.subscriptionStatus.cancel_scheduled": "Kündigung geplant",
   "billing.subscriptionStatus.past_due": "Zahlung überfällig",
   "billing.subscriptionStatus.revoked": "Zugriff entzogen",
-  "billing.subscriptionStatus.disputed": "Zahlung angefochten"
+  "billing.subscriptionStatus.disputed": "Zahlung angefochten",
+  "share.thisProject": "Dieses Projekt teilen"
 }

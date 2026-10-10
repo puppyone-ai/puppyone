@@ -29,6 +29,7 @@ describe("Cloud workspace link sharing", () => {
     const close = await render();
     const url = `https://cloud-fixture.puppyone.ai/${projectId}/`;
     expect(document.querySelector("input")?.value).toBe(url);
+    expect(document.querySelector("h2")?.textContent).toBe("Share this project");
     expect(document.querySelector(".desktop-dialog-footer")).toBeNull();
     expect(document.querySelector(".desktop-cloud-share-preview-heading")).toBeNull();
     expect(document.body.textContent).not.toContain("Recipients use");
@@ -44,10 +45,12 @@ describe("Cloud workspace link sharing", () => {
   it("shows cached file names in the recipient preview without fetching their contents", async () => {
     const fetch = vi.spyOn(globalThis, "fetch");
     await render(undefined, [{ name: ".DS_Store", type: "file" }, { name: "Notes", type: "folder" }, { name: "Research.md", type: "markdown" }]);
-    expect(document.querySelector(".desktop-cloud-share-preview-window")?.textContent).toContain("Research.md");
+    expect(document.querySelector('[data-explorer-path="puppyone-preview://share/Research.md"]')).not.toBeNull();
+    expect(document.querySelector(".desktop-cloud-share-preview-window")?.hasAttribute("inert")).toBe(true);
+    expect(document.querySelector(".desktop-cloud-share-preview-brand, .desktop-cloud-share-preview-paper")).toBeNull();
     expect(document.querySelector(".desktop-cloud-share-preview-window")?.textContent).toContain("Notes");
     expect(document.body.textContent).not.toContain(".DS_Store");
-    expect(document.querySelector(".desktop-cloud-share-preview")?.querySelector("p, h3, a")).toBeNull();
+    expect(document.querySelector(".desktop-cloud-share-preview")?.querySelector(".desktop-cloud-share-preview-heading, .desktop-cloud-share-preview-brand")).toBeNull();
     expect(fetch).not.toHaveBeenCalled(); fetch.mockRestore();
   });
   it("preserves an authorized folder locator and encodes each path segment", async () => {

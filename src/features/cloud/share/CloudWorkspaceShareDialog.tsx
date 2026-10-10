@@ -20,7 +20,7 @@ export function CloudWorkspaceShareDialog({ context, previewEntries, onClose }: 
   const [status, setStatus] = useState<"idle" | "copying" | "copied" | "failed">("idle");
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-  const title = t("cloud.share.title", { project: context.projectName || t("cloud.share.workspace") });
+  const title = t("cloud.share.thisProject");
   const url = shareUrl(context);
   const copyLabel = { idle: "workspace.node.copyLink", copying: "cloud.common.copying",
     copied: "cloud.share.action.copied", failed: "workspace.node.copyLink" }[status];
@@ -50,7 +50,7 @@ export function CloudWorkspaceShareDialog({ context, previewEntries, onClose }: 
             <span className="desktop-cloud-share-status" role="status">{status === "copied" ? t(copyLabel) : ""}</span>
           </div>}
           {!url && <p role="alert">{t("cloud.share.publish.unavailable")}</p>}
-          {url && <CloudWorkspaceSharePreview title={context.projectName || t("cloud.share.workspace")} entries={previewEntries} />}
+          {url && <CloudWorkspaceSharePreview entries={previewEntries} />}
           {status === "failed" && <p role="alert">{t("cloud.share.copyFailed")}</p>}
         </div>
       </DesktopDialogSurface>

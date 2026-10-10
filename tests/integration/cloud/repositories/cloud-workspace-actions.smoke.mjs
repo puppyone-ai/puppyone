@@ -55,11 +55,17 @@ async function exercise(hosted) {
     assert(await evaluate("document.querySelector('.desktop-cloud-workspace-share input').value === 'https://app-fixture.puppyone.ai/11111111-1111-4111-8111-111111111111/'"), "Share must show the configured human workspace URL");
     assert(await evaluate(`${api}.state().requests.length === ${before}`), "Sharing must make zero Cloud requests");
     await waitFor("Boolean(document.querySelector('.desktop-cloud-share-preview-window'))");
-    assert(await evaluate("document.querySelector('.desktop-cloud-share-preview-window').textContent.includes('notes.md')"), "Share preview uses cached real file names");
+    assert(await evaluate("Boolean(document.querySelector('.desktop-cloud-share-preview-window [data-explorer-path=\"puppyone-preview://share/notes.md\"]'))"), "Share preview uses cached real file names");
     assert(await evaluate("!document.querySelector('.desktop-cloud-share-preview-heading, .desktop-cloud-workspace-share .desktop-dialog-footer')"), "Share contains only link/copy row and preview illustration");
-    await capture("share-light");
-    await evaluate(`${api}.setLoginAppearance('dark', 'en')`);
-    await capture("share-dark");
+    await waitFor("Boolean(document.querySelector('.desktop-cloud-share-preview-window .markdown-codemirror-editor .cm-editor'))");
+    assert(await evaluate("document.querySelector('.desktop-cloud-workspace-share h2').textContent === 'Share this project'"), "Share title is independent of project name");
+    for (const theme of ["light", "dark"]) {
+      await evaluate(`${api}.setLoginAppearance('${theme}', 'en')`);
+      await capture(`share-${theme}`);
+      const nativeStyles = await evaluate("(() => { const preview = document.querySelector('.desktop-cloud-share-preview-window .tree-row.file'); const actual = [...document.querySelectorAll('.data-content .tree-row.file')].find(row => !row.closest('.desktop-cloud-share-preview-window') && row.getBoundingClientRect().width > 0); const a = getComputedStyle(actual); const b = getComputedStyle(preview); return Object.fromEntries(['fontSize', 'fontWeight', 'lineHeight', 'height', 'borderRadius', 'color', 'paddingLeft', 'paddingRight'].map(key => [key, { actual:a[key], preview:b[key] }])); })()");
+      assert(Object.values(nativeStyles).every(value => value.actual === value.preview), `Miniature rows inherit the exact ${theme} product Explorer styles before uniform scaling: ${JSON.stringify(nativeStyles)}`);
+    }
+    assert(await evaluate(`${api}.state().requests.length === ${before}`), "Rendering the actual Viewer must add no Cloud requests");
     window.setSize(640, 520);
     await evaluate("new Promise(resolve => setTimeout(resolve, 350))");
     assert(await evaluate("(() => { const r = document.querySelector('.desktop-cloud-workspace-share .desktop-cloud-share-copy').getBoundingClientRect(); return r.bottom <= innerHeight && r.width <= innerWidth; })()"), "Share copy action stays visible on a small window");

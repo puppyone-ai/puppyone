@@ -934,5 +934,6 @@
   "billing.subscriptionStatus.cancel_scheduled": "Cancelación programada",
   "billing.subscriptionStatus.past_due": "Pago vencido",
   "billing.subscriptionStatus.revoked": "Acceso revocado",
-  "billing.subscriptionStatus.disputed": "Pago en disputa"
+  "billing.subscriptionStatus.disputed": "Pago en disputa",
+  "share.thisProject": "Compartir este proyecto"
 }

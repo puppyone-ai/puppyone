@@ -1,33 +1,44 @@
-import { FileText, Folder } from "lucide-react";
+import { useMemo } from "react";
 import { useLocalization } from "@puppyone/localization/react";
+import { ExplorerTree, ExplorerTreeSkeleton, FilePreview, createResourceUri, getFileSemanticKind, type DataNode, type DocumentDataNode } from "@puppyone/shared-ui";
+import { selectFileIconTheme, useDesktopPreference } from "../../../preferencesStore";
+import { DEFAULT_EXPLORER_WIDTH } from "../../app-shell/layout/desktopPaneLayout";
 
 export type SharePreviewEntry = { name: string; type: string };
+const NO_EXPANDED_FOLDERS: ReadonlySet<string> = new Set();
+const ignoreSelection = () => {};
 
-/** A layout illustration uses cached names only; document contents stay on the recipient page. */
-export function CloudWorkspaceSharePreview({ title, entries }: {
-  title: string;
+/** The product's actual Explorer and read-only Viewer, uniformly reduced as an inert illustration. */
+export function CloudWorkspaceSharePreview({ entries }: {
   entries?: readonly SharePreviewEntry[];
 }) {
   const { t } = useLocalization();
-  const visible = entries?.filter(entry => ![".DS_Store", "Thumbs.db", ".git"].includes(entry.name)).slice(0, 5);
-  const first = visible?.find(entry => entry.type !== "folder");
+  const fileIconTheme = useDesktopPreference(selectFileIconTheme);
+  const nodes = useMemo(() => entries?.filter(entry => ![".DS_Store", "Thumbs.db", ".git"].includes(entry.name)).slice(0, 8).map((entry, index): DataNode => ({
+    id: `share-preview-${index}`,
+    name: entry.name,
+    path: createResourceUri({ scheme: "puppyone-preview", authority: "share", path: entry.name }),
+    type: entry.type === "folder" ? "folder" : getFileSemanticKind(entry.name),
+    children: entry.type === "folder" ? [] : undefined,
+  })) ?? [], [entries]);
+  const document = nodes.find((node): node is DocumentDataNode => node.type === "markdown")
+    ?? nodes.find((node): node is DocumentDataNode => node.type === "text");
+  const content = document?.type === "markdown" ? `# ${escapeHeading(document.name.replace(/\.[^.]+$/, ""))}\n` : document?.name ?? "";
   return <section className="desktop-cloud-share-preview">
-    <div className="desktop-cloud-share-preview-window" aria-hidden="true">
-      <div className="desktop-cloud-share-preview-brand"><strong>{t("shell.brand.name")}</strong></div>
-      <div className="desktop-cloud-share-preview-layout">
-        <div className="desktop-cloud-share-preview-files">
-          <div className="desktop-cloud-share-preview-folder"><Folder size={12} /><strong>{title}</strong></div>
-          {visible?.length ? visible.map((entry, index) => <div className={`desktop-cloud-share-preview-row${entry === first ? " selected" : ""}`} key={`${index}:${entry.name}`}>
-            {entry.type === "folder" ? <Folder size={11} /> : <FileText size={11} />}<span>{entry.name}</span>
-          </div>) : [0, 1, 2].map(index => <div className="desktop-cloud-share-preview-row" key={index}><FileText size={11} /><i /></div>)}
+    <div className="desktop-cloud-share-preview-window" aria-hidden="true" {...{ inert: "" }}>
+      <div className="desktop-cloud-share-preview-canvas desktop-data-workspace-wrap data-content">
+        <div className="desktop-cloud-share-preview-files data-explorer-rail" style={{ width: DEFAULT_EXPLORER_WIDTH }}>
+          {nodes.length ? <ExplorerTree nodes={nodes} activePath={document?.path ?? null} expandedPaths={NO_EXPANDED_FOLDERS}
+            showRoot={false} fileIconTheme={fileIconTheme} canMoveNodes={false} onSelectNode={ignoreSelection} /> : <ExplorerTreeSkeleton loadingLabel={t("cloud.common.loading")} />}
         </div>
         <div className="desktop-cloud-share-preview-document">
-          <div className="desktop-cloud-share-preview-document-title"><FileText size={12} /><span>{first?.name || title}</span></div>
-          <div className="desktop-cloud-share-preview-paper"><strong>{first?.name.replace(/\.[^.]+$/, "") || title}</strong>
-            {[0, 1, 2, 3, 4].map(index => <i key={index} />)}
-          </div>
+          <FilePreview node={document ?? null} fileContent={document ? { path: document.path, name: document.name, type: document.type, content } : null}
+            documentSourceKind="cloud" workspaceId="share-preview" fileIconTheme={fileIconTheme}
+            showHeader={false} hideSourceView />
         </div>
       </div>
     </div>
   </section>;
 }
+
+function escapeHeading(name: string): string { return name.replace(/[\\`*_{}\[\]()#+.!<>~|]/g, "\\$&").replace(/[\r\n]/g, " "); }
