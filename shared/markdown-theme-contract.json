@@ -39,6 +39,42 @@
       "name": "--po-md-heading-gap-after"
     },
     {
+      "name": "--po-md-h1-gap-before"
+    },
+    {
+      "name": "--po-md-h1-gap-after"
+    },
+    {
+      "name": "--po-md-h2-gap-before"
+    },
+    {
+      "name": "--po-md-h2-gap-after"
+    },
+    {
+      "name": "--po-md-h3-gap-before"
+    },
+    {
+      "name": "--po-md-h3-gap-after"
+    },
+    {
+      "name": "--po-md-h4-gap-before"
+    },
+    {
+      "name": "--po-md-h4-gap-after"
+    },
+    {
+      "name": "--po-md-h5-gap-before"
+    },
+    {
+      "name": "--po-md-h5-gap-after"
+    },
+    {
+      "name": "--po-md-h6-gap-before"
+    },
+    {
+      "name": "--po-md-h6-gap-after"
+    },
+    {
       "name": "--po-md-heading-color"
     },
     {

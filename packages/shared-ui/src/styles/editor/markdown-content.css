@@ -22,20 +22,34 @@
 .markdown-codemirror-editor .cm-md-heading {
   color: var(--po-md-heading-color);
   font-weight: var(--po-md-current-heading-weight, var(--po-md-heading-weight));
+  line-height: inherit;
+}
+
+/* CodeMirror measures line border boxes. Represent semantic outer gaps as
+   line padding so its height map, caret hit testing and scroll anchors include
+   the full heading rhythm; HTML consumes the same roles as block margins. */
+.markdown-codemirror-editor[data-live-preview="true"] .cm-line.cm-md-heading {
+  padding-block: var(--po-md-current-heading-gap-before) var(--po-md-current-heading-gap-after);
   line-height: var(--po-md-heading-line-height);
 }
 
 .markdown-codemirror-editor[data-live-preview="true"] .cm-md-heading-1 {
+  --po-md-current-heading-gap-before: var(--po-md-h1-gap-before);
+  --po-md-current-heading-gap-after: var(--po-md-h1-gap-after);
   --po-md-current-heading-weight: var(--po-md-h1-weight);
   font-size: var(--po-md-h1-size);
 }
 
 .markdown-codemirror-editor[data-live-preview="true"] .cm-md-heading-2 {
+  --po-md-current-heading-gap-before: var(--po-md-h2-gap-before);
+  --po-md-current-heading-gap-after: var(--po-md-h2-gap-after);
   --po-md-current-heading-weight: var(--po-md-h2-weight);
   font-size: var(--po-md-h2-size);
 }
 
 .markdown-codemirror-editor[data-live-preview="true"] .cm-md-heading-3 {
+  --po-md-current-heading-gap-before: var(--po-md-h3-gap-before);
+  --po-md-current-heading-gap-after: var(--po-md-h3-gap-after);
   --po-md-current-heading-weight: var(--po-md-h3-weight);
   font-size: var(--po-md-h3-size);
 }
@@ -46,14 +60,20 @@
 }
 
 .markdown-codemirror-editor[data-live-preview="true"] .cm-md-heading-4 {
+  --po-md-current-heading-gap-before: var(--po-md-h4-gap-before);
+  --po-md-current-heading-gap-after: var(--po-md-h4-gap-after);
   font-size: var(--po-md-h4-size);
 }
 
 .markdown-codemirror-editor[data-live-preview="true"] .cm-md-heading-5 {
+  --po-md-current-heading-gap-before: var(--po-md-h5-gap-before);
+  --po-md-current-heading-gap-after: var(--po-md-h5-gap-after);
   font-size: var(--po-md-h5-size);
 }
 
 .markdown-codemirror-editor[data-live-preview="true"] .cm-md-heading-6 {
+  --po-md-current-heading-gap-before: var(--po-md-h6-gap-before);
+  --po-md-current-heading-gap-after: var(--po-md-h6-gap-after);
   color: var(--po-md-h6-color);
   font-size: var(--po-md-h6-size);
 }
@@ -92,41 +112,48 @@
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface :where(h1, h2, h3, h4, h5, h6) {
-  margin-block: var(--po-md-heading-gap-before) var(--po-md-heading-gap-after);
+  margin-block: var(--po-md-current-heading-gap-before) var(--po-md-current-heading-gap-after);
   color: var(--po-md-heading-color);
   font-weight: var(--po-md-heading-weight);
   line-height: var(--po-md-heading-line-height);
 }
 
-.markdown-codemirror-editor .cm-md-html-rendered-surface :where(h1, h2):first-child,
-.markdown-codemirror-editor .cm-md-html-rendered-surface > :where(h1, h2):first-child {
-  margin-block-start: 0;
-}
-
 .markdown-codemirror-editor .cm-md-html-rendered-surface h1 {
+  --po-md-current-heading-gap-before: var(--po-md-h1-gap-before);
+  --po-md-current-heading-gap-after: var(--po-md-h1-gap-after);
   font-size: var(--po-md-h1-size);
   font-weight: var(--po-md-h1-weight);
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface h2 {
+  --po-md-current-heading-gap-before: var(--po-md-h2-gap-before);
+  --po-md-current-heading-gap-after: var(--po-md-h2-gap-after);
   font-size: var(--po-md-h2-size);
   font-weight: var(--po-md-h2-weight);
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface h3 {
+  --po-md-current-heading-gap-before: var(--po-md-h3-gap-before);
+  --po-md-current-heading-gap-after: var(--po-md-h3-gap-after);
   font-size: var(--po-md-h3-size);
   font-weight: var(--po-md-h3-weight);
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface h4 {
+  --po-md-current-heading-gap-before: var(--po-md-h4-gap-before);
+  --po-md-current-heading-gap-after: var(--po-md-h4-gap-after);
   font-size: var(--po-md-h4-size);
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface h5 {
+  --po-md-current-heading-gap-before: var(--po-md-h5-gap-before);
+  --po-md-current-heading-gap-after: var(--po-md-h5-gap-after);
   font-size: var(--po-md-h5-size);
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface h6 {
+  --po-md-current-heading-gap-before: var(--po-md-h6-gap-before);
+  --po-md-current-heading-gap-after: var(--po-md-h6-gap-after);
   color: var(--po-md-h6-color);
   font-size: var(--po-md-h6-size);
 }

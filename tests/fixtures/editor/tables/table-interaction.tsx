@@ -31,6 +31,7 @@ const rows = [
 ];
 const initialMarkdown = "Before the table\n\n" + [rows[0], rows[0].map(() => "---"), ...rows.slice(1)].map(row => `| ${row.join(" | ")} |`).join("\n") + "\n\nAfter the table";
 const csv = rows.map(row => row.join(",")).join("\n");
+let setPreview: (enabled: boolean) => void;
 let setMode: (mode: "light" | "dark") => void;
 let setTheme: (theme: string | null) => void;
 let registerThemes: (snapshot: DesktopThemeSnapshot) => void;
@@ -40,6 +41,8 @@ let csvPort: EditorSourceSnapshotPort | null = null;
 const onMarkdown = (value: string) => { markdown = value; };
 const onCsvSnapshot = (port: EditorSourceSnapshotPort | null) => { csvPort = port; };
 function Harness() {
+  const [livePreview, updatePreview] = useState(true);
+  setPreview = enabled => flushSync(() => updatePreview(enabled));
   const [mode, updateMode] = useState<"light" | "dark">("light");
   const [theme, updateTheme] = useState<string | null>(null);
   const [catalog, updateCatalog] = useState(() => createSubThemeCatalogSnapshot({ themes: [], diagnostics: [] }));
@@ -65,7 +68,7 @@ function Harness() {
     <div {...surface.rootProps} id="surface" className={mode === "dark" ? "dark" : ""}
       style={{ ...surface.rootProps.style, background: "var(--po-editor-bg)", color: "var(--po-text)", padding: 24, width: "100%", flexShrink: 0, minHeight: "100vh" }}>
       <h2 style={{ margin: 0, font: "600 16px system-ui" }}>Markdown</h2>
-      <section id="markdown" style={{ height: 400 }}><MarkdownCodeMirrorEditor value={initialMarkdown} livePreview readOnly={false} onChange={onMarkdown} /></section>
+      <section id="markdown" style={{ height: 400 }}><MarkdownCodeMirrorEditor value={initialMarkdown} livePreview={livePreview} readOnly={false} onChange={onMarkdown} /></section>
       {peerTheme && <SurfaceAppearanceProvider value={peer}><section {...peer.rootProps} id="peer" className={mode === "dark" ? "dark" : ""} style={{ ...peer.rootProps.style, height: 400 }}>
         <MarkdownCodeMirrorEditor value={"Peer **bold** and `code`."} livePreview readOnly />
       </section></SurfaceAppearanceProvider>}
@@ -101,6 +104,7 @@ const api = {
     await document.fonts.ready; await wait();
     if (!CSS.supports("anchor-scope", "--table")) throw new Error("Runtime lacks scoped CSS anchor positioning");
   },
+  async preview(enabled: boolean) { setPreview(enabled); await wait(); },
   async mode(mode: "light" | "dark") { setMode(mode); await wait(); },
   async theme(theme: string | null) { setTheme(theme); await wait(); },
   async registerThemes(snapshot: DesktopThemeSnapshot) { registerThemes(snapshot); await wait(); },
@@ -129,6 +133,14 @@ const api = {
     view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: source },
       selection: { anchor: source.length } });
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  },
+  markdownLineGeometry() {
+    const view = EditorView.findFromDOM(document.querySelector("#markdown .cm-editor")!)!;
+    return { selectedLine: view.state.doc.lineAt(view.state.selection.main.head).number,
+      lines: Array.from({ length: view.state.doc.lines }, (_, index) => {
+        const line = view.state.doc.line(index + 1), block = view.lineBlockAt(line.from);
+        return { number: line.number, text: line.text, top: block.top, height: block.height };
+      }) };
   },
   markdownSource() {
     const view = EditorView.findFromDOM(document.querySelector("#markdown .cm-editor")!)!;

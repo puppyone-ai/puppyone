@@ -227,6 +227,49 @@ function assertStructuredContent(metrics, scale, inlineBackground = "rgba(0, 0, 
   assert.deepEqual(metrics.csvColor, metrics.csvExpected, "Markdown supporting role leaked into CSV");
 }
 
+// Measure production block boxes and the CodeMirror height map, rather than
+// merely asserting CSS declarations. The paragraph immediately after every
+// heading deliberately has no blank source line to supply accidental spacing.
+function readHeadingRhythm() {
+  const host = document.querySelector("#markdown .markdown-codemirror-editor");
+  const read = element => {
+    const style = getComputedStyle(element), rect = element.getBoundingClientRect();
+    const range = document.createRange(); range.selectNodeContents(element);
+    const textRects = [...range.getClientRects()].filter(rect => rect.height > 0 && rect.width > 0);
+    return { text: element.textContent, size: parseFloat(style.fontSize), lineHeight: parseFloat(style.lineHeight),
+      before: parseFloat(style.paddingTop), after: parseFloat(style.paddingBottom),
+      marginBefore: parseFloat(style.marginTop), marginAfter: parseFloat(style.marginBottom),
+      height: rect.height, top: rect.top, bottom: rect.bottom,
+      textTop: Math.min(...textRects.map(rect => rect.top)), textBottom: Math.max(...textRects.map(rect => rect.bottom)),
+      nextTextTop: (() => { const next = element.nextElementSibling, range = document.createRange(); range.selectNodeContents(next); return range.getBoundingClientRect().top; })(),
+    };
+  };
+  return { native: [...host.querySelectorAll(".cm-line.cm-md-heading")].map(read),
+    html: [...host.querySelectorAll(".cm-md-html-rendered-surface :is(h1,h2,h3,h4,h5,h6)")].map(read),
+    geometry: window.tableFixture.markdownLineGeometry() };
+}
+
+function assertHeadingRhythm(metrics, newspaper, wrapped = false) {
+  const before = newspaper ? [40,35,30,25,20,20] : [32,28,24,20,16,16];
+  const after = newspaper ? [24,19.2,16.8,14.4,12,12] : [20,16,14,12,10,10];
+  const near = (actual, expected, label) => assert(Math.abs(actual-expected) < .6, `${label}: ${actual} vs ${expected}`);
+  assert.equal(metrics.native.length, 6); assert.equal(metrics.html.length, 6);
+  for (let index=0;index<6;index++) {
+    const native=metrics.native[index], html=metrics.html[index];
+    near(native.before, before[index], `H${index+1} before`); near(native.after, after[index], `H${index+1} after`);
+    near(html.marginBefore, before[index], `HTML H${index+1} before`); near(html.marginAfter, after[index], `HTML H${index+1} after`);
+    near(native.size, html.size, "shared heading size"); near(native.lineHeight, native.size*1.5, "heading line height");
+    near(native.lineHeight, html.lineHeight, "shared heading line height");
+    assert(native.nextTextTop-native.textBottom >= after[index], "following paragraph touched heading text");
+    assert(html.nextTextTop-html.textBottom >= after[index]-.6, "following HTML paragraph touched heading text");
+    const line=metrics.geometry.lines.find(line => line.text.startsWith("#".repeat(index+1)+" "));
+    assert(line, "heading source line is missing"); near(line.height, native.height, "CodeMirror height map");
+    const rows=(native.height-native.before-native.after)/native.lineHeight;
+    near(rows, Math.round(rows), "heading row count");
+    if(wrapped) assert(rows >= 2, "long heading did not wrap"); else near(rows, 1, "short heading row count");
+  }
+}
+
 function readFileAuthority() {
   const host = document.querySelector("#markdown .markdown-codemirror-editor");
   const css = element => getComputedStyle(element);
@@ -245,6 +288,10 @@ function readFileAuthority() {
   const htmlPre = css(host.querySelector(".cm-md-html-rendered-surface pre"));
   return { bodyColor: color(css(editor).color), bodySize: css(editor).fontSize, bodyLineHeight: css(host.querySelector(".cm-scroller")).lineHeight,
     bodyFont: css(editor).fontFamily, headingSize: css(host.querySelector(".cm-md-heading-1")).fontSize,
+    headingLineHeight: css(host.querySelector(".cm-md-heading-1")).lineHeight,
+    headingBefore: css(host.querySelector(".cm-md-heading-1")).paddingTop,
+    headingAfter: css(host.querySelector(".cm-md-heading-1")).paddingBottom,
+    subheadingBefore: css(host.querySelector(".cm-md-heading-2")).paddingTop,
     peerColor: color(css(document.querySelector("#peer .cm-editor")).color), blocks,
     cells: [...host.querySelectorAll(".cm-md-table-widget :is(th,td), .cm-md-html-rendered-surface table :is(th,td)")].map(element => ({
       header: element.tagName === "TH", color: color(css(element).color), size: css(element).fontSize, font: css(element).fontFamily })),
@@ -371,6 +418,61 @@ app.whenReady().then(async () => {
       const name = `code-edit-${mode}`; results.push({ name, metrics, scroll }); console.log(`PASS ${name}`);
       await fs.writeFile(path.join(artifacts, `${name}.png`), (await browser.webContents.capturePage()).toPNG());
     }
+    // All six levels, first HTML heading, consecutive blocks without blank
+    // lines, wrapped headings and actual pointer editing share one rhythm.
+    for (const mode of ["light", "dark"]) for (const theme of [null, "default.newspaper"]) for (const wrapped of [false, true]) {
+      const title = level => wrapped ? `Heading ${level} ` + "wrapped 标题节奏 ".repeat(18) : `Heading ${level}`;
+      const headings = Array.from({length:6}, (_, index) => `${index ? "Before\n" : ""}${"#".repeat(index+1)} ${title(index+1)}\nAfter`).join("\n");
+      const html = "<div>" + Array.from({length:6}, (_, index) => `<h${index+1}>${title(index+1)}</h${index+1}><p>After HTML</p>`).join("") + "</div>";
+      await evaluate(`(async () => {
+        await window.tableFixture.mode('${mode}'); await window.tableFixture.theme(${JSON.stringify(theme)});
+        document.querySelector('#markdown .markdown-codemirror-editor').removeAttribute('style');
+        document.querySelector('#markdown').style.height='4800px';
+        await window.tableFixture.setMarkdownSource(${JSON.stringify(headings+"\n\n"+html+"\n\nEnd")});
+        await document.fonts.ready; await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+      })()`);
+      // Hidden Chromium still uses the native viewport for virtualization.
+      await browser.webContents.debugger.sendCommand("Emulation.setDeviceMetricsOverride", { width:1080, height:5200, deviceScaleFactor:1, mobile:false });
+      await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+      const metrics = await evaluate(`(${readHeadingRhythm.toString()})()`);
+      assertHeadingRhythm(metrics, theme === "default.newspaper", wrapped);
+      if (!wrapped) for (let index=0;index<6;index++) {
+        const point=await evaluate(`(() => { const heading=document.querySelectorAll('#markdown .cm-line.cm-md-heading')[${index}]; const range=document.createRange(); range.selectNodeContents(heading); const rect=[...range.getClientRects()].find(rect=>rect.height>0&&rect.width>0); return {x:Math.round(rect.x+rect.width/2),y:Math.round(rect.y+rect.height/2)}; })()`);
+        browser.webContents.sendInputEvent({type:"mouseDown",button:"left",clickCount:1,...point});
+        browser.webContents.sendInputEvent({type:"mouseUp",button:"left",clickCount:1,...point});
+        await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+        const edited=await evaluate(`(${readHeadingRhythm.toString()})()`);
+        assertHeadingRhythm(edited, theme === "default.newspaper");
+        const expectedLine=edited.geometry.lines.find(line=>line.text.startsWith("#".repeat(index+1)+" ")).number;
+        assert.equal(edited.geometry.selectedLine, expectedLine, "pointer landed outside the heading source line");
+        assert.equal(edited.native[index].height, metrics.native[index].height, "revealing heading syntax shifted row geometry");
+      }
+      if (!wrapped) {
+        await evaluate("window.tableFixture.preview(false)");
+        const sourceMetrics=await evaluate(`(() => {
+          const host=document.querySelector('#markdown .markdown-codemirror-editor');
+          const body=getComputedStyle(host.querySelector('.cm-line'));
+          return {bodySize:body.fontSize, bodyLineHeight:body.lineHeight,
+            headings:[...host.querySelectorAll('.cm-line')].filter(line=>/^#{1,6} /.test(line.textContent)).map(line=>{
+              const css=getComputedStyle(line); return {size:css.fontSize, lineHeight:css.lineHeight, before:css.paddingTop, after:css.paddingBottom};
+            })};
+        })()`);
+        assert.equal(sourceMetrics.headings.length,6);
+        for (const heading of sourceMetrics.headings) {
+          assert.equal(heading.size,sourceMetrics.bodySize); assert.equal(heading.lineHeight,sourceMetrics.bodyLineHeight);
+          assert.equal(heading.before,"0px"); assert.equal(heading.after,"0px");
+        }
+        metrics.sourceMode=sourceMetrics;
+        await evaluate("window.tableFixture.preview(true)");
+        assertHeadingRhythm(await evaluate(`(${readHeadingRhythm.toString()})()`), theme === "default.newspaper");
+      }
+      const name=`heading-rhythm-${mode}-${theme ?? "default"}-${wrapped ? "wrapped" : "short"}`;
+      results.push({name,metrics}); console.log(`PASS ${name}`);
+      const contentBottom=await evaluate("document.querySelector('#markdown .cm-content').getBoundingClientRect().bottom");
+      await fs.writeFile(path.join(artifacts, `${name}.png`), (await browser.webContents.capturePage({x:0,y:0,width:1080,height:Math.ceil(contentBottom+24)})).toPNG());
+    }
+    await browser.webContents.debugger.sendCommand("Emulation.clearDeviceMetricsOverride");
+    await evaluate("document.querySelector('#markdown').style.height='1300px'");
     // Exercise the real single-file registration pipeline, not inline CSS
     // pretending to be a theme. Reloading the same id must update all adapters
     // while retaining the CodeMirror view, document, selection and scroll.
@@ -389,6 +491,10 @@ app.whenReady().then(async () => {
         "--po-md-content-size": revision ? "22px" : "18px",
         "--po-md-content-line-height": revision ? "33px" : "29px",
         "--po-md-h1-size": revision ? "42px" : "38px",
+        "--po-md-heading-gap-before": revision ? "44px" : "36px",
+        "--po-md-h1-gap-before": revision ? "49px" : "37px",
+        "--po-md-h1-gap-after": revision ? "25px" : "17px",
+        "--po-md-heading-line-height": revision ? "1.6" : "1.4",
         "--po-md-code-font": '"Courier New", monospace',
         "--po-md-table-font-size": revision ? "14px" : "12px",
         "--po-md-table-line-height": "1.6",
@@ -435,7 +541,7 @@ app.whenReady().then(async () => {
         await window.tableFixture.peerTheme(${JSON.stringify(peer.themeId)});
         const host = document.querySelector('#markdown .markdown-codemirror-editor');
         host.removeAttribute('style');
-        ${revision === 0 ? `await window.tableFixture.setMarkdownSource(${JSON.stringify("# File heading\n\n" + structuredSource + "\n\n" + Array(25).fill("Trailing line").join("\n"))});` : ""}
+        ${revision === 0 ? `await window.tableFixture.setMarkdownSource(${JSON.stringify("# File heading\n\n## File subheading\nAfter subheading\n\n" + structuredSource + "\n\n" + Array(25).fill("Trailing line").join("\n"))});` : ""}
         await document.fonts.ready;
         await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
       })()`);
@@ -444,6 +550,10 @@ app.whenReady().then(async () => {
       assert.equal(metrics.bodySize, revision ? "22px" : "18px");
       assert.equal(metrics.bodyLineHeight, revision ? "33px" : "29px");
       assert.equal(metrics.headingSize, revision ? "42px" : "38px");
+      assert.equal(metrics.headingBefore, revision ? "49px" : "37px");
+      assert.equal(metrics.headingAfter, revision ? "25px" : "17px");
+      assert.equal(metrics.subheadingBefore, revision ? "38.5px" : "31.5px", "per-level gap lost its file-owned base reference");
+      assert(Math.abs(parseFloat(metrics.headingLineHeight)-(revision ? 42*1.6 : 38*1.4)) < .01, "file heading line-height was lost");
       assert(metrics.bodyFont.includes("Georgia"));
       assert.equal(metrics.bodyColor, mode === "dark" ? revision ? "#ecd2e3" : "#d0e0f1" : revision ? "#643354" : "#253b52");
       assert.equal(metrics.peerColor, mode === "dark" ? "#7ad4bd" : "#126b54", "nested appearance boundary leaked a theme");
