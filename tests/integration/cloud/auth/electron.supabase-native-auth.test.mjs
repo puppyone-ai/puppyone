@@ -34,7 +34,7 @@ async function fixture({ beforeWrite = async () => {} } = {}) {
       codes.delete(body.auth_code); return send(200, issued(`desktop-${sequence}`));
     }
     if (url.searchParams.get("grant_type") === "password") return body.password === "correct-password" ? send(200, issued(`email-${++sequence}`)) : send(400, {});
-    if (url.searchParams.get("grant_type") === "refresh_token") return send(200, issued(body.refresh_token.replace("refresh-", "")));
+    if (url.searchParams.get("grant_type") === "refresh_token") return body.refresh_token === "invalid" ? send(400, {}) : send(200, issued(body.refresh_token.replace("refresh-", "")));
     if (url.pathname === "/auth/v1/signup") return send(200, { id: "user-1" });
     if (url.pathname === "/auth/v1/verify") return body.token === "123456" ? send(200, issued(`verified-${++sequence}`)) : send(400, {});
     if (url.pathname === "/auth/v1/resend" || url.pathname === "/auth/v1/logout") return send(200, {});
@@ -60,12 +60,20 @@ async function fixture({ beforeWrite = async () => {} } = {}) {
   cleanup.push(() => service.dispose());
   return { service, calls, cloudCalls, origin, requestCloudApi, saved: () => saved, opened: () => opened };
 }
-async function submit(f, action, fields = {}, headers = {}) {
-  const page = new URL(f.opened());
-  return fetch(new URL("/auth/login", page), {
-    method: "POST", redirect: "manual",
-    headers: { Origin: page.origin, "Content-Type": "application/x-www-form-urlencoded", ...headers },
-    body: new URLSearchParams({ state: page.searchParams.get("state"), action, ...fields }),
+function authorizeForLogin(f) {
+  const login = new URL(f.opened());
+  const callback = new URL("/auth/callback", login.origin);
+  callback.search = new URLSearchParams({ desktop_state: login.searchParams.get("desktop_state"), desktop_callback: login.searchParams.get("desktop_callback") }).toString();
+  const authorize = new URL("/auth/v1/authorize", f.origin);
+  authorize.search = new URLSearchParams({ provider: "google", redirect_to: callback.toString(), code_challenge: login.searchParams.get("code_challenge"), code_challenge_method: "s256" }).toString();
+  return authorize.toString();
+}
+async function submit(f, fields = {}, headers = {}) {
+  const login = new URL(f.opened());
+  const target = new URL("/auth/session", login.searchParams.get("desktop_callback"));
+  return fetch(target, { method: "POST", redirect: "manual",
+    headers: { Origin: login.origin, "Content-Type": "application/x-www-form-urlencoded", ...headers },
+    body: new URLSearchParams({ state: login.searchParams.get("desktop_state"), refresh_token: "refresh-browser-1", ...fields }),
   });
 }
 async function callbackForAuthorize(authorize) {
@@ -79,13 +87,9 @@ async function callbackForAuthorize(authorize) {
 it("completes actual HTTP OAuth code exchange with zero cloud handoff requests", async () => {
   const f = await fixture();
   await f.service.startOAuth({ apiBase: "https://api.puppyone.ai/api/v1" });
-  const page = await fetch(f.opened());
-  expect(page.headers.get("referrer-policy")).toBe("same-origin");
-  expect(await page.text()).toContain("Continue with Google");
-  const providerUrl = new URL(f.opened()); providerUrl.searchParams.set("provider", "google");
-  const provider = await fetch(providerUrl, { redirect: "manual" });
-  expect(provider.status).toBe(303);
-  const callback = await callbackForAuthorize(provider.headers.get("location"));
+  expect(new URL(f.opened()).origin).toBe("https://web.example.test");
+  expect(new URL(f.opened()).pathname).toBe("/login");
+  const callback = await callbackForAuthorize(authorizeForLogin(f));
   const wrong = new URL(callback); wrong.searchParams.set("state", "wrong");
   expect((await fetch(wrong)).status).toBe(400);
   const result = await fetch(callback);
@@ -101,28 +105,26 @@ it("completes actual HTTP OAuth code exchange with zero cloud handoff requests",
   expect(f.saved()).toBeNull();
 });
 
-it("email password retries use Supabase directly and reject cross-origin submissions", async () => {
+it("accepts the original Web form session and verifies it directly with Supabase", async () => {
   const f = await fixture(); await f.service.startOAuth({ apiBase: "https://api.puppyone.ai/api/v1" });
-  expect((await submit(f, "password", { email: "qa@example.test", password: "correct-password" }, { Origin: "https://evil.test" })).status).toBe(400);
-  expect(f.calls.filter(call => call.path.includes("grant_type=password"))).toHaveLength(0);
-  const failed = await submit(f, "password", { email: "qa@example.test", password: "wrong" });
-  expect(await failed.text()).toContain("Unable to sign in");
-  expect(await f.service.readSession()).toBeNull();
-  const success = await submit(f, "password", { email: "qa@example.test", password: "correct-password" });
-  expect(success.status).toBe(200);
+  expect((await submit(f, {}, { Origin: "https://evil.test" })).status).toBe(400);
+  expect((await submit(f, { state: "wrong" })).status).toBe(400);
+  expect(f.calls.filter(call => call.path.includes("grant_type=refresh_token"))).toHaveLength(0);
+  const response = await submit(f);
+  expect(response.status).toBe(200);
+  expect(await response.text()).not.toContain("refresh-browser-1");
   expect((await f.service.readSession()).user_id).toBe("user-1");
+  expect(f.calls.filter(call => call.path.includes("grant_type=refresh_token"))).toHaveLength(1);
   expect(f.cloudCalls).toEqual(["/auth/config", "/auth/initialize"]);
+  expect((await submit(f)).status).toBe(404);
 });
 
-it("signup confirmation and OTP produce only a Main-owned session", async () => {
+it("does not adopt an invalid Supabase refresh credential", async () => {
   const f = await fixture(); await f.service.startOAuth({ apiBase: "https://api.puppyone.ai/api/v1" });
-  const signup = await submit(f, "signup", { email: "qa@example.test", password: "correct-password" });
-  expect(await signup.text()).toContain("Verification code");
+  const response = await submit(f, { refresh_token: "invalid" });
+  expect(response.status).toBe(400);
   expect(await f.service.readSession()).toBeNull();
-  const verified = await submit(f, "verify", { email: "qa@example.test", token: "123456" });
-  expect(verified.status).toBe(200);
-  expect((await f.service.readSession()).status).toBe("authenticated");
-  expect(f.calls.map(c => c.path)).toContain("/auth/v1/verify");
+  expect(f.saved()).toBeNull();
 });
 
 it("Supabase rejects a code with the wrong verifier or a replay", async () => {
@@ -151,7 +153,7 @@ it("logout wins over a credential write already in progress", async () => {
   const gate = new Promise(resolve => { release = resolve; });
   const f = await fixture({ beforeWrite: async () => { entered(); await gate; } });
   await f.service.startOAuth({ apiBase: "https://api.puppyone.ai/api/v1", provider: "google" });
-  const callback = await callbackForAuthorize(f.opened());
+  const callback = await callbackForAuthorize(authorizeForLogin(f));
   const response = fetch(callback);
   await writing;
   const logout = f.service.clearSession();
@@ -166,8 +168,8 @@ it("logout wins over a credential write already in progress", async () => {
 it("rejects oversized forms and wrong Host before contacting Supabase", async () => {
   const f = await fixture();
   await f.service.startOAuth({ apiBase: "https://api.puppyone.ai/api/v1" });
-  expect((await submit(f, "password", { password: "x".repeat(9000) })).status).toBe(413);
-  const url = new URL(f.opened());
+  expect((await submit(f, { refresh_token: "x".repeat(17000) })).status).toBe(413);
+  const url = new URL("/auth/session", new URL(f.opened()).searchParams.get("desktop_callback"));
   const status = await new Promise((resolve, reject) => {
     const req = http.get(url, { headers: { Host: "evil.test" } }, res => { res.resume(); resolve(res.statusCode); });
     req.on("error", reject);

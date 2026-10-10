@@ -221,6 +221,8 @@ describe("main-owned Cloud Auth Broker", () => {
       return { ok: true };
     });
     await fixture.service.startOAuth({ apiBase: API, provider: "google" });
+    expect(new URL(fixture.openExternal.mock.calls[0][0]).pathname).toBe("/login");
+    expect(new URL(fixture.openExternal.mock.calls[0][0]).origin).toBe("http://localhost:3000");
     const callback = nativeCallback(fixture, "provider-code");
     expect(await fixture.service.handleCallback(callback)).toMatchObject({ status: "authenticated" });
     expect(await fixture.service.handleCallback(callback)).toBeNull();
@@ -572,8 +574,7 @@ function jwtFor(subject, signature = "signature") {
 }
 
 function nativeCallback(fixture, code) {
-  const authorize = new URL(fixture.openExternal.mock.calls.at(-1)[0]);
-  const relay = new URL(authorize.searchParams.get("redirect_to"));
+  const relay = new URL(fixture.openExternal.mock.calls.at(-1)[0]);
   const callback = new URL(relay.searchParams.get("desktop_callback"));
   callback.search = new URLSearchParams({ state: relay.searchParams.get("desktop_state"), code }).toString();
   return callback.toString();

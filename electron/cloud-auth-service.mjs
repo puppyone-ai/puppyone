@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { createSupabaseAuthClient } from "./main/auth/supabase-auth-client.mjs";
-import { createNativeLoginPage } from "./main/auth/native-login-page.mjs";
+import { createBrowserSessionReceiver } from "./main/auth/browser-session-receiver.mjs";
 import path from "node:path";
 import {
   formatCloudApiHost,
@@ -127,20 +127,16 @@ export function createCloudAuthService({
         const providers = await supabaseAuth.providers(normalizedApiBase);
         if (!providers.length) throw new Error("No sign-in methods are enabled for this environment.");
         if (normalizedProvider && !providers.includes(normalizedProvider)) throw new Error("Sign-in method is unavailable.");
-        const login = createNativeLoginPage({
-          state, providers, webOrigin: web.origin,
-          onAction: async (action, fields) => {
+        const receiveSession = createBrowserSessionReceiver({
+          state, webOrigin: web.origin,
+          onSession: async (refreshToken) => {
             const pending = pendingOAuthStates.get(state);
             if (!pending || now() - pending.createdAt >= OAUTH_STATE_TTL_MS || pending.generation !== sessionGeneration) throw createSessionChangedError();
-            if (action === "google" || action === "github") return { redirect: await supabaseAuth.authorize(normalizedApiBase, action, pending.providerCallback, challenge) };
-            let data;
-            if (action === "resend") data = await supabaseAuth.resend(normalizedApiBase, fields.email);
-            else if (action === "verify") data = await supabaseAuth.verify(normalizedApiBase, fields.email, fields.token);
-            else data = await supabaseAuth[action](normalizedApiBase, fields.email, fields.password);
-            if (!data?.access_token) return {};
-            // Email authentication completes through the same Main session owner.
             clearPendingOAuthState(state, { keepCallbackServer: true });
-            return { session: await finishNativeSignIn(pending, data) };
+            // Supabase validates and rotates the isolated browser credential.
+            // The browser cannot assert a user ID or inject an access token.
+            const data = await supabaseAuth.refresh(normalizedApiBase, refreshToken);
+            return finishNativeSignIn(pending, data);
           },
         });
         callbackServer = await startCallbackServer({
@@ -148,7 +144,7 @@ export function createCloudAuthService({
           onReturnToApp: revealWindow,
           onCallback: (callbackUrl) => handleCallback(callbackUrl),
           isExpectedCallback: (callbackUrl) => isExpectedPendingCallback(callbackUrl),
-          onLoginRequest: login,
+          onLoginRequest: receiveSession,
         });
         const callbackUrl = requireLoopbackRedirectUri(callbackServer?.redirectUri);
         const providerCallback = new URL("/auth/callback", web.origin);
@@ -167,11 +163,13 @@ export function createCloudAuthService({
           callbackServer, timeout, createdAt: now(), previousStatus,
         });
         callbackServer = null;
-        const loginUrl = new URL("/auth/login", callbackUrl);
-        loginUrl.searchParams.set("state", state);
-        await externalNavigation.open(normalizedProvider
-          ? await supabaseAuth.authorize(normalizedApiBase, normalizedProvider, providerCallback.toString(), challenge)
-          : loginUrl.toString());
+        const loginUrl = new URL("/login", web.origin);
+        loginUrl.search = new URLSearchParams({
+          client: "desktop", desktop_state: state, desktop_callback: callbackUrl,
+          code_challenge: challenge,
+          ...(normalizedProvider ? { provider: normalizedProvider } : {}),
+        }).toString();
+        await externalNavigation.open(loginUrl.toString());
         return { ok: true };
       } catch (error) {
         await callbackServer?.close?.().catch(() => undefined);

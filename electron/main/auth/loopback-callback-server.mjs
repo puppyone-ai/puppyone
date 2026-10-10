@@ -65,7 +65,7 @@ export async function startLoopbackCallbackServer({
     if (request.headers.host !== new URL(redirectUri).host || !request.url.startsWith("/") || request.url.startsWith("//")) {
       respond(response, 400, "unrecognized", locale, geistFont); return;
     }
-    if (onLoginRequest && !handled && request.url.split("?")[0] === "/auth/login") {
+    if (onLoginRequest && !handled && request.url === "/auth/session") {
       try {
         const result = await onLoginRequest(request, response, redirectUri);
         if (result?.session) {
@@ -74,6 +74,7 @@ export async function startLoopbackCallbackServer({
         }
       } catch {
         if (!response.headersSent) respond(response, 400, "failed", locale, geistFont);
+        void close().catch(() => undefined);
       }
       return;
     }

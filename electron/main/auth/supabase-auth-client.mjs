@@ -54,10 +54,6 @@ export function createSupabaseAuthClient({ requestCloudApi, fetchImpl = globalTh
     },
     exchange: (apiBase, code, verifier) => request(apiBase, "/token?grant_type=pkce", { body: { auth_code: code, code_verifier: verifier } }),
     refresh: (apiBase, refreshToken, signal) => request(apiBase, "/token?grant_type=refresh_token", { body: { refresh_token: refreshToken }, signal }),
-    password: (apiBase, email, password) => request(apiBase, "/token?grant_type=password", { body: { email, password } }),
-    signup: (apiBase, email, password) => request(apiBase, "/signup", { body: { email, password } }),
-    verify: (apiBase, email, token) => request(apiBase, "/verify", { body: { email, token, type: "email" } }),
-    resend: (apiBase, email) => request(apiBase, "/resend", { body: { email, type: "signup" } }),
     logout: (apiBase, token, signal) => request(apiBase, "/logout?scope=local", { token, signal }),
   };
 }
