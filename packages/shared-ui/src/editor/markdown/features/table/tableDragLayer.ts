@@ -418,7 +418,7 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
           rowIndex: hover.rowIndex ?? 0,
           columnIndex: sourceIndex,
           targetColumnIndex,
-        }, { focus: "preserve", structuralSelection: "column" });
+        });
         return true;
       }
       const sourceBodyIndex = sourceIndex - 1;
@@ -429,7 +429,7 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
         rowIndex: sourceIndex,
         columnIndex: hover.columnIndex ?? 0,
         targetRowIndex: targetBodyIndex + 1,
-      }, { focus: "preserve", structuralSelection: "row" });
+      });
       return true;
     };
 
@@ -518,6 +518,18 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
     });
     handle.addEventListener("mousedown", stopCodeMirrorEvent);
     handle.addEventListener("click", stopCodeMirrorEvent);
+    handle.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        clearStructuralSelection();
+      } else if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        event.stopPropagation();
+        const sourceIndex = kind === "column" ? hover.columnIndex : hover.rowIndex;
+        if (sourceIndex != null) openHandleMenu(kind, sourceIndex, handle);
+      }
+    });
   };
   bindHandle(columnHandle, "column");
   bindHandle(rowHandle, "row");

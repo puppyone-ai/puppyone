@@ -171,6 +171,20 @@
       }
     },
     {
+      "id": "table-move-selection",
+      "name": "Table move commands preserve row and column selection",
+      "group": "app",
+      "command": ["npm", "run", "smoke:table-move-selection"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": [],
+      "timeoutSeconds": 180,
+      "runtime": "electron",
+      "artifacts": ["{checkDir}/table-move-selection/result.json"],
+      "environment": {
+        "PUPPYONE_TABLE_MOVE_ARTIFACT_DIR": "{checkDir}/table-move-selection"
+      }
+    },
+    {
       "id": "native-resize-cursor",
       "name": "Native split resize cursor recovery",
       "group": "app",

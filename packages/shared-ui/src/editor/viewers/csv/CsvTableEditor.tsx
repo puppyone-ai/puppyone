@@ -21,6 +21,7 @@ import type {
 import type { TabularProjectionItem } from "../../table/tabularWindow";
 import { useTabularViewport } from "../../table/useTabularViewport";
 import { EDITABLE_TABLE_COLUMN_MIN_WIDTH } from "../../table/editableTableLayout";
+import { getEditableTableMoveAxis } from "../../table/editableTableStructureInteraction";
 import { useEditorPaneMenuContributionPublisher } from "../../editorPaneMenuContribution";
 import {
   getCsvFindMatchKey,
@@ -317,10 +318,10 @@ export function CsvTableEditor({
 
   const applyStructureOperation = useCallback((
     operation: CsvTableStructureOperation,
-    focus: "operation-target" | "preserve" = "operation-target",
+    focus: "operation-target" | "preserve" = getEditableTableMoveAxis(operation) ? "preserve" : "operation-target",
   ) => {
     if (focus === "preserve") {
-      // Pointer reordering is not an implicit request to edit one cell. End an
+      // Structural reordering is not an implicit request to edit one cell. End an
       // existing in-table edit session, but never steal focus from elsewhere.
       pendingFocusRef.current = null;
       const table = tableRef.current;
@@ -330,7 +331,9 @@ export function CsvTableEditor({
       }
       setActiveCell(null);
     }
-    commitModelResult(model.applyStructureOperation(headerEnabled, operation), focus);
+    const result = model.applyStructureOperation(headerEnabled, operation);
+    commitModelResult(result, focus);
+    return result.focus;
   }, [commitModelResult, headerEnabled, model]);
 
   const expandTable = useCallback((targetDataRowCount: number, targetColumnCount: number) => {

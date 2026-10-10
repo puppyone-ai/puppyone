@@ -4,9 +4,51 @@ import { describe, expect, it, vi } from "vitest";
 
 import { closeActiveMarkdownTableMenu } from "../../../../../../packages/shared-ui/src/editor/markdown/features/table/tableMenuState";
 
-import { createTableView, source, makeHandleCaptureSafe, mockRect, rect } from "../../../../../support/editor/markdown/tableInteractions";
+import { createTableView, source, makeHandleCaptureSafe, mockRect, rect, nextAnimationFrame } from "../../../../../support/editor/markdown/tableInteractions";
 
 describe("Markdown table EditorView interactions", () => {
+
+  it.each([
+    ["row", 1, 0, "Move row down", 2, "one"],
+    ["row", 2, 0, "Move row up", 1, "four"],
+    ["column", 0, 0, "Move column right", 2, "A"],
+    ["column", 0, 1, "Move column left", 1, "B"],
+  ] as const)("keeps the whole %s selected after menu movement from row %s and column %s", async (axis, row, column, label, destination, text) => {
+    const view = createTableView();
+    view.dom.querySelector<HTMLElement>(`.cm-md-table-cell-content[data-md-table-row="${row}"][data-md-table-column="${column}"]`)!
+      .dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 40, clientY: 40 }));
+    const button = document.querySelector<HTMLButtonElement>(`.cm-md-table-context-menu [aria-label="${label}"]`)!;
+    button.click();
+    await nextAnimationFrame();
+    await nextAnimationFrame();
+    expect(document.querySelector(".cm-md-table-context-menu")).toBeNull();
+    expect(view.dom.querySelector(".cm-md-table-cell-content:focus")).toBeNull();
+    const outline = view.dom.querySelector<HTMLElement>(".po-editable-table-selection-outline")!;
+    const target = view.dom.querySelector<HTMLElement>(".po-editable-table-selection-target")!;
+    expect(outline.hidden).toBe(false);
+    expect(outline.dataset.axis).toBe(axis);
+    expect(axis === "row" ? target.dataset.mdTableRow : target.getAttribute("aria-colindex")).toBe(String(destination));
+    expect(target.textContent).toContain(text);
+    expect(document.activeElement).toBe(view.dom.querySelector(`.po-editable-table-${axis}-handle`));
+    document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }));
+    await nextAnimationFrame();
+    expect(outline.hidden).toBe(true);
+  });
+
+  it("keeps a later outside focus while the moved selection reattaches", async () => {
+    const view = createTableView();
+    view.dom.querySelector<HTMLElement>('.cm-md-table-cell-content[data-md-table-row="0"][data-md-table-column="0"]')!
+      .dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 40, clientY: 40 }));
+    document.querySelector<HTMLButtonElement>('.cm-md-table-context-menu [aria-label="Move column right"]')!.click();
+    const outside = document.createElement("button");
+    document.body.append(outside);
+    outside.focus();
+    await nextAnimationFrame();
+    await nextAnimationFrame();
+    expect(document.activeElement).toBe(outside);
+    expect(view.dom.querySelector<HTMLElement>(".po-editable-table-selection-outline")!.hidden).toBe(false);
+    expect(view.dom.querySelector<HTMLElement>(".po-editable-table-selection-target")!.textContent).toContain("A");
+  });
 
   it("moves a column through the cell context menu", () => {
     const view = createTableView();

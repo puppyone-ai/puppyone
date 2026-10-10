@@ -731,8 +731,8 @@ describe("CSV table interactions", () => {
     });
     expect(latestSnapshot).toBe("Name,Score\nLin,2\nAda,1");
     expect(document.querySelector(".csv-table-editor__context-menu")).toBeNull();
-    expect((document.activeElement as HTMLInputElement | null)?.dataset.csvRow).toBe("2");
-    expect((document.activeElement as HTMLInputElement | null)?.dataset.csvColumn).toBe("0");
+    expect(container?.querySelector("input:focus")).toBeNull();
+    expect(container?.querySelector<HTMLElement>(".po-editable-table-selection-target")?.dataset.csvRow).toBe("2");
   });
 
   it("docks the row handle inside the frozen gutter before the viewport clips it", () => {
@@ -830,8 +830,36 @@ describe("CSV table interactions", () => {
     const menu = document.querySelector(".csv-table-editor__context-menu");
     expect(menu?.querySelectorAll(".desktop-menu-section")).toHaveLength(2);
     expect(menu?.querySelectorAll('[role="menuitem"]')).toHaveLength(6);
-    expect(menu?.querySelector(".desktop-menu-section-label")?.textContent).toBe("Columns");
+    expect(menu?.querySelector(".desktop-menu-section-label")).toBeNull();
+    expect(menu?.querySelector('[role="group"]')?.getAttribute("aria-label")).toBe("Columns");
     expect(findButton("Insert row below")).toBeNull();
+  });
+
+  it.each([
+    ["row", 1, 0, "Move row down", 2, "Ada"],
+    ["row", 2, 0, "Move row up", 1, "Lin"],
+    ["column", 0, 0, "Move column right", 1, "Name"],
+    ["column", 0, 1, "Move column left", 0, "Score"],
+  ] as const)("keeps the whole %s selected after menu movement from row %s and column %s", async (axis, row, column, label, destination, text) => {
+    mockTableGeometry();
+    const cell = container!.querySelector<HTMLElement>(`[data-csv-row="${row}"][data-csv-column="${column}"]`)!;
+    act(() => cell.dispatchEvent(new MouseEvent("contextmenu", {
+      bubbles: true, cancelable: true, clientX: 160, clientY: 140,
+    })));
+    const menu = document.querySelector<HTMLElement>(".csv-table-editor__context-menu")!;
+    expect(menu.querySelector(".desktop-menu-section-label")).toBeNull();
+    await act(async () => findButton(label)!.click());
+    expect(document.querySelector(".csv-table-editor__context-menu")).toBeNull();
+    expect(container!.querySelector("input:focus")).toBeNull();
+    const outline = container!.querySelector<HTMLElement>(".po-editable-table-selection-outline")!;
+    const target = container!.querySelector<HTMLElement>(".po-editable-table-selection-target")!;
+    expect(outline.hidden).toBe(false);
+    expect(outline.dataset.axis).toBe(axis);
+    expect(axis === "row" ? target.dataset.csvRow : target.dataset.csvColumn).toBe(String(destination));
+    expect(target.querySelector<HTMLInputElement>("input")!.value).toBe(text);
+    expect(changeCount).toBe(1);
+    act(() => target.querySelector<HTMLInputElement>("input")!.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true })));
+    expect(outline.hidden).toBe(true);
   });
 
   it("keeps dropped rows and columns structurally selected without focusing their first cell", async () => {

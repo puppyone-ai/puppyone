@@ -176,20 +176,20 @@ export function showMarkdownTableContextMenu(
     });
   };
   let cleaned = false;
-  const cleanup = () => {
+  const cleanup = (restoreLauncherFocus = true) => {
     if (cleaned) return;
     cleaned = true;
     const activeElement = document.activeElement;
-    const shouldRestoreFocus = activeElement === menu || (
+    const shouldRestoreFocus = restoreLauncherFocus && (activeElement === menu || (
       activeElement instanceof Node && menu.contains(activeElement)
-    );
+    ));
     menu.removeEventListener("keydown", onMenuKeyDown);
     menu.removeEventListener("focusout", onFocusOut);
     menu.remove();
     document.removeEventListener("pointerdown", onPointerDown, true);
     document.removeEventListener("keydown", onKeyDown, true);
-    win?.removeEventListener("resize", closeActiveMarkdownTableMenu);
-    win?.removeEventListener("scroll", closeActiveMarkdownTableMenu, true);
+    win?.removeEventListener("resize", closeWithoutOptions);
+    win?.removeEventListener("scroll", closeWithoutOptions, true);
     target.onClose?.({ restoreFocus: shouldRestoreFocus });
     if (shouldRestoreFocus) {
       if (restoreFocus?.isConnected) {
@@ -199,6 +199,7 @@ export function showMarkdownTableContextMenu(
       }
     }
   };
+  const closeWithoutOptions = () => closeActiveMarkdownTableMenu();
   setActiveMarkdownTableMenu({ cleanup, element: menu });
   menu.addEventListener("keydown", onMenuKeyDown);
   menu.addEventListener("focusout", onFocusOut);
@@ -215,8 +216,8 @@ export function showMarkdownTableContextMenu(
     if (!isActiveMarkdownTableMenu(menu)) return;
     document.addEventListener("pointerdown", onPointerDown, true);
     document.addEventListener("keydown", onKeyDown, true);
-    win.addEventListener("resize", closeActiveMarkdownTableMenu);
-    win.addEventListener("scroll", closeActiveMarkdownTableMenu, true);
+    win.addEventListener("resize", closeWithoutOptions);
+    win.addEventListener("scroll", closeWithoutOptions, true);
   }, 0);
   return menu;
 }

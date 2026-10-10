@@ -9,6 +9,7 @@ import {
 import { normalizeLineEndings } from "../../shared/widgets/widgetDom";
 import { requestMarkdownTableFocus } from "./tableFocusState";
 import { closeActiveMarkdownTableMenu } from "./tableMenuState";
+import { getEditableTableMoveAxis } from "../../../table/editableTableStructureInteraction";
 import {
   requestMarkdownTableStructuralSelection,
   type MarkdownTableStructuralSelectionAxis,
@@ -41,7 +42,13 @@ export function dispatchMarkdownTableStructureOperation(
     structuralSelection?: MarkdownTableStructuralSelectionAxis;
   }> = {},
 ) {
-  closeActiveMarkdownTableMenu();
+  const activeElement = context.view.dom.ownerDocument.activeElement;
+  const focusOwnedByTable = activeElement instanceof Element && (
+    context.view.dom.contains(activeElement) || activeElement.closest(".cm-md-table-context-menu") !== null
+  );
+  // A completed command owns its next focus/selection. Restoring the launcher
+  // here would reopen cell editing before a structural move is committed.
+  closeActiveMarkdownTableMenu({ restoreFocus: false });
   const result = applyMarkdownTableOperation({
     alignments: context.alignments,
     rows: getMarkdownTableRowsWithDraft(context.rows, context.currentDraft),
@@ -61,12 +68,15 @@ export function dispatchMarkdownTableStructureOperation(
         Math.max(1, context.alignments.length),
       ),
     });
-  const restoreOperationFocus = options.focus !== "preserve";
-  const structuralSelection = options.structuralSelection && result.focus
+  const moveAxis = getEditableTableMoveAxis(operation);
+  const restoreOperationFocus = (options.focus ?? (moveAxis ? "preserve" : "operation-target")) !== "preserve";
+  const selectionAxis = options.structuralSelection ?? moveAxis;
+  const structuralSelection = selectionAxis && result.focus
     ? requestMarkdownTableStructuralSelection(
       context.tableFrom,
-      options.structuralSelection,
-      options.structuralSelection === "row" ? result.focus.rowIndex : result.focus.columnIndex,
+      selectionAxis,
+      selectionAxis === "row" ? result.focus.rowIndex : result.focus.columnIndex,
+      focusOwnedByTable,
     )
     : null;
   const effects = [

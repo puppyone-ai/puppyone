@@ -2,6 +2,7 @@
 
 import { showEditableTableHandle } from "../../table/editableTableHandle";
 import { createEditableTableSelection } from "../../table/editableTableSelection";
+import { getEditableTableMoveAxis } from "../../table/editableTableStructureInteraction";
 import type { MessageFormatter } from "@puppyone/localization/core";
 import {
   type PointerEvent as ReactPointerEvent,
@@ -17,7 +18,7 @@ import {
   getEditableTableDropBoundary,
 } from "../../table/editableTableDrag";
 import { CsvTableMenu, type CsvTableMenuTarget } from "./CsvTableMenu";
-import type { CsvTableStructureOperation } from "./csvTableOperations";
+import type { CsvTableFocusTarget, CsvTableStructureOperation } from "./csvTableOperations";
 
 type CsvTableControlsProps = Readonly<{
   columnCount: number;
@@ -27,8 +28,7 @@ type CsvTableControlsProps = Readonly<{
   onAutoFitColumn: (columnIndex: number) => void;
   onOperation: (
     operation: CsvTableStructureOperation,
-    focus?: "operation-target" | "preserve",
-  ) => void;
+  ) => CsvTableFocusTarget | undefined;
   rowCount: number;
   rowNumbersVisible: boolean;
   surfaceRef: RefObject<HTMLDivElement>;
@@ -71,6 +71,7 @@ export function CsvTableControls({
   const menuTargetRef = useRef<CsvTableMenuTarget | null>(null);
   const structuralSelectionRef = useRef<CsvTableStructuralSelection | null>(null);
   const onOperationRef = useRef(onOperation);
+  const dispatchOperationRef = useRef<(operation: CsvTableStructureOperation) => void>(() => undefined);
   const positionHandlesRef = useRef<() => void>(() => undefined);
   const openMenuRef = useRef<(kind: CsvTableDragKind, sourceIndex: number, handle: HTMLButtonElement) => void>(
     () => undefined,
@@ -153,6 +154,16 @@ export function CsvTableControls({
         positionHandles();
       });
     };
+    // Menu clicks, keyboard activation and pointer drops share the same
+    // post-transaction selection. Never infer the destination from DOM order.
+    const dispatchOperation = (operation: CsvTableStructureOperation) => {
+      const axis = getEditableTableMoveAxis(operation);
+      const destination = onOperationRef.current(operation);
+      if (axis && destination) {
+        persistStructuralSelection(axis, axis === "row" ? destination.rowIndex : destination.columnIndex);
+      }
+    };
+    dispatchOperationRef.current = dispatchOperation;
     const restoredSelection = structuralSelectionRef.current;
     if (restoredSelection) {
       setCsvTableSourceHighlight(
@@ -459,42 +470,37 @@ export function CsvTableControls({
             }), moveEvent.clientY);
         renderDropIndicator(kind, sourceIndex, dropBoundary);
       };
-      const applyMove = (): CsvTableStructuralSelection | null => {
-        if (dropBoundary == null) return null;
+      const applyMove = () => {
+        if (dropBoundary == null) return;
         if (kind === "column") {
           const columnCells = getColumnCells();
           const targetBoundary = dropBoundary < columnCells.length
             ? Number(columnCells[dropBoundary]?.dataset.csvColumn)
             : Number(columnCells[columnCells.length - 1]?.dataset.csvColumn) + 1;
           const targetColumnIndex = targetBoundary > sourceIndex ? targetBoundary - 1 : targetBoundary;
-          if (!Number.isInteger(targetColumnIndex)) return null;
-          if (targetColumnIndex !== sourceIndex) {
-            onOperationRef.current({
-              type: "move-column-to",
-              rowIndex: hoverRef.current.rowIndex ?? firstMovableRow,
-              columnIndex: sourceIndex,
-              targetColumnIndex,
-            }, "preserve");
-          }
-          return { kind, index: targetColumnIndex };
+          if (!Number.isInteger(targetColumnIndex)) return;
+          dispatchOperation({
+            type: "move-column-to",
+            rowIndex: hoverRef.current.rowIndex ?? firstMovableRow,
+            columnIndex: sourceIndex,
+            targetColumnIndex,
+          });
+          return;
         }
         const bodyRows = getBodyRows();
         const sourcePosition = bodyRows.findIndex((row) => Number(row.dataset.csvRow) === sourceIndex);
-        if (sourcePosition < 0) return null;
+        if (sourcePosition < 0) return;
         const targetBoundary = dropBoundary < bodyRows.length
           ? Number(bodyRows[dropBoundary]?.dataset.csvRow)
           : Number(bodyRows[bodyRows.length - 1]?.dataset.csvRow) + 1;
         const targetRowIndex = targetBoundary > sourceIndex ? targetBoundary - 1 : targetBoundary;
-        if (!Number.isInteger(targetRowIndex)) return null;
-        if (targetRowIndex !== sourceIndex) {
-          onOperationRef.current({
-            type: "move-row-to",
-            rowIndex: sourceIndex,
-            columnIndex: hoverRef.current.columnIndex ?? 0,
-            targetRowIndex,
-          }, "preserve");
-        }
-        return { kind, index: targetRowIndex };
+        if (!Number.isInteger(targetRowIndex)) return;
+        dispatchOperation({
+          type: "move-row-to",
+          rowIndex: sourceIndex,
+          columnIndex: hoverRef.current.columnIndex ?? 0,
+          targetRowIndex,
+        });
       };
       const cleanup = (preserveSourceHighlight = false) => {
         if (activeDragCleanupRef.current !== cleanup) return;
@@ -520,10 +526,7 @@ export function CsvTableControls({
         const shouldApply = moved;
         cleanup(!shouldApply);
         if (shouldApply) {
-          const nextSelection = applyMove();
-          if (nextSelection) {
-            persistStructuralSelection(nextSelection.kind, nextSelection.index);
-          }
+          applyMove();
         } else openMenu(kind, sourceIndex, handle);
       };
       const onPointerCancel = (cancelEvent: PointerEvent) => {
@@ -639,6 +642,7 @@ export function CsvTableControls({
       setCsvTableSourceHighlight(table, "column", menuTargetRef.current?.columnIndex ?? -1, false);
       positionHandlesRef.current = () => undefined;
       openMenuRef.current = () => undefined;
+      dispatchOperationRef.current = () => undefined;
       startDragRef.current = () => undefined;
     };
   }, [closeMenu, direction, headerEnabled, rowCount, rowNumbersVisible, surfaceRef, t, tableRef]);
@@ -714,7 +718,7 @@ export function CsvTableControls({
           locale={locale}
           onAutoFitColumn={onAutoFitColumn}
           onClose={closeMenu}
-          onOperation={onOperation}
+          onOperation={(operation) => dispatchOperationRef.current(operation)}
           rowCount={rowCount}
           t={t}
           target={menuTarget}

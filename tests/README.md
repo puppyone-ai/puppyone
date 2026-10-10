@@ -67,6 +67,14 @@ e2e command runs project sessions followed by the fixture-based Agent/Terminal
 sidebar workflow. Both run without paid requests.
 
 Other `smoke:*` commands are explicit focused checks, not implicitly part of CI.
+The `table-move-selection` app gate (`npm run smoke:table-move-selection`)
+mounts production CSV and Markdown tables in isolated Electron. Its 32 cases
+use Chromium mouse capture and keyboard input for row/column dragging, all
+menu move directions and keyboard menu activation in light and dark themes.
+It checks moved-content identity, the full structural outline, absent cell
+editing focus, heading-free menus and Escape dismissal. This is a component
+fixture, with no filesystem save or OS pointer injection.
+
 `smoke:item-lifecycle` is the `item-lifecycle` app gate: the production Main
 supervisor and utility runtime face blocked initialization, uncooperative
 disposal and a real child process group. It verifies bounded outer termination,

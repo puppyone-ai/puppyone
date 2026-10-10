@@ -1,5 +1,5 @@
 import { StateEffect, StateField, type Extension } from "@codemirror/state";
-import { ViewPlugin, type EditorView } from "@codemirror/view";
+import { ViewPlugin, type EditorView, type ViewUpdate } from "@codemirror/view";
 
 export type MarkdownTableStructuralSelectionAxis = "column" | "row";
 
@@ -10,7 +10,7 @@ export type MarkdownTableStructuralSelection = Readonly<{
 }>;
 
 type MarkdownTableStructuralSelectionAction =
-  | { type: "select"; selection: MarkdownTableStructuralSelection }
+  | { type: "select"; selection: MarkdownTableStructuralSelection; focusHandle?: boolean }
   | { type: "clear" };
 
 export const markdownTableStructuralSelectionEffect =
@@ -40,10 +40,12 @@ export function requestMarkdownTableStructuralSelection(
   tableFrom: number,
   axis: MarkdownTableStructuralSelectionAxis,
   index: number,
+  focusHandle = false,
 ) {
   return markdownTableStructuralSelectionEffect.of({
     type: "select",
     selection: { axis, index, tableFrom },
+    focusHandle,
   });
 }
 
@@ -60,13 +62,22 @@ export function clearMarkdownTableStructuralSelection() {
 const markdownTableStructuralSelectionCoordinator = ViewPlugin.fromClass(class {
   private cancelScheduled: (() => void) | null = null;
   private readonly view: EditorView;
+  private pendingHandleFocus: MarkdownTableStructuralSelection | null = null;
 
   constructor(view: EditorView) {
     this.view = view;
     this.schedule();
   }
 
-  update() {
+  update(update: ViewUpdate) {
+    for (const transaction of update.transactions) {
+      for (const effect of transaction.effects) {
+        if (!effect.is(markdownTableStructuralSelectionEffect)) continue;
+        this.pendingHandleFocus = effect.value.type === "select" && effect.value.focusHandle
+          ? effect.value.selection
+          : null;
+      }
+    }
     this.schedule();
   }
 
@@ -90,6 +101,8 @@ const markdownTableStructuralSelectionCoordinator = ViewPlugin.fromClass(class {
   private synchronize() {
     this.cancelScheduled = null;
     const selected = this.view.state.field(markdownTableStructuralSelectionField, false);
+    const focusRequest = this.pendingHandleFocus;
+    this.pendingHandleFocus = null;
     const EventConstructor = this.view.dom.ownerDocument.defaultView?.CustomEvent ?? CustomEvent;
     for (const wrapper of this.view.dom.querySelectorAll<HTMLElement>(
       ".cm-md-table-widget-wrap[data-md-table-from]",
@@ -100,6 +113,16 @@ const markdownTableStructuralSelectionCoordinator = ViewPlugin.fromClass(class {
       wrapper.dispatchEvent(new EventConstructor(MARKDOWN_TABLE_STRUCTURAL_SELECTION_EVENT, {
         detail,
       }));
+      if (detail && focusRequest && detail.tableFrom === focusRequest.tableFrom
+        && detail.axis === focusRequest.axis && detail.index === focusRequest.index) {
+        const document = wrapper.ownerDocument;
+        // A later interaction in another Pane takes precedence over the
+        // completed command. Focus a structural control, never a cell/source.
+        if (document.activeElement === document.body || this.view.dom.contains(document.activeElement)) {
+          wrapper.querySelector<HTMLElement>(`.po-editable-table-${detail.axis}-handle`)
+            ?.focus({ preventScroll: true });
+        }
+      }
     }
   }
 }, {
