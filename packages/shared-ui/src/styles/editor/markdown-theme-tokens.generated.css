@@ -94,7 +94,9 @@
     --po-host-md-strikethrough-color: var(--po-text-subtle);
     --po-host-md-list-color: var(--po-host-md-content-color);
     --po-host-md-list-marker-color: var(--po-host-md-blockquote-color);
-    --po-host-md-list-marker-weight: 650;
+    --po-host-md-list-marker-weight: 400;
+    --po-host-md-list-marker-numeric-variant: tabular-nums;
+    --po-host-md-ordered-marker-align: end;
     --po-host-md-markup-color: var(--po-text-disabled);
     --po-host-md-blockquote-border-width: 3px;
     --po-host-md-blockquote-padding-inline: 16px;
@@ -216,6 +218,8 @@
   --po-md-list-color: var(--po-host-md-list-color);
   --po-md-list-marker-color: var(--po-host-md-list-marker-color);
   --po-md-list-marker-weight: var(--po-host-md-list-marker-weight);
+  --po-md-list-marker-numeric-variant: var(--po-host-md-list-marker-numeric-variant);
+  --po-md-ordered-marker-align: var(--po-host-md-ordered-marker-align);
   --po-md-markup-color: var(--po-host-md-markup-color);
   --po-md-blockquote-border-width: var(--po-host-md-blockquote-border-width);
   --po-md-blockquote-padding-inline: var(--po-host-md-blockquote-padding-inline);

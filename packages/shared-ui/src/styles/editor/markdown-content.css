@@ -286,7 +286,7 @@
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface li :where(ul, ol) {
   margin-block: 0;
-  padding-inline-start: var(--po-md-list-indent-step);
+  padding-inline-start: max(var(--po-md-list-indent-step), calc(var(--md-list-marker-slot-width) + var(--po-md-list-marker-gap)));
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface li {
@@ -305,11 +305,13 @@
   justify-content: center;
   color: var(--po-md-list-marker-color);
   font-weight: var(--po-md-list-marker-weight);
+  font-variant-numeric: var(--po-md-list-marker-numeric-variant);
   user-select: none;
   content: "•";
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface ol > li::before {
+  justify-content: var(--po-md-ordered-marker-align);
   content: counter(list-item) ".";
 }
 
@@ -383,6 +385,8 @@
 .markdown-codemirror-editor[data-live-preview="true"] .cm-md-syntax-list.cm-md-syntax-markup,
 .markdown-codemirror-editor .cm-md-html-rendered-surface li::marker {
   color: var(--po-md-list-marker-color);
+  font-weight: var(--po-md-list-marker-weight);
+  font-variant-numeric: var(--po-md-list-marker-numeric-variant);
 }
 
 /* Emphasis must never make an already-strong heading lighter. */

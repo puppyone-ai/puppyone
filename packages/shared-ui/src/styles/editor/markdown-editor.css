@@ -351,6 +351,20 @@
   border-left: var(--po-md-blockquote-border-width) solid var(--po-md-blockquote-border-color);
 }
 
+/* Resolve the source-derived prefix in the line's font metrics once. Its
+   marker can use a different weight without changing the text/marker gap. */
+@property --md-list-marker-slot-width {
+  syntax: "<length-percentage>";
+  inherits: true;
+  initial-value: 0px;
+}
+
+@property --md-list-prefix-width {
+  syntax: "<length-percentage>";
+  inherits: true;
+  initial-value: 0px;
+}
+
 .markdown-codemirror-editor .cm-md-list-line {
   position: relative;
   --md-list-marker-slot-width: max(var(--po-md-list-marker-width), calc(var(--md-list-marker-columns, 0) * 1ch));
@@ -359,19 +373,28 @@
   color: var(--po-md-list-color);
 }
 
+.markdown-codemirror-editor .cm-md-nested-list-line {
+  --md-list-prefix-width: calc(var(--md-list-parent-prefix-width) + max(var(--po-md-list-indent-step), calc(var(--md-list-marker-slot-width) + var(--po-md-list-marker-gap))));
+}
+
 .markdown-codemirror-editor .cm-md-list-line:not(.cm-md-task-line):not(.cm-md-list-continuation)::before {
   position: absolute;
-  inset-inline-start: calc(var(--po-md-list-inset) + var(--md-list-depth, 0) * var(--po-md-list-indent-step));
+  inset-inline-start: calc(var(--md-list-prefix-width) - var(--md-list-marker-slot-width) - var(--po-md-list-marker-gap));
   inset-block-start: var(--md-line-padding-before, var(--po-markdown-editor-line-spacing));
   display: inline-flex;
   width: var(--md-list-marker-slot-width);
   height: 1lh;
   align-items: center;
-  justify-content: center;
+  justify-content: var(--md-list-marker-align, center);
   color: var(--po-md-list-marker-color);
   font-weight: var(--po-md-list-marker-weight);
+  font-variant-numeric: var(--po-md-list-marker-numeric-variant);
   user-select: none;
   content: var(--md-list-marker, "");
+}
+
+.markdown-codemirror-editor .cm-md-ordered-list-line {
+  --md-list-marker-align: var(--po-md-ordered-marker-align);
 }
 
 .markdown-codemirror-editor .cm-md-list-mark {
@@ -435,7 +458,7 @@
   /* The hit target stays compact, centered in the file-owned marker slot
      and on the first text line, even when item spacing or fonts change. */
   inset-block-start: calc(var(--md-line-padding-before, var(--po-markdown-editor-line-spacing)) + .5lh);
-  inset-inline-start: calc(var(--po-md-list-inset) + var(--md-list-depth, 0) * var(--po-md-list-indent-step) + (var(--md-list-marker-slot-width) - var(--md-task-checkbox-hit-size)) / 2);
+  inset-inline-start: calc(var(--md-list-prefix-width) - var(--md-list-marker-slot-width) - var(--po-md-list-marker-gap) + (var(--md-list-marker-slot-width) - var(--md-task-checkbox-hit-size)) / 2);
   display: inline-grid;
   width: var(--md-task-checkbox-hit-size);
   height: var(--md-task-checkbox-hit-size);

@@ -179,7 +179,9 @@
     --po-md-strikethrough-color: var(--po-text-subtle);
     --po-md-list-color: var(--po-md-content-color);
     --po-md-list-marker-color: var(--po-md-blockquote-color);
-    --po-md-list-marker-weight: 650;
+    --po-md-list-marker-weight: 400;
+    --po-md-list-marker-numeric-variant: tabular-nums;
+    --po-md-ordered-marker-align: end;
     --po-md-markup-color: var(--po-text-disabled);
     --po-md-blockquote-border-width: 3px;
     --po-md-blockquote-padding-inline: 16px;

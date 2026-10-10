@@ -16,7 +16,7 @@ const listKey = (list: SyntaxNode) => `${list.from}:${list.to}`;
 
 export type MarkdownLineRhythm = {
   classes: Set<string>;
-  list?: { depth: number; marker: string; columns: number; prefixTo: number };
+  list?: { depth: number; marker: string; columns: number; parentColumns: number[]; prefixTo: number };
 };
 
 /** Semantic boundaries only. Theme files own every visual spacing value.
@@ -75,23 +75,23 @@ function addListParagraphRhythm(node: SyntaxNode, item: SyntaxNode, context: Rhy
   if (!mark) return;
   const marker = state.sliceDoc(mark.from, mark.to);
   const list = item.parent!;
-  let columns = 0;
-  if (list.name === "OrderedList") {
-    columns = orderedColumns.get(listKey(list)) ?? widestOrderedMarker(list);
-    orderedColumns.set(listKey(list), columns);
+  const columns = listMarkerColumns(list, orderedColumns);
+  const parentColumns: number[] = [];
+  for (let parent = item.parent; parent; parent = parent.parent) {
+    if (parent.name === "ListItem" && parent.parent) parentColumns.unshift(listMarkerColumns(parent.parent, orderedColumns));
   }
-  let depth = 0;
-  for (let parent = item.parent; parent; parent = parent.parent) if (parent.name === "ListItem") depth += 1;
+  const depth = parentColumns.length;
   const first = state.doc.lineAt(node.from), last = state.doc.lineAt(node.to);
   for (let number = Math.max(first.number, state.doc.lineAt(from).number); number <= Math.min(last.number, state.doc.lineAt(to).number); number++) {
     const line = state.doc.line(number);
     const start = line.from === state.doc.lineAt(item.from).from;
-    const rhythm = add(line.from, "cm-md-list-line", ...(start ? [] : ["cm-md-list-continuation"]));
+    const rhythm = add(line.from, "cm-md-list-line", ...(list.name === "OrderedList" ? ["cm-md-ordered-list-line"] : []),
+      ...(depth ? ["cm-md-nested-list-line"] : []), ...(start ? [] : ["cm-md-list-continuation"]));
     if (!rhythm) continue;
     const pattern = start ? /^(\s*)(?:[-*+]|\d+[.)])\s+/ : /^\s*/;
     const prefix = pattern.exec(line.text)?.[0] ?? "";
     const visibleMarker = /^\d/.test(marker) ? marker : "•";
-    rhythm.list = { depth, columns, marker: start ? visibleMarker : "", prefixTo: line.from + prefix.length };
+    rhythm.list = { depth, columns, parentColumns, marker: start ? visibleMarker : "", prefixTo: line.from + prefix.length };
   }
 }
 
@@ -107,6 +107,13 @@ function widestOrderedMarker(list: SyntaxNode): number {
     const mark = item.getChild("ListMark");
     if (mark) columns = Math.max(columns, mark.to - mark.from);
   }
+  return columns;
+}
+
+function listMarkerColumns(list: SyntaxNode, cache: Map<string, number>) {
+  if (list.name !== "OrderedList") return 0;
+  const columns = cache.get(listKey(list)) ?? widestOrderedMarker(list);
+  cache.set(listKey(list), columns);
   return columns;
 }
 
@@ -141,9 +148,12 @@ export function getChangedMarkdownRhythmRanges(transaction: Transaction) {
 function inheritOrderedColumns(transaction: Transaction, change: { fromA: number; toA: number; fromB: number; toB: number }) {
   const { startState: before, state: after, changes } = transaction;
   if (/[\r\n]/.test(before.sliceDoc(change.fromA, change.toA)) || /[\r\n]/.test(after.sliceDoc(change.fromB, change.toB))) return;
-  const previous = ancestor(syntaxTree(before).resolveInner(change.fromA, -1), "OrderedList");
-  const next = ancestor(syntaxTree(after).resolveInner(change.fromB, -1), "OrderedList");
-  if (!previous || !next || changes.mapPos(previous.from, -1) !== next.from || changes.mapPos(previous.to, 1) !== next.to) return;
-  const columns = markerColumnsFor(before).get(listKey(previous));
-  if (columns !== undefined) markerColumnsFor(after).set(listKey(next), columns);
+  let previous = ancestor(syntaxTree(before).resolveInner(change.fromA, -1), "OrderedList");
+  let next = ancestor(syntaxTree(after).resolveInner(change.fromB, -1), "OrderedList");
+  while (previous && next) {
+    if (changes.mapPos(previous.from, -1) !== next.from || changes.mapPos(previous.to, 1) !== next.to) return;
+    const columns = markerColumnsFor(before).get(listKey(previous));
+    if (columns !== undefined) markerColumnsFor(after).set(listKey(next), columns);
+    previous = ancestor(previous, "OrderedList"); next = ancestor(next, "OrderedList");
+  }
 }

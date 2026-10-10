@@ -91,9 +91,12 @@ function readColors() {
   const quoteColor = color(quotes[0]);
   const nativeMarkers = [...host.querySelectorAll(".cm-md-list-line:not(.cm-md-task-line)")]
     .map(element => ({ text: getComputedStyle(element, "::before").content,
-      actual: color(element, "::before"), expected: quoteColor }));
+      actual: color(element, "::before"), expected: quoteColor, weight: getComputedStyle(element, "::before").fontWeight,
+      align: getComputedStyle(element, "::before").justifyContent, numeric: getComputedStyle(element, "::before").fontVariantNumeric }));
   const htmlMarkers = [...host.querySelectorAll(".cm-md-html-rendered-surface li")]
-    .map(element => ({ text: element.textContent, actual: color(element, "::before"), expected: quoteColor }));
+    .map(element => ({ text: element.textContent, actual: color(element, "::before"), expected: quoteColor,
+      weight: getComputedStyle(element, "::before").fontWeight, align: getComputedStyle(element, "::before").justifyContent,
+      numeric: getComputedStyle(element, "::before").fontVariantNumeric }));
   const bodyLine = host.querySelector(".cm-line");
   const link = bodyLine.querySelector(linkSelector);
   const quotedLinks = [...host.querySelectorAll(".cm-md-blockquote .cm-md-syntax-link, .cm-md-html-rendered-surface blockquote a strong")]
@@ -172,6 +175,11 @@ function assertColors(metrics, override) {
   }
   for (const group of ["quoteCode", "htmlCode", "widgetCode"]) for (const item of metrics[group]) {
     assert.equal(item.font, metrics.codeFont, `${group} lost its product monospace font: ${item.text}`);
+  }
+  for (const item of [...metrics.nativeMarkers, ...metrics.htmlMarkers]) {
+    assert.equal(item.weight, "400", "list markers regained their heavy emphasis");
+    assert.equal(item.align, "end", "ordered marker suffixes lost their alignment");
+    assert.equal(item.numeric, "tabular-nums", "ordered markers lost tabular figures");
   }
 }
 
@@ -316,10 +324,14 @@ function readBlockRhythm() {
     const text=textRects(element);
     const sourceLine=geometry.lines.find(line=>line.text.trim()===element.textContent.trim() || line.text.includes(element.textContent.trim()));
     return {text:element.textContent, classes:element.className, x:rect.x,height:rect.height, size:parseFloat(css.fontSize),
+      ordered:element.classList.contains('cm-md-ordered-list-line')||element.matches('ol > li'),
+      orderedGroup:element.matches('ol > li') ? [...host.querySelectorAll('.cm-md-html-rendered-surface ol')].indexOf(element.parentElement) : null,
       before:parseFloat(css.paddingTop),after:parseFloat(css.paddingBottom),indent:parseFloat(css.paddingInlineStart),
       marginBefore:parseFloat(css.marginTop),marginAfter:parseFloat(css.marginBottom),
       depth:Number(css.getPropertyValue('--md-list-depth')),columns:Number(css.getPropertyValue('--md-list-marker-columns')),
-      marker:{content:pseudo.content,left:parseFloat(pseudo.insetInlineStart),top:parseFloat(pseudo.insetBlockStart),width:parseFloat(pseudo.width),height:parseFloat(pseudo.height),align:pseudo.justifyContent},
+      marker:{content:pseudo.content,left:parseFloat(pseudo.insetInlineStart),top:parseFloat(pseudo.insetBlockStart),width:parseFloat(pseudo.width),height:parseFloat(pseudo.height),align:pseudo.justifyContent,
+        weight:pseudo.fontWeight,numeric:pseudo.fontVariantNumeric,
+        box:{x:rect.x+parseFloat(pseudo.insetInlineStart),y:rect.y+parseFloat(pseudo.insetBlockStart),width:parseFloat(pseudo.width),height:parseFloat(pseudo.height)}},
       textRects:text,sourceLine,
       checkbox:(()=>{const button=element.querySelector('.cm-md-task-checkbox-widget');if(!button)return null;const box=button.getBoundingClientRect();return {x:box.x-rect.x,y:box.y-rect.y,width:box.width,height:box.height};})()};
   };
@@ -354,15 +366,76 @@ function assertBlockRhythm(metrics) {
   assert.equal(nested.depth,1);near(nested.indent-bullet.indent,bullet.size*2,'semantic nested step');
   const ordered=metrics.lists.filter(line=>/Ordered (nine|ten|hundred)/.test(line.text));
   assert.equal(ordered.length,3);
-  for(const line of ordered){assert.equal(line.columns,4);near(line.indent,ordered[0].indent,'shared ordered column');assert.equal(line.marker.align,'center');}
+  for(const line of ordered){
+    assert.equal(line.columns,4);near(line.indent,ordered[0].indent,'shared ordered column');assert.equal(line.marker.align,'end');
+    assert.equal(line.marker.weight,'400');assert.equal(line.marker.numeric,'tabular-nums');
+    near(line.indent-line.marker.left-line.marker.width,line.size*.5,'stable ordered text gap');
+    for(const rect of line.textRects)near(rect.x-line.x,line.indent,'ordered hanging text');
+  }
+  assert(ordered[0].textRects.length>=2,'ordered body must wrap');
+  const nestedOrdered=metrics.lists.filter(line=>line.text.includes('Nested numbered'));
+  assert.equal(nestedOrdered.length,3);
+  for(const line of nestedOrdered){
+    assert.equal(line.columns,5);assert.equal(line.depth,1);assert.equal(line.marker.align,'end');
+    near(line.indent-ordered[0].indent,Math.max(line.size*2,line.marker.width+line.size*.5),'nested ordered step');
+    assert(line.x+line.marker.left >= ordered[0].x+ordered[0].indent-.7,'nested marker escaped its parent text column');
+  }
+  const grandchild=metrics.lists.find(line=>line.text.includes('Nested under wide number'));
+  assert.equal(grandchild.depth,2);near(grandchild.indent-nestedOrdered[0].indent,grandchild.size*2,'mixed nesting step');
   const task=metrics.lists.find(line=>line.text.includes('Task item'));
   near(task.indent,bullet.indent,'shared task text column');
   near(task.checkbox.x+task.checkbox.width/2,bullet.marker.left+bullet.marker.width/2,'centered checkbox');
   near(task.checkbox.y+task.checkbox.height/2,task.before+bullet.marker.height/2,'checkbox first line center');
   assert.equal(metrics.htmlParagraphs.length,2);
   for(const line of metrics.htmlParagraphs){near(line.marginBefore,line.size*.375,'HTML paragraph before');near(line.marginAfter,line.size*1.25,'HTML paragraph after');}
-  for(const line of metrics.htmlLists){assert.equal(line.marker.align,'center');assert(line.marker.width>0,'HTML marker lost its slot');}
-  assert.equal(metrics.htmlOrderedColumns,'2');assert.equal(metrics.htmlOrderedStart,1);
+  for(const line of metrics.htmlLists){assert.equal(line.marker.align,line.ordered?'end':'center');assert(line.marker.width>0,'HTML marker lost its slot');assert.equal(line.marker.weight,'400');}
+  const htmlRoots=metrics.htmlLists.filter(line=>line.orderedGroup===0),htmlChildren=metrics.htmlLists.filter(line=>line.orderedGroup===1);
+  assert.equal(htmlRoots.length,12);assert.equal(htmlChildren.length,12);
+  for(const line of htmlRoots)near(line.x,htmlRoots[0].x,'HTML ordered body column');
+  for(const line of htmlChildren){
+    near(line.x-htmlRoots[0].x,Math.max(line.size*2,line.marker.width+line.size*.5),'HTML nested ordered step');
+    assert(line.x+line.marker.left >= htmlRoots[0].x-.7,'HTML nested marker escaped its parent text column');
+  }
+  assert.equal(metrics.htmlOrderedColumns,'3');assert.equal(metrics.htmlOrderedStart,1);
+}
+
+// Capture the painted pseudo-elements: computed justify-content alone cannot
+// prove that punctuation actually lands on the same pixel column.
+async function readMarkerInk(dataUrl, crop) {
+  const image=new Image();image.src=dataUrl;await image.decode();
+  const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;
+  const context=canvas.getContext('2d',{willReadFrequently:true});context.drawImage(image,0,0);
+  const {data}=context.getImageData(0,0,image.width,image.height),background=[...data.slice(0,3)];
+  let left=image.width,right=-1,count=0;
+  for(let y=0;y<image.height;y++)for(let x=0;x<image.width;x++){
+    const offset=(y*image.width+x)*4;
+    if(data[offset+3] && Math.max(...background.map((value,channel)=>Math.abs(data[offset+channel]-value)))>25){
+      left=Math.min(left,x);right=Math.max(right,x);count++;
+    }
+  }
+  const scale=image.width/crop.width;
+  return {left:crop.x+left/scale,right:crop.x+(right+1)/scale,count};
+}
+
+async function captureOrderedMarkerInk(browser,evaluate,metrics,name) {
+  const groups=[metrics.lists.filter(line=>/Ordered (nine|ten|hundred)/.test(line.text)),
+    metrics.lists.filter(line=>line.text.includes('Nested numbered')),
+    ...[0,1].map(group=>metrics.htmlLists.filter(line=>line.orderedGroup===group))];
+  const samples=[];
+  for(let group=0;group<groups.length;group++){
+    const lines=groups[group].length>3 ? [groups[group][0],groups[group][8],groups[group][9],groups[group].at(-1)] : groups[group];
+    const inks=[];
+    for(let index=0;index<lines.length;index++){
+      const box=lines[index].marker.box,crop={x:Math.floor(box.x),y:Math.floor(box.y),width:Math.ceil(box.width)+2,height:Math.ceil(box.height)+1};
+      const image=await browser.webContents.capturePage(crop);
+      const ink=await evaluate(`(${readMarkerInk.toString()})(${JSON.stringify(image.toDataURL())},${JSON.stringify(crop)})`);
+      assert(ink.count>10,'painted ordered marker is missing');
+      inks.push(ink);await fs.writeFile(path.join(artifacts,`${name}-marker-${group}-${index}.png`),image.toPNG());
+    }
+    assert(Math.max(...inks.map(ink=>ink.right))-Math.min(...inks.map(ink=>ink.right))<1.3,'ordered punctuation is not aligned in painted pixels');
+    samples.push(inks);
+  }
+  return samples;
 }
 
 function readFileAuthority() {
@@ -394,6 +467,7 @@ function readFileAuthority() {
     paragraphAfter: css(host.querySelector(".cm-md-paragraph-end")).paddingBottom,
     listIndent: css(host.querySelector(".cm-md-list-line")).paddingInlineStart,
     listMarkerInset: getComputedStyle(host.querySelector(".cm-md-list-line"), "::before").insetInlineStart,
+    orderedMarker:(()=>{const marker=getComputedStyle(host.querySelector('.cm-md-ordered-list-line'),'::before');return {weight:marker.fontWeight,numeric:marker.fontVariantNumeric,align:marker.justifyContent};})(),
     peerColor: color(css(document.querySelector("#peer .cm-editor")).color), blocks,
     cells: [...host.querySelectorAll(".cm-md-table-widget :is(th,td), .cm-md-html-rendered-surface table :is(th,td)")].map(element => ({
       header: element.tagName === "TH", color: color(css(element).color), size: css(element).fontSize, font: css(element).fontFamily })),
@@ -605,8 +679,11 @@ app.whenReady().then(async () => {
       '- Bullet first ' + 'wrapped 列表正文 '.repeat(12),
       '  Continued list item on a second source line.',
       '    - Nested bullet', '- Bullet next', '',
-      '9. Ordered nine', '10. Ordered ten', '100. Ordered hundred', '', '- [ ] Task item', '',
-      '<div><p>HTML paragraph one.</p><p>HTML paragraph two.</p><ul><li>HTML bullet<ul><li>HTML nested</li></ul></li><li>HTML next</li></ul><ol><li>HTML first</li><li>HTML second</li><li>HTML third</li></ol></div>', '', 'End',
+      '9. Ordered nine ' + 'wrapped 编号正文 '.repeat(12), '10. Ordered ten', '100. Ordered hundred',
+      '     9. Nested numbered nine','     10. Nested numbered ten','     1000. Nested numbered thousand','           - Nested under wide number',
+      '', '- [ ] Task item', '',
+      '<div><p>HTML paragraph one.</p><p>HTML paragraph two.</p><ul><li>HTML bullet<ul><li>HTML nested</li></ul></li><li>HTML next</li></ul><ol>'
+        + Array.from({length:12},(_,i)=>`<li>HTML ordered ${i+1}${i===11?'<ol>'+Array.from({length:12},(_,j)=>`<li>HTML child ${j+1}</li>`).join('')+'</ol>':''}</li>`).join('')+'</ol></div>', '', 'End',
     ].join('\n');
     for(const mode of ['light','dark'])for(const theme of [null,'default.newspaper'])for(const width of [1080,760]) {
       await browser.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride',{width,height:4000,deviceScaleFactor:1,mobile:false});
@@ -618,6 +695,8 @@ app.whenReady().then(async () => {
         await document.fonts.ready;await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
       })()`);
       const metrics=await evaluate(`(${readBlockRhythm.toString()})()`);assertBlockRhythm(metrics);
+      const name=`block-rhythm-${mode}-${theme??'default'}-${width}`;
+      metrics.markerInk=await captureOrderedMarkerInk(browser,evaluate,metrics,name);
       const point=metrics.lists.find(line=>line.text.includes('Bullet first')).textRects[0];
       const inputPoint={x:Math.round(point.x+point.width/2),y:Math.round(point.y+point.height/2)};
       browser.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...inputPoint});
@@ -625,6 +704,13 @@ app.whenReady().then(async () => {
       await evaluate('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))');
       const edited=await evaluate(`(${readBlockRhythm.toString()})()`);assertBlockRhythm(edited);
       assert.equal(edited.selectedLine,edited.lists.find(line=>line.text.includes('Bullet first')).sourceLine.number,'pointer missed hanging list text');
+      const numbered=edited.lists.find(line=>line.text.includes('Ordered nine')).textRects[0];
+      const numberedPoint={x:Math.round(numbered.x+numbered.width/2),y:Math.round(numbered.y+numbered.height/2)};
+      browser.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...numberedPoint});
+      browser.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...numberedPoint});
+      await evaluate('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))');
+      const numberedEditing=await evaluate(`(${readBlockRhythm.toString()})()`);assertBlockRhythm(numberedEditing);
+      assert.equal(numberedEditing.selectedLine,numberedEditing.lists.find(line=>line.text.includes('Ordered nine')).sourceLine.number,'pointer missed numbered body');
       assert.equal(await evaluate('window.tableFixture.markdownSource()'),blockSource,'presentation changed canonical source');
       await evaluate('window.tableFixture.preview(false)');
       const sourceMode=await evaluate(`(()=>{
@@ -637,7 +723,6 @@ app.whenReady().then(async () => {
       metrics.sourceMode=sourceMode;
       await evaluate('window.tableFixture.preview(true)');
       assertBlockRhythm(await evaluate(`(${readBlockRhythm.toString()})()`));
-      const name=`block-rhythm-${mode}-${theme??'default'}-${width}`;
       results.push({name,metrics});console.log(`PASS ${name}`);
       const bottom=await evaluate("document.querySelector('#markdown .cm-content > .cm-line:last-child').getBoundingClientRect().bottom+48");
       await fs.writeFile(path.join(artifacts,`${name}.png`),(await browser.webContents.capturePage({x:0,y:0,width,height:Math.ceil(bottom+24)})).toPNG());
@@ -673,8 +758,11 @@ app.whenReady().then(async () => {
         "--po-md-paragraph-gap-before": revision ? "11px" : "7px",
         "--po-md-paragraph-gap-after": revision ? "27px" : "19px",
         "--po-md-list-inset": revision ? "15px" : "9px",
-        "--po-md-list-marker-width": "28px",
+        "--po-md-list-marker-width": revision ? "calc(28px + 0%)" : "28px",
         "--po-md-list-marker-gap": revision ? "12px" : "8px",
+        "--po-md-list-marker-weight": revision ? "450" : "350",
+        "--po-md-list-marker-numeric-variant": revision ? "tabular-nums" : "proportional-nums",
+        "--po-md-ordered-marker-align": revision ? "end" : "start",
         "--po-md-code-font": '"Courier New", monospace',
         "--po-md-table-font-size": revision ? "14px" : "12px",
         "--po-md-table-line-height": "1.6",
@@ -722,7 +810,7 @@ app.whenReady().then(async () => {
         await window.tableFixture.peerTheme(${JSON.stringify(peer.themeId)});
         const host = document.querySelector('#markdown .markdown-codemirror-editor');
         host.removeAttribute('style');
-        ${revision === 0 ? `await window.tableFixture.setMarkdownSource(${JSON.stringify("# File heading\n\n## File subheading\nAfter subheading\n\n- File list item\n- Second file list item\n\n" + structuredSource + "\n\n" + Array(25).fill("Trailing line").join("\n"))});` : ""}
+        ${revision === 0 ? `await window.tableFixture.setMarkdownSource(${JSON.stringify("# File heading\n\n## File subheading\nAfter subheading\n\n- File list item\n- Second file list item\n\n1. File ordered one\n2. File ordered two\n\n" + structuredSource + "\n\n" + Array(25).fill("Trailing line").join("\n"))});` : ""}
         await document.fonts.ready;
         await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
       })()`);
@@ -737,6 +825,7 @@ app.whenReady().then(async () => {
       assert.equal(metrics.paragraphAfter,revision ? "27px" : "19px");
       assert.equal(metrics.listIndent,revision ? "55px" : "45px");
       assert.equal(metrics.listMarkerInset,revision ? "15px" : "9px");
+      assert.deepEqual(metrics.orderedMarker,{weight:revision?'450':'350',numeric:revision?'tabular-nums':'proportional-nums',align:revision?'end':'start'},'registered marker styles were not applied');
       assert.equal(metrics.subheadingBefore, revision ? "38.5px" : "31.5px", "per-level gap lost its file-owned base reference");
       assert(Math.abs(parseFloat(metrics.headingLineHeight)-(revision ? 42*1.6 : 38*1.4)) < .01, "file heading line-height was lost");
       assert(metrics.bodyFont.includes("Georgia"));

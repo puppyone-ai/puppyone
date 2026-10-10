@@ -267,7 +267,13 @@ function getMarkdownLineAttributes(
   listMatch: RegExpExecArray | null,
   rhythm?: MarkdownLineRhythm,
 ): Record<string, string> | undefined {
-  if (rhythm?.list) return { style: `--md-list-depth:${rhythm.list.depth};--md-list-marker:${cssString(rhythm.list.marker)};--md-list-marker-columns:${rhythm.list.columns};` };
+  if (rhythm?.list) {
+    const { depth, marker, columns, parentColumns } = rhythm.list;
+    const width = (count: number) => `max(var(--po-md-list-marker-width), calc(${count} * 1ch))`;
+    // Source-derived ancestor widths; every spacing value remains file-owned.
+    const parentPrefix = parentColumns.length ? `--md-list-parent-prefix-width:calc(var(--po-md-list-inset) + ${width(parentColumns[0])} + var(--po-md-list-marker-gap)${parentColumns.slice(1).map(count => ` + max(var(--po-md-list-indent-step), calc(${width(count)} + var(--po-md-list-marker-gap)))`).join("")});` : "";
+    return { style: `--md-list-depth:${depth};--md-list-marker:${cssString(marker)};--md-list-marker-columns:${columns};${parentPrefix}` };
+  }
   if (taskLine) return { style: `--md-list-depth:${taskLine.depth};` };
   if (!listMatch) return undefined;
 
@@ -293,6 +299,7 @@ function getMarkdownLineClasses(
 
   if (/^\s*>/.test(text)) classes.push("cm-md-blockquote");
   if (/^\s*(?:[-*+]|\d+[.)])\s+/.test(text)) classes.push("cm-md-list-line");
+  if (/^\s*\d+[.)]\s+/.test(text)) classes.push("cm-md-ordered-list-line");
   if (/^\s*(?:[-*+]|\d+[.)])\s+\[[ xX]\]/.test(text)) classes.push("cm-md-task-line");
   if (/^\s*(?:[-*+]|\d+[.)])\s+\[[xX]\]/.test(text)) classes.push("cm-md-task-checked");
   if (/^\s*(`{3,}|~{3,})/.test(text)) classes.push("cm-md-code-fence");

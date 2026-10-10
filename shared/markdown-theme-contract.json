@@ -221,6 +221,12 @@
       "name": "--po-md-list-marker-weight"
     },
     {
+      "name": "--po-md-list-marker-numeric-variant"
+    },
+    {
+      "name": "--po-md-ordered-marker-align"
+    },
+    {
       "name": "--po-md-markup-color"
     },
     {
