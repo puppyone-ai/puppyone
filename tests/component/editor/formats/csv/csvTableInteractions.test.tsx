@@ -9,6 +9,7 @@ import { CsvTableEditor } from "../../../../../packages/shared-ui/src/editor/vie
 import { CsvTableResizeControl } from "../../../../../packages/shared-ui/src/editor/viewers/csv/CsvTableResizeControl";
 import type { EditorSourceSnapshotPort } from "../../../../../packages/shared-ui/src/editor/sourceSnapshot";
 import { testT, withTestLocalization } from "../../../../support/react/localization";
+import { DesktopTooltipLayer } from "../../../../../src/components/DesktopTooltipLayer";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -36,12 +37,59 @@ afterEach(async () => {
   root = null;
   container = null;
   document.body.replaceChildren();
+  vi.useRealTimers();
   window.localStorage.clear();
   vi.restoreAllMocks();
   await act(async () => Promise.resolve());
 });
 
 describe("CSV table interactions", () => {
+  it("keeps handle hints absent and menu hints hover-only while preserving initial focus and keyboard navigation", async () => {
+    await act(async () => root?.render(withTestLocalization(<><Harness /><DesktopTooltipLayer /></>)));
+    const geometry = mockTableGeometry();
+    for (const handle of container!.querySelectorAll(".csv-table-editor__column-handle, .csv-table-editor__row-handle, .csv-table-editor__resize-handle")) {
+      expect(handle.hasAttribute("data-tooltip")).toBe(false);
+      expect(handle.getAttribute("aria-label")).toBeTruthy();
+    }
+    vi.useFakeTimers();
+    act(() => geometry.firstBodyCell.dispatchEvent(new MouseEvent("contextmenu", {
+      bubbles: true, cancelable: true, clientX: 120, clientY: 142,
+    })));
+    const menu = document.querySelector<HTMLElement>(".csv-table-editor__context-menu")!;
+    const firstItem = menu.querySelector<HTMLButtonElement>("button:not(:disabled)")!;
+    expect(document.activeElement).toBe(firstItem);
+    act(() => vi.advanceTimersByTime(900));
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    act(() => firstItem.dispatchEvent(new PointerEvent("pointerover", { bubbles: true, pointerType: "mouse" })));
+    act(() => vi.advanceTimersByTime(450));
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toBe(firstItem.getAttribute("aria-label"));
+    act(() => firstItem.dispatchEvent(new PointerEvent("pointerout", { bubbles: true, relatedTarget: document.body })));
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    expect(document.activeElement).toBe(firstItem);
+    act(() => firstItem.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowRight" })));
+    expect(document.activeElement).not.toBe(firstItem);
+    expect(menu.contains(document.activeElement)).toBe(true);
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    act(() => document.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Escape" })));
+    expect(document.querySelector(".csv-table-editor__context-menu")).toBeNull();
+    expect(changeCount).toBe(0);
+  });
+
+  it("does not automatically hint the focused expansion-picker cell", async () => {
+    await act(async () => root?.render(withTestLocalization(<><Harness /><DesktopTooltipLayer /></>)));
+    act(() => container!.querySelector<HTMLButtonElement>(".csv-table-editor__resize-handle")!.click());
+    const picker = container!.querySelector<HTMLElement>(".csv-table-editor__resize-picker")!;
+    const cell = picker.querySelector<HTMLButtonElement>("button[tabindex='0']")!;
+    expect(document.activeElement).toBe(cell);
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    vi.useFakeTimers();
+    act(() => cell.dispatchEvent(new PointerEvent("pointerover", { bubbles: true, pointerType: "mouse" })));
+    act(() => vi.advanceTimersByTime(450));
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toBeTruthy();
+    act(() => cell.dispatchEvent(new PointerEvent("pointerout", { bubbles: true, relatedTarget: document.body })));
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+  });
+
   it.each([
     ["rows", 0, 93, 5, 2],
     ["columns", 288, 0, 2, 5],

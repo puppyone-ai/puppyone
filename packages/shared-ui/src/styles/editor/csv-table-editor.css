@@ -856,7 +856,7 @@
 
 .csv-table-editor__resize-picker.desktop-menu-surface {
   position: absolute;
-  z-index: 10000;
+  z-index: var(--po-overlay-z-menu, 90);
   inset-inline-end: 0;
   bottom: calc(100% + 6px);
   display: grid;

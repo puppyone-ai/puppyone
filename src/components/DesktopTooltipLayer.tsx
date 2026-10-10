@@ -120,12 +120,12 @@ export function DesktopTooltipLayer() {
       const target = activeTarget.current;
       if (!target || !target.contains(event.target as Node)) return;
       if (target.contains(event.relatedTarget as Node | null)) return;
-      if (target.contains(document.activeElement)) return;
+      if (target.dataset.tooltipTrigger !== "hover" && target.contains(document.activeElement)) return;
       hide();
     };
     const onFocusIn = (event: FocusEvent) => {
       const target = tooltipTarget(event.target);
-      if (target && target !== pointerFocusTarget) show(target, false);
+      if (target && target.dataset.tooltipTrigger !== "hover" && target !== pointerFocusTarget) show(target, false);
       pointerFocusTarget = null;
     };
     const onFocusOut = (event: FocusEvent) => {
@@ -173,11 +173,23 @@ export function DesktopTooltipLayer() {
     const previousDescription = active.target.getAttribute("aria-describedby");
     active.target.setAttribute("aria-describedby", [previousDescription, tooltipId].filter(Boolean).join(" "));
     return () => {
-      if (!active.target.isConnected) return;
       if (previousDescription) active.target.setAttribute("aria-describedby", previousDescription);
       else active.target.removeAttribute("aria-describedby");
     };
   }, [active, tooltipId]);
+
+  useEffect(() => {
+    if (!active) return;
+    let disposed = false;
+    const observer = new MutationObserver(() => {
+      if (disposed || active.target.isConnected || activeTarget.current !== active.target) return;
+      activeTarget.current = null;
+      setActive(null);
+      setPosition(null);
+    });
+    observer.observe(active.target.ownerDocument.body, { childList: true, subtree: true });
+    return () => { disposed = true; observer.disconnect(); };
+  }, [active]);
 
   if (!active) return null;
   // The overlay root carries the selected UI font and small/medium/large scale.

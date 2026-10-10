@@ -16,12 +16,12 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-function mountTooltip(label = "New", shortcut?: string, overflowOnly = false) {
+function mountTooltip(label = "New", shortcut?: string, overflowOnly = false, trigger: "hover" | "hover-focus" = "hover-focus") {
   const host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
   act(() => root?.render(<>
-    <Tooltip content={label} shortcut={shortcut} overflowOnly={overflowOnly}>
+    <Tooltip content={label} shortcut={shortcut} overflowOnly={overflowOnly} trigger={trigger}>
       <button aria-label={label}>+</button>
     </Tooltip>
     <DesktopTooltipLayer />
@@ -30,6 +30,35 @@ function mountTooltip(label = "New", shortcut?: string, overflowOnly = false) {
 }
 
 describe("DesktopTooltipLayer", () => {
+  it("shows hover-only hints after a delay and hides them on leave even while their menu item is focused", () => {
+    vi.useFakeTimers();
+    const button = mountTooltip("Insert row", undefined, false, "hover");
+    act(() => button.focus());
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    act(() => button.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })));
+    act(() => vi.advanceTimersByTime(449));
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    act(() => vi.advanceTimersByTime(1));
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toBe("Insert row");
+    act(() => button.dispatchEvent(new MouseEvent("pointerout", { bubbles: true, relatedTarget: document.body })));
+    expect(document.activeElement).toBe(button);
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    expect(button.getAttribute("aria-label")).toBe("Insert row");
+  });
+
+  it("removes a stale tooltip and its description when the trigger is unmounted", async () => {
+    const button = mountTooltip();
+    button.setAttribute("aria-describedby", "existing-help");
+    act(() => button.focus());
+    expect(document.querySelector('[role="tooltip"]')).not.toBeNull();
+    await act(async () => {
+      root?.render(<><span>Closed menu</span><DesktopTooltipLayer /></>);
+      await new Promise(resolve => setTimeout(resolve, 0));
+    });
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    expect(button.getAttribute("aria-describedby")).toBe("existing-help");
+  });
+
   it("waits for hover and shows the label and optional shortcut", () => {
     vi.useFakeTimers();
     const button = mountTooltip("Search", "⌘K");
@@ -63,7 +92,7 @@ describe("DesktopTooltipLayer", () => {
     expect(document.querySelector('[role="tooltip"]')).toBeNull();
   });
 
-  it("does not show hover or focus hints in a disabled editor scope", () => {
+  it("does not show hover or focus hints in a disabled editor scope", async () => {
     vi.useFakeTimers();
     const button = mountTooltip("Editor command");
     button.setAttribute("aria-describedby", "existing-help");
@@ -85,7 +114,10 @@ describe("DesktopTooltipLayer", () => {
       act(() => outsideHost.querySelector<HTMLButtonElement>("button")!.focus());
       expect(document.querySelector('[role="tooltip"]')?.textContent).toBe("Shell command");
     } finally {
-      act(() => outsideRoot.unmount());
+      await act(async () => {
+        outsideRoot.unmount();
+        await vi.advanceTimersByTimeAsync(0);
+      });
     }
   });
 

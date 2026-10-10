@@ -415,7 +415,7 @@ export function CsvTableResizeControl({
         className={`csv-table-editor__resize-control${dragPreview ? " is-resizing" : ""}`}
         dir={direction}
       >
-        <Tooltip content={t("editor.csv.expandTableHint")}><button
+        <button
           ref={buttonRef}
           type="button"
           className="csv-table-editor__resize-handle"
@@ -436,7 +436,7 @@ export function CsvTableResizeControl({
           >
             <ArrowDownRight />
           </span>
-        </button></Tooltip>
+        </button>
 
         {pickerOpen && (
           <div
@@ -469,7 +469,7 @@ export function CsvTableResizeControl({
                     const selected = row <= pickerSelection.addedRows && column <= pickerSelection.addedColumns;
                     const expansion = { addedRows: row, addedColumns: column };
                     return (
-                      <Tooltip key={`${row}-${column}`} content={t("editor.csv.expandTo", {
+                      <Tooltip trigger="hover" key={`${row}-${column}`} content={t("editor.csv.expandTo", {
                           rows: currentDataRowCount + row,
                           columns: currentColumnCount + column,
                         })}><button

@@ -28,7 +28,7 @@ describe("Tooltip", () => {
     expect(host.querySelector("button")?.hasAttribute("data-tooltip")).toBe(false);
 
     act(() => root?.render(
-      <Tooltip content="Explicit help" overflowOnly placement="top" shortcut="⌘K">
+      <Tooltip content="Explicit help" overflowOnly placement="top" shortcut="⌘K" trigger="hover">
         <button aria-label="Visible accessibility name">Visible label</button>
       </Tooltip>,
     ));
@@ -37,6 +37,7 @@ describe("Tooltip", () => {
     expect(button?.dataset.tooltipWhen).toBe("overflow");
     expect(button?.dataset.tooltipPlacement).toBe("top");
     expect(button?.dataset.tooltipShortcut).toBe("⌘K");
+    expect(button?.dataset.tooltipTrigger).toBe("hover");
   });
 
   it("disables nested hints without removing accessible names or explicit content", () => {

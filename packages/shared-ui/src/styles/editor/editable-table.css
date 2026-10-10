@@ -363,7 +363,7 @@
 }
 
 .po-editable-table-context-menu.desktop-menu-surface {
-  z-index: 10000;
+  z-index: var(--po-overlay-z-menu, 90);
   display: grid;
   width: 236px;
   max-height: min(520px, calc(100vh - 16px));

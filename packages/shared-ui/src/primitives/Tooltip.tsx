@@ -8,6 +8,8 @@ export type TooltipProps = {
   overflowOnly?: boolean;
   placement?: TooltipPlacement;
   shortcut?: string | null;
+  /** Hover-only hints do not open when a menu assigns focus programmatically. */
+  trigger?: "hover" | "hover-focus";
 };
 
 /**
@@ -21,6 +23,7 @@ export function Tooltip({
   overflowOnly = false,
   placement,
   shortcut,
+  trigger = "hover-focus",
 }: TooltipProps) {
   const normalizedContent = content?.trim();
   if (!normalizedContent) return children;
@@ -30,6 +33,7 @@ export function Tooltip({
     "data-tooltip-placement": placement,
     "data-tooltip-shortcut": shortcut?.trim() || undefined,
     "data-tooltip-when": overflowOnly ? "overflow" : undefined,
+    "data-tooltip-trigger": trigger === "hover" ? "hover" : undefined,
   });
 }
 

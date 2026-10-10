@@ -1,5 +1,10 @@
 :root {
   color-scheme: light;
+  /* Relative layers inside the shared overlay root: menu < dialog < tooltip.
+     Portaled editor menus follow this contract instead of creating a local ceiling. */
+  --po-overlay-z-menu: 90;
+  --po-overlay-z-dialog: 1200;
+  --po-overlay-z-tooltip: 2000;
   /* Product identity blue, shared by Cloud marks and arrival light in both color modes.
      Deliberately distinct from the active theme's accent and info/status colors. */
   --po-brand-blue: #4599df;
