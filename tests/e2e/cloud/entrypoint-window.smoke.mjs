@@ -91,7 +91,7 @@ async function reload() {
   report.window_reloads++;
   await until("!!document.querySelector('.app-shell')", "App after real window reload");
 }
-async function openAutomation() {
+async function openAutomation({ waitForInventory = true } = {}) {
   // Navigation is through the actual shell, not an injected component or React state.
   if (!await evaluate("!!document.querySelector('.desktop-cloud-automation-page') || document.querySelector('h1')?.textContent === 'Automations'")) {
     await evaluate("[...document.querySelectorAll('.desktop-header-coachmark-button')].find(e=>e.textContent==='Later')?.click()");
@@ -100,7 +100,7 @@ async function openAutomation() {
     await clickText("Share");
     await clickText("Automation", ".desktop-cloud-service-sidebar button");
   }
-  await until("!!document.querySelector('.desktop-cloud-automation-template-card') || !!document.querySelector('.desktop-cloud-automation-connection-card')", "Automation inventory/catalog");
+  if (waitForInventory) await until("!!document.querySelector('.desktop-cloud-automation-template-card') || !!document.querySelector('.desktop-cloud-automation-connection-card')", "Automation inventory/catalog");
 }
 
 async function initialize() {
@@ -180,8 +180,9 @@ async function run() {
   report.run_ids = retried.runs.map(run => run.id);
   await control("inventory/down", "POST");
   await reload();
-  await openAutomation();
-  await until("document.body.textContent.includes('Window fixture inventory unavailable')", "inventory failure is visible");
+  // This scenario intentionally has no inventory: assert the error below.
+  await openAutomation({ waitForInventory: false });
+  await until("document.body.textContent.includes('Automations is unavailable')", "inventory failure is visible");
   await capture("04-inventory-error");
   await control("inventory/up", "POST");
   await clickText("Retry");
