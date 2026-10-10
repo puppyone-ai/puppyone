@@ -68,12 +68,19 @@ sidebar workflow. Both run without paid requests.
 
 Other `smoke:*` commands are explicit focused checks, not implicitly part of CI.
 The `markdown-quote-colors` app gate (`npm run smoke:markdown-quote-colors`)
-checks actual Chromium colors for native Markdown and Safe HTML quotes and
-list markers. Its 24 cases cover light/dark, default/Newspaper, explicit quote,
+checks actual Chromium styles for native Markdown and Safe HTML quotes, code,
+tables and list markers. Its 42 cases cover light/dark, default/Newspaper, explicit quote,
 strong and code color overrides, and caret editing in emphasis/inline code or
 preview. It checks native code, inline HTML, Safe HTML and inline-renderer chips,
-monospace fonts, code backgrounds, block-code isolation, emphasis weight and
-nested link colors. This isolated production editor fixture does not
+monospace fonts, transparent inline-code backgrounds, block-code isolation,
+emphasis weight and nested link colors. Structured-content cases additionally
+check quote-like foregrounds, identical table/code sizing even with divergent
+data/code scale overrides, textarea/highlight alignment, long-line scrolling,
+non-flow language/source labels and stable hover behavior for unlabelled fences.
+They also verify the Markdown foreground does not leak into CSV. Native code
+editing cases change the language and body, retain drafts while focus moves
+inside the widget, mirror horizontal scroll and preserve source metadata on blur.
+This isolated production editor fixture does not
 exercise filesystem persistence or an installed application.
 
 The `table-move-selection` app gate (`npm run smoke:table-move-selection`)

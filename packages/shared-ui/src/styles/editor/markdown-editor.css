@@ -296,6 +296,7 @@
 .markdown-codemirror-editor .cm-md-code-fence,
 .markdown-codemirror-editor .cm-md-code-block-line {
   color: var(--po-md-code-block-color);
+  font-size: var(--po-md-structured-font-size);
 }
 
 /* Sub Themes expose semantic syntax colors; this editor-owned projection is
@@ -310,10 +311,6 @@
 
 .markdown-codemirror-editor .cm-comment {
   color: var(--po-md-syntax-comment);
-}
-
-.markdown-codemirror-editor .cm-md-syntax-monospace {
-  background: var(--po-md-inline-code-background);
 }
 
 .markdown-codemirror-editor .cm-md-syntax-strikethrough {

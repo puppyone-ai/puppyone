@@ -93,6 +93,10 @@ const api = {
       selection: { anchor: source.length } });
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   },
+  markdownSource() {
+    const view = EditorView.findFromDOM(document.querySelector("#markdown .cm-editor")!)!;
+    return view.state.doc.toString();
+  },
   point(kind: string, selector = "cell") {
     const target = selector === "cell" ? input(kind) : document.querySelector<HTMLElement>(`#${kind} ${selector}`)!;
     const rect = target.getBoundingClientRect(); return { x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2) };

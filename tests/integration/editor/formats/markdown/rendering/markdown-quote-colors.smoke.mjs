@@ -45,6 +45,16 @@ const source = [
   "",
   "End",
 ].join("\n");
+const structuredSource = [
+  "Body `inline code` and <code>HTML inline code</code>.", "",
+  "> Supporting quote 引用文字", "",
+  '```ts file="src/example.ts" lines="1-2"',
+  'const example = "代码示例";', 'console.log(example);', "```", "",
+  "```text", "Plain code 代码文字", "long line " + "x".repeat(180), "```", "",
+  "```", "Unlabelled code", "```", "",
+  "| Table 表格 | Value |", "| --- | --- |", "| Plain text | **Bold** `mono` [link](https://example.com) |", "",
+  "<div><table><thead><tr><th>HTML table</th></tr></thead><tbody><tr><td><strong>Bold</strong> <code>mono</code></td></tr></tbody></table><pre><code>HTML block code</code></pre><p><code>HTML prose code</code></p></div>", "", "End",
+].join("\n");
 const results = [], errors = [];
 let browser, vite, failure;
 
@@ -97,7 +107,7 @@ function readColors() {
     .map(element => ({ text: element.textContent, actual: color(element), expected: color(htmlQuote),
       font: getComputedStyle(element).fontFamily }));
   const widgetCode = [...host.querySelectorAll(".cm-md-table-cell-content .cm-md-inline-code")]
-    .map(element => ({ text: element.textContent, actual: color(element), expected: color(bodyCode),
+    .map(element => ({ text: element.textContent, actual: color(element), expected: color(element.closest("td")),
       font: getComputedStyle(element).fontFamily }));
   const htmlLinkedCode = htmlQuote.querySelector("a code");
   quotedLinks.push({ text: htmlLinkedCode.textContent, actual: color(htmlLinkedCode), expected: color(link) });
@@ -116,7 +126,8 @@ function assertColors(metrics, override) {
   assert.notDeepEqual(metrics.quoteColor, metrics.bodyColor, "quote lost its supporting color");
   assert.notDeepEqual(metrics.ordinaryStrongColor, metrics.quoteColor, "quote changed ordinary strong styling");
   assert.equal(metrics.quoteStrongWeight, metrics.ordinaryStrongWeight, "quote lost its emphasis weight");
-  assert.equal(metrics.quoteCodeBackground, metrics.ordinaryCodeBackground, "quote changed the inline code chip background");
+  assert.equal(metrics.quoteCodeBackground, "rgba(0, 0, 0, 0)", "quoted inline code retained its background");
+  assert.equal(metrics.ordinaryCodeBackground, "rgba(0, 0, 0, 0)", "body inline code retained its background");
   assert.deepEqual(metrics.blockCodeColor, metrics.blockColor, "inline code foreground leaked into a code block");
   if (override) {
     assert.deepEqual(metrics.quoteColor, [88, 115, 102, 255], "quote host token did not propagate");
@@ -131,6 +142,86 @@ function assertColors(metrics, override) {
   for (const group of ["quoteCode", "htmlCode", "widgetCode"]) for (const item of metrics[group]) {
     assert.equal(item.font, metrics.codeFont, `${group} lost its product monospace font: ${item.text}`);
   }
+}
+
+function readStructuredContent() {
+  const host = document.querySelector("#markdown .markdown-codemirror-editor");
+  const canvas = document.createElement("canvas"); canvas.width = canvas.height = 1;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  const color = element => {
+    context.clearRect(0, 0, 1, 1); context.fillStyle = getComputedStyle(element).color;
+    context.fillRect(0, 0, 1, 1); return [...context.getImageData(0, 0, 1, 1).data];
+  };
+  const rect = element => {
+    const box = element.getBoundingClientRect(); return { x: box.x, y: box.y, width: box.width, height: box.height };
+  };
+  const tableCell = host.querySelector(".cm-md-table-widget tbody td");
+  const tableStyle = getComputedStyle(tableCell);
+  const quote = host.querySelector(".cm-md-blockquote");
+  const blocks = [...host.querySelectorAll(".cm-md-code-widget")].map(widget => {
+    const editor = widget.querySelector("textarea"), highlight = widget.querySelector("pre");
+    const language = widget.querySelector(".cm-md-code-language");
+    const metadata = widget.querySelector(".cm-md-code-metadata");
+    const editorStyle = getComputedStyle(editor), highlightStyle = getComputedStyle(highlight);
+    return { language: language.value, placeholder: language.placeholder,
+      languageOpacity: getComputedStyle(language).opacity, metadataPosition: getComputedStyle(metadata).position,
+      widget: rect(widget), metadata: rect(metadata), panel: rect(widget.querySelector(".cm-md-code-panel")),
+      surface: rect(widget.querySelector(".cm-md-code-surface")), color: color(highlight),
+      font: editorStyle.fontFamily, highlightFont: highlightStyle.fontFamily,
+      size: editorStyle.fontSize, highlightSize: highlightStyle.fontSize,
+      editorPadding: editorStyle.padding, highlightPadding: highlightStyle.padding,
+      editorLineHeight: editorStyle.lineHeight, highlightLineHeight: highlightStyle.lineHeight,
+      editor: rect(editor), highlight: rect(highlight), scrollWidth: editor.scrollWidth, clientWidth: editor.clientWidth,
+      sourceReference: widget.querySelector(".cm-md-code-source-reference")?.textContent ?? null,
+    };
+  });
+  const cells = [...host.querySelectorAll(".cm-md-table-widget :is(th,td), .cm-md-html-rendered-surface table :is(th,td)")]
+    .map(element => ({ text: element.textContent, color: color(element), size: getComputedStyle(element).fontSize }));
+  const inline = [...host.querySelectorAll(".cm-md-syntax-monospace:not(.cm-md-syntax-markup), .cm-md-inline-code, code.cm-md-inline-html, .cm-md-html-rendered-surface code:not(pre code)")]
+    .map(element => ({ text: element.textContent, background: getComputedStyle(element).backgroundColor }));
+  const emphasis = [...host.querySelectorAll(".cm-md-table-cell-content :is(strong,code), .cm-md-html-rendered-surface table :is(strong,code)")]
+    .map(element => ({ text: element.textContent, color: color(element), size: getComputedStyle(element).fontSize }));
+  const htmlBlock = host.querySelector(".cm-md-html-rendered-surface pre code");
+  const csvCell = document.querySelector("#csv tbody td[data-csv-column]");
+  const csvProbe = document.createElement("span"); csvProbe.style.color = "var(--po-text)";
+  csvCell.appendChild(csvProbe); const csvExpected = color(csvProbe); csvProbe.remove();
+  return { blocks, cells, inline, emphasis, quoteColor: color(quote), tableSize: tableStyle.fontSize,
+    bodySize: getComputedStyle(host.querySelector(".cm-line")).fontSize,
+    htmlBlockColor: color(htmlBlock), htmlBlockSize: getComputedStyle(htmlBlock).fontSize,
+    csvColor: color(csvCell), csvExpected,
+    headerCount: host.querySelectorAll(".cm-md-code-header").length };
+}
+
+function assertStructuredContent(metrics, scale) {
+  assert.equal(metrics.blocks.length, 3, "known, plain and unlabelled code blocks must mount");
+  assert.equal(metrics.headerCount, 0, "code header still occupies a row");
+  assert(parseFloat(metrics.tableSize) < parseFloat(metrics.bodySize), "structured content must be smaller than body copy");
+  if (scale) assert.equal(metrics.tableSize, "11px", "table data scale override was lost");
+  for (const block of metrics.blocks) {
+    assert.deepEqual(block.color, metrics.quoteColor, "code foreground must follow the supporting quote role");
+    assert.equal(block.size, metrics.tableSize, "code editor and table font sizes drifted");
+    assert.equal(block.highlightSize, block.size, "highlight and editing text sizes drifted");
+    assert.equal(block.highlightFont, block.font, "highlight and editing fonts drifted");
+    assert.equal(block.editorPadding, block.highlightPadding, "highlight padding drifted");
+    assert.equal(block.editorLineHeight, block.highlightLineHeight, "highlight line height drifted");
+    assert.deepEqual(block.editor, block.highlight, "highlight and editing geometry drifted");
+    assert.equal(block.placeholder, "", "empty language must never show a Code prompt");
+    assert.equal(block.metadataPosition, "absolute", "language metadata participates in block flow");
+    assert.equal(block.languageOpacity, "1", "known language is gated on hover");
+    assert.equal(block.panel.y, block.surface.y, "language metadata reserves a header row");
+    assert(block.metadata.y + block.metadata.height <= block.surface.y, "language badge overlaps code text");
+  }
+  assert.equal(metrics.blocks[0].sourceReference, "src/example.ts · L1–2");
+  assert(metrics.blocks[1].scrollWidth > metrics.blocks[1].clientWidth, "long code lines lost horizontal scrolling");
+  assert(metrics.cells.length >= 5 && metrics.emphasis.length >= 3 && metrics.inline.length >= 5, "missing production rendering adapters");
+  for (const cell of [...metrics.cells, ...metrics.emphasis]) {
+    assert.deepEqual(cell.color, metrics.quoteColor, `table supporting foreground: ${cell.text}`);
+    assert.equal(cell.size, metrics.tableSize, `table typography: ${cell.text}`);
+  }
+  for (const code of metrics.inline) assert.equal(code.background, "rgba(0, 0, 0, 0)", `inline code background: ${code.text}`);
+  assert.deepEqual(metrics.htmlBlockColor, metrics.quoteColor, "Safe HTML code foreground drifted");
+  assert.equal(metrics.htmlBlockSize, metrics.tableSize, "Safe HTML code font size drifted");
+  assert.deepEqual(metrics.csvColor, metrics.csvExpected, "Markdown supporting role leaked into CSV");
 }
 
 app.whenReady().then(async () => {
@@ -182,6 +273,66 @@ app.whenReady().then(async () => {
         await fs.writeFile(path.join(artifacts, `${name}.png`), (await browser.webContents.capturePage()).toPNG());
         console.log(`PASS ${name}`);
       }
+    }
+    await evaluate(`window.tableFixture.setMarkdownSource(${JSON.stringify(structuredSource)})`);
+    for (const mode of ["light", "dark"]) for (const theme of [null, "default.newspaper"]) for (const scale of [false, true]) for (const override of [false, true]) {
+      await evaluate(`(async () => {
+        await window.tableFixture.mode('${mode}'); await window.tableFixture.theme(${JSON.stringify(theme)});
+        const host = document.querySelector('#markdown .markdown-codemirror-editor');
+        for (const token of ['--po-user-md-strong-color', '--po-host-md-inline-code-color', '--po-host-md-blockquote-color', '--po-type-editor-data', '--po-type-editor-code', '--po-host-md-inline-code-background']) host.style.removeProperty(token);
+        if (${scale}) { host.style.setProperty('--po-type-editor-data', '11px'); host.style.setProperty('--po-type-editor-code', '19px'); }
+        if (${override}) { host.style.setProperty('--po-host-md-blockquote-color', '#587366'); host.style.setProperty('--po-host-md-inline-code-background', '#ff0000'); }
+        document.activeElement?.blur();
+        await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+      })()`);
+      const before = await evaluate(`(${readStructuredContent.toString()})()`);
+      assertStructuredContent(before, scale);
+      const empty = before.blocks[2].widget;
+      browser.webContents.sendInputEvent({ type: "mouseMove", x: Math.round(empty.x + empty.width - 24), y: Math.round(empty.y + 7) });
+      await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+      const after = await evaluate(`(${readStructuredContent.toString()})()`);
+      assertStructuredContent(after, scale);
+      assert.deepEqual(after.blocks, before.blocks, "hover changed language visibility or code layout");
+      const name = `structured-${mode}-${theme ?? "default"}-${scale ? "scaled" : "standard"}-${override ? "override" : "default"}`;
+      results.push({ name, metrics: after });
+      await fs.writeFile(path.join(artifacts, `${name}.png`), (await browser.webContents.capturePage()).toPNG());
+      console.log(`PASS ${name}`);
+    }
+    // Metadata is outside the panel visually, but remains inside the same
+    // editing session. Native focus transitions must not commit half a draft.
+    for (const mode of ["light", "dark"]) {
+      await evaluate(`(async () => {
+        await window.tableFixture.mode('${mode}'); await window.tableFixture.theme(null);
+        const host = document.querySelector('#markdown .markdown-codemirror-editor');
+        for (const token of ['--po-type-editor-data', '--po-type-editor-code', '--po-host-md-blockquote-color', '--po-host-md-inline-code-background']) host.style.removeProperty(token);
+        await window.tableFixture.setMarkdownSource(${JSON.stringify(structuredSource)});
+      })()`);
+      const click = async selector => {
+        const point = await evaluate(`(() => { const rect=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return {x:Math.round(rect.x+rect.width/2),y:Math.round(rect.y+rect.height/2)}; })()`);
+        browser.webContents.sendInputEvent({ type: "mouseDown", button: "left", clickCount: 1, ...point });
+        browser.webContents.sendInputEvent({ type: "mouseUp", button: "left", clickCount: 1, ...point });
+        await evaluate("new Promise(requestAnimationFrame)");
+      };
+      // This isolated BrowserWindow has no application Edit menu translating
+      // platform accelerators. Use Chromium's actual edit command instead.
+      const selectAll = () => browser.webContents.selectAll();
+      await click("#markdown .cm-md-code-widget .cm-md-code-language"); selectAll();
+      await browser.webContents.insertText("tsx");
+      await click("#markdown .cm-md-code-widget .cm-md-code-textarea");
+      assert.equal(await evaluate("window.tableFixture.markdownSource()"), structuredSource, "language-to-code focus committed a partial draft");
+      selectAll(); const updatedCode = 'const changed = "' + "x".repeat(180) + '";';
+      await browser.webContents.insertText(updatedCode);
+      await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+      assert.equal(await evaluate("window.tableFixture.markdownSource()"), structuredSource, "code draft committed before composite blur");
+      const metrics = await evaluate(`(${readStructuredContent.toString()})()`); assertStructuredContent(metrics, false);
+      const scroll = await evaluate(`(() => { const widget=document.querySelector('#markdown .cm-md-code-widget'); const editor=widget.querySelector('textarea'); editor.scrollLeft=120; editor.dispatchEvent(new Event('scroll')); return {editor:editor.scrollLeft, highlight:widget.querySelector('pre').scrollLeft}; })()`);
+      assert(scroll.editor > 0); assert.equal(scroll.editor, scroll.highlight, "horizontal scroll desynchronized the highlight layer");
+      await click("#markdown .cm-line");
+      await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+      const expected = structuredSource.replace('```ts file=', '```tsx file=').replace('const example = "代码示例";\nconsole.log(example);', updatedCode);
+      assert.equal(await evaluate("window.tableFixture.markdownSource()"), expected, "composite blur lost code, language or source metadata");
+      const name = `code-edit-${mode}`; results.push({ name, metrics, scroll }); console.log(`PASS ${name}`);
+      await fs.writeFile(path.join(artifacts, `${name}.png`), (await browser.webContents.capturePage()).toPNG());
     }
     assert.deepEqual(errors, []);
   } catch (error) {

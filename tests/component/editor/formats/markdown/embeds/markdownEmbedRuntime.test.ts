@@ -509,10 +509,16 @@ describe("Markdown embedded runtime", () => {
     view.dom.appendChild(dom);
     const language = dom.querySelector<HTMLInputElement>(".cm-md-code-language")!;
     const editor = dom.querySelector<HTMLTextAreaElement>(".cm-md-code-textarea")!;
+    expect(dom.querySelector(".cm-md-code-header")).toBeNull();
+    expect(language.placeholder).toBe("");
+    expect(language.closest(".cm-md-code-panel")).toBeNull();
 
     language.value = "ts";
     language.dispatchEvent(new InputEvent("input", { bubbles: true }));
     language.dispatchEvent(new FocusEvent("blur", { relatedTarget: editor }));
+    expect(view.state.doc.toString()).toBe(source);
+
+    editor.dispatchEvent(new FocusEvent("blur", { relatedTarget: language }));
     expect(view.state.doc.toString()).toBe(source);
 
     editor.value = "new";

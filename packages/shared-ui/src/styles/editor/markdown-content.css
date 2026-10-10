@@ -45,10 +45,11 @@
     --po-host-md-blockquote-border-color,
     color-mix(in srgb, var(--po-divider) 76%, var(--po-md-surface-background))
   );
-  --po-md-inline-code-background: var(--po-host-md-inline-code-background, color-mix(in srgb, var(--po-control) 38%, transparent));
   --po-md-inline-code-color: var(--po-host-md-inline-code-color, var(--po-text));
+  --po-md-structured-font-size: var(--po-type-editor-data, var(--po-text-size-data, 13px));
+  --po-md-table-color: var(--po-md-blockquote-color);
   --po-md-code-block-background: var(--po-host-md-code-block-background, color-mix(in srgb, var(--po-control) 28%, transparent));
-  --po-md-code-block-color: var(--po-host-md-code-block-color, var(--po-text));
+  --po-md-code-block-color: var(--po-host-md-code-block-color, var(--po-md-blockquote-color));
   --po-md-syntax-keyword: var(--po-host-md-syntax-keyword, var(--po-purple, #8250df));
   --po-md-syntax-string: var(--po-host-md-syntax-string, color-mix(in srgb, var(--po-success, #1a7f37) 82%, var(--po-text)));
   --po-md-syntax-comment: var(--po-host-md-syntax-comment, var(--po-text-muted));
@@ -308,8 +309,26 @@
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface pre {
+  color: var(--po-md-code-block-color);
+  font-size: var(--po-md-structured-font-size);
   overflow: auto;
   white-space: pre-wrap;
+}
+
+/* Markdown's supporting surfaces share the reading profile. The editable
+   table adapter retains the common geometry used by CSV. */
+.markdown-codemirror-editor .cm-md-table-widget-wrap {
+  --po-editable-table-color: var(--po-md-table-color);
+  --po-editable-table-header-color: var(--po-md-table-color);
+  --po-editable-table-body-color: var(--po-md-table-color);
+  --po-editable-table-font-size: var(--po-md-structured-font-size);
+}
+
+.markdown-codemirror-editor
+  :is(.cm-md-table-widget, .cm-md-html-rendered-surface table) {
+  --po-md-inline-foreground: var(--po-md-table-color);
+  color: var(--po-md-table-color);
+  font-size: var(--po-md-structured-font-size);
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface :where(ul, ol) {
@@ -370,11 +389,16 @@
 }
 
 /* CodeMirror text, inline renderer chips and sanitized HTML are projections
-   of the same inline-code role. Block code keeps its separate palette. */
+   of the same unboxed inline-code role. Block code keeps its syntax palette. */
 .markdown-codemirror-editor :is(.cm-md-syntax-monospace, .cm-md-inline-code, code.cm-md-inline-html),
 .markdown-codemirror-editor .cm-md-html-rendered-surface :where(code:not(pre code)) {
   color: var(--po-md-inline-foreground, var(--po-md-inline-code-color));
+  background: transparent;
   font-family: var(--po-font-mono);
+}
+
+.markdown-codemirror-editor .cm-md-table-cell-content .cm-md-inline-code {
+  font-size: inherit;
 }
 
 /* Native quoted lists retain their actual source marker; ordinary native

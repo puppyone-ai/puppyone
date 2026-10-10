@@ -506,10 +506,10 @@ describe("Markdown rich-block boundary affordance", () => {
     }
   });
 
-  it("lays out code source metadata separately from the language field", () => {
-    const headerRule = readCssRule(
+  it("keeps code metadata outside the code body flow", () => {
+    const metadataRule = readCssRule(
       markdownCodeCss,
-      ".markdown-codemirror-editor .cm-md-code-header",
+      ".markdown-codemirror-editor .cm-md-code-metadata",
     );
     const referenceRule = readCssRule(
       markdownCodeCss,
@@ -517,13 +517,16 @@ describe("Markdown rich-block boundary affordance", () => {
     );
     const languageRule = readCssRule(
       markdownCodeCss,
-      ".markdown-codemirror-editor .cm-md-code-header.has-source-reference .cm-md-code-language",
+      ".markdown-codemirror-editor .cm-md-code-language",
     );
 
-    expect(headerRule).toContain("display: flex;");
+    expect(metadataRule).toContain("position: absolute;");
+    expect(metadataRule).toContain("display: flex;");
     expect(referenceRule).toContain("text-overflow: ellipsis;");
     expect(referenceRule).toContain("white-space: nowrap;");
     expect(languageRule).toContain("text-align: right;");
+    expect(markdownCodeCss).not.toContain(".cm-md-code-header");
+    expect(markdownCodeCss).not.toContain(".cm-md-code-language.is-empty");
   });
 
   it("reveals the HTML source control only for hover, keyboard focus, or selection", () => {

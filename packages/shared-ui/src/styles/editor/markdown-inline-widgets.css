@@ -143,9 +143,6 @@
 }
 
 .markdown-codemirror-editor .cm-md-inline-code {
-  padding: 1px 4px;
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--po-control) 46%, transparent);
   font-family: var(--po-font-mono);
   font-size: var(--po-type-editor-code, var(--po-code-font-size, 13px));
 }

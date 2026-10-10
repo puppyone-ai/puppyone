@@ -172,7 +172,7 @@
     },
     {
       "id": "markdown-quote-colors",
-      "name": "Markdown quote emphasis and list marker colors",
+      "name": "Markdown supporting text, code/table typography and inline code",
       "group": "app",
       "command": ["npm", "run", "smoke:markdown-quote-colors"],
       "platforms": ["linux", "darwin"],
