@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState, type ButtonHTMLAttributes } from "react";
+import { Fragment, useEffect, useRef, useState, type ButtonHTMLAttributes } from "react";
 import { Tooltip } from "@puppyone/shared-ui";
-import { Check, Laptop, Plus } from "lucide-react";
+import { Check, Laptop } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import { PulseGrid } from "../../components/loading";
-import { DesktopMenuItem } from "../../components/DesktopMenu";
+import { DesktopMenuItem, DesktopMenuSeparator } from "../../components/DesktopMenu";
 import { CloudIcon as Cloud } from "../../components/icons/CloudIcon";
 import { useDesktopPreference } from "../../preferencesStore";
 import { useDesktopPlatformCapabilities } from "../../platform/useDesktopPlatformCapabilities";
@@ -93,11 +93,15 @@ export function DesktopProjectLocationControls({
           <span>{t("shell.workspaceSwitcher.location.local")}</span>
           <span>{t("shell.navigation.cloud")}</span>
         </span>}
-        {(["local", "cloud"] as const).map(location => <ProjectLocationTab key={location}
-          location={location} current={current} selection={selection} createCloud={createCloud}
-          localDeviceLabel={localDeviceLabel} projectLocation={projectLocation}
-          presentation={presentation}
-          onViewLocal={onViewLocal} onViewCloud={onViewCloud} />)}
+        {(["local", "cloud"] as const).map(location => <Fragment key={location}>
+          {location === "cloud" && createCloud && presentation === "popover"
+            && <DesktopMenuSeparator className="desktop-project-location-separator" />}
+          <ProjectLocationTab
+            location={location} current={current} selection={selection} createCloud={createCloud}
+            localDeviceLabel={localDeviceLabel} projectLocation={projectLocation}
+            presentation={presentation}
+            onViewLocal={onViewLocal} onViewCloud={onViewCloud} />
+        </Fragment>)}
       </div>
     </div>
   );
@@ -128,7 +132,7 @@ function ProjectLocationTab(props: LocationTabProps) {
   const navigate = location === "local" ? onViewLocal : onViewCloud;
   const disabled = !selected && (!navigate || (location === "local" && projectLocation?.localAvailable === false));
   const { label, visibleLabel, iconOnly } = useProjectLocationTabLabels(props, creating, selected);
-  const mark = <ProjectLocationTabMark location={location} loading={loading} creating={creating} inHeader={inHeader} />;
+  const mark = <ProjectLocationTabMark location={location} loading={loading} inHeader={inHeader} />;
   const buttonProps: ButtonHTMLAttributes<HTMLButtonElement> = {
     "aria-label": label, "aria-pressed": creating ? undefined : selected,
     "aria-current": location === current ? "true" : undefined,
@@ -150,12 +154,12 @@ function ProjectLocationTab(props: LocationTabProps) {
   </button></Tooltip>;
 }
 
-function ProjectLocationTabMark({ location, loading, creating, inHeader }: {
-  location: DesktopProjectLocation["current"]; loading: boolean; creating: boolean; inHeader: boolean;
+function ProjectLocationTabMark({ location, loading, inHeader }: {
+  location: DesktopProjectLocation["current"]; loading: boolean; inHeader: boolean;
 }) {
   if (loading) return <span className="desktop-project-location-tab-mark" aria-hidden="true"><PulseGrid size="xs" ariaHidden /></span>;
   return <ProjectLocationMark className={inHeader ? "desktop-project-location-tab-mark" : "desktop-project-location-option-mark"}
-    kind={location} creating={creating && !inHeader} size={inHeader ? 16 : 15} />;
+    kind={location} size={inHeader ? 16 : 15} />;
 }
 
 function useProjectLocationTabLabels({ location, presentation, localDeviceLabel }: LocationTabProps, creating: boolean, selected: boolean) {
@@ -194,18 +198,15 @@ function useProjectDeviceLabel() {
 function ProjectLocationMark({
   className,
   kind,
-  creating = false,
   size = 15,
   strokeWidth = 1.75,
 }: {
   className: string;
   kind: DesktopProjectLocation["current"];
-  creating?: boolean;
   size?: number;
   strokeWidth?: number;
 }) {
-  const CloudMark = creating ? Plus : Cloud;
-  const Icon = kind === "cloud" ? CloudMark : Laptop;
+  const Icon = kind === "cloud" ? Cloud : Laptop;
   return (
     <span
       className={`desktop-project-location-mark ${className}`}

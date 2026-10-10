@@ -514,6 +514,10 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   opacity: 1;
 }
 
+.desktop-project-location-tabs > .desktop-project-location-separator {
+  margin: 2px 2px;
+}
+
 .desktop-project-location-option .desktop-menu-item-trailing {
   color: inherit;
 }

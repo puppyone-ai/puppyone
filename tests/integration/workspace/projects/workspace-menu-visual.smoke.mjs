@@ -79,6 +79,10 @@ async function runSmoke() {
     const buttons = [...menu.querySelectorAll('button[data-project-location]')];
     const selected = menu.querySelector('button[aria-pressed="true"]');
     const create = menu.querySelector('button[data-cloud-action="create"]');
+    const separator = track.querySelector('.desktop-project-location-separator');
+    const separatorSpacing = separator ? separator.getBoundingClientRect().height
+      + parseFloat(getComputedStyle(separator).marginTop) + parseFloat(getComputedStyle(separator).marginBottom)
+      + parseFloat(getComputedStyle(track).gap) : 0;
     const github = menu.querySelector('.desktop-project-repository-link');
     const header = document.querySelector('.workspace-menu-visual-titlebar');
     const accentReference = document.createElement('span');
@@ -109,7 +113,8 @@ async function runSmoke() {
       devicePlatform: document.querySelector('[data-device-platform]')?.dataset.devicePlatform,
       controlsFit: buttons.every(button => button.getBoundingClientRect().right <= track.getBoundingClientRect().right + 1)
         && (!github || github.getBoundingClientRect().right <= menu.getBoundingClientRect().right - 6),
-      createIcon: !!create?.querySelector('.lucide-plus'),
+      createIcon: !!create?.querySelector('[data-cloud-icon="ant-design"]'),
+      separatorSpacing,
       createColor: create ? getComputedStyle(create).color : null,
       accentColor,
       createContrast: create ? contrast(luminance(getComputedStyle(create).color), luminance(getComputedStyle(create).backgroundColor)) : null,
@@ -159,11 +164,11 @@ async function runSmoke() {
   const evidence = JSON.stringify(snapshot);
   assert(snapshot.state === state, `Wrong fixture state: ${evidence}`);
   assert(snapshot.menuWidth >= 200 && snapshot.menuWidth <= 480
-    && snapshot.menuHeight === 2 * projectRowAppearance.height + 10 && snapshot.controlsFit,
+    && snapshot.menuHeight === 2 * projectRowAppearance.height + 10 + snapshot.separatorSpacing && snapshot.controlsFit,
     `Project location list must fit translated labels within two compact rows: ${evidence}`);
   assert(snapshot.menuPadding === 3 && snapshot.rowGap === 2, `List padding and row gap must match the project menu: ${evidence}`);
   assert(snapshot.buttonHeights.every(height => height === projectRowAppearance.height)
-    && snapshot.buttonYs[1] === snapshot.buttonYs[0] + projectRowAppearance.height + snapshot.rowGap
+    && snapshot.buttonYs[1] === snapshot.buttonYs[0] + projectRowAppearance.height + snapshot.rowGap + snapshot.separatorSpacing
     && snapshot.buttonXs[0] === snapshot.buttonXs[1] && snapshot.buttonWidths[0] === snapshot.buttonWidths[1],
     `Local must appear above Cloud in equal full-width project-menu rows: ${evidence}`);
   assert(snapshot.currentCount === 1 && snapshot.pressedCount === 1, `Exactly one surface must be selected: ${evidence}`);
@@ -171,9 +176,10 @@ async function runSmoke() {
   assert(snapshot.locale === locale && snapshot.devicePlatform === platform, `Wrong locale or device platform: ${evidence}`);
   assert(snapshot.cloudEntry === (creating ? "create" : "switch"), `Use creation only for a confirmed unhosted project: ${evidence}`);
   assert(snapshot.labelsFit && snapshot.labels.join("|") === [catalog[platform === "macos" ? "workspaceSwitcher.location.thisMac" : "workspaceSwitcher.location.thisComputer"], catalog[creating ? "workspaceSwitcher.shareToCloud" : "navigation.cloud"]].join("|"), `Only the two unclipped localized actions belong in this menu: ${evidence}`);
-  assert(creating ? snapshot.createIcon && snapshot.createContrast >= 4.5 && snapshot.createColor === snapshot.accentColor
-    : !snapshot.createIcon && snapshot.createContrast === null,
-    `Unhosted projects keep a readable accent-colored Share to Cloud row with a plus mark: ${evidence}`);
+  assert(creating ? snapshot.createIcon && snapshot.separatorSpacing === 7
+    && snapshot.createContrast >= 4.5 && snapshot.createColor === snapshot.accentColor
+    : !snapshot.createIcon && snapshot.separatorSpacing === 0 && snapshot.createContrast === null,
+    `Unhosted projects keep a readable Share to Cloud row with the shared Cloud mark and a compact divider: ${evidence}`);
   assert(snapshot.iconWidths.every(width => width === projectRowAppearance.iconWidth) && snapshot.iconColorsMatch
     && (state === "cloud-only" || snapshot.headerColorsMatch), `Small icons must match their labels; the committed Cloud Header mark keeps its brand tint: ${evidence}`);
   assert(snapshot.selectedTextColor === projectRowAppearance.color && snapshot.selectedContrast >= 7
