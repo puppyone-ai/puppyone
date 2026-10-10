@@ -67,6 +67,13 @@ e2e command runs project sessions followed by the fixture-based Agent/Terminal
 sidebar workflow. Both run without paid requests.
 
 Other `smoke:*` commands are explicit focused checks, not implicitly part of CI.
+The `markdown-quote-colors` app gate (`npm run smoke:markdown-quote-colors`)
+checks actual Chromium colors for native Markdown and Safe HTML quotes and
+list markers. Its 16 cases cover light/dark, default/Newspaper, explicit quote
+and strong color overrides, and caret editing/preview. It also verifies emphasis
+weight and nested link colors. This isolated production editor fixture does not
+exercise filesystem persistence or an installed application.
+
 The `table-move-selection` app gate (`npm run smoke:table-move-selection`)
 mounts production CSV and Markdown tables in isolated Electron. Its 32 cases
 use Chromium mouse capture and keyboard input for row/column dragging, all

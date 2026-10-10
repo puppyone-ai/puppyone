@@ -86,6 +86,13 @@ const api = {
   },
   async mode(mode: "light" | "dark") { setMode(mode); await wait(); },
   async theme(theme: string | null) { setTheme(theme); await wait(); },
+  async setMarkdownSource(source: string) {
+    (document.activeElement as HTMLElement | null)?.blur();
+    const view = EditorView.findFromDOM(document.querySelector("#markdown .cm-editor")!)!;
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: source },
+      selection: { anchor: source.length } });
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  },
   point(kind: string, selector = "cell") {
     const target = selector === "cell" ? input(kind) : document.querySelector<HTMLElement>(`#${kind} ${selector}`)!;
     const rect = target.getBoundingClientRect(); return { x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2) };

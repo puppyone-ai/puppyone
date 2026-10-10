@@ -171,6 +171,20 @@
       }
     },
     {
+      "id": "markdown-quote-colors",
+      "name": "Markdown quote emphasis and list marker colors",
+      "group": "app",
+      "command": ["npm", "run", "smoke:markdown-quote-colors"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": [],
+      "timeoutSeconds": 120,
+      "runtime": "electron",
+      "artifacts": ["{checkDir}/markdown-quote-colors/result.json"],
+      "environment": {
+        "PUPPYONE_MARKDOWN_QUOTE_ARTIFACT_DIR": "{checkDir}/markdown-quote-colors"
+      }
+    },
+    {
       "id": "table-move-selection",
       "name": "Table move commands preserve row and column selection",
       "group": "app",

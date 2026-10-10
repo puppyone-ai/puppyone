@@ -375,14 +375,14 @@
   width: 20px;
   align-items: center;
   justify-content: flex-start;
-  color: var(--po-text-subtle);
+  color: var(--po-md-blockquote-color);
   font-weight: 650;
   user-select: none;
   content: var(--md-list-marker, "");
 }
 
 .markdown-codemirror-editor .cm-md-list-mark {
-  color: var(--po-text-subtle);
+  color: var(--po-md-blockquote-color);
   font-weight: 650;
 }
 

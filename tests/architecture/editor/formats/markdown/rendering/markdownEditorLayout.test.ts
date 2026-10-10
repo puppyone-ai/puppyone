@@ -52,6 +52,18 @@ describe("Markdown editor layout", () => {
     );
   });
 
+  it("uses one quote foreground for emphasis and list markers across projections", () => {
+    expect(markdownContentCss).toMatch(
+      /:is\(\.cm-md-blockquote, \.cm-md-html-rendered-surface blockquote\)[^{}]*:is\([^{}]*\.cm-md-syntax-strong[^{}]*\)\s*\{\s*color:\s*inherit;/s,
+    );
+    expect(readCssRule(markdownEditorCss,
+      ".markdown-codemirror-editor .cm-md-list-line:not(.cm-md-task-line)::before",
+    )).toContain("color: var(--po-md-blockquote-color);");
+    expect(readCssRule(markdownContentCss,
+      ".markdown-codemirror-editor .cm-md-html-rendered-surface li::marker",
+    )).toContain("color: var(--po-md-blockquote-color);");
+  });
+
   it("shares its reading width with other document-like product surfaces", () => {
     expect(markdownEditorCss).toContain(
       "--po-markdown-editor-text-width: var(--po-reading-content-width, 724px);",

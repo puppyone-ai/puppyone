@@ -347,6 +347,22 @@
   font-weight: var(--po-md-strong-weight);
 }
 
+/* A quote owns its text color. Typographic emphasis changes weight or shape,
+   including nested inline HTML, without introducing another foreground. Links
+   and code retain their own semantic colors. */
+.markdown-codemirror-editor
+  :is(.cm-md-blockquote, .cm-md-html-rendered-surface blockquote)
+  :is(.cm-md-syntax-strong, .cm-md-syntax-emphasis, .cm-md-syntax-strikethrough, strong, b, em, i, s, del) {
+  color: inherit;
+}
+
+/* Native quoted lists retain their actual source marker; ordinary native
+   lists paint a pseudo-element. Both and Safe HTML use the quote foreground. */
+.markdown-codemirror-editor[data-live-preview="true"] .cm-md-syntax-list.cm-md-syntax-markup,
+.markdown-codemirror-editor .cm-md-html-rendered-surface li::marker {
+  color: var(--po-md-blockquote-color);
+}
+
 /* Emphasis must never make an already-strong heading lighter. */
 .markdown-codemirror-editor .cm-md-heading .cm-md-syntax-strong,
 .markdown-codemirror-editor .cm-md-heading :is(strong, b).cm-md-inline-html,
