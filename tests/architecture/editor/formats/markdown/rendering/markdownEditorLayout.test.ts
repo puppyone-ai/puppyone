@@ -52,10 +52,15 @@ describe("Markdown editor layout", () => {
     );
   });
 
-  it("uses one quote foreground for emphasis and list markers across projections", () => {
+  it("publishes one inline foreground context instead of quote-specific descendant overrides", () => {
     expect(markdownContentCss).toMatch(
-      /:is\(\.cm-md-blockquote, \.cm-md-html-rendered-surface blockquote\)[^{}]*:is\([^{}]*\.cm-md-syntax-strong[^{}]*\)\s*\{\s*color:\s*inherit;/s,
+      /:is\(\.cm-md-blockquote, \.cm-md-html-rendered-surface blockquote\)\s*\{\s*--po-md-inline-foreground:\s*var\(--po-md-blockquote-color\);/s,
     );
+    expect(markdownContentCss).toContain("color: var(--po-md-inline-foreground, var(--po-md-strong-color));");
+    expect(markdownContentCss).toContain("color: var(--po-md-inline-foreground, var(--po-md-inline-code-color));");
+    expect(markdownEditorCss).not.toMatch(/\.cm-md-syntax-strong\s*\{[^}]*color:/s);
+    expect(readCssRule(markdownInlineCss, ".markdown-codemirror-editor .cm-md-inline-code")).not.toMatch(/\bcolor:/);
+    expect(markdownContentCss).not.toMatch(/:is\(\.cm-md-blockquote,[^{}]*\)\s+:is\(/s);
     expect(readCssRule(markdownEditorCss,
       ".markdown-codemirror-editor .cm-md-list-line:not(.cm-md-task-line)::before",
     )).toContain("color: var(--po-md-blockquote-color);");

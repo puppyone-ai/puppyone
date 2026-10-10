@@ -278,16 +278,12 @@
   color: var(--po-text-disabled);
 }
 
-.markdown-codemirror-editor .cm-md-syntax-strong {
-  color: var(--po-md-strong-color, var(--po-text));
-}
-
 .markdown-codemirror-editor .cm-md-syntax-emphasis {
-  color: var(--po-text-muted);
   font-style: italic;
 }
 
 .markdown-codemirror-editor .cm-md-syntax-link {
+  --po-md-inline-foreground: var(--po-md-link-color);
   color: var(--po-md-link-color);
 }
 
@@ -298,7 +294,6 @@
 }
 
 .markdown-codemirror-editor .cm-md-code-fence,
-.markdown-codemirror-editor .cm-md-syntax-monospace,
 .markdown-codemirror-editor .cm-md-code-block-line {
   color: var(--po-md-code-block-color);
 }
@@ -319,11 +314,9 @@
 
 .markdown-codemirror-editor .cm-md-syntax-monospace {
   background: var(--po-md-inline-code-background);
-  color: var(--po-md-inline-code-color);
 }
 
 .markdown-codemirror-editor .cm-md-syntax-strikethrough {
-  color: var(--po-text-subtle);
   text-decoration: line-through;
 }
 
@@ -359,7 +352,6 @@
 .markdown-codemirror-editor .cm-md-blockquote {
   padding-left: 16px;
   border-left: 3px solid var(--po-md-blockquote-border-color);
-  color: var(--po-md-blockquote-color);
 }
 
 .markdown-codemirror-editor .cm-md-list-line {

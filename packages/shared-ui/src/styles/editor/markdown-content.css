@@ -319,7 +319,6 @@
 .markdown-codemirror-editor .cm-md-html-rendered-surface blockquote {
   padding-inline: 1em;
   border-inline-start: 0.25em solid var(--po-md-blockquote-border-color);
-  color: var(--po-md-blockquote-color);
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface hr {
@@ -330,6 +329,7 @@
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface a {
+  --po-md-inline-foreground: var(--po-md-link-color);
   color: var(--po-md-link-color);
   text-decoration: none;
 }
@@ -343,17 +343,38 @@
 .markdown-codemirror-editor .cm-md-syntax-strong,
 .markdown-codemirror-editor :is(strong, b).cm-md-inline-html,
 .markdown-codemirror-editor .cm-md-html-rendered-surface :where(strong, b) {
-  color: var(--po-md-strong-color, var(--po-text));
+  color: var(--po-md-inline-foreground, var(--po-md-strong-color));
   font-weight: var(--po-md-strong-weight);
 }
 
-/* A quote owns its text color. Typographic emphasis changes weight or shape,
-   including nested inline HTML, without introducing another foreground. Links
-   and code retain their own semantic colors. */
+/* Inline foreground is inherited context, owned by its semantic container.
+   Quotes set it once; links may establish a nested context. Inline adapters
+   consume it before their ordinary role color, without quote-specific rules. */
 .markdown-codemirror-editor
-  :is(.cm-md-blockquote, .cm-md-html-rendered-surface blockquote)
-  :is(.cm-md-syntax-strong, .cm-md-syntax-emphasis, .cm-md-syntax-strikethrough, strong, b, em, i, s, del) {
-  color: inherit;
+  :is(.cm-md-blockquote, .cm-md-html-rendered-surface blockquote) {
+  --po-md-inline-foreground: var(--po-md-blockquote-color);
+  color: var(--po-md-blockquote-color);
+}
+
+.markdown-codemirror-editor .cm-md-syntax-emphasis {
+  color: var(--po-md-inline-foreground, var(--po-text-muted));
+}
+
+.markdown-codemirror-editor .cm-md-syntax-strikethrough {
+  color: var(--po-md-inline-foreground, var(--po-text-subtle));
+}
+
+.markdown-codemirror-editor :is(em, i, s, del).cm-md-inline-html,
+.markdown-codemirror-editor .cm-md-html-rendered-surface :where(em, i, s, del) {
+  color: var(--po-md-inline-foreground, inherit);
+}
+
+/* CodeMirror text, inline renderer chips and sanitized HTML are projections
+   of the same inline-code role. Block code keeps its separate palette. */
+.markdown-codemirror-editor :is(.cm-md-syntax-monospace, .cm-md-inline-code, code.cm-md-inline-html),
+.markdown-codemirror-editor .cm-md-html-rendered-surface :where(code:not(pre code)) {
+  color: var(--po-md-inline-foreground, var(--po-md-inline-code-color));
+  font-family: var(--po-font-mono);
 }
 
 /* Native quoted lists retain their actual source marker; ordinary native

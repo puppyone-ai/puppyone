@@ -309,6 +309,7 @@
 }
 
 .markdown-codemirror-editor .cm-md-table-cell-content a {
+  --po-md-inline-foreground: var(--po-accent);
   color: var(--po-accent);
   text-decoration: none;
 }
@@ -326,7 +327,7 @@
 
 .markdown-codemirror-editor .cm-md-table-cell-content strong,
 .markdown-codemirror-editor .cm-md-table-cell-content b {
-  color: color-mix(in srgb, var(--po-text) 92%, var(--po-text-muted));
+  color: var(--po-md-inline-foreground, color-mix(in srgb, var(--po-text) 92%, var(--po-text-muted)));
   font-weight: var(--po-md-strong-weight);
 }
 

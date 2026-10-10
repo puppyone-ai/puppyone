@@ -110,22 +110,9 @@
 }
 
 .markdown-codemirror-editor [data-md-link-interaction="navigate"] {
+  --po-md-inline-foreground: var(--po-md-link-color);
   color: var(--po-md-link-color);
   cursor: pointer;
-}
-
-/* Inline code keeps its chip treatment inside a link, but the text still
-   inherits the link affordance. Interaction state—not Markdown syntax—is the
-   visual authority for whether the destination is actionable. */
-.markdown-codemirror-editor [data-md-link-interaction="navigate"]:is(
-  .cm-md-inline-code,
-  .cm-md-syntax-monospace
-),
-.markdown-codemirror-editor [data-md-link-interaction="navigate"] :is(
-  .cm-md-inline-code,
-  .cm-md-syntax-monospace
-) {
-  color: var(--po-md-link-color);
 }
 
 .markdown-codemirror-editor [data-md-link-interaction="navigate"]:focus-visible {
@@ -159,7 +146,6 @@
   padding: 1px 4px;
   border-radius: 3px;
   background: color-mix(in srgb, var(--po-control) 46%, transparent);
-  color: color-mix(in srgb, var(--po-text) 82%, var(--po-text-muted));
   font-family: var(--po-font-mono);
   font-size: var(--po-type-editor-code, var(--po-code-font-size, 13px));
 }
