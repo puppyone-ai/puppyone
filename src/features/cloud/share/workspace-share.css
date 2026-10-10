@@ -1,22 +1,15 @@
 .desktop-cloud-workspace-share .desktop-dialog-title-row { min-width: 0; }
 .desktop-cloud-workspace-share h2 { overflow-wrap: anywhere; }
-.desktop-cloud-share-link { display: flex; flex-direction: column; gap: 8px; }
-.desktop-cloud-share-link input {
-  width: 100%; min-width: 0; box-sizing: border-box; padding: 8px 10px;
-  border: 1px solid var(--po-border); border-radius: 6px;
-  background: var(--po-panel); color: var(--po-text); font: inherit;
-}
-.desktop-cloud-share-link input:focus-visible { outline: 2px solid var(--po-accent); outline-offset: 2px; }
-.desktop-cloud-workspace-share .desktop-dialog-button { display: inline-flex; align-items: center; gap: 6px; }
-.desktop-cloud-share-preview { display: grid; gap: 10px; }
-.desktop-cloud-share-preview-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.desktop-cloud-share-preview-heading h3 { margin: 0; font-size: 12px; font-weight: 500; }
-.desktop-cloud-share-preview-heading a { display: inline-flex; align-items: center; gap: 4px; color: var(--po-text-muted); font-size: 12px; text-decoration: none; }
-.desktop-cloud-share-preview-heading a:hover { color: var(--po-text); }
-.desktop-cloud-share-preview-heading a:focus-visible { outline: 2px solid var(--po-accent); outline-offset: 3px; }
+.desktop-cloud-workspace-share .desktop-dialog-body { gap: 16px; padding-bottom: 24px; }
+.desktop-cloud-share-link { position: relative; display: flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid var(--po-border); border-radius: 7px; background: var(--po-panel); }
+.desktop-cloud-share-link input { flex: 1; width: 0; min-width: 0; padding: 5px 8px; border: 0; outline: none; background: transparent; color: var(--po-text); font: inherit; }
+.desktop-cloud-share-link:has(input:focus-visible) { outline: 2px solid var(--po-accent); outline-offset: 2px; }
+.desktop-cloud-share-link .desktop-cloud-share-copy { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 0; background: transparent; color: var(--po-text-muted); }
+.desktop-cloud-share-link .desktop-cloud-share-copy:hover { background: var(--po-hover); color: var(--po-text); }
+.desktop-cloud-share-copy:focus-visible { outline: 2px solid var(--po-accent); outline-offset: 1px; }
+.desktop-cloud-share-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .desktop-cloud-share-preview-window { height: 186px; overflow: hidden; border: 1px solid var(--po-border); border-radius: 8px; background: var(--po-canvas); mask-image: linear-gradient(to bottom, black 65%, transparent 100%); }
 .desktop-cloud-share-preview-brand { display: flex; align-items: center; justify-content: space-between; height: 31px; padding: 0 12px; background: var(--po-header); border-bottom: 1px solid var(--po-divider); font-size: 10px; }
-.desktop-cloud-share-preview-brand span { color: var(--po-text-subtle); font-size: 8px; }
 .desktop-cloud-share-preview-layout { display: grid; grid-template-columns: 38% minmax(0, 1fr); height: 160px; }
 .desktop-cloud-share-preview-files { min-width: 0; padding: 9px 6px; background: var(--po-sidebar); border-right: 1px solid var(--po-divider); }
 .desktop-cloud-share-preview-folder, .desktop-cloud-share-preview-row { display: flex; align-items: center; gap: 5px; padding: 5px 6px; min-width: 0; font-size: 9px; border-radius: 3px; }
@@ -32,4 +25,3 @@
 .desktop-cloud-share-preview-paper strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; margin-bottom: 3px; }
 .desktop-cloud-share-preview-paper i { height: 4px; border-radius: 2px; background: var(--po-divider); }
 .desktop-cloud-share-preview-paper i:nth-of-type(3n) { width: 72%; }
-.desktop-cloud-share-preview > p { margin: 0; font-size: 12px; line-height: 1.6; color: var(--po-text-muted); }

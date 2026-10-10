@@ -934,8 +934,5 @@
   "billing.subscriptionStatus.cancel_scheduled": "Cancelamento agendado",
   "billing.subscriptionStatus.past_due": "Pagamento em atraso",
   "billing.subscriptionStatus.revoked": "Acesso revogado",
-  "billing.subscriptionStatus.disputed": "Pagamento contestado",
-  "share.preview.title": "O que os destinatários veem",
-  "share.preview.open": "Abrir prévia",
-  "share.preview.note": "Compartilhe este link para apresentar seu espaço de trabalho. As permissões do espaço se aplicam."
+  "billing.subscriptionStatus.disputed": "Pagamento contestado"
 }

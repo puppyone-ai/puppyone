@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Link2 } from "lucide-react";
+import { Check, Copy, Link2 } from "lucide-react";
 import { Tooltip } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import { DesktopDialogCloseButton, DesktopDialogRoot, DesktopDialogSurface } from "../../../components/DesktopDialog";
@@ -32,27 +32,27 @@ export function CloudWorkspaceShareDialog({ context, previewEntries, onClose }: 
   };
   return <DesktopOverlayLayer>
     <DesktopDialogRoot onClose={onClose}>
-      <DesktopDialogSurface width={560} ariaLabel={title} className="desktop-cloud-workspace-share">
+      <DesktopDialogSurface width={520} ariaLabel={title} className="desktop-cloud-workspace-share">
         <header className="desktop-dialog-header">
           <div className="desktop-dialog-title-row"><Link2 size={17} aria-hidden="true" /><h2>{title}</h2></div>
           <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} onClick={onClose} /></Tooltip>
         </header>
         <div className="desktop-dialog-body">
-          {url && <label className="desktop-cloud-share-link"><span>{t("cloud.share.handoff.link")}</span>
-            <input readOnly value={url} dir="ltr" onFocus={event => event.currentTarget.select()} />
-          </label>}
+          {url && <div className="desktop-cloud-share-link">
+            <input aria-label={t("cloud.share.handoff.link")} readOnly value={url} dir="ltr" onFocus={event => event.currentTarget.select()} />
+            <Tooltip content={t(copyLabel)}>
+              <button type="button" className="desktop-dialog-button desktop-cloud-share-copy"
+                aria-label={t(copyLabel)}
+                disabled={status === "copying"} onClick={() => void copy()}>
+                {status === "copied" ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}
+              </button>
+            </Tooltip>
+            <span className="desktop-cloud-share-status" role="status">{status === "copied" ? t(copyLabel) : ""}</span>
+          </div>}
           {!url && <p role="alert">{t("cloud.share.publish.unavailable")}</p>}
-          <p>{t("cloud.share.handoff.linkNote")} {t("cloud.share.scope.workspacePermissions")}</p>
-          {url && <CloudWorkspaceSharePreview title={context.projectName || t("cloud.share.workspace")} url={url} entries={previewEntries} />}
+          {url && <CloudWorkspaceSharePreview title={context.projectName || t("cloud.share.workspace")} entries={previewEntries} />}
           {status === "failed" && <p role="alert">{t("cloud.share.copyFailed")}</p>}
         </div>
-        <footer className="desktop-dialog-footer">
-          <button type="button" className="desktop-dialog-button primary" data-desktop-dialog-initial-focus="true"
-            disabled={!url || status === "copying"} onClick={() => void copy()}>
-            {status === "copied" ? <Check size={14} aria-hidden="true" /> : <Link2 size={14} aria-hidden="true" />}
-            <span role="status">{t(copyLabel)}</span>
-          </button>
-        </footer>
       </DesktopDialogSurface>
     </DesktopDialogRoot>
   </DesktopOverlayLayer>;

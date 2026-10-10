@@ -20,7 +20,7 @@ async function render(scopePath?: string, previewEntries?: { name: string; type:
     previewEntries={previewEntries} onClose={onClose} />)));
   return onClose;
 }
-const copy = () => document.querySelector<HTMLButtonElement>(".desktop-dialog-button.primary")!;
+const copy = () => document.querySelector<HTMLButtonElement>(".desktop-cloud-share-copy")!;
 afterEach(() => { act(() => root?.unmount()); root = null; document.body.replaceChildren(); vi.clearAllMocks(); });
 
 describe("Cloud workspace link sharing", () => {
@@ -29,10 +29,14 @@ describe("Cloud workspace link sharing", () => {
     const close = await render();
     const url = `https://cloud-fixture.puppyone.ai/${projectId}/`;
     expect(document.querySelector("input")?.value).toBe(url);
-    expect(document.body.textContent).toContain("Recipients use their existing workspace permissions.");
+    expect(document.querySelector(".desktop-dialog-footer")).toBeNull();
+    expect(document.querySelector(".desktop-cloud-share-preview-heading")).toBeNull();
+    expect(document.body.textContent).not.toContain("Recipients use");
+    expect(document.querySelector("input")?.getAttribute("aria-label")).toBe("Link");
+    expect(copy().closest(".desktop-cloud-share-link")).toBe(document.querySelector("input")?.parentElement);
     await act(async () => copy().click());
     expect(writeClipboardText).toHaveBeenCalledExactlyOnceWith(url);
-    expect(copy().textContent).toContain("Copied");
+    expect(copy().getAttribute("aria-label")).toBe("Copied");
     expect(fetch).not.toHaveBeenCalled(); fetch.mockRestore();
     act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     expect(close).toHaveBeenCalledTimes(1);
@@ -43,7 +47,7 @@ describe("Cloud workspace link sharing", () => {
     expect(document.querySelector(".desktop-cloud-share-preview-window")?.textContent).toContain("Research.md");
     expect(document.querySelector(".desktop-cloud-share-preview-window")?.textContent).toContain("Notes");
     expect(document.body.textContent).not.toContain(".DS_Store");
-    expect(document.querySelector(".desktop-cloud-share-preview-heading a")?.getAttribute("href")).toBe(`https://cloud-fixture.puppyone.ai/${projectId}/`);
+    expect(document.querySelector(".desktop-cloud-share-preview")?.querySelector("p, h3, a")).toBeNull();
     expect(fetch).not.toHaveBeenCalled(); fetch.mockRestore();
   });
   it("preserves an authorized folder locator and encodes each path segment", async () => {
@@ -57,6 +61,6 @@ describe("Cloud workspace link sharing", () => {
     expect(document.querySelector('[role="alert"]')?.textContent).toContain("Couldn’t copy the link");
     expect(document.querySelector("input")?.readOnly).toBe(true);
     await act(async () => copy().click());
-    expect(document.querySelector('[role="alert"]')).toBeNull(); expect(copy().textContent).toContain("Copied");
+    expect(document.querySelector('[role="alert"]')).toBeNull(); expect(copy().getAttribute("aria-label")).toBe("Copied");
   });
 });

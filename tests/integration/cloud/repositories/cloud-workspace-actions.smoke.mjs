@@ -56,12 +56,13 @@ async function exercise(hosted) {
     assert(await evaluate(`${api}.state().requests.length === ${before}`), "Sharing must make zero Cloud requests");
     await waitFor("Boolean(document.querySelector('.desktop-cloud-share-preview-window'))");
     assert(await evaluate("document.querySelector('.desktop-cloud-share-preview-window').textContent.includes('notes.md')"), "Share preview uses cached real file names");
+    assert(await evaluate("!document.querySelector('.desktop-cloud-share-preview-heading, .desktop-cloud-workspace-share .desktop-dialog-footer')"), "Share contains only link/copy row and preview illustration");
     await capture("share-light");
     await evaluate(`${api}.setLoginAppearance('dark', 'en')`);
     await capture("share-dark");
     window.setSize(640, 520);
     await evaluate("new Promise(resolve => setTimeout(resolve, 350))");
-    assert(await evaluate("(() => { const r = document.querySelector('.desktop-cloud-workspace-share .desktop-dialog-footer').getBoundingClientRect(); return r.bottom <= innerHeight && r.width <= innerWidth; })()"), "Share copy action stays visible on a small window");
+    assert(await evaluate("(() => { const r = document.querySelector('.desktop-cloud-workspace-share .desktop-cloud-share-copy').getBoundingClientRect(); return r.bottom <= innerHeight && r.width <= innerWidth; })()"), "Share copy action stays visible on a small window");
     await capture("share-small");
     window.setSize(1100, 760);
     await evaluate("document.querySelector('.desktop-cloud-workspace-share .desktop-dialog-icon-button').click()");

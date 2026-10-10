@@ -934,8 +934,5 @@
   "billing.subscriptionStatus.cancel_scheduled": "已安排取消",
   "billing.subscriptionStatus.past_due": "支付逾期",
   "billing.subscriptionStatus.revoked": "访问已撤销",
-  "billing.subscriptionStatus.disputed": "支付争议",
-  "share.preview.title": "接收者看到的页面",
-  "share.preview.open": "打开预览",
-  "share.preview.note": "发送这个链接，让其他人预览你的工作区。访问遵循工作区权限。"
+  "billing.subscriptionStatus.disputed": "支付争议"
 }
