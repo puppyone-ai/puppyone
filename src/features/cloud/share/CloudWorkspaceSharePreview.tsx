@@ -3,27 +3,32 @@ import { useLocalization } from "@puppyone/localization/react";
 import { ExplorerTree, ExplorerTreeSkeleton, FilePreview, createResourceUri, getFileSemanticKind, type DataNode, type DocumentDataNode } from "@puppyone/shared-ui";
 import { selectFileIconTheme, useDesktopPreference } from "../../../preferencesStore";
 import { DEFAULT_EXPLORER_WIDTH } from "../../app-shell/layout/desktopPaneLayout";
+import type { CloudWorkspaceShareResource } from "./cloudWorkspaceShareResource";
 
 export type SharePreviewEntry = { name: string; type: string };
 const NO_EXPANDED_FOLDERS: ReadonlySet<string> = new Set();
 const ignoreSelection = () => {};
 
 /** The product's actual Explorer and read-only Viewer, uniformly reduced as an inert illustration. */
-export function CloudWorkspaceSharePreview({ entries }: {
+export function CloudWorkspaceSharePreview({ entries, file }: {
   entries?: readonly SharePreviewEntry[];
+  file?: CloudWorkspaceShareResource["file"];
 }) {
   const { t } = useLocalization();
   const fileIconTheme = useDesktopPreference(selectFileIconTheme);
-  const nodes = useMemo(() => entries?.filter(entry => ![".DS_Store", "Thumbs.db", ".git"].includes(entry.name)).slice(0, 8).map((entry, index): DataNode => ({
-    id: `share-preview-${index}`,
-    name: entry.name,
-    path: createResourceUri({ scheme: "puppyone-preview", authority: "share", path: entry.name }),
-    type: entry.type === "folder" ? "folder" : getFileSemanticKind(entry.name),
-    children: entry.type === "folder" ? [] : undefined,
-  })) ?? [], [entries]);
-  const document = nodes.find((node): node is DocumentDataNode => node.type === "markdown")
-    ?? nodes.find((node): node is DocumentDataNode => node.type === "text");
-  const content = document?.type === "markdown" ? `# ${escapeHeading(document.name.replace(/\.[^.]+$/, ""))}\n` : document?.name ?? "";
+  const nodes = useMemo(() => {
+    const visible = entries?.filter(entry => ![".DS_Store", "Thumbs.db", ".git"].includes(entry.name)).slice(0, 8) ?? [];
+    if (file && !visible.some(entry => entry.name === file.name)) visible.push({ name: file.name, type: file.type });
+    return visible.map((entry, index): DataNode => ({
+      id: `share-preview-${index}`,
+      name: entry.name,
+      path: createResourceUri({ scheme: "puppyone-preview", authority: "share", path: entry.name }),
+      type: entry.type === "folder" ? "folder" : getFileSemanticKind(entry.name),
+      children: entry.type === "folder" ? [] : undefined,
+    }));
+  }, [entries, file]);
+  const document = file ? nodes.find((node): node is DocumentDataNode => node.name === file.name && node.type !== "folder") : undefined;
+  const content = file?.content?.content ?? "";
   return <section className="desktop-cloud-share-preview">
     <div className="desktop-cloud-share-preview-window" aria-hidden="true" {...{ inert: "" }}>
       <div className="desktop-cloud-share-preview-canvas desktop-data-workspace-wrap data-content">
@@ -40,5 +45,3 @@ export function CloudWorkspaceSharePreview({ entries }: {
     </div>
   </section>;
 }
-
-function escapeHeading(name: string): string { return name.replace(/[\\`*_{}\[\]()#+.!<>~|]/g, "\\$&").replace(/[\r\n]/g, " "); }

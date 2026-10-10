@@ -34,6 +34,7 @@ import {
 import { CLOUD_HUB_ENTRY_SECTION, type CloudWorkspaceSection } from "./features/cloud";
 import { useAccountCloudWorkspace } from "./features/cloud/workbench/useAccountCloudWorkspace";
 import { CloudWorkspaceHeaderTools } from "./features/cloud/workbench/CloudWorkspaceHeaderTools";
+import { captureCloudWorkspaceShareResource } from "./features/cloud/share/cloudWorkspaceShareResource";
 import { useCloudAgentWorkspace } from "./features/cloud/agent/useCloudAgentWorkspace";
 import { CloudWorkspaceSidebar } from "./features/cloud/workbench/CloudWorkspaceSidebar";
 import { useCloudWorkspaceSidebar } from "./features/cloud/workbench/useCloudWorkspaceSidebar";
@@ -1733,7 +1734,7 @@ function AppContent() {
   const titlebarActions = (
     <>
       {cloudHeaderActive && <CloudWorkspaceHeaderTools context={cloudWorkspaceActive ? accountCloud.context : null}
-        previewEntries={cloudWorkspaceActive && nativeCloudWorkbench.service ? nativeCloudWorkbench.service.dataPort.getCachedChildren?.(nativeCloudWorkbench.service.folder.uri) : undefined}
+        getShareResource={() => captureCloudWorkspaceShareResource(nativeCloudWorkbench)}
         session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession}
         historyOpen={cloudSidebar.historyOpen} onToggleHistory={cloudSidebar.toggleHistory}
         agentOpen={cloudAgent.open} onToggleAgent={cloudWorkspaceActive ? cloudSidebar.toggleAgent : undefined} />}

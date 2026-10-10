@@ -14,6 +14,7 @@ import { cloudCache } from "../../../../src/features/cloud/cache/cloudCache";
 import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
 import { withTestLocalization } from "../../../support/react/localization";
 import { workspaceContentChangeMatchesResource } from "@puppyone/shared-ui";
+import { captureCloudWorkspaceShareResource } from "../../../../src/features/cloud/share/cloudWorkspaceShareResource";
 
 vi.mock("../../../../src/platform/useDesktopPlatformCapabilities", () => ({ useDesktopPlatformCapabilities: () => ({ platform: "macos", windowChrome: { mode: "overlay" } }) }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -84,6 +85,23 @@ function installBridge() {
 }
 
 describe("native Cloud workbench switching", () => {
+  it("shares the active tab after a folder selection and the root after closing the last tab", async () => {
+    installBridge(); await render(<Harness />); await click("Cloud");
+    const [node] = await cloud.dataPort!.listChildren(null);
+    await act(async () => cloud.onActivePathChange(node!.path, node));
+    await act(async () => cloud.setActiveNode({ id: "folder", name: "notes", path: "notes", type: "folder" }));
+    expect(captureCloudWorkspaceShareResource(cloud)?.path).toBe("notes");
+    await act(async () => cloud.editorWorkbench.activate(cloud.editorWorkbench.activeEditorId!));
+    expect(captureCloudWorkspaceShareResource(cloud)?.path).toBe("readme.md");
+    await act(async () => cloud.onActivePathChange("other.md", { id: "other", path: "other.md", name: "other.md", type: "markdown" }));
+    expect(captureCloudWorkspaceShareResource(cloud)?.path).toBe("other.md");
+    await act(async () => cloud.setActiveNode({ id: "folder", name: "notes", path: "notes", type: "folder" }));
+    const first = cloud.editorWorkbench.state.editors.find(editor => editor.resource === node!.path)!;
+    await act(async () => cloud.editorWorkbench.activate(first.id));
+    expect(captureCloudWorkspaceShareResource(cloud)?.path).toBe("readme.md");
+    await act(async () => cloud.editorWorkbench.clear());
+    expect(captureCloudWorkspaceShareResource(cloud)).toMatchObject({ path: "", directory: true });
+  });
   it("notifies opened Cloud documents after publication using an owned root", async () => {
     installBridge(); await render(<Harness />); await click("Cloud");
     const [node] = await cloud.dataPort!.listChildren(null);

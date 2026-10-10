@@ -10,6 +10,7 @@ import { DesktopCloudFileWorkspace, type CloudFileSurfaceProps } from "./Desktop
 import type { NativeCloudWorkbench } from "./useNativeCloudWorkbench";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import { CloudWorkspaceHeaderTools } from "./CloudWorkspaceHeaderTools";
+import { captureCloudWorkspaceShareResource } from "../share/cloudWorkspaceShareResource";
 import type { ProjectCloudContext } from "../project/context";
 import type { ProjectHomeItem } from "../../app-shell/workspaceHomeModel";
 import { useCloudAgentWorkspace } from "../agent/useCloudAgentWorkspace";
@@ -113,7 +114,7 @@ export function AccountCloudWorkspaceSurface({ workbench, presentation, active, 
       {...projectRail}
       leftSidebarWidth={explorerWidth} onLeftSidebarExpand={() => setSidebarCollapsed(false)}
       titlebarActions={active && <CloudWorkspaceHeaderTools context={context} session={session}
-        previewEntries={service.dataPort.getCachedChildren?.(service.folder.uri)}
+        getShareResource={() => captureCloudWorkspaceShareResource(workbench)}
         apiBaseUrl={apiBaseUrl} onSessionChange={onSessionChange} agentOpen={agent.open} onToggleAgent={sidebar.toggleAgent}
         historyOpen={sidebar.historyOpen} onToggleHistory={sidebar.toggleHistory} />}
       titlebarSidebarSlot={centered ? undefined : projectContext}

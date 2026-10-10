@@ -49,15 +49,18 @@ async function exercise(hosted) {
   assert(await evaluate("!document.querySelector('[data-cloud-workspace-tool=automation], [data-cloud-workspace-tool=connect]')"), "Retired entries must not be visible");
   if (!hosted) {
     await evaluate(`${api}.setLoginAppearance('light', 'en')`);
+    await evaluate("[...document.querySelectorAll('.data-content .tree-row.file')].find(row => row.getBoundingClientRect().width > 0 && row.dataset.explorerPath.endsWith('/cloud-only.md')).click()");
+    await waitFor("[...document.querySelectorAll('.data-content .cm-content')].some(content => content.textContent.includes('Cloud only'))");
     const before = await evaluate(`${api}.state().requests.length`);
     await evaluate(`${button("share")}.click()`);
     await waitFor("Boolean(document.querySelector('.desktop-cloud-workspace-share input'))");
-    assert(await evaluate("document.querySelector('.desktop-cloud-workspace-share input').value === 'https://app-fixture.puppyone.ai/11111111-1111-4111-8111-111111111111/'"), "Share must show the configured human workspace URL");
+    assert(await evaluate("document.querySelector('.desktop-cloud-workspace-share input').value === 'https://app-fixture.puppyone.ai/11111111-1111-4111-8111-111111111111/cloud-only.md'"), "Share must show the current document's human URL");
     assert(await evaluate(`${api}.state().requests.length === ${before}`), "Sharing must make zero Cloud requests");
     await waitFor("Boolean(document.querySelector('.desktop-cloud-share-preview-window'))");
     assert(await evaluate("Boolean(document.querySelector('.desktop-cloud-share-preview-window [data-explorer-path=\"puppyone-preview://share/notes.md\"]'))"), "Share preview uses cached real file names");
     assert(await evaluate("!document.querySelector('.desktop-cloud-share-preview-heading, .desktop-cloud-workspace-share .desktop-dialog-footer')"), "Share contains only link/copy row and preview illustration");
     await waitFor("Boolean(document.querySelector('.desktop-cloud-share-preview-window .markdown-codemirror-editor .cm-editor'))");
+    assert(await evaluate("document.querySelector('.desktop-cloud-share-preview-window .cm-content').textContent.includes('Cloud only')"), "Share previews the current file's accepted body");
     assert(await evaluate("document.querySelector('.desktop-cloud-workspace-share h2').textContent === 'Share this project'"), "Share title is independent of project name");
     for (const theme of ["light", "dark"]) {
       await evaluate(`${api}.setLoginAppearance('${theme}', 'en')`);
@@ -71,6 +74,19 @@ async function exercise(hosted) {
     assert(await evaluate("(() => { const r = document.querySelector('.desktop-cloud-workspace-share .desktop-cloud-share-copy').getBoundingClientRect(); return r.bottom <= innerHeight && r.width <= innerWidth; })()"), "Share copy action stays visible on a small window");
     await capture("share-small");
     window.setSize(1100, 760);
+    await evaluate("document.querySelector('.desktop-cloud-workspace-share .desktop-dialog-icon-button').click()");
+    // Selecting a folder overrides the still-open document; switching tabs
+    // restores the actual document as the target rather than retaining it.
+    await evaluate("[...document.querySelectorAll('.data-content .tree-row.folder')].find(row => row.getBoundingClientRect().width > 0 && row.dataset.explorerPath.endsWith('/records')).click()");
+    await evaluate(`${button("share")}.click()`);
+    await waitFor("document.querySelector('.desktop-cloud-workspace-share input')?.value.endsWith('/records/')");
+    await capture("share-folder");
+    await evaluate("document.querySelector('.desktop-cloud-workspace-share .desktop-dialog-icon-button').click()");
+    await evaluate("[...document.querySelectorAll('.data-content .tree-row.file')].find(row => row.getBoundingClientRect().width > 0 && row.dataset.explorerPath.endsWith('/notes.md')).click()");
+    await waitFor("[...document.querySelectorAll('.data-content .cm-content')].some(content => content.textContent.includes('Cloud note'))");
+    await evaluate(`${button("share")}.click()`);
+    await waitFor("document.querySelector('.desktop-cloud-workspace-share input')?.value.endsWith('/notes.md')");
+    await capture("share-notes");
     await evaluate("document.querySelector('.desktop-cloud-workspace-share .desktop-dialog-icon-button').click()");
   }
   await evaluate(`${button("agent")}.click()`);

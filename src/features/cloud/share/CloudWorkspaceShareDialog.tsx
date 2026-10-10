@@ -10,10 +10,12 @@ import { workspaceResourceUrl } from "../files/workspaceResourceUrl";
 import type { ProjectCloudContext } from "../project/context";
 import { CloudWorkspaceSharePreview, type SharePreviewEntry } from "./CloudWorkspaceSharePreview";
 import "./workspace-share.css";
+import type { CloudWorkspaceShareResource } from "./cloudWorkspaceShareResource";
 
-export function CloudWorkspaceShareDialog({ context, previewEntries, onClose }: {
+export function CloudWorkspaceShareDialog({ context, resource, previewEntries, onClose }: {
   context: Extract<ProjectCloudContext, { status: "resolved" }>;
   previewEntries?: readonly SharePreviewEntry[];
+  resource?: CloudWorkspaceShareResource | null;
   onClose: () => void;
 }) {
   const { t } = useLocalization();
@@ -21,7 +23,7 @@ export function CloudWorkspaceShareDialog({ context, previewEntries, onClose }: 
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const title = t("cloud.share.thisProject");
-  const url = shareUrl(context);
+  const url = shareUrl(context, resource);
   const copyLabel = { idle: "workspace.node.copyLink", copying: "cloud.common.copying",
     copied: "cloud.share.action.copied", failed: "workspace.node.copyLink" }[status];
   const copy = async () => {
@@ -50,7 +52,7 @@ export function CloudWorkspaceShareDialog({ context, previewEntries, onClose }: 
             <span className="desktop-cloud-share-status" role="status">{status === "copied" ? t(copyLabel) : ""}</span>
           </div>}
           {!url && <p role="alert">{t("cloud.share.publish.unavailable")}</p>}
-          {url && <CloudWorkspaceSharePreview entries={previewEntries} />}
+          {url && <CloudWorkspaceSharePreview entries={resource === undefined ? previewEntries : resource?.entries} file={resource?.file} />}
           {status === "failed" && <p role="alert">{t("cloud.share.copyFailed")}</p>}
         </div>
       </DesktopDialogSurface>
@@ -58,8 +60,11 @@ export function CloudWorkspaceShareDialog({ context, previewEntries, onClose }: 
   </DesktopOverlayLayer>;
 }
 
-function shareUrl(context: Extract<ProjectCloudContext, { status: "resolved" }>): string | null {
+function shareUrl(context: Extract<ProjectCloudContext, { status: "resolved" }>, resource?: CloudWorkspaceShareResource | null): string | null {
+  if (resource === null) return null;
   if (context.target.kind === "scope" && !context.scopePath) return null;
-  try { return workspaceResourceUrl(getDesktopCloudWebUrl("/"), context.projectId, context.scopePath || "", true); }
+  const path = resource?.path ?? context.scopePath ?? "";
+  if (context.scopePath && path !== context.scopePath && !path.startsWith(`${context.scopePath}/`)) return null;
+  try { return workspaceResourceUrl(getDesktopCloudWebUrl("/"), context.projectId, path, resource?.directory ?? true); }
   catch { return null; }
 }

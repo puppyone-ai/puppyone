@@ -4,14 +4,14 @@ import { Tooltip } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import { AgentEntryIcon } from "../../../components/brand/AgentEntryIcon";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
-import type { SharePreviewEntry } from "../share/CloudWorkspaceSharePreview";
 import type { ProjectCloudContext } from "../project/context";
+import type { CloudWorkspaceShareResource } from "../share/cloudWorkspaceShareResource";
 
 const ShareDialog = lazy(() => import("../share/CloudWorkspaceShareDialog").then(module => ({ default: module.CloudWorkspaceShareDialog })));
 
 type Props = {
   context: ProjectCloudContext | null;
-  previewEntries?: readonly SharePreviewEntry[];
+  getShareResource?: () => CloudWorkspaceShareResource | null;
   session: DesktopCloudSession | null;
   apiBaseUrl: string;
   onSessionChange: (session: DesktopCloudSession | null) => void;
@@ -28,16 +28,21 @@ export function CloudWorkspaceHeaderTools(props: Props) {
   return <ScopedCloudWorkspaceHeaderTools key={scope} {...props} />;
 }
 
-function ScopedCloudWorkspaceHeaderTools({ context, session, previewEntries, historyOpen = false, onToggleHistory, agentOpen = false, onToggleAgent }: Props) {
+function ScopedCloudWorkspaceHeaderTools({ context, session, getShareResource, historyOpen = false, onToggleHistory, agentOpen = false, onToggleAgent }: Props) {
   const { t } = useLocalization();
   const [sharing, setSharing] = useState(false);
+  const [shareResource, setShareResource] = useState<CloudWorkspaceShareResource | null | undefined>();
   const ready = context?.status === "resolved" && session !== null;
   return <>
     <div className="desktop-titlebar-cloud-tools" data-window-no-drag="true" aria-busy={!ready || undefined}>
       <Tooltip content={ready ? t("shell.titlebar.share") : t("shell.workspaceSwitcher.location.checking")}>
         <button type="button" className="desktop-titlebar-action desktop-titlebar-share"
           data-cloud-workspace-tool="share" disabled={!ready} aria-label={t("shell.titlebar.share")}
-          aria-haspopup="dialog" aria-expanded={sharing} onClick={() => setSharing(true)}>
+          aria-haspopup="dialog" aria-expanded={sharing} onClick={() => {
+            try { setShareResource(getShareResource?.()); }
+            catch { setShareResource(null); }
+            setSharing(true);
+          }}>
           <Forward size={16} strokeWidth={1.8} aria-hidden="true" />
           <span className="desktop-titlebar-share-label">{t("shell.titlebar.share")}</span>
         </button>
@@ -61,7 +66,7 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, previewEntries, his
       </Tooltip>
     </div>
     {sharing && context?.status === "resolved" && session && <Suspense fallback={null}>
-      <ShareDialog context={context} previewEntries={previewEntries} onClose={() => setSharing(false)} />
+      <ShareDialog context={context} resource={shareResource} onClose={() => setSharing(false)} />
     </Suspense>}
   </>;
 }

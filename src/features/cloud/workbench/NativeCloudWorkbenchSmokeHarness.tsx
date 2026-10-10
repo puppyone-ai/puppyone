@@ -8,6 +8,7 @@ import { DesktopOverlayPortal } from "../../app-shell/DesktopOverlayPortal";
 import { DesktopTitlebarContext } from "../../app-shell/DesktopTitlebarContext";
 import { DesktopTitlebarActions } from "../../app-shell/DesktopTitlebarActions";
 import { CloudWorkspaceHeaderTools } from "./CloudWorkspaceHeaderTools";
+import { captureCloudWorkspaceShareResource } from "../share/cloudWorkspaceShareResource";
 import { DesktopWorkspaceLocationSurface } from "../../app-shell/DesktopWorkspaceLocationSurface";
 import { useDesktopPreference, useDesktopPreferenceEffects, initializeDesktopPreferences } from "../../settings";
 import { useCloudWorkspaceSwitch } from "./useCloudWorkspaceSwitch";
@@ -290,7 +291,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
       {...getProjectHeaderSlots(centeredProject, projectSwitcher)}
       titlebarActions={<>
         {headerLocation === "cloud" && <CloudWorkspaceHeaderTools context={location === "cloud" ? context : null}
-          previewEntries={location === "cloud" && workbench.service ? workbench.service.dataPort.getCachedChildren?.(workbench.service.folder.uri) : undefined}
+          getShareResource={() => captureCloudWorkspaceShareResource(workbench)}
           session={activeSession} apiBaseUrl={API} onSessionChange={noop}
           agentOpen={agent.open} onToggleAgent={cloudSidebar.toggleAgent}
           historyOpen={cloudSidebar.historyOpen} onToggleHistory={cloudSidebar.toggleHistory} />}

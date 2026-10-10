@@ -70,6 +70,13 @@ export function useNativeCloudWorkbench({ context, session, apiBaseUrl, active, 
   const editorWorkbench = useDesktopEditorWorkbench(visited ? service?.workspace ?? null : null,
     dataPort?.resolveNode ?? null, service?.folder.uri ?? null, resolveEditorResource, service?.workspace.id ?? null);
   const [activeNode, setActiveNode] = useProjectExplorerSelection(service?.workspace ?? null);
+  // A tab/pane switch owns the current document; do not retain a prior folder
+  // selection as the Share target after the visible document changes.
+  useEffect(() => { setActiveNode(null); }, [editorWorkbench.activePath, setActiveNode]);
+  const selectionAwareEditorWorkbench = useMemo(() => ({ ...editorWorkbench,
+    activate: (editorId: string) => { setActiveNode(null); editorWorkbench.activate(editorId); },
+    focusPane: (paneId: string) => { setActiveNode(null); editorWorkbench.focusPane(paneId); },
+  }), [editorWorkbench, setActiveNode]);
   const [refreshToken, setRefreshToken] = useState<WorkspaceContentChange>({ sequence: 0, entries: [] });
   const [navigationError, setNavigationError] = useState<string | null>(null);
   const navigationRequest = useRef(0);
@@ -154,7 +161,7 @@ export function useNativeCloudWorkbench({ context, session, apiBaseUrl, active, 
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [active, closeEditor, editorWorkbench]);
-  return { service, surfaceService, surfaceVisited, dataPort, visited, editorWorkbench, activeNode, actions, refreshToken, refresh,
+  return { service, surfaceService, surfaceVisited, dataPort, visited, editorWorkbench: selectionAwareEditorWorkbench, activeNode, actions, refreshToken, refresh,
     onActivePathChange, setActiveNode, closeEditor, error: navigationError ?? error };
 }
 

@@ -4,6 +4,8 @@ import { FILE_FORMATS, createWorkspaceResourceUri, getEditorSourceRequirement, i
 import { createCloudDataService } from "../../../../src/features/cloud/files/cloudDataPort";
 import { cloudCache } from "../../../../src/features/cloud/cache/cloudCache";
 import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
+import { captureCloudWorkspaceShareResource } from "../../../../src/features/cloud/share/cloudWorkspaceShareResource";
+import type { NativeCloudWorkbench } from "../../../../src/features/cloud/workbench/useNativeCloudWorkbench";
 
 import { nativeSnapshot, nativeVersion, nativeReceipt } from "../../../fixtures/cloud/repositories/nativeRepository";
 
@@ -51,6 +53,36 @@ const save = (port: ReturnType<typeof service>["dataPort"], path: string, conten
 
 describe("Web-aligned Cloud reads", () => {
   const count = (operation: string) => bridge.mock.calls.filter(([request]) => new URL(request.path, API).pathname.endsWith(`/${operation}`)).length;
+  it("captures the active tab's accepted bytes and siblings without another request", async () => {
+    const cloud = service();
+    await cloud.dataPort.listChildren(cloud.folder.uri);
+    const path = createWorkspaceResourceUri(cloud.folder.uri, "readme.md");
+    await cloud.dataPort.readFile(path);
+    const before = bridge.mock.calls.length;
+    const editorWorkbench = { activePath: path } as NativeCloudWorkbench["editorWorkbench"];
+    const resource = captureCloudWorkspaceShareResource({ service: cloud,
+      activeNode: { id: "old", path: "data.json", name: "data.json", type: "json" }, editorWorkbench });
+    expect(resource?.path).toBe("readme.md");
+    expect(resource?.directory).toBe(false);
+    expect(resource?.file?.content?.content).toBe("Cloud original");
+    expect(resource?.entries?.some(entry => entry.name === "data.json")).toBe(true);
+    expect(bridge.mock.calls.length).toBe(before);
+  });
+  it("captures a selected scoped folder, then falls back to the authorized root", () => {
+    const cloud = service({ context: { ...context, target: { kind: "scope", project_id: "project", scope_id: "notes" }, scopePath: "notes" } });
+    const path = createWorkspaceResourceUri(cloud.folder.uri, "Research");
+    const editorWorkbench = { activePath: null } as NativeCloudWorkbench["editorWorkbench"];
+    expect(captureCloudWorkspaceShareResource({ service: cloud, activeNode: { id: path, path, name: "Research", type: "folder" }, editorWorkbench }))
+      .toMatchObject({ path: "notes/Research", directory: true });
+    expect(captureCloudWorkspaceShareResource({ service: cloud, activeNode: null, editorWorkbench }))
+      .toMatchObject({ path: "notes", directory: true });
+    expect(bridge).not.toHaveBeenCalled();
+  });
+  it("does not substitute a root for an active file outside the current provider", () => {
+    expect(captureCloudWorkspaceShareResource({ service: service(), activeNode: null,
+      editorWorkbench: { activePath: "puppyone-cloud://outside/readme.md" } as NativeCloudWorkbench["editorWorkbench"] })).toBeNull();
+    expect(bridge).not.toHaveBeenCalled();
+  });
 
   it("copies plain repository paths without requests or write permission", () => {
     const cloud = service({ context: { ...context, capabilities: ["content.read"] } });

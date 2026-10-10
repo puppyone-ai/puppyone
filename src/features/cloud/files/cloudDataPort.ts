@@ -32,6 +32,8 @@ export type NativeCloudDataService = Readonly<{
   invalidateReads: () => void;
   resolveResource: (path: string | null) => ResolvedWorkbenchDataResource | null;
   getPathForCopy: (path: string) => string;
+  /** Last accepted text snapshot; this never loads a resource or exposes draft edits. */
+  getCachedFileContent?: (path: string) => FileContent | null;
 }>;
 
 /** Cloud owns the bytes. The renderer never mirrors them into a local checkout. */
@@ -109,6 +111,7 @@ export function createCloudDataService({
   const list = (path: string | null) => files.list(remotePath(path));
   const remember = (path: string, version: string, content: string) => {
     const versions = snapshots.get(path) ?? new Map<string, string>();
+    versions.delete(version);
     versions.set(version, content);
     while (versions.size > 8) versions.delete(versions.keys().next().value!);
     snapshots.set(path, versions);
@@ -301,6 +304,15 @@ export function createCloudDataService({
     } : {}),
   };
   return { workspace, folder, dataPort, writable,
+    getCachedFileContent: (path) => {
+      assertCurrent();
+      const versions = snapshots.get(remotePath(path));
+      const latest = versions && [...versions.entries()].at(-1);
+      if (!latest) return null;
+      const name = relativePath(path).split("/").pop()!;
+      const type = getFileSemanticKind(name);
+      return type === "folder" ? null : { path, name, type, content: latest[1], version: latest[0] };
+    },
     getPathForCopy: (path) => { assertCurrent(); return remotePath(path) || "."; },
     invalidateReads: () => { assertCurrent(); files.invalidate(); },
     resolveResource: (path) => {
