@@ -63,10 +63,10 @@ describe("missing Cloud project recovery", () => {
   it("retains the value cards and returns to the existing publish confirmation after a reviewed replacement", async () => {
     api.getCloudRepositoryContext.mockRejectedValue(Object.assign(new Error("Project not found"), { status: 404 }));
     await render();
-    expect(host.textContent).toContain("Share with your team");
+    expect(host.textContent).toContain("You decide who can read it");
     expect(host.textContent).not.toContain("current Cloud service");
     expect(host.textContent).not.toContain("Retry");
-    expect(host.querySelector("[data-cloud-replace-action]")?.textContent).toBe("Share project to Cloud");
+    expect(host.querySelector("[data-cloud-replace-action]")?.textContent).toBe("Upload to Cloud");
     expect(host.textContent).not.toContain("no longer exists");
     expect(remove).not.toHaveBeenCalled(); expect(publish).not.toHaveBeenCalled();
     await beginReplacement();
@@ -76,7 +76,7 @@ describe("missing Cloud project recovery", () => {
       { kind: "project_root", project_id: "project-1" }, undefined, base);
     expect(remove).toHaveBeenCalledWith(status.remotes);
     expect(host.querySelector("[data-cloud-replace-action]")).toBeNull();
-    expect(host.querySelector("[data-cloud-publish-action]")?.textContent).toBe("Share project to Cloud");
+    expect(host.querySelector("[data-cloud-publish-action]")?.textContent).toBe("Upload to Cloud");
     expect(publish).not.toHaveBeenCalled();
     await act(async () => host.querySelector<HTMLButtonElement>("[data-cloud-publish-action]")!.click());
     const confirm = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(b => b.textContent === "Confirm")!;

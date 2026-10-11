@@ -9,6 +9,31 @@
     background: var(--po-canvas);
   }
 
+  /* Floating close action; the content owns the visible title. */
+  .desktop-cloud-workspace-switch-header {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 2;
+    display: flex;
+  }
+
+  .desktop-cloud-workspace-switch-header .desktop-dialog-icon-button {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+  }
+
+  .desktop-cloud-workspace-switch-title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
   .desktop-cloud-workspace-switch-content {
     container: desktop-cloud-switch / inline-size;
     display: flex;

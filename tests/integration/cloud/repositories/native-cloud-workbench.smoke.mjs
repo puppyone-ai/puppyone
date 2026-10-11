@@ -770,7 +770,8 @@ app.whenReady().then(async () => {
       const button = cta.querySelector('[data-cloud-sign-in-action]');
       const box = (node) => { const r = node.getBoundingClientRect(); return { x:r.x, y:r.y, width:r.width, height:r.height }; };
       return { dialog:box(dialog), cta:box(cta), button:box(button),
-        centered:[cta, ...cta.querySelectorAll('h2, [data-cloud-sign-in-action]')].map(node => box(node).x + box(node).width / 2),
+        centered:box(cta).x + box(cta).width / 2,
+        actionInset:(box(cta).x + box(cta).width) - (box(button).x + box(button).width),
         overflow:button.scrollWidth > button.clientWidth || cta.scrollWidth > cta.clientWidth,
         text:cta.textContent, background:getComputedStyle(dialog).backgroundColor,
         color:getComputedStyle(button).color, locale:document.documentElement.lang,
@@ -779,7 +780,8 @@ app.whenReady().then(async () => {
         oldPageLayout:Boolean(dialog.querySelector('.desktop-cloud-main-view, .desktop-cloud-auth-page-shell')) };
     })()`);
     const middle = sample.dialog.x + sample.dialog.width / 2;
-    assert(sample.centered.every(x => Math.abs(x-middle) < 1), `Sign-in content is off-center: ${scene}`);
+    assert(Math.abs(sample.centered-middle) < 1, `Sign-in content is off-center: ${scene}`);
+    assert(sample.actionInset >= 0 && sample.actionInset <= 29, `Sign-in action must end the activation footer: ${scene}`);
     assert(Math.abs(sample.dialog.x*2 + sample.dialog.width - window.getContentSize()[0]) < 2, `Dialog is off-center: ${scene}`);
     assert(Math.abs(sample.dialog.y*2 + sample.dialog.height - window.getContentSize()[1]) < 2, `Dialog is not vertically centered: ${scene}`);
     assert(!sample.overflow && !sample.oldPageLayout, `Sign-in content is clipped or uses full-page layout: ${scene}`);
@@ -864,7 +866,7 @@ app.whenReady().then(async () => {
       })()`);
       assert(presentation.x >= 31 && presentation.y >= 31 && !presentation.overflow,
         `Publish dialog must preserve fixed insets without clipping (${theme}/${width}): ${JSON.stringify(presentation)}`);
-      assert(presentation.padding === '32px 28px' && presentation.action === 'Deploy this project to Cloud',
+      assert(presentation.padding === '0px' && presentation.action === 'Upload to Cloud',
         'Authenticated activation must retain spacing and offer actual publication');
       publishPresentations.push({theme, viewport:width, ...presentation});
       if (width === 1100 || width === 640) await writeFile(path.join(artifacts, `publish-${theme}-${width}.png`), (await window.webContents.capturePage()).toPNG());

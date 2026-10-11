@@ -1482,6 +1482,7 @@ function AppContent() {
       renderLeadingRail: ({ expanded }) => renderProjectRail(hostedWorkspace, expanded) } : undefined}
     onCreateProject={projectEntryFlow.openCreate} /> : null;
   const repositoryCloudDialog = <CloudWorkspaceSwitchDialog controller={repositoryCloudSwitch}
+    projectName={workspace?.name}
     preparingInPlace={prepareCloudInPlace}
     authenticationRequired={!activeCloudSession}
     gate={<RepositoryCloudSwitchGate context={projectCloudContext} apiBaseUrl={desktopCloudApiBaseUrl}

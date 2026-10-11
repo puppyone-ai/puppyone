@@ -30,7 +30,7 @@ function Harness({ restoring = false }: { restoring?: boolean }) {
     <button onClick={controller.request}>Cloud</button>
     <input aria-label="Local unsaved draft" defaultValue="Keep this draft" />
     <div data-current-provider={cloudActive ? "cloud" : "local"} />
-    <CloudWorkspaceSwitchDialog controller={controller} authenticationRequired gate={<CloudSignedOutRoute compact activeSection="contents"
+    <CloudWorkspaceSwitchDialog controller={controller} projectName="Local project" authenticationRequired gate={<CloudSignedOutRoute compact activeSection="contents"
       authState={{ status: restoring ? "restoring" : "signed-out", apiBaseUrl: API }} apiBaseUrl={API} loadingLabel="Restoring Cloud session…" />} />
   </>;
 }
@@ -51,8 +51,8 @@ describe("login before Cloud selection", () => {
     expect(dialog.getAttribute("aria-modal")).toBe("true");
     expect(dialog.querySelector("aside, nav")).toBeNull();
     expect(dialog.querySelector("h2")?.textContent).toBe("Get Puppyone Cloud");
-    expect(dialog.querySelector('[role="img"][aria-label="Manus"]')).not.toBeNull();
-    expect(dialog.querySelector('[role="img"][aria-label="Viktor"]')).not.toBeNull();
+    expect(dialog.querySelector(".desktop-cloud-project-activation h2")?.textContent).toBe("Put Local project in the cloud");
+    expect(dialog.querySelector('[role="list"][aria-label="Cloud agents"]')?.textContent).toContain("Manus");
     expect(local.value).toBe("Keep this draft");
     const signIn = dialog.querySelector<HTMLButtonElement>("[data-cloud-sign-in-action]")!;
     expect(signIn.textContent).toBe("Sign in to get started");
@@ -69,6 +69,16 @@ describe("login before Cloud selection", () => {
     await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(document.activeElement).toBe(local);
+    expect(local.value).toBe("Keep this draft");
+  });
+  it("dismisses from the activation footer without selecting Cloud", async () => {
+    const local = await render();
+    const dismiss = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')]
+      .find(button => button.textContent === "Not now")!;
+    await act(async () => dismiss.click());
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(auth.start).not.toHaveBeenCalled();
+    expect(document.querySelector('[data-current-provider]')?.getAttribute("data-current-provider")).toBe("local");
     expect(local.value).toBe("Keep this draft");
   });
   it("allows another attempt after sign-in fails while keeping the local draft", async () => {

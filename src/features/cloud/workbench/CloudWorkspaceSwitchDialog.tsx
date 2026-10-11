@@ -1,19 +1,21 @@
 import { Tooltip } from "@puppyone/shared-ui";
-import { CloudIcon as Cloud } from "../../../components/icons/CloudIcon";
 import { useLocalization } from "@puppyone/localization";
 import { useEffect, type ReactNode } from "react";
 import { DesktopDialogCloseButton, DesktopDialogRoot, DesktopDialogSurface } from "../../../components/DesktopDialog";
 import { DesktopOverlayLayer } from "../../app-shell/DesktopOverlayPortal";
 import { CloudWorkspaceLoadingState } from "../components/shared";
+import { CloudProjectActivationScope } from "../components/CloudProjectActivation";
 import { formatCloudMessage } from "../cloudPresentation";
 import type { CloudWorkspaceSwitch } from "./useCloudWorkspaceSwitch";
 import "./cloud-workspace-switch.css";
 import { CloudWorkspaceRecovery } from "./CloudWorkspaceRecovery";
 
 /** Authentication and preparation overlay the retained current-device workbench. */
-export function CloudWorkspaceSwitchDialog({ controller, gate, authenticationRequired = false, preparingInPlace = false }: {
+export function CloudWorkspaceSwitchDialog({ controller, gate, projectName, authenticationRequired = false, preparingInPlace = false }: {
   controller: CloudWorkspaceSwitch;
   gate: ReactNode;
+  /** Names the retained local project in the activation surface. */
+  projectName?: string | null;
   authenticationRequired?: boolean;
   preparingInPlace?: boolean;
 }) {
@@ -37,18 +39,18 @@ export function CloudWorkspaceSwitchDialog({ controller, gate, authenticationReq
   return <DesktopOverlayLayer>
     <DesktopDialogRoot className="desktop-cloud-dialog-backdrop" onClose={controller.cancel}>
       <DesktopDialogSurface className={`desktop-cloud-workspace-switch-dialog${authenticationRequired ? " is-authentication" : ""}`}
-        width={880}
+        width={600}
         ariaLabel={t("cloud.activation.project.title")}>
-        <header className="desktop-dialog-header desktop-cloud-dialog-header">
-          <div className="desktop-dialog-title-row desktop-cloud-dialog-title-row">
-            <span className="desktop-cloud-dialog-leading" aria-hidden="true"><Cloud size={15} /></span>
-            <h2>{t("cloud.activation.project.title")}</h2>
-          </div>
+        {/* Content owns the visible headline; the Header keeps only the title for structure and the close action. */}
+        <header className="desktop-cloud-workspace-switch-header">
+          <h2 className="desktop-cloud-workspace-switch-title">{t("cloud.activation.project.title")}</h2>
           <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} onClick={controller.cancel} /></Tooltip>
         </header>
         <div className="desktop-cloud-workspace-switch-content" data-po-scrollbar="content">
-          {controller.error ? <CloudWorkspaceRecovery message={formatCloudMessage(controller.error, t)}
-            onRetry={controller.retry} showLocalState /> : controller.checking ? <CloudWorkspaceLoadingState label={t("cloud.loading.project")} /> : gate}
+          <CloudProjectActivationScope projectName={projectName} onDismiss={controller.cancel}>
+            {controller.error ? <CloudWorkspaceRecovery message={formatCloudMessage(controller.error, t)}
+              onRetry={controller.retry} showLocalState /> : controller.checking ? <CloudWorkspaceLoadingState label={t("cloud.loading.project")} /> : gate}
+          </CloudProjectActivationScope>
         </div>
       </DesktopDialogSurface>
     </DesktopDialogRoot>

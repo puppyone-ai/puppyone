@@ -44,12 +44,14 @@ describe("repository Cloud activation", () => {
     await render();
     expect(host.querySelector(".desktop-cloud-project-activation")!.getAttribute("aria-label")).toBe(before);
     expect(host.querySelector("[data-cloud-sign-in-action]")).toBeNull();
-    expect(host.textContent).toContain("Share with your team");
-    expect(host.querySelector('[role="img"][aria-label="Manus"]')).not.toBeNull();
-    expect(host.querySelector('[role="img"][aria-label="Viktor"]')).not.toBeNull();
+    expect(host.querySelector(".desktop-cloud-project-activation h2")?.textContent).toBe("Put Project in the cloud");
+    expect(host.textContent).toContain("You decide who can read it");
+    expect(host.textContent).not.toContain("Share with your team");
+    const agents = host.querySelector('[role="list"][aria-label="Cloud agents"]')!;
+    expect([...agents.querySelectorAll("li")].map(item => item.textContent)).toEqual(["Manus", "Viktor", "Grok Bot", "Any MCP client"]);
     const button = host.querySelector<HTMLButtonElement>("[data-cloud-publish-action]")!;
     expect(button.disabled).toBe(false);
-    expect(button.textContent).toBe("Share project to Cloud");
+    expect(button.textContent).toBe("Upload to Cloud");
     await act(async () => button.click());
     expect(publish).not.toHaveBeenCalled();
     const confirmation = document.querySelector('[role="dialog"]')!;

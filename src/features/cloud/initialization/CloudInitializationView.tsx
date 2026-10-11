@@ -109,6 +109,7 @@ export function CloudLocalOnlyWorkspace(input: CloudLocalOnlyWorkspaceProps) {
     return (
       <CloudGitPrerequisite
         activeSection={props.activeSection}
+        projectName={props.workspace.name}
         publishBusy={view.publishBusy}
         publishEnabled={view.organizationReady}
         publishError={props.publishError}

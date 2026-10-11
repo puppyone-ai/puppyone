@@ -269,7 +269,7 @@ export function DesktopWorkspaceContent({
           : null}
       />
       {cloudWorkspaceSwitch && <CloudWorkspaceSwitchDialog controller={cloudWorkspaceSwitch} gate={cloudSwitchGate}
-        authenticationRequired={cloudSwitchAuthenticationRequired} />}
+        projectName={workspace.name} authenticationRequired={cloudSwitchAuthenticationRequired} />}
       {cloudOpen && (
         <CloudDialog
           sidebar={cloudSurface.sidebar}
