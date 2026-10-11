@@ -354,8 +354,8 @@ function assertBlockRhythm(metrics) {
   for(const line of [...metrics.paragraphs,...metrics.lists]) near(line.height,line.sourceLine.height,'CodeMirror block height');
   const bullet=metrics.lists.find(line=>line.text.includes('Bullet first'));
   assert(bullet.textRects.length>=2,'long bullet did not wrap');
-  near(bullet.indent,bullet.size*2.75,'character-relative indent');near(bullet.marker.left,bullet.size*.75,'inset marker');
-  near(bullet.marker.width,bullet.size*1.5,'marker slot');assert.equal(bullet.marker.align,'center');
+  near(bullet.indent,bullet.size*1.875,'character-relative indent');near(bullet.marker.left,bullet.size*.25,'inset marker');
+  near(bullet.marker.width,bullet.size*1.25,'marker slot');assert.equal(bullet.marker.align,'center');
   near(bullet.marker.top,bullet.before,'marker tracks first line padding');
   for(const rect of bullet.textRects) near(rect.x-bullet.x,bullet.indent,'wrapped hanging indent');
   const continued=metrics.lists.find(line=>line.text.includes('Continued list item'));
@@ -363,13 +363,13 @@ function assertBlockRhythm(metrics) {
   near(continued.indent,bullet.indent,'source continuation indent');
   for(const rect of continued.textRects)near(rect.x-continued.x,continued.indent,'hidden continuation prefix');
   const nested=metrics.lists.find(line=>line.text.includes('Nested bullet'));
-  assert.equal(nested.depth,1);near(nested.indent-bullet.indent,bullet.size*2,'semantic nested step');
+  assert.equal(nested.depth,1);near(nested.indent-bullet.indent,Math.max(bullet.size*1.5,bullet.marker.width+bullet.size*.375),'semantic nested step');
   const ordered=metrics.lists.filter(line=>/Ordered (nine|ten|hundred)/.test(line.text));
   assert.equal(ordered.length,3);
   for(const line of ordered){
     assert.equal(line.columns,4);near(line.indent,ordered[0].indent,'shared ordered column');assert.equal(line.marker.align,'end');
     assert.equal(line.marker.weight,'400');assert.equal(line.marker.numeric,'tabular-nums');
-    near(line.indent-line.marker.left-line.marker.width,line.size*.5,'stable ordered text gap');
+    near(line.indent-line.marker.left-line.marker.width,line.size*.375,'stable ordered text gap');
     for(const rect of line.textRects)near(rect.x-line.x,line.indent,'ordered hanging text');
   }
   assert(ordered[0].textRects.length>=2,'ordered body must wrap');
@@ -377,11 +377,11 @@ function assertBlockRhythm(metrics) {
   assert.equal(nestedOrdered.length,3);
   for(const line of nestedOrdered){
     assert.equal(line.columns,5);assert.equal(line.depth,1);assert.equal(line.marker.align,'end');
-    near(line.indent-ordered[0].indent,Math.max(line.size*2,line.marker.width+line.size*.5),'nested ordered step');
+    near(line.indent-ordered[0].indent,Math.max(line.size*1.5,line.marker.width+line.size*.375),'nested ordered step');
     assert(line.x+line.marker.left >= ordered[0].x+ordered[0].indent-.7,'nested marker escaped its parent text column');
   }
   const grandchild=metrics.lists.find(line=>line.text.includes('Nested under wide number'));
-  assert.equal(grandchild.depth,2);near(grandchild.indent-nestedOrdered[0].indent,grandchild.size*2,'mixed nesting step');
+  assert.equal(grandchild.depth,2);near(grandchild.indent-nestedOrdered[0].indent,Math.max(grandchild.size*1.5,grandchild.marker.width+grandchild.size*.375),'mixed nesting step');
   const task=metrics.lists.find(line=>line.text.includes('Task item'));
   near(task.indent,bullet.indent,'shared task text column');
   near(task.checkbox.x+task.checkbox.width/2,bullet.marker.left+bullet.marker.width/2,'centered checkbox');
@@ -393,7 +393,7 @@ function assertBlockRhythm(metrics) {
   assert.equal(htmlRoots.length,12);assert.equal(htmlChildren.length,12);
   for(const line of htmlRoots)near(line.x,htmlRoots[0].x,'HTML ordered body column');
   for(const line of htmlChildren){
-    near(line.x-htmlRoots[0].x,Math.max(line.size*2,line.marker.width+line.size*.5),'HTML nested ordered step');
+    near(line.x-htmlRoots[0].x,Math.max(line.size*1.5,line.marker.width+line.size*.375),'HTML nested ordered step');
     assert(line.x+line.marker.left >= htmlRoots[0].x-.7,'HTML nested marker escaped its parent text column');
   }
   assert.equal(metrics.htmlOrderedColumns,'3');assert.equal(metrics.htmlOrderedStart,1);
