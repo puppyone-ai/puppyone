@@ -15,7 +15,9 @@
 }
 
 .markdown-codemirror-editor .cm-line {
-  min-height: var(--po-md-content-line-height);
+  /* A theme may express line-height as a ratio or a length. Resolve the actual
+     line box instead of passing a unitless ratio to a length-only property. */
+  min-height: 1lh;
 }
 
 .markdown-codemirror-editor .cm-md-syntax-heading,

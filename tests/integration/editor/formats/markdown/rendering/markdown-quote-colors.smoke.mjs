@@ -295,8 +295,8 @@ function readHeadingRhythm() {
 }
 
 function assertHeadingRhythm(metrics, newspaper, wrapped = false) {
-  const before = newspaper ? [40,35,30,25,20,20] : [32,28,24,20,16,16];
-  const after = newspaper ? [24,19.2,16.8,14.4,12,12] : [20,16,14,12,10,10];
+  const before = newspaper ? [20,17.5,15,12.5,10,10] : [16,14,12,10,8,8];
+  const after = newspaper ? [12,9.6,8.4,7.2,6,6] : [10,8,7,6,5,5];
   const near = (actual, expected, label) => assert(Math.abs(actual-expected) < .6, `${label}: ${actual} vs ${expected}`);
   assert.equal(metrics.native.length, 6); assert.equal(metrics.html.length, 6);
   for (let index=0;index<6;index++) {

@@ -251,7 +251,7 @@ describe("Markdown HTML media layout", () => {
     expect(editorEntryCss).toContain('@import "./editor/markdown-theme-tokens.generated.css";');
     expect(profileRule).toContain("--po-md-presentation-version: 3;");
     expect(profileRule).not.toMatch(/--po-md-(?:content|h[1-6]|strong|rule)[a-z-]*:/);
-    expect(markdownProjectionCss).toContain("--po-md-content-size: var(--po-host-md-content-size);");
+    expect(markdownProjectionCss).toContain("--po-md-content-size: calc(var(--po-host-md-content-size) * var(--po-user-markdown-text-scale, 1));");
     expect(markdownProjectionCss).toContain("--po-md-content-line-height: var(--po-host-md-content-line-height);");
     expect(markdownProjectionCss).not.toContain("--po-type-editor-");
     expect(editorTextRule).toContain("font-family: var(--po-editor-content-font);");
@@ -261,7 +261,7 @@ describe("Markdown HTML media layout", () => {
     expect(htmlSurfaceRule).toContain("font-size: var(--po-md-content-size);");
     expect(htmlSurfaceRule).toContain("font-weight: var(--po-md-content-weight);");
     expect(htmlSurfaceRule).toContain("line-height: var(--po-md-content-line-height);");
-    expect(markdownProjectionCss).toContain("--po-md-h1-size: var(--po-user-md-h1-size, var(--po-host-md-h1-size));");
+    expect(markdownProjectionCss).toContain("--po-md-h1-size: calc(var(--po-user-md-h1-size, var(--po-host-md-h1-size)) * var(--po-user-markdown-text-scale, 1));");
     expect(markdownProjectionCss).toContain("--po-md-strong-weight: var(--po-user-md-strong-weight, var(--po-host-md-strong-weight));");
     expect(markdownProjectionCss).toContain("--po-md-strong-color: var(--po-user-md-strong-color, var(--po-host-md-strong-color));");
     expect(markdownContentCss).not.toMatch(/app-shell|onboarding-shell|desktop-overlay-root/);

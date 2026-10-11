@@ -115,8 +115,8 @@ describe("typography architecture", () => {
       "--po-user-header-line-height": "21px",
       "--po-user-header-meta-font-size": "14px",
       "--po-user-header-meta-line-height": "19px",
-      "--po-user-text-size-content": "16px",
-      "--po-user-editor-line-height": "26px",
+      "--po-user-text-size-content": "18px",
+      "--po-user-editor-line-height": "36px",
       "--po-user-text-size-data": "14px",
       "--po-user-code-font-size": "14px",
       "--po-user-editor-heading-1-font-size": "32px",
@@ -172,8 +172,8 @@ describe("typography architecture", () => {
         metaLineHeight: 18,
       },
       editor: {
-        content: 15,
-        lineHeight: 24,
+        content: 16,
+        lineHeight: 32,
         data: 13,
         code: 13,
         heading1: 30,
@@ -550,7 +550,7 @@ describe("typography architecture", () => {
     expect(foundations).toContain("--po-user-text-size-conversation");
     expect(foundations).toContain("--po-text-weight-medium: 500;");
     expect(foundations).toContain("--po-plain-text-reading-weight: var(--po-text-weight-medium);");
-    expect(foundations).toContain("--po-content-reading-line-height: var(--po-type-editor-line-height, 24px);");
+    expect(foundations).toContain("--po-content-reading-line-height: var(--po-type-editor-line-height, 32px);");
     expect(foundations).toContain("--po-content-reading-letter-spacing: 0;");
     expect(roles).toContain("--po-font-ui-primary: \"Geist Sans\";");
     expect(roles).toContain("--po-font-content-primary: \"Geist Sans\";");

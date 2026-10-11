@@ -18,7 +18,8 @@
       "override": "--po-font-editor-content-user"
     },
     {
-      "name": "--po-md-content-size"
+      "name": "--po-md-content-size",
+      "scaleWithText": true
     },
     {
       "name": "--po-md-content-weight"
@@ -109,24 +110,30 @@
     },
     {
       "name": "--po-md-h1-size",
-      "override": "--po-user-md-h1-size"
+      "override": "--po-user-md-h1-size",
+      "scaleWithText": true
     },
     {
       "name": "--po-md-h2-size",
-      "override": "--po-user-md-h2-size"
+      "override": "--po-user-md-h2-size",
+      "scaleWithText": true
     },
     {
       "name": "--po-md-h3-size",
-      "override": "--po-user-md-h3-size"
+      "override": "--po-user-md-h3-size",
+      "scaleWithText": true
     },
     {
-      "name": "--po-md-h4-size"
+      "name": "--po-md-h4-size",
+      "scaleWithText": true
     },
     {
-      "name": "--po-md-h5-size"
+      "name": "--po-md-h5-size",
+      "scaleWithText": true
     },
     {
-      "name": "--po-md-h6-size"
+      "name": "--po-md-h6-size",
+      "scaleWithText": true
     },
     {
       "name": "--po-md-h1-weight"
@@ -245,7 +252,8 @@
       "name": "--po-md-inline-code-radius"
     },
     {
-      "name": "--po-md-code-block-font-size"
+      "name": "--po-md-code-block-font-size",
+      "scaleWithText": true
     },
     {
       "name": "--po-md-code-block-line-height"
@@ -270,7 +278,8 @@
       "override": "--po-font-editor-content-user"
     },
     {
-      "name": "--po-md-table-font-size"
+      "name": "--po-md-table-font-size",
+      "scaleWithText": true
     },
     {
       "name": "--po-md-table-line-height"
@@ -306,16 +315,19 @@
       "name": "--po-md-metadata-font"
     },
     {
-      "name": "--po-md-metadata-font-size"
+      "name": "--po-md-metadata-font-size",
+      "scaleWithText": true
     },
     {
       "name": "--po-md-metadata-font-weight"
     },
     {
-      "name": "--po-md-math-inline-font-size"
+      "name": "--po-md-math-inline-font-size",
+      "scaleWithText": true
     },
     {
-      "name": "--po-md-math-block-font-size"
+      "name": "--po-md-math-block-font-size",
+      "scaleWithText": true
     },
     {
       "name": "--po-md-error-color"
@@ -381,7 +393,8 @@
       "name": "--po-md-mermaid-font"
     },
     {
-      "name": "--po-md-mermaid-font-size"
+      "name": "--po-md-mermaid-font-size",
+      "scaleWithText": true
     }
   ],
   "integerSizes": [

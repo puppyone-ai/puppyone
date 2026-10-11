@@ -32,7 +32,7 @@
     --po-host-md-content-size: 16px;
     --po-host-md-content-weight: var(--po-content-reading-weight);
     --po-host-md-content-letter-spacing: 0;
-    --po-host-md-content-line-height: 24px;
+    --po-host-md-content-line-height: 2;
     --po-host-md-block-gap: 16px;
     --po-host-md-paragraph-gap-before: 0px;
     --po-host-md-paragraph-gap-after: 0px;
@@ -41,8 +41,8 @@
     --po-host-md-list-marker-gap: .375em;
     --po-host-md-list-indent-step: 1.5em;
     --po-host-md-list-item-gap: .5em;
-    --po-host-md-heading-gap-before: 32px;
-    --po-host-md-heading-gap-after: 20px;
+    --po-host-md-heading-gap-before: 16px;
+    --po-host-md-heading-gap-after: 10px;
     --po-host-md-h1-gap-before: var(--po-host-md-heading-gap-before);
     --po-host-md-h1-gap-after: var(--po-host-md-heading-gap-after);
     --po-host-md-h2-gap-before: calc(var(--po-host-md-heading-gap-before) * .875);
@@ -152,7 +152,7 @@
   --po-md-surface-background: var(--po-host-md-surface-background);
   --po-md-content-color: var(--po-host-md-content-color);
   --po-md-content-font: var(--po-font-editor-content-user, var(--po-host-md-content-font));
-  --po-md-content-size: var(--po-host-md-content-size);
+  --po-md-content-size: calc(var(--po-host-md-content-size) * var(--po-user-markdown-text-scale, 1));
   --po-md-content-weight: var(--po-host-md-content-weight);
   --po-md-content-letter-spacing: var(--po-host-md-content-letter-spacing);
   --po-md-content-line-height: var(--po-host-md-content-line-height);
@@ -182,12 +182,12 @@
   --po-md-heading-weight: var(--po-host-md-heading-weight);
   --po-md-heading-line-height: var(--po-host-md-heading-line-height);
   --po-md-heading-border-color: var(--po-host-md-heading-border-color);
-  --po-md-h1-size: var(--po-user-md-h1-size, var(--po-host-md-h1-size));
-  --po-md-h2-size: var(--po-user-md-h2-size, var(--po-host-md-h2-size));
-  --po-md-h3-size: var(--po-user-md-h3-size, var(--po-host-md-h3-size));
-  --po-md-h4-size: var(--po-host-md-h4-size);
-  --po-md-h5-size: var(--po-host-md-h5-size);
-  --po-md-h6-size: var(--po-host-md-h6-size);
+  --po-md-h1-size: calc(var(--po-user-md-h1-size, var(--po-host-md-h1-size)) * var(--po-user-markdown-text-scale, 1));
+  --po-md-h2-size: calc(var(--po-user-md-h2-size, var(--po-host-md-h2-size)) * var(--po-user-markdown-text-scale, 1));
+  --po-md-h3-size: calc(var(--po-user-md-h3-size, var(--po-host-md-h3-size)) * var(--po-user-markdown-text-scale, 1));
+  --po-md-h4-size: calc(var(--po-host-md-h4-size) * var(--po-user-markdown-text-scale, 1));
+  --po-md-h5-size: calc(var(--po-host-md-h5-size) * var(--po-user-markdown-text-scale, 1));
+  --po-md-h6-size: calc(var(--po-host-md-h6-size) * var(--po-user-markdown-text-scale, 1));
   --po-md-h1-weight: var(--po-host-md-h1-weight);
   --po-md-h2-weight: var(--po-host-md-h2-weight);
   --po-md-h3-weight: var(--po-host-md-h3-weight);
@@ -226,7 +226,7 @@
   --po-md-inline-code-font-size: var(--po-host-md-inline-code-font-size);
   --po-md-inline-code-padding: var(--po-host-md-inline-code-padding);
   --po-md-inline-code-radius: var(--po-host-md-inline-code-radius);
-  --po-md-code-block-font-size: var(--po-host-md-code-block-font-size);
+  --po-md-code-block-font-size: calc(var(--po-host-md-code-block-font-size) * var(--po-user-markdown-text-scale, 1));
   --po-md-code-block-line-height: var(--po-host-md-code-block-line-height);
   --po-md-code-block-font-weight: var(--po-host-md-code-block-font-weight);
   --po-md-code-block-padding: var(--po-host-md-code-block-padding);
@@ -234,7 +234,7 @@
   --po-md-code-focus-background: var(--po-host-md-code-focus-background);
   --po-md-code-caret-color: var(--po-host-md-code-caret-color);
   --po-md-table-font: var(--po-font-editor-content-user, var(--po-host-md-table-font));
-  --po-md-table-font-size: var(--po-host-md-table-font-size);
+  --po-md-table-font-size: calc(var(--po-host-md-table-font-size) * var(--po-user-markdown-text-scale, 1));
   --po-md-table-line-height: var(--po-host-md-table-line-height);
   --po-md-table-color: var(--po-host-md-table-color);
   --po-md-table-header-color: var(--po-host-md-table-header-color);
@@ -246,10 +246,10 @@
   --po-md-table-header-background: var(--po-host-md-table-header-background);
   --po-md-metadata-color: var(--po-host-md-metadata-color);
   --po-md-metadata-font: var(--po-host-md-metadata-font);
-  --po-md-metadata-font-size: var(--po-host-md-metadata-font-size);
+  --po-md-metadata-font-size: calc(var(--po-host-md-metadata-font-size) * var(--po-user-markdown-text-scale, 1));
   --po-md-metadata-font-weight: var(--po-host-md-metadata-font-weight);
-  --po-md-math-inline-font-size: var(--po-host-md-math-inline-font-size);
-  --po-md-math-block-font-size: var(--po-host-md-math-block-font-size);
+  --po-md-math-inline-font-size: calc(var(--po-host-md-math-inline-font-size) * var(--po-user-markdown-text-scale, 1));
+  --po-md-math-block-font-size: calc(var(--po-host-md-math-block-font-size) * var(--po-user-markdown-text-scale, 1));
   --po-md-error-color: var(--po-host-md-error-color);
   --po-md-media-background: var(--po-host-md-media-background);
   --po-md-metadata-line-height: var(--po-host-md-metadata-line-height);
@@ -271,5 +271,5 @@
   --po-md-mermaid-warning: var(--po-host-md-mermaid-warning);
   --po-md-mermaid-danger: var(--po-host-md-mermaid-danger);
   --po-md-mermaid-font: var(--po-host-md-mermaid-font);
-  --po-md-mermaid-font-size: var(--po-host-md-mermaid-font-size);
+  --po-md-mermaid-font-size: calc(var(--po-host-md-mermaid-font-size) * var(--po-user-markdown-text-scale, 1));
 }

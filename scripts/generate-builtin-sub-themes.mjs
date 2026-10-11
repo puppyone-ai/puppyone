@@ -399,9 +399,15 @@ function renderMarkdownProjection(defaultSource) {
       declaration.value = declaration.value.replace(/--po-md-([a-z0-9-]+)/g, "--po-host-md-$1");
     });
   });
-  const bindings = markdownContract.tokens.map(({ name, override }) => {
+  const bindings = markdownContract.tokens.map(({ name, override, scaleWithText }) => {
     const host = name.replace("--po-md-", "--po-host-md-");
-    return `  ${name}: ${override ? `var(${override}, var(${host}))` : `var(${host})`};`;
+    const source = override ? `var(${override}, var(${host}))` : `var(${host})`;
+    // Host references remain unscaled. Each public size role applies the
+    // application preference exactly once; unitless line heights inherit it.
+    const value = scaleWithText
+      ? `calc(${source} * var(--po-user-markdown-text-scale, 1))`
+      : source;
+    return `  ${name}: ${value};`;
   });
   return [
     "/* Generated from the Markdown theme contract and default-neutral/theme.css.",

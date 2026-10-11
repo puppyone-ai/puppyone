@@ -4,6 +4,7 @@ import {
   BUILTIN_FONT_CATALOG,
   createCatalogFontFamily,
   resolveTypography,
+  TYPOGRAPHY_PRODUCT_DEFAULT_SCALE,
   TYPOGRAPHY_SCALE_METRICS,
   type FontCatalogEntry,
   type ResolvedTypography,
@@ -148,6 +149,11 @@ export function buildTypographyCustomProperties(
     "--po-user-header-meta-line-height": `${metrics.header.metaLineHeight}px`,
     "--po-user-text-size-content": `${metrics.editor.content}px`,
     "--po-user-editor-line-height": `${metrics.editor.lineHeight}px`,
+    // Registered Markdown retains its theme-owned baseline and scales once at
+    // the generated binding boundary, including references between theme roles.
+    "--po-user-markdown-text-scale": String(
+      metrics.editor.content / TYPOGRAPHY_SCALE_METRICS[TYPOGRAPHY_PRODUCT_DEFAULT_SCALE].editor.content,
+    ),
     "--po-user-text-size-data": `${metrics.editor.data}px`,
     "--po-user-code-font-size": `${metrics.editor.code}px`,
     "--po-user-editor-heading-1-font-size": `${metrics.editor.heading1}px`,

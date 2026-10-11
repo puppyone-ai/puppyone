@@ -115,7 +115,7 @@
     --po-md-content-size: 16px;
     --po-md-content-weight: var(--po-content-reading-weight);
     --po-md-content-letter-spacing: 0;
-    --po-md-content-line-height: 1.6;
+    --po-md-content-line-height: 2;
     --po-md-block-gap: 16px;
     --po-md-paragraph-gap-before: 0px;
     --po-md-paragraph-gap-after: 0px;
@@ -124,8 +124,8 @@
     --po-md-list-marker-gap: .375em;
     --po-md-list-indent-step: 1.5em;
     --po-md-list-item-gap: .5em;
-    --po-md-heading-gap-before: 32px;
-    --po-md-heading-gap-after: 20px;
+    --po-md-heading-gap-before: 16px;
+    --po-md-heading-gap-after: 10px;
     --po-md-h1-gap-before: var(--po-md-heading-gap-before);
     --po-md-h1-gap-after: var(--po-md-heading-gap-after);
     --po-md-h2-gap-before: calc(var(--po-md-heading-gap-before) * .875);
