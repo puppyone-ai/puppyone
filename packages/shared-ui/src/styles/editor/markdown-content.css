@@ -4,7 +4,7 @@
 .markdown-codemirror-editor {
   --po-selection-background: var(--po-md-selection-bg);
   --po-selection-inactive-background: var(--po-md-selection-inactive-bg);
-  --po-md-presentation-version: 3;
+  --po-md-presentation-version: 4;
   --po-editor-content-font: var(--po-md-content-font);
   background: var(--po-md-surface-background);
   color: var(--po-md-content-color);

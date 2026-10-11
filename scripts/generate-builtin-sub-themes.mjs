@@ -27,11 +27,11 @@ const markdownContract = JSON.parse(readFileSync(path.join(repoRoot, "shared/mar
 const rootThemeManifest = JSON.parse(readFileSync(rootThemeManifestPath, "utf8"));
 
 try {
-  const definitions = await buildDefinitions();
-  const fallback = validateFallbackTheme(definitions);
-  const fallbackSource = parseSingleFileThemeCss(readFileSync(path.join(repoRoot, "sub-themes", fallback.id.replaceAll(".", "-"), "theme.css"), "utf8"), {
+  const fallbackSource = parseSingleFileThemeCss(readFileSync(path.join(packagesRoot, "default-neutral", "theme.css"), "utf8"), {
     allowReservedBuiltinId: true, allowBuiltinCompatibilityMetadata: true,
   }).stylesheets.markdown;
+  const definitions = await buildDefinitions(fallbackSource);
+  const fallback = validateFallbackTheme(definitions);
   const outputs = new Map([
     [outputPath, renderRegistry(definitions)],
     [path.join(repoRoot, "electron/main/themes/markdown-theme-defaults.generated.mjs"),
@@ -70,7 +70,7 @@ export const DEFAULT_MARKDOWN_THEME_CSS = ${JSON.stringify(fallbackSource)};
   process.exit(1);
 }
 
-async function buildDefinitions() {
+async function buildDefinitions(markdownTypographyDefaultsCss) {
   if (!existsSync(packagesRoot)) fail("sub-themes/ does not exist.");
   const rootThemes = new Map(rootThemeManifest.styles.map((definition) => [definition.id, definition]));
   const entries = readdirSync(packagesRoot, { withFileTypes: true })
@@ -133,6 +133,7 @@ async function buildDefinitions() {
         sourcePath: relativeThemePath,
         supportedModes: parsed.modes,
         allowReservedBuiltinId: true,
+        markdownTypographyDefaultsCss,
       });
       compiledCss[target] = result.css;
       if (target === "application") firstPaint = result.firstPaint;
@@ -399,20 +400,26 @@ function renderMarkdownProjection(defaultSource) {
       declaration.value = declaration.value.replace(/--po-md-([a-z0-9-]+)/g, "--po-host-md-$1");
     });
   });
-  const bindings = markdownContract.tokens.map(({ name, override, scaleWithText }) => {
+  const bindings = markdownContract.tokens.map(({ name, override }) => {
     const host = name.replace("--po-md-", "--po-host-md-");
-    const source = override ? `var(${override}, var(${host}))` : `var(${host})`;
-    // Host references remain unscaled. Each public size role applies the
-    // application preference exactly once; unitless line heights inherit it.
-    const value = scaleWithText
-      ? `calc(${source} * var(--po-user-markdown-text-scale, 1))`
-      : source;
-    return `  ${name}: ${value};`;
+    return `  ${name}: ${override ? `var(${override}, var(${host}))` : `var(${host})`};`;
   });
+  const presetBindings = preset => markdownContract.tokens
+    .filter(({ sizePresets }) => sizePresets)
+    .map(({ name }) => {
+      const host = name.replace("--po-md-", "--po-host-md-");
+      return `  ${host}: var(${host}-${preset});`;
+    });
+  // Scope stops at nested preference roots, so previews/portals cannot inherit
+  // a competing outer preset. Components consume the same resolved role map.
+  const presets = markdownContract.sizePresets.choices
+    .filter(preset => preset !== markdownContract.sizePresets.default)
+    .map(preset => `@scope ([data-typography-scale="${preset}"]) to ([data-typography-scale]) {\n  .markdown-codemirror-editor {\n${presetBindings(preset).map(line => `  ${line}`).join("\n")}\n  }\n}`);
   return [
     "/* Generated from the Markdown theme contract and default-neutral/theme.css.",
     "   No handwritten visual defaults belong in renderer adapters. */",
     `@layer fallback {\n${defaults.toString()}\n}`,
-    ".markdown-codemirror-editor {", ...bindings, "}", "",
+    ".markdown-codemirror-editor {", ...presetBindings(markdownContract.sizePresets.default), ...bindings, "}",
+    ...presets, "",
   ].join("\n");
 }

@@ -145,8 +145,8 @@ export const TYPOGRAPHY_SCALE_METRICS = Object.freeze({
       metaLineHeight: 18,
     }),
     editor: Object.freeze({
-      content: 16,
-      lineHeight: 32,
+      content: 15,
+      lineHeight: 30,
       data: 13,
       code: 13,
       heading1: 30,
@@ -204,8 +204,8 @@ export const TYPOGRAPHY_SCALE_METRICS = Object.freeze({
       metaLineHeight: 19,
     }),
     editor: Object.freeze({
-      content: 18,
-      lineHeight: 36,
+      content: 16,
+      lineHeight: 32,
       data: 14,
       code: 14,
       heading1: 32,

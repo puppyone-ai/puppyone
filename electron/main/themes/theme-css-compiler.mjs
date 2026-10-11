@@ -4,6 +4,12 @@ import { readFileSync } from "node:fs";
 import { parse, walk } from "css-tree";
 import { THEME_TARGETS } from "./theme-package-contract.mjs";
 import { completeSelectionPairs, validateSelectionColors } from "./theme-selection-colors.mjs";
+import {
+  MARKDOWN_SIZE_PRESETS,
+  MARKDOWN_SIZE_ROLES,
+  MARKDOWN_DEFAULT_SIZE_PRESET,
+  resolveMarkdownTypographyPresets,
+} from "./markdown-typography-presets.mjs";
 
 const targetSet = new Set(THEME_TARGETS);
 const themeIdPattern = /^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*){2,}$/;
@@ -147,7 +153,11 @@ const markdownContract = JSON.parse(readFileSync(
 const markdownTokenMap = new Map(markdownContract.tokens.map(({ name }) => [
   name, name.replace("--po-md-", "--po-host-md-"),
 ]));
-const markdownIntegerSizeTokens = new Set(markdownContract.integerSizes);
+const markdownIntegerSizeTokens = new Set([
+  ...markdownContract.integerSizes,
+  ...markdownContract.integerSizes.flatMap(name => MARKDOWN_SIZE_PRESETS.map(preset => `${name}-${preset}`)),
+]);
+const markdownSizeRoles = new Set(MARKDOWN_SIZE_ROLES);
 const csvTokenMap = new Map([
   ["--po-csv-selection-bg", "--po-host-csv-selection-bg"],
   ["--po-csv-selection-inactive-bg", "--po-host-csv-selection-inactive-bg"],
@@ -173,6 +183,7 @@ export async function compileThemeCss({
   loadImport,
   resolveAssetUrl,
   allowReservedBuiltinId = false,
+  markdownTypographyDefaultsCss,
 }) {
   if (typeof css !== "string") throw new TypeError("Theme CSS must be a string.");
   if (
@@ -193,6 +204,10 @@ export async function compileThemeCss({
   validateAtRules(root);
   validateModeContract(root, supportedModes, target);
   validateApplicationModeIsolation(root, { target, supportedModes });
+  if (target === "markdown") {
+    validateDeclarations(root, { target, project: false });
+    resolveMarkdownTypographyPresets(root, markdownTypographyDefaultsCss);
+  }
   validateSelectionColors(root, {
     target,
     inheritedColors: applicationColorTokens,
@@ -533,7 +548,7 @@ function normalizeSourcePath(value) {
   return normalized.split(path.sep).join("/");
 }
 
-function validateDeclarations(root, { target }) {
+function validateDeclarations(root, { target, project = true }) {
   root.walkDecls((declaration) => {
     const property = declaration.prop.toLowerCase();
     const value = declaration.value.trim().toLowerCase();
@@ -557,13 +572,7 @@ function validateDeclarations(root, { target }) {
       declaration.prop = contract.host;
     }
     if (target === "markdown") {
-      const mapped = markdownTokenMap.get(property);
-      if (!mapped) throw new TypeError("Markdown Sub Themes may only declare public Markdown tokens.");
-      if (markdownIntegerSizeTokens.has(property) && parseIntegerPixelSize(value) === null) {
-        throw new TypeError(`Markdown size token ${property} must be a plain integer pixel value.`);
-      }
-      declaration.prop = mapped;
-      declaration.value = projectTokenReferences(declaration.value, markdownTokenMap);
+      validateMarkdownDeclaration(declaration, { property, value, project });
     }
     if (target === "csv") {
       const mapped = csvTokenMap.get(property);
@@ -578,6 +587,21 @@ function validateDeclarations(root, { target }) {
       throw new TypeError("Theme CSS contains an unsupported executable value.");
     }
   });
+}
+
+function validateMarkdownDeclaration(declaration, { property, value, project }) {
+  const mapped = markdownTokenMap.get(property);
+  if (!mapped) throw new TypeError("Markdown Sub Themes may only declare public Markdown tokens.");
+  const isPresetAlias = markdownSizeRoles.has(property)
+    && value === `var(${property}-${MARKDOWN_DEFAULT_SIZE_PRESET})`;
+  const isOmittedSize = !project && value.length === 0 && markdownIntegerSizeTokens.has(property);
+  if (markdownIntegerSizeTokens.has(property) && !isPresetAlias && !isOmittedSize && parseIntegerPixelSize(value) === null) {
+    throw new TypeError(`Markdown size token ${property} must be a plain integer pixel value.`);
+  }
+  if (project) {
+    declaration.prop = mapped;
+    declaration.value = projectTokenReferences(declaration.value, markdownTokenMap);
+  }
 }
 
 function projectTokenReferences(value, tokenMap) {

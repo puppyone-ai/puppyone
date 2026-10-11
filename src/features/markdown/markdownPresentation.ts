@@ -58,14 +58,13 @@ export const MARKDOWN_STRONG_WEIGHT_OPTIONS = [
   { id: "heavy" as const, labelKey: "settings.editor.markdownPresentation.strongWeight.heavy.label" },
 ] satisfies readonly { id: MarkdownStrongWeight; labelKey: string }[];
 
-const MARKDOWN_HEADING_SIZE: Record<
-  Exclude<MarkdownHeadingScale, "theme">,
-  Readonly<{ h1: string; h2: string; h3: string }>
-> = {
-  compact: { h1: "26px", h2: "20px", h3: "17px" },
-  default: { h1: "30px", h2: "23px", h3: "19px" },
-  large: { h1: "34px", h2: "26px", h3: "21px" },
-};
+// Legacy heading choices select the registered theme's resolved preset. They
+// must not carry a second hard-coded font-size catalog outside the theme file.
+const MARKDOWN_HEADING_PRESET = {
+  compact: "small",
+  default: "medium",
+  large: "large",
+} as const;
 
 const MARKDOWN_STRONG_WEIGHT: Record<Exclude<MarkdownStrongWeight, "theme">, string> = {
   medium: "550",
@@ -128,11 +127,11 @@ export function resolveMarkdownPresentationStyle(
 ): CSSProperties {
   const style: CSSProperties = {};
   if (settings.headingScale !== "theme") {
-    const headingSize = MARKDOWN_HEADING_SIZE[settings.headingScale];
+    const preset = MARKDOWN_HEADING_PRESET[settings.headingScale];
     Object.assign(style, {
-      "--po-md-h1-size": headingSize.h1,
-      "--po-md-h2-size": headingSize.h2,
-      "--po-md-h3-size": headingSize.h3,
+      "--po-md-h1-size": `var(--po-md-h1-size-${preset})`,
+      "--po-md-h2-size": `var(--po-md-h2-size-${preset})`,
+      "--po-md-h3-size": `var(--po-md-h3-size-${preset})`,
     });
   }
   if (settings.strongWeight !== "theme") {

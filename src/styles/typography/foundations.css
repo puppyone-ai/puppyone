@@ -86,7 +86,7 @@
   --po-content-reading-weight: 450;
   --po-plain-text-reading-weight: var(--po-text-weight-medium);
   --po-content-reading-letter-spacing: 0;
-  --po-content-reading-line-height: var(--po-type-editor-line-height, 32px);
+  --po-content-reading-line-height: var(--po-type-editor-line-height, 30px);
 }
 
 :root,
@@ -121,9 +121,9 @@
      Editor values move Markdown, data tables, and code together. */
   --po-type-editor-content: var(
     --po-user-text-size-content,
-    var(--po-theme-text-size-content, 16px)
+    var(--po-theme-text-size-content, 15px)
   );
-  --po-type-editor-line-height: var(--po-user-editor-line-height, 32px);
+  --po-type-editor-line-height: var(--po-user-editor-line-height, 30px);
   --po-type-editor-data: var(
     --po-user-text-size-data,
     var(--po-theme-text-size-data, 13px)

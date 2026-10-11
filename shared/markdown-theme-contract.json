@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "tokens": [
     {
       "name": "--po-md-selection-bg"
@@ -19,7 +19,7 @@
     },
     {
       "name": "--po-md-content-size",
-      "scaleWithText": true
+      "sizePresets": true
     },
     {
       "name": "--po-md-content-weight"
@@ -111,29 +111,29 @@
     {
       "name": "--po-md-h1-size",
       "override": "--po-user-md-h1-size",
-      "scaleWithText": true
+      "sizePresets": true
     },
     {
       "name": "--po-md-h2-size",
       "override": "--po-user-md-h2-size",
-      "scaleWithText": true
+      "sizePresets": true
     },
     {
       "name": "--po-md-h3-size",
       "override": "--po-user-md-h3-size",
-      "scaleWithText": true
+      "sizePresets": true
     },
     {
       "name": "--po-md-h4-size",
-      "scaleWithText": true
+      "sizePresets": true
     },
     {
       "name": "--po-md-h5-size",
-      "scaleWithText": true
+      "sizePresets": true
     },
     {
       "name": "--po-md-h6-size",
-      "scaleWithText": true
+      "sizePresets": true
     },
     {
       "name": "--po-md-h1-weight"
@@ -243,7 +243,8 @@
       "name": "--po-md-blockquote-padding-inline"
     },
     {
-      "name": "--po-md-inline-code-font-size"
+      "name": "--po-md-inline-code-font-size",
+      "sizePresets": true
     },
     {
       "name": "--po-md-inline-code-padding"
@@ -253,7 +254,7 @@
     },
     {
       "name": "--po-md-code-block-font-size",
-      "scaleWithText": true
+      "sizePresets": true
     },
     {
       "name": "--po-md-code-block-line-height"
@@ -279,7 +280,7 @@
     },
     {
       "name": "--po-md-table-font-size",
-      "scaleWithText": true
+      "sizePresets": true
     },
     {
       "name": "--po-md-table-line-height"
@@ -316,18 +317,18 @@
     },
     {
       "name": "--po-md-metadata-font-size",
-      "scaleWithText": true
+      "sizePresets": true
     },
     {
       "name": "--po-md-metadata-font-weight"
     },
     {
       "name": "--po-md-math-inline-font-size",
-      "scaleWithText": true
+      "sizePresets": true
     },
     {
       "name": "--po-md-math-block-font-size",
-      "scaleWithText": true
+      "sizePresets": true
     },
     {
       "name": "--po-md-error-color"
@@ -394,7 +395,133 @@
     },
     {
       "name": "--po-md-mermaid-font-size",
-      "scaleWithText": true
+      "sizePresets": true
+    },
+    {
+      "name": "--po-md-content-size-small"
+    },
+    {
+      "name": "--po-md-content-size-medium"
+    },
+    {
+      "name": "--po-md-content-size-large"
+    },
+    {
+      "name": "--po-md-h1-size-small"
+    },
+    {
+      "name": "--po-md-h1-size-medium"
+    },
+    {
+      "name": "--po-md-h1-size-large"
+    },
+    {
+      "name": "--po-md-h2-size-small"
+    },
+    {
+      "name": "--po-md-h2-size-medium"
+    },
+    {
+      "name": "--po-md-h2-size-large"
+    },
+    {
+      "name": "--po-md-h3-size-small"
+    },
+    {
+      "name": "--po-md-h3-size-medium"
+    },
+    {
+      "name": "--po-md-h3-size-large"
+    },
+    {
+      "name": "--po-md-h4-size-small"
+    },
+    {
+      "name": "--po-md-h4-size-medium"
+    },
+    {
+      "name": "--po-md-h4-size-large"
+    },
+    {
+      "name": "--po-md-h5-size-small"
+    },
+    {
+      "name": "--po-md-h5-size-medium"
+    },
+    {
+      "name": "--po-md-h5-size-large"
+    },
+    {
+      "name": "--po-md-h6-size-small"
+    },
+    {
+      "name": "--po-md-h6-size-medium"
+    },
+    {
+      "name": "--po-md-h6-size-large"
+    },
+    {
+      "name": "--po-md-inline-code-font-size-small"
+    },
+    {
+      "name": "--po-md-inline-code-font-size-medium"
+    },
+    {
+      "name": "--po-md-inline-code-font-size-large"
+    },
+    {
+      "name": "--po-md-code-block-font-size-small"
+    },
+    {
+      "name": "--po-md-code-block-font-size-medium"
+    },
+    {
+      "name": "--po-md-code-block-font-size-large"
+    },
+    {
+      "name": "--po-md-table-font-size-small"
+    },
+    {
+      "name": "--po-md-table-font-size-medium"
+    },
+    {
+      "name": "--po-md-table-font-size-large"
+    },
+    {
+      "name": "--po-md-metadata-font-size-small"
+    },
+    {
+      "name": "--po-md-metadata-font-size-medium"
+    },
+    {
+      "name": "--po-md-metadata-font-size-large"
+    },
+    {
+      "name": "--po-md-math-inline-font-size-small"
+    },
+    {
+      "name": "--po-md-math-inline-font-size-medium"
+    },
+    {
+      "name": "--po-md-math-inline-font-size-large"
+    },
+    {
+      "name": "--po-md-math-block-font-size-small"
+    },
+    {
+      "name": "--po-md-math-block-font-size-medium"
+    },
+    {
+      "name": "--po-md-math-block-font-size-large"
+    },
+    {
+      "name": "--po-md-mermaid-font-size-small"
+    },
+    {
+      "name": "--po-md-mermaid-font-size-medium"
+    },
+    {
+      "name": "--po-md-mermaid-font-size-large"
     }
   ],
   "integerSizes": [
@@ -405,5 +532,13 @@
     "--po-md-h4-size",
     "--po-md-h5-size",
     "--po-md-h6-size"
-  ]
+  ],
+  "sizePresets": {
+    "choices": [
+      "small",
+      "medium",
+      "large"
+    ],
+    "default": "medium"
+  }
 }

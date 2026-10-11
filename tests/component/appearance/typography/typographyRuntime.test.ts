@@ -87,8 +87,8 @@ describe("typography runtime boundary", () => {
     expect(element.style.getPropertyValue("--po-user-terminal-font-size")).toBe("14px");
     expect(element.style.getPropertyValue("--po-user-right-sidebar-heading-1-font-size")).toBe("23px");
     expect(element.style.getPropertyValue("--po-user-right-sidebar-heading-2-font-size")).toBe("18px");
-    expect(element.style.getPropertyValue("--po-user-text-size-content")).toBe("18px");
-    expect(element.style.getPropertyValue("--po-user-editor-line-height")).toBe("36px");
+    expect(element.style.getPropertyValue("--po-user-text-size-content")).toBe("16px");
+    expect(element.style.getPropertyValue("--po-user-editor-line-height")).toBe("32px");
     expect(element.style.getPropertyValue("--po-user-text-size-data")).toBe("14px");
     expect(element.style.getPropertyValue("--po-user-code-font-size")).toBe("14px");
     expect(element.style.getPropertyValue("--po-user-editor-heading-1-font-size")).toBe("32px");
